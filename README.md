@@ -8,14 +8,17 @@ nchat is a console-based chat client for Linux and macOS, with support for teleg
 Usage
 =====
 Usage:
+
     nchat [OPTION]
 
 Command-line Options:
+
     -h, --help        display this help and exit
     -s, --setup       set up chat protocol account
     -v, --version     output version information and exit
 
 Interactive Commands:
+
     Tab               next chat
     Sh-Tab            previous chat
     PageDn            next page
