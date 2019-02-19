@@ -60,7 +60,7 @@ void UiDefault::Init()
     // general
     {"show_emoji", "1"},
     // layout
-    {"input_rows", "2"},
+    {"input_rows", "3"},
     {"list_width", "14"},
   };
 
