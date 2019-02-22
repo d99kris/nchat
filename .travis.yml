@@ -8,6 +8,18 @@ os:
   - linux
   - osx
 
+addons:
+  apt:
+    packages:
+      - cmake
+      - gperf
+      - libreadline-dev
+      - libssl-dev
+      - libncurses-dev
+
+install:
+  - if [ $TRAVIS_OS_NAME = osx ]; then brew update && brew bundle; fi
+
 script:
   - mkdir -p build
   - cd build
