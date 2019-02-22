@@ -8,6 +8,9 @@ os:
   - linux
   - osx
 
+dist:
+  - xenial
+
 addons:
   apt:
     packages:
