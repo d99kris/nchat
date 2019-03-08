@@ -21,7 +21,7 @@ class Ui;
 class Telegram : public Protocol
 {
 public:
-  Telegram(bool p_IsSetup, std::shared_ptr<Ui> p_Ui);
+  Telegram(std::shared_ptr<Ui> p_Ui, bool p_IsSetup, bool p_IsVerbose);
   virtual ~Telegram();
   virtual std::string GetName();  
 
@@ -57,8 +57,9 @@ private:
 
 private:
   Config m_Config;
-  bool m_IsSetup;
   std::shared_ptr<Ui> m_Ui;
+  bool m_IsSetup = false;
+  bool m_IsVerbose = false;
   std::unique_ptr<td::Client> m_Client;
   td::td_api::object_ptr<td::td_api::AuthorizationState> m_AuthorizationState;
   bool m_Authorized = false;

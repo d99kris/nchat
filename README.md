@@ -17,6 +17,7 @@ Usage:
 
 Command-line Options:
 
+    -e, --verbose     enable verbose logging
     -h, --help        display this help and exit
     -s, --setup       set up chat protocol account
     -v, --version     output version information and exit
@@ -41,9 +42,8 @@ nchat is developed and tested on Linux and macOS. Current version has been teste
 
 Build / Install
 ===============
-Nchat consists of a large code-base (mainly the Telegram client library). Aside from below
-instructions, it is recommended to install ccache for faster build times if planning to do
-development work on nchat.
+Nchat consists of a large code-base (mainly the Telegram client library), so be prepared for
+a relative long first build time. Subsequent builds will be faster by using ccache.
 
 Linux / Ubuntu
 --------------
@@ -89,9 +89,28 @@ In order to configure / setup an account one needs to run nchat in setup mode:
 
     nchat --setup
 
-Once the setup process is completed nchat will exit, and can now be restarted:
+The setup mode prompts for phone number, which shall be added with country code. Example:
+
+    $ nchat --setup
+    Protocols:
+    0. telegram
+    1. Exit setup
+    Select protocol (0): 0
+    Enter phone number: +65xxxxxxxx
+    Enter authentication code: yyyyy
+    Saving to /home/d99kris/.nchat/main.conf
+
+Once the setup process is completed nchat will exit, and can now be restarted in normal mode:
 
     nchat
+
+Troubleshooting
+===============
+If any issues are observed, try running nchat with verbose logging
+
+    nchat --verbose
+
+and provide a copy of ~/.nchat/td.log when reporting the issue.
 
 Configuration
 =============

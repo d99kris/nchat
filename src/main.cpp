@@ -24,10 +24,10 @@ int main(int argc, char *argv[])
 {
   // Argument handling
   bool isSetup = false;
-  if (argc >= 2)
+  bool isVerbose = false;
+  const std::vector<std::string> args(argv + 1, argv + argc);
+  for (auto& arg : args)
   {
-    std::string arg(argv[1]);
-
     if ((arg == "-s") || (arg == "--setup"))
     {
       isSetup = true;
@@ -36,6 +36,10 @@ int main(int argc, char *argv[])
     {
       ShowHelp();
       return 0;
+    }
+    else if ((arg == "-e") || (arg == "--verbose"))
+    {
+      isVerbose = true;
     }
     else if ((arg == "-v") || (arg == "--version"))
     {
@@ -96,7 +100,7 @@ int main(int argc, char *argv[])
   // Construct protocols
   std::vector<std::shared_ptr<Protocol>> allProtocols =
   {
-    std::make_shared<Telegram>(isSetup, ui),
+    std::make_shared<Telegram>(ui, isSetup, isVerbose),
   };
 
   // Handle setup
@@ -160,6 +164,7 @@ static void ShowHelp()
     "Usage: nchat [OPTION]\n"
     "\n"
     "Command-line Options:\n"
+    "   -e, --verbose     enable verbose logging\n"
     "   -h, --help        display this help and exit\n"
     "   -s, --setup       set up chat protocol account\n"
     "   -v, --version     output version information and exit\n"
@@ -181,7 +186,7 @@ static void ShowHelp()
 static void ShowVersion()
 {
   std::cout <<
-    "nchat v1\n"
+    "nchat v1.1\n"
     "\n"
     "Copyright (c) 2019 Kristofer Berggren\n"
     "\n"

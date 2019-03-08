@@ -64,9 +64,10 @@ auto overloaded(F... f)
   return detail::overload<F...>(f...);
 }
 
-Telegram::Telegram(bool p_IsSetup, std::shared_ptr<Ui> p_Ui)
-  : m_IsSetup(p_IsSetup)
-  , m_Ui(p_Ui)
+Telegram::Telegram(std::shared_ptr<Ui> p_Ui, bool p_IsSetup, bool p_IsVerbose)
+  : m_Ui(p_Ui)
+  , m_IsSetup(p_IsSetup)
+  , m_IsVerbose(p_IsVerbose)
 {
   // Init config
   const std::map<std::string, std::string> defaultConfig =
@@ -222,10 +223,10 @@ void Telegram::Stop()
 
 void Telegram::Init()
 {
-  td::Log::set_verbosity_level(1);
+  td::Log::set_verbosity_level(m_IsVerbose ? 5 : 1);
   const std::string logPath(Util::GetConfigDir() + std::string("/td.log"));
   td::Log::set_file_path(logPath);
-  td::Log::set_max_file_size(8192);  
+  td::Log::set_max_file_size(1024 * 1024);
   m_Client = std::make_unique<td::Client>();
 }
 
