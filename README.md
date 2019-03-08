@@ -43,7 +43,7 @@ nchat is developed and tested on Linux and macOS. Current version has been teste
 Build / Install
 ===============
 Nchat consists of a large code-base (mainly the Telegram client library), so be prepared for
-a relative long first build time. Subsequent builds will be faster by using ccache.
+a relatively long first build time. Subsequent builds will be faster by using ccache.
 
 Linux / Ubuntu
 --------------
@@ -89,7 +89,7 @@ In order to configure / setup an account one needs to run nchat in setup mode:
 
     nchat --setup
 
-The setup mode prompts for phone number, which shall be added with country code. Example:
+The setup mode prompts for phone number, which shall be entered with country code. Example:
 
     $ nchat --setup
     Protocols:
@@ -99,6 +99,12 @@ The setup mode prompts for phone number, which shall be added with country code.
     Enter phone number: +65xxxxxxxx
     Enter authentication code: yyyyy
     Saving to /home/d99kris/.nchat/main.conf
+
+If you are not sure what phone number to enter, open Telegram on your phone and press the menu
+button and use the number displayed there (omitting spaces, so for the below screenshot the
+number to enter is +6511111111).
+
+![screenshotPhone](/doc/screenshot_phone.png) 
 
 Once the setup process is completed nchat will exit, and can now be restarted in normal mode:
 
