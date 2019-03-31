@@ -552,11 +552,12 @@ void UiDefault::RedrawListWin()
     }
     
     wattron(m_ListWin, (chat.first == m_CurrentChat) ? A_REVERSE : A_NORMAL);
-    mvwprintw(m_ListWin, y, 0, "%*s", -m_ListWidth, chat.second.m_Name.c_str());
+    const std::string& name = chat.second.m_Name.substr(0, m_ListWidth);
+    mvwprintw(m_ListWin, y, 0, "%*s", -m_ListWidth, name.c_str());
 
     if (chat.second.m_IsUnread)
     {
-      mvwprintw(m_ListWin, y, m_ListWidth-1, "*");
+      mvwprintw(m_ListWin, y, m_ListWidth-2, " *");
     }
 
     wattroff(m_ListWin, (chat.first == m_CurrentChat) ? A_REVERSE : A_NORMAL);

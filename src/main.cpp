@@ -186,7 +186,7 @@ static void ShowHelp()
 static void ShowVersion()
 {
   std::cout <<
-    "nchat v1.1\n"
+    "nchat v1.2\n"
     "\n"
     "Copyright (c) 2019 Kristofer Berggren\n"
     "\n"
