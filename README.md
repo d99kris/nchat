@@ -126,7 +126,9 @@ If any issues are observed, try running nchat with verbose logging
 
     nchat --verbose
 
-and provide a copy of ~/.nchat/td.log when reporting the issue.
+and provide a copy of ~/.nchat/td.log when reporting the issue. The
+preferred way of reporting issues and asking questions is by opening 
+[a Github issue](https://github.com/d99kris/nchat/issues/new). 
 
 Security
 ========
