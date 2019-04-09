@@ -43,6 +43,8 @@ add_executable(nchat
   src/telegram.cpp
   src/telegram.h
   src/ui.h
+  src/uicommon.cpp
+  src/uicommon.h
   src/uidefault.cpp
   src/uidefault.h
   src/uilite.cpp
