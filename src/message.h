@@ -17,6 +17,7 @@ struct Message
   bool m_IsOutgoing;
   bool m_IsUnread;
   std::int32_t m_TimeSent;
+  std::int64_t m_ReplyToId;
   std::string m_Content;
   Protocol* m_Protocol;
 

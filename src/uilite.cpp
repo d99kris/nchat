@@ -451,6 +451,31 @@ void UiLite::RedrawOutputWin()
       messageY--;
     }
 
+    if (it->second.m_ReplyToId != 0)
+    {
+      auto replyIt = chatMessages.find(it->second.m_ReplyToId);
+      if (replyIt != chatMessages.end())
+      {
+        const std::string& rawReplyText = replyIt->second.m_Content;
+        const std::string& replyText = m_ShowEmoji ? rawReplyText : emojicpp::textize(rawReplyText);
+        const std::vector<std::string>& replyLines = Util::WordWrap(replyText, messageWidth - 2);
+        for (auto replyLine = replyLines.rbegin(); replyLine != replyLines.rend(); ++replyLine)
+        {
+          if (messageY < 0) break;
+
+          mvwprintw(m_OutWin, messageY, 0, "| %s", replyLine->c_str());
+          messageY--;
+        }        
+      }
+      else
+      {
+        if (messageY < 0) break;
+
+        mvwprintw(m_OutWin, messageY, 0, "| [Non-cached message]");
+        messageY--;
+      }
+    }
+    
     if (messageY < 0) break;
 
     time_t rawtime = it->second.m_TimeSent;

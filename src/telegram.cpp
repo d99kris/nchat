@@ -318,6 +318,7 @@ void Telegram::TdMessageConvert(const td::td_api::message& p_TdMessage, Message&
   p_Message.m_IsOutgoing = p_TdMessage.is_outgoing_;
   p_Message.m_IsUnread = p_TdMessage.contains_unread_mention_;
   p_Message.m_TimeSent = p_TdMessage.date_;
+  p_Message.m_ReplyToId = p_TdMessage.reply_to_message_id_;
   p_Message.m_Content = text;
   p_Message.m_Protocol = this;
 }
