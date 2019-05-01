@@ -34,10 +34,11 @@ Interactive Commands:
     Ctrl-u            next unread chat
     Ctrl-x            exit
 
-Emojis can be entered on the format `:smiley:`.
-Refer to [emojicpp](/tree/master/ext/emojicpp/README.md) for a full list of
-supported emojis. One can also toggle display of graphical emojis in the chat
-history with `Ctrl-e` to easily see their textual counterpart.
+Emojis can be entered on the format `:smiley:`. Refer to
+[emojicpp](https://github.com/d99kris/nchat/blob/master/ext/emojicpp/README.md)
+for a full list of supported emojis. One can also toggle display of graphical
+emojis in the chat history with `Ctrl-e` to easily see their textual
+counterpart.
 
 Supported Platforms
 ===================
