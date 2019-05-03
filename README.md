@@ -71,7 +71,7 @@ Linux / Ubuntu
 
 **Install**
 
-    sudo make -s install
+    sudo make install
 
 macOS
 -----
@@ -90,7 +90,7 @@ macOS
 
 **Install**
 
-    sudo make -s install
+    make install
 
 Getting Started
 ===============
