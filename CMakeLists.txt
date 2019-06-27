@@ -26,7 +26,7 @@ endif()
 # Platform specifics
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   add_compile_definitions(_XOPEN_SOURCE_EXTENDED)
-  set(CMAKE_PREFIX_PATH /usr/local/Cellar/ncurses/6.1)
+  set(CMAKE_PREFIX_PATH /usr/local/opt/ncurses)
   set(OPENSSL_ROOT_DIR /usr/local/opt/openssl)
 endif()
 
