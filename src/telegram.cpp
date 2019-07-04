@@ -468,6 +468,7 @@ void Telegram::OnAuthStateUpdate()
         std::cout << "Enter authentication password: ";
         std::string password;
         std::cin >> password;
+        std::getline(std::cin, password);
         SendQuery(td::td_api::make_object<td::td_api::checkAuthenticationPassword>(password),
                   CreateAuthQueryHandler());
       }
