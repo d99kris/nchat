@@ -444,13 +444,13 @@ void Telegram::OnAuthStateUpdate()
         if (!wait_code.is_registered_)
         {
           std::cout << "Enter your first name: ";
-          std::cin >> first_name;
+          std::getline(std::cin, first_name);
           std::cout << "Enter your last name: ";
-          std::cin >> last_name;
+          std::getline(std::cin, last_name);
         }
         std::cout << "Enter authentication code: ";
         std::string code;
-        std::cin >> code;
+        std::getline(std::cin, code);
         SendQuery(td::td_api::make_object<td::td_api::checkAuthenticationCode>(code, first_name,
                                                                                last_name),
                   CreateAuthQueryHandler());
@@ -467,7 +467,7 @@ void Telegram::OnAuthStateUpdate()
       {
         std::cout << "Enter authentication password: ";
         std::string password;
-        std::cin >> password;
+        std::getline(std::cin, password);
         SendQuery(td::td_api::make_object<td::td_api::checkAuthenticationPassword>(password),
                   CreateAuthQueryHandler());
       }
@@ -483,7 +483,7 @@ void Telegram::OnAuthStateUpdate()
       {
         std::cout << "Enter phone number: ";
         std::string phone_number;
-        std::cin >> phone_number;
+        std::getline(std::cin, phone_number);
         SendQuery(td::td_api::make_object<td::td_api::setAuthenticationPhoneNumber>(phone_number,
                                                                                     false,
                                                                                     false),
