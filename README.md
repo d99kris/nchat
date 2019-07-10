@@ -162,12 +162,14 @@ two supported:
 - `uidefault` which can be seen in the main screenshot above
 - `uilite` which is a lightweight interface with no contact list
 
+Default `~/.nchat/main.conf` content:
+
     telegram_is_enabled=0
     ui=uidefault
 
 ~/.nchat/telegram.conf
 ----------------------
-This configuration file should not be edited manually by end users.
+This configuration file should not be edited manually by end users. Content:
 
     local_key=
 
