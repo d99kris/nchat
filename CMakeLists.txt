@@ -36,6 +36,8 @@ add_executable(nchat
   ext/emojicpp/emoji.h
   src/config.cpp
   src/config.h
+  src/log.cpp
+  src/log.h
   src/main.cpp
   src/protocol.h
   src/setup.cpp
