@@ -1033,6 +1033,7 @@ namespace emojicpp
     {":rocket:" , "\U0001F680"},
     {":rolled__up_newspaper:" , "\U0001F5DE"},
     {":roller_coaster:" , "\U0001F3A2"},
+    {":rolling_on_the_floor_laughing:" , "\U0001F923"},
     {":rooster:" , "\U0001F413"},
     {":rose:" , "\U0001F339"},
     {":rosette:" , "\U0001F3F5"},
