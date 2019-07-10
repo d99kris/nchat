@@ -177,6 +177,16 @@ void Telegram::RequestMessages(std::int64_t p_ChatId, std::int64_t p_FromMsg, st
             });
 }
 
+void Telegram::SendFile(std::int64_t p_ChatId, const std::string& p_Path)
+{
+  auto send_message = td::td_api::make_object<td::td_api::sendMessage>();
+  send_message->chat_id_ = p_ChatId;
+  auto message_content = td::td_api::make_object<td::td_api::inputMessageDocument>();
+  message_content->document_ = td::td_api::make_object<td::td_api::inputFileLocal>(p_Path);
+  send_message->input_message_content_ = std::move(message_content);
+  SendQuery(std::move(send_message), {});
+}
+
 void Telegram::SendMessage(std::int64_t p_ChatId, const std::string& p_Message)
 {
   auto send_message = td::td_api::make_object<td::td_api::sendMessage>();
@@ -195,6 +205,27 @@ void Telegram::MarkRead(std::int64_t p_ChatId, const std::vector<std::int64_t>& 
   view_messages->message_ids_ = p_MsgIds;
   view_messages->force_read_ = true;
   SendQuery(std::move(view_messages), {});
+}
+
+void Telegram::DownloadFile(std::int64_t p_ChatId, const std::string& p_Id)
+{
+  try
+  {
+    (void)p_ChatId;
+    std::int32_t id = std::stoi(p_Id);
+    auto download_file = td::td_api::make_object<td::td_api::downloadFile>();
+    download_file->file_id_ = id;
+    download_file->priority_ = 32;
+    SendQuery(std::move(download_file), 
+              [](Object object)
+              {
+                if (object->get_id() == td::td_api::error::ID) return;
+                // todo: trigger request refresh of messages for p_ChatId
+              });
+  }
+  catch (...)
+  {
+  }
 }
 
 bool Telegram::Setup()
@@ -281,7 +312,9 @@ void Telegram::TdMessageConvert(const td::td_api::message& p_TdMessage, Message&
   }
   else if (p_TdMessage.content_->get_id() == td::td_api::messageDocument::ID)
   {
-    text = "[Document]";
+    std::string id = std::to_string(static_cast<td::td_api::messageDocument &>(*p_TdMessage.content_).document_->document_->id_);
+    std::string file = static_cast<td::td_api::messageDocument &>(*p_TdMessage.content_).document_->document_->local_->path_;
+    text = "[Document " + id + " \"" + file + "\"]";
   }
   else if (p_TdMessage.content_->get_id() == td::td_api::messagePhoto::ID)
   {

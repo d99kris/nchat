@@ -30,9 +30,9 @@ Interactive Commands:
     PageDn            next page
     PageUp            previous page
     Ctrl-e            enable/disable emoji
-    Ctrl-s            send message
+    Ctrl-x            send message
     Ctrl-u            next unread chat
-    Ctrl-x            exit
+    Ctrl-q            exit
 
 Emojis can be entered on the format `:smiley:`. Refer to
 [emojicpp](https://github.com/d99kris/nchat/blob/master/ext/emojicpp/README.md)
@@ -184,14 +184,14 @@ whether to show emojis graphically.
     key_curs_right=KEY_RIGHT
     key_curs_up=KEY_UP
     key_delete=KEY_DC
-    key_exit=KEY_CTRLX
+    key_exit=KEY_CTRLQ
     key_linebreak=KEY_RETURN
     key_next_chat=KEY_TAB
     key_next_page=KEY_NPAGE
     key_next_unread=KEY_CTRLU
     key_prev_chat=KEY_BTAB
     key_prev_page=KEY_PPAGE
-    key_send=KEY_CTRLS
+    key_send=KEY_CTRLX
     key_toggle_emoji=KEY_CTRLE
     list_width=14
     show_emoji=1

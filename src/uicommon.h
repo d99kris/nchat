@@ -61,6 +61,8 @@ protected:
 
   void InputBuf(wint_t ch);
   void ToggleEmoji();  
+  void TransmitFile();
+  void ReceiveFile();
   
 protected:
   std::string m_Name = "undefined";
@@ -100,6 +102,8 @@ protected:
   int m_KeyNextUnread = 0;
   int m_KeyExit = 0;
   int m_KeyToggleEmoji = 0;
+  int m_KeyTransmitFile = 0;
+  int m_KeyReceiveFile = 0;
   
   bool m_HighlightBold = true;
   bool m_ShowEmoji = true;

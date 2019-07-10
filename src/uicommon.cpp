@@ -19,6 +19,7 @@
 
 #include <emoji.h>
 #include <ncursesw/ncurses.h>
+#include <path.hpp>
 
 #include "chat.h"
 #include "config.h"
@@ -54,10 +55,13 @@ void UiCommon::Init()
     {"key_backspace", "KEY_BACKSPACE"},
     {"key_delete", "KEY_DC"},
     {"key_linebreak", "KEY_RETURN"},
-    {"key_send", "KEY_CTRLS"},
+    {"key_send", "KEY_CTRLX"},
     {"key_next_unread", "KEY_CTRLU"},
-    {"key_exit", "KEY_CTRLX"},
+    {"key_exit", "KEY_CTRLQ"},
     {"key_toggle_emoji", "KEY_CTRLE"},
+    {"key_transmit_file", "KEY_CTRLT"},
+    {"key_receive_file", "KEY_CTRLR"},
+    {"key_exit", "KEY_CTRLQ"},
     // layout
     {"input_rows", "3"},
   };
@@ -83,6 +87,8 @@ void UiCommon::Init()
   m_KeyNextUnread = Util::GetKeyCode(m_Config.Get("key_next_unread"));
   m_KeyExit = Util::GetKeyCode(m_Config.Get("key_exit"));
   m_KeyToggleEmoji = Util::GetKeyCode(m_Config.Get("key_toggle_emoji"));
+  m_KeyTransmitFile = Util::GetKeyCode(m_Config.Get("key_transmit_file"));
+  m_KeyReceiveFile = Util::GetKeyCode(m_Config.Get("key_receive_file"));
 
   m_HighlightBold = (m_Config.Get("highlight_bold") == "1");
   m_ShowEmoji = (m_Config.Get("show_emoji") == "1");
@@ -297,6 +303,14 @@ void UiCommon::Run()
       else if (key == m_KeyToggleEmoji)
       {
         ToggleEmoji();
+      }
+      else if (key == m_KeyTransmitFile)
+      {
+        TransmitFile();
+      }
+      else if (key == m_KeyReceiveFile)
+      {
+        ReceiveFile();
       }
       else
       {
@@ -772,4 +786,47 @@ void UiCommon::ToggleEmoji()
 {
   m_ShowEmoji = !m_ShowEmoji;
   RequestRedraw(m_InputWinId | m_OutputWinId);
+}
+
+void UiCommon::TransmitFile()
+{
+  std::lock_guard<std::mutex> lock(m_Lock);
+
+  if (m_Chats.find(m_CurrentChat) != m_Chats.end())
+  {
+    if (!m_Input[m_CurrentChat].empty())
+    {
+      const Chat& chat = m_Chats.at(m_CurrentChat);
+      std::wstring wstr = m_Input[m_CurrentChat];
+      std::string str = Util::ToString(wstr);
+
+      if (apathy::Path(str).exists())
+      {
+        chat.m_Protocol->SendFile(chat.m_Id, str);
+        m_Input[m_CurrentChat].clear();
+        m_InputCursorPos[m_CurrentChat] = 0;
+        RequestRedraw(m_InputWinId);
+      }
+    }
+  }
+}
+
+void UiCommon::ReceiveFile()
+{
+  std::lock_guard<std::mutex> lock(m_Lock);
+
+  if (m_Chats.find(m_CurrentChat) != m_Chats.end())
+  {
+    if (!m_Input[m_CurrentChat].empty())
+    {
+      const Chat& chat = m_Chats.at(m_CurrentChat);
+      std::wstring wstr = m_Input[m_CurrentChat];
+      std::string str = Util::ToString(wstr);
+
+      chat.m_Protocol->DownloadFile(chat.m_Id, str);
+      m_Input[m_CurrentChat].clear();
+      m_InputCursorPos[m_CurrentChat] = 0;
+      RequestRedraw(m_InputWinId);
+    }
+  }
 }
