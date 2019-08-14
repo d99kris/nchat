@@ -312,6 +312,10 @@ void UiCommon::Run()
       {
         ReceiveFile();
       }
+      else if (key == 16 /* CTRL_P */)
+      {
+        ObfuscateChatNames();
+      }
       else
       {
         InputBuf(ch);
@@ -829,4 +833,27 @@ void UiCommon::ReceiveFile()
       RequestRedraw(m_InputWinId);
     }
   }
+}
+
+void UiCommon::ObfuscateChatNames()
+{
+  std::vector<std::string> dummyNames =
+  {
+    "Alice", "Bob", "Chuck", "Dave", "Eve", "Frank", "Grace", "Heidi", "Ivan",
+    "Judy", "Karl", "Lars", "Mallory", "Niaj", "Olivia", "Pat", "Quentin",
+    "Rupert", "Sybil", "Trent", "Ulf", "Victor", "Walter", "Xavier", "Yuki",
+    "Zeke",
+  };
+  std::lock_guard<std::mutex> lock(m_Lock);
+  int i = 0;
+  for (auto& chat : m_Chats)
+  {
+    if (chat.first != m_CurrentChat)
+    {
+      chat.second.m_Name = dummyNames[i % dummyNames.size()];
+    }
+    ++i;
+  }
+
+  RequestRedraw(m_ContactWinId | m_InputWinId);
 }

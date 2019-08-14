@@ -63,6 +63,7 @@ protected:
   void ToggleEmoji();  
   void TransmitFile();
   void ReceiveFile();
+  void ObfuscateChatNames();
   
 protected:
   std::string m_Name = "undefined";
