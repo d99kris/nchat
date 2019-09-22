@@ -59,7 +59,7 @@ Linux / Ubuntu
 
 **Dependencies**
 
-    sudo apt install ccache cmake gperf libreadline-dev libssl-dev libncurses-dev ncurses-doc help2man
+    sudo apt install ccache cmake gperf libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc help2man
 
 **Source**
 
