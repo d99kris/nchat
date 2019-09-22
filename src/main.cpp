@@ -175,9 +175,9 @@ static void ShowHelp()
     "   PageDn      next page\n"
     "   PageUp      previous page\n"
     "   Ctrl-e      enable/disable emoji\n"
-    "   Ctrl-s      send message\n"
+    "   Ctrl-x      send message\n"
     "   Ctrl-u      next unread chat\n"
-    "   Ctrl-x      exit\n"
+    "   Ctrl-q      exit\n"
     "\n"
     "Report bugs at https://github.com/d99kris/nchat\n"
     "\n";
@@ -186,7 +186,7 @@ static void ShowHelp()
 static void ShowVersion()
 {
   std::cout <<
-    "nchat v1.4\n"
+    "nchat v1.5\n"
     "\n"
     "Copyright (c) 2019 Kristofer Berggren\n"
     "\n"
