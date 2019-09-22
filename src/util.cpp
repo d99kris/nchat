@@ -9,12 +9,25 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <iomanip>
 #include <iostream>
 #include <map>
 #include <sstream>
 #include <string>
 
+#include <cxxabi.h>
+#include <dlfcn.h>
+#include <execinfo.h>
+#include <fcntl.h>
+#include <termios.h>
+#include <unistd.h>
+
 #include <ncursesw/ncurses.h>
+
+#include "loghelp.h"
+
+int Util::m_OrgStdErr = -1;
+int Util::m_NewStdErr = -1;
 
 std::string Util::GetConfigDir()
 {
@@ -183,7 +196,7 @@ int Util::GetKeyCode(const std::string& p_KeyName)
   }
   else
   {
-    std::cerr << "warning: unknown key \"" << p_KeyName << "\"." << std::endl;    
+    LOG_WARNING("unknown key \"%s\"", p_KeyName.c_str());
   }
 
   return keyCode;
@@ -278,4 +291,128 @@ std::wstring Util::ToWString(const std::string& p_Str)
   std::wstring wstr(wcstr);
   delete[] wcstr;
   return wstr;
+}
+
+std::string Util::GetAppVersion()
+{
+#ifdef PROJECT_VERSION
+  std::string version = "v" PROJECT_VERSION;
+#else
+  std::string version = "";
+#endif
+  return version;
+}
+
+std::string Util::GetOs()
+{
+#if defined(_WIN32)
+  return "Windows";
+#elif defined(__APPLE__)
+  return "macOS";
+#elif defined(__linux__)
+  return "Linux";
+#elif defined(BSD)
+  return "BSD";
+#else
+  return "Unknown OS";
+#endif
+}
+
+std::string Util::GetCompiler()
+{
+#if defined(_MSC_VER)
+  return "msvc-" + std::to_string(_MSC_VER);
+#elif defined(__clang__)
+  return "clang-" + std::to_string(__clang_major__) + "." + std::to_string(__clang_minor__)
+    + "." + std::to_string(__clang_patchlevel__);
+#elif defined(__GNUC__)
+  return "gcc-" + std::to_string(__GNUC__) + "." + std::to_string(__GNUC_MINOR__)
+    + "." + std::to_string(__GNUC_PATCHLEVEL__);
+#else
+  return "Unknown Compiler";
+#endif
+}
+
+void Util::RegisterSignalHandler()
+{
+  signal(SIGABRT, SignalHandler);
+  signal(SIGSEGV, SignalHandler);
+  signal(SIGBUS, SignalHandler);
+  signal(SIGILL, SignalHandler);
+  signal(SIGFPE, SignalHandler);
+  signal(SIGPIPE, SignalHandler); 
+}
+
+void Util::SignalHandler(int p_Signal)
+{
+  void *callstack[64];
+  int size = backtrace(callstack, sizeof(callstack));
+  const std::string& callstackStr = "\n" + BacktraceSymbolsStr(callstack, size) + "\n";
+  const std::string& logMsg = "unexpected termination: " + std::to_string(p_Signal);
+  LOG_ERROR("%s", logMsg.c_str());
+  LOG_DUMP(callstackStr.c_str());
+
+  CleanupStdErrRedirect();
+  system("reset");
+  std::cerr << logMsg << "\n" << callstackStr;
+  exit(1);
+}
+
+std::string Util::BacktraceSymbolsStr(void* p_Callstack[], int p_Size)
+{
+  std::stringstream ss;
+  for (int i = 0; i < p_Size; ++i)
+  {
+    ss << std::left << std::setw(2) << std::setfill(' ') << i << "  ";
+    ss << "0x" << std::hex << std::setw(16) << std::setfill('0') << std::right
+       << (unsigned long long) p_Callstack[i] << "  ";
+    
+    Dl_info dlinfo;
+    if (dladdr(p_Callstack[i], &dlinfo) && dlinfo.dli_sname)
+    {
+      if (dlinfo.dli_sname[0] == '_')
+      {
+        int status = -1;
+        char* demangled = NULL;
+        demangled = abi::__cxa_demangle(dlinfo.dli_sname, NULL, 0, &status);
+        if (demangled && (status == 0))
+        {
+          ss << demangled;
+          free(demangled);
+        }
+        else
+        {
+          ss << dlinfo.dli_sname;
+        }
+      }
+      else
+      {
+        ss << dlinfo.dli_sname;
+      }
+    }
+    ss << "\n";
+  }
+
+  return ss.str();
+}
+
+void Util::InitStdErrRedirect(const std::string& p_Path)
+{
+  m_NewStdErr = open(p_Path.c_str(), O_RDWR | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR);
+  if (m_NewStdErr != -1)
+  {
+    m_OrgStdErr = dup(fileno(stderr));
+    dup2(m_NewStdErr, fileno(stderr));
+  }
+}
+
+void Util::CleanupStdErrRedirect()
+{
+  if (m_NewStdErr != -1)
+  {
+    fflush(stderr);
+    close(m_NewStdErr);
+    dup2(m_OrgStdErr, fileno(stderr));
+    close(m_OrgStdErr);
+  }
 }

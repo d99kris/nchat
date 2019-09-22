@@ -27,6 +27,7 @@
 #include <path.hpp>
 
 #include "chat.h"
+#include "loghelp.h"
 #include "message.h"
 #include "ui.h"
 #include "util.h"
@@ -443,7 +444,6 @@ void Telegram::OnAuthStateUpdate()
     {      
       m_Authorized = true;
       m_WasAuthorized = true;
-      std::cerr << "Got authorization" << std::endl;
       if (m_IsSetup)
       {
         m_Running = false;
@@ -456,17 +456,17 @@ void Telegram::OnAuthStateUpdate()
     [this](td::td_api::authorizationStateLoggingOut &)
     {
       m_Authorized = false;
-      std::cerr << "Logging out" << std::endl;
+      LOG_INFO("Logging out");
     },
     [](td::td_api::authorizationStateClosing &)
     {
-      std::cerr << "Closing" << std::endl;
+      LOG_INFO("Closing");
     },
     [this](td::td_api::authorizationStateClosed &)
     {
       m_Authorized = false;
       m_Running = false;
-      std::cerr << "Terminated" << std::endl;
+      LOG_INFO("Terminated");
     },
     [this](td::td_api::authorizationStateWaitCode &wait_code)
     {
@@ -490,7 +490,7 @@ void Telegram::OnAuthStateUpdate()
       }
       else
       {
-        std::cerr << "Error: L" << __LINE__ << std::endl;
+        LOG_INFO("Unexpected state");
         m_Running = false;
       }
     },
@@ -506,7 +506,7 @@ void Telegram::OnAuthStateUpdate()
       }
       else
       {
-        std::cerr << "Error: L" << __LINE__ << std::endl;
+        LOG_INFO("Unexpected state");
         m_Running = false;
       }
     },
@@ -524,7 +524,7 @@ void Telegram::OnAuthStateUpdate()
       }
       else
       {
-        std::cerr << "Error: L" << __LINE__ << std::endl;
+        LOG_INFO("Unexpected state");
         m_Running = false;
       }
     },
@@ -545,11 +545,11 @@ void Telegram::OnAuthStateUpdate()
 
       if (key.empty())
       {
+        LOG_ERROR("Empty key");
         m_Running = false;
       }
       else
       {
-        std::cerr << "Using key: " << key << std::endl;
         SendQuery(td::td_api::make_object<td::td_api::checkDatabaseEncryptionKey>(std::move(key)),
                   CreateAuthQueryHandler());
       }
@@ -586,7 +586,7 @@ void Telegram::CheckAuthError(Object object)
   if (object->get_id() == td::td_api::error::ID)
   {
     auto error = td::move_tl_object_as<td::td_api::error>(object);
-    std::cerr << "Error: " << to_string(error);
+    LOG_INFO("Auth error \"%s\"", to_string(error).c_str());
     OnAuthStateUpdate();
   }
 }

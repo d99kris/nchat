@@ -18,5 +18,17 @@ public:
   static std::vector<std::string> WordWrap(std::string p_Text, unsigned p_LineLength);
   static std::string ToString(const std::wstring& p_WStr);
   static std::wstring ToWString(const std::string& p_Str);
+  static std::string GetAppVersion();
+  static std::string GetOs();
+  static std::string GetCompiler();
+  static void RegisterSignalHandler();
+  static void SignalHandler(int p_Signal);
+  static std::string BacktraceSymbolsStr(void* p_Callstack[], int p_Size);
+  static void InitStdErrRedirect(const std::string& p_Path);
+  static void CleanupStdErrRedirect();
+
+private:
+  static int m_OrgStdErr;
+  static int m_NewStdErr;
 };
 

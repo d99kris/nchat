@@ -11,6 +11,8 @@
 #include <path.hpp>
 
 #include "config.h"
+#include "log.h"
+#include "loghelp.h"
 #include "uidefault.h"
 #include "uilite.h"
 #include "setup.h"
@@ -59,6 +61,21 @@ int main(int argc, char *argv[])
     apathy::Path::makedirs(Util::GetConfigDir());
   }
 
+  // Init logging
+  const std::string& logPath = Util::GetConfigDir() + std::string("/main.log");
+  Log::SetPath(logPath);
+  Util::InitStdErrRedirect(logPath);
+
+  // Init signal handler
+  Util::RegisterSignalHandler();
+
+  const std::string version = Util::GetAppVersion();
+  LOG_INFO("starting nchat %s", version.c_str());
+
+  const std::string os = Util::GetOs();
+  const std::string compiler = Util::GetCompiler();
+  LOG_INFO("using %s/%s", os.c_str(), compiler.c_str());
+
   // Init config
   const std::map<std::string, std::string> defaultConfig =
   {
@@ -92,7 +109,7 @@ int main(int argc, char *argv[])
     }
     else
     {
-      std::cerr << "nchat: unable to load UI \"" << config.Get("ui") << "\", exiting.\n";
+      LOG_ERROR("failed loading ui \"%s\"", config.Get("ui").c_str());
       return 1;
     }
   }
@@ -186,7 +203,7 @@ static void ShowHelp()
 static void ShowVersion()
 {
   std::cout <<
-    "nchat v1.5\n"
+    "nchat " << Util::GetAppVersion() << "\n"
     "\n"
     "Copyright (c) 2019 Kristofer Berggren\n"
     "\n"
