@@ -414,6 +414,8 @@ void UiCommon::RedrawOutputWin()
 
   if (m_ShowMsgIdBefore[m_CurrentChat].empty()) return;
   
+  if (m_Messages.find(m_CurrentChat) == m_Messages.end()) return;
+
   const std::map<std::int64_t, Message>& chatMessages = m_Messages.at(m_CurrentChat);
   int messageWidth = m_OutWidth;
   int messageY = m_OutHeight - 2;
