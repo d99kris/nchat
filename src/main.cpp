@@ -64,6 +64,7 @@ int main(int argc, char *argv[])
   // Init logging
   const std::string& logPath = Util::GetConfigDir() + std::string("/main.log");
   Log::SetPath(logPath);
+  Log::SetDebugEnabled(isVerbose);
   Util::InitStdErrRedirect(logPath);
 
   // Init signal handler
