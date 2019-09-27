@@ -159,13 +159,17 @@ to disable a protocol.
 
 The `ui` parameter controls which UI plugin/skin to use. There are currently
 two supported:
-- `uidefault` which can be seen in the main screenshot above
-- `uilite` which is a lightweight interface with no contact list
+- `uidefault` which can be seen in the main screenshot above.
+- `uilite` which is a lightweight interface with no contact list, see below.
 
 Default `~/.nchat/main.conf` content:
 
     telegram_is_enabled=0
     ui=uidefault
+
+### Screenshot uilite
+
+![screenshot_uilite](/doc/screenshot_uilite.png) 
 
 ~/.nchat/telegram.conf
 ----------------------
