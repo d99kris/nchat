@@ -28,10 +28,8 @@ addons:
       - cmake
       - openssl
       - ncurses
-#    update: true
 
 script:
-  - brew --version
   - mkdir -p build
   - cd build
   - cmake ..
