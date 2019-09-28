@@ -5,8 +5,8 @@ sudo:
   - false
 
 os:
+  - linux
   - osx
-#  - linux
 
 dist:
   - xenial
@@ -25,6 +25,7 @@ addons:
       - cmake
       - openssl
       - ncurses
+    update: true
 
 script:
   - mkdir -p build
