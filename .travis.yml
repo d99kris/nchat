@@ -11,6 +11,9 @@ os:
 dist:
   - xenial
 
+osx_image:
+  - xcode11
+
 addons:
   apt:
     packages:
@@ -25,9 +28,10 @@ addons:
       - cmake
       - openssl
       - ncurses
-    update: true
+#    update: true
 
 script:
+  - brew --version
   - mkdir -p build
   - cd build
   - cmake ..
