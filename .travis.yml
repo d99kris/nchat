@@ -25,6 +25,7 @@ addons:
       - cmake
       - openssl
       - ncurses
+    update: true
 
 #install:
 #  - if [ $TRAVIS_OS_NAME = osx ]; then brew update && brew bundle; fi
