@@ -5,8 +5,8 @@ sudo:
   - false
 
 os:
-  - linux
   - osx
+#  - linux
 
 dist:
   - xenial
@@ -25,10 +25,6 @@ addons:
       - cmake
       - openssl
       - ncurses
-    update: true
-
-#install:
-#  - if [ $TRAVIS_OS_NAME = osx ]; then brew update && brew bundle; fi
 
 script:
   - mkdir -p build
