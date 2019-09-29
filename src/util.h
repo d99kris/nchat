@@ -23,6 +23,8 @@ public:
                                            int p_Pos, int& p_WrapLine, int& p_WrapPos);
   static std::string ToString(const std::wstring& p_WStr);
   static std::wstring ToWString(const std::string& p_Str);
+  static std::string TrimPadString(const std::string& p_Str, size_t p_Len);
+  static std::wstring TrimPadWString(const std::wstring& p_Str, size_t p_Len);
   static std::string GetAppVersion();
   static std::string GetOs();
   static std::string GetCompiler();

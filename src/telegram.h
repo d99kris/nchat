@@ -25,7 +25,7 @@ public:
   virtual ~Telegram();
   virtual std::string GetName();  
 
-  virtual void RequestChats(std::int32_t p_Limit, std::int64_t p_OffsetChat = 0,
+  virtual void RequestChats(std::int32_t p_Limit, bool p_PostInit, std::int64_t p_OffsetChat = 0,
                             std::int64_t p_OffsetOrder = (std::numeric_limits<std::int64_t>::max() - 1));
   virtual void RequestChatUpdate(std::int64_t p_ChatId);
   virtual void RequestMessages(std::int64_t p_ChatId, std::int64_t p_FromMsg, std::int32_t p_Limit);

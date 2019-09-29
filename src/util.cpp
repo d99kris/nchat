@@ -369,6 +369,34 @@ std::wstring Util::ToWString(const std::string& p_Str)
   return wstr;
 }
 
+std::string Util::TrimPadString(const std::string &p_Str, size_t p_Len)
+{
+  std::string str = p_Str;
+  if (str.size() > p_Len)
+  {
+    str = str.substr(0, p_Len);
+  }
+  else if (str.size() < p_Len)
+  {
+    str = str + std::string(p_Len - str.size(), ' ');
+  }
+  return str;
+}
+
+std::wstring Util::TrimPadWString(const std::wstring &p_Str, size_t p_Len)
+{
+  std::wstring str = p_Str;
+  if (str.size() > p_Len)
+  {
+    str = str.substr(0, p_Len);
+  }
+  else if (str.size() < p_Len)
+  {
+    str = str + std::wstring(p_Len - str.size(), ' ');
+  }
+  return str;
+}
+
 std::string Util::GetAppVersion()
 {
 #ifdef PROJECT_VERSION

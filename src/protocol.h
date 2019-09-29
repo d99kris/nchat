@@ -28,7 +28,7 @@ public:
 
   virtual std::string GetName() = 0;
 
-  virtual void RequestChats(std::int32_t p_Limit, std::int64_t p_OffsetChat = 0,
+  virtual void RequestChats(std::int32_t p_Limit, bool p_PostInit, std::int64_t p_OffsetChat = 0,
                             std::int64_t p_OffsetOrder = (std::numeric_limits<std::int64_t>::max() - 1)) = 0;
   virtual void RequestChatUpdate(std::int64_t p_ChatId) = 0;
   virtual void RequestMessages(std::int64_t p_ChatId, std::int64_t p_FromMsg, std::int32_t p_Limit) = 0;

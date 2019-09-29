@@ -23,6 +23,7 @@
 
 #include "chat.h"
 #include "config.h"
+#include "log.h"
 #include "message.h"
 #include "protocol.h"
 #include "util.h"
@@ -152,12 +153,19 @@ void UiCommon::UpdateChat(Chat p_Chat)
   RequestRedraw(m_ContactWinId | m_InputWinId);
 }
 
-void UiCommon::UpdateChats(std::vector<Chat> p_Chats)
+void UiCommon::UpdateChats(std::vector<Chat> p_Chats, bool p_PostInit)
 {
   std::lock_guard<std::mutex> lock(m_Lock);
 
   for (auto& chat : p_Chats)
   {
+    std::string uniqueId = chat.GetUniqueId();
+
+    if (p_PostInit && (m_Chats.find(uniqueId) == m_Chats.end()))
+    {
+      chat.m_IsUnread = true;
+    }
+    
     m_Chats[chat.GetUniqueId()] = chat;
 
     if (m_CurrentChat.empty())
@@ -185,18 +193,22 @@ void UiCommon::UpdateMessages(std::vector<Message> p_Messages, bool p_ClearChat 
 
   RequestRedraw(m_OutputWinId | m_InputWinId);
 
-  std::set<std::string> chatIds;
+  std::map<std::string, Protocol*> chatIds;
   for (auto& message : p_Messages)
   {
-    chatIds.insert(message.GetUniqueChatId());
+    chatIds[message.GetUniqueChatId()] = message.m_Protocol;
   }
   
   for (auto& chatId : chatIds)
   {
-    if (m_Chats.find(chatId) != m_Chats.end())
+    if (m_Chats.find(chatId.first) != m_Chats.end())
     {
-      const Chat& chat = m_Chats.at(chatId);
+      const Chat& chat = m_Chats.at(chatId.first);
       chat.m_Protocol->RequestChatUpdate(chat.m_Id);
+    }
+    else
+    {
+      chatId.second->RequestChats(100, true);
     }
   }    
 }

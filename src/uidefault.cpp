@@ -147,6 +147,8 @@ void UiDefault::RedrawContactWin()
     const std::string& name = chat.second.m_Name;
 
     std::wstring wname = Util::ToWString(name).substr(0, m_ListWidth);
+    wname = Util::TrimPadWString(wname, m_ListWidth);
+
     mvwaddnwstr(m_ListWin, y, 0, wname.c_str(), wname.size());
 
     if (chat.second.m_IsUnread)

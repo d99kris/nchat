@@ -92,12 +92,12 @@ std::string Telegram::GetName()
   return std::string("telegram");
 }
 
-void Telegram::RequestChats(std::int32_t p_Limit, std::int64_t p_OffsetChat,
+void Telegram::RequestChats(std::int32_t p_Limit, bool p_PostInit, std::int64_t p_OffsetChat,
                             std::int64_t p_OffsetOrder)
 {
   Log::Debug("request chats");
   SendQuery(td::td_api::make_object<td::td_api::getChats>(p_OffsetOrder, p_OffsetChat, p_Limit),
-            [this](Object object)
+            [this, p_PostInit](Object object)
             {
               if (object->get_id() == td::td_api::error::ID) return;
 
@@ -116,7 +116,7 @@ void Telegram::RequestChats(std::int32_t p_Limit, std::int64_t p_OffsetChat,
                
               if (m_Ui.get() != nullptr)
               {
-                m_Ui->UpdateChats(chats);
+                m_Ui->UpdateChats(chats, p_PostInit);
               }
             });
 }
@@ -469,7 +469,7 @@ void Telegram::OnAuthStateUpdate()
       }
       else
       {
-        RequestChats(100);
+        RequestChats(100, false);
       }      
     },
     [this](td::td_api::authorizationStateLoggingOut &)

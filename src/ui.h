@@ -37,7 +37,7 @@ public:
   virtual void AddProtocol(Protocol* p_Protocol) = 0;
   virtual void RemoveProtocol(Protocol* p_Protocol) = 0;
   virtual void UpdateChat(Chat p_Chats) = 0;
-  virtual void UpdateChats(std::vector<Chat> p_Chats) = 0;
+  virtual void UpdateChats(std::vector<Chat> p_Chats, bool p_PostInit) = 0;
   virtual void UpdateMessages(std::vector<Message> p_Messages, bool p_ClearChat = false) = 0;
 
 private:
