@@ -15,7 +15,12 @@ class Util
 public:
   static std::string GetConfigDir();
   static int GetKeyCode(const std::string& p_KeyName);
+  static std::vector<std::wstring> WordWrap(std::wstring p_Text, unsigned p_LineLength);
+  static std::vector<std::wstring> WordWrap(std::wstring p_Text, unsigned p_LineLength,
+                                            int p_Pos, int& p_WrapLine, int& p_WrapPos);
   static std::vector<std::string> WordWrap(std::string p_Text, unsigned p_LineLength);
+  static std::vector<std::string> WordWrap(std::string p_Text, unsigned p_LineLength,
+                                           int p_Pos, int& p_WrapLine, int& p_WrapPos);
   static std::string ToString(const std::wstring& p_WStr);
   static std::wstring ToWString(const std::string& p_Str);
   static std::string GetAppVersion();

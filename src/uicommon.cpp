@@ -428,12 +428,13 @@ void UiCommon::RedrawOutputWin()
     
     const std::string& rawText = it->second.m_Content;
     const std::string& text = m_ShowEmoji ? rawText : emojicpp::textize(rawText);
-    const std::vector<std::string>& lines = Util::WordWrap(text, messageWidth);
-    for (auto line = lines.rbegin(); line != lines.rend(); ++line)
+    const std::wstring& wtext = Util::ToWString(text);
+    const std::vector<std::wstring>& wlines = Util::WordWrap(wtext, messageWidth);
+    for (auto wline = wlines.rbegin(); wline != wlines.rend(); ++wline)
     {
       if (messageY < 0) break;
 
-      mvwprintw(m_OutWin, messageY, 0, "%s", line->c_str());
+      mvwaddnwstr(m_OutWin, messageY, 0, wline->c_str(), wline->size());
       messageY--;
     }
 
@@ -444,14 +445,16 @@ void UiCommon::RedrawOutputWin()
       {
         const std::string& rawReplyText = replyIt->second.m_Content;
         const std::string& replyText = m_ShowEmoji ? rawReplyText : emojicpp::textize(rawReplyText);
-        const std::vector<std::string>& replyLines = Util::WordWrap(replyText, messageWidth - 2);
-        for (auto replyLine = replyLines.rbegin(); replyLine != replyLines.rend(); ++replyLine)
+        const std::wstring& wreplyText = Util::ToWString(replyText);
+        const std::vector<std::wstring>& wreplyLines = Util::WordWrap(wreplyText, messageWidth - 2);
+        for (auto wreplyLine = wreplyLines.rbegin(); wreplyLine != wreplyLines.rend(); ++wreplyLine)
         {
           if (messageY < 0) break;
 
-          mvwprintw(m_OutWin, messageY, 0, "| %s", replyLine->c_str());
+          mvwaddnwstr(m_OutWin, messageY, 0, L"| ", 2);
+          mvwaddnwstr(m_OutWin, messageY, 2, wreplyLine->c_str(), wreplyLine->size());
           messageY--;
-        }        
+        }
       }
       else
       {

@@ -203,72 +203,149 @@ int Util::GetKeyCode(const std::string& p_KeyName)
   return keyCode;
 }
 
-std::vector<std::string> Util::WordWrap(std::string p_Text, unsigned p_LineLength)
+std::vector<std::wstring> Util::WordWrap(std::wstring p_Text, unsigned p_LineLength)
 {
-  std::ostringstream wrapped;
+  int pos = 0;
+  int wrapLine = 0;
+  int wrapPos = 0;
+  return WordWrap(p_Text, p_LineLength, pos, wrapLine, wrapPos);
+}
 
-  bool first = true;
-  std::string line;
-  std::istringstream textss(p_Text);
-  while (std::getline(textss, line))
+std::vector<std::wstring> Util::WordWrap(std::wstring p_Text, unsigned p_LineLength, int p_Pos,
+                                         int &p_WrapLine, int &p_WrapPos)
+{
+  std::wostringstream wrapped;
+  std::vector<std::wstring> lines;
+
+  p_WrapLine = 0;
+  p_WrapPos = 0;
+
   {
-    if (first)
+    std::wstring line;
+    std::wistringstream textss(p_Text);
+    while (std::getline(textss, line))
     {
-      first = false;
-    }
-    else
-    {
-      wrapped << '\n';
-    }
-    
-    std::istringstream words(line);
-    std::string word;
-  
-    if (words >> word)
-    {
-      if (word.length() > p_LineLength)
+      std::wstring linePart = line;
+      while (true)
       {
-        std::string extra = word.substr(p_LineLength);
-        std::stringstream wordsExtra;
-        wordsExtra << extra;
-        wordsExtra << words.rdbuf();
-        words = std::istringstream(wordsExtra.str());
-        word = word.substr(0, p_LineLength);
-      }
-      
-      wrapped << word;
-      size_t space_left = p_LineLength - word.length();
-      while (words >> word)
-      {
-        if (word.length() > p_LineLength)
+        if (linePart.size() >= p_LineLength)
         {
-          std::string extra = word.substr(p_LineLength);
-          std::stringstream wordsExtra;
-          wordsExtra << extra;
-          wordsExtra << words.rdbuf();
-          words = std::istringstream(wordsExtra.str());
-          word = word.substr(0, p_LineLength);
-        }
-
-        if (space_left < word.length() + 1)
-        {
-          wrapped << '\n' << word;
-          space_left = p_LineLength - word.length();
+          size_t breakAt = linePart.rfind(L' ', p_LineLength);
+          if (breakAt == std::wstring::npos)
+          {
+            breakAt = p_LineLength;
+          }
+          
+          lines.push_back(linePart.substr(0, breakAt));
+          if (linePart.size() > (breakAt + 1))
+          {
+            linePart = linePart.substr(breakAt + 1);
+          }
+          else
+          {
+            linePart.clear();
+          }
         }
         else
         {
-          wrapped << ' ' << word;
-          space_left -= word.length() + 1;
+          lines.push_back(linePart);
+          linePart.clear();
+          break;
         }
       }
     }
   }
 
-  std::stringstream stream(wrapped.str());
-  std::vector<std::string> lines;
-  while (std::getline(stream, line))
+  for (auto& line : lines)
   {
-    lines.push_back(line);
+    if (p_Pos > 0)
+    {
+      int lineLength = line.size() + 1;
+      if (lineLength <= p_Pos)
+      {
+        p_Pos -= lineLength;
+        ++p_WrapLine;
+      }
+      else
+      {
+        p_WrapPos = p_Pos;
+        p_Pos = 0;
+      }
+    }
+  }
+
+  return lines;
+}
+
+std::vector<std::string> Util::WordWrap(std::string p_Text, unsigned p_LineLength)
+{
+  int pos = 0;
+  int wrapLine = 0;
+  int wrapPos = 0;
+  return WordWrap(p_Text, p_LineLength, pos, wrapLine, wrapPos);
+}
+
+std::vector<std::string> Util::WordWrap(std::string p_Text, unsigned p_LineLength, int p_Pos,
+                                        int &p_WrapLine, int &p_WrapPos)
+{
+  std::ostringstream wrapped;
+  std::vector<std::string> lines;
+
+  p_WrapLine = 0;
+  p_WrapPos = 0;
+
+  {
+    std::string line;
+    std::istringstream textss(p_Text);
+    while (std::getline(textss, line))
+    {
+      std::string linePart = line;
+      while (true)
+      {
+        if (linePart.size() >= p_LineLength)
+        {
+          size_t breakAt = linePart.rfind(' ', p_LineLength);
+          if (breakAt == std::string::npos)
+          {
+            breakAt = p_LineLength;
+          }
+
+          lines.push_back(linePart.substr(0, breakAt));
+          if (linePart.size() > (breakAt + 1))
+          {
+            linePart = linePart.substr(breakAt + 1);
+          }
+          else
+          {
+            linePart.clear();
+          }
+        }
+        else
+        {
+          lines.push_back(linePart);
+          linePart.clear();
+          break;
+        }
+      }
+    }
+  }
+
+  for (auto& line : lines)
+  {
+    if (p_Pos > 0)
+    {
+      int lineLength = line.size() + 1;
+      if (lineLength <= p_Pos)
+      {
+        p_Pos -= lineLength;
+        ++p_WrapLine;
+      }
+      else
+      {
+        p_WrapPos = p_Pos;
+        p_Pos = 0;
+      }
+    }
   }
 
   return lines;
