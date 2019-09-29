@@ -144,8 +144,10 @@ void UiDefault::RedrawContactWin()
     }
     
     wattron(m_ListWin, (chat.first == m_CurrentChat) ? A_REVERSE : A_NORMAL);
-    const std::string& name = chat.second.m_Name.substr(0, m_ListWidth);
-    mvwprintw(m_ListWin, y, 0, "%*s", -m_ListWidth, name.c_str());
+    const std::string& name = chat.second.m_Name;
+
+    std::wstring wname = Util::ToWString(name).substr(0, m_ListWidth);
+    mvwaddnwstr(m_ListWin, y, 0, wname.c_str(), wname.size());
 
     if (chat.second.m_IsUnread)
     {

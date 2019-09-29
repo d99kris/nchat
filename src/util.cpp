@@ -276,21 +276,19 @@ std::vector<std::string> Util::WordWrap(std::string p_Text, unsigned p_LineLengt
 
 std::string Util::ToString(const std::wstring& p_WStr)
 {
-  size_t len = std::wcstombs(nullptr, p_WStr.c_str(), 0) + 1;
-  char* cstr = new char[len];
-  std::wcstombs(cstr, p_WStr.c_str(), len);
-  std::string str(cstr);
-  delete[] cstr;
+  size_t len = std::wcstombs(nullptr, p_WStr.c_str(), 0);
+  std::vector<char> cstr(len + 1);
+  std::wcstombs(&cstr[0], p_WStr.c_str(), len);
+  std::string str(&cstr[0], len);
   return str;
 }
 
 std::wstring Util::ToWString(const std::string& p_Str)
 {
-  size_t len = 1 + mbstowcs(nullptr, p_Str.c_str(), 0);
-  wchar_t* wcstr = new wchar_t[len];
-  std::mbstowcs(wcstr, p_Str.c_str(), len);
-  std::wstring wstr(wcstr);
-  delete[] wcstr;
+  size_t len = mbstowcs(nullptr, p_Str.c_str(), 0);
+  std::vector<wchar_t> wcstr(len + 1);
+  std::mbstowcs(&wcstr[0], p_Str.c_str(), len);
+  std::wstring wstr(&wcstr[0], len);
   return wstr;
 }
 
