@@ -12,7 +12,6 @@
 
 #include "config.h"
 #include "log.h"
-#include "loghelp.h"
 #include "uidefault.h"
 #include "uilite.h"
 #include "setup.h"

@@ -1,6 +1,6 @@
 # Project
 cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
-project(nchat VERSION 0.14 LANGUAGES CXX)
+project(nchat VERSION 0.15 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 14)
 
 # Paths
@@ -38,7 +38,6 @@ add_executable(nchat
   src/config.h
   src/log.cpp
   src/log.h
-  src/loghelp.h
   src/main.cpp
   src/protocol.h
   src/setup.cpp
@@ -64,8 +63,7 @@ target_include_directories(nchat PRIVATE "ext/emojicpp")
 set_target_properties(nchat PROPERTIES COMPILE_FLAGS
                       "-Wall -Wextra -Wpedantic -Wshadow -Wpointer-arith \
                        -Wcast-qual -Wno-missing-braces -Wswitch-default -Wunreachable-code \
-                       -Wundef -Wuninitialized -Wcast-align \
-                       -Wno-gnu-zero-variadic-macro-arguments")
+                       -Wundef -Wuninitialized -Wcast-align")
 target_compile_definitions(nchat PRIVATE PROJECT_VERSION="${PROJECT_VERSION}")
 
 # Dependency tdlib

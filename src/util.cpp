@@ -25,7 +25,7 @@
 
 #include <ncursesw/ncurses.h>
 
-#include "loghelp.h"
+#include "log.h"
 
 int Util::m_OrgStdErr = -1;
 int Util::m_NewStdErr = -1;
@@ -457,7 +457,10 @@ void Util::SignalHandler(int p_Signal)
   LOG_DUMP(callstackStr.c_str());
 
   CleanupStdErrRedirect();
-  system("reset");
+  if (system("reset") != 0)
+  {
+    LOG_WARNING("term reset failed");
+  }
   std::cerr << logMsg << "\n" << callstackStr;
   exit(1);
 }

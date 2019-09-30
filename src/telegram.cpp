@@ -27,7 +27,7 @@
 #include <path.hpp>
 
 #include "chat.h"
-#include "loghelp.h"
+#include "log.h"
 #include "message.h"
 #include "ui.h"
 #include "util.h"
@@ -95,7 +95,7 @@ std::string Telegram::GetName()
 void Telegram::RequestChats(std::int32_t p_Limit, bool p_PostInit, std::int64_t p_OffsetChat,
                             std::int64_t p_OffsetOrder)
 {
-  Log::Debug("request chats");
+  LOG_DEBUG("request chats");
   SendQuery(td::td_api::make_object<td::td_api::getChats>(p_OffsetOrder, p_OffsetChat, p_Limit),
             [this, p_PostInit](Object object)
             {
@@ -123,7 +123,7 @@ void Telegram::RequestChats(std::int32_t p_Limit, bool p_PostInit, std::int64_t 
 
 void Telegram::RequestChatUpdate(std::int64_t p_ChatId)
 {
-  Log::Debug("request messages");
+  LOG_DEBUG("request messages");
   auto get_chat = td::td_api::make_object<td::td_api::getChat>();
   get_chat->chat_id_ = p_ChatId;
   SendQuery(std::move(get_chat),
@@ -148,7 +148,7 @@ void Telegram::RequestChatUpdate(std::int64_t p_ChatId)
 
 void Telegram::RequestMessages(std::int64_t p_ChatId, std::int64_t p_FromMsg, std::int32_t p_Limit)
 {
-  Log::Debug("request messages");
+  LOG_DEBUG("request messages");
   SendQuery(td::td_api::make_object<td::td_api::getChatHistory>(p_ChatId, p_FromMsg, 0, p_Limit, false),
             [this, p_ChatId, p_FromMsg, p_Limit](Object object)
             {
@@ -183,7 +183,7 @@ void Telegram::RequestMessages(std::int64_t p_ChatId, std::int64_t p_FromMsg, st
 
 void Telegram::SendFile(std::int64_t p_ChatId, const std::string& p_Path)
 {
-  Log::Debug("send file");
+  LOG_DEBUG("send file");
   auto send_message = td::td_api::make_object<td::td_api::sendMessage>();
   send_message->chat_id_ = p_ChatId;
   auto message_content = td::td_api::make_object<td::td_api::inputMessageDocument>();
@@ -194,7 +194,7 @@ void Telegram::SendFile(std::int64_t p_ChatId, const std::string& p_Path)
 
 void Telegram::SendMessage(std::int64_t p_ChatId, const std::string& p_Message)
 {
-  Log::Debug("send message");
+  LOG_DEBUG("send message");
   auto send_message = td::td_api::make_object<td::td_api::sendMessage>();
   send_message->chat_id_ = p_ChatId;
   auto message_content = td::td_api::make_object<td::td_api::inputMessageText>();
@@ -206,7 +206,7 @@ void Telegram::SendMessage(std::int64_t p_ChatId, const std::string& p_Message)
 
 void Telegram::MarkRead(std::int64_t p_ChatId, const std::vector<std::int64_t>& p_MsgIds)
 {
-  Log::Debug("mark read");
+  LOG_DEBUG("mark read");
   auto view_messages = td::td_api::make_object<td::td_api::viewMessages>();
   view_messages->chat_id_ = p_ChatId;
   view_messages->message_ids_ = p_MsgIds;
@@ -216,7 +216,7 @@ void Telegram::MarkRead(std::int64_t p_ChatId, const std::vector<std::int64_t>& 
 
 void Telegram::DownloadFile(std::int64_t p_ChatId, const std::string& p_Id)
 {
-  Log::Debug("download file");
+  LOG_DEBUG("download file");
   try
   {
     (void)p_ChatId;
@@ -276,7 +276,7 @@ void Telegram::Cleanup()
  
 void Telegram::Process()
 {
-  Log::Debug("thread started");
+  LOG_DEBUG("thread started");
   while (m_Running)
   {
     auto response = m_Client->receive(0.1);
@@ -286,7 +286,7 @@ void Telegram::Process()
     }
   }
 
-  Log::Debug("thread stopping");
+  LOG_DEBUG("thread stopping");
 }
 
 void Telegram::TdMessageConvert(const td::td_api::message& p_TdMessage, Message& p_Message)
@@ -406,29 +406,29 @@ void Telegram::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> update)
   td::td_api::downcast_call(*update, overloaded(
     [this](td::td_api::updateAuthorizationState &update_authorization_state)
     {
-      Log::Debug("auth update");
+      LOG_DEBUG("auth update");
       m_AuthorizationState = std::move(update_authorization_state.authorization_state_);
       OnAuthStateUpdate();
     },
     [this](td::td_api::updateNewChat &update_new_chat)
     {
-      Log::Debug("new chat update");
+      LOG_DEBUG("new chat update");
       m_ChatTitle[update_new_chat.chat_->id_] = update_new_chat.chat_->title_;
     },
     [this](td::td_api::updateChatTitle &update_chat_title)
     {
-      Log::Debug("chat title update");
+      LOG_DEBUG("chat title update");
       m_ChatTitle[update_chat_title.chat_id_] = update_chat_title.title_;
     },
     [this](td::td_api::updateUser &update_user)
     {
-      Log::Debug("user update");
+      LOG_DEBUG("user update");
       auto user_id = update_user.user_->id_;
       m_Users[user_id] = std::move(update_user.user_);
     },
     [this](td::td_api::updateNewMessage &update_new_message)
     {
-      Log::Debug("new msg update");
+      LOG_DEBUG("new msg update");
       std::vector<Message> messages;
       auto msg = td::move_tl_object_as<td::td_api::message>(update_new_message.message_);
       Message message;
@@ -438,7 +438,7 @@ void Telegram::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> update)
     },
     [](auto &anyupdate)
     {
-      Log::Debug("other update");
+      LOG_DEBUG("other update");
       (void)anyupdate;
     }
     ));

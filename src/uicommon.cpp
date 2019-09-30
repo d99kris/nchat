@@ -98,7 +98,10 @@ void UiCommon::Init()
 
   PrivateInit();
   
-  pipe(m_Sockets);
+  if (pipe(m_Sockets) != 0)
+  {
+    LOG_ERROR("pipe init failed");
+  }
   
   // Init screen
   setlocale(LC_ALL, "");
@@ -338,7 +341,10 @@ void UiCommon::Run()
 
 void UiCommon::RequestRedraw(char p_WinId)
 {
-  write(m_Sockets[1], &p_WinId, 1);
+  if (write(m_Sockets[1], &p_WinId, 1) != 1)
+  {
+    LOG_ERROR("pipe write failed");
+  }
 }
 
 void UiCommon::RedrawInputWin()
