@@ -62,6 +62,7 @@ void UiCommon::Init()
     {"key_toggle_emoji", "KEY_CTRLE"},
     {"key_transmit_file", "KEY_CTRLT"},
     {"key_receive_file", "KEY_CTRLR"},
+    {"key_toggle_keycode_dump", "KEY_CTRLK"},
     {"key_exit", "KEY_CTRLQ"},
     // layout
     {"input_rows", "3"},
@@ -90,6 +91,7 @@ void UiCommon::Init()
   m_KeyToggleEmoji = Util::GetKeyCode(m_Config.Get("key_toggle_emoji"));
   m_KeyTransmitFile = Util::GetKeyCode(m_Config.Get("key_transmit_file"));
   m_KeyReceiveFile = Util::GetKeyCode(m_Config.Get("key_receive_file"));
+  m_KeyToggleKeycodeDump = Util::GetKeyCode(m_Config.Get("key_toggle_keycode_dump"));
 
   m_HighlightBold = (m_Config.Get("highlight_bold") == "1");
   m_ShowEmoji = (m_Config.Get("show_emoji") == "1");
@@ -264,6 +266,11 @@ void UiCommon::Run()
       get_wch(&ch);
       int key = (int)ch;
 
+      if (m_KeycodeDump)
+      {
+        LOG_INFO("key 0x%x", key);
+      }
+      
       if (key == KEY_RESIZE)
       {
         CleanupWin();
@@ -330,6 +337,11 @@ void UiCommon::Run()
       else if (key == 16 /* CTRL_P */)
       {
         ObfuscateChatNames();
+      }
+      else if (key == m_KeyToggleKeycodeDump)
+      {
+        m_KeycodeDump = !m_KeycodeDump;
+        LOG_INFO("keycode dump %s", m_KeycodeDump ? "enabled" : "disabled");
       }
       else
       {

@@ -105,9 +105,11 @@ protected:
   int m_KeyToggleEmoji = 0;
   int m_KeyTransmitFile = 0;
   int m_KeyReceiveFile = 0;
+  int m_KeyToggleKeycodeDump = 0;
   
   bool m_HighlightBold = true;
   bool m_ShowEmoji = true;
+  bool m_KeycodeDump = false;
 
   int m_Sockets[2] = {-1, -1};
 

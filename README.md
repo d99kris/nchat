@@ -209,8 +209,20 @@ whether to show emojis graphically.
     key_prev_page=KEY_PPAGE
     key_send=KEY_CTRLX
     key_toggle_emoji=KEY_CTRLE
+    key_toggle_keycode_dump=KEY_CTRLK
     list_width=14
     show_emoji=1
+
+Refer to function Util::GetKeyCode() in
+[src/util.cpp](https://github.com/d99kris/nchat/blob/master/src/util.cpp)
+for a list of supported key names to use in the config file. Alternatively
+key codes may be entered in hex format (e.g. 0x9). If unsure of what the
+(ncurses) key code for a certain key combination is, one can enable
+"keycode dump" in nchat by pressing CTRL-K, which will log all subsequently
+pressed keys to the log file `~/.nchat/main.log`.
+
+Deleting a configuration entry line (while nchat is not running) and starting
+nchat will populate the configuration file with the default entry.
 
 Technical Details
 =================

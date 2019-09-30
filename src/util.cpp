@@ -191,9 +191,10 @@ int Util::GetKeyCode(const std::string& p_KeyName)
   {
     keyCode = it->second;
   }
-  else if (!p_KeyName.empty() && std::all_of(p_KeyName.begin(), p_KeyName.end(), ::isdigit))
+  else if ((p_KeyName.size() > 2) && (p_KeyName.rfind("0x", 0) == 0) &&
+           (p_KeyName.find_first_not_of("0123456789abcdefABCDEF", 2) == std::string::npos))
   {
-    keyCode = std::stoi(p_KeyName);
+    keyCode = std::stoi(p_KeyName, 0, 16);
   }
   else
   {
