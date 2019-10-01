@@ -14,6 +14,7 @@ class Util
 {
 public:
   static std::string GetConfigDir();
+  static void SetConfigDir(const std::string& p_Path);
   static int GetKeyCode(const std::string& p_KeyName);
   static std::vector<std::wstring> WordWrap(std::wstring p_Text, unsigned p_LineLength);
   static std::vector<std::wstring> WordWrap(std::wstring p_Text, unsigned p_LineLength,
@@ -35,6 +36,7 @@ public:
   static void CleanupStdErrRedirect();
 
 private:
+  static std::string m_ConfigDir;
   static int m_OrgStdErr;
   static int m_NewStdErr;
 };

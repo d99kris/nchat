@@ -23,26 +23,35 @@ static void ShowHelp();
 
 int main(int argc, char *argv[])
 {
+  // Defaults
+  umask(S_IRWXG | S_IRWXO);
+  Util::SetConfigDir(std::string(getenv("HOME")) + std::string("/.nchat"));
+
   // Argument handling
   bool isSetup = false;
   bool isVerbose = false;
   const std::vector<std::string> args(argv + 1, argv + argc);
-  for (auto& arg : args)
+  for (auto it = args.begin(); it != args.end(); ++it)
   {
-    if ((arg == "-s") || (arg == "--setup"))
+    if (((*it == "-d") || (*it == "--configdir")) && (std::distance(it + 1, args.end()) > 0))
+    {
+      ++it;
+      Util::SetConfigDir(*it);
+    }
+    else if ((*it == "-s") || (*it == "--setup"))
     {
       isSetup = true;
     }
-    else if ((arg == "-h") || (arg == "--help"))
+    else if ((*it == "-h") || (*it == "--help"))
     {
       ShowHelp();
       return 0;
     }
-    else if ((arg == "-e") || (arg == "--verbose"))
+    else if ((*it == "-e") || (*it == "--verbose"))
     {
       isVerbose = true;
     }
-    else if ((arg == "-v") || (arg == "--version"))
+    else if ((*it == "-v") || (*it == "--version"))
     {
       ShowVersion();
       return 0;
@@ -61,7 +70,7 @@ int main(int argc, char *argv[])
   }
 
   // Init logging
-  const std::string& logPath = Util::GetConfigDir() + std::string("/main.log");
+  const std::string& logPath = Util::GetConfigDir() + std::string("main.log");
   Log::SetPath(logPath);
   Log::SetDebugEnabled(isVerbose);
   Util::InitStdErrRedirect(logPath);
@@ -82,7 +91,7 @@ int main(int argc, char *argv[])
     {"telegram_is_enabled", "0"},
     {"ui", "uidefault"}
   };
-  const std::string configPath(Util::GetConfigDir() + std::string("/main.conf"));
+  const std::string configPath(Util::GetConfigDir() + std::string("main.conf"));
   Config config(configPath, defaultConfig);
 
   // Init UI
@@ -181,10 +190,11 @@ static void ShowHelp()
     "Usage: nchat [OPTION]\n"
     "\n"
     "Command-line Options:\n"
-    "   -e, --verbose     enable verbose logging\n"
-    "   -h, --help        display this help and exit\n"
-    "   -s, --setup       set up chat protocol account\n"
-    "   -v, --version     output version information and exit\n"
+    "   -d, --confdir <DIR>  use a different directory than ~/.nchat\n"
+    "   -e, --verbose        enable verbose logging\n"
+    "   -h, --help           display this help and exit\n"
+    "   -s, --setup          set up chat protocol account\n"
+    "   -v, --version        output version information and exit\n"
     "\n"
     "Interactive Commands:\n"
     "   Tab         next chat\n"

@@ -27,12 +27,18 @@
 
 #include "log.h"
 
+std::string Util::m_ConfigDir;
 int Util::m_OrgStdErr = -1;
 int Util::m_NewStdErr = -1;
 
 std::string Util::GetConfigDir()
 {
-  return std::string(getenv("HOME")) + std::string("/.nchat");
+  return m_ConfigDir;
+}
+
+void Util::SetConfigDir(const std::string& p_Path)
+{
+  m_ConfigDir = p_Path + "/";
 }
 
 int Util::GetKeyCode(const std::string& p_KeyName)
