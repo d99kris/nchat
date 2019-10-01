@@ -9,6 +9,7 @@
 
 #include <map>
 #include <mutex>
+#include <set>
 #include <stack>
 #include <string>
 #include <vector>
@@ -64,6 +65,7 @@ protected:
   void TransmitFile();
   void ReceiveFile();
   void ObfuscateChatNames();
+  void NotifyNewUnread(const std::set<std::string>& p_ChatIds);
   
 protected:
   std::string m_Name = "undefined";
@@ -109,7 +111,10 @@ protected:
   
   bool m_HighlightBold = true;
   bool m_ShowEmoji = true;
+
   bool m_KeycodeDump = false;
+  bool m_BellMsgAnyChat = false;
+  bool m_BellMsgCurrentChat = false;
 
   int m_Sockets[2] = {-1, -1};
 

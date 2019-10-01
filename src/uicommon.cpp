@@ -66,6 +66,9 @@ void UiCommon::Init()
     {"key_exit", "KEY_CTRLQ"},
     // layout
     {"input_rows", "3"},
+    // other
+    {"bell_msg_any_chat", "1"},
+    {"bell_msg_current_chat", "0"},
   };
 
   std::map<std::string, std::string> defaultConfig = GetPrivateConfig();
@@ -98,6 +101,9 @@ void UiCommon::Init()
 
   m_InHeight = std::stoi(m_Config.Get("input_rows"));
 
+  m_BellMsgAnyChat = (m_Config.Get("bell_msg_any_chat") == "1");
+  m_BellMsgCurrentChat = (m_Config.Get("bell_msg_current_chat") == "1");
+  
   PrivateInit();
   
   if (pipe(m_Sockets) != 0)
@@ -153,6 +159,14 @@ void UiCommon::UpdateChat(Chat p_Chat)
 {
   std::lock_guard<std::mutex> lock(m_Lock);
 
+  
+  if ((m_Chats.find(p_Chat.GetUniqueId()) != m_Chats.end()) &&
+      !m_Chats[p_Chat.GetUniqueId()].m_IsUnread && p_Chat.m_IsUnread)
+  {
+    LOG_DEBUG("new unread msg");
+    NotifyNewUnread(std::set<std::string>({ p_Chat.GetUniqueId() }));
+  }
+  
   m_Chats[p_Chat.GetUniqueId()] = p_Chat;
 
   RequestRedraw(m_ContactWinId | m_InputWinId);
@@ -162,6 +176,8 @@ void UiCommon::UpdateChats(std::vector<Chat> p_Chats, bool p_PostInit)
 {
   std::lock_guard<std::mutex> lock(m_Lock);
 
+  std::set<std::string> unreadChatIds;
+  
   for (auto& chat : p_Chats)
   {
     std::string uniqueId = chat.GetUniqueId();
@@ -169,6 +185,7 @@ void UiCommon::UpdateChats(std::vector<Chat> p_Chats, bool p_PostInit)
     if (p_PostInit && (m_Chats.find(uniqueId) == m_Chats.end()))
     {
       chat.m_IsUnread = true;
+      unreadChatIds.insert(uniqueId);
     }
     
     m_Chats[chat.GetUniqueId()] = chat;
@@ -177,6 +194,12 @@ void UiCommon::UpdateChats(std::vector<Chat> p_Chats, bool p_PostInit)
     {
       SetCurrentChat(chat.GetUniqueId());
     }
+  }
+
+  if (!unreadChatIds.empty())
+  {
+    LOG_DEBUG("new unread msg");
+    NotifyNewUnread(unreadChatIds);
   }
 
   RequestRedraw(m_ContactWinId);
@@ -891,4 +914,20 @@ void UiCommon::ObfuscateChatNames()
   }
 
   RequestRedraw(m_ContactWinId | m_InputWinId);
+}
+
+void UiCommon::NotifyNewUnread(const std::set<std::string>& p_ChatIds)
+{
+  if (p_ChatIds.empty()) return;
+  
+  if (m_BellMsgAnyChat)
+  {
+    LOG_DEBUG("bell");
+    beep();
+  }
+  else if (m_BellMsgCurrentChat && (p_ChatIds.find(m_CurrentChat) != p_ChatIds.end()))
+  {
+    LOG_DEBUG("bell");
+    beep();
+  }           
 }
