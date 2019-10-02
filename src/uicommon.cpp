@@ -161,7 +161,7 @@ void UiCommon::UpdateChat(Chat p_Chat)
 
   
   if ((m_Chats.find(p_Chat.GetUniqueId()) != m_Chats.end()) &&
-      !m_Chats[p_Chat.GetUniqueId()].m_IsUnread && p_Chat.m_IsUnread)
+      !m_Chats[p_Chat.GetUniqueId()].m_IsUnread && p_Chat.m_IsUnread && !p_Chat.m_IsMuted)
   {
     LOG_DEBUG("new unread msg");
     NotifyNewUnread(std::set<std::string>({ p_Chat.GetUniqueId() }));
@@ -185,7 +185,11 @@ void UiCommon::UpdateChats(std::vector<Chat> p_Chats, bool p_PostInit)
     if (p_PostInit && (m_Chats.find(uniqueId) == m_Chats.end()))
     {
       chat.m_IsUnread = true;
-      unreadChatIds.insert(uniqueId);
+
+      if (!chat.m_IsMuted)
+      {
+        unreadChatIds.insert(uniqueId);
+      }
     }
     
     m_Chats[chat.GetUniqueId()] = chat;

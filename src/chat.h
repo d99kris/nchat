@@ -15,6 +15,7 @@ struct Chat
   std::string m_Name;
   Protocol* m_Protocol = nullptr;
   bool m_IsUnread = false;
+  bool m_IsMuted = false;
 
   std::string GetUniqueId()
   {
