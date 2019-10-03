@@ -324,9 +324,17 @@ void Telegram::TdMessageConvert(const td::td_api::message& p_TdMessage, Message&
   }
   else if (p_TdMessage.content_->get_id() == td::td_api::messageDocument::ID)
   {
-    std::string id = std::to_string(static_cast<td::td_api::messageDocument &>(*p_TdMessage.content_).document_->document_->id_);
-    std::string file = static_cast<td::td_api::messageDocument &>(*p_TdMessage.content_).document_->document_->local_->path_;
-    text = "[Document " + id + " \"" + file + "\"]";
+    int32_t id = static_cast<td::td_api::messageDocument &>(*p_TdMessage.content_).document_->document_->id_;
+    std::string path = static_cast<td::td_api::messageDocument &>(*p_TdMessage.content_).document_->document_->local_->path_;
+    if (!path.empty())
+    {
+      text = "[Document \"" + path + "\"]";
+    }
+    else
+    {
+      m_FileToChat[id] = p_TdMessage.chat_id_;
+      text = "[Document " + std::to_string(id) + "]";
+    }      
   }
   else if (p_TdMessage.content_->get_id() == td::td_api::messagePhoto::ID)
   {
@@ -437,10 +445,21 @@ void Telegram::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> update)
       messages.push_back(message);
       m_Ui->UpdateMessages(messages);
     },
+    [this](td::td_api::updateFile &update_file)
+    {
+      LOG_DEBUG("file update");
+      int32_t fileId = update_file.file_->id_;
+      if (m_FileToChat.find(fileId) != m_FileToChat.end())
+      {
+        int64_t chatId = m_FileToChat[fileId];
+        Chat chat;
+        chat.m_Id = chatId;
+        m_Ui->NotifyChatDirty(chat);
+      }
+    },
     [](auto &anyupdate)
     {
-      LOG_DEBUG("other update");
-      (void)anyupdate;
+      LOG_DEBUG("other update %d", anyupdate.ID);
     }
     ));
 }

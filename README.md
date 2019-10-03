@@ -31,6 +31,8 @@ Interactive Commands:
     PageUp            previous page
     Ctrl-e            enable/disable emoji
     Ctrl-x            send message
+    Ctrl-r            receive file
+    Ctrl-t            transfer file
     Ctrl-u            next unread chat
     Ctrl-q            exit
 
@@ -39,6 +41,11 @@ Emojis can be entered on the format `:smiley:`. Refer to
 for a full list of supported emojis. One can also toggle display of graphical
 emojis in the chat history with `Ctrl-e` to easily see their textual
 counterpart.
+
+To send a file, enter the file path and press Ctrl-t. To receive a file, enter
+the number found in the chat history [Document] tag, and press Ctrl-r. Once
+downloaded the chat history message will be updated with the path to the local
+copy of the file.
 
 Supported Platforms
 ===================
@@ -207,9 +214,11 @@ whether to show emojis graphically.
     key_next_unread=KEY_CTRLU
     key_prev_chat=KEY_BTAB
     key_prev_page=KEY_PPAGE
+    key_receive_file=KEY_CTRLR
     key_send=KEY_CTRLX
     key_toggle_emoji=KEY_CTRLE
     key_toggle_keycode_dump=KEY_CTRLK
+    key_transmit_file=KEY_CTRLT
     list_width=14
     show_emoji=1
 

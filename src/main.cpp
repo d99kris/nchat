@@ -178,6 +178,8 @@ int main(int argc, char *argv[])
   // Cleanup protocols
   allProtocols.clear();
 
+  LOG_INFO("exiting");
+
   return 0;
 }
 
@@ -203,6 +205,8 @@ static void ShowHelp()
     "   PageUp      previous page\n"
     "   Ctrl-e      enable/disable emoji\n"
     "   Ctrl-x      send message\n"
+    "   Ctrl-r      receive file\n"
+    "   Ctrl-t      transfer file\n"
     "   Ctrl-u      next unread chat\n"
     "   Ctrl-q      exit\n"
     "\n"

@@ -73,4 +73,5 @@ private:
   std::map<std::int32_t, td::td_api::object_ptr<td::td_api::user>> m_Users;
   std::map<std::int64_t, std::string> m_ChatTitle;
   std::thread* m_Thread;
+  std::map<int32_t, std::int64_t> m_FileToChat;
 };

@@ -169,7 +169,7 @@ void UiCommon::UpdateChat(Chat p_Chat)
   
   m_Chats[p_Chat.GetUniqueId()] = p_Chat;
 
-  RequestRedraw(m_ContactWinId | m_InputWinId);
+  RequestAction(m_RedrawContactWinId | m_RedrawInputWinId);
 }
 
 void UiCommon::UpdateChats(std::vector<Chat> p_Chats, bool p_PostInit)
@@ -206,7 +206,7 @@ void UiCommon::UpdateChats(std::vector<Chat> p_Chats, bool p_PostInit)
     NotifyNewUnread(unreadChatIds);
   }
 
-  RequestRedraw(m_ContactWinId);
+  RequestAction(m_RedrawContactWinId);
 }
 
 void UiCommon::UpdateMessages(std::vector<Message> p_Messages, bool p_ClearChat /* = false */)
@@ -223,7 +223,7 @@ void UiCommon::UpdateMessages(std::vector<Message> p_Messages, bool p_ClearChat 
     m_Messages[message.GetUniqueChatId()][message.m_Id] = message;
   }
 
-  RequestRedraw(m_OutputWinId | m_InputWinId);
+  RequestAction(m_RedrawOutputWinId | m_RedrawInputWinId);
 
   std::map<std::string, Protocol*> chatIds;
   for (auto& message : p_Messages)
@@ -243,6 +243,19 @@ void UiCommon::UpdateMessages(std::vector<Message> p_Messages, bool p_ClearChat 
       chatId.second->RequestChats(100, true);
     }
   }    
+}
+
+void UiCommon::NotifyChatDirty(Chat p_Chat)
+{
+  LOG_DEBUG("notify chat dirty");
+  auto chat = m_Chats.find(m_CurrentChat);
+  if (chat != m_Chats.end())
+  {
+    if (chat->second.m_Id == p_Chat.m_Id)
+    {
+      RequestAction(m_RequestUpdateCurrentChat);
+    }
+  }
 }
 
 void UiCommon::Run()
@@ -271,19 +284,24 @@ void UiCommon::Run()
         mask |= buf[i];
       }
 
-      if (mask & m_OutputWinId)
+      if (mask & m_RedrawOutputWinId)
       {
         RedrawOutputWin();
       }
 
-      if (mask & m_ContactWinId)
+      if (mask & m_RedrawContactWinId)
       {
         RedrawContactWin();
       }      
 
-      if (mask & m_InputWinId)
+      if (mask & m_RedrawInputWinId)
       {
         RedrawInputWin();
+      }
+
+      if (mask & m_RequestUpdateCurrentChat)
+      {
+        UpdateCurrentChat();
       }
     }
 
@@ -302,7 +320,7 @@ void UiCommon::Run()
       {
         CleanupWin();
         SetupWin();
-        RequestRedraw(m_ContactWinId | m_InputWinId | m_OutputWinId);
+        RequestAction(m_RedrawContactWinId | m_RedrawInputWinId | m_RedrawOutputWinId);
       }
       else if (key == m_KeyNextChat)
       {
@@ -378,7 +396,7 @@ void UiCommon::Run()
   }
 }
 
-void UiCommon::RequestRedraw(char p_WinId)
+void UiCommon::RequestAction(char p_WinId)
 {
   if (write(m_Sockets[1], &p_WinId, 1) != 1)
   {
@@ -569,6 +587,17 @@ void UiCommon::RedrawOutputWin()
   wrefresh(m_OutWin);
 }
 
+void UiCommon::UpdateCurrentChat()
+{
+  LOG_DEBUG("update current chat");
+  if (m_Chats.find(m_CurrentChat) != m_Chats.end())
+  {
+    const Chat& chat = m_Chats.at(m_CurrentChat);
+    const int maxMsg = (m_OutHeight / 3) + 1;
+    chat.m_Protocol->RequestMessages(chat.m_Id, m_ShowMsgIdBefore[m_CurrentChat].top(), maxMsg);
+  }
+}
+
 void UiCommon::NextPage(int p_Offset)
 {
   std::lock_guard<std::mutex> lock(m_Lock);
@@ -676,7 +705,7 @@ void UiCommon::MoveInputCursor(int p_Key)
       }
     }
     
-    RequestRedraw(m_InputWinId);
+    RequestAction(m_RedrawInputWinId);
   }
 }
 
@@ -733,7 +762,7 @@ void UiCommon::Backspace()
       m_InputCursorPos[m_CurrentChat] = m_InputCursorPos[m_CurrentChat] - 1;
     }
               
-    RequestRedraw(m_InputWinId);
+    RequestAction(m_RedrawInputWinId);
   }
 }
 
@@ -753,7 +782,7 @@ void UiCommon::Delete()
       }
     }
 
-    RequestRedraw(m_InputWinId);
+    RequestAction(m_RedrawInputWinId);
   }
 }
 
@@ -781,7 +810,7 @@ void UiCommon::Send()
       chat.m_Protocol->SendMessage(chat.m_Id, str);
       m_Input[m_CurrentChat].clear();
       m_InputCursorPos[m_CurrentChat] = 0;
-      RequestRedraw(m_InputWinId);
+      RequestAction(m_RedrawInputWinId);
     }
   }
 }
@@ -821,7 +850,7 @@ void UiCommon::SetCurrentChat(const std::string& p_Chat)
     const int maxMsg = (m_OutHeight / 3) + 1;
     chat.m_Protocol->RequestMessages(chat.m_Id, m_ShowMsgIdBefore[m_CurrentChat].top(), maxMsg);
 
-    RequestRedraw(m_ContactWinId | m_InputWinId);
+    RequestAction(m_RedrawContactWinId | m_RedrawInputWinId);
   }
 }
 
@@ -845,13 +874,13 @@ void UiCommon::InputBuf(wint_t ch)
     }
   }
           
-  RequestRedraw(m_InputWinId);
+  RequestAction(m_RedrawInputWinId);
 }
 
 void UiCommon::ToggleEmoji()
 {
   m_ShowEmoji = !m_ShowEmoji;
-  RequestRedraw(m_InputWinId | m_OutputWinId);
+  RequestAction(m_RedrawInputWinId | m_RedrawOutputWinId);
 }
 
 void UiCommon::TransmitFile()
@@ -871,7 +900,7 @@ void UiCommon::TransmitFile()
         chat.m_Protocol->SendFile(chat.m_Id, str);
         m_Input[m_CurrentChat].clear();
         m_InputCursorPos[m_CurrentChat] = 0;
-        RequestRedraw(m_InputWinId);
+        RequestAction(m_RedrawInputWinId);
       }
     }
   }
@@ -892,7 +921,7 @@ void UiCommon::ReceiveFile()
       chat.m_Protocol->DownloadFile(chat.m_Id, str);
       m_Input[m_CurrentChat].clear();
       m_InputCursorPos[m_CurrentChat] = 0;
-      RequestRedraw(m_InputWinId);
+      RequestAction(m_RedrawInputWinId);
     }
   }
 }
@@ -917,7 +946,7 @@ void UiCommon::ObfuscateChatNames()
     ++i;
   }
 
-  RequestRedraw(m_ContactWinId | m_InputWinId);
+  RequestAction(m_RedrawContactWinId | m_RedrawInputWinId);
 }
 
 void UiCommon::NotifyNewUnread(const std::set<std::string>& p_ChatIds)

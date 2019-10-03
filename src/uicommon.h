@@ -36,6 +36,7 @@ public:
   virtual void UpdateChat(Chat p_Chats);
   virtual void UpdateChats(std::vector<Chat> p_Chats, bool p_PostInit);
   virtual void UpdateMessages(std::vector<Message> p_Messages, bool p_ClearChat = false);
+  virtual void NotifyChatDirty(Chat p_Chat);
   virtual void Run();
 
 protected:
@@ -45,10 +46,11 @@ protected:
   virtual void SetupWin() = 0;
   virtual void CleanupWin() = 0;
   
-  void RequestRedraw(char p_WinId);
+  void RequestAction(char p_WinId);
   
   void RedrawInputWin();
   void RedrawOutputWin();
+  void UpdateCurrentChat();
 
   void NextPage(int p_Offset);
   void MoveInputCursor(int p_Key);
@@ -75,9 +77,10 @@ protected:
 
   Config m_Config;
 
-  const char m_InputWinId  = 1 << 0;
-  const char m_OutputWinId = 1 << 1;
-  const char m_ContactWinId = 1 << 2;
+  const char m_RedrawInputWinId  = 1 << 0;
+  const char m_RedrawOutputWinId = 1 << 1;
+  const char m_RedrawContactWinId = 1 << 2;
+  const char m_RequestUpdateCurrentChat = 1 << 3;
   
   size_t m_ScreenWidth = 0;
   size_t m_ScreenHeight = 0;
