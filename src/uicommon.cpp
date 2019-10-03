@@ -397,7 +397,7 @@ void UiCommon::Run()
       {
         m_ShowMsgId = !m_ShowMsgId;
         RequestAction(m_RedrawOutputWinId);
-        LOG_INFO("show msgid %s", m_ShowMsgId ? "enabled" : "disabled");
+        LOG_DEBUG("show msgid %s", m_ShowMsgId ? "enabled" : "disabled");
       }
       else
       {
