@@ -63,12 +63,14 @@ void UiCommon::Init()
     {"key_transmit_file", "KEY_CTRLT"},
     {"key_receive_file", "KEY_CTRLR"},
     {"key_toggle_keycode_dump", "KEY_CTRLK"},
+    {"key_toggle_msgid", "KEY_CTRLN"},
     {"key_exit", "KEY_CTRLQ"},
     // layout
     {"input_rows", "3"},
     // other
     {"bell_msg_any_chat", "1"},
     {"bell_msg_current_chat", "0"},
+    {"show_msgid", "0"},
   };
 
   std::map<std::string, std::string> defaultConfig = GetPrivateConfig();
@@ -95,9 +97,11 @@ void UiCommon::Init()
   m_KeyTransmitFile = Util::GetKeyCode(m_Config.Get("key_transmit_file"));
   m_KeyReceiveFile = Util::GetKeyCode(m_Config.Get("key_receive_file"));
   m_KeyToggleKeycodeDump = Util::GetKeyCode(m_Config.Get("key_toggle_keycode_dump"));
+  m_KeyToggleMsgId = Util::GetKeyCode(m_Config.Get("key_toggle_msgid"));
 
   m_HighlightBold = (m_Config.Get("highlight_bold") == "1");
   m_ShowEmoji = (m_Config.Get("show_emoji") == "1");
+  m_ShowMsgId = (m_Config.Get("show_msgid") == "1");
 
   m_InHeight = std::stoi(m_Config.Get("input_rows"));
 
@@ -130,6 +134,7 @@ std::string UiCommon::GetName()
 void UiCommon::Cleanup()
 {
   m_Config.Set("show_emoji", std::to_string(m_ShowEmoji));  
+  m_Config.Set("show_msgid", std::to_string(m_ShowMsgId));  
   m_Config.Save();
   CleanupWin();
   wclear(stdscr);
@@ -388,6 +393,12 @@ void UiCommon::Run()
         m_KeycodeDump = !m_KeycodeDump;
         LOG_INFO("keycode dump %s", m_KeycodeDump ? "enabled" : "disabled");
       }
+      else if (key == m_KeyToggleMsgId)
+      {
+        m_ShowMsgId = !m_ShowMsgId;
+        RequestAction(m_RedrawOutputWinId);
+        LOG_INFO("show msgid %s", m_ShowMsgId ? "enabled" : "disabled");
+      }
       else
       {
         InputBuf(ch);
@@ -565,7 +576,17 @@ void UiCommon::RedrawOutputWin()
 
     std::string timestr = (sentdate == nowdate) ? senttime : sentdate + std::string(" ") + senttime;
     wattron(m_OutWin, m_HighlightBold ? A_BOLD : A_NORMAL);
-    mvwprintw(m_OutWin, messageY, 0, "%s (%s):", sender.c_str(), timestr.c_str());
+
+    if (m_ShowMsgId)
+    {
+      mvwprintw(m_OutWin, messageY, 0, "%s (%s) 0x%llx", sender.c_str(), timestr.c_str(),
+                it->second.m_Id);
+    }
+    else
+    {
+      mvwprintw(m_OutWin, messageY, 0, "%s (%s)", sender.c_str(), timestr.c_str());
+    }
+
     wattroff(m_OutWin, m_HighlightBold ? A_BOLD : A_NORMAL);
     messageY -= 2;
 
@@ -806,8 +827,26 @@ void UiCommon::Send()
         wstr = Util::ToWString(emojicpp::emojize(Util::ToString(m_Input[m_CurrentChat])));
       }
 
-      std::string str = Util::ToString(wstr);              
-      chat.m_Protocol->SendMessage(chat.m_Id, str);
+      std::string str = Util::ToString(wstr);
+
+      int64_t replyId = 0x0;
+      std::istringstream ss(str);
+      std::string firstline;
+      if (std::getline(ss, firstline))
+      {
+        if (firstline.substr(0, 3) == "|0x")
+        {
+          std::string idStr = firstline.substr(1);
+          if ((idStr.size() > 2) &&
+              (idStr.find_first_not_of("0123456789abcdefABCDEF", 2) == std::string::npos))
+          {
+            replyId = std::stoll(idStr, 0, 16);
+            str = ss.str().substr(ss.tellg());
+          }
+        }
+      }
+      
+      chat.m_Protocol->SendMessage(chat.m_Id, str, replyId);
       m_Input[m_CurrentChat].clear();
       m_InputCursorPos[m_CurrentChat] = 0;
       RequestAction(m_RedrawInputWinId);

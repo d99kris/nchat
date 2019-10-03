@@ -33,7 +33,7 @@ public:
   virtual void RequestChatUpdate(std::int64_t p_ChatId) = 0;
   virtual void RequestMessages(std::int64_t p_ChatId, std::int64_t p_FromMsg, std::int32_t p_Limit) = 0;
   virtual void SendFile(std::int64_t p_ChatId, const std::string& p_Path) = 0;
-  virtual void SendMessage(std::int64_t p_ChatId, const std::string& p_Message) = 0;
+  virtual void SendMessage(std::int64_t p_ChatId, const std::string& p_Message, std::int64_t p_ReplyId = 0x0) = 0;
   virtual void MarkRead(std::int64_t p_ChatId, const std::vector<std::int64_t>& p_MsgIds) = 0;
   virtual void DownloadFile(std::int64_t p_ChatId, const std::string& p_Id) = 0;
 

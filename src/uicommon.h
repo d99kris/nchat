@@ -111,9 +111,11 @@ protected:
   int m_KeyTransmitFile = 0;
   int m_KeyReceiveFile = 0;
   int m_KeyToggleKeycodeDump = 0;
+  int m_KeyToggleMsgId = 0;
   
   bool m_HighlightBold = true;
   bool m_ShowEmoji = true;
+  bool m_ShowMsgId = false;
 
   bool m_KeycodeDump = false;
   bool m_BellMsgAnyChat = false;

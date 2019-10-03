@@ -30,11 +30,12 @@ Interactive Commands:
     PageDn            next page
     PageUp            previous page
     Ctrl-e            enable/disable emoji
-    Ctrl-x            send message
+    Ctrl-n            enable/disable msgid
+    Ctrl-q            exit
     Ctrl-r            receive file
     Ctrl-t            transfer file
     Ctrl-u            next unread chat
-    Ctrl-q            exit
+    Ctrl-x            send message
 
 Emojis can be entered on the format `:smiley:`. Refer to
 [emojicpp](https://github.com/d99kris/nchat/blob/master/ext/emojicpp/README.md)
@@ -46,6 +47,11 @@ To send a file, enter the file path and press Ctrl-t. To receive a file, enter
 the number found in the chat history [Document] tag, and press Ctrl-r. Once
 downloaded the chat history message will be updated with the path to the local
 copy of the file.
+
+To reply and quote a specific message, first enable display of message id by
+pressing Ctrl-n. Then start the message with a line containing only `|0x12345`
+(replace the number 0x12345 with the actual message id) and write the message
+on the following line(s). Press Ctrl-x to send like normal.
 
 Supported Platforms
 ===================
@@ -200,6 +206,9 @@ This configuration file (and uilite.conf for `uilite`) controls the UI aspects,
 in particular subwindows size (`input_rows`, `list_width`), shortcut keys and
 whether to show emojis graphically.
 
+    bell_msg_any_chat=1
+    bell_msg_current_chat=0
+    highlight_bold=1
     input_rows=3
     key_backspace=KEY_BACKSPACE
     key_curs_down=KEY_DOWN
@@ -218,9 +227,11 @@ whether to show emojis graphically.
     key_send=KEY_CTRLX
     key_toggle_emoji=KEY_CTRLE
     key_toggle_keycode_dump=KEY_CTRLK
+    key_toggle_msgid=KEY_CTRLN
     key_transmit_file=KEY_CTRLT
     list_width=14
     show_emoji=1
+    show_msgid=0
 
 Refer to function Util::GetKeyCode() in
 [src/util.cpp](https://github.com/d99kris/nchat/blob/master/src/util.cpp)

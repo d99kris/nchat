@@ -193,11 +193,13 @@ void Telegram::SendFile(std::int64_t p_ChatId, const std::string& p_Path)
   SendQuery(std::move(send_message), {});
 }
 
-void Telegram::SendMessage(std::int64_t p_ChatId, const std::string& p_Message)
+void Telegram::SendMessage(std::int64_t p_ChatId, const std::string& p_Message,
+                           std::int64_t p_ReplyId /*= 0x0*/)
 {
   LOG_DEBUG("send message");
   auto send_message = td::td_api::make_object<td::td_api::sendMessage>();
   send_message->chat_id_ = p_ChatId;
+  send_message->reply_to_message_id_ = p_ReplyId;
   auto message_content = td::td_api::make_object<td::td_api::inputMessageText>();
   message_content->text_ = td::td_api::make_object<td::td_api::formattedText>();
   message_content->text_->text_ = p_Message;
