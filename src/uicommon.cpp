@@ -571,8 +571,9 @@ void UiCommon::RedrawOutputWin()
     strftime(nowdatestr, sizeof(nowdatestr), "%Y-%m-%d", nowtimeinfo);
     std::string nowdate(nowdatestr);
     
-    std::string sender = it->second.m_Sender;
-    sender.erase(sender.find_last_not_of(" \n\r\t") + 1);
+    std::string rawSender = it->second.m_Sender;
+    rawSender.erase(rawSender.find_last_not_of(" \n\r\t") + 1);
+    const std::string& sender = m_ShowEmoji ? rawSender : emojicpp::textize(rawSender);
 
     std::string timestr = (sentdate == nowdate) ? senttime : sentdate + std::string(" ") + senttime;
     wattron(m_OutWin, m_HighlightBold ? A_BOLD : A_NORMAL);

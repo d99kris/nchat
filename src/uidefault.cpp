@@ -144,8 +144,9 @@ void UiDefault::RedrawContactWin()
     }
     
     wattron(m_ListWin, (chat.first == m_CurrentChat) ? A_REVERSE : A_NORMAL);
-    const std::string& name = chat.second.m_Name;
-
+    const std::string& rawName = chat.second.m_Name;
+    const std::string& name = m_ShowEmoji ? rawName : emojicpp::textize(rawName);
+    
     std::wstring wname = Util::ToWString(name).substr(0, m_ListWidth);
     wname = Util::TrimPadWString(wname, m_ListWidth);
 

@@ -1,6 +1,6 @@
 # Project
 cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
-project(nchat VERSION 0.21 LANGUAGES CXX)
+project(nchat VERSION 0.22 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 14)
 
 # Paths

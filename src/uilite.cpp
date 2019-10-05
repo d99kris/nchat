@@ -101,7 +101,9 @@ void UiLite::RedrawContactWin()
   if (m_Chats.find(m_CurrentChat) != m_Chats.end())
   {
     const Chat& chat = m_Chats.at(m_CurrentChat);
-    mvwprintw(m_StatusWin, 0, 5, " %s ", chat.m_Name.c_str());
+    const std::string& rawName = chat.m_Name;
+    const std::string& name = m_ShowEmoji ? rawName : emojicpp::textize(rawName);
+    mvwprintw(m_StatusWin, 0, 5, " %s ", name.c_str());
   }
   
   bool isAnyUnread = false;

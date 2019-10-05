@@ -8,6 +8,7 @@
 #pragma once
 
 #include <functional>
+#include <set>
 #include <thread>
 
 #include <td/telegram/Client.h>
@@ -49,7 +50,7 @@ private:
 
   void SendQuery(td::td_api::object_ptr<td::td_api::Function> f, std::function<void(Object)> handler);
   void ProcessResponse(td::Client::Response response);
-  std::string GetUserName(std::int32_t user_id);
+  std::string GetUserName(std::int32_t user_id, std::int64_t chat_id);
   void ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> update);
   auto CreateAuthQueryHandler();
   void OnAuthStateUpdate();
@@ -74,4 +75,5 @@ private:
   std::map<std::int64_t, std::string> m_ChatTitle;
   std::thread* m_Thread;
   std::map<int32_t, std::int64_t> m_FileToChat;
+  std::map<int32_t, std::set<int64_t>> m_UserToChats;
 };

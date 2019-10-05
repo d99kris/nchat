@@ -294,7 +294,7 @@ void Telegram::Process()
 
 void Telegram::TdMessageConvert(const td::td_api::message& p_TdMessage, Message& p_Message)
 {
-  auto sender_user_name = GetUserName(p_TdMessage.sender_user_id_);
+  auto sender_user_name = GetUserName(p_TdMessage.sender_user_id_, p_TdMessage.chat_id_);
   std::string text;
   if (p_TdMessage.content_->get_id() == td::td_api::messageText::ID)
   {
@@ -402,8 +402,9 @@ void Telegram::ProcessResponse(td::Client::Response response)
   }
 }
 
-std::string Telegram::GetUserName(std::int32_t user_id)
+std::string Telegram::GetUserName(std::int32_t user_id, std::int64_t chat_id)
 {
+  m_UserToChats[user_id].insert(chat_id);  
   auto it = m_Users.find(user_id);
   if (it == m_Users.end())
   {
@@ -434,8 +435,19 @@ void Telegram::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> update)
     [this](td::td_api::updateUser &update_user)
     {
       LOG_DEBUG("user update");
-      auto user_id = update_user.user_->id_;
-      m_Users[user_id] = std::move(update_user.user_);
+      int32_t userId = update_user.user_->id_;
+      m_Users[userId] = std::move(update_user.user_);
+
+      if (m_UserToChats.find(userId) != m_UserToChats.end())
+      {
+        std::set<int64_t> chatIds = m_UserToChats[userId];
+        for (auto chatId : chatIds)
+        {
+          Chat chat;
+          chat.m_Id = chatId;
+          m_Ui->NotifyChatDirty(chat);
+        }
+      }
     },
     [this](td::td_api::updateNewMessage &update_new_message)
     {
