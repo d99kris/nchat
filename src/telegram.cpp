@@ -138,6 +138,7 @@ void Telegram::RequestChatUpdate(std::int64_t p_ChatId)
               chat.m_Name = tchat->title_;
               chat.m_Protocol = this;
               chat.m_IsUnread = (tchat->unread_count_ > 0);
+              chat.m_IsUnreadMention = (tchat->unread_mention_count_ > 0);
               chat.m_IsMuted = (tchat->notification_settings_->mute_for_ > 0);
 
               if (m_Ui.get() != nullptr)

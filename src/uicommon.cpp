@@ -164,12 +164,18 @@ void UiCommon::UpdateChat(Chat p_Chat)
 {
   std::lock_guard<std::mutex> lock(m_Lock);
 
-  
-  if ((m_Chats.find(p_Chat.GetUniqueId()) != m_Chats.end()) &&
-      !m_Chats[p_Chat.GetUniqueId()].m_IsUnread && p_Chat.m_IsUnread && !p_Chat.m_IsMuted)
+  if (m_Chats.find(p_Chat.GetUniqueId()) != m_Chats.end())
   {
-    LOG_DEBUG("new unread msg");
-    NotifyNewUnread(std::set<std::string>({ p_Chat.GetUniqueId() }));
+    if (!m_Chats[p_Chat.GetUniqueId()].m_IsUnreadMention && p_Chat.m_IsUnreadMention)
+    {
+      LOG_DEBUG("new unread mention");
+      NotifyNewUnread(std::set<std::string>({ p_Chat.GetUniqueId() }));
+    }
+    else if (!m_Chats[p_Chat.GetUniqueId()].m_IsUnread && p_Chat.m_IsUnread && !p_Chat.m_IsMuted)
+    {
+      LOG_DEBUG("new unread msg");
+      NotifyNewUnread(std::set<std::string>({ p_Chat.GetUniqueId() }));
+    }
   }
   
   m_Chats[p_Chat.GetUniqueId()] = p_Chat;
