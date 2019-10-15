@@ -257,6 +257,14 @@ License
 =======
 nchat is distributed under the MIT license. See LICENSE file.
 
+Alternatives
+============
+Other terminal/console-based Telegram clients:
+
+- [TelegramTUI](https://github.com/vtr0n/TelegramTUI)
+- [Termgram](https://github.com/AndreiRegiani/termgram)
+
+
 Keywords
 ========
 command line, console based, linux, macos, chat client, telegram, ncurses,
