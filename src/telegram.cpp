@@ -472,6 +472,22 @@ void Telegram::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> update)
         m_Ui->NotifyChatDirty(chat);
       }
     },
+    [this](td::td_api::updateChatLastMessage &update_chat_last_message)
+    {
+      LOG_DEBUG("chat last msg update");
+      int64_t chatId = update_chat_last_message.chat_id_;
+      Chat chat;
+      chat.m_Id = chatId;
+      m_Ui->NotifyChatDirty(chat);
+    },
+    [this](td::td_api::updateDeleteMessages &update_delete_messages)
+    {
+      LOG_DEBUG("delete msgs update");
+      int64_t chatId = update_delete_messages.chat_id_;
+      Chat chat;
+      chat.m_Id = chatId;
+      m_Ui->NotifyChatDirty(chat);
+    },
     [](auto &anyupdate)
     {
       LOG_DEBUG("other update %d", anyupdate.ID);
