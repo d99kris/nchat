@@ -1,6 +1,6 @@
 # Project
 cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
-project(nchat VERSION 0.24 LANGUAGES CXX)
+project(nchat VERSION 0.25 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 14)
 
 # Paths
@@ -36,6 +36,8 @@ add_executable(nchat
   ext/emojicpp/emoji.h
   src/config.cpp
   src/config.h
+  src/lockfile.cpp
+  src/lockfile.h
   src/log.cpp
   src/log.h
   src/main.cpp

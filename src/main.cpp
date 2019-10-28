@@ -11,6 +11,7 @@
 #include <path.hpp>
 
 #include "config.h"
+#include "lockfile.h"
 #include "log.h"
 #include "uidefault.h"
 #include "uilite.h"
@@ -67,6 +68,16 @@ int main(int argc, char *argv[])
   if (!apathy::Path(Util::GetConfigDir()).exists())
   {
     apathy::Path::makedirs(Util::GetConfigDir());
+  }
+
+  // Prevent concurrent sessions for same config dir
+  DirLock dirLock(Util::GetConfigDir());
+  if (!dirLock.IsLocked())
+  {
+    std::cout <<
+      "error: unable to acquire lock for " << Util::GetConfigDir() << "\n" <<
+      "       only one nchat session per config dir is supported.\n";
+    return 1;
   }
 
   // Init logging
