@@ -34,6 +34,7 @@ public:
   static std::string BacktraceSymbolsStr(void* p_Callstack[], int p_Size);
   static void InitStdErrRedirect(const std::string& p_Path);
   static void CleanupStdErrRedirect();
+  static std::string GetPass();
 
 private:
   static std::string m_ConfigDir;

@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <cstring>
 #include <iomanip>
 #include <iostream>
 #include <map>
@@ -529,4 +530,24 @@ void Util::CleanupStdErrRedirect()
     dup2(m_OrgStdErr, fileno(stderr));
     close(m_OrgStdErr);
   }
+}
+
+std::string Util::GetPass()
+{
+  std::string pass;
+  struct termios told, tnew;
+
+  if (tcgetattr(STDIN_FILENO, &told) == 0)
+  {
+    memcpy(&tnew, &told, sizeof(struct termios));
+    tnew.c_lflag &= ~ECHO;
+    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &tnew) == 0)
+    {
+      std::getline(std::cin, pass);
+      tcsetattr(STDIN_FILENO, TCSAFLUSH, &told);
+      std::cout << std::endl;
+    }
+  }
+
+  return pass;
 }
