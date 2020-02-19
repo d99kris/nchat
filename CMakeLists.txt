@@ -60,6 +60,7 @@ install(TARGETS nchat DESTINATION bin)
 # Headers
 target_include_directories(nchat PRIVATE "ext/apathy")
 target_include_directories(nchat PRIVATE "ext/emojicpp")
+target_include_directories(nchat PRIVATE "ext/td")
 
 # Compiler flags
 set_target_properties(nchat PROPERTIES COMPILE_FLAGS
