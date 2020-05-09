@@ -58,8 +58,8 @@ Supported Platforms
 nchat is developed and tested on Linux and macOS. Current version has been
 tested on:
 
-- macOS 10.14 Mojave
-- Ubuntu 18.04 LTS
+- macOS 10.15 Catalina
+- Ubuntu 20.04 LTS
 
 Build / Install
 ===============
@@ -72,7 +72,7 @@ Linux / Ubuntu
 
 **Dependencies**
 
-    sudo apt install ccache cmake g++ gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev
+    sudo apt install ccache cmake clang++ gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev
 
 **Source**
 
@@ -104,6 +104,34 @@ macOS
 **Install**
 
     make install
+
+Low Memory / RAM Systems
+------------------------
+The Telegram client library subcomponent requires relatively large amount of RAM to
+build by default (3.5GB using g++, and 1.5 GB for clang++). It is possible to adjust the
+Telegram client library source code so that it requires less RAM (but takes longer time).
+Doing so reduces the memory requirement to around 1GB under g++ and 0.5GB for clang++. Also, it
+is recommended to build nchat in release mode (which is default if downloading zip/tar release
+package - but with a git/svn clone it defaults to debug mode), to minimize memory usage.
+Steps to build nchat on a low memory system:
+
+**Source**
+
+    git clone https://github.com/d99kris/nchat && cd nchat
+
+**Build**
+
+    cd ext/td ; php SplitSource.php ; cd -
+    mkdir -p build && cd build
+    CC=/usr/bin/clang CXX=/usr/bin/clang++ cmake -DCMAKE_BUILD_TYPE=Release .. && make -s
+
+**Install**
+
+    sudo make install
+
+**Revert Source Code Split (Optional)**
+
+    cd ../ext/td ; php SplitSource.php --undo ; cd -   # optional step to revert source split
 
 Getting Started
 ===============

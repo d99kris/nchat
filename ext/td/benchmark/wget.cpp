@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -14,7 +14,6 @@
 #include "td/utils/logging.h"
 #include "td/utils/Status.h"
 
-#include <memory>
 #include <string>
 
 int main(int argc, char *argv[]) {
@@ -25,10 +24,11 @@ int main(int argc, char *argv[]) {
   auto timeout = 10;
   auto ttl = 3;
   auto prefer_ipv6 = (argc > 2 && std::string(argv[2]) == "-6");
-  auto scheduler = std::make_unique<td::ConcurrentScheduler>();
+  auto scheduler = td::make_unique<td::ConcurrentScheduler>();
   scheduler->init(0);
   scheduler
-      ->create_actor_unsafe<td::Wget>(0, "Client", td::PromiseCreator::lambda([](td::Result<td::HttpQueryPtr> res) {
+      ->create_actor_unsafe<td::Wget>(0, "Client",
+                                      td::PromiseCreator::lambda([](td::Result<td::unique_ptr<td::HttpQuery>> res) {
                                         LOG(ERROR) << *res.ok();
                                         td::Scheduler::instance()->finish();
                                       }),

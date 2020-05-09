@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -9,34 +9,36 @@
 #include "td/mtproto/AuthKey.h"
 #include "td/mtproto/Handshake.h"
 #include "td/mtproto/NoCryptoStorer.h"
+#include "td/mtproto/PacketInfo.h"
+#include "td/mtproto/PacketStorer.h"
 #include "td/mtproto/RawConnection.h"
-#include "td/mtproto/Transport.h"
-#include "td/mtproto/utils.h"
 
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
 #include "td/utils/format.h"
 #include "td/utils/logging.h"
-#include "td/utils/port/Fd.h"
+#include "td/utils/port/detail/PollableFd.h"
 #include "td/utils/Status.h"
+#include "td/utils/StorerBase.h"
 
 namespace td {
 namespace mtproto {
+
 class HandshakeConnection
     : private RawConnection::Callback
     , private AuthKeyHandshake::Callback {
  public:
-  HandshakeConnection(std::unique_ptr<RawConnection> raw_connection, AuthKeyHandshake *handshake,
-                      std::unique_ptr<AuthKeyHandshakeContext> context)
+  HandshakeConnection(unique_ptr<RawConnection> raw_connection, AuthKeyHandshake *handshake,
+                      unique_ptr<AuthKeyHandshakeContext> context)
       : raw_connection_(std::move(raw_connection)), handshake_(handshake), context_(std::move(context)) {
     handshake_->resume(this);
   }
 
-  Fd &get_pollable() {
-    return raw_connection_->get_pollable();
+  PollableFdInfo &get_poll_info() {
+    return raw_connection_->get_poll_info();
   }
 
-  std::unique_ptr<RawConnection> move_as_raw_connection() {
+  unique_ptr<RawConnection> move_as_raw_connection() {
     return std::move(raw_connection_);
   }
 
@@ -54,9 +56,9 @@ class HandshakeConnection
   }
 
  private:
-  std::unique_ptr<RawConnection> raw_connection_;
+  unique_ptr<RawConnection> raw_connection_;
   AuthKeyHandshake *handshake_;
-  std::unique_ptr<AuthKeyHandshakeContext> context_;
+  unique_ptr<AuthKeyHandshakeContext> context_;
 
   void send_no_crypto(const Storer &storer) override {
     raw_connection_->send_no_crypto(PacketStorer<NoCryptoImpl>(0, storer));
@@ -78,5 +80,6 @@ class HandshakeConnection
     return Status::OK();
   }
 };
+
 }  // namespace mtproto
 }  // namespace td

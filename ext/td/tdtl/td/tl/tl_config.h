@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -77,7 +77,7 @@ class tl_config_parser {
   std::string try_parse_string();
 
  public:
-  tl_config_parser(const char *s, std::size_t len) : p(s, len) {
+  tl_config_parser(const char *s, std::size_t len) : p(s, len), schema_version(-1) {
   }
 
   tl_config parse_config();

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -378,26 +378,29 @@ std::string TD_TL_writer_jni_cpp::gen_get_id(const std::string &class_name, std:
 }
 
 std::string TD_TL_writer_jni_cpp::gen_fetch_function_begin(const std::string &parser_name,
-                                                           const std::string &class_name, int arity,
-                                                           std::vector<tl::var_description> &vars,
+                                                           const std::string &class_name,
+                                                           const std::string &parent_class_name, int arity,
+                                                           int field_count, std::vector<tl::var_description> &vars,
                                                            int parser_type) const {
   for (std::size_t i = 0; i < vars.size(); i++) {
     assert(vars[i].is_stored == false);
   }
 
   std::string fetched_type = "object_ptr<" + class_name + "> ";
+  std::string returned_type = "object_ptr<" + parent_class_name + "> ";
   assert(arity == 0);
 
   assert(parser_type != 0);
 
-  return "\n" + fetched_type + class_name + "::fetch(" + parser_name + " &p) {\n" +
+  return "\n" + returned_type + class_name + "::fetch(" + parser_name + " &p) {\n" +
          (parser_type == -1 ? ""
                             : "  if (p == nullptr) return nullptr;\n"
                               "  " +
                                   fetched_type + "res = make_object<" + class_name + ">();\n");
 }
 
-std::string TD_TL_writer_jni_cpp::gen_fetch_function_end(int field_num, const std::vector<tl::var_description> &vars,
+std::string TD_TL_writer_jni_cpp::gen_fetch_function_end(bool has_parent, int field_count,
+                                                         const std::vector<tl::var_description> &vars,
                                                          int parser_type) const {
   for (std::size_t i = 0; i < vars.size(); i++) {
     assert(vars[i].is_stored);
@@ -409,7 +412,8 @@ std::string TD_TL_writer_jni_cpp::gen_fetch_function_end(int field_num, const st
     return "}\n";
   }
 
-  return "  return res;\n"
+  return "  return " + std::string(has_parent ? "std::move(res)" : "res") +
+         ";\n"
          "}\n";
 }
 

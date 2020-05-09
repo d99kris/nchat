@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -99,10 +99,10 @@ class DcOptionsSet {
     }
   };
 
-  std::vector<std::unique_ptr<DcOptionInfo>> options_;
+  std::vector<unique_ptr<DcOptionInfo>> options_;
   std::vector<DcOptionId> ordered_options_;
   std::map<IPAddress, int64> option_to_stat_id_;
-  Container<std::unique_ptr<OptionStat>> option_stats_;
+  Container<unique_ptr<OptionStat>> option_stats_;
 
   DcOptionInfo *register_dc_option(DcOption &&option);
   void init_option_stat(DcOptionInfo *option_info);

@@ -1,13 +1,16 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/db/SqliteKeyValueAsync.h"
 
+#include "td/db/SqliteKeyValue.h"
+
 #include "td/actor/actor.h"
 
+#include "td/utils/common.h"
 #include "td/utils/optional.h"
 #include "td/utils/Time.h"
 
@@ -84,7 +87,7 @@ class SqliteKeyValueAsync : public SqliteKeyValueAsyncInterface {
     std::shared_ptr<SqliteKeyValueSafe> kv_safe_;
     SqliteKeyValue *kv_ = nullptr;
 
-    static constexpr double MAX_PENDING_QUERIES_DELAY = 1;
+    static constexpr double MAX_PENDING_QUERIES_DELAY = 0.01;
     static constexpr size_t MAX_PENDING_QUERIES_COUNT = 100;
     std::unordered_map<string, optional<string>> buffer_;
     std::vector<Promise<>> buffer_promises_;
@@ -137,9 +140,9 @@ class SqliteKeyValueAsync : public SqliteKeyValueAsyncInterface {
   ActorOwn<Impl> impl_;
 };
 
-std::unique_ptr<SqliteKeyValueAsyncInterface> create_sqlite_key_value_async(std::shared_ptr<SqliteKeyValueSafe> kv,
-                                                                            int32 scheduler_id) {
-  return std::make_unique<SqliteKeyValueAsync>(std::move(kv), scheduler_id);
+unique_ptr<SqliteKeyValueAsyncInterface> create_sqlite_key_value_async(std::shared_ptr<SqliteKeyValueSafe> kv,
+                                                                       int32 scheduler_id) {
+  return td::make_unique<SqliteKeyValueAsync>(std::move(kv), scheduler_id);
 }
 
 }  // namespace td

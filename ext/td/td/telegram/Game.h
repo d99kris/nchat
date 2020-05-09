@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -13,6 +13,7 @@
 #include "td/telegram/UserId.h"
 
 #include "td/utils/common.h"
+#include "td/utils/Status.h"
 #include "td/utils/StringBuilder.h"
 
 #include "td/telegram/td_api.h"
@@ -20,6 +21,7 @@
 
 namespace td {
 
+class ContactsManager;
 class Td;
 
 class Game {
@@ -55,11 +57,15 @@ class Game {
 
   UserId get_bot_user_id() const;
 
-  void set_message_text(FormattedText &&text);
+  vector<FileId> get_file_ids(const Td *td) const;
 
-  const FormattedText &get_message_text() const;
+  void set_text(FormattedText &&text);
 
-  tl_object_ptr<td_api::game> get_game_object(const Td *td) const;
+  const FormattedText &get_text() const;
+
+  tl_object_ptr<td_api::game> get_game_object(Td *td) const;
+
+  bool has_input_media() const;
 
   tl_object_ptr<telegram_api::inputMediaGame> get_input_media_game(const Td *td) const;
 
@@ -74,5 +80,9 @@ bool operator==(const Game &lhs, const Game &rhs);
 bool operator!=(const Game &lhs, const Game &rhs);
 
 StringBuilder &operator<<(StringBuilder &string_builder, const Game &game);
+
+Result<Game> process_input_message_game(const ContactsManager *contacts_manager,
+                                        tl_object_ptr<td_api::InputMessageContent> &&input_message_content)
+    TD_WARN_UNUSED_RESULT;
 
 }  // namespace td

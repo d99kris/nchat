@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -7,7 +7,6 @@
 #pragma once
 
 #include "td/utils/common.h"
-
 #include "td/utils/logging.h"
 #include "td/utils/MpscLinkQueue.h"
 
@@ -34,7 +33,7 @@ class AtomicRefCnt {
   }
 
  private:
-  std::atomic<uint64> cnt_;
+  std::atomic<uint64> cnt_{0};
 };
 
 template <class DataT, class DeleterT>
@@ -97,12 +96,16 @@ class SharedPtr {
     reset();
   }
   explicit SharedPtr(Raw *raw) : raw_(raw) {
-    raw_->inc();
+    if (raw_) {
+      raw_->inc();
+    }
   }
   SharedPtr(const SharedPtr &other) : SharedPtr(other.raw_) {
   }
   SharedPtr &operator=(const SharedPtr &other) {
-    other.raw_->inc();
+    if (other.raw_) {
+      other.raw_->inc();
+    }
     reset(other.raw_);
     return *this;
   }
@@ -150,15 +153,18 @@ class SharedPtr {
 
   template <class... ArgsT>
   static SharedPtr<T, DeleterT> create(ArgsT &&... args) {
-    auto raw = std::make_unique<Raw>(DeleterT());
+    auto raw = make_unique<Raw>(DeleterT());
     raw->init_data(std::forward<ArgsT>(args)...);
     return SharedPtr<T, DeleterT>(raw.release());
   }
   template <class D, class... ArgsT>
   static SharedPtr<T, DeleterT> create_with_deleter(D &&d, ArgsT &&... args) {
-    auto raw = std::make_unique<Raw>(std::forward<D>(d));
+    auto raw = make_unique<Raw>(std::forward<D>(d));
     raw->init_data(std::forward<ArgsT>(args)...);
     return SharedPtr<T, DeleterT>(raw.release());
+  }
+  bool operator==(const SharedPtr<T, DeleterT> &other) const {
+    return raw_ == other.raw_;
   }
 
  private:
@@ -185,7 +191,7 @@ class SharedObjectPool {
     while (free_queue_reader_.read()) {
       free_cnt++;
     }
-    CHECK(free_cnt == allocated_.size()) << free_cnt << " " << allocated_.size();
+    LOG_CHECK(free_cnt == allocated_.size()) << free_cnt << " " << allocated_.size();
   }
 
   template <class... ArgsT>
@@ -220,7 +226,7 @@ class SharedObjectPool {
     if (raw) {
       return raw;
     }
-    allocated_.push_back(std::make_unique<Raw>(deleter()));
+    allocated_.push_back(make_unique<Raw>(deleter()));
     return allocated_.back().get();
   }
 
@@ -268,7 +274,7 @@ class SharedObjectPool {
     return Deleter(this);
   }
 
-  std::vector<std::unique_ptr<Raw>> allocated_;
+  std::vector<unique_ptr<Raw>> allocated_;
   MpscLinkQueue<Node> free_queue_;
   typename MpscLinkQueue<Node>::Reader free_queue_reader_;
 };

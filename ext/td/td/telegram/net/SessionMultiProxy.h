@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -24,7 +24,7 @@ class SessionMultiProxy : public Actor {
   SessionMultiProxy &operator=(const SessionMultiProxy &other) = delete;
   ~SessionMultiProxy() override;
   SessionMultiProxy(int32 session_count, std::shared_ptr<AuthDataShared> shared_auth_data, bool is_main, bool use_pfs,
-                    bool allow_media_only, bool is_media, bool is_cdn);
+                    bool allow_media_only, bool is_media, bool is_cdn, bool need_destroy_auth_key);
 
   void send(NetQueryPtr query);
   void update_main_flag(bool is_main);
@@ -34,8 +34,9 @@ class SessionMultiProxy : public Actor {
   void update_options(int32 session_count, bool use_pfs);
   void update_mtproto_header();
 
+  void update_destroy_auth_key(bool need_destroy_auth_key);
+
  private:
-  size_t pos_ = 0;
   int32 session_count_ = 0;
   std::shared_ptr<AuthDataShared> auth_data_;
   bool is_main_ = false;
@@ -43,14 +44,20 @@ class SessionMultiProxy : public Actor {
   bool allow_media_only_ = false;
   bool is_media_ = false;
   bool is_cdn_ = false;
-  std::vector<ActorOwn<SessionProxy>> sessions_;
+  bool need_destroy_auth_key_ = false;
+  struct SessionInfo {
+    ActorOwn<SessionProxy> proxy;
+    int queries_count{0};
+  };
+  uint32 sessions_generation_{0};
+  std::vector<SessionInfo> sessions_;
 
   void start_up() override;
   void init();
 
   bool get_pfs_flag() const;
 
-  void update_auth_state();
+  void on_query_finished(uint32 generation, int session_id);
 };
 
 }  // namespace td

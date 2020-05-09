@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -7,7 +7,11 @@
 #pragma once
 
 #include "td/telegram/DialogId.h"
+#include "td/telegram/files/FileEncryptionKey.h"
+#include "td/telegram/files/FileLocation.h"
+#include "td/telegram/files/FileLocation.hpp"
 #include "td/telegram/files/FileManager.h"
+#include "td/telegram/files/FileType.h"
 #include "td/telegram/Version.h"
 
 #include "td/utils/logging.h"
@@ -26,12 +30,12 @@ void FileManager::store_file(FileId file_id, StorerT &storer, int32 ttl) const {
   if (file_view.empty() || ttl <= 0) {
   } else if (file_view.has_remote_location()) {
     file_store_type = FileStoreType::Remote;
-  } else if (file_view.has_local_location()) {
-    file_store_type = FileStoreType::Local;
   } else if (file_view.has_url()) {
     file_store_type = FileStoreType::Url;
   } else if (file_view.has_generate_location()) {
     file_store_type = FileStoreType::Generate;
+  } else if (file_view.has_local_location()) {
+    file_store_type = FileStoreType::Local;
   }
 
   store(file_store_type, storer);
@@ -90,7 +94,7 @@ void FileManager::store_file(FileId file_id, StorerT &storer, int32 ttl) const {
         have_file_id = true;
       }
       store(generate_location, storer);
-      store(static_cast<int32>(0), storer);  // expected_size
+      store(static_cast<int32>(file_view.expected_size()), storer);
       store(static_cast<int32>(0), storer);
       store(file_view.owner_dialog_id(), storer);
 
@@ -99,6 +103,8 @@ void FileManager::store_file(FileId file_id, StorerT &storer, int32 ttl) const {
       }
       break;
     }
+    default:
+      UNREACHABLE();
   }
   if (has_encryption_key) {
     store(file_view.encryption_key(), storer);
@@ -149,8 +155,8 @@ FileId FileManager::parse_file(ParserT &parser) {
         if (parser.version() >= static_cast<int32>(Version::StoreFileOwnerId)) {
           parse(owner_dialog_id, parser);
         }
-        return register_remote(full_remote_location, FileLocationSource::FromDb, owner_dialog_id, size, expected_size,
-                               name);
+        return register_remote(full_remote_location, FileLocationSource::FromBinlog, owner_dialog_id, size,
+                               expected_size, name);
       }
       case FileStoreType::Local: {
         FullLocalFileLocation full_local_location;
@@ -167,14 +173,15 @@ FileId FileManager::parse_file(ParserT &parser) {
         if (r_file_id.is_ok()) {
           return r_file_id.move_as_ok();
         }
-        LOG(ERROR) << "Can't resend local file " << full_local_location.path_;
+        LOG(ERROR) << "Can't resend local file " << full_local_location << " of size " << size << " owned by "
+                   << owner_dialog_id;
         return register_empty(full_local_location.file_type_);
       }
       case FileStoreType::Generate: {
         FullGenerateFileLocation full_generated_location;
         parse(full_generated_location, parser);
         int32 expected_size;
-        parse(expected_size, parser);  // expected_size
+        parse(expected_size, parser);
         int32 zero;
         parse(zero, parser);
         DialogId owner_dialog_id;
@@ -194,7 +201,7 @@ FileId FileManager::parse_file(ParserT &parser) {
           full_generated_location.conversion_ = PSTRING() << "#file_id#" << download_file_id.get();
         }
 
-        auto r_file_id = register_generate(full_generated_location.file_type_, FileLocationSource::FromDb,
+        auto r_file_id = register_generate(full_generated_location.file_type_, FileLocationSource::FromBinlog,
                                            full_generated_location.original_path_, full_generated_location.conversion_,
                                            owner_dialog_id, expected_size);
         if (r_file_id.is_ok()) {
@@ -211,7 +218,7 @@ FileId FileManager::parse_file(ParserT &parser) {
         if (parser.version() >= static_cast<int32>(Version::StoreFileOwnerId)) {
           parse(owner_dialog_id, parser);
         }
-        return register_url(url, type, FileLocationSource::FromDb, owner_dialog_id);
+        return register_url(url, type, FileLocationSource::FromBinlog, owner_dialog_id);
       }
     }
     return FileId();

@@ -1,11 +1,12 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/actor/Timeout.h"
 
+#include "td/utils/logging.h"
 #include "td/utils/Time.h"
 
 namespace td {
@@ -15,7 +16,7 @@ bool MultiTimeout::has_timeout(int64 key) const {
 }
 
 void MultiTimeout::set_timeout_at(int64 key, double timeout) {
-  LOG(DEBUG) << "Set timeout for " << key << " in " << timeout - Time::now();
+  LOG(DEBUG) << "Set " << get_name() << " for " << key << " in " << timeout - Time::now();
   auto item = items_.emplace(key);
   auto heap_node = static_cast<HeapNode *>(const_cast<Item *>(&*item.first));
   if (heap_node->in_heap()) {
@@ -35,7 +36,7 @@ void MultiTimeout::set_timeout_at(int64 key, double timeout) {
 }
 
 void MultiTimeout::add_timeout_at(int64 key, double timeout) {
-  LOG(DEBUG) << "Add timeout for " << key << " in " << timeout - Time::now();
+  LOG(DEBUG) << "Add " << get_name() << " for " << key << " in " << timeout - Time::now();
   auto item = items_.emplace(key);
   auto heap_node = static_cast<HeapNode *>(const_cast<Item *>(&*item.first));
   if (heap_node->in_heap()) {
@@ -50,7 +51,7 @@ void MultiTimeout::add_timeout_at(int64 key, double timeout) {
 }
 
 void MultiTimeout::cancel_timeout(int64 key) {
-  LOG(DEBUG) << "Cancel timeout for " << key;
+  LOG(DEBUG) << "Cancel " << get_name() << " for " << key;
   auto item = items_.find(Item(key));
   if (item != items_.end()) {
     auto heap_node = static_cast<HeapNode *>(const_cast<Item *>(&*item));
@@ -67,30 +68,44 @@ void MultiTimeout::cancel_timeout(int64 key) {
 
 void MultiTimeout::update_timeout() {
   if (items_.empty()) {
-    LOG(DEBUG) << "Cancel timeout";
+    LOG(DEBUG) << "Cancel timeout of " << get_name();
     CHECK(timeout_queue_.empty());
     CHECK(Actor::has_timeout());
     Actor::cancel_timeout();
   } else {
-    LOG(DEBUG) << "Set timeout in " << timeout_queue_.top_key() - Time::now_cached();
+    LOG(DEBUG) << "Set timeout of " << get_name() << " in " << timeout_queue_.top_key() - Time::now_cached();
     Actor::set_timeout_at(timeout_queue_.top_key());
   }
 }
 
-void MultiTimeout::timeout_expired() {
-  double now = Time::now_cached();
+vector<int64> MultiTimeout::get_expired_keys(double now) {
+  vector<int64> expired_keys;
   while (!timeout_queue_.empty() && timeout_queue_.top_key() < now) {
     int64 key = static_cast<Item *>(timeout_queue_.pop())->key;
     items_.erase(Item(key));
-    expired_.push_back(key);
+    expired_keys.push_back(key);
   }
+  return expired_keys;
+}
+
+void MultiTimeout::timeout_expired() {
+  vector<int64> expired_keys = get_expired_keys(Time::now_cached());
   if (!items_.empty()) {
     update_timeout();
   }
-  for (auto key : expired_) {
+  for (auto key : expired_keys) {
     callback_(data_, key);
   }
-  expired_.clear();
+}
+
+void MultiTimeout::run_all() {
+  vector<int64> expired_keys = get_expired_keys(Time::now_cached() + 1e10);
+  if (!expired_keys.empty()) {
+    update_timeout();
+  }
+  for (auto key : expired_keys) {
+    callback_(data_, key);
+  }
 }
 
 }  // namespace td

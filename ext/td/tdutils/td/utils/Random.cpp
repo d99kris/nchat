@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -13,7 +13,7 @@
 #include <openssl/rand.h>
 #endif
 
-#include <array>
+#include <atomic>
 #include <cstring>
 #include <limits>
 #include <random>
@@ -21,18 +21,26 @@
 namespace td {
 
 #if TD_HAVE_OPENSSL
+
 namespace {
-constexpr size_t secure_bytes_buffer_size = 512;
-}
+std::atomic<int64> random_seed_generation{0};
+}  // namespace
+
 void Random::secure_bytes(MutableSlice dest) {
   Random::secure_bytes(dest.ubegin(), dest.size());
 }
 
 void Random::secure_bytes(unsigned char *ptr, size_t size) {
-  constexpr size_t buf_size = secure_bytes_buffer_size;
+  constexpr size_t buf_size = 512;
   static TD_THREAD_LOCAL unsigned char *buf;  // static zero-initialized
   static TD_THREAD_LOCAL size_t buf_pos;
+  static TD_THREAD_LOCAL int64 generation;
   if (init_thread_local<unsigned char[]>(buf, buf_size)) {
+    buf_pos = buf_size;
+    generation = 0;
+  }
+  if (generation != random_seed_generation.load(std::memory_order_relaxed)) {
+    generation = random_seed_generation.load(std::memory_order_acquire);
     buf_pos = buf_size;
   }
 
@@ -73,11 +81,21 @@ int64 Random::secure_int64() {
   return res;
 }
 
+uint32 Random::secure_uint32() {
+  uint32 res = 0;
+  secure_bytes(reinterpret_cast<unsigned char *>(&res), sizeof(uint32));
+  return res;
+}
+
+uint64 Random::secure_uint64() {
+  uint64 res = 0;
+  secure_bytes(reinterpret_cast<unsigned char *>(&res), sizeof(uint64));
+  return res;
+}
+
 void Random::add_seed(Slice bytes, double entropy) {
   RAND_add(bytes.data(), static_cast<int>(bytes.size()), entropy);
-  // drain all secure_bytes buffer
-  std::array<char, secure_bytes_buffer_size> buf;
-  secure_bytes(MutableSlice(buf.data(), buf.size()));
+  random_seed_generation++;
 }
 #endif
 
@@ -112,8 +130,38 @@ int Random::fast(int min, int max) {
     // to prevent integer overflow and division by zero
     min++;
   }
-  CHECK(min <= max);
+  DCHECK(min <= max);
   return static_cast<int>(min + fast_uint32() % (max - min + 1));  // TODO signed_cast
+}
+
+Random::Xorshift128plus::Xorshift128plus(uint64 seed) {
+  auto next = [&]() {
+    // splitmix64
+    seed += static_cast<uint64>(0x9E3779B97F4A7C15);
+    uint64 z = seed;
+    z = (z ^ (z >> 30)) * static_cast<uint64>(0xBF58476D1CE4E5B9);
+    z = (z ^ (z >> 27)) * static_cast<uint64>(0x94D049BB133111EB);
+    return z ^ (z >> 31);
+  };
+  seed_[0] = next();
+  seed_[1] = next();
+}
+
+Random::Xorshift128plus::Xorshift128plus(uint64 seed_a, uint64 seed_b) {
+  seed_[0] = seed_a;
+  seed_[1] = seed_b;
+}
+
+uint64 Random::Xorshift128plus::operator()() {
+  uint64 x = seed_[0];
+  const uint64 y = seed_[1];
+  seed_[0] = y;
+  x ^= x << 23;
+  seed_[1] = x ^ y ^ (x >> 17) ^ (y >> 26);
+  return seed_[1] + y;
+}
+int Random::Xorshift128plus::fast(int min, int max) {
+  return static_cast<int>((*this)() % (max - min + 1) + min);
 }
 
 }  // namespace td

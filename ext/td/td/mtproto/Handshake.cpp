@@ -1,16 +1,20 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/mtproto/Handshake.h"
 
+#include "td/mtproto/crypto.h"
+#include "td/mtproto/KDF.h"
 #include "td/mtproto/utils.h"
 
 #include "td/mtproto/mtproto_api.h"
 
+#include "td/utils/as.h"
 #include "td/utils/buffer.h"
+#include "td/utils/common.h"
 #include "td/utils/crypto.h"
 #include "td/utils/format.h"
 #include "td/utils/logging.h"
@@ -28,13 +32,13 @@ void AuthKeyHandshake::clear() {
   state_ = Start;
 }
 
-bool AuthKeyHandshake::is_ready_for_start() {
+bool AuthKeyHandshake::is_ready_for_start() const {
   return state_ == Start;
 }
-bool AuthKeyHandshake::is_ready_for_message(const UInt128 &message_nonce) {
+bool AuthKeyHandshake::is_ready_for_message(const UInt128 &message_nonce) const {
   return state_ != Finish && state_ != Start && nonce == message_nonce;
 }
-bool AuthKeyHandshake::is_ready_for_finish() {
+bool AuthKeyHandshake::is_ready_for_finish() const {
   return state_ == Finish;
 }
 void AuthKeyHandshake::on_finish() {
@@ -89,8 +93,8 @@ Status AuthKeyHandshake::on_res_pq(Slice message, Callback *connection, PublicRs
     case Mode::Temp:
       r_data_size = fill_data_with_hash(
           data_with_hash,
-          mtproto_api::p_q_inner_data_temp_dc(res_pq->pq_, p, q, nonce, server_nonce, new_nonce, dc_id_, expire_in_));
-      expire_at_ = Time::now() + expire_in_;
+          mtproto_api::p_q_inner_data_temp_dc(res_pq->pq_, p, q, nonce, server_nonce, new_nonce, dc_id_, expires_in_));
+      expires_at_ = Time::now() + expires_in_;
       break;
     case Mode::Unknown:
     default:
@@ -144,7 +148,7 @@ Status AuthKeyHandshake::on_server_dh_params(Slice message, Callback *connection
   auto save_tmp_aes_iv = tmp_aes_iv;
   // encrypted_answer := AES256_ige_encrypt (answer_with_hash, tmp_aes_key, tmp_aes_iv);
   MutableSlice answer(const_cast<char *>(dh_params->encrypted_answer_.begin()), dh_params->encrypted_answer_.size());
-  aes_ige_decrypt(tmp_aes_key, &tmp_aes_iv, answer, answer);
+  aes_ige_decrypt(as_slice(tmp_aes_key), as_slice(tmp_aes_iv), answer, answer);
   tmp_aes_iv = save_tmp_aes_iv;
 
   // answer_with_hash := SHA1(answer) + answer + (0-15 random bytes)
@@ -166,7 +170,7 @@ Status AuthKeyHandshake::on_server_dh_params(Slice message, Callback *connection
 
   size_t dh_inner_data_size = answer.size() - pad - 20;
   UInt<160> answer_real_sha1;
-  sha1(Slice(answer.ubegin() + 20, dh_inner_data_size), answer_real_sha1.raw);
+  sha1(answer.substr(20, dh_inner_data_size), answer_real_sha1.raw);
   if (answer_sha1 != answer_real_sha1) {
     return Status::Error("SHA1 mismatch");
   }
@@ -178,7 +182,7 @@ Status AuthKeyHandshake::on_server_dh_params(Slice message, Callback *connection
     return Status::Error("Server nonce mismatch");
   }
 
-  server_time_diff = dh_inner_data.server_time_ - Time::now();
+  server_time_diff_ = dh_inner_data.server_time_ - Time::now();
 
   DhHandshake handshake;
   handshake.set_config(dh_inner_data.g_, dh_inner_data.dh_prime_);
@@ -196,21 +200,22 @@ Status AuthKeyHandshake::on_server_dh_params(Slice message, Callback *connection
   as<int32>(encrypted_data.begin() + 20) = data.get_id();
   auto real_size = tl_store_unsafe(data, encrypted_data.ubegin() + 20 + 4);
   CHECK(real_size + 4 == data_size);
-  sha1(Slice(encrypted_data.ubegin() + 20, data_size), encrypted_data.ubegin());
+  sha1(encrypted_data.substr(20, data_size), encrypted_data.ubegin());
   Random::secure_bytes(encrypted_data.ubegin() + encrypted_data_size,
                        encrypted_data_size_with_pad - encrypted_data_size);
   tmp_KDF(server_nonce, new_nonce, &tmp_aes_key, &tmp_aes_iv);
-  aes_ige_encrypt(tmp_aes_key, &tmp_aes_iv, encrypted_data, encrypted_data);
+  aes_ige_encrypt(as_slice(tmp_aes_key), as_slice(tmp_aes_iv), encrypted_data, encrypted_data);
 
   mtproto_api::set_client_DH_params set_client_dh_params(nonce, server_nonce, encrypted_data);
   send(connection, create_storer(set_client_dh_params));
 
-  auth_key = AuthKey(auth_key_params.first, std::move(auth_key_params.second));
+  auth_key_ = AuthKey(auth_key_params.first, std::move(auth_key_params.second));
   if (mode_ == Mode::Temp) {
-    auth_key.set_expire_at(expire_at_);
+    auth_key_.set_expires_at(expires_at_);
   }
+  auth_key_.set_created_at(dh_inner_data.server_time_);
 
-  server_salt = as<int64>(new_nonce.raw) ^ as<int64>(server_nonce.raw);
+  server_salt_ = as<int64>(new_nonce.raw) ^ as<int64>(server_nonce.raw);
 
   state_ = DHGenResponse;
   return Status::OK();
@@ -250,9 +255,9 @@ Status AuthKeyHandshake::start_main(Callback *connection) {
   return on_start(connection);
 }
 
-Status AuthKeyHandshake::start_tmp(Callback *connection, int32 expire_in) {
+Status AuthKeyHandshake::start_tmp(Callback *connection, int32 expires_in) {
   mode_ = Mode::Temp;
-  expire_in_ = expire_in;
+  expires_in_ = expires_in;
   return on_start(connection);
 }
 
@@ -284,7 +289,7 @@ Status AuthKeyHandshake::on_start(Callback *connection) {
   return Status::OK();
 }
 
-Status AuthKeyHandshake::on_message(Slice message, Callback *connection, Context *context) {
+Status AuthKeyHandshake::on_message(Slice message, Callback *connection, AuthKeyHandshakeContext *context) {
   Status status = [&] {
     switch (state_) {
       case ResPQ:

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -8,7 +8,10 @@
 #include "td/utils/common.h"
 #include "td/utils/logging.h"
 #include "td/utils/MpscPollableQueue.h"
+#include "td/utils/port/sleep.h"
+#include "td/utils/port/thread.h"
 #include "td/utils/queue.h"
+#include "td/utils/Random.h"
 
 // TODO: check system calls
 // TODO: all return values must be checked
@@ -27,12 +30,6 @@
 #if TD_LINUX
 #include <sys/eventfd.h>
 #endif
-
-using std::atomic;
-using std::vector;
-
-using td::int32;
-using td::uint32;
 
 #define MODE std::memory_order_relaxed
 
@@ -57,18 +54,21 @@ class PipeQueue {
  public:
   void init() {
     int new_pipe[2];
-    pipe(new_pipe);
+    int res = pipe(new_pipe);
+    CHECK(res == 0);
     output = new_pipe[0];
     input = new_pipe[1];
   }
 
   void put(qvalue_t value) {
-    write(input, &value, sizeof(value));
+    auto len = write(input, &value, sizeof(value));
+    CHECK(len == sizeof(value));
   }
 
   qvalue_t get() {
     qvalue_t res;
-    read(output, &res, sizeof(res));
+    auto len = read(output, &res, sizeof(res));
+    CHECK(len == sizeof(res));
     return res;
   }
 
@@ -97,7 +97,7 @@ class Backoff {
 };
 
 class VarQueue {
-  atomic<qvalue_t> data;
+  std::atomic<qvalue_t> data{0};
 
  public:
   void init() {
@@ -193,11 +193,14 @@ class EventfdQueue {
   void put(qvalue_t value) {
     q.put(value);
     td::int64 x = 1;
-    write(fd, &x, sizeof(x));
+    auto len = write(fd, &x, sizeof(x));
+    CHECK(len == sizeof(x));
   }
   qvalue_t get() {
     td::int64 x;
-    read(fd, &x, sizeof(x));
+    auto len = read(fd, &x, sizeof(x));
+    CHECK(len == sizeof(x));
+    CHECK(x == 1);
     return q.get();
   }
   void destroy() {
@@ -212,17 +215,17 @@ const int queue_buf_size = 1 << 10;
 class BufferQueue {
   struct node {
     qvalue_t val;
-    char pad[64 - sizeof(atomic<qvalue_t>)];
+    char pad[64 - sizeof(std::atomic<qvalue_t>)];
   };
   node q[queue_buf_size];
 
   struct Position {
-    atomic<uint32> i;
-    char pad[64 - sizeof(atomic<uint32>)];
+    std::atomic<td::uint32> i{0};
+    char pad[64 - sizeof(std::atomic<td::uint32>)];
 
-    uint32 local_read_i;
-    uint32 local_write_i;
-    char pad2[64 - sizeof(uint32) * 2];
+    td::uint32 local_read_i;
+    td::uint32 local_write_i;
+    char pad2[64 - sizeof(td::uint32) * 2];
 
     void init() {
       i = 0;
@@ -336,7 +339,7 @@ class BufferQueue {
 #if TD_LINUX
 class BufferedFdQueue {
   int fd;
-  atomic<int> wait_flag;
+  std::atomic<int> wait_flag{0};
   BufferQueue q;
   char pad[64];
 
@@ -351,7 +354,8 @@ class BufferedFdQueue {
     td::int64 x = 1;
     __sync_synchronize();
     if (wait_flag.load(MODE)) {
-      write(fd, &x, sizeof(x));
+      auto len = write(fd, &x, sizeof(x));
+      CHECK(len == sizeof(x));
     }
   }
   void put_noflush(qvalue_t value) {
@@ -362,7 +366,8 @@ class BufferedFdQueue {
     td::int64 x = 1;
     __sync_synchronize();
     if (wait_flag.load(MODE)) {
-      write(fd, &x, sizeof(x));
+      auto len = write(fd, &x, sizeof(x));
+      CHECK(len == sizeof(x));
     }
   }
   void flush_reader() {
@@ -393,7 +398,8 @@ class BufferedFdQueue {
     wait_flag.store(1, MODE);
     __sync_synchronize();
     while (!(res = q.update_reader())) {
-      read(fd, &x, sizeof(x));
+      auto len = read(fd, &x, sizeof(x));
+      CHECK(len == sizeof(x));
       __sync_synchronize();
     }
     wait_flag.store(0, MODE);
@@ -416,7 +422,8 @@ class BufferedFdQueue {
     wait_flag.store(1, MODE);
     __sync_synchronize();
     while (!q.update_reader()) {
-      read(fd, &x, sizeof(x));
+      auto len = read(fd, &x, sizeof(x));
+      CHECK(len == sizeof(x));
       __sync_synchronize();
     }
     wait_flag.store(0, MODE);
@@ -430,7 +437,7 @@ class BufferedFdQueue {
 
 class FdQueue {
   int fd;
-  atomic<int> wait_flag;
+  std::atomic<int> wait_flag{0};
   VarQueue q;
   char pad[64];
 
@@ -445,12 +452,14 @@ class FdQueue {
     td::int64 x = 1;
     __sync_synchronize();
     if (wait_flag.load(MODE)) {
-      write(fd, &x, sizeof(x));
+      auto len = write(fd, &x, sizeof(x));
+      CHECK(len == sizeof(x));
     }
   }
   qvalue_t get() {
     // td::int64 x;
-    // read(fd, &x, sizeof(x));
+    // auto len = read(fd, &x, sizeof(x));
+    // CHECK(len == sizeof(x));
     // return q.get();
 
     Backoff backoff;
@@ -467,13 +476,13 @@ class FdQueue {
     wait_flag.store(1, MODE);
     __sync_synchronize();
     // std::fprintf(stderr, "!\n");
-    // while (res == -1 && read(fd, &x, sizeof(x))) {
+    // while (res == -1 && read(fd, &x, sizeof(x)) == sizeof(x)) {
     // res = q.try_get();
     //}
     do {
       __sync_synchronize();
       res = q.try_get();
-    } while (res == -1 && read(fd, &x, sizeof(x)));
+    } while (res == -1 && read(fd, &x, sizeof(x)) == sizeof(x));
     q.acquire();
     wait_flag.store(0, MODE);
     return res;
@@ -560,8 +569,8 @@ class QueueBenchmark2 : public td::Benchmark {
 
   int server_active_connections;
   int client_active_connections;
-  vector<td::int64> server_conn;
-  vector<td::int64> client_conn;
+  std::vector<td::int64> server_conn;
+  std::vector<td::int64> client_conn;
 
  public:
   explicit QueueBenchmark2(int connections_n = 1) : connections_n(connections_n) {
@@ -603,7 +612,7 @@ class QueueBenchmark2 : public td::Benchmark {
   }
 
   void *server_run(void *) {
-    server_conn = vector<td::int64>(connections_n);
+    server_conn = std::vector<td::int64>(connections_n);
     server_active_connections = connections_n;
 
     while (server_active_connections > 0) {
@@ -644,7 +653,7 @@ class QueueBenchmark2 : public td::Benchmark {
   }
 
   void *client_run(void *) {
-    client_conn = vector<td::int64>(connections_n);
+    client_conn = std::vector<td::int64>(connections_n);
     client_active_connections = connections_n;
     if (queries_n >= (1 << 24)) {
       std::fprintf(stderr, "Too big queries_n\n");
@@ -720,7 +729,7 @@ class QueueBenchmark : public td::Benchmark {
   }
 
   void *server_run(void *) {
-    vector<td::int64> conn(connections_n);
+    std::vector<td::int64> conn(connections_n);
     int active_connections = connections_n;
     while (active_connections > 0) {
       qvalue_t value = server.get();
@@ -744,7 +753,7 @@ class QueueBenchmark : public td::Benchmark {
   }
 
   void *client_run(void *) {
-    vector<td::int64> conn(connections_n);
+    std::vector<td::int64> conn(connections_n);
     if (queries_n >= (1 << 24)) {
       std::fprintf(stderr, "Too big queries_n\n");
       std::exit(0);
@@ -777,7 +786,7 @@ class QueueBenchmark : public td::Benchmark {
   }
 
   void *client_run2(void *) {
-    vector<td::int64> conn(connections_n);
+    std::vector<td::int64> conn(connections_n);
     if (queries_n >= (1 << 24)) {
       std::fprintf(stderr, "Too big queries_n\n");
       std::exit(0);
@@ -893,8 +902,36 @@ class RingBenchmark : public td::Benchmark {
   }
 };
 
+void test_queue() {
+  std::vector<td::thread> threads;
+  constexpr size_t threads_n = 100;
+  std::vector<td::MpscPollableQueue<int>> queues(threads_n);
+  for (auto &q : queues) {
+    q.init();
+  }
+  for (size_t i = 0; i < threads_n; i++) {
+    threads.emplace_back([&q = queues[i]] {
+      while (true) {
+        auto got = q.reader_wait_nonblock();
+        while (got-- > 0) {
+          q.reader_get_unsafe();
+        }
+        q.reader_get_event_fd().wait(1000);
+      }
+    });
+  }
+
+  while (true) {
+    td::usleep_for(100);
+    for (int i = 0; i < 5; i++) {
+      queues[td::Random::fast(0, threads_n - 1)].writer_put(1);
+    }
+  }
+}
+
 int main() {
   SET_VERBOSITY_LEVEL(VERBOSITY_NAME(DEBUG));
+  //test_queue();
 #define BENCH_Q2(Q, N)                      \
   std::fprintf(stderr, "!%s %d:\t", #Q, N); \
   td::bench(QueueBenchmark2<Q>(N));

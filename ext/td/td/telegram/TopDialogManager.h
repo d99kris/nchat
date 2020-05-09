@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -9,45 +9,25 @@
 #include "td/actor/actor.h"
 #include "td/actor/PromiseFuture.h"
 
-#include "td/telegram/td_api.h"
-#include "td/telegram/telegram_api.h"
-
 #include "td/telegram/DialogId.h"
 #include "td/telegram/net/NetQuery.h"
+#include "td/telegram/telegram_api.h"
+#include "td/telegram/TopDialogCategory.h"
 
 #include "td/utils/common.h"
-#include "td/utils/logging.h"
 #include "td/utils/Time.h"
 
 #include <array>
 #include <utility>
 
 namespace td {
-enum class TopDialogCategory : int32 { Correspondent, BotPM, BotInline, Group, Channel, Call, Size };
-
-inline TopDialogCategory top_dialog_category_from_td_api(const td_api::TopChatCategory &category) {
-  switch (category.get_id()) {
-    case td_api::topChatCategoryUsers::ID:
-      return TopDialogCategory::Correspondent;
-    case td_api::topChatCategoryBots::ID:
-      return TopDialogCategory::BotPM;
-    case td_api::topChatCategoryInlineBots::ID:
-      return TopDialogCategory::BotInline;
-    case td_api::topChatCategoryGroups::ID:
-      return TopDialogCategory::Group;
-    case td_api::topChatCategoryChannels::ID:
-      return TopDialogCategory::Channel;
-    case td_api::topChatCategoryCalls::ID:
-      return TopDialogCategory::Call;
-    default:
-      UNREACHABLE();
-  }
-}
 
 class TopDialogManager : public NetQueryCallback {
  public:
   explicit TopDialogManager(ActorShared<> parent) : parent_(std::move(parent)) {
   }
+
+  void do_start_up();
 
   void on_dialog_used(TopDialogCategory category, DialogId dialog_id, int32 date);
 
@@ -101,14 +81,14 @@ class TopDialogManager : public NetQueryCallback {
     double rating_timestamp = 0;
     std::vector<TopDialog> dialogs;
   };
-  template <class T>
-  friend void parse(TopDialog &top_dialog, T &parser);
-  template <class T>
-  friend void store(const TopDialog &top_dialog, T &storer);
-  template <class T>
-  friend void parse(TopDialogs &top_dialogs, T &parser);
-  template <class T>
-  friend void store(const TopDialogs &top_dialogs, T &storer);
+  template <class StorerT>
+  friend void store(const TopDialog &top_dialog, StorerT &storer);
+  template <class ParserT>
+  friend void parse(TopDialog &top_dialog, ParserT &parser);
+  template <class StorerT>
+  friend void store(const TopDialogs &top_dialogs, StorerT &storer);
+  template <class ParserT>
+  friend void parse(TopDialogs &top_dialogs, ParserT &parser);
 
   std::array<TopDialogs, static_cast<size_t>(TopDialogCategory::Size)> by_category_;
 
@@ -133,4 +113,5 @@ class TopDialogManager : public NetQueryCallback {
   void start_up() override;
   void loop() override;
 };
+
 }  // namespace td

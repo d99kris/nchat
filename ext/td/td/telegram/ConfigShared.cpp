@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -13,12 +13,20 @@
 
 namespace td {
 
-ConfigShared::ConfigShared(BinlogPmcPtr config_pmc, unique_ptr<Callback> callback)
-    : config_pmc_(config_pmc), callback_(std::move(callback)) {
+ConfigShared::ConfigShared(std::shared_ptr<KeyValueSyncInterface> config_pmc) : config_pmc_(std::move(config_pmc)) {
+}
+
+void ConfigShared::set_callback(unique_ptr<Callback> callback) {
+  callback_ = std::move(callback);
+  if (callback_ == nullptr) {
+    return;
+  }
+
   for (auto key_value : config_pmc_->get_all()) {
     on_option_updated(key_value.first);
   }
 }
+
 void ConfigShared::set_option_boolean(Slice name, bool value) {
   if (set_option(name, value ? Slice("Btrue") : Slice("Bfalse"))) {
     on_option_updated(name);
@@ -98,8 +106,8 @@ string ConfigShared::get_option_string(Slice name, string default_value) const {
   return str_value.substr(1);
 }
 
-tl_object_ptr<td_api::OptionValue> ConfigShared::get_option_value(Slice value) const {
-  return get_option_value_object(get_option(value));
+tl_object_ptr<td_api::OptionValue> ConfigShared::get_option_value(Slice name) const {
+  return get_option_value_object(get_option(name));
 }
 
 bool ConfigShared::set_option(Slice name, Slice value) {
@@ -134,7 +142,9 @@ tl_object_ptr<td_api::OptionValue> ConfigShared::get_option_value_object(Slice v
 }
 
 void ConfigShared::on_option_updated(Slice name) const {
-  callback_->on_option_updated(name.str(), get_option(name));
+  if (callback_ != nullptr) {
+    callback_->on_option_updated(name.str(), get_option(name));
+  }
 }
 
 }  // namespace td

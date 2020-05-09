@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -22,7 +22,7 @@ int printExplainQueryPlan(StringBuilder &sb, sqlite3_stmt *pStmt) {
     return SQLITE_ERROR;
   }
 
-  sb << "Explain " << tag("cmd", zSql);
+  sb << "Explain query " << zSql;
   char *zExplain = sqlite3_mprintf("EXPLAIN QUERY PLAN %s", zSql);
   if (zExplain == nullptr) {
     return SQLITE_NOMEM;
@@ -41,7 +41,7 @@ int printExplainQueryPlan(StringBuilder &sb, sqlite3_stmt *pStmt) {
     int iFrom = sqlite3_column_int(pExplain, 2);
     const char *zDetail = reinterpret_cast<const char *>(sqlite3_column_text(pExplain, 3));
 
-    sb << "\n" << iSelectid << " " << iOrder << " " << iFrom << " " << zDetail;
+    sb << '\n' << iSelectid << ' ' << iOrder << ' ' << iFrom << ' ' << zDetail;
   }
 
   return sqlite3_finalize(pExplain);
@@ -169,27 +169,27 @@ SqliteStatement::Datatype SqliteStatement::view_datatype(int id) {
 
 void SqliteStatement::reset() {
   sqlite3_reset(stmt_.get());
-  state_ = Start;
+  state_ = State::Start;
 }
 
 Status SqliteStatement::step() {
-  if (state_ == Finish) {
+  if (state_ == State::Finish) {
     return Status::Error("One has to reset statement");
   }
-  VLOG(sqlite) << "Start step " << tag("cmd", sqlite3_sql(stmt_.get())) << tag("stmt", stmt_.get())
-               << tag("db", db_.get());
+  VLOG(sqlite) << "Start step " << tag("query", sqlite3_sql(stmt_.get())) << tag("statement", stmt_.get())
+               << tag("database", db_.get());
   auto rc = sqlite3_step(stmt_.get());
-  VLOG(sqlite) << "Finish step " << tag("cmd", sqlite3_sql(stmt_.get())) << tag("stmt", stmt_.get())
-               << tag("db", db_.get());
+  VLOG(sqlite) << "Finish step " << tag("query", sqlite3_sql(stmt_.get())) << tag("statement", stmt_.get())
+               << tag("database", db_.get());
   if (rc == SQLITE_ROW) {
-    state_ = GotRow;
+    state_ = State::GotRow;
     return Status::OK();
   }
+
+  state_ = State::Finish;
   if (rc == SQLITE_DONE) {
-    state_ = Finish;
     return Status::OK();
   }
-  state_ = Finish;
   return last_error();
 }
 

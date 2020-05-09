@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -10,7 +10,6 @@
 #include "td/actor/PromiseFuture.h"
 
 #include "td/utils/common.h"
-#include "td/utils/logging.h"
 #include "td/utils/Status.h"
 
 namespace td {
@@ -20,7 +19,6 @@ class MultiPromiseInterface {
   virtual void add_promise(Promise<> &&promise) = 0;
   virtual Promise<> get_promise() = 0;
 
-  // deprecated?
   virtual size_t promise_count() const = 0;
   virtual void set_ignore_errors(bool ignore_errors) = 0;
 
@@ -41,7 +39,6 @@ class MultiPromise : public MultiPromiseInterface {
     return impl_->get_promise();
   }
 
-  // deprecated?
   size_t promise_count() const override {
     return impl_->promise_count();
   }
@@ -50,18 +47,19 @@ class MultiPromise : public MultiPromiseInterface {
   }
 
   MultiPromise() = default;
-  explicit MultiPromise(std::unique_ptr<MultiPromiseInterface> impl) : impl_(std::move(impl)) {
+  explicit MultiPromise(unique_ptr<MultiPromiseInterface> impl) : impl_(std::move(impl)) {
   }
 
  private:
-  std::unique_ptr<MultiPromiseInterface> impl_;
+  unique_ptr<MultiPromiseInterface> impl_;
 };
 
 class MultiPromiseActor final
     : public Actor
     , public MultiPromiseInterface {
  public:
-  MultiPromiseActor() = default;
+  explicit MultiPromiseActor(string name) : name_(std::move(name)) {
+  }
 
   void add_promise(Promise<Unit> &&promise) override;
 
@@ -74,6 +72,7 @@ class MultiPromiseActor final
  private:
   void set_result(Result<Unit> &&result);
 
+  string name_;
   vector<Promise<Unit>> promises_;     // promises waiting for result
   vector<FutureActor<Unit>> futures_;  // futures waiting for result of the queries
   size_t received_results_ = 0;
@@ -95,7 +94,8 @@ class MultiPromiseActorSafe : public MultiPromiseInterface {
   Promise<Unit> get_promise() override;
   void set_ignore_errors(bool ignore_errors) override;
   size_t promise_count() const override;
-  MultiPromiseActorSafe() = default;
+  explicit MultiPromiseActorSafe(string name) : multi_promise_(td::make_unique<MultiPromiseActor>(std::move(name))) {
+  }
   MultiPromiseActorSafe(const MultiPromiseActorSafe &other) = delete;
   MultiPromiseActorSafe &operator=(const MultiPromiseActorSafe &other) = delete;
   MultiPromiseActorSafe(MultiPromiseActorSafe &&other) = delete;
@@ -103,14 +103,7 @@ class MultiPromiseActorSafe : public MultiPromiseInterface {
   ~MultiPromiseActorSafe() override;
 
  private:
-  std::unique_ptr<MultiPromiseActor> multi_promise_ = std::make_unique<MultiPromiseActor>();
-};
-
-class MultiPromiseCreator {
- public:
-  static MultiPromise create() {
-    return MultiPromise(std::make_unique<MultiPromiseActor>());
-  }
+  unique_ptr<MultiPromiseActor> multi_promise_;
 };
 
 }  // namespace td

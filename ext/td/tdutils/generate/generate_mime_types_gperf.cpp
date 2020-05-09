@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -15,7 +15,7 @@
 #include <utility>
 #include <vector>
 
-std::pair<std::string, std::string> split(std::string s, char delimiter = ' ') {
+static std::pair<std::string, std::string> split(std::string s, char delimiter = ' ') {
   auto delimiter_pos = s.find(delimiter);
   if (delimiter_pos == std::string::npos) {
     return {std::move(s), ""};
@@ -26,8 +26,8 @@ std::pair<std::string, std::string> split(std::string s, char delimiter = ' ') {
   }
 }
 
-bool generate(const char *file_name, const char *from_name, const char *to_name,
-              const std::map<std::string, std::string> &map) {
+static bool generate(const char *file_name, const char *from_name, const char *to_name,
+                     const std::map<std::string, std::string> &map) {
   // binary mode is needed for MSYS2 gperf
   std::ofstream out(file_name, std::ios_base::trunc | std::ios_base::binary);
   if (!out) {
@@ -69,6 +69,10 @@ bool generate(const char *file_name, const char *from_name, const char *to_name,
   out << "}\n";
 
   return true;
+}
+
+static bool is_private_mime_type(const std::string &mime_type) {
+  return mime_type.find("/x-") != std::string::npos;
 }
 
 int main(int argc, char *argv[]) {
@@ -132,7 +136,13 @@ int main(int argc, char *argv[]) {
 
     for (auto &extension : extensions) {
       if (!extension_to_mime_type.emplace(extension, mime_type).second) {
-        std::cerr << "Extension \"" << extension << "\" matches more than one type" << std::endl;
+        if (is_private_mime_type(extension_to_mime_type[extension]) == is_private_mime_type(mime_type)) {
+          std::cerr << "Extension \"" << extension << "\" matches more than one type" << std::endl;
+        } else {
+          if (!is_private_mime_type(mime_type)) {
+            extension_to_mime_type[extension] = mime_type;
+          }
+        }
       }
     }
   }

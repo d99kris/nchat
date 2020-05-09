@@ -1,11 +1,12 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/utils/port/Stat.h"
 
+#include "td/utils/port/detail/PollableFd.h"
 #include "td/utils/port/FileFd.h"
 
 #if TD_PORT_POSIX
@@ -105,16 +106,17 @@ Stat from_native_stat(const struct ::stat &buf) {
   res.atime_nsec_ = static_cast<uint64>(buf.st_atime) * 1000000000 + time_nsec.first;
   res.mtime_nsec_ = static_cast<uint64>(buf.st_mtime) * 1000000000 + time_nsec.second / 1000 * 1000;
   res.size_ = buf.st_size;
+  res.real_size_ = buf.st_blocks * 512;
   res.is_dir_ = (buf.st_mode & S_IFMT) == S_IFDIR;
   res.is_reg_ = (buf.st_mode & S_IFMT) == S_IFREG;
   return res;
 }
 
-Stat fstat(int native_fd) {
+Result<Stat> fstat(int native_fd) {
   struct ::stat buf;
-  int err = fstat(native_fd, &buf);
-  auto fstat_errno = errno;
-  LOG_IF(FATAL, err < 0) << Status::PosixError(fstat_errno, PSLICE() << "stat for fd " << native_fd << " failed");
+  if (detail::skip_eintr([&] { return ::fstat(native_fd, &buf); }) < 0) {
+    return OS_ERROR(PSLICE() << "Stat for fd " << native_fd << " failed");
+  }
   return detail::from_native_stat(buf);
 }
 
@@ -123,8 +125,10 @@ Status update_atime(int native_fd) {
   timespec times[2];
   // access time
   times[0].tv_nsec = UTIME_NOW;
+  times[0].tv_sec = 0;
   // modify time
   times[1].tv_nsec = UTIME_OMIT;
+  times[1].tv_sec = 0;
   if (futimens(native_fd, times) < 0) {
     auto status = OS_ERROR(PSLICE() << "futimens " << tag("fd", native_fd));
     LOG(WARNING) << status;
@@ -132,7 +136,7 @@ Status update_atime(int native_fd) {
   }
   return Status::OK();
 #elif TD_DARWIN
-  auto info = fstat(native_fd);
+  TRY_RESULT(info, fstat(native_fd));
   timeval upd[2];
   auto now = Clocks::system();
   // access time
@@ -170,13 +174,14 @@ Status update_atime(CSlice path) {
   SCOPE_EXIT {
     file.close();
   };
-  return detail::update_atime(file.get_native_fd());
+  return detail::update_atime(file.get_native_fd().fd());
 }
 
 Result<Stat> stat(CSlice path) {
   struct ::stat buf;
-  if (stat(path.c_str(), &buf) < 0) {
-    return OS_ERROR(PSLICE() << "stat for " << tag("file", path) << " failed");
+  int err = detail::skip_eintr([&] { return ::stat(path.c_str(), &buf); });
+  if (err < 0) {
+    return OS_ERROR(PSLICE() << "Stat for file \"" << path << "\" failed");
   }
   return detail::from_native_stat(buf);
 }
@@ -188,7 +193,7 @@ Result<MemStat> mem_stat() {
 
   if (KERN_SUCCESS !=
       task_info(mach_task_self(), TASK_BASIC_INFO, reinterpret_cast<task_info_t>(&t_info), &t_info_count)) {
-    return Status::Error("task_info failed");
+    return Status::Error("Call to task_info failed");
   }
   MemStat res;
   res.resident_size_ = t_info.resident_size;
@@ -292,7 +297,7 @@ Status cpu_stat_self(CpuStat &stat) {
       s++;
       pass_cnt++;
     } else {
-      return Status::Error("unexpected end of proc file");
+      return Status::Error("Unexpected end of proc file");
     }
   }
   return Status::OK();
@@ -345,7 +350,7 @@ Result<CpuStat> cpu_stat() {
 namespace td {
 
 Result<Stat> stat(CSlice path) {
-  TRY_RESULT(fd, FileFd::open(path, FileFd::Flags::Read));
+  TRY_RESULT(fd, FileFd::open(path, FileFd::Flags::Read | FileFd::PrivateFlags::WinStat));
   return fd.stat();
 }
 

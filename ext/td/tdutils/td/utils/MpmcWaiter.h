@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -25,7 +25,7 @@ class MpmcWaiter {
       auto state = state_.load(std::memory_order_relaxed);
       if (!State::has_worker(state)) {
         auto new_state = State::with_worker(state, worker_id);
-        if (state_.compare_exchange_strong(state, new_state)) {
+        if (state_.compare_exchange_strong(state, new_state, std::memory_order_acq_rel)) {
           td::this_thread::yield();
           return yields + 1;
         }
@@ -62,6 +62,7 @@ class MpmcWaiter {
   }
 
   void notify() {
+    std::atomic_thread_fence(std::memory_order_seq_cst);
     if (state_.load(std::memory_order_acquire) == State::awake()) {
       return;
     }
@@ -89,7 +90,8 @@ class MpmcWaiter {
       return (state >> 1) == (worker + 1);
     }
   };
-  enum { RoundsTillSleepy = 32, RoundsTillAsleep = 64 };
+  //enum { RoundsTillSleepy = 32, RoundsTillAsleep = 64 };
+  enum { RoundsTillSleepy = 1, RoundsTillAsleep = 2 };
   std::atomic<uint32> state_{State::awake()};
   std::mutex mutex_;
   std::condition_variable condition_variable_;

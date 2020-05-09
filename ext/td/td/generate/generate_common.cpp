@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -36,7 +36,8 @@ int main() {
                  {"\"td/tl/tl_object_parse.h\"", "\"td/tl/tl_object_store.h\""}, {"\"td/utils/buffer.h\""});
 
   generate_cpp<>("auto/td/mtproto", "mtproto_api", "Slice", "Slice",
-                 {"\"td/tl/tl_object_parse.h\"", "\"td/tl/tl_object_store.h\""}, {"\"td/utils/Slice.h\""});
+                 {"\"td/tl/tl_object_parse.h\"", "\"td/tl/tl_object_store.h\""},
+                 {"\"td/utils/Slice.h\"", "\"td/utils/UInt.h\""});
 
 #ifdef TD_ENABLE_JNI
   generate_cpp<td::TD_TL_writer_jni_cpp, td::TD_TL_writer_jni_h>(

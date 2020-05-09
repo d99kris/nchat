@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,8 +11,8 @@
 
 #include "td/telegram/ContactsManager.h"
 #include "td/telegram/Global.h"
-#include "td/telegram/MessageId.h"
 #include "td/telegram/misc.h"
+#include "td/telegram/net/DcId.h"
 #include "td/telegram/PasswordManager.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/UpdatesManager.h"
@@ -145,7 +145,7 @@ static tl_object_ptr<td_api::paymentsProviderStripe> convert_payment_provider(
     string data = native_parameters->data_;
     auto r_value = json_decode(data);
     if (r_value.is_error()) {
-      LOG(ERROR) << "Can't parse json object \"" << native_parameters->data_ << "\": " << r_value.error();
+      LOG(ERROR) << "Can't parse JSON object \"" << native_parameters->data_ << "\": " << r_value.error();
       return nullptr;
     }
 
@@ -271,7 +271,7 @@ class GetPaymentFormQuery : public Td::ResultHandler {
     auto payment_form = result_ptr.move_as_ok();
     LOG(INFO) << "Receive payment form: " << to_string(payment_form);
 
-    td->contacts_manager_->on_get_users(std::move(payment_form->users_));
+    td->contacts_manager_->on_get_users(std::move(payment_form->users_), "GetPaymentFormQuery");
 
     bool can_save_credentials =
         (payment_form->flags_ & telegram_api::payments_paymentForm::CAN_SAVE_CREDENTIALS_MASK) != 0;
@@ -367,8 +367,8 @@ class SendPaymentFormQuery : public Td::ResultHandler {
         promise_.set_value(make_tl_object<td_api::paymentResult>(true, string()));
         return;
       }
-      case telegram_api::payments_paymentVerficationNeeded::ID: {
-        auto result = move_tl_object_as<telegram_api::payments_paymentVerficationNeeded>(payment_result);
+      case telegram_api::payments_paymentVerificationNeeded::ID: {
+        auto result = move_tl_object_as<telegram_api::payments_paymentVerificationNeeded>(payment_result);
         promise_.set_value(make_tl_object<td_api::paymentResult>(false, std::move(result->url_)));
         return;
       }
@@ -404,7 +404,7 @@ class GetPaymentReceiptQuery : public Td::ResultHandler {
     auto payment_receipt = result_ptr.move_as_ok();
     LOG(INFO) << "Receive payment receipt: " << to_string(payment_receipt);
 
-    td->contacts_manager_->on_get_users(std::move(payment_receipt->users_));
+    td->contacts_manager_->on_get_users(std::move(payment_receipt->users_), "GetPaymentReceiptQuery");
 
     UserId payments_provider_user_id(payment_receipt->provider_id_);
     if (!payments_provider_user_id.is_valid()) {
@@ -486,7 +486,35 @@ class ClearSavedInfoQuery : public Td::ResultHandler {
     promise_.set_error(std::move(status));
   }
 };
+/*
+class SendLiteRequestQuery : public Td::ResultHandler {
+  Promise<td_api::object_ptr<td_api::tonLiteServerResponse>> promise_;
 
+ public:
+  explicit SendLiteRequestQuery(Promise<td_api::object_ptr<td_api::tonLiteServerResponse>> &&promise)
+      : promise_(std::move(promise)) {
+  }
+
+  void send(BufferSlice request) {
+    send_query(G()->net_query_creator().create(create_storer(telegram_api::wallet_sendLiteRequest(std::move(request))),
+                                               DcId::main(), NetQuery::Type::Common, NetQuery::AuthFlag::Off));
+  }
+
+  void on_result(uint64 id, BufferSlice packet) override {
+    auto result_ptr = fetch_result<telegram_api::wallet_sendLiteRequest>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(id, result_ptr.move_as_error());
+    }
+
+    auto response = result_ptr.move_as_ok();
+    promise_.set_value(td_api::make_object<td_api::tonLiteServerResponse>(response->response_.as_slice().str()));
+  }
+
+  void on_error(uint64 id, Status status) override {
+    promise_.set_error(std::move(status));
+  }
+};
+*/
 bool operator==(const LabeledPricePart &lhs, const LabeledPricePart &rhs) {
   return lhs.label == rhs.label && lhs.amount == rhs.amount;
 }
@@ -543,9 +571,9 @@ unique_ptr<Address> get_address(tl_object_ptr<telegram_api::postAddress> &&addre
   if (address == nullptr) {
     return nullptr;
   }
-  return make_unique<Address>(std::move(address->country_iso2_), std::move(address->state_), std::move(address->city_),
-                              std::move(address->street_line1_), std::move(address->street_line2_),
-                              std::move(address->post_code_));
+  return td::make_unique<Address>(std::move(address->country_iso2_), std::move(address->state_),
+                                  std::move(address->city_), std::move(address->street_line1_),
+                                  std::move(address->street_line2_), std::move(address->post_code_));
 }
 
 static bool is_capital_alpha(char c) {
@@ -625,7 +653,7 @@ string address_to_json(const Address &address) {
     o("city", address.city);
     o("street_line1", address.street_line1);
     o("street_line2", address.street_line2);
-    o("postal_code", address.postal_code);
+    o("post_code", address.postal_code);
   }));
 }
 
@@ -647,7 +675,7 @@ Result<Address> address_from_json(Slice json) {
   TRY_RESULT(city, get_json_object_string_field(object, "city", true));
   TRY_RESULT(street_line1, get_json_object_string_field(object, "street_line1", true));
   TRY_RESULT(street_line2, get_json_object_string_field(object, "street_line2", true));
-  TRY_RESULT(postal_code, get_json_object_string_field(object, "postal_code", true));
+  TRY_RESULT(postal_code, get_json_object_string_field(object, "post_code", true));
 
   TRY_STATUS(check_country_code(country_code));
   TRY_STATUS(check_state(state));
@@ -684,8 +712,9 @@ unique_ptr<OrderInfo> get_order_info(tl_object_ptr<telegram_api::paymentRequeste
   if (order_info == nullptr || order_info->flags_ == 0) {
     return nullptr;
   }
-  return make_unique<OrderInfo>(std::move(order_info->name_), std::move(order_info->phone_),
-                                std::move(order_info->email_), get_address(std::move(order_info->shipping_address_)));
+  return td::make_unique<OrderInfo>(std::move(order_info->name_), std::move(order_info->phone_),
+                                    std::move(order_info->email_),
+                                    get_address(std::move(order_info->shipping_address_)));
 }
 
 tl_object_ptr<td_api::orderInfo> get_order_info_object(const unique_ptr<OrderInfo> &order_info) {
@@ -867,5 +896,9 @@ void delete_saved_order_info(Promise<Unit> &&promise) {
 void delete_saved_credentials(Promise<Unit> &&promise) {
   G()->td().get_actor_unsafe()->create_handler<ClearSavedInfoQuery>(std::move(promise))->send(true, false);
 }
-
+/*
+void send_ton_lite_server_request(Slice request, Promise<td_api::object_ptr<td_api::tonLiteServerResponse>> &&promise) {
+  G()->td().get_actor_unsafe()->create_handler<SendLiteRequestQuery>(std::move(promise))->send(BufferSlice{request});
+}
+*/
 }  // namespace td

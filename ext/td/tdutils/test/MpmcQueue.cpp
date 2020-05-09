@@ -1,9 +1,10 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
+#include "td/utils/common.h"
 #include "td/utils/logging.h"
 #include "td/utils/MpmcQueue.h"
 #include "td/utils/port/thread.h"
@@ -68,7 +69,7 @@ TEST(OneValue, stress) {
           if (set_status) {
             CHECK(get_status);
             CHECK(from.empty());
-            CHECK(to == "hello") << to;
+            LOG_CHECK(to == "hello") << to;
           } else {
             CHECK(!get_status);
             CHECK(from == "hello");
@@ -86,7 +87,7 @@ TEST(OneValue, stress) {
 
 TEST(MpmcQueueBlock, simple) {
   // Test doesn't work now and it is ok, try_pop, logic changed
-  return;
+  /*
   td::MpmcQueueBlock<std::string> block(2);
   std::string x = "hello";
   using PushStatus = td::MpmcQueueBlock<std::string>::PushStatus;
@@ -111,6 +112,7 @@ TEST(MpmcQueueBlock, simple) {
   CHECK(pop_status == PopStatus::Ok);
   pop_status = block.try_pop(x);
   CHECK(pop_status == PopStatus::Closed);
+  */
 }
 
 TEST(MpmcQueue, simple) {
@@ -121,7 +123,7 @@ TEST(MpmcQueue, simple) {
     }
     for (int i = 0; i < 100; i++) {
       int x = q.pop(0);
-      CHECK(x == i) << x << " expected " << i;
+      LOG_CHECK(x == i) << x << " expected " << i;
     }
   }
 }
@@ -188,7 +190,7 @@ TEST(MpmcQueue, multi_thread) {
       from[data.from] = data.value;
     }
   }
-  CHECK(all.size() == n * qn) << all.size();
+  LOG_CHECK(all.size() == n * qn) << all.size();
   std::sort(all.begin(), all.end(),
             [](const auto &a, const auto &b) { return std::tie(a.from, a.value) < std::tie(b.from, b.value); });
   for (size_t i = 0; i < n * qn; i++) {
@@ -200,6 +202,6 @@ TEST(MpmcQueue, multi_thread) {
   for (size_t id = 0; id < n + m + 1; id++) {
     q.gc(id);
   }
-  CHECK(q.hazard_pointers_to_delele_size_unsafe() == 0) << q.hazard_pointers_to_delele_size_unsafe();
+  LOG_CHECK(q.hazard_pointers_to_delele_size_unsafe() == 0) << q.hazard_pointers_to_delele_size_unsafe();
 }
 #endif  //!TD_THREAD_UNSUPPORTED

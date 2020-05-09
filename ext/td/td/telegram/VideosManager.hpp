@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -10,14 +10,15 @@
 
 #include "td/telegram/files/FileId.hpp"
 #include "td/telegram/Photo.hpp"
+#include "td/telegram/Version.h"
 
-#include "td/utils/logging.h"
+#include "td/utils/common.h"
 #include "td/utils/tl_helpers.h"
 
 namespace td {
 
-template <class T>
-void VideosManager::store_video(FileId file_id, T &storer) const {
+template <class StorerT>
+void VideosManager::store_video(FileId file_id, StorerT &storer) const {
   auto it = videos_.find(file_id);
   CHECK(it != videos_.end());
   const Video *video = it->second.get();
@@ -29,6 +30,7 @@ void VideosManager::store_video(FileId file_id, T &storer) const {
   store(video->mime_type, storer);
   store(video->duration, storer);
   store(video->dimensions, storer);
+  store(video->minithumbnail, storer);
   store(video->thumbnail, storer);
   store(file_id, storer);
   if (video->has_stickers) {
@@ -36,8 +38,8 @@ void VideosManager::store_video(FileId file_id, T &storer) const {
   }
 }
 
-template <class T>
-FileId VideosManager::parse_video(T &parser) {
+template <class ParserT>
+FileId VideosManager::parse_video(ParserT &parser) {
   auto video = make_unique<Video>();
   BEGIN_PARSE_FLAGS();
   PARSE_FLAG(video->has_stickers);
@@ -47,12 +49,18 @@ FileId VideosManager::parse_video(T &parser) {
   parse(video->mime_type, parser);
   parse(video->duration, parser);
   parse(video->dimensions, parser);
+  if (parser.version() >= static_cast<int32>(Version::SupportMinithumbnails)) {
+    parse(video->minithumbnail, parser);
+  }
   parse(video->thumbnail, parser);
   parse(video->file_id, parser);
   if (video->has_stickers) {
     parse(video->sticker_file_ids, parser);
   }
-  return on_get_video(std::move(video), true);
+  if (parser.get_error() != nullptr || !video->file_id.is_valid()) {
+    return FileId();
+  }
+  return on_get_video(std::move(video), false);
 }
 
 }  // namespace td

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -7,12 +7,17 @@
 #include "td/actor/actor.h"
 
 #include "td/db/binlog/Binlog.h"
+#include "td/db/binlog/ConcurrentBinlog.h"
 #include "td/db/BinlogKeyValue.h"
+#include "td/db/DbKey.h"
 #include "td/db/SeqKeyValue.h"
+#include "td/db/SqliteConnectionSafe.h"
 #include "td/db/SqliteDb.h"
 #include "td/db/SqliteKeyValueAsync.h"
+#include "td/db/SqliteKeyValueSafe.h"
 
 #include "td/utils/benchmark.h"
+#include "td/utils/common.h"
 #include "td/utils/format.h"
 #include "td/utils/logging.h"
 #include "td/utils/Status.h"
@@ -91,7 +96,7 @@ class SqliteKVBench : public td::Benchmark {
     td::string path = "testdb.sqlite";
     td::SqliteDb::destroy(path).ignore();
     if (is_encrypted) {
-      td::SqliteDb::change_key(path, td::DbKey::password("cucumber"), td::DbKey::empty());
+      td::SqliteDb::change_key(path, td::DbKey::password("cucumber"), td::DbKey::empty()).ensure();
       db = td::SqliteDb::open_with_key(path, td::DbKey::password("cucumber")).move_as_ok();
     } else {
       db = td::SqliteDb::open_with_key(path, td::DbKey::empty()).move_as_ok();
@@ -145,7 +150,7 @@ class SqliteKeyValueAsyncBench : public td::Benchmark {
     scheduler_->start();
   }
   void run(int n) override {
-    auto guard = scheduler_->get_current_guard();
+    auto guard = scheduler_->get_main_guard();
 
     for (int i = 0; i < n; i++) {
       auto key = td::to_string(i % 10);
@@ -156,7 +161,7 @@ class SqliteKeyValueAsyncBench : public td::Benchmark {
   void tear_down() override {
     scheduler_->run_main(0.1);
     {
-      auto guard = scheduler_->get_current_guard();
+      auto guard = scheduler_->get_main_guard();
       sqlite_kv_async_.reset();
       sqlite_kv_safe_.reset();
       sql_connection_->close_and_destroy();
@@ -167,16 +172,16 @@ class SqliteKeyValueAsyncBench : public td::Benchmark {
   }
 
  private:
-  std::unique_ptr<td::ConcurrentScheduler> scheduler_;
+  td::unique_ptr<td::ConcurrentScheduler> scheduler_;
   std::shared_ptr<td::SqliteConnectionSafe> sql_connection_;
   std::shared_ptr<td::SqliteKeyValueSafe> sqlite_kv_safe_;
-  std::unique_ptr<td::SqliteKeyValueAsyncInterface> sqlite_kv_async_;
+  td::unique_ptr<td::SqliteKeyValueAsyncInterface> sqlite_kv_async_;
 
   td::Status do_start_up() {
-    scheduler_ = std::make_unique<td::ConcurrentScheduler>();
+    scheduler_ = td::make_unique<td::ConcurrentScheduler>();
     scheduler_->init(1);
 
-    auto guard = scheduler_->get_current_guard();
+    auto guard = scheduler_->get_main_guard();
 
     td::string sql_db_name = "testdb.sqlite";
     td::SqliteDb::destroy(sql_db_name).ignore();

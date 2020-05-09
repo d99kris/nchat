@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -18,16 +18,16 @@ TEST(MpmcWaiter, stress_one_one) {
   td::Stage check;
 
   std::vector<td::thread> threads;
-  std::atomic<size_t> value;
+  std::atomic<size_t> value{0};
   size_t write_cnt = 10;
-  std::unique_ptr<td::MpmcWaiter> waiter;
+  td::unique_ptr<td::MpmcWaiter> waiter;
   size_t threads_n = 2;
   for (size_t i = 0; i < threads_n; i++) {
     threads.push_back(td::thread([&, id = static_cast<td::uint32>(i)] {
       for (td::uint64 round = 1; round < 100000; round++) {
         if (id == 0) {
           value = 0;
-          waiter = std::make_unique<td::MpmcWaiter>();
+          waiter = td::make_unique<td::MpmcWaiter>();
           write_cnt = td::Random::fast(1, 10);
         }
         run.wait(round * threads_n);
@@ -64,12 +64,12 @@ TEST(MpmcWaiter, stress) {
   std::vector<td::thread> threads;
   size_t write_n;
   size_t read_n;
-  std::atomic<size_t> write_pos;
-  std::atomic<size_t> read_pos;
+  std::atomic<size_t> write_pos{0};
+  std::atomic<size_t> read_pos{0};
   size_t end_pos;
   size_t write_cnt;
   size_t threads_n = 20;
-  std::unique_ptr<td::MpmcWaiter> waiter;
+  td::unique_ptr<td::MpmcWaiter> waiter;
   for (size_t i = 0; i < threads_n; i++) {
     threads.push_back(td::thread([&, id = static_cast<td::uint32>(i)] {
       for (td::uint64 round = 1; round < 1000; round++) {
@@ -80,7 +80,7 @@ TEST(MpmcWaiter, stress) {
           end_pos = write_n * write_cnt;
           write_pos = 0;
           read_pos = 0;
-          waiter = std::make_unique<td::MpmcWaiter>();
+          waiter = td::make_unique<td::MpmcWaiter>();
         }
         run.wait(round * threads_n);
         if (id <= write_n) {

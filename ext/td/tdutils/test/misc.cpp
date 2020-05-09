@@ -1,12 +1,20 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
+#include "td/utils/as.h"
 #include "td/utils/base64.h"
 #include "td/utils/BigNum.h"
+#include "td/utils/bits.h"
+#include "td/utils/CancellationToken.h"
+#include "td/utils/common.h"
+#include "td/utils/Hash.h"
+#include "td/utils/HashMap.h"
+#include "td/utils/HashSet.h"
 #include "td/utils/HttpUrl.h"
+#include "td/utils/invoke.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/port/EventFd.h"
@@ -19,9 +27,12 @@
 #include "td/utils/port/wstring_convert.h"
 #include "td/utils/Random.h"
 #include "td/utils/Slice.h"
+#include "td/utils/Status.h"
 #include "td/utils/StringBuilder.h"
 #include "td/utils/tests.h"
+#include "td/utils/Time.h"
 #include "td/utils/translit.h"
+#include "td/utils/uint128.h"
 #include "td/utils/unicode.h"
 #include "td/utils/utf8.h"
 
@@ -29,6 +40,12 @@
 #include <clocale>
 #include <limits>
 #include <locale>
+#include <unordered_map>
+#include <utility>
+
+#if TD_HAVE_ABSL
+#include <absl/container/flat_hash_map.h>
+#endif
 
 using namespace td;
 
@@ -92,7 +109,7 @@ TEST(Misc, errno_tls_bug) {
 #if !TD_THREAD_UNSUPPORTED && !TD_EVENTFD_UNSUPPORTED
   EventFd test_event_fd;
   test_event_fd.init();
-  std::atomic<int> s(0);
+  std::atomic<int> s{0};
   s = 1;
   td::thread th([&] {
     while (s != 1) {
@@ -125,12 +142,30 @@ TEST(Misc, errno_tls_bug) {
 #endif
 }
 
+TEST(Misc, get_last_argument) {
+  auto a = make_unique<int>(5);
+  ASSERT_EQ(*get_last_argument(std::move(a)), 5);
+  ASSERT_EQ(*get_last_argument(1, 2, 3, 4, a), 5);
+  ASSERT_EQ(*get_last_argument(a), 5);
+  auto b = get_last_argument(1, 2, 3, std::move(a));
+  ASSERT_TRUE(!a);
+  ASSERT_EQ(*b, 5);
+}
+
+TEST(Misc, call_n_arguments) {
+  auto f = [](int, int) {
+  };
+  call_n_arguments<2>(f, 1, 3, 4);
+}
+
 TEST(Misc, base64) {
   ASSERT_TRUE(is_base64("dGVzdA==") == true);
   ASSERT_TRUE(is_base64("dGVzdB==") == false);
   ASSERT_TRUE(is_base64("dGVzdA=") == false);
   ASSERT_TRUE(is_base64("dGVzdA") == false);
+  ASSERT_TRUE(is_base64("dGVzd") == false);
   ASSERT_TRUE(is_base64("dGVz") == true);
+  ASSERT_TRUE(is_base64("dGVz====") == false);
   ASSERT_TRUE(is_base64("") == true);
   ASSERT_TRUE(is_base64("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/") == true);
   ASSERT_TRUE(is_base64("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=") == false);
@@ -142,13 +177,39 @@ TEST(Misc, base64) {
   ASSERT_TRUE(is_base64url("dGVzdB==") == false);
   ASSERT_TRUE(is_base64url("dGVzdA=") == false);
   ASSERT_TRUE(is_base64url("dGVzdA") == true);
+  ASSERT_TRUE(is_base64url("dGVzd") == false);
   ASSERT_TRUE(is_base64url("dGVz") == true);
+  ASSERT_TRUE(is_base64url("dGVz====") == false);
   ASSERT_TRUE(is_base64url("") == true);
   ASSERT_TRUE(is_base64url("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_") == true);
   ASSERT_TRUE(is_base64url("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_=") == false);
   ASSERT_TRUE(is_base64url("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-/") == false);
   ASSERT_TRUE(is_base64url("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/") == false);
   ASSERT_TRUE(is_base64url("====") == false);
+
+  ASSERT_TRUE(is_base64_characters("dGVzdA==") == false);
+  ASSERT_TRUE(is_base64_characters("dGVzdB==") == false);
+  ASSERT_TRUE(is_base64_characters("dGVzdA=") == false);
+  ASSERT_TRUE(is_base64_characters("dGVzdA") == true);
+  ASSERT_TRUE(is_base64_characters("dGVz") == true);
+  ASSERT_TRUE(is_base64_characters("") == true);
+  ASSERT_TRUE(is_base64_characters("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/") == true);
+  ASSERT_TRUE(is_base64_characters("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=") == false);
+  ASSERT_TRUE(is_base64_characters("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-/") == false);
+  ASSERT_TRUE(is_base64_characters("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_") == false);
+  ASSERT_TRUE(is_base64_characters("====") == false);
+
+  ASSERT_TRUE(is_base64url_characters("dGVzdA==") == false);
+  ASSERT_TRUE(is_base64url_characters("dGVzdB==") == false);
+  ASSERT_TRUE(is_base64url_characters("dGVzdA=") == false);
+  ASSERT_TRUE(is_base64url_characters("dGVzdA") == true);
+  ASSERT_TRUE(is_base64url_characters("dGVz") == true);
+  ASSERT_TRUE(is_base64url_characters("") == true);
+  ASSERT_TRUE(is_base64url_characters("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_") == true);
+  ASSERT_TRUE(is_base64url_characters("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_=") == false);
+  ASSERT_TRUE(is_base64url_characters("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-/") == false);
+  ASSERT_TRUE(is_base64url_characters("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/") == false);
+  ASSERT_TRUE(is_base64url_characters("====") == false);
 
   for (int l = 0; l < 300000; l += l / 20 + l / 1000 * 500 + 1) {
     for (int t = 0; t < 10; t++) {
@@ -162,6 +223,10 @@ TEST(Misc, base64) {
       decoded = base64_decode(encoded);
       ASSERT_TRUE(decoded.is_ok());
       ASSERT_TRUE(decoded.ok() == s);
+
+      auto decoded_secure = base64_decode_secure(encoded);
+      ASSERT_TRUE(decoded_secure.is_ok());
+      ASSERT_TRUE(decoded_secure.ok().as_slice() == s);
     }
   }
 
@@ -174,6 +239,112 @@ TEST(Misc, base64) {
   ASSERT_TRUE(base64_encode("      /'.;.';≤.];,].',[.;/,.;/]/..;!@#!*(%?::;!%\";") ==
               "ICAgICAgLycuOy4nO+KJpC5dOyxdLicsWy47LywuOy9dLy4uOyFAIyEqKCU/"
               "Ojo7ISUiOw==");
+  ASSERT_TRUE(base64url_encode("ab><") == "YWI-PA");
+  ASSERT_TRUE(base64url_encode("ab><c") == "YWI-PGM");
+  ASSERT_TRUE(base64url_encode("ab><cd") == "YWI-PGNk");
+}
+
+template <class T>
+static void test_remove_if(vector<int> v, const T &func, vector<int> expected) {
+  td::remove_if(v, func);
+  if (expected != v) {
+    LOG(FATAL) << "Receive " << v << ", expected " << expected << " in remove_if";
+  }
+}
+
+TEST(Misc, remove_if) {
+  auto odd = [](int x) {
+    return x % 2 == 1;
+  };
+  auto even = [](int x) {
+    return x % 2 == 0;
+  };
+  auto all = [](int x) {
+    return true;
+  };
+  auto none = [](int x) {
+    return false;
+  };
+
+  vector<int> v{1, 2, 3, 4, 5, 6};
+  test_remove_if(v, odd, {2, 4, 6});
+  test_remove_if(v, even, {1, 3, 5});
+  test_remove_if(v, all, {});
+  test_remove_if(v, none, v);
+
+  v = vector<int>{1, 3, 5, 2, 4, 6};
+  test_remove_if(v, odd, {2, 4, 6});
+  test_remove_if(v, even, {1, 3, 5});
+  test_remove_if(v, all, {});
+  test_remove_if(v, none, v);
+
+  v.clear();
+  test_remove_if(v, odd, v);
+  test_remove_if(v, even, v);
+  test_remove_if(v, all, v);
+  test_remove_if(v, none, v);
+
+  v.push_back(-1);
+  test_remove_if(v, odd, v);
+  test_remove_if(v, even, v);
+  test_remove_if(v, all, {});
+  test_remove_if(v, none, v);
+
+  v[0] = 1;
+  test_remove_if(v, odd, {});
+  test_remove_if(v, even, v);
+  test_remove_if(v, all, {});
+  test_remove_if(v, none, v);
+
+  v[0] = 2;
+  test_remove_if(v, odd, v);
+  test_remove_if(v, even, {});
+  test_remove_if(v, all, {});
+  test_remove_if(v, none, v);
+}
+
+static void test_remove(vector<int> v, int value, vector<int> expected) {
+  bool is_found = expected != v;
+  ASSERT_EQ(is_found, td::remove(v, value));
+  if (expected != v) {
+    LOG(FATAL) << "Receive " << v << ", expected " << expected << " in remove";
+  }
+}
+
+TEST(Misc, remove) {
+  vector<int> v{1, 2, 3, 4, 5, 6};
+  test_remove(v, 0, {1, 2, 3, 4, 5, 6});
+  test_remove(v, 1, {2, 3, 4, 5, 6});
+  test_remove(v, 2, {1, 3, 4, 5, 6});
+  test_remove(v, 3, {1, 2, 4, 5, 6});
+  test_remove(v, 4, {1, 2, 3, 5, 6});
+  test_remove(v, 5, {1, 2, 3, 4, 6});
+  test_remove(v, 6, {1, 2, 3, 4, 5});
+  test_remove(v, 7, {1, 2, 3, 4, 5, 6});
+
+  v.clear();
+  test_remove(v, -1, v);
+  test_remove(v, 0, v);
+  test_remove(v, 1, v);
+}
+
+TEST(Misc, contains) {
+  td::vector<int> v{1, 3, 5, 7, 4, 2};
+  for (int i = -10; i < 20; i++) {
+    ASSERT_EQ(td::contains(v, i), (1 <= i && i <= 5) || i == 7);
+  }
+
+  v.clear();
+  ASSERT_TRUE(!td::contains(v, 0));
+  ASSERT_TRUE(!td::contains(v, 1));
+
+  td::string str = "abacaba";
+  ASSERT_TRUE(!td::contains(str, '0'));
+  ASSERT_TRUE(!td::contains(str, 0));
+  ASSERT_TRUE(!td::contains(str, 'd'));
+  ASSERT_TRUE(td::contains(str, 'a'));
+  ASSERT_TRUE(td::contains(str, 'b'));
+  ASSERT_TRUE(td::contains(str, 'c'));
 }
 
 TEST(Misc, to_integer) {
@@ -242,9 +413,11 @@ TEST(Misc, to_double) {
   test_to_double();
   const char *locale_name = (std::setlocale(LC_ALL, "fr-FR") == nullptr ? "" : "fr-FR");
   std::locale new_locale(locale_name);
-  std::locale::global(new_locale);
+  auto host_locale = std::locale::global(new_locale);
   test_to_double();
-  std::locale::global(std::locale::classic());
+  new_locale = std::locale::global(std::locale::classic());
+  test_to_double();
+  auto classic_locale = std::locale::global(host_locale);
   test_to_double();
 }
 
@@ -418,4 +591,503 @@ TEST(BigNum, from_decimal) {
   ASSERT_TRUE(BigNum::from_decimal("-0").is_ok());
   ASSERT_TRUE(BigNum::from_decimal("-999999999999999999999999999999999999999999999999").is_ok());
   ASSERT_TRUE(BigNum::from_decimal("999999999999999999999999999999999999999999999999").is_ok());
+}
+
+TEST(BigNum, from_binary) {
+  ASSERT_STREQ(BigNum::from_binary("").to_decimal(), "0");
+  ASSERT_STREQ(BigNum::from_binary("a").to_decimal(), "97");
+  ASSERT_STREQ(BigNum::from_binary("\x00\xff").to_decimal(), "255");
+  ASSERT_STREQ(BigNum::from_binary("\x00\x01\x00\x00").to_decimal(), "65536");
+  ASSERT_STREQ(BigNum::from_le_binary("").to_decimal(), "0");
+  ASSERT_STREQ(BigNum::from_le_binary("a").to_decimal(), "97");
+  ASSERT_STREQ(BigNum::from_le_binary("\x00\xff").to_decimal(), "65280");
+  ASSERT_STREQ(BigNum::from_le_binary("\x00\x01\x00\x00").to_decimal(), "256");
+  ASSERT_STREQ(BigNum::from_decimal("255").move_as_ok().to_binary(), "\xff");
+  ASSERT_STREQ(BigNum::from_decimal("255").move_as_ok().to_le_binary(), "\xff");
+  ASSERT_STREQ(BigNum::from_decimal("255").move_as_ok().to_binary(2), "\x00\xff");
+  ASSERT_STREQ(BigNum::from_decimal("255").move_as_ok().to_le_binary(2), "\xff\x00");
+  ASSERT_STREQ(BigNum::from_decimal("65280").move_as_ok().to_binary(), "\xff\x00");
+  ASSERT_STREQ(BigNum::from_decimal("65280").move_as_ok().to_le_binary(), "\x00\xff");
+  ASSERT_STREQ(BigNum::from_decimal("65280").move_as_ok().to_binary(2), "\xff\x00");
+  ASSERT_STREQ(BigNum::from_decimal("65280").move_as_ok().to_le_binary(2), "\x00\xff");
+  ASSERT_STREQ(BigNum::from_decimal("65536").move_as_ok().to_binary(), "\x01\x00\x00");
+  ASSERT_STREQ(BigNum::from_decimal("65536").move_as_ok().to_le_binary(), "\x00\x00\x01");
+  ASSERT_STREQ(BigNum::from_decimal("65536").move_as_ok().to_binary(4), "\x00\x01\x00\x00");
+  ASSERT_STREQ(BigNum::from_decimal("65536").move_as_ok().to_le_binary(4), "\x00\x00\x01\x00");
+}
+
+static void test_get_ipv4(uint32 ip) {
+  td::IPAddress ip_address;
+  ip_address.init_ipv4_port(td::IPAddress::ipv4_to_str(ip), 80).ensure();
+  ASSERT_EQ(ip_address.get_ipv4(), ip);
+}
+
+TEST(Misc, IPAddress_get_ipv4) {
+  test_get_ipv4(0x00000000);
+  test_get_ipv4(0x010000FF);
+  test_get_ipv4(0xFF000001);
+  test_get_ipv4(0x01020304);
+  test_get_ipv4(0x04030201);
+  test_get_ipv4(0xFFFFFFFF);
+}
+
+static void test_is_reserved(string ip, bool is_reserved) {
+  IPAddress ip_address;
+  ip_address.init_ipv4_port(ip, 80).ensure();
+  ASSERT_EQ(is_reserved, ip_address.is_reserved());
+}
+
+TEST(Misc, IPAddress_is_reserved) {
+  test_is_reserved("0.0.0.0", true);
+  test_is_reserved("0.255.255.255", true);
+  test_is_reserved("1.0.0.0", false);
+  test_is_reserved("5.0.0.0", false);
+  test_is_reserved("9.255.255.255", false);
+  test_is_reserved("10.0.0.0", true);
+  test_is_reserved("10.255.255.255", true);
+  test_is_reserved("11.0.0.0", false);
+  test_is_reserved("100.63.255.255", false);
+  test_is_reserved("100.64.0.0", true);
+  test_is_reserved("100.127.255.255", true);
+  test_is_reserved("100.128.0.0", false);
+  test_is_reserved("126.255.255.255", false);
+  test_is_reserved("127.0.0.0", true);
+  test_is_reserved("127.255.255.255", true);
+  test_is_reserved("128.0.0.0", false);
+  test_is_reserved("169.253.255.255", false);
+  test_is_reserved("169.254.0.0", true);
+  test_is_reserved("169.254.255.255", true);
+  test_is_reserved("169.255.0.0", false);
+  test_is_reserved("172.15.255.255", false);
+  test_is_reserved("172.16.0.0", true);
+  test_is_reserved("172.31.255.255", true);
+  test_is_reserved("172.32.0.0", false);
+  test_is_reserved("191.255.255.255", false);
+  test_is_reserved("192.0.0.0", true);
+  test_is_reserved("192.0.0.255", true);
+  test_is_reserved("192.0.1.0", false);
+  test_is_reserved("192.0.1.255", false);
+  test_is_reserved("192.0.2.0", true);
+  test_is_reserved("192.0.2.255", true);
+  test_is_reserved("192.0.3.0", false);
+  test_is_reserved("192.88.98.255", false);
+  test_is_reserved("192.88.99.0", true);
+  test_is_reserved("192.88.99.255", true);
+  test_is_reserved("192.88.100.0", false);
+  test_is_reserved("192.167.255.255", false);
+  test_is_reserved("192.168.0.0", true);
+  test_is_reserved("192.168.255.255", true);
+  test_is_reserved("192.169.0.0", false);
+  test_is_reserved("198.17.255.255", false);
+  test_is_reserved("198.18.0.0", true);
+  test_is_reserved("198.19.255.255", true);
+  test_is_reserved("198.20.0.0", false);
+  test_is_reserved("198.51.99.255", false);
+  test_is_reserved("198.51.100.0", true);
+  test_is_reserved("198.51.100.255", true);
+  test_is_reserved("198.51.101.0", false);
+  test_is_reserved("203.0.112.255", false);
+  test_is_reserved("203.0.113.0", true);
+  test_is_reserved("203.0.113.255", true);
+  test_is_reserved("203.0.114.0", false);
+  test_is_reserved("223.255.255.255", false);
+  test_is_reserved("224.0.0.0", true);
+  test_is_reserved("239.255.255.255", true);
+  test_is_reserved("240.0.0.0", true);
+  test_is_reserved("255.255.255.254", true);
+  test_is_reserved("255.255.255.255", true);
+}
+
+static void test_split(Slice str, std::pair<Slice, Slice> expected) {
+  ASSERT_EQ(expected, td::split(str));
+}
+
+TEST(Misc, split) {
+  test_split("", {"", ""});
+  test_split(" ", {"", ""});
+  test_split("abcdef", {"abcdef", ""});
+  test_split("abc def", {"abc", "def"});
+  test_split("a bcdef", {"a", "bcdef"});
+  test_split(" abcdef", {"", "abcdef"});
+  test_split("abcdef ", {"abcdef", ""});
+  test_split("ab cd ef", {"ab", "cd ef"});
+  test_split("ab cdef ", {"ab", "cdef "});
+  test_split(" abcd ef", {"", "abcd ef"});
+  test_split(" abcdef ", {"", "abcdef "});
+}
+
+static void test_full_split(Slice str, vector<Slice> expected) {
+  ASSERT_EQ(expected, td::full_split(str));
+}
+
+TEST(Misc, full_split) {
+  test_full_split("", {});
+  test_full_split(" ", {"", ""});
+  test_full_split("  ", {"", "", ""});
+  test_full_split("abcdef", {"abcdef"});
+  test_full_split("abc def", {"abc", "def"});
+  test_full_split("a bcdef", {"a", "bcdef"});
+  test_full_split(" abcdef", {"", "abcdef"});
+  test_full_split("abcdef ", {"abcdef", ""});
+  test_full_split("ab cd ef", {"ab", "cd", "ef"});
+  test_full_split("ab cdef ", {"ab", "cdef", ""});
+  test_full_split(" abcd ef", {"", "abcd", "ef"});
+  test_full_split(" abcdef ", {"", "abcdef", ""});
+  test_full_split(" ab cd ef ", {"", "ab", "cd", "ef", ""});
+  test_full_split("  ab  cd  ef  ", {"", "", "ab", "", "cd", "", "ef", "", ""});
+}
+
+TEST(Misc, StringBuilder) {
+  auto small_str = std::string{"abcdefghij"};
+  auto big_str = std::string(1000, 'a');
+  using V = std::vector<std::string>;
+  for (auto use_buf : {false, true}) {
+    for (size_t initial_buffer_size : {0, 1, 5, 10, 100, 1000, 2000}) {
+      for (auto test : {V{small_str}, V{small_str, big_str, big_str, small_str}, V{big_str, small_str, big_str}}) {
+        std::string buf(initial_buffer_size, '\0');
+        td::StringBuilder sb(buf, use_buf);
+        std::string res;
+        for (auto x : test) {
+          res += x;
+          sb << x;
+        }
+        if (use_buf) {
+          ASSERT_EQ(res, sb.as_cslice());
+        } else {
+          auto got = sb.as_cslice();
+          res.resize(got.size());
+          ASSERT_EQ(res, got);
+        }
+      }
+    }
+  }
+}
+
+TEST(Misc, As) {
+  char buf[100];
+  as<int>(buf) = 123;
+  ASSERT_EQ(123, as<int>((const char *)buf));
+  ASSERT_EQ(123, as<int>((char *)buf));
+  char buf2[100];
+  as<int>(buf2) = as<int>(buf);
+  ASSERT_EQ(123, as<int>((const char *)buf2));
+  ASSERT_EQ(123, as<int>((char *)buf2));
+}
+
+TEST(Misc, Regression) {
+  string name = "regression_db";
+  RegressionTester::destroy(name);
+
+  {
+    auto tester = RegressionTester::create(name);
+    tester->save_db();
+    tester->verify_test("one_plus_one", "two").ensure();
+    tester->verify_test("one_plus_one", "two").ensure();
+    tester->verify_test("two_plus_one", "three").ensure();
+    tester->verify_test("one_plus_one", "two").ensure();
+    tester->verify_test("two_plus_one", "three").ensure();
+    tester->save_db();
+  }
+  {
+    auto tester = RegressionTester::create(name);
+    tester->save_db();
+    tester->verify_test("one_plus_one", "two").ensure();
+    tester->verify_test("one_plus_one", "two").ensure();
+    tester->verify_test("two_plus_one", "three").ensure();
+    tester->verify_test("one_plus_one", "two").ensure();
+    tester->verify_test("two_plus_one", "three").ensure();
+    tester->save_db();
+    tester->verify_test("one_plus_one", "three").ensure_error();
+    tester->verify_test("two_plus_one", "two").ensure_error();
+  }
+  {
+    auto tester = RegressionTester::create(name);
+    tester->verify_test("one_plus_one", "three").ensure_error();
+    tester->verify_test("two_plus_one", "two").ensure_error();
+  }
+}
+
+TEST(Misc, Bits) {
+  ASSERT_EQ(32, count_leading_zeroes32(0));
+  ASSERT_EQ(64, count_leading_zeroes64(0));
+  ASSERT_EQ(32, count_trailing_zeroes32(0));
+  ASSERT_EQ(64, count_trailing_zeroes64(0));
+
+  for (int i = 0; i < 32; i++) {
+    ASSERT_EQ(31 - i, count_leading_zeroes32(1u << i));
+    ASSERT_EQ(i, count_trailing_zeroes32(1u << i));
+    ASSERT_EQ(31 - i, count_leading_zeroes_non_zero32(1u << i));
+    ASSERT_EQ(i, count_trailing_zeroes_non_zero32(1u << i));
+  }
+  for (int i = 0; i < 64; i++) {
+    ASSERT_EQ(63 - i, count_leading_zeroes64(1ull << i));
+    ASSERT_EQ(i, count_trailing_zeroes64(1ull << i));
+    ASSERT_EQ(63 - i, count_leading_zeroes_non_zero64(1ull << i));
+    ASSERT_EQ(i, count_trailing_zeroes_non_zero64(1ull << i));
+  }
+
+  ASSERT_EQ(0x12345678u, td::bswap32(0x78563412u));
+  ASSERT_EQ(0x12345678abcdef67ull, td::bswap64(0x67efcdab78563412ull));
+
+  ASSERT_EQ(0, count_bits32(0));
+  ASSERT_EQ(0, count_bits64(0));
+  ASSERT_EQ(4, count_bits32((1u << 31) | 7));
+  ASSERT_EQ(4, count_bits64((1ull << 63) | 7));
+}
+
+#if !TD_THREAD_UNSUPPORTED
+TEST(Misc, Time) {
+  Stage run;
+  Stage check;
+  Stage finish;
+
+  size_t threads_n = 3;
+  std::vector<thread> threads;
+  std::vector<std::atomic<double>> ts(threads_n);
+  for (size_t i = 0; i < threads_n; i++) {
+    threads.emplace_back([&, thread_id = i] {
+      for (uint64 round = 1; round < 100000; round++) {
+        ts[thread_id] = 0;
+        run.wait(round * threads_n);
+        ts[thread_id] = Time::now();
+        check.wait(round * threads_n);
+        for (auto &ts_ref : ts) {
+          auto other_ts = ts_ref.load();
+          if (other_ts != 0) {
+            ASSERT_TRUE(other_ts <= Time::now_cached());
+          }
+        }
+
+        finish.wait(round * threads_n);
+      }
+    });
+  }
+  for (auto &thread : threads) {
+    thread.join();
+  }
+}
+#endif
+
+TEST(Misc, uint128) {
+  std::vector<uint64> parts = {0,
+                               1,
+                               2000,
+                               2001,
+                               std::numeric_limits<uint64>::max(),
+                               std::numeric_limits<uint64>::max() - 1,
+                               std::numeric_limits<uint32>::max(),
+                               static_cast<uint64>(std::numeric_limits<uint32>::max()) + 1};
+  std::vector<int64> signed_parts = {0,
+                                     1,
+                                     2000,
+                                     2001,
+                                     -1,
+                                     -2000,
+                                     -2001,
+                                     std::numeric_limits<int64>::max(),
+                                     std::numeric_limits<int64>::max() - 1,
+                                     std::numeric_limits<int64>::min(),
+                                     std::numeric_limits<int64>::min() + 1,
+                                     std::numeric_limits<int32>::max(),
+                                     static_cast<int64>(std::numeric_limits<int32>::max()) + 1,
+                                     std::numeric_limits<int32>::max() - 1,
+                                     std::numeric_limits<int32>::min(),
+                                     std::numeric_limits<int32>::min() + 1,
+                                     static_cast<int64>(std::numeric_limits<int32>::min()) - 1};
+
+#if TD_HAVE_INT128
+  auto to_intrinsic = [](uint128_emulated num) {
+    return uint128_intrinsic(num.hi(), num.lo());
+  };
+  auto eq = [](uint128_emulated a, uint128_intrinsic b) {
+    return a.hi() == b.hi() && a.lo() == b.lo();
+  };
+  auto ensure_eq = [&](uint128_emulated a, uint128_intrinsic b) {
+    if (!eq(a, b)) {
+      LOG(FATAL) << "[" << a.hi() << ";" << a.lo() << "] vs [" << b.hi() << ";" << b.lo() << "]";
+    }
+  };
+#endif
+
+  std::vector<uint128_emulated> nums;
+  for (auto hi : parts) {
+    for (auto lo : parts) {
+      auto a = uint128_emulated(hi, lo);
+#if TD_HAVE_INT128
+      auto ia = uint128_intrinsic(hi, lo);
+      ensure_eq(a, ia);
+#endif
+      nums.push_back(a);
+      nums.pop_back();
+      nums.push_back({hi, lo});
+    }
+  }
+
+#if TD_HAVE_INT128
+  for (auto a : nums) {
+    auto ia = to_intrinsic(a);
+    ensure_eq(a, ia);
+    CHECK(a.is_zero() == ia.is_zero());
+    for (int i = 0; i <= 130; i++) {
+      ensure_eq(a.shl(i), ia.shl(i));
+      ensure_eq(a.shr(i), ia.shr(i));
+    }
+    for (auto b : parts) {
+      ensure_eq(a.mult(b), ia.mult(b));
+    }
+    for (auto b : signed_parts) {
+      ensure_eq(a.mult_signed(b), ia.mult_signed(b));
+      if (b == 0) {
+        continue;
+      }
+      int64 q, r;
+      a.divmod_signed(b, &q, &r);
+      int64 iq, ir;
+      ia.divmod_signed(b, &iq, &ir);
+      ASSERT_EQ(q, iq);
+      ASSERT_EQ(r, ir);
+    }
+    for (auto b : nums) {
+      auto ib = to_intrinsic(b);
+      //LOG(ERROR) << ia.hi() << ";" << ia.lo() << " " << ib.hi() << ";" << ib.lo();
+      ensure_eq(a.mult(b), ia.mult(ib));
+      ensure_eq(a.add(b), ia.add(ib));
+      ensure_eq(a.sub(b), ia.sub(ib));
+      if (!b.is_zero()) {
+        ensure_eq(a.div(b), ia.div(ib));
+        ensure_eq(a.mod(b), ia.mod(ib));
+      }
+    }
+  }
+
+  for (auto signed_part : signed_parts) {
+    auto a = uint128_emulated::from_signed(signed_part);
+    auto ia = uint128_intrinsic::from_signed(signed_part);
+    ensure_eq(a, ia);
+  }
+#endif
+}
+
+template <template <class T> class HashT, class ValueT>
+Status test_hash(const std::vector<ValueT> &values) {
+  for (size_t i = 0; i < values.size(); i++) {
+    for (size_t j = i; j < values.size(); j++) {
+      auto &a = values[i];
+      auto &b = values[j];
+      auto a_hash = HashT<ValueT>()(a);
+      auto b_hash = HashT<ValueT>()(b);
+      if (a == b) {
+        if (a_hash != b_hash) {
+          return Status::Error("Hash differs for same values");
+        }
+      } else {
+        if (a_hash == b_hash) {
+          return Status::Error("Hash is the same for different values");
+        }
+      }
+    }
+  }
+  return Status::OK();
+}
+
+class BadValue {
+ public:
+  explicit BadValue(size_t value) : value_(value) {
+  }
+
+  template <class H>
+  friend H AbslHashValue(H hasher, const BadValue &value) {
+    return hasher;
+  }
+  bool operator==(const BadValue &other) const {
+    return value_ == other.value_;
+  }
+
+ private:
+  size_t value_;
+};
+
+class ValueA {
+ public:
+  explicit ValueA(size_t value) : value_(value) {
+  }
+  template <class H>
+  friend H AbslHashValue(H hasher, ValueA value) {
+    return H::combine(std::move(hasher), value.value_);
+  }
+  bool operator==(const ValueA &other) const {
+    return value_ == other.value_;
+  }
+
+ private:
+  size_t value_;
+};
+
+class ValueB {
+ public:
+  explicit ValueB(size_t value) : value_(value) {
+  }
+
+  template <class H>
+  friend H AbslHashValue(H hasher, ValueB value) {
+    return H::combine(std::move(hasher), value.value_);
+  }
+  bool operator==(const ValueB &other) const {
+    return value_ == other.value_;
+  }
+
+ private:
+  size_t value_;
+};
+
+template <template <class T> class HashT>
+static void test_hash() {
+  // Just check that the following compiles
+  AbslHashValue(Hasher(), ValueA{1});
+  HashT<ValueA>()(ValueA{1});
+  std::unordered_map<ValueA, int, HashT<ValueA>> s;
+  s[ValueA{1}] = 1;
+  HashMap<ValueA, int> su;
+  su[ValueA{1}] = 1;
+  HashSet<ValueA> su2;
+  su2.insert(ValueA{1});
+#if TD_HAVE_ABSL
+  std::unordered_map<ValueA, int, absl::Hash<ValueA>> x;
+  absl::flat_hash_map<ValueA, int, HashT<ValueA>> sa;
+  sa[ValueA{1}] = 1;
+#endif
+
+  test_hash<HashT, size_t>({1, 2, 3, 4, 5}).ensure();
+  test_hash<HashT, BadValue>({BadValue{1}, BadValue{2}}).ensure_error();
+  test_hash<HashT, ValueA>({ValueA{1}, ValueA{2}}).ensure();
+  test_hash<HashT, ValueB>({ValueB{1}, ValueB{2}}).ensure();
+  test_hash<HashT, std::pair<int, int>>({{1, 1}, {1, 2}}).ensure();
+  // FIXME: use some better hash
+  //test_hash<HashT, std::pair<int, int>>({{1, 1}, {1, 2}, {2, 1}, {2, 2}}).ensure();
+}
+
+TEST(Misc, Hasher) {
+  test_hash<TdHash>();
+#if TD_HAVE_ABSL
+  test_hash<AbslHash>();
+#endif
+}
+TEST(Misc, CancellationToken) {
+  CancellationTokenSource source;
+  source.cancel();
+  auto token1 = source.get_cancellation_token();
+  auto token2 = source.get_cancellation_token();
+  CHECK(!token1);
+  source.cancel();
+  CHECK(token1);
+  CHECK(token2);
+  auto token3 = source.get_cancellation_token();
+  CHECK(!token3);
+  source.cancel();
+  CHECK(token3);
+
+  auto token4 = source.get_cancellation_token();
+  CHECK(!token4);
+  source = CancellationTokenSource{};
+  CHECK(token4);
 }

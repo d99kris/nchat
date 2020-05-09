@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -8,6 +8,7 @@
 
 #include "td/utils/format.h"
 #include "td/utils/logging.h"
+#include "td/utils/misc.h"
 
 #include <algorithm>
 #include <set>
@@ -46,6 +47,8 @@ DcOptions DcOptionsSet::get_dc_options() const {
 vector<DcOptionsSet::ConnectionInfo> DcOptionsSet::find_all_connections(DcId dc_id, bool allow_media_only,
                                                                         bool use_static, bool prefer_ipv6,
                                                                         bool only_http) {
+  LOG(DEBUG) << "Find all " << (allow_media_only ? "media " : "") << "connections in " << dc_id
+             << ". use_static = " << use_static << ", prefer_ipv6 = " << prefer_ipv6 << ", only_http = " << only_http;
   std::vector<ConnectionInfo> options;
   std::vector<ConnectionInfo> static_options;
 
@@ -98,8 +101,7 @@ vector<DcOptionsSet::ConnectionInfo> DcOptionsSet::find_all_connections(DcId dc_
     } else {
       bool have_ipv4 = std::any_of(options.begin(), options.end(), [](auto &v) { return !v.option->is_ipv6(); });
       if (have_ipv4) {
-        options.erase(std::remove_if(options.begin(), options.end(), [](auto &v) { return v.option->is_ipv6(); }),
-                      options.end());
+        td::remove_if(options, [](auto &v) { return v.option->is_ipv6(); });
       }
     }
   } else {
@@ -111,15 +113,13 @@ vector<DcOptionsSet::ConnectionInfo> DcOptionsSet::find_all_connections(DcId dc_
   if (prefer_ipv6) {
     bool have_ipv6 = std::any_of(options.begin(), options.end(), [](auto &v) { return v.option->is_ipv6(); });
     if (have_ipv6) {
-      options.erase(std::remove_if(options.begin(), options.end(), [](auto &v) { return !v.option->is_ipv6(); }),
-                    options.end());
+      td::remove_if(options, [](auto &v) { return !v.option->is_ipv6(); });
     }
   }
 
   bool have_media_only = std::any_of(options.begin(), options.end(), [](auto &v) { return v.option->is_media_only(); });
   if (have_media_only) {
-    options.erase(std::remove_if(options.begin(), options.end(), [](auto &v) { return !v.option->is_media_only(); }),
-                  options.end());
+    td::remove_if(options, [](auto &v) { return !v.option->is_media_only(); });
   }
 
   return options;
@@ -135,11 +135,9 @@ Result<DcOptionsSet::ConnectionInfo> DcOptionsSet::find_connection(DcId dc_id, b
                                   << tag("prefer_ipv6", prefer_ipv6));
   }
 
-  auto last_error_at = std::min_element(options.begin(), options.end(),
-                                        [](const auto &a_option, const auto &b_option) {
-                                          return a_option.stat->error_at > b_option.stat->error_at;
-                                        })
-                           ->stat->error_at;
+  auto last_error_at = std::min_element(options.begin(), options.end(), [](const auto &a_option, const auto &b_option) {
+                         return a_option.stat->error_at > b_option.stat->error_at;
+                       })->stat->error_at;
 
   auto result = *std::min_element(options.begin(), options.end(), [](const auto &a_option, const auto &b_option) {
     auto &a = *a_option.stat;
@@ -169,7 +167,7 @@ void DcOptionsSet::reset() {
 }
 
 DcOptionsSet::DcOptionInfo *DcOptionsSet::register_dc_option(DcOption &&option) {
-  auto info = std::make_unique<DcOptionInfo>(std::move(option), options_.size());
+  auto info = make_unique<DcOptionInfo>(std::move(option), options_.size());
   init_option_stat(info.get());
   auto result = info.get();
   options_.push_back(std::move(info));
@@ -180,7 +178,7 @@ void DcOptionsSet::init_option_stat(DcOptionInfo *option_info) {
   const auto &ip_address = option_info->option.get_ip_address();
   auto it_ok = option_to_stat_id_.insert(std::make_pair(ip_address, 0));
   if (it_ok.second) {
-    it_ok.first->second = option_stats_.create(std::make_unique<OptionStat>());
+    it_ok.first->second = option_stats_.create(make_unique<OptionStat>());
   }
   option_info->stat_id = it_ok.first->second;
 }

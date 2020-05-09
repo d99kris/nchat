@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -7,23 +7,18 @@
 #pragma once
 
 #include "td/utils/common.h"
-#include "td/utils/Slice-decl.h"
+#include "td/utils/Slice.h"
 #include "td/utils/StackAllocator.h"
 
 #include <cstdlib>
-#include <cstring>
+#include <memory>
 #include <type_traits>
 
 namespace td {
 
 class StringBuilder {
  public:
-  explicit StringBuilder(MutableSlice slice)
-      : begin_ptr_(slice.begin()), current_ptr_(begin_ptr_), end_ptr_(slice.end() - reserved_size) {
-    if (slice.size() <= reserved_size) {
-      std::abort();  // shouldn't happen
-    }
-  }
+  explicit StringBuilder(MutableSlice slice, bool use_buffer = false);
 
   void clear() {
     current_ptr_ = begin_ptr_;
@@ -48,27 +43,14 @@ class StringBuilder {
 
   StringBuilder &operator<<(const wchar_t *str) = delete;
 
-  StringBuilder &operator<<(Slice slice) {
-    if (unlikely(end_ptr_ < current_ptr_)) {
-      return on_error();
-    }
-    auto size = static_cast<size_t>(end_ptr_ + reserved_size - 1 - current_ptr_);
-    if (unlikely(slice.size() > size)) {
-      error_flag_ = true;
-    } else {
-      size = slice.size();
-    }
-    std::memcpy(current_ptr_, slice.begin(), size);
-    current_ptr_ += size;
-    return *this;
-  }
+  StringBuilder &operator<<(Slice slice);
 
   StringBuilder &operator<<(bool b) {
     return *this << (b ? Slice("true") : Slice("false"));
   }
 
   StringBuilder &operator<<(char c) {
-    if (unlikely(end_ptr_ < current_ptr_)) {
+    if (unlikely(!reserve())) {
       return on_error();
     }
     *current_ptr_++ = c;
@@ -120,12 +102,28 @@ class StringBuilder {
   char *current_ptr_;
   char *end_ptr_;
   bool error_flag_ = false;
+  bool use_buffer_ = false;
+  std::unique_ptr<char[]> buffer_;
   static constexpr size_t reserved_size = 30;
 
   StringBuilder &on_error() {
     error_flag_ = true;
     return *this;
   }
+
+  bool reserve() {
+    if (end_ptr_ > current_ptr_) {
+      return true;
+    }
+    return reserve_inner(reserved_size);
+  }
+  bool reserve(size_t size) {
+    if (end_ptr_ > current_ptr_ && static_cast<size_t>(end_ptr_ - current_ptr_) >= size) {
+      return true;
+    }
+    return reserve_inner(size);
+  }
+  bool reserve_inner(size_t size);
 };
 
 template <class T>

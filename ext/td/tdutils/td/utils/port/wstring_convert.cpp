@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -10,7 +10,6 @@ char disable_linker_warning_about_empty_file_wstring_convert_cpp TD_UNUSED;
 
 #if TD_PORT_WINDOWS
 
-#include "td/utils/logging.h"
 #include "td/utils/utf8.h"
 
 #include <cwchar>
@@ -22,10 +21,7 @@ Result<std::wstring> to_wstring(CSlice slice) {
     return Status::Error("Wrong encoding");
   }
 
-  size_t wstring_len = 0;
-  for (auto c : slice) {
-    wstring_len += ((c & 0xc0) != 0x80) + ((c & 0xf8) == 0xf0);
-  }
+  size_t wstring_len = utf8_utf16_length(slice);
 
   std::wstring result(wstring_len, static_cast<wchar_t>(0));
   if (wstring_len) {

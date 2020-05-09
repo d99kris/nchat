@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -16,21 +16,24 @@
 #include "td/utils/buffer.h"
 #include "td/utils/BufferedFd.h"
 #include "td/utils/ByteFlow.h"
+#include "td/utils/common.h"
 #include "td/utils/crypto.h"
 #include "td/utils/format.h"
 #include "td/utils/Gzip.h"
 #include "td/utils/GzipByteFlow.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
-#include "td/utils/port/Fd.h"
+#include "td/utils/port/detail/PollableFd.h"
 #include "td/utils/port/FileFd.h"
 #include "td/utils/port/path.h"
+#include "td/utils/port/PollFlags.h"
 #include "td/utils/port/thread_local.h"
 #include "td/utils/Random.h"
 #include "td/utils/Slice.h"
 #include "td/utils/Status.h"
+#include "td/utils/UInt.h"
 
-#include "test/data.h"
+#include "data.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -44,7 +47,7 @@ static string make_chunked(string str) {
   auto v = rand_split(str);
   string res;
   for (auto &s : v) {
-    res += PSTRING() << format::as_hex_dump(int(s.size()));
+    res += PSTRING() << format::as_hex_dump(static_cast<int32>(s.size()));
     res += "\r\n";
     res += s;
     res += "\r\n";
@@ -132,7 +135,7 @@ TEST(Http, reader) {
   SET_VERBOSITY_LEVEL(VERBOSITY_NAME(ERROR));
   auto start_mem = BufferAllocator::get_buffer_mem();
   {
-    auto input_writer = ChainBufferWriter::create_empty();
+    td::ChainBufferWriter input_writer;
     auto input = input_writer.extract_reader();
     HttpReader reader;
     int max_post_size = 10000;
@@ -194,7 +197,7 @@ TEST(Http, gzip_bomb) {
 
   auto query = make_http_query("", false, true, 0.01, gzip_bomb_str);
   auto parts = rand_split(query);
-  auto input_writer = ChainBufferWriter::create_empty();
+  td::ChainBufferWriter input_writer;
   auto input = input_writer.extract_reader();
   HttpReader reader;
   HttpQuery q;
@@ -214,7 +217,7 @@ TEST(Http, gzip_bomb) {
 TEST(Http, aes_ctr_encode_decode_flow) {
   auto str = rand_string('a', 'z', 1000000);
   auto parts = rand_split(str);
-  auto input_writer = ChainBufferWriter::create_empty();
+  td::ChainBufferWriter input_writer;
   auto input = input_writer.extract_reader();
   ByteFlowSource source(&input);
   UInt256 key;
@@ -285,7 +288,7 @@ TEST(Http, aes_file_encryption) {
     source >> aes_encode >> sink;
     fd.set_input_writer(&input_writer);
 
-    fd.update_flags(Fd::Flag::Read);
+    fd.get_poll_info().add_flags(PollFlags::Read());
     while (can_read(fd)) {
       fd.flush_read(4096).ensure();
       source.wakeup();
@@ -305,7 +308,7 @@ TEST(Http, aes_file_encryption) {
 TEST(Http, chunked_flow) {
   auto str = rand_string('a', 'z', 100);
   auto parts = rand_split(make_chunked(str));
-  auto input_writer = ChainBufferWriter::create_empty();
+  td::ChainBufferWriter input_writer;
   auto input = input_writer.extract_reader();
   ByteFlowSource source(&input);
   HttpChunkedByteFlow chunked_flow;
@@ -331,7 +334,7 @@ TEST(Http, chunked_flow_error) {
     auto new_str = make_chunked(str);
     new_str.resize(str.size() - d);
     auto parts = rand_split(new_str);
-    auto input_writer = ChainBufferWriter::create_empty();
+    td::ChainBufferWriter input_writer;
     auto input = input_writer.extract_reader();
     ByteFlowSource source(&input);
     HttpChunkedByteFlow chunked_flow;
@@ -353,11 +356,11 @@ TEST(Http, gzip_chunked_flow) {
   auto str = rand_string('a', 'z', 1000000);
   auto parts = rand_split(make_chunked(gzencode(str).as_slice().str()));
 
-  auto input_writer = ChainBufferWriter::create_empty();
+  ChainBufferWriter input_writer;
   auto input = input_writer.extract_reader();
   ByteFlowSource source(&input);
   HttpChunkedByteFlow chunked_flow;
-  GzipByteFlow gzip_flow(Gzip::Decode);
+  GzipByteFlow gzip_flow(Gzip::Mode::Decode);
   ByteFlowSink sink;
   source >> chunked_flow >> gzip_flow >> sink;
 

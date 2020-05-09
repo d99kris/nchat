@@ -1,12 +1,16 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/db/binlog/BinlogHelper.h"
+#include "td/db/binlog/ConcurrentBinlog.h"
 #include "td/db/BinlogKeyValue.h"
+#include "td/db/DbKey.h"
 #include "td/db/SeqKeyValue.h"
+#include "td/db/SqliteConnectionSafe.h"
+#include "td/db/SqliteDb.h"
 #include "td/db/SqliteKeyValue.h"
 #include "td/db/SqliteKeyValueSafe.h"
 #include "td/db/TsSeqKeyValue.h"
@@ -44,11 +48,17 @@ TEST(DB, binlog_encryption_bug) {
   auto empty = DbKey::empty();
   {
     Binlog binlog;
-    binlog.init(binlog_name.str(), [&](const BinlogEvent &x) {}, cucumber).ensure();
+    binlog
+        .init(
+            binlog_name.str(), [&](const BinlogEvent &x) {}, cucumber)
+        .ensure();
   }
   {
     Binlog binlog;
-    binlog.init(binlog_name.str(), [&](const BinlogEvent &x) {}, cucumber).ensure();
+    binlog
+        .init(
+            binlog_name.str(), [&](const BinlogEvent &x) {}, cucumber)
+        .ensure();
   }
 }
 
@@ -89,7 +99,10 @@ TEST(DB, binlog_encryption) {
     std::vector<string> v;
     LOG(INFO) << "RESTART";
     Binlog binlog;
-    binlog.init(binlog_name.str(), [&](const BinlogEvent &x) { v.push_back(x.data_.str()); }, hello).ensure();
+    binlog
+        .init(
+            binlog_name.str(), [&](const BinlogEvent &x) { v.push_back(x.data_.str()); }, hello)
+        .ensure();
     CHECK(v == std::vector<string>({"AAAA", "BBBB", long_data, "CCCC"}));
   }
 
@@ -99,7 +112,8 @@ TEST(DB, binlog_encryption) {
     std::vector<string> v;
     LOG(INFO) << "RESTART";
     Binlog binlog;
-    auto status = binlog.init(binlog_name.str(), [&](const BinlogEvent &x) { v.push_back(x.data_.str()); }, cucumber);
+    auto status = binlog.init(
+        binlog_name.str(), [&](const BinlogEvent &x) { v.push_back(x.data_.str()); }, cucumber);
     CHECK(status.is_error());
   }
 
@@ -109,8 +123,8 @@ TEST(DB, binlog_encryption) {
     std::vector<string> v;
     LOG(INFO) << "RESTART";
     Binlog binlog;
-    auto status =
-        binlog.init(binlog_name.str(), [&](const BinlogEvent &x) { v.push_back(x.data_.str()); }, cucumber, hello);
+    auto status = binlog.init(
+        binlog_name.str(), [&](const BinlogEvent &x) { v.push_back(x.data_.str()); }, cucumber, hello);
     CHECK(v == std::vector<string>({"AAAA", "BBBB", long_data, "CCCC"}));
   }
 };
@@ -134,7 +148,7 @@ TEST(DB, sqlite_encryption) {
 
   {
     auto db = SqliteDb::open_with_key(path, empty).move_as_ok();
-    db.set_user_version(123);
+    db.set_user_version(123).ensure();
     auto kv = SqliteKeyValue();
     kv.init_with_connection(db.clone(), "kv").ensure();
     kv.set("a", "b");
@@ -179,7 +193,7 @@ TEST(DB, sqlite_encryption) {
 
 using SeqNo = uint64;
 struct DbQuery {
-  enum Type { Get, Set, Erase } type;
+  enum class Type { Get, Set, Erase } type = Type::Get;
   SeqNo tid = 0;
   int32 id = 0;
   string key;
@@ -194,13 +208,13 @@ class QueryHandler {
   }
   void do_query(DbQuery &query) {
     switch (query.type) {
-      case DbQuery::Get:
+      case DbQuery::Type::Get:
         query.value = impl_.get(query.key);
         return;
-      case DbQuery::Set:
+      case DbQuery::Type::Set:
         query.tid = impl_.set(query.key, query.value);
         return;
-      case DbQuery::Erase:
+      case DbQuery::Type::Erase:
         query.tid = impl_.erase(query.key);
         return;
     }
@@ -274,13 +288,13 @@ TEST(DB, key_value) {
     const auto &key = rand_elem(keys);
     const auto &value = rand_elem(values);
     if (op == 0) {
-      q.type = DbQuery::Get;
+      q.type = DbQuery::Type::Get;
       q.key = key;
     } else if (op == 1) {
-      q.type = DbQuery::Erase;
+      q.type = DbQuery::Type::Erase;
       q.key = key;
     } else if (op == 2) {
-      q.type = DbQuery::Set;
+      q.type = DbQuery::Type::Set;
       q.key = key;
       q.value = value;
     }
@@ -344,13 +358,13 @@ TEST(DB, thread_key_value) {
       const auto &key = rand_elem(keys);
       const auto &value = rand_elem(values);
       if (op > 1) {
-        q.type = DbQuery::Get;
+        q.type = DbQuery::Type::Get;
         q.key = key;
       } else if (op == 0) {
-        q.type = DbQuery::Erase;
+        q.type = DbQuery::Type::Erase;
         q.key = key;
       } else if (op == 1) {
-        q.type = DbQuery::Set;
+        q.type = DbQuery::Type::Set;
         q.key = key;
         q.value = value;
       }
@@ -384,7 +398,7 @@ TEST(DB, thread_key_value) {
       }
       auto &q = res[i][p];
       if (q.tid == 0) {
-        if (q.type == DbQuery::Get) {
+        if (q.type == DbQuery::Type::Get) {
           auto nq = q;
           baseline.do_query(nq);
           if (nq.value == q.value) {
@@ -458,13 +472,13 @@ TEST(DB, persistent_key_value) {
         const auto &key = rand_elem(keys);
         const auto &value = rand_elem(values);
         if (op > 1) {
-          q.type = DbQuery::Get;
+          q.type = DbQuery::Type::Get;
           q.key = key;
         } else if (op == 0) {
-          q.type = DbQuery::Erase;
+          q.type = DbQuery::Type::Erase;
           q.key = key;
         } else if (op == 1) {
-          q.type = DbQuery::Set;
+          q.type = DbQuery::Type::Set;
           q.key = key;
           q.value = value;
         }
@@ -495,13 +509,12 @@ TEST(DB, persistent_key_value) {
     class Main : public Actor {
      public:
       Main(int threads_n, const std::vector<std::vector<DbQuery>> *queries, std::vector<std::vector<DbQuery>> *res)
-          : threads_n_(threads_n), queries_(queries), res_(res) {
+          : threads_n_(threads_n), queries_(queries), res_(res), ref_cnt_(threads_n) {
       }
 
       void start_up() override {
-        LOG(INFO) << "start_up";
+        LOG(INFO) << "Start up";
         kv_->impl().init("test_pmc").ensure();
-        ref_cnt_ = threads_n_;
         for (int i = 0; i < threads_n_; i++) {
           create_actor_on_scheduler<Worker>("Worker", i + 1, actor_shared(this, 2), kv_, &queries_->at(i), &res_->at(i))
               .release();
@@ -509,11 +522,11 @@ TEST(DB, persistent_key_value) {
       }
 
       void tear_down() override {
-        LOG(INFO) << "tear_down";
+        LOG(INFO) << "Tear down";
         // kv_->impl().close();
       }
       void hangup_shared() override {
-        LOG(INFO) << "hangup";
+        LOG(INFO) << "Hang up";
         ref_cnt_--;
         if (ref_cnt_ == 0) {
           kv_->impl().close();
@@ -553,7 +566,7 @@ TEST(DB, persistent_key_value) {
         }
         auto &q = res[i][p];
         if (q.tid == 0) {
-          if (q.type == DbQuery::Get) {
+          if (q.type == DbQuery::Type::Get) {
             auto nq = q;
             baseline.do_query(nq);
             if (nq.value == q.value) {

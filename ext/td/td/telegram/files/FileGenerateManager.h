@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -16,6 +16,7 @@
 #include <map>
 
 namespace td {
+
 class FileGenerateActor;
 
 class FileGenerateCallback {
@@ -35,12 +36,12 @@ class FileGenerateManager : public Actor {
   explicit FileGenerateManager(ActorShared<> parent) : parent_(std::move(parent)) {
   }
 
-  void generate_file(uint64 query_id, const FullGenerateFileLocation &generate_location,
-                     const LocalFileLocation &local_location, string name,
-                     std::unique_ptr<FileGenerateCallback> callback);
+  void generate_file(uint64 query_id, FullGenerateFileLocation generate_location,
+                     const LocalFileLocation &local_location, string name, unique_ptr<FileGenerateCallback> callback);
   void cancel(uint64 query_id);
 
   // external updates about file generation state
+  void external_file_generate_write_part(uint64 query_id, int32 offset, string data, Promise<> promise);
   void external_file_generate_progress(uint64 query_id, int32 expected_size, int32 local_prefix_size,
                                        Promise<> promise);
   void external_file_generate_finish(uint64 query_id, Status status, Promise<> promise);

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -9,11 +9,14 @@
 #include "td/actor/actor.h"
 #include "td/actor/PromiseFuture.h"
 
+#include "td/utils/common.h"
 #include "td/utils/logging.h"
 #include "td/utils/Random.h"
+#include "td/utils/ScopeGuard.h"
 
 #include <limits>
 #include <map>
+#include <memory>
 #include <utility>
 
 using namespace td;
@@ -49,8 +52,8 @@ static uint32 slow_pow_mod_uint32(uint32 x, uint32 p) {
 }
 
 struct Query {
-  uint32 query_id;
-  uint32 result;
+  uint32 query_id{};
+  uint32 result{};
   std::vector<int> todo;
   Query() = default;
   Query(const Query &) = delete;
@@ -58,7 +61,7 @@ struct Query {
   Query(Query &&) = default;
   Query &operator=(Query &&) = default;
   ~Query() {
-    CHECK(todo.empty()) << "Query lost";
+    LOG_CHECK(todo.empty()) << "Query lost";
   }
   int next_pow() {
     CHECK(!todo.empty());
@@ -114,7 +117,7 @@ class QueryActor final : public Actor {
   explicit QueryActor(int threads_n) : threads_n_(threads_n) {
   }
 
-  void set_callback(std::unique_ptr<Callback> callback) {
+  void set_callback(unique_ptr<Callback> callback) {
     callback_ = std::move(callback);
   }
   void set_workers(std::vector<ActorId<Worker>> workers) {
@@ -336,7 +339,7 @@ class SimpleActor final : public Actor {
   ActorId<Worker> worker_;
   FutureActor<uint32> future_;
   uint32 q_ = 1;
-  uint32 p_;
+  uint32 p_ = 0;
 };
 }  // namespace
 
@@ -399,7 +402,7 @@ TEST(Actors, send_to_dead) {
   int threads_n = 5;
   sched.init(threads_n);
 
-  sched.create_actor_unsafe<SendToDead>(0, "manager").release();
+  sched.create_actor_unsafe<SendToDead>(0, "SendToDead").release();
   sched.start();
   while (sched.run_main(10)) {
     // empty
@@ -429,7 +432,7 @@ TEST(Actors, main) {
   int threads_n = 9;
   sched.init(threads_n);
 
-  sched.create_actor_unsafe<MainQueryActor>(threads_n > 1 ? 1 : 0, "manager", threads_n).release();
+  sched.create_actor_unsafe<MainQueryActor>(threads_n > 1 ? 1 : 0, "MainQuery", threads_n).release();
   sched.start();
   while (sched.run_main(10)) {
     // empty
@@ -440,14 +443,14 @@ TEST(Actors, main) {
 class DoAfterStop : public Actor {
  public:
   void loop() override {
-    ptr = std::make_unique<int>(10);
+    ptr = make_unique<int>(10);
     stop();
     CHECK(*ptr == 10);
     Scheduler::instance()->finish();
   }
 
  private:
-  std::unique_ptr<int> ptr;
+  unique_ptr<int> ptr;
 };
 
 TEST(Actors, do_after_stop) {
@@ -457,7 +460,62 @@ TEST(Actors, do_after_stop) {
   int threads_n = 0;
   sched.init(threads_n);
 
-  sched.create_actor_unsafe<DoAfterStop>(0, "manager").release();
+  sched.create_actor_unsafe<DoAfterStop>(0, "DoAfterStop").release();
+  sched.start();
+  while (sched.run_main(10)) {
+    // empty
+  }
+  sched.finish();
+}
+
+class XContext : public ActorContext {
+ public:
+  int32 get_id() const override {
+    return 123456789;
+  }
+
+  void validate() {
+    CHECK(x == 1234);
+  }
+  ~XContext() {
+    x = 0;
+  }
+  int x = 1234;
+};
+
+class WithXContext : public Actor {
+ public:
+  void start_up() override {
+    auto old_context = set_context(std::make_shared<XContext>());
+  }
+  void f(unique_ptr<Guard> guard) {
+  }
+  void close() {
+    stop();
+  }
+};
+
+static void check_context() {
+  auto ptr = static_cast<XContext *>(Scheduler::context());
+  CHECK(ptr);
+  ptr->validate();
+}
+
+TEST(Actors, context_during_destruction) {
+  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(ERROR));
+
+  ConcurrentScheduler sched;
+  int threads_n = 0;
+  sched.init(threads_n);
+
+  {
+    auto guard = sched.get_main_guard();
+    auto with_context = create_actor<WithXContext>("WithXContext").release();
+    send_closure(with_context, &WithXContext::f, create_lambda_guard([] { check_context(); }));
+    send_closure_later(with_context, &WithXContext::close);
+    send_closure(with_context, &WithXContext::f, create_lambda_guard([] { check_context(); }));
+    send_closure(with_context, &WithXContext::f, create_lambda_guard([] { Scheduler::instance()->finish(); }));
+  }
   sched.start();
   while (sched.run_main(10)) {
     // empty

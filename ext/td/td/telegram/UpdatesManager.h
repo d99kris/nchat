@@ -1,27 +1,32 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #pragma once
 
+#include "td/telegram/ChannelId.h"
+#include "td/telegram/ChatId.h"
 #include "td/telegram/DialogId.h"
 #include "td/telegram/PtsManager.h"
-
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
+#include "td/telegram/UserId.h"
 
 #include "td/actor/actor.h"
 #include "td/actor/PromiseFuture.h"
 #include "td/actor/Timeout.h"
 
 #include "td/utils/common.h"
+#include "td/utils/logging.h"
 
 #include <map>
 #include <unordered_set>
 
 namespace td {
+
+extern int VERBOSITY_NAME(get_difference);
 
 class Td;
 
@@ -35,11 +40,14 @@ class UpdatesManager : public Actor {
 
   void on_get_difference(tl_object_ptr<telegram_api::updates_Difference> &&difference_ptr);
 
-  std::unordered_set<int64> get_sent_messages_random_ids(const telegram_api::Updates *updates_ptr);
+  static std::unordered_set<int64> get_sent_messages_random_ids(const telegram_api::Updates *updates_ptr);
 
-  vector<const tl_object_ptr<telegram_api::Message> *> get_new_messages(const telegram_api::Updates *updates_ptr);
+  static vector<const tl_object_ptr<telegram_api::Message> *> get_new_messages(
+      const telegram_api::Updates *updates_ptr);
 
-  vector<DialogId> get_chats(const telegram_api::Updates *updates_ptr);
+  static vector<DialogId> get_update_notify_settings_dialog_ids(const telegram_api::Updates *updates_ptr);
+
+  static vector<DialogId> get_chat_dialog_ids(const telegram_api::Updates *updates_ptr);
 
   void get_difference(const char *source);
 
@@ -60,8 +68,6 @@ class UpdatesManager : public Actor {
   int32 get_date() const {
     return date_;
   }
-
-  string get_state() const;  // for debug purposes only
 
   Promise<> set_pts(int32 pts, const char *source) TD_WARN_UNUSED_RESULT;
 
@@ -101,6 +107,8 @@ class UpdatesManager : public Actor {
   int32 seq_ = 0;
   string date_source_ = "nowhere";
 
+  int32 short_update_date_ = 0;
+
   std::multimap<int32, PendingUpdates> postponed_updates_;    // updates received during getDifference
   std::multimap<int32, PendingUpdates> pending_seq_updates_;  // updates with too big seq
 
@@ -112,27 +120,6 @@ class UpdatesManager : public Actor {
   bool running_get_difference_ = false;
   int32 last_get_difference_pts_ = 0;
 
-  class State {
-   public:
-    enum class Type : int32 {
-      General,
-      RunningGetUpdatesState,
-      RunningGetDifference,
-      ApplyingDifference,
-      ApplyingDifferenceSlice,
-      ApplyingUpdates,
-      ApplyingSeqUpdates
-    };
-    Type type = Type::General;
-    int32 pts = -1;
-    int32 qts = -1;
-    int32 date = -1;
-  };
-
-  State state_;  // for debug purposes only
-
-  void set_state(State::Type type);  // for debug purposes only
-
   void tear_down() override;
 
   Promise<> add_pts(int32 pts);
@@ -140,6 +127,8 @@ class UpdatesManager : public Actor {
   void save_pts(int32 pts);
 
   void set_date(int32 date, bool from_update, string date_source);
+
+  int32 get_short_update_date() const;
 
   static tl_object_ptr<td_api::ChatAction> convert_send_message_action(
       tl_object_ptr<telegram_api::SendMessageAction> action);
@@ -169,11 +158,24 @@ class UpdatesManager : public Actor {
 
   void on_failed_get_difference();
 
-  void before_get_difference();
+  void before_get_difference(bool is_initial);
 
   void after_get_difference();
 
+  static const vector<tl_object_ptr<telegram_api::Update>> *get_updates(const telegram_api::Updates *updates_ptr);
+
+  bool is_acceptable_user(UserId user_id) const;
+
+  bool is_acceptable_chat(ChatId chat_id) const;
+
+  bool is_acceptable_channel(ChannelId channel_id) const;
+
+  bool is_acceptable_dialog(DialogId dialog_id) const;
+
   bool is_acceptable_message_entities(const vector<tl_object_ptr<telegram_api::MessageEntity>> &message_entities) const;
+
+  bool is_acceptable_message_forward_header(
+      const telegram_api::object_ptr<telegram_api::messageFwdHeader> &header) const;
 
   bool is_acceptable_message(const telegram_api::Message *message_ptr) const;
 
@@ -187,9 +189,13 @@ class UpdatesManager : public Actor {
   void on_update(tl_object_ptr<telegram_api::updateReadHistoryInbox> update, bool force_apply);
   void on_update(tl_object_ptr<telegram_api::updateReadHistoryOutbox> update, bool force_apply);
   void on_update(tl_object_ptr<telegram_api::updateNotifySettings> update, bool /*force_apply*/);
+  void on_update(tl_object_ptr<telegram_api::updatePeerSettings> update, bool /*force_apply*/);
+  void on_update(tl_object_ptr<telegram_api::updatePeerLocated> update, bool /*force_apply*/);
 
   void on_update(tl_object_ptr<telegram_api::updateWebPage> update, bool force_apply);
   void on_update(tl_object_ptr<telegram_api::updateChannelWebPage> update, bool force_apply);
+
+  void on_update(tl_object_ptr<telegram_api::updateFolderPeers> update, bool /*force_apply*/);
 
   void on_update(tl_object_ptr<telegram_api::updateUserTyping> update, bool /*force_apply*/);
   void on_update(tl_object_ptr<telegram_api::updateChatUserTyping> update, bool /*force_apply*/);
@@ -200,16 +206,15 @@ class UpdatesManager : public Actor {
   void on_update(tl_object_ptr<telegram_api::updateUserPhone> update, bool /*force_apply*/);
   void on_update(tl_object_ptr<telegram_api::updateUserPhoto> update, bool /*force_apply*/);
   void on_update(tl_object_ptr<telegram_api::updateUserBlocked> update, bool /*force_apply*/);
-  void on_update(tl_object_ptr<telegram_api::updateContactLink> update, bool /*force_apply*/);
 
   void on_update(tl_object_ptr<telegram_api::updateChatParticipants> update, bool /*force_apply*/);
   void on_update(tl_object_ptr<telegram_api::updateChatParticipantAdd> update, bool /*force_apply*/);
   void on_update(tl_object_ptr<telegram_api::updateChatParticipantAdmin> update, bool /*force_apply*/);
   void on_update(tl_object_ptr<telegram_api::updateChatParticipantDelete> update, bool /*force_apply*/);
-  void on_update(tl_object_ptr<telegram_api::updateChatAdmins> update, bool /*force_apply*/);
+
+  void on_update(tl_object_ptr<telegram_api::updateChatDefaultBannedRights> update, bool /*force_apply*/);
 
   void on_update(tl_object_ptr<telegram_api::updateServiceNotification> update, bool force_apply);
-  void on_update(tl_object_ptr<telegram_api::updateContactRegistered> update, bool /*force_apply*/);
 
   void on_update(tl_object_ptr<telegram_api::updateDcOptions> update, bool /*force_apply*/);
 
@@ -222,8 +227,11 @@ class UpdatesManager : public Actor {
   void on_update(tl_object_ptr<telegram_api::updateEditChannelMessage> update, bool /*force_apply*/);
   void on_update(tl_object_ptr<telegram_api::updateDeleteChannelMessages> update, bool force_apply);
   void on_update(tl_object_ptr<telegram_api::updateChannelMessageViews> update, bool force_apply);
-  void on_update(tl_object_ptr<telegram_api::updateChannelPinnedMessage> update, bool /*force_apply*/);
   void on_update(tl_object_ptr<telegram_api::updateChannelAvailableMessages> update, bool /*force_apply*/);
+
+  void on_update(tl_object_ptr<telegram_api::updateUserPinnedMessage> update, bool /*force_apply*/);
+  void on_update(tl_object_ptr<telegram_api::updateChatPinnedMessage> update, bool /*force_apply*/);
+  void on_update(tl_object_ptr<telegram_api::updateChannelPinnedMessage> update, bool /*force_apply*/);
 
   void on_update(tl_object_ptr<telegram_api::updateDraftMessage> update, bool /*force_apply*/);
 
@@ -270,7 +278,19 @@ class UpdatesManager : public Actor {
   void on_update(tl_object_ptr<telegram_api::updateLangPackTooLong> update, bool /*force_apply*/);
   void on_update(tl_object_ptr<telegram_api::updateLangPack> update, bool /*force_apply*/);
 
+  void on_update(tl_object_ptr<telegram_api::updateGeoLiveViewed> update, bool /*force_apply*/);
+
+  void on_update(tl_object_ptr<telegram_api::updateMessagePoll> update, bool /*force_apply*/);
+  void on_update(tl_object_ptr<telegram_api::updateMessagePollVote> update, bool /*force_apply*/);
+
+  void on_update(tl_object_ptr<telegram_api::updateNewScheduledMessage> update, bool /*force_apply*/);
+  void on_update(tl_object_ptr<telegram_api::updateDeleteScheduledMessages> update, bool /*force_apply*/);
+
+  void on_update(tl_object_ptr<telegram_api::updateLoginToken> update, bool /*force_apply*/);
+
   // unsupported updates
+
+  void on_update(tl_object_ptr<telegram_api::updateTheme> update, bool /*force_apply*/);
 };
 
 }  // namespace td

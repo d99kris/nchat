@@ -1,14 +1,13 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #pragma once
 
-#include "td/mtproto/PacketStorer.h"
-
 #include "td/utils/Random.h"
+#include "td/utils/StorerBase.h"
 
 namespace td {
 namespace mtproto {
@@ -23,8 +22,9 @@ class NoCryptoImpl {
       Random::secure_bytes(pad_);
     }
   }
-  template <class T>
-  void do_store(T &storer) const {
+
+  template <class StorerT>
+  void do_store(StorerT &storer) const {
     storer.store_binary(message_id_);
     storer.store_binary(static_cast<int32>(data_.size() + pad_.size()));
     storer.store_storer(data_);

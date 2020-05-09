@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -10,7 +10,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 
 namespace td {
 
@@ -42,24 +41,5 @@ static_assert(static_cast<char>(-256) == 0, "Unexpected cast to char implementat
 #if TD_MSVC
 #pragma warning(pop)
 #endif
-
-template <size_t size>
-struct UInt {
-  static_assert(size % 8 == 0, "size should be divisible by 8");
-  uint8 raw[size / 8];
-};
-
-template <size_t size>
-inline bool operator==(const UInt<size> &a, const UInt<size> &b) {
-  return std::memcmp(a.raw, b.raw, sizeof(a.raw)) == 0;
-}
-
-template <size_t size>
-inline bool operator!=(const UInt<size> &a, const UInt<size> &b) {
-  return !(a == b);
-}
-
-using UInt128 = UInt<128>;
-using UInt256 = UInt<256>;
 
 }  // namespace td

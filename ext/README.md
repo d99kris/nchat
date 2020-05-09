@@ -8,5 +8,5 @@ emojicpp v1.0.0 from https://github.com/shalithasuranga/emojicpp with custom mod
 
 td
 --
-tdlib v1.3.0 from https://github.com/tdlib/td/archive/v1.3.0.zip
+tdlib v1.6.0 from https://github.com/tdlib/td/archive/v1.6.0.zip
 

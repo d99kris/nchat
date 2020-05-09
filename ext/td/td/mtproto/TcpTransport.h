@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -7,14 +7,18 @@
 #pragma once
 
 #include "td/mtproto/IStreamTransport.h"
+#include "td/mtproto/ProxySecret.h"
+#include "td/mtproto/TlsReaderByteFlow.h"
+#include "td/mtproto/TransportType.h"
 
 #include "td/utils/AesCtrByteFlow.h"
 #include "td/utils/buffer.h"
 #include "td/utils/ByteFlow.h"
 #include "td/utils/common.h"
 #include "td/utils/crypto.h"
-#include "td/utils/port/Fd.h"
+#include "td/utils/port/detail/PollableFd.h"
 #include "td/utils/Status.h"
+#include "td/utils/UInt.h"
 
 namespace td {
 namespace mtproto {
@@ -109,7 +113,11 @@ class OldTransport : public IStreamTransport {
   }
 
   TransportType get_type() const override {
-    return TransportType{TransportType::Tcp, 0, ""};
+    return TransportType{TransportType::Tcp, 0, ProxySecret()};
+  }
+
+  bool use_random_padding() const override {
+    return false;
   }
 
  private:
@@ -120,24 +128,17 @@ class OldTransport : public IStreamTransport {
 
 class ObfuscatedTransport : public IStreamTransport {
  public:
-  ObfuscatedTransport(int16 dc_id, std::string secret)
-      : dc_id_(dc_id), secret_(std::move(secret)), impl_(secret_.size() >= 17) {
+  ObfuscatedTransport(int16 dc_id, const ProxySecret &secret)
+      : dc_id_(dc_id), secret_(secret), impl_(secret_.use_random_padding()) {
   }
-  Result<size_t> read_next(BufferSlice *message, uint32 *quick_ack) override TD_WARN_UNUSED_RESULT {
-    aes_ctr_byte_flow_.wakeup();
-    return impl_.read_from_stream(byte_flow_sink_.get_output(), message, quick_ack);
-  }
+
+  Result<size_t> read_next(BufferSlice *message, uint32 *quick_ack) override TD_WARN_UNUSED_RESULT;
 
   bool support_quick_ack() const override {
     return impl_.support_quick_ack();
   }
 
-  void write(BufferWriter &&message, bool quick_ack) override {
-    impl_.write_prepare_inplace(&message, quick_ack);
-    auto slice = message.as_buffer_slice();
-    output_state_.encrypt(slice.as_slice(), slice.as_slice());
-    output_->append(std::move(slice));
-  }
+  void write(BufferWriter &&message, bool quick_ack) override;
 
   void init(ChainBufferReader *input, ChainBufferWriter *output) override;
 
@@ -150,7 +151,18 @@ class ObfuscatedTransport : public IStreamTransport {
   }
 
   size_t max_prepend_size() const override {
-    return 4;
+    size_t res = 4;
+    if (secret_.emulate_tls()) {
+      res += 5;
+      if (is_first_tls_packet_) {
+        res += 6;
+      }
+    }
+    res += header_.size();
+    if (res & 3) {
+      res += 4 - (res & 3);
+    }
+    return res;
   }
 
   size_t max_append_size() const override {
@@ -160,14 +172,22 @@ class ObfuscatedTransport : public IStreamTransport {
   TransportType get_type() const override {
     return TransportType{TransportType::ObfuscatedTcp, dc_id_, secret_};
   }
+  bool use_random_padding() const override {
+    return secret_.use_random_padding();
+  }
 
  private:
   int16 dc_id_;
-  std::string secret_;
+  bool is_first_tls_packet_{true};
+  ProxySecret secret_;
+  std::string header_;
   TransportImpl impl_;
+  TlsReaderByteFlow tls_reader_byte_flow_;
   AesCtrByteFlow aes_ctr_byte_flow_;
   ByteFlowSink byte_flow_sink_;
-  ChainBufferReader *input_;
+  ChainBufferReader *input_ = nullptr;
+
+  static constexpr int32 MAX_TLS_PACKET_LENGTH = 2878;
 
   // TODO: use ByteFlow?
   // One problem is that BufferedFd owns output_buffer_
@@ -175,6 +195,11 @@ class ObfuscatedTransport : public IStreamTransport {
   UInt256 output_key_;
   AesCtrState output_state_;
   ChainBufferWriter *output_;
+
+  void do_write_tls(BufferWriter &&message);
+  void do_write_tls(BufferBuilder &&builder);
+  void do_write_main(BufferWriter &&message);
+  void do_write(BufferSlice &&message);
 };
 
 using Transport = ObfuscatedTransport;

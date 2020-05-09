@@ -87,13 +87,15 @@ abstract class TlDocumentationGenerator
 
     abstract protected function addAbstractClassDocumentation($class_name, $value);
 
-    abstract protected function addClassDocumentation($class_name, $base_class_name, $description, $return_type);
+    abstract protected function getFunctionReturnTypeDescription($return_type, $for_constructor);
+
+    abstract protected function addClassDocumentation($class_name, $base_class_name, $description);
 
     abstract protected function addFieldDocumentation($class_name, $field_name, $type_name, $field_info, $may_be_null);
 
-    abstract protected function addDefaultConstructorDocumentation($class_name);
+    abstract protected function addDefaultConstructorDocumentation($class_name, $class_description);
 
-    abstract protected function addFullConstructorDocumentation($class_name, $known_fields, $info);
+    abstract protected function addFullConstructorDocumentation($class_name, $class_description, $known_fields, $info);
 
     public function generate($tl_scheme_file, $source_file)
     {
@@ -146,7 +148,7 @@ abstract class TlDocumentationGenerator
                         if ($key === 'description') {
                             $need_class_description = false;
 
-                            $value = $this->addDot($value);
+                            $value = $this->escapeDocumentation($this->addDot($value));
 
                             $this->addAbstractClassDocumentation($current_class, $value);
                             continue;
@@ -213,7 +215,7 @@ abstract class TlDocumentationGenerator
                 foreach ($info as $name => $value) {
                     if (!$value) {
                         $this->printError("info[$name] for $class_name is empty");
-                    } elseif ($value[0] < 'A' || $value[0] > 'Z') {
+                    } elseif (($value[0] < 'A' || $value[0] > 'Z') && ($value[0] < '0' || $value[0] > '9')) {
                         $this->printError("info[$name] for $class_name doesn't begins with capital letter");
                     }
                 }
@@ -233,17 +235,32 @@ abstract class TlDocumentationGenerator
                 }
 
                 $base_class_name = $current_class ?: $this->getBaseClassName($is_function);
-                $this->addClassDocumentation($class_name, $base_class_name, $info['description'], $is_function ? $this->getTypeName($type) : '');
+                $class_description = $info['description'];
+                if ($is_function) {
+                    $class_description .= $this->getFunctionReturnTypeDescription($this->getTypeName($type), false);
+                }
+                $this->addClassDocumentation($class_name, $base_class_name, $class_description);
 
-                foreach ($known_fields as $name => $type) {
+                foreach ($known_fields as $name => $field_type) {
                     $may_be_null = stripos($info[$name], 'may be null') !== false;
-                    $this->addFieldDocumentation($class_name, $this->getFieldName($name, $class_name), $this->getTypeName($type), $info[$name], $may_be_null);
+                    $field_name = $this->getFieldName($name, $class_name);
+                    $field_type_name = $this->getTypeName($field_type);
+                    $this->addFieldDocumentation($class_name, $field_name, $field_type_name, $info[$name], $may_be_null);
                 }
 
-                $this->addDefaultConstructorDocumentation($class_name);
+                if ($is_function) {
+                    $default_constructor_prefix = 'Default constructor for a function, which ';
+                    $full_constructor_prefix = 'Creates a function, which ';
+                    $class_description = lcfirst($info['description']);
+                    $class_description .= $this->getFunctionReturnTypeDescription($this->getTypeName($type), true);
+                } else {
+                    $default_constructor_prefix = '';
+                    $full_constructor_prefix = '';
+                }
+                $this->addDefaultConstructorDocumentation($class_name, $default_constructor_prefix.$class_description);
 
                 if ($known_fields) {
-                    $this->addFullConstructorDocumentation($class_name, $known_fields, $info);
+                    $this->addFullConstructorDocumentation($class_name, $full_constructor_prefix.$class_description, $known_fields, $info);
                 }
 
                 $description = '';

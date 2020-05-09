@@ -1,13 +1,12 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/telegram/CallManager.h"
 
-#include "td/telegram/Global.h"
-
+#include "td/utils/common.h"
 #include "td/utils/format.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
@@ -46,21 +45,22 @@ void CallManager::update_call(Update call) {
 }
 
 void CallManager::create_call(UserId user_id, tl_object_ptr<telegram_api::InputUser> &&input_user,
-                              CallProtocol &&protocol, Promise<CallId> promise) {
+                              CallProtocol &&protocol, bool is_video, Promise<CallId> promise) {
   LOG(INFO) << "Create call with " << user_id;
   auto call_id = create_call_actor();
   auto actor = get_call_actor(call_id);
   CHECK(!actor.empty());
-  send_closure(actor, &CallActor::create_call, user_id, std::move(input_user), std::move(protocol), std::move(promise));
+  send_closure(actor, &CallActor::create_call, user_id, std::move(input_user), std::move(protocol), is_video,
+               std::move(promise));
 }
 
-void CallManager::discard_call(CallId call_id, bool is_disconnected, int32 duration, int64 connection_id,
+void CallManager::discard_call(CallId call_id, bool is_disconnected, int32 duration, bool is_video, int64 connection_id,
                                Promise<> promise) {
   auto actor = get_call_actor(call_id);
   if (actor.empty()) {
     return promise.set_error(Status::Error(400, "Call not found"));
   }
-  send_closure(actor, &CallActor::discard_call, is_disconnected, duration, connection_id, std::move(promise));
+  send_closure(actor, &CallActor::discard_call, is_disconnected, duration, is_video, connection_id, std::move(promise));
 }
 
 void CallManager::accept_call(CallId call_id, CallProtocol &&protocol, Promise<> promise) {
@@ -71,12 +71,13 @@ void CallManager::accept_call(CallId call_id, CallProtocol &&protocol, Promise<>
   send_closure(actor, &CallActor::accept_call, std::move(protocol), std::move(promise));
 }
 
-void CallManager::rate_call(CallId call_id, int32 rating, string comment, Promise<> promise) {
+void CallManager::rate_call(CallId call_id, int32 rating, string comment,
+                            vector<td_api::object_ptr<td_api::CallProblem>> &&problems, Promise<> promise) {
   auto actor = get_call_actor(call_id);
   if (actor.empty()) {
     return promise.set_error(Status::Error(400, "Call not found"));
   }
-  send_closure(actor, &CallActor::rate_call, rating, std::move(comment), std::move(promise));
+  send_closure(actor, &CallActor::rate_call, rating, std::move(comment), std::move(problems), std::move(promise));
 }
 
 void CallManager::send_call_debug_information(CallId call_id, string data, Promise<> promise) {
@@ -96,7 +97,7 @@ CallId CallManager::create_call_actor() {
   auto it_flag = id_to_actor_.emplace(id, ActorOwn<CallActor>());
   CHECK(it_flag.second);
   LOG(INFO) << "Create CallActor: " << id;
-  auto main_promise = PromiseCreator::lambda([actor_id = actor_id(this), id](Result<int64> call_id) mutable {
+  auto main_promise = PromiseCreator::lambda([actor_id = actor_id(this), id](Result<int64> call_id) {
     send_closure(actor_id, &CallManager::set_call_id, id, std::move(call_id));
   });
   it_flag.first->second = create_actor<CallActor>(PSLICE() << "Call " << id.get(), id, actor_shared(this, id.get()),

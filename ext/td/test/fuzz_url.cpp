@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -17,7 +17,7 @@ static td::string get_utf_string(td::Slice from) {
   td::string res;
   td::string alph = " ab@./01#";
   for (auto c : from) {
-    res += alph[td::uint8(c) % alph.size()];
+    res += alph[static_cast<td::uint8>(c) % alph.size()];
   }
   LOG(ERROR) << res;
   return res;

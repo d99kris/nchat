@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -7,7 +7,10 @@
 #include "td/telegram/SecureValue.h"
 
 #include "td/telegram/DialogId.h"
+#include "td/telegram/files/FileEncryptionKey.h"
+#include "td/telegram/files/FileLocation.h"
 #include "td/telegram/files/FileManager.h"
+#include "td/telegram/files/FileType.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/misc.h"
 #include "td/telegram/net/DcId.h"
@@ -353,7 +356,8 @@ EncryptedSecureFile get_encrypted_secure_file(FileManager *file_manager,
         break;
       }
       result.file.file_id = file_manager->register_remote(
-          FullRemoteFileLocation(FileType::Secure, secure_file->id_, secure_file->access_hash_, DcId::internal(dc_id)),
+          FullRemoteFileLocation(FileType::Secure, secure_file->id_, secure_file->access_hash_, DcId::internal(dc_id),
+                                 ""),
           FileLocationSource::FromServer, DialogId(), 0, secure_file->size_, PSTRING() << secure_file->id_ << ".jpg");
       result.file.date = secure_file->date_;
       if (result.file.date < 0) {
@@ -424,11 +428,12 @@ static td_api::object_ptr<td_api::datedFile> get_dated_file_object(FileManager *
     LOG(ERROR) << "Have wrong file in get_dated_file_object";
     return nullptr;
   }
-  dated_file.file_id = file_manager->register_remote(
-      FullRemoteFileLocation(FileType::SecureRaw, file_view.remote_location().get_id(),
-                             file_view.remote_location().get_access_hash(), file_view.remote_location().get_dc_id()),
-      FileLocationSource::FromServer, DialogId(), file_view.size(), file_view.expected_size(),
-      file_view.suggested_name());
+  dated_file.file_id =
+      file_manager->register_remote(FullRemoteFileLocation(FileType::SecureRaw, file_view.remote_location().get_id(),
+                                                           file_view.remote_location().get_access_hash(),
+                                                           file_view.remote_location().get_dc_id(), ""),
+                                    FileLocationSource::FromServer, DialogId(), file_view.size(),
+                                    file_view.expected_size(), file_view.suggested_name());
   return get_dated_file_object(file_manager, dated_file);
 }
 
@@ -670,13 +675,6 @@ td_api::object_ptr<td_api::encryptedCredentials> get_encrypted_credentials_objec
                                                            credentials.encrypted_secret);
 }
 
-static string lpad0(string str, size_t size) {
-  if (str.size() >= size) {
-    return str;
-  }
-  return string(size - str.size(), '0') + str;
-}
-
 // TODO tests
 static Status check_date(int32 day, int32 month, int32 year) {
   if (day < 1 || day > 31) {
@@ -724,12 +722,13 @@ static Result<td_api::object_ptr<td_api::date>> get_date_object(Slice date) {
   if (date.empty()) {
     return nullptr;
   }
-  if (date.size() != 10u) {
-    return Status::Error(400, "Date has wrong size");
+  if (date.size() > 10u || date.size() < 8u) {
+    return Status::Error(400, PSLICE() << "Date \"" << date << "\" has wrong length");
   }
   auto parts = full_split(date, '.');
-  if (parts.size() != 3 || parts[0].size() != 2 || parts[1].size() != 2 || parts[2].size() != 4) {
-    return Status::Error(400, "Date has wrong parts");
+  if (parts.size() != 3 || parts[0].size() > 2 || parts[1].size() > 2 || parts[2].size() != 4 || parts[0].empty() ||
+      parts[1].empty()) {
+    return Status::Error(400, PSLICE() << "Date \"" << date << "\" has wrong parts");
   }
   TRY_RESULT(day, to_int32(parts[0]));
   TRY_RESULT(month, to_int32(parts[1]));
@@ -893,19 +892,15 @@ static Result<SecureValue> get_identity_document(SecureValueType type, FileManag
     }
   }
 
-  TRY_RESULT(front_side, get_secure_file(file_manager, std::move(identity_document->front_side_)));
-  res.front_side = std::move(front_side);
+  TRY_RESULT_ASSIGN(res.front_side, get_secure_file(file_manager, std::move(identity_document->front_side_)));
   if (identity_document->reverse_side_ != nullptr) {
-    TRY_RESULT(reverse_side, get_secure_file(file_manager, std::move(identity_document->reverse_side_)));
-    res.reverse_side = std::move(reverse_side);
+    TRY_RESULT_ASSIGN(res.reverse_side, get_secure_file(file_manager, std::move(identity_document->reverse_side_)));
   }
   if (identity_document->selfie_ != nullptr) {
-    TRY_RESULT(selfie, get_secure_file(file_manager, std::move(identity_document->selfie_)));
-    res.selfie = std::move(selfie);
+    TRY_RESULT_ASSIGN(res.selfie, get_secure_file(file_manager, std::move(identity_document->selfie_)));
   }
   if (!identity_document->translation_.empty()) {
-    TRY_RESULT(translations, get_secure_files(file_manager, std::move(identity_document->translation_)));
-    res.translations = std::move(translations);
+    TRY_RESULT_ASSIGN(res.translations, get_secure_files(file_manager, std::move(identity_document->translation_)));
   }
   return res;
 }
@@ -963,11 +958,9 @@ static Result<SecureValue> get_personal_document(
   if (personal_document->files_.empty()) {
     return Status::Error(400, "Document's files are required");
   }
-  TRY_RESULT(files, get_secure_files(file_manager, std::move(personal_document->files_)));
-  res.files = std::move(files);
+  TRY_RESULT_ASSIGN(res.files, get_secure_files(file_manager, std::move(personal_document->files_)));
   if (!personal_document->translation_.empty()) {
-    TRY_RESULT(translations, get_secure_files(file_manager, std::move(personal_document->translation_)));
-    res.translations = std::move(translations);
+    TRY_RESULT_ASSIGN(res.translations, get_secure_files(file_manager, std::move(personal_document->translation_)));
   }
   return res;
 }
@@ -1003,8 +996,7 @@ Result<SecureValue> get_secure_value(FileManager *file_manager,
     case td_api::inputPassportElementPersonalDetails::ID: {
       auto input = td_api::move_object_as<td_api::inputPassportElementPersonalDetails>(input_passport_element);
       res.type = SecureValueType::PersonalDetails;
-      TRY_RESULT(personal_details, get_personal_details(std::move(input->personal_details_)));
-      res.data = std::move(personal_details);
+      TRY_RESULT_ASSIGN(res.data, get_personal_details(std::move(input->personal_details_)));
       break;
     }
     case td_api::inputPassportElementPassport::ID: {
@@ -1368,26 +1360,22 @@ EncryptedSecureValue encrypt_secure_value(FileManager *file_manager, const secur
   return res;
 }
 
-static auto as_jsonable(const SecureDataCredentials &credentials) {
+static auto as_jsonable_data(const SecureDataCredentials &credentials) {
   return json_object([&credentials](auto &o) {
     o("data_hash", base64_encode(credentials.hash));
     o("secret", base64_encode(credentials.secret));
   });
 }
 
-static auto as_jsonable(const SecureFileCredentials &credentials) {
+static auto as_jsonable_file(const SecureFileCredentials &credentials) {
   return json_object([&credentials](auto &o) {
     o("file_hash", base64_encode(credentials.hash));
     o("secret", base64_encode(credentials.secret));
   });
 }
 
-static auto as_jsonable(const vector<SecureFileCredentials> &files) {
-  return json_array([&files](auto &arr) {
-    for (auto &file : files) {
-      arr(as_jsonable(file));
-    }
-  });
+static auto as_jsonable_files(const vector<SecureFileCredentials> &files) {
+  return json_array(files, as_jsonable_file);
 }
 
 static Slice secure_value_type_as_slice(SecureValueType type) {
@@ -1436,27 +1424,27 @@ static auto credentials_as_jsonable(const std::vector<SecureValueCredentials> &c
 
           o(secure_value_type_as_slice(cred.type), json_object([&cred](auto &o) {
               if (cred.data) {
-                o("data", as_jsonable(cred.data.value()));
+                o("data", as_jsonable_data(cred.data.value()));
               }
               if (!cred.files.empty()) {
-                o("files", as_jsonable(cred.files));
+                o("files", as_jsonable_files(cred.files));
               }
               if (cred.front_side) {
-                o("front_side", as_jsonable(cred.front_side.value()));
+                o("front_side", as_jsonable_file(cred.front_side.value()));
               }
               if (cred.reverse_side) {
-                o("reverse_side", as_jsonable(cred.reverse_side.value()));
+                o("reverse_side", as_jsonable_file(cred.reverse_side.value()));
               }
               if (cred.selfie) {
-                o("selfie", as_jsonable(cred.selfie.value()));
+                o("selfie", as_jsonable_file(cred.selfie.value()));
               }
               if (!cred.translations.empty()) {
-                o("translation", as_jsonable(cred.translations));
+                o("translation", as_jsonable_files(cred.translations));
               }
             }));
         }
       }));
-    o(rename_payload_to_nonce ? "nonce" : "payload", nonce);
+    o(rename_payload_to_nonce ? Slice("nonce") : Slice("payload"), nonce);
   });
 }
 

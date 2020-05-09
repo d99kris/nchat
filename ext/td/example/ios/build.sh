@@ -1,5 +1,5 @@
-#/bin/sh
-td_path=$(realpath ../..)
+#!/bin/sh
+td_path=$(grealpath ../..)
 
 rm -rf build
 mkdir -p build
@@ -9,13 +9,13 @@ platforms="macOS iOS watchOS tvOS"
 for platform in $platforms;
 do
   echo "Platform = ${platform} Simulator = ${simulator}"
-  openssl_path=$(realpath ../third_party/openssl/${platform})
+  openssl_path=$(grealpath ../third_party/openssl/${platform})
   echo "OpenSSL path = ${openssl_path}"
   openssl_crypto_library="${openssl_path}/lib/libcrypto.a"
   openssl_ssl_library="${openssl_path}/lib/libssl.a"
   options="$options -DOPENSSL_FOUND=1"
   options="$options -DOPENSSL_CRYPTO_LIBRARY=${openssl_crypto_library}"
-  #options="$options -DOPENSSL_SSL_LIBRARY=${openssl_ssl_library}"
+  options="$options -DOPENSSL_SSL_LIBRARY=${openssl_ssl_library}"
   options="$options -DOPENSSL_INCLUDE_DIR=${openssl_path}/include"
   options="$options -DOPENSSL_LIBRARIES=${openssl_crypto_library};${openssl_ssl_library}"
   options="$options -DCMAKE_BUILD_TYPE=Release"

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -7,6 +7,7 @@
 #include "td/mtproto/AuthData.h"
 
 #include "td/utils/format.h"
+#include "td/utils/logging.h"
 #include "td/utils/Random.h"
 #include "td/utils/Time.h"
 
@@ -23,12 +24,12 @@ Status MessageIdDuplicateChecker::check(int64 message_id) {
   if (saved_message_ids_.size() == MAX_SAVED_MESSAGE_IDS) {
     auto oldest_message_id = *saved_message_ids_.begin();
     if (message_id < oldest_message_id) {
-      return Status::Error(1, PSLICE() << "Ignore very old message_id " << tag("oldest message_id", oldest_message_id)
+      return Status::Error(2, PSLICE() << "Ignore very old message_id " << tag("oldest message_id", oldest_message_id)
                                        << tag("got message_id", message_id));
     }
   }
   if (saved_message_ids_.count(message_id) != 0) {
-    return Status::Error(1, PSLICE() << "Ignore duplicated_message id " << tag("message_id", message_id));
+    return Status::Error(1, PSLICE() << "Ignore duplicated message_id " << tag("message_id", message_id));
   }
 
   saved_message_ids_.insert(message_id);
@@ -54,7 +55,7 @@ bool AuthData::is_ready(double now) {
     return false;
   }
   if (!has_salt(now)) {
-    LOG(INFO) << "no salt";
+    LOG(INFO) << "Need salt";
     return false;
   }
   return true;
@@ -110,12 +111,13 @@ int64 AuthData::next_message_id(double now) {
   return result;
 }
 
-bool AuthData::is_valid_outbound_msg_id(int64 id, double now) {
+bool AuthData::is_valid_outbound_msg_id(int64 id, double now) const {
   double server_time = get_server_time(now);
   auto id_time = static_cast<double>(id / (1ll << 32));
   return server_time - 300 / 2 < id_time && id_time < server_time + 60 / 2;
 }
-bool AuthData::is_valid_inbound_msg_id(int64 id, double now) {
+
+bool AuthData::is_valid_inbound_msg_id(int64 id, double now) const {
   double server_time = get_server_time(now);
   auto id_time = static_cast<double>(id / (1ll << 32));
   return server_time - 300 < id_time && id_time < server_time + 30;

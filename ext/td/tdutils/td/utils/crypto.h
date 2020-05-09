@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -8,6 +8,7 @@
 
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
+#include "td/utils/SharedSlice.h"
 #include "td/utils/Slice.h"
 #include "td/utils/Status.h"
 
@@ -20,11 +21,11 @@ void init_crypto();
 
 int pq_factorize(Slice pq_str, string *p_str, string *q_str);
 
-void aes_ige_encrypt(const UInt256 &aes_key, UInt256 *aes_iv, Slice from, MutableSlice to);
-void aes_ige_decrypt(const UInt256 &aes_key, UInt256 *aes_iv, Slice from, MutableSlice to);
+void aes_ige_encrypt(Slice aes_key, MutableSlice aes_iv, Slice from, MutableSlice to);
+void aes_ige_decrypt(Slice aes_key, MutableSlice aes_iv, Slice from, MutableSlice to);
 
-void aes_cbc_encrypt(const UInt256 &aes_key, UInt128 *aes_iv, Slice from, MutableSlice to);
-void aes_cbc_decrypt(const UInt256 &aes_key, UInt128 *aes_iv, Slice from, MutableSlice to);
+void aes_cbc_encrypt(Slice aes_key, MutableSlice aes_iv, Slice from, MutableSlice to);
+void aes_cbc_decrypt(Slice aes_key, MutableSlice aes_iv, Slice from, MutableSlice to);
 
 class AesCtrState {
  public:
@@ -35,7 +36,7 @@ class AesCtrState {
   AesCtrState &operator=(AesCtrState &&from);
   ~AesCtrState();
 
-  void init(const UInt256 &key, const UInt128 &iv);
+  void init(Slice key, Slice iv);
 
   void encrypt(Slice from, MutableSlice to);
 
@@ -43,19 +44,19 @@ class AesCtrState {
 
  private:
   class Impl;
-  std::unique_ptr<Impl> ctx_;
+  unique_ptr<Impl> ctx_;
 };
 
 class AesCbcState {
  public:
-  AesCbcState(const UInt256 &key, const UInt128 &iv);
+  AesCbcState(Slice key256, Slice iv128);
 
   void encrypt(Slice from, MutableSlice to);
   void decrypt(Slice from, MutableSlice to);
 
  private:
-  UInt256 key_;
-  UInt128 iv_;
+  SecureString key_;
+  SecureString iv_;
 };
 
 void sha1(Slice data, unsigned char output[20]);
@@ -68,19 +69,26 @@ string sha256(Slice data) TD_WARN_UNUSED_RESULT;
 
 string sha512(Slice data) TD_WARN_UNUSED_RESULT;
 
-struct Sha256StateImpl;
-
-struct Sha256State {
+class Sha256State {
+ public:
   Sha256State();
-  Sha256State(Sha256State &&from);
-  Sha256State &operator=(Sha256State &&from);
+  Sha256State(const Sha256State &other) = delete;
+  Sha256State &operator=(const Sha256State &other) = delete;
+  Sha256State(Sha256State &&other);
+  Sha256State &operator=(Sha256State &&other);
   ~Sha256State();
-  std::unique_ptr<Sha256StateImpl> impl;
-};
 
-void sha256_init(Sha256State *state);
-void sha256_update(Slice data, Sha256State *state);
-void sha256_final(Sha256State *state, MutableSlice output);
+  void init();
+
+  void feed(Slice data);
+
+  void extract(MutableSlice dest, bool destroy = false);
+
+ private:
+  class Impl;
+  unique_ptr<Impl> impl_;
+  bool is_inited_ = false;
+};
 
 void md5(Slice input, MutableSlice output);
 
@@ -88,6 +96,7 @@ void pbkdf2_sha256(Slice password, Slice salt, int iteration_count, MutableSlice
 void pbkdf2_sha512(Slice password, Slice salt, int iteration_count, MutableSlice dest);
 
 void hmac_sha256(Slice key, Slice message, MutableSlice dest);
+void hmac_sha512(Slice key, Slice message, MutableSlice dest);
 
 // Interface may be improved
 Result<BufferSlice> rsa_encrypt_pkcs1_oaep(Slice public_key, Slice data);
@@ -100,6 +109,13 @@ void init_openssl_threads();
 uint32 crc32(Slice data);
 #endif
 
+#if TD_HAVE_CRC32C
+uint32 crc32c(Slice data);
+uint32 crc32c_extend(uint32 old_crc, Slice data);
+uint32 crc32c_extend(uint32 old_crc, uint32 new_crc, size_t data_size);
+#endif
+
 uint64 crc64(Slice data);
+uint16 crc16(Slice data);
 
 }  // namespace td

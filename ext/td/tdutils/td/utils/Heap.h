@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -7,7 +7,6 @@
 #pragma once
 
 #include "td/utils/common.h"
-#include "td/utils/logging.h"
 
 namespace td {
 
@@ -72,7 +71,14 @@ class KHeap {
   }
 
   template <class F>
-  void for_each(F &f) const {
+  void for_each(F &&f) const {
+    for (auto &it : array_) {
+      f(it.key_, it.node_);
+    }
+  }
+
+  template <class F>
+  void for_each(F &&f) {
     for (auto &it : array_) {
       f(it.key_, it.node_);
     }
@@ -81,7 +87,7 @@ class KHeap {
   void check() const {
     for (size_t i = 0; i < array_.size(); i++) {
       for (size_t j = i * K + 1; j < i * K + 1 + K && j < array_.size(); j++) {
-        CHECK(array_[i].key_ <= array_[j].key_) << i << " " << j;
+        CHECK(array_[i].key_ <= array_[j].key_);
       }
     }
   }

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -22,12 +22,13 @@
 namespace td {
 
 std::atomic<int> counter;
+
 class HttpClient : public HttpOutboundConnection::Callback {
   void start_up() override {
     IPAddress addr;
     addr.init_ipv4_port("127.0.0.1", 8082).ensure();
     auto fd = SocketFd::open(addr);
-    CHECK(fd.is_ok()) << fd.error();
+    LOG_CHECK(fd.is_ok()) << fd.error();
     connection_ = create_actor<HttpOutboundConnection>("Connect", fd.move_as_ok(), SslStream{},
                                                        std::numeric_limits<size_t>::max(), 0, 0,
                                                        ActorOwn<HttpOutboundConnection::Callback>(actor_id(this)));
@@ -48,7 +49,7 @@ class HttpClient : public HttpOutboundConnection::Callback {
     send_closure(connection_, &HttpOutboundConnection::write_ok);
     LOG(INFO) << "SEND";
   }
-  void handle(HttpQueryPtr result) override {
+  void handle(unique_ptr<HttpQuery> result) override {
     loop();
   }
   void on_connection_error(Status error) override {

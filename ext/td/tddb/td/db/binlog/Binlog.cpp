@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -14,8 +14,9 @@
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/port/Clocks.h"
-#include "td/utils/port/Fd.h"
+#include "td/utils/port/FileFd.h"
 #include "td/utils/port/path.h"
+#include "td/utils/port/PollFlags.h"
 #include "td/utils/port/Stat.h"
 #include "td/utils/Random.h"
 #include "td/utils/ScopeGuard.h"
@@ -82,7 +83,7 @@ struct AesCtrEncryptionEvent {
   void parse(ParserT &&parser) {
     using td::parse;
     BEGIN_PARSE_FLAGS();
-    END_PARSE_FLAGS_GENERIC();
+    END_PARSE_FLAGS();
     parse(key_salt_, parser);
     parse(iv_, parser);
     parse(key_hash_, parser);
@@ -91,7 +92,6 @@ struct AesCtrEncryptionEvent {
 
 class BinlogReader {
  public:
-  BinlogReader() = default;
   explicit BinlogReader(ChainBufferReader *input) : input_(input) {
   }
   void set_input(ChainBufferReader *input, bool is_encrypted, int64 expected_size) {
@@ -108,7 +108,7 @@ class BinlogReader {
     return offset_;
   }
   Result<size_t> read_next(BinlogEvent *event) {
-    if (state_ == ReadLength) {
+    if (state_ == State::ReadLength) {
       if (input_->size() < 4) {
         return 4;
       }
@@ -129,7 +129,7 @@ class BinlogReader {
                                           << expected_size_ << ' ' << tag("is_encrypted", is_encrypted_)
                                           << format::as_hex_dump<4>(Slice(input_->prepare_read().truncate(28))));
       }
-      state_ = ReadEvent;
+      state_ = State::ReadEvent;
     }
 
     if (input_->size() < size_) {
@@ -140,13 +140,14 @@ class BinlogReader {
     TRY_STATUS(event->init(input_->cut_head(size_).move_as_buffer_slice()));
     offset_ += size_;
     event->offset_ = offset_;
-    state_ = ReadLength;
+    state_ = State::ReadLength;
     return 0;
   }
 
  private:
   ChainBufferReader *input_;
-  enum { ReadLength, ReadEvent } state_ = ReadLength;
+  enum class State { ReadLength, ReadEvent };
+  State state_ = State::ReadLength;
   size_t size_{0};
   int64 offset_{0};
   int64 expected_size_{0};
@@ -162,17 +163,15 @@ static int64 file_size(CSlice path) {
 }
 }  // namespace detail
 
-bool Binlog::IGNORE_ERASE_HACK = false;
-
 Binlog::Binlog() = default;
 
 Binlog::~Binlog() {
   close().ignore();
 }
 
-Result<FileFd> Binlog::open_binlog(CSlice path, int32 flags) {
+Result<FileFd> Binlog::open_binlog(const string &path, int32 flags) {
   TRY_RESULT(fd, FileFd::open(path, flags));
-  TRY_STATUS(fd.lock(FileFd::LockFlags::Write, 100));
+  TRY_STATUS(fd.lock(FileFd::LockFlags::Write, path, 100));
   return std::move(fd);
 }
 
@@ -183,9 +182,9 @@ Status Binlog::init(string path, const Callback &callback, DbKey db_key, DbKey o
   db_key_ = std::move(db_key);
   old_db_key_ = std::move(old_db_key);
 
-  processor_ = std::make_unique<detail::BinlogEventsProcessor>();
+  processor_ = make_unique<detail::BinlogEventsProcessor>();
   // Turn off BinlogEventsBuffer
-  // events_buffer_ = std::make_unique<detail::BinlogEventsBuffer>();
+  // events_buffer_ = make_unique<detail::BinlogEventsBuffer>();
 
   // try to restore binlog from regenerated version
   if (stat(path).is_error()) {
@@ -280,17 +279,17 @@ Status Binlog::close(bool need_sync) {
   if (fd_.empty()) {
     return Status::OK();
   }
-  SCOPE_EXIT {
-    path_ = "";
-    info_.is_opened = false;
-    fd_.close();
-    need_sync_ = false;
-  };
   if (need_sync) {
     sync();
   } else {
     flush();
   }
+
+  fd_.lock(FileFd::LockFlags::Unlock, path_, 1).ensure();
+  fd_.close();
+  path_.clear();
+  info_.is_opened = false;
+  need_sync_ = false;
   return Status::OK();
 }
 
@@ -306,6 +305,7 @@ Status Binlog::close_and_destroy() {
   destroy(path).ignore();
   return close_status;
 }
+
 Status Binlog::destroy(Slice path) {
   unlink(PSLICE() << path).ignore();
   unlink(PSLICE() << path << ".new").ignore();
@@ -313,6 +313,8 @@ Status Binlog::destroy(Slice path) {
 }
 
 void Binlog::do_event(BinlogEvent &&event) {
+  auto event_size = event.raw_event_.size();
+
   if (state_ == State::Run || state_ == State::Reindex) {
     VLOG(binlog) << "Write binlog event: " << format::cond(state_ == State::Reindex, "[reindex] ");
     auto validate_status = event.validate();
@@ -339,7 +341,7 @@ void Binlog::do_event(BinlogEvent &&event) {
 
       BufferSlice key;
       if (aes_ctr_key_salt_.as_slice() == encryption_event.key_salt_.as_slice()) {
-        key = BufferSlice(Slice(aes_ctr_key_.raw, sizeof(aes_ctr_key_.raw)));
+        key = BufferSlice(as_slice(aes_ctr_key_));
       } else if (!db_key_.is_empty()) {
         key = encryption_event.generate_key(db_key_);
       }
@@ -379,17 +381,24 @@ void Binlog::do_event(BinlogEvent &&event) {
     auto status = processor_->add_event(std::move(event));
     if (status.is_error()) {
       auto old_size = detail::file_size(path_);
+      auto data = debug_get_binlog_data(fd_size_, old_size);
       if (state_ == State::Load) {
         fd_.seek(fd_size_).ensure();
         fd_.truncate_to_current_position(fd_size_).ensure();
+
+        if (data.empty()) {
+          return;
+        }
       }
+
       LOG(FATAL) << "Truncate binlog \"" << path_ << "\" from size " << old_size << " to size " << fd_size_
-                 << " in state " << static_cast<int32>(state_) << " due to error: " << status;
+                 << " in state " << static_cast<int32>(state_) << " due to error: " << status << " after reading "
+                 << data;
     }
   }
 
   fd_events_++;
-  fd_size_ += event.raw_event_.size();
+  fd_size_ += event_size;
 }
 
 void Binlog::sync() {
@@ -435,7 +444,9 @@ void Binlog::update_read_encryption() {
   CHECK(binlog_reader_ptr_);
   switch (encryption_type_) {
     case EncryptionType::None: {
-      binlog_reader_ptr_->set_input(&buffer_reader_, false, fd_.get_size());
+      auto r_file_size = fd_.get_size();
+      r_file_size.ensure();
+      binlog_reader_ptr_->set_input(&buffer_reader_, false, r_file_size.ok());
       byte_flow_flag_ = false;
       break;
     }
@@ -446,7 +457,9 @@ void Binlog::update_read_encryption() {
       byte_flow_sink_ = ByteFlowSink();
       byte_flow_source_ >> aes_xcode_byte_flow_ >> byte_flow_sink_;
       byte_flow_flag_ = true;
-      binlog_reader_ptr_->set_input(byte_flow_sink_.get_output(), true, fd_.get_size());
+      auto r_file_size = fd_.get_size();
+      r_file_size.ensure();
+      binlog_reader_ptr_->set_input(byte_flow_sink_.get_output(), true, r_file_size.ok());
       break;
     }
   }
@@ -478,12 +491,12 @@ Status Binlog::load_binlog(const Callback &callback, const Callback &debug_callb
   buffer_writer_ = ChainBufferWriter();
   buffer_reader_ = buffer_writer_.extract_reader();
   fd_.set_input_writer(&buffer_writer_);
-  detail::BinlogReader reader;
+  detail::BinlogReader reader{nullptr};
   binlog_reader_ptr_ = &reader;
 
   update_read_encryption();
 
-  fd_.update_flags(Fd::Flag::Read);
+  fd_.get_poll_info().add_flags(PollFlags::Read());
   info_.wrong_password = false;
   while (true) {
     BinlogEvent event;
@@ -491,28 +504,28 @@ Status Binlog::load_binlog(const Callback &callback, const Callback &debug_callb
     if (r_need_size.is_error()) {
       if (r_need_size.error().code() == -2) {
         auto old_size = detail::file_size(path_);
-        fd_.seek(reader.offset()).ensure();
-        fd_.truncate_to_current_position(reader.offset()).ensure();
-        LOG(FATAL) << "Truncate binlog \"" << path_ << "\" from size " << old_size << " to size " << reader.offset()
-                   << " due to error: " << r_need_size.error();
+        auto offset = reader.offset();
+        auto data = debug_get_binlog_data(offset, old_size);
+        fd_.seek(offset).ensure();
+        fd_.truncate_to_current_position(offset).ensure();
+        if (data.empty()) {
+          break;
+        }
+        LOG(FATAL) << "Truncate binlog \"" << path_ << "\" from size " << old_size << " to size " << offset
+                   << " due to error: " << r_need_size.error() << " after reading " << data;
       }
       LOG(ERROR) << r_need_size.error();
       break;
     }
     auto need_size = r_need_size.move_as_ok();
-    // LOG(ERROR) << "need size = " << need_size;
+    // LOG(ERROR) << "Need size = " << need_size;
     if (need_size == 0) {
-      if (IGNORE_ERASE_HACK && event.type_ == BinlogEvent::ServiceTypes::Empty &&
-          (event.flags_ & BinlogEvent::Flags::Rewrite) != 0) {
-        // skip erase
-      } else {
-        if (debug_callback) {
-          debug_callback(event);
-        }
-        do_add_event(std::move(event));
-        if (info_.wrong_password) {
-          return Status::OK();
-        }
+      if (debug_callback) {
+        debug_callback(event);
+      }
+      do_add_event(std::move(event));
+      if (info_.wrong_password) {
+        return Status::OK();
       }
     } else {
       TRY_STATUS(fd_.flush_read(max(need_size, static_cast<size_t>(4096))));
@@ -534,14 +547,14 @@ Status Binlog::load_binlog(const Callback &callback, const Callback &debug_callb
     }
   });
 
-  auto fd_size = fd_.get_size();
+  TRY_RESULT(fd_size, fd_.get_size());
   if (offset != fd_size) {
     LOG(ERROR) << "Truncate " << tag("path", path_) << tag("old_size", fd_size) << tag("new_size", offset);
     fd_.seek(offset).ensure();
     fd_.truncate_to_current_position(offset).ensure();
     db_key_used_ = false;  // force reindex
   }
-  CHECK(IGNORE_ERASE_HACK || fd_size_ == offset) << fd_size << " " << fd_size_ << " " << offset;
+  LOG_CHECK(fd_size_ == offset) << fd_size << " " << fd_size_ << " " << offset;
   binlog_reader_ptr_ = nullptr;
   state_ = State::Run;
 
@@ -558,10 +571,10 @@ Status Binlog::load_binlog(const Callback &callback, const Callback &debug_callb
 }
 
 void Binlog::update_encryption(Slice key, Slice iv) {
-  MutableSlice(aes_ctr_key_.raw, sizeof(aes_ctr_key_.raw)).copy_from(key);
+  as_slice(aes_ctr_key_).copy_from(key);
   UInt128 aes_ctr_iv;
-  MutableSlice(aes_ctr_iv.raw, sizeof(aes_ctr_iv.raw)).copy_from(iv);
-  aes_ctr_state_.init(aes_ctr_key_, aes_ctr_iv);
+  as_slice(aes_ctr_iv).copy_from(iv);
+  aes_ctr_state_.init(as_slice(aes_ctr_key_), as_slice(aes_ctr_iv));
 }
 
 void Binlog::reset_encryption() {
@@ -584,7 +597,7 @@ void Binlog::reset_encryption() {
 
   BufferSlice key;
   if (aes_ctr_key_salt_.as_slice() == event.key_salt_.as_slice()) {
-    key = BufferSlice(Slice(aes_ctr_key_.raw, sizeof(aes_ctr_key_.raw)));
+    key = BufferSlice(as_slice(aes_ctr_key_));
   } else {
     key = event.generate_key(db_key_);
   }
@@ -616,7 +629,7 @@ void Binlog::do_reindex() {
     LOG(ERROR) << "Can't open new binlog for regenerate: " << r_opened_file.error();
     return;
   }
-  fd_.close();
+  auto old_fd = std::move(fd_);  // can't close fd_ now, because it will release file lock
   fd_ = BufferedFdBase<FileFd>(r_opened_file.move_as_ok());
 
   buffer_writer_ = ChainBufferWriter();
@@ -637,17 +650,19 @@ void Binlog::do_reindex() {
   // finish_reindex
   auto status = unlink(path_);
   LOG_IF(FATAL, status.is_error()) << "Failed to unlink old binlog: " << status;
+  old_fd.close();  // now we can close old file and release the system lock
   status = rename(new_path, path_);
+  FileFd::remove_local_lock(new_path);  // now we can release local lock for temporary file
   LOG_IF(FATAL, status.is_error()) << "Failed to rename binlog: " << status;
 
   auto finish_time = Clocks::monotonic();
   auto finish_size = fd_size_;
   auto finish_events = fd_events_;
-  CHECK(fd_size_ == detail::file_size(path_))
+  LOG_CHECK(fd_size_ == detail::file_size(path_))
       << fd_size_ << ' ' << detail::file_size(path_) << ' ' << fd_events_ << ' ' << path_;
 
   double ratio = static_cast<double>(start_size) / static_cast<double>(finish_size + 1);
-  LOG(INFO) << "regenerate index " << tag("name", path_) << tag("time", format::as_time(finish_time - start_time))
+  LOG(INFO) << "Regenerate index " << tag("name", path_) << tag("time", format::as_time(finish_time - start_time))
             << tag("before_size", format::as_size(start_size)) << tag("after_size", format::as_size(finish_size))
             << tag("ratio", ratio) << tag("before_events", start_events) << tag("after_events", finish_events);
 
@@ -659,6 +674,60 @@ void Binlog::do_reindex() {
     aes_ctr_state_ = aes_xcode_byte_flow_.move_aes_ctr_state();
   }
   update_write_encryption();
+}
+
+string Binlog::debug_get_binlog_data(int64 begin_offset, int64 end_offset) {
+  if (begin_offset > end_offset) {
+    return "Begin offset is bigger than end_offset";
+  }
+  if (begin_offset == end_offset) {
+    return string();
+  }
+
+  static int64 MAX_DATA_LENGTH = 512;
+  if (end_offset - begin_offset > MAX_DATA_LENGTH) {
+    end_offset = begin_offset + MAX_DATA_LENGTH;
+  }
+
+  auto r_fd = FileFd::open(path_, FileFd::Flags::Read);
+  if (r_fd.is_error()) {
+    return PSTRING() << "Failed to open binlog: " << r_fd.error();
+  }
+  auto fd = r_fd.move_as_ok();
+
+  fd_.lock(FileFd::LockFlags::Unlock, path_, 1).ignore();
+  SCOPE_EXIT {
+    fd_.lock(FileFd::LockFlags::Write, path_, 1).ensure();
+  };
+  size_t expected_data_length = narrow_cast<size_t>(end_offset - begin_offset);
+  string data(expected_data_length, '\0');
+  auto r_data_size = fd.pread(data, begin_offset);
+  if (r_data_size.is_error()) {
+    return PSTRING() << "Failed to read binlog: " << r_data_size.error();
+  }
+
+  if (r_data_size.ok() < expected_data_length) {
+    data.resize(r_data_size.ok());
+    data = PSTRING() << format::as_hex_dump<4>(Slice(data)) << " | with " << expected_data_length - r_data_size.ok()
+                     << " missed bytes";
+  } else {
+    if (encryption_type_ == EncryptionType::AesCtr) {
+      bool is_zero = true;
+      for (auto &c : data) {
+        if (c != '\0') {
+          is_zero = false;
+        }
+      }
+      // very often we have '\0' bytes written to disk instead of a real log event
+      // this is clearly impossible content for a real encrypted log event, so just ignore it
+      if (is_zero) {
+        return string();
+      }
+    }
+
+    data = PSTRING() << format::as_hex_dump<4>(Slice(data));
+  }
+  return data;
 }
 
 }  // namespace td

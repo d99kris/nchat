@@ -1,17 +1,19 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/telegram/HashtagHints.h"
 
-#include "td/db/Pmc.h"
-#include "td/db/SqliteKeyValueAsync.h"
 #include "td/telegram/Global.h"
+#include "td/telegram/TdDb.h"
+
+#include "td/db/SqliteKeyValueAsync.h"
 
 #include "td/utils/logging.h"
 #include "td/utils/tl_helpers.h"
+#include "td/utils/utf8.h"
 
 #include <functional>
 
@@ -72,6 +74,11 @@ string HashtagHints::get_key() const {
 }
 
 void HashtagHints::hashtag_used_impl(const string &hashtag) {
+  if (!check_utf8(hashtag)) {
+    LOG(ERROR) << "Trying to add invalid UTF-8 hashtag \"" << hashtag << '"';
+    return;
+  }
+
   // TODO: may be it should be optimized a little
   auto key = std::hash<std::string>()(hashtag);
   hints_.add(key, hashtag);
@@ -86,7 +93,7 @@ void HashtagHints::from_db(Result<string> data, bool dummy) {
   std::vector<string> hashtags;
   auto status = unserialize(hashtags, data.ok());
   if (status.is_error()) {
-    LOG(ERROR) << status;
+    LOG(ERROR) << "Failed to unserialize hashtag hints: " << status;
     return;
   }
 

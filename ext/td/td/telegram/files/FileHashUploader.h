@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -31,7 +31,7 @@ class FileHashUploader : public FileLoaderActor {
     virtual void on_error(Status status) = 0;
   };
 
-  FileHashUploader(const FullLocalFileLocation &local, int64 size, std::unique_ptr<Callback> callback)
+  FileHashUploader(const FullLocalFileLocation &local, int64 size, unique_ptr<Callback> callback)
       : local_(local), size_(size), size_left_(size), callback_(std::move(callback)) {
   }
 
@@ -79,4 +79,5 @@ class FileHashUploader : public FileLoaderActor {
 
   Status on_result_impl(NetQueryPtr net_query);
 };
+
 }  // namespace td

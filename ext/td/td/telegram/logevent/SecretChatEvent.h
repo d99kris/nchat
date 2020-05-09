@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,9 +11,8 @@
 #include "td/actor/PromiseFuture.h"
 
 #include "td/utils/buffer.h"
+#include "td/utils/common.h"
 #include "td/utils/format.h"
-#include "td/utils/logging.h"
-#include "td/utils/Storer.h"
 #include "td/utils/StringBuilder.h"
 #include "td/utils/tl_helpers.h"
 
@@ -47,6 +46,18 @@ class SecretChatEvent : public LogEventBase<SecretChatEvent> {
   static void downcast_call(Type type, F &&f);
 };
 
+template <class ChildT>
+class SecretChatLogEventBase : public SecretChatEvent {
+ public:
+  typename SecretChatEvent::Type get_type() const override {
+    return ChildT::type;
+  }
+
+  constexpr int32 magic() const {
+    return static_cast<int32>(get_type());
+  }
+};
+
 // Internal structure
 
 // inputEncryptedFileEmpty#1837c364 = InputEncryptedFile;
@@ -55,13 +66,14 @@ class SecretChatEvent : public LogEventBase<SecretChatEvent> {
 // inputEncryptedFileBigUploaded#2dc173c8 id:long parts:int key_fingerprint:int = InputEncryptedFile;
 struct EncryptedInputFile {
   static constexpr int32 magic = 0x4328d38a;
-  enum Type : int32 { Empty = 0, Uploaded = 1, BigUploaded = 2, Location = 3 } type;
-  int64 id;
-  int64 access_hash;
-  int32 parts;
-  int32 key_fingerprint;
-  template <class T>
-  void store(T &storer) const {
+  enum Type : int32 { Empty = 0, Uploaded = 1, BigUploaded = 2, Location = 3 } type = Type::Empty;
+  int64 id = 0;
+  int64 access_hash = 0;
+  int32 parts = 0;
+  int32 key_fingerprint = 0;
+
+  template <class StorerT>
+  void store(StorerT &storer) const {
     using td::store;
     store(magic, storer);
     store(type, storer);
@@ -71,12 +83,17 @@ struct EncryptedInputFile {
     store(key_fingerprint, storer);
   }
 
+  EncryptedInputFile() = default;
+  EncryptedInputFile(Type type, int64 id, int64 access_hash, int32 parts, int32 key_fingerprint)
+      : type(type), id(id), access_hash(access_hash), parts(parts), key_fingerprint(key_fingerprint) {
+  }
+
   bool empty() const {
     return type == Empty;
   }
 
-  template <class T>
-  void parse(T &parser) {
+  template <class ParserT>
+  void parse(ParserT &parser) {
     using td::parse;
     int32 got_magic;
 
@@ -140,17 +157,17 @@ inline StringBuilder &operator<<(StringBuilder &sb, const EncryptedInputFile &fi
 // encryptedFile#4a70994c id:long access_hash:long size:int dc_id:int key_fingerprint:int = EncryptedFile;
 struct EncryptedFileLocation {
   static constexpr int32 magic = 0x473d738a;
-  int64 id;
-  int64 access_hash;
-  int32 size;
-  int32 dc_id;
-  int32 key_fingerprint;
+  int64 id = 0;
+  int64 access_hash = 0;
+  int32 size = 0;
+  int32 dc_id = 0;
+  int32 key_fingerprint = 0;
 
   tl_object_ptr<telegram_api::encryptedFile> as_encrypted_file() {
     return make_tl_object<telegram_api::encryptedFile>(id, access_hash, size, dc_id, key_fingerprint);
   }
-  template <class T>
-  void store(T &storer) const {
+  template <class StorerT>
+  void store(StorerT &storer) const {
     using td::store;
     store(magic, storer);
     store(id, storer);
@@ -160,8 +177,8 @@ struct EncryptedFileLocation {
     store(key_fingerprint, storer);
   }
 
-  template <class T>
-  void parse(T &parser) {
+  template <class ParserT>
+  void parse(ParserT &parser) {
     using td::parse;
     int32 got_magic;
 
@@ -186,7 +203,7 @@ inline StringBuilder &operator<<(StringBuilder &sb, const EncryptedFileLocation 
 
 // LogEvents
 // TODO: Qts and SeqNoState could be just Logevents that are updated during regenerate
-class InboundSecretMessage : public LogEventHelper<InboundSecretMessage, SecretChatEvent> {
+class InboundSecretMessage : public SecretChatLogEventBase<InboundSecretMessage> {
  public:
   static constexpr Type type = SecretChatEvent::Type::InboundSecretMessage;
   int32 qts = 0;
@@ -213,11 +230,11 @@ class InboundSecretMessage : public LogEventHelper<InboundSecretMessage, SecretC
 
   EncryptedFileLocation file;
 
-  bool has_encrypted_file;
+  bool has_encrypted_file = false;
   bool is_pending = false;
 
-  template <class T>
-  void store(T &storer) const {
+  template <class StorerT>
+  void store(StorerT &storer) const {
     using td::store;
 
     BEGIN_STORE_FLAGS();
@@ -244,8 +261,8 @@ class InboundSecretMessage : public LogEventHelper<InboundSecretMessage, SecretC
     }
   }
 
-  template <class T>
-  void parse(T &parser) {
+  template <class ParserT>
+  void parse(ParserT &parser) {
     using td::parse;
 
     BEGIN_PARSE_FLAGS();
@@ -284,7 +301,7 @@ class InboundSecretMessage : public LogEventHelper<InboundSecretMessage, SecretC
   }
 };
 
-class OutboundSecretMessage : public LogEventHelper<OutboundSecretMessage, SecretChatEvent> {
+class OutboundSecretMessage : public SecretChatLogEventBase<OutboundSecretMessage> {
  public:
   static constexpr Type type = SecretChatEvent::Type::OutboundSecretMessage;
 
@@ -317,9 +334,9 @@ class OutboundSecretMessage : public LogEventHelper<OutboundSecretMessage, Secre
   // 1. is_service // use messages_sendEncryptedsService
   // 3. can_rewrite_with_empty // false for almost all service messages
 
-  // TODO: combine this two functions into one macros hell. Or lambda hell.
-  template <class T>
-  void store(T &storer) const {
+  // TODO: combine these two functions into one macros hell. Or a lambda hell.
+  template <class StorerT>
+  void store(StorerT &storer) const {
     using td::store;
 
     store(chat_id, storer);
@@ -348,8 +365,8 @@ class OutboundSecretMessage : public LogEventHelper<OutboundSecretMessage, Secre
     }
   }
 
-  template <class T>
-  void parse(T &parser) {
+  template <class ParserT>
+  void parse(ParserT &parser) {
     using td::parse;
 
     parse(chat_id, parser);
@@ -385,19 +402,19 @@ class OutboundSecretMessage : public LogEventHelper<OutboundSecretMessage, Secre
   }
 };
 
-class CloseSecretChat : public LogEventHelper<CloseSecretChat, SecretChatEvent> {
+class CloseSecretChat : public SecretChatLogEventBase<CloseSecretChat> {
  public:
   static constexpr Type type = SecretChatEvent::Type::CloseSecretChat;
   int32 chat_id = 0;
 
-  template <class T>
-  void store(T &storer) const {
+  template <class StorerT>
+  void store(StorerT &storer) const {
     using td::store;
     store(chat_id, storer);
   }
 
-  template <class T>
-  void parse(T &parser) {
+  template <class ParserT>
+  void parse(ParserT &parser) {
     using td::parse;
     parse(chat_id, parser);
   }
@@ -407,23 +424,23 @@ class CloseSecretChat : public LogEventHelper<CloseSecretChat, SecretChatEvent> 
   }
 };
 
-class CreateSecretChat : public LogEventHelper<CreateSecretChat, SecretChatEvent> {
+class CreateSecretChat : public SecretChatLogEventBase<CreateSecretChat> {
  public:
   static constexpr Type type = SecretChatEvent::Type::CreateSecretChat;
   int32 random_id = 0;
   int32 user_id = 0;
   int64 user_access_hash = 0;
 
-  template <class T>
-  void store(T &storer) const {
+  template <class StorerT>
+  void store(StorerT &storer) const {
     using td::store;
     store(random_id, storer);
     store(user_id, storer);
     store(user_access_hash, storer);
   }
 
-  template <class T>
-  void parse(T &parser) {
+  template <class ParserT>
+  void parse(ParserT &parser) {
     using td::parse;
     parse(random_id, parser);
     parse(user_id, parser);

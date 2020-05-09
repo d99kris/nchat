@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -47,6 +47,10 @@ bool TD_TL_writer::is_combinator_supported(const tl::tl_combinator *constructor)
   }
 
   return true;
+}
+
+bool TD_TL_writer::is_default_constructor_generated(const tl::tl_combinator *t, bool is_function) const {
+  return tl_name == "td_api" || tl_name == "TdApi" || (t->var_count > 0 && !is_function);
 }
 
 int TD_TL_writer::get_storer_type(const tl::tl_combinator *t, const std::string &storer_name) const {

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,9 +11,11 @@
  * Contains the declarations of a base class for all TL-objects and some helper methods
  */
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <utility>
 
 namespace td {
@@ -89,8 +91,94 @@ class TlObject {
 /**
  * A smart wrapper to store a pointer to a TL-object.
  */
+namespace tl {
+
+template <class T>
+class unique_ptr {
+ public:
+  using pointer = T *;
+  using element_type = T;
+
+  unique_ptr() noexcept = default;
+  unique_ptr(const unique_ptr &other) = delete;
+  unique_ptr &operator=(const unique_ptr &other) = delete;
+  unique_ptr(unique_ptr &&other) noexcept : ptr_(other.release()) {
+  }
+  unique_ptr &operator=(unique_ptr &&other) noexcept {
+    reset(other.release());
+    return *this;
+  }
+  ~unique_ptr() {
+    reset();
+  }
+
+  unique_ptr(std::nullptr_t) noexcept {
+  }
+  explicit unique_ptr(T *ptr) noexcept : ptr_(ptr) {
+  }
+  template <class S, class = std::enable_if_t<std::is_base_of<T, S>::value>>
+  unique_ptr(unique_ptr<S> &&other) noexcept : ptr_(static_cast<S *>(other.release())) {
+  }
+  template <class S, class = std::enable_if_t<std::is_base_of<T, S>::value>>
+  unique_ptr &operator=(unique_ptr<S> &&other) noexcept {
+    reset(static_cast<T *>(other.release()));
+    return *this;
+  }
+  void reset(T *new_ptr = nullptr) noexcept {
+    delete ptr_;
+    ptr_ = new_ptr;
+  }
+  T *release() noexcept {
+    auto res = ptr_;
+    ptr_ = nullptr;
+    return res;
+  }
+  T *get() noexcept {
+    return ptr_;
+  }
+  const T *get() const noexcept {
+    return ptr_;
+  }
+  T *operator->() noexcept {
+    return ptr_;
+  }
+  const T *operator->() const noexcept {
+    return ptr_;
+  }
+  T &operator*() noexcept {
+    return *ptr_;
+  }
+  const T &operator*() const noexcept {
+    return *ptr_;
+  }
+  explicit operator bool() const noexcept {
+    return ptr_ != nullptr;
+  }
+
+ private:
+  T *ptr_{nullptr};
+};
+
+template <class T>
+bool operator==(std::nullptr_t, const unique_ptr<T> &p) {
+  return !p;
+}
+template <class T>
+bool operator==(const unique_ptr<T> &p, std::nullptr_t) {
+  return !p;
+}
+template <class T>
+bool operator!=(std::nullptr_t, const unique_ptr<T> &p) {
+  return static_cast<bool>(p);
+}
+template <class T>
+bool operator!=(const unique_ptr<T> &p, std::nullptr_t) {
+  return static_cast<bool>(p);
+}
+
+}  // namespace tl
 template <class Type>
-using tl_object_ptr = std::unique_ptr<Type>;
+using tl_object_ptr = tl::unique_ptr<Type>;
 
 /**
  * A function to create a dynamically allocated TL-object. Can be treated as an analogue of std::make_unique.
@@ -98,8 +186,8 @@ using tl_object_ptr = std::unique_ptr<Type>;
  * \code
  * auto get_authorization_state_request = td::make_tl_object<td::td_api::getAuthorizationState>();
  * auto message_text = td::make_tl_object<td::td_api::formattedText>("Hello, world!!!",
- *                     std::vector<td::tl_object_ptr<td::td_api::textEntities>>());
- * auto send_message_request = td::make_tl_object<td::td_api::sendMessage>(chat_id, 0, false, false, nullptr,
+ *                     std::vector<td::tl_object_ptr<td::td_api::textEntity>>());
+ * auto send_message_request = td::make_tl_object<td::td_api::sendMessage>(chat_id, 0, nullptr, nullptr,
  *      td::make_tl_object<td::td_api::inputMessageText>(std::move(message_text), false, true));
  * \endcode
  *

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -12,6 +12,7 @@
 #include <cstring>
 
 namespace td {
+
 StringBuilder &operator<<(StringBuilder &sb, const JsonRawString &val) {
   sb << '"';
   SCOPE_EXIT {
@@ -133,6 +134,7 @@ StringBuilder &operator<<(StringBuilder &sb, const JsonString &val) {
   }
   return sb;
 }
+
 Result<MutableSlice> json_string_decode(Parser &parser) {
   if (!parser.try_skip('"')) {
     return Status::Error("Opening '\"' expected");
@@ -344,17 +346,17 @@ Result<JsonValue> do_json_decode(Parser &parser, int32 max_depth) {
       if (parser.skip_start_with("false")) {
         return JsonValue::create_boolean(false);
       }
-      return Status::Error("Starts with 'f' -- false expected");
+      return Status::Error("Token starts with 'f' -- false expected");
     case 't':
       if (parser.skip_start_with("true")) {
         return JsonValue::create_boolean(true);
       }
-      return Status::Error("Starts with 't' -- true expected");
+      return Status::Error("Token starts with 't' -- true expected");
     case 'n':
       if (parser.skip_start_with("null")) {
         return JsonValue();
       }
-      return Status::Error("Starts with 'n' -- null expected");
+      return Status::Error("Token starts with 'n' -- null expected");
     case '"': {
       TRY_RESULT(slice, json_string_decode(parser));
       return JsonValue::create_string(slice);
@@ -368,7 +370,7 @@ Result<JsonValue> do_json_decode(Parser &parser, int32 max_depth) {
       }
       while (true) {
         if (parser.empty()) {
-          return Status::Error("Unexpected end");
+          return Status::Error("Unexpected string end");
         }
         TRY_RESULT(value, do_json_decode(parser, max_depth - 1));
         res.emplace_back(std::move(value));
@@ -381,7 +383,10 @@ Result<JsonValue> do_json_decode(Parser &parser, int32 max_depth) {
           parser.skip_whitespaces();
           continue;
         }
-        return Status::Error("Unexpected symbol");
+        if (parser.empty()) {
+          return Status::Error("Unexpected string end");
+        }
+        return Status::Error("Unexpected symbol while parsing JSON Array");
       }
       return JsonValue::create_array(std::move(res));
     }
@@ -394,7 +399,7 @@ Result<JsonValue> do_json_decode(Parser &parser, int32 max_depth) {
       }
       while (true) {
         if (parser.empty()) {
-          return Status::Error("Unexpected end");
+          return Status::Error("Unexpected string end");
         }
         TRY_RESULT(key, json_string_decode(parser));
         parser.skip_whitespaces();
@@ -412,7 +417,10 @@ Result<JsonValue> do_json_decode(Parser &parser, int32 max_depth) {
           parser.skip_whitespaces();
           continue;
         }
-        return Status::Error("Unexpected symbol");
+        if (parser.empty()) {
+          return Status::Error("Unexpected string end");
+        }
+        return Status::Error("Unexpected symbol while parsing JSON Object");
       }
       return JsonValue::make_object(std::move(res));
     }
@@ -434,7 +442,7 @@ Result<JsonValue> do_json_decode(Parser &parser, int32 max_depth) {
       return JsonValue::create_number(num);
     }
     case 0:
-      return Status::Error("Unexpected end");
+      return Status::Error("Unexpected string end");
     default: {
       char next = parser.peek_char();
       if (0 < next && next < 127) {
@@ -576,13 +584,22 @@ Slice JsonValue::get_type_name(Type type) {
   }
 }
 
-bool has_json_object_field(JsonObject &object, Slice name) {
+bool has_json_object_field(const JsonObject &object, Slice name) {
   for (auto &field_value : object) {
     if (field_value.first == name) {
       return true;
     }
   }
   return false;
+}
+
+JsonValue get_json_object_field_force(JsonObject &object, Slice name) {
+  for (auto &field_value : object) {
+    if (field_value.first == name) {
+      return std::move(field_value.second);
+    }
+  }
+  return JsonValue();
 }
 
 Result<JsonValue> get_json_object_field(JsonObject &object, Slice name, JsonValue::Type type, bool is_optional) {
@@ -611,11 +628,41 @@ Result<bool> get_json_object_bool_field(JsonObject &object, Slice name, bool is_
 }
 
 Result<int32> get_json_object_int_field(JsonObject &object, Slice name, bool is_optional, int32 default_value) {
-  TRY_RESULT(value, get_json_object_field(object, name, JsonValue::Type::Number, is_optional));
-  if (value.type() == JsonValue::Type::Null) {
+  for (auto &field_value : object) {
+    if (field_value.first == name) {
+      if (field_value.second.type() == JsonValue::Type::String) {
+        return to_integer_safe<int32>(field_value.second.get_string());
+      }
+      if (field_value.second.type() == JsonValue::Type::Number) {
+        return to_integer_safe<int32>(field_value.second.get_number());
+      }
+
+      return Status::Error(400, PSLICE() << "Field \"" << name << "\" must be of type Number");
+    }
+  }
+  if (is_optional) {
     return default_value;
   }
-  return to_integer_safe<int32>(value.get_number());
+  return Status::Error(400, PSLICE() << "Can't find field \"" << name << "\"");
+}
+
+Result<int64> get_json_object_long_field(JsonObject &object, Slice name, bool is_optional, int64 default_value) {
+  for (auto &field_value : object) {
+    if (field_value.first == name) {
+      if (field_value.second.type() == JsonValue::Type::String) {
+        return to_integer_safe<int64>(field_value.second.get_string());
+      }
+      if (field_value.second.type() == JsonValue::Type::Number) {
+        return to_integer_safe<int64>(field_value.second.get_number());
+      }
+
+      return Status::Error(400, PSLICE() << "Field \"" << name << "\" must be a Number");
+    }
+  }
+  if (is_optional) {
+    return default_value;
+  }
+  return Status::Error(400, PSLICE() << "Can't find field \"" << name << "\"");
 }
 
 Result<double> get_json_object_double_field(JsonObject &object, Slice name, bool is_optional, double default_value) {

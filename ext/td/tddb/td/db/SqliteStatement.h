@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -44,10 +44,10 @@ class SqliteStatement {
   Result<string> explain();
 
   bool can_step() const {
-    return state_ != Finish;
+    return state_ != State::Finish;
   }
   bool has_row() const {
-    return state_ == GotRow;
+    return state_ == State::GotRow;
   }
   bool empty() const {
     return !stmt_;
@@ -56,7 +56,9 @@ class SqliteStatement {
   void reset();
 
   auto guard() {
-    return ScopeExit{} + [this] { this->reset(); };
+    return ScopeExit{} + [this] {
+      this->reset();
+    };
   }
 
   // TODO get row
@@ -70,7 +72,8 @@ class SqliteStatement {
     void operator()(sqlite3_stmt *stmt);
   };
 
-  enum { Start, GotRow, Finish } state_ = Start;
+  enum class State { Start, GotRow, Finish };
+  State state_ = State::Start;
 
   std::unique_ptr<sqlite3_stmt, StmtDeleter> stmt_;
   std::shared_ptr<detail::RawSqliteDb> db_;

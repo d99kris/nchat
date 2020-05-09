@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.0.2 FATAL_ERROR)
 
+if (NOT DEFINED CMAKE_INSTALL_LIBDIR)
+  set(CMAKE_INSTALL_LIBDIR "lib")
+endif()
+
 #SOURCE SETS
 set(TDDB_SOURCE
   td/db/binlog/Binlog.cpp
@@ -8,17 +12,18 @@ set(TDDB_SOURCE
   td/db/binlog/detail/BinlogEventsBuffer.cpp
   td/db/binlog/detail/BinlogEventsProcessor.cpp
 
+  td/db/SqliteConnectionSafe.cpp
   td/db/SqliteDb.cpp
-  td/db/SqliteStatement.cpp
   td/db/SqliteKeyValue.cpp
   td/db/SqliteKeyValueAsync.cpp
+  td/db/SqliteStatement.cpp
 
   td/db/detail/RawSqliteDb.cpp
 
   td/db/binlog/Binlog.h
-  td/db/binlog/BinlogInterface.h
   td/db/binlog/BinlogEvent.h
   td/db/binlog/BinlogHelper.h
+  td/db/binlog/BinlogInterface.h
   td/db/binlog/ConcurrentBinlog.h
   td/db/binlog/detail/BinlogEventsBuffer.h
   td/db/binlog/detail/BinlogEventsProcessor.h
@@ -49,8 +54,6 @@ if (NOT CMAKE_CROSSCOMPILING)
 endif()
 
 install(TARGETS tddb EXPORT TdTargets
-  LIBRARY DESTINATION lib
-  ARCHIVE DESTINATION lib
-  RUNTIME DESTINATION bin
-  INCLUDES DESTINATION include
+  LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 )

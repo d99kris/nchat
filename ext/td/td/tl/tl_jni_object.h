@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -17,6 +17,7 @@ namespace td {
 namespace td_api {
 class keyboardButton;
 class inlineKeyboardButton;
+class pageBlockTableCell;
 }  // namespace td_api
 
 namespace jni {
@@ -25,6 +26,7 @@ extern thread_local bool parse_error;
 
 extern jclass ArrayKeyboardButtonClass;
 extern jclass ArrayInlineKeyboardButtonClass;
+extern jclass ArrayPageBlockTableCellClass;
 extern jmethodID GetConstructorID;
 extern jmethodID BooleanGetValueMethodID;
 extern jmethodID IntegerGetValueMethodID;
@@ -140,6 +142,14 @@ class get_array_class<td_api::inlineKeyboardButton> {
  public:
   static jclass get() {
     return ArrayInlineKeyboardButtonClass;
+  }
+};
+
+template <>
+class get_array_class<td_api::pageBlockTableCell> {
+ public:
+  static jclass get() {
+    return ArrayPageBlockTableCellClass;
   }
 };
 

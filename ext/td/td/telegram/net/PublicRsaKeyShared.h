@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -20,7 +20,7 @@ namespace td {
 
 class PublicRsaKeyShared : public PublicRsaKeyInterface {
  public:
-  explicit PublicRsaKeyShared(DcId dc_id);
+  PublicRsaKeyShared(DcId dc_id, bool is_test);
 
   class Listener {
    public:
@@ -38,7 +38,7 @@ class PublicRsaKeyShared : public PublicRsaKeyInterface {
   void drop_keys() override;
   bool has_keys();
 
-  void add_listener(std::unique_ptr<Listener> listener);
+  void add_listener(unique_ptr<Listener> listener);
 
   DcId dc_id() const {
     return dc_id_;
@@ -51,7 +51,7 @@ class PublicRsaKeyShared : public PublicRsaKeyInterface {
     RSA rsa;
   };
   std::vector<RsaOption> options_;
-  std::vector<std::unique_ptr<Listener>> listeners_;
+  std::vector<unique_ptr<Listener>> listeners_;
   RwMutex rw_mutex_;
 
   RSA *get_rsa_locked(int64 fingerprint);

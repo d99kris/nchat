@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -45,7 +45,7 @@ class ObjectPool {
     // It is not very usual case of acquire/release use.
     // Instead of publishing an object via some flag we do the opposite.
     // We publish new generation via destruction of the data.
-    // In usual case if we see a flag then we are able to use an object.
+    // In usual case if we see a flag, then we are able to use an object.
     // In our case if we have used an object and it is already invalid, then generation will mismatch
     bool is_alive() const {
       if (!storage_) {
@@ -189,7 +189,7 @@ class ObjectPool {
       delete to_delete;
       storage_count_--;
     }
-    CHECK(storage_count_.load() == 0) << storage_count_.load();
+    LOG_CHECK(storage_count_.load() == 0) << storage_count_.load();
   }
 
  private:

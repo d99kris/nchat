@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -56,6 +56,7 @@ class TL_writer {
   virtual bool is_type_bare(const tl_type *t) const = 0;
   virtual bool is_combinator_supported(const tl_combinator *constructor) const;
   virtual bool is_documentation_generated() const;
+  virtual bool is_default_constructor_generated(const tl_combinator *t, bool is_function) const;
 
   virtual int get_parser_type(const tl_combinator *t, const std::string &parser_name) const;
   virtual int get_storer_type(const tl_combinator *t, const std::string &storer_name) const;
@@ -118,9 +119,10 @@ class TL_writer {
 
   virtual std::string gen_function_result_type(const tl_tree *result) const = 0;
 
-  virtual std::string gen_fetch_function_begin(const std::string &parser_name, const std::string &class_name, int arity,
+  virtual std::string gen_fetch_function_begin(const std::string &parser_name, const std::string &class_name,
+                                               const std::string &parent_class_name, int arity, int field_count,
                                                std::vector<var_description> &vars, int parser_type) const = 0;
-  virtual std::string gen_fetch_function_end(int field_num, const std::vector<var_description> &vars,
+  virtual std::string gen_fetch_function_end(bool has_parent, int field_count, const std::vector<var_description> &vars,
                                              int parser_type) const = 0;
 
   virtual std::string gen_fetch_function_result_begin(const std::string &parser_name, const std::string &class_name,
@@ -138,12 +140,12 @@ class TL_writer {
   virtual std::string gen_fetch_switch_case(const tl_combinator *t, int arity) const = 0;
   virtual std::string gen_fetch_switch_end() const = 0;
 
-  virtual std::string gen_constructor_begin(int fields_num, const std::string &class_name, bool is_default) const = 0;
+  virtual std::string gen_constructor_begin(int field_count, const std::string &class_name, bool is_default) const = 0;
   virtual std::string gen_constructor_parameter(int field_num, const std::string &class_name, const arg &a,
                                                 bool is_default) const = 0;
   virtual std::string gen_constructor_field_init(int field_num, const std::string &class_name, const arg &a,
                                                  bool is_default) const = 0;
-  virtual std::string gen_constructor_end(const tl_combinator *t, int fields_num, bool is_default) const = 0;
+  virtual std::string gen_constructor_end(const tl_combinator *t, int field_count, bool is_default) const = 0;
 
   virtual std::string gen_additional_function(const std::string &function_name, const tl_combinator *t,
                                               bool is_function) const;

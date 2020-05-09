@@ -1,12 +1,14 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/telegram/net/PublicRsaKeyShared.h"
 
+#include "td/utils/format.h"
 #include "td/utils/logging.h"
+#include "td/utils/misc.h"
 #include "td/utils/Slice.h"
 #include "td/utils/Status.h"
 
@@ -14,18 +16,32 @@
 
 namespace td {
 
-PublicRsaKeyShared::PublicRsaKeyShared(DcId dc_id) : dc_id_(dc_id) {
+PublicRsaKeyShared::PublicRsaKeyShared(DcId dc_id, bool is_test) : dc_id_(dc_id) {
   if (!dc_id_.is_empty()) {
     return;
   }
   auto add_pem = [this](CSlice pem) {
     auto r_rsa = RSA::from_pem(pem);
-    CHECK(r_rsa.is_ok()) << r_rsa.error() << " " << pem;
+    LOG_CHECK(r_rsa.is_ok()) << r_rsa.error() << " " << pem;
 
     if (r_rsa.is_ok()) {
       this->add_rsa(r_rsa.move_as_ok());
     }
   };
+
+  if (is_test) {
+    add_pem(
+        "-----BEGIN RSA PUBLIC KEY-----\n"
+        "MIIBCgKCAQEAr4v4wxMDXIaMOh8bayF/NyoYdpcysn5EbjTIOZC0RkgzsRj3SGlu\n"
+        "52QSz+ysO41dQAjpFLgxPVJoOlxXokaOq827IfW0bGCm0doT5hxtedu9UCQKbE8j\n"
+        "lDOk+kWMXHPZFJKWRgKgTu9hcB3y3Vk+JFfLpq3d5ZB48B4bcwrRQnzkx5GhWOFX\n"
+        "x73ZgjO93eoQ2b/lDyXxK4B4IS+hZhjzezPZTI5upTRbs5ljlApsddsHrKk6jJNj\n"
+        "8Ygs/ps8e6ct82jLXbnndC9s8HjEvDvBPH9IPjv5JUlmHMBFZ5vFQIfbpo0u0+1P\n"
+        "n6bkEi5o7/ifoyVv2pAZTRwppTz0EuXD8QIDAQAB\n"
+        "-----END RSA PUBLIC KEY-----");
+    return;
+  }
+
   //old_key
   add_pem(
       "-----BEGIN RSA PUBLIC KEY-----\n"
@@ -104,7 +120,7 @@ Result<std::pair<RSA, int64>> PublicRsaKeyShared::get_rsa(const vector<int64> &f
       return std::make_pair(rsa->clone(), fingerprint);
     }
   }
-  return Status::Error("Unknown fingerprints");
+  return Status::Error(PSLICE() << "Unknown fingerprints " << format::as_array(fingerprints));
 }
 
 void PublicRsaKeyShared::drop_keys() {
@@ -120,7 +136,7 @@ bool PublicRsaKeyShared::has_keys() {
   return !options_.empty();
 }
 
-void PublicRsaKeyShared::add_listener(std::unique_ptr<Listener> listener) {
+void PublicRsaKeyShared::add_listener(unique_ptr<Listener> listener) {
   if (listener->notify()) {
     auto lock = rw_mutex_.lock_write();
     listeners_.push_back(std::move(listener));
@@ -138,8 +154,7 @@ RSA *PublicRsaKeyShared::get_rsa_locked(int64 fingerprint) {
 
 void PublicRsaKeyShared::notify() {
   auto lock = rw_mutex_.lock_read();
-  auto it = std::remove_if(listeners_.begin(), listeners_.end(), [&](auto &listener) { return !listener->notify(); });
-  listeners_.erase(it, listeners_.end());
+  td::remove_if(listeners_, [&](auto &listener) { return !listener->notify(); });
 }
 
 }  // namespace td

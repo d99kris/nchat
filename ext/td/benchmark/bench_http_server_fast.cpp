@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -14,7 +14,7 @@
 #include "td/utils/buffer.h"
 #include "td/utils/BufferedFd.h"
 #include "td/utils/logging.h"
-#include "td/utils/port/Fd.h"
+#include "td/utils/port/detail/PollableFd.h"
 #include "td/utils/port/SocketFd.h"
 #include "td/utils/Slice.h"
 #include "td/utils/Status.h"
@@ -31,8 +31,7 @@ class HttpEchoConnection : public Actor {
   HttpReader reader_;
   HttpQuery query_;
   void start_up() override {
-    fd_.get_fd().set_observer(this);
-    subscribe(fd_.get_fd());
+    Scheduler::subscribe(fd_.get_poll_info().extract_pollable_fd(this));
     reader_.init(&fd_.input_buffer(), 1024 * 1024, 0);
   }
 
@@ -93,7 +92,7 @@ class Server : public TcpListener::Callback {
     create_actor_on_scheduler<HttpEchoConnection>("HttpInboundConnection", scheduler_id, std::move(fd)).release();
   }
   void hangup() override {
-    LOG(ERROR) << "hangup..";
+    LOG(ERROR) << "Hanging up..";
     stop();
   }
 

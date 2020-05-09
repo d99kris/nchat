@@ -6,9 +6,13 @@ class DotnetTlDocumentationGenerator extends TlDocumentationGenerator
 {
     protected function escapeDocumentation($doc)
     {
+        $doc = preg_replace_callback('/(?<!["A-Za-z_\/])[A-Za-z]*_[A-Za-z_]*/',
+            function ($word_matches)
+            {
+                return ucfirst(preg_replace_callback('/_([A-Za-z])/', function ($matches) {return strtoupper($matches[1]);}, $word_matches[0]));
+            }, $doc);
         $doc = htmlspecialchars($doc, ENT_XML1);
         $doc = str_replace('*/', '*&#47;', $doc);
-        $doc = preg_replace_callback('/_([A-Za-z])/', function ($matches) {return strtoupper($matches[1]);}, $doc);
         return $doc;
     }
 
@@ -154,13 +158,17 @@ EOT
 );
     }
 
-    protected function addClassDocumentation($class_name, $base_class_name, $description, $return_type)
+    protected function getFunctionReturnTypeDescription($return_type, $for_constructor)
     {
-        $return_type_description = $return_type ? "\r\n/// <para>Returns <see cref=\"".substr($return_type, 0, -1).'"/>.</para>' : '';
+        $shift = $for_constructor ? '  ' : '';
+        return "\r\n$shift/// <para>Returns <see cref=\"".substr($return_type, 0, -1).'"/>.</para>';
+    }
 
+    protected function addClassDocumentation($class_name, $base_class_name, $description)
+    {
         $this->addDocumentation("public ref class $class_name sealed : $base_class_name {", <<<EOT
 /// <summary>
-/// $description$return_type_description
+/// $description
 /// </summary>
 EOT
 );
@@ -182,25 +190,28 @@ EOT
 );
     }
 
-    protected function addDefaultConstructorDocumentation($class_name)
+    protected function addDefaultConstructorDocumentation($class_name, $class_description)
     {
         $this->addDocumentation("  $class_name();", <<<EOT
   /// <summary>
-  /// Default constructor.
+  /// $class_description
   /// </summary>
 EOT
 );
     }
 
-    protected function addFullConstructorDocumentation($class_name, $known_fields, $info)
+    protected function addFullConstructorDocumentation($class_name, $class_description, $known_fields, $info)
     {
         $full_constructor = "  $class_name(";
         $colon = '';
         foreach ($known_fields as $name => $type) {
             $field_type = $this->getTypeName($type);
-            if (substr($field_type, 0, 5) !== 'Array' && substr($field_type, 0, 6) !== 'String' &&
-                ucfirst($field_type) === $field_type) {
-                $field_type = '::Telegram::Td::Api::'.$field_type;
+            $pos = 0;
+            while (substr($field_type, $pos, 6) === 'Array<') {
+                $pos += 6;
+            }
+            if (substr($field_type, $pos, 6) !== 'String' && ucfirst(substr($field_type, $pos)) === substr($field_type, $pos)) {
+                $field_type = substr($field_type, 0, $pos).'::Telegram::Td::Api::'.substr($field_type, $pos);
             }
             $full_constructor .= $colon.$field_type.' '.$this->getParameterName($name, $class_name);
             $colon = ', ';
@@ -209,7 +220,7 @@ EOT
 
         $full_doc = <<<EOT
   /// <summary>
-  /// Constructor for initialization of all fields.
+  /// $class_description
   /// </summary>
 EOT;
         foreach ($known_fields as $name => $type) {

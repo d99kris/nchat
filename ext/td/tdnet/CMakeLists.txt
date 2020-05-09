@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.0.2 FATAL_ERROR)
 
+if (NOT DEFINED CMAKE_INSTALL_LIBDIR)
+  set(CMAKE_INSTALL_LIBDIR "lib")
+endif()
+
 if (NOT OPENSSL_FOUND)
   find_package(OpenSSL REQUIRED)
   find_package(ZLIB REQUIRED)
@@ -47,16 +51,18 @@ set(TDNET_SOURCE
 
 add_library(tdnet STATIC ${TDNET_SOURCE})
 target_include_directories(tdnet PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
-target_include_directories(tdnet SYSTEM PUBLIC $<BUILD_INTERFACE:${OPENSSL_INCLUDE_DIR}>)
-target_link_libraries(tdnet PUBLIC tdutils tdactor ${OPENSSL_LIBRARIES} PRIVATE ${CMAKE_DL_LIBS} ${ZLIB_LIBRARIES})
+target_include_directories(tdnet SYSTEM PRIVATE $<BUILD_INTERFACE:${OPENSSL_INCLUDE_DIR}>)
+target_link_libraries(tdnet PUBLIC tdutils tdactor PRIVATE ${CMAKE_DL_LIBS} ${ZLIB_LIBRARIES})
+if (NOT EMSCRIPTEN)
+  target_link_libraries(tdnet PRIVATE ${OPENSSL_SSL_LIBRARY})
+endif()
+target_link_libraries(tdnet PRIVATE ${OPENSSL_CRYPTO_LIBRARY})
 
 if (WIN32)
   target_link_libraries(tdnet PRIVATE Crypt32)
 endif()
 
 install(TARGETS tdnet EXPORT TdTargets
-  LIBRARY DESTINATION lib
-  ARCHIVE DESTINATION lib
-  RUNTIME DESTINATION bin
-  INCLUDES DESTINATION include
+  LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 )

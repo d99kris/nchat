@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -26,6 +26,7 @@ static jclass StringClass;
 static jclass ObjectClass;
 jclass ArrayKeyboardButtonClass;
 jclass ArrayInlineKeyboardButtonClass;
+jclass ArrayPageBlockTableCellClass;
 jmethodID GetConstructorID;
 jmethodID BooleanGetValueMethodID;
 jmethodID IntegerGetValueMethodID;
@@ -103,6 +104,8 @@ void init_vars(JNIEnv *env, const char *td_api_java_package) {
       get_jclass(env, (PSLICE() << "[L" << td_api_java_package << "/TdApi$KeyboardButton;").c_str());
   ArrayInlineKeyboardButtonClass =
       get_jclass(env, (PSLICE() << "[L" << td_api_java_package << "/TdApi$InlineKeyboardButton;").c_str());
+  ArrayPageBlockTableCellClass =
+      get_jclass(env, (PSLICE() << "[L" << td_api_java_package << "/TdApi$PageBlockTableCell;").c_str());
   GetConstructorID = get_method_id(env, ObjectClass, "getConstructor", "()I");
   BooleanGetValueMethodID = get_method_id(env, BooleanClass, "booleanValue", "()Z");
   IntegerGetValueMethodID = get_method_id(env, IntegerClass, "intValue", "()I");

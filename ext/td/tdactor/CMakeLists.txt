@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.0.2 FATAL_ERROR)
 
+if (NOT DEFINED CMAKE_INSTALL_LIBDIR)
+  set(CMAKE_INSTALL_LIBDIR "lib")
+endif()
+
 #SOURCE SETS
 set(TDACTOR_SOURCE
   td/actor/impl/ConcurrentScheduler.cpp
@@ -19,7 +23,6 @@ set(TDACTOR_SOURCE
   td/actor/impl/Event.h
   td/actor/impl/Scheduler-decl.h
   td/actor/impl/Scheduler.h
-  td/actor/Condition.h
   td/actor/MultiPromise.h
   td/actor/PromiseFuture.h
   td/actor/SchedulerLocalStorage.h
@@ -45,12 +48,12 @@ add_library(tdactor STATIC ${TDACTOR_SOURCE})
 target_include_directories(tdactor PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
 target_link_libraries(tdactor PUBLIC tdutils)
 
-add_executable(example example/example.cpp)
-target_link_libraries(example PRIVATE tdactor)
+if (NOT CMAKE_CROSSCOMPILING)
+  add_executable(example example/example.cpp)
+  target_link_libraries(example PRIVATE tdactor)
+endif()
 
 install(TARGETS tdactor EXPORT TdTargets
-  LIBRARY DESTINATION lib
-  ARCHIVE DESTINATION lib
-  RUNTIME DESTINATION bin
-  INCLUDES DESTINATION include
+  LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 )

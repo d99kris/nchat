@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -10,7 +10,6 @@
 
 #include "td/utils/common.h"
 #include "td/utils/format.h"
-#include "td/utils/logging.h"
 #include "td/utils/StringBuilder.h"
 #include "td/utils/Time.h"
 
@@ -87,7 +86,7 @@ class NetStats {
   }
 
   // do it before get_callback
-  void set_callback(std::unique_ptr<Callback> callback) {
+  void set_callback(unique_ptr<Callback> callback) {
     impl_->set_callback(std::move(callback));
   }
 
@@ -102,7 +101,7 @@ class NetStats {
       });
       return res;
     }
-    void set_callback(std::unique_ptr<Callback> callback) {
+    void set_callback(unique_ptr<Callback> callback) {
       callback_ = std::move(callback);
     }
 
@@ -114,7 +113,7 @@ class NetStats {
       std::atomic<uint64> write_size{0};
     };
     SchedulerLocalStorage<LocalNetStats> local_net_stats_;
-    std::unique_ptr<Callback> callback_;
+    unique_ptr<Callback> callback_;
 
     void on_read(uint64 size) final {
       auto &stats = local_net_stats_.get();
@@ -131,8 +130,8 @@ class NetStats {
 
     void on_change(LocalNetStats &stats, uint64 size) {
       stats.unsync_size += size;
-      auto now = Time::now_cached();
-      if (stats.unsync_size > 10000 || now - stats.last_update > 5 * 60) {
+      auto now = Time::now();
+      if (stats.unsync_size > 10000 || now - stats.last_update > 300) {
         stats.unsync_size = 0;
         stats.last_update = now;
         callback_->on_stats_updated();

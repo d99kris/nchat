@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -97,7 +97,7 @@ class Client final {
   /**
    * Receives incoming updates and request responses from TDLib. May be called from any thread, but shouldn't be
    * called simultaneously from two different threads.
-   * \param[in] timeout Maximum number of seconds allowed for this function to wait for new data.
+   * \param[in] timeout The maximum number of seconds allowed for this function to wait for new data.
    * \return An incoming update or request response. The object returned in the response may be a nullptr
    *         if the timeout expires.
    */

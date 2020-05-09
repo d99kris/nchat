@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -8,6 +8,8 @@
 
 #include "td/telegram/Global.h"
 #include "td/telegram/net/NetQueryDispatcher.h"
+
+#include "td/utils/Status.h"
 
 namespace td {
 
@@ -42,6 +44,24 @@ void DelayDispatcher::loop() {
   }
 
   set_timeout_at(wakeup_at_.at());
+}
+
+void DelayDispatcher::close_silent() {
+  while (!queue_.empty()) {
+    auto query = std::move(queue_.front());
+    queue_.pop();
+    query.net_query->clear();
+  }
+  stop();
+}
+
+void DelayDispatcher::tear_down() {
+  while (!queue_.empty()) {
+    auto query = std::move(queue_.front());
+    queue_.pop();
+    query.net_query->set_error(Status::Error(500, "Request aborted"));
+    send_closure(std::move(query.callback), &NetQueryCallback::on_result, std::move(query.net_query));
+  }
 }
 
 }  // namespace td

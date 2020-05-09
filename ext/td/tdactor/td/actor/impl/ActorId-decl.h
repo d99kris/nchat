@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -23,8 +23,8 @@ class ActorId {
   explicit ActorId(ObjectPool<ActorInfo>::WeakPtr ptr) : ptr_(ptr) {
   }
   ActorId() = default;
-  ActorId(const ActorId &) = default;
-  ActorId &operator=(const ActorId &) = default;
+  ActorId(const ActorId &other) = default;
+  ActorId &operator=(const ActorId &other) = default;
   ActorId(ActorId &&other) : ptr_(other.ptr_) {
     other.ptr_.clear();
   }
@@ -78,17 +78,17 @@ class ActorOwn {
  public:
   using ActorT = ActorType;
   ActorOwn() = default;
-  explicit ActorOwn(ActorId<ActorType>);
+  explicit ActorOwn(ActorId<ActorType> id);
   template <class OtherActorType>
   explicit ActorOwn(ActorId<OtherActorType> id);
   template <class OtherActorType>
-  explicit ActorOwn(ActorOwn<OtherActorType> &&);
+  explicit ActorOwn(ActorOwn<OtherActorType> &&other);
   template <class OtherActorType>
-  ActorOwn &operator=(ActorOwn<OtherActorType> &&);
-  ActorOwn(ActorOwn &&);
-  ActorOwn &operator=(ActorOwn &&);
-  ActorOwn(const ActorOwn &) = delete;
-  ActorOwn &operator=(const ActorOwn &) = delete;
+  ActorOwn &operator=(ActorOwn<OtherActorType> &&other);
+  ActorOwn(ActorOwn &&other);
+  ActorOwn &operator=(ActorOwn &&other);
+  ActorOwn(const ActorOwn &other) = delete;
+  ActorOwn &operator=(const ActorOwn &other) = delete;
   ~ActorOwn();
 
   bool empty() const;
@@ -114,17 +114,17 @@ class ActorShared {
   using ActorT = ActorType;
   ActorShared() = default;
   template <class OtherActorType>
-  ActorShared(ActorId<OtherActorType>, uint64 token);
+  ActorShared(ActorId<OtherActorType> id, uint64 token);
   template <class OtherActorType>
-  ActorShared(ActorShared<OtherActorType> &&);
+  ActorShared(ActorShared<OtherActorType> &&other);
   template <class OtherActorType>
-  ActorShared(ActorOwn<OtherActorType> &&);
+  ActorShared(ActorOwn<OtherActorType> &&other);
   template <class OtherActorType>
-  ActorShared &operator=(ActorShared<OtherActorType> &&);
-  ActorShared(ActorShared &&);
-  ActorShared &operator=(ActorShared &&);
-  ActorShared(const ActorShared &) = delete;
-  ActorShared &operator=(const ActorShared &) = delete;
+  ActorShared &operator=(ActorShared<OtherActorType> &&other);
+  ActorShared(ActorShared &&other);
+  ActorShared &operator=(ActorShared &&other);
+  ActorShared(const ActorShared &other) = delete;
+  ActorShared &operator=(const ActorShared &other) = delete;
   ~ActorShared();
 
   uint64 token() const;
@@ -141,7 +141,7 @@ class ActorShared {
 
  private:
   ActorId<ActorType> id_;
-  uint64 token_;
+  uint64 token_ = 0;
 };
 
 class ActorRef {
@@ -149,6 +149,8 @@ class ActorRef {
   ActorRef() = default;
   template <class T>
   ActorRef(const ActorId<T> &actor_id);
+  template <class T>
+  ActorRef(ActorId<T> &&actor_id);
   template <class T>
   ActorRef(const ActorShared<T> &actor_id);
   template <class T>

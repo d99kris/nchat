@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.0.2 FATAL_ERROR)
 
+if (NOT DEFINED CMAKE_INSTALL_LIBDIR)
+  set(CMAKE_INSTALL_LIBDIR "lib")
+endif()
+
 if (NOT OPENSSL_FOUND)
   find_package(OpenSSL REQUIRED)
   find_package(ZLIB REQUIRED)
@@ -31,7 +35,7 @@ if (NOT WIN32)
   target_compile_definitions(tdsqlite PRIVATE -DHAVE_USLEEP -DNDEBUG=1)
 endif()
 
-if ("${CMAKE_SYSTEM_NAME}" STREQUAL "WindowsStore")
+if (CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
   target_compile_definitions(tdsqlite PRIVATE -DSQLITE_OS_WINRT=1)
 endif()
 
@@ -45,8 +49,6 @@ elseif (MSVC)
 endif()
 
 install(TARGETS tdsqlite EXPORT TdTargets
-  LIBRARY DESTINATION lib
-  ARCHIVE DESTINATION lib
-  RUNTIME DESTINATION bin
-  INCLUDES DESTINATION include
+  LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 )

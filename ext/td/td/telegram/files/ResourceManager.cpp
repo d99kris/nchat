@@ -1,11 +1,12 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/telegram/files/ResourceManager.h"
 
+#include "td/utils/common.h"
 #include "td/utils/format.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
@@ -18,7 +19,7 @@ namespace td {
 void ResourceManager::register_worker(ActorShared<FileLoaderActor> callback, int8 priority) {
   auto node_id = nodes_container_.create();
   auto *node_ptr = nodes_container_.get(node_id);
-  *node_ptr = std::make_unique<Node>();
+  *node_ptr = make_unique<Node>();
   auto *node = (*node_ptr).get();
   CHECK(node);
   node->node_id = node_id;
@@ -50,13 +51,13 @@ void ResourceManager::update_resources(const ResourceState &resource_state) {
   }
   auto node = (*node_ptr).get();
   CHECK(node);
-  VLOG(files) << "before total: " << resource_state_;
-  VLOG(files) << "before " << tag("node_id", node_id) << ": " << node->resource_state_;
+  VLOG(files) << "Before total: " << resource_state_;
+  VLOG(files) << "Before " << tag("node_id", node_id) << ": " << node->resource_state_;
   resource_state_ -= node->resource_state_;
   node->resource_state_.update_master(resource_state);
   resource_state_ += node->resource_state_;
-  VLOG(files) << "after total: " << resource_state_;
-  VLOG(files) << "after " << tag("node_id", node_id) << ": " << node->resource_state_;
+  VLOG(files) << "After total: " << resource_state_;
+  VLOG(files) << "After " << tag("node_id", node_id) << ": " << node->resource_state_;
 
   if (mode_ == Mode::Greedy) {
     add_to_heap(node);
