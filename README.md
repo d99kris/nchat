@@ -86,32 +86,6 @@ Linux / Ubuntu
 
     sudo make install
 
-Linux Low Memory / Low RAM Systems
-----------------------------------
-
-The Telegram client library subcomponent requires relatively large amount of RAM to
-build by default (3.5GB using g++, and 1.5 GB for clang++). It is possible to adjust the
-Telegram client library source code so that it requires less RAM (but takes longer time).
-Doing so reduces the memory requirement to around 1GB under g++ and 0.5GB for clang++. Also, it
-is recommended to build nchat in release mode (which is default if downloading zip/tar release
-package - but with a git/svn clone it defaults to debug mode), to minimize memory usage.
-Steps to build nchat on a low memory system:
-
-**Source**
-
-    git clone https://github.com/d99kris/nchat && cd nchat
-
-**Build**
-
-    cd ext/td ; php SplitSource.php ; cd -
-    mkdir -p build && cd build
-    CC=/usr/bin/clang CXX=/usr/bin/clang++ cmake -DCMAKE_BUILD_TYPE=Release .. && make -s
-    cd ../ext/td ; php SplitSource.php --undo ; cd -   # optional step to revert source split
-
-**Install**
-
-    sudo make install
-
 macOS
 -----
 
@@ -130,6 +104,34 @@ macOS
 **Install**
 
     make install
+
+Low Memory / RAM Systems
+------------------------
+The Telegram client library subcomponent requires relatively large amount of RAM to
+build by default (3.5GB using g++, and 1.5 GB for clang++). It is possible to adjust the
+Telegram client library source code so that it requires less RAM (but takes longer time).
+Doing so reduces the memory requirement to around 1GB under g++ and 0.5GB for clang++. Also, it
+is recommended to build nchat in release mode (which is default if downloading zip/tar release
+package - but with a git/svn clone it defaults to debug mode), to minimize memory usage.
+Steps to build nchat on a low memory system:
+
+**Source**
+
+    git clone https://github.com/d99kris/nchat && cd nchat
+
+**Build**
+
+    cd ext/td ; php SplitSource.php ; cd -
+    mkdir -p build && cd build
+    CC=/usr/bin/clang CXX=/usr/bin/clang++ cmake -DCMAKE_BUILD_TYPE=Release .. && make -s
+
+**Install**
+
+    sudo make install
+
+**Revert Source Code Split (Optional)**
+
+    cd ../ext/td ; php SplitSource.php --undo ; cd -   # optional step to revert source split
 
 Getting Started
 ===============
