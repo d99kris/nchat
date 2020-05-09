@@ -1,6 +1,6 @@
 // main.cpp
 //
-// Copyright (c) 2019 Kristofer Berggren
+// Copyright (c) 2019-2020 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -231,7 +231,7 @@ static void ShowVersion()
   std::cout <<
     "nchat " << Util::GetAppVersion() << "\n"
     "\n"
-    "Copyright (c) 2019 Kristofer Berggren\n"
+    "Copyright (c) 2019-2020 Kristofer Berggren\n"
     "\n"
     "nchat is distributed under the MIT license.\n"
     "\n"
