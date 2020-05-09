@@ -653,7 +653,7 @@ void Telegram::OnAuthStateUpdate()
       SendQuery(td::td_api::make_object<td::td_api::setTdlibParameters>(std::move(parameters)),
                 CreateAuthQueryHandler());
     },
-    [this](td::td_api::authorizationStateWaitOtherDeviceConfirmation &state) {
+    [](td::td_api::authorizationStateWaitOtherDeviceConfirmation &state) {
       std::cout << "Confirm this login link on another device:\n" << state.link_ << "\n";
     }
   ));
