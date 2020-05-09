@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -15,6 +15,7 @@
 
 #if !TD_WINDOWS
 #include <arpa/inet.h>
+#include <netinet/in.h>
 #include <sys/socket.h>
 #endif
 
@@ -32,6 +33,8 @@ class IPAddress {
   bool is_ipv4() const;
   bool is_ipv6() const;
 
+  bool is_reserved() const;
+
   int get_port() const;
   void set_port(int port);
 
@@ -39,9 +42,10 @@ class IPAddress {
   Slice get_ipv6() const;
   Slice get_ip_str() const;
 
-  static CSlice ipv4_to_str(int32 ipv4);
-
   IPAddress get_any_addr() const;
+
+  static Result<IPAddress> get_ipv4_address(CSlice host);
+  static Result<IPAddress> get_ipv6_address(CSlice host);
 
   Status init_ipv6_port(CSlice ipv6, int port) TD_WARN_UNUSED_RESULT;
   Status init_ipv6_as_ipv4_port(CSlice ipv4, int port) TD_WARN_UNUSED_RESULT;
@@ -59,17 +63,22 @@ class IPAddress {
   const sockaddr *get_sockaddr() const;
   size_t get_sockaddr_len() const;
   int get_address_family() const;
+  static CSlice ipv4_to_str(uint32 ipv4);
+  static CSlice ipv6_to_str(Slice ipv6);
+  Status init_sockaddr(sockaddr *addr);
+  Status init_sockaddr(sockaddr *addr, socklen_t len) TD_WARN_UNUSED_RESULT;
 
  private:
   union {
-    sockaddr_storage addr_;
     sockaddr sockaddr_;
     sockaddr_in ipv4_addr_;
     sockaddr_in6 ipv6_addr_;
   };
+  static constexpr socklen_t storage_size() {
+    return sizeof(ipv6_addr_);
+  }
   bool is_valid_;
 
-  Status init_sockaddr(sockaddr *addr, socklen_t len) TD_WARN_UNUSED_RESULT;
   void init_ipv4_any();
   void init_ipv6_any();
 };

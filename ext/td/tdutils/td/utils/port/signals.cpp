@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -7,9 +7,11 @@
 #include "td/utils/port/signals.h"
 
 #include "td/utils/port/config.h"
+#include "td/utils/port/stacktrace.h"
+#include "td/utils/port/StdStreams.h"
 
+#include "td/utils/common.h"
 #include "td/utils/format.h"
-#include "td/utils/logging.h"
 
 #if TD_PORT_POSIX
 #include <signal.h>
@@ -22,6 +24,7 @@
 
 #include <cerrno>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <ctime>
 #include <limits>
@@ -63,23 +66,24 @@ Status setup_signals_alt_stack() {
 }
 
 #if TD_PORT_POSIX
+static void set_handler(struct sigaction &act, decltype(act.sa_handler) handler) {
+  act.sa_handler = handler;
+}
+static void set_handler(struct sigaction &act, decltype(act.sa_sigaction) handler) {
+  act.sa_sigaction = handler;
+  act.sa_flags |= SA_SIGINFO;
+}
 template <class F>
-static Status set_signal_handler_impl(vector<int> signals, F func, bool is_extended = false) {
+static Status set_signal_handler_impl(vector<int> signals, F func) {
   struct sigaction act;
   std::memset(&act, '\0', sizeof(act));
-  if (is_extended) {  // TODO if constexpr, remove useless reinterpret_cast
-    act.sa_handler = reinterpret_cast<decltype(act.sa_handler)>(func);
-  } else {
-    act.sa_sigaction = reinterpret_cast<decltype(act.sa_sigaction)>(func);
-  }
+
   sigemptyset(&act.sa_mask);
   for (auto signal : signals) {
     sigaddset(&act.sa_mask, signal);
   }
   act.sa_flags = SA_RESTART | SA_ONSTACK;
-  if (is_extended) {
-    act.sa_flags |= SA_SIGINFO;
-  }
+  set_handler(act, func);
 
   for (auto signal : signals) {
     if (sigaction(signal, &act, nullptr) != 0) {
@@ -111,7 +115,7 @@ static vector<int> get_native_signals(SignalType type) {
 }
 #endif
 #if TD_PORT_WINDOWS
-static Status set_signal_handler_impl(vector<int> signals, void (*func)(int sig), bool /*unused*/ = true) {
+static Status set_signal_handler_impl(vector<int> signals, void (*func)(int sig)) {
   for (auto signal : signals) {
     if (std::signal(signal, func) == SIG_ERR) {
       return Status::Error("Failed to set signal handler");
@@ -171,7 +175,7 @@ Status set_extended_signal_handler(SignalType type, extended_signal_handler func
       UNREACHABLE();
     }
   }
-  return set_signal_handler_impl(std::move(signals), siginfo_handler, true);
+  return set_signal_handler_impl(std::move(signals), siginfo_handler);
 }
 
 Status set_runtime_signal_handler(int runtime_signal_number, void (*func)(int)) {
@@ -285,7 +289,7 @@ void signal_safe_write_pointer(void *p, bool add_header) {
   char *ptr = end;
   *--ptr = '\n';
   do {
-    *--ptr = td::format::hex_digit(addr % 16);
+    *--ptr = format::hex_digit(addr % 16);
     addr /= 16;
   } while (addr != 0);
   *--ptr = 'x';
@@ -293,6 +297,32 @@ void signal_safe_write_pointer(void *p, bool add_header) {
   ptr -= 9;
   std::memcpy(ptr, "Address: ", 9);
   signal_safe_write(Slice(ptr, end), add_header);
+}
+
+static void block_stdin() {
+#if TD_PORT_POSIX
+  Stdin().get_native_fd().set_is_blocking(true).ignore();
+#endif
+}
+
+static void default_failure_signal_handler(int sig) {
+  Stacktrace::init();
+  signal_safe_write_signal_number(sig);
+
+  Stacktrace::PrintOptions options;
+  options.use_gdb = true;
+  Stacktrace::print_to_stderr(options);
+
+  block_stdin();
+  _Exit(EXIT_FAILURE);
+}
+
+Status set_default_failure_signal_handler() {
+  std::atexit(block_stdin);
+  TRY_STATUS(setup_signals_alt_stack());
+  TRY_STATUS(set_signal_handler(SignalType::Abort, default_failure_signal_handler));
+  TRY_STATUS(set_signal_handler(SignalType::Error, default_failure_signal_handler));
+  return Status::OK();
 }
 
 }  // namespace td

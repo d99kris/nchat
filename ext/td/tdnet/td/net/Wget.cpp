@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -22,25 +22,34 @@
 
 namespace td {
 
-Wget::Wget(Promise<HttpQueryPtr> promise, string url, std::vector<std::pair<string, string>> headers, int32 timeout_in,
-           int32 ttl, bool prefer_ipv6, SslStream::VerifyPeer verify_peer)
+Wget::Wget(Promise<unique_ptr<HttpQuery>> promise, string url, std::vector<std::pair<string, string>> headers,
+           int32 timeout_in, int32 ttl, bool prefer_ipv6, SslStream::VerifyPeer verify_peer, string content,
+           string content_type)
     : promise_(std::move(promise))
     , input_url_(std::move(url))
     , headers_(std::move(headers))
     , timeout_in_(timeout_in)
     , ttl_(ttl)
     , prefer_ipv6_(prefer_ipv6)
-    , verify_peer_(verify_peer) {
+    , verify_peer_(verify_peer)
+    , content_(std::move(content))
+    , content_type_(std::move(content_type)) {
 }
 
 Status Wget::try_init() {
-  string input_url = input_url_;
-  TRY_RESULT(url, parse_url(MutableSlice(input_url)));
-  TRY_RESULT(ascii_host, idn_to_ascii(url.host_));
-  url.host_ = std::move(ascii_host);
+  TRY_RESULT(url, parse_url(input_url_));
+  TRY_RESULT_ASSIGN(url.host_, idn_to_ascii(url.host_));
 
   HttpHeaderCreator hc;
-  hc.init_get(url.query_);
+  if (content_.empty()) {
+    hc.init_get(url.query_);
+  } else {
+    hc.init_post(url.query_);
+    hc.set_content_size(content_.size());
+    if (!content_type_.empty()) {
+      hc.set_content_type(content_type_);
+    }
+  }
   bool was_host = false;
   bool was_accept_encoding = false;
   for (auto &header : headers_) {
@@ -59,7 +68,7 @@ Status Wget::try_init() {
   if (!was_accept_encoding) {
     hc.add_header("Accept-Encoding", "gzip, deflate");
   }
-  TRY_RESULT(header, hc.finish());
+  TRY_RESULT(header, hc.finish(content_));
 
   IPAddress addr;
   TRY_STATUS(addr.init_host_port(url.host_, url.port_, prefer_ipv6_));
@@ -90,7 +99,7 @@ void Wget::loop() {
   }
 }
 
-void Wget::handle(HttpQueryPtr result) {
+void Wget::handle(unique_ptr<HttpQuery> result) {
   on_ok(std::move(result));
 }
 
@@ -98,8 +107,9 @@ void Wget::on_connection_error(Status error) {
   on_error(std::move(error));
 }
 
-void Wget::on_ok(HttpQueryPtr http_query_ptr) {
+void Wget::on_ok(unique_ptr<HttpQuery> http_query_ptr) {
   CHECK(promise_);
+  CHECK(http_query_ptr);
   if ((http_query_ptr->code_ == 301 || http_query_ptr->code_ == 302 || http_query_ptr->code_ == 307 ||
        http_query_ptr->code_ == 308) &&
       ttl_ > 0) {
@@ -130,7 +140,7 @@ void Wget::start_up() {
 }
 
 void Wget::timeout_expired() {
-  on_error(Status::Error("Timeout expired"));
+  on_error(Status::Error("Response timeout expired"));
 }
 
 void Wget::tear_down() {

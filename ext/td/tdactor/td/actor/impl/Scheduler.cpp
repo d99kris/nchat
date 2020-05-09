@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -56,10 +56,11 @@ void Scheduler::ServiceActor::start_up() {
   if (!inbound_) {
     return;
   }
+#if !TD_PORT_WINDOWS
   auto &fd = inbound_->reader_get_event_fd();
-
-  fd.get_fd().set_observer(this);
-  ::td::subscribe(fd.get_fd(), Fd::Read);
+  Scheduler::subscribe(fd.get_poll_info().extract_pollable_fd(this), PollFlags::Read());
+  subscribed_ = true;
+#endif
   yield();
 #endif
 }
@@ -73,7 +74,11 @@ void Scheduler::ServiceActor::loop() {
   while (ready_n-- > 0) {
     EventFull event = queue->reader_get_unsafe();
     if (event.actor_id().empty()) {
-      Scheduler::instance()->register_migrated_actor(static_cast<ActorInfo *>(event.data().data.ptr));
+      if (event.data().empty()) {
+        yield_scheduler();
+      } else {
+        Scheduler::instance()->register_migrated_actor(static_cast<ActorInfo *>(event.data().data.ptr));
+      }
     } else {
       VLOG(actor) << "Receive " << event.data();
       finish_migrate(event.data());
@@ -84,10 +89,29 @@ void Scheduler::ServiceActor::loop() {
   yield();
 }
 
+void Scheduler::ServiceActor::tear_down() {
+  if (!subscribed_) {
+    return;
+  }
+#if TD_THREAD_UNSUPPORTED || TD_EVENTFD_UNSUPPORTED
+  CHECK(!inbound_);
+#else
+  if (!inbound_) {
+    return;
+  }
+  auto &fd = inbound_->reader_get_event_fd();
+  Scheduler::unsubscribe(fd.get_poll_info().get_pollable_fd_ref());
+  subscribed_ = false;
+#endif
+}
+
 /*** SchedlerGuard ***/
-SchedulerGuard::SchedulerGuard(Scheduler *scheduler) : scheduler_(scheduler) {
-  CHECK(!scheduler_->has_guard_);
-  scheduler_->has_guard_ = true;
+SchedulerGuard::SchedulerGuard(Scheduler *scheduler, bool lock) : scheduler_(scheduler) {
+  if (lock) {
+    CHECK(!scheduler_->has_guard_);
+    scheduler_->has_guard_ = true;
+  }
+  is_locked_ = lock;
   save_scheduler_ = Scheduler::instance();
   Scheduler::set_scheduler(scheduler_);
 
@@ -102,8 +126,10 @@ SchedulerGuard::~SchedulerGuard() {
   if (is_valid_.get()) {
     std::swap(save_context_, scheduler_->context());
     Scheduler::set_scheduler(save_scheduler_);
-    CHECK(scheduler_->has_guard_);
-    scheduler_->has_guard_ = false;
+    if (is_locked_) {
+      CHECK(scheduler_->has_guard_);
+      scheduler_->has_guard_ = false;
+    }
     LOG_TAG = save_tag_;
   }
 }
@@ -134,7 +160,7 @@ EventGuard::~EventGuard() {
   swap_context(info);
   CHECK(info->is_lite() || save_context_ == info->get_context());
 #ifdef TD_DEBUG
-  CHECK(info->is_lite() || save_log_tag2_ == info->get_name().c_str())
+  LOG_CHECK(info->is_lite() || save_log_tag2_ == info->get_name().c_str())
       << info->is_lite() << " " << info->empty() << " " << info->is_migrating() << " " << save_log_tag2_ << " "
       << info->get_name() << " " << scheduler_->close_flag_;
 #endif
@@ -182,11 +208,6 @@ void Scheduler::init(int32 id, std::vector<std::shared_ptr<MpscPollableQueue<Eve
 
   poll_.init();
 
-#if !TD_THREAD_UNSUPPORTED && !TD_EVENTFD_UNSUPPORTED
-  event_fd_.init();
-  subscribe(event_fd_.get_fd(), Fd::Read);
-#endif
-
   if (!outbound.empty()) {
     inbound_queue_ = std::move(outbound[id]);
   }
@@ -219,12 +240,6 @@ void Scheduler::clear() {
   LOG_IF(FATAL, !ready_actors_list_.empty()) << ActorInfo::from_list_node(ready_actors_list_.next)->get_name();
   CHECK(ready_actors_list_.empty());
   poll_.clear();
-
-#if !TD_THREAD_UNSUPPORTED && !TD_EVENTFD_UNSUPPORTED
-  if (!event_fd_.empty()) {
-    event_fd_.close();
-  }
-#endif
 
   if (callback_) {
     // can't move lambda with unique_ptr inside into std::function
@@ -282,6 +297,8 @@ void Scheduler::do_event(ActorInfo *actor_info, Event &&event) {
       UNREACHABLE();
       break;
     }
+    default:
+      UNREACHABLE();
   }
   // can't clear event here. It may be already destroyed during destory_actor
 }
@@ -290,8 +307,8 @@ void Scheduler::register_migrated_actor(ActorInfo *actor_info) {
   VLOG(actor) << "Register migrated actor: " << tag("name", *actor_info) << tag("ptr", actor_info)
               << tag("actor_count", actor_count_);
   actor_count_++;
-  CHECK(actor_info->is_migrating()) << *actor_info << " " << actor_count_ << " " << sched_id_ << " "
-                                    << actor_info->migrate_dest() << " " << actor_info->is_running() << close_flag_;
+  LOG_CHECK(actor_info->is_migrating()) << *actor_info << " " << actor_count_ << " " << sched_id_ << " "
+                                        << actor_info->migrate_dest() << " " << actor_info->is_running() << close_flag_;
   CHECK(sched_id_ == actor_info->migrate_dest());
   // CHECK(!actor_info->is_running());
   actor_info->finish_migrate();
@@ -341,7 +358,7 @@ void Scheduler::do_stop_actor(Actor *actor) {
 }
 void Scheduler::do_stop_actor(ActorInfo *actor_info) {
   CHECK(!actor_info->is_migrating());
-  CHECK(actor_info->migrate_dest() == sched_id_) << actor_info->migrate_dest() << " " << sched_id_;
+  LOG_CHECK(actor_info->migrate_dest() == sched_id_) << actor_info->migrate_dest() << " " << sched_id_;
   ObjectPool<ActorInfo>::OwnerPtr owner_ptr;
   if (!actor_info->is_lite()) {
     EventGuard guard(this, actor_info);
@@ -352,6 +369,7 @@ void Scheduler::do_stop_actor(ActorInfo *actor_info) {
     event_context_ptr_->flags = 0;
   } else {
     owner_ptr = actor_info->get_actor_unsafe()->clear();
+    actor_info->destroy_actor();
   }
   destroy_actor(actor_info);
 }
@@ -406,8 +424,8 @@ void Scheduler::set_actor_timeout_in(ActorInfo *actor_info, double timeout) {
   if (timeout < 0) {
     timeout = 0;
   }
-  double expire_at = Time::now() + timeout;
-  set_actor_timeout_at(actor_info, expire_at);
+  double expires_at = Time::now() + timeout;
+  set_actor_timeout_at(actor_info, expires_at);
 }
 
 void Scheduler::set_actor_timeout_at(ActorInfo *actor_info, double timeout_at) {
@@ -420,21 +438,20 @@ void Scheduler::set_actor_timeout_at(ActorInfo *actor_info, double timeout_at) {
   }
 }
 
-void Scheduler::run_poll(double timeout) {
-  // LOG(DEBUG) << "run poll [timeout:" << format::as_time(timeout) << "]";
+void Scheduler::run_poll(Timestamp timeout) {
   // we can't wait for less than 1ms
-  poll_.run(static_cast<int32>(timeout * 1000 + 1));
-
-#if !TD_THREAD_UNSUPPORTED && !TD_EVENTFD_UNSUPPORTED
-  if (can_read(event_fd_.get_fd())) {
-    std::atomic_thread_fence(std::memory_order_acquire);
-    event_fd_.acquire();
-  }
+  int timeout_ms = static_cast<int32>(td::max(timeout.in(), 0.0) * 1000 + 1);
+#if TD_PORT_WINDOWS
+  CHECK(inbound_queue_);
+  inbound_queue_->reader_get_event_fd().wait(timeout_ms);
+  service_actor_.notify();
+#elif TD_PORT_POSIX
+  poll_.run(timeout_ms);
 #endif
 }
 
 void Scheduler::run_mailbox() {
-  VLOG(actor) << "run mailbox : begin";
+  VLOG(actor) << "Run mailbox : begin";
   ListNode actors_list = std::move(ready_actors_list_);
   while (!actors_list.empty()) {
     ListNode *node = actors_list.get();
@@ -443,7 +460,7 @@ void Scheduler::run_mailbox() {
     inc_wait_generation();
     flush_mailbox(actor_info, static_cast<void (*)(ActorInfo *)>(nullptr), static_cast<Event (*)()>(nullptr));
   }
-  VLOG(actor) << "run mailbox : finish " << actor_count_;
+  VLOG(actor) << "Run mailbox : finish " << actor_count_;
 
   //Useful for debug, but O(ActorsCount) check
 
@@ -460,40 +477,40 @@ void Scheduler::run_mailbox() {
   //LOG(ERROR) << *actor_info;
   //cnt++;
   //}
-  //CHECK(cnt == actor_count_) << cnt << " vs " << actor_count_;
+  //LOG_CHECK(cnt == actor_count_) << cnt << " vs " << actor_count_;
 }
 
-double Scheduler::run_timeout() {
+Timestamp Scheduler::run_timeout() {
   double now = Time::now();
+  //TODO: use Timestamp().is_in_past()
   while (!timeout_queue_.empty() && timeout_queue_.top_key() < now) {
     HeapNode *node = timeout_queue_.pop();
     ActorInfo *actor_info = ActorInfo::from_heap_node(node);
     inc_wait_generation();
     send<ActorSendType::Immediate>(actor_info->actor_id(), Event::timeout());
   }
-  if (timeout_queue_.empty()) {
-    return 10000;
-  }
-  double timeout = timeout_queue_.top_key() - now;
-  // LOG(DEBUG) << "Timeout [cnt:" << timeout_queue_.size() << "] in " << format::as_time(timeout);
-  return timeout;
+  return get_timeout();
 }
 
-void Scheduler::run_no_guard(double timeout) {
+void Scheduler::run_no_guard(Timestamp timeout) {
   CHECK(has_guard_);
   SCOPE_EXIT {
     yield_flag_ = false;
   };
 
-  double next_timeout = run_events();
-  if (next_timeout < timeout) {
-    timeout = next_timeout;
-  }
+  timeout.relax(run_events());
   if (yield_flag_) {
     return;
   }
   run_poll(timeout);
   run_events();
+}
+
+Timestamp Scheduler::get_timeout() {
+  if (timeout_queue_.empty()) {
+    return Timestamp::in(10000);
+  }
+  return Timestamp::at(timeout_queue_.top_key());
 }
 
 }  // namespace td

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -23,6 +23,7 @@
 namespace td {
 
 namespace detail {
+
 struct MpmcStat {
   void alloc_ok(size_t thread_id) {
     s(thread_id).alloc_ok_cnt++;
@@ -64,8 +65,10 @@ struct MpmcStat {
     return arr[thread_id];
   }
 };
+
+extern MpmcStat stat_;
+
 }  // namespace detail
-//detail::MpmcStat stat_;
 
 template <class T>
 class OneValue {
@@ -95,7 +98,7 @@ class OneValue {
  private:
   enum Type : int { Empty = 0, Taken, Value };
   std::atomic<int> state_{Empty};
-  T value_;
+  T value_{};
 };
 
 template <class T>
@@ -149,6 +152,11 @@ class MpmcQueueBlock {
   //returns Ok, Empty or Closed
   PopStatus try_pop(T &value) {
     while (true) {
+      // this check slows 1:1 case but prevents writer starvation in 1:N case
+      if (write_pos_.load(std::memory_order_relaxed) <= read_pos_.load(std::memory_order_relaxed) &&
+          read_pos_.load(std::memory_order_relaxed) < nodes_.size()) {
+        return PopStatus::Empty;
+      }
       auto read_pos = read_pos_.fetch_add(1, std::memory_order_relaxed);
       if (read_pos >= nodes_.size()) {
         return PopStatus::Closed;
@@ -199,7 +207,7 @@ class MpmcQueueOld {
     return "Mpmc queue (fetch and add array queue)";
   }
   MpmcQueueOld(size_t block_size, size_t threads_n) : block_size_{block_size}, hazard_pointers_{threads_n} {
-    auto node = std::make_unique<Node>(block_size_);
+    auto node = make_unique<Node>(block_size_);
     write_pos_ = node.get();
     read_pos_ = node.get();
     node.release();
@@ -217,7 +225,7 @@ class MpmcQueueOld {
       delete to_delete;
     }
     //stat_.dump();
-    //stat_ = MpmcStat();
+    //stat_ = detail::MpmcStat();
   }
 
   size_t hazard_pointers_to_delele_size_unsafe() const {
@@ -231,7 +239,7 @@ class MpmcQueueOld {
   using PopStatus = typename MpmcQueueBlock<T>::PopStatus;
 
   void push(T value, size_t thread_id) {
-    auto hazard_ptr_holder = hazard_pointers_.get_holder(thread_id, 0);
+    typename decltype(hazard_pointers_)::Holder hazard_ptr_holder(hazard_pointers_, thread_id, 0);
     while (true) {
       auto node = hazard_ptr_holder.protect(write_pos_);
       auto status = node->block.push(value);
@@ -263,7 +271,7 @@ class MpmcQueueOld {
   }
 
   bool try_pop(T &value, size_t thread_id) {
-    auto hazard_ptr_holder = hazard_pointers_.get_holder(thread_id, 0);
+    typename decltype(hazard_pointers_)::Holder hazard_ptr_holder(hazard_pointers_, thread_id, 0);
     while (true) {
       auto node = hazard_ptr_holder.protect(read_pos_);
       auto status = node->block.try_pop(value);
@@ -306,9 +314,9 @@ class MpmcQueueOld {
     MpmcQueueBlock<T> block;
     //Got pad in MpmcQueueBlock
   };
-  std::atomic<Node *> write_pos_;
+  std::atomic<Node *> write_pos_{nullptr};
   char pad[TD_CONCURRENCY_PAD - sizeof(std::atomic<Node *>)];
-  std::atomic<Node *> read_pos_;
+  std::atomic<Node *> read_pos_{nullptr};
   char pad2[TD_CONCURRENCY_PAD - sizeof(std::atomic<Node *>)];
   size_t block_size_;
   HazardPointers<Node, 1> hazard_pointers_;
@@ -324,7 +332,7 @@ class MpmcQueue {
     return "NEW Mpmc queue (fetch and add array queue)";
   }
   MpmcQueue(size_t block_size, size_t threads_n) : hazard_pointers_{threads_n} {
-    auto node = std::make_unique<Node>();
+    auto node = make_unique<Node>();
     write_pos_ = node.get();
     read_pos_ = node.get();
     node.release();
@@ -438,9 +446,9 @@ class MpmcQueue {
     char pad[TD_CONCURRENCY_PAD - sizeof(std::atomic<Node *>)];
     //Got pad in MpmcQueueBlock
   };
-  std::atomic<Node *> write_pos_;
+  std::atomic<Node *> write_pos_{nullptr};
   char pad[TD_CONCURRENCY_PAD - sizeof(std::atomic<Node *>)];
-  std::atomic<Node *> read_pos_;
+  std::atomic<Node *> read_pos_{nullptr};
   char pad2[TD_CONCURRENCY_PAD - sizeof(std::atomic<Node *>)];
   HazardPointers<Node, 1> hazard_pointers_;
   //Got pad in HazardPointers

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -8,7 +8,7 @@
 
 #include "td/mtproto/AuthKey.h"
 
-#include "td/utils/logging.h"
+#include "td/utils/common.h"
 #include "td/utils/Slice.h"
 #include "td/utils/Status.h"
 
@@ -49,7 +49,7 @@ class MessageIdDuplicateChecker {
 class AuthData {
  public:
   AuthData();
-  AuthData(const AuthData &) = delete;
+  AuthData(const AuthData &) = default;
   AuthData &operator=(const AuthData &) = delete;
   AuthData(AuthData &&) = delete;
   AuthData &operator=(AuthData &&) = delete;
@@ -57,9 +57,11 @@ class AuthData {
 
   bool is_ready(double now);
 
-  uint64 session_id_;
   void set_main_auth_key(AuthKey auth_key) {
     main_auth_key_ = std::move(auth_key);
+  }
+  void break_main_auth_key() {
+    main_auth_key_.break_key();
   }
   const AuthKey &get_main_auth_key() const {
     // CHECK(has_main_auth_key());
@@ -90,7 +92,7 @@ class AuthData {
     if (tmp_auth_key_.empty()) {
       return true;
     }
-    if (now > tmp_auth_key_.expire_at() - 60 * 60 * 2 /*2 hours*/) {
+    if (now > tmp_auth_key_.expires_at() - 60 * 60 * 2 /*2 hours*/) {
       return true;
     }
     if (!has_tmp_auth_key(now)) {
@@ -111,7 +113,7 @@ class AuthData {
     if (tmp_auth_key_.empty()) {
       return false;
     }
-    if (now > tmp_auth_key_.expire_at() - 60 * 60 /*1 hour*/) {
+    if (now > tmp_auth_key_.expires_at() - 60 * 60 /*1 hour*/) {
       return false;
     }
     return true;
@@ -136,7 +138,7 @@ class AuthData {
   void set_auth_flag(bool auth_flag) {
     main_auth_key_.set_auth_flag(auth_flag);
     if (!auth_flag) {
-      tmp_auth_key_.set_auth_flag(auth_flag);
+      drop_tmp_auth_key();
     }
   }
 
@@ -148,7 +150,7 @@ class AuthData {
     tmp_auth_key_.set_auth_flag(true);
   }
 
-  Slice get_header() {
+  Slice get_header() const {
     if (use_pfs()) {
       return tmp_auth_key_.need_header() ? Slice(header_) : Slice();
     } else {
@@ -170,7 +172,11 @@ class AuthData {
     }
   }
 
+  void set_session_id(uint64 session_id) {
+    session_id_ = session_id;
+  }
   uint64 get_session_id() const {
+    CHECK(session_id_ != 0);
     return session_id_;
   }
 
@@ -204,7 +210,7 @@ class AuthData {
     future_salts_.clear();
   }
 
-  bool is_server_salt_valid(double now) {
+  bool is_server_salt_valid(double now) const {
     return server_salt_.valid_until > get_server_time(now) + 60;
   }
 
@@ -224,9 +230,9 @@ class AuthData {
 
   int64 next_message_id(double now);
 
-  bool is_valid_outbound_msg_id(int64 id, double now);
+  bool is_valid_outbound_msg_id(int64 id, double now) const;
 
-  bool is_valid_inbound_msg_id(int64 id, double now);
+  bool is_valid_inbound_msg_id(int64 id, double now) const;
 
   Status check_packet(int64 session_id, int64 message_id, double now, bool &time_difference_was_updated);
 
@@ -264,6 +270,7 @@ class AuthData {
   int64 last_message_id_ = 0;
   int32 seq_no_ = 0;
   std::string header_;
+  uint64 session_id_ = 0;
 
   std::vector<ServerSalt> future_salts_;
 

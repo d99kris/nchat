@@ -38,6 +38,11 @@ class DoxygenTlDocumentationGenerator extends TlDocumentationGenerator
     protected function escapeDocumentation($doc)
     {
         $doc = htmlspecialchars($doc);
+        $doc = preg_replace_callback('/&quot;((http|https|tg):\/\/[^" ]*)&quot;/',
+            function ($quoted_link)
+            {
+                return "&quot;<a href=\"".$quoted_link[1]."\">".$quoted_link[1]."</a>&quot;";
+            }, $doc);
         $doc = str_replace('*/', '*&#47;', $doc);
         $doc = str_replace('#', '\#', $doc);
         return $doc;
@@ -181,8 +186,8 @@ EOT
  * \\code
  * auto get_authorization_state_request = td::td_api::make_object<td::td_api::getAuthorizationState>();
  * auto message_text = td::td_api::make_object<td::td_api::formattedText>("Hello, world!!!",
- *                     std::vector<td::td_api::object_ptr<td::td_api::textEntities>>());
- * auto send_message_request = td::td_api::make_object<td::td_api::sendMessage>(chat_id, 0, false, false, nullptr,
+ *                     std::vector<td::td_api::object_ptr<td::td_api::textEntity>>());
+ * auto send_message_request = td::td_api::make_object<td::td_api::sendMessage>(chat_id, 0, nullptr, nullptr,
  *      td::td_api::make_object<td::td_api::inputMessageText>(std::move(message_text), false, true));
  * \\endcode
  *
@@ -196,7 +201,7 @@ EOT
         $this->addDocumentation('object_ptr<ToType> move_object_as(FromType &&from) {', <<<EOT
 /**
  * A function to cast a wrapped in td::td_api::object_ptr TDLib API object to its subclass or superclass.
- * Casting an object to an incorrect type will lead to undefined bejaviour.
+ * Casting an object to an incorrect type will lead to undefined behaviour.
  * Usage example:
  * \\code
  * td::td_api::object_ptr<td::td_api::callState> call_state = ...;
@@ -321,13 +326,17 @@ EOT
 );
     }
 
-    protected function addClassDocumentation($class_name, $base_class_name, $description, $return_type)
+    protected function getFunctionReturnTypeDescription($return_type, $for_constructor)
     {
-        $return_type_description = $return_type ? PHP_EOL.' *'.PHP_EOL." * Returns $return_type." : '';
+        $shift = $for_constructor ? '   ' : ' ';
+        return PHP_EOL.$shift.'*'.PHP_EOL.$shift."* Returns $return_type.";
+    }
 
+    protected function addClassDocumentation($class_name, $base_class_name, $description)
+    {
         $this->addDocumentation("class $class_name final : public $base_class_name {", <<<EOT
 /**
- * $description$return_type_description
+ * $description
  */
 EOT
 );
@@ -341,17 +350,17 @@ EOT
 );
     }
 
-    protected function addDefaultConstructorDocumentation($class_name)
+    protected function addDefaultConstructorDocumentation($class_name, $class_description)
     {
         $this->addDocumentation("  $class_name();", <<<EOT
   /**
-   * Default constructor. All fields will be value-initilaized.
+   * $class_description
    */
 EOT
 );
     }
 
-    protected function addFullConstructorDocumentation($class_name, $known_fields, $info)
+    protected function addFullConstructorDocumentation($class_name, $class_description, $known_fields, $info)
     {
         $explicit = count($known_fields) === 1 ? 'explicit ' : '';
         $full_constructor = "  $explicit$class_name(";
@@ -364,7 +373,7 @@ EOT
 
         $full_doc = <<<EOT
   /**
-   * Constructor for initialization of all fields.
+   * $class_description
    *
 
 EOT;

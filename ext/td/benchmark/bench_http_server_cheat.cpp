@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -12,7 +12,7 @@
 
 #include "td/utils/buffer.h"
 #include "td/utils/logging.h"
-#include "td/utils/port/Fd.h"
+#include "td/utils/port/detail/PollableFd.h"
 #include "td/utils/port/SocketFd.h"
 #include "td/utils/Slice.h"
 #include "td/utils/Status.h"
@@ -39,8 +39,7 @@ class HelloWorld : public Actor {
   size_t write_pos_{0};
 
   void start_up() override {
-    socket_fd_.get_fd().set_observer(this);
-    subscribe(socket_fd_.get_fd());
+    Scheduler::subscribe(socket_fd_.get_poll_info().extract_pollable_fd(this));
     HttpHeaderCreator hc;
     Slice content = "hello world";
     //auto content = BufferSlice("hello world");
@@ -56,7 +55,7 @@ class HelloWorld : public Actor {
   void loop() override {
     auto status = do_loop();
     if (status.is_error()) {
-      unsubscribe(socket_fd_.get_fd());
+      Scheduler::unsubscribe(socket_fd_.get_poll_info().get_pollable_fd_ref());
       stop();
       LOG(ERROR) << "CLOSE: " << status;
     }
@@ -110,7 +109,7 @@ class Server : public TcpListener::Callback {
   }
   void hangup() override {
     // may be it should be default?..
-    LOG(ERROR) << "hangup..";
+    LOG(ERROR) << "Hanging up..";
     stop();
   }
 

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -7,6 +7,8 @@
 #include "td/net/HttpProxy.h"
 
 #include "td/utils/base64.h"
+#include "td/utils/common.h"
+#include "td/utils/format.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/Slice.h"
@@ -22,7 +24,7 @@ void HttpProxy::send_connect() {
   string proxy_authorization;
   if (!username_.empty() || !password_.empty()) {
     auto userinfo = PSTRING() << username_ << ':' << password_;
-    proxy_authorization = PSTRING() << "Proxy-Authorization: basic " << td::base64_encode(userinfo) << "\r\n";
+    proxy_authorization = PSTRING() << "Proxy-Authorization: basic " << base64_encode(userinfo) << "\r\n";
   }
   fd_.output_buffer().append(PSLICE() << "CONNECT " << host << " HTTP/1.1\r\n"
                                       << "Host: " << host << "\r\n"
@@ -41,7 +43,12 @@ Status HttpProxy::wait_connect_response() {
   it.advance(12, begin);
   if ((begin.substr(0, 10) != "HTTP/1.1 2" && begin.substr(0, 10) != "HTTP/1.0 2") || !is_digit(begin[10]) ||
       !is_digit(begin[11])) {
-    return Status::Error("Failed to connect");
+    char buf[1024];
+    size_t len = min(sizeof(buf), it.size());
+    it.advance(len, MutableSlice{buf, sizeof(buf)});
+    VLOG(proxy) << "Failed to connect: " << format::escaped(Slice(buf, len));
+    return Status::Error(PSLICE() << "Failed to connect to " << ip_address_.get_ip_str() << ':'
+                                  << ip_address_.get_port());
   }
 
   size_t total_size = 12;

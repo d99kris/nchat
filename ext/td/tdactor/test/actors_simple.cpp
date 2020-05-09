@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -12,13 +12,19 @@
 #include "td/actor/SleepActor.h"
 #include "td/actor/Timeout.h"
 
+#include "td/utils/common.h"
 #include "td/utils/logging.h"
+#include "td/utils/MpscPollableQueue.h"
 #include "td/utils/Observer.h"
+#include "td/utils/port/detail/PollableFd.h"
 #include "td/utils/port/FileFd.h"
+#include "td/utils/port/thread.h"
 #include "td/utils/Slice.h"
 #include "td/utils/Status.h"
 #include "td/utils/StringBuilder.h"
+#include "td/utils/Time.h"
 
+#include <memory>
 #include <tuple>
 
 REGISTER_TESTS(actors_simple)
@@ -32,11 +38,17 @@ static char buf2[BUF_SIZE];
 static StringBuilder sb(MutableSlice(buf, BUF_SIZE - 1));
 static StringBuilder sb2(MutableSlice(buf2, BUF_SIZE - 1));
 
+static auto create_queue() {
+  auto res = std::make_shared<MpscPollableQueue<EventFull>>();
+  res->init();
+  return res;
+}
+
 TEST(Actors, SendLater) {
   SET_VERBOSITY_LEVEL(VERBOSITY_NAME(ERROR));
   sb.clear();
   Scheduler scheduler;
-  scheduler.init();
+  scheduler.init(0, {create_queue()}, nullptr);
 
   auto guard = scheduler.get_guard();
   class Worker : public Actor {
@@ -46,12 +58,12 @@ TEST(Actors, SendLater) {
     }
   };
   auto id = create_actor<Worker>("Worker");
-  scheduler.run_no_guard(0);
+  scheduler.run_no_guard(Timestamp::now());
   send_closure(id, &Worker::f);
   send_closure_later(id, &Worker::f);
   send_closure(id, &Worker::f);
   ASSERT_STREQ("A", sb.as_cslice().c_str());
-  scheduler.run_no_guard(0);
+  scheduler.run_no_guard(Timestamp::now());
   ASSERT_STREQ("AAA", sb.as_cslice().c_str());
 }
 
@@ -93,11 +105,11 @@ class XReceiver final : public Actor {
 TEST(Actors, simple_pass_event_arguments) {
   SET_VERBOSITY_LEVEL(VERBOSITY_NAME(ERROR));
   Scheduler scheduler;
-  scheduler.init();
+  scheduler.init(0, {create_queue()}, nullptr);
 
   auto guard = scheduler.get_guard();
   auto id = create_actor<XReceiver>("XR").release();
-  scheduler.run_no_guard(0);
+  scheduler.run_no_guard(Timestamp::now());
 
   X x;
 
@@ -118,7 +130,7 @@ TEST(Actors, simple_pass_event_arguments) {
   // Tmp-->ConstRef (Delayed)
   sb.clear();
   send_closure_later(id, &XReceiver::by_const_ref, X());
-  scheduler.run_no_guard(0);
+  scheduler.run_no_guard(Timestamp::now());
   // LOG(ERROR) << sb.as_cslice();
   ASSERT_STREQ("[cnstr_default][cnstr_move][by_const_ref]", sb.as_cslice().c_str());
 
@@ -130,7 +142,7 @@ TEST(Actors, simple_pass_event_arguments) {
   // Tmp-->LvalueRef (Delayed)
   sb.clear();
   send_closure_later(id, &XReceiver::by_lvalue_ref, X());
-  scheduler.run_no_guard(0);
+  scheduler.run_no_guard(Timestamp::now());
   ASSERT_STREQ("[cnstr_default][cnstr_move][by_lvalue_ref]", sb.as_cslice().c_str());
 
   // Tmp-->Value
@@ -141,7 +153,7 @@ TEST(Actors, simple_pass_event_arguments) {
   // Tmp-->Value (Delayed)
   sb.clear();
   send_closure_later(id, &XReceiver::by_value, X());
-  scheduler.run_no_guard(0);
+  scheduler.run_no_guard(Timestamp::now());
   ASSERT_STREQ("[cnstr_default][cnstr_move][cnstr_move][by_value]", sb.as_cslice().c_str());
 
   // Var-->ConstRef
@@ -152,7 +164,7 @@ TEST(Actors, simple_pass_event_arguments) {
   // Var-->ConstRef (Delayed)
   sb.clear();
   send_closure_later(id, &XReceiver::by_const_ref, x);
-  scheduler.run_no_guard(0);
+  scheduler.run_no_guard(Timestamp::now());
   ASSERT_STREQ("[cnstr_copy][by_const_ref]", sb.as_cslice().c_str());
 
   // Var-->LvalueRef
@@ -167,7 +179,7 @@ TEST(Actors, simple_pass_event_arguments) {
   // Var-->Value (Delayed)
   sb.clear();
   send_closure_later(id, &XReceiver::by_value, x);
-  scheduler.run_no_guard(0);
+  scheduler.run_no_guard(Timestamp::now());
   ASSERT_STREQ("[cnstr_copy][cnstr_move][by_value]", sb.as_cslice().c_str());
 }
 
@@ -200,7 +212,7 @@ class PrintChar final : public Actor {
 TEST(Actors, simple_hand_yield) {
   SET_VERBOSITY_LEVEL(VERBOSITY_NAME(ERROR));
   Scheduler scheduler;
-  scheduler.init();
+  scheduler.init(0, {create_queue()}, nullptr);
   sb.clear();
   int cnt = 1000;
   {
@@ -209,7 +221,7 @@ TEST(Actors, simple_hand_yield) {
     create_actor<PrintChar>("PrintB", 'B', cnt).release();
     create_actor<PrintChar>("PrintC", 'C', cnt).release();
   }
-  scheduler.run(0);
+  scheduler.run(Timestamp::now());
   std::string expected;
   for (int i = 0; i < cnt; i++) {
     expected += "ABC";
@@ -278,10 +290,9 @@ class OpenClose final : public Actor {
     ObserverBase *observer = reinterpret_cast<ObserverBase *>(123);
     if (cnt_ > 0) {
       auto r_file_fd = FileFd::open("server", FileFd::Read | FileFd::Create);
-      CHECK(r_file_fd.is_ok()) << r_file_fd.error();
+      LOG_CHECK(r_file_fd.is_ok()) << r_file_fd.error();
       auto file_fd = r_file_fd.move_as_ok();
-      // LOG(ERROR) << file_fd.get_native_fd();
-      file_fd.get_fd().set_observer(observer);
+      { PollableFd pollable_fd = file_fd.get_poll_info().extract_pollable_fd(observer); }
       file_fd.close();
       cnt_--;
       yield();
@@ -354,12 +365,12 @@ class MasterActor : public MsgActor {
 TEST(Actors, call_after_destruct) {
   SET_VERBOSITY_LEVEL(VERBOSITY_NAME(ERROR));
   Scheduler scheduler;
-  scheduler.init();
+  scheduler.init(0, {create_queue()}, nullptr);
   {
     auto guard = scheduler.get_guard();
     create_actor<MasterActor>("Master").release();
   }
-  scheduler.run(0);
+  scheduler.run(Timestamp::now());
 }
 
 class LinkTokenSlave : public Actor {
@@ -387,22 +398,22 @@ class LinkTokenMasterActor : public Actor {
   }
   void loop() override {
     for (int i = 0; i < 100 && cnt_ > 0; cnt_--, i++) {
+      auto token = static_cast<uint64>(cnt_) + 1;
       switch (i % 4) {
         case 0: {
-          send_closure(ActorShared<LinkTokenSlave>(child_, cnt_ + 1), &LinkTokenSlave::add, cnt_ + 1);
+          send_closure(ActorShared<LinkTokenSlave>(child_, token), &LinkTokenSlave::add, token);
           break;
         }
         case 1: {
-          send_closure_later(ActorShared<LinkTokenSlave>(child_, cnt_ + 1), &LinkTokenSlave::add, cnt_ + 1);
+          send_closure_later(ActorShared<LinkTokenSlave>(child_, token), &LinkTokenSlave::add, token);
           break;
         }
         case 2: {
-          EventCreator::closure(ActorShared<LinkTokenSlave>(child_, cnt_ + 1), &LinkTokenSlave::add, cnt_ + 1)
-              .try_emit();
+          EventCreator::closure(ActorShared<LinkTokenSlave>(child_, token), &LinkTokenSlave::add, token).try_emit();
           break;
         }
         case 3: {
-          EventCreator::closure(ActorShared<LinkTokenSlave>(child_, cnt_ + 1), &LinkTokenSlave::add, cnt_ + 1)
+          EventCreator::closure(ActorShared<LinkTokenSlave>(child_, token), &LinkTokenSlave::add, token)
               .try_emit_later();
           break;
         }
@@ -507,7 +518,7 @@ class MultiPromise2 : public Actor {
       Scheduler::instance()->finish();
     });
 
-    MultiPromiseActorSafe multi_promise;
+    MultiPromiseActorSafe multi_promise{"MultiPromiseActor2"};
     multi_promise.add_promise(std::move(promise));
     for (int i = 0; i < 10; i++) {
       create_actor<SleepActor>("Sleep", 0.1, multi_promise.get_promise()).release();
@@ -522,7 +533,7 @@ class MultiPromise1 : public Actor {
       CHECK(result.is_error());
       create_actor<MultiPromise2>("B").release();
     });
-    MultiPromiseActorSafe multi_promise;
+    MultiPromiseActorSafe multi_promise{"MultiPromiseActor1"};
     multi_promise.add_promise(std::move(promise));
   }
 };
@@ -620,3 +631,41 @@ TEST(Actors, always_wait_for_mailbox) {
   }
   scheduler.finish();
 }
+
+#if !TD_THREAD_UNSUPPORTED && !TD_EVENTFD_UNSUPPORTED
+TEST(Actors, send_from_other_threads) {
+  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(ERROR));
+  ConcurrentScheduler scheduler;
+  scheduler.init(1);
+  int thread_n = 10;
+  class Listener : public Actor {
+   public:
+    explicit Listener(int cnt) : cnt_(cnt) {
+    }
+    void dec() {
+      if (--cnt_ == 0) {
+        Scheduler::instance()->finish();
+      }
+    }
+
+   private:
+    int cnt_;
+  };
+
+  auto A = scheduler.create_actor_unsafe<Listener>(1, "A", thread_n).release();
+  scheduler.start();
+  std::vector<td::thread> threads(thread_n);
+  for (auto &thread : threads) {
+    thread = td::thread([&A, &scheduler] {
+      auto guard = scheduler.get_send_guard();
+      send_closure(A, &Listener::dec);
+    });
+  }
+  while (scheduler.run_main(10)) {
+  }
+  for (auto &thread : threads) {
+    thread.join();
+  }
+  scheduler.finish();
+}
+#endif

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -7,7 +7,9 @@
 #include "td/telegram/net/NetQuery.h"
 
 #include "td/telegram/Global.h"
+#include "td/telegram/telegram_api.h"
 
+#include "td/utils/as.h"
 #include "td/utils/misc.h"
 #include "td/utils/Slice.h"
 
@@ -51,7 +53,11 @@ void NetQuery::set_error(Status status, string source) {
     LOG(ERROR) << "Receive INPUT_METHOD_INVALID for query " << format::as_hex_dump<4>(Slice(query_.as_slice()));
   }
   if (status.message() == "BOT_METHOD_INVALID") {
-    LOG(ERROR) << "Receive BOT_METHOD_INVALID for query " << format::as_hex(tl_constructor());
+    auto id = tl_constructor();
+    if (id != telegram_api::help_getNearestDc::ID && id != telegram_api::help_getProxyData::ID &&
+        id != telegram_api::help_getAppConfig::ID) {
+      LOG(ERROR) << "Receive BOT_METHOD_INVALID for query " << format::as_hex(id);
+    }
   }
   if (status.message() == "MSG_WAIT_FAILED" && status.code() != 400) {
     status = Status::Error(400, "MSG_WAIT_FAILED");
@@ -72,10 +78,10 @@ void dump_pending_network_queries() {
         was_gap = false;
       }
       auto nq = &static_cast<NetQuery &>(*cur);
-      LOG(WARNING) << tag("id", nq->my_id_) << *nq << tag("total_flood", td::format::as_time(nq->total_timeout)) << " "
-                   << tag("since start", td::format::as_time(td::Time::now_cached() - nq->start_timestamp_))
+      LOG(WARNING) << tag("id", nq->my_id_) << *nq << tag("total_flood", format::as_time(nq->total_timeout)) << " "
+                   << tag("since start", format::as_time(Time::now_cached() - nq->start_timestamp_))
                    << tag("state", nq->debug_str_)
-                   << tag("since state", td::format::as_time(td::Time::now_cached() - nq->debug_timestamp_))
+                   << tag("since state", format::as_time(Time::now_cached() - nq->debug_timestamp_))
                    << tag("resend_cnt", nq->debug_resend_cnt_) << tag("fail_cnt", nq->debug_send_failed_cnt_)
                    << tag("ack", nq->debug_ack) << tag("unknown", nq->debug_unknown);
     } else {

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -18,8 +18,8 @@ NetQueryCreator::Ptr NetQueryCreator::create(uint64 id, const Storer &storer, Dc
                                              double total_timeout_limit) {
   BufferSlice slice(storer.size());
   auto real_size = storer.store(slice.as_slice().ubegin());
-  CHECK(real_size == slice.size()) << real_size << " " << slice.size() << " "
-                                   << format::as_hex_dump<4>(Slice(slice.as_slice()));
+  LOG_CHECK(real_size == slice.size()) << real_size << " " << slice.size() << " "
+                                       << format::as_hex_dump<4>(Slice(slice.as_slice()));
 
   // TODO: magic constant
   if (slice.size() < (1 << 8)) {

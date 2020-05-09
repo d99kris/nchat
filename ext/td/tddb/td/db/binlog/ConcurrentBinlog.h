@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,6 +11,7 @@
 
 #include "td/db/binlog/Binlog.h"
 #include "td/db/binlog/BinlogInterface.h"
+#include "td/db/DbKey.h"
 
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
@@ -33,7 +34,7 @@ class ConcurrentBinlog : public BinlogInterface {
                           DbKey old_db_key = DbKey::empty(), int scheduler_id = -1) TD_WARN_UNUSED_RESULT;
 
   ConcurrentBinlog();
-  explicit ConcurrentBinlog(std::unique_ptr<Binlog> binlog, int scheduler_id = -1);
+  explicit ConcurrentBinlog(unique_ptr<Binlog> binlog, int scheduler_id = -1);
   ConcurrentBinlog(const ConcurrentBinlog &other) = delete;
   ConcurrentBinlog &operator=(const ConcurrentBinlog &other) = delete;
   ConcurrentBinlog(ConcurrentBinlog &&other) = delete;
@@ -56,13 +57,14 @@ class ConcurrentBinlog : public BinlogInterface {
   }
 
  private:
-  void init_impl(std::unique_ptr<Binlog> binlog, int scheduler_id);
+  void init_impl(unique_ptr<Binlog> binlog, int scheduler_id);
   void close_impl(Promise<> promise) override;
   void close_and_destroy_impl(Promise<> promise) override;
   void add_raw_event_impl(uint64 id, BufferSlice &&raw_event, Promise<> promise, BinlogDebugInfo info) override;
 
   ActorOwn<detail::BinlogActor> binlog_actor_;
   string path_;
-  std::atomic<uint64> last_id_;
+  std::atomic<uint64> last_id_{0};
 };
+
 }  // namespace td

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -9,9 +9,8 @@
 #include "td/actor/actor.h"
 #include "td/actor/PromiseFuture.h"
 
+#include "td/utils/common.h"
 #include "td/utils/logging.h"
-
-#include <algorithm>
 
 #if TD_MSVC
 #pragma comment(linker, "/STACK:16777216")
@@ -23,10 +22,10 @@ class RingBench : public td::Benchmark {
   struct PassActor;
 
  private:
-  int actor_n_;
-  int thread_n_;
+  int actor_n_ = -1;
+  int thread_n_ = -1;
   std::vector<td::ActorId<PassActor>> actor_array_;
-  td::ConcurrentScheduler *scheduler_;
+  td::ConcurrentScheduler *scheduler_ = nullptr;
 
  public:
   std::string get_description() const override {
@@ -36,12 +35,12 @@ class RingBench : public td::Benchmark {
   }
 
   struct PassActor : public td::Actor {
-    int id;
+    int id = -1;
     td::ActorId<PassActor> next_actor;
     int start_n = 0;
 
     void pass(int n) {
-      // LOG(INFO) << "pass: " << n;
+      // LOG(INFO) << "Pass: " << n;
       if (n == 0) {
         td::Scheduler::instance()->finish();
       } else {
@@ -103,7 +102,7 @@ class RingBench : public td::Benchmark {
 
   void run(int n) override {
     // first actor is on main_thread
-    actor_array_[0].get_actor_unsafe()->start_n = std::max(n, 100);
+    actor_array_[0].get_actor_unsafe()->start_n = td::max(n, 100);
     while (scheduler_->run_main(10)) {
       // empty
     }
@@ -136,7 +135,7 @@ class QueryBench : public td::Benchmark {
       virtual ~Callback() = default;
       virtual void on_result(int x) = 0;
     };
-    explicit ClientActor(std::unique_ptr<Callback> callback) : callback_(std::move(callback)) {
+    explicit ClientActor(td::unique_ptr<Callback> callback) : callback_(std::move(callback)) {
     }
     void f(int x) {
       callback_->on_result(x * x);
@@ -152,7 +151,7 @@ class QueryBench : public td::Benchmark {
     }
 
    private:
-    std::unique_ptr<Callback> callback_;
+    td::unique_ptr<Callback> callback_;
   };
 
   class ServerActor : public td::Actor {
@@ -232,7 +231,7 @@ class QueryBench : public td::Benchmark {
 
    private:
     td::ActorId<ClientActor> client_;
-    int n_;
+    int n_ = 0;
     td::FutureActor<int> future_;
   };
 
@@ -247,7 +246,7 @@ class QueryBench : public td::Benchmark {
   void run(int n) override {
     // first actor is on main_thread
     {
-      auto guard = scheduler_->get_current_guard();
+      auto guard = scheduler_->get_main_guard();
       send_closure(server_, &ServerActor::run, n);
     }
     while (scheduler_->run_main(10)) {
@@ -262,7 +261,7 @@ class QueryBench : public td::Benchmark {
   }
 
  private:
-  td::ConcurrentScheduler *scheduler_;
+  td::ConcurrentScheduler *scheduler_ = nullptr;
   td::ActorOwn<ServerActor> server_;
 };
 

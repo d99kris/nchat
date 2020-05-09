@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -8,8 +8,8 @@
 
 #include "td/actor/PromiseFuture.h"
 
-#include "td/telegram/MessageId.h"
 #include "td/telegram/Photo.h"
+#include "td/telegram/ServerMessageId.h"
 
 #include "td/utils/common.h"
 #include "td/utils/Slice.h"
@@ -153,5 +153,7 @@ void get_saved_order_info(Promise<tl_object_ptr<td_api::orderInfo>> &&promise);
 void delete_saved_order_info(Promise<Unit> &&promise);
 
 void delete_saved_credentials(Promise<Unit> &&promise);
+
+// void send_ton_lite_server_request(Slice request, Promise<td_api::object_ptr<td_api::tonLiteServerResponse>> &&promise);
 
 }  // namespace td

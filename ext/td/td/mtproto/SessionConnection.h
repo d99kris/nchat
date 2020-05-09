@@ -1,21 +1,22 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #pragma once
 
-#include "td/mtproto/crypto.h"
+#include "td/mtproto/PacketInfo.h"
+#include "td/mtproto/Query.h"
 #include "td/mtproto/RawConnection.h"
-#include "td/mtproto/utils.h"
 
 #include "td/utils/buffer.h"
 #include "td/utils/format.h"
 #include "td/utils/Named.h"
-#include "td/utils/port/Fd.h"
+#include "td/utils/port/detail/PollableFd.h"
 #include "td/utils/Slice.h"
 #include "td/utils/Status.h"
+#include "td/utils/StorerBase.h"
 #include "td/utils/StringBuilder.h"
 #include "td/utils/tl_parsers.h"
 
@@ -24,11 +25,6 @@
 
 namespace td {
 namespace mtproto_api {
-
-class msg_container {
- public:
-  static const int32 ID = 0x73f1f8dc;
-};
 
 class rpc_error;
 class new_session_created;
@@ -42,12 +38,15 @@ class msgs_state_info;
 class msgs_all_info;
 class msg_detailed_info;
 class msg_new_detailed_info;
+class DestroyAuthKeyRes;
+class destroy_auth_key_ok;
+class destroy_auth_key_fail;
+class destroy_auth_key_none;
 }  // namespace mtproto_api
 
 namespace mtproto {
 
 class AuthData;
-struct PacketInfo;
 
 struct MsgInfo {
   uint64 session_id;
@@ -66,21 +65,22 @@ class SessionConnection
     , private RawConnection::Callback {
  public:
   enum class Mode { Tcp, Http, HttpLongPoll };
-  SessionConnection(Mode mode, std::unique_ptr<RawConnection> raw_connection, AuthData *auth_data,
-                    DhCallback *dh_callback);
+  SessionConnection(Mode mode, unique_ptr<RawConnection> raw_connection, AuthData *auth_data);
 
-  Fd &get_pollable();
+  PollableFdInfo &get_poll_info();
+  unique_ptr<RawConnection> move_as_raw_connection();
 
   // Interface
   Result<uint64> TD_WARN_UNUSED_RESULT send_query(BufferSlice buffer, bool gzip_flag, int64 message_id = 0,
                                                   uint64 invoke_after_id = 0, bool use_quick_ack = false);
-  std::pair<uint64, BufferSlice> encrypted_bind(int64 perm_key, int64 nonce, int32 expire_at);
+  std::pair<uint64, BufferSlice> encrypted_bind(int64 perm_key, int64 nonce, int32 expires_at);
 
   void get_state_info(int64 message_id);
   void resend_answer(int64 message_id);
   void cancel_answer(int64 message_id);
+  void destroy_key();
 
-  void set_online(bool online_flag);
+  void set_online(bool online_flag, bool is_main);
 
   // Callback
   class Callback {
@@ -91,7 +91,6 @@ class SessionConnection
     virtual ~Callback() = default;
 
     virtual void on_connected() = 0;
-    virtual void on_before_close() = 0;
     virtual void on_closed(Status status) = 0;
 
     virtual void on_auth_key_updated() = 0;
@@ -110,6 +109,8 @@ class SessionConnection
     virtual void on_message_result_error(uint64 id, int code, BufferSlice descr) = 0;
     virtual void on_message_failed(uint64 id, Status status) = 0;
     virtual void on_message_info(uint64 id, int32 state, uint64 answer_id, int32 answer_size) = 0;
+
+    virtual Status on_destroy_auth_key() = 0;
   };
 
   double flush(SessionConnection::Callback *callback);
@@ -123,13 +124,18 @@ class SessionConnection
   static constexpr double RESEND_ANSWER_DELAY = 0.001;  // 0.001s
 
   bool online_flag_ = false;
+  bool is_main_ = false;
 
   int rtt() const {
     return max(2, static_cast<int>(raw_connection_->rtt_ * 1.5 + 1));
   }
 
+  int32 read_disconnect_delay() const {
+    return online_flag_ ? rtt() * 7 / 2 : 135;
+  }
+
   int32 ping_disconnect_delay() const {
-    return online_flag_ ? rtt() * 5 / 2 : 135;
+    return (online_flag_ && is_main_) ? rtt() * 5 / 2 : 135;
   }
 
   int32 ping_may_delay() const {
@@ -143,11 +149,11 @@ class SessionConnection
   int http_max_wait() const {
     return 25 * 1000;  // 25s. Longer could be closed by proxy
   }
-  static constexpr int HTTP_MAX_AFTER = 10;              // 0.001s
-  static constexpr int HTTP_MAX_DELAY = 30;              // 0.003s
+  static constexpr int HTTP_MAX_AFTER = 10;              // 0.01s
+  static constexpr int HTTP_MAX_DELAY = 30;              // 0.03s
   static constexpr int TEMP_KEY_TIMEOUT = 60 * 60 * 24;  // one day
 
-  vector<Query> to_send_;
+  vector<MtprotoQuery> to_send_;
   vector<int64> to_ack_;
   double force_send_at_ = 0;
 
@@ -163,11 +169,15 @@ class SessionConnection
   // nobody cleans up this map. But it should be really small.
   std::unordered_map<uint64, std::vector<uint64>> container_to_service_msg_;
 
+  double last_read_at_ = 0;
   double last_ping_at_ = 0;
   double last_pong_at_ = 0;
   int64 cur_ping_id_ = 0;
   uint64 last_ping_message_id_ = 0;
   uint64 last_ping_container_id_ = 0;
+
+  bool need_destroy_auth_key_{false};
+  bool sent_destroy_auth_key_{false};
 
   double wakeup_at_ = 0;
   double flush_packet_at_ = 0;
@@ -181,19 +191,20 @@ class SessionConnection
   int64 main_message_id_ = 0;
   double created_at_ = 0;
 
-  std::unique_ptr<RawConnection> raw_connection_;
+  unique_ptr<RawConnection> raw_connection_;
   AuthData *auth_data_;
   SessionConnection::Callback *callback_ = nullptr;
-  DhCallback *dh_callback_;
-  BufferSlice *current_buffer_slice;
+  BufferSlice *current_buffer_slice_;
 
   friend class OnPacket;
 
   BufferSlice as_buffer_slice(Slice packet);
   auto set_buffer_slice(BufferSlice *buffer_slice) TD_WARN_UNUSED_RESULT {
-    auto old_buffer_slice = current_buffer_slice;
-    current_buffer_slice = buffer_slice;
-    return ScopeExit() + [&to = current_buffer_slice, from = old_buffer_slice] { to = from; };
+    auto old_buffer_slice = current_buffer_slice_;
+    current_buffer_slice_ = buffer_slice;
+    return ScopeExit() + [&to = current_buffer_slice_, from = old_buffer_slice] {
+      to = from;
+    };
   }
 
   Status parse_message(TlParser &parser, MsgInfo *info, Slice *packet, bool crypto_flag = true) TD_WARN_UNUSED_RESULT;
@@ -223,6 +234,12 @@ class SessionConnection
   Status on_packet(const MsgInfo &info, const mtproto_api::msg_detailed_info &msg_detailed_info) TD_WARN_UNUSED_RESULT;
   Status on_packet(const MsgInfo &info,
                    const mtproto_api::msg_new_detailed_info &msg_new_detailed_info) TD_WARN_UNUSED_RESULT;
+  Status on_packet(const MsgInfo &info, const mtproto_api::destroy_auth_key_ok &destroy_auth_key) TD_WARN_UNUSED_RESULT;
+  Status on_packet(const MsgInfo &info,
+                   const mtproto_api::destroy_auth_key_none &destroy_auth_key) TD_WARN_UNUSED_RESULT;
+  Status on_packet(const MsgInfo &info,
+                   const mtproto_api::destroy_auth_key_fail &destroy_auth_key) TD_WARN_UNUSED_RESULT;
+  Status on_destroy_auth_key(const mtproto_api::DestroyAuthKeyRes &destroy_auth_key);
 
   Status on_slice_packet(const MsgInfo &info, Slice packet) TD_WARN_UNUSED_RESULT;
   Status on_main_packet(const PacketInfo &info, Slice packet) TD_WARN_UNUSED_RESULT;
@@ -240,13 +257,12 @@ class SessionConnection
   void flush_packet();
 
   Status init() TD_WARN_UNUSED_RESULT;
-  Status process_packet(const PacketInfo &info, Slice packet) TD_WARN_UNUSED_RESULT;
-  Status flush_read() TD_WARN_UNUSED_RESULT;
   Status do_flush() TD_WARN_UNUSED_RESULT;
 
   Status before_write() override TD_WARN_UNUSED_RESULT;
-  Status on_raw_packet(const td::mtproto::PacketInfo &info, BufferSlice packet) override;
+  Status on_raw_packet(const PacketInfo &info, BufferSlice packet) override;
   Status on_quick_ack(uint64 quick_ack_token) override;
+  void on_read(size_t size) override;
 };
 
 }  // namespace mtproto

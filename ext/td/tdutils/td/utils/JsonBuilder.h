@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -15,19 +15,10 @@
 #include "td/utils/StringBuilder.h"
 
 #include <new>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
 namespace td {
-
-template <class... Args>
-std::tuple<const Args &...> ctie(const Args &... args) TD_WARN_UNUSED_RESULT;
-
-template <class... Args>
-std::tuple<const Args &...> ctie(const Args &... args) {
-  return std::tie(args...);
-}
 
 class JsonTrue {
  public:
@@ -181,7 +172,7 @@ class JsonObjectScope;
 
 class JsonBuilder {
  public:
-  explicit JsonBuilder(StringBuilder &&sb) : sb_(std::move(sb)) {
+  explicit JsonBuilder(StringBuilder &&sb, int32 offset = -1) : sb_(std::move(sb)), offset_(offset) {
   }
   StringBuilder &string_builder() {
     return sb_;
@@ -191,17 +182,43 @@ class JsonBuilder {
   JsonArrayScope enter_array() TD_WARN_UNUSED_RESULT;
   JsonObjectScope enter_object() TD_WARN_UNUSED_RESULT;
 
+  int32 offset() const {
+    return offset_;
+  }
+  bool is_pretty() const {
+    return offset_ >= 0;
+  }
+  void print_offset() {
+    if (offset_ >= 0) {
+      sb_ << '\n';
+      for (int x = 0; x < offset_; x++) {
+        sb_ << "   ";
+      }
+    }
+  }
+  void dec_offset() {
+    if (offset_ >= 0) {
+      CHECK(offset_ > 0);
+      offset_--;
+    }
+  }
+  void inc_offset() {
+    if (offset_ >= 0) {
+      offset_++;
+    }
+  }
+
  private:
   StringBuilder sb_;
   JsonScope *scope_ = nullptr;
+  int32 offset_;
 };
 
 class Jsonable {};
 
 class JsonScope {
  public:
-  explicit JsonScope(JsonBuilder *jb) : sb_(&jb->sb_), jb_(jb) {
-    save_scope_ = jb_->scope_;
+  explicit JsonScope(JsonBuilder *jb) : sb_(&jb->sb_), jb_(jb), save_scope_(jb->scope_) {
     jb_->scope_ = this;
     CHECK(is_active());
   }
@@ -272,9 +289,7 @@ class JsonScope {
     *sb_ << x;
     return *this;
   }
-  JsonScope &operator<<(bool x) {
-    return *this << JsonBool(x);
-  }
+  JsonScope &operator<<(bool x) = delete;
   JsonScope &operator<<(int32 x) {
     return *this << JsonInt(x);
   }
@@ -284,16 +299,11 @@ class JsonScope {
   JsonScope &operator<<(double x) {
     return *this << JsonFloat(x);
   }
-  template <class T>
-  JsonScope &operator<<(const T *x);  // not implemented
   template <size_t N>
   JsonScope &operator<<(const char (&x)[N]) {
     return *this << JsonString(Slice(x));
   }
   JsonScope &operator<<(const char *x) {
-    return *this << JsonString(Slice(x));
-  }
-  JsonScope &operator<<(const string &x) {
     return *this << JsonString(Slice(x));
   }
   JsonScope &operator<<(Slice x) {
@@ -329,6 +339,7 @@ class JsonValueScope : public JsonScope {
 class JsonArrayScope : public JsonScope {
  public:
   explicit JsonArrayScope(JsonBuilder *jb) : JsonScope(jb) {
+    jb->inc_offset();
     *sb_ << "[";
   }
   JsonArrayScope(JsonArrayScope &&other) = default;
@@ -338,6 +349,8 @@ class JsonArrayScope : public JsonScope {
     }
   }
   void leave() {
+    jb_->dec_offset();
+    jb_->print_offset();
     *sb_ << "]";
   }
   template <class T>
@@ -356,6 +369,7 @@ class JsonArrayScope : public JsonScope {
     } else {
       is_first_ = true;
     }
+    jb_->print_offset();
     return jb_->enter_value();
   }
 
@@ -366,6 +380,7 @@ class JsonArrayScope : public JsonScope {
 class JsonObjectScope : public JsonScope {
  public:
   explicit JsonObjectScope(JsonBuilder *jb) : JsonScope(jb) {
+    jb->inc_offset();
     *sb_ << "{";
   }
   JsonObjectScope(JsonObjectScope &&other) = default;
@@ -375,26 +390,25 @@ class JsonObjectScope : public JsonScope {
     }
   }
   void leave() {
+    jb_->dec_offset();
+    jb_->print_offset();
     *sb_ << "}";
   }
-  template <class S, class T>
-  JsonObjectScope &operator<<(std::tuple<S, T> key_value) {
-    return (*this)(std::get<0>(key_value), std::get<1>(key_value));
-  }
-  template <class S, class T>
-  JsonObjectScope &operator<<(std::pair<S, T> key_value) {
-    return (*this)(key_value.first, key_value.second);
-  }
-  template <class S, class T>
-  JsonObjectScope &operator()(S &&key, T &&value) {
+  template <class T>
+  JsonObjectScope &operator()(Slice key, T &&value) {
     CHECK(is_active());
     if (is_first_) {
       *sb_ << ",";
     } else {
       is_first_ = true;
     }
+    jb_->print_offset();
     jb_->enter_value() << key;
-    *sb_ << ":";
+    if (jb_->is_pretty()) {
+      *sb_ << " : ";
+    } else {
+      *sb_ << ":";
+    }
     jb_->enter_value() << value;
     return *this;
   }
@@ -565,7 +579,7 @@ class JsonValue : public Jsonable {
       case Type::Object: {
         auto object = scope->enter_object();
         for (auto &key_value : get_object()) {
-          object << ctie(JsonString(key_value.first), key_value.second);
+          object(key_value.first, key_value.second);
         }
         break;
       }
@@ -724,8 +738,8 @@ Status json_string_skip(Parser &parser) TD_WARN_UNUSED_RESULT;
 Result<JsonValue> do_json_decode(Parser &parser, int32 max_depth) TD_WARN_UNUSED_RESULT;
 Status do_json_skip(Parser &parser, int32 max_depth) TD_WARN_UNUSED_RESULT;
 
-inline Result<JsonValue> json_decode(MutableSlice from) {
-  Parser parser(from);
+inline Result<JsonValue> json_decode(MutableSlice json) {
+  Parser parser(json);
   const int32 DEFAULT_MAX_DEPTH = 100;
   auto result = do_json_decode(parser, DEFAULT_MAX_DEPTH);
   if (result.is_ok()) {
@@ -738,12 +752,15 @@ inline Result<JsonValue> json_decode(MutableSlice from) {
 }
 
 template <class StrT, class ValT>
-StrT json_encode(const ValT &val) {
-  auto buf_len = 1 << 19;
+StrT json_encode(const ValT &val, bool pretty = false) {
+  auto buf_len = 1 << 18;
   auto buf = StackAllocator::alloc(buf_len);
-  JsonBuilder jb(StringBuilder(buf.as_slice()));
+  JsonBuilder jb(StringBuilder(buf.as_slice(), true), pretty ? 0 : -1);
   jb.enter_value() << val;
-  LOG_IF(ERROR, jb.string_builder().is_error()) << "Json buffer overflow";
+  if (pretty) {
+    jb.string_builder() << "\n";
+  }
+  LOG_IF(ERROR, jb.string_builder().is_error()) << "JSON buffer overflow";
   auto slice = jb.string_builder().as_cslice();
   return StrT(slice.begin(), slice.size());
 }
@@ -784,6 +801,7 @@ class JsonObjectImpl : Jsonable {
  private:
   F f_;
 };
+
 template <class F>
 auto json_object(F &&f) {
   return JsonObjectImpl<F>(std::forward<F>(f));
@@ -817,7 +835,9 @@ auto json_array(const A &a, F &&f) {
   });
 }
 
-bool has_json_object_field(JsonObject &object, Slice name);
+bool has_json_object_field(const JsonObject &object, Slice name);
+
+JsonValue get_json_object_field_force(JsonObject &object, Slice name) TD_WARN_UNUSED_RESULT;
 
 Result<JsonValue> get_json_object_field(JsonObject &object, Slice name, JsonValue::Type type,
                                         bool is_optional = true) TD_WARN_UNUSED_RESULT;
@@ -827,6 +847,9 @@ Result<bool> get_json_object_bool_field(JsonObject &object, Slice name, bool is_
 
 Result<int32> get_json_object_int_field(JsonObject &object, Slice name, bool is_optional = true,
                                         int32 default_value = 0) TD_WARN_UNUSED_RESULT;
+
+Result<int64> get_json_object_long_field(JsonObject &object, Slice name, bool is_optional = true,
+                                         int64 default_value = 0) TD_WARN_UNUSED_RESULT;
 
 Result<double> get_json_object_double_field(JsonObject &object, Slice name, bool is_optional = true,
                                             double default_value = 0.0) TD_WARN_UNUSED_RESULT;

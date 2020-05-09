@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -23,9 +23,21 @@ class OrderedEventsProcessor {
   explicit OrderedEventsProcessor(SeqNo offset) : offset_(offset), begin_(offset_), end_(offset_) {
   }
 
+  template <class FunctionT>
+  void clear(FunctionT &&function) {
+    for (auto &it : data_array_) {
+      if (it.second) {
+        function(std::move(it.first));
+      }
+    }
+    *this = OrderedEventsProcessor();
+  }
+  void clear() {
+    *this = OrderedEventsProcessor();
+  }
   template <class FromDataT, class FunctionT>
   void add(SeqNo seq_no, FromDataT &&data, FunctionT &&function) {
-    CHECK(seq_no >= begin_) << seq_no << ">=" << begin_;  // or ignore?
+    LOG_CHECK(seq_no >= begin_) << seq_no << ">=" << begin_;  // or ignore?
 
     if (seq_no == begin_) {  // run now
       begin_++;

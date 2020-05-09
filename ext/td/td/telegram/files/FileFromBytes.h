@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -10,6 +10,7 @@
 
 #include "td/telegram/files/FileLoader.h"
 #include "td/telegram/files/FileLocation.h"
+#include "td/telegram/files/FileType.h"
 
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
@@ -29,7 +30,7 @@ class FileFromBytes : public FileLoaderActor {
     virtual void on_error(Status status) = 0;
   };
 
-  FileFromBytes(FileType type, BufferSlice bytes, string name, std::unique_ptr<Callback> callback);
+  FileFromBytes(FileType type, BufferSlice bytes, string name, unique_ptr<Callback> callback);
 
   // Should just implement all parent pure virtual methods.
   // Must not call any of them...
@@ -38,7 +39,7 @@ class FileFromBytes : public FileLoaderActor {
   BufferSlice bytes_;
   string name_;
 
-  std::unique_ptr<Callback> callback_;
+  unique_ptr<Callback> callback_;
 
   FileFd fd_;
   string path_;

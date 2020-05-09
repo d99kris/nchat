@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -7,12 +7,14 @@
 #pragma once
 
 #include "td/mtproto/IStreamTransport.h"
+#include "td/mtproto/ProxySecret.h"
+#include "td/mtproto/TransportType.h"
 
 #include "td/net/HttpQuery.h"
 #include "td/net/HttpReader.h"
 
 #include "td/utils/buffer.h"
-#include "td/utils/port/Fd.h"
+#include "td/utils/port/detail/PollableFd.h"
 #include "td/utils/Status.h"
 
 namespace td {
@@ -39,8 +41,9 @@ class Transport : public IStreamTransport {
   size_t max_prepend_size() const override;
   size_t max_append_size() const override;
   TransportType get_type() const override {
-    return {TransportType::Http, 0, secret_};
+    return {TransportType::Http, 0, ProxySecret::from_raw(secret_)};
   }
+  bool use_random_padding() const override;
 
  private:
   string secret_;

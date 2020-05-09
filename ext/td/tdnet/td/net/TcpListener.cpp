@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -7,10 +7,10 @@
 #include "td/net/TcpListener.h"
 
 #include "td/utils/logging.h"
-#include "td/utils/port/Fd.h"
+#include "td/utils/port/detail/PollableFd.h"
 
 namespace td {
-// TcpListener implementation
+
 TcpListener::TcpListener(int port, ActorShared<Callback> callback) : port_(port), callback_(std::move(callback)) {
 }
 
@@ -26,14 +26,12 @@ void TcpListener::start_up() {
     return;
   }
   server_fd_ = r_socket.move_as_ok();
-  server_fd_.get_fd().set_observer(this);
-  subscribe(server_fd_.get_fd());
+  Scheduler::subscribe(server_fd_.get_poll_info().extract_pollable_fd(this));
 }
 
 void TcpListener::tear_down() {
-  LOG(ERROR) << "TcpListener closed";
   if (!server_fd_.empty()) {
-    unsubscribe_before_close(server_fd_.get_fd());
+    Scheduler::unsubscribe_before_close(server_fd_.get_poll_info().get_pollable_fd_ref());
     server_fd_.close();
   }
 }
@@ -54,7 +52,6 @@ void TcpListener::loop() {
   }
 
   if (can_close(server_fd_)) {
-    LOG(ERROR) << "HELLO!";
     stop();
   }
 }

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -45,7 +45,7 @@ class DialogId {
   template <class T, typename = std::enable_if_t<std::is_convertible<T, int64>::value>>
   DialogId(T dialog_id) = delete;
 
-  explicit DialogId(const tl_object_ptr<telegram_api::dialogPeer> &dialog_peer);
+  explicit DialogId(const tl_object_ptr<telegram_api::DialogPeer> &dialog_peer);
   explicit DialogId(const tl_object_ptr<telegram_api::Peer> &peer);
   explicit DialogId(UserId user_id);
   explicit DialogId(ChatId chat_id);
@@ -70,8 +70,8 @@ class DialogId {
 
   UserId get_user_id() const;
   ChatId get_chat_id() const;
-  SecretChatId get_secret_chat_id() const;
   ChannelId get_channel_id() const;
+  SecretChatId get_secret_chat_id() const;
 
   template <class StorerT>
   void store(StorerT &storer) const {

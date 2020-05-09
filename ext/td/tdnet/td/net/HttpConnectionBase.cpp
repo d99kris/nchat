@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -8,9 +8,10 @@
 
 #include "td/net/HttpHeaderCreator.h"
 
+#include "td/utils/common.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
-#include "td/utils/port/Fd.h"
+#include "td/utils/port/detail/PollableFd.h"
 
 namespace td {
 namespace detail {
@@ -41,8 +42,7 @@ void HttpConnectionBase::live_event() {
 }
 
 void HttpConnectionBase::start_up() {
-  fd_.get_fd().set_observer(this);
-  subscribe(fd_.get_fd());
+  Scheduler::subscribe(fd_.get_poll_info().extract_pollable_fd(this));
   reader_.init(read_sink_.get_output(), max_post_size_, max_files_);
   if (state_ == State::Read) {
     current_query_ = make_unique<HttpQuery>();
@@ -51,7 +51,7 @@ void HttpConnectionBase::start_up() {
   yield();
 }
 void HttpConnectionBase::tear_down() {
-  unsubscribe_before_close(fd_.get_fd());
+  Scheduler::unsubscribe_before_close(fd_.get_poll_info().get_pollable_fd_ref());
   fd_.close();
 }
 
@@ -71,7 +71,7 @@ void HttpConnectionBase::write_ok() {
 
 void HttpConnectionBase::write_error(Status error) {
   CHECK(state_ == State::Write);
-  LOG(WARNING) << "Close http connection: " << error;
+  LOG(WARNING) << "Close HTTP connection: " << error;
   state_ = State::Close;
   loop();
 }
@@ -93,7 +93,7 @@ void HttpConnectionBase::loop() {
     auto r = fd_.flush_read();
     if (r.is_error()) {
       if (!begins_with(r.error().message(), "SSL error {336134278")) {  // if error is not yet outputed
-        LOG(INFO) << "flush_read error: " << r.error();
+        LOG(INFO) << "Receive flush_read error: " << r.error();
       }
       on_error(Status::Error(r.error().public_message()));
       return stop();
@@ -132,7 +132,7 @@ void HttpConnectionBase::loop() {
     LOG(DEBUG) << "Can write to the connection";
     auto r = fd_.flush_write();
     if (r.is_error()) {
-      LOG(INFO) << "flush_write error: " << r.error();
+      LOG(INFO) << "Receive flush_write error: " << r.error();
       on_error(Status::Error(r.error().public_message()));
     }
     if (close_after_write_ && !fd_.need_flush_write()) {
@@ -141,7 +141,7 @@ void HttpConnectionBase::loop() {
   }
 
   Status pending_error;
-  if (fd_.get_fd().has_pending_error()) {
+  if (fd_.get_poll_info().get_flags().has_pending_error()) {
     pending_error = fd_.get_pending_error();
   }
   if (pending_error.is_ok() && write_sink_.status().is_error()) {

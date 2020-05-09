@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -8,7 +8,6 @@
 
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
-#include "td/utils/logging.h"
 #include "td/utils/Status.h"
 
 namespace td {
@@ -69,7 +68,7 @@ class ByteFlowBaseCommon : public ByteFlowInterface {
 
  protected:
   bool waiting_flag_ = false;
-  ChainBufferReader *input_;
+  ChainBufferReader *input_ = nullptr;
   bool is_input_active_ = true;
   size_t need_size_ = 0;
   void finish(Status status) {
@@ -208,7 +207,7 @@ class ByteFlowSink : public ByteFlowInterface {
     CHECK(buffer_ == nullptr);
     buffer_ = input;
   }
-  void set_parent(ByteFlowInterface &parent) final {
+  void set_parent(ByteFlowInterface & /*parent*/) final {
     UNREACHABLE();
   }
   void close_input(Status status) final {
@@ -254,7 +253,7 @@ class ByteFlowMoveSink : public ByteFlowInterface {
     CHECK(!input_);
     input_ = input;
   }
-  void set_parent(ByteFlowInterface &parent) final {
+  void set_parent(ByteFlowInterface & /*parent*/) final {
     UNREACHABLE();
   }
   void close_input(Status status) final {

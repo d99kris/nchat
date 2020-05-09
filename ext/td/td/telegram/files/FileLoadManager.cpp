@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -39,7 +39,8 @@ ActorOwn<ResourceManager> &FileLoadManager::get_download_resource_manager(bool i
 
 void FileLoadManager::download(QueryId id, const FullRemoteFileLocation &remote_location,
                                const LocalFileLocation &local, int64 size, string name,
-                               const FileEncryptionKey &encryption_key, bool search_file, int8 priority) {
+                               const FileEncryptionKey &encryption_key, bool search_file, int64 offset, int64 limit,
+                               int8 priority) {
   if (stop_flag_) {
     return;
   }
@@ -50,8 +51,9 @@ void FileLoadManager::download(QueryId id, const FullRemoteFileLocation &remote_
   node->query_id_ = id;
   auto callback = make_unique<FileDownloaderCallback>(actor_shared(this, node_id));
   bool is_small = size < 20 * 1024;
-  node->loader_ = create_actor<FileDownloader>("Downloader", remote_location, local, size, std::move(name),
-                                               encryption_key, is_small, search_file, std::move(callback));
+  node->loader_ =
+      create_actor<FileDownloader>("Downloader", remote_location, local, size, std::move(name), encryption_key,
+                                   is_small, search_file, offset, limit, std::move(callback));
   DcId dc_id = remote_location.is_web() ? G()->get_webfile_dc_id() : remote_location.get_dc_id();
   auto &resource_manager = get_download_resource_manager(is_small, dc_id);
   send_closure(resource_manager, &ResourceManager::register_worker,
@@ -60,7 +62,7 @@ void FileLoadManager::download(QueryId id, const FullRemoteFileLocation &remote_
 }
 
 void FileLoadManager::upload(QueryId id, const LocalFileLocation &local_location,
-                             const RemoteFileLocation &remote_location, int64 size,
+                             const RemoteFileLocation &remote_location, int64 expected_size,
                              const FileEncryptionKey &encryption_key, int8 priority, vector<int> bad_parts) {
   if (stop_flag_) {
     return;
@@ -71,7 +73,7 @@ void FileLoadManager::upload(QueryId id, const LocalFileLocation &local_location
   CHECK(node);
   node->query_id_ = id;
   auto callback = make_unique<FileUploaderCallback>(actor_shared(this, node_id));
-  node->loader_ = create_actor<FileUploader>("Uploader", local_location, remote_location, size, encryption_key,
+  node->loader_ = create_actor<FileUploader>("Uploader", local_location, remote_location, expected_size, encryption_key,
                                              std::move(bad_parts), std::move(callback));
   send_closure(upload_resource_manager_, &ResourceManager::register_worker,
                ActorShared<FileLoaderActor>(node->loader_.get(), static_cast<uint64>(-1)), priority);
@@ -156,6 +158,34 @@ void FileLoadManager::update_local_file_location(QueryId id, const LocalFileLoca
   }
   send_closure(node->loader_, &FileLoaderActor::update_local_file_location, local);
 }
+void FileLoadManager::update_download_offset(QueryId id, int64 offset) {
+  if (stop_flag_) {
+    return;
+  }
+  auto it = query_id_to_node_id_.find(id);
+  if (it == query_id_to_node_id_.end()) {
+    return;
+  }
+  auto node = nodes_container_.get(it->second);
+  if (node == nullptr) {
+    return;
+  }
+  send_closure(node->loader_, &FileLoaderActor::update_download_offset, offset);
+}
+void FileLoadManager::update_download_limit(QueryId id, int64 limit) {
+  if (stop_flag_) {
+    return;
+  }
+  auto it = query_id_to_node_id_.find(id);
+  if (it == query_id_to_node_id_.end()) {
+    return;
+  }
+  auto node = nodes_container_.get(it->second);
+  if (node == nullptr) {
+    return;
+  }
+  send_closure(node->loader_, &FileLoaderActor::update_download_limit, limit);
+}
 void FileLoadManager::hangup() {
   nodes_container_.for_each([](auto id, auto &node) { node.loader_.reset(); });
   stop_flag_ = true;
@@ -173,14 +203,14 @@ void FileLoadManager::on_start_download() {
   }
 }
 
-void FileLoadManager::on_partial_download(const PartialLocalFileLocation &partial_local, int64 ready_size) {
+void FileLoadManager::on_partial_download(const PartialLocalFileLocation &partial_local, int64 ready_size, int64 size) {
   auto node_id = get_link_token();
   auto node = nodes_container_.get(node_id);
   if (node == nullptr) {
     return;
   }
   if (!stop_flag_) {
-    send_closure(callback_, &Callback::on_partial_download, node->query_id_, partial_local, ready_size);
+    send_closure(callback_, &Callback::on_partial_download, node->query_id_, partial_local, ready_size, size);
   }
 }
 
@@ -206,14 +236,14 @@ void FileLoadManager::on_partial_upload(const PartialRemoteFileLocation &partial
   }
 }
 
-void FileLoadManager::on_ok_download(const FullLocalFileLocation &local, int64 size) {
+void FileLoadManager::on_ok_download(const FullLocalFileLocation &local, int64 size, bool is_new) {
   auto node_id = get_link_token();
   auto node = nodes_container_.get(node_id);
   if (node == nullptr) {
     return;
   }
   if (!stop_flag_) {
-    send_closure(callback_, &Callback::on_download_ok, node->query_id_, local, size);
+    send_closure(callback_, &Callback::on_download_ok, node->query_id_, local, size, is_new);
   }
   close_node(node_id);
   loop();

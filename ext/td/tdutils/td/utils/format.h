@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -17,7 +17,7 @@
 namespace td {
 namespace format {
 /*** HexDump ***/
-template <std::size_t size, bool reversed = true>
+template <std::size_t size, bool is_reversed = true>
 struct HexDumpSize {
   const unsigned char *data;
 };
@@ -26,12 +26,12 @@ inline char hex_digit(int x) {
   return "0123456789abcdef"[x];
 }
 
-template <std::size_t size, bool reversed>
-StringBuilder &operator<<(StringBuilder &builder, const HexDumpSize<size, reversed> &dump) {
+template <std::size_t size, bool is_reversed>
+StringBuilder &operator<<(StringBuilder &builder, const HexDumpSize<size, is_reversed> &dump) {
   const unsigned char *ptr = dump.data;
   // TODO: append unsafe
   for (std::size_t i = 0; i < size; i++) {
-    int xy = ptr[reversed ? size - 1 - i : i];
+    int xy = ptr[is_reversed ? size - 1 - i : i];
     int x = xy >> 4;
     int y = xy & 15;
     builder << hex_digit(x) << hex_digit(y);
@@ -46,21 +46,18 @@ struct HexDumpSlice {
 
 template <std::size_t align>
 StringBuilder &operator<<(StringBuilder &builder, const HexDumpSlice<align> &dump) {
-  std::size_t size = dump.slice.size();
-  const unsigned char *ptr = dump.slice.ubegin();
+  const auto str = dump.slice;
+  const auto size = str.size();
 
   builder << '\n';
 
-  const std::size_t part = size % align;
-  if (part) {
-    builder << HexDumpSlice<1>{Slice(ptr, part)} << '\n';
+  const std::size_t first_part_size = size % align;
+  if (first_part_size) {
+    builder << HexDumpSlice<1>{str.substr(0, first_part_size)} << '\n';
   }
-  size -= part;
-  ptr += part;
 
-  for (std::size_t i = 0; i < size; i += align) {
-    builder << HexDumpSize<align>{ptr};
-    ptr += align;
+  for (std::size_t i = first_part_size; i < size; i += align) {
+    builder << HexDumpSize<align>{str.ubegin() + i};
 
     if (((i / align) & 15) == 15 || i + align >= size) {
       builder << '\n';
@@ -148,7 +145,7 @@ inline StringBuilder &operator<<(StringBuilder &builder, const Escaped &escaped)
       builder << static_cast<char>(c);
     } else {
       const char *oct = "01234567";
-      builder << "\\0" << oct[c >> 6] << oct[(c >> 3) & 7] << oct[c & 7];
+      builder << '\\' << oct[c >> 6] << oct[(c >> 3) & 7] << oct[c & 7];
     }
   }
   return builder;
@@ -195,7 +192,7 @@ inline StringBuilder &operator<<(StringBuilder &logger, Size t) {
     uint64 value;
   };
 
-  static constexpr NamedValue sizes[] = {{"B", 1}, {"KB", 1 << 10}, {"MB", 1 << 20}, {"GB", 1 << 30}};
+  static constexpr NamedValue sizes[] = {{"B", 1}, {"kB", 1 << 10}, {"MB", 1 << 20}, {"GB", 1 << 30}};
   static constexpr size_t sizes_n = sizeof(sizes) / sizeof(NamedValue);
 
   size_t i = 0;
@@ -221,6 +218,19 @@ StringBuilder &operator<<(StringBuilder &stream, const Array<ArrayT> &array) {
   bool first = true;
   stream << Slice("{");
   for (auto &x : array.ref) {
+    if (!first) {
+      stream << Slice(", ");
+    }
+    stream << x;
+    first = false;
+  }
+  return stream << Slice("}");
+}
+
+inline StringBuilder &operator<<(StringBuilder &stream, const Array<vector<bool>> &array) {
+  bool first = true;
+  stream << Slice("{");
+  for (bool x : array.ref) {
     if (!first) {
       stream << Slice(", ");
     }
@@ -293,6 +303,22 @@ StringBuilder &operator<<(StringBuilder &sb, const Concat<T> &concat) {
 template <class... ArgsT>
 auto concat(const ArgsT &... args) {
   return Concat<decltype(std::tie(args...))>{std::tie(args...)};
+}
+
+template <class F>
+struct Lambda {
+  const F &f;
+};
+
+template <class F>
+StringBuilder &operator<<(StringBuilder &sb, const Lambda<F> &f) {
+  f.f(sb);
+  return sb;
+}
+
+template <class LambdaT>
+Lambda<LambdaT> lambda(const LambdaT &lambda) {
+  return Lambda<LambdaT>{lambda};
 }
 
 }  // namespace format

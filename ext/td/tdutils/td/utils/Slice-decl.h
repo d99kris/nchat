@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -52,11 +52,16 @@ class MutableSlice {
   MutableSlice substr(size_t from, size_t size) const;
   size_t find(char c) const;
   size_t rfind(char c) const;
+  void fill(char c);
+  void fill_zero();
+  void fill_zero_secure();
 
   void copy_from(Slice from);
 
   char &back();
   char &operator[](size_t i);
+
+  static const size_t npos = static_cast<size_t>(-1);
 };
 
 class Slice {
@@ -85,6 +90,18 @@ class Slice {
   constexpr Slice(const char (&a)[N]) : s_(a), len_(N - 1) {
   }
 
+  Slice &operator=(string &&s) = delete;
+
+  template <size_t N>
+  constexpr Slice &operator=(char (&a)[N]) = delete;
+
+  template <size_t N>
+  constexpr Slice &operator=(const char (&a)[N]) {
+    s_ = a;
+    len_ = N - 1;
+    return *this;
+  }
+
   bool empty() const;
   size_t size() const;
 
@@ -108,10 +125,13 @@ class Slice {
 
   char back() const;
   char operator[](size_t i) const;
+
+  static const size_t npos = static_cast<size_t>(-1);
 };
 
 bool operator==(const Slice &a, const Slice &b);
 bool operator!=(const Slice &a, const Slice &b);
+bool operator<(const Slice &a, const Slice &b);
 
 class MutableCSlice : public MutableSlice {
   struct private_tag {};
@@ -167,6 +187,17 @@ class CSlice : public Slice {
   }
 
   CSlice() : CSlice("") {
+  }
+
+  CSlice &operator=(string &&s) = delete;
+
+  template <size_t N>
+  constexpr CSlice &operator=(char (&a)[N]) = delete;
+
+  template <size_t N>
+  constexpr CSlice &operator=(const char (&a)[N]) {
+    this->Slice::operator=(a);
+    return *this;
   }
 
   const char *c_str() const {

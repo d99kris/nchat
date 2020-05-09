@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -17,24 +17,21 @@
 #include "td/telegram/DialogId.h"
 #include "td/telegram/files/FileId.h"
 #include "td/telegram/Location.h"
+#include "td/telegram/MessageContent.h"
 #include "td/telegram/MessageEntity.h"
 #include "td/telegram/net/NetQuery.h"
 #include "td/telegram/Photo.h"
-#include "td/telegram/ReplyMarkup.h"
 #include "td/telegram/UserId.h"
 
 #include "td/utils/common.h"
 #include "td/utils/Status.h"
 
-#include <tuple>
 #include <unordered_map>
 #include <utility>
 
 namespace td {
 
 class Td;
-
-class MessageContent;
 
 class Game;
 
@@ -56,8 +53,7 @@ class InlineQueriesManager : public Actor {
 
   void remove_recent_inline_bot(UserId bot_user_id, Promise<Unit> &&promise);
 
-  std::tuple<const MessageContent *, const ReplyMarkup *, bool> get_inline_message_content(int64 query_id,
-                                                                                           const string &result_id);
+  const InlineMessageContent *get_inline_message_content(int64 query_id, const string &result_id);
 
   UserId get_inline_bot_user_id(int64 query_id) const;
 
@@ -87,15 +83,10 @@ class InlineQueriesManager : public Actor {
   static constexpr int32 BOT_INLINE_MEDIA_RESULT_FLAG_HAS_TITLE = 1 << 2;
   static constexpr int32 BOT_INLINE_MEDIA_RESULT_FLAG_HAS_DESCRIPTION = 1 << 3;
 
-  Result<FormattedText> process_input_caption(td_api::object_ptr<td_api::formattedText> &&caption) const;
-
-  tl_object_ptr<telegram_api::inputBotInlineMessageMediaAuto> get_input_bot_inline_message_media_auto(
-      const FormattedText &caption, tl_object_ptr<telegram_api::ReplyMarkup> &&input_reply_markup) const;
-
   Result<tl_object_ptr<telegram_api::InputBotInlineMessage>> get_inline_message(
       tl_object_ptr<td_api::InputMessageContent> &&input_message_content,
       tl_object_ptr<td_api::ReplyMarkup> &&reply_markup_ptr,
-      int32 allowed_media_content_id) const TD_WARN_UNUSED_RESULT;  // TODO make static
+      int32 allowed_media_content_id) const TD_WARN_UNUSED_RESULT;
 
   bool register_inline_message_content(int64 query_id, const string &result_id, FileId file_id,
                                        tl_object_ptr<telegram_api::BotInlineMessage> &&inline_message,
@@ -121,7 +112,7 @@ class InlineQueriesManager : public Actor {
   void tear_down() override;
 
   int32 recently_used_bots_loaded_ = 0;  // 0 - not loaded, 1 - load request was sent, 2 - loaded
-  MultiPromiseActor resolve_recent_inline_bots_multipromise_;
+  MultiPromiseActor resolve_recent_inline_bots_multipromise_{"ResolveRecentInlineBotsMultiPromiseActor"};
 
   vector<UserId> recently_used_bot_user_ids_;
 
@@ -147,12 +138,6 @@ class InlineQueriesManager : public Actor {
 
   MultiTimeout drop_inline_query_result_timeout_{"DropInlineQueryResultTimeout"};
   std::unordered_map<uint64, InlineQueryResult> inline_query_results_;  // query_hash -> result
-
-  struct InlineMessageContent {
-    unique_ptr<MessageContent> message_content;
-    unique_ptr<ReplyMarkup> message_reply_markup;
-    bool disable_web_page_preview;
-  };
 
   std::unordered_map<int64, std::unordered_map<string, InlineMessageContent>>
       inline_message_contents_;  // query_id -> [result_id -> inline_message_content]

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -7,14 +7,14 @@
 #include "td/net/TransparentProxy.h"
 
 #include "td/utils/logging.h"
-#include "td/utils/port/Fd.h"
+#include "td/utils/port/detail/PollableFd.h"
 
 namespace td {
 
 int VERBOSITY_NAME(proxy) = VERBOSITY_NAME(DEBUG);
 
 TransparentProxy::TransparentProxy(SocketFd socket_fd, IPAddress ip_address, string username, string password,
-                                   std::unique_ptr<Callback> callback, ActorShared<> parent)
+                                   unique_ptr<Callback> callback, ActorShared<> parent)
     : fd_(std::move(socket_fd))
     , ip_address_(std::move(ip_address))
     , username_(std::move(username))
@@ -35,8 +35,7 @@ void TransparentProxy::on_error(Status status) {
 
 void TransparentProxy::tear_down() {
   VLOG(proxy) << "Finish to connect to proxy";
-  unsubscribe(fd_.get_fd());
-  fd_.get_fd().set_observer(nullptr);
+  Scheduler::unsubscribe(fd_.get_poll_info().get_pollable_fd_ref());
   if (callback_) {
     if (!fd_.input_buffer().empty()) {
       LOG(ERROR) << "Have " << fd_.input_buffer().size() << " unread bytes";
@@ -54,8 +53,7 @@ void TransparentProxy::hangup() {
 
 void TransparentProxy::start_up() {
   VLOG(proxy) << "Begin to connect to proxy";
-  fd_.get_fd().set_observer(this);
-  subscribe(fd_.get_fd());
+  Scheduler::subscribe(fd_.get_poll_info().extract_pollable_fd(this));
   set_timeout_in(10);
   if (can_write(fd_)) {
     loop();
@@ -78,7 +76,7 @@ void TransparentProxy::loop() {
 }
 
 void TransparentProxy::timeout_expired() {
-  on_error(Status::Error("Timeout expired"));
+  on_error(Status::Error("Connection timeout expired"));
 }
 
 }  // namespace td

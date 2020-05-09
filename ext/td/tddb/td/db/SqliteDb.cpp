@@ -1,11 +1,12 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/db/SqliteDb.h"
 
+#include "td/utils/common.h"
 #include "td/utils/format.h"
 #include "td/utils/port/path.h"
 #include "td/utils/port/Stat.h"
@@ -62,7 +63,7 @@ Status SqliteDb::init(CSlice path, bool *was_created) {
   int rc = sqlite3_open_v2(path.c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE /*| SQLITE_OPEN_SHAREDCACHE*/,
                            nullptr);
   if (rc != SQLITE_OK) {
-    auto res = Status::Error(PSLICE() << "Failed to open db: " << detail::RawSqliteDb::last_error(db));
+    auto res = Status::Error(PSLICE() << "Failed to open database: " << detail::RawSqliteDb::last_error(db));
     sqlite3_close(db);
     return res;
   }
@@ -92,9 +93,9 @@ void SqliteDb::trace(bool flag) {
 Status SqliteDb::exec(CSlice cmd) {
   CHECK(!empty());
   char *msg;
-  VLOG(sqlite) << "Start exec " << tag("cmd", cmd) << tag("db", raw_->db());
+  VLOG(sqlite) << "Start exec " << tag("query", cmd) << tag("database", raw_->db());
   auto rc = sqlite3_exec(raw_->db(), cmd.c_str(), nullptr, nullptr, &msg);
-  VLOG(sqlite) << "Finish exec " << tag("cmd", cmd) << tag("db", raw_->db());
+  VLOG(sqlite) << "Finish exec " << tag("query", cmd) << tag("database", raw_->db());
   if (rc != SQLITE_OK) {
     CHECK(msg != nullptr);
     return Status::Error(PSLICE() << tag("query", cmd) << " failed: " << msg);
@@ -135,29 +136,35 @@ Status SqliteDb::set_user_version(int32 version) {
 }
 
 Status SqliteDb::begin_transaction() {
-  return exec("BEGIN");
-}
-Status SqliteDb::commit_transaction() {
-  return exec("COMMIT");
+  if (raw_->on_begin()) {
+    return exec("BEGIN");
+  }
+  return Status::OK();
 }
 
-bool SqliteDb::is_encrypted() {
-  return exec("SELECT count(*) FROM sqlite_master").is_error();
+Status SqliteDb::commit_transaction() {
+  TRY_RESULT(need_commit, raw_->on_commit());
+  if (need_commit) {
+    return exec("COMMIT");
+  }
+  return Status::OK();
+}
+
+Status SqliteDb::check_encryption() {
+  return exec("SELECT count(*) FROM sqlite_master");
 }
 
 Result<SqliteDb> SqliteDb::open_with_key(CSlice path, const DbKey &db_key) {
   SqliteDb db;
   TRY_STATUS(db.init(path));
   if (!db_key.is_empty()) {
-    if (!db.is_encrypted()) {
+    if (db.check_encryption().is_ok()) {
       return Status::Error("No key is needed");
     }
     auto key = db_key_to_sqlcipher_key(db_key);
     TRY_STATUS(db.exec(PSLICE() << "PRAGMA key = " << key));
   }
-  if (db.is_encrypted()) {
-    return Status::Error("Wrong key or database is corrupted");
-  }
+  TRY_STATUS_PREFIX(db.check_encryption(), "Can't open database: ");
   return std::move(db);
 }
 
@@ -175,7 +182,7 @@ Status SqliteDb::change_key(CSlice path, const DbKey &new_db_key, const DbKey &o
   auto new_key = db_key_to_sqlcipher_key(new_db_key);
   if (old_db_key.is_empty() && !new_db_key.is_empty()) {
     LOG(DEBUG) << "ENCRYPT";
-    PerfWarningTimer timer("Encrypt sqlite database", 0.1);
+    PerfWarningTimer timer("Encrypt SQLite database", 0.1);
     auto tmp_path = path.str() + ".ecnrypted";
     TRY_STATUS(destroy(tmp_path));
 
@@ -190,7 +197,7 @@ Status SqliteDb::change_key(CSlice path, const DbKey &new_db_key, const DbKey &o
     TRY_STATUS(rename(tmp_path, path));
   } else if (!old_db_key.is_empty() && new_db_key.is_empty()) {
     LOG(DEBUG) << "DECRYPT";
-    PerfWarningTimer timer("Decrypt sqlite database", 0.1);
+    PerfWarningTimer timer("Decrypt SQLite database", 0.1);
     auto tmp_path = path.str() + ".ecnrypted";
     TRY_STATUS(destroy(tmp_path));
 
@@ -203,12 +210,12 @@ Status SqliteDb::change_key(CSlice path, const DbKey &new_db_key, const DbKey &o
     TRY_STATUS(rename(tmp_path, path));
   } else {
     LOG(DEBUG) << "REKEY";
-    PerfWarningTimer timer("Rekey sqlite database", 0.1);
+    PerfWarningTimer timer("Rekey SQLite database", 0.1);
     TRY_STATUS(db.exec(PSLICE() << "PRAGMA rekey = " << new_key));
   }
 
   TRY_RESULT(new_db, open_with_key(path, new_db_key));
-  CHECK(new_db.user_version().ok() == user_version) << new_db.user_version().ok() << " " << user_version;
+  LOG_CHECK(new_db.user_version().ok() == user_version) << new_db.user_version().ok() << " " << user_version;
   return Status::OK();
 }
 Status SqliteDb::destroy(Slice path) {
@@ -219,8 +226,9 @@ Result<SqliteStatement> SqliteDb::get_statement(CSlice statement) {
   sqlite3_stmt *stmt = nullptr;
   auto rc = sqlite3_prepare_v2(get_native(), statement.c_str(), static_cast<int>(statement.size()) + 1, &stmt, nullptr);
   if (rc != SQLITE_OK) {
-    return Status::Error(PSLICE() << "Failed to prepare sqlite " << tag("stmt", statement) << raw_->last_error());
+    return Status::Error(PSLICE() << "Failed to prepare SQLite " << tag("statement", statement) << raw_->last_error());
   }
+  LOG_CHECK(stmt != nullptr) << statement;
   return SqliteStatement(stmt, raw_);
 }
 

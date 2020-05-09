@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -73,9 +73,10 @@ class TD_TL_writer_jni_cpp : public TD_TL_writer_cpp {
 
   std::string gen_get_id(const std::string &class_name, std::int32_t id, bool is_proxy) const override;
 
-  std::string gen_fetch_function_begin(const std::string &parser_name, const std::string &class_name, int arity,
+  std::string gen_fetch_function_begin(const std::string &parser_name, const std::string &class_name,
+                                       const std::string &parent_class_name, int arity, int field_count,
                                        std::vector<tl::var_description> &vars, int parser_type) const override;
-  std::string gen_fetch_function_end(int field_num, const std::vector<tl::var_description> &vars,
+  std::string gen_fetch_function_end(bool has_parent, int field_count, const std::vector<tl::var_description> &vars,
                                      int parser_type) const override;
 
   std::string gen_fetch_function_result_begin(const std::string &parser_name, const std::string &class_name,

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,12 +11,11 @@
 #include "td/utils/Slice.h"
 #include "td/utils/Status.h"
 
-#include <cstring>
-
 namespace td {
+
 class BufferedReader {
  public:
-  explciit BufferedReader(FileFd &file, size_t buff_size = 8152)
+  explicit BufferedReader(FileFd &file, size_t buff_size = 8152)
       : file_(file), buff_(buff_size), begin_pos_(0), end_pos_(0) {
   }
 
@@ -33,13 +32,13 @@ inline Result<size_t> BufferedReader::read(MutableSlice slice) {
   size_t available = end_pos_ - begin_pos_;
   if (available >= slice.size()) {
     // have enough data in buffer
-    std::memcpy(slice.begin(), &buff_[begin_pos_], slice.size());
+    slice.copy_from({&buff_[begin_pos_], slice.size()});
     begin_pos_ += slice.size();
     return slice.size();
   }
 
   if (available) {
-    std::memcpy(slice.begin(), &buff_[begin_pos_], available);
+    slice.copy_from({&buff_[begin_pos_], available});
     begin_pos_ += available;
     slice.remove_prefix(available);
   }
@@ -54,8 +53,9 @@ inline Result<size_t> BufferedReader::read(MutableSlice slice) {
   end_pos_ = result;
 
   size_t left = min(end_pos_, slice.size());
-  std::memcpy(slice.begin(), &buff_[begin_pos_], left);
-  begin_pos_ += left;
+  slice.copy_from({&buff_[0], left});
+  begin_pos_ = left;
   return left + available;
 }
+
 }  // namespace td

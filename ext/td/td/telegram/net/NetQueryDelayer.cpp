@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -9,6 +9,7 @@
 #include "td/telegram/Global.h"
 #include "td/telegram/net/NetQueryDispatcher.h"
 
+#include "td/utils/common.h"
 #include "td/utils/format.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
@@ -18,18 +19,24 @@
 namespace td {
 
 void NetQueryDelayer::delay(NetQueryPtr query) {
-  query->debug("try delay");
+  query->debug("trying to delay");
   query->is_ready();
   CHECK(query->is_error());
   auto code = query->error().code();
   double timeout = 0;
-  if (code < 0 || code == 500) {
+  if (code < 0) {
     // skip
+  } else if (code == 500) {
+    auto msg = query->error().message();
+    if (msg == "WORKER_BUSY_TOO_LONG_RETRY") {
+      timeout = 1;  // it is dangerous to resend query without timeout, so use 1
+    }
   } else if (code == 420) {
     auto msg = query->error().message();
-    for (auto prefix : {Slice("FLOOD_WAIT_"), Slice("2FA_CONFIRM_WAIT_"), Slice("TAKEOUT_INIT_DELAY_")}) {
+    for (auto prefix :
+         {Slice("FLOOD_WAIT_"), Slice("SLOWMODE_WAIT_"), Slice("2FA_CONFIRM_WAIT_"), Slice("TAKEOUT_INIT_DELAY_")}) {
       if (begins_with(msg, prefix)) {
-        timeout = clamp(to_integer<int>(msg.substr(prefix.size())), 0, 14 * 24 * 60 * 60);
+        timeout = clamp(to_integer<int>(msg.substr(prefix.size())), 1, 14 * 24 * 60 * 60);
         break;
       }
     }
@@ -85,7 +92,6 @@ void NetQueryDelayer::delay(NetQueryPtr query) {
 void NetQueryDelayer::wakeup() {
   auto link_token = get_link_token();
   if (link_token) {
-    LOG(INFO) << "raw_event";
     on_slot_event(link_token);
   }
   loop();

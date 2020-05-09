@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -20,7 +20,7 @@ class HttpInboundConnection final : public detail::HttpConnectionBase {
  public:
   class Callback : public Actor {
    public:
-    virtual void handle(HttpQueryPtr query, ActorOwn<HttpInboundConnection> connection) = 0;
+    virtual void handle(unique_ptr<HttpQuery> query, ActorOwn<HttpInboundConnection> connection) = 0;
   };
   // Inherited interface
   // void write_next(BufferSlice buffer);
@@ -31,7 +31,7 @@ class HttpInboundConnection final : public detail::HttpConnectionBase {
                         ActorShared<Callback> callback);
 
  private:
-  void on_query(HttpQueryPtr query) override;
+  void on_query(unique_ptr<HttpQuery> query) override;
   void on_error(Status error) override;
   void hangup() override {
     callback_.release();

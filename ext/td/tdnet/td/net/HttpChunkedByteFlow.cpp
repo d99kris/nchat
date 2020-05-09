@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -18,7 +18,7 @@ void HttpChunkedByteFlow::loop() {
   bool was_updated = false;
   size_t need_size;
   while (true) {
-    if (state_ == ReadChunkLength) {
+    if (state_ == State::ReadChunkLength) {
       bool ok = find_boundary(input_->clone(), "\r\n", len_);
       if (len_ > 10) {
         return finish(Status::Error(PSLICE() << "Too long length in chunked "
@@ -35,7 +35,7 @@ void HttpChunkedByteFlow::loop() {
         return finish(Status::Error(PSLICE() << "Invalid chunk size " << tag("size", len_)));
       }
       save_len_ = len_;
-      state_ = ReadChunkContent;
+      state_ = State::ReadChunkContent;
     }
 
     auto size = input_->size();
@@ -62,12 +62,12 @@ void HttpChunkedByteFlow::loop() {
         need_size = 2;
         break;
       }
-      input_->cut_head(2);
+      input_->advance(2);
       total_size_ += 2;
       if (save_len_ == 0) {
         return finish(Status::OK());
       }
-      state_ = ReadChunkLength;
+      state_ = State::ReadChunkLength;
       len_ = 0;
     }
   }

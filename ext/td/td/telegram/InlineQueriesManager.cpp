@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -17,10 +17,15 @@
 #include "td/telegram/AuthManager.h"
 #include "td/telegram/Contact.h"
 #include "td/telegram/ContactsManager.h"
+#include "td/telegram/Document.h"
 #include "td/telegram/DocumentsManager.h"
 #include "td/telegram/files/FileManager.h"
+#include "td/telegram/files/FileType.h"
 #include "td/telegram/Game.h"
 #include "td/telegram/Global.h"
+#include "td/telegram/InputMessageText.h"
+#include "td/telegram/Location.h"
+#include "td/telegram/MessageContent.h"
 #include "td/telegram/MessageEntity.h"
 #include "td/telegram/MessagesManager.h"
 #include "td/telegram/misc.h"
@@ -28,11 +33,10 @@
 #include "td/telegram/ReplyMarkup.h"
 #include "td/telegram/StickersManager.h"
 #include "td/telegram/Td.h"
-#include "td/telegram/VideoNotesManager.h"
+#include "td/telegram/TdDb.h"
+#include "td/telegram/Venue.h"
 #include "td/telegram/VideosManager.h"
 #include "td/telegram/VoiceNotesManager.h"
-#include "td/telegram/WebPageId.h"
-#include "td/telegram/WebPagesManager.h"
 
 #include "td/telegram/net/DcId.h"
 
@@ -176,6 +180,9 @@ void InlineQueriesManager::on_drop_inline_query_result_timeout_callback(void *in
 }
 
 void InlineQueriesManager::after_get_difference() {
+  if (td_->auth_manager_->is_bot()) {
+    return;
+  }
   if (recently_used_bots_loaded_ < 2) {
     Promise<Unit> promise;
     load_recently_used_bots(promise);
@@ -212,28 +219,6 @@ string InlineQueriesManager::get_inline_message_id(
   return base64url_encode(serialize(*input_bot_inline_message_id));
 }
 
-Result<FormattedText> InlineQueriesManager::process_input_caption(
-    td_api::object_ptr<td_api::formattedText> &&caption) const {
-  return td_->messages_manager_->process_input_caption(DialogId(), std::move(caption), true);
-}
-
-tl_object_ptr<telegram_api::inputBotInlineMessageMediaAuto>
-InlineQueriesManager::get_input_bot_inline_message_media_auto(
-    const FormattedText &caption, tl_object_ptr<telegram_api::ReplyMarkup> &&input_reply_markup) const {
-  int32 flags = 0;
-  if (input_reply_markup != nullptr) {
-    flags |= telegram_api::inputBotInlineMessageText::REPLY_MARKUP_MASK;
-  }
-  auto entities = get_input_message_entities(td_->contacts_manager_.get(), caption.entities,
-                                             "get_input_bot_inline_message_media_auto");
-  if (!entities.empty()) {
-    flags |= telegram_api::inputBotInlineMessageText::ENTITIES_MASK;
-  }
-
-  return make_tl_object<telegram_api::inputBotInlineMessageMediaAuto>(flags, caption.text, std::move(entities),
-                                                                      std::move(input_reply_markup));
-}
-
 Result<tl_object_ptr<telegram_api::InputBotInlineMessage>> InlineQueriesManager::get_inline_message(
     tl_object_ptr<td_api::InputMessageContent> &&input_message_content,
     tl_object_ptr<td_api::ReplyMarkup> &&reply_markup_ptr, int32 allowed_media_content_id) const {
@@ -249,8 +234,8 @@ Result<tl_object_ptr<telegram_api::InputBotInlineMessage>> InlineQueriesManager:
 
   auto constructor_id = input_message_content->get_id();
   if (constructor_id == td_api::inputMessageText::ID) {
-    TRY_RESULT(input_message_text,
-               td_->messages_manager_->process_input_message_text(DialogId(), std::move(input_message_content), true));
+    TRY_RESULT(input_message_text, process_input_message_text(td_->contacts_manager_.get(), DialogId(),
+                                                              std::move(input_message_content), true));
 
     if (input_message_text.disable_web_page_preview) {
       flags |= telegram_api::inputBotInlineMessageText::NO_WEBPAGE_MASK;
@@ -265,54 +250,28 @@ Result<tl_object_ptr<telegram_api::InputBotInlineMessage>> InlineQueriesManager:
         std::move(input_reply_markup));
   }
   if (constructor_id == td_api::inputMessageContact::ID) {
-    TRY_RESULT(contact, MessagesManager::process_input_message_contact(std::move(input_message_content)));
+    TRY_RESULT(contact, process_input_message_contact(std::move(input_message_content)));
     return contact.get_input_bot_inline_message_media_contact(flags, std::move(input_reply_markup));
   }
   if (constructor_id == td_api::inputMessageLocation::ID) {
-    TRY_RESULT(location, MessagesManager::process_input_message_location(std::move(input_message_content)));
+    TRY_RESULT(location, process_input_message_location(std::move(input_message_content)));
     return make_tl_object<telegram_api::inputBotInlineMessageMediaGeo>(flags, location.first.get_input_geo_point(),
                                                                        location.second, std::move(input_reply_markup));
   }
   if (constructor_id == td_api::inputMessageVenue::ID) {
-    TRY_RESULT(venue, MessagesManager::process_input_message_venue(std::move(input_message_content)));
+    TRY_RESULT(venue, process_input_message_venue(std::move(input_message_content)));
     return venue.get_input_bot_inline_message_media_venue(flags, std::move(input_reply_markup));
   }
   if (constructor_id == allowed_media_content_id) {
-    if (constructor_id == td_api::inputMessageAnimation::ID) {
-      auto input_message_animation = static_cast<td_api::inputMessageAnimation *>(input_message_content.get());
-      TRY_RESULT(caption, process_input_caption(std::move(input_message_animation->caption_)));
-      return get_input_bot_inline_message_media_auto(caption, std::move(input_reply_markup));
+    TRY_RESULT(caption, process_input_caption(td_->contacts_manager_.get(), DialogId(),
+                                              extract_input_caption(input_message_content), true));
+    auto entities = get_input_message_entities(td_->contacts_manager_.get(), caption.entities, "get_inline_message");
+    if (!entities.empty()) {
+      flags |= telegram_api::inputBotInlineMessageText::ENTITIES_MASK;
     }
-    if (constructor_id == td_api::inputMessageAudio::ID) {
-      auto input_message_audio = static_cast<td_api::inputMessageAudio *>(input_message_content.get());
-      TRY_RESULT(caption, process_input_caption(std::move(input_message_audio->caption_)));
-      return get_input_bot_inline_message_media_auto(caption, std::move(input_reply_markup));
-    }
-    if (constructor_id == td_api::inputMessageDocument::ID) {
-      auto input_message_document = static_cast<td_api::inputMessageDocument *>(input_message_content.get());
-      TRY_RESULT(caption, process_input_caption(std::move(input_message_document->caption_)));
-      return get_input_bot_inline_message_media_auto(caption, std::move(input_reply_markup));
-    }
-    if (constructor_id == td_api::inputMessagePhoto::ID) {
-      auto input_message_photo = static_cast<td_api::inputMessagePhoto *>(input_message_content.get());
-      TRY_RESULT(caption, process_input_caption(std::move(input_message_photo->caption_)));
-      return get_input_bot_inline_message_media_auto(caption, std::move(input_reply_markup));
-    }
-    if (constructor_id == td_api::inputMessageSticker::ID) {
-      // auto input_message_sticker = static_cast<const td_api::inputMessageSticker *>(input_message_content.get());
-      return make_tl_object<telegram_api::inputBotInlineMessageMediaAuto>(flags, "", Auto(),
-                                                                          std::move(input_reply_markup));
-    }
-    if (constructor_id == td_api::inputMessageVideo::ID) {
-      auto input_message_video = static_cast<td_api::inputMessageVideo *>(input_message_content.get());
-      TRY_RESULT(caption, process_input_caption(std::move(input_message_video->caption_)));
-      return get_input_bot_inline_message_media_auto(caption, std::move(input_reply_markup));
-    }
-    if (constructor_id == td_api::inputMessageVoiceNote::ID) {
-      auto input_message_voice_note = static_cast<td_api::inputMessageVoiceNote *>(input_message_content.get());
-      TRY_RESULT(caption, process_input_caption(std::move(input_message_voice_note->caption_)));
-      return get_input_bot_inline_message_media_auto(caption, std::move(input_reply_markup));
-    }
+
+    return make_tl_object<telegram_api::inputBotInlineMessageMediaAuto>(flags, caption.text, std::move(entities),
+                                                                        std::move(input_reply_markup));
   }
   return Status::Error(400, "Unallowed inline message content type");
 }
@@ -321,131 +280,30 @@ bool InlineQueriesManager::register_inline_message_content(
     int64 query_id, const string &result_id, FileId file_id,
     tl_object_ptr<telegram_api::BotInlineMessage> &&inline_message, int32 allowed_media_content_id, Photo *photo,
     Game *game) {
-  CHECK(inline_message != nullptr);
-  CHECK((allowed_media_content_id == td_api::inputMessagePhoto::ID) == (photo != nullptr));
-  CHECK((allowed_media_content_id == td_api::inputMessageGame::ID) == (game != nullptr));
-  CHECK((allowed_media_content_id != td_api::inputMessagePhoto::ID &&
-         allowed_media_content_id != td_api::inputMessageGame::ID && allowed_media_content_id != -1) ==
-        file_id.is_valid());
-
-  unique_ptr<MessageContent> message_content;
-  tl_object_ptr<telegram_api::ReplyMarkup> reply_markup;
-  bool disable_web_page_preview = false;
-  switch (inline_message->get_id()) {
-    case telegram_api::botInlineMessageText::ID: {
-      auto inline_message_text = move_tl_object_as<telegram_api::botInlineMessageText>(inline_message);
-      auto entities = get_message_entities(td_->contacts_manager_.get(), std::move(inline_message_text->entities_),
-                                           "botInlineMessageText");
-      auto status = fix_formatted_text(inline_message_text->message_, entities, false, true, true, false);
-      if (status.is_error()) {
-        LOG(ERROR) << "Receive error " << status << " while parsing botInlineMessageText "
-                   << inline_message_text->message_;
-        break;
-      }
-
-      disable_web_page_preview =
-          (inline_message_text->flags_ & telegram_api::botInlineMessageText::NO_WEBPAGE_MASK) != 0;
-      WebPageId web_page_id;
-      if (!disable_web_page_preview) {
-        web_page_id =
-            td_->web_pages_manager_->get_web_page_by_url(get_first_url(inline_message_text->message_, entities));
-      }
-      message_content = make_unique<MessageText>(
-          FormattedText{std::move(inline_message_text->message_), std::move(entities)}, web_page_id);
-      reply_markup = std::move(inline_message_text->reply_markup_);
-      break;
-    }
-    case telegram_api::botInlineMessageMediaGeo::ID: {
-      auto inline_message_geo = move_tl_object_as<telegram_api::botInlineMessageMediaGeo>(inline_message);
-      if (inline_message_geo->period_ > 0) {
-        message_content =
-            make_unique<MessageLiveLocation>(Location(inline_message_geo->geo_), inline_message_geo->period_);
-      } else {
-        message_content = make_unique<MessageLocation>(Location(inline_message_geo->geo_));
-      }
-      reply_markup = std::move(inline_message_geo->reply_markup_);
-      break;
-    }
-    case telegram_api::botInlineMessageMediaVenue::ID: {
-      auto inline_message_venue = move_tl_object_as<telegram_api::botInlineMessageMediaVenue>(inline_message);
-      message_content = make_unique<MessageVenue>(
-          Venue(inline_message_venue->geo_, std::move(inline_message_venue->title_),
-                std::move(inline_message_venue->address_), std::move(inline_message_venue->provider_),
-                std::move(inline_message_venue->venue_id_), std::move(inline_message_venue->venue_type_)));
-      reply_markup = std::move(inline_message_venue->reply_markup_);
-      break;
-    }
-    case telegram_api::botInlineMessageMediaContact::ID: {
-      auto inline_message_contact = move_tl_object_as<telegram_api::botInlineMessageMediaContact>(inline_message);
-      message_content = make_unique<MessageContact>(
-          Contact(std::move(inline_message_contact->phone_number_), std::move(inline_message_contact->first_name_),
-                  std::move(inline_message_contact->last_name_), std::move(inline_message_contact->vcard_), 0));
-      reply_markup = std::move(inline_message_contact->reply_markup_);
-      break;
-    }
-    case telegram_api::botInlineMessageMediaAuto::ID: {
-      auto input_message_media_auto = move_tl_object_as<telegram_api::botInlineMessageMediaAuto>(inline_message);
-      auto caption = td_->messages_manager_->get_message_text(input_message_media_auto->message_,
-                                                              std::move(input_message_media_auto->entities_), 0,
-                                                              "register_inline_message_content");
-      reply_markup = std::move(input_message_media_auto->reply_markup_);
-
-      if (allowed_media_content_id == td_api::inputMessageAnimation::ID) {
-        message_content = make_unique<MessageAnimation>(file_id, std::move(caption));
-      } else if (allowed_media_content_id == td_api::inputMessageAudio::ID) {
-        message_content = make_unique<MessageAudio>(file_id, std::move(caption));
-      } else if (allowed_media_content_id == td_api::inputMessageDocument::ID) {
-        message_content = make_unique<MessageDocument>(file_id, std::move(caption));
-      } else if (allowed_media_content_id == td_api::inputMessageGame::ID) {
-        CHECK(game != nullptr);
-        // TODO game->set_short_name(std::move(caption));
-        message_content = make_unique<MessageGame>(std::move(*game));
-      } else if (allowed_media_content_id == td_api::inputMessagePhoto::ID) {
-        message_content = make_unique<MessagePhoto>(std::move(*photo), std::move(caption));
-      } else if (allowed_media_content_id == td_api::inputMessageSticker::ID) {
-        message_content = make_unique<MessageSticker>(file_id);
-      } else if (allowed_media_content_id == td_api::inputMessageVideo::ID) {
-        message_content = make_unique<MessageVideo>(file_id, std::move(caption));
-      } else if (allowed_media_content_id == td_api::inputMessageVoiceNote::ID) {
-        message_content = make_unique<MessageVoiceNote>(file_id, std::move(caption), true);
-      } else {
-        input_message_media_auto->reply_markup_ = std::move(reply_markup);
-        input_message_media_auto->message_ = std::move(caption.text);
-        inline_message = std::move(input_message_media_auto);
-      }
-      break;
-    }
-    default:
-      UNREACHABLE();
-  }
-  if (message_content != nullptr) {
-    inline_message_contents_[query_id][result_id] = {
-        std::move(message_content),
-        get_reply_markup(std::move(reply_markup), td_->auth_manager_->is_bot(), true, false), disable_web_page_preview};
+  InlineMessageContent content =
+      create_inline_message_content(td_, file_id, std::move(inline_message), allowed_media_content_id, photo, game);
+  if (content.message_content != nullptr) {
+    inline_message_contents_[query_id].emplace(result_id, std::move(content));
     return true;
   }
-
-  LOG(WARNING) << "Unallowed bot inline message " << to_string(inline_message);
   return false;
 }
 
-std::tuple<const MessageContent *, const ReplyMarkup *, bool> InlineQueriesManager::get_inline_message_content(
-    int64 query_id, const string &result_id) {
+const InlineMessageContent *InlineQueriesManager::get_inline_message_content(int64 query_id, const string &result_id) {
   auto it = inline_message_contents_.find(query_id);
   if (it == inline_message_contents_.end()) {
-    return std::make_tuple(nullptr, nullptr, false);
+    return nullptr;
   }
 
   auto result_it = it->second.find(result_id);
   if (result_it == it->second.end()) {
-    return std::make_tuple(nullptr, nullptr, false);
+    return nullptr;
   }
 
   if (update_bot_usage(get_inline_bot_user_id(query_id))) {
     save_recently_used_bots();
   }
-  return std::make_tuple(result_it->second.message_content.get(), result_it->second.message_reply_markup.get(),
-                         result_it->second.disable_web_page_preview);
+  return &result_it->second;
 }
 
 UserId InlineQueriesManager::get_inline_bot_user_id(int64 query_id) const {
@@ -463,6 +321,18 @@ void InlineQueriesManager::answer_inline_query(int64 inline_query_id, bool is_pe
                                                Promise<Unit> &&promise) const {
   if (!td_->auth_manager_->is_bot()) {
     return promise.set_error(Status::Error(400, "Method can be used by bots only"));
+  }
+
+  if (!switch_pm_text.empty()) {
+    if (switch_pm_parameter.empty()) {
+      return promise.set_error(Status::Error(400, "Can't use empty switch_pm_parameter"));
+    }
+    if (switch_pm_parameter.size() > 64) {
+      return promise.set_error(Status::Error(400, "Too long switch_pm_parameter specified"));
+    }
+    if (!is_base64url_characters(switch_pm_parameter)) {
+      return promise.set_error(Status::Error(400, "Unallowed characters in switch_pm_parameter are used"));
+    }
   }
 
   vector<tl_object_ptr<telegram_api::InputBotInlineResult>> results;
@@ -681,7 +551,7 @@ void InlineQueriesManager::answer_inline_query(int64 inline_query_id, bool is_pe
         id = std::move(sticker->id_);
         thumbnail_url = std::move(sticker->thumbnail_url_);
         content_url = std::move(sticker->sticker_url_);
-        content_type = "image/webp";
+        content_type = "image/webp";  // or "application/x-tgsticker"; not used for previously uploaded files
         width = sticker->sticker_width_;
         height = sticker->sticker_height_;
         is_gallery = true;
@@ -796,19 +666,19 @@ void InlineQueriesManager::answer_inline_query(int64 inline_query_id, bool is_pe
       if (file_view.is_encrypted()) {
         return promise.set_error(Status::Error(400, "Can't send encrypted file"));
       }
-      if (file_view.remote_location().is_web()) {
+      if (file_view.main_remote_location().is_web()) {
         return promise.set_error(Status::Error(400, "Can't send web file"));
       }
 
       if (file_type == FileType::Photo) {
         auto result = make_tl_object<telegram_api::inputBotInlineResultPhoto>(
-            id, type, file_view.remote_location().as_input_photo(), std::move(inline_message));
+            id, type, file_view.main_remote_location().as_input_photo(), std::move(inline_message));
         results.push_back(std::move(result));
         continue;
       }
 
       auto result = make_tl_object<telegram_api::inputBotInlineResultDocument>(
-          flags, id, type, title, description, file_view.remote_location().as_input_document(),
+          flags, id, type, title, description, file_view.main_remote_location().as_input_document(),
           std::move(inline_message));
       results.push_back(std::move(result));
       continue;
@@ -891,8 +761,13 @@ uint64 InlineQueriesManager::send_inline_query(UserId bot_user_id, DialogId dial
     return 0;
   }
 
+  bool is_broadcast_channel =
+      dialog_id.get_type() == DialogType::Channel &&
+      td_->contacts_manager_->get_channel_type(dialog_id.get_channel_id()) == ChannelType::Broadcast;
+
   uint64 query_hash = std::hash<std::string>()(trim(query));
   query_hash = query_hash * 2023654985u + bot_user_id.get();
+  query_hash = query_hash * 2023654985u + static_cast<uint64>(is_broadcast_channel);
   query_hash = query_hash * 2023654985u + std::hash<std::string>()(offset);
   if (r_bot_data.ok().need_location) {
     query_hash = query_hash * 2023654985u + static_cast<uint64>(user_location.get_latitude() * 1e4);
@@ -971,14 +846,14 @@ static tl_object_ptr<T> copy(const tl_object_ptr<T> &obj) {
 
 template <>
 td_api::object_ptr<td_api::localFile> copy(const td_api::localFile &obj) {
-  return td_api::make_object<td_api::localFile>(obj.path_, obj.can_be_downloaded_, obj.can_be_deleted_,
-                                                obj.is_downloading_active_, obj.is_downloading_completed_,
-                                                obj.downloaded_prefix_size_, obj.downloaded_size_);
+  return td_api::make_object<td_api::localFile>(
+      obj.path_, obj.can_be_downloaded_, obj.can_be_deleted_, obj.is_downloading_active_, obj.is_downloading_completed_,
+      obj.download_offset_, obj.downloaded_prefix_size_, obj.downloaded_size_);
 }
 template <>
 td_api::object_ptr<td_api::remoteFile> copy(const td_api::remoteFile &obj) {
-  return td_api::make_object<td_api::remoteFile>(obj.id_, obj.is_uploading_active_, obj.is_uploading_completed_,
-                                                 obj.uploaded_size_);
+  return td_api::make_object<td_api::remoteFile>(obj.id_, obj.unique_id_, obj.is_uploading_active_,
+                                                 obj.is_uploading_completed_, obj.uploaded_size_);
 }
 
 template <>
@@ -990,6 +865,11 @@ td_api::object_ptr<td_api::file> copy(const td_api::file &obj) {
     return td_api::make_object<td_api::file>(obj.id_, obj.size_, obj.expected_size_, copy(obj.local_),
                                              copy(obj.remote_));
   }
+}
+
+template <>
+tl_object_ptr<td_api::minithumbnail> copy(const td_api::minithumbnail &obj) {
+  return make_tl_object<td_api::minithumbnail>(obj.width_, obj.height_, obj.data_);
 }
 
 template <>
@@ -1026,36 +906,40 @@ tl_object_ptr<td_api::maskPosition> copy(const td_api::maskPosition &obj) {
 template <>
 tl_object_ptr<td_api::animation> copy(const td_api::animation &obj) {
   return make_tl_object<td_api::animation>(obj.duration_, obj.width_, obj.height_, obj.file_name_, obj.mime_type_,
-                                           copy(obj.thumbnail_), copy(obj.animation_));
+                                           copy(obj.minithumbnail_), copy(obj.thumbnail_), copy(obj.animation_));
 }
 
 template <>
 tl_object_ptr<td_api::audio> copy(const td_api::audio &obj) {
   return make_tl_object<td_api::audio>(obj.duration_, obj.title_, obj.performer_, obj.file_name_, obj.mime_type_,
-                                       copy(obj.album_cover_thumbnail_), copy(obj.audio_));
+                                       copy(obj.album_cover_minithumbnail_), copy(obj.album_cover_thumbnail_),
+                                       copy(obj.audio_));
 }
 
 template <>
 tl_object_ptr<td_api::document> copy(const td_api::document &obj) {
-  return make_tl_object<td_api::document>(obj.file_name_, obj.mime_type_, copy(obj.thumbnail_), copy(obj.document_));
+  return make_tl_object<td_api::document>(obj.file_name_, obj.mime_type_, copy(obj.minithumbnail_),
+                                          copy(obj.thumbnail_), copy(obj.document_));
 }
 
 template <>
 tl_object_ptr<td_api::photo> copy(const td_api::photo &obj) {
-  return make_tl_object<td_api::photo>(obj.id_, obj.has_stickers_, transform(obj.sizes_, copy_photo_size));
+  return make_tl_object<td_api::photo>(obj.has_stickers_, copy(obj.minithumbnail_),
+                                       transform(obj.sizes_, copy_photo_size));
 }
 
 template <>
 tl_object_ptr<td_api::sticker> copy(const td_api::sticker &obj) {
-  return make_tl_object<td_api::sticker>(obj.set_id_, obj.width_, obj.height_, obj.emoji_, obj.is_mask_,
-                                         copy(obj.mask_position_), copy(obj.thumbnail_), copy(obj.sticker_));
+  return make_tl_object<td_api::sticker>(obj.set_id_, obj.width_, obj.height_, obj.emoji_, obj.is_animated_,
+                                         obj.is_mask_, copy(obj.mask_position_), copy(obj.thumbnail_),
+                                         copy(obj.sticker_));
 }
 
 template <>
 tl_object_ptr<td_api::video> copy(const td_api::video &obj) {
   return make_tl_object<td_api::video>(obj.duration_, obj.width_, obj.height_, obj.file_name_, obj.mime_type_,
-                                       obj.has_stickers_, obj.supports_streaming_, copy(obj.thumbnail_),
-                                       copy(obj.video_));
+                                       obj.has_stickers_, obj.supports_streaming_, copy(obj.minithumbnail_),
+                                       copy(obj.thumbnail_), copy(obj.video_));
 }
 
 template <>
@@ -1155,7 +1039,7 @@ tl_object_ptr<td_api::inlineQueryResultVoiceNote> copy(const td_api::inlineQuery
 
 static tl_object_ptr<td_api::InlineQueryResult> copy_result(const tl_object_ptr<td_api::InlineQueryResult> &obj_ptr) {
   tl_object_ptr<td_api::InlineQueryResult> result;
-  downcast_call(*obj_ptr, [&result](const auto &obj) { result = copy(obj); });
+  downcast_call(const_cast<td_api::InlineQueryResult &>(*obj_ptr), [&result](const auto &obj) { result = copy(obj); });
   return result;
 }
 
@@ -1177,6 +1061,7 @@ tl_object_ptr<td_api::inlineQueryResults> InlineQueriesManager::decrease_pending
     auto left_time = it->second.cache_expire_time - Time::now();
     if (left_time < 0) {
       LOG(INFO) << "Drop cache for inline query " << query_hash;
+      drop_inline_query_result_timeout_.cancel_timeout(static_cast<int64>(query_hash));
       auto result = std::move(it->second.results);
       inline_query_results_.erase(it);
       return result;
@@ -1203,7 +1088,7 @@ string InlineQueriesManager::get_web_document_url(const tl_object_ptr<telegram_a
     return {};
   }
 
-  string url;
+  Slice url;
   switch (web_document_ptr->get_id()) {
     case telegram_api::webDocument::ID: {
       auto web_document = static_cast<const telegram_api::webDocument *>(web_document_ptr.get());
@@ -1254,7 +1139,7 @@ void InlineQueriesManager::on_get_inline_query_results(UserId bot_user_id, uint6
   }
   LOG(INFO) << to_string(results);
 
-  td_->contacts_manager_->on_get_users(std::move(results->users_));
+  td_->contacts_manager_->on_get_users(std::move(results->users_), "on_get_inline_query_results");
 
   vector<tl_object_ptr<td_api::InlineQueryResult>> output_results;
   for (auto &result_ptr : results->results_) {
@@ -1291,17 +1176,17 @@ void InlineQueriesManager::on_get_inline_query_results(UserId bot_user_id, uint6
 
           auto parsed_document = td_->documents_manager_->on_get_document(
               move_tl_object_as<telegram_api::document>(document_ptr), DialogId());
-          switch (parsed_document.first) {
-            case DocumentsManager::DocumentType::Animation: {
+          switch (parsed_document.type) {
+            case Document::Type::Animation: {
               LOG_IF(WARNING, result->type_ != "gif") << "Wrong result type " << result->type_;
 
               auto animation = make_tl_object<td_api::inlineQueryResultAnimation>();
               animation->id_ = std::move(result->id_);
               animation->animation_ =
-                  td_->animations_manager_->get_animation_object(parsed_document.second, "inlineQueryResultAnimation");
+                  td_->animations_manager_->get_animation_object(parsed_document.file_id, "inlineQueryResultAnimation");
               animation->title_ = std::move(result->title_);
 
-              if (!register_inline_message_content(results->query_id_, animation->id_, parsed_document.second,
+              if (!register_inline_message_content(results->query_id_, animation->id_, parsed_document.file_id,
                                                    std::move(result->send_message_),
                                                    td_api::inputMessageAnimation::ID)) {
                 continue;
@@ -1309,30 +1194,30 @@ void InlineQueriesManager::on_get_inline_query_results(UserId bot_user_id, uint6
               output_result = std::move(animation);
               break;
             }
-            case DocumentsManager::DocumentType::Audio: {
+            case Document::Type::Audio: {
               LOG_IF(WARNING, result->type_ != "audio") << "Wrong result type " << result->type_;
 
               auto audio = make_tl_object<td_api::inlineQueryResultAudio>();
               audio->id_ = std::move(result->id_);
-              audio->audio_ = td_->audios_manager_->get_audio_object(parsed_document.second);
+              audio->audio_ = td_->audios_manager_->get_audio_object(parsed_document.file_id);
 
-              if (!register_inline_message_content(results->query_id_, audio->id_, parsed_document.second,
+              if (!register_inline_message_content(results->query_id_, audio->id_, parsed_document.file_id,
                                                    std::move(result->send_message_), td_api::inputMessageAudio::ID)) {
                 continue;
               }
               output_result = std::move(audio);
               break;
             }
-            case DocumentsManager::DocumentType::General: {
+            case Document::Type::General: {
               LOG_IF(WARNING, result->type_ != "file") << "Wrong result type " << result->type_;
 
               auto document = make_tl_object<td_api::inlineQueryResultDocument>();
               document->id_ = std::move(result->id_);
-              document->document_ = td_->documents_manager_->get_document_object(parsed_document.second);
+              document->document_ = td_->documents_manager_->get_document_object(parsed_document.file_id);
               document->title_ = std::move(result->title_);
               document->description_ = std::move(result->description_);
 
-              if (!register_inline_message_content(results->query_id_, document->id_, parsed_document.second,
+              if (!register_inline_message_content(results->query_id_, document->id_, parsed_document.file_id,
                                                    std::move(result->send_message_),
                                                    td_api::inputMessageDocument::ID)) {
                 continue;
@@ -1340,48 +1225,48 @@ void InlineQueriesManager::on_get_inline_query_results(UserId bot_user_id, uint6
               output_result = std::move(document);
               break;
             }
-            case DocumentsManager::DocumentType::Sticker: {
+            case Document::Type::Sticker: {
               LOG_IF(WARNING, result->type_ != "sticker") << "Wrong result type " << result->type_;
 
               auto sticker = make_tl_object<td_api::inlineQueryResultSticker>();
               sticker->id_ = std::move(result->id_);
-              sticker->sticker_ = td_->stickers_manager_->get_sticker_object(parsed_document.second);
+              sticker->sticker_ = td_->stickers_manager_->get_sticker_object(parsed_document.file_id);
 
-              if (!register_inline_message_content(results->query_id_, sticker->id_, parsed_document.second,
+              if (!register_inline_message_content(results->query_id_, sticker->id_, parsed_document.file_id,
                                                    std::move(result->send_message_), td_api::inputMessageSticker::ID)) {
                 continue;
               }
               output_result = std::move(sticker);
               break;
             }
-            case DocumentsManager::DocumentType::Video: {
+            case Document::Type::Video: {
               LOG_IF(WARNING, result->type_ != "video") << "Wrong result type " << result->type_;
 
               auto video = make_tl_object<td_api::inlineQueryResultVideo>();
               video->id_ = std::move(result->id_);
-              video->video_ = td_->videos_manager_->get_video_object(parsed_document.second);
+              video->video_ = td_->videos_manager_->get_video_object(parsed_document.file_id);
               video->title_ = std::move(result->title_);
               video->description_ = std::move(result->description_);
 
-              if (!register_inline_message_content(results->query_id_, video->id_, parsed_document.second,
+              if (!register_inline_message_content(results->query_id_, video->id_, parsed_document.file_id,
                                                    std::move(result->send_message_), td_api::inputMessageVideo::ID)) {
                 continue;
               }
               output_result = std::move(video);
               break;
             }
-            case DocumentsManager::DocumentType::VideoNote:
+            case Document::Type::VideoNote:
               // FIXME
               break;
-            case DocumentsManager::DocumentType::VoiceNote: {
+            case Document::Type::VoiceNote: {
               LOG_IF(WARNING, result->type_ != "voice") << "Wrong result type " << result->type_;
 
               auto voice_note = make_tl_object<td_api::inlineQueryResultVoiceNote>();
               voice_note->id_ = std::move(result->id_);
-              voice_note->voice_note_ = td_->voice_notes_manager_->get_voice_note_object(parsed_document.second);
+              voice_note->voice_note_ = td_->voice_notes_manager_->get_voice_note_object(parsed_document.file_id);
               voice_note->title_ = std::move(result->title_);
 
-              if (!register_inline_message_content(results->query_id_, voice_note->id_, parsed_document.second,
+              if (!register_inline_message_content(results->query_id_, voice_note->id_, parsed_document.file_id,
                                                    std::move(result->send_message_),
                                                    td_api::inputMessageVoiceNote::ID)) {
                 continue;
@@ -1389,7 +1274,7 @@ void InlineQueriesManager::on_get_inline_query_results(UserId bot_user_id, uint6
               output_result = std::move(voice_note);
               break;
             }
-            case DocumentsManager::DocumentType::Unknown:
+            case Document::Type::Unknown:
               // invalid document
               break;
             default:
@@ -1400,15 +1285,11 @@ void InlineQueriesManager::on_get_inline_query_results(UserId bot_user_id, uint6
           LOG_IF(ERROR, !is_photo) << "Wrong result type " << result->type_;
           auto photo = make_tl_object<td_api::inlineQueryResultPhoto>();
           photo->id_ = std::move(result->id_);
-          auto photo_ptr = std::move(result->photo_);
-          int32 photo_id = photo_ptr->get_id();
-          if (photo_id == telegram_api::photoEmpty::ID) {
+          Photo p = get_photo(td_->file_manager_.get(), std::move(result->photo_), DialogId());
+          if (p.id == -2) {
             LOG(ERROR) << "Receive empty cached photo in the result of inline query";
             break;
           }
-          CHECK(photo_id == telegram_api::photo::ID);
-
-          Photo p = get_photo(td_->file_manager_.get(), move_tl_object_as<telegram_api::photo>(photo_ptr), DialogId());
           photo->photo_ = get_photo_object(td_->file_manager_.get(), &p);
           photo->title_ = std::move(result->title_);
           photo->description_ = std::move(result->description_);
@@ -1559,21 +1440,21 @@ void InlineQueriesManager::on_get_inline_query_results(UserId bot_user_id, uint6
           }
           auto default_document_type = [type = result->type_, is_animation] {
             if (type == "audio") {
-              return DocumentsManager::DocumentType::Audio;
+              return Document::Type::Audio;
             }
             if (is_animation) {
-              return DocumentsManager::DocumentType::Animation;
+              return Document::Type::Animation;
             }
             if (type == "sticker") {
-              return DocumentsManager::DocumentType::Sticker;
+              return Document::Type::Sticker;
             }
             if (type == "video") {
-              return DocumentsManager::DocumentType::Video;
+              return Document::Type::Video;
             }
             if (type == "voice") {
-              return DocumentsManager::DocumentType::VoiceNote;
+              return Document::Type::VoiceNote;
             }
-            return DocumentsManager::DocumentType::General;
+            return Document::Type::General;
           }();
 
           auto parsed_document = td_->documents_manager_->on_get_document(
@@ -1582,11 +1463,11 @@ void InlineQueriesManager::on_get_inline_query_results(UserId bot_user_id, uint6
                                            std::move(result->thumb_)),
                std::move(attributes)},
               DialogId(), nullptr, default_document_type);
-          auto file_id = parsed_document.second;
+          auto file_id = parsed_document.file_id;
           if (!file_id.is_valid()) {
             continue;
           }
-          if (result->type_ == "audio" && parsed_document.first == DocumentsManager::DocumentType::Audio) {
+          if (result->type_ == "audio" && parsed_document.type == Document::Type::Audio) {
             auto audio = make_tl_object<td_api::inlineQueryResultAudio>();
             audio->id_ = std::move(result->id_);
             audio->audio_ = td_->audios_manager_->get_audio_object(file_id);
@@ -1595,7 +1476,7 @@ void InlineQueriesManager::on_get_inline_query_results(UserId bot_user_id, uint6
               continue;
             }
             output_result = std::move(audio);
-          } else if (result->type_ == "file" && parsed_document.first == DocumentsManager::DocumentType::General) {
+          } else if (result->type_ == "file" && parsed_document.type == Document::Type::General) {
             auto document = make_tl_object<td_api::inlineQueryResultDocument>();
             document->id_ = std::move(result->id_);
             document->document_ = td_->documents_manager_->get_document_object(file_id);
@@ -1606,7 +1487,7 @@ void InlineQueriesManager::on_get_inline_query_results(UserId bot_user_id, uint6
               continue;
             }
             output_result = std::move(document);
-          } else if (is_animation && parsed_document.first == DocumentsManager::DocumentType::Animation) {
+          } else if (is_animation && parsed_document.type == Document::Type::Animation) {
             auto animation = make_tl_object<td_api::inlineQueryResultAnimation>();
             animation->id_ = std::move(result->id_);
             animation->animation_ =
@@ -1617,7 +1498,7 @@ void InlineQueriesManager::on_get_inline_query_results(UserId bot_user_id, uint6
               continue;
             }
             output_result = std::move(animation);
-          } else if (result->type_ == "sticker" && parsed_document.first == DocumentsManager::DocumentType::Sticker) {
+          } else if (result->type_ == "sticker" && parsed_document.type == Document::Type::Sticker) {
             auto sticker = make_tl_object<td_api::inlineQueryResultSticker>();
             sticker->id_ = std::move(result->id_);
             sticker->sticker_ = td_->stickers_manager_->get_sticker_object(file_id);
@@ -1626,7 +1507,7 @@ void InlineQueriesManager::on_get_inline_query_results(UserId bot_user_id, uint6
               continue;
             }
             output_result = std::move(sticker);
-          } else if (result->type_ == "video" && parsed_document.first == DocumentsManager::DocumentType::Video) {
+          } else if (result->type_ == "video" && parsed_document.type == Document::Type::Video) {
             auto video = make_tl_object<td_api::inlineQueryResultVideo>();
             video->id_ = std::move(result->id_);
             video->video_ = td_->videos_manager_->get_video_object(file_id);
@@ -1637,7 +1518,7 @@ void InlineQueriesManager::on_get_inline_query_results(UserId bot_user_id, uint6
               continue;
             }
             output_result = std::move(video);
-          } else if (result->type_ == "voice" && parsed_document.first == DocumentsManager::DocumentType::VoiceNote) {
+          } else if (result->type_ == "voice" && parsed_document.type == Document::Type::VoiceNote) {
             auto voice_note = make_tl_object<td_api::inlineQueryResultVoiceNote>();
             voice_note->id_ = std::move(result->id_);
             voice_note->voice_note_ = td_->voice_notes_manager_->get_voice_note_object(file_id);
@@ -1723,6 +1604,7 @@ bool InlineQueriesManager::load_recently_used_bots(Promise<Unit> &promise) {
     return true;
   }
 
+  LOG(INFO) << "Load recently used inline bots " << saved_bots << '/' << saved_bot_ids;
   if (recently_used_bots_loaded_ == 1 && resolve_recent_inline_bots_multipromise_.promise_count() == 0) {
     // queries was sent and have already been finished
     auto newly_used_bots = std::move(recently_used_bot_user_ids_);
@@ -1846,12 +1728,10 @@ bool InlineQueriesManager::update_bot_usage(UserId bot_user_id) {
 }
 
 void InlineQueriesManager::remove_recent_inline_bot(UserId bot_user_id, Promise<Unit> &&promise) {
-  auto it = std::find(recently_used_bot_user_ids_.begin(), recently_used_bot_user_ids_.end(), bot_user_id);
-  if (it != recently_used_bot_user_ids_.end()) {
-    recently_used_bot_user_ids_.erase(it);
+  if (td::remove(recently_used_bot_user_ids_, bot_user_id)) {
     save_recently_used_bots();
   }
-  return promise.set_value(Unit());
+  promise.set_value(Unit());
 }
 
 }  // namespace td

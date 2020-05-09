@@ -1,18 +1,17 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #pragma once
 
+#include "td/telegram/net/NetQuery.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 
 #include "td/actor/actor.h"
 #include "td/actor/PromiseFuture.h"
-
-#include "td/telegram/net/NetQuery.h"
 
 #include "td/utils/common.h"
 #include "td/utils/Container.h"
@@ -31,14 +30,24 @@ class PrivacyManager : public NetQueryCallback {
                    Promise<tl_object_ptr<td_api::userPrivacySettingRules>> promise);
 
   void set_privacy(tl_object_ptr<td_api::UserPrivacySetting> key, tl_object_ptr<td_api::userPrivacySettingRules> rules,
-                   Promise<tl_object_ptr<td_api::ok>> promise);
+                   Promise<Unit> promise);
 
   void update_privacy(tl_object_ptr<telegram_api::updatePrivacy> update);
 
  private:
   class UserPrivacySetting {
    public:
-    enum class Type : int32 { UserState, ChatInvite, Call, Size };
+    enum class Type : int32 {
+      UserStatus,
+      ChatInvite,
+      Call,
+      PeerToPeerCall,
+      LinkInForwardedMessages,
+      UserProfilePhoto,
+      UserPhoneNumber,
+      FindByPhoneNumber,
+      Size
+    };
 
     static Result<UserPrivacySetting> from_td_api(tl_object_ptr<td_api::UserPrivacySetting> key);
     explicit UserPrivacySetting(const telegram_api::PrivacyKey &key);
@@ -64,7 +73,7 @@ class PrivacyManager : public NetQueryCallback {
     tl_object_ptr<telegram_api::InputPrivacyRule> as_telegram_api() const;
 
     bool operator==(const UserPrivacySettingRule &other) const {
-      return type_ == other.type_ && user_ids_ == other.user_ids_;
+      return type_ == other.type_ && user_ids_ == other.user_ids_ && chat_ids_ == other.chat_ids_;
     }
 
    private:
@@ -72,16 +81,21 @@ class PrivacyManager : public NetQueryCallback {
       AllowContacts,
       AllowAll,
       AllowUsers,
+      AllowChatParticipants,
       RestrictContacts,
       RestrictAll,
-      RestrictUsers
+      RestrictUsers,
+      RestrictChatParticipants
     } type_ = Type::RestrictAll;
 
     vector<int32> user_ids_;
-
-    vector<int32> user_ids_as_td_api() const;
+    vector<int32> chat_ids_;
 
     vector<tl_object_ptr<telegram_api::InputUser>> user_ids_as_telegram_api() const;
+
+    void set_chat_ids(const vector<int64> &dialog_ids);
+
+    vector<int64> chat_ids_as_dialog_ids() const;
 
     explicit UserPrivacySettingRule(const telegram_api::PrivacyRule &rule);
   };
@@ -127,4 +141,5 @@ class PrivacyManager : public NetQueryCallback {
 
   void hangup() override;
 };
+
 }  // namespace td

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -7,6 +7,7 @@
 #pragma once
 
 #include "td/telegram/net/NetQuery.h"
+#include "td/telegram/SecureStorage.h"
 #include "td/telegram/SecureValue.h"
 #include "td/telegram/UserId.h"
 
@@ -16,11 +17,11 @@
 #include "td/actor/actor.h"
 #include "td/actor/PromiseFuture.h"
 
+#include "td/utils/common.h"
 #include "td/utils/Container.h"
 #include "td/utils/Status.h"
 
 #include <map>
-#include <memory>
 #include <unordered_map>
 #include <utility>
 
@@ -30,6 +31,7 @@ class Td;
 
 using TdApiSecureValue = td_api::object_ptr<td_api::PassportElement>;
 using TdApiSecureValues = td_api::object_ptr<td_api::passportElements>;
+using TdApiSecureValuesWithErrors = td_api::object_ptr<td_api::passportElementsWithErrors>;
 using TdApiAuthorizationForm = td_api::object_ptr<td_api::passportAuthorizationForm>;
 
 class SecureManager : public NetQueryCallback {
@@ -45,8 +47,10 @@ class SecureManager : public NetQueryCallback {
 
   void on_get_secure_value(SecureValueWithCredentials value);
 
-  void get_passport_authorization_form(string password, UserId bot_user_id, string scope, string public_key,
-                                       string nonce, Promise<TdApiAuthorizationForm> promise);
+  void get_passport_authorization_form(UserId bot_user_id, string scope, string public_key, string nonce,
+                                       Promise<TdApiAuthorizationForm> promise);
+  void get_passport_authorization_form_available_elements(int32 authorization_form_id, string password,
+                                                          Promise<TdApiSecureValuesWithErrors> promise);
   void send_passport_authorization_form(int32 authorization_form_id, std::vector<SecureValueType> types,
                                         Promise<> promise);
 
@@ -63,8 +67,11 @@ class SecureManager : public NetQueryCallback {
     string scope;
     string public_key;
     string nonce;
-    bool is_received;
+    bool is_received = false;
+    bool is_decrypted = false;
     std::map<SecureValueType, SuitableSecureValue> options;
+    vector<telegram_api::object_ptr<telegram_api::secureValue>> values;
+    vector<telegram_api::object_ptr<telegram_api::SecureValueError>> errors;
   };
 
   std::unordered_map<int32, AuthorizationForm> authorization_forms_;
@@ -76,7 +83,10 @@ class SecureManager : public NetQueryCallback {
   void on_delete_secure_value(SecureValueType type, Promise<Unit> promise, Result<Unit> result);
   void on_get_passport_authorization_form(
       int32 authorization_form_id, Promise<TdApiAuthorizationForm> promise,
-      Result<std::pair<std::map<SecureValueType, SuitableSecureValue>, TdApiAuthorizationForm>> r_authorization_form);
+      Result<telegram_api::object_ptr<telegram_api::account_authorizationForm>> r_authorization_form);
+  void on_get_passport_authorization_form_secret(int32 authorization_form_id,
+                                                 Promise<TdApiSecureValuesWithErrors> promise,
+                                                 Result<secure_storage::Secret> r_secret);
 
   void on_result(NetQueryPtr query) override;
   Container<Promise<NetQueryPtr>> container_;

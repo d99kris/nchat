@@ -1,29 +1,35 @@
 cmake_minimum_required(VERSION 3.0.2 FATAL_ERROR)
 
+if (NOT DEFINED CMAKE_INSTALL_BINDIR)
+  set(CMAKE_INSTALL_BINDIR "bin")
+endif()
+
 file(MAKE_DIRECTORY auto/td/telegram)
 file(MAKE_DIRECTORY auto/td/mtproto)
 
-set(TL_TD_AUTO_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/auto PARENT_SCOPE)
+set(TL_TD_AUTO_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/auto PARENT_SCOPE)
+
+set(TD_AUTO_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/auto/td)
 
 set(TL_TD_AUTO
-  ${CMAKE_CURRENT_SOURCE_DIR}/auto/td/mtproto/mtproto_api.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/auto/td/mtproto/mtproto_api.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/auto/td/mtproto/mtproto_api.hpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/auto/td/telegram/td_api.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/auto/td/telegram/td_api.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/auto/td/telegram/td_api.hpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/auto/td/telegram/telegram_api.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/auto/td/telegram/telegram_api.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/auto/td/telegram/telegram_api.hpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/auto/td/telegram/secret_api.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/auto/td/telegram/secret_api.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/auto/td/telegram/secret_api.hpp
+  ${TD_AUTO_INCLUDE_DIR}/mtproto/mtproto_api.cpp
+  ${TD_AUTO_INCLUDE_DIR}/mtproto/mtproto_api.h
+  ${TD_AUTO_INCLUDE_DIR}/mtproto/mtproto_api.hpp
+  ${TD_AUTO_INCLUDE_DIR}/telegram/td_api.cpp
+  ${TD_AUTO_INCLUDE_DIR}/telegram/td_api.h
+  ${TD_AUTO_INCLUDE_DIR}/telegram/td_api.hpp
+  ${TD_AUTO_INCLUDE_DIR}/telegram/telegram_api.cpp
+  ${TD_AUTO_INCLUDE_DIR}/telegram/telegram_api.h
+  ${TD_AUTO_INCLUDE_DIR}/telegram/telegram_api.hpp
+  ${TD_AUTO_INCLUDE_DIR}/telegram/secret_api.cpp
+  ${TD_AUTO_INCLUDE_DIR}/telegram/secret_api.h
+  ${TD_AUTO_INCLUDE_DIR}/telegram/secret_api.hpp
   PARENT_SCOPE
 )
 
 set(TL_TD_JSON_AUTO
-  ${CMAKE_CURRENT_SOURCE_DIR}/auto/td/telegram/td_api_json.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/auto/td/telegram/td_api_json.h
+  ${TD_AUTO_INCLUDE_DIR}/telegram/td_api_json.cpp
+  ${TD_AUTO_INCLUDE_DIR}/telegram/td_api_json.h
   PARENT_SCOPE
 )
 
@@ -31,15 +37,15 @@ set(TL_TD_API_TLO ${CMAKE_CURRENT_SOURCE_DIR}/scheme/td_api.tlo)
 set(TL_TD_API_TLO ${TL_TD_API_TLO} PARENT_SCOPE)
 
 set(TL_C_AUTO
-  ${CMAKE_CURRENT_SOURCE_DIR}/auto/td/telegram/td_tdc_api.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/auto/td/telegram/td_tdc_api.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/auto/td/telegram/td_tdc_api_inner.h
+  ${TD_AUTO_INCLUDE_DIR}/telegram/td_tdc_api.cpp
+  ${TD_AUTO_INCLUDE_DIR}/telegram/td_tdc_api.h
+  ${TD_AUTO_INCLUDE_DIR}/telegram/td_tdc_api_inner.h
   PARENT_SCOPE
 )
 
 set(TL_DOTNET_AUTO
-  ${CMAKE_CURRENT_SOURCE_DIR}/auto/td/telegram/TdDotNetApi.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/auto/td/telegram/TdDotNetApi.h
+  ${TD_AUTO_INCLUDE_DIR}/telegram/TdDotNetApi.cpp
+  ${TD_AUTO_INCLUDE_DIR}/telegram/TdDotNetApi.h
   PARENT_SCOPE
 )
 
@@ -129,9 +135,9 @@ if (NOT CMAKE_CROSSCOMPILING)
   )
 
   if (TD_ENABLE_JNI)
-    install(TARGETS td_generate_java_api RUNTIME DESTINATION bin)
-    install(FILES JavadocTlDocumentationGenerator.php TlDocumentationGenerator.php DESTINATION bin/td/generate)
-    install(FILES scheme/td_api.tlo scheme/td_api.tl DESTINATION bin/td/generate/scheme)
+    install(TARGETS td_generate_java_api RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+    install(FILES JavadocTlDocumentationGenerator.php TlDocumentationGenerator.php DESTINATION "${CMAKE_INSTALL_BINDIR}/td/generate")
+    install(FILES scheme/td_api.tlo scheme/td_api.tl DESTINATION "${CMAKE_INSTALL_BINDIR}/td/generate/scheme")
   endif()
 
   if (TD_ENABLE_DOTNET)

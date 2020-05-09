@@ -14,7 +14,7 @@ application/davmount+xml			davmount
 application/docbook+xml				dbk
 application/dssc+der				dssc
 application/dssc+xml				xdssc
-application/ecmascript				ecma
+application/ecmascript				es
 application/emma+xml				emma
 application/epub+zip				epub
 application/exi					exi
@@ -506,7 +506,7 @@ application/x-font-pcf				pcf
 application/x-font-snf				snf
 application/x-font-ttf				ttf ttc
 application/x-font-type1			pfa pfb pfm afm
-application/font-woff				woff
+application/x-font-woff				woff
 application/x-freearc				arc
 application/x-futuresplash			spl
 application/x-gca-compressed			gca
@@ -564,6 +564,8 @@ application/x-tex				tex
 application/x-tex-tfm				tfm
 application/x-texinfo				texinfo texi
 application/x-tgif				obj
+application/x-tgsticker				tgs
+application/x-tgwallpattern			tgv
 application/x-ustar				ustar
 application/x-wais-source			src
 application/x-x509-ca-cert			der crt
@@ -589,7 +591,7 @@ application/zip					zip
 audio/adpcm					adp
 audio/basic					au snd
 audio/midi					mid midi kar rmi
-audio/mp4					mp4a
+audio/mp4					m4a mp4a
 audio/mpeg					mpga mp2 mp2a mp3 m2a m3a
 audio/ogg					oga ogg spx
 audio/s3m					s3m
@@ -624,10 +626,19 @@ chemical/x-cmdf					cmdf
 chemical/x-cml					cml
 chemical/x-csml					csml
 chemical/x-xyz					xyz
+font/collection					ttc
+font/otf					otf
+font/ttf					ttf
+font/woff					woff
+font/woff2					woff2
 image/bmp					bmp
 image/cgm					cgm
 image/g3fax					g3
 image/gif					gif
+image/heic					heic
+image/heic-sequence				heics
+image/heif					heif
+image/heif-sequence				heifs
 image/ief					ief
 image/jpeg					jpeg jpg jpe
 image/ktx					ktx
@@ -638,8 +649,8 @@ image/svg+xml					svg svgz
 image/tiff					tiff tif
 image/vnd.adobe.photoshop			psd
 image/vnd.dece.graphic				uvi uvvi uvg uvvg
-image/vnd.dvb.subtitle				sub
 image/vnd.djvu					djvu djv
+image/vnd.dvb.subtitle				sub
 image/vnd.dwg					dwg
 image/vnd.dxf					dxf
 image/vnd.fastbidsheet				fbs
@@ -700,8 +711,8 @@ text/uri-list					uri uris urls
 text/vcard					vcard
 text/vnd.curl					curl
 text/vnd.curl.dcurl				dcurl
-text/vnd.curl.scurl				scurl
 text/vnd.curl.mcurl				mcurl
+text/vnd.curl.scurl				scurl
 text/vnd.dvb.subtitle				sub
 text/vnd.fly					fly
 text/vnd.fmi.flexstor				flx
@@ -715,9 +726,10 @@ text/x-asm					s asm
 text/x-c					c cc cxx cpp h hh dic
 text/x-fortran					f for f77 f90
 text/x-java-source				java
+text/x-nfo					nfo
 text/x-opml					opml
 text/x-pascal					p pas
-text/x-nfo					nfo
+text/x-php					php
 text/x-setext					etx
 text/x-sfv					sfv
 text/x-uuencode					uu
@@ -728,6 +740,7 @@ video/3gpp2					3g2
 video/h261					h261
 video/h263					h263
 video/h264					h264
+video/h265					h265
 video/jpeg					jpgv
 video/jpm					jpm jpgm
 video/mj2					mj2 mjp2

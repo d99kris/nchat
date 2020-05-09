@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -13,8 +13,10 @@
 #include "td/telegram/Global.h"
 #include "td/telegram/net/DcId.h"
 #include "td/telegram/net/NetQueryDispatcher.h"
+#include "td/telegram/SecureStorage.h"
 
 #include "td/utils/buffer.h"
+#include "td/utils/common.h"
 #include "td/utils/crypto.h"
 #include "td/utils/format.h"
 #include "td/utils/logging.h"
@@ -24,9 +26,10 @@
 #include "td/utils/ScopeGuard.h"
 
 namespace td {
+
 FileUploader::FileUploader(const LocalFileLocation &local, const RemoteFileLocation &remote, int64 expected_size,
                            const FileEncryptionKey &encryption_key, std::vector<int> bad_parts,
-                           std::unique_ptr<Callback> callback)
+                           unique_ptr<Callback> callback)
     : local_(local)
     , remote_(remote)
     , expected_size_(expected_size)
@@ -47,7 +50,9 @@ Result<FileLoader::FileInfo> FileUploader::init() {
     return Status::Error("File is already uploaded");
   }
 
-  TRY_RESULT(prefix_info, on_update_local_location(local_));
+  // file_size is needed only for partial local locations, but for uploaded partial files
+  // size is yet unknown or local location is full, so we can always pass 0 here
+  TRY_RESULT(prefix_info, on_update_local_location(local_, 0));
   (void)prefix_info;
 
   int offset = 0;
@@ -60,7 +65,7 @@ Result<FileLoader::FileInfo> FileUploader::init() {
     offset = partial.ready_part_count_;
   } else {
     file_id_ = Random::secure_int64();
-    big_flag_ = expected_size_ > 10 * (1 << 20);
+    big_flag_ = is_file_big(file_type_, expected_size_);
   }
 
   std::vector<bool> ok(offset, true);
@@ -83,10 +88,12 @@ Result<FileLoader::FileInfo> FileUploader::init() {
   res.is_size_final = local_is_ready_;
   res.part_size = part_size;
   res.ready_parts = std::move(parts);
+  res.is_upload = true;
   return res;
 }
 
-Result<FileLoader::PrefixInfo> FileUploader::on_update_local_location(const LocalFileLocation &location) {
+Result<FileLoader::PrefixInfo> FileUploader::on_update_local_location(const LocalFileLocation &location,
+                                                                      int64 file_size) {
   SCOPE_EXIT {
     try_release_fd();
   };
@@ -96,7 +103,7 @@ Result<FileLoader::PrefixInfo> FileUploader::on_update_local_location(const Loca
   }
 
   string path;
-  int64 local_size = 0;
+  int64 local_size = -1;
   bool local_is_ready{false};
   FileType file_type{FileType::Temp};
   if (location.type() == LocalFileLocation::Type::Empty ||
@@ -107,14 +114,24 @@ Result<FileLoader::PrefixInfo> FileUploader::on_update_local_location(const Loca
     file_type = FileType::Temp;
   } else if (location.type() == LocalFileLocation::Type::Partial) {
     path = location.partial().path_;
-    local_size = static_cast<int64>(location.partial().part_size_) * location.partial().ready_part_count_;
+    local_size = Bitmask(Bitmask::Decode{}, location.partial().ready_bitmask_)
+                     .get_ready_prefix_size(0, location.partial().part_size_, file_size);
     local_is_ready = false;
     file_type = location.partial().file_type_;
   } else {
     path = location.full().path_;
+    if (path.empty()) {
+      return Status::Error("FullLocalFileLocation with empty path");
+    }
     local_is_ready = true;
     file_type = location.full().file_type_;
   }
+
+  LOG(INFO) << "In FileUploader::on_update_local_location with " << location << ". Have path = \"" << path
+            << "\", local_size = " << local_size << ", local_is_ready = " << local_is_ready
+            << " and file type = " << file_type;
+
+  file_type_ = file_type;
 
   bool is_temp = false;
   if (encryption_key_.is_secure() && local_is_ready) {
@@ -128,12 +145,13 @@ Result<FileLoader::PrefixInfo> FileUploader::on_update_local_location(const Loca
     is_temp = true;
   }
 
-  if (!path.empty() && path != fd_path_) {
+  if (!path.empty() && (path != fd_path_ || fd_.empty())) {
     auto res_fd = FileFd::open(path, FileFd::Read);
 
     // Race: partial location could be already deleted. Just ignore such locations
     if (res_fd.is_error()) {
       if (location.type() == LocalFileLocation::Type::Partial) {
+        LOG(INFO) << "Ignore partial local location: " << res_fd.error();
         PrefixInfo info;
         info.size = local_size_;
         info.is_ready = local_is_ready_;
@@ -147,15 +165,15 @@ Result<FileLoader::PrefixInfo> FileUploader::on_update_local_location(const Loca
     fd_path_ = path;
     is_temp_ = is_temp;
   }
-
   if (local_is_ready) {
     CHECK(!fd_.empty());
-    local_size = fd_.get_size();
+    TRY_RESULT_ASSIGN(local_size, fd_.get_size());
+    LOG(INFO) << "Set file local_size to " << local_size;
     if (local_size == 0) {
       return Status::Error("Can't upload empty file");
     }
   } else if (!fd_.empty()) {
-    auto real_local_size = fd_.get_size();
+    TRY_RESULT(real_local_size, fd_.get_size());
     if (real_local_size < local_size) {
       LOG(ERROR) << tag("real_local_size", real_local_size) << " < " << tag("local_size", local_size);
       PrefixInfo info;
@@ -170,7 +188,6 @@ Result<FileLoader::PrefixInfo> FileUploader::on_update_local_location(const Loca
     expected_size_ = local_size_;
   }
   local_is_ready_ = local_is_ready;
-  file_type_ = file_type;
 
   PrefixInfo info;
   info.size = local_size_;
@@ -197,7 +214,7 @@ void FileUploader::on_error(Status status) {
 }
 
 Status FileUploader::generate_iv_map() {
-  LOG(INFO) << "generate iv_map " << generate_offset_ << " " << local_size_;
+  LOG(INFO) << "Generate iv_map " << generate_offset_ << " " << local_size_;
   auto part_size = get_part_size();
   auto encryption_key = FileEncryptionKey(encryption_key_.key_slice(), generate_iv_);
   BufferSlice bytes(part_size);
@@ -211,7 +228,8 @@ Status FileUploader::generate_iv_map() {
     if (read_size != part_size) {
       return Status::Error("Failed to read file part (for iv_map)");
     }
-    aes_ige_encrypt(encryption_key.key(), &encryption_key.mutable_iv(), bytes.as_slice(), bytes.as_slice());
+    aes_ige_encrypt(as_slice(encryption_key.key()), as_slice(encryption_key.mutable_iv()), bytes.as_slice(),
+                    bytes.as_slice());
     iv_map_.push_back(encryption_key.mutable_iv());
   }
   generate_iv_ = encryption_key.iv_slice().str();
@@ -229,7 +247,7 @@ void FileUploader::after_start_parts() {
   try_release_fd();
 }
 
-Result<std::pair<NetQueryPtr, bool>> FileUploader::start_part(Part part, int32 part_count) {
+Result<std::pair<NetQueryPtr, bool>> FileUploader::start_part(Part part, int32 part_count, int64 streaming_offset) {
   auto padded_size = part.size;
   if (encryption_key_.is_secret()) {
     padded_size = (padded_size + 15) & ~15;
@@ -239,7 +257,7 @@ Result<std::pair<NetQueryPtr, bool>> FileUploader::start_part(Part part, int32 p
   if (encryption_key_.is_secret()) {
     Random::secure_bytes(bytes.as_slice().substr(part.size));
     if (next_offset_ == part.offset) {
-      aes_ige_encrypt(encryption_key_.key(), &iv_, bytes.as_slice(), bytes.as_slice());
+      aes_ige_encrypt(as_slice(encryption_key_.key()), as_slice(iv_), bytes.as_slice(), bytes.as_slice());
       next_offset_ += static_cast<int64>(bytes.size());
     } else {
       if (part.id >= static_cast<int32>(iv_map_.size())) {
@@ -247,12 +265,11 @@ Result<std::pair<NetQueryPtr, bool>> FileUploader::start_part(Part part, int32 p
       }
       CHECK(part.id < static_cast<int32>(iv_map_.size()) && part.id >= 0);
       auto iv = iv_map_[part.id];
-      aes_ige_encrypt(encryption_key_.key(), &iv, bytes.as_slice(), bytes.as_slice());
+      aes_ige_encrypt(as_slice(encryption_key_.key()), as_slice(iv), bytes.as_slice(), bytes.as_slice());
     }
   }
 
   if (size != part.size) {
-    LOG(ERROR) << "Need to read " << part.size << " bytes, but read " << size << " bytes instead";
     return Status::Error("Failed to read file part");
   }
 
@@ -292,13 +309,14 @@ Result<size_t> FileUploader::process_part(Part part, NetQueryPtr net_query) {
   return part.size;
 }
 
-void FileUploader::on_progress(int32 part_count, int32 part_size, int32 ready_part_count, bool is_ready,
-                               int64 ready_size) {
-  callback_->on_partial_upload(PartialRemoteFileLocation{file_id_, part_count, part_size, ready_part_count, big_flag_},
-                               ready_size);
-  if (is_ready) {
+void FileUploader::on_progress(Progress progress) {
+  callback_->on_partial_upload(PartialRemoteFileLocation{file_id_, progress.part_count, progress.part_size,
+                                                         progress.ready_part_count, big_flag_},
+                               progress.ready_size);
+  if (progress.is_ready) {
     callback_->on_ok(file_type_,
-                     PartialRemoteFileLocation{file_id_, part_count, part_size, ready_part_count, big_flag_},
+                     PartialRemoteFileLocation{file_id_, progress.part_count, progress.part_size,
+                                               progress.ready_part_count, big_flag_},
                      local_size_);
   }
 }
@@ -319,8 +337,7 @@ void FileUploader::try_release_fd() {
 
 Status FileUploader::acquire_fd() {
   if (fd_.empty()) {
-    TRY_RESULT(fd, FileFd::open(fd_path_, FileFd::Read));
-    fd_ = std::move(fd);
+    TRY_RESULT_ASSIGN(fd_, FileFd::open(fd_path_, FileFd::Read));
   }
   return Status::OK();
 }

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -7,7 +7,6 @@
 #pragma once
 
 #include "td/utils/common.h"
-#include "td/utils/logging.h"
 
 #include <atomic>
 
@@ -149,14 +148,14 @@ template <class Value>
 class MpscLinkQueueUniquePtrNode {
  public:
   MpscLinkQueueUniquePtrNode() = default;
-  explicit MpscLinkQueueUniquePtrNode(std::unique_ptr<Value> ptr) : ptr_(std::move(ptr)) {
+  explicit MpscLinkQueueUniquePtrNode(unique_ptr<Value> ptr) : ptr_(std::move(ptr)) {
   }
 
   MpscLinkQueueImpl::Node *to_mpsc_link_queue_node() {
     return ptr_.release()->to_mpsc_link_queue_node();
   }
-  static MpscLinkQueueUniquePtrNode<Value> from_mpsc_link_queue_node(td::MpscLinkQueueImpl::Node *node) {
-    return MpscLinkQueueUniquePtrNode<Value>(std::unique_ptr<Value>(Value::from_mpsc_link_queue_node(node)));
+  static MpscLinkQueueUniquePtrNode<Value> from_mpsc_link_queue_node(MpscLinkQueueImpl::Node *node) {
+    return MpscLinkQueueUniquePtrNode<Value>(unique_ptr<Value>(Value::from_mpsc_link_queue_node(node)));
   }
 
   explicit operator bool() {
@@ -168,7 +167,7 @@ class MpscLinkQueueUniquePtrNode {
   }
 
  private:
-  std::unique_ptr<Value> ptr_;
+  unique_ptr<Value> ptr_;
 };
 
 }  // namespace td

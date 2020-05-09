@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -12,23 +12,13 @@
 #include "td/utils/Slice.h"
 #include "td/utils/Status.h"
 #include "td/utils/Storer.h"
+#include "td/utils/StorerBase.h"
 #include "td/utils/tl_parsers.h"
 #include "td/utils/tl_storers.h"
 
 #include <limits>
 
 namespace td {
-
-namespace mtproto {
-struct Query {
-  int64 message_id;
-  int32 seq_no;
-  BufferSlice packet;
-  bool gzip_flag;
-  uint64 invoke_after_id;
-  bool use_quick_ack;
-};
-}  // namespace mtproto
 
 template <class T>
 Result<typename T::ReturnType> fetch_result(Slice message, bool check_end = true) {

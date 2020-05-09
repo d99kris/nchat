@@ -1,12 +1,16 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/telegram/net/MtprotoHeader.h"
 
+#include "td/telegram/JsonValue.h"
 #include "td/telegram/LanguagePackManager.h"
+#include "td/telegram/Version.h"
+
+#include "td/tl/tl_object_store.h"
 
 #include "td/utils/tl_helpers.h"
 
@@ -21,12 +25,10 @@ class HeaderStorer {
   }
   template <class StorerT>
   void store(StorerT &storer) const {
-    constexpr int32 LAYER = 85;
-
     using td::store;
     // invokeWithLayer#da9b0d0d {X:Type} layer:int query:!X = X;
     store(static_cast<int32>(0xda9b0d0d), storer);
-    store(LAYER, storer);
+    store(MTPROTO_LAYER, storer);
     // initConnection#785188b8 {X:Type} flags:# api_id:int device_model:string system_version:string app_version:string
     // system_lang_code:string lang_pack:string lang_code:string proxy:flags.0?InputClientProxy query:!X = X;
     store(static_cast<int32>(0x785188b8), storer);
@@ -34,6 +36,9 @@ class HeaderStorer {
     bool have_proxy = !is_anonymous && options.proxy.type() == Proxy::Type::Mtproto;
     if (have_proxy) {
       flags |= 1 << 0;
+    }
+    if (!options.parameters.empty()) {
+      flags |= 1 << 1;
     }
     if (options.is_emulator) {
       flags |= 1 << 10;
@@ -66,6 +71,12 @@ class HeaderStorer {
       store(static_cast<int32>(0x75588b3f), storer);
       store(Slice(options.proxy.server()), storer);
       store(options.proxy.port(), storer);
+    }
+    if (!options.parameters.empty()) {
+      auto parameters_copy = options.parameters;
+      auto json_value = get_input_json_value(parameters_copy).move_as_ok();
+      CHECK(json_value != nullptr);
+      TlStoreBoxedUnknown<TlStoreObject>::store(json_value, storer);
     }
   }
 

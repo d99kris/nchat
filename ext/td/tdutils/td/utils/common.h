@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -33,20 +33,20 @@
     #define _CRT_SECURE_NO_WARNINGS
   #endif
 
-  #include <Winsock2.h>
-  #include <ws2tcpip.h>
+  #include <WinSock2.h>
+  #include <WS2tcpip.h>
 
-  #include <Mswsock.h>
+  #include <MSWSock.h>
   #include <Windows.h>
   #undef ERROR
 #endif
 // clang-format on
 
+#include "td/utils/check.h"
 #include "td/utils/int_types.h"
+#include "td/utils/unique_ptr.h"
 
-#include <memory>
 #include <string>
-#include <utility>
 #include <vector>
 
 #define TD_DEBUG
@@ -63,6 +63,13 @@
   #define TD_DIR_SLASH '/'
 #endif
 // clang-format on
+
+#if TD_USE_ASAN
+#include <sanitizer/lsan_interface.h>
+#define TD_LSAN_IGNORE(x) __lsan_ignore_object(x)
+#else
+#define TD_LSAN_IGNORE(x) (void)(x)
+#endif
 
 namespace td {
 
@@ -99,11 +106,6 @@ using string = std::string;
 template <class ValueT>
 using vector = std::vector<ValueT>;
 
-template <class ValueT>
-using unique_ptr = std::unique_ptr<ValueT>;
-
-using std::make_unique;
-
 struct Unit {};
 
 struct Auto {
@@ -112,15 +114,5 @@ struct Auto {
     return ToT();
   }
 };
-
-template <class ToT, class FromT>
-ToT &as(FromT *from) {
-  return *reinterpret_cast<ToT *>(from);
-}
-
-template <class ToT, class FromT>
-const ToT &as(const FromT *from) {
-  return *reinterpret_cast<const ToT *>(from);
-}
 
 }  // namespace td

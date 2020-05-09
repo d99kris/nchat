@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -10,10 +10,7 @@
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 
-#include "td/telegram/AuthManager.h"
-#include "td/telegram/DocumentsManager.h"
 #include "td/telegram/files/FileManager.h"
-#include "td/telegram/Global.h"
 #include "td/telegram/Td.h"
 
 #include "td/utils/logging.h"
@@ -25,10 +22,10 @@ namespace td {
 VideosManager::VideosManager(Td *td) : td_(td) {
 }
 
-int32 VideosManager::get_video_duration(FileId file_id) {
-  auto &video = videos_[file_id];
-  CHECK(video != nullptr);
-  return video->duration;
+int32 VideosManager::get_video_duration(FileId file_id) const {
+  auto it = videos_.find(file_id);
+  CHECK(it != videos_.end());
+  return it->second->duration;
 }
 
 tl_object_ptr<td_api::video> VideosManager::get_video_object(FileId file_id) {
@@ -42,12 +39,13 @@ tl_object_ptr<td_api::video> VideosManager::get_video_object(FileId file_id) {
 
   return make_tl_object<td_api::video>(
       video->duration, video->dimensions.width, video->dimensions.height, video->file_name, video->mime_type,
-      video->has_stickers, video->supports_streaming,
+      video->has_stickers, video->supports_streaming, get_minithumbnail_object(video->minithumbnail),
       get_photo_size_object(td_->file_manager_.get(), &video->thumbnail), td_->file_manager_->get_file_object(file_id));
 }
 
-FileId VideosManager::on_get_video(std::unique_ptr<Video> new_video, bool replace) {
+FileId VideosManager::on_get_video(unique_ptr<Video> new_video, bool replace) {
   auto file_id = new_video->file_id;
+  CHECK(file_id.is_valid());
   LOG(INFO) << "Receive video " << file_id;
   auto &v = videos_[file_id];
   if (v == nullptr) {
@@ -70,6 +68,10 @@ FileId VideosManager::on_get_video(std::unique_ptr<Video> new_video, bool replac
     if (v->file_name != new_video->file_name) {
       LOG(DEBUG) << "Video " << file_id << " file name has changed";
       v->file_name = std::move(new_video->file_name);
+      v->is_changed = true;
+    }
+    if (v->minithumbnail != new_video->minithumbnail) {
+      v->minithumbnail = std::move(new_video->minithumbnail);
       v->is_changed = true;
     }
     if (v->thumbnail != new_video->thumbnail) {
@@ -121,7 +123,7 @@ FileId VideosManager::dup_video(FileId new_id, FileId old_id) {
   CHECK(old_video != nullptr);
   auto &new_video = videos_[new_id];
   CHECK(!new_video);
-  new_video = std::make_unique<Video>(*old_video);
+  new_video = make_unique<Video>(*old_video);
   new_video->file_id = new_id;
   new_video->thumbnail.file_id = td_->file_manager_->dup_file_id(new_video->thumbnail.file_id);
   return new_id;
@@ -170,7 +172,7 @@ bool VideosManager::merge_videos(FileId new_id, FileId old_id, bool can_delete_o
   return true;
 }
 
-void VideosManager::create_video(FileId file_id, PhotoSize thumbnail, bool has_stickers,
+void VideosManager::create_video(FileId file_id, string minithumbnail, PhotoSize thumbnail, bool has_stickers,
                                  vector<FileId> &&sticker_file_ids, string file_name, string mime_type, int32 duration,
                                  Dimensions dimensions, bool supports_streaming, bool replace) {
   auto v = make_unique<Video>();
@@ -179,6 +181,7 @@ void VideosManager::create_video(FileId file_id, PhotoSize thumbnail, bool has_s
   v->mime_type = std::move(mime_type);
   v->duration = max(duration, 0);
   v->dimensions = dimensions;
+  v->minithumbnail = std::move(minithumbnail);
   v->thumbnail = std::move(thumbnail);
   v->supports_streaming = supports_streaming;
   v->has_stickers = has_stickers;
@@ -197,7 +200,7 @@ SecretInputMedia VideosManager::get_secret_input_media(FileId video_file_id,
     return SecretInputMedia{};
   }
   if (file_view.has_remote_location()) {
-    input_file = file_view.remote_location().as_input_encrypted_file();
+    input_file = file_view.main_remote_location().as_input_encrypted_file();
   }
   if (!input_file) {
     return SecretInputMedia{};
@@ -224,12 +227,12 @@ tl_object_ptr<telegram_api::InputMedia> VideosManager::get_input_media(
   if (file_view.is_encrypted()) {
     return nullptr;
   }
-  if (file_view.has_remote_location() && !file_view.remote_location().is_web()) {
+  if (file_view.has_remote_location() && !file_view.main_remote_location().is_web() && input_file == nullptr) {
     int32 flags = 0;
     if (ttl != 0) {
       flags |= telegram_api::inputMediaDocument::TTL_SECONDS_MASK;
     }
-    return make_tl_object<telegram_api::inputMediaDocument>(flags, file_view.remote_location().as_input_document(),
+    return make_tl_object<telegram_api::inputMediaDocument>(flags, file_view.main_remote_location().as_input_document(),
                                                             ttl);
   }
   if (file_view.has_url()) {
@@ -239,7 +242,6 @@ tl_object_ptr<telegram_api::InputMedia> VideosManager::get_input_media(
     }
     return make_tl_object<telegram_api::inputMediaDocumentExternal>(flags, file_view.url(), ttl);
   }
-  CHECK(!file_view.has_remote_location());
 
   if (input_file != nullptr) {
     const Video *video = get_video(file_id);
@@ -257,11 +259,8 @@ tl_object_ptr<telegram_api::InputMedia> VideosManager::get_input_media(
     if (!video->file_name.empty()) {
       attributes.push_back(make_tl_object<telegram_api::documentAttributeFilename>(video->file_name));
     }
-    int32 flags = 0;
+    int32 flags = telegram_api::inputMediaUploadedDocument::NOSOUND_VIDEO_MASK;
     vector<tl_object_ptr<telegram_api::InputDocument>> added_stickers;
-    if (ttl != 0 || !td_->auth_manager_->is_bot()) {
-      flags |= telegram_api::inputMediaUploadedDocument::NOSOUND_VIDEO_MASK;
-    }
     if (video->has_stickers) {
       flags |= telegram_api::inputMediaUploadedDocument::STICKERS_MASK;
       added_stickers = td_->file_manager_->get_input_documents(video->sticker_file_ids);
@@ -279,6 +278,8 @@ tl_object_ptr<telegram_api::InputMedia> VideosManager::get_input_media(
     return make_tl_object<telegram_api::inputMediaUploadedDocument>(
         flags, false /*ignored*/, std::move(input_file), std::move(input_thumbnail), mime_type, std::move(attributes),
         std::move(added_stickers), ttl);
+  } else {
+    CHECK(!file_view.has_remote_location());
   }
 
   return nullptr;

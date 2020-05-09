@@ -11,7 +11,7 @@ cd jnibuild
 cmake -DCMAKE_BUILD_TYPE=Release -DTD_ENABLE_JNI=ON -DCMAKE_INSTALL_PREFIX:PATH=../example/java/td ..
 cmake --build . --target install
 ```
-If you want to compile TDLib for 64-bit Java on Windows using MSVC, you will also need to add `-A x64` option to CMake.
+If you want to compile TDLib for 32-bit/64-bit Java on Windows using MSVC, you will also need to add `-A Win32`/`-A x64` option to CMake.
 
 In Windows, use Vcpkg toolchain file by adding parameter -DCMAKE_TOOLCHAIN_FILE=<VCPKG_DIR>/scripts/buildsystems/vcpkg.cmake
 
@@ -34,6 +34,6 @@ java '-Djava.library.path=.' org/drinkless/tdlib/example/Example
 
 If you get "Could NOT find JNI ..." error from CMake, you need to specify to CMake path to the installed JDK, for example, "-DJAVA_HOME=/usr/lib/jvm/java-8-oracle/".
 
-If you get java.lang.UnsatisfiedLinkError with "Can't find dependent libraries", you may also need to copy some dependent shared libraries to `bin/`.
+If you get java.lang.UnsatisfiedLinkError with "Can't find dependent libraries", you may also need to copy some dependent shared OpenSSL and zlib libraries to `bin/`.
 
 In case you compiled the example as 32-bit version, you may need to give -d32 parameter to Java.

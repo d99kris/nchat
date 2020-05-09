@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -16,26 +16,26 @@ namespace td {
 class HttpHeaderCreator {
  public:
   static constexpr size_t MAX_HEADER = 4096;
-  HttpHeaderCreator() : sb_({header_, MAX_HEADER}) {
+  HttpHeaderCreator() : sb_(MutableSlice{header_, MAX_HEADER}) {
   }
   void init_ok() {
-    sb_ = StringBuilder({header_, MAX_HEADER});
+    sb_ = StringBuilder(MutableSlice{header_, MAX_HEADER});
     sb_ << "HTTP/1.1 200 OK\r\n";
   }
   void init_get(Slice url) {
-    sb_ = StringBuilder({header_, MAX_HEADER});
+    sb_ = StringBuilder(MutableSlice{header_, MAX_HEADER});
     sb_ << "GET " << url << " HTTP/1.1\r\n";
   }
   void init_post(Slice url) {
-    sb_ = StringBuilder({header_, MAX_HEADER});
+    sb_ = StringBuilder(MutableSlice{header_, MAX_HEADER});
     sb_ << "POST " << url << " HTTP/1.1\r\n";
   }
   void init_error(int code, Slice reason) {
-    sb_ = StringBuilder({header_, MAX_HEADER});
+    sb_ = StringBuilder(MutableSlice{header_, MAX_HEADER});
     sb_ << "HTTP/1.1 " << code << " " << reason << "\r\n";
   }
   void init_status_line(int http_status_code) {
-    sb_ = StringBuilder({header_, MAX_HEADER});
+    sb_ = StringBuilder(MutableSlice{header_, MAX_HEADER});
     sb_ << "HTTP/1.1 " << http_status_code << " " << get_status_line(http_status_code) << "\r\n";
   }
   void add_header(Slice key, Slice value) {

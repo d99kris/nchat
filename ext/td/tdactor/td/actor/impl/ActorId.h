@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -179,6 +179,10 @@ const ActorId<ActorType> *ActorShared<ActorType>::operator->() const {
 
 template <class T>
 ActorRef::ActorRef(const ActorId<T> &actor_id) : actor_id_(actor_id) {
+}
+template <class T>
+ActorRef::ActorRef(ActorId<T> &&actor_id) : actor_id_(actor_id) {
+  actor_id.clear();
 }
 template <class T>
 ActorRef::ActorRef(const ActorShared<T> &actor_id) : actor_id_(actor_id.get()), token_(actor_id.token()) {

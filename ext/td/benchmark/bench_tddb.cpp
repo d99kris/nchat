@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -7,10 +7,15 @@
 #include "td/telegram/DialogId.h"
 #include "td/telegram/MessageId.h"
 #include "td/telegram/MessagesDb.h"
+#include "td/telegram/NotificationId.h"
+#include "td/telegram/ServerMessageId.h"
 #include "td/telegram/UserId.h"
 
 #include "td/actor/actor.h"
 #include "td/actor/PromiseFuture.h"
+
+#include "td/db/SqliteConnectionSafe.h"
+#include "td/db/SqliteDb.h"
 
 #include "td/utils/benchmark.h"
 #include "td/utils/buffer.h"
@@ -43,7 +48,7 @@ class MessagesDbBench : public Benchmark {
     scheduler_->start();
   }
   void run(int n) override {
-    auto guard = scheduler_->get_current_guard();
+    auto guard = scheduler_->get_main_guard();
     for (int i = 0; i < n; i += 20) {
       auto dialog_id = DialogId{UserId{Random::fast(1, 100)}};
       auto message_id_raw = Random::fast(1, 100000);
@@ -57,14 +62,14 @@ class MessagesDbBench : public Benchmark {
 
         // use async on same thread.
         messages_db_async_->add_message({dialog_id, message_id}, unique_message_id, sender_user_id, random_id,
-                                        ttl_expires_at, 0, 0, "", std::move(data), Promise<>());
+                                        ttl_expires_at, 0, 0, "", NotificationId(), std::move(data), Promise<>());
       }
     }
   }
   void tear_down() override {
     scheduler_->run_main(0.1);
     {
-      auto guard = scheduler_->get_current_guard();
+      auto guard = scheduler_->get_main_guard();
       sql_connection_.reset();
       messages_db_sync_safe_.reset();
       messages_db_async_.reset();
@@ -76,16 +81,16 @@ class MessagesDbBench : public Benchmark {
   }
 
  private:
-  std::unique_ptr<td::ConcurrentScheduler> scheduler_;
+  td::unique_ptr<ConcurrentScheduler> scheduler_;
   std::shared_ptr<SqliteConnectionSafe> sql_connection_;
   std::shared_ptr<MessagesDbSyncSafeInterface> messages_db_sync_safe_;
   std::shared_ptr<MessagesDbAsyncInterface> messages_db_async_;
 
   Status do_start_up() {
-    scheduler_ = std::make_unique<ConcurrentScheduler>();
+    scheduler_ = make_unique<ConcurrentScheduler>();
     scheduler_->init(1);
 
-    auto guard = scheduler_->get_current_guard();
+    auto guard = scheduler_->get_main_guard();
 
     string sql_db_name = "testdb.sqlite";
     sql_connection_ = std::make_shared<SqliteConnectionSafe>(sql_db_name);

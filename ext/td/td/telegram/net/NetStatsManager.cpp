@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -12,16 +12,18 @@
 #include "td/telegram/Global.h"
 #include "td/telegram/logevent/LogEvent.h"
 #include "td/telegram/StateManager.h"
+#include "td/telegram/TdDb.h"
 #include "td/telegram/Version.h"
 
+#include "td/utils/common.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/tl_helpers.h"
 
 namespace td {
 
-template <class T>
-static void store(const NetStatsData &net_stats, T &storer) {
+template <class StorerT>
+static void store(const NetStatsData &net_stats, StorerT &storer) {
   using ::td::store;
   store(net_stats.read_size, storer);
   store(net_stats.write_size, storer);
@@ -29,8 +31,8 @@ static void store(const NetStatsData &net_stats, T &storer) {
   store(net_stats.duration, storer);
 }
 
-template <class T>
-static void parse(NetStatsData &net_stats, T &parser) {
+template <class ParserT>
+static void parse(NetStatsData &net_stats, ParserT &parser) {
   using ::td::parse;
   parse(net_stats.read_size, parser);
   parse(net_stats.write_size, parser);
@@ -42,7 +44,7 @@ static void parse(NetStatsData &net_stats, T &parser) {
 }
 
 void NetStatsManager::init() {
-  CHECK(!empty()) << G()->close_flag();
+  LOG_CHECK(!empty()) << G()->close_flag();
   class NetStatsInternalCallback : public NetStats::Callback {
    public:
     NetStatsInternalCallback(ActorId<NetStatsManager> parent, size_t id) : parent_(std::move(parent)), id_(id) {
@@ -57,11 +59,11 @@ void NetStatsManager::init() {
   };
 
   for_each_stat([&](NetStatsInfo &stat, size_t id, CSlice name, FileType file_type) {
-    if (file_type == FileType::SecureRaw) {
+    if (file_type == FileType::SecureRaw || file_type == FileType::Wallpaper) {
       id++;
     }
     stat.key = "net_stats_" + name.str();
-    stat.stats.set_callback(std::make_unique<NetStatsInternalCallback>(actor_id(this), id));
+    stat.stats.set_callback(make_unique<NetStatsInternalCallback>(actor_id(this), id));
   });
 }
 
@@ -110,7 +112,7 @@ void NetStatsManager::get_network_stats(bool current, Promise<NetworkStats> prom
         entry.is_call = true;
         result.entries.push_back(std::move(entry));
       } else if (file_type != FileType::None) {
-        if (file_type == FileType::SecureRaw) {
+        if (file_type == FileType::SecureRaw || file_type == FileType::Wallpaper) {
           return;
         }
 
@@ -167,7 +169,7 @@ void NetStatsManager::add_network_stats(const NetworkStatsEntry &entry) {
   }
   add_network_stats_impl(media_net_stats_, entry);
   size_t file_type_n = static_cast<size_t>(entry.file_type);
-  CHECK(file_type_n < file_type_size);
+  CHECK(file_type_n < static_cast<size_t>(file_type_size));
   add_network_stats_impl(files_stats_[file_type_n], entry);
 }
 
@@ -190,7 +192,7 @@ void NetStatsManager::add_network_stats_impl(NetStatsInfo &info, const NetworkSt
 
 void NetStatsManager::start_up() {
   for_each_stat([&](NetStatsInfo &info, size_t id, CSlice name, FileType file_type) {
-    if (file_type == FileType::SecureRaw) {
+    if (file_type == FileType::SecureRaw || file_type == FileType::Wallpaper) {
       return;
     }
 
@@ -250,6 +252,7 @@ std::shared_ptr<NetStatsCallback> NetStatsManager::get_media_stats_callback() co
 std::vector<std::shared_ptr<NetStatsCallback>> NetStatsManager::get_file_stats_callbacks() const {
   auto result = transform(files_stats_, [](auto &stat) { return stat.stats.get_callback(); });
   result[static_cast<int32>(FileType::SecureRaw)] = result[static_cast<int32>(FileType::Secure)];
+  result[static_cast<int32>(FileType::Wallpaper)] = result[static_cast<int32>(FileType::Background)];
   return result;
 }
 

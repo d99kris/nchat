@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -9,6 +9,7 @@
 #include "td/net/HttpHeaderCreator.h"
 
 #include "td/utils/buffer.h"
+#include "td/utils/common.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/Slice.h"
@@ -16,7 +17,6 @@
 
 // TODO: do I need \r\n as delimiter?
 
-#include <cstring>
 #include <tuple>
 
 namespace td {
@@ -30,7 +30,7 @@ Result<size_t> Transport::read_next(BufferSlice *message, uint32 *quick_ack) {
     return r_size;
   }
   if (http_query_.type_ != HttpQuery::Type::RESPONSE) {
-    return Status::Error("Unexpected http query type");
+    return Status::Error("Unexpected HTTP query type");
   }
   if (http_query_.container_.size() != 2u) {
     return Status::Error("Wrong response");
@@ -72,8 +72,7 @@ void Transport::write(BufferWriter &&message, bool quick_ack) {
   Slice src = r_head.ok();
   // LOG(DEBUG) << src;
   MutableSlice dst = message.prepare_prepend();
-  CHECK(dst.size() >= src.size()) << dst.size() << " >= " << src.size();
-  std::memcpy(dst.end() - src.size(), src.begin(), src.size());
+  dst.substr(dst.size() - src.size()).copy_from(src);
   message.confirm_prepend(src.size());
   output_->append(message.as_buffer_slice());
   turn_ = Read;
@@ -97,6 +96,10 @@ size_t Transport::max_prepend_size() const {
 
 size_t Transport::max_append_size() const {
   return 0;
+}
+
+bool Transport::use_random_padding() const {
+  return false;
 }
 
 }  // namespace http

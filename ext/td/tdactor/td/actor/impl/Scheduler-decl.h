@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -16,11 +16,12 @@
 #include "td/utils/MovableValue.h"
 #include "td/utils/MpscPollableQueue.h"
 #include "td/utils/ObjectPool.h"
-#include "td/utils/port/EventFd.h"
-#include "td/utils/port/Fd.h"
+#include "td/utils/port/detail/PollableFd.h"
 #include "td/utils/port/Poll.h"
+#include "td/utils/port/PollFlags.h"
 #include "td/utils/port/thread_local.h"
 #include "td/utils/Slice.h"
+#include "td/utils/Time.h"
 #include "td/utils/type_traits.h"
 
 #include <functional>
@@ -38,7 +39,7 @@ enum class ActorSendType { Immediate, Later, LaterWeak };
 class Scheduler;
 class SchedulerGuard {
  public:
-  explicit SchedulerGuard(Scheduler *scheduler);
+  explicit SchedulerGuard(Scheduler *scheduler, bool lock = true);
   ~SchedulerGuard();
   SchedulerGuard(const SchedulerGuard &other) = delete;
   SchedulerGuard &operator=(const SchedulerGuard &other) = delete;
@@ -47,6 +48,7 @@ class SchedulerGuard {
 
  private:
   MovableValue<bool> is_valid_ = true;
+  bool is_locked_;
   Scheduler *scheduler_;
   ActorContext *save_context_;
   Scheduler *save_scheduler_;
@@ -107,9 +109,9 @@ class Scheduler {
   }
   void before_tail_send(const ActorId<> &actor_id);
 
-  void subscribe(const Fd &fd, Fd::Flags flags = Fd::Write | Fd::Read);
-  void unsubscribe(const Fd &fd);
-  void unsubscribe_before_close(const Fd &fd);
+  static void subscribe(PollableFd fd, PollFlags flags = PollFlags::ReadWrite());
+  static void unsubscribe(PollableFdRef fd);
+  static void unsubscribe_before_close(PollableFdRef fd);
 
   void yield_actor(Actor *actor);
   void stop_actor(Actor *actor);
@@ -127,8 +129,8 @@ class Scheduler {
 
   void finish();
   void yield();
-  void run(double timeout);
-  void run_no_guard(double timeout);
+  void run(Timestamp timeout);
+  void run_no_guard(Timestamp timeout);
 
   void wakeup();
 
@@ -137,6 +139,9 @@ class Scheduler {
   static void on_context_updated();
 
   SchedulerGuard get_guard();
+  SchedulerGuard get_const_guard();
+
+  Timestamp get_timeout();
 
  private:
   static void set_scheduler(Scheduler *scheduler);
@@ -148,7 +153,9 @@ class Scheduler {
 
    private:
     std::shared_ptr<MpscPollableQueue<EventFull>> inbound_;
+    bool subscribed_{false};
     void loop() override;
+    void tear_down() override;
   };
   friend class ServiceActor;
 
@@ -183,10 +190,10 @@ class Scheduler {
 
   void inc_wait_generation();
 
-  double run_timeout();
+  Timestamp run_timeout();
   void run_mailbox();
-  double run_events();
-  void run_poll(double timeout);
+  Timestamp run_events();
+  void run_poll(Timestamp timeout);
 
   template <class ActorT>
   ActorOwn<ActorT> register_actor_impl(Slice name, ActorT *actor_ptr, Actor::Deleter deleter, int32 sched_id);
@@ -196,42 +203,39 @@ class Scheduler {
   static TD_THREAD_LOCAL ActorContext *context_;
 
   Callback *callback_ = nullptr;
-  std::unique_ptr<ObjectPool<ActorInfo>> actor_info_pool_;
+  unique_ptr<ObjectPool<ActorInfo>> actor_info_pool_;
 
-  int32 actor_count_;
+  int32 actor_count_ = 0;
   ListNode pending_actors_list_;
   ListNode ready_actors_list_;
   KHeap<double> timeout_queue_;
 
   std::map<ActorInfo *, std::vector<Event>> pending_events_;
 
-#if !TD_THREAD_UNSUPPORTED && !TD_EVENTFD_UNSUPPORTED
-  EventFd event_fd_;
-#endif
   ServiceActor service_actor_;
   Poll poll_;
 
-  bool yield_flag_;
+  bool yield_flag_ = false;
   bool has_guard_ = false;
   bool close_flag_ = false;
 
   uint32 wait_generation_ = 0;
-  int32 sched_id_;
-  int32 sched_n_;
+  int32 sched_id_ = 0;
+  int32 sched_n_ = 0;
   std::shared_ptr<MpscPollableQueue<EventFull>> inbound_queue_;
   std::vector<std::shared_ptr<MpscPollableQueue<EventFull>>> outbound_queues_;
 
   std::shared_ptr<ActorContext> save_context_;
 
   struct EventContext {
-    int32 dest_sched_id;
+    int32 dest_sched_id{0};
     enum Flags { Stop = 1, Migrate = 2 };
     int32 flags{0};
-    uint64 link_token;
+    uint64 link_token{0};
 
-    ActorInfo *actor_info;
+    ActorInfo *actor_info{nullptr};
   };
-  EventContext *event_context_ptr_;
+  EventContext *event_context_ptr_{nullptr};
 
   friend class GlobalScheduler;
   friend class SchedulerGuard;
@@ -239,10 +243,6 @@ class Scheduler {
 };
 
 /*** Interface to current scheduler ***/
-void subscribe(const Fd &fd, Fd::Flags flags = Fd::Write | Fd::Read);
-void unsubscribe(const Fd &fd);
-void unsubscribe_before_close(const Fd &fd);
-
 template <class ActorT, class... Args>
 TD_WARN_UNUSED_RESULT ActorOwn<ActorT> create_actor(Slice name, Args &&... args);
 template <class ActorT, class... Args>

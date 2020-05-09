@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -8,39 +8,63 @@
 
 #include "td/utils/common.h"
 #include "td/utils/logging.h"
-#include "td/utils/port/Fd.h"
 #include "td/utils/port/FileFd.h"
 #include "td/utils/port/path.h"
+#include "td/utils/port/StdStreams.h"
 #include "td/utils/Slice.h"
 
 #include <limits>
 
 namespace td {
 
-bool FileLog::init(string path, int64 rotate_threshold) {
+Status FileLog::init(string path, int64 rotate_threshold, bool redirect_stderr) {
+  if (path.empty()) {
+    return Status::Error("Log file path can't be empty");
+  }
   if (path == path_) {
     set_rotate_threshold(rotate_threshold);
-    return true;
+    return Status::OK();
   }
 
-  auto r_fd = FileFd::open(path, FileFd::Create | FileFd::Write | FileFd::Append);
-  if (r_fd.is_error()) {
-    LOG(ERROR) << "Can't open log: " << r_fd.error();
-    return false;
-  }
+  TRY_RESULT(fd, FileFd::open(path, FileFd::Create | FileFd::Write | FileFd::Append));
 
   fd_.close();
-  fd_ = r_fd.move_as_ok();
-  Fd::duplicate(fd_.get_fd(), Fd::Stderr()).ignore();
+  fd_ = std::move(fd);
+  if (!Stderr().empty() && redirect_stderr) {
+    fd_.get_native_fd().duplicate(Stderr().get_native_fd()).ignore();
+  }
 
-  path_ = std::move(path);
-  size_ = fd_.get_size();
+  auto r_path = realpath(path, true);
+  if (r_path.is_error()) {
+    path_ = std::move(path);
+  } else {
+    path_ = r_path.move_as_ok();
+  }
+  TRY_RESULT_ASSIGN(size_, fd_.get_size());
   rotate_threshold_ = rotate_threshold;
-  return true;
+  redirect_stderr_ = redirect_stderr;
+  return Status::OK();
+}
+
+Slice FileLog::get_path() const {
+  return path_;
+}
+
+vector<string> FileLog::get_file_paths() {
+  vector<string> result;
+  if (!path_.empty()) {
+    result.push_back(path_);
+    result.push_back(PSTRING() << path_ << ".old");
+  }
+  return result;
 }
 
 void FileLog::set_rotate_threshold(int64 rotate_threshold) {
   rotate_threshold_ = rotate_threshold;
+}
+
+int64 FileLog::get_rotate_threshold() const {
+  return rotate_threshold_;
 }
 
 void FileLog::append(CSlice cslice, int log_level) {
@@ -48,7 +72,7 @@ void FileLog::append(CSlice cslice, int log_level) {
   while (!slice.empty()) {
     auto r_size = fd_.write(slice);
     if (r_size.is_error()) {
-      process_fatal_error(r_size.error().message());
+      process_fatal_error(PSLICE() << r_size.error() << " in " << __FILE__ << " at " << __LINE__);
     }
     auto written = r_size.ok();
     size_ += static_cast<int64>(written);
@@ -61,7 +85,7 @@ void FileLog::append(CSlice cslice, int log_level) {
   if (size_ > rotate_threshold_) {
     auto status = rename(path_, PSLICE() << path_ << ".old");
     if (status.is_error()) {
-      process_fatal_error(status.message());
+      process_fatal_error(PSLICE() << status.error() << " in " << __FILE__ << " at " << __LINE__);
     }
     do_rotate();
   }
@@ -81,10 +105,12 @@ void FileLog::do_rotate() {
   fd_.close();
   auto r_fd = FileFd::open(path_, FileFd::Create | FileFd::Truncate | FileFd::Write);
   if (r_fd.is_error()) {
-    process_fatal_error(r_fd.error().message());
+    process_fatal_error(PSLICE() << r_fd.error() << " in " << __FILE__ << " at " << __LINE__);
   }
   fd_ = r_fd.move_as_ok();
-  Fd::duplicate(fd_.get_fd(), Fd::Stderr()).ignore();
+  if (!Stderr().empty() && redirect_stderr_) {
+    fd_.get_native_fd().duplicate(Stderr().get_native_fd()).ignore();
+  }
   size_ = 0;
   SET_VERBOSITY_LEVEL(current_verbosity_level);
 }

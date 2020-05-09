@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -47,7 +47,7 @@ class F {
 };
 
 BENCH(Call, "TL Call") {
-  tl_object_ptr<telegram_api::Function> x = make_tl_object<telegram_api::account_getWallPapers>();
+  tl_object_ptr<telegram_api::Function> x = make_tl_object<telegram_api::account_getWallPapers>(0);
   uint32 res = 0;
   F f(res);
   for (int i = 0; i < n; i++) {
@@ -78,7 +78,7 @@ BENCH(NewInt, "new int + delete") {
   do_not_optimize_away(res);
 }
 
-BENCH(NewObj, "new struct then delete") {
+BENCH(NewObj, "new struct, then delete") {
   struct A {
     int32 a = 0;
     int32 b = 0;
@@ -99,7 +99,7 @@ BENCH(NewObj, "new struct then delete") {
 }
 
 #if !TD_THREAD_UNSUPPORTED
-BENCH(ThreadNew, "new struct then delete in several threads") {
+BENCH(ThreadNew, "new struct, then delete in several threads") {
   td::NewObjBench a, b;
   thread ta([&] { a.run(n / 2); });
   thread tb([&] { b.run(n - n / 2); });
@@ -122,24 +122,23 @@ class PipeBench : public Benchmark {
  public:
   int p[2];
 
-  PipeBench() {
-    pipe(p);
-  }
-
   string get_description() const override {
     return "pipe write + read int32";
   }
 
   void start_up() override {
-    pipe(p);
+    int res = pipe(p);
+    CHECK(res == 0);
   }
 
   void run(int n) override {
     int res = 0;
     for (int i = 0; i < n; i++) {
       int val = 1;
-      write(p[1], &val, sizeof(val));
-      read(p[0], &val, sizeof(val));
+      auto write_len = write(p[1], &val, sizeof(val));
+      CHECK(write_len == sizeof(val));
+      auto read_len = read(p[0], &val, sizeof(val));
+      CHECK(read_len == sizeof(val));
       res += val;
     }
     do_not_optimize_away(res);
@@ -223,13 +222,13 @@ class CreateFileBench : public Benchmark {
     }
   }
   void tear_down() override {
-    auto status = td::walk_path("A/", [&](CSlice path, bool is_dir) {
-      if (is_dir) {
+    td::walk_path("A/", [&](CSlice path, auto type) {
+      if (type == td::WalkPath::Type::ExitDir) {
         rmdir(path).ignore();
-      } else {
+      } else if (type == td::WalkPath::Type::NotDir) {
         unlink(path).ignore();
       }
-    });
+    }).ignore();
   }
 };
 
@@ -245,19 +244,22 @@ class WalkPathBench : public Benchmark {
   }
   void run(int n) override {
     int cnt = 0;
-    auto status = td::walk_path("A/", [&](CSlice path, bool is_dir) {
+    td::walk_path("A/", [&](CSlice path, auto type) {
+      if (type == td::WalkPath::Type::EnterDir) {
+        return;
+      }
       stat(path).ok();
       cnt++;
-    });
+    }).ignore();
   }
   void tear_down() override {
-    auto status = td::walk_path("A/", [&](CSlice path, bool is_dir) {
-      if (is_dir) {
+    td::walk_path("A/", [&](CSlice path, auto type) {
+      if (type == td::WalkPath::Type::ExitDir) {
         rmdir(path).ignore();
-      } else {
+      } else if (type == td::WalkPath::Type::NotDir) {
         unlink(path).ignore();
       }
-    });
+    }).ignore();
   }
 };
 

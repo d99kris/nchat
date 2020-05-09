@@ -1,5 +1,17 @@
 cmake_minimum_required(VERSION 3.0.2 FATAL_ERROR)
 
+if (NOT DEFINED CMAKE_INSTALL_LIBDIR)
+  set(CMAKE_INSTALL_LIBDIR "lib")
+endif()
+
+if (WIN32)
+  if (WINGETOPT_FOUND)
+    set(TD_HAVE_GETOPT 1)
+  endif()
+else()
+  set(TD_HAVE_GETOPT 1)
+endif()
+
 if (NOT ZLIB_FOUND)
   find_package(ZLIB)
 endif()
@@ -14,6 +26,14 @@ if (ZLIB_FOUND)
   if (OPENSSL_FOUND)
     set(TD_HAVE_OPENSSL 1)
   endif()
+endif()
+
+if (CRC32C_FOUND)
+  set(TD_HAVE_CRC32C 1)
+endif()
+
+if (ABSL_FOUND)
+  set(TD_HAVE_ABSL 1)
 endif()
 
 configure_file(td/utils/config.h.in td/utils/config.h @ONLY)
@@ -33,26 +53,33 @@ endif()
 
 set(TDUTILS_SOURCE
   td/utils/port/Clocks.cpp
-  td/utils/port/Fd.cpp
   td/utils/port/FileFd.cpp
   td/utils/port/IPAddress.cpp
+  td/utils/port/MemoryMapping.cpp
   td/utils/port/path.cpp
+  td/utils/port/PollFlags.cpp
   td/utils/port/ServerSocketFd.cpp
   td/utils/port/signals.cpp
   td/utils/port/sleep.cpp
   td/utils/port/SocketFd.cpp
+  td/utils/port/stacktrace.cpp
   td/utils/port/Stat.cpp
+  td/utils/port/StdStreams.cpp
   td/utils/port/thread_local.cpp
+  td/utils/port/UdpSocketFd.cpp
   td/utils/port/wstring_convert.cpp
 
   td/utils/port/detail/Epoll.cpp
   td/utils/port/detail/EventFdBsd.cpp
   td/utils/port/detail/EventFdLinux.cpp
   td/utils/port/detail/EventFdWindows.cpp
+  td/utils/port/detail/Iocp.cpp
   td/utils/port/detail/KQueue.cpp
+  td/utils/port/detail/NativeFd.cpp
   td/utils/port/detail/Poll.cpp
   td/utils/port/detail/Select.cpp
   td/utils/port/detail/ThreadIdGuard.cpp
+  td/utils/port/detail/ThreadPthread.cpp
   td/utils/port/detail/WineventPoll.cpp
 
   ${TDMIME_AUTO}
@@ -60,6 +87,8 @@ set(TDUTILS_SOURCE
   td/utils/base64.cpp
   td/utils/BigNum.cpp
   td/utils/buffer.cpp
+  td/utils/BufferedUdp.cpp
+  td/utils/check.cpp
   td/utils/crypto.cpp
   td/utils/FileLog.cpp
   td/utils/filesystem.cpp
@@ -72,14 +101,21 @@ set(TDUTILS_SOURCE
   td/utils/logging.cpp
   td/utils/misc.cpp
   td/utils/MimeType.cpp
+  td/utils/MpmcQueue.cpp
+  td/utils/OptionsParser.cpp
+  td/utils/PathView.cpp
   td/utils/Random.cpp
+  td/utils/SharedSlice.cpp
+  td/utils/Slice.cpp
   td/utils/StackAllocator.cpp
   td/utils/Status.cpp
   td/utils/StringBuilder.cpp
+  td/utils/tests.cpp
   td/utils/Time.cpp
   td/utils/Timer.cpp
   td/utils/tl_parsers.cpp
   td/utils/translit.cpp
+  td/utils/TsFileLog.cpp
   td/utils/unicode.cpp
   td/utils/utf8.cpp
 
@@ -88,29 +124,37 @@ set(TDUTILS_SOURCE
   td/utils/port/CxCli.h
   td/utils/port/EventFd.h
   td/utils/port/EventFdBase.h
-  td/utils/port/Fd.h
   td/utils/port/FileFd.h
   td/utils/port/IPAddress.h
+  td/utils/port/IoSlice.h
+  td/utils/port/MemoryMapping.h
   td/utils/port/path.h
   td/utils/port/platform.h
   td/utils/port/Poll.h
   td/utils/port/PollBase.h
+  td/utils/port/PollFlags.h
   td/utils/port/RwMutex.h
   td/utils/port/ServerSocketFd.h
   td/utils/port/signals.h
   td/utils/port/sleep.h
   td/utils/port/SocketFd.h
+  td/utils/port/stacktrace.h
   td/utils/port/Stat.h
+  td/utils/port/StdStreams.h
   td/utils/port/thread.h
   td/utils/port/thread_local.h
+  td/utils/port/UdpSocketFd.h
   td/utils/port/wstring_convert.h
 
   td/utils/port/detail/Epoll.h
   td/utils/port/detail/EventFdBsd.h
   td/utils/port/detail/EventFdLinux.h
   td/utils/port/detail/EventFdWindows.h
+  td/utils/port/detail/Iocp.h
   td/utils/port/detail/KQueue.h
+  td/utils/port/detail/NativeFd.h
   td/utils/port/detail/Poll.h
+  td/utils/port/detail/PollableFd.h
   td/utils/port/detail/Select.h
   td/utils/port/detail/ThreadIdGuard.h
   td/utils/port/detail/ThreadPthread.h
@@ -118,19 +162,29 @@ set(TDUTILS_SOURCE
   td/utils/port/detail/WineventPoll.h
 
   td/utils/AesCtrByteFlow.h
+  td/utils/as.h
   td/utils/base64.h
   td/utils/benchmark.h
   td/utils/BigNum.h
+  td/utils/bits.h
   td/utils/buffer.h
   td/utils/BufferedFd.h
   td/utils/BufferedReader.h
+  td/utils/BufferedUdp.h
   td/utils/ByteFlow.h
+  td/utils/CancellationToken.h
   td/utils/ChangesProcessor.h
+  td/utils/check.h
   td/utils/Closure.h
   td/utils/common.h
+  td/utils/ConcurrentHashTable.h
   td/utils/Container.h
+  td/utils/Context.h
   td/utils/crypto.h
+  td/utils/DecTree.h
+  td/utils/Destructor.h
   td/utils/Enumerator.h
+  td/utils/EpochBasedMemoryReclamation.h
   td/utils/FileLog.h
   td/utils/filesystem.h
   td/utils/find_boundary.h
@@ -139,6 +193,9 @@ set(TDUTILS_SOURCE
   td/utils/format.h
   td/utils/Gzip.h
   td/utils/GzipByteFlow.h
+  td/utils/Hash.h
+  td/utils/HashMap.h
+  td/utils/HashSet.h
   td/utils/HazardPointers.h
   td/utils/Heap.h
   td/utils/Hints.h
@@ -169,8 +226,10 @@ set(TDUTILS_SOURCE
   td/utils/Random.h
   td/utils/ScopeGuard.h
   td/utils/SharedObjectPool.h
+  td/utils/SharedSlice.h
   td/utils/Slice-decl.h
   td/utils/Slice.h
+  td/utils/Span.h
   td/utils/SpinLock.h
   td/utils/StackAllocator.h
   td/utils/Status.h
@@ -178,6 +237,8 @@ set(TDUTILS_SOURCE
   td/utils/StorerBase.h
   td/utils/StringBuilder.h
   td/utils/tests.h
+  td/utils/ThreadLocalStorage.h
+  td/utils/ThreadSafeCounter.h
   td/utils/Time.h
   td/utils/TimedStat.h
   td/utils/Timer.h
@@ -185,27 +246,38 @@ set(TDUTILS_SOURCE
   td/utils/tl_parsers.h
   td/utils/tl_storers.h
   td/utils/translit.h
+  td/utils/TsFileLog.h
   td/utils/type_traits.h
+  td/utils/UInt.h
+  td/utils/uint128.h
   td/utils/unicode.h
+  td/utils/unique_ptr.h
   td/utils/utf8.h
   td/utils/Variant.h
+  td/utils/VectorQueue.h
 )
 
 set(TDUTILS_TEST_SOURCE
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/buffer.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/ConcurrentHashMap.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/crypto.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/Enumerator.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/EpochBasedMemoryReclamation.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/filesystem.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/gzip.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/HazardPointers.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/heap.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/json.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/log.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/misc.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/MpmcQueue.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/MpmcWaiter.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/MpscLinkQueue.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/OrderedEventsProcessor.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/port.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/pq.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/SharedObjectPool.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/SharedSlice.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/variant.cpp
   PARENT_SCOPE
 )
@@ -238,9 +310,26 @@ if (ZLIB_FOUND)
   target_include_directories(tdutils SYSTEM PRIVATE ${ZLIB_INCLUDE_DIR})
 endif()
 
+if (CRC32C_FOUND)
+  target_link_libraries(tdutils PRIVATE crc32c)
+endif()
+if (ABSL_FOUND)
+  target_link_libraries(tdutils PUBLIC absl::flat_hash_map absl::flat_hash_set absl::hash)
+endif()
+
+if (WIN32 AND WINGETOPT_FOUND)
+  target_link_libraries(tdutils PRIVATE wingetopt)
+endif()
+
+if (ANDROID)
+  target_link_libraries(tdutils PRIVATE log)
+endif()
+
+if (CMAKE_HOST_SYSTEM_NAME MATCHES "NetBSD")
+  target_link_libraries(tdutils PUBLIC /usr/pkg/gcc5/i486--netbsdelf/lib/libatomic.so)
+endif()
+
 install(TARGETS tdutils EXPORT TdTargets
-  LIBRARY DESTINATION lib
-  ARCHIVE DESTINATION lib
-  RUNTIME DESTINATION bin
-  INCLUDES DESTINATION include
+  LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 )

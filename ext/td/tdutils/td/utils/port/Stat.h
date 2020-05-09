@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -18,6 +18,7 @@ struct Stat {
   bool is_dir_;
   bool is_reg_;
   int64 size_;
+  int64 real_size_;
   uint64 atime_nsec_;
   uint64 mtime_nsec_;
 };
@@ -34,7 +35,7 @@ Result<CpuStat> cpu_stat() TD_WARN_UNUSED_RESULT;
 #if TD_PORT_POSIX
 
 namespace detail {
-Stat fstat(int native_fd);  // TODO return Result<Stat>
+Result<Stat> fstat(int native_fd);
 }  // namespace detail
 
 Status update_atime(CSlice path) TD_WARN_UNUSED_RESULT;

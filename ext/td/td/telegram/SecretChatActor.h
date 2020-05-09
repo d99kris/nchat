@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -13,19 +13,18 @@
 #include "td/actor/PromiseFuture.h"
 
 #include "td/mtproto/AuthKey.h"
-#include "td/mtproto/crypto.h"
-#include "td/mtproto/Transport.h"
+#include "td/mtproto/DhHandshake.h"
 
 #include "td/telegram/DhConfig.h"
 #include "td/telegram/logevent/SecretChatEvent.h"
 #include "td/telegram/MessageId.h"
-#include "td/telegram/PtsManager.h"
 #include "td/telegram/SecretChatDb.h"
 #include "td/telegram/SecretChatId.h"
 #include "td/telegram/UserId.h"
 
 #include "td/utils/buffer.h"
 #include "td/utils/ChangesProcessor.h"
+#include "td/utils/common.h"
 #include "td/utils/Container.h"
 #include "td/utils/format.h"
 #include "td/utils/port/Clocks.h"
@@ -42,13 +41,20 @@
 #include <utility>
 
 namespace td {
+
 class BinlogInterface;
 class NetQueryCreator;
 
 class SecretChatActor : public NetQueryCallback {
  public:
   // do not change DEFAULT_LAYER, unless all it's usages are fixed
-  enum : int32 { DEFAULT_LAYER = 46, VOICE_NOTES_LAYER = 66, MTPROTO_2_LAYER = 73, MY_LAYER = MTPROTO_2_LAYER };
+  enum : int32 {
+    DEFAULT_LAYER = 46,
+    VIDEO_NOTES_LAYER = 66,
+    MTPROTO_2_LAYER = 73,
+    NEW_ENTITIES_LAYER = 101,
+    MY_LAYER = NEW_ENTITIES_LAYER
+  };
 
   class Context {
    public:
@@ -71,7 +77,7 @@ class SecretChatActor : public NetQueryCallback {
     virtual bool close_flag() = 0;
 
     // We don't want to expose the whole NetQueryDispatcher, MessagesManager and ContactsManager.
-    // So it is more clear which parts of MessagesManager is really used. And it is much easier to create tests.
+    // So it is more clear which parts of MessagesManager are really used. And it is much easier to create tests.
     virtual void send_net_query(NetQueryPtr query, ActorShared<NetQueryCallback> callback, bool ordered) = 0;
 
     virtual void on_update_secret_chat(int64 access_hash, UserId user_id, SecretChatState state, bool is_outbound,
@@ -80,7 +86,7 @@ class SecretChatActor : public NetQueryCallback {
     // Promise must be set only after the update is processed.
     //
     // For example, one may set promise, after update was sent to binlog. It is ok, because SecretChatsActor will delete
-    // this update thought binlog too. So it wouldn't be deleted before update is saved.
+    // this update through binlog too. So it wouldn't be deleted before update is saved.
 
     // inbound messages
     virtual void on_inbound_message(UserId user_id, MessageId message_id, int32 date,
@@ -101,19 +107,19 @@ class SecretChatActor : public NetQueryCallback {
     virtual void on_send_message_error(int64 random_id, Status error, Promise<> promise) = 0;
   };
 
-  SecretChatActor(int32 id, std::unique_ptr<Context> context, bool can_be_empty);
+  SecretChatActor(int32 id, unique_ptr<Context> context, bool can_be_empty);
 
-  // First query to new chat must be on of this two
+  // First query to new chat must be on of these two
   void update_chat(telegram_api::object_ptr<telegram_api::EncryptedChat> chat);
   void create_chat(int32 user_id, int64 user_access_hash, int32 random_id, Promise<SecretChatId> promise);
   void cancel_chat(Promise<> promise);
 
   // Inbound messages
   // Logevent is created by SecretChatsManager, because it must contain qts
-  void add_inbound_message(std::unique_ptr<logevent::InboundSecretMessage> message);
+  void add_inbound_message(unique_ptr<logevent::InboundSecretMessage> message);
 
   // Outbound messages
-  // Promise will be set just after correspoiding logevent will be SENT to binlog.
+  // Promise will be set just after corresponding logevent will be SENT to binlog.
   void send_message(tl_object_ptr<secret_api::DecryptedMessage> message,
                     tl_object_ptr<telegram_api::InputEncryptedFile> file, Promise<> promise);
   void send_message_action(tl_object_ptr<secret_api::SendMessageAction> action);
@@ -127,17 +133,17 @@ class SecretChatActor : public NetQueryCallback {
   void send_set_ttl_message(int32 ttl, int64 random_id, Promise<> promise);
 
   // Binlog replay interface
-  void replay_inbound_message(std::unique_ptr<logevent::InboundSecretMessage> message);
-  void replay_outbound_message(std::unique_ptr<logevent::OutboundSecretMessage> message);
-  void replay_close_chat(std::unique_ptr<logevent::CloseSecretChat> event);
-  void replay_create_chat(std::unique_ptr<logevent::CreateSecretChat> event);
+  void replay_inbound_message(unique_ptr<logevent::InboundSecretMessage> message);
+  void replay_outbound_message(unique_ptr<logevent::OutboundSecretMessage> message);
+  void replay_close_chat(unique_ptr<logevent::CloseSecretChat> event);
+  void replay_create_chat(unique_ptr<logevent::CreateSecretChat> event);
   void binlog_replay_finish();
 
  private:
   enum class State : int32 { Empty, SendRequest, SendAccept, WaitRequestResponse, WaitAcceptResponse, Ready, Closed };
   static constexpr int32 MAX_RESEND_COUNT = 1000;
 
-  // We have git state that should be synchronized with db.
+  // We have git state that should be synchronized with the database.
   // It is splitted into several parts because:
   // 1. Some parts are BIG (auth_key, for example) and are rarely updated.
   // 2. Other are frequently updated, so probably should be as small as possible.
@@ -209,7 +215,7 @@ class SecretChatActor : public NetQueryCallback {
         my_layer = parser.fetch_int();
         // for future usage
         BEGIN_PARSE_FLAGS();
-        END_PARSE_FLAGS_GENERIC();
+        END_PARSE_FLAGS();
       }
     }
 
@@ -435,7 +441,7 @@ class SecretChatActor : public NetQueryCallback {
   };
 
   std::shared_ptr<SecretChatDb> db_;
-  std::unique_ptr<Context> context_;
+  unique_ptr<Context> context_;
 
   bool binlog_replay_finish_flag_ = false;
   bool close_flag_ = false;
@@ -459,13 +465,13 @@ class SecretChatActor : public NetQueryCallback {
   // This is completly flawed.
   // (A-start_save_to_binlog ----> B-start_save_to_binlog+change_memory ----> A-finish_save_to_binlog+surprise)
   //
-  // Instead I suggest general solution that is already used with SeqNoState and Qts
-  // 1. We APPLY CHANGE to memory immidiately AFTER correspoding EVENT is SENT to the binlog.
-  // 2. We SEND CHANGE to db only after correspoiding EVENT is SAVED to the binlog.
-  // 3. The we are able to ERASE EVENT just AFTER the CHANGE is SAVED to the binlog.
+  // Instead I suggest general solution that is already used with SeqNoState and qts
+  // 1. We APPLY CHANGE to memory immediately AFTER corresponding EVENT is SENT to the binlog.
+  // 2. We SEND CHANGE to database only after corresponding EVENT is SAVED to the binlog.
+  // 3. Then we are able to ERASE EVENT just AFTER the CHANGE is SAVED to the binlog.
   //
   // Actually the change will be saved to binlog too.
-  // So we can do it immidiatelly after EVENT is SENT to the binlog, because SEND CHANGE and ERASE EVENT will be
+  // So we can do it immediatelly after EVENT is SENT to the binlog, because SEND CHANGE and ERASE EVENT will be
   // ordered automatically.
   //
   // We will use common ChangeProcessor for all changes (inside one SecretChatActor).
@@ -543,14 +549,14 @@ class SecretChatActor : public NetQueryCallback {
   };
   Container<InboundMessageState> inbound_message_states_;
 
-  std::map<int32, std::unique_ptr<logevent::InboundSecretMessage>> pending_inbound_messages_;
+  std::map<int32, unique_ptr<logevent::InboundSecretMessage>> pending_inbound_messages_;
 
   Result<std::tuple<uint64, BufferSlice, int32>> decrypt(BufferSlice &encrypted_message);
 
-  Status do_inbound_message_encrypted(std::unique_ptr<logevent::InboundSecretMessage> message);
-  Status do_inbound_message_decrypted_unchecked(std::unique_ptr<logevent::InboundSecretMessage> message);
-  Status do_inbound_message_decrypted(std::unique_ptr<logevent::InboundSecretMessage> message);
-  Status do_inbound_message_decrypted_pending(std::unique_ptr<logevent::InboundSecretMessage> message);
+  Status do_inbound_message_encrypted(unique_ptr<logevent::InboundSecretMessage> message);
+  Status do_inbound_message_decrypted_unchecked(unique_ptr<logevent::InboundSecretMessage> message);
+  Status do_inbound_message_decrypted(unique_ptr<logevent::InboundSecretMessage> message);
+  void do_inbound_message_decrypted_pending(unique_ptr<logevent::InboundSecretMessage> message);
 
   void on_inbound_save_message_finish(uint64 state_id);
   void on_inbound_save_changes_finish(uint64 state_id);
@@ -558,7 +564,7 @@ class SecretChatActor : public NetQueryCallback {
 
   // OutboundMessage
   struct OutboundMessageState {
-    std::unique_ptr<logevent::OutboundSecretMessage> message;
+    unique_ptr<logevent::OutboundSecretMessage> message;
 
     Promise<> outer_send_message_finish;
     Promise<> send_message_finish;
@@ -593,7 +599,7 @@ class SecretChatActor : public NetQueryCallback {
   void send_message_impl(tl_object_ptr<secret_api::DecryptedMessage> message,
                          tl_object_ptr<telegram_api::InputEncryptedFile> file, int32 flags, Promise<> promise);
 
-  void do_outbound_message_impl(std::unique_ptr<logevent::OutboundSecretMessage>, Promise<> promise);
+  void do_outbound_message_impl(unique_ptr<logevent::OutboundSecretMessage>, Promise<> promise);
   Result<BufferSlice> create_encrypted_message(int32 layer, int32 my_in_seq_no, int32 my_out_seq_no,
                                                tl_object_ptr<secret_api::DecryptedMessage> &message);
 
@@ -612,7 +618,7 @@ class SecretChatActor : public NetQueryCallback {
 
   // DiscardEncryption
   void on_fatal_error(Status status);
-  void do_close_chat_impl(std::unique_ptr<logevent::CloseSecretChat> event);
+  void do_close_chat_impl(unique_ptr<logevent::CloseSecretChat> event);
   void on_discard_encryption_result(NetQueryPtr result);
 
   // Other
@@ -668,7 +674,7 @@ class SecretChatActor : public NetQueryCallback {
   void on_dh_config(telegram_api::messages_dhConfigNotModified &dh_not_modified);
   void on_dh_config(telegram_api::messages_dhConfig &dh);
 
-  void do_create_chat_impl(std::unique_ptr<logevent::CreateSecretChat> event);
+  void do_create_chat_impl(unique_ptr<logevent::CreateSecretChat> event);
 
   SecretChatId get_secret_chat_id() {
     return SecretChatId(auth_state_.id);
@@ -685,4 +691,5 @@ class SecretChatActor : public NetQueryCallback {
               << tag("his_in_seq_no", state.his_in_seq_no) << "]";
   }
 };
+
 }  // namespace td

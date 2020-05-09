@@ -1,12 +1,12 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #pragma once
 
-#include "td/utils/int_types.h"
+#include "td/utils/common.h"
 #include "td/utils/Slice.h"
 
 namespace td {
@@ -28,6 +28,15 @@ inline size_t utf8_length(Slice str) {
   return result;
 }
 
+/// returns length of UTF-8 string in UTF-16 code units
+inline size_t utf8_utf16_length(Slice str) {
+  size_t result = 0;
+  for (auto c : str) {
+    result += is_utf8_character_first_code_unit(c) + ((c & 0xf8) == 0xf0);
+  }
+  return result;
+}
+
 /// appends a Unicode character using UTF-8 encoding
 void append_utf8_character(string &str, uint32 ch);
 
@@ -40,7 +49,7 @@ inline const unsigned char *prev_utf8_unsafe(const unsigned char *ptr) {
 }
 
 /// moves pointer one UTF-8 character forward and saves code of the skipped character in *code
-const unsigned char *next_utf8_unsafe(const unsigned char *ptr, uint32 *code);
+const unsigned char *next_utf8_unsafe(const unsigned char *ptr, uint32 *code, const char *source);
 
 /// truncates UTF-8 string to the given length in Unicode characters
 template <class T>

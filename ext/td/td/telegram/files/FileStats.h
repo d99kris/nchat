@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -7,7 +7,7 @@
 #pragma once
 
 #include "td/telegram/DialogId.h"
-#include "td/telegram/files/FileLocation.h"
+#include "td/telegram/files/FileType.h"
 
 #include "td/utils/common.h"
 #include "td/utils/StringBuilder.h"
@@ -30,14 +30,14 @@ struct FileTypeStat {
   int32 cnt{0};
 };
 
-template <class T>
-void store(const FileTypeStat &stat, T &storer) {
+template <class StorerT>
+void store(const FileTypeStat &stat, StorerT &storer) {
   using ::td::store;
   store(stat.size, storer);
   store(stat.cnt, storer);
 }
-template <class T>
-void parse(FileTypeStat &stat, T &parser) {
+template <class ParserT>
+void parse(FileTypeStat &stat, ParserT &parser) {
   using ::td::parse;
   parse(stat.size, parser);
   parse(stat.cnt, parser);
@@ -55,8 +55,15 @@ struct FullFileInfo {
 struct FileStatsFast {
   int64 size{0};
   int32 count{0};
-  int64 db_size{0};
-  FileStatsFast(int64 size, int32 count, int64 db_size) : size(size), count(count), db_size(db_size) {
+  int64 database_size{0};
+  int64 language_pack_database_size{0};
+  int64 log_size{0};
+  FileStatsFast(int64 size, int32 count, int64 database_size, int64 language_pack_database_size, int64 log_size)
+      : size(size)
+      , count(count)
+      , database_size(database_size)
+      , language_pack_database_size(language_pack_database_size)
+      , log_size(log_size) {
   }
   tl_object_ptr<td_api::storageStatisticsFast> as_td_api() const;
 };

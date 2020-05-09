@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -16,18 +16,18 @@ namespace td {
 namespace detail {
 class BinlogActor : public Actor {
  public:
-  BinlogActor(std::unique_ptr<Binlog> binlog, uint64 seq_no) : binlog_(std::move(binlog)), processor_(seq_no) {
+  BinlogActor(unique_ptr<Binlog> binlog, uint64 seq_no) : binlog_(std::move(binlog)), processor_(seq_no) {
   }
   void close(Promise<> promise) {
     binlog_->close().ensure();
     promise.set_value(Unit());
-    LOG(INFO) << "close: done";
+    LOG(INFO) << "Finished closing binlog";
     stop();
   }
   void close_and_destroy(Promise<> promise) {
     binlog_->close_and_destroy().ensure();
     promise.set_value(Unit());
-    LOG(INFO) << "close_and_destroy: done";
+    LOG(INFO) << "Finished closing and destroying binlog";
     stop();
   }
 
@@ -68,7 +68,7 @@ class BinlogActor : public Actor {
   }
 
  private:
-  std::unique_ptr<Binlog> binlog_;
+  unique_ptr<Binlog> binlog_;
 
   OrderedEventsProcessor<Event> processor_;
 
@@ -79,7 +79,7 @@ class BinlogActor : public Actor {
   bool flush_flag_ = false;
   double wakeup_at_ = 0;
 
-  static constexpr int32 FLUSH_TIMEOUT = 1;  // 1s
+  static constexpr double FLUSH_TIMEOUT = 0.001;  // 1ms
 
   void wakeup_after(double after) {
     auto now = Time::now_cached();
@@ -163,20 +163,20 @@ class BinlogActor : public Actor {
 
 ConcurrentBinlog::ConcurrentBinlog() = default;
 ConcurrentBinlog::~ConcurrentBinlog() = default;
-ConcurrentBinlog::ConcurrentBinlog(std::unique_ptr<Binlog> binlog, int scheduler_id) {
+ConcurrentBinlog::ConcurrentBinlog(unique_ptr<Binlog> binlog, int scheduler_id) {
   init_impl(std::move(binlog), scheduler_id);
 }
 
 Result<BinlogInfo> ConcurrentBinlog::init(string path, const Callback &callback, DbKey db_key, DbKey old_db_key,
                                           int scheduler_id) {
-  auto binlog = std::make_unique<Binlog>();
+  auto binlog = make_unique<Binlog>();
   TRY_STATUS(binlog->init(std::move(path), callback, std::move(db_key), std::move(old_db_key)));
   auto info = binlog->get_info();
   init_impl(std::move(binlog), scheduler_id);
   return info;
 }
 
-void ConcurrentBinlog::init_impl(std::unique_ptr<Binlog> binlog, int32 scheduler_id) {
+void ConcurrentBinlog::init_impl(unique_ptr<Binlog> binlog, int32 scheduler_id) {
   path_ = binlog->get_path().str();
   last_id_ = binlog->peek_next_id();
   binlog_actor_ = create_actor_on_scheduler<detail::BinlogActor>(PSLICE() << "Binlog " << path_, scheduler_id,

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -22,13 +22,13 @@ class HttpQuery {
   enum class Type : int8 { EMPTY, GET, POST, RESPONSE };
 
   std::vector<BufferSlice> container_;
-  Type type_;
+  Type type_ = Type::EMPTY;
+  int32 code_ = 0;
   MutableSlice url_path_;
   std::vector<std::pair<MutableSlice, MutableSlice>> args_;
-  int code_;
   MutableSlice reason_;
 
-  bool keep_alive_;
+  bool keep_alive_ = true;
   std::vector<std::pair<MutableSlice, MutableSlice>> headers_;
   std::vector<HttpFile> files_;
   MutableSlice content_;
@@ -41,8 +41,6 @@ class HttpQuery {
 
   int get_retry_after() const;
 };
-
-using HttpQueryPtr = std::unique_ptr<HttpQuery>;
 
 StringBuilder &operator<<(StringBuilder &sb, const HttpQuery &q);
 

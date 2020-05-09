@@ -1,9 +1,11 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
+#define _WINSOCK_DEPRECATED_NO_WARNINGS  // we need to use inet_addr instead of inet_pton
+
 #include "td/utils/port/IPAddress.h"
 
 #include "td/utils/format.h"
@@ -12,19 +14,19 @@
 #include "td/utils/port/SocketFd.h"
 #include "td/utils/port/thread_local.h"
 #include "td/utils/ScopeGuard.h"
+#include "td/utils/Slice.h"
 #include "td/utils/utf8.h"
 
 #if TD_WINDOWS
 #include "td/utils/port/wstring_convert.h"
 #else
 #include <netdb.h>
-#include <netinet/in.h>
 #include <netinet/tcp.h>
-#include <sys/socket.h>
 #include <sys/types.h>
 #endif
 
 #include <cstring>
+#include <limits>
 
 namespace td {
 
@@ -50,7 +52,7 @@ static void punycode(string &result, Slice part) {
   auto end = part.uend();
   while (begin != end) {
     uint32 code;
-    begin = next_utf8_unsafe(begin, &code);
+    begin = next_utf8_unsafe(begin, &code, "punycode");
     if (code <= 127u) {
       result += to_lower(static_cast<char>(code));
       processed++;
@@ -152,6 +154,7 @@ Result<string> idn_to_ascii(CSlice host) {
   auto parts = full_split(Slice(host), '.');
   bool is_first = true;
   string result;
+  result.reserve(host.size());
   for (auto part : parts) {
     if (!is_first) {
       result += '.';
@@ -170,11 +173,62 @@ Result<string> idn_to_ascii(CSlice host) {
 #endif
 }
 
+static CSlice get_ip_str(int family, const void *addr) {
+  const int buf_size = INET6_ADDRSTRLEN;
+  static TD_THREAD_LOCAL char *buf;
+  init_thread_local<char[]>(buf, buf_size);
+
+  const char *res = inet_ntop(family,
+#if TD_WINDOWS
+                              const_cast<PVOID>(addr),
+#else
+                              addr,
+#endif
+                              buf, buf_size);
+  if (res == nullptr) {
+    return CSlice();
+  } else {
+    return CSlice(res);
+  }
+}
+
 IPAddress::IPAddress() : is_valid_(false) {
 }
 
 bool IPAddress::is_valid() const {
   return is_valid_;
+}
+
+bool IPAddress::is_reserved() const {
+  CHECK(is_valid());
+
+  if (is_ipv6()) {
+    // TODO proper check for reserved IPv6 addresses
+    return true;
+  }
+
+  uint32 ip = get_ipv4();
+  struct IpBlock {
+    CSlice ip;
+    int mask;
+    IpBlock(CSlice ip, int mask) : ip(ip), mask(mask) {
+    }
+  };
+  static const IpBlock blocks[] = {{"0.0.0.0", 8},      {"10.0.0.0", 8},     {"100.64.0.0", 10}, {"127.0.0.0", 8},
+                                   {"169.254.0.0", 16}, {"172.16.0.0", 12},  {"192.0.0.0", 24},  {"192.0.2.0", 24},
+                                   {"192.88.99.0", 24}, {"192.168.0.0", 16}, {"198.18.0.0", 15}, {"198.51.100.0", 24},
+                                   {"203.0.113.0", 24}, {"224.0.0.0", 3}};
+  for (auto &block : blocks) {
+    IPAddress block_ip_address;
+    block_ip_address.init_ipv4_port(block.ip, 80).ensure();
+    uint32 range = block_ip_address.get_ipv4();
+    CHECK(block.mask != 0);
+    uint32 mask = std::numeric_limits<uint32>::max() >> (32 - block.mask) << (32 - block.mask);
+    if ((ip & mask) == (range & mask)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 const sockaddr *IPAddress::get_sockaddr() const {
@@ -184,7 +238,7 @@ const sockaddr *IPAddress::get_sockaddr() const {
 
 size_t IPAddress::get_sockaddr_len() const {
   CHECK(is_valid());
-  switch (addr_.ss_family) {
+  switch (sockaddr_.sa_family) {
     case AF_INET6:
       return sizeof(ipv6_addr_);
     case AF_INET:
@@ -210,7 +264,7 @@ bool IPAddress::is_ipv6() const {
 uint32 IPAddress::get_ipv4() const {
   CHECK(is_valid());
   CHECK(is_ipv4());
-  return ipv4_addr_.sin_addr.s_addr;
+  return htonl(ipv4_addr_.sin_addr.s_addr);
 }
 
 Slice IPAddress::get_ipv6() const {
@@ -237,6 +291,7 @@ IPAddress IPAddress::get_any_addr() const {
 
 void IPAddress::init_ipv4_any() {
   is_valid_ = true;
+  std::memset(&ipv4_addr_, 0, sizeof(ipv4_addr_));
   ipv4_addr_.sin_family = AF_INET;
   ipv4_addr_.sin_addr.s_addr = INADDR_ANY;
   ipv4_addr_.sin_port = 0;
@@ -244,6 +299,7 @@ void IPAddress::init_ipv4_any() {
 
 void IPAddress::init_ipv6_any() {
   is_valid_ = true;
+  std::memset(&ipv6_addr_, 0, sizeof(ipv6_addr_));
   ipv6_addr_.sin6_family = AF_INET6;
   ipv6_addr_.sin6_addr = in6addr_any;
   ipv6_addr_.sin6_port = 0;
@@ -289,12 +345,38 @@ Status IPAddress::init_ipv4_port(CSlice ipv4, int port) {
   return Status::OK();
 }
 
+Result<IPAddress> IPAddress::get_ipv4_address(CSlice host) {
+  // sometimes inet_addr allows much more valid IPv4 hosts than inet_pton,
+  // like 0x12.0x34.0x56.0x78, or 0x12345678, or 0x7f.001
+  auto ipv4_numeric_addr = inet_addr(host.c_str());
+  if (ipv4_numeric_addr == INADDR_NONE) {
+    return Status::Error("Host is not valid IPv4 address");
+  }
+
+  host = ::td::get_ip_str(AF_INET, &ipv4_numeric_addr);
+  IPAddress result;
+  auto status = result.init_ipv4_port(host, 1);
+  if (status.is_error()) {
+    return std::move(status);
+  }
+  return std::move(result);
+}
+
+Result<IPAddress> IPAddress::get_ipv6_address(CSlice host) {
+  IPAddress result;
+  auto status = result.init_ipv6_port(host, 1);
+  if (status.is_error()) {
+    return std::move(status);
+  }
+  return std::move(result);
+}
+
 Status IPAddress::init_host_port(CSlice host, int port, bool prefer_ipv6) {
-  auto str_port = to_string(port);
-  return init_host_port(host, str_port, prefer_ipv6);
+  return init_host_port(host, PSLICE() << port, prefer_ipv6);
 }
 
 Status IPAddress::init_host_port(CSlice host, CSlice port, bool prefer_ipv6) {
+  is_valid_ = false;
   if (host.empty()) {
     return Status::Error("Host is empty");
   }
@@ -304,7 +386,14 @@ Status IPAddress::init_host_port(CSlice host, CSlice port, bool prefer_ipv6) {
   }
 #endif
   TRY_RESULT(ascii_host, idn_to_ascii(host));
-  host = ascii_host;
+  host = ascii_host;  // assign string to CSlice
+
+  // some getaddrinfo implementations use inet_pton instead of inet_aton and support only decimal-dotted IPv4 form,
+  // and so doesn't recognize 0x12.0x34.0x56.0x78, or 0x12345678, or 0x7f.001 as valid IPv4 addresses
+  auto ipv4_numeric_addr = inet_addr(host.c_str());
+  if (ipv4_numeric_addr != INADDR_NONE) {
+    host = ::td::get_ip_str(AF_INET, &ipv4_numeric_addr);
+  }
 
   addrinfo hints;
   addrinfo *info = nullptr;
@@ -312,7 +401,7 @@ Status IPAddress::init_host_port(CSlice host, CSlice port, bool prefer_ipv6) {
   hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_STREAM;
   hints.ai_protocol = IPPROTO_TCP;
-  LOG(INFO) << "Try to init IP address of " << host << " with port " << port;
+  LOG(DEBUG + 10) << "Try to init IP address of " << host << " with port " << port;
   auto err = getaddrinfo(host.c_str(), port.c_str(), &hints, &info);
   if (err != 0) {
 #if TD_WINDOWS
@@ -356,6 +445,15 @@ Status IPAddress::init_host_port(CSlice host_port) {
   return init_host_port(host_port.substr(0, pos).str(), host_port.substr(pos + 1).str());
 }
 
+Status IPAddress::init_sockaddr(sockaddr *addr) {
+  if (addr->sa_family == AF_INET6) {
+    return init_sockaddr(addr, sizeof(ipv6_addr_));
+  } else if (addr->sa_family == AF_INET) {
+    return init_sockaddr(addr, sizeof(ipv4_addr_));
+  } else {
+    return init_sockaddr(addr, 0);
+  }
+}
 Status IPAddress::init_sockaddr(sockaddr *addr, socklen_t len) {
   if (addr->sa_family == AF_INET6) {
     CHECK(len == sizeof(ipv6_addr_));
@@ -368,19 +466,15 @@ Status IPAddress::init_sockaddr(sockaddr *addr, socklen_t len) {
   }
 
   is_valid_ = true;
-  LOG(INFO) << "Have address " << get_ip_str() << " with port " << get_port();
+  LOG(DEBUG + 10) << "Have address " << get_ip_str() << " with port " << get_port();
   return Status::OK();
 }
 
 Status IPAddress::init_socket_address(const SocketFd &socket_fd) {
   is_valid_ = false;
-#if TD_WINDOWS
-  auto fd = socket_fd.get_fd().get_native_socket();
-#else
-  auto fd = socket_fd.get_fd().get_native_fd();
-#endif
-  socklen_t len = sizeof(addr_);
-  int ret = getsockname(fd, &sockaddr_, &len);
+  auto socket = socket_fd.get_native_fd().socket();
+  socklen_t len = storage_size();
+  int ret = getsockname(socket, &sockaddr_, &len);
   if (ret != 0) {
     return OS_SOCKET_ERROR("Failed to get socket address");
   }
@@ -390,13 +484,9 @@ Status IPAddress::init_socket_address(const SocketFd &socket_fd) {
 
 Status IPAddress::init_peer_address(const SocketFd &socket_fd) {
   is_valid_ = false;
-#if TD_WINDOWS
-  auto fd = socket_fd.get_fd().get_native_socket();
-#else
-  auto fd = socket_fd.get_fd().get_native_fd();
-#endif
-  socklen_t len = sizeof(addr_);
-  int ret = getpeername(fd, &sockaddr_, &len);
+  auto socket = socket_fd.get_native_fd().socket();
+  socklen_t len = storage_size();
+  int ret = getpeername(socket, &sockaddr_, &len);
   if (ret != 0) {
     return OS_SOCKET_ERROR("Failed to get peer socket address");
   }
@@ -404,28 +494,14 @@ Status IPAddress::init_peer_address(const SocketFd &socket_fd) {
   return Status::OK();
 }
 
-static CSlice get_ip_str(int family, const void *addr) {
-  const int buf_size = INET6_ADDRSTRLEN;
-  static TD_THREAD_LOCAL char *buf;
-  init_thread_local<char[]>(buf, buf_size);
-
-  const char *res = inet_ntop(family,
-#if TD_WINDOWS
-                              const_cast<PVOID>(addr),
-#else
-                              addr,
-#endif
-                              buf, buf_size);
-  if (res == nullptr) {
-    return CSlice();
-  } else {
-    return CSlice(res);
-  }
+CSlice IPAddress::ipv4_to_str(uint32 ipv4) {
+  ipv4 = ntohl(ipv4);
+  return ::td::get_ip_str(AF_INET, &ipv4);
 }
 
-CSlice IPAddress::ipv4_to_str(int32 ipv4) {
-  auto tmp_ipv4 = ntohl(ipv4);
-  return ::td::get_ip_str(AF_INET, &tmp_ipv4);
+CSlice IPAddress::ipv6_to_str(Slice ipv6) {
+  CHECK(ipv6.size() == 16);
+  return ::td::get_ip_str(AF_INET6, ipv6.ubegin());
 }
 
 Slice IPAddress::get_ip_str() const {

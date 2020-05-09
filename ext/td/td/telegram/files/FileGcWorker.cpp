@@ -1,12 +1,14 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/telegram/files/FileGcWorker.h"
 
+#include "td/telegram/files/FileLocation.h"
 #include "td/telegram/files/FileManager.h"
+#include "td/telegram/files/FileType.h"
 #include "td/telegram/Global.h"
 
 #include "td/utils/format.h"
@@ -14,16 +16,20 @@
 #include "td/utils/misc.h"
 #include "td/utils/port/Clocks.h"
 #include "td/utils/port/path.h"
+#include "td/utils/Status.h"
 #include "td/utils/Time.h"
 
 #include <algorithm>
 #include <array>
 
 namespace td {
+
+int VERBOSITY_NAME(file_gc) = VERBOSITY_NAME(INFO);
+
 void FileGcWorker::do_remove_file(const FullFileInfo &info) {
   // LOG(WARNING) << "Gc remove file: " << tag("path", file) << tag("mtime", stat.mtime_nsec_ / 1000000000)
   // << tag("atime", stat.atime_nsec_ / 1000000000);
-  // TODO: remove file from db too.
+  // TODO: remove file from database too
   auto status = unlink(info.path);
   LOG_IF(WARNING, status.is_error()) << "Failed to unlink file during files gc: " << status;
   send_closure(G()->file_manager(), &FileManager::on_file_unlink,
@@ -33,7 +39,7 @@ void FileGcWorker::do_remove_file(const FullFileInfo &info) {
 void FileGcWorker::run_gc(const FileGcParameters &parameters, std::vector<FullFileInfo> files,
                           Promise<FileStats> promise) {
   auto begin_time = Time::now();
-  LOG(INFO) << "Start files gc";
+  VLOG(file_gc) << "Start files gc with " << parameters;
   // quite stupid implementations
   // needs a lot of memory
   // may write something more clever, but i will need at least 2 passes over the files
@@ -47,11 +53,17 @@ void FileGcWorker::run_gc(const FileGcParameters &parameters, std::vector<FullFi
     immune_types[narrow_cast<size_t>(FileType::ProfilePhoto)] = true;
     immune_types[narrow_cast<size_t>(FileType::Thumbnail)] = true;
     immune_types[narrow_cast<size_t>(FileType::Wallpaper)] = true;
+    immune_types[narrow_cast<size_t>(FileType::Background)] = true;
   }
 
   if (!parameters.file_types.empty()) {
     std::fill(immune_types.begin(), immune_types.end(), true);
     for (auto file_type : parameters.file_types) {
+      if (file_type == FileType::Secure) {
+        immune_types[narrow_cast<size_t>(FileType::SecureRaw)] = false;
+      } else if (file_type == FileType::Background) {
+        immune_types[narrow_cast<size_t>(FileType::Wallpaper)] = false;
+      }
       immune_types[narrow_cast<size_t>(file_type)] = false;
     }
   }
@@ -82,44 +94,43 @@ void FileGcWorker::run_gc(const FileGcParameters &parameters, std::vector<FullFi
 
   // Remove all files with atime > now - max_time_from_last_access
   double now = Clocks::system();
-  files.erase(
-      std::remove_if(
-          files.begin(), files.end(),
-          [&](const FullFileInfo &info) {
-            if (immune_types[narrow_cast<size_t>(info.file_type)]) {
-              type_immunity_ignored_cnt++;
-              new_stats.add(FullFileInfo(info));
-              return true;
-            }
-            if (std::find(parameters.exclude_owner_dialog_ids.begin(), parameters.exclude_owner_dialog_ids.end(),
-                          info.owner_dialog_id) != parameters.exclude_owner_dialog_ids.end()) {
-              exclude_owner_dialog_id_ignored_cnt++;
-              new_stats.add(FullFileInfo(info));
-              return true;
-            }
-            if (!parameters.owner_dialog_ids.empty() &&
-                std::find(parameters.owner_dialog_ids.begin(), parameters.owner_dialog_ids.end(),
-                          info.owner_dialog_id) == parameters.owner_dialog_ids.end()) {
-              owner_dialog_id_ignored_cnt++;
-              new_stats.add(FullFileInfo(info));
-              return true;
-            }
-            if (static_cast<double>(info.mtime_nsec / 1000000000) > now - parameters.immunity_delay) {
-              // new files are immune to gc.
-              time_immunity_ignored_cnt++;
-              new_stats.add(FullFileInfo(info));
-              return true;
-            }
+  td::remove_if(files, [&](const FullFileInfo &info) {
+    if (token_) {
+      return false;
+    }
+    if (immune_types[narrow_cast<size_t>(info.file_type)]) {
+      type_immunity_ignored_cnt++;
+      new_stats.add(FullFileInfo(info));
+      return true;
+    }
+    if (td::contains(parameters.exclude_owner_dialog_ids, info.owner_dialog_id)) {
+      exclude_owner_dialog_id_ignored_cnt++;
+      new_stats.add(FullFileInfo(info));
+      return true;
+    }
+    if (!parameters.owner_dialog_ids.empty() && !td::contains(parameters.owner_dialog_ids, info.owner_dialog_id)) {
+      owner_dialog_id_ignored_cnt++;
+      new_stats.add(FullFileInfo(info));
+      return true;
+    }
+    if (static_cast<double>(info.mtime_nsec / 1000000000) > now - parameters.immunity_delay) {
+      // new files are immune to gc
+      time_immunity_ignored_cnt++;
+      new_stats.add(FullFileInfo(info));
+      return true;
+    }
 
-            if (static_cast<double>(info.atime_nsec / 1000000000) < now - parameters.max_time_from_last_access) {
-              do_remove_file(info);
-              total_removed_size += info.size;
-              remove_by_atime_cnt++;
-              return true;
-            }
-            return false;
-          }),
-      files.end());
+    if (static_cast<double>(info.atime_nsec / 1000000000) < now - parameters.max_time_from_last_access) {
+      do_remove_file(info);
+      total_removed_size += info.size;
+      remove_by_atime_cnt++;
+      return true;
+    }
+    return false;
+  });
+  if (token_) {
+    return promise.set_error(Status::Error(500, "Request aborted"));
+  }
 
   // sort by max(atime, mtime)
   std::sort(files.begin(), files.end(), [](const auto &a, const auto &b) { return a.atime_nsec < b.atime_nsec; });
@@ -137,6 +148,9 @@ void FileGcWorker::run_gc(const FileGcParameters &parameters, std::vector<FullFi
 
   size_t pos = 0;
   while (pos < files.size() && (remove_count > 0 || remove_size > 0)) {
+    if (token_) {
+      return promise.set_error(Status::Error(500, "Request aborted"));
+    }
     if (remove_count > 0) {
       remove_by_count_cnt++;
     } else {
@@ -160,14 +174,15 @@ void FileGcWorker::run_gc(const FileGcParameters &parameters, std::vector<FullFi
 
   auto end_time = Time::now();
 
-  LOG(INFO) << "Finish files gc: " << tag("time", end_time - begin_time) << tag("total", file_cnt)
-            << tag("removed", remove_by_atime_cnt + remove_by_count_cnt + remove_by_size_cnt)
-            << tag("total_size", format::as_size(total_size))
-            << tag("total_removed_size", format::as_size(total_removed_size)) << tag("by_atime", remove_by_atime_cnt)
-            << tag("by_count", remove_by_count_cnt) << tag("by_size", remove_by_size_cnt)
-            << tag("type_immunity", type_immunity_ignored_cnt) << tag("time_immunity", time_immunity_ignored_cnt)
-            << tag("owner_dialog_id_immunity", owner_dialog_id_ignored_cnt)
-            << tag("exclude_owner_dialog_id_immunity", exclude_owner_dialog_id_ignored_cnt);
+  VLOG(file_gc) << "Finish files gc: " << tag("time", end_time - begin_time) << tag("total", file_cnt)
+                << tag("removed", remove_by_atime_cnt + remove_by_count_cnt + remove_by_size_cnt)
+                << tag("total_size", format::as_size(total_size))
+                << tag("total_removed_size", format::as_size(total_removed_size))
+                << tag("by_atime", remove_by_atime_cnt) << tag("by_count", remove_by_count_cnt)
+                << tag("by_size", remove_by_size_cnt) << tag("type_immunity", type_immunity_ignored_cnt)
+                << tag("time_immunity", time_immunity_ignored_cnt)
+                << tag("owner_dialog_id_immunity", owner_dialog_id_ignored_cnt)
+                << tag("exclude_owner_dialog_id_immunity", exclude_owner_dialog_id_ignored_cnt);
 
   promise.set_value(std::move(new_stats));
 }

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -10,7 +10,7 @@
 
 #include "td/db/binlog/Binlog.h"
 #include "td/db/binlog/BinlogEvent.h"
-#include "td/db/binlog/ConcurrentBinlog.h"
+#include "td/db/DbKey.h"
 #include "td/db/KeyValueSyncInterface.h"
 
 #include "td/utils/buffer.h"
@@ -20,6 +20,7 @@
 #include "td/utils/port/RwMutex.h"
 #include "td/utils/Slice.h"
 #include "td/utils/Status.h"
+#include "td/utils/StorerBase.h"
 #include "td/utils/tl_parsers.h"
 #include "td/utils/tl_storers.h"
 
@@ -76,14 +77,15 @@ class BinlogKeyValue : public KeyValueSyncInterface {
       magic_ = override_magic;
     }
 
-    binlog_ = std::make_unique<BinlogT>();
-    TRY_STATUS(binlog_->init(name,
-                             [&](const BinlogEvent &binlog_event) {
-                               Event event;
-                               event.parse(TlParser(binlog_event.data_));
-                               map_.emplace(event.key.str(), std::make_pair(event.value.str(), binlog_event.id_));
-                             },
-                             std::move(db_key), DbKey::empty(), scheduler_id));
+    binlog_ = std::make_shared<BinlogT>();
+    TRY_STATUS(binlog_->init(
+        name,
+        [&](const BinlogEvent &binlog_event) {
+          Event event;
+          event.parse(TlParser(binlog_event.data_));
+          map_.emplace(event.key.str(), std::make_pair(event.value.str(), binlog_event.id_));
+        },
+        std::move(db_key), DbKey::empty(), scheduler_id));
     return Status::OK();
   }
 
@@ -175,14 +177,15 @@ class BinlogKeyValue : public KeyValueSyncInterface {
     return it->second.first;
   }
 
-  void force_sync(Promise<> &&promise) {
+  void force_sync(Promise<> &&promise) override {
     binlog_->force_sync(std::move(promise));
   }
+
   void lazy_sync(Promise<> &&promise) {
     binlog_->lazy_sync(std::move(promise));
   }
 
-  std::unordered_map<string, string> prefix_get(Slice prefix) {
+  std::unordered_map<string, string> prefix_get(Slice prefix) override {
     // TODO: optimize with std::map?
     auto lock = rw_mutex_.lock_write().move_as_ok();
     std::unordered_map<string, string> res;
@@ -194,7 +197,7 @@ class BinlogKeyValue : public KeyValueSyncInterface {
     return res;
   }
 
-  std::unordered_map<string, string> get_all() {
+  std::unordered_map<string, string> get_all() override {
     auto lock = rw_mutex_.lock_write().move_as_ok();
     std::unordered_map<string, string> res;
     for (const auto &kv : map_) {
@@ -203,7 +206,7 @@ class BinlogKeyValue : public KeyValueSyncInterface {
     return res;
   }
 
-  void erase_by_prefix(Slice prefix) {
+  void erase_by_prefix(Slice prefix) override {
     auto lock = rw_mutex_.lock_write().move_as_ok();
     std::vector<uint64> ids;
     for (auto it = map_.begin(); it != map_.end();) {

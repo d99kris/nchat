@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,7 +11,7 @@
 
 #include "td/telegram/td_api.h"
 
-#include "td/telegram/files/FileLocation.h"
+#include "td/telegram/files/FileType.h"
 #include "td/telegram/net/NetType.h"
 
 #include "td/net/NetStats.h"
@@ -88,7 +88,7 @@ class NetStatsManager : public Actor {
     switch (type) {
       case NetType::Other:
         return CSlice("other");
-      case NetType::Wifi:
+      case NetType::WiFi:
         return CSlice("wifi");
       case NetType::Mobile:
         return CSlice("mobile");
@@ -125,9 +125,10 @@ class NetStatsManager : public Actor {
   void for_each_stat(F &&f) {
     f(common_net_stats_, 0, CSlice("common"), FileType::None);
     f(media_net_stats_, 1, CSlice("media"), FileType::None);
-    for (size_t file_type_i = 0; file_type_i < file_type_size; file_type_i++) {
+    for (int32 file_type_i = 0; file_type_i < file_type_size; file_type_i++) {
       auto &stat = files_stats_[file_type_i];
-      f(stat, file_type_i + 2, CSlice(file_type_name[file_type_i]), FileType(file_type_i));
+      auto file_type = static_cast<FileType>(file_type_i);
+      f(stat, file_type_i + 2, get_file_type_name(file_type), file_type);
     }
     f(call_net_stats_, call_net_stats_id_, CSlice("calls"), FileType::None);
   }
@@ -142,6 +143,7 @@ class NetStatsManager : public Actor {
   void on_stats_updated(size_t id);
   void on_net_type_updated(NetType net_type);
 };
+
 }  // namespace td
 
 /*

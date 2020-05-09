@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -35,6 +35,7 @@ class TD_TL_writer : public tl::TL_writer {
   bool is_built_in_complex_type(const std::string &name) const override;
   bool is_type_bare(const tl::tl_type *t) const override;
   bool is_combinator_supported(const tl::tl_combinator *constructor) const override;
+  bool is_default_constructor_generated(const tl::tl_combinator *t, bool is_function) const override;
 
   int get_storer_type(const tl::tl_combinator *t, const std::string &storer_name) const override;
   Mode get_parser_mode(int type) const override;

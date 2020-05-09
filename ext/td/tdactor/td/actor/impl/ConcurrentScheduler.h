@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2018
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -9,9 +9,13 @@
 #include "td/actor/impl/Scheduler-decl.h"
 
 #include "td/utils/common.h"
-#include "td/utils/logging.h"
 #include "td/utils/port/thread.h"
 #include "td/utils/Slice.h"
+#include "td/utils/Time.h"
+
+#if TD_PORT_WINDOWS
+#include "td/utils/port/detail/Iocp.h"
+#endif
 
 #include <atomic>
 #include <functional>
@@ -30,8 +34,12 @@ class ConcurrentScheduler : private Scheduler::Callback {
   void wakeup() {
     schedulers_[0]->wakeup();
   }
-  SchedulerGuard get_current_guard() {
+  SchedulerGuard get_main_guard() {
     return schedulers_[0]->get_guard();
+  }
+
+  SchedulerGuard get_send_guard() {
+    return schedulers_.back()->get_const_guard();
   }
 
   void test_one_thread_run();
@@ -42,7 +50,14 @@ class ConcurrentScheduler : private Scheduler::Callback {
 
   void start();
 
-  bool run_main(double timeout);
+  bool run_main(double timeout) {
+    return run_main(Timestamp::in(timeout));
+  }
+  bool run_main(Timestamp timeout);
+
+  Timestamp get_main_timeout();
+  static double emscripten_get_main_timeout();
+  static void emscripten_clear_main_timeout();
 
   void finish();
 
@@ -68,14 +83,19 @@ class ConcurrentScheduler : private Scheduler::Callback {
 
  private:
   enum class State { Start, Run };
-  State state_;
+  State state_ = State::Start;
   std::vector<unique_ptr<Scheduler>> schedulers_;
-  std::atomic<bool> is_finished_;
+  std::atomic<bool> is_finished_{false};
   std::mutex at_finish_mutex_;
   std::vector<std::function<void()>> at_finish_;
 #if !TD_THREAD_UNSUPPORTED && !TD_EVENTFD_UNSUPPORTED
   std::vector<thread> threads_;
 #endif
+#if TD_PORT_WINDOWS
+  unique_ptr<detail::Iocp> iocp_;
+  td::thread iocp_thread_;
+#endif
+  int32 extra_scheduler_;
 
   void on_finish() override {
     is_finished_.store(true, std::memory_order_relaxed);
