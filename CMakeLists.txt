@@ -31,7 +31,6 @@ set(ATOMIC_TEST_SOURCE
   int main() { std::atomic<int64_t> i(0); i++; return 0; }
   ")
 check_cxx_source_compiles("${ATOMIC_TEST_SOURCE}" HAVE_BUILTIN_ATOMIC)
-#check_function_exists(__atomic_load_1 HAVE_BUILTIN_ATOMIC)
 if (NOT HAVE_BUILTIN_ATOMIC)
   message(STATUS "No built-in atomic, using libatomic.")
   set (USE_LIBATOMIC TRUE)
