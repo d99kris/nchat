@@ -1,6 +1,6 @@
 // telegram.cpp
 //
-// Copyright (c) 2019 Kristofer Berggren
+// Copyright (c) 2019-2020 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -96,7 +96,7 @@ void Telegram::RequestChats(std::int32_t p_Limit, bool p_PostInit, std::int64_t 
                             std::int64_t p_OffsetOrder)
 {
   LOG_DEBUG("request chats");
-  SendQuery(td::td_api::make_object<td::td_api::getChats>(p_OffsetOrder, p_OffsetChat, p_Limit),
+  SendQuery(td::td_api::make_object<td::td_api::getChats>(nullptr, p_OffsetOrder, p_OffsetChat, p_Limit),
             [this, p_PostInit](Object object)
             {
               if (object->get_id() == td::td_api::error::ID) return;
@@ -299,7 +299,7 @@ void Telegram::TdMessageConvert(const td::td_api::message& p_TdMessage, Message&
   std::string text;
   if (p_TdMessage.content_->get_id() == td::td_api::messageText::ID)
   {
-    text = static_cast<td::td_api::messageText &>(*p_TdMessage.content_).text_->text_;
+    text = static_cast<const td::td_api::messageText &>(*p_TdMessage.content_).text_->text_;
   }
   else if (p_TdMessage.content_->get_id() == td::td_api::messageAnimation::ID)
   {
@@ -327,8 +327,8 @@ void Telegram::TdMessageConvert(const td::td_api::message& p_TdMessage, Message&
   }
   else if (p_TdMessage.content_->get_id() == td::td_api::messageDocument::ID)
   {
-    int32_t id = static_cast<td::td_api::messageDocument &>(*p_TdMessage.content_).document_->document_->id_;
-    std::string path = static_cast<td::td_api::messageDocument &>(*p_TdMessage.content_).document_->document_->local_->path_;
+    int32_t id = static_cast<const td::td_api::messageDocument &>(*p_TdMessage.content_).document_->document_->id_;
+    std::string path = static_cast<const td::td_api::messageDocument &>(*p_TdMessage.content_).document_->document_->local_->path_;
     if (!path.empty())
     {
       text = "[Document \"" + path + "\"]";
@@ -538,24 +538,32 @@ void Telegram::OnAuthStateUpdate()
       m_Running = false;
       LOG_INFO("Terminated");
     },
-    [this](td::td_api::authorizationStateWaitCode &wait_code)
+    [this](td::td_api::authorizationStateWaitCode &)
     {
+      if (m_IsSetup)
+      {
+        std::cout << "Enter authentication code: ";
+        std::string code;
+        std::getline(std::cin, code);
+        SendQuery(td::td_api::make_object<td::td_api::checkAuthenticationCode>(code),
+                  CreateAuthQueryHandler());
+      }
+      else
+      {
+        LOG_INFO("Unexpected state");
+        m_Running = false;
+      }
+    },
+    [this](td::td_api::authorizationStateWaitRegistration &) {
       if (m_IsSetup)
       {
         std::string first_name;
         std::string last_name;
-        if (!wait_code.is_registered_)
-        {
-          std::cout << "Enter your first name: ";
-          std::getline(std::cin, first_name);
-          std::cout << "Enter your last name: ";
-          std::getline(std::cin, last_name);
-        }
-        std::cout << "Enter authentication code: ";
-        std::string code;
-        std::getline(std::cin, code);
-        SendQuery(td::td_api::make_object<td::td_api::checkAuthenticationCode>(code, first_name,
-                                                                               last_name),
+        std::cout << "Enter your first name: ";
+        std::getline(std::cin, first_name);
+        std::cout << "Enter your last name: ";
+        std::getline(std::cin, last_name);
+        SendQuery(td::td_api::make_object<td::td_api::registerUser>(first_name, last_name),
                   CreateAuthQueryHandler());
       }
       else
@@ -586,9 +594,7 @@ void Telegram::OnAuthStateUpdate()
         std::cout << "Enter phone number: ";
         std::string phone_number;
         std::getline(std::cin, phone_number);
-        SendQuery(td::td_api::make_object<td::td_api::setAuthenticationPhoneNumber>(phone_number,
-                                                                                    false,
-                                                                                    false),
+        SendQuery(td::td_api::make_object<td::td_api::setAuthenticationPhoneNumber>(phone_number, nullptr),
                   CreateAuthQueryHandler());
       }
       else
@@ -646,6 +652,9 @@ void Telegram::OnAuthStateUpdate()
       parameters->enable_storage_optimizer_ = true;
       SendQuery(td::td_api::make_object<td::td_api::setTdlibParameters>(std::move(parameters)),
                 CreateAuthQueryHandler());
+    },
+    [this](td::td_api::authorizationStateWaitOtherDeviceConfirmation &state) {
+      std::cout << "Confirm this login link on another device:\n" << state.link_ << "\n";
     }
   ));
 }
