@@ -1,7 +1,8 @@
 # Project
 cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
-project(nchat VERSION 0.26 LANGUAGES CXX)
+project(nchat VERSION 0.27 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 14)
+include(CheckCXXSourceCompiles)
 
 # Paths
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
@@ -15,12 +16,27 @@ set(DEFAULT_BUILD_TYPE "Release")
 if((EXISTS "${CMAKE_SOURCE_DIR}/.svn") OR (EXISTS "${CMAKE_SOURCE_DIR}/.git"))
   set(DEFAULT_BUILD_TYPE "Debug")
 endif()
- 
+
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "Using build type '${DEFAULT_BUILD_TYPE}' (default).")
   set(CMAKE_BUILD_TYPE "${DEFAULT_BUILD_TYPE}")
 else()
   message(STATUS "Using build type '${CMAKE_BUILD_TYPE}'.")
+endif()
+
+# Compiler specifics
+set(ATOMIC_TEST_SOURCE
+  "
+  #include <atomic>
+  int main() { std::atomic<int64_t> i(0); i++; return 0; }
+  ")
+check_cxx_source_compiles("${ATOMIC_TEST_SOURCE}" HAVE_BUILTIN_ATOMIC)
+#check_function_exists(__atomic_load_1 HAVE_BUILTIN_ATOMIC)
+if (NOT HAVE_BUILTIN_ATOMIC)
+  message(STATUS "No built-in atomic, using libatomic.")
+  set (USE_LIBATOMIC TRUE)
+else()
+  message(STATUS "Using built-in atomic.")
 endif()
 
 # Platform specifics
@@ -82,6 +98,9 @@ include_directories(${CURSES_INCLUDE_DIR})
 
 # Linking
 target_link_libraries(nchat PUBLIC tdclientshared ${CURSES_NCURSES_LIBRARY})
+if (USE_LIBATOMIC)
+  set_target_properties(nchat PROPERTIES LINK_FLAGS "-latomic")
+endif()
 
 # Manual
 install(FILES src/nchat.1 DESTINATION share/man/man1)
