@@ -777,6 +777,13 @@ target_include_directories(tdclient PUBLIC
 )
 target_link_libraries(tdclient PRIVATE tdcore)
 
+add_library(tdclientshared SHARED td/telegram/Client.cpp td/telegram/Client.h td/telegram/Log.cpp td/telegram/Log.h)
+target_include_directories(tdclientshared PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+  $<BUILD_INTERFACE:${TL_TD_AUTO_INCLUDES}>
+)
+target_link_libraries(tdclientshared PUBLIC tdcore)
+
 if (TD_ENABLE_JNI AND NOT ANDROID) # jni is available by default on Android
   target_include_directories(tdclient PUBLIC ${JAVA_INCLUDE_PATH} ${JAVA_INCLUDE_PATH2})
   target_link_libraries(tdclient PUBLIC ${JAVA_JVM_LIBRARY})
@@ -864,6 +871,7 @@ if (BIGOBJ)
   target_compile_options(tdc PUBLIC ${BIGOBJ})
   target_compile_options(tdcore PUBLIC ${BIGOBJ})
   target_compile_options(tdclient PUBLIC ${BIGOBJ})
+  target_compile_options(tdclientshared PUBLIC ${BIGOBJ})
   target_compile_options(tdjson PUBLIC ${BIGOBJ})
   target_compile_options(tdjson_static PUBLIC ${BIGOBJ})
   if (TD_ENABLE_DOTNET)
