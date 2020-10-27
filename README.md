@@ -105,6 +105,21 @@ macOS
 
     make install
 
+arch linux
+----------
+
+**Source**
+
+    git clone https://aur.archlinux.org/nchat-git.git && cd nchat-git
+
+**Build**
+
+    makepkg -s
+
+**Install**
+
+    makepkg -i
+
 Low Memory / RAM Systems
 ------------------------
 The Telegram client library subcomponent requires relatively large amount of RAM to
@@ -132,6 +147,27 @@ Steps to build nchat on a low memory system:
 **Revert Source Code Split (Optional)**
 
     cd ../ext/td ; php SplitSource.php --undo ; cd -   # optional step to revert source split
+
+Arch Linux
+----------
+
+**Source**
+
+    git clone https://aur.archlinux.org/nchat-git.git && cd nchat-git
+
+**Prepare**
+
+    Open PKGBUILD on favourite editor.
+    Add `php` and `clang` on depends array.
+    Change the `_install_mode` to `slow`.
+
+**Build**
+
+    makepkg -s
+
+**Install**
+
+    makepkg -i
 
 Getting Started
 ===============
