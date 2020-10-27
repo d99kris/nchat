@@ -105,7 +105,7 @@ macOS
 
     make install
 
-arch linux
+Arch Linux
 ----------
 
 **Source**
@@ -157,7 +157,7 @@ Arch Linux
 
 **Prepare**
 
-    Open PKGBUILD on favourite editor.
+    Open PKGBUILD in your favourite editor.
     Add `php` and `clang` on depends array.
     Change the `_install_mode` to `slow`.
 
