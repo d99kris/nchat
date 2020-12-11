@@ -1,0 +1,12 @@
+name: macOS
+
+on: [push, pull_request]
+
+jobs:
+  mac-build:
+    runs-on: macos-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v1
+    - name: Build macOS
+      run: ./make.sh all

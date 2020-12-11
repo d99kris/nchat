@@ -1,9 +1,9 @@
 nchat - ncurses chat
 ====================
 
-| **Linux + Mac** |
-|-----------------|
-| [![Build status](https://travis-ci.com/d99kris/nchat.svg?branch=master)](https://travis-ci.com/d99kris/nchat) |
+| **Linux** | **Mac** |
+|-----------|---------|
+| [![Linux](https://github.com/d99kris/nchat/workflows/Linux/badge.svg)](https://github.com/d99kris/nchat/actions?query=workflow%3ALinux) | [![macOS](https://github.com/d99kris/nchat/workflows/macOS/badge.svg)](https://github.com/d99kris/nchat/actions?query=workflow%3AmacOS) |
 
 nchat is a console-based chat client for Linux and macOS with support for
 Telegram.
