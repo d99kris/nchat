@@ -83,7 +83,38 @@ fi
 
 # build
 if [[ "${BUILD}" == "1" ]]; then
-  mkdir -p build && cd build && cmake .. && make -s && cd .. || exiterr "build failed, exiting."
+  OS="$(uname)"
+  if [ "${OS}" == "Linux" ]; then
+    MEM="$(( $(($(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE) / (1000 * 1000 * 1000))) * 1000 ))" # in MB
+  elif [ "${OS}" == "Darwin" ]; then
+    MEM="$(( $(($(sysctl -n hw.memsize) / (1000 * 1000 * 1000))) * 1000 ))" # in MB
+  fi
+
+  MEM_NEEDED_PER_CORE="3500" # tdlib under g++ needs 3.5 GB
+  if [[ "$(c++ -dM -E -x c++ - < /dev/null | grep CLANG_ATOMIC > /dev/null ; echo ${?})" == "0" ]]; then
+    MEM_NEEDED_PER_CORE="1500" # tdlib under clang++ needs 1.5 GB
+  fi
+
+  MEM_MAX_THREADS="$((${MEM} / ${MEM_NEEDED_PER_CORE}))"
+  if [[ "${MEM_MAX_THREADS}" == "0" ]]; then
+    MEM_MAX_THREADS="1" # minimum 1 core
+  fi
+
+  if [[ "${OS}" == "Darwin" ]]; then
+    CPU_MAX_THREADS="$(sysctl -n hw.ncpu)"
+  else
+    CPU_MAX_THREADS="$(nproc)"
+  fi
+
+  if [[ ${MEM_MAX_THREADS} -gt ${CPU_MAX_THREADS} ]]; then
+    MAX_THREADS=${CPU_MAX_THREADS}
+  else
+    MAX_THREADS=${MEM_MAX_THREADS}
+  fi
+
+  MAKEARGS="-j${MAX_THREADS}"
+  echo "using ${MAKEARGS} (${CPU_MAX_THREADS} cores, ${MEM} MB phys mem, ${MEM_NEEDED_PER_CORE} MB mem per core needed)"
+  mkdir -p build && cd build && cmake .. && make -s ${MAKEARGS} && cd .. || exiterr "build failed, exiting."
 fi
 
 # tests
