@@ -189,7 +189,6 @@ int Util::GetKeyCode(const std::string& p_KeyName)
       { "KEY_UNDO", KEY_UNDO },
       { "KEY_MOUSE", KEY_MOUSE },
       { "KEY_RESIZE", KEY_RESIZE },
-      { "KEY_EVENT", KEY_EVENT },
     };
 
   int keyCode = -1;
