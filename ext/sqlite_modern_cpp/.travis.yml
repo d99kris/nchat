@@ -1,0 +1,19 @@
+language: cpp
+sudo: required
+dist: trusty
+
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+    packages:
+      - gcc-5
+      - g++-5
+      - libsqlite3-dev
+      - libsqlcipher-dev
+      - libboost-all-dev
+
+before_install:
+  - export CXX="g++-5" CC="gcc-5"
+
+script: ./configure && make test && make clean && make LDFLAGS="-lsqlcipher -DENABLE_SQLCIPHER_TESTS" test

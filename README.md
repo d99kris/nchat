@@ -6,9 +6,9 @@ nchat - ncurses chat
 | [![Linux](https://github.com/d99kris/nchat/workflows/Linux/badge.svg)](https://github.com/d99kris/nchat/actions?query=workflow%3ALinux) | [![macOS](https://github.com/d99kris/nchat/workflows/macOS/badge.svg)](https://github.com/d99kris/nchat/actions?query=workflow%3AmacOS) |
 
 nchat is a console-based chat client for Linux and macOS with support for
-Telegram.
+Telegram. 
 
-![screenshot](/doc/screenshot.png) 
+![screenshot nchat](/doc/screenshot-nchat.png) 
 
 Usage
 =====
@@ -18,61 +18,58 @@ Usage:
 
 Command-line Options:
 
-    -e, --verbose     enable verbose logging
-    -h, --help        display this help and exit
-    -s, --setup       set up chat protocol account
-    -v, --version     output version information and exit
+    -d, --confdir <DIR>    use a different directory than ~/.nchat
+    -e, --verbose          enable verbose logging
+    -ee, --extra-verbose   enable extra verbose logging
+    -h, --help             display this help and exit
+    -s, --setup            set up chat protocol account
+    -v, --version          output version information and exit
 
 Interactive Commands:
 
-    Tab               next chat
-    Sh-Tab            previous chat
-    PageDn            next page
-    PageUp            previous page
-    Ctrl-e            enable/disable emoji
-    Ctrl-n            enable/disable msgid
-    Ctrl-q            exit
-    Ctrl-r            receive file
-    Ctrl-t            transfer file
-    Ctrl-u            next unread chat
-    Ctrl-x            send message
+    PageDn      history next page
+    PageUp      history previous page
+    Tab         next chat
+    Sh-Tab      previous chat
+    Ctrl-e      insert emoji
+    Ctrl-g      toggle show help bar
+    Ctrl-l      toggle show contact list
+    Ctrl-p      toggle show top bar
+    Ctrl-q      quit
+    Ctrl-s      search contacts
+    Ctrl-t      send file
+    Ctrl-u      jump to unread chat
+    Ctrl-x      send message
+    Ctrl-y      toggle show emojis
+    KeyUp       select message
 
-Emojis can be entered on the format `:smiley:`. Refer to
-[emojicpp](https://github.com/d99kris/nchat/blob/master/ext/emojicpp/README.md)
-for a full list of supported emojis. One can also toggle display of graphical
-emojis in the chat history with `Ctrl-e` to easily see their textual
-counterpart.
+Interactive Commands for Selected Message:
 
-To send a file, enter the file path and press Ctrl-t. To receive a file, enter
-the number found in the chat history [Document] tag, and press Ctrl-r. Once
-downloaded the chat history message will be updated with the path to the local
-copy of the file.
-
-To reply and quote a specific message, first enable display of message id by
-pressing Ctrl-n. Then start the message with a line containing only `|0x12345`
-(replace the number 0x12345 with the actual message id) and write the message
-on the following line(s). Press Ctrl-x to send like normal.
+    Ctrl-d      delete selected message
+    Ctrl-r      download attached file
+    Ctrl-v      open/view attached file
+    Ctrl-x      reply to selected message
 
 Supported Platforms
 ===================
 nchat is developed and tested on Linux and macOS. Current version has been
 tested on:
 
-- macOS Big Sur 11.0
+- macOS Big Sur 11.5
 - Ubuntu 20.04 LTS
 
 Build / Install
 ===============
 Nchat consists of a large code-base (mainly the Telegram client library), so be
 prepared for a relatively long first build time. Subsequent builds will be
-faster with ccache installed.
+faster.
 
 Linux / Ubuntu
 --------------
 
 **Dependencies**
 
-    sudo apt install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev
+    sudo apt install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev
 
 **Source**
 
@@ -91,7 +88,7 @@ macOS
 
 **Dependencies**
 
-    brew install gperf cmake openssl ncurses ccache readline help2man
+    brew install gperf cmake openssl ncurses ccache readline help2man sqlite libmagic
 
 **Source**
 
@@ -136,7 +133,7 @@ Steps to build nchat on a low memory system:
 
 **Build**
 
-    cd ext/td ; php SplitSource.php ; cd -
+    cd lib/tgchat/ext/td ; php SplitSource.php ; cd -
     mkdir -p build && cd build
     CC=/usr/bin/clang CXX=/usr/bin/clang++ cmake -DCMAKE_BUILD_TYPE=Release .. && make -s
 
@@ -146,7 +143,7 @@ Steps to build nchat on a low memory system:
 
 **Revert Source Code Split (Optional)**
 
-    cd ../ext/td ; php SplitSource.php --undo ; cd -   # optional step to revert source split
+    cd ../lib/tgchat/ext/td ; php SplitSource.php --undo ; cd -   # optional step to revert source split
 
 Arch Linux
 ----------
@@ -180,18 +177,18 @@ code. Example:
 
     $ nchat --setup
     Protocols:
-    0. telegram
+    0. Telegram
     1. Exit setup
-    Select protocol (0): 0
-    Enter phone number: +6511111111
+    Select protocol (1): 0
+    Enter phone number (ex. +6511111111): +6511111111
     Enter authentication code: xxxxx
-    Saving to /home/d99kris/.nchat/main.conf
+    Succesfully set up profile Telegram_+6511111111
 
 If you are not sure what phone number to enter, open Telegram on your phone
 and press the menu button and use the number displayed there (omitting spaces,
 so for the below screenshot the number to enter is +6511111111).
 
-![screenshotPhone](/doc/screenshot_phone.png) 
+![screenshot telegram phone](/doc/screenshot-phone.png) 
 
 Once the setup process is completed nchat will exit, and can now be restarted
 in normal mode:
@@ -220,12 +217,7 @@ are properly tracked and get addressed.
 
 Security
 ========
-
-Telegram
---------
-Telegram user data is locally stored in `~/.nchat/tdlib` encrypted with a key
-randomly generated by nchat (not cryptographically secure PRNG). The key is
-stored as plain text in `~/.nchat/telegram.conf`. Default file permissions
+User data is stored locally in `~/.nchat`. Default file permissions
 only allow user access, but anyone who can gain access to a user's private
 files can also access the user's personal Telegram data. To protect against
 the most simple attack vectors it may be suitable to use disk encryption and
@@ -236,75 +228,125 @@ Configuration
 The following configuration files (listed with current default values) can be
 used to configure nchat.
 
-~/.nchat/main.conf
-------------------
-This configuration file determines which protocols should be enabled
-(currently Telegram is the only supported). Protocols are automatically
-enabled after succesful setup, and thus the protocol
-(e.g. `telegram_is_enabled`) only needs to be manually configured if wanting
-to disable a protocol.
+~/.nchat/ui.conf
+----------------
+This configuration file holds general user interface settings. Default content:
 
-The `ui` parameter controls which UI plugin/skin to use. There are currently
-two supported:
-- `uidefault` which can be seen in the main screenshot above.
-- `uilite` which is a lightweight interface with no contact list, see below.
+    emoji_enabled=1
+    help_enabled=1
+    list_enabled=1
+    top_enabled=1
 
-Default `~/.nchat/main.conf` content:
+~/.nchat/key.conf
+-----------------
+This configuration file holds user interface key bindings. Default content:
 
-    telegram_is_enabled=0
-    ui=uidefault
-
-### Screenshot uilite
-
-![screenshot_uilite](/doc/screenshot_uilite.png) 
-
-~/.nchat/telegram.conf
-----------------------
-This configuration file should not be edited manually by end users. Content:
-
-    local_key=
-
-~/.nchat/uidefault.conf
------------------------
-This configuration file (and uilite.conf for `uilite`) controls the UI aspects,
-in particular subwindows size (`input_rows`, `list_width`), shortcut keys and
-whether to show emojis graphically.
-
-    bell_msg_any_chat=1
-    bell_msg_current_chat=0
-    highlight_bold=1
-    input_rows=3
-    key_backspace=KEY_BACKSPACE
-    key_curs_down=KEY_DOWN
-    key_curs_left=KEY_LEFT
-    key_curs_right=KEY_RIGHT
-    key_curs_up=KEY_UP
-    key_delete=KEY_DC
-    key_exit=KEY_CTRLQ
-    key_linebreak=KEY_RETURN
-    key_next_chat=KEY_TAB
-    key_next_page=KEY_NPAGE
-    key_next_unread=KEY_CTRLU
-    key_prev_chat=KEY_BTAB
-    key_prev_page=KEY_PPAGE
-    key_receive_file=KEY_CTRLR
-    key_send=KEY_CTRLX
-    key_toggle_emoji=KEY_CTRLE
-    key_toggle_keycode_dump=KEY_CTRLK
-    key_toggle_msgid=KEY_CTRLN
-    key_transmit_file=KEY_CTRLT
-    list_width=14
-    show_emoji=1
-    show_msgid=0
+    backspace=KEY_BACKSPACE
+    cancel=KEY_CTRLC
+    delete=KEY_DC
+    delete_msg=KEY_CTRLD
+    down=KEY_DOWN
+    end=KEY_END
+    home=KEY_HOME
+    left=KEY_LEFT
+    next_chat=KEY_TAB
+    next_page=KEY_NPAGE
+    open=KEY_CTRLV
+    other_commands_help=KEY_CTRLO
+    prev_chat=KEY_BTAB
+    prev_page=KEY_PPAGE
+    quit=KEY_CTRLQ
+    return=KEY_RETURN
+    right=KEY_RIGHT
+    save=KEY_CTRLR
+    select_contact=KEY_CTRLS
+    select_emoji=KEY_CTRLE
+    send_msg=KEY_CTRLX
+    toggle_emoji=KEY_CTRLY
+    toggle_help=KEY_CTRLG
+    toggle_list=KEY_CTRLL
+    toggle_top=KEY_CTRLP
+    transfer=KEY_CTRLT
+    unread_chat=KEY_CTRLU
+    up=KEY_UP
 
 Refer to function Util::GetKeyCode() in
 [src/util.cpp](https://github.com/d99kris/nchat/blob/master/src/util.cpp)
 for a list of supported key names to use in the config file. Alternatively
-key codes may be entered in hex format (e.g. 0x9). If unsure of what the
-(ncurses) key code for a certain key combination is, one can enable
-"keycode dump" in nchat by pressing CTRL-K, which will log all subsequently
-pressed keys to the log file `~/.nchat/main.log`.
+key codes may be entered in hex format (e.g. 0x9).
 
+~/.nchat/color.conf
+-------------------
+This configuration file holds user interface color settings. Default content:
+
+    dialog_attr=
+    dialog_attr_selected=reverse
+    dialog_color_bg=
+    dialog_color_fg=
+    entry_attr=
+    entry_color_bg=
+    entry_color_fg=
+    help_attr=reverse
+    help_color_bg=black
+    help_color_fg=white
+    history_name_attr=bold
+    history_name_attr_selected=reverse
+    history_name_recv_color_bg=
+    history_name_recv_color_fg=
+    history_name_sent_color_bg=
+    history_name_sent_color_fg=gray
+    history_text_attr=
+    history_text_attr_selected=reverse
+    history_text_recv_color_bg=
+    history_text_recv_color_fg=
+    history_text_sent_color_bg=
+    history_text_sent_color_fg=gray
+    list_attr=
+    list_attr_selected=bold
+    list_color_bg=
+    list_color_fg=
+    listborder_attr=
+    listborder_color_bg=
+    listborder_color_fg=
+    status_attr=reverse
+    status_color_bg=
+    status_color_fg=
+    top_attr=reverse
+    top_color_bg=
+    top_color_fg=
+
+Supported text attributes `_attr` (defaults to `normal` if not specified):
+
+    normal
+    underline
+    reverse
+    bold
+    italic
+
+Supported text background `_bg` and foreground `_fg` colors:
+
+    black
+    red
+    green
+    yellow
+    blue
+    magenta
+    cyan
+    white
+    gray
+    bright_black (same as gray)
+    bright_red
+    bright_green
+    bright_yellow
+    bright_blue
+    bright_magenta
+    bright_cyan
+    bright_white
+
+Custom colors may be specified using hex RGB code, for example `0xff8937`.
+
+General
+-------
 Deleting a configuration entry line (while nchat is not running) and starting
 nchat will populate the configuration file with the default entry.
 
