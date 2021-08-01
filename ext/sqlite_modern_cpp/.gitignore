@@ -1,0 +1,11 @@
+
+.deps
+
+config.log
+
+config.status
+
+Makefile
+
+tests/*
+!tests/*.cc

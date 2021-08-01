@@ -1,0 +1,110 @@
+#Standard boilerplate
+prefix = @prefix@
+exec_prefix = @exec_prefix@
+mandir = @mandir@
+includedir = @includedir@
+datarootdir = @datarootdir@
+pkgconfig = @PKGCONFIG_LIBDIR@
+
+ifneq "$(DESTDIR)" ""
+DESTDIR+=/
+endif
+
+CXX=@CXX@
+CXXFLAGS=@CXXFLAGS@ -I hdr/
+LDFLAGS=@LDFLAGS@ @LIBS@
+
+hdr = $(DESTDIR)$(includedir)/
+
+
+.PHONY: all clean testclean 
+
+all:
+	@echo There is nothing to be compiled.
+	@echo It is now ready to be installed.
+
+install:
+	mkdir -p $(hdr)/sqlite_modern_cpp
+	cp -r hdr/* $(hdr)/
+	[ "$(pkgconfig)" = "" ] || mkdir -p $(DESTDIR)$(pkgconfig)
+	[ "$(pkgconfig)" = "" ] || cp sqlite_modern_cpp.pc $(DESTDIR)$(pkgconfig)/
+
+clean:
+	rm -f src/*.o src/test
+	rm -f tests/*.result tests/*.test tests/*.result_ prog *.o
+
+src/test: src/test.o
+	$(CXX) -o $@ $^ $(LDFLAGS)
+
+#Every .cc file in the tests directory is a test
+TESTS=$(notdir $(basename $(wildcard tests/*.cc)))
+
+
+#Get the intermediate file names from the list of tests.
+TEST_RESULT=$(TESTS:%=tests/%.result)
+
+
+# Don't delete the intermediate files, since these can take a
+# long time to regenerate
+.PRECIOUS: tests/%.result_ tests/%.test
+
+#Add the rule "test" so make test works. It's not a real file, so
+#mark it as phony
+.PHONY: test
+test:tests/results
+
+
+#We don't want this file hanging around on failure since we 
+#want the build depend on it. If we leave it behing then typing make
+#twice in a row will suceed, since make will find the file and not try
+#to rebuild it.
+.DELETE_ON_ERROR: tests/results 
+
+tests/results:$(TEST_RESULT)
+	cat $(TEST_RESULT) > tests/results
+	@echo -------------- Test Results ---------------
+	@cat tests/results
+	@echo -------------------------------------------
+	@ ! grep -qv 'OK\|Skipped' tests/results 
+
+
+#Build a test executable from a test program. On compile error,
+#create an executable which declares the error.
+tests/%.test: tests/%.cc
+	$(CXX) $(CXXFLAGS) $< -o $@ -I . $(LDFLAGS) ||\
+	{ \
+	  echo "echo 'Compile error!' ; return 126" > $@ ; \
+	  chmod +x $@; \
+	}
+
+#Run the program and either use it's output (it should just say OK)
+#or a failure message
+tests/%.result_: tests/%.test
+	$< > $@ ; \
+	a=$$? ;\
+	if [ $$a != 0 ]; \
+	then \
+	   if [ $$a -ge 128 ] ; \
+	   then \
+	       echo Crash!! > $@ ; \
+	   elif [ $$a -eq 42 ] ;\
+	   then \
+	       echo Skipped > $@ ; \
+	   elif [ $$a -ne 126 ] ;\
+	   then \
+	       echo Failed > $@ ; \
+	   fi;\
+	else\
+	    echo OK >> $@;\
+	fi
+	
+tests/%.result: tests/%.result_
+	echo $*: `tail -1 $<` > $@
+
+#Get the C style dependencies working. Note we need to massage the test dependencies
+#to make the filenames correct
+.deps:
+	rm -f .deps .sourcefiles
+	find . -name "*.cc" | xargs -IQQQ $(CXX) $(CXXFLAGS) -MM -MG QQQ | sed -e'/test/s!\(.*\)\.o:!tests/\1.test:!'  > .deps
+
+include .deps

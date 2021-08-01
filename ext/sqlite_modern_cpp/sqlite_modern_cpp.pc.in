@@ -1,0 +1,8 @@
+prefix=@prefix@
+includedir=@includedir@
+
+Name: sqlite_modern_cpp
+Description: Modern C++ interface to sqlite3
+Version: @VERSION@
+Libs: @LIBS@
+Cflags: -I${includedir}

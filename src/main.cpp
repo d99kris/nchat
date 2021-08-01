@@ -1,56 +1,88 @@
 // main.cpp
 //
-// Copyright (c) 2019-2020 Kristofer Berggren
+// Copyright (c) 2019-2021 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
 
-#include <algorithm>
 #include <iostream>
+#include <map>
+#include <regex>
+#include <set>
+#include <string>
 
 #include <path.hpp>
 
-#include "config.h"
-#include "lockfile.h"
+#include "apputil.h"
+#include "fileutil.h"
 #include "log.h"
-#include "uidefault.h"
-#include "uilite.h"
-#include "setup.h"
-#include "telegram.h"
-#include "util.h"
+#include "messagecache.h"
+#include "profiles.h"
+#include "scopeddirlock.h"
+#include "tgchat.h"
+#include "ui.h"
 
-static void ShowVersion();
+#ifdef HAS_DUMMY
+#include "duchat.h"
+#endif
+
+#ifdef HAS_WHATSAPP
+#include "wachat.h"
+#endif
+
+static bool SetupProfile();
 static void ShowHelp();
+static void ShowVersion();
 
-int main(int argc, char *argv[])
+static std::vector<std::shared_ptr<Protocol>> GetProtocols()
+{
+  std::vector<std::shared_ptr<Protocol>> protocols =
+  {
+#ifdef HAS_DUMMY
+    std::make_shared<DuChat>(),
+#endif
+    std::make_shared<TgChat>(),
+#ifdef HAS_WHATSAPP
+    std::make_shared<WaChat>(),
+#endif
+  };
+
+  return protocols;
+}
+
+int main(int argc, char* argv[])
 {
   // Defaults
   umask(S_IRWXG | S_IRWXO);
-  Util::SetConfigDir(std::string(getenv("HOME")) + std::string("/.nchat"));
+  FileUtil::SetApplicationDir(std::string(getenv("HOME")) + std::string("/.nchat"));
+  Log::SetVerboseLevel(Log::INFO_LEVEL);
 
   // Argument handling
   bool isSetup = false;
-  bool isVerbose = false;
-  const std::vector<std::string> args(argv + 1, argv + argc);
+  std::vector<std::string> args(argv + 1, argv + argc);
   for (auto it = args.begin(); it != args.end(); ++it)
   {
     if (((*it == "-d") || (*it == "--configdir")) && (std::distance(it + 1, args.end()) > 0))
     {
       ++it;
-      Util::SetConfigDir(*it);
+      FileUtil::SetApplicationDir(*it);
     }
-    else if ((*it == "-s") || (*it == "--setup"))
+    else if ((*it == "-e") || (*it == "--verbose"))
     {
-      isSetup = true;
+      Log::SetVerboseLevel(Log::DEBUG_LEVEL);
+    }
+    else if ((*it == "-ee") || (*it == "--extra-verbose"))
+    {
+      Log::SetVerboseLevel(Log::TRACE_LEVEL);
     }
     else if ((*it == "-h") || (*it == "--help"))
     {
       ShowHelp();
       return 0;
     }
-    else if ((*it == "-e") || (*it == "--verbose"))
+    else if ((*it == "-s") || (*it == "--setup"))
     {
-      isVerbose = true;
+      isSetup = true;
     }
     else if ((*it == "-v") || (*it == "--version"))
     {
@@ -64,137 +96,213 @@ int main(int argc, char *argv[])
     }
   }
 
-  // Ensure application config dir exists
-  if (!apathy::Path(Util::GetConfigDir()).exists())
+  bool isDirInited = false;
+  static const int dirVersion = 1;
+  if (!apathy::Path(FileUtil::GetApplicationDir()).exists())
   {
-    apathy::Path::makedirs(Util::GetConfigDir());
+    FileUtil::InitDirVersion(FileUtil::GetApplicationDir(), dirVersion);
+    isDirInited = true;
   }
 
-  // Prevent concurrent sessions for same config dir
-  DirLock dirLock(Util::GetConfigDir());
+  ScopedDirLock dirLock(FileUtil::GetApplicationDir());
   if (!dirLock.IsLocked())
   {
-    std::cout <<
-      "error: unable to acquire lock for " << Util::GetConfigDir() << "\n" <<
-      "       only one nchat session per config dir is supported.\n";
+    std::cerr <<
+      "error: unable to acquire lock for " << FileUtil::GetApplicationDir() << "\n" <<
+      "       only one nchat session per account/confdir is supported.\n";
     return 1;
   }
 
-  // Init logging
-  const std::string& logPath = Util::GetConfigDir() + std::string("main.log");
-  Log::SetPath(logPath);
-  Log::SetDebugEnabled(isVerbose);
-  Util::InitStdErrRedirect(logPath);
-
-  // Init signal handler
-  Util::RegisterSignalHandler();
-
-  const std::string version = Util::GetAppVersion();
-  LOG_INFO("starting nchat %s", version.c_str());
-
-  const std::string os = Util::GetOs();
-  const std::string compiler = Util::GetCompiler();
-  LOG_INFO("using %s/%s", os.c_str(), compiler.c_str());
-
-  // Init config
-  const std::map<std::string, std::string> defaultConfig =
+  if (!isDirInited)
   {
-    {"telegram_is_enabled", "0"},
-    {"ui", "uidefault"}
-  };
-  const std::string configPath(Util::GetConfigDir() + std::string("main.conf"));
-  Config config(configPath, defaultConfig);
-
-  // Init UI
-  std::shared_ptr<Ui> ui = nullptr;
-  if (!isSetup)
-  {
-    std::vector<std::shared_ptr<Ui>> allUis =
+    int storedVersion = FileUtil::GetDirVersion(FileUtil::GetApplicationDir());
+    if (storedVersion != dirVersion)
     {
-      std::make_shared<UiDefault>(),
-      std::make_shared<UiLite>(),
-    };
-
-    for (auto it = allUis.begin(); it != allUis.end(); ++it)
-    {
-      if (config.Get("ui") == (*it)->GetName())
+      if (isSetup)
       {
-        ui = *it;
+        FileUtil::InitDirVersion(FileUtil::GetApplicationDir(), dirVersion);
+      }
+      else
+      {
+        std::cout << "Config dir " << FileUtil::GetApplicationDir() << " is incompatible with this version of nchat\n";
+        if ((storedVersion == -1) && FileUtil::Exists(FileUtil::GetApplicationDir() + "/tdlib"))
+        {
+          std::cout << "Attempt to migrate config dir to new version (y/n)? ";
+          std::string migrateYesNo;
+          std::getline(std::cin, migrateYesNo);
+          if (migrateYesNo != "y")
+          {
+            std::cout << "Migration cancelled, exiting.\n";
+            return 1;
+          }
+
+          std::cout << "Enter phone number (optional, ex. +6511111111): ";
+          std::string phoneNumber = "";
+          std::getline(std::cin, phoneNumber);
+
+          std::string profileName = "Telegram_" + phoneNumber;
+          std::string tmpDir = "/tmp/" + profileName;
+          FileUtil::RmDir(tmpDir);
+          FileUtil::MkDir(tmpDir);
+          FileUtil::Move(FileUtil::GetApplicationDir() + "/tdlib", tmpDir + "/tdlib");
+          FileUtil::Move(FileUtil::GetApplicationDir() + "/telegram.conf", tmpDir + "/telegram.conf");
+
+          FileUtil::InitDirVersion(FileUtil::GetApplicationDir(), dirVersion);
+          Profiles::Init();
+
+          FileUtil::Move(tmpDir, FileUtil::GetApplicationDir() + "/profiles/" + profileName);
+        }
+        else
+        {
+          std::cerr << "error: invalid config dir content, exiting.\n";
+          return 1;
+        }
+      }
+    }
+  }
+
+  // Init profiles dir
+  Profiles::Init();
+
+  // Init logging
+  const std::string& logPath = FileUtil::GetApplicationDir() + std::string("/log.txt");
+  Log::SetPath(logPath);
+  std::string appNameVersion = AppUtil::GetAppNameVersion();
+  LOG_INFO("starting %s", appNameVersion.c_str());
+
+  // Run setup if required
+  if (isSetup)
+  {
+    bool rv = SetupProfile();
+    return rv ? 0 : 1;
+  }
+
+  // Init ui
+  std::shared_ptr<Ui> ui = std::make_shared<Ui>();
+
+  // Init message cache
+  std::function<void(std::shared_ptr<ServiceMessage>)> messageHandler =
+    std::bind(&Ui::MessageHandler, std::ref(*ui), std::placeholders::_1);
+  MessageCache::Init(messageHandler);
+
+  // Load profile(s)
+  std::string profilesDir = FileUtil::GetApplicationDir() + "/profiles";
+  const std::vector<apathy::Path>& profilePaths = apathy::Path::listdir(profilesDir);
+  for (auto& profilePath : profilePaths)
+  {
+    std::stringstream ss(profilePath.filename());
+    std::string protocolName;
+    if (!std::getline(ss, protocolName, '_'))
+    {
+      LOG_WARNING("invalid profile name, skipping.");
+      continue;
+    }
+
+    std::vector<std::shared_ptr<Protocol>> allProtocols = GetProtocols();
+    for (auto& protocol : allProtocols)
+    {
+      if (protocol->GetProfileId() == protocolName)
+      {
+        protocol->LoadProfile(profilesDir, profilePath.filename());
+        ui->AddProtocol(protocol);
+        MessageCache::AddProfile(profilePath.filename());
       }
     }
 
-    if (ui.get() != nullptr)
+#ifndef HAS_MULTIPROTOCOL
+    if (!ui->GetProtocols().empty())
     {
-      ui->Init();
+      break;
     }
-    else
-    {
-      LOG_ERROR("failed loading ui \"%s\"", config.Get("ui").c_str());
-      return 1;
-    }
+#endif
   }
 
-  // Construct protocols
-  std::vector<std::shared_ptr<Protocol>> allProtocols =
+  // Start protocol(s) and ui
+  std::unordered_map<std::string, std::shared_ptr<Protocol>>& protocols = ui->GetProtocols();
+  bool hasProtocols = !protocols.empty();
+  if (hasProtocols)
   {
-    std::make_shared<Telegram>(ui, isSetup, isVerbose),
-  };
-
-  // Handle setup
-  if (isSetup)
-  {
-    bool rv = Setup::SetupProtocol(config, allProtocols);
-    if (rv)
+    // Login
+    for (auto& protocol : protocols)
     {
-      std::cout << "Saving to " << configPath << std::endl;
-      config.Save(configPath);
+      protocol.second->SetMessageHandler(messageHandler);
+      protocol.second->Login();
     }
-    return rv;
-  }
 
-  // Init / start protocols
-  for (auto it = allProtocols.begin(); it != allProtocols.end(); ++it)
-  {
-    std::string param((*it)->GetName() + std::string("_is_enabled"));
-    if (config.Get(param) == "1")
+    // Ui main loop
+    ui->Run();
+
+    // Logout
+    for (auto& protocol : protocols)
     {
-      (*it)->Start();
-      ui->AddProtocol((*it).get());      
+      protocol.second->Logout();
+      protocol.second->CloseProfile();
     }
   }
 
-  // Start UI
-  ui->Run();
+  // Cleanup
+  MessageCache::Cleanup();
+  ui.reset();
+  Profiles::Cleanup();
 
-  // Save config
-  config.Save(configPath);
-  
-  if (ui.get() != nullptr)
+  // Exit code
+  int rv = 0;
+  if (!hasProtocols)
   {
-    ui->Cleanup();
-  }
-  
-  // Stop protocols
-  for (auto it = allProtocols.begin(); it != allProtocols.end(); ++it)
-  {
-    std::string param((*it)->GetName() + std::string("_is_enabled"));
-    std::transform(param.begin(), param.end(), param.begin(), ::tolower);
-    if (config.Get(param) == "1")
-    {
-      ui->RemoveProtocol((*it).get());
-      (*it)->Stop();
-    }
+    std::cout << "no profiles setup, exiting.\n";
+    rv = 1;
   }
 
-  // Cleanup protocols
-  allProtocols.clear();
-
-  LOG_INFO("exiting");
-
-  return 0;
+  return rv;
 }
 
-static void ShowHelp()
+bool SetupProfile()
+{
+  std::vector<std::shared_ptr<Protocol>> p_Protocols = GetProtocols();
+
+  std::cout << "Protocols:" << std::endl;
+  size_t idx = 0;
+  for (auto it = p_Protocols.begin(); it != p_Protocols.end(); ++it, ++idx)
+  {
+    std::cout << idx << ". " << (*it)->GetProfileId() << std::endl;
+  }
+  std::cout << idx << ". Exit setup" << std::endl;
+
+  size_t selectidx = idx;
+  std::cout << "Select protocol (" << selectidx << "): ";
+  std::string line;
+  std::getline(std::cin, line);
+
+  if (!line.empty())
+  {
+    selectidx = stoi(line);
+  }
+
+  if (selectidx >= p_Protocols.size())
+  {
+    std::cout << "Setup aborted, exiting." << std::endl;
+    return false;
+  }
+
+  std::string profileId;
+  std::string profilesDir = FileUtil::GetApplicationDir() + std::string("/profiles");
+
+#ifndef HAS_MULTIPROTOCOL
+  FileUtil::RmDir(profilesDir);
+  FileUtil::MkDir(profilesDir);
+  Profiles::Init();
+#endif
+
+  bool rv = p_Protocols.at(selectidx)->SetupProfile(profilesDir, profileId);
+  if (rv)
+  {
+    std::cout << "Succesfully set up profile " << profileId << "\n";
+  }
+
+  return rv;
+}
+
+void ShowHelp()
 {
   std::cout <<
     "nchat is a minimalistic console-based chat client with support for\n"
@@ -203,35 +311,46 @@ static void ShowHelp()
     "Usage: nchat [OPTION]\n"
     "\n"
     "Command-line Options:\n"
-    "   -d, --confdir <DIR>  use a different directory than ~/.nchat\n"
-    "   -e, --verbose        enable verbose logging\n"
-    "   -h, --help           display this help and exit\n"
-    "   -s, --setup          set up chat protocol account\n"
-    "   -v, --version        output version information and exit\n"
+    "    -d, --confdir <DIR>    use a different directory than ~/.nchat\n"
+    "    -e, --verbose          enable verbose logging\n"
+    "    -ee, --extra-verbose   enable extra verbose logging\n"
+    "    -h, --help             display this help and exit\n"
+    "    -s, --setup            set up chat protocol account\n"
+    "    -v, --version          output version information and exit\n"
     "\n"
     "Interactive Commands:\n"
-    "   Tab         next chat\n"
-    "   Sh-Tab      previous chat\n"
-    "   PageDn      next page\n"
-    "   PageUp      previous page\n"
-    "   Ctrl-e      enable/disable emoji\n"
-    "   Ctrl-n      enable/disable msgid\n"
-    "   Ctrl-q      exit\n"
-    "   Ctrl-r      receive file\n"
-    "   Ctrl-t      transfer file\n"
-    "   Ctrl-u      next unread chat\n"
-    "   Ctrl-x      send message\n"
+    "    PageDn      history next page\n"
+    "    PageUp      history previous page\n"
+    "    Tab         next chat\n"
+    "    Sh-Tab      previous chat\n"
+    "    Ctrl-e      insert emoji\n"
+    "    Ctrl-g      toggle show help bar\n"
+    "    Ctrl-l      toggle show contact list\n"
+    "    Ctrl-p      toggle show top bar\n"
+    "    Ctrl-q      quit\n"
+    "    Ctrl-s      search contacts\n"
+    "    Ctrl-t      send file\n"
+    "    Ctrl-u      jump to unread chat\n"
+    "    Ctrl-x      send message\n"
+    "    Ctrl-y      toggle show emojis\n"
+    "    KeyUp       select message\n"
+    "\n"
+    "Interactive Commands for Selected Message:\n"
+    "    Ctrl-d      delete selected message\n"
+    "    Ctrl-r      download attached file\n"
+    "    Ctrl-v      open/view attached file\n"
+    "    Ctrl-x      reply to selected message\n"
     "\n"
     "Report bugs at https://github.com/d99kris/nchat\n"
     "\n";
 }
 
-static void ShowVersion()
+void ShowVersion()
 {
   std::cout <<
-    "nchat " << Util::GetAppVersion() << "\n"
+    "nchat " << AppUtil::GetAppVersion() << "\n"
     "\n"
-    "Copyright (c) 2019-2020 Kristofer Berggren\n"
+    "Copyright (c) 2019-2021 Kristofer Berggren\n"
     "\n"
     "nchat is distributed under the MIT license.\n"
     "\n"

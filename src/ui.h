@@ -1,45 +1,33 @@
 // ui.h
 //
-// Copyright (c) 2019 Kristofer Berggren
+// Copyright (c) 2019-2021 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
 
 #pragma once
 
+#include <memory>
 #include <string>
-#include <vector>
+#include <unordered_map>
 
-#include <ncursesw/ncurses.h>
-
-class Config;
-class Contact;
 class Protocol;
-struct Chat;
-struct Message;
+class ServiceMessage;
+class UiController;
+class UiModel;
 
 class Ui
 {
 public:
-  Ui()
-  {
-  }
+  Ui();
+  virtual ~Ui();
 
-  virtual ~Ui()
-  {
-  }
-
-  virtual void Init() = 0;
-  virtual void Cleanup() = 0;
-  virtual std::string GetName() = 0;
-  virtual void Run() = 0;
-
-  virtual void AddProtocol(Protocol* p_Protocol) = 0;
-  virtual void RemoveProtocol(Protocol* p_Protocol) = 0;
-  virtual void UpdateChat(Chat p_Chats) = 0;
-  virtual void UpdateChats(std::vector<Chat> p_Chats, bool p_PostInit) = 0;
-  virtual void UpdateMessages(std::vector<Message> p_Messages, bool p_ClearChat = false) = 0;
-  virtual void NotifyChatDirty(Chat p_Chat) = 0;
+  void Run();
+  void AddProtocol(std::shared_ptr<Protocol> p_Protocol);
+  std::unordered_map<std::string, std::shared_ptr<Protocol>>& GetProtocols();
+  void MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage);
 
 private:
+  std::shared_ptr<UiModel> m_Model;
+  std::shared_ptr<UiController> m_Controller;
 };

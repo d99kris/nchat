@@ -1,0 +1,8 @@
+prefix=/usr/local
+includedir=${prefix}/include
+
+Name: sqlite_modern_cpp
+Description: Modern C++ interface to sqlite3
+Version: version-0.7
+Libs: -lsqlite3 
+Cflags: -I${includedir}
