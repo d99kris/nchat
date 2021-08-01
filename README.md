@@ -270,8 +270,8 @@ This configuration file holds user interface key bindings. Default content:
     unread_chat=KEY_CTRLU
     up=KEY_UP
 
-Refer to function Util::GetKeyCode() in
-[src/util.cpp](https://github.com/d99kris/nchat/blob/master/src/util.cpp)
+Refer to function UiKeyConfig::GetKeyCode() in
+[uikeyconfig.cpp](https://github.com/d99kris/nchat/blob/master/src/uikeyconfig.cpp)
 for a list of supported key names to use in the config file. Alternatively
 key codes may be entered in hex format (e.g. 0x9).
 
