@@ -19,10 +19,10 @@ UiDialog::UiDialog(const UiDialogParams& p_Params)
   , m_WPerc(p_Params.wPerc)
   , m_HPerc(p_Params.hPerc)
 {
-  curs_set(0);
   Init();
   m_Model->SetDialogActive(true);
   m_View->Draw();
+  curs_set(0);
 }
 
 UiDialog::~UiDialog()

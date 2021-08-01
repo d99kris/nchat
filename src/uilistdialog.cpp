@@ -96,6 +96,7 @@ void UiListDialog::KeyHandler(wint_t p_Key)
   {
     m_Model->SetHelpOffset(m_Model->GetHelpOffset() + 1);
     m_View->Draw();
+    curs_set(0);
   }
   else if (p_Key == keyLeft)
   {
