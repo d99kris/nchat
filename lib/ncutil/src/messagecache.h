@@ -122,4 +122,5 @@ private:
   static std::deque<std::shared_ptr<Request>> m_Queue;
 
   static std::string m_HistoryDir;
+  static bool m_CacheEnabled;
 };

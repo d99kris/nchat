@@ -214,7 +214,6 @@ void UiModel::SendMessage()
     sendMessageRequest->chatMessage.quotedSender = msg->second.senderId;
 
     SetSelectMessage(false);
-    UpdateHelp();
   }
 
   m_Protocols[profileId]->SendRequest(sendMessageRequest);
@@ -257,7 +256,6 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
       if (entryPos == 0)
       {
         SetSelectMessage(true);
-        UpdateHelp();
       }
       else
       {
@@ -302,7 +300,6 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
       else
       {
         SetSelectMessage(false);
-        UpdateHelp();
       }
     }
     else
@@ -528,6 +525,8 @@ void UiModel::PrevPage()
     RequestMessages();
     UpdateHistory();
   }
+
+  SetSelectMessage(false);
 }
 
 void UiModel::NextPage()
@@ -555,6 +554,8 @@ void UiModel::NextPage()
     messageOffset -= decOffset;
     UpdateHistory();
   }
+
+  SetSelectMessage(false);
 }
 
 void UiModel::Home()
@@ -576,12 +577,16 @@ void UiModel::Home()
     RequestMessages();
     UpdateHistory();
   }
+
+  SetSelectMessage(false);
 }
 
 void UiModel::End()
 {
   std::unique_lock<std::mutex> lock(m_ModelMutex);
   ResetMessageOffset();
+
+  SetSelectMessage(false);
 }
 
 void UiModel::ResetMessageOffset()
@@ -1018,7 +1023,6 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
             {
               messageOffset = 0;
               SetSelectMessage(false);
-              UpdateHelp();
             }
             else
             {
@@ -1339,7 +1343,7 @@ void UiModel::RequestMessages()
   bool fromIsOutgoing = messageVec.empty() ? false : m_Messages[profileId][chatId][fromId].isOutgoing;
 
   int messageOffset = m_MessageOffset[profileId][chatId];
-  const int maxHistory = (GetHistoryLines() / 3) + 1;
+  const int maxHistory = ((GetHistoryLines() * 2) / 3) + 1;
   const int limit = std::max(0, (messageOffset + maxHistory - (int)messageVec.size()));
   if (limit == 0)
   {

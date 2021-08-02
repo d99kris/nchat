@@ -24,10 +24,13 @@ std::mutex MessageCache::m_QueueMutex;
 std::condition_variable MessageCache::m_CondVar;
 std::deque<std::shared_ptr<MessageCache::Request>> MessageCache::m_Queue;
 std::string MessageCache::m_HistoryDir;
+bool MessageCache::m_CacheEnabled = true;
 
 void MessageCache::Init(const std::function<void(std::shared_ptr<ServiceMessage>)>& p_MessageHandler)
 {
-  static const int dirVersion = 1;
+  if (!m_CacheEnabled) return;
+  
+  static const int dirVersion = 2;
   m_HistoryDir = FileUtil::GetApplicationDir() + "/history";
   FileUtil::InitDirVersion(m_HistoryDir, dirVersion);
 
@@ -46,6 +49,8 @@ void MessageCache::Init(const std::function<void(std::shared_ptr<ServiceMessage>
 
 void MessageCache::Cleanup()
 {
+  if (!m_CacheEnabled) return;
+
   if (m_Running)
   {
     {
@@ -65,6 +70,8 @@ void MessageCache::Cleanup()
 
 void MessageCache::AddProfile(const std::string& p_ProfileId)
 {
+  if (!m_CacheEnabled) return;
+  
   std::lock_guard<std::mutex> lock(m_DbMutex);
   const std::string& dbDir = m_HistoryDir + "/" + p_ProfileId;
   FileUtil::MkDir(dbDir);
@@ -97,6 +104,8 @@ void MessageCache::AddProfile(const std::string& p_ProfileId)
 void MessageCache::Add(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_FromMsgId,
                        const std::vector<ChatMessage>& p_ChatMessages)
 {
+  if (!m_CacheEnabled) return;
+  
   std::shared_ptr<AddRequest> addRequest = std::make_shared<AddRequest>();
   addRequest->profileId = p_ProfileId;
   addRequest->chatId = p_ChatId;
@@ -108,6 +117,8 @@ void MessageCache::Add(const std::string& p_ProfileId, const std::string& p_Chat
 bool MessageCache::Fetch(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_FromMsgId,
                          int p_Limit)
 {
+  if (!m_CacheEnabled) return false;
+  
   std::lock_guard<std::mutex> lock(m_DbMutex);
   if (!m_Dbs[p_ProfileId]) return false;
 
@@ -158,6 +169,8 @@ bool MessageCache::Fetch(const std::string& p_ProfileId, const std::string& p_Ch
 
 void MessageCache::Delete(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId)
 {
+  if (!m_CacheEnabled) return;
+  
   std::shared_ptr<DeleteRequest> deleteRequest = std::make_shared<DeleteRequest>();
   deleteRequest->profileId = p_ProfileId;
   deleteRequest->chatId = p_ChatId;
@@ -167,6 +180,8 @@ void MessageCache::Delete(const std::string& p_ProfileId, const std::string& p_C
 
 void MessageCache::UpdateIsRead(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId, bool p_IsRead)
 {
+  if (!m_CacheEnabled) return;
+
   std::shared_ptr<UpdateIsReadRequest> updateIsReadRequest = std::make_shared<UpdateIsReadRequest>();
   updateIsReadRequest->profileId = p_ProfileId;
   updateIsReadRequest->chatId = p_ChatId;
@@ -177,6 +192,8 @@ void MessageCache::UpdateIsRead(const std::string& p_ProfileId, const std::strin
 
 void MessageCache::UpdateFilePath(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId, const std::string& p_FilePath)
 {
+  if (!m_CacheEnabled) return;
+
   std::shared_ptr<UpdateFilePathRequest> updateFilePathRequest = std::make_shared<UpdateFilePathRequest>();
   updateFilePathRequest->profileId = p_ProfileId;
   updateFilePathRequest->chatId = p_ChatId;

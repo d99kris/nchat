@@ -760,7 +760,9 @@ void TgChat::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> update)
     auto message = td::move_tl_object_as<td::td_api::message>(update_new_message.message_);
     ChatMessage chatMessage;
     TdMessageConvert(*message, chatMessage);
-    if (!chatMessage.isOutgoing) // only notify incoming messages immediately, as outgoing message ids change
+
+    bool isPending = (message->sending_state_ != nullptr);
+    if (!isPending) // ignore pending messages as their ids change once sent
     {
       std::vector<ChatMessage> chatMessages;
       chatMessages.push_back(chatMessage);
@@ -1147,8 +1149,8 @@ void TgChat::TdMessageConvert(const td::td_api::message& p_TdMessage, ChatMessag
     auto& sizes = photo->sizes_;
     if (!sizes.empty())
     {
-      auto& firstSize = sizes.at(0);
-      auto& photoFile = firstSize->photo_;
+      auto& largestSize = sizes.back();
+      auto& photoFile = largestSize->photo_;
       auto& localFile = photoFile->local_;
       auto& localPath = localFile->path_;
       if (!localPath.empty())
