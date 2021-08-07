@@ -114,55 +114,66 @@ void MessageCache::Add(const std::string& p_ProfileId, const std::string& p_Chat
   EnqueueRequest(addRequest);
 }
 
-bool MessageCache::Fetch(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_FromMsgId,
-                         int p_Limit)
+bool MessageCache::Fetch(const std::string& p_ProfileId, const std::string& p_ChatId,
+                         const std::string& p_FromMsgId, const int p_Limit, const bool p_Sync)
 {
   if (!m_CacheEnabled) return false;
   
-  std::lock_guard<std::mutex> lock(m_DbMutex);
+  std::unique_lock<std::mutex> lock(m_DbMutex);
   if (!m_Dbs[p_ProfileId]) return false;
-
-  if (p_FromMsgId.empty())
-  {
-    LOG_DEBUG("cache cannot fetch %s frommsg empty", p_ChatId.c_str());
-    return false;
-  }
 
   int64_t fromMsgIdTimeSent = 0;
   bool fromMsgIsLast = false;
-  *m_Dbs[p_ProfileId] << "SELECT timeSent,isLast FROM messages WHERE chatId = ? AND id = ?;" << p_ChatId <<
-    p_FromMsgId >>
+  if (!p_FromMsgId.empty())
+  {
+    *m_Dbs[p_ProfileId] << "SELECT timeSent,isLast FROM messages WHERE chatId = ? AND id = ?;" << p_ChatId << p_FromMsgId >>
     [&](const int64_t& timeSent, const int32_t& isLast)
-      {
+    {
       fromMsgIdTimeSent = timeSent;
       fromMsgIsLast = isLast;
     };
+  }
+  else
+  {
+    fromMsgIdTimeSent = std::numeric_limits<int64_t>::max();
+  }
+  
+  int count = 0;
+  *m_Dbs[p_ProfileId] << "SELECT COUNT(*) FROM messages WHERE chatId = ? AND timeSent < ?;" << p_ChatId << fromMsgIdTimeSent >>
+  [&](const int& countRes)
+  {
+    count = countRes;
+  };
 
-  int countOlder = 0;
-  *m_Dbs[p_ProfileId] << "SELECT COUNT(*) FROM messages WHERE chatId = ? AND timeSent < ?;" << p_ChatId <<
-    fromMsgIdTimeSent >>
-    [&](const int& count)
-      {
-      countOlder = count;
-    };
+  lock.unlock();
 
-  if (fromMsgIsLast || (countOlder > 0))
+  if (fromMsgIsLast || (count > 0))
   {
     std::shared_ptr<FetchRequest> fetchRequest = std::make_shared<FetchRequest>();
     fetchRequest->profileId = p_ProfileId;
     fetchRequest->chatId = p_ChatId;
     fetchRequest->fromMsgId = p_FromMsgId;
     fetchRequest->limit = p_Limit;
-    EnqueueRequest(fetchRequest);
 
-    LOG_DEBUG("cache will fetch %s %s last %d older %d", p_ChatId.c_str(),
-              p_FromMsgId.c_str(), fromMsgIsLast, countOlder);
+    if (p_Sync)
+    {
+      LOG_DEBUG("cache sync fetch %s %s last %d count %d", p_ChatId.c_str(),
+                p_FromMsgId.c_str(), fromMsgIsLast, count);
+      PerformRequest(fetchRequest);
+    }
+    else
+    {
+      LOG_DEBUG("cache async fetch %s %s last %d count %d", p_ChatId.c_str(),
+                p_FromMsgId.c_str(), fromMsgIsLast, count);
+      EnqueueRequest(fetchRequest);
+    }
+
     return true;
   }
   else
   {
-    LOG_DEBUG("cache cannot fetch %s %s last %d older %d", p_ChatId.c_str(),
-              p_FromMsgId.c_str(), fromMsgIsLast, countOlder);
+    LOG_DEBUG("cache cannot fetch %s %s last %d count %d", p_ChatId.c_str(),
+              p_FromMsgId.c_str(), fromMsgIsLast, count);
     return false;
   }
 }
@@ -284,11 +295,18 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         const int limit = fetchRequest->limit;
 
         int64_t fromMsgIdTimeSent = 0;
-        *m_Dbs[profileId] << "SELECT timeSent FROM messages WHERE chatId = ? AND id = ?;" << chatId << fromMsgId >>
+        if (!fromMsgId.empty())
+        {
+          *m_Dbs[profileId] << "SELECT timeSent FROM messages WHERE chatId = ? AND id = ?;" << chatId << fromMsgId >>
           [&](const int64_t& timeSent)
-            {
+          {
             fromMsgIdTimeSent = timeSent;
           };
+        }
+        else
+        {
+          fromMsgIdTimeSent = std::numeric_limits<int64_t>::max();
+        }
 
         std::vector<ChatMessage> chatMessages;
         *m_Dbs[profileId] <<

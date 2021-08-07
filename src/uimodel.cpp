@@ -561,18 +561,32 @@ void UiModel::NextPage()
 void UiModel::Home()
 {
   std::unique_lock<std::mutex> lock(m_ModelMutex);
-  int historyShowCount = std::numeric_limits<int>::max();
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
+  
+  bool& fetchedAllCache = m_FetchedAllCache[profileId][chatId];
+  if (!fetchedAllCache)
+  {
+    fetchedAllCache = true;
+    std::string fromId = "";
+    int limit = std::numeric_limits<int>::max();
+    lock.unlock();
+    MessageCache::Fetch(profileId, chatId, fromId, limit, true /* p_Sync */);
+    lock.lock();
+  }
 
-  const int messageCount = m_Messages[profileId][chatId].size();
+  int messageCount = m_Messages[profileId][chatId].size();
   int& messageOffset = m_MessageOffset[profileId][chatId];
   std::stack<int>& messageOffsetStack = m_MessageOffsetStack[profileId][chatId];
 
-  int addOffset = std::min(historyShowCount, std::max(messageCount - messageOffset - 1, 0));
+  int addOffset = std::max(messageCount - messageOffset - 1, 0);
   if (addOffset > 0)
   {
-    messageOffsetStack.push(addOffset);
+    for (int i = 0; i < addOffset; ++i)
+    {
+      messageOffsetStack.push(1); // @todo: consider building a nicer stack for page down from home
+    }
+    
     messageOffset += addOffset;
     RequestMessages();
     UpdateHistory();
@@ -1361,8 +1375,7 @@ void UiModel::RequestMessages()
     msgFromIdsRequested.insert(fromId);
   }
 
-  bool isCached = MessageCache::Fetch(profileId, chatId, fromId, limit);
-  if (!isCached)
+  if (fromId.empty() || !MessageCache::Fetch(profileId, chatId, fromId, limit, false /* p_Sync */))
   {
     std::shared_ptr<GetMessagesRequest> getMessagesRequest = std::make_shared<GetMessagesRequest>();
     getMessagesRequest->chatId = chatId;

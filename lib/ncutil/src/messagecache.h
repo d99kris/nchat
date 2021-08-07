@@ -98,7 +98,7 @@ public:
 
   static void AddProfile(const std::string& p_ProfileId);
   static void Add(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_FromMsgId, const std::vector<ChatMessage>& p_ChatMessages);
-  static bool Fetch(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_FromMsgId, int p_Limit);
+  static bool Fetch(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_FromMsgId, const int p_Limit, const bool p_Sync);
   static void Delete(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId);
   static void UpdateIsRead(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId, bool p_IsRead);
   static void UpdateFilePath(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId, const std::string& p_FilePath);

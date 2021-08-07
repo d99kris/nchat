@@ -124,6 +124,7 @@ private:
   std::unordered_map<std::string, std::unordered_map<std::string, std::stack<int>>> m_MessageOffsetStack;
   std::unordered_map<std::string,
                      std::unordered_map<std::string, std::unordered_set<std::string>>> m_MsgFromIdsRequested;
+  std::unordered_map<std::string, std::unordered_map<std::string, bool>> m_FetchedAllCache;
 
   std::unordered_map<std::string, std::unordered_map<std::string, std::wstring>> m_EntryStr;
   std::unordered_map<std::string, std::unordered_map<std::string, int>> m_EntryPos;
