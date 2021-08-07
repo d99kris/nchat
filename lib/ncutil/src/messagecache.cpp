@@ -38,11 +38,11 @@ void MessageCache::Init(const std::function<void(std::shared_ptr<ServiceMessage>
   FileUtil::InitDirVersion(m_HistoryDir, dirVersion);
 
   {
-    std::lock_guard<std::mutex> lock(m_DbMutex);
+    std::unique_lock<std::mutex> lock(m_DbMutex);
     m_MessageHandler = p_MessageHandler;
   }
 
-  std::lock_guard<std::mutex> lock(m_QueueMutex);
+  std::unique_lock<std::mutex> lock(m_QueueMutex);
   if (!m_Running)
   {
     m_Running = true;
@@ -57,7 +57,7 @@ void MessageCache::Cleanup()
   if (m_Running)
   {
     {
-      std::lock_guard<std::mutex> lock(m_QueueMutex);
+      std::unique_lock<std::mutex> lock(m_QueueMutex);
       m_Running = false;
       m_CondVar.notify_one();
     }
@@ -65,7 +65,7 @@ void MessageCache::Cleanup()
   }
 
   {
-    std::lock_guard<std::mutex> lock(m_DbMutex);
+    std::unique_lock<std::mutex> lock(m_DbMutex);
     m_MessageHandler = nullptr;
     m_Dbs.clear();
   }
@@ -75,7 +75,7 @@ void MessageCache::AddProfile(const std::string& p_ProfileId)
 {
   if (!m_CacheEnabled) return;
   
-  std::lock_guard<std::mutex> lock(m_DbMutex);
+  std::unique_lock<std::mutex> lock(m_DbMutex);
   const std::string& dbDir = m_HistoryDir + "/" + p_ProfileId;
   FileUtil::MkDir(dbDir);
 
@@ -257,7 +257,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
   {
     case AddRequestType:
       {
-        std::lock_guard<std::mutex> lock(m_DbMutex);
+        std::unique_lock<std::mutex> lock(m_DbMutex);
         std::shared_ptr<AddRequest> addRequest = std::static_pointer_cast<AddRequest>(p_Request);
         const std::string& profileId = addRequest->profileId;
         if (!m_Dbs[profileId]) return;
@@ -386,7 +386,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
 
     case DeleteRequestType:
       {
-        std::lock_guard<std::mutex> lock(m_DbMutex);
+        std::unique_lock<std::mutex> lock(m_DbMutex);
         std::shared_ptr<DeleteRequest> deleteRequest = std::static_pointer_cast<DeleteRequest>(p_Request);
         const std::string& profileId = deleteRequest->profileId;
         if (!m_Dbs[profileId]) return;
@@ -401,7 +401,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
 
     case UpdateIsReadRequestType:
       {
-        std::lock_guard<std::mutex> lock(m_DbMutex);
+        std::unique_lock<std::mutex> lock(m_DbMutex);
         std::shared_ptr<UpdateIsReadRequest> updateIsReadRequest = std::static_pointer_cast<UpdateIsReadRequest>(
           p_Request);
         const std::string& profileId = updateIsReadRequest->profileId;
@@ -419,7 +419,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
 
     case UpdateFilePathRequestType:
       {
-        std::lock_guard<std::mutex> lock(m_DbMutex);
+        std::unique_lock<std::mutex> lock(m_DbMutex);
         std::shared_ptr<UpdateFilePathRequest> updateFilePathRequest = std::static_pointer_cast<UpdateFilePathRequest>(
           p_Request);
         const std::string& profileId = updateFilePathRequest->profileId;
