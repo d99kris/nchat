@@ -26,7 +26,10 @@ Features
 
 Not Supported
 -------------
-- WhatsApp (basic functionality is implemented, but not officially supported - YMMV)
+- WhatsApp (basic functionality is implemented, but not officially supported -
+  YMMV)
+- Messages deleted using other devices/clients are removed from nchat history
+  (if local cache is enabled)
 
 
 Usage
