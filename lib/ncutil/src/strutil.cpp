@@ -18,6 +18,12 @@
 
 #include "emoji.h"
 
+void StrUtil::DeleteToMatch(std::wstring& p_Str, const int p_StartPos, const wchar_t p_EndChar)
+{
+  size_t endPos = p_Str.find(p_EndChar, p_StartPos);
+  p_Str.erase(p_StartPos, (endPos == std::wstring::npos) ? endPos : (endPos - p_StartPos + 1));
+}
+
 std::string StrUtil::Emojize(const std::string& p_Str)
 {
   return emojicpp::emojize(p_Str);

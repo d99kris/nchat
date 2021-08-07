@@ -29,6 +29,7 @@ void UiKeyConfig::Init()
     { "home", "KEY_HOME" },
     { "backspace", "KEY_BACKSPACE" },
     { "delete", "KEY_DC" },
+    { "delete_line", "KEY_CTRLK" },
     { "toggle_emoji", "KEY_CTRLY" },
     { "toggle_help", "KEY_CTRLG" },
     { "toggle_list", "KEY_CTRLL" },

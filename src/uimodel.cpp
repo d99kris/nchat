@@ -238,6 +238,7 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
   static wint_t keyRight = UiKeyConfig::GetKey("right");
   static wint_t keyBackspace = UiKeyConfig::GetKey("backspace");
   static wint_t keyDelete = UiKeyConfig::GetKey("delete");
+  static wint_t keyDeleteLine = UiKeyConfig::GetKey("delete_line");
 
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
@@ -376,7 +377,6 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
   }
   else if (p_Key == keyDelete)
   {
-    // @todo: handle EMOJI_PAD
     if (entryPos < (int)entryStr.size())
     {
       entryStr.erase(entryPos, 1);
@@ -386,6 +386,10 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
       }
       SetTyping(profileId, chatId, true);
     }
+  }
+  else if (p_Key == keyDeleteLine)
+  {
+    StrUtil::DeleteToMatch(entryStr, entryPos, L'\n');
   }
   else if (StrUtil::IsValidTextKey(p_Key))
   {

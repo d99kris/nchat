@@ -14,6 +14,7 @@
 class StrUtil
 {
 public:
+  static void DeleteToMatch(std::wstring& p_Str, const int p_StartPos, const wchar_t p_EndChar);
   static std::string Emojize(const std::string& p_Str);
   static std::string GetPass();
   static bool GetQuotePrefix(const std::wstring& p_String, std::wstring& p_Prefix, std::wstring& p_Line);
