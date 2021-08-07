@@ -704,11 +704,11 @@ void UiModel::OpenMessageAttachment()
   }
 
 #if defined(__APPLE__)
-  std::string cmd = "open " + filePath;
+  std::string cmd = "open " + filePath + " &";
   LOG_TRACE("run cmd %s", cmd.c_str());
   system(cmd.c_str());
 #elif defined(__linux__)
-  std::string cmd = "xdg-open >/dev/null 2>&1 " + filePath;
+  std::string cmd = "xdg-open >/dev/null 2>&1 " + filePath + " &";
   LOG_TRACE("run cmd %s", cmd.c_str());
   system(cmd.c_str());
 #else
