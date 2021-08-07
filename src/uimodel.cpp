@@ -653,7 +653,7 @@ void UiModel::DeleteMessage()
   static const bool confirmDeletion = AppConfig::GetBool("confirm_deletion");
   if (confirmDeletion)
   {
-    UiDialogParams params(m_View.get(), this, "Confirm Deletion", 50, 25);
+    UiDialogParams params(m_View.get(), this, "Confirmation", 50, 25);
     std::string dialogText = "Confirm message deletion?";
     UiMessageDialog messageDialog(params, dialogText);
     if (!messageDialog.Run())
@@ -779,7 +779,11 @@ void UiModel::SaveMessageAttachment()
   std::string dstFilePath = downloadsDir + "/" + dstFileName;
   FileUtil::CopyFile(filePath, dstFilePath);
 
-  // @todo: add message dialog informing user about success and destination path
+  UiDialogParams params(m_View.get(), this, "Notification", 80, 25);
+  std::string dialogText = "File saved in\n" + dstFilePath;
+  UiMessageDialog messageDialog(params, dialogText);
+  messageDialog.Run();
+  ReinitView();
 }
 
 void UiModel::TransferFile()
