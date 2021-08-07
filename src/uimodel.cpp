@@ -282,6 +282,11 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
 
           stepsBack = std::min(stepsBack, width);
           entryPos = NumUtil::Bound(0, entryPos - stepsBack, (int)entryStr.size());
+
+          if ((entryPos < (int)entryStr.size()) && (entryStr.at(entryPos) == (wchar_t)EMOJI_PAD))
+          {
+            entryPos = NumUtil::Bound(0, entryPos - 1, (int)entryStr.size());
+          }
         }
         else
         {
@@ -330,6 +335,11 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
 
         stepsForward = std::min(stepsForward, width);
         entryPos = NumUtil::Bound(0, entryPos + stepsForward, (int)entryStr.size());
+
+        if ((entryPos < (int)entryStr.size()) && (entryStr.at(entryPos) == (wchar_t)EMOJI_PAD))
+        {
+          entryPos = NumUtil::Bound(0, entryPos - 1, (int)entryStr.size());
+        }
       }
     }
 
@@ -338,10 +348,18 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
   else if (p_Key == keyLeft)
   {
     entryPos = NumUtil::Bound(0, entryPos - 1, (int)entryStr.size());
+    if ((entryPos < (int)entryStr.size()) && (entryStr.at(entryPos) == (wchar_t)EMOJI_PAD))
+    {
+      entryPos = NumUtil::Bound(0, entryPos - 1, (int)entryStr.size());
+    }
   }
   else if (p_Key == keyRight)
   {
     entryPos = NumUtil::Bound(0, entryPos + 1, (int)entryStr.size());
+    if ((entryPos < (int)entryStr.size()) && (entryStr.at(entryPos) == (wchar_t)EMOJI_PAD))
+    {
+      entryPos = NumUtil::Bound(0, entryPos + 1, (int)entryStr.size());
+    }
   }
   else if (p_Key == keyBackspace)
   {
@@ -362,6 +380,10 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
     if (entryPos < (int)entryStr.size())
     {
       entryStr.erase(entryPos, 1);
+      if ((entryPos < (int)entryStr.size()) && (entryStr.at(entryPos) == (wchar_t)EMOJI_PAD))
+      {
+        entryStr.erase(entryPos, 1);
+      }
       SetTyping(profileId, chatId, true);
     }
   }
