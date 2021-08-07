@@ -27,12 +27,14 @@ class CallManager : public Actor {
   using Update = telegram_api::object_ptr<telegram_api::updatePhoneCall>;
   explicit CallManager(ActorShared<> parent);
   void update_call(Update call);
+  void update_call_signaling_data(int64 call_id, string data);
 
   void create_call(UserId user_id, tl_object_ptr<telegram_api::InputUser> &&input_user, CallProtocol &&protocol,
                    bool is_video, Promise<CallId> promise);
+  void accept_call(CallId call_id, CallProtocol &&protocol, Promise<> promise);
+  void send_call_signaling_data(CallId call_id, string &&data, Promise<> promise);
   void discard_call(CallId call_id, bool is_disconnected, int32 duration, bool is_video, int64 connection_id,
                     Promise<> promise);
-  void accept_call(CallId call_id, CallProtocol &&protocol, Promise<> promise);
   void rate_call(CallId call_id, int32 rating, string comment,
                  vector<td_api::object_ptr<td_api::CallProblem>> &&problems, Promise<> promise);
   void send_call_debug_information(CallId call_id, string data, Promise<> promise);

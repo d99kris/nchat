@@ -65,28 +65,30 @@ struct FileStatsFast {
       , language_pack_database_size(language_pack_database_size)
       , log_size(log_size) {
   }
-  tl_object_ptr<td_api::storageStatisticsFast> as_td_api() const;
+  tl_object_ptr<td_api::storageStatisticsFast> get_storage_statistics_fast_object() const;
 };
 
 struct FileStats {
   bool need_all_files{false};
   bool split_by_owner_dialog_id{false};
 
-  using StatByType = std::array<FileTypeStat, file_type_size>;
+  using StatByType = std::array<FileTypeStat, MAX_FILE_TYPE>;
 
   StatByType stat_by_type;
   std::unordered_map<DialogId, StatByType, DialogIdHash> stat_by_owner_dialog_id;
 
   std::vector<FullFileInfo> all_files;
 
+  void add_copy(const FullFileInfo &info);
   void add(FullFileInfo &&info);
   void apply_dialog_limit(int32 limit);
 
-  tl_object_ptr<td_api::storageStatistics> as_td_api() const;
+  tl_object_ptr<td_api::storageStatistics> get_storage_statistics_object() const;
   std::vector<DialogId> get_dialog_ids() const;
   FileTypeStat get_total_nontemp_stat() const;
 
  private:
+  void add_impl(const FullFileInfo &info);
   void add(StatByType &by_type, FileType file_type, int64 size);
 };
 

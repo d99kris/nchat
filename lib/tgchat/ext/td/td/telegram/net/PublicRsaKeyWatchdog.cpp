@@ -7,12 +7,12 @@
 #include "td/telegram/net/PublicRsaKeyWatchdog.h"
 
 #include "td/telegram/Global.h"
-#include "td/telegram/net/DcId.h"
+#include "td/telegram/net/NetQueryCreator.h"
 #include "td/telegram/TdDb.h"
 
 #include "td/telegram/telegram_api.h"
 
-#include "td/mtproto/crypto.h"
+#include "td/mtproto/RSA.h"
 
 #include "td/utils/logging.h"
 #include "td/utils/Time.h"
@@ -68,18 +68,16 @@ void PublicRsaKeyWatchdog::loop() {
   }
   flood_control_.add_event(static_cast<int32>(Time::now_cached()));
   has_query_ = true;
-  G()->net_query_dispatcher().dispatch_with_callback(
-      G()->net_query_creator().create(create_storer(telegram_api::help_getCdnConfig()), DcId::main(),
-                                      NetQuery::Type::Common, NetQuery::AuthFlag::On, NetQuery::GzipFlag::On,
-                                      60 * 60 * 24),
-      actor_shared(this));
+  auto query = G()->net_query_creator().create(telegram_api::help_getCdnConfig());
+  query->total_timeout_limit_ = 60 * 60 * 24;
+  G()->net_query_dispatcher().dispatch_with_callback(std::move(query), actor_shared(this));
 }
 
 void PublicRsaKeyWatchdog::on_result(NetQueryPtr net_query) {
   has_query_ = false;
   yield();
   if (net_query->is_error()) {
-    LOG(ERROR) << "Receive error for getCdnConfig: " << net_query->move_as_error();
+    LOG(ERROR) << "Receive error for GetCdnConfigQuery: " << net_query->move_as_error();
     return;
   }
 
@@ -110,7 +108,7 @@ void PublicRsaKeyWatchdog::sync_key(std::shared_ptr<PublicRsaKeyShared> &key) {
   }
   for (auto &config_key : cdn_config_->public_keys_) {
     if (key->dc_id().get_raw_id() == config_key->dc_id_) {
-      auto r_rsa = RSA::from_pem(config_key->public_key_);
+      auto r_rsa = RSA::from_pem_public_key(config_key->public_key_);
       if (r_rsa.is_error()) {
         LOG(ERROR) << r_rsa.error();
         continue;

@@ -6,16 +6,16 @@
 //
 #include "td/telegram/files/PartsManager.h"
 
+#include "td/telegram/files/FileLoaderUtils.h"
+
 #include "td/utils/format.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
-#include "td/utils/ScopeGuard.h"
 
 #include <limits>
 #include <numeric>
 
 namespace td {
-/*** PartsManager ***/
 
 namespace {
 int64 calc_part_count(int64 size, int64 part_size) {
@@ -30,22 +30,27 @@ Status PartsManager::init_known_prefix(int64 known_prefix, size_t part_size, con
   return init_no_size(part_size, ready_parts);
 }
 
-void PartsManager::set_streaming_offset(int64 offset) {
-  SCOPE_EXIT {
-    set_streaming_limit(streaming_limit_);
+int32 PartsManager::set_streaming_offset(int64 offset, int64 limit) {
+  auto finish = [&] {
+    set_streaming_limit(limit);
+    update_first_not_ready_part();
+    return first_streaming_not_ready_part_;
   };
+
   if (offset < 0 || need_check_ || (!unknown_size_flag_ && get_size() < offset)) {
     streaming_offset_ = 0;
     LOG_IF(ERROR, offset != 0) << "Ignore streaming_offset " << offset << ", need_check_ = " << need_check_
                                << ", unknown_size_flag_ = " << unknown_size_flag_ << ", size = " << get_size();
-    return;
+
+    return finish();
   }
 
   auto part_i = offset / part_size_;
   if (use_part_count_limit_ && part_i >= MAX_PART_COUNT) {
     streaming_offset_ = 0;
     LOG(ERROR) << "Ignore streaming_offset " << offset << " in part " << part_i;
-    return;
+
+    return finish();
   }
 
   streaming_offset_ = offset;
@@ -55,6 +60,12 @@ void PartsManager::set_streaming_offset(int64 offset) {
     part_count_ = first_streaming_empty_part_;
     part_status_.resize(part_count_, PartStatus::Empty);
   }
+
+  return finish();
+}
+
+int32 PartsManager::get_pending_count() const {
+  return pending_count_;
 }
 
 void PartsManager::set_streaming_limit(int64 limit) {
@@ -79,8 +90,8 @@ Status PartsManager::init_no_size(size_t part_size, const std::vector<int> &read
   if (part_size != 0) {
     part_size_ = part_size;
   } else {
-    part_size_ = 32 * (1 << 10);
-    while (use_part_count_limit_ && calc_part_count(expected_size_, part_size_) > MAX_PART_COUNT) {
+    part_size_ = 32 << 10;
+    while (calc_part_count(expected_size_, part_size_) > MAX_PART_COUNT) {
       part_size_ *= 2;
       CHECK(part_size_ <= MAX_PART_SIZE);
     }
@@ -117,12 +128,12 @@ Status PartsManager::init(int64 size, int64 expected_size, bool is_size_final, s
   if (part_size != 0) {
     part_size_ = part_size;
     if (use_part_count_limit_ && calc_part_count(expected_size_, part_size_) > MAX_PART_COUNT) {
+      CHECK(is_upload_);
       return Status::Error("FILE_UPLOAD_RESTART");
     }
   } else {
-    // TODO choose part_size_ depending on size
-    part_size_ = 64 * (1 << 10);
-    while (use_part_count_limit && calc_part_count(expected_size_, part_size_) > MAX_PART_COUNT) {
+    part_size_ = 64 << 10;
+    while (calc_part_count(expected_size_, part_size_) > MAX_PART_COUNT) {
       part_size_ *= 2;
       CHECK(part_size_ <= MAX_PART_SIZE);
     }
@@ -137,17 +148,19 @@ Status PartsManager::init(int64 size, int64 expected_size, bool is_size_final, s
 }
 
 bool PartsManager::unchecked_ready() {
-  VLOG(files) << "Check readiness. Ready size is " << ready_size_ << ", total size is " << size_
-              << ", unknown_size_flag = " << unknown_size_flag_ << ", need_check = " << need_check_
-              << ", checked_prefix_size = " << checked_prefix_size_;
+  VLOG(file_loader) << "Check readiness. Ready size is " << ready_size_ << ", total size is " << size_
+                    << ", unknown_size_flag = " << unknown_size_flag_ << ", need_check = " << need_check_
+                    << ", checked_prefix_size = " << checked_prefix_size_;
   return !unknown_size_flag_ && ready_size_ == size_;
 }
+
 bool PartsManager::may_finish() {
   if (is_streaming_limit_reached()) {
     return true;
   }
   return ready();
 }
+
 bool PartsManager::ready() {
   return unchecked_ready() && (!need_check_ || checked_prefix_size_ == size_);
 }
@@ -205,9 +218,11 @@ int32 PartsManager::get_ready_prefix_count() {
   }
   return res;
 }
+
 int64 PartsManager::get_streaming_offset() const {
   return streaming_offset_;
 }
+
 string PartsManager::get_bitmask() {
   int32 prefix_count = -1;
   if (need_check_) {
@@ -217,6 +232,7 @@ string PartsManager::get_bitmask() {
 }
 
 bool PartsManager::is_part_in_streaming_limit(int part_i) const {
+  CHECK(part_i < part_count_);
   auto offset_begin = static_cast<int64>(part_i) * static_cast<int64>(get_part_size());
   auto offset_end = offset_begin + static_cast<int64>(get_part(part_i).size);
 
@@ -255,6 +271,9 @@ bool PartsManager::is_streaming_limit_reached() {
   if (!unknown_size_flag_ && part_i == part_count_) {
     part_i = first_not_ready_part_;
   }
+  if (part_i == part_count_) {
+    return false;
+  }
   return !is_part_in_streaming_limit(part_i);
 }
 
@@ -267,7 +286,7 @@ Result<Part> PartsManager::start_part() {
   if (part_i == part_count_) {
     if (unknown_size_flag_) {
       part_count_++;
-      if (part_count_ > MAX_PART_COUNT) {
+      if (part_count_ > MAX_PART_COUNT + (use_part_count_limit_ ? 0 : 64)) {
         if (!is_upload_) {
           // Caller will try to increase part size if it is possible
           return Status::Error("FILE_DOWNLOAD_RESTART_INCREASE_PART_SIZE");
@@ -334,7 +353,7 @@ Status PartsManager::on_part_ok(int32 id, size_t part_size, size_t actual_size) 
     streaming_ready_size_ += narrow_cast<int64>(actual_size);
   }
 
-  VLOG(files) << "Transferred part " << id << " of size " << part_size << ", total ready size = " << ready_size_;
+  VLOG(file_loader) << "Transferred part " << id << " of size " << part_size << ", total ready size = " << ready_size_;
 
   int64 offset = narrow_cast<int64>(part_size_) * id;
   int64 end_offset = offset + narrow_cast<int64>(actual_size);
@@ -387,6 +406,7 @@ int64 PartsManager::get_size() const {
   CHECK(!unknown_size_flag_);
   return size_;
 }
+
 int64 PartsManager::get_size_or_zero() const {
   return size_;
 }
@@ -489,7 +509,7 @@ Status PartsManager::init_common(const std::vector<int> &ready_parts) {
 
 void PartsManager::set_need_check() {
   need_check_ = true;
-  set_streaming_offset(0);
+  set_streaming_offset(0, 0);
 }
 
 void PartsManager::set_checked_prefix_size(int64 size) {
@@ -499,6 +519,7 @@ void PartsManager::set_checked_prefix_size(int64 size) {
 int64 PartsManager::get_checked_prefix_size() const {
   return checked_prefix_size_;
 }
+
 int64 PartsManager::get_unchecked_ready_prefix_size() {
   update_first_not_ready_part();
   auto count = first_not_ready_part_;

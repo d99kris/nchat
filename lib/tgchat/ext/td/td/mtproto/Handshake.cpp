@@ -6,7 +6,6 @@
 //
 #include "td/mtproto/Handshake.h"
 
-#include "td/mtproto/crypto.h"
 #include "td/mtproto/KDF.h"
 #include "td/mtproto/utils.h"
 
@@ -26,6 +25,23 @@
 
 namespace td {
 namespace mtproto {
+
+template <class T>
+static Result<typename T::ReturnType> fetch_result(Slice message, bool check_end = true) {
+  TlParser parser(message);
+  auto result = T::fetch_result(parser);
+
+  if (check_end) {
+    parser.fetch_end();
+  }
+  const char *error = parser.get_error();
+  if (error != nullptr) {
+    LOG(ERROR) << "Can't parse: " << format::as_hex_dump<4>(message);
+    return Status::Error(500, Slice(error));
+  }
+
+  return std::move(result);
+}
 
 void AuthKeyHandshake::clear() {
   last_query_ = BufferSlice();
@@ -109,7 +125,8 @@ Status AuthKeyHandshake::on_res_pq(Slice message, Callback *connection, PublicRs
   // encrypted_data := RSA (data_with_hash, server_public_key); a 255-byte long number (big endian)
   //   is raised to the requisite power over the requisite modulus, and the result is stored as a 256-byte number.
   string encrypted_data(256, 0);
-  rsa.encrypt(data_with_hash, size, reinterpret_cast<unsigned char *>(&encrypted_data[0]));
+  rsa.encrypt(data_with_hash, size, sizeof(data_with_hash), reinterpret_cast<unsigned char *>(&encrypted_data[0]),
+              encrypted_data.size());
 
   // req_DH_params#d712e4be nonce:int128 server_nonce:int128 p:string q:string public_key_fingerprint:long
   // encrypted_data:string = Server_DH_Params

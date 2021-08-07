@@ -4,13 +4,13 @@
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
-#include "td/utils/tests.h"
-
-#include "td/actor/actor.h"
-#include "td/actor/PromiseFuture.h"
+#include "td/telegram/ConfigManager.h"
+#include "td/telegram/net/DcId.h"
+#include "td/telegram/net/PublicRsaKeyShared.h"
+#include "td/telegram/net/Session.h"
+#include "td/telegram/NotificationManager.h"
 
 #include "td/mtproto/AuthData.h"
-#include "td/mtproto/crypto.h"
 #include "td/mtproto/DhHandshake.h"
 #include "td/mtproto/Handshake.h"
 #include "td/mtproto/HandshakeActor.h"
@@ -18,6 +18,7 @@
 #include "td/mtproto/PingConnection.h"
 #include "td/mtproto/ProxySecret.h"
 #include "td/mtproto/RawConnection.h"
+#include "td/mtproto/RSA.h"
 #include "td/mtproto/TlsInit.h"
 #include "td/mtproto/TransportType.h"
 
@@ -25,11 +26,9 @@
 #include "td/net/Socks5.h"
 #include "td/net/TransparentProxy.h"
 
-#include "td/telegram/ConfigManager.h"
-#include "td/telegram/net/DcId.h"
-#include "td/telegram/net/PublicRsaKeyShared.h"
-#include "td/telegram/net/Session.h"
-#include "td/telegram/NotificationManager.h"
+#include "td/actor/actor.h"
+#include "td/actor/ConcurrentScheduler.h"
+#include "td/actor/PromiseFuture.h"
 
 #include "td/utils/base64.h"
 #include "td/utils/common.h"
@@ -39,6 +38,7 @@
 #include "td/utils/port/SocketFd.h"
 #include "td/utils/Random.h"
 #include "td/utils/Status.h"
+#include "td/utils/tests.h"
 #include "td/utils/Time.h"
 
 REGISTER_TESTS(mtproto);
@@ -72,7 +72,7 @@ TEST(Mtproto, GetHostByNameActor) {
         }
       });
       cnt++;
-      send_closure(actor_id, &GetHostByNameActor::run, host, 443, prefer_ipv6, std::move(promise));
+      send_closure_later(actor_id, &GetHostByNameActor::run, host, 443, prefer_ipv6, std::move(promise));
     };
 
     std::vector<std::string> hosts = {"127.0.0.2",
@@ -86,10 +86,13 @@ TEST(Mtproto, GetHostByNameActor) {
                                       " ",
                                       "a",
                                       "\x80",
+                                      "[]",
                                       "127.0.0.1.",
                                       "0x12.0x34.0x56.0x78",
                                       "0x7f.001",
-                                      "2001:0db8:85a3:0000:0000:8a2e:0370:7334"};
+                                      "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+                                      "[2001:0db8:85a3:0000:0000:8a2e:0370:7334]",
+                                      "[[2001:0db8:85a3:0000:0000:8a2e:0370:7334]]"};
     for (auto types : {vector<GetHostByNameActor::ResolverType>{GetHostByNameActor::ResolverType::Native},
                        vector<GetHostByNameActor::ResolverType>{GetHostByNameActor::ResolverType::Google},
                        vector<GetHostByNameActor::ResolverType>{GetHostByNameActor::ResolverType::Google,
@@ -105,7 +108,7 @@ TEST(Mtproto, GetHostByNameActor) {
 
       for (auto host : hosts) {
         for (auto prefer_ipv6 : {false, true}) {
-          bool allow_ok = host.size() > 2;
+          bool allow_ok = host.size() > 2 && host[1] != '[';
           bool allow_both = host == "127.0.0.1." || host == "localhost" || (host == "москва.рф" && prefer_ipv6);
           bool allow_error = !allow_ok || allow_both;
           run(actor_id, host, prefer_ipv6, allow_ok, allow_error);
@@ -175,11 +178,13 @@ TEST(Mtproto, config) {
     run(get_simple_config_firebase_firestore, false);
   }
   cnt--;
-  sched.start();
-  while (sched.run_main(10)) {
-    // empty;
+  if (cnt != 0) {
+    sched.start();
+    while (sched.run_main(10)) {
+      // empty;
+    }
+    sched.finish();
   }
-  sched.finish();
 }
 
 TEST(Mtproto, encrypted_config) {
@@ -200,20 +205,30 @@ class TestPingActor : public Actor {
   IPAddress ip_address_;
   unique_ptr<mtproto::PingConnection> ping_connection_;
   Status *result_;
+  bool is_inited_ = false;
 
   void start_up() override {
+    auto r_socket = SocketFd::open(ip_address_);
+    if (r_socket.is_error()) {
+      LOG(ERROR) << "Failed to open socket: " << r_socket.error();
+      return stop();
+    }
+
     ping_connection_ = mtproto::PingConnection::create_req_pq(
         make_unique<mtproto::RawConnection>(
-            SocketFd::open(ip_address_).move_as_ok(),
-            mtproto::TransportType{mtproto::TransportType::Tcp, 0, mtproto::ProxySecret()}, nullptr),
+            r_socket.move_as_ok(), mtproto::TransportType{mtproto::TransportType::Tcp, 0, mtproto::ProxySecret()},
+            nullptr),
         3);
 
     Scheduler::subscribe(ping_connection_->get_poll_info().extract_pollable_fd(this));
+    is_inited_ = true;
     set_timeout_in(10);
     yield();
   }
   void tear_down() override {
-    Scheduler::unsubscribe_before_close(ping_connection_->get_poll_info().get_pollable_fd_ref());
+    if (is_inited_) {
+      Scheduler::unsubscribe_before_close(ping_connection_->get_poll_info().get_pollable_fd_ref());
+    }
     Scheduler::instance()->finish();
   }
 
@@ -314,9 +329,15 @@ class HandshakeTestActor : public Actor {
   }
   void loop() override {
     if (!wait_for_raw_connection_ && !raw_connection_) {
+      auto r_socket = SocketFd::open(get_default_ip_address());
+      if (r_socket.is_error()) {
+        finish(Status::Error(PSTRING() << "Failed to open socket: " << r_socket.error()));
+        return stop();
+      }
+
       raw_connection_ = make_unique<mtproto::RawConnection>(
-          SocketFd::open(get_default_ip_address()).move_as_ok(),
-          mtproto::TransportType{mtproto::TransportType::Tcp, 0, mtproto::ProxySecret()}, nullptr);
+          r_socket.move_as_ok(), mtproto::TransportType{mtproto::TransportType::Tcp, 0, mtproto::ProxySecret()},
+          nullptr);
     }
     if (!wait_for_handshake_ && !handshake_) {
       handshake_ = make_unique<mtproto::AuthKeyHandshake>(dc_id_, 3600);
@@ -434,11 +455,14 @@ class Socks5TestActor : public Actor {
 
     IPAddress socks5_ip;
     socks5_ip.init_ipv4_port("131.191.89.104", 43077).ensure();
-    IPAddress mtproto_ip = get_default_ip_address();
+    IPAddress mtproto_ip_address = get_default_ip_address();
 
     auto r_socket = SocketFd::open(socks5_ip);
-    create_actor<Socks5>("socks5", r_socket.move_as_ok(), mtproto_ip, "", "", make_unique<Callback>(std::move(promise)),
-                         actor_shared())
+    if (r_socket.is_error()) {
+      return promise.set_error(Status::Error(PSTRING() << "Failed to open socket: " << r_socket.error()));
+    }
+    create_actor<Socks5>("socks5", r_socket.move_as_ok(), mtproto_ip_address, "", "",
+                         make_unique<Callback>(std::move(promise)), actor_shared(this))
         .release();
   }
 
@@ -510,9 +534,14 @@ class FastPingTestActor : public Actor {
 
   void start_up() override {
     // Run handshake to create key and salt
+    auto r_socket = SocketFd::open(get_default_ip_address());
+    if (r_socket.is_error()) {
+      *result_ = Status::Error(PSTRING() << "Failed to open socket: " << r_socket.error());
+      return stop();
+    }
+
     auto raw_connection = make_unique<mtproto::RawConnection>(
-        SocketFd::open(get_default_ip_address()).move_as_ok(),
-        mtproto::TransportType{mtproto::TransportType::Tcp, 0, mtproto::ProxySecret()}, nullptr);
+        r_socket.move_as_ok(), mtproto::TransportType{mtproto::TransportType::Tcp, 0, mtproto::ProxySecret()}, nullptr);
     auto handshake = make_unique<mtproto::AuthKeyHandshake>(get_default_dc_id(), 60 * 100 /*temp*/);
     create_actor<mtproto::HandshakeActor>(
         "HandshakeActor", std::move(handshake), std::move(raw_connection), make_unique<HandshakeContext>(), 10.0,
@@ -643,7 +672,11 @@ TEST(Mtproto, TlsTransport) {
         class Callback : public TransparentProxy::Callback {
          public:
           void set_result(Result<SocketFd> result) override {
-            CHECK(result.is_error() && result.error().message() == "Response hash mismatch");
+            if (result.is_ok()) {
+              LOG(ERROR) << "Unexpectedly succeeded to connect to MTProto proxy";
+            } else if (result.error().message() != "Response hash mismatch") {
+              LOG(ERROR) << "Receive unexpected result " << result.error();
+            }
             Scheduler::instance()->finish();
           }
           void on_connected() override {
@@ -658,9 +691,14 @@ TEST(Mtproto, TlsTransport) {
           Scheduler::instance()->finish();
           return;
         }
-        SocketFd fd = SocketFd::open(ip_address).move_as_ok();
-        create_actor<mtproto::TlsInit>("TlsInit", std::move(fd), domain, "0123456789secret", make_unique<Callback>(),
-                                       ActorShared<>(), Clocks::system() - Time::now())
+        auto r_socket = SocketFd::open(ip_address);
+        if (r_socket.is_error()) {
+          LOG(ERROR) << "Failed to open socket: " << r_socket.error();
+          Scheduler::instance()->finish();
+          return;
+        }
+        create_actor<mtproto::TlsInit>("TlsInit", r_socket.move_as_ok(), domain, "0123456789secret",
+                                       make_unique<Callback>(), ActorShared<>(), Clocks::system() - Time::now())
             .release();
       }
     };

@@ -9,6 +9,8 @@
 #include "td/db/binlog/BinlogEvent.h"
 #include "td/db/DbKey.h"
 
+#include "td/actor/PromiseFuture.h"
+
 #include "td/utils/AesCtrByteFlow.h"
 #include "td/utils/buffer.h"
 #include "td/utils/BufferedFd.h"
@@ -18,6 +20,7 @@
 #include "td/utils/port/FileFd.h"
 #include "td/utils/Slice.h"
 #include "td/utils/Status.h"
+#include "td/utils/StorerBase.h"
 #include "td/utils/UInt.h"
 
 #include <functional>
@@ -68,9 +71,25 @@ class Binlog {
     return fd_.empty();
   }
 
-  //void add_raw_event(BufferSlice &&raw_event) {
-  //add_event(BinlogEvent(std::move(raw_event)));
-  //}
+  uint64 add(int32 type, const Storer &storer) {
+    auto log_event_id = next_id();
+    add_raw_event(BinlogEvent::create_raw(log_event_id, type, 0, storer), {});
+    return log_event_id;
+  }
+
+  uint64 rewrite(uint64 log_event_id, int32 type, const Storer &storer) {
+    auto seq_no = next_id();
+    add_raw_event(BinlogEvent::create_raw(log_event_id, type, BinlogEvent::Flags::Rewrite, storer), {});
+    return seq_no;
+  }
+
+  uint64 erase(uint64 log_event_id) {
+    auto seq_no = next_id();
+    add_raw_event(BinlogEvent::create_raw(log_event_id, BinlogEvent::ServiceTypes::Empty, BinlogEvent::Flags::Rewrite,
+                                          EmptyStorer()),
+                  {});
+    return seq_no;
+  }
 
   void add_raw_event(BufferSlice &&raw_event, BinlogDebugInfo info) {
     add_event(BinlogEvent(std::move(raw_event), info));
@@ -86,6 +105,7 @@ class Binlog {
   void change_key(DbKey new_db_key);
 
   Status close(bool need_sync = true) TD_WARN_UNUSED_RESULT;
+  void close(Promise<> promise);
   Status close_and_destroy() TD_WARN_UNUSED_RESULT;
   static Status destroy(Slice path) TD_WARN_UNUSED_RESULT;
 
@@ -130,8 +150,6 @@ class Binlog {
   double need_flush_since_ = 0;
   bool need_sync_{false};
   enum class State { Empty, Load, Reindex, Run } state_{State::Empty};
-
-  static constexpr uint32 MAX_EVENT_SIZE = 65536;
 
   Result<FileFd> open_binlog(const string &path, int32 flags);
   size_t flush_events_buffer(bool force);

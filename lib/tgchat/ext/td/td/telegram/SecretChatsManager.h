@@ -6,17 +6,17 @@
 //
 #pragma once
 
-#include "td/telegram/secret_api.h"
-#include "td/telegram/telegram_api.h"
-
 #include "td/telegram/logevent/SecretChatEvent.h"
-#include "td/telegram/PtsManager.h"
 #include "td/telegram/SecretChatActor.h"
 #include "td/telegram/SecretChatId.h"
+
+#include "td/telegram/secret_api.h"
+#include "td/telegram/telegram_api.h"
 
 #include "td/actor/actor.h"
 #include "td/actor/PromiseFuture.h"
 
+#include "td/utils/common.h"
 #include "td/utils/Time.h"
 
 #include <map>
@@ -29,17 +29,11 @@ struct BinlogEvent;
 class SecretChatsManager : public Actor {
  public:
   explicit SecretChatsManager(ActorShared<> parent);
-  void init_qts(int32 qts);
-  void update_qts(int32 qts);
-  // we can forget all pending_updates after start_get_difference they will be received after this point anyway
-  // It is not necessary, but it will help.
-  void before_get_difference(int32 qts);
-  void after_get_difference();
 
   // Proxy query to corrensponding SecretChatActor.
   // Look for more info in SecretChatActor.h
   void on_update_chat(tl_object_ptr<telegram_api::updateEncryption> update);
-  void on_update_message(tl_object_ptr<telegram_api::updateNewEncryptedMessage> update, bool force_apply);
+  void on_new_message(tl_object_ptr<telegram_api::EncryptedMessage> &&message_ptr, Promise<Unit> &&promise);
 
   void create_chat(int32 user_id, int64 user_access_hash, Promise<SecretChatId> promise);
   void cancel_chat(SecretChatId, Promise<> promise);
@@ -61,12 +55,8 @@ class SecretChatsManager : public Actor {
   bool binlog_replay_finish_flag_ = false;
   bool dummy_mode_ = false;
   bool close_flag_ = false;
-  bool has_qts_ = false;
   ActorShared<> parent_;
   std::map<int32, ActorOwn<SecretChatActor>> id_to_actor_;
-
-  PtsManager qts_manager_;
-  int32 last_get_difference_qts_ = -1;
 
   bool is_online_{false};
 
@@ -74,20 +64,16 @@ class SecretChatsManager : public Actor {
   void flush_pending_chat_updates();
   void do_update_chat(tl_object_ptr<telegram_api::updateEncryption> update);
 
-  void replay_inbound_message(unique_ptr<logevent::InboundSecretMessage> message);
-  void add_inbound_message(unique_ptr<logevent::InboundSecretMessage> message);
-  void replay_outbound_message(unique_ptr<logevent::OutboundSecretMessage> message);
-  void replay_close_chat(unique_ptr<logevent::CloseSecretChat> message);
-  void replay_create_chat(unique_ptr<logevent::CreateSecretChat> message);
+  void replay_inbound_message(unique_ptr<log_event::InboundSecretMessage> message);
+  void add_inbound_message(unique_ptr<log_event::InboundSecretMessage> message);
+  void replay_outbound_message(unique_ptr<log_event::OutboundSecretMessage> message);
+  void replay_close_chat(unique_ptr<log_event::CloseSecretChat> message);
+  void replay_create_chat(unique_ptr<log_event::CreateSecretChat> message);
 
   unique_ptr<SecretChatActor::Context> make_secret_chat_context(int32 id);
   ActorId<SecretChatActor> get_chat_actor(int32 id);
   ActorId<SecretChatActor> create_chat_actor(int32 id);
   ActorId<SecretChatActor> create_chat_actor_impl(int32 id, bool can_be_empty);
-  Promise<> add_qts(int32 qts);
-  void on_qts_ack(PtsManager::PtsId qts_ack_token);
-  void save_qts();
-  void force_get_difference();
 
   void start_up() override;
   void hangup() override;

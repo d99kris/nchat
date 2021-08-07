@@ -72,6 +72,9 @@ class UnsafeSharedSlice {
  public:
   UnsafeSharedSlice() = default;
   UnsafeSharedSlice clone() const {
+    if (is_null()) {
+      return UnsafeSharedSlice();
+    }
     header()->inc();
     return UnsafeSharedSlice(ptr_.get());
   }

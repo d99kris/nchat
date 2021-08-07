@@ -6,9 +6,9 @@
 //
 #pragma once
 
+#include "td/telegram/MessageId.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
-
 #include "td/telegram/UserId.h"
 
 #include "td/utils/common.h"
@@ -135,6 +135,7 @@ class DialogParticipantStatus {
 
   static constexpr uint32 IS_MEMBER = 1 << 27;
 
+  static constexpr uint32 IS_ANONYMOUS = 1 << 13;
   static constexpr uint32 HAS_RANK = 1u << 14;
   // bits 28-30 reserved for Type
   static constexpr int TYPE_SHIFT = 28;
@@ -165,9 +166,9 @@ class DialogParticipantStatus {
   DialogParticipantStatus(Type type, uint32 flags, int32 until_date, string rank);
 
  public:
-  static DialogParticipantStatus Creator(bool is_member, string rank);
+  static DialogParticipantStatus Creator(bool is_member, bool is_anonymous, string rank);
 
-  static DialogParticipantStatus Administrator(string rank, bool can_be_edited, bool can_change_info,
+  static DialogParticipantStatus Administrator(bool is_anonymous, string rank, bool can_be_edited, bool can_change_info,
                                                bool can_post_messages, bool can_edit_messages, bool can_delete_messages,
                                                bool can_invite_users, bool can_restrict_members, bool can_pin_messages,
                                                bool can_promote_members);
@@ -308,6 +309,10 @@ class DialogParticipantStatus {
     return until_date_;
   }
 
+  bool is_anonymous() const {
+    return (flags_ & IS_ANONYMOUS) != 0;
+  }
+
   const string &get_rank() const {
     return rank_;
   }
@@ -365,9 +370,16 @@ struct DialogParticipant {
 
   DialogParticipant() = default;
 
-  DialogParticipant(UserId user_id, UserId inviter_user_id, int32 joined_date, DialogParticipantStatus status)
-      : user_id(user_id), inviter_user_id(inviter_user_id), joined_date(joined_date), status(status) {
+  DialogParticipant(UserId user_id, UserId inviter_user_id, int32 joined_date, DialogParticipantStatus status);
+
+  DialogParticipant(tl_object_ptr<telegram_api::ChannelParticipant> &&participant_ptr,
+                    DialogParticipantStatus my_status);
+
+  static DialogParticipant left(UserId user_id) {
+    return {user_id, UserId(), 0, DialogParticipantStatus::Left()};
   }
+
+  bool is_valid() const;
 
   template <class StorerT>
   void store(StorerT &storer) const {
@@ -389,8 +401,9 @@ struct DialogParticipant {
 StringBuilder &operator<<(StringBuilder &string_builder, const DialogParticipant &dialog_participant);
 
 class ChannelParticipantsFilter {
-  enum class Type : int32 { Recent, Contacts, Administrators, Search, Restricted, Banned, Bots } type;
+  enum class Type : int32 { Recent, Contacts, Administrators, Search, Mention, Restricted, Banned, Bots } type;
   string query;
+  MessageId top_thread_message_id;
 
   friend StringBuilder &operator<<(StringBuilder &string_builder, const ChannelParticipantsFilter &filter);
 
@@ -430,7 +443,16 @@ class ChannelParticipantsFilter {
 
 StringBuilder &operator<<(StringBuilder &string_builder, const ChannelParticipantsFilter &filter);
 
-enum class DialogParticipantsFilter : int32 { Contacts, Administrators, Members, Restricted, Banned, Bots };
+class DialogParticipantsFilter {
+ public:
+  enum class Type : int32 { Contacts, Administrators, Members, Restricted, Banned, Mention, Bots };
+  Type type;
+  MessageId top_thread_message_id;
+
+  explicit DialogParticipantsFilter(Type type, MessageId top_thread_message_id = MessageId())
+      : type(type), top_thread_message_id(top_thread_message_id) {
+  }
+};
 
 DialogParticipantsFilter get_dialog_participants_filter(const tl_object_ptr<td_api::ChatMembersFilter> &filter);
 

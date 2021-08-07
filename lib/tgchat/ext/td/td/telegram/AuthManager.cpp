@@ -15,11 +15,14 @@
 #include "td/telegram/ContactsManager.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/logevent/LogEvent.h"
+#include "td/telegram/MessagesManager.h"
 #include "td/telegram/misc.h"
 #include "td/telegram/net/DcId.h"
 #include "td/telegram/net/NetQueryDispatcher.h"
 #include "td/telegram/NotificationManager.h"
 #include "td/telegram/PasswordManager.h"
+#include "td/telegram/StateManager.h"
+#include "td/telegram/StickersManager.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/TdDb.h"
 #include "td/telegram/TopDialogManager.h"
@@ -53,8 +56,7 @@ AuthManager::AuthManager(int32 api_id, const string &api_hash, ActorShared<> par
     } else {
       LOG(ERROR) << "Restore unknown my_id";
       ContactsManager::send_get_me_query(
-          G()->td().get_actor_unsafe(),
-          PromiseCreator::lambda([this](Result<Unit> result) { update_state(State::Ok); }));
+          td, PromiseCreator::lambda([this](Result<Unit> result) { update_state(State::Ok); }));
     }
   } else if (auth_str == "logout") {
     update_state(State::LoggingOut);
@@ -69,7 +71,7 @@ AuthManager::AuthManager(int32 api_id, const string &api_hash, ActorShared<> par
 
 void AuthManager::start_up() {
   if (state_ == State::LoggingOut) {
-    start_net_query(NetQueryType::LogOut, G()->net_query_creator().create(create_storer(telegram_api::auth_logOut())));
+    send_log_out_query();
   } else if (state_ == State::DestroyingKeys) {
     destroy_auth_keys();
   }
@@ -82,16 +84,12 @@ bool AuthManager::is_bot() const {
   if (net_query_id_ != 0 && net_query_type_ == NetQueryType::BotAuthentication) {
     return true;
   }
-  return is_bot_ && (state_ == State::Ok || state_ == State::LoggingOut || state_ == State::DestroyingKeys ||
-                     state_ == State::Closing);
+  return is_bot_ && was_authorized();
 }
 
-void AuthManager::set_is_bot(bool is_bot) {
-  if (!is_bot_ && is_bot && api_id_ == 23818) {
-    LOG(ERROR) << "Fix is_bot to " << is_bot;
-    G()->td_db()->get_binlog_pmc()->set("auth_is_bot", "true");
-    is_bot_ = true;
-  }
+bool AuthManager::was_authorized() const {
+  return state_ == State::Ok || state_ == State::LoggingOut || state_ == State::DestroyingKeys ||
+         state_ == State::Closing;
 }
 
 bool AuthManager::is_authorized() const {
@@ -146,38 +144,25 @@ void AuthManager::get_state(uint64 query_id) {
 void AuthManager::check_bot_token(uint64 query_id, string bot_token) {
   if (state_ == State::WaitPhoneNumber && net_query_id_ == 0) {
     // can ignore previous checks
-    was_check_bot_token_ = false;  // TODO can we remove was_check_bot_token_ after State::Ok is disallowed?
+    was_check_bot_token_ = false;  // TODO can we remove was_check_bot_token_?
   }
-  if (state_ != State::WaitPhoneNumber && state_ != State::Ok) {
-    // TODO do not allow State::Ok
-    return on_query_error(query_id, Status::Error(8, "Call to checkAuthenticationBotToken unexpected"));
+  if (state_ != State::WaitPhoneNumber) {
+    return on_query_error(query_id, Status::Error(400, "Call to checkAuthenticationBotToken unexpected"));
   }
   if (!send_code_helper_.phone_number().empty() || was_qr_code_request_) {
     return on_query_error(
-        query_id, Status::Error(8, "Cannot set bot token after authentication beginning. You need to log out first"));
+        query_id, Status::Error(400, "Cannot set bot token after authentication began. You need to log out first"));
   }
   if (was_check_bot_token_ && bot_token_ != bot_token) {
     return on_query_error(query_id, Status::Error(8, "Cannot change bot token. You need to log out first"));
-  }
-  if (state_ == State::Ok) {
-    if (!is_bot_) {
-      // fix old bots
-      const int32 AUTH_IS_BOT_FIXED_DATE = 1500940800;
-      if (G()->shared_config().get_option_integer("authorization_date") < AUTH_IS_BOT_FIXED_DATE) {
-        G()->td_db()->get_binlog_pmc()->set("auth_is_bot", "true");
-        is_bot_ = true;
-      }
-    }
-    return send_ok(query_id);
   }
 
   on_new_query(query_id);
   bot_token_ = bot_token;
   was_check_bot_token_ = true;
   start_net_query(NetQueryType::BotAuthentication,
-                  G()->net_query_creator().create(
-                      create_storer(telegram_api::auth_importBotAuthorization(0, api_id_, api_hash_, bot_token_)),
-                      DcId::main(), NetQuery::Type::Common, NetQuery::AuthFlag::Off));
+                  G()->net_query_creator().create_unauth(
+                      telegram_api::auth_importBotAuthorization(0, api_id_, api_hash_, bot_token_)));
 }
 
 void AuthManager::request_qr_code_authentication(uint64 query_id, vector<int32> other_user_ids) {
@@ -215,16 +200,15 @@ void AuthManager::request_qr_code_authentication(uint64 query_id, vector<int32> 
 void AuthManager::send_export_login_token_query() {
   poll_export_login_code_timeout_.cancel_timeout();
   start_net_query(NetQueryType::RequestQrCode,
-                  G()->net_query_creator().create(create_storer(telegram_api::auth_exportLoginToken(
-                                                      api_id_, api_hash_, vector<int32>(other_user_ids_))),
-                                                  DcId::main(), NetQuery::Type::Common, NetQuery::AuthFlag::Off));
+                  G()->net_query_creator().create_unauth(
+                      telegram_api::auth_exportLoginToken(api_id_, api_hash_, vector<int32>(other_user_ids_))));
 }
 
 void AuthManager::set_login_token_expires_at(double login_token_expires_at) {
   login_token_expires_at_ = login_token_expires_at;
   poll_export_login_code_timeout_.cancel_timeout();
   poll_export_login_code_timeout_.set_callback(std::move(on_update_login_token_static));
-  poll_export_login_code_timeout_.set_callback_data(static_cast<void *>(G()->td().get_actor_unsafe()));
+  poll_export_login_code_timeout_.set_callback_data(static_cast<void *>(td));
   poll_export_login_code_timeout_.set_timeout_at(login_token_expires_at_);
 }
 
@@ -271,10 +255,8 @@ void AuthManager::set_phone_number(uint64 query_id, string phone_number,
 
   on_new_query(query_id);
 
-  start_net_query(NetQueryType::SendCode,
-                  G()->net_query_creator().create(
-                      create_storer(send_code_helper_.send_code(phone_number, settings, api_id_, api_hash_)),
-                      DcId::main(), NetQuery::Type::Common, NetQuery::AuthFlag::Off));
+  start_net_query(NetQueryType::SendCode, G()->net_query_creator().create_unauth(
+                                              send_code_helper_.send_code(phone_number, settings, api_id_, api_hash_)));
 }
 
 void AuthManager::resend_authentication_code(uint64 query_id) {
@@ -289,9 +271,7 @@ void AuthManager::resend_authentication_code(uint64 query_id) {
 
   on_new_query(query_id);
 
-  start_net_query(NetQueryType::SendCode,
-                  G()->net_query_creator().create(create_storer(r_resend_code.move_as_ok()), DcId::main(),
-                                                  NetQuery::Type::Common, NetQuery::AuthFlag::Off));
+  start_net_query(NetQueryType::SendCode, G()->net_query_creator().create_unauth(r_resend_code.move_as_ok()));
 }
 
 void AuthManager::check_code(uint64 query_id, string code) {
@@ -302,10 +282,8 @@ void AuthManager::check_code(uint64 query_id, string code) {
   code_ = std::move(code);
   on_new_query(query_id);
   start_net_query(NetQueryType::SignIn,
-                  G()->net_query_creator().create(
-                      create_storer(telegram_api::auth_signIn(send_code_helper_.phone_number().str(),
-                                                              send_code_helper_.phone_code_hash().str(), code_)),
-                      DcId::main(), NetQuery::Type::Common, NetQuery::AuthFlag::Off));
+                  G()->net_query_creator().create_unauth(telegram_api::auth_signIn(
+                      send_code_helper_.phone_number().str(), send_code_helper_.phone_code_hash().str(), code_)));
 }
 
 void AuthManager::register_user(uint64 query_id, string first_name, string last_name) {
@@ -320,12 +298,9 @@ void AuthManager::register_user(uint64 query_id, string first_name, string last_
   }
 
   last_name = clean_name(last_name, MAX_NAME_LENGTH);
-  start_net_query(
-      NetQueryType::SignUp,
-      G()->net_query_creator().create(
-          create_storer(telegram_api::auth_signUp(send_code_helper_.phone_number().str(),
-                                                  send_code_helper_.phone_code_hash().str(), first_name, last_name)),
-          DcId::main(), NetQuery::Type::Common, NetQuery::AuthFlag::Off));
+  start_net_query(NetQueryType::SignUp, G()->net_query_creator().create_unauth(telegram_api::auth_signUp(
+                                            send_code_helper_.phone_number().str(),
+                                            send_code_helper_.phone_code_hash().str(), first_name, last_name)));
 }
 
 void AuthManager::check_password(uint64 query_id, string password) {
@@ -337,8 +312,7 @@ void AuthManager::check_password(uint64 query_id, string password) {
   on_new_query(query_id);
   password_ = std::move(password);
   start_net_query(NetQueryType::GetPassword,
-                  G()->net_query_creator().create(create_storer(telegram_api::account_getPassword()), DcId::main(),
-                                                  NetQuery::Type::Common, NetQuery::AuthFlag::Off));
+                  G()->net_query_creator().create_unauth(telegram_api::account_getPassword()));
 }
 
 void AuthManager::request_password_recovery(uint64 query_id) {
@@ -348,8 +322,7 @@ void AuthManager::request_password_recovery(uint64 query_id) {
 
   on_new_query(query_id);
   start_net_query(NetQueryType::RequestPasswordRecovery,
-                  G()->net_query_creator().create(create_storer(telegram_api::auth_requestPasswordRecovery()),
-                                                  DcId::main(), NetQuery::Type::Common, NetQuery::AuthFlag::Off));
+                  G()->net_query_creator().create_unauth(telegram_api::auth_requestPasswordRecovery()));
 }
 
 void AuthManager::recover_password(uint64 query_id, string code) {
@@ -359,11 +332,10 @@ void AuthManager::recover_password(uint64 query_id, string code) {
 
   on_new_query(query_id);
   start_net_query(NetQueryType::RecoverPassword,
-                  G()->net_query_creator().create(create_storer(telegram_api::auth_recoverPassword(code)), DcId::main(),
-                                                  NetQuery::Type::Common, NetQuery::AuthFlag::Off));
+                  G()->net_query_creator().create_unauth(telegram_api::auth_recoverPassword(code)));
 }
 
-void AuthManager::logout(uint64 query_id) {
+void AuthManager::log_out(uint64 query_id) {
   if (state_ == State::Closing) {
     return on_query_error(query_id, Status::Error(8, "Already logged out"));
   }
@@ -380,8 +352,14 @@ void AuthManager::logout(uint64 query_id) {
     LOG(INFO) << "Logging out";
     G()->td_db()->get_binlog_pmc()->set("auth", "logout");
     update_state(State::LoggingOut);
-    start_net_query(NetQueryType::LogOut, G()->net_query_creator().create(create_storer(telegram_api::auth_logOut())));
+    send_log_out_query();
   }
+}
+
+void AuthManager::send_log_out_query() {
+  auto query = G()->net_query_creator().create(telegram_api::auth_logOut());
+  query->set_priority(1);
+  start_net_query(NetQueryType::LogOut, std::move(query));
 }
 
 void AuthManager::delete_account(uint64 query_id, const string &reason) {
@@ -391,8 +369,7 @@ void AuthManager::delete_account(uint64 query_id, const string &reason) {
   on_new_query(query_id);
   LOG(INFO) << "Deleting account";
   start_net_query(NetQueryType::DeleteAccount,
-                  G()->net_query_creator().create(create_storer(telegram_api::account_deleteAccount(reason)),
-                                                  DcId::main(), NetQuery::Type::Common, NetQuery::AuthFlag::Off));
+                  G()->net_query_creator().create_unauth(telegram_api::account_deleteAccount(reason)));
 }
 
 void AuthManager::on_closing(bool destroy_flag) {
@@ -524,10 +501,9 @@ void AuthManager::on_get_login_token(tl_object_ptr<telegram_api::auth_LoginToken
       }
 
       imported_dc_id_ = token->dc_id_;
-      start_net_query(NetQueryType::ImportQrCode,
-                      G()->net_query_creator().create(
-                          create_storer(telegram_api::auth_importLoginToken(std::move(token->token_))),
-                          DcId::internal(token->dc_id_), NetQuery::Type::Common, NetQuery::AuthFlag::Off));
+      start_net_query(NetQueryType::ImportQrCode, G()->net_query_creator().create_unauth(
+                                                      telegram_api::auth_importLoginToken(std::move(token->token_)),
+                                                      DcId::internal(token->dc_id_)));
       break;
     }
     case telegram_api::auth_loginTokenSuccess::ID: {
@@ -582,10 +558,8 @@ void AuthManager::on_get_password_result(NetQueryPtr &result) {
     return;
   } else {
     start_net_query(NetQueryType::SignIn,
-                    G()->net_query_creator().create(
-                        create_storer(telegram_api::auth_signIn(send_code_helper_.phone_number().str(),
-                                                                send_code_helper_.phone_code_hash().str(), code_)),
-                        DcId::main(), NetQuery::Type::Common, NetQuery::AuthFlag::Off));
+                    G()->net_query_creator().create_unauth(telegram_api::auth_signIn(
+                        send_code_helper_.phone_number().str(), send_code_helper_.phone_code_hash().str(), code_)));
     return;
   }
 
@@ -602,8 +576,7 @@ void AuthManager::on_get_password_result(NetQueryPtr &result) {
                                                           wait_password_state_.srp_B_, wait_password_state_.srp_id_);
 
     start_net_query(NetQueryType::CheckPassword,
-                    G()->net_query_creator().create(create_storer(telegram_api::auth_checkPassword(std::move(hash))),
-                                                    DcId::main(), NetQuery::Type::Common, NetQuery::AuthFlag::Off));
+                    G()->net_query_creator().create_unauth(telegram_api::auth_checkPassword(std::move(hash))));
   } else {
     update_state(State::WaitPassword);
     if (query_id_ != 0) {
@@ -650,7 +623,7 @@ void AuthManager::on_log_out_result(NetQueryPtr &result) {
     status = std::move(result->error());
   }
   LOG_IF(ERROR, status.is_error()) << "Receive error for auth.logOut: " << status;
-  // state_ will stay logout, so no queries will work.
+  // state_ will stay LoggingOut, so no queries will work.
   destroy_auth_keys();
   if (query_id_ != 0) {
     on_query_ok();
@@ -739,18 +712,21 @@ void AuthManager::on_get_authorization(tl_object_ptr<telegram_api::auth_Authoriz
     if (query_id_ != 0) {
       on_query_error(Status::Error(500, "Server doesn't send proper authorization"));
     }
-    logout(0);
+    log_out(0);
     return;
   }
   if ((auth->flags_ & telegram_api::auth_authorization::TMP_SESSIONS_MASK) != 0) {
     G()->shared_config().set_option_integer("session_count", auth->tmp_sessions_);
   }
+  td->messages_manager_->on_authorization_success();
   td->notification_manager_->init();
+  td->stickers_manager_->init();
   send_closure(td->top_dialog_manager_, &TopDialogManager::do_start_up);
   td->updates_manager_->get_difference("on_get_authorization");
   td->on_online_updated(false, true);
-  td->schedule_get_terms_of_service(0);
   if (!is_bot()) {
+    td->schedule_get_terms_of_service(0);
+    td->schedule_get_promo_data(0);
     G()->td_db()->get_binlog_pmc()->set("fetched_marks_as_unread", "1");
   }
   send_closure(G()->config_manager(), &ConfigManager::request_config);
@@ -779,8 +755,7 @@ void AuthManager::on_result(NetQueryPtr result) {
           dc_id = DcId::internal(imported_dc_id_);
         }
         start_net_query(NetQueryType::GetPassword,
-                        G()->net_query_creator().create(create_storer(telegram_api::account_getPassword()), dc_id,
-                                                        NetQuery::Type::Common, NetQuery::AuthFlag::Off));
+                        G()->net_query_creator().create_unauth(telegram_api::account_getPassword(), dc_id));
         return;
       }
       if (result->error().message() == CSlice("PHONE_NUMBER_BANNED")) {
@@ -852,12 +827,19 @@ void AuthManager::update_state(State new_state, bool force, bool should_save_sta
   if (state_ == new_state && !force) {
     return;
   }
+  bool skip_update = (state_ == State::LoggingOut || state_ == State::DestroyingKeys) &&
+                     (new_state == State::LoggingOut || new_state == State::DestroyingKeys);
   state_ = new_state;
   if (should_save_state) {
     save_state();
   }
-  send_closure(G()->td(), &Td::send_update,
-               make_tl_object<td_api::updateAuthorizationState>(get_authorization_state_object(state_)));
+  if (new_state == State::LoggingOut || new_state == State::DestroyingKeys) {
+    send_closure(G()->state_manager(), &StateManager::on_logging_out, true);
+  }
+  if (!skip_update) {
+    send_closure(G()->td(), &Td::send_update,
+                 make_tl_object<td_api::updateAuthorizationState>(get_authorization_state_object(state_)));
+  }
 
   if (!pending_get_authorization_state_requests_.empty()) {
     auto query_ids = std::move(pending_get_authorization_state_requests_);

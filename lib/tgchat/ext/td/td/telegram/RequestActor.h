@@ -30,13 +30,15 @@ class RequestActor : public Actor {
   }
 
   void loop() override {
-    PromiseActor<T> promise;
+    PromiseActor<T> promise_actor;
     FutureActor<T> future;
-    init_promise_future(&promise, &future);
+    init_promise_future(&promise_actor, &future);
 
-    do_run(PromiseCreator::from_promise_actor(std::move(promise)));
+    auto promise = PromiseCreator::from_promise_actor(std::move(promise_actor));
+    do_run(std::move(promise));
 
     if (future.is_ready()) {
+      CHECK(!promise);
       if (future.is_error()) {
         do_send_error(future.move_as_error());
       } else {
@@ -45,9 +47,11 @@ class RequestActor : public Actor {
       }
       stop();
     } else {
+      CHECK(!future.empty());
+      CHECK(future.get_state() == FutureActor<T>::State::Waiting);
       if (--tries_left_ == 0) {
         future.close();
-        do_send_error(Status::Error(400, "Requested data is inaccessible"));
+        do_send_error(Status::Error(500, "Requested data is inaccessible"));
         return stop();
       }
 
@@ -59,7 +63,7 @@ class RequestActor : public Actor {
   void raw_event(const Event::Raw &event) override {
     if (future_.is_error()) {
       auto error = future_.move_as_error();
-      if (error == Status::Error<FutureActor<T>::Hangup>()) {
+      if (error == Status::Error<FutureActor<T>::HANGUP_ERROR_CODE>()) {
         // dropping query due to lost authorization or lost promise
         // td may be already closed, so we should check is auth_manager_ is empty
         bool is_authorized = td->auth_manager_ && td->auth_manager_->is_authorized();

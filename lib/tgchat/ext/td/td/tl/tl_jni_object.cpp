@@ -7,6 +7,7 @@
 #include "td/tl/tl_jni_object.h"
 
 #include "td/utils/common.h"
+#include "td/utils/ExitGuard.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/Slice.h"
@@ -79,13 +80,16 @@ void register_native_method(JNIEnv *env, jclass clazz, std::string name, std::st
 
 std::unique_ptr<JNIEnv, JvmThreadDetacher> get_jni_env(JavaVM *java_vm, jint jni_version) {
   JNIEnv *env = nullptr;
-  if (java_vm->GetEnv(reinterpret_cast<void **>(&env), jni_version) == JNI_EDETACHED) {
+  if (!ExitGuard::is_exited() && java_vm->GetEnv(reinterpret_cast<void **>(&env), jni_version) == JNI_EDETACHED) {
 #ifdef JDK1_2  // if not Android JNI
     auto p_env = reinterpret_cast<void **>(&env);
 #else
     auto p_env = &env;
 #endif
-    java_vm->AttachCurrentThread(p_env, nullptr);
+    if (java_vm->AttachCurrentThread(p_env, nullptr) != JNI_OK) {
+      java_vm = nullptr;
+      env = nullptr;
+    }
   } else {
     java_vm = nullptr;
   }

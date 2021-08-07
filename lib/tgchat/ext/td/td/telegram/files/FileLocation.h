@@ -210,6 +210,7 @@ class FullRemoteFileLocation {
       case FileType::SecureRaw:
       case FileType::Secure:
       case FileType::Background:
+      case FileType::DocumentAsFile:
         return LocationType::Common;
       case FileType::None:
       case FileType::Size:
@@ -329,6 +330,12 @@ class FullRemoteFileLocation {
         UNREACHABLE();
         return PhotoSizeSource(0);
     }
+  }
+
+  void set_source(PhotoSizeSource source) {
+    CHECK(is_photo());
+    file_type_ = source.get_file_type();
+    photo().source_ = std::move(source);
   }
 
   bool delete_file_reference(Slice bad_file_reference) {

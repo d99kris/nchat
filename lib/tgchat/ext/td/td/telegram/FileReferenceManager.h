@@ -40,14 +40,17 @@ class FileReferenceManager : public Actor {
 
   FileSourceId create_message_file_source(FullMessageId full_message_id);
   FileSourceId create_user_photo_file_source(UserId user_id, int64 photo_id);
-  FileSourceId create_chat_photo_file_source(ChatId chat_id);
-  FileSourceId create_channel_photo_file_source(ChannelId channel_id);
+  // file reference aren't used for chat/channel photo download and the photos can't be reused
+  // FileSourceId create_chat_photo_file_source(ChatId chat_id);
+  // FileSourceId create_channel_photo_file_source(ChannelId channel_id);
   // FileSourceId create_wallpapers_file_source();  old wallpapers can't be repaired
   FileSourceId create_web_page_file_source(string url);
   FileSourceId create_saved_animations_file_source();
   FileSourceId create_recent_stickers_file_source(bool is_attached);
   FileSourceId create_favorite_stickers_file_source();
   FileSourceId create_background_file_source(BackgroundId background_id, int64 access_hash);
+  FileSourceId create_chat_full_file_source(ChatId chat_id);
+  FileSourceId create_channel_full_file_source(ChannelId channel_id);
 
   using NodeId = FileId;
   void repair_file_reference(NodeId node_id, Promise<> promise);
@@ -122,11 +125,18 @@ class FileReferenceManager : public Actor {
     BackgroundId background_id;
     int64 access_hash;
   };
+  struct FileSourceChatFull {
+    ChatId chat_id;
+  };
+  struct FileSourceChannelFull {
+    ChannelId channel_id;
+  };
 
   // append only
-  using FileSource = Variant<FileSourceMessage, FileSourceUserPhoto, FileSourceChatPhoto, FileSourceChannelPhoto,
-                             FileSourceWallpapers, FileSourceWebPage, FileSourceSavedAnimations,
-                             FileSourceRecentStickers, FileSourceFavoriteStickers, FileSourceBackground>;
+  using FileSource =
+      Variant<FileSourceMessage, FileSourceUserPhoto, FileSourceChatPhoto, FileSourceChannelPhoto, FileSourceWallpapers,
+              FileSourceWebPage, FileSourceSavedAnimations, FileSourceRecentStickers, FileSourceFavoriteStickers,
+              FileSourceBackground, FileSourceChatFull, FileSourceChannelFull>;
   vector<FileSource> file_sources_;
 
   int64 query_generation_{0};

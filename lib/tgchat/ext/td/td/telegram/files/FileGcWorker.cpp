@@ -26,18 +26,8 @@ namespace td {
 
 int VERBOSITY_NAME(file_gc) = VERBOSITY_NAME(INFO);
 
-void FileGcWorker::do_remove_file(const FullFileInfo &info) {
-  // LOG(WARNING) << "Gc remove file: " << tag("path", file) << tag("mtime", stat.mtime_nsec_ / 1000000000)
-  // << tag("atime", stat.atime_nsec_ / 1000000000);
-  // TODO: remove file from database too
-  auto status = unlink(info.path);
-  LOG_IF(WARNING, status.is_error()) << "Failed to unlink file during files gc: " << status;
-  send_closure(G()->file_manager(), &FileManager::on_file_unlink,
-               FullLocalFileLocation(info.file_type, info.path, info.mtime_nsec));
-}
-
 void FileGcWorker::run_gc(const FileGcParameters &parameters, std::vector<FullFileInfo> files,
-                          Promise<FileStats> promise) {
+                          Promise<FileGcResult> promise) {
   auto begin_time = Time::now();
   VLOG(file_gc) << "Start files gc with " << parameters;
   // quite stupid implementations
@@ -45,7 +35,7 @@ void FileGcWorker::run_gc(const FileGcParameters &parameters, std::vector<FullFi
   // may write something more clever, but i will need at least 2 passes over the files
   // TODO update atime for all files in android (?)
 
-  std::array<bool, file_type_size> immune_types{{false}};
+  std::array<bool, MAX_FILE_TYPE> immune_types{{false}};
 
   if (G()->parameters().use_file_db) {
     // immune by default
@@ -59,12 +49,13 @@ void FileGcWorker::run_gc(const FileGcParameters &parameters, std::vector<FullFi
   if (!parameters.file_types.empty()) {
     std::fill(immune_types.begin(), immune_types.end(), true);
     for (auto file_type : parameters.file_types) {
-      if (file_type == FileType::Secure) {
-        immune_types[narrow_cast<size_t>(FileType::SecureRaw)] = false;
-      } else if (file_type == FileType::Background) {
-        immune_types[narrow_cast<size_t>(FileType::Wallpaper)] = false;
-      }
       immune_types[narrow_cast<size_t>(file_type)] = false;
+    }
+    for (int32 i = 0; i < MAX_FILE_TYPE; i++) {
+      auto main_file_type = narrow_cast<size_t>(get_main_file_type(static_cast<FileType>(i)));
+      if (immune_types[main_file_type] == false) {
+        immune_types[i] = false;
+      }
     }
   }
 
@@ -90,37 +81,48 @@ void FileGcWorker::run_gc(const FileGcParameters &parameters, std::vector<FullFi
   }
 
   FileStats new_stats;
-  new_stats.split_by_owner_dialog_id = parameters.dialog_limit != 0;
+  FileStats removed_stats;
+  removed_stats.split_by_owner_dialog_id = new_stats.split_by_owner_dialog_id = parameters.dialog_limit != 0;
 
-  // Remove all files with atime > now - max_time_from_last_access
+  auto do_remove_file = [&removed_stats](const FullFileInfo &info) {
+    removed_stats.add_copy(info);
+    auto status = unlink(info.path);
+    LOG_IF(WARNING, status.is_error()) << "Failed to unlink file \"" << info.path << "\" during files gc: " << status;
+    send_closure(G()->file_manager(), &FileManager::on_file_unlink,
+                 FullLocalFileLocation(info.file_type, info.path, info.mtime_nsec));
+  };
+
   double now = Clocks::system();
+
+  // Keep all immune files
+  // Remove all files with (atime > now - max_time_from_last_access)
   td::remove_if(files, [&](const FullFileInfo &info) {
     if (token_) {
       return false;
     }
     if (immune_types[narrow_cast<size_t>(info.file_type)]) {
       type_immunity_ignored_cnt++;
-      new_stats.add(FullFileInfo(info));
+      new_stats.add_copy(info);
       return true;
     }
     if (td::contains(parameters.exclude_owner_dialog_ids, info.owner_dialog_id)) {
       exclude_owner_dialog_id_ignored_cnt++;
-      new_stats.add(FullFileInfo(info));
+      new_stats.add_copy(info);
       return true;
     }
     if (!parameters.owner_dialog_ids.empty() && !td::contains(parameters.owner_dialog_ids, info.owner_dialog_id)) {
       owner_dialog_id_ignored_cnt++;
-      new_stats.add(FullFileInfo(info));
+      new_stats.add_copy(info);
       return true;
     }
-    if (static_cast<double>(info.mtime_nsec / 1000000000) > now - parameters.immunity_delay) {
+    if (static_cast<double>(info.mtime_nsec) * 1e-9 > now - parameters.immunity_delay) {
       // new files are immune to gc
       time_immunity_ignored_cnt++;
-      new_stats.add(FullFileInfo(info));
+      new_stats.add_copy(info);
       return true;
     }
 
-    if (static_cast<double>(info.atime_nsec / 1000000000) < now - parameters.max_time_from_last_access) {
+    if (static_cast<double>(info.atime_nsec) * 1e-9 < now - parameters.max_time_from_last_access) {
       do_remove_file(info);
       total_removed_size += info.size;
       remove_by_atime_cnt++;
@@ -135,8 +137,8 @@ void FileGcWorker::run_gc(const FileGcParameters &parameters, std::vector<FullFi
   // sort by max(atime, mtime)
   std::sort(files.begin(), files.end(), [](const auto &a, const auto &b) { return a.atime_nsec < b.atime_nsec; });
 
-  // 1. Total memory must be less than max_memory
-  // 2. Total file count must be less than MAX_FILE_COUNT
+  // 1. Total size must be less than parameters.max_files_size
+  // 2. Total file count must be less than parameters.max_file_count
   size_t remove_count = 0;
   if (files.size() > parameters.max_file_count) {
     remove_count = files.size() - parameters.max_file_count;
@@ -168,7 +170,7 @@ void FileGcWorker::run_gc(const FileGcParameters &parameters, std::vector<FullFi
   }
 
   while (pos < files.size()) {
-    new_stats.add(std::move(files[pos]));
+    new_stats.add_copy(files[pos]);
     pos++;
   }
 
@@ -184,6 +186,7 @@ void FileGcWorker::run_gc(const FileGcParameters &parameters, std::vector<FullFi
                 << tag("owner_dialog_id_immunity", owner_dialog_id_ignored_cnt)
                 << tag("exclude_owner_dialog_id_immunity", exclude_owner_dialog_id_ignored_cnt);
 
-  promise.set_value(std::move(new_stats));
+  promise.set_value({std::move(new_stats), std::move(removed_stats)});
 }
+
 }  // namespace td

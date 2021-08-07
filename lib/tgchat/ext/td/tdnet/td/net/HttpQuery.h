@@ -10,6 +10,7 @@
 
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
+#include "td/utils/port/IPAddress.h"
 #include "td/utils/Slice.h"
 #include "td/utils/StringBuilder.h"
 
@@ -19,25 +20,27 @@ namespace td {
 
 class HttpQuery {
  public:
-  enum class Type : int8 { EMPTY, GET, POST, RESPONSE };
+  enum class Type : int8 { Empty, Get, Post, Response };
 
-  std::vector<BufferSlice> container_;
-  Type type_ = Type::EMPTY;
+  vector<BufferSlice> container_;
+  Type type_ = Type::Empty;
   int32 code_ = 0;
   MutableSlice url_path_;
-  std::vector<std::pair<MutableSlice, MutableSlice>> args_;
+  vector<std::pair<MutableSlice, MutableSlice>> args_;
   MutableSlice reason_;
 
   bool keep_alive_ = true;
-  std::vector<std::pair<MutableSlice, MutableSlice>> headers_;
-  std::vector<HttpFile> files_;
+  vector<std::pair<MutableSlice, MutableSlice>> headers_;
+  vector<HttpFile> files_;
   MutableSlice content_;
+
+  IPAddress peer_address_;
 
   Slice get_header(Slice key) const;
 
   MutableSlice get_arg(Slice key) const;
 
-  std::vector<std::pair<string, string>> get_args() const;
+  vector<std::pair<string, string>> get_args() const;
 
   int get_retry_after() const;
 };

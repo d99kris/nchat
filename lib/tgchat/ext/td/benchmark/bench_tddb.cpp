@@ -11,7 +11,7 @@
 #include "td/telegram/ServerMessageId.h"
 #include "td/telegram/UserId.h"
 
-#include "td/actor/actor.h"
+#include "td/actor/ConcurrentScheduler.h"
 #include "td/actor/PromiseFuture.h"
 
 #include "td/db/SqliteConnectionSafe.h"
@@ -62,7 +62,8 @@ class MessagesDbBench : public Benchmark {
 
         // use async on same thread.
         messages_db_async_->add_message({dialog_id, message_id}, unique_message_id, sender_user_id, random_id,
-                                        ttl_expires_at, 0, 0, "", NotificationId(), std::move(data), Promise<>());
+                                        ttl_expires_at, 0, 0, "", NotificationId(), MessageId(), std::move(data),
+                                        Promise<>());
       }
     }
   }
@@ -112,5 +113,4 @@ class MessagesDbBench : public Benchmark {
 int main() {
   SET_VERBOSITY_LEVEL(VERBOSITY_NAME(WARNING));
   bench(td::MessagesDbBench());
-  return 0;
 }

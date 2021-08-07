@@ -7,9 +7,11 @@
 #include "td/utils/benchmark.h"
 
 #include "td/actor/actor.h"
+#include "td/actor/ConcurrentScheduler.h"
 #include "td/actor/PromiseFuture.h"
 
 #include "td/utils/common.h"
+#include "td/utils/crypto.h"
 #include "td/utils/logging.h"
 
 #if TD_MSVC
@@ -55,12 +57,12 @@ class RingBench : public td::Benchmark {
             send_closure_later(next_actor, &PassActor::pass, n - 1);
           } else {
             // TODO: it is three times faster than send_event
-            // may be send event could be further optimized?
+            // maybe send event could be further optimized?
             ::td::Scheduler::instance()->hack(static_cast<td::ActorId<Actor>>(next_actor),
                                               td::Event::raw(static_cast<td::uint32>(n - 1)));
           }
         } else if (type == 4) {
-          send_lambda(next_actor, [=, ptr = next_actor.get_actor_unsafe()] { ptr->pass(n - 1); });
+          send_lambda(next_actor, [n, ptr = next_actor.get_actor_unsafe()] { ptr->pass(n - 1); });
         }
       }
     }
@@ -266,6 +268,8 @@ class QueryBench : public td::Benchmark {
 };
 
 int main() {
+  td::init_openssl_threads();
+
   SET_VERBOSITY_LEVEL(VERBOSITY_NAME(DEBUG));
   bench(RingBench<4>(504, 0));
   bench(RingBench<3>(504, 0));
@@ -285,5 +289,4 @@ int main() {
   bench(RingBench<0>(504, 2));
   bench(RingBench<1>(504, 2));
   bench(RingBench<2>(504, 2));
-  return 0;
 }

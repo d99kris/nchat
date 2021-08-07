@@ -88,6 +88,7 @@ template <class T, class DeleterT = std::default_delete<T>>
 class SharedPtr {
  public:
   using Raw = detail::SharedPtrRaw<T, DeleterT>;
+  struct acquire_t {};
   SharedPtr() = default;
   ~SharedPtr() {
     if (!raw_) {
@@ -99,6 +100,8 @@ class SharedPtr {
     if (raw_) {
       raw_->inc();
     }
+  }
+  SharedPtr(acquire_t, Raw *raw) : raw_(raw) {
   }
   SharedPtr(const SharedPtr &other) : SharedPtr(other.raw_) {
   }

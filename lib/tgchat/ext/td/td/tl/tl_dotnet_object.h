@@ -8,8 +8,10 @@
 
 #include "td/utils/port/CxCli.h"
 
+#pragma managed(push, off)
 #include "td/telegram/td_api.h"
 #include "td/telegram/td_api.hpp"
+#pragma managed(pop)
 
 namespace Telegram {
 namespace Td {
@@ -63,7 +65,7 @@ inline String^ FromUnmanaged(const std::string &from) {
 }
 
 inline auto CLRCALL BytesFromUnmanaged(const std::string &from) {
-  Array<byte>^ res = REF_NEW Vector<byte>(static_cast<ArrayIndexType>(from.size()));
+  Array<BYTE>^ res = REF_NEW Vector<BYTE>(static_cast<ArrayIndexType>(from.size()));
   ArrayIndexType i = 0;
   for (auto b : from) {
     ArraySet(res, i++, b);
@@ -160,7 +162,7 @@ inline std::string ToUnmanaged(String ^from) {
   return string_to_unmanaged(from);
 }
 
-inline std::string ToUnmanaged(Array<byte>^ from) {
+inline std::string ToUnmanaged(Array<BYTE>^ from) {
   if (!from) {
     return std::string();
   }

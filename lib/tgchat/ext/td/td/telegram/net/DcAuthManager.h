@@ -15,10 +15,13 @@
 
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
+#include "td/utils/logging.h"
 
 #include <memory>
 
 namespace td {
+
+extern int VERBOSITY_NAME(dc);
 
 class DcAuthManager : public NetQueryCallback {
  public:

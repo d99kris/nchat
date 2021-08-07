@@ -52,6 +52,20 @@ string clean_username(string str) {
   return trim(str);
 }
 
+void replace_offending_characters(string &str) {
+  // "(\xe2\x80\x8f|\xe2\x80\x8e){N}(\xe2\x80\x8f|\xe2\x80\x8e)" -> "(\xe2\x80\x8c){N}$2"
+  auto s = MutableSlice(str).ubegin();
+  for (size_t pos = 0; pos < str.size(); pos++) {
+    if (s[pos] == 0xe2 && s[pos + 1] == 0x80 && (s[pos + 2] == 0x8e || s[pos + 2] == 0x8f)) {
+      while (s[pos + 3] == 0xe2 && s[pos + 4] == 0x80 && (s[pos + 5] == 0x8e || s[pos + 5] == 0x8f)) {
+        s[pos + 2] = static_cast<unsigned char>(0x8c);
+        pos += 3;
+      }
+      pos += 2;
+    }
+  }
+}
+
 bool clean_input_string(string &str) {
   constexpr size_t LENGTH_LIMIT = 35000;  // server side limit
   if (!check_utf8(str)) {
@@ -133,14 +147,17 @@ bool clean_input_string(string &str) {
   }
 
   str.resize(new_size);
+
+  replace_offending_characters(str);
+
   return true;
 }
 
 string strip_empty_characters(string str, size_t max_length, bool strip_rtlo) {
   static const char *space_characters[] = {u8"\u1680", u8"\u180E", u8"\u2000", u8"\u2001", u8"\u2002",
                                            u8"\u2003", u8"\u2004", u8"\u2005", u8"\u2006", u8"\u2007",
-                                           u8"\u2008", u8"\u2009", u8"\u200A", u8"\u200B", u8"\u202E",
-                                           u8"\u202F", u8"\u205F", u8"\u3000", u8"\uFEFF", u8"\uFFFC"};
+                                           u8"\u2008", u8"\u2009", u8"\u200A", u8"\u202E", u8"\u202F",
+                                           u8"\u205F", u8"\u2800", u8"\u3000", u8"\uFFFC"};
   static bool can_be_first[std::numeric_limits<unsigned char>::max() + 1];
   static bool can_be_first_inited = [&] {
     for (auto space_ch : space_characters) {
@@ -180,9 +197,13 @@ string strip_empty_characters(string str, size_t max_length, bool strip_rtlo) {
   Slice trimmed = trim(utf8_truncate(trim(Slice(str.c_str(), new_len)), max_length));
 
   // check if there is some non-empty character, empty characters:
+  // "\xE2\x80\x8B", ZERO WIDTH SPACE
   // "\xE2\x80\x8C", ZERO WIDTH NON-JOINER
   // "\xE2\x80\x8D", ZERO WIDTH JOINER
+  // "\xE2\x80\x8E", LEFT-TO-RIGHT MARK
+  // "\xE2\x80\x8F", RIGHT-TO-LEFT MARK
   // "\xE2\x80\xAE", RIGHT-TO-LEFT OVERRIDE
+  // "\xEF\xBB\xBF", ZERO WIDTH NO-BREAK SPACE aka BYTE ORDER MARK
   // "\xC2\xA0", NO-BREAK SPACE
   for (i = 0;;) {
     if (i == trimmed.size()) {
@@ -194,9 +215,15 @@ string strip_empty_characters(string str, size_t max_length, bool strip_rtlo) {
       i++;
       continue;
     }
-    if (static_cast<unsigned char>(trimmed[i]) == 0xE2 && static_cast<unsigned char>(trimmed[i + 1]) == 0x80 &&
-        (static_cast<unsigned char>(trimmed[i + 2]) == 0x8C || static_cast<unsigned char>(trimmed[i + 2]) == 0x8D ||
-         static_cast<unsigned char>(trimmed[i + 2]) == 0xAE)) {
+    if (static_cast<unsigned char>(trimmed[i]) == 0xE2 && static_cast<unsigned char>(trimmed[i + 1]) == 0x80) {
+      auto next = static_cast<unsigned char>(trimmed[i + 2]);
+      if ((0x8B <= next && next <= 0x8F) || next == 0xAE) {
+        i += 3;
+        continue;
+      }
+    }
+    if (static_cast<unsigned char>(trimmed[i]) == 0xEF && static_cast<unsigned char>(trimmed[i + 1]) == 0xBB &&
+        static_cast<unsigned char>(trimmed[i + 2]) == 0xBF) {
       i += 3;
       continue;
     }
@@ -278,13 +305,25 @@ string get_emoji_fingerprint(uint64 num) {
   return emojis[static_cast<size_t>((num & 0x7FFFFFFFFFFFFFFF) % emojis.size())].str();
 }
 
+static bool tolower_begins_with(Slice str, Slice prefix) {
+  if (prefix.size() > str.size()) {
+    return false;
+  }
+  for (size_t i = 0; i < prefix.size(); i++) {
+    if (to_lower(str[i]) != prefix[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
 Result<string> check_url(Slice url) {
   bool is_tg = false;
   bool is_ton = false;
-  if (begins_with(url, "tg:")) {
+  if (tolower_begins_with(url, "tg:")) {
     url.remove_prefix(3);
     is_tg = true;
-  } else if (begins_with(url, "ton:")) {
+  } else if (tolower_begins_with(url, "ton:")) {
     url.remove_prefix(4);
     is_ton = true;
   }
@@ -293,8 +332,8 @@ Result<string> check_url(Slice url) {
   }
   TRY_RESULT(http_url, parse_url(url));
   if (is_tg || is_ton) {
-    if (begins_with(url, "http://") || http_url.protocol_ == HttpUrl::Protocol::HTTPS || !http_url.userinfo_.empty() ||
-        http_url.specified_port_ != 0 || http_url.is_ipv6_) {
+    if (tolower_begins_with(url, "http://") || http_url.protocol_ == HttpUrl::Protocol::Https ||
+        !http_url.userinfo_.empty() || http_url.specified_port_ != 0 || http_url.is_ipv6_) {
       return Status::Error(is_tg ? Slice("Wrong tg URL") : Slice("Wrong ton URL"));
     }
 
@@ -306,10 +345,33 @@ Result<string> check_url(Slice url) {
     return PSTRING() << (is_tg ? "tg" : "ton") << "://" << http_url.host_ << query;
   }
 
-  if (url.find('.') == string::npos) {
+  if (http_url.host_.find('.') == string::npos && !http_url.is_ipv6_) {
     return Status::Error("Wrong HTTP URL");
   }
   return http_url.get_url();
+}
+
+string remove_emoji_modifiers(string emoji) {
+  static const Slice modifiers[] = {u8"\uFE0E" /* variation selector-15 */,
+                                    u8"\uFE0F" /* variation selector-16 */,
+                                    u8"\u200D\u2640" /* zero width joiner + female sign */,
+                                    u8"\u200D\u2642" /* zero width joiner + male sign */,
+                                    u8"\U0001F3FB" /* emoji modifier fitzpatrick type-1-2 */,
+                                    u8"\U0001F3FC" /* emoji modifier fitzpatrick type-3 */,
+                                    u8"\U0001F3FD" /* emoji modifier fitzpatrick type-4 */,
+                                    u8"\U0001F3FE" /* emoji modifier fitzpatrick type-5 */,
+                                    u8"\U0001F3FF" /* emoji modifier fitzpatrick type-6 */};
+  bool found = true;
+  while (found) {
+    found = false;
+    for (auto &modifier : modifiers) {
+      if (ends_with(emoji, modifier) && emoji.size() > modifier.size()) {
+        emoji.resize(emoji.size() - modifier.size());
+        found = true;
+      }
+    }
+  }
+  return emoji;
 }
 
 }  // namespace td

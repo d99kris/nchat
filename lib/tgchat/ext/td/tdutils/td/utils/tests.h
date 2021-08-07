@@ -11,11 +11,11 @@
 #include "td/utils/format.h"
 #include "td/utils/logging.h"
 #include "td/utils/port/thread.h"
-#include "td/utils/Random.h"
 #include "td/utils/Slice.h"
 #include "td/utils/Status.h"
 
 #include <atomic>
+#include <functional>
 #include <utility>
 
 #define REGISTER_TESTS(x)                \
@@ -25,6 +25,36 @@
 #define LOAD_TESTS(x) TD_CONCAT(register_tests_, x)()
 
 namespace td {
+
+class RandomSteps {
+ public:
+  struct Step {
+    std::function<void()> func;
+    uint32 weight;
+  };
+
+  explicit RandomSteps(vector<Step> steps) : steps_(std::move(steps)) {
+    for (const auto &step : steps_) {
+      steps_sum_ += step.weight;
+    }
+  }
+
+  template <class Random>
+  void step(Random &rnd) const {
+    auto w = rnd() % steps_sum_;
+    for (const auto &step : steps_) {
+      if (w < step.weight) {
+        step.func();
+        break;
+      }
+      w -= step.weight;
+    }
+  }
+
+ private:
+  vector<Step> steps_;
+  int32 steps_sum_ = 0;
+};
 
 class RegressionTester {
  public:
@@ -65,7 +95,7 @@ class TestsRunner : public TestContext {
  public:
   static TestsRunner &get_default();
 
-  void add_test(string name, unique_ptr<Test> test);
+  void add_test(string name, std::function<unique_ptr<Test>()> test);
   void add_substr_filter(string str);
   void set_stress_flag(bool flag);
   void run_all();
@@ -77,11 +107,16 @@ class TestsRunner : public TestContext {
     size_t it{0};
     bool is_running = false;
     double start{0};
+    double start_unadjusted{0};
     size_t end{0};
   };
   bool stress_flag_{false};
   vector<string> substr_filters_;
-  vector<std::pair<string, unique_ptr<Test>>> tests_;
+  struct TestInfo {
+    std::function<unique_ptr<Test>()> creator;
+    unique_ptr<Test> test;
+  };
+  vector<std::pair<string, TestInfo>> tests_;
   State state_;
   unique_ptr<RegressionTester> regression_tester_;
 
@@ -92,8 +127,8 @@ class TestsRunner : public TestContext {
 template <class T>
 class RegisterTest {
  public:
-  RegisterTest(string name, TestsRunner &runner = TestsRunner::get_default()) {
-    runner.add_test(name, make_unique<T>());
+  explicit RegisterTest(string name, TestsRunner &runner = TestsRunner::get_default()) {
+    runner.add_test(name, [] { return make_unique<T>(); });
   }
 };
 
@@ -110,29 +145,9 @@ class Stage {
   std::atomic<uint64> value_{0};
 };
 
-inline string rand_string(char from, char to, int len) {
-  string res(len, 0);
-  for (auto &c : res) {
-    c = static_cast<char>(Random::fast(from, to));
-  }
-  return res;
-}
+string rand_string(int from, int to, size_t len);
 
-inline vector<string> rand_split(Slice str) {
-  vector<string> res;
-  size_t pos = 0;
-  while (pos < str.size()) {
-    size_t len;
-    if (Random::fast(0, 1) == 1) {
-      len = Random::fast(1, 10);
-    } else {
-      len = Random::fast(100, 200);
-    }
-    res.push_back(str.substr(pos, len).str());
-    pos += len;
-  }
-  return res;
-}
+vector<string> rand_split(Slice str);
 
 template <class T1, class T2>
 void assert_eq_impl(const T1 &expected, const T2 &got, const char *file, int line) {

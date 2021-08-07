@@ -190,7 +190,8 @@ class MapDownloadGenerateActor : public FileGenerateActor {
 
     int64 access_hash = G()->get_location_access_hash(latitude, longitude);
     return make_tl_object<telegram_api::inputWebFileGeoPointLocation>(
-        make_tl_object<telegram_api::inputGeoPoint>(latitude, longitude), access_hash, width, height, zoom, scale);
+        make_tl_object<telegram_api::inputGeoPoint>(0, latitude, longitude, 0), access_hash, width, height, zoom,
+        scale);
   }
 
   void start_up() override {
@@ -203,9 +204,9 @@ class MapDownloadGenerateActor : public FileGenerateActor {
     net_callback_ = create_actor<Callback>("MapDownloadGenerateCallback", actor_id(this));
 
     LOG(INFO) << "Download " << conversion_;
-    auto query = G()->net_query_creator().create(
-        create_storer(telegram_api::upload_getWebFile(r_input_web_file.move_as_ok(), 0, 1 << 20)),
-        G()->get_webfile_dc_id(), NetQuery::Type::DownloadSmall);
+    auto query =
+        G()->net_query_creator().create(telegram_api::upload_getWebFile(r_input_web_file.move_as_ok(), 0, 1 << 20),
+                                        G()->get_webfile_dc_id(), NetQuery::Type::DownloadSmall);
     G()->net_query_dispatcher().dispatch_with_callback(std::move(query), {net_callback_.get(), 0});
   }
 
@@ -376,7 +377,7 @@ static Status check_mtime(std::string &conversion, CSlice original_path) {
     return Status::OK();
   }
   ConstParser parser(conversion);
-  if (!parser.skip_start_with("#mtime#")) {
+  if (!parser.try_skip("#mtime#")) {
     return Status::OK();
   }
   auto mtime_str = parser.read_till('#');
@@ -411,7 +412,7 @@ void FileGenerateManager::generate_file(uint64 query_id, FullGenerateFileLocatio
   }
 
   CHECK(query_id != 0);
-  auto it_flag = query_id_to_query_.insert(std::make_pair(query_id, Query{}));
+  auto it_flag = query_id_to_query_.emplace(query_id, Query{});
   LOG_CHECK(it_flag.second) << "Query id must be unique";
   auto parent = actor_shared(this, query_id);
 

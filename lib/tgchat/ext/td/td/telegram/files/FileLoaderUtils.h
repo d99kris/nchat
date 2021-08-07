@@ -11,6 +11,7 @@
 
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
+#include "td/utils/logging.h"
 #include "td/utils/port/FileFd.h"
 #include "td/utils/Slice.h"
 #include "td/utils/Status.h"
@@ -18,6 +19,8 @@
 #include <utility>
 
 namespace td {
+
+extern int VERBOSITY_NAME(file_loader);
 
 Result<std::pair<FileFd, string>> open_temp_file(FileType file_type) TD_WARN_UNUSED_RESULT;
 

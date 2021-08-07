@@ -10,7 +10,7 @@
 
 #include "td/utils/format.h"
 #include "td/utils/logging.h"
-#include "td/utils/port/detail/PollableFd.h"
+#include "td/utils/port/detail/skip_eintr.h"
 #include "td/utils/ScopeGuard.h"
 
 #if TD_PORT_WINDOWS
@@ -43,6 +43,7 @@
 #include <sys/syslimits.h>
 #endif
 
+#include <cerrno>
 #include <cstdlib>
 #include <string>
 

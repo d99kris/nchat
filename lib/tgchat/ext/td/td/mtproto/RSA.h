@@ -15,17 +15,16 @@
 
 namespace td {
 
-/*** RSA ***/
 class RSA {
  public:
   RSA clone() const;
   int64 get_fingerprint() const;
   size_t size() const;
-  size_t encrypt(unsigned char *from, size_t from_len, unsigned char *to) const;
+  size_t encrypt(unsigned char *from, size_t from_len, size_t max_from_len, unsigned char *to, size_t to_len) const;
 
-  void decrypt(Slice from, MutableSlice to) const;
+  void decrypt_signature(Slice from, MutableSlice to) const;
 
-  static Result<RSA> from_pem(Slice pem);
+  static Result<RSA> from_pem_public_key(Slice pem);
 
  private:
   RSA(BigNum n, BigNum e);
@@ -33,7 +32,6 @@ class RSA {
   BigNum e_;
 };
 
-/*** PublicRsaKeyInterface ***/
 class PublicRsaKeyInterface {
  public:
   virtual ~PublicRsaKeyInterface() = default;

@@ -4,13 +4,9 @@
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
-#include "td/actor/impl/ConcurrentScheduler.h"
+#include "td/actor/ConcurrentScheduler.h"
 
-#include "td/actor/impl/Actor.h"
-#include "td/actor/impl/ActorId.h"
-#include "td/actor/impl/ActorInfo.h"
-#include "td/actor/impl/Scheduler.h"
-
+#include "td/utils/ExitGuard.h"
 #include "td/utils/MpscPollableQueue.h"
 #include "td/utils/port/thread_local.h"
 
@@ -78,7 +74,7 @@ void ConcurrentScheduler::start() {
 #if !TD_THREAD_UNSUPPORTED && !TD_EVENTFD_UNSUPPORTED
   for (size_t i = 1; i + extra_scheduler_ < schedulers_.size(); i++) {
     auto &sched = schedulers_[i];
-    threads_.push_back(td::thread([&]() {
+    threads_.push_back(td::thread([&] {
 #if TD_PORT_WINDOWS
       detail::Iocp::Guard iocp_guard(iocp_.get());
 #endif
@@ -140,6 +136,19 @@ void ConcurrentScheduler::finish() {
   detail::Iocp::Guard iocp_guard(iocp_.get());
 #endif
 
+  if (ExitGuard::is_exited()) {
+    // prevent closing of schedulers from already killed by OS threads
+    for (auto &thread : threads_) {
+      thread.detach();
+    }
+
+#if TD_PORT_WINDOWS
+    iocp_->interrupt_loop();
+    iocp_thread_.detach();
+#endif
+    return;
+  }
+
 #if !TD_THREAD_UNSUPPORTED && !TD_EVENTFD_UNSUPPORTED
   for (auto &thread : threads_) {
     thread.join();
@@ -159,6 +168,18 @@ void ConcurrentScheduler::finish() {
   at_finish_.clear();
 
   state_ = State::Start;
+}
+
+void ConcurrentScheduler::on_finish() {
+  is_finished_.store(true, std::memory_order_relaxed);
+  for (auto &it : schedulers_) {
+    it->wakeup();
+  }
+}
+
+void ConcurrentScheduler::register_at_finish(std::function<void()> f) {
+  std::lock_guard<std::mutex> lock(at_finish_mutex_);
+  at_finish_.push_back(std::move(f));
 }
 
 }  // namespace td

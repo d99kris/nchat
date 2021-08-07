@@ -56,6 +56,21 @@ std::string TD_TL_writer_h::gen_output_begin() const {
          ext_forward_declaration + "namespace " + tl_name +
          " {\n\n"
 
+         "using int32 = std::int32_t;\n"
+         "using int53 = std::int64_t;\n"
+         "using int64 = std::int64_t;\n\n"
+
+         "using string = " +
+         string_type +
+         ";\n\n"
+
+         "using bytes = " +
+         bytes_type +
+         ";\n\n"
+
+         "template <class Type>\n"
+         "using array = std::vector<Type>;\n\n"
+
          "using BaseObject = ::td::TlObject;\n\n"
 
          "template <class Type>\n"
@@ -146,7 +161,7 @@ std::string TD_TL_writer_h::gen_flags_definitions(const tl::tl_combinator *t) co
       for (auto &c : name) {
         c = to_upper(c);
       }
-      flags.push_back(std::make_pair(name, a.exist_var_bit));
+      flags.emplace_back(name, a.exist_var_bit);
     }
   }
   std::string res;

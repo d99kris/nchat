@@ -23,7 +23,8 @@ namespace TdExample
 
         private static TdApi.AuthorizationState _authorizationState = null;
         private static volatile bool _haveAuthorization = false;
-        private static volatile bool _quiting = false;
+        private static volatile bool _needQuit = false;
+        private static volatile bool _canQuit = false;
 
         private static volatile AutoResetEvent _gotAuthorization = new AutoResetEvent(false);
 
@@ -33,7 +34,7 @@ namespace TdExample
 
         private static Td.Client CreateTdClient()
         {
-            Td.Client result = Td.Client.Create(new UpdatesHandler());
+            Td.Client result = Td.Client.Create(new UpdateHandler());
             new Thread(() =>
             {
                 Thread.CurrentThread.IsBackground = true;
@@ -80,7 +81,6 @@ namespace TdExample
                 parameters.ApiHash = "a3406de8d171bb422bb6ddf3bbd800e2";
                 parameters.SystemLanguageCode = "en";
                 parameters.DeviceModel = "Desktop";
-                parameters.SystemVersion = "Unknown";
                 parameters.ApplicationVersion = "1.0";
                 parameters.EnableStorageOptimizer = true;
 
@@ -134,9 +134,11 @@ namespace TdExample
             {
                 Print("Closed");
                 _client.Dispose(); // _client is closed and native resources can be disposed now
-                if (!_quiting)
+                if (!_needQuit)
                 {
                     _client = CreateTdClient(); // recreate _client after previous has closed
+                } else {
+                    _canQuit = true;
                 }
             }
             else
@@ -188,7 +190,7 @@ namespace TdExample
                         _client.Send(new TdApi.Close(), _defaultHandler);
                         break;
                     case "q":
-                        _quiting = true;
+                        _needQuit = true;
                         _haveAuthorization = false;
                         _client.Send(new TdApi.Close(), _defaultHandler);
                         break;
@@ -210,14 +212,14 @@ namespace TdExample
             TdApi.ReplyMarkup replyMarkup = new TdApi.ReplyMarkupInlineKeyboard(new TdApi.InlineKeyboardButton[][] { row, row, row });
 
             TdApi.InputMessageContent content = new TdApi.InputMessageText(new TdApi.FormattedText(message, null), false, true);
-            _client.Send(new TdApi.SendMessage(chatId, 0, null, replyMarkup, content), _defaultHandler);
+            _client.Send(new TdApi.SendMessage(chatId, 0, 0, null, replyMarkup, content), _defaultHandler);
         }
 
         static void Main()
         {
             // disable TDLib log
             Td.Client.Execute(new TdApi.SetLogVerbosityLevel(0));
-            if (Td.Client.Execute(new TdApi.SetLogStream(new TdApi.LogStreamFile("tdlib.log", 1 << 27))) is TdApi.Error)
+            if (Td.Client.Execute(new TdApi.SetLogStream(new TdApi.LogStreamFile("tdlib.log", 1 << 27, false))) is TdApi.Error)
             {
                 throw new System.IO.IOException("Write access to the current directory is required");
             }
@@ -229,7 +231,7 @@ namespace TdExample
             _defaultHandler.OnResult(Td.Client.Execute(new TdApi.GetTextEntities("@telegram /test_command https://telegram.org telegram.me @gif @test")));
 
             // main loop
-            while (!_quiting)
+            while (!_needQuit)
             {
                 // await authorization
                 _gotAuthorization.Reset();
@@ -241,6 +243,9 @@ namespace TdExample
                     GetCommand();
                 }
             }
+            while (!_canQuit) {
+                Thread.Sleep(1);
+            }
         }
 
         private class DefaultHandler : Td.ClientResultHandler
@@ -251,7 +256,7 @@ namespace TdExample
             }
         }
 
-        private class UpdatesHandler : Td.ClientResultHandler
+        private class UpdateHandler : Td.ClientResultHandler
         {
             void Td.ClientResultHandler.OnResult(TdApi.BaseObject @object)
             {

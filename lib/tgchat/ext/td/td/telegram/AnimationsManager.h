@@ -35,7 +35,8 @@ class AnimationsManager : public Actor {
 
   tl_object_ptr<td_api::animation> get_animation_object(FileId file_id, const char *source);
 
-  void create_animation(FileId file_id, string minithumbnail, PhotoSize thumbnail, string file_name, string mime_type,
+  void create_animation(FileId file_id, string minithumbnail, PhotoSize thumbnail, AnimationSize animated_thumbnail,
+                        bool has_stickers, vector<FileId> &&sticker_file_ids, string file_name, string mime_type,
                         int32 duration, Dimensions dimensions, bool replace);
 
   tl_object_ptr<telegram_api::InputMedia> get_input_media(FileId file_id,
@@ -48,11 +49,17 @@ class AnimationsManager : public Actor {
 
   FileId get_animation_thumbnail_file_id(FileId file_id) const;
 
+  FileId get_animation_animated_thumbnail_file_id(FileId file_id) const;
+
   void delete_animation_thumbnail(FileId file_id);
 
   FileId dup_animation(FileId new_id, FileId old_id);
 
   bool merge_animations(FileId new_id, FileId old_id, bool can_delete_old);
+
+  void on_update_animation_search_emojis(string animation_search_emojis);
+
+  void on_update_animation_search_provider(string animation_search_provider);
 
   void on_update_saved_animations_limit(int32 saved_animations_limit);
 
@@ -97,6 +104,10 @@ class AnimationsManager : public Actor {
     Dimensions dimensions;
     string minithumbnail;
     PhotoSize thumbnail;
+    AnimationSize animated_thumbnail;
+
+    bool has_stickers = false;
+    vector<FileId> sticker_file_ids;
 
     FileId file_id;
 
@@ -117,6 +128,10 @@ class AnimationsManager : public Actor {
 
   void on_load_saved_animations_finished(vector<FileId> &&saved_animation_ids, bool from_database = false);
 
+  void try_send_update_animation_search_parameters() const;
+
+  td_api::object_ptr<td_api::updateAnimationSearchParameters> get_update_animation_search_parameters_object() const;
+
   td_api::object_ptr<td_api::updateSavedAnimations> get_update_saved_animations_object() const;
 
   void send_update_saved_animations(bool from_database = false);
@@ -136,10 +151,16 @@ class AnimationsManager : public Actor {
   vector<FileId> saved_animation_ids_;
   vector<FileId> saved_animation_file_ids_;
   double next_saved_animations_load_time_ = 0;
+  bool are_saved_animations_being_loaded_ = false;
   bool are_saved_animations_loaded_ = false;
   vector<Promise<Unit>> load_saved_animations_queries_;
   vector<Promise<Unit>> repair_saved_animations_queries_;
   FileSourceId saved_animations_file_source_id_;
+
+  string animation_search_emojis_;
+  string animation_search_provider_;
+  bool is_animation_search_emojis_inited_ = false;
+  bool is_animation_search_provider_inited_ = false;
 };
 
 }  // namespace td

@@ -7,6 +7,8 @@
 #pragma once
 
 #include "td/utils/common.h"
+#include "td/utils/logging.h"
+#include "td/utils/ScopeGuard.h"
 #include "td/utils/Slice.h"
 #include "td/utils/Status.h"
 
@@ -18,6 +20,8 @@ struct sqlite3;
 struct sqlite3_stmt;
 
 namespace td {
+
+extern int VERBOSITY_NAME(sqlite);
 
 class SqliteStatement {
  public:

@@ -82,13 +82,13 @@ class TlWriterDotNet : public TL_writer {
   static std::string to_cCamelCase(const std::string &name, bool flag) {
     bool next_to_upper = flag;
     std::string result;
-    for (int i = 0; i < (int)name.size(); i++) {
+    for (std::size_t i = 0; i < name.size(); i++) {
       if (!is_alnum(name[i])) {
         next_to_upper = true;
         continue;
       }
       if (next_to_upper) {
-        result += (char)to_upper(name[i]);
+        result += to_upper(name[i]);
         next_to_upper = false;
       } else {
         result += name[i];
@@ -98,7 +98,7 @@ class TlWriterDotNet : public TL_writer {
   }
 
   std::string gen_native_field_name(std::string name) const {
-    for (int i = 0; i < (int)name.size(); i++) {
+    for (std::size_t i = 0; i < name.size(); i++) {
       if (!is_alnum(name[i])) {
         name[i] = '_';
       }
@@ -115,7 +115,7 @@ class TlWriterDotNet : public TL_writer {
     if (name == "#") {
       return "int32_t";
     }
-    for (int i = 0; i < (int)name.size(); i++) {
+    for (std::size_t i = 0; i < name.size(); i++) {
       if (!is_alnum(name[i])) {
         name[i] = '_';
       }
@@ -158,12 +158,12 @@ class TlWriterDotNet : public TL_writer {
       return "String^";
     }
     if (name == "Bytes") {
-      return "Array<byte>^";
+      return "Array<BYTE>^";
     }
 
     if (name == "Vector") {
       assert(t->arity == 1);
-      assert((int)tree_type->children.size() == 1);
+      assert(tree_type->children.size() == 1);
       assert(tree_type->children[0]->get_type() == NODE_TYPE_TYPE);
       const tl_tree_type *child = static_cast<const tl_tree_type *>(tree_type->children[0]);
 
@@ -172,7 +172,7 @@ class TlWriterDotNet : public TL_writer {
 
     assert(!is_built_in_simple_type(name) && !is_built_in_complex_type(name));
 
-    for (int i = 0; i < (int)tree_type->children.size(); i++) {
+    for (std::size_t i = 0; i < tree_type->children.size(); i++) {
       assert(tree_type->children[i]->get_type() == NODE_TYPE_NAT_CONST);
     }
 
@@ -288,7 +288,8 @@ class TlWriterDotNet : public TL_writer {
     while (field_type.substr(pos, 6) == "Array<") {
       pos += 6;
     }
-    if (field_type.substr(pos, 6) != "String" && to_upper(field_type[pos]) == field_type[pos]) {
+    if (field_type.substr(pos, 4) != "BYTE" && field_type.substr(pos, 6) != "String" &&
+        to_upper(field_type[pos]) == field_type[pos]) {
       field_type = field_type.substr(0, pos) + "::Telegram::Td::Api::" + field_type.substr(pos);
     }
     ss << field_type << " " << to_camelCase(a.name);
@@ -383,7 +384,7 @@ class TlWriterDotNet : public TL_writer {
       } else {
         ss << ", ";
       }
-      bool need_bytes = gen_field_type(it) == "Array<byte>^" || gen_field_type(it) == "Array<Array<byte>^>^";
+      bool need_bytes = gen_field_type(it) == "Array<BYTE>^" || gen_field_type(it) == "Array<Array<BYTE>^>^";
       ss << (need_bytes ? "Bytes" : "") << "FromUnmanaged(from." << gen_native_field_name(it.name) << ")";
     }
     ss << ");\n}\n";

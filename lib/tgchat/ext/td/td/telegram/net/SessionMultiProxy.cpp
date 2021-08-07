@@ -39,7 +39,7 @@ SessionMultiProxy::SessionMultiProxy(int32 session_count, std::shared_ptr<AuthDa
 void SessionMultiProxy::send(NetQueryPtr query) {
   size_t pos = 0;
   // TODO temporary hack with total_timeout_limit
-  if (query->auth_flag() == NetQuery::AuthFlag::On && query->total_timeout_limit > 50) {
+  if (query->auth_flag() == NetQuery::AuthFlag::On && query->total_timeout_limit_ > 7) {
     if (query->session_rand()) {
       pos = query->session_rand() % sessions_.size();
     } else {
@@ -48,7 +48,7 @@ void SessionMultiProxy::send(NetQueryPtr query) {
             sessions_.begin();
     }
   }
-  query->debug(PSTRING() << get_name() << ": send to proxy #" << pos);
+  // query->debug(PSTRING() << get_name() << ": send to proxy #" << pos);
   sessions_[pos].queries_count++;
   send_closure(sessions_[pos].proxy, &SessionProxy::send, std::move(query));
 }
@@ -117,7 +117,7 @@ bool SessionMultiProxy::get_pfs_flag() const {
 void SessionMultiProxy::init() {
   sessions_generation_++;
   sessions_.clear();
-  if (is_main_) {
+  if (is_main_ && session_count_ > 1) {
     LOG(WARNING) << tag("session_count", session_count_);
   }
   for (int32 i = 0; i < session_count_; i++) {

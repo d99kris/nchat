@@ -26,7 +26,7 @@ struct DatabaseStats {
   DatabaseStats() = default;
   explicit DatabaseStats(string debug) : debug(debug) {
   }
-  tl_object_ptr<td_api::databaseStatistics> as_td_api() const;
+  tl_object_ptr<td_api::databaseStatistics> get_database_statistics_object() const;
 };
 
 class StorageManager : public Actor {
@@ -35,15 +35,15 @@ class StorageManager : public Actor {
   void get_storage_stats(bool need_all_files, int32 dialog_limit, Promise<FileStats> promise);
   void get_storage_stats_fast(Promise<FileStatsFast> promise);
   void get_database_stats(Promise<DatabaseStats> promise);
-  void run_gc(FileGcParameters parameters, Promise<FileStats> promise);
+  void run_gc(FileGcParameters parameters, bool return_deleted_file_statistics, Promise<FileStats> promise);
   void update_use_storage_optimizer();
 
-  void on_new_file(int64 size, int32 cnt);
+  void on_new_file(int64 size, int64 real_size, int32 cnt);
 
  private:
-  static constexpr uint32 GC_EACH = 60 * 60 * 24;  // 1 day
-  static constexpr uint32 GC_DELAY = 60;
-  static constexpr uint32 GC_RAND_DELAY = 60 * 15;
+  static constexpr int GC_EACH = 60 * 60 * 24;  // 1 day
+  static constexpr int GC_DELAY = 60;
+  static constexpr int GC_RAND_DELAY = 60 * 15;
 
   ActorShared<> parent_;
 
@@ -63,7 +63,8 @@ class StorageManager : public Actor {
 
   void on_file_stats(Result<FileStats> r_file_stats, uint32 generation);
   void create_stats_worker();
-  void send_stats(FileStats &&stats, int32 dialog_limit, std::vector<Promise<FileStats>> promises);
+  void update_fast_stats(const FileStats &stats);
+  void send_stats(FileStats &&stats, int32 dialog_limit, std::vector<Promise<FileStats>> &&promises);
 
   void save_fast_stat();
   void load_fast_stat();
@@ -82,14 +83,14 @@ class StorageManager : public Actor {
 
   // Gc
   ActorOwn<FileGcWorker> gc_worker_;
-  std::vector<Promise<FileStats>> pending_run_gc_;
+  std::vector<Promise<FileStats>> pending_run_gc_[2];
 
   uint32 last_gc_timestamp_ = 0;
   double next_gc_at_ = 0;
 
-  void on_all_files(FileGcParameters gc_parameters, Result<FileStats> r_file_stats, bool dummy);
+  void on_all_files(FileGcParameters gc_parameters, Result<FileStats> r_file_stats);
   void create_gc_worker();
-  void on_gc_finished(int32 dialog_limit, Result<FileStats> r_file_stats, bool dummy);
+  void on_gc_finished(int32 dialog_limit, Result<FileGcResult> r_file_gc_result);
 
   void close_stats_worker();
   void close_gc_worker();

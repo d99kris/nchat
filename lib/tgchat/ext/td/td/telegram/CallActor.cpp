@@ -22,10 +22,13 @@
 #include "td/telegram/Td.h"
 #include "td/telegram/UpdatesManager.h"
 
+#include "td/utils/as.h"
+#include "td/utils/bits.h"
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
 #include "td/utils/crypto.h"
 #include "td/utils/logging.h"
+#include "td/utils/misc.h"
 #include "td/utils/Random.h"
 
 #include <tuple>
@@ -33,16 +36,15 @@
 
 namespace td {
 
-CallProtocol CallProtocol::from_telegram_api(const telegram_api::phoneCallProtocol &protocol) {
-  CallProtocol res;
-  res.udp_p2p = protocol.udp_p2p_;
-  res.udp_reflector = protocol.udp_reflector_;
-  res.min_layer = protocol.min_layer_;
-  res.max_layer = protocol.max_layer_;
-  return res;
+CallProtocol::CallProtocol(const telegram_api::phoneCallProtocol &protocol)
+    : udp_p2p(protocol.udp_p2p_)
+    , udp_reflector(protocol.udp_reflector_)
+    , min_layer(protocol.min_layer_)
+    , max_layer(protocol.max_layer_)
+    , library_versions(protocol.library_versions_) {
 }
 
-tl_object_ptr<telegram_api::phoneCallProtocol> CallProtocol::as_telegram_api() const {
+tl_object_ptr<telegram_api::phoneCallProtocol> CallProtocol::get_input_phone_call_protocol() const {
   int32 flags = 0;
   if (udp_p2p) {
     flags |= telegram_api::phoneCallProtocol::UDP_P2P_MASK;
@@ -50,51 +52,78 @@ tl_object_ptr<telegram_api::phoneCallProtocol> CallProtocol::as_telegram_api() c
   if (udp_reflector) {
     flags |= telegram_api::phoneCallProtocol::UDP_REFLECTOR_MASK;
   }
-  return make_tl_object<telegram_api::phoneCallProtocol>(flags, udp_p2p, udp_reflector, min_layer, max_layer);
+  return make_tl_object<telegram_api::phoneCallProtocol>(flags, udp_p2p, udp_reflector, min_layer, max_layer,
+                                                         vector<string>(library_versions));
 }
 
-CallProtocol CallProtocol::from_td_api(const td_api::callProtocol &protocol) {
-  CallProtocol res;
-  res.udp_p2p = protocol.udp_p2p_;
-  res.udp_reflector = protocol.udp_reflector_;
-  res.min_layer = protocol.min_layer_;
-  res.max_layer = protocol.max_layer_;
-  return res;
-}
-tl_object_ptr<td_api::callProtocol> CallProtocol::as_td_api() const {
-  return make_tl_object<td_api::callProtocol>(udp_p2p, udp_reflector, min_layer, max_layer);
+CallProtocol::CallProtocol(const td_api::callProtocol &protocol)
+    : udp_p2p(protocol.udp_p2p_)
+    , udp_reflector(protocol.udp_reflector_)
+    , min_layer(protocol.min_layer_)
+    , max_layer(protocol.max_layer_)
+    , library_versions(protocol.library_versions_) {
 }
 
-CallConnection CallConnection::from_telegram_api(const telegram_api::phoneConnection &connection) {
-  CallConnection res;
-  res.id = connection.id_;
-  res.ip = connection.ip_;
-  res.ipv6 = connection.ipv6_;
-  res.port = connection.port_;
-  res.peer_tag = connection.peer_tag_.as_slice().str();
-  return res;
-}
-tl_object_ptr<telegram_api::phoneConnection> CallConnection::as_telegram_api() const {
-  return make_tl_object<telegram_api::phoneConnection>(id, ip, ipv6, port, BufferSlice(peer_tag));
-}
-tl_object_ptr<td_api::callConnection> CallConnection::as_td_api() const {
-  return make_tl_object<td_api::callConnection>(id, ip, ipv6, port, peer_tag);
+CallConnection::CallConnection(const telegram_api::PhoneConnection &connection) {
+  switch (connection.get_id()) {
+    case telegram_api::phoneConnection::ID: {
+      auto &conn = static_cast<const telegram_api::phoneConnection &>(connection);
+      type = Type::Telegram;
+      id = conn.id_;
+      ip = conn.ip_;
+      ipv6 = conn.ipv6_;
+      port = conn.port_;
+      peer_tag = conn.peer_tag_.as_slice().str();
+      break;
+    }
+    case telegram_api::phoneConnectionWebrtc::ID: {
+      auto &conn = static_cast<const telegram_api::phoneConnectionWebrtc &>(connection);
+      type = Type::Webrtc;
+      id = conn.id_;
+      ip = conn.ip_;
+      ipv6 = conn.ipv6_;
+      port = conn.port_;
+      username = conn.username_;
+      password = conn.password_;
+      supports_turn = conn.turn_;
+      supports_stun = conn.stun_;
+      break;
+    }
+    default:
+      UNREACHABLE();
+  }
 }
 
-// CallState
-tl_object_ptr<td_api::CallState> CallState::as_td_api() const {
+tl_object_ptr<td_api::callProtocol> CallProtocol::get_call_protocol_object() const {
+  return make_tl_object<td_api::callProtocol>(udp_p2p, udp_reflector, min_layer, max_layer,
+                                              vector<string>(library_versions));
+}
+
+tl_object_ptr<td_api::callServer> CallConnection::get_call_server_object() const {
+  auto server_type = [&]() -> tl_object_ptr<td_api::CallServerType> {
+    switch (type) {
+      case Type::Telegram:
+        return make_tl_object<td_api::callServerTypeTelegramReflector>(peer_tag);
+      case Type::Webrtc:
+        return make_tl_object<td_api::callServerTypeWebrtc>(username, password, supports_turn, supports_stun);
+      default:
+        UNREACHABLE();
+        return nullptr;
+    }
+  }();
+  return make_tl_object<td_api::callServer>(id, ip, ipv6, port, std::move(server_type));
+}
+
+tl_object_ptr<td_api::CallState> CallState::get_call_state_object() const {
   switch (type) {
     case Type::Pending:
       return make_tl_object<td_api::callStatePending>(is_created, is_received);
     case Type::ExchangingKey:
       return make_tl_object<td_api::callStateExchangingKeys>();
     case Type::Ready: {
-      std::vector<tl_object_ptr<td_api::callConnection>> v;
-      for (auto &c : connections) {
-        v.push_back(c.as_td_api());
-      }
-      return make_tl_object<td_api::callStateReady>(protocol.as_td_api(), std::move(v), config, key,
-                                                    vector<string>(emojis_fingerprint), allow_p2p);
+      auto call_connections = transform(connections, [](auto &c) { return c.get_call_server_object(); });
+      return make_tl_object<td_api::callStateReady>(protocol.get_call_protocol_object(), std::move(call_connections),
+                                                    config, key, vector<string>(emojis_fingerprint), allow_p2p);
     }
     case Type::HangingUp:
       return make_tl_object<td_api::callStateHangingUp>();
@@ -129,6 +158,45 @@ void CallActor::create_call(UserId user_id, tl_object_ptr<telegram_api::InputUse
   call_state_need_flush_ = true;
   loop();
   promise.set_value(CallId(local_call_id_));
+}
+
+void CallActor::accept_call(CallProtocol &&protocol, Promise<> promise) {
+  if (state_ != State::SendAcceptQuery) {
+    return promise.set_error(Status::Error(400, "Unexpected acceptCall"));
+  }
+  is_accepted_ = true;
+  call_state_.protocol = std::move(protocol);
+  promise.set_value(Unit());
+  loop();
+}
+
+void CallActor::update_call_signaling_data(string data) {
+  if (call_state_.type != CallState::Type::Ready) {
+    return;
+  }
+
+  auto update = td_api::make_object<td_api::updateNewCallSignalingData>();
+  update->call_id_ = local_call_id_.get();
+  update->data_ = std::move(data);
+  send_closure(G()->td(), &Td::send_update, std::move(update));
+}
+
+void CallActor::send_call_signaling_data(string &&data, Promise<> promise) {
+  if (call_state_.type != CallState::Type::Ready) {
+    return promise.set_error(Status::Error(400, "Call is not active"));
+  }
+
+  auto query = G()->net_query_creator().create(
+      telegram_api::phone_sendSignalingData(get_input_phone_call("send_call_signaling_data"), BufferSlice(data)));
+  send_with_promise(std::move(query),
+                    PromiseCreator::lambda([promise = std::move(promise)](NetQueryPtr net_query) mutable {
+                      auto res = fetch_result<telegram_api::phone_sendSignalingData>(std::move(net_query));
+                      if (res.is_error()) {
+                        promise.set_error(res.move_as_error());
+                      } else {
+                        promise.set_value(Unit());
+                      }
+                    }));
 }
 
 void CallActor::discard_call(bool is_disconnected, int32 duration, bool is_video, int64 connection_id,
@@ -176,16 +244,6 @@ void CallActor::discard_call(bool is_disconnected, int32 duration, bool is_video
   loop();
 }
 
-void CallActor::accept_call(CallProtocol &&protocol, Promise<> promise) {
-  if (state_ != State::SendAcceptQuery) {
-    return promise.set_error(Status::Error(400, "Unexpected acceptCall"));
-  }
-  is_accepted_ = true;
-  call_state_.protocol = std::move(protocol);
-  promise.set_value(Unit());
-  loop();
-}
-
 void CallActor::rate_call(int32 rating, string comment, vector<td_api::object_ptr<td_api::CallProblem>> &&problems,
                           Promise<> promise) {
   if (!call_state_.need_rating) {
@@ -219,6 +277,10 @@ void CallActor::rate_call(int32 rating, string comment, vector<td_api::object_pt
           return "silent_remote";
         case td_api::callProblemDropped::ID:
           return "dropped";
+        case td_api::callProblemDistortedVideo::ID:
+          return "distorted_video";
+        case td_api::callProblemPixelatedVideo::ID:
+          return "pixelated_video";
         default:
           UNREACHABLE();
           return "";
@@ -235,7 +297,7 @@ void CallActor::rate_call(int32 rating, string comment, vector<td_api::object_pt
 
   auto tl_query = telegram_api::phone_setCallRating(0, false /*ignored*/, get_input_phone_call("rate_call"), rating,
                                                     std::move(comment));
-  auto query = G()->net_query_creator().create(create_storer(tl_query));
+  auto query = G()->net_query_creator().create(tl_query);
   send_with_promise(std::move(query), PromiseCreator::lambda([actor_id = actor_id(this)](NetQueryPtr net_query) {
                       send_closure(actor_id, &CallActor::on_set_rating_query_result, std::move(net_query));
                     }));
@@ -258,7 +320,7 @@ void CallActor::send_call_debug_information(string data, Promise<> promise) {
   promise.set_value(Unit());
   auto tl_query = telegram_api::phone_saveCallDebug(get_input_phone_call("send_call_debug_information"),
                                                     make_tl_object<telegram_api::dataJSON>(std::move(data)));
-  auto query = G()->net_query_creator().create(create_storer(tl_query));
+  auto query = G()->net_query_creator().create(tl_query);
   send_with_promise(std::move(query), PromiseCreator::lambda([actor_id = actor_id(this)](NetQueryPtr net_query) {
                       send_closure(actor_id, &CallActor::on_set_debug_query_result, std::move(net_query));
                     }));
@@ -308,8 +370,8 @@ Status CallActor::do_update_call(telegram_api::phoneCallWaiting &call) {
     if ((call.flags_ & telegram_api::phoneCallWaiting::RECEIVE_DATE_MASK) != 0) {
       call_state_.is_received = true;
       call_state_need_flush_ = true;
-      int32 call_ring_timeout_ms = G()->shared_config().get_option_integer("call_ring_timeout_ms", 90000);
-      set_timeout_in(call_ring_timeout_ms * 0.001);
+      int64 call_ring_timeout_ms = G()->shared_config().get_option_integer("call_ring_timeout_ms", 90000);
+      set_timeout_in(static_cast<double>(call_ring_timeout_ms) * 0.001);
     }
   }
 
@@ -391,8 +453,8 @@ Status CallActor::do_update_call(telegram_api::phoneCallAccepted &call) {
 void CallActor::on_begin_exchanging_key() {
   call_state_.type = CallState::Type::ExchangingKey;
   call_state_need_flush_ = true;
-  int32 call_receive_timeout_ms = G()->shared_config().get_option_integer("call_receive_timeout_ms", 20000);
-  double timeout = call_receive_timeout_ms * 0.001;
+  int64 call_receive_timeout_ms = G()->shared_config().get_option_integer("call_receive_timeout_ms", 20000);
+  double timeout = static_cast<double>(call_receive_timeout_ms) * 0.001;
   LOG(INFO) << "Set call timeout to " << timeout;
   set_timeout_in(timeout);
 }
@@ -402,6 +464,8 @@ Status CallActor::do_update_call(telegram_api::phoneCall &call) {
     return Status::Error(500, PSLICE() << "Drop unexpected " << to_string(call));
   }
   cancel_timeout();
+
+  is_video_ |= (call.flags_ & telegram_api::phoneCall::VIDEO_MASK) != 0;
 
   LOG(DEBUG) << "Do update call to Ready from state " << static_cast<int32>(state_);
   if (state_ == State::WaitAcceptResult) {
@@ -417,9 +481,9 @@ Status CallActor::do_update_call(telegram_api::phoneCall &call) {
       get_emojis_fingerprint(call_state_.key, is_outgoing_ ? dh_handshake_.get_g_b() : dh_handshake_.get_g_a());
 
   for (auto &connection : call.connections_) {
-    call_state_.connections.push_back(CallConnection::from_telegram_api(*connection));
+    call_state_.connections.push_back(CallConnection(*connection));
   }
-  call_state_.protocol = CallProtocol::from_telegram_api(*call.protocol_);
+  call_state_.protocol = CallProtocol(*call.protocol_);
   call_state_.allow_p2p = (call.flags_ & telegram_api::phoneCall::P2P_ALLOWED_MASK) != 0;
   call_state_.type = CallState::Type::Ready;
   call_state_need_flush_ = true;
@@ -508,7 +572,7 @@ void CallActor::do_load_dh_config(Promise<std::shared_ptr<DhConfig>> promise) {
   }
   int random_length = 0;
   telegram_api::messages_getDhConfig tl_query(version, random_length);
-  auto query = G()->net_query_creator().create(create_storer(tl_query));
+  auto query = G()->net_query_creator().create(tl_query);
   send_with_promise(std::move(query),
                     PromiseCreator::lambda([actor_id = actor_id(this), old_dh_config = std::move(dh_config),
                                             promise = std::move(promise)](Result<NetQueryPtr> result_query) mutable {
@@ -538,7 +602,7 @@ void CallActor::do_load_dh_config(Promise<std::shared_ptr<DhConfig>> promise) {
 
 void CallActor::send_received_query() {
   auto tl_query = telegram_api::phone_receivedCall(get_input_phone_call("send_received_query"));
-  auto query = G()->net_query_creator().create(create_storer(tl_query));
+  auto query = G()->net_query_creator().create(tl_query);
   send_with_promise(std::move(query), PromiseCreator::lambda([actor_id = actor_id(this)](NetQueryPtr net_query) {
                       send_closure(actor_id, &CallActor::on_received_query_result, std::move(net_query));
                     }));
@@ -564,14 +628,14 @@ void CallActor::try_send_request_query() {
   }
   auto tl_query = telegram_api::phone_requestCall(flags, false /*ignored*/, std::move(input_user_),
                                                   Random::secure_int32(), BufferSlice(dh_handshake_.get_g_b_hash()),
-                                                  call_state_.protocol.as_telegram_api());
-  auto query = G()->net_query_creator().create(create_storer(tl_query));
+                                                  call_state_.protocol.get_input_phone_call_protocol());
+  auto query = G()->net_query_creator().create(tl_query);
   state_ = State::WaitRequestResult;
-  int32 call_receive_timeout_ms = G()->shared_config().get_option_integer("call_receive_timeout_ms", 20000);
-  double timeout = call_receive_timeout_ms * 0.001;
+  int64 call_receive_timeout_ms = G()->shared_config().get_option_integer("call_receive_timeout_ms", 20000);
+  double timeout = static_cast<double>(call_receive_timeout_ms) * 0.001;
   LOG(INFO) << "Set call timeout to " << timeout;
   set_timeout_in(timeout);
-  query->total_timeout_limit = timeout;
+  query->total_timeout_limit_ = max(timeout, 10.0);
   request_query_ref_ = query.get_weak();
   send_with_promise(std::move(query), PromiseCreator::lambda([actor_id = actor_id(this)](NetQueryPtr net_query) {
                       send_closure(actor_id, &CallActor::on_request_query_result, std::move(net_query));
@@ -597,10 +661,10 @@ void CallActor::try_send_accept_query() {
     return;
   }
   dh_handshake_.set_config(dh_config_->g, dh_config_->prime);
-  auto tl_query =
-      telegram_api::phone_acceptCall(get_input_phone_call("try_send_accept_query"),
-                                     BufferSlice(dh_handshake_.get_g_b()), call_state_.protocol.as_telegram_api());
-  auto query = G()->net_query_creator().create(create_storer(tl_query));
+  auto tl_query = telegram_api::phone_acceptCall(get_input_phone_call("try_send_accept_query"),
+                                                 BufferSlice(dh_handshake_.get_g_b()),
+                                                 call_state_.protocol.get_input_phone_call_protocol());
+  auto query = G()->net_query_creator().create(tl_query);
   state_ = State::WaitAcceptResult;
   send_with_promise(std::move(query), PromiseCreator::lambda([actor_id = actor_id(this)](NetQueryPtr net_query) {
                       send_closure(actor_id, &CallActor::on_accept_query_result, std::move(net_query));
@@ -623,8 +687,8 @@ void CallActor::try_send_confirm_query() {
   }
   auto tl_query = telegram_api::phone_confirmCall(get_input_phone_call("try_send_confirm_query"),
                                                   BufferSlice(dh_handshake_.get_g_b()), call_state_.key_fingerprint,
-                                                  call_state_.protocol.as_telegram_api());
-  auto query = G()->net_query_creator().create(create_storer(tl_query));
+                                                  call_state_.protocol.get_input_phone_call_protocol());
+  auto query = G()->net_query_creator().create(tl_query);
   state_ = State::WaitConfirmResult;
   send_with_promise(std::move(query), PromiseCreator::lambda([actor_id = actor_id(this)](NetQueryPtr net_query) {
                       send_closure(actor_id, &CallActor::on_confirm_query_result, std::move(net_query));
@@ -654,7 +718,7 @@ void CallActor::try_send_discard_query() {
   auto tl_query = telegram_api::phone_discardCall(
       flags, false /*ignored*/, get_input_phone_call("try_send_discard_query"), duration_,
       get_input_phone_call_discard_reason(call_state_.discard_reason), connection_id_);
-  auto query = G()->net_query_creator().create(create_storer(tl_query));
+  auto query = G()->net_query_creator().create(tl_query);
   state_ = State::WaitDiscardResult;
   send_with_promise(std::move(query), PromiseCreator::lambda([actor_id = actor_id(this)](NetQueryPtr net_query) {
                       send_closure(actor_id, &CallActor::on_discard_query_result, std::move(net_query));
@@ -697,13 +761,13 @@ void CallActor::flush_call_state() {
     send_closure(G()->td(), &Td::send_update,
                  make_tl_object<td_api::updateCall>(
                      make_tl_object<td_api::call>(local_call_id_.get(), is_outgoing_ ? user_id_.get() : call_admin_id_,
-                                                  is_outgoing_, call_state_.as_td_api())));
+                                                  is_outgoing_, is_video_, call_state_.get_call_state_object())));
   }
 }
 
 void CallActor::start_up() {
   auto tl_query = telegram_api::phone_getCallConfig();
-  auto query = G()->net_query_creator().create(create_storer(tl_query));
+  auto query = G()->net_query_creator().create(tl_query);
   send_with_promise(std::move(query), PromiseCreator::lambda([actor_id = actor_id(this)](NetQueryPtr net_query) {
                       send_closure(actor_id, &CallActor::on_get_call_config_result, std::move(net_query));
                     }));
@@ -719,7 +783,7 @@ void CallActor::on_get_call_config_result(NetQueryPtr net_query) {
 }
 
 void CallActor::loop() {
-  LOG(DEBUG) << "Enter loop for call " << call_id_ << " in state " << static_cast<int32>(state_) << '/'
+  LOG(DEBUG) << "Enter loop for " << call_id_ << " in state " << static_cast<int32>(state_) << '/'
              << static_cast<int32>(call_state_.type);
   flush_call_state();
   switch (state_) {
@@ -740,7 +804,7 @@ void CallActor::loop() {
           (call_state_.need_rating || call_state_.need_debug_information)) {
         break;
       }
-      LOG(INFO) << "Close call " << local_call_id_;
+      LOG(INFO) << "Close " << local_call_id_;
       stop();
       break;
     }
@@ -779,11 +843,7 @@ vector<string> CallActor::get_emojis_fingerprint(const string &key, const string
   vector<string> result;
   result.reserve(4);
   for (int i = 0; i < 4; i++) {
-    uint64 num =
-        (static_cast<uint64>(sha256_buf[8 * i + 0]) << 56) | (static_cast<uint64>(sha256_buf[8 * i + 1]) << 48) |
-        (static_cast<uint64>(sha256_buf[8 * i + 2]) << 40) | (static_cast<uint64>(sha256_buf[8 * i + 3]) << 32) |
-        (static_cast<uint64>(sha256_buf[8 * i + 4]) << 24) | (static_cast<uint64>(sha256_buf[8 * i + 5]) << 16) |
-        (static_cast<uint64>(sha256_buf[8 * i + 6]) << 8) | (static_cast<uint64>(sha256_buf[8 * i + 7]));
+    uint64 num = big_endian_to_host64(as<uint64>(sha256_buf + 8 * i));
     result.push_back(get_emoji_fingerprint(num));
   }
   return result;

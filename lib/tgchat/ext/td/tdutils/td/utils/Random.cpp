@@ -31,20 +31,25 @@ void Random::secure_bytes(MutableSlice dest) {
 }
 
 void Random::secure_bytes(unsigned char *ptr, size_t size) {
-  constexpr size_t buf_size = 512;
+  constexpr size_t BUF_SIZE = 512;
   static TD_THREAD_LOCAL unsigned char *buf;  // static zero-initialized
   static TD_THREAD_LOCAL size_t buf_pos;
   static TD_THREAD_LOCAL int64 generation;
-  if (init_thread_local<unsigned char[]>(buf, buf_size)) {
-    buf_pos = buf_size;
+  if (init_thread_local<unsigned char[]>(buf, BUF_SIZE)) {
+    buf_pos = BUF_SIZE;
     generation = 0;
+  }
+  if (ptr == nullptr) {
+    MutableSlice(buf, BUF_SIZE).fill_zero_secure();
+    buf_pos = BUF_SIZE;
+    return;
   }
   if (generation != random_seed_generation.load(std::memory_order_relaxed)) {
     generation = random_seed_generation.load(std::memory_order_acquire);
-    buf_pos = buf_size;
+    buf_pos = BUF_SIZE;
   }
 
-  auto ready = min(size, buf_size - buf_pos);
+  auto ready = min(size, BUF_SIZE - buf_pos);
   if (ready != 0) {
     std::memcpy(ptr, buf + buf_pos, ready);
     buf_pos += ready;
@@ -54,8 +59,8 @@ void Random::secure_bytes(unsigned char *ptr, size_t size) {
       return;
     }
   }
-  if (size < buf_size) {
-    int err = RAND_bytes(buf, static_cast<int>(buf_size));
+  if (size < BUF_SIZE) {
+    int err = RAND_bytes(buf, static_cast<int>(BUF_SIZE));
     // TODO: it CAN fail
     LOG_IF(FATAL, err != 1);
     buf_pos = size;
@@ -97,6 +102,10 @@ void Random::add_seed(Slice bytes, double entropy) {
   RAND_add(bytes.data(), static_cast<int>(bytes.size()), entropy);
   random_seed_generation++;
 }
+
+void Random::secure_cleanup() {
+  Random::secure_bytes(nullptr, 0);
+}
 #endif
 
 static unsigned int rand_device_helper() {
@@ -134,13 +143,22 @@ int Random::fast(int min, int max) {
   return static_cast<int>(min + fast_uint32() % (max - min + 1));  // TODO signed_cast
 }
 
+double Random::fast(double min, double max) {
+  DCHECK(min <= max);
+  return min + fast_uint32() * 1.0 / std::numeric_limits<uint32>::max() * (max - min);
+}
+
+bool Random::fast_bool() {
+  return (fast_uint32() & 1) != 0;
+}
+
 Random::Xorshift128plus::Xorshift128plus(uint64 seed) {
-  auto next = [&]() {
+  auto next = [&] {
     // splitmix64
-    seed += static_cast<uint64>(0x9E3779B97F4A7C15);
+    seed += static_cast<uint64>(0x9E3779B97F4A7C15ull);
     uint64 z = seed;
-    z = (z ^ (z >> 30)) * static_cast<uint64>(0xBF58476D1CE4E5B9);
-    z = (z ^ (z >> 27)) * static_cast<uint64>(0x94D049BB133111EB);
+    z = (z ^ (z >> 30)) * static_cast<uint64>(0xBF58476D1CE4E5B9ull);
+    z = (z ^ (z >> 27)) * static_cast<uint64>(0x94D049BB133111EBull);
     return z ^ (z >> 31);
   };
   seed_[0] = next();
@@ -160,8 +178,26 @@ uint64 Random::Xorshift128plus::operator()() {
   seed_[1] = x ^ y ^ (x >> 17) ^ (y >> 26);
   return seed_[1] + y;
 }
+
 int Random::Xorshift128plus::fast(int min, int max) {
   return static_cast<int>((*this)() % (max - min + 1) + min);
+}
+int64 Random::Xorshift128plus::fast64(int64 min, int64 max) {
+  return static_cast<int64>((*this)() % (max - min + 1) + min);
+}
+
+void Random::Xorshift128plus::bytes(MutableSlice dest) {
+  int cnt = 0;
+  uint64 buf = 0;
+  for (auto &c : dest) {
+    if (cnt == 0) {
+      buf = operator()();
+      cnt = 8;
+    }
+    cnt--;
+    c = static_cast<char>(buf & 255);
+    buf >>= 8;
+  }
 }
 
 }  // namespace td

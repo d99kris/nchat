@@ -404,10 +404,11 @@ class PromiseActor final : public PromiseInterface<T> {
 template <class T>
 class FutureActor final : public Actor {
   friend class PromiseActor<T>;
-  enum State { Waiting, Ready };
 
  public:
-  static constexpr int Hangup = 426487;
+  enum State { Waiting, Ready };
+
+  static constexpr int HANGUP_ERROR_CODE = 426487;
 
   FutureActor() = default;
 
@@ -457,6 +458,10 @@ class FutureActor final : public Actor {
     }
   }
 
+  State get_state() const {
+    return state_;
+  }
+
   template <class S>
   friend void init_promise_future(PromiseActor<S> *promise, FutureActor<S> *future);
 
@@ -482,7 +487,7 @@ class FutureActor final : public Actor {
   }
 
   void hangup() override {
-    set_error(Status::Error<Hangup>());
+    set_error(Status::Error<HANGUP_ERROR_CODE>());
   }
 
   void start_up() override {

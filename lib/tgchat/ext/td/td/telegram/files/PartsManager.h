@@ -13,7 +13,6 @@
 
 namespace td {
 
-/*** PartsManager***/
 struct Part {
   int id;
   int64 offset;
@@ -36,7 +35,7 @@ class PartsManager {
   Status set_known_prefix(size_t size, bool is_ready);
   void set_need_check();
   void set_checked_prefix_size(int64 size);
-  void set_streaming_offset(int64 offset);
+  int32 set_streaming_offset(int64 offset, int64 limit);
   void set_streaming_limit(int64 limit);
 
   int64 get_checked_prefix_size() const;
@@ -52,11 +51,12 @@ class PartsManager {
   int32 get_ready_prefix_count();
   int64 get_streaming_offset() const;
   string get_bitmask();
+  int32 get_pending_count() const;
 
  private:
-  static constexpr int MAX_PART_COUNT = 3000;
-  static constexpr int MAX_PART_SIZE = 512 * (1 << 10);
-  static constexpr int64 MAX_FILE_SIZE = MAX_PART_SIZE * MAX_PART_COUNT;
+  static constexpr int MAX_PART_COUNT = 4000;
+  static constexpr size_t MAX_PART_SIZE = 512 * (1 << 10);
+  static constexpr int64 MAX_FILE_SIZE = static_cast<int64>(MAX_PART_SIZE) * MAX_PART_COUNT;
 
   enum class PartStatus : int32 { Empty, Pending, Ready };
 

@@ -14,6 +14,7 @@
 #include "td/telegram/MessagesManager.h"
 #include "td/telegram/StickerSetId.h"
 #include "td/telegram/StickersManager.h"
+#include "td/telegram/Td.h"
 #include "td/telegram/WebPagesManager.h"
 
 #include "td/utils/common.h"
@@ -44,14 +45,16 @@ size_t FileReferenceManager::get_file_reference_error_pos(const Status &error) {
 /*
 fileSourceMessage chat_id:int53 message_id:int53 = FileSource;           // repaired with get_message_from_server
 fileSourceUserProfilePhoto user_id:int32 photo_id:int64 = FileSource;    // repaired with photos.getUserPhotos
-fileSourceBasicGroupPhoto basic_group_id:int32 = FileSource;             // repaired with messages.getChats
-fileSourceSupergroupPhoto supergroup_id:int32 = FileSource;              // repaired with channels.getChannels
+fileSourceBasicGroupPhoto basic_group_id:int32 = FileSource;             // no need to repair
+fileSourceSupergroupPhoto supergroup_id:int32 = FileSource;              // no need to repair
 fileSourceWebPage url:string = FileSource;                               // repaired with messages.getWebPage
 fileSourceWallpapers = FileSource;                                       // can't be repaired
 fileSourceSavedAnimations = FileSource;                                  // repaired with messages.getSavedGifs
 fileSourceRecentStickers is_attached:Bool = FileSource;                  // repaired with messages.getRecentStickers, not reliable
 fileSourceFavoriteStickers = FileSource;                                 // repaired with messages.getFavedStickers, not reliable
 fileSourceBackground background_id:int64 access_hash:int64 = FileSource; // repaired with account.getWallPaper
+fileSourceBasicGroupFull basic_group_id:int32 = FileSource;              // repaired with messages.getFullChat
+fileSourceSupergroupFull supergroup_id:int32 = FileSource;               // repaired with messages.getFullChannel
 */
 
 FileSourceId FileReferenceManager::get_current_file_source_id() const {
@@ -73,16 +76,6 @@ FileSourceId FileReferenceManager::create_message_file_source(FullMessageId full
 FileSourceId FileReferenceManager::create_user_photo_file_source(UserId user_id, int64 photo_id) {
   FileSourceUserPhoto source{photo_id, user_id};
   return add_file_source_id(source, PSLICE() << "photo " << photo_id << " of " << user_id);
-}
-
-FileSourceId FileReferenceManager::create_chat_photo_file_source(ChatId chat_id) {
-  FileSourceChatPhoto source{chat_id};
-  return add_file_source_id(source, PSLICE() << "photo of " << chat_id);
-}
-
-FileSourceId FileReferenceManager::create_channel_photo_file_source(ChannelId channel_id) {
-  FileSourceChannelPhoto source{channel_id};
-  return add_file_source_id(source, PSLICE() << "photo of " << channel_id);
 }
 
 FileSourceId FileReferenceManager::create_web_page_file_source(string url) {
@@ -109,6 +102,16 @@ FileSourceId FileReferenceManager::create_favorite_stickers_file_source() {
 FileSourceId FileReferenceManager::create_background_file_source(BackgroundId background_id, int64 access_hash) {
   FileSourceBackground source{background_id, access_hash};
   return add_file_source_id(source, PSLICE() << background_id);
+}
+
+FileSourceId FileReferenceManager::create_chat_full_file_source(ChatId chat_id) {
+  FileSourceChatFull source{chat_id};
+  return add_file_source_id(source, PSLICE() << "full " << chat_id);
+}
+
+FileSourceId FileReferenceManager::create_channel_full_file_source(ChannelId channel_id) {
+  FileSourceChannelFull source{channel_id};
+  return add_file_source_id(source, PSLICE() << "full " << channel_id);
 }
 
 bool FileReferenceManager::add_file_source(NodeId node_id, FileSourceId file_source_id) {
@@ -242,20 +245,8 @@ void FileReferenceManager::send_query(Destination dest, FileSourceId file_source
                    std::move(status), 0);
     });
 
-    send_lambda(file_manager, [file_manager, dest, result = std::move(result), file_source_id,
-                               new_promise = std::move(new_promise)]() mutable {
-      auto view = file_manager.get_actor_unsafe()->get_file_view(dest.node_id);
-      CHECK(!view.empty());
-      if (result.is_ok() &&
-          (!view.has_active_upload_remote_location() || !view.has_active_download_remote_location())) {
-        result = Status::Error("No active remote location");
-      }
-      if (result.is_error() && result.error().code() != 429 && result.error().code() < 500) {
-        VLOG(file_references) << "Invalid " << file_source_id << " " << result.error();
-        file_manager.get_actor_unsafe()->remove_file_source(dest.node_id, file_source_id);
-      }
-      new_promise.set_result(std::move(result));
-    });
+    send_closure(file_manager, &FileManager::on_file_reference_repaired, dest.node_id, file_source_id,
+                 std::move(result), std::move(new_promise));
   });
   auto index = static_cast<size_t>(file_source_id.get()) - 1;
   CHECK(index < file_sources_.size());
@@ -293,6 +284,14 @@ void FileReferenceManager::send_query(Destination dest, FileSourceId file_source
       [&](const FileSourceBackground &source) {
         send_closure_later(G()->background_manager(), &BackgroundManager::reload_background, source.background_id,
                            source.access_hash, std::move(promise));
+      },
+      [&](const FileSourceChatFull &source) {
+        send_closure_later(G()->contacts_manager(), &ContactsManager::reload_chat_full, source.chat_id,
+                           std::move(promise));
+      },
+      [&](const FileSourceChannelFull &source) {
+        send_closure_later(G()->contacts_manager(), &ContactsManager::reload_channel_full, source.channel_id,
+                           std::move(promise), "repair file reference");
       }));
 }
 
@@ -335,7 +334,9 @@ FileReferenceManager::Destination FileReferenceManager::on_query_result(Destinat
 }
 
 void FileReferenceManager::repair_file_reference(NodeId node_id, Promise<> promise) {
-  VLOG(file_references) << "Repair file reference for file " << node_id;
+  auto main_file_id = G()->td().get_actor_unsafe()->file_manager_->get_file_view(node_id).file_id();
+  VLOG(file_references) << "Repair file reference for file " << node_id << "/" << main_file_id;
+  node_id = main_file_id;
   auto &node = nodes_[node_id];
   if (!node.query) {
     node.query = make_unique<Query>();

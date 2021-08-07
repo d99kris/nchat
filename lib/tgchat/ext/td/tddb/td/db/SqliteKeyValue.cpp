@@ -24,7 +24,7 @@ Result<bool> SqliteKeyValue::init(string path) {
 }
 
 Status SqliteKeyValue::init_with_connection(SqliteDb connection, string table_name) {
-  auto init_guard = ScopeExit() + [&]() {
+  auto init_guard = ScopeExit() + [&] {
     close();
   };
   db_ = std::move(connection);
@@ -64,7 +64,11 @@ Status SqliteKeyValue::drop() {
 SqliteKeyValue::SeqNo SqliteKeyValue::set(Slice key, Slice value) {
   set_stmt_.bind_blob(1, key).ensure();
   set_stmt_.bind_blob(2, value).ensure();
-  set_stmt_.step().ensure();
+  auto status = set_stmt_.step();
+  if (status.is_error()) {
+    LOG(FATAL) << "Failed to set \"" << key << '"';
+  }
+  // set_stmt_.step().ensure();
   set_stmt_.reset();
   return 0;
 }

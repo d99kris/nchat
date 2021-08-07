@@ -92,7 +92,7 @@ class InlineQueriesManager : public Actor {
                                        tl_object_ptr<telegram_api::BotInlineMessage> &&inline_message,
                                        int32 allowed_media_content_id, Photo *photo = nullptr, Game *game = nullptr);
 
-  tl_object_ptr<td_api::photoSize> register_thumbnail(
+  tl_object_ptr<td_api::thumbnail> register_thumbnail(
       tl_object_ptr<telegram_api::WebDocument> &&web_document_ptr) const;
 
   static string get_web_document_url(const tl_object_ptr<telegram_api::WebDocument> &web_document_ptr);
@@ -126,7 +126,7 @@ class InlineQueriesManager : public Actor {
     Promise<Unit> promise;
   };
 
-  double next_inline_query_time_ = -1.0;
+  double next_inline_query_time_ = 0.0;
   unique_ptr<PendingInlineQuery> pending_inline_query_;
   NetQueryRef sent_query_;
 
