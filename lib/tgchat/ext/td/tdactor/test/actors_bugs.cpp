@@ -10,6 +10,7 @@
 #include "td/utils/tests.h"
 
 #include "td/actor/actor.h"
+#include "td/actor/ConcurrentScheduler.h"
 #include "td/actor/Timeout.h"
 
 using namespace td;
@@ -82,6 +83,8 @@ class TimeoutManager : public Actor {
 
   void test_timeout() {
     CHECK(count > 0);
+    // we must yield scheduler, so run_main breaks immediately, if timeouts are handled immediately
+    Scheduler::instance()->yield();
   }
 
   MultiTimeout test_timeout_{"TestTimeout"};

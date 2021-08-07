@@ -25,9 +25,11 @@
 #include "td/utils/List.h"
 #include "td/utils/Status.h"
 #include "td/utils/StringBuilder.h"
+#include "td/utils/VectorQueue.h"
 
 #include <array>
 #include <deque>
+#include <functional>
 #include <map>
 #include <memory>
 #include <unordered_map>
@@ -124,7 +126,15 @@ class Session final
 
   // Do not invalidate iterators of these two containers!
   // TODO: better data structures
-  std::deque<NetQueryPtr> pending_queries_;
+  struct PriorityQueue {
+    void push(NetQueryPtr query);
+    NetQueryPtr pop();
+    bool empty() const;
+
+   private:
+    std::map<int8, VectorQueue<NetQueryPtr>, std::greater<>> queries_;
+  };
+  PriorityQueue pending_queries_;
   std::map<uint64, Query> sent_queries_;
   std::deque<NetQueryPtr> pending_invoke_after_queries_;
   ListNode sent_queries_list_;
@@ -157,6 +167,7 @@ class Session final
   bool close_flag_ = false;
 
   static constexpr double ACTIVITY_TIMEOUT = 60 * 5;
+  static constexpr size_t MAX_INFLIGHT_QUERIES = 1024;
 
   struct ContainerInfo {
     size_t ref_cnt;

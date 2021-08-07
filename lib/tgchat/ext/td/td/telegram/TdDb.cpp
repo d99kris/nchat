@@ -29,9 +29,12 @@
 #include "td/utils/common.h"
 #include "td/utils/format.h"
 #include "td/utils/logging.h"
+#include "td/utils/misc.h"
 #include "td/utils/port/path.h"
 #include "td/utils/Random.h"
 #include "td/utils/StringBuilder.h"
+
+#include <algorithm>
 
 namespace td {
 
@@ -109,6 +112,10 @@ Status init_binlog(Binlog &binlog, string path, BinlogKeyValue<Binlog> &binlog_p
       case LogEvent::HandlerType::ToggleDialogIsMarkedAsUnreadOnServer:
       case LogEvent::HandlerType::SetDialogFolderIdOnServer:
       case LogEvent::HandlerType::DeleteScheduledMessagesFromServer:
+      case LogEvent::HandlerType::ToggleDialogIsBlockedOnServer:
+      case LogEvent::HandlerType::ReadMessageThreadHistoryOnServer:
+      case LogEvent::HandlerType::BlockMessageSenderFromRepliesOnServer:
+      case LogEvent::HandlerType::UnpinAllDialogMessagesOnServer:
         events.to_messages_manager.push_back(event.clone());
         break;
       case LogEvent::HandlerType::AddMessagePushNotification:
@@ -122,7 +129,7 @@ Status init_binlog(Binlog &binlog, string path, BinlogKeyValue<Binlog> &binlog_p
         config_pmc.external_init_handle(event);
         break;
       default:
-        LOG(FATAL) << "Unsupported logevent type " << event.type_;
+        LOG(FATAL) << "Unsupported log event type " << event.type_;
     }
   };
 
@@ -297,8 +304,9 @@ Status TdDb::init_sqlite(int32 scheduler_id, const TdParameters &parameters, DbK
   }
 
   sqlite_path_ = sql_database_path;
-  TRY_STATUS(SqliteDb::change_key(sqlite_path_, key, old_key));
-  sql_connection_ = std::make_shared<SqliteConnectionSafe>(sql_database_path, key);
+  TRY_RESULT(db_instance, SqliteDb::change_key(sqlite_path_, key, old_key));
+  sql_connection_ = std::make_shared<SqliteConnectionSafe>(sql_database_path, key, db_instance.get_cipher_version());
+  sql_connection_->set(std::move(db_instance));
   auto &db = sql_connection_->get();
 
   TRY_STATUS(init_db(db));
@@ -317,7 +325,7 @@ Status TdDb::init_sqlite(int32 scheduler_id, const TdParameters &parameters, DbK
   // init DialogDb
   bool dialog_db_was_created = false;
   if (use_dialog_db) {
-    TRY_STATUS(init_dialog_db(db, user_version, dialog_db_was_created));
+    TRY_STATUS(init_dialog_db(db, user_version, binlog_pmc, dialog_db_was_created));
   } else {
     TRY_STATUS(drop_dialog_db(db, user_version));
   }
@@ -344,10 +352,10 @@ Status TdDb::init_sqlite(int32 scheduler_id, const TdParameters &parameters, DbK
   }
 
   if (dialog_db_was_created) {
+    binlog_pmc.erase_by_prefix("pinned_dialog_ids");
     binlog_pmc.erase_by_prefix("last_server_dialog_date");
     binlog_pmc.erase_by_prefix("unread_message_count");
     binlog_pmc.erase_by_prefix("unread_dialog_count");
-    binlog_pmc.erase("promoted_dialog_id");
     binlog_pmc.erase("sponsored_dialog_id");
     binlog_pmc.erase_by_prefix("top_dialogs");
   }
@@ -524,6 +532,45 @@ Result<string> TdDb::get_stats() {
   TRY_STATUS(run_kv_query("ch%"));
   TRY_STATUS(run_kv_query("ss%"));
   TRY_STATUS(run_kv_query("gr%"));
+
+  vector<int32> prev(1);
+  size_t count = 0;
+  int32 max_bad_to = 0;
+  size_t bad_count = 0;
+  file_db_->pmc().get_by_range("file0", "file:", [&](Slice key, Slice value) {
+    if (value.substr(0, 2) != "@@") {
+      return true;
+    }
+    count++;
+    auto from = to_integer<int32>(key.substr(4));
+    auto to = to_integer<int32>(value.substr(2));
+    if (from <= to) {
+      LOG(DEBUG) << "Have forward reference from " << from << " to " << to;
+      if (to > max_bad_to) {
+        max_bad_to = to;
+      }
+      bad_count++;
+      return true;
+    }
+    if (static_cast<size_t>(from) >= prev.size()) {
+      prev.resize(from + 1);
+    }
+    if (static_cast<size_t>(to) >= prev.size()) {
+      prev.resize(to + 1);
+    }
+    prev[from] = to;
+    return true;
+  });
+  for (size_t i = 1; i < prev.size(); i++) {
+    if (!prev[i]) {
+      continue;
+    }
+    prev[i] = prev[prev[i]] + 1;
+  }
+  sb << "Max file database depth out of " << prev.size() << '/' << count
+     << " elements: " << *std::max_element(prev.begin(), prev.end()) << "\n";
+  sb << "Have " << bad_count << " forward references with maximum reference to " << max_bad_to;
+
   return sb.as_cslice().str();
 }
 

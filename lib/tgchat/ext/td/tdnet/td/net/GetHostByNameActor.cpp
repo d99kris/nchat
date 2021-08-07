@@ -34,12 +34,7 @@ class GoogleDnsResolver : public Actor {
   double begin_time_ = 0;
 
   void start_up() override {
-    auto r_address = IPAddress::get_ipv4_address(host_);
-    if (r_address.is_ok()) {
-      promise_.set_value(r_address.move_as_ok());
-      return stop();
-    }
-    r_address = IPAddress::get_ipv6_address(host_);
+    auto r_address = IPAddress::get_ip_address(host_);
     if (r_address.is_ok()) {
       promise_.set_value(r_address.move_as_ok());
       return stop();
@@ -135,8 +130,8 @@ void GetHostByNameActor::run(string host, int port, bool prefer_ipv6, Promise<IP
   }
   auto ascii_host = r_ascii_host.move_as_ok();
 
-  auto &value = cache_[prefer_ipv6].emplace(ascii_host, Value{{}, 0}).first->second;
   auto begin_time = Time::now();
+  auto &value = cache_[prefer_ipv6].emplace(ascii_host, Value{{}, begin_time - 1.0}).first->second;
   if (value.expires_at > begin_time) {
     return promise.set_result(value.get_ip_port(port));
   }

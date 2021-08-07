@@ -7,7 +7,9 @@
 
 #include "messagecache.h"
 
+#include <iterator>
 #include <map>
+#include <sstream>
 #include <utility>
 
 #include <sqlite_modern_cpp.h>
@@ -18,6 +20,7 @@
 std::function<void(std::shared_ptr<ServiceMessage>)> MessageCache::m_MessageHandler;
 std::mutex MessageCache::m_DbMutex;
 std::map<std::string, std::unique_ptr<sqlite::database>> MessageCache::m_Dbs;
+std::unordered_map<std::string, std::unordered_map<std::string, bool>> MessageCache::m_InSync;
 bool MessageCache::m_Running = false;
 std::thread MessageCache::m_Thread;
 std::mutex MessageCache::m_QueueMutex;
@@ -26,20 +29,22 @@ std::deque<std::shared_ptr<MessageCache::Request>> MessageCache::m_Queue;
 std::string MessageCache::m_HistoryDir;
 bool MessageCache::m_CacheEnabled = true;
 
-void MessageCache::Init(const std::function<void(std::shared_ptr<ServiceMessage>)>& p_MessageHandler)
+void MessageCache::Init(const bool p_CacheEnabled, const std::function<void(std::shared_ptr<ServiceMessage>)>& p_MessageHandler)
 {
+  m_CacheEnabled = p_CacheEnabled;
+  
   if (!m_CacheEnabled) return;
   
-  static const int dirVersion = 2;
+  static const int dirVersion = 3;
   m_HistoryDir = FileUtil::GetApplicationDir() + "/history";
   FileUtil::InitDirVersion(m_HistoryDir, dirVersion);
 
   {
-    std::lock_guard<std::mutex> lock(m_DbMutex);
+    std::unique_lock<std::mutex> lock(m_DbMutex);
     m_MessageHandler = p_MessageHandler;
   }
 
-  std::lock_guard<std::mutex> lock(m_QueueMutex);
+  std::unique_lock<std::mutex> lock(m_QueueMutex);
   if (!m_Running)
   {
     m_Running = true;
@@ -54,7 +59,7 @@ void MessageCache::Cleanup()
   if (m_Running)
   {
     {
-      std::lock_guard<std::mutex> lock(m_QueueMutex);
+      std::unique_lock<std::mutex> lock(m_QueueMutex);
       m_Running = false;
       m_CondVar.notify_one();
     }
@@ -62,7 +67,7 @@ void MessageCache::Cleanup()
   }
 
   {
-    std::lock_guard<std::mutex> lock(m_DbMutex);
+    std::unique_lock<std::mutex> lock(m_DbMutex);
     m_MessageHandler = nullptr;
     m_Dbs.clear();
   }
@@ -72,7 +77,7 @@ void MessageCache::AddProfile(const std::string& p_ProfileId)
 {
   if (!m_CacheEnabled) return;
   
-  std::lock_guard<std::mutex> lock(m_DbMutex);
+  std::unique_lock<std::mutex> lock(m_DbMutex);
   const std::string& dbDir = m_HistoryDir + "/" + p_ProfileId;
   FileUtil::MkDir(dbDir);
 
@@ -114,55 +119,68 @@ void MessageCache::Add(const std::string& p_ProfileId, const std::string& p_Chat
   EnqueueRequest(addRequest);
 }
 
-bool MessageCache::Fetch(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_FromMsgId,
-                         int p_Limit)
+bool MessageCache::Fetch(const std::string& p_ProfileId, const std::string& p_ChatId,
+                         const std::string& p_FromMsgId, const int p_Limit, const bool p_Sync)
 {
   if (!m_CacheEnabled) return false;
   
-  std::lock_guard<std::mutex> lock(m_DbMutex);
+  std::unique_lock<std::mutex> lock(m_DbMutex);
   if (!m_Dbs[p_ProfileId]) return false;
 
-  if (p_FromMsgId.empty())
-  {
-    LOG_DEBUG("cache cannot fetch %s frommsg empty", p_ChatId.c_str());
-    return false;
-  }
+  if (!m_InSync[p_ProfileId][p_ChatId]) return false;
 
   int64_t fromMsgIdTimeSent = 0;
   bool fromMsgIsLast = false;
-  *m_Dbs[p_ProfileId] << "SELECT timeSent,isLast FROM messages WHERE chatId = ? AND id = ?;" << p_ChatId <<
-    p_FromMsgId >>
+  if (!p_FromMsgId.empty())
+  {
+    *m_Dbs[p_ProfileId] << "SELECT timeSent,isLast FROM messages WHERE chatId = ? AND id = ?;" << p_ChatId << p_FromMsgId >>
     [&](const int64_t& timeSent, const int32_t& isLast)
-      {
+    {
       fromMsgIdTimeSent = timeSent;
       fromMsgIsLast = isLast;
     };
+  }
+  else
+  {
+    fromMsgIdTimeSent = std::numeric_limits<int64_t>::max();
+  }
+  
+  int count = 0;
+  *m_Dbs[p_ProfileId] << "SELECT COUNT(*) FROM messages WHERE chatId = ? AND timeSent < ?;" << p_ChatId << fromMsgIdTimeSent >>
+  [&](const int& countRes)
+  {
+    count = countRes;
+  };
 
-  int countOlder = 0;
-  *m_Dbs[p_ProfileId] << "SELECT COUNT(*) FROM messages WHERE chatId = ? AND timeSent < ?;" << p_ChatId <<
-    fromMsgIdTimeSent >>
-    [&](const int& count)
-      {
-      countOlder = count;
-    };
+  lock.unlock();
 
-  if (fromMsgIsLast || (countOlder > 0))
+  if (fromMsgIsLast || (count > 0))
   {
     std::shared_ptr<FetchRequest> fetchRequest = std::make_shared<FetchRequest>();
     fetchRequest->profileId = p_ProfileId;
     fetchRequest->chatId = p_ChatId;
     fetchRequest->fromMsgId = p_FromMsgId;
     fetchRequest->limit = p_Limit;
-    EnqueueRequest(fetchRequest);
 
-    LOG_DEBUG("cache will fetch %s %s last %d older %d", p_ChatId.c_str(),
-              p_FromMsgId.c_str(), fromMsgIsLast, countOlder);
+    if (p_Sync)
+    {
+      LOG_DEBUG("cache sync fetch %s %s last %d count %d", p_ChatId.c_str(),
+                p_FromMsgId.c_str(), fromMsgIsLast, count);
+      PerformRequest(fetchRequest);
+    }
+    else
+    {
+      LOG_DEBUG("cache async fetch %s %s last %d count %d", p_ChatId.c_str(),
+                p_FromMsgId.c_str(), fromMsgIsLast, count);
+      EnqueueRequest(fetchRequest);
+    }
+
     return true;
   }
   else
   {
-    LOG_DEBUG("cache cannot fetch %s %s last %d older %d", p_ChatId.c_str(),
-              p_FromMsgId.c_str(), fromMsgIsLast, countOlder);
+    LOG_DEBUG("cache cannot fetch %s %s last %d count %d", p_ChatId.c_str(),
+              p_FromMsgId.c_str(), fromMsgIsLast, count);
     return false;
   }
 }
@@ -241,7 +259,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
   {
     case AddRequestType:
       {
-        std::lock_guard<std::mutex> lock(m_DbMutex);
+        std::unique_lock<std::mutex> lock(m_DbMutex);
         std::shared_ptr<AddRequest> addRequest = std::static_pointer_cast<AddRequest>(p_Request);
         const std::string& profileId = addRequest->profileId;
         if (!m_Dbs[profileId]) return;
@@ -250,6 +268,36 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         const std::string& fromMsgId = addRequest->fromMsgId;
         LOG_DEBUG("cache add %s %s %d", chatId.c_str(), fromMsgId.c_str(), addRequest->chatMessages.size());
 
+        if (!m_InSync[profileId][chatId])
+        {
+          if (!addRequest->chatMessages.empty())
+          {
+            std::string msgIds;
+            for (const auto& msg : addRequest->chatMessages)
+            {
+              msgIds += (!msgIds.empty()) ? "," : "";
+              msgIds += "'" + msg.id + "'";
+            }
+            
+            int count = 0;
+            *m_Dbs[profileId] << "SELECT COUNT(*) FROM messages WHERE chatId = ? AND id IN (" + msgIds + ");" << chatId >>
+            [&](const int& countRes)
+            {
+              count = countRes;
+            };
+
+            if (count > 0)
+            {
+              m_InSync[profileId][chatId] = true;
+              LOG_DEBUG("cache in sync %s list (%s)", chatId.c_str(), msgIds.c_str());
+            }
+            else
+            {
+              LOG_DEBUG("cache not in sync %s list (%s)", chatId.c_str(), msgIds.c_str());
+            }
+          }
+        }
+        
         *m_Dbs[profileId] << "BEGIN;";
         for (const auto& msg : addRequest->chatMessages)
         {
@@ -284,11 +332,18 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         const int limit = fetchRequest->limit;
 
         int64_t fromMsgIdTimeSent = 0;
-        *m_Dbs[profileId] << "SELECT timeSent FROM messages WHERE chatId = ? AND id = ?;" << chatId << fromMsgId >>
+        if (!fromMsgId.empty())
+        {
+          *m_Dbs[profileId] << "SELECT timeSent FROM messages WHERE chatId = ? AND id = ?;" << chatId << fromMsgId >>
           [&](const int64_t& timeSent)
-            {
+          {
             fromMsgIdTimeSent = timeSent;
           };
+        }
+        else
+        {
+          fromMsgIdTimeSent = std::numeric_limits<int64_t>::max();
+        }
 
         std::vector<ChatMessage> chatMessages;
         *m_Dbs[profileId] <<
@@ -333,7 +388,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
 
     case DeleteRequestType:
       {
-        std::lock_guard<std::mutex> lock(m_DbMutex);
+        std::unique_lock<std::mutex> lock(m_DbMutex);
         std::shared_ptr<DeleteRequest> deleteRequest = std::static_pointer_cast<DeleteRequest>(p_Request);
         const std::string& profileId = deleteRequest->profileId;
         if (!m_Dbs[profileId]) return;
@@ -348,7 +403,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
 
     case UpdateIsReadRequestType:
       {
-        std::lock_guard<std::mutex> lock(m_DbMutex);
+        std::unique_lock<std::mutex> lock(m_DbMutex);
         std::shared_ptr<UpdateIsReadRequest> updateIsReadRequest = std::static_pointer_cast<UpdateIsReadRequest>(
           p_Request);
         const std::string& profileId = updateIsReadRequest->profileId;
@@ -366,7 +421,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
 
     case UpdateFilePathRequestType:
       {
-        std::lock_guard<std::mutex> lock(m_DbMutex);
+        std::unique_lock<std::mutex> lock(m_DbMutex);
         std::shared_ptr<UpdateFilePathRequest> updateFilePathRequest = std::static_pointer_cast<UpdateFilePathRequest>(
           p_Request);
         const std::string& profileId = updateFilePathRequest->profileId;
@@ -375,10 +430,9 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         const std::string& chatId = updateFilePathRequest->chatId;
         const std::string& msgId = updateFilePathRequest->msgId;
         const std::string& filePath = updateFilePathRequest->filePath;;
-        std::string text = "";
 
-        *m_Dbs[profileId] << "UPDATE messages SET filePath = ?, text = ? WHERE chatId = ? AND id = ?;" << filePath <<
-          text << chatId << msgId;
+        *m_Dbs[profileId] << "UPDATE messages SET filePath = ? WHERE chatId = ? AND id = ?;" << filePath <<
+          chatId << msgId;
         LOG_DEBUG("cache update filePath %s %s %s", chatId.c_str(), msgId.c_str(), filePath.c_str());
       }
       break;

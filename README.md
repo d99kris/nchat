@@ -10,6 +10,21 @@ Telegram.
 
 ![screenshot nchat](/doc/screenshot-nchat.png) 
 
+Features
+--------
+- Message history cache (sqlite db backed)
+- View/save media files: documents, photos
+- Show user status (online, away, typing)
+- Message read receipt
+- List dialogs (with text filter) for selecting files, emojis, contacts
+- Reply / delete / send messages
+- Jump to unread chat
+- Toggle to view textized emojis vs. graphical (default)
+- Toggle to hide/show UI elements (top bar, status bar, help bar, contact list)
+- Receive / send markdown formatted messages
+- Customizable color schemes and key bindings
+
+
 Usage
 =====
 Usage:
@@ -50,6 +65,7 @@ Interactive Commands for Selected Message:
     Ctrl-v      open/view attached file
     Ctrl-x      reply to selected message
 
+
 Supported Platforms
 ===================
 nchat is developed and tested on Linux and macOS. Current version has been
@@ -57,6 +73,7 @@ tested on:
 
 - macOS Big Sur 11.5
 - Ubuntu 20.04 LTS
+
 
 Build / Install
 ===============
@@ -66,7 +83,6 @@ faster.
 
 Linux / Ubuntu
 --------------
-
 **Dependencies**
 
     sudo apt install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev
@@ -85,7 +101,6 @@ Linux / Ubuntu
 
 macOS
 -----
-
 **Dependencies**
 
     brew install gperf cmake openssl ncurses ccache readline help2man sqlite libmagic
@@ -104,7 +119,6 @@ macOS
 
 Arch Linux
 ----------
-
 **Source**
 
     git clone https://aur.archlinux.org/nchat-git.git && cd nchat-git
@@ -147,7 +161,6 @@ Steps to build nchat on a low memory system:
 
 Arch Linux
 ----------
-
 **Source**
 
     git clone https://aur.archlinux.org/nchat-git.git && cd nchat-git
@@ -165,6 +178,7 @@ Arch Linux
 **Install**
 
     makepkg -i
+
 
 Getting Started
 ===============
@@ -195,6 +209,7 @@ in normal mode:
 
     nchat
 
+
 Troubleshooting
 ===============
 If any issues are observed, try running nchat with verbose logging
@@ -204,6 +219,7 @@ If any issues are observed, try running nchat with verbose logging
 and provide a copy of ~/.nchat/main.log when reporting the issue. The
 preferred way of reporting issues and asking questions is by opening 
 [a Github issue](https://github.com/d99kris/nchat/issues/new). 
+
 
 Telegram Group
 ==============
@@ -215,6 +231,7 @@ maintainer(s) should however be reported using
 [Github issues](https://github.com/d99kris/nchat/issues/new) to ensure they
 are properly tracked and get addressed.
 
+
 Security
 ========
 User data is stored locally in `~/.nchat`. Default file permissions
@@ -223,15 +240,23 @@ files can also access the user's personal Telegram data. To protect against
 the most simple attack vectors it may be suitable to use disk encryption and
 to ensure `~/.nchat` is not backed up unencrypted.
 
+
 Configuration
 =============
 The following configuration files (listed with current default values) can be
 used to configure nchat.
 
+~/.nchat/app.conf
+-----------------
+This configuration file holds general application settings. Default content:
+
+    cache_enabled=1
+
 ~/.nchat/ui.conf
 ----------------
 This configuration file holds general user interface settings. Default content:
 
+    confirm_deletion=1
     emoji_enabled=1
     help_enabled=1
     list_enabled=1
@@ -350,25 +375,61 @@ General
 Deleting a configuration entry line (while nchat is not running) and starting
 nchat will populate the configuration file with the default entry.
 
+
+Limitations
+===========
+Known limitations:
+
+- Messages deleted using other devices/clients will not be deleted in nchat
+  history if local cache is enabled.
+
+
 Technical Details
 =================
-nchat is implemented in C++. Its source tree includes the source code of the
-following third-party libraries:
 
-- [apathy](https://github.com/dlecocq/apathy) - MIT License
-- [emojicpp](https://github.com/shalithasuranga/emojicpp) - MIT License
-- [TDLib](https://github.com/tdlib/td) - Boost Software License
+Third-party Libraries
+---------------------
+nmail is primarily implemented in C++ with some parts in Go. Its source tree
+includes the source code of the following third-party libraries:
+
+- [apathy](https://github.com/dlecocq/apathy) -
+  Copyright 2013 Dan Lecocq - [MIT License](/ext/apathy/LICENSE)
+
+- [emojicpp](https://github.com/99x/emojicpp) -
+  Copyright 2018 Shalitha Suranga - [MIT License](/ext/emojicpp/LICENSE)
+
+- [go-qrcode](https://github.com/skip2/go-qrcode) -
+  Copyright 2014 Tom Harwood -
+  [MIT License](/lib/wachat/go/ext/go-qrcode/LICENSE)
+
+- [go-whatsapp](https://github.com/Rhymen/go-whatsapp) -
+  Copyright 2018 Lucas Engelke -
+  [MIT License](/lib/wachat/go/ext/go-whatsapp/LICENSE)
+
+- [sqlite_modern_cpp](https://github.com/SqliteModernCpp/sqlite_modern_cpp) -
+  Copyright 2017 aminroosta - [MIT License](/ext/sqlite_modern_cpp/License.txt)
+
+- [tdlib](https://github.com/tdlib/td) -
+  Copyright 2014 Aliaksei Levin, Arseny Smirnov -
+  [Boost License](/lib/tgchat/ext/td/LICENSE_1_0.txt)
+
+Code Formatting
+---------------
+Uncrustify is used to maintain consistent source code formatting, example:
+
+    ./make.sh src
+
 
 License
 =======
 nchat is distributed under the MIT license. See LICENSE file.
 
+
 Alternatives
 ============
 Other terminal/console-based Telegram clients:
 
-- [TelegramTUI](https://github.com/vtr0n/TelegramTUI)
-- [Termgram](https://github.com/AndreiRegiani/termgram)
+- [tg](https://github.com/paul-nameless/tg)
 
 
 Keywords

@@ -136,6 +136,8 @@ func (handler *eventHandler) HandleTextMessage(message whatsapp.TextMessage) {
 	isOld := (timeSent <= timeUnread[intString{i: connId, s: chatId}])
 	isRead := (fromMe && isSeen) || (!fromMe && isOld)
 
+	UpdateTypingStatus(connId, chatId, senderId, fromMe, isOld)
+
 	CNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, filePath, timeSent, BoolToInt(isRead))
 }
 
@@ -189,6 +191,8 @@ func (handler *eventHandler) HandleImageMessage(message whatsapp.ImageMessage) {
 	isSeen := (message.Info.Status == 4)
 	isOld := (timeSent <= timeUnread[intString{i: connId, s: chatId}])
 	isRead := (fromMe && isSeen) || (!fromMe && isOld)
+
+	UpdateTypingStatus(connId, chatId, senderId, fromMe, isOld)
 
 	CNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, filePath, timeSent, BoolToInt(isRead))
 }
@@ -251,6 +255,8 @@ func (handler *eventHandler) HandleDocumentMessage(message whatsapp.DocumentMess
 	isSeen := (message.Info.Status == 4)
 	isOld := (timeSent <= timeUnread[intString{i: connId, s: chatId}])
 	isRead := (fromMe && isSeen) || (!fromMe && isOld)
+
+	UpdateTypingStatus(connId, chatId, senderId, fromMe, isOld)
 
 	CNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, filePath, timeSent, BoolToInt(isRead))
 }
@@ -389,6 +395,9 @@ func (handler *eventHandler) HandleChatList(chats []whatsapp.Chat) {
 		isUnread := StringToInt(chat.Unread)
 		isMuted := StringToInt(chat.IsMuted)
 		lastMessageTime := StringToInt(chat.LastMessageTime)
+		if IntToBool(isUnread) {
+			lastMessageTime = lastMessageTime - 1
+		}
 		timeUnread[intString{i: connId, s: chat.Jid}] = lastMessageTime
 
 		CNewChatsNotify(connId, chat.Jid, isUnread, isMuted, lastMessageTime)
@@ -419,8 +428,31 @@ func HandleUnsupportedMessage(handler *eventHandler, messageInfo whatsapp.Messag
 	filePath := ""
 
 	isRead := true
+	isOld := (timeSent <= timeUnread[intString{i: connId, s: chatId}])
+
+	UpdateTypingStatus(connId, chatId, senderId, fromMe, isOld)
 
 	CNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, filePath, timeSent, BoolToInt(isRead))
+}
+
+func UpdateTypingStatus(connId int, chatId string, userId string, fromMe bool, isOld bool) {
+
+	// only handle new messages from others
+	if fromMe || isOld {
+		return
+	}
+
+	LOG_TRACE("update typing status " + strconv.Itoa(connId) + ", " + chatId + ", " + userId)
+
+	// sanity check arg
+	if connId == -1 {
+		LOG_WARNING("invalid connId")
+	}
+
+	// update
+	isOnline := true
+	isTyping := false
+	CNewStatusNotify(connId, chatId, userId, BoolToInt(isOnline), BoolToInt(isTyping))
 }
 
 func Init(path string) int {

@@ -21,7 +21,7 @@ std::unique_ptr<sqlite::database> EmojiList::m_Db;
 
 void EmojiList::Init()
 {
-  std::lock_guard<std::mutex> lock(m_Mutex);
+  std::unique_lock<std::mutex> lock(m_Mutex);
 
   static const int dirVersion = 1;
   const std::string& emojisDir = FileUtil::GetApplicationDir() + "/emojis";
@@ -53,7 +53,7 @@ void EmojiList::Init()
 
 void EmojiList::Cleanup()
 {
-  std::lock_guard<std::mutex> lock(m_Mutex);
+  std::unique_lock<std::mutex> lock(m_Mutex);
 
   if (!m_Db) return;
 
@@ -62,7 +62,7 @@ void EmojiList::Cleanup()
 
 std::vector<std::pair<std::string, std::string>> EmojiList::Get(const std::string& p_Filter)
 {
-  std::lock_guard<std::mutex> lock(m_Mutex);
+  std::unique_lock<std::mutex> lock(m_Mutex);
 
   if (!m_Db) return std::vector<std::pair<std::string, std::string>>();
 
@@ -84,7 +84,7 @@ std::vector<std::pair<std::string, std::string>> EmojiList::Get(const std::strin
 
 void EmojiList::AddUsage(const std::string& p_Name)
 {
-  std::lock_guard<std::mutex> lock(m_Mutex);
+  std::unique_lock<std::mutex> lock(m_Mutex);
 
   if (!m_Db) return;
 

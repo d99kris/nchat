@@ -8,12 +8,14 @@
 
 #include "td/utils/common.h"
 
-namespace td {
-
 extern const char *thumbnail;
 extern const size_t thumbnail_size;
 
 extern const char *gzip_bomb;
 extern const size_t gzip_bomb_size;
 
-}  // namespace td
+extern const char *sqlite_sample_db_v3;
+extern const size_t sqlite_sample_db_v3_size;
+
+extern const char *sqlite_sample_db_v4;
+extern const size_t sqlite_sample_db_v4_size;

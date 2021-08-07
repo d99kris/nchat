@@ -10,16 +10,17 @@
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/Parser.h"
+#include "td/utils/port/IPAddress.h"
 
 namespace td {
 
 string HttpUrl::get_url() const {
   string result;
   switch (protocol_) {
-    case Protocol::HTTP:
+    case Protocol::Http:
       result += "http://";
       break;
-    case Protocol::HTTPS:
+    case Protocol::Https:
       result += "https://";
       break;
     default:
@@ -29,13 +30,7 @@ string HttpUrl::get_url() const {
     result += userinfo_;
     result += '@';
   }
-  if (is_ipv6_) {
-    result += '[';
-  }
   result += host_;
-  if (is_ipv6_) {
-    result += ']';
-  }
   if (specified_port_ > 0) {
     result += ':';
     result += to_string(specified_port_);
@@ -48,15 +43,14 @@ string HttpUrl::get_url() const {
 Result<HttpUrl> parse_url(Slice url, HttpUrl::Protocol default_protocol) {
   // url == [https?://][userinfo@]host[:port]
   ConstParser parser(url);
-  string protocol_str = to_lower(parser.read_till_nofail(':'));
+  string protocol_str = to_lower(parser.read_till_nofail(":/?#@[]"));
 
   HttpUrl::Protocol protocol;
-  if (parser.start_with("://")) {
-    parser.advance(3);
+  if (parser.try_skip("://")) {
     if (protocol_str == "http") {
-      protocol = HttpUrl::Protocol::HTTP;
+      protocol = HttpUrl::Protocol::Http;
     } else if (protocol_str == "https") {
-      protocol = HttpUrl::Protocol::HTTPS;
+      protocol = HttpUrl::Protocol::Https;
     } else {
       return Status::Error("Unsupported URL protocol");
     }
@@ -88,8 +82,11 @@ Result<HttpUrl> parse_url(Slice url, HttpUrl::Protocol default_protocol) {
 
   bool is_ipv6 = false;
   if (!host.empty() && host[0] == '[' && host.back() == ']') {
-    host.remove_prefix(1);
-    host.remove_suffix(1);
+    IPAddress ip_address;
+    if (ip_address.init_ipv6_port(host.str(), 1).is_error()) {
+      return Status::Error("Wrong IPv6 address specified in the URL");
+    }
+    CHECK(ip_address.is_ipv6());
     is_ipv6 = true;
   }
   if (host.empty()) {
@@ -101,10 +98,10 @@ Result<HttpUrl> parse_url(Slice url, HttpUrl::Protocol default_protocol) {
 
   int specified_port = port;
   if (port == 0) {
-    if (protocol == HttpUrl::Protocol::HTTP) {
+    if (protocol == HttpUrl::Protocol::Http) {
       port = 80;
     } else {
-      CHECK(protocol == HttpUrl::Protocol::HTTPS);
+      CHECK(protocol == HttpUrl::Protocol::Https);
       port = 443;
     }
   }
@@ -171,7 +168,7 @@ Result<HttpUrl> parse_url(Slice url, HttpUrl::Protocol default_protocol) {
 }
 
 StringBuilder &operator<<(StringBuilder &sb, const HttpUrl &url) {
-  sb << tag("protocol", url.protocol_ == HttpUrl::Protocol::HTTP ? "HTTP" : "HTTPS") << tag("userinfo", url.userinfo_)
+  sb << tag("protocol", url.protocol_ == HttpUrl::Protocol::Http ? "HTTP" : "HTTPS") << tag("userinfo", url.userinfo_)
      << tag("host", url.host_) << tag("port", url.port_) << tag("query", url.query_);
   return sb;
 }

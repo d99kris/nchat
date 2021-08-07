@@ -14,6 +14,8 @@ char disable_linker_warning_about_empty_file_epoll_cpp TD_UNUSED;
 #include "td/utils/logging.h"
 #include "td/utils/Status.h"
 
+#include <cerrno>
+
 #include <unistd.h>
 
 namespace td {
@@ -70,7 +72,8 @@ void Epoll::unsubscribe(PollableFdRef fd_ref) {
   int err = epoll_ctl(epoll_fd_.fd(), EPOLL_CTL_DEL, native_fd, nullptr);
   auto epoll_ctl_errno = errno;
   LOG_IF(FATAL, err == -1) << Status::PosixError(epoll_ctl_errno, "epoll_ctl DEL failed")
-                           << ", epoll_fd = " << epoll_fd_.fd() << ", fd = " << native_fd << fd.native_fd().validate();
+                           << ", epoll_fd = " << epoll_fd_.fd() << ", fd = " << native_fd
+                           << ", status = " << fd.native_fd().validate();
 }
 
 void Epoll::unsubscribe_before_close(PollableFdRef fd) {
@@ -97,8 +100,7 @@ void Epoll::run(int timeout_ms) {
 #ifdef EPOLLRDHUP
     if (event->events & EPOLLRDHUP) {
       event->events &= ~EPOLLRDHUP;
-      //      flags |= Fd::Close;
-      // TODO
+      flags = flags | PollFlags::Close();
     }
 #endif
     if (event->events & EPOLLHUP) {
@@ -110,7 +112,7 @@ void Epoll::run(int timeout_ms) {
       flags = flags | PollFlags::Error();
     }
     if (event->events) {
-      LOG(FATAL) << "Unsupported epoll events: " << event->events;
+      LOG(FATAL) << "Unsupported epoll events: " << static_cast<int32>(event->events);
     }
     //LOG(DEBUG) << "Epoll event " << tag("fd", event->data.fd) << tag("flags", format::as_binary(flags));
     auto pollable_fd = PollableFd::from_list_node(static_cast<ListNode *>(event->data.ptr));

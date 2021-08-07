@@ -40,19 +40,19 @@
 
 #define VERBOSITY_NAME(x) verbosity_##x
 
-#define GET_VERBOSITY_LEVEL() (::td::log_options.level)
-#define SET_VERBOSITY_LEVEL(new_level) (::td::log_options.level = (new_level))
+#define GET_VERBOSITY_LEVEL() (::td::get_verbosity_level())
+#define SET_VERBOSITY_LEVEL(new_level) (::td::set_verbosity_level(new_level))
 
 #ifndef STRIP_LOG
 #define STRIP_LOG VERBOSITY_NAME(DEBUG)
 #endif
 #define LOG_IS_STRIPPED(strip_level) \
-  (std::integral_constant<int, VERBOSITY_NAME(strip_level)>() > std::integral_constant<int, STRIP_LOG>())
+  (::std::integral_constant<int, VERBOSITY_NAME(strip_level)>() > ::std::integral_constant<int, STRIP_LOG>())
 
 #define LOGGER(interface, options, level, comment) ::td::Logger(interface, options, level, __FILE__, __LINE__, comment)
 
 #define LOG_IMPL_FULL(interface, options, strip_level, runtime_level, condition, comment) \
-  LOG_IS_STRIPPED(strip_level) || runtime_level > options.level || !(condition)           \
+  LOG_IS_STRIPPED(strip_level) || runtime_level > options.get_level() || !(condition)     \
       ? (void)0                                                                           \
       : ::td::detail::Voidify() & LOGGER(interface, options, runtime_level, comment)
 
@@ -109,33 +109,60 @@ constexpr int VERBOSITY_NAME(DEBUG) = 4;
 constexpr int VERBOSITY_NAME(NEVER) = 1024;
 
 namespace td {
-// TODO Not part of utils. Should be in some separate file
-extern int VERBOSITY_NAME(mtproto);
-extern int VERBOSITY_NAME(raw_mtproto);
-extern int VERBOSITY_NAME(dc);
-extern int VERBOSITY_NAME(fd);
-extern int VERBOSITY_NAME(net_query);
-extern int VERBOSITY_NAME(td_requests);
-extern int VERBOSITY_NAME(actor);
-extern int VERBOSITY_NAME(files);
-extern int VERBOSITY_NAME(sqlite);
 
 struct LogOptions {
-  int level{VERBOSITY_NAME(DEBUG) + 1};
+  std::atomic<int> level{VERBOSITY_NAME(DEBUG) + 1};
   bool fix_newlines{true};
   bool add_info{true};
 
-  static constexpr LogOptions plain() {
-    return LogOptions{0, false, false};
+  int get_level() const {
+    return level.load(std::memory_order_relaxed);
+  }
+  int set_level(int new_level) {
+    return level.exchange(new_level);
+  }
+
+  static const LogOptions &plain() {
+    static LogOptions plain_options{0, false, false};
+    return plain_options;
   }
 
   constexpr LogOptions() = default;
   constexpr LogOptions(int level, bool fix_newlines, bool add_info)
       : level(level), fix_newlines(fix_newlines), add_info(add_info) {
   }
+
+  LogOptions(const LogOptions &other) : LogOptions(other.level.load(), other.fix_newlines, other.add_info) {
+  }
+
+  LogOptions &operator=(const LogOptions &other) {
+    level = other.level.load();
+    fix_newlines = other.fix_newlines;
+    add_info = other.add_info;
+    return *this;
+  }
+  LogOptions(LogOptions &&) = delete;
+  LogOptions &operator=(LogOptions &&) = delete;
+  ~LogOptions() = default;
 };
 
 extern LogOptions log_options;
+inline int set_verbosity_level(int level) {
+  return log_options.set_level(level);
+}
+inline int get_verbosity_level() {
+  return log_options.get_level();
+}
+
+class ScopedDisableLog {
+ public:
+  ScopedDisableLog();
+  ScopedDisableLog(const ScopedDisableLog &) = delete;
+  ScopedDisableLog &operator=(const ScopedDisableLog &) = delete;
+  ScopedDisableLog(ScopedDisableLog &&) = delete;
+  ScopedDisableLog &operator=(ScopedDisableLog &&) = delete;
+  ~ScopedDisableLog();
+};
 
 class LogInterface {
  public:
@@ -145,14 +172,12 @@ class LogInterface {
   LogInterface(LogInterface &&) = delete;
   LogInterface &operator=(LogInterface &&) = delete;
   virtual ~LogInterface() = default;
-  virtual void append(CSlice slice) {
-    append(slice, -1);
-  }
-  virtual void append(CSlice slice, int /*log_level*/) {
-    append(slice);
-  }
+
+  virtual void append(CSlice slice, int log_level) = 0;
+
   virtual void rotate() {
   }
+
   virtual vector<string> get_file_paths() {
     return {};
   }
@@ -216,7 +241,7 @@ class Logger {
   Logger(LogInterface &log, const LogOptions &options, int log_level, Slice file_name, int line_num, Slice comment);
 
   template <class T>
-  Logger &operator<<(const T &other) {
+  Logger &operator<<(T &&other) {
     sb_ << other;
     return *this;
   }
@@ -296,14 +321,8 @@ class TsLog : public LogInterface {
  private:
   LogInterface *log_ = nullptr;
   std::atomic_flag lock_ = ATOMIC_FLAG_INIT;
-  void enter_critical() {
-    while (lock_.test_and_set(std::memory_order_acquire)) {
-      // spin
-    }
-  }
-  void exit_critical() {
-    lock_.clear(std::memory_order_release);
-  }
+  void enter_critical();
+  void exit_critical();
 };
 
 }  // namespace td

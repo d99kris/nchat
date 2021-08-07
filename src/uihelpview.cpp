@@ -29,11 +29,21 @@ void UiHelpView::Draw()
     return !helpItems.empty() ? L" | " + helpItems.at(0) : std::wstring();
   }();
 
-  static std::vector<std::wstring> dialogHelpItems = []()
+  static std::vector<std::wstring> listDialogHelpItems = []()
   {
     std::vector<std::wstring> helpItems;
     AppendHelpItem(UiKeyConfig::GetKey("cancel"), "Cancel", helpItems);
     AppendHelpItem(UiKeyConfig::GetKey("return"), "Select", helpItems);
+    AppendHelpItem('a', "AddFiltr", helpItems);
+    AppendHelpItem(UiKeyConfig::GetKey("backspace"), "DelFiltr", helpItems);
+    return helpItems;
+  }();
+
+  static std::vector<std::wstring> messageDialogHelpItems = []()
+  {
+    std::vector<std::wstring> helpItems;
+    AppendHelpItem(UiKeyConfig::GetKey("cancel"), "Cancel", helpItems);
+    AppendHelpItem(UiKeyConfig::GetKey("return"), "OK", helpItems);
     return helpItems;
   }();
 
@@ -84,7 +94,8 @@ void UiHelpView::Draw()
     return helpItems;
   }();
 
-  static std::vector<std::wstring> dialogHelpViews;
+  static std::vector<std::wstring> listDialogHelpViews;
+  static std::vector<std::wstring> messageDialogHelpViews;
   static std::vector<std::wstring> selectHelpViews;
   static std::vector<std::wstring> defaultHelpViews;
 
@@ -94,7 +105,8 @@ void UiHelpView::Draw()
     prevW = m_W;
 
     const int maxW = m_W - 2;
-    dialogHelpViews = GetHelpViews(maxW, dialogHelpItems, otherHelpItem);
+    listDialogHelpViews = GetHelpViews(maxW, listDialogHelpItems, otherHelpItem);
+    messageDialogHelpViews = GetHelpViews(maxW, messageDialogHelpItems, otherHelpItem);
     selectHelpViews = GetHelpViews(maxW, selectHelpItems, otherHelpItem);
     defaultHelpViews = GetHelpViews(maxW, defaultHelpItems, otherHelpItem);
   }
@@ -107,9 +119,13 @@ void UiHelpView::Draw()
   wattron(m_Win, attribute | colorPair);
 
   std::wstring wstr;
-  if (m_Model->GetDialogActive())
+  if (m_Model->GetListDialogActive())
   {
-    wstr = dialogHelpViews.at(m_Model->GetHelpOffset() % dialogHelpViews.size());
+    wstr = listDialogHelpViews.at(m_Model->GetHelpOffset() % listDialogHelpViews.size());
+  }
+  else if (m_Model->GetMessageDialogActive())
+  {
+    wstr = messageDialogHelpViews.at(m_Model->GetHelpOffset() % messageDialogHelpViews.size());
   }
   else if (m_Model->GetSelectMessage())
   {
@@ -209,6 +225,14 @@ std::string UiHelpView::GetKeyDisplay(int p_Key)
   else if (p_Key == KEY_RIGHT)
   {
     return "\xe2\x86\x92";
+  }
+  else if (p_Key == KEY_BACKSPACE)
+  {
+    return "\xe2\x8c\xab";
+  }
+  else if (p_Key == 'a')
+  {
+    return "abc";
   }
   else if ((p_Key >= 0x0) && (p_Key <= 0x1F))
   {

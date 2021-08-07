@@ -10,6 +10,8 @@
 
 #include "td/telegram/DhCache.h"
 #include "td/telegram/Global.h"
+#include "td/telegram/net/DcAuthManager.h"
+#include "td/telegram/net/DcId.h"
 #include "td/telegram/net/MtprotoHeader.h"
 #include "td/telegram/net/NetQuery.h"
 #include "td/telegram/net/NetQueryDispatcher.h"
@@ -17,14 +19,15 @@
 #include "td/telegram/StateManager.h"
 #include "td/telegram/UniqueId.h"
 
-#include "td/mtproto/crypto.h"
 #include "td/mtproto/DhHandshake.h"
 #include "td/mtproto/Handshake.h"
 #include "td/mtproto/HandshakeActor.h"
 #include "td/mtproto/RawConnection.h"
+#include "td/mtproto/RSA.h"
 #include "td/mtproto/SessionConnection.h"
 #include "td/mtproto/TransportType.h"
 
+#include "td/utils/as.h"
 #include "td/utils/format.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
@@ -114,6 +117,25 @@ class GenAuthKeyActor : public Actor {
 };
 
 }  // namespace detail
+
+void Session::PriorityQueue::push(NetQueryPtr query) {
+  auto priority = query->priority();
+  queries_[priority].push(std::move(query));
+}
+
+NetQueryPtr Session::PriorityQueue::pop() {
+  CHECK(!empty());
+  auto it = queries_.begin();
+  auto res = it->second.pop();
+  if (it->second.empty()) {
+    queries_.erase(it);
+  }
+  return res;
+}
+
+bool Session::PriorityQueue::empty() const {
+  return queries_.empty();
+}
 
 Session::Session(unique_ptr<Callback> callback, std::shared_ptr<AuthDataShared> shared_auth_data, int32 raw_dc_id,
                  int32 dc_id, bool is_main, bool use_pfs, bool is_cdn, bool need_destroy,
@@ -229,7 +251,7 @@ void Session::connection_online_update(bool force) {
 void Session::send(NetQueryPtr &&query) {
   last_activity_timestamp_ = Time::now();
 
-  query->debug("Session: received from SessionProxy");
+  // query->debug("Session: received from SessionProxy");
   query->set_session_id(auth_data_.get_session_id());
   VLOG(net_query) << "Got query " << query;
   if (query->update_is_ready()) {
@@ -342,7 +364,7 @@ void Session::return_query(NetQueryPtr &&query) {
 void Session::flush_pending_invoke_after_queries() {
   while (!pending_invoke_after_queries_.empty()) {
     auto &query = pending_invoke_after_queries_.front();
-    pending_queries_.push_back(std::move(query));
+    pending_queries_.push(std::move(query));
     pending_invoke_after_queries_.pop_front();
   }
 }
@@ -357,7 +379,7 @@ void Session::close() {
     auto &query = it.second.query;
     query->set_message_id(0);
     query->cancel_slot_.clear_event();
-    pending_queries_.push_back(std::move(query));
+    pending_queries_.push(std::move(query));
   }
   sent_queries_.clear();
   sent_containers_.clear();
@@ -365,10 +387,9 @@ void Session::close() {
   flush_pending_invoke_after_queries();
   CHECK(sent_queries_.empty());
   while (!pending_queries_.empty()) {
-    auto &query = pending_queries_.front();
+    auto query = pending_queries_.pop();
     query->set_error_resend();
     return_query(std::move(query));
-    pending_queries_.pop_front();
   }
 
   callback_->on_closed();
@@ -540,12 +561,9 @@ void Session::on_session_created(uint64 unique_id, uint64 first_id) {
   LOG(INFO) << "New session " << unique_id << " created with first message_id " << first_id;
   if (is_main_) {
     LOG(DEBUG) << "Sending updatesTooLong to force getDifference";
-    telegram_api::updatesTooLong too_long_;
-    auto storer = create_storer(too_long_);
-    BufferSlice packet(storer.size());
-    auto real_size = storer.store(packet.as_slice().ubegin());
-    CHECK(real_size == packet.size());
-    return_query(G()->net_query_creator().create_result(0, std::move(packet)));
+    BufferSlice packet(4);
+    as<int32>(packet.as_slice().begin()) = telegram_api::updatesTooLong::ID;
+    return_query(G()->net_query_creator().create_update(std::move(packet)));
   }
 
   for (auto it = sent_queries_.begin(); it != sent_queries_.end();) {
@@ -597,6 +615,7 @@ void Session::on_container_sent(uint64 container_id, vector<uint64> msg_ids) {
 void Session::on_message_ack(uint64 id) {
   on_message_ack_impl(id, 1);
 }
+
 void Session::on_message_ack_impl(uint64 id, int32 type) {
   auto cit = sent_containers_.find(id);
   if (cit != sent_containers_.end()) {
@@ -618,7 +637,10 @@ void Session::on_message_ack_impl_inner(uint64 id, int32 type, bool in_container
   }
   VLOG(net_query) << "Ack " << tag("msg_id", id) << it->second.query;
   it->second.ack = true;
-  it->second.query->debug_ack |= type;
+  {
+    auto lock = it->second.query->lock();
+    it->second.query->get_data_unsafe().ack_state_ |= type;
+  }
   it->second.query->quick_ack_promise_.set_value(Unit());
   if (!in_container) {
     cleanup_container(id, &it->second);
@@ -641,6 +663,7 @@ void Session::dec_container(uint64 message_id, Query *query) {
     sent_containers_.erase(it);
   }
 }
+
 void Session::cleanup_container(uint64 message_id, Query *query) {
   if (query->container_id == message_id) {
     // message was sent without any container
@@ -653,7 +676,10 @@ void Session::cleanup_container(uint64 message_id, Query *query) {
 }
 
 void Session::mark_as_known(uint64 id, Query *query) {
-  query->query->debug_unknown = false;
+  {
+    auto lock = query->query->lock();
+    query->query->get_data_unsafe().unknown_state_ = false;
+  }
   if (!query->unknown) {
     return;
   }
@@ -666,7 +692,10 @@ void Session::mark_as_known(uint64 id, Query *query) {
 }
 
 void Session::mark_as_unknown(uint64 id, Query *query) {
-  query->query->debug_unknown = true;
+  {
+    auto lock = query->query->lock();
+    query->query->get_data_unsafe().unknown_state_ = true;
+  }
   if (query->unknown) {
     return;
   }
@@ -676,13 +705,11 @@ void Session::mark_as_unknown(uint64 id, Query *query) {
 }
 
 Status Session::on_message_result_ok(uint64 id, BufferSlice packet, size_t original_size) {
-  // Steal authorization information.
-  // It is a dirty hack, yep.
   if (id == 0) {
     if (is_cdn_) {
       return Status::Error("Got update from CDN connection");
     }
-    return_query(G()->net_query_creator().create_result(0, std::move(packet)));
+    return_query(G()->net_query_creator().create_update(std::move(packet)));
     return Status::OK();
   }
 
@@ -693,8 +720,8 @@ Status Session::on_message_result_ok(uint64 id, BufferSlice packet, size_t origi
   if (it == sent_queries_.end()) {
     LOG(DEBUG) << "Drop result to " << tag("request_id", format::as_hex(id)) << tag("tl", format::as_hex(ID));
 
-    if (packet.size() > 16 * 1024) {
-      dropped_size_ += packet.size();
+    if (original_size > 16 * 1024) {
+      dropped_size_ += original_size;
       if (dropped_size_ > (256 * 1024)) {
         auto dropped_size = dropped_size_;
         dropped_size_ = 0;
@@ -710,6 +737,8 @@ Status Session::on_message_result_ok(uint64 id, BufferSlice packet, size_t origi
   VLOG(net_query) << "Return query result " << query_ptr->query;
 
   if (!parser.get_error()) {
+    // Steal authorization information.
+    // It is a dirty hack, yep.
     if (ID == telegram_api::auth_authorization::ID || ID == telegram_api::auth_loginTokenSuccess::ID) {
       if (query_ptr->query->tl_constructor() != telegram_api::auth_importAuthorization::ID) {
         G()->net_query_dispatcher().set_main_dc_id(raw_dc_id_);
@@ -758,8 +787,13 @@ void Session::on_message_result_error(uint64 id, int error_code, BufferSlice mes
     return;
   }
 
-  LOG(DEBUG) << "Session::on_message_result_error " << tag("id", id) << tag("error_code", error_code)
-             << tag("msg", message.as_slice());
+  if (error_code < 0) {
+    LOG(WARNING) << "Session::on_message_result_error from mtproto " << tag("id", id) << tag("error_code", error_code)
+                 << tag("msg", message.as_slice());
+  } else {
+    LOG(DEBUG) << "Session::on_message_result_error " << tag("id", id) << tag("error_code", error_code)
+               << tag("msg", message.as_slice());
+  }
   auto it = sent_queries_.find(id);
   if (it == sent_queries_.end()) {
     return;
@@ -840,7 +874,7 @@ void Session::on_message_info(uint64 id, int32 state, uint64 answer_id, int32 an
       case 2:
       case 3:
         // message not received by server
-        return on_message_failed(id, Status::Error("Unknown message id"));
+        return on_message_failed(id, Status::Error("Unknown message identifier"));
       case 0:
         if (answer_id == 0) {
           LOG(ERROR) << "Unexpected message_info.state == 0 " << tag("id", id) << tag("state", state)
@@ -866,6 +900,7 @@ void Session::on_message_info(uint64 id, int32 state, uint64 answer_id, int32 an
     current_info_->connection->resend_answer(answer_id);
   }
 }
+
 Status Session::on_destroy_auth_key() {
   auth_data_.drop_main_auth_key();
   on_auth_key_updated();
@@ -889,7 +924,7 @@ void Session::add_query(NetQueryPtr &&net_query) {
   net_query->debug("Session: pending");
   LOG_IF(FATAL, UniqueId::extract_type(net_query->id()) == UniqueId::BindKey)
       << "Add BindKey query inpo pending_queries_";
-  pending_queries_.emplace_back(std::move(net_query));
+  pending_queries_.push(std::move(net_query));
 }
 
 void Session::connection_send_query(ConnectionInfo *info, NetQueryPtr &&net_query, uint64 message_id) {
@@ -915,7 +950,7 @@ void Session::connection_send_query(ConnectionInfo *info, NetQueryPtr &&net_quer
     }
   }
 
-  net_query->debug("Session: send to mtproto::connection");
+  // net_query->debug("Session: send to mtproto::connection");
   auto r_message_id =
       info->connection->send_query(net_query->query().clone(), net_query->gzip_flag() == NetQuery::GzipFlag::On,
                                    message_id, invoke_after_id, static_cast<bool>(net_query->quick_ack_promise_));
@@ -931,8 +966,11 @@ void Session::connection_send_query(ConnectionInfo *info, NetQueryPtr &&net_quer
   net_query->set_message_id(message_id);
   net_query->cancel_slot_.clear_event();
   LOG_CHECK(sent_queries_.find(message_id) == sent_queries_.end()) << message_id;
-  net_query->debug_unknown = false;
-  net_query->debug_ack = 0;
+  {
+    auto lock = net_query->lock();
+    net_query->get_data_unsafe().unknown_state_ = false;
+    net_query->get_data_unsafe().ack_state_ = 0;
+  }
   if (!net_query->cancel_slot_.empty()) {
     LOG(DEBUG) << "Set event for net_query cancellation " << tag("message_id", format::as_hex(message_id));
     net_query->cancel_slot_.set_event(EventCreator::raw(actor_id(), message_id));
@@ -1059,7 +1097,8 @@ void Session::connection_open_finish(ConnectionInfo *info,
   info->state = ConnectionInfo::State::Ready;
   info->created_at = Time::now_cached();
   info->wakeup_at = Time::now_cached() + 10;
-  if (unknown_queries_.size() > 1024) {
+  if (unknown_queries_.size() > MAX_INFLIGHT_QUERIES) {
+    LOG(ERROR) << "With current limits `Too much queries with unknown state` error must be impossible";
     on_session_failed(Status::Error("Too much queries with unknown state"));
     return;
   }
@@ -1089,6 +1128,7 @@ void Session::connection_close(ConnectionInfo *info) {
   info->connection->force_close(static_cast<mtproto::SessionConnection::Callback *>(this));
   CHECK(info->state == ConnectionInfo::State::Empty);
 }
+
 bool Session::need_send_check_main_key() const {
   return need_check_main_key_ && auth_data_.get_main_auth_key().id() != being_checked_main_auth_key_id_;
 }
@@ -1105,9 +1145,9 @@ bool Session::connection_send_check_main_key(ConnectionInfo *info) {
   LOG(INFO) << "Check main key";
   being_checked_main_auth_key_id_ = key_id;
   last_check_query_id_ = UniqueId::next(UniqueId::BindKey);
-  NetQueryPtr query =
-      G()->net_query_creator().create(last_check_query_id_, create_storer(telegram_api::help_getNearestDc()));
-  query->dispatch_ttl = 0;
+  NetQueryPtr query = G()->net_query_creator().create(last_check_query_id_, telegram_api::help_getNearestDc(),
+                                                      DcId::main(), NetQuery::Type::Common, NetQuery::AuthFlag::On);
+  query->dispatch_ttl_ = 0;
   query->set_callback(actor_shared(this));
   connection_send_query(info, std::move(query));
 
@@ -1118,6 +1158,7 @@ bool Session::need_send_bind_key() const {
   return auth_data_.use_pfs() && !auth_data_.get_bind_flag() &&
          auth_data_.get_tmp_auth_key().id() != being_binded_tmp_auth_key_id_;
 }
+
 bool Session::need_send_query() const {
   return !close_flag_ && !need_check_main_key_ && (!auth_data_.use_pfs() || auth_data_.get_bind_flag()) &&
          !pending_queries_.empty() && !can_destroy_auth_key();
@@ -1142,8 +1183,9 @@ bool Session::connection_send_bind_key(ConnectionInfo *info) {
   LOG(INFO) << "Bind key: " << tag("tmp", key_id) << tag("perm", static_cast<uint64>(perm_auth_key_id));
   NetQueryPtr query = G()->net_query_creator().create(
       last_bind_query_id_,
-      create_storer(telegram_api::auth_bindTempAuthKey(perm_auth_key_id, nonce, expires_at, std::move(encrypted))));
-  query->dispatch_ttl = 0;
+      telegram_api::auth_bindTempAuthKey(perm_auth_key_id, nonce, expires_at, std::move(encrypted)), DcId::main(),
+      NetQuery::Type::Common, NetQuery::AuthFlag::On);
+  query->dispatch_ttl_ = 0;
   query->set_callback(actor_shared(this));
   connection_send_query(info, std::move(query), message_id);
 
@@ -1299,12 +1341,11 @@ void Session::loop() {
     while (main_connection_.state == ConnectionInfo::State::Ready) {
       if (auth_data_.is_ready(Time::now_cached())) {
         if (need_send_query()) {
-          while (!pending_queries_.empty()) {
-            auto &query = pending_queries_.front();
+          while (!pending_queries_.empty() && sent_queries_.size() < MAX_INFLIGHT_QUERIES) {
+            auto query = pending_queries_.pop();
             connection_send_query(&main_connection_, std::move(query));
-            pending_queries_.pop_front();
+            need_flush = true;
           }
-          need_flush = true;
         }
         if (need_send_bind_key()) {
           // send auth.bindTempAuthKey

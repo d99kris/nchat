@@ -138,6 +138,10 @@ void SessionProxy::update_main_flag(bool is_main) {
 }
 
 void SessionProxy::update_destroy(bool need_destroy) {
+  if (need_destroy_ == need_destroy) {
+    LOG(INFO) << "Ignore reduntant update_destroy(" << need_destroy << ")";
+    return;
+  }
   need_destroy_ = need_destroy;
   close_session();
   open_session();
@@ -171,7 +175,7 @@ void SessionProxy::open_session(bool force) {
   // 1. All unauthorized query will be sent into the same SessionProxy
   // 2. All authorized query are delayed before we have authorization
   // So only one SessionProxy will be active before we have authorization key
-  auto should_open = [&]() {
+  auto should_open = [&] {
     if (force) {
       return true;
     }

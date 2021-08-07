@@ -7,6 +7,7 @@
 #include "td/utils/tests.h"
 
 #include "td/actor/actor.h"
+#include "td/actor/ConcurrentScheduler.h"
 
 #include "td/utils/logging.h"
 
@@ -110,7 +111,7 @@ class Manager final : public Actor {
   int query_size_;
 };
 
-void test_workers(int threads_n, int workers_n, int queries_n, int query_size) {
+static void test_workers(int threads_n, int workers_n, int queries_n, int query_size) {
   SET_VERBOSITY_LEVEL(VERBOSITY_NAME(ERROR));
 
   ConcurrentScheduler sched;

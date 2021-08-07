@@ -43,7 +43,6 @@
 //}
 //}
 
-// TODO: warnings and asserts. There should be no warnings or debug output in production.
 using qvalue_t = int;
 
 // Just for testing, not production
@@ -838,7 +837,7 @@ class QueueBenchmark : public td::Benchmark {
 
 template <class QueueT>
 class RingBenchmark : public td::Benchmark {
-  enum { QN = 504 };
+  static constexpr int QN = 504;
 
   struct Thread {
     int int_id;
@@ -904,12 +903,12 @@ class RingBenchmark : public td::Benchmark {
 
 void test_queue() {
   std::vector<td::thread> threads;
-  constexpr size_t threads_n = 100;
-  std::vector<td::MpscPollableQueue<int>> queues(threads_n);
+  static constexpr size_t THREAD_COUNT = 100;
+  std::vector<td::MpscPollableQueue<int>> queues(THREAD_COUNT);
   for (auto &q : queues) {
     q.init();
   }
-  for (size_t i = 0; i < threads_n; i++) {
+  for (size_t i = 0; i < THREAD_COUNT; i++) {
     threads.emplace_back([&q = queues[i]] {
       while (true) {
         auto got = q.reader_wait_nonblock();
@@ -924,7 +923,7 @@ void test_queue() {
   while (true) {
     td::usleep_for(100);
     for (int i = 0; i < 5; i++) {
-      queues[td::Random::fast(0, threads_n - 1)].writer_put(1);
+      queues[td::Random::fast(0, THREAD_COUNT - 1)].writer_put(1);
     }
   }
 }
@@ -975,6 +974,4 @@ int main() {
   // BENCH_Q(BufferQueue, 100);
   // BENCH_Q(BufferQueue, 10);
   // BENCH_Q(BufferQueue, 1);
-
-  return 0;
 }

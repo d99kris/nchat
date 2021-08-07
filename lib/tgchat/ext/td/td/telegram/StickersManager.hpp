@@ -12,7 +12,6 @@
 #include "td/telegram/misc.h"
 #include "td/telegram/Photo.hpp"
 
-#include "td/utils/format.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/Slice.h"
@@ -72,9 +71,8 @@ FileId StickersManager::parse_sticker(bool in_sticker_set, ParserT &parser) {
     Slice data = parser.template fetch_string_raw<Slice>(parser.get_left_len());
     for (auto c : data) {
       if (c != '\0') {
-        LOG_CHECK(in_sticker_set_stored == in_sticker_set)
-            << in_sticker_set << " " << in_sticker_set_stored << " " << parser.version() << " " << sticker->is_mask
-            << " " << has_sticker_set_access_hash << " " << format::as_hex_dump<4>(data);
+        parser.set_error("Invalid sticker set is stored in the database");
+        break;
       }
     }
     parser.set_error("Zero sticker set is stored in the database");
@@ -134,6 +132,7 @@ void StickersManager::store_sticker_set(const StickerSet *sticker_set, bool with
   STORE_FLAG(has_thumbnail);
   STORE_FLAG(sticker_set->is_thumbnail_reloaded);
   STORE_FLAG(sticker_set->is_animated);
+  STORE_FLAG(sticker_set->are_legacy_thumbnails_reloaded);
   END_STORE_FLAGS();
   store(sticker_set->id.get(), storer);
   store(sticker_set->access_hash, storer);
@@ -192,6 +191,7 @@ void StickersManager::parse_sticker_set(StickerSet *sticker_set, ParserT &parser
   PARSE_FLAG(has_thumbnail);
   PARSE_FLAG(sticker_set->is_thumbnail_reloaded);
   PARSE_FLAG(is_animated);
+  PARSE_FLAG(sticker_set->are_legacy_thumbnails_reloaded);
   END_PARSE_FLAGS();
   int64 sticker_set_id;
   int64 access_hash;
@@ -199,7 +199,7 @@ void StickersManager::parse_sticker_set(StickerSet *sticker_set, ParserT &parser
   parse(access_hash, parser);
   CHECK(sticker_set->id.get() == sticker_set_id);
   if (sticker_set->access_hash != access_hash) {
-    LOG(ERROR) << "Access hash of " << sticker_set_id << " has changed from " << access_hash << " to "
+    LOG(ERROR) << "Access hash of " << sticker_set->id << " has changed from " << access_hash << " to "
                << sticker_set->access_hash;
   }
 

@@ -20,8 +20,6 @@ UiDialog::UiDialog(const UiDialogParams& p_Params)
   , m_HPerc(p_Params.hPerc)
 {
   Init();
-  m_Model->SetDialogActive(true);
-  m_View->Draw();
   curs_set(0);
 }
 
@@ -29,7 +27,6 @@ UiDialog::~UiDialog()
 {
   Cleanup();
   curs_set(1);
-  m_Model->SetDialogActive(false);
 }
 
 void UiDialog::Init()

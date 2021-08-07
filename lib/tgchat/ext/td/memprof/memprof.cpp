@@ -11,7 +11,6 @@
 #if (TD_DARWIN || TD_LINUX) && defined(USE_MEMPROF)
 #include <algorithm>
 #include <atomic>
-#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -33,6 +32,11 @@ double get_fast_backtrace_success_rate() {
   return 0;
 }
 #else
+
+#define my_assert(f) \
+  if (!(f)) {        \
+    std::abort();    \
+  }
 
 #if TD_LINUX
 extern void *__libc_stack_end;
@@ -117,8 +121,8 @@ static Backtrace get_backtrace() {
   return res;
 }
 
-static constexpr std::size_t reserved = 16;
-static constexpr std::int32_t malloc_info_magic = 0x27138373;
+static constexpr std::size_t RESERVED_SIZE = 16;
+static constexpr std::int32_t MALLOC_INFO_MAGIC = 0x27138373;
 struct malloc_info {
   std::int32_t magic;
   std::int32_t size;
@@ -139,9 +143,9 @@ struct HashtableNode {
   std::atomic<std::size_t> size;
 };
 
-static constexpr std::size_t ht_max_size = 1000000;
+static constexpr std::size_t HT_MAX_SIZE = 1000000;
 static std::atomic<std::size_t> ht_size{0};
-static std::array<HashtableNode, ht_max_size> ht;
+static std::array<HashtableNode, HT_MAX_SIZE> ht;
 
 std::size_t get_ht_size() {
   return ht_size.load();
@@ -154,9 +158,9 @@ std::int32_t get_ht_pos(const Backtrace &bt, bool force = false) {
   while (true) {
     auto pos_hash = ht[pos].hash.load();
     if (pos_hash == 0) {
-      if (ht_size > ht_max_size / 2) {
+      if (ht_size > HT_MAX_SIZE / 2) {
         if (force) {
-          assert(ht_size * 10 < ht_max_size * 7);
+          my_assert(ht_size * 10 < HT_MAX_SIZE * 7);
         } else {
           Backtrace unknown_bt{{nullptr}};
           unknown_bt[0] = reinterpret_cast<void *>(1);
@@ -188,26 +192,29 @@ std::int32_t get_ht_pos(const Backtrace &bt, bool force = false) {
 
 void dump_alloc(const std::function<void(const AllocInfo &)> &func) {
   for (auto &node : ht) {
-    if (node.size == 0) {
+    auto size = node.size.load(std::memory_order_relaxed);
+    if (size == 0) {
       continue;
     }
-    func(AllocInfo{node.backtrace, node.size.load()});
+    func(AllocInfo{node.backtrace, size});
   }
 }
 
 void register_xalloc(malloc_info *info, std::int32_t diff) {
+  my_assert(info->size >= 0);
   if (diff > 0) {
-    ht[info->ht_pos].size += info->size;
+    ht[info->ht_pos].size.fetch_add(info->size, std::memory_order_relaxed);
   } else {
-    ht[info->ht_pos].size -= info->size;
+    auto old_value = ht[info->ht_pos].size.fetch_sub(info->size, std::memory_order_relaxed);
+    my_assert(old_value >= static_cast<std::size_t>(info->size));
   }
 }
 
 extern "C" {
 
 static void *malloc_with_frame(std::size_t size, const Backtrace &frame) {
-  static_assert(reserved % alignof(std::max_align_t) == 0, "fail");
-  static_assert(reserved >= sizeof(malloc_info), "fail");
+  static_assert(RESERVED_SIZE % alignof(std::max_align_t) == 0, "fail");
+  static_assert(RESERVED_SIZE >= sizeof(malloc_info), "fail");
 #if TD_DARWIN
   static void *malloc_void = dlsym(RTLD_NEXT, "malloc");
   static auto malloc_old = *reinterpret_cast<decltype(malloc) **>(&malloc_void);
@@ -215,26 +222,26 @@ static void *malloc_with_frame(std::size_t size, const Backtrace &frame) {
   extern decltype(malloc) __libc_malloc;
   static auto malloc_old = __libc_malloc;
 #endif
-  auto *info = static_cast<malloc_info *>(malloc_old(size + reserved));
+  auto *info = static_cast<malloc_info *>(malloc_old(size + RESERVED_SIZE));
   auto *buf = reinterpret_cast<char *>(info);
 
-  info->magic = malloc_info_magic;
+  info->magic = MALLOC_INFO_MAGIC;
   info->size = static_cast<std::int32_t>(size);
   info->ht_pos = get_ht_pos(frame);
 
   register_xalloc(info, +1);
 
-  void *data = buf + reserved;
+  void *data = buf + RESERVED_SIZE;
 
   return data;
 }
 
 static malloc_info *get_info(void *data_void) {
   char *data = static_cast<char *>(data_void);
-  auto *buf = data - reserved;
+  auto *buf = data - RESERVED_SIZE;
 
   auto *info = reinterpret_cast<malloc_info *>(buf);
-  assert(info->magic == malloc_info_magic);
+  my_assert(info->magic == MALLOC_INFO_MAGIC);
   return info;
 }
 
@@ -276,7 +283,7 @@ void *realloc(void *ptr, std::size_t size) {
   return new_ptr;
 }
 void *memalign(std::size_t aligment, std::size_t size) {
-  assert(false && "Memalign is unsupported");
+  my_assert(false && "Memalign is unsupported");
   return nullptr;
 }
 }

@@ -79,8 +79,11 @@ public:
   void SetSelectMessage(bool p_SelectMessage);
   bool GetSelectMessage();
 
-  bool GetDialogActive();
-  void SetDialogActive(bool p_DialogActive);
+  bool GetListDialogActive();
+  void SetListDialogActive(bool p_ListDialogActive);
+
+  bool GetMessageDialogActive();
+  void SetMessageDialogActive(bool p_MessageDialogActive);
 
   void SetHelpOffset(int p_HelpOffset);
   int GetHelpOffset();
@@ -124,6 +127,7 @@ private:
   std::unordered_map<std::string, std::unordered_map<std::string, std::stack<int>>> m_MessageOffsetStack;
   std::unordered_map<std::string,
                      std::unordered_map<std::string, std::unordered_set<std::string>>> m_MsgFromIdsRequested;
+  std::unordered_map<std::string, std::unordered_map<std::string, bool>> m_FetchedAllCache;
 
   std::unordered_map<std::string, std::unordered_map<std::string, std::wstring>> m_EntryStr;
   std::unordered_map<std::string, std::unordered_map<std::string, int>> m_EntryPos;
@@ -132,7 +136,8 @@ private:
   std::unordered_map<std::string, std::unordered_map<std::string, bool>> m_UserOnline;
 
   bool m_SelectMessage = false;
-  bool m_DialogActive = false;
+  bool m_ListDialogActive = false;
+  bool m_MessageDialogActive = false;
   bool m_TriggerTerminalBell = false;
 
   int m_HelpOffset = 0;

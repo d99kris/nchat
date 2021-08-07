@@ -4,7 +4,7 @@
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
-#include "td/mtproto/crypto.h"
+#include "td/mtproto/RSA.h"
 
 #include "td/mtproto/mtproto_api.h"
 
@@ -25,16 +25,14 @@
 
 namespace td {
 
-/*** RSA ***/
 RSA::RSA(BigNum n, BigNum e) : n_(std::move(n)), e_(std::move(e)) {
-  e_.ensure_const_time();
 }
 
 RSA RSA::clone() const {
   return RSA(n_.clone(), e_.clone());
 }
 
-Result<RSA> RSA::from_pem(Slice pem) {
+Result<RSA> RSA::from_pem_public_key(Slice pem) {
   init_crypto();
 
   auto *bio =
@@ -91,17 +89,19 @@ int64 RSA::get_fingerprint() const {
 }
 
 size_t RSA::size() const {
-  // Checked in RSA::from_pem step
+  // Checked in RSA::from_pem_public_key step
   return 256;
 }
 
-size_t RSA::encrypt(unsigned char *from, size_t from_len, unsigned char *to) const {
+size_t RSA::encrypt(unsigned char *from, size_t from_len, size_t max_from_len, unsigned char *to, size_t to_len) const {
   CHECK(from_len > 0 && from_len <= 2550);
   size_t pad = (25500 - from_len - 32) % 255 + 32;
   size_t chunks = (from_len + pad) / 255;
   int bits = n_.get_num_bits();
   CHECK(bits >= 2041 && bits <= 2048);
   CHECK(chunks * 255 == from_len + pad);
+  CHECK(from_len + pad <= max_from_len);
+  CHECK(chunks * 256 <= to_len);
   Random::secure_bytes(from + from_len, pad);
 
   BigNumContext ctx;
@@ -115,7 +115,7 @@ size_t RSA::encrypt(unsigned char *from, size_t from_len, unsigned char *to) con
   return chunks * 256;
 }
 
-void RSA::decrypt(Slice from, MutableSlice to) const {
+void RSA::decrypt_signature(Slice from, MutableSlice to) const {
   CHECK(from.size() == 256);
   BigNumContext ctx;
   BigNum x = BigNum::from_binary(from);

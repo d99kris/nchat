@@ -18,6 +18,12 @@
 
 #include "emoji.h"
 
+void StrUtil::DeleteToMatch(std::wstring& p_Str, const int p_StartPos, const wchar_t p_EndChar)
+{
+  size_t endPos = p_Str.find(p_EndChar, p_StartPos);
+  p_Str.erase(p_StartPos, (endPos == std::wstring::npos) ? endPos : (endPos - p_StartPos + 1));
+}
+
 std::string StrUtil::Emojize(const std::string& p_Str)
 {
   return emojicpp::emojize(p_Str);
@@ -109,6 +115,29 @@ std::wstring StrUtil::Join(const std::vector<std::wstring>& p_Lines, const std::
     str += line;
   }
   return str;
+}
+
+void StrUtil::ReplaceString(std::string& p_Str, const std::string& p_Search, const std::string& p_Replace)
+{
+  size_t pos = 0;
+  while ((pos = p_Str.find(p_Search, pos)) != std::string::npos)
+  {
+    p_Str.replace(pos, p_Search.length(), p_Replace);
+    pos += p_Replace.length();
+  }
+}
+
+std::vector<std::string> StrUtil::Split(const std::string& p_Str, char p_Sep)
+{
+  std::vector<std::string> vec;
+  std::stringstream ss(p_Str);
+  while (ss.good())
+  {
+    std::string str;
+    getline(ss, str, p_Sep);
+    vec.push_back(str);
+  }
+  return vec;
 }
 
 std::string StrUtil::StrFromHex(const std::string& p_String)

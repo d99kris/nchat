@@ -9,7 +9,6 @@
 #include "td/actor/actor.h"
 
 #include "td/telegram/Global.h"
-#include "td/telegram/net/DcId.h"
 #include "td/telegram/net/NetQueryCreator.h"
 #include "td/telegram/net/NetQueryDispatcher.h"
 
@@ -44,6 +43,9 @@ class TempAuthKeyWatchdog : public NetQueryCallback {
   };
 
  public:
+  explicit TempAuthKeyWatchdog(ActorShared<> parent) : parent_(std::move(parent)) {
+  }
+
   using RegisteredAuthKey = unique_ptr<RegisteredAuthKeyImpl>;
 
   static RegisteredAuthKey register_auth_key_id(int64 id) {
@@ -55,6 +57,7 @@ class TempAuthKeyWatchdog : public NetQueryCallback {
   static constexpr double SYNC_WAIT = 0.1;
   static constexpr double SYNC_WAIT_MAX = 1.0;
 
+  ActorShared<> parent_;
   std::map<uint64, uint32> id_count_;
   double sync_at_ = 0;
   bool need_sync_ = false;
@@ -111,8 +114,7 @@ class TempAuthKeyWatchdog : public NetQueryCallback {
       return;
     }
     LOG(WARNING) << "Start auth_dropTempAuthKeys except keys " << format::as_array(ids);
-    auto query = G()->net_query_creator().create(create_storer(telegram_api::auth_dropTempAuthKeys(std::move(ids))),
-                                                 DcId::main(), NetQuery::Type::Common, NetQuery::AuthFlag::Off);
+    auto query = G()->net_query_creator().create_unauth(telegram_api::auth_dropTempAuthKeys(std::move(ids)));
     G()->net_query_dispatcher().dispatch_with_callback(std::move(query), actor_shared(this));
   }
 

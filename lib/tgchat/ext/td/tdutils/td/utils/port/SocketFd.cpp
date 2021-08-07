@@ -10,6 +10,7 @@
 #include "td/utils/format.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
+#include "td/utils/port/detail/skip_eintr.h"
 #include "td/utils/port/PollFlags.h"
 
 #if TD_PORT_WINDOWS
@@ -20,6 +21,8 @@
 #endif
 
 #if TD_PORT_POSIX
+#include <cerrno>
+
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <netinet/in.h>
@@ -119,7 +122,7 @@ class SocketFdImpl : private Iocp::Callback {
   }
 
   Result<size_t> read(MutableSlice slice) {
-    if (get_poll_info().get_flags().has_pending_error()) {
+    if (get_poll_info().get_flags_local().has_pending_error()) {
       TRY_STATUS(get_pending_error());
     }
     input_reader_.sync_with_writer();
@@ -215,11 +218,11 @@ class SocketFdImpl : private Iocp::Callback {
       return;
     }
     std::memset(&write_overlapped_, 0, sizeof(write_overlapped_));
-    constexpr size_t buf_size = 20;
-    WSABUF buf[buf_size];
+    constexpr size_t BUF_SIZE = 20;
+    WSABUF buf[BUF_SIZE];
     auto it = output_reader_.clone();
     size_t buf_i;
-    for (buf_i = 0; buf_i < buf_size; buf_i++) {
+    for (buf_i = 0; buf_i < BUF_SIZE; buf_i++) {
       auto src = it.prepare_read();
       if (src.empty()) {
         break;
@@ -381,17 +384,37 @@ class SocketFdImpl {
   const NativeFd &get_native_fd() const {
     return info.native_fd();
   }
+
   Result<size_t> writev(Span<IoSlice> slices) {
     int native_fd = get_native_fd().socket();
-    auto write_res =
-        detail::skip_eintr([&] { return ::writev(native_fd, slices.begin(), narrow_cast<int>(slices.size())); });
+    TRY_RESULT(slices_size, narrow_cast_safe<int>(slices.size()));
+    auto write_res = detail::skip_eintr([&] {
+#ifdef MSG_NOSIGNAL
+      msghdr msg;
+      std::memset(&msg, 0, sizeof(msg));
+      msg.msg_iov = const_cast<iovec *>(slices.begin());
+      msg.msg_iovlen = slices_size;
+      return sendmsg(native_fd, &msg, MSG_NOSIGNAL);
+#else
+      return ::writev(native_fd, slices.begin(), slices_size);
+#endif
+    });
     return write_finish(write_res);
   }
+
   Result<size_t> write(Slice slice) {
     int native_fd = get_native_fd().socket();
-    auto write_res = detail::skip_eintr([&] { return ::write(native_fd, slice.begin(), slice.size()); });
+    auto write_res = detail::skip_eintr([&] {
+      return
+#ifdef MSG_NOSIGNAL
+          send(native_fd, slice.begin(), slice.size(), MSG_NOSIGNAL);
+#else
+          ::write(native_fd, slice.begin(), slice.size());
+#endif
+    });
     return write_finish(write_res);
   }
+
   Result<size_t> write_finish(ssize_t write_res) {
     auto write_errno = errno;
     if (write_res >= 0) {
@@ -432,7 +455,7 @@ class SocketFdImpl {
     }
   }
   Result<size_t> read(MutableSlice slice) {
-    if (get_poll_info().get_flags().has_pending_error()) {
+    if (get_poll_info().get_flags_local().has_pending_error()) {
       TRY_STATUS(get_pending_error());
     }
     int native_fd = get_native_fd().socket();
@@ -479,7 +502,7 @@ class SocketFdImpl {
     }
   }
   Status get_pending_error() {
-    if (!get_poll_info().get_flags().has_pending_error()) {
+    if (!get_poll_info().get_flags_local().has_pending_error()) {
       return Status::OK();
     }
     TRY_STATUS(detail::get_socket_pending_error(get_native_fd()));
@@ -535,6 +558,17 @@ Status init_socket_options(NativeFd &native_fd) {
   setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char *>(&flags), sizeof(flags));
   setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, reinterpret_cast<const char *>(&flags), sizeof(flags));
   setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<const char *>(&flags), sizeof(flags));
+#if TD_PORT_POSIX
+#ifndef MSG_NOSIGNAL  // Darwin
+
+#ifdef SO_NOSIGPIPE
+  setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, reinterpret_cast<const char *>(&flags), sizeof(flags));
+#else
+#warning "Failed to suppress SIGPIPE signals. Use signal(SIGPIPE, SIG_IGN) to suppress them."
+#endif
+
+#endif
+#endif
   // TODO: SO_REUSEADDR, SO_KEEPALIVE, TCP_NODELAY, SO_SNDBUF, SO_RCVBUF, TCP_QUICKACK, SO_LINGER
 
   return Status::OK();

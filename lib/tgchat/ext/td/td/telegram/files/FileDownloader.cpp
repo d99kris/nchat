@@ -108,11 +108,12 @@ Result<FileLoader::FileInfo> FileDownloader::init() {
   res.ready_parts = bitmask.as_vector();
   res.use_part_count_limit = false;
   res.only_check = only_check_;
+  auto file_type = remote_.file_type_;
   res.need_delay =
-      !is_small_ && (remote_.file_type_ == FileType::VideoNote || remote_.file_type_ == FileType::Document ||
-                     remote_.file_type_ == FileType::VoiceNote || remote_.file_type_ == FileType::Audio ||
-                     remote_.file_type_ == FileType::Video || remote_.file_type_ == FileType::Animation ||
-                     (remote_.file_type_ == FileType::Encrypted && size_ > (1 << 20)));
+      !is_small_ &&
+      (file_type == FileType::VideoNote || file_type == FileType::Document || file_type == FileType::DocumentAsFile ||
+       file_type == FileType::VoiceNote || file_type == FileType::Audio || file_type == FileType::Video ||
+       file_type == FileType::Animation || (file_type == FileType::Encrypted && size_ > (1 << 20)));
   res.offset = offset_;
   res.limit = limit_;
   return res;
@@ -235,6 +236,7 @@ Result<std::pair<NetQueryPtr, bool>> FileDownloader::start_part(Part part, int32
 
   callback_->on_start_download();
 
+  auto net_query_type = is_small_ ? NetQuery::Type::DownloadSmall : NetQuery::Type::Download;
   NetQueryPtr net_query;
   if (!use_cdn_) {
     int32 flags = 0;
@@ -245,15 +247,19 @@ Result<std::pair<NetQueryPtr, bool>> FileDownloader::start_part(Part part, int32
     }
 #endif
     DcId dc_id = remote_.is_web() ? G()->get_webfile_dc_id() : remote_.get_dc_id();
-    net_query = G()->net_query_creator().create(
-        UniqueId::next(UniqueId::Type::Default, static_cast<uint8>(QueryType::Default)),
-        remote_.is_web()
-            ? create_storer(telegram_api::upload_getWebFile(remote_.as_input_web_file_location(),
-                                                            static_cast<int32>(part.offset), static_cast<int32>(size)))
-            : create_storer(telegram_api::upload_getFile(flags, false /*ignored*/, false /*ignored*/,
-                                                         remote_.as_input_file_location(),
-                                                         static_cast<int32>(part.offset), static_cast<int32>(size))),
-        dc_id, is_small_ ? NetQuery::Type::DownloadSmall : NetQuery::Type::Download);
+    auto id = UniqueId::next(UniqueId::Type::Default, static_cast<uint8>(QueryType::Default));
+    net_query = remote_.is_web()
+                    ? G()->net_query_creator().create(
+                          id,
+                          telegram_api::upload_getWebFile(remote_.as_input_web_file_location(),
+                                                          static_cast<int32>(part.offset), static_cast<int32>(size)),
+                          dc_id, net_query_type, NetQuery::AuthFlag::On)
+                    : G()->net_query_creator().create(
+                          id,
+                          telegram_api::upload_getFile(flags, false /*ignored*/, false /*ignored*/,
+                                                       remote_.as_input_file_location(),
+                                                       static_cast<int32>(part.offset), static_cast<int32>(size)),
+                          dc_id, net_query_type, NetQuery::AuthFlag::On);
   } else {
     if (remote_.is_web()) {
       return Status::Error("Can't download web file from CDN");
@@ -264,15 +270,15 @@ Result<std::pair<NetQueryPtr, bool>> FileDownloader::start_part(Part part, int32
                                                    static_cast<int32>(size));
       cdn_part_file_token_generation_[part.id] = cdn_file_token_generation_;
       LOG(DEBUG) << part.id << " " << to_string(query);
-      net_query = G()->net_query_creator().create(
-          UniqueId::next(UniqueId::Type::Default, static_cast<uint8>(QueryType::CDN)), create_storer(query), cdn_dc_id_,
-          is_small_ ? NetQuery::Type::DownloadSmall : NetQuery::Type::Download, NetQuery::AuthFlag::Off);
+      net_query =
+          G()->net_query_creator().create(UniqueId::next(UniqueId::Type::Default, static_cast<uint8>(QueryType::CDN)),
+                                          query, cdn_dc_id_, net_query_type, NetQuery::AuthFlag::Off);
     } else {
       auto query = telegram_api::upload_reuploadCdnFile(BufferSlice(cdn_file_token_), BufferSlice(it->second));
       LOG(DEBUG) << part.id << " " << to_string(query);
       net_query = G()->net_query_creator().create(
-          UniqueId::next(UniqueId::Type::Default, static_cast<uint8>(QueryType::ReuploadCDN)), create_storer(query),
-          remote_.get_dc_id(), is_small_ ? NetQuery::Type::DownloadSmall : NetQuery::Type::Download);
+          UniqueId::next(UniqueId::Type::Default, static_cast<uint8>(QueryType::ReuploadCDN)), query,
+          remote_.get_dc_id(), net_query_type, NetQuery::AuthFlag::On);
       cdn_part_reupload_token_.erase(it);
     }
   }
@@ -464,9 +470,8 @@ Result<FileLoader::CheckInfo> FileDownloader::check_loop(int64 checked_prefix_si
       has_hash_query_ = true;
       auto query =
           telegram_api::upload_getFileHashes(remote_.as_input_file_location(), narrow_cast<int32>(checked_prefix_size));
-      auto net_query =
-          G()->net_query_creator().create(create_storer(query), remote_.get_dc_id(),
-                                          is_small_ ? NetQuery::Type::DownloadSmall : NetQuery::Type::Download);
+      auto net_query_type = is_small_ ? NetQuery::Type::DownloadSmall : NetQuery::Type::Download;
+      auto net_query = G()->net_query_creator().create(query, remote_.get_dc_id(), net_query_type);
       info.queries.push_back(std::move(net_query));
       break;
     }

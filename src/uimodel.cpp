@@ -11,6 +11,7 @@
 
 #include <ncursesw/ncurses.h>
 
+#include "appconfig.h"
 #include "fileutil.h"
 #include "log.h"
 #include "messagecache.h"
@@ -19,10 +20,12 @@
 #include "strutil.h"
 #include "timeutil.h"
 #include "uidialog.h"
+#include "uiconfig.h"
 #include "uicontactlistdialog.h"
 #include "uiemojilistdialog.h"
 #include "uifilelistdialog.h"
 #include "uikeyconfig.h"
+#include "uimessagedialog.h"
 #include "uiview.h"
 
 UiModel::UiModel()
@@ -235,6 +238,7 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
   static wint_t keyRight = UiKeyConfig::GetKey("right");
   static wint_t keyBackspace = UiKeyConfig::GetKey("backspace");
   static wint_t keyDelete = UiKeyConfig::GetKey("delete");
+  static wint_t keyDeleteLine = UiKeyConfig::GetKey("delete_line");
 
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
@@ -253,7 +257,7 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
     }
     else
     {
-      if (entryPos == 0)
+      if ((entryPos == 0) && (messageCount > 0))
       {
         SetSelectMessage(true);
       }
@@ -279,6 +283,11 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
 
           stepsBack = std::min(stepsBack, width);
           entryPos = NumUtil::Bound(0, entryPos - stepsBack, (int)entryStr.size());
+
+          if ((entryPos < (int)entryStr.size()) && (entryStr.at(entryPos) == (wchar_t)EMOJI_PAD))
+          {
+            entryPos = NumUtil::Bound(0, entryPos - 1, (int)entryStr.size());
+          }
         }
         else
         {
@@ -327,6 +336,11 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
 
         stepsForward = std::min(stepsForward, width);
         entryPos = NumUtil::Bound(0, entryPos + stepsForward, (int)entryStr.size());
+
+        if ((entryPos < (int)entryStr.size()) && (entryStr.at(entryPos) == (wchar_t)EMOJI_PAD))
+        {
+          entryPos = NumUtil::Bound(0, entryPos - 1, (int)entryStr.size());
+        }
       }
     }
 
@@ -335,10 +349,18 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
   else if (p_Key == keyLeft)
   {
     entryPos = NumUtil::Bound(0, entryPos - 1, (int)entryStr.size());
+    if ((entryPos < (int)entryStr.size()) && (entryStr.at(entryPos) == (wchar_t)EMOJI_PAD))
+    {
+      entryPos = NumUtil::Bound(0, entryPos - 1, (int)entryStr.size());
+    }
   }
   else if (p_Key == keyRight)
   {
     entryPos = NumUtil::Bound(0, entryPos + 1, (int)entryStr.size());
+    if ((entryPos < (int)entryStr.size()) && (entryStr.at(entryPos) == (wchar_t)EMOJI_PAD))
+    {
+      entryPos = NumUtil::Bound(0, entryPos + 1, (int)entryStr.size());
+    }
   }
   else if (p_Key == keyBackspace)
   {
@@ -355,12 +377,19 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
   }
   else if (p_Key == keyDelete)
   {
-    // @todo: handle EMOJI_PAD
     if (entryPos < (int)entryStr.size())
     {
       entryStr.erase(entryPos, 1);
+      if ((entryPos < (int)entryStr.size()) && (entryStr.at(entryPos) == (wchar_t)EMOJI_PAD))
+      {
+        entryStr.erase(entryPos, 1);
+      }
       SetTyping(profileId, chatId, true);
     }
+  }
+  else if (p_Key == keyDeleteLine)
+  {
+    StrUtil::DeleteToMatch(entryStr, entryPos, L'\n');
   }
   else if (StrUtil::IsValidTextKey(p_Key))
   {
@@ -470,6 +499,7 @@ void UiModel::NextChat()
 
   m_CurrentChat = m_ChatVec.at(m_CurrentChatIndex);
   OnCurrentChatChanged();
+  SetSelectMessage(false);
 }
 
 void UiModel::PrevChat()
@@ -485,6 +515,7 @@ void UiModel::PrevChat()
 
   m_CurrentChat = m_ChatVec.at(m_CurrentChatIndex);
   OnCurrentChatChanged();
+  SetSelectMessage(false);
 }
 
 void UiModel::UnreadChat()
@@ -501,6 +532,7 @@ void UiModel::UnreadChat()
       m_CurrentChatIndex = i;
       m_CurrentChat = m_ChatVec.at(m_CurrentChatIndex);
       OnCurrentChatChanged();
+      SetSelectMessage(false);
       break;
     }
   }
@@ -561,18 +593,34 @@ void UiModel::NextPage()
 void UiModel::Home()
 {
   std::unique_lock<std::mutex> lock(m_ModelMutex);
-  int historyShowCount = std::numeric_limits<int>::max();
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
+  
+  bool& fetchedAllCache = m_FetchedAllCache[profileId][chatId];
+  if (!fetchedAllCache)
+  {
+    fetchedAllCache = true;
+    std::string fromId = "";
+    int limit = std::numeric_limits<int>::max();
+    lock.unlock();
+    LOG_DEBUG("fetch all");
+    bool fetchResult = MessageCache::Fetch(profileId, chatId, fromId, limit, true /* p_Sync */);
+    lock.lock();
+    fetchedAllCache = fetchResult;
+  }
 
-  const int messageCount = m_Messages[profileId][chatId].size();
+  int messageCount = m_Messages[profileId][chatId].size();
   int& messageOffset = m_MessageOffset[profileId][chatId];
   std::stack<int>& messageOffsetStack = m_MessageOffsetStack[profileId][chatId];
 
-  int addOffset = std::min(historyShowCount, std::max(messageCount - messageOffset - 1, 0));
+  int addOffset = std::max(messageCount - messageOffset - 1, 0);
   if (addOffset > 0)
   {
-    messageOffsetStack.push(addOffset);
+    for (int i = 0; i < addOffset; ++i)
+    {
+      messageOffsetStack.push(1); // @todo: consider building a nicer stack for page down from home
+    }
+    
     messageOffset += addOffset;
     RequestMessages();
     UpdateHistory();
@@ -629,10 +677,26 @@ void UiModel::DeleteMessage()
 
   if (!GetSelectMessage()) return;
 
+  static const bool confirmDeletion = UiConfig::GetBool("confirm_deletion");
+  if (confirmDeletion)
+  {
+    UiDialogParams params(m_View.get(), this, "Confirmation", 50, 25);
+    std::string dialogText = "Confirm message deletion?";
+    UiMessageDialog messageDialog(params, dialogText);
+    if (!messageDialog.Run())
+    {
+      ReinitView();
+      return;
+    } 
+
+    ReinitView();
+  }
+ 
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
-  const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
-  const int messageOffset = m_MessageOffset[profileId][chatId];
+  std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
+  std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
+  int& messageOffset = m_MessageOffset[profileId][chatId];
 
   auto it = std::next(messageVec.begin(), messageOffset);
   if (it == messageVec.end())
@@ -646,7 +710,9 @@ void UiModel::DeleteMessage()
   deleteMessageRequest->chatId = chatId;
   deleteMessageRequest->msgId = msgId;
   m_Protocols[profileId]->SendRequest(deleteMessageRequest);
-
+  messages.erase(*it);
+  messageVec.erase(it);
+  
   MessageCache::Delete(profileId, chatId, msgId);
 }
 
@@ -678,18 +744,18 @@ void UiModel::OpenMessageAttachment()
   }
 
   std::string filePath = mit->second.filePath;
-  if (filePath.empty())
+  if (filePath.empty() || (filePath == " "))
   {
     LOG_WARNING("message has no attachment");
     return;
   }
 
 #if defined(__APPLE__)
-  std::string cmd = "open " + filePath;
+  std::string cmd = "open " + filePath + " &";
   LOG_TRACE("run cmd %s", cmd.c_str());
   system(cmd.c_str());
 #elif defined(__linux__)
-  std::string cmd = "xdg-open >/dev/null 2>&1 " + filePath;
+  std::string cmd = "xdg-open >/dev/null 2>&1 " + filePath + " &";
   LOG_TRACE("run cmd %s", cmd.c_str());
   system(cmd.c_str());
 #else
@@ -725,7 +791,7 @@ void UiModel::SaveMessageAttachment()
   }
 
   std::string filePath = mit->second.filePath;
-  if (filePath.empty())
+  if (filePath.empty() || (filePath == " "))
   {
     LOG_WARNING("message has no attachment");
     return;
@@ -743,7 +809,11 @@ void UiModel::SaveMessageAttachment()
   std::string dstFilePath = downloadsDir + "/" + dstFileName;
   FileUtil::CopyFile(filePath, dstFilePath);
 
-  // @todo: add message dialog informing user about success and destination path
+  UiDialogParams params(m_View.get(), this, "Notification", 80, 25);
+  std::string dialogText = "File saved in\n" + dstFilePath;
+  UiMessageDialog messageDialog(params, dialogText);
+  messageDialog.Run();
+  ReinitView();
 }
 
 void UiModel::TransferFile()
@@ -823,6 +893,7 @@ void UiModel::SearchContact()
       m_CurrentChat.second = userId;
       SortChats();
       OnCurrentChatChanged();
+      SetSelectMessage(false);
     }
     else
     {
@@ -1079,7 +1150,6 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
         std::string filePath = newMessageFileNotify->filePath;
         LOG_TRACE("new file path for %s is %s", msgId.c_str(), filePath.c_str());
         m_Messages[profileId][chatId][msgId].filePath = filePath;
-        m_Messages[profileId][chatId][msgId].text = "";
         MessageCache::UpdateFilePath(profileId, chatId, msgId, filePath);
 
         UpdateHistory();
@@ -1136,6 +1206,7 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
           m_CurrentChat.second = chatInfo.id;
           SortChats();
           OnCurrentChatChanged();
+          SetSelectMessage(false);
         }
       }
       break;
@@ -1324,7 +1395,6 @@ std::string UiModel::GetChatStatus(const std::string& p_ProfileId, const std::st
 void UiModel::OnCurrentChatChanged()
 {
   LOG_TRACE("current chat %s %s", m_CurrentChat.first.c_str(), m_CurrentChat.second.c_str());
-  SetSelectMessage(false);
   UpdateList();
   UpdateStatus();
   UpdateHistory();
@@ -1361,8 +1431,7 @@ void UiModel::RequestMessages()
     msgFromIdsRequested.insert(fromId);
   }
 
-  bool isCached = MessageCache::Fetch(profileId, chatId, fromId, limit);
-  if (!isCached)
+  if (fromId.empty() || !MessageCache::Fetch(profileId, chatId, fromId, limit, false /* p_Sync */))
   {
     std::shared_ptr<GetMessagesRequest> getMessagesRequest = std::make_shared<GetMessagesRequest>();
     getMessagesRequest->chatId = chatId;
@@ -1506,14 +1575,26 @@ void UiModel::SetSelectMessage(bool p_SelectMessage)
   UpdateHelp();
 }
 
-bool UiModel::GetDialogActive()
+bool UiModel::GetListDialogActive()
 {
-  return m_DialogActive;
+  return m_ListDialogActive;
 }
 
-void UiModel::SetDialogActive(bool p_DialogActive)
+void UiModel::SetListDialogActive(bool p_ListDialogActive)
 {
-  m_DialogActive = p_DialogActive;
+  m_ListDialogActive = p_ListDialogActive;
+  SetHelpOffset(0);
+  UpdateHelp();
+}
+
+bool UiModel::GetMessageDialogActive()
+{
+  return m_MessageDialogActive;
+}
+
+void UiModel::SetMessageDialogActive(bool p_MessageDialogActive)
+{
+  m_MessageDialogActive = p_MessageDialogActive;
   SetHelpOffset(0);
   UpdateHelp();
 }

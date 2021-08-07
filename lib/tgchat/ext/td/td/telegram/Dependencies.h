@@ -28,6 +28,12 @@ struct Dependencies {
   std::unordered_set<WebPageId, WebPageIdHash> web_page_ids;
 };
 
-void resolve_dependencies_force(Td *td, const Dependencies &dependencies);
+void add_dialog_and_dependencies(Dependencies &dependencies, DialogId dialog_id);
+
+void add_dialog_dependencies(Dependencies &dependencies, DialogId dialog_id);
+
+void add_message_sender_dependencies(Dependencies &dependencies, DialogId dialog_id);
+
+void resolve_dependencies_force(Td *td, const Dependencies &dependencies, const char *source);
 
 }  // namespace td

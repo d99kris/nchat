@@ -37,10 +37,13 @@ tl_object_ptr<td_api::video> VideosManager::get_video_object(FileId file_id) {
   CHECK(video != nullptr);
   video->is_changed = false;
 
-  return make_tl_object<td_api::video>(
-      video->duration, video->dimensions.width, video->dimensions.height, video->file_name, video->mime_type,
-      video->has_stickers, video->supports_streaming, get_minithumbnail_object(video->minithumbnail),
-      get_photo_size_object(td_->file_manager_.get(), &video->thumbnail), td_->file_manager_->get_file_object(file_id));
+  auto thumbnail = video->animated_thumbnail.file_id.is_valid()
+                       ? get_thumbnail_object(td_->file_manager_.get(), video->animated_thumbnail, PhotoFormat::Mpeg4)
+                       : get_thumbnail_object(td_->file_manager_.get(), video->thumbnail, PhotoFormat::Jpeg);
+  return make_tl_object<td_api::video>(video->duration, video->dimensions.width, video->dimensions.height,
+                                       video->file_name, video->mime_type, video->has_stickers,
+                                       video->supports_streaming, get_minithumbnail_object(video->minithumbnail),
+                                       std::move(thumbnail), td_->file_manager_->get_file_object(file_id));
 }
 
 FileId VideosManager::on_get_video(unique_ptr<Video> new_video, bool replace) {
@@ -84,12 +87,22 @@ FileId VideosManager::on_get_video(unique_ptr<Video> new_video, bool replace) {
       v->thumbnail = new_video->thumbnail;
       v->is_changed = true;
     }
+    if (v->animated_thumbnail != new_video->animated_thumbnail) {
+      if (!v->animated_thumbnail.file_id.is_valid()) {
+        LOG(DEBUG) << "Video " << file_id << " animated thumbnail has changed";
+      } else {
+        LOG(INFO) << "Video " << file_id << " animated thumbnail has changed from " << v->animated_thumbnail << " to "
+                  << new_video->animated_thumbnail;
+      }
+      v->animated_thumbnail = new_video->animated_thumbnail;
+      v->is_changed = true;
+    }
     if (v->has_stickers != new_video->has_stickers && new_video->has_stickers) {
       v->has_stickers = new_video->has_stickers;
       v->is_changed = true;
     }
     if (v->sticker_file_ids != new_video->sticker_file_ids && !new_video->sticker_file_ids.empty()) {
-      v->sticker_file_ids = new_video->sticker_file_ids;
+      v->sticker_file_ids = std::move(new_video->sticker_file_ids);
       v->is_changed = true;
     }
   }
@@ -112,10 +125,17 @@ FileId VideosManager::get_video_thumbnail_file_id(FileId file_id) const {
   return video->thumbnail.file_id;
 }
 
+FileId VideosManager::get_video_animated_thumbnail_file_id(FileId file_id) const {
+  auto video = get_video(file_id);
+  CHECK(video != nullptr);
+  return video->animated_thumbnail.file_id;
+}
+
 void VideosManager::delete_video_thumbnail(FileId file_id) {
   auto &video = videos_[file_id];
   CHECK(video != nullptr);
   video->thumbnail = PhotoSize();
+  video->animated_thumbnail = AnimationSize();
 }
 
 FileId VideosManager::dup_video(FileId new_id, FileId old_id) {
@@ -126,6 +146,7 @@ FileId VideosManager::dup_video(FileId new_id, FileId old_id) {
   new_video = make_unique<Video>(*old_video);
   new_video->file_id = new_id;
   new_video->thumbnail.file_id = td_->file_manager_->dup_file_id(new_video->thumbnail.file_id);
+  new_video->animated_thumbnail.file_id = td_->file_manager_->dup_file_id(new_video->animated_thumbnail.file_id);
   return new_id;
 }
 
@@ -172,9 +193,10 @@ bool VideosManager::merge_videos(FileId new_id, FileId old_id, bool can_delete_o
   return true;
 }
 
-void VideosManager::create_video(FileId file_id, string minithumbnail, PhotoSize thumbnail, bool has_stickers,
-                                 vector<FileId> &&sticker_file_ids, string file_name, string mime_type, int32 duration,
-                                 Dimensions dimensions, bool supports_streaming, bool replace) {
+void VideosManager::create_video(FileId file_id, string minithumbnail, PhotoSize thumbnail,
+                                 AnimationSize animated_thumbnail, bool has_stickers, vector<FileId> &&sticker_file_ids,
+                                 string file_name, string mime_type, int32 duration, Dimensions dimensions,
+                                 bool supports_streaming, bool replace) {
   auto v = make_unique<Video>();
   v->file_id = file_id;
   v->file_name = std::move(file_name);
@@ -183,6 +205,7 @@ void VideosManager::create_video(FileId file_id, string minithumbnail, PhotoSize
   v->dimensions = dimensions;
   v->minithumbnail = std::move(minithumbnail);
   v->thumbnail = std::move(thumbnail);
+  v->animated_thumbnail = std::move(animated_thumbnail);
   v->supports_streaming = supports_streaming;
   v->has_stickers = has_stickers;
   v->sticker_file_ids = std::move(sticker_file_ids);
@@ -276,8 +299,8 @@ tl_object_ptr<telegram_api::InputMedia> VideosManager::get_input_media(
       flags |= telegram_api::inputMediaUploadedDocument::THUMB_MASK;
     }
     return make_tl_object<telegram_api::inputMediaUploadedDocument>(
-        flags, false /*ignored*/, std::move(input_file), std::move(input_thumbnail), mime_type, std::move(attributes),
-        std::move(added_stickers), ttl);
+        flags, false /*ignored*/, false /*ignored*/, std::move(input_file), std::move(input_thumbnail), mime_type,
+        std::move(attributes), std::move(added_stickers), ttl);
   } else {
     CHECK(!file_view.has_remote_location());
   }

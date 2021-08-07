@@ -22,11 +22,17 @@
 #include "td/telegram/ConfigManager.h"
 #include "td/telegram/ConfigShared.h"
 #include "td/telegram/ContactsManager.h"
+#include "td/telegram/CountryInfoManager.h"
 #include "td/telegram/DeviceTokenManager.h"
+#include "td/telegram/DialogAction.h"
 #include "td/telegram/DialogAdministrator.h"
+#include "td/telegram/DialogFilter.h"
+#include "td/telegram/DialogFilterId.h"
 #include "td/telegram/DialogId.h"
+#include "td/telegram/DialogListId.h"
 #include "td/telegram/DialogLocation.h"
 #include "td/telegram/DialogParticipant.h"
+#include "td/telegram/DialogSource.h"
 #include "td/telegram/DocumentsManager.h"
 #include "td/telegram/FileReferenceManager.h"
 #include "td/telegram/files/FileGcParameters.h"
@@ -43,8 +49,10 @@
 #include "td/telegram/LanguagePackManager.h"
 #include "td/telegram/Location.h"
 #include "td/telegram/Logging.h"
+#include "td/telegram/MessageCopyOptions.h"
 #include "td/telegram/MessageEntity.h"
 #include "td/telegram/MessageId.h"
+#include "td/telegram/MessageSearchFilter.h"
 #include "td/telegram/MessagesManager.h"
 #include "td/telegram/misc.h"
 #include "td/telegram/net/ConnectionCreator.h"
@@ -79,6 +87,7 @@
 #include "td/telegram/StickerSetId.h"
 #include "td/telegram/StickersManager.h"
 #include "td/telegram/StorageManager.h"
+#include "td/telegram/SuggestedAction.h"
 #include "td/telegram/TdDb.h"
 #include "td/telegram/TopDialogCategory.h"
 #include "td/telegram/TopDialogManager.h"
@@ -98,13 +107,12 @@
 
 #include "td/db/binlog/BinlogEvent.h"
 
-#include "td/mtproto/crypto.h"
 #include "td/mtproto/DhHandshake.h"
 #include "td/mtproto/Handshake.h"
 #include "td/mtproto/HandshakeActor.h"
 #include "td/mtproto/RawConnection.h"
+#include "td/mtproto/RSA.h"
 #include "td/mtproto/TransportType.h"
-#include "td/mtproto/utils.h"  // for create_storer, fetch_result, etc, TODO
 
 #include "td/utils/buffer.h"
 #include "td/utils/filesystem.h"
@@ -115,6 +123,7 @@
 #include "td/utils/port/IPAddress.h"
 #include "td/utils/port/path.h"
 #include "td/utils/port/SocketFd.h"
+#include "td/utils/port/uname.h"
 #include "td/utils/Random.h"
 #include "td/utils/Slice.h"
 #include "td/utils/Status.h"
@@ -128,6 +137,9 @@
 #include <type_traits>
 
 namespace td {
+
+int VERBOSITY_NAME(td_init) = VERBOSITY_NAME(DEBUG) + 3;
+int VERBOSITY_NAME(td_requests) = VERBOSITY_NAME(INFO);
 
 void Td::ResultHandler::set_td(Td *new_td) {
   CHECK(td == nullptr);
@@ -149,30 +161,29 @@ void Td::ResultHandler::send_query(NetQueryPtr query) {
   td->send(std::move(query));
 }
 
-class GetNearestDcQuery : public Td::ResultHandler {
-  Promise<string> promise_;
+class GetPromoDataQuery : public Td::ResultHandler {
+  Promise<telegram_api::object_ptr<telegram_api::help_PromoData>> promise_;
 
  public:
-  explicit GetNearestDcQuery(Promise<string> &&promise) : promise_(std::move(promise)) {
+  explicit GetPromoDataQuery(Promise<telegram_api::object_ptr<telegram_api::help_PromoData>> &&promise)
+      : promise_(std::move(promise)) {
   }
 
   void send() {
-    send_query(G()->net_query_creator().create(create_storer(telegram_api::help_getNearestDc()), DcId::main(),
-                                               NetQuery::Type::Common, NetQuery::AuthFlag::Off));
+    // we don't poll promo data before authorization
+    send_query(G()->net_query_creator().create(telegram_api::help_getPromoData()));
   }
 
   void on_result(uint64 id, BufferSlice packet) override {
-    auto result_ptr = fetch_result<telegram_api::help_getNearestDc>(packet);
+    auto result_ptr = fetch_result<telegram_api::help_getPromoData>(packet);
     if (result_ptr.is_error()) {
       return on_error(id, result_ptr.move_as_error());
     }
 
-    auto result = result_ptr.move_as_ok();
-    promise_.set_value(std::move(result->country_));
+    promise_.set_value(result_ptr.move_as_ok());
   }
 
   void on_error(uint64 id, Status status) override {
-    LOG(ERROR) << "GetNearestDc returned " << status;
     promise_.set_error(std::move(status));
   }
 };
@@ -185,7 +196,7 @@ class GetRecentMeUrlsQuery : public Td::ResultHandler {
   }
 
   void send(const string &referrer) {
-    send_query(G()->net_query_creator().create(create_storer(telegram_api::help_getRecentMeUrls(referrer))));
+    send_query(G()->net_query_creator().create(telegram_api::help_getRecentMeUrls(referrer)));
   }
 
   void on_result(uint64 id, BufferSlice packet) override {
@@ -234,9 +245,14 @@ class GetRecentMeUrlsQuery : public Td::ResultHandler {
         case telegram_api::recentMeUrlChatInvite::ID: {
           auto url = move_tl_object_as<telegram_api::recentMeUrlChatInvite>(url_ptr);
           result->url_ = std::move(url->url_);
-          td->contacts_manager_->on_get_dialog_invite_link_info(result->url_, std::move(url->chat_invite_));
-          result->type_ = make_tl_object<td_api::tMeUrlTypeChatInvite>(
-              td->contacts_manager_->get_chat_invite_link_info_object(result->url_));
+          td->contacts_manager_->on_get_dialog_invite_link_info(result->url_, std::move(url->chat_invite_),
+                                                                Promise<Unit>());
+          auto info_object = td->contacts_manager_->get_chat_invite_link_info_object(result->url_);
+          if (info_object == nullptr) {
+            result = nullptr;
+            break;
+          }
+          result->type_ = make_tl_object<td_api::tMeUrlTypeChatInvite>(std::move(info_object));
           break;
         }
         case telegram_api::recentMeUrlStickerSet::ID: {
@@ -272,15 +288,16 @@ class GetRecentMeUrlsQuery : public Td::ResultHandler {
 };
 
 class SendCustomRequestQuery : public Td::ResultHandler {
-  Promise<string> promise_;
+  Promise<td_api::object_ptr<td_api::customRequestResult>> promise_;
 
  public:
-  explicit SendCustomRequestQuery(Promise<string> &&promise) : promise_(std::move(promise)) {
+  explicit SendCustomRequestQuery(Promise<td_api::object_ptr<td_api::customRequestResult>> &&promise)
+      : promise_(std::move(promise)) {
   }
 
   void send(const string &method, const string &parameters) {
-    send_query(G()->net_query_creator().create(create_storer(
-        telegram_api::bots_sendCustomRequest(method, make_tl_object<telegram_api::dataJSON>(parameters)))));
+    send_query(G()->net_query_creator().create(
+        telegram_api::bots_sendCustomRequest(method, make_tl_object<telegram_api::dataJSON>(parameters))));
   }
 
   void on_result(uint64 id, BufferSlice packet) override {
@@ -290,7 +307,7 @@ class SendCustomRequestQuery : public Td::ResultHandler {
     }
 
     auto result = result_ptr.move_as_ok();
-    promise_.set_value(std::move(result->data_));
+    promise_.set_value(td_api::make_object<td_api::customRequestResult>(result->data_));
   }
 
   void on_error(uint64 id, Status status) override {
@@ -306,8 +323,8 @@ class AnswerCustomQueryQuery : public Td::ResultHandler {
   }
 
   void send(int64 custom_query_id, const string &data) {
-    send_query(G()->net_query_creator().create(create_storer(
-        telegram_api::bots_answerWebhookJSONQuery(custom_query_id, make_tl_object<telegram_api::dataJSON>(data)))));
+    send_query(G()->net_query_creator().create(
+        telegram_api::bots_answerWebhookJSONQuery(custom_query_id, make_tl_object<telegram_api::dataJSON>(data))));
   }
 
   void on_result(uint64 id, BufferSlice packet) override {
@@ -331,8 +348,8 @@ class AnswerCustomQueryQuery : public Td::ResultHandler {
 class SetBotUpdatesStatusQuery : public Td::ResultHandler {
  public:
   void send(int32 pending_update_count, const string &error_message) {
-    send_query(G()->net_query_creator().create(
-        create_storer(telegram_api::help_setBotUpdatesStatus(pending_update_count, error_message))));
+    send_query(
+        G()->net_query_creator().create(telegram_api::help_setBotUpdatesStatus(pending_update_count, error_message)));
   }
 
   void on_result(uint64 id, BufferSlice packet) override {
@@ -346,8 +363,8 @@ class SetBotUpdatesStatusQuery : public Td::ResultHandler {
   }
 
   void on_error(uint64 id, Status status) override {
-    if (!G()->close_flag()) {
-      LOG(WARNING) << "Receive error for SetBotUpdatesStatus: " << status;
+    if (!G()->is_expected_error(status)) {
+      LOG(WARNING) << "Receive error for SetBotUpdatesStatusQuery: " << status;
     }
     status.ignore();
   }
@@ -359,7 +376,7 @@ class UpdateStatusQuery : public Td::ResultHandler {
  public:
   NetQueryRef send(bool is_offline) {
     is_offline_ = is_offline;
-    auto net_query = G()->net_query_creator().create(create_storer(telegram_api::account_updateStatus(is_offline)));
+    auto net_query = G()->net_query_creator().create(telegram_api::account_updateStatus(is_offline));
     auto result = net_query.get_weak();
     send_query(std::move(net_query));
     return result;
@@ -377,7 +394,7 @@ class UpdateStatusQuery : public Td::ResultHandler {
   }
 
   void on_error(uint64 id, Status status) override {
-    if (status.code() != NetQuery::Cancelled && !G()->close_flag()) {
+    if (status.code() != NetQuery::Cancelled && !G()->is_expected_error(status)) {
       LOG(ERROR) << "Receive error for UpdateStatusQuery: " << status;
     }
     status.ignore();
@@ -392,7 +409,7 @@ class GetInviteTextQuery : public Td::ResultHandler {
   }
 
   void send() {
-    send_query(G()->net_query_creator().create(create_storer(telegram_api::help_getInviteText())));
+    send_query(G()->net_query_creator().create(telegram_api::help_getInviteText()));
   }
 
   void on_result(uint64 id, BufferSlice packet) override {
@@ -431,8 +448,7 @@ class GetDeepLinkInfoQuery : public Td::ResultHandler {
       pos++;
     }
     link.truncate(pos);
-    send_query(G()->net_query_creator().create(create_storer(telegram_api::help_getDeepLinkInfo(link.str())),
-                                               DcId::main(), NetQuery::Type::Common, NetQuery::AuthFlag::Off));
+    send_query(G()->net_query_creator().create_unauth(telegram_api::help_getDeepLinkInfo(link.str())));
   }
 
   void on_result(uint64 id, BufferSlice packet) override {
@@ -456,7 +472,7 @@ class GetDeepLinkInfoQuery : public Td::ResultHandler {
           if (!clean_input_string(info->message_)) {
             info->message_.clear();
           }
-          entities.clear();
+          entities = find_entities(info->message_, true);
         }
         FormattedText text{std::move(info->message_), std::move(entities)};
         return promise_.set_value(
@@ -484,9 +500,7 @@ class SaveAppLogQuery : public Td::ResultHandler {
     vector<telegram_api::object_ptr<telegram_api::inputAppEvent>> input_app_events;
     input_app_events.push_back(
         make_tl_object<telegram_api::inputAppEvent>(G()->server_time_cached(), type, peer_id, std::move(data)));
-    send_query(
-        G()->net_query_creator().create(create_storer(telegram_api::help_saveAppLog(std::move(input_app_events))),
-                                        DcId::main(), NetQuery::Type::Common, NetQuery::AuthFlag::Off));
+    send_query(G()->net_query_creator().create_unauth(telegram_api::help_saveAppLog(std::move(input_app_events))));
   }
 
   void on_result(uint64 id, BufferSlice packet) override {
@@ -513,8 +527,7 @@ class TestQuery : public Td::ResultHandler {
   }
 
   void send() {
-    send_query(G()->net_query_creator().create(create_storer(telegram_api::help_getConfig()), DcId::main(),
-                                               NetQuery::Type::Common, NetQuery::AuthFlag::Off));
+    send_query(G()->net_query_creator().create_unauth(telegram_api::help_getConfig()));
   }
 
   void on_result(uint64 id, BufferSlice packet) override {
@@ -562,10 +575,10 @@ class TestProxyRequest : public RequestOnceActor {
     }
 
     auto dc_options = ConnectionCreator::get_default_dc_options(false);
-    IPAddress mtproto_ip;
+    IPAddress mtproto_ip_address;
     for (auto &dc_option : dc_options.dc_options) {
       if (dc_option.get_dc_id().get_raw_id() == dc_id_) {
-        mtproto_ip = dc_option.get_ip_address();
+        mtproto_ip_address = dc_option.get_ip_address();
         break;
       }
     }
@@ -576,8 +589,8 @@ class TestProxyRequest : public RequestOnceActor {
         });
 
     child_ =
-        ConnectionCreator::prepare_connection(r_socket_fd.move_as_ok(), proxy_, mtproto_ip, get_transport(), "Test",
-                                              "TestPingDC2", nullptr, {}, false, std::move(connection_promise));
+        ConnectionCreator::prepare_connection(r_socket_fd.move_as_ok(), proxy_, mtproto_ip_address, get_transport(),
+                                              "Test", "TestPingDC2", nullptr, {}, false, std::move(connection_promise));
   }
 
   void on_connection_data(Result<ConnectionCreator::ConnectionData> r_data) {
@@ -643,83 +656,6 @@ class TestProxyRequest : public RequestOnceActor {
   }
 };
 
-class GetAccountTtlRequest : public RequestActor<int32> {
-  int32 account_ttl_;
-
-  void do_run(Promise<int32> &&promise) override {
-    if (get_tries() < 2) {
-      promise.set_value(std::move(account_ttl_));
-      return;
-    }
-
-    td->contacts_manager_->get_account_ttl(std::move(promise));
-  }
-
-  void do_set_result(int32 &&result) override {
-    account_ttl_ = result;
-  }
-
-  void do_send_result() override {
-    send_result(make_tl_object<td_api::accountTtl>(account_ttl_));
-  }
-
- public:
-  GetAccountTtlRequest(ActorShared<Td> td, uint64 request_id) : RequestActor(std::move(td), request_id) {
-  }
-};
-
-class GetActiveSessionsRequest : public RequestActor<tl_object_ptr<td_api::sessions>> {
-  tl_object_ptr<td_api::sessions> sessions_;
-
-  void do_run(Promise<tl_object_ptr<td_api::sessions>> &&promise) override {
-    if (get_tries() < 2) {
-      promise.set_value(std::move(sessions_));
-      return;
-    }
-
-    td->contacts_manager_->get_active_sessions(std::move(promise));
-  }
-
-  void do_set_result(tl_object_ptr<td_api::sessions> &&result) override {
-    sessions_ = std::move(result);
-  }
-
-  void do_send_result() override {
-    CHECK(sessions_ != nullptr);
-    send_result(std::move(sessions_));
-  }
-
- public:
-  GetActiveSessionsRequest(ActorShared<Td> td, uint64 request_id) : RequestActor(std::move(td), request_id) {
-  }
-};
-
-class GetConnectedWebsitesRequest : public RequestActor<tl_object_ptr<td_api::connectedWebsites>> {
-  tl_object_ptr<td_api::connectedWebsites> connected_websites_;
-
-  void do_run(Promise<tl_object_ptr<td_api::connectedWebsites>> &&promise) override {
-    if (get_tries() < 2) {
-      promise.set_value(std::move(connected_websites_));
-      return;
-    }
-
-    td->contacts_manager_->get_connected_websites(std::move(promise));
-  }
-
-  void do_set_result(tl_object_ptr<td_api::connectedWebsites> &&result) override {
-    connected_websites_ = std::move(result);
-  }
-
-  void do_send_result() override {
-    CHECK(connected_websites_ != nullptr);
-    send_result(std::move(connected_websites_));
-  }
-
- public:
-  GetConnectedWebsitesRequest(ActorShared<Td> td, uint64 request_id) : RequestActor(std::move(td), request_id) {
-  }
-};
-
 class GetMeRequest : public RequestActor<> {
   UserId user_id_;
 
@@ -758,7 +694,7 @@ class GetUserFullInfoRequest : public RequestActor<> {
   UserId user_id_;
 
   void do_run(Promise<Unit> &&promise) override {
-    td->contacts_manager_->get_user_full(user_id_, std::move(promise));
+    td->contacts_manager_->load_user_full(user_id_, get_tries() < 2, std::move(promise));
   }
 
   void do_send_result() override {
@@ -793,7 +729,7 @@ class GetGroupFullInfoRequest : public RequestActor<> {
   ChatId chat_id_;
 
   void do_run(Promise<Unit> &&promise) override {
-    td->contacts_manager_->get_chat_full(chat_id_, std::move(promise));
+    td->contacts_manager_->load_chat_full(chat_id_, get_tries() < 2, std::move(promise));
   }
 
   void do_send_result() override {
@@ -828,7 +764,7 @@ class GetSupergroupFullInfoRequest : public RequestActor<> {
   ChannelId channel_id_;
 
   void do_run(Promise<Unit> &&promise) override {
-    td->contacts_manager_->get_channel_full(channel_id_, std::move(promise));
+    td->contacts_manager_->load_channel_full(channel_id_, get_tries() < 2, std::move(promise));
   }
 
   void do_send_result() override {
@@ -882,15 +818,34 @@ class GetChatRequest : public RequestActor<> {
   }
 };
 
+class GetChatFilterRequest : public RequestActor<> {
+  DialogFilterId dialog_filter_id_;
+
+  void do_run(Promise<Unit> &&promise) override {
+    td->messages_manager_->load_dialog_filter(dialog_filter_id_, get_tries() < 2, std::move(promise));
+  }
+
+  void do_send_result() override {
+    send_result(td->messages_manager_->get_chat_filter_object(dialog_filter_id_));
+  }
+
+ public:
+  GetChatFilterRequest(ActorShared<Td> td, uint64 request_id, int32 dialog_filter_id)
+      : RequestActor(std::move(td), request_id), dialog_filter_id_(dialog_filter_id) {
+    set_tries(3);
+  }
+};
+
 class GetChatsRequest : public RequestActor<> {
-  FolderId folder_id_;
+  DialogListId dialog_list_id_;
   DialogDate offset_;
   int32 limit_;
 
-  vector<DialogId> dialog_ids_;
+  std::pair<int32, vector<DialogId>> dialog_ids_;
 
   void do_run(Promise<Unit> &&promise) override {
-    dialog_ids_ = td->messages_manager_->get_dialogs(folder_id_, offset_, limit_, get_tries() < 2, std::move(promise));
+    dialog_ids_ =
+        td->messages_manager_->get_dialogs(dialog_list_id_, offset_, limit_, get_tries() < 2, std::move(promise));
   }
 
   void do_send_result() override {
@@ -898,10 +853,10 @@ class GetChatsRequest : public RequestActor<> {
   }
 
  public:
-  GetChatsRequest(ActorShared<Td> td, uint64 request_id, FolderId folder_id, int64 offset_order, int64 offset_dialog_id,
-                  int32 limit)
+  GetChatsRequest(ActorShared<Td> td, uint64 request_id, DialogListId dialog_list_id, int64 offset_order,
+                  int64 offset_dialog_id, int32 limit)
       : RequestActor(std::move(td), request_id)
-      , folder_id_(folder_id)
+      , dialog_list_id_(dialog_list_id)
       , offset_(offset_order, DialogId(offset_dialog_id))
       , limit_(limit) {
     // 1 for database + 1 for server request + 1 for server request at the end + 1 for return + 1 just in case
@@ -939,7 +894,7 @@ class SearchPublicChatsRequest : public RequestActor<> {
   }
 
   void do_send_result() override {
-    send_result(MessagesManager::get_chats_object(dialog_ids_));
+    send_result(MessagesManager::get_chats_object(-1, dialog_ids_));
   }
 
  public:
@@ -952,10 +907,10 @@ class SearchChatsRequest : public RequestActor<> {
   string query_;
   int32 limit_;
 
-  vector<DialogId> dialog_ids_;
+  std::pair<int32, vector<DialogId>> dialog_ids_;
 
   void do_run(Promise<Unit> &&promise) override {
-    dialog_ids_ = td->messages_manager_->search_dialogs(query_, limit_, std::move(promise)).second;
+    dialog_ids_ = td->messages_manager_->search_dialogs(query_, limit_, std::move(promise));
   }
 
   void do_send_result() override {
@@ -979,7 +934,7 @@ class SearchChatsOnServerRequest : public RequestActor<> {
   }
 
   void do_send_result() override {
-    send_result(MessagesManager::get_chats_object(dialog_ids_));
+    send_result(MessagesManager::get_chats_object(-1, dialog_ids_));
   }
 
  public:
@@ -993,7 +948,7 @@ class GetGroupsInCommonRequest : public RequestActor<> {
   DialogId offset_dialog_id_;
   int32 limit_;
 
-  vector<DialogId> dialog_ids_;
+  std::pair<int32, vector<DialogId>> dialog_ids_;
 
   void do_run(Promise<Unit> &&promise) override {
     dialog_ids_ = td->messages_manager_->get_common_dialogs(user_id_, offset_dialog_id_, limit_, get_tries() < 2,
@@ -1019,7 +974,7 @@ class GetCreatedPublicChatsRequest : public RequestActor<> {
   }
 
   void do_send_result() override {
-    send_result(MessagesManager::get_chats_object(dialog_ids_));
+    send_result(MessagesManager::get_chats_object(-1, dialog_ids_));
   }
 
  public:
@@ -1036,7 +991,7 @@ class GetSuitableDiscussionChatsRequest : public RequestActor<> {
   }
 
   void do_send_result() override {
-    send_result(MessagesManager::get_chats_object(dialog_ids_));
+    send_result(MessagesManager::get_chats_object(-1, dialog_ids_));
   }
 
  public:
@@ -1052,7 +1007,7 @@ class GetInactiveSupergroupChatsRequest : public RequestActor<> {
   }
 
   void do_send_result() override {
-    send_result(MessagesManager::get_chats_object(dialog_ids_));
+    send_result(MessagesManager::get_chats_object(-1, dialog_ids_));
   }
 
  public:
@@ -1081,7 +1036,7 @@ class GetRepliedMessageRequest : public RequestOnceActor {
   DialogId dialog_id_;
   MessageId message_id_;
 
-  MessageId replied_message_id_;
+  FullMessageId replied_message_id_;
 
   void do_run(Promise<Unit> &&promise) override {
     replied_message_id_ =
@@ -1089,13 +1044,41 @@ class GetRepliedMessageRequest : public RequestOnceActor {
   }
 
   void do_send_result() override {
-    send_result(td->messages_manager_->get_message_object({dialog_id_, replied_message_id_}));
+    send_result(td->messages_manager_->get_message_object(replied_message_id_));
   }
 
  public:
   GetRepliedMessageRequest(ActorShared<Td> td, uint64 request_id, int64 dialog_id, int64 message_id)
       : RequestOnceActor(std::move(td), request_id), dialog_id_(dialog_id), message_id_(message_id) {
     set_tries(3);  // 1 to get initial message, 1 to get the reply and 1 for result
+  }
+};
+
+class GetMessageThreadRequest : public RequestActor<MessagesManager::MessageThreadInfo> {
+  DialogId dialog_id_;
+  MessageId message_id_;
+
+  MessagesManager::MessageThreadInfo message_thread_info_;
+
+  void do_run(Promise<MessagesManager::MessageThreadInfo> &&promise) override {
+    if (get_tries() < 2) {
+      promise.set_value(std::move(message_thread_info_));
+      return;
+    }
+    td->messages_manager_->get_message_thread(dialog_id_, message_id_, std::move(promise));
+  }
+
+  void do_set_result(MessagesManager::MessageThreadInfo &&result) override {
+    message_thread_info_ = std::move(result);
+  }
+
+  void do_send_result() override {
+    send_result(td->messages_manager_->get_message_thread_info_object(message_thread_info_));
+  }
+
+ public:
+  GetMessageThreadRequest(ActorShared<Td> td, uint64 request_id, int64 dialog_id, int64 message_id)
+      : RequestActor(std::move(td), request_id), dialog_id_(dialog_id), message_id_(message_id) {
   }
 };
 
@@ -1119,6 +1102,29 @@ class GetChatPinnedMessageRequest : public RequestOnceActor {
   }
 };
 
+class GetCallbackQueryMessageRequest : public RequestOnceActor {
+  DialogId dialog_id_;
+  MessageId message_id_;
+  int64 callback_query_id_;
+
+  void do_run(Promise<Unit> &&promise) override {
+    td->messages_manager_->get_callback_query_message(dialog_id_, message_id_, callback_query_id_, std::move(promise));
+  }
+
+  void do_send_result() override {
+    send_result(td->messages_manager_->get_message_object({dialog_id_, message_id_}));
+  }
+
+ public:
+  GetCallbackQueryMessageRequest(ActorShared<Td> td, uint64 request_id, int64 dialog_id, int64 message_id,
+                                 int64 callback_query_id)
+      : RequestOnceActor(std::move(td), request_id)
+      , dialog_id_(dialog_id)
+      , message_id_(message_id)
+      , callback_query_id_(callback_query_id) {
+  }
+};
+
 class GetMessagesRequest : public RequestOnceActor {
   DialogId dialog_id_;
   vector<MessageId> message_ids_;
@@ -1139,46 +1145,26 @@ class GetMessagesRequest : public RequestOnceActor {
   }
 };
 
-class GetPublicMessageLinkRequest : public RequestActor<> {
+class GetMessageEmbeddingCodeRequest : public RequestActor<> {
   FullMessageId full_message_id_;
   bool for_group_;
 
-  string link_;
   string html_;
 
   void do_run(Promise<Unit> &&promise) override {
-    std::tie(link_, html_) =
-        td->messages_manager_->get_public_message_link(full_message_id_, for_group_, std::move(promise));
+    html_ = td->messages_manager_->get_message_embedding_code(full_message_id_, for_group_, std::move(promise));
   }
 
   void do_send_result() override {
-    send_result(make_tl_object<td_api::publicMessageLink>(link_, html_));
+    send_result(make_tl_object<td_api::text>(html_));
   }
 
  public:
-  GetPublicMessageLinkRequest(ActorShared<Td> td, uint64 request_id, int64 dialog_id, int64 message_id, bool for_group)
+  GetMessageEmbeddingCodeRequest(ActorShared<Td> td, uint64 request_id, int64 dialog_id, int64 message_id,
+                                 bool for_group)
       : RequestActor(std::move(td), request_id)
       , full_message_id_(DialogId(dialog_id), MessageId(message_id))
       , for_group_(for_group) {
-  }
-};
-
-class GetMessageLinkRequest : public RequestActor<> {
-  FullMessageId full_message_id_;
-
-  string link_;
-
-  void do_run(Promise<Unit> &&promise) override {
-    link_ = td->messages_manager_->get_message_link(full_message_id_, std::move(promise));
-  }
-
-  void do_send_result() override {
-    send_result(td_api::make_object<td_api::httpUrl>(link_));
-  }
-
- public:
-  GetMessageLinkRequest(ActorShared<Td> td, uint64 request_id, int64 dialog_id, int64 message_id)
-      : RequestActor(std::move(td), request_id), full_message_id_(DialogId(dialog_id), MessageId(message_id)) {
   }
 };
 
@@ -1238,10 +1224,12 @@ class EditMessageLiveLocationRequest : public RequestOnceActor {
   FullMessageId full_message_id_;
   tl_object_ptr<td_api::ReplyMarkup> reply_markup_;
   tl_object_ptr<td_api::location> location_;
+  int32 heading_;
+  int32 proximity_alert_radius_;
 
   void do_run(Promise<Unit> &&promise) override {
     td->messages_manager_->edit_message_live_location(full_message_id_, std::move(reply_markup_), std::move(location_),
-                                                      std::move(promise));
+                                                      heading_, proximity_alert_radius_, std::move(promise));
   }
 
   void do_send_result() override {
@@ -1251,11 +1239,13 @@ class EditMessageLiveLocationRequest : public RequestOnceActor {
  public:
   EditMessageLiveLocationRequest(ActorShared<Td> td, uint64 request_id, int64 dialog_id, int64 message_id,
                                  tl_object_ptr<td_api::ReplyMarkup> reply_markup,
-                                 tl_object_ptr<td_api::location> location)
+                                 tl_object_ptr<td_api::location> location, int32 heading, int32 proximity_alert_radius)
       : RequestOnceActor(std::move(td), request_id)
       , full_message_id_(DialogId(dialog_id), MessageId(message_id))
       , reply_markup_(std::move(reply_markup))
-      , location_(std::move(location)) {
+      , location_(std::move(location))
+      , heading_(heading)
+      , proximity_alert_radius_(proximity_alert_radius) {
   }
 };
 
@@ -1327,24 +1317,6 @@ class EditMessageReplyMarkupRequest : public RequestOnceActor {
       : RequestOnceActor(std::move(td), request_id)
       , full_message_id_(DialogId(dialog_id), MessageId(message_id))
       , reply_markup_(std::move(reply_markup)) {
-  }
-};
-
-class EditMessageSchedulingStateRequest : public RequestOnceActor {
-  FullMessageId full_message_id_;
-  td_api::object_ptr<td_api::MessageSchedulingState> scheduling_state_;
-
-  void do_run(Promise<Unit> &&promise) override {
-    td->messages_manager_->edit_message_scheduling_state(full_message_id_, std::move(scheduling_state_),
-                                                         std::move(promise));
-  }
-
- public:
-  EditMessageSchedulingStateRequest(ActorShared<Td> td, uint64 request_id, int64 dialog_id, int64 message_id,
-                                    td_api::object_ptr<td_api::MessageSchedulingState> scheduling_state)
-      : RequestOnceActor(std::move(td), request_id)
-      , full_message_id_(DialogId(dialog_id), MessageId(message_id))
-      , scheduling_state_(std::move(scheduling_state)) {
   }
 };
 
@@ -1457,22 +1429,56 @@ class GetChatHistoryRequest : public RequestActor<> {
   }
 };
 
-class SearchChatMessagesRequest : public RequestActor<> {
+class GetMessageThreadHistoryRequest : public RequestActor<> {
   DialogId dialog_id_;
-  string query_;
-  UserId sender_user_id_;
+  MessageId message_id_;
   MessageId from_message_id_;
   int32 offset_;
   int32 limit_;
-  tl_object_ptr<td_api::SearchMessagesFilter> filter_;
+  int64 random_id_;
+
+  std::pair<DialogId, vector<MessageId>> messages_;
+
+  void do_run(Promise<Unit> &&promise) override {
+    messages_ = td->messages_manager_->get_message_thread_history(dialog_id_, message_id_, from_message_id_, offset_,
+                                                                  limit_, random_id_, std::move(promise));
+  }
+
+  void do_send_result() override {
+    send_result(td->messages_manager_->get_messages_object(-1, messages_.first, messages_.second));
+  }
+
+ public:
+  GetMessageThreadHistoryRequest(ActorShared<Td> td, uint64 request_id, int64 dialog_id, int64 message_id,
+                                 int64 from_message_id, int32 offset, int32 limit)
+      : RequestActor(std::move(td), request_id)
+      , dialog_id_(dialog_id)
+      , message_id_(message_id)
+      , from_message_id_(from_message_id)
+      , offset_(offset)
+      , limit_(limit)
+      , random_id_(0) {
+    set_tries(3);
+  }
+};
+
+class SearchChatMessagesRequest : public RequestActor<> {
+  DialogId dialog_id_;
+  string query_;
+  td_api::object_ptr<td_api::MessageSender> sender_;
+  MessageId from_message_id_;
+  int32 offset_;
+  int32 limit_;
+  MessageSearchFilter filter_;
+  MessageId top_thread_message_id_;
   int64 random_id_;
 
   std::pair<int32, vector<MessageId>> messages_;
 
   void do_run(Promise<Unit> &&promise) override {
-    messages_ = td->messages_manager_->search_dialog_messages(dialog_id_, query_, sender_user_id_, from_message_id_,
-                                                              offset_, limit_, filter_, random_id_, get_tries() == 3,
-                                                              std::move(promise));
+    messages_ = td->messages_manager_->search_dialog_messages(dialog_id_, query_, sender_, from_message_id_, offset_,
+                                                              limit_, filter_, top_thread_message_id_, random_id_,
+                                                              get_tries() == 3, std::move(promise));
   }
 
   void do_send_result() override {
@@ -1489,56 +1495,51 @@ class SearchChatMessagesRequest : public RequestActor<> {
   }
 
  public:
-  SearchChatMessagesRequest(ActorShared<Td> td, uint64 request_id, int64 dialog_id, string query, int32 user_id,
-                            int64 from_message_id, int32 offset, int32 limit,
-                            tl_object_ptr<td_api::SearchMessagesFilter> filter)
+  SearchChatMessagesRequest(ActorShared<Td> td, uint64 request_id, int64 dialog_id, string query,
+                            td_api::object_ptr<td_api::MessageSender> sender, int64 from_message_id, int32 offset,
+                            int32 limit, tl_object_ptr<td_api::SearchMessagesFilter> filter, int64 message_thread_id)
       : RequestActor(std::move(td), request_id)
       , dialog_id_(dialog_id)
       , query_(std::move(query))
-      , sender_user_id_(user_id)
+      , sender_(std::move(sender))
       , from_message_id_(from_message_id)
       , offset_(offset)
       , limit_(limit)
-      , filter_(std::move(filter))
+      , filter_(get_message_search_filter(filter))
+      , top_thread_message_id_(message_thread_id)
       , random_id_(0) {
     set_tries(3);
   }
 };
 
-class OfflineSearchMessagesRequest : public RequestActor<> {
+class SearchSecretMessagesRequest : public RequestActor<> {
   DialogId dialog_id_;
   string query_;
-  int64 from_search_id_;
+  string offset_;
   int32 limit_;
-  tl_object_ptr<td_api::SearchMessagesFilter> filter_;
+  MessageSearchFilter filter_;
   int64 random_id_;
 
-  std::pair<int64, vector<FullMessageId>> messages_;
+  MessagesManager::FoundMessages found_messages_;
 
   void do_run(Promise<Unit> &&promise) override {
-    messages_ = td->messages_manager_->offline_search_messages(dialog_id_, query_, from_search_id_, limit_, filter_,
-                                                               random_id_, std::move(promise));
+    found_messages_ = td->messages_manager_->offline_search_messages(dialog_id_, query_, offset_, limit_, filter_,
+                                                                     random_id_, std::move(promise));
   }
 
   void do_send_result() override {
-    vector<tl_object_ptr<td_api::message>> result;
-    result.reserve(messages_.second.size());
-    for (auto full_message_id : messages_.second) {
-      result.push_back(td->messages_manager_->get_message_object(full_message_id));
-    }
-
-    send_result(make_tl_object<td_api::foundMessages>(std::move(result), messages_.first));
+    send_result(td->messages_manager_->get_found_messages_object(found_messages_));
   }
 
  public:
-  OfflineSearchMessagesRequest(ActorShared<Td> td, uint64 request_id, int64 dialog_id, string query,
-                               int64 from_search_id, int32 limit, tl_object_ptr<td_api::SearchMessagesFilter> filter)
+  SearchSecretMessagesRequest(ActorShared<Td> td, uint64 request_id, int64 dialog_id, string query, string offset,
+                              int32 limit, tl_object_ptr<td_api::SearchMessagesFilter> filter)
       : RequestActor(std::move(td), request_id)
       , dialog_id_(dialog_id)
       , query_(std::move(query))
-      , from_search_id_(from_search_id)
+      , offset_(std::move(offset))
       , limit_(limit)
-      , filter_(std::move(filter))
+      , filter_(get_message_search_filter(filter))
       , random_id_(0) {
   }
 };
@@ -1551,14 +1552,17 @@ class SearchMessagesRequest : public RequestActor<> {
   DialogId offset_dialog_id_;
   MessageId offset_message_id_;
   int32 limit_;
+  MessageSearchFilter filter_;
+  int32 min_date_;
+  int32 max_date_;
   int64 random_id_;
 
   std::pair<int32, vector<FullMessageId>> messages_;
 
   void do_run(Promise<Unit> &&promise) override {
-    messages_ =
-        td->messages_manager_->search_messages(folder_id_, ignore_folder_id_, query_, offset_date_, offset_dialog_id_,
-                                               offset_message_id_, limit_, random_id_, std::move(promise));
+    messages_ = td->messages_manager_->search_messages(folder_id_, ignore_folder_id_, query_, offset_date_,
+                                                       offset_dialog_id_, offset_message_id_, limit_, filter_,
+                                                       min_date_, max_date_, random_id_, std::move(promise));
   }
 
   void do_send_result() override {
@@ -1576,7 +1580,8 @@ class SearchMessagesRequest : public RequestActor<> {
 
  public:
   SearchMessagesRequest(ActorShared<Td> td, uint64 request_id, FolderId folder_id, bool ignore_folder_id, string query,
-                        int32 offset_date, int64 offset_dialog_id, int64 offset_message_id, int32 limit)
+                        int32 offset_date, int64 offset_dialog_id, int64 offset_message_id, int32 limit,
+                        tl_object_ptr<td_api::SearchMessagesFilter> &&filter, int32 min_date, int32 max_date)
       : RequestActor(std::move(td), request_id)
       , folder_id_(folder_id)
       , ignore_folder_id_(ignore_folder_id)
@@ -1585,6 +1590,9 @@ class SearchMessagesRequest : public RequestActor<> {
       , offset_dialog_id_(offset_dialog_id)
       , offset_message_id_(offset_message_id)
       , limit_(limit)
+      , filter_(get_message_search_filter(filter))
+      , min_date_(min_date)
+      , max_date_(max_date)
       , random_id_(0) {
   }
 };
@@ -1678,7 +1686,7 @@ class GetChatMessageByDateRequest : public RequestOnceActor {
 
 class GetChatMessageCountRequest : public RequestActor<> {
   DialogId dialog_id_;
-  tl_object_ptr<td_api::SearchMessagesFilter> filter_;
+  MessageSearchFilter filter_;
   bool return_local_;
   int64 random_id_;
 
@@ -1698,7 +1706,7 @@ class GetChatMessageCountRequest : public RequestActor<> {
                              tl_object_ptr<td_api::SearchMessagesFilter> filter, bool return_local)
       : RequestActor(std::move(td), request_id)
       , dialog_id_(dialog_id)
-      , filter_(std::move(filter))
+      , filter_(get_message_search_filter(filter))
       , return_local_(return_local)
       , random_id_(0) {
   }
@@ -1710,7 +1718,8 @@ class GetChatScheduledMessagesRequest : public RequestActor<> {
   vector<MessageId> message_ids_;
 
   void do_run(Promise<Unit> &&promise) override {
-    message_ids_ = td->messages_manager_->get_dialog_scheduled_messages(dialog_id_, std::move(promise));
+    message_ids_ =
+        td->messages_manager_->get_dialog_scheduled_messages(dialog_id_, get_tries() < 2, false, std::move(promise));
   }
 
   void do_send_result() override {
@@ -1720,7 +1729,35 @@ class GetChatScheduledMessagesRequest : public RequestActor<> {
  public:
   GetChatScheduledMessagesRequest(ActorShared<Td> td, uint64 request_id, int64 dialog_id)
       : RequestActor(std::move(td), request_id), dialog_id_(dialog_id) {
-    set_tries(3);
+    set_tries(4);
+  }
+};
+
+class GetMessagePublicForwardsRequest : public RequestActor<> {
+  FullMessageId full_message_id_;
+  string offset_;
+  int32 limit_;
+  int64 random_id_;
+
+  MessagesManager::FoundMessages messages_;
+
+  void do_run(Promise<Unit> &&promise) override {
+    messages_ = td->messages_manager_->get_message_public_forwards(full_message_id_, offset_, limit_, random_id_,
+                                                                   std::move(promise));
+  }
+
+  void do_send_result() override {
+    send_result(td->messages_manager_->get_found_messages_object(messages_));
+  }
+
+ public:
+  GetMessagePublicForwardsRequest(ActorShared<Td> td, uint64 request_id, int64 dialog_id, int64 message_id,
+                                  string offset, int32 limit)
+      : RequestActor(std::move(td), request_id)
+      , full_message_id_(DialogId(dialog_id), MessageId(message_id))
+      , offset_(std::move(offset))
+      , limit_(limit)
+      , random_id_(0) {
   }
 };
 
@@ -1831,7 +1868,7 @@ class CreateNewSecretChatRequest : public RequestActor<SecretChatId> {
     // But since the update may still be on its way, we will update essential fields here.
     td->contacts_manager_->on_update_secret_chat(
         secret_chat_id_, 0 /* no access_hash */, user_id_, SecretChatState::Unknown, true /* it is outbound chat */,
-        -1 /* unknown ttl */, 0 /* unknown creation date */, "" /* no key_hash */, 0);
+        -1 /* unknown ttl */, 0 /* unknown creation date */, "" /* no key_hash */, 0, FolderId());
     DialogId dialog_id(secret_chat_id_);
     td->messages_manager_->force_create_dialog(dialog_id, "create new secret chat", true);
     send_result(td->messages_manager_->get_chat_object(dialog_id));
@@ -1912,10 +1949,6 @@ class GetChatMemberRequest : public RequestActor<> {
       return send_error(Status::Error(3, "User not found"));
     }
     send_result(td->contacts_manager_->get_chat_member_object(dialog_participant_));
-  }
-
-  void do_send_error(Status &&status) override {
-    send_error(std::move(status));
   }
 
  public:
@@ -2086,23 +2119,28 @@ class GetChatEventLogRequest : public RequestOnceActor {
   }
 };
 
-class GetBlockedUsersRequest : public RequestOnceActor {
+class GetBlockedMessageSendersRequest : public RequestActor<> {
   int32 offset_;
   int32 limit_;
-
   int64 random_id_;
 
+  std::pair<int32, vector<DialogId>> message_senders_;
+
   void do_run(Promise<Unit> &&promise) override {
-    random_id_ = td->contacts_manager_->get_blocked_users(offset_, limit_, std::move(promise));
+    message_senders_ = td->messages_manager_->get_blocked_dialogs(offset_, limit_, random_id_, std::move(promise));
   }
 
   void do_send_result() override {
-    send_result(td->contacts_manager_->get_blocked_users_object(random_id_));
+    auto senders =
+        transform(message_senders_.second, [messages_manager = td->messages_manager_.get()](DialogId dialog_id) {
+          return messages_manager->get_message_sender_object(dialog_id);
+        });
+    send_result(td_api::make_object<td_api::messageSenders>(message_senders_.first, std::move(senders)));
   }
 
  public:
-  GetBlockedUsersRequest(ActorShared<Td> td, uint64 request_id, int32 offset, int32 limit)
-      : RequestOnceActor(std::move(td), request_id), offset_(offset), limit_(limit), random_id_(0) {
+  GetBlockedMessageSendersRequest(ActorShared<Td> td, uint64 request_id, int32 offset, int32 limit)
+      : RequestActor(std::move(td), request_id), offset_(offset), limit_(limit), random_id_(0) {
   }
 };
 
@@ -2287,10 +2325,12 @@ class GetUserProfilePhotosRequest : public RequestActor<> {
   void do_send_result() override {
     // TODO create function get_user_profile_photos_object
     auto result = transform(photos.second, [file_manager = td->file_manager_.get()](const Photo *photo) {
-      return get_user_profile_photo_object(file_manager, photo);
+      CHECK(photo != nullptr);
+      CHECK(!photo->is_empty());
+      return get_chat_photo_object(file_manager, *photo);
     });
 
-    send_result(make_tl_object<td_api::userProfilePhotos>(photos.first, std::move(result)));
+    send_result(make_tl_object<td_api::chatPhotos>(photos.first, std::move(result)));
   }
 
  public:
@@ -2312,7 +2352,7 @@ class GetChatNotificationSettingsExceptionsRequest : public RequestActor<> {
   }
 
   void do_send_result() override {
-    send_result(MessagesManager::get_chats_object(dialog_ids_));
+    send_result(MessagesManager::get_chats_object(-1, dialog_ids_));
   }
 
  public:
@@ -2434,18 +2474,22 @@ class GetArchivedStickerSetsRequest : public RequestActor<> {
 };
 
 class GetTrendingStickerSetsRequest : public RequestActor<> {
-  vector<StickerSetId> sticker_set_ids_;
+  std::pair<int32, vector<StickerSetId>> sticker_set_ids_;
+  int32 offset_;
+  int32 limit_;
 
   void do_run(Promise<Unit> &&promise) override {
-    sticker_set_ids_ = td->stickers_manager_->get_featured_sticker_sets(std::move(promise));
+    sticker_set_ids_ = td->stickers_manager_->get_featured_sticker_sets(offset_, limit_, std::move(promise));
   }
 
   void do_send_result() override {
-    send_result(td->stickers_manager_->get_sticker_sets_object(-1, sticker_set_ids_, 5));
+    send_result(td->stickers_manager_->get_sticker_sets_object(sticker_set_ids_.first, sticker_set_ids_.second, 5));
   }
 
  public:
-  GetTrendingStickerSetsRequest(ActorShared<Td> td, uint64 request_id) : RequestActor(std::move(td), request_id) {
+  GetTrendingStickerSetsRequest(ActorShared<Td> td, uint64 request_id, int32 offset, int32 limit)
+      : RequestActor(std::move(td), request_id), offset_(offset), limit_(limit) {
+    set_tries(3);
   }
 };
 
@@ -2594,7 +2638,7 @@ class CreateNewStickerSetRequest : public RequestOnceActor {
   string title_;
   string name_;
   bool is_masks_;
-  vector<tl_object_ptr<td_api::inputSticker>> stickers_;
+  vector<tl_object_ptr<td_api::InputSticker>> stickers_;
 
   void do_run(Promise<Unit> &&promise) override {
     td->stickers_manager_->create_new_sticker_set(user_id_, title_, name_, is_masks_, std::move(stickers_),
@@ -2611,7 +2655,7 @@ class CreateNewStickerSetRequest : public RequestOnceActor {
 
  public:
   CreateNewStickerSetRequest(ActorShared<Td> td, uint64 request_id, int32 user_id, string &&title, string &&name,
-                             bool is_masks, vector<tl_object_ptr<td_api::inputSticker>> &&stickers)
+                             bool is_masks, vector<tl_object_ptr<td_api::InputSticker>> &&stickers)
       : RequestOnceActor(std::move(td), request_id)
       , user_id_(user_id)
       , title_(std::move(title))
@@ -2624,7 +2668,7 @@ class CreateNewStickerSetRequest : public RequestOnceActor {
 class AddStickerToSetRequest : public RequestOnceActor {
   UserId user_id_;
   string name_;
-  tl_object_ptr<td_api::inputSticker> sticker_;
+  tl_object_ptr<td_api::InputSticker> sticker_;
 
   void do_run(Promise<Unit> &&promise) override {
     td->stickers_manager_->add_sticker_to_set(user_id_, name_, std::move(sticker_), std::move(promise));
@@ -2640,11 +2684,38 @@ class AddStickerToSetRequest : public RequestOnceActor {
 
  public:
   AddStickerToSetRequest(ActorShared<Td> td, uint64 request_id, int32 user_id, string &&name,
-                         tl_object_ptr<td_api::inputSticker> &&sticker)
+                         tl_object_ptr<td_api::InputSticker> &&sticker)
       : RequestOnceActor(std::move(td), request_id)
       , user_id_(user_id)
       , name_(std::move(name))
       , sticker_(std::move(sticker)) {
+  }
+};
+
+class SetStickerSetThumbnailRequest : public RequestOnceActor {
+  UserId user_id_;
+  string name_;
+  tl_object_ptr<td_api::InputFile> thumbnail_;
+
+  void do_run(Promise<Unit> &&promise) override {
+    td->stickers_manager_->set_sticker_set_thumbnail(user_id_, name_, std::move(thumbnail_), std::move(promise));
+  }
+
+  void do_send_result() override {
+    auto set_id = td->stickers_manager_->search_sticker_set(name_, Auto());
+    if (!set_id.is_valid()) {
+      return send_error(Status::Error(500, "Sticker set not found"));
+    }
+    send_result(td->stickers_manager_->get_sticker_set_object(set_id));
+  }
+
+ public:
+  SetStickerSetThumbnailRequest(ActorShared<Td> td, uint64 request_id, int32 user_id, string &&name,
+                                tl_object_ptr<td_api::InputFile> &&thumbnail)
+      : RequestOnceActor(std::move(td), request_id)
+      , user_id_(user_id)
+      , name_(std::move(name))
+      , thumbnail_(std::move(thumbnail)) {
   }
 };
 
@@ -2780,12 +2851,12 @@ class GetStickerEmojisRequest : public RequestActor<> {
 class SearchEmojisRequest : public RequestActor<> {
   string text_;
   bool exact_match_;
-  string input_language_code_;
+  vector<string> input_language_codes_;
 
   vector<string> emojis_;
 
   void do_run(Promise<Unit> &&promise) override {
-    emojis_ = td->stickers_manager_->search_emojis(text_, exact_match_, input_language_code_, get_tries() < 2,
+    emojis_ = td->stickers_manager_->search_emojis(text_, exact_match_, input_language_codes_, get_tries() < 2,
                                                    std::move(promise));
   }
 
@@ -2795,11 +2866,11 @@ class SearchEmojisRequest : public RequestActor<> {
 
  public:
   SearchEmojisRequest(ActorShared<Td> td, uint64 request_id, string &&text, bool exact_match,
-                      string &&input_language_code)
+                      vector<string> &&input_language_codes)
       : RequestActor(std::move(td), request_id)
       , text_(std::move(text))
       , exact_match_(exact_match)
-      , input_language_code_(std::move(input_language_code)) {
+      , input_language_codes_(std::move(input_language_codes)) {
     set_tries(3);
   }
 };
@@ -2907,7 +2978,8 @@ class GetCallbackQueryAnswerRequest : public RequestOnceActor {
   int64 result_id_;
 
   void do_run(Promise<Unit> &&promise) override {
-    result_id_ = td->callback_queries_manager_->send_callback_query(full_message_id_, payload_, std::move(promise));
+    result_id_ =
+        td->callback_queries_manager_->send_callback_query(full_message_id_, std::move(payload_), std::move(promise));
   }
 
   void do_send_result() override {
@@ -2928,163 +3000,6 @@ class GetCallbackQueryAnswerRequest : public RequestOnceActor {
       , full_message_id_(DialogId(dialog_id), MessageId(message_id))
       , payload_(std::move(payload))
       , result_id_(0) {
-  }
-};
-
-class GetPaymentFormRequest : public RequestActor<tl_object_ptr<td_api::paymentForm>> {
-  FullMessageId full_message_id_;
-
-  tl_object_ptr<td_api::paymentForm> payment_form_;
-
-  void do_run(Promise<tl_object_ptr<td_api::paymentForm>> &&promise) override {
-    if (get_tries() < 2) {
-      promise.set_value(std::move(payment_form_));
-      return;
-    }
-
-    td->messages_manager_->get_payment_form(full_message_id_, std::move(promise));
-  }
-
-  void do_set_result(tl_object_ptr<td_api::paymentForm> &&result) override {
-    payment_form_ = std::move(result);
-  }
-
-  void do_send_result() override {
-    CHECK(payment_form_ != nullptr);
-    send_result(std::move(payment_form_));
-  }
-
- public:
-  GetPaymentFormRequest(ActorShared<Td> td, uint64 request_id, int64 dialog_id, int64 message_id)
-      : RequestActor(std::move(td), request_id), full_message_id_(DialogId(dialog_id), MessageId(message_id)) {
-  }
-};
-
-class ValidateOrderInfoRequest : public RequestActor<tl_object_ptr<td_api::validatedOrderInfo>> {
-  FullMessageId full_message_id_;
-  tl_object_ptr<td_api::orderInfo> order_info_;
-  bool allow_save_;
-
-  tl_object_ptr<td_api::validatedOrderInfo> validated_order_info_;
-
-  void do_run(Promise<tl_object_ptr<td_api::validatedOrderInfo>> &&promise) override {
-    if (get_tries() < 2) {
-      promise.set_value(std::move(validated_order_info_));
-      return;
-    }
-
-    td->messages_manager_->validate_order_info(full_message_id_, std::move(order_info_), allow_save_,
-                                               std::move(promise));
-  }
-
-  void do_set_result(tl_object_ptr<td_api::validatedOrderInfo> &&result) override {
-    validated_order_info_ = std::move(result);
-  }
-
-  void do_send_result() override {
-    CHECK(validated_order_info_ != nullptr);
-    send_result(std::move(validated_order_info_));
-  }
-
- public:
-  ValidateOrderInfoRequest(ActorShared<Td> td, uint64 request_id, int64 dialog_id, int64 message_id,
-                           tl_object_ptr<td_api::orderInfo> order_info, bool allow_save)
-      : RequestActor(std::move(td), request_id)
-      , full_message_id_(DialogId(dialog_id), MessageId(message_id))
-      , order_info_(std::move(order_info))
-      , allow_save_(allow_save) {
-  }
-};
-
-class SendPaymentFormRequest : public RequestActor<tl_object_ptr<td_api::paymentResult>> {
-  FullMessageId full_message_id_;
-  string order_info_id_;
-  string shipping_option_id_;
-  tl_object_ptr<td_api::InputCredentials> credentials_;
-
-  tl_object_ptr<td_api::paymentResult> payment_result_;
-
-  void do_run(Promise<tl_object_ptr<td_api::paymentResult>> &&promise) override {
-    if (get_tries() < 2) {
-      promise.set_value(std::move(payment_result_));
-      return;
-    }
-
-    td->messages_manager_->send_payment_form(full_message_id_, order_info_id_, shipping_option_id_, credentials_,
-                                             std::move(promise));
-  }
-
-  void do_set_result(tl_object_ptr<td_api::paymentResult> &&result) override {
-    payment_result_ = std::move(result);
-  }
-
-  void do_send_result() override {
-    CHECK(payment_result_ != nullptr);
-    send_result(std::move(payment_result_));
-  }
-
- public:
-  SendPaymentFormRequest(ActorShared<Td> td, uint64 request_id, int64 dialog_id, int64 message_id, string order_info_id,
-                         string shipping_option_id, tl_object_ptr<td_api::InputCredentials> credentials)
-      : RequestActor(std::move(td), request_id)
-      , full_message_id_(DialogId(dialog_id), MessageId(message_id))
-      , order_info_id_(std::move(order_info_id))
-      , shipping_option_id_(std::move(shipping_option_id))
-      , credentials_(std::move(credentials)) {
-  }
-};
-
-class GetPaymentReceiptRequest : public RequestActor<tl_object_ptr<td_api::paymentReceipt>> {
-  FullMessageId full_message_id_;
-
-  tl_object_ptr<td_api::paymentReceipt> payment_receipt_;
-
-  void do_run(Promise<tl_object_ptr<td_api::paymentReceipt>> &&promise) override {
-    if (get_tries() < 2) {
-      promise.set_value(std::move(payment_receipt_));
-      return;
-    }
-
-    td->messages_manager_->get_payment_receipt(full_message_id_, std::move(promise));
-  }
-
-  void do_set_result(tl_object_ptr<td_api::paymentReceipt> &&result) override {
-    payment_receipt_ = std::move(result);
-  }
-
-  void do_send_result() override {
-    CHECK(payment_receipt_ != nullptr);
-    send_result(std::move(payment_receipt_));
-  }
-
- public:
-  GetPaymentReceiptRequest(ActorShared<Td> td, uint64 request_id, int64 dialog_id, int64 message_id)
-      : RequestActor(std::move(td), request_id), full_message_id_(DialogId(dialog_id), MessageId(message_id)) {
-  }
-};
-
-class GetSavedOrderInfoRequest : public RequestActor<tl_object_ptr<td_api::orderInfo>> {
-  tl_object_ptr<td_api::orderInfo> order_info_;
-
-  void do_run(Promise<tl_object_ptr<td_api::orderInfo>> &&promise) override {
-    if (get_tries() < 2) {
-      promise.set_value(std::move(order_info_));
-      return;
-    }
-
-    get_saved_order_info(std::move(promise));
-  }
-
-  void do_set_result(tl_object_ptr<td_api::orderInfo> &&result) override {
-    order_info_ = std::move(result);
-  }
-
-  void do_send_result() override {
-    send_result(std::move(order_info_));
-  }
-
- public:
-  GetSavedOrderInfoRequest(ActorShared<Td> td, uint64 request_id) : RequestActor(std::move(td), request_id) {
   }
 };
 
@@ -3168,139 +3083,9 @@ class SetBackgroundRequest : public RequestActor<> {
   }
 };
 
-class RemoveBackgroundRequest : public RequestOnceActor {
-  BackgroundId background_id_;
-
-  void do_run(Promise<Unit> &&promise) override {
-    td->background_manager_->remove_background(background_id_, std::move(promise));
-  }
-
- public:
-  RemoveBackgroundRequest(ActorShared<Td> td, uint64 request_id, int64 background_id)
-      : RequestOnceActor(std::move(td), request_id), background_id_(background_id) {
-  }
-};
-
-class ResetBackgroundsRequest : public RequestOnceActor {
-  void do_run(Promise<Unit> &&promise) override {
-    td->background_manager_->reset_backgrounds(std::move(promise));
-  }
-
- public:
-  ResetBackgroundsRequest(ActorShared<Td> td, uint64 request_id) : RequestOnceActor(std::move(td), request_id) {
-  }
-};
-
-class GetRecentlyVisitedTMeUrlsRequest : public RequestActor<tl_object_ptr<td_api::tMeUrls>> {
-  string referrer_;
-
-  tl_object_ptr<td_api::tMeUrls> urls_;
-
-  void do_run(Promise<tl_object_ptr<td_api::tMeUrls>> &&promise) override {
-    if (get_tries() < 2) {
-      promise.set_value(std::move(urls_));
-      return;
-    }
-
-    td->create_handler<GetRecentMeUrlsQuery>(std::move(promise))->send(referrer_);
-  }
-
-  void do_set_result(tl_object_ptr<td_api::tMeUrls> &&result) override {
-    urls_ = std::move(result);
-  }
-
-  void do_send_result() override {
-    CHECK(urls_ != nullptr);
-    send_result(std::move(urls_));
-  }
-
- public:
-  GetRecentlyVisitedTMeUrlsRequest(ActorShared<Td> td, uint64 request_id, string referrer)
-      : RequestActor(std::move(td), request_id), referrer_(std::move(referrer)) {
-  }
-};
-
-class SendCustomRequestRequest : public RequestActor<string> {
-  string method_;
-  string parameters_;
-
-  string request_result_;
-
-  void do_run(Promise<string> &&promise) override {
-    if (get_tries() < 2) {
-      promise.set_value(std::move(request_result_));
-      return;
-    }
-
-    td->create_handler<SendCustomRequestQuery>(std::move(promise))->send(method_, parameters_);
-  }
-
-  void do_set_result(string &&result) override {
-    request_result_ = std::move(result);
-  }
-
-  void do_send_result() override {
-    send_result(make_tl_object<td_api::customRequestResult>(request_result_));
-  }
-
- public:
-  SendCustomRequestRequest(ActorShared<Td> td, uint64 request_id, string &&method, string &&parameters)
-      : RequestActor(std::move(td), request_id), method_(method), parameters_(parameters) {
-  }
-};
-
-class GetCountryCodeRequest : public RequestActor<string> {
-  string country_code_;
-
-  void do_run(Promise<string> &&promise) override {
-    if (get_tries() < 2) {
-      promise.set_value(std::move(country_code_));
-      return;
-    }
-
-    td->create_handler<GetNearestDcQuery>(std::move(promise))->send();
-  }
-
-  void do_set_result(string &&result) override {
-    country_code_ = std::move(result);
-  }
-
-  void do_send_result() override {
-    send_result(make_tl_object<td_api::text>(country_code_));
-  }
-
- public:
-  GetCountryCodeRequest(ActorShared<Td> td, uint64 request_id) : RequestActor(std::move(td), request_id) {
-  }
-};
-
-class GetInviteTextRequest : public RequestActor<string> {
-  string text_;
-
-  void do_run(Promise<string> &&promise) override {
-    if (get_tries() < 2) {
-      promise.set_value(std::move(text_));
-      return;
-    }
-
-    td->create_handler<GetInviteTextQuery>(std::move(promise))->send();
-  }
-
-  void do_set_result(string &&result) override {
-    text_ = std::move(result);
-  }
-
-  void do_send_result() override {
-    send_result(make_tl_object<td_api::text>(text_));
-  }
-
- public:
-  GetInviteTextRequest(ActorShared<Td> td, uint64 request_id) : RequestActor(std::move(td), request_id) {
-  }
-};
-
-/** Td **/
-Td::Td(unique_ptr<TdCallback> callback) : callback_(std::move(callback)) {
+Td::Td(unique_ptr<TdCallback> callback, Options options)
+    : callback_(std::move(callback)), td_options_(std::move(options)) {
+  CHECK(callback_ != nullptr);
 }
 
 Td::~Td() = default;
@@ -3328,7 +3113,7 @@ void Td::on_alarm_timeout(int64 alarm_id) {
     return;
   }
   if (alarm_id == PING_SERVER_ALARM_ID) {
-    if (!close_flag_ && updates_manager_ != nullptr) {
+    if (!close_flag_ && updates_manager_ != nullptr && auth_manager_->is_authorized()) {
       updates_manager_->ping_server();
       alarm_timeout_.set_timeout_in(PING_SERVER_ALARM_ID,
                                     PING_SERVER_TIMEOUT + Random::fast(0, PING_SERVER_TIMEOUT / 5));
@@ -3341,6 +3126,16 @@ void Td::on_alarm_timeout(int64 alarm_id) {
           this, PromiseCreator::lambda([actor_id = actor_id(this)](Result<std::pair<int32, TermsOfService>> result) {
             send_closure(actor_id, &Td::on_get_terms_of_service, std::move(result), false);
           }));
+    }
+    return;
+  }
+  if (alarm_id == PROMO_DATA_ALARM_ID) {
+    if (!close_flag_ && !auth_manager_->is_bot()) {
+      auto promise = PromiseCreator::lambda(
+          [actor_id = actor_id(this)](Result<telegram_api::object_ptr<telegram_api::help_PromoData>> result) {
+            send_closure(actor_id, &Td::on_get_promo_data, std::move(result), false);
+          });
+      create_handler<GetPromoDataQuery>(std::move(promise))->send();
     }
     return;
   }
@@ -3369,8 +3164,9 @@ void Td::on_online_updated(bool force, bool send_update) {
     update_status_query_ = create_handler<UpdateStatusQuery>()->send(!is_online_);
   }
   if (is_online_) {
-    alarm_timeout_.set_timeout_in(ONLINE_ALARM_ID,
-                                  G()->shared_config().get_option_integer("online_update_period_ms", 210000) * 1e-3);
+    alarm_timeout_.set_timeout_in(
+        ONLINE_ALARM_ID,
+        static_cast<double>(G()->shared_config().get_option_integer("online_update_period_ms", 210000)) * 1e-3);
   } else {
     alarm_timeout_.cancel_timeout(ONLINE_ALARM_ID);
   }
@@ -3422,6 +3218,64 @@ void Td::schedule_get_terms_of_service(int32 expires_in) {
   }
 }
 
+void Td::on_get_promo_data(Result<telegram_api::object_ptr<telegram_api::help_PromoData>> r_promo_data, bool dummy) {
+  if (G()->close_flag()) {
+    return;
+  }
+
+  if (r_promo_data.is_error()) {
+    LOG(ERROR) << "Receive error for GetPromoDataQuery: " << r_promo_data.error();
+    return schedule_get_promo_data(60);
+  }
+
+  auto promo_data_ptr = r_promo_data.move_as_ok();
+  CHECK(promo_data_ptr != nullptr);
+  LOG(DEBUG) << "Receive " << to_string(promo_data_ptr);
+  int32 expires = 0;
+  switch (promo_data_ptr->get_id()) {
+    case telegram_api::help_promoDataEmpty::ID: {
+      auto promo = telegram_api::move_object_as<telegram_api::help_promoDataEmpty>(promo_data_ptr);
+      expires = promo->expires_;
+      messages_manager_->remove_sponsored_dialog();
+      break;
+    }
+    case telegram_api::help_promoData::ID: {
+      auto promo = telegram_api::move_object_as<telegram_api::help_promoData>(promo_data_ptr);
+      expires = promo->expires_;
+      bool is_proxy = (promo->flags_ & telegram_api::help_promoData::PROXY_MASK) != 0;
+      messages_manager_->on_get_sponsored_dialog(
+          std::move(promo->peer_),
+          is_proxy ? DialogSource::mtproto_proxy()
+                   : DialogSource::public_service_announcement(promo->psa_type_, promo->psa_message_),
+          std::move(promo->users_), std::move(promo->chats_));
+      break;
+    }
+    default:
+      UNREACHABLE();
+  }
+  if (expires != 0) {
+    expires -= G()->unix_time();
+  }
+  schedule_get_promo_data(expires);
+}
+
+void Td::schedule_get_promo_data(int32 expires_in) {
+  if (expires_in < 0) {
+    LOG(ERROR) << "Receive wrong expires_in: " << expires_in;
+    expires_in = 0;
+  }
+  if (expires_in != 0 && expires_in < 60) {
+    expires_in = 60;
+  }
+  if (expires_in > 86400) {
+    expires_in = 86400;
+  }
+  if (!close_flag_ && auth_manager_->is_authorized() && !auth_manager_->is_bot()) {
+    LOG(INFO) << "Schedule getPromoData in " << expires_in;
+    alarm_timeout_.set_timeout_in(PROMO_DATA_ALARM_ID, expires_in);
+  }
+}
+
 void Td::on_channel_unban_timeout(int64 channel_id_long) {
   if (close_flag_ >= 2) {
     return;
@@ -3462,10 +3316,13 @@ bool Td::is_synchronous_request(int32 id) {
   switch (id) {
     case td_api::getTextEntities::ID:
     case td_api::parseTextEntities::ID:
+    case td_api::parseMarkdown::ID:
+    case td_api::getMarkdownText::ID:
     case td_api::getFileMimeType::ID:
     case td_api::getFileExtension::ID:
     case td_api::cleanFileName::ID:
     case td_api::getLanguagePackString::ID:
+    case td_api::getChatFilterDefaultIconName::ID:
     case td_api::getJsonValue::ID:
     case td_api::getJsonString::ID:
     case td_api::getPushReceiverId::ID:
@@ -3516,7 +3373,6 @@ bool Td::is_preauthentication_request(int32 id) {
     case td_api::setCustomLanguagePackString::ID:
     case td_api::deleteLanguagePack::ID:
     case td_api::processPushNotification::ID:
-    // case td_api::sendTonLiteServerRequest::ID:
     case td_api::getOption::ID:
     case td_api::setOption::ID:
     case td_api::getStorageStatistics::ID:
@@ -3526,7 +3382,9 @@ bool Td::is_preauthentication_request(int32 id) {
     case td_api::getNetworkStatistics::ID:
     case td_api::addNetworkStatistics::ID:
     case td_api::resetNetworkStatistics::ID:
+    case td_api::getCountries::ID:
     case td_api::getCountryCode::ID:
+    case td_api::getPhoneNumberInfo::ID:
     case td_api::getDeepLinkInfo::ID:
     case td_api::getApplicationConfig::ID:
     case td_api::saveApplicationLogEvent::ID:
@@ -3585,8 +3443,7 @@ void Td::request(uint64 id, tl_object_ptr<td_api::Function> function) {
 
   request_set_.insert(id);
   if (function == nullptr) {
-    LOG(ERROR) << "Receive empty request";
-    return send_error_raw(id, 400, "Request is empty");
+    return send_error_impl(id, make_error(400, "Request is empty"));
   }
 
   VLOG(td_requests) << "Receive request " << id << ": " << to_string(function);
@@ -3602,6 +3459,8 @@ void Td::request(uint64 id, tl_object_ptr<td_api::Function> function) {
         return send_result(id, get_fake_authorization_state_object());
       case td_api::getCurrentState::ID: {
         vector<td_api::object_ptr<td_api::Update>> updates;
+        updates.push_back(td_api::make_object<td_api::updateOption>(
+            "version", td_api::make_object<td_api::optionValueString>(TDLIB_VERSION)));
         updates.push_back(td_api::make_object<td_api::updateAuthorizationState>(get_fake_authorization_state_object()));
         // send response synchronously to prevent "Request aborted"
         return send_result(id, td_api::make_object<td_api::updates>(std::move(updates)));
@@ -3628,7 +3487,8 @@ void Td::request(uint64 id, tl_object_ptr<td_api::Function> function) {
             pending_preauthentication_requests_.emplace_back(id, std::move(function));
             return;
           }
-          return send_error_raw(id, 401, "Initialization parameters are needed: call setTdlibParameters first");
+          return send_error_impl(
+              id, make_error(400, "Initialization parameters are needed: call setTdlibParameters first"));
       }
       break;
     }
@@ -3657,26 +3517,30 @@ void Td::request(uint64 id, tl_object_ptr<td_api::Function> function) {
             pending_preauthentication_requests_.emplace_back(id, std::move(function));
             return;
           }
-          return send_error_raw(id, 401, "Database encryption key is needed: call checkDatabaseEncryptionKey first");
+          return send_error_impl(
+              id, make_error(400, "Database encryption key is needed: call checkDatabaseEncryptionKey first"));
       }
       return answer_ok_query(id, init(as_db_key(encryption_key)));
     }
     case State::Close:
-      return send_error_raw(id, 401, "Unauthorized");
+      if (destroy_flag_) {
+        return send_error_impl(id, make_error(401, "Unauthorized"));
+      } else {
+        return send_error_impl(id, make_error(500, "Request aborted"));
+      }
     case State::Run:
       break;
   }
 
   if ((auth_manager_ == nullptr || !auth_manager_->is_authorized()) && !is_preauthentication_request(function_id) &&
       !is_preinitialization_request(function_id) && !is_authentication_request(function_id)) {
-    return send_error_raw(id, 401, "Unauthorized");
+    return send_error_impl(id, make_error(401, "Unauthorized"));
   }
   downcast_call(*function, [this, id](auto &request) { this->on_request(id, request); });
 }
 
 td_api::object_ptr<td_api::Object> Td::static_request(td_api::object_ptr<td_api::Function> function) {
   if (function == nullptr) {
-    LOG(ERROR) << "Receive empty static request";
     return td_api::make_object<td_api::error>(400, "Request is empty");
   }
 
@@ -3684,9 +3548,12 @@ td_api::object_ptr<td_api::Object> Td::static_request(td_api::object_ptr<td_api:
   bool need_logging = [function_id] {
     switch (function_id) {
       case td_api::parseTextEntities::ID:
+      case td_api::parseMarkdown::ID:
+      case td_api::getMarkdownText::ID:
       case td_api::getFileMimeType::ID:
       case td_api::getFileExtension::ID:
       case td_api::cleanFileName::ID:
+      case td_api::getChatFilterDefaultIconName::ID:
       case td_api::getJsonValue::ID:
       case td_api::getJsonString::ID:
       case td_api::testReturnError::ID:
@@ -3742,22 +3609,6 @@ void Td::send(NetQueryPtr &&query) {
   G()->net_query_dispatcher().dispatch(std::move(query));
 }
 
-void Td::update_qts(int32 qts) {
-  if (close_flag_ > 1) {
-    return;
-  }
-
-  updates_manager_->set_qts(qts);
-}
-
-void Td::force_get_difference() {
-  if (close_flag_) {
-    return;
-  }
-
-  updates_manager_->get_difference("force_get_difference");
-}
-
 void Td::on_result(NetQueryPtr query) {
   query->debug("Td: received from DcManager");
   VLOG(net_query) << "Receive result of " << query;
@@ -3781,7 +3632,7 @@ void Td::on_result(NetQueryPtr query) {
       updates_manager_->schedule_get_difference("failed to fetch update");
     } else {
       updates_manager_->on_get_updates(std::move(ptr));
-      if (auth_manager_->is_bot()) {
+      if (auth_manager_->is_bot() && auth_manager_->is_authorized()) {
         alarm_timeout_.set_timeout_in(PING_SERVER_ALARM_ID,
                                       PING_SERVER_TIMEOUT + Random::fast(0, PING_SERVER_TIMEOUT / 5));
       }
@@ -3801,14 +3652,14 @@ void Td::on_result(NetQueryPtr query) {
 bool Td::is_internal_config_option(Slice name) {
   switch (name[0]) {
     case 'a':
-      return name == "auth";
+      return name == "animation_search_emojis" || name == "animation_search_provider" || name == "auth";
     case 'b':
       return name == "base_language_pack_version";
     case 'c':
       return name == "call_ring_timeout_ms" || name == "call_receive_timeout_ms" ||
              name == "channels_read_media_period";
     case 'd':
-      return name == "dc_txt_domain_name";
+      return name == "dc_txt_domain_name" || name == "dice_emojis" || name == "dice_success_values";
     case 'e':
       return name == "edit_time_limit";
     case 'i':
@@ -3840,15 +3691,20 @@ void Td::on_config_option_updated(const string &name) {
   if (name == "auth") {
     return on_authorization_lost();
   } else if (name == "saved_animations_limit") {
-    return animations_manager_->on_update_saved_animations_limit(G()->shared_config().get_option_integer(name));
+    return animations_manager_->on_update_saved_animations_limit(
+        narrow_cast<int32>(G()->shared_config().get_option_integer(name)));
+  } else if (name == "animation_search_emojis") {
+    return animations_manager_->on_update_animation_search_emojis(G()->shared_config().get_option_string(name));
+  } else if (name == "animation_search_provider") {
+    return animations_manager_->on_update_animation_search_provider(G()->shared_config().get_option_string(name));
   } else if (name == "recent_stickers_limit") {
-    return stickers_manager_->on_update_recent_stickers_limit(G()->shared_config().get_option_integer(name));
+    return stickers_manager_->on_update_recent_stickers_limit(
+        narrow_cast<int32>(G()->shared_config().get_option_integer(name)));
   } else if (name == "favorite_stickers_limit") {
-    stickers_manager_->on_update_favorite_stickers_limit(G()->shared_config().get_option_integer(name));
-  } else if (name == "include_sponsored_chat_to_unread_count") {
-    messages_manager_->on_update_include_sponsored_dialog_to_unread_count();
+    stickers_manager_->on_update_favorite_stickers_limit(
+        narrow_cast<int32>(G()->shared_config().get_option_integer(name)));
   } else if (name == "my_id") {
-    G()->set_my_id(G()->shared_config().get_option_integer(name));
+    G()->set_my_id(static_cast<int32>(G()->shared_config().get_option_integer(name)));
   } else if (name == "session_count") {
     G()->net_query_dispatcher().update_session_count();
   } else if (name == "use_pfs") {
@@ -3897,6 +3753,10 @@ void Td::on_config_option_updated(const string &name) {
     return send_closure(notification_manager_actor_, &NotificationManager::on_notification_default_delay_changed);
   } else if (name == "ignored_restriction_reasons") {
     return send_closure(contacts_manager_actor_, &ContactsManager::on_ignored_restriction_reasons_changed);
+  } else if (name == "dice_emojis") {
+    return send_closure(stickers_manager_actor_, &StickersManager::on_update_dice_emojis);
+  } else if (name == "dice_success_values") {
+    return send_closure(stickers_manager_actor_, &StickersManager::on_update_dice_success_values);
   } else if (is_internal_config_option(name)) {
     return;
   }
@@ -3953,7 +3813,8 @@ void Td::start_up() {
   }
 
   VLOG(td_init) << "Create Global";
-  set_context(std::make_shared<Global>());
+  old_context_ = set_context(std::make_shared<Global>());
+  G()->set_net_query_stats(td_options_.net_query_stats);
   inc_request_actor_refcnt();  // guard
   inc_actor_refcnt();          // guard
 
@@ -3995,12 +3856,16 @@ ActorShared<Td> Td::create_reference() {
   inc_actor_refcnt();
   return actor_shared(this, ActorIdType);
 }
+
 void Td::inc_actor_refcnt() {
   actor_refcnt_++;
 }
 
 void Td::dec_actor_refcnt() {
   actor_refcnt_--;
+  if (actor_refcnt_ < 3) {
+    LOG(DEBUG) << "Decrease reference count to " << actor_refcnt_;
+  }
   if (actor_refcnt_ == 0) {
     if (close_flag_ == 2) {
       create_reference();
@@ -4009,41 +3874,45 @@ void Td::dec_actor_refcnt() {
       LOG(WARNING) << "ON_ACTORS_CLOSED";
       Timer timer;
       animations_manager_.reset();
-      LOG(DEBUG) << "AnimationsManager was cleared " << timer;
+      LOG(DEBUG) << "AnimationsManager was cleared" << timer;
       audios_manager_.reset();
-      LOG(DEBUG) << "AudiosManager was cleared " << timer;
+      LOG(DEBUG) << "AudiosManager was cleared" << timer;
       auth_manager_.reset();
-      LOG(DEBUG) << "AuthManager was cleared " << timer;
+      LOG(DEBUG) << "AuthManager was cleared" << timer;
       background_manager_.reset();
-      LOG(DEBUG) << "BackgroundManager was cleared " << timer;
+      LOG(DEBUG) << "BackgroundManager was cleared" << timer;
+      callback_queries_manager_.reset();
+      LOG(DEBUG) << "CallbackQueriesManager was cleared" << timer;
       contacts_manager_.reset();
-      LOG(DEBUG) << "ContactsManager was cleared " << timer;
+      LOG(DEBUG) << "ContactsManager was cleared" << timer;
+      country_info_manager_.reset();
+      LOG(DEBUG) << "CountryInfoManager was cleared" << timer;
       documents_manager_.reset();
-      LOG(DEBUG) << "DocumentsManager was cleared " << timer;
+      LOG(DEBUG) << "DocumentsManager was cleared" << timer;
       file_manager_.reset();
-      LOG(DEBUG) << "FileManager was cleared " << timer;
+      LOG(DEBUG) << "FileManager was cleared" << timer;
       file_reference_manager_.reset();
-      LOG(DEBUG) << "FileReferenceManager was cleared " << timer;
+      LOG(DEBUG) << "FileReferenceManager was cleared" << timer;
       inline_queries_manager_.reset();
-      LOG(DEBUG) << "InlineQueriesManager was cleared " << timer;
+      LOG(DEBUG) << "InlineQueriesManager was cleared" << timer;
       messages_manager_.reset();
-      LOG(DEBUG) << "MessagesManager was cleared " << timer;
+      LOG(DEBUG) << "MessagesManager was cleared" << timer;
       notification_manager_.reset();
-      LOG(DEBUG) << "NotificationManager was cleared " << timer;
+      LOG(DEBUG) << "NotificationManager was cleared" << timer;
       poll_manager_.reset();
-      LOG(DEBUG) << "PollManager was cleared " << timer;
+      LOG(DEBUG) << "PollManager was cleared" << timer;
       stickers_manager_.reset();
-      LOG(DEBUG) << "StickersManager was cleared " << timer;
+      LOG(DEBUG) << "StickersManager was cleared" << timer;
       updates_manager_.reset();
-      LOG(DEBUG) << "UpdatesManager was cleared " << timer;
+      LOG(DEBUG) << "UpdatesManager was cleared" << timer;
       video_notes_manager_.reset();
-      LOG(DEBUG) << "VideoNotesManager was cleared " << timer;
+      LOG(DEBUG) << "VideoNotesManager was cleared" << timer;
       videos_manager_.reset();
-      LOG(DEBUG) << "VideosManager was cleared " << timer;
+      LOG(DEBUG) << "VideosManager was cleared" << timer;
       voice_notes_manager_.reset();
-      LOG(DEBUG) << "VoiceNotesManager was cleared " << timer;
+      LOG(DEBUG) << "VoiceNotesManager was cleared" << timer;
       web_pages_manager_.reset();
-      LOG(DEBUG) << "WebPagesManager was cleared " << timer;
+      LOG(DEBUG) << "WebPagesManager was cleared" << timer;
       Promise<> promise = PromiseCreator::lambda([actor_id = create_reference()](Unit) mutable { actor_id.reset(); });
 
       G()->set_shared_config(nullptr);
@@ -4074,6 +3943,7 @@ void Td::dec_stop_cnt() {
   stop_cnt_--;
   if (stop_cnt_ == 0) {
     LOG(WARNING) << "Stop Td";
+    set_context(std::move(old_context_));
     stop();
   }
 }
@@ -4084,6 +3954,7 @@ void Td::inc_request_actor_refcnt() {
 
 void Td::dec_request_actor_refcnt() {
   request_actor_refcnt_--;
+  LOG(DEBUG) << "Decrease request actor count to " << request_actor_refcnt_;
   if (request_actor_refcnt_ == 0) {
     LOG(WARNING) << "Have no request actors";
     clear();
@@ -4135,15 +4006,15 @@ void Td::clear() {
       notification_manager_->flush_all_notifications();
     }
   }
-  LOG(DEBUG) << "Options was cleared " << timer;
+  LOG(DEBUG) << "Options was cleared" << timer;
 
   G()->net_query_creator().stop_check();
   clear_handlers();
-  LOG(DEBUG) << "Handlers was cleared " << timer;
+  LOG(DEBUG) << "Handlers was cleared" << timer;
   G()->net_query_dispatcher().stop();
-  LOG(DEBUG) << "NetQueryDispatcher was stopped " << timer;
+  LOG(DEBUG) << "NetQueryDispatcher was stopped" << timer;
   state_manager_.reset();
-  LOG(DEBUG) << "StateManager was cleared " << timer;
+  LOG(DEBUG) << "StateManager was cleared" << timer;
   clear_requests();
   if (is_online_) {
     is_online_ = false;
@@ -4151,70 +4022,75 @@ void Td::clear() {
   }
   alarm_timeout_.cancel_timeout(PING_SERVER_ALARM_ID);
   alarm_timeout_.cancel_timeout(TERMS_OF_SERVICE_ALARM_ID);
-  LOG(DEBUG) << "Requests was answered " << timer;
+  alarm_timeout_.cancel_timeout(PROMO_DATA_ALARM_ID);
+  LOG(DEBUG) << "Requests was answered" << timer;
 
   // close all pure actors
   call_manager_.reset();
-  LOG(DEBUG) << "CallManager was cleared " << timer;
+  LOG(DEBUG) << "CallManager was cleared" << timer;
   change_phone_number_manager_.reset();
-  LOG(DEBUG) << "ChangePhoneNumberManager was cleared " << timer;
+  LOG(DEBUG) << "ChangePhoneNumberManager was cleared" << timer;
   config_manager_.reset();
-  LOG(DEBUG) << "ConfigManager was cleared " << timer;
+  LOG(DEBUG) << "ConfigManager was cleared" << timer;
   confirm_phone_number_manager_.reset();
-  LOG(DEBUG) << "ConfirmPhoneNumberManager was cleared " << timer;
+  LOG(DEBUG) << "ConfirmPhoneNumberManager was cleared" << timer;
   device_token_manager_.reset();
-  LOG(DEBUG) << "DeviceTokenManager was cleared " << timer;
+  LOG(DEBUG) << "DeviceTokenManager was cleared" << timer;
   hashtag_hints_.reset();
-  LOG(DEBUG) << "HashtagHints was cleared " << timer;
+  LOG(DEBUG) << "HashtagHints was cleared" << timer;
   language_pack_manager_.reset();
-  LOG(DEBUG) << "LanguagePackManager was cleared " << timer;
+  LOG(DEBUG) << "LanguagePackManager was cleared" << timer;
   net_stats_manager_.reset();
-  LOG(DEBUG) << "NetStatsManager was cleared " << timer;
+  LOG(DEBUG) << "NetStatsManager was cleared" << timer;
   password_manager_.reset();
-  LOG(DEBUG) << "PasswordManager was cleared " << timer;
+  LOG(DEBUG) << "PasswordManager was cleared" << timer;
   privacy_manager_.reset();
-  LOG(DEBUG) << "PrivacyManager was cleared " << timer;
+  LOG(DEBUG) << "PrivacyManager was cleared" << timer;
   secure_manager_.reset();
-  LOG(DEBUG) << "SecureManager was cleared " << timer;
+  LOG(DEBUG) << "SecureManager was cleared" << timer;
   secret_chats_manager_.reset();
-  LOG(DEBUG) << "SecretChatsManager was cleared " << timer;
+  LOG(DEBUG) << "SecretChatsManager was cleared" << timer;
   storage_manager_.reset();
-  LOG(DEBUG) << "StorageManager was cleared " << timer;
+  LOG(DEBUG) << "StorageManager was cleared" << timer;
   top_dialog_manager_.reset();
-  LOG(DEBUG) << "TopDialogManager was cleared " << timer;
+  LOG(DEBUG) << "TopDialogManager was cleared" << timer;
   verify_phone_number_manager_.reset();
-  LOG(DEBUG) << "VerifyPhoneNumberManager was cleared " << timer;
+  LOG(DEBUG) << "VerifyPhoneNumberManager was cleared" << timer;
 
   G()->set_connection_creator(ActorOwn<ConnectionCreator>());
-  LOG(DEBUG) << "ConnectionCreator was cleared " << timer;
+  LOG(DEBUG) << "ConnectionCreator was cleared" << timer;
+  G()->set_temp_auth_key_watchdog(ActorOwn<TempAuthKeyWatchdog>());
+  LOG(DEBUG) << "TempAuthKeyWatchdog was cleared" << timer;
 
   // clear actors which are unique pointers
   animations_manager_actor_.reset();
-  LOG(DEBUG) << "AnimationsManager actor was cleared " << timer;
+  LOG(DEBUG) << "AnimationsManager actor was cleared" << timer;
   auth_manager_actor_.reset();
-  LOG(DEBUG) << "AuthManager actor was cleared " << timer;
+  LOG(DEBUG) << "AuthManager actor was cleared" << timer;
   background_manager_actor_.reset();
-  LOG(DEBUG) << "BackgroundManager actor was cleared " << timer;
+  LOG(DEBUG) << "BackgroundManager actor was cleared" << timer;
   contacts_manager_actor_.reset();
-  LOG(DEBUG) << "ContactsManager actor was cleared " << timer;
+  LOG(DEBUG) << "ContactsManager actor was cleared" << timer;
+  country_info_manager_actor_.reset();
+  LOG(DEBUG) << "CountryInfoManager actor was cleared" << timer;
   file_manager_actor_.reset();
-  LOG(DEBUG) << "FileManager actor was cleared " << timer;
+  LOG(DEBUG) << "FileManager actor was cleared" << timer;
   file_reference_manager_actor_.reset();
-  LOG(DEBUG) << "FileReferenceManager actor was cleared " << timer;
+  LOG(DEBUG) << "FileReferenceManager actor was cleared" << timer;
   inline_queries_manager_actor_.reset();
-  LOG(DEBUG) << "InlineQueriesManager actor was cleared " << timer;
+  LOG(DEBUG) << "InlineQueriesManager actor was cleared" << timer;
   messages_manager_actor_.reset();  // TODO: Stop silent
-  LOG(DEBUG) << "MessagesManager actor was cleared " << timer;
+  LOG(DEBUG) << "MessagesManager actor was cleared" << timer;
   notification_manager_actor_.reset();
-  LOG(DEBUG) << "NotificationManager actor was cleared " << timer;
+  LOG(DEBUG) << "NotificationManager actor was cleared" << timer;
   poll_manager_actor_.reset();
-  LOG(DEBUG) << "PollManager actor was cleared " << timer;
+  LOG(DEBUG) << "PollManager actor was cleared" << timer;
   stickers_manager_actor_.reset();
-  LOG(DEBUG) << "StickersManager actor was cleared " << timer;
+  LOG(DEBUG) << "StickersManager actor was cleared" << timer;
   updates_manager_actor_.reset();
-  LOG(DEBUG) << "UpdatesManager actor was cleared " << timer;
+  LOG(DEBUG) << "UpdatesManager actor was cleared" << timer;
   web_pages_manager_actor_.reset();
-  LOG(DEBUG) << "WebPagesManager actor was cleared " << timer;
+  LOG(DEBUG) << "WebPagesManager actor was cleared" << timer;
 }
 
 void Td::close() {
@@ -4294,8 +4170,6 @@ class Td::UploadFileCallback : public FileManager::UploadCallback {
   }
 };
 
-int VERBOSITY_NAME(td_init) = VERBOSITY_NAME(DEBUG) + 3;
-
 template <class T>
 void Td::complete_pending_preauthentication_requests(const T &func) {
   for (auto &request : pending_preauthentication_requests_) {
@@ -4363,6 +4237,8 @@ Status Td::init(DbKey key) {
 
   init_managers();
 
+  G()->set_my_id(static_cast<int32>(G()->shared_config().get_option_integer("my_id")));
+
   storage_manager_ = create_actor<StorageManager>("StorageManager", create_reference(),
                                                   min(current_scheduler_id + 2, scheduler_count - 1));
   G()->set_storage_manager(storage_manager_.get());
@@ -4404,7 +4280,7 @@ Status Td::init(DbKey key) {
   // for each Actor.
   //
   // 2. An actor must not make some decisions before all binlog events are processed.
-  // For example, SecretChatActor must not send RequestKey, before it receives logevent with RequestKey and understands
+  // For example, SecretChatActor must not send RequestKey, before it receives log event with RequestKey and understands
   // that RequestKey was already sent.
   //
   // 3. During replay of binlog some queries may be sent to other actors. They shouldn't process such events before all
@@ -4429,10 +4305,11 @@ Status Td::init(DbKey key) {
 
   VLOG(td_init) << "Ping datacenter";
   if (!auth_manager_->is_authorized()) {
-    send_get_nearest_dc_query(Promise<string>());
+    country_info_manager_->get_current_country_code(Promise<string>());
   } else {
     updates_manager_->get_difference("init");
     schedule_get_terms_of_service(0);
+    schedule_get_promo_data(0);
   }
 
   complete_pending_preauthentication_requests([](int32 id) { return true; });
@@ -4457,7 +4334,7 @@ void Td::init_options_and_network() {
    private:
     ActorShared<Td> td_;
   };
-  state_manager_ = create_actor<StateManager>("State manager");
+  state_manager_ = create_actor<StateManager>("State manager", create_reference());
   send_closure(state_manager_, &StateManager::add_callback, make_unique<StateManagerCallback>(create_reference()));
   G()->set_state_manager(state_manager_.get());
   connection_state_ = StateManager::State::Empty;
@@ -4489,7 +4366,7 @@ void Td::init_options_and_network() {
   init_connection_creator();
 
   VLOG(td_init) << "Create TempAuthKeyWatchdog";
-  auto temp_auth_key_watchdog = create_actor<TempAuthKeyWatchdog>("TempAuthKeyWatchdog");
+  auto temp_auth_key_watchdog = create_actor<TempAuthKeyWatchdog>("TempAuthKeyWatchdog", create_reference());
   G()->set_temp_auth_key_watchdog(std::move(temp_auth_key_watchdog));
 
   VLOG(td_init) << "Create ConfigManager";
@@ -4561,8 +4438,8 @@ void Td::init_file_manager() {
     explicit FileManagerContext(Td *td) : td_(td) {
     }
 
-    void on_new_file(int64 size, int32 cnt) final {
-      send_closure(G()->storage_manager(), &StorageManager::on_new_file, size, cnt);
+    void on_new_file(int64 size, int64 real_size, int32 cnt) final {
+      send_closure(G()->storage_manager(), &StorageManager::on_new_file, size, real_size, cnt);
     }
 
     void on_file_updated(FileId file_id) final {
@@ -4631,6 +4508,8 @@ void Td::init_managers() {
   contacts_manager_ = make_unique<ContactsManager>(this, create_reference());
   contacts_manager_actor_ = register_actor("ContactsManager", contacts_manager_.get());
   G()->set_contacts_manager(contacts_manager_actor_.get());
+  country_info_manager_ = make_unique<CountryInfoManager>(this, create_reference());
+  country_info_manager_actor_ = register_actor("CountryInfoManager", country_info_manager_.get());
   inline_queries_manager_ = make_unique<InlineQueriesManager>(this, create_reference());
   inline_queries_manager_actor_ = register_actor("InlineQueriesManager", inline_queries_manager_.get());
   messages_manager_ = make_unique<MessagesManager>(this, create_reference());
@@ -4673,11 +4552,8 @@ void Td::init_managers() {
       "VerifyPhoneNumberManager", PhoneNumberManager::Type::VerifyPhone, create_reference());
 }
 
-void Td::send_get_nearest_dc_query(Promise<string> promise) {
-  create_handler<GetNearestDcQuery>(std::move(promise))->send();
-}
-
 void Td::send_update(tl_object_ptr<td_api::Update> &&object) {
+  CHECK(object != nullptr);
   auto object_id = object->get_id();
   if (close_flag_ >= 5 && object_id != td_api::updateAuthorizationState::ID) {
     // just in case
@@ -4692,15 +4568,20 @@ void Td::send_update(tl_object_ptr<td_api::Update> &&object) {
     case td_api::updateUserStatus::ID:
       VLOG(td_requests) << "Sending update: " << oneline(to_string(object));
       break;
-    case td_api::updateTrendingStickerSets::ID:
-      VLOG(td_requests) << "Sending update: updateTrendingStickerSets { ... }";
+    case td_api::updateTrendingStickerSets::ID: {
+      auto sticker_sets = static_cast<const td_api::updateTrendingStickerSets *>(object.get())->sticker_sets_.get();
+      VLOG(td_requests) << "Sending update: updateTrendingStickerSets { total_count = " << sticker_sets->total_count_
+                        << ", count = " << sticker_sets->sets_.size() << " }";
       break;
+    }
     case td_api::updateOption::ID / 2:
     case td_api::updateChatReadInbox::ID / 2:
     case td_api::updateUnreadMessageCount::ID / 2:
     case td_api::updateUnreadChatCount::ID / 2:
     case td_api::updateChatOnlineMemberCount::ID / 2:
     case td_api::updateUserChatAction::ID / 2:
+    case td_api::updateChatFilters::ID / 2:
+    case td_api::updateChatPosition::ID / 2:
       LOG(ERROR) << "Sending update: " << oneline(to_string(object));
       break;
     default:
@@ -4729,7 +4610,6 @@ void Td::send_result(uint64 id, tl_object_ptr<td_api::Object> object) {
 
 void Td::send_error_impl(uint64 id, tl_object_ptr<td_api::error> error) {
   CHECK(id != 0);
-  CHECK(callback_ != nullptr);
   CHECK(error != nullptr);
   auto it = request_set_.find(id);
   if (it != request_set_.end()) {
@@ -4894,7 +4774,8 @@ Status Td::set_parameters(td_api::object_ptr<td_api::tdlibParameters> parameters
     return Status::Error(400, "Device model must be non-empty");
   }
   if (options_.system_version.empty()) {
-    return Status::Error(400, "System version must be non-empty");
+    options_.system_version = get_operating_system_version().str();
+    VLOG(td_init) << "Set system version to " << options_.system_version;
   }
   if (options_.application_version.empty()) {
     return Status::Error(400, "Application version must be non-empty");
@@ -4978,7 +4859,7 @@ void Td::on_request(uint64 id, td_api::recoverAuthenticationPassword &request) {
 
 void Td::on_request(uint64 id, const td_api::logOut &request) {
   // will call Td::destroy later
-  send_closure(auth_manager_actor_, &AuthManager::logout, id);
+  send_closure(auth_manager_actor_, &AuthManager::log_out, id);
 }
 
 void Td::on_request(uint64 id, const td_api::close &request) {
@@ -5039,6 +4920,8 @@ void Td::on_request(uint64 id, const td_api::getCurrentState &request) {
     messages_manager_->get_current_state(updates);
 
     notification_manager_->get_current_state(updates);
+
+    config_manager_->get_actor_unsafe()->get_current_state(updates);
 
     // TODO updateFileGenerationStart generation_id:int64 original_path:string destination_path:string conversion:string = Update;
     // TODO updateCall call:call = Update;
@@ -5141,7 +5024,7 @@ void Td::on_request(uint64 id, td_api::processPushNotification &request) {
 void Td::on_request(uint64 id, td_api::registerDevice &request) {
   CHECK_IS_USER();
   if (request.device_token_ == nullptr) {
-    return send_error_raw(id, 400, "Device token should not be empty");
+    return send_error_raw(id, 400, "Device token must be non-empty");
   }
   CREATE_REQUEST_PROMISE();
   send_closure(device_token_manager_, &DeviceTokenManager::register_device, std::move(request.device_token_),
@@ -5163,13 +5046,21 @@ void Td::on_request(uint64 id, td_api::setUserPrivacySettingRules &request) {
 
 void Td::on_request(uint64 id, const td_api::getAccountTtl &request) {
   CHECK_IS_USER();
-  CREATE_NO_ARGS_REQUEST(GetAccountTtlRequest);
+  CREATE_REQUEST_PROMISE();
+  auto query_promise = PromiseCreator::lambda([promise = std::move(promise)](Result<int32> result) mutable {
+    if (result.is_error()) {
+      promise.set_error(result.move_as_error());
+    } else {
+      promise.set_value(td_api::make_object<td_api::accountTtl>(result.ok()));
+    }
+  });
+  contacts_manager_->get_account_ttl(std::move(query_promise));
 }
 
 void Td::on_request(uint64 id, const td_api::setAccountTtl &request) {
   CHECK_IS_USER();
   if (request.ttl_ == nullptr) {
-    return send_error_raw(id, 400, "New account TTL should not be empty");
+    return send_error_raw(id, 400, "New account TTL must be non-empty");
   }
   CREATE_OK_REQUEST_PROMISE();
   contacts_manager_->set_account_ttl(request.ttl_->days_, std::move(promise));
@@ -5201,7 +5092,8 @@ void Td::on_request(uint64 id, td_api::resendChangePhoneNumberCode &request) {
 
 void Td::on_request(uint64 id, const td_api::getActiveSessions &request) {
   CHECK_IS_USER();
-  CREATE_NO_ARGS_REQUEST(GetActiveSessionsRequest);
+  CREATE_REQUEST_PROMISE();
+  contacts_manager_->get_active_sessions(std::move(promise));
 }
 
 void Td::on_request(uint64 id, const td_api::terminateSession &request) {
@@ -5218,7 +5110,8 @@ void Td::on_request(uint64 id, const td_api::terminateAllOtherSessions &request)
 
 void Td::on_request(uint64 id, const td_api::getConnectedWebsites &request) {
   CHECK_IS_USER();
-  CREATE_NO_ARGS_REQUEST(GetConnectedWebsitesRequest);
+  CREATE_REQUEST_PROMISE();
+  contacts_manager_->get_connected_websites(std::move(promise));
 }
 
 void Td::on_request(uint64 id, const td_api::disconnectWebsite &request) {
@@ -5286,18 +5179,34 @@ void Td::on_request(uint64 id, const td_api::getChatPinnedMessage &request) {
   CREATE_REQUEST(GetChatPinnedMessageRequest, request.chat_id_);
 }
 
+void Td::on_request(uint64 id, const td_api::getCallbackQueryMessage &request) {
+  CHECK_IS_BOT();
+  CREATE_REQUEST(GetCallbackQueryMessageRequest, request.chat_id_, request.message_id_, request.callback_query_id_);
+}
+
 void Td::on_request(uint64 id, const td_api::getMessages &request) {
   CREATE_REQUEST(GetMessagesRequest, request.chat_id_, request.message_ids_);
 }
 
-void Td::on_request(uint64 id, const td_api::getPublicMessageLink &request) {
+void Td::on_request(uint64 id, const td_api::getMessageThread &request) {
   CHECK_IS_USER();
-  CREATE_REQUEST(GetPublicMessageLinkRequest, request.chat_id_, request.message_id_, request.for_album_);
+  CREATE_REQUEST(GetMessageThreadRequest, request.chat_id_, request.message_id_);
 }
 
 void Td::on_request(uint64 id, const td_api::getMessageLink &request) {
+  auto r_message_link = messages_manager_->get_message_link(
+      {DialogId(request.chat_id_), MessageId(request.message_id_)}, request.for_album_, request.for_comment_);
+  if (r_message_link.is_error()) {
+    send_closure(actor_id(this), &Td::send_error, id, r_message_link.move_as_error());
+  } else {
+    send_closure(actor_id(this), &Td::send_result, id,
+                 td_api::make_object<td_api::messageLink>(r_message_link.ok().first, r_message_link.ok().second));
+  }
+}
+
+void Td::on_request(uint64 id, const td_api::getMessageEmbeddingCode &request) {
   CHECK_IS_USER();
-  CREATE_REQUEST(GetMessageLinkRequest, request.chat_id_, request.message_id_);
+  CREATE_REQUEST(GetMessageEmbeddingCodeRequest, request.chat_id_, request.message_id_, request.for_album_);
 }
 
 void Td::on_request(uint64 id, td_api::getMessageLinkInfo &request) {
@@ -5311,7 +5220,7 @@ void Td::on_request(uint64 id, const td_api::getFile &request) {
 
 void Td::on_request(uint64 id, td_api::getRemoteFile &request) {
   CLEAN_INPUT_STRING(request.remote_file_id_);
-  auto file_type = request.file_type_ == nullptr ? FileType::Temp : from_td_api(*request.file_type_);
+  auto file_type = request.file_type_ == nullptr ? FileType::Temp : get_file_type(*request.file_type_);
   auto r_file_id = file_manager_->from_persistent_id(request.remote_file_id_, file_type);
   if (r_file_id.is_error()) {
     send_closure(actor_id(this), &Td::send_error, id, r_file_id.move_as_error());
@@ -5326,7 +5235,7 @@ void Td::on_request(uint64 id, td_api::getStorageStatistics &request) {
     if (result.is_error()) {
       promise.set_error(result.move_as_error());
     } else {
-      promise.set_value(result.ok().as_td_api());
+      promise.set_value(result.ok().get_storage_statistics_object());
     }
   });
   send_closure(storage_manager_, &StorageManager::get_storage_stats, false /*need_all_files*/, request.chat_limit_,
@@ -5339,7 +5248,7 @@ void Td::on_request(uint64 id, td_api::getStorageStatisticsFast &request) {
     if (result.is_error()) {
       promise.set_error(result.move_as_error());
     } else {
-      promise.set_value(result.ok().as_td_api());
+      promise.set_value(result.ok().get_storage_statistics_fast_object());
     }
   });
   send_closure(storage_manager_, &StorageManager::get_storage_stats_fast, std::move(query_promise));
@@ -5350,7 +5259,7 @@ void Td::on_request(uint64 id, td_api::getDatabaseStatistics &request) {
     if (result.is_error()) {
       promise.set_error(result.move_as_error());
     } else {
-      promise.set_value(result.ok().as_td_api());
+      promise.set_value(result.ok().get_database_statistics_object());
     }
   });
   send_closure(storage_manager_, &StorageManager::get_database_stats, std::move(query_promise));
@@ -5360,16 +5269,16 @@ void Td::on_request(uint64 id, td_api::optimizeStorage &request) {
   std::vector<FileType> file_types;
   for (auto &file_type : request.file_types_) {
     if (file_type == nullptr) {
-      return send_error_raw(id, 400, "File type should not be empty");
+      return send_error_raw(id, 400, "File type must be non-empty");
     }
 
-    file_types.push_back(from_td_api(*file_type));
+    file_types.push_back(get_file_type(*file_type));
   }
   std::vector<DialogId> owner_dialog_ids;
   for (auto chat_id : request.chat_ids_) {
     DialogId dialog_id(chat_id);
     if (!dialog_id.is_valid() && dialog_id != DialogId()) {
-      return send_error_raw(id, 400, "Wrong chat id");
+      return send_error_raw(id, 400, "Wrong chat identifier");
     }
     owner_dialog_ids.push_back(dialog_id);
   }
@@ -5377,7 +5286,7 @@ void Td::on_request(uint64 id, td_api::optimizeStorage &request) {
   for (auto chat_id : request.exclude_chat_ids_) {
     DialogId dialog_id(chat_id);
     if (!dialog_id.is_valid() && dialog_id != DialogId()) {
-      return send_error_raw(id, 400, "Wrong chat id");
+      return send_error_raw(id, 400, "Wrong chat identifier");
     }
     exclude_owner_dialog_ids.push_back(dialog_id);
   }
@@ -5390,19 +5299,23 @@ void Td::on_request(uint64 id, td_api::optimizeStorage &request) {
     if (result.is_error()) {
       promise.set_error(result.move_as_error());
     } else {
-      promise.set_value(result.ok().as_td_api());
+      promise.set_value(result.ok().get_storage_statistics_object());
     }
   });
-  send_closure(storage_manager_, &StorageManager::run_gc, std::move(parameters), std::move(query_promise));
+  send_closure(storage_manager_, &StorageManager::run_gc, std::move(parameters),
+               request.return_deleted_file_statistics_, std::move(query_promise));
 }
 
 void Td::on_request(uint64 id, td_api::getNetworkStatistics &request) {
   CREATE_REQUEST_PROMISE();
+  if (!request.only_current_ && G()->shared_config().get_option_boolean("disable_persistent_network_statistics")) {
+    return send_error_raw(id, 400, "Persistent network statistics is disabled");
+  }
   auto query_promise = PromiseCreator::lambda([promise = std::move(promise)](Result<NetworkStats> result) mutable {
     if (result.is_error()) {
       promise.set_error(result.move_as_error());
     } else {
-      promise.set_value(result.ok().as_td_api());
+      promise.set_value(result.ok().get_network_statistics_object());
     }
   });
   send_closure(net_stats_manager_, &NetStatsManager::get_network_stats, request.only_current_,
@@ -5417,7 +5330,7 @@ void Td::on_request(uint64 id, td_api::resetNetworkStatistics &request) {
 
 void Td::on_request(uint64 id, td_api::addNetworkStatistics &request) {
   if (request.entry_ == nullptr) {
-    return send_error_raw(id, 400, "Network statistics entry should not be empty");
+    return send_error_raw(id, 400, "Network statistics entry must be non-empty");
   }
 
   NetworkStatsEntry entry;
@@ -5426,9 +5339,9 @@ void Td::on_request(uint64 id, td_api::addNetworkStatistics &request) {
       auto file_entry = move_tl_object_as<td_api::networkStatisticsEntryFile>(request.entry_);
       entry.is_call = false;
       if (file_entry->file_type_ != nullptr) {
-        entry.file_type = from_td_api(*file_entry->file_type_);
+        entry.file_type = get_file_type(*file_entry->file_type_);
       }
-      entry.net_type = from_td_api(file_entry->network_type_);
+      entry.net_type = get_net_type(file_entry->network_type_);
       entry.rx = file_entry->received_bytes_;
       entry.tx = file_entry->sent_bytes_;
       break;
@@ -5436,7 +5349,7 @@ void Td::on_request(uint64 id, td_api::addNetworkStatistics &request) {
     case td_api::networkStatisticsEntryCall::ID: {
       auto call_entry = move_tl_object_as<td_api::networkStatisticsEntryCall>(request.entry_);
       entry.is_call = true;
-      entry.net_type = from_td_api(call_entry->network_type_);
+      entry.net_type = get_net_type(call_entry->network_type_);
       entry.rx = call_entry->received_bytes_;
       entry.tx = call_entry->sent_bytes_;
       entry.duration = call_entry->duration_;
@@ -5468,7 +5381,7 @@ void Td::on_request(uint64 id, td_api::addNetworkStatistics &request) {
 
 void Td::on_request(uint64 id, const td_api::setNetworkType &request) {
   CREATE_OK_REQUEST_PROMISE();
-  send_closure(state_manager_, &StateManager::on_network, from_td_api(request.type_));
+  send_closure(state_manager_, &StateManager::on_network, get_net_type(request.type_));
   promise.set_value(Unit());
 }
 
@@ -5484,7 +5397,7 @@ void Td::on_request(uint64 id, const td_api::setAutoDownloadSettings &request) {
   if (request.settings_ == nullptr) {
     return send_error_raw(id, 400, "New settings must be non-empty");
   }
-  set_auto_download_settings(this, from_td_api(request.type_), get_auto_download_settings(request.settings_),
+  set_auto_download_settings(this, get_net_type(request.type_), get_auto_download_settings(request.settings_),
                              std::move(promise));
 }
 
@@ -5492,7 +5405,7 @@ void Td::on_request(uint64 id, td_api::getTopChats &request) {
   CHECK_IS_USER();
   CREATE_REQUEST_PROMISE();
   if (request.category_ == nullptr) {
-    return promise.set_error(Status::Error(400, "Top chat category should not be empty"));
+    return promise.set_error(Status::Error(400, "Top chat category must be non-empty"));
   }
   if (request.limit_ <= 0) {
     return promise.set_error(Status::Error(400, "Limit must be positive"));
@@ -5501,33 +5414,31 @@ void Td::on_request(uint64 id, td_api::getTopChats &request) {
     if (result.is_error()) {
       promise.set_error(result.move_as_error());
     } else {
-      promise.set_value(MessagesManager::get_chats_object(result.ok()));
+      promise.set_value(MessagesManager::get_chats_object(-1, result.ok()));
     }
   });
-  send_closure(top_dialog_manager_, &TopDialogManager::get_top_dialogs,
-               top_dialog_category_from_td_api(*request.category_), narrow_cast<size_t>(request.limit_),
-               std::move(query_promise));
+  send_closure(top_dialog_manager_, &TopDialogManager::get_top_dialogs, get_top_dialog_category(*request.category_),
+               narrow_cast<size_t>(request.limit_), std::move(query_promise));
 }
 
 void Td::on_request(uint64 id, const td_api::removeTopChat &request) {
   CHECK_IS_USER();
   if (request.category_ == nullptr) {
-    return send_error_raw(id, 400, "Top chat category should not be empty");
+    return send_error_raw(id, 400, "Top chat category must be non-empty");
   }
 
   DialogId dialog_id(request.chat_id_);
   if (!dialog_id.is_valid()) {
     return send_error_raw(id, 400, "Invalid chat identifier");
   }
-  send_closure(top_dialog_manager_, &TopDialogManager::remove_dialog,
-               top_dialog_category_from_td_api(*request.category_), dialog_id,
-               messages_manager_->get_input_peer(dialog_id, AccessRights::Read));
+  send_closure(top_dialog_manager_, &TopDialogManager::remove_dialog, get_top_dialog_category(*request.category_),
+               dialog_id, messages_manager_->get_input_peer(dialog_id, AccessRights::Read));
   send_closure(actor_id(this), &Td::send_result, id, td_api::make_object<td_api::ok>());
 }
 
 void Td::on_request(uint64 id, const td_api::getChats &request) {
   CHECK_IS_USER();
-  CREATE_REQUEST(GetChatsRequest, FolderId(request.chat_list_), request.offset_order_, request.offset_chat_id_,
+  CREATE_REQUEST(GetChatsRequest, DialogListId(request.chat_list_), request.offset_order_, request.offset_chat_id_,
                  request.limit_);
 }
 
@@ -5629,9 +5540,9 @@ void Td::on_request(uint64 id, const td_api::closeChat &request) {
 
 void Td::on_request(uint64 id, const td_api::viewMessages &request) {
   CHECK_IS_USER();
-  answer_ok_query(
-      id, messages_manager_->view_messages(
-              DialogId(request.chat_id_), MessagesManager::get_message_ids(request.message_ids_), request.force_read_));
+  answer_ok_query(id, messages_manager_->view_messages(
+                          DialogId(request.chat_id_), MessageId(request.message_thread_id_),
+                          MessagesManager::get_message_ids(request.message_ids_), request.force_read_));
 }
 
 void Td::on_request(uint64 id, const td_api::openMessageContent &request) {
@@ -5653,26 +5564,38 @@ void Td::on_request(uint64 id, const td_api::deleteChatHistory &request) {
                                            std::move(promise));
 }
 
+void Td::on_request(uint64 id, const td_api::getMessageThreadHistory &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST(GetMessageThreadHistoryRequest, request.chat_id_, request.message_id_, request.from_message_id_,
+                 request.offset_, request.limit_);
+}
+
 void Td::on_request(uint64 id, td_api::searchChatMessages &request) {
   CHECK_IS_USER();
   CLEAN_INPUT_STRING(request.query_);
-  CREATE_REQUEST(SearchChatMessagesRequest, request.chat_id_, std::move(request.query_), request.sender_user_id_,
-                 request.from_message_id_, request.offset_, request.limit_, std::move(request.filter_));
+  CREATE_REQUEST(SearchChatMessagesRequest, request.chat_id_, std::move(request.query_), std::move(request.sender_),
+                 request.from_message_id_, request.offset_, request.limit_, std::move(request.filter_),
+                 request.message_thread_id_);
 }
 
 void Td::on_request(uint64 id, td_api::searchSecretMessages &request) {
   CHECK_IS_USER();
   CLEAN_INPUT_STRING(request.query_);
-  CREATE_REQUEST(OfflineSearchMessagesRequest, request.chat_id_, std::move(request.query_), request.from_search_id_,
+  CLEAN_INPUT_STRING(request.offset_);
+  CREATE_REQUEST(SearchSecretMessagesRequest, request.chat_id_, std::move(request.query_), std::move(request.offset_),
                  request.limit_, std::move(request.filter_));
 }
 
 void Td::on_request(uint64 id, td_api::searchMessages &request) {
   CHECK_IS_USER();
   CLEAN_INPUT_STRING(request.query_);
-  CREATE_REQUEST(SearchMessagesRequest, FolderId(request.chat_list_), request.chat_list_ == nullptr,
+  DialogListId dialog_list_id(request.chat_list_);
+  if (!dialog_list_id.is_folder()) {
+    return send_error_raw(id, 400, "Wrong chat list specified");
+  }
+  CREATE_REQUEST(SearchMessagesRequest, dialog_list_id.get_folder_id(), request.chat_list_ == nullptr,
                  std::move(request.query_), request.offset_date_, request.offset_chat_id_, request.offset_message_id_,
-                 request.limit_);
+                 request.limit_, std::move(request.filter_), request.min_date_, request.max_date_);
 }
 
 void Td::on_request(uint64 id, td_api::searchCallMessages &request) {
@@ -5702,6 +5625,13 @@ void Td::on_request(uint64 id, td_api::getChatMessageCount &request) {
 void Td::on_request(uint64 id, const td_api::getChatScheduledMessages &request) {
   CHECK_IS_USER();
   CREATE_REQUEST(GetChatScheduledMessagesRequest, request.chat_id_);
+}
+
+void Td::on_request(uint64 id, td_api::getMessagePublicForwards &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.offset_);
+  CREATE_REQUEST(GetMessagePublicForwardsRequest, request.chat_id_, request.message_id_, request.offset_,
+                 request.limit_);
 }
 
 void Td::on_request(uint64 id, const td_api::removeNotification &request) {
@@ -5741,9 +5671,9 @@ void Td::on_request(uint64 id, const td_api::readAllChatMentions &request) {
 
 void Td::on_request(uint64 id, td_api::sendMessage &request) {
   DialogId dialog_id(request.chat_id_);
-  auto r_new_message_id =
-      messages_manager_->send_message(dialog_id, MessageId(request.reply_to_message_id_), std::move(request.options_),
-                                      std::move(request.reply_markup_), std::move(request.input_message_content_));
+  auto r_new_message_id = messages_manager_->send_message(
+      dialog_id, MessageId(request.message_thread_id_), MessageId(request.reply_to_message_id_),
+      std::move(request.options_), std::move(request.reply_markup_), std::move(request.input_message_content_));
   if (r_new_message_id.is_error()) {
     return send_closure(actor_id(this), &Td::send_error, id, r_new_message_id.move_as_error());
   }
@@ -5755,9 +5685,9 @@ void Td::on_request(uint64 id, td_api::sendMessage &request) {
 
 void Td::on_request(uint64 id, td_api::sendMessageAlbum &request) {
   DialogId dialog_id(request.chat_id_);
-  auto r_message_ids =
-      messages_manager_->send_message_group(dialog_id, MessageId(request.reply_to_message_id_),
-                                            std::move(request.options_), std::move(request.input_message_contents_));
+  auto r_message_ids = messages_manager_->send_message_group(
+      dialog_id, MessageId(request.message_thread_id_), MessageId(request.reply_to_message_id_),
+      std::move(request.options_), std::move(request.input_message_contents_));
   if (r_message_ids.is_error()) {
     return send_closure(actor_id(this), &Td::send_error, id, r_message_ids.move_as_error());
   }
@@ -5788,8 +5718,8 @@ void Td::on_request(uint64 id, td_api::sendInlineQueryResultMessage &request) {
 
   DialogId dialog_id(request.chat_id_);
   auto r_new_message_id = messages_manager_->send_inline_query_result_message(
-      dialog_id, MessageId(request.reply_to_message_id_), std::move(request.options_), request.query_id_,
-      request.result_id_, request.hide_via_bot_);
+      dialog_id, MessageId(request.message_thread_id_), MessageId(request.reply_to_message_id_),
+      std::move(request.options_), request.query_id_, request.result_id_, request.hide_via_bot_);
   if (r_new_message_id.is_error()) {
     return send_closure(actor_id(this), &Td::send_error, id, r_new_message_id.move_as_error());
   }
@@ -5816,8 +5746,8 @@ void Td::on_request(uint64 id, td_api::addLocalMessage &request) {
 
   DialogId dialog_id(request.chat_id_);
   auto r_new_message_id = messages_manager_->add_local_message(
-      dialog_id, UserId(request.sender_user_id_), MessageId(request.reply_to_message_id_),
-      request.disable_notification_, std::move(request.input_message_content_));
+      dialog_id, std::move(request.sender_), MessageId(request.reply_to_message_id_), request.disable_notification_,
+      std::move(request.input_message_content_));
   if (r_new_message_id.is_error()) {
     return send_closure(actor_id(this), &Td::send_error, id, r_new_message_id.move_as_error());
   }
@@ -5834,7 +5764,8 @@ void Td::on_request(uint64 id, td_api::editMessageText &request) {
 
 void Td::on_request(uint64 id, td_api::editMessageLiveLocation &request) {
   CREATE_REQUEST(EditMessageLiveLocationRequest, request.chat_id_, request.message_id_,
-                 std::move(request.reply_markup_), std::move(request.location_));
+                 std::move(request.reply_markup_), std::move(request.location_), request.heading_,
+                 request.proximity_alert_radius_);
 }
 
 void Td::on_request(uint64 id, td_api::editMessageMedia &request) {
@@ -5865,9 +5796,9 @@ void Td::on_request(uint64 id, td_api::editInlineMessageLiveLocation &request) {
   CHECK_IS_BOT();
   CLEAN_INPUT_STRING(request.inline_message_id_);
   CREATE_OK_REQUEST_PROMISE();
-  messages_manager_->edit_inline_message_live_location(std::move(request.inline_message_id_),
-                                                       std::move(request.reply_markup_), std::move(request.location_),
-                                                       std::move(promise));
+  messages_manager_->edit_inline_message_live_location(
+      std::move(request.inline_message_id_), std::move(request.reply_markup_), std::move(request.location_),
+      request.heading_, request.proximity_alert_radius_, std::move(promise));
 }
 
 void Td::on_request(uint64 id, td_api::editInlineMessageMedia &request) {
@@ -5897,8 +5828,9 @@ void Td::on_request(uint64 id, td_api::editInlineMessageReplyMarkup &request) {
 
 void Td::on_request(uint64 id, td_api::editMessageSchedulingState &request) {
   CHECK_IS_USER();
-  CREATE_REQUEST(EditMessageSchedulingStateRequest, request.chat_id_, request.message_id_,
-                 std::move(request.scheduling_state_));
+  CREATE_OK_REQUEST_PROMISE();
+  messages_manager_->edit_message_scheduling_state({DialogId(request.chat_id_), MessageId(request.message_id_)},
+                                                   std::move(request.scheduling_state_), std::move(promise));
 }
 
 void Td::on_request(uint64 id, td_api::setGameScore &request) {
@@ -5935,7 +5867,8 @@ void Td::on_request(uint64 id, const td_api::deleteChatReplyMarkup &request) {
 
 void Td::on_request(uint64 id, td_api::sendChatAction &request) {
   CREATE_OK_REQUEST_PROMISE();
-  messages_manager_->send_dialog_action(DialogId(request.chat_id_), std::move(request.action_), std::move(promise));
+  messages_manager_->send_dialog_action(DialogId(request.chat_id_), MessageId(request.message_thread_id_),
+                                        DialogAction(std::move(request.action_)), std::move(promise));
 }
 
 void Td::on_request(uint64 id, td_api::sendChatScreenshotTakenNotification &request) {
@@ -5945,9 +5878,13 @@ void Td::on_request(uint64 id, td_api::sendChatScreenshotTakenNotification &requ
 
 void Td::on_request(uint64 id, td_api::forwardMessages &request) {
   DialogId dialog_id(request.chat_id_);
-  auto r_message_ids = messages_manager_->forward_messages(
-      dialog_id, DialogId(request.from_chat_id_), MessagesManager::get_message_ids(request.message_ids_),
-      std::move(request.options_), false, request.as_album_, request.send_copy_, request.remove_caption_);
+  auto input_message_ids = MessagesManager::get_message_ids(request.message_ids_);
+  auto message_copy_options =
+      transform(input_message_ids, [send_copy = request.send_copy_, remove_caption = request.remove_caption_](
+                                       MessageId) { return MessageCopyOptions(send_copy, remove_caption); });
+  auto r_message_ids =
+      messages_manager_->forward_messages(dialog_id, DialogId(request.from_chat_id_), std::move(input_message_ids),
+                                          std::move(request.options_), false, std::move(message_copy_options));
   if (r_message_ids.is_error()) {
     return send_closure(actor_id(this), &Td::send_error, id, r_message_ids.move_as_error());
   }
@@ -6012,19 +5949,19 @@ void Td::on_request(uint64 id, td_api::createNewSecretChat &request) {
   CREATE_REQUEST(CreateNewSecretChatRequest, request.user_id_);
 }
 
-void Td::on_request(uint64 id, td_api::createCall &request) {
+void Td::on_request(uint64 id, const td_api::createCall &request) {
   CHECK_IS_USER();
   CREATE_REQUEST_PROMISE();
   auto query_promise = PromiseCreator::lambda([promise = std::move(promise)](Result<CallId> result) mutable {
     if (result.is_error()) {
       promise.set_error(result.move_as_error());
     } else {
-      promise.set_value(result.ok().as_td_api());
+      promise.set_value(result.ok().get_call_id_object());
     }
   });
 
   if (!request.protocol_) {
-    return query_promise.set_error(Status::Error(5, "Call protocol must not be empty"));
+    return query_promise.set_error(Status::Error(5, "Call protocol must be non-empty"));
   }
 
   UserId user_id(request.user_id_);
@@ -6038,24 +5975,31 @@ void Td::on_request(uint64 id, td_api::createCall &request) {
   }
 
   send_closure(G()->call_manager(), &CallManager::create_call, user_id, std::move(input_user),
-               CallProtocol::from_td_api(*request.protocol_), false, std::move(query_promise));
+               CallProtocol(*request.protocol_), request.is_video_, std::move(query_promise));
 }
 
-void Td::on_request(uint64 id, td_api::discardCall &request) {
-  CHECK_IS_USER();
-  CREATE_OK_REQUEST_PROMISE();
-  send_closure(G()->call_manager(), &CallManager::discard_call, CallId(request.call_id_), request.is_disconnected_,
-               request.duration_, false, request.connection_id_, std::move(promise));
-}
-
-void Td::on_request(uint64 id, td_api::acceptCall &request) {
+void Td::on_request(uint64 id, const td_api::acceptCall &request) {
   CHECK_IS_USER();
   CREATE_OK_REQUEST_PROMISE();
   if (!request.protocol_) {
-    return promise.set_error(Status::Error(5, "Call protocol must not be empty"));
+    return promise.set_error(Status::Error(5, "Call protocol must be non-empty"));
   }
   send_closure(G()->call_manager(), &CallManager::accept_call, CallId(request.call_id_),
-               CallProtocol::from_td_api(*request.protocol_), std::move(promise));
+               CallProtocol(*request.protocol_), std::move(promise));
+}
+
+void Td::on_request(uint64 id, td_api::sendCallSignalingData &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  send_closure(G()->call_manager(), &CallManager::send_call_signaling_data, CallId(request.call_id_),
+               std::move(request.data_), std::move(promise));
+}
+
+void Td::on_request(uint64 id, const td_api::discardCall &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  send_closure(G()->call_manager(), &CallManager::discard_call, CallId(request.call_id_), request.is_disconnected_,
+               request.duration_, request.is_video_, request.connection_id_, std::move(promise));
 }
 
 void Td::on_request(uint64 id, td_api::sendCallRating &request) {
@@ -6079,10 +6023,66 @@ void Td::on_request(uint64 id, const td_api::upgradeBasicGroupChatToSupergroupCh
   CREATE_REQUEST(UpgradeGroupChatToSupergroupChatRequest, request.chat_id_);
 }
 
-void Td::on_request(uint64 id, const td_api::setChatChatList &request) {
+void Td::on_request(uint64 id, const td_api::getChatListsToAddChat &request) {
+  CHECK_IS_USER();
+  auto dialog_lists = messages_manager_->get_dialog_lists_to_add_dialog(DialogId(request.chat_id_));
+  auto chat_lists =
+      transform(dialog_lists, [](DialogListId dialog_list_id) { return dialog_list_id.get_chat_list_object(); });
+  send_closure(actor_id(this), &Td::send_result, id, td_api::make_object<td_api::chatLists>(std::move(chat_lists)));
+}
+
+void Td::on_request(uint64 id, const td_api::addChatToList &request) {
   CHECK_IS_USER();
   CREATE_OK_REQUEST_PROMISE();
-  messages_manager_->set_dialog_folder_id(DialogId(request.chat_id_), FolderId(request.chat_list_), std::move(promise));
+  messages_manager_->add_dialog_to_list(DialogId(request.chat_id_), DialogListId(request.chat_list_),
+                                        std::move(promise));
+}
+
+void Td::on_request(uint64 id, const td_api::getChatFilter &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST(GetChatFilterRequest, request.chat_filter_id_);
+}
+
+void Td::on_request(uint64 id, const td_api::getRecommendedChatFilters &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST_PROMISE();
+  messages_manager_->get_recommended_dialog_filters(std::move(promise));
+}
+
+void Td::on_request(uint64 id, td_api::createChatFilter &request) {
+  CHECK_IS_USER();
+  if (request.filter_ == nullptr) {
+    return send_error_raw(id, 400, "Chat filter must be non-empty");
+  }
+  CLEAN_INPUT_STRING(request.filter_->title_);
+  CLEAN_INPUT_STRING(request.filter_->icon_name_);
+  CREATE_REQUEST_PROMISE();
+  messages_manager_->create_dialog_filter(std::move(request.filter_), std::move(promise));
+}
+
+void Td::on_request(uint64 id, td_api::editChatFilter &request) {
+  CHECK_IS_USER();
+  if (request.filter_ == nullptr) {
+    return send_error_raw(id, 400, "Chat filter must be non-empty");
+  }
+  CLEAN_INPUT_STRING(request.filter_->title_);
+  CLEAN_INPUT_STRING(request.filter_->icon_name_);
+  CREATE_REQUEST_PROMISE();
+  messages_manager_->edit_dialog_filter(DialogFilterId(request.chat_filter_id_), std::move(request.filter_),
+                                        std::move(promise));
+}
+
+void Td::on_request(uint64 id, const td_api::deleteChatFilter &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  messages_manager_->delete_dialog_filter(DialogFilterId(request.chat_filter_id_), std::move(promise));
+}
+
+void Td::on_request(uint64 id, const td_api::reorderChatFilters &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  messages_manager_->reorder_dialog_filters(
+      transform(request.chat_filter_ids_, [](int32 id) { return DialogFilterId(id); }), std::move(promise));
 }
 
 void Td::on_request(uint64 id, td_api::setChatTitle &request) {
@@ -6104,18 +6104,25 @@ void Td::on_request(uint64 id, const td_api::setChatPermissions &request) {
 void Td::on_request(uint64 id, td_api::setChatDraftMessage &request) {
   CHECK_IS_USER();
   answer_ok_query(
-      id, messages_manager_->set_dialog_draft_message(DialogId(request.chat_id_), std::move(request.draft_message_)));
+      id, messages_manager_->set_dialog_draft_message(DialogId(request.chat_id_), MessageId(request.message_thread_id_),
+                                                      std::move(request.draft_message_)));
 }
 
 void Td::on_request(uint64 id, const td_api::toggleChatIsPinned &request) {
   CHECK_IS_USER();
-  answer_ok_query(id, messages_manager_->toggle_dialog_is_pinned(DialogId(request.chat_id_), request.is_pinned_));
+  answer_ok_query(id, messages_manager_->toggle_dialog_is_pinned(DialogListId(request.chat_list_),
+                                                                 DialogId(request.chat_id_), request.is_pinned_));
 }
 
 void Td::on_request(uint64 id, const td_api::toggleChatIsMarkedAsUnread &request) {
   CHECK_IS_USER();
   answer_ok_query(id, messages_manager_->toggle_dialog_is_marked_as_unread(DialogId(request.chat_id_),
                                                                            request.is_marked_as_unread_));
+}
+
+void Td::on_request(uint64 id, const td_api::toggleMessageSenderIsBlocked &request) {
+  CHECK_IS_USER();
+  answer_ok_query(id, messages_manager_->toggle_message_sender_is_blocked(request.sender_, request.is_blocked_));
 }
 
 void Td::on_request(uint64 id, const td_api::toggleChatDefaultDisableNotification &request) {
@@ -6127,7 +6134,7 @@ void Td::on_request(uint64 id, const td_api::toggleChatDefaultDisableNotificatio
 void Td::on_request(uint64 id, const td_api::setPinnedChats &request) {
   CHECK_IS_USER();
   answer_ok_query(id, messages_manager_->set_pinned_dialogs(
-                          FolderId(request.chat_list_),
+                          DialogListId(request.chat_list_),
                           transform(request.chat_ids_, [](int64 chat_id) { return DialogId(chat_id); })));
 }
 
@@ -6166,12 +6173,19 @@ void Td::on_request(uint64 id, const td_api::setChatSlowModeDelay &request) {
 void Td::on_request(uint64 id, const td_api::pinChatMessage &request) {
   CREATE_OK_REQUEST_PROMISE();
   messages_manager_->pin_dialog_message(DialogId(request.chat_id_), MessageId(request.message_id_),
-                                        request.disable_notification_, false, std::move(promise));
+                                        request.disable_notification_, request.only_for_self_, false,
+                                        std::move(promise));
 }
 
 void Td::on_request(uint64 id, const td_api::unpinChatMessage &request) {
   CREATE_OK_REQUEST_PROMISE();
-  messages_manager_->pin_dialog_message(DialogId(request.chat_id_), MessageId(), false, true, std::move(promise));
+  messages_manager_->pin_dialog_message(DialogId(request.chat_id_), MessageId(request.message_id_), false, false, true,
+                                        std::move(promise));
+}
+
+void Td::on_request(uint64 id, const td_api::unpinAllChatMessages &request) {
+  CREATE_OK_REQUEST_PROMISE();
+  messages_manager_->unpin_all_dialog_messages(DialogId(request.chat_id_), std::move(promise));
 }
 
 void Td::on_request(uint64 id, const td_api::joinChat &request) {
@@ -6183,8 +6197,20 @@ void Td::on_request(uint64 id, const td_api::joinChat &request) {
 
 void Td::on_request(uint64 id, const td_api::leaveChat &request) {
   CREATE_OK_REQUEST_PROMISE();
-  messages_manager_->set_dialog_participant_status(DialogId(request.chat_id_), contacts_manager_->get_my_id(),
-                                                   td_api::make_object<td_api::chatMemberStatusLeft>(),
+  DialogId dialog_id(request.chat_id_);
+  td_api::object_ptr<td_api::ChatMemberStatus> new_status = td_api::make_object<td_api::chatMemberStatusLeft>();
+  if (dialog_id.get_type() == DialogType::Channel && messages_manager_->have_dialog_force(dialog_id)) {
+    auto status = contacts_manager_->get_channel_status(dialog_id.get_channel_id());
+    if (status.is_creator()) {
+      if (!status.is_member()) {
+        return promise.set_value(Unit());
+      }
+
+      new_status =
+          td_api::make_object<td_api::chatMemberStatusCreator>(status.get_rank(), status.is_anonymous(), false);
+    }
+  }
+  messages_manager_->set_dialog_participant_status(dialog_id, contacts_manager_->get_my_id(), std::move(new_status),
                                                    std::move(promise));
 }
 
@@ -6293,7 +6319,7 @@ void Td::on_request(uint64 id, const td_api::downloadFile &request) {
   FileId file_id(request.file_id_, 0);
   auto file_view = file_manager_->get_file_view(file_id);
   if (file_view.empty()) {
-    return send_error_raw(id, 400, "Invalid file id");
+    return send_error_raw(id, 400, "Invalid file identifier");
   }
 
   auto info_it = pending_file_downloads_.find(file_id);
@@ -6372,7 +6398,7 @@ void Td::on_request(uint64 id, td_api::uploadFile &request) {
     return send_error_raw(id, 5, "Upload priority must be in [1;32] range");
   }
 
-  auto file_type = request.file_type_ == nullptr ? FileType::Temp : from_td_api(*request.file_type_);
+  auto file_type = request.file_type_ == nullptr ? FileType::Temp : get_file_type(*request.file_type_);
   bool is_secret = file_type == FileType::Encrypted || file_type == FileType::EncryptedThumbnail;
   bool is_secure = file_type == FileType::Secure;
   auto r_file_id = file_manager_->get_input_file_id(file_type, request.file_, DialogId(), false, is_secret,
@@ -6429,25 +6455,23 @@ void Td::on_request(uint64 id, const td_api::deleteFile &request) {
                "td_api::deleteFile");
 }
 
-void Td::on_request(uint64 id, const td_api::blockUser &request) {
+void Td::on_request(uint64 id, const td_api::blockMessageSenderFromReplies &request) {
   CHECK_IS_USER();
-  answer_ok_query(id, contacts_manager_->set_user_is_blocked(UserId(request.user_id_), true));
+  CREATE_OK_REQUEST_PROMISE();
+  messages_manager_->block_message_sender_from_replies(MessageId(request.message_id_), request.delete_message_,
+                                                       request.delete_all_messages_, request.report_spam_,
+                                                       std::move(promise));
 }
 
-void Td::on_request(uint64 id, const td_api::unblockUser &request) {
+void Td::on_request(uint64 id, const td_api::getBlockedMessageSenders &request) {
   CHECK_IS_USER();
-  answer_ok_query(id, contacts_manager_->set_user_is_blocked(UserId(request.user_id_), false));
-}
-
-void Td::on_request(uint64 id, const td_api::getBlockedUsers &request) {
-  CHECK_IS_USER();
-  CREATE_REQUEST(GetBlockedUsersRequest, request.offset_, request.limit_);
+  CREATE_REQUEST(GetBlockedMessageSendersRequest, request.offset_, request.limit_);
 }
 
 void Td::on_request(uint64 id, td_api::addContact &request) {
   CHECK_IS_USER();
   if (request.contact_ == nullptr) {
-    return send_error_raw(id, 5, "Contact must not be empty");
+    return send_error_raw(id, 5, "Contact must be non-empty");
   }
   CLEAN_INPUT_STRING(request.contact_->phone_number_);
   CLEAN_INPUT_STRING(request.contact_->first_name_);
@@ -6460,7 +6484,7 @@ void Td::on_request(uint64 id, td_api::importContacts &request) {
   CHECK_IS_USER();
   for (auto &contact : request.contacts_) {
     if (contact == nullptr) {
-      return send_error_raw(id, 5, "Contact must not be empty");
+      return send_error_raw(id, 5, "Contact must be non-empty");
     }
     CLEAN_INPUT_STRING(contact->phone_number_);
     CLEAN_INPUT_STRING(contact->first_name_);
@@ -6494,7 +6518,7 @@ void Td::on_request(uint64 id, td_api::changeImportedContacts &request) {
   CHECK_IS_USER();
   for (auto &contact : request.contacts_) {
     if (contact == nullptr) {
-      return send_error_raw(id, 5, "Contact must not be empty");
+      return send_error_raw(id, 5, "Contact must be non-empty");
     }
     CLEAN_INPUT_STRING(contact->phone_number_);
     CLEAN_INPUT_STRING(contact->first_name_);
@@ -6540,6 +6564,18 @@ void Td::on_request(uint64 id, td_api::setUsername &request) {
   CLEAN_INPUT_STRING(request.username_);
   CREATE_OK_REQUEST_PROMISE();
   contacts_manager_->set_username(request.username_, std::move(promise));
+}
+
+void Td::on_request(uint64 id, td_api::setCommands &request) {
+  CHECK_IS_BOT();
+  CREATE_OK_REQUEST_PROMISE();
+  contacts_manager_->set_commands(std::move(request.commands_), std::move(promise));
+}
+
+void Td::on_request(uint64 id, const td_api::setLocation &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  contacts_manager_->set_location(Location(request.location_), std::move(promise));
 }
 
 void Td::on_request(uint64 id, td_api::setProfilePhoto &request) {
@@ -6633,7 +6669,7 @@ void Td::on_request(uint64 id, const td_api::getArchivedStickerSets &request) {
 
 void Td::on_request(uint64 id, const td_api::getTrendingStickerSets &request) {
   CHECK_IS_USER();
-  CREATE_NO_ARGS_REQUEST(GetTrendingStickerSetsRequest);
+  CREATE_REQUEST(GetTrendingStickerSetsRequest, request.offset_, request.limit_);
 }
 
 void Td::on_request(uint64 id, const td_api::getAttachedStickerSets &request) {
@@ -6697,6 +6733,13 @@ void Td::on_request(uint64 id, td_api::addStickerToSet &request) {
   CREATE_REQUEST(AddStickerToSetRequest, request.user_id_, std::move(request.name_), std::move(request.sticker_));
 }
 
+void Td::on_request(uint64 id, td_api::setStickerSetThumbnail &request) {
+  CHECK_IS_BOT();
+  CLEAN_INPUT_STRING(request.name_);
+  CREATE_REQUEST(SetStickerSetThumbnailRequest, request.user_id_, std::move(request.name_),
+                 std::move(request.thumbnail_));
+}
+
 void Td::on_request(uint64 id, td_api::setStickerPositionInSet &request) {
   CHECK_IS_BOT();
   CREATE_OK_REQUEST_PROMISE();
@@ -6752,9 +6795,11 @@ void Td::on_request(uint64 id, td_api::getStickerEmojis &request) {
 void Td::on_request(uint64 id, td_api::searchEmojis &request) {
   CHECK_IS_USER();
   CLEAN_INPUT_STRING(request.text_);
-  CLEAN_INPUT_STRING(request.input_language_code_);
+  for (auto &input_language_code : request.input_language_codes_) {
+    CLEAN_INPUT_STRING(input_language_code);
+  }
   CREATE_REQUEST(SearchEmojisRequest, std::move(request.text_), request.exact_match_,
-                 std::move(request.input_language_code_));
+                 std::move(request.input_language_codes_));
 }
 
 void Td::on_request(uint64 id, td_api::getEmojiSuggestionsUrl &request) {
@@ -6792,7 +6837,7 @@ void Td::on_request(uint64 id, const td_api::getChatNotificationSettingsExceptio
 void Td::on_request(uint64 id, const td_api::getScopeNotificationSettings &request) {
   CHECK_IS_USER();
   if (request.scope_ == nullptr) {
-    return send_error_raw(id, 400, "Scope must not be empty");
+    return send_error_raw(id, 400, "Scope must be non-empty");
   }
   CREATE_REQUEST(GetScopeNotificationSettingsRequest, get_notification_settings_scope(request.scope_));
 }
@@ -6818,6 +6863,26 @@ void Td::on_request(uint64 id, td_api::getChatStatisticsUrl &request) {
                                                std::move(promise));
 }
 
+void Td::on_request(uint64 id, const td_api::getChatStatistics &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST_PROMISE();
+  contacts_manager_->get_channel_statistics(DialogId(request.chat_id_), request.is_dark_, std::move(promise));
+}
+
+void Td::on_request(uint64 id, const td_api::getMessageStatistics &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST_PROMISE();
+  contacts_manager_->get_channel_message_statistics({DialogId(request.chat_id_), MessageId(request.message_id_)},
+                                                    request.is_dark_, std::move(promise));
+}
+
+void Td::on_request(uint64 id, td_api::getStatisticalGraph &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST_PROMISE();
+  CLEAN_INPUT_STRING(request.token_);
+  contacts_manager_->load_statistics_graph(DialogId(request.chat_id_), request.token_, request.x_, std::move(promise));
+}
+
 void Td::on_request(uint64 id, td_api::setChatNotificationSettings &request) {
   CHECK_IS_USER();
   answer_ok_query(id, messages_manager_->set_dialog_notification_settings(DialogId(request.chat_id_),
@@ -6827,7 +6892,7 @@ void Td::on_request(uint64 id, td_api::setChatNotificationSettings &request) {
 void Td::on_request(uint64 id, td_api::setScopeNotificationSettings &request) {
   CHECK_IS_USER();
   if (request.scope_ == nullptr) {
-    return send_error_raw(id, 400, "Scope must not be empty");
+    return send_error_raw(id, 400, "Scope must be non-empty");
   }
   answer_ok_query(id, messages_manager_->set_scope_notification_settings(
                           get_notification_settings_scope(request.scope_), std::move(request.notification_settings_)));
@@ -6932,6 +6997,17 @@ void Td::on_request(uint64 id, td_api::getOption &request) {
   bool is_bot = auth_manager_ != nullptr && auth_manager_->is_authorized() && auth_manager_->is_bot();
   switch (request.name_[0]) {
     // all these options should be added to getCurrentState
+    case 'a':
+      if (!is_bot && request.name_ == "archive_and_mute_new_chats_from_unknown_users") {
+        auto promise = PromiseCreator::lambda([actor_id = actor_id(this), id](Result<Unit> &&result) {
+          // the option is already updated on success, ignore errors
+          send_closure(actor_id, &Td::send_result, id,
+                       G()->shared_config().get_option_value("archive_and_mute_new_chats_from_unknown_users"));
+        });
+        send_closure_later(config_manager_, &ConfigManager::get_global_privacy_settings, std::move(promise));
+        return;
+      }
+      break;
     case 'c':
       if (!is_bot && request.name_ == "can_ignore_sensitive_content_restrictions") {
         auto promise = PromiseCreator::lambda([actor_id = actor_id(this), id](Result<Unit> &&result) {
@@ -6994,7 +7070,7 @@ void Td::on_request(uint64 id, td_api::setOption &request) {
 
   LOG(INFO) << "Set option " << request.name_;
 
-  auto set_integer_option = [&](Slice name, int32 min = 0, int32 max = std::numeric_limits<int32>::max()) {
+  auto set_integer_option = [&](Slice name, int64 min = 0, int64 max = std::numeric_limits<int32>::max()) {
     if (request.name_ != name) {
       return false;
     }
@@ -7006,7 +7082,7 @@ void Td::on_request(uint64 id, td_api::setOption &request) {
     if (value_constructor_id == td_api::optionValueEmpty::ID) {
       G()->shared_config().set_option_empty(name);
     } else {
-      int32 value = static_cast<td_api::optionValueInteger *>(request.value_.get())->value_;
+      int64 value = static_cast<td_api::optionValueInteger *>(request.value_.get())->value_;
       if (value < min || value > max) {
         send_error_raw(id, 3,
                        PSLICE() << "Option's \"" << name << "\" value " << value << " is outside of a valid range ["
@@ -7067,6 +7143,24 @@ void Td::on_request(uint64 id, td_api::setOption &request) {
 
   bool is_bot = auth_manager_ != nullptr && auth_manager_->is_authorized() && auth_manager_->is_bot();
   switch (request.name_[0]) {
+    case 'a':
+      if (set_boolean_option("always_parse_markdown")) {
+        return;
+      }
+      if (!is_bot && request.name_ == "archive_and_mute_new_chats_from_unknown_users") {
+        if (value_constructor_id != td_api::optionValueBoolean::ID &&
+            value_constructor_id != td_api::optionValueEmpty::ID) {
+          return send_error_raw(id, 3,
+                                "Option \"archive_and_mute_new_chats_from_unknown_users\" must have boolean value");
+        }
+
+        auto archive_and_mute = value_constructor_id == td_api::optionValueBoolean::ID &&
+                                static_cast<td_api::optionValueBoolean *>(request.value_.get())->value_;
+        CREATE_OK_REQUEST_PROMISE();
+        send_closure_later(config_manager_, &ConfigManager::set_archive_and_mute, archive_and_mute, std::move(promise));
+        return;
+      }
+      break;
     case 'c':
       if (!is_bot && set_string_option("connection_parameters", [](Slice value) {
             string value_copy = value.str();
@@ -7083,7 +7177,16 @@ void Td::on_request(uint64 id, td_api::setOption &request) {
       if (!is_bot && set_boolean_option("disable_contact_registered_notifications")) {
         return;
       }
+      if (!is_bot && set_boolean_option("disable_sent_scheduled_message_notifications")) {
+        return;
+      }
       if (!is_bot && set_boolean_option("disable_top_chats")) {
+        return;
+      }
+      if (set_boolean_option("disable_persistent_network_statistics")) {
+        return;
+      }
+      if (set_boolean_option("disable_time_adjustment_protection")) {
         return;
       }
       if (request.name_ == "drop_notification_ids") {
@@ -7097,6 +7200,9 @@ void Td::on_request(uint64 id, td_api::setOption &request) {
       if (set_boolean_option("ignore_background_updates")) {
         return;
       }
+      if (set_boolean_option("ignore_default_disable_notification")) {
+        return;
+      }
       if (set_boolean_option("ignore_inline_thumbnails")) {
         return;
       }
@@ -7106,12 +7212,6 @@ void Td::on_request(uint64 id, td_api::setOption &request) {
       if (set_boolean_option("is_emulator")) {
         return;
       }
-      // this option currently can't be set, because unread count doesn't work for channels,
-      // in which user have never been a member
-      if (false && !is_bot && set_boolean_option("include_sponsored_chat_to_unread_count")) {
-        return;
-      }
-
       if (!is_bot && request.name_ == "ignore_sensitive_content_restrictions") {
         if (!G()->shared_config().get_option_boolean("can_ignore_sensitive_content_restrictions")) {
           return send_error_raw(id, 3, "Option \"ignore_sensitive_content_restrictions\" can't be changed by the user");
@@ -7130,6 +7230,10 @@ void Td::on_request(uint64 id, td_api::setOption &request) {
                            std::move(promise));
         return;
       }
+      if (!is_bot && set_boolean_option("is_location_visible")) {
+        contacts_manager_->set_location_visibility();
+        return;
+      }
       break;
     case 'l':
       if (!is_bot && set_string_option("language_pack_database_path", [](Slice value) { return true; })) {
@@ -7139,6 +7243,11 @@ void Td::on_request(uint64 id, td_api::setOption &request) {
         return;
       }
       if (!is_bot && set_string_option("language_pack_id", LanguagePackManager::check_language_code_name)) {
+        return;
+      }
+      break;
+    case 'm':
+      if (set_integer_option("message_unload_delay", 60, 86400)) {
         return;
       }
       break;
@@ -7177,6 +7286,12 @@ void Td::on_request(uint64 id, td_api::setOption &request) {
     case 'p':
       if (set_boolean_option("prefer_ipv6")) {
         send_closure(state_manager_, &StateManager::on_network_updated);
+        return;
+      }
+      break;
+    case 'r':
+      // temporary option
+      if (set_boolean_option("reuse_uploaded_photos_by_hash")) {
         return;
       }
       break;
@@ -7275,6 +7390,13 @@ void Td::on_request(uint64 id, td_api::stopPoll &request) {
                                std::move(request.reply_markup_), std::move(promise));
 }
 
+void Td::on_request(uint64 id, const td_api::hideSuggestedAction &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  send_closure_later(config_manager_, &ConfigManager::dismiss_suggested_action, get_suggested_action(request.action_),
+                     std::move(promise));
+}
+
 void Td::on_request(uint64 id, const td_api::getLoginUrlInfo &request) {
   CHECK_IS_USER();
   CREATE_REQUEST_PROMISE();
@@ -7337,15 +7459,24 @@ void Td::on_request(uint64 id, td_api::answerPreCheckoutQuery &request) {
   answer_pre_checkout_query(request.pre_checkout_query_id_, request.error_message_, std::move(promise));
 }
 
+void Td::on_request(uint64 id, td_api::getBankCardInfo &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.bank_card_number_);
+  CREATE_REQUEST_PROMISE();
+  get_bank_card_info(request.bank_card_number_, std::move(promise));
+}
+
 void Td::on_request(uint64 id, const td_api::getPaymentForm &request) {
   CHECK_IS_USER();
-  CREATE_REQUEST(GetPaymentFormRequest, request.chat_id_, request.message_id_);
+  CREATE_REQUEST_PROMISE();
+  messages_manager_->get_payment_form({DialogId(request.chat_id_), MessageId(request.message_id_)}, std::move(promise));
 }
 
 void Td::on_request(uint64 id, td_api::validateOrderInfo &request) {
   CHECK_IS_USER();
-  CREATE_REQUEST(ValidateOrderInfoRequest, request.chat_id_, request.message_id_, std::move(request.order_info_),
-                 request.allow_save_);
+  CREATE_REQUEST_PROMISE();
+  messages_manager_->validate_order_info({DialogId(request.chat_id_), MessageId(request.message_id_)},
+                                         std::move(request.order_info_), request.allow_save_, std::move(promise));
 }
 
 void Td::on_request(uint64 id, td_api::sendPaymentForm &request) {
@@ -7353,20 +7484,25 @@ void Td::on_request(uint64 id, td_api::sendPaymentForm &request) {
   CLEAN_INPUT_STRING(request.order_info_id_);
   CLEAN_INPUT_STRING(request.shipping_option_id_);
   if (request.credentials_ == nullptr) {
-    return send_error_raw(id, 400, "Input payments credentials must not be empty");
+    return send_error_raw(id, 400, "Input payments credentials must be non-empty");
   }
-  CREATE_REQUEST(SendPaymentFormRequest, request.chat_id_, request.message_id_, std::move(request.order_info_id_),
-                 std::move(request.shipping_option_id_), std::move(request.credentials_));
+  CREATE_REQUEST_PROMISE();
+  messages_manager_->send_payment_form({DialogId(request.chat_id_), MessageId(request.message_id_)},
+                                       request.order_info_id_, request.shipping_option_id_, request.credentials_,
+                                       std::move(promise));
 }
 
 void Td::on_request(uint64 id, const td_api::getPaymentReceipt &request) {
   CHECK_IS_USER();
-  CREATE_REQUEST(GetPaymentReceiptRequest, request.chat_id_, request.message_id_);
+  CREATE_REQUEST_PROMISE();
+  messages_manager_->get_payment_receipt({DialogId(request.chat_id_), MessageId(request.message_id_)},
+                                         std::move(promise));
 }
 
 void Td::on_request(uint64 id, const td_api::getSavedOrderInfo &request) {
   CHECK_IS_USER();
-  CREATE_NO_ARGS_REQUEST(GetSavedOrderInfoRequest);
+  CREATE_REQUEST_PROMISE();
+  get_saved_order_info(std::move(promise));
 }
 
 void Td::on_request(uint64 id, const td_api::deleteSavedOrderInfo &request) {
@@ -7381,23 +7517,11 @@ void Td::on_request(uint64 id, const td_api::deleteSavedCredentials &request) {
   delete_saved_credentials(std::move(promise));
 }
 
-// void Td::on_request(uint64 id, const td_api::sendTonLiteServerRequest &request) {
-//   CHECK_IS_USER();
-//   CREATE_REQUEST_PROMISE();
-//   send_ton_lite_server_request(request.request_, std::move(promise));
-// }
-
-// void Td::on_request(uint64 id, const td_api::getTonWalletPasswordSalt &request) {
-//   CHECK_IS_USER();
-//   CREATE_REQUEST_PROMISE();
-//   send_closure(password_manager_, &PasswordManager::get_ton_wallet_password_salt, std::move(promise));
-// }
-
 void Td::on_request(uint64 id, td_api::getPassportElement &request) {
   CHECK_IS_USER();
   CLEAN_INPUT_STRING(request.password_);
   if (request.type_ == nullptr) {
-    return send_error_raw(id, 400, "Type must not be empty");
+    return send_error_raw(id, 400, "Type must be non-empty");
   }
   CREATE_REQUEST_PROMISE();
   send_closure(secure_manager_, &SecureManager::get_secure_value, std::move(request.password_),
@@ -7427,7 +7551,7 @@ void Td::on_request(uint64 id, td_api::setPassportElement &request) {
 void Td::on_request(uint64 id, const td_api::deletePassportElement &request) {
   CHECK_IS_USER();
   if (request.type_ == nullptr) {
-    return send_error_raw(id, 400, "Type must not be empty");
+    return send_error_raw(id, 400, "Type must be non-empty");
   }
   CREATE_OK_REQUEST_PROMISE();
   send_closure(secure_manager_, &SecureManager::delete_secure_value, get_secure_value_type_td_api(request.type_),
@@ -7450,7 +7574,7 @@ void Td::on_request(uint64 id, td_api::getPreferredCountryLanguage &request) {
   CHECK_IS_USER();
   CLEAN_INPUT_STRING(request.country_code_);
   CREATE_REQUEST_PROMISE();
-  send_closure(secure_manager_, &SecureManager::get_preferred_country_code, std::move(request.country_code_),
+  send_closure(secure_manager_, &SecureManager::get_preferred_country_language, std::move(request.country_code_),
                std::move(promise));
 }
 
@@ -7523,7 +7647,7 @@ void Td::on_request(uint64 id, td_api::sendPassportAuthorizationForm &request) {
   CHECK_IS_USER();
   for (auto &type : request.types_) {
     if (type == nullptr) {
-      return send_error_raw(id, 400, "Type must not be empty");
+      return send_error_raw(id, 400, "Type must be non-empty");
     }
   }
 
@@ -7586,18 +7710,21 @@ void Td::on_request(uint64 id, td_api::setBackground &request) {
 
 void Td::on_request(uint64 id, const td_api::removeBackground &request) {
   CHECK_IS_USER();
-  CREATE_REQUEST(RemoveBackgroundRequest, request.background_id_);
+  CREATE_OK_REQUEST_PROMISE();
+  background_manager_->remove_background(BackgroundId(request.background_id_), std::move(promise));
 }
 
 void Td::on_request(uint64 id, const td_api::resetBackgrounds &request) {
   CHECK_IS_USER();
-  CREATE_NO_ARGS_REQUEST(ResetBackgroundsRequest);
+  CREATE_OK_REQUEST_PROMISE();
+  background_manager_->reset_backgrounds(std::move(promise));
 }
 
 void Td::on_request(uint64 id, td_api::getRecentlyVisitedTMeUrls &request) {
   CHECK_IS_USER();
   CLEAN_INPUT_STRING(request.referrer_);
-  CREATE_REQUEST(GetRecentlyVisitedTMeUrlsRequest, std::move(request.referrer_));
+  CREATE_REQUEST_PROMISE();
+  create_handler<GetRecentMeUrlsQuery>(std::move(promise))->send(request.referrer_);
 }
 
 void Td::on_request(uint64 id, td_api::setBotUpdatesStatus &request) {
@@ -7611,7 +7738,8 @@ void Td::on_request(uint64 id, td_api::sendCustomRequest &request) {
   CHECK_IS_BOT();
   CLEAN_INPUT_STRING(request.method_);
   CLEAN_INPUT_STRING(request.parameters_);
-  CREATE_REQUEST(SendCustomRequestRequest, std::move(request.method_), std::move(request.parameters_));
+  CREATE_REQUEST_PROMISE();
+  create_handler<SendCustomRequestQuery>(std::move(promise))->send(request.method_, request.parameters_);
 }
 
 void Td::on_request(uint64 id, td_api::answerCustomQuery &request) {
@@ -7668,13 +7796,39 @@ void Td::on_request(uint64 id, td_api::acceptTermsOfService &request) {
   accept_terms_of_service(this, std::move(request.terms_of_service_id_), std::move(promise));
 }
 
+void Td::on_request(uint64 id, const td_api::getCountries &request) {
+  CREATE_REQUEST_PROMISE();
+  country_info_manager_->get_countries(std::move(promise));
+}
+
 void Td::on_request(uint64 id, const td_api::getCountryCode &request) {
-  CREATE_NO_ARGS_REQUEST(GetCountryCodeRequest);
+  CREATE_REQUEST_PROMISE();
+  auto query_promise = PromiseCreator::lambda([promise = std::move(promise)](Result<string> result) mutable {
+    if (result.is_error()) {
+      promise.set_error(result.move_as_error());
+    } else {
+      promise.set_value(make_tl_object<td_api::text>(result.move_as_ok()));
+    }
+  });
+  country_info_manager_->get_current_country_code(std::move(query_promise));
+}
+
+void Td::on_request(uint64 id, const td_api::getPhoneNumberInfo &request) {
+  CREATE_REQUEST_PROMISE();
+  country_info_manager_->get_phone_number_info(request.phone_number_prefix_, std::move(promise));
 }
 
 void Td::on_request(uint64 id, const td_api::getInviteText &request) {
   CHECK_IS_USER();
-  CREATE_NO_ARGS_REQUEST(GetInviteTextRequest);
+  CREATE_REQUEST_PROMISE();
+  auto query_promise = PromiseCreator::lambda([promise = std::move(promise)](Result<string> result) mutable {
+    if (result.is_error()) {
+      promise.set_error(result.move_as_error());
+    } else {
+      promise.set_value(make_tl_object<td_api::text>(result.move_as_ok()));
+    }
+  });
+  create_handler<GetInviteTextQuery>(std::move(query_promise))->send();
 }
 
 void Td::on_request(uint64 id, td_api::getDeepLinkInfo &request) {
@@ -7767,6 +7921,14 @@ void Td::on_request(uint64 id, const td_api::parseTextEntities &request) {
   UNREACHABLE();
 }
 
+void Td::on_request(uint64 id, const td_api::parseMarkdown &request) {
+  UNREACHABLE();
+}
+
+void Td::on_request(uint64 id, const td_api::getMarkdownText &request) {
+  UNREACHABLE();
+}
+
 void Td::on_request(uint64 id, const td_api::getFileMimeType &request) {
   UNREACHABLE();
 }
@@ -7784,6 +7946,10 @@ void Td::on_request(uint64 id, const td_api::getLanguagePackString &request) {
 }
 
 void Td::on_request(uint64 id, const td_api::getPushReceiverId &request) {
+  UNREACHABLE();
+}
+
+void Td::on_request(uint64 id, const td_api::getChatFilterDefaultIconName &request) {
   UNREACHABLE();
 }
 
@@ -7869,6 +8035,44 @@ td_api::object_ptr<td_api::Object> Td::do_static_request(td_api::parseTextEntiti
   return make_tl_object<td_api::formattedText>(std::move(request.text_), get_text_entities_object(r_entities.ok()));
 }
 
+td_api::object_ptr<td_api::Object> Td::do_static_request(td_api::parseMarkdown &request) {
+  if (request.text_ == nullptr) {
+    return make_error(400, "Text must be non-empty");
+  }
+
+  auto r_entities = get_message_entities(nullptr, std::move(request.text_->entities_), true);
+  if (r_entities.is_error()) {
+    return make_error(400, r_entities.error().message());
+  }
+  auto entities = r_entities.move_as_ok();
+  auto status = fix_formatted_text(request.text_->text_, entities, true, true, true, true);
+  if (status.is_error()) {
+    return make_error(400, status.error().message());
+  }
+
+  auto parsed_text = parse_markdown_v3({std::move(request.text_->text_), std::move(entities)});
+  fix_formatted_text(parsed_text.text, parsed_text.entities, true, true, true, true).ensure();
+  return get_formatted_text_object(parsed_text);
+}
+
+td_api::object_ptr<td_api::Object> Td::do_static_request(td_api::getMarkdownText &request) {
+  if (request.text_ == nullptr) {
+    return make_error(400, "Text must be non-empty");
+  }
+
+  auto r_entities = get_message_entities(nullptr, std::move(request.text_->entities_));
+  if (r_entities.is_error()) {
+    return make_error(400, r_entities.error().message());
+  }
+  auto entities = r_entities.move_as_ok();
+  auto status = fix_formatted_text(request.text_->text_, entities, true, true, true, true);
+  if (status.is_error()) {
+    return make_error(400, status.error().message());
+  }
+
+  return get_formatted_text_object(get_markdown_v3({std::move(request.text_->text_), std::move(entities)}));
+}
+
 td_api::object_ptr<td_api::Object> Td::do_static_request(const td_api::getFileMimeType &request) {
   // don't check file name UTF-8 correctness
   return make_tl_object<td_api::text>(MimeType::from_extension(PathView(request.file_name_).extension()));
@@ -7898,6 +8102,19 @@ td_api::object_ptr<td_api::Object> Td::do_static_request(const td_api::getPushRe
     return make_error(r_push_receiver_id.error().code(), r_push_receiver_id.error().message());
   }
   return td_api::make_object<td_api::pushReceiverId>(r_push_receiver_id.ok());
+}
+
+td_api::object_ptr<td_api::Object> Td::do_static_request(const td_api::getChatFilterDefaultIconName &request) {
+  if (request.filter_ == nullptr) {
+    return make_error(400, "Chat filter must be non-empty");
+  }
+  if (!check_utf8(request.filter_->title_)) {
+    return make_error(400, "Chat filter title must be encoded in UTF-8");
+  }
+  if (!check_utf8(request.filter_->icon_name_)) {
+    return make_error(400, "Chat filter icon name must be encoded in UTF-8");
+  }
+  return td_api::make_object<td_api::text>(DialogFilter::get_default_icon_name(request.filter_.get()));
 }
 
 td_api::object_ptr<td_api::Object> Td::do_static_request(td_api::getJsonValue &request) {
@@ -7988,7 +8205,7 @@ void Td::on_request(uint64 id, const td_api::testNetwork &request) {
 }
 
 void Td::on_request(uint64 id, td_api::testProxy &request) {
-  auto r_proxy = Proxy::from_td_api(std::move(request.server_), request.port_, request.type_.get());
+  auto r_proxy = Proxy::create_proxy(std::move(request.server_), request.port_, request.type_.get());
   if (r_proxy.is_error()) {
     return send_closure(actor_id(this), &Td::send_error, id, r_proxy.move_as_error());
   }

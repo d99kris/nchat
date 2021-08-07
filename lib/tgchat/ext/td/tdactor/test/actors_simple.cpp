@@ -7,6 +7,7 @@
 #include "td/utils/tests.h"
 
 #include "td/actor/actor.h"
+#include "td/actor/ConcurrentScheduler.h"
 #include "td/actor/MultiPromise.h"
 #include "td/actor/PromiseFuture.h"
 #include "td/actor/SleepActor.h"
@@ -482,7 +483,7 @@ class LaterMasterActor : public Actor {
   std::vector<ActorOwn<LaterSlave>> children_;
   void start_up() override {
     for (int i = 0; i < cnt_; i++) {
-      children_.push_back(create_actor<LaterSlave>("B", actor_shared()));
+      children_.push_back(create_actor<LaterSlave>("B", actor_shared(this)));
     }
     yield();
   }

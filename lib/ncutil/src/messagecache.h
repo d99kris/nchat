@@ -14,6 +14,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 #include "protocol.h"
@@ -93,12 +94,12 @@ private:
   };
 
 public:
-  static void Init(const std::function<void(std::shared_ptr<ServiceMessage>)>& p_MessageHandler);
+  static void Init(const bool p_CacheEnabled, const std::function<void(std::shared_ptr<ServiceMessage>)>& p_MessageHandler);
   static void Cleanup();
 
   static void AddProfile(const std::string& p_ProfileId);
   static void Add(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_FromMsgId, const std::vector<ChatMessage>& p_ChatMessages);
-  static bool Fetch(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_FromMsgId, int p_Limit);
+  static bool Fetch(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_FromMsgId, const int p_Limit, const bool p_Sync);
   static void Delete(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId);
   static void UpdateIsRead(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId, bool p_IsRead);
   static void UpdateFilePath(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId, const std::string& p_FilePath);
@@ -114,6 +115,7 @@ private:
 
   static std::mutex m_DbMutex;
   static std::map<std::string, std::unique_ptr<sqlite::database>> m_Dbs;
+  static std::unordered_map<std::string, std::unordered_map<std::string, bool>> m_InSync;
 
   static bool m_Running;
   static std::thread m_Thread;

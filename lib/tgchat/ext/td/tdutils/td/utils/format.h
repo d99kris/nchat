@@ -173,7 +173,7 @@ inline StringBuilder &operator<<(StringBuilder &logger, Time t) {
   while (i + 1 < durations_n && t.seconds_ > 10 * durations[i + 1].value) {
     i++;
   }
-  logger << StringBuilder::FixedDouble(t.seconds_ / durations[i].value, 1) << durations[i].name;
+  logger << StringBuilder::FixedDouble(t.seconds_ / durations[i].value, 1) << Slice(durations[i].name);
   return logger;
 }
 
@@ -192,14 +192,14 @@ inline StringBuilder &operator<<(StringBuilder &logger, Size t) {
     uint64 value;
   };
 
-  static constexpr NamedValue sizes[] = {{"B", 1}, {"kB", 1 << 10}, {"MB", 1 << 20}, {"GB", 1 << 30}};
+  static constexpr NamedValue sizes[] = {{"B", 1}, {"KB", 1 << 10}, {"MB", 1 << 20}, {"GB", 1 << 30}};
   static constexpr size_t sizes_n = sizeof(sizes) / sizeof(NamedValue);
 
   size_t i = 0;
   while (i + 1 < sizes_n && t.size_ > 10 * sizes[i + 1].value) {
     i++;
   }
-  logger << t.size_ / sizes[i].value << sizes[i].name;
+  logger << t.size_ / sizes[i].value << Slice(sizes[i].name);
   return logger;
 }
 

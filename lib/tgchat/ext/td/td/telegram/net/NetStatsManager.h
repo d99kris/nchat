@@ -34,12 +34,12 @@ struct NetworkStatsEntry {
   int64 count{0};
   double duration{0};
 
-  tl_object_ptr<td_api::NetworkStatisticsEntry> as_td_api() const {
+  tl_object_ptr<td_api::NetworkStatisticsEntry> get_network_statistics_entry_object() const {
     if (is_call) {
-      return make_tl_object<td_api::networkStatisticsEntryCall>(::td::as_td_api(net_type), tx, rx, duration);
+      return make_tl_object<td_api::networkStatisticsEntryCall>(get_network_type_object(net_type), tx, rx, duration);
     } else {
-      return make_tl_object<td_api::networkStatisticsEntryFile>(::td::as_td_api(file_type), ::td::as_td_api(net_type),
-                                                                tx, rx);
+      return make_tl_object<td_api::networkStatisticsEntryFile>(get_file_type_object(file_type),
+                                                                get_network_type_object(net_type), tx, rx);
     }
   }
 };
@@ -48,13 +48,13 @@ struct NetworkStats {
   int32 since = 0;
   std::vector<NetworkStatsEntry> entries;
 
-  auto as_td_api() const {
+  auto get_network_statistics_object() const {
     auto result = make_tl_object<td_api::networkStatistics>();
     result->since_date_ = since;
     result->entries_.reserve(entries.size());
     for (const auto &entry : entries) {
       if ((entry.rx != 0 || entry.tx != 0) && entry.file_type != FileType::SecureRaw) {
-        result->entries_.push_back(entry.as_td_api());
+        result->entries_.push_back(entry.get_network_statistics_entry_object());
       }
     }
     return result;
@@ -83,7 +83,7 @@ class NetStatsManager : public Actor {
   static constexpr size_t net_type_size() {
     return static_cast<size_t>(NetType::Size);
   }
-  // TODO constexpr
+
   static CSlice net_type_string(NetType type) {
     switch (type) {
       case NetType::Other:
@@ -117,20 +117,20 @@ class NetStatsManager : public Actor {
   int32 since_current_{0};
   NetStatsInfo common_net_stats_;
   NetStatsInfo media_net_stats_;
-  std::array<NetStatsInfo, file_type_size> files_stats_;
+  std::array<NetStatsInfo, MAX_FILE_TYPE> files_stats_;
   NetStatsInfo call_net_stats_;
-  static constexpr int32 call_net_stats_id_{file_type_size + 2};
+  static constexpr int32 CALL_NET_STATS_ID{MAX_FILE_TYPE + 2};
 
   template <class F>
   void for_each_stat(F &&f) {
     f(common_net_stats_, 0, CSlice("common"), FileType::None);
     f(media_net_stats_, 1, CSlice("media"), FileType::None);
-    for (int32 file_type_i = 0; file_type_i < file_type_size; file_type_i++) {
+    for (int32 file_type_i = 0; file_type_i < MAX_FILE_TYPE; file_type_i++) {
       auto &stat = files_stats_[file_type_i];
       auto file_type = static_cast<FileType>(file_type_i);
       f(stat, file_type_i + 2, get_file_type_name(file_type), file_type);
     }
-    f(call_net_stats_, call_net_stats_id_, CSlice("calls"), FileType::None);
+    f(call_net_stats_, CALL_NET_STATS_ID, CSlice("calls"), FileType::None);
   }
 
   void add_network_stats_impl(NetStatsInfo &info, const NetworkStatsEntry &entry);

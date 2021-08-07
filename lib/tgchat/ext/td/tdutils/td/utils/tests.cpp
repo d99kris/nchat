@@ -12,6 +12,7 @@
 #include "td/utils/PathView.h"
 #include "td/utils/port/path.h"
 #include "td/utils/port/Stat.h"
+#include "td/utils/Random.h"
 #include "td/utils/ScopeGuard.h"
 #include "td/utils/StringBuilder.h"
 #include "td/utils/Time.h"
@@ -20,10 +21,35 @@
 
 namespace td {
 
+string rand_string(int from, int to, size_t len) {
+  string res(len, '\0');
+  for (auto &c : res) {
+    c = static_cast<char>(Random::fast(from, to));
+  }
+  return res;
+}
+
+vector<string> rand_split(Slice str) {
+  vector<string> res;
+  size_t pos = 0;
+  while (pos < str.size()) {
+    size_t len;
+    if (Random::fast_bool()) {
+      len = Random::fast(1, 10);
+    } else {
+      len = Random::fast(100, 200);
+    }
+    res.push_back(str.substr(pos, len).str());
+    pos += len;
+  }
+  return res;
+}
+
 struct TestInfo {
   string name;
   string result_hash;  // base64
 };
+
 StringBuilder &operator<<(StringBuilder &sb, const TestInfo &info) {
   // should I use JSON?
   CHECK(!info.name.empty());
@@ -138,13 +164,13 @@ TestsRunner &TestsRunner::get_default() {
   return default_runner;
 }
 
-void TestsRunner::add_test(string name, unique_ptr<Test> test) {
+void TestsRunner::add_test(string name, std::function<unique_ptr<Test>()> test) {
   for (auto &it : tests_) {
     if (it.first == name) {
       LOG(FATAL) << "Test name collision " << name;
     }
   }
-  tests_.emplace_back(name, std::move(test));
+  tests_.emplace_back(name, TestInfo{std::move(test), nullptr});
 }
 
 void TestsRunner::add_substr_filter(string str) {
@@ -176,7 +202,7 @@ bool TestsRunner::run_all_step() {
 
   while (state_.it != state_.end) {
     auto &name = tests_[state_.it].first;
-    auto test = tests_[state_.it].second.get();
+    auto &test = tests_[state_.it].second.test;
     if (!state_.is_running) {
       bool ok = true;
       for (const auto &filter : substr_filters_) {
@@ -192,14 +218,26 @@ bool TestsRunner::run_all_step() {
       }
       LOG(ERROR) << "Run test " << tag("name", name);
       state_.start = Time::now();
+      state_.start_unadjusted = Time::now_unadjusted();
       state_.is_running = true;
+
+      CHECK(!test);
+      test = tests_[state_.it].second.creator();
     }
 
     if (test->step()) {
       break;
     }
 
-    LOG(ERROR) << format::as_time(Time::now() - state_.start);
+    test = {};
+
+    auto passed = Time::now() - state_.start;
+    auto real_passed = Time::now_unadjusted() - state_.start_unadjusted;
+    if (real_passed + 1e-1 > passed) {
+      LOG(ERROR) << format::as_time(passed);
+    } else {
+      LOG(ERROR) << format::as_time(real_passed) << " adjusted [" << format::as_time(real_passed) << "]";
+    }
     if (regression_tester_) {
       regression_tester_->save_db();
     }

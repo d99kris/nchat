@@ -73,7 +73,7 @@ void Log::Error(const char* p_Filename, int p_LineNo, const char* p_Format, ...)
 
 void Log::Dump(const char* p_Str)
 {
-  std::lock_guard<std::mutex> lock(m_Mutex);
+  std::unique_lock<std::mutex> lock(m_Mutex);
   if (m_Path.empty()) return;
 
   FILE* file = fopen(m_Path.c_str(), "a");
@@ -86,7 +86,7 @@ void Log::Dump(const char* p_Str)
 
 void Log::Write(const char* p_Filename, int p_LineNo, const char* p_Level, const char* p_Format, va_list p_VaList)
 {
-  std::lock_guard<std::mutex> lock(m_Mutex);
+  std::unique_lock<std::mutex> lock(m_Mutex);
   if (m_Path.empty()) return;
 
   FILE* file = fopen(m_Path.c_str(), "a");

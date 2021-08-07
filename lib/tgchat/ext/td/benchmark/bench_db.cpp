@@ -5,6 +5,7 @@
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/actor/actor.h"
+#include "td/actor/ConcurrentScheduler.h"
 
 #include "td/db/binlog/Binlog.h"
 #include "td/db/binlog/ConcurrentBinlog.h"
@@ -238,5 +239,4 @@ int main() {
   bench(TdKvBench<td::BinlogKeyValue<td::Binlog>>("BinlogKeyValue<Binlog>"));
   bench(TdKvBench<td::BinlogKeyValue<td::ConcurrentBinlog>>("BinlogKeyValue<ConcurrentBinlog>"));
   bench(SeqKvBench());
-  return 0;
 }

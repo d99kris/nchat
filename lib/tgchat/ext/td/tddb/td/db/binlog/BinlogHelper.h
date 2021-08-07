@@ -9,38 +9,25 @@
 #include "td/actor/PromiseFuture.h"
 
 #include "td/db/binlog/BinlogEvent.h"
+#include "td/db/binlog/BinlogInterface.h"
 
 #include "td/utils/common.h"
+#include "td/utils/StorerBase.h"
 
 namespace td {
 
-template <class BinlogT, class StorerT>
-uint64 binlog_add(const BinlogT &binlog_ptr, int32 type, const StorerT &storer, Promise<> promise = Promise<>()) {
-  auto logevent_id = binlog_ptr->next_id();
-  binlog_ptr->add_raw_event(logevent_id, BinlogEvent::create_raw(logevent_id, type, 0, storer), std::move(promise));
-  return logevent_id;
-}
-
-template <class BinlogT, class StorerT>
-uint64 binlog_rewrite(const BinlogT &binlog_ptr, uint64 logevent_id, int32 type, const StorerT &storer,
-                      Promise<> promise = Promise<>()) {
-  auto seq_no = binlog_ptr->next_id();
-  binlog_ptr->add_raw_event(seq_no, BinlogEvent::create_raw(logevent_id, type, BinlogEvent::Flags::Rewrite, storer),
-                            std::move(promise));
-  return seq_no;
-}
-
-#define binlog_erase(...) binlog_erase_impl({__FILE__, __LINE__}, __VA_ARGS__)
-
-template <class BinlogT>
-uint64 binlog_erase_impl(BinlogDebugInfo info, const BinlogT &binlog_ptr, uint64 logevent_id,
+inline uint64 binlog_add(BinlogInterface *binlog_ptr, int32 type, const Storer &storer,
                          Promise<> promise = Promise<>()) {
-  auto seq_no = binlog_ptr->next_id();
-  binlog_ptr->add_raw_event(info, seq_no,
-                            BinlogEvent::create_raw(logevent_id, BinlogEvent::ServiceTypes::Empty,
-                                                    BinlogEvent::Flags::Rewrite, EmptyStorer()),
-                            std::move(promise));
-  return seq_no;
+  return binlog_ptr->add(type, storer, std::move(promise));
+}
+
+inline uint64 binlog_rewrite(BinlogInterface *binlog_ptr, uint64 log_event_id, int32 type, const Storer &storer,
+                             Promise<> promise = Promise<>()) {
+  return binlog_ptr->rewrite(log_event_id, type, storer, std::move(promise));
+}
+
+inline uint64 binlog_erase(BinlogInterface *binlog_ptr, uint64 log_event_id, Promise<> promise = Promise<>()) {
+  return binlog_ptr->erase(log_event_id, std::move(promise));
 }
 
 }  // namespace td

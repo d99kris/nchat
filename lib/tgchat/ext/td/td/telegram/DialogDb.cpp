@@ -16,14 +16,16 @@
 #include "td/db/SqliteKeyValue.h"
 #include "td/db/SqliteStatement.h"
 
+#include "td/utils/common.h"
 #include "td/utils/format.h"
 #include "td/utils/logging.h"
+#include "td/utils/misc.h"
 #include "td/utils/ScopeGuard.h"
 #include "td/utils/Time.h"
 
 namespace td {
 // NB: must happen inside a transaction
-Status init_dialog_db(SqliteDb &db, int32 version, bool &was_created) {
+Status init_dialog_db(SqliteDb &db, int32 version, KeyValueSyncInterface &binlog_pmc, bool &was_created) {
   LOG(INFO) << "Init dialog database " << tag("version", version);
   was_created = false;
 
@@ -38,19 +40,19 @@ Status init_dialog_db(SqliteDb &db, int32 version, bool &was_created) {
     version = 0;
   }
 
-  auto create_notification_group_table = [&db]() {
+  auto create_notification_group_table = [&db] {
     return db.exec(
         "CREATE TABLE IF NOT EXISTS notification_groups (notification_group_id INT4 PRIMARY KEY, dialog_id "
         "INT8, last_notification_date INT4)");
   };
 
-  auto create_last_notification_date_index = [&db]() {
+  auto create_last_notification_date_index = [&db] {
     return db.exec(
         "CREATE INDEX IF NOT EXISTS notification_group_by_last_notification_date ON notification_groups "
         "(last_notification_date, dialog_id, notification_group_id) WHERE last_notification_date IS NOT NULL");
   };
 
-  auto add_dialogs_in_folder_index = [&db]() {
+  auto add_dialogs_in_folder_index = [&db] {
     return db.exec(
         "CREATE INDEX IF NOT EXISTS dialog_in_folder_by_dialog_order ON dialogs (folder_id, dialog_order, dialog_id) "
         "WHERE folder_id IS NOT NULL");
@@ -75,7 +77,25 @@ Status init_dialog_db(SqliteDb &db, int32 version, bool &was_created) {
     TRY_STATUS(db.exec("DROP INDEX IF EXISTS dialog_by_dialog_order"));
     TRY_STATUS(db.exec("ALTER TABLE dialogs ADD COLUMN folder_id INT4"));
     TRY_STATUS(add_dialogs_in_folder_index());
-    TRY_STATUS(db.exec("UPDATE dialogs SET folder_id = 0 WHERE dialog_id < -1500000000000 AND dialog_order != 0"));
+    TRY_STATUS(db.exec("UPDATE dialogs SET folder_id = 0 WHERE dialog_id < -1500000000000 AND dialog_order > 0"));
+  }
+  if (version < static_cast<int32>(DbVersion::StorePinnedDialogsInBinlog)) {
+    // 9221294780217032704 == get_dialog_order(Auto(), MIN_PINNED_DIALOG_DATE - 1)
+    TRY_RESULT(get_pinned_dialogs_stmt,
+               db.get_statement("SELECT dialog_id FROM dialogs WHERE folder_id == ?1 AND dialog_order > "
+                                "9221294780217032704 ORDER BY dialog_order DESC, dialog_id DESC"));
+    for (auto folder_id = 0; folder_id < 2; folder_id++) {
+      vector<string> pinned_dialog_ids;
+      TRY_STATUS(get_pinned_dialogs_stmt.bind_int32(1, folder_id));
+      TRY_STATUS(get_pinned_dialogs_stmt.step());
+      while (get_pinned_dialogs_stmt.has_row()) {
+        pinned_dialog_ids.push_back(PSTRING() << get_pinned_dialogs_stmt.view_int64(0));
+        TRY_STATUS(get_pinned_dialogs_stmt.step());
+      }
+      get_pinned_dialogs_stmt.reset();
+
+      binlog_pmc.set(PSTRING() << "pinned_dialog_ids" << folder_id, implode(pinned_dialog_ids, ','));
+    }
   }
 
   return Status::OK();
@@ -129,7 +149,7 @@ class DialogDbImpl : public DialogDbSyncInterface {
     TRY_RESULT_ASSIGN(
         get_secret_chat_count_stmt_,
         db_.get_statement(
-            "SELECT COUNT(*) FROM dialogs WHERE folder_id = ?1 AND dialog_order != 0 AND dialog_id < -1500000000000"));
+            "SELECT COUNT(*) FROM dialogs WHERE folder_id = ?1 AND dialog_order > 0 AND dialog_id < -1500000000000"));
 
     // LOG(ERROR) << get_dialog_stmt_.explain().ok();
     // LOG(ERROR) << get_dialogs_stmt_.explain().ok();
@@ -240,6 +260,7 @@ class DialogDbImpl : public DialogDbSyncInterface {
 
     return std::move(result);
   }
+
   Result<vector<NotificationGroupKey>> get_notification_groups_by_last_notification_date(
       NotificationGroupKey notification_group_key, int32 limit) override {
     auto &stmt = get_notification_groups_by_last_notification_date_stmt_;
@@ -262,6 +283,7 @@ class DialogDbImpl : public DialogDbSyncInterface {
 
     return std::move(notification_groups);
   }
+
   Status begin_transaction() override {
     return db_.begin_transaction();
   }
@@ -356,14 +378,16 @@ class DialogDbAsync : public DialogDbAsyncInterface {
 
     void add_dialog(DialogId dialog_id, FolderId folder_id, int64 order, BufferSlice data,
                     vector<NotificationGroupKey> notification_groups, Promise<> promise) {
-      add_write_query([=, promise = std::move(promise), data = std::move(data),
+      add_write_query([this, dialog_id, folder_id, order, promise = std::move(promise), data = std::move(data),
                        notification_groups = std::move(notification_groups)](Unit) mutable {
-        this->on_write_result(std::move(promise), sync_db_->add_dialog(dialog_id, folder_id, order, std::move(data),
-                                                                       std::move(notification_groups)));
+        on_write_result(std::move(promise), sync_db_->add_dialog(dialog_id, folder_id, order, std::move(data),
+                                                                 std::move(notification_groups)));
       });
     }
 
     void on_write_result(Promise<> promise, Status status) {
+      // We are inside a transaction and don't know how to handle the error
+      status.ensure();
       pending_write_results_.emplace_back(std::move(promise), std::move(status));
     }
 

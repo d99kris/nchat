@@ -18,12 +18,14 @@ class MovableValue {
     other.clear();
   }
   MovableValue &operator=(MovableValue &&other) {
-    val_ = other.val_;
-    other.clear();
+    if (this != &other) {
+      val_ = other.val_;
+      other.clear();
+    }
     return *this;
   }
-  MovableValue(const MovableValue &) = delete;
-  MovableValue &operator=(const MovableValue &) = delete;
+  MovableValue(const MovableValue &) = default;
+  MovableValue &operator=(const MovableValue &) = default;
   ~MovableValue() = default;
 
   void clear() {

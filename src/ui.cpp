@@ -27,7 +27,7 @@ Ui::Ui()
   cbreak();
   raw();
   keypad(stdscr, TRUE);
-  curs_set(1);
+  curs_set(0);
   timeout(0);
   EmojiList::Init();
   UiConfig::Init();
@@ -53,6 +53,7 @@ Ui::~Ui()
 
 void Ui::Run()
 {
+  curs_set(1);
   while (m_Model->Process())
   {
     wint_t key = UiController::GetKey(50);

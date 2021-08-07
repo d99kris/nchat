@@ -225,7 +225,7 @@ Secret Secret::clone() const {
 }
 
 EncryptedSecret Secret::encrypt(Slice key, Slice salt, EnryptionAlgorithm algorithm) {
-  auto aes_cbc_state = [&]() {
+  auto aes_cbc_state = [&] {
     switch (algorithm) {
       case EnryptionAlgorithm::Sha512:
         return calc_aes_cbc_state_sha512(PSLICE() << salt << key << salt);
@@ -255,7 +255,7 @@ Result<EncryptedSecret> EncryptedSecret::create(Slice encrypted_secret) {
 }
 
 Result<Secret> EncryptedSecret::decrypt(Slice key, Slice salt, EnryptionAlgorithm algorithm) {
-  auto aes_cbc_state = [&]() {
+  auto aes_cbc_state = [&] {
     switch (algorithm) {
       case EnryptionAlgorithm::Sha512:
         return calc_aes_cbc_state_sha512(PSLICE() << salt << key << salt);
@@ -288,7 +288,7 @@ Result<BufferSlice> Decryptor::append(BufferSlice data) {
     return BufferSlice();
   }
   if (data.size() % 16 != 0) {
-    return Status::Error("Part size should be divisible by 16");
+    return Status::Error("Part size must be divisible by 16");
   }
   aes_cbc_state_.decrypt(data.as_slice(), data.as_slice());
   sha256_state_.feed(data.as_slice());
@@ -330,7 +330,7 @@ Result<BufferSlice> Encryptor::pread(int64 offset, int64 size) const {
     return Status::Error("Arbitrary offset is not supported");
   }
   if (size % 16 != 0) {
-    return Status::Error("Part size should be divisible by 16");
+    return Status::Error("Part size must be divisible by 16");
   }
   TRY_RESULT(part, data_view_.pread(offset, size));
   aes_cbc_state_.encrypt(part.as_slice(), part.as_slice());

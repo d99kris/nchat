@@ -18,6 +18,9 @@ string clean_name(string str, size_t max_length) TD_WARN_UNUSED_RESULT;
 // prepares username/stickername for search
 string clean_username(string str) TD_WARN_UNUSED_RESULT;
 
+// replaces some offending characters without changing string length
+void replace_offending_characters(string &str);
+
 // removes control characters from the string, will fail if input string is not in UTF-8
 bool clean_input_string(string &str) TD_WARN_UNUSED_RESULT;
 
@@ -35,5 +38,8 @@ string get_emoji_fingerprint(uint64 num);
 
 // checks whether url is a valid tg, ton or HTTP(S) URL and returns its in a canonical form
 Result<string> check_url(Slice url);
+
+// removes all emoji modifiers
+string remove_emoji_modifiers(string emoji);
 
 }  // namespace td

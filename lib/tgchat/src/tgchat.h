@@ -53,7 +53,9 @@ private:
   void CheckAuthError(Object object);
   std::string GetRandomString(size_t p_Len);
   std::uint64_t GetNextQueryId();
-  void TdMessageConvert(const td::td_api::message& p_TdMessage, ChatMessage& p_ChatMessage);
+  std::int64_t GetSenderId(const td::td_api::message& p_TdMessage);
+  std::string GetText(td::td_api::object_ptr<td::td_api::formattedText>&& p_FormattedText);
+  void TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessage& p_ChatMessage);
   std::string GetUserName(std::int32_t user_id, std::int64_t chat_id);
   void DownloadFile(std::string p_ChatId, std::string p_MsgId, std::string p_FileId);
 

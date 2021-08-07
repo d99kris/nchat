@@ -373,12 +373,12 @@ void DeviceTokenManager::loop() {
     auto other_user_ids = info.other_user_ids;
     if (info.state == TokenInfo::State::Unregister) {
       net_query = G()->net_query_creator().create(
-          create_storer(telegram_api::account_unregisterDevice(token_type, info.token, std::move(other_user_ids))));
+          telegram_api::account_unregisterDevice(token_type, info.token, std::move(other_user_ids)));
     } else {
       int32 flags = telegram_api::account_registerDevice::NO_MUTED_MASK;
-      net_query = G()->net_query_creator().create(create_storer(
+      net_query = G()->net_query_creator().create(
           telegram_api::account_registerDevice(flags, false /*ignored*/, token_type, info.token, info.is_app_sandbox,
-                                               BufferSlice(info.encryption_key), std::move(other_user_ids))));
+                                               BufferSlice(info.encryption_key), std::move(other_user_ids)));
     }
     info.net_query_id = net_query->id();
     G()->net_query_dispatcher().dispatch_with_callback(std::move(net_query), actor_shared(this, token_type));
@@ -418,7 +418,7 @@ void DeviceTokenManager::on_result(NetQueryPtr net_query) {
     info.state = TokenInfo::State::Sync;
   } else {
     if (r_flag.is_error()) {
-      if (!G()->close_flag()) {
+      if (!G()->is_expected_error(r_flag.error())) {
         LOG(ERROR) << "Failed to " << info.state << " device: " << r_flag.error();
       }
       info.promise.set_error(r_flag.move_as_error());

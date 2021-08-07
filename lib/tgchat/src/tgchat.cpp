@@ -454,8 +454,29 @@ void TgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
         if (sendMessageRequest->chatMessage.filePath.empty())
         {
           auto message_content = td::td_api::make_object<td::td_api::inputMessageText>();
-          message_content->text_ = td::td_api::make_object<td::td_api::formattedText>();
-          message_content->text_->text_ = sendMessageRequest->chatMessage.text;
+
+          static const bool markdownEnabled = (m_Config.Get("markdown_enabled") == "1");
+          static const int markdownVersion = (m_Config.Get("markdown_version") == "1") ? 1 : 2;
+          if (markdownEnabled)
+          {
+            const std::string text = sendMessageRequest->chatMessage.text;
+            auto textParseMarkdown = td::td_api::make_object<td::td_api::textParseModeMarkdown>(markdownVersion);
+            auto parseTextEntities = td::td_api::make_object<td::td_api::parseTextEntities>(text, std::move(textParseMarkdown));
+            td::Client::Request parseRequest{ 1, std::move(parseTextEntities) };
+            auto parseResponse = td::Client::execute(std::move(parseRequest));
+            if (parseResponse.object->get_id()  == td::td_api::formattedText::ID)
+            {
+              auto formattedText = td::td_api::move_object_as<td::td_api::formattedText>(parseResponse.object);
+              message_content->text_ = std::move(formattedText);
+            }
+          }
+
+          if (!message_content->text_)
+          {
+            message_content->text_ = td::td_api::make_object<td::td_api::formattedText>();
+            message_content->text_->text_ = sendMessageRequest->chatMessage.text;
+          }
+
           send_message->input_message_content_ = std::move(message_content);
           send_message->reply_to_message_id_ = StrUtil::NumFromHex<int64_t>(sendMessageRequest->chatMessage.quotedId);
         }
@@ -660,6 +681,8 @@ void TgChat::Init()
   const std::map<std::string, std::string> defaultConfig =
   {
     { "local_key", "" },
+    { "markdown_enabled", "1" },
+    { "markdown_version", "1" },
   };
   const std::string configPath(m_ProfileDir + std::string("/telegram.conf"));
   m_Config = Config(configPath, defaultConfig);
@@ -1093,14 +1116,58 @@ std::uint64_t TgChat::GetNextQueryId()
   return ++m_CurrentQueryId;
 }
 
-void TgChat::TdMessageConvert(const td::td_api::message& p_TdMessage, ChatMessage& p_ChatMessage)
+std::int64_t TgChat::GetSenderId(const td::td_api::message& p_TdMessage)
+{
+  std::int64_t senderId = 0;
+  if (p_TdMessage.sender_->get_id() == td::td_api::messageSenderUser::ID)
+  {
+    auto& message_sender_user = static_cast<const td::td_api::messageSenderUser&>(*p_TdMessage.sender_);
+    senderId = message_sender_user.user_id_;
+  }
+  else if (p_TdMessage.sender_->get_id() == td::td_api::messageSenderChat::ID)
+  {
+    auto& message_sender_chat = static_cast<const td::td_api::messageSenderChat&>(*p_TdMessage.sender_);
+    senderId = message_sender_chat.chat_id_;
+  }
+
+  return senderId;
+}
+
+std::string TgChat::GetText(td::td_api::object_ptr<td::td_api::formattedText>&& p_FormattedText)
+{
+  std::string text = p_FormattedText->text_;
+  static const bool markdownEnabled = (m_Config.Get("markdown_enabled") == "1");
+  static const int markdownVersion = (m_Config.Get("markdown_version") == "1") ? 1 : 2;
+  if (markdownEnabled)
+  {
+    auto getMarkdownText = td::td_api::make_object<td::td_api::getMarkdownText>(std::move(p_FormattedText));
+    td::Client::Request parseRequest{ 2, std::move(getMarkdownText) };
+    auto parseResponse = td::Client::execute(std::move(parseRequest));
+    if (parseResponse.object->get_id()  == td::td_api::formattedText::ID)
+    {
+      auto formattedText = td::td_api::move_object_as<td::td_api::formattedText>(parseResponse.object);
+      text = formattedText->text_;
+      if (markdownVersion == 1)
+      {
+        StrUtil::ReplaceString(text, "**", "*");
+        StrUtil::ReplaceString(text, "__", "_");
+        StrUtil::ReplaceString(text, "~~", "~");
+      }
+    }
+  }
+
+  return text;
+}
+
+void TgChat::TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessage& p_ChatMessage)
 {
   std::string text;
   std::string filePath;
   int32_t downloadId = 0;
   if (p_TdMessage.content_->get_id() == td::td_api::messageText::ID)
   {
-    text = static_cast<const td::td_api::messageText&>(*p_TdMessage.content_).text_->text_;
+    auto& messageText = static_cast<td::td_api::messageText&>(*p_TdMessage.content_);
+    text = GetText(std::move(messageText.text_));
   }
   else if (p_TdMessage.content_->get_id() == td::td_api::messageAnimation::ID)
   {
@@ -1128,25 +1195,28 @@ void TgChat::TdMessageConvert(const td::td_api::message& p_TdMessage, ChatMessag
   }
   else if (p_TdMessage.content_->get_id() == td::td_api::messageDocument::ID)
   {
-    int32_t id = static_cast<const td::td_api::messageDocument&>(*p_TdMessage.content_).document_->document_->id_;
-    std::string path =
-      static_cast<const td::td_api::messageDocument&>(*p_TdMessage.content_).document_->document_->local_->path_;
-    std::string fileName = static_cast<const td::td_api::messageDocument&>(*p_TdMessage.content_).document_->file_name_;
+    auto& messageDocument = static_cast<td::td_api::messageDocument&>(*p_TdMessage.content_);
+
+    int32_t id = messageDocument.document_->document_->id_;
+    std::string path = messageDocument.document_->document_->local_->path_;
+    std::string fileName = messageDocument.document_->file_name_;
+    text = GetText(std::move(messageDocument.caption_));
     if (!path.empty())
     {
       filePath = path;
     }
     else
     {
-      text = "[Downloading Document]";
+      filePath = " ";
       downloadId = id;
     }
   }
   else if (p_TdMessage.content_->get_id() == td::td_api::messagePhoto::ID)
   {
-    auto& messagePhoto = static_cast<const td::td_api::messagePhoto&>(*p_TdMessage.content_);
+    auto& messagePhoto = static_cast<td::td_api::messagePhoto&>(*p_TdMessage.content_);
     auto& photo = messagePhoto.photo_;
     auto& sizes = photo->sizes_;
+    text = GetText(std::move(messagePhoto.caption_));
     if (!sizes.empty())
     {
       auto& largestSize = sizes.back();
@@ -1160,7 +1230,7 @@ void TgChat::TdMessageConvert(const td::td_api::message& p_TdMessage, ChatMessag
       else
       {
         int32_t id = photoFile->id_;
-        text = "[Downloading Photo]";
+        filePath = " ";
         downloadId = id;
       }
     }
@@ -1195,7 +1265,7 @@ void TgChat::TdMessageConvert(const td::td_api::message& p_TdMessage, ChatMessag
   }
 
   p_ChatMessage.id = StrUtil::NumToHex(p_TdMessage.id_);
-  p_ChatMessage.senderId = StrUtil::NumToHex(p_TdMessage.sender_user_id_);
+  p_ChatMessage.senderId = StrUtil::NumToHex(GetSenderId(p_TdMessage));
   p_ChatMessage.isOutgoing = p_TdMessage.is_outgoing_;
   p_ChatMessage.timeSent = (((int64_t)p_TdMessage.date_) * 1000) + (std::hash<std::string>{ } (p_ChatMessage.id) % 256);
   p_ChatMessage.quotedId =
@@ -1204,7 +1274,11 @@ void TgChat::TdMessageConvert(const td::td_api::message& p_TdMessage, ChatMessag
   p_ChatMessage.filePath = filePath;
   p_ChatMessage.hasMention = p_TdMessage.contains_unread_mention_;
 
-  if (p_TdMessage.is_outgoing_)
+  if (p_TdMessage.chat_id_ == m_SelfUserId)
+  {
+    p_ChatMessage.isRead = true;
+  }
+  else if (p_TdMessage.is_outgoing_)
   {
     p_ChatMessage.isRead = (p_TdMessage.id_ <= m_LastReadOutboxMessage[p_TdMessage.chat_id_]);
     if (!p_ChatMessage.isRead)

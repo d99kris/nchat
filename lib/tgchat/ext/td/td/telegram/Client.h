@@ -22,10 +22,10 @@ namespace td {
  * The TDLib instance is created for the lifetime of the Client object.
  * Requests to TDLib can be sent using the Client::send method from any thread.
  * New updates and responses to requests can be received using the Client::receive method from any thread,
- * this function shouldn't be called simultaneously from two different threads. Also note that all updates and
+ * this function must not be called simultaneously from two different threads. Also note that all updates and
  * responses to requests should be applied in the same order as they were received, to ensure consistency.
  * Given this information, it's advisable to call this function from a dedicated thread.
- * Some service TDLib requests can be executed synchronously from any thread by using the Client::execute method.
+ * Some service TDLib requests can be executed synchronously from any thread using the Client::execute method.
  *
  * General pattern of usage:
  * \code
@@ -84,7 +84,7 @@ class Client final {
    */
   struct Response {
     /**
-     * TDLib request identifier, which corresponds to the response or 0 for incoming updates from TDLib.
+     * TDLib request identifier, which corresponds to the response, or 0 for incoming updates from TDLib.
      */
     std::uint64_t id;
 
@@ -127,6 +127,140 @@ class Client final {
   Client &operator=(Client &&other);
 
  private:
+  class Impl;
+  std::unique_ptr<Impl> impl_;
+};
+
+/**
+ * The future native C++ interface for interaction with TDLib.
+ *
+ * A TDLib client instance can be created through the method ClientManager::create_client_id.
+ * Requests can be sent using the method ClientManager::send from any thread.
+ * New updates and responses to requests can be received using the method ClientManager::receive from any thread after
+ * the first request has been sent to the client instance. ClientManager::receive must not be called simultaneously from
+ * two different threads. Also note that all updates and responses to requests should be applied in the same order as
+ * they were received, to ensure consistency.
+ * Some TDLib requests can be executed synchronously from any thread using the method ClientManager::execute.
+ *
+ * General pattern of usage:
+ * \code
+ * td::ClientManager manager;
+ * auto client_id = manager.create_client_id();
+ * // somehow share the manager and the client_id with other threads,
+ * // which will be able to send requests via manager.send(client_id, ...)
+ *
+ * // send some dummy requests to the new instance to activate it
+ * manager.send(client_id, ...);
+ *
+ * const double WAIT_TIMEOUT = 10.0;  // seconds
+ * while (true) {
+ *   auto response = manager.receive(WAIT_TIMEOUT);
+ *   if (response.object == nullptr) {
+ *     continue;
+ *   }
+ *
+ *   if (response.request_id == 0) {
+ *     // process response.object as an incoming update of the type td_api::Update for the client response.client_id
+ *   } else {
+ *     // process response.object as an answer to a request response.request_id for the client response.client_id
+ *   }
+ * }
+ * \endcode
+ */
+class ClientManager final {
+ public:
+  /**
+   * Creates a new TDLib client manager.
+   */
+  ClientManager();
+
+  /**
+   * Opaque TDLib client instance identifier.
+   */
+  using ClientId = std::int32_t;
+
+  /**
+   * Request identifier.
+   * Responses to TDLib requests will have the same request id as the corresponding request.
+   * Updates from TDLib will have the request_id == 0, incoming requests are thus not allowed to have request_id == 0.
+   */
+  using RequestId = std::uint64_t;
+
+  /**
+   * Returns an opaque identifier of a new TDLib instance.
+   * The TDLib instance will not send updates until the first request is sent to it.
+   * \return Opaque identifier of a new TDLib instance.
+   */
+  ClientId create_client_id();
+
+  /**
+   * Sends request to TDLib. May be called from any thread.
+   * \param[in] client_id TDLib client instance identifier.
+   * \param[in] request_id Request identifier. Must be non-zero.
+   * \param[in] request Request to TDLib.
+   */
+  void send(ClientId client_id, RequestId request_id, td_api::object_ptr<td_api::Function> &&request);
+
+  /**
+   * A response to a request, or an incoming update from TDLib.
+   */
+  struct Response {
+    /**
+     * TDLib client instance identifier, for which the response was received.
+     */
+    ClientId client_id;
+
+    /**
+     * Request identifier, to which the response corresponds, or 0 for incoming updates from TDLib.
+     */
+    RequestId request_id;
+
+    /**
+     * TDLib API object representing a response to a TDLib request or an incoming update.
+     */
+    td_api::object_ptr<td_api::Object> object;
+  };
+
+  /**
+   * Receives incoming updates and responses to requests from TDLib. May be called from any thread, but must not be
+   * called simultaneously from two different threads.
+   * \param[in] timeout The maximum number of seconds allowed for this function to wait for new data.
+   * \return An incoming update or response to a request. The object returned in the response may be a nullptr
+   *         if the timeout expires.
+   */
+  Response receive(double timeout);
+
+  /**
+   * Synchronously executes a TDLib request.
+   * A request can be executed synchronously, only if it is documented with "Can be called synchronously".
+   * \param[in] request Request to the TDLib.
+   * \return The request response.
+   */
+  static td_api::object_ptr<td_api::Object> execute(td_api::object_ptr<td_api::Function> &&request);
+
+  /**
+   * Destroys the client manager and all TDLib client instances managed by it.
+   */
+  ~ClientManager();
+
+  /**
+   * Move constructor.
+   */
+  ClientManager(ClientManager &&other);
+
+  /**
+   * Move assignment operator.
+   */
+  ClientManager &operator=(ClientManager &&other);
+
+  /**
+   * Returns a pointer to a singleton ClientManager instance.
+   * \return A unique singleton ClientManager instance.
+   */
+  static ClientManager *get_manager_singleton();
+
+ private:
+  friend class Client;
   class Impl;
   std::unique_ptr<Impl> impl_;
 };

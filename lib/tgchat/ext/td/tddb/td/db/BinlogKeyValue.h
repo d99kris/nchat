@@ -34,7 +34,7 @@ namespace td {
 template <class BinlogT>
 class BinlogKeyValue : public KeyValueSyncInterface {
  public:
-  static constexpr int32 magic = 0x2a280000;
+  static constexpr int32 MAGIC = 0x2a280000;
 
   struct Event : public Storer {
     Event() = default;
@@ -114,6 +114,9 @@ class BinlogKeyValue : public KeyValueSyncInterface {
   void close() {
     *this = BinlogKeyValue();
   }
+  void close(Promise<> promise) override {
+    binlog_->close(std::move(promise));
+  }
 
   SeqNo set(string key, string value) override {
     auto lock = rw_mutex_.lock_write().move_as_ok();
@@ -191,7 +194,7 @@ class BinlogKeyValue : public KeyValueSyncInterface {
     std::unordered_map<string, string> res;
     for (const auto &kv : map_) {
       if (begins_with(kv.first, prefix)) {
-        res[kv.first] = kv.second.first;
+        res[kv.first.substr(prefix.size())] = kv.second.first;
       }
     }
     return res;
@@ -236,7 +239,7 @@ class BinlogKeyValue : public KeyValueSyncInterface {
   std::unordered_map<string, std::pair<string, uint64>> map_;
   std::shared_ptr<BinlogT> binlog_;
   RwMutex rw_mutex_;
-  int32 magic_ = magic;
+  int32 magic_ = MAGIC;
 };
 
 template <>

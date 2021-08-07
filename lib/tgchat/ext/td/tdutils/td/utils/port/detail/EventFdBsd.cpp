@@ -12,9 +12,12 @@ char disable_linker_warning_about_empty_file_event_fd_bsd_cpp TD_UNUSED;
 
 #include "td/utils/logging.h"
 #include "td/utils/port/detail/NativeFd.h"
+#include "td/utils/port/detail/skip_eintr.h"
 #include "td/utils/port/PollFlags.h"
 #include "td/utils/port/SocketFd.h"
 #include "td/utils/Slice.h"
+
+#include <cerrno>
 
 #include <fcntl.h>
 #include <poll.h>
@@ -74,13 +77,14 @@ void EventFdBsd::release() {
   }
   size_t size = result.ok();
   if (size != sizeof(value)) {
-    LOG(FATAL) << "EventFdBsd write returned " << value << " instead of " << sizeof(value);
+    LOG(FATAL) << "EventFdBsd write returned " << size << " instead of " << sizeof(value);
   }
 }
 
 void EventFdBsd::acquire() {
+  sync_with_poll(out_);
   out_.get_poll_info().add_flags(PollFlags::Read());
-  while (can_read(out_)) {
+  while (can_read_local(out_)) {
     uint8 value[1024];
     auto result = out_.read(MutableSlice(value, sizeof(value)));
     if (result.is_error()) {
@@ -90,10 +94,14 @@ void EventFdBsd::acquire() {
 }
 
 void EventFdBsd::wait(int timeout_ms) {
-  pollfd fd;
-  fd.fd = get_poll_info().native_fd().fd();
-  fd.events = POLLIN;
-  poll(&fd, 1, timeout_ms);
+  detail::skip_eintr_timeout(
+      [this](int timeout_ms) {
+        pollfd fd;
+        fd.fd = get_poll_info().native_fd().fd();
+        fd.events = POLLIN;
+        return poll(&fd, 1, timeout_ms);
+      },
+      timeout_ms);
 }
 
 }  // namespace detail

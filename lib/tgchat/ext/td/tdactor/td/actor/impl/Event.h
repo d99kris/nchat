@@ -8,7 +8,6 @@
 
 #include "td/utils/Closure.h"
 #include "td/utils/common.h"
-#include "td/utils/format.h"
 #include "td/utils/logging.h"
 #include "td/utils/StringBuilder.h"
 
@@ -242,8 +241,27 @@ class Event {
   }
 };
 
-inline StringBuilder &operator<<(StringBuilder &sb, const Event &e) {
-  return sb << tag("Event", static_cast<int32>(e.type));
+inline StringBuilder &operator<<(StringBuilder &string_builder, const Event &e) {
+  string_builder << "Event::";
+  switch (e.type) {
+    case Event::Type::Start:
+      return string_builder << "Start";
+    case Event::Type::Stop:
+      return string_builder << "Stop";
+    case Event::Type::Yield:
+      return string_builder << "Yield";
+    case Event::Type::Hangup:
+      return string_builder << "Hangup";
+    case Event::Type::Timeout:
+      return string_builder << "Timeout";
+    case Event::Type::Raw:
+      return string_builder << "Raw";
+    case Event::Type::Custom:
+      return string_builder << "Custom";
+    case Event::Type::NoType:
+    default:
+      return string_builder << "NoType";
+  }
 }
 
 }  // namespace td

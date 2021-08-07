@@ -7,6 +7,7 @@
 #include "td/utils/port/detail/ThreadIdGuard.h"
 
 #include "td/utils/common.h"
+#include "td/utils/ExitGuard.h"
 #include "td/utils/port/thread_local.h"
 
 #include <mutex>
@@ -39,13 +40,16 @@ class ThreadIdManager {
   int32 max_thread_id_ = 0;
 };
 static ThreadIdManager thread_id_manager;
+static ExitGuard exit_guard;
 
 ThreadIdGuard::ThreadIdGuard() {
   thread_id_ = thread_id_manager.register_thread();
   set_thread_id(thread_id_);
 }
 ThreadIdGuard::~ThreadIdGuard() {
-  thread_id_manager.unregister_thread(thread_id_);
+  if (!ExitGuard::is_exited()) {
+    thread_id_manager.unregister_thread(thread_id_);
+  }
   set_thread_id(0);
 }
 }  // namespace detail

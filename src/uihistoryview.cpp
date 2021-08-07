@@ -7,6 +7,7 @@
 
 #include "uihistoryview.h"
 
+#include "apputil.h"
 #include "fileutil.h"
 #include "strutil.h"
 #include "uicolorconfig.h"
@@ -104,10 +105,17 @@ void UiHistoryView::Draw()
       auto quotedIt = messages.find(msg.quotedId);
       if (quotedIt != messages.end())
       {
-        quotedText = quotedIt->second.text;
-        if (!emojiEnabled)
+        if (!quotedIt->second.text.empty())
         {
-          quotedText = StrUtil::Textize(quotedText);
+          quotedText = StrUtil::Split(quotedIt->second.text, '\n').at(0);
+          if (!emojiEnabled)
+          {
+            quotedText = StrUtil::Textize(quotedText);
+          }
+        }
+        else if (!quotedIt->second.filePath.empty())
+        {
+          quotedText = FileUtil::BaseName(quotedIt->second.filePath);
         }
       }
       else
@@ -127,8 +135,9 @@ void UiHistoryView::Draw()
 
     if (!msg.filePath.empty())
     {
-      std::wstring fileName = StrUtil::ToWString("\xF0\x9F\x93\x8E " + FileUtil::BaseName(msg.filePath));
-      wlines.insert(wlines.begin(), fileName);
+      std::string fileName = (msg.filePath == " ") ? "[Downloading]" : FileUtil::BaseName(msg.filePath);
+      std::wstring fileStr = StrUtil::ToWString("\xF0\x9F\x93\x8E " + fileName);
+      wlines.insert(wlines.begin(), fileStr);
     }
 
     const int maxMessageLines = (m_PaddedH - 1);
@@ -163,6 +172,12 @@ void UiHistoryView::Draw()
     std::string receipt = msg.isRead ? "\xe2\x9c\x93" : "";
     std::wstring wreceipt = StrUtil::ToWString(receipt);
     std::wstring wheader = wsender + L" (" + wtime + L") " + wreceipt;
+
+    static const bool developerMode = AppUtil::GetDeveloperMode();
+    if (developerMode)
+    {
+      wheader = wheader + L" " + StrUtil::ToWString(msg.id);
+    }
 
     std::wstring wdisp = StrUtil::TrimPadWString(wheader, m_PaddedW);
     mvwaddnwstr(m_PaddedWin, y, 0, wdisp.c_str(), std::min((int)wdisp.size(), m_PaddedW));

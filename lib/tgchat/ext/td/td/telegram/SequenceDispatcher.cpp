@@ -49,12 +49,12 @@ void SequenceDispatcher::check_timeout(Data &data) {
   if (data.state_ != State::Start) {
     return;
   }
-  data.query_->total_timeout += data.total_timeout_;
+  data.query_->total_timeout_ += data.total_timeout_;
   data.total_timeout_ = 0;
-  if (data.query_->total_timeout > data.query_->total_timeout_limit) {
+  if (data.query_->total_timeout_ > data.query_->total_timeout_limit_) {
     LOG(WARNING) << "Fail " << data.query_ << " to " << data.query_->source_ << " because total_timeout "
-                 << data.query_->total_timeout << " is greater than total_timeout_limit "
-                 << data.query_->total_timeout_limit;
+                 << data.query_->total_timeout_ << " is greater than total_timeout_limit "
+                 << data.query_->total_timeout_limit_;
     data.query_->set_error(Status::Error(
         429, PSLICE() << "Too Many Requests: retry after " << static_cast<int32>(data.last_timeout_ + 0.999)));
     data.state_ = State::Dummy;
@@ -69,7 +69,7 @@ void SequenceDispatcher::try_resend_query(Data &data, NetQueryPtr query) {
   data.state_ = State::Wait;
   wait_cnt_++;
   auto token = pos + id_offset_;
-  // TODO: is query is ok, use NetQueryCallback::on_result
+  // TODO: if query is ok, use NetQueryCallback::on_result
   auto promise = PromiseCreator::lambda([&, self = actor_shared(this, token)](NetQueryPtr query) mutable {
     if (!query.empty()) {
       send_closure(std::move(self), &SequenceDispatcher::on_resend_ok, std::move(query));
@@ -129,10 +129,10 @@ void SequenceDispatcher::on_result(NetQueryPtr query) {
   size_t pos = &data - &data_[0];
   CHECK(pos < data_.size());
 
-  if (query->last_timeout != 0) {
+  if (query->last_timeout_ != 0) {
     for (auto i = pos + 1; i < data_.size(); i++) {
-      data_[i].total_timeout_ += query->last_timeout;
-      data_[i].last_timeout_ = query->last_timeout;
+      data_[i].total_timeout_ += query->last_timeout_;
+      data_[i].last_timeout_ = query->last_timeout_;
       check_timeout(data_[i]);
     }
   }
@@ -166,7 +166,7 @@ void SequenceDispatcher::loop() {
       invoke_after = data_[last_sent_i_].net_query_ref_;
     }
     data_[next_i_].query_->set_invoke_after(invoke_after);
-    data_[next_i_].query_->last_timeout = 0;
+    data_[next_i_].query_->last_timeout_ = 0;
 
     VLOG(net_query) << "Send " << data_[next_i_].query_;
 

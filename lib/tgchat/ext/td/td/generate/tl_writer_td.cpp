@@ -121,7 +121,7 @@ std::string TD_TL_writer::gen_class_name(std::string name) const {
     assert(false);
   }
   if (name == "#") {
-    return "std::int32_t";
+    return "int32";
   }
   for (std::size_t i = 0; i < name.size(); i++) {
     if (!is_alnum(name[i])) {
@@ -161,7 +161,7 @@ std::string TD_TL_writer::gen_type_name(const tl::tl_tree_type *tree_type) const
   const std::string &name = t->name;
 
   if (name == "#") {
-    return "std::int32_t";
+    return "int32";
   }
   if (name == "True") {
     return "bool";
@@ -170,16 +170,19 @@ std::string TD_TL_writer::gen_type_name(const tl::tl_tree_type *tree_type) const
     return "bool";
   }
   if (name == "Int" || name == "Int32") {
-    return "std::int32_t";
+    return "int32";
   }
-  if (name == "Long" || name == "Int53" || name == "Int64") {
-    return "std::int64_t";
+  if (name == "Int53") {
+    return "int53";
+  }
+  if (name == "Long" || name == "Int64") {
+    return "int64";
   }
   if (name == "Double") {
     return "double";
   }
   if (name == "String") {
-    return string_type;
+    return "string";
   }
   if (name == "Int128") {
     return "UInt128";
@@ -188,7 +191,7 @@ std::string TD_TL_writer::gen_type_name(const tl::tl_tree_type *tree_type) const
     return "UInt256";
   }
   if (name == "Bytes") {
-    return bytes_type;
+    return "bytes";
   }
 
   if (name == "Vector") {
@@ -197,7 +200,7 @@ std::string TD_TL_writer::gen_type_name(const tl::tl_tree_type *tree_type) const
     assert(tree_type->children[0]->get_type() == tl::NODE_TYPE_TYPE);
     const tl::tl_tree_type *child = static_cast<const tl::tl_tree_type *>(tree_type->children[0]);
 
-    return "std::vector<" + gen_type_name(child) + ">";
+    return "array<" + gen_type_name(child) + ">";
   }
 
   assert(!is_built_in_simple_type(name) && !is_built_in_complex_type(name));
@@ -239,12 +242,13 @@ std::string TD_TL_writer::gen_constructor_parameter(int field_num, const std::st
   }
 
   std::string res = (field_num == 0 ? "" : ", ");
-  if (field_type == "bool " || field_type == "std::int32_t " || field_type == "std::int64_t " ||
+  if (field_type == "bool " || field_type == "int32 " || field_type == "int53 " || field_type == "int64 " ||
       field_type == "double ") {
     res += field_type;
-  } else if (field_type == "UInt128 " || field_type == "UInt256 " || field_type == string_type + " ") {
+  } else if (field_type == "UInt128 " || field_type == "UInt256 " || field_type == "string " ||
+             (string_type == bytes_type && field_type == "bytes ")) {
     res += field_type + "const &";
-  } else if (field_type.compare(0, 11, "std::vector") == 0 || field_type == bytes_type + " ") {
+  } else if (field_type.compare(0, 5, "array") == 0 || field_type == "bytes ") {
     res += field_type + "&&";
   } else if (field_type.compare(0, 10, "object_ptr") == 0) {
     res += field_type + "&&";

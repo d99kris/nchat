@@ -12,14 +12,22 @@ namespace td {
 
 class Timer {
  public:
-  Timer();
+  Timer() : Timer(false) {
+  }
+  explicit Timer(bool is_paused);
 
   double elapsed() const;
+
+  void pause();
+
+  void resume();
 
  private:
   friend StringBuilder &operator<<(StringBuilder &string_builder, const Timer &timer);
 
-  double start_time_;
+  double elapsed_{0};
+  double start_time_{0};
+  bool is_paused_{true};
 };
 
 class PerfWarningTimer {

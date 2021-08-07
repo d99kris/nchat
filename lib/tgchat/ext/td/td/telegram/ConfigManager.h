@@ -9,6 +9,7 @@
 #include "td/telegram/net/DcId.h"
 #include "td/telegram/net/DcOptions.h"
 #include "td/telegram/net/NetQuery.h"
+#include "td/telegram/SuggestedAction.h"
 
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
@@ -17,11 +18,15 @@
 #include "td/actor/PromiseFuture.h"
 
 #include "td/utils/common.h"
+#include "td/utils/FloodControlStrict.h"
 #include "td/utils/logging.h"
 #include "td/utils/port/IPAddress.h"
 #include "td/utils/Slice.h"
 #include "td/utils/Status.h"
 #include "td/utils/Time.h"
+
+#include <limits>
+#include <map>
 
 namespace td {
 
@@ -84,13 +89,23 @@ class ConfigManager : public NetQueryCallback {
 
   void request_config();
 
+  void lazy_request_config();
+
   void get_app_config(Promise<td_api::object_ptr<td_api::JsonValue>> &&promise);
 
   void get_content_settings(Promise<Unit> &&promise);
 
   void set_content_settings(bool ignore_sensitive_content_restrictions, Promise<Unit> &&promise);
 
+  void get_global_privacy_settings(Promise<Unit> &&promise);
+
+  void set_archive_and_mute(bool archive_and_mute, Promise<Unit> &&promise);
+
+  void dismiss_suggested_action(SuggestedAction suggested_action, Promise<Unit> &&promise);
+
   void on_dc_options_update(DcOptions dc_options);
+
+  void get_current_state(vector<td_api::object_ptr<td_api::Update>> &updates) const;
 
  private:
   ActorShared<> parent_;
@@ -99,11 +114,25 @@ class ConfigManager : public NetQueryCallback {
   int ref_cnt_{1};
   Timestamp expire_time_;
 
+  FloodControlStrict lazy_request_flood_control_;
+
   vector<Promise<td_api::object_ptr<td_api::JsonValue>>> get_app_config_queries_;
+
   vector<Promise<Unit>> get_content_settings_queries_;
   vector<Promise<Unit>> set_content_settings_queries_[2];
   bool is_set_content_settings_request_sent_ = false;
   bool last_set_content_settings_ = false;
+
+  vector<Promise<Unit>> get_global_privacy_settings_queries_;
+  vector<Promise<Unit>> set_archive_and_mute_queries_[2];
+  bool is_set_archive_and_mute_request_sent_ = false;
+  bool last_set_archive_and_mute_ = false;
+
+  vector<SuggestedAction> suggested_actions_;
+  size_t dismiss_suggested_action_request_count_ = 0;
+  std::map<SuggestedAction, vector<Promise<Unit>>> dismiss_suggested_action_queries_;
+
+  static constexpr uint64 REFCNT_TOKEN = std::numeric_limits<uint64>::max() - 2;
 
   void start_up() override;
   void hangup_shared() override;
@@ -115,13 +144,24 @@ class ConfigManager : public NetQueryCallback {
 
   void request_config_from_dc_impl(DcId dc_id);
   void process_config(tl_object_ptr<telegram_api::config> config);
-  void process_app_config(tl_object_ptr<telegram_api::JSONValue> &config);
-  void set_ignore_sensitive_content_restrictions(bool ignore_sensitive_content_restrictions);
 
-  Timestamp load_config_expire_time();
-  void save_config_expire(Timestamp timestamp);
-  void save_dc_options_update(DcOptions dc_options);
-  DcOptions load_dc_options_update();
+  void process_app_config(tl_object_ptr<telegram_api::JSONValue> &config);
+
+  void do_set_ignore_sensitive_content_restrictions(bool ignore_sensitive_content_restrictions);
+
+  void do_set_archive_and_mute(bool archive_and_mute);
+
+  static td_api::object_ptr<td_api::updateSuggestedActions> get_update_suggested_actions(
+      const vector<SuggestedAction> &added_actions, const vector<SuggestedAction> &removed_actions);
+
+  void do_dismiss_suggested_action(SuggestedAction suggested_action);
+
+  static Timestamp load_config_expire_time();
+  static void save_config_expire(Timestamp timestamp);
+  static void save_dc_options_update(DcOptions dc_options);
+  static DcOptions load_dc_options_update();
+
+  ActorShared<> create_reference();
 };
 
 }  // namespace td

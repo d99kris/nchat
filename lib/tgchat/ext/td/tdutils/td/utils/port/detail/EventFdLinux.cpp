@@ -13,9 +13,12 @@ char disable_linker_warning_about_empty_file_event_fd_linux_cpp TD_UNUSED;
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/port/detail/NativeFd.h"
+#include "td/utils/port/detail/skip_eintr.h"
 #include "td/utils/port/PollFlags.h"
 #include "td/utils/ScopeGuard.h"
 #include "td/utils/Slice.h"
+
+#include <cerrno>
 
 #include <poll.h>
 #include <sys/eventfd.h>
@@ -64,7 +67,7 @@ void EventFdLinux::release() {
   auto native_fd = impl_->info.native_fd().fd();
 
   auto result = [&]() -> Result<size_t> {
-    auto write_res = detail::skip_eintr([&] { return ::write(native_fd, slice.begin(), slice.size()); });
+    auto write_res = detail::skip_eintr([&] { return write(native_fd, slice.begin(), slice.size()); });
     auto write_errno = errno;
     if (write_res >= 0) {
       return narrow_cast<size_t>(write_res);
@@ -82,7 +85,7 @@ void EventFdLinux::release() {
 }
 
 void EventFdLinux::acquire() {
-  impl_->info.get_flags();
+  impl_->info.sync_with_poll();
   SCOPE_EXIT {
     // Clear flags without EAGAIN and EWOULDBLOCK
     // Looks like it is safe thing to do with eventfd
@@ -114,10 +117,14 @@ void EventFdLinux::acquire() {
 }
 
 void EventFdLinux::wait(int timeout_ms) {
-  pollfd fd;
-  fd.fd = get_poll_info().native_fd().fd();
-  fd.events = POLLIN;
-  poll(&fd, 1, timeout_ms);
+  detail::skip_eintr_timeout(
+      [this](int timeout_ms) {
+        pollfd fd;
+        fd.fd = get_poll_info().native_fd().fd();
+        fd.events = POLLIN;
+        return poll(&fd, 1, timeout_ms);
+      },
+      timeout_ms);
 }
 
 }  // namespace detail
