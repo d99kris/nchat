@@ -34,8 +34,8 @@ void UiHelpView::Draw()
     std::vector<std::wstring> helpItems;
     AppendHelpItem(UiKeyConfig::GetKey("cancel"), "Cancel", helpItems);
     AppendHelpItem(UiKeyConfig::GetKey("return"), "Select", helpItems);
-    AppendHelpItem(UiKeyConfig::GetKey("backspace"), "DelFiltr", helpItems);
     AppendHelpItem('a', "AddFiltr", helpItems);
+    AppendHelpItem(UiKeyConfig::GetKey("backspace"), "DelFiltr", helpItems);
     return helpItems;
   }();
 
@@ -232,7 +232,7 @@ std::string UiHelpView::GetKeyDisplay(int p_Key)
   }
   else if (p_Key == 'a')
   {
-    return "\xf0\x9f\x94\xa4";
+    return "abc";
   }
   else if ((p_Key >= 0x0) && (p_Key <= 0x1F))
   {
