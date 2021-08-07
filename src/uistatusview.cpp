@@ -7,6 +7,7 @@
 
 #include "uistatusview.h"
 
+#include "apputil.h"
 #include "strutil.h"
 #include "uicolorconfig.h"
 #include "uimodel.h"
@@ -41,6 +42,13 @@ void UiStatusView::Draw()
   std::string chatStatus = m_Model->GetChatStatus(currentChat.first, currentChat.second);
   std::wstring wstatus = std::wstring(statusVPad, ' ') +
     StrUtil::ToWString(name).substr(0, m_W / 2) + L" " + StrUtil::ToWString(chatStatus);
+
+  static const bool developerMode = AppUtil::GetDeveloperMode();
+  if (developerMode)
+  {
+    wstatus = wstatus + L" " + StrUtil::ToWString(currentChat.second);
+  }
+
   wstatus = StrUtil::TrimPadWString(wstatus, m_W);
 
   mvwaddnwstr(m_Win, 0, 0, wstatus.c_str(), wstatus.size());

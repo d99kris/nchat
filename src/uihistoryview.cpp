@@ -7,6 +7,7 @@
 
 #include "uihistoryview.h"
 
+#include "apputil.h"
 #include "fileutil.h"
 #include "strutil.h"
 #include "uicolorconfig.h"
@@ -163,6 +164,12 @@ void UiHistoryView::Draw()
     std::string receipt = msg.isRead ? "\xe2\x9c\x93" : "";
     std::wstring wreceipt = StrUtil::ToWString(receipt);
     std::wstring wheader = wsender + L" (" + wtime + L") " + wreceipt;
+
+    static const bool developerMode = AppUtil::GetDeveloperMode();
+    if (developerMode)
+    {
+      wheader = wheader + L" " + StrUtil::ToWString(msg.id);
+    }
 
     std::wstring wdisp = StrUtil::TrimPadWString(wheader, m_PaddedW);
     mvwaddnwstr(m_PaddedWin, y, 0, wdisp.c_str(), std::min((int)wdisp.size(), m_PaddedW));

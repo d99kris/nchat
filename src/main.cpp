@@ -89,6 +89,10 @@ int main(int argc, char* argv[])
       ShowVersion();
       return 0;
     }
+    else if (*it == "-x")
+    {
+      AppUtil::SetDeveloperMode(true);
+    }
     else
     {
       ShowHelp();

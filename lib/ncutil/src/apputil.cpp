@@ -7,6 +7,8 @@
 
 #include "apputil.h"
 
+bool AppUtil::m_DeveloperMode = false;
+
 std::string AppUtil::GetAppNameVersion()
 {
   static std::string nameVersion = "nchat v" + GetAppVersion();
@@ -21,4 +23,14 @@ std::string AppUtil::GetAppVersion()
   static std::string version = "0.00";
 #endif
   return version;
+}
+
+void AppUtil::SetDeveloperMode(bool p_DeveloperMode)
+{
+  m_DeveloperMode = p_DeveloperMode;
+}
+
+bool AppUtil::GetDeveloperMode()
+{
+  return m_DeveloperMode;
 }
