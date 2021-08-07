@@ -19,10 +19,13 @@
 UiListDialog::UiListDialog(const UiDialogParams& p_Params)
   : UiDialog(p_Params)
 {
+  m_Model->SetListDialogActive(true);
+  m_View->Draw();
 }
 
 UiListDialog::~UiListDialog()
 {
+  m_Model->SetListDialogActive(false);
 }
 
 bool UiListDialog::Run()

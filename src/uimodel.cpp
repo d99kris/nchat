@@ -23,6 +23,7 @@
 #include "uiemojilistdialog.h"
 #include "uifilelistdialog.h"
 #include "uikeyconfig.h"
+#include "uimessagedialog.h"
 #include "uiview.h"
 
 UiModel::UiModel()
@@ -648,6 +649,21 @@ void UiModel::DeleteMessage()
 
   if (!GetSelectMessage()) return;
 
+  static const bool confirmDeletion = true;
+  if (confirmDeletion)
+  {
+    UiDialogParams params(m_View.get(), this, "Confirm Deletion", 50, 25);
+    std::string dialogText = "Confirm message deletion?";
+    UiMessageDialog messageDialog(params, dialogText);
+    if (!messageDialog.Run())
+    {
+      ReinitView();
+      return;
+    } 
+
+    ReinitView();
+  }
+ 
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
   const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
@@ -1524,14 +1540,26 @@ void UiModel::SetSelectMessage(bool p_SelectMessage)
   UpdateHelp();
 }
 
-bool UiModel::GetDialogActive()
+bool UiModel::GetListDialogActive()
 {
-  return m_DialogActive;
+  return m_ListDialogActive;
 }
 
-void UiModel::SetDialogActive(bool p_DialogActive)
+void UiModel::SetListDialogActive(bool p_ListDialogActive)
 {
-  m_DialogActive = p_DialogActive;
+  m_ListDialogActive = p_ListDialogActive;
+  SetHelpOffset(0);
+  UpdateHelp();
+}
+
+bool UiModel::GetMessageDialogActive()
+{
+  return m_MessageDialogActive;
+}
+
+void UiModel::SetMessageDialogActive(bool p_MessageDialogActive)
+{
+  m_MessageDialogActive = p_MessageDialogActive;
   SetHelpOffset(0);
   UpdateHelp();
 }
