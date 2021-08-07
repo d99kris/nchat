@@ -470,6 +470,7 @@ void UiModel::NextChat()
 
   m_CurrentChat = m_ChatVec.at(m_CurrentChatIndex);
   OnCurrentChatChanged();
+  SetSelectMessage(false);
 }
 
 void UiModel::PrevChat()
@@ -485,6 +486,7 @@ void UiModel::PrevChat()
 
   m_CurrentChat = m_ChatVec.at(m_CurrentChatIndex);
   OnCurrentChatChanged();
+  SetSelectMessage(false);
 }
 
 void UiModel::UnreadChat()
@@ -501,6 +503,7 @@ void UiModel::UnreadChat()
       m_CurrentChatIndex = i;
       m_CurrentChat = m_ChatVec.at(m_CurrentChatIndex);
       OnCurrentChatChanged();
+      SetSelectMessage(false);
       break;
     }
   }
@@ -839,6 +842,7 @@ void UiModel::SearchContact()
       m_CurrentChat.second = userId;
       SortChats();
       OnCurrentChatChanged();
+      SetSelectMessage(false);
     }
     else
     {
@@ -1151,6 +1155,7 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
           m_CurrentChat.second = chatInfo.id;
           SortChats();
           OnCurrentChatChanged();
+          SetSelectMessage(false);
         }
       }
       break;
@@ -1339,7 +1344,6 @@ std::string UiModel::GetChatStatus(const std::string& p_ProfileId, const std::st
 void UiModel::OnCurrentChatChanged()
 {
   LOG_TRACE("current chat %s %s", m_CurrentChat.first.c_str(), m_CurrentChat.second.c_str());
-  SetSelectMessage(false);
   UpdateList();
   UpdateStatus();
   UpdateHistory();
