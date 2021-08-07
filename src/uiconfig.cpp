@@ -17,6 +17,7 @@ void UiConfig::Init()
 {
   const std::map<std::string, std::string> defaultConfig =
   {
+    { "confirm_deletion", "1" },
     { "emoji_enabled", "1" },
     { "help_enabled", "1" },
     { "list_enabled", "1" },

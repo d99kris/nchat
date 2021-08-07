@@ -20,6 +20,7 @@
 #include "strutil.h"
 #include "timeutil.h"
 #include "uidialog.h"
+#include "uiconfig.h"
 #include "uicontactlistdialog.h"
 #include "uiemojilistdialog.h"
 #include "uifilelistdialog.h"
@@ -650,7 +651,7 @@ void UiModel::DeleteMessage()
 
   if (!GetSelectMessage()) return;
 
-  static const bool confirmDeletion = AppConfig::GetBool("confirm_deletion");
+  static const bool confirmDeletion = UiConfig::GetBool("confirm_deletion");
   if (confirmDeletion)
   {
     UiDialogParams params(m_View.get(), this, "Confirmation", 50, 25);

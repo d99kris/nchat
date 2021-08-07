@@ -18,7 +18,6 @@ void AppConfig::Init()
   const std::map<std::string, std::string> defaultConfig =
   {
     { "cache_enabled", "1" },
-    { "confirm_deletion", "1" },
   };
 
   const std::string configPath(FileUtil::GetApplicationDir() + std::string("/app.conf"));
