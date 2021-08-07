@@ -1274,7 +1274,11 @@ void TgChat::TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessage& p_C
   p_ChatMessage.filePath = filePath;
   p_ChatMessage.hasMention = p_TdMessage.contains_unread_mention_;
 
-  if (p_TdMessage.is_outgoing_)
+  if (p_TdMessage.chat_id_ == m_SelfUserId)
+  {
+    p_ChatMessage.isRead = true;
+  }
+  else if (p_TdMessage.is_outgoing_)
   {
     p_ChatMessage.isRead = (p_TdMessage.id_ <= m_LastReadOutboxMessage[p_TdMessage.chat_id_]);
     if (!p_ChatMessage.isRead)
