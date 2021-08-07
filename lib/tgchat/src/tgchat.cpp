@@ -1128,17 +1128,19 @@ void TgChat::TdMessageConvert(const td::td_api::message& p_TdMessage, ChatMessag
   }
   else if (p_TdMessage.content_->get_id() == td::td_api::messageDocument::ID)
   {
-    int32_t id = static_cast<const td::td_api::messageDocument&>(*p_TdMessage.content_).document_->document_->id_;
-    std::string path =
-      static_cast<const td::td_api::messageDocument&>(*p_TdMessage.content_).document_->document_->local_->path_;
-    std::string fileName = static_cast<const td::td_api::messageDocument&>(*p_TdMessage.content_).document_->file_name_;
+    auto& messageDocument = static_cast<const td::td_api::messageDocument&>(*p_TdMessage.content_);
+
+    int32_t id = messageDocument.document_->document_->id_;
+    std::string path = messageDocument.document_->document_->local_->path_;
+    std::string fileName = messageDocument.document_->file_name_;
+    text = messageDocument.caption_->text_;;
     if (!path.empty())
     {
       filePath = path;
     }
     else
     {
-      text = "[Downloading Document]";
+      filePath = " ";
       downloadId = id;
     }
   }
@@ -1147,6 +1149,7 @@ void TgChat::TdMessageConvert(const td::td_api::message& p_TdMessage, ChatMessag
     auto& messagePhoto = static_cast<const td::td_api::messagePhoto&>(*p_TdMessage.content_);
     auto& photo = messagePhoto.photo_;
     auto& sizes = photo->sizes_;
+    text = messagePhoto.caption_->text_;;
     if (!sizes.empty())
     {
       auto& largestSize = sizes.back();
@@ -1160,7 +1163,7 @@ void TgChat::TdMessageConvert(const td::td_api::message& p_TdMessage, ChatMessag
       else
       {
         int32_t id = photoFile->id_;
-        text = "[Downloading Photo]";
+        filePath = " ";
         downloadId = id;
       }
     }

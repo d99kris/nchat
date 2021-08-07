@@ -135,8 +135,9 @@ void UiHistoryView::Draw()
 
     if (!msg.filePath.empty())
     {
-      std::wstring fileName = StrUtil::ToWString("\xF0\x9F\x93\x8E " + FileUtil::BaseName(msg.filePath));
-      wlines.insert(wlines.begin(), fileName);
+      std::string fileName = (msg.filePath == " ") ? "[Downloading]" : FileUtil::BaseName(msg.filePath);
+      std::wstring fileStr = StrUtil::ToWString("\xF0\x9F\x93\x8E " + fileName);
+      wlines.insert(wlines.begin(), fileStr);
     }
 
     const int maxMessageLines = (m_PaddedH - 1);

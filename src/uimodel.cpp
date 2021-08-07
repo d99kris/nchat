@@ -694,7 +694,7 @@ void UiModel::OpenMessageAttachment()
   }
 
   std::string filePath = mit->second.filePath;
-  if (filePath.empty())
+  if (filePath.empty() || (filePath == " "))
   {
     LOG_WARNING("message has no attachment");
     return;
@@ -741,7 +741,7 @@ void UiModel::SaveMessageAttachment()
   }
 
   std::string filePath = mit->second.filePath;
-  if (filePath.empty())
+  if (filePath.empty() || (filePath == " "))
   {
     LOG_WARNING("message has no attachment");
     return;
@@ -1095,7 +1095,6 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
         std::string filePath = newMessageFileNotify->filePath;
         LOG_TRACE("new file path for %s is %s", msgId.c_str(), filePath.c_str());
         m_Messages[profileId][chatId][msgId].filePath = filePath;
-        m_Messages[profileId][chatId][msgId].text = "";
         MessageCache::UpdateFilePath(profileId, chatId, msgId, filePath);
 
         UpdateHistory();

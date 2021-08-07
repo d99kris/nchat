@@ -428,10 +428,9 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         const std::string& chatId = updateFilePathRequest->chatId;
         const std::string& msgId = updateFilePathRequest->msgId;
         const std::string& filePath = updateFilePathRequest->filePath;;
-        std::string text = "";
 
-        *m_Dbs[profileId] << "UPDATE messages SET filePath = ?, text = ? WHERE chatId = ? AND id = ?;" << filePath <<
-          text << chatId << msgId;
+        *m_Dbs[profileId] << "UPDATE messages SET filePath = ? WHERE chatId = ? AND id = ?;" << filePath <<
+          chatId << msgId;
         LOG_DEBUG("cache update filePath %s %s %s", chatId.c_str(), msgId.c_str(), filePath.c_str());
       }
       break;
