@@ -94,7 +94,7 @@ private:
   };
 
 public:
-  static void Init(const std::function<void(std::shared_ptr<ServiceMessage>)>& p_MessageHandler);
+  static void Init(const bool p_CacheEnabled, const std::function<void(std::shared_ptr<ServiceMessage>)>& p_MessageHandler);
   static void Cleanup();
 
   static void AddProfile(const std::string& p_ProfileId);

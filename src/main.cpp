@@ -13,6 +13,7 @@
 
 #include <path.hpp>
 
+#include "appconfig.h"
 #include "apputil.h"
 #include "fileutil.h"
 #include "log.h"
@@ -181,13 +182,17 @@ int main(int argc, char* argv[])
     return rv ? 0 : 1;
   }
 
+  // Init app config
+  AppConfig::Init();
+  
   // Init ui
   std::shared_ptr<Ui> ui = std::make_shared<Ui>();
 
   // Init message cache
+  const bool cacheEnabled = AppConfig::GetBool("cache_enabled");
   std::function<void(std::shared_ptr<ServiceMessage>)> messageHandler =
     std::bind(&Ui::MessageHandler, std::ref(*ui), std::placeholders::_1);
-  MessageCache::Init(messageHandler);
+  MessageCache::Init(cacheEnabled, messageHandler);
 
   // Load profile(s)
   std::string profilesDir = FileUtil::GetApplicationDir() + "/profiles";
@@ -247,6 +252,7 @@ int main(int argc, char* argv[])
   // Cleanup
   MessageCache::Cleanup();
   ui.reset();
+  AppConfig::Cleanup();
   Profiles::Cleanup();
 
   // Exit code

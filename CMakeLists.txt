@@ -39,6 +39,8 @@ message(STATUS "WhatsApp: ${HAS_WHATSAPP}")
 # Application
 add_executable(nchat
   ext/apathy/path.hpp
+  src/appconfig.cpp
+  src/appconfig.h
   src/main.cpp
   src/ui.cpp
   src/ui.h

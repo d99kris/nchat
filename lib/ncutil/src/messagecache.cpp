@@ -29,8 +29,10 @@ std::deque<std::shared_ptr<MessageCache::Request>> MessageCache::m_Queue;
 std::string MessageCache::m_HistoryDir;
 bool MessageCache::m_CacheEnabled = true;
 
-void MessageCache::Init(const std::function<void(std::shared_ptr<ServiceMessage>)>& p_MessageHandler)
+void MessageCache::Init(const bool p_CacheEnabled, const std::function<void(std::shared_ptr<ServiceMessage>)>& p_MessageHandler)
 {
+  m_CacheEnabled = p_CacheEnabled;
+  
   if (!m_CacheEnabled) return;
   
   static const int dirVersion = 3;
