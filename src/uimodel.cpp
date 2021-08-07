@@ -571,8 +571,10 @@ void UiModel::Home()
     std::string fromId = "";
     int limit = std::numeric_limits<int>::max();
     lock.unlock();
-    MessageCache::Fetch(profileId, chatId, fromId, limit, true /* p_Sync */);
+    LOG_DEBUG("fetch all");
+    bool fetchResult = MessageCache::Fetch(profileId, chatId, fromId, limit, true /* p_Sync */);
     lock.lock();
+    fetchedAllCache = fetchResult;
   }
 
   int messageCount = m_Messages[profileId][chatId].size();

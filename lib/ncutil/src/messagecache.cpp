@@ -7,7 +7,9 @@
 
 #include "messagecache.h"
 
+#include <iterator>
 #include <map>
+#include <sstream>
 #include <utility>
 
 #include <sqlite_modern_cpp.h>
@@ -18,6 +20,7 @@
 std::function<void(std::shared_ptr<ServiceMessage>)> MessageCache::m_MessageHandler;
 std::mutex MessageCache::m_DbMutex;
 std::map<std::string, std::unique_ptr<sqlite::database>> MessageCache::m_Dbs;
+std::unordered_map<std::string, std::unordered_map<std::string, bool>> MessageCache::m_InSync;
 bool MessageCache::m_Running = false;
 std::thread MessageCache::m_Thread;
 std::mutex MessageCache::m_QueueMutex;
@@ -30,7 +33,7 @@ void MessageCache::Init(const std::function<void(std::shared_ptr<ServiceMessage>
 {
   if (!m_CacheEnabled) return;
   
-  static const int dirVersion = 2;
+  static const int dirVersion = 3;
   m_HistoryDir = FileUtil::GetApplicationDir() + "/history";
   FileUtil::InitDirVersion(m_HistoryDir, dirVersion);
 
@@ -121,6 +124,8 @@ bool MessageCache::Fetch(const std::string& p_ProfileId, const std::string& p_Ch
   
   std::unique_lock<std::mutex> lock(m_DbMutex);
   if (!m_Dbs[p_ProfileId]) return false;
+
+  if (!m_InSync[p_ProfileId][p_ChatId]) return false;
 
   int64_t fromMsgIdTimeSent = 0;
   bool fromMsgIsLast = false;
@@ -261,6 +266,36 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         const std::string& fromMsgId = addRequest->fromMsgId;
         LOG_DEBUG("cache add %s %s %d", chatId.c_str(), fromMsgId.c_str(), addRequest->chatMessages.size());
 
+        if (!m_InSync[profileId][chatId])
+        {
+          if (!addRequest->chatMessages.empty())
+          {
+            std::string msgIds;
+            for (const auto& msg : addRequest->chatMessages)
+            {
+              msgIds += (!msgIds.empty()) ? "," : "";
+              msgIds += "'" + msg.id + "'";
+            }
+            
+            int count = 0;
+            *m_Dbs[profileId] << "SELECT COUNT(*) FROM messages WHERE chatId = ? AND id IN (" + msgIds + ");" << chatId >>
+            [&](const int& countRes)
+            {
+              count = countRes;
+            };
+
+            if (count > 0)
+            {
+              m_InSync[profileId][chatId] = true;
+              LOG_DEBUG("cache in sync %s list (%s)", chatId.c_str(), msgIds.c_str());
+            }
+            else
+            {
+              LOG_DEBUG("cache not in sync %s list (%s)", chatId.c_str(), msgIds.c_str());
+            }
+          }
+        }
+        
         *m_Dbs[profileId] << "BEGIN;";
         for (const auto& msg : addRequest->chatMessages)
         {

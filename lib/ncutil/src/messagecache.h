@@ -14,6 +14,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 #include "protocol.h"
@@ -114,6 +115,7 @@ private:
 
   static std::mutex m_DbMutex;
   static std::map<std::string, std::unique_ptr<sqlite::database>> m_Dbs;
+  static std::unordered_map<std::string, std::unordered_map<std::string, bool>> m_InSync;
 
   static bool m_Running;
   static std::thread m_Thread;
