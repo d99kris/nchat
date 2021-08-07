@@ -105,10 +105,17 @@ void UiHistoryView::Draw()
       auto quotedIt = messages.find(msg.quotedId);
       if (quotedIt != messages.end())
       {
-        quotedText = quotedIt->second.text;
-        if (!emojiEnabled)
+        if (!quotedIt->second.text.empty())
         {
-          quotedText = StrUtil::Textize(quotedText);
+          quotedText = StrUtil::Split(quotedIt->second.text, '\n').at(0);
+          if (!emojiEnabled)
+          {
+            quotedText = StrUtil::Textize(quotedText);
+          }
+        }
+        else if (!quotedIt->second.filePath.empty())
+        {
+          quotedText = FileUtil::BaseName(quotedIt->second.filePath);
         }
       }
       else

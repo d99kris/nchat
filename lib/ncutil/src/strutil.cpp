@@ -111,6 +111,19 @@ std::wstring StrUtil::Join(const std::vector<std::wstring>& p_Lines, const std::
   return str;
 }
 
+std::vector<std::string> StrUtil::Split(const std::string& p_Str, char p_Sep)
+{
+  std::vector<std::string> vec;
+  std::stringstream ss(p_Str);
+  while (ss.good())
+  {
+    std::string str;
+    getline(ss, str, p_Sep);
+    vec.push_back(str);
+  }
+  return vec;
+}
+
 std::string StrUtil::StrFromHex(const std::string& p_String)
 {
   std::string result;

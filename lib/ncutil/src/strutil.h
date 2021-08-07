@@ -21,6 +21,7 @@ public:
   static bool IsValidTextKey(int p_Key);
   static std::string Join(const std::vector<std::string>& p_Lines, const std::string& p_Delim);
   static std::wstring Join(const std::vector<std::wstring>& p_Lines, const std::wstring& p_Delim);
+  static std::vector<std::string> Split(const std::string& p_Str, char p_Sep);
   static std::string StrFromHex(const std::string& p_String);
   static std::string StrToHex(const std::string& p_String);
   static std::string Textize(const std::string& p_Str);
