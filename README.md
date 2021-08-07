@@ -417,7 +417,7 @@ Code Formatting
 ---------------
 Uncrustify is used to maintain consistent source code formatting, example:
 
-    uncrustify -c etc/uncrustify.cfg --replace --no-backup src/*.cpp src/*.h
+    ./make.sh src
 
 
 License
