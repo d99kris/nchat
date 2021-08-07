@@ -1115,6 +1115,23 @@ std::uint64_t TgChat::GetNextQueryId()
   return ++m_CurrentQueryId;
 }
 
+std::int64_t TgChat::GetSenderId(const td::td_api::message& p_TdMessage)
+{
+  std::int64_t senderId = 0;
+  if (p_TdMessage.sender_->get_id() == td::td_api::messageSenderUser::ID)
+  {
+    auto& message_sender_user = static_cast<const td::td_api::messageSenderUser&>(*p_TdMessage.sender_);
+    senderId = message_sender_user.user_id_;
+  }
+  else if (p_TdMessage.sender_->get_id() == td::td_api::messageSenderChat::ID)
+  {
+    auto& message_sender_chat = static_cast<const td::td_api::messageSenderChat&>(*p_TdMessage.sender_);
+    senderId = message_sender_chat.chat_id_;
+  }
+
+  return senderId;
+}
+
 void TgChat::TdMessageConvert(const td::td_api::message& p_TdMessage, ChatMessage& p_ChatMessage)
 {
   std::string text;
@@ -1220,7 +1237,7 @@ void TgChat::TdMessageConvert(const td::td_api::message& p_TdMessage, ChatMessag
   }
 
   p_ChatMessage.id = StrUtil::NumToHex(p_TdMessage.id_);
-  p_ChatMessage.senderId = StrUtil::NumToHex(p_TdMessage.sender_user_id_);
+  p_ChatMessage.senderId = StrUtil::NumToHex(GetSenderId(p_TdMessage));
   p_ChatMessage.isOutgoing = p_TdMessage.is_outgoing_;
   p_ChatMessage.timeSent = (((int64_t)p_TdMessage.date_) * 1000) + (std::hash<std::string>{ } (p_ChatMessage.id) % 256);
   p_ChatMessage.quotedId =
