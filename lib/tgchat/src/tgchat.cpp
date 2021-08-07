@@ -454,8 +454,29 @@ void TgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
         if (sendMessageRequest->chatMessage.filePath.empty())
         {
           auto message_content = td::td_api::make_object<td::td_api::inputMessageText>();
-          message_content->text_ = td::td_api::make_object<td::td_api::formattedText>();
-          message_content->text_->text_ = sendMessageRequest->chatMessage.text;
+
+          static const bool markdownEnabled = (m_Config.Get("markdown_enabled") == "1");
+          if (markdownEnabled)
+          {
+            const std::string text = sendMessageRequest->chatMessage.text;
+            auto textParseMarkdown = td::td_api::make_object<td::td_api::textParseModeMarkdown>(2);
+            auto parseTextEntities = td::td_api::make_object<td::td_api::parseTextEntities>(text, std::move(textParseMarkdown));
+            td::Client::Request parseRequest{ 1, std::move(parseTextEntities) };
+            auto parseResponse = td::Client::execute(std::move(parseRequest));
+            if (parseResponse.object->get_id()  == td::td_api::formattedText::ID)
+            {
+              auto formattedText = td::td_api::make_object<td::td_api::formattedText>();
+              formattedText = td::td_api::move_object_as<td::td_api::formattedText>(parseResponse.object);
+              message_content->text_ = std::move(formattedText);
+            }
+          }
+
+          if (!message_content->text_)
+          {
+            message_content->text_ = td::td_api::make_object<td::td_api::formattedText>();
+            message_content->text_->text_ = sendMessageRequest->chatMessage.text;
+          }
+
           send_message->input_message_content_ = std::move(message_content);
           send_message->reply_to_message_id_ = StrUtil::NumFromHex<int64_t>(sendMessageRequest->chatMessage.quotedId);
         }
@@ -660,6 +681,7 @@ void TgChat::Init()
   const std::map<std::string, std::string> defaultConfig =
   {
     { "local_key", "" },
+    { "markdown_enabled", "1" },
   };
   const std::string configPath(m_ProfileDir + std::string("/telegram.conf"));
   m_Config = Config(configPath, defaultConfig);
