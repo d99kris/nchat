@@ -395,6 +395,9 @@ func (handler *eventHandler) HandleChatList(chats []whatsapp.Chat) {
 		isUnread := StringToInt(chat.Unread)
 		isMuted := StringToInt(chat.IsMuted)
 		lastMessageTime := StringToInt(chat.LastMessageTime)
+		if IntToBool(isUnread) {
+			lastMessageTime = lastMessageTime - 1
+		}
 		timeUnread[intString{i: connId, s: chat.Jid}] = lastMessageTime
 
 		CNewChatsNotify(connId, chat.Jid, isUnread, isMuted, lastMessageTime)
