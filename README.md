@@ -10,6 +10,25 @@ Telegram.
 
 ![screenshot nchat](/doc/screenshot-nchat.png) 
 
+Features
+--------
+- Message history cache (sqlite db backed)
+- View/save media files: documents, photos
+- Show user status (online, away, typing)
+- Message read receipt
+- List dialogs (with text filter) for selecting files, emojis, contacts
+- Reply / delete / send messages
+- Jump to unread chat
+- Toggle to view textized emojis vs. graphical (default)
+- Toggle to hide/show UI elements (top bar, status bar, help bar, contact list)
+- Receive / send markdown formatted messages
+- Customizable color schemes and key bindings
+
+Not Supported
+-------------
+- WhatsApp (basic functionality is implemented, but not officially supported - YMMV)
+
+
 Usage
 =====
 Usage:
@@ -50,6 +69,7 @@ Interactive Commands for Selected Message:
     Ctrl-v      open/view attached file
     Ctrl-x      reply to selected message
 
+
 Supported Platforms
 ===================
 nchat is developed and tested on Linux and macOS. Current version has been
@@ -57,6 +77,7 @@ tested on:
 
 - macOS Big Sur 11.5
 - Ubuntu 20.04 LTS
+
 
 Build / Install
 ===============
@@ -166,6 +187,7 @@ Arch Linux
 
     makepkg -i
 
+
 Getting Started
 ===============
 In order to configure / setup an account one needs to run nchat in setup mode:
@@ -195,6 +217,7 @@ in normal mode:
 
     nchat
 
+
 Troubleshooting
 ===============
 If any issues are observed, try running nchat with verbose logging
@@ -204,6 +227,7 @@ If any issues are observed, try running nchat with verbose logging
 and provide a copy of ~/.nchat/main.log when reporting the issue. The
 preferred way of reporting issues and asking questions is by opening 
 [a Github issue](https://github.com/d99kris/nchat/issues/new). 
+
 
 Telegram Group
 ==============
@@ -215,6 +239,7 @@ maintainer(s) should however be reported using
 [Github issues](https://github.com/d99kris/nchat/issues/new) to ensure they
 are properly tracked and get addressed.
 
+
 Security
 ========
 User data is stored locally in `~/.nchat`. Default file permissions
@@ -222,6 +247,7 @@ only allow user access, but anyone who can gain access to a user's private
 files can also access the user's personal Telegram data. To protect against
 the most simple attack vectors it may be suitable to use disk encryption and
 to ensure `~/.nchat` is not backed up unencrypted.
+
 
 Configuration
 =============
@@ -350,6 +376,7 @@ General
 Deleting a configuration entry line (while nchat is not running) and starting
 nchat will populate the configuration file with the default entry.
 
+
 Technical Details
 =================
 nchat is implemented in C++. Its source tree includes the source code of the
@@ -359,16 +386,17 @@ following third-party libraries:
 - [emojicpp](https://github.com/shalithasuranga/emojicpp) - MIT License
 - [TDLib](https://github.com/tdlib/td) - Boost Software License
 
+
 License
 =======
 nchat is distributed under the MIT license. See LICENSE file.
+
 
 Alternatives
 ============
 Other terminal/console-based Telegram clients:
 
-- [TelegramTUI](https://github.com/vtr0n/TelegramTUI)
-- [Termgram](https://github.com/AndreiRegiani/termgram)
+- [tg](https://github.com/paul-nameless/tg)
 
 
 Keywords
