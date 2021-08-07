@@ -348,7 +348,7 @@ void ShowHelp()
 void ShowVersion()
 {
   std::cout <<
-    "nchat " << AppUtil::GetAppVersion() << "\n"
+    "nchat v" << AppUtil::GetAppVersion() << "\n"
     "\n"
     "Copyright (c) 2019-2021 Kristofer Berggren\n"
     "\n"
