@@ -11,6 +11,7 @@
 
 #include <ncursesw/ncurses.h>
 
+#include "appconfig.h"
 #include "fileutil.h"
 #include "log.h"
 #include "messagecache.h"
@@ -649,7 +650,7 @@ void UiModel::DeleteMessage()
 
   if (!GetSelectMessage()) return;
 
-  static const bool confirmDeletion = true;
+  static const bool confirmDeletion = AppConfig::GetBool("confirm_deletion");
   if (confirmDeletion)
   {
     UiDialogParams params(m_View.get(), this, "Confirm Deletion", 50, 25);
