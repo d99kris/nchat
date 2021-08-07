@@ -255,7 +255,7 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
     }
     else
     {
-      if (entryPos == 0)
+      if ((entryPos == 0) && (messageCount > 0))
       {
         SetSelectMessage(true);
       }
@@ -667,8 +667,9 @@ void UiModel::DeleteMessage()
  
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
-  const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
-  const int messageOffset = m_MessageOffset[profileId][chatId];
+  std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
+  std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
+  int& messageOffset = m_MessageOffset[profileId][chatId];
 
   auto it = std::next(messageVec.begin(), messageOffset);
   if (it == messageVec.end())
@@ -682,7 +683,9 @@ void UiModel::DeleteMessage()
   deleteMessageRequest->chatId = chatId;
   deleteMessageRequest->msgId = msgId;
   m_Protocols[profileId]->SendRequest(deleteMessageRequest);
-
+  messages.erase(*it);
+  messageVec.erase(it);
+  
   MessageCache::Delete(profileId, chatId, msgId);
 }
 
