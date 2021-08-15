@@ -889,6 +889,7 @@ void UiModel::SearchContact()
     std::unordered_map<std::string, ChatInfo>& profileChatInfos = m_ChatInfos[profileId];
     if (profileChatInfos.count(userId))
     {
+      m_CurrentChatIndex = 0;
       m_CurrentChat.first = profileId;
       m_CurrentChat.second = userId;
       SortChats();
