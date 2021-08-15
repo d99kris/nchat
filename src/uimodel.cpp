@@ -237,6 +237,7 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
   static wint_t keyLeft = UiKeyConfig::GetKey("left");
   static wint_t keyRight = UiKeyConfig::GetKey("right");
   static wint_t keyBackspace = UiKeyConfig::GetKey("backspace");
+  static wint_t keyAltBackspace = UiKeyConfig::GetKey("alt_backspace");
   static wint_t keyDelete = UiKeyConfig::GetKey("delete");
   static wint_t keyDeleteLine = UiKeyConfig::GetKey("delete_line");
 
@@ -362,7 +363,7 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
       entryPos = NumUtil::Bound(0, entryPos + 1, (int)entryStr.size());
     }
   }
-  else if (p_Key == keyBackspace)
+  else if ((p_Key == keyBackspace) || (p_Key == keyAltBackspace))
   {
     if (entryPos > 0)
     {

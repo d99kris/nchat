@@ -28,6 +28,7 @@ void UiKeyConfig::Init()
     { "end", "KEY_END" },
     { "home", "KEY_HOME" },
     { "backspace", "KEY_BACKSPACE" },
+    { "alt_backspace", "KEY_ALT_BACKSPACE" },
     { "delete", "KEY_DC" },
     { "delete_line", "KEY_CTRLK" },
     { "toggle_emoji", "KEY_CTRLY" },
@@ -110,11 +111,8 @@ int UiKeyConfig::GetKeyCode(const std::string& p_KeyName)
     { "KEY_LEFT", KEY_LEFT },
     { "KEY_RIGHT", KEY_RIGHT },
     { "KEY_HOME", KEY_HOME },
-#ifdef __APPLE__
-    { "KEY_BACKSPACE", 127 },
-#else
+    { "KEY_ALT_BACKSPACE", 127 },
     { "KEY_BACKSPACE", KEY_BACKSPACE },
-#endif
     { "KEY_F0", KEY_F0 },
     { "KEY_F1", KEY_F(1) },
     { "KEY_F2", KEY_F(2) },
