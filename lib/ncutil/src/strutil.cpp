@@ -7,9 +7,11 @@
 
 #include "strutil.h"
 
+#include <codecvt>
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <locale>
 #include <regex>
 #include <string>
 
@@ -192,20 +194,12 @@ std::wstring StrUtil::ToLower(const std::wstring& p_WStr)
 
 std::string StrUtil::ToString(const std::wstring& p_WStr)
 {
-  size_t len = std::wcstombs(nullptr, p_WStr.c_str(), 0);
-  std::vector<char> cstr(len + 1);
-  std::wcstombs(&cstr[0], p_WStr.c_str(), len);
-  std::string str(&cstr[0], len);
-  return str;
+  return std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t>{}.to_bytes(p_WStr);
 }
 
 std::wstring StrUtil::ToWString(const std::string& p_Str)
 {
-  size_t len = mbstowcs(nullptr, p_Str.c_str(), 0);
-  std::vector<wchar_t> wcstr(len + 1);
-  std::mbstowcs(&wcstr[0], p_Str.c_str(), len);
-  std::wstring wstr(&wcstr[0], len);
-  return wstr;
+  return std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t>{}.from_bytes(p_Str);
 }
 
 std::wstring StrUtil::TrimPadWString(const std::wstring& p_Str, int p_Len)
