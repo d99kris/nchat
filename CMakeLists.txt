@@ -140,13 +140,25 @@ if(HAS_MULTIPROTOCOL)
   target_compile_definitions(nchat PRIVATE HAS_MULTIPROTOCOL="${HAS_MULTIPROTOCOL}")
 endif()
 
+# Manual install dir
+if(NOT CMAKE_INSTALL_MANDIR)
+  if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    set(CMAKE_INSTALL_MANDIR "${CMAKE_INSTALL_PREFIX}/share/man")
+  else()
+    set(CMAKE_INSTALL_MANDIR "${CMAKE_INSTALL_PREFIX}/man")
+  endif()
+  message(STATUS "Using fallback man dir: ${CMAKE_INSTALL_MANDIR}")
+else()
+  message(STATUS "Using default man dir: ${CMAKE_INSTALL_MANDIR}")
+endif()
+
 # Manual
-install(FILES src/nchat.1 DESTINATION share/man/man1)
+install(FILES src/nchat.1 DESTINATION "${CMAKE_INSTALL_MANDIR}/man1")
 
 # Uninstall
 add_custom_target(uninstall
   COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/bin/nchat"
-  COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/share/man/man1/nchat.1"
+  COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_MANDIR}/man1/nchat.1"
   COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/lib/libncutil${CMAKE_SHARED_LIBRARY_SUFFIX}"
   COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/lib/libtdclientshared${CMAKE_SHARED_LIBRARY_SUFFIX}"
   COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/lib/libtgchat${CMAKE_SHARED_LIBRARY_SUFFIX}"
