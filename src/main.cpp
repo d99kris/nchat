@@ -315,7 +315,7 @@ bool SetupProfile()
 void ShowHelp()
 {
   std::cout <<
-    "nchat is a minimalistic console-based chat client with support for\n"
+    "nchat is a minimalistic terminal-based chat client with support for\n"
     "telegram.\n"
     "\n"
     "Usage: nchat [OPTION]\n"
