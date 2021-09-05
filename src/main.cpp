@@ -59,6 +59,7 @@ int main(int argc, char* argv[])
   Log::SetVerboseLevel(Log::INFO_LEVEL);
 
   // Argument handling
+  std::string exportDir;
   bool isSetup = false;
   std::vector<std::string> args(argv + 1, argv + argc);
   for (auto it = args.begin(); it != args.end(); ++it)
@@ -81,6 +82,10 @@ int main(int argc, char* argv[])
       ShowHelp();
       return 0;
     }
+    else if (*it == "-m")
+    {
+      AppUtil::SetDeveloperMode(true);
+    }
     else if ((*it == "-s") || (*it == "--setup"))
     {
       isSetup = true;
@@ -90,9 +95,10 @@ int main(int argc, char* argv[])
       ShowVersion();
       return 0;
     }
-    else if (*it == "-x")
+    else if (((*it == "-x") || (*it == "--export")) && (std::distance(it + 1, args.end()) > 0))
     {
-      AppUtil::SetDeveloperMode(true);
+      ++it;
+      exportDir = *it;
     }
     else
     {
@@ -229,7 +235,7 @@ int main(int argc, char* argv[])
   // Start protocol(s) and ui
   std::unordered_map<std::string, std::shared_ptr<Protocol>>& protocols = ui->GetProtocols();
   bool hasProtocols = !protocols.empty();
-  if (hasProtocols)
+  if (hasProtocols && exportDir.empty())
   {
     // Login
     for (auto& protocol : protocols)
@@ -249,9 +255,17 @@ int main(int argc, char* argv[])
     }
   }
 
+  // Cleanup ui
+  ui.reset();
+
+  // Perform export if requested
+  if (!exportDir.empty())
+  {
+    MessageCache::Export(exportDir);
+  }
+
   // Cleanup
   MessageCache::Cleanup();
-  ui.reset();
   AppConfig::Cleanup();
   Profiles::Cleanup();
 
@@ -327,6 +341,7 @@ void ShowHelp()
     "    -h, --help             display this help and exit\n"
     "    -s, --setup            set up chat protocol account\n"
     "    -v, --version          output version information and exit\n"
+    "    -x, --export <DIR>     export message cache to specified dir\n"
     "\n"
     "Interactive Commands:\n"
     "    PageDn      history next page\n"

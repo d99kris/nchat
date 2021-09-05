@@ -31,6 +31,7 @@ private:
   {
     UnknownRequestType = 0,
     AddRequestType,
+    AddContactsRequestType,
     FetchRequestType,
     DeleteRequestType,
     UpdateIsReadRequestType,
@@ -52,6 +53,14 @@ private:
     std::string chatId;
     std::string fromMsgId;
     std::vector<ChatMessage> chatMessages;
+  };
+
+  class AddContactsRequest : public Request
+  {
+  public:
+    virtual RequestType GetRequestType() const { return AddContactsRequestType; }
+    std::string profileId;
+    std::vector<ContactInfo> contactInfos;
   };
 
   class FetchRequest : public Request
@@ -99,15 +108,22 @@ public:
 
   static void AddProfile(const std::string& p_ProfileId);
   static void Add(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_FromMsgId, const std::vector<ChatMessage>& p_ChatMessages);
+  static void AddContacts(const std::string& p_ProfileId, const std::vector<ContactInfo>& p_ContactInfos);
   static bool Fetch(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_FromMsgId, const int p_Limit, const bool p_Sync);
   static void Delete(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId);
   static void UpdateIsRead(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId, bool p_IsRead);
   static void UpdateFilePath(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId, const std::string& p_FilePath);
 
+  static void Export(const std::string& p_ExportDir);
+
 private:
   static void Process();
   static void EnqueueRequest(std::shared_ptr<Request> p_Request);
   static void PerformRequest(std::shared_ptr<Request> p_Request);
+  static void PerformFetch(const std::string& p_ProfileId, const std::string& p_ChatId,
+                           const int64_t p_FromMsgIdTimeSent, const int p_Limit,
+                           std::vector<ChatMessage>& p_ChatMessages);
+
   static void CallMessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage);
 
 private:

@@ -1002,6 +1002,8 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
 
         m_ContactInfosUpdateTime = TimeUtil::GetCurrentTimeMSec();
 
+        MessageCache::AddContacts(profileId, newContactsNotify->contactInfos);
+
         UpdateList();
         UpdateStatus();
         UpdateHistory();

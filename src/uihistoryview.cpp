@@ -10,6 +10,7 @@
 #include "apputil.h"
 #include "fileutil.h"
 #include "strutil.h"
+#include "timeutil.h"
 #include "uicolorconfig.h"
 #include "uimodel.h"
 
@@ -168,9 +169,8 @@ void UiHistoryView::Draw()
     }
     
     std::wstring wsender = StrUtil::ToWString(name);
-    std::wstring wtime = StrUtil::ToWString(GetTimeString(msg.timeSent));
-    std::string receipt = msg.isRead ? "\xe2\x9c\x93" : "";
-    std::wstring wreceipt = StrUtil::ToWString(receipt);
+    std::wstring wtime = StrUtil::ToWString(TimeUtil::GetTimeString(msg.timeSent, true /* p_ShortToday */));
+    std::wstring wreceipt = StrUtil::ToWString(msg.isRead ? "\xe2\x9c\x93" : "");
     std::wstring wheader = wsender + L" (" + wtime + L") " + wreceipt;
 
     static const bool developerMode = AppUtil::GetDeveloperMode();
@@ -201,29 +201,4 @@ void UiHistoryView::Draw()
 int UiHistoryView::GetHistoryShowCount()
 {
   return m_HistoryShowCount;
-}
-
-std::string UiHistoryView::GetTimeString(int64_t p_TimeSent)
-{
-  time_t rawtime = (time_t)(p_TimeSent / 1000);
-  struct tm* timeinfo;
-  timeinfo = localtime(&rawtime);
-
-  char senttimestr[64];
-  strftime(senttimestr, sizeof(senttimestr), "%H:%M", timeinfo);
-  std::string senttime(senttimestr);
-
-  char sentdatestr[64];
-  strftime(sentdatestr, sizeof(sentdatestr), "%Y-%m-%d", timeinfo);
-  std::string sentdate(sentdatestr);
-
-  time_t nowtime = time(NULL);
-  struct tm* nowtimeinfo = localtime(&nowtime);
-  char nowdatestr[64];
-  strftime(nowdatestr, sizeof(nowdatestr), "%Y-%m-%d", nowtimeinfo);
-  std::string nowdate(nowdatestr);
-
-  std::string timestr = (sentdate == nowdate) ? senttime : sentdate + std::string(" ") + senttime;
-
-  return timestr;
 }

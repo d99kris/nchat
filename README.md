@@ -39,6 +39,7 @@ Command-line Options:
     -h, --help             display this help and exit
     -s, --setup            set up chat protocol account
     -v, --version          output version information and exit
+    -x, --export <DIR>     export message cache to specified dir
 
 Interactive Commands:
 
