@@ -39,6 +39,12 @@ UiModel::~UiModel()
 
 void UiModel::KeyHandler(wint_t p_Key)
 {
+  if (m_HomeFetchAll)
+  {
+    LOG_TRACE("home fetch stopped");
+    m_HomeFetchAll = false;
+  }
+
   static wint_t keyPrevPage = UiKeyConfig::GetKey("prev_page");
   static wint_t keyNextPage = UiKeyConfig::GetKey("next_page");
   static wint_t keyEnd = UiKeyConfig::GetKey("end");
@@ -594,6 +600,14 @@ void UiModel::NextPage()
 void UiModel::Home()
 {
   std::unique_lock<std::mutex> lock(m_ModelMutex);
+
+  static const bool homeFetchAll = UiConfig::GetBool("home_fetch_all");
+  if (homeFetchAll)
+  {
+    m_HomeFetchAll = true;
+    LOG_TRACE("home fetch start");
+  }
+
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
   
@@ -628,6 +642,48 @@ void UiModel::Home()
   }
 
   SetSelectMessage(false);
+}
+
+void UiModel::HomeFetchNext(const std::string& p_ProfileId, const std::string& p_ChatId, int p_MsgCount)
+{
+  if (m_HomeFetchAll)
+  {
+    if ((p_ProfileId == m_CurrentChat.first) && (p_ChatId == m_CurrentChat.second))
+    {
+      if (p_MsgCount > 0)
+      {
+        int messageCount = m_Messages[p_ProfileId][p_ChatId].size();
+        int& messageOffset = m_MessageOffset[p_ProfileId][p_ChatId];
+        std::stack<int>& messageOffsetStack = m_MessageOffsetStack[p_ProfileId][p_ChatId];
+
+        if ((p_MsgCount == 1) && ((messageCount % 8) != 0))
+        {
+          LOG_TRACE("home fetch skip");
+          return;
+        }
+
+        int addOffset = std::max(messageCount - messageOffset - 1, 0);
+        if (addOffset > 0)
+        {
+          for (int i = 0; i < addOffset; ++i)
+          {
+            messageOffsetStack.push(1);
+          }
+
+          messageOffset += addOffset;
+        }
+
+        LOG_TRACE("home fetch offset + %d = %d", addOffset, messageOffset);
+        RequestMessages();
+        UpdateHistory();
+      }
+      else
+      {
+        LOG_TRACE("home fetch complete");
+        m_HomeFetchAll = false;
+      }
+    }
+  }
 }
 
 void UiModel::End()
@@ -1057,6 +1113,7 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
           UpdateChatInfoIsUnread(profileId, chatId);
           SortChats();
           UpdateList();
+          HomeFetchNext(profileId, chatId, (int)chatMessages.size());
         }
       }
       break;
@@ -1415,10 +1472,12 @@ void UiModel::RequestMessages()
   bool fromIsOutgoing = messageVec.empty() ? false : m_Messages[profileId][chatId][fromId].isOutgoing;
 
   int messageOffset = m_MessageOffset[profileId][chatId];
-  const int maxHistory = ((GetHistoryLines() * 2) / 3) + 1;
-  const int limit = std::max(0, (messageOffset + maxHistory - (int)messageVec.size()));
+  const int maxHistory = m_HomeFetchAll ? 8 : (((GetHistoryLines() * 2) / 3) + 1);
+  const int limit = std::max(0, (messageOffset + 1 + maxHistory - (int)messageVec.size()));
   if (limit == 0)
   {
+    LOG_TRACE("no message to request %d + %d - %d = %d",
+              messageOffset, maxHistory, (int)messageVec.size(), limit);
     return;
   }
 

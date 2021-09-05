@@ -37,6 +37,7 @@ public:
   void PrevPage();
   void NextPage();
   void Home();
+  void HomeFetchNext(const std::string& p_ProfileId, const std::string& p_ChatId, int p_MsgCount);
   void End();
   void MarkRead(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId);
   void DeleteMessage();
@@ -139,6 +140,7 @@ private:
   bool m_ListDialogActive = false;
   bool m_MessageDialogActive = false;
   bool m_TriggerTerminalBell = false;
+  bool m_HomeFetchAll = false;
 
   int m_HelpOffset = 0;
 };

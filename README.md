@@ -259,6 +259,7 @@ This configuration file holds general user interface settings. Default content:
     confirm_deletion=1
     emoji_enabled=1
     help_enabled=1
+    home_fetch_all=0
     list_enabled=1
     top_enabled=1
 
