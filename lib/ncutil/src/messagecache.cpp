@@ -328,8 +328,21 @@ void MessageCache::Export(const std::string& p_ExportDir)
 
         if (!chatMessage->filePath.empty())
         {
-          std::string attachmentPath = (chatMessage->filePath == " ") ? "[Downloading]" : FileUtil::BaseName(chatMessage->filePath);
-          outFile << attachmentPath << "\n";
+          std::string fileName;
+          if (chatMessage->filePath == " ")
+          {
+            fileName = "[Downloading]";
+          }
+          else if (chatMessage->filePath == "  ")
+          {
+            fileName = "[Download Failed]";
+          }
+          else
+          {
+            fileName = FileUtil::BaseName(chatMessage->filePath);
+          }
+
+          outFile << fileName << "\n";
         }
 
         if (!chatMessage->text.empty())

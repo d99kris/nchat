@@ -154,21 +154,21 @@ func (handler *eventHandler) HandleImageMessage(message whatsapp.ImageMessage) {
 		data, err := message.Download()
 		if err != nil {
 			LOG_WARNING(fmt.Sprintf("download error %+v", err))
-			return
+			filePath = "  "
+		} else {
+			file, err := os.Create(filePath)
+			defer file.Close()
+			if err != nil {
+				LOG_WARNING(fmt.Sprintf("create error %+v", err))
+				filePath = "  "
+			} else {
+				_, err = file.Write(data)
+				if err != nil {
+					LOG_WARNING(fmt.Sprintf("write error %+v", err))
+					filePath = "  "
+				}
+			}
 		}
-
-		file, err := os.Create(filePath)
-		defer file.Close()
-		if err != nil {
-			LOG_WARNING(fmt.Sprintf("create error %+v", err))
-			return
-		}
-		_, err = file.Write(data)
-		if err != nil {
-			LOG_WARNING(fmt.Sprintf("write error %+v", err))
-			return
-		}
-
 	} else {
 		LOG_TRACE(fmt.Sprintf("ImageMessage cached %v", filePath))
 	}
@@ -215,25 +215,24 @@ func (handler *eventHandler) HandleDocumentMessage(message whatsapp.DocumentMess
 
 	if _, statErr := os.Stat(filePath); os.IsNotExist(statErr) {
 		LOG_TRACE(fmt.Sprintf("DocumentMessage new %v", filePath))
-
 		data, err := message.Download()
 		if err != nil {
 			LOG_WARNING(fmt.Sprintf("download error %+v", err))
-			return
+			filePath = "  "
+		} else {
+			file, err := os.Create(filePath)
+			defer file.Close()
+			if err != nil {
+				LOG_WARNING(fmt.Sprintf("create error %+v", err))
+				filePath = "  "
+			} else {
+				_, err = file.Write(data)
+				if err != nil {
+					LOG_WARNING(fmt.Sprintf("write error %+v", err))
+					filePath = "  "
+				}
+			}
 		}
-
-		file, err := os.Create(filePath)
-		defer file.Close()
-		if err != nil {
-			LOG_WARNING(fmt.Sprintf("create error %+v", err))
-			return
-		}
-		_, err = file.Write(data)
-		if err != nil {
-			LOG_WARNING(fmt.Sprintf("write error %+v", err))
-			return
-		}
-
 	} else {
 		LOG_TRACE(fmt.Sprintf("DocumentMessage cached %v", filePath))
 	}

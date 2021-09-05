@@ -136,7 +136,20 @@ void UiHistoryView::Draw()
 
     if (!msg.filePath.empty())
     {
-      std::string fileName = (msg.filePath == " ") ? "[Downloading]" : FileUtil::BaseName(msg.filePath);
+      std::string fileName;
+      if (msg.filePath == " ")
+      {
+        fileName = "[Downloading]";
+      }
+      else if (msg.filePath == "  ")
+      {
+        fileName = "[Download Failed]";
+      }
+      else
+      {
+        fileName = FileUtil::BaseName(msg.filePath);
+      }
+
       std::wstring fileStr = StrUtil::ToWString("\xF0\x9F\x93\x8E " + fileName);
       wlines.insert(wlines.begin(), fileStr);
     }
