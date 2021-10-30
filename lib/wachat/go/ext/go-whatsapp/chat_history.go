@@ -39,7 +39,7 @@ func decodeMessages(n *binary.Node) []*proto.WebMessageInfo {
 // message before the messageId
 func (wac *Conn) LoadChatMessages(jid string, count int, messageId string, owner bool, after bool, handlers ...Handler) (int, error) {
 	if count <= 0 {
-		return 0, nil
+		return -1, nil
 	}
 
 	if handlers == nil {
@@ -56,7 +56,7 @@ func (wac *Conn) LoadChatMessages(jid string, count int, messageId string, owner
 
 	if err != nil {
 		wac.handleWithCustomHandlers(err, handlers)
-		return 0, err
+		return -1, err
 	}
 
 	decodedMessages := decodeMessages(node)
