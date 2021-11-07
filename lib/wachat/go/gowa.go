@@ -32,6 +32,8 @@ type intString struct {
 	s string
 }
 
+var goWhatsappDate = "20211107"
+
 var (
 	mx         sync.Mutex
 	conns      map[int]*whatsapp.Conn = make(map[int]*whatsapp.Conn)
@@ -489,7 +491,7 @@ func Init(path string) int {
 
 func Login(connId int) int {
 
-	LOG_DEBUG("login " + strconv.Itoa(connId))
+	LOG_DEBUG("login " + strconv.Itoa(connId) + " go-whatsapp " + goWhatsappDate)
 
 	// sanity check arg
 	if connId == -1 {
