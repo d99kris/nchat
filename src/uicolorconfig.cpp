@@ -10,7 +10,7 @@
 #include <map>
 #include <string>
 
-#include <ncursesw/ncurses.h>
+#include <ncurses.h>
 
 #include "fileutil.h"
 #include "log.h"

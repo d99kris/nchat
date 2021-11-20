@@ -9,7 +9,7 @@
 
 #include <string>
 
-#include <ncursesw/ncurses.h>
+#include <ncurses.h>
 
 class UiModel;
 class UiView;

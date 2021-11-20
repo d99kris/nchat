@@ -7,7 +7,7 @@
 
 #include "uiscreen.h"
 
-#include <ncursesw/ncurses.h>
+#include <ncurses.h>
 
 UiScreen::UiScreen()
 {

@@ -9,7 +9,7 @@
 
 #include <algorithm>
 
-#include <ncursesw/ncurses.h>
+#include <ncurses.h>
 
 #include "appconfig.h"
 #include "fileutil.h"

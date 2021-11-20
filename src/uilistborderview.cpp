@@ -7,7 +7,7 @@
 
 #include "uilistborderview.h"
 
-#include <ncursesw/ncurses.h>
+#include <ncurses.h>
 
 #include "uicolorconfig.h"
 

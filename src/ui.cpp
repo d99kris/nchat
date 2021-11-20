@@ -10,7 +10,7 @@
 #include <locale.h>
 #include <unistd.h>
 
-#include <ncursesw/ncurses.h>
+#include <ncurses.h>
 
 #include "emojilist.h"
 #include "uicolorconfig.h"

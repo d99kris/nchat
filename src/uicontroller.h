@@ -7,7 +7,7 @@
 
 #pragma once
 
-#include <ncursesw/ncurses.h>
+#include <ncurses.h>
 
 class UiController
 {
