@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,13 +11,13 @@
 
 #include "td/utils/as.h"
 #include "td/utils/misc.h"
-#include "td/utils/Slice.h"
+#include "td/utils/SliceBuilder.h"
 
 namespace td {
 
 int VERBOSITY_NAME(net_query) = VERBOSITY_NAME(INFO);
 
-int32 NetQuery::get_my_id() {
+int64 NetQuery::get_my_id() {
   return G()->get_my_id();
 }
 
@@ -44,8 +44,7 @@ int32 NetQuery::tl_magic(const BufferSlice &buffer_slice) {
 }
 
 void NetQuery::set_error(Status status, string source) {
-  if (status.code() == Error::Resend || status.code() == Error::Cancelled ||
-      status.code() == Error::ResendInvokeAfter) {
+  if (status.code() == Error::Resend || status.code() == Error::Canceled || status.code() == Error::ResendInvokeAfter) {
     return set_error_impl(Status::Error(200, PSLICE() << status), std::move(source));
   }
 

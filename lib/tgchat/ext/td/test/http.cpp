@@ -1,10 +1,14 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "data.h"
+
+#if TD_DARWIN_WATCH_OS
+#include "td/net/DarwinHttp.h"
+#endif
 
 #include "td/net/HttpChunkedByteFlow.h"
 #include "td/net/HttpHeaderCreator.h"
@@ -12,6 +16,7 @@
 #include "td/net/HttpReader.h"
 
 #include "td/utils/AesCtrByteFlow.h"
+#include "td/utils/algorithm.h"
 #include "td/utils/base64.h"
 #include "td/utils/buffer.h"
 #include "td/utils/BufferedFd.h"
@@ -30,6 +35,7 @@
 #include "td/utils/port/thread_local.h"
 #include "td/utils/Random.h"
 #include "td/utils/Slice.h"
+#include "td/utils/SliceBuilder.h"
 #include "td/utils/Status.h"
 #include "td/utils/tests.h"
 #include "td/utils/UInt.h"
@@ -37,11 +43,12 @@
 #include <algorithm>
 #include <limits>
 
-REGISTER_TESTS(http)
+#include <condition_variable>
+#include <mutex>
 
 using namespace td;
 
-static string make_chunked(string str) {
+static string make_chunked(const string &str) {
   auto v = rand_split(str);
   string res;
   for (auto &s : v) {
@@ -67,11 +74,14 @@ static string gen_http_content() {
   return rand_string(std::numeric_limits<char>::min(), std::numeric_limits<char>::max(), len);
 }
 
-static string make_http_query(string content, bool is_chunked, bool is_gzip, double gzip_k = 5,
-                              string zip_override = "") {
+static string make_http_query(string content, bool is_json, bool is_chunked, bool is_gzip, double gzip_k = 5,
+                              string zip_override = string()) {
   HttpHeaderCreator hc;
   hc.init_post("/");
   hc.add_header("jfkdlsahhjk", rand_string('a', 'z', Random::fast(1, 2000)));
+  if (is_json) {
+    hc.add_header("content-type", "application/json");
+  }
   if (is_gzip) {
     BufferSlice zip;
     if (zip_override.empty()) {
@@ -101,7 +111,7 @@ static string make_http_query(string content, bool is_chunked, bool is_gzip, dou
 static string rand_http_query(string content) {
   bool is_chunked = Random::fast_bool();
   bool is_gzip = Random::fast_bool();
-  return make_http_query(std::move(content), is_chunked, is_gzip);
+  return make_http_query(std::move(content), false, is_chunked, is_gzip);
 }
 
 static string join(const std::vector<string> &v) {
@@ -130,7 +140,6 @@ TEST(Http, reader) {
   return;
 #endif
   clear_thread_locals();
-  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(ERROR));
   auto start_mem = BufferAllocator::get_buffer_mem();
   auto start_size = BufferAllocator::get_buffer_slice_size();
   {
@@ -215,7 +224,7 @@ TEST(Http, gzip_bomb) {
   auto gzip_bomb_str =
       gzdecode(gzdecode(base64url_decode(Slice(gzip_bomb, gzip_bomb_size)).ok()).as_slice()).as_slice().str();
 
-  auto query = make_http_query("", false, true, 0.01, gzip_bomb_str);
+  auto query = make_http_query("", false, false, true, 0.01, gzip_bomb_str);
   auto parts = rand_split(query);
   td::ChainBufferWriter input_writer;
   auto input = input_writer.extract_reader();
@@ -232,6 +241,25 @@ TEST(Http, gzip_bomb) {
     }
     ASSERT_TRUE(r_state.ok() != 0);
   }
+}
+
+TEST(Http, gzip) {
+  auto gzip_str = gzdecode(base64url_decode(Slice(gzip, gzip_size)).ok()).as_slice().str();
+
+  td::ChainBufferWriter input_writer;
+  auto input = input_writer.extract_reader();
+
+  HttpReader reader;
+  reader.init(&input, 0, 0);
+
+  auto query = make_http_query("", true, false, true, 0.01, gzip_str);
+  input_writer.append(query);
+  input.sync_with_writer();
+
+  HttpQuery q;
+  auto r_state = reader.read_next(&q);
+  ASSERT_TRUE(r_state.is_error());
+  ASSERT_EQ(413, r_state.error().code());
 }
 
 TEST(Http, aes_ctr_encode_decode_flow) {
@@ -417,7 +445,7 @@ TEST(Http, gzip_bomb_with_limit) {
     gzip_bomb_str = sink.result()->move_as_buffer_slice().as_slice().str();
   }
 
-  auto query = make_http_query("", false, true, 0.01, gzip_bomb_str);
+  auto query = make_http_query("", false, false, true, 0.01, gzip_bomb_str);
   auto parts = rand_split(query);
   td::ChainBufferWriter input_writer;
   auto input = input_writer.extract_reader();
@@ -438,3 +466,39 @@ TEST(Http, gzip_bomb_with_limit) {
   }
   ASSERT_TRUE(ok);
 }
+
+#if TD_DARWIN_WATCH_OS
+struct Baton {
+  std::mutex mutex;
+  std::condition_variable cond;
+  bool is_ready{false};
+
+  void wait() {
+    std::unique_lock<std::mutex> lock(mutex);
+    cond.wait(lock, [&] { return is_ready; });
+  }
+
+  void post() {
+    {
+      std::unique_lock<std::mutex> lock(mutex);
+      is_ready = true;
+    }
+    cond.notify_all();
+  }
+
+  void reset() {
+    is_ready = false;
+  }
+};
+
+TEST(Http, Darwin) {
+  Baton baton;
+  //LOG(ERROR) << "???";
+  td::DarwinHttp::get("http://example.com", [&](td::BufferSlice data) {
+    //LOG(ERROR) << data.as_slice();
+    baton.post();
+  });
+  //LOG(ERROR) << "!!!";
+  baton.wait();
+}
+#endif

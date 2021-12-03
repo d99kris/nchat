@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -14,6 +14,7 @@
 #include "td/utils/port/Stat.h"
 #include "td/utils/Random.h"
 #include "td/utils/ScopeGuard.h"
+#include "td/utils/SliceBuilder.h"
 #include "td/utils/StringBuilder.h"
 #include "td/utils/Time.h"
 
@@ -57,21 +58,22 @@ StringBuilder &operator<<(StringBuilder &sb, const TestInfo &info) {
   return sb << info.name << " " << info.result_hash << "\n";
 }
 
-class RegressionTesterImpl : public RegressionTester {
+class RegressionTesterImpl final : public RegressionTester {
  public:
   static void destroy(CSlice db_path) {
     unlink(db_path).ignore();
   }
 
-  RegressionTesterImpl(string db_path, string db_cache_dir) : db_path_(db_path), db_cache_dir_(db_cache_dir) {
-    load_db(db_path).ignore();
+  RegressionTesterImpl(string db_path, string db_cache_dir)
+      : db_path_(std::move(db_path)), db_cache_dir_(std::move(db_cache_dir)) {
+    load_db(db_path_).ignore();
     if (db_cache_dir_.empty()) {
-      db_cache_dir_ = PathView(db_path).without_extension().str() + ".cache/";
+      db_cache_dir_ = PathView(db_path_).without_extension().str() + ".cache/";
     }
     mkdir(db_cache_dir_).ensure();
   }
 
-  Status verify_test(Slice name, Slice result) override {
+  Status verify_test(Slice name, Slice result) final {
 #if TD_HAVE_OPENSSL
     auto hash = PSTRING() << format::as_hex_dump<0>(Slice(sha256(result)));
 #else
@@ -98,7 +100,7 @@ class RegressionTesterImpl : public RegressionTester {
     return Status::OK();
   }
 
-  void save_db() override {
+  void save_db() final {
     if (!is_dirty_) {
       return;
     }
@@ -119,7 +121,7 @@ class RegressionTesterImpl : public RegressionTester {
 
   void save_db(StringBuilder &sb) {
     sb << magic() << "\n";
-    for (auto it : tests_) {
+    for (const auto &it : tests_) {
       sb << it.second;
     }
   }
@@ -170,7 +172,7 @@ void TestsRunner::add_test(string name, std::function<unique_ptr<Test>()> test) 
       LOG(FATAL) << "Test name collision " << name;
     }
   }
-  tests_.emplace_back(name, TestInfo{std::move(test), nullptr});
+  tests_.emplace_back(std::move(name), TestInfo{std::move(test), nullptr});
 }
 
 void TestsRunner::add_substr_filter(string str) {

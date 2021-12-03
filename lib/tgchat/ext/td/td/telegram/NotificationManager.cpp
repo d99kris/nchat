@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -18,6 +18,7 @@
 #include "td/telegram/files/FileManager.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/logevent/LogEvent.h"
+#include "td/telegram/MessageSender.h"
 #include "td/telegram/MessagesManager.h"
 #include "td/telegram/misc.h"
 #include "td/telegram/net/ConnectionCreator.h"
@@ -29,6 +30,7 @@
 #include "td/telegram/StateManager.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/TdDb.h"
+#include "td/telegram/TdParameters.h"
 #include "td/telegram/telegram_api.h"
 
 #include "td/mtproto/AuthKey.h"
@@ -41,6 +43,7 @@
 
 #include "td/actor/SleepActor.h"
 
+#include "td/utils/algorithm.h"
 #include "td/utils/as.h"
 #include "td/utils/base64.h"
 #include "td/utils/buffer.h"
@@ -50,6 +53,7 @@
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/Slice.h"
+#include "td/utils/SliceBuilder.h"
 #include "td/utils/Time.h"
 #include "td/utils/tl_helpers.h"
 #include "td/utils/tl_parsers.h"
@@ -65,7 +69,7 @@ namespace td {
 
 int VERBOSITY_NAME(notifications) = VERBOSITY_NAME(INFO);
 
-class SetContactSignUpNotificationQuery : public Td::ResultHandler {
+class SetContactSignUpNotificationQuery final : public Td::ResultHandler {
   Promise<Unit> promise_;
 
  public:
@@ -76,16 +80,16 @@ class SetContactSignUpNotificationQuery : public Td::ResultHandler {
     send_query(G()->net_query_creator().create(telegram_api::account_setContactSignUpNotification(is_disabled)));
   }
 
-  void on_result(uint64 id, BufferSlice packet) override {
+  void on_result(BufferSlice packet) final {
     auto result_ptr = fetch_result<telegram_api::account_setContactSignUpNotification>(packet);
     if (result_ptr.is_error()) {
-      return on_error(id, result_ptr.move_as_error());
+      return on_error(result_ptr.move_as_error());
     }
 
     promise_.set_value(Unit());
   }
 
-  void on_error(uint64 id, Status status) override {
+  void on_error(Status status) final {
     if (!G()->is_expected_error(status)) {
       LOG(ERROR) << "Receive error for set contact sign up notification: " << status;
     }
@@ -93,7 +97,7 @@ class SetContactSignUpNotificationQuery : public Td::ResultHandler {
   }
 };
 
-class GetContactSignUpNotificationQuery : public Td::ResultHandler {
+class GetContactSignUpNotificationQuery final : public Td::ResultHandler {
   Promise<Unit> promise_;
 
  public:
@@ -104,17 +108,17 @@ class GetContactSignUpNotificationQuery : public Td::ResultHandler {
     send_query(G()->net_query_creator().create(telegram_api::account_getContactSignUpNotification()));
   }
 
-  void on_result(uint64 id, BufferSlice packet) override {
+  void on_result(BufferSlice packet) final {
     auto result_ptr = fetch_result<telegram_api::account_getContactSignUpNotification>(packet);
     if (result_ptr.is_error()) {
-      return on_error(id, result_ptr.move_as_error());
+      return on_error(result_ptr.move_as_error());
     }
 
-    td->notification_manager_->on_get_disable_contact_registered_notifications(result_ptr.ok());
+    td_->notification_manager_->on_get_disable_contact_registered_notifications(result_ptr.ok());
     promise_.set_value(Unit());
   }
 
-  void on_error(uint64 id, Status status) override {
+  void on_error(Status status) final {
     if (!G()->is_expected_error(status)) {
       LOG(ERROR) << "Receive error for get contact sign up notification: " << status;
     }
@@ -234,7 +238,7 @@ void NotificationManager::init() {
   last_loaded_notification_group_key_.last_notification_date = std::numeric_limits<int32>::max();
   if (max_notification_group_count_ != 0) {
     int32 loaded_groups = 0;
-    int32 needed_groups = static_cast<int32>(max_notification_group_count_);
+    auto needed_groups = static_cast<int32>(max_notification_group_count_);
     do {
       loaded_groups += load_message_notification_groups_from_database(needed_groups, false);
     } while (loaded_groups < needed_groups && last_loaded_notification_group_key_.last_notification_date != 0);
@@ -248,7 +252,8 @@ void NotificationManager::init() {
     VLOG(notifications) << "Load call_notification_group_ids = " << call_notification_group_ids;
     for (auto &group_id : call_notification_group_ids) {
       if (group_id.get() > current_notification_group_id_.get()) {
-        LOG(ERROR) << "Fix current notification group id from " << current_notification_group_id_ << " to " << group_id;
+        LOG(ERROR) << "Fix current notification group identifier from " << current_notification_group_id_ << " to "
+                   << group_id;
         current_notification_group_id_ = group_id;
         G()->td_db()->get_binlog_pmc()->set("notification_group_id_current",
                                             to_string(current_notification_group_id_.get()));
@@ -285,11 +290,11 @@ void NotificationManager::init() {
     }
   }
 
-  class StateCallback : public StateManager::Callback {
+  class StateCallback final : public StateManager::Callback {
    public:
     explicit StateCallback(ActorId<NotificationManager> parent) : parent_(std::move(parent)) {
     }
-    bool on_online(bool is_online) override {
+    bool on_online(bool is_online) final {
       if (is_online) {
         send_closure(parent_, &NotificationManager::flush_all_pending_notifications);
       }
@@ -412,14 +417,15 @@ NotificationManager::NotificationGroups::iterator NotificationManager::get_group
       group_key.last_notification_date = notification.date;
     }
     if (notification.notification_id.get() > current_notification_id_.get()) {
-      LOG(ERROR) << "Fix current notification id from " << current_notification_id_ << " to "
+      LOG(ERROR) << "Fix current notification identifier from " << current_notification_id_ << " to "
                  << notification.notification_id;
       current_notification_id_ = notification.notification_id;
       G()->td_db()->get_binlog_pmc()->set("notification_id_current", to_string(current_notification_id_.get()));
     }
   }
   if (group_id.get() > current_notification_group_id_.get()) {
-    LOG(ERROR) << "Fix current notification group id from " << current_notification_group_id_ << " to " << group_id;
+    LOG(ERROR) << "Fix current notification group identifier from " << current_notification_group_id_ << " to "
+               << group_id;
     current_notification_group_id_ = group_id;
     G()->td_db()->get_binlog_pmc()->set("notification_group_id_current",
                                         to_string(current_notification_group_id_.get()));
@@ -638,7 +644,7 @@ void NotificationManager::add_notifications_to_group_begin(NotificationGroups::i
       final_group_key.last_notification_date = notification.date;
     }
   }
-  CHECK(final_group_key.last_notification_date != 0);
+  LOG_CHECK(final_group_key.last_notification_date != 0) << final_group_key << ' ' << *group_it << ' ' << notifications;
 
   bool is_position_changed = final_group_key.last_notification_date != group_key.last_notification_date;
 
@@ -734,7 +740,7 @@ NotificationId NotificationManager::get_next_notification_id() {
     return NotificationId();
   }
   if (current_notification_id_.get() == std::numeric_limits<int32>::max()) {
-    LOG(ERROR) << "Notification id overflowed";
+    LOG(ERROR) << "Notification identifier overflowed";
     return NotificationId();
   }
 
@@ -748,7 +754,7 @@ NotificationGroupId NotificationManager::get_next_notification_group_id() {
     return NotificationGroupId();
   }
   if (current_notification_group_id_.get() == std::numeric_limits<int32>::max()) {
-    LOG(ERROR) << "Notification group id overflowed";
+    LOG(ERROR) << "Notification group identifier overflowed";
     return NotificationGroupId();
   }
 
@@ -842,7 +848,8 @@ int32 NotificationManager::get_notification_delay_ms(DialogId dialog_id, const P
     return 0;
   }();
 
-  auto passed_time_ms = max(0, static_cast<int32>((G()->server_time_cached() - notification.date - 1) * 1000));
+  auto passed_time_ms =
+      static_cast<int32>(clamp(G()->server_time_cached() - notification.date - 1, 0.0, 1000000.0) * 1000);
   return max(max(min_delay_ms, delay_ms) - passed_time_ms, MIN_NOTIFICATION_DELAY_MS);
 }
 
@@ -989,6 +996,7 @@ void NotificationManager::add_update_notification(NotificationGroupId notificati
 }
 
 void NotificationManager::flush_pending_updates(int32 group_id, const char *source) {
+  // no check for G()->close_flag() to flush pending notifications even while closing
   auto it = pending_updates_.find(group_id);
   if (it == pending_updates_.end()) {
     return;
@@ -1054,7 +1062,7 @@ void NotificationManager::flush_pending_updates(int32 group_id, const char *sour
   // all edits of notifications from edited_notification_ids
   // deletions of a notification can be removed, only if the addition of the notification has already been deleted
   // deletions of all unkept notifications can be moved to the first updateNotificationGroup
-  // after that at every moment there is no more active notifications than in the last moment,
+  // after that at every moment there are no more active notifications than in the last moment,
   // so left deletions after add/edit can be safely removed and following additions can be treated as edits
   // we still need to keep deletions coming first, because we can't have 2 consequent additions
   // from all additions of the same notification, we need to preserve the first, because it can be with sound,
@@ -1253,10 +1261,7 @@ void NotificationManager::flush_pending_updates(int32 group_id, const char *sour
       auto update_ptr = static_cast<td_api::updateNotificationGroup *>(update.get());
       append(update_ptr->removed_notification_ids_, std::move(moved_deleted_notification_ids));
       auto old_size = update_ptr->removed_notification_ids_.size();
-      std::sort(update_ptr->removed_notification_ids_.begin(), update_ptr->removed_notification_ids_.end());
-      update_ptr->removed_notification_ids_.erase(
-          std::unique(update_ptr->removed_notification_ids_.begin(), update_ptr->removed_notification_ids_.end()),
-          update_ptr->removed_notification_ids_.end());
+      td::unique(update_ptr->removed_notification_ids_);
       CHECK(old_size == update_ptr->removed_notification_ids_.size());
     }
 
@@ -1357,7 +1362,7 @@ void NotificationManager::flush_all_pending_updates(bool include_delayed_chats, 
   // flush groups in reverse order to not exceed max_notification_group_count_
   VLOG(notifications) << "Flush pending updates in " << ready_group_keys.size() << " notification groups";
   std::sort(ready_group_keys.begin(), ready_group_keys.end());
-  for (auto group_key : reversed(ready_group_keys)) {
+  for (const auto &group_key : reversed(ready_group_keys)) {
     force_flush_pending_updates(group_key.group_id, "flush_all_pending_updates");
   }
   if (include_delayed_chats) {
@@ -1367,6 +1372,7 @@ void NotificationManager::flush_all_pending_updates(bool include_delayed_chats, 
 
 bool NotificationManager::do_flush_pending_notifications(NotificationGroupKey &group_key, NotificationGroup &group,
                                                          vector<PendingNotification> &pending_notifications) {
+  // no check for G()->close_flag() to flush pending notifications even while closing
   if (pending_notifications.empty()) {
     return false;
   }
@@ -1762,7 +1768,7 @@ void NotificationManager::on_notifications_removed(
 
 void NotificationManager::remove_added_notifications_from_pending_updates(
     NotificationGroupId group_id,
-    std::function<bool(const td_api::object_ptr<td_api::notification> &notification)> is_removed) {
+    const std::function<bool(const td_api::object_ptr<td_api::notification> &notification)> &is_removed) {
   auto it = pending_updates_.find(group_id.get());
   if (it == pending_updates_.end()) {
     return;
@@ -1857,7 +1863,9 @@ void NotificationManager::remove_notification(NotificationGroupId group_id, Noti
   bool is_total_count_changed = false;
   if ((!have_all_notifications && is_permanent) || (have_all_notifications && is_found)) {
     if (group_it->second.total_count == 0) {
-      LOG(ERROR) << "Total notification count became negative in " << group_id << " after removing " << notification_id;
+      LOG(ERROR) << "Total notification count became negative in " << group_it->second << " after removing "
+                 << notification_id << " with is_permanent = " << is_permanent << ", is_found = " << is_found
+                 << ", force_update = " << force_update << " from " << source;
     } else {
       group_it->second.total_count--;
       is_total_count_changed = true;
@@ -2801,6 +2809,9 @@ string NotificationManager::convert_loc_key(const string &loc_key) {
       if (loc_key == "MESSAGE_NOTEXT") {
         return "MESSAGE";
       }
+      if (loc_key == "MESSAGE_NOTHEME") {
+        return "MESSAGE_CHAT_CHANGE_THEME";
+      }
       if (loc_key == "PINNED_INVOICE") {
         return "PINNED_MESSAGE_INVOICE";
       }
@@ -2870,6 +2881,9 @@ string NotificationManager::convert_loc_key(const string &loc_key) {
       if (loc_key == "CHAT_PHOTO_EDITED") {
         return "MESSAGE_CHAT_CHANGE_PHOTO";
       }
+      if (loc_key == "MESSAGE_THEME") {
+        return "MESSAGE_CHAT_CHANGE_THEME";
+      }
       break;
     case 'U':
       if (loc_key == "PINNED_AUDIO") {
@@ -2899,6 +2913,9 @@ string NotificationManager::convert_loc_key(const string &loc_key) {
       }
       if (loc_key == "CHAT_ADD_YOU") {
         return "MESSAGE_CHAT_ADD_MEMBERS_YOU";
+      }
+      if (loc_key == "CHAT_REQ_JOINED") {
+        return "MESSAGE_CHAT_JOIN_BY_REQUEST";
       }
       break;
   }
@@ -3023,7 +3040,7 @@ Status NotificationManager::process_push_notification_payload(string payload, bo
 
   if (loc_key == "SESSION_REVOKE") {
     if (was_encrypted) {
-      send_closure(td_->auth_manager_actor_, &AuthManager::on_authorization_lost);
+      send_closure(td_->auth_manager_actor_, &AuthManager::on_authorization_lost, "SESSION_REVOKE");
     } else {
       LOG(ERROR) << "Receive unencrypted SESSION_REVOKE push notification";
     }
@@ -3047,7 +3064,7 @@ Status NotificationManager::process_push_notification_payload(string payload, bo
 
   DialogId dialog_id;
   if (has_json_object_field(custom, "from_id")) {
-    TRY_RESULT(user_id_int, get_json_object_int_field(custom, "from_id"));
+    TRY_RESULT(user_id_int, get_json_object_long_field(custom, "from_id"));
     UserId user_id(user_id_int);
     if (!user_id.is_valid()) {
       return Status::Error("Receive invalid user_id");
@@ -3055,7 +3072,7 @@ Status NotificationManager::process_push_notification_payload(string payload, bo
     dialog_id = DialogId(user_id);
   }
   if (has_json_object_field(custom, "chat_id")) {
-    TRY_RESULT(chat_id_int, get_json_object_int_field(custom, "chat_id"));
+    TRY_RESULT(chat_id_int, get_json_object_long_field(custom, "chat_id"));
     ChatId chat_id(chat_id_int);
     if (!chat_id.is_valid()) {
       return Status::Error("Receive invalid chat_id");
@@ -3063,7 +3080,7 @@ Status NotificationManager::process_push_notification_payload(string payload, bo
     dialog_id = DialogId(chat_id);
   }
   if (has_json_object_field(custom, "channel_id")) {
-    TRY_RESULT(channel_id_int, get_json_object_int_field(custom, "channel_id"));
+    TRY_RESULT(channel_id_int, get_json_object_long_field(custom, "channel_id"));
     ChannelId channel_id(channel_id_int);
     if (!channel_id.is_valid()) {
       return Status::Error("Receive invalid channel_id");
@@ -3137,25 +3154,27 @@ Status NotificationManager::process_push_notification_payload(string payload, bo
   UserId sender_user_id;
   DialogId sender_dialog_id;
   if (has_json_object_field(custom, "chat_from_broadcast_id")) {
-    TRY_RESULT(sender_channel_id_int, get_json_object_int_field(custom, "chat_from_broadcast_id"));
+    TRY_RESULT(sender_channel_id_int, get_json_object_long_field(custom, "chat_from_broadcast_id"));
     sender_dialog_id = DialogId(ChannelId(sender_channel_id_int));
     if (!sender_dialog_id.is_valid()) {
       return Status::Error("Receive invalid chat_from_broadcast_id");
     }
   } else if (has_json_object_field(custom, "chat_from_group_id")) {
-    TRY_RESULT(sender_channel_id_int, get_json_object_int_field(custom, "chat_from_group_id"));
+    TRY_RESULT(sender_channel_id_int, get_json_object_long_field(custom, "chat_from_group_id"));
     sender_dialog_id = DialogId(ChannelId(sender_channel_id_int));
     if (!sender_dialog_id.is_valid()) {
       return Status::Error("Receive invalid chat_from_group_id");
     }
   } else if (has_json_object_field(custom, "chat_from_id")) {
-    TRY_RESULT(sender_user_id_int, get_json_object_int_field(custom, "chat_from_id"));
+    TRY_RESULT(sender_user_id_int, get_json_object_long_field(custom, "chat_from_id"));
     sender_user_id = UserId(sender_user_id_int);
     if (!sender_user_id.is_valid()) {
       return Status::Error("Receive invalid chat_from_id");
     }
   } else if (dialog_id.get_type() == DialogType::User) {
     sender_user_id = dialog_id.get_user_id();
+  } else if (dialog_id.get_type() == DialogType::Channel) {
+    sender_dialog_id = dialog_id;
   }
 
   TRY_RESULT(contains_mention_int, get_json_object_int_field(custom, "mention"));
@@ -3259,21 +3278,18 @@ Status NotificationManager::process_push_notification_payload(string payload, bo
       }
     }
 
-    int32 flags = telegram_api::user::FIRST_NAME_MASK | telegram_api::user::MIN_MASK;
+    int32 flags = USER_FLAG_IS_INACCESSIBLE;
     if (sender_access_hash != -1) {
       // set phone number flag to show that this is a full access hash
-      flags |= telegram_api::user::ACCESS_HASH_MASK | telegram_api::user::PHONE_MASK;
-    }
-    if (sender_photo != nullptr) {
-      flags |= telegram_api::user::PHOTO_MASK;
+      flags |= USER_FLAG_HAS_ACCESS_HASH | USER_FLAG_HAS_PHONE_NUMBER;
     }
     auto user_name = sender_user_id.get() == 136817688 ? "Channel" : sender_name;
     auto user = telegram_api::make_object<telegram_api::user>(
         flags, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/,
         false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/,
-        false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, sender_user_id.get(),
-        sender_access_hash, user_name, string(), string(), string(), std::move(sender_photo), nullptr, 0, Auto(),
-        string(), string());
+        false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/,
+        sender_user_id.get(), sender_access_hash, user_name, string(), string(), string(), std::move(sender_photo),
+        nullptr, 0, Auto(), string(), string());
     td_->contacts_manager_->on_get_user(std::move(user), "process_push_notification_payload");
   }
 
@@ -3603,13 +3619,14 @@ void NotificationManager::add_message_push_notification(DialogId dialog_id, Mess
   }
 
   if (sender_user_id.is_valid() && !td_->contacts_manager_->have_user_force(sender_user_id)) {
-    int32 flags = telegram_api::user::FIRST_NAME_MASK | telegram_api::user::MIN_MASK;
+    int32 flags = USER_FLAG_IS_INACCESSIBLE;
     auto user_name = sender_user_id.get() == 136817688 ? "Channel" : sender_name;
     auto user = telegram_api::make_object<telegram_api::user>(
         flags, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/,
         false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/,
-        false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, sender_user_id.get(), 0, user_name,
-        string(), string(), string(), nullptr, nullptr, 0, Auto(), string(), string());
+        false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/,
+        sender_user_id.get(), 0, user_name, string(), string(), string(), nullptr, nullptr, 0, Auto(), string(),
+        string());
     td_->contacts_manager_->on_get_user(std::move(user), "add_message_push_notification");
   }
 
@@ -3819,14 +3836,14 @@ Result<int64> NotificationManager::get_push_receiver_id(string payload) {
         return Status::Error(400, "Expected user_id as a String or a Number");
       }
       Slice user_id_str = user_id.type() == JsonValue::Type::String ? user_id.get_string() : user_id.get_number();
-      auto r_user_id = to_integer_safe<int32>(user_id_str);
+      auto r_user_id = to_integer_safe<int64>(user_id_str);
       if (r_user_id.is_error()) {
         return Status::Error(400, PSLICE() << "Failed to get user_id from " << user_id_str);
       }
       if (r_user_id.ok() <= 0) {
         return Status::Error(400, PSLICE() << "Receive wrong user_id " << user_id_str);
       }
-      return static_cast<int64>(r_user_id.ok());
+      return r_user_id.ok();
     }
   }
 

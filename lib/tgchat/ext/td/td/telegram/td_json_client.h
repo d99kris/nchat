@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -94,8 +94,11 @@ TDJSON_EXPORT const char *td_json_client_execute(void *client, const char *reque
  */
 TDJSON_EXPORT void td_json_client_destroy(void *client);
 
-/*
- * New TDLib JSON interface.
+/**
+ * \file
+ * Alternatively, you can use new TDLib JSON interface, which will replace the current JSON interface in TDLib 2.0.0.
+ *
+ * Objects and functions serialization to JSON is the same for both JSON interfaces.
  *
  * The main TDLib interface is asynchronous. To match requests with a corresponding response, the field "@extra" can
  * be added to the request object. The corresponding response will have an "@extra" field with exactly the same value.
@@ -109,6 +112,7 @@ TDJSON_EXPORT void td_json_client_destroy(void *client);
  * Also note that all updates and responses to requests must be applied in the order they were received for consistency.
  * Some TDLib requests can be executed synchronously from any thread using td_execute.
  * TDLib client instances are destroyed automatically after they are closed.
+ * All TDLib client instances must be closed before application termination to ensure data consistency.
  *
  * General pattern of usage:
  * \code
@@ -155,6 +159,27 @@ TDJSON_EXPORT const char *td_receive(double timeout);
  * \return JSON-serialized null-terminated request response.
  */
 TDJSON_EXPORT const char *td_execute(const char *request);
+
+/**
+ * A type of callback function that will be called when a message is added to the internal TDLib log.
+ *
+ * \param verbosity_level Log verbosity level with which the message was added (-1 - 1024).
+ *                        If 0, then TDLib will crash as soon as the callback returns.
+ *                        None of the TDLib methods can be called from the callback.
+ * \param message Null-terminated string with the logged message.
+ */
+typedef void (*td_log_message_callback_ptr)(int verbosity_level, const char *message);
+
+/**
+ * Sets the callback that will be called when a message is added to the internal TDLib log.
+ * None of the TDLib methods can be called from the callback.
+ * By default the callback is not set.
+ *
+ * \param[in] max_verbosity_level The maximum verbosity level of messages for which the callback will be called.
+ * \param[in] callback Callback that will be called when a message is added to the internal TDLib log.
+ *                     Pass nullptr to remove the callback.
+ */
+TDJSON_EXPORT void td_set_log_message_callback(int max_verbosity_level, td_log_message_callback_ptr callback);
 
 #ifdef __cplusplus
 }  // extern "C"

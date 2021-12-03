@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -42,7 +42,7 @@ struct BinlogEvent;
 
 class Td;
 
-class NotificationManager : public Actor {
+class NotificationManager final : public Actor {
  public:
   static constexpr int32 MIN_NOTIFICATION_GROUP_COUNT_MAX = 0;
   static constexpr int32 MAX_NOTIFICATION_GROUP_COUNT_MAX = 25;
@@ -111,7 +111,7 @@ class NotificationManager : public Actor {
 
   void process_push_notification(string payload, Promise<Unit> &&user_promise);
 
-  static Result<int64> get_push_receiver_id(string push);
+  static Result<int64> get_push_receiver_id(string payload);
 
   static Result<string> decrypt_push(int64 encryption_key_id, string encryption_key, string push);  // public for tests
 
@@ -149,6 +149,10 @@ class NotificationManager : public Actor {
   static constexpr int32 MAX_UPDATE_DELAY_MS = 60000;
 
   static constexpr int32 ANNOUNCEMENT_ID_CACHE_TIME = 7 * 86400;
+
+  static constexpr int32 USER_FLAG_HAS_ACCESS_HASH = 1 << 0;
+  static constexpr int32 USER_FLAG_HAS_PHONE_NUMBER = 1 << 4;
+  static constexpr int32 USER_FLAG_IS_INACCESSIBLE = 1 << 20;
 
   class AddMessagePushNotificationLogEvent;
   class EditMessagePushNotificationLogEvent;
@@ -209,8 +213,8 @@ class NotificationManager : public Actor {
 
   bool is_disabled() const;
 
-  void start_up() override;
-  void tear_down() override;
+  void start_up() final;
+  void tear_down() final;
 
   void add_update(int32 group_id, td_api::object_ptr<td_api::Update> update);
 
@@ -290,7 +294,7 @@ class NotificationManager : public Actor {
 
   void remove_added_notifications_from_pending_updates(
       NotificationGroupId group_id,
-      std::function<bool(const td_api::object_ptr<td_api::notification> &notification)> is_removed);
+      const std::function<bool(const td_api::object_ptr<td_api::notification> &notification)> &is_removed);
 
   void flush_pending_updates(int32 group_id, const char *source);
 

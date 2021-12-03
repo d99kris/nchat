@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -9,20 +9,21 @@
 #include "td/telegram/Global.h"
 #include "td/telegram/misc.h"
 #include "td/telegram/net/NetQueryDispatcher.h"
-#include "td/telegram/TdDb.h"
-#include "td/telegram/UserId.h"
-
 #include "td/telegram/td_api.hpp"
+#include "td/telegram/TdDb.h"
 #include "td/telegram/telegram_api.h"
+#include "td/telegram/UserId.h"
 
 #include "td/mtproto/DhHandshake.h"
 
+#include "td/utils/algorithm.h"
 #include "td/utils/base64.h"
 #include "td/utils/buffer.h"
 #include "td/utils/format.h"
 #include "td/utils/JsonBuilder.h"
 #include "td/utils/logging.h"
 #include "td/utils/Random.h"
+#include "td/utils/SliceBuilder.h"
 #include "td/utils/Status.h"
 #include "td/utils/tl_helpers.h"
 
@@ -39,12 +40,13 @@ void DeviceTokenManager::TokenInfo::store(StorerT &storer) const {
   bool is_register = state == State::Register;
   CHECK(state != State::Reregister);
   BEGIN_STORE_FLAGS();
-  STORE_FLAG(has_other_user_ids);
+  STORE_FLAG(false);
   STORE_FLAG(is_sync);
   STORE_FLAG(is_unregister);
   STORE_FLAG(is_register);
   STORE_FLAG(is_app_sandbox);
   STORE_FLAG(encrypt);
+  STORE_FLAG(has_other_user_ids);
   END_STORE_FLAGS();
   store(token, storer);
   if (has_other_user_ids) {
@@ -59,17 +61,19 @@ void DeviceTokenManager::TokenInfo::store(StorerT &storer) const {
 template <class ParserT>
 void DeviceTokenManager::TokenInfo::parse(ParserT &parser) {
   using td::parse;
+  bool has_other_user_ids_legacy;
   bool has_other_user_ids;
   bool is_sync;
   bool is_unregister;
   bool is_register;
   BEGIN_PARSE_FLAGS();
-  PARSE_FLAG(has_other_user_ids);
+  PARSE_FLAG(has_other_user_ids_legacy);
   PARSE_FLAG(is_sync);
   PARSE_FLAG(is_unregister);
   PARSE_FLAG(is_register);
   PARSE_FLAG(is_app_sandbox);
   PARSE_FLAG(encrypt);
+  PARSE_FLAG(has_other_user_ids);
   END_PARSE_FLAGS();
   CHECK(is_sync + is_unregister + is_register == 1);
   if (is_sync) {
@@ -80,6 +84,11 @@ void DeviceTokenManager::TokenInfo::parse(ParserT &parser) {
     state = State::Register;
   }
   parse(token, parser);
+  if (has_other_user_ids_legacy) {
+    vector<int32> other_user_ids_legacy;
+    parse(other_user_ids_legacy, parser);
+    other_user_ids = transform(other_user_ids_legacy, [](int32 user_id) { return static_cast<int64>(user_id); });
+  }
   if (has_other_user_ids) {
     parse(other_user_ids, parser);
   }
@@ -120,7 +129,7 @@ StringBuilder &operator<<(StringBuilder &string_builder, const DeviceTokenManage
 }
 
 void DeviceTokenManager::register_device(tl_object_ptr<td_api::DeviceToken> device_token_ptr,
-                                         vector<int32> other_user_ids,
+                                         const vector<UserId> &other_user_ids,
                                          Promise<td_api::object_ptr<td_api::pushReceiverId>> promise) {
   CHECK(device_token_ptr != nullptr);
   TokenType token_type;
@@ -131,51 +140,51 @@ void DeviceTokenManager::register_device(tl_object_ptr<td_api::DeviceToken> devi
     case td_api::deviceTokenApplePush::ID: {
       auto device_token = static_cast<td_api::deviceTokenApplePush *>(device_token_ptr.get());
       token = std::move(device_token->device_token_);
-      token_type = TokenType::APNS;
+      token_type = TokenType::Apns;
       is_app_sandbox = device_token->is_app_sandbox_;
       break;
     }
     case td_api::deviceTokenFirebaseCloudMessaging::ID: {
       auto device_token = static_cast<td_api::deviceTokenFirebaseCloudMessaging *>(device_token_ptr.get());
       token = std::move(device_token->token_);
-      token_type = TokenType::FCM;
+      token_type = TokenType::Fcm;
       encrypt = device_token->encrypt_;
       break;
     }
     case td_api::deviceTokenMicrosoftPush::ID: {
       auto device_token = static_cast<td_api::deviceTokenMicrosoftPush *>(device_token_ptr.get());
       token = std::move(device_token->channel_uri_);
-      token_type = TokenType::MPNS;
+      token_type = TokenType::Mpns;
       break;
     }
     case td_api::deviceTokenSimplePush::ID: {
       auto device_token = static_cast<td_api::deviceTokenSimplePush *>(device_token_ptr.get());
       token = std::move(device_token->endpoint_);
-      token_type = TokenType::SIMPLE_PUSH;
+      token_type = TokenType::SimplePush;
       break;
     }
     case td_api::deviceTokenUbuntuPush::ID: {
       auto device_token = static_cast<td_api::deviceTokenUbuntuPush *>(device_token_ptr.get());
       token = std::move(device_token->token_);
-      token_type = TokenType::UBUNTU_PHONE;
+      token_type = TokenType::UbuntuPhone;
       break;
     }
     case td_api::deviceTokenBlackBerryPush::ID: {
       auto device_token = static_cast<td_api::deviceTokenBlackBerryPush *>(device_token_ptr.get());
       token = std::move(device_token->token_);
-      token_type = TokenType::BLACKBERRY;
+      token_type = TokenType::BlackBerry;
       break;
     }
     case td_api::deviceTokenWindowsPush::ID: {
       auto device_token = static_cast<td_api::deviceTokenWindowsPush *>(device_token_ptr.get());
       token = std::move(device_token->access_token_);
-      token_type = TokenType::WNS;
+      token_type = TokenType::Wns;
       break;
     }
     case td_api::deviceTokenApplePushVoIP::ID: {
       auto device_token = static_cast<td_api::deviceTokenApplePushVoIP *>(device_token_ptr.get());
       token = std::move(device_token->device_token_);
-      token_type = TokenType::APNS_VOIP;
+      token_type = TokenType::ApnsVoip;
       is_app_sandbox = device_token->is_app_sandbox_;
       encrypt = device_token->encrypt_;
       break;
@@ -204,19 +213,19 @@ void DeviceTokenManager::register_device(tl_object_ptr<td_api::DeviceToken> devi
             }));
         }));
       }
-      token_type = TokenType::WEB_PUSH;
+      token_type = TokenType::WebPush;
       break;
     }
     case td_api::deviceTokenMicrosoftPushVoIP::ID: {
       auto device_token = static_cast<td_api::deviceTokenMicrosoftPushVoIP *>(device_token_ptr.get());
       token = std::move(device_token->channel_uri_);
-      token_type = TokenType::MPNS_VOIP;
+      token_type = TokenType::MpnsVoip;
       break;
     }
     case td_api::deviceTokenTizenPush::ID: {
       auto device_token = static_cast<td_api::deviceTokenTizenPush *>(device_token_ptr.get());
       token = std::move(device_token->reg_id_);
-      token_type = TokenType::TIZEN;
+      token_type = TokenType::Tizen;
       break;
     }
     default:
@@ -227,8 +236,7 @@ void DeviceTokenManager::register_device(tl_object_ptr<td_api::DeviceToken> devi
     return promise.set_error(Status::Error(400, "Device token must be encoded in UTF-8"));
   }
   for (auto &other_user_id : other_user_ids) {
-    UserId user_id(other_user_id);
-    if (!user_id.is_valid()) {
+    if (!other_user_id.is_valid()) {
       return promise.set_error(Status::Error(400, "Invalid user_id among other user_ids"));
     }
   }
@@ -246,16 +254,16 @@ void DeviceTokenManager::register_device(tl_object_ptr<td_api::DeviceToken> devi
     info.state = TokenInfo::State::Register;
     info.token = std::move(token);
   }
-  info.other_user_ids = std::move(other_user_ids);
+  info.other_user_ids = UserId::get_input_user_ids(other_user_ids);
   info.is_app_sandbox = is_app_sandbox;
   if (encrypt != info.encrypt) {
     if (encrypt) {
       constexpr size_t ENCRYPTION_KEY_LENGTH = 256;
-      constexpr int64 MIN_ENCRYPTION_KEY_ID = static_cast<int64>(10000000000000ll);
+      constexpr auto MIN_ENCRYPTION_KEY_ID = static_cast<int64>(10000000000000ll);
       info.encryption_key.resize(ENCRYPTION_KEY_LENGTH);
       while (true) {
         Random::secure_bytes(info.encryption_key);
-        info.encryption_key_id = DhHandshake::calc_key_id(info.encryption_key);
+        info.encryption_key_id = mtproto::DhHandshake::calc_key_id(info.encryption_key);
         if (info.encryption_key_id <= -MIN_ENCRYPTION_KEY_ID || info.encryption_key_id >= MIN_ENCRYPTION_KEY_ID) {
           // ensure that encryption key ID never collide with anything
           break;
@@ -273,7 +281,7 @@ void DeviceTokenManager::register_device(tl_object_ptr<td_api::DeviceToken> devi
 }
 
 void DeviceTokenManager::reregister_device() {
-  for (int32 token_type = 1; token_type < TokenType::SIZE; token_type++) {
+  for (int32 token_type = 1; token_type < TokenType::Size; token_type++) {
     auto &token = tokens_[token_type];
     if (token.state == TokenInfo::State::Sync && !token.token.empty()) {
       token.state = TokenInfo::State::Reregister;
@@ -284,7 +292,7 @@ void DeviceTokenManager::reregister_device() {
 
 vector<std::pair<int64, Slice>> DeviceTokenManager::get_encryption_keys() const {
   vector<std::pair<int64, Slice>> result;
-  for (int32 token_type = 1; token_type < TokenType::SIZE; token_type++) {
+  for (int32 token_type = 1; token_type < TokenType::Size; token_type++) {
     auto &info = tokens_[token_type];
     if (!info.token.empty() && info.state != TokenInfo::State::Unregister) {
       if (info.encrypt) {
@@ -302,7 +310,7 @@ string DeviceTokenManager::get_database_key(int32 token_type) {
 }
 
 void DeviceTokenManager::start_up() {
-  for (int32 token_type = 1; token_type < TokenType::SIZE; token_type++) {
+  for (int32 token_type = 1; token_type < TokenType::Size; token_type++) {
     auto serialized = G()->td_db()->get_binlog_pmc()->get(get_database_key(token_type));
     if (serialized.empty()) {
       continue;
@@ -360,7 +368,7 @@ void DeviceTokenManager::loop() {
   if (sync_cnt_ != 0 || G()->close_flag()) {
     return;
   }
-  for (int32 token_type = 1; token_type < TokenType::SIZE; token_type++) {
+  for (int32 token_type = 1; token_type < TokenType::Size; token_type++) {
     auto &info = tokens_[token_type];
     if (info.state == TokenInfo::State::Sync) {
       continue;
@@ -370,15 +378,14 @@ void DeviceTokenManager::loop() {
     }
     // have to send query
     NetQueryPtr net_query;
-    auto other_user_ids = info.other_user_ids;
     if (info.state == TokenInfo::State::Unregister) {
       net_query = G()->net_query_creator().create(
-          telegram_api::account_unregisterDevice(token_type, info.token, std::move(other_user_ids)));
+          telegram_api::account_unregisterDevice(token_type, info.token, vector<int64>(info.other_user_ids)));
     } else {
       int32 flags = telegram_api::account_registerDevice::NO_MUTED_MASK;
       net_query = G()->net_query_creator().create(
           telegram_api::account_registerDevice(flags, false /*ignored*/, token_type, info.token, info.is_app_sandbox,
-                                               BufferSlice(info.encryption_key), std::move(other_user_ids)));
+                                               BufferSlice(info.encryption_key), vector<int64>(info.other_user_ids)));
     }
     info.net_query_id = net_query->id();
     G()->net_query_dispatcher().dispatch_with_callback(std::move(net_query), actor_shared(this, token_type));
@@ -387,7 +394,7 @@ void DeviceTokenManager::loop() {
 
 void DeviceTokenManager::on_result(NetQueryPtr net_query) {
   auto token_type = static_cast<TokenType>(get_link_token());
-  CHECK(token_type >= 1 && token_type < TokenType::SIZE);
+  CHECK(token_type >= 1 && token_type < TokenType::Size);
   auto &info = tokens_[token_type];
   if (info.net_query_id != net_query->id()) {
     net_query->clear();
@@ -423,7 +430,7 @@ void DeviceTokenManager::on_result(NetQueryPtr net_query) {
       }
       info.promise.set_error(r_flag.move_as_error());
     } else {
-      info.promise.set_error(Status::Error(5, "Got false as result of registerDevice server request"));
+      info.promise.set_error(Status::Error(400, "Got false as result of registerDevice server request"));
     }
     if (info.state == TokenInfo::State::Reregister) {
       // keep trying to reregister the token

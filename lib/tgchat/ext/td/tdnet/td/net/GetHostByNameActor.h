@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -62,7 +62,7 @@ class GetHostByNameActor final : public Actor {
     ActorOwn<> query;
     size_t pos = 0;
     string real_host;
-    double begin_time;
+    double begin_time = 0.0;
     std::vector<std::pair<int, Promise<IPAddress>>> promises;
   };
   std::unordered_map<string, Query> active_queries_[2];

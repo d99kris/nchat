@@ -1,12 +1,10 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/telegram/WebPagesManager.h"
-
-#include "td/telegram/secret_api.h"
 
 #include "td/telegram/AnimationsManager.h"
 #include "td/telegram/AudiosManager.h"
@@ -23,21 +21,22 @@
 #include "td/telegram/MessageEntity.h"
 #include "td/telegram/MessagesManager.h"
 #include "td/telegram/Photo.h"
+#include "td/telegram/secret_api.h"
 #include "td/telegram/StickersManager.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/TdDb.h"
+#include "td/telegram/TdParameters.h"
 #include "td/telegram/VideoNotesManager.h"
 #include "td/telegram/VideosManager.h"
 #include "td/telegram/VoiceNotesManager.h"
 #include "td/telegram/WebPageBlock.h"
-
-#include "td/actor/PromiseFuture.h"
 
 #include "td/db/binlog/BinlogEvent.h"
 #include "td/db/binlog/BinlogHelper.h"
 #include "td/db/SqliteKeyValue.h"
 #include "td/db/SqliteKeyValueAsync.h"
 
+#include "td/utils/algorithm.h"
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
 #include "td/utils/format.h"
@@ -45,13 +44,16 @@
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/Slice.h"
+#include "td/utils/SliceBuilder.h"
 #include "td/utils/StringBuilder.h"
 #include "td/utils/tl_helpers.h"
 #include "td/utils/utf8.h"
 
+#include <limits>
+
 namespace td {
 
-class GetWebPagePreviewQuery : public Td::ResultHandler {
+class GetWebPagePreviewQuery final : public Td::ResultHandler {
   Promise<Unit> promise_;
   int64 request_id_;
   string url_;
@@ -74,29 +76,29 @@ class GetWebPagePreviewQuery : public Td::ResultHandler {
         G()->net_query_creator().create(telegram_api::messages_getWebPagePreview(flags, text, std::move(entities))));
   }
 
-  void on_result(uint64 id, BufferSlice packet) override {
+  void on_result(BufferSlice packet) final {
     auto result_ptr = fetch_result<telegram_api::messages_getWebPagePreview>(packet);
     if (result_ptr.is_error()) {
-      return on_error(id, result_ptr.move_as_error());
+      return on_error(result_ptr.move_as_error());
     }
 
     auto ptr = result_ptr.move_as_ok();
     LOG(INFO) << "Receive result for GetWebPagePreviewQuery: " << to_string(ptr);
-    td->web_pages_manager_->on_get_web_page_preview_success(request_id_, url_, std::move(ptr), std::move(promise_));
+    td_->web_pages_manager_->on_get_web_page_preview_success(request_id_, url_, std::move(ptr), std::move(promise_));
   }
 
-  void on_error(uint64 id, Status status) override {
-    td->web_pages_manager_->on_get_web_page_preview_fail(request_id_, url_, std::move(status), std::move(promise_));
+  void on_error(Status status) final {
+    td_->web_pages_manager_->on_get_web_page_preview_fail(request_id_, url_, std::move(status), std::move(promise_));
   }
 };
 
-class GetWebPageQuery : public Td::ResultHandler {
-  Promise<Unit> promise_;
+class GetWebPageQuery final : public Td::ResultHandler {
+  Promise<WebPageId> promise_;
   WebPageId web_page_id_;
   string url_;
 
  public:
-  explicit GetWebPageQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  explicit GetWebPageQuery(Promise<WebPageId> &&promise) : promise_(std::move(promise)) {
   }
 
   void send(WebPageId web_page_id, const string &url, int32 hash) {
@@ -105,10 +107,10 @@ class GetWebPageQuery : public Td::ResultHandler {
     send_query(G()->net_query_creator().create(telegram_api::messages_getWebPage(url, hash)));
   }
 
-  void on_result(uint64 id, BufferSlice packet) override {
+  void on_result(BufferSlice packet) final {
     auto result_ptr = fetch_result<telegram_api::messages_getWebPage>(packet);
     if (result_ptr.is_error()) {
-      return on_error(id, result_ptr.move_as_error());
+      return on_error(result_ptr.move_as_error());
     }
 
     auto ptr = result_ptr.move_as_ok();
@@ -119,19 +121,19 @@ class GetWebPageQuery : public Td::ResultHandler {
         int32 view_count = (web_page->flags_ & telegram_api::webPageNotModified::CACHED_PAGE_VIEWS_MASK) != 0
                                ? web_page->cached_page_views_
                                : 0;
-        td->web_pages_manager_->on_get_web_page_instant_view_view_count(web_page_id_, view_count);
+        td_->web_pages_manager_->on_get_web_page_instant_view_view_count(web_page_id_, view_count);
+        return promise_.set_value(std::move(web_page_id_));
       } else {
         LOG(ERROR) << "Receive webPageNotModified for " << url_;
+        return on_error(Status::Error(500, "Receive webPageNotModified"));
       }
-    } else {
-      auto web_page_id = td->web_pages_manager_->on_get_web_page(std::move(ptr), DialogId());
-      td->web_pages_manager_->on_get_web_page_by_url(url_, web_page_id, false);
     }
-
-    promise_.set_value(Unit());
+    auto web_page_id = td_->web_pages_manager_->on_get_web_page(std::move(ptr), DialogId());
+    td_->web_pages_manager_->on_get_web_page_by_url(url_, web_page_id, false);
+    promise_.set_value(std::move(web_page_id));
   }
 
-  void on_error(uint64 id, Status status) override {
+  void on_error(Status status) final {
     promise_.set_error(std::move(status));
   }
 };
@@ -484,7 +486,7 @@ WebPageId WebPagesManager::on_get_web_page(tl_object_ptr<telegram_api::WebPage> 
         page->embed_type = std::move(web_page->embed_type_);
       }
       if (web_page->flags_ & WEBPAGE_FLAG_HAS_EMBEDDED_PREVIEW_SIZE) {
-        page->embed_dimensions = get_dimensions(web_page->embed_width_, web_page->embed_height_);
+        page->embed_dimensions = get_dimensions(web_page->embed_width_, web_page->embed_height_, "webPage");
       }
       if (web_page->flags_ & WEBPAGE_FLAG_HAS_DURATION) {
         page->duration = web_page->duration_;
@@ -538,7 +540,7 @@ WebPageId WebPagesManager::on_get_web_page(tl_object_ptr<telegram_api::WebPage> 
 
 void WebPagesManager::update_web_page(unique_ptr<WebPage> web_page, WebPageId web_page_id, bool from_binlog,
                                       bool from_database) {
-  LOG(INFO) << "Update " << web_page_id;
+  LOG(INFO) << "Update " << web_page_id << (from_database ? " from database" : (from_binlog ? " from binlog" : ""));
   CHECK(web_page != nullptr);
 
   auto &page = web_pages_[web_page_id];
@@ -608,7 +610,7 @@ void WebPagesManager::update_web_page_instant_view(WebPageId web_page_id, WebPag
       auto previous_queries =
           load_web_page_instant_view_queries.partial.size() + load_web_page_instant_view_queries.full.size();
       if (previous_queries == 0) {
-        // try to load it only if there is no pending load queries
+        // try to load it only if there are no pending load queries
         load_web_page_instant_view(web_page_id, false, Auto());
         return;
       }
@@ -790,7 +792,7 @@ int64 WebPagesManager::get_web_page_preview(td_api::object_ptr<td_api::formatted
   }
   auto entities = r_entities.move_as_ok();
 
-  auto result = fix_formatted_text(text->text_, entities, true, false, true, false);
+  auto result = fix_formatted_text(text->text_, entities, true, false, true, true, false);
   if (result.is_error() || text->text_.empty()) {
     promise.set_value(Unit());
     return 0;
@@ -829,50 +831,44 @@ tl_object_ptr<td_api::webPage> WebPagesManager::get_web_page_preview_result(int6
   return get_web_page_object(web_page_id);
 }
 
-WebPageId WebPagesManager::get_web_page_instant_view(const string &url, bool force_full, bool force,
-                                                     Promise<Unit> &&promise) {
+void WebPagesManager::get_web_page_instant_view(const string &url, bool force_full, Promise<WebPageId> &&promise) {
   LOG(INFO) << "Trying to get web page instant view for the url \"" << url << '"';
   auto it = url_to_web_page_id_.find(url);
   if (it != url_to_web_page_id_.end()) {
-    if (it->second == WebPageId() && !force) {
+    if (it->second == WebPageId()) {
       // ignore negative caching
-      reload_web_page_by_url(url, std::move(promise));
-      return WebPageId();
+      return reload_web_page_by_url(url, std::move(promise));
     }
     return get_web_page_instant_view(it->second, force_full, std::move(promise));
   }
 
   load_web_page_by_url(url, std::move(promise));
-  return WebPageId();
 }
 
-WebPageId WebPagesManager::get_web_page_instant_view(WebPageId web_page_id, bool force_full, Promise<Unit> &&promise) {
+void WebPagesManager::get_web_page_instant_view(WebPageId web_page_id, bool force_full, Promise<WebPageId> &&promise) {
   LOG(INFO) << "Trying to get web page instant view for " << web_page_id;
 
   const WebPageInstantView *web_page_instant_view = get_web_page_instant_view(web_page_id);
   if (web_page_instant_view == nullptr) {
-    promise.set_value(Unit());
-    return WebPageId();
+    return promise.set_value(WebPageId());
   }
 
   if (!web_page_instant_view->is_loaded || (force_full && !web_page_instant_view->is_full)) {
-    load_web_page_instant_view(web_page_id, force_full, std::move(promise));
-    return WebPageId();
+    return load_web_page_instant_view(web_page_id, force_full, std::move(promise));
   }
 
   if (force_full) {
     reload_web_page_instant_view(web_page_id);
   }
 
-  promise.set_value(Unit());
-  return web_page_id;
+  promise.set_value(std::move(web_page_id));
 }
 
 string WebPagesManager::get_web_page_instant_view_database_key(WebPageId web_page_id) {
   return PSTRING() << "wpiv" << web_page_id.get();
 }
 
-void WebPagesManager::load_web_page_instant_view(WebPageId web_page_id, bool force_full, Promise<Unit> &&promise) {
+void WebPagesManager::load_web_page_instant_view(WebPageId web_page_id, bool force_full, Promise<WebPageId> &&promise) {
   auto &load_web_page_instant_view_queries = load_web_page_instant_view_queries_[web_page_id];
   auto previous_queries =
       load_web_page_instant_view_queries.partial.size() + load_web_page_instant_view_queries.full.size();
@@ -889,9 +885,10 @@ void WebPagesManager::load_web_page_instant_view(WebPageId web_page_id, bool for
     if (G()->parameters().use_message_db && !web_page_instant_view->was_loaded_from_database) {
       LOG(INFO) << "Trying to load " << web_page_id << " instant view from database";
       G()->td_db()->get_sqlite_pmc()->get(
-          get_web_page_instant_view_database_key(web_page_id), PromiseCreator::lambda([web_page_id](string value) {
-            send_closure(G()->web_pages_manager(), &WebPagesManager::on_load_web_page_instant_view_from_database,
-                         web_page_id, std::move(value));
+          get_web_page_instant_view_database_key(web_page_id),
+          PromiseCreator::lambda([actor_id = actor_id(this), web_page_id](string value) {
+            send_closure(actor_id, &WebPagesManager::on_load_web_page_instant_view_from_database, web_page_id,
+                         std::move(value));
           }));
     } else {
       reload_web_page_instant_view(web_page_id);
@@ -904,14 +901,12 @@ void WebPagesManager::reload_web_page_instant_view(WebPageId web_page_id) {
   const WebPage *web_page = get_web_page(web_page_id);
   CHECK(web_page != nullptr && !web_page->instant_view.is_empty);
 
-  auto promise = PromiseCreator::lambda([web_page_id](Result<> result) {
-    send_closure(G()->web_pages_manager(), &WebPagesManager::update_web_page_instant_view_load_requests, web_page_id,
-                 true, std::move(result));
+  auto promise = PromiseCreator::lambda([actor_id = actor_id(this), web_page_id](Result<WebPageId> result) {
+    send_closure(actor_id, &WebPagesManager::update_web_page_instant_view_load_requests, web_page_id, true,
+                 std::move(result));
   });
 
-  if (G()->close_flag()) {
-    return promise.set_error(Status::Error(500, "Request aborted"));
-  }
+  TRY_STATUS_PROMISE(promise, G()->close_status());
 
   td_->create_handler<GetWebPageQuery>(std::move(promise))
       ->send(web_page_id, web_page->url, web_page->instant_view.is_full ? web_page->instant_view.hash : 0);
@@ -924,7 +919,7 @@ void WebPagesManager::on_load_web_page_instant_view_from_database(WebPageId web_
   CHECK(G()->parameters().use_message_db);
   LOG(INFO) << "Successfully loaded " << web_page_id << " instant view of size " << value.size() << " from database";
   //  G()->td_db()->get_sqlite_pmc()->erase(get_web_page_instant_view_database_key(web_page_id), Auto());
-  //  return;
+  //  value.clear();
 
   auto web_page_it = web_pages_.find(web_page_id);
   if (web_page_it == web_pages_.end() || web_page_it->second->instant_view.is_empty) {
@@ -933,7 +928,7 @@ void WebPagesManager::on_load_web_page_instant_view_from_database(WebPageId web_
     if (!value.empty()) {
       G()->td_db()->get_sqlite_pmc()->erase(get_web_page_instant_view_database_key(web_page_id), Auto());
     }
-    update_web_page_instant_view_load_requests(web_page_id, true, Unit());
+    update_web_page_instant_view_load_requests(web_page_id, true, web_page_id);
     return;
   }
   WebPage *web_page = web_page_it->second.get();
@@ -963,39 +958,42 @@ void WebPagesManager::on_load_web_page_instant_view_from_database(WebPageId web_
     td_->file_manager_->change_files_source(get_web_page_file_source_id(web_page), old_file_ids, new_file_ids);
   }
 
-  update_web_page_instant_view_load_requests(web_page_id, false, Unit());
+  update_web_page_instant_view_load_requests(web_page_id, false, web_page_id);
 }
 
 void WebPagesManager::update_web_page_instant_view_load_requests(WebPageId web_page_id, bool force_update,
-                                                                 Result<> result) {
-  // TODO [Error : 0 : Lost promise] on closing
+                                                                 Result<WebPageId> r_web_page_id) {
+  if (G()->close_flag()) {
+    r_web_page_id = Global::request_aborted_error();
+  }
   LOG(INFO) << "Update load requests for " << web_page_id;
   auto it = load_web_page_instant_view_queries_.find(web_page_id);
   if (it == load_web_page_instant_view_queries_.end()) {
     return;
   }
-  vector<Promise<Unit>> promises[2];
+  vector<Promise<WebPageId>> promises[2];
   promises[0] = std::move(it->second.partial);
   promises[1] = std::move(it->second.full);
   reset_to_empty(it->second.partial);
   reset_to_empty(it->second.full);
   load_web_page_instant_view_queries_.erase(it);
 
-  if (result.is_error()) {
-    LOG(INFO) << "Receive error " << result.error() << " for load " << web_page_id;
+  if (r_web_page_id.is_error()) {
+    LOG(INFO) << "Receive error " << r_web_page_id.error() << " for load " << web_page_id;
     combine(promises[0], std::move(promises[1]));
     for (auto &promise : promises[0]) {
-      promise.set_error(result.error().clone());
+      promise.set_error(r_web_page_id.error().clone());
     }
     return;
   }
-  LOG(INFO) << "Successfully loaded web page " << web_page_id;
 
-  const WebPageInstantView *web_page_instant_view = get_web_page_instant_view(web_page_id);
+  auto new_web_page_id = r_web_page_id.move_as_ok();
+  LOG(INFO) << "Successfully loaded web page " << web_page_id << " as " << new_web_page_id;
+  const WebPageInstantView *web_page_instant_view = get_web_page_instant_view(new_web_page_id);
   if (web_page_instant_view == nullptr) {
     combine(promises[0], std::move(promises[1]));
     for (auto &promise : promises[0]) {
-      promise.set_value(Unit());
+      promise.set_value(WebPageId());
     }
     return;
   }
@@ -1005,26 +1003,27 @@ void WebPagesManager::update_web_page_instant_view_load_requests(WebPageId web_p
     }
 
     for (auto &promise : promises[0]) {
-      promise.set_value(Unit());
+      promise.set_value(WebPageId(new_web_page_id));
     }
     reset_to_empty(promises[0]);
   }
   if (!promises[0].empty() || !promises[1].empty()) {
     if (force_update) {
       // protection from cycles
-      LOG(ERROR) << "Expected to receive " << web_page_id << " from the server, but didn't receive it";
+      LOG(ERROR) << "Expected to receive " << web_page_id << '/' << new_web_page_id
+                 << " from the server, but didn't receive it";
       combine(promises[0], std::move(promises[1]));
       for (auto &promise : promises[0]) {
-        promise.set_value(Unit());
+        promise.set_value(WebPageId());
       }
       return;
     }
-    auto &load_queries = load_web_page_instant_view_queries_[web_page_id];
+    auto &load_queries = load_web_page_instant_view_queries_[new_web_page_id];
     auto old_size = load_queries.partial.size() + load_queries.full.size();
     combine(load_queries.partial, std::move(promises[0]));
     combine(load_queries.full, std::move(promises[1]));
     if (old_size == 0) {
-      reload_web_page_instant_view(web_page_id);
+      reload_web_page_instant_view(new_web_page_id);
     }
   }
 }
@@ -1034,7 +1033,7 @@ WebPageId WebPagesManager::get_web_page_by_url(const string &url) const {
     return WebPageId();
   }
 
-  LOG(INFO) << "Get web page id for the url \"" << url << '"';
+  LOG(INFO) << "Get web page identifier for the url \"" << url << '"';
 
   auto it = url_to_web_page_id_.find(url);
   if (it != url_to_web_page_id_.end()) {
@@ -1044,48 +1043,43 @@ WebPageId WebPagesManager::get_web_page_by_url(const string &url) const {
   return WebPageId();
 }
 
-WebPageId WebPagesManager::get_web_page_by_url(const string &url, Promise<Unit> &&promise) {
-  LOG(INFO) << "Trying to get web page id for the url \"" << url << '"';
+void WebPagesManager::get_web_page_by_url(const string &url, Promise<WebPageId> &&promise) {
+  LOG(INFO) << "Trying to get web page identifier for the url \"" << url << '"';
 
   auto it = url_to_web_page_id_.find(url);
   if (it != url_to_web_page_id_.end()) {
-    promise.set_value(Unit());
-    return it->second;
+    return promise.set_value(WebPageId(it->second));
   }
 
   load_web_page_by_url(url, std::move(promise));
-  return WebPageId();
 }
 
-void WebPagesManager::load_web_page_by_url(const string &url, Promise<Unit> &&promise) {
+void WebPagesManager::load_web_page_by_url(string url, Promise<WebPageId> &&promise) {
   if (!G()->parameters().use_message_db) {
-    reload_web_page_by_url(url, std::move(promise));
-    return;
+    return reload_web_page_by_url(url, std::move(promise));
   }
 
   LOG(INFO) << "Load \"" << url << '"';
-  G()->td_db()->get_sqlite_pmc()->get(get_web_page_url_database_key(url),
-                                      PromiseCreator::lambda([url, promise = std::move(promise)](string value) mutable {
-                                        send_closure(G()->web_pages_manager(),
-                                                     &WebPagesManager::on_load_web_page_id_by_url_from_database, url,
-                                                     value, std::move(promise));
+  auto key = get_web_page_url_database_key(url);
+  G()->td_db()->get_sqlite_pmc()->get(key, PromiseCreator::lambda([actor_id = actor_id(this), url = std::move(url),
+                                                                   promise = std::move(promise)](string value) mutable {
+                                        send_closure(actor_id,
+                                                     &WebPagesManager::on_load_web_page_id_by_url_from_database,
+                                                     std::move(url), std::move(value), std::move(promise));
                                       }));
 }
 
-void WebPagesManager::on_load_web_page_id_by_url_from_database(const string &url, string value,
-                                                               Promise<Unit> &&promise) {
-  if (G()->close_flag()) {
-    return;
-  }
+void WebPagesManager::on_load_web_page_id_by_url_from_database(string url, string value, Promise<WebPageId> &&promise) {
+  TRY_STATUS_PROMISE(promise, G()->close_status());
+
   LOG(INFO) << "Successfully loaded url \"" << url << "\" of size " << value.size() << " from database";
   //  G()->td_db()->get_sqlite_pmc()->erase(get_web_page_url_database_key(web_page_id), Auto());
-  //  return;
+  //  value.clear();
 
   auto it = url_to_web_page_id_.find(url);
   if (it != url_to_web_page_id_.end()) {
     // URL web page has already been loaded
-    promise.set_value(Unit());
-    return;
+    return promise.set_value(WebPageId(it->second));
   }
   if (!value.empty()) {
     auto web_page_id = WebPageId(to_integer<int64>(value));
@@ -1093,16 +1087,16 @@ void WebPagesManager::on_load_web_page_id_by_url_from_database(const string &url
       if (have_web_page(web_page_id)) {
         // URL web page has already been loaded
         on_get_web_page_by_url(url, web_page_id, true);
-        promise.set_value(Unit());
+        promise.set_value(WebPageId(web_page_id));
         return;
       }
 
-      load_web_page_from_database(
-          web_page_id,
-          PromiseCreator::lambda([web_page_id, url, promise = std::move(promise)](Result<> result) mutable {
-            send_closure(G()->web_pages_manager(), &WebPagesManager::on_load_web_page_by_url_from_database, web_page_id,
-                         url, std::move(promise), std::move(result));
-          }));
+      load_web_page_from_database(web_page_id,
+                                  PromiseCreator::lambda([actor_id = actor_id(this), web_page_id, url = std::move(url),
+                                                          promise = std::move(promise)](Result<Unit> result) mutable {
+                                    send_closure(actor_id, &WebPagesManager::on_load_web_page_by_url_from_database,
+                                                 web_page_id, std::move(url), std::move(promise), std::move(result));
+                                  }));
       return;
     } else {
       LOG(ERROR) << "Receive invalid " << web_page_id;
@@ -1112,33 +1106,27 @@ void WebPagesManager::on_load_web_page_id_by_url_from_database(const string &url
   reload_web_page_by_url(url, std::move(promise));
 }
 
-void WebPagesManager::on_load_web_page_by_url_from_database(WebPageId web_page_id, const string &url,
-                                                            Promise<Unit> &&promise, Result<> result) {
+void WebPagesManager::on_load_web_page_by_url_from_database(WebPageId web_page_id, string url,
+                                                            Promise<WebPageId> &&promise, Result<Unit> &&result) {
   if (result.is_error()) {
     CHECK(G()->close_flag());
-    promise.set_error(Status::Error(500, "Request aborted"));
-    return;
+    return promise.set_error(Global::request_aborted_error());
   }
 
   const WebPage *web_page = get_web_page(web_page_id);
   if (web_page == nullptr) {
-    reload_web_page_by_url(url, std::move(promise));
-    return;
+    return reload_web_page_by_url(url, std::move(promise));
   }
 
   if (web_page->url != url) {
     on_get_web_page_by_url(url, web_page_id, true);
   }
 
-  promise.set_value(Unit());
+  promise.set_value(WebPageId(web_page_id));
 }
 
-void WebPagesManager::reload_web_page_by_url(const string &url, Promise<Unit> &&promise) {
-  if (G()->close_flag()) {
-    return promise.set_error(Status::Error(500, "Request aborted"));
-  }
-
-  LOG(INFO) << "Reload url \"" << url << '"';
+void WebPagesManager::reload_web_page_by_url(const string &url, Promise<WebPageId> &&promise) {
+  TRY_STATUS_PROMISE(promise, G()->close_status());
   td_->create_handler<GetWebPageQuery>(std::move(promise))->send(WebPageId(), url, 0);
 }
 
@@ -1181,7 +1169,7 @@ tl_object_ptr<td_api::webPage> WebPagesManager::get_web_page_object(WebPageId we
 
   FormattedText description;
   description.text = web_page->description;
-  description.entities = find_entities(web_page->description, true);
+  description.entities = find_entities(web_page->description, true, false);
 
   auto r_url = parse_url(web_page->display_url);
   if (r_url.is_ok()) {
@@ -1250,13 +1238,14 @@ tl_object_ptr<td_api::webPage> WebPagesManager::get_web_page_object(WebPageId we
     }
   }
 
+  auto duration = get_web_page_media_duration(web_page);
   return make_tl_object<td_api::webPage>(
       web_page->url, web_page->display_url, web_page->type, web_page->site_name, web_page->title,
-      get_formatted_text_object(description), get_photo_object(td_->file_manager_.get(), web_page->photo),
-      web_page->embed_url, web_page->embed_type, web_page->embed_dimensions.width, web_page->embed_dimensions.height,
-      web_page->duration, web_page->author,
+      get_formatted_text_object(description, true, duration == 0 ? std::numeric_limits<int32>::max() : duration),
+      get_photo_object(td_->file_manager_.get(), web_page->photo), web_page->embed_url, web_page->embed_type,
+      web_page->embed_dimensions.width, web_page->embed_dimensions.height, web_page->duration, web_page->author,
       web_page->document.type == Document::Type::Animation
-          ? td_->animations_manager_->get_animation_object(web_page->document.file_id, "get_web_page_object")
+          ? td_->animations_manager_->get_animation_object(web_page->document.file_id)
           : nullptr,
       web_page->document.type == Document::Type::Audio
           ? td_->audios_manager_->get_audio_object(web_page->document.file_id)
@@ -1281,11 +1270,11 @@ tl_object_ptr<td_api::webPage> WebPagesManager::get_web_page_object(WebPageId we
 
 tl_object_ptr<td_api::webPageInstantView> WebPagesManager::get_web_page_instant_view_object(
     WebPageId web_page_id) const {
-  return get_web_page_instant_view_object(get_web_page_instant_view(web_page_id));
+  return get_web_page_instant_view_object(web_page_id, get_web_page_instant_view(web_page_id));
 }
 
 tl_object_ptr<td_api::webPageInstantView> WebPagesManager::get_web_page_instant_view_object(
-    const WebPageInstantView *web_page_instant_view) const {
+    WebPageId web_page_id, const WebPageInstantView *web_page_instant_view) const {
   if (web_page_instant_view == nullptr) {
     return nullptr;
   }
@@ -1293,10 +1282,12 @@ tl_object_ptr<td_api::webPageInstantView> WebPagesManager::get_web_page_instant_
     LOG(ERROR) << "Trying to get not loaded web page instant view";
     return nullptr;
   }
+  auto feedback_link =
+      td_api::make_object<td_api::internalLinkTypeBotStart>("previews", PSTRING() << "webpage" << web_page_id.get());
   return td_api::make_object<td_api::webPageInstantView>(
       get_page_block_objects(web_page_instant_view->page_blocks, td_, web_page_instant_view->url),
       web_page_instant_view->view_count, web_page_instant_view->is_v2 ? 2 : 1, web_page_instant_view->is_rtl,
-      web_page_instant_view->is_full);
+      web_page_instant_view->is_full, std::move(feedback_link));
 }
 
 void WebPagesManager::on_web_page_changed(WebPageId web_page_id, bool have_web_page) {
@@ -1304,11 +1295,11 @@ void WebPagesManager::on_web_page_changed(WebPageId web_page_id, bool have_web_p
   auto it = web_page_messages_.find(web_page_id);
   if (it != web_page_messages_.end()) {
     vector<FullMessageId> full_message_ids;
-    for (auto full_message_id : it->second) {
+    for (const auto &full_message_id : it->second) {
       full_message_ids.push_back(full_message_id);
     }
     CHECK(!full_message_ids.empty());
-    for (auto full_message_id : full_message_ids) {
+    for (const auto &full_message_id : full_message_ids) {
       if (!have_web_page) {
         td_->messages_manager_->delete_pending_message_web_page(full_message_id);
       } else {
@@ -1350,12 +1341,18 @@ const WebPagesManager::WebPageInstantView *WebPagesManager::get_web_page_instant
   return &web_page->instant_view;
 }
 
-void WebPagesManager::on_pending_web_page_timeout_callback(void *web_pages_manager_ptr, int64 web_page_id) {
-  static_cast<WebPagesManager *>(web_pages_manager_ptr)->on_pending_web_page_timeout(WebPageId(web_page_id));
+void WebPagesManager::on_pending_web_page_timeout_callback(void *web_pages_manager_ptr, int64 web_page_id_int) {
+  if (G()->close_flag()) {
+    return;
+  }
+
+  auto web_pages_manager = static_cast<WebPagesManager *>(web_pages_manager_ptr);
+  send_closure_later(web_pages_manager->actor_id(web_pages_manager), &WebPagesManager::on_pending_web_page_timeout,
+                     WebPageId(web_page_id_int));
 }
 
 void WebPagesManager::on_pending_web_page_timeout(WebPageId web_page_id) {
-  if (have_web_page(web_page_id)) {
+  if (G()->close_flag() || have_web_page(web_page_id)) {
     return;
   }
 
@@ -1363,12 +1360,16 @@ void WebPagesManager::on_pending_web_page_timeout(WebPageId web_page_id) {
   auto it = web_page_messages_.find(web_page_id);
   if (it != web_page_messages_.end()) {
     vector<FullMessageId> full_message_ids;
-    for (auto full_message_id : it->second) {
-      full_message_ids.push_back(full_message_id);
+    for (const auto &full_message_id : it->second) {
+      if (full_message_id.get_dialog_id().get_type() != DialogType::SecretChat) {
+        full_message_ids.push_back(full_message_id);
+      }
       count++;
     }
-    send_closure_later(G()->messages_manager(), &MessagesManager::get_messages_from_server, std::move(full_message_ids),
-                       Promise<Unit>(), nullptr);
+    if (!full_message_ids.empty()) {
+      send_closure_later(G()->messages_manager(), &MessagesManager::get_messages_from_server,
+                         std::move(full_message_ids), Promise<Unit>(), "on_pending_web_page_timeout", nullptr);
+    }
   }
   auto get_it = pending_get_web_pages_.find(web_page_id);
   if (get_it != pending_get_web_pages_.end()) {
@@ -1461,16 +1462,16 @@ void WebPagesManager::on_get_web_page_instant_view(WebPage *web_page, tl_object_
   web_page->instant_view.page_blocks =
       get_web_page_blocks(td_, std::move(page->blocks_), animations, audios, documents, photos, videos, voice_notes);
   web_page->instant_view.view_count = (page->flags_ & telegram_api::page::VIEWS_MASK) != 0 ? page->views_ : 0;
-  web_page->instant_view.is_v2 = (page->flags_ & telegram_api::page::V2_MASK) != 0;
-  web_page->instant_view.is_rtl = (page->flags_ & telegram_api::page::RTL_MASK) != 0;
+  web_page->instant_view.is_v2 = page->v2_;
+  web_page->instant_view.is_rtl = page->rtl_;
   web_page->instant_view.hash = hash;
   web_page->instant_view.url = std::move(page->url_);
   web_page->instant_view.is_empty = false;
-  web_page->instant_view.is_full = (page->flags_ & telegram_api::page::PART_MASK) == 0;
+  web_page->instant_view.is_full = !page->part_;
   web_page->instant_view.is_loaded = true;
 
   LOG(DEBUG) << "Receive web page instant view: "
-             << to_string(get_web_page_instant_view_object(&web_page->instant_view));
+             << to_string(get_web_page_instant_view_object(WebPageId(), &web_page->instant_view));
 }
 
 class WebPagesManager::WebPageLogEvent {
@@ -1516,9 +1517,8 @@ void WebPagesManager::save_web_page(const WebPage *web_page, WebPageId web_page_
   LOG(INFO) << "Save " << web_page_id << " to database";
   G()->td_db()->get_sqlite_pmc()->set(
       get_web_page_database_key(web_page_id), log_event_store(*web_page).as_slice().str(),
-      PromiseCreator::lambda([web_page_id](Result<> result) {
-        send_closure(G()->web_pages_manager(), &WebPagesManager::on_save_web_page_to_database, web_page_id,
-                     result.is_ok());
+      PromiseCreator::lambda([actor_id = actor_id(this), web_page_id](Result<> result) {
+        send_closure(actor_id, &WebPagesManager::on_save_web_page_to_database, web_page_id, result.is_ok());
       }));
 }
 
@@ -1582,11 +1582,11 @@ void WebPagesManager::load_web_page_from_database(WebPageId web_page_id, Promise
   auto &load_web_page_queries = load_web_page_from_database_queries_[web_page_id];
   load_web_page_queries.push_back(std::move(promise));
   if (load_web_page_queries.size() == 1u) {
-    G()->td_db()->get_sqlite_pmc()->get(
-        get_web_page_database_key(web_page_id), PromiseCreator::lambda([web_page_id](string value) {
-          send_closure(G()->web_pages_manager(), &WebPagesManager::on_load_web_page_from_database, web_page_id,
-                       std::move(value));
-        }));
+    G()->td_db()->get_sqlite_pmc()->get(get_web_page_database_key(web_page_id),
+                                        PromiseCreator::lambda([actor_id = actor_id(this), web_page_id](string value) {
+                                          send_closure(actor_id, &WebPagesManager::on_load_web_page_from_database,
+                                                       web_page_id, std::move(value));
+                                        }));
   }
 }
 
@@ -1608,7 +1608,7 @@ void WebPagesManager::on_load_web_page_from_database(WebPageId web_page_id, stri
 
   LOG(INFO) << "Successfully loaded " << web_page_id << " of size " << value.size() << " from database";
   //  G()->td_db()->get_sqlite_pmc()->erase(get_web_page_database_key(web_page_id), Auto());
-  //  return;
+  //  value.clear();
 
   if (!have_web_page(web_page_id)) {
     if (!value.empty()) {
@@ -1680,6 +1680,24 @@ string WebPagesManager::get_web_page_search_text(WebPageId web_page_id) const {
     return "";
   }
   return PSTRING() << web_page->title + " " + web_page->description;
+}
+
+int32 WebPagesManager::get_web_page_media_duration(WebPageId web_page_id) const {
+  const WebPage *web_page = get_web_page(web_page_id);
+  if (web_page == nullptr) {
+    return -1;
+  }
+  return get_web_page_media_duration(web_page);
+}
+
+int32 WebPagesManager::get_web_page_media_duration(const WebPage *web_page) {
+  if (web_page->document.type == Document::Type::Audio || web_page->document.type == Document::Type::Video ||
+      web_page->document.type == Document::Type::VideoNote || web_page->document.type == Document::Type::VoiceNote ||
+      web_page->embed_type == "iframe") {
+    return web_page->duration;
+  }
+
+  return -1;
 }
 
 vector<FileId> WebPagesManager::get_web_page_file_ids(const WebPage *web_page) const {

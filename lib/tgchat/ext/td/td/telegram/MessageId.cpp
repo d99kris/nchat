@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -20,7 +20,8 @@ MessageId::MessageId(ScheduledServerMessageId server_message_id, int32 send_date
     LOG(ERROR) << "Scheduled message ID " << server_message_id.get() << " is invalid";
     return;
   }
-  id = (static_cast<int64>(send_date - (1 << 30)) << 21) | (server_message_id.get() << 3) | SCHEDULED_MASK;
+  id = (static_cast<int64>(send_date - (1 << 30)) << 21) | (static_cast<int64>(server_message_id.get()) << 3) |
+       SCHEDULED_MASK;
 }
 
 bool MessageId::is_valid() const {
@@ -35,7 +36,7 @@ bool MessageId::is_valid() const {
 }
 
 bool MessageId::is_valid_scheduled() const {
-  if (id <= 0 || id > max().get()) {
+  if (id <= 0 || id > (static_cast<int64>(1) << 51)) {
     return false;
   }
   int32 type = (id & TYPE_MASK);
@@ -43,7 +44,7 @@ bool MessageId::is_valid_scheduled() const {
 }
 
 MessageType MessageId::get_type() const {
-  if (id <= 0 || id > max().get()) {
+  if (id <= 0 || id > (static_cast<int64>(1) << 51)) {
     return MessageType::None;
   }
 

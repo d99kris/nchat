@@ -1,12 +1,10 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/telegram/files/FileDownloader.h"
-
-#include "td/telegram/telegram_api.h"
 
 #include "td/telegram/FileReferenceManager.h"
 #include "td/telegram/files/FileLoaderUtils.h"
@@ -27,6 +25,7 @@
 #include "td/utils/port/path.h"
 #include "td/utils/port/Stat.h"
 #include "td/utils/ScopeGuard.h"
+#include "td/utils/SliceBuilder.h"
 #include "td/utils/UInt.h"
 
 #include <tuple>
@@ -367,7 +366,7 @@ Result<size_t> FileDownloader::process_part(Part part, NetQueryPtr net_query) {
                     bytes.as_slice());
   }
 
-  auto slice = bytes.as_slice().truncate(part.size);
+  auto slice = bytes.as_slice().substr(0, part.size);
   TRY_STATUS(acquire_fd());
   LOG(INFO) << "Got " << slice.size() << " bytes at offset " << part.offset << " for \"" << path_ << '"';
   TRY_RESULT(written, fd_.pwrite(slice, part.offset));
@@ -445,7 +444,7 @@ Result<FileLoader::CheckInfo> FileDownloader::check_loop(int64 checked_prefix_si
         }
         end_offset = ready_prefix_size;
       }
-      size_t size = narrow_cast<size_t>(end_offset - begin_offset);
+      auto size = narrow_cast<size_t>(end_offset - begin_offset);
       auto slice = BufferSlice(size);
       TRY_STATUS(acquire_fd());
       TRY_RESULT(read_size, fd_.pread(slice.as_slice(), begin_offset));

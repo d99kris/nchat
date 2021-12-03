@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -12,12 +12,15 @@
 #include "td/utils/misc.h"
 #include "td/utils/port/detail/skip_eintr.h"
 #include "td/utils/port/PollFlags.h"
+#include "td/utils/SliceBuilder.h"
 
 #if TD_PORT_WINDOWS
 #include "td/utils/buffer.h"
 #include "td/utils/port/detail/Iocp.h"
 #include "td/utils/SpinLock.h"
 #include "td/utils/VectorQueue.h"
+
+#include <limits>
 #endif
 
 #if TD_PORT_POSIX
@@ -38,7 +41,7 @@
 namespace td {
 namespace detail {
 #if TD_PORT_WINDOWS
-class SocketFdImpl : private Iocp::Callback {
+class SocketFdImpl final : private Iocp::Callback {
  public:
   explicit SocketFdImpl(NativeFd native_fd) : info(std::move(native_fd)) {
     VLOG(fd) << get_native_fd() << " create from native_fd";
@@ -75,6 +78,12 @@ class SocketFdImpl : private Iocp::Callback {
   }
 
   void close() {
+    if (!is_write_waiting_) {
+      VLOG(fd) << get_native_fd() << " will close after ongoing write";
+      auto lock = lock_.lock();
+      need_close_after_write_ = true;
+      return;
+    }
     notify_iocp_close();
   }
 
@@ -98,7 +107,9 @@ class SocketFdImpl : private Iocp::Callback {
   Result<size_t> writev(Span<IoSlice> slices) {
     size_t total_size = 0;
     for (auto io_slice : slices) {
-      total_size += as_slice(io_slice).size();
+      auto size = as_slice(io_slice).size();
+      CHECK(size <= std::numeric_limits<size_t>::max() - total_size);
+      total_size += size;
     }
 
     auto left_size = total_size;
@@ -155,6 +166,7 @@ class SocketFdImpl : private Iocp::Callback {
 
   std::atomic<int> refcnt_{1};
   bool close_flag_{false};
+  bool need_close_after_write_{false};
 
   bool is_connected_{false};
   bool is_read_active_{false};
@@ -183,7 +195,7 @@ class SocketFdImpl : private Iocp::Callback {
   void loop_read() {
     CHECK(is_connected_);
     CHECK(!is_read_active_);
-    if (close_flag_) {
+    if (close_flag_ || need_close_after_write_) {
       return;
     }
     std::memset(&read_overlapped_, 0, sizeof(read_overlapped_));
@@ -211,6 +223,9 @@ class SocketFdImpl : private Iocp::Callback {
       to_write = output_reader_.prepare_read();
       if (to_write.empty()) {
         is_write_waiting_ = true;
+        if (need_close_after_write_) {
+          notify_iocp_close();
+        }
         return;
       }
     }
@@ -239,7 +254,7 @@ class SocketFdImpl : private Iocp::Callback {
     }
   }
 
-  void on_iocp(Result<size_t> r_size, WSAOVERLAPPED *overlapped) override {
+  void on_iocp(Result<size_t> r_size, WSAOVERLAPPED *overlapped) final {
     // called from other thread
     if (dec_refcnt() || close_flag_) {
       VLOG(fd) << "Ignore IOCP (socket is closing)";
@@ -389,7 +404,8 @@ class SocketFdImpl {
     int native_fd = get_native_fd().socket();
     TRY_RESULT(slices_size, narrow_cast_safe<int>(slices.size()));
     auto write_res = detail::skip_eintr([&] {
-#ifdef MSG_NOSIGNAL
+    // sendmsg can erroneously return 2^32 - 1 on Android 5.1 and Android 6.0, so it must not be used there
+#if defined(MSG_NOSIGNAL) && !TD_ANDROID
       msghdr msg;
       std::memset(&msg, 0, sizeof(msg));
       msg.msg_iov = const_cast<iovec *>(slices.begin());
@@ -399,7 +415,19 @@ class SocketFdImpl {
       return ::writev(native_fd, slices.begin(), slices_size);
 #endif
     });
-    return write_finish(write_res);
+    if (write_res >= 0) {
+      auto result = narrow_cast<size_t>(write_res);
+      auto left = result;
+      for (const auto &slice : slices) {
+        if (left <= slice.iov_len) {
+          return result;
+        }
+        left -= slice.iov_len;
+      }
+      LOG(FATAL) << "Receive " << write_res << " as writev response, but tried to write only " << result - left
+                 << " bytes";
+    }
+    return write_finish();
   }
 
   Result<size_t> write(Slice slice) {
@@ -412,15 +440,17 @@ class SocketFdImpl {
           ::write(native_fd, slice.begin(), slice.size());
 #endif
     });
-    return write_finish(write_res);
+    if (write_res >= 0) {
+      auto result = narrow_cast<size_t>(write_res);
+      LOG_CHECK(result <= slice.size()) << "Receive " << write_res << " as write response, but tried to write only "
+                                        << slice.size() << " bytes";
+      return result;
+    }
+    return write_finish();
   }
 
-  Result<size_t> write_finish(ssize_t write_res) {
+  Result<size_t> write_finish() {
     auto write_errno = errno;
-    if (write_res >= 0) {
-      return narrow_cast<size_t>(write_res);
-    }
-
     if (write_errno == EAGAIN
 #if EAGAIN != EWOULDBLOCK
         || write_errno == EWOULDBLOCK
@@ -459,7 +489,7 @@ class SocketFdImpl {
       TRY_STATUS(get_pending_error());
     }
     int native_fd = get_native_fd().socket();
-    CHECK(slice.size() > 0);
+    CHECK(!slice.empty());
     auto read_res = detail::skip_eintr([&] { return ::read(native_fd, slice.begin(), slice.size()); });
     auto read_errno = errno;
     if (read_res >= 0) {
@@ -468,7 +498,9 @@ class SocketFdImpl {
         get_poll_info().clear_flags(PollFlags::Read());
         get_poll_info().add_flags(PollFlags::Close());
       }
-      return narrow_cast<size_t>(read_res);
+      auto result = narrow_cast<size_t>(read_res);
+      CHECK(result <= slice.size());
+      return result;
     }
     if (read_errno == EAGAIN
 #if EAGAIN != EWOULDBLOCK
@@ -577,8 +609,8 @@ Status init_socket_options(NativeFd &native_fd) {
 }  // namespace detail
 
 SocketFd::SocketFd() = default;
-SocketFd::SocketFd(SocketFd &&) = default;
-SocketFd &SocketFd::operator=(SocketFd &&) = default;
+SocketFd::SocketFd(SocketFd &&) noexcept = default;
+SocketFd &SocketFd::operator=(SocketFd &&) noexcept = default;
 SocketFd::~SocketFd() = default;
 
 SocketFd::SocketFd(unique_ptr<detail::SocketFdImpl> impl) : impl_(impl.release()) {
@@ -590,6 +622,10 @@ Result<SocketFd> SocketFd::from_native_fd(NativeFd fd) {
 }
 
 Result<SocketFd> SocketFd::open(const IPAddress &address) {
+#if TD_DARWIN_WATCH_OS
+  return SocketFd{};
+#endif
+
   NativeFd native_fd{socket(address.get_address_family(), SOCK_STREAM, IPPROTO_TCP)};
   if (!native_fd) {
     return OS_SOCKET_ERROR("Failed to create a socket");
@@ -625,29 +661,36 @@ bool SocketFd::empty() const {
 }
 
 PollableFdInfo &SocketFd::get_poll_info() {
+  CHECK(!empty());
   return impl_->get_poll_info();
 }
 const PollableFdInfo &SocketFd::get_poll_info() const {
+  CHECK(!empty());
   return impl_->get_poll_info();
 }
 
 const NativeFd &SocketFd::get_native_fd() const {
+  CHECK(!empty());
   return impl_->get_native_fd();
 }
 
 Status SocketFd::get_pending_error() {
+  CHECK(!empty());
   return impl_->get_pending_error();
 }
 
 Result<size_t> SocketFd::write(Slice slice) {
+  CHECK(!empty());
   return impl_->write(slice);
 }
 
 Result<size_t> SocketFd::writev(Span<IoSlice> slices) {
+  CHECK(!empty());
   return impl_->writev(slices);
 }
 
 Result<size_t> SocketFd::read(MutableSlice slice) {
+  CHECK(!empty());
   return impl_->read(slice);
 }
 

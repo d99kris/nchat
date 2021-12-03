@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -119,12 +119,12 @@ class Client final {
   /**
    * Move constructor.
    */
-  Client(Client &&other);
+  Client(Client &&other) noexcept;
 
   /**
    * Move assignment operator.
    */
-  Client &operator=(Client &&other);
+  Client &operator=(Client &&other) noexcept;
 
  private:
   class Impl;
@@ -239,6 +239,27 @@ class ClientManager final {
   static td_api::object_ptr<td_api::Object> execute(td_api::object_ptr<td_api::Function> &&request);
 
   /**
+   * A type of callback function that will be called when a message is added to the internal TDLib log.
+   *
+   * \param verbosity_level Log verbosity level with which the message was added (-1 - 1024).
+   *                        If 0, then TDLib will crash as soon as the callback returns.
+   *                        None of the TDLib methods can be called from the callback.
+   * \param message Null-terminated string with the message added to the log.
+   */
+  using LogMessageCallbackPtr = void (*)(int verbosity_level, const char *message);
+
+  /**
+   * Sets the callback that will be called when a message is added to the internal TDLib log.
+   * None of the TDLib methods can be called from the callback.
+   * By default the callback is not set.
+   *
+   * \param[in] max_verbosity_level The maximum verbosity level of messages for which the callback will be called.
+   * \param[in] callback Callback that will be called when a message is added to the internal TDLib log.
+   *                     Pass nullptr to remove the callback.
+   */
+  static void set_log_message_callback(int max_verbosity_level, LogMessageCallbackPtr callback);
+
+  /**
    * Destroys the client manager and all TDLib client instances managed by it.
    */
   ~ClientManager();
@@ -246,12 +267,12 @@ class ClientManager final {
   /**
    * Move constructor.
    */
-  ClientManager(ClientManager &&other);
+  ClientManager(ClientManager &&other) noexcept;
 
   /**
    * Move assignment operator.
    */
-  ClientManager &operator=(ClientManager &&other);
+  ClientManager &operator=(ClientManager &&other) noexcept;
 
   /**
    * Returns a pointer to a singleton ClientManager instance.

@@ -252,11 +252,9 @@ void TgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
       {
         LOG_DEBUG("Get chats");
         Status::Set(Status::FlagFetching);
-        int64_t order = (std::numeric_limits<int64_t>::max() - 1); // offset order, from beginning
-        int64_t offset = 0; // offset chat id, from first
         int32_t limit = std::numeric_limits<int32_t>::max(); // no limit
 
-        SendQuery(td::td_api::make_object<td::td_api::getChats>(nullptr, order, offset, limit),
+        SendQuery(td::td_api::make_object<td::td_api::getChats>(nullptr, limit),
                   [this](Object object)
         {
           Status::Clear(Status::FlagFetching);

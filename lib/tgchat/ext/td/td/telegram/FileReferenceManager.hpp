@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -49,7 +49,8 @@ void FileReferenceManager::store_file_source(FileSourceId file_source_id, Storer
                             td::store(source.access_hash, storer);
                           },
                           [&](const FileSourceChatFull &source) { td::store(source.chat_id, storer); },
-                          [&](const FileSourceChannelFull &source) { td::store(source.channel_id, storer); }));
+                          [&](const FileSourceChannelFull &source) { td::store(source.channel_id, storer); },
+                          [&](const FileSourceAppConfig &source) {}));
 }
 
 template <class ParserT>
@@ -111,6 +112,8 @@ FileSourceId FileReferenceManager::parse_file_source(Td *td, ParserT &parser) {
       td::parse(channel_id, parser);
       return td->contacts_manager_->get_channel_full_file_source_id(channel_id);
     }
+    case 12:
+      return td->stickers_manager_->get_app_config_file_source_id();
     default:
       parser.set_error("Invalid type in FileSource");
       return FileSourceId();

@@ -1,6 +1,6 @@
 #
 # Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com),
-# Pellegrino Prevete (pellegrinoprevete@gmail.com)  2014-2020
+# Pellegrino Prevete (pellegrinoprevete@gmail.com)  2014-2021
 #
 # Distributed under the Boost Software License, Version 1.0. (See accompanying
 # file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -13,8 +13,7 @@ import sys
 # load shared library
 tdjson_path = find_library('tdjson') or 'tdjson.dll'
 if tdjson_path is None:
-    print('can\'t find tdjson library')
-    quit()
+    sys.exit("Can't find 'tdjson' library")
 tdjson = CDLL(tdjson_path)
 
 # load TDLib functions from shared library
@@ -34,16 +33,16 @@ _td_execute = tdjson.td_execute
 _td_execute.restype = c_char_p
 _td_execute.argtypes = [c_char_p]
 
-fatal_error_callback_type = CFUNCTYPE(None, c_char_p)
+log_message_callback_type = CFUNCTYPE(None, c_int, c_char_p)
 
-_td_set_log_fatal_error_callback = tdjson.td_set_log_fatal_error_callback
-_td_set_log_fatal_error_callback.restype = None
-_td_set_log_fatal_error_callback.argtypes = [fatal_error_callback_type]
+_td_set_log_message_callback = tdjson.td_set_log_message_callback
+_td_set_log_message_callback.restype = None
+_td_set_log_message_callback.argtypes = [c_int, log_message_callback_type]
 
 # initialize TDLib log with desired parameters
-def on_fatal_error_callback(error_message):
-    print('TDLib fatal error: ', error_message)
-    sys.stdout.flush()
+def on_log_message_callback(verbosity_level, message):
+    if verbosity_level == 0:
+        sys.exit('TDLib fatal error: %r' % message)
 
 def td_execute(query):
     query = json.dumps(query).encode('utf-8')
@@ -52,8 +51,8 @@ def td_execute(query):
         result = json.loads(result.decode('utf-8'))
     return result
 
-c_on_fatal_error_callback = fatal_error_callback_type(on_fatal_error_callback)
-_td_set_log_fatal_error_callback(c_on_fatal_error_callback)
+c_on_log_message_callback = log_message_callback_type(on_log_message_callback)
+_td_set_log_message_callback(2, c_on_log_message_callback)
 
 # setting TDLib log verbosity level to 1 (errors)
 print(str(td_execute({'@type': 'setLogVerbosityLevel', 'new_verbosity_level': 1, '@extra': 1.01234})).encode('utf-8'))

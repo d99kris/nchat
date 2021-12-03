@@ -1,16 +1,15 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #pragma once
 
-#include "td/telegram/td_api.h"
-#include "td/telegram/telegram_api.h"
-
 #include "td/telegram/files/FileId.h"
 #include "td/telegram/SecretInputMedia.h"
+#include "td/telegram/td_api.h"
+#include "td/telegram/telegram_api.h"
 
 #include "td/utils/common.h"
 
@@ -26,7 +25,7 @@ class VoiceNotesManager {
 
   int32 get_voice_note_duration(FileId file_id) const;
 
-  tl_object_ptr<td_api::voiceNote> get_voice_note_object(FileId file_id);
+  tl_object_ptr<td_api::voiceNote> get_voice_note_object(FileId file_id) const;
 
   void create_voice_note(FileId file_id, string mime_type, int32 duration, string waveform, bool replace);
 
@@ -39,7 +38,7 @@ class VoiceNotesManager {
 
   FileId dup_voice_note(FileId new_id, FileId old_id);
 
-  bool merge_voice_notes(FileId new_id, FileId old_id, bool can_delete_old);
+  void merge_voice_notes(FileId new_id, FileId old_id, bool can_delete_old);
 
   template <class StorerT>
   void store_voice_note(FileId file_id, StorerT &storer) const;
@@ -55,8 +54,6 @@ class VoiceNotesManager {
     string waveform;
 
     FileId file_id;
-
-    bool is_changed = true;
   };
 
   const VoiceNote *get_voice_note(FileId file_id) const;

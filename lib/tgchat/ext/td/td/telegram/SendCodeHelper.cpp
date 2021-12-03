@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -28,7 +28,7 @@ td_api::object_ptr<td_api::authenticationCodeInfo> SendCodeHelper::get_authentic
 
 Result<telegram_api::auth_resendCode> SendCodeHelper::resend_code() {
   if (next_code_info_.type == AuthenticationCodeInfo::Type::None) {
-    return Status::Error(8, "Authentication code can't be resend");
+    return Status::Error(400, "Authentication code can't be resend");
   }
   sent_code_info_ = next_code_info_;
   next_code_info_ = {};
@@ -53,9 +53,9 @@ telegram_api::object_ptr<telegram_api::codeSettings> SendCodeHelper::get_input_c
                                                                false /*ignored*/);
 }
 
-telegram_api::auth_sendCode SendCodeHelper::send_code(Slice phone_number, const Settings &settings, int32 api_id,
+telegram_api::auth_sendCode SendCodeHelper::send_code(string phone_number, const Settings &settings, int32 api_id,
                                                       const string &api_hash) {
-  phone_number_ = phone_number.str();
+  phone_number_ = std::move(phone_number);
   return telegram_api::auth_sendCode(phone_number_, api_id, api_hash, get_input_code_settings(settings));
 }
 
@@ -86,11 +86,11 @@ SendCodeHelper::AuthenticationCodeInfo SendCodeHelper::get_authentication_code_i
 
   switch (code_type_ptr->get_id()) {
     case telegram_api::auth_codeTypeSms::ID:
-      return {AuthenticationCodeInfo::Type::Sms, 0, ""};
+      return {AuthenticationCodeInfo::Type::Sms, 0, string()};
     case telegram_api::auth_codeTypeCall::ID:
-      return {AuthenticationCodeInfo::Type::Call, 0, ""};
+      return {AuthenticationCodeInfo::Type::Call, 0, string()};
     case telegram_api::auth_codeTypeFlashCall::ID:
-      return {AuthenticationCodeInfo::Type::FlashCall, 0, ""};
+      return {AuthenticationCodeInfo::Type::FlashCall, 0, string()};
     default:
       UNREACHABLE();
       return AuthenticationCodeInfo();

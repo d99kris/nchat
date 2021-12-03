@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -47,7 +47,8 @@ using Platform::String;
 
 using Platform::NullReferenceException;
 
-template <class Key, class Value> class ConcurrentDictionary {
+template <class Key, class Value>
+class ConcurrentDictionary {
 public:
   bool TryGetValue(Key key, Value &value) {
     std::lock_guard<std::mutex> guard(mutex_);
@@ -85,7 +86,11 @@ inline std::string string_to_unmanaged(String^ str) {
   if (!str) {
     return std::string();
   }
-  return td::from_wstring(str->Data(), str->Length()).ok();
+  auto r_unmanaged_str = td::from_wstring(str->Data(), str->Length());
+  if (r_unmanaged_str.is_error()) {
+    return std::string();
+  }
+  return r_unmanaged_str.move_as_ok();
 }
 
 inline String^ string_from_unmanaged(const std::string &from) {

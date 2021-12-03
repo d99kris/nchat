@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,8 +11,8 @@
 
 #include "td/utils/common.h"
 #include "td/utils/JsonBuilder.h"
-#include "td/utils/logging.h"
 #include "td/utils/port/thread_local.h"
+#include "td/utils/SliceBuilder.h"
 #include "td/utils/StackAllocator.h"
 #include "td/utils/StringBuilder.h"
 
@@ -58,21 +58,18 @@ static string from_response(const td_api::Object &object, const string &extra, i
   auto buf = StackAllocator::alloc(1 << 18);
   JsonBuilder jb(StringBuilder(buf.as_slice(), true), -1);
   jb.enter_value() << ToJson(object);
-  auto slice = jb.string_builder().as_cslice();
+  auto &sb = jb.string_builder();
+  auto slice = sb.as_cslice();
   CHECK(!slice.empty() && slice.back() == '}');
-  string str;
-  str.reserve(slice.size() + (extra.empty() ? 0 : 10 + extra.size()) + (client_id == 0 ? 0 : 14 + 10));
-  str.append(slice.begin(), slice.size() - 1);
+  sb.pop_back();
   if (!extra.empty()) {
-    str += ",\"@extra\":";
-    str += extra;
+    sb << ",\"@extra\":" << extra;
   }
   if (client_id != 0) {
-    str += ",\"@client_id\":";
-    str += to_string(client_id);
+    sb << ",\"@client_id\":" << client_id;
   }
-  str += '}';
-  return str;
+  sb << '}';
+  return sb.as_cslice().str();
 }
 
 static TD_THREAD_LOCAL string *current_output;

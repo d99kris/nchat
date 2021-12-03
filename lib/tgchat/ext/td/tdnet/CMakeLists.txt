@@ -1,4 +1,6 @@
-cmake_minimum_required(VERSION 3.0.2 FATAL_ERROR)
+if ((CMAKE_MAJOR_VERSION LESS 3) OR (CMAKE_VERSION VERSION_LESS "3.0.2"))
+  message(FATAL_ERROR "CMake >= 3.0.2 is required")
+endif()
 
 if (NOT DEFINED CMAKE_INSTALL_LIBDIR)
   set(CMAKE_INSTALL_LIBDIR "lib")
@@ -46,6 +48,15 @@ set(TDNET_SOURCE
   td/net/Wget.h
 )
 
+if (APPLE_WATCH)
+  set(TDNET_SOURCE
+    ${TDNET_SOURCE}
+    td/net/DarwinHttp.mm
+    td/net/DarwinHttp.h
+  )
+  set_source_files_properties(td/net/DarwinHttp.mm PROPERTIES COMPILE_FLAGS -fobjc-arc)
+endif()
+
 #RULES
 #LIBRARIES
 
@@ -64,6 +75,11 @@ if (WIN32)
   else()
     target_link_libraries(tdnet PRIVATE ws2_32 Mswsock Crypt32)
   endif()
+endif()
+
+if (APPLE_WATCH)
+  find_library(FOUNDATION_LIBRARY Foundation REQUIRED)
+  target_link_libraries(tdnet PRIVATE ${FOUNDATION_LIBRARY})
 endif()
 
 install(TARGETS tdnet EXPORT TdTargets

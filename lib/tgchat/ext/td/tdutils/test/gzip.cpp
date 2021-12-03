@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -18,7 +18,7 @@
 
 #include <algorithm>
 
-static void encode_decode(td::string s) {
+static void encode_decode(const td::string &s) {
   auto r = td::gzencode(s, 2);
   ASSERT_TRUE(!r.empty());
   ASSERT_EQ(s, td::gzdecode(r.as_slice()));
@@ -30,7 +30,7 @@ TEST(Gzip, gzencode_gzdecode) {
   encode_decode(td::string(1000000, 'a'));
 }
 
-static void test_gzencode(td::string s) {
+static void test_gzencode(const td::string &s) {
   auto begin_time = td::Time::now();
   auto r = td::gzencode(s, td::max(2, static_cast<int>(100 / s.size())));
   ASSERT_TRUE(!r.empty());

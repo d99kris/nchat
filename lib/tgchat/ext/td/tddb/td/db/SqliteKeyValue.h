@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -9,8 +9,8 @@
 #include "td/db/SqliteDb.h"
 #include "td/db/SqliteStatement.h"
 
-#include "td/utils/logging.h"
 #include "td/utils/Slice.h"
+#include "td/utils/SliceBuilder.h"
 #include "td/utils/Status.h"
 
 #include <unordered_map>
@@ -33,13 +33,7 @@ class SqliteKeyValue {
     return db_.empty();
   }
 
-  Result<bool> init(string path) TD_WARN_UNUSED_RESULT;
-
   Status init_with_connection(SqliteDb connection, string table_name) TD_WARN_UNUSED_RESULT;
-
-  Result<bool> try_regenerate_index() TD_WARN_UNUSED_RESULT {
-    return false;
-  }
 
   void close() {
     *this = SqliteKeyValue();
@@ -53,8 +47,11 @@ class SqliteKeyValue {
 
   SeqNo erase(Slice key);
 
-  Status begin_transaction() TD_WARN_UNUSED_RESULT {
-    return db_.begin_transaction();
+  Status begin_read_transaction() TD_WARN_UNUSED_RESULT {
+    return db_.begin_read_transaction();
+  }
+  Status begin_write_transaction() TD_WARN_UNUSED_RESULT {
+    return db_.begin_write_transaction();
   }
   Status commit_transaction() TD_WARN_UNUSED_RESULT {
     return db_.commit_transaction();
@@ -106,7 +103,6 @@ class SqliteKeyValue {
   }
 
  private:
-  string path_;
   string table_name_;
   SqliteDb db_;
   SqliteStatement get_stmt_;
@@ -118,7 +114,7 @@ class SqliteKeyValue {
   SqliteStatement get_by_prefix_stmt_;
   SqliteStatement get_by_prefix_rare_stmt_;
 
-  string next_prefix(Slice prefix);
+  static string next_prefix(Slice prefix);
 };
 
 }  // namespace td

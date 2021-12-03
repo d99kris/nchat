@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -24,7 +24,7 @@
 
 namespace td {
 
-class ConcurrentScheduler : private Scheduler::Callback {
+class ConcurrentScheduler final : private Scheduler::Callback {
  public:
   void init(int32 threads_n);
 
@@ -95,11 +95,11 @@ class ConcurrentScheduler : private Scheduler::Callback {
   unique_ptr<detail::Iocp> iocp_;
   td::thread iocp_thread_;
 #endif
-  int32 extra_scheduler_;
+  int32 extra_scheduler_ = 0;
 
-  void on_finish() override;
+  void on_finish() final;
 
-  void register_at_finish(std::function<void()> f) override;
+  void register_at_finish(std::function<void()> f) final;
 };
 
 }  // namespace td

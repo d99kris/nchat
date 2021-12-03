@@ -1,13 +1,12 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/telegram/net/Session.h"
 
-#include "td/telegram/telegram_api.h"
-
+#include "td/telegram/ConfigShared.h"
 #include "td/telegram/DhCache.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/net/DcAuthManager.h"
@@ -17,9 +16,10 @@
 #include "td/telegram/net/NetQueryDispatcher.h"
 #include "td/telegram/net/NetType.h"
 #include "td/telegram/StateManager.h"
+#include "td/telegram/telegram_api.h"
 #include "td/telegram/UniqueId.h"
 
-#include "td/mtproto/DhHandshake.h"
+#include "td/mtproto/DhCallback.h"
 #include "td/mtproto/Handshake.h"
 #include "td/mtproto/HandshakeActor.h"
 #include "td/mtproto/RawConnection.h"
@@ -27,15 +27,18 @@
 #include "td/mtproto/SessionConnection.h"
 #include "td/mtproto/TransportType.h"
 
+#include "td/utils/algorithm.h"
 #include "td/utils/as.h"
 #include "td/utils/format.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/Random.h"
 #include "td/utils/Slice.h"
+#include "td/utils/SliceBuilder.h"
 #include "td/utils/Time.h"
 #include "td/utils/Timer.h"
 #include "td/utils/tl_parsers.h"
+#include "td/utils/utf8.h"
 
 #include <tuple>
 #include <utility>
@@ -44,7 +47,7 @@ namespace td {
 
 namespace detail {
 
-class GenAuthKeyActor : public Actor {
+class GenAuthKeyActor final : public Actor {
  public:
   GenAuthKeyActor(Slice name, unique_ptr<mtproto::AuthKeyHandshake> handshake,
                   unique_ptr<mtproto::AuthKeyHandshakeContext> context,
@@ -77,7 +80,7 @@ class GenAuthKeyActor : public Actor {
 
   ActorOwn<mtproto::HandshakeActor> child_;
 
-  void start_up() override {
+  void start_up() final {
     // Bug in Android clang and MSVC
     // std::tuple<Result<int>> b(std::forward_as_tuple(Result<int>()));
 
@@ -89,12 +92,12 @@ class GenAuthKeyActor : public Actor {
                      }));
   }
 
-  void hangup() override {
+  void hangup() final {
     if (connection_promise_) {
-      connection_promise_.set_error(Status::Error(1, "Cancelled"));
+      connection_promise_.set_error(Status::Error(1, "Canceled"));
     }
     if (handshake_promise_) {
-      handshake_promise_.set_error(Status::Error(1, "Cancelled"));
+      handshake_promise_.set_error(Status::Error(1, "Canceled"));
     }
     stop();
   }
@@ -108,7 +111,7 @@ class GenAuthKeyActor : public Actor {
 
     auto raw_connection = r_raw_connection.move_as_ok();
     VLOG(dc) << "Receive raw connection " << raw_connection.get();
-    network_generation_ = raw_connection->extra_;
+    network_generation_ = raw_connection->extra().extra;
     child_ = create_actor_on_scheduler<mtproto::HandshakeActor>(
         PSLICE() << name_ + "::HandshakeActor", G()->get_slow_net_scheduler_id(), std::move(handshake_),
         std::move(raw_connection), std::move(context_), 10, std::move(connection_promise_),
@@ -139,11 +142,10 @@ bool Session::PriorityQueue::empty() const {
 
 Session::Session(unique_ptr<Callback> callback, std::shared_ptr<AuthDataShared> shared_auth_data, int32 raw_dc_id,
                  int32 dc_id, bool is_main, bool use_pfs, bool is_cdn, bool need_destroy,
-                 const mtproto::AuthKey &tmp_auth_key, std::vector<mtproto::ServerSalt> server_salts)
-    : raw_dc_id_(raw_dc_id), dc_id_(dc_id), is_main_(is_main), is_cdn_(is_cdn) {
-  VLOG(dc) << "Start connection " << tag("need_destroy", need_destroy);
-  need_destroy_ = need_destroy;
-  if (need_destroy) {
+                 const mtproto::AuthKey &tmp_auth_key, const vector<mtproto::ServerSalt> &server_salts)
+    : raw_dc_id_(raw_dc_id), dc_id_(dc_id), is_main_(is_main), is_cdn_(is_cdn), need_destroy_(need_destroy) {
+  VLOG(dc) << "Start connection " << tag("need_destroy", need_destroy_);
+  if (need_destroy_) {
     use_pfs = false;
     CHECK(!is_cdn);
   }
@@ -156,7 +158,7 @@ Session::Session(unique_ptr<Callback> callback, std::shared_ptr<AuthDataShared> 
   auth_data_.set_future_salts(shared_auth_data_->get_future_salts(), Time::now());
   if (use_pfs && !tmp_auth_key.empty()) {
     auth_data_.set_tmp_auth_key(tmp_auth_key);
-    auth_data_.set_future_salts(std::move(server_salts), Time::now());
+    auth_data_.set_future_salts(server_salts, Time::now());
   }
   uint64 session_id = 0;
   do {
@@ -170,8 +172,8 @@ Session::Session(unique_ptr<Callback> callback, std::shared_ptr<AuthDataShared> 
 
   callback_ = std::shared_ptr<Callback>(callback.release());
 
-  main_connection_.connection_id = 0;
-  long_poll_connection_.connection_id = 1;
+  main_connection_.connection_id_ = 0;
+  long_poll_connection_.connection_id_ = 1;
 
   if (is_cdn) {
     auth_data_.set_header(G()->mtproto_header().get_anonymous_header().str());
@@ -179,6 +181,7 @@ Session::Session(unique_ptr<Callback> callback, std::shared_ptr<AuthDataShared> 
     auth_data_.set_header(G()->mtproto_header().get_default_header().str());
   }
   last_activity_timestamp_ = Time::now();
+  last_success_timestamp_ = Time::now() - 366 * 86400;
 }
 
 bool Session::can_destroy_auth_key() const {
@@ -186,16 +189,20 @@ bool Session::can_destroy_auth_key() const {
 }
 
 void Session::start_up() {
-  class StateCallback : public StateManager::Callback {
+  class StateCallback final : public StateManager::Callback {
    public:
     explicit StateCallback(ActorId<Session> session) : session_(std::move(session)) {
     }
-    bool on_network(NetType network_type, uint32 network_generation) override {
+    bool on_network(NetType network_type, uint32 network_generation) final {
       send_closure(session_, &Session::on_network, network_type != NetType::None, network_generation);
       return session_.is_alive();
     }
-    bool on_online(bool online_flag) override {
+    bool on_online(bool online_flag) final {
       send_closure(session_, &Session::on_online, online_flag);
+      return session_.is_alive();
+    }
+    bool on_logging_out(bool logging_out_flag) final {
+      send_closure(session_, &Session::on_logging_out, logging_out_flag);
       return session_.is_alive();
     }
 
@@ -232,19 +239,25 @@ void Session::on_online(bool online_flag) {
   loop();
 }
 
+void Session::on_logging_out(bool logging_out_flag) {
+  logging_out_flag_ = logging_out_flag;
+  connection_online_update(true);
+  loop();
+}
+
 void Session::connection_online_update(bool force) {
-  bool new_connection_online_flag =
-      online_flag_ && (has_queries() || last_activity_timestamp_ + 10 > Time::now_cached() || is_main_);
+  bool new_connection_online_flag = (online_flag_ || logging_out_flag_) &&
+                                    (has_queries() || last_activity_timestamp_ + 10 > Time::now_cached() || is_main_);
   if (connection_online_flag_ == new_connection_online_flag && !force) {
     return;
   }
   connection_online_flag_ = new_connection_online_flag;
   VLOG(dc) << "Set connection_online " << connection_online_flag_;
-  if (main_connection_.connection) {
-    main_connection_.connection->set_online(connection_online_flag_, is_main_);
+  if (main_connection_.connection_) {
+    main_connection_.connection_->set_online(connection_online_flag_, is_main_);
   }
-  if (long_poll_connection_.connection) {
-    long_poll_connection_.connection->set_online(connection_online_flag_, is_main_);
+  if (long_poll_connection_.connection_) {
+    long_poll_connection_.connection_->set_online(connection_online_flag_, is_main_);
   }
 }
 
@@ -271,8 +284,9 @@ void Session::on_bind_result(NetQueryPtr query) {
   if (query->is_error()) {
     status = std::move(query->error());
     if (status.code() == 400 && status.message() == "ENCRYPTED_MESSAGE_INVALID") {
-      bool has_immunity =
-          !G()->is_server_time_reliable() || G()->server_time() - auth_data_.get_main_auth_key().created_at() < 60;
+      auto auth_key_age = G()->server_time() - auth_data_.get_main_auth_key().created_at();
+      bool has_immunity = !G()->is_server_time_reliable() || auth_key_age < 60 ||
+                          (auth_key_age > 86400 && last_success_timestamp_ > Time::now() - 86400);
       if (!use_pfs_) {
         if (has_immunity) {
           LOG(WARNING) << "Do not drop main key, because it was created too recently";
@@ -418,8 +432,8 @@ void Session::raw_event(const Event::Raw &event) {
   return_query(std::move(query));
 
   LOG(DEBUG) << "Drop answer " << tag("message_id", format::as_hex(message_id));
-  if (main_connection_.state == ConnectionInfo::State::Ready) {
-    main_connection_.connection->cancel_answer(message_id);
+  if (main_connection_.state_ == ConnectionInfo::State::Ready) {
+    main_connection_.connection_->cancel_answer(message_id);
   } else {
     to_cancel_.push_back(message_id);
   }
@@ -429,18 +443,20 @@ void Session::raw_event(const Event::Raw &event) {
 /** Connection::Callback **/
 void Session::on_connected() {
   if (is_main_) {
-    connection_token_ = StateManager::connection(G()->state_manager());
+    connection_token_ =
+        mtproto::ConnectionManager::connection(static_cast<ActorId<mtproto::ConnectionManager>>(G()->state_manager()));
   }
 }
+
 Status Session::on_pong() {
   constexpr int MAX_QUERY_TIMEOUT = 60;
   constexpr int MIN_CONNECTION_ACTIVE = 60;
   if (current_info_ == &main_connection_ &&
-      Timestamp::at(current_info_->created_at + MIN_CONNECTION_ACTIVE).is_in_past()) {
+      Timestamp::at(current_info_->created_at_ + MIN_CONNECTION_ACTIVE).is_in_past()) {
     Status status;
     if (!unknown_queries_.empty()) {
       status = Status::Error(PSLICE() << "No state info for " << unknown_queries_.size() << " queries for "
-                                      << format::as_time(Time::now_cached() - current_info_->created_at));
+                                      << format::as_time(Time::now_cached() - current_info_->created_at_));
     }
     if (!sent_queries_list_.empty()) {
       for (auto it = sent_queries_list_.prev; it != &sent_queries_list_; it = it->prev) {
@@ -462,9 +478,11 @@ Status Session::on_pong() {
   }
   return Status::OK();
 }
+
 void Session::on_auth_key_updated() {
   shared_auth_data_->set_auth_key(auth_data_.get_main_auth_key());
 }
+
 void Session::on_tmp_auth_key_updated() {
   callback_->on_tmp_auth_key_updated(auth_data_.get_tmp_auth_key());
 }
@@ -485,14 +503,16 @@ void Session::on_closed(Status status) {
   if (!close_flag_ && is_main_) {
     connection_token_.reset();
   }
-  auto raw_connection = current_info_->connection->move_as_raw_connection();
+  auto raw_connection = current_info_->connection_->move_as_raw_connection();
   Scheduler::unsubscribe_before_close(raw_connection->get_poll_info().get_pollable_fd_ref());
   raw_connection->close();
 
   if (status.is_error()) {
-    LOG(WARNING) << "Session closed: " << status << " " << current_info_->connection->get_name();
+    LOG(WARNING) << "Session with " << sent_queries_.size() << " pending requests was closed: " << status << " "
+                 << current_info_->connection_->get_name();
   } else {
-    LOG(INFO) << "Session closed: " << status << " " << current_info_->connection->get_name();
+    LOG(INFO) << "Session with " << sent_queries_.size() << " pending requests was closed: " << status << " "
+              << current_info_->connection_->get_name();
   }
 
   if (status.is_error() && status.code() == -404) {
@@ -505,7 +525,7 @@ void Session::on_closed(Status status) {
       LOG(WARNING) << "Invalidate CDN tmp_key";
       auth_data_.drop_main_auth_key();
       on_auth_key_updated();
-      on_session_failed(std::move(status));
+      on_session_failed(status.clone());
     } else if (need_destroy_) {
       auth_data_.drop_main_auth_key();
       on_auth_key_updated();
@@ -525,7 +545,7 @@ void Session::on_closed(Status status) {
 
   // resend all queries without ack
   for (auto it = sent_queries_.begin(); it != sent_queries_.end();) {
-    if (!it->second.ack && it->second.connection_id == current_info_->connection_id) {
+    if (!it->second.ack && it->second.connection_id == current_info_->connection_id_) {
       // container vector leak otherwise
       cleanup_container(it->first, &it->second);
 
@@ -539,7 +559,7 @@ void Session::on_closed(Status status) {
         query->set_message_id(0);
         query->cancel_slot_.clear_event();
         query->set_error(Status::Error(500, PSLICE() << "Session failed: " << status.message()),
-                         current_info_->connection->get_name().str());
+                         current_info_->connection_->get_name().str());
         return_query(std::move(query));
         it = sent_queries_.erase(it);
       } else {
@@ -551,19 +571,20 @@ void Session::on_closed(Status status) {
     }
   }
 
-  current_info_->connection.reset();
-  current_info_->state = ConnectionInfo::State::Empty;
+  current_info_->connection_.reset();
+  current_info_->state_ = ConnectionInfo::State::Empty;
 }
 
 void Session::on_session_created(uint64 unique_id, uint64 first_id) {
   // TODO: use unique_id
-  // send updatesTooLong to force getDifference
   LOG(INFO) << "New session " << unique_id << " created with first message_id " << first_id;
+  last_success_timestamp_ = Time::now();
   if (is_main_) {
     LOG(DEBUG) << "Sending updatesTooLong to force getDifference";
     BufferSlice packet(4);
     as<int32>(packet.as_slice().begin()) = telegram_api::updatesTooLong::ID;
-    return_query(G()->net_query_creator().create_update(std::move(packet)));
+    last_activity_timestamp_ = Time::now();
+    callback_->on_update(std::move(packet));
   }
 
   for (auto it = sent_queries_.begin(); it != sent_queries_.end();) {
@@ -704,21 +725,27 @@ void Session::mark_as_unknown(uint64 id, Query *query) {
   unknown_queries_.insert(id);
 }
 
-Status Session::on_message_result_ok(uint64 id, BufferSlice packet, size_t original_size) {
-  if (id == 0) {
-    if (is_cdn_) {
-      return Status::Error("Got update from CDN connection");
-    }
-    return_query(G()->net_query_creator().create_update(std::move(packet)));
-    return Status::OK();
+Status Session::on_update(BufferSlice packet) {
+  if (is_cdn_) {
+    return Status::Error("Receive at update from CDN connection");
   }
+
+  last_success_timestamp_ = Time::now();
+  last_activity_timestamp_ = Time::now();
+  callback_->on_update(std::move(packet));
+  return Status::OK();
+}
+
+Status Session::on_message_result_ok(uint64 id, BufferSlice packet, size_t original_size) {
+  last_success_timestamp_ = Time::now();
 
   TlParser parser(packet.as_slice());
   int32 ID = parser.fetch_int();
 
   auto it = sent_queries_.find(id);
   if (it == sent_queries_.end()) {
-    LOG(DEBUG) << "Drop result to " << tag("request_id", format::as_hex(id)) << tag("tl", format::as_hex(ID));
+    LOG(DEBUG) << "Drop result to " << tag("request_id", format::as_hex(id)) << tag("original_size", original_size)
+               << tag("tl", format::as_hex(ID));
 
     if (original_size > 16 * 1024) {
       dropped_size_ += original_size;
@@ -760,25 +787,50 @@ Status Session::on_message_result_ok(uint64 id, BufferSlice packet, size_t origi
   return Status::OK();
 }
 
-void Session::on_message_result_error(uint64 id, int error_code, BufferSlice message) {
+void Session::on_message_result_error(uint64 id, int error_code, string message) {
+  if (!check_utf8(message)) {
+    LOG(ERROR) << "Receive invalid error message \"" << message << '"';
+    message = "INVALID_UTF8_ERROR_MESSAGE";
+  }
+  if (error_code <= -10000 || error_code >= 10000 || error_code == 0) {
+    LOG(ERROR) << "Receive invalid error code " << error_code << " with message \"" << message << '"';
+    error_code = 500;
+  }
+
   // UNAUTHORIZED
-  if (error_code == 401 && message.as_slice() != CSlice("SESSION_PASSWORD_NEEDED")) {
-    if (auth_data_.use_pfs() && message.as_slice() == CSlice("AUTH_KEY_PERM_EMPTY")) {
-      LOG(INFO) << "Receive AUTH_KEY_PERM_EMPTY in session " << auth_data_.get_session_id() << " for auth key "
+  if (error_code == 401 && message != "SESSION_PASSWORD_NEEDED") {
+    if (auth_data_.use_pfs() && (message == CSlice("AUTH_KEY_PERM_EMPTY") || !is_main_)) {
+      LOG(INFO) << "Receive 401, " << message << " in session " << auth_data_.get_session_id() << " for auth key "
                 << auth_data_.get_tmp_auth_key().id();
+      // temporary key can be dropped any time
       auth_data_.drop_tmp_auth_key();
       on_tmp_auth_key_updated();
       error_code = 500;
     } else {
-      if (message.as_slice() == CSlice("USER_DEACTIVATED_BAN")) {
-        LOG(PLAIN) << "Your account was suspended for suspicious activity. If you think that this is a mistake, please "
-                      "write to recover@telegram.org your phone number and other details to recover the account.";
-      } else {
-        LOG(WARNING) << "Lost authorization due to " << tag("msg", message.as_slice());
+      bool can_drop_main_auth_key_without_logging_out = is_cdn_;
+      if (!is_main_) {
+        CHECK(!auth_data_.use_pfs());
+        if (G()->net_query_dispatcher().get_main_dc_id().get_raw_id() != raw_dc_id_) {
+          can_drop_main_auth_key_without_logging_out = true;
+        }
       }
-      auth_data_.set_auth_flag(false);
-      shared_auth_data_->set_auth_key(auth_data_.get_main_auth_key());
-      on_session_failed(Status::OK());
+      if (can_drop_main_auth_key_without_logging_out) {
+        LOG(INFO) << "Receive 401, " << message << " in session " << auth_data_.get_session_id() << " for auth key "
+                  << auth_data_.get_auth_key().id();
+        auth_data_.drop_main_auth_key();
+        on_auth_key_updated();
+        error_code = 500;
+      } else {
+        if (message == "USER_DEACTIVATED_BAN") {
+          LOG(PLAIN)
+              << "Your account was suspended for suspicious activity. If you think that this is a mistake, please "
+                 "write to recover@telegram.org your phone number and other details to recover the account.";
+        }
+        auth_data_.set_auth_flag(false);
+        G()->shared_config().set_option_string("auth", message);
+        shared_auth_data_->set_auth_key(auth_data_.get_main_auth_key());
+        on_session_failed(Status::OK());
+      }
     }
   }
 
@@ -789,10 +841,10 @@ void Session::on_message_result_error(uint64 id, int error_code, BufferSlice mes
 
   if (error_code < 0) {
     LOG(WARNING) << "Session::on_message_result_error from mtproto " << tag("id", id) << tag("error_code", error_code)
-                 << tag("msg", message.as_slice());
+                 << tag("msg", message);
   } else {
     LOG(DEBUG) << "Session::on_message_result_error " << tag("id", id) << tag("error_code", error_code)
-               << tag("msg", message.as_slice());
+               << tag("msg", message);
   }
   auto it = sent_queries_.find(id);
   if (it == sent_queries_.end()) {
@@ -804,8 +856,7 @@ void Session::on_message_result_error(uint64 id, int error_code, BufferSlice mes
 
   cleanup_container(id, query_ptr);
   mark_as_known(id, query_ptr);
-  query_ptr->query->set_error(Status::Error(error_code, message.as_slice()),
-                              current_info_->connection->get_name().str());
+  query_ptr->query->set_error(Status::Error(error_code, message), current_info_->connection_->get_name().str());
   query_ptr->query->set_message_id(0);
   query_ptr->query->cancel_slot_.clear_event();
   return_query(std::move(query_ptr->query));
@@ -897,7 +948,7 @@ void Session::on_message_info(uint64 id, int32 state, uint64 answer_id, int32 an
                                   << tag("answer_size", answer_size) << it->second.query;
       it->second.query->debug("Session: resend answer");
     }
-    current_info_->connection->resend_answer(answer_id);
+    current_info_->connection_->resend_answer(answer_id);
   }
 }
 
@@ -929,7 +980,7 @@ void Session::add_query(NetQueryPtr &&net_query) {
 
 void Session::connection_send_query(ConnectionInfo *info, NetQueryPtr &&net_query, uint64 message_id) {
   net_query->debug("Session: trying to send to mtproto::connection");
-  CHECK(info->state == ConnectionInfo::State::Ready);
+  CHECK(info->state_ == ConnectionInfo::State::Ready);
   current_info_ = info;
 
   if (net_query->update_is_ready()) {
@@ -950,17 +1001,23 @@ void Session::connection_send_query(ConnectionInfo *info, NetQueryPtr &&net_quer
     }
   }
 
-  // net_query->debug("Session: send to mtproto::connection");
-  auto r_message_id =
-      info->connection->send_query(net_query->query().clone(), net_query->gzip_flag() == NetQuery::GzipFlag::On,
-                                   message_id, invoke_after_id, static_cast<bool>(net_query->quick_ack_promise_));
+  bool immediately_fail_query = false;
+  if (!immediately_fail_query) {
+    auto r_message_id =
+        info->connection_->send_query(net_query->query().clone(), net_query->gzip_flag() == NetQuery::GzipFlag::On,
+                                      message_id, invoke_after_id, static_cast<bool>(net_query->quick_ack_promise_));
 
-  net_query->on_net_write(net_query->query().size());
+    net_query->on_net_write(net_query->query().size());
 
-  if (r_message_id.is_error()) {
-    LOG(FATAL) << "Failed to send query: " << r_message_id.error();
+    if (r_message_id.is_error()) {
+      LOG(FATAL) << "Failed to send query: " << r_message_id.error();
+    }
+    message_id = r_message_id.ok();
+  } else {
+    if (message_id == 0) {
+      message_id = auth_data_.next_message_id(Time::now_cached());
+    }
   }
-  message_id = r_message_id.ok();
   VLOG(net_query) << "Send query to connection " << net_query << " [msg_id:" << format::as_hex(message_id) << "]"
                   << tag("invoke_after", format::as_hex(invoke_after_id));
   net_query->set_message_id(message_id);
@@ -976,24 +1033,27 @@ void Session::connection_send_query(ConnectionInfo *info, NetQueryPtr &&net_quer
     net_query->cancel_slot_.set_event(EventCreator::raw(actor_id(), message_id));
   }
   auto status = sent_queries_.emplace(
-      message_id, Query{message_id, std::move(net_query), main_connection_.connection_id, Time::now_cached()});
+      message_id, Query{message_id, std::move(net_query), main_connection_.connection_id_, Time::now_cached()});
   sent_queries_list_.put(status.first->second.get_list_node());
   if (!status.second) {
     LOG(FATAL) << "Duplicate message_id [message_id = " << message_id << "]";
   }
+  if (immediately_fail_query) {
+    on_message_result_error(message_id, 401, "TEST_ERROR");
+  }
 }
 
 void Session::connection_open(ConnectionInfo *info, bool ask_info) {
-  CHECK(info->state == ConnectionInfo::State::Empty);
+  CHECK(info->state_ == ConnectionInfo::State::Empty);
   if (!network_flag_) {
     return;
   }
   if (!auth_data_.has_auth_key(Time::now_cached())) {
     return;
   }
-  info->ask_info = ask_info;
+  info->ask_info_ = ask_info;
 
-  info->state = ConnectionInfo::State::Connecting;
+  info->state_ = ConnectionInfo::State::Connecting;
   info->cancellation_token_source_ = CancellationTokenSource{};
   // NB: rely on constant location of info
   auto promise = PromiseCreator::cancellable_lambda(
@@ -1014,7 +1074,7 @@ void Session::connection_open(ConnectionInfo *info, bool ask_info) {
     callback_->request_raw_connection(std::move(auth_data), std::move(promise));
   }
 
-  info->wakeup_at = Time::now_cached() + 1000;
+  info->wakeup_at_ = Time::now_cached() + 1000;
 }
 
 void Session::connection_add(unique_ptr<mtproto::RawConnection> raw_connection) {
@@ -1024,10 +1084,10 @@ void Session::connection_add(unique_ptr<mtproto::RawConnection> raw_connection) 
 }
 
 void Session::connection_check_mode(ConnectionInfo *info) {
-  if (close_flag_ || info->state != ConnectionInfo::State::Ready) {
+  if (close_flag_ || info->state_ != ConnectionInfo::State::Ready) {
     return;
   }
-  if (info->mode != mode_) {
+  if (info->mode_ != mode_) {
     LOG(WARNING) << "Close connection because of outdated mode_";
     connection_close(info);
   }
@@ -1035,23 +1095,23 @@ void Session::connection_check_mode(ConnectionInfo *info) {
 
 void Session::connection_open_finish(ConnectionInfo *info,
                                      Result<unique_ptr<mtproto::RawConnection>> r_raw_connection) {
-  if (close_flag_ || info->state != ConnectionInfo::State::Connecting) {
+  if (close_flag_ || info->state_ != ConnectionInfo::State::Connecting) {
     VLOG(dc) << "Ignore raw connection while closing";
     return;
   }
   current_info_ = info;
   if (r_raw_connection.is_error()) {
     LOG(WARNING) << "Failed to open socket: " << r_raw_connection.error();
-    info->state = ConnectionInfo::State::Empty;
+    info->state_ = ConnectionInfo::State::Empty;
     yield();
     return;
   }
 
   auto raw_connection = r_raw_connection.move_as_ok();
   VLOG(dc) << "Receive raw connection " << raw_connection.get();
-  if (raw_connection->extra_ != network_generation_) {
+  if (raw_connection->extra().extra != network_generation_) {
     LOG(WARNING) << "Got RawConnection with old network_generation";
-    info->state = ConnectionInfo::State::Empty;
+    info->state_ = ConnectionInfo::State::Empty;
     yield();
     return;
   }
@@ -1061,10 +1121,10 @@ void Session::connection_open_finish(ConnectionInfo *info,
   if (mode_ != expected_mode) {
     VLOG(dc) << "Change mode " << mode_ << "--->" << expected_mode;
     mode_ = expected_mode;
-    if (info->connection_id == 1 && mode_ != Mode::Http) {
+    if (info->connection_id_ == 1 && mode_ != Mode::Http) {
       LOG(WARNING) << "Got tcp connection for long poll connection";
       connection_add(std::move(raw_connection));
-      info->state = ConnectionInfo::State::Empty;
+      info->state_ = ConnectionInfo::State::Empty;
       yield();
       return;
     }
@@ -1076,7 +1136,7 @@ void Session::connection_open_finish(ConnectionInfo *info,
     mode = mtproto::SessionConnection::Mode::Tcp;
     mode_name = Slice("Tcp");
   } else {
-    if (info->connection_id == 0) {
+    if (info->connection_id_ == 0) {
       mode = mtproto::SessionConnection::Mode::Http;
       mode_name = Slice("Http");
     } else {
@@ -1084,30 +1144,30 @@ void Session::connection_open_finish(ConnectionInfo *info,
       mode_name = Slice("HttpLongPoll");
     }
   }
-  auto name = PSTRING() << get_name() << "::Connect::" << mode_name << "::" << raw_connection->debug_str_;
+  auto name = PSTRING() << get_name() << "::Connect::" << mode_name << "::" << raw_connection->extra().debug_str;
   LOG(INFO) << "Finished to open connection " << name;
-  info->connection = make_unique<mtproto::SessionConnection>(mode, std::move(raw_connection), &auth_data_);
+  info->connection_ = make_unique<mtproto::SessionConnection>(mode, std::move(raw_connection), &auth_data_);
   if (can_destroy_auth_key()) {
-    info->connection->destroy_key();
+    info->connection_->destroy_key();
   }
-  info->connection->set_online(connection_online_flag_, is_main_);
-  info->connection->set_name(name);
-  Scheduler::subscribe(info->connection->get_poll_info().extract_pollable_fd(this));
-  info->mode = mode_;
-  info->state = ConnectionInfo::State::Ready;
-  info->created_at = Time::now_cached();
-  info->wakeup_at = Time::now_cached() + 10;
+  info->connection_->set_online(connection_online_flag_, is_main_);
+  info->connection_->set_name(name);
+  Scheduler::subscribe(info->connection_->get_poll_info().extract_pollable_fd(this));
+  info->mode_ = mode_;
+  info->state_ = ConnectionInfo::State::Ready;
+  info->created_at_ = Time::now_cached();
+  info->wakeup_at_ = Time::now_cached() + 10;
   if (unknown_queries_.size() > MAX_INFLIGHT_QUERIES) {
     LOG(ERROR) << "With current limits `Too much queries with unknown state` error must be impossible";
     on_session_failed(Status::Error("Too much queries with unknown state"));
     return;
   }
-  if (info->ask_info) {
+  if (info->ask_info_) {
     for (auto &id : unknown_queries_) {
-      info->connection->get_state_info(id);
+      info->connection_->get_state_info(id);
     }
     for (auto &id : to_cancel_) {
-      info->connection->cancel_answer(id);
+      info->connection_->cancel_answer(id);
     }
     to_cancel_.clear();
   }
@@ -1115,18 +1175,18 @@ void Session::connection_open_finish(ConnectionInfo *info,
 }
 
 void Session::connection_flush(ConnectionInfo *info) {
-  CHECK(info->state == ConnectionInfo::State::Ready);
+  CHECK(info->state_ == ConnectionInfo::State::Ready);
   current_info_ = info;
-  info->wakeup_at = info->connection->flush(static_cast<mtproto::SessionConnection::Callback *>(this));
+  info->wakeup_at_ = info->connection_->flush(static_cast<mtproto::SessionConnection::Callback *>(this));
 }
 
 void Session::connection_close(ConnectionInfo *info) {
   current_info_ = info;
-  if (info->state != ConnectionInfo::State::Ready) {
+  if (info->state_ != ConnectionInfo::State::Ready) {
     return;
   }
-  info->connection->force_close(static_cast<mtproto::SessionConnection::Callback *>(this));
-  CHECK(info->state == ConnectionInfo::State::Empty);
+  info->connection_->force_close(static_cast<mtproto::SessionConnection::Callback *>(this));
+  CHECK(info->state_ == ConnectionInfo::State::Empty);
 }
 
 bool Session::need_send_check_main_key() const {
@@ -1141,7 +1201,7 @@ bool Session::connection_send_check_main_key(ConnectionInfo *info) {
   if (key_id == being_checked_main_auth_key_id_) {
     return false;
   }
-  CHECK(info->state != ConnectionInfo::State::Empty);
+  CHECK(info->state_ != ConnectionInfo::State::Empty);
   LOG(INFO) << "Check main key";
   being_checked_main_auth_key_id_ = key_id;
   last_check_query_id_ = UniqueId::next(UniqueId::BindKey);
@@ -1165,7 +1225,7 @@ bool Session::need_send_query() const {
 }
 
 bool Session::connection_send_bind_key(ConnectionInfo *info) {
-  CHECK(info->state != ConnectionInfo::State::Empty);
+  CHECK(info->state_ != ConnectionInfo::State::Empty);
   uint64 key_id = auth_data_.get_tmp_auth_key().id();
   if (key_id == being_binded_tmp_auth_key_id_) {
     return false;
@@ -1175,10 +1235,10 @@ bool Session::connection_send_bind_key(ConnectionInfo *info) {
 
   int64 perm_auth_key_id = auth_data_.get_main_auth_key().id();
   int64 nonce = Random::secure_int64();
-  int32 expires_at = static_cast<int32>(auth_data_.get_server_time(auth_data_.get_tmp_auth_key().expires_at()));
+  auto expires_at = static_cast<int32>(auth_data_.get_server_time(auth_data_.get_tmp_auth_key().expires_at()));
   int64 message_id;
   BufferSlice encrypted;
-  std::tie(message_id, encrypted) = info->connection->encrypted_bind(perm_auth_key_id, nonce, expires_at);
+  std::tie(message_id, encrypted) = info->connection_->encrypted_bind(perm_auth_key_id, nonce, expires_at);
 
   LOG(INFO) << "Bind key: " << tag("tmp", key_id) << tag("perm", static_cast<uint64>(perm_auth_key_id));
   NetQueryPtr query = G()->net_query_creator().create(
@@ -1248,21 +1308,22 @@ void Session::create_gen_auth_key_actor(HandshakeId handshake_id) {
   if (!info.handshake_) {
     info.handshake_ = make_unique<mtproto::AuthKeyHandshake>(dc_id_, is_main && !is_cdn_ ? 0 : 24 * 60 * 60);
   }
-  class AuthKeyHandshakeContext : public mtproto::AuthKeyHandshakeContext {
+  class AuthKeyHandshakeContext final : public mtproto::AuthKeyHandshakeContext {
    public:
-    AuthKeyHandshakeContext(DhCallback *dh_callback, std::shared_ptr<PublicRsaKeyInterface> public_rsa_key)
+    AuthKeyHandshakeContext(mtproto::DhCallback *dh_callback,
+                            std::shared_ptr<mtproto::PublicRsaKeyInterface> public_rsa_key)
         : dh_callback_(dh_callback), public_rsa_key_(std::move(public_rsa_key)) {
     }
-    DhCallback *get_dh_callback() override {
+    mtproto::DhCallback *get_dh_callback() final {
       return dh_callback_;
     }
-    PublicRsaKeyInterface *get_public_rsa_key_interface() override {
+    mtproto::PublicRsaKeyInterface *get_public_rsa_key_interface() final {
       return public_rsa_key_.get();
     }
 
    private:
-    DhCallback *dh_callback_;
-    std::shared_ptr<PublicRsaKeyInterface> public_rsa_key_;
+    mtproto::DhCallback *dh_callback_;
+    std::shared_ptr<mtproto::PublicRsaKeyInterface> public_rsa_key_;
   };
   info.actor_ = create_actor<detail::GenAuthKeyActor>(
       PSLICE() << get_name() << "::GenAuthKey", get_name(), std::move(info.handshake_),
@@ -1316,8 +1377,8 @@ void Session::loop() {
   connection_online_update();
 
   double wakeup_at = 0;
-  main_connection_.wakeup_at = 0;
-  long_poll_connection_.wakeup_at = 0;
+  main_connection_.wakeup_at_ = 0;
+  long_poll_connection_.wakeup_at_ = 0;
 
   // NB: order is crucial. First long_poll_connection, then main_connection
   // Otherwise queries could be sent with big delay
@@ -1325,20 +1386,20 @@ void Session::loop() {
   connection_check_mode(&main_connection_);
   connection_check_mode(&long_poll_connection_);
   if (mode_ == Mode::Http) {
-    if (long_poll_connection_.state == ConnectionInfo::State::Ready) {
+    if (long_poll_connection_.state_ == ConnectionInfo::State::Ready) {
       connection_flush(&long_poll_connection_);
     }
-    if (!close_flag_ && long_poll_connection_.state == ConnectionInfo::State::Empty) {
+    if (!close_flag_ && long_poll_connection_.state_ == ConnectionInfo::State::Empty) {
       connection_open(&long_poll_connection_);
     }
-    relax_timeout_at(&wakeup_at, long_poll_connection_.wakeup_at);
+    relax_timeout_at(&wakeup_at, long_poll_connection_.wakeup_at_);
   }
 
-  if (main_connection_.state == ConnectionInfo::State::Ready) {
+  if (main_connection_.state_ == ConnectionInfo::State::Ready) {
     // do not send queries before we have key and e.t.c
     // do not send queries before tmp_key is bound
     bool need_flush = true;
-    while (main_connection_.state == ConnectionInfo::State::Ready) {
+    while (main_connection_.state_ == ConnectionInfo::State::Ready) {
       if (auth_data_.is_ready(Time::now_cached())) {
         if (need_send_query()) {
           while (!pending_queries_.empty() && sent_queries_.size() < MAX_INFLIGHT_QUERIES) {
@@ -1365,11 +1426,11 @@ void Session::loop() {
       }
     }
   }
-  if (!close_flag_ && main_connection_.state == ConnectionInfo::State::Empty) {
+  if (!close_flag_ && main_connection_.state_ == ConnectionInfo::State::Empty) {
     connection_open(&main_connection_, true /*send ask_info*/);
   }
 
-  relax_timeout_at(&wakeup_at, main_connection_.wakeup_at);
+  relax_timeout_at(&wakeup_at, main_connection_.wakeup_at_);
 
   double wakeup_in = 0;
   if (wakeup_at != 0) {

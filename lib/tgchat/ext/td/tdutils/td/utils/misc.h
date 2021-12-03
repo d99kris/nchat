@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -9,6 +9,7 @@
 #include "td/utils/common.h"
 #include "td/utils/logging.h"
 #include "td/utils/Slice.h"
+#include "td/utils/SliceBuilder.h"
 #include "td/utils/Status.h"
 #include "td/utils/StringBuilder.h"
 
@@ -51,133 +52,6 @@ vector<T> full_split(T s, char delimiter = ' ', size_t max_parts = std::numeric_
 }
 
 string implode(const vector<string> &v, char delimiter = ' ');
-
-namespace detail {
-
-template <typename V>
-struct transform_helper {
-  template <class Func>
-  auto transform(const V &v, const Func &f) {
-    vector<decltype(f(*v.begin()))> result;
-    result.reserve(v.size());
-    for (auto &x : v) {
-      result.push_back(f(x));
-    }
-    return result;
-  }
-
-  template <class Func>
-  auto transform(V &&v, const Func &f) {
-    vector<decltype(f(std::move(*v.begin())))> result;
-    result.reserve(v.size());
-    for (auto &x : v) {
-      result.push_back(f(std::move(x)));
-    }
-    return result;
-  }
-};
-
-}  // namespace detail
-
-template <class V, class Func>
-auto transform(V &&v, const Func &f) {
-  return detail::transform_helper<std::decay_t<V>>().transform(std::forward<V>(v), f);
-}
-
-template <class V, class Func>
-bool remove_if(V &v, const Func &f) {
-  size_t i = 0;
-  while (i != v.size() && !f(v[i])) {
-    i++;
-  }
-  if (i == v.size()) {
-    return false;
-  }
-
-  size_t j = i;
-  while (++i != v.size()) {
-    if (!f(v[i])) {
-      v[j++] = std::move(v[i]);
-    }
-  }
-  v.erase(v.begin() + j, v.end());
-  return true;
-}
-
-template <class V, class T>
-bool remove(V &v, const T &value) {
-  size_t i = 0;
-  while (i != v.size() && v[i] != value) {
-    i++;
-  }
-  if (i == v.size()) {
-    return false;
-  }
-
-  size_t j = i;
-  while (++i != v.size()) {
-    if (v[i] != value) {
-      v[j++] = std::move(v[i]);
-    }
-  }
-  v.erase(v.begin() + j, v.end());
-  return true;
-}
-
-template <class V, class T>
-bool contains(const V &v, const T &value) {
-  for (auto &x : v) {
-    if (x == value) {
-      return true;
-    }
-  }
-  return false;
-}
-
-template <class T>
-void reset_to_empty(T &value) {
-  using std::swap;
-  std::decay_t<T> tmp;
-  swap(tmp, value);
-}
-
-template <class T>
-void append(vector<T> &destination, const vector<T> &source) {
-  destination.insert(destination.end(), source.begin(), source.end());
-}
-
-template <class T>
-void append(vector<T> &destination, vector<T> &&source) {
-  if (destination.empty()) {
-    destination.swap(source);
-    return;
-  }
-  destination.reserve(destination.size() + source.size());
-  for (auto &elem : source) {
-    destination.push_back(std::move(elem));
-  }
-  reset_to_empty(source);
-}
-
-template <class T>
-void combine(vector<T> &destination, const vector<T> &source) {
-  append(destination, source);
-}
-
-template <class T>
-void combine(vector<T> &destination, vector<T> &&source) {
-  if (destination.size() < source.size()) {
-    destination.swap(source);
-  }
-  if (source.empty()) {
-    return;
-  }
-  destination.reserve(destination.size() + source.size());
-  for (auto &elem : source) {
-    destination.push_back(std::move(elem));
-  }
-  reset_to_empty(source);
-}
 
 inline bool begins_with(Slice str, Slice prefix) {
   return prefix.size() <= str.size() && prefix == Slice(str.data(), prefix.size());
@@ -271,7 +145,7 @@ T trim(T str) {
 
 string lpad(string str, size_t size, char c);
 
-string lpad0(const string str, size_t size);
+string lpad0(string str, size_t size);
 
 string rpad(string str, size_t size, char c);
 
@@ -320,7 +194,7 @@ template <class T>
 Result<T> to_integer_safe(Slice str) {
   auto res = to_integer<T>(str);
   if ((PSLICE() << res) != str) {
-    return Status::Error(PSLICE() << "Can't parse \"" << str << "\" as number");
+    return Status::Error(PSLICE() << "Can't parse \"" << str << "\" as an integer");
   }
   return res;
 }
@@ -352,13 +226,16 @@ Result<typename std::enable_if<std::is_unsigned<T>::value, T>::type> hex_to_inte
   T integer_value = 0;
   auto begin = str.begin();
   auto end = str.end();
+  if (begin == end) {
+    return Status::Error("String is empty");
+  }
   while (begin != end) {
     T digit = hex_to_int(*begin++);
     if (digit == 16) {
-      return Status::Error("Not a hex digit");
+      return Status::Error("String contains non-hex digit");
     }
     if (integer_value > std::numeric_limits<T>::max() / 16) {
-      return Status::Error("Hex number overflow");
+      return Status::Error("String hex number overflows");
     }
     integer_value = integer_value * 16 + digit;
   }
@@ -386,13 +263,15 @@ string url_encode(Slice data);
 
 size_t url_decode(Slice from, MutableSlice to, bool decode_plus_sign_as_space);
 
+string url_decode(Slice from, bool decode_plus_sign_as_space);
+
 MutableSlice url_decode_inplace(MutableSlice str, bool decode_plus_sign_as_space);
 
 // run-time checked narrowing cast (type conversion):
 
 namespace detail {
 template <class T, class U>
-struct is_same_signedness
+struct is_same_signedness final
     : public std::integral_constant<bool, std::is_signed<T>::value == std::is_signed<U>::value> {};
 
 template <class T, class Enable = void>
@@ -456,28 +335,6 @@ template <int Alignment, class T>
 bool is_aligned_pointer(const T *pointer) {
   static_assert(Alignment > 0 && (Alignment & (Alignment - 1)) == 0, "Wrong alignment");
   return (reinterpret_cast<std::uintptr_t>(static_cast<const void *>(pointer)) & (Alignment - 1)) == 0;
-}
-
-namespace detail {
-template <typename T>
-struct reversion_wrapper {
-  T &iterable;
-};
-
-template <typename T>
-auto begin(reversion_wrapper<T> w) {
-  return w.iterable.rbegin();
-}
-
-template <typename T>
-auto end(reversion_wrapper<T> w) {
-  return w.iterable.rend();
-}
-}  // namespace detail
-
-template <typename T>
-detail::reversion_wrapper<T> reversed(T &iterable) {
-  return {iterable};
 }
 
 string buffer_to_hex(Slice buffer);

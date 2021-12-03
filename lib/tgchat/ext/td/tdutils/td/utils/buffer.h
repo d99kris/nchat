@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -118,10 +118,10 @@ class BufferSlice {
   }
   BufferSlice(const BufferSlice &other) = delete;
   BufferSlice &operator=(const BufferSlice &other) = delete;
-  BufferSlice(BufferSlice &&other) : BufferSlice(std::move(other.buffer_), other.begin_, other.end_) {
+  BufferSlice(BufferSlice &&other) noexcept : BufferSlice(std::move(other.buffer_), other.begin_, other.end_) {
     debug_untrack();  // yes, debug_untrack
   }
-  BufferSlice &operator=(BufferSlice &&other) {
+  BufferSlice &operator=(BufferSlice &&other) noexcept {
     if (this == &other) {
       return *this;
     }
@@ -610,10 +610,7 @@ class ChainBufferReader {
     begin_.confirm_read(size);
   }
 
-  size_t advance(size_t offset, MutableSlice dest = MutableSlice()) {
-    CHECK(offset <= size());
-    return begin_.advance(offset, dest);
-  }
+  size_t advance(size_t offset, MutableSlice dest = MutableSlice());
 
   size_t size() const {
     return end_.offset() - begin_.offset();

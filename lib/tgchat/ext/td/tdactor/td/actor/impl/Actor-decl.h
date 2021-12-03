@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -24,8 +24,8 @@ class Actor : public ObserverBase {
   Actor() = default;
   Actor(const Actor &) = delete;
   Actor &operator=(const Actor &) = delete;
-  Actor(Actor &&other);
-  Actor &operator=(Actor &&other);
+  Actor(Actor &&other) noexcept;
+  Actor &operator=(Actor &&other) noexcept;
   ~Actor() override {
     if (!empty()) {
       do_stop();
@@ -67,6 +67,7 @@ class Actor : public ObserverBase {
   void stop();
   void do_stop();
   bool has_timeout() const;
+  double get_timeout() const;
   void set_timeout_in(double timeout_in);
   void set_timeout_at(double timeout_at);
   void cancel_timeout();
@@ -74,6 +75,7 @@ class Actor : public ObserverBase {
   void do_migrate(int32 sched_id);
 
   uint64 get_link_token();
+  std::weak_ptr<ActorContext> get_context_weak_ptr() const;
   std::shared_ptr<ActorContext> set_context(std::shared_ptr<ActorContext> context);
   string set_tag(string tag);
 
@@ -113,7 +115,8 @@ class Actor : public ObserverBase {
 template <class ActorT>
 class ActorTraits {
  public:
-  static constexpr bool is_lite = false;
+  static constexpr bool need_context = true;
+  static constexpr bool need_start_up = true;
 };
 
 }  // namespace td

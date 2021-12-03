@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -23,7 +23,7 @@ namespace td {
 
 extern int VERBOSITY_NAME(dc);
 
-class DcAuthManager : public NetQueryCallback {
+class DcAuthManager final : public NetQueryCallback {
  public:
   explicit DcAuthManager(ActorShared<> parent);
 
@@ -39,15 +39,14 @@ class DcAuthManager : public NetQueryCallback {
 
     enum class State : int32 { Waiting, Export, Import, BeforeOk, Ok };
     State state = State::Waiting;
-    uint64 wait_id;
-    int32 export_id;
+    uint64 wait_id = 0;
+    int64 export_id = 0;
     BufferSlice export_bytes;
   };
 
   ActorShared<> parent_;
 
   std::vector<DcInfo> dcs_;
-  bool was_auth_{false};
   DcId main_dc_id_;
   bool close_flag_{false};
   Promise<> destroy_promise_;
@@ -57,11 +56,11 @@ class DcAuthManager : public NetQueryCallback {
 
   void update_auth_key_state();
 
-  void on_result(NetQueryPtr result) override;
+  void on_result(NetQueryPtr result) final;
   void dc_loop(DcInfo &dc);
 
   void destroy_loop();
-  void loop() override;
+  void loop() final;
 };
 
 }  // namespace td

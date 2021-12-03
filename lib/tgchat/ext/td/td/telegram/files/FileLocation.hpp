@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -44,9 +44,7 @@ void PhotoRemoteFileLocation::store(StorerT &storer) const {
   using td::store;
   store(id_, storer);
   store(access_hash_, storer);
-  store(volume_id_, storer);
   store(source_, storer);
-  store(local_id_, storer);
 }
 
 template <class ParserT>
@@ -54,25 +52,88 @@ void PhotoRemoteFileLocation::parse(ParserT &parser) {
   using td::parse;
   parse(id_, parser);
   parse(access_hash_, parser);
-  parse(volume_id_, parser);
-  if (parser.version() >= static_cast<int32>(Version::AddPhotoSizeSource)) {
+  if (parser.version() >= static_cast<int32>(Version::RemovePhotoVolumeAndLocalId)) {
     parse(source_, parser);
   } else {
-    int64 secret;
-    parse(secret, parser);
-    source_ = PhotoSizeSource(secret);
+    int64 volume_id;
+    PhotoSizeSource source;
+    int32 local_id;
+    parse(volume_id, parser);
+    if (parser.version() >= static_cast<int32>(Version::AddPhotoSizeSource)) {
+      parse(source, parser);
+      parse(local_id, parser);
+    } else {
+      int64 secret;
+      parse(secret, parser);
+      parse(local_id, parser);
+      source = PhotoSizeSource::full_legacy(volume_id, local_id, secret);
+    }
+
+    if (parser.get_error() != nullptr) {
+      return;
+    }
+
+    switch (source.get_type("PhotoRemoteFileLocation::parse")) {
+      case PhotoSizeSource::Type::Legacy:
+        source_ = PhotoSizeSource::full_legacy(volume_id, local_id, source.legacy().secret);
+        break;
+      case PhotoSizeSource::Type::FullLegacy:
+      case PhotoSizeSource::Type::Thumbnail:
+        source_ = source;
+        break;
+      case PhotoSizeSource::Type::DialogPhotoSmall:
+      case PhotoSizeSource::Type::DialogPhotoBig: {
+        auto &dialog_photo = source.dialog_photo();
+        bool is_big = source.get_type("PhotoRemoteFileLocation::parse") == PhotoSizeSource::Type::DialogPhotoBig;
+        source_ = PhotoSizeSource::dialog_photo_legacy(dialog_photo.dialog_id, dialog_photo.dialog_access_hash, is_big,
+                                                       volume_id, local_id);
+        break;
+      }
+      case PhotoSizeSource::Type::StickerSetThumbnail: {
+        auto &sticker_set_thumbnail = source.sticker_set_thumbnail();
+        source_ = PhotoSizeSource::sticker_set_thumbnail_legacy(
+            sticker_set_thumbnail.sticker_set_id, sticker_set_thumbnail.sticker_set_access_hash, volume_id, local_id);
+        break;
+      }
+      default:
+        parser.set_error("Invalid PhotoSizeSource in legacy PhotoRemoteFileLocation");
+        break;
+    }
   }
-  parse(local_id_, parser);
 }
 
 template <class StorerT>
 void PhotoRemoteFileLocation::AsKey::store(StorerT &storer) const {
   using td::store;
-  if (!is_unique) {
-    store(key.id_, storer);
+  auto unique = key.source_.get_unique();
+  switch (key.source_.get_type("PhotoRemoteFileLocation::AsKey::store")) {
+    case PhotoSizeSource::Type::Legacy:
+    case PhotoSizeSource::Type::StickerSetThumbnail:
+      UNREACHABLE();
+      break;
+    case PhotoSizeSource::Type::FullLegacy:
+    case PhotoSizeSource::Type::DialogPhotoSmallLegacy:
+    case PhotoSizeSource::Type::DialogPhotoBigLegacy:
+    case PhotoSizeSource::Type::StickerSetThumbnailLegacy:  // 12/20 bytes
+      if (!is_unique) {
+        store(key.id_, storer);
+      }
+      storer.store_slice(unique);  // volume_id + local_id
+      break;
+    case PhotoSizeSource::Type::DialogPhotoSmall:
+    case PhotoSizeSource::Type::DialogPhotoBig:
+    case PhotoSizeSource::Type::Thumbnail:  // 8 + 1 bytes
+      store(key.id_, storer);               // photo_id or document_id
+      storer.store_slice(unique);
+      break;
+    case PhotoSizeSource::Type::StickerSetThumbnailVersion:  // 13 bytes
+      // sticker set thumbnails have no photo_id or document_id
+      storer.store_slice(unique);
+      break;
+    default:
+      UNREACHABLE();
+      break;
   }
-  store(key.volume_id_, storer);
-  store(key.local_id_, storer);
 }
 
 template <class StorerT>
@@ -170,11 +231,12 @@ void FullRemoteFileLocation::parse(ParserT &parser) {
       if (parser.get_error() != nullptr) {
         return;
       }
-      switch (photo().source_.get_type()) {
+      switch (photo().source_.get_type("FullRemoteFileLocation::parse")) {
         case PhotoSizeSource::Type::Legacy:
+        case PhotoSizeSource::Type::FullLegacy:
           break;
         case PhotoSizeSource::Type::Thumbnail:
-          if (photo().source_.get_file_type() != file_type_ ||
+          if (photo().source_.get_file_type("FullRemoteFileLocation::parse") != file_type_ ||
               (file_type_ != FileType::Photo && file_type_ != FileType::Thumbnail &&
                file_type_ != FileType::EncryptedThumbnail)) {
             parser.set_error("Invalid FileType in PhotoRemoteFileLocation Thumbnail");
@@ -182,11 +244,15 @@ void FullRemoteFileLocation::parse(ParserT &parser) {
           break;
         case PhotoSizeSource::Type::DialogPhotoSmall:
         case PhotoSizeSource::Type::DialogPhotoBig:
+        case PhotoSizeSource::Type::DialogPhotoSmallLegacy:
+        case PhotoSizeSource::Type::DialogPhotoBigLegacy:
           if (file_type_ != FileType::ProfilePhoto) {
             parser.set_error("Invalid FileType in PhotoRemoteFileLocation DialogPhoto");
           }
           break;
         case PhotoSizeSource::Type::StickerSetThumbnail:
+        case PhotoSizeSource::Type::StickerSetThumbnailLegacy:
+        case PhotoSizeSource::Type::StickerSetThumbnailVersion:
           if (file_type_ != FileType::Thumbnail) {
             parser.set_error("Invalid FileType in PhotoRemoteFileLocation StickerSetThumbnail");
           }

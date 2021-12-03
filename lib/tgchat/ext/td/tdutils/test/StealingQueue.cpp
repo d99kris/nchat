@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,6 +11,7 @@
 #include "td/utils/MpmcQueue.h"
 #include "td/utils/port/thread.h"
 #include "td/utils/Random.h"
+#include "td/utils/SliceBuilder.h"
 #include "td/utils/StealingQueue.h"
 #include "td/utils/tests.h"
 
@@ -25,6 +26,7 @@ TEST(StealingQueue, very_simple) {
   ASSERT_EQ(1, x);
 }
 
+#if !TD_THREAD_UNSUPPORTED
 TEST(AtomicRead, simple) {
   td::Stage run;
   td::Stage check;
@@ -130,9 +132,9 @@ TEST(StealingQueue, simple) {
       for (td::uint64 round = 1; round < 1000; round++) {
         if (id == 0) {
           sum = 0;
-          int n = static_cast<int>(rnd() % 5);
+          auto n = static_cast<int>(rnd() % 5);
           for (int j = 0; j < n; j++) {
-            int x = static_cast<int>(rnd() % XN);
+            auto x = static_cast<int>(rnd() % XN);
             sum += x_sum[x];
             gq.push(x, id);
           }
@@ -175,3 +177,4 @@ TEST(StealingQueue, simple) {
     thread.join();
   }
 }
+#endif

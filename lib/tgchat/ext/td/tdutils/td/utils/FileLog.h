@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -16,7 +16,7 @@
 
 namespace td {
 
-class FileLog : public LogInterface {
+class FileLog final : public LogInterface {
   static constexpr int64 DEFAULT_ROTATE_THRESHOLD = 10 * (1 << 20);
 
  public:
@@ -26,7 +26,7 @@ class FileLog : public LogInterface {
 
   Slice get_path() const;
 
-  vector<string> get_file_paths() override;
+  vector<string> get_file_paths() final;
 
   void set_rotate_threshold(int64 rotate_threshold);
 
@@ -34,9 +34,7 @@ class FileLog : public LogInterface {
 
   bool get_redirect_stderr() const;
 
-  void append(CSlice cslice, int log_level) override;
-
-  void rotate() override;
+  void after_rotation() final;
 
   void lazy_rotate();
 
@@ -48,7 +46,9 @@ class FileLog : public LogInterface {
   bool redirect_stderr_ = false;
   std::atomic<bool> want_rotate_{false};
 
-  void do_rotate();
+  void do_append(int log_level, CSlice slice) final;
+
+  void do_after_rotation();
 };
 
 }  // namespace td

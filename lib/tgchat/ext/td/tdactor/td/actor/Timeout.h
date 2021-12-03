@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -35,6 +35,9 @@ class Timeout final : public Actor {
   bool has_timeout() const {
     return Actor::has_timeout();
   }
+  double get_timeout() const {
+    return Actor::get_timeout();
+  }
   void set_timeout_in(double timeout) {
     Actor::set_timeout_in(timeout);
   }
@@ -55,7 +58,7 @@ class Timeout final : public Actor {
   Callback callback_{};
   Data data_{};
 
-  void timeout_expired() override {
+  void timeout_expired() final {
     CHECK(!has_timeout());
     CHECK(callback_ != Callback());
     Callback callback = callback_;
@@ -69,7 +72,7 @@ class Timeout final : public Actor {
 
 // TODO optimize
 class MultiTimeout final : public Actor {
-  struct Item : public HeapNode {
+  struct Item final : public HeapNode {
     int64 key;
 
     explicit Item(int64 key) : key(key) {
@@ -123,7 +126,7 @@ class MultiTimeout final : public Actor {
 
   void update_timeout();
 
-  void timeout_expired() override;
+  void timeout_expired() final;
 
   vector<int64> get_expired_keys(double now);
 };

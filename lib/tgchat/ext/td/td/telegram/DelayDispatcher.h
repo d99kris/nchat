@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -16,7 +16,7 @@
 
 namespace td {
 
-class DelayDispatcher : public Actor {
+class DelayDispatcher final : public Actor {
  public:
   DelayDispatcher(double default_delay, ActorShared<> parent)
       : default_delay_(default_delay), parent_(std::move(parent)) {
@@ -38,8 +38,8 @@ class DelayDispatcher : public Actor {
   double default_delay_;
   ActorShared<> parent_;
 
-  void loop() override;
-  void tear_down() override;
+  void loop() final;
+  void tear_down() final;
 };
 
 }  // namespace td

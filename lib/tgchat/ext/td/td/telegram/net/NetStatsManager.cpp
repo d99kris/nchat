@@ -1,13 +1,10 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/telegram/net/NetStatsManager.h"
-
-#include "td/actor/actor.h"
-#include "td/actor/PromiseFuture.h"
 
 #include "td/telegram/ConfigShared.h"
 #include "td/telegram/Global.h"
@@ -16,9 +13,11 @@
 #include "td/telegram/TdDb.h"
 #include "td/telegram/Version.h"
 
+#include "td/utils/algorithm.h"
 #include "td/utils/common.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
+#include "td/utils/SliceBuilder.h"
 #include "td/utils/tl_helpers.h"
 
 namespace td {
@@ -46,7 +45,7 @@ static void parse(NetStatsData &net_stats, ParserT &parser) {
 
 void NetStatsManager::init() {
   LOG_CHECK(!empty()) << G()->close_flag();
-  class NetStatsInternalCallback : public NetStats::Callback {
+  class NetStatsInternalCallback final : public NetStats::Callback {
    public:
     NetStatsInternalCallback(ActorId<NetStatsManager> parent, size_t id) : parent_(std::move(parent)), id_(id) {
     }
@@ -54,7 +53,7 @@ void NetStatsManager::init() {
    private:
     ActorId<NetStatsManager> parent_;
     size_t id_;
-    void on_stats_updated() override {
+    void on_stats_updated() final {
       send_closure(parent_, &NetStatsManager::on_stats_updated, id_);
     }
   };
@@ -81,7 +80,7 @@ void NetStatsManager::get_network_stats(bool current, Promise<NetworkStats> prom
     NetStatsData total_files;
 
     for_each_stat([&](NetStatsInfo &info, size_t id, CSlice name, FileType file_type) {
-      auto type_stats = info.stats_by_type[net_type_i];
+      const auto &type_stats = info.stats_by_type[net_type_i];
       auto stats = current ? type_stats.mem_stats : type_stats.mem_stats + type_stats.db_stats;
       if (id == 0) {
       } else if (id == 1) {
@@ -97,7 +96,7 @@ void NetStatsManager::get_network_stats(bool current, Promise<NetworkStats> prom
       if (id == 1) {
         return;
       }
-      auto type_stats = info.stats_by_type[net_type_i];
+      const auto &type_stats = info.stats_by_type[net_type_i];
       auto stats = current ? type_stats.mem_stats : type_stats.mem_stats + type_stats.db_stats;
 
       NetworkStatsEntry entry;
@@ -169,7 +168,7 @@ void NetStatsManager::add_network_stats(const NetworkStatsEntry &entry) {
     return add_network_stats_impl(common_net_stats_, entry);
   }
   add_network_stats_impl(media_net_stats_, entry);
-  size_t file_type_n = static_cast<size_t>(entry.file_type);
+  auto file_type_n = static_cast<size_t>(entry.file_type);
   CHECK(file_type_n < static_cast<size_t>(MAX_FILE_TYPE));
   add_network_stats_impl(files_stats_[file_type_n], entry);
 }
@@ -230,12 +229,12 @@ void NetStatsManager::start_up() {
     G()->td_db()->get_binlog_pmc()->set("net_stats_since", to_string(since_total_));
   }
 
-  class NetCallback : public StateManager::Callback {
+  class NetCallback final : public StateManager::Callback {
    public:
     explicit NetCallback(ActorId<NetStatsManager> net_stats_manager)
         : net_stats_manager_(std::move(net_stats_manager)) {
     }
-    bool on_network(NetType network_type, uint32 network_generation) override {
+    bool on_network(NetType network_type, uint32 network_generation) final {
       send_closure(net_stats_manager_, &NetStatsManager::on_net_type_updated, network_type);
       return net_stats_manager_.is_alive();
     }
@@ -257,7 +256,7 @@ std::shared_ptr<NetStatsCallback> NetStatsManager::get_media_stats_callback() co
 std::vector<std::shared_ptr<NetStatsCallback>> NetStatsManager::get_file_stats_callbacks() const {
   auto result = transform(files_stats_, [](auto &stat) { return stat.stats.get_callback(); });
   for (int32 i = 0; i < MAX_FILE_TYPE; i++) {
-    int32 main_file_type = static_cast<int32>(get_main_file_type(static_cast<FileType>(i)));
+    auto main_file_type = static_cast<int32>(get_main_file_type(static_cast<FileType>(i)));
     if (main_file_type != i) {
       result[i] = result[main_file_type];
     }

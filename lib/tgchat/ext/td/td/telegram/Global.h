@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,11 +11,11 @@
 #include "td/telegram/net/NetQueryCreator.h"
 #include "td/telegram/TdParameters.h"
 
+#include "td/net/NetStats.h"
+
 #include "td/actor/actor.h"
 #include "td/actor/PromiseFuture.h"
 #include "td/actor/SchedulerLocalStorage.h"
-
-#include "td/net/NetStats.h"
 
 #include "td/utils/common.h"
 #include "td/utils/logging.h"
@@ -38,37 +38,39 @@ class ConnectionCreator;
 class ContactsManager;
 class FileManager;
 class FileReferenceManager;
+class GameManager;
+class GroupCallManager;
 class LanguagePackManager;
+class LinkManager;
 class MessagesManager;
 class MtprotoHeader;
 class NetQueryDispatcher;
 class NotificationManager;
 class PasswordManager;
 class SecretChatsManager;
+class SponsoredMessageManager;
 class StateManager;
 class StickersManager;
 class StorageManager;
 class Td;
 class TdDb;
 class TempAuthKeyWatchdog;
+class ThemeManager;
 class TopDialogManager;
 class UpdatesManager;
 class WebPagesManager;
-}  // namespace td
 
-namespace td {
-
-class Global : public ActorContext {
+class Global final : public ActorContext {
  public:
   Global();
-  ~Global() override;
+  ~Global() final;
   Global(const Global &) = delete;
   Global &operator=(const Global &) = delete;
   Global(Global &&other) = delete;
   Global &operator=(Global &&other) = delete;
 
   static constexpr int32 ID = -572104940;
-  int32 get_id() const override {
+  int32 get_id() const final {
     return ID;
   }
 
@@ -99,13 +101,14 @@ class Global : public ActorContext {
     return parameters_.use_test_dc;
   }
 
-  bool ignore_backgrond_updates() const;
+  bool ignore_background_updates() const;
 
   NetQueryCreator &net_query_creator() {
     return *net_query_creator_.get();
   }
 
   void set_net_query_stats(std::shared_ptr<NetQueryStats> net_query_stats);
+
   void set_net_query_dispatcher(unique_ptr<NetQueryDispatcher> net_query_dispatcher);
 
   NetQueryDispatcher &net_query_dispatcher() {
@@ -215,11 +218,32 @@ class Global : public ActorContext {
     file_reference_manager_ = std::move(file_reference_manager);
   }
 
+  ActorId<GameManager> game_manager() const {
+    return game_manager_;
+  }
+  void set_game_manager(ActorId<GameManager> game_manager) {
+    game_manager_ = game_manager;
+  }
+
+  ActorId<GroupCallManager> group_call_manager() const {
+    return group_call_manager_;
+  }
+  void set_group_call_manager(ActorId<GroupCallManager> group_call_manager) {
+    group_call_manager_ = group_call_manager;
+  }
+
   ActorId<LanguagePackManager> language_pack_manager() const {
     return language_pack_manager_;
   }
   void set_language_pack_manager(ActorId<LanguagePackManager> language_pack_manager) {
     language_pack_manager_ = language_pack_manager;
+  }
+
+  ActorId<LinkManager> link_manager() const {
+    return link_manager_;
+  }
+  void set_link_manager(ActorId<LinkManager> link_manager) {
+    link_manager_ = link_manager;
   }
 
   ActorId<MessagesManager> messages_manager() const {
@@ -250,6 +274,13 @@ class Global : public ActorContext {
     secret_chats_manager_ = secret_chats_manager;
   }
 
+  ActorId<SponsoredMessageManager> sponsored_message_manager() const {
+    return sponsored_message_manager_;
+  }
+  void set_sponsored_message_manager(ActorId<SponsoredMessageManager> sponsored_message_manager) {
+    sponsored_message_manager_ = sponsored_message_manager;
+  }
+
   ActorId<StickersManager> stickers_manager() const {
     return stickers_manager_;
   }
@@ -262,6 +293,13 @@ class Global : public ActorContext {
   }
   void set_storage_manager(ActorId<StorageManager> storage_manager) {
     storage_manager_ = storage_manager;
+  }
+
+  ActorId<ThemeManager> theme_manager() const {
+    return theme_manager_;
+  }
+  void set_theme_manager(ActorId<ThemeManager> theme_manager) {
+    theme_manager_ = theme_manager;
   }
 
   ActorId<TopDialogManager> top_dialog_manager() const {
@@ -301,10 +339,10 @@ class Global : public ActorContext {
     return parameters_;
   }
 
-  int32 get_my_id() const {
+  int64 get_my_id() const {
     return my_id_;
   }
-  void set_my_id(int32 my_id) {
+  void set_my_id(int64 my_id) {
     my_id_ = my_id;
   }
 
@@ -331,10 +369,14 @@ class Global : public ActorContext {
   void set_dh_config(std::shared_ptr<DhConfig> new_dh_config) {
 #if !TD_HAVE_ATOMIC_SHARED_PTR
     std::lock_guard<std::mutex> guard(dh_config_mutex_);
-    dh_config_ = new_dh_config;
+    dh_config_ = std::move(new_dh_config);
 #else
     atomic_store(&dh_config_, std::move(new_dh_config));
 #endif
+  }
+
+  static Status request_aborted_error() {
+    return Status::Error(500, "Request aborted");
   }
 
   void set_close_flag() {
@@ -342,6 +384,10 @@ class Global : public ActorContext {
   }
   bool close_flag() const {
     return close_flag_.load();
+  }
+
+  Status close_status() const {
+    return close_flag() ? request_aborted_error() : Status::OK();
   }
 
   bool is_expected_error(const Status &error) const {
@@ -385,13 +431,18 @@ class Global : public ActorContext {
   ActorId<ContactsManager> contacts_manager_;
   ActorId<FileManager> file_manager_;
   ActorId<FileReferenceManager> file_reference_manager_;
+  ActorId<GameManager> game_manager_;
+  ActorId<GroupCallManager> group_call_manager_;
   ActorId<LanguagePackManager> language_pack_manager_;
+  ActorId<LinkManager> link_manager_;
   ActorId<MessagesManager> messages_manager_;
   ActorId<NotificationManager> notification_manager_;
   ActorId<PasswordManager> password_manager_;
   ActorId<SecretChatsManager> secret_chats_manager_;
+  ActorId<SponsoredMessageManager> sponsored_message_manager_;
   ActorId<StickersManager> stickers_manager_;
   ActorId<StorageManager> storage_manager_;
+  ActorId<ThemeManager> theme_manager_;
   ActorId<TopDialogManager> top_dialog_manager_;
   ActorId<UpdatesManager> updates_manager_;
   ActorId<WebPagesManager> web_pages_manager_;
@@ -401,8 +452,8 @@ class Global : public ActorContext {
   unique_ptr<MtprotoHeader> mtproto_header_;
 
   TdParameters parameters_;
-  int32 gc_scheduler_id_;
-  int32 slow_net_scheduler_id_;
+  int32 gc_scheduler_id_ = 0;
+  int32 slow_net_scheduler_id_ = 0;
 
   std::atomic<bool> store_all_files_in_files_directory_{false};
 
@@ -428,7 +479,7 @@ class Global : public ActorContext {
 
   unique_ptr<ConfigShared> shared_config_;
 
-  int32 my_id_ = 0;  // hack
+  int64 my_id_ = 0;  // hack
 
   static int64 get_location_key(double latitude, double longitude);
 
@@ -445,8 +496,8 @@ class Global : public ActorContext {
 
 inline Global *G_impl(const char *file, int line) {
   ActorContext *context = Scheduler::context();
-  CHECK(context);
-  LOG_CHECK(context->get_id() == Global::ID) << "In " << file << " at " << line;
+  LOG_CHECK(context != nullptr && context->get_id() == Global::ID)
+      << "Context = " << context << " in " << file << " at " << line;
   return static_cast<Global *>(context);
 }
 

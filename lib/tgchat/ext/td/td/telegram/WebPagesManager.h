@@ -1,19 +1,18 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #pragma once
 
-#include "td/telegram/td_api.h"
-#include "td/telegram/telegram_api.h"
-
 #include "td/telegram/DialogId.h"
 #include "td/telegram/files/FileId.h"
 #include "td/telegram/files/FileSourceId.h"
 #include "td/telegram/FullMessageId.h"
 #include "td/telegram/SecretInputMedia.h"
+#include "td/telegram/td_api.h"
+#include "td/telegram/telegram_api.h"
 #include "td/telegram/WebPageId.h"
 
 #include "td/actor/actor.h"
@@ -33,7 +32,7 @@ struct BinlogEvent;
 
 class Td;
 
-class WebPagesManager : public Actor {
+class WebPagesManager final : public Actor {
  public:
   WebPagesManager(Td *td, ActorShared<> parent);
 
@@ -41,7 +40,7 @@ class WebPagesManager : public Actor {
   WebPagesManager &operator=(const WebPagesManager &) = delete;
   WebPagesManager(WebPagesManager &&) = delete;
   WebPagesManager &operator=(WebPagesManager &&) = delete;
-  ~WebPagesManager() override;
+  ~WebPagesManager() final;
 
   WebPageId on_get_web_page(tl_object_ptr<telegram_api::WebPage> &&web_page_ptr, DialogId owner_dialog_id);
 
@@ -65,13 +64,13 @@ class WebPagesManager : public Actor {
 
   tl_object_ptr<td_api::webPage> get_web_page_preview_result(int64 request_id);
 
-  WebPageId get_web_page_instant_view(const string &url, bool force_full, bool force, Promise<Unit> &&promise);
+  void get_web_page_instant_view(const string &url, bool force_full, Promise<WebPageId> &&promise);
 
   WebPageId get_web_page_by_url(const string &url) const;
 
-  WebPageId get_web_page_by_url(const string &url, Promise<Unit> &&promise);
+  void get_web_page_by_url(const string &url, Promise<WebPageId> &&promise);
 
-  void reload_web_page_by_url(const string &url, Promise<Unit> &&promise);
+  void reload_web_page_by_url(const string &url, Promise<WebPageId> &&promise);
 
   void on_get_web_page_preview_success(int64 request_id, const string &url,
                                        tl_object_ptr<telegram_api::MessageMedia> &&message_media_ptr,
@@ -86,6 +85,8 @@ class WebPagesManager : public Actor {
   FileSourceId get_url_file_source_id(const string &url);
 
   string get_web_page_search_text(WebPageId web_page_id) const;
+
+  int32 get_web_page_media_duration(WebPageId web_page_id) const;
 
  private:
   static constexpr int32 WEBPAGE_FLAG_HAS_TYPE = 1 << 0;
@@ -121,12 +122,13 @@ class WebPagesManager : public Actor {
 
   const WebPageInstantView *get_web_page_instant_view(WebPageId web_page_id) const;
 
-  WebPageId get_web_page_instant_view(WebPageId web_page_id, bool force_full, Promise<Unit> &&promise);
+  void get_web_page_instant_view(WebPageId web_page_id, bool force_full, Promise<WebPageId> &&promise);
 
   tl_object_ptr<td_api::webPageInstantView> get_web_page_instant_view_object(
-      const WebPageInstantView *web_page_instant_view) const;
+      WebPageId web_page_id, const WebPageInstantView *web_page_instant_view) const;
 
-  static void on_pending_web_page_timeout_callback(void *web_pages_manager_ptr, int64 web_page_id);
+  static void on_pending_web_page_timeout_callback(void *web_pages_manager_ptr, int64 web_page_id_int);
+
   void on_pending_web_page_timeout(WebPageId web_page_id);
 
   void on_get_web_page_preview_success(int64 request_id, const string &url, WebPageId web_page_id,
@@ -149,24 +151,27 @@ class WebPagesManager : public Actor {
 
   static string get_web_page_instant_view_database_key(WebPageId web_page_id);
 
-  void load_web_page_instant_view(WebPageId web_page_id, bool force_full, Promise<Unit> &&promise);
+  void load_web_page_instant_view(WebPageId web_page_id, bool force_full, Promise<WebPageId> &&promise);
 
   void on_load_web_page_instant_view_from_database(WebPageId web_page_id, string value);
 
   void reload_web_page_instant_view(WebPageId web_page_id);
 
-  void update_web_page_instant_view_load_requests(WebPageId web_page_id, bool force_update, Result<> result);
+  void update_web_page_instant_view_load_requests(WebPageId web_page_id, bool force_update,
+                                                  Result<WebPageId> r_web_page_id);
 
   static string get_web_page_url_database_key(const string &url);
 
-  void load_web_page_by_url(const string &url, Promise<Unit> &&promise);
+  void load_web_page_by_url(string url, Promise<WebPageId> &&promise);
 
-  void on_load_web_page_id_by_url_from_database(const string &url, string value, Promise<Unit> &&promise);
+  void on_load_web_page_id_by_url_from_database(string url, string value, Promise<WebPageId> &&promise);
 
-  void on_load_web_page_by_url_from_database(WebPageId web_page_id, const string &url, Promise<Unit> &&promise,
-                                             Result<> result);
+  void on_load_web_page_by_url_from_database(WebPageId web_page_id, string url, Promise<WebPageId> &&promise,
+                                             Result<Unit> &&result);
 
-  void tear_down() override;
+  void tear_down() final;
+
+  static int32 get_web_page_media_duration(const WebPage *web_page);
 
   FileSourceId get_web_page_file_source_id(WebPage *web_page);
 
@@ -180,8 +185,8 @@ class WebPagesManager : public Actor {
   std::unordered_set<WebPageId, WebPageIdHash> loaded_from_database_web_pages_;
 
   struct PendingWebPageInstantViewQueries {
-    vector<Promise<Unit>> partial;
-    vector<Promise<Unit>> full;
+    vector<Promise<WebPageId>> partial;
+    vector<Promise<WebPageId>> full;
   };
   std::unordered_map<WebPageId, PendingWebPageInstantViewQueries, WebPageIdHash> load_web_page_instant_view_queries_;
 

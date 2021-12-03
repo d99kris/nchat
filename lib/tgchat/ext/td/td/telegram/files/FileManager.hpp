@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -17,6 +17,7 @@
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/Slice.h"
+#include "td/utils/SliceBuilder.h"
 #include "td/utils/tl_helpers.h"
 
 namespace td {
@@ -106,9 +107,7 @@ void FileManager::store_file(FileId file_id, StorerT &storer, int32 ttl) const {
     default:
       UNREACHABLE();
   }
-  if (has_encryption_key) {
-    store(file_view.encryption_key(), storer);
-  } else if (has_secure_key) {
+  if (has_encryption_key || has_secure_key) {
     store(file_view.encryption_key(), storer);
   }
 }
@@ -224,13 +223,10 @@ FileId FileManager::parse_file(ParserT &parser) {
     return FileId();
   }();
 
-  if (has_encryption_key) {
+  if (has_encryption_key || has_secure_key) {
+    auto key_type = has_encryption_key ? FileEncryptionKey::Type::Secret : FileEncryptionKey::Type::Secure;
     FileEncryptionKey encryption_key;
-    encryption_key.parse(FileEncryptionKey::Type::Secret, parser);
-    set_encryption_key(file_id, std::move(encryption_key));
-  } else if (has_secure_key) {
-    FileEncryptionKey encryption_key;
-    encryption_key.parse(FileEncryptionKey::Type::Secure, parser);
+    encryption_key.parse(key_type, parser);
     set_encryption_key(file_id, std::move(encryption_key));
   }
 

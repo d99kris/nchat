@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -12,6 +12,7 @@ char disable_linker_warning_about_empty_file_bignum_cpp TD_UNUSED;
 
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
+#include "td/utils/SliceBuilder.h"
 
 #include <openssl/bn.h>
 #include <openssl/crypto.h>
@@ -39,9 +40,8 @@ class BigNumContext::Impl {
 BigNumContext::BigNumContext() : impl_(make_unique<Impl>()) {
 }
 
-BigNumContext::BigNumContext(BigNumContext &&other) = default;
-BigNumContext &BigNumContext::operator=(BigNumContext &&other) = default;
-
+BigNumContext::BigNumContext(BigNumContext &&other) noexcept = default;
+BigNumContext &BigNumContext::operator=(BigNumContext &&other) noexcept = default;
 BigNumContext::~BigNumContext() = default;
 
 class BigNum::Impl {
@@ -70,6 +70,9 @@ BigNum::BigNum(const BigNum &other) : BigNum() {
 }
 
 BigNum &BigNum::operator=(const BigNum &other) {
+  if (this == &other) {
+    return *this;
+  }
   CHECK(impl_ != nullptr);
   CHECK(other.impl_ != nullptr);
   BIGNUM *result = BN_copy(impl_->big_num, other.impl_->big_num);
@@ -77,10 +80,8 @@ BigNum &BigNum::operator=(const BigNum &other) {
   return *this;
 }
 
-BigNum::BigNum(BigNum &&other) = default;
-
-BigNum &BigNum::operator=(BigNum &&other) = default;
-
+BigNum::BigNum(BigNum &&other) noexcept = default;
+BigNum &BigNum::operator=(BigNum &&other) noexcept = default;
 BigNum::~BigNum() = default;
 
 BigNum BigNum::from_binary(Slice str) {
@@ -147,7 +148,12 @@ bool BigNum::is_bit_set(int num) const {
 }
 
 bool BigNum::is_prime(BigNumContext &context) const {
-  int result = BN_is_prime_ex(impl_->big_num, BN_prime_checks, context.impl_->big_num_context, nullptr);
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L && !defined(LIBRESSL_VERSION_NUMBER)
+  int result = BN_check_prime(impl_->big_num, context.impl_->big_num_context, nullptr);
+#else
+  int result =
+      BN_is_prime_ex(impl_->big_num, get_num_bits() > 2048 ? 128 : 64, context.impl_->big_num_context, nullptr);
+#endif
   LOG_IF(FATAL, result == -1);
   return result == 1;
 }

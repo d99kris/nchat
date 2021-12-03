@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -25,9 +25,9 @@ class Td;
 
 /**
  * This is a low-level Actor interface for interaction with TDLib. The interface is a lot more flexible than
- * the Client interface, however, for most usages the Client interface should be sufficient.
+ * the ClientManager interface, however, for most usages the ClientManager interface should be sufficient.
  */
-class ClientActor : public Actor {
+class ClientActor final : public Actor {
  public:
   /// Options for ClientActor creation.
   struct Options {
@@ -64,19 +64,20 @@ class ClientActor : public Actor {
   /**
    * Destroys the ClientActor and the TDLib instance.
    */
-  ~ClientActor();
+  ~ClientActor() final;
 
   /**
    * Move constructor.
    */
-  ClientActor(ClientActor &&other);
+  ClientActor(ClientActor &&other) noexcept;
 
   /**
    * Move assignment operator.
    */
-  ClientActor &operator=(ClientActor &&other);
+  ClientActor &operator=(ClientActor &&other) noexcept;
 
   ClientActor(const ClientActor &other) = delete;
+
   ClientActor &operator=(const ClientActor &other) = delete;
 
  private:

@@ -43,9 +43,12 @@ TDLib can be used from Python through the [JSON](https://github.com/tdlib/td#usi
 
 Convenient Python wrappers already exist for our JSON interface.
 
-If you use modern Python >= 3.6, take a look at [python-telegram](https://github.com/alexander-akhmetov/python-telegram).
+If you use Python >= 3.6, take a look at [python-telegram](https://github.com/alexander-akhmetov/python-telegram).
 The wrapper uses the full power of asyncio, has a good documentation and has several examples. It can be installed through pip or used in a Docker container.
 You can also try a fork [python-telegram](https://github.com/iTeam-co/python-telegram) of this library.
+
+If you want to use TDLib with asyncio and Python >= 3.9, take a look at [aiotdlib](https://github.com/pylakey/aiotdlib).
+This wrapper contains automatically generated fully-documented classes for all TDLib API types and functions and provides set of helper methods which makes work with TDLib much simpler.
 
 For older Python versions you can use [pytdlib](https://github.com/pytdlib/pytdlib).
 This wrapper contains generator for TDLib API classes and basic interface for interaction with TDLib.
@@ -125,18 +128,19 @@ TDLib has a simple and convenient C++11-interface for sending and receiving requ
 See [example/cpp](https://github.com/tdlib/td/tree/master/example/cpp) for an example of TDLib usage from C++.
 [td_example.cpp](https://github.com/tdlib/td/tree/master/example/cpp/td_example.cpp) contains an example of authorization, processing new incoming messages, getting a list of chats and sending a text message.
 
-See also the source code of [Depecher](https://github.com/blacksailer/depecher) – a Telegram app for Sailfish OS, [TELEports](https://gitlab.com/ubports/apps/teleports) – a Qt-client for Ubuntu Touch, or
-[tdlib-purple](https://github.com/ars3niy/tdlib-purple) - Telegram plugin for Pidgin, all of which are based on TDLib.
+See also the source code of [Fernschreiber](https://github.com/Wunderfitz/harbour-fernschreiber) and [Depecher](https://github.com/blacksailer/depecher) – Telegram apps for Sailfish OS,
+[TELEports](https://gitlab.com/ubports/apps/teleports) – a Qt-client for Ubuntu Touch, or [tdlib-purple](https://github.com/ars3niy/tdlib-purple) - Telegram plugin for Pidgin, all of which are based on TDLib.
 
 <a name="swift"></a>
 ## Using TDLib in Swift projects
 
 TDLib can be used from the Swift programming language through the [JSON](https://github.com/tdlib/td#using-json) interface and can be linked statically or dynamically.
 
-See [TDLib-iOS](https://github.com/leoMehlig/TDLib-iOS) or [tdlib-swift](https://github.com/modestman/tdlib-swift), which provide convenient TDLib clients with automatically generated and fully-documented classes for all TDLib API methods and objects.
+See [example/ios](https://github.com/tdlib/td/tree/master/example/ios) for an example of building TDLib for iOS, watchOS, tvOS, and macOS.
+
+See [TDLibKit](https://github.com/Swiftgram/TDLibKit), [tdlib-swift](https://github.com/modestman/tdlib-swift), or [TDLib-iOS](https://github.com/leoMehlig/TDLib-iOS), which provide convenient TDLib clients with automatically generated and fully-documented classes for all TDLib API methods and objects.
 
 See [example/swift](https://github.com/tdlib/td/tree/master/example/swift) for an example of a macOS Swift application.
-See [example/ios](https://github.com/tdlib/td/tree/master/example/ios) for an example of building TDLib for iOS, watchOS, tvOS, and macOS.
 
 <a name="objective-c"></a>
 ## Using TDLib in Objective-C projects
@@ -169,11 +173,13 @@ See [project.scarlet](https://github.com/aaugmentum/project.scarlet), [tdlib](ht
 
 TDLib can be used from the Rust programming language through the [JSON](https://github.com/tdlib/td#using-json) interface.
 
-See [tdlib-rs](https://github.com/agnipau/tdlib-rs), which contains automatically generated classes for all TDLib API methods and objects.
+See [rust-tdlib](https://github.com/aCLr/rust-tdlib), [tdgrand](https://github.com/melix99/tdgrand), or [tdlib-rs](https://github.com/agnipau/tdlib-rs), which provide convenient TDLib clients with automatically generated and fully-documented classes for all TDLib API methods and objects.
 
 See [rtdlib](https://github.com/fewensa/rtdlib), [tdlib-rs](https://github.com/d653/tdlib-rs), [tdlib-futures](https://github.com/yuri91/tdlib-futures),
-[tdlib-sys](https://github.com/nuxeh/tdlib-sys), [rust-tdlib](https://github.com/lattenwald/rust-tdlib), or
+[tdlib-sys](https://github.com/nuxeh/tdlib-sys), or
 [tdjson-rs](https://github.com/mersinvald/tdjson-rs) for examples of TDLib Rust bindings.
+
+Also see [Telegrand](https://github.com/melix99/telegrand) – a Telegram client optimized for the GNOME desktop.
 
 <a name="erlang"></a>
 ## Using TDLib in Erlang projects
@@ -201,7 +207,7 @@ See [tdlib-bundle](https://github.com/yaroslavche/tdlib-bundle) – a Symfony bu
 
 TDLib can be used from the Lua programming language through the [JSON](https://github.com/tdlib/td#using-json) interface.
 
-See [luajit-tdlib](https://github.com/Rami-Sabbagh/luajit-tdlib), [tdlua](https://github.com/giuseppeM99/tdlua), [Luagram](https://github.com/Luagram/LuagramProject), or
+See [luajit-tdlib](https://github.com/Rami-Sabbagh/luajit-tdlib), [tdlua](https://github.com/giuseppeM99/tdlua), or
 [luajit-tdlib](https://github.com/Playermet/luajit-tdlib) for examples of TDLib Lua bindings and basic usage examples.
 
 See also [tdbot](https://github.com/vysheng/tdbot), which makes all TDLib features available from Lua scripts.

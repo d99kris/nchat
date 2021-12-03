@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -137,8 +137,8 @@ Status Global::init(const TdParameters &parameters, ActorId<Td> td, unique_ptr<T
 
 int32 Global::to_unix_time(double server_time) const {
   LOG_CHECK(1.0 <= server_time && server_time <= 2140000000.0)
-      << server_time << " " << Clocks::system() << " " << is_server_time_reliable() << " "
-      << get_server_time_difference() << " " << Time::now() << saved_diff_ << " " << saved_system_time_;
+      << server_time << ' ' << Clocks::system() << ' ' << is_server_time_reliable() << ' '
+      << get_server_time_difference() << ' ' << Time::now() << ' ' << saved_diff_ << ' ' << saved_system_time_;
   return static_cast<int32>(server_time);
 }
 
@@ -163,6 +163,7 @@ void Global::save_server_time() {
 
 void Global::do_save_server_time_difference() {
   if (shared_config_ != nullptr && shared_config_->get_option_boolean("disable_time_adjustment_protection")) {
+    td_db()->get_binlog_pmc()->erase("server_time_difference");
     return;
   }
 
@@ -215,7 +216,7 @@ DcId Global::get_webfile_dc_id() const {
   return DcId::internal(dc_id);
 }
 
-bool Global::ignore_backgrond_updates() const {
+bool Global::ignore_background_updates() const {
   return !parameters_.use_file_db && !parameters_.use_secret_chats &&
          shared_config_->get_option_boolean("ignore_background_updates");
 }

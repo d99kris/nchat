@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -13,6 +13,7 @@
 #include "td/utils/misc.h"
 #include "td/utils/port/IPAddress.h"
 #include "td/utils/port/wstring_convert.h"
+#include "td/utils/SliceBuilder.h"
 #include "td/utils/Status.h"
 #include "td/utils/Time.h"
 
@@ -23,9 +24,9 @@
 #include <openssl/x509v3.h>
 
 #include <cstring>
-#include <map>
 #include <memory>
 #include <mutex>
+#include <unordered_map>
 
 #if TD_PORT_WINDOWS
 #include <wincrypt.h>
@@ -95,7 +96,6 @@ long strm_ctrl(BIO *b, int cmd, long num, void *ptr) {
     case BIO_CTRL_FLUSH:
       return 1;
     case BIO_CTRL_PUSH:
-      return 0;
     case BIO_CTRL_POP:
       return 0;
     default:
@@ -130,7 +130,7 @@ int verify_callback(int preverify_ok, X509_STORE_CTX *ctx) {
     static std::mutex warning_mutex;
     {
       std::lock_guard<std::mutex> lock(warning_mutex);
-      static std::map<std::string, double> next_warning_time;
+      static std::unordered_map<std::string, double> next_warning_time;
       double &next = next_warning_time[warning];
       if (next <= now) {
         next = now + 300;  // one warning per 5 minutes
@@ -383,11 +383,11 @@ class SslStreamImpl {
     return size;
   }
 
-  class SslReadByteFlow : public ByteFlowBase {
+  class SslReadByteFlow final : public ByteFlowBase {
    public:
     explicit SslReadByteFlow(SslStreamImpl *stream) : stream_(stream) {
     }
-    bool loop() override {
+    bool loop() final {
       auto to_read = output_.prepare_append();
       auto r_size = stream_->read(to_read);
       if (r_size.is_error()) {
@@ -410,11 +410,11 @@ class SslStreamImpl {
     SslStreamImpl *stream_;
   };
 
-  class SslWriteByteFlow : public ByteFlowBase {
+  class SslWriteByteFlow final : public ByteFlowBase {
    public:
     explicit SslWriteByteFlow(SslStreamImpl *stream) : stream_(stream) {
     }
-    bool loop() override {
+    bool loop() final {
       auto to_write = input_->prepare_read();
       auto r_size = stream_->write(to_write);
       if (r_size.is_error()) {
@@ -472,7 +472,7 @@ class SslStreamImpl {
             return 0;
           }
         }
-        /* fall through */
+        /* fallthrough */
       default:
         LOG(DEBUG) << "SSL_ERROR Default";
         return create_openssl_error(1, "SSL error ");
@@ -486,7 +486,7 @@ int strm_read(BIO *b, char *buf, int len) {
   CHECK(stream != nullptr);
   BIO_clear_retry_flags(b);
   CHECK(buf != nullptr);
-  int res = narrow_cast<int>(stream->flow_read(MutableSlice(buf, len)));
+  auto res = narrow_cast<int>(stream->flow_read(MutableSlice(buf, len)));
   if (res == 0) {
     BIO_set_retry_read(b);
     return -1;
@@ -505,8 +505,8 @@ int strm_write(BIO *b, const char *buf, int len) {
 }  // namespace detail
 
 SslStream::SslStream() = default;
-SslStream::SslStream(SslStream &&) = default;
-SslStream &SslStream::operator=(SslStream &&) = default;
+SslStream::SslStream(SslStream &&) noexcept = default;
+SslStream &SslStream::operator=(SslStream &&) noexcept = default;
 SslStream::~SslStream() = default;
 
 Result<SslStream> SslStream::create(CSlice host, CSlice cert_file, VerifyPeer verify_peer,

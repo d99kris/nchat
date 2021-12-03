@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -84,11 +84,11 @@ class ObjectPool {
     OwnerPtr() = default;
     OwnerPtr(const OwnerPtr &) = delete;
     OwnerPtr &operator=(const OwnerPtr &) = delete;
-    OwnerPtr(OwnerPtr &&other) : storage_(other.storage_), parent_(other.parent_) {
+    OwnerPtr(OwnerPtr &&other) noexcept : storage_(other.storage_), parent_(other.parent_) {
       other.storage_ = nullptr;
       other.parent_ = nullptr;
     }
-    OwnerPtr &operator=(OwnerPtr &&other) {
+    OwnerPtr &operator=(OwnerPtr &&other) noexcept {
       if (this != &other) {
         storage_ = other.storage_;
         parent_ = other.parent_;

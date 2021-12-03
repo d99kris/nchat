@@ -1,13 +1,13 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
-#include "td/actor/ConcurrentScheduler.h"
-
 #include "td/telegram/td_json_client.h"
 #include "td/telegram/td_log.h"
+
+#include "td/actor/ConcurrentScheduler.h"
 
 #include <emscripten.h>
 
@@ -34,7 +34,7 @@ EMSCRIPTEN_KEEPALIVE double td_emscripten_get_timeout() {
 }
 }
 
-int main(void) {
+int main() {
   emscripten_exit_with_live_runtime();
   return 0;
 }

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -13,6 +13,7 @@
 
 namespace td {
 
+// increase MessageUnsupported::CURRENT_VERSION each time a new message content type is added
 enum class MessageContentType : int32 {
   None = -1,
   Text,
@@ -57,7 +58,10 @@ enum class MessageContentType : int32 {
   PassportDataReceived,
   Poll,
   Dice,
-  ProximityAlertTriggered
+  ProximityAlertTriggered,
+  GroupCall,
+  InviteToGroupCall,
+  ChatSetTheme
 };
 
 StringBuilder &operator<<(StringBuilder &string_builder, MessageContentType content_type);

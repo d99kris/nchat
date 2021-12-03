@@ -1,20 +1,21 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
+#include "td/utils/algorithm.h"
 #include "td/utils/as.h"
 #include "td/utils/base64.h"
 #include "td/utils/BigNum.h"
 #include "td/utils/bits.h"
 #include "td/utils/CancellationToken.h"
 #include "td/utils/common.h"
+#include "td/utils/emoji.h"
 #include "td/utils/ExitGuard.h"
 #include "td/utils/Hash.h"
 #include "td/utils/HashMap.h"
 #include "td/utils/HashSet.h"
-#include "td/utils/HttpUrl.h"
 #include "td/utils/invoke.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
@@ -29,15 +30,18 @@
 #include "td/utils/port/wstring_convert.h"
 #include "td/utils/Random.h"
 #include "td/utils/Slice.h"
+#include "td/utils/SliceBuilder.h"
 #include "td/utils/Status.h"
 #include "td/utils/StringBuilder.h"
 #include "td/utils/tests.h"
 #include "td/utils/Time.h"
+#include "td/utils/tl_helpers.h"
 #include "td/utils/translit.h"
 #include "td/utils/uint128.h"
 #include "td/utils/unicode.h"
 #include "td/utils/utf8.h"
 
+#include <algorithm>
 #include <atomic>
 #include <clocale>
 #include <limits>
@@ -65,11 +69,9 @@ struct CheckExitGuard {
 
 static CheckExitGuard check_exit_guard_true{true};
 static td::ExitGuard exit_guard;
-static CheckExitGuard check_exit_guard_false{false};
 
 #if TD_LINUX || TD_DARWIN
 TEST(Misc, update_atime_saves_mtime) {
-  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(ERROR));
   td::string name = "test_file";
   td::unlink(name).ignore();
   auto r_file = td::FileFd::open(name, td::FileFd::Read | td::FileFd::Flags::Create | td::FileFd::Flags::Truncate);
@@ -99,7 +101,6 @@ TEST(Misc, update_atime_saves_mtime) {
 }
 
 TEST(Misc, update_atime_change_atime) {
-  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(ERROR));
   td::string name = "test_file";
   td::unlink(name).ignore();
   auto r_file = td::FileFd::open(name, td::FileFd::Read | td::FileFd::Flags::Create | td::FileFd::Flags::Truncate);
@@ -263,7 +264,7 @@ TEST(Misc, base64) {
 }
 
 template <class T>
-static void test_remove_if(td::vector<int> v, const T &func, td::vector<int> expected) {
+static void test_remove_if(td::vector<int> v, const T &func, const td::vector<int> &expected) {
   td::remove_if(v, func);
   if (expected != v) {
     LOG(FATAL) << "Receive " << v << ", expected " << expected << " in remove_if";
@@ -321,7 +322,7 @@ TEST(Misc, remove_if) {
   test_remove_if(v, none, v);
 }
 
-static void test_remove(td::vector<int> v, int value, td::vector<int> expected) {
+static void test_remove(td::vector<int> v, int value, const td::vector<int> &expected) {
   bool is_found = expected != v;
   ASSERT_EQ(is_found, td::remove(v, value));
   if (expected != v) {
@@ -344,6 +345,32 @@ TEST(Misc, remove) {
   test_remove(v, -1, v);
   test_remove(v, 0, v);
   test_remove(v, 1, v);
+}
+
+static void test_unique(td::vector<int> v, const td::vector<int> &expected) {
+  auto v_str = td::transform(v, &td::to_string<int>);
+  auto expected_str = td::transform(expected, &td::to_string<int>);
+
+  td::unique(v);
+  ASSERT_EQ(expected, v);
+
+  td::unique(v_str);
+  ASSERT_EQ(expected_str, v_str);
+}
+
+TEST(Misc, unique) {
+  test_unique({1, 2, 3, 4, 5, 6}, {1, 2, 3, 4, 5, 6});
+  test_unique({5, 2, 1, 6, 3, 4}, {1, 2, 3, 4, 5, 6});
+  test_unique({}, {});
+  test_unique({0}, {0});
+  test_unique({0, 0}, {0});
+  test_unique({0, 1}, {0, 1});
+  test_unique({1, 0}, {0, 1});
+  test_unique({1, 1}, {1});
+  test_unique({1, 1, 0, 0}, {0, 1});
+  test_unique({3, 3, 3, 3, 3, 2, 2, 2, 1, 1, 0}, {0, 1, 2, 3});
+  test_unique({3, 3, 3, 3, 3}, {3});
+  test_unique({3, 3, -1, 3, 3}, {-1, 3});
 }
 
 TEST(Misc, contains) {
@@ -487,26 +514,7 @@ TEST(Misc, print_uint) {
   ASSERT_STREQ("9223372036854775807", PSLICE() << 9223372036854775807u);
 }
 
-static void test_get_url_query_file_name_one(const char *prefix, const char *suffix, const char *file_name) {
-  auto path = td::string(prefix) + td::string(file_name) + td::string(suffix);
-  ASSERT_STREQ(file_name, td::get_url_query_file_name(path));
-  ASSERT_STREQ(file_name, td::get_url_file_name("http://telegram.org" + path));
-  ASSERT_STREQ(file_name, td::get_url_file_name("http://telegram.org:80" + path));
-  ASSERT_STREQ(file_name, td::get_url_file_name("telegram.org" + path));
-}
-
-TEST(Misc, get_url_query_file_name) {
-  for (auto suffix : {"?t=1#test", "#test?t=1", "#?t=1", "?t=1#", "#test", "?t=1", "#", "?", ""}) {
-    test_get_url_query_file_name_one("", suffix, "");
-    test_get_url_query_file_name_one("/", suffix, "");
-    test_get_url_query_file_name_one("/a/adasd/", suffix, "");
-    test_get_url_query_file_name_one("/a/lklrjetn/", suffix, "adasd.asdas");
-    test_get_url_query_file_name_one("/", suffix, "a123asadas");
-    test_get_url_query_file_name_one("/", suffix, "\\a\\1\\2\\3\\a\\s\\a\\das");
-  }
-}
-
-static void test_idn_to_ascii_one(td::string host, td::string result) {
+static void test_idn_to_ascii_one(const td::string &host, const td::string &result) {
   if (result != td::idn_to_ascii(host).ok()) {
     LOG(ERROR) << "Failed to convert " << host << " to " << result << ", got \"" << td::idn_to_ascii(host).ok() << "\"";
   }
@@ -547,7 +555,7 @@ TEST(Misc, idn_to_ascii) {
 }
 
 #if TD_WINDOWS
-static void test_to_wstring_one(td::string str) {
+static void test_to_wstring_one(const td::string &str) {
   ASSERT_STREQ(str, td::from_wstring(td::to_wstring(str).ok()).ok());
 }
 
@@ -579,7 +587,7 @@ TEST(Misc, to_wstring) {
 }
 #endif
 
-static void test_translit(td::string word, td::vector<td::string> result, bool allow_partial = true) {
+static void test_translit(const td::string &word, const td::vector<td::string> &result, bool allow_partial = true) {
   ASSERT_EQ(result, td::get_word_transliterations(word, allow_partial));
 }
 
@@ -669,7 +677,7 @@ TEST(Misc, IPAddress_get_ipv4) {
   test_get_ipv4(0xFFFFFFFF);
 }
 
-static void test_is_reserved(td::string ip, bool is_reserved) {
+static void test_is_reserved(const td::string &ip, bool is_reserved) {
   td::IPAddress ip_address;
   ip_address.init_ipv4_port(ip, 80).ensure();
   ASSERT_EQ(is_reserved, ip_address.is_reserved());
@@ -762,11 +770,11 @@ TEST(Misc, split) {
   test_split(" abcdef ", {"", "abcdef "});
 }
 
-static void test_full_split(td::Slice str, td::vector<td::Slice> expected) {
+static void test_full_split(td::Slice str, const td::vector<td::Slice> &expected) {
   ASSERT_EQ(expected, td::full_split(str));
 }
 
-static void test_full_split(td::Slice str, char c, std::size_t max_parts, td::vector<td::Slice> expected) {
+static void test_full_split(td::Slice str, char c, std::size_t max_parts, const td::vector<td::Slice> &expected) {
   ASSERT_EQ(expected, td::full_split(str, c, max_parts));
 }
 
@@ -794,11 +802,12 @@ TEST(Misc, StringBuilder) {
   using V = td::vector<td::string>;
   for (auto use_buf : {false, true}) {
     for (std::size_t initial_buffer_size : {0, 1, 5, 10, 100, 1000, 2000}) {
-      for (auto test : {V{small_str}, V{small_str, big_str, big_str, small_str}, V{big_str, small_str, big_str}}) {
+      for (const auto &test :
+           {V{small_str}, V{small_str, big_str, big_str, small_str}, V{big_str, small_str, big_str}}) {
         td::string buf(initial_buffer_size, '\0');
         td::StringBuilder sb(buf, use_buf);
         td::string res;
-        for (auto x : test) {
+        for (const auto &x : test) {
           res += x;
           sb << x;
         }
@@ -1036,9 +1045,11 @@ TEST(Misc, uint128) {
       if (b == 0) {
         continue;
       }
-      td::int64 q, r;
+      td::int64 q;
+      td::int64 r;
       a.divmod_signed(b, &q, &r);
-      td::int64 iq, ir;
+      td::int64 iq;
+      td::int64 ir;
       ia.divmod_signed(b, &iq, &ir);
       ASSERT_EQ(q, iq);
       ASSERT_EQ(r, ir);
@@ -1196,10 +1207,40 @@ TEST(Misc, Xorshift128plus) {
   ASSERT_EQ(5645917797309401285ull, rnd());
   ASSERT_EQ(13554822455746959330ull, rnd());
 }
+
 TEST(Misc, uname) {
   auto first_version = td::get_operating_system_version();
   auto second_version = td::get_operating_system_version();
   ASSERT_STREQ(first_version, second_version);
   ASSERT_EQ(first_version.begin(), second_version.begin());
   ASSERT_TRUE(!first_version.empty());
+}
+
+TEST(Misc, is_emoji) {
+  ASSERT_TRUE(td::is_emoji("👩🏼‍❤‍💋‍👩🏻"));
+  ASSERT_TRUE(td::is_emoji("👩🏼‍❤️‍💋‍👩🏻"));
+  ASSERT_TRUE(!td::is_emoji("👩🏼‍❤️️‍💋‍👩🏻"));
+  ASSERT_TRUE(td::is_emoji("⌚"));
+  ASSERT_TRUE(td::is_emoji("↔"));
+  ASSERT_TRUE(td::is_emoji("🪗"));
+  ASSERT_TRUE(td::is_emoji("2️⃣"));
+  ASSERT_TRUE(td::is_emoji("2⃣"));
+  ASSERT_TRUE(!td::is_emoji(" 2⃣"));
+  ASSERT_TRUE(!td::is_emoji("2⃣ "));
+  ASSERT_TRUE(!td::is_emoji(" "));
+  ASSERT_TRUE(!td::is_emoji(""));
+  ASSERT_TRUE(!td::is_emoji("1234567890123456789012345678901234567890123456789012345678901234567890"));
+  ASSERT_TRUE(td::is_emoji("❤️"));
+  ASSERT_TRUE(td::is_emoji("❤"));
+}
+
+TEST(Misc, serialize) {
+  td::int32 x = 1;
+  ASSERT_EQ(td::base64_encode(td::serialize(x)), td::base64_encode(td::string("\x01\x00\x00\x00", 4)));
+  td::int64 y = -2;
+  ASSERT_EQ(td::base64_encode(td::serialize(y)), td::base64_encode(td::string("\xfe\xff\xff\xff\xff\xff\xff\xff", 8)));
+}
+
+TEST(Misc, check_reset_guard) {
+  CheckExitGuard check_exit_guard{false};
 }

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,6 +11,7 @@
 #include "td/utils/logging.h"
 #include "td/utils/port/thread_local.h"
 #include "td/utils/Slice.h"
+#include "td/utils/SliceBuilder.h"
 
 #include <array>
 #include <atomic>
@@ -20,7 +21,7 @@
 namespace td {
 
 namespace detail {
-class TsFileLog : public LogInterface {
+class TsFileLog final : public LogInterface {
  public:
   Status init(string path, int64 rotate_threshold, bool redirect_stderr) {
     path_ = std::move(path);
@@ -32,16 +33,12 @@ class TsFileLog : public LogInterface {
     return init_info(&logs_[0]);
   }
 
-  vector<string> get_file_paths() override {
-    vector<string> res;
-    for (auto &log : logs_) {
-      res.push_back(get_path(&log));
+  void rotate() {
+    for (auto &info : logs_) {
+      if (info.is_inited.load(std::memory_order_acquire)) {
+        info.log.lazy_rotate();
+      }
     }
-    return res;
-  }
-
-  void append(CSlice cslice, int log_level) override {
-    get_current_logger()->append(cslice, log_level);
   }
 
  private:
@@ -52,8 +49,8 @@ class TsFileLog : public LogInterface {
   };
 
   static constexpr size_t MAX_THREAD_ID = 128;
-  int64 rotate_threshold_;
-  bool redirect_stderr_;
+  int64 rotate_threshold_ = 0;
+  bool redirect_stderr_ = false;
   std::string path_;
   std::array<Info, MAX_THREAD_ID> logs_;
   std::mutex init_mutex_;
@@ -86,19 +83,23 @@ class TsFileLog : public LogInterface {
     return PSTRING() << path_ << ".thread" << info->id << ".log";
   }
 
-  void rotate() override {
-    for (auto &info : logs_) {
-      if (info.is_inited.load(std::memory_order_acquire)) {
-        info.log.lazy_rotate();
-      }
+  void do_append(int log_level, CSlice slice) final {
+    get_current_logger()->do_append(log_level, slice);
+  }
+
+  vector<string> get_file_paths() final {
+    vector<string> res;
+    for (auto &log : logs_) {
+      res.push_back(get_path(&log));
     }
+    return res;
   }
 };
 }  // namespace detail
 
 Result<unique_ptr<LogInterface>> TsFileLog::create(string path, int64 rotate_threshold, bool redirect_stderr) {
   auto res = make_unique<detail::TsFileLog>();
-  TRY_STATUS(res->init(path, rotate_threshold, redirect_stderr));
+  TRY_STATUS(res->init(std::move(path), rotate_threshold, redirect_stderr));
   return std::move(res);
 }
 

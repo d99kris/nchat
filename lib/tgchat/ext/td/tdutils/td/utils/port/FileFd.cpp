@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -7,6 +7,7 @@
 #include "td/utils/port/FileFd.h"
 
 #if TD_PORT_WINDOWS
+#include "td/utils/port/FromApp.h"
 #include "td/utils/port/Stat.h"
 #include "td/utils/port/wstring_convert.h"
 #endif
@@ -20,6 +21,7 @@
 #include "td/utils/port/PollFlags.h"
 #include "td/utils/port/sleep.h"
 #include "td/utils/ScopeGuard.h"
+#include "td/utils/SliceBuilder.h"
 #include "td/utils/StringBuilder.h"
 
 #include <cstring>
@@ -35,6 +37,8 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <unistd.h>
+#else
+#include <limits>
 #endif
 
 #if TD_PORT_WINDOWS && defined(WIN32_LEAN_AND_MEAN)
@@ -104,8 +108,8 @@ class FileFdImpl {
 }  // namespace detail
 
 FileFd::FileFd() = default;
-FileFd::FileFd(FileFd &&) = default;
-FileFd &FileFd::operator=(FileFd &&) = default;
+FileFd::FileFd(FileFd &&) noexcept = default;
+FileFd &FileFd::operator=(FileFd &&) noexcept = default;
 FileFd::~FileFd() = default;
 
 FileFd::FileFd(unique_ptr<detail::FileFdImpl> impl) : impl_(std::move(impl)) {
@@ -211,7 +215,8 @@ Result<FileFd> FileFd::open(CSlice filepath, int32 flags, int32 mode) {
   extended_parameters.dwSize = sizeof(extended_parameters);
   extended_parameters.dwFileAttributes = FILE_ATTRIBUTE_NORMAL;
   extended_parameters.dwFileFlags = native_flags;
-  auto handle = CreateFile2(w_filepath.c_str(), desired_access, share_mode, creation_disposition, &extended_parameters);
+  auto handle = td::CreateFile2FromAppW(w_filepath.c_str(), desired_access, share_mode, creation_disposition,
+                                        &extended_parameters);
 #endif
   if (handle == INVALID_HANDLE_VALUE) {
     return OS_ERROR(PSLICE() << "File \"" << filepath << "\" can't be " << PrintFlags{flags});
@@ -252,7 +257,9 @@ Result<size_t> FileFd::write(Slice slice) {
   BOOL success = WriteFile(native_fd, slice.data(), narrow_cast<DWORD>(slice.size()), &bytes_written, nullptr);
 #endif
   if (success) {
-    return narrow_cast<size_t>(bytes_written);
+    auto result = narrow_cast<size_t>(bytes_written);
+    CHECK(result <= slice.size());
+    return result;
   }
   return OS_ERROR(PSLICE() << "Write to " << get_native_fd() << " has failed");
 }
@@ -264,14 +271,29 @@ Result<size_t> FileFd::writev(Span<IoSlice> slices) {
   auto bytes_written = detail::skip_eintr([&] { return ::writev(native_fd, slices.begin(), slices_size); });
   bool success = bytes_written >= 0;
   if (success) {
-    return narrow_cast<size_t>(bytes_written);
+    auto result = narrow_cast<size_t>(bytes_written);
+    auto left = result;
+    for (const auto &slice : slices) {
+      if (left <= slice.iov_len) {
+        return result;
+      }
+      left -= slice.iov_len;
+    }
+    UNREACHABLE();
   }
   return OS_ERROR(PSLICE() << "Writev to " << get_native_fd() << " has failed");
 #else
   size_t res = 0;
-  for (auto slice : slices) {
+  for (const auto &slice : slices) {
+    if (slice.size() > std::numeric_limits<size_t>::max() - res) {
+      break;
+    }
     TRY_RESULT(size, write(slice));
     res += size;
+    if (size != slice.size()) {
+      CHECK(size < slice.size());
+      break;
+    }
   }
   return res;
 #endif
@@ -303,7 +325,9 @@ Result<size_t> FileFd::read(MutableSlice slice) {
     if (is_eof) {
       get_poll_info().clear_flags(PollFlags::Read());
     }
-    return static_cast<size_t>(bytes_read);
+    auto result = narrow_cast<size_t>(bytes_read);
+    CHECK(result <= slice.size());
+    return result;
   }
   return OS_ERROR(PSLICE() << "Read from " << get_native_fd() << " has failed");
 }
@@ -327,7 +351,9 @@ Result<size_t> FileFd::pwrite(Slice slice, int64 offset) {
   BOOL success = WriteFile(native_fd, slice.data(), narrow_cast<DWORD>(slice.size()), &bytes_written, &overlapped);
 #endif
   if (success) {
-    return narrow_cast<size_t>(bytes_written);
+    auto result = narrow_cast<size_t>(bytes_written);
+    CHECK(result <= slice.size());
+    return result;
   }
   return OS_ERROR(PSLICE() << "Pwrite to " << get_native_fd() << " at offset " << offset << " has failed");
 }
@@ -350,7 +376,9 @@ Result<size_t> FileFd::pread(MutableSlice slice, int64 offset) const {
   BOOL success = ReadFile(native_fd, slice.data(), narrow_cast<DWORD>(slice.size()), &bytes_read, &overlapped);
 #endif
   if (success) {
-    return narrow_cast<size_t>(bytes_read);
+    auto result = narrow_cast<size_t>(bytes_read);
+    CHECK(result <= slice.size());
+    return result;
   }
   return OS_ERROR(PSLICE() << "Pread from " << get_native_fd() << " at offset " << offset << " has failed");
 }
@@ -379,9 +407,9 @@ static Status create_local_lock(const string &path, int32 &max_tries) {
   }
 }
 
-Status FileFd::lock(const LockFlags flags, const string &path, int32 max_tries) {
+Status FileFd::lock(LockFlags flags, const string &path, int32 max_tries) {
   if (max_tries <= 0) {
-    return Status::Error(0, "Can't lock file: wrong max_tries");
+    return Status::Error("Can't lock file: wrong max_tries");
   }
 
   bool need_local_unlock = false;

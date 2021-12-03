@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -26,9 +26,9 @@
 #include "td/utils/type_traits.h"
 
 #include <functional>
-#include <map>
 #include <memory>
 #include <type_traits>
+#include <unordered_map>
 #include <utility>
 
 namespace td {
@@ -107,9 +107,6 @@ class Scheduler {
   template <ActorSendType send_type>
   void send(ActorRef actor_ref, Event &&event);
 
-  void hack(const ActorId<> &actor_id, Event &&event) {
-    actor_id.get_actor_unsafe()->raw_event(event.data);
-  }
   void before_tail_send(const ActorId<> &actor_id);
 
   static void subscribe(PollableFd fd, PollFlags flags = PollFlags::ReadWrite());
@@ -125,7 +122,7 @@ class Scheduler {
   void start_migrate_actor(Actor *actor, int32 dest_sched_id);
   void finish_migrate_actor(Actor *actor);
 
-  bool has_actor_timeout(const Actor *actor) const;
+  double get_actor_timeout(const Actor *actor) const;
   void set_actor_timeout_in(Actor *actor, double timeout);
   void set_actor_timeout_at(Actor *actor, double timeout_at);
   void cancel_actor_timeout(Actor *actor);
@@ -148,17 +145,18 @@ class Scheduler {
 
  private:
   static void set_scheduler(Scheduler *scheduler);
-  /*** ServiceActor ***/
+
   class ServiceActor final : public Actor {
    public:
     void set_queue(std::shared_ptr<MpscPollableQueue<EventFull>> queues);
-    void start_up() override;
 
    private:
     std::shared_ptr<MpscPollableQueue<EventFull>> inbound_;
     bool subscribed_{false};
-    void loop() override;
-    void tear_down() override;
+
+    void start_up() final;
+    void loop() final;
+    void tear_down() final;
   };
   friend class ServiceActor;
 
@@ -175,7 +173,7 @@ class Scheduler {
   void do_migrate_actor(ActorInfo *actor_info, int32 dest_sched_id);
   void start_migrate_actor(ActorInfo *actor_info, int32 dest_sched_id);
 
-  bool has_actor_timeout(const ActorInfo *actor_info) const;
+  double get_actor_timeout(const ActorInfo *actor_info) const;
   void set_actor_timeout_in(ActorInfo *actor_info, double timeout);
   void set_actor_timeout_at(ActorInfo *actor_info, double timeout_at);
   void cancel_actor_timeout(ActorInfo *actor_info);
@@ -194,7 +192,7 @@ class Scheduler {
 
   Timestamp run_timeout();
   void run_mailbox();
-  Timestamp run_events();
+  Timestamp run_events(Timestamp timeout);
   void run_poll(Timestamp timeout);
 
   template <class ActorT>
@@ -212,7 +210,7 @@ class Scheduler {
   ListNode ready_actors_list_;
   KHeap<double> timeout_queue_;
 
-  std::map<ActorInfo *, std::vector<Event>> pending_events_;
+  std::unordered_map<ActorInfo *, std::vector<Event>> pending_events_;
 
   ServiceActor service_actor_;
   Poll poll_;

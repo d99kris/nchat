@@ -1,31 +1,66 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/telegram/DialogAction.h"
 
+#include "td/telegram/misc.h"
+#include "td/telegram/ServerMessageId.h"
+
+#include "td/utils/emoji.h"
+#include "td/utils/misc.h"
+#include "td/utils/Slice.h"
+#include "td/utils/SliceBuilder.h"
+#include "td/utils/utf8.h"
+
 namespace td {
+
+bool DialogAction::is_valid_emoji(string &emoji) {
+  if (!clean_input_string(emoji)) {
+    return false;
+  }
+  return is_emoji(emoji);
+}
 
 void DialogAction::init(Type type) {
   type_ = type;
   progress_ = 0;
+  emoji_.clear();
 }
 
 void DialogAction::init(Type type, int32 progress) {
-  if (progress < 0 || progress > 100) {
-    progress = 0;
-  }
   type_ = type;
-  progress_ = progress;
+  progress_ = clamp(progress, 0, 100);
+  emoji_.clear();
+}
+
+void DialogAction::init(Type type, string emoji) {
+  if (is_valid_emoji(emoji)) {
+    type_ = type;
+    progress_ = 0;
+    emoji_ = std::move(emoji);
+  } else {
+    init(Type::Cancel);
+  }
+}
+
+void DialogAction::init(Type type, int32 message_id, string emoji, const string &data) {
+  if (ServerMessageId(message_id).is_valid() && is_valid_emoji(emoji) && check_utf8(data)) {
+    type_ = type;
+    progress_ = message_id;
+    emoji_ = PSTRING() << emoji << '\xFF' << data;
+  } else {
+    init(Type::Cancel);
+  }
 }
 
 DialogAction::DialogAction(Type type, int32 progress) {
   init(type, progress);
 }
 
-DialogAction::DialogAction(tl_object_ptr<td_api::ChatAction> &&action) {
+DialogAction::DialogAction(td_api::object_ptr<td_api::ChatAction> &&action) {
   if (action == nullptr) {
     return;
   }
@@ -80,13 +115,21 @@ DialogAction::DialogAction(tl_object_ptr<td_api::ChatAction> &&action) {
       init(Type::UploadingVideoNote, uploading_action->progress_);
       break;
     }
+    case td_api::chatActionChoosingSticker::ID:
+      init(Type::ChoosingSticker);
+      break;
+    case td_api::chatActionWatchingAnimations::ID: {
+      auto watching_animations_action = move_tl_object_as<td_api::chatActionWatchingAnimations>(action);
+      init(Type::WatchingAnimations, std::move(watching_animations_action->emoji_));
+      break;
+    }
     default:
       UNREACHABLE();
       break;
   }
 }
 
-DialogAction::DialogAction(tl_object_ptr<telegram_api::SendMessageAction> &&action) {
+DialogAction::DialogAction(telegram_api::object_ptr<telegram_api::SendMessageAction> &&action) {
   switch (action->get_id()) {
     case telegram_api::sendMessageCancelAction::ID:
       init(Type::Cancel);
@@ -137,6 +180,28 @@ DialogAction::DialogAction(tl_object_ptr<telegram_api::SendMessageAction> &&acti
       init(Type::UploadingVideoNote, upload_round_action->progress_);
       break;
     }
+    case telegram_api::speakingInGroupCallAction::ID:
+      init(Type::SpeakingInVoiceChat);
+      break;
+    case telegram_api::sendMessageHistoryImportAction::ID: {
+      auto history_import_action = move_tl_object_as<telegram_api::sendMessageHistoryImportAction>(action);
+      init(Type::ImportingMessages, history_import_action->progress_);
+      break;
+    }
+    case telegram_api::sendMessageChooseStickerAction::ID:
+      init(Type::ChoosingSticker);
+      break;
+    case telegram_api::sendMessageEmojiInteractionSeen::ID: {
+      auto emoji_interaction_seen_action = move_tl_object_as<telegram_api::sendMessageEmojiInteractionSeen>(action);
+      init(Type::WatchingAnimations, std::move(emoji_interaction_seen_action->emoticon_));
+      break;
+    }
+    case telegram_api::sendMessageEmojiInteraction::ID: {
+      auto emoji_interaction_action = move_tl_object_as<telegram_api::sendMessageEmojiInteraction>(action);
+      init(Type::ClickingAnimatedEmoji, emoji_interaction_action->msg_id_,
+           std::move(emoji_interaction_action->emoticon_), emoji_interaction_action->interaction_->data_);
+      break;
+    }
     default:
       UNREACHABLE();
       break;
@@ -171,6 +236,15 @@ tl_object_ptr<telegram_api::SendMessageAction> DialogAction::get_input_send_mess
       return make_tl_object<telegram_api::sendMessageRecordRoundAction>();
     case Type::UploadingVideoNote:
       return make_tl_object<telegram_api::sendMessageUploadRoundAction>(progress_);
+    case Type::SpeakingInVoiceChat:
+      return make_tl_object<telegram_api::speakingInGroupCallAction>();
+    case Type::ImportingMessages:
+      return make_tl_object<telegram_api::sendMessageHistoryImportAction>(progress_);
+    case Type::ChoosingSticker:
+      return make_tl_object<telegram_api::sendMessageChooseStickerAction>();
+    case Type::WatchingAnimations:
+      return make_tl_object<telegram_api::sendMessageEmojiInteractionSeen>(emoji_);
+    case Type::ClickingAnimatedEmoji:
     default:
       UNREACHABLE();
       return nullptr;
@@ -205,6 +279,15 @@ tl_object_ptr<secret_api::SendMessageAction> DialogAction::get_secret_input_send
       return make_tl_object<secret_api::sendMessageRecordRoundAction>();
     case Type::UploadingVideoNote:
       return make_tl_object<secret_api::sendMessageUploadRoundAction>();
+    case Type::SpeakingInVoiceChat:
+      return make_tl_object<secret_api::sendMessageTypingAction>();
+    case Type::ImportingMessages:
+      return make_tl_object<secret_api::sendMessageTypingAction>();
+    case Type::ChoosingSticker:
+      return make_tl_object<secret_api::sendMessageTypingAction>();
+    case Type::WatchingAnimations:
+      return make_tl_object<secret_api::sendMessageTypingAction>();
+    case Type::ClickingAnimatedEmoji:
     default:
       UNREACHABLE();
       return nullptr;
@@ -239,13 +322,20 @@ tl_object_ptr<td_api::ChatAction> DialogAction::get_chat_action_object() const {
       return td_api::make_object<td_api::chatActionRecordingVideoNote>();
     case Type::UploadingVideoNote:
       return td_api::make_object<td_api::chatActionUploadingVideoNote>(progress_);
+    case Type::ChoosingSticker:
+      return td_api::make_object<td_api::chatActionChoosingSticker>();
+    case Type::WatchingAnimations:
+      return td_api::make_object<td_api::chatActionWatchingAnimations>(emoji_);
+    case Type::ImportingMessages:
+    case Type::SpeakingInVoiceChat:
+    case Type::ClickingAnimatedEmoji:
     default:
       UNREACHABLE();
       return td_api::make_object<td_api::chatActionCancel>();
   }
 }
 
-bool DialogAction::is_cancelled_by_message_of_type(MessageContentType message_content_type) const {
+bool DialogAction::is_canceled_by_message_of_type(MessageContentType message_content_type) const {
   if (message_content_type == MessageContentType::None) {
     return true;
   }
@@ -276,9 +366,10 @@ bool DialogAction::is_cancelled_by_message_of_type(MessageContentType message_co
     case MessageContentType::Location:
     case MessageContentType::Venue:
       return type_ == Type::ChoosingLocation;
+    case MessageContentType::Sticker:
+      return type_ == Type::ChoosingSticker;
     case MessageContentType::Game:
     case MessageContentType::Invoice:
-    case MessageContentType::Sticker:
     case MessageContentType::Text:
     case MessageContentType::Unsupported:
     case MessageContentType::ChatCreate:
@@ -306,6 +397,9 @@ bool DialogAction::is_cancelled_by_message_of_type(MessageContentType message_co
     case MessageContentType::Poll:
     case MessageContentType::Dice:
     case MessageContentType::ProximityAlertTriggered:
+    case MessageContentType::GroupCall:
+    case MessageContentType::InviteToGroupCall:
+    case MessageContentType::ChatSetTheme:
       return false;
     default:
       UNREACHABLE();
@@ -334,6 +428,36 @@ DialogAction DialogAction::get_uploading_action(MessageContentType message_conte
 
 DialogAction DialogAction::get_typing_action() {
   return DialogAction(Type::Typing, 0);
+}
+
+DialogAction DialogAction::get_speaking_action() {
+  return DialogAction(Type::SpeakingInVoiceChat, 0);
+}
+
+int32 DialogAction::get_importing_messages_action_progress() const {
+  if (type_ != Type::ImportingMessages) {
+    return -1;
+  }
+  return progress_;
+}
+
+string DialogAction::get_watching_animations_emoji() const {
+  if (type_ == Type::WatchingAnimations) {
+    return emoji_;
+  }
+  return string();
+}
+
+DialogAction::ClickingAnimateEmojiInfo DialogAction::get_clicking_animated_emoji_action_info() const {
+  ClickingAnimateEmojiInfo result;
+  if (type_ == Type::ClickingAnimatedEmoji) {
+    auto pos = emoji_.find('\xFF');
+    CHECK(pos < emoji_.size());
+    result.message_id = progress_;
+    result.emoji = emoji_.substr(0, pos);
+    result.data = emoji_.substr(pos + 1);
+  }
+  return result;
 }
 
 StringBuilder &operator<<(StringBuilder &string_builder, const DialogAction &action) {
@@ -366,14 +490,34 @@ StringBuilder &operator<<(StringBuilder &string_builder, const DialogAction &act
         return "RecordingVideoNote";
       case DialogAction::Type::UploadingVideoNote:
         return "UploadingVideoNote";
+      case DialogAction::Type::SpeakingInVoiceChat:
+        return "SpeakingInVoiceChat";
+      case DialogAction::Type::ImportingMessages:
+        return "ImportingMessages";
+      case DialogAction::Type::ChoosingSticker:
+        return "ChoosingSticker";
+      case DialogAction::Type::WatchingAnimations:
+        return "WatchingAnimations";
+      case DialogAction::Type::ClickingAnimatedEmoji:
+        return "ClickingAnimatedEmoji";
       default:
         UNREACHABLE();
         return "Cancel";
     }
   }();
   string_builder << type << "Action";
-  if (action.progress_ != 0) {
-    string_builder << '(' << action.progress_ << "%)";
+  if (action.type_ == DialogAction::Type::ClickingAnimatedEmoji) {
+    auto pos = action.emoji_.find('\xFF');
+    CHECK(pos < action.emoji_.size());
+    string_builder << '(' << action.progress_ << ")(" << Slice(action.emoji_).substr(0, pos) << ")("
+                   << Slice(action.emoji_).substr(pos + 1) << ')';
+  } else {
+    if (action.progress_ != 0) {
+      string_builder << '(' << action.progress_ << "%)";
+    }
+    if (!action.emoji_.empty()) {
+      string_builder << '(' << action.emoji_ << ')';
+    }
   }
   return string_builder;
 }

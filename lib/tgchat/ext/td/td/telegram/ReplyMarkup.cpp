@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -8,6 +8,7 @@
 
 #include "td/telegram/ContactsManager.h"
 #include "td/telegram/Global.h"
+#include "td/telegram/LinkManager.h"
 #include "td/telegram/misc.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/td_api.h"
@@ -16,6 +17,7 @@
 #include "td/utils/buffer.h"
 #include "td/utils/format.h"
 #include "td/utils/logging.h"
+#include "td/utils/SliceBuilder.h"
 
 #include <limits>
 
@@ -24,6 +26,7 @@ namespace td {
 static constexpr int32 REPLY_MARKUP_FLAG_NEED_RESIZE_KEYBOARD = 1 << 0;
 static constexpr int32 REPLY_MARKUP_FLAG_IS_ONE_TIME_KEYBOARD = 1 << 1;
 static constexpr int32 REPLY_MARKUP_FLAG_IS_PERSONAL = 1 << 2;
+static constexpr int32 REPLY_MARKUP_FLAG_HAS_PLACEHOLDER = 1 << 3;
 
 static bool operator==(const KeyboardButton &lhs, const KeyboardButton &rhs) {
   return lhs.type == rhs.type && lhs.text == rhs.text;
@@ -82,7 +85,7 @@ static StringBuilder &operator<<(StringBuilder &string_builder, const InlineKeyb
       string_builder << "Buy";
       break;
     case InlineKeyboardButton::Type::UrlAuth:
-      string_builder << "UrlAuth, id = " << keyboard_button.id;
+      string_builder << "UrlAuth, ID = " << keyboard_button.id;
       break;
     case InlineKeyboardButton::Type::CallbackWithPassword:
       string_builder << "CallbackWithPassword";
@@ -102,6 +105,9 @@ bool operator==(const ReplyMarkup &lhs, const ReplyMarkup &rhs) {
   }
 
   if (lhs.is_personal != rhs.is_personal) {
+    return false;
+  }
+  if (lhs.placeholder != rhs.placeholder) {
     return false;
   }
   if (lhs.type != ReplyMarkup::Type::ShowKeyboard) {
@@ -135,6 +141,9 @@ StringBuilder &ReplyMarkup::print(StringBuilder &string_builder) const {
   }
   if (is_personal) {
     string_builder << ", personal";
+  }
+  if (!placeholder.empty()) {
+    string_builder << ", placeholder \"" << placeholder << '"';
   }
 
   if (type == ReplyMarkup::Type::ShowKeyboard) {
@@ -307,6 +316,7 @@ unique_ptr<ReplyMarkup> get_reply_markup(tl_object_ptr<telegram_api::ReplyMarkup
       reply_markup->need_resize_keyboard = (keyboard_markup->flags_ & REPLY_MARKUP_FLAG_NEED_RESIZE_KEYBOARD) != 0;
       reply_markup->is_one_time_keyboard = (keyboard_markup->flags_ & REPLY_MARKUP_FLAG_IS_ONE_TIME_KEYBOARD) != 0;
       reply_markup->is_personal = (keyboard_markup->flags_ & REPLY_MARKUP_FLAG_IS_PERSONAL) != 0;
+      reply_markup->placeholder = std::move(keyboard_markup->placeholder_);
       reply_markup->keyboard.reserve(keyboard_markup->rows_.size());
       for (auto &row : keyboard_markup->rows_) {
         vector<KeyboardButton> buttons;
@@ -336,6 +346,7 @@ unique_ptr<ReplyMarkup> get_reply_markup(tl_object_ptr<telegram_api::ReplyMarkup
       auto force_reply_markup = move_tl_object_as<telegram_api::replyKeyboardForceReply>(reply_markup_ptr);
       reply_markup->type = ReplyMarkup::Type::ForceReply;
       reply_markup->is_personal = (force_reply_markup->flags_ & REPLY_MARKUP_FLAG_IS_PERSONAL) != 0;
+      reply_markup->placeholder = std::move(force_reply_markup->placeholder_);
       break;
     }
     default:
@@ -424,10 +435,14 @@ static Result<InlineKeyboardButton> get_inline_keyboard_button(tl_object_ptr<td_
   switch (button_type_id) {
     case td_api::inlineKeyboardButtonTypeUrl::ID: {
       current_button.type = InlineKeyboardButton::Type::Url;
-      TRY_RESULT_ASSIGN(current_button.data,
-                        check_url(static_cast<const td_api::inlineKeyboardButtonTypeUrl *>(button->type_.get())->url_));
+      auto r_url =
+          LinkManager::check_link(static_cast<const td_api::inlineKeyboardButtonTypeUrl *>(button->type_.get())->url_);
+      if (r_url.is_error()) {
+        return Status::Error(400, "Inline keyboard button URL is invalid");
+      }
+      current_button.data = r_url.move_as_ok();
       if (!clean_input_string(current_button.data)) {
-        return Status::Error(400, "Inline keyboard button url must be encoded in UTF-8");
+        return Status::Error(400, "Inline keyboard button URL must be encoded in UTF-8");
       }
       break;
     }
@@ -466,16 +481,20 @@ static Result<InlineKeyboardButton> get_inline_keyboard_button(tl_object_ptr<td_
     case td_api::inlineKeyboardButtonTypeLoginUrl::ID: {
       current_button.type = InlineKeyboardButton::Type::UrlAuth;
       auto login_url = td_api::move_object_as<td_api::inlineKeyboardButtonTypeLoginUrl>(button->type_);
-      TRY_RESULT_ASSIGN(current_button.data, check_url(login_url->url_));
+      auto r_url = LinkManager::check_link(login_url->url_);
+      if (r_url.is_error()) {
+        return Status::Error(400, "Inline keyboard button login URL is invalid");
+      }
+      current_button.data = r_url.move_as_ok();
       current_button.forward_text = std::move(login_url->forward_text_);
       if (!clean_input_string(current_button.data)) {
-        return Status::Error(400, "Inline keyboard button login url must be encoded in UTF-8");
+        return Status::Error(400, "Inline keyboard button login URL must be encoded in UTF-8");
       }
       if (!clean_input_string(current_button.forward_text)) {
         return Status::Error(400, "Inline keyboard button forward text must be encoded in UTF-8");
       }
       current_button.id = login_url->id_;
-      if (current_button.id == 0 || current_button.id == std::numeric_limits<int32>::min()) {
+      if (current_button.id == 0 || current_button.id == std::numeric_limits<int64>::min()) {
         return Status::Error(400, "Invalid bot_user_id specified");
       }
       break;
@@ -508,6 +527,7 @@ Result<unique_ptr<ReplyMarkup>> get_reply_markup(tl_object_ptr<td_api::ReplyMark
       reply_markup->need_resize_keyboard = show_keyboard_markup->resize_keyboard_;
       reply_markup->is_one_time_keyboard = show_keyboard_markup->one_time_;
       reply_markup->is_personal = show_keyboard_markup->is_personal_;
+      reply_markup->placeholder = std::move(show_keyboard_markup->input_field_placeholder_);
 
       reply_markup->keyboard.reserve(show_keyboard_markup->rows_.size());
       int32 total_button_count = 0;
@@ -589,6 +609,7 @@ Result<unique_ptr<ReplyMarkup>> get_reply_markup(tl_object_ptr<td_api::ReplyMark
       auto force_reply_markup = move_tl_object_as<td_api::replyMarkupForceReply>(reply_markup_ptr);
       reply_markup->type = ReplyMarkup::Type::ForceReply;
       reply_markup->is_personal = force_reply_markup->is_personal_;
+      reply_markup->placeholder = std::move(force_reply_markup->input_field_placeholder_);
       break;
     }
     default:
@@ -641,7 +662,7 @@ static tl_object_ptr<telegram_api::KeyboardButton> get_inline_keyboard_button(
       return make_tl_object<telegram_api::keyboardButtonBuy>(keyboard_button.text);
     case InlineKeyboardButton::Type::UrlAuth: {
       int32 flags = 0;
-      int32 bot_user_id = keyboard_button.id;
+      int64 bot_user_id = keyboard_button.id;
       if (bot_user_id > 0) {
         flags |= telegram_api::inputKeyboardButtonUrlAuth::REQUEST_WRITE_ACCESS_MASK;
       } else {
@@ -700,13 +721,14 @@ tl_object_ptr<telegram_api::ReplyMarkup> ReplyMarkup::get_input_reply_markup() c
       return make_tl_object<telegram_api::replyKeyboardMarkup>(
           need_resize_keyboard * REPLY_MARKUP_FLAG_NEED_RESIZE_KEYBOARD +
               is_one_time_keyboard * REPLY_MARKUP_FLAG_IS_ONE_TIME_KEYBOARD +
-              is_personal * REPLY_MARKUP_FLAG_IS_PERSONAL,
-          false /*ignored*/, false /*ignored*/, false /*ignored*/, std::move(rows));
+              is_personal * REPLY_MARKUP_FLAG_IS_PERSONAL + (!placeholder.empty()) * REPLY_MARKUP_FLAG_HAS_PLACEHOLDER,
+          false /*ignored*/, false /*ignored*/, false /*ignored*/, std::move(rows), placeholder);
     }
     case ReplyMarkup::Type::ForceReply:
       LOG(DEBUG) << "Return replyKeyboardForceReply to send it";
-      return make_tl_object<telegram_api::replyKeyboardForceReply>(is_personal * REPLY_MARKUP_FLAG_IS_PERSONAL,
-                                                                   false /*ignored*/, false /*ignored*/);
+      return make_tl_object<telegram_api::replyKeyboardForceReply>(
+          is_personal * REPLY_MARKUP_FLAG_IS_PERSONAL + (!placeholder.empty()) * REPLY_MARKUP_FLAG_HAS_PLACEHOLDER,
+          false /*ignored*/, false /*ignored*/, placeholder);
     case ReplyMarkup::Type::RemoveKeyboard:
       LOG(DEBUG) << "Return replyKeyboardHide to send it";
       return make_tl_object<telegram_api::replyKeyboardHide>(is_personal * REPLY_MARKUP_FLAG_IS_PERSONAL,
@@ -810,12 +832,12 @@ tl_object_ptr<td_api::ReplyMarkup> ReplyMarkup::get_reply_markup_object() const 
       }
 
       return make_tl_object<td_api::replyMarkupShowKeyboard>(std::move(rows), need_resize_keyboard,
-                                                             is_one_time_keyboard, is_personal);
+                                                             is_one_time_keyboard, is_personal, placeholder);
     }
     case ReplyMarkup::Type::RemoveKeyboard:
       return make_tl_object<td_api::replyMarkupRemoveKeyboard>(is_personal);
     case ReplyMarkup::Type::ForceReply:
-      return make_tl_object<td_api::replyMarkupForceReply>(is_personal);
+      return make_tl_object<td_api::replyMarkupForceReply>(is_personal, placeholder);
     default:
       UNREACHABLE();
       return nullptr;

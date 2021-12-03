@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -66,6 +66,14 @@ static const char gzip_bomb_arr[] =
     "TLGznukoHjpzn3qgqJTV2ogJXaK6ctqTgxKUoPyfUeqmx4szeRJuj3josnbUu0O57kcXXX-bi25IozxSONDzF5jalI4";
 const char *gzip_bomb = gzip_bomb_arr;
 const size_t gzip_bomb_size = sizeof(gzip_bomb_arr) - 1;
+
+static const char gzip_arr[] =
+    "eJztxT1LQmEAgNGXMJEIukNI0pDS0hAUSiCa4uZfELqgQwUFuQjXhkDFisrARajBocmISFA0GstBg4owopuIgdAiKE0SfkSBf6HB5TnLmYnpxMBv89"
+    "ExVnBN7pWvll_ePZqMpPo2Fg6dT-GQdfbA_zH_eftzVE16g8l9Ze7cP33ZTn2dlPP9XEfpXbyeqtnrm50HS7G0dbzyZpPNSkW_"
+    "tLmeCCT0pbrzO21otbfjqqyNuIySTjNCRERERERERERERERERERERERERERERERERERE_2k3ZA8YhRBhcb_"
+    "2XHN7zoR5alwbvfMtEhERERERERERERERERER0ZCqTzREVzKNyvlV8Qf1dzn-";
+const char *gzip = gzip_arr;
+const size_t gzip_size = sizeof(gzip_arr) - 1;
 
 static const char sqlite_sample_db_v3_arr[] =
     "olFZ1MdfY0Abj+LtR9ft6DTZgEHW7/"

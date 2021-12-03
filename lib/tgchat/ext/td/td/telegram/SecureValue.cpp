@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -15,11 +15,9 @@
 #include "td/telegram/misc.h"
 #include "td/telegram/net/DcId.h"
 #include "td/telegram/Payments.h"
-
-#include "td/telegram/td_api.h"
-#include "td/telegram/telegram_api.h"
 #include "td/telegram/telegram_api.hpp"
 
+#include "td/utils/algorithm.h"
 #include "td/utils/base64.h"
 #include "td/utils/buffer.h"
 #include "td/utils/crypto.h"
@@ -27,6 +25,7 @@
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/overloaded.h"
+#include "td/utils/SliceBuilder.h"
 #include "td/utils/utf8.h"
 
 #include <limits>
@@ -243,10 +242,9 @@ SuitableSecureValue get_suitable_secure_value(
     const tl_object_ptr<telegram_api::secureRequiredType> &secure_required_type) {
   SuitableSecureValue result;
   result.type = get_secure_value_type(secure_required_type->type_);
-  auto flags = secure_required_type->flags_;
-  result.is_selfie_required = (flags & telegram_api::secureRequiredType::SELFIE_REQUIRED_MASK) != 0;
-  result.is_translation_required = (flags & telegram_api::secureRequiredType::TRANSLATION_REQUIRED_MASK) != 0;
-  result.is_native_name_required = (flags & telegram_api::secureRequiredType::NATIVE_NAMES_MASK) != 0;
+  result.is_selfie_required = secure_required_type->selfie_required_;
+  result.is_translation_required = secure_required_type->translation_required_;
+  result.is_native_name_required = secure_required_type->native_names_;
   return result;
 }
 
@@ -394,6 +392,7 @@ telegram_api::object_ptr<telegram_api::InputSecureFile> get_input_secure_file_ob
     LOG(ERROR) << "Receive invalid EncryptedSecureFile";
     return nullptr;
   }
+  CHECK(input_file.file_id.is_valid());
   CHECK(file_manager->get_file_view(file.file.file_id).file_id() ==
         file_manager->get_file_view(input_file.file_id).file_id());
   auto res = std::move(input_file.input_file);
@@ -433,7 +432,7 @@ static td_api::object_ptr<td_api::datedFile> get_dated_file_object(FileManager *
                                                            file_view.remote_location().get_access_hash(),
                                                            file_view.remote_location().get_dc_id(), ""),
                                     FileLocationSource::FromServer, DialogId(), file_view.size(),
-                                    file_view.expected_size(), file_view.suggested_name());
+                                    file_view.expected_size(), file_view.suggested_path());
   return get_dated_file_object(file_manager, dated_file);
 }
 
@@ -514,7 +513,6 @@ static bool check_encrypted_secure_value(const EncryptedSecureValue &value) {
     case SecureValueType::TemporaryRegistration:
       return !has_encrypted_data && !has_plain_data && has_files && !has_front_side && !has_reverse_side && !has_selfie;
     case SecureValueType::PhoneNumber:
-      return has_plain_data && !has_files && !has_front_side && !has_reverse_side && !has_selfie && !has_translations;
     case SecureValueType::EmailAddress:
       return has_plain_data && !has_files && !has_front_side && !has_reverse_side && !has_selfie && !has_translations;
     case SecureValueType::None:
@@ -845,8 +843,7 @@ static Status check_document_number(string &number) {
 }
 
 static Result<DatedFile> get_secure_file(FileManager *file_manager, td_api::object_ptr<td_api::InputFile> &&file) {
-  TRY_RESULT(file_id,
-             file_manager->get_input_file_id(FileType::Secure, std::move(file), DialogId(), false, false, false, true));
+  TRY_RESULT(file_id, file_manager->get_input_file_id(FileType::Secure, file, DialogId(), false, false, false, true));
   DatedFile result;
   result.file_id = file_id;
   result.date = G()->unix_time();
@@ -1291,7 +1288,7 @@ static EncryptedSecureFile encrypt_secure_file(FileManager *file_manager, const 
 
 static vector<EncryptedSecureFile> encrypt_secure_files(FileManager *file_manager,
                                                         const secure_storage::Secret &master_secret,
-                                                        vector<DatedFile> files, string &to_hash) {
+                                                        const vector<DatedFile> &files, string &to_hash) {
   return transform(
       files, [&](auto dated_file) { return encrypt_secure_file(file_manager, master_secret, dated_file, to_hash); });
   /*
