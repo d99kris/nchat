@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -50,10 +50,10 @@ static jint Client_nativeClientReceive(JNIEnv *env, jclass clazz, jintArray clie
   auto *manager = get_manager();
   auto response = manager->receive(timeout);
   while (response.object) {
-    jint client_id = static_cast<jint>(response.client_id);
+    auto client_id = static_cast<jint>(response.client_id);
     env->SetIntArrayRegion(client_ids, result_size, 1, &client_id);
 
-    jlong request_id = static_cast<jlong>(response.request_id);
+    auto request_id = static_cast<jlong>(response.request_id);
     env->SetLongArrayRegion(ids, result_size, 1, &request_id);
 
     jobject object;
@@ -101,7 +101,10 @@ static constexpr jint JAVA_VERSION = JNI_VERSION_1_6;
 static JavaVM *java_vm;
 static jclass log_class;
 
-static void on_fatal_error(const char *error_message) {
+static void on_log_message(int verbosity_level, const char *error_message) {
+  if (verbosity_level != 0) {
+    return;
+  }
   auto env = td::jni::get_jni_env(java_vm, JAVA_VERSION);
   if (env == nullptr) {
     return;
@@ -154,7 +157,7 @@ static jint register_native(JavaVM *vm) {
   td::jni::init_vars(env, PACKAGE_NAME);
   td::td_api::Object::init_jni_vars(env, PACKAGE_NAME);
   td::td_api::Function::init_jni_vars(env, PACKAGE_NAME);
-  td::Log::set_fatal_error_callback(on_fatal_error);
+  td::ClientManager::set_log_message_callback(0, on_log_message);
 
   return JAVA_VERSION;
 }

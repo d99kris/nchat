@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -28,9 +28,15 @@
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
 #include <openssl/md5.h>
+#include <openssl/opensslv.h>
 #include <openssl/pem.h>
 #include <openssl/rsa.h>
 #include <openssl/sha.h>
+#endif
+
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L && !defined(LIBRESSL_VERSION_NUMBER)
+#include <openssl/core_names.h>
+#include <openssl/params.h>
 #endif
 
 #if TD_HAVE_ZLIB
@@ -390,8 +396,8 @@ struct AesState::Impl {
 };
 
 AesState::AesState() = default;
-AesState::AesState(AesState &&from) = default;
-AesState &AesState::operator=(AesState &&from) = default;
+AesState::AesState(AesState &&from) noexcept = default;
+AesState &AesState::operator=(AesState &&from) noexcept = default;
 AesState::~AesState() = default;
 
 void AesState::init(Slice key, bool encrypt) {
@@ -460,7 +466,7 @@ class AesIgeStateImpl {
       }
 
       evp_.init_iv(encrypted_iv_.as_slice());
-      int inlen = static_cast<int>(AES_BLOCK_SIZE * count);
+      auto inlen = static_cast<int>(AES_BLOCK_SIZE * count);
       evp_.encrypt(data_xored[0].raw(), data_xored[0].raw(), inlen);
 
       data_xored[0] ^= plaintext_iv_;
@@ -509,8 +515,8 @@ class AesIgeStateImpl {
 };
 
 AesIgeState::AesIgeState() = default;
-AesIgeState::AesIgeState(AesIgeState &&from) = default;
-AesIgeState &AesIgeState::operator=(AesIgeState &&from) = default;
+AesIgeState::AesIgeState(AesIgeState &&from) noexcept = default;
+AesIgeState &AesIgeState::operator=(AesIgeState &&from) noexcept = default;
 AesIgeState::~AesIgeState() = default;
 
 void AesIgeState::init(Slice key, Slice iv, bool encrypt) {
@@ -574,8 +580,8 @@ AesCbcState::AesCbcState(Slice key256, Slice iv128) : raw_{SecureString(key256),
   CHECK(raw_.iv.size() == 16);
 }
 
-AesCbcState::AesCbcState(AesCbcState &&from) = default;
-AesCbcState &AesCbcState::operator=(AesCbcState &&from) = default;
+AesCbcState::AesCbcState(AesCbcState &&from) noexcept = default;
+AesCbcState &AesCbcState::operator=(AesCbcState &&from) noexcept = default;
 AesCbcState::~AesCbcState() = default;
 
 void AesCbcState::encrypt(Slice from, MutableSlice to) {
@@ -628,8 +634,8 @@ struct AesCtrState::Impl {
 };
 
 AesCtrState::AesCtrState() = default;
-AesCtrState::AesCtrState(AesCtrState &&from) = default;
-AesCtrState &AesCtrState::operator=(AesCtrState &&from) = default;
+AesCtrState::AesCtrState(AesCtrState &&from) noexcept = default;
+AesCtrState &AesCtrState::operator=(AesCtrState &&from) noexcept = default;
 AesCtrState::~AesCtrState() = default;
 
 void AesCtrState::init(Slice key, Slice iv) {
@@ -674,21 +680,53 @@ void AesCtrState::decrypt(Slice from, MutableSlice to) {
   encrypt(from, to);
 }
 
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L && !defined(LIBRESSL_VERSION_NUMBER)
+static void make_digest(Slice data, MutableSlice output, const EVP_MD *evp_md) {
+  EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+  LOG_IF(FATAL, ctx == nullptr);
+  int res = EVP_DigestInit_ex(ctx, evp_md, nullptr);
+  LOG_IF(FATAL, res != 1);
+  res = EVP_DigestUpdate(ctx, data.ubegin(), data.size());
+  LOG_IF(FATAL, res != 1);
+  res = EVP_DigestFinal_ex(ctx, output.ubegin(), nullptr);
+  LOG_IF(FATAL, res != 1);
+  EVP_MD_CTX_free(ctx);
+}
+#endif
+
 void sha1(Slice data, unsigned char output[20]) {
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L && !defined(LIBRESSL_VERSION_NUMBER)
+  make_digest(data, MutableSlice(output, 20), EVP_sha1());
+#else
   auto result = SHA1(data.ubegin(), data.size(), output);
   CHECK(result == output);
+#endif
 }
 
 void sha256(Slice data, MutableSlice output) {
   CHECK(output.size() >= 32);
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L && !defined(LIBRESSL_VERSION_NUMBER)
+  make_digest(data, output, EVP_sha256());
+#else
   auto result = SHA256(data.ubegin(), data.size(), output.ubegin());
   CHECK(result == output.ubegin());
+#endif
 }
 
 void sha512(Slice data, MutableSlice output) {
   CHECK(output.size() >= 64);
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L && !defined(LIBRESSL_VERSION_NUMBER)
+  make_digest(data, output, EVP_sha512());
+#else
   auto result = SHA512(data.ubegin(), data.size(), output.ubegin());
   CHECK(result == output.ubegin());
+#endif
+}
+
+string sha1(Slice data) {
+  string result(20, '\0');
+  sha1(data, MutableSlice(result).ubegin());
+  return result;
 }
 
 string sha256(Slice data) {
@@ -705,18 +743,38 @@ string sha512(Slice data) {
 
 class Sha256State::Impl {
  public:
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L && !defined(LIBRESSL_VERSION_NUMBER)
+  EVP_MD_CTX *ctx_;
+
+  Impl() {
+    ctx_ = EVP_MD_CTX_new();
+    LOG_IF(FATAL, ctx_ == nullptr);
+  }
+  ~Impl() {
+    CHECK(ctx_ != nullptr);
+    EVP_MD_CTX_free(ctx_);
+  }
+#else
   SHA256_CTX ctx_;
+  Impl() = default;
+  ~Impl() = default;
+#endif
+
+  Impl(const Impl &from) = delete;
+  Impl &operator=(const Impl &from) = delete;
+  Impl(Impl &&from) = delete;
+  Impl &operator=(Impl &&from) = delete;
 };
 
 Sha256State::Sha256State() = default;
 
-Sha256State::Sha256State(Sha256State &&other) {
+Sha256State::Sha256State(Sha256State &&other) noexcept {
   impl_ = std::move(other.impl_);
   is_inited_ = other.is_inited_;
   other.is_inited_ = false;
 }
 
-Sha256State &Sha256State::operator=(Sha256State &&other) {
+Sha256State &Sha256State::operator=(Sha256State &&other) noexcept {
   Sha256State copy(std::move(other));
   using std::swap;
   swap(impl_, copy.impl_);
@@ -737,7 +795,11 @@ void Sha256State::init() {
     impl_ = make_unique<Sha256State::Impl>();
   }
   CHECK(!is_inited_);
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L && !defined(LIBRESSL_VERSION_NUMBER)
+  int err = EVP_DigestInit_ex(impl_->ctx_, EVP_sha256(), nullptr);
+#else
   int err = SHA256_Init(&impl_->ctx_);
+#endif
   LOG_IF(FATAL, err != 1);
   is_inited_ = true;
 }
@@ -745,7 +807,11 @@ void Sha256State::init() {
 void Sha256State::feed(Slice data) {
   CHECK(impl_);
   CHECK(is_inited_);
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L && !defined(LIBRESSL_VERSION_NUMBER)
+  int err = EVP_DigestUpdate(impl_->ctx_, data.ubegin(), data.size());
+#else
   int err = SHA256_Update(&impl_->ctx_, data.ubegin(), data.size());
+#endif
   LOG_IF(FATAL, err != 1);
 }
 
@@ -753,7 +819,11 @@ void Sha256State::extract(MutableSlice output, bool destroy) {
   CHECK(output.size() >= 32);
   CHECK(impl_);
   CHECK(is_inited_);
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L && !defined(LIBRESSL_VERSION_NUMBER)
+  int err = EVP_DigestFinal_ex(impl_->ctx_, output.ubegin(), nullptr);
+#else
   int err = SHA256_Final(output.ubegin(), &impl_->ctx_);
+#endif
   LOG_IF(FATAL, err != 1);
   is_inited_ = false;
   if (destroy) {
@@ -762,9 +832,13 @@ void Sha256State::extract(MutableSlice output, bool destroy) {
 }
 
 void md5(Slice input, MutableSlice output) {
-  CHECK(output.size() >= MD5_DIGEST_LENGTH);
+  CHECK(output.size() >= 16);
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L && !defined(LIBRESSL_VERSION_NUMBER)
+  make_digest(input, output, EVP_md5());
+#else
   auto result = MD5(input.ubegin(), input.size(), output.ubegin());
   CHECK(result == output.ubegin());
+#endif
 }
 
 static void pbkdf2_impl(Slice password, Slice salt, int iteration_count, MutableSlice dest, const EVP_MD *evp_md) {
@@ -776,7 +850,7 @@ static void pbkdf2_impl(Slice password, Slice salt, int iteration_count, Mutable
   HMAC_CTX ctx;
   HMAC_CTX_init(&ctx);
   unsigned char counter[4] = {0, 0, 0, 1};
-  int password_len = narrow_cast<int>(password.size());
+  auto password_len = narrow_cast<int>(password.size());
   HMAC_Init_ex(&ctx, password.data(), password_len, evp_md, nullptr);
   HMAC_Update(&ctx, salt.ubegin(), narrow_cast<int>(salt.size()));
   HMAC_Update(&ctx, counter, 4);
@@ -792,7 +866,7 @@ static void pbkdf2_impl(Slice password, Slice salt, int iteration_count, Mutable
         LOG(FATAL) << "Failed to HMAC";
       }
       for (int i = 0; i < hash_size; i++) {
-        dest[i] ^= buf[i];
+        dest[i] = static_cast<unsigned char>(dest[i] ^ buf[i]);
       }
     }
   }
@@ -812,22 +886,54 @@ void pbkdf2_sha512(Slice password, Slice salt, int iteration_count, MutableSlice
   pbkdf2_impl(password, salt, iteration_count, dest, EVP_sha512());
 }
 
-void hmac_sha256(Slice key, Slice message, MutableSlice dest) {
-  CHECK(dest.size() == 256 / 8);
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L && !defined(LIBRESSL_VERSION_NUMBER)
+static void hmac_impl(const char *digest, Slice key, Slice message, MutableSlice dest) {
+  EVP_MAC *hmac = EVP_MAC_fetch(nullptr, "HMAC", nullptr);
+  LOG_IF(FATAL, hmac == nullptr);
+
+  EVP_MAC_CTX *ctx = EVP_MAC_CTX_new(hmac);
+  LOG_IF(FATAL, ctx == nullptr);
+
+  OSSL_PARAM params[2];
+  params[0] = OSSL_PARAM_construct_utf8_string(OSSL_MAC_PARAM_DIGEST, const_cast<char *>(digest), 0);
+  params[1] = OSSL_PARAM_construct_end();
+
+  int res = EVP_MAC_init(ctx, const_cast<unsigned char *>(key.ubegin()), key.size(), params);
+  LOG_IF(FATAL, res != 1);
+  res = EVP_MAC_update(ctx, message.ubegin(), message.size());
+  LOG_IF(FATAL, res != 1);
+  res = EVP_MAC_final(ctx, dest.ubegin(), nullptr, dest.size());
+  LOG_IF(FATAL, res != 1);
+
+  EVP_MAC_CTX_free(ctx);
+  EVP_MAC_free(hmac);
+}
+#else
+static void hmac_impl(const EVP_MD *evp_md, Slice key, Slice message, MutableSlice dest) {
   unsigned int len = 0;
-  auto result = HMAC(EVP_sha256(), key.ubegin(), narrow_cast<int>(key.size()), message.ubegin(),
+  auto result = HMAC(evp_md, key.ubegin(), narrow_cast<int>(key.size()), message.ubegin(),
                      narrow_cast<int>(message.size()), dest.ubegin(), &len);
   CHECK(result == dest.ubegin());
   CHECK(len == dest.size());
 }
+#endif
+
+void hmac_sha256(Slice key, Slice message, MutableSlice dest) {
+  CHECK(dest.size() == 256 / 8);
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L && !defined(LIBRESSL_VERSION_NUMBER)
+  hmac_impl("SHA256", key, message, dest);
+#else
+  hmac_impl(EVP_sha256(), key, message, dest);
+#endif
+}
 
 void hmac_sha512(Slice key, Slice message, MutableSlice dest) {
   CHECK(dest.size() == 512 / 8);
-  unsigned int len = 0;
-  auto result = HMAC(EVP_sha512(), key.ubegin(), narrow_cast<int>(key.size()), message.ubegin(),
-                     narrow_cast<int>(message.size()), dest.ubegin(), &len);
-  CHECK(result == dest.ubegin());
-  CHECK(len == dest.size());
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L && !defined(LIBRESSL_VERSION_NUMBER)
+  hmac_impl("SHA512", key, message, dest);
+#else
+  hmac_impl(EVP_sha512(), key, message, dest);
+#endif
 }
 
 static int get_evp_pkey_type(EVP_PKEY *pkey) {

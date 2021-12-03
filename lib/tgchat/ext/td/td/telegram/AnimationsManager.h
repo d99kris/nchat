@@ -1,21 +1,20 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #pragma once
 
+#include "td/telegram/files/FileId.h"
+#include "td/telegram/files/FileSourceId.h"
+#include "td/telegram/Photo.h"
+#include "td/telegram/SecretInputMedia.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 
 #include "td/actor/actor.h"
 #include "td/actor/PromiseFuture.h"
-
-#include "td/telegram/files/FileId.h"
-#include "td/telegram/files/FileSourceId.h"
-#include "td/telegram/Photo.h"
-#include "td/telegram/SecretInputMedia.h"
 
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
@@ -27,13 +26,13 @@ namespace td {
 
 class Td;
 
-class AnimationsManager : public Actor {
+class AnimationsManager final : public Actor {
  public:
   AnimationsManager(Td *td, ActorShared<> parent);
 
   int32 get_animation_duration(FileId file_id) const;
 
-  tl_object_ptr<td_api::animation> get_animation_object(FileId file_id, const char *source);
+  tl_object_ptr<td_api::animation> get_animation_object(FileId file_id) const;
 
   void create_animation(FileId file_id, string minithumbnail, PhotoSize thumbnail, AnimationSize animated_thumbnail,
                         bool has_stickers, vector<FileId> &&sticker_file_ids, string file_name, string mime_type,
@@ -45,7 +44,7 @@ class AnimationsManager : public Actor {
 
   SecretInputMedia get_secret_input_media(FileId animation_file_id,
                                           tl_object_ptr<telegram_api::InputEncryptedFile> input_file,
-                                          const string &caption, BufferSlice thumbnail, int32 layer) const;
+                                          const string &caption, BufferSlice thumbnail) const;
 
   FileId get_animation_thumbnail_file_id(FileId file_id) const;
 
@@ -55,7 +54,7 @@ class AnimationsManager : public Actor {
 
   FileId dup_animation(FileId new_id, FileId old_id);
 
-  bool merge_animations(FileId new_id, FileId old_id, bool can_delete_old);
+  void merge_animations(FileId new_id, FileId old_id, bool can_delete_old);
 
   void on_update_animation_search_emojis(string animation_search_emojis);
 
@@ -110,15 +109,13 @@ class AnimationsManager : public Actor {
     vector<FileId> sticker_file_ids;
 
     FileId file_id;
-
-    bool is_changed = true;
   };
 
   const Animation *get_animation(FileId file_id) const;
 
   FileId on_get_animation(unique_ptr<Animation> new_animation, bool replace);
 
-  int32 get_saved_animations_hash(const char *source) const;
+  int64 get_saved_animations_hash(const char *source) const;
 
   void add_saved_animation_impl(FileId animation_id, bool add_on_server, Promise<Unit> &&promise);
 
@@ -138,7 +135,7 @@ class AnimationsManager : public Actor {
 
   void save_saved_animations_to_database();
 
-  void tear_down() override;
+  void tear_down() final;
 
   class AnimationListLogEvent;
 

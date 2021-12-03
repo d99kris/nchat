@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -24,7 +24,7 @@ class As {
   As(const As &new_value) = delete;
   As &operator=(const As &) = delete;
   As(As &&) = default;
-  As &operator=(As &&new_value) && {
+  As &operator=(As &&new_value) &&noexcept {
     std::memcpy(ptr_, new_value.ptr_, sizeof(T));
     return *this;
   }
@@ -74,7 +74,7 @@ detail::As<ToT> as(FromT *from) {
 
 template <class ToT, class FromT,
           std::enable_if_t<TD_IS_TRIVIALLY_COPYABLE(ToT) && TD_IS_TRIVIALLY_COPYABLE(FromT), int> = 0>
-const detail::ConstAs<ToT> as(const FromT *from) {
+detail::ConstAs<ToT> as(const FromT *from) {
   return detail::ConstAs<ToT>(from);
 }
 

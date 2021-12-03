@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -54,7 +54,7 @@ class BufferedFdBase : public FdT {
 };
 
 template <class FdT>
-class BufferedFd : public BufferedFdBase<FdT> {
+class BufferedFd final : public BufferedFdBase<FdT> {
   using Parent = BufferedFdBase<FdT>;
   ChainBufferWriter input_writer_;
   ChainBufferReader input_reader_;
@@ -66,8 +66,8 @@ class BufferedFd : public BufferedFdBase<FdT> {
  public:
   BufferedFd();
   explicit BufferedFd(FdT &&fd_);
-  BufferedFd(BufferedFd &&);
-  BufferedFd &operator=(BufferedFd &&);
+  BufferedFd(BufferedFd &&) noexcept;
+  BufferedFd &operator=(BufferedFd &&) noexcept;
   BufferedFd(const BufferedFd &) = delete;
   BufferedFd &operator=(const BufferedFd &) = delete;
   ~BufferedFd();
@@ -101,7 +101,8 @@ Result<size_t> BufferedFdBase<FdT>::flush_read(size_t max_read) {
   CHECK(read_);
   size_t result = 0;
   while (::td::can_read_local(*this) && max_read) {
-    MutableSlice slice = read_->prepare_append().truncate(max_read);
+    MutableSlice slice = read_->prepare_append();
+    slice.truncate(max_read);
     TRY_RESULT(x, FdT::read(slice));
     slice.truncate(x);
     read_->confirm_append(x);
@@ -162,12 +163,12 @@ BufferedFd<FdT>::BufferedFd(FdT &&fd_) : Parent(std::move(fd_)) {
 }
 
 template <class FdT>
-BufferedFd<FdT>::BufferedFd(BufferedFd &&from) {
+BufferedFd<FdT>::BufferedFd(BufferedFd &&from) noexcept {
   *this = std::move(from);
 }
 
 template <class FdT>
-BufferedFd<FdT> &BufferedFd<FdT>::operator=(BufferedFd &&from) {
+BufferedFd<FdT> &BufferedFd<FdT>::operator=(BufferedFd &&from) noexcept {
   FdT::operator=(std::move(static_cast<FdT &>(from)));
   input_reader_ = std::move(from.input_reader_);
   input_writer_ = std::move(from.input_writer_);

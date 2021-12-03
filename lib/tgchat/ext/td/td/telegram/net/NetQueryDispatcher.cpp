@@ -1,11 +1,13 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/telegram/net/NetQueryDispatcher.h"
 
+#include "td/telegram/ConfigShared.h"
+#include "td/telegram/Global.h"
 #include "td/telegram/net/AuthDataShared.h"
 #include "td/telegram/net/DcAuthManager.h"
 #include "td/telegram/net/NetQuery.h"
@@ -13,9 +15,6 @@
 #include "td/telegram/net/PublicRsaKeyShared.h"
 #include "td/telegram/net/PublicRsaKeyWatchdog.h"
 #include "td/telegram/net/SessionMultiProxy.h"
-
-#include "td/telegram/ConfigShared.h"
-#include "td/telegram/Global.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/TdDb.h"
 #include "td/telegram/telegram_api.h"
@@ -26,6 +25,7 @@
 #include "td/utils/misc.h"
 #include "td/utils/port/thread.h"
 #include "td/utils/Slice.h"
+#include "td/utils/SliceBuilder.h"
 
 namespace td {
 
@@ -33,22 +33,20 @@ void NetQueryDispatcher::complete_net_query(NetQueryPtr net_query) {
   auto callback = net_query->move_callback();
   if (callback.empty()) {
     net_query->debug("sent to td (no callback)");
-    send_closure(G()->td(), &NetQueryCallback::on_result, std::move(net_query));
+    send_closure_later(G()->td(), &Td::on_result, std::move(net_query));
   } else {
     net_query->debug("sent to callback", true);
-    send_closure(std::move(callback), &NetQueryCallback::on_result, std::move(net_query));
+    send_closure_later(std::move(callback), &NetQueryCallback::on_result, std::move(net_query));
   }
 }
 
 void NetQueryDispatcher::dispatch(NetQueryPtr net_query) {
   // net_query->debug("dispatch");
   if (stop_flag_.load(std::memory_order_relaxed)) {
-    if (net_query->id() != 0) {
-      net_query->set_error(Status::Error(500, "Request aborted"));
-    }
+    net_query->set_error(Global::request_aborted_error());
     return complete_net_query(std::move(net_query));
   }
-  if (net_query->id() != 0 && G()->shared_config().get_option_boolean("test_flood_wait")) {
+  if (G()->shared_config().get_option_boolean("test_flood_wait")) {
     net_query->set_error(Status::Error(429, "Too Many Requests: retry after 10"));
     return complete_net_query(std::move(net_query));
   }
@@ -93,7 +91,7 @@ void NetQueryDispatcher::dispatch(NetQueryPtr net_query) {
     net_query->dispatch_ttl_--;
   }
 
-  size_t dc_pos = static_cast<size_t>(dest_dc_id.get_raw_id() - 1);
+  auto dc_pos = static_cast<size_t>(dest_dc_id.get_raw_id() - 1);
   CHECK(dc_pos < dcs_.size());
   switch (net_query->type()) {
     case NetQuery::Type::Common:
@@ -120,7 +118,7 @@ Status NetQueryDispatcher::wait_dc_init(DcId dc_id, bool force) {
   if (!dc_id.is_exact()) {
     return Status::Error("Not exact DC");
   }
-  size_t pos = static_cast<size_t>(dc_id.get_raw_id() - 1);
+  auto pos = static_cast<size_t>(dc_id.get_raw_id() - 1);
   if (pos >= dcs_.size()) {
     return Status::Error("Too big DC ID");
   }
@@ -278,7 +276,7 @@ bool NetQueryDispatcher::get_use_pfs() {
   return G()->shared_config().get_option_boolean("use_pfs") || get_session_count() > 1;
 }
 
-NetQueryDispatcher::NetQueryDispatcher(std::function<ActorShared<>()> create_reference) {
+NetQueryDispatcher::NetQueryDispatcher(const std::function<ActorShared<>()> &create_reference) {
   auto s_main_dc_id = G()->td_db()->get_binlog_pmc()->get("main_dc_id");
   if (!s_main_dc_id.empty()) {
     main_dc_id_ = to_integer<int32>(s_main_dc_id);
@@ -296,15 +294,15 @@ NetQueryDispatcher::NetQueryDispatcher() = default;
 NetQueryDispatcher::~NetQueryDispatcher() = default;
 
 void NetQueryDispatcher::try_fix_migrate(NetQueryPtr &net_query) {
-  auto msg = net_query->error().message();
+  auto error_message = net_query->error().message();
   static constexpr CSlice prefixes[] = {"PHONE_MIGRATE_", "NETWORK_MIGRATE_", "USER_MIGRATE_"};
   for (auto &prefix : prefixes) {
-    if (msg.substr(0, prefix.size()) == prefix) {
-      int32 new_main_dc_id = to_integer<int32>(msg.substr(prefix.size()));
+    if (error_message.substr(0, prefix.size()) == prefix) {
+      auto new_main_dc_id = to_integer<int32>(error_message.substr(prefix.size()));
       set_main_dc_id(new_main_dc_id);
 
       if (!net_query->dc_id().is_main()) {
-        LOG(ERROR) << msg << " from query to non-main dc " << net_query->dc_id();
+        LOG(ERROR) << "Receive " << error_message << " for query to non-main DC" << net_query->dc_id();
         net_query->resend(DcId::internal(new_main_dc_id));
       } else {
         net_query->resend();

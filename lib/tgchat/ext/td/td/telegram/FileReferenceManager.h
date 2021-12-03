@@ -1,13 +1,10 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #pragma once
-
-#include "td/actor/actor.h"
-#include "td/actor/PromiseFuture.h"
 
 #include "td/telegram/BackgroundId.h"
 #include "td/telegram/ChannelId.h"
@@ -18,6 +15,9 @@
 #include "td/telegram/PhotoSizeSource.h"
 #include "td/telegram/SetWithPosition.h"
 #include "td/telegram/UserId.h"
+
+#include "td/actor/actor.h"
+#include "td/actor/PromiseFuture.h"
 
 #include "td/utils/common.h"
 #include "td/utils/logging.h"
@@ -33,7 +33,7 @@ class Td;
 
 extern int VERBOSITY_NAME(file_references);
 
-class FileReferenceManager : public Actor {
+class FileReferenceManager final : public Actor {
  public:
   static bool is_file_reference_error(const Status &error);
   static size_t get_file_reference_error_pos(const Status &error);
@@ -51,10 +51,12 @@ class FileReferenceManager : public Actor {
   FileSourceId create_background_file_source(BackgroundId background_id, int64 access_hash);
   FileSourceId create_chat_full_file_source(ChatId chat_id);
   FileSourceId create_channel_full_file_source(ChannelId channel_id);
+  FileSourceId create_app_config_file_source();
 
   using NodeId = FileId;
   void repair_file_reference(NodeId node_id, Promise<> promise);
-  void reload_photo(PhotoSizeSource source, Promise<Unit> promise);
+
+  static void reload_photo(PhotoSizeSource source, Promise<Unit> promise);
 
   bool add_file_source(NodeId node_id, FileSourceId file_source_id);
 
@@ -74,17 +76,21 @@ class FileReferenceManager : public Actor {
 
  private:
   struct Destination {
-    bool empty() const {
+    NodeId node_id;
+    int64 generation{0};
+
+    Destination() = default;
+    Destination(NodeId node_id, int64 generation) : node_id(node_id), generation(generation) {
+    }
+    bool is_empty() const {
       return node_id.empty();
     }
-    NodeId node_id;
-    int64 generation;
   };
   struct Query {
     std::vector<Promise<>> promises;
     int32 active_queries{0};
     Destination proxy;
-    int64 generation;
+    int64 generation{0};
   };
 
   struct Node {
@@ -131,12 +137,15 @@ class FileReferenceManager : public Actor {
   struct FileSourceChannelFull {
     ChannelId channel_id;
   };
+  struct FileSourceAppConfig {
+    // empty
+  };
 
   // append only
   using FileSource =
       Variant<FileSourceMessage, FileSourceUserPhoto, FileSourceChatPhoto, FileSourceChannelPhoto, FileSourceWallpapers,
               FileSourceWebPage, FileSourceSavedAnimations, FileSourceRecentStickers, FileSourceFavoriteStickers,
-              FileSourceBackground, FileSourceChatFull, FileSourceChannelFull>;
+              FileSourceBackground, FileSourceChatFull, FileSourceChannelFull, FileSourceAppConfig>;
   vector<FileSource> file_sources_;
 
   int64 query_generation_{0};

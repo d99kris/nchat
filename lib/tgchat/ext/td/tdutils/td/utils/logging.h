@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -32,12 +32,6 @@
 #include <atomic>
 #include <type_traits>
 
-#define PSTR_IMPL() ::td::Logger(::td::NullLog().ref(), ::td::LogOptions::plain(), 0)
-#define PSLICE() ::td::detail::Slicify() & PSTR_IMPL()
-#define PSTRING() ::td::detail::Stringify() & PSTR_IMPL()
-#define PSLICE_SAFE() ::td::detail::SlicifySafe() & PSTR_IMPL()
-#define PSTRING_SAFE() ::td::detail::StringifySafe() & PSTR_IMPL()
-
 #define VERBOSITY_NAME(x) verbosity_##x
 
 #define GET_VERBOSITY_LEVEL() (::td::get_verbosity_level())
@@ -64,8 +58,6 @@
 
 #define VLOG(level) LOG_IMPL(DEBUG, level, true, TD_DEFINE_STR(level))
 #define VLOG_IF(level, condition) LOG_IMPL(DEBUG, level, condition, TD_DEFINE_STR(level) " " #condition)
-
-#define LOG_ROTATE() ::td::log_interface->rotate()
 
 #define LOG_TAG ::td::Logger::tag_
 #define LOG_TAG2 ::td::Logger::tag2_
@@ -136,6 +128,9 @@ struct LogOptions {
   }
 
   LogOptions &operator=(const LogOptions &other) {
+    if (this == &other) {
+      return *this;
+    }
     level = other.level.load();
     fix_newlines = other.fix_newlines;
     add_info = other.add_info;
@@ -154,16 +149,6 @@ inline int get_verbosity_level() {
   return log_options.get_level();
 }
 
-class ScopedDisableLog {
- public:
-  ScopedDisableLog();
-  ScopedDisableLog(const ScopedDisableLog &) = delete;
-  ScopedDisableLog &operator=(const ScopedDisableLog &) = delete;
-  ScopedDisableLog(ScopedDisableLog &&) = delete;
-  ScopedDisableLog &operator=(ScopedDisableLog &&) = delete;
-  ~ScopedDisableLog();
-};
-
 class LogInterface {
  public:
   LogInterface() = default;
@@ -173,63 +158,30 @@ class LogInterface {
   LogInterface &operator=(LogInterface &&) = delete;
   virtual ~LogInterface() = default;
 
-  virtual void append(CSlice slice, int log_level) = 0;
+  void append(int log_level, CSlice slice);
 
-  virtual void rotate() {
+  virtual void after_rotation() {
   }
 
   virtual vector<string> get_file_paths() {
     return {};
   }
-};
 
-class NullLog : public LogInterface {
- public:
-  void append(CSlice /*slice*/, int /*log_level*/) override {
-  }
-  void rotate() override {
-  }
-  NullLog &ref() {
-    return *this;
-  }
+  virtual void do_append(int log_level, CSlice slice) = 0;
 };
 
 extern LogInterface *const default_log_interface;
 extern LogInterface *log_interface;
 
-using OnFatalErrorCallback = void (*)(CSlice message);
-void set_log_fatal_error_callback(OnFatalErrorCallback callback);
-
 [[noreturn]] void process_fatal_error(CSlice message);
 
-#define TC_RED "\x1b[1;31m"
-#define TC_BLUE "\x1b[1;34m"
-#define TC_CYAN "\x1b[1;36m"
-#define TC_GREEN "\x1b[1;32m"
-#define TC_YELLOW "\x1b[1;33m"
-#define TC_EMPTY "\x1b[0m"
-
-class TsCerr {
- public:
-  TsCerr();
-  TsCerr(const TsCerr &) = delete;
-  TsCerr &operator=(const TsCerr &) = delete;
-  TsCerr(TsCerr &&) = delete;
-  TsCerr &operator=(TsCerr &&) = delete;
-  ~TsCerr();
-  TsCerr &operator<<(Slice slice);
-
- private:
-  using Lock = std::atomic_flag;
-  static Lock lock_;
-
-  void enterCritical();
-  void exitCritical();
-};
+using OnLogMessageCallback = void (*)(int verbosity_level, CSlice message);
+void set_log_message_callback(int max_verbosity_level, OnLogMessageCallback callback);
 
 class Logger {
+  static const size_t BUFFER_SIZE = 128 * 1024;
+
  public:
-  static const int BUFFER_SIZE = 128 * 1024;
   Logger(LogInterface &log, const LogOptions &options, int log_level)
       : buffer_(StackAllocator::alloc(BUFFER_SIZE))
       , log_(log)
@@ -269,6 +221,16 @@ class Logger {
   int log_level_;
 };
 
+class ScopedDisableLog {
+ public:
+  ScopedDisableLog();
+  ScopedDisableLog(const ScopedDisableLog &) = delete;
+  ScopedDisableLog &operator=(const ScopedDisableLog &) = delete;
+  ScopedDisableLog(ScopedDisableLog &&) = delete;
+  ScopedDisableLog &operator=(ScopedDisableLog &&) = delete;
+  ~ScopedDisableLog();
+};
+
 namespace detail {
 class Voidify {
  public:
@@ -276,53 +238,6 @@ class Voidify {
   void operator&(const T &) {
   }
 };
-
-class Slicify {
- public:
-  CSlice operator&(Logger &logger) {
-    return logger.as_cslice();
-  }
-};
-
-class Stringify {
- public:
-  string operator&(Logger &logger) {
-    return logger.as_cslice().str();
-  }
-};
 }  // namespace detail
-
-class TsLog : public LogInterface {
- public:
-  explicit TsLog(LogInterface *log) : log_(log) {
-  }
-  void init(LogInterface *log) {
-    enter_critical();
-    log_ = log;
-    exit_critical();
-  }
-  void append(CSlice slice, int level) override {
-    enter_critical();
-    log_->append(slice, level);
-    exit_critical();
-  }
-  void rotate() override {
-    enter_critical();
-    log_->rotate();
-    exit_critical();
-  }
-  vector<string> get_file_paths() override {
-    enter_critical();
-    auto result = log_->get_file_paths();
-    exit_critical();
-    return result;
-  }
-
- private:
-  LogInterface *log_ = nullptr;
-  std::atomic_flag lock_ = ATOMIC_FLAG_INIT;
-  void enter_critical();
-  void exit_critical();
-};
 
 }  // namespace td

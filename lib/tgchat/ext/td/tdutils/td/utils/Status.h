@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -36,13 +36,13 @@
     }                                                 \
   }
 
-#define TRY_STATUS_PROMISE(promise_name, status)     \
-  {                                                  \
-    auto try_status = (status);                      \
-    if (try_status.is_error()) {                     \
-      promise_name.set_error(std::move(try_status)); \
-      return;                                        \
-    }                                                \
+#define TRY_STATUS_PROMISE(promise_name, status)          \
+  {                                                       \
+    auto try_status = (status);                           \
+    if (try_status.is_error()) {                          \
+      promise_name.set_error(try_status.move_as_error()); \
+      return;                                             \
+    }                                                     \
   }
 
 #define TRY_STATUS_PROMISE_PREFIX(promise_name, status, prefix)        \
@@ -324,32 +324,9 @@ class Status {
     return status.move_as_error_suffix(message());
   }
 
-  Status move_as_error_prefix(Slice prefix) const TD_WARN_UNUSED_RESULT {
-    CHECK(is_error());
-    Info info = get_info();
-    switch (info.error_type) {
-      case ErrorType::General:
-        return Error(code(), PSLICE() << prefix << message());
-      case ErrorType::Os:
-        return Status(false, ErrorType::Os, code(), PSLICE() << prefix << message());
-      default:
-        UNREACHABLE();
-        return {};
-    }
-  }
-  Status move_as_error_suffix(Slice suffix) const TD_WARN_UNUSED_RESULT {
-    CHECK(is_error());
-    Info info = get_info();
-    switch (info.error_type) {
-      case ErrorType::General:
-        return Error(code(), PSLICE() << message() << suffix);
-      case ErrorType::Os:
-        return Status(false, ErrorType::Os, code(), PSLICE() << message() << suffix);
-      default:
-        UNREACHABLE();
-        return {};
-    }
-  }
+  Status move_as_error_prefix(Slice prefix) const TD_WARN_UNUSED_RESULT;
+
+  Status move_as_error_suffix(Slice suffix) const TD_WARN_UNUSED_RESULT;
 
  private:
   struct Info {
@@ -386,7 +363,7 @@ class Status {
   }
 
   Status clone_static() const TD_WARN_UNUSED_RESULT {
-    CHECK(is_ok() || get_info().static_flag);
+    CHECK(ptr_ != nullptr && get_info().static_flag);
     Status result;
     result.ptr_ = std::unique_ptr<char[], Deleter>(ptr_.get());
     return result;
@@ -446,14 +423,14 @@ class Result {
   }
   Result(const Result &) = delete;
   Result &operator=(const Result &) = delete;
-  Result(Result &&other) : status_(std::move(other.status_)) {
+  Result(Result &&other) noexcept : status_(std::move(other.status_)) {
     if (status_.is_ok()) {
       new (&value_) T(std::move(other.value_));
       other.value_.~T();
     }
     other.status_ = Status::Error<-2>();
   }
-  Result &operator=(Result &&other) {
+  Result &operator=(Result &&other) noexcept {
     CHECK(this != &other);
     if (status_.is_ok()) {
       value_.~T();
@@ -599,27 +576,4 @@ inline StringBuilder &operator<<(StringBuilder &string_builder, const Status &st
   return status.print(string_builder);
 }
 
-namespace detail {
-
-class SlicifySafe {
- public:
-  Result<CSlice> operator&(Logger &logger) {
-    if (logger.is_error()) {
-      return Status::Error("Buffer overflow");
-    }
-    return logger.as_cslice();
-  }
-};
-
-class StringifySafe {
- public:
-  Result<string> operator&(Logger &logger) {
-    if (logger.is_error()) {
-      return Status::Error("Buffer overflow");
-    }
-    return logger.as_cslice().str();
-  }
-};
-
-}  // namespace detail
 }  // namespace td

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -156,6 +156,9 @@ Result<SecureString> base64_decode_secure(Slice base64) {
 Result<string> base64url_decode(Slice base64) {
   return base64_decode_impl<true, string>(base64);
 }
+Result<SecureString> base64url_decode_secure(Slice base64) {
+  return base64_decode_impl<true, SecureString>(base64);
+}
 
 template <bool is_url>
 static bool is_base64_impl(Slice input) {
@@ -182,13 +185,13 @@ static bool is_base64_impl(Slice input) {
   }
 
   if ((input.size() & 3) == 2) {
-    auto value = table[static_cast<int>(input.back())];
+    auto value = table[static_cast<unsigned char>(input.back())];
     if ((value & 15) != 0) {
       return false;
     }
   }
   if ((input.size() & 3) == 3) {
-    auto value = table[static_cast<int>(input.back())];
+    auto value = table[static_cast<unsigned char>(input.back())];
     if ((value & 3) != 0) {
       return false;
     }

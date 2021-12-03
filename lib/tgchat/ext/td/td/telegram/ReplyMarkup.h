@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -42,7 +42,7 @@ struct InlineKeyboardButton {
     CallbackWithPassword
   };
   Type type;
-  int32 id = 0;  // UrlAuth only, button_id or (2 * request_write_access - 1) * bot_user_id
+  int64 id = 0;  // UrlAuth only, button_id or (2 * request_write_access - 1) * bot_user_id
   string text;
   string forward_text;  // UrlAuth only
   string data;
@@ -58,6 +58,7 @@ struct ReplyMarkup {
   bool need_resize_keyboard = false;        // for ShowKeyboard
   bool is_one_time_keyboard = false;        // for ShowKeyboard
   vector<vector<KeyboardButton>> keyboard;  // for ShowKeyboard
+  string placeholder;                       // for ShowKeyboard, ForceReply
 
   vector<vector<InlineKeyboardButton>> inline_keyboard;  // for InlineKeyboard
 

@@ -1,21 +1,25 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #pragma once
 
+#include "td/telegram/DialogId.h"
 #include "td/telegram/MessageId.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/UserId.h"
+#include "td/telegram/Version.h"
 
 #include "td/utils/common.h"
 #include "td/utils/StringBuilder.h"
 #include "td/utils/tl_helpers.h"
 
 namespace td {
+
+class Td;
 
 class RestrictedRights {
   static constexpr uint32 CAN_SEND_MESSAGES = 1 << 16;
@@ -118,6 +122,8 @@ class DialogParticipantStatus {
   static constexpr uint32 CAN_RESTRICT_MEMBERS = 1 << 6;
   static constexpr uint32 CAN_PIN_MESSAGES_ADMIN = 1 << 7;
   static constexpr uint32 CAN_PROMOTE_MEMBERS = 1 << 8;
+  static constexpr uint32 CAN_MANAGE_CALLS = 1 << 9;
+  static constexpr uint32 CAN_MANAGE_DIALOG = 1 << 10;
 
   static constexpr uint32 CAN_BE_EDITED = 1 << 15;
 
@@ -136,14 +142,15 @@ class DialogParticipantStatus {
   static constexpr uint32 IS_MEMBER = 1 << 27;
 
   static constexpr uint32 IS_ANONYMOUS = 1 << 13;
-  static constexpr uint32 HAS_RANK = 1u << 14;
+  static constexpr uint32 HAS_RANK = 1 << 14;
   // bits 28-30 reserved for Type
   static constexpr int TYPE_SHIFT = 28;
   static constexpr uint32 HAS_UNTIL_DATE = 1u << 31;
 
-  static constexpr uint32 ALL_ADMINISTRATOR_RIGHTS =
-      CAN_CHANGE_INFO_AND_SETTINGS_ADMIN | CAN_POST_MESSAGES | CAN_EDIT_MESSAGES | CAN_DELETE_MESSAGES |
-      CAN_INVITE_USERS_ADMIN | CAN_RESTRICT_MEMBERS | CAN_PIN_MESSAGES_ADMIN | CAN_PROMOTE_MEMBERS;
+  static constexpr uint32 ALL_ADMINISTRATOR_RIGHTS = CAN_CHANGE_INFO_AND_SETTINGS_ADMIN | CAN_POST_MESSAGES |
+                                                     CAN_EDIT_MESSAGES | CAN_DELETE_MESSAGES | CAN_INVITE_USERS_ADMIN |
+                                                     CAN_RESTRICT_MEMBERS | CAN_PIN_MESSAGES_ADMIN |
+                                                     CAN_PROMOTE_MEMBERS | CAN_MANAGE_CALLS | CAN_MANAGE_DIALOG;
 
   static constexpr uint32 ALL_ADMIN_PERMISSION_RIGHTS =
       CAN_CHANGE_INFO_AND_SETTINGS_BANNED | CAN_INVITE_USERS_BANNED | CAN_PIN_MESSAGES_BANNED;
@@ -168,10 +175,11 @@ class DialogParticipantStatus {
  public:
   static DialogParticipantStatus Creator(bool is_member, bool is_anonymous, string rank);
 
-  static DialogParticipantStatus Administrator(bool is_anonymous, string rank, bool can_be_edited, bool can_change_info,
-                                               bool can_post_messages, bool can_edit_messages, bool can_delete_messages,
-                                               bool can_invite_users, bool can_restrict_members, bool can_pin_messages,
-                                               bool can_promote_members);
+  static DialogParticipantStatus Administrator(bool is_anonymous, string rank, bool can_be_edited,
+                                               bool can_manage_dialog, bool can_change_info, bool can_post_messages,
+                                               bool can_edit_messages, bool can_delete_messages, bool can_invite_users,
+                                               bool can_restrict_members, bool can_pin_messages,
+                                               bool can_promote_members, bool can_manage_calls);
 
   static DialogParticipantStatus Member();
 
@@ -205,6 +213,10 @@ class DialogParticipantStatus {
   // unrestricts user if restriction time expired. Should be called before all privileges checks
   void update_restrictions() const;
 
+  bool can_manage_dialog() const {
+    return (flags_ & CAN_MANAGE_DIALOG) != 0;
+  }
+
   bool can_change_info_and_settings() const {
     return (flags_ & CAN_CHANGE_INFO_AND_SETTINGS_ADMIN) != 0 || (flags_ & CAN_CHANGE_INFO_AND_SETTINGS_BANNED) != 0;
   }
@@ -225,6 +237,11 @@ class DialogParticipantStatus {
     return (flags_ & CAN_INVITE_USERS_ADMIN) != 0 || (flags_ & CAN_INVITE_USERS_BANNED) != 0;
   }
 
+  bool can_manage_invite_links() const {
+    // invite links can be managed, only if administrator was explicitly granted the right
+    return (flags_ & CAN_INVITE_USERS_ADMIN) != 0;
+  }
+
   bool can_restrict_members() const {
     return (flags_ & CAN_RESTRICT_MEMBERS) != 0;
   }
@@ -235,6 +252,10 @@ class DialogParticipantStatus {
 
   bool can_promote_members() const {
     return (flags_ & CAN_PROMOTE_MEMBERS) != 0;
+  }
+
+  bool can_manage_calls() const {
+    return (flags_ & CAN_MANAGE_CALLS) != 0;
   }
 
   bool can_be_edited() const {
@@ -349,6 +370,12 @@ class DialogParticipantStatus {
     }
     type_ = static_cast<Type>(stored_flags >> TYPE_SHIFT);
     flags_ = stored_flags & ((1 << TYPE_SHIFT) - 1);
+
+    if (is_creator()) {
+      flags_ |= ALL_ADMINISTRATOR_RIGHTS | ALL_PERMISSION_RIGHTS;
+    } else if (is_administrator()) {
+      flags_ |= CAN_MANAGE_DIALOG;
+    }
   }
 
   friend bool operator==(const DialogParticipantStatus &lhs, const DialogParticipantStatus &rhs);
@@ -363,47 +390,73 @@ bool operator!=(const DialogParticipantStatus &lhs, const DialogParticipantStatu
 StringBuilder &operator<<(StringBuilder &string_builder, const DialogParticipantStatus &status);
 
 struct DialogParticipant {
-  UserId user_id;
-  UserId inviter_user_id;
-  int32 joined_date = 0;
-  DialogParticipantStatus status = DialogParticipantStatus::Left();
+  DialogId dialog_id_;
+  UserId inviter_user_id_;
+  int32 joined_date_ = 0;
+  DialogParticipantStatus status_ = DialogParticipantStatus::Left();
 
   DialogParticipant() = default;
 
-  DialogParticipant(UserId user_id, UserId inviter_user_id, int32 joined_date, DialogParticipantStatus status);
+  DialogParticipant(DialogId dialog_id, UserId inviter_user_id, int32 joined_date, DialogParticipantStatus status);
 
-  DialogParticipant(tl_object_ptr<telegram_api::ChannelParticipant> &&participant_ptr,
-                    DialogParticipantStatus my_status);
+  DialogParticipant(tl_object_ptr<telegram_api::ChatParticipant> &&participant_ptr, int32 chat_creation_date,
+                    bool is_creator);
 
-  static DialogParticipant left(UserId user_id) {
-    return {user_id, UserId(), 0, DialogParticipantStatus::Left()};
+  explicit DialogParticipant(tl_object_ptr<telegram_api::ChannelParticipant> &&participant_ptr);
+
+  static DialogParticipant left(DialogId dialog_id) {
+    return {dialog_id, UserId(), 0, DialogParticipantStatus::Left()};
+  }
+
+  static DialogParticipant private_member(UserId user_id, UserId other_user_id) {
+    auto inviter_user_id = other_user_id.is_valid() ? other_user_id : user_id;
+    return {DialogId(user_id), inviter_user_id, 0, DialogParticipantStatus::Member()};
   }
 
   bool is_valid() const;
 
   template <class StorerT>
   void store(StorerT &storer) const {
-    td::store(user_id, storer);
-    td::store(inviter_user_id, storer);
-    td::store(joined_date, storer);
-    td::store(status, storer);
+    td::store(dialog_id_, storer);
+    td::store(inviter_user_id_, storer);
+    td::store(joined_date_, storer);
+    td::store(status_, storer);
   }
 
   template <class ParserT>
   void parse(ParserT &parser) {
-    td::parse(user_id, parser);
-    td::parse(inviter_user_id, parser);
-    td::parse(joined_date, parser);
-    td::parse(status, parser);
+    if (parser.version() >= static_cast<int32>(Version::SupportBannedChannels)) {
+      td::parse(dialog_id_, parser);
+    } else {
+      UserId user_id;
+      td::parse(user_id, parser);
+      dialog_id_ = DialogId(user_id);
+    }
+    td::parse(inviter_user_id_, parser);
+    td::parse(joined_date_, parser);
+    td::parse(status_, parser);
   }
 };
 
 StringBuilder &operator<<(StringBuilder &string_builder, const DialogParticipant &dialog_participant);
 
+struct DialogParticipants {
+  int32 total_count_ = 0;
+  vector<DialogParticipant> participants_;
+
+  DialogParticipants() = default;
+  DialogParticipants(int32 total_count, vector<DialogParticipant> &&participants)
+      : total_count_(total_count), participants_(std::move(participants)) {
+  }
+
+  td_api::object_ptr<td_api::chatMembers> get_chat_members_object(Td *td) const;
+};
+
 class ChannelParticipantsFilter {
-  enum class Type : int32 { Recent, Contacts, Administrators, Search, Mention, Restricted, Banned, Bots } type;
-  string query;
-  MessageId top_thread_message_id;
+  enum class Type : int32 { Recent, Contacts, Administrators, Search, Mention, Restricted, Banned, Bots };
+  Type type_;
+  string query_;
+  MessageId top_thread_message_id_;
 
   friend StringBuilder &operator<<(StringBuilder &string_builder, const ChannelParticipantsFilter &filter);
 
@@ -413,59 +466,65 @@ class ChannelParticipantsFilter {
   tl_object_ptr<telegram_api::ChannelParticipantsFilter> get_input_channel_participants_filter() const;
 
   bool is_administrators() const {
-    return type == Type::Administrators;
+    return type_ == Type::Administrators;
   }
 
   bool is_bots() const {
-    return type == Type::Bots;
+    return type_ == Type::Bots;
   }
 
   bool is_recent() const {
-    return type == Type::Recent;
+    return type_ == Type::Recent;
   }
 
   bool is_contacts() const {
-    return type == Type::Contacts;
+    return type_ == Type::Contacts;
   }
 
   bool is_search() const {
-    return type == Type::Search;
+    return type_ == Type::Search;
   }
 
   bool is_restricted() const {
-    return type == Type::Restricted;
+    return type_ == Type::Restricted;
   }
 
   bool is_banned() const {
-    return type == Type::Banned;
+    return type_ == Type::Banned;
   }
 };
 
 StringBuilder &operator<<(StringBuilder &string_builder, const ChannelParticipantsFilter &filter);
 
 class DialogParticipantsFilter {
- public:
   enum class Type : int32 { Contacts, Administrators, Members, Restricted, Banned, Mention, Bots };
-  Type type;
-  MessageId top_thread_message_id;
+  Type type_;
+  MessageId top_thread_message_id_;
 
-  explicit DialogParticipantsFilter(Type type, MessageId top_thread_message_id = MessageId())
-      : type(type), top_thread_message_id(top_thread_message_id) {
-  }
+  friend StringBuilder &operator<<(StringBuilder &string_builder, const DialogParticipantsFilter &filter);
+
+ public:
+  explicit DialogParticipantsFilter(const tl_object_ptr<td_api::ChatMembersFilter> &filter);
+
+  td_api::object_ptr<td_api::SupergroupMembersFilter> get_supergroup_members_filter_object(const string &query) const;
+
+  bool has_query() const;
+
+  bool is_dialog_participant_suitable(const Td *td, const DialogParticipant &participant) const;
 };
 
-DialogParticipantsFilter get_dialog_participants_filter(const tl_object_ptr<td_api::ChatMembersFilter> &filter);
+StringBuilder &operator<<(StringBuilder &string_builder, const DialogParticipantsFilter &filter);
 
 DialogParticipantStatus get_dialog_participant_status(const tl_object_ptr<td_api::ChatMemberStatus> &status);
 
 DialogParticipantStatus get_dialog_participant_status(bool can_be_edited,
-                                                      const tl_object_ptr<telegram_api::chatAdminRights> &admin_rights,
+                                                      tl_object_ptr<telegram_api::chatAdminRights> &&admin_rights,
                                                       string rank);
 
-DialogParticipantStatus get_dialog_participant_status(
-    bool is_member, const tl_object_ptr<telegram_api::chatBannedRights> &banned_rights);
+DialogParticipantStatus get_dialog_participant_status(bool is_member,
+                                                      tl_object_ptr<telegram_api::chatBannedRights> &&banned_rights);
 
-RestrictedRights get_restricted_rights(const tl_object_ptr<telegram_api::chatBannedRights> &banned_rights);
+RestrictedRights get_restricted_rights(tl_object_ptr<telegram_api::chatBannedRights> &&banned_rights);
 
 RestrictedRights get_restricted_rights(const td_api::object_ptr<td_api::chatPermissions> &permissions);
 

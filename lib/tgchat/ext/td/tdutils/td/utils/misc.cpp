@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -16,7 +16,7 @@
 namespace td {
 
 char *str_dup(Slice str) {
-  char *res = static_cast<char *>(std::malloc(str.size() + 1));
+  auto *res = static_cast<char *>(std::malloc(str.size() + 1));
   if (res == nullptr) {
     return nullptr;
   }
@@ -164,6 +164,13 @@ size_t url_decode(Slice from, MutableSlice to, bool decode_plus_sign_as_space) {
     to[to_i++] = decode_plus_sign_as_space && from[from_i] == '+' ? ' ' : from[from_i];
   }
   return to_i;
+}
+
+string url_decode(Slice from, bool decode_plus_sign_as_space) {
+  string to;
+  to.resize(from.size());
+  to.resize(url_decode(from, to, decode_plus_sign_as_space));
+  return to;
 }
 
 MutableSlice url_decode_inplace(MutableSlice str, bool decode_plus_sign_as_space) {

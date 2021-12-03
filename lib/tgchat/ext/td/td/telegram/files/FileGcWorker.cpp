@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -10,13 +10,14 @@
 #include "td/telegram/files/FileManager.h"
 #include "td/telegram/files/FileType.h"
 #include "td/telegram/Global.h"
+#include "td/telegram/TdParameters.h"
 
+#include "td/utils/algorithm.h"
 #include "td/utils/format.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/port/Clocks.h"
 #include "td/utils/port/path.h"
-#include "td/utils/Status.h"
 #include "td/utils/Time.h"
 
 #include <algorithm>
@@ -53,7 +54,7 @@ void FileGcWorker::run_gc(const FileGcParameters &parameters, std::vector<FullFi
     }
     for (int32 i = 0; i < MAX_FILE_TYPE; i++) {
       auto main_file_type = narrow_cast<size_t>(get_main_file_type(static_cast<FileType>(i)));
-      if (immune_types[main_file_type] == false) {
+      if (!immune_types[main_file_type]) {
         immune_types[i] = false;
       }
     }
@@ -80,9 +81,8 @@ void FileGcWorker::run_gc(const FileGcParameters &parameters, std::vector<FullFi
     total_size += info.size;
   }
 
-  FileStats new_stats;
-  FileStats removed_stats;
-  removed_stats.split_by_owner_dialog_id = new_stats.split_by_owner_dialog_id = parameters.dialog_limit != 0;
+  FileStats new_stats(false, parameters.dialog_limit != 0);
+  FileStats removed_stats(false, parameters.dialog_limit != 0);
 
   auto do_remove_file = [&removed_stats](const FullFileInfo &info) {
     removed_stats.add_copy(info);
@@ -131,7 +131,7 @@ void FileGcWorker::run_gc(const FileGcParameters &parameters, std::vector<FullFi
     return false;
   });
   if (token_) {
-    return promise.set_error(Status::Error(500, "Request aborted"));
+    return promise.set_error(Global::request_aborted_error());
   }
 
   // sort by max(atime, mtime)
@@ -151,7 +151,7 @@ void FileGcWorker::run_gc(const FileGcParameters &parameters, std::vector<FullFi
   size_t pos = 0;
   while (pos < files.size() && (remove_count > 0 || remove_size > 0)) {
     if (token_) {
-      return promise.set_error(Status::Error(500, "Request aborted"));
+      return promise.set_error(Global::request_aborted_error());
     }
     if (remove_count > 0) {
       remove_by_count_cnt++;

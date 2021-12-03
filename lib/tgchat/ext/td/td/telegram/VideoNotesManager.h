@@ -1,17 +1,16 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #pragma once
 
-#include "td/telegram/td_api.h"
-#include "td/telegram/telegram_api.h"
-
 #include "td/telegram/files/FileId.h"
 #include "td/telegram/Photo.h"
 #include "td/telegram/SecretInputMedia.h"
+#include "td/telegram/td_api.h"
+#include "td/telegram/telegram_api.h"
 
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
@@ -28,7 +27,7 @@ class VideoNotesManager {
 
   int32 get_video_note_duration(FileId file_id) const;
 
-  tl_object_ptr<td_api::videoNote> get_video_note_object(FileId file_id);
+  tl_object_ptr<td_api::videoNote> get_video_note_object(FileId file_id) const;
 
   void create_video_note(FileId file_id, string minithumbnail, PhotoSize thumbnail, int32 duration,
                          Dimensions dimensions, bool replace);
@@ -39,7 +38,7 @@ class VideoNotesManager {
 
   SecretInputMedia get_secret_input_media(FileId video_note_file_id,
                                           tl_object_ptr<telegram_api::InputEncryptedFile> input_file,
-                                          BufferSlice thumbnail, int32 layer) const;
+                                          BufferSlice thumbnail) const;
 
   FileId get_video_note_thumbnail_file_id(FileId file_id) const;
 
@@ -47,7 +46,7 @@ class VideoNotesManager {
 
   FileId dup_video_note(FileId new_id, FileId old_id);
 
-  bool merge_video_notes(FileId new_id, FileId old_id, bool can_delete_old);
+  void merge_video_notes(FileId new_id, FileId old_id, bool can_delete_old);
 
   template <class StorerT>
   void store_video_note(FileId file_id, StorerT &storer) const;
@@ -64,8 +63,6 @@ class VideoNotesManager {
     PhotoSize thumbnail;
 
     FileId file_id;
-
-    bool is_changed = true;
   };
 
   const VideoNote *get_video_note(FileId file_id) const;

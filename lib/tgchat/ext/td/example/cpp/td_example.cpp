@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,7 +11,6 @@
 #include <cstdint>
 #include <functional>
 #include <iostream>
-#include <limits>
 #include <map>
 #include <memory>
 #include <sstream>
@@ -35,7 +34,7 @@ struct overload<F> : public F {
 template <class F, class... Fs>
 struct overload<F, Fs...>
     : public overload<F>
-    , overload<Fs...> {
+    , public overload<Fs...> {
   overload(F f, Fs... fs) : overload<F>(f), overload<Fs...>(fs...) {
   }
   using overload<F>::operator();
@@ -66,8 +65,8 @@ class TdExample {
       } else if (!are_authorized_) {
         process_response(client_manager_->receive(10));
       } else {
-        std::cout << "Enter action [q] quit [u] check for updates and request results [c] show chats [m <id> <text>] "
-                     "send message [me] show self [l] logout: "
+        std::cout << "Enter action [q] quit [u] check for updates and request results [c] show chats [m <chat_id> "
+                     "<text>] send message [me] show self [l] logout: "
                   << std::endl;
         std::string line;
         std::getline(std::cin, line);
@@ -116,16 +115,15 @@ class TdExample {
           send_query(std::move(send_message), {});
         } else if (action == "c") {
           std::cout << "Loading chat list..." << std::endl;
-          send_query(td_api::make_object<td_api::getChats>(nullptr, std::numeric_limits<std::int64_t>::max(), 0, 20),
-                     [this](Object object) {
-                       if (object->get_id() == td_api::error::ID) {
-                         return;
-                       }
-                       auto chats = td::move_tl_object_as<td_api::chats>(object);
-                       for (auto chat_id : chats->chat_ids_) {
-                         std::cout << "[id:" << chat_id << "] [title:" << chat_title_[chat_id] << "]" << std::endl;
-                       }
-                     });
+          send_query(td_api::make_object<td_api::getChats>(nullptr, 20), [this](Object object) {
+            if (object->get_id() == td_api::error::ID) {
+              return;
+            }
+            auto chats = td::move_tl_object_as<td_api::chats>(object);
+            for (auto chat_id : chats->chat_ids_) {
+              std::cout << "[chat_id:" << chat_id << "] [title:" << chat_title_[chat_id] << "]" << std::endl;
+            }
+          });
         }
       }
     }
@@ -144,7 +142,7 @@ class TdExample {
 
   std::map<std::uint64_t, std::function<void(Object)>> handlers_;
 
-  std::map<std::int32_t, td_api::object_ptr<td_api::user>> users_;
+  std::map<std::int64_t, td_api::object_ptr<td_api::user>> users_;
 
   std::map<std::int64_t, std::string> chat_title_;
 
@@ -172,10 +170,11 @@ class TdExample {
     auto it = handlers_.find(response.request_id);
     if (it != handlers_.end()) {
       it->second(std::move(response.object));
+      handlers_.erase(it);
     }
   }
 
-  std::string get_user_name(std::int32_t user_id) const {
+  std::string get_user_name(std::int64_t user_id) const {
     auto it = users_.find(user_id);
     if (it == users_.end()) {
       return "unknown user";

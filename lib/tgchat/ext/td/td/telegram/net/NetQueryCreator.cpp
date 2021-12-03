@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,6 +11,7 @@
 #include "td/telegram/Td.h"
 #include "td/telegram/telegram_api.h"
 
+#include "td/utils/buffer.h"
 #include "td/utils/format.h"
 #include "td/utils/Gzip.h"
 #include "td/utils/logging.h"
@@ -19,13 +20,18 @@
 
 namespace td {
 
+NetQueryCreator::NetQueryCreator(std::shared_ptr<NetQueryStats> net_query_stats)
+    : net_query_stats_(std::move(net_query_stats)) {
+  object_pool_.set_check_empty(true);
+}
+
 NetQueryPtr NetQueryCreator::create(const telegram_api::Function &function, DcId dc_id, NetQuery::Type type) {
   return create(UniqueId::next(), function, dc_id, type, NetQuery::AuthFlag::On);
 }
 
 NetQueryPtr NetQueryCreator::create(uint64 id, const telegram_api::Function &function, DcId dc_id, NetQuery::Type type,
                                     NetQuery::AuthFlag auth_flag) {
-  LOG(DEBUG) << "Create query " << to_string(function);
+  LOG(INFO) << "Create query " << to_string(function);
   auto storer = DefaultStorer<telegram_api::Function>(function);
   BufferSlice slice(storer.size());
   auto real_size = storer.store(slice.as_slice().ubegin());

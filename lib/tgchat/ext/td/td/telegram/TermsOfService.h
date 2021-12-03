@@ -1,16 +1,15 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #pragma once
 
-#include "td/telegram/td_api.h"
-#include "td/telegram/telegram_api.h"
-
 #include "td/telegram/MessageEntity.h"
 #include "td/telegram/MessageEntity.hpp"
+#include "td/telegram/td_api.h"
+#include "td/telegram/telegram_api.h"
 
 #include "td/actor/PromiseFuture.h"
 
@@ -42,7 +41,8 @@ class TermsOfService {
       return nullptr;
     }
 
-    return td_api::make_object<td_api::termsOfService>(get_formatted_text_object(text_), min_user_age_, show_popup_);
+    return td_api::make_object<td_api::termsOfService>(get_formatted_text_object(text_, true, -1), min_user_age_,
+                                                       show_popup_);
   }
 
   template <class StorerT>

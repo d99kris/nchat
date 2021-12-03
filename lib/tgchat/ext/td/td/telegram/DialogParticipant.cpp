@@ -1,13 +1,15 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/telegram/DialogParticipant.h"
 
+#include "td/telegram/ContactsManager.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/misc.h"
+#include "td/telegram/Td.h"
 
 #include "td/utils/common.h"
 #include "td/utils/logging.h"
@@ -35,11 +37,13 @@ DialogParticipantStatus DialogParticipantStatus::Creator(bool is_member, bool is
 }
 
 DialogParticipantStatus DialogParticipantStatus::Administrator(bool is_anonymous, string rank, bool can_be_edited,
-                                                               bool can_change_info, bool can_post_messages,
-                                                               bool can_edit_messages, bool can_delete_messages,
-                                                               bool can_invite_users, bool can_restrict_members,
-                                                               bool can_pin_messages, bool can_promote_members) {
+                                                               bool can_manage_dialog, bool can_change_info,
+                                                               bool can_post_messages, bool can_edit_messages,
+                                                               bool can_delete_messages, bool can_invite_users,
+                                                               bool can_restrict_members, bool can_pin_messages,
+                                                               bool can_promote_members, bool can_manage_calls) {
   uint32 flags = (static_cast<uint32>(can_be_edited) * CAN_BE_EDITED) |
+                 (static_cast<uint32>(can_manage_dialog) * CAN_MANAGE_DIALOG) |
                  (static_cast<uint32>(can_change_info) * CAN_CHANGE_INFO_AND_SETTINGS_ADMIN) |
                  (static_cast<uint32>(can_post_messages) * CAN_POST_MESSAGES) |
                  (static_cast<uint32>(can_edit_messages) * CAN_EDIT_MESSAGES) |
@@ -48,10 +52,12 @@ DialogParticipantStatus DialogParticipantStatus::Administrator(bool is_anonymous
                  (static_cast<uint32>(can_restrict_members) * CAN_RESTRICT_MEMBERS) |
                  (static_cast<uint32>(can_pin_messages) * CAN_PIN_MESSAGES_ADMIN) |
                  (static_cast<uint32>(can_promote_members) * CAN_PROMOTE_MEMBERS) |
+                 (static_cast<uint32>(can_manage_calls) * CAN_MANAGE_CALLS) |
                  (static_cast<uint32>(is_anonymous) * IS_ANONYMOUS);
   if (flags == 0 || flags == CAN_BE_EDITED) {
     return Member();
   }
+  flags |= CAN_MANAGE_DIALOG;
   return DialogParticipantStatus(Type::Administrator, IS_MEMBER | ALL_RESTRICTED_RIGHTS | flags, 0, std::move(rank));
 }
 
@@ -90,14 +96,14 @@ DialogParticipantStatus DialogParticipantStatus::Banned(int32 banned_until_date)
 }
 
 DialogParticipantStatus DialogParticipantStatus::GroupAdministrator(bool is_creator) {
-  return Administrator(false, string(), is_creator, true, false, false, true, true, true, true, false);
+  return Administrator(false, string(), is_creator, true, true, false, false, true, true, true, true, false, true);
 }
 
 DialogParticipantStatus DialogParticipantStatus::ChannelAdministrator(bool is_creator, bool is_megagroup) {
   if (is_megagroup) {
-    return Administrator(false, string(), is_creator, true, false, false, true, true, true, true, false);
+    return Administrator(false, string(), is_creator, true, true, false, false, true, true, true, true, false, false);
   } else {
-    return Administrator(false, string(), is_creator, false, true, true, true, false, true, false, false);
+    return Administrator(false, string(), is_creator, true, false, true, true, true, false, true, false, false, false);
   }
 }
 
@@ -113,9 +119,9 @@ tl_object_ptr<td_api::ChatMemberStatus> DialogParticipantStatus::get_chat_member
       return td_api::make_object<td_api::chatMemberStatusCreator>(rank_, is_anonymous(), is_member());
     case Type::Administrator:
       return td_api::make_object<td_api::chatMemberStatusAdministrator>(
-          rank_, can_be_edited(), can_change_info_and_settings(), can_post_messages(), can_edit_messages(),
-          can_delete_messages(), can_invite_users(), can_restrict_members(), can_pin_messages(), can_promote_members(),
-          is_anonymous());
+          rank_, can_be_edited(), can_manage_dialog(), can_change_info_and_settings(), can_post_messages(),
+          can_edit_messages(), can_delete_messages(), can_invite_users(), can_restrict_members(), can_pin_messages(),
+          can_promote_members(), can_manage_calls(), is_anonymous());
     case Type::Member:
       return td_api::make_object<td_api::chatMemberStatusMember>();
     case Type::Restricted:
@@ -157,14 +163,20 @@ tl_object_ptr<telegram_api::chatAdminRights> DialogParticipantStatus::get_chat_a
   if (can_promote_members()) {
     flags |= telegram_api::chatAdminRights::ADD_ADMINS_MASK;
   }
+  if (can_manage_calls()) {
+    flags |= telegram_api::chatAdminRights::MANAGE_CALL_MASK;
+  }
   if (is_anonymous()) {
     flags |= telegram_api::chatAdminRights::ANONYMOUS_MASK;
   }
+  if (can_manage_dialog()) {
+    flags |= telegram_api::chatAdminRights::OTHER_MASK;
+  }
 
   LOG(INFO) << "Create chat admin rights " << flags;
-  return make_tl_object<telegram_api::chatAdminRights>(flags, false /*ignored*/, false /*ignored*/, false /*ignored*/,
-                                                       false /*ignored*/, false /*ignored*/, false /*ignored*/,
-                                                       false /*ignored*/, false /*ignored*/, false /*ignored*/);
+  return make_tl_object<telegram_api::chatAdminRights>(
+      flags, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/,
+      false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/);
 }
 
 tl_object_ptr<telegram_api::chatBannedRights> DialogParticipantStatus::get_chat_banned_rights() const {
@@ -290,6 +302,9 @@ StringBuilder &operator<<(StringBuilder &string_builder, const DialogParticipant
       return string_builder;
     case DialogParticipantStatus::Type::Administrator:
       string_builder << "Administrator: ";
+      if (status.can_manage_dialog()) {
+        string_builder << "(manage)";
+      }
       if (status.can_change_info_and_settings()) {
         string_builder << "(change)";
       }
@@ -313,6 +328,9 @@ StringBuilder &operator<<(StringBuilder &string_builder, const DialogParticipant
       }
       if (status.can_promote_members()) {
         string_builder << "(promote)";
+      }
+      if (status.can_manage_calls()) {
+        string_builder << "(voice chat)";
       }
       if (!status.rank_.empty()) {
         string_builder << " [" << status.rank_ << "]";
@@ -389,20 +407,32 @@ DialogParticipantStatus get_dialog_participant_status(const tl_object_ptr<td_api
   switch (constructor_id) {
     case td_api::chatMemberStatusCreator::ID: {
       auto st = static_cast<const td_api::chatMemberStatusCreator *>(status.get());
-      return DialogParticipantStatus::Creator(st->is_member_, st->is_anonymous_, st->custom_title_);
+      auto custom_title = st->custom_title_;
+      if (!clean_input_string(custom_title)) {
+        custom_title.clear();
+      }
+      return DialogParticipantStatus::Creator(st->is_member_, st->is_anonymous_, custom_title);
     }
     case td_api::chatMemberStatusAdministrator::ID: {
       auto st = static_cast<const td_api::chatMemberStatusAdministrator *>(status.get());
+      auto custom_title = st->custom_title_;
+      if (!clean_input_string(custom_title)) {
+        custom_title.clear();
+      }
       return DialogParticipantStatus::Administrator(
-          st->is_anonymous_, st->custom_title_, true /*st->can_be_edited_*/, st->can_change_info_,
+          st->is_anonymous_, custom_title, true /*st->can_be_edited_*/, st->can_manage_chat_, st->can_change_info_,
           st->can_post_messages_, st->can_edit_messages_, st->can_delete_messages_, st->can_invite_users_,
-          st->can_restrict_members_, st->can_pin_messages_, st->can_promote_members_);
+          st->can_restrict_members_, st->can_pin_messages_, st->can_promote_members_, st->can_manage_video_chats_);
     }
     case td_api::chatMemberStatusMember::ID:
       return DialogParticipantStatus::Member();
     case td_api::chatMemberStatusRestricted::ID: {
       auto st = static_cast<const td_api::chatMemberStatusRestricted *>(status.get());
       auto permissions = st->permissions_.get();
+      if (permissions == nullptr) {
+        return DialogParticipantStatus::Restricted(st->is_member_, st->restricted_until_date_, false, false, false,
+                                                   false, false, false, false, false, false, false, false);
+      }
       bool can_send_polls = permissions->can_send_polls_;
       bool can_send_media = permissions->can_send_media_messages_;
       bool can_send_messages = permissions->can_send_messages_ || can_send_media || can_send_polls ||
@@ -427,7 +457,7 @@ DialogParticipantStatus get_dialog_participant_status(const tl_object_ptr<td_api
 }
 
 DialogParticipantStatus get_dialog_participant_status(bool can_be_edited,
-                                                      const tl_object_ptr<telegram_api::chatAdminRights> &admin_rights,
+                                                      tl_object_ptr<telegram_api::chatAdminRights> &&admin_rights,
                                                       string rank) {
   bool can_change_info = (admin_rights->flags_ & telegram_api::chatAdminRights::CHANGE_INFO_MASK) != 0;
   bool can_post_messages = (admin_rights->flags_ & telegram_api::chatAdminRights::POST_MESSAGES_MASK) != 0;
@@ -437,14 +467,20 @@ DialogParticipantStatus get_dialog_participant_status(bool can_be_edited,
   bool can_restrict_members = (admin_rights->flags_ & telegram_api::chatAdminRights::BAN_USERS_MASK) != 0;
   bool can_pin_messages = (admin_rights->flags_ & telegram_api::chatAdminRights::PIN_MESSAGES_MASK) != 0;
   bool can_promote_members = (admin_rights->flags_ & telegram_api::chatAdminRights::ADD_ADMINS_MASK) != 0;
+  bool can_manage_calls = (admin_rights->flags_ & telegram_api::chatAdminRights::MANAGE_CALL_MASK) != 0;
   bool is_anonymous = (admin_rights->flags_ & telegram_api::chatAdminRights::ANONYMOUS_MASK) != 0;
-  return DialogParticipantStatus::Administrator(
-      is_anonymous, std::move(rank), can_be_edited, can_change_info, can_post_messages, can_edit_messages,
-      can_delete_messages, can_invite_users, can_restrict_members, can_pin_messages, can_promote_members);
+  bool can_manage_dialog = (admin_rights->flags_ & telegram_api::chatAdminRights::OTHER_MASK) != 0;
+  if (!can_manage_dialog) {
+    LOG(ERROR) << "Receive wrong other flag in " << to_string(admin_rights);
+  }
+  return DialogParticipantStatus::Administrator(is_anonymous, std::move(rank), can_be_edited, can_manage_dialog,
+                                                can_change_info, can_post_messages, can_edit_messages,
+                                                can_delete_messages, can_invite_users, can_restrict_members,
+                                                can_pin_messages, can_promote_members, can_manage_calls);
 }
 
-DialogParticipantStatus get_dialog_participant_status(
-    bool is_member, const tl_object_ptr<telegram_api::chatBannedRights> &banned_rights) {
+DialogParticipantStatus get_dialog_participant_status(bool is_member,
+                                                      tl_object_ptr<telegram_api::chatBannedRights> &&banned_rights) {
   bool can_view_messages = (banned_rights->flags_ & telegram_api::chatBannedRights::VIEW_MESSAGES_MASK) == 0;
   if (!can_view_messages) {
     return DialogParticipantStatus::Banned(banned_rights->until_date_);
@@ -579,7 +615,7 @@ StringBuilder &operator<<(StringBuilder &string_builder, const RestrictedRights 
   return string_builder;
 }
 
-RestrictedRights get_restricted_rights(const tl_object_ptr<telegram_api::chatBannedRights> &banned_rights) {
+RestrictedRights get_restricted_rights(tl_object_ptr<telegram_api::chatBannedRights> &&banned_rights) {
   if (banned_rights == nullptr) {
     return RestrictedRights(false, false, false, false, false, false, false, false, false, false, false);
   }
@@ -618,59 +654,84 @@ RestrictedRights get_restricted_rights(const td_api::object_ptr<td_api::chatPerm
                           permissions->can_pin_messages_);
 }
 
-DialogParticipant::DialogParticipant(UserId user_id, UserId inviter_user_id, int32 joined_date,
+DialogParticipant::DialogParticipant(DialogId dialog_id, UserId inviter_user_id, int32 joined_date,
                                      DialogParticipantStatus status)
-    : user_id(user_id), inviter_user_id(inviter_user_id), joined_date(joined_date), status(status) {
-  if (!inviter_user_id.is_valid() && inviter_user_id != UserId()) {
-    LOG(ERROR) << "Receive inviter " << inviter_user_id;
-    inviter_user_id = UserId();
+    : dialog_id_(dialog_id), inviter_user_id_(inviter_user_id), joined_date_(joined_date), status_(std::move(status)) {
+  if (!inviter_user_id_.is_valid() && inviter_user_id_ != UserId()) {
+    LOG(ERROR) << "Receive inviter " << inviter_user_id_;
+    inviter_user_id_ = UserId();
   }
-  if (joined_date < 0) {
-    LOG(ERROR) << "Receive date " << joined_date;
-    joined_date = 0;
+  if (joined_date_ < 0) {
+    LOG(ERROR) << "Receive date " << joined_date_;
+    joined_date_ = 0;
   }
 }
 
-DialogParticipant::DialogParticipant(tl_object_ptr<telegram_api::ChannelParticipant> &&participant_ptr,
-                                     DialogParticipantStatus my_status) {
+DialogParticipant::DialogParticipant(tl_object_ptr<telegram_api::ChatParticipant> &&participant_ptr,
+                                     int32 chat_creation_date, bool is_creator) {
+  switch (participant_ptr->get_id()) {
+    case telegram_api::chatParticipant::ID: {
+      auto participant = move_tl_object_as<telegram_api::chatParticipant>(participant_ptr);
+      *this = {DialogId(UserId(participant->user_id_)), UserId(participant->inviter_id_), participant->date_,
+               DialogParticipantStatus::Member()};
+      break;
+    }
+    case telegram_api::chatParticipantCreator::ID: {
+      auto participant = move_tl_object_as<telegram_api::chatParticipantCreator>(participant_ptr);
+      *this = {DialogId(UserId(participant->user_id_)), UserId(participant->user_id_), chat_creation_date,
+               DialogParticipantStatus::Creator(true, false, string())};
+      break;
+    }
+    case telegram_api::chatParticipantAdmin::ID: {
+      auto participant = move_tl_object_as<telegram_api::chatParticipantAdmin>(participant_ptr);
+      *this = {DialogId(UserId(participant->user_id_)), UserId(participant->inviter_id_), participant->date_,
+               DialogParticipantStatus::GroupAdministrator(is_creator)};
+      break;
+    }
+    default:
+      UNREACHABLE();
+  }
+}
+
+DialogParticipant::DialogParticipant(tl_object_ptr<telegram_api::ChannelParticipant> &&participant_ptr) {
   CHECK(participant_ptr != nullptr);
+
   switch (participant_ptr->get_id()) {
     case telegram_api::channelParticipant::ID: {
       auto participant = move_tl_object_as<telegram_api::channelParticipant>(participant_ptr);
-      *this = {UserId(participant->user_id_), UserId(), participant->date_, DialogParticipantStatus::Member()};
+      *this = {DialogId(UserId(participant->user_id_)), UserId(), participant->date_,
+               DialogParticipantStatus::Member()};
       break;
     }
     case telegram_api::channelParticipantSelf::ID: {
       auto participant = move_tl_object_as<telegram_api::channelParticipantSelf>(participant_ptr);
-      *this = {UserId(participant->user_id_), UserId(participant->inviter_id_), participant->date_,
-               std::move(my_status)};
+      *this = {DialogId(UserId(participant->user_id_)), UserId(participant->inviter_id_), participant->date_,
+               DialogParticipantStatus::Member()};
       break;
     }
     case telegram_api::channelParticipantCreator::ID: {
       auto participant = move_tl_object_as<telegram_api::channelParticipantCreator>(participant_ptr);
-      bool is_anonymous = (participant->admin_rights_->flags_ & telegram_api::chatAdminRights::ANONYMOUS_MASK) != 0;
-      *this = {UserId(participant->user_id_), UserId(), 0,
-               DialogParticipantStatus::Creator(true, is_anonymous, std::move(participant->rank_))};
+      *this = {DialogId(UserId(participant->user_id_)), UserId(), 0,
+               DialogParticipantStatus::Creator(true, participant->admin_rights_->anonymous_,
+                                                std::move(participant->rank_))};
       break;
     }
     case telegram_api::channelParticipantAdmin::ID: {
       auto participant = move_tl_object_as<telegram_api::channelParticipantAdmin>(participant_ptr);
-      bool can_be_edited = (participant->flags_ & telegram_api::channelParticipantAdmin::CAN_EDIT_MASK) != 0;
-      *this = {UserId(participant->user_id_), UserId(participant->promoted_by_), participant->date_,
-               get_dialog_participant_status(can_be_edited, std::move(participant->admin_rights_),
+      *this = {DialogId(UserId(participant->user_id_)), UserId(participant->promoted_by_), participant->date_,
+               get_dialog_participant_status(participant->can_edit_, std::move(participant->admin_rights_),
                                              std::move(participant->rank_))};
       break;
     }
     case telegram_api::channelParticipantLeft::ID: {
       auto participant = move_tl_object_as<telegram_api::channelParticipantLeft>(participant_ptr);
-      *this = {UserId(participant->user_id_), UserId(), 0, DialogParticipantStatus::Left()};
+      *this = {DialogId(participant->peer_), UserId(), 0, DialogParticipantStatus::Left()};
       break;
     }
     case telegram_api::channelParticipantBanned::ID: {
       auto participant = move_tl_object_as<telegram_api::channelParticipantBanned>(participant_ptr);
-      auto is_member = (participant->flags_ & telegram_api::channelParticipantBanned::LEFT_MASK) == 0;
-      *this = {UserId(participant->user_id_), UserId(participant->kicked_by_), participant->date_,
-               get_dialog_participant_status(is_member, std::move(participant->banned_rights_))};
+      *this = {DialogId(participant->peer_), UserId(participant->kicked_by_), participant->date_,
+               get_dialog_participant_status(!participant->left_, std::move(participant->banned_rights_))};
       break;
     }
     default:
@@ -680,47 +741,57 @@ DialogParticipant::DialogParticipant(tl_object_ptr<telegram_api::ChannelParticip
 }
 
 bool DialogParticipant::is_valid() const {
-  if (!user_id.is_valid() || joined_date < 0) {
+  if (!dialog_id_.is_valid() || joined_date_ < 0) {
     return false;
   }
-  if (status.is_restricted() || status.is_banned() || (status.is_administrator() && !status.is_creator())) {
-    return inviter_user_id.is_valid();
+  if (status_.is_restricted() || status_.is_banned() || (status_.is_administrator() && !status_.is_creator())) {
+    return inviter_user_id_.is_valid();
   }
   return true;
 }
 
 StringBuilder &operator<<(StringBuilder &string_builder, const DialogParticipant &dialog_participant) {
-  return string_builder << '[' << dialog_participant.user_id << " invited by " << dialog_participant.inviter_user_id
-                        << " at " << dialog_participant.joined_date << " with status " << dialog_participant.status
+  return string_builder << '[' << dialog_participant.dialog_id_ << " invited by " << dialog_participant.inviter_user_id_
+                        << " at " << dialog_participant.joined_date_ << " with status " << dialog_participant.status_
                         << ']';
+}
+
+td_api::object_ptr<td_api::chatMembers> DialogParticipants::get_chat_members_object(Td *td) const {
+  vector<tl_object_ptr<td_api::chatMember>> chat_members;
+  chat_members.reserve(participants_.size());
+  for (auto &participant : participants_) {
+    chat_members.push_back(td->contacts_manager_->get_chat_member_object(participant));
+  }
+
+  return td_api::make_object<td_api::chatMembers>(total_count_, std::move(chat_members));
 }
 
 tl_object_ptr<telegram_api::ChannelParticipantsFilter>
 ChannelParticipantsFilter::get_input_channel_participants_filter() const {
-  switch (type) {
+  switch (type_) {
     case Type::Recent:
       return make_tl_object<telegram_api::channelParticipantsRecent>();
     case Type::Contacts:
-      return make_tl_object<telegram_api::channelParticipantsContacts>(query);
+      return make_tl_object<telegram_api::channelParticipantsContacts>(query_);
     case Type::Administrators:
       return make_tl_object<telegram_api::channelParticipantsAdmins>();
     case Type::Search:
-      return make_tl_object<telegram_api::channelParticipantsSearch>(query);
+      return make_tl_object<telegram_api::channelParticipantsSearch>(query_);
     case Type::Mention: {
       int32 flags = 0;
-      if (!query.empty()) {
+      if (!query_.empty()) {
         flags |= telegram_api::channelParticipantsMentions::Q_MASK;
       }
-      if (!top_thread_message_id.is_valid()) {
+      if (top_thread_message_id_.is_valid()) {
         flags |= telegram_api::channelParticipantsMentions::TOP_MSG_ID_MASK;
       }
       return make_tl_object<telegram_api::channelParticipantsMentions>(
-          flags, query, top_thread_message_id.get_server_message_id().get());
+          flags, query_, top_thread_message_id_.get_server_message_id().get());
     }
     case Type::Restricted:
-      return make_tl_object<telegram_api::channelParticipantsBanned>(query);
+      return make_tl_object<telegram_api::channelParticipantsBanned>(query_);
     case Type::Banned:
-      return make_tl_object<telegram_api::channelParticipantsKicked>(query);
+      return make_tl_object<telegram_api::channelParticipantsKicked>(query_);
     case Type::Bots:
       return make_tl_object<telegram_api::channelParticipantsBots>();
     default:
@@ -731,67 +802,67 @@ ChannelParticipantsFilter::get_input_channel_participants_filter() const {
 
 ChannelParticipantsFilter::ChannelParticipantsFilter(const tl_object_ptr<td_api::SupergroupMembersFilter> &filter) {
   if (filter == nullptr) {
-    type = Type::Recent;
+    type_ = Type::Recent;
     return;
   }
   switch (filter->get_id()) {
     case td_api::supergroupMembersFilterRecent::ID:
-      type = Type::Recent;
+      type_ = Type::Recent;
       return;
     case td_api::supergroupMembersFilterContacts::ID:
-      type = Type::Contacts;
-      query = static_cast<const td_api::supergroupMembersFilterContacts *>(filter.get())->query_;
+      type_ = Type::Contacts;
+      query_ = static_cast<const td_api::supergroupMembersFilterContacts *>(filter.get())->query_;
       return;
     case td_api::supergroupMembersFilterAdministrators::ID:
-      type = Type::Administrators;
+      type_ = Type::Administrators;
       return;
     case td_api::supergroupMembersFilterSearch::ID:
-      type = Type::Search;
-      query = static_cast<const td_api::supergroupMembersFilterSearch *>(filter.get())->query_;
+      type_ = Type::Search;
+      query_ = static_cast<const td_api::supergroupMembersFilterSearch *>(filter.get())->query_;
       return;
     case td_api::supergroupMembersFilterMention::ID: {
       auto mention_filter = static_cast<const td_api::supergroupMembersFilterMention *>(filter.get());
-      type = Type::Mention;
-      query = mention_filter->query_;
-      top_thread_message_id = MessageId(mention_filter->message_thread_id_);
-      if (!top_thread_message_id.is_valid() || !top_thread_message_id.is_server()) {
-        top_thread_message_id = MessageId();
+      type_ = Type::Mention;
+      query_ = mention_filter->query_;
+      top_thread_message_id_ = MessageId(mention_filter->message_thread_id_);
+      if (!top_thread_message_id_.is_valid() || !top_thread_message_id_.is_server()) {
+        top_thread_message_id_ = MessageId();
       }
       return;
     }
     case td_api::supergroupMembersFilterRestricted::ID:
-      type = Type::Restricted;
-      query = static_cast<const td_api::supergroupMembersFilterRestricted *>(filter.get())->query_;
+      type_ = Type::Restricted;
+      query_ = static_cast<const td_api::supergroupMembersFilterRestricted *>(filter.get())->query_;
       return;
     case td_api::supergroupMembersFilterBanned::ID:
-      type = Type::Banned;
-      query = static_cast<const td_api::supergroupMembersFilterBanned *>(filter.get())->query_;
+      type_ = Type::Banned;
+      query_ = static_cast<const td_api::supergroupMembersFilterBanned *>(filter.get())->query_;
       return;
     case td_api::supergroupMembersFilterBots::ID:
-      type = Type::Bots;
+      type_ = Type::Bots;
       return;
     default:
       UNREACHABLE();
-      type = Type::Recent;
+      type_ = Type::Recent;
   }
 }
 
 StringBuilder &operator<<(StringBuilder &string_builder, const ChannelParticipantsFilter &filter) {
-  switch (filter.type) {
+  switch (filter.type_) {
     case ChannelParticipantsFilter::Type::Recent:
       return string_builder << "Recent";
     case ChannelParticipantsFilter::Type::Contacts:
-      return string_builder << "Contacts \"" << filter.query << '"';
+      return string_builder << "Contacts \"" << filter.query_ << '"';
     case ChannelParticipantsFilter::Type::Administrators:
       return string_builder << "Administrators";
     case ChannelParticipantsFilter::Type::Search:
-      return string_builder << "Search \"" << filter.query << '"';
+      return string_builder << "Search \"" << filter.query_ << '"';
     case ChannelParticipantsFilter::Type::Mention:
-      return string_builder << "Mention \"" << filter.query << "\" in thread of " << filter.top_thread_message_id;
+      return string_builder << "Mention \"" << filter.query_ << "\" in thread of " << filter.top_thread_message_id_;
     case ChannelParticipantsFilter::Type::Restricted:
-      return string_builder << "Restricted \"" << filter.query << '"';
+      return string_builder << "Restricted \"" << filter.query_ << '"';
     case ChannelParticipantsFilter::Type::Banned:
-      return string_builder << "Banned \"" << filter.query << '"';
+      return string_builder << "Banned \"" << filter.query_ << '"';
     case ChannelParticipantsFilter::Type::Bots:
       return string_builder << "Bots";
     default:
@@ -800,34 +871,130 @@ StringBuilder &operator<<(StringBuilder &string_builder, const ChannelParticipan
   }
 }
 
-DialogParticipantsFilter get_dialog_participants_filter(const tl_object_ptr<td_api::ChatMembersFilter> &filter) {
+StringBuilder &operator<<(StringBuilder &string_builder, const DialogParticipantsFilter &filter) {
+  switch (filter.type_) {
+    case DialogParticipantsFilter::Type::Contacts:
+      return string_builder << "Contacts";
+    case DialogParticipantsFilter::Type::Administrators:
+      return string_builder << "Administrators";
+    case DialogParticipantsFilter::Type::Members:
+      return string_builder << "Members";
+    case DialogParticipantsFilter::Type::Restricted:
+      return string_builder << "Restricted";
+    case DialogParticipantsFilter::Type::Banned:
+      return string_builder << "Banned";
+    case DialogParticipantsFilter::Type::Mention:
+      return string_builder << "Mention";
+    case DialogParticipantsFilter::Type::Bots:
+      return string_builder << "Bots";
+    default:
+      UNREACHABLE();
+      return string_builder;
+  }
+}
+
+DialogParticipantsFilter::DialogParticipantsFilter(const tl_object_ptr<td_api::ChatMembersFilter> &filter) {
   if (filter == nullptr) {
-    return DialogParticipantsFilter{DialogParticipantsFilter::Type::Members};
+    type_ = Type::Members;
+    return;
   }
   switch (filter->get_id()) {
     case td_api::chatMembersFilterContacts::ID:
-      return DialogParticipantsFilter{DialogParticipantsFilter::Type::Contacts};
+      type_ = Type::Contacts;
+      break;
     case td_api::chatMembersFilterAdministrators::ID:
-      return DialogParticipantsFilter{DialogParticipantsFilter::Type::Administrators};
+      type_ = Type::Administrators;
+      break;
     case td_api::chatMembersFilterMembers::ID:
-      return DialogParticipantsFilter{DialogParticipantsFilter::Type::Members};
+      type_ = Type::Members;
+      break;
     case td_api::chatMembersFilterRestricted::ID:
-      return DialogParticipantsFilter{DialogParticipantsFilter::Type::Restricted};
+      type_ = Type::Restricted;
+      break;
     case td_api::chatMembersFilterBanned::ID:
-      return DialogParticipantsFilter{DialogParticipantsFilter::Type::Banned};
+      type_ = Type::Banned;
+      break;
     case td_api::chatMembersFilterMention::ID: {
       auto mention_filter = static_cast<const td_api::chatMembersFilterMention *>(filter.get());
-      auto top_thread_message_id = MessageId(mention_filter->message_thread_id_);
-      if (!top_thread_message_id.is_valid() || !top_thread_message_id.is_server()) {
-        top_thread_message_id = MessageId();
+      top_thread_message_id_ = MessageId(mention_filter->message_thread_id_);
+      if (!top_thread_message_id_.is_valid() || !top_thread_message_id_.is_server()) {
+        top_thread_message_id_ = MessageId();
       }
-      return DialogParticipantsFilter{DialogParticipantsFilter::Type::Mention, top_thread_message_id};
+      type_ = Type::Mention;
+      break;
     }
     case td_api::chatMembersFilterBots::ID:
-      return DialogParticipantsFilter{DialogParticipantsFilter::Type::Bots};
+      type_ = Type::Bots;
+      break;
     default:
       UNREACHABLE();
-      return DialogParticipantsFilter{DialogParticipantsFilter::Type::Members};
+      type_ = Type::Members;
+      break;
+  }
+}
+
+td_api::object_ptr<td_api::SupergroupMembersFilter> DialogParticipantsFilter::get_supergroup_members_filter_object(
+    const string &query) const {
+  switch (type_) {
+    case Type::Contacts:
+      return td_api::make_object<td_api::supergroupMembersFilterContacts>();
+    case Type::Administrators:
+      return td_api::make_object<td_api::supergroupMembersFilterAdministrators>();
+    case Type::Members:
+      return td_api::make_object<td_api::supergroupMembersFilterSearch>(query);
+    case Type::Restricted:
+      return td_api::make_object<td_api::supergroupMembersFilterRestricted>(query);
+    case Type::Banned:
+      return td_api::make_object<td_api::supergroupMembersFilterBanned>(query);
+    case Type::Mention:
+      return td_api::make_object<td_api::supergroupMembersFilterMention>(query, top_thread_message_id_.get());
+    case Type::Bots:
+      return td_api::make_object<td_api::supergroupMembersFilterBots>();
+    default:
+      UNREACHABLE();
+      return nullptr;
+  }
+}
+
+bool DialogParticipantsFilter::has_query() const {
+  switch (type_) {
+    case Type::Members:
+    case Type::Restricted:
+    case Type::Banned:
+    case Type::Mention:
+      return true;
+    case Type::Contacts:
+    case Type::Administrators:
+    case Type::Bots:
+      return false;
+    default:
+      UNREACHABLE();
+      return false;
+  }
+}
+
+bool DialogParticipantsFilter::is_dialog_participant_suitable(const Td *td,
+                                                              const DialogParticipant &participant) const {
+  switch (type_) {
+    case Type::Contacts:
+      return participant.dialog_id_.get_type() == DialogType::User &&
+             td->contacts_manager_->is_user_contact(participant.dialog_id_.get_user_id());
+    case Type::Administrators:
+      return participant.status_.is_administrator();
+    case Type::Members:
+      return participant.status_.is_member();
+    case Type::Restricted:
+      return participant.status_.is_restricted();
+    case Type::Banned:
+      return participant.status_.is_banned();
+    case Type::Mention:
+      return true;
+    case Type::Bots:
+      return participant.dialog_id_.get_type() == DialogType::User &&
+             td->contacts_manager_->is_user_bot(participant.dialog_id_.get_user_id());
+    default:
+      UNREACHABLE();
+      return false;
   }
 }
 

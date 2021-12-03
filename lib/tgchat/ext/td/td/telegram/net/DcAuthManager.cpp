@@ -1,22 +1,20 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/telegram/net/DcAuthManager.h"
 
-#include "td/actor/actor.h"
-
-#include "td/telegram/ConfigShared.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/net/AuthDataShared.h"
 #include "td/telegram/net/NetQuery.h"
 #include "td/telegram/net/NetQueryDispatcher.h"
 #include "td/telegram/TdDb.h"
+#include "td/telegram/telegram_api.h"
 #include "td/telegram/UniqueId.h"
 
-#include "td/telegram/telegram_api.h"
+#include "td/actor/actor.h"
 
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
@@ -44,11 +42,11 @@ DcAuthManager::DcAuthManager(ActorShared<> parent) {
 
 void DcAuthManager::add_dc(std::shared_ptr<AuthDataShared> auth_data) {
   VLOG(dc) << "Register " << auth_data->dc_id();
-  class Listener : public AuthDataShared::Listener {
+  class Listener final : public AuthDataShared::Listener {
    public:
     explicit Listener(ActorShared<DcAuthManager> dc_manager) : dc_manager_(std::move(dc_manager)) {
     }
-    bool notify() override {
+    bool notify() final {
       if (!dc_manager_.is_alive()) {
         return false;
       }
@@ -64,11 +62,8 @@ void DcAuthManager::add_dc(std::shared_ptr<AuthDataShared> auth_data) {
   info.dc_id = auth_data->dc_id();
   CHECK(info.dc_id.is_exact());
   info.shared_auth_data = std::move(auth_data);
-  auto state_was_auth = info.shared_auth_data->get_auth_key_state();
-  info.auth_key_state = state_was_auth.first;
-  VLOG(dc) << "Add " << info.dc_id << " with auth key state " << info.auth_key_state
-           << " and was_auth = " << state_was_auth.second;
-  was_auth_ |= state_was_auth.second;
+  info.auth_key_state = info.shared_auth_data->get_auth_key_state();
+  VLOG(dc) << "Add " << info.dc_id << " with auth key state " << info.auth_key_state;
   if (!main_dc_id_.is_exact()) {
     main_dc_id_ = info.dc_id;
     VLOG(dc) << "Set main DcId to " << main_dc_id_;
@@ -98,19 +93,16 @@ DcAuthManager::DcInfo *DcAuthManager::find_dc(int32 dc_id) {
 }
 
 void DcAuthManager::update_auth_key_state() {
-  int32 dc_id = narrow_cast<int32>(get_link_token());
+  auto dc_id = narrow_cast<int32>(get_link_token());
   auto &dc = get_dc(dc_id);
-  auto state_was_auth = dc.shared_auth_data->get_auth_key_state();
-  VLOG(dc) << "Update " << dc_id << " auth key state from " << dc.auth_key_state << " to " << state_was_auth.first
-           << " with was_auth = " << state_was_auth.second;
-  dc.auth_key_state = state_was_auth.first;
-  was_auth_ |= state_was_auth.second;
+  dc.auth_key_state = dc.shared_auth_data->get_auth_key_state();
+  VLOG(dc) << "Update " << dc_id << " auth key state from " << dc.auth_key_state << " to " << dc.auth_key_state;
 
   loop();
 }
 
 void DcAuthManager::on_result(NetQueryPtr result) {
-  int32 dc_id = narrow_cast<int32>(get_link_token());
+  auto dc_id = narrow_cast<int32>(get_link_token());
   auto &dc = get_dc(dc_id);
   CHECK(dc.wait_id == result->id());
   dc.wait_id = std::numeric_limits<decltype(dc.wait_id)>::max();
@@ -239,15 +231,8 @@ void DcAuthManager::loop() {
   }
   auto main_dc = find_dc(main_dc_id_.get_raw_id());
   if (!main_dc || main_dc->auth_key_state != AuthKeyState::OK) {
-    VLOG(dc) << "Main is " << main_dc_id_ << ", main auth key state is "
-             << (main_dc ? main_dc->auth_key_state : AuthKeyState::Empty) << ", was_auth = " << was_auth_;
-    if (was_auth_) {
-      G()->shared_config().set_option_boolean("auth", false);
-      destroy_loop();
-    }
-    VLOG(dc) << "Skip loop because auth state of main DcId " << main_dc_id_.get_raw_id() << " is "
-             << (main_dc != nullptr ? (PSTRING() << main_dc->auth_key_state) : "unknown");
-
+    VLOG(dc) << "Skip loop, because main DC is " << main_dc_id_ << ", main auth key state is "
+             << (main_dc != nullptr ? main_dc->auth_key_state : AuthKeyState::Empty);
     return;
   }
   for (auto &dc : dcs_) {

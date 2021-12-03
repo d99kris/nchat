@@ -1,12 +1,10 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #pragma once
-
-#include "td/actor/actor.h"
 
 #include "td/telegram/DelayDispatcher.h"
 #include "td/telegram/files/FileLoaderActor.h"
@@ -15,6 +13,8 @@
 #include "td/telegram/files/ResourceManager.h"
 #include "td/telegram/files/ResourceState.h"
 #include "td/telegram/net/NetQuery.h"
+
+#include "td/actor/actor.h"
 
 #include "td/utils/OrderedEventsProcessor.h"
 #include "td/utils/Status.h"
@@ -33,12 +33,12 @@ class FileLoader : public FileLoaderActor {
     Callback &operator=(const Callback &) = delete;
     virtual ~Callback() = default;
   };
-  void set_resource_manager(ActorShared<ResourceManager> resource_manager) override;
-  void update_priority(int8 priority) override;
-  void update_resources(const ResourceState &other) override;
+  void set_resource_manager(ActorShared<ResourceManager> resource_manager) final;
+  void update_priority(int8 priority) final;
+  void update_resources(const ResourceState &other) final;
 
-  void update_local_file_location(const LocalFileLocation &local) override;
-  void update_downloaded_part(int64 offset, int64 limit) override;
+  void update_local_file_location(const LocalFileLocation &local) final;
+  void update_downloaded_part(int64 offset, int64 limit) final;
 
  protected:
   void set_ordered_flag(bool flag);
@@ -49,14 +49,14 @@ class FileLoader : public FileLoaderActor {
     bool is_ready = false;
   };
   struct FileInfo {
-    int64 size;
+    int64 size{0};
     int64 expected_size{0};
-    bool is_size_final;
-    int32 part_size;
+    bool is_size_final{false};
+    int32 part_size{0};
     std::vector<int> ready_parts;
-    bool use_part_count_limit = true;
-    bool only_check = false;
-    bool need_delay = false;
+    bool use_part_count_limit{true};
+    bool only_check{false};
+    bool need_delay{false};
     int64 offset{0};
     int64 limit{0};
     bool is_upload{false};
@@ -124,17 +124,17 @@ class FileLoader : public FileLoaderActor {
   uint32 debug_bad_part_order_ = 0;
   std::vector<int32> debug_bad_parts_;
 
-  void start_up() override;
-  void loop() override;
+  void start_up() final;
+  void loop() final;
   Status do_loop();
-  void hangup() override;
-  void hangup_shared() override;
-  void tear_down() override;
+  void hangup() final;
+  void hangup_shared() final;
+  void tear_down() final;
 
   void update_estimated_limit();
   void on_progress_impl();
 
-  void on_result(NetQueryPtr query) override;
+  void on_result(NetQueryPtr query) final;
   void on_part_query(Part part, NetQueryPtr query);
   void on_common_query(NetQueryPtr query);
   Status try_on_part_query(Part part, NetQueryPtr query);

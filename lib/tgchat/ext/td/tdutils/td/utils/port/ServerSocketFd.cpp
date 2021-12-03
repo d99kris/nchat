@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -13,6 +13,7 @@
 #include "td/utils/port/detail/skip_eintr.h"
 #include "td/utils/port/IPAddress.h"
 #include "td/utils/port/PollFlags.h"
+#include "td/utils/SliceBuilder.h"
 
 #if TD_PORT_POSIX
 #include <cerrno>
@@ -39,7 +40,7 @@ namespace td {
 
 namespace detail {
 #if TD_PORT_WINDOWS
-class ServerSocketFdImpl : private Iocp::Callback {
+class ServerSocketFdImpl final : private Iocp::Callback {
  public:
   ServerSocketFdImpl(NativeFd fd, int socket_family) : info_(std::move(fd)), socket_family_(socket_family) {
     VLOG(fd) << get_native_fd() << " create ServerSocketFd";
@@ -171,7 +172,7 @@ class ServerSocketFdImpl : private Iocp::Callback {
     get_poll_info().add_flags_from_poll(PollFlags::Error());
   }
 
-  void on_iocp(Result<size_t> r_size, WSAOVERLAPPED *overlapped) override {
+  void on_iocp(Result<size_t> r_size, WSAOVERLAPPED *overlapped) final {
     // called from other thread
     if (dec_refcnt() || close_flag_) {
       VLOG(fd) << "Ignore IOCP (server socket is closing)";
@@ -281,8 +282,8 @@ void ServerSocketFdImplDeleter::operator()(ServerSocketFdImpl *impl) {
 }  // namespace detail
 
 ServerSocketFd::ServerSocketFd() = default;
-ServerSocketFd::ServerSocketFd(ServerSocketFd &&) = default;
-ServerSocketFd &ServerSocketFd::operator=(ServerSocketFd &&) = default;
+ServerSocketFd::ServerSocketFd(ServerSocketFd &&) noexcept = default;
+ServerSocketFd &ServerSocketFd::operator=(ServerSocketFd &&) noexcept = default;
 ServerSocketFd::~ServerSocketFd() = default;
 ServerSocketFd::ServerSocketFd(unique_ptr<detail::ServerSocketFdImpl> impl) : impl_(impl.release()) {
 }

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,7 +11,8 @@
 #include "td/utils/CancellationToken.h"
 #include "td/utils/Closure.h"
 #include "td/utils/common.h"
-#include "td/utils/invoke.h"  // for tuple_for_each
+#include "td/utils/invoke.h"
+#include "td/utils/MovableValue.h"
 #include "td/utils/ScopeGuard.h"
 #include "td/utils/Status.h"
 
@@ -43,10 +44,19 @@ class PromiseInterface {
       set_error(result.move_as_error());
     }
   }
+  void operator()(T &&value) {
+    set_value(std::move(value));
+  }
+  void operator()(Status &&error) {
+    set_error(std::move(error));
+  }
+  void operator()(Result<T> &&result) {
+    set_result(std::move(result));
+  }
   virtual bool is_cancellable() const {
     return false;
   }
-  virtual bool is_cancelled() const {
+  virtual bool is_canceled() const {
     return false;
   }
 
@@ -56,10 +66,178 @@ class PromiseInterface {
   }
 };
 
+namespace detail {
+
+template <typename T>
+struct GetArg final : public GetArg<decltype(&T::operator())> {};
+
+template <class C, class R, class Arg>
+class GetArg<R (C::*)(Arg)> {
+ public:
+  using type = Arg;
+};
+template <class C, class R, class Arg>
+class GetArg<R (C::*)(Arg) const> {
+ public:
+  using type = Arg;
+};
+
+template <class T>
+using get_arg_t = std::decay_t<typename GetArg<T>::type>;
+
+template <class T>
+struct DropResult {
+  using type = T;
+};
+
+template <class T>
+struct DropResult<Result<T>> {
+  using type = T;
+};
+
+template <class T>
+using drop_result_t = typename DropResult<T>::type;
+
+struct Ignore {
+  void operator()(Status &&error) {
+    error.ignore();
+  }
+};
+
+template <class ValueT, class FunctionOkT, class FunctionFailT = Ignore>
+class LambdaPromise : public PromiseInterface<ValueT> {
+  enum class OnFail { None, Ok, Fail };
+
+ public:
+  void set_value(ValueT &&value) override {
+    CHECK(has_lambda_.get());
+    do_ok(ok_, std::move(value));
+    on_fail_ = OnFail::None;
+  }
+  void set_error(Status &&error) override {
+    CHECK(has_lambda_.get());
+    do_error(std::move(error));
+  }
+  LambdaPromise(const LambdaPromise &other) = delete;
+  LambdaPromise &operator=(const LambdaPromise &other) = delete;
+  LambdaPromise(LambdaPromise &&other) = default;
+  LambdaPromise &operator=(LambdaPromise &&other) = default;
+  ~LambdaPromise() override {
+    if (has_lambda_.get()) {
+      do_error(Status::Error("Lost promise"));
+    }
+  }
+
+  template <class FromOkT, class FromFailT>
+  LambdaPromise(FromOkT &&ok, FromFailT &&fail, bool use_ok_as_fail)
+      : ok_(std::forward<FromOkT>(ok))
+      , fail_(std::forward<FromFailT>(fail))
+      , on_fail_(use_ok_as_fail ? OnFail::Ok : OnFail::Fail)
+      , has_lambda_(true) {
+  }
+  template <class FromOkT, std::enable_if_t<!std::is_same<std::decay_t<FromOkT>, LambdaPromise>::value, int> = 0>
+  LambdaPromise(FromOkT &&ok) : LambdaPromise(std::forward<FromOkT>(ok), Ignore(), true) {
+  }
+
+ private:
+  FunctionOkT ok_;
+  FunctionFailT fail_;
+  OnFail on_fail_ = OnFail::None;
+  MovableValue<bool> has_lambda_{false};
+
+  void do_error(Status &&error) {
+    switch (on_fail_) {
+      case OnFail::None:
+        break;
+      case OnFail::Ok:
+        do_error(ok_, std::move(error));
+        break;
+      case OnFail::Fail:
+        do_error(fail_, std::move(error));
+        break;
+    }
+    on_fail_ = OnFail::None;
+  }
+
+  template <class F>
+  std::enable_if_t<is_callable<F, Result<ValueT>>::value, void> do_error(F &&f, Status &&status) {
+    f(Result<ValueT>(std::move(status)));
+  }
+  template <class Y, class F>
+  std::enable_if_t<!is_callable<F, Result<ValueT>>::value, void> do_error(F &&f, Y &&status) {
+    f(Auto());
+  }
+  template <class F>
+  std::enable_if_t<is_callable<F, Result<ValueT>>::value, void> do_ok(F &&f, ValueT &&result) {
+    f(Result<ValueT>(std::move(result)));
+  }
+  template <class F>
+  std::enable_if_t<!is_callable<F, Result<ValueT>>::value, void> do_ok(F &&f, ValueT &&result) {
+    f(std::move(result));
+  }
+};
+}  // namespace detail
+
 template <class T>
 class SafePromise;
 
 template <class T = Unit>
+class Promise;
+
+constexpr std::false_type is_promise_interface(...);
+
+template <class T>
+constexpr std::true_type is_promise_interface(const PromiseInterface<T> &promise);
+
+template <class T>
+constexpr std::true_type is_promise_interface(const Promise<T> &promise);
+
+template <class F>
+constexpr bool is_promise_interface() {
+  return decltype(is_promise_interface(std::declval<F>()))::value;
+}
+
+constexpr std::false_type is_promise_interface_ptr(...);
+
+template <class T>
+constexpr std::true_type is_promise_interface_ptr(const unique_ptr<T> &promise);
+
+template <class F>
+constexpr bool is_promise_interface_ptr() {
+  return decltype(is_promise_interface_ptr(std::declval<F>()))::value;
+}
+
+template <class T = void, class F = void, std::enable_if_t<std::is_same<T, void>::value, bool> has_t = false>
+auto lambda_promise(F &&f) {
+  return detail::LambdaPromise<detail::drop_result_t<detail::get_arg_t<std::decay_t<F>>>, std::decay_t<F>>(
+      std::forward<F>(f));
+}
+template <class T = void, class F = void, std::enable_if_t<!std::is_same<T, void>::value, bool> has_t = true>
+auto lambda_promise(F &&f) {
+  return detail::LambdaPromise<T, std::decay_t<F>>(std::forward<F>(f));
+}
+
+template <class T, class F, std::enable_if_t<is_promise_interface<F>(), bool> from_promise_interface = true>
+auto &&promise_interface(F &&f) {
+  return std::forward<F>(f);
+}
+
+template <class T, class F, std::enable_if_t<!is_promise_interface<F>(), bool> from_promise_interface = false>
+auto promise_interface(F &&f) {
+  return lambda_promise<T>(std::forward<F>(f));
+}
+
+template <class T, class F, std::enable_if_t<is_promise_interface_ptr<F>(), bool> from_promise_interface = true>
+auto promise_interface_ptr(F &&f) {
+  return std::forward<F>(f);
+}
+template <class T, class F, std::enable_if_t<!is_promise_interface_ptr<F>(), bool> from_promise_interface = false>
+auto promise_interface_ptr(F &&f) {
+  return td::make_unique<std::decay_t<decltype(promise_interface<T>(std::forward<F>(f)))>>(
+      promise_interface<T>(std::forward<F>(f)));
+}
+
+template <class T>
 class Promise {
  public:
   void set_value(T &&value) {
@@ -83,6 +261,14 @@ class Promise {
     promise_->set_result(std::move(result));
     promise_.reset();
   }
+  template <class S>
+  void operator()(S &&result) {
+    if (!promise_) {
+      return;
+    }
+    promise_->operator()(std::forward<S>(result));
+    promise_.reset();
+  }
   void reset() {
     promise_.reset();
   }
@@ -104,11 +290,11 @@ class Promise {
     }
     return promise_->is_cancellable();
   }
-  bool is_cancelled() const {
+  bool is_canceled() const {
     if (!promise_) {
       return false;
     }
-    return promise_->is_cancelled();
+    return promise_->is_canceled();
   }
   unique_ptr<PromiseInterface<T>> release() {
     return std::move(promise_);
@@ -117,8 +303,13 @@ class Promise {
   Promise() = default;
   explicit Promise(unique_ptr<PromiseInterface<T>> promise) : promise_(std::move(promise)) {
   }
+  Promise(Auto) {
+  }
   Promise(SafePromise<T> &&other);
   Promise &operator=(SafePromise<T> &&other);
+  template <class F, std::enable_if_t<!std::is_same<std::decay_t<F>, Promise>::value, int> = 0>
+  Promise(F &&f) : promise_(promise_interface_ptr<T>(std::forward<F>(f))) {
+  }
 
   explicit operator bool() {
     return static_cast<bool>(promise_);
@@ -171,13 +362,13 @@ Promise<T> &Promise<T>::operator=(SafePromise<T> &&other) {
 
 namespace detail {
 
-class EventPromise : public PromiseInterface<Unit> {
+class EventPromise final : public PromiseInterface<Unit> {
  public:
-  void set_value(Unit &&) override {
+  void set_value(Unit &&) final {
     ok_.try_emit();
     fail_.clear();
   }
-  void set_error(Status &&) override {
+  void set_error(Status &&) final {
     do_set_error();
   }
 
@@ -185,7 +376,7 @@ class EventPromise : public PromiseInterface<Unit> {
   EventPromise &operator=(const EventPromise &other) = delete;
   EventPromise(EventPromise &&other) = delete;
   EventPromise &operator=(EventPromise &&other) = delete;
-  ~EventPromise() override {
+  ~EventPromise() final {
     do_set_error();
   }
 
@@ -209,47 +400,17 @@ class EventPromise : public PromiseInterface<Unit> {
   }
 };
 
-template <typename T>
-struct GetArg : public GetArg<decltype(&T::operator())> {};
-
-template <class C, class R, class Arg>
-class GetArg<R (C::*)(Arg)> {
- public:
-  using type = Arg;
-};
-template <class C, class R, class Arg>
-class GetArg<R (C::*)(Arg) const> {
- public:
-  using type = Arg;
-};
-
-template <class T>
-using get_arg_t = std::decay_t<typename GetArg<T>::type>;
-
-template <class T>
-struct DropResult {
-  using type = T;
-};
-
-template <class T>
-struct DropResult<Result<T>> {
-  using type = T;
-};
-
-template <class T>
-using drop_result_t = typename DropResult<T>::type;
-
 template <class PromiseT>
-class CancellablePromise : public PromiseT {
+class CancellablePromise final : public PromiseT {
  public:
   template <class... ArgsT>
   CancellablePromise(CancellationToken cancellation_token, ArgsT &&... args)
       : PromiseT(std::forward<ArgsT>(args)...), cancellation_token_(std::move(cancellation_token)) {
   }
-  virtual bool is_cancellable() const {
+  bool is_cancellable() const final {
     return true;
   }
-  virtual bool is_cancelled() const {
+  bool is_canceled() const final {
     return static_cast<bool>(cancellation_token_);
   }
 
@@ -257,72 +418,15 @@ class CancellablePromise : public PromiseT {
   CancellationToken cancellation_token_;
 };
 
-template <class ValueT, class FunctionOkT, class FunctionFailT>
-class LambdaPromise : public PromiseInterface<ValueT> {
-  enum class OnFail { None, Ok, Fail };
-
- public:
-  void set_value(ValueT &&value) override {
-    ok_(std::move(value));
-    on_fail_ = OnFail::None;
-  }
-  void set_error(Status &&error) override {
-    do_error(std::move(error));
-  }
-  LambdaPromise(const LambdaPromise &other) = delete;
-  LambdaPromise &operator=(const LambdaPromise &other) = delete;
-  LambdaPromise(LambdaPromise &&other) = delete;
-  LambdaPromise &operator=(LambdaPromise &&other) = delete;
-  ~LambdaPromise() override {
-    do_error(Status::Error("Lost promise"));
-  }
-
-  template <class FromOkT, class FromFailT>
-  LambdaPromise(FromOkT &&ok, FromFailT &&fail, bool use_ok_as_fail)
-      : ok_(std::forward<FromOkT>(ok))
-      , fail_(std::forward<FromFailT>(fail))
-      , on_fail_(use_ok_as_fail ? OnFail::Ok : OnFail::Fail) {
-  }
-
- private:
-  FunctionOkT ok_;
-  FunctionFailT fail_;
-  OnFail on_fail_ = OnFail::None;
-
-  template <class FuncT, class ArgT = detail::get_arg_t<FuncT>>
-  std::enable_if_t<std::is_assignable<ArgT, Status>::value> do_error_impl(FuncT &func, Status &&status) {
-    func(std::move(status));
-  }
-
-  template <class FuncT, class ArgT = detail::get_arg_t<FuncT>>
-  std::enable_if_t<!std::is_assignable<ArgT, Status>::value> do_error_impl(FuncT &func, Status &&status) {
-    func(Auto());
-  }
-
-  void do_error(Status &&error) {
-    switch (on_fail_) {
-      case OnFail::None:
-        break;
-      case OnFail::Ok:
-        do_error_impl(ok_, std::move(error));
-        break;
-      case OnFail::Fail:
-        fail_(std::move(error));
-        break;
-    }
-    on_fail_ = OnFail::None;
-  }
-};
-
 template <class... ArgsT>
-class JoinPromise : public PromiseInterface<Unit> {
+class JoinPromise final : public PromiseInterface<Unit> {
  public:
   explicit JoinPromise(ArgsT &&... arg) : promises_(std::forward<ArgsT>(arg)...) {
   }
-  void set_value(Unit &&) override {
+  void set_value(Unit &&) final {
     tuple_for_each(promises_, [](auto &promise) { promise.set_value(Unit()); });
   }
-  void set_error(Status &&error) override {
+  void set_error(Status &&error) final {
     tuple_for_each(promises_, [&error](auto &promise) { promise.set_error(error.clone()); });
   }
 
@@ -330,6 +434,30 @@ class JoinPromise : public PromiseInterface<Unit> {
   std::tuple<std::decay_t<ArgsT>...> promises_;
 };
 }  // namespace detail
+
+class SendClosure {
+ public:
+  template <class... ArgsT>
+  void operator()(ArgsT &&... args) const {
+    send_closure(std::forward<ArgsT>(args)...);
+  }
+};
+
+//template <class T>
+//template <class... ArgsT>
+//auto Promise<T>::send_closure(ArgsT &&... args) {
+//  return [promise = std::move(*this), t = std::make_tuple(std::forward<ArgsT>(args)...)](auto &&r_res) mutable {
+//    TRY_RESULT_PROMISE(promise, res, std::move(r_res));
+//    td2::call_tuple(SendClosure(), std::tuple_cat(std::move(t), std::make_tuple(std::move(res), std::move(promise))));
+//  };
+//}
+
+template <class... ArgsT>
+auto promise_send_closure(ArgsT &&... args) {
+  return [t = std::make_tuple(std::forward<ArgsT>(args)...)](auto &&res) mutable {
+    call_tuple(SendClosure(), std::tuple_cat(std::move(t), std::make_tuple(std::forward<decltype(res)>(res))));
+  };
+}
 
 /*** FutureActor and PromiseActor ***/
 template <class T>
@@ -341,7 +469,8 @@ class PromiseActor;
 template <class T>
 class ActorTraits<FutureActor<T>> {
  public:
-  static constexpr bool is_lite = true;
+  static constexpr bool need_context = false;
+  static constexpr bool need_start_up = false;
 };
 
 template <class T>
@@ -355,12 +484,12 @@ class PromiseActor final : public PromiseInterface<T> {
   PromiseActor &operator=(const PromiseActor &other) = delete;
   PromiseActor(PromiseActor &&) = default;
   PromiseActor &operator=(PromiseActor &&) = default;
-  ~PromiseActor() override {
+  ~PromiseActor() final {
     close();
   }
 
-  void set_value(T &&value) override;
-  void set_error(Status &&error) override;
+  void set_value(T &&value) final;
+  void set_error(Status &&error) final;
 
   void close() {
     future_id_.reset();
@@ -418,7 +547,7 @@ class FutureActor final : public Actor {
   FutureActor(FutureActor &&other) = default;
   FutureActor &operator=(FutureActor &&other) = default;
 
-  ~FutureActor() override = default;
+  ~FutureActor() final = default;
 
   bool is_ok() const {
     return is_ready() && result_.is_ok();
@@ -468,7 +597,7 @@ class FutureActor final : public Actor {
  private:
   EventFull event_;
   Result<T> result_ = Status::Error(500, "Empty FutureActor");
-  State state_;
+  State state_ = State::Waiting;
 
   void set_value(T &&value) {
     set_result(std::move(value));
@@ -486,11 +615,11 @@ class FutureActor final : public Actor {
     event_.try_emit_later();
   }
 
-  void hangup() override {
+  void hangup() final {
     set_error(Status::Error<HANGUP_ERROR_CODE>());
   }
 
-  void start_up() override {
+  void start_up() final {
     // empty
   }
 
@@ -559,16 +688,11 @@ FutureActor<T> send_promise(ActorId<ActorAT> actor_id, ResultT (ActorBT::*func)(
 
 class PromiseCreator {
  public:
-  struct Ignore {
-    void operator()(Status &&error) {
-      error.ignore();
-    }
-  };
+  using Ignore = detail::Ignore;
 
   template <class OkT, class ArgT = detail::drop_result_t<detail::get_arg_t<OkT>>>
   static Promise<ArgT> lambda(OkT &&ok) {
-    return Promise<ArgT>(
-        td::make_unique<detail::LambdaPromise<ArgT, std::decay_t<OkT>, Ignore>>(std::forward<OkT>(ok), Ignore(), true));
+    return Promise<ArgT>(td::make_unique<detail::LambdaPromise<ArgT, std::decay_t<OkT>>>(std::forward<OkT>(ok)));
   }
 
   template <class OkT, class FailT, class ArgT = detail::get_arg_t<OkT>>
@@ -579,9 +703,8 @@ class PromiseCreator {
 
   template <class OkT, class ArgT = detail::drop_result_t<detail::get_arg_t<OkT>>>
   static auto cancellable_lambda(CancellationToken cancellation_token, OkT &&ok) {
-    return Promise<ArgT>(
-        td::make_unique<detail::CancellablePromise<detail::LambdaPromise<ArgT, std::decay_t<OkT>, Ignore>>>(
-            std::move(cancellation_token), std::forward<OkT>(ok), Ignore(), true));
+    return Promise<ArgT>(td::make_unique<detail::CancellablePromise<detail::LambdaPromise<ArgT, std::decay_t<OkT>>>>(
+        std::move(cancellation_token), std::forward<OkT>(ok)));
   }
 
   static Promise<> event(EventFull &&ok) {

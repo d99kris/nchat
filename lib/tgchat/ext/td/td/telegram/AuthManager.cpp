@@ -1,13 +1,10 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/telegram/AuthManager.h"
-
-#include "td/telegram/td_api.h"
-#include "td/telegram/telegram_api.h"
 
 #include "td/telegram/AuthManager.hpp"
 #include "td/telegram/ConfigManager.h"
@@ -19,12 +16,14 @@
 #include "td/telegram/misc.h"
 #include "td/telegram/net/DcId.h"
 #include "td/telegram/net/NetQueryDispatcher.h"
+#include "td/telegram/NewPasswordState.h"
 #include "td/telegram/NotificationManager.h"
 #include "td/telegram/PasswordManager.h"
 #include "td/telegram/StateManager.h"
 #include "td/telegram/StickersManager.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/TdDb.h"
+#include "td/telegram/ThemeManager.h"
 #include "td/telegram/TopDialogManager.h"
 #include "td/telegram/UpdatesManager.h"
 
@@ -51,16 +50,19 @@ AuthManager::AuthManager(int32 api_id, const string &api_hash, ActorShared<> par
     auto my_id = ContactsManager::load_my_id();
     if (my_id.is_valid()) {
       // just in case
+      LOG(INFO) << "Logged in as " << my_id;
       G()->shared_config().set_option_integer("my_id", my_id.get());
       update_state(State::Ok);
     } else {
       LOG(ERROR) << "Restore unknown my_id";
       ContactsManager::send_get_me_query(
-          td, PromiseCreator::lambda([this](Result<Unit> result) { update_state(State::Ok); }));
+          td_, PromiseCreator::lambda([this](Result<Unit> result) { update_state(State::Ok); }));
     }
   } else if (auth_str == "logout") {
+    LOG(WARNING) << "Continue to log out";
     update_state(State::LoggingOut);
   } else if (auth_str == "destroy") {
+    LOG(WARNING) << "Continue to destroy auth keys";
     update_state(State::DestroyingKeys);
   } else {
     if (!load_state()) {
@@ -73,7 +75,8 @@ void AuthManager::start_up() {
   if (state_ == State::LoggingOut) {
     send_log_out_query();
   } else if (state_ == State::DestroyingKeys) {
-    destroy_auth_keys();
+    G()->net_query_dispatcher().destroy_auth_keys(
+        PromiseCreator::lambda([](Unit) { send_closure_later(G()->td(), &Td::destroy); }, PromiseCreator::Ignore()));
   }
 }
 void AuthManager::tear_down() {
@@ -154,35 +157,34 @@ void AuthManager::check_bot_token(uint64 query_id, string bot_token) {
         query_id, Status::Error(400, "Cannot set bot token after authentication began. You need to log out first"));
   }
   if (was_check_bot_token_ && bot_token_ != bot_token) {
-    return on_query_error(query_id, Status::Error(8, "Cannot change bot token. You need to log out first"));
+    return on_query_error(query_id, Status::Error(400, "Cannot change bot token. You need to log out first"));
   }
 
   on_new_query(query_id);
-  bot_token_ = bot_token;
+  bot_token_ = std::move(bot_token);
   was_check_bot_token_ = true;
   start_net_query(NetQueryType::BotAuthentication,
                   G()->net_query_creator().create_unauth(
                       telegram_api::auth_importBotAuthorization(0, api_id_, api_hash_, bot_token_)));
 }
 
-void AuthManager::request_qr_code_authentication(uint64 query_id, vector<int32> other_user_ids) {
+void AuthManager::request_qr_code_authentication(uint64 query_id, vector<UserId> other_user_ids) {
   if (state_ != State::WaitPhoneNumber) {
     if ((state_ == State::WaitCode || state_ == State::WaitPassword || state_ == State::WaitRegistration) &&
         net_query_id_ == 0) {
       // ok
     } else {
-      return on_query_error(query_id, Status::Error(8, "Call to requestQrCodeAuthentication unexpected"));
+      return on_query_error(query_id, Status::Error(400, "Call to requestQrCodeAuthentication unexpected"));
     }
   }
   if (was_check_bot_token_) {
     return on_query_error(
         query_id,
-        Status::Error(8,
+        Status::Error(400,
                       "Cannot request QR code authentication after bot token was entered. You need to log out first"));
   }
   for (auto &other_user_id : other_user_ids) {
-    UserId user_id(other_user_id);
-    if (!user_id.is_valid()) {
+    if (!other_user_id.is_valid()) {
       return on_query_error(query_id, Status::Error(400, "Invalid user_id among other user_ids"));
     }
   }
@@ -200,19 +202,22 @@ void AuthManager::request_qr_code_authentication(uint64 query_id, vector<int32> 
 void AuthManager::send_export_login_token_query() {
   poll_export_login_code_timeout_.cancel_timeout();
   start_net_query(NetQueryType::RequestQrCode,
-                  G()->net_query_creator().create_unauth(
-                      telegram_api::auth_exportLoginToken(api_id_, api_hash_, vector<int32>(other_user_ids_))));
+                  G()->net_query_creator().create_unauth(telegram_api::auth_exportLoginToken(
+                      api_id_, api_hash_, UserId::get_input_user_ids(other_user_ids_))));
 }
 
 void AuthManager::set_login_token_expires_at(double login_token_expires_at) {
   login_token_expires_at_ = login_token_expires_at;
   poll_export_login_code_timeout_.cancel_timeout();
   poll_export_login_code_timeout_.set_callback(std::move(on_update_login_token_static));
-  poll_export_login_code_timeout_.set_callback_data(static_cast<void *>(td));
+  poll_export_login_code_timeout_.set_callback_data(static_cast<void *>(td_));
   poll_export_login_code_timeout_.set_timeout_at(login_token_expires_at_);
 }
 
 void AuthManager::on_update_login_token_static(void *td) {
+  if (G()->close_flag()) {
+    return;
+  }
   static_cast<Td *>(td)->auth_manager_->on_update_login_token();
 }
 
@@ -234,15 +239,15 @@ void AuthManager::set_phone_number(uint64 query_id, string phone_number,
         net_query_id_ == 0) {
       // ok
     } else {
-      return on_query_error(query_id, Status::Error(8, "Call to setAuthenticationPhoneNumber unexpected"));
+      return on_query_error(query_id, Status::Error(400, "Call to setAuthenticationPhoneNumber unexpected"));
     }
   }
   if (was_check_bot_token_) {
     return on_query_error(
-        query_id, Status::Error(8, "Cannot set phone number after bot token was entered. You need to log out first"));
+        query_id, Status::Error(400, "Cannot set phone number after bot token was entered. You need to log out first"));
   }
   if (phone_number.empty()) {
-    return on_query_error(query_id, Status::Error(8, "Phone number can't be empty"));
+    return on_query_error(query_id, Status::Error(400, "Phone number can't be empty"));
   }
 
   other_user_ids_.clear();
@@ -255,13 +260,13 @@ void AuthManager::set_phone_number(uint64 query_id, string phone_number,
 
   on_new_query(query_id);
 
-  start_net_query(NetQueryType::SendCode, G()->net_query_creator().create_unauth(
-                                              send_code_helper_.send_code(phone_number, settings, api_id_, api_hash_)));
+  start_net_query(NetQueryType::SendCode, G()->net_query_creator().create_unauth(send_code_helper_.send_code(
+                                              std::move(phone_number), settings, api_id_, api_hash_)));
 }
 
 void AuthManager::resend_authentication_code(uint64 query_id) {
   if (state_ != State::WaitCode) {
-    return on_query_error(query_id, Status::Error(8, "Call to resendAuthenticationCode unexpected"));
+    return on_query_error(query_id, Status::Error(400, "Call to resendAuthenticationCode unexpected"));
   }
 
   auto r_resend_code = send_code_helper_.resend_code();
@@ -276,7 +281,7 @@ void AuthManager::resend_authentication_code(uint64 query_id) {
 
 void AuthManager::check_code(uint64 query_id, string code) {
   if (state_ != State::WaitCode) {
-    return on_query_error(query_id, Status::Error(8, "Call to checkAuthenticationCode unexpected"));
+    return on_query_error(query_id, Status::Error(400, "Call to checkAuthenticationCode unexpected"));
   }
 
   code_ = std::move(code);
@@ -288,13 +293,13 @@ void AuthManager::check_code(uint64 query_id, string code) {
 
 void AuthManager::register_user(uint64 query_id, string first_name, string last_name) {
   if (state_ != State::WaitRegistration) {
-    return on_query_error(query_id, Status::Error(8, "Call to registerUser unexpected"));
+    return on_query_error(query_id, Status::Error(400, "Call to registerUser unexpected"));
   }
 
   on_new_query(query_id);
   first_name = clean_name(first_name, MAX_NAME_LENGTH);
   if (first_name.empty()) {
-    return on_query_error(Status::Error(8, "First name can't be empty"));
+    return on_query_error(Status::Error(400, "First name can't be empty"));
   }
 
   last_name = clean_name(last_name, MAX_NAME_LENGTH);
@@ -305,19 +310,22 @@ void AuthManager::register_user(uint64 query_id, string first_name, string last_
 
 void AuthManager::check_password(uint64 query_id, string password) {
   if (state_ != State::WaitPassword) {
-    return on_query_error(query_id, Status::Error(8, "Call to checkAuthenticationPassword unexpected"));
+    return on_query_error(query_id, Status::Error(400, "Call to checkAuthenticationPassword unexpected"));
   }
 
-  LOG(INFO) << "Have SRP id " << wait_password_state_.srp_id_;
+  LOG(INFO) << "Have SRP ID " << wait_password_state_.srp_id_;
   on_new_query(query_id);
   password_ = std::move(password);
+  recovery_code_.clear();
+  new_password_.clear();
+  new_hint_.clear();
   start_net_query(NetQueryType::GetPassword,
                   G()->net_query_creator().create_unauth(telegram_api::account_getPassword()));
 }
 
 void AuthManager::request_password_recovery(uint64 query_id) {
   if (state_ != State::WaitPassword) {
-    return on_query_error(query_id, Status::Error(8, "Call to requestAuthenticationPasswordRecovery unexpected"));
+    return on_query_error(query_id, Status::Error(400, "Call to requestAuthenticationPasswordRecovery unexpected"));
   }
 
   on_new_query(query_id);
@@ -325,31 +333,51 @@ void AuthManager::request_password_recovery(uint64 query_id) {
                   G()->net_query_creator().create_unauth(telegram_api::auth_requestPasswordRecovery()));
 }
 
-void AuthManager::recover_password(uint64 query_id, string code) {
+void AuthManager::check_password_recovery_code(uint64 query_id, string code) {
   if (state_ != State::WaitPassword) {
-    return on_query_error(query_id, Status::Error(8, "Call to recoverAuthenticationPassword unexpected"));
+    return on_query_error(query_id, Status::Error(400, "Call to checkAuthenticationPasswordRecoveryCode unexpected"));
   }
 
   on_new_query(query_id);
+  start_net_query(NetQueryType::CheckPasswordRecoveryCode,
+                  G()->net_query_creator().create_unauth(telegram_api::auth_checkRecoveryPassword(code)));
+}
+
+void AuthManager::recover_password(uint64 query_id, string code, string new_password, string new_hint) {
+  if (state_ != State::WaitPassword) {
+    return on_query_error(query_id, Status::Error(400, "Call to recoverAuthenticationPassword unexpected"));
+  }
+
+  on_new_query(query_id);
+  if (!new_password.empty()) {
+    password_.clear();
+    recovery_code_ = std::move(code);
+    new_password_ = std::move(new_password);
+    new_hint_ = std::move(new_hint);
+    start_net_query(NetQueryType::GetPassword,
+                    G()->net_query_creator().create_unauth(telegram_api::account_getPassword()));
+    return;
+  }
   start_net_query(NetQueryType::RecoverPassword,
-                  G()->net_query_creator().create_unauth(telegram_api::auth_recoverPassword(code)));
+                  G()->net_query_creator().create_unauth(telegram_api::auth_recoverPassword(0, code, nullptr)));
 }
 
 void AuthManager::log_out(uint64 query_id) {
   if (state_ == State::Closing) {
-    return on_query_error(query_id, Status::Error(8, "Already logged out"));
+    return on_query_error(query_id, Status::Error(400, "Already logged out"));
   }
   if (state_ == State::LoggingOut || state_ == State::DestroyingKeys) {
-    return on_query_error(query_id, Status::Error(8, "Already logging out"));
+    return on_query_error(query_id, Status::Error(400, "Already logging out"));
   }
   on_new_query(query_id);
   if (state_ != State::Ok) {
     // TODO: could skip full logout if still no authorization
     // TODO: send auth.cancelCode if state_ == State::WaitCode
+    LOG(WARNING) << "Destroying auth keys by user request";
     destroy_auth_keys();
     on_query_ok();
   } else {
-    LOG(INFO) << "Logging out";
+    LOG(WARNING) << "Logging out by user request";
     G()->td_db()->get_binlog_pmc()->set("auth", "logout");
     update_state(State::LoggingOut);
     send_log_out_query();
@@ -364,7 +392,7 @@ void AuthManager::send_log_out_query() {
 
 void AuthManager::delete_account(uint64 query_id, const string &reason) {
   if (state_ != State::Ok && state_ != State::WaitPassword) {
-    return on_query_error(query_id, Status::Error(8, "Need to log in first"));
+    return on_query_error(query_id, Status::Error(400, "Need to log in first"));
   }
   on_new_query(query_id);
   LOG(INFO) << "Deleting account";
@@ -382,7 +410,7 @@ void AuthManager::on_closing(bool destroy_flag) {
 
 void AuthManager::on_new_query(uint64 query_id) {
   if (query_id_ != 0) {
-    on_query_error(Status::Error(9, "Another authorization query has started"));
+    on_query_error(Status::Error(400, "Another authorization query has started"));
   }
   net_query_id_ = 0;
   net_query_type_ = NetQueryType::None;
@@ -399,8 +427,8 @@ void AuthManager::on_query_error(Status status) {
   on_query_error(id, std::move(status));
 }
 
-void AuthManager::on_query_error(uint64 id, Status status) {
-  send_closure(G()->td(), &Td::send_error, id, std::move(status));
+void AuthManager::on_query_error(uint64 query_id, Status status) {
+  send_closure(G()->td(), &Td::send_error, query_id, std::move(status));
 }
 
 void AuthManager::on_query_ok() {
@@ -530,6 +558,7 @@ void AuthManager::on_get_password_result(NetQueryPtr &result) {
   LOG(INFO) << "Receive password info: " << to_string(password);
 
   wait_password_state_ = WaitPasswordState();
+  Result<NewPasswordState> r_new_password_state;
   if (password != nullptr && password->current_algo_ != nullptr) {
     switch (password->current_algo_->get_id()) {
       case telegram_api::passwordKdfAlgoUnknown::ID:
@@ -544,13 +573,15 @@ void AuthManager::on_get_password_result(NetQueryPtr &result) {
         wait_password_state_.srp_B_ = password->srp_B_.as_slice().str();
         wait_password_state_.srp_id_ = password->srp_id_;
         wait_password_state_.hint_ = std::move(password->hint_);
-        wait_password_state_.has_recovery_ =
-            (password->flags_ & telegram_api::account_password::HAS_RECOVERY_MASK) != 0;
+        wait_password_state_.has_recovery_ = password->has_recovery_;
         break;
       }
       default:
         UNREACHABLE();
     }
+
+    r_new_password_state =
+        get_new_password_state(std::move(password->new_algo_), std::move(password->new_secure_algo_));
   } else if (was_qr_code_request_) {
     imported_dc_id_ = -1;
     login_code_retry_delay_ = clamp(2 * login_code_retry_delay_, 1, 60);
@@ -569,7 +600,24 @@ void AuthManager::on_get_password_result(NetQueryPtr &result) {
   }
 
   if (state_ == State::WaitPassword) {
-    LOG(INFO) << "Have SRP id " << wait_password_state_.srp_id_;
+    if (!new_password_.empty()) {
+      if (r_new_password_state.is_error()) {
+        return on_query_error(r_new_password_state.move_as_error());
+      }
+
+      auto r_new_settings = PasswordManager::get_password_input_settings(std::move(new_password_), std::move(new_hint_),
+                                                                         r_new_password_state.ok());
+      if (r_new_settings.is_error()) {
+        return on_query_error(r_new_settings.move_as_error());
+      }
+
+      int32 flags = telegram_api::auth_recoverPassword::NEW_SETTINGS_MASK;
+      start_net_query(NetQueryType::RecoverPassword,
+                      G()->net_query_creator().create_unauth(
+                          telegram_api::auth_recoverPassword(flags, recovery_code_, r_new_settings.move_as_ok())));
+      return;
+    }
+    LOG(INFO) << "Have SRP ID " << wait_password_state_.srp_id_;
     auto hash = PasswordManager::get_input_check_password(password_, wait_password_state_.current_client_salt_,
                                                           wait_password_state_.current_server_salt_,
                                                           wait_password_state_.srp_g_, wait_password_state_.srp_p_,
@@ -594,6 +642,17 @@ void AuthManager::on_request_password_recovery_result(NetQueryPtr &result) {
   CHECK(email_address_pattern->get_id() == telegram_api::auth_passwordRecovery::ID);
   wait_password_state_.email_address_pattern_ = std::move(email_address_pattern->email_pattern_);
   update_state(State::WaitPassword, true);
+  on_query_ok();
+}
+
+void AuthManager::on_check_password_recovery_code_result(NetQueryPtr &result) {
+  auto r_success = fetch_result<telegram_api::auth_checkRecoveryPassword>(result->ok());
+  if (r_success.is_error()) {
+    return on_query_error(r_success.move_as_error());
+  }
+  if (!r_success.ok()) {
+    return on_query_error(Status::Error(400, "Invalid recovery code"));
+  }
   on_query_ok();
 }
 
@@ -629,12 +688,13 @@ void AuthManager::on_log_out_result(NetQueryPtr &result) {
     on_query_ok();
   }
 }
-void AuthManager::on_authorization_lost() {
+void AuthManager::on_authorization_lost(const string &source) {
+  LOG(WARNING) << "Lost authorization because of " << source;
   destroy_auth_keys();
 }
 
 void AuthManager::destroy_auth_keys() {
-  if (state_ == State::Closing) {
+  if (state_ == State::Closing || state_ == State::DestroyingKeys) {
     return;
   }
   update_state(State::DestroyingKeys);
@@ -704,10 +764,13 @@ void AuthManager::on_get_authorization(tl_object_ptr<telegram_api::auth_Authoriz
   G()->td_db()->get_binlog_pmc()->set("auth", "ok");
   code_.clear();
   password_.clear();
+  recovery_code_.clear();
+  new_password_.clear();
+  new_hint_.clear();
   state_ = State::Ok;
-  td->contacts_manager_->on_get_user(std::move(auth->user_), "on_get_authorization", true);
+  td_->contacts_manager_->on_get_user(std::move(auth->user_), "on_get_authorization", true);
   update_state(State::Ok, true);
-  if (!td->contacts_manager_->get_my_id().is_valid()) {
+  if (!td_->contacts_manager_->get_my_id().is_valid()) {
     LOG(ERROR) << "Server doesn't send proper authorization";
     if (query_id_ != 0) {
       on_query_error(Status::Error(500, "Server doesn't send proper authorization"));
@@ -718,16 +781,19 @@ void AuthManager::on_get_authorization(tl_object_ptr<telegram_api::auth_Authoriz
   if ((auth->flags_ & telegram_api::auth_authorization::TMP_SESSIONS_MASK) != 0) {
     G()->shared_config().set_option_integer("session_count", auth->tmp_sessions_);
   }
-  td->messages_manager_->on_authorization_success();
-  td->notification_manager_->init();
-  td->stickers_manager_->init();
-  send_closure(td->top_dialog_manager_, &TopDialogManager::do_start_up);
-  td->updates_manager_->get_difference("on_get_authorization");
-  td->on_online_updated(false, true);
+  td_->messages_manager_->on_authorization_success();
+  td_->notification_manager_->init();
+  td_->stickers_manager_->init();
+  td_->theme_manager_->init();
+  td_->top_dialog_manager_->init();
+  td_->updates_manager_->get_difference("on_get_authorization");
+  td_->on_online_updated(false, true);
   if (!is_bot()) {
-    td->schedule_get_terms_of_service(0);
-    td->schedule_get_promo_data(0);
+    td_->schedule_get_terms_of_service(0);
+    td_->schedule_get_promo_data(0);
     G()->td_db()->get_binlog_pmc()->set("fetched_marks_as_unread", "1");
+  } else {
+    td_->set_is_bot_online(true);
   }
   send_closure(G()->config_manager(), &ConfigManager::request_config);
   if (query_id_ != 0) {
@@ -814,6 +880,9 @@ void AuthManager::on_result(NetQueryPtr result) {
     case NetQueryType::RequestPasswordRecovery:
       on_request_password_recovery_result(result);
       break;
+    case NetQueryType::CheckPasswordRecoveryCode:
+      on_check_password_recovery_code_result(result);
+      break;
     case NetQueryType::LogOut:
       on_log_out_result(result);
       break;
@@ -852,6 +921,7 @@ void AuthManager::update_state(State new_state, bool force, bool should_save_sta
 bool AuthManager::load_state() {
   auto data = G()->td_db()->get_binlog_pmc()->get("auth_state");
   if (data.empty()) {
+    LOG(INFO) << "Have no saved auth_state. Waiting for phone number";
     return false;
   }
   DbState db_state;

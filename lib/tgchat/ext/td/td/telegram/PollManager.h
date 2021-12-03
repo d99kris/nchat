@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -33,7 +33,7 @@ struct BinlogEvent;
 
 class Td;
 
-class PollManager : public Actor {
+class PollManager final : public Actor {
  public:
   PollManager(Td *td, ActorShared<> parent);
 
@@ -41,7 +41,7 @@ class PollManager : public Actor {
   PollManager &operator=(const PollManager &) = delete;
   PollManager(PollManager &&) = delete;
   PollManager &operator=(PollManager &&) = delete;
-  ~PollManager() override;
+  ~PollManager() final;
 
   static bool is_local_poll_id(PollId poll_id);
 
@@ -69,6 +69,8 @@ class PollManager : public Actor {
                  Promise<Unit> &&promise);
 
   void stop_local_poll(PollId poll_id);
+
+  PollId dup_poll(PollId poll_id);
 
   bool has_input_media(PollId poll_id) const;
 
@@ -138,8 +140,8 @@ class PollManager : public Actor {
   class SetPollAnswerLogEvent;
   class StopPollLogEvent;
 
-  void start_up() override;
-  void tear_down() override;
+  void start_up() final;
+  void tear_down() final;
 
   static void on_update_poll_timeout_callback(void *poll_manager_ptr, int64 poll_id_int);
 
@@ -163,7 +165,7 @@ class PollManager : public Actor {
 
   static string get_poll_database_key(PollId poll_id);
 
-  void save_poll(const Poll *poll, PollId poll_id);
+  static void save_poll(const Poll *poll, PollId poll_id);
 
   void on_load_poll_from_database(PollId poll_id, string value);
 
@@ -185,6 +187,8 @@ class PollManager : public Actor {
                           Promise<Unit> &&promise);
 
   void on_set_poll_answer(PollId poll_id, uint64 generation, Result<tl_object_ptr<telegram_api::Updates>> &&result);
+
+  void on_set_poll_answer_finished(PollId poll_id, Result<Unit> &&result, vector<Promise<Unit>> &&promises);
 
   void invalidate_poll_voters(const Poll *poll, PollId poll_id);
 

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -20,7 +20,7 @@
 
 namespace td {
 
-class Wget : public HttpOutboundConnection::Callback {
+class Wget final : public HttpOutboundConnection::Callback {
  public:
   explicit Wget(Promise<unique_ptr<HttpQuery>> promise, string url, std::vector<std::pair<string, string>> headers = {},
                 int32 timeout_in = 10, int32 ttl = 3, bool prefer_ipv6 = false,
@@ -29,15 +29,15 @@ class Wget : public HttpOutboundConnection::Callback {
 
  private:
   Status try_init();
-  void loop() override;
-  void handle(unique_ptr<HttpQuery> result) override;
-  void on_connection_error(Status error) override;
+  void loop() final;
+  void handle(unique_ptr<HttpQuery> result) final;
+  void on_connection_error(Status error) final;
   void on_ok(unique_ptr<HttpQuery> http_query_ptr);
   void on_error(Status error);
 
-  void tear_down() override;
-  void start_up() override;
-  void timeout_expired() override;
+  void tear_down() final;
+  void start_up() final;
+  void timeout_expired() final;
 
   Promise<unique_ptr<HttpQuery>> promise_;
   ActorOwn<HttpOutboundConnection> connection_;

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -25,6 +25,11 @@ class StringBuilder {
   void clear() {
     current_ptr_ = begin_ptr_;
     error_flag_ = false;
+  }
+
+  void pop_back() {
+    CHECK(current_ptr_ > begin_ptr_);
+    current_ptr_--;
   }
 
   MutableCSlice as_cslice() {

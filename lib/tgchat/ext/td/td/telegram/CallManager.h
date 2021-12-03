@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -8,7 +8,6 @@
 
 #include "td/telegram/CallActor.h"
 #include "td/telegram/CallId.h"
-
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 
@@ -22,7 +21,7 @@
 
 namespace td {
 
-class CallManager : public Actor {
+class CallManager final : public Actor {
  public:
   using Update = telegram_api::object_ptr<telegram_api::updatePhoneCall>;
   explicit CallManager(ActorShared<> parent);
@@ -55,7 +54,7 @@ class CallManager : public Actor {
   CallId create_call_actor();
   void set_call_id(CallId call_id, Result<int64> r_server_call_id);
 
-  void hangup() override;
-  void hangup_shared() override;
+  void hangup() final;
+  void hangup_shared() final;
 };
 }  // namespace td

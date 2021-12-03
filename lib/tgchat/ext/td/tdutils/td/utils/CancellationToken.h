@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -13,18 +13,18 @@ namespace td {
 
 namespace detail {
 struct RawCancellationToken {
-  std::atomic<bool> is_cancelled_{false};
+  std::atomic<bool> is_canceled_{false};
 };
 }  // namespace detail
 
 class CancellationToken {
  public:
   explicit operator bool() const {
-    // empty CancellationToken is never cancelled
+    // empty CancellationToken is never canceled
     if (!token_) {
       return false;
     }
-    return token_->is_cancelled_.load(std::memory_order_acquire);
+    return token_->is_canceled_.load(std::memory_order_acquire);
   }
   CancellationToken() = default;
   explicit CancellationToken(std::shared_ptr<detail::RawCancellationToken> token) : token_(std::move(token)) {
@@ -37,9 +37,9 @@ class CancellationToken {
 class CancellationTokenSource {
  public:
   CancellationTokenSource() = default;
-  CancellationTokenSource(CancellationTokenSource &&other) : token_(std::move(other.token_)) {
+  CancellationTokenSource(CancellationTokenSource &&other) noexcept : token_(std::move(other.token_)) {
   }
-  CancellationTokenSource &operator=(CancellationTokenSource &&other) {
+  CancellationTokenSource &operator=(CancellationTokenSource &&other) noexcept {
     cancel();
     token_ = std::move(other.token_);
     return *this;
@@ -60,7 +60,7 @@ class CancellationTokenSource {
     if (!token_) {
       return;
     }
-    token_->is_cancelled_.store(true, std::memory_order_release);
+    token_->is_canceled_.store(true, std::memory_order_release);
     token_.reset();
   }
 

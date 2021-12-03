@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -33,7 +33,7 @@ class SessionMultiProxy;
 // Not just dispatcher.
 class NetQueryDispatcher {
  public:
-  explicit NetQueryDispatcher(std::function<ActorShared<>()> create_reference);
+  explicit NetQueryDispatcher(const std::function<ActorShared<>()> &create_reference);
   NetQueryDispatcher();
   NetQueryDispatcher(const NetQueryDispatcher &) = delete;
   NetQueryDispatcher &operator=(const NetQueryDispatcher &) = delete;
@@ -52,8 +52,8 @@ class NetQueryDispatcher {
 
   void update_valid_dc(DcId dc_id);
 
-  DcId main_dc_id() const {
-    return DcId::internal(main_dc_id_.load());
+  DcId get_main_dc_id() const {
+    return DcId::internal(main_dc_id_.load(std::memory_order_relaxed));
   }
 
   void set_main_dc_id(int32 new_main_dc_id);

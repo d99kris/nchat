@@ -1,15 +1,15 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #pragma once
 
-#include "td/actor/PromiseFuture.h"
-
 #include "td/db/binlog/BinlogEvent.h"
 #include "td/db/DbKey.h"
+
+#include "td/actor/PromiseFuture.h"
 
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
@@ -66,7 +66,7 @@ class BinlogInterface {
 
   virtual void force_sync(Promise<> promise) = 0;
   virtual void force_flush() = 0;
-  virtual void change_key(DbKey db_key, Promise<> promise = Promise<>()) = 0;
+  virtual void change_key(DbKey db_key, Promise<> promise) = 0;
 
   virtual uint64 next_id() = 0;
   virtual uint64 next_id(int32 shift) = 0;

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -8,8 +8,6 @@
 
 #include "td/utils/Slice.h"
 #include "td/utils/tests.h"
-
-REGISTER_TESTS(string_cleaning);
 
 using namespace td;
 
@@ -27,7 +25,7 @@ TEST(StringCleaning, clean_name) {
   ASSERT_EQ("abc", clean_name("\xC2\xA0\xC2\xA0"
                               "abc\xC2\xA0\xC2\xA0\xC2\xA0\xC2\xA0",
                               1000000));
-};
+}
 
 TEST(StringCleaning, clean_username) {
   ASSERT_EQ("@mention", clean_username("@mention"));
@@ -36,9 +34,9 @@ TEST(StringCleaning, clean_username) {
   ASSERT_EQ("ЛШТШФУМ", clean_username("ЛШТШФУМ"));
   ASSERT_EQ("", clean_username("...."));
   ASSERT_EQ("asd", clean_username(".   ASD   .."));
-};
+}
 
-static void check_clean_input_string(string str, string expected, bool expected_result) {
+static void check_clean_input_string(string str, const string &expected, bool expected_result) {
   auto result = clean_input_string(str);
   ASSERT_EQ(expected_result, result);
   if (result) {
@@ -75,8 +73,9 @@ TEST(StringCleaning, clean_input_string) {
   check_clean_input_string("\xcc\xb3\xcc\xbf\xcc\x8a", "", true);
 }
 
-static void check_strip_empty_characters(string str, size_t max_length, string expected, bool strip_rtlo = false) {
-  ASSERT_EQ(expected, strip_empty_characters(str, max_length, strip_rtlo));
+static void check_strip_empty_characters(string str, size_t max_length, const string &expected,
+                                         bool strip_rtlo = false) {
+  ASSERT_EQ(expected, strip_empty_characters(std::move(str), max_length, strip_rtlo));
 }
 
 TEST(StringCleaning, strip_empty_characters) {

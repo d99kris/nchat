@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -110,18 +110,21 @@ void FileLoader::start_up() {
   bool is_upload = file_info.is_upload;
 
   // Two cases when FILE_UPLOAD_RESTART will happen
-  // 1. File is ready, size is final. But there are more uploaded parts, than size of a file
-  //pm.init(1, 100000, true, 10, {0, 1, 2}, false, true).ensure_error();
-  // This error is definitely ok, because we are using actual size of file on disk (mtime is checked by somebody
-  // else). And actual size could change arbitrarily.
+  // 1. File is ready, size is final. But there are more uploaded parts than size of the file
+  // pm.init(1, 100000, true, 10, {0, 1, 2}, false, true).ensure_error();
+  // This error is definitely ok, because we are using actual size of the file on disk (mtime is checked by
+  // somebody else). And actual size could change arbitrarily.
   //
   // 2. size is unknown/zero, size is not final, some parts of file are already uploaded
   // pm.init(0, 100000, false, 10, {0, 1, 2}, false, true).ensure_error();
   // This case is more complicated
   // It means that at some point we got inconsistent state. Like deleted local location, but left partial remote
-  // locaiton untouched. This is completely possible at this point, but probably should be fixed.
+  // location untouched. This is completely possible at this point, but probably should be fixed.
   auto status =
       parts_manager_.init(size, expected_size, is_size_final, part_size, ready_parts, use_part_count_limit, is_upload);
+  LOG(DEBUG) << "Start " << (is_upload ? "up" : "down") << "load of a file of size " << size << " with expected "
+             << (is_size_final ? "exact" : "approximate") << " size " << expected_size << ", part size " << part_size
+             << " and " << ready_parts.size() << " ready parts: " << status;
   if (status.is_error()) {
     on_error(std::move(status));
     stop_flag_ = true;
@@ -278,7 +281,7 @@ void FileLoader::on_result(NetQueryPtr query) {
   bool next = false;
   auto status = [&] {
     TRY_RESULT(should_restart, should_restart_part(part, query));
-    if (query->is_error() && query->error().code() == NetQuery::Error::Cancelled) {
+    if (query->is_error() && query->error().code() == NetQuery::Error::Canceled) {
       should_restart = true;
     }
     if (should_restart) {
@@ -299,8 +302,9 @@ void FileLoader::on_result(NetQueryPtr query) {
   if (next) {
     if (ordered_flag_) {
       auto seq_no = part.id;
-      ordered_parts_.add(seq_no, std::make_pair(part, std::move(query)),
-                         [this](auto seq_no, auto &&p) { this->on_part_query(p.first, std::move(p.second)); });
+      ordered_parts_.add(
+          seq_no, std::make_pair(part, std::move(query)),
+          [this](uint64 seq_no, std::pair<Part, NetQueryPtr> &&p) { on_part_query(p.first, std::move(p.second)); });
     } else {
       on_part_query(part, std::move(query));
     }

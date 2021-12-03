@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -35,7 +35,7 @@ class TsListNode : protected ListNode {
   TsListNode(const TsListNode &) = delete;
   TsListNode &operator=(const TsListNode &) = delete;
 
-  TsListNode(TsListNode &&other) {
+  TsListNode(TsListNode &&other) noexcept {
     other.validate();
     if (other.empty()) {
       data_ = std::move(other.data_);
@@ -48,7 +48,7 @@ class TsListNode : protected ListNode {
     other.validate();
   }
 
-  TsListNode &operator=(TsListNode &&other) {
+  TsListNode &operator=(TsListNode &&other) noexcept {
     validate();
     if (this == &other) {
       return *this;
@@ -159,7 +159,7 @@ class TsListNode : protected ListNode {
 };
 
 template <class DataT>
-class TsList : public TsListNode<DataT> {
+class TsList final : public TsListNode<DataT> {
  public:
   TsList() {
     this->parent = this;

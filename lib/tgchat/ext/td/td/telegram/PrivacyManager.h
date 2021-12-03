@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -9,6 +9,7 @@
 #include "td/telegram/net/NetQuery.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
+#include "td/telegram/UserId.h"
 
 #include "td/actor/actor.h"
 #include "td/actor/PromiseFuture.h"
@@ -21,7 +22,7 @@
 
 namespace td {
 
-class PrivacyManager : public NetQueryCallback {
+class PrivacyManager final : public NetQueryCallback {
  public:
   explicit PrivacyManager(ActorShared<> parent) : parent_(std::move(parent)) {
   }
@@ -83,7 +84,7 @@ class PrivacyManager : public NetQueryCallback {
       return type_ == other.type_ && user_ids_ == other.user_ids_ && chat_ids_ == other.chat_ids_;
     }
 
-    vector<int32> get_restricted_user_ids() const;
+    vector<UserId> get_restricted_user_ids() const;
 
    private:
     enum class Type : int32 {
@@ -97,8 +98,8 @@ class PrivacyManager : public NetQueryCallback {
       RestrictChatParticipants
     } type_ = Type::RestrictAll;
 
-    vector<int32> user_ids_;
-    vector<int32> chat_ids_;
+    vector<UserId> user_ids_;
+    vector<int64> chat_ids_;
 
     vector<tl_object_ptr<telegram_api::InputUser>> get_input_users() const;
 
@@ -130,7 +131,7 @@ class PrivacyManager : public NetQueryCallback {
       return rules_ == other.rules_;
     }
 
-    vector<int32> get_restricted_user_ids() const;
+    vector<UserId> get_restricted_user_ids() const;
 
    private:
     vector<UserPrivacySettingRule> rules_;
@@ -154,11 +155,11 @@ class PrivacyManager : public NetQueryCallback {
   void do_update_privacy(UserPrivacySetting user_privacy_setting, UserPrivacySettingRules &&privacy_rules,
                          bool from_update);
 
-  void on_result(NetQueryPtr query) override;
+  void on_result(NetQueryPtr query) final;
   Container<Promise<NetQueryPtr>> container_;
   void send_with_promise(NetQueryPtr query, Promise<NetQueryPtr> promise);
 
-  void hangup() override;
+  void hangup() final;
 };
 
 }  // namespace td

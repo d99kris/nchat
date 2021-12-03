@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -12,6 +12,7 @@
 #include "td/utils/port/path.h"
 #include "td/utils/port/StdStreams.h"
 #include "td/utils/Slice.h"
+#include "td/utils/SliceBuilder.h"
 
 namespace td {
 
@@ -69,49 +70,44 @@ bool FileLog::get_redirect_stderr() const {
   return redirect_stderr_;
 }
 
-void FileLog::append(CSlice cslice, int log_level) {
-  Slice slice = cslice;
+void FileLog::do_append(int log_level, CSlice slice) {
+  if (size_ > rotate_threshold_ || want_rotate_.load(std::memory_order_relaxed)) {
+    auto status = rename(path_, PSLICE() << path_ << ".old");
+    if (status.is_error()) {
+      process_fatal_error(PSLICE() << status.error() << " in " << __FILE__ << " at " << __LINE__ << '\n');
+    }
+    do_after_rotation();
+  }
   while (!slice.empty()) {
     auto r_size = fd_.write(slice);
     if (r_size.is_error()) {
-      process_fatal_error(PSLICE() << r_size.error() << " in " << __FILE__ << " at " << __LINE__);
+      process_fatal_error(PSLICE() << r_size.error() << " in " << __FILE__ << " at " << __LINE__ << '\n');
     }
     auto written = r_size.ok();
     size_ += static_cast<int64>(written);
     slice.remove_prefix(written);
   }
-  if (log_level == VERBOSITY_NAME(FATAL)) {
-    process_fatal_error(cslice);
-  }
-
-  if (size_ > rotate_threshold_ || want_rotate_.load(std::memory_order_relaxed)) {
-    auto status = rename(path_, PSLICE() << path_ << ".old");
-    if (status.is_error()) {
-      process_fatal_error(PSLICE() << status.error() << " in " << __FILE__ << " at " << __LINE__);
-    }
-    do_rotate();
-  }
 }
 
-void FileLog::rotate() {
+void FileLog::after_rotation() {
   if (path_.empty()) {
     return;
   }
-  do_rotate();
+  do_after_rotation();
 }
 
 void FileLog::lazy_rotate() {
   want_rotate_ = true;
 }
 
-void FileLog::do_rotate() {
+void FileLog::do_after_rotation() {
   want_rotate_ = false;
   ScopedDisableLog disable_log;  // to ensure that nothing will be printed to the closed log
   CHECK(!path_.empty());
   fd_.close();
   auto r_fd = FileFd::open(path_, FileFd::Create | FileFd::Truncate | FileFd::Write);
   if (r_fd.is_error()) {
-    process_fatal_error(PSLICE() << r_fd.error() << " in " << __FILE__ << " at " << __LINE__);
+    process_fatal_error(PSLICE() << r_fd.error() << " in " << __FILE__ << " at " << __LINE__ << '\n');
   }
   fd_ = r_fd.move_as_ok();
   if (!Stderr().empty() && redirect_stderr_) {

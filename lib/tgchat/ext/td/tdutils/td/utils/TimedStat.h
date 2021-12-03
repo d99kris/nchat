@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -89,9 +89,9 @@ struct MinMaxStat {
 }  // namespace detail
 
 template <class T>
-using MinStat = detail::MinMaxStat<T, std::less<>>;
+using MinStat = detail::MinMaxStat<T, std::less<void>>;
 
 template <class T>
-using MaxStat = detail::MinMaxStat<T, std::greater<>>;
+using MaxStat = detail::MinMaxStat<T, std::greater<void>>;
 
 }  // namespace td

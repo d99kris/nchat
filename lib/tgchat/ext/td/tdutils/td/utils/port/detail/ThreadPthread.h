@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -33,7 +33,7 @@ class ThreadPthread {
   ThreadPthread &operator=(const ThreadPthread &other) = delete;
   ThreadPthread(ThreadPthread &&other) noexcept : is_inited_(std::move(other.is_inited_)), thread_(other.thread_) {
   }
-  ThreadPthread &operator=(ThreadPthread &&other) {
+  ThreadPthread &operator=(ThreadPthread &&other) noexcept {
     join();
     is_inited_ = std::move(other.is_inited_);
     thread_ = other.thread_;
@@ -72,7 +72,8 @@ class ThreadPthread {
     return std::forward<T>(v);
   }
 
-  int do_pthread_create(pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine)(void *), void *arg);
+  static int do_pthread_create(pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine)(void *),
+                               void *arg);
 
   static void *run_thread(void *ptr) {
     ThreadIdGuard thread_id_guard;

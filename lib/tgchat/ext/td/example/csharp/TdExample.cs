@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -34,13 +34,7 @@ namespace TdExample
 
         private static Td.Client CreateTdClient()
         {
-            Td.Client result = Td.Client.Create(new UpdateHandler());
-            new Thread(() =>
-            {
-                Thread.CurrentThread.IsBackground = true;
-                result.Run();
-            }).Start();
-            return result;
+            return Td.Client.Create(new UpdateHandler());
         }
 
         private static void Print(string str)
@@ -133,7 +127,6 @@ namespace TdExample
             else if (_authorizationState is TdApi.AuthorizationStateClosed)
             {
                 Print("Closed");
-                _client.Dispose(); // _client is closed and native resources can be disposed now
                 if (!_needQuit)
                 {
                     _client = CreateTdClient(); // recreate _client after previous has closed
@@ -223,6 +216,11 @@ namespace TdExample
             {
                 throw new System.IO.IOException("Write access to the current directory is required");
             }
+            new Thread(() =>
+            {
+                Thread.CurrentThread.IsBackground = true;
+                Td.Client.Run();
+            }).Start();
 
             // create Td.Client
             _client = CreateTdClient();
@@ -237,7 +235,7 @@ namespace TdExample
                 _gotAuthorization.Reset();
                 _gotAuthorization.WaitOne();
 
-                _client.Send(new TdApi.GetChats(null, Int64.MaxValue, 0, 100), _defaultHandler); // preload main chat list
+                _client.Send(new TdApi.LoadChats(null, 100), _defaultHandler); // preload main chat list
                 while (_haveAuthorization)
                 {
                     GetCommand();

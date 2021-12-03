@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -30,7 +30,7 @@ static td_api::object_ptr<td_api::autoDownloadSettings> convert_auto_download_se
       settings->video_upload_maxbitrate_, video_preload_large, audio_preload_next, phonecalls_less_data);
 }
 
-class GetAutoDownloadSettingsQuery : public Td::ResultHandler {
+class GetAutoDownloadSettingsQuery final : public Td::ResultHandler {
   Promise<td_api::object_ptr<td_api::autoDownloadSettingsPresets>> promise_;
 
  public:
@@ -42,10 +42,10 @@ class GetAutoDownloadSettingsQuery : public Td::ResultHandler {
     send_query(G()->net_query_creator().create(telegram_api::account_getAutoDownloadSettings()));
   }
 
-  void on_result(uint64 id, BufferSlice packet) override {
+  void on_result(BufferSlice packet) final {
     auto result_ptr = fetch_result<telegram_api::account_getAutoDownloadSettings>(packet);
     if (result_ptr.is_error()) {
-      return on_error(id, result_ptr.move_as_error());
+      return on_error(result_ptr.move_as_error());
     }
 
     auto settings = result_ptr.move_as_ok();
@@ -54,7 +54,7 @@ class GetAutoDownloadSettingsQuery : public Td::ResultHandler {
         convert_auto_download_settings(settings->high_)));
   }
 
-  void on_error(uint64 id, Status status) override {
+  void on_error(Status status) final {
     promise_.set_error(std::move(status));
   }
 };
@@ -79,7 +79,7 @@ telegram_api::object_ptr<telegram_api::autoDownloadSettings> get_input_auto_down
       settings.max_video_file_size, settings.max_other_file_size, settings.video_upload_bitrate);
 }
 
-class SaveAutoDownloadSettingsQuery : public Td::ResultHandler {
+class SaveAutoDownloadSettingsQuery final : public Td::ResultHandler {
   Promise<Unit> promise_;
 
  public:
@@ -98,17 +98,17 @@ class SaveAutoDownloadSettingsQuery : public Td::ResultHandler {
         flags, false /*ignored*/, false /*ignored*/, get_input_auto_download_settings(settings))));
   }
 
-  void on_result(uint64 id, BufferSlice packet) override {
+  void on_result(BufferSlice packet) final {
     auto result_ptr = fetch_result<telegram_api::account_saveAutoDownloadSettings>(packet);
     if (result_ptr.is_error()) {
-      return on_error(id, result_ptr.move_as_error());
+      return on_error(result_ptr.move_as_error());
     }
 
-    LOG(INFO) << "SaveAutoDownloadSettingsQuery returned " << result_ptr.ok();
+    LOG(INFO) << "Receive result for SaveAutoDownloadSettingsQuery: " << result_ptr.ok();
     promise_.set_value(Unit());
   }
 
-  void on_error(uint64 id, Status status) override {
+  void on_error(Status status) final {
     promise_.set_error(std::move(status));
   }
 };

@@ -75,6 +75,7 @@ function split_file($file, $chunks, $undo) {
     $target_depth = 1 + $is_generated;
     $is_static = false;
     $in_define = false;
+    $in_comment = false;
     $current = '';
     $common = '';
     $functions = array();
@@ -113,6 +114,17 @@ function split_file($file, $chunks, $undo) {
             continue;
         }
 
+        if ($in_comment && strpos($line, '*/') === 0) {
+            $in_comment = false;
+            continue;
+        }
+        if (strpos($line, '/*') === 0) {
+            $in_comment = true;
+        }
+        if ($in_comment) {
+            continue;
+        }
+
         if ($depth !== $target_depth) {
             $common .= $line;
             continue;
@@ -139,7 +151,8 @@ function split_file($file, $chunks, $undo) {
             $in_define = false;
         }
     }
-    if (!empty(trim($current))) {
+    $current = trim($current);
+    if (!empty($current)) {
         fwrite(STDERR, "ERROR: $current".PHP_EOL);
         exit();
     }
@@ -153,7 +166,7 @@ function split_file($file, $chunks, $undo) {
     $parents = array();
     foreach ($functions as $i => $f) {
         if (preg_match_all('/(?J)(create_handler|create_net_actor)<(?<name>[A-Z][A-Za-z]*)>|'.
-                           '(?<name>[A-Z][A-Za-z]*) : public (Td::ResultHandler|NetActor|Request)|'.
+                           '(?<name>[A-Z][A-Za-z]*) (final )?: public (Td::ResultHandler|NetActor|Request)|'.
                            '(CREATE_REQUEST|CREATE_NO_ARGS_REQUEST)[(](?<name>[A-Z][A-Za-z]*)|'.
                            '(?<name>complete_pending_preauthentication_requests)|'.
                            '(?<name>get_message_history_slice)|'.
@@ -265,27 +278,36 @@ function split_file($file, $chunks, $undo) {
                 'animations_manager[_(-][^.]|AnimationsManager[^;>]' => "AnimationsManager",
                 'audios_manager[_(-][^.]|AudiosManager' => "AudiosManager",
                 'auth_manager[_(-][^.]|AuthManager' => 'AuthManager',
+                'background_manager[_(-][^.]|BackgroundManager' => "BackgroundManager",
                 'ConfigShared|shared_config[(]' => 'ConfigShared',
                 'contacts_manager[_(-][^.]|ContactsManager([^ ;.]| [^*])' => 'ContactsManager',
+                'country_info_manager[_(-][^.]|CountryInfoManager' => 'CountryInfoManager',
                 'documents_manager[_(-][^.]|DocumentsManager' => "DocumentsManager",
                 'file_reference_manager[_(-][^.]|FileReferenceManager|file_references[)]' => 'FileReferenceManager',
                 'file_manager[_(-][^.]|FileManager([^ ;.]| [^*])|update_file[)]' => 'files/FileManager',
                 'G[(][)]|Global[^A-Za-z]' => 'Global',
+                'game_manager[_(-][^.]|GameManager' => 'GameManager',
+                'group_call_manager[_(-][^.]|GroupCallManager' => 'GroupCallManager',
                 'HashtagHints' => 'HashtagHints',
                 'inline_queries_manager[_(-][^.]|InlineQueriesManager' => 'InlineQueriesManager',
                 'language_pack_manager[_(-][^.]|LanguagePackManager' => 'LanguagePackManager',
+                'link_manager[_(-][^.]|LinkManager' => 'LinkManager',
                 'LogeventIdWithGeneration|add_log_event|delete_log_event|get_erase_log_event_promise|parse_time|store_time' => 'logevent/LogEventHelper',
                 'MessageCopyOptions' => 'MessageCopyOptions',
                 'messages_manager[_(-][^.]|MessagesManager' => 'MessagesManager',
                 'notification_manager[_(-][^.]|NotificationManager|notifications[)]' => 'NotificationManager',
+                'phone_number_manager[_(-][^.]|PhoneNumberManager' => "PhoneNumberManager",
+                'poll_manager[_(-][^.]|PollManager' => "PollManager",
                 'PublicDialogType|get_public_dialog_type' => 'PublicDialogType',
                 'SecretChatActor' => 'SecretChatActor',
                 'secret_chats_manager[_(-][^.]|SecretChatsManager' => 'SecretChatsManager',
+                'sponsored_message_manager[_(-][^.]|SponsoredMessageManager' => 'SponsoredMessageManager',
                 'stickers_manager[_(-][^.]|StickersManager' => 'StickersManager',
                 '[>](td_db[(][)]|get_td_db_impl[(])|TdDb[^A-Za-z]' => 'TdDb',
+                'theme_manager[_(-][^.]|ThemeManager' => "ThemeManager",
                 'TopDialogCategory|get_top_dialog_category' => 'TopDialogCategory',
                 'top_dialog_manager[_(-][^.]|TopDialogManager' => 'TopDialogManager',
-                'updates_manager[_(-][^.]|UpdatesManager|get_difference[)]' => 'UpdatesManager',
+                'updates_manager[_(-][^.]|UpdatesManager|get_difference[)]|updateSentMessage|dummyUpdate' => 'UpdatesManager',
                 'WebPageId(Hash)?' => 'WebPageId',
                 'web_pages_manager[_(-][^.]|WebPagesManager' => 'WebPagesManager');
 

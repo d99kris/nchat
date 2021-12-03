@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -98,6 +98,12 @@ StringBuilder &operator<<(StringBuilder &string_builder, MessageContentType cont
       return string_builder << "Dice";
     case MessageContentType::ProximityAlertTriggered:
       return string_builder << "ProximityAlertTriggered";
+    case MessageContentType::GroupCall:
+      return string_builder << "GroupCall";
+    case MessageContentType::InviteToGroupCall:
+      return string_builder << "InviteToGroupCall";
+    case MessageContentType::ChatSetTheme:
+      return string_builder << "ChatSetTheme";
     default:
       UNREACHABLE();
       return string_builder;
@@ -150,6 +156,9 @@ bool is_allowed_media_group_content(MessageContentType content_type) {
     case MessageContentType::Poll:
     case MessageContentType::Dice:
     case MessageContentType::ProximityAlertTriggered:
+    case MessageContentType::GroupCall:
+    case MessageContentType::InviteToGroupCall:
+    case MessageContentType::ChatSetTheme:
       return false;
     default:
       UNREACHABLE();
@@ -210,6 +219,9 @@ bool is_secret_message_content(int32 ttl, MessageContentType content_type) {
     case MessageContentType::Poll:
     case MessageContentType::Dice:
     case MessageContentType::ProximityAlertTriggered:
+    case MessageContentType::GroupCall:
+    case MessageContentType::InviteToGroupCall:
+    case MessageContentType::ChatSetTheme:
       return false;
     default:
       UNREACHABLE();
@@ -263,6 +275,9 @@ bool is_service_message_content(MessageContentType content_type) {
     case MessageContentType::PassportDataSent:
     case MessageContentType::PassportDataReceived:
     case MessageContentType::ProximityAlertTriggered:
+    case MessageContentType::GroupCall:
+    case MessageContentType::InviteToGroupCall:
+    case MessageContentType::ChatSetTheme:
       return true;
     default:
       UNREACHABLE();
@@ -316,6 +331,9 @@ bool can_have_message_content_caption(MessageContentType content_type) {
     case MessageContentType::Poll:
     case MessageContentType::Dice:
     case MessageContentType::ProximityAlertTriggered:
+    case MessageContentType::GroupCall:
+    case MessageContentType::InviteToGroupCall:
+    case MessageContentType::ChatSetTheme:
       return false;
     default:
       UNREACHABLE();

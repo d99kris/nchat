@@ -1,16 +1,16 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #pragma once
 
-#include "td/actor/actor.h"
-
 #include "td/net/HttpQuery.h"
 #include "td/net/HttpReader.h"
 #include "td/net/SslStream.h"
+
+#include "td/actor/actor.h"
 
 #include "td/utils/buffer.h"
 #include "td/utils/BufferedFd.h"
@@ -32,7 +32,7 @@ class HttpConnectionBase : public Actor {
 
  protected:
   enum class State { Read, Write, Close };
-  HttpConnectionBase(State state, SocketFd fd, SslStream ssl_stream, size_t max_post_size, size_t max_files,
+  HttpConnectionBase(State state, BufferedFd<SocketFd> fd, SslStream ssl_stream, size_t max_post_size, size_t max_files,
                      int32 idle_timeout, int32 slow_scheduler_id);
 
  private:
@@ -61,13 +61,13 @@ class HttpConnectionBase : public Actor {
 
   void live_event();
 
-  void start_up() override;
-  void tear_down() override;
-  void timeout_expired() override;
-  void loop() override;
+  void start_up() final;
+  void tear_down() final;
+  void timeout_expired() final;
+  void loop() final;
 
-  void on_start_migrate(int32 sched_id) override;
-  void on_finish_migrate() override;
+  void on_start_migrate(int32 sched_id) final;
+  void on_finish_migrate() final;
 
   virtual void on_query(unique_ptr<HttpQuery> query) = 0;
   virtual void on_error(Status error) = 0;

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -28,9 +28,11 @@
 #include "td/telegram/VoiceNotesManager.hpp"
 #include "td/telegram/WebPageId.h"
 
+#include "td/utils/algorithm.h"
 #include "td/utils/common.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
+#include "td/utils/SliceBuilder.h"
 #include "td/utils/tl_helpers.h"
 
 #include <type_traits>
@@ -122,14 +124,22 @@ class RichText {
             context->has_anchor_urls_ = true;
           } else {
             auto anchor = Slice(content).substr(context->base_url_.size() + 1);
-            auto it = context->anchors_.find(anchor);
-            if (it != context->anchors_.end()) {
-              if (it->second == nullptr) {
-                return make_tl_object<td_api::richTextAnchorLink>(texts[0].get_rich_text_object(context), anchor.str(),
-                                                                  content);
-              } else {
-                return make_tl_object<td_api::richTextReference>(texts[0].get_rich_text_object(context), anchor.str(),
-                                                                 content);
+            // https://html.spec.whatwg.org/multipage/browsing-the-web.html#the-indicated-part-of-the-document
+            for (int i = 0; i < 2; i++) {
+              string url_decoded_anchor;
+              if (i == 1) {  // try to url_decode anchor
+                url_decoded_anchor = url_decode(anchor, false);
+                anchor = url_decoded_anchor;
+              }
+              auto it = context->anchors_.find(anchor);
+              if (it != context->anchors_.end()) {
+                if (it->second == nullptr) {
+                  return make_tl_object<td_api::richTextAnchorLink>(texts[0].get_rich_text_object(context),
+                                                                    anchor.str(), content);
+                } else {
+                  return make_tl_object<td_api::richTextReference>(texts[0].get_rich_text_object(context), anchor.str(),
+                                                                   content);
+                }
               }
             }
           }
@@ -430,7 +440,7 @@ class RelatedArticle {
   }
 };
 
-class WebPageBlockTitle : public WebPageBlock {
+class WebPageBlockTitle final : public WebPageBlock {
   RichText title;
 
  public:
@@ -439,15 +449,15 @@ class WebPageBlockTitle : public WebPageBlock {
   explicit WebPageBlockTitle(RichText &&title) : title(std::move(title)) {
   }
 
-  Type get_type() const override {
+  Type get_type() const final {
     return Type::Title;
   }
 
-  void append_file_ids(const Td *td, vector<FileId> &file_ids) const override {
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const final {
     title.append_file_ids(td, file_ids);
   }
 
-  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const override {
+  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
     return make_tl_object<td_api::pageBlockTitle>(title.get_rich_text_object(context));
   }
 
@@ -464,7 +474,7 @@ class WebPageBlockTitle : public WebPageBlock {
   }
 };
 
-class WebPageBlockSubtitle : public WebPageBlock {
+class WebPageBlockSubtitle final : public WebPageBlock {
   RichText subtitle;
 
  public:
@@ -472,15 +482,15 @@ class WebPageBlockSubtitle : public WebPageBlock {
   explicit WebPageBlockSubtitle(RichText &&subtitle) : subtitle(std::move(subtitle)) {
   }
 
-  Type get_type() const override {
+  Type get_type() const final {
     return Type::Subtitle;
   }
 
-  void append_file_ids(const Td *td, vector<FileId> &file_ids) const override {
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const final {
     subtitle.append_file_ids(td, file_ids);
   }
 
-  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const override {
+  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
     return make_tl_object<td_api::pageBlockSubtitle>(subtitle.get_rich_text_object(context));
   }
 
@@ -497,7 +507,7 @@ class WebPageBlockSubtitle : public WebPageBlock {
   }
 };
 
-class WebPageBlockAuthorDate : public WebPageBlock {
+class WebPageBlockAuthorDate final : public WebPageBlock {
   RichText author;
   int32 date = 0;
 
@@ -506,15 +516,15 @@ class WebPageBlockAuthorDate : public WebPageBlock {
   WebPageBlockAuthorDate(RichText &&author, int32 date) : author(std::move(author)), date(max(date, 0)) {
   }
 
-  Type get_type() const override {
+  Type get_type() const final {
     return Type::AuthorDate;
   }
 
-  void append_file_ids(const Td *td, vector<FileId> &file_ids) const override {
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const final {
     author.append_file_ids(td, file_ids);
   }
 
-  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const override {
+  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
     return make_tl_object<td_api::pageBlockAuthorDate>(author.get_rich_text_object(context), date);
   }
 
@@ -533,7 +543,7 @@ class WebPageBlockAuthorDate : public WebPageBlock {
   }
 };
 
-class WebPageBlockHeader : public WebPageBlock {
+class WebPageBlockHeader final : public WebPageBlock {
   RichText header;
 
  public:
@@ -541,15 +551,15 @@ class WebPageBlockHeader : public WebPageBlock {
   explicit WebPageBlockHeader(RichText &&header) : header(std::move(header)) {
   }
 
-  Type get_type() const override {
+  Type get_type() const final {
     return Type::Header;
   }
 
-  void append_file_ids(const Td *td, vector<FileId> &file_ids) const override {
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const final {
     header.append_file_ids(td, file_ids);
   }
 
-  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const override {
+  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
     return make_tl_object<td_api::pageBlockHeader>(header.get_rich_text_object(context));
   }
 
@@ -566,7 +576,7 @@ class WebPageBlockHeader : public WebPageBlock {
   }
 };
 
-class WebPageBlockSubheader : public WebPageBlock {
+class WebPageBlockSubheader final : public WebPageBlock {
   RichText subheader;
 
  public:
@@ -574,15 +584,15 @@ class WebPageBlockSubheader : public WebPageBlock {
   explicit WebPageBlockSubheader(RichText &&subheader) : subheader(std::move(subheader)) {
   }
 
-  Type get_type() const override {
+  Type get_type() const final {
     return Type::Subheader;
   }
 
-  void append_file_ids(const Td *td, vector<FileId> &file_ids) const override {
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const final {
     subheader.append_file_ids(td, file_ids);
   }
 
-  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const override {
+  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
     return make_tl_object<td_api::pageBlockSubheader>(subheader.get_rich_text_object(context));
   }
 
@@ -599,7 +609,7 @@ class WebPageBlockSubheader : public WebPageBlock {
   }
 };
 
-class WebPageBlockKicker : public WebPageBlock {
+class WebPageBlockKicker final : public WebPageBlock {
   RichText kicker;
 
  public:
@@ -607,15 +617,15 @@ class WebPageBlockKicker : public WebPageBlock {
   explicit WebPageBlockKicker(RichText &&kicker) : kicker(std::move(kicker)) {
   }
 
-  Type get_type() const override {
+  Type get_type() const final {
     return Type::Kicker;
   }
 
-  void append_file_ids(const Td *td, vector<FileId> &file_ids) const override {
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const final {
     kicker.append_file_ids(td, file_ids);
   }
 
-  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const override {
+  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
     return make_tl_object<td_api::pageBlockKicker>(kicker.get_rich_text_object(context));
   }
 
@@ -632,7 +642,7 @@ class WebPageBlockKicker : public WebPageBlock {
   }
 };
 
-class WebPageBlockParagraph : public WebPageBlock {
+class WebPageBlockParagraph final : public WebPageBlock {
   RichText text;
 
  public:
@@ -640,15 +650,15 @@ class WebPageBlockParagraph : public WebPageBlock {
   explicit WebPageBlockParagraph(RichText &&text) : text(std::move(text)) {
   }
 
-  Type get_type() const override {
+  Type get_type() const final {
     return Type::Paragraph;
   }
 
-  void append_file_ids(const Td *td, vector<FileId> &file_ids) const override {
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const final {
     text.append_file_ids(td, file_ids);
   }
 
-  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const override {
+  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
     return make_tl_object<td_api::pageBlockParagraph>(text.get_rich_text_object(context));
   }
 
@@ -665,7 +675,7 @@ class WebPageBlockParagraph : public WebPageBlock {
   }
 };
 
-class WebPageBlockPreformatted : public WebPageBlock {
+class WebPageBlockPreformatted final : public WebPageBlock {
   RichText text;
   string language;
 
@@ -674,15 +684,15 @@ class WebPageBlockPreformatted : public WebPageBlock {
   WebPageBlockPreformatted(RichText &&text, string &&language) : text(std::move(text)), language(std::move(language)) {
   }
 
-  Type get_type() const override {
+  Type get_type() const final {
     return Type::Preformatted;
   }
 
-  void append_file_ids(const Td *td, vector<FileId> &file_ids) const override {
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const final {
     text.append_file_ids(td, file_ids);
   }
 
-  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const override {
+  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
     return make_tl_object<td_api::pageBlockPreformatted>(text.get_rich_text_object(context), language);
   }
 
@@ -701,7 +711,7 @@ class WebPageBlockPreformatted : public WebPageBlock {
   }
 };
 
-class WebPageBlockFooter : public WebPageBlock {
+class WebPageBlockFooter final : public WebPageBlock {
   RichText footer;
 
  public:
@@ -709,15 +719,15 @@ class WebPageBlockFooter : public WebPageBlock {
   explicit WebPageBlockFooter(RichText &&footer) : footer(std::move(footer)) {
   }
 
-  Type get_type() const override {
+  Type get_type() const final {
     return Type::Footer;
   }
 
-  void append_file_ids(const Td *td, vector<FileId> &file_ids) const override {
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const final {
     footer.append_file_ids(td, file_ids);
   }
 
-  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const override {
+  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
     return make_tl_object<td_api::pageBlockFooter>(footer.get_rich_text_object(context));
   }
 
@@ -734,16 +744,16 @@ class WebPageBlockFooter : public WebPageBlock {
   }
 };
 
-class WebPageBlockDivider : public WebPageBlock {
+class WebPageBlockDivider final : public WebPageBlock {
  public:
-  Type get_type() const override {
+  Type get_type() const final {
     return Type::Divider;
   }
 
-  void append_file_ids(const Td *td, vector<FileId> &file_ids) const override {
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const final {
   }
 
-  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const override {
+  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
     return make_tl_object<td_api::pageBlockDivider>();
   }
 
@@ -756,7 +766,7 @@ class WebPageBlockDivider : public WebPageBlock {
   }
 };
 
-class WebPageBlockAnchor : public WebPageBlock {
+class WebPageBlockAnchor final : public WebPageBlock {
   string name;
 
  public:
@@ -764,14 +774,14 @@ class WebPageBlockAnchor : public WebPageBlock {
   explicit WebPageBlockAnchor(string &&name) : name(std::move(name)) {
   }
 
-  Type get_type() const override {
+  Type get_type() const final {
     return Type::Anchor;
   }
 
-  void append_file_ids(const Td *td, vector<FileId> &file_ids) const override {
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const final {
   }
 
-  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const override {
+  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
     if (context->is_first_pass_) {
       context->anchors_.emplace(name, nullptr);
     }
@@ -791,7 +801,7 @@ class WebPageBlockAnchor : public WebPageBlock {
   }
 };
 
-class WebPageBlockList : public WebPageBlock {
+class WebPageBlockList final : public WebPageBlock {
  public:
   struct Item {
     string label;
@@ -827,11 +837,11 @@ class WebPageBlockList : public WebPageBlock {
   explicit WebPageBlockList(vector<Item> &&items) : items(std::move(items)) {
   }
 
-  Type get_type() const override {
+  Type get_type() const final {
     return Type::List;
   }
 
-  void append_file_ids(const Td *td, vector<FileId> &file_ids) const override {
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const final {
     for (auto &item : items) {
       for (auto &page_block : item.page_blocks) {
         page_block->append_file_ids(td, file_ids);
@@ -839,7 +849,7 @@ class WebPageBlockList : public WebPageBlock {
     }
   }
 
-  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const override {
+  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
     return td_api::make_object<td_api::pageBlockList>(
         transform(items, [context](const Item &item) { return get_page_block_list_item_object(item, context); }));
   }
@@ -881,7 +891,7 @@ class WebPageBlockList : public WebPageBlock {
   }
 };
 
-class WebPageBlockBlockQuote : public WebPageBlock {
+class WebPageBlockBlockQuote final : public WebPageBlock {
   RichText text;
   RichText credit;
 
@@ -890,16 +900,16 @@ class WebPageBlockBlockQuote : public WebPageBlock {
   WebPageBlockBlockQuote(RichText &&text, RichText &&credit) : text(std::move(text)), credit(std::move(credit)) {
   }
 
-  Type get_type() const override {
+  Type get_type() const final {
     return Type::BlockQuote;
   }
 
-  void append_file_ids(const Td *td, vector<FileId> &file_ids) const override {
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const final {
     text.append_file_ids(td, file_ids);
     credit.append_file_ids(td, file_ids);
   }
 
-  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const override {
+  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
     return make_tl_object<td_api::pageBlockBlockQuote>(text.get_rich_text_object(context),
                                                        credit.get_rich_text_object(context));
   }
@@ -919,7 +929,7 @@ class WebPageBlockBlockQuote : public WebPageBlock {
   }
 };
 
-class WebPageBlockPullQuote : public WebPageBlock {
+class WebPageBlockPullQuote final : public WebPageBlock {
   RichText text;
   RichText credit;
 
@@ -928,16 +938,16 @@ class WebPageBlockPullQuote : public WebPageBlock {
   WebPageBlockPullQuote(RichText &&text, RichText &&credit) : text(std::move(text)), credit(std::move(credit)) {
   }
 
-  Type get_type() const override {
+  Type get_type() const final {
     return Type::PullQuote;
   }
 
-  void append_file_ids(const Td *td, vector<FileId> &file_ids) const override {
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const final {
     text.append_file_ids(td, file_ids);
     credit.append_file_ids(td, file_ids);
   }
 
-  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const override {
+  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
     return make_tl_object<td_api::pageBlockPullQuote>(text.get_rich_text_object(context),
                                                       credit.get_rich_text_object(context));
   }
@@ -957,7 +967,7 @@ class WebPageBlockPullQuote : public WebPageBlock {
   }
 };
 
-class WebPageBlockAnimation : public WebPageBlock {
+class WebPageBlockAnimation final : public WebPageBlock {
   FileId animation_file_id;
   WebPageBlockCaption caption;
   bool need_autoplay = false;
@@ -968,18 +978,18 @@ class WebPageBlockAnimation : public WebPageBlock {
       : animation_file_id(animation_file_id), caption(std::move(caption)), need_autoplay(need_autoplay) {
   }
 
-  Type get_type() const override {
+  Type get_type() const final {
     return Type::Animation;
   }
 
-  void append_file_ids(const Td *td, vector<FileId> &file_ids) const override {
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const final {
     caption.append_file_ids(td, file_ids);
     Document(Document::Type::Animation, animation_file_id).append_file_ids(td, file_ids);
   }
 
-  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const override {
+  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
     return make_tl_object<td_api::pageBlockAnimation>(
-        context->td_->animations_manager_->get_animation_object(animation_file_id, "get_page_block_object"),
+        context->td_->animations_manager_->get_animation_object(animation_file_id),
         caption.get_page_block_caption_object(context), need_autoplay);
   }
 
@@ -1023,7 +1033,7 @@ class WebPageBlockAnimation : public WebPageBlock {
   }
 };
 
-class WebPageBlockPhoto : public WebPageBlock {
+class WebPageBlockPhoto final : public WebPageBlock {
   Photo photo;
   WebPageBlockCaption caption;
   string url;
@@ -1035,16 +1045,16 @@ class WebPageBlockPhoto : public WebPageBlock {
       : photo(std::move(photo)), caption(std::move(caption)), url(std::move(url)), web_page_id(web_page_id) {
   }
 
-  Type get_type() const override {
+  Type get_type() const final {
     return Type::Photo;
   }
 
-  void append_file_ids(const Td *td, vector<FileId> &file_ids) const override {
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const final {
     append(file_ids, photo_get_file_ids(photo));
     caption.append_file_ids(td, file_ids);
   }
 
-  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const override {
+  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
     return make_tl_object<td_api::pageBlockPhoto>(get_photo_object(context->td_->file_manager_.get(), photo),
                                                   caption.get_page_block_caption_object(context), url);
   }
@@ -1073,7 +1083,7 @@ class WebPageBlockPhoto : public WebPageBlock {
   }
 };
 
-class WebPageBlockVideo : public WebPageBlock {
+class WebPageBlockVideo final : public WebPageBlock {
   FileId video_file_id;
   WebPageBlockCaption caption;
   bool need_autoplay = false;
@@ -1085,16 +1095,16 @@ class WebPageBlockVideo : public WebPageBlock {
       : video_file_id(video_file_id), caption(std::move(caption)), need_autoplay(need_autoplay), is_looped(is_looped) {
   }
 
-  Type get_type() const override {
+  Type get_type() const final {
     return Type::Video;
   }
 
-  void append_file_ids(const Td *td, vector<FileId> &file_ids) const override {
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const final {
     caption.append_file_ids(td, file_ids);
     Document(Document::Type::Video, video_file_id).append_file_ids(td, file_ids);
   }
 
-  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const override {
+  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
     return make_tl_object<td_api::pageBlockVideo>(context->td_->videos_manager_->get_video_object(video_file_id),
                                                   caption.get_page_block_caption_object(context), need_autoplay,
                                                   is_looped);
@@ -1142,7 +1152,7 @@ class WebPageBlockVideo : public WebPageBlock {
   }
 };
 
-class WebPageBlockCover : public WebPageBlock {
+class WebPageBlockCover final : public WebPageBlock {
   unique_ptr<WebPageBlock> cover;
 
  public:
@@ -1150,15 +1160,15 @@ class WebPageBlockCover : public WebPageBlock {
   explicit WebPageBlockCover(unique_ptr<WebPageBlock> &&cover) : cover(std::move(cover)) {
   }
 
-  Type get_type() const override {
+  Type get_type() const final {
     return Type::Cover;
   }
 
-  void append_file_ids(const Td *td, vector<FileId> &file_ids) const override {
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const final {
     cover->append_file_ids(td, file_ids);
   }
 
-  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const override {
+  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
     return make_tl_object<td_api::pageBlockCover>(cover->get_page_block_object(context));
   }
 
@@ -1175,7 +1185,7 @@ class WebPageBlockCover : public WebPageBlock {
   }
 };
 
-class WebPageBlockEmbedded : public WebPageBlock {
+class WebPageBlockEmbedded final : public WebPageBlock {
   string url;
   string html;
   Photo poster_photo;
@@ -1197,16 +1207,16 @@ class WebPageBlockEmbedded : public WebPageBlock {
       , allow_scrolling(allow_scrolling) {
   }
 
-  Type get_type() const override {
+  Type get_type() const final {
     return Type::Embedded;
   }
 
-  void append_file_ids(const Td *td, vector<FileId> &file_ids) const override {
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const final {
     append(file_ids, photo_get_file_ids(poster_photo));
     caption.append_file_ids(td, file_ids);
   }
 
-  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const override {
+  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
     return make_tl_object<td_api::pageBlockEmbedded>(
         url, html, get_photo_object(context->td_->file_manager_.get(), poster_photo), dimensions.width,
         dimensions.height, caption.get_page_block_caption_object(context), is_full_width, allow_scrolling);
@@ -1243,7 +1253,7 @@ class WebPageBlockEmbedded : public WebPageBlock {
   }
 };
 
-class WebPageBlockEmbeddedPost : public WebPageBlock {
+class WebPageBlockEmbeddedPost final : public WebPageBlock {
   string url;
   string author;
   Photo author_photo;
@@ -1263,11 +1273,11 @@ class WebPageBlockEmbeddedPost : public WebPageBlock {
       , caption(std::move(caption)) {
   }
 
-  Type get_type() const override {
+  Type get_type() const final {
     return Type::EmbeddedPost;
   }
 
-  void append_file_ids(const Td *td, vector<FileId> &file_ids) const override {
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const final {
     append(file_ids, photo_get_file_ids(author_photo));
     for (auto &page_block : page_blocks) {
       page_block->append_file_ids(td, file_ids);
@@ -1275,7 +1285,7 @@ class WebPageBlockEmbeddedPost : public WebPageBlock {
     caption.append_file_ids(td, file_ids);
   }
 
-  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const override {
+  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
     return make_tl_object<td_api::pageBlockEmbeddedPost>(
         url, author, get_photo_object(context->td_->file_manager_.get(), author_photo), date,
         get_page_block_objects(page_blocks, context), caption.get_page_block_caption_object(context));
@@ -1304,7 +1314,7 @@ class WebPageBlockEmbeddedPost : public WebPageBlock {
   }
 };
 
-class WebPageBlockCollage : public WebPageBlock {
+class WebPageBlockCollage final : public WebPageBlock {
   vector<unique_ptr<WebPageBlock>> page_blocks;
   WebPageBlockCaption caption;
 
@@ -1314,18 +1324,18 @@ class WebPageBlockCollage : public WebPageBlock {
       : page_blocks(std::move(page_blocks)), caption(std::move(caption)) {
   }
 
-  Type get_type() const override {
+  Type get_type() const final {
     return Type::Collage;
   }
 
-  void append_file_ids(const Td *td, vector<FileId> &file_ids) const override {
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const final {
     for (auto &page_block : page_blocks) {
       page_block->append_file_ids(td, file_ids);
     }
     caption.append_file_ids(td, file_ids);
   }
 
-  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const override {
+  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
     return make_tl_object<td_api::pageBlockCollage>(get_page_block_objects(page_blocks, context),
                                                     caption.get_page_block_caption_object(context));
   }
@@ -1345,7 +1355,7 @@ class WebPageBlockCollage : public WebPageBlock {
   }
 };
 
-class WebPageBlockSlideshow : public WebPageBlock {
+class WebPageBlockSlideshow final : public WebPageBlock {
   vector<unique_ptr<WebPageBlock>> page_blocks;
   WebPageBlockCaption caption;
 
@@ -1355,18 +1365,18 @@ class WebPageBlockSlideshow : public WebPageBlock {
       : page_blocks(std::move(page_blocks)), caption(std::move(caption)) {
   }
 
-  Type get_type() const override {
+  Type get_type() const final {
     return Type::Slideshow;
   }
 
-  void append_file_ids(const Td *td, vector<FileId> &file_ids) const override {
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const final {
     for (auto &page_block : page_blocks) {
       page_block->append_file_ids(td, file_ids);
     }
     caption.append_file_ids(td, file_ids);
   }
 
-  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const override {
+  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
     return make_tl_object<td_api::pageBlockSlideshow>(get_page_block_objects(page_blocks, context),
                                                       caption.get_page_block_caption_object(context));
   }
@@ -1386,7 +1396,7 @@ class WebPageBlockSlideshow : public WebPageBlock {
   }
 };
 
-class WebPageBlockChatLink : public WebPageBlock {
+class WebPageBlockChatLink final : public WebPageBlock {
   string title;
   DialogPhoto photo;
   string username;
@@ -1397,15 +1407,15 @@ class WebPageBlockChatLink : public WebPageBlock {
       : title(std::move(title)), photo(std::move(photo)), username(std::move(username)) {
   }
 
-  Type get_type() const override {
+  Type get_type() const final {
     return Type::ChatLink;
   }
 
-  void append_file_ids(const Td *td, vector<FileId> &file_ids) const override {
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const final {
     append(file_ids, dialog_photo_get_file_ids(photo));
   }
 
-  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const override {
+  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
     return make_tl_object<td_api::pageBlockChatLink>(
         title, get_chat_photo_info_object(context->td_->file_manager_.get(), &photo), username);
   }
@@ -1427,7 +1437,7 @@ class WebPageBlockChatLink : public WebPageBlock {
   }
 };
 
-class WebPageBlockAudio : public WebPageBlock {
+class WebPageBlockAudio final : public WebPageBlock {
   FileId audio_file_id;
   WebPageBlockCaption caption;
 
@@ -1437,16 +1447,16 @@ class WebPageBlockAudio : public WebPageBlock {
       : audio_file_id(audio_file_id), caption(std::move(caption)) {
   }
 
-  Type get_type() const override {
+  Type get_type() const final {
     return Type::Audio;
   }
 
-  void append_file_ids(const Td *td, vector<FileId> &file_ids) const override {
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const final {
     Document(Document::Type::Audio, audio_file_id).append_file_ids(td, file_ids);
     caption.append_file_ids(td, file_ids);
   }
 
-  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const override {
+  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
     return make_tl_object<td_api::pageBlockAudio>(context->td_->audios_manager_->get_audio_object(audio_file_id),
                                                   caption.get_page_block_caption_object(context));
   }
@@ -1496,7 +1506,7 @@ class WebPageBlockAudio : public WebPageBlock {
   }
 };
 
-class WebPageBlockTable : public WebPageBlock {
+class WebPageBlockTable final : public WebPageBlock {
   RichText title;
   vector<vector<WebPageBlockTableCell>> cells;
   bool is_bordered = false;
@@ -1508,11 +1518,11 @@ class WebPageBlockTable : public WebPageBlock {
       : title(std::move(title)), cells(std::move(cells)), is_bordered(is_bordered), is_striped(is_striped) {
   }
 
-  Type get_type() const override {
+  Type get_type() const final {
     return Type::Table;
   }
 
-  void append_file_ids(const Td *td, vector<FileId> &file_ids) const override {
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const final {
     title.append_file_ids(td, file_ids);
     for (auto &row : cells) {
       for (auto &cell : row) {
@@ -1521,7 +1531,7 @@ class WebPageBlockTable : public WebPageBlock {
     }
   }
 
-  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const override {
+  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
     auto cell_objects = transform(cells, [&](const vector<WebPageBlockTableCell> &row) {
       return transform(
           row, [&](const WebPageBlockTableCell &cell) { return cell.get_page_block_table_cell_object(context); });
@@ -1554,7 +1564,7 @@ class WebPageBlockTable : public WebPageBlock {
   }
 };
 
-class WebPageBlockDetails : public WebPageBlock {
+class WebPageBlockDetails final : public WebPageBlock {
   RichText header;
   vector<unique_ptr<WebPageBlock>> page_blocks;
   bool is_open;
@@ -1565,18 +1575,18 @@ class WebPageBlockDetails : public WebPageBlock {
       : header(std::move(header)), page_blocks(std::move(page_blocks)), is_open(is_open) {
   }
 
-  Type get_type() const override {
+  Type get_type() const final {
     return Type::Details;
   }
 
-  void append_file_ids(const Td *td, vector<FileId> &file_ids) const override {
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const final {
     header.append_file_ids(td, file_ids);
     for (auto &page_block : page_blocks) {
       page_block->append_file_ids(td, file_ids);
     }
   }
 
-  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const override {
+  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
     return make_tl_object<td_api::pageBlockDetails>(header.get_rich_text_object(context),
                                                     get_page_block_objects(page_blocks, context), is_open);
   }
@@ -1602,7 +1612,7 @@ class WebPageBlockDetails : public WebPageBlock {
   }
 };
 
-class WebPageBlockRelatedArticles : public WebPageBlock {
+class WebPageBlockRelatedArticles final : public WebPageBlock {
   RichText header;
   vector<RelatedArticle> related_articles;
 
@@ -1612,11 +1622,11 @@ class WebPageBlockRelatedArticles : public WebPageBlock {
       : header(std::move(header)), related_articles(std::move(related_articles)) {
   }
 
-  Type get_type() const override {
+  Type get_type() const final {
     return Type::RelatedArticles;
   }
 
-  void append_file_ids(const Td *td, vector<FileId> &file_ids) const override {
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const final {
     header.append_file_ids(td, file_ids);
     for (auto &article : related_articles) {
       if (!article.photo.is_empty()) {
@@ -1625,7 +1635,7 @@ class WebPageBlockRelatedArticles : public WebPageBlock {
     }
   }
 
-  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const override {
+  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
     auto related_article_objects = transform(related_articles, [context](const RelatedArticle &article) {
       return td_api::make_object<td_api::pageBlockRelatedArticle>(
           article.url, article.title, article.description,
@@ -1650,7 +1660,7 @@ class WebPageBlockRelatedArticles : public WebPageBlock {
   }
 };
 
-class WebPageBlockMap : public WebPageBlock {
+class WebPageBlockMap final : public WebPageBlock {
   Location location;
   int32 zoom = 0;
   Dimensions dimensions;
@@ -1662,15 +1672,15 @@ class WebPageBlockMap : public WebPageBlock {
       : location(std::move(location)), zoom(zoom), dimensions(dimensions), caption(std::move(caption)) {
   }
 
-  Type get_type() const override {
+  Type get_type() const final {
     return Type::Map;
   }
 
-  void append_file_ids(const Td *td, vector<FileId> &file_ids) const override {
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const final {
     caption.append_file_ids(td, file_ids);
   }
 
-  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const override {
+  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
     return make_tl_object<td_api::pageBlockMap>(location.get_location_object(), zoom, dimensions.width,
                                                 dimensions.height, caption.get_page_block_caption_object(context));
   }
@@ -1694,7 +1704,7 @@ class WebPageBlockMap : public WebPageBlock {
   }
 };
 
-class WebPageBlockVoiceNote : public WebPageBlock {
+class WebPageBlockVoiceNote final : public WebPageBlock {
   FileId voice_note_file_id;
   WebPageBlockCaption caption;
 
@@ -1704,16 +1714,16 @@ class WebPageBlockVoiceNote : public WebPageBlock {
       : voice_note_file_id(voice_note_file_id), caption(std::move(caption)) {
   }
 
-  Type get_type() const override {
+  Type get_type() const final {
     return Type::VoiceNote;
   }
 
-  void append_file_ids(const Td *td, vector<FileId> &file_ids) const override {
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const final {
     Document(Document::Type::VoiceNote, voice_note_file_id).append_file_ids(td, file_ids);
     caption.append_file_ids(td, file_ids);
   }
 
-  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const override {
+  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
     return make_tl_object<td_api::pageBlockVoiceNote>(
         context->td_->voice_notes_manager_->get_voice_note_object(voice_note_file_id),
         caption.get_page_block_caption_object(context));
@@ -1850,7 +1860,7 @@ RichText get_rich_text(tl_object_ptr<telegram_api::RichText> &&rich_text_ptr,
       if (it != documents.end()) {
         result.type = RichText::Type::Icon;
         result.document_file_id = it->second;
-        Dimensions dimensions = get_dimensions(rich_text->w_, rich_text->h_);
+        Dimensions dimensions = get_dimensions(rich_text->w_, rich_text->h_, "textImage");
         result.content = PSTRING() << (dimensions.width * static_cast<uint32>(65536) + dimensions.height);
       } else {
         LOG(ERROR) << "Can't find document " << rich_text->document_id_;
@@ -2029,8 +2039,8 @@ unique_ptr<WebPageBlock> get_web_page_block(Td *td, tl_object_ptr<telegram_api::
     }
     case telegram_api::pageBlockVideo::ID: {
       auto page_block = move_tl_object_as<telegram_api::pageBlockVideo>(page_block_ptr);
-      bool need_autoplay = (page_block->flags_ & telegram_api::pageBlockVideo::AUTOPLAY_MASK) != 0;
-      bool is_looped = (page_block->flags_ & telegram_api::pageBlockVideo::LOOP_MASK) != 0;
+      bool need_autoplay = page_block->autoplay_;
+      bool is_looped = page_block->loop_;
       auto animations_it = animations.find(page_block->video_id_);
       if (animations_it != animations.end()) {
         LOG_IF(ERROR, !is_looped) << "Receive non-looped animation";
@@ -2057,8 +2067,8 @@ unique_ptr<WebPageBlock> get_web_page_block(Td *td, tl_object_ptr<telegram_api::
     }
     case telegram_api::pageBlockEmbed::ID: {
       auto page_block = move_tl_object_as<telegram_api::pageBlockEmbed>(page_block_ptr);
-      bool is_full_width = (page_block->flags_ & telegram_api::pageBlockEmbed::FULL_WIDTH_MASK) != 0;
-      bool allow_scrolling = (page_block->flags_ & telegram_api::pageBlockEmbed::ALLOW_SCROLLING_MASK) != 0;
+      bool is_full_width = page_block->full_width_;
+      bool allow_scrolling = page_block->allow_scrolling_;
       bool has_dimensions = (page_block->flags_ & telegram_api::pageBlockEmbed::W_MASK) != 0;
       auto it = (page_block->flags_ & telegram_api::pageBlockEmbed::POSTER_PHOTO_ID_MASK) != 0
                     ? photos.find(page_block->poster_photo_id_)
@@ -2069,7 +2079,7 @@ unique_ptr<WebPageBlock> get_web_page_block(Td *td, tl_object_ptr<telegram_api::
       }
       Dimensions dimensions;
       if (has_dimensions) {
-        dimensions = get_dimensions(page_block->w_, page_block->h_);
+        dimensions = get_dimensions(page_block->w_, page_block->h_, "pageBlockEmbed");
       }
       return td::make_unique<WebPageBlockEmbedded>(
           std::move(page_block->url_), std::move(page_block->html_), std::move(poster_photo), dimensions,
@@ -2148,23 +2158,22 @@ unique_ptr<WebPageBlock> get_web_page_block(Td *td, tl_object_ptr<telegram_api::
     }
     case telegram_api::pageBlockTable::ID: {
       auto page_block = move_tl_object_as<telegram_api::pageBlockTable>(page_block_ptr);
-      auto is_bordered = (page_block->flags_ & telegram_api::pageBlockTable::BORDERED_MASK) != 0;
-      auto is_striped = (page_block->flags_ & telegram_api::pageBlockTable::STRIPED_MASK) != 0;
+      auto is_bordered = page_block->bordered_;
+      auto is_striped = page_block->striped_;
       auto cells = transform(std::move(page_block->rows_), [&](tl_object_ptr<telegram_api::pageTableRow> &&row) {
         return transform(std::move(row->cells_), [&](tl_object_ptr<telegram_api::pageTableCell> &&table_cell) {
           WebPageBlockTableCell cell;
-          auto flags = table_cell->flags_;
-          cell.is_header = (flags & telegram_api::pageTableCell::HEADER_MASK) != 0;
-          cell.align_center = (flags & telegram_api::pageTableCell::ALIGN_CENTER_MASK) != 0;
+          cell.is_header = table_cell->header_;
+          cell.align_center = table_cell->align_center_;
           if (!cell.align_center) {
-            cell.align_right = (flags & telegram_api::pageTableCell::ALIGN_RIGHT_MASK) != 0;
+            cell.align_right = table_cell->align_right_;
             if (!cell.align_right) {
               cell.align_left = true;
             }
           }
-          cell.valign_middle = (flags & telegram_api::pageTableCell::VALIGN_MIDDLE_MASK) != 0;
+          cell.valign_middle = table_cell->valign_middle_;
           if (!cell.valign_middle) {
-            cell.valign_bottom = (flags & telegram_api::pageTableCell::VALIGN_BOTTOM_MASK) != 0;
+            cell.valign_bottom = table_cell->valign_bottom_;
             if (!cell.valign_bottom) {
               cell.valign_top = true;
             }
@@ -2172,10 +2181,10 @@ unique_ptr<WebPageBlock> get_web_page_block(Td *td, tl_object_ptr<telegram_api::
           if (table_cell->text_ != nullptr) {
             cell.text = get_rich_text(std::move(table_cell->text_), documents);
           }
-          if ((flags & telegram_api::pageTableCell::COLSPAN_MASK) != 0) {
+          if ((table_cell->flags_ & telegram_api::pageTableCell::COLSPAN_MASK) != 0) {
             cell.colspan = table_cell->colspan_;
           }
-          if ((flags & telegram_api::pageTableCell::ROWSPAN_MASK) != 0) {
+          if ((table_cell->flags_ & telegram_api::pageTableCell::ROWSPAN_MASK) != 0) {
             cell.rowspan = table_cell->rowspan_;
           }
           return cell;
@@ -2186,7 +2195,7 @@ unique_ptr<WebPageBlock> get_web_page_block(Td *td, tl_object_ptr<telegram_api::
     }
     case telegram_api::pageBlockDetails::ID: {
       auto page_block = move_tl_object_as<telegram_api::pageBlockDetails>(page_block_ptr);
-      auto is_open = (page_block->flags_ & telegram_api::pageBlockDetails::OPEN_MASK) != 0;
+      auto is_open = page_block->open_;
       return td::make_unique<WebPageBlockDetails>(get_rich_text(std::move(page_block->title_), documents),
                                                   get_web_page_blocks(td, std::move(page_block->blocks_), animations,
                                                                       audios, documents, photos, videos, voice_notes),
@@ -2218,9 +2227,9 @@ unique_ptr<WebPageBlock> get_web_page_block(Td *td, tl_object_ptr<telegram_api::
     }
     case telegram_api::pageBlockMap::ID: {
       auto page_block = move_tl_object_as<telegram_api::pageBlockMap>(page_block_ptr);
-      Location location(std::move(page_block->geo_));
+      Location location(page_block->geo_);
       auto zoom = page_block->zoom_;
-      Dimensions dimensions = get_dimensions(page_block->w_, page_block->h_);
+      Dimensions dimensions = get_dimensions(page_block->w_, page_block->h_, "pageBlockMap");
       if (location.empty()) {
         LOG(ERROR) << "Receive invalid map location";
         break;

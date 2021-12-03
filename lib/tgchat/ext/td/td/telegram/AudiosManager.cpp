@@ -1,20 +1,19 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/telegram/AudiosManager.h"
 
+#include "td/telegram/AuthManager.h"
 #include "td/telegram/files/FileManager.h"
-#include "td/telegram/Td.h"
-
 #include "td/telegram/secret_api.h"
-#include "td/telegram/td_api.h"
-#include "td/telegram/telegram_api.h"
+#include "td/telegram/Td.h"
 
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
+#include "td/utils/SliceBuilder.h"
 #include "td/utils/Status.h"
 
 namespace td {
@@ -28,14 +27,15 @@ int32 AudiosManager::get_audio_duration(FileId file_id) const {
   return it->second->duration;
 }
 
-tl_object_ptr<td_api::audio> AudiosManager::get_audio_object(FileId file_id) {
+tl_object_ptr<td_api::audio> AudiosManager::get_audio_object(FileId file_id) const {
   if (!file_id.is_valid()) {
     return nullptr;
   }
 
-  auto &audio = audios_[file_id];
+  auto it = audios_.find(file_id);
+  CHECK(it != audios_.end());
+  auto audio = it->second.get();
   CHECK(audio != nullptr);
-  audio->is_changed = false;
   return make_tl_object<td_api::audio>(
       audio->duration, audio->title, audio->performer, audio->file_name, audio->mime_type,
       get_minithumbnail_object(audio->minithumbnail),
@@ -55,23 +55,19 @@ FileId AudiosManager::on_get_audio(unique_ptr<Audio> new_audio, bool replace) {
     if (a->mime_type != new_audio->mime_type) {
       LOG(DEBUG) << "Audio " << file_id << " info has changed";
       a->mime_type = new_audio->mime_type;
-      a->is_changed = true;
     }
     if (a->duration != new_audio->duration || a->title != new_audio->title || a->performer != new_audio->performer) {
       LOG(DEBUG) << "Audio " << file_id << " info has changed";
       a->duration = new_audio->duration;
       a->title = new_audio->title;
       a->performer = new_audio->performer;
-      a->is_changed = true;
     }
     if (a->file_name != new_audio->file_name) {
       LOG(DEBUG) << "Audio " << file_id << " file name has changed";
       a->file_name = std::move(new_audio->file_name);
-      a->is_changed = true;
     }
     if (a->minithumbnail != new_audio->minithumbnail) {
       a->minithumbnail = std::move(new_audio->minithumbnail);
-      a->is_changed = true;
     }
     if (a->thumbnail != new_audio->thumbnail) {
       if (!a->thumbnail.file_id.is_valid()) {
@@ -81,7 +77,6 @@ FileId AudiosManager::on_get_audio(unique_ptr<Audio> new_audio, bool replace) {
                   << new_audio->thumbnail;
       }
       a->thumbnail = new_audio->thumbnail;
-      a->is_changed = true;
     }
   }
 
@@ -109,23 +104,17 @@ FileId AudiosManager::dup_audio(FileId new_id, FileId old_id) {
   return new_id;
 }
 
-bool AudiosManager::merge_audios(FileId new_id, FileId old_id, bool can_delete_old) {
-  if (!old_id.is_valid()) {
-    LOG(ERROR) << "Old file id is invalid";
-    return true;
-  }
+void AudiosManager::merge_audios(FileId new_id, FileId old_id, bool can_delete_old) {
+  CHECK(old_id.is_valid() && new_id.is_valid());
+  CHECK(new_id != old_id);
 
   LOG(INFO) << "Merge audios " << new_id << " and " << old_id;
   const Audio *old_ = get_audio(old_id);
   CHECK(old_ != nullptr);
-  if (old_id == new_id) {
-    return old_->is_changed;
-  }
 
   auto new_it = audios_.find(new_id);
   if (new_it == audios_.end()) {
     auto &old = audios_[old_id];
-    old->is_changed = true;
     if (!can_delete_old) {
       dup_audio(new_id, old_id);
     } else {
@@ -140,7 +129,6 @@ bool AudiosManager::merge_audios(FileId new_id, FileId old_id, bool can_delete_o
       LOG(INFO) << "Audio has changed: mime_type = (" << old_->mime_type << ", " << new_->mime_type << ")";
     }
 
-    new_->is_changed = true;
     if (old_->thumbnail != new_->thumbnail) {
       //    LOG_STATUS(td_->file_manager_->merge(new_->thumbnail.file_id, old_->thumbnail.file_id));
     }
@@ -149,7 +137,6 @@ bool AudiosManager::merge_audios(FileId new_id, FileId old_id, bool can_delete_o
   if (can_delete_old) {
     audios_.erase(old_id);
   }
-  return true;
 }
 
 string AudiosManager::get_audio_search_text(FileId file_id) const {
@@ -179,7 +166,9 @@ void AudiosManager::create_audio(FileId file_id, string minithumbnail, PhotoSize
   a->duration = max(duration, 0);
   a->title = std::move(title);
   a->performer = std::move(performer);
-  a->minithumbnail = std::move(minithumbnail);
+  if (!td_->auth_manager_->is_bot()) {
+    a->minithumbnail = std::move(minithumbnail);
+  }
   a->thumbnail = std::move(thumbnail);
   on_get_audio(std::move(a), replace);
 }
@@ -227,7 +216,8 @@ tl_object_ptr<telegram_api::InputMedia> AudiosManager::get_input_media(
     return nullptr;
   }
   if (file_view.has_remote_location() && !file_view.main_remote_location().is_web() && input_file == nullptr) {
-    return make_tl_object<telegram_api::inputMediaDocument>(0, file_view.main_remote_location().as_input_document(), 0);
+    return make_tl_object<telegram_api::inputMediaDocument>(0, file_view.main_remote_location().as_input_document(), 0,
+                                                            string());
   }
   if (file_view.has_url()) {
     return make_tl_object<telegram_api::inputMediaDocumentExternal>(0, file_view.url(), 0);

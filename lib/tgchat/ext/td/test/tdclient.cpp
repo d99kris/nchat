@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -28,6 +28,7 @@
 #include "td/utils/port/thread.h"
 #include "td/utils/Random.h"
 #include "td/utils/Slice.h"
+#include "td/utils/SliceBuilder.h"
 #include "td/utils/Status.h"
 #include "td/utils/tests.h"
 
@@ -40,14 +41,12 @@
 #include <set>
 #include <utility>
 
-REGISTER_TESTS(tdclient);
-
 template <class T>
 static void check_td_error(T &result) {
   LOG_CHECK(result->get_id() != td::td_api::error::ID) << to_string(result);
 }
 
-class TestClient : public td::Actor {
+class TestClient final : public td::Actor {
  public:
   explicit TestClient(td::string name) : name_(std::move(name)) {
   }
@@ -77,21 +76,21 @@ class TestClient : public td::Actor {
   }
 
   td::unique_ptr<td::TdCallback> make_td_callback() {
-    class TdCallbackImpl : public td::TdCallback {
+    class TdCallbackImpl final : public td::TdCallback {
      public:
       explicit TdCallbackImpl(td::ActorId<TestClient> client) : client_(client) {
       }
-      void on_result(td::uint64 id, td::tl_object_ptr<td::td_api::Object> result) override {
+      void on_result(td::uint64 id, td::tl_object_ptr<td::td_api::Object> result) final {
         send_closure(client_, &TestClient::on_result, id, std::move(result));
       }
-      void on_error(td::uint64 id, td::tl_object_ptr<td::td_api::error> error) override {
+      void on_error(td::uint64 id, td::tl_object_ptr<td::td_api::error> error) final {
         send_closure(client_, &TestClient::on_error, id, std::move(error));
       }
       TdCallbackImpl(const TdCallbackImpl &) = delete;
       TdCallbackImpl &operator=(const TdCallbackImpl &) = delete;
       TdCallbackImpl(TdCallbackImpl &&) = delete;
       TdCallbackImpl &operator=(TdCallbackImpl &&) = delete;
-      ~TdCallbackImpl() override {
+      ~TdCallbackImpl() final {
         send_closure(client_, &TestClient::on_closed);
       }
 
@@ -142,7 +141,7 @@ class TestClient : public td::Actor {
     stop();
   }
 
-  void start_up() override {
+  void start_up() final {
     td::rmrf(name_).ignore();
     auto old_context = set_context(std::make_shared<td::ActorContext>());
     set_tag(name_);
@@ -162,9 +161,9 @@ class TestClient : public td::Actor {
   td::Promise<> close_promise_;
 };
 
-class Task : public TestClient::Listener {
+class TestClinetTask : public TestClient::Listener {
  public:
-  void on_update(std::shared_ptr<TestClient::Update> update) override {
+  void on_update(std::shared_ptr<TestClient::Update> update) final {
     auto it = sent_queries_.find(update->id);
     if (it != sent_queries_.end()) {
       it->second(std::move(update->object));
@@ -172,7 +171,7 @@ class Task : public TestClient::Listener {
     }
     process_update(update);
   }
-  void start_listen(TestClient *client) override {
+  void start_listen(TestClient *client) final {
     client_ = client;
     start_up();
   }
@@ -198,12 +197,12 @@ class Task : public TestClient::Listener {
   }
 };
 
-class DoAuthentication : public Task {
+class DoAuthentication final : public TestClinetTask {
  public:
   DoAuthentication(td::string name, td::string phone, td::string code, td::Promise<> promise)
       : name_(std::move(name)), phone_(std::move(phone)), code_(std::move(code)), promise_(std::move(promise)) {
   }
-  void start_up() override {
+  void start_up() final {
     send_query(td::make_tl_object<td::td_api::getAuthorizationState>(),
                [this](auto res) { this->process_authorization_state(std::move(res)); });
   }
@@ -260,7 +259,7 @@ class DoAuthentication : public Task {
   td::Promise<> promise_;
   bool start_flag_{false};
 
-  void process_update(std::shared_ptr<TestClient::Update> update) override {
+  void process_update(std::shared_ptr<TestClient::Update> update) final {
     if (!start_flag_) {
       return;
     }
@@ -274,7 +273,7 @@ class DoAuthentication : public Task {
   }
 };
 
-class SetUsername : public Task {
+class SetUsername final : public TestClinetTask {
  public:
   SetUsername(td::string username, td::Promise<> promise)
       : username_(std::move(username)), promise_(std::move(promise)) {
@@ -283,10 +282,10 @@ class SetUsername : public Task {
  private:
   td::string username_;
   td::Promise<> promise_;
-  td::int32 self_id_ = 0;
+  td::int64 self_id_ = 0;
   td::string tag_;
 
-  void start_up() override {
+  void start_up() final {
     send_query(td::make_tl_object<td::td_api::getMe>(), [this](auto res) { this->process_me_user(std::move(res)); });
   }
 
@@ -320,7 +319,7 @@ class SetUsername : public Task {
     });
   }
 
-  void process_update(std::shared_ptr<TestClient::Update> update) override {
+  void process_update(std::shared_ptr<TestClient::Update> update) final {
     if (!update->object) {
       return;
     }
@@ -339,7 +338,7 @@ class SetUsername : public Task {
   }
 };
 
-class CheckTestA : public Task {
+class CheckTestA final : public TestClinetTask {
  public:
   CheckTestA(td::string tag, td::Promise<> promise) : tag_(std::move(tag)), promise_(std::move(promise)) {
   }
@@ -350,7 +349,7 @@ class CheckTestA : public Task {
   td::string previous_text_;
   int cnt_ = 20;
 
-  void process_update(std::shared_ptr<TestClient::Update> update) override {
+  void process_update(std::shared_ptr<TestClient::Update> update) final {
     if (update->object->get_id() == td::td_api::updateNewMessage::ID) {
       auto updateNewMessage = td::move_tl_object_as<td::td_api::updateNewMessage>(update->object);
       auto &message = updateNewMessage->message_;
@@ -371,12 +370,12 @@ class CheckTestA : public Task {
   }
 };
 
-class TestA : public Task {
+class TestA final : public TestClinetTask {
  public:
   TestA(td::string tag, td::string username) : tag_(std::move(tag)), username_(std::move(username)) {
   }
 
-  void start_up() override {
+  void start_up() final {
     send_query(td::make_tl_object<td::td_api::searchPublicChat>(username_), [this](auto res) {
       CHECK(res->get_id() == td::td_api::chat::ID);
       auto chat = td::move_tl_object_as<td::td_api::chat>(res);
@@ -397,12 +396,12 @@ class TestA : public Task {
   td::string username_;
 };
 
-class TestSecretChat : public Task {
+class TestSecretChat final : public TestClinetTask {
  public:
   TestSecretChat(td::string tag, td::string username) : tag_(std::move(tag)), username_(std::move(username)) {
   }
 
-  void start_up() override {
+  void start_up() final {
     auto f = [this](auto res) {
       CHECK(res->get_id() == td::td_api::chat::ID);
       auto chat = td::move_tl_object_as<td::td_api::chat>(res);
@@ -418,7 +417,7 @@ class TestSecretChat : public Task {
     });
   }
 
-  void process_update(std::shared_ptr<TestClient::Update> update) override {
+  void process_update(std::shared_ptr<TestClient::Update> update) final {
     if (!update->object) {
       return;
     }
@@ -448,15 +447,15 @@ class TestSecretChat : public Task {
   td::int64 chat_id_ = 0;
 };
 
-class TestFileGenerated : public Task {
+class TestFileGenerated final : public TestClinetTask {
  public:
   TestFileGenerated(td::string tag, td::string username) : tag_(std::move(tag)), username_(std::move(username)) {
   }
 
-  void start_up() override {
+  void start_up() final {
   }
 
-  void process_update(std::shared_ptr<TestClient::Update> update) override {
+  void process_update(std::shared_ptr<TestClient::Update> update) final {
     if (!update->object) {
       return;
     }
@@ -512,9 +511,9 @@ class TestFileGenerated : public Task {
                [](auto res) { check_td_error(res); });
   }
 
-  class GenerateFile : public td::Actor {
+  class GenerateFile final : public td::Actor {
    public:
-    GenerateFile(Task *parent, td::int64 id, td::string original_path, td::string destination_path,
+    GenerateFile(TestClinetTask *parent, td::int64 id, td::string original_path, td::string destination_path,
                  td::string conversion)
         : parent_(parent)
         , id_(id)
@@ -524,7 +523,7 @@ class TestFileGenerated : public Task {
     }
 
    private:
-    Task *parent_;
+    TestClinetTask *parent_;
     td::int64 id_;
     td::string original_path_;
     td::string destination_path_;
@@ -533,7 +532,7 @@ class TestFileGenerated : public Task {
     FILE *from = nullptr;
     FILE *to = nullptr;
 
-    void start_up() override {
+    void start_up() final {
       from = std::fopen(original_path_.c_str(), "rb");
       CHECK(from);
       to = std::fopen(destination_path_.c_str(), "wb");
@@ -541,7 +540,7 @@ class TestFileGenerated : public Task {
       yield();
     }
 
-    void loop() override {
+    void loop() final {
       int cnt = 0;
       while (true) {
         td::uint32 x;
@@ -561,7 +560,7 @@ class TestFileGenerated : public Task {
                           [](auto result) { check_td_error(result); });
       set_timeout_in(0.02);
     }
-    void tear_down() override {
+    void tear_down() final {
       std::fclose(from);
       std::fclose(to);
       parent_->send_query(td::make_tl_object<td::td_api::finishFileGeneration>(id_, nullptr),
@@ -569,7 +568,8 @@ class TestFileGenerated : public Task {
     }
   };
 
-  void generate_file(td::int64 id, td::string original_path, td::string destination_path, td::string conversion) {
+  void generate_file(td::int64 id, const td::string &original_path, const td::string &destination_path,
+                     const td::string &conversion) {
     LOG(ERROR) << "Generate file " << td::tag("id", id) << td::tag("original_path", original_path)
                << td::tag("destination_path", destination_path) << td::tag("conversion", conversion);
     if (conversion == "square") {
@@ -589,13 +589,13 @@ class TestFileGenerated : public Task {
   td::int64 chat_id_ = 0;
 };
 
-class CheckTestC : public Task {
+class CheckTestC final : public TestClinetTask {
  public:
   CheckTestC(td::string username, td::string tag, td::Promise<> promise)
       : username_(std::move(username)), tag_(std::move(tag)), promise_(std::move(promise)) {
   }
 
-  void start_up() override {
+  void start_up() final {
     send_query(td::make_tl_object<td::td_api::searchPublicChat>(username_), [this](auto res) {
       CHECK(res->get_id() == td::td_api::chat::ID);
       auto chat = td::move_tl_object_as<td::td_api::chat>(res);
@@ -619,7 +619,7 @@ class CheckTestC : public Task {
                [](auto res) { check_td_error(res); });
   }
 
-  void process_update(std::shared_ptr<TestClient::Update> update) override {
+  void process_update(std::shared_ptr<TestClient::Update> update) final {
     if (!update->object) {
       return;
     }
@@ -659,7 +659,7 @@ class CheckTestC : public Task {
   td::int32 file_id_to_check_ = 0;
 };
 
-class LoginTestActor : public td::Actor {
+class LoginTestActor final : public td::Actor {
  public:
   explicit LoginTestActor(td::Status *status) : status_(status) {
     *status_ = td::Status::OK();
@@ -683,7 +683,7 @@ class LoginTestActor : public td::Actor {
     set_timeout_in(timeout);
   }
 
-  void start_up() override {
+  void start_up() final {
     begin_stage("Logging in", 160);
     alice_ = td::create_actor<TestClient>("AliceClient", "alice");
     bob_ = td::create_actor<TestClient>("BobClient", "bob");
@@ -706,14 +706,14 @@ class LoginTestActor : public td::Actor {
       init();
     } else if (start_up_fence_ == 1) {
       return init();
-      class WaitActor : public td::Actor {
+      class WaitActor final : public td::Actor {
        public:
         WaitActor(double timeout, td::Promise<> promise) : timeout_(timeout), promise_(std::move(promise)) {
         }
-        void start_up() override {
+        void start_up() final {
           set_timeout_in(timeout_);
         }
-        void timeout_expired() override {
+        void timeout_expired() final {
           stop();
         }
 
@@ -767,7 +767,7 @@ class LoginTestActor : public td::Actor {
     // td::send_closure(alice_, &TestClient::add_listener, td::make_unique<TestChat>(bob_username_));
   }
 
-  void timeout_expired() override {
+  void timeout_expired() final {
     LOG(FATAL) << "Timeout expired in stage '" << stage_name_ << "'";
   }
 
@@ -823,12 +823,11 @@ class LoginTestActor : public td::Actor {
   }
 };
 
-class Tdclient_login : public td::Test {
+class Tdclient_login final : public td::Test {
  public:
   using Test::Test;
   bool step() final {
     if (!is_inited_) {
-      SET_VERBOSITY_LEVEL(VERBOSITY_NAME(DEBUG) + 2);
       sched_.init(4);
       sched_.create_actor_unsafe<LoginTestActor>(0, "LoginTestActor", &result_).release();
       sched_.start();
@@ -936,7 +935,11 @@ TEST(Client, Multi) {
 TEST(Client, Manager) {
   td::vector<td::thread> threads;
   td::ClientManager client;
+#if !TD_EVENTFD_UNSUPPORTED  // Client must be used from a single thread if there is no EventFd
   int threads_n = 4;
+#else
+  int threads_n = 1;
+#endif
   int clients_n = 1000;
   client.send(0, 3, td::make_tl_object<td::td_api::testSquareInt>(3));
   client.send(-1, 3, td::make_tl_object<td::td_api::testSquareInt>(3));
@@ -969,6 +972,7 @@ TEST(Client, Manager) {
   }
 }
 
+#if !TD_EVENTFD_UNSUPPORTED  // Client must be used from a single thread if there is no EventFd
 TEST(Client, Close) {
   std::atomic<bool> stop_send{false};
   std::atomic<bool> can_stop_receive{false};
@@ -1092,6 +1096,7 @@ TEST(Client, ManagerClose) {
   ASSERT_EQ(send_count.load(), receive_count.load());
   ASSERT_TRUE(request_ids.empty());
 }
+#endif
 #endif
 
 TEST(Client, ManagerCloseOneThread) {

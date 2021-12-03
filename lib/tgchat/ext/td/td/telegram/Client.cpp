@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -12,6 +12,7 @@
 #include "td/actor/actor.h"
 #include "td/actor/ConcurrentScheduler.h"
 
+#include "td/utils/algorithm.h"
 #include "td/utils/common.h"
 #include "td/utils/crypto.h"
 #include "td/utils/ExitGuard.h"
@@ -20,6 +21,7 @@
 #include "td/utils/MpscPollableQueue.h"
 #include "td/utils/port/RwMutex.h"
 #include "td/utils/port/thread.h"
+#include "td/utils/Slice.h"
 
 #include <algorithm>
 #include <atomic>
@@ -45,21 +47,21 @@ class TdReceiver {
   }
 
   unique_ptr<TdCallback> create_callback(ClientManager::ClientId client_id) {
-    class Callback : public TdCallback {
+    class Callback final : public TdCallback {
      public:
       Callback(ClientManager::ClientId client_id, TdReceiver *impl) : client_id_(client_id), impl_(impl) {
       }
-      void on_result(uint64 id, td_api::object_ptr<td_api::Object> result) override {
+      void on_result(uint64 id, td_api::object_ptr<td_api::Object> result) final {
         impl_->responses_.push({client_id_, id, std::move(result)});
       }
-      void on_error(uint64 id, td_api::object_ptr<td_api::error> error) override {
+      void on_error(uint64 id, td_api::object_ptr<td_api::error> error) final {
         impl_->responses_.push({client_id_, id, std::move(error)});
       }
       Callback(const Callback &) = delete;
       Callback &operator=(const Callback &) = delete;
       Callback(Callback &&) = delete;
       Callback &operator=(Callback &&) = delete;
-      ~Callback() override {
+      ~Callback() final {
         impl_->responses_.push({client_id_, 0, nullptr});
       }
 
@@ -127,7 +129,7 @@ class ClientManager::Impl final {
     }
 
     auto response = receiver_.receive(0);
-    if (response.client_id == 0 && concurrent_scheduler_ != nullptr) {
+    if (response.client_id == 0 && response.request_id == 0 && concurrent_scheduler_ != nullptr) {
       concurrent_scheduler_->run_main(0);
       response = receiver_.receive(0);
     } else {
@@ -186,7 +188,9 @@ class ClientManager::Impl final {
     while (!tds_.empty() && !ExitGuard::is_exited()) {
       receive(0.1);
     }
-    concurrent_scheduler_->finish();
+    if (concurrent_scheduler_ != nullptr) {
+      concurrent_scheduler_->finish();
+    }
   }
 
  private:
@@ -229,7 +233,7 @@ class Client::Impl final {
 
 #else
 
-class MultiTd : public Actor {
+class MultiTd final : public Actor {
  public:
   explicit MultiTd(Td::Options options) : options_(std::move(options)) {
   }
@@ -276,7 +280,7 @@ class TdReceiver {
     if (is_locked) {
       LOG(FATAL) << "Receive is called after Client destroy, or simultaneously from different threads";
     }
-    auto response = receive_unlocked(timeout);
+    auto response = receive_unlocked(clamp(timeout, 0.0, 1000000.0));
     is_locked = receive_lock_.exchange(false);
     CHECK(is_locked);
     VLOG(td_requests) << "End to wait for updates, returning object " << response.request_id << ' '
@@ -285,22 +289,22 @@ class TdReceiver {
   }
 
   unique_ptr<TdCallback> create_callback(ClientManager::ClientId client_id) {
-    class Callback : public TdCallback {
+    class Callback final : public TdCallback {
      public:
       explicit Callback(ClientManager::ClientId client_id, std::shared_ptr<OutputQueue> output_queue)
           : client_id_(client_id), output_queue_(std::move(output_queue)) {
       }
-      void on_result(uint64 id, td_api::object_ptr<td_api::Object> result) override {
+      void on_result(uint64 id, td_api::object_ptr<td_api::Object> result) final {
         output_queue_->writer_put({client_id_, id, std::move(result)});
       }
-      void on_error(uint64 id, td_api::object_ptr<td_api::error> error) override {
+      void on_error(uint64 id, td_api::object_ptr<td_api::error> error) final {
         output_queue_->writer_put({client_id_, id, std::move(error)});
       }
       Callback(const Callback &) = delete;
       Callback &operator=(const Callback &) = delete;
       Callback(Callback &&) = delete;
       Callback &operator=(Callback &&) = delete;
-      ~Callback() override {
+      ~Callback() final {
         output_queue_->writer_put({client_id_, 0, nullptr});
       }
 
@@ -339,9 +343,11 @@ class TdReceiver {
 
 class MultiImpl {
  public:
+  static constexpr int32 ADDITIONAL_THREAD_COUNT = 3;
+
   explicit MultiImpl(std::shared_ptr<NetQueryStats> net_query_stats) {
     concurrent_scheduler_ = std::make_shared<ConcurrentScheduler>();
-    concurrent_scheduler_->init(3);
+    concurrent_scheduler_->init(ADDITIONAL_THREAD_COUNT);
     concurrent_scheduler_->start();
 
     {
@@ -418,7 +424,8 @@ class MultiImplPool {
     if (impls_.empty()) {
       init_openssl_threads();
 
-      impls_.resize(clamp(thread::hardware_concurrency(), 8u, 24u) * 5 / 4);
+      impls_.resize(clamp(thread::hardware_concurrency(), 8u, 20u) * 5 / 4);
+      CHECK(impls_.size() * (1 + MultiImpl::ADDITIONAL_THREAD_COUNT + 1 /* IOCP */) < 128);
 
       net_query_stats_ = std::make_shared<NetQueryStats>();
     }
@@ -635,9 +642,9 @@ Client::Response Client::execute(Request &&request) {
   return response;
 }
 
+Client::Client(Client &&other) noexcept = default;
+Client &Client::operator=(Client &&other) noexcept = default;
 Client::~Client() = default;
-Client::Client(Client &&other) = default;
-Client &Client::operator=(Client &&other) = default;
 
 ClientManager::ClientManager() : impl_(std::make_unique<Impl>()) {
 }
@@ -658,9 +665,28 @@ td_api::object_ptr<td_api::Object> ClientManager::execute(td_api::object_ptr<td_
   return Td::static_request(std::move(request));
 }
 
+static std::atomic<ClientManager::LogMessageCallbackPtr> log_message_callback;
+
+static void log_message_callback_wrapper(int verbosity_level, CSlice message) {
+  auto callback = log_message_callback.load(std::memory_order_relaxed);
+  if (callback != nullptr) {
+    callback(verbosity_level, message.c_str());
+  }
+}
+
+void ClientManager::set_log_message_callback(int max_verbosity_level, LogMessageCallbackPtr callback) {
+  if (callback == nullptr) {
+    ::td::set_log_message_callback(max_verbosity_level, nullptr);
+    log_message_callback = nullptr;
+  } else {
+    log_message_callback = callback;
+    ::td::set_log_message_callback(max_verbosity_level, log_message_callback_wrapper);
+  }
+}
+
+ClientManager::ClientManager(ClientManager &&other) noexcept = default;
+ClientManager &ClientManager::operator=(ClientManager &&other) noexcept = default;
 ClientManager::~ClientManager() = default;
-ClientManager::ClientManager(ClientManager &&other) = default;
-ClientManager &ClientManager::operator=(ClientManager &&other) = default;
 
 ClientManager *ClientManager::get_manager_singleton() {
   static ClientManager client_manager;

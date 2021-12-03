@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -39,14 +39,14 @@ class TlObject {
    * Appends the object to the storer serializing object, a buffer of fixed length.
    * \param[in] s Storer to which the object will be appended.
    */
-  virtual void store(TlStorerUnsafe &) const {
+  virtual void store(TlStorerUnsafe &s) const {
   }
 
   /**
    * Appends the object to the storer, calculating the TL-length of the serialized object.
    * \param[in] s Storer to which the object will be appended.
    */
-  virtual void store(TlStorerCalcLength &) const {
+  virtual void store(TlStorerCalcLength &s) const {
   }
 
   /**

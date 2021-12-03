@@ -1,17 +1,17 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
-#include "tl_generate.h"
+#include "td/tl/tl_generate.h"
 
-#include "tl_config.h"
-#include "tl_core.h"
-#include "tl_file_utils.h"
-#include "tl_outputer.h"
-#include "tl_string_outputer.h"
-#include "tl_writer.h"
+#include "td/tl/tl_config.h"
+#include "td/tl/tl_core.h"
+#include "td/tl/tl_file_utils.h"
+#include "td/tl/tl_outputer.h"
+#include "td/tl/tl_string_outputer.h"
+#include "td/tl/tl_writer.h"
 
 #include <cassert>
 #include <cstdint>
@@ -248,15 +248,15 @@ static void write_function(tl_outputer &out, const tl_combinator *t, const std::
   out.append(w.gen_class_begin(class_name, w.gen_base_function_class_name(), false));
 
   int required_args = gen_field_definitions(out, t, class_name, w);
-  out.append(w.gen_flags_definitions(t));
+  out.append(w.gen_flags_definitions(t, true));
 
   std::vector<var_description> vars(t->var_count);
   out.append(w.gen_function_vars(t, vars));
 
-  if (w.is_default_constructor_generated(t, true)) {
+  if (w.is_default_constructor_generated(t, false, true)) {
     write_class_constructor(out, t, class_name, true, w);
   }
-  if (required_args) {
+  if (required_args && w.is_full_constructor_generated(t, false, true)) {
     write_class_constructor(out, t, class_name, false, w);
   }
 
@@ -304,12 +304,40 @@ static void write_constructor(tl_outputer &out, const tl_combinator *t, const st
 
   out.append(w.gen_class_begin(class_name, base_class, is_proxy));
   int required_args = gen_field_definitions(out, t, class_name, w);
-  out.append(w.gen_flags_definitions(t));
 
-  if (w.is_default_constructor_generated(t, false)) {
+  bool can_be_parsed = false;
+  bool is_can_be_parsed_inited = false;
+  std::vector<std::string> parsers = w.get_parsers();
+  for (std::size_t i = 0; i < parsers.size(); i++) {
+    int parser_type = w.get_parser_type(t, parsers[i]);
+    if (w.get_parser_mode(parser_type) != TL_writer::All) {
+      can_be_parsed |= is_reachable_for_parser(parser_type, t->name, request_types, result_types, w);
+      is_can_be_parsed_inited = true;
+    }
+  }
+  if (!is_can_be_parsed_inited) {
+    can_be_parsed = true;
+  }
+
+  bool can_be_stored = false;
+  bool is_can_be_stored_inited = false;
+  std::vector<std::string> storers = w.get_storers();
+  for (std::size_t i = 0; i < storers.size(); i++) {
+    int storer_type = w.get_storer_type(t, storers[i]);
+    if (w.get_storer_mode(storer_type) != TL_writer::All) {
+      can_be_stored |= is_reachable_for_storer(storer_type, t->name, request_types, result_types, w);
+      is_can_be_stored_inited = true;
+    }
+  }
+  if (!is_can_be_stored_inited) {
+    can_be_stored = true;
+  }
+
+  out.append(w.gen_flags_definitions(t, can_be_stored));
+  if (w.is_default_constructor_generated(t, can_be_parsed, can_be_stored)) {
     write_class_constructor(out, t, class_name, true, w);
   }
-  if (required_args) {
+  if (required_args && w.is_full_constructor_generated(t, can_be_parsed, can_be_stored)) {
     write_class_constructor(out, t, class_name, false, w);
   }
 
@@ -319,7 +347,6 @@ static void write_constructor(tl_outputer &out, const tl_combinator *t, const st
   assert(t->result->get_type() == NODE_TYPE_TYPE);
   const tl_tree_type *result_type = static_cast<const tl_tree_type *>(t->result);
 
-  std::vector<std::string> parsers = w.get_parsers();
   for (std::size_t i = 0; i < parsers.size(); i++) {
     write_constructor_fetch(out, parsers[i], t, class_name, parent_class, result_type,
                             required_args == 1 && result_type->type->simple_constructors == 1, request_types,
@@ -327,7 +354,6 @@ static void write_constructor(tl_outputer &out, const tl_combinator *t, const st
   }
 
   //  STORER
-  std::vector<std::string> storers = w.get_storers();
   for (std::size_t i = 0; i < storers.size(); i++) {
     write_constructor_store(out, storers[i], t, class_name, result_type,
                             required_args == 1 && result_type->type->simple_constructors == 1, request_types,
@@ -831,7 +857,7 @@ bool write_tl_to_file(const tl_config &config, const std::string &file_name, con
   tl_string_outputer out;
   write_tl(config, out, w);
 
-  auto old_file_contents = get_file_contents(file_name, "rb");
+  std::string old_file_contents = get_file_contents(file_name, "rb");
   if (!w.is_documentation_generated()) {
     old_file_contents = remove_documentation(old_file_contents);
   }

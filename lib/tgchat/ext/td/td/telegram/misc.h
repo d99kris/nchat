@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -7,8 +7,6 @@
 #pragma once
 
 #include "td/utils/common.h"
-#include "td/utils/Slice.h"
-#include "td/utils/Status.h"
 
 namespace td {
 
@@ -31,15 +29,9 @@ string strip_empty_characters(string str, size_t max_length, bool strip_rtlo = f
 bool is_empty_string(const string &str) TD_WARN_UNUSED_RESULT;
 
 // calculates hash of list of uint32
-int32 get_vector_hash(const vector<uint32> &numbers) TD_WARN_UNUSED_RESULT;
+int64 get_vector_hash(const vector<uint64> &numbers) TD_WARN_UNUSED_RESULT;
 
 // returns emoji corresponding to the specified number
 string get_emoji_fingerprint(uint64 num);
-
-// checks whether url is a valid tg, ton or HTTP(S) URL and returns its in a canonical form
-Result<string> check_url(Slice url);
-
-// removes all emoji modifiers
-string remove_emoji_modifiers(string emoji);
 
 }  // namespace td

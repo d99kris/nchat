@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,9 +11,9 @@
 #include "td/telegram/NotificationGroupId.h"
 #include "td/telegram/NotificationGroupKey.h"
 
-#include "td/actor/PromiseFuture.h"
-
 #include "td/db/KeyValueSyncInterface.h"
+
+#include "td/actor/PromiseFuture.h"
 
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
@@ -55,7 +55,8 @@ class DialogDbSyncInterface {
 
   virtual Result<int32> get_secret_chat_count(FolderId folder_id) = 0;
 
-  virtual Status begin_transaction() = 0;
+  virtual Status begin_read_transaction() = 0;
+  virtual Status begin_write_transaction() = 0;
   virtual Status commit_transaction() = 0;
 };
 

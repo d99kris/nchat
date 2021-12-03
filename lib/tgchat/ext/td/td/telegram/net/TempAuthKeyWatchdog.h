@@ -1,18 +1,17 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #pragma once
 
-#include "td/actor/actor.h"
-
 #include "td/telegram/Global.h"
 #include "td/telegram/net/NetQueryCreator.h"
 #include "td/telegram/net/NetQueryDispatcher.h"
-
 #include "td/telegram/telegram_api.h"
+
+#include "td/actor/actor.h"
 
 #include "td/utils/common.h"
 #include "td/utils/format.h"
@@ -23,7 +22,7 @@
 
 namespace td {
 
-class TempAuthKeyWatchdog : public NetQueryCallback {
+class TempAuthKeyWatchdog final : public NetQueryCallback {
   class RegisteredAuthKeyImpl {
    public:
     explicit RegisteredAuthKeyImpl(int64 auth_key_id)
@@ -96,7 +95,7 @@ class TempAuthKeyWatchdog : public NetQueryCallback {
     set_timeout_at(min(sync_at_, now + SYNC_WAIT));
   }
 
-  void timeout_expired() override {
+  void timeout_expired() final {
     LOG(DEBUG) << "Sync timeout expired";
     CHECK(!run_sync_);
     if (!need_sync_) {

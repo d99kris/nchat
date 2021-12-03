@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -15,6 +15,7 @@
 #include "td/utils/port/thread_local.h"
 #include "td/utils/ScopeGuard.h"
 #include "td/utils/Slice.h"
+#include "td/utils/SliceBuilder.h"
 #include "td/utils/utf8.h"
 
 #if TD_WINDOWS
@@ -85,7 +86,7 @@ static void punycode(string &result, Slice part) {
 
       if (code == next_n) {
         // found next symbol, encode delta
-        int left = static_cast<int>(delta);
+        auto left = static_cast<int>(delta);
         while (true) {
           bias += 36;
           auto t = clamp(bias, 1, 26);
@@ -499,6 +500,9 @@ Status IPAddress::init_sockaddr(sockaddr *addr, socklen_t len) {
 
 Status IPAddress::init_socket_address(const SocketFd &socket_fd) {
   is_valid_ = false;
+  if (socket_fd.empty()) {
+    return Status::Error("Socket is empty");
+  }
   auto socket = socket_fd.get_native_fd().socket();
   socklen_t len = storage_size();
   int ret = getsockname(socket, &sockaddr_, &len);
@@ -511,6 +515,9 @@ Status IPAddress::init_socket_address(const SocketFd &socket_fd) {
 
 Status IPAddress::init_peer_address(const SocketFd &socket_fd) {
   is_valid_ = false;
+  if (socket_fd.empty()) {
+    return Status::Error("Socket is empty");
+  }
   auto socket = socket_fd.get_native_fd().socket();
   socklen_t len = storage_size();
   int ret = getpeername(socket, &sockaddr_, &len);

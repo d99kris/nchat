@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -14,8 +14,6 @@
 #include <cstdio>
 #include <set>
 #include <utility>
-
-REGISTER_TESTS(heap)
 
 TEST(Heap, sort_random_perm) {
   int n = 1000000;
@@ -35,7 +33,7 @@ TEST(Heap, sort_random_perm) {
     ASSERT_EQ(i, kheap.top_key());
     kheap.pop();
   }
-};
+}
 
 class CheckedHeap {
  public:
@@ -137,7 +135,7 @@ class CheckedHeap {
   }
 
  private:
-  struct Node : public td::HeapNode {
+  struct Node final : public td::HeapNode {
     Node() = default;
     Node(int key, int value) : key(key), value(value) {
     }

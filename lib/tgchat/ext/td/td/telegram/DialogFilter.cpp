@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -7,11 +7,11 @@
 #include "td/telegram/DialogFilter.h"
 
 #include "td/telegram/DialogId.h"
-#include "td/telegram/misc.h"
 
+#include "td/utils/algorithm.h"
+#include "td/utils/emoji.h"
 #include "td/utils/format.h"
 #include "td/utils/logging.h"
-#include "td/utils/misc.h"
 
 #include <unordered_set>
 
@@ -90,15 +90,15 @@ Status DialogFilter::check_limits() const {
 
   if (excluded_server_dialog_count > MAX_INCLUDED_FILTER_DIALOGS ||
       excluded_secret_dialog_count > MAX_INCLUDED_FILTER_DIALOGS) {
-    return Status::Error(400, "Maximum number of excluded chats exceeded");
+    return Status::Error(400, "The maximum number of excluded chats exceeded");
   }
   if (included_server_dialog_count > MAX_INCLUDED_FILTER_DIALOGS ||
       included_secret_dialog_count > MAX_INCLUDED_FILTER_DIALOGS) {
-    return Status::Error(400, "Maximum number of included chats exceeded");
+    return Status::Error(400, "The maximum number of included chats exceeded");
   }
   if (included_server_dialog_count + pinned_server_dialog_count > MAX_INCLUDED_FILTER_DIALOGS ||
       included_secret_dialog_count + pinned_secret_dialog_count > MAX_INCLUDED_FILTER_DIALOGS) {
-    return Status::Error(400, "Maximum number of pinned chats exceeded");
+    return Status::Error(400, "The maximum number of pinned chats exceeded");
   }
 
   if (is_empty(false)) {
@@ -273,27 +273,27 @@ unique_ptr<DialogFilter> DialogFilter::merge_dialog_filter_changes(const DialogF
 
     // merge additions and deletions from other clients to the local changes
     std::unordered_set<DialogId, DialogIdHash> deleted_dialog_ids;
-    for (auto old_dialog_id : old_server_dialog_ids) {
+    for (const auto &old_dialog_id : old_server_dialog_ids) {
       deleted_dialog_ids.insert(old_dialog_id.get_dialog_id());
     }
     std::unordered_set<DialogId, DialogIdHash> added_dialog_ids;
-    for (auto new_dialog_id : new_server_dialog_ids) {
+    for (const auto &new_dialog_id : new_server_dialog_ids) {
       auto dialog_id = new_dialog_id.get_dialog_id();
       if (deleted_dialog_ids.erase(dialog_id) == 0) {
         added_dialog_ids.insert(dialog_id);
       }
     }
     vector<InputDialogId> result;
-    for (auto input_dialog_id : new_dialog_ids) {
+    for (const auto &input_dialog_id : new_dialog_ids) {
       // do not add dialog twice
       added_dialog_ids.erase(input_dialog_id.get_dialog_id());
     }
-    for (auto new_dialog_id : new_server_dialog_ids) {
+    for (const auto &new_dialog_id : new_server_dialog_ids) {
       if (added_dialog_ids.count(new_dialog_id.get_dialog_id()) == 1) {
         result.push_back(new_dialog_id);
       }
     }
-    for (auto input_dialog_id : new_dialog_ids) {
+    for (const auto &input_dialog_id : new_dialog_ids) {
       if (deleted_dialog_ids.count(input_dialog_id.get_dialog_id()) == 0) {
         result.push_back(input_dialog_id);
       }
@@ -401,8 +401,9 @@ void DialogFilter::init_icon_names() {
                               "Mask",  "Party",  "Sport",   "Study",    "Trade",    "Travel", "Work"};
     CHECK(emojis.size() == icon_names.size());
     for (size_t i = 0; i < emojis.size(); i++) {
-      emoji_to_icon_name_[remove_emoji_modifiers(emojis[i])] = icon_names[i];
-      icon_name_to_emoji_[icon_names[i]] = remove_emoji_modifiers(emojis[i]);
+      remove_emoji_modifiers_in_place(emojis[i]);
+      emoji_to_icon_name_[emojis[i]] = icon_names[i];
+      icon_name_to_emoji_[icon_names[i]] = emojis[i];
     }
     return true;
   }();

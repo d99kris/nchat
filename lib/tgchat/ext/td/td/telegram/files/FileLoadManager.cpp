@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2020
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -8,11 +8,12 @@
 
 #include "td/telegram/Global.h"
 #include "td/telegram/net/DcId.h"
+#include "td/telegram/TdParameters.h"
 
 #include "td/utils/common.h"
 #include "td/utils/filesystem.h"
 #include "td/utils/format.h"
-#include "td/utils/logging.h"
+#include "td/utils/SliceBuilder.h"
 
 namespace td {
 
@@ -142,7 +143,7 @@ void FileLoadManager::cancel(QueryId id) {
   if (it == query_id_to_node_id_.end()) {
     return;
   }
-  on_error_impl(it->second, Status::Error(1, "Cancelled"));
+  on_error_impl(it->second, Status::Error(1, "Canceled"));
 }
 void FileLoadManager::update_local_file_location(QueryId id, const LocalFileLocation &local) {
   if (stop_flag_) {
@@ -191,14 +192,15 @@ void FileLoadManager::on_start_download() {
   }
 }
 
-void FileLoadManager::on_partial_download(const PartialLocalFileLocation &partial_local, int64 ready_size, int64 size) {
+void FileLoadManager::on_partial_download(PartialLocalFileLocation partial_local, int64 ready_size, int64 size) {
   auto node_id = get_link_token();
   auto node = nodes_container_.get(node_id);
   if (node == nullptr) {
     return;
   }
   if (!stop_flag_) {
-    send_closure(callback_, &Callback::on_partial_download, node->query_id_, partial_local, ready_size, size);
+    send_closure(callback_, &Callback::on_partial_download, node->query_id_, std::move(partial_local), ready_size,
+                 size);
   }
 }
 
@@ -213,51 +215,51 @@ void FileLoadManager::on_hash(string hash) {
   }
 }
 
-void FileLoadManager::on_partial_upload(const PartialRemoteFileLocation &partial_remote, int64 ready_size) {
+void FileLoadManager::on_partial_upload(PartialRemoteFileLocation partial_remote, int64 ready_size) {
   auto node_id = get_link_token();
   auto node = nodes_container_.get(node_id);
   if (node == nullptr) {
     return;
   }
   if (!stop_flag_) {
-    send_closure(callback_, &Callback::on_partial_upload, node->query_id_, partial_remote, ready_size);
+    send_closure(callback_, &Callback::on_partial_upload, node->query_id_, std::move(partial_remote), ready_size);
   }
 }
 
-void FileLoadManager::on_ok_download(const FullLocalFileLocation &local, int64 size, bool is_new) {
+void FileLoadManager::on_ok_download(FullLocalFileLocation local, int64 size, bool is_new) {
   auto node_id = get_link_token();
   auto node = nodes_container_.get(node_id);
   if (node == nullptr) {
     return;
   }
   if (!stop_flag_) {
-    send_closure(callback_, &Callback::on_download_ok, node->query_id_, local, size, is_new);
+    send_closure(callback_, &Callback::on_download_ok, node->query_id_, std::move(local), size, is_new);
   }
   close_node(node_id);
   loop();
 }
 
-void FileLoadManager::on_ok_upload(FileType file_type, const PartialRemoteFileLocation &remote, int64 size) {
+void FileLoadManager::on_ok_upload(FileType file_type, PartialRemoteFileLocation remote, int64 size) {
   auto node_id = get_link_token();
   auto node = nodes_container_.get(node_id);
   if (node == nullptr) {
     return;
   }
   if (!stop_flag_) {
-    send_closure(callback_, &Callback::on_upload_ok, node->query_id_, file_type, remote, size);
+    send_closure(callback_, &Callback::on_upload_ok, node->query_id_, file_type, std::move(remote), size);
   }
   close_node(node_id);
   loop();
 }
 
-void FileLoadManager::on_ok_upload_full(const FullRemoteFileLocation &remote) {
+void FileLoadManager::on_ok_upload_full(FullRemoteFileLocation remote) {
   auto node_id = get_link_token();
   auto node = nodes_container_.get(node_id);
   if (node == nullptr) {
     return;
   }
   if (!stop_flag_) {
-    send_closure(callback_, &Callback::on_upload_full_ok, node->query_id_, remote);
+    send_closure(callback_, &Callback::on_upload_full_ok, node->query_id_, std::move(remote));
   }
   close_node(node_id);
   loop();
@@ -283,7 +285,7 @@ void FileLoadManager::on_error_impl(NodeId node_id, Status status) {
 
 void FileLoadManager::hangup_shared() {
   auto node_id = get_link_token();
-  on_error_impl(node_id, Status::Error(1, "Cancelled"));
+  on_error_impl(node_id, Status::Error(1, "Canceled"));
 }
 
 void FileLoadManager::loop() {
