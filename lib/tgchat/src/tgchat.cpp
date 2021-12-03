@@ -105,7 +105,12 @@ bool TgChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_Profi
 
   Cleanup();
 
-  return true;
+  if (!m_IsSetup)
+  {
+    apathy::Path::rmdirs(apathy::Path(m_ProfileDir));
+  }
+
+  return m_IsSetup;
 }
 
 bool TgChat::LoadProfile(const std::string& p_ProfilesDir, const std::string& p_ProfileId)
@@ -1093,6 +1098,13 @@ void TgChat::CheckAuthError(Object object)
   {
     auto error = td::move_tl_object_as<td::td_api::error>(object);
     LOG_WARNING("auth error \"%s\"", to_string(error).c_str());
+    if (m_IsSetup)
+    {
+      std::cout << "Authentication error: " << error->message_ << "\n";
+      m_IsSetup = false;
+    }
+
+    m_Running = false;
     OnAuthStateUpdate();
   }
 }

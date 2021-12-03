@@ -322,6 +322,10 @@ bool SetupProfile()
   {
     std::cout << "Succesfully set up profile " << profileId << "\n";
   }
+  else
+  {
+    std::cout << "Setup failed\n";
+  }
 
   return rv;
 }
