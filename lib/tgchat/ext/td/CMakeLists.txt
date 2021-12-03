@@ -775,6 +775,12 @@ target_include_directories(tdclient PUBLIC
 )
 target_link_libraries(tdclient PUBLIC tdapi PRIVATE tdcore)
 
+add_library(tdclientshared SHARED td/telegram/Client.cpp td/telegram/Client.h td/telegram/Log.cpp td/telegram/Log.h)
+target_include_directories(tdclientshared PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+ )
+target_link_libraries(tdclientshared PUBLIC tdcore)
+
 if (TD_ENABLE_DOTNET)
   add_library(tddotnet SHARED
     td/telegram/ClientDotNet.cpp
