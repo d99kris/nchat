@@ -459,7 +459,7 @@ void TgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
           auto message_content = td::td_api::make_object<td::td_api::inputMessageText>();
 
           static const bool markdownEnabled = (m_Config.Get("markdown_enabled") == "1");
-          static const int markdownVersion = (m_Config.Get("markdown_version") == "1") ? 1 : 2;
+          static const int32_t markdownVersion = (m_Config.Get("markdown_version") == "1") ? 1 : 2;
           if (markdownEnabled)
           {
             const std::string text = sendMessageRequest->chatMessage.text;
@@ -636,7 +636,7 @@ void TgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
         Status::Set(Status::FlagUpdating);
         std::shared_ptr<CreateChatRequest> createChatRequest = std::static_pointer_cast<CreateChatRequest>(
           p_RequestMessage);
-        int32_t userId = StrUtil::NumFromHex<int32_t>(createChatRequest->userId);
+        int64_t userId = StrUtil::NumFromHex<int64_t>(createChatRequest->userId);
 
         auto create_chat = td::td_api::make_object<td::td_api::createPrivateChat>();
         create_chat->user_id_ = userId;
@@ -1147,7 +1147,7 @@ std::string TgChat::GetText(td::td_api::object_ptr<td::td_api::formattedText>&& 
 {
   std::string text = p_FormattedText->text_;
   static const bool markdownEnabled = (m_Config.Get("markdown_enabled") == "1");
-  static const int markdownVersion = (m_Config.Get("markdown_version") == "1") ? 1 : 2;
+  static const int32_t markdownVersion = (m_Config.Get("markdown_version") == "1") ? 1 : 2;
   if (markdownEnabled)
   {
     auto getMarkdownText = td::td_api::make_object<td::td_api::getMarkdownText>(std::move(p_FormattedText));
@@ -1316,18 +1316,6 @@ void TgChat::TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessage& p_C
     deferDownloadFileRequest->fileId = StrUtil::NumToHex(downloadId);
     SendRequest(deferDownloadFileRequest);
   }
-}
-
-std::string TgChat::GetUserName(std::int32_t user_id, std::int64_t chat_id)
-{
-  m_UserToChats[user_id].insert(chat_id);
-  auto it = m_Users.find(user_id);
-  if (it == m_Users.end())
-  {
-    return std::string("(") + std::to_string(user_id) + std::string(")");
-  }
-
-  return it->second->first_name_ + (it->second->last_name_.empty() ? "" : " " + it->second->last_name_);
 }
 
 void TgChat::DownloadFile(std::string p_ChatId, std::string p_MsgId, std::string p_FileId)

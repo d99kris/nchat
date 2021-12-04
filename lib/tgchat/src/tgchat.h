@@ -56,7 +56,6 @@ private:
   std::int64_t GetSenderId(const td::td_api::message& p_TdMessage);
   std::string GetText(td::td_api::object_ptr<td::td_api::formattedText>&& p_FormattedText);
   void TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessage& p_ChatMessage);
-  std::string GetUserName(std::int32_t user_id, std::int64_t chat_id);
   void DownloadFile(std::string p_ChatId, std::string p_MsgId, std::string p_FileId);
 
 private:
@@ -76,12 +75,10 @@ private:
   std::unique_ptr<td::Client> m_Client;
   std::map<std::uint64_t, std::function<void(Object)>> m_Handlers;
   td::td_api::object_ptr<td::td_api::AuthorizationState> m_AuthorizationState;
-  std::map<std::int32_t, td::td_api::object_ptr<td::td_api::user>> m_Users;
-  std::map<int32_t, std::set<int64_t>> m_UserToChats;
   bool m_IsSetup = false;
   bool m_Authorized = false;
   bool m_WasAuthorized = false;
-  std::int32_t m_SelfUserId = 0;
+  std::int64_t m_SelfUserId = 0;
   std::uint64_t m_AuthQueryId = 0;
   std::uint64_t m_CurrentQueryId = 0;
   std::map<int64_t, int64_t> m_LastReadInboxMessage;
