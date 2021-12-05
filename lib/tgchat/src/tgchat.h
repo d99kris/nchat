@@ -84,4 +84,5 @@ private:
   std::map<int64_t, int64_t> m_LastReadInboxMessage;
   std::map<int64_t, int64_t> m_LastReadOutboxMessage;
   std::map<int64_t, std::set<int64_t>> m_UnreadOutboxMessages;
+  std::map<int64_t, ContactInfo> m_ContactInfos;
 };

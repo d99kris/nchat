@@ -390,10 +390,12 @@ void TgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
 
             if (!tuser) return;
 
+            const int64_t contactId = tuser->id_;
             ContactInfo contactInfo;
-            contactInfo.id = StrUtil::NumToHex(tuser->id_);
+            contactInfo.id = StrUtil::NumToHex(contactId);
             contactInfo.name = tuser->first_name_ + (tuser->last_name_.empty() ? "" : " " + tuser->last_name_);;
-            contactInfo.isSelf = (tuser->id_ == m_SelfUserId);
+            contactInfo.isSelf = (contactId == m_SelfUserId);
+            m_ContactInfos[contactId] = contactInfo;
 
             std::vector<ContactInfo> contactInfos;
             contactInfos.push_back(contactInfo);
@@ -742,10 +744,12 @@ void TgChat::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> update)
   {
     LOG_TRACE("new chat update");
 
+    const int64_t contactId = update_new_chat.chat_->id_;
     ContactInfo contactInfo;
-    contactInfo.id = StrUtil::NumToHex(update_new_chat.chat_->id_);
+    contactInfo.id = StrUtil::NumToHex(contactId);
     contactInfo.name = update_new_chat.chat_->title_;
-    contactInfo.isSelf = (update_new_chat.chat_->id_ == m_SelfUserId);
+    contactInfo.isSelf = (contactId == m_SelfUserId);
+    m_ContactInfos[contactId] = contactInfo;
 
     std::shared_ptr<NewContactsNotify> newContactsNotify = std::make_shared<NewContactsNotify>(m_ProfileId);
     newContactsNotify->contactInfos = std::vector<ContactInfo>({ contactInfo });
@@ -755,10 +759,12 @@ void TgChat::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> update)
   {
     LOG_TRACE("chat title update");
 
+    const int64_t contactId = update_chat_title.chat_id_;
     ContactInfo contactInfo;
-    contactInfo.id = StrUtil::NumToHex(update_chat_title.chat_id_);
+    contactInfo.id = StrUtil::NumToHex(contactId);
     contactInfo.name = update_chat_title.title_;
-    contactInfo.isSelf = (update_chat_title.chat_id_ == m_SelfUserId);
+    contactInfo.isSelf = (contactId == m_SelfUserId);
+    m_ContactInfos[contactId] = contactInfo;
 
     std::shared_ptr<NewContactsNotify> newContactsNotify = std::make_shared<NewContactsNotify>(m_ProfileId);
     newContactsNotify->contactInfos = std::vector<ContactInfo>({ contactInfo });
@@ -769,11 +775,13 @@ void TgChat::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> update)
     LOG_TRACE("user update");
 
     td::td_api::object_ptr<td::td_api::user> user = std::move(update_user.user_);
-    ContactInfo contactInfo;
 
-    contactInfo.id = StrUtil::NumToHex(user->id_);
+    const int64_t contactId = user->id_;
+    ContactInfo contactInfo;
+    contactInfo.id = StrUtil::NumToHex(contactId);
     contactInfo.name = user->first_name_ + (user->last_name_.empty() ? "" : " " + user->last_name_);;
-    contactInfo.isSelf = (user->id_ == m_SelfUserId);
+    contactInfo.isSelf = (contactId == m_SelfUserId);
+    m_ContactInfos[contactId] = contactInfo;
 
     std::shared_ptr<NewContactsNotify> newContactsNotify = std::make_shared<NewContactsNotify>(m_ProfileId);
     newContactsNotify->contactInfos = std::vector<ContactInfo>({ contactInfo });
@@ -932,6 +940,15 @@ void TgChat::OnAuthStateUpdate()
 
         auto user_ = td::move_tl_object_as<td::td_api::user>(object);
         m_SelfUserId = user_->id_;
+
+        if (m_ContactInfos.count(m_SelfUserId))
+        {
+          // notify of (self) contact again, now that self user id is known
+          m_ContactInfos[m_SelfUserId].isSelf = true;
+          std::shared_ptr<NewContactsNotify> newContactsNotify = std::make_shared<NewContactsNotify>(m_ProfileId);
+          newContactsNotify->contactInfos = std::vector<ContactInfo>({ m_ContactInfos[m_SelfUserId] });
+          CallMessageHandler(newContactsNotify);
+        }
       });
 
       std::shared_ptr<ConnectNotify> connectNotify = std::make_shared<ConnectNotify>(m_ProfileId);
