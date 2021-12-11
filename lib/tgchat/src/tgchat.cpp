@@ -1196,6 +1196,11 @@ void TgChat::TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessage& p_C
     auto& messageText = static_cast<td::td_api::messageText&>(*p_TdMessage.content_);
     text = GetText(std::move(messageText.text_));
   }
+  else if (p_TdMessage.content_->get_id() == td::td_api::messageAnimatedEmoji::ID)
+  {
+    auto& messageAnimatedEmoji = static_cast<td::td_api::messageAnimatedEmoji&>(*p_TdMessage.content_);
+    text = messageAnimatedEmoji.emoji_;
+  }
   else if (p_TdMessage.content_->get_id() == td::td_api::messageAnimation::ID)
   {
     text = "[Animation]";
