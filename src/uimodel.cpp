@@ -1212,6 +1212,9 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
             }
           }
 
+          UpdateChatInfoLastMessageTime(profileId, chatId);
+          SortChats();
+          UpdateList();
           UpdateHistory();
         }
       }
