@@ -22,6 +22,10 @@ void UiConfig::Init()
     { "help_enabled", "1" },
     { "home_fetch_all", "0" },
     { "list_enabled", "1" },
+    { "muted_indicate_unread", "1" },
+    { "muted_notify_unread", "0" },
+    { "muted_position_by_timestamp", "1" },
+    { "terminal_bell", "1" },
     { "top_enabled", "1" },
   };
 

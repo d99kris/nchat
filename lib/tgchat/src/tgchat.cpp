@@ -272,16 +272,7 @@ void TgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
           {
             std::string chatIdStr = StrUtil::NumToHex(chatId);
             chatIds.push_back(chatIdStr);
-
-            ChatInfo chatInfo;
-            chatInfo.id = chatIdStr;
-            chatInfos.push_back(chatInfo);
           }
-
-          std::shared_ptr<NewChatsNotify> newChatsNotify = std::make_shared<NewChatsNotify>(m_ProfileId);
-          newChatsNotify->success = true;
-          newChatsNotify->chatInfos = chatInfos;
-          CallMessageHandler(newChatsNotify);
 
           std::shared_ptr<DeferGetChatDetailsRequest> deferGetChatDetailsRequest = std::make_shared<DeferGetChatDetailsRequest>();
           deferGetChatDetailsRequest->chatIds = chatIds;

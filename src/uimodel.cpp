@@ -1061,6 +1061,14 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
           {
             m_ChatInfos[profileId][chatInfo.id] = chatInfo;
 
+            static const bool mutedPositionByTimestamp = UiConfig::GetBool("muted_position_by_timestamp");
+            if (!mutedPositionByTimestamp && m_ChatInfos[profileId][chatInfo.id].isMuted)
+            {
+              // deterministic fake time near epoch
+              int64_t chatIdHash = std::hash<std::string>{}(chatInfo.id) % 1000;
+              m_ChatInfos[profileId][chatInfo.id].lastMessageTime = chatIdHash;
+            }
+
             if (m_ChatSet[profileId].insert(chatInfo.id).second)
             {
               m_ChatVec.push_back(std::make_pair(profileId, chatInfo.id));
@@ -1415,7 +1423,11 @@ void UiModel::UpdateChatInfoLastMessageTime(const std::string& p_ProfileId, cons
   std::unordered_map<std::string, ChatInfo>& profileChatInfos = m_ChatInfos[p_ProfileId];
   if (profileChatInfos.count(p_ChatId))
   {
-    profileChatInfos[p_ChatId].lastMessageTime = lastMessageTimeSent;
+    static const bool mutedPositionByTimestamp = UiConfig::GetBool("muted_position_by_timestamp");
+    if (mutedPositionByTimestamp || !profileChatInfos[p_ChatId].isMuted)
+    {
+      profileChatInfos[p_ChatId].lastMessageTime = lastMessageTimeSent;
+    }
   }
 }
 
@@ -1434,15 +1446,24 @@ void UiModel::UpdateChatInfoIsUnread(const std::string& p_ProfileId, const std::
   std::unordered_map<std::string, ChatInfo>& profileChatInfos = m_ChatInfos[p_ProfileId];
   if (profileChatInfos.count(p_ChatId))
   {
-    if (!profileChatInfos[p_ChatId].isUnread && isUnread)
+    static const bool mutedNotifyUnread = UiConfig::GetBool("muted_notify_unread");
+    if (mutedNotifyUnread || !profileChatInfos[p_ChatId].isMuted || hasMention)
     {
-      if (!profileChatInfos[p_ChatId].isMuted || hasMention)
+      if (!profileChatInfos[p_ChatId].isUnread && isUnread)
       {
         NotifyNewUnread();
       }
     }
 
-    profileChatInfos[p_ChatId].isUnread = isUnread;
+    static const bool mutedIndicateUnread = UiConfig::GetBool("muted_indicate_unread");
+    if (mutedIndicateUnread || !profileChatInfos[p_ChatId].isMuted || hasMention)
+    {
+      profileChatInfos[p_ChatId].isUnread = isUnread;
+    }
+    else
+    {
+      profileChatInfos[p_ChatId].isUnread = false;
+    }
   }
 }
 
@@ -1658,7 +1679,11 @@ void UiModel::UpdateEntry()
 
 void UiModel::NotifyNewUnread()
 {
-  m_TriggerTerminalBell = true; // @todo: allow disabling terminal bell
+  static const bool terminalBell = UiConfig::GetBool("terminal_bell");
+  if (terminalBell)
+  {
+    m_TriggerTerminalBell = true;
+  }
 }
 
 std::wstring& UiModel::GetEntryStr()

@@ -263,7 +263,53 @@ This configuration file holds general user interface settings. Default content:
     help_enabled=1
     home_fetch_all=0
     list_enabled=1
+    muted_indicate_unread=1
+    muted_notify_unread=0
+    muted_position_by_timestamp=1
+    terminal_bell=1
     top_enabled=1
+
+### confirm_deletion
+
+Specifies whether to prompt the user for confirmation when deleting a message.
+
+### emoji_enabled
+
+Specifies whether to display emojis. Controlled by Ctrl-y in run-time.
+
+### help_enabled
+
+Specifies whether to display help bar. Controlled by Ctrl-g in run-time.
+
+### home_fetch_all
+
+Specifies whether `home` button shall repeatedly fetch all chat history.
+
+### list_enabled
+
+Specifies whether to display chat list. Controlled by Ctrl-l in run-time.
+
+### muted_indicate_unread
+
+Specifies whether chat list should indicate unread status `*` for muted chats.
+This also determines whether the such chats are included in jump to unread.
+
+### muted_notify_unread
+
+Specifies whether to notify (terminal bell) new unread messages in muted chats.
+
+### muted_position_by_timestamp
+
+Specifies whether chat list position of muted chats should reflect the time of
+their last received/sent message. Otherwise muted chats are listed last.
+
+### terminal_bell
+
+Specifies whether notifications shall trigger terminal bell.
+
+### top_enabled
+
+Specifies whether to display top bar. Controlled by Ctrl-p in run-time.
 
 ~/.nchat/key.conf
 -----------------
