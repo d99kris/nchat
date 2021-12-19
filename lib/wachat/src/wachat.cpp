@@ -366,6 +366,12 @@ void WaChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
       }
       break;
 
+    case SetCurrentChatRequestType:
+      {
+        // No handling needed
+      }
+      break;
+
     default:
       LOG_DEBUG("unknown request %d", p_RequestMessage->GetMessageType());
       break;

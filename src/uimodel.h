@@ -42,6 +42,7 @@ public:
   void MarkRead(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId);
   void DeleteMessage();
   void OpenMessageAttachment();
+  void OpenMessageLink();
   void SaveMessageAttachment();
   void TransferFile();
   void InsertEmoji();
@@ -52,6 +53,7 @@ public:
   std::unordered_map<std::string, std::shared_ptr<Protocol>>& GetProtocols();
   bool Process();
 
+  std::string GetLastMessageId(const std::string& p_ProfileId, const std::string& p_ChatId);
   void UpdateChatInfoLastMessageTime(const std::string& p_ProfileId, const std::string& p_ChatId);
   void UpdateChatInfoIsUnread(const std::string& p_ProfileId, const std::string& p_ChatId);
   std::string GetContactName(const std::string& p_ProfileId, const std::string& p_ChatId);
@@ -95,6 +97,7 @@ private:
   void SortChats();
   void OnCurrentChatChanged();
   void RequestMessages();
+  void ProtocolSetCurrentChat();
   int GetHistoryLines();
   void ReinitView();
   void UpdateList();

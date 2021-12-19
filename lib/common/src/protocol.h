@@ -66,6 +66,9 @@ enum MessageType
   SendTypingRequestType,
   SetStatusRequestType,
   CreateChatRequestType,
+  SetCurrentChatRequestType,
+  DeferGetSponsoredMessagesRequestType,
+
   ServiceMessageType,
   NewContactsNotifyType,
   NewChatsNotifyType,
@@ -109,6 +112,7 @@ struct ChatMessage
   std::string quotedSender;
   std::string filePath;
   std::string fileType; // wachat only
+  std::string link; // tgchat sponsored msg only, not db cached
   int64_t timeSent = -1;
   bool isOutgoing = true;
   bool isRead = false;
@@ -203,6 +207,7 @@ class DeferGetChatDetailsRequest : public RequestMessage
 public:
   virtual MessageType GetMessageType() const { return DeferGetChatDetailsRequestType; }
   std::vector<std::string> chatIds;
+  bool isGetTypeOnly = false;
 };
 
 class DeferGetUserDetailsRequest : public RequestMessage
@@ -219,6 +224,20 @@ public:
   std::string chatId;
   std::string msgId;
   std::string fileId;
+};
+
+class SetCurrentChatRequest : public RequestMessage
+{
+public:
+  virtual MessageType GetMessageType() const { return SetCurrentChatRequestType; }
+  std::string chatId;
+};
+
+class DeferGetSponsoredMessagesRequest : public RequestMessage
+{
+public:
+  virtual MessageType GetMessageType() const { return DeferGetSponsoredMessagesRequestType; }
+  std::string chatId;
 };
 
 // Service messages
