@@ -120,6 +120,18 @@ std::wstring StrUtil::Join(const std::vector<std::wstring>& p_Lines, const std::
   return str;
 }
 
+std::string StrUtil::NumAddPrefix(const std::string& p_Str, const char p_Ch)
+{
+  std::string s = std::string(1, p_Ch);
+  return StrToHex(s) + p_Str;
+}
+
+bool StrUtil::NumHasPrefix(const std::string& p_Str, const char p_Ch)
+{
+  std::string s = StrFromHex(p_Str);
+  return (!s.empty() && (s.at(0) == p_Ch));
+}
+
 void StrUtil::ReplaceString(std::string& p_Str, const std::string& p_Search, const std::string& p_Replace)
 {
   size_t pos = 0;

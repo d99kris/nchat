@@ -29,6 +29,9 @@
 #include "path.hpp"
 #include "status.h"
 #include "strutil.h"
+#include "timeutil.h"
+
+//#define SIMULATED_SPONSORED_MESSAGES
 
 namespace detail
 {
@@ -237,8 +240,7 @@ void TgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
           for (auto userId : users->user_ids_)
           {
             std::string userIdStr = StrUtil::NumToHex(userId);
-            userIds.push_back(
-                              userIdStr);
+            userIds.push_back(userIdStr);
           }
 
           std::shared_ptr<DeferGetUserDetailsRequest> deferGetUserDetailsRequest = std::make_shared<DeferGetUserDetailsRequest>();
@@ -279,8 +281,7 @@ void TgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
           std::shared_ptr<NewChatsNotify> newChatsNotify = std::make_shared<NewChatsNotify>(m_ProfileId);
           newChatsNotify->success = true;
           newChatsNotify->chatInfos = chatInfos;
-          CallMessageHandler(
-                             newChatsNotify);
+          CallMessageHandler(newChatsNotify);
 
           std::shared_ptr<DeferGetChatDetailsRequest> deferGetChatDetailsRequest = std::make_shared<DeferGetChatDetailsRequest>();
           deferGetChatDetailsRequest->chatIds = chatIds;
@@ -296,6 +297,7 @@ void TgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
         std::shared_ptr<DeferGetChatDetailsRequest> deferGetChatDetailsRequest =
           std::static_pointer_cast<DeferGetChatDetailsRequest>(p_RequestMessage);
 
+        const bool isGetTypeOnly = deferGetChatDetailsRequest->isGetTypeOnly;
         const std::vector<std::string>& chatIds = deferGetChatDetailsRequest->chatIds;
         for (auto& chatId : chatIds)
         {
@@ -305,15 +307,51 @@ void TgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
           auto get_chat = td::td_api::make_object<td::td_api::getChat>();
           get_chat->chat_id_ = chatIdNum;
           SendQuery(std::move(get_chat),
-                    [this](Object object)
+                    [this, chatId, isGetTypeOnly](Object object)
           {
             Status::Clear(Status::FlagFetching);
 
-            if (object->get_id() == td::td_api::error::ID) return;
+            if (object->get_id() == td::td_api::error::ID)
+            {
+              LOG_WARNING("get chat details failed %s", chatId.c_str());
+              return;
+            }
 
             auto tchat = td::move_tl_object_as<td::td_api::chat>(object);
 
             if (!tchat) return;
+
+            if (tchat->type_->get_id() == td::td_api::chatTypePrivate::ID)
+            {
+              m_ChatTypes[tchat->id_] = ChatPrivate;
+            }
+            else if (tchat->type_->get_id() == td::td_api::chatTypeSupergroup::ID)
+            {
+              auto typeSupergroup =
+                td::move_tl_object_as<td::td_api::chatTypeSupergroup>(tchat->type_);
+              if (typeSupergroup->is_channel_)
+              {
+                m_ChatTypes[tchat->id_] = ChatSuperGroupChannel;
+              }
+              else
+              {
+                m_ChatTypes[tchat->id_] = ChatSuperGroup;
+              }
+            }
+            else if (tchat->type_->get_id() == td::td_api::chatTypeBasicGroup::ID)
+            {
+              m_ChatTypes[tchat->id_] = ChatBasicGroup;
+            }
+            else if (tchat->type_->get_id() == td::td_api::chatTypeSecret::ID)
+            {
+              m_ChatTypes[tchat->id_] = ChatSecret;
+            }
+            else
+            {
+              LOG_WARNING("unknown chat type %d", tchat->type_->get_id());
+            }
+
+            if (isGetTypeOnly) return;
 
             ChatInfo chatInfo;
             chatInfo.id = StrUtil::NumToHex(tchat->id_);
@@ -524,8 +562,14 @@ void TgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
         std::shared_ptr<MarkMessageReadRequest> markMessageReadRequest =
           std::static_pointer_cast<MarkMessageReadRequest>(p_RequestMessage);
         int64_t chatId = StrUtil::NumFromHex<int64_t>(markMessageReadRequest->chatId);
-        std::vector<std::int64_t> msgIds = { StrUtil::NumFromHex<int64_t>(markMessageReadRequest->msgId) };
 
+        if (IsSponsoredMessageId(markMessageReadRequest->msgId))
+        {
+          ViewSponsoredMessage(markMessageReadRequest->chatId, markMessageReadRequest->msgId);
+          return;
+        }
+
+        std::vector<std::int64_t> msgIds = { StrUtil::NumFromHex<int64_t>(markMessageReadRequest->msgId) };
         auto view_messages = td::td_api::make_object<td::td_api::viewMessages>();
         view_messages->chat_id_ = chatId;
         view_messages->message_ids_ = msgIds;
@@ -565,10 +609,8 @@ void TgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
         {
           Status::Clear(Status::FlagUpdating);
 
-          if (object->get_id() == td::td_api::error::ID) return;
-
           std::shared_ptr<DeleteMessageNotify> deleteMessageNotify = std::make_shared<DeleteMessageNotify>(m_ProfileId);
-          deleteMessageNotify->success = true;
+          deleteMessageNotify->success = (object->get_id() != td::td_api::error::ID);
           deleteMessageNotify->chatId = deleteMessageRequest->chatId;
           deleteMessageNotify->msgId = deleteMessageRequest->msgId;
           CallMessageHandler(deleteMessageNotify);
@@ -634,33 +676,44 @@ void TgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
 
     case CreateChatRequestType:
       {
-        LOG_DEBUG("Create chat");
         Status::Set(Status::FlagUpdating);
-        std::shared_ptr<CreateChatRequest> createChatRequest = std::static_pointer_cast<CreateChatRequest>(
-          p_RequestMessage);
-        int64_t userId = StrUtil::NumFromHex<int64_t>(createChatRequest->userId);
 
-        auto create_chat = td::td_api::make_object<td::td_api::createPrivateChat>();
-        create_chat->user_id_ = userId;
+        std::shared_ptr<CreateChatRequest> createChatRequest = std::static_pointer_cast<CreateChatRequest>(p_RequestMessage);
 
-        SendQuery(std::move(create_chat),
-                  [this](Object object)
+        ChatType chatType = ChatPrivate;
+        int64_t rawUserId = StrUtil::NumFromHex<int64_t>(createChatRequest->userId);
+        auto typeIt = m_ChatTypes.find(rawUserId);
+        if (typeIt != m_ChatTypes.end())
         {
-          Status::Clear(Status::FlagUpdating);
+          chatType = typeIt->second;
+        }
 
-          if (object->get_id() == td::td_api::error::ID) return;
-
-          auto chat = td::move_tl_object_as<td::td_api::chat>(object);
-
-          ChatInfo chatInfo;
-          chatInfo.id = StrUtil::NumToHex(chat->id_);
-
-          std::shared_ptr<CreateChatNotify> createChatNotify = std::make_shared<CreateChatNotify>(m_ProfileId);
-          createChatNotify->success = true;
-          createChatNotify->chatInfo = chatInfo;
-
-          CallMessageHandler(createChatNotify);
-        });
+        if (chatType == ChatPrivate)
+        {
+          int64_t userId = StrUtil::NumFromHex<int64_t>(createChatRequest->userId);
+          LOG_DEBUG("create chat private %s %lld", createChatRequest->userId.c_str(), userId);
+          auto createChat = td::td_api::make_object<td::td_api::createPrivateChat>();
+          createChat->user_id_ = userId;
+          SendQuery(std::move(createChat), [this](Object obj) { CreateChat(std::move(obj)); });
+        }
+        else if (chatType == ChatBasicGroup)
+        {
+          std::string userIdStr = createChatRequest->userId.substr(8); // remove "-100" prefix
+          int64_t userId = StrUtil::NumFromHex<int64_t>(userIdStr);
+          LOG_DEBUG("create chat basic group %s %lld", createChatRequest->userId.c_str(), userId);
+          auto createChat = td::td_api::make_object<td::td_api::createBasicGroupChat>();
+          createChat->basic_group_id_ = userId;
+          SendQuery(std::move(createChat), [this](Object obj) { CreateChat(std::move(obj)); });
+        }
+        else if ((chatType == ChatSuperGroup) || (chatType == ChatSuperGroupChannel))
+        {
+          std::string userIdStr = createChatRequest->userId.substr(8); // remove "-100" prefix
+          int64_t userId = StrUtil::NumFromHex<int64_t>(userIdStr);
+          LOG_DEBUG("create chat super group %s %lld", createChatRequest->userId.c_str(), userId);
+          auto createChat = td::td_api::make_object<td::td_api::createSupergroupChat>();
+          createChat->supergroup_id_ = userId;
+          SendQuery(std::move(createChat), [this](Object obj) { CreateChat(std::move(obj)); });
+        }
       }
       break;
 
@@ -672,6 +725,25 @@ void TgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
         std::string msgId = deferDownloadFileRequest->msgId;
         std::string fileId = deferDownloadFileRequest->fileId;
         DownloadFile(chatId, msgId, fileId);
+      }
+      break;
+
+    case SetCurrentChatRequestType:
+      {
+        std::shared_ptr<SetCurrentChatRequest> setCurrentChatRequest =
+          std::static_pointer_cast<SetCurrentChatRequest>(p_RequestMessage);
+        int64_t chatId = StrUtil::NumFromHex<int64_t>(setCurrentChatRequest->chatId);
+        m_CurrentChat = chatId;
+        RequestSponsoredMessagesIfNeeded();
+      }
+      break;
+
+    case DeferGetSponsoredMessagesRequestType:
+      {
+        std::shared_ptr<DeferGetSponsoredMessagesRequest> deferGetSponsoredMessagesRequest =
+          std::static_pointer_cast<DeferGetSponsoredMessagesRequest>(p_RequestMessage);
+        std::string chatId = deferGetSponsoredMessagesRequest->chatId;
+        GetSponsoredMessages(chatId);
       }
       break;
 
@@ -901,6 +973,23 @@ void TgChat::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> update)
 
     m_LastReadInboxMessage[chat_read_inbox.chat_id_] = chat_read_inbox.last_read_inbox_message_id_;
   },
+  [this](td::td_api::updateDeleteMessages& delete_messages)
+  {
+    if (!delete_messages.is_permanent_ || delete_messages.from_cache_) return;
+
+    LOG_TRACE("delete messages update");
+
+    std::string chatId = StrUtil::NumToHex(delete_messages.chat_id_);
+    std::vector<std::int64_t> msgIds = delete_messages.message_ids_;
+    for (const auto& msgId : msgIds)
+    {
+      std::shared_ptr<DeleteMessageNotify> deleteMessageNotify = std::make_shared<DeleteMessageNotify>(m_ProfileId);
+      deleteMessageNotify->success = true;
+      deleteMessageNotify->chatId = chatId;
+      deleteMessageNotify->msgId = StrUtil::NumToHex(msgId);
+      CallMessageHandler(deleteMessageNotify);
+    }
+  },
   [](auto& anyupdate)
   {
     LOG_TRACE("other update %d", anyupdate.get_id());
@@ -1124,6 +1213,28 @@ void TgChat::CheckAuthError(Object object)
   }
 }
 
+void TgChat::CreateChat(Object p_Object)
+{
+  Status::Clear(Status::FlagUpdating);
+
+  if (p_Object->get_id() == td::td_api::error::ID)
+  {
+    LOG_WARNING("create chat failed");
+    return;
+  }
+
+  auto chat = td::move_tl_object_as<td::td_api::chat>(p_Object);
+
+  ChatInfo chatInfo;
+  chatInfo.id = StrUtil::NumToHex(chat->id_);
+
+  std::shared_ptr<CreateChatNotify> createChatNotify = std::make_shared<CreateChatNotify>(m_ProfileId);
+  createChatNotify->success = true;
+  createChatNotify->chatInfo = chatInfo;
+
+  CallMessageHandler(createChatNotify);
+}
+
 std::string TgChat::GetRandomString(size_t p_Len)
 {
   srand(time(0));
@@ -1186,69 +1297,68 @@ std::string TgChat::GetText(td::td_api::object_ptr<td::td_api::formattedText>&& 
   return text;
 }
 
-void TgChat::TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessage& p_ChatMessage)
+void TgChat::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessageContent,
+                                     std::string& p_Text, std::string& p_FilePath,
+                                     int32_t& p_DownloadId)
 {
-  std::string text;
-  std::string filePath;
-  int32_t downloadId = 0;
-  if (p_TdMessage.content_->get_id() == td::td_api::messageText::ID)
+  if (p_TdMessageContent.get_id() == td::td_api::messageText::ID)
   {
-    auto& messageText = static_cast<td::td_api::messageText&>(*p_TdMessage.content_);
-    text = GetText(std::move(messageText.text_));
+    auto& messageText = static_cast<td::td_api::messageText&>(p_TdMessageContent);
+    p_Text = GetText(std::move(messageText.text_));
   }
-  else if (p_TdMessage.content_->get_id() == td::td_api::messageAnimatedEmoji::ID)
+  else if (p_TdMessageContent.get_id() == td::td_api::messageAnimatedEmoji::ID)
   {
-    auto& messageAnimatedEmoji = static_cast<td::td_api::messageAnimatedEmoji&>(*p_TdMessage.content_);
-    text = messageAnimatedEmoji.emoji_;
+    auto& messageAnimatedEmoji = static_cast<td::td_api::messageAnimatedEmoji&>(p_TdMessageContent);
+    p_Text = messageAnimatedEmoji.emoji_;
   }
-  else if (p_TdMessage.content_->get_id() == td::td_api::messageAnimation::ID)
+  else if (p_TdMessageContent.get_id() == td::td_api::messageAnimation::ID)
   {
-    text = "[Animation]";
+    p_Text = "[Animation]";
   }
-  else if (p_TdMessage.content_->get_id() == td::td_api::messageAudio::ID)
+  else if (p_TdMessageContent.get_id() == td::td_api::messageAudio::ID)
   {
-    text = "[Audio]";
+    p_Text = "[Audio]";
   }
-  else if (p_TdMessage.content_->get_id() == td::td_api::messageCall::ID)
+  else if (p_TdMessageContent.get_id() == td::td_api::messageCall::ID)
   {
-    text = "[Call]";
+    p_Text = "[Call]";
   }
-  else if (p_TdMessage.content_->get_id() == td::td_api::messageContact::ID)
+  else if (p_TdMessageContent.get_id() == td::td_api::messageContact::ID)
   {
-    text = "[Contact]";
+    p_Text = "[Contact]";
   }
-  else if (p_TdMessage.content_->get_id() == td::td_api::messageContactRegistered::ID)
+  else if (p_TdMessageContent.get_id() == td::td_api::messageContactRegistered::ID)
   {
-    text = "[ContactRegistered]";
+    p_Text = "[ContactRegistered]";
   }
-  else if (p_TdMessage.content_->get_id() == td::td_api::messageCustomServiceAction::ID)
+  else if (p_TdMessageContent.get_id() == td::td_api::messageCustomServiceAction::ID)
   {
-    text = "[CustomServiceAction]";
+    p_Text = "[CustomServiceAction]";
   }
-  else if (p_TdMessage.content_->get_id() == td::td_api::messageDocument::ID)
+  else if (p_TdMessageContent.get_id() == td::td_api::messageDocument::ID)
   {
-    auto& messageDocument = static_cast<td::td_api::messageDocument&>(*p_TdMessage.content_);
+    auto& messageDocument = static_cast<td::td_api::messageDocument&>(p_TdMessageContent);
 
     int32_t id = messageDocument.document_->document_->id_;
     std::string path = messageDocument.document_->document_->local_->path_;
     std::string fileName = messageDocument.document_->file_name_;
-    text = GetText(std::move(messageDocument.caption_));
+    p_Text = GetText(std::move(messageDocument.caption_));
     if (!path.empty())
     {
-      filePath = path;
+      p_FilePath = path;
     }
     else
     {
-      filePath = " ";
-      downloadId = id;
+      p_FilePath = " ";
+      p_DownloadId = id;
     }
   }
-  else if (p_TdMessage.content_->get_id() == td::td_api::messagePhoto::ID)
+  else if (p_TdMessageContent.get_id() == td::td_api::messagePhoto::ID)
   {
-    auto& messagePhoto = static_cast<td::td_api::messagePhoto&>(*p_TdMessage.content_);
+    auto& messagePhoto = static_cast<td::td_api::messagePhoto&>(p_TdMessageContent);
     auto& photo = messagePhoto.photo_;
     auto& sizes = photo->sizes_;
-    text = GetText(std::move(messagePhoto.caption_));
+    p_Text = GetText(std::move(messagePhoto.caption_));
     if (!sizes.empty())
     {
       auto& largestSize = sizes.back();
@@ -1257,44 +1367,50 @@ void TgChat::TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessage& p_C
       auto& localPath = localFile->path_;
       if (!localPath.empty())
       {
-        filePath = localPath;
+        p_FilePath = localPath;
       }
       else
       {
         int32_t id = photoFile->id_;
-        filePath = " ";
-        downloadId = id;
+        p_FilePath = " ";
+        p_DownloadId = id;
       }
     }
     else
     {
-      text = "[Photo Error]";
+      p_Text = "[Photo Error]";
     }
   }
-  else if (p_TdMessage.content_->get_id() == td::td_api::messageSticker::ID)
+  else if (p_TdMessageContent.get_id() == td::td_api::messageSticker::ID)
   {
-    text = "[Sticker]";
+    p_Text = "[Sticker]";
   }
-  else if (p_TdMessage.content_->get_id() == td::td_api::messageVideo::ID)
+  else if (p_TdMessageContent.get_id() == td::td_api::messageVideo::ID)
   {
-    text = "[Video]";
+    p_Text = "[Video]";
   }
-  else if (p_TdMessage.content_->get_id() == td::td_api::messageVideoNote::ID)
+  else if (p_TdMessageContent.get_id() == td::td_api::messageVideoNote::ID)
   {
-    text = "[VideoNote]";
+    p_Text = "[VideoNote]";
   }
-  else if (p_TdMessage.content_->get_id() == td::td_api::messageVoiceNote::ID)
+  else if (p_TdMessageContent.get_id() == td::td_api::messageVoiceNote::ID)
   {
-    text = "[VoiceNote]";
+    p_Text = "[VoiceNote]";
   }
-  else if (p_TdMessage.content_->get_id() == td::td_api::messageChatAddMembers::ID)
+  else if (p_TdMessageContent.get_id() == td::td_api::messageChatAddMembers::ID)
   {
-    text = "[ChatAddMembers]";
+    p_Text = "[ChatAddMembers]";
   }
   else
   {
-    text = "[UnknownMessage " + std::to_string(p_TdMessage.content_->get_id()) + "]";
+    p_Text = "[UnknownMessage " + std::to_string(p_TdMessageContent.get_id()) + "]";
   }
+}
+
+void TgChat::TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessage& p_ChatMessage)
+{
+  int32_t downloadId = 0;
+  TdMessageContentConvert(*p_TdMessage.content_, p_ChatMessage.text, p_ChatMessage.filePath, downloadId);
 
   p_ChatMessage.id = StrUtil::NumToHex(p_TdMessage.id_);
   p_ChatMessage.senderId = StrUtil::NumToHex(GetSenderId(p_TdMessage));
@@ -1302,8 +1418,6 @@ void TgChat::TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessage& p_C
   p_ChatMessage.timeSent = (((int64_t)p_TdMessage.date_) * 1000) + (std::hash<std::string>{ } (p_ChatMessage.id) % 256);
   p_ChatMessage.quotedId =
     (p_TdMessage.reply_to_message_id_ != 0) ? StrUtil::NumToHex(p_TdMessage.reply_to_message_id_) : "";
-  p_ChatMessage.text = text;
-  p_ChatMessage.filePath = filePath;
   p_ChatMessage.hasMention = p_TdMessage.contains_unread_mention_;
 
   if (p_TdMessage.chat_id_ == m_SelfUserId)
@@ -1372,4 +1486,201 @@ void TgChat::DownloadFile(std::string p_ChatId, std::string p_MsgId, std::string
   catch (...)
   {
   }
+}
+
+void TgChat::RequestSponsoredMessagesIfNeeded()
+{
+  if (m_ChatTypes[m_CurrentChat] != ChatSuperGroupChannel) return;
+
+#ifdef SIMULATED_SPONSORED_MESSAGES
+  const int64_t intervalTime = 10 * 1000; // 10 sec
+#else
+  const int64_t intervalTime = 5 * 60 * 1000; // 5 min
+#endif
+  static std::map<int64_t, int64_t> lastTime;
+  const int64_t nowTime = TimeUtil::GetCurrentTimeMSec();
+
+  if ((nowTime - lastTime[m_CurrentChat]) >= intervalTime)
+  {
+    lastTime[m_CurrentChat] = nowTime;
+    std::shared_ptr<DeferGetSponsoredMessagesRequest> deferGetSponsoredMessagesRequest = std::make_shared<DeferGetSponsoredMessagesRequest>();
+    deferGetSponsoredMessagesRequest->chatId = StrUtil::NumToHex(m_CurrentChat);
+    SendRequest(deferGetSponsoredMessagesRequest);
+  }
+}
+
+void TgChat::GetSponsoredMessages(const std::string& p_ChatId)
+{
+  LOG_DEBUG("get sponsored messages %s", p_ChatId.c_str());
+
+  // delete previous sponsored message(s) for this chat
+  for (auto it = m_SponsoredMessageIds[p_ChatId].begin(); it != m_SponsoredMessageIds[p_ChatId].end(); /* incremented in loop */)
+  {
+    const std::string msgId = *it;
+    std::shared_ptr<DeleteMessageNotify> deleteMessageNotify = std::make_shared<DeleteMessageNotify>(m_ProfileId);
+    deleteMessageNotify->success = true;
+    deleteMessageNotify->chatId = p_ChatId;
+    deleteMessageNotify->msgId = msgId;
+    CallMessageHandler(deleteMessageNotify);
+    it = m_SponsoredMessageIds[p_ChatId].erase(it);
+  }
+
+#ifdef SIMULATED_SPONSORED_MESSAGES
+  // fake/simulated sponsored messages for dev/testing
+  static int32_t sponsoredMessageId = 0;
+  std::vector<ChatMessage> chatMessages;
+  int num = 1 + (rand() % 2);
+  for (int i = 0; i < num; ++i)
+  {
+    ++sponsoredMessageId;
+
+    ChatMessage chatMessage;
+    chatMessage.id = StrUtil::NumAddPrefix(StrUtil::NumToHex(sponsoredMessageId), m_SponsoredMessageMsgIdPrefix);
+    chatMessage.timeSent = std::numeric_limits<int64_t>::max();
+    chatMessage.isOutgoing = false;
+    if ((sponsoredMessageId % 3) == 0)
+    {
+      chatMessage.text = "This is a long sponsored message. In fact, it has the maximum length "
+        "allowed on the platform – 160 characters\xF0\x9F\x98\xAC\xF0\x9F\x98\xAC. It's "
+        "promoting a bot with a start parameter."
+        "\n[https://t.me/QuizBot?start=GreatMinds]";
+      chatMessage.senderId = "393833303030323332";
+    }
+    else if ((sponsoredMessageId % 3) == 1)
+    {
+      chatMessage.text = "This is a regular sponsored message, it is promoting a channel."
+        "\n[https://t.me/c/1001997501]";
+      chatMessage.senderId = "2D31303031303031393937353031";
+    }
+    else if ((sponsoredMessageId % 3) == 2)
+    {
+      chatMessage.text = "This sponsored message is promoting a particular post in a channel."
+        "\n[https://t.me/c/1006503122/172]";
+      chatMessage.senderId = "2D31303031303036353033313232";
+    }
+
+    chatMessage.link = chatMessage.senderId;
+    chatMessages.push_back(chatMessage);
+    m_SponsoredMessageIds[p_ChatId].insert(chatMessage.id);
+    LOG_DEBUG("new sponsored message %s (%d)", chatMessage.id.c_str(), sponsoredMessageId);
+
+    // request chat type for senders
+    const std::vector<std::string> chatIds = { chatMessage.senderId };
+    std::shared_ptr<DeferGetChatDetailsRequest> deferGetChatDetailsRequest =
+      std::make_shared<DeferGetChatDetailsRequest>();
+    deferGetChatDetailsRequest->isGetTypeOnly = true;
+    deferGetChatDetailsRequest->chatIds = chatIds;
+    SendRequest(deferGetChatDetailsRequest);
+  }
+
+  std::shared_ptr<NewMessagesNotify> newMessagesNotify = std::make_shared<NewMessagesNotify>(m_ProfileId);
+  newMessagesNotify->success = true;
+  newMessagesNotify->chatId = p_ChatId;
+  newMessagesNotify->chatMessages = chatMessages;
+  newMessagesNotify->fromMsgId = "";
+  newMessagesNotify->cached = true; // do not cache sponsored messages
+  CallMessageHandler(newMessagesNotify);
+#else
+  // sponsored messages from telegram
+  const int64_t chatId = StrUtil::NumFromHex<int64_t>(p_ChatId);
+  SendQuery(td::td_api::make_object<td::td_api::getChatSponsoredMessages>(chatId),
+            [this, p_ChatId](Object object)
+  {
+    if (object->get_id() == td::td_api::error::ID) return;
+
+    std::vector<ChatMessage> chatMessages;
+    auto sponsoredMessages = td::move_tl_object_as<td::td_api::sponsoredMessages>(object);
+    for (auto it = sponsoredMessages->messages_.begin(); it != sponsoredMessages->messages_.end(); ++it)
+    {
+      auto sponsoredMessage = td::move_tl_object_as<td::td_api::sponsoredMessage>(*it);
+      const int32_t sponsoredMessageId = sponsoredMessage->id_;
+      int32_t downloadId = 0;
+      ChatMessage chatMessage;
+      TdMessageContentConvert(*sponsoredMessage->content_, chatMessage.text, chatMessage.filePath, downloadId);
+
+      chatMessage.id = StrUtil::NumAddPrefix(StrUtil::NumToHex(sponsoredMessageId), m_SponsoredMessageMsgIdPrefix);
+      chatMessage.timeSent = std::numeric_limits<int64_t>::max();
+      chatMessage.isOutgoing = false;
+      chatMessage.senderId = StrUtil::NumToHex(sponsoredMessage->sponsor_chat_id_);
+
+      std::string url;
+      if (sponsoredMessage->link_)
+      {
+        if (sponsoredMessage->link_->get_id() == td::td_api::internalLinkTypeMessage::ID)
+        {
+          auto internalLink = td::move_tl_object_as<td::td_api::internalLinkTypeMessage>(sponsoredMessage->link_);
+          url = internalLink->url_;
+        }
+        else if (sponsoredMessage->link_->get_id() == td::td_api::internalLinkTypeBotStart::ID)
+        {
+          auto internalLink = td::move_tl_object_as<td::td_api::internalLinkTypeBotStart>(sponsoredMessage->link_);
+          url = "https://t.me/" + internalLink->bot_username_ + "?start=" + internalLink->start_parameter_;
+        }
+        else
+        {
+          LOG_WARNING("unknown internal link type: %lld", sponsoredMessage->link_->get_id());
+        }
+      }
+      else
+      {
+        url = "https://t.me/c/" + std::to_string(sponsoredMessage->sponsor_chat_id_).substr(4);
+      }
+
+      if (!url.empty())
+      {
+        chatMessage.text += "\n[" + url + "]";
+      }
+
+      chatMessage.link = chatMessage.senderId;
+      chatMessages.push_back(chatMessage);
+      m_SponsoredMessageIds[p_ChatId].insert(chatMessage.id);
+      LOG_DEBUG("new sponsored message %s (%d)", chatMessage.id.c_str(), sponsoredMessageId);
+
+      // request chat type for senders
+      const std::vector<std::string> chatIds = { chatMessage.senderId };
+      std::shared_ptr<DeferGetChatDetailsRequest> deferGetChatDetailsRequest =
+        std::make_shared<DeferGetChatDetailsRequest>();
+      deferGetChatDetailsRequest->isGetTypeOnly = true;
+      deferGetChatDetailsRequest->chatIds = chatIds;
+      SendRequest(deferGetChatDetailsRequest);
+    }
+
+    std::shared_ptr<NewMessagesNotify> newMessagesNotify = std::make_shared<NewMessagesNotify>(m_ProfileId);
+    newMessagesNotify->success = true;
+    newMessagesNotify->chatId = p_ChatId;
+    newMessagesNotify->chatMessages = chatMessages;
+    newMessagesNotify->fromMsgId = "";
+    newMessagesNotify->cached = true; // do not cache sponsored messages
+    CallMessageHandler(newMessagesNotify);
+  });
+#endif
+}
+
+void TgChat::ViewSponsoredMessage(const std::string& p_ChatId, const std::string& p_MsgId)
+{
+  if (!m_SponsoredMessageIds[p_ChatId].count(p_MsgId)) return;
+
+  const int32_t sponsoredMessageId = StrUtil::NumFromHex<std::int32_t>(p_MsgId);
+  LOG_DEBUG("view sponsored message %s (%d)", p_MsgId.c_str(), sponsoredMessageId);
+
+#ifdef SIMULATED_SPONSORED_MESSAGES
+  // fake/simulated sponsored messages for dev/testing
+#else
+  // sponsored messages from telegram
+  const int64_t chatId = StrUtil::NumFromHex<int64_t>(p_ChatId);
+  SendQuery(td::td_api::make_object<td::td_api::viewSponsoredMessage>(chatId, sponsoredMessageId),
+            [sponsoredMessageId](Object object)
+  {
+    if (object->get_id() == td::td_api::error::ID)
+    {
+      LOG_WARNING("view sponsored message failed %d", sponsoredMessageId);
+      return;
+    }
+  });
+#endif
+}
+
+bool TgChat::IsSponsoredMessageId(const std::string& p_MsgId)
+{
+  return StrUtil::NumHasPrefix(p_MsgId, m_SponsoredMessageMsgIdPrefix);
 }

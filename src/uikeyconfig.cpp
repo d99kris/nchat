@@ -41,6 +41,7 @@ void UiKeyConfig::Init()
     { "send_msg", "KEY_CTRLX" },
     { "delete_msg", "KEY_CTRLD" },
     { "open", "KEY_CTRLV" },
+    { "open_link", "KEY_CTRLW" },
     { "save", "KEY_CTRLR" },
     { "transfer", "KEY_CTRLT" },
     { "select_emoji", "KEY_CTRLE" },

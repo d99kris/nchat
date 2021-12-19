@@ -65,6 +65,7 @@ void UiHelpView::Draw()
     AppendHelpItem(UiKeyConfig::GetKey("delete_msg"), "DelMsg", helpItems);
     AppendHelpItem(UiKeyConfig::GetKey("open"), "OpenFile", helpItems);
     AppendHelpItem(UiKeyConfig::GetKey("save"), "SaveFile", helpItems);
+    AppendHelpItem(UiKeyConfig::GetKey("open_link"), "OpenLink", helpItems);
 
     AppendHelpItem(UiKeyConfig::GetKey("toggle_emoji"), "TgEmoji", helpItems);
     AppendHelpItem(UiKeyConfig::GetKey("toggle_list"), "TgList", helpItems);

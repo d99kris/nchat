@@ -182,14 +182,24 @@ void UiHistoryView::Draw()
     }
     
     std::wstring wsender = StrUtil::ToWString(name);
-    std::wstring wtime = StrUtil::ToWString(TimeUtil::GetTimeString(msg.timeSent, true /* p_ShortToday */));
+    std::wstring wtime;
+    if (msg.timeSent != std::numeric_limits<int64_t>::max())
+    {
+      wtime = L" (" + StrUtil::ToWString(TimeUtil::GetTimeString(msg.timeSent, true /* p_ShortToday */)) + L") ";
+    }
+    else
+    {
+      wtime = L" ";
+    }
     std::wstring wreceipt = StrUtil::ToWString(msg.isRead ? "\xe2\x9c\x93" : "");
-    std::wstring wheader = wsender + L" (" + wtime + L") " + wreceipt;
+    std::wstring wheader = wsender + wtime + wreceipt;
 
     static const bool developerMode = AppUtil::GetDeveloperMode();
     if (developerMode)
     {
-      wheader = wheader + L" " + StrUtil::ToWString(msg.id);
+      wheader = wheader +
+        L" " + StrUtil::ToWString(msg.id) +
+        L" from " + StrUtil::ToWString(msg.senderId);
     }
 
     std::wstring wdisp = StrUtil::TrimPadWString(wheader, m_PaddedW);

@@ -62,6 +62,7 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keyDeleteMsg = UiKeyConfig::GetKey("delete_msg");
 
   static wint_t keyOpen = UiKeyConfig::GetKey("open");
+  static wint_t keyOpenLink = UiKeyConfig::GetKey("open_link");
   static wint_t keySave = UiKeyConfig::GetKey("save");
 
   static wint_t keyToggleList = UiKeyConfig::GetKey("toggle_list");
@@ -142,6 +143,10 @@ void UiModel::KeyHandler(wint_t p_Key)
   else if (p_Key == keyOpen)
   {
     OpenMessageAttachment();
+  }
+  else if (p_Key == keyOpenLink)
+  {
+    OpenMessageLink();
   }
   else if (p_Key == keySave)
   {
@@ -749,10 +754,9 @@ void UiModel::DeleteMessage()
     ReinitView();
   }
  
-  std::string profileId = m_CurrentChat.first;
-  std::string chatId = m_CurrentChat.second;
-  std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
-  std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
+  const std::string& profileId = m_CurrentChat.first;
+  const std::string& chatId = m_CurrentChat.second;
+  const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
   int& messageOffset = m_MessageOffset[profileId][chatId];
 
   auto it = std::next(messageVec.begin(), messageOffset);
@@ -767,10 +771,6 @@ void UiModel::DeleteMessage()
   deleteMessageRequest->chatId = chatId;
   deleteMessageRequest->msgId = msgId;
   m_Protocols[profileId]->SendRequest(deleteMessageRequest);
-  messages.erase(*it);
-  messageVec.erase(it);
-  
-  MessageCache::Delete(profileId, chatId, msgId);
 }
 
 void UiModel::OpenMessageAttachment()
@@ -818,6 +818,47 @@ void UiModel::OpenMessageAttachment()
 #else
   LOG_WARNING("unsupported os");
 #endif
+}
+
+void UiModel::OpenMessageLink()
+{
+  std::unique_lock<std::mutex> lock(m_ModelMutex);
+
+  if (!GetSelectMessage()) return;
+
+  std::string profileId = m_CurrentChat.first;
+  std::string chatId = m_CurrentChat.second;
+  const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
+  const int messageOffset = m_MessageOffset[profileId][chatId];
+  std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
+
+  auto it = std::next(messageVec.begin(), messageOffset);
+  if (it == messageVec.end())
+  {
+    LOG_WARNING("error finding message id");
+    return;
+  }
+
+  std::string msgId = *it;
+  auto mit = messages.find(msgId);
+  if (mit == messages.end())
+  {
+    LOG_WARNING("error finding message");
+    return;
+  }
+
+  const std::string linkChatId = mit->second.link;
+  if (linkChatId.empty())
+  {
+    LOG_WARNING("message does not contain a link");
+    return;
+  }
+
+  LOG_DEBUG("create chat %s", linkChatId.c_str());
+  std::shared_ptr<CreateChatRequest> createChatRequest = std::make_shared<CreateChatRequest>();
+  createChatRequest->userId = linkChatId;
+  m_Protocols[profileId]->SendRequest(createChatRequest);
+  SetSelectMessage(false);
 }
 
 void UiModel::SaveMessageAttachment()
@@ -1146,8 +1187,14 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
           std::string chatId = deleteMessageNotify->chatId;
           std::string msgId = deleteMessageNotify->msgId;
 
+          MessageCache::Delete(profileId, chatId, msgId);
+
           std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
           messageVec.erase(std::remove(messageVec.begin(), messageVec.end(), msgId), messageVec.end());
+
+          std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
+          messages.erase(msgId);
+
           if (GetSelectMessage())
           {
             int& messageOffset = m_MessageOffset[profileId][chatId];
@@ -1263,6 +1310,7 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
             m_ChatVec.push_back(std::make_pair(profileId, chatInfo.id));
           }
 
+          m_CurrentChatIndex = 0;
           m_CurrentChat.first = profileId;
           m_CurrentChat.second = chatInfo.id;
           SortChats();
@@ -1331,31 +1379,51 @@ void UiModel::SortChats()
   }
 }
 
+std::string UiModel::GetLastMessageId(const std::string& p_ProfileId, const std::string& p_ChatId)
+{
+  const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[p_ProfileId][p_ChatId];
+  const std::vector<std::string>& messageVec = m_MessageVec[p_ProfileId][p_ChatId];
+  if (messageVec.empty()) return std::string();
+
+  std::string lastMessageId;
+  for (const auto& messageId : messageVec)
+  {
+    auto messageIt = messages.find(messageId);
+    if (messageIt == messages.end()) continue;
+
+    const ChatMessage& lastChatMessage = messageIt->second;
+    if (lastChatMessage.timeSent != std::numeric_limits<int64_t>::max())
+    {
+      lastMessageId = messageId;
+      break;
+    }
+  }
+
+  return lastMessageId;
+}
+
 void UiModel::UpdateChatInfoLastMessageTime(const std::string& p_ProfileId, const std::string& p_ChatId)
 {
-  std::unordered_map<std::string, ChatMessage>& messages = m_Messages[p_ProfileId][p_ChatId];
-  std::vector<std::string>& messageVec = m_MessageVec[p_ProfileId][p_ChatId];
-  if (messageVec.empty()) return;
+  const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[p_ProfileId][p_ChatId];
+  const std::string lastMessageId = GetLastMessageId(p_ProfileId, p_ChatId);
+  if (lastMessageId.empty()) return;
 
-  const std::string& lastMessageId = messageVec.at(0);
-  const ChatMessage& lastChatMessage = messages[lastMessageId];
-
+  const int64_t lastMessageTimeSent = messages.at(lastMessageId).timeSent;
   std::unordered_map<std::string, ChatInfo>& profileChatInfos = m_ChatInfos[p_ProfileId];
   if (profileChatInfos.count(p_ChatId))
   {
-    profileChatInfos[p_ChatId].lastMessageTime = lastChatMessage.timeSent;
+    profileChatInfos[p_ChatId].lastMessageTime = lastMessageTimeSent;
   }
 }
 
 void UiModel::UpdateChatInfoIsUnread(const std::string& p_ProfileId, const std::string& p_ChatId)
 {
-  std::unordered_map<std::string, ChatMessage>& messages = m_Messages[p_ProfileId][p_ChatId];
-  std::vector<std::string>& messageVec = m_MessageVec[p_ProfileId][p_ChatId];
-  if (messageVec.empty()) return;
+  const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[p_ProfileId][p_ChatId];
+  const std::string lastMessageId = GetLastMessageId(p_ProfileId, p_ChatId);
+  if (lastMessageId.empty()) return;
 
   bool isRead = true;
-  std::string messageId = *messageVec.begin();
-  const ChatMessage& chatMessage = messages[messageId];
+  const ChatMessage& chatMessage = messages.at(lastMessageId);
   isRead = chatMessage.isOutgoing ? true : chatMessage.isRead;
 
   bool isUnread = !isRead;
@@ -1462,6 +1530,7 @@ void UiModel::OnCurrentChatChanged()
   UpdateHelp();
   UpdateEntry();
   RequestMessages();
+  ProtocolSetCurrentChat();
 }
 
 void UiModel::RequestMessages()
@@ -1503,6 +1572,22 @@ void UiModel::RequestMessages()
     getMessagesRequest->fromIsOutgoing = fromIsOutgoing;
     LOG_TRACE("request messages from %s limit %d", fromId.c_str(), limit);
     m_Protocols[m_CurrentChat.first]->SendRequest(getMessagesRequest);
+  }
+}
+
+void UiModel::ProtocolSetCurrentChat()
+{
+  static std::pair<std::string, std::string> lastCurrentChat;
+  if (lastCurrentChat != m_CurrentChat)
+  {
+    lastCurrentChat = m_CurrentChat;
+
+    const std::string& profileId = m_CurrentChat.first;
+    const std::string& chatId = m_CurrentChat.second;
+    std::shared_ptr<SetCurrentChatRequest> setCurrentChatRequest = std::make_shared<SetCurrentChatRequest>();
+    setCurrentChatRequest->chatId = chatId;
+    LOG_TRACE("notify current chat %s", chatId.c_str());
+    m_Protocols[profileId]->SendRequest(setCurrentChatRequest);
   }
 }
 

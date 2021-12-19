@@ -64,6 +64,7 @@ Interactive Commands for Selected Message:
     Ctrl-d      delete selected message
     Ctrl-r      download attached file
     Ctrl-v      open/view attached file
+    Ctrl-w      open link in sponsored message
     Ctrl-x      reply to selected message
 
 
@@ -279,6 +280,7 @@ This configuration file holds user interface key bindings. Default content:
     next_chat=KEY_TAB
     next_page=KEY_NPAGE
     open=KEY_CTRLV
+    open_link=KEY_CTRLW
     other_commands_help=KEY_CTRLO
     prev_chat=KEY_BTAB
     prev_page=KEY_PPAGE
@@ -376,14 +378,6 @@ General
 -------
 Deleting a configuration entry line (while nchat is not running) and starting
 nchat will populate the configuration file with the default entry.
-
-
-Limitations
-===========
-Known limitations:
-
-- Messages deleted using other devices/clients will not be deleted in nchat
-  history if local cache is enabled.
 
 
 Technical Details

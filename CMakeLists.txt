@@ -1,6 +1,6 @@
 # Project
 cmake_minimum_required(VERSION 3.16 FATAL_ERROR) # 3.1 is ok, but is 3.16 needed for proper version string
-project(nchat VERSION 2.19 LANGUAGES CXX)
+project(nchat VERSION 2.20 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 14)
 include(CheckCXXSourceCompiles)
 set(NCHAT_PROJECT_VERSION ${PROJECT_VERSION})
