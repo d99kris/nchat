@@ -809,15 +809,15 @@ void UiModel::OpenMessageAttachment()
 
 #if defined(__APPLE__)
   std::string cmd = "open " + filePath + " &";
-  LOG_TRACE("run cmd %s", cmd.c_str());
-  system(cmd.c_str());
-#elif defined(__linux__)
-  std::string cmd = "xdg-open >/dev/null 2>&1 " + filePath + " &";
-  LOG_TRACE("run cmd %s", cmd.c_str());
-  system(cmd.c_str());
 #else
-  LOG_WARNING("unsupported os");
+  std::string cmd = "xdg-open >/dev/null 2>&1 " + filePath + " &";
 #endif
+  LOG_TRACE("cmd \"%s\" start", cmd.c_str());
+  int rv = system(cmd.c_str());
+  if (rv != 0)
+  {
+    LOG_WARNING("cmd \"%s\" failed (%d)", cmd.c_str(), rv);
+  }
 }
 
 void UiModel::OpenMessageLink()
