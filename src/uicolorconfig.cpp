@@ -18,6 +18,13 @@
 
 void UiColorConfig::Init()
 {
+  if (has_colors())
+  {
+    start_color();
+    assume_default_colors(-1, -1);
+  }
+
+  const std::string defaultSentColor = (COLORS > 8) ? "gray" : "";
   const std::map<std::string, std::string> defaultConfig =
   {
     { "top_attr", "reverse" },
@@ -43,14 +50,14 @@ void UiColorConfig::Init()
     { "history_text_attr", "" },
     { "history_text_attr_selected", "reverse" },
     { "history_text_sent_color_bg", "" },
-    { "history_text_sent_color_fg", "gray" },
+    { "history_text_sent_color_fg", defaultSentColor },
     { "history_text_recv_color_bg", "" },
     { "history_text_recv_color_fg", "" },
 
     { "history_name_attr", "bold" },
     { "history_name_attr_selected", "reverse" },
     { "history_name_sent_color_bg", "" },
-    { "history_name_sent_color_fg", "gray" },
+    { "history_name_sent_color_fg", defaultSentColor },
     { "history_name_recv_color_bg", "" },
     { "history_name_recv_color_fg", "" },
 
@@ -62,12 +69,6 @@ void UiColorConfig::Init()
 
   const std::string configPath(FileUtil::GetApplicationDir() + std::string("/color.conf"));
   m_Config = Config(configPath, defaultConfig);
-
-  if (has_colors())
-  {
-    start_color();
-    assume_default_colors(-1, -1);
-  }
 }
 
 void UiColorConfig::Cleanup()
@@ -116,28 +117,42 @@ int UiColorConfig::GetAttribute(const std::string& p_Param)
 
 int UiColorConfig::GetColorId(const std::string& p_Str)
 {
-  const int BRIGHT = 8;
-  static std::map<std::string, int> standardColors =
+  static const std::map<std::string, int> standardColors = []()
   {
-    { "black", COLOR_BLACK },
-    { "red", COLOR_RED },
-    { "green", COLOR_GREEN },
-    { "yellow", COLOR_YELLOW },
-    { "blue", COLOR_BLUE },
-    { "magenta", COLOR_MAGENTA },
-    { "cyan", COLOR_CYAN },
-    { "white", COLOR_WHITE },
+    std::map<std::string, int> colors;
+    const std::map<std::string, int> basicColors =
+    {
+      { "black", COLOR_BLACK },
+      { "red", COLOR_RED },
+      { "green", COLOR_GREEN },
+      { "yellow", COLOR_YELLOW },
+      { "blue", COLOR_BLUE },
+      { "magenta", COLOR_MAGENTA },
+      { "cyan", COLOR_CYAN },
+      { "white", COLOR_WHITE },
+    };
+    colors.insert(basicColors.begin(), basicColors.end());
 
-    { "gray", BRIGHT | COLOR_BLACK },
-    { "bright_black", BRIGHT | COLOR_BLACK },
-    { "bright_red", BRIGHT | COLOR_RED },
-    { "bright_green", BRIGHT | COLOR_GREEN },
-    { "bright_yellow", BRIGHT | COLOR_YELLOW },
-    { "bright_blue", BRIGHT | COLOR_BLUE },
-    { "bright_magenta", BRIGHT | COLOR_MAGENTA },
-    { "bright_cyan", BRIGHT | COLOR_CYAN },
-    { "bright_white", BRIGHT | COLOR_WHITE },
-  };
+    if (COLORS > 8)
+    {
+      const int BRIGHT = 8;
+      const std::map<std::string, int> extendedColors =
+      {
+        { "gray", BRIGHT | COLOR_BLACK },
+        { "bright_black", BRIGHT | COLOR_BLACK },
+        { "bright_red", BRIGHT | COLOR_RED },
+        { "bright_green", BRIGHT | COLOR_GREEN },
+        { "bright_yellow", BRIGHT | COLOR_YELLOW },
+        { "bright_blue", BRIGHT | COLOR_BLUE },
+        { "bright_magenta", BRIGHT | COLOR_MAGENTA },
+        { "bright_cyan", BRIGHT | COLOR_CYAN },
+        { "bright_white", BRIGHT | COLOR_WHITE },
+      };
+      colors.insert(extendedColors.begin(), extendedColors.end());
+    }
+
+    return colors;
+  }();
 
   if (p_Str.empty()) return -1;
 
@@ -156,6 +171,12 @@ int UiColorConfig::GetColorId(const std::string& p_Str)
     {
       static int colorId = 31;
       colorId++;
+      if (colorId > COLORS)
+      {
+        LOG_WARNING("max number of colors (%d) already defined, skipping \"%s\"", p_Str.c_str());
+        return -1;
+      }
+
       init_color(colorId, ((r * 1000) / 255), ((g * 1000) / 255), ((b * 1000) / 255));
       return colorId;
     }
@@ -165,7 +186,7 @@ int UiColorConfig::GetColorId(const std::string& p_Str)
   }
 
   // name
-  std::map<std::string, int>::iterator standardColor = standardColors.find(p_Str);
+  std::map<std::string, int>::const_iterator standardColor = standardColors.find(p_Str);
   if (standardColor != standardColors.end())
   {
     return standardColor->second;
