@@ -18,6 +18,7 @@ public:
   static void Cleanup();
   static bool GetBool(const std::string& p_Param);
   static void SetBool(const std::string& p_Param, const bool& p_Value);
+  static std::string GetText(const std::string& p_Param);
 
 private:
   static Config m_Config;

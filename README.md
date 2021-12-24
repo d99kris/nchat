@@ -258,6 +258,7 @@ This configuration file holds general application settings. Default content:
 ----------------
 This configuration file holds general user interface settings. Default content:
 
+    attachment_indicator=📎
     confirm_deletion=1
     emoji_enabled=1
     help_enabled=1
@@ -266,8 +267,13 @@ This configuration file holds general user interface settings. Default content:
     muted_indicate_unread=1
     muted_notify_unread=0
     muted_position_by_timestamp=1
+    read_indicator=✓
     terminal_bell=1
     top_enabled=1
+
+### attachment_indicator
+
+Specifies text to prefix attached filenames in message view.
 
 ### confirm_deletion
 
@@ -302,6 +308,10 @@ Specifies whether to notify (terminal bell) new unread messages in muted chats.
 
 Specifies whether chat list position of muted chats should reflect the time of
 their last received/sent message. Otherwise muted chats are listed last.
+
+### read_indicator
+
+Specifies text to indicate a message has been read by the receiver.
 
 ### terminal_bell
 

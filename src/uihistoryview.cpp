@@ -12,6 +12,7 @@
 #include "strutil.h"
 #include "timeutil.h"
 #include "uicolorconfig.h"
+#include "uiconfig.h"
 #include "uimodel.h"
 
 UiHistoryView::UiHistoryView(const UiViewParams& p_Params)
@@ -150,7 +151,8 @@ void UiHistoryView::Draw()
         fileName = FileUtil::BaseName(msg.filePath);
       }
 
-      std::wstring fileStr = StrUtil::ToWString("\xF0\x9F\x93\x8E " + fileName);
+      static const std::string attachmentIndicator = UiConfig::GetText("attachment_indicator");
+      std::wstring fileStr = StrUtil::ToWString(attachmentIndicator + " " + fileName);
       wlines.insert(wlines.begin(), fileStr);
     }
 
@@ -191,7 +193,9 @@ void UiHistoryView::Draw()
     {
       wtime = L" ";
     }
-    std::wstring wreceipt = StrUtil::ToWString(msg.isRead ? "\xe2\x9c\x93" : "");
+
+    static const std::string readIndicator = UiConfig::GetText("read_indicator");
+    std::wstring wreceipt = StrUtil::ToWString(msg.isRead ? readIndicator : "");
     std::wstring wheader = wsender + wtime + wreceipt;
 
     static const bool developerMode = AppUtil::GetDeveloperMode();
