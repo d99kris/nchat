@@ -149,9 +149,11 @@ Steps to build nchat on a low memory system:
 
 **Build**
 
-    cd lib/tgchat/ext/td ; php SplitSource.php ; cd -
     mkdir -p build && cd build
-    CC=/usr/bin/clang CXX=/usr/bin/clang++ cmake -DCMAKE_BUILD_TYPE=Release .. && make -s
+    CC=/usr/bin/clang CXX=/usr/bin/clang++ cmake -DCMAKE_BUILD_TYPE=Release ..
+    cmake --build . --target prepare_cross_compiling
+    cd ../lib/tgchat/ext/td ; php SplitSource.php ; cd -
+    make -s
 
 **Install**
 
