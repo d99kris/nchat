@@ -179,7 +179,7 @@ if [[ "${DEBUG}" == "1" ]]; then
 
   CMAKEARGS="-DHAS_WHATSAPP=ON -DHAS_DUMMY=ON"
 
-  mkdir -p build && cd build && cmake -DCMAKE_BUILD_TYPE=Debug ${CMAKEARGS} .. && make -s ${MAKEARGS} && cd .. || exiterr "debug build failed, exiting."
+  mkdir -p dbgbuild && cd dbgbuild && cmake -DCMAKE_BUILD_TYPE=Debug ${CMAKEARGS} .. && make -s ${MAKEARGS} && cd .. || exiterr "debug build failed, exiting."
 fi
 
 # tests

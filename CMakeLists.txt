@@ -1,6 +1,6 @@
 # Project
 cmake_minimum_required(VERSION 3.16 FATAL_ERROR) # 3.1 is ok, but is 3.16 needed for proper version string
-project(nchat VERSION 2.25 LANGUAGES CXX)
+project(nchat VERSION 2.26 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 14)
 include(CheckCXXSourceCompiles)
 set(NCHAT_PROJECT_VERSION ${PROJECT_VERSION})
@@ -15,7 +15,7 @@ set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 # Build type
 set(DEFAULT_BUILD_TYPE "Release")
 if((EXISTS "${CMAKE_SOURCE_DIR}/.svn") OR (EXISTS "${CMAKE_SOURCE_DIR}/.git"))
-  set(DEFAULT_BUILD_TYPE "Debug")
+  set(DEFAULT_BUILD_TYPE "RelWithDebInfo")
 endif()
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "Using build type '${DEFAULT_BUILD_TYPE}' (default).")

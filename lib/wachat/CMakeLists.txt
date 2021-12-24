@@ -9,18 +9,6 @@ if(CCACHE_PROGRAM)
   set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CCACHE_PROGRAM}")
 endif()
 
-# Build type
-set(DEFAULT_BUILD_TYPE "Release")
-if((EXISTS "${CMAKE_SOURCE_DIR}/.svn") OR (EXISTS "${CMAKE_SOURCE_DIR}/.git"))
-  set(DEFAULT_BUILD_TYPE "Debug")
-endif()
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  message(STATUS "Using build type '${DEFAULT_BUILD_TYPE}' (default).")
-  set(CMAKE_BUILD_TYPE "${DEFAULT_BUILD_TYPE}")
-else()
-  message(STATUS "Using build type '${CMAKE_BUILD_TYPE}'.")
-endif()
-
 # Library
 add_library(wachat SHARED
   src/wachat.cpp
