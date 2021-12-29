@@ -27,6 +27,7 @@
 #include "config.h"
 #include "log.h"
 #include "path.hpp"
+#include "protocolutil.h"
 #include "status.h"
 #include "strutil.h"
 #include "timeutil.h"
@@ -83,8 +84,22 @@ std::string TgChat::GetProfileId() const
 
 bool TgChat::HasFeature(ProtocolFeature p_ProtocolFeature) const
 {
-  ProtocolFeature customFeatures = TypingTimeout;
+  ProtocolFeature customFeatures = FeatureTypingTimeout;
   return (p_ProtocolFeature & customFeatures);
+}
+
+void TgChat::SetProperty(ProtocolProperty p_Property, const std::string& p_Value)
+{
+  switch (p_Property)
+  {
+    case PropertyAttachmentPrefetchAll:
+      m_AttachmentPrefetchAll = (p_Value == "1");
+      break;
+
+    case PropertyNone:
+    default:
+      break;
+  }
 }
 
 bool TgChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId)
@@ -485,7 +500,7 @@ void TgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
         auto send_message = td::td_api::make_object<td::td_api::sendMessage>();
         send_message->chat_id_ = StrUtil::NumFromHex<int64_t>(sendMessageRequest->chatId);
 
-        if (sendMessageRequest->chatMessage.filePath.empty())
+        if (sendMessageRequest->chatMessage.fileInfo.empty())
         {
           auto message_content = td::td_api::make_object<td::td_api::inputMessageText>();
 
@@ -516,9 +531,11 @@ void TgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
         }
         else
         {
+          FileInfo fileInfo =
+            ProtocolUtil::FileInfoFromHex(sendMessageRequest->chatMessage.fileInfo);
           auto message_content = td::td_api::make_object<td::td_api::inputMessageDocument>();
           message_content->document_ = td::td_api::make_object<td::td_api::inputFileLocal>(
-            sendMessageRequest->chatMessage.filePath);
+            fileInfo.filePath);
           send_message->input_message_content_ = std::move(message_content);
         }
 
@@ -708,14 +725,15 @@ void TgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
       }
       break;
 
-    case DeferDownloadFileRequestType:
+    case DownloadFileRequestType:
       {
-        std::shared_ptr<DeferDownloadFileRequest> deferDownloadFileRequest =
-          std::static_pointer_cast<DeferDownloadFileRequest>(p_RequestMessage);
-        std::string chatId = deferDownloadFileRequest->chatId;
-        std::string msgId = deferDownloadFileRequest->msgId;
-        std::string fileId = deferDownloadFileRequest->fileId;
-        DownloadFile(chatId, msgId, fileId);
+        std::shared_ptr<DownloadFileRequest> downloadFileRequest =
+          std::static_pointer_cast<DownloadFileRequest>(p_RequestMessage);
+        std::string chatId = downloadFileRequest->chatId;
+        std::string msgId = downloadFileRequest->msgId;
+        std::string fileId = downloadFileRequest->fileId;
+        DownloadFileAction downloadFileAction = downloadFileRequest->downloadFileAction;
+        DownloadFile(chatId, msgId, fileId, downloadFileAction);
       }
       break;
 
@@ -1289,8 +1307,7 @@ std::string TgChat::GetText(td::td_api::object_ptr<td::td_api::formattedText>&& 
 }
 
 void TgChat::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessageContent,
-                                     std::string& p_Text, std::string& p_FilePath,
-                                     int32_t& p_DownloadId)
+                                     std::string& p_Text, std::string& p_FileInfo)
 {
   if (p_TdMessageContent.get_id() == td::td_api::messageText::ID)
   {
@@ -1334,15 +1351,20 @@ void TgChat::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessageCont
     std::string path = messageDocument.document_->document_->local_->path_;
     std::string fileName = messageDocument.document_->file_name_;
     p_Text = GetText(std::move(messageDocument.caption_));
+    FileInfo fileInfo;
     if (!path.empty())
     {
-      p_FilePath = path;
+      fileInfo.filePath = path;
+      fileInfo.fileStatus = FileStatusDownloaded;
     }
     else
     {
-      p_FilePath = " ";
-      p_DownloadId = id;
+      fileInfo.filePath = fileName;
+      fileInfo.fileStatus = m_AttachmentPrefetchAll ? FileStatusDownloading : FileStatusNotDownloaded;
+      fileInfo.fileId = StrUtil::NumToHex(id);
     }
+
+    p_FileInfo = ProtocolUtil::FileInfoToHex(fileInfo);
   }
   else if (p_TdMessageContent.get_id() == td::td_api::messagePhoto::ID)
   {
@@ -1356,16 +1378,21 @@ void TgChat::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessageCont
       auto& photoFile = largestSize->photo_;
       auto& localFile = photoFile->local_;
       auto& localPath = localFile->path_;
+      FileInfo fileInfo;
       if (!localPath.empty())
       {
-        p_FilePath = localPath;
+        fileInfo.filePath = localPath;
+        fileInfo.fileStatus = FileStatusDownloaded;
       }
       else
       {
         int32_t id = photoFile->id_;
-        p_FilePath = " ";
-        p_DownloadId = id;
+        fileInfo.filePath = "[Photo]";
+        fileInfo.fileStatus = m_AttachmentPrefetchAll ? FileStatusDownloading : FileStatusNotDownloaded;
+        fileInfo.fileId = StrUtil::NumToHex(id);
       }
+
+      p_FileInfo = ProtocolUtil::FileInfoToHex(fileInfo);
     }
     else
     {
@@ -1400,8 +1427,7 @@ void TgChat::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessageCont
 
 void TgChat::TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessage& p_ChatMessage)
 {
-  int32_t downloadId = 0;
-  TdMessageContentConvert(*p_TdMessage.content_, p_ChatMessage.text, p_ChatMessage.filePath, downloadId);
+  TdMessageContentConvert(*p_TdMessage.content_, p_ChatMessage.text, p_ChatMessage.fileInfo);
 
   p_ChatMessage.id = StrUtil::NumToHex(p_TdMessage.id_);
   p_ChatMessage.senderId = StrUtil::NumToHex(GetSenderId(p_TdMessage));
@@ -1435,17 +1461,24 @@ void TgChat::TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessage& p_C
     }
   }
 
-  if (downloadId != 0)
+  if (m_AttachmentPrefetchAll && !p_ChatMessage.fileInfo.empty())
   {
-    std::shared_ptr<DeferDownloadFileRequest> deferDownloadFileRequest = std::make_shared<DeferDownloadFileRequest>();
-    deferDownloadFileRequest->chatId = StrUtil::NumToHex(p_TdMessage.chat_id_);
-    deferDownloadFileRequest->msgId = StrUtil::NumToHex(p_TdMessage.id_);
-    deferDownloadFileRequest->fileId = StrUtil::NumToHex(downloadId);
-    SendRequest(deferDownloadFileRequest);
+    FileInfo fileInfo = ProtocolUtil::FileInfoFromHex(p_ChatMessage.fileInfo);
+    int32_t fileId = StrUtil::NumFromHex<int32_t>(fileInfo.fileId);
+    if (fileId != 0)
+    {
+      std::shared_ptr<DownloadFileRequest> downloadFileRequest =
+        std::make_shared<DownloadFileRequest>();
+      downloadFileRequest->chatId = StrUtil::NumToHex(p_TdMessage.chat_id_);
+      downloadFileRequest->msgId = StrUtil::NumToHex(p_TdMessage.id_);
+      downloadFileRequest->fileId = StrUtil::NumToHex(fileId);
+      SendRequest(downloadFileRequest);
+    }
   }
 }
 
-void TgChat::DownloadFile(std::string p_ChatId, std::string p_MsgId, std::string p_FileId)
+void TgChat::DownloadFile(std::string p_ChatId, std::string p_MsgId, std::string p_FileId,
+                          DownloadFileAction p_DownloadFileAction)
 {
   LOG_DEBUG("download file");
   try
@@ -1455,7 +1488,7 @@ void TgChat::DownloadFile(std::string p_ChatId, std::string p_MsgId, std::string
     download_file->priority_ = 32;
     download_file->synchronous_ = true;
     SendQuery(std::move(download_file),
-              [this, p_ChatId, p_MsgId, p_FileId](Object object)
+              [this, p_ChatId, p_MsgId, p_FileId, p_DownloadFileAction](Object object)
     {
       if (object->get_id() == td::td_api::error::ID) return;
 
@@ -1464,11 +1497,16 @@ void TgChat::DownloadFile(std::string p_ChatId, std::string p_MsgId, std::string
         auto file_ = td::move_tl_object_as<td::td_api::file>(object);
         std::string path = file_->local_->path_;
 
+        FileInfo fileInfo;
+        fileInfo.fileStatus = FileStatusDownloaded;
+        fileInfo.filePath = path;
+
         std::shared_ptr<NewMessageFileNotify> newMessageFileNotify =
           std::make_shared<NewMessageFileNotify>(m_ProfileId);
         newMessageFileNotify->chatId = std::string(p_ChatId);
         newMessageFileNotify->msgId = std::string(p_MsgId);
-        newMessageFileNotify->filePath = path;
+        newMessageFileNotify->fileInfo = ProtocolUtil::FileInfoToHex(fileInfo);
+        newMessageFileNotify->downloadFileAction = p_DownloadFileAction;
 
         CallMessageHandler(newMessageFileNotify);
       }
@@ -1585,9 +1623,8 @@ void TgChat::GetSponsoredMessages(const std::string& p_ChatId)
     {
       auto sponsoredMessage = td::move_tl_object_as<td::td_api::sponsoredMessage>(*it);
       const int32_t sponsoredMessageId = sponsoredMessage->id_;
-      int32_t downloadId = 0;
       ChatMessage chatMessage;
-      TdMessageContentConvert(*sponsoredMessage->content_, chatMessage.text, chatMessage.filePath, downloadId);
+      TdMessageContentConvert(*sponsoredMessage->content_, chatMessage.text, chatMessage.fileInfo);
 
       chatMessage.id = StrUtil::NumAddPrefix(StrUtil::NumToHex(sponsoredMessageId), m_SponsoredMessageMsgIdPrefix);
       chatMessage.timeSent = std::numeric_limits<int64_t>::max();

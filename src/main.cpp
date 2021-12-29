@@ -22,6 +22,7 @@
 #include "scopeddirlock.h"
 #include "tgchat.h"
 #include "ui.h"
+#include "uiconfig.h"
 
 #ifdef HAS_DUMMY
 #include "duchat.h"
@@ -190,7 +191,7 @@ int main(int argc, char* argv[])
 
   // Init app config
   AppConfig::Init();
-  
+
   // Init ui
   std::shared_ptr<Ui> ui = std::make_shared<Ui>();
 
@@ -232,6 +233,10 @@ int main(int argc, char* argv[])
 #endif
   }
 
+  // Protocol config params
+  std::string isAttachmentPrefetchAll =
+    (UiConfig::GetNum("attachment_prefetch") == AttachmentPrefetchAll) ? "1" : "0";
+
   // Start protocol(s) and ui
   std::unordered_map<std::string, std::shared_ptr<Protocol>>& protocols = ui->GetProtocols();
   bool hasProtocols = !protocols.empty();
@@ -241,6 +246,7 @@ int main(int argc, char* argv[])
     for (auto& protocol : protocols)
     {
       protocol.second->SetMessageHandler(messageHandler);
+      protocol.second->SetProperty(PropertyAttachmentPrefetchAll, isAttachmentPrefetchAll);
       protocol.second->Login();
     }
 

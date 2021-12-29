@@ -35,6 +35,8 @@ add_library(ncutil SHARED
   src/numutil.h
   src/profiles.cpp
   src/profiles.h
+  src/protocolutil.cpp
+  src/protocolutil.h
   src/scopeddirlock.cpp
   src/scopeddirlock.h
   src/status.cpp

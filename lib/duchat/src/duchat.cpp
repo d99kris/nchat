@@ -30,8 +30,12 @@ std::string DuChat::GetProfileId() const
 
 bool DuChat::HasFeature(ProtocolFeature p_ProtocolFeature) const
 {
-  ProtocolFeature customFeatures = NoFeature;
+  ProtocolFeature customFeatures = FeatureNone;
   return (p_ProtocolFeature & customFeatures);
+}
+
+void DuChat::SetProperty(ProtocolProperty /*p_Property*/, const std::string& /*p_Value*/)
+{
 }
 
 bool DuChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId)

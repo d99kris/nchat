@@ -17,6 +17,7 @@
 
 #include "log.h"
 #include "fileutil.h"
+#include "protocolutil.h"
 #include "strutil.h"
 #include "timeutil.h"
 
@@ -32,13 +33,14 @@ std::deque<std::shared_ptr<MessageCache::Request>> MessageCache::m_Queue;
 std::string MessageCache::m_HistoryDir;
 bool MessageCache::m_CacheEnabled = true;
 
-void MessageCache::Init(const bool p_CacheEnabled, const std::function<void(std::shared_ptr<ServiceMessage>)>& p_MessageHandler)
+void MessageCache::Init(const bool p_CacheEnabled,
+                        const std::function<void(std::shared_ptr<ServiceMessage>)>& p_MessageHandler)
 {
   m_CacheEnabled = p_CacheEnabled;
-  
+
   if (!m_CacheEnabled) return;
-  
-  static const int dirVersion = 3;
+
+  static const int dirVersion = 4;
   m_HistoryDir = FileUtil::GetApplicationDir() + "/history";
   FileUtil::InitDirVersion(m_HistoryDir, dirVersion);
 
@@ -79,7 +81,7 @@ void MessageCache::Cleanup()
 void MessageCache::AddProfile(const std::string& p_ProfileId)
 {
   if (!m_CacheEnabled) return;
-  
+
   std::unique_lock<std::mutex> lock(m_DbMutex);
   const std::string& dbDir = m_HistoryDir + "/" + p_ProfileId;
   FileUtil::MkDir(dbDir);
@@ -97,7 +99,8 @@ void MessageCache::AddProfile(const std::string& p_ProfileId)
     "quotedId TEXT,"
     "quotedText TEXT,"
     "quotedSender TEXT,"
-    "filePath TEXT,"
+    "fileInfo TEXT,"
+    "fileStatus INT,"
     "fileType TEXT,"
     "timeSent INT,"
     "isOutgoing INT,"
@@ -119,7 +122,7 @@ void MessageCache::Add(const std::string& p_ProfileId, const std::string& p_Chat
                        const std::vector<ChatMessage>& p_ChatMessages)
 {
   if (!m_CacheEnabled) return;
-  
+
   std::shared_ptr<AddRequest> addRequest = std::make_shared<AddRequest>();
   addRequest->profileId = p_ProfileId;
   addRequest->chatId = p_ChatId;
@@ -143,7 +146,7 @@ bool MessageCache::Fetch(const std::string& p_ProfileId, const std::string& p_Ch
                          const std::string& p_FromMsgId, const int p_Limit, const bool p_Sync)
 {
   if (!m_CacheEnabled) return false;
-  
+
   std::unique_lock<std::mutex> lock(m_DbMutex);
   if (!m_Dbs[p_ProfileId]) return false;
 
@@ -153,7 +156,8 @@ bool MessageCache::Fetch(const std::string& p_ProfileId, const std::string& p_Ch
   bool fromMsgIsLast = false;
   if (!p_FromMsgId.empty())
   {
-    *m_Dbs[p_ProfileId] << "SELECT timeSent,isLast FROM messages WHERE chatId = ? AND id = ?;" << p_ChatId << p_FromMsgId >>
+    *m_Dbs[p_ProfileId] << "SELECT timeSent,isLast FROM messages WHERE chatId = ? AND id = ?;"
+                        << p_ChatId << p_FromMsgId >>
     [&](const int64_t& timeSent, const int32_t& isLast)
     {
       fromMsgIdTimeSent = timeSent;
@@ -164,9 +168,10 @@ bool MessageCache::Fetch(const std::string& p_ProfileId, const std::string& p_Ch
   {
     fromMsgIdTimeSent = std::numeric_limits<int64_t>::max();
   }
-  
+
   int count = 0;
-  *m_Dbs[p_ProfileId] << "SELECT COUNT(*) FROM messages WHERE chatId = ? AND timeSent < ?;" << p_ChatId << fromMsgIdTimeSent >>
+  *m_Dbs[p_ProfileId] << "SELECT COUNT(*) FROM messages WHERE chatId = ? AND timeSent < ?;"
+                      << p_ChatId << fromMsgIdTimeSent >>
   [&](const int& countRes)
   {
     count = countRes;
@@ -208,7 +213,7 @@ bool MessageCache::Fetch(const std::string& p_ProfileId, const std::string& p_Ch
 void MessageCache::Delete(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId)
 {
   if (!m_CacheEnabled) return;
-  
+
   std::shared_ptr<DeleteRequest> deleteRequest = std::make_shared<DeleteRequest>();
   deleteRequest->profileId = p_ProfileId;
   deleteRequest->chatId = p_ChatId;
@@ -216,7 +221,8 @@ void MessageCache::Delete(const std::string& p_ProfileId, const std::string& p_C
   EnqueueRequest(deleteRequest);
 }
 
-void MessageCache::UpdateIsRead(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId, bool p_IsRead)
+void MessageCache::UpdateIsRead(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId,
+                                bool p_IsRead)
 {
   if (!m_CacheEnabled) return;
 
@@ -228,16 +234,17 @@ void MessageCache::UpdateIsRead(const std::string& p_ProfileId, const std::strin
   EnqueueRequest(updateIsReadRequest);
 }
 
-void MessageCache::UpdateFilePath(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId, const std::string& p_FilePath)
+void MessageCache::UpdateFileInfo(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                  const std::string& p_MsgId, const std::string& p_FileInfo)
 {
   if (!m_CacheEnabled) return;
 
-  std::shared_ptr<UpdateFilePathRequest> updateFilePathRequest = std::make_shared<UpdateFilePathRequest>();
-  updateFilePathRequest->profileId = p_ProfileId;
-  updateFilePathRequest->chatId = p_ChatId;
-  updateFilePathRequest->msgId = p_MsgId;
-  updateFilePathRequest->filePath = p_FilePath;
-  EnqueueRequest(updateFilePathRequest);
+  std::shared_ptr<UpdateFileInfoRequest> updateFileInfoRequest = std::make_shared<UpdateFileInfoRequest>();
+  updateFileInfoRequest->profileId = p_ProfileId;
+  updateFileInfoRequest->chatId = p_ChatId;
+  updateFileInfoRequest->msgId = p_MsgId;
+  updateFileInfoRequest->fileInfo = p_FileInfo;
+  EnqueueRequest(updateFileInfoRequest);
 }
 
 void MessageCache::Export(const std::string& p_ExportDir)
@@ -279,7 +286,7 @@ void MessageCache::Export(const std::string& p_ExportDir)
       std::string chatUser = contactNames[chatId];
       if (!chatUser.empty())
       {
-        chatUser.erase(remove_if(chatUser.begin(), chatUser.end(), [](char c) { return !isalpha(c); } ), chatUser.end());
+        chatUser.erase(remove_if(chatUser.begin(), chatUser.end(), [](char c) { return !isalpha(c); }), chatUser.end());
         chatName += "_" + chatUser;
       }
 
@@ -294,17 +301,18 @@ void MessageCache::Export(const std::string& p_ExportDir)
         if (year != lastYear)
         {
           lastYear = year;
-          std::string filePath = dirPath + "/" + chatName + "_" + year + ".txt";
-          std::cout << "Writing " << filePath << "\n";
+          std::string outPath = dirPath + "/" + chatName + "_" + year + ".txt";
+          std::cout << "Writing " << outPath << "\n";
           if (outFile.is_open())
           {
             outFile.close();
           }
 
-          outFile.open(filePath, std::ios::binary);
+          outFile.open(outPath, std::ios::binary);
         }
 
-        std::string sender = contactNames[chatMessage->senderId].empty() ? chatMessage->senderId : contactNames[chatMessage->senderId];
+        std::string sender =
+          contactNames[chatMessage->senderId].empty() ? chatMessage->senderId : contactNames[chatMessage->senderId];
         std::string header = sender + " (" + timestr + ")";
         outFile << header << "\n";
 
@@ -316,7 +324,9 @@ void MessageCache::Export(const std::string& p_ExportDir)
           if (quotedIt != messageMap.end())
           {
             quotedMsg = "> " + quotedIt->second;
-            quotedMsg = StrUtil::ToString(StrUtil::Join(StrUtil::WordWrap(StrUtil::ToWString(quotedMsg), 72, false, false, true, 2), L"\n"));
+            quotedMsg =
+              StrUtil::ToString(StrUtil::Join(StrUtil::WordWrap(StrUtil::ToWString(quotedMsg),
+                                                                72, false, false, true, 2), L"\n"));
           }
           else
           {
@@ -326,22 +336,10 @@ void MessageCache::Export(const std::string& p_ExportDir)
           outFile << quotedMsg << "\n";
         }
 
-        if (!chatMessage->filePath.empty())
+        if (!chatMessage->fileInfo.empty())
         {
-          std::string fileName;
-          if (chatMessage->filePath == " ")
-          {
-            fileName = "[Downloading]";
-          }
-          else if (chatMessage->filePath == "  ")
-          {
-            fileName = "[Download Failed]";
-          }
-          else
-          {
-            fileName = FileUtil::BaseName(chatMessage->filePath);
-          }
-
+          FileInfo fileInfo = ProtocolUtil::FileInfoFromHex(chatMessage->fileInfo);
+          std::string fileName = FileUtil::BaseName(fileInfo.filePath);
           outFile << fileName << "\n";
         }
 
@@ -416,9 +414,10 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
               msgIds += (!msgIds.empty()) ? "," : "";
               msgIds += "'" + msg.id + "'";
             }
-            
+
             int count = 0;
-            *m_Dbs[profileId] << "SELECT COUNT(*) FROM messages WHERE chatId = ? AND id IN (" + msgIds + ");" << chatId >>
+            *m_Dbs[profileId] << "SELECT COUNT(*) FROM messages WHERE chatId = ? AND id IN (" +
+              msgIds + ");" << chatId >>
             [&](const int& countRes)
             {
               count = countRes;
@@ -435,15 +434,15 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
             }
           }
         }
-        
+
         *m_Dbs[profileId] << "BEGIN;";
         for (const auto& msg : addRequest->chatMessages)
         {
           *m_Dbs[profileId] << "INSERT INTO messages "
-            "(chatId, id, senderId, text, quotedId, quotedText, quotedSender, filePath, fileType, timeSent, isOutgoing, isRead) VALUES "
-            "(?,?,?,?,?,?,?,?,?,?,?,?);" <<
+            "(chatId, id, senderId, text, quotedId, quotedText, quotedSender, fileInfo, timeSent, isOutgoing, isRead) VALUES "
+            "(?,?,?,?,?,?,?,?,?,?,?);" <<
             chatId << msg.id << msg.senderId << msg.text << msg.quotedId << msg.quotedText << msg.quotedSender <<
-            msg.filePath << msg.fileType << msg.timeSent <<
+            msg.fileInfo << msg.timeSent <<
             msg.isOutgoing << msg.isRead;
         }
         *m_Dbs[profileId] << "COMMIT;";
@@ -557,21 +556,21 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
       }
       break;
 
-    case UpdateFilePathRequestType:
+    case UpdateFileInfoRequestType:
       {
         std::unique_lock<std::mutex> lock(m_DbMutex);
-        std::shared_ptr<UpdateFilePathRequest> updateFilePathRequest = std::static_pointer_cast<UpdateFilePathRequest>(
+        std::shared_ptr<UpdateFileInfoRequest> updateFileInfoRequest = std::static_pointer_cast<UpdateFileInfoRequest>(
           p_Request);
-        const std::string& profileId = updateFilePathRequest->profileId;
+        const std::string& profileId = updateFileInfoRequest->profileId;
         if (!m_Dbs[profileId]) return;
 
-        const std::string& chatId = updateFilePathRequest->chatId;
-        const std::string& msgId = updateFilePathRequest->msgId;
-        const std::string& filePath = updateFilePathRequest->filePath;;
+        const std::string& chatId = updateFileInfoRequest->chatId;
+        const std::string& msgId = updateFileInfoRequest->msgId;
+        const std::string& fileInfo = updateFileInfoRequest->fileInfo;
 
-        *m_Dbs[profileId] << "UPDATE messages SET filePath = ? WHERE chatId = ? AND id = ?;" << filePath <<
-          chatId << msgId;
-        LOG_DEBUG("cache update filePath %s %s %s", chatId.c_str(), msgId.c_str(), filePath.c_str());
+        *m_Dbs[profileId] << "UPDATE messages SET fileInfo = ? WHERE chatId = ? AND id = ?;"
+                          << fileInfo << chatId << msgId;
+        LOG_DEBUG("cache update fileInfo %s %s %s %d", chatId.c_str(), msgId.c_str(), fileInfo.c_str());
       }
       break;
 
@@ -588,12 +587,12 @@ void MessageCache::PerformFetch(const std::string& p_ProfileId, const std::strin
                                 std::vector<ChatMessage>& p_ChatMessages)
 {
   *m_Dbs[p_ProfileId] <<
-    "SELECT id, senderId, text, quotedId, quotedText, quotedSender, filePath, fileType, timeSent, isOutgoing, isRead FROM "
+    "SELECT id, senderId, text, quotedId, quotedText, quotedSender, fileInfo, timeSent, isOutgoing, isRead FROM "
     "messages WHERE chatId = ? AND timeSent < ? ORDER BY timeSent DESC LIMIT ?;" << p_ChatId <<
     p_FromMsgIdTimeSent << p_Limit >>
     [&](const std::string& id, const std::string& senderId, const std::string& text, const std::string& quotedId,
         const std::string& quotedText,
-        const std::string& quotedSender, const std::string& filePath, const std::string& fileType,
+        const std::string& quotedSender, const std::string& fileInfo,
         int64_t timeSent,
         int32_t isOutgoing, int32_t isRead)
     {
@@ -604,8 +603,7 @@ void MessageCache::PerformFetch(const std::string& p_ProfileId, const std::strin
       chatMessage.quotedId = quotedId;
       chatMessage.quotedText = quotedText;
       chatMessage.quotedSender = quotedSender;
-      chatMessage.filePath = filePath;
-      chatMessage.fileType = fileType;
+      chatMessage.fileInfo = fileInfo;
       chatMessage.timeSent = timeSent;
       chatMessage.isOutgoing = isOutgoing;
       chatMessage.isRead = isRead;

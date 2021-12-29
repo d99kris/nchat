@@ -20,6 +20,7 @@ public:
   virtual ~DuChat();
   std::string GetProfileId() const;
   bool HasFeature(ProtocolFeature p_ProtocolFeature) const;
+  void SetProperty(ProtocolProperty p_Property, const std::string& p_Value);
 
   bool SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId);
   bool LoadProfile(const std::string& p_ProfilesDir, const std::string& p_ProfileId);

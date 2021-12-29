@@ -188,6 +188,7 @@ std::string StrUtil::Textize(const std::string& p_Str)
 
 long StrUtil::ToInteger(const std::string& p_Str)
 {
+  // positive integers only
   return strtol(p_Str.c_str(), NULL, 10);
 }
 
@@ -209,7 +210,7 @@ std::string StrUtil::ToString(const std::wstring& p_WStr)
 {
   try
   {
-    return std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t>{}.to_bytes(p_WStr);
+    return std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t>{ }.to_bytes(p_WStr);
   }
   catch (...)
   {
@@ -225,7 +226,7 @@ std::wstring StrUtil::ToWString(const std::string& p_Str)
 {
   try
   {
-    return std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t>{}.from_bytes(p_Str);
+    return std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t>{ }.from_bytes(p_Str);
   }
   catch (...)
   {

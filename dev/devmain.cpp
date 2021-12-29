@@ -226,7 +226,7 @@ void MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
         {
           std::cout << "Connected " << connectNotify->profileId << "\n";
 
-          if (!s_Protocols[connectNotify->profileId]->HasFeature(AutoGetChatsOnLogin))
+          if (!s_Protocols[connectNotify->profileId]->HasFeature(FeatureAutoGetChatsOnLogin))
           {
             std::shared_ptr<GetChatsRequest> getChatsRequest = std::make_shared<GetChatsRequest>();
             s_Protocols[connectNotify->profileId]->SendRequest(getChatsRequest);

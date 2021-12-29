@@ -153,13 +153,13 @@ bool FileUtil::IsDir(const std::string& p_Path)
   return apathy::Path(p_Path).is_directory();
 }
 
-std::set<FileInfo, FileInfoCompare> FileUtil::ListPaths(const std::string& p_Folder)
+std::set<DirEntry, DirEntryCompare> FileUtil::ListPaths(const std::string& p_Folder)
 {
-  std::set<FileInfo, FileInfoCompare> fileinfos;
+  std::set<DirEntry, DirEntryCompare> fileinfos;
   const std::vector<apathy::Path>& paths = apathy::Path::listdir(p_Folder);
   for (auto& path : paths)
   {
-    FileInfo fileinfo(path.filename(), path.is_directory() ? -1 : path.size());
+    DirEntry fileinfo(path.filename(), path.is_directory() ? -1 : path.size());
     fileinfos.insert(fileinfo);
   }
   return fileinfos;

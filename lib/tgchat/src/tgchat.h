@@ -24,6 +24,7 @@ public:
   virtual ~TgChat();
   std::string GetProfileId() const;
   bool HasFeature(ProtocolFeature p_ProtocolFeature) const;
+  void SetProperty(ProtocolProperty p_Property, const std::string& p_Value);
 
   bool SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId);
   bool LoadProfile(const std::string& p_ProfilesDir, const std::string& p_ProfileId);
@@ -67,10 +68,10 @@ private:
   std::int64_t GetSenderId(const td::td_api::message& p_TdMessage);
   std::string GetText(td::td_api::object_ptr<td::td_api::formattedText>&& p_FormattedText);
   void TdMessageContentConvert(td::td_api::MessageContent& p_TdMessageContent,
-                               std::string& p_Text, std::string& p_FilePath,
-                               int32_t& p_DownloadId);
+                               std::string& p_Text, std::string& p_FileInfo);
   void TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessage& p_ChatMessage);
-  void DownloadFile(std::string p_ChatId, std::string p_MsgId, std::string p_FileId);
+  void DownloadFile(std::string p_ChatId, std::string p_MsgId, std::string p_FileId,
+                    DownloadFileAction p_DownloadFileAction);
   void RequestSponsoredMessagesIfNeeded();
   void GetSponsoredMessages(const std::string& p_ChatId);
   void ViewSponsoredMessage(const std::string& p_ChatId, const std::string& p_MsgId);
@@ -107,4 +108,5 @@ private:
   int64_t m_CurrentChat = 0;
   const char m_SponsoredMessageMsgIdPrefix = '+';
   std::map<std::string, std::set<std::string>> m_SponsoredMessageIds;
+  bool m_AttachmentPrefetchAll = true;
 };

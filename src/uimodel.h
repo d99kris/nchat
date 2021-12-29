@@ -40,10 +40,13 @@ public:
   void HomeFetchNext(const std::string& p_ProfileId, const std::string& p_ChatId, int p_MsgCount);
   void End();
   void MarkRead(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId);
+  void DownloadAttachment(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId,
+                          const std::string& p_FileId, DownloadFileAction p_DownloadFileAction);
   void DeleteMessage();
-  void OpenMessageAttachment();
+  bool GetMessageAttachmentPath(std::string& p_FilePath, DownloadFileAction p_DownloadFileAction);
+  void OpenMessageAttachment(std::string p_FilePath = std::string());
   void OpenMessageLink();
-  void SaveMessageAttachment();
+  void SaveMessageAttachment(std::string p_FilePath = std::string());
   void TransferFile();
   void InsertEmoji();
   void SearchContact();

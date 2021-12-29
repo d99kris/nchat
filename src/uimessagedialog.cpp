@@ -111,7 +111,7 @@ void UiMessageDialog::Draw()
     int x = std::max(0, ((m_W - w) / 2));
     mvwaddnwstr(m_Win, i + 1, x, wdisp.c_str(), w);
   }
-  
+
   wattroff(m_Win, attribute | colorPair);
   wrefresh(m_Win);
 }

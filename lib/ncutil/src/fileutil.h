@@ -10,15 +10,15 @@
 #include <set>
 #include <string>
 
-struct FileInfo
+struct DirEntry
 {
-  FileInfo()
+  DirEntry()
     : name("")
     , size(0)
   {
   }
 
-  FileInfo(const std::string& p_Name, ssize_t p_Size)
+  DirEntry(const std::string& p_Name, ssize_t p_Size)
     : name(p_Name)
     , size(p_Size)
   {
@@ -38,9 +38,9 @@ struct FileInfo
   ssize_t size = 0;
 };
 
-struct FileInfoCompare
+struct DirEntryCompare
 {
-  bool operator()(const FileInfo& p_Lhs, const FileInfo& p_Rhs) const
+  bool operator()(const DirEntry& p_Lhs, const DirEntry& p_Rhs) const
   {
     if (p_Lhs.IsDir() != p_Rhs.IsDir())
     {
@@ -73,7 +73,7 @@ public:
   static std::string GetSuffixedSize(ssize_t p_Size);
   static void InitDirVersion(const std::string& p_Dir, int p_Version);
   static bool IsDir(const std::string& p_Path);
-  static std::set<FileInfo, FileInfoCompare> ListPaths(const std::string& p_Folder);
+  static std::set<DirEntry, DirEntryCompare> ListPaths(const std::string& p_Folder);
   static void MkDir(const std::string& p_Path);
   static void Move(const std::string& p_From, const std::string& p_To);
   static std::string ReadFile(const std::string& p_Path);

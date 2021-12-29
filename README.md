@@ -80,8 +80,7 @@ tested on:
 Build / Install
 ===============
 Nchat consists of a large code-base (mainly the Telegram client library), so be
-prepared for a relatively long first build time. Subsequent builds will be
-faster.
+prepared for a relatively long first build time.
 
 Linux / Ubuntu
 --------------
@@ -135,15 +134,20 @@ Arch Linux
 
 Low Memory / RAM Systems
 ------------------------
-The Telegram client library subcomponent requires relatively large amount of RAM to
-build by default (3.5GB using g++, and 1.5 GB for clang++). It is possible to adjust the
-Telegram client library source code so that it requires less RAM (but takes longer time).
-Doing so reduces the memory requirement to around 1GB under g++ and 0.5GB for clang++. Also, it
-is recommended to build nchat in release mode (which is default if downloading zip/tar release
-package - but with a git/svn clone it defaults to release with debug symbols), to minimize
-memory usage.
+The Telegram client library subcomponent requires relatively large amount of
+RAM to build by default (3.5GB using g++, and 1.5 GB for clang++). It is
+possible to adjust the Telegram client library source code so that it requires
+less RAM (but takes longer time). Doing so reduces the memory requirement to
+around 1GB under g++ and 0.5GB for clang++. Also, it is recommended to build
+nchat in release mode (which is default if downloading zip/tar release
+package - but with a git/svn clone it defaults to release with debug symbols),
+to minimize memory usage.
 
 Steps to build nchat on a low memory system:
+
+**Extra Dependencies (Linux)**
+
+    sudo apt install php-cli
 
 **Source**
 
@@ -163,7 +167,7 @@ Steps to build nchat on a low memory system:
 
 **Revert Source Code Split (Optional)**
 
-    cd ../lib/tgchat/ext/td ; php SplitSource.php --undo ; cd -   # optional step to revert source split
+    cd ../lib/tgchat/ext/td ; php SplitSource.php --undo ; cd -
 
 Arch Linux
 ----------
@@ -263,8 +267,11 @@ This configuration file holds general application settings. Default content:
 This configuration file holds general user interface settings. Default content:
 
     attachment_indicator=📎
+    attachment_prefetch=2
     confirm_deletion=1
+    downloadable_indicator=+
     emoji_enabled=1
+    failed_indicator=✗
     help_enabled=1
     home_fetch_all=0
     list_enabled=1
@@ -272,20 +279,42 @@ This configuration file holds general user interface settings. Default content:
     muted_notify_unread=0
     muted_position_by_timestamp=1
     read_indicator=✓
+    syncing_indicator=⇄
     terminal_bell=1
     top_enabled=1
 
 ### attachment_indicator
 
-Specifies text to prefix attached filenames in message view.
+Specifies text to prefix attachment filenames in message view.
+
+### attachment_prefetch
+
+Specifies level of attachment prefetching:
+
+    0 = no prefetch (download upon open/save)
+    1 = selected (download upon message selection)
+    2 = all (download when message is received) <- default
+
+Non-default options are currently only supported for Telegram, not other
+protocols.
 
 ### confirm_deletion
 
 Specifies whether to prompt the user for confirmation when deleting a message.
 
+### downloadable_indicator
+
+Specifies text to suffix attachment filenames in message view for attachments
+not yet downloaded. This is only shown for `attachment_prefetch` < 2.
+
 ### emoji_enabled
 
 Specifies whether to display emojis. Controlled by Ctrl-y in run-time.
+
+### failed_indicator
+
+Specifies text to suffix attachment filenames in message view for failed
+downloads.
 
 ### help_enabled
 
@@ -316,6 +345,11 @@ their last received/sent message. Otherwise muted chats are listed last.
 ### read_indicator
 
 Specifies text to indicate a message has been read by the receiver.
+
+### syncing_indicator
+
+Specifies text to suffix attachment filenames in message view for downloads
+in progress.
 
 ### terminal_bell
 
@@ -490,4 +524,5 @@ Other terminal-based Telegram clients:
 
 Keywords
 ========
-command line, console-based, linux, macos, chat client, ncurses, telegram, terminal-based.
+command line, console-based, linux, macos, chat client, ncurses, telegram,
+terminal-based.

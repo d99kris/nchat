@@ -11,6 +11,13 @@
 
 #include "config.h"
 
+enum AttachmentPrefetch
+{
+  AttachmentPrefetchNone = 0,
+  AttachmentPrefetchSelected = 1,
+  AttachmentPrefetchAll = 2,
+};
+
 class UiConfig
 {
 public:
@@ -18,7 +25,8 @@ public:
   static void Cleanup();
   static bool GetBool(const std::string& p_Param);
   static void SetBool(const std::string& p_Param, const bool& p_Value);
-  static std::string GetText(const std::string& p_Param);
+  static std::string GetStr(const std::string& p_Param);
+  static int GetNum(const std::string& p_Param);
 
 private:
   static Config m_Config;

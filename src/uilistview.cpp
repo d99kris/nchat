@@ -89,7 +89,7 @@ void UiListView::Draw()
       {
         name = StrUtil::Textize(name);
       }
-      
+
       std::wstring wname = StrUtil::ToWString(name).substr(0, m_PaddedW);
       wname = StrUtil::TrimPadWString(wname, m_PaddedW);
 

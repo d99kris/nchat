@@ -55,7 +55,7 @@ bool UiEmojiListDialog::OnTimer()
 
 void UiEmojiListDialog::UpdateList()
 {
-  const bool emojiEnabled = m_Model->GetEmojiEnabled();  
+  const bool emojiEnabled = m_Model->GetEmojiEnabled();
   m_Index = 0;
   m_Items.clear();
   m_TextEmojis.clear();

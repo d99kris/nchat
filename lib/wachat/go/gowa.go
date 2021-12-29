@@ -41,6 +41,13 @@ var (
 	timeUnread map[intString]int      = make(map[intString]int)
 )
 
+// keep in sync with enum FileStatus in protocol.h
+var FileStatusNone = -1
+var FileStatusNotDownloaded = 0
+var FileStatusDownloaded = 1
+var FileStatusDownloading = 2
+var FileStatusDownloadFailed = 3
+
 func AddConnPath(conn *whatsapp.Conn, path string) int {
 	mx.Lock()
 	var connId int = len(conns)
@@ -131,7 +138,7 @@ func (handler *eventHandler) HandleTextMessage(message whatsapp.TextMessage) {
 
 	quotedId := message.ContextInfo.QuotedMessageID
 	filePath := ""
-
+	fileStatus := FileStatusNone
 	timeSent := int(message.Info.Timestamp)
 
 	isSeen := (message.Info.Status == 4)
@@ -140,7 +147,7 @@ func (handler *eventHandler) HandleTextMessage(message whatsapp.TextMessage) {
 
 	UpdateTypingStatus(connId, chatId, senderId, fromMe, isOld)
 
-	CNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, filePath, timeSent, BoolToInt(isRead))
+	CNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, filePath, fileStatus, timeSent, BoolToInt(isRead))
 }
 
 func (handler *eventHandler) HandleImageMessage(message whatsapp.ImageMessage) {
@@ -150,29 +157,34 @@ func (handler *eventHandler) HandleImageMessage(message whatsapp.ImageMessage) {
 	connId := handler.connId
 	var tmpPath string = GetPath(connId) + "/tmp"
 	filePath := fmt.Sprintf("%v/%v.%v", tmpPath, message.Info.Id, "jpg")
+	fileStatus := FileStatusNone
 
 	if _, statErr := os.Stat(filePath); os.IsNotExist(statErr) {
 		LOG_TRACE(fmt.Sprintf("ImageMessage new %v", filePath))
 		data, err := message.Download()
 		if err != nil {
 			LOG_WARNING(fmt.Sprintf("download error %+v", err))
-			filePath = "  "
+			fileStatus = FileStatusDownloadFailed
 		} else {
 			file, err := os.Create(filePath)
 			defer file.Close()
 			if err != nil {
 				LOG_WARNING(fmt.Sprintf("create error %+v", err))
-				filePath = "  "
+				fileStatus = FileStatusDownloadFailed
 			} else {
 				_, err = file.Write(data)
 				if err != nil {
 					LOG_WARNING(fmt.Sprintf("write error %+v", err))
-					filePath = "  "
+					fileStatus = FileStatusDownloadFailed
+				} else {
+					LOG_TRACE(fmt.Sprintf("download ok"))
+					fileStatus = FileStatusDownloaded
 				}
 			}
 		}
 	} else {
 		LOG_TRACE(fmt.Sprintf("ImageMessage cached %v", filePath))
+		fileStatus = FileStatusDownloaded
 	}
 
 	chatId := message.Info.RemoteJid
@@ -196,7 +208,7 @@ func (handler *eventHandler) HandleImageMessage(message whatsapp.ImageMessage) {
 
 	UpdateTypingStatus(connId, chatId, senderId, fromMe, isOld)
 
-	CNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, filePath, timeSent, BoolToInt(isRead))
+	CNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, filePath, fileStatus, timeSent, BoolToInt(isRead))
 }
 
 func (handler *eventHandler) HandleVideoMessage(message whatsapp.VideoMessage) {
@@ -214,29 +226,34 @@ func (handler *eventHandler) HandleDocumentMessage(message whatsapp.DocumentMess
 	connId := handler.connId
 	var tmpPath string = GetPath(connId) + "/tmp"
 	filePath := fmt.Sprintf("%v/%v-%v", tmpPath, message.Info.Id, message.FileName)
+	fileStatus := FileStatusNone
 
 	if _, statErr := os.Stat(filePath); os.IsNotExist(statErr) {
 		LOG_TRACE(fmt.Sprintf("DocumentMessage new %v", filePath))
 		data, err := message.Download()
 		if err != nil {
 			LOG_WARNING(fmt.Sprintf("download error %+v", err))
-			filePath = "  "
+			fileStatus = FileStatusDownloadFailed
 		} else {
 			file, err := os.Create(filePath)
 			defer file.Close()
 			if err != nil {
 				LOG_WARNING(fmt.Sprintf("create error %+v", err))
-				filePath = "  "
+				fileStatus = FileStatusDownloadFailed
 			} else {
 				_, err = file.Write(data)
 				if err != nil {
 					LOG_WARNING(fmt.Sprintf("write error %+v", err))
-					filePath = "  "
+					fileStatus = FileStatusDownloadFailed
+				} else {
+					LOG_TRACE(fmt.Sprintf("download ok"))
+					fileStatus = FileStatusDownloaded
 				}
 			}
 		}
 	} else {
 		LOG_TRACE(fmt.Sprintf("DocumentMessage cached %v", filePath))
+		fileStatus = FileStatusDownloaded
 	}
 
 	chatId := message.Info.RemoteJid
@@ -259,7 +276,7 @@ func (handler *eventHandler) HandleDocumentMessage(message whatsapp.DocumentMess
 
 	UpdateTypingStatus(connId, chatId, senderId, fromMe, isOld)
 
-	CNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, filePath, timeSent, BoolToInt(isRead))
+	CNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, filePath, fileStatus, timeSent, BoolToInt(isRead))
 }
 
 func (handler *eventHandler) HandleLiveLocationMessage(message whatsapp.LiveLocationMessage) {
@@ -427,13 +444,14 @@ func HandleUnsupportedMessage(handler *eventHandler, messageInfo whatsapp.Messag
 
 	quotedId := ""
 	filePath := ""
+	fileStatus := FileStatusNone
 
 	isRead := true
 	isOld := (timeSent <= timeUnread[intString{i: connId, s: chatId}])
 
 	UpdateTypingStatus(connId, chatId, senderId, fromMe, isOld)
 
-	CNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, filePath, timeSent, BoolToInt(isRead))
+	CNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, filePath, fileStatus, timeSent, BoolToInt(isRead))
 }
 
 func UpdateTypingStatus(connId int, chatId string, userId string, fromMe bool, isOld bool) {

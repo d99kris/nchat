@@ -16,6 +16,7 @@
 #include "log.h"
 #include "messagecache.h"
 #include "numutil.h"
+#include "protocolutil.h"
 #include "sethelp.h"
 #include "strutil.h"
 #include "timeutil.h"
@@ -200,7 +201,7 @@ void UiModel::SendMessage()
     std::wstring wstr = entryStr;
     str = StrUtil::Emojize(StrUtil::ToString(wstr));
   }
-    
+
   sendMessageRequest->chatMessage.text = str;
 
   if (GetSelectMessage())
@@ -449,7 +450,7 @@ void UiModel::SetTyping(const std::string& p_ProfileId, const std::string& p_Cha
   {
     if ((p_ProfileId == lastProfileId) && (p_ChatId == lastChatId) && (p_IsTyping == lastIsTyping))
     {
-      if (m_Protocols[p_ProfileId]->HasFeature(TypingTimeout) && ((nowTime - lastSendTime) > 2500))
+      if (m_Protocols[p_ProfileId]->HasFeature(FeatureTypingTimeout) && ((nowTime - lastSendTime) > 2500))
       {
         LOG_TRACE("send typing %s refresh", p_ChatId.c_str());
 
@@ -615,7 +616,7 @@ void UiModel::Home()
 
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
-  
+
   bool& fetchedAllCache = m_FetchedAllCache[profileId][chatId];
   if (!fetchedAllCache)
   {
@@ -640,7 +641,7 @@ void UiModel::Home()
     {
       messageOffsetStack.push(1); // @todo: consider building a nicer stack for page down from home
     }
-    
+
     messageOffset += addOffset;
     RequestMessages();
     UpdateHistory();
@@ -729,8 +730,35 @@ void UiModel::MarkRead(const std::string& p_ProfileId, const std::string& p_Chat
 
   UpdateChatInfoIsUnread(p_ProfileId, p_ChatId);
 
-  UpdateHistory();
   UpdateList();
+}
+
+void UiModel::DownloadAttachment(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                 const std::string& p_MsgId, const std::string& p_FileId,
+                                 DownloadFileAction p_DownloadFileAction)
+{
+  // must be called with lock held
+  std::shared_ptr<DownloadFileRequest> downloadFileRequest = std::make_shared<DownloadFileRequest>();
+  downloadFileRequest->chatId = p_ChatId;
+  downloadFileRequest->msgId = p_MsgId;
+  downloadFileRequest->fileId = p_FileId;
+  downloadFileRequest->downloadFileAction = p_DownloadFileAction;
+
+  m_Protocols[p_ProfileId]->SendRequest(downloadFileRequest);
+
+  std::unordered_map<std::string, ChatMessage>& messages = m_Messages[p_ProfileId][p_ChatId];
+  auto mit = messages.find(p_MsgId);
+  if (mit == messages.end()) return;
+
+  if (mit->second.fileInfo.empty())
+  {
+    LOG_WARNING("message has no attachment");
+    return;
+  }
+
+  FileInfo fileInfo = ProtocolUtil::FileInfoFromHex(mit->second.fileInfo);
+  fileInfo.fileStatus = FileStatusDownloading;
+  mit->second.fileInfo = ProtocolUtil::FileInfoToHex(fileInfo);
 }
 
 void UiModel::DeleteMessage()
@@ -749,11 +777,11 @@ void UiModel::DeleteMessage()
     {
       ReinitView();
       return;
-    } 
+    }
 
     ReinitView();
   }
- 
+
   const std::string& profileId = m_CurrentChat.first;
   const std::string& chatId = m_CurrentChat.second;
   const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
@@ -773,11 +801,11 @@ void UiModel::DeleteMessage()
   m_Protocols[profileId]->SendRequest(deleteMessageRequest);
 }
 
-void UiModel::OpenMessageAttachment()
+bool UiModel::GetMessageAttachmentPath(std::string& p_FilePath, DownloadFileAction p_DownloadFileAction)
 {
   std::unique_lock<std::mutex> lock(m_ModelMutex);
 
-  if (!GetSelectMessage()) return;
+  if (!GetSelectMessage()) return false;
 
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
@@ -789,7 +817,7 @@ void UiModel::OpenMessageAttachment()
   if (it == messageVec.end())
   {
     LOG_WARNING("error finding message id");
-    return;
+    return false;
   }
 
   std::string msgId = *it;
@@ -797,20 +825,75 @@ void UiModel::OpenMessageAttachment()
   if (mit == messages.end())
   {
     LOG_WARNING("error finding message");
-    return;
+    return false;
   }
 
-  std::string filePath = mit->second.filePath;
-  if (filePath.empty() || (filePath == " "))
+  if (mit->second.fileInfo.empty())
   {
     LOG_WARNING("message has no attachment");
-    return;
+    return false;
+  }
+
+  FileInfo fileInfo = ProtocolUtil::FileInfoFromHex(mit->second.fileInfo);
+  if (fileInfo.fileStatus == FileStatusNone)
+  {
+    LOG_WARNING("message attachment has invalid status");
+    return false;
+  }
+  else if (fileInfo.fileStatus == FileStatusDownloading)
+  {
+    LOG_WARNING("message attachment is downloading");
+    return false;
+  }
+  else if (fileInfo.fileStatus == FileStatusDownloadFailed)
+  {
+    LOG_WARNING("message attachment download failed");
+    return false;
+  }
+  else if (fileInfo.fileStatus == FileStatusNotDownloaded)
+  {
+    if (!fileInfo.fileId.empty())
+    {
+      DownloadAttachment(profileId, chatId, msgId, fileInfo.fileId, p_DownloadFileAction);
+      UpdateHistory();
+      LOG_DEBUG("message attachment download started");
+    }
+    else
+    {
+      LOG_WARNING("message attachment not downloaded");
+    }
+
+    return false;
+  }
+
+  std::string filePath = fileInfo.filePath;
+  if (filePath.empty() || !FileUtil::Exists(filePath))
+  {
+    LOG_WARNING("message attachment %s does not exist", filePath.c_str());
+    return false;
+  }
+
+  p_FilePath = filePath;
+  return true;
+}
+
+void UiModel::OpenMessageAttachment(std::string p_FilePath /*= std::string()*/)
+{
+  if (p_FilePath.empty())
+  {
+    // user-triggered call
+    if (!GetMessageAttachmentPath(p_FilePath, DownloadFileActionOpen)) return;
+  }
+  else
+  {
+    // protocol-triggered call
+    LOG_TRACE("download file action open %s", p_FilePath.c_str());
   }
 
 #if defined(__APPLE__)
-  std::string cmd = "open " + filePath + " &";
+  std::string cmd = "open " + p_FilePath + " &";
 #else
-  std::string cmd = "xdg-open >/dev/null 2>&1 " + filePath + " &";
+  std::string cmd = "xdg-open >/dev/null 2>&1 " + p_FilePath + " &";
 #endif
   LOG_TRACE("cmd \"%s\" start", cmd.c_str());
   int rv = system(cmd.c_str());
@@ -861,57 +944,41 @@ void UiModel::OpenMessageLink()
   SetSelectMessage(false);
 }
 
-void UiModel::SaveMessageAttachment()
+void UiModel::SaveMessageAttachment(std::string p_FilePath /*= std::string()*/)
 {
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
-
-  if (!GetSelectMessage()) return;
-
-  std::string profileId = m_CurrentChat.first;
-  std::string chatId = m_CurrentChat.second;
-  const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
-  const int messageOffset = m_MessageOffset[profileId][chatId];
-  std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
-
-  auto it = std::next(messageVec.begin(), messageOffset);
-  if (it == messageVec.end())
+  bool userTriggered = p_FilePath.empty();
+  if (p_FilePath.empty())
   {
-    LOG_WARNING("error finding message id");
-    return;
+    // user-triggered call
+    if (!GetMessageAttachmentPath(p_FilePath, DownloadFileActionSave)) return;
+  }
+  else
+  {
+    // protocol-triggered call
+    LOG_TRACE("download file action save %s", p_FilePath.c_str());
   }
 
-  std::string msgId = *it;
-  auto mit = messages.find(msgId);
-  if (mit == messages.end())
-  {
-    LOG_WARNING("error finding message");
-    return;
-  }
-
-  std::string filePath = mit->second.filePath;
-  if (filePath.empty() || (filePath == " "))
-  {
-    LOG_WARNING("message has no attachment");
-    return;
-  }
-
-  std::string srcFileName = FileUtil::BaseName(filePath);
+  std::string srcFileName = FileUtil::BaseName(p_FilePath);
   std::string downloadsDir = FileUtil::GetDownloadsDir();
   std::string dstFileName = srcFileName;
   int i = 1;
   while (FileUtil::Exists(downloadsDir + "/" + dstFileName))
   {
-    dstFileName = FileUtil::RemoveFileExt(srcFileName) + "_" + std::to_string(i++) + FileUtil::GetFileExt(srcFileName);
+    dstFileName = FileUtil::RemoveFileExt(srcFileName) + "_" + std::to_string(i++) +
+      FileUtil::GetFileExt(srcFileName);
   }
 
   std::string dstFilePath = downloadsDir + "/" + dstFileName;
-  FileUtil::CopyFile(filePath, dstFilePath);
+  FileUtil::CopyFile(p_FilePath, dstFilePath);
 
-  UiDialogParams params(m_View.get(), this, "Notification", 80, 25);
-  std::string dialogText = "File saved in\n" + dstFilePath;
-  UiMessageDialog messageDialog(params, dialogText);
-  messageDialog.Run();
-  ReinitView();
+  if (userTriggered)
+  {
+    UiDialogParams params(m_View.get(), this, "Notification", 80, 25);
+    std::string dialogText = "File saved in\n" + dstFilePath;
+    UiMessageDialog messageDialog(params, dialogText);
+    messageDialog.Run();
+    ReinitView();
+  }
 }
 
 void UiModel::TransferFile()
@@ -927,10 +994,14 @@ void UiModel::TransferFile()
     std::string profileId = m_CurrentChat.first;
     std::string chatId = m_CurrentChat.second;
 
-    std::shared_ptr<SendMessageRequest> sendMessageRequest = std::make_shared<SendMessageRequest>();
+    FileInfo fileInfo;
+    fileInfo.filePath = path;
+    fileInfo.fileType = FileUtil::GetMimeType(path);
+
+    std::shared_ptr<SendMessageRequest> sendMessageRequest =
+      std::make_shared<SendMessageRequest>();
     sendMessageRequest->chatId = chatId;
-    sendMessageRequest->chatMessage.filePath = path;
-    sendMessageRequest->chatMessage.fileType = FileUtil::GetMimeType(path);
+    sendMessageRequest->chatMessage.fileInfo = ProtocolUtil::FileInfoToHex(fileInfo);
 
     m_Protocols[profileId]->SendRequest(sendMessageRequest);
   }
@@ -1018,7 +1089,7 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
         if (connectNotify->success)
         {
           LOG_TRACE("connected");
-          if (!m_Protocols[profileId]->HasFeature(AutoGetChatsOnLogin))
+          if (!m_Protocols[profileId]->HasFeature(FeatureAutoGetChatsOnLogin))
           {
             std::shared_ptr<GetChatsRequest> getChatsRequest = std::make_shared<GetChatsRequest>();
             LOG_TRACE("get chats");
@@ -1065,7 +1136,7 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
             if (!mutedPositionByTimestamp && m_ChatInfos[profileId][chatInfo.id].isMuted)
             {
               // deterministic fake time near epoch
-              int64_t chatIdHash = std::hash<std::string>{}(chatInfo.id) % 1000;
+              int64_t chatIdHash = std::hash<std::string>{ } (chatInfo.id) % 1000;
               m_ChatInfos[profileId][chatInfo.id].lastMessageTime = chatIdHash;
             }
 
@@ -1101,7 +1172,8 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
           }
           else
           {
-            LOG_TRACE("new cached messages %s count %d from %s", chatId.c_str(), chatMessages.size(), fromMsgId.c_str());
+            LOG_TRACE("new cached messages %s count %d from %s", chatId.c_str(), chatMessages.size(),
+                      fromMsgId.c_str());
           }
 
           if (!newMessagesNotify->cached)
@@ -1135,7 +1207,7 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
             }
 
             std::sort(messageVec.begin(), messageVec.end(),
-                      [&](const std::string& lhs, const std::string& rhs) -> bool
+            [&](const std::string& lhs, const std::string& rhs) -> bool
             {
               return messages.at(lhs).timeSent > messages.at(rhs).timeSent;
             });
@@ -1266,10 +1338,28 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
           p_ServiceMessage);
         std::string chatId = newMessageFileNotify->chatId;
         std::string msgId = newMessageFileNotify->msgId;
-        std::string filePath = newMessageFileNotify->filePath;
-        LOG_TRACE("new file path for %s is %s", msgId.c_str(), filePath.c_str());
-        m_Messages[profileId][chatId][msgId].filePath = filePath;
-        MessageCache::UpdateFilePath(profileId, chatId, msgId, filePath);
+        std::string fileInfoStr = newMessageFileNotify->fileInfo;
+        DownloadFileAction downloadFileAction = newMessageFileNotify->downloadFileAction;
+        LOG_TRACE("new file info for %s is %s", msgId.c_str(), fileInfoStr.c_str());
+        m_Messages[profileId][chatId][msgId].fileInfo = fileInfoStr;
+        MessageCache::UpdateFileInfo(profileId, chatId, msgId, fileInfoStr);
+
+        if (downloadFileAction == DownloadFileActionOpen)
+        {
+          FileInfo fileInfo = ProtocolUtil::FileInfoFromHex(fileInfoStr);
+          if (!fileInfo.filePath.empty())
+          {
+            OpenMessageAttachment(fileInfo.filePath);
+          }
+        }
+        else if (downloadFileAction == DownloadFileActionSave)
+        {
+          FileInfo fileInfo = ProtocolUtil::FileInfoFromHex(fileInfoStr);
+          if (!fileInfo.filePath.empty())
+          {
+            SaveMessageAttachment(fileInfo.filePath);
+          }
+        }
 
         UpdateHistory();
       }

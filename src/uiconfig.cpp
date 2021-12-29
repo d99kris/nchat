@@ -10,6 +10,7 @@
 #include <map>
 
 #include "fileutil.h"
+#include "strutil.h"
 
 Config UiConfig::m_Config;
 
@@ -18,8 +19,11 @@ void UiConfig::Init()
   const std::map<std::string, std::string> defaultConfig =
   {
     { "attachment_indicator", "\xF0\x9F\x93\x8E" },
+    { "attachment_prefetch", "2" },
     { "confirm_deletion", "1" },
+    { "downloadable_indicator", "+" },
     { "emoji_enabled", "1" },
+    { "failed_indicator", "\xe2\x9c\x97" },
     { "help_enabled", "1" },
     { "home_fetch_all", "0" },
     { "list_enabled", "1" },
@@ -27,6 +31,7 @@ void UiConfig::Init()
     { "muted_notify_unread", "0" },
     { "muted_position_by_timestamp", "1" },
     { "read_indicator", "\xe2\x9c\x93" },
+    { "syncing_indicator", "\xe2\x87\x84" },
     { "terminal_bell", "1" },
     { "top_enabled", "1" },
   };
@@ -50,7 +55,15 @@ void UiConfig::SetBool(const std::string& p_Param, const bool& p_Value)
   m_Config.Set(p_Param, p_Value ? "1" : "0");
 }
 
-std::string UiConfig::GetText(const std::string& p_Param)
+std::string UiConfig::GetStr(const std::string& p_Param)
 {
   return m_Config.Get(p_Param);
+}
+
+int UiConfig::GetNum(const std::string& p_Param)
+{
+  const std::string value = m_Config.Get(p_Param);
+  if (!StrUtil::IsInteger(value)) return 0;
+
+  return StrUtil::ToInteger(value);
 }

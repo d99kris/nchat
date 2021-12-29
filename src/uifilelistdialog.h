@@ -29,7 +29,7 @@ protected:
 
 private:
   std::string m_CurrentDir;
-  std::set<FileInfo, FileInfoCompare> m_FileInfos;
-  std::set<FileInfo, FileInfoCompare> m_CurrentFileInfos;
+  std::set<DirEntry, DirEntryCompare> m_DirEntrys;
+  std::set<DirEntry, DirEntryCompare> m_CurrentDirEntrys;
   std::string m_SelectedPath;
 };

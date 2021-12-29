@@ -11,7 +11,7 @@ package main
 // #cgo darwin LDFLAGS: -Wl,-undefined,dynamic_lookup
 // extern void WaNewContactsNotify(int p_ConnId, char* p_ChatId, char* p_Name, int p_IsSelf);
 // extern void WaNewChatsNotify(int p_ConnId, char* p_ChatId, int p_IsUnread, int p_IsMuted, int p_LastMessageTime);
-// extern void WaNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe, char* p_QuotedId, char* p_FilePath, int p_TimeSent, int p_IsRead);
+// extern void WaNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe, char* p_QuotedId, char* p_FilePath, int p_FileStatus, int p_TimeSent, int p_IsRead);
 // extern void WaNewStatusNotify(int p_ConnId, char* p_ChatId, char* p_UserId, int p_IsOnline, int p_IsTyping);
 // extern void WaNewMessageStatusNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsRead);
 // extern void WaLogTrace(char* p_Filename, int p_LineNo, char* p_Message);
@@ -84,8 +84,8 @@ func CNewChatsNotify(connId int, chatId string, isUnread int, isMuted int, lastM
 	C.WaNewChatsNotify(C.int(connId), C.CString(chatId), C.int(isUnread), C.int(isMuted), C.int(lastMessageTime))
 }
 
-func CNewMessagesNotify(connId int, chatId string, msgId string, senderId string, text string, fromMe int, quotedId string, filePath string, timeSent int, isRead int) {
-	C.WaNewMessagesNotify(C.int(connId), C.CString(chatId), C.CString(msgId), C.CString(senderId), C.CString(text), C.int(fromMe), C.CString(quotedId), C.CString(filePath), C.int(timeSent), C.int(isRead))
+func CNewMessagesNotify(connId int, chatId string, msgId string, senderId string, text string, fromMe int, quotedId string, filePath string, fileStatus int, timeSent int, isRead int) {
+	C.WaNewMessagesNotify(C.int(connId), C.CString(chatId), C.CString(msgId), C.CString(senderId), C.CString(text), C.int(fromMe), C.CString(quotedId), C.CString(filePath), C.int(fileStatus), C.int(timeSent), C.int(isRead))
 }
 
 func CNewStatusNotify(connId int, chatId string, userId string, isOnline int, isTyping int) {

@@ -18,9 +18,15 @@ class ServiceMessage;
 // Protocol interface
 enum ProtocolFeature
 {
-  NoFeature = 0,
-  AutoGetChatsOnLogin = (1 << 0),
-  TypingTimeout = (1 << 1),
+  FeatureNone = 0,
+  FeatureAutoGetChatsOnLogin = (1 << 0),
+  FeatureTypingTimeout = (1 << 1),
+};
+
+enum ProtocolProperty
+{
+  PropertyNone = 0,
+  PropertyAttachmentPrefetchAll,
 };
 
 class Protocol
@@ -36,6 +42,7 @@ public:
 
   virtual std::string GetProfileId() const = 0;
   virtual bool HasFeature(ProtocolFeature p_ProtocolFeature) const = 0;
+  virtual void SetProperty(ProtocolProperty p_Property, const std::string& p_Value) = 0;
 
   virtual bool SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId) = 0;
   virtual bool LoadProfile(const std::string& p_ProfilesDir, const std::string& p_ProfileId) = 0;
@@ -60,7 +67,7 @@ enum MessageType
   DeferNotifyRequestType,
   DeferGetChatDetailsRequestType,
   DeferGetUserDetailsRequestType,
-  DeferDownloadFileRequestType,
+  DownloadFileRequestType,
   MarkMessageReadRequestType,
   DeleteMessageRequestType,
   SendTypingRequestType,
@@ -68,7 +75,6 @@ enum MessageType
   CreateChatRequestType,
   SetCurrentChatRequestType,
   DeferGetSponsoredMessagesRequestType,
-
   ServiceMessageType,
   NewContactsNotifyType,
   NewChatsNotifyType,
@@ -102,6 +108,23 @@ struct ChatInfo
   int64_t lastMessageTime = -1;
 };
 
+enum FileStatus
+{
+  FileStatusNone = -1,
+  FileStatusNotDownloaded = 0,
+  FileStatusDownloaded = 1,
+  FileStatusDownloading = 2,
+  FileStatusDownloadFailed = 3,
+};
+
+struct FileInfo
+{
+  FileStatus fileStatus = FileStatusNone;
+  std::string fileId; // tgchat only
+  std::string filePath;
+  std::string fileType; // wachat only
+};
+
 struct ChatMessage
 {
   std::string id;
@@ -110,13 +133,19 @@ struct ChatMessage
   std::string quotedId;
   std::string quotedText;
   std::string quotedSender;
-  std::string filePath;
-  std::string fileType; // wachat only
+  std::string fileInfo;
   std::string link; // tgchat sponsored msg only, not db cached
   int64_t timeSent = -1;
   bool isOutgoing = true;
   bool isRead = false;
   bool hasMention = false; // tgchat only, not db cached
+};
+
+enum DownloadFileAction
+{
+  DownloadFileActionNone = 0,
+  DownloadFileActionOpen = 1,
+  DownloadFileActionSave = 2,
 };
 
 // Request messages
@@ -217,13 +246,14 @@ public:
   std::vector<std::string> userIds;
 };
 
-class DeferDownloadFileRequest : public RequestMessage
+class DownloadFileRequest : public RequestMessage
 {
 public:
-  virtual MessageType GetMessageType() const { return DeferDownloadFileRequestType; }
+  virtual MessageType GetMessageType() const { return DownloadFileRequestType; }
   std::string chatId;
   std::string msgId;
   std::string fileId;
+  DownloadFileAction downloadFileAction = DownloadFileActionNone;
 };
 
 class SetCurrentChatRequest : public RequestMessage
@@ -396,5 +426,6 @@ public:
   virtual MessageType GetMessageType() const { return NewMessageFileNotifyType; }
   std::string chatId;
   std::string msgId;
-  std::string filePath;
+  std::string fileInfo;
+  DownloadFileAction downloadFileAction;
 };

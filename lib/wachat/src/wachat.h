@@ -21,6 +21,7 @@ public:
   virtual ~WaChat();
   std::string GetProfileId() const;
   bool HasFeature(ProtocolFeature p_ProtocolFeature) const;
+  void SetProperty(ProtocolProperty p_Property, const std::string& p_Value);
 
   bool SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId);
   bool LoadProfile(const std::string& p_ProfilesDir, const std::string& p_ProfileId);
@@ -63,7 +64,7 @@ extern "C" {
 void WaNewContactsNotify(int p_ConnId, char* p_ChatId, char* p_Name, int p_IsSelf);
 void WaNewChatsNotify(int p_ConnId, char* p_ChatId, int p_IsUnread, int p_IsMuted, int p_LastMessageTime);
 void WaNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe,
-                         char* p_ReplyId, char* p_FilePath, int p_TimeSent, int p_IsRead);
+                         char* p_ReplyId, char* p_FilePath, int p_FileStatus, int p_TimeSent, int p_IsRead);
 void WaNewStatusNotify(int p_ConnId, char* p_ChatId, char* p_UserId, int p_IsOnline, int p_IsTyping);
 void WaNewMessageStatusNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsRead);
 void WaLogTrace(char* p_Filename, int p_LineNo, char* p_Message);

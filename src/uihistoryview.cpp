@@ -9,6 +9,7 @@
 
 #include "apputil.h"
 #include "fileutil.h"
+#include "protocolutil.h"
 #include "strutil.h"
 #include "timeutil.h"
 #include "uicolorconfig.h"
@@ -97,7 +98,7 @@ void UiHistoryView::Draw()
       {
         text = StrUtil::Textize(text);
       }
-      
+
       wlines = StrUtil::WordWrap(StrUtil::ToWString(text), m_PaddedW, false, false, false, 2);
     }
 
@@ -115,9 +116,10 @@ void UiHistoryView::Draw()
             quotedText = StrUtil::Textize(quotedText);
           }
         }
-        else if (!quotedIt->second.filePath.empty())
+        else if (!quotedIt->second.fileInfo.empty())
         {
-          quotedText = FileUtil::BaseName(quotedIt->second.filePath);
+          FileInfo fileInfo = ProtocolUtil::FileInfoFromHex(quotedIt->second.fileInfo);
+          quotedText = FileUtil::BaseName(fileInfo.filePath);
         }
       }
       else
@@ -135,24 +137,55 @@ void UiHistoryView::Draw()
       wlines.insert(wlines.begin(), quote);
     }
 
-    if (!msg.filePath.empty())
+    if (!msg.fileInfo.empty())
     {
-      std::string fileName;
-      if (msg.filePath == " ")
+      FileInfo fileInfo = ProtocolUtil::FileInfoFromHex(msg.fileInfo);
+
+      // special case handling selection-triggered download, and handling cache's old setting
+      static const bool isAttachmentPrefetchAll =
+        (UiConfig::GetNum("attachment_prefetch") == AttachmentPrefetchAll);
+      static const bool isAttachmentPrefetchSelected =
+        (UiConfig::GetNum("attachment_prefetch") == AttachmentPrefetchSelected);
+      if ((isAttachmentPrefetchAll || (isSelectedMessage && isAttachmentPrefetchSelected)) &&
+          (fileInfo.fileStatus == FileStatusNotDownloaded) && !fileInfo.fileId.empty())
       {
-        fileName = "[Downloading]";
-      }
-      else if (msg.filePath == "  ")
-      {
-        fileName = "[Download Failed]";
-      }
-      else
-      {
-        fileName = FileUtil::BaseName(msg.filePath);
+        m_Model->DownloadAttachment(currentChat.first, currentChat.second, *it,
+                                    fileInfo.fileId, DownloadFileActionNone);
+        fileInfo = ProtocolUtil::FileInfoFromHex(msg.fileInfo);
       }
 
-      static const std::string attachmentIndicator = UiConfig::GetText("attachment_indicator");
-      std::wstring fileStr = StrUtil::ToWString(attachmentIndicator + " " + fileName);
+      std::string fileName = FileUtil::BaseName(fileInfo.filePath);
+      std::string fileStatus;
+      if (fileInfo.fileStatus == FileStatusNone)
+      {
+        // should not happen
+        static const std::string statusNone = " -";
+        fileStatus = statusNone;
+      }
+      else if (fileInfo.fileStatus == FileStatusNotDownloaded)
+      {
+        static const std::string statusNotDownloaded = " " + UiConfig::GetStr("downloadable_indicator");
+        fileStatus = statusNotDownloaded;
+      }
+      else if (fileInfo.fileStatus == FileStatusDownloaded)
+      {
+        static const std::string statusDownloaded = "";
+        fileStatus = statusDownloaded;
+      }
+      else if (fileInfo.fileStatus == FileStatusDownloading)
+      {
+        static const std::string statusDownloading = " " + UiConfig::GetStr("syncing_indicator");
+        fileStatus = statusDownloading;
+      }
+      else if (fileInfo.fileStatus == FileStatusDownloadFailed)
+      {
+        static const std::string statusDownloadFailed = " " + UiConfig::GetStr("failed_indicator");
+        fileStatus = statusDownloadFailed;
+      }
+
+      static const std::string attachmentIndicator = UiConfig::GetStr("attachment_indicator");
+      std::wstring fileStr =
+        StrUtil::ToWString(attachmentIndicator + " " + fileName + fileStatus);
       wlines.insert(wlines.begin(), fileStr);
     }
 
@@ -182,7 +215,7 @@ void UiHistoryView::Draw()
     {
       name = StrUtil::Textize(name);
     }
-    
+
     std::wstring wsender = StrUtil::ToWString(name);
     std::wstring wtime;
     if (msg.timeSent != std::numeric_limits<int64_t>::max())
@@ -194,7 +227,12 @@ void UiHistoryView::Draw()
       wtime = L" ";
     }
 
-    static const std::string readIndicator = UiConfig::GetText("read_indicator");
+    if (!msg.isOutgoing && !msg.isRead)
+    {
+      m_Model->MarkRead(currentChat.first, currentChat.second, *it);
+    }
+
+    static const std::string readIndicator = UiConfig::GetStr("read_indicator");
     std::wstring wreceipt = StrUtil::ToWString(msg.isRead ? readIndicator : "");
     std::wstring wheader = wsender + wtime + wreceipt;
 
@@ -212,10 +250,6 @@ void UiHistoryView::Draw()
     wattroff(m_PaddedWin, attributeName | colorPairName);
 
     ++m_HistoryShowCount;
-    if (!msg.isOutgoing && !msg.isRead)
-    {
-      m_Model->MarkRead(currentChat.first, currentChat.second, *it);
-    }
 
     if (--y < 0) break;
 

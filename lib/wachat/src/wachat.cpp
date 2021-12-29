@@ -13,6 +13,7 @@
 
 #include "libcgowa.h"
 #include "log.h"
+#include "protocolutil.h"
 #include "status.h"
 #include "timeutil.h"
 
@@ -34,8 +35,12 @@ std::string WaChat::GetProfileId() const
 
 bool WaChat::HasFeature(ProtocolFeature p_ProtocolFeature) const
 {
-  ProtocolFeature customFeatures = AutoGetChatsOnLogin;
+  ProtocolFeature customFeatures = FeatureAutoGetChatsOnLogin;
   return (p_ProtocolFeature & customFeatures);
+}
+
+void WaChat::SetProperty(ProtocolProperty /*p_Property*/, const std::string& /*p_Value*/)
+{
 }
 
 bool WaChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId)
@@ -251,8 +256,15 @@ void WaChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
         std::string quotedId = sendMessageRequest->chatMessage.quotedId;
         std::string quotedText = sendMessageRequest->chatMessage.quotedText;
         std::string quotedSender = sendMessageRequest->chatMessage.quotedSender;
-        std::string filePath = sendMessageRequest->chatMessage.filePath;
-        std::string fileType = sendMessageRequest->chatMessage.fileType;
+        std::string filePath;
+        std::string fileType;
+        if (!sendMessageRequest->chatMessage.fileInfo.empty())
+        {
+          FileInfo fileInfo =
+            ProtocolUtil::FileInfoFromHex(sendMessageRequest->chatMessage.fileInfo);
+          filePath = fileInfo.filePath;
+          fileType = fileInfo.fileType;
+        }
 
         int rv =
           CSendMessage(m_ConnId, const_cast<char*>(chatId.c_str()), const_cast<char*>(text.c_str()),
@@ -447,12 +459,22 @@ void WaNewChatsNotify(int p_ConnId, char* p_ChatId, int p_IsUnread, int p_IsMute
 }
 
 void WaNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe,
-                         char* p_QuotedId, char* p_FilePath, int p_TimeSent, int p_IsRead)
+                         char* p_QuotedId, char* p_FilePath, int p_FileStatus, int p_TimeSent, int p_IsRead)
 {
   LOG_DEBUG("WaNewMessagesNotify");
 
   WaChat* instance = WaChat::GetInstance(p_ConnId);
   if (instance == nullptr) return;
+
+  std::string fileInfoStr;
+  std::string filePath = std::string(p_FilePath);
+  if (!filePath.empty())
+  {
+    FileInfo fileInfo;
+    fileInfo.fileStatus = (FileStatus)p_FileStatus;
+    fileInfo.filePath = p_FilePath;
+    fileInfoStr = ProtocolUtil::FileInfoToHex(fileInfo);
+  }
 
   ChatMessage chatMessage;
   chatMessage.id = std::string(p_MsgId);
@@ -460,7 +482,7 @@ void WaNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_Se
   chatMessage.text = std::string(p_Text);
   chatMessage.isOutgoing = (p_FromMe == 1);
   chatMessage.quotedId = std::string(p_QuotedId);
-  chatMessage.filePath = std::string(p_FilePath);
+  chatMessage.fileInfo = fileInfoStr;
   chatMessage.timeSent = (((int64_t)p_TimeSent) * 1000) + (std::hash<std::string>{ } (chatMessage.id) % 256);
   chatMessage.isRead = (p_IsRead == 1);
 
