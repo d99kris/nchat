@@ -14,10 +14,10 @@ set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 # Build type
 set(DEFAULT_BUILD_TYPE "Release")
-if((EXISTS "${CMAKE_SOURCE_DIR}/.svn") OR (EXISTS "${CMAKE_SOURCE_DIR}/.git"))
+if ((EXISTS "${CMAKE_SOURCE_DIR}/.svn") OR (EXISTS "${CMAKE_SOURCE_DIR}/.git"))
   set(DEFAULT_BUILD_TYPE "RelWithDebInfo")
 endif()
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "Using build type '${DEFAULT_BUILD_TYPE}' (default).")
   set(CMAKE_BUILD_TYPE "${DEFAULT_BUILD_TYPE}")
 else()
@@ -27,7 +27,15 @@ endif()
 # Platform specifics
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   add_definitions(-D_XOPEN_SOURCE_EXTENDED)
-  set(CMAKE_PREFIX_PATH /usr/local/opt/ncurses)
+  execute_process(COMMAND sh "-c"
+                  "command -v brew &> /dev/null && brew --prefix ncurses 2> /dev/null | tr -d '\n'"
+                  OUTPUT_VARIABLE CMAKE_PREFIX_PATH)
+  if (EXISTS "${CMAKE_PREFIX_PATH}")
+    message(STATUS "Ncurses cmake prefix '${CMAKE_PREFIX_PATH}' (detected).")
+  else()
+    set(CMAKE_PREFIX_PATH /usr/local/opt/ncurses)
+    message(STATUS "Ncurses cmake prefix '${CMAKE_PREFIX_PATH}' (default).")
+  endif()
 endif()
 
 # Custom build specifics
