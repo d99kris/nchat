@@ -90,6 +90,9 @@ void MessageCache::AddProfile(const std::string& p_ProfileId)
   m_Dbs[p_ProfileId].reset(new sqlite::database(dbPath));
   if (!m_Dbs[p_ProfileId]) return;
 
+  *m_Dbs[p_ProfileId] << "PRAGMA synchronous = OFF";
+  *m_Dbs[p_ProfileId] << "PRAGMA journal_mode = MEMORY";
+
   // create table if not exists
   *m_Dbs[p_ProfileId] << "CREATE TABLE IF NOT EXISTS messages ("
     "chatId TEXT,"
