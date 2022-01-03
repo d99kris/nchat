@@ -32,7 +32,8 @@ private:
     UnknownRequestType = 0,
     AddRequestType,
     AddContactsRequestType,
-    FetchRequestType,
+    FetchFromRequestType,
+    FetchOneRequestType,
     DeleteRequestType,
     UpdateIsReadRequestType,
     UpdateFileInfoRequestType,
@@ -63,14 +64,23 @@ private:
     std::vector<ContactInfo> contactInfos;
   };
 
-  class FetchRequest : public Request
+  class FetchFromRequest : public Request
   {
   public:
-    virtual RequestType GetRequestType() const { return FetchRequestType; }
+    virtual RequestType GetRequestType() const { return FetchFromRequestType; }
     std::string profileId;
     std::string chatId;
     std::string fromMsgId;
     int limit = 0;
+  };
+
+  class FetchOneRequest : public Request
+  {
+  public:
+    virtual RequestType GetRequestType() const { return FetchOneRequestType; }
+    std::string profileId;
+    std::string chatId;
+    std::string msgId;
   };
 
   class DeleteRequest : public Request
@@ -111,8 +121,10 @@ public:
   static void Add(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_FromMsgId,
                   const std::vector<ChatMessage>& p_ChatMessages);
   static void AddContacts(const std::string& p_ProfileId, const std::vector<ContactInfo>& p_ContactInfos);
-  static bool Fetch(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_FromMsgId,
-                    const int p_Limit, const bool p_Sync);
+  static bool FetchFrom(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_FromMsgId,
+                        const int p_Limit, const bool p_Sync);
+  static bool FetchOne(const std::string& p_ProfileId, const std::string& p_ChatId,
+                       const std::string& p_MsgId, const bool p_Sync);
   static void Delete(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId);
   static void UpdateIsRead(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId,
                            bool p_IsRead);
@@ -125,9 +137,11 @@ private:
   static void Process();
   static void EnqueueRequest(std::shared_ptr<Request> p_Request);
   static void PerformRequest(std::shared_ptr<Request> p_Request);
-  static void PerformFetch(const std::string& p_ProfileId, const std::string& p_ChatId,
-                           const int64_t p_FromMsgIdTimeSent, const int p_Limit,
-                           std::vector<ChatMessage>& p_ChatMessages);
+  static void PerformFetchFrom(const std::string& p_ProfileId, const std::string& p_ChatId,
+                               const int64_t p_FromMsgIdTimeSent, const int p_Limit,
+                               std::vector<ChatMessage>& p_ChatMessages);
+  static void PerformFetchOne(const std::string& p_ProfileId, const std::string& p_ChatId,
+                              const std::string& p_MsgId, std::vector<ChatMessage>& p_ChatMessages);
 
   static void CallMessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage);
 

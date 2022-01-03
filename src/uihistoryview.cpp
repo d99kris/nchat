@@ -124,6 +124,7 @@ void UiHistoryView::Draw()
       }
       else
       {
+        m_Model->FetchCachedMessage(currentChat.first, currentChat.second, msg.quotedId);
         quotedText = "";
       }
 

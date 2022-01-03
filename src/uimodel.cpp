@@ -625,7 +625,7 @@ void UiModel::Home()
     int limit = std::numeric_limits<int>::max();
     lock.unlock();
     LOG_DEBUG("fetch all");
-    bool fetchResult = MessageCache::Fetch(profileId, chatId, fromId, limit, true /* p_Sync */);
+    bool fetchResult = MessageCache::FetchFrom(profileId, chatId, fromId, limit, true /* p_Sync */);
     lock.lock();
     fetchedAllCache = fetchResult;
   }
@@ -1075,6 +1075,24 @@ void UiModel::SearchContact()
   }
 
   ReinitView();
+}
+
+void UiModel::FetchCachedMessage(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                 const std::string& p_MsgId)
+{
+  // must be called with lock held
+  static std::map<std::string, std::map<std::string, std::set<std::string>>> fetchedCache;
+  std::set<std::string>& msgIdFetchedCache = fetchedCache[p_ProfileId][p_ChatId];
+  if (msgIdFetchedCache.find(p_MsgId) != msgIdFetchedCache.end())
+  {
+    return;
+  }
+  else
+  {
+    msgIdFetchedCache.insert(p_MsgId);
+  }
+
+  MessageCache::FetchOne(p_ProfileId, p_ChatId, p_MsgId, false /*p_Sync*/);
 }
 
 void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
@@ -1677,7 +1695,7 @@ void UiModel::RequestMessages()
     msgFromIdsRequested.insert(fromId);
   }
 
-  if (fromId.empty() || !MessageCache::Fetch(profileId, chatId, fromId, limit, false /* p_Sync */))
+  if (fromId.empty() || !MessageCache::FetchFrom(profileId, chatId, fromId, limit, false /* p_Sync */))
   {
     std::shared_ptr<GetMessagesRequest> getMessagesRequest = std::make_shared<GetMessagesRequest>();
     getMessagesRequest->chatId = chatId;

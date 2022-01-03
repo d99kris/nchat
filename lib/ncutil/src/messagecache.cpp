@@ -142,8 +142,8 @@ void MessageCache::AddContacts(const std::string& p_ProfileId,
   EnqueueRequest(addContactsRequest);
 }
 
-bool MessageCache::Fetch(const std::string& p_ProfileId, const std::string& p_ChatId,
-                         const std::string& p_FromMsgId, const int p_Limit, const bool p_Sync)
+bool MessageCache::FetchFrom(const std::string& p_ProfileId, const std::string& p_ChatId,
+                             const std::string& p_FromMsgId, const int p_Limit, const bool p_Sync)
 {
   if (!m_CacheEnabled) return false;
 
@@ -181,23 +181,23 @@ bool MessageCache::Fetch(const std::string& p_ProfileId, const std::string& p_Ch
 
   if (fromMsgIsLast || (count > 0))
   {
-    std::shared_ptr<FetchRequest> fetchRequest = std::make_shared<FetchRequest>();
-    fetchRequest->profileId = p_ProfileId;
-    fetchRequest->chatId = p_ChatId;
-    fetchRequest->fromMsgId = p_FromMsgId;
-    fetchRequest->limit = p_Limit;
+    std::shared_ptr<FetchFromRequest> fetchFromRequest = std::make_shared<FetchFromRequest>();
+    fetchFromRequest->profileId = p_ProfileId;
+    fetchFromRequest->chatId = p_ChatId;
+    fetchFromRequest->fromMsgId = p_FromMsgId;
+    fetchFromRequest->limit = p_Limit;
 
     if (p_Sync)
     {
       LOG_DEBUG("cache sync fetch %s %s last %d count %d", p_ChatId.c_str(),
                 p_FromMsgId.c_str(), fromMsgIsLast, count);
-      PerformRequest(fetchRequest);
+      PerformRequest(fetchFromRequest);
     }
     else
     {
       LOG_DEBUG("cache async fetch %s %s last %d count %d", p_ChatId.c_str(),
                 p_FromMsgId.c_str(), fromMsgIsLast, count);
-      EnqueueRequest(fetchRequest);
+      EnqueueRequest(fetchFromRequest);
     }
 
     return true;
@@ -208,6 +208,37 @@ bool MessageCache::Fetch(const std::string& p_ProfileId, const std::string& p_Ch
               p_FromMsgId.c_str(), fromMsgIsLast, count);
     return false;
   }
+}
+
+bool MessageCache::FetchOne(const std::string& p_ProfileId, const std::string& p_ChatId,
+                            const std::string& p_MsgId, const bool p_Sync)
+{
+  if (!m_CacheEnabled) return false;
+
+  std::unique_lock<std::mutex> lock(m_DbMutex);
+  if (!m_Dbs[p_ProfileId]) return false;
+
+  if (!m_InSync[p_ProfileId][p_ChatId]) return false;
+
+  lock.unlock();
+
+  std::shared_ptr<FetchOneRequest> fetchOneRequest = std::make_shared<FetchOneRequest>();
+  fetchOneRequest->profileId = p_ProfileId;
+  fetchOneRequest->chatId = p_ChatId;
+  fetchOneRequest->msgId = p_MsgId;
+
+  if (p_Sync)
+  {
+    LOG_DEBUG("cache sync fetch one %s %s", p_ChatId.c_str(), p_MsgId.c_str());
+    PerformRequest(fetchOneRequest);
+  }
+  else
+  {
+    LOG_DEBUG("cache async fetch one %s %s", p_ChatId.c_str(), p_MsgId.c_str());
+    EnqueueRequest(fetchOneRequest);
+  }
+
+  return true;
 }
 
 void MessageCache::Delete(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId)
@@ -291,7 +322,7 @@ void MessageCache::Export(const std::string& p_ExportDir)
       }
 
       std::vector<ChatMessage> chatMessages;
-      PerformFetch(profileId, chatId, fromMsgIdTimeSent, limit, chatMessages);
+      PerformFetchFrom(profileId, chatId, fromMsgIdTimeSent, limit, chatMessages);
 
       std::map<std::string, std::string> messageMap;
       for (auto chatMessage = chatMessages.rbegin(); chatMessage != chatMessages.rend(); ++chatMessage)
@@ -483,16 +514,16 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
       }
       break;
 
-    case FetchRequestType:
+    case FetchFromRequestType:
       {
         std::unique_lock<std::mutex> lock(m_DbMutex);
-        std::shared_ptr<FetchRequest> fetchRequest = std::static_pointer_cast<FetchRequest>(p_Request);
-        const std::string& profileId = fetchRequest->profileId;
+        std::shared_ptr<FetchFromRequest> fetchFromRequest = std::static_pointer_cast<FetchFromRequest>(p_Request);
+        const std::string& profileId = fetchFromRequest->profileId;
         if (!m_Dbs[profileId]) return;
 
-        const std::string& chatId = fetchRequest->chatId;
-        const std::string& fromMsgId = fetchRequest->fromMsgId;
-        const int limit = fetchRequest->limit;
+        const std::string& chatId = fetchFromRequest->chatId;
+        const std::string& fromMsgId = fetchFromRequest->fromMsgId;
+        const int limit = fetchFromRequest->limit;
 
         int64_t fromMsgIdTimeSent = 0;
         if (!fromMsgId.empty())
@@ -509,8 +540,8 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         }
 
         std::vector<ChatMessage> chatMessages;
-        PerformFetch(profileId, chatId, fromMsgIdTimeSent, limit, chatMessages);
-        LOG_DEBUG("cache fetch %s %s %d %d", chatId.c_str(), fromMsgId.c_str(), limit, chatMessages.size());
+        PerformFetchFrom(profileId, chatId, fromMsgIdTimeSent, limit, chatMessages);
+        LOG_DEBUG("cache fetch from %s %s %d %d", chatId.c_str(), fromMsgId.c_str(), limit, chatMessages.size());
         lock.unlock();
 
         std::shared_ptr<NewMessagesNotify> newMessagesNotify = std::make_shared<NewMessagesNotify>(profileId);
@@ -520,6 +551,33 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         newMessagesNotify->fromMsgId = fromMsgId;
         newMessagesNotify->cached = true;
         CallMessageHandler(newMessagesNotify);
+      }
+      break;
+
+    case FetchOneRequestType:
+      {
+        std::unique_lock<std::mutex> lock(m_DbMutex);
+        std::shared_ptr<FetchOneRequest> fetchOneRequest = std::static_pointer_cast<FetchOneRequest>(p_Request);
+        const std::string& profileId = fetchOneRequest->profileId;
+        if (!m_Dbs[profileId]) return;
+
+        const std::string& chatId = fetchOneRequest->chatId;
+        const std::string& msgId = fetchOneRequest->msgId;
+
+        std::vector<ChatMessage> chatMessages;
+        PerformFetchOne(profileId, chatId, msgId, chatMessages);
+        LOG_DEBUG("cache fetch one %s %s %d", chatId.c_str(), msgId.c_str(), chatMessages.size());
+        lock.unlock();
+
+        if (!chatMessages.empty())
+        {
+          std::shared_ptr<NewMessagesNotify> newMessagesNotify = std::make_shared<NewMessagesNotify>(profileId);
+          newMessagesNotify->success = true;
+          newMessagesNotify->chatId = chatId;
+          newMessagesNotify->chatMessages = chatMessages;
+          newMessagesNotify->cached = true;
+          CallMessageHandler(newMessagesNotify);
+        }
       }
       break;
 
@@ -582,14 +640,43 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
   }
 }
 
-void MessageCache::PerformFetch(const std::string& p_ProfileId, const std::string& p_ChatId,
-                                const int64_t p_FromMsgIdTimeSent, const int p_Limit,
-                                std::vector<ChatMessage>& p_ChatMessages)
+void MessageCache::PerformFetchFrom(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                    const int64_t p_FromMsgIdTimeSent, const int p_Limit,
+                                    std::vector<ChatMessage>& p_ChatMessages)
 {
   *m_Dbs[p_ProfileId] <<
     "SELECT id, senderId, text, quotedId, quotedText, quotedSender, fileInfo, timeSent, isOutgoing, isRead FROM "
     "messages WHERE chatId = ? AND timeSent < ? ORDER BY timeSent DESC LIMIT ?;" << p_ChatId <<
     p_FromMsgIdTimeSent << p_Limit >>
+    [&](const std::string& id, const std::string& senderId, const std::string& text, const std::string& quotedId,
+        const std::string& quotedText,
+        const std::string& quotedSender, const std::string& fileInfo,
+        int64_t timeSent,
+        int32_t isOutgoing, int32_t isRead)
+    {
+      ChatMessage chatMessage;
+      chatMessage.id = id;
+      chatMessage.senderId = senderId;
+      chatMessage.text = text;
+      chatMessage.quotedId = quotedId;
+      chatMessage.quotedText = quotedText;
+      chatMessage.quotedSender = quotedSender;
+      chatMessage.fileInfo = fileInfo;
+      chatMessage.timeSent = timeSent;
+      chatMessage.isOutgoing = isOutgoing;
+      chatMessage.isRead = isRead;
+
+      p_ChatMessages.push_back(chatMessage);
+    };
+}
+
+void MessageCache::PerformFetchOne(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                   const std::string& p_MsgId,
+                                   std::vector<ChatMessage>& p_ChatMessages)
+{
+  *m_Dbs[p_ProfileId] <<
+    "SELECT id, senderId, text, quotedId, quotedText, quotedSender, fileInfo, timeSent, isOutgoing, isRead FROM "
+    "messages WHERE chatId = ? AND id = ?;" << p_ChatId << p_MsgId >>
     [&](const std::string& id, const std::string& senderId, const std::string& text, const std::string& quotedId,
         const std::string& quotedText,
         const std::string& quotedSender, const std::string& fileInfo,

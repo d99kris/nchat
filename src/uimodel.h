@@ -50,6 +50,8 @@ public:
   void TransferFile();
   void InsertEmoji();
   void SearchContact();
+  void FetchCachedMessage(const std::string& p_ProfileId, const std::string& p_ChatId,
+                          const std::string& p_MsgId);
 
   void MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage);
   void AddProtocol(std::shared_ptr<Protocol> p_Protocol);
