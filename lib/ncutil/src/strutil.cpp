@@ -484,5 +484,6 @@ std::vector<std::wstring> StrUtil::WordWrap(std::wstring p_Text, unsigned p_Line
 
 int StrUtil::WStringWidth(const std::wstring& p_WStr)
 {
-  return wcswidth(p_WStr.c_str(), p_WStr.size());
+  int width = wcswidth(p_WStr.c_str(), p_WStr.size());
+  return (width != -1) ? width : p_WStr.size();
 }
