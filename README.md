@@ -260,7 +260,11 @@ used to configure nchat.
 -----------------
 This configuration file holds general application settings. Default content:
 
-    cache_enabled=1
+    experimental_cache_enabled=0
+
+### experimental_cache_enabled
+
+Specifies whether to enable (experimental) cache functionality.
 
 ~/.nchat/ui.conf
 ----------------

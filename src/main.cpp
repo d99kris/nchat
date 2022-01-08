@@ -196,7 +196,7 @@ int main(int argc, char* argv[])
   std::shared_ptr<Ui> ui = std::make_shared<Ui>();
 
   // Init message cache
-  const bool cacheEnabled = AppConfig::GetBool("cache_enabled");
+  const bool cacheEnabled = AppConfig::GetBool("experimental_cache_enabled");
   std::function<void(std::shared_ptr<ServiceMessage>)> messageHandler =
     std::bind(&Ui::MessageHandler, std::ref(*ui), std::placeholders::_1);
   MessageCache::Init(cacheEnabled, messageHandler);

@@ -17,7 +17,7 @@ void AppConfig::Init()
 {
   const std::map<std::string, std::string> defaultConfig =
   {
-    { "cache_enabled", "1" },
+    { "experimental_cache_enabled", "0" },
   };
 
   const std::string configPath(FileUtil::GetApplicationDir() + std::string("/app.conf"));
