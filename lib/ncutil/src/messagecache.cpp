@@ -413,6 +413,7 @@ void MessageCache::Process()
     }
 
     PerformRequest(request);
+    TimeUtil::Sleep(0.001); // hack for GCC -O2 to enable context switching for non-empty queue
   }
 }
 
