@@ -16,6 +16,7 @@
 #include "apputil.h"
 #include "fileutil.h"
 #include "log.h"
+#include "protocolutil.h"
 
 #include "tgchat.h"
 
@@ -110,8 +111,7 @@ void MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
             const std::vector<ChatMessage>& chatMessages = newMessagesNotify->chatMessages;
             for (auto& chatMessage : chatMessages)
             {
-              std::cout << "-- id: " << chatMessage.id << " " << chatMessage.isOutgoing << " quotedId: " << chatMessage.quotedId << " filePath: " <<
-                chatMessage.filePath << " time: " << chatMessage.timeSent <<
+              std::cout << "-- id: " << chatMessage.id << " " << chatMessage.isOutgoing << " quotedId: " << chatMessage.quotedId << " time: " << chatMessage.timeSent <<
                 " isRead: " << chatMessage.isRead <<  "\n";
               std::cout << chatMessage.senderId << ": " << chatMessage.text << "\n";
             }
@@ -476,10 +476,14 @@ int main(int argc, char *argv[])
       std::string path;
       getline(cmdss, path);
       path = std::regex_replace(path, std::regex("^ +"), "");
+
+      FileInfo fileInfo;
+      fileInfo.filePath = path;
+      fileInfo.fileType = FileUtil::GetMimeType(path);
+
       std::shared_ptr<SendMessageRequest> sendMessageRequest = std::make_shared<SendMessageRequest>();
       sendMessageRequest->chatId = currentChatId;
-      sendMessageRequest->chatMessage.filePath = path;
-      sendMessageRequest->chatMessage.fileType = FileUtil::GetMimeType(path);
+      sendMessageRequest->chatMessage.fileInfo = ProtocolUtil::FileInfoToHex(fileInfo);;
       s_Protocols[currentProfileId]->SendRequest(sendMessageRequest);
     }
     // Mark Message Read
