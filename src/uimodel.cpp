@@ -891,9 +891,9 @@ void UiModel::OpenMessageAttachment(std::string p_FilePath /*= std::string()*/)
   }
 
 #if defined(__APPLE__)
-  std::string cmd = "open " + p_FilePath + " &";
+  std::string cmd = "open \"" + p_FilePath + "\" &";
 #else
-  std::string cmd = "xdg-open >/dev/null 2>&1 " + p_FilePath + " &";
+  std::string cmd = "xdg-open >/dev/null 2>&1 \"" + p_FilePath + "\" &";
 #endif
   LOG_TRACE("cmd \"%s\" start", cmd.c_str());
   int rv = system(cmd.c_str());
