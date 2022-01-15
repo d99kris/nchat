@@ -305,7 +305,13 @@ bool SetupProfile()
 
   if (!line.empty())
   {
-    selectidx = stoi(line);
+    try
+    {
+      selectidx = stoi(line);
+    }
+    catch (...)
+    {
+    }
   }
 
   if (selectidx >= p_Protocols.size())
