@@ -112,6 +112,7 @@ private:
   void UpdateEntry();
   void NotifyNewUnread();
   void ResetMessageOffset();
+  void SetCurrentChatIndexIfNotSet();
 
 private:
   bool m_Running = true;

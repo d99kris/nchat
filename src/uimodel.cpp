@@ -46,6 +46,8 @@ void UiModel::KeyHandler(wint_t p_Key)
     m_HomeFetchAll = false;
   }
 
+  SetCurrentChatIndexIfNotSet(); // set current chat upon any user interaction
+
   static wint_t keyPrevPage = UiKeyConfig::GetKey("prev_page");
   static wint_t keyNextPage = UiKeyConfig::GetKey("next_page");
   static wint_t keyEnd = UiKeyConfig::GetKey("end");
@@ -498,11 +500,6 @@ void UiModel::NextChat()
 {
   std::unique_lock<std::mutex> lock(m_ModelMutex);
   if (m_ChatVec.empty()) return;
-
-  if (m_CurrentChatIndex < 0)
-  {
-    m_CurrentChatIndex = 0;
-  }
 
   ++m_CurrentChatIndex;
   if (m_CurrentChatIndex >= (int)m_ChatVec.size())
@@ -1897,4 +1894,13 @@ int UiModel::GetHelpOffset()
 bool UiModel::GetEmojiEnabled()
 {
   return m_View->GetEmojiEnabled();
+}
+
+void UiModel::SetCurrentChatIndexIfNotSet()
+{
+  if (m_CurrentChatIndex >= 0) return;
+
+  std::unique_lock<std::mutex> lock(m_ModelMutex);
+  m_CurrentChatIndex = 0;
+  m_CurrentChat = m_ChatVec.at(m_CurrentChatIndex);
 }
