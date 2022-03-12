@@ -483,7 +483,7 @@ Technical Details
 
 Third-party Libraries
 ---------------------
-nmail is primarily implemented in C++ with some parts in Go. Its source tree
+nchat is primarily implemented in C++ with some parts in Go. Its source tree
 includes the source code of the following third-party libraries:
 
 - [apathy](https://github.com/dlecocq/apathy) -
