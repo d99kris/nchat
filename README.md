@@ -13,7 +13,7 @@ Telegram.
 Features
 --------
 - Message history cache (sqlite db backed)
-- View/save media files: documents, photos
+- View/save media files: documents, photos, videos
 - Show user status (online, away, typing)
 - Message read receipt
 - List dialogs (with text filter) for selecting files, emojis, contacts

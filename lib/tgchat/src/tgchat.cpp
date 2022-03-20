@@ -1405,7 +1405,28 @@ void TgChat::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessageCont
   }
   else if (p_TdMessageContent.get_id() == td::td_api::messageVideo::ID)
   {
-    p_Text = "[Video]";
+    auto& messageVideo = static_cast<td::td_api::messageVideo&>(p_TdMessageContent);
+    p_Text = GetText(std::move(messageVideo.caption_));
+    auto& video = messageVideo.video_;
+    auto& videoFile = video->video_;
+
+    auto& localFile = videoFile->local_;
+    auto& localPath = localFile->path_;
+    FileInfo fileInfo;
+    if (!localPath.empty())
+    {
+      fileInfo.filePath = localPath;
+      fileInfo.fileStatus = FileStatusDownloaded;
+    }
+    else
+    {
+      int32_t id = videoFile->id_;
+      fileInfo.filePath = "[Video]";
+      fileInfo.fileStatus = m_AttachmentPrefetchAll ? FileStatusDownloading : FileStatusNotDownloaded;
+      fileInfo.fileId = StrUtil::NumToHex(id);
+    }
+
+    p_FileInfo = ProtocolUtil::FileInfoToHex(fileInfo);
   }
   else if (p_TdMessageContent.get_id() == td::td_api::messageVideoNote::ID)
   {
