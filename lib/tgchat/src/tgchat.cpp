@@ -1,6 +1,6 @@
 // tgchat.cpp
 //
-// Copyright (c) 2020-2021 Kristofer Berggren
+// Copyright (c) 2020-2022 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -1170,8 +1170,15 @@ void TgChat::OnAuthStateUpdate()
     parameters->database_directory_ = dbPath;
     parameters->use_message_database_ = true;
     parameters->use_secret_chats_ = true;
-    parameters->api_id_ = 317904;
-    parameters->api_hash_ = "ae116c4816db58b08fef5d2703bb5aff";
+
+    std::string apiId = getenv("TG_APIID") ? getenv("TG_APIID")
+      : StrUtil::StrFromHex("3130343132303237");
+    parameters->api_id_ = StrUtil::ToInteger(apiId);
+
+    std::string apiHash = getenv("TG_APIHASH") ? getenv("TG_APIHASH")
+      : StrUtil::StrFromHex("3536373261353832633265666532643939363232326636343237386563616163");
+    parameters->api_hash_ = apiHash;
+
     parameters->system_language_code_ = "en";
     parameters->device_model_ = "Desktop";
 #ifdef __linux__
@@ -1190,6 +1197,11 @@ void TgChat::OnAuthStateUpdate()
   [](td::td_api::authorizationStateWaitOtherDeviceConfirmation& state)
   {
     std::cout << "Confirm this login link on another device:\n" << state.link_ << "\n";
+  },
+  [this](auto& anystate)
+  {
+    LOG_DEBUG("unexpected authorization state %d", anystate.get_id());
+    m_Running = false;
   }
   ));
 }

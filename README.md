@@ -481,6 +481,16 @@ nchat will populate the configuration file with the default entry.
 Technical Details
 =================
 
+Custom API Id / Hash
+--------------------
+nchat uses its own Telegram API id and hash by default. To use custom id/hash,
+obtained from [https://my.telegram.org/](https://my.telegram.org/) one may set
+environment variables `TG_APIID` and `TG_APIHASH` when setting up a new Telegram
+account. Example (below values must be changed to valid api id/hash):
+
+    TG_APIID="123456" TG_APIHASH="aaeaeab342aaa23423" nchat -s
+
+
 Third-party Libraries
 ---------------------
 nchat is primarily implemented in C++ with some parts in Go. Its source tree

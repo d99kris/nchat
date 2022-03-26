@@ -1,6 +1,6 @@
 // devmain.cpp
 //
-// Copyright (c) 2019-2021 Kristofer Berggren
+// Copyright (c) 2019-2022 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -17,6 +17,7 @@
 #include "fileutil.h"
 #include "log.h"
 #include "protocolutil.h"
+#include "strutil.h"
 
 #include "tgchat.h"
 
@@ -284,6 +285,28 @@ int main(int argc, char *argv[])
     else if ((*it == "-v") || (*it == "--version"))
     {
       //ShowVersion();
+      return 0;
+    }
+    else if ((*it == "-g") || (*it == "--generate"))
+    {
+      std::string apiIdStr;
+      std::string apiHashStr;
+      std::cout << "Enter api_id: ";
+      std::getline(std::cin, apiIdStr);
+      std::cout << "Enter api_hash: ";
+      std::getline(std::cin, apiHashStr);
+
+      std::string apiIdHexStr = StrUtil::StrToHex(apiIdStr);
+      std::string apiHashHexStr = StrUtil::StrToHex(apiHashStr);
+
+      std::cout << "api_id hex: " << apiIdHexStr << "\n";
+      std::cout << "api_hash hex: " << apiHashHexStr << "\n";
+
+      int32_t apiId = StrUtil::ToInteger(StrUtil::StrFromHex(apiIdHexStr));
+      std::string apiHash = StrUtil::ToLower(StrUtil::StrFromHex(apiHashHexStr));
+      std::cout << "control check:\n";
+      std::cout << "api_id: " << apiId << "\n";
+      std::cout << "api_hash: " << apiHash << "\n";
       return 0;
     }
     else
