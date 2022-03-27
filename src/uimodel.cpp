@@ -1593,7 +1593,7 @@ void UiModel::UpdateChatInfoIsUnread(const std::string& p_ProfileId, const std::
         bool desktopNotify = m_TerminalActive ? desktopNotifyActive : desktopNotifyInactive;
         if (desktopNotify)
         {
-          DesktopNotifyUnread(GetContactName(p_ProfileId, p_ChatId), chatMessage.text);
+          DesktopNotifyUnread(GetContactName(p_ProfileId, chatMessage.senderId), chatMessage.text);
         }
       }
     }
