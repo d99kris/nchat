@@ -360,8 +360,8 @@ Specifies whether to display chat list. Controlled by Ctrl-l in run-time.
 ### mark_read_on_view
 
 Specifies whether nchat should send message read receipts upon viewing. If
-false nchat will only mark the messages read upon `next_page` (page down) or
-upon sending a message/file in the chat.
+false nchat will only mark the messages read upon `next_page` (page down),
+`end` (end) or upon sending a message/file in the chat.
 
 ### muted_indicate_unread
 

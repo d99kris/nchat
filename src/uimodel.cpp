@@ -712,6 +712,7 @@ void UiModel::End()
   std::unique_lock<std::mutex> lock(m_ModelMutex);
   ResetMessageOffset();
 
+  SetHistoryInteraction(true);
   SetSelectMessage(false);
 }
 
