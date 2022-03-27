@@ -1,6 +1,6 @@
 // uimodel.cpp
 //
-// Copyright (c) 2019-2021 Kristofer Berggren
+// Copyright (c) 2019-2022 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -23,6 +23,7 @@
 #include "uidialog.h"
 #include "uiconfig.h"
 #include "uicontactlistdialog.h"
+#include "uicontroller.h"
 #include "uiemojilistdialog.h"
 #include "uifilelistdialog.h"
 #include "uikeyconfig.h"
@@ -45,8 +46,6 @@ void UiModel::KeyHandler(wint_t p_Key)
     LOG_TRACE("home fetch stopped");
     m_HomeFetchAll = false;
   }
-
-  SetCurrentChatIndexIfNotSet(); // set current chat upon any user interaction
 
   static wint_t keyPrevPage = UiKeyConfig::GetKey("prev_page");
   static wint_t keyNextPage = UiKeyConfig::GetKey("next_page");
@@ -79,8 +78,22 @@ void UiModel::KeyHandler(wint_t p_Key)
   {
     SetHelpOffset(0);
     ReinitView();
+    return;
   }
-  else if (p_Key == keyToggleHelp)
+  else if (p_Key == KEY_FOCUS_IN)
+  {
+    SetTerminalActive(true);
+    return;
+  }
+  else if (p_Key == KEY_FOCUS_OUT)
+  {
+    SetTerminalActive(false);
+    return;
+  }
+
+  SetCurrentChatIndexIfNotSet(); // set current chat upon any user interaction
+
+  if (p_Key == keyToggleHelp)
   {
     m_View->SetHelpEnabled(!m_View->GetHelpEnabled());
     ReinitView();
@@ -1556,7 +1569,21 @@ void UiModel::UpdateChatInfoIsUnread(const std::string& p_ProfileId, const std::
     {
       if (!profileChatInfos[p_ChatId].isUnread && isUnread)
       {
-        NotifyNewUnread();
+        static const bool terminalBellActive = UiConfig::GetBool("terminal_bell_active");
+        static const bool terminalBellInactive = UiConfig::GetBool("terminal_bell_inactive");
+        bool terminalBell = m_TerminalActive ? terminalBellActive : terminalBellInactive;
+        if (terminalBell)
+        {
+          m_TriggerTerminalBell = true;
+        }
+
+        static const bool desktopNotifyActive = UiConfig::GetBool("desktop_notify_active");
+        static const bool desktopNotifyInactive = UiConfig::GetBool("desktop_notify_inactive");
+        bool desktopNotify = m_TerminalActive ? desktopNotifyActive : desktopNotifyInactive;
+        if (desktopNotify)
+        {
+          DesktopNotifyUnread(GetContactName(p_ProfileId, p_ChatId), chatMessage.text);
+        }
       }
     }
 
@@ -1782,15 +1809,6 @@ void UiModel::UpdateEntry()
   m_View->SetEntryDirty(true);
 }
 
-void UiModel::NotifyNewUnread()
-{
-  static const bool terminalBell = UiConfig::GetBool("terminal_bell");
-  if (terminalBell)
-  {
-    m_TriggerTerminalBell = true;
-  }
-}
-
 std::wstring& UiModel::GetEntryStr()
 {
   return m_EntryStr[m_CurrentChat.first][m_CurrentChat.second];
@@ -1898,9 +1916,55 @@ bool UiModel::GetEmojiEnabled()
 
 void UiModel::SetCurrentChatIndexIfNotSet()
 {
-  if (m_CurrentChatIndex >= 0) return;
+  if ((m_CurrentChatIndex >= 0) || (m_ChatVec.empty())) return;
 
   std::unique_lock<std::mutex> lock(m_ModelMutex);
   m_CurrentChatIndex = 0;
   m_CurrentChat = m_ChatVec.at(m_CurrentChatIndex);
+}
+
+void UiModel::SetTerminalActive(bool p_TerminalActive)
+{
+  m_TerminalActive = p_TerminalActive;
+}
+
+void UiModel::DesktopNotifyUnread(const std::string& p_Name, const std::string& p_Text)
+{
+  static const std::string cmdTemplate = []()
+  {
+    std::string desktopNotifyCommand = UiConfig::GetStr("desktop_notify_command");
+    if (desktopNotifyCommand.empty())
+    {
+#if defined(__APPLE__)
+      desktopNotifyCommand = "osascript -e 'display notification \"%1: %2\" with title \"nchat\"'";
+#else
+      desktopNotifyCommand = "notify-send 'nchat' '%1: %2'";
+#endif
+    }
+
+    return desktopNotifyCommand;
+  }();
+
+  // clean up sender name and text
+  std::string name = p_Name;
+  std::string text = p_Text;
+  name.erase(remove_if(name.begin(), name.end(),
+                       [](char c) { return ((c == '\'') || (c == '%') || (c == '"')); } ),
+             name.end());
+  text.erase(remove_if(text.begin(), text.end(),
+                       [](char c) { return ((c == '\'') || (c == '%') || (c == '"')); } ),
+             text.end());
+
+  // insert sender name and text into command
+  std::string cmd = cmdTemplate;
+  StrUtil::ReplaceString(cmd, "%1", name);
+  StrUtil::ReplaceString(cmd, "%2", text);
+
+  // run command
+  LOG_TRACE("cmd \"%s\" start", cmd.c_str());
+  int rv = system(cmd.c_str());
+  if (rv != 0)
+  {
+    LOG_WARNING("cmd \"%s\" failed (%d)", cmd.c_str(), rv);
+  }
 }

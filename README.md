@@ -273,6 +273,9 @@ This configuration file holds general user interface settings. Default content:
     attachment_indicator=📎
     attachment_prefetch=2
     confirm_deletion=1
+    desktop_notify_active=0
+    desktop_notify_command=
+    desktop_notify_inactive=0
     downloadable_indicator=+
     emoji_enabled=1
     failed_indicator=✗
@@ -284,7 +287,8 @@ This configuration file holds general user interface settings. Default content:
     muted_position_by_timestamp=1
     read_indicator=✓
     syncing_indicator=⇄
-    terminal_bell=1
+    terminal_bell_active=0
+    terminal_bell_inactive=1
     top_enabled=1
 
 ### attachment_indicator
@@ -305,6 +309,26 @@ protocols.
 ### confirm_deletion
 
 Specifies whether to prompt the user for confirmation when deleting a message.
+
+### desktop_notify_active
+
+Specifies whether new message shall trigger desktop notification when nchat
+terminal window is active.
+
+### desktop_notify_command
+
+Specifies a custom command to use for desktop notifications. The command may
+include `%1` (will be replaced by sender name) and `%2` (will be replaced
+by message text) enclosed in single quotes (to prevent shell injection).
+Default command used, if not specified:
+
+    Linux: `notify-send 'nchat' '%1: %2'`
+    macOS: `osascript -e 'display notification "%1: %2" with title "nchat"'`
+
+### desktop_notify_inactive
+
+Specifies whether new message shall trigger desktop notification when nchat
+terminal window is inactive.
 
 ### downloadable_indicator
 
@@ -355,9 +379,15 @@ Specifies text to indicate a message has been read by the receiver.
 Specifies text to suffix attachment filenames in message view for downloads
 in progress.
 
-### terminal_bell
+### terminal_bell_active
 
-Specifies whether notifications shall trigger terminal bell.
+Specifies whether new message shall trigger terminal bell when nchat terminal
+window is active.
+
+### terminal_bell_inactive
+
+Specifies whether new message shall trigger terminal bell when nchat terminal
+window is inactive.
 
 ### top_enabled
 

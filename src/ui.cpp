@@ -1,6 +1,6 @@
 // ui.cpp
 //
-// Copyright (c) 2019-2021 Kristofer Berggren
+// Copyright (c) 2019-2022 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -21,6 +21,7 @@
 
 Ui::Ui()
 {
+  printf("\033[?1004h"); // enable terminal focus in/out event
   setlocale(LC_ALL, "");
   initscr();
   noecho();
@@ -34,8 +35,8 @@ Ui::Ui()
   UiKeyConfig::Init();
   UiColorConfig::Init();
 
-  m_Model = std::make_shared<UiModel>();
   m_Controller = std::make_shared<UiController>();
+  m_Model = std::make_shared<UiModel>();
 }
 
 Ui::~Ui()
@@ -49,6 +50,7 @@ Ui::~Ui()
   EmojiList::Cleanup();
   wclear(stdscr);
   endwin();
+  printf("\033[?1004l"); // disable terminal focus in/out event
 }
 
 void Ui::Run()

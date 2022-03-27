@@ -1,6 +1,6 @@
 // uimessagedialog.cpp
 //
-// Copyright (c) 2019-2021 Kristofer Berggren
+// Copyright (c) 2019-2022 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -59,6 +59,14 @@ void UiMessageDialog::KeyHandler(wint_t p_Key)
     m_View->Draw();
     curs_set(0);
     Init();
+  }
+  else if (p_Key == KEY_FOCUS_IN)
+  {
+    m_Model->SetTerminalActive(true);
+  }
+  else if (p_Key == KEY_FOCUS_OUT)
+  {
+    m_Model->SetTerminalActive(false);
   }
   else if (p_Key == keyCancel)
   {

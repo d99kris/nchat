@@ -1,6 +1,6 @@
 // uiconfig.cpp
 //
-// Copyright (c) 2019-2021 Kristofer Berggren
+// Copyright (c) 2019-2022 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -21,6 +21,9 @@ void UiConfig::Init()
     { "attachment_indicator", "\xF0\x9F\x93\x8E" },
     { "attachment_prefetch", "2" },
     { "confirm_deletion", "1" },
+    { "desktop_notify_active", "0" },
+    { "desktop_notify_inactive", "0" },
+    { "desktop_notify_command", "" },
     { "downloadable_indicator", "+" },
     { "emoji_enabled", "1" },
     { "failed_indicator", "\xe2\x9c\x97" },
@@ -32,7 +35,8 @@ void UiConfig::Init()
     { "muted_position_by_timestamp", "1" },
     { "read_indicator", "\xe2\x9c\x93" },
     { "syncing_indicator", "\xe2\x87\x84" },
-    { "terminal_bell", "1" },
+    { "terminal_bell_active", "0" },
+    { "terminal_bell_inactive", "1" },
     { "top_enabled", "1" },
   };
 

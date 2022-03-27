@@ -1,6 +1,6 @@
 // uimodel.h
 //
-// Copyright (c) 2019-2021 Kristofer Berggren
+// Copyright (c) 2019-2022 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -97,6 +97,7 @@ public:
   int GetHelpOffset();
 
   bool GetEmojiEnabled();
+  void SetTerminalActive(bool p_TerminalActive);
 
 private:
   void SortChats();
@@ -110,9 +111,9 @@ private:
   void UpdateHelp();
   void UpdateHistory();
   void UpdateEntry();
-  void NotifyNewUnread();
   void ResetMessageOffset();
   void SetCurrentChatIndexIfNotSet();
+  void DesktopNotifyUnread(const std::string& p_Name, const std::string& p_Text);
 
 private:
   bool m_Running = true;
@@ -150,6 +151,7 @@ private:
   bool m_MessageDialogActive = false;
   bool m_TriggerTerminalBell = false;
   bool m_HomeFetchAll = false;
+  bool m_TerminalActive = true;
 
   int m_HelpOffset = 0;
 };

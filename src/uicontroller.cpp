@@ -1,6 +1,6 @@
 // uicontroller.cpp
 //
-// Copyright (c) 2019-2021 Kristofer Berggren
+// Copyright (c) 2019-2022 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -9,6 +9,16 @@
 
 #include <unistd.h>
 #include <sys/select.h>
+
+UiController::UiController()
+{
+  define_key("\033[I", KEY_FOCUS_IN);
+  define_key("\033[O", KEY_FOCUS_OUT);
+}
+
+UiController::~UiController()
+{
+}
 
 wint_t UiController::GetKey(int p_TimeOutMs)
 {
