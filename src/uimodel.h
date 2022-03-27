@@ -114,6 +114,7 @@ private:
   void ResetMessageOffset();
   void SetCurrentChatIndexIfNotSet();
   void DesktopNotifyUnread(const std::string& p_Name, const std::string& p_Text);
+  void SetHistoryInteraction(bool p_HistoryInteraction);
 
 private:
   bool m_Running = true;
@@ -152,6 +153,7 @@ private:
   bool m_TriggerTerminalBell = false;
   bool m_HomeFetchAll = false;
   bool m_TerminalActive = true;
+  bool m_HistoryInteraction = false;
 
   int m_HelpOffset = 0;
 };

@@ -282,6 +282,7 @@ This configuration file holds general user interface settings. Default content:
     help_enabled=1
     home_fetch_all=0
     list_enabled=1
+    mark_read_on_view=1
     muted_indicate_unread=1
     muted_notify_unread=0
     muted_position_by_timestamp=1
@@ -355,6 +356,12 @@ Specifies whether `home` button shall repeatedly fetch all chat history.
 ### list_enabled
 
 Specifies whether to display chat list. Controlled by Ctrl-l in run-time.
+
+### mark_read_on_view
+
+Specifies whether nchat should send message read receipts upon viewing. If
+false nchat will only mark the messages read upon `next_page` (page down) or
+upon sending a message/file in the chat.
 
 ### muted_indicate_unread
 

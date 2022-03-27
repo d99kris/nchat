@@ -253,6 +253,7 @@ void UiModel::SendMessage()
 
   UpdateEntry();
   ResetMessageOffset();
+  SetHistoryInteraction(true);
 }
 
 void UiModel::EntryKeyHandler(wint_t p_Key)
@@ -609,6 +610,10 @@ void UiModel::NextPage()
     messageOffset -= decOffset;
     UpdateHistory();
   }
+  else
+  {
+    SetHistoryInteraction(true);
+  }
 
   SetSelectMessage(false);
 }
@@ -730,6 +735,9 @@ void UiModel::ResetMessageOffset()
 
 void UiModel::MarkRead(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId)
 {
+  static const bool markReadOnView = UiConfig::GetBool("mark_read_on_view");
+  if (!markReadOnView && !m_HistoryInteraction) return;
+
   std::shared_ptr<MarkMessageReadRequest> markMessageReadRequest = std::make_shared<MarkMessageReadRequest>();
   markMessageReadRequest->chatId = p_ChatId;
   markMessageReadRequest->msgId = p_MsgId;
@@ -1019,6 +1027,7 @@ void UiModel::TransferFile()
   std::unique_lock<std::mutex> lock(m_ModelMutex);
   ReinitView();
   ResetMessageOffset();
+  SetHistoryInteraction(true);
 }
 
 void UiModel::InsertEmoji()
@@ -1258,6 +1267,8 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
 
               UpdateHistory();
             }
+
+            SetHistoryInteraction(false);
           }
 
           UpdateChatInfoLastMessageTime(profileId, chatId);
@@ -1680,6 +1691,7 @@ std::string UiModel::GetChatStatus(const std::string& p_ProfileId, const std::st
 void UiModel::OnCurrentChatChanged()
 {
   LOG_TRACE("current chat %s %s", m_CurrentChat.first.c_str(), m_CurrentChat.second.c_str());
+  SetHistoryInteraction(false);
   UpdateList();
   UpdateStatus();
   UpdateHistory();
@@ -1967,4 +1979,15 @@ void UiModel::DesktopNotifyUnread(const std::string& p_Name, const std::string& 
   {
     LOG_WARNING("cmd \"%s\" failed (%d)", cmd.c_str(), rv);
   }
+}
+
+void UiModel::SetHistoryInteraction(bool p_HistoryInteraction)
+{
+  static const bool markReadOnView = UiConfig::GetBool("mark_read_on_view");
+  if (!markReadOnView && !m_HistoryInteraction && p_HistoryInteraction)
+  {
+    UpdateHistory();
+  }
+
+  m_HistoryInteraction = p_HistoryInteraction;
 }
