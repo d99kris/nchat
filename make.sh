@@ -88,7 +88,7 @@ if [[ "${DEPS}" == "1" ]]; then
       exiterr "deps failed (unsupported linux distro ${NAME}), exiting."
     fi
   elif [ "${OS}" == "Darwin" ]; then
-    HOMEBREW_NO_AUTO_UPDATE=1 brew install gperf cmake openssl ncurses ccache readline sqlite libmagic go || exiterr "deps failed (${OS}), exiting."
+    HOMEBREW_NO_AUTO_UPDATE=1 brew install gperf cmake openssl ncurses ccache readline sqlite libmagic || exiterr "deps failed (${OS}), exiting."
   else
     exiterr "deps failed (unsupported os ${OS}), exiting."
   fi
