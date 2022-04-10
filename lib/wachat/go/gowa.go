@@ -273,7 +273,64 @@ func (handler *eventHandler) HandleVideoMessage(message whatsapp.VideoMessage) {
 }
 
 func (handler *eventHandler) HandleAudioMessage(message whatsapp.AudioMessage) {
-	HandleUnsupportedMessage(handler, message.Info, "[AudioMessage]")
+	LOG_TRACE(fmt.Sprintf("AudioMessage"))
+
+	// get temp file path
+	connId := handler.connId
+	var tmpPath string = GetPath(connId) + "/tmp"
+	filePath := fmt.Sprintf("%v/%v.%v", tmpPath, message.Info.Id, "ogg")
+	fileStatus := FileStatusNone
+
+	if _, statErr := os.Stat(filePath); os.IsNotExist(statErr) {
+		LOG_TRACE(fmt.Sprintf("AudioMessage new %v", filePath))
+		data, err := message.Download()
+		if err != nil {
+			LOG_WARNING(fmt.Sprintf("download error %+v", err))
+			fileStatus = FileStatusDownloadFailed
+		} else {
+			file, err := os.Create(filePath)
+			defer file.Close()
+			if err != nil {
+				LOG_WARNING(fmt.Sprintf("create error %+v", err))
+				fileStatus = FileStatusDownloadFailed
+			} else {
+				_, err = file.Write(data)
+				if err != nil {
+					LOG_WARNING(fmt.Sprintf("write error %+v", err))
+					fileStatus = FileStatusDownloadFailed
+				} else {
+					LOG_TRACE(fmt.Sprintf("download ok"))
+					fileStatus = FileStatusDownloaded
+				}
+			}
+		}
+	} else {
+		LOG_TRACE(fmt.Sprintf("AudioMessage cached %v", filePath))
+		fileStatus = FileStatusDownloaded
+	}
+
+	chatId := message.Info.RemoteJid
+	msgId := message.Info.Id
+	fromMe := message.Info.FromMe
+	text := ""
+	senderId := message.Info.RemoteJid
+	if message.Info.Source.Participant != nil {
+		senderId = *message.Info.Source.Participant
+	} else if fromMe {
+		senderId = handler.conn.Info.Wid
+	}
+
+	quotedId := message.ContextInfo.QuotedMessageID
+
+	timeSent := int(message.Info.Timestamp)
+
+	isSeen := (message.Info.Status == 4)
+	isOld := (timeSent <= timeUnread[intString{i: connId, s: chatId}])
+	isRead := (fromMe && isSeen) || (!fromMe && isOld)
+
+	UpdateTypingStatus(connId, chatId, senderId, fromMe, isOld)
+
+	CNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, filePath, fileStatus, timeSent, BoolToInt(isRead))
 }
 
 func (handler *eventHandler) HandleDocumentMessage(message whatsapp.DocumentMessage) {
