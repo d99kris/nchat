@@ -1212,6 +1212,9 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
             {
               m_ChatVec.push_back(std::make_pair(profileId, chatInfo.id));
             }
+
+            UpdateChatInfoLastMessageTime(profileId, chatInfo.id);
+            UpdateChatInfoIsUnread(profileId, chatInfo.id);
           }
 
           SortChats();
