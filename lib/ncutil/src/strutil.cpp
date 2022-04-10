@@ -1,6 +1,6 @@
 // strutil.cpp
 //
-// Copyright (c) 2020-2021 Kristofer Berggren
+// Copyright (c) 2020-2022 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -30,6 +30,21 @@ void StrUtil::DeleteToMatch(std::wstring& p_Str, const int p_StartPos, const wch
 std::string StrUtil::Emojize(const std::string& p_Str)
 {
   return emojicpp::emojize(p_Str);
+}
+
+std::vector<std::string> StrUtil::ExtractUrlsFromStr(const std::string& p_Str)
+{
+  std::string str = p_Str;
+  std::vector<std::string> rv;
+  std::regex rg("(http|https):\\/\\/([^\\s]+)");
+  std::smatch sm;
+  while (regex_search(str, sm, rg))
+  {
+    rv.push_back(sm.str());
+    str = sm.suffix();
+  }
+
+  return rv;
 }
 
 std::string StrUtil::GetPass()

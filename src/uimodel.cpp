@@ -939,10 +939,15 @@ void UiModel::OpenMessageAttachment(std::string p_FilePath /*= std::string()*/)
     LOG_TRACE("download file action open %s", p_FilePath.c_str());
   }
 
+  SysOpen(p_FilePath);
+}
+
+void UiModel::SysOpen(const std::string& p_Path)
+{
 #if defined(__APPLE__)
-  std::string cmd = "open \"" + p_FilePath + "\" &";
+  std::string cmd = "open '" + p_Path + "' &";
 #else
-  std::string cmd = "xdg-open >/dev/null 2>&1 \"" + p_FilePath + "\" &";
+  std::string cmd = "xdg-open >/dev/null 2>&1 '" + p_Path + "' &";
 #endif
   LOG_TRACE("cmd \"%s\" start", cmd.c_str());
   int rv = system(cmd.c_str());
@@ -979,18 +984,28 @@ void UiModel::OpenMessageLink()
     return;
   }
 
+  std::vector<std::string> msgUrls = StrUtil::ExtractUrlsFromStr(mit->second.text);
   const std::string linkChatId = mit->second.link;
-  if (linkChatId.empty())
+  if (!linkChatId.empty())
+  {
+    LOG_DEBUG("create chat %s", linkChatId.c_str());
+    std::shared_ptr<CreateChatRequest> createChatRequest = std::make_shared<CreateChatRequest>();
+    createChatRequest->userId = linkChatId;
+    m_Protocols[profileId]->SendRequest(createChatRequest);
+    SetSelectMessage(false);
+  }
+  else if (!msgUrls.empty())
+  {
+    for (const auto& msgUrl : msgUrls)
+    {
+      LOG_DEBUG("open url %s", msgUrl.c_str());
+      SysOpen(msgUrl);
+    }
+  }
+  else
   {
     LOG_WARNING("message does not contain a link");
-    return;
   }
-
-  LOG_DEBUG("create chat %s", linkChatId.c_str());
-  std::shared_ptr<CreateChatRequest> createChatRequest = std::make_shared<CreateChatRequest>();
-  createChatRequest->userId = linkChatId;
-  m_Protocols[profileId]->SendRequest(createChatRequest);
-  SetSelectMessage(false);
 }
 
 void UiModel::SaveMessageAttachment(std::string p_FilePath /*= std::string()*/)
