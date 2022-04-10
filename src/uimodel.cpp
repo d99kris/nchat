@@ -547,18 +547,48 @@ void UiModel::UnreadChat()
   std::unique_lock<std::mutex> lock(m_ModelMutex);
   if (m_ChatVec.empty()) return;
 
+  std::vector<int> unreadVec;
+  bool unreadIsSelected = false;
+
   for (size_t i = 0; i < m_ChatVec.size(); ++i)
   {
     const std::pair<std::string, std::string>& chat = m_ChatVec.at(i);
     const ChatInfo& chatInfo = m_ChatInfos[chat.first][chat.second];
     if (chatInfo.isUnread)
     {
-      m_CurrentChatIndex = i;
-      m_CurrentChat = m_ChatVec.at(m_CurrentChatIndex);
-      OnCurrentChatChanged();
-      SetSelectMessage(false);
-      break;
+      unreadVec.push_back(i);
+      if (m_CurrentChatIndex == (int)i)
+      {
+        unreadIsSelected = true;
+      }
     }
+  }
+
+  if (!unreadVec.empty())
+  {
+    if (!unreadIsSelected)
+    {
+      m_CurrentChatIndex = unreadVec.at(0);
+    }
+    else if (unreadVec.size() > 1)
+    {
+      auto it = std::find(unreadVec.begin(), unreadVec.end(), m_CurrentChatIndex);
+      if (it != unreadVec.end())
+      {
+        size_t idx = std::distance(unreadVec.begin(), it);
+        ++idx;
+        if (idx >= unreadVec.size())
+        {
+          idx = 0;
+        }
+
+        m_CurrentChatIndex = unreadVec.at(idx);
+      }
+    }
+
+    m_CurrentChat = m_ChatVec.at(m_CurrentChatIndex);
+    OnCurrentChatChanged();
+    SetSelectMessage(false);
   }
 }
 
