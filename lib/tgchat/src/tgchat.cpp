@@ -1337,7 +1337,26 @@ void TgChat::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessageCont
   }
   else if (p_TdMessageContent.get_id() == td::td_api::messageAudio::ID)
   {
-    p_Text = "[Audio]";
+    auto& messageAudio = static_cast<td::td_api::messageAudio&>(p_TdMessageContent);
+
+    int32_t id = messageAudio.audio_->audio_->id_;
+    std::string path = messageAudio.audio_->audio_->local_->path_;
+    std::string fileName = messageAudio.audio_->file_name_;
+    p_Text = GetText(std::move(messageAudio.caption_));
+    FileInfo fileInfo;
+    if (!path.empty())
+    {
+      fileInfo.filePath = path;
+      fileInfo.fileStatus = FileStatusDownloaded;
+    }
+    else
+    {
+      fileInfo.filePath = fileName;
+      fileInfo.fileStatus = m_AttachmentPrefetchAll ? FileStatusDownloading : FileStatusNotDownloaded;
+      fileInfo.fileId = StrUtil::NumToHex(id);
+    }
+
+    p_FileInfo = ProtocolUtil::FileInfoToHex(fileInfo);
   }
   else if (p_TdMessageContent.get_id() == td::td_api::messageCall::ID)
   {
@@ -1466,7 +1485,26 @@ void TgChat::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessageCont
   }
   else if (p_TdMessageContent.get_id() == td::td_api::messageVoiceNote::ID)
   {
-    p_Text = "[VoiceNote]";
+    auto& messageVoiceNote = static_cast<td::td_api::messageVoiceNote&>(p_TdMessageContent);
+
+    int32_t id = messageVoiceNote.voice_note_->voice_->id_;
+    std::string path = messageVoiceNote.voice_note_->voice_->local_->path_;
+    std::string fileName = std::to_string(id) + ".oga";
+    p_Text = GetText(std::move(messageVoiceNote.caption_));
+    FileInfo fileInfo;
+    if (!path.empty())
+    {
+      fileInfo.filePath = path;
+      fileInfo.fileStatus = FileStatusDownloaded;
+    }
+    else
+    {
+      fileInfo.filePath = fileName;
+      fileInfo.fileStatus = m_AttachmentPrefetchAll ? FileStatusDownloading : FileStatusNotDownloaded;
+      fileInfo.fileId = StrUtil::NumToHex(id);
+    }
+
+    p_FileInfo = ProtocolUtil::FileInfoToHex(fileInfo);
   }
   else if (p_TdMessageContent.get_id() == td::td_api::messageChatAddMembers::ID)
   {
