@@ -265,9 +265,10 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
   static wint_t keyLeft = UiKeyConfig::GetKey("left");
   static wint_t keyRight = UiKeyConfig::GetKey("right");
   static wint_t keyBackspace = UiKeyConfig::GetKey("backspace");
-  static wint_t keyAltBackspace = UiKeyConfig::GetKey("alt_backspace");
+  static wint_t keyBackspaceAlt = UiKeyConfig::GetKey("backspace_alt");
   static wint_t keyDelete = UiKeyConfig::GetKey("delete");
-  static wint_t keyDeleteLine = UiKeyConfig::GetKey("delete_line");
+  static wint_t keyDeleteLineAfterCursor = UiKeyConfig::GetKey("delete_line_after_cursor");
+  static wint_t keyDeleteLineBeforeCursor = UiKeyConfig::GetKey("delete_line_before_cursor");
 
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
@@ -391,7 +392,7 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
       entryPos = NumUtil::Bound(0, entryPos + 1, (int)entryStr.size());
     }
   }
-  else if ((p_Key == keyBackspace) || (p_Key == keyAltBackspace))
+  else if ((p_Key == keyBackspace) || (p_Key == keyBackspaceAlt))
   {
     if (entryPos > 0)
     {
@@ -416,9 +417,13 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
       SetTyping(profileId, chatId, true);
     }
   }
-  else if (p_Key == keyDeleteLine)
+  else if (p_Key == keyDeleteLineAfterCursor)
   {
     StrUtil::DeleteToMatch(entryStr, entryPos, L'\n');
+  }
+  else if (p_Key == keyDeleteLineBeforeCursor)
+  {
+    StrUtil::DeleteFromMatch(entryStr, entryPos, L'\n');
   }
   else if (StrUtil::IsValidTextKey(p_Key))
   {

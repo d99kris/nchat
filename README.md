@@ -405,8 +405,11 @@ Specifies whether to display top bar. Controlled by Ctrl-p in run-time.
 This configuration file holds user interface key bindings. Default content:
 
     backspace=KEY_BACKSPACE
+    backspace_alt=KEY_ALT_BACKSPACE
     cancel=KEY_CTRLC
     delete=KEY_DC
+    delete_line_after_cursor=KEY_CTRLK
+    delete_line_before_cursor=KEY_CTRLU
     delete_msg=KEY_CTRLD
     down=KEY_DOWN
     end=KEY_END
@@ -431,7 +434,7 @@ This configuration file holds user interface key bindings. Default content:
     toggle_list=KEY_CTRLL
     toggle_top=KEY_CTRLP
     transfer=KEY_CTRLT
-    unread_chat=KEY_CTRLU
+    unread_chat=KEY_CTRLF
     up=KEY_UP
 
 Refer to function UiKeyConfig::GetKeyCode() in

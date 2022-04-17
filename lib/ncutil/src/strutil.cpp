@@ -21,6 +21,20 @@
 #include "emoji.h"
 #include "log.h"
 
+void StrUtil::DeleteFromMatch(std::wstring& p_Str, int& p_EndPos, const wchar_t p_StartChar)
+{
+  if (p_Str.empty()) return;
+
+  size_t startPos = p_Str.rfind(p_StartChar, (p_EndPos > 0) ? (p_EndPos - 1) : 0);
+  if (startPos == std::wstring::npos)
+  {
+    startPos = 0;
+  }
+
+  p_Str.erase(startPos, p_EndPos - startPos);
+  p_EndPos -= (p_EndPos - startPos);
+}
+
 void StrUtil::DeleteToMatch(std::wstring& p_Str, const int p_StartPos, const wchar_t p_EndChar)
 {
   size_t endPos = p_Str.find(p_EndChar, p_StartPos);

@@ -14,6 +14,7 @@
 class StrUtil
 {
 public:
+  static void DeleteFromMatch(std::wstring& p_Str, int& p_EndPos, const wchar_t p_StartChar);
   static void DeleteToMatch(std::wstring& p_Str, const int p_StartPos, const wchar_t p_EndChar);
   static std::string Emojize(const std::string& p_Str);
   static std::vector<std::string> ExtractUrlsFromStr(const std::string& p_Str);

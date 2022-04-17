@@ -69,7 +69,7 @@ void UiListDialog::KeyHandler(wint_t p_Key)
   static wint_t keyEnd = UiKeyConfig::GetKey("end");
   static wint_t keyHome = UiKeyConfig::GetKey("home");
   static wint_t keyBackspace = UiKeyConfig::GetKey("backspace");
-  static wint_t keyAltBackspace = UiKeyConfig::GetKey("alt_backspace");
+  static wint_t keyBackspaceAlt = UiKeyConfig::GetKey("backspace_alt");
 
   bool isDirty = true;
   if (p_Key == KEY_RESIZE)
@@ -138,7 +138,7 @@ void UiListDialog::KeyHandler(wint_t p_Key)
   {
     m_Index = std::numeric_limits<int>::max();
   }
-  else if ((p_Key == keyBackspace) || (p_Key == keyAltBackspace))
+  else if ((p_Key == keyBackspace) || (p_Key == keyBackspaceAlt))
   {
     if (m_FilterStr.size() > 0)
     {
