@@ -144,7 +144,7 @@ public:
 
   static void AddFromServiceMessage(const std::string& p_ProfileId, std::shared_ptr<ServiceMessage> p_ServiceMessage);
 
-  static void AddProfile(const std::string& p_ProfileId);
+  static void AddProfile(const std::string& p_ProfileId, bool p_CheckSync);
   static void AddMessages(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_FromMsgId,
                   const std::vector<ChatMessage>& p_ChatMessages);
   static void AddChats(const std::string& p_ProfileId, const std::vector<ChatInfo>& p_ChatInfos);
@@ -181,6 +181,7 @@ private:
   static std::mutex m_DbMutex;
   static std::map<std::string, std::unique_ptr<sqlite::database>> m_Dbs;
   static std::unordered_map<std::string, std::unordered_map<std::string, bool>> m_InSync;
+  static std::unordered_map<std::string, bool> m_CheckSync;
 
   static bool m_Running;
   static std::thread m_Thread;

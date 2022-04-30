@@ -380,6 +380,8 @@ std::shared_ptr<Protocol> SetupProfile()
   else
   {
     std::cout << "Setup failed\n";
+    protocol->Logout();
+    protocol->CloseProfile();
   }
 
   return rv;

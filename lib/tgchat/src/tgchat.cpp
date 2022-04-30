@@ -262,7 +262,7 @@ bool TgChat::Impl::SetupProfile(const std::string& p_ProfilesDir, std::string& p
   apathy::Path::rmdirs(apathy::Path(m_ProfileDir));
   apathy::Path::makedirs(m_ProfileDir);
 
-  MessageCache::AddProfile(m_ProfileId);
+  MessageCache::AddProfile(m_ProfileId, true);
 
   p_ProfileId = m_ProfileId;
   m_IsSetup = true;
@@ -291,7 +291,7 @@ bool TgChat::Impl::LoadProfile(const std::string& p_ProfilesDir, const std::stri
 {
   m_ProfileDir = p_ProfilesDir + "/" + p_ProfileId;
   m_ProfileId = p_ProfileId;
-  MessageCache::AddProfile(m_ProfileId);
+  MessageCache::AddProfile(m_ProfileId, true);
   return true;
 }
 

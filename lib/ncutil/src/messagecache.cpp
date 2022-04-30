@@ -26,6 +26,7 @@ std::function<void(std::shared_ptr<ServiceMessage>)> MessageCache::m_MessageHand
 std::mutex MessageCache::m_DbMutex;
 std::map<std::string, std::unique_ptr<sqlite::database>> MessageCache::m_Dbs;
 std::unordered_map<std::string, std::unordered_map<std::string, bool>> MessageCache::m_InSync;
+std::unordered_map<std::string, bool> MessageCache::m_CheckSync;
 bool MessageCache::m_Running = false;
 std::thread MessageCache::m_Thread;
 std::mutex MessageCache::m_QueueMutex;
@@ -40,7 +41,7 @@ void MessageCache::Init()
   
   if (!m_CacheEnabled) return;
 
-  static const int dirVersion = 5;
+  static const int dirVersion = 6;
   m_HistoryDir = FileUtil::GetApplicationDir() + "/history";
   FileUtil::InitDirVersion(m_HistoryDir, dirVersion);
 
@@ -155,7 +156,7 @@ void MessageCache::AddFromServiceMessage(const std::string& p_ProfileId, std::sh
   }  
 }
 
-void MessageCache::AddProfile(const std::string& p_ProfileId)
+void MessageCache::AddProfile(const std::string& p_ProfileId, bool p_CheckSync)
 {
   if (!m_CacheEnabled) return;
 
@@ -166,6 +167,8 @@ void MessageCache::AddProfile(const std::string& p_ProfileId)
     return;
   }
   
+  m_CheckSync[p_ProfileId] = p_CheckSync;
+
   const std::string& dbDir = m_HistoryDir + "/" + p_ProfileId;
   FileUtil::MkDir(dbDir);
 
@@ -197,6 +200,7 @@ void MessageCache::AddProfile(const std::string& p_ProfileId)
   *m_Dbs[p_ProfileId] << "CREATE TABLE IF NOT EXISTS contacts ("
     "id TEXT,"
     "name TEXT,"
+    "isSelf INT,"
     "UNIQUE(id) ON CONFLICT REPLACE"
     ");";
 
@@ -286,7 +290,7 @@ bool MessageCache::FetchMessagesFrom(const std::string& p_ProfileId, const std::
   std::unique_lock<std::mutex> lock(m_DbMutex);
   if (!m_Dbs[p_ProfileId]) return false;
 
-  if (!m_InSync[p_ProfileId][p_ChatId]) return false;
+  if (m_CheckSync[p_ProfileId] && !m_InSync[p_ProfileId][p_ChatId]) return false;
 
   int64_t fromMsgIdTimeSent = 0;
   if (!p_FromMsgId.empty())
@@ -352,7 +356,7 @@ bool MessageCache::FetchOneMessage(const std::string& p_ProfileId, const std::st
   std::unique_lock<std::mutex> lock(m_DbMutex);
   if (!m_Dbs[p_ProfileId]) return false;
 
-  if (!m_InSync[p_ProfileId][p_ChatId]) return false;
+  if (m_CheckSync[p_ProfileId] && !m_InSync[p_ProfileId][p_ChatId]) return false;
 
   lock.unlock();
 
@@ -437,11 +441,12 @@ void MessageCache::Export(const std::string& p_ExportDir)
       chatIds.push_back(chatId);
     };
 
+    const std::string selfName = "You";
     std::map<std::string, std::string> contactNames;
-    *m_Dbs[profileId] << "SELECT id,name FROM contacts;" >>
-    [&](const std::string& id, const std::string& name)
+    *m_Dbs[profileId] << "SELECT id, name, isSelf FROM contacts;" >>
+      [&](const std::string& id, const std::string& name, int32_t isSelf)
     {
-      contactNames[id] = name;
+      contactNames[id] = isSelf ? selfName : name;
     };
 
     const int limit = std::numeric_limits<int>::max();
@@ -575,7 +580,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         LOG_DEBUG("cache add %s %s %d", chatId.c_str(), fromMsgId.c_str(),
                   addMessagesRequest->chatMessages.size());
 
-        if (!m_InSync[profileId][chatId])
+        if (m_CheckSync[profileId] && !m_InSync[profileId][chatId])
         {
           if (!addMessagesRequest->chatMessages.empty())
           {
@@ -657,15 +662,13 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
 
         if (addContactsRequest->contactInfos.empty()) return;
 
-        const std::string selfName = "You";
         *m_Dbs[profileId] << "BEGIN;";
         for (const auto& contactInfo : addContactsRequest->contactInfos)
         {
-          const std::string& name = contactInfo.isSelf ? selfName : contactInfo.name;
           *m_Dbs[profileId] << "INSERT INTO contacts "
-            "(id, name) VALUES "
-            "(?,?);" <<
-            contactInfo.id << name;
+            "(id, name, isSelf) VALUES "
+            "(?,?,?);" <<
+            contactInfo.id << contactInfo.name << contactInfo.isSelf;
         }
         *m_Dbs[profileId] << "COMMIT;";
       }
@@ -680,11 +683,13 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         if (!m_Dbs[profileId]) return;
 
         std::vector<ChatInfo> chatInfos;
-        *m_Dbs[profileId] << "SELECT id FROM chats;" >>
-        [&](const std::string& id)
+        *m_Dbs[profileId] << "SELECT chatId, MAX(timeSent), isOutgoing, isRead FROM messages GROUP BY chatId;" >>
+          [&](const std::string& chatId, int64_t timeSent, int32_t isOutgoing, int32_t isRead)
         {
           ChatInfo chatInfo;
-          chatInfo.id = id;
+          chatInfo.id = chatId;
+          chatInfo.isUnread = !isOutgoing && !isRead;
+          chatInfo.lastMessageTime = timeSent;
           chatInfos.push_back(chatInfo);
         };
 
@@ -708,13 +713,13 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         if (!m_Dbs[profileId]) return;
 
         std::vector<ContactInfo> contactInfos;
-        *m_Dbs[profileId] << "SELECT id,name FROM contacts;" >>
-        [&](const std::string& id, const std::string& name)
+        *m_Dbs[profileId] << "SELECT id, name, isSelf FROM contacts;" >>
+          [&](const std::string& id, const std::string& name, int32_t isSelf)
         {
           ContactInfo contactInfo;
           contactInfo.id = id;
           contactInfo.name = name;
-          //XXX: set isSelf?
+          contactInfo.isSelf = isSelf;
           contactInfos.push_back(contactInfo);
         };
 

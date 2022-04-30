@@ -321,9 +321,18 @@ void Ui::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
             const std::vector<ChatMessage>& chatMessages = newMessagesNotify->chatMessages;
             for (auto& chatMessage : chatMessages)
             {
-              std::cout << "-- id: " << chatMessage.id << " " << chatMessage.isOutgoing << " quotedId: " << chatMessage.quotedId << " time: " << chatMessage.timeSent <<
+              std::cout << "-- id: " << chatMessage.id << " " << chatMessage.isOutgoing << " qt: " << chatMessage.quotedId << " time: " << chatMessage.timeSent <<
                 " isRead: " << chatMessage.isRead <<  "\n";
-              std::cout << chatMessage.senderId << ": " << chatMessage.text << "\n";
+              std::cout << chatMessage.senderId << ": " << chatMessage.text;
+
+              if (!chatMessage.fileInfo.empty())
+              {
+                FileInfo fileInfo = ProtocolUtil::FileInfoFromHex(chatMessage.fileInfo);
+                std::cout << " (attachment: " << fileInfo.filePath << " " <<
+                  (int)fileInfo.fileStatus << ")";
+              }
+
+              std::cout << "\n";
             }
           }
         }
@@ -404,8 +413,10 @@ void Ui::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
     case ReceiveTypingNotifyType:
       {
         std::shared_ptr<ReceiveTypingNotify> receiveTypingNotify = std::static_pointer_cast<ReceiveTypingNotify>(p_ServiceMessage);
+        std::string userId = receiveTypingNotify->userId;
+        std::string chatId = receiveTypingNotify->chatId;
         bool isTyping = receiveTypingNotify->isTyping;
-        std::cout << "Received is " << (isTyping ? "typing" : "idle") << "\n";
+        std::cout << "Received " << userId << " in " << chatId << " is " << (isTyping ? "typing" : "idle") << "\n";
       }
       break;
 

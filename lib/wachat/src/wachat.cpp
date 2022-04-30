@@ -67,7 +67,7 @@ bool WaChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_Profi
 
   p_ProfileId = m_ProfileId;
 
-  MessageCache::AddProfile(m_ProfileId);
+  MessageCache::AddProfile(m_ProfileId, true);
 
   int connId = CInit(const_cast<char*>(profileDir.c_str()));
   if (connId == -1) return false;
@@ -91,7 +91,7 @@ bool WaChat::LoadProfile(const std::string& p_ProfilesDir, const std::string& p_
   m_ProfileDir = p_ProfilesDir + "/" + p_ProfileId;
   m_ProfileId = p_ProfileId;
 
-  MessageCache::AddProfile(m_ProfileId);
+  MessageCache::AddProfile(m_ProfileId, true);
 
   m_ConnId = CInit(const_cast<char*>(m_ProfileDir.c_str()));
   if (m_ConnId == -1) return false;
