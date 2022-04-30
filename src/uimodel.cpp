@@ -1585,7 +1585,7 @@ std::string UiModel::GetLastMessageId(const std::string& p_ProfileId, const std:
     if (messageIt == messages.end()) continue;
 
     const ChatMessage& lastChatMessage = messageIt->second;
-    if (lastChatMessage.timeSent != std::numeric_limits<int64_t>::max())
+    if (lastChatMessage.timeSent != std::numeric_limits<int64_t>::max()) // skip sponsored messages
     {
       lastMessageId = messageId;
       break;
@@ -1759,8 +1759,9 @@ void UiModel::RequestMessages()
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
 
+  std::unordered_set<std::string>& msgFromIdsRequested = m_MsgFromIdsRequested[profileId][chatId];
   const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
-  std::string fromId = messageVec.empty() ? "" : *messageVec.rbegin();
+  std::string fromId = (msgFromIdsRequested.empty() || messageVec.empty()) ? "" : *messageVec.rbegin();
 
   int messageOffset = m_MessageOffset[profileId][chatId];
   const int maxHistory = m_HomeFetchAll ? 8 : (((GetHistoryLines() * 2) / 3) + 1);
@@ -1772,7 +1773,6 @@ void UiModel::RequestMessages()
     return;
   }
 
-  std::unordered_set<std::string>& msgFromIdsRequested = m_MsgFromIdsRequested[profileId][chatId];
   if (msgFromIdsRequested.find(fromId) != msgFromIdsRequested.end())
   {
     LOG_TRACE("get messages from %s already requested", fromId.c_str());
