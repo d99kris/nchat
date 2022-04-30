@@ -35,7 +35,7 @@
 #endif
 
 #ifdef HAS_WHATSAPP
-#include "wachat.h"
+#include "wmchat.h"
 #endif
 
 static std::shared_ptr<Protocol> SetupProfile();
@@ -98,7 +98,7 @@ static std::vector<ProtocolBaseFactory*> GetProtocolFactorys()
    new ProtocolFactory<TgChat>(),
 #endif
 #ifdef HAS_WHATSAPP
-   new ProtocolFactory<WaChat>(),
+   new ProtocolFactory<WmChat>(),
 #endif
   };
 

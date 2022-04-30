@@ -421,7 +421,12 @@ void MessageCache::UpdateMessageFileInfo(const std::string& p_ProfileId, const s
 
 void MessageCache::Export(const std::string& p_ExportDir)
 {
-  if (!m_CacheEnabled) return;
+  if (!m_CacheEnabled)
+  {
+    std::cout << "Export failed (cache not enabled).\n";
+    LOG_ERROR("export failed, cache not enabled.");
+    return;
+  }
 
   std::unique_lock<std::mutex> lock(m_DbMutex);
 

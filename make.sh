@@ -96,9 +96,9 @@ fi
 
 # src
 if [[ "${SRC}" == "1" ]]; then
-  uncrustify -c etc/uncrustify.cfg --replace --no-backup src/*.{cpp,h} lib/common/src/*.h lib/duchat/src/*.{cpp,h} lib/ncutil/src/*.{cpp,h} lib/tgchat/src/*.{cpp,h} lib/wachat/src/*.{cpp,h} || \
+  uncrustify -c etc/uncrustify.cfg --replace --no-backup src/*.{cpp,h} lib/common/src/*.h lib/duchat/src/*.{cpp,h} lib/ncutil/src/*.{cpp,h} lib/tgchat/src/*.{cpp,h} lib/wmchat/src/*.{cpp,h} || \
     exiterr "unrustify failed, exiting."
-  go fmt lib/wachat/go/*.go || \
+  go fmt lib/wmchat/go/*.go || \
     exiterr "go fmt failed, exiting."
 fi
 

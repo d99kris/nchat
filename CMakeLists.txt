@@ -1,6 +1,6 @@
 # Project
 cmake_minimum_required(VERSION 3.16 FATAL_ERROR) # 3.1 is ok, but is 3.16 needed for proper version string
-project(nchat VERSION 2.55 LANGUAGES CXX)
+project(nchat VERSION 2.56 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 14)
 include(CheckCXXSourceCompiles)
 set(NCHAT_PROJECT_VERSION ${PROJECT_VERSION})
@@ -38,13 +38,26 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   endif()
 endif()
 
-# Custom build specifics
+# Optional component - Dummy Protocol
 option(HAS_DUMMY "Dummy" OFF)
 message(STATUS "Dummy: ${HAS_DUMMY}")
+
+# Optional component - Telegram
 option(HAS_TELEGRAM "Telegram" ON)
 message(STATUS "Telegram: ${HAS_TELEGRAM}")
+
+# Optional component - WhatsApp
 option(HAS_WHATSAPP "WhatsApp" OFF)
 message(STATUS "WhatsApp: ${HAS_WHATSAPP}")
+
+if(HAS_WHATSAPP)
+  # Check Golang version - whatsmeow requires >= v1.16
+  execute_process(COMMAND bash "-c" "go version | cut -c14- | cut -d' ' -f1 | tr -d '\n'" OUTPUT_VARIABLE GO_VERSION)
+  if(NOT GO_VERSION VERSION_GREATER_EQUAL 1.16.0)
+    message(FATAL_ERROR "Go version ${GO_VERSION} (need v1.16 to build WhatsApp).")
+    SET(HAS_WHATSAPP OFF)
+  endif()
+endif()
 
 # Application
 add_executable(nchat
@@ -120,7 +133,7 @@ if(HAS_TELEGRAM)
   add_subdirectory(lib/tgchat)
 endif()
 if(HAS_WHATSAPP)
-  add_subdirectory(lib/wachat)
+  add_subdirectory(lib/wmchat)
 endif()
 
 # Dependency ncurses
@@ -144,7 +157,7 @@ if(HAS_TELEGRAM)
 endif()
 
 if(HAS_WHATSAPP)
-  target_include_directories(nchat PRIVATE "lib/wachat/src")
+  target_include_directories(nchat PRIVATE "lib/wmchat/src")
   target_compile_definitions(nchat PRIVATE HAS_WHATSAPP="${HAS_WHATSAPP}")
 endif()
 
@@ -175,7 +188,7 @@ add_custom_target(uninstall
   COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/lib/libtdclientshared${CMAKE_SHARED_LIBRARY_SUFFIX}"
   COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/lib/libtgchat${CMAKE_SHARED_LIBRARY_SUFFIX}"
   COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/lib/libduchat${CMAKE_SHARED_LIBRARY_SUFFIX}"
-  COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/lib/libwachat${CMAKE_SHARED_LIBRARY_SUFFIX}"
+  COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/lib/libwmchat${CMAKE_SHARED_LIBRARY_SUFFIX}"
 )
 
 # Dev Application
@@ -216,7 +229,7 @@ if(CMAKE_BUILD_TYPE MATCHES "Debug")
   endif()
 
   if(HAS_WHATSAPP)
-    target_include_directories(devnchat PRIVATE "lib/wachat/src")
+    target_include_directories(devnchat PRIVATE "lib/wmchat/src")
     target_compile_definitions(devnchat PRIVATE HAS_WHATSAPP="${HAS_WHATSAPP}")
   endif()
 

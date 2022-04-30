@@ -545,20 +545,16 @@ includes the source code of the following third-party libraries:
 - [emojicpp](https://github.com/99x/emojicpp) -
   Copyright 2018 Shalitha Suranga - [MIT License](/ext/emojicpp/LICENSE)
 
-- [go-qrcode](https://github.com/skip2/go-qrcode) -
-  Copyright 2014 Tom Harwood -
-  [MIT License](/lib/wachat/go/ext/go-qrcode/LICENSE)
-
-- [go-whatsapp](https://github.com/Rhymen/go-whatsapp) -
-  Copyright 2018 Lucas Engelke -
-  [MIT License](/lib/wachat/go/ext/go-whatsapp/LICENSE)
-
 - [sqlite_modern_cpp](https://github.com/SqliteModernCpp/sqlite_modern_cpp) -
   Copyright 2017 aminroosta - [MIT License](/ext/sqlite_modern_cpp/License.txt)
 
 - [tdlib](https://github.com/tdlib/td) -
   Copyright 2014 Aliaksei Levin, Arseny Smirnov -
   [Boost License](/lib/tgchat/ext/td/LICENSE_1_0.txt)
+
+- [whatsmeow](https://github.com/tulir/whatsmeow) -
+  Copyright 2022 Tulir Asokan -
+  [MPL License](/lib/wmchat/go/ext/whatsmeow/LICENSE)
 
 Code Formatting
 ---------------
