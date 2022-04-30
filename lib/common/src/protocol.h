@@ -1,6 +1,6 @@
 // protocol.h
 //
-// Copyright (c) 2020-2021 Kristofer Berggren
+// Copyright (c) 2020-2022 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -23,12 +23,6 @@ enum ProtocolFeature
   FeatureTypingTimeout = (1 << 1),
 };
 
-enum ProtocolProperty
-{
-  PropertyNone = 0,
-  PropertyAttachmentPrefetchAll,
-};
-
 class Protocol
 {
 public:
@@ -42,7 +36,6 @@ public:
 
   virtual std::string GetProfileId() const = 0;
   virtual bool HasFeature(ProtocolFeature p_ProtocolFeature) const = 0;
-  virtual void SetProperty(ProtocolProperty p_Property, const std::string& p_Value) = 0;
 
   virtual bool SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId) = 0;
   virtual bool LoadProfile(const std::string& p_ProfilesDir, const std::string& p_ProfileId) = 0;
@@ -62,6 +55,7 @@ enum MessageType
   RequestMessageType,
   GetContactsRequestType,
   GetChatsRequestType,
+  GetMessageRequestType,
   GetMessagesRequestType,
   SendMessageRequestType,
   DeferNotifyRequestType,
@@ -166,6 +160,14 @@ class GetChatsRequest : public RequestMessage
 {
 public:
   virtual MessageType GetMessageType() const { return GetChatsRequestType; }
+};
+
+class GetMessageRequest : public RequestMessage
+{
+public:
+  virtual MessageType GetMessageType() const { return GetMessageRequestType; }
+  std::string chatId;
+  std::string msgId;
 };
 
 class GetMessagesRequest : public RequestMessage

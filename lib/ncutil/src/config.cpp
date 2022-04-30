@@ -1,6 +1,6 @@
 // config.cpp
 //
-// Copyright (c) 2020-2021 Kristofer Berggren
+// Copyright (c) 2020-2022 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -33,7 +33,7 @@ void Config::Load(const std::string& p_Path)
   m_Path = p_Path;
 
   std::ifstream stream;
-  stream.open(p_Path);
+  stream.open(p_Path, std::ios::binary);
   if (stream.fail())
   {
     Save();
@@ -52,6 +52,8 @@ void Config::Load(const std::string& p_Path)
     std::istringstream linestream(line);
     if (!std::getline(linestream, param, '=')) continue;
 
+    if (m_Map.count(param) == 0) continue; // drop params not present in default map
+
     std::string value;
     std::getline(linestream, value);
 
@@ -67,7 +69,7 @@ void Config::Save() const
 void Config::Save(const std::string& p_Path) const
 {
   std::ofstream stream;
-  stream.open(p_Path);
+  stream.open(p_Path, std::ios::binary);
   if (stream.fail())
   {
     return;

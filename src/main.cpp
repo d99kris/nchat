@@ -32,7 +32,7 @@
 #include "wachat.h"
 #endif
 
-static bool SetupProfile();
+static std::shared_ptr<Protocol> SetupProfile();
 static void ShowHelp();
 static void ShowVersion();
 
@@ -136,39 +136,8 @@ int main(int argc, char* argv[])
       }
       else
       {
-        std::cout << "Config dir " << FileUtil::GetApplicationDir() << " is incompatible with this version of nchat\n";
-        if ((storedVersion == -1) && FileUtil::Exists(FileUtil::GetApplicationDir() + "/tdlib"))
-        {
-          std::cout << "Attempt to migrate config dir to new version (y/n)? ";
-          std::string migrateYesNo;
-          std::getline(std::cin, migrateYesNo);
-          if (migrateYesNo != "y")
-          {
-            std::cout << "Migration cancelled, exiting.\n";
-            return 1;
-          }
-
-          std::cout << "Enter phone number (optional, ex. +6511111111): ";
-          std::string phoneNumber = "";
-          std::getline(std::cin, phoneNumber);
-
-          std::string profileName = "Telegram_" + phoneNumber;
-          std::string tmpDir = "/tmp/" + profileName;
-          FileUtil::RmDir(tmpDir);
-          FileUtil::MkDir(tmpDir);
-          FileUtil::Move(FileUtil::GetApplicationDir() + "/tdlib", tmpDir + "/tdlib");
-          FileUtil::Move(FileUtil::GetApplicationDir() + "/telegram.conf", tmpDir + "/telegram.conf");
-
-          FileUtil::InitDirVersion(FileUtil::GetApplicationDir(), dirVersion);
-          Profiles::Init();
-
-          FileUtil::Move(tmpDir, FileUtil::GetApplicationDir() + "/profiles/" + profileName);
-        }
-        else
-        {
-          std::cerr << "error: invalid config dir content, exiting.\n";
-          return 1;
-        }
+        std::cerr << "error: invalid config dir content, exiting. use -s to setup nchat.\n";
+        return 1;
       }
     }
   }
@@ -182,60 +151,72 @@ int main(int argc, char* argv[])
   std::string appNameVersion = AppUtil::GetAppNameVersion();
   LOG_INFO("starting %s", appNameVersion.c_str());
 
-  // Run setup if required
-  if (isSetup)
-  {
-    bool rv = SetupProfile();
-    return rv ? 0 : 1;
-  }
-
   // Init app config
   AppConfig::Init();
+
+  // Init message cache
+  MessageCache::Init();
+
+  // Run setup if required
+  std::shared_ptr<Protocol> setupProtocol;
+  if (isSetup)
+  {
+    setupProtocol = SetupProfile();
+    if (!setupProtocol) return 1;
+  }
 
   // Init ui
   std::shared_ptr<Ui> ui = std::make_shared<Ui>();
 
-  // Init message cache
-  const bool cacheEnabled = AppConfig::GetBool("experimental_cache_enabled");
+  // Set message cache message handler
   std::function<void(std::shared_ptr<ServiceMessage>)> messageHandler =
     std::bind(&Ui::MessageHandler, std::ref(*ui), std::placeholders::_1);
-  MessageCache::Init(cacheEnabled, messageHandler);
+  MessageCache::SetMessageHandler(messageHandler);
 
   // Load profile(s)
   std::string profilesDir = FileUtil::GetApplicationDir() + "/profiles";
   const std::vector<apathy::Path>& profilePaths = apathy::Path::listdir(profilesDir);
   for (auto& profilePath : profilePaths)
   {
-    std::stringstream ss(profilePath.filename());
-    std::string protocolName;
-    if (!std::getline(ss, protocolName, '_'))
-    {
-      LOG_WARNING("invalid profile name, skipping.");
-      continue;
-    }
+    std::string profileId = profilePath.filename();
+    if (profileId == "version") continue;
 
-    std::vector<std::shared_ptr<Protocol>> allProtocols = GetProtocols();
-    for (auto& protocol : allProtocols)
+    std::stringstream ss(profileId);
+    std::string protocolName;
+    if ((profileId.find("_") == std::string::npos) || !std::getline(ss, protocolName, '_'))
     {
-      if (protocol->GetProfileId() == protocolName)
-      {
-        protocol->LoadProfile(profilesDir, profilePath.filename());
-        ui->AddProtocol(protocol);
-        MessageCache::AddProfile(profilePath.filename());
-      }
+      LOG_WARNING("invalid profile name, skipping %s", profileId.c_str());
+      continue;
     }
 
 #ifndef HAS_MULTIPROTOCOL
     if (!ui->GetProtocols().empty())
     {
-      break;
+      LOG_WARNING("multiple profile support not enabled, skipping %s", profileId.c_str());
+      continue;
     }
 #endif
-  }
 
-  // Protocol config params
-  std::string isAttachmentPrefetchAll =
-    (UiConfig::GetNum("attachment_prefetch") == AttachmentPrefetchAll) ? "1" : "0";
+    if (setupProtocol && (setupProtocol->GetProfileId() == profileId))
+    {
+      LOG_DEBUG("adding new profile %s", profileId.c_str());
+      ui->AddProtocol(setupProtocol);
+      setupProtocol.reset();
+    }
+    else
+    {
+      std::vector<std::shared_ptr<Protocol>> allProtocols = GetProtocols();
+      for (auto& protocol : allProtocols)
+      {
+        if (protocol->GetProfileId() == protocolName)
+        {
+          LOG_DEBUG("loading existing profile %s", profileId.c_str());
+          protocol->LoadProfile(profilesDir, profileId);
+          ui->AddProtocol(protocol);
+        }
+      }
+    }
+  }
 
   // Start protocol(s) and ui
   std::unordered_map<std::string, std::shared_ptr<Protocol>>& protocols = ui->GetProtocols();
@@ -246,7 +227,6 @@ int main(int argc, char* argv[])
     for (auto& protocol : protocols)
     {
       protocol.second->SetMessageHandler(messageHandler);
-      protocol.second->SetProperty(PropertyAttachmentPrefetchAll, isAttachmentPrefetchAll);
       protocol.second->Login();
     }
 
@@ -286,13 +266,14 @@ int main(int argc, char* argv[])
   return rv;
 }
 
-bool SetupProfile()
+std::shared_ptr<Protocol> SetupProfile()
 {
-  std::vector<std::shared_ptr<Protocol>> p_Protocols = GetProtocols();
+  std::shared_ptr<Protocol> rv;
+  std::vector<std::shared_ptr<Protocol>> protocols = GetProtocols();
 
   std::cout << "Protocols:" << std::endl;
   size_t idx = 0;
-  for (auto it = p_Protocols.begin(); it != p_Protocols.end(); ++it, ++idx)
+  for (auto it = protocols.begin(); it != protocols.end(); ++it, ++idx)
   {
     std::cout << idx << ". " << (*it)->GetProfileId() << std::endl;
   }
@@ -314,10 +295,10 @@ bool SetupProfile()
     }
   }
 
-  if (selectidx >= p_Protocols.size())
+  if (selectidx >= protocols.size())
   {
     std::cout << "Setup aborted, exiting." << std::endl;
-    return false;
+    return rv;
   }
 
   std::string profileId;
@@ -329,10 +310,11 @@ bool SetupProfile()
   Profiles::Init();
 #endif
 
-  bool rv = p_Protocols.at(selectidx)->SetupProfile(profilesDir, profileId);
-  if (rv)
+  bool setupResult = protocols.at(selectidx)->SetupProfile(profilesDir, profileId);
+  if (setupResult)
   {
     std::cout << "Succesfully set up profile " << profileId << "\n";
+    rv = protocols.at(selectidx);
   }
   else
   {

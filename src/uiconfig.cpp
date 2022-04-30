@@ -19,7 +19,6 @@ void UiConfig::Init()
   const std::map<std::string, std::string> defaultConfig =
   {
     { "attachment_indicator", "\xF0\x9F\x93\x8E" },
-    { "attachment_prefetch", "2" },
     { "confirm_deletion", "1" },
     { "desktop_notify_active", "0" },
     { "desktop_notify_inactive", "0" },

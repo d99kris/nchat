@@ -23,9 +23,11 @@
 
 #include <sys/stat.h>
 
+#include "appconfig.h"
 #include "apputil.h"
 #include "config.h"
 #include "log.h"
+#include "messagecache.h"
 #include "path.hpp"
 #include "protocolutil.h"
 #include "status.h"
@@ -88,20 +90,6 @@ bool TgChat::HasFeature(ProtocolFeature p_ProtocolFeature) const
   return (p_ProtocolFeature & customFeatures);
 }
 
-void TgChat::SetProperty(ProtocolProperty p_Property, const std::string& p_Value)
-{
-  switch (p_Property)
-  {
-    case PropertyAttachmentPrefetchAll:
-      m_AttachmentPrefetchAll = (p_Value == "1");
-      break;
-
-    case PropertyNone:
-    default:
-      break;
-  }
-}
-
 bool TgChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId)
 {
   std::cout << "Enter phone number (ex. +6511111111): ";
@@ -113,6 +101,8 @@ bool TgChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_Profi
   apathy::Path::rmdirs(apathy::Path(m_ProfileDir));
   apathy::Path::makedirs(m_ProfileDir);
 
+  MessageCache::AddProfile(m_ProfileId);
+
   p_ProfileId = m_ProfileId;
   m_IsSetup = true;
   m_Running = true;
@@ -123,18 +113,24 @@ bool TgChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_Profi
 
   Cleanup();
 
-  if (!m_IsSetup)
+  bool rv = m_IsSetup;
+  if (rv)
+  {
+    m_IsSetup = false;
+  }
+  else
   {
     apathy::Path::rmdirs(apathy::Path(m_ProfileDir));
   }
 
-  return m_IsSetup;
+  return rv;
 }
 
 bool TgChat::LoadProfile(const std::string& p_ProfilesDir, const std::string& p_ProfileId)
 {
   m_ProfileDir = p_ProfilesDir + "/" + p_ProfileId;
   m_ProfileId = p_ProfileId;
+  MessageCache::AddProfile(m_ProfileId);
   return true;
 }
 
@@ -205,6 +201,13 @@ void TgChat::Process()
         break;
       }
 
+      if (!m_MessageHandler)
+      {
+        LOG_DEBUG("postpone request handling");
+        m_ProcessCondVar.wait(lock);
+        continue;
+      }
+
       requestMessage = m_RequestsQueue.front();
       m_RequestsQueue.pop_front();
     }
@@ -225,9 +228,16 @@ void TgChat::SetMessageHandler(const std::function<void(std::shared_ptr<ServiceM
   m_MessageHandler = p_MessageHandler;
 }
 
+
 void TgChat::CallMessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
 {
-  if (!m_MessageHandler) return;
+  MessageCache::AddFromServiceMessage(m_ProfileId, p_ServiceMessage);
+
+  if (!m_MessageHandler)
+  {
+    LOG_DEBUG("message handler not set");
+    return;
+  }
 
   m_MessageHandler(p_ServiceMessage);
 }
@@ -452,12 +462,31 @@ void TgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
       }
       break;
 
+    case GetMessageRequestType:
+      {
+        LOG_DEBUG("Get message");
+        std::shared_ptr<GetMessageRequest> getMessageRequest =
+          std::static_pointer_cast<GetMessageRequest>(p_RequestMessage);
+        MessageCache::FetchOneMessage(m_ProfileId, getMessageRequest->chatId, getMessageRequest->msgId, false /*p_Sync*/);
+      }
+      break;
+
     case GetMessagesRequestType:
       {
         LOG_DEBUG("Get messages");
-        Status::Set(Status::FlagFetching);
         std::shared_ptr<GetMessagesRequest> getMessagesRequest =
           std::static_pointer_cast<GetMessagesRequest>(p_RequestMessage);
+
+        if (!getMessagesRequest->fromMsgId.empty() || (getMessagesRequest->limit == std::numeric_limits<int>::max()))
+        {
+          if (MessageCache::FetchMessagesFrom(m_ProfileId, getMessagesRequest->chatId,
+                                              getMessagesRequest->fromMsgId, getMessagesRequest->limit, false /* p_Sync */))
+          {
+            return;
+          }
+        }
+        
+        Status::Set(Status::FlagFetching);
         int64_t chatId = StrUtil::NumFromHex<int64_t>(getMessagesRequest->chatId);
         int64_t fromMsgId = StrUtil::NumFromHex<int64_t>(getMessagesRequest->fromMsgId);
         int32_t limit = getMessagesRequest->limit;
@@ -772,6 +801,8 @@ void TgChat::Init()
   };
   const std::string configPath(m_ProfileDir + std::string("/telegram.conf"));
   m_Config = Config(configPath, defaultConfig);
+
+  m_AttachmentPrefetchAll = (AppConfig::GetNum("attachment_prefetch") == AttachmentPrefetchAll);
 
   td::Log::set_verbosity_level(Log::GetDebugEnabled() ? 5 : 1);
   const std::string logPath(m_ProfileDir + std::string("/td.log"));

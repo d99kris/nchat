@@ -260,9 +260,18 @@ used to configure nchat.
 -----------------
 This configuration file holds general application settings. Default content:
 
-    experimental_cache_enabled=0
+    attachment_prefetch=1
+    cache_enabled=1
 
-### experimental_cache_enabled
+### attachment_prefetch
+
+Specifies level of attachment prefetching:
+
+    0 = no prefetch (download upon open/save)
+    1 = selected (download upon message selection) <- default
+    2 = all (download when message is received)
+
+### cache_enabled
 
 Specifies whether to enable (experimental) cache functionality.
 
@@ -271,7 +280,6 @@ Specifies whether to enable (experimental) cache functionality.
 This configuration file holds general user interface settings. Default content:
 
     attachment_indicator=📎
-    attachment_prefetch=2
     confirm_deletion=1
     desktop_notify_active=0
     desktop_notify_command=
@@ -295,17 +303,6 @@ This configuration file holds general user interface settings. Default content:
 ### attachment_indicator
 
 Specifies text to prefix attachment filenames in message view.
-
-### attachment_prefetch
-
-Specifies level of attachment prefetching:
-
-    0 = no prefetch (download upon open/save)
-    1 = selected (download upon message selection)
-    2 = all (download when message is received) <- default
-
-Non-default options are currently only supported for Telegram, not other
-protocols.
 
 ### confirm_deletion
 

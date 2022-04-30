@@ -1,6 +1,6 @@
 # Project
 cmake_minimum_required(VERSION 3.16 FATAL_ERROR) # 3.1 is ok, but is 3.16 needed for proper version string
-project(nchat VERSION 2.51 LANGUAGES CXX)
+project(nchat VERSION 2.52 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 14)
 include(CheckCXXSourceCompiles)
 set(NCHAT_PROJECT_VERSION ${PROJECT_VERSION})
@@ -47,8 +47,6 @@ message(STATUS "WhatsApp: ${HAS_WHATSAPP}")
 # Application
 add_executable(nchat
   ext/apathy/path.hpp
-  src/appconfig.cpp
-  src/appconfig.h
   src/main.cpp
   src/ui.cpp
   src/ui.h
@@ -179,7 +177,9 @@ if(CMAKE_BUILD_TYPE MATCHES "Debug")
   message(STATUS "Building dev application.")
   add_executable(devnchat
     ext/apathy/path.hpp
-    dev/devmain.cpp
+    dev/main.cpp
+    dev/ui.cpp
+    dev/ui.h
   )
 
   # Headers

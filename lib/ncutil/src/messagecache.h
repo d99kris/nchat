@@ -1,6 +1,6 @@
 // messagecache.h
 //
-// Copyright (c) 2020-2021 Kristofer Berggren
+// Copyright (c) 2020-2022 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -30,13 +30,16 @@ private:
   enum RequestType
   {
     UnknownRequestType = 0,
-    AddRequestType,
+    AddMessagesRequestType,
+    AddChatsRequestType,
     AddContactsRequestType,
-    FetchFromRequestType,
-    FetchOneRequestType,
-    DeleteRequestType,
-    UpdateIsReadRequestType,
-    UpdateFileInfoRequestType,
+    FetchChatsRequestType,
+    FetchContactsRequestType,
+    FetchMessagesFromRequestType,
+    FetchOneMessageRequestType,
+    DeleteOneMessageRequestType,
+    UpdateMessageIsReadRequestType,
+    UpdateMessageFileInfoRequestType,
   };
 
   class Request
@@ -46,14 +49,22 @@ private:
     virtual RequestType GetRequestType() const { return UnknownRequestType; }
   };
 
-  class AddRequest : public Request
+  class AddMessagesRequest : public Request
   {
   public:
-    virtual RequestType GetRequestType() const { return AddRequestType; }
+    virtual RequestType GetRequestType() const { return AddMessagesRequestType; }
     std::string profileId;
     std::string chatId;
     std::string fromMsgId;
     std::vector<ChatMessage> chatMessages;
+  };
+
+  class AddChatsRequest : public Request
+  {
+  public:
+    virtual RequestType GetRequestType() const { return AddChatsRequestType; }
+    std::string profileId;
+    std::vector<ChatInfo> chatInfos;
   };
 
   class AddContactsRequest : public Request
@@ -64,48 +75,62 @@ private:
     std::vector<ContactInfo> contactInfos;
   };
 
-  class FetchFromRequest : public Request
+  class FetchChatsRequest : public Request
   {
   public:
-    virtual RequestType GetRequestType() const { return FetchFromRequestType; }
+    virtual RequestType GetRequestType() const { return FetchChatsRequestType; }
+    std::string profileId;
+  };
+
+  class FetchContactsRequest : public Request
+  {
+  public:
+    virtual RequestType GetRequestType() const { return FetchContactsRequestType; }
+    std::string profileId;
+  };
+
+  class FetchMessagesFromRequest : public Request
+  {
+  public:
+    virtual RequestType GetRequestType() const { return FetchMessagesFromRequestType; }
     std::string profileId;
     std::string chatId;
     std::string fromMsgId;
     int limit = 0;
   };
 
-  class FetchOneRequest : public Request
+  class FetchOneMessageRequest : public Request
   {
   public:
-    virtual RequestType GetRequestType() const { return FetchOneRequestType; }
+    virtual RequestType GetRequestType() const { return FetchOneMessageRequestType; }
     std::string profileId;
     std::string chatId;
     std::string msgId;
   };
 
-  class DeleteRequest : public Request
+  class DeleteOneMessageRequest : public Request
   {
   public:
-    virtual RequestType GetRequestType() const { return DeleteRequestType; }
+    virtual RequestType GetRequestType() const { return DeleteOneMessageRequestType; }
     std::string profileId;
     std::string chatId;
     std::string msgId;
   };
 
-  class UpdateIsReadRequest : public Request
+  class UpdateMessageIsReadRequest : public Request
   {
   public:
-    virtual RequestType GetRequestType() const { return UpdateIsReadRequestType; }
+    virtual RequestType GetRequestType() const { return UpdateMessageIsReadRequestType; }
     std::string profileId;
     std::string chatId;
     std::string msgId;
     bool isRead = false;
   };
 
-  class UpdateFileInfoRequest : public Request
+  class UpdateMessageFileInfoRequest : public Request
   {
   public:
-    virtual RequestType GetRequestType() const { return UpdateFileInfoRequestType; }
+    virtual RequestType GetRequestType() const { return UpdateMessageFileInfoRequestType; }
     std::string profileId;
     std::string chatId;
     std::string msgId;
@@ -113,23 +138,28 @@ private:
   };
 
 public:
-  static void Init(const bool p_CacheEnabled,
-                   const std::function<void(std::shared_ptr<ServiceMessage>)>& p_MessageHandler);
+  static void Init();
   static void Cleanup();
+  static void SetMessageHandler(const std::function<void(std::shared_ptr<ServiceMessage>)>& p_MessageHandler);
+
+  static void AddFromServiceMessage(const std::string& p_ProfileId, std::shared_ptr<ServiceMessage> p_ServiceMessage);
 
   static void AddProfile(const std::string& p_ProfileId);
-  static void Add(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_FromMsgId,
+  static void AddMessages(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_FromMsgId,
                   const std::vector<ChatMessage>& p_ChatMessages);
+  static void AddChats(const std::string& p_ProfileId, const std::vector<ChatInfo>& p_ChatInfos);
   static void AddContacts(const std::string& p_ProfileId, const std::vector<ContactInfo>& p_ContactInfos);
-  static bool FetchFrom(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_FromMsgId,
+  static bool FetchChats(const std::string& p_ProfileId);
+  static bool FetchContacts(const std::string& p_ProfileId);
+  static bool FetchMessagesFrom(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_FromMsgId,
                         const int p_Limit, const bool p_Sync);
-  static bool FetchOne(const std::string& p_ProfileId, const std::string& p_ChatId,
+  static bool FetchOneMessage(const std::string& p_ProfileId, const std::string& p_ChatId,
                        const std::string& p_MsgId, const bool p_Sync);
-  static void Delete(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId);
-  static void UpdateIsRead(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId,
+  static void DeleteOneMessage(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId);
+  static void UpdateMessageIsRead(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId,
                            bool p_IsRead);
-  static void UpdateFileInfo(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId,
-                             const std::string& p_FileInfo);
+  static void UpdateMessageFileInfo(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                    const std::string& p_MsgId, const std::string& p_FileInfo);
 
   static void Export(const std::string& p_ExportDir);
 
@@ -137,10 +167,10 @@ private:
   static void Process();
   static void EnqueueRequest(std::shared_ptr<Request> p_Request);
   static void PerformRequest(std::shared_ptr<Request> p_Request);
-  static void PerformFetchFrom(const std::string& p_ProfileId, const std::string& p_ChatId,
+  static void PerformFetchMessagesFrom(const std::string& p_ProfileId, const std::string& p_ChatId,
                                const int64_t p_FromMsgIdTimeSent, const int p_Limit,
                                std::vector<ChatMessage>& p_ChatMessages);
-  static void PerformFetchOne(const std::string& p_ProfileId, const std::string& p_ChatId,
+  static void PerformFetchOneMessage(const std::string& p_ProfileId, const std::string& p_ChatId,
                               const std::string& p_MsgId, std::vector<ChatMessage>& p_ChatMessages);
 
   static void CallMessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage);

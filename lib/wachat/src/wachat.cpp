@@ -1,6 +1,6 @@
 // wachat.cpp
 //
-// Copyright (c) 2020-2021 Kristofer Berggren
+// Copyright (c) 2020-2022 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -13,6 +13,7 @@
 
 #include "libcgowa.h"
 #include "log.h"
+#include "messagecache.h"
 #include "protocolutil.h"
 #include "status.h"
 #include "timeutil.h"
@@ -39,10 +40,6 @@ bool WaChat::HasFeature(ProtocolFeature p_ProtocolFeature) const
   return (p_ProtocolFeature & customFeatures);
 }
 
-void WaChat::SetProperty(ProtocolProperty /*p_Property*/, const std::string& /*p_Value*/)
-{
-}
-
 bool WaChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId)
 {
   std::cout << "\n";
@@ -63,6 +60,8 @@ bool WaChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_Profi
   mkdir(profileDir.c_str(), 0777);
 
   p_ProfileId = m_ProfileId;
+
+  MessageCache::AddProfile(m_ProfileId);
 
   int connId = CInit(const_cast<char*>(profileDir.c_str()));
   if (connId == -1) return false;
@@ -85,6 +84,8 @@ bool WaChat::LoadProfile(const std::string& p_ProfilesDir, const std::string& p_
 {
   m_ProfileDir = p_ProfilesDir + "/" + p_ProfileId;
   m_ProfileId = p_ProfileId;
+
+  MessageCache::AddProfile(m_ProfileId);
 
   m_ConnId = CInit(const_cast<char*>(m_ProfileDir.c_str()));
   if (m_ConnId == -1) return false;
@@ -187,6 +188,8 @@ void WaChat::SetMessageHandler(const std::function<void(std::shared_ptr<ServiceM
 
 void WaChat::CallMessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
 {
+  MessageCache::AddFromServiceMessage(m_ProfileId, p_ServiceMessage);
+
   if (!m_MessageHandler) return;
 
   m_MessageHandler(p_ServiceMessage);
@@ -220,12 +223,31 @@ void WaChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
       }
       break;
 
+    case GetMessageRequestType:
+      {
+        LOG_DEBUG("Get message");
+        std::shared_ptr<GetMessageRequest> getMessageRequest =
+          std::static_pointer_cast<GetMessageRequest>(p_RequestMessage);
+        MessageCache::FetchOneMessage(m_ProfileId, getMessageRequest->chatId, getMessageRequest->msgId, false /*p_Sync*/);
+      }
+      break;
+
     case GetMessagesRequestType:
       {
         LOG_DEBUG("get messages");
-        Status::Set(Status::FlagFetching);
         std::shared_ptr<GetMessagesRequest> getMessagesRequest =
           std::static_pointer_cast<GetMessagesRequest>(p_RequestMessage);
+
+        if (!getMessagesRequest->fromMsgId.empty() || (getMessagesRequest->limit == std::numeric_limits<int>::max()))
+        {
+          if (MessageCache::FetchMessagesFrom(m_ProfileId, getMessagesRequest->chatId,
+                                              getMessagesRequest->fromMsgId, getMessagesRequest->limit, false /* p_Sync */))
+          {
+            return;
+          }
+        }
+
+        Status::Set(Status::FlagFetching);
         std::string chatId = getMessagesRequest->chatId;
         int32_t limit = getMessagesRequest->limit;
         std::string fromMsgId = getMessagesRequest->fromMsgId;
