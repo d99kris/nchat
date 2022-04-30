@@ -20,6 +20,7 @@ void AppConfig::Init()
   {
     { "attachment_prefetch", "1" },
     { "cache_enabled", "1" },
+    { "downloads_dir", "" },
   };
 
   const std::string configPath(FileUtil::GetApplicationDir() + std::string("/app.conf"));
@@ -47,4 +48,9 @@ int AppConfig::GetNum(const std::string& p_Param)
   if (!StrUtil::IsInteger(value)) return 0;
 
   return StrUtil::ToInteger(value);
+}
+
+std::string AppConfig::GetStr(const std::string& p_Param)
+{
+  return m_Config.Get(p_Param);
 }

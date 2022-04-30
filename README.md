@@ -262,6 +262,7 @@ This configuration file holds general application settings. Default content:
 
     attachment_prefetch=1
     cache_enabled=1
+    downloads_dir=
 
 ### attachment_prefetch
 
@@ -274,6 +275,11 @@ Specifies level of attachment prefetching:
 ### cache_enabled
 
 Specifies whether to enable (experimental) cache functionality.
+
+### downloads_dir
+
+Specifies a custom downloads directory path to save attachments to. If not
+specified, the default dir is `~/Downloads` if exists, otherwise `~`.
 
 ~/.nchat/ui.conf
 ----------------

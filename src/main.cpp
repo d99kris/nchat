@@ -207,6 +207,7 @@ int main(int argc, char* argv[])
 
   // Init app config
   AppConfig::Init();
+  FileUtil::SetDownloadsDir(AppConfig::GetStr("downloads_dir"));
 
   // Init message cache
   MessageCache::Init();

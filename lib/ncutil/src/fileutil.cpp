@@ -9,6 +9,8 @@
 
 #include <fstream>
 
+#include <wordexp.h>
+
 #ifdef __APPLE__
 #include <libproc.h>
 #endif
@@ -22,6 +24,7 @@
 #include "strutil.h"
 
 std::string FileUtil::m_ApplicationDir;
+std::string FileUtil::m_DownloadsDir;
 
 std::string FileUtil::AbsolutePath(const std::string& p_Path)
 {
@@ -56,6 +59,31 @@ bool FileUtil::Exists(const std::string& p_Path)
 {
   struct stat sb;
   return (stat(p_Path.c_str(), &sb) == 0);
+}
+
+std::string FileUtil::ExpandPath(const std::string& p_Path)
+{
+  if (p_Path.empty()) return p_Path;
+
+  if ((p_Path.at(0) != '~') && ((p_Path.at(0) != '$'))) return p_Path;
+
+  wordexp_t exp;
+  std::string rv;
+  if ((wordexp(p_Path.c_str(), &exp, WRDE_NOCMD) == 0) && (exp.we_wordc > 0))
+  {
+    rv = std::string(exp.we_wordv[0]);
+    for (size_t i = 1; i < exp.we_wordc; ++i)
+    {
+      rv += " " + std::string(exp.we_wordv[i]);
+    }
+    wordfree(&exp);
+  }
+  else
+  {
+    rv = p_Path;
+  }
+
+  return rv;
 }
 
 std::string FileUtil::GetApplicationDir()
@@ -97,6 +125,15 @@ int FileUtil::GetDirVersion(const std::string& p_Dir)
 
 std::string FileUtil::GetDownloadsDir()
 {
+  if (!m_DownloadsDir.empty())
+  {
+    std::string downloadsDir = FileUtil::ExpandPath(m_DownloadsDir);
+    if (FileUtil::IsDir(downloadsDir))
+    {
+      return downloadsDir;
+    }
+  }
+
   std::string homeDir = std::string(getenv("HOME"));
   std::string downloadsDir = homeDir + "/Downloads";
   if (FileUtil::IsDir(downloadsDir))
@@ -243,6 +280,11 @@ void FileUtil::RmDir(const std::string& p_Path)
 void FileUtil::SetApplicationDir(const std::string& p_Path)
 {
   m_ApplicationDir = p_Path;
+}
+
+void FileUtil::SetDownloadsDir(const std::string& p_DownloadsDir)
+{
+  m_DownloadsDir = p_DownloadsDir;
 }
 
 void FileUtil::WriteFile(const std::string& p_Path, const std::string& p_Str)
