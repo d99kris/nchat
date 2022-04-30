@@ -1,6 +1,6 @@
 # Project
 cmake_minimum_required(VERSION 3.16 FATAL_ERROR) # 3.1 is ok, but is 3.16 needed for proper version string
-project(nchat VERSION 2.52 LANGUAGES CXX)
+project(nchat VERSION 2.53 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 14)
 include(CheckCXXSourceCompiles)
 set(NCHAT_PROJECT_VERSION ${PROJECT_VERSION})
@@ -41,6 +41,8 @@ endif()
 # Custom build specifics
 option(HAS_DUMMY "Dummy" OFF)
 message(STATUS "Dummy: ${HAS_DUMMY}")
+option(HAS_TELEGRAM "Telegram" ON)
+message(STATUS "Telegram: ${HAS_TELEGRAM}")
 option(HAS_WHATSAPP "WhatsApp" OFF)
 message(STATUS "WhatsApp: ${HAS_WHATSAPP}")
 
@@ -100,7 +102,6 @@ target_include_directories(nchat PRIVATE "ext/apathy")
 target_include_directories(nchat PRIVATE "ext/emojicpp")
 target_include_directories(nchat PRIVATE "lib/common/src")
 target_include_directories(nchat PRIVATE "lib/ncutil/src")
-target_include_directories(nchat PRIVATE "lib/tgchat/src")
 
 # Compiler flags
 set_target_properties(nchat PROPERTIES COMPILE_FLAGS
@@ -112,9 +113,11 @@ target_compile_definitions(nchat PRIVATE PROJECT_VERSION="${PROJECT_VERSION}")
 
 # Dependency libraries
 add_subdirectory(lib/ncutil)
-add_subdirectory(lib/tgchat)
 if(HAS_DUMMY)
   add_subdirectory(lib/duchat)
+endif()
+if(HAS_TELEGRAM)
+  add_subdirectory(lib/tgchat)
 endif()
 if(HAS_WHATSAPP)
   add_subdirectory(lib/wachat)
@@ -127,13 +130,19 @@ find_package(Curses REQUIRED)
 include_directories(${CURSES_INCLUDE_DIR})
 
 # Linking
-target_link_libraries(nchat PUBLIC tgchat ncutil pthread ${CURSES_LIBRARIES})
+target_link_libraries(nchat PUBLIC ncutil pthread ${CURSES_LIBRARIES})
 
 # Optionals
 if(HAS_DUMMY)
   target_include_directories(nchat PRIVATE "lib/duchat/src")
   target_compile_definitions(nchat PRIVATE HAS_DUMMY="${HAS_DUMMY}")
   target_link_libraries(nchat PUBLIC duchat)
+endif()
+
+if(HAS_TELEGRAM)
+  target_include_directories(nchat PRIVATE "lib/tgchat/src")
+  target_compile_definitions(nchat PRIVATE HAS_TELEGRAM="${HAS_TELEGRAM}")
+  target_link_libraries(nchat PUBLIC tgchat)
 endif()
 
 if(HAS_WHATSAPP)
@@ -186,7 +195,6 @@ if(CMAKE_BUILD_TYPE MATCHES "Debug")
   target_include_directories(devnchat PRIVATE "ext/apathy")
   target_include_directories(devnchat PRIVATE "lib/common/src")
   target_include_directories(devnchat PRIVATE "lib/ncutil/src")
-  target_include_directories(devnchat PRIVATE "lib/tgchat/src")
 
   # Compiler flags
   set_target_properties(devnchat PROPERTIES COMPILE_FLAGS
@@ -197,13 +205,19 @@ if(CMAKE_BUILD_TYPE MATCHES "Debug")
   target_compile_definitions(devnchat PRIVATE PROJECT_VERSION="${PROJECT_VERSION}")
 
   # Linking
-  target_link_libraries(devnchat PUBLIC tgchat ncutil pthread ${CURSES_NCURSES_LIBRARY})
+  target_link_libraries(devnchat PUBLIC ncutil pthread ${CURSES_NCURSES_LIBRARY})
 
   # Optionals
   if(HAS_DUMMY)
     target_include_directories(devnchat PRIVATE "lib/duchat/src")
     target_compile_definitions(devnchat PRIVATE HAS_DUMMY="${HAS_DUMMY}")
     target_link_libraries(devnchat PUBLIC duchat)
+  endif()
+
+  if(HAS_TELEGRAM)
+    target_include_directories(devnchat PRIVATE "lib/tgchat/src")
+    target_compile_definitions(devnchat PRIVATE HAS_TELEGRAM="${HAS_TELEGRAM}")
+    target_link_libraries(devnchat PUBLIC tgchat)
   endif()
 
   if(HAS_WHATSAPP)
@@ -213,7 +227,7 @@ if(CMAKE_BUILD_TYPE MATCHES "Debug")
   endif()
 
   if(HAS_MULTIPROTOCOL)
-    target_compile_definitions(nchat PRIVATE HAS_MULTIPROTOCOL="${HAS_MULTIPROTOCOL}")
+    target_compile_definitions(devnchat PRIVATE HAS_MULTIPROTOCOL="${HAS_MULTIPROTOCOL}")
   endif()
   
 endif()
