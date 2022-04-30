@@ -673,15 +673,12 @@ void UiModel::Home()
     fetchedAllCache = true;
     std::string fromId = GetLastMessageId(profileId, chatId);
     int limit = std::numeric_limits<int>::max();
-    const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
-    bool fromIsOutgoing = messageVec.empty() ? false : m_Messages[profileId][chatId][fromId].isOutgoing;
     lock.unlock();
     LOG_DEBUG("fetch all");
     std::shared_ptr<GetMessagesRequest> getMessagesRequest = std::make_shared<GetMessagesRequest>();
     getMessagesRequest->chatId = chatId;
     getMessagesRequest->fromMsgId = fromId;
     getMessagesRequest->limit = limit;
-    getMessagesRequest->fromIsOutgoing = fromIsOutgoing;
     LOG_TRACE("request messages from %s limit %d", fromId.c_str(), limit);
     m_Protocols[m_CurrentChat.first]->SendRequest(getMessagesRequest);
     TimeUtil::Sleep(0.2); // @todo: wait for request completion, with timeout
@@ -1764,7 +1761,6 @@ void UiModel::RequestMessages()
 
   const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
   std::string fromId = messageVec.empty() ? "" : *messageVec.rbegin();
-  bool fromIsOutgoing = messageVec.empty() ? false : m_Messages[profileId][chatId][fromId].isOutgoing;
 
   int messageOffset = m_MessageOffset[profileId][chatId];
   const int maxHistory = m_HomeFetchAll ? 8 : (((GetHistoryLines() * 2) / 3) + 1);
@@ -1791,7 +1787,6 @@ void UiModel::RequestMessages()
   getMessagesRequest->chatId = chatId;
   getMessagesRequest->fromMsgId = fromId;
   getMessagesRequest->limit = limit;
-  getMessagesRequest->fromIsOutgoing = fromIsOutgoing;
   LOG_TRACE("request messages from %s limit %d", fromId.c_str(), limit);
   m_Protocols[m_CurrentChat.first]->SendRequest(getMessagesRequest);
 }

@@ -38,7 +38,7 @@ static void ShowHelp()
     "gl          - get contacts list\n"
     "gc          - get chats\n"
     "sc N        - select/get chat\n"
-    "gm [id] [o] - get messages\n"
+    "gm [id]     - get messages\n"
     "sm text     - send message\n"
     "rm id text  - reply message\n"
     "sf path     - send file\n"
@@ -135,13 +135,10 @@ void Ui::Run()
     {
       std::string fromId;
       cmdss >> fromId;
-      std::string isOutgoing;
-      cmdss >> isOutgoing;
       std::shared_ptr<GetMessagesRequest> getMessagesRequest = std::make_shared<GetMessagesRequest>();
       getMessagesRequest->chatId = m_CurrentChatId;
       getMessagesRequest->fromMsgId = fromId;
       getMessagesRequest->limit = 5;
-      getMessagesRequest->fromIsOutgoing = (isOutgoing == "1");
       m_Protocols[m_CurrentProfileId]->SendRequest(getMessagesRequest);
     }
     // Send Message

@@ -177,7 +177,6 @@ public:
   std::string chatId;
   std::string fromMsgId;
   int32_t limit;
-  bool fromIsOutgoing; // is fromMsgId an outgoing message (needed for wachat only)
 };
 
 class SendMessageRequest : public RequestMessage
