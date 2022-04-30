@@ -92,7 +92,7 @@ int UiColorConfig::GetColorPair(const std::string& p_Param)
   const int bg = GetColorId(m_Config.Get(p_Param + "_bg"));
   init_pair(id, fg, bg);
 
-  LOG_DEBUG("color %s id %d fg %d bg %d", p_Param.c_str(), id, fg, bg);
+  LOG_TRACE("color %s id %d fg %d bg %d", p_Param.c_str(), id, fg, bg);
 
   colorPairs[p_Param] = COLOR_PAIR(id);
   return colorPairs[p_Param];

@@ -260,18 +260,32 @@ used to configure nchat.
 -----------------
 This configuration file holds general application settings. Default content:
 
-    experimental_cache_enabled=0
+    attachment_prefetch=1
+    cache_enabled=1
+    downloads_dir=
 
-### experimental_cache_enabled
+### attachment_prefetch
+
+Specifies level of attachment prefetching:
+
+    0 = no prefetch (download upon open/save)
+    1 = selected (download upon message selection) <- default
+    2 = all (download when message is received)
+
+### cache_enabled
 
 Specifies whether to enable (experimental) cache functionality.
+
+### downloads_dir
+
+Specifies a custom downloads directory path to save attachments to. If not
+specified, the default dir is `~/Downloads` if exists, otherwise `~`.
 
 ~/.nchat/ui.conf
 ----------------
 This configuration file holds general user interface settings. Default content:
 
     attachment_indicator=📎
-    attachment_prefetch=2
     confirm_deletion=1
     desktop_notify_active=0
     desktop_notify_command=
@@ -295,17 +309,6 @@ This configuration file holds general user interface settings. Default content:
 ### attachment_indicator
 
 Specifies text to prefix attachment filenames in message view.
-
-### attachment_prefetch
-
-Specifies level of attachment prefetching:
-
-    0 = no prefetch (download upon open/save)
-    1 = selected (download upon message selection)
-    2 = all (download when message is received) <- default
-
-Non-default options are currently only supported for Telegram, not other
-protocols.
 
 ### confirm_deletion
 
@@ -542,20 +545,16 @@ includes the source code of the following third-party libraries:
 - [emojicpp](https://github.com/99x/emojicpp) -
   Copyright 2018 Shalitha Suranga - [MIT License](/ext/emojicpp/LICENSE)
 
-- [go-qrcode](https://github.com/skip2/go-qrcode) -
-  Copyright 2014 Tom Harwood -
-  [MIT License](/lib/wachat/go/ext/go-qrcode/LICENSE)
-
-- [go-whatsapp](https://github.com/Rhymen/go-whatsapp) -
-  Copyright 2018 Lucas Engelke -
-  [MIT License](/lib/wachat/go/ext/go-whatsapp/LICENSE)
-
 - [sqlite_modern_cpp](https://github.com/SqliteModernCpp/sqlite_modern_cpp) -
   Copyright 2017 aminroosta - [MIT License](/ext/sqlite_modern_cpp/License.txt)
 
 - [tdlib](https://github.com/tdlib/td) -
   Copyright 2014 Aliaksei Levin, Arseny Smirnov -
   [Boost License](/lib/tgchat/ext/td/LICENSE_1_0.txt)
+
+- [whatsmeow](https://github.com/tulir/whatsmeow) -
+  Copyright 2022 Tulir Asokan -
+  [MPL License](/lib/wmchat/go/ext/whatsmeow/LICENSE)
 
 Code Formatting
 ---------------

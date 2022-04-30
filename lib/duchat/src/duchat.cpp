@@ -1,6 +1,6 @@
 // duchat.cpp
 //
-// Copyright (c) 2020-2021 Kristofer Berggren
+// Copyright (c) 2020-2022 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -15,8 +15,14 @@
 #include "log.h"
 #include "status.h"
 
+extern "C" DuChat* CreateDuChat()
+{
+  return new DuChat();
+}
+
 DuChat::DuChat()
 {
+  m_ProfileId = GetName();
 }
 
 DuChat::~DuChat()
@@ -32,10 +38,6 @@ bool DuChat::HasFeature(ProtocolFeature p_ProtocolFeature) const
 {
   ProtocolFeature customFeatures = FeatureNone;
   return (p_ProtocolFeature & customFeatures);
-}
-
-void DuChat::SetProperty(ProtocolProperty /*p_Property*/, const std::string& /*p_Value*/)
-{
 }
 
 bool DuChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId)

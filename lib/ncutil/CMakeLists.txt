@@ -19,6 +19,8 @@ find_package(SQLite3 REQUIRED)
 
 # Library
 add_library(ncutil SHARED 
+  src/appconfig.cpp
+  src/appconfig.h
   src/apputil.cpp
   src/apputil.h
   src/config.cpp

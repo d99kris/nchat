@@ -14,7 +14,6 @@
 #include "appconfig.h"
 #include "fileutil.h"
 #include "log.h"
-#include "messagecache.h"
 #include "numutil.h"
 #include "protocolutil.h"
 #include "sethelp.h"
@@ -609,6 +608,7 @@ void UiModel::PrevPage()
   std::stack<int>& messageOffsetStack = m_MessageOffsetStack[profileId][chatId];
 
   int addOffset = std::min(historyShowCount, std::max(messageCount - messageOffset - 1, 0));
+  LOG_TRACE("count %d offset %d addoffset %d", messageCount, messageOffset, addOffset);
   if (addOffset > 0)
   {
     messageOffsetStack.push(addOffset);
@@ -671,13 +671,19 @@ void UiModel::Home()
   if (!fetchedAllCache)
   {
     fetchedAllCache = true;
-    std::string fromId = "";
+    std::string fromId = GetLastMessageId(profileId, chatId);
     int limit = std::numeric_limits<int>::max();
     lock.unlock();
     LOG_DEBUG("fetch all");
-    bool fetchResult = MessageCache::FetchFrom(profileId, chatId, fromId, limit, true /* p_Sync */);
+    std::shared_ptr<GetMessagesRequest> getMessagesRequest = std::make_shared<GetMessagesRequest>();
+    getMessagesRequest->chatId = chatId;
+    getMessagesRequest->fromMsgId = fromId;
+    getMessagesRequest->limit = limit;
+    LOG_TRACE("request messages from %s limit %d", fromId.c_str(), limit);
+    m_Protocols[m_CurrentChat.first]->SendRequest(getMessagesRequest);
+    TimeUtil::Sleep(0.2); // @todo: wait for request completion, with timeout
     lock.lock();
-    fetchedAllCache = fetchResult;
+    fetchedAllCache = true;
   }
 
   int messageCount = m_Messages[profileId][chatId].size();
@@ -685,6 +691,7 @@ void UiModel::Home()
   std::stack<int>& messageOffsetStack = m_MessageOffsetStack[profileId][chatId];
 
   int addOffset = std::max(messageCount - messageOffset - 1, 0);
+  LOG_TRACE("count %d offset %d addoffset %d", messageCount, messageOffset, addOffset);
   if (addOffset > 0)
   {
     for (int i = 0; i < addOffset; ++i)
@@ -780,7 +787,6 @@ void UiModel::MarkRead(const std::string& p_ProfileId, const std::string& p_Chat
   m_Protocols[p_ProfileId]->SendRequest(markMessageReadRequest);
 
   m_Messages[p_ProfileId][p_ChatId][p_MsgId].isRead = true;
-  MessageCache::UpdateIsRead(p_ProfileId, p_ChatId, p_MsgId, true);
 
   UpdateChatInfoIsUnread(p_ProfileId, p_ChatId);
 
@@ -1159,10 +1165,14 @@ void UiModel::FetchCachedMessage(const std::string& p_ProfileId, const std::stri
   }
   else
   {
+    std::shared_ptr<GetMessageRequest> getMessageRequest = std::make_shared<GetMessageRequest>();
+    getMessageRequest->chatId = p_ChatId;
+    getMessageRequest->msgId = p_MsgId;
+    LOG_TRACE("request message %s in %s", p_MsgId.c_str(), p_ChatId.c_str());
+    m_Protocols[m_CurrentChat.first]->SendRequest(getMessageRequest);
+    
     msgIdFetchedCache.insert(p_MsgId);
   }
-
-  MessageCache::FetchOne(p_ProfileId, p_ChatId, p_MsgId, false /*p_Sync*/);
 }
 
 void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
@@ -1201,8 +1211,6 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
         }
 
         m_ContactInfosUpdateTime = TimeUtil::GetCurrentTimeMSec();
-
-        MessageCache::AddContacts(profileId, newContactsNotify->contactInfos);
 
         UpdateList();
         UpdateStatus();
@@ -1265,11 +1273,6 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
           {
             LOG_TRACE("new cached messages %s count %d from %s", chatId.c_str(), chatMessages.size(),
                       fromMsgId.c_str());
-          }
-
-          if (!newMessagesNotify->cached)
-          {
-            MessageCache::Add(profileId, chatId, fromMsgId, chatMessages);
           }
 
           for (auto& chatMessage : chatMessages)
@@ -1360,8 +1363,6 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
           std::string chatId = deleteMessageNotify->chatId;
           std::string msgId = deleteMessageNotify->msgId;
 
-          MessageCache::Delete(profileId, chatId, msgId);
-
           std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
           messageVec.erase(std::remove(messageVec.begin(), messageVec.end(), msgId), messageVec.end());
 
@@ -1417,7 +1418,6 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
         bool isRead = newMessageStatusNotify->isRead;
         LOG_TRACE("new read status %s is %s", msgId.c_str(), (isRead ? "read" : "unread"));
         m_Messages[profileId][chatId][msgId].isRead = isRead;
-        MessageCache::UpdateIsRead(profileId, chatId, msgId, isRead);
 
         UpdateChatInfoIsUnread(profileId, chatId);
         UpdateHistory();
@@ -1435,7 +1435,6 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
         DownloadFileAction downloadFileAction = newMessageFileNotify->downloadFileAction;
         LOG_TRACE("new file info for %s is %s", msgId.c_str(), fileInfoStr.c_str());
         m_Messages[profileId][chatId][msgId].fileInfo = fileInfoStr;
-        MessageCache::UpdateFileInfo(profileId, chatId, msgId, fileInfoStr);
 
         if (downloadFileAction == DownloadFileActionOpen)
         {
@@ -1586,7 +1585,7 @@ std::string UiModel::GetLastMessageId(const std::string& p_ProfileId, const std:
     if (messageIt == messages.end()) continue;
 
     const ChatMessage& lastChatMessage = messageIt->second;
-    if (lastChatMessage.timeSent != std::numeric_limits<int64_t>::max())
+    if (lastChatMessage.timeSent != std::numeric_limits<int64_t>::max()) // skip sponsored messages
     {
       lastMessageId = messageId;
       break;
@@ -1760,9 +1759,9 @@ void UiModel::RequestMessages()
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
 
+  std::unordered_set<std::string>& msgFromIdsRequested = m_MsgFromIdsRequested[profileId][chatId];
   const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
-  std::string fromId = messageVec.empty() ? "" : *messageVec.rbegin();
-  bool fromIsOutgoing = messageVec.empty() ? false : m_Messages[profileId][chatId][fromId].isOutgoing;
+  std::string fromId = (msgFromIdsRequested.empty() || messageVec.empty()) ? "" : *messageVec.rbegin();
 
   int messageOffset = m_MessageOffset[profileId][chatId];
   const int maxHistory = m_HomeFetchAll ? 8 : (((GetHistoryLines() * 2) / 3) + 1);
@@ -1774,7 +1773,6 @@ void UiModel::RequestMessages()
     return;
   }
 
-  std::unordered_set<std::string>& msgFromIdsRequested = m_MsgFromIdsRequested[profileId][chatId];
   if (msgFromIdsRequested.find(fromId) != msgFromIdsRequested.end())
   {
     LOG_TRACE("get messages from %s already requested", fromId.c_str());
@@ -1785,16 +1783,12 @@ void UiModel::RequestMessages()
     msgFromIdsRequested.insert(fromId);
   }
 
-  if (fromId.empty() || !MessageCache::FetchFrom(profileId, chatId, fromId, limit, false /* p_Sync */))
-  {
-    std::shared_ptr<GetMessagesRequest> getMessagesRequest = std::make_shared<GetMessagesRequest>();
-    getMessagesRequest->chatId = chatId;
-    getMessagesRequest->fromMsgId = fromId;
-    getMessagesRequest->limit = limit;
-    getMessagesRequest->fromIsOutgoing = fromIsOutgoing;
-    LOG_TRACE("request messages from %s limit %d", fromId.c_str(), limit);
-    m_Protocols[m_CurrentChat.first]->SendRequest(getMessagesRequest);
-  }
+  std::shared_ptr<GetMessagesRequest> getMessagesRequest = std::make_shared<GetMessagesRequest>();
+  getMessagesRequest->chatId = chatId;
+  getMessagesRequest->fromMsgId = fromId;
+  getMessagesRequest->limit = limit;
+  LOG_TRACE("request messages from %s limit %d", fromId.c_str(), limit);
+  m_Protocols[m_CurrentChat.first]->SendRequest(getMessagesRequest);
 }
 
 void UiModel::ProtocolSetCurrentChat()

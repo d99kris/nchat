@@ -11,13 +11,6 @@
 
 #include "config.h"
 
-enum AttachmentPrefetch
-{
-  AttachmentPrefetchNone = 0,
-  AttachmentPrefetchSelected = 1,
-  AttachmentPrefetchAll = 2,
-};
-
 class UiConfig
 {
 public:

@@ -7,6 +7,7 @@
 
 #include "uihistoryview.h"
 
+#include "appconfig.h"
 #include "apputil.h"
 #include "fileutil.h"
 #include "protocolutil.h"
@@ -144,9 +145,9 @@ void UiHistoryView::Draw()
 
       // special case handling selection-triggered download, and handling cache's old setting
       static const bool isAttachmentPrefetchAll =
-        (UiConfig::GetNum("attachment_prefetch") == AttachmentPrefetchAll);
+        (AppConfig::GetNum("attachment_prefetch") == AttachmentPrefetchAll);
       static const bool isAttachmentPrefetchSelected =
-        (UiConfig::GetNum("attachment_prefetch") == AttachmentPrefetchSelected);
+        (AppConfig::GetNum("attachment_prefetch") == AttachmentPrefetchSelected);
       if ((isAttachmentPrefetchAll || (isSelectedMessage && isAttachmentPrefetchSelected)) &&
           (fileInfo.fileStatus == FileStatusNotDownloaded) && !fileInfo.fileId.empty())
       {

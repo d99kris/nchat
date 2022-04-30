@@ -11,6 +11,9 @@
 #include <set>
 #include <string>
 
+#include <cassert>
+#include <dlfcn.h>
+
 #include <path.hpp>
 
 #include "appconfig.h"
@@ -20,7 +23,6 @@
 #include "messagecache.h"
 #include "profiles.h"
 #include "scopeddirlock.h"
-#include "tgchat.h"
 #include "ui.h"
 #include "uiconfig.h"
 
@@ -28,29 +30,81 @@
 #include "duchat.h"
 #endif
 
-#ifdef HAS_WHATSAPP
-#include "wachat.h"
+#ifdef HAS_TELEGRAM
+#include "tgchat.h"
 #endif
 
-static bool SetupProfile();
+#ifdef HAS_WHATSAPP
+#include "wmchat.h"
+#endif
+
+static std::shared_ptr<Protocol> SetupProfile();
 static void ShowHelp();
 static void ShowVersion();
 
-static std::vector<std::shared_ptr<Protocol>> GetProtocols()
+
+class ProtocolBaseFactory
 {
-  std::vector<std::shared_ptr<Protocol>> protocols =
+public:
+  ProtocolBaseFactory() { }
+  virtual ~ProtocolBaseFactory() { }
+  virtual std::string GetName() const = 0;
+  virtual std::shared_ptr<Protocol> Create() const = 0;
+};
+
+template <typename T>
+class ProtocolFactory : public ProtocolBaseFactory
+{
+public:
+  virtual std::string GetName() const
+  {
+    return T::GetName();
+  }
+  
+  virtual std::shared_ptr<Protocol> Create() const
+  {
+    std::shared_ptr<T> protocol;
+    std::string libPath =
+      FileUtil::DirName(FileUtil::GetSelfPath()) + "/../lib/" + T::GetLibName() + FileUtil::GetLibSuffix();
+    std::string createFunc = T::GetCreateFunc();
+    void* handle = dlopen(libPath.c_str(), RTLD_LAZY);
+    if (handle == nullptr)
+    {
+      LOG_ERROR("failed dlopen %s", libPath.c_str());
+      return protocol;
+    }
+
+    T* (*CreateFunc)() = (T* (*)()) dlsym(handle, createFunc.c_str());
+    if (CreateFunc == nullptr)
+    {
+      LOG_ERROR("failed dlsym %s", createFunc.c_str());
+      return protocol;
+    }
+
+    protocol.reset(CreateFunc());
+
+    return protocol;
+  }
+};
+
+static std::vector<ProtocolBaseFactory*> GetProtocolFactorys()
+{
+  std::vector<ProtocolBaseFactory*> protocolFactorys =
   {
 #ifdef HAS_DUMMY
-    std::make_shared<DuChat>(),
+   new ProtocolFactory<DuChat>(),
 #endif
-    std::make_shared<TgChat>(),
+#ifdef HAS_TELEGRAM
+   new ProtocolFactory<TgChat>(),
+#endif
 #ifdef HAS_WHATSAPP
-    std::make_shared<WaChat>(),
+   new ProtocolFactory<WmChat>(),
 #endif
   };
 
-  return protocols;
+  return protocolFactorys;
 }
+
 
 int main(int argc, char* argv[])
 {
@@ -136,39 +190,8 @@ int main(int argc, char* argv[])
       }
       else
       {
-        std::cout << "Config dir " << FileUtil::GetApplicationDir() << " is incompatible with this version of nchat\n";
-        if ((storedVersion == -1) && FileUtil::Exists(FileUtil::GetApplicationDir() + "/tdlib"))
-        {
-          std::cout << "Attempt to migrate config dir to new version (y/n)? ";
-          std::string migrateYesNo;
-          std::getline(std::cin, migrateYesNo);
-          if (migrateYesNo != "y")
-          {
-            std::cout << "Migration cancelled, exiting.\n";
-            return 1;
-          }
-
-          std::cout << "Enter phone number (optional, ex. +6511111111): ";
-          std::string phoneNumber = "";
-          std::getline(std::cin, phoneNumber);
-
-          std::string profileName = "Telegram_" + phoneNumber;
-          std::string tmpDir = "/tmp/" + profileName;
-          FileUtil::RmDir(tmpDir);
-          FileUtil::MkDir(tmpDir);
-          FileUtil::Move(FileUtil::GetApplicationDir() + "/tdlib", tmpDir + "/tdlib");
-          FileUtil::Move(FileUtil::GetApplicationDir() + "/telegram.conf", tmpDir + "/telegram.conf");
-
-          FileUtil::InitDirVersion(FileUtil::GetApplicationDir(), dirVersion);
-          Profiles::Init();
-
-          FileUtil::Move(tmpDir, FileUtil::GetApplicationDir() + "/profiles/" + profileName);
-        }
-        else
-        {
-          std::cerr << "error: invalid config dir content, exiting.\n";
-          return 1;
-        }
+        std::cerr << "error: invalid config dir content, exiting. use -s to setup nchat.\n";
+        return 1;
       }
     }
   }
@@ -182,60 +205,79 @@ int main(int argc, char* argv[])
   std::string appNameVersion = AppUtil::GetAppNameVersion();
   LOG_INFO("starting %s", appNameVersion.c_str());
 
-  // Run setup if required
-  if (isSetup)
-  {
-    bool rv = SetupProfile();
-    return rv ? 0 : 1;
-  }
-
   // Init app config
   AppConfig::Init();
+  FileUtil::SetDownloadsDir(AppConfig::GetStr("downloads_dir"));
+
+  // Init message cache
+  MessageCache::Init();
+
+  // Run setup if required
+  std::shared_ptr<Protocol> setupProtocol;
+  if (isSetup)
+  {
+    setupProtocol = SetupProfile();
+    if (!setupProtocol)
+    {
+      MessageCache::Cleanup();
+      AppConfig::Cleanup();
+      return 1;
+    }
+  }
 
   // Init ui
   std::shared_ptr<Ui> ui = std::make_shared<Ui>();
 
-  // Init message cache
-  const bool cacheEnabled = AppConfig::GetBool("experimental_cache_enabled");
+  // Set message cache message handler
   std::function<void(std::shared_ptr<ServiceMessage>)> messageHandler =
     std::bind(&Ui::MessageHandler, std::ref(*ui), std::placeholders::_1);
-  MessageCache::Init(cacheEnabled, messageHandler);
+  MessageCache::SetMessageHandler(messageHandler);
 
   // Load profile(s)
   std::string profilesDir = FileUtil::GetApplicationDir() + "/profiles";
   const std::vector<apathy::Path>& profilePaths = apathy::Path::listdir(profilesDir);
   for (auto& profilePath : profilePaths)
   {
-    std::stringstream ss(profilePath.filename());
-    std::string protocolName;
-    if (!std::getline(ss, protocolName, '_'))
-    {
-      LOG_WARNING("invalid profile name, skipping.");
-      continue;
-    }
+    std::string profileId = profilePath.filename();
+    if (profileId == "version") continue;
 
-    std::vector<std::shared_ptr<Protocol>> allProtocols = GetProtocols();
-    for (auto& protocol : allProtocols)
+    std::stringstream ss(profileId);
+    std::string protocolName;
+    if ((profileId.find("_") == std::string::npos) || !std::getline(ss, protocolName, '_'))
     {
-      if (protocol->GetProfileId() == protocolName)
-      {
-        protocol->LoadProfile(profilesDir, profilePath.filename());
-        ui->AddProtocol(protocol);
-        MessageCache::AddProfile(profilePath.filename());
-      }
+      LOG_WARNING("invalid profile name, skipping %s", profileId.c_str());
+      continue;
     }
 
 #ifndef HAS_MULTIPROTOCOL
     if (!ui->GetProtocols().empty())
     {
-      break;
+      LOG_WARNING("multiple profile support not enabled, skipping %s", profileId.c_str());
+      continue;
     }
 #endif
-  }
 
-  // Protocol config params
-  std::string isAttachmentPrefetchAll =
-    (UiConfig::GetNum("attachment_prefetch") == AttachmentPrefetchAll) ? "1" : "0";
+    if (setupProtocol && (setupProtocol->GetProfileId() == profileId))
+    {
+      LOG_DEBUG("adding new profile %s", profileId.c_str());
+      ui->AddProtocol(setupProtocol);
+      setupProtocol.reset();
+    }
+    else
+    {
+      std::vector<ProtocolBaseFactory*> allProtocolFactorys = GetProtocolFactorys();
+      for (auto& protocolFactory : allProtocolFactorys)
+      {
+        if (protocolFactory->GetName() == protocolName)
+        {
+          LOG_DEBUG("loading existing profile %s", profileId.c_str());
+          std::shared_ptr<Protocol> protocol = protocolFactory->Create();
+          protocol->LoadProfile(profilesDir, profileId);
+          ui->AddProtocol(protocol);
+        }
+      }
+    }
+  }
 
   // Start protocol(s) and ui
   std::unordered_map<std::string, std::shared_ptr<Protocol>>& protocols = ui->GetProtocols();
@@ -246,7 +288,6 @@ int main(int argc, char* argv[])
     for (auto& protocol : protocols)
     {
       protocol.second->SetMessageHandler(messageHandler);
-      protocol.second->SetProperty(PropertyAttachmentPrefetchAll, isAttachmentPrefetchAll);
       protocol.second->Login();
     }
 
@@ -286,15 +327,16 @@ int main(int argc, char* argv[])
   return rv;
 }
 
-bool SetupProfile()
+std::shared_ptr<Protocol> SetupProfile()
 {
-  std::vector<std::shared_ptr<Protocol>> p_Protocols = GetProtocols();
+  std::shared_ptr<Protocol> rv;
+  std::vector<ProtocolBaseFactory*> protocolFactorys = GetProtocolFactorys();
 
   std::cout << "Protocols:" << std::endl;
   size_t idx = 0;
-  for (auto it = p_Protocols.begin(); it != p_Protocols.end(); ++it, ++idx)
+  for (auto it = protocolFactorys.begin(); it != protocolFactorys.end(); ++it, ++idx)
   {
-    std::cout << idx << ". " << (*it)->GetProfileId() << std::endl;
+    std::cout << idx << ". " << (*it)->GetName() << std::endl;
   }
   std::cout << idx << ". Exit setup" << std::endl;
 
@@ -314,10 +356,10 @@ bool SetupProfile()
     }
   }
 
-  if (selectidx >= p_Protocols.size())
+  if (selectidx >= protocolFactorys.size())
   {
     std::cout << "Setup aborted, exiting." << std::endl;
-    return false;
+    return rv;
   }
 
   std::string profileId;
@@ -329,14 +371,18 @@ bool SetupProfile()
   Profiles::Init();
 #endif
 
-  bool rv = p_Protocols.at(selectidx)->SetupProfile(profilesDir, profileId);
-  if (rv)
+  std::shared_ptr<Protocol> protocol = protocolFactorys.at(selectidx)->Create();
+  bool setupResult = protocol && protocol->SetupProfile(profilesDir, profileId);
+  if (setupResult)
   {
     std::cout << "Succesfully set up profile " << profileId << "\n";
+    rv = protocol;
   }
   else
   {
     std::cout << "Setup failed\n";
+    protocol->Logout();
+    protocol->CloseProfile();
   }
 
   return rv;

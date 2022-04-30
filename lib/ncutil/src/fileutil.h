@@ -63,13 +63,17 @@ public:
   static std::string AbsolutePath(const std::string& p_Path);
   static std::string BaseName(const std::string& p_Path);
   static void CopyFile(const std::string& p_SrcPath, const std::string& p_DstPath);
+  static std::string DirName(const std::string& p_Path);
   static bool Exists(const std::string& p_Path);
+  static std::string ExpandPath(const std::string& p_Path);
   static std::string GetApplicationDir();
   static std::string GetCurrentWorkingDir();
   static int GetDirVersion(const std::string& p_Dir);
   static std::string GetDownloadsDir();
   static std::string GetFileExt(const std::string& p_Path);
   static std::string GetMimeType(const std::string& p_Path);
+  static std::string GetSelfPath();
+  static std::string GetLibSuffix();
   static std::string GetSuffixedSize(ssize_t p_Size);
   static void InitDirVersion(const std::string& p_Dir, int p_Version);
   static bool IsDir(const std::string& p_Path);
@@ -80,8 +84,10 @@ public:
   static std::string RemoveFileExt(const std::string& p_Path);
   static void RmDir(const std::string& p_Path);
   static void SetApplicationDir(const std::string& p_Path);
+  static void SetDownloadsDir(const std::string& p_DownloadsDir);
   static void WriteFile(const std::string& p_Path, const std::string& p_Str);
 
 private:
   static std::string m_ApplicationDir;
+  static std::string m_DownloadsDir;
 };

@@ -23,9 +23,13 @@
 
 #include <sys/stat.h>
 
+#include <td/telegram/Client.h>
+
+#include "appconfig.h"
 #include "apputil.h"
 #include "config.h"
 #include "log.h"
+#include "messagecache.h"
 #include "path.hpp"
 #include "protocolutil.h"
 #include "status.h"
@@ -69,7 +73,115 @@ auto overloaded(F... f)
 }
 
 
+class TgChat::Impl
+{
+public:
+  Impl()
+  {
+    m_ProfileId = TgChat::GetName();
+  }
+
+  virtual ~Impl()
+  {
+  }
+
+  std::string GetProfileId() const;
+  bool HasFeature(ProtocolFeature p_ProtocolFeature) const;
+
+  bool SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId);
+  bool LoadProfile(const std::string& p_ProfilesDir, const std::string& p_ProfileId);
+  bool CloseProfile();
+
+  bool Login();
+  bool Logout();
+
+  void Process();
+
+  void SendRequest(std::shared_ptr<RequestMessage> p_RequestMessage);
+  void SetMessageHandler(const std::function<void(std::shared_ptr<ServiceMessage>)>& p_MessageHandler);
+  
+private:
+  std::string m_ProfileId;
+  std::string m_ProfileDir;
+  std::function<void(std::shared_ptr<ServiceMessage>)> m_MessageHandler;
+
+  bool m_Running = false;
+  std::thread m_Thread;
+  std::deque<std::shared_ptr<RequestMessage>> m_RequestsQueue;
+  std::mutex m_ProcessMutex;
+  std::condition_variable m_ProcessCondVar;
+  
+private:
+  enum ChatType
+  {
+    ChatPrivate = 0,
+    ChatBasicGroup,
+    ChatSuperGroup,
+    ChatSuperGroupChannel,
+    ChatSecret,
+  };
+  
+private:
+  void CallMessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage);
+  void PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage);
+
+  using Object = td::td_api::object_ptr<td::td_api::Object>;
+  void Init();
+  void Cleanup();
+  void ProcessService();
+  void ProcessResponse(td::Client::Response response);
+  void ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> update);
+  std::function<void(Object)> CreateAuthQueryHandler();
+  void OnAuthStateUpdate();
+  void SendQuery(td::td_api::object_ptr<td::td_api::Function> f, std::function<void(Object)> handler);
+  void CheckAuthError(Object object);
+  void CreateChat(Object p_Object);
+  std::string GetRandomString(size_t p_Len);
+  std::uint64_t GetNextQueryId();
+  std::int64_t GetSenderId(const td::td_api::message& p_TdMessage);
+  std::string GetText(td::td_api::object_ptr<td::td_api::formattedText>&& p_FormattedText);
+  void TdMessageContentConvert(td::td_api::MessageContent& p_TdMessageContent,
+                               std::string& p_Text, std::string& p_FileInfo);
+  void TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessage& p_ChatMessage);
+  void DownloadFile(std::string p_ChatId, std::string p_MsgId, std::string p_FileId,
+                    DownloadFileAction p_DownloadFileAction);
+  void RequestSponsoredMessagesIfNeeded();
+  void GetSponsoredMessages(const std::string& p_ChatId);
+  void ViewSponsoredMessage(const std::string& p_ChatId, const std::string& p_MsgId);
+  bool IsSponsoredMessageId(const std::string& p_MsgId);
+
+private:
+  std::thread m_ServiceThread;
+  std::string m_SetupPhoneNumber;
+  Config m_Config;
+  std::unique_ptr<td::Client> m_Client;
+  std::map<std::uint64_t, std::function<void(Object)>> m_Handlers;
+  td::td_api::object_ptr<td::td_api::AuthorizationState> m_AuthorizationState;
+  bool m_IsSetup = false;
+  bool m_Authorized = false;
+  bool m_WasAuthorized = false;
+  std::int64_t m_SelfUserId = 0;
+  std::uint64_t m_AuthQueryId = 0;
+  std::uint64_t m_CurrentQueryId = 0;
+  std::map<int64_t, int64_t> m_LastReadInboxMessage;
+  std::map<int64_t, int64_t> m_LastReadOutboxMessage;
+  std::map<int64_t, std::set<int64_t>> m_UnreadOutboxMessages;
+  std::map<int64_t, ContactInfo> m_ContactInfos;
+  std::map<int64_t, ChatType> m_ChatTypes;
+  int64_t m_CurrentChat = 0;
+  const char m_SponsoredMessageMsgIdPrefix = '+';
+  std::map<std::string, std::set<std::string>> m_SponsoredMessageIds;
+  bool m_AttachmentPrefetchAll = true;
+};
+
+// Public interface
+extern "C" TgChat* CreateTgChat()
+{
+  return new TgChat();
+}
+
 TgChat::TgChat()
+  : m_Impl(std::make_unique<Impl>())
 {
 }
 
@@ -79,30 +191,67 @@ TgChat::~TgChat()
 
 std::string TgChat::GetProfileId() const
 {
-  return m_ProfileId;
+  return m_Impl->GetProfileId();
 }
 
 bool TgChat::HasFeature(ProtocolFeature p_ProtocolFeature) const
+{
+  return m_Impl->HasFeature(p_ProtocolFeature);
+}
+
+bool TgChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId)
+{
+  return m_Impl->SetupProfile(p_ProfilesDir, p_ProfileId);
+}
+
+bool TgChat::LoadProfile(const std::string& p_ProfilesDir, const std::string& p_ProfileId)
+{
+  return m_Impl->LoadProfile(p_ProfilesDir, p_ProfileId);
+}
+
+bool TgChat::CloseProfile()
+{
+  return m_Impl->CloseProfile();
+}
+
+bool TgChat::Login()
+{
+  return m_Impl->Login();
+}
+
+bool TgChat::Logout()
+{
+  return m_Impl->Logout();
+}
+
+void TgChat::Process()
+{
+  m_Impl->Process();
+}
+
+void TgChat::SendRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
+{
+  m_Impl->SendRequest(p_RequestMessage);
+}
+
+void TgChat::SetMessageHandler(const std::function<void(std::shared_ptr<ServiceMessage>)>& p_MessageHandler)
+{
+  m_Impl->SetMessageHandler(p_MessageHandler);
+}
+
+// Implementation
+std::string TgChat::Impl::GetProfileId() const
+{
+  return m_ProfileId;
+}
+
+bool TgChat::Impl::HasFeature(ProtocolFeature p_ProtocolFeature) const
 {
   ProtocolFeature customFeatures = FeatureTypingTimeout;
   return (p_ProtocolFeature & customFeatures);
 }
 
-void TgChat::SetProperty(ProtocolProperty p_Property, const std::string& p_Value)
-{
-  switch (p_Property)
-  {
-    case PropertyAttachmentPrefetchAll:
-      m_AttachmentPrefetchAll = (p_Value == "1");
-      break;
-
-    case PropertyNone:
-    default:
-      break;
-  }
-}
-
-bool TgChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId)
+bool TgChat::Impl::SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId)
 {
   std::cout << "Enter phone number (ex. +6511111111): ";
   std::getline(std::cin, m_SetupPhoneNumber);
@@ -112,6 +261,8 @@ bool TgChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_Profi
 
   apathy::Path::rmdirs(apathy::Path(m_ProfileDir));
   apathy::Path::makedirs(m_ProfileDir);
+
+  MessageCache::AddProfile(m_ProfileId, true);
 
   p_ProfileId = m_ProfileId;
   m_IsSetup = true;
@@ -123,45 +274,51 @@ bool TgChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_Profi
 
   Cleanup();
 
-  if (!m_IsSetup)
+  bool rv = m_IsSetup;
+  if (rv)
+  {
+    m_IsSetup = false;
+  }
+  else
   {
     apathy::Path::rmdirs(apathy::Path(m_ProfileDir));
   }
 
-  return m_IsSetup;
+  return rv;
 }
 
-bool TgChat::LoadProfile(const std::string& p_ProfilesDir, const std::string& p_ProfileId)
+bool TgChat::Impl::LoadProfile(const std::string& p_ProfilesDir, const std::string& p_ProfileId)
 {
   m_ProfileDir = p_ProfilesDir + "/" + p_ProfileId;
   m_ProfileId = p_ProfileId;
+  MessageCache::AddProfile(m_ProfileId, true);
   return true;
 }
 
-bool TgChat::CloseProfile()
+bool TgChat::Impl::CloseProfile()
 {
   m_ProfileDir = "";
   m_ProfileId = "";
   return true;
 }
 
-bool TgChat::Login()
+bool TgChat::Impl::Login()
 {
   Status::Set(Status::FlagOnline);
 
   if (!m_Running)
   {
     m_Running = true;
-    m_Thread = std::thread(&TgChat::Process, this);
+    m_Thread = std::thread(&TgChat::Impl::Process, this);
 
     Init();
-    m_ServiceThread = std::thread(&TgChat::ProcessService, this);
+    m_ServiceThread = std::thread(&TgChat::Impl::ProcessService, this);
   }
 
   return true;
 }
 
-bool TgChat::Logout()
+bool TgChat::Impl::Logout()
 {
   Status::Clear(Status::FlagOnline);
 
@@ -187,7 +344,7 @@ bool TgChat::Logout()
   return true;
 }
 
-void TgChat::Process()
+void TgChat::Impl::Process()
 {
   while (m_Running)
   {
@@ -205,6 +362,13 @@ void TgChat::Process()
         break;
       }
 
+      if (!m_MessageHandler)
+      {
+        LOG_DEBUG("postpone request handling");
+        m_ProcessCondVar.wait(lock);
+        continue;
+      }
+
       requestMessage = m_RequestsQueue.front();
       m_RequestsQueue.pop_front();
     }
@@ -213,26 +377,33 @@ void TgChat::Process()
   }
 }
 
-void TgChat::SendRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
+void TgChat::Impl::SendRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
 {
   std::unique_lock<std::mutex> lock(m_ProcessMutex);
   m_RequestsQueue.push_back(p_RequestMessage);
   m_ProcessCondVar.notify_one();
 }
 
-void TgChat::SetMessageHandler(const std::function<void(std::shared_ptr<ServiceMessage>)>& p_MessageHandler)
+void TgChat::Impl::SetMessageHandler(const std::function<void(std::shared_ptr<ServiceMessage>)>& p_MessageHandler)
 {
   m_MessageHandler = p_MessageHandler;
 }
 
-void TgChat::CallMessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
+
+void TgChat::Impl::CallMessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
 {
-  if (!m_MessageHandler) return;
+  MessageCache::AddFromServiceMessage(m_ProfileId, p_ServiceMessage);
+
+  if (!m_MessageHandler)
+  {
+    LOG_DEBUG("message handler not set");
+    return;
+  }
 
   m_MessageHandler(p_ServiceMessage);
 }
 
-void TgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
+void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
 {
   switch (p_RequestMessage->GetMessageType())
   {
@@ -452,12 +623,31 @@ void TgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
       }
       break;
 
+    case GetMessageRequestType:
+      {
+        LOG_DEBUG("Get message");
+        std::shared_ptr<GetMessageRequest> getMessageRequest =
+          std::static_pointer_cast<GetMessageRequest>(p_RequestMessage);
+        MessageCache::FetchOneMessage(m_ProfileId, getMessageRequest->chatId, getMessageRequest->msgId, false /*p_Sync*/);
+      }
+      break;
+
     case GetMessagesRequestType:
       {
         LOG_DEBUG("Get messages");
-        Status::Set(Status::FlagFetching);
         std::shared_ptr<GetMessagesRequest> getMessagesRequest =
           std::static_pointer_cast<GetMessagesRequest>(p_RequestMessage);
+
+        if (!getMessagesRequest->fromMsgId.empty() || (getMessagesRequest->limit == std::numeric_limits<int>::max()))
+        {
+          if (MessageCache::FetchMessagesFrom(m_ProfileId, getMessagesRequest->chatId,
+                                              getMessagesRequest->fromMsgId, getMessagesRequest->limit, false /* p_Sync */))
+          {
+            return;
+          }
+        }
+        
+        Status::Set(Status::FlagFetching);
         int64_t chatId = StrUtil::NumFromHex<int64_t>(getMessagesRequest->chatId);
         int64_t fromMsgId = StrUtil::NumFromHex<int64_t>(getMessagesRequest->fromMsgId);
         int32_t limit = getMessagesRequest->limit;
@@ -762,7 +952,7 @@ void TgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
   }
 }
 
-void TgChat::Init()
+void TgChat::Impl::Init()
 {
   const std::map<std::string, std::string> defaultConfig =
   {
@@ -773,6 +963,8 @@ void TgChat::Init()
   const std::string configPath(m_ProfileDir + std::string("/telegram.conf"));
   m_Config = Config(configPath, defaultConfig);
 
+  m_AttachmentPrefetchAll = (AppConfig::GetNum("attachment_prefetch") == AttachmentPrefetchAll);
+
   td::Log::set_verbosity_level(Log::GetDebugEnabled() ? 5 : 1);
   const std::string logPath(m_ProfileDir + std::string("/td.log"));
   td::Log::set_file_path(logPath);
@@ -780,13 +972,13 @@ void TgChat::Init()
   m_Client = std::make_unique<td::Client>();
 }
 
-void TgChat::Cleanup()
+void TgChat::Impl::Cleanup()
 {
   m_Config.Save();
   td::td_api::close();
 }
 
-void TgChat::ProcessService()
+void TgChat::Impl::ProcessService()
 {
   while (m_Running)
   {
@@ -798,7 +990,7 @@ void TgChat::ProcessService()
   }
 }
 
-void TgChat::ProcessResponse(td::Client::Response response)
+void TgChat::Impl::ProcessResponse(td::Client::Response response)
 {
   if (!response.object) return;
 
@@ -811,7 +1003,7 @@ void TgChat::ProcessResponse(td::Client::Response response)
   }
 }
 
-void TgChat::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> update)
+void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> update)
 {
   td::td_api::downcast_call(*update, overloaded(
   [this](td::td_api::updateAuthorizationState& update_authorization_state)
@@ -1006,7 +1198,7 @@ void TgChat::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> update)
   ));
 }
 
-std::function<void(TgChat::Object)> TgChat::CreateAuthQueryHandler()
+std::function<void(TgChat::Impl::Object)> TgChat::Impl::CreateAuthQueryHandler()
 {
   return [this, id = m_AuthQueryId](Object object)
   {
@@ -1017,7 +1209,7 @@ std::function<void(TgChat::Object)> TgChat::CreateAuthQueryHandler()
   };
 }
 
-void TgChat::OnAuthStateUpdate()
+void TgChat::Impl::OnAuthStateUpdate()
 {
   m_AuthQueryId++;
   td::td_api::downcast_call(*m_AuthorizationState, overloaded(
@@ -1206,7 +1398,7 @@ void TgChat::OnAuthStateUpdate()
   ));
 }
 
-void TgChat::SendQuery(td::td_api::object_ptr<td::td_api::Function> f,
+void TgChat::Impl::SendQuery(td::td_api::object_ptr<td::td_api::Function> f,
                        std::function<void(Object)> handler)
 {
   auto query_id = GetNextQueryId();
@@ -1217,7 +1409,7 @@ void TgChat::SendQuery(td::td_api::object_ptr<td::td_api::Function> f,
   m_Client->send({ query_id, std::move(f) });
 }
 
-void TgChat::CheckAuthError(Object object)
+void TgChat::Impl::CheckAuthError(Object object)
 {
   if (object->get_id() == td::td_api::error::ID)
   {
@@ -1234,7 +1426,7 @@ void TgChat::CheckAuthError(Object object)
   }
 }
 
-void TgChat::CreateChat(Object p_Object)
+void TgChat::Impl::CreateChat(Object p_Object)
 {
   Status::Clear(Status::FlagUpdating);
 
@@ -1256,7 +1448,7 @@ void TgChat::CreateChat(Object p_Object)
   CallMessageHandler(createChatNotify);
 }
 
-std::string TgChat::GetRandomString(size_t p_Len)
+std::string TgChat::Impl::GetRandomString(size_t p_Len)
 {
   srand(time(0));
   std::string str = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
@@ -1270,12 +1462,12 @@ std::string TgChat::GetRandomString(size_t p_Len)
   return newstr;
 }
 
-std::uint64_t TgChat::GetNextQueryId()
+std::uint64_t TgChat::Impl::GetNextQueryId()
 {
   return ++m_CurrentQueryId;
 }
 
-std::int64_t TgChat::GetSenderId(const td::td_api::message& p_TdMessage)
+std::int64_t TgChat::Impl::GetSenderId(const td::td_api::message& p_TdMessage)
 {
   std::int64_t senderId = 0;
   if (p_TdMessage.sender_->get_id() == td::td_api::messageSenderUser::ID)
@@ -1292,7 +1484,7 @@ std::int64_t TgChat::GetSenderId(const td::td_api::message& p_TdMessage)
   return senderId;
 }
 
-std::string TgChat::GetText(td::td_api::object_ptr<td::td_api::formattedText>&& p_FormattedText)
+std::string TgChat::Impl::GetText(td::td_api::object_ptr<td::td_api::formattedText>&& p_FormattedText)
 {
   std::string text = p_FormattedText->text_;
   static const bool markdownEnabled = (m_Config.Get("markdown_enabled") == "1");
@@ -1318,7 +1510,7 @@ std::string TgChat::GetText(td::td_api::object_ptr<td::td_api::formattedText>&& 
   return text;
 }
 
-void TgChat::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessageContent,
+void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessageContent,
                                      std::string& p_Text, std::string& p_FileInfo)
 {
   if (p_TdMessageContent.get_id() == td::td_api::messageText::ID)
@@ -1516,7 +1708,7 @@ void TgChat::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessageCont
   }
 }
 
-void TgChat::TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessage& p_ChatMessage)
+void TgChat::Impl::TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessage& p_ChatMessage)
 {
   TdMessageContentConvert(*p_TdMessage.content_, p_ChatMessage.text, p_ChatMessage.fileInfo);
 
@@ -1568,7 +1760,7 @@ void TgChat::TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessage& p_C
   }
 }
 
-void TgChat::DownloadFile(std::string p_ChatId, std::string p_MsgId, std::string p_FileId,
+void TgChat::Impl::DownloadFile(std::string p_ChatId, std::string p_MsgId, std::string p_FileId,
                           DownloadFileAction p_DownloadFileAction)
 {
   LOG_DEBUG("download file");
@@ -1608,7 +1800,7 @@ void TgChat::DownloadFile(std::string p_ChatId, std::string p_MsgId, std::string
   }
 }
 
-void TgChat::RequestSponsoredMessagesIfNeeded()
+void TgChat::Impl::RequestSponsoredMessagesIfNeeded()
 {
   if (m_ChatTypes[m_CurrentChat] != ChatSuperGroupChannel) return;
 
@@ -1629,7 +1821,7 @@ void TgChat::RequestSponsoredMessagesIfNeeded()
   }
 }
 
-void TgChat::GetSponsoredMessages(const std::string& p_ChatId)
+void TgChat::Impl::GetSponsoredMessages(const std::string& p_ChatId)
 {
   LOG_DEBUG("get sponsored messages %s", p_ChatId.c_str());
 
@@ -1775,7 +1967,7 @@ void TgChat::GetSponsoredMessages(const std::string& p_ChatId)
 #endif
 }
 
-void TgChat::ViewSponsoredMessage(const std::string& p_ChatId, const std::string& p_MsgId)
+void TgChat::Impl::ViewSponsoredMessage(const std::string& p_ChatId, const std::string& p_MsgId)
 {
   if (!m_SponsoredMessageIds[p_ChatId].count(p_MsgId)) return;
 
@@ -1799,7 +1991,7 @@ void TgChat::ViewSponsoredMessage(const std::string& p_ChatId, const std::string
 #endif
 }
 
-bool TgChat::IsSponsoredMessageId(const std::string& p_MsgId)
+bool TgChat::Impl::IsSponsoredMessageId(const std::string& p_MsgId)
 {
   return StrUtil::NumHasPrefix(p_MsgId, m_SponsoredMessageMsgIdPrefix);
 }

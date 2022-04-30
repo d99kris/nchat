@@ -9,6 +9,12 @@
 
 #include <fstream>
 
+#include <wordexp.h>
+
+#ifdef __APPLE__
+#include <libproc.h>
+#endif
+
 #include <libgen.h>
 #include <magic.h>
 
@@ -18,6 +24,7 @@
 #include "strutil.h"
 
 std::string FileUtil::m_ApplicationDir;
+std::string FileUtil::m_DownloadsDir;
 
 std::string FileUtil::AbsolutePath(const std::string& p_Path)
 {
@@ -40,10 +47,43 @@ void FileUtil::CopyFile(const std::string& p_SrcPath, const std::string& p_DstPa
   dstFile << srcFile.rdbuf();
 }
 
+std::string FileUtil::DirName(const std::string& p_Path)
+{
+  char* buf = strdup(p_Path.c_str());
+  std::string rv = std::string(dirname(buf));
+  free(buf);
+  return rv;
+}
+
 bool FileUtil::Exists(const std::string& p_Path)
 {
   struct stat sb;
   return (stat(p_Path.c_str(), &sb) == 0);
+}
+
+std::string FileUtil::ExpandPath(const std::string& p_Path)
+{
+  if (p_Path.empty()) return p_Path;
+
+  if ((p_Path.at(0) != '~') && ((p_Path.at(0) != '$'))) return p_Path;
+
+  wordexp_t exp;
+  std::string rv;
+  if ((wordexp(p_Path.c_str(), &exp, WRDE_NOCMD) == 0) && (exp.we_wordc > 0))
+  {
+    rv = std::string(exp.we_wordv[0]);
+    for (size_t i = 1; i < exp.we_wordc; ++i)
+    {
+      rv += " " + std::string(exp.we_wordv[i]);
+    }
+    wordfree(&exp);
+  }
+  else
+  {
+    rv = p_Path;
+  }
+
+  return rv;
 }
 
 std::string FileUtil::GetApplicationDir()
@@ -85,6 +125,15 @@ int FileUtil::GetDirVersion(const std::string& p_Dir)
 
 std::string FileUtil::GetDownloadsDir()
 {
+  if (!m_DownloadsDir.empty())
+  {
+    std::string downloadsDir = FileUtil::ExpandPath(m_DownloadsDir);
+    if (FileUtil::IsDir(downloadsDir))
+    {
+      return downloadsDir;
+    }
+  }
+
   std::string homeDir = std::string(getenv("HOME"));
   std::string downloadsDir = homeDir + "/Downloads";
   if (FileUtil::IsDir(downloadsDir))
@@ -122,6 +171,35 @@ std::string FileUtil::GetMimeType(const std::string& p_Path)
 
   magic_close(cookie);
   return mime;
+}
+
+std::string FileUtil::GetSelfPath()
+{
+#if defined(__APPLE__)
+  char pathbuf[PROC_PIDPATHINFO_MAXSIZE];
+  if (proc_pidpath(getpid(), pathbuf, sizeof(pathbuf)) > 0)
+  {
+    return std::string(pathbuf);
+  }
+#elif defined(__linux__)
+  char pathbuf[PATH_MAX];
+  ssize_t count = readlink("/proc/self/exe", pathbuf, sizeof(pathbuf));
+  if (count > 0)
+  {
+    return std::string(pathbuf, count);
+  }
+#endif
+  return "";
+}
+
+std::string FileUtil::GetLibSuffix()
+{
+#if defined(__APPLE__)
+  return ".dylib";
+#elif defined(__linux__)
+  return ".so";
+#endif
+  return "";
 }
 
 std::string FileUtil::GetSuffixedSize(ssize_t p_Size)
@@ -202,6 +280,11 @@ void FileUtil::RmDir(const std::string& p_Path)
 void FileUtil::SetApplicationDir(const std::string& p_Path)
 {
   m_ApplicationDir = p_Path;
+}
+
+void FileUtil::SetDownloadsDir(const std::string& p_DownloadsDir)
+{
+  m_DownloadsDir = p_DownloadsDir;
 }
 
 void FileUtil::WriteFile(const std::string& p_Path, const std::string& p_Str)
