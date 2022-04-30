@@ -2,7 +2,7 @@
 
 # make.sh
 #
-# Copyright (C) 2020-2021 Kristofer Berggren
+# Copyright (C) 2020-2022 Kristofer Berggren
 # All rights reserved.
 #
 # See LICENSE for redistribution information.
@@ -76,6 +76,11 @@ case "${1%/}" in
     ;;
 esac
 
+# helper functions
+function version_ge() {
+  test "$(printf '%s\n' "$@" | sort -V | head -n 1)" == "$2";
+}
+
 # deps
 if [[ "${DEPS}" == "1" ]]; then
   OS="$(uname)"
@@ -83,7 +88,14 @@ if [[ "${DEPS}" == "1" ]]; then
     unset NAME
     eval $(grep "^NAME=" /etc/os-release 2> /dev/null)
     if [[ "${NAME}" == "Ubuntu" ]]; then
-      sudo apt update && sudo apt -y install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev golang || exiterr "deps failed (linux), exiting."
+      sudo apt update && sudo apt -y install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev || exiterr "deps failed (ubuntu), exiting."
+      unset VERSION_ID
+      eval $(grep "^VERSION_ID=" /etc/os-release 2> /dev/null)
+      if version_ge "${VERSION_ID}" "22.04"; then
+        sudo apt -y install golang || exiterr "deps failed (apt golang), exiting."
+      else
+        sudo snap install go --classic || exiterr "deps failed (snap go), exiting."
+      fi
     else
       exiterr "deps failed (unsupported linux distro ${NAME}), exiting."
     fi
