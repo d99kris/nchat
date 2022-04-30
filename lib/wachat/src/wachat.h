@@ -19,6 +19,9 @@ class WaChat : public Protocol
 public:
   WaChat();
   virtual ~WaChat();
+  static std::string GetName() { return "WhatsApp"; }
+  static std::string GetLibName() { return "libwachat"; }
+  static std::string GetCreateFunc() { return "CreateWaChat"; }
   std::string GetProfileId() const;
   bool HasFeature(ProtocolFeature p_ProtocolFeature) const;
 
@@ -44,7 +47,7 @@ private:
   void PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage);
 
 private:
-  std::string m_ProfileId = "WhatsApp";
+  std::string m_ProfileId;
   std::function<void(std::shared_ptr<ServiceMessage>)> m_MessageHandler;
 
   bool m_Running = false;
@@ -72,3 +75,5 @@ void WaLogInfo(char* p_Filename, int p_LineNo, char* p_Message);
 void WaLogWarning(char* p_Filename, int p_LineNo, char* p_Message);
 void WaLogError(char* p_Filename, int p_LineNo, char* p_Message);
 }
+
+extern "C" WaChat* CreateWaChat();

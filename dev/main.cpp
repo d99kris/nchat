@@ -11,6 +11,9 @@
 #include <set>
 #include <string>
 
+#include <cassert>
+#include <dlfcn.h>
+
 #include <path.hpp>
 
 #include "appconfig.h"
@@ -39,23 +42,69 @@ static std::shared_ptr<Protocol> SetupProfile();
 static void ShowHelp();
 static void ShowVersion();
 
-static std::vector<std::shared_ptr<Protocol>> GetProtocols()
+
+class ProtocolBaseFactory
 {
-  std::vector<std::shared_ptr<Protocol>> protocols =
+public:
+  ProtocolBaseFactory() { }
+  virtual ~ProtocolBaseFactory() { }
+  virtual std::string GetName() const = 0;
+  virtual std::shared_ptr<Protocol> Create() const = 0;
+};
+
+template <typename T>
+class ProtocolFactory : public ProtocolBaseFactory
+{
+public:
+  virtual std::string GetName() const
+  {
+    return T::GetName();
+  }
+  
+  virtual std::shared_ptr<Protocol> Create() const
+  {
+    std::shared_ptr<T> protocol;
+    std::string libPath =
+      FileUtil::DirName(FileUtil::GetSelfPath()) + "/../lib/" + T::GetLibName() + FileUtil::GetLibSuffix();
+    std::string createFunc = T::GetCreateFunc();
+    void* handle = dlopen(libPath.c_str(), RTLD_LAZY);
+    if (handle == nullptr)
+    {
+      LOG_ERROR("failed dlopen %s", libPath.c_str());
+      return protocol;
+    }
+
+    T* (*CreateFunc)() = (T* (*)()) dlsym(handle, createFunc.c_str());
+    if (CreateFunc == nullptr)
+    {
+      LOG_ERROR("failed dlsym %s", createFunc.c_str());
+      return protocol;
+    }
+
+    protocol.reset(CreateFunc());
+
+    return protocol;
+  }
+};
+
+static std::vector<ProtocolBaseFactory*> GetProtocolFactorys()
+{
+  std::vector<ProtocolBaseFactory*> protocolFactorys =
   {
 #ifdef HAS_DUMMY
-    std::make_shared<DuChat>(),
+   new ProtocolFactory<DuChat>(),
 #endif
 #ifdef HAS_TELEGRAM
-    std::make_shared<TgChat>(),
+   new ProtocolFactory<TgChat>(),
 #endif
 #ifdef HAS_WHATSAPP
-    std::make_shared<WaChat>(),
+   new ProtocolFactory<WaChat>(),
 #endif
   };
 
-  return protocols;
+  return protocolFactorys;
 }
+
 
 int main(int argc, char* argv[])
 {
@@ -167,7 +216,12 @@ int main(int argc, char* argv[])
   if (isSetup)
   {
     setupProtocol = SetupProfile();
-    if (!setupProtocol) return 1;
+    if (!setupProtocol)
+    {
+      MessageCache::Cleanup();
+      AppConfig::Cleanup();
+      return 1;
+    }
   }
 
   // Init ui
@@ -210,12 +264,13 @@ int main(int argc, char* argv[])
     }
     else
     {
-      std::vector<std::shared_ptr<Protocol>> allProtocols = GetProtocols();
-      for (auto& protocol : allProtocols)
+      std::vector<ProtocolBaseFactory*> allProtocolFactorys = GetProtocolFactorys();
+      for (auto& protocolFactory : allProtocolFactorys)
       {
-        if (protocol->GetProfileId() == protocolName)
+        if (protocolFactory->GetName() == protocolName)
         {
           LOG_DEBUG("loading existing profile %s", profileId.c_str());
+          std::shared_ptr<Protocol> protocol = protocolFactory->Create();
           protocol->LoadProfile(profilesDir, profileId);
           ui->AddProtocol(protocol);
         }
@@ -274,13 +329,13 @@ int main(int argc, char* argv[])
 std::shared_ptr<Protocol> SetupProfile()
 {
   std::shared_ptr<Protocol> rv;
-  std::vector<std::shared_ptr<Protocol>> protocols = GetProtocols();
+  std::vector<ProtocolBaseFactory*> protocolFactorys = GetProtocolFactorys();
 
   std::cout << "Protocols:" << std::endl;
   size_t idx = 0;
-  for (auto it = protocols.begin(); it != protocols.end(); ++it, ++idx)
+  for (auto it = protocolFactorys.begin(); it != protocolFactorys.end(); ++it, ++idx)
   {
-    std::cout << idx << ". " << (*it)->GetProfileId() << std::endl;
+    std::cout << idx << ". " << (*it)->GetName() << std::endl;
   }
   std::cout << idx << ". Exit setup" << std::endl;
 
@@ -300,7 +355,7 @@ std::shared_ptr<Protocol> SetupProfile()
     }
   }
 
-  if (selectidx >= protocols.size())
+  if (selectidx >= protocolFactorys.size())
   {
     std::cout << "Setup aborted, exiting." << std::endl;
     return rv;
@@ -315,11 +370,12 @@ std::shared_ptr<Protocol> SetupProfile()
   Profiles::Init();
 #endif
 
-  bool setupResult = protocols.at(selectidx)->SetupProfile(profilesDir, profileId);
+  std::shared_ptr<Protocol> protocol = protocolFactorys.at(selectidx)->Create();
+  bool setupResult = protocol && protocol->SetupProfile(profilesDir, profileId);
   if (setupResult)
   {
     std::cout << "Succesfully set up profile " << profileId << "\n";
-    rv = protocols.at(selectidx);
+    rv = protocol;
   }
   else
   {

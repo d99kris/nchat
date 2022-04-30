@@ -15,8 +15,14 @@
 #include "log.h"
 #include "status.h"
 
+extern "C" DuChat* CreateDuChat()
+{
+  return new DuChat();
+}
+
 DuChat::DuChat()
 {
+  m_ProfileId = GetName();
 }
 
 DuChat::~DuChat()

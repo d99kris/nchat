@@ -21,8 +21,14 @@
 std::mutex WaChat::s_ConnIdMapMutex;
 std::map<int, WaChat*> WaChat::s_ConnIdMap;
 
+extern "C" WaChat* CreateWaChat()
+{
+  return new WaChat();
+}
+
 WaChat::WaChat()
 {
+  m_ProfileId = WaChat::GetName();
 }
 
 WaChat::~WaChat()

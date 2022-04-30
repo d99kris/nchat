@@ -18,6 +18,9 @@ class DuChat : public Protocol
 public:
   DuChat();
   virtual ~DuChat();
+  static std::string GetName() { return "Dummy"; }
+  static std::string GetLibName() { return "libduchat"; }
+  static std::string GetCreateFunc() { return "CreateDuChat"; }
   std::string GetProfileId() const;
   bool HasFeature(ProtocolFeature p_ProtocolFeature) const;
 
@@ -37,7 +40,7 @@ private:
   void PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage);
 
 private:
-  std::string m_ProfileId = "Dummy";
+  std::string m_ProfileId;
   std::function<void(std::shared_ptr<ServiceMessage>)> m_MessageHandler;
 
   bool m_Running = false;
@@ -46,3 +49,5 @@ private:
   std::mutex m_ProcessMutex;
   std::condition_variable m_ProcessCondVar;
 };
+
+extern "C" DuChat* CreateDuChat();

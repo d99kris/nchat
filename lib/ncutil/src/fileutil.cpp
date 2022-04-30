@@ -9,6 +9,10 @@
 
 #include <fstream>
 
+#ifdef __APPLE__
+#include <libproc.h>
+#endif
+
 #include <libgen.h>
 #include <magic.h>
 
@@ -38,6 +42,14 @@ void FileUtil::CopyFile(const std::string& p_SrcPath, const std::string& p_DstPa
   std::ifstream srcFile(p_SrcPath, std::ios::binary);
   std::ofstream dstFile(p_DstPath, std::ios::binary);
   dstFile << srcFile.rdbuf();
+}
+
+std::string FileUtil::DirName(const std::string& p_Path)
+{
+  char* buf = strdup(p_Path.c_str());
+  std::string rv = std::string(dirname(buf));
+  free(buf);
+  return rv;
 }
 
 bool FileUtil::Exists(const std::string& p_Path)
@@ -122,6 +134,35 @@ std::string FileUtil::GetMimeType(const std::string& p_Path)
 
   magic_close(cookie);
   return mime;
+}
+
+std::string FileUtil::GetSelfPath()
+{
+#if defined(__APPLE__)
+  char pathbuf[PROC_PIDPATHINFO_MAXSIZE];
+  if (proc_pidpath(getpid(), pathbuf, sizeof(pathbuf)) > 0)
+  {
+    return std::string(pathbuf);
+  }
+#elif defined(__linux__)
+  char pathbuf[PATH_MAX];
+  ssize_t count = readlink("/proc/self/exe", pathbuf, sizeof(pathbuf));
+  if (count > 0)
+  {
+    return std::string(pathbuf, count);
+  }
+#endif
+  return "";
+}
+
+std::string FileUtil::GetLibSuffix()
+{
+#if defined(__APPLE__)
+  return ".dylib";
+#elif defined(__linux__)
+  return ".so";
+#endif
+  return "";
 }
 
 std::string FileUtil::GetSuffixedSize(ssize_t p_Size)

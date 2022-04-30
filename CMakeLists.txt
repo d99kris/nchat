@@ -1,6 +1,6 @@
 # Project
 cmake_minimum_required(VERSION 3.16 FATAL_ERROR) # 3.1 is ok, but is 3.16 needed for proper version string
-project(nchat VERSION 2.53 LANGUAGES CXX)
+project(nchat VERSION 2.54 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 14)
 include(CheckCXXSourceCompiles)
 set(NCHAT_PROJECT_VERSION ${PROJECT_VERSION})
@@ -130,25 +130,22 @@ find_package(Curses REQUIRED)
 include_directories(${CURSES_INCLUDE_DIR})
 
 # Linking
-target_link_libraries(nchat PUBLIC ncutil pthread ${CURSES_LIBRARIES})
+target_link_libraries(nchat PUBLIC ncutil pthread ${CURSES_LIBRARIES} dl)
 
 # Optionals
 if(HAS_DUMMY)
   target_include_directories(nchat PRIVATE "lib/duchat/src")
   target_compile_definitions(nchat PRIVATE HAS_DUMMY="${HAS_DUMMY}")
-  target_link_libraries(nchat PUBLIC duchat)
 endif()
 
 if(HAS_TELEGRAM)
   target_include_directories(nchat PRIVATE "lib/tgchat/src")
   target_compile_definitions(nchat PRIVATE HAS_TELEGRAM="${HAS_TELEGRAM}")
-  target_link_libraries(nchat PUBLIC tgchat)
 endif()
 
 if(HAS_WHATSAPP)
   target_include_directories(nchat PRIVATE "lib/wachat/src")
   target_compile_definitions(nchat PRIVATE HAS_WHATSAPP="${HAS_WHATSAPP}")
-  target_link_libraries(nchat PUBLIC wachat)
 endif()
 
 if(HAS_MULTIPROTOCOL)
@@ -205,25 +202,22 @@ if(CMAKE_BUILD_TYPE MATCHES "Debug")
   target_compile_definitions(devnchat PRIVATE PROJECT_VERSION="${PROJECT_VERSION}")
 
   # Linking
-  target_link_libraries(devnchat PUBLIC ncutil pthread ${CURSES_NCURSES_LIBRARY})
+  target_link_libraries(devnchat PUBLIC ncutil pthread ${CURSES_NCURSES_LIBRARY} dl)
 
   # Optionals
   if(HAS_DUMMY)
     target_include_directories(devnchat PRIVATE "lib/duchat/src")
     target_compile_definitions(devnchat PRIVATE HAS_DUMMY="${HAS_DUMMY}")
-    target_link_libraries(devnchat PUBLIC duchat)
   endif()
 
   if(HAS_TELEGRAM)
     target_include_directories(devnchat PRIVATE "lib/tgchat/src")
     target_compile_definitions(devnchat PRIVATE HAS_TELEGRAM="${HAS_TELEGRAM}")
-    target_link_libraries(devnchat PUBLIC tgchat)
   endif()
 
   if(HAS_WHATSAPP)
     target_include_directories(devnchat PRIVATE "lib/wachat/src")
     target_compile_definitions(devnchat PRIVATE HAS_WHATSAPP="${HAS_WHATSAPP}")
-    target_link_libraries(devnchat PUBLIC wachat)
   endif()
 
   if(HAS_MULTIPROTOCOL)
