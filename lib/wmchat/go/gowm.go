@@ -40,7 +40,7 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
-var whatsmeowDate = "20220426"
+var whatsmeowDate = "20220430"
 
 type JSONMessage []json.RawMessage
 type JSONMessageType string
@@ -76,14 +76,14 @@ var FileStatusDownloading = 2
 var FileStatusDownloadFailed = 3
 
 // keep in sync with enum Flag in status.h
-var	FlagNone        = 0
-var	FlagOffline     = (1 << 0)
-var	FlagOnline      = (1 << 1)
-var	FlagFetching    = (1 << 2)
-var	FlagSending     = (1 << 3)
-var	FlagUpdating    = (1 << 4)
-var	FlagSyncing     = (1 << 5)
-var	FlagMax = FlagSyncing
+var FlagNone = 0
+var FlagOffline = (1 << 0)
+var FlagOnline = (1 << 1)
+var FlagFetching = (1 << 2)
+var FlagSending = (1 << 3)
+var FlagUpdating = (1 << 4)
+var FlagSyncing = (1 << 5)
+var FlagMax = FlagSyncing
 
 func AddConn(conn *whatsmeow.Client, path string) int {
 	mx.Lock()
@@ -403,7 +403,7 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 	LOG_DEBUG(fmt.Sprintf("HandleHistorySync SyncType %#v", *historySync.Data.SyncType))
 
 	CWmSetStatus(FlagSyncing)
-	
+
 	pushnames := historySync.Data.GetPushnames()
 	for _, pushname := range pushnames {
 		if pushname.Id != nil && pushname.Pushname != nil {
@@ -540,7 +540,7 @@ func (handler *WmEventHandler) HandleImageMessage(messageInfo types.MessageInfo,
 
 	connId := handler.connId
 	var client *whatsmeow.Client = GetClient(handler.connId)
-	
+
 	// get image part
 	img := msg.GetImageMessage()
 	if img == nil {
@@ -561,7 +561,7 @@ func (handler *WmEventHandler) HandleImageMessage(messageInfo types.MessageInfo,
 	if ci != nil {
 		quotedId = ci.GetStanzaId()
 	}
-	
+
 	// get temp file path
 	var tmpPath string = GetPath(connId) + "/tmp"
 	filePath := fmt.Sprintf("%v/%v.%v", tmpPath, messageInfo.ID, ext)
@@ -637,10 +637,10 @@ func (handler *WmEventHandler) HandleVideoMessage(messageInfo types.MessageInfo,
 	// context
 	quotedId := ""
 	ci := vid.GetContextInfo()
-	if ci != nil {	
+	if ci != nil {
 		quotedId = ci.GetStanzaId()
 	}
-	
+
 	// get temp file path
 	var tmpPath string = GetPath(connId) + "/tmp"
 	filePath := fmt.Sprintf("%v/%v.%v", tmpPath, messageInfo.ID, ext)
@@ -718,7 +718,7 @@ func (handler *WmEventHandler) HandleAudioMessage(messageInfo types.MessageInfo,
 	if ci != nil {
 		quotedId = ci.GetStanzaId()
 	}
-	
+
 	// get temp file path
 	var tmpPath string = GetPath(connId) + "/tmp"
 	filePath := fmt.Sprintf("%v/%v.%v", tmpPath, messageInfo.ID, ext)
@@ -789,7 +789,7 @@ func (handler *WmEventHandler) HandleDocumentMessage(messageInfo types.MessageIn
 	if ci != nil {
 		quotedId = ci.GetStanzaId()
 	}
-	
+
 	// get temp file path
 	var tmpPath string = GetPath(connId) + "/tmp"
 	filePath := fmt.Sprintf("%v/%v-%s", tmpPath, messageInfo.ID, *doc.FileName)
@@ -1039,8 +1039,8 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 	// sanity check arg
 	if connId == -1 {
-	 	LOG_WARNING("invalid connId")
-	 	return -1
+		LOG_WARNING("invalid connId")
+		return -1
 	}
 
 	// get conn
@@ -1062,27 +1062,27 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 	// check message type
 	if len(filePath) == 0 {
 
-	 	// text message
+		// text message
 
-	 	if len(quotedId) > 0 {
+		if len(quotedId) > 0 {
 			contextInfo := waProto.ContextInfo{}
 			quotedMessage := waProto.Message{
 				Conversation: &quotedText,
 			}
 
 			selfId := JidToStr(*client.Store.ID)
-	 		if quotedSender == selfId {
-	 			quotedSender = chatId
-	 		}
+			if quotedSender == selfId {
+				quotedSender = chatId
+			}
 
-	 		quotedSender = strings.Replace(quotedSender, "@c.us", "@s.whatsapp.net", 1)
+			quotedSender = strings.Replace(quotedSender, "@c.us", "@s.whatsapp.net", 1)
 
-	 		LOG_TRACE("send quoted " + quotedId + ", " + quotedText + ", " + quotedSender)
-	 		contextInfo = waProto.ContextInfo{
-	 			QuotedMessage:   &quotedMessage,
-	 			StanzaId: &quotedId,
-	 			Participant:     &quotedSender,
-	 		}
+			LOG_TRACE("send quoted " + quotedId + ", " + quotedText + ", " + quotedSender)
+			contextInfo = waProto.ContextInfo{
+				QuotedMessage: &quotedMessage,
+				StanzaId:      &quotedId,
+				Participant:   &quotedSender,
+			}
 
 			extendedTextMessage := waProto.ExtendedTextMessage{
 				Text:        &text,
@@ -1090,15 +1090,15 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 			}
 
 			message.ExtendedTextMessage = &extendedTextMessage
-	 	} else {
+		} else {
 			message.Conversation = &text
 		}
 
 		// message id
 		msgId = whatsmeow.GenerateMessageID()
-		
-	 	// send message
-	 	timeStamp, sendErr = client.SendMessage(chatJid, msgId, &message)
+
+		// send message
+		timeStamp, sendErr = client.SendMessage(chatJid, msgId, &message)
 
 	} else {
 
@@ -1113,7 +1113,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 				//log.Errorf("Failed to read %s: %v", args[0], err)
 				return -1
 			}
-			
+
 			uploaded, upErr := client.Upload(context.Background(), data, whatsmeow.MediaImage)
 			if upErr != nil {
 				LOG_WARNING(fmt.Sprintf("rec err"))
@@ -1136,11 +1136,11 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 			// message id
 			msgId = whatsmeow.GenerateMessageID()
-		
+
 			// send message
 			timeStamp, sendErr = client.SendMessage(chatJid, msgId, &message)
 
-	 	} else {
+		} else {
 
 			LOG_TRACE("send document " + fileType)
 
@@ -1150,7 +1150,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 				//log.Errorf("Failed to read %s: %v", args[0], err)
 				return -1
 			}
-			
+
 			uploaded, upErr := client.Upload(context.Background(), data, whatsmeow.MediaDocument)
 			if upErr != nil {
 				LOG_WARNING(fmt.Sprintf("rec err"))
@@ -1159,7 +1159,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 			}
 
 			fileName := filepath.Base(filePath)
-			
+
 			documentMessage := waProto.DocumentMessage{
 				//Caption:       proto.String(text),
 				Url:           proto.String(uploaded.URL),
@@ -1176,19 +1176,19 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 			// message id
 			msgId = whatsmeow.GenerateMessageID()
-		
+
 			// send message
 			timeStamp, sendErr = client.SendMessage(chatJid, msgId, &message)
 
-	 	}
+		}
 	}
 
 	// log any error
 	if sendErr != nil {
-	 	LOG_WARNING(fmt.Sprintf("send message error %+v", sendErr))
-	 	return -1
+		LOG_WARNING(fmt.Sprintf("send message error %+v", sendErr))
+		return -1
 	} else {
-	 	LOG_TRACE(fmt.Sprintf("send message ok"))
+		LOG_TRACE(fmt.Sprintf("send message ok"))
 
 		// messageInfo
 		var messageInfo types.MessageInfo
@@ -1211,7 +1211,7 @@ func WmMarkMessageRead(connId int, chatId string, msgId string) int {
 
 	// sanity check arg
 	if connId == -1 {
-	 	LOG_WARNING("invalid connId")
+		LOG_WARNING("invalid connId")
 		return -1
 	}
 
@@ -1229,10 +1229,10 @@ func WmMarkMessageRead(connId int, chatId string, msgId string) int {
 
 	// log any error
 	if err != nil {
-	 	LOG_WARNING(fmt.Sprintf("mark message read error %+v", err))
-	 	return -1
+		LOG_WARNING(fmt.Sprintf("mark message read error %+v", err))
+		return -1
 	} else {
-	 	LOG_TRACE(fmt.Sprintf("mark message read ok %+v", msgId))
+		LOG_TRACE(fmt.Sprintf("mark message read ok %+v", msgId))
 	}
 
 	return 0
@@ -1244,8 +1244,8 @@ func WmDeleteMessage(connId int, chatId string, msgId string) int {
 
 	// sanity check arg
 	if connId == -1 {
-	 	LOG_WARNING("invalid connId")
-	 	return -1
+		LOG_WARNING("invalid connId")
+		return -1
 	}
 
 	// get client
@@ -1257,10 +1257,10 @@ func WmDeleteMessage(connId int, chatId string, msgId string) int {
 
 	// log any error
 	if err != nil {
-	 	LOG_WARNING(fmt.Sprintf("delete message error %+v", err))
-	 	return -1
+		LOG_WARNING(fmt.Sprintf("delete message error %+v", err))
+		return -1
 	} else {
-	 	LOG_TRACE(fmt.Sprintf("delete message ok %+v", msgId))
+		LOG_TRACE(fmt.Sprintf("delete message ok %+v", msgId))
 	}
 
 	return 0
@@ -1272,8 +1272,8 @@ func WmSendTyping(connId int, chatId string, isTyping int) int {
 
 	// sanity check arg
 	if connId == -1 {
-	 	LOG_WARNING("invalid connId")
-	 	return -1
+		LOG_WARNING("invalid connId")
+		return -1
 	}
 
 	// get client
@@ -1282,7 +1282,7 @@ func WmSendTyping(connId int, chatId string, isTyping int) int {
 	// set presence
 	var chatPresence types.ChatPresence = types.ChatPresencePaused
 	if isTyping == 1 {
-	 	chatPresence = types.ChatPresenceComposing
+		chatPresence = types.ChatPresenceComposing
 	}
 
 	var chatPresenceMedia types.ChatPresenceMedia = types.ChatPresenceMediaText
@@ -1291,10 +1291,10 @@ func WmSendTyping(connId int, chatId string, isTyping int) int {
 
 	// log any error
 	if err != nil {
-	 	LOG_WARNING(fmt.Sprintf("send typing error %+v", err))
-	 	return -1
+		LOG_WARNING(fmt.Sprintf("send typing error %+v", err))
+		return -1
 	} else {
-	 	LOG_TRACE(fmt.Sprintf("send typing ok"))
+		LOG_TRACE(fmt.Sprintf("send typing ok"))
 	}
 
 	return 0
@@ -1304,25 +1304,25 @@ func WmSendStatus(connId int, isOnline int) int {
 
 	LOG_TRACE("send status " + strconv.Itoa(connId) + ", " + strconv.Itoa(isOnline))
 
-	 // sanity check arg
-	 if connId == -1 {
-	 	LOG_WARNING("invalid connId")
-	 	return -1
-	 }
+	// sanity check arg
+	if connId == -1 {
+		LOG_WARNING("invalid connId")
+		return -1
+	}
 
 	// get client
 	client := GetClient(connId)
 
 	// bail out if no push name
 	if len(client.Store.PushName) == 0 {
-	 	LOG_WARNING("tmp")
+		LOG_WARNING("tmp")
 		return -1
 	}
 
 	// set presence
 	var presence types.Presence = types.PresenceUnavailable
 	if isOnline == 1 {
-	 	presence = types.PresenceAvailable
+		presence = types.PresenceAvailable
 	}
 
 	err := client.SendPresence(presence)
