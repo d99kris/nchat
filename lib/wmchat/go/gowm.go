@@ -496,9 +496,8 @@ func (handler *WmEventHandler) HandleTextMessage(messageInfo types.MessageInfo, 
 	} else {
 		text = msg.GetExtendedTextMessage().GetText()
 		ci := msg.GetExtendedTextMessage().GetContextInfo()
-
 		if ci != nil {
-			quotedId = *ci.StanzaId
+			quotedId = ci.GetStanzaId()
 		}
 	}
 
@@ -536,6 +535,13 @@ func (handler *WmEventHandler) HandleImageMessage(messageInfo types.MessageInfo,
 	exts, extErr := mime.ExtensionsByType(img.GetMimetype())
 	if extErr != nil && len(exts) > 0 {
 		ext = exts[0]
+	}
+
+	// context
+	quotedId := ""
+	ci := img.GetContextInfo()
+	if ci != nil {
+		quotedId = ci.GetStanzaId()
 	}
 	
 	// get temp file path
@@ -578,12 +584,6 @@ func (handler *WmEventHandler) HandleImageMessage(messageInfo types.MessageInfo,
 	senderId := JidToStr(messageInfo.Sender)
 	text := img.GetCaption()
 
-	quotedId := ""
-	ci := img.GetContextInfo()
-	if ci != nil {
-		quotedId = *ci.StanzaId
-	}
-	
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isSeen := isSync
 	isOld := (timeSent <= timeUnread[intString{i: connId, s: chatId}])
@@ -614,6 +614,13 @@ func (handler *WmEventHandler) HandleVideoMessage(messageInfo types.MessageInfo,
 		ext = exts[0]
 	}
 
+	// context
+	quotedId := ""
+	ci := vid.GetContextInfo()
+	if ci != nil {	
+		quotedId = ci.GetStanzaId()
+	}
+	
 	// get temp file path
 	var tmpPath string = GetPath(connId) + "/tmp"
 	filePath := fmt.Sprintf("%v/%v.%v", tmpPath, messageInfo.ID, ext)
@@ -653,12 +660,6 @@ func (handler *WmEventHandler) HandleVideoMessage(messageInfo types.MessageInfo,
 	senderId := JidToStr(messageInfo.Sender)
 	text := vid.GetCaption()
 
-	quotedId := ""
-	ci := vid.GetContextInfo()
-	if ci != nil {
-		quotedId = *ci.StanzaId
-	}
-	
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isSeen := isSync
 	isOld := (timeSent <= timeUnread[intString{i: connId, s: chatId}])
@@ -689,6 +690,13 @@ func (handler *WmEventHandler) HandleAudioMessage(messageInfo types.MessageInfo,
 		ext = exts[0]
 	}
 
+	// context
+	quotedId := ""
+	ci := aud.GetContextInfo()
+	if ci != nil {
+		quotedId = ci.GetStanzaId()
+	}
+	
 	// get temp file path
 	var tmpPath string = GetPath(connId) + "/tmp"
 	filePath := fmt.Sprintf("%v/%v.%v", tmpPath, messageInfo.ID, ext)
@@ -728,12 +736,6 @@ func (handler *WmEventHandler) HandleAudioMessage(messageInfo types.MessageInfo,
 	senderId := JidToStr(messageInfo.Sender)
 	text := ""
 
-	quotedId := ""
-	ci := aud.GetContextInfo()
-	if ci != nil {
-		quotedId = *ci.StanzaId
-	}
-	
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isSeen := isSync
 	isOld := (timeSent <= timeUnread[intString{i: connId, s: chatId}])
@@ -757,6 +759,13 @@ func (handler *WmEventHandler) HandleDocumentMessage(messageInfo types.MessageIn
 		return
 	}
 
+	// context
+	quotedId := ""
+	ci := doc.GetContextInfo()
+	if ci != nil {
+		quotedId = ci.GetStanzaId()
+	}
+	
 	// get temp file path
 	var tmpPath string = GetPath(connId) + "/tmp"
 	filePath := fmt.Sprintf("%v/%v-%s", tmpPath, messageInfo.ID, *doc.FileName)
@@ -796,12 +805,6 @@ func (handler *WmEventHandler) HandleDocumentMessage(messageInfo types.MessageIn
 	senderId := JidToStr(messageInfo.Sender)
 	text := ""
 
-	quotedId := ""
-	ci := doc.GetContextInfo()
-	if ci != nil {
-		quotedId = *ci.StanzaId
-	}
-	
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isSeen := isSync
 	isOld := (timeSent <= timeUnread[intString{i: connId, s: chatId}])
