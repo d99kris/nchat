@@ -589,7 +589,7 @@ func (handler *WmEventHandler) HandleImageMessage(messageInfo types.MessageInfo,
 
 	// get temp file path
 	var tmpPath string = GetPath(connId) + "/tmp"
-	filePath := fmt.Sprintf("%#v/%#v.%#v", tmpPath, messageInfo.ID, ext)
+	filePath := fmt.Sprintf("%s/%s.%s", tmpPath, messageInfo.ID, ext)
 	fileStatus := FileStatusNone
 
 	// download if not yet present
@@ -668,7 +668,7 @@ func (handler *WmEventHandler) HandleVideoMessage(messageInfo types.MessageInfo,
 
 	// get temp file path
 	var tmpPath string = GetPath(connId) + "/tmp"
-	filePath := fmt.Sprintf("%#v/%#v.%#v", tmpPath, messageInfo.ID, ext)
+	filePath := fmt.Sprintf("%s/%s.%s", tmpPath, messageInfo.ID, ext)
 	fileStatus := FileStatusNone
 
 	if _, statErr := os.Stat(filePath); os.IsNotExist(statErr) {
@@ -746,7 +746,7 @@ func (handler *WmEventHandler) HandleAudioMessage(messageInfo types.MessageInfo,
 
 	// get temp file path
 	var tmpPath string = GetPath(connId) + "/tmp"
-	filePath := fmt.Sprintf("%#v/%#v.%#v", tmpPath, messageInfo.ID, ext)
+	filePath := fmt.Sprintf("%s/%s.%s", tmpPath, messageInfo.ID, ext)
 	fileStatus := FileStatusNone
 
 	if _, statErr := os.Stat(filePath); os.IsNotExist(statErr) {
@@ -817,7 +817,7 @@ func (handler *WmEventHandler) HandleDocumentMessage(messageInfo types.MessageIn
 
 	// get temp file path
 	var tmpPath string = GetPath(connId) + "/tmp"
-	filePath := fmt.Sprintf("%#v/%#v-%#s", tmpPath, messageInfo.ID, *doc.FileName)
+	filePath := fmt.Sprintf("%s/%s-%s", tmpPath, messageInfo.ID, *doc.FileName)
 	fileStatus := FileStatusNone
 
 	if _, statErr := os.Stat(filePath); os.IsNotExist(statErr) {
