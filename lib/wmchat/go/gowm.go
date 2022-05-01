@@ -275,75 +275,75 @@ func (handler *WmEventHandler) HandleEvent(rawEvt interface{}) {
 
 	case *events.AppStateSyncComplete:
 		// this happens after initial logon via QR code
-		LOG_DEBUG(fmt.Sprintf("%#v", evt))
+		LOG_TRACE(fmt.Sprintf("%#v", evt))
 		if evt.Name == appstate.WAPatchCriticalBlock {
-			LOG_DEBUG("AppStateSyncComplete and WAPatchCriticalBlock")
+			LOG_TRACE("AppStateSyncComplete and WAPatchCriticalBlock")
 			handler.HandleConnected()
 		}
 
 	case *events.PushNameSetting:
 		// send presence when the pushname is changed remotely
-		LOG_DEBUG(fmt.Sprintf("%#v", evt))
+		LOG_TRACE(fmt.Sprintf("%#v", evt))
 		handler.HandleConnected()
 
 	case *events.PushName:
 		// other device changed our friendly name
-		LOG_DEBUG(fmt.Sprintf("%#v", evt))
+		LOG_TRACE(fmt.Sprintf("%#v", evt))
 
 	case *events.Connected:
 		// connected
-		LOG_DEBUG(fmt.Sprintf("%#v", evt))
+		LOG_TRACE(fmt.Sprintf("%#v", evt))
 		handler.HandleConnected()
 		SetState(handler.connId, Connected)
 
 	case *events.StreamReplaced:
 		// TODO: find out when exactly this happens and how to handle it
-		LOG_DEBUG(fmt.Sprintf("%#v", evt))
+		LOG_TRACE(fmt.Sprintf("%#v", evt))
 
 	case *events.Message:
-		LOG_DEBUG(fmt.Sprintf("%#v", evt))
+		LOG_TRACE(fmt.Sprintf("%#v", evt))
 		handler.HandleMessage(evt.Info, evt.Message, false)
 
 	case *events.Receipt:
-		LOG_DEBUG(fmt.Sprintf("%#v", evt))
+		LOG_TRACE(fmt.Sprintf("%#v", evt))
 		handler.HandleReceipt(evt)
 
 	case *events.Presence:
-		LOG_DEBUG(fmt.Sprintf("%#v", evt))
+		LOG_TRACE(fmt.Sprintf("%#v", evt))
 		handler.HandlePresence(evt)
 
 	case *events.ChatPresence:
-		LOG_DEBUG(fmt.Sprintf("%#v", evt))
+		LOG_TRACE(fmt.Sprintf("%#v", evt))
 		handler.HandleChatPresence(evt)
 
 	case *events.HistorySync:
 		// This happens after initial logon via QR code (after AppStateSyncComplete)
-		LOG_DEBUG(fmt.Sprintf("%#v", evt))
+		LOG_TRACE(fmt.Sprintf("%#v", evt))
 		handler.HandleHistorySync(evt)
 
 	case *events.AppState:
-		LOG_DEBUG(fmt.Sprintf("%#v - %+v / %+v", evt, evt.Index, evt.SyncActionValue))
+		LOG_TRACE(fmt.Sprintf("%#v - %+v / %+v", evt, evt.Index, evt.SyncActionValue))
 
 	case *events.LoggedOut:
 		// logged out, need re-init?
-		LOG_DEBUG(fmt.Sprintf("%#v", evt))
+		LOG_TRACE(fmt.Sprintf("%#v", evt))
 
 	case *events.QR:
 		// handled in WmLogin
-		LOG_DEBUG(fmt.Sprintf("%#v", evt))
+		LOG_TRACE(fmt.Sprintf("%#v", evt))
 
 	case *events.PairSuccess:
-		LOG_DEBUG(fmt.Sprintf("%#v", evt))
+		LOG_TRACE(fmt.Sprintf("%#v", evt))
 
 	case *events.JoinedGroup:
-		LOG_DEBUG(fmt.Sprintf("%#v", evt))
+		LOG_TRACE(fmt.Sprintf("%#v", evt))
 
 	case *events.OfflineSyncCompleted:
-		LOG_DEBUG(fmt.Sprintf("%#v", evt))
+		LOG_TRACE(fmt.Sprintf("%#v", evt))
 		handler.GetContacts()
 
 	default:
-		LOG_DEBUG(fmt.Sprintf("Event type not handled: %#v", rawEvt))
+		LOG_TRACE(fmt.Sprintf("Event type not handled: %#v", rawEvt))
 	}
 }
 
@@ -370,7 +370,7 @@ func (handler *WmEventHandler) HandleReceipt(receipt *events.Receipt) {
 		chatId := receipt.SourceString()
 		isRead := true
 		for _, msgId := range receipt.MessageIDs {
-			LOG_DEBUG(fmt.Sprintf("Call CWmNewMessageStatusNotify"))
+			LOG_TRACE(fmt.Sprintf("Call CWmNewMessageStatusNotify"))
 			CWmNewMessageStatusNotify(connId, chatId, msgId, BoolToInt(isRead))
 		}
 	}
@@ -382,7 +382,7 @@ func (handler *WmEventHandler) HandlePresence(presence *events.Presence) {
 	userId := presence.From.ToNonAD().String()
 	isOnline := !presence.Unavailable
 	isTyping := false
-	LOG_DEBUG(fmt.Sprintf("Call CWmNewStatusNotify"))
+	LOG_TRACE(fmt.Sprintf("Call CWmNewStatusNotify"))
 	CWmNewStatusNotify(connId, chatId, userId, BoolToInt(isOnline), BoolToInt(isTyping))
 }
 
@@ -392,7 +392,7 @@ func (handler *WmEventHandler) HandleChatPresence(chatPresence *events.ChatPrese
 	userId := chatPresence.MessageSource.Sender.ToNonAD().String()
 	isOnline := true
 	isTyping := (chatPresence.State == types.ChatPresenceComposing)
-	LOG_DEBUG(fmt.Sprintf("Call CWmNewStatusNotify"))
+	LOG_TRACE(fmt.Sprintf("Call CWmNewStatusNotify"))
 	CWmNewStatusNotify(connId, chatId, userId, BoolToInt(isOnline), BoolToInt(isTyping))
 }
 
@@ -400,20 +400,20 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 	var client *whatsmeow.Client = GetClient(handler.connId)
 	selfJid := *client.Store.ID
 
-	LOG_DEBUG(fmt.Sprintf("HandleHistorySync SyncType %#v", *historySync.Data.SyncType))
+	LOG_TRACE(fmt.Sprintf("HandleHistorySync SyncType %#v", *historySync.Data.SyncType))
 
 	CWmSetStatus(FlagSyncing)
 
 	pushnames := historySync.Data.GetPushnames()
 	for _, pushname := range pushnames {
 		if pushname.Id != nil && pushname.Pushname != nil {
-			LOG_DEBUG(fmt.Sprintf("HandleHistorySync Pushname %s %s", *pushname.Id, *pushname.Pushname))
+			LOG_TRACE(fmt.Sprintf("HandleHistorySync Pushname %s %s", *pushname.Id, *pushname.Pushname))
 		}
 	}
 
 	conversations := historySync.Data.GetConversations()
 	for _, conversation := range conversations {
-		LOG_DEBUG(fmt.Sprintf("HandleHistorySync Conversation %#v", *conversation))
+		LOG_TRACE(fmt.Sprintf("HandleHistorySync Conversation %#v", *conversation))
 
 		chatJid, _ := types.ParseJID(conversation.GetId())
 
@@ -421,7 +421,7 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 		isMuted := 0
 		lastMessageTime := 0
 
-		LOG_DEBUG(fmt.Sprintf("Call CWmNewChatsNotify %s", JidToStr(chatJid)))
+		LOG_TRACE(fmt.Sprintf("Call CWmNewChatsNotify %s", JidToStr(chatJid)))
 		CWmNewChatsNotify(handler.connId, JidToStr(chatJid), isUnread, isMuted, lastMessageTime)
 
 		syncMessages := conversation.GetMessages()
@@ -464,41 +464,41 @@ func GetNameFromContactInfo(contactInfo types.ContactInfo) string {
 func (handler *WmEventHandler) GetContacts() {
 	var client *whatsmeow.Client = GetClient(handler.connId)
 	connId := handler.connId
-	LOG_DEBUG(fmt.Sprintf("GetContacts"))
+	LOG_TRACE(fmt.Sprintf("GetContacts"))
 
 	CWmSetStatus(FlagFetching)
 
+	// contacts
 	contacts, contErr := client.Store.Contacts.GetAllContacts()
 	if contErr != nil {
-		LOG_WARNING("contact tmperror")
-	}
-
-	LOG_DEBUG(fmt.Sprintf("contacts %+v", contacts))
-
-	for jid, contactInfo := range contacts {
-		name := GetNameFromContactInfo(contactInfo)
-		if len(name) > 0 {
-			LOG_DEBUG(fmt.Sprintf("Call CWmNewContactsNotify %s %s", JidToStr(jid), name))
-			CWmNewContactsNotify(connId, JidToStr(jid), name, BoolToInt(false))
-		} else {
-			LOG_WARNING(fmt.Sprintf("Skip CWmNewContactsNotify %s %+v", JidToStr(jid), contactInfo))
+		LOG_WARNING(fmt.Sprintf("get all contacts failed %v", contErr))
+	} else {
+		LOG_TRACE(fmt.Sprintf("contacts %+v", contacts))
+		for jid, contactInfo := range contacts {
+			name := GetNameFromContactInfo(contactInfo)
+			if len(name) > 0 {
+				LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", JidToStr(jid), name))
+				CWmNewContactsNotify(connId, JidToStr(jid), name, BoolToInt(false))
+			} else {
+				LOG_WARNING(fmt.Sprintf("Skip CWmNewContactsNotify %s %#v", JidToStr(jid), contactInfo))
+			}
 		}
 	}
 
 	// special handling for self
 	selfId := JidToStr(*client.Store.ID)
 	selfName := "" // overridden by ui
-
-	LOG_DEBUG(fmt.Sprintf("Call CWmNewContactsNotify %s %s", selfId, selfName))
+	LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", selfId, selfName))
 	CWmNewContactsNotify(connId, selfId, selfName, BoolToInt(true))
 
+	// groups
 	groups, groupErr := client.GetJoinedGroups()
-	LOG_DEBUG(fmt.Sprintf("groups %+v", groups))
 	if groupErr != nil {
-		LOG_WARNING(fmt.Sprintf("error %v", groupErr))
+		LOG_WARNING(fmt.Sprintf("get joined groups failed %v", groupErr))
 	} else {
+		LOG_TRACE(fmt.Sprintf("groups %+v", groups))
 		for _, group := range groups {
-			LOG_DEBUG(fmt.Sprintf("Call CWmNewContactsNotify %s %s", JidToStr(group.JID), group.GroupName.Name))
+			LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", JidToStr(group.JID), group.GroupName.Name))
 			CWmNewContactsNotify(connId, JidToStr(group.JID), group.GroupName.Name, BoolToInt(false))
 		}
 	}
@@ -556,7 +556,7 @@ func (handler *WmEventHandler) HandleTextMessage(messageInfo types.MessageInfo, 
 
 	UpdateTypingStatus(connId, chatId, senderId, fromMe, isOld)
 
-	LOG_DEBUG(fmt.Sprintf("Call CWmNewMessagesNotify %s: %s", chatId, text))
+	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: %s", chatId, text))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, filePath, fileStatus, timeSent, BoolToInt(isRead))
 }
 
@@ -569,7 +569,7 @@ func (handler *WmEventHandler) HandleImageMessage(messageInfo types.MessageInfo,
 	// get image part
 	img := msg.GetImageMessage()
 	if img == nil {
-		LOG_ERROR(fmt.Sprintf("tmp err"))
+		LOG_WARNING(fmt.Sprintf("get image message failed"))
 		return
 	}
 
@@ -648,7 +648,7 @@ func (handler *WmEventHandler) HandleVideoMessage(messageInfo types.MessageInfo,
 	// get video part
 	vid := msg.GetVideoMessage()
 	if vid == nil {
-		LOG_ERROR(fmt.Sprintf("tmp err"))
+		LOG_WARNING(fmt.Sprintf("get video message failed"))
 		return
 	}
 
@@ -726,7 +726,7 @@ func (handler *WmEventHandler) HandleAudioMessage(messageInfo types.MessageInfo,
 	// get audio part
 	aud := msg.GetAudioMessage()
 	if aud == nil {
-		LOG_ERROR(fmt.Sprintf("tmp err"))
+		LOG_WARNING(fmt.Sprintf("get audio message failed"))
 		return
 	}
 
@@ -804,7 +804,7 @@ func (handler *WmEventHandler) HandleDocumentMessage(messageInfo types.MessageIn
 	// get doc part
 	doc := msg.GetDocumentMessage()
 	if doc == nil {
-		LOG_ERROR(fmt.Sprintf("tmp err"))
+		LOG_WARNING(fmt.Sprintf("get document message failed"))
 		return
 	}
 
@@ -875,16 +875,11 @@ func UpdateTypingStatus(connId int, chatId string, userId string, fromMe bool, i
 
 	LOG_TRACE("update typing status " + strconv.Itoa(connId) + ", " + chatId + ", " + userId)
 
-	// sanity check arg
-	if connId == -1 {
-		LOG_WARNING("invalid connId")
-	}
-
 	// update
 	isOnline := true
 	isTyping := false
 
-	LOG_DEBUG(fmt.Sprintf("Call CWmNewStatusNotify"))
+	LOG_TRACE(fmt.Sprintf("Call CWmNewStatusNotify"))
 	CWmNewStatusNotify(connId, chatId, userId, BoolToInt(isOnline), BoolToInt(isTyping))
 }
 
@@ -966,8 +961,7 @@ func WmLogin(connId int) int {
 	if err != nil {
 		// This error means that we're already logged in, so ignore it.
 		if !errors.Is(err, whatsmeow.ErrQRStoreContainsID) {
-			//log.Errorf("Failed to get QR channel: %v", err)
-			LOG_WARNING("tmp")
+			LOG_WARNING(fmt.Sprintf("failed to get qr channel %v", err))
 		}
 	} else {
 		go func() {
@@ -981,8 +975,7 @@ func WmLogin(connId int) int {
 						qrterminal.GenerateHalfBlock(evt.Code, qrterminal.L, os.Stdout)
 					}
 				} else {
-					//log.Infof("QR channel result: %s", evt.Event)
-					LOG_WARNING("tmp")
+					LOG_WARNING(fmt.Sprintf("qr channel result %v", evt.Event))
 				}
 			}
 		}()
@@ -992,32 +985,30 @@ func WmLogin(connId int) int {
 	cli.AddEventHandler(eventHandler.HandleEvent)
 	err = cli.Connect()
 	if err != nil {
-		LOG_WARNING("tmp")
-		//log.Errorf("Failed to connect: %v", err)
+		LOG_WARNING(fmt.Sprintf("failed to connect %v", err))
 		return -1
 	}
 
-	LOG_DEBUG("conn ok")
+	LOG_DEBUG("connect ok")
 
 	// wait for result (up to 10 sec, 100 ms at a time)
-	LOG_WARNING("wait start")
+	LOG_DEBUG("wait start")
 	i := 0
 	for (i < 100) && (GetState(connId) == Connecting) {
 		time.Sleep(100 * time.Millisecond)
 		i++
 	}
-	LOG_WARNING("wait done")
+	LOG_DEBUG("wait done")
 
 	// delete temporary image file
 	_ = os.Remove(path + "/tmp/qr.png")
 
-	//XXX
 	if GetState(connId) != Connected {
-		LOG_WARNING(fmt.Sprintf("get state %+v", GetState(connId)))
+		LOG_WARNING(fmt.Sprintf("state not connected %+v", GetState(connId)))
 		return -1
 	}
 
-	LOG_WARNING("login ok")
+	LOG_DEBUG("login ok")
 	return 0
 
 }
@@ -1080,7 +1071,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 	// recipient
 	chatJid, jidErr := types.ParseJID(chatId)
 	if jidErr != nil {
-		LOG_WARNING(fmt.Sprintf("jid err"))
+		LOG_WARNING(fmt.Sprintf("jid err %v", jidErr))
 		return -1
 	}
 
@@ -1134,15 +1125,13 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 			data, err := os.ReadFile(filePath)
 			if err != nil {
-				LOG_WARNING(fmt.Sprintf("rec err"))
-				//log.Errorf("Failed to read %s: %v", args[0], err)
+				LOG_WARNING(fmt.Sprintf("read file %s err %v", filePath, err))
 				return -1
 			}
 
 			uploaded, upErr := client.Upload(context.Background(), data, whatsmeow.MediaImage)
 			if upErr != nil {
-				LOG_WARNING(fmt.Sprintf("rec err"))
-				//log.Errorf("Failed to upload file: %v", err)
+				LOG_WARNING(fmt.Sprintf("upload error %v", upErr))
 				return -1
 			}
 
@@ -1171,22 +1160,19 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 			data, err := os.ReadFile(filePath)
 			if err != nil {
-				LOG_WARNING(fmt.Sprintf("rec err"))
-				//log.Errorf("Failed to read %s: %v", args[0], err)
+				LOG_WARNING(fmt.Sprintf("read file %s err %v", filePath, err))
 				return -1
 			}
 
 			uploaded, upErr := client.Upload(context.Background(), data, whatsmeow.MediaDocument)
 			if upErr != nil {
-				LOG_WARNING(fmt.Sprintf("rec err"))
-				//log.Errorf("Failed to upload file: %v", err)
+				LOG_WARNING(fmt.Sprintf("upload error %v", upErr))
 				return -1
 			}
 
 			fileName := filepath.Base(filePath)
 
 			documentMessage := waProto.DocumentMessage{
-				//Caption:       proto.String(text),
 				Url:           proto.String(uploaded.URL),
 				DirectPath:    proto.String(uploaded.DirectPath),
 				MediaKey:      uploaded.MediaKey,
@@ -1204,7 +1190,6 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 			// send message
 			timeStamp, sendErr = client.SendMessage(chatJid, msgId, &message)
-
 		}
 	}
 
