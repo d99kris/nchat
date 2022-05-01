@@ -48,13 +48,15 @@ Interactive Commands:
     Tab         next chat
     Sh-Tab      previous chat
     Ctrl-e      insert emoji
+    Ctrl-f      jump to unread chat
     Ctrl-g      toggle show help bar
+    Ctrl-k      delete from cursor to end of line
     Ctrl-l      toggle show contact list
     Ctrl-p      toggle show top bar
     Ctrl-q      quit
     Ctrl-s      search contacts
     Ctrl-t      send file
-    Ctrl-u      jump to unread chat
+    Ctrl-u      delete from cursor to start of line
     Ctrl-x      send message
     Ctrl-y      toggle show emojis
     KeyUp       select message
@@ -214,10 +216,7 @@ so for the below screenshot the number to enter is +6511111111).
 
 ![screenshot telegram phone](/doc/screenshot-phone.png) 
 
-Once the setup process is completed nchat will exit, and can now be restarted
-in normal mode:
-
-    nchat
+Once the setup process is completed, the main UI of nchat will be loader.
 
 
 Troubleshooting
@@ -226,7 +225,7 @@ If any issues are observed, try running nchat with verbose logging
 
     nchat --verbose
 
-and provide a copy of ~/.nchat/main.log when reporting the issue. The
+and provide a copy of ~/.nchat/log.txt when reporting the issue. The
 preferred way of reporting issues and asking questions is by opening 
 [a Github issue](https://github.com/d99kris/nchat/issues/new). 
 
@@ -326,8 +325,9 @@ include `%1` (will be replaced by sender name) and `%2` (will be replaced
 by message text) enclosed in single quotes (to prevent shell injection).
 Default command used, if not specified:
 
-    Linux: `notify-send 'nchat' '%1: %2'`
-    macOS: `osascript -e 'display notification "%1: %2" with title "nchat"'`
+Linux: `notify-send 'nchat' '%1: %2'`
+
+macOS: `osascript -e 'display notification "%1: %2" with title "nchat"'`
 
 ### desktop_notify_inactive
 
