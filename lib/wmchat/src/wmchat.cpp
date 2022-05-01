@@ -351,7 +351,7 @@ void WmChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
           std::static_pointer_cast<SetStatusRequest>(p_RequestMessage);
         int32_t isOnline = setStatusRequest->isOnline ? 1 : 0;
 
-        int rv = CWmSetStatus(m_ConnId, isOnline);
+        int rv = CWmSendStatus(m_ConnId, isOnline);
 
         std::shared_ptr<SetStatusNotify> setStatusNotify = std::make_shared<SetStatusNotify>(m_ProfileId);
         setStatusNotify->success = (rv == 0);
@@ -566,6 +566,16 @@ void WmNewMessageStatusNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p
 
   free(p_ChatId);
   free(p_MsgId);
+}
+
+void WmSetStatus(int p_Flags)
+{
+  Status::Set(p_Flags);
+}
+
+void WmClearStatus(int p_Flags)
+{
+  Status::Clear(p_Flags);
 }
 
 void WmLogTrace(char* p_Filename, int p_LineNo, char* p_Message)

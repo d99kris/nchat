@@ -26,6 +26,7 @@ std::string Status::ToString()
 {
   std::unique_lock<std::mutex> lock(m_Mutex);
 
+  if (m_Flags & FlagSyncing) return "Syncing";
   if (m_Flags & FlagFetching) return "Fetching";
   if (m_Flags & FlagSending) return "Sending";
   if (m_Flags & FlagUpdating) return "Updating";

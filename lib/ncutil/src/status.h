@@ -22,7 +22,8 @@ public:
     FlagFetching = (1 << 2),
     FlagSending = (1 << 3),
     FlagUpdating = (1 << 4),
-    FlagMax = FlagUpdating,
+    FlagSyncing = (1 << 5),
+    FlagMax = FlagSyncing,
   };
 
   static void Set(uint32_t p_Flags);

@@ -14,6 +14,8 @@ package main
 // extern void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe, char* p_QuotedId, char* p_FilePath, int p_FileStatus, int p_TimeSent, int p_IsRead);
 // extern void WmNewStatusNotify(int p_ConnId, char* p_ChatId, char* p_UserId, int p_IsOnline, int p_IsTyping);
 // extern void WmNewMessageStatusNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsRead);
+// extern void WmSetStatus(int p_Flags);
+// extern void WmClearStatus(int p_Flags);
 // extern void WmLogTrace(char* p_Filename, int p_LineNo, char* p_Message);
 // extern void WmLogDebug(char* p_Filename, int p_LineNo, char* p_Message);
 // extern void WmLogInfo(char* p_Filename, int p_LineNo, char* p_Message);
@@ -71,9 +73,9 @@ func CWmSendTyping(connId int, chatId *C.char, isTyping int) int {
 	return WmSendTyping(connId, C.GoString(chatId), isTyping)
 }
 
-//export CWmSetStatus
-func CWmSetStatus(connId int, isOnline int) int {
-	return WmSetStatus(connId, isOnline)
+//export CWmSendStatus
+func CWmSendStatus(connId int, isOnline int) int {
+	return WmSendStatus(connId, isOnline)
 }
 
 func CWmNewContactsNotify(connId int, chatId string, name string, isSelf int) {
@@ -94,6 +96,14 @@ func CWmNewStatusNotify(connId int, chatId string, userId string, isOnline int, 
 
 func CWmNewMessageStatusNotify(connId int, chatId string, msgId string, isRead int) {
 	C.WmNewMessageStatusNotify(C.int(connId), C.CString(chatId), C.CString(msgId), C.int(isRead))
+}
+
+func CWmSetStatus(flags int) {
+	C.WmSetStatus(C.int(flags))
+}
+
+func CWmClearStatus(flags int) {
+	C.WmClearStatus(C.int(flags))
 }
 
 func LOG_TRACE(message string) {

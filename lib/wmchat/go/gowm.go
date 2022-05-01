@@ -75,6 +75,16 @@ var FileStatusDownloaded = 1
 var FileStatusDownloading = 2
 var FileStatusDownloadFailed = 3
 
+// keep in sync with enum Flag in status.h
+var	FlagNone        = 0
+var	FlagOffline     = (1 << 0)
+var	FlagOnline      = (1 << 1)
+var	FlagFetching    = (1 << 2)
+var	FlagSending     = (1 << 3)
+var	FlagUpdating    = (1 << 4)
+var	FlagSyncing     = (1 << 5)
+var	FlagMax = FlagSyncing
+
 func AddConn(conn *whatsmeow.Client, path string) int {
 	mx.Lock()
 	var connId int = len(clients)
@@ -392,6 +402,8 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 
 	LOG_DEBUG(fmt.Sprintf("HandleHistorySync SyncType %#v", *historySync.Data.SyncType))
 
+	CWmSetStatus(FlagSyncing)
+	
 	pushnames := historySync.Data.GetPushnames()
 	for _, pushname := range pushnames {
 		if pushname.Id != nil && pushname.Pushname != nil {
@@ -425,12 +437,16 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 			handler.HandleMessage(*messageInfo, message, true)
 		}
 	}
+
+	CWmClearStatus(FlagSyncing)
 }
 
 func (handler *WmEventHandler) GetContacts() {
 	var client *whatsmeow.Client = GetClient(handler.connId)
 	connId := handler.connId
 	LOG_DEBUG(fmt.Sprintf("GetContacts"))
+
+	CWmSetStatus(FlagFetching)
 
 	contacts, contErr := client.Store.Contacts.GetAllContacts()
 	if contErr != nil {
@@ -461,6 +477,8 @@ func (handler *WmEventHandler) GetContacts() {
 			CWmNewContactsNotify(connId, JidToStr(group.JID), group.GroupName.Name, BoolToInt(false))
 		}
 	}
+
+	CWmClearStatus(FlagFetching)
 }
 
 func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg *waProto.Message, isSync bool) {
@@ -552,6 +570,7 @@ func (handler *WmEventHandler) HandleImageMessage(messageInfo types.MessageInfo,
 	// download if not yet present
 	if _, statErr := os.Stat(filePath); os.IsNotExist(statErr) {
 		LOG_TRACE(fmt.Sprintf("ImageMessage new %v", filePath))
+		CWmSetStatus(FlagFetching)
 		data, err := client.Download(img)
 		if err != nil {
 			LOG_WARNING(fmt.Sprintf("download error %+v", err))
@@ -573,6 +592,7 @@ func (handler *WmEventHandler) HandleImageMessage(messageInfo types.MessageInfo,
 				}
 			}
 		}
+		CWmClearStatus(FlagFetching)
 	} else {
 		LOG_TRACE(fmt.Sprintf("ImageMessage cached %v", filePath))
 		fileStatus = FileStatusDownloaded
@@ -628,6 +648,7 @@ func (handler *WmEventHandler) HandleVideoMessage(messageInfo types.MessageInfo,
 
 	if _, statErr := os.Stat(filePath); os.IsNotExist(statErr) {
 		LOG_TRACE(fmt.Sprintf("VideoMessage new %v", filePath))
+		CWmSetStatus(FlagFetching)
 		data, err := client.Download(vid)
 		if err != nil {
 			LOG_WARNING(fmt.Sprintf("download error %+v", err))
@@ -649,6 +670,7 @@ func (handler *WmEventHandler) HandleVideoMessage(messageInfo types.MessageInfo,
 				}
 			}
 		}
+		CWmClearStatus(FlagFetching)
 	} else {
 		LOG_TRACE(fmt.Sprintf("VideoMessage cached %v", filePath))
 		fileStatus = FileStatusDownloaded
@@ -704,6 +726,7 @@ func (handler *WmEventHandler) HandleAudioMessage(messageInfo types.MessageInfo,
 
 	if _, statErr := os.Stat(filePath); os.IsNotExist(statErr) {
 		LOG_TRACE(fmt.Sprintf("AudioMessage new %v", filePath))
+		CWmSetStatus(FlagFetching)
 		data, err := client.Download(aud)
 		if err != nil {
 			LOG_WARNING(fmt.Sprintf("download error %+v", err))
@@ -725,6 +748,7 @@ func (handler *WmEventHandler) HandleAudioMessage(messageInfo types.MessageInfo,
 				}
 			}
 		}
+		CWmClearStatus(FlagFetching)
 	} else {
 		LOG_TRACE(fmt.Sprintf("AudioMessage cached %v", filePath))
 		fileStatus = FileStatusDownloaded
@@ -773,6 +797,7 @@ func (handler *WmEventHandler) HandleDocumentMessage(messageInfo types.MessageIn
 
 	if _, statErr := os.Stat(filePath); os.IsNotExist(statErr) {
 		LOG_TRACE(fmt.Sprintf("DocumentMessage new %v", filePath))
+		CWmSetStatus(FlagFetching)
 		data, err := client.Download(doc)
 		if err != nil {
 			LOG_WARNING(fmt.Sprintf("download error %+v", err))
@@ -794,6 +819,7 @@ func (handler *WmEventHandler) HandleDocumentMessage(messageInfo types.MessageIn
 				}
 			}
 		}
+		CWmClearStatus(FlagFetching)
 	} else {
 		LOG_TRACE(fmt.Sprintf("DocumentMessage cached %v", filePath))
 		fileStatus = FileStatusDownloaded
@@ -1274,9 +1300,9 @@ func WmSendTyping(connId int, chatId string, isTyping int) int {
 	return 0
 }
 
-func WmSetStatus(connId int, isOnline int) int {
+func WmSendStatus(connId int, isOnline int) int {
 
-	LOG_TRACE("set status " + strconv.Itoa(connId) + ", " + strconv.Itoa(isOnline))
+	LOG_TRACE("send status " + strconv.Itoa(connId) + ", " + strconv.Itoa(isOnline))
 
 	 // sanity check arg
 	 if connId == -1 {
