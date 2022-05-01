@@ -322,7 +322,7 @@ func (handler *WmEventHandler) HandleEvent(rawEvt interface{}) {
 		handler.HandleHistorySync(evt)
 
 	case *events.AppState:
-		LOG_TRACE(fmt.Sprintf("%#v - %+v / %+v", evt, evt.Index, evt.SyncActionValue))
+		LOG_TRACE(fmt.Sprintf("%#v - %#v / %#v", evt, evt.Index, evt.SyncActionValue))
 
 	case *events.LoggedOut:
 		// logged out, need re-init?
@@ -365,7 +365,7 @@ func (handler *WmEventHandler) HandleConnected() {
 
 func (handler *WmEventHandler) HandleReceipt(receipt *events.Receipt) {
 	if receipt.Type == events.ReceiptTypeRead || receipt.Type == events.ReceiptTypeReadSelf {
-		LOG_TRACE(fmt.Sprintf("%v was read by %s at %s", receipt.MessageIDs, receipt.SourceString(), receipt.Timestamp))
+		LOG_TRACE(fmt.Sprintf("%#v was read by %s at %s", receipt.MessageIDs, receipt.SourceString(), receipt.Timestamp))
 		connId := handler.connId
 		chatId := receipt.SourceString()
 		isRead := true
@@ -471,9 +471,9 @@ func (handler *WmEventHandler) GetContacts() {
 	// contacts
 	contacts, contErr := client.Store.Contacts.GetAllContacts()
 	if contErr != nil {
-		LOG_WARNING(fmt.Sprintf("get all contacts failed %v", contErr))
+		LOG_WARNING(fmt.Sprintf("get all contacts failed %#v", contErr))
 	} else {
-		LOG_TRACE(fmt.Sprintf("contacts %+v", contacts))
+		LOG_TRACE(fmt.Sprintf("contacts %#v", contacts))
 		for jid, contactInfo := range contacts {
 			name := GetNameFromContactInfo(contactInfo)
 			if len(name) > 0 {
@@ -494,9 +494,9 @@ func (handler *WmEventHandler) GetContacts() {
 	// groups
 	groups, groupErr := client.GetJoinedGroups()
 	if groupErr != nil {
-		LOG_WARNING(fmt.Sprintf("get joined groups failed %v", groupErr))
+		LOG_WARNING(fmt.Sprintf("get joined groups failed %#v", groupErr))
 	} else {
-		LOG_TRACE(fmt.Sprintf("groups %+v", groups))
+		LOG_TRACE(fmt.Sprintf("groups %#v", groups))
 		for _, group := range groups {
 			LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", JidToStr(group.JID), group.GroupName.Name))
 			CWmNewContactsNotify(connId, JidToStr(group.JID), group.GroupName.Name, BoolToInt(false))
@@ -589,27 +589,27 @@ func (handler *WmEventHandler) HandleImageMessage(messageInfo types.MessageInfo,
 
 	// get temp file path
 	var tmpPath string = GetPath(connId) + "/tmp"
-	filePath := fmt.Sprintf("%v/%v.%v", tmpPath, messageInfo.ID, ext)
+	filePath := fmt.Sprintf("%#v/%#v.%#v", tmpPath, messageInfo.ID, ext)
 	fileStatus := FileStatusNone
 
 	// download if not yet present
 	if _, statErr := os.Stat(filePath); os.IsNotExist(statErr) {
-		LOG_TRACE(fmt.Sprintf("ImageMessage new %v", filePath))
+		LOG_TRACE(fmt.Sprintf("ImageMessage new %#v", filePath))
 		CWmSetStatus(FlagFetching)
 		data, err := client.Download(img)
 		if err != nil {
-			LOG_WARNING(fmt.Sprintf("download error %+v", err))
+			LOG_WARNING(fmt.Sprintf("download error %#v", err))
 			fileStatus = FileStatusDownloadFailed
 		} else {
 			file, err := os.Create(filePath)
 			defer file.Close()
 			if err != nil {
-				LOG_WARNING(fmt.Sprintf("create error %+v", err))
+				LOG_WARNING(fmt.Sprintf("create error %#v", err))
 				fileStatus = FileStatusDownloadFailed
 			} else {
 				_, err = file.Write(data)
 				if err != nil {
-					LOG_WARNING(fmt.Sprintf("write error %+v", err))
+					LOG_WARNING(fmt.Sprintf("write error %#v", err))
 					fileStatus = FileStatusDownloadFailed
 				} else {
 					LOG_TRACE(fmt.Sprintf("download ok"))
@@ -619,7 +619,7 @@ func (handler *WmEventHandler) HandleImageMessage(messageInfo types.MessageInfo,
 		}
 		CWmClearStatus(FlagFetching)
 	} else {
-		LOG_TRACE(fmt.Sprintf("ImageMessage cached %v", filePath))
+		LOG_TRACE(fmt.Sprintf("ImageMessage cached %#v", filePath))
 		fileStatus = FileStatusDownloaded
 	}
 
@@ -668,26 +668,26 @@ func (handler *WmEventHandler) HandleVideoMessage(messageInfo types.MessageInfo,
 
 	// get temp file path
 	var tmpPath string = GetPath(connId) + "/tmp"
-	filePath := fmt.Sprintf("%v/%v.%v", tmpPath, messageInfo.ID, ext)
+	filePath := fmt.Sprintf("%#v/%#v.%#v", tmpPath, messageInfo.ID, ext)
 	fileStatus := FileStatusNone
 
 	if _, statErr := os.Stat(filePath); os.IsNotExist(statErr) {
-		LOG_TRACE(fmt.Sprintf("VideoMessage new %v", filePath))
+		LOG_TRACE(fmt.Sprintf("VideoMessage new %#v", filePath))
 		CWmSetStatus(FlagFetching)
 		data, err := client.Download(vid)
 		if err != nil {
-			LOG_WARNING(fmt.Sprintf("download error %+v", err))
+			LOG_WARNING(fmt.Sprintf("download error %#v", err))
 			fileStatus = FileStatusDownloadFailed
 		} else {
 			file, err := os.Create(filePath)
 			defer file.Close()
 			if err != nil {
-				LOG_WARNING(fmt.Sprintf("create error %+v", err))
+				LOG_WARNING(fmt.Sprintf("create error %#v", err))
 				fileStatus = FileStatusDownloadFailed
 			} else {
 				_, err = file.Write(data)
 				if err != nil {
-					LOG_WARNING(fmt.Sprintf("write error %+v", err))
+					LOG_WARNING(fmt.Sprintf("write error %#v", err))
 					fileStatus = FileStatusDownloadFailed
 				} else {
 					LOG_TRACE(fmt.Sprintf("download ok"))
@@ -697,7 +697,7 @@ func (handler *WmEventHandler) HandleVideoMessage(messageInfo types.MessageInfo,
 		}
 		CWmClearStatus(FlagFetching)
 	} else {
-		LOG_TRACE(fmt.Sprintf("VideoMessage cached %v", filePath))
+		LOG_TRACE(fmt.Sprintf("VideoMessage cached %#v", filePath))
 		fileStatus = FileStatusDownloaded
 	}
 
@@ -746,26 +746,26 @@ func (handler *WmEventHandler) HandleAudioMessage(messageInfo types.MessageInfo,
 
 	// get temp file path
 	var tmpPath string = GetPath(connId) + "/tmp"
-	filePath := fmt.Sprintf("%v/%v.%v", tmpPath, messageInfo.ID, ext)
+	filePath := fmt.Sprintf("%#v/%#v.%#v", tmpPath, messageInfo.ID, ext)
 	fileStatus := FileStatusNone
 
 	if _, statErr := os.Stat(filePath); os.IsNotExist(statErr) {
-		LOG_TRACE(fmt.Sprintf("AudioMessage new %v", filePath))
+		LOG_TRACE(fmt.Sprintf("AudioMessage new %#v", filePath))
 		CWmSetStatus(FlagFetching)
 		data, err := client.Download(aud)
 		if err != nil {
-			LOG_WARNING(fmt.Sprintf("download error %+v", err))
+			LOG_WARNING(fmt.Sprintf("download error %#v", err))
 			fileStatus = FileStatusDownloadFailed
 		} else {
 			file, err := os.Create(filePath)
 			defer file.Close()
 			if err != nil {
-				LOG_WARNING(fmt.Sprintf("create error %+v", err))
+				LOG_WARNING(fmt.Sprintf("create error %#v", err))
 				fileStatus = FileStatusDownloadFailed
 			} else {
 				_, err = file.Write(data)
 				if err != nil {
-					LOG_WARNING(fmt.Sprintf("write error %+v", err))
+					LOG_WARNING(fmt.Sprintf("write error %#v", err))
 					fileStatus = FileStatusDownloadFailed
 				} else {
 					LOG_TRACE(fmt.Sprintf("download ok"))
@@ -775,7 +775,7 @@ func (handler *WmEventHandler) HandleAudioMessage(messageInfo types.MessageInfo,
 		}
 		CWmClearStatus(FlagFetching)
 	} else {
-		LOG_TRACE(fmt.Sprintf("AudioMessage cached %v", filePath))
+		LOG_TRACE(fmt.Sprintf("AudioMessage cached %#v", filePath))
 		fileStatus = FileStatusDownloaded
 	}
 
@@ -817,26 +817,26 @@ func (handler *WmEventHandler) HandleDocumentMessage(messageInfo types.MessageIn
 
 	// get temp file path
 	var tmpPath string = GetPath(connId) + "/tmp"
-	filePath := fmt.Sprintf("%v/%v-%s", tmpPath, messageInfo.ID, *doc.FileName)
+	filePath := fmt.Sprintf("%#v/%#v-%#s", tmpPath, messageInfo.ID, *doc.FileName)
 	fileStatus := FileStatusNone
 
 	if _, statErr := os.Stat(filePath); os.IsNotExist(statErr) {
-		LOG_TRACE(fmt.Sprintf("DocumentMessage new %v", filePath))
+		LOG_TRACE(fmt.Sprintf("DocumentMessage new %#v", filePath))
 		CWmSetStatus(FlagFetching)
 		data, err := client.Download(doc)
 		if err != nil {
-			LOG_WARNING(fmt.Sprintf("download error %+v", err))
+			LOG_WARNING(fmt.Sprintf("download error %#v", err))
 			fileStatus = FileStatusDownloadFailed
 		} else {
 			file, err := os.Create(filePath)
 			defer file.Close()
 			if err != nil {
-				LOG_WARNING(fmt.Sprintf("create error %+v", err))
+				LOG_WARNING(fmt.Sprintf("create error %#v", err))
 				fileStatus = FileStatusDownloadFailed
 			} else {
 				_, err = file.Write(data)
 				if err != nil {
-					LOG_WARNING(fmt.Sprintf("write error %+v", err))
+					LOG_WARNING(fmt.Sprintf("write error %#v", err))
 					fileStatus = FileStatusDownloadFailed
 				} else {
 					LOG_TRACE(fmt.Sprintf("download ok"))
@@ -846,7 +846,7 @@ func (handler *WmEventHandler) HandleDocumentMessage(messageInfo types.MessageIn
 		}
 		CWmClearStatus(FlagFetching)
 	} else {
-		LOG_TRACE(fmt.Sprintf("DocumentMessage cached %v", filePath))
+		LOG_TRACE(fmt.Sprintf("DocumentMessage cached %#v", filePath))
 		fileStatus = FileStatusDownloaded
 	}
 
@@ -891,7 +891,7 @@ func WmInit(path string) int {
 	var tmpPath string = path + "/tmp"
 	tmpErr := os.MkdirAll(tmpPath, os.ModePerm)
 	if tmpErr != nil {
-		LOG_WARNING(fmt.Sprintf("mkdir error %+v", tmpErr))
+		LOG_WARNING(fmt.Sprintf("mkdir error %#v", tmpErr))
 		return -1
 	}
 
@@ -903,13 +903,13 @@ func WmInit(path string) int {
 	sqlAddress := fmt.Sprintf("file:%s?_foreign_keys=on", sessionPath)
 	container, sqlErr := sqlstore.New("sqlite3", sqlAddress, dbLog)
 	if sqlErr != nil {
-		LOG_WARNING(fmt.Sprintf("sqlite error %+v", sqlErr))
+		LOG_WARNING(fmt.Sprintf("sqlite error %#v", sqlErr))
 		return -1
 	}
 
 	deviceStore, devErr := container.GetFirstDevice()
 	if devErr != nil {
-		LOG_WARNING(fmt.Sprintf("dev store error %+v", devErr))
+		LOG_WARNING(fmt.Sprintf("dev store error %#v", devErr))
 		return -1
 	}
 
@@ -961,7 +961,7 @@ func WmLogin(connId int) int {
 	if err != nil {
 		// This error means that we're already logged in, so ignore it.
 		if !errors.Is(err, whatsmeow.ErrQRStoreContainsID) {
-			LOG_WARNING(fmt.Sprintf("failed to get qr channel %v", err))
+			LOG_WARNING(fmt.Sprintf("failed to get qr channel %#v", err))
 		}
 	} else {
 		go func() {
@@ -975,7 +975,7 @@ func WmLogin(connId int) int {
 						qrterminal.GenerateHalfBlock(evt.Code, qrterminal.L, os.Stdout)
 					}
 				} else {
-					LOG_WARNING(fmt.Sprintf("qr channel result %v", evt.Event))
+					LOG_WARNING(fmt.Sprintf("qr channel result %#v", evt.Event))
 				}
 			}
 		}()
@@ -985,7 +985,7 @@ func WmLogin(connId int) int {
 	cli.AddEventHandler(eventHandler.HandleEvent)
 	err = cli.Connect()
 	if err != nil {
-		LOG_WARNING(fmt.Sprintf("failed to connect %v", err))
+		LOG_WARNING(fmt.Sprintf("failed to connect %#v", err))
 		return -1
 	}
 
@@ -1004,7 +1004,7 @@ func WmLogin(connId int) int {
 	_ = os.Remove(path + "/tmp/qr.png")
 
 	if GetState(connId) != Connected {
-		LOG_WARNING(fmt.Sprintf("state not connected %+v", GetState(connId)))
+		LOG_WARNING(fmt.Sprintf("state not connected %#v", GetState(connId)))
 		return -1
 	}
 
@@ -1071,7 +1071,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 	// recipient
 	chatJid, jidErr := types.ParseJID(chatId)
 	if jidErr != nil {
-		LOG_WARNING(fmt.Sprintf("jid err %v", jidErr))
+		LOG_WARNING(fmt.Sprintf("jid err %#v", jidErr))
 		return -1
 	}
 
@@ -1125,13 +1125,13 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 			data, err := os.ReadFile(filePath)
 			if err != nil {
-				LOG_WARNING(fmt.Sprintf("read file %s err %v", filePath, err))
+				LOG_WARNING(fmt.Sprintf("read file %s err %#v", filePath, err))
 				return -1
 			}
 
 			uploaded, upErr := client.Upload(context.Background(), data, whatsmeow.MediaImage)
 			if upErr != nil {
-				LOG_WARNING(fmt.Sprintf("upload error %v", upErr))
+				LOG_WARNING(fmt.Sprintf("upload error %#v", upErr))
 				return -1
 			}
 
@@ -1160,13 +1160,13 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 			data, err := os.ReadFile(filePath)
 			if err != nil {
-				LOG_WARNING(fmt.Sprintf("read file %s err %v", filePath, err))
+				LOG_WARNING(fmt.Sprintf("read file %s err %#v", filePath, err))
 				return -1
 			}
 
 			uploaded, upErr := client.Upload(context.Background(), data, whatsmeow.MediaDocument)
 			if upErr != nil {
-				LOG_WARNING(fmt.Sprintf("upload error %v", upErr))
+				LOG_WARNING(fmt.Sprintf("upload error %#v", upErr))
 				return -1
 			}
 
@@ -1195,7 +1195,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 	// log any error
 	if sendErr != nil {
-		LOG_WARNING(fmt.Sprintf("send message error %+v", sendErr))
+		LOG_WARNING(fmt.Sprintf("send message error %#v", sendErr))
 		return -1
 	} else {
 		LOG_TRACE(fmt.Sprintf("send message ok"))
@@ -1239,10 +1239,10 @@ func WmMarkMessageRead(connId int, chatId string, msgId string) int {
 
 	// log any error
 	if err != nil {
-		LOG_WARNING(fmt.Sprintf("mark message read error %+v", err))
+		LOG_WARNING(fmt.Sprintf("mark message read error %#v", err))
 		return -1
 	} else {
-		LOG_TRACE(fmt.Sprintf("mark message read ok %+v", msgId))
+		LOG_TRACE(fmt.Sprintf("mark message read ok %#v", msgId))
 	}
 
 	return 0
@@ -1267,10 +1267,10 @@ func WmDeleteMessage(connId int, chatId string, msgId string) int {
 
 	// log any error
 	if err != nil {
-		LOG_WARNING(fmt.Sprintf("delete message error %+v", err))
+		LOG_WARNING(fmt.Sprintf("delete message error %#v", err))
 		return -1
 	} else {
-		LOG_TRACE(fmt.Sprintf("delete message ok %+v", msgId))
+		LOG_TRACE(fmt.Sprintf("delete message ok %#v", msgId))
 	}
 
 	return 0
@@ -1301,7 +1301,7 @@ func WmSendTyping(connId int, chatId string, isTyping int) int {
 
 	// log any error
 	if err != nil {
-		LOG_WARNING(fmt.Sprintf("send typing error %+v", err))
+		LOG_WARNING(fmt.Sprintf("send typing error %#v", err))
 		return -1
 	} else {
 		LOG_TRACE(fmt.Sprintf("send typing ok"))
