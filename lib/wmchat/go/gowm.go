@@ -441,6 +441,26 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 	CWmClearStatus(FlagSyncing)
 }
 
+func GetNameFromContactInfo(contactInfo types.ContactInfo) string {
+	if len(contactInfo.FullName) > 0 {
+		return contactInfo.FullName
+	}
+
+	if len(contactInfo.FirstName) > 0 {
+		return contactInfo.FirstName
+	}
+
+	if len(contactInfo.PushName) > 0 {
+		return contactInfo.PushName
+	}
+
+	if len(contactInfo.BusinessName) > 0 {
+		return contactInfo.BusinessName
+	}
+
+	return ""
+}
+
 func (handler *WmEventHandler) GetContacts() {
 	var client *whatsmeow.Client = GetClient(handler.connId)
 	connId := handler.connId
@@ -456,8 +476,13 @@ func (handler *WmEventHandler) GetContacts() {
 	LOG_DEBUG(fmt.Sprintf("contacts %+v", contacts))
 
 	for jid, contactInfo := range contacts {
-		LOG_DEBUG(fmt.Sprintf("Call CWmNewContactsNotify %s %s", JidToStr(jid), contactInfo.PushName))
-		CWmNewContactsNotify(connId, JidToStr(jid), contactInfo.PushName, BoolToInt(false))
+		name := GetNameFromContactInfo(contactInfo)
+		if len(name) > 0 {
+			LOG_DEBUG(fmt.Sprintf("Call CWmNewContactsNotify %s %s", JidToStr(jid), name))
+			CWmNewContactsNotify(connId, JidToStr(jid), name, BoolToInt(false))
+		} else {
+			LOG_WARNING(fmt.Sprintf("Skip CWmNewContactsNotify %s %+v", JidToStr(jid), contactInfo))
+		}
 	}
 
 	// special handling for self
