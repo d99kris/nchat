@@ -1,6 +1,6 @@
 # Project
 cmake_minimum_required(VERSION 3.16 FATAL_ERROR) # 3.1 is ok, but is 3.16 needed for proper version string
-project(nchat VERSION 2.68 LANGUAGES CXX)
+project(nchat VERSION 2.69 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 14)
 include(CheckCXXSourceCompiles)
 set(NCHAT_PROJECT_VERSION ${PROJECT_VERSION})
@@ -141,6 +141,9 @@ set(CURSES_NEED_NCURSES TRUE)
 set(CURSES_NEED_WIDE TRUE)
 find_package(Curses REQUIRED)
 include_directories(${CURSES_INCLUDE_DIR})
+
+# Compile options
+target_compile_options(nchat PUBLIC ${NCURSES_CFLAGS})
 
 # Linking
 target_link_libraries(nchat PUBLIC ncutil pthread ${CURSES_LIBRARIES} dl)
