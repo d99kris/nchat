@@ -21,7 +21,16 @@
 
 Ui::Ui()
 {
+  UiConfig::Init();
+
+  m_TerminalTitle = UiConfig::GetStr("terminal_title");
+  if (!m_TerminalTitle.empty())
+  {
+    printf("\033]1;%s\007", m_TerminalTitle.c_str());
+  }
+
   printf("\033[?1004h"); // enable terminal focus in/out event
+
   setlocale(LC_ALL, "");
   initscr();
   noecho();
@@ -31,7 +40,6 @@ Ui::Ui()
   curs_set(0);
   timeout(0);
   EmojiList::Init();
-  UiConfig::Init();
   UiKeyConfig::Init();
   UiColorConfig::Init();
 
@@ -46,11 +54,17 @@ Ui::~Ui()
 
   UiColorConfig::Cleanup();
   UiKeyConfig::Cleanup();
-  UiConfig::Cleanup();
   EmojiList::Cleanup();
+  UiConfig::Cleanup();
   wclear(stdscr);
   endwin();
+
   printf("\033[?1004l"); // disable terminal focus in/out event
+
+  if (!m_TerminalTitle.empty())
+  {
+    printf("\033]1;%s\007", "");
+  }
 }
 
 void Ui::Run()

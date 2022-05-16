@@ -30,4 +30,5 @@ public:
 private:
   std::shared_ptr<UiModel> m_Model;
   std::shared_ptr<UiController> m_Controller;
+  std::string m_TerminalTitle;
 };

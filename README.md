@@ -303,6 +303,7 @@ This configuration file holds general user interface settings. Default content:
     syncing_indicator=⇄
     terminal_bell_active=0
     terminal_bell_inactive=1
+    terminal_title=
     top_enabled=1
 
 ### attachment_indicator
@@ -398,6 +399,10 @@ window is active.
 
 Specifies whether new message shall trigger terminal bell when nchat terminal
 window is inactive.
+
+### terminal_title
+
+Specifies custom terminal title, ex: `terminal_title=nchat - telegram`.
 
 ### top_enabled
 

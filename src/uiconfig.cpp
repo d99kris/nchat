@@ -37,6 +37,7 @@ void UiConfig::Init()
     { "syncing_indicator", "\xe2\x87\x84" },
     { "terminal_bell_active", "0" },
     { "terminal_bell_inactive", "1" },
+    { "terminal_title", "" },
     { "top_enabled", "1" },
   };
 
