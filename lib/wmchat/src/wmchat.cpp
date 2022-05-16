@@ -11,6 +11,7 @@
 
 #include <sys/stat.h>
 
+#include "appconfig.h"
 #include "libcgowm.h"
 #include "log.h"
 #include "messagecache.h"
@@ -375,6 +376,24 @@ void WmChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
       }
       break;
 
+    case DownloadFileRequestType:
+      {
+        std::shared_ptr<DownloadFileRequest> downloadFileRequest =
+          std::static_pointer_cast<DownloadFileRequest>(p_RequestMessage);
+        std::string chatId = downloadFileRequest->chatId;
+        std::string msgId = downloadFileRequest->msgId;
+        std::string fileId = downloadFileRequest->fileId;
+        DownloadFileAction downloadFileAction = downloadFileRequest->downloadFileAction;
+
+        CWmDownloadFile(m_ConnId,
+                        const_cast<char*>(chatId.c_str()),
+                        const_cast<char*>(msgId.c_str()),
+                        const_cast<char*>(fileId.c_str()),
+                        downloadFileAction
+                        );
+      }
+      break;
+
     case DeferNotifyRequestType:
       {
         std::shared_ptr<DeferNotifyRequest> deferNotifyRequest =
@@ -465,7 +484,7 @@ void WmNewChatsNotify(int p_ConnId, char* p_ChatId, int p_IsUnread, int p_IsMute
 }
 
 void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe,
-                         char* p_QuotedId, char* p_FilePath, int p_FileStatus, int p_TimeSent, int p_IsRead)
+                         char* p_QuotedId, char* p_FileId, char* p_FilePath, int p_FileStatus, int p_TimeSent, int p_IsRead)
 {
   LOG_DEBUG("WaNewMessagesNotify");
 
@@ -473,13 +492,27 @@ void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_Se
   if (instance == nullptr) return;
 
   std::string fileInfoStr;
-  std::string filePath = std::string(p_FilePath);
-  if (!filePath.empty())
+  std::string fileId = std::string(p_FileId);
+  if (!fileId.empty())
   {
     FileInfo fileInfo;
     fileInfo.fileStatus = (FileStatus)p_FileStatus;
-    fileInfo.filePath = p_FilePath;
+    fileInfo.fileId = fileId;
+    fileInfo.filePath = std::string(p_FilePath);
     fileInfoStr = ProtocolUtil::FileInfoToHex(fileInfo);
+
+    static bool attachmentPrefetchAll =
+      (AppConfig::GetNum("attachment_prefetch") == AttachmentPrefetchAll);
+    if (attachmentPrefetchAll)
+    {
+      std::shared_ptr<DownloadFileRequest> downloadFileRequest = std::make_shared<DownloadFileRequest>();
+      downloadFileRequest->chatId = std::string(p_ChatId);
+      downloadFileRequest->msgId = std::string(p_MsgId);
+      downloadFileRequest->fileId = std::string(p_FileId);
+      downloadFileRequest->downloadFileAction = DownloadFileActionNone;
+
+      instance->SendRequest(downloadFileRequest);
+    }
   }
 
   ChatMessage chatMessage;
@@ -506,7 +539,7 @@ void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_Se
   free(p_SenderId);
   free(p_Text);
   free(p_QuotedId);
-  free(p_FilePath);
+  free(p_FileId);
 }
 
 void WmNewStatusNotify(int p_ConnId, char* p_ChatId, char* p_UserId, int p_IsOnline, int p_IsTyping)
@@ -566,6 +599,33 @@ void WmNewMessageStatusNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p
 
   free(p_ChatId);
   free(p_MsgId);
+}
+
+void WmNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_FilePath, int p_FileStatus, int p_Action)
+{
+  WmChat* instance = WmChat::GetInstance(p_ConnId);
+  if (instance == nullptr) return;
+
+  {
+    FileInfo fileInfo;
+    fileInfo.fileStatus = static_cast<FileStatus>(p_FileStatus);
+    fileInfo.filePath = std::string(p_FilePath);
+
+    std::shared_ptr<NewMessageFileNotify> newMessageFileNotify =
+      std::make_shared<NewMessageFileNotify>(instance->GetProfileId());
+    newMessageFileNotify->chatId = std::string(p_ChatId);
+    newMessageFileNotify->msgId = std::string(p_MsgId);
+    newMessageFileNotify->fileInfo = ProtocolUtil::FileInfoToHex(fileInfo);
+    newMessageFileNotify->downloadFileAction = static_cast<DownloadFileAction>(p_Action);
+
+    std::shared_ptr<DeferNotifyRequest> deferNotifyRequest = std::make_shared<DeferNotifyRequest>();
+    deferNotifyRequest->serviceMessage = newMessageFileNotify;
+    instance->SendRequest(deferNotifyRequest);
+  }
+
+  free(p_ChatId);
+  free(p_MsgId);
+  free(p_FilePath);
 }
 
 void WmSetStatus(int p_Flags)

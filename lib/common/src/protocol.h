@@ -114,9 +114,9 @@ enum FileStatus
 struct FileInfo
 {
   FileStatus fileStatus = FileStatusNone;
-  std::string fileId; // tgchat only
+  std::string fileId;
   std::string filePath;
-  std::string fileType; // wachat only
+  std::string fileType; // wmchat send only
 };
 
 struct ChatMessage

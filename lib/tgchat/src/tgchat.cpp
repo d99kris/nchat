@@ -1755,6 +1755,8 @@ void TgChat::Impl::TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessag
       downloadFileRequest->chatId = StrUtil::NumToHex(p_TdMessage.chat_id_);
       downloadFileRequest->msgId = StrUtil::NumToHex(p_TdMessage.id_);
       downloadFileRequest->fileId = StrUtil::NumToHex(fileId);
+      downloadFileRequest->downloadFileAction = DownloadFileActionNone;
+
       SendRequest(downloadFileRequest);
     }
   }

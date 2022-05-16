@@ -287,3 +287,21 @@ func validateMedia(iv, file, macKey, mac []byte) error {
 	}
 	return nil
 }
+
+// nchat additions, expose private functions
+func (cli *Client) DownloadMediaWithUrl(url string, mediaKey []byte, appInfo MediaType, fileLength int, fileEncSha256 []byte, fileSha256 []byte) (data []byte, err error) {
+	return cli.downloadAndDecrypt(url, mediaKey, appInfo, fileLength, fileEncSha256, fileSha256)
+}
+
+func GetDownloadSize(msg DownloadableMessage) int {
+	return getSize(msg)
+}
+
+func GetMMSType(mediaType MediaType) string {
+	return mediaTypeToMMSType[mediaType]
+}
+
+type DownloadableMessageWithURL interface {
+	DownloadableMessage
+	GetUrl() string
+}

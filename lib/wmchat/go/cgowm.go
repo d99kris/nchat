@@ -11,9 +11,10 @@ package main
 // #cgo darwin LDFLAGS: -Wl,-undefined,dynamic_lookup
 // extern void WmNewContactsNotify(int p_ConnId, char* p_ChatId, char* p_Name, int p_IsSelf);
 // extern void WmNewChatsNotify(int p_ConnId, char* p_ChatId, int p_IsUnread, int p_IsMuted, int p_LastMessageTime);
-// extern void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe, char* p_QuotedId, char* p_FilePath, int p_FileStatus, int p_TimeSent, int p_IsRead);
+// extern void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe, char* p_QuotedId, char* p_FileId, char* p_FilePath, int p_FileStatus, int p_TimeSent, int p_IsRead);
 // extern void WmNewStatusNotify(int p_ConnId, char* p_ChatId, char* p_UserId, int p_IsOnline, int p_IsTyping);
 // extern void WmNewMessageStatusNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsRead);
+// extern void WmNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_FilePath, int p_FileStatus, int p_Action);
 // extern void WmSetStatus(int p_Flags);
 // extern void WmClearStatus(int p_Flags);
 // extern void WmLogTrace(char* p_Filename, int p_LineNo, char* p_Message);
@@ -78,6 +79,11 @@ func CWmSendStatus(connId int, isOnline int) int {
 	return WmSendStatus(connId, isOnline)
 }
 
+//export CWmDownloadFile
+func CWmDownloadFile(connId int, chatId *C.char, msgId *C.char, fileId *C.char, action int) int {
+	return WmDownloadFile(connId, C.GoString(chatId), C.GoString(msgId), C.GoString(fileId), action)
+}
+
 func CWmNewContactsNotify(connId int, chatId string, name string, isSelf int) {
 	C.WmNewContactsNotify(C.int(connId), C.CString(chatId), C.CString(name), C.int(isSelf))
 }
@@ -86,8 +92,8 @@ func CWmNewChatsNotify(connId int, chatId string, isUnread int, isMuted int, las
 	C.WmNewChatsNotify(C.int(connId), C.CString(chatId), C.int(isUnread), C.int(isMuted), C.int(lastMessageTime))
 }
 
-func CWmNewMessagesNotify(connId int, chatId string, msgId string, senderId string, text string, fromMe int, quotedId string, filePath string, fileStatus int, timeSent int, isRead int) {
-	C.WmNewMessagesNotify(C.int(connId), C.CString(chatId), C.CString(msgId), C.CString(senderId), C.CString(text), C.int(fromMe), C.CString(quotedId), C.CString(filePath), C.int(fileStatus), C.int(timeSent), C.int(isRead))
+func CWmNewMessagesNotify(connId int, chatId string, msgId string, senderId string, text string, fromMe int, quotedId string, fileId string, filePath string, fileStatus int, timeSent int, isRead int) {
+	C.WmNewMessagesNotify(C.int(connId), C.CString(chatId), C.CString(msgId), C.CString(senderId), C.CString(text), C.int(fromMe), C.CString(quotedId), C.CString(fileId), C.CString(filePath), C.int(fileStatus), C.int(timeSent), C.int(isRead))
 }
 
 func CWmNewStatusNotify(connId int, chatId string, userId string, isOnline int, isTyping int) {
@@ -96,6 +102,10 @@ func CWmNewStatusNotify(connId int, chatId string, userId string, isOnline int, 
 
 func CWmNewMessageStatusNotify(connId int, chatId string, msgId string, isRead int) {
 	C.WmNewMessageStatusNotify(C.int(connId), C.CString(chatId), C.CString(msgId), C.int(isRead))
+}
+
+func CWmNewMessageFileNotify(connId int, chatId string, msgId string, filePath string, fileStatus int, action int) {
+	C.WmNewMessageFileNotify(C.int(connId), C.CString(chatId), C.CString(msgId), C.CString(filePath), C.int(fileStatus), C.int(action))
 }
 
 func CWmSetStatus(flags int) {
