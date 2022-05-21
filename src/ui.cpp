@@ -26,7 +26,7 @@ Ui::Ui()
   m_TerminalTitle = UiConfig::GetStr("terminal_title");
   if (!m_TerminalTitle.empty())
   {
-    printf("\033]1;%s\007", m_TerminalTitle.c_str());
+    printf("\033]0;%s\007", m_TerminalTitle.c_str());
   }
 
   printf("\033[?1004h"); // enable terminal focus in/out event
@@ -63,7 +63,7 @@ Ui::~Ui()
 
   if (!m_TerminalTitle.empty())
   {
-    printf("\033]1;%s\007", "");
+    printf("\033]0;%s\007", "");
   }
 }
 
