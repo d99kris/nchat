@@ -927,8 +927,8 @@ func WmInit(path string) int {
 	}
 
 	requireFullSync := true
-	store.CompanionProps.RequireFullSync = &requireFullSync
-	store.CompanionProps.PlatformType = waProto.CompanionProps_FIREFOX.Enum()
+	store.DeviceProps.RequireFullSync = &requireFullSync
+	store.DeviceProps.PlatformType = waProto.DeviceProps_FIREFOX.Enum()
 	switch runtime.GOOS {
 	case "linux":
 		store.CompanionProps.Os = proto.String("Linux")

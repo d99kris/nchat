@@ -55,9 +55,25 @@ type QRScannedWithoutMultidevice struct{}
 // at this point, which is why this event doesn't contain any data.
 type Connected struct{}
 
+// KeepAliveTimeout is emitted when the keepalive ping request to WhatsApp web servers times out.
+//
+// Currently, there's no automatic handling for these, but it's expected that the TCP connection will
+// either start working again or notice it's dead on its own eventually. Clients may use this event to
+// decide to force a disconnect+reconnect faster.
+type KeepAliveTimeout struct {
+	ErrorCount  int
+	LastSuccess time.Time
+}
+
+// KeepAliveRestored is emitted if the keepalive pings start working again after some KeepAliveTimeout events.
+// Note that if the websocket disconnects before the pings start working, this event will not be emitted.
+type KeepAliveRestored struct{}
+
 // LoggedOut is emitted when the client has been unpaired from the phone.
 //
 // This can happen while connected (stream:error messages) or right after connecting (connect failure messages).
+//
+// This will not be emitted when the logout is initiated by this client (using Client.LogOut()).
 type LoggedOut struct {
 	// OnConnect is true if the event was triggered by a connect failure message.
 	// If it's false, the event was triggered by a stream:error message.
@@ -205,6 +221,27 @@ type Message struct {
 	RawMessage *waProto.Message
 }
 
+// UnwrapRaw fills the Message, IsEphemeral and IsViewOnce fields based on the raw message in the RawMessage field.
+func (evt *Message) UnwrapRaw() *Message {
+	evt.Message = evt.RawMessage
+	if evt.Message.GetDeviceSentMessage().GetMessage() != nil {
+		evt.Info.DeviceSentMeta = &types.DeviceSentMeta{
+			DestinationJID: evt.Message.GetDeviceSentMessage().GetDestinationJid(),
+			Phash:          evt.Message.GetDeviceSentMessage().GetPhash(),
+		}
+		evt.Message = evt.Message.GetDeviceSentMessage().GetMessage()
+	}
+	if evt.Message.GetEphemeralMessage().GetMessage() != nil {
+		evt.Message = evt.Message.GetEphemeralMessage().GetMessage()
+		evt.IsEphemeral = true
+	}
+	if evt.Message.GetViewOnceMessage().GetMessage() != nil {
+		evt.Message = evt.Message.GetViewOnceMessage().GetMessage()
+		evt.IsViewOnce = true
+	}
+	return evt
+}
+
 // ReceiptType represents the type of a Receipt event.
 type ReceiptType string
 
@@ -347,10 +384,17 @@ type OfflineSyncCompleted struct {
 	Count int
 }
 
+type MediaRetryError struct {
+	Code int
+}
+
 // MediaRetry is emitted when the phone sends a response to a media retry request.
 type MediaRetry struct {
 	Ciphertext []byte
 	IV         []byte
+
+	// Sometimes there's an unencrypted media retry error. In these cases, Ciphertext and IV will be nil.
+	Error *MediaRetryError
 
 	Timestamp time.Time // The time of the response.
 
