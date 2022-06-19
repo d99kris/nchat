@@ -7,6 +7,8 @@
 
 #include "uiscreen.h"
 
+#include <algorithm>
+
 #include <ncurses.h>
 
 UiScreen::UiScreen()
@@ -14,6 +16,8 @@ UiScreen::UiScreen()
   wclear(stdscr);
   wrefresh(stdscr);
   getmaxyx(stdscr, m_H, m_W);
+  m_H = std::max(m_H, 11);
+  m_W = std::max(m_W, 29);
 }
 
 int UiScreen::W()
