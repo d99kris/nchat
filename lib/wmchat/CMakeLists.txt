@@ -38,7 +38,6 @@ set_target_properties(wmchat PROPERTIES COMPILE_FLAGS
                        -Wcast-qual -Wno-missing-braces -Wswitch-default \
                        -Wunreachable-code -Wundef -Wuninitialized \
                        -Wcast-align")
-target_compile_definitions(wmchat PRIVATE PROJECT_VERSION="${PROJECT_VERSION}")
 
 # Linking
 target_link_libraries(wmchat PUBLIC ref-cgowm ncutil)

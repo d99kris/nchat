@@ -6,6 +6,7 @@
 // nchat is distributed under the MIT license, see LICENSE for details.
 
 #include "apputil.h"
+#include "version.h"
 
 bool AppUtil::m_DeveloperMode = false;
 
@@ -17,11 +18,7 @@ std::string AppUtil::GetAppNameVersion()
 
 std::string AppUtil::GetAppVersion()
 {
-#ifdef NCHAT_PROJECT_VERSION
-  static std::string version = "" NCHAT_PROJECT_VERSION;
-#else
-  static std::string version = "0.00";
-#endif
+  static std::string version = NCHAT_VERSION;
   return version;
 }
 

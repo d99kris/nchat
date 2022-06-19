@@ -1,9 +1,8 @@
 # Project
 cmake_minimum_required(VERSION 3.16 FATAL_ERROR) # 3.1 is ok, but is 3.16 needed for proper version string
-project(nchat VERSION 2.73 LANGUAGES CXX)
+project(nchat LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 14)
 include(CheckCXXSourceCompiles)
-set(NCHAT_PROJECT_VERSION ${PROJECT_VERSION})
 
 # Paths
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
@@ -122,7 +121,6 @@ set_target_properties(nchat PROPERTIES COMPILE_FLAGS
                        -Wcast-qual -Wno-missing-braces -Wswitch-default \
                        -Wunreachable-code -Wundef -Wuninitialized \
                        -Wcast-align")
-target_compile_definitions(nchat PRIVATE PROJECT_VERSION="${PROJECT_VERSION}")
 
 # Dependency libraries
 add_subdirectory(lib/ncutil)
@@ -215,7 +213,6 @@ if(CMAKE_BUILD_TYPE MATCHES "Debug")
                          -Wcast-qual -Wno-missing-braces -Wswitch-default \
                          -Wunreachable-code -Wundef -Wuninitialized \
                          -Wcast-align")
-  target_compile_definitions(devnchat PRIVATE PROJECT_VERSION="${PROJECT_VERSION}")
 
   # Linking
   target_link_libraries(devnchat PUBLIC ncutil pthread ${CURSES_NCURSES_LIBRARY} dl)

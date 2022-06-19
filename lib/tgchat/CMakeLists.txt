@@ -63,4 +63,3 @@ set_target_properties(tgchat PROPERTIES COMPILE_FLAGS
                        -Wcast-qual -Wno-missing-braces -Wswitch-default \
                        -Wunreachable-code -Wundef -Wuninitialized \
                        -Wcast-align")
-target_compile_definitions(tgchat PRIVATE PROJECT_VERSION="${PROJECT_VERSION}")

@@ -63,7 +63,6 @@ set_target_properties(ncutil PROPERTIES COMPILE_FLAGS
                        -Wcast-qual -Wno-missing-braces -Wswitch-default \
                        -Wunreachable-code -Wundef -Wuninitialized \
                        -Wcast-align")
-target_compile_definitions(ncutil PRIVATE NCHAT_PROJECT_VERSION="${NCHAT_PROJECT_VERSION}")
 
 # Linking
 target_link_libraries(ncutil PUBLIC ${MAGIC_LIBRARY} SQLite::SQLite3)

@@ -26,7 +26,6 @@ set_target_properties(duchat PROPERTIES COMPILE_FLAGS
                        -Wcast-qual -Wno-missing-braces -Wswitch-default \
                        -Wunreachable-code -Wundef -Wuninitialized \
                        -Wcast-align")
-target_compile_definitions(duchat PRIVATE PROJECT_VERSION="${PROJECT_VERSION}")
 
 # Linking
 target_link_libraries(duchat PUBLIC ncutil)
