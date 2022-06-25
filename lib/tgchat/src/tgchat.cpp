@@ -171,7 +171,6 @@ private:
   int64_t m_CurrentChat = 0;
   const char m_SponsoredMessageMsgIdPrefix = '+';
   std::map<std::string, std::set<std::string>> m_SponsoredMessageIds;
-  bool m_AttachmentPrefetchAll = true;
 };
 
 // Public interface
@@ -963,8 +962,6 @@ void TgChat::Impl::Init()
   const std::string configPath(m_ProfileDir + std::string("/telegram.conf"));
   m_Config = Config(configPath, defaultConfig);
 
-  m_AttachmentPrefetchAll = (AppConfig::GetNum("attachment_prefetch") == AttachmentPrefetchAll);
-
   td::Log::set_verbosity_level(Log::GetDebugEnabled() ? 5 : 1);
   const std::string logPath(m_ProfileDir + std::string("/td.log"));
   td::Log::set_file_path(logPath);
@@ -1536,6 +1533,7 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
     std::string fileName = messageAudio.audio_->file_name_;
     p_Text = GetText(std::move(messageAudio.caption_));
     FileInfo fileInfo;
+    fileInfo.fileId = StrUtil::NumToHex(id);
     if (!path.empty())
     {
       fileInfo.filePath = path;
@@ -1544,8 +1542,7 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
     else
     {
       fileInfo.filePath = fileName;
-      fileInfo.fileStatus = m_AttachmentPrefetchAll ? FileStatusDownloading : FileStatusNotDownloaded;
-      fileInfo.fileId = StrUtil::NumToHex(id);
+      fileInfo.fileStatus = FileStatusNotDownloaded;
     }
 
     p_FileInfo = ProtocolUtil::FileInfoToHex(fileInfo);
@@ -1575,6 +1572,7 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
     std::string fileName = messageDocument.document_->file_name_;
     p_Text = GetText(std::move(messageDocument.caption_));
     FileInfo fileInfo;
+    fileInfo.fileId = StrUtil::NumToHex(id);
     if (!path.empty())
     {
       fileInfo.filePath = path;
@@ -1583,8 +1581,7 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
     else
     {
       fileInfo.filePath = fileName;
-      fileInfo.fileStatus = m_AttachmentPrefetchAll ? FileStatusDownloading : FileStatusNotDownloaded;
-      fileInfo.fileId = StrUtil::NumToHex(id);
+      fileInfo.fileStatus = FileStatusNotDownloaded;
     }
 
     p_FileInfo = ProtocolUtil::FileInfoToHex(fileInfo);
@@ -1602,6 +1599,8 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
       auto& localFile = photoFile->local_;
       auto& localPath = localFile->path_;
       FileInfo fileInfo;
+      int32_t id = photoFile->id_;
+      fileInfo.fileId = StrUtil::NumToHex(id);
       if (!localPath.empty())
       {
         fileInfo.filePath = localPath;
@@ -1609,10 +1608,8 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
       }
       else
       {
-        int32_t id = photoFile->id_;
         fileInfo.filePath = "[Photo]";
-        fileInfo.fileStatus = m_AttachmentPrefetchAll ? FileStatusDownloading : FileStatusNotDownloaded;
-        fileInfo.fileId = StrUtil::NumToHex(id);
+        fileInfo.fileStatus = FileStatusNotDownloaded;
       }
 
       p_FileInfo = ProtocolUtil::FileInfoToHex(fileInfo);
@@ -1636,6 +1633,8 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
     auto& localFile = videoFile->local_;
     auto& localPath = localFile->path_;
     FileInfo fileInfo;
+    int32_t id = videoFile->id_;
+    fileInfo.fileId = StrUtil::NumToHex(id);
     if (!localPath.empty())
     {
       fileInfo.filePath = localPath;
@@ -1643,10 +1642,8 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
     }
     else
     {
-      int32_t id = videoFile->id_;
       fileInfo.filePath = "[Video]";
-      fileInfo.fileStatus = m_AttachmentPrefetchAll ? FileStatusDownloading : FileStatusNotDownloaded;
-      fileInfo.fileId = StrUtil::NumToHex(id);
+      fileInfo.fileStatus = FileStatusNotDownloaded;
     }
 
     p_FileInfo = ProtocolUtil::FileInfoToHex(fileInfo);
@@ -1660,6 +1657,8 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
     auto& localFile = videoFile->local_;
     auto& localPath = localFile->path_;
     FileInfo fileInfo;
+    int32_t id = videoFile->id_;
+    fileInfo.fileId = StrUtil::NumToHex(id);
     if (!localPath.empty())
     {
       fileInfo.filePath = localPath;
@@ -1667,10 +1666,8 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
     }
     else
     {
-      int32_t id = videoFile->id_;
       fileInfo.filePath = "[VideoNote]";
-      fileInfo.fileStatus = m_AttachmentPrefetchAll ? FileStatusDownloading : FileStatusNotDownloaded;
-      fileInfo.fileId = StrUtil::NumToHex(id);
+      fileInfo.fileStatus = FileStatusNotDownloaded;
     }
 
     p_FileInfo = ProtocolUtil::FileInfoToHex(fileInfo);
@@ -1684,6 +1681,7 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
     std::string fileName = std::to_string(id) + ".oga";
     p_Text = GetText(std::move(messageVoiceNote.caption_));
     FileInfo fileInfo;
+    fileInfo.fileId = StrUtil::NumToHex(id);
     if (!path.empty())
     {
       fileInfo.filePath = path;
@@ -1692,8 +1690,7 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
     else
     {
       fileInfo.filePath = fileName;
-      fileInfo.fileStatus = m_AttachmentPrefetchAll ? FileStatusDownloading : FileStatusNotDownloaded;
-      fileInfo.fileId = StrUtil::NumToHex(id);
+      fileInfo.fileStatus = FileStatusNotDownloaded;
     }
 
     p_FileInfo = ProtocolUtil::FileInfoToHex(fileInfo);
@@ -1743,29 +1740,12 @@ void TgChat::Impl::TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessag
       p_ChatMessage.isRead = !p_TdMessage.contains_unread_mention_;
     }
   }
-
-  if (m_AttachmentPrefetchAll && !p_ChatMessage.fileInfo.empty())
-  {
-    FileInfo fileInfo = ProtocolUtil::FileInfoFromHex(p_ChatMessage.fileInfo);
-    int32_t fileId = StrUtil::NumFromHex<int32_t>(fileInfo.fileId);
-    if (fileId != 0)
-    {
-      std::shared_ptr<DownloadFileRequest> downloadFileRequest =
-        std::make_shared<DownloadFileRequest>();
-      downloadFileRequest->chatId = StrUtil::NumToHex(p_TdMessage.chat_id_);
-      downloadFileRequest->msgId = StrUtil::NumToHex(p_TdMessage.id_);
-      downloadFileRequest->fileId = StrUtil::NumToHex(fileId);
-      downloadFileRequest->downloadFileAction = DownloadFileActionNone;
-
-      SendRequest(downloadFileRequest);
-    }
-  }
 }
 
 void TgChat::Impl::DownloadFile(std::string p_ChatId, std::string p_MsgId, std::string p_FileId,
-                          DownloadFileAction p_DownloadFileAction)
+                                DownloadFileAction p_DownloadFileAction)
 {
-  LOG_DEBUG("download file");
+  LOG_DEBUG("download file %s", p_FileId.c_str());
   try
   {
     auto download_file = td::td_api::make_object<td::td_api::downloadFile>();
@@ -1785,6 +1765,7 @@ void TgChat::Impl::DownloadFile(std::string p_ChatId, std::string p_MsgId, std::
         FileInfo fileInfo;
         fileInfo.fileStatus = FileStatusDownloaded;
         fileInfo.filePath = path;
+        fileInfo.fileId = p_FileId;
 
         std::shared_ptr<NewMessageFileNotify> newMessageFileNotify =
           std::make_shared<NewMessageFileNotify>(m_ProfileId);

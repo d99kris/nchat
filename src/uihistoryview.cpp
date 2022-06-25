@@ -148,12 +148,14 @@ void UiHistoryView::Draw()
         (AppConfig::GetNum("attachment_prefetch") == AttachmentPrefetchAll);
       static const bool isAttachmentPrefetchSelected =
         (AppConfig::GetNum("attachment_prefetch") == AttachmentPrefetchSelected);
-      if ((isAttachmentPrefetchAll || (isSelectedMessage && isAttachmentPrefetchSelected)) &&
-          (fileInfo.fileStatus == FileStatusNotDownloaded) && !fileInfo.fileId.empty())
+      if (isAttachmentPrefetchAll || (isSelectedMessage && isAttachmentPrefetchSelected))
       {
-        m_Model->DownloadAttachment(currentChat.first, currentChat.second, *it,
-                                    fileInfo.fileId, DownloadFileActionNone);
-        fileInfo = ProtocolUtil::FileInfoFromHex(msg.fileInfo);
+        if (!UiModel::IsAttachmentDownloaded(fileInfo) && UiModel::IsAttachmentDownloadable(fileInfo))
+        {
+          m_Model->DownloadAttachment(currentChat.first, currentChat.second, *it,
+                                      fileInfo.fileId, DownloadFileActionNone);
+          fileInfo = ProtocolUtil::FileInfoFromHex(msg.fileInfo);
+        }
       }
 
       std::string fileName = FileUtil::BaseName(fileInfo.filePath);

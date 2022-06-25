@@ -895,46 +895,19 @@ bool UiModel::GetMessageAttachmentPath(std::string& p_FilePath, DownloadFileActi
   }
 
   FileInfo fileInfo = ProtocolUtil::FileInfoFromHex(mit->second.fileInfo);
-  if (fileInfo.fileStatus == FileStatusNone)
+  if (UiModel::IsAttachmentDownloaded(fileInfo))
   {
-    LOG_WARNING("message attachment has invalid status");
-    return false;
+    p_FilePath = fileInfo.filePath;
+    return true;
   }
-  else if (fileInfo.fileStatus == FileStatusDownloading)
+  else if (UiModel::IsAttachmentDownloadable(fileInfo))
   {
-    LOG_WARNING("message attachment is downloading");
-    return false;
-  }
-  else if (fileInfo.fileStatus == FileStatusDownloadFailed)
-  {
-    LOG_WARNING("message attachment download failed");
-    return false;
-  }
-  else if (fileInfo.fileStatus == FileStatusNotDownloaded)
-  {
-    if (!fileInfo.fileId.empty())
-    {
-      DownloadAttachment(profileId, chatId, msgId, fileInfo.fileId, p_DownloadFileAction);
-      UpdateHistory();
-      LOG_DEBUG("message attachment download started");
-    }
-    else
-    {
-      LOG_WARNING("message attachment not downloaded");
-    }
-
-    return false;
+    DownloadAttachment(profileId, chatId, msgId, fileInfo.fileId, p_DownloadFileAction);
+    UpdateHistory();
+    LOG_DEBUG("message attachment %s download started", fileInfo.fileId.c_str());
   }
 
-  std::string filePath = fileInfo.filePath;
-  if (filePath.empty() || !FileUtil::Exists(filePath))
-  {
-    LOG_WARNING("message attachment %s does not exist", filePath.c_str());
-    return false;
-  }
-
-  p_FilePath = filePath;
-  return true;
+  return false;
 }
 
 void UiModel::OpenMessageAttachment(std::string p_FilePath /*= std::string()*/)
@@ -2038,4 +2011,108 @@ void UiModel::SetHistoryInteraction(bool p_HistoryInteraction)
   }
 
   m_HistoryInteraction = p_HistoryInteraction;
+}
+
+bool UiModel::IsAttachmentDownloaded(const FileInfo& p_FileInfo)
+{
+  if (p_FileInfo.fileStatus == FileStatusNone)
+  {
+    LOG_WARNING("message attachment has invalid status");
+    return false;
+  }
+  else if (p_FileInfo.fileStatus == FileStatusDownloading)
+  {
+    LOG_DEBUG("message attachment is downloading");
+    return false;
+  }
+  else if (p_FileInfo.fileStatus == FileStatusDownloadFailed)
+  {
+    LOG_WARNING("message attachment download failed");
+    return false;
+  }
+  else if (p_FileInfo.fileStatus == FileStatusNotDownloaded)
+  {
+    LOG_DEBUG("message attachment is not downloaded");
+    return false;
+  }
+  else if (p_FileInfo.fileStatus == FileStatusDownloaded)
+  {
+    std::string filePath = p_FileInfo.filePath;
+    if (filePath.empty())
+    {
+      LOG_WARNING("message attachment %s empty path", filePath.c_str());
+      return false;
+    }
+    else if (filePath.at(0) != '/')
+    {
+      LOG_WARNING("message attachment %s is not an absolute path", filePath.c_str());
+      return false;
+    }
+    else if (!FileUtil::Exists(filePath))
+    {
+      LOG_WARNING("message attachment %s does not exist", filePath.c_str());
+      return false;
+    }
+    else
+    {
+      LOG_DEBUG("message attachment %s exists", filePath.c_str());
+      return true;
+    }
+  }
+
+  LOG_WARNING("message attachment unexpected state");
+  return false;
+}
+
+bool UiModel::IsAttachmentDownloadable(const FileInfo& p_FileInfo)
+{
+  const bool hasFileId = !p_FileInfo.fileId.empty();
+
+  if (p_FileInfo.fileStatus == FileStatusNone)
+  {
+    LOG_WARNING("message attachment has invalid status");
+    return false;
+  }
+  else if (p_FileInfo.fileStatus == FileStatusDownloading)
+  {
+    LOG_DEBUG("message attachment is already downloading");
+    return false;
+  }
+  else if (p_FileInfo.fileStatus == FileStatusDownloadFailed)
+  {
+    LOG_WARNING("message attachment download failed");
+    return false;
+  }
+  else if (p_FileInfo.fileStatus == FileStatusNotDownloaded)
+  {
+    LOG_DEBUG("message attachment is not downloaded %d", hasFileId);
+    return hasFileId;
+  }
+  else if (p_FileInfo.fileStatus == FileStatusDownloaded)
+  {
+    std::string filePath = p_FileInfo.filePath;
+    if (filePath.empty())
+    {
+      LOG_WARNING("message attachment %s empty path %d", filePath.c_str(), hasFileId);
+      return hasFileId;
+    }
+    else if (filePath.at(0) != '/')
+    {
+      LOG_WARNING("message attachment %s is not an absolute path %d", filePath.c_str(), hasFileId);
+      return hasFileId;
+    }
+    else if (!FileUtil::Exists(filePath))
+    {
+      LOG_WARNING("message attachment %s does not exist %d", filePath.c_str(), hasFileId);
+      return hasFileId;
+    }
+    else
+    {
+      LOG_WARNING("message attachment %s exists", filePath.c_str());
+      return false;
+    }
+  }
+
+  LOG_WARNING("message attachment unexpected state");
+  return false;
 }

@@ -500,19 +500,6 @@ void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_Se
     fileInfo.fileId = fileId;
     fileInfo.filePath = std::string(p_FilePath);
     fileInfoStr = ProtocolUtil::FileInfoToHex(fileInfo);
-
-    static bool attachmentPrefetchAll =
-      (AppConfig::GetNum("attachment_prefetch") == AttachmentPrefetchAll);
-    if (attachmentPrefetchAll)
-    {
-      std::shared_ptr<DownloadFileRequest> downloadFileRequest = std::make_shared<DownloadFileRequest>();
-      downloadFileRequest->chatId = std::string(p_ChatId);
-      downloadFileRequest->msgId = std::string(p_MsgId);
-      downloadFileRequest->fileId = std::string(p_FileId);
-      downloadFileRequest->downloadFileAction = DownloadFileActionNone;
-
-      instance->SendRequest(downloadFileRequest);
-    }
   }
 
   ChatMessage chatMessage;

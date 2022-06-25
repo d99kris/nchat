@@ -99,6 +99,8 @@ public:
 
   bool GetEmojiEnabled();
   void SetTerminalActive(bool p_TerminalActive);
+  static bool IsAttachmentDownloaded(const FileInfo& p_FileInfo);
+  static bool IsAttachmentDownloadable(const FileInfo& p_FileInfo);
 
 private:
   void SortChats();
