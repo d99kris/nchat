@@ -46,7 +46,7 @@ option(HAS_TELEGRAM "Telegram" ON)
 message(STATUS "Telegram: ${HAS_TELEGRAM}")
 
 # Optional component - WhatsApp
-option(HAS_WHATSAPP "WhatsApp" OFF)
+option(HAS_WHATSAPP "WhatsApp" ON)
 message(STATUS "WhatsApp: ${HAS_WHATSAPP}")
 
 if(HAS_WHATSAPP)

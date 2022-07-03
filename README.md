@@ -23,6 +23,7 @@ Features
 - Toggle to hide/show UI elements (top bar, status bar, help bar, contact list)
 - Receive / send markdown formatted messages
 - Customizable color schemes and key bindings
+- Experimental WhatsApp support
 
 
 Usage
