@@ -143,7 +143,7 @@ private:
   void TdMessageContentConvert(td::td_api::MessageContent& p_TdMessageContent,
                                std::string& p_Text, std::string& p_FileInfo);
   void TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessage& p_ChatMessage);
-  void DownloadFile(std::string p_ChatId, std::string p_MsgId, std::string p_FileId,
+  void DownloadFile(std::string p_ChatId, std::string p_MsgId, std::string p_FileId, std::string p_DownloadId,
                     DownloadFileAction p_DownloadFileAction);
   void RequestSponsoredMessagesIfNeeded();
   void GetSponsoredMessages(const std::string& p_ChatId);
@@ -171,6 +171,7 @@ private:
   int64_t m_CurrentChat = 0;
   const char m_SponsoredMessageMsgIdPrefix = '+';
   std::map<std::string, std::set<std::string>> m_SponsoredMessageIds;
+  static const int s_CacheDirVersion = 1;
 };
 
 // Public interface
@@ -261,7 +262,7 @@ bool TgChat::Impl::SetupProfile(const std::string& p_ProfilesDir, std::string& p
   apathy::Path::rmdirs(apathy::Path(m_ProfileDir));
   apathy::Path::makedirs(m_ProfileDir);
 
-  MessageCache::AddProfile(m_ProfileId, true);
+  MessageCache::AddProfile(m_ProfileId, true, s_CacheDirVersion);
 
   p_ProfileId = m_ProfileId;
   m_IsSetup = true;
@@ -290,7 +291,7 @@ bool TgChat::Impl::LoadProfile(const std::string& p_ProfilesDir, const std::stri
 {
   m_ProfileDir = p_ProfilesDir + "/" + p_ProfileId;
   m_ProfileId = p_ProfileId;
-  MessageCache::AddProfile(m_ProfileId, true);
+  MessageCache::AddProfile(m_ProfileId, true, s_CacheDirVersion);
   return true;
 }
 
@@ -922,7 +923,42 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         std::string msgId = downloadFileRequest->msgId;
         std::string fileId = downloadFileRequest->fileId;
         DownloadFileAction downloadFileAction = downloadFileRequest->downloadFileAction;
-        DownloadFile(chatId, msgId, fileId, downloadFileAction);
+
+        auto get_remote_file = td::td_api::make_object<td::td_api::getRemoteFile>();
+        get_remote_file->remote_file_id_ = fileId;
+        get_remote_file->file_type_ = nullptr;
+        SendQuery(std::move(get_remote_file),
+                  [this, chatId, msgId, fileId, downloadFileAction](Object object)
+        {
+          if (object->get_id() == td::td_api::error::ID) return;
+
+          if (object->get_id() == td::td_api::file::ID)
+          {
+            auto file_ = td::move_tl_object_as<td::td_api::file>(object);
+            std::string downloadId = StrUtil::NumToHex(file_->id_);
+
+            std::shared_ptr<DeferDownloadFileRequest> deferDownloadFileRequest = std::make_shared<DeferDownloadFileRequest>();
+            deferDownloadFileRequest->chatId = chatId;
+            deferDownloadFileRequest->msgId = msgId;
+            deferDownloadFileRequest->fileId = fileId;
+            deferDownloadFileRequest->downloadId = downloadId;
+            deferDownloadFileRequest->downloadFileAction = downloadFileAction;
+            SendRequest(deferDownloadFileRequest);
+          }
+        });
+      }
+      break;
+
+    case DeferDownloadFileRequestType:
+      {
+        std::shared_ptr<DeferDownloadFileRequest> deferDownloadFileRequest =
+          std::static_pointer_cast<DeferDownloadFileRequest>(p_RequestMessage);
+        std::string chatId = deferDownloadFileRequest->chatId;
+        std::string msgId = deferDownloadFileRequest->msgId;
+        std::string fileId = deferDownloadFileRequest->fileId;
+        std::string downloadId = deferDownloadFileRequest->downloadId;
+        DownloadFileAction downloadFileAction = deferDownloadFileRequest->downloadFileAction;
+        DownloadFile(chatId, msgId, fileId, downloadId, downloadFileAction);
       }
       break;
 
@@ -1187,6 +1223,94 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
       deleteMessageNotify->msgId = StrUtil::NumToHex(msgId);
       CallMessageHandler(deleteMessageNotify);
     }
+  },
+  [](td::td_api::updateRecentStickers&)
+  {
+    LOG_TRACE("update recent stickers");
+  },
+  [](td::td_api::updateFavoriteStickers&)
+  {
+    LOG_TRACE("update favorite stickers");
+  },
+  [](td::td_api::updateInstalledStickerSets&)
+  {
+    LOG_TRACE("update installed sticker sets");
+  },
+  [](td::td_api::updateTrendingStickerSets&)
+  {
+    LOG_TRACE("update trending sticker sets");
+  },
+  [](td::td_api::updateConnectionState&)
+  {
+    LOG_TRACE("update connection state");
+  },
+  [](td::td_api::updateOption&)
+  {
+    LOG_TRACE("update option");
+  },
+  [](td::td_api::updateSelectedBackground&)
+  {
+    LOG_TRACE("update selected background");
+  },
+  [](td::td_api::updateScopeNotificationSettings&)
+  {
+    LOG_TRACE("update scope notification settings");
+  },
+  [](td::td_api::updateUnreadChatCount&)
+  {
+    LOG_TRACE("update unread chat count");
+  },
+  [](td::td_api::updateHavePendingNotifications&)
+  {
+    LOG_TRACE("update have pending notifications");
+  },
+  [](td::td_api::updateChatLastMessage&)
+  {
+    LOG_TRACE("update chat last message");
+  },
+  [](td::td_api::updateDiceEmojis&)
+  {
+    LOG_TRACE("update dice emojis");
+  },
+  [](td::td_api::updateChatPosition&)
+  {
+    LOG_TRACE("update chat position");
+  },
+  [](td::td_api::updateSupergroup&)
+  {
+    LOG_TRACE("update supergroup");
+  },
+  [](td::td_api::updateChatThemes&)
+  {
+    LOG_TRACE("update chat themes");
+  },
+  [](td::td_api::updateChatFilters&)
+  {
+    LOG_TRACE("update chat filters");
+  },
+  [](td::td_api::updateUnreadMessageCount&)
+  {
+    LOG_TRACE("update unread message count");
+  },
+  [](td::td_api::updateAnimationSearchParameters&)
+  {
+    LOG_TRACE("update animation search parameters");
+  },
+  [](td::td_api::updateBasicGroup&)
+  {
+    LOG_TRACE("update basic group");
+  },
+  [](td::td_api::updateSavedAnimations&)
+  {
+    LOG_TRACE("update saved animations");
+  },
+  [](td::td_api::updateFile&)
+  {
+    LOG_TRACE("update file");
+  },
+  [](td::td_api::updateMessageContent&)
+  {
+    LOG_TRACE("update message content");
   },
   [](auto& anyupdate)
   {
@@ -1528,12 +1652,12 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
   {
     auto& messageAudio = static_cast<td::td_api::messageAudio&>(p_TdMessageContent);
 
-    int32_t id = messageAudio.audio_->audio_->id_;
+    std::string id = messageAudio.audio_->audio_->remote_->id_;
     std::string path = messageAudio.audio_->audio_->local_->path_;
     std::string fileName = messageAudio.audio_->file_name_;
     p_Text = GetText(std::move(messageAudio.caption_));
     FileInfo fileInfo;
-    fileInfo.fileId = StrUtil::NumToHex(id);
+    fileInfo.fileId = id;
     if (!path.empty())
     {
       fileInfo.filePath = path;
@@ -1567,12 +1691,12 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
   {
     auto& messageDocument = static_cast<td::td_api::messageDocument&>(p_TdMessageContent);
 
-    int32_t id = messageDocument.document_->document_->id_;
+    std::string id = messageDocument.document_->document_->remote_->id_;
     std::string path = messageDocument.document_->document_->local_->path_;
     std::string fileName = messageDocument.document_->file_name_;
     p_Text = GetText(std::move(messageDocument.caption_));
     FileInfo fileInfo;
-    fileInfo.fileId = StrUtil::NumToHex(id);
+    fileInfo.fileId = id;
     if (!path.empty())
     {
       fileInfo.filePath = path;
@@ -1599,8 +1723,8 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
       auto& localFile = photoFile->local_;
       auto& localPath = localFile->path_;
       FileInfo fileInfo;
-      int32_t id = photoFile->id_;
-      fileInfo.fileId = StrUtil::NumToHex(id);
+      std::string id = photoFile->remote_->id_;
+      fileInfo.fileId = id;
       if (!localPath.empty())
       {
         fileInfo.filePath = localPath;
@@ -1633,8 +1757,8 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
     auto& localFile = videoFile->local_;
     auto& localPath = localFile->path_;
     FileInfo fileInfo;
-    int32_t id = videoFile->id_;
-    fileInfo.fileId = StrUtil::NumToHex(id);
+    std::string id = videoFile->remote_->id_;
+    fileInfo.fileId = id;
     if (!localPath.empty())
     {
       fileInfo.filePath = localPath;
@@ -1657,8 +1781,8 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
     auto& localFile = videoFile->local_;
     auto& localPath = localFile->path_;
     FileInfo fileInfo;
-    int32_t id = videoFile->id_;
-    fileInfo.fileId = StrUtil::NumToHex(id);
+    std::string id = videoFile->remote_->id_;
+    fileInfo.fileId = id;
     if (!localPath.empty())
     {
       fileInfo.filePath = localPath;
@@ -1676,12 +1800,11 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
   {
     auto& messageVoiceNote = static_cast<td::td_api::messageVoiceNote&>(p_TdMessageContent);
 
-    int32_t id = messageVoiceNote.voice_note_->voice_->id_;
+    std::string id = messageVoiceNote.voice_note_->voice_->remote_->id_;
     std::string path = messageVoiceNote.voice_note_->voice_->local_->path_;
-    std::string fileName = std::to_string(id) + ".oga";
     p_Text = GetText(std::move(messageVoiceNote.caption_));
     FileInfo fileInfo;
-    fileInfo.fileId = StrUtil::NumToHex(id);
+    fileInfo.fileId = id;
     if (!path.empty())
     {
       fileInfo.filePath = path;
@@ -1689,7 +1812,7 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
     }
     else
     {
-      fileInfo.filePath = fileName;
+      fileInfo.filePath = "[VoiceNote]";
       fileInfo.fileStatus = FileStatusNotDownloaded;
     }
 
@@ -1742,14 +1865,14 @@ void TgChat::Impl::TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessag
   }
 }
 
-void TgChat::Impl::DownloadFile(std::string p_ChatId, std::string p_MsgId, std::string p_FileId,
+void TgChat::Impl::DownloadFile(std::string p_ChatId, std::string p_MsgId, std::string p_FileId, std::string p_DownloadId,
                                 DownloadFileAction p_DownloadFileAction)
 {
-  LOG_DEBUG("download file %s", p_FileId.c_str());
+  LOG_DEBUG("download file %s %s", p_FileId.c_str(), p_DownloadId.c_str());
   try
   {
     auto download_file = td::td_api::make_object<td::td_api::downloadFile>();
-    download_file->file_id_ = StrUtil::NumFromHex<std::int32_t>(p_FileId);
+    download_file->file_id_ = StrUtil::NumFromHex<std::int32_t>(p_DownloadId);
     download_file->priority_ = 32;
     download_file->synchronous_ = true;
     SendQuery(std::move(download_file),

@@ -156,7 +156,7 @@ void MessageCache::AddFromServiceMessage(const std::string& p_ProfileId, std::sh
   }  
 }
 
-void MessageCache::AddProfile(const std::string& p_ProfileId, bool p_CheckSync)
+void MessageCache::AddProfile(const std::string& p_ProfileId, bool p_CheckSync, int p_DirVersion)
 {
   if (!m_CacheEnabled) return;
 
@@ -170,7 +170,8 @@ void MessageCache::AddProfile(const std::string& p_ProfileId, bool p_CheckSync)
   m_CheckSync[p_ProfileId] = p_CheckSync;
 
   const std::string& dbDir = m_HistoryDir + "/" + p_ProfileId;
-  FileUtil::MkDir(dbDir);
+  FileUtil::MkDir(dbDir); // @todo: remove line once WmChat::s_CacheDirVersion is bumped from 0
+  FileUtil::InitDirVersion(dbDir, p_DirVersion);
 
   const std::string& dbPath = dbDir + "/db.sqlite";
   m_Dbs[p_ProfileId].reset(new sqlite::database(dbPath));

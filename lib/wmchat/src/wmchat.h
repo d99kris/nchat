@@ -60,6 +60,7 @@ private:
   static std::map<int, WmChat*> s_ConnIdMap;
   int m_ConnId = -1;
   std::string m_ProfileDir;
+  static const int s_CacheDirVersion = 0;
 };
 
 extern "C" {

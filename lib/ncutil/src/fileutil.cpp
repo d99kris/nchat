@@ -98,7 +98,7 @@ std::string FileUtil::GetCurrentWorkingDir()
 
 int FileUtil::GetDirVersion(const std::string& p_Dir)
 {
-  int version = -1;
+  int version = 0;
   if (FileUtil::Exists(p_Dir))
   {
     std::string versionPath = p_Dir + "/version";

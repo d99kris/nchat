@@ -62,6 +62,7 @@ enum MessageType
   DeferGetChatDetailsRequestType,
   DeferGetUserDetailsRequestType,
   DownloadFileRequestType,
+  DeferDownloadFileRequestType,
   MarkMessageReadRequestType,
   DeleteMessageRequestType,
   SendTypingRequestType,
@@ -254,6 +255,17 @@ public:
   std::string chatId;
   std::string msgId;
   std::string fileId;
+  DownloadFileAction downloadFileAction = DownloadFileActionNone;
+};
+
+class DeferDownloadFileRequest : public RequestMessage
+{
+public:
+  virtual MessageType GetMessageType() const { return DeferDownloadFileRequestType; }
+  std::string chatId;
+  std::string msgId;
+  std::string fileId;
+  std::string downloadId;
   DownloadFileAction downloadFileAction = DownloadFileActionNone;
 };
 
