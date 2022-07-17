@@ -248,6 +248,21 @@ void FileUtil::MkDir(const std::string& p_Path)
   apathy::Path::makedirs(p_Path);
 }
 
+std::string FileUtil::MkTempFile()
+{
+  std::string name = std::string("/tmp/nchat-tmpfile.XX" "XX" "XX");
+  char* cname = strdup(name.c_str());
+  int fd = mkstemp(cname);
+  if (fd != -1)
+  {
+    close(fd);
+  }
+
+  name = std::string(cname);
+  free(cname);
+  return name;
+}
+
 void FileUtil::Move(const std::string& p_From, const std::string& p_To)
 {
   apathy::Path::move(p_From, p_To);
@@ -275,6 +290,11 @@ void FileUtil::RmDir(const std::string& p_Path)
   {
     apathy::Path::rmdirs(apathy::Path(p_Path));
   }
+}
+
+void FileUtil::RmFile(const std::string& p_Path)
+{
+  unlink(p_Path.c_str());
 }
 
 void FileUtil::SetApplicationDir(const std::string& p_Path)

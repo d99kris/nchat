@@ -48,6 +48,7 @@ public:
   void SysOpen(const std::string& p_Path);
   void OpenMessageLink();
   void SaveMessageAttachment(std::string p_FilePath = std::string());
+  std::vector<std::string> SelectFile();
   void TransferFile();
   void InsertEmoji();
   void SearchContact();

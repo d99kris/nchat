@@ -26,6 +26,7 @@ void UiConfig::Init()
     { "downloadable_indicator", "+" },
     { "emoji_enabled", "1" },
     { "failed_indicator", "\xe2\x9c\x97" },
+    { "file_picker_command", "" },
     { "help_enabled", "1" },
     { "home_fetch_all", "0" },
     { "list_enabled", "1" },

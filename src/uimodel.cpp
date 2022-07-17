@@ -1029,29 +1029,80 @@ void UiModel::SaveMessageAttachment(std::string p_FilePath /*= std::string()*/)
   }
 }
 
+std::vector<std::string> UiModel::SelectFile()
+{
+  std::vector<std::string> filePaths;
+  static const std::string filePickerCommand = UiConfig::GetStr("file_picker_command");
+  if (!filePickerCommand.empty())
+  {
+    endwin();
+    std::string outPath = FileUtil::MkTempFile();
+    std::string cmd = "2>&1 " + filePickerCommand;
+    StrUtil::ReplaceString(cmd, "%1", outPath);
+
+    // run command
+    LOG_TRACE("cmd \"%s\" start", cmd.c_str());
+    int rv = system(cmd.c_str());
+    if (rv == 0)
+    {
+      std::string filesStr = FileUtil::ReadFile(outPath);
+      if (!filesStr.empty())
+      {
+        filePaths = StrUtil::Split(filesStr, '\n');
+        filePaths = ToVector(ToSet(filePaths)); // hack to handle nnn's duplicate results
+      }
+    }
+    else
+    {
+      LOG_WARNING("cmd \"%s\" failed (%d)", cmd.c_str(), rv);
+    }
+
+    FileUtil::RmFile(outPath);
+
+    refresh();
+    wint_t key = 0;
+    while (get_wch(&key) != ERR)
+    {
+      // Discard any remaining input
+    }
+  }
+  else
+  {
+    UiDialogParams params(m_View.get(), this, "Select File", 75, 65);
+    UiFileListDialog dialog(params);
+    if (dialog.Run())
+    {
+      std::string filePath = dialog.GetSelectedPath();
+      filePaths = std::vector<std::string>({ filePath });
+    }
+  }
+
+  return filePaths;
+}
+
 void UiModel::TransferFile()
 {
-  UiDialogParams params(m_View.get(), this, "Select File", 75, 65);
-  UiFileListDialog dialog(params);
-  if (dialog.Run())
+  std::vector<std::string> filePaths = SelectFile();
+  if (!filePaths.empty())
   {
-    std::string path = dialog.GetSelectedPath();
-
     std::unique_lock<std::mutex> lock(m_ModelMutex);
 
     std::string profileId = m_CurrentChat.first;
     std::string chatId = m_CurrentChat.second;
 
-    FileInfo fileInfo;
-    fileInfo.filePath = path;
-    fileInfo.fileType = FileUtil::GetMimeType(path);
+    for (const auto& filePath : filePaths)
+    {
+      FileInfo fileInfo;
+      fileInfo.filePath = filePath;
+      fileInfo.fileType = FileUtil::GetMimeType(filePath);
 
-    std::shared_ptr<SendMessageRequest> sendMessageRequest =
-      std::make_shared<SendMessageRequest>();
-    sendMessageRequest->chatId = chatId;
-    sendMessageRequest->chatMessage.fileInfo = ProtocolUtil::FileInfoToHex(fileInfo);
+      std::shared_ptr<SendMessageRequest> sendMessageRequest =
+        std::make_shared<SendMessageRequest>();
+      sendMessageRequest->chatId = chatId;
+      sendMessageRequest->chatMessage.fileInfo = ProtocolUtil::FileInfoToHex(fileInfo);
 
-    m_Protocols[profileId]->SendRequest(sendMessageRequest);
+      m_Protocols[profileId]->SendRequest(sendMessageRequest);
+    }
   }
 
   std::unique_lock<std::mutex> lock(m_ModelMutex);

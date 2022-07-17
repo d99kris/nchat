@@ -79,10 +79,12 @@ public:
   static bool IsDir(const std::string& p_Path);
   static std::set<DirEntry, DirEntryCompare> ListPaths(const std::string& p_Folder);
   static void MkDir(const std::string& p_Path);
+  static std::string MkTempFile();
   static void Move(const std::string& p_From, const std::string& p_To);
   static std::string ReadFile(const std::string& p_Path);
   static std::string RemoveFileExt(const std::string& p_Path);
   static void RmDir(const std::string& p_Path);
+  static void RmFile(const std::string& p_Path);
   static void SetApplicationDir(const std::string& p_Path);
   static void SetDownloadsDir(const std::string& p_DownloadsDir);
   static void WriteFile(const std::string& p_Path, const std::string& p_Str);

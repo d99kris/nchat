@@ -293,6 +293,7 @@ This configuration file holds general user interface settings. Default content:
     downloadable_indicator=+
     emoji_enabled=1
     failed_indicator=✗
+    file_picker_command=
     help_enabled=1
     home_fetch_all=0
     list_enabled=1
@@ -349,6 +350,16 @@ Specifies whether to display emojis. Controlled by Ctrl-y in run-time.
 
 Specifies text to suffix attachment filenames in message view for failed
 downloads.
+
+### file_picker_command
+
+Specifies a command to use for file selection, in place of the internal file
+selection dialog used when sending files. The command shall include `%1` (a
+temporary file path) which the command should write its result to. Examples:
+
+nnn: `file_picker_command=nnn -p '%1'`
+
+ranger: `file_picker_command=ranger --choosefiles='%1'`
 
 ### help_enabled
 
