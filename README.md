@@ -312,6 +312,19 @@ This configuration file holds general user interface settings. Default content:
 
 Specifies text to prefix attachment filenames in message view.
 
+### attachment_open_command
+
+Specifies a custom command to use for opening/viewing attachments. The
+command shall include `%1` which will be replaced by the filename or url
+to open. If not specified, the following default commands are used:
+
+Linux: `xdg-open >/dev/null 2>&1 '%1' &`
+
+macOS: `open '%1' &`
+
+Note: Omit the trailing `&` for commands taking over the terminal, for
+example `w3m -o confirm_qq=false '%1'` and `see '%1'`.
+
 ### confirm_deletion
 
 Specifies whether to prompt the user for confirmation when deleting a message.
@@ -357,9 +370,9 @@ Specifies a command to use for file selection, in place of the internal file
 selection dialog used when sending files. The command shall include `%1` (a
 temporary file path) which the command should write its result to. Examples:
 
-nnn: `file_picker_command=nnn -p '%1'`
+nnn: `nnn -p '%1'`
 
-ranger: `file_picker_command=ranger --choosefiles='%1'`
+ranger: `ranger --choosefiles='%1'`
 
 ### help_enabled
 

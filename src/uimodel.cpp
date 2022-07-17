@@ -928,16 +928,46 @@ void UiModel::OpenMessageAttachment(std::string p_FilePath /*= std::string()*/)
 
 void UiModel::SysOpen(const std::string& p_Path)
 {
+  static const std::string cmdTemplate = []()
+  {
+    std::string attachmentOpenCommand = UiConfig::GetStr("attachment_open_command");
+    if (attachmentOpenCommand.empty())
+    {
 #if defined(__APPLE__)
-  std::string cmd = "open '" + p_Path + "' &";
+      attachmentOpenCommand = "open '%1' &";
 #else
-  std::string cmd = "xdg-open >/dev/null 2>&1 '" + p_Path + "' &";
+      attachmentOpenCommand = "xdg-open >/dev/null 2>&1 '%1' &";
 #endif
+    }
+
+    return attachmentOpenCommand;
+  }();
+
+  std::string cmd = cmdTemplate;
+  StrUtil::ReplaceString(cmd, "%1", p_Path);
+  bool isBackground = (cmd.back() == '&');
+
+  if (!isBackground)
+  {
+    endwin();
+  }
+
+  // run command
   LOG_TRACE("cmd \"%s\" start", cmd.c_str());
   int rv = system(cmd.c_str());
   if (rv != 0)
   {
     LOG_WARNING("cmd \"%s\" failed (%d)", cmd.c_str(), rv);
+  }
+
+  if (!isBackground)
+  {
+    refresh();
+    wint_t key = 0;
+    while (get_wch(&key) != ERR)
+    {
+      // Discard any remaining input
+    }
   }
 }
 
