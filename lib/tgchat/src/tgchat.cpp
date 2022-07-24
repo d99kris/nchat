@@ -1822,6 +1822,10 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
   {
     p_Text = "[ChatAddMembers]";
   }
+  else if (p_TdMessageContent.get_id() == td::td_api::messageChatDeleteMember::ID)
+  {
+    p_Text = "[ChatDeleteMember]";
+  }
   else
   {
     p_Text = "[UnknownMessage " + std::to_string(p_TdMessageContent.get_id()) + "]";
