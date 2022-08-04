@@ -89,7 +89,7 @@ Linux / Ubuntu
 --------------
 **Dependencies**
 
-    sudo apt install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev
+    sudo apt install ccache cmake build-essential golang gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev
 
 **Source**
 
