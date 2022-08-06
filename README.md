@@ -135,6 +135,24 @@ Arch Linux
 
     makepkg -i
 
+Fedora
+------
+**Dependencies**
+
+    sudo dnf install ccache file-devel file-libs gperf readline-devel
+
+**Source**
+
+    git clone https://github.com/d99kris/nchat && cd nchat
+
+**Build**
+
+    mkdir -p build && cd build && cmake .. && make -s
+
+**Install**
+
+    sudo make install
+
 Low Memory / RAM Systems
 ------------------------
 The Telegram client library subcomponent requires relatively large amount of
@@ -192,6 +210,27 @@ Arch Linux
 
     makepkg -i
 
+Fedora
+------
+**Extra Dependencies**
+
+    sudo dnf install php-cli
+
+**Source**
+
+    git clone https://github.com/d99kris/nchat && cd nchat
+
+**Build**
+
+    mkdir -p build && cd build
+    CC=/usr/bin/clang CXX=/usr/bin/clang++ cmake -DCMAKE_BUILD_TYPE=Release ..
+    cmake --build . --target prepare_cross_compiling
+    cd ../lib/tgchat/ext/td ; php SplitSource.php ; cd -
+    make -s
+
+**Install**
+
+    sudo make install
 
 Getting Started
 ===============
