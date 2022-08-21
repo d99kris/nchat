@@ -18,7 +18,7 @@
 #include <termios.h>
 #include <unistd.h>
 
-#include "emoji.h"
+#include "emojiutil.h"
 #include "log.h"
 
 void StrUtil::DeleteFromMatch(std::wstring& p_Str, int& p_EndPos, const wchar_t p_StartChar)
@@ -43,7 +43,7 @@ void StrUtil::DeleteToMatch(std::wstring& p_Str, const int p_StartPos, const wch
 
 std::string StrUtil::Emojize(const std::string& p_Str)
 {
-  return emojicpp::emojize(p_Str);
+  return EmojiUtil::Emojize(p_Str);
 }
 
 std::vector<std::string> StrUtil::ExtractUrlsFromStr(const std::string& p_Str)
@@ -212,7 +212,7 @@ std::string StrUtil::StrToHex(const std::string& p_String)
 
 std::string StrUtil::Textize(const std::string& p_Str)
 {
-  return emojicpp::textize(p_Str);
+  return EmojiUtil::Textize(p_Str);
 }
 
 long StrUtil::ToInteger(const std::string& p_Str)

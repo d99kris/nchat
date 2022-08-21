@@ -111,7 +111,6 @@ install(TARGETS nchat DESTINATION bin)
 
 # Headers
 target_include_directories(nchat PRIVATE "ext/apathy")
-target_include_directories(nchat PRIVATE "ext/emojicpp")
 target_include_directories(nchat PRIVATE "lib/common/src")
 target_include_directories(nchat PRIVATE "lib/ncutil/src")
 

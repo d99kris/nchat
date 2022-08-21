@@ -611,9 +611,6 @@ includes the source code of the following third-party libraries:
 - [apathy](https://github.com/dlecocq/apathy) -
   Copyright 2013 Dan Lecocq - [MIT License](/ext/apathy/LICENSE)
 
-- [emojicpp](https://github.com/99x/emojicpp) -
-  Copyright 2018 Shalitha Suranga - [MIT License](/ext/emojicpp/LICENSE)
-
 - [sqlite_modern_cpp](https://github.com/SqliteModernCpp/sqlite_modern_cpp) -
   Copyright 2017 aminroosta - [MIT License](/ext/sqlite_modern_cpp/License.txt)
 

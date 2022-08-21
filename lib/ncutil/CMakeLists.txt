@@ -27,6 +27,10 @@ add_library(ncutil SHARED
   src/config.h
   src/emojilist.cpp
   src/emojilist.h
+  src/emojiutil.cpp
+  src/emojiutil.h
+  src/emojiutil_map.h
+  src/emojiutil_view.h
   src/fileutil.cpp
   src/fileutil.h
   src/log.cpp
@@ -54,7 +58,6 @@ install(TARGETS ncutil DESTINATION lib)
 target_include_directories(ncutil PRIVATE "../ncutil/src" ${MAGIC_INCLUDE_DIR})
 target_include_directories(ncutil PRIVATE "../common/src")
 target_include_directories(ncutil PRIVATE "../../ext/apathy")
-target_include_directories(ncutil PRIVATE "../../ext/emojicpp")
 target_include_directories(ncutil PRIVATE "../../ext/sqlite_modern_cpp/hdr")
 
 # Compiler flags

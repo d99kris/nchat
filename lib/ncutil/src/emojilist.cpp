@@ -1,6 +1,6 @@
 // emojilist.cpp
 //
-// Copyright (c) 2020-2021 Kristofer Berggren
+// Copyright (c) 2020-2022 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -10,10 +10,10 @@
 #include <map>
 #include <utility>
 
-#include <emoji.h>
 #include <sqlite_modern_cpp.h>
 
 #include "log.h"
+#include "emojiutil.h"
 #include "fileutil.h"
 
 std::mutex EmojiList::m_Mutex;
@@ -23,7 +23,7 @@ void EmojiList::Init()
 {
   std::unique_lock<std::mutex> lock(m_Mutex);
 
-  static const int dirVersion = 1;
+  static const int dirVersion = 2;
   const std::string& emojisDir = FileUtil::GetApplicationDir() + "/emojis";
   FileUtil::InitDirVersion(emojisDir, dirVersion);
 
@@ -45,10 +45,14 @@ void EmojiList::Init()
   {
     LOG_DEBUG("populate emoji db");
     *m_Db << "BEGIN;";
-    const std::map<std::string, std::string>& emojis = emojicpp::EMOJIS;
-    for (const auto& emoji : emojis)
+    const std::set<std::string>& emojiView = EmojiUtil::GetView();
+    const std::map<std::string, std::string>& emojiMap = EmojiUtil::GetMap();
+    for (const auto& emoji : emojiMap)
     {
-      *m_Db << "INSERT INTO emojis (name, emoji, usages) VALUES (?,?,0);" << emoji.first << emoji.second;
+      if (emojiView.count(emoji.first))
+      {
+        *m_Db << "INSERT INTO emojis (name, emoji, usages) VALUES (?,?,0);" << emoji.first << emoji.second;
+      }
     }
     *m_Db << "COMMIT;";
   }
