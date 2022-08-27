@@ -11,6 +11,8 @@
 
 #include <sys/time.h>
 
+#include <ctime>
+
 int64_t TimeUtil::GetCurrentTimeMSec()
 {
   struct timeval now;
