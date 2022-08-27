@@ -38,24 +38,24 @@ std::string EmojiUtil::Emojize(const std::string& p_Str)
 
 std::string EmojiUtil::Textize(const std::string& p_In)
 {
-  static const std::map<std::string, std::string> emojiToText =
-    []() {
-      std::map<std::string, std::string> emToText;
-      for (auto& emojiPair : s_Map)
-      {
-        emToText[emojiPair.second] = emojiPair.first;
-      }
+  static const std::map<std::string, std::string> emojiToText = []()
+  {
+    std::map<std::string, std::string> emToText;
+    for (auto& emojiPair : s_Map)
+    {
+      emToText[emojiPair.second] = emojiPair.first;
+    }
 
-      return emToText;
-    }();
+    return emToText;
+  }();
 
   const bool enableDoubleMultiByteLookup = true;
-  std::string out;  
-  const char *cstr = p_In.c_str();
+  std::string out;
+  const char* cstr = p_In.c_str();
   size_t charlen = 0;
   mbstate_t mbs;
   std::string mbprev;
-  
+
   memset(&mbs, 0, sizeof(mbs));
   while ((charlen = mbrlen(cstr, MB_CUR_MAX, &mbs)) != 0 &&
          charlen != (size_t)-1 && charlen != (size_t)-2)
@@ -112,7 +112,7 @@ std::string EmojiUtil::Textize(const std::string& p_In)
     out += mbprev;
   }
 
-  return out;      
+  return out;
 }
 
 const std::map<std::string, std::string>& EmojiUtil::GetMap()

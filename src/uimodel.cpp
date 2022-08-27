@@ -1224,7 +1224,7 @@ void UiModel::FetchCachedMessage(const std::string& p_ProfileId, const std::stri
     getMessageRequest->msgId = p_MsgId;
     LOG_TRACE("request message %s in %s", p_MsgId.c_str(), p_ChatId.c_str());
     m_Protocols[m_CurrentChat.first]->SendRequest(getMessageRequest);
-    
+
     msgIdFetchedCache.insert(p_MsgId);
   }
 }
@@ -1286,7 +1286,7 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
             if (!mutedPositionByTimestamp && m_ChatInfos[profileId][chatInfo.id].isMuted)
             {
               // deterministic fake time near epoch
-              int64_t chatIdHash = std::hash<std::string>{ } (chatInfo.id) % 1000;
+              int64_t chatIdHash = std::hash<std::string>{ }(chatInfo.id) % 1000;
               m_ChatInfos[profileId][chatInfo.id].lastMessageTime = chatIdHash;
             }
 
@@ -1354,11 +1354,13 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
               }
             }
 
+            // *INDENT-OFF*
             std::sort(messageVec.begin(), messageVec.end(),
-            [&](const std::string& lhs, const std::string& rhs) -> bool
+                      [&](const std::string& lhs, const std::string& rhs) -> bool
             {
               return messages.at(lhs).timeSent > messages.at(rhs).timeSent;
             });
+            // *INDENT-ON*
 
             if ((profileId == m_CurrentChat.first) && (chatId == m_CurrentChat.second))
             {
@@ -1601,7 +1603,7 @@ bool UiModel::Process()
 void UiModel::SortChats()
 {
   std::sort(m_ChatVec.begin(), m_ChatVec.end(),
-  [&](const std::pair<std::string, std::string>& lhs, const std::pair<std::string, std::string>& rhs) -> bool
+            [&](const std::pair<std::string, std::string>& lhs, const std::pair<std::string, std::string>& rhs) -> bool
   {
     return m_ChatInfos[lhs.first][lhs.second].lastMessageTime > m_ChatInfos[rhs.first][rhs.second].lastMessageTime;
   });
@@ -2063,10 +2065,10 @@ void UiModel::DesktopNotifyUnread(const std::string& p_Name, const std::string& 
   std::string name = p_Name;
   std::string text = p_Text;
   name.erase(remove_if(name.begin(), name.end(),
-                       [](char c) { return ((c == '\'') || (c == '%') || (c == '"')); } ),
+                       [](char c) { return ((c == '\'') || (c == '%') || (c == '"')); }),
              name.end());
   text.erase(remove_if(text.begin(), text.end(),
-                       [](char c) { return ((c == '\'') || (c == '%') || (c == '"')); } ),
+                       [](char c) { return ((c == '\'') || (c == '%') || (c == '"')); }),
              text.end());
 
   // insert sender name and text into command

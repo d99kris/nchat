@@ -141,20 +141,20 @@ func RemoveConn(connId int) {
 // download info
 var downloadInfoVersion = 1 // bump version upon any struct change
 type DownloadInfo struct {
-	Version int `json:"Version_int"`
-	Url string `json:"Url_string"`
+	Version    int    `json:"Version_int"`
+	Url        string `json:"Url_string"`
 	DirectPath string `json:"DirectPath_string"`
 
-	TargetPath string `json:"TargetPath_string"`
-	MediaKey []byte `json:"MediaKey_arraybyte"`
-	MediaType whatsmeow.MediaType `json:"MediaType_MediaType"`
-	Size int `json:"Size_int"`
+	TargetPath string              `json:"TargetPath_string"`
+	MediaKey   []byte              `json:"MediaKey_arraybyte"`
+	MediaType  whatsmeow.MediaType `json:"MediaType_MediaType"`
+	Size       int                 `json:"Size_int"`
 
 	FileEncSha256 []byte `json:"FileEncSha256_arraybyte"`
-	FileSha256 []byte `json:"FileSha256_arraybyte"`
+	FileSha256    []byte `json:"FileSha256_arraybyte"`
 }
 
-func DownloadableMessageToFileId(client *whatsmeow.Client, msg whatsmeow.DownloadableMessage, targetPath string) (string) {
+func DownloadableMessageToFileId(client *whatsmeow.Client, msg whatsmeow.DownloadableMessage, targetPath string) string {
 	var info DownloadInfo
 	info.Version = downloadInfoVersion
 

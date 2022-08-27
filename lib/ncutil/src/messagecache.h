@@ -146,18 +146,20 @@ public:
 
   static void AddProfile(const std::string& p_ProfileId, bool p_CheckSync, int p_DirVersion);
   static void AddMessages(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_FromMsgId,
-                  const std::vector<ChatMessage>& p_ChatMessages);
+                          const std::vector<ChatMessage>& p_ChatMessages);
   static void AddChats(const std::string& p_ProfileId, const std::vector<ChatInfo>& p_ChatInfos);
   static void AddContacts(const std::string& p_ProfileId, const std::vector<ContactInfo>& p_ContactInfos);
   static bool FetchChats(const std::string& p_ProfileId);
   static bool FetchContacts(const std::string& p_ProfileId);
-  static bool FetchMessagesFrom(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_FromMsgId,
-                        const int p_Limit, const bool p_Sync);
+  static bool FetchMessagesFrom(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                const std::string& p_FromMsgId,
+                                const int p_Limit, const bool p_Sync);
   static bool FetchOneMessage(const std::string& p_ProfileId, const std::string& p_ChatId,
-                       const std::string& p_MsgId, const bool p_Sync);
+                              const std::string& p_MsgId, const bool p_Sync);
   static void DeleteOneMessage(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId);
-  static void UpdateMessageIsRead(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId,
-                           bool p_IsRead);
+  static void UpdateMessageIsRead(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                  const std::string& p_MsgId,
+                                  bool p_IsRead);
   static void UpdateMessageFileInfo(const std::string& p_ProfileId, const std::string& p_ChatId,
                                     const std::string& p_MsgId, const std::string& p_FileInfo);
 
@@ -168,10 +170,10 @@ private:
   static void EnqueueRequest(std::shared_ptr<Request> p_Request);
   static void PerformRequest(std::shared_ptr<Request> p_Request);
   static void PerformFetchMessagesFrom(const std::string& p_ProfileId, const std::string& p_ChatId,
-                               const int64_t p_FromMsgIdTimeSent, const int p_Limit,
-                               std::vector<ChatMessage>& p_ChatMessages);
+                                       const int64_t p_FromMsgIdTimeSent, const int p_Limit,
+                                       std::vector<ChatMessage>& p_ChatMessages);
   static void PerformFetchOneMessage(const std::string& p_ProfileId, const std::string& p_ChatId,
-                              const std::string& p_MsgId, std::vector<ChatMessage>& p_ChatMessages);
+                                     const std::string& p_MsgId, std::vector<ChatMessage>& p_ChatMessages);
 
   static void CallMessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage);
 

@@ -7,11 +7,11 @@
 
 #include "timeutil.h"
 
+#include <ctime>
+
 #include <unistd.h>
 
 #include <sys/time.h>
-
-#include <ctime>
 
 int64_t TimeUtil::GetCurrentTimeMSec()
 {

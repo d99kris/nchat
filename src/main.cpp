@@ -52,7 +52,7 @@ public:
   virtual std::shared_ptr<Protocol> Create() const = 0;
 };
 
-template <typename T>
+template<typename T>
 class ProtocolFactory : public ProtocolBaseFactory
 {
 public:
@@ -60,7 +60,7 @@ public:
   {
     return T::GetName();
   }
-  
+
   virtual std::shared_ptr<Protocol> Create() const
   {
     std::shared_ptr<T> protocol;
@@ -74,7 +74,7 @@ public:
       return protocol;
     }
 
-    T* (*CreateFunc)() = (T* (*)()) dlsym(handle, createFunc.c_str());
+    T* (* CreateFunc)() = (T * (*)())dlsym(handle, createFunc.c_str());
     if (CreateFunc == nullptr)
     {
       LOG_ERROR("failed dlsym %s", createFunc.c_str());
@@ -92,13 +92,13 @@ static std::vector<ProtocolBaseFactory*> GetProtocolFactorys()
   std::vector<ProtocolBaseFactory*> protocolFactorys =
   {
 #ifdef HAS_DUMMY
-   new ProtocolFactory<DuChat>(),
+    new ProtocolFactory<DuChat>(),
 #endif
 #ifdef HAS_TELEGRAM
-   new ProtocolFactory<TgChat>(),
+    new ProtocolFactory<TgChat>(),
 #endif
 #ifdef HAS_WHATSAPP
-   new ProtocolFactory<WmChat>(),
+    new ProtocolFactory<WmChat>(),
 #endif
   };
 

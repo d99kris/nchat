@@ -235,10 +235,11 @@ void WmChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
         LOG_DEBUG("get message");
         std::shared_ptr<GetMessageRequest> getMessageRequest =
           std::static_pointer_cast<GetMessageRequest>(p_RequestMessage);
-        MessageCache::FetchOneMessage(m_ProfileId, getMessageRequest->chatId, getMessageRequest->msgId, false /*p_Sync*/);
+        MessageCache::FetchOneMessage(m_ProfileId, getMessageRequest->chatId, getMessageRequest->msgId,
+                                      false /*p_Sync*/);
       }
       break;
-      
+
     case GetMessagesRequestType:
       {
         LOG_DEBUG("get messages");
@@ -484,7 +485,8 @@ void WmNewChatsNotify(int p_ConnId, char* p_ChatId, int p_IsUnread, int p_IsMute
 }
 
 void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe,
-                         char* p_QuotedId, char* p_FileId, char* p_FilePath, int p_FileStatus, int p_TimeSent, int p_IsRead)
+                         char* p_QuotedId, char* p_FileId, char* p_FilePath, int p_FileStatus, int p_TimeSent,
+                         int p_IsRead)
 {
   LOG_DEBUG("WaNewMessagesNotify");
 
@@ -509,7 +511,7 @@ void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_Se
   chatMessage.isOutgoing = (p_FromMe == 1);
   chatMessage.quotedId = std::string(p_QuotedId);
   chatMessage.fileInfo = fileInfoStr;
-  chatMessage.timeSent = (((int64_t)p_TimeSent) * 1000) + (std::hash<std::string>{ } (chatMessage.id) % 256);
+  chatMessage.timeSent = (((int64_t)p_TimeSent) * 1000) + (std::hash<std::string>{ }(chatMessage.id) % 256);
   chatMessage.isRead = (p_IsRead == 1);
 
   std::shared_ptr<NewMessagesNotify> newMessagesNotify = std::make_shared<NewMessagesNotify>(instance->GetProfileId());
@@ -536,7 +538,7 @@ void WmNewStatusNotify(int p_ConnId, char* p_ChatId, char* p_UserId, int p_IsOnl
 
   std::string chatId(p_ChatId);
   std::string userId(p_UserId);
-  
+
   {
     std::shared_ptr<ReceiveStatusNotify> receiveStatusNotify =
       std::make_shared<ReceiveStatusNotify>(instance->GetProfileId());
@@ -588,7 +590,8 @@ void WmNewMessageStatusNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p
   free(p_MsgId);
 }
 
-void WmNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_FilePath, int p_FileStatus, int p_Action)
+void WmNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_FilePath, int p_FileStatus,
+                            int p_Action)
 {
   WmChat* instance = WmChat::GetInstance(p_ConnId);
   if (instance == nullptr) return;
