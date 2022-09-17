@@ -30,6 +30,14 @@ type PushName struct {
 	NewPushName string             // The new push name that was included in the message.
 }
 
+// BusinessName is emitted when a message is received with a different verified business name than the previous value cached for the same user.
+type BusinessName struct {
+	JID             types.JID
+	Message         *types.MessageInfo // This is only present if the change was detected in a message.
+	OldBusinessName string
+	NewBusinessName string
+}
+
 // Pin is emitted when a chat is pinned or unpinned from another device.
 type Pin struct {
 	JID       types.JID // The chat which was pinned or unpinned.
@@ -82,6 +90,14 @@ type MarkChatAsRead struct {
 	Timestamp time.Time // The time when the marking happened.
 
 	Action *waProto.MarkChatAsReadAction // Whether the chat was marked as read or unread, and info about the most recent messages.
+}
+
+// DeleteChat is emitted when a chat is deleted on another device.
+type DeleteChat struct {
+	JID       types.JID // The chat which was deleted.
+	Timestamp time.Time // The time when the deletion happened.
+
+	Action *waProto.DeleteChatAction // Information about the deletion.
 }
 
 // PushNameSetting is emitted when the user's push name is changed from another device.

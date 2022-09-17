@@ -213,8 +213,10 @@ type Message struct {
 	Info    types.MessageInfo // Information about the message like the chat and sender IDs
 	Message *waProto.Message  // The actual message struct
 
-	IsEphemeral bool // True if the message was unwrapped from an EphemeralMessage
-	IsViewOnce  bool // True if the message was unwrapped from a ViewOnceMessage
+	IsEphemeral           bool // True if the message was unwrapped from an EphemeralMessage
+	IsViewOnce            bool // True if the message was unwrapped from a ViewOnceMessage or ViewOnceMessageV2
+	IsViewOnceV2          bool // True if the message was unwrapped from a ViewOnceMessage
+	IsDocumentWithCaption bool // True if the message was unwrapped from a DocumentWithCaptionMessage
 
 	// The raw message struct. This is the raw unmodified data, which means the actual message might
 	// be wrapped in DeviceSentMessage, EphemeralMessage or ViewOnceMessage.
@@ -239,6 +241,15 @@ func (evt *Message) UnwrapRaw() *Message {
 		evt.Message = evt.Message.GetViewOnceMessage().GetMessage()
 		evt.IsViewOnce = true
 	}
+	if evt.Message.GetViewOnceMessageV2().GetMessage() != nil {
+		evt.Message = evt.Message.GetViewOnceMessageV2().GetMessage()
+		evt.IsViewOnce = true
+		evt.IsViewOnceV2 = true
+	}
+	if evt.Message.GetDocumentWithCaptionMessage().GetMessage() != nil {
+		evt.Message = evt.Message.GetDocumentWithCaptionMessage().GetMessage()
+		evt.IsDocumentWithCaption = true
+	}
 	return evt
 }
 
@@ -254,6 +265,12 @@ const (
 	ReceiptTypeRead ReceiptType = "read"
 	// ReceiptTypeReadSelf means the current user read a message from a different device, and has read receipts disabled in privacy settings.
 	ReceiptTypeReadSelf ReceiptType = "read-self"
+	// ReceiptTypePlayed means the user opened a view-once media message.
+	//
+	// This is dispatched for both incoming and outgoing messages when played. If the current user opened the media,
+	// it means the media should be removed from all devices. If a recipient opened the media, it's just a notification
+	// for the sender that the media was viewed.
+	ReceiptTypePlayed ReceiptType = "played"
 )
 
 // GoString returns the name of the Go constant for the ReceiptType value.
@@ -265,6 +282,8 @@ func (rt ReceiptType) GoString() string {
 		return "events.ReceiptTypeReadSelf"
 	case ReceiptTypeDelivered:
 		return "events.ReceiptTypeDelivered"
+	case ReceiptTypePlayed:
+		return "events.ReceiptTypePlayed"
 	default:
 		return fmt.Sprintf("events.ReceiptType(%#v)", string(rt))
 	}
@@ -305,7 +324,9 @@ type Presence struct {
 
 // JoinedGroup is emitted when you join or are added to a group.
 type JoinedGroup struct {
-	Reason string // If the event was triggered by you using an invite link, this will be "invite"
+	Reason    string          // If the event was triggered by you using an invite link, this will be "invite".
+	Type      string          // "new" if it's a newly created group.
+	CreateKey types.MessageID // If you created the group, this is the same message ID you passed to CreateGroup.
 	types.GroupInfo
 }
 

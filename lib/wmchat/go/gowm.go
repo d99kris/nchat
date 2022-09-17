@@ -931,9 +931,9 @@ func WmInit(path string) int {
 	store.DeviceProps.PlatformType = waProto.DeviceProps_FIREFOX.Enum()
 	switch runtime.GOOS {
 	case "linux":
-		store.CompanionProps.Os = proto.String("Linux")
+		store.DeviceProps.Os = proto.String("Linux")
 	case "darwin":
-		store.CompanionProps.Os = proto.String("Mac OS")
+		store.DeviceProps.Os = proto.String("Mac OS")
 	default:
 	}
 
@@ -1080,6 +1080,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 	var message waProto.Message
 	var msgId types.MessageID
 	var timeStamp time.Time
+	var sendResponse whatsmeow.SendResponse
 
 	// recipient
 	chatJid, jidErr := types.ParseJID(chatId)
@@ -1087,6 +1088,10 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 		LOG_WARNING(fmt.Sprintf("jid err %#v", jidErr))
 		return -1
 	}
+
+	// message id
+	// skip assign, let server generate
+	// msgId = whatsmeow.GenerateMessageID()
 
 	// check message type
 	if len(filePath) == 0 {
@@ -1123,11 +1128,8 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 			message.Conversation = &text
 		}
 
-		// message id
-		msgId = whatsmeow.GenerateMessageID()
-
 		// send message
-		timeStamp, sendErr = client.SendMessage(chatJid, msgId, &message)
+		sendResponse, sendErr = client.SendMessage(context.Background(), chatJid, msgId, &message)
 
 	} else {
 
@@ -1161,11 +1163,8 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 			message.ImageMessage = &imageMessage
 
-			// message id
-			msgId = whatsmeow.GenerateMessageID()
-
 			// send message
-			timeStamp, sendErr = client.SendMessage(chatJid, msgId, &message)
+			sendResponse, sendErr = client.SendMessage(context.Background(), chatJid, msgId, &message)
 
 		} else {
 
@@ -1198,11 +1197,8 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 			message.DocumentMessage = &documentMessage
 
-			// message id
-			msgId = whatsmeow.GenerateMessageID()
-
 			// send message
-			timeStamp, sendErr = client.SendMessage(chatJid, msgId, &message)
+			sendResponse, sendErr = client.SendMessage(context.Background(), chatJid, msgId, &message)
 		}
 	}
 
@@ -1212,6 +1208,9 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 		return -1
 	} else {
 		LOG_TRACE(fmt.Sprintf("send message ok"))
+
+		timeStamp = sendResponse.Timestamp
+		msgId = sendResponse.ID
 
 		// messageInfo
 		var messageInfo types.MessageInfo

@@ -40,6 +40,9 @@ func (cli *Client) handleEncryptedMessage(node *waBinary.Node) {
 	if err != nil {
 		cli.Log.Warnf("Failed to parse message: %v", err)
 	} else {
+		if info.VerifiedName != nil && len(info.VerifiedName.Details.GetVerifiedName()) > 0 {
+			go cli.updateBusinessName(info.Sender, info, info.VerifiedName.Details.GetVerifiedName())
+		}
 		if len(info.PushName) > 0 && info.PushName != "-" {
 			go cli.updatePushName(info.Sender, info, info.PushName)
 		}
@@ -47,20 +50,29 @@ func (cli *Client) handleEncryptedMessage(node *waBinary.Node) {
 	}
 }
 
-func (cli *Client) parseMessageSource(node *waBinary.Node) (source types.MessageSource, err error) {
+func (cli *Client) parseMessageSource(node *waBinary.Node, requireParticipant bool) (source types.MessageSource, err error) {
+	clientID := cli.Store.ID
+	if clientID == nil {
+		err = ErrNotLoggedIn
+		return
+	}
 	ag := node.AttrGetter()
 	from := ag.JID("from")
 	if from.Server == types.GroupServer || from.Server == types.BroadcastServer {
 		source.IsGroup = true
 		source.Chat = from
-		source.Sender = ag.JID("participant")
-		if source.Sender.User == cli.Store.ID.User {
+		if requireParticipant {
+			source.Sender = ag.JID("participant")
+		} else {
+			source.Sender = ag.OptionalJIDOrEmpty("participant")
+		}
+		if source.Sender.User == clientID.User {
 			source.IsFromMe = true
 		}
 		if from.Server == types.BroadcastServer {
 			source.BroadcastListOwner = ag.OptionalJIDOrEmpty("recipient")
 		}
-	} else if from.User == cli.Store.ID.User {
+	} else if from.User == clientID.User {
 		source.IsFromMe = true
 		source.Sender = from
 		recipient := ag.OptionalJID("recipient")
@@ -80,7 +92,7 @@ func (cli *Client) parseMessageSource(node *waBinary.Node) (source types.Message
 func (cli *Client) parseMessageInfo(node *waBinary.Node) (*types.MessageInfo, error) {
 	var info types.MessageInfo
 	var err error
-	info.MessageSource, err = cli.parseMessageSource(node)
+	info.MessageSource, err = cli.parseMessageSource(node, true)
 	if err != nil {
 		return nil, err
 	}
@@ -96,6 +108,11 @@ func (cli *Client) parseMessageInfo(node *waBinary.Node) (*types.MessageInfo, er
 	for _, child := range node.GetChildren() {
 		if child.Tag == "multicast" {
 			info.Multicast = true
+		} else if child.Tag == "verified_name" {
+			info.VerifiedName, err = parseVerifiedNameContent(child)
+			if err != nil {
+				cli.Log.Warnf("Failed to parse verified_name node in %s: %v", info.ID, err)
+			}
 		} else if mediaType, ok := child.AttrGetter().GetString("mediatype", false); ok {
 			info.MediaType = mediaType
 		}
@@ -383,7 +400,8 @@ func (cli *Client) handleDecryptedMessage(info *types.MessageInfo, msg *waProto.
 }
 
 func (cli *Client) sendProtocolMessageReceipt(id, msgType string) {
-	if len(id) == 0 || cli.Store.ID == nil {
+	clientID := cli.Store.ID
+	if len(id) == 0 || clientID == nil {
 		return
 	}
 	err := cli.sendNode(waBinary.Node{
@@ -391,7 +409,7 @@ func (cli *Client) sendProtocolMessageReceipt(id, msgType string) {
 		Attrs: waBinary.Attrs{
 			"id":   id,
 			"type": msgType,
-			"to":   types.NewJID(cli.Store.ID.User, types.LegacyUserServer),
+			"to":   types.NewJID(clientID.User, types.LegacyUserServer),
 		},
 		Content: nil,
 	})
