@@ -1263,6 +1263,23 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
       CallMessageHandler(deleteMessageNotify);
     }
   },
+  [](td::td_api::updateConnectionState& connection_state)
+  {
+    LOG_TRACE("update connection state");
+
+    if (!connection_state.state_) return;
+
+    if (connection_state.state_->get_id() == td::td_api::connectionStateReady::ID)
+    {
+      Status::Set(Status::FlagOnline);
+      Status::Clear(Status::FlagOffline);
+    }
+    else
+    {
+      Status::Set(Status::FlagOffline);
+      Status::Clear(Status::FlagOnline);
+    }
+  },
   [](td::td_api::updateRecentStickers&)
   {
     LOG_TRACE("update recent stickers");
@@ -1278,10 +1295,6 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
   [](td::td_api::updateTrendingStickerSets&)
   {
     LOG_TRACE("update trending sticker sets");
-  },
-  [](td::td_api::updateConnectionState&)
-  {
-    LOG_TRACE("update connection state");
   },
   [](td::td_api::updateOption&)
   {

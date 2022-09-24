@@ -416,6 +416,14 @@ func (handler *WmEventHandler) HandleEvent(rawEvt interface{}) {
 		LOG_TRACE(fmt.Sprintf("%#v", evt))
 		handler.HandleConnected()
 		SetState(handler.connId, Connected)
+		CWmSetStatus(FlagOnline)
+		CWmClearStatus(FlagOffline)
+
+	case *events.Disconnected:
+		// disconnected
+		LOG_TRACE(fmt.Sprintf("%#v", evt))
+		CWmSetStatus(FlagOffline)
+		CWmClearStatus(FlagOnline)
 
 	case *events.StreamReplaced:
 		// TODO: find out when exactly this happens and how to handle it
