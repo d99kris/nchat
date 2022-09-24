@@ -634,6 +634,12 @@ License
 nchat is distributed under the MIT license. See LICENSE file.
 
 
+Contributions
+=============
+Please refer to [Contributing Guidelines](CONTRIBUTING.md) and
+[Design Notes](DESIGN.md).
+
+
 Alternatives
 ============
 Other terminal-based Telegram clients:
