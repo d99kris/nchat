@@ -365,7 +365,8 @@ bool MessageCache::FetchOneMessage(const std::string& p_ProfileId, const std::st
   std::unique_lock<std::mutex> lock(m_DbMutex);
   if (!m_Dbs[p_ProfileId]) return false;
 
-  if (m_CheckSync[p_ProfileId] && !m_InSync[p_ProfileId][p_ChatId]) return false;
+  bool inSync = (!m_CheckSync[p_ProfileId] || m_InSync[p_ProfileId][p_ChatId]);
+  LOG_TRACE("get cached message %d %d in %s", inSync, p_MsgId.c_str(), p_ChatId.c_str());
 
   lock.unlock();
 
