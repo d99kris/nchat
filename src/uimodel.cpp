@@ -425,10 +425,12 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
   else if (p_Key == keyDeleteLineAfterCursor)
   {
     StrUtil::DeleteToNextMatch(entryStr, entryPos, 0, L"\n");
+    SetTyping(profileId, chatId, true);
   }
   else if (p_Key == keyDeleteLineBeforeCursor)
   {
     StrUtil::DeleteToPrevMatch(entryStr, entryPos, -1, L"\n");
+    SetTyping(profileId, chatId, true);
   }
   else if (p_Key == keyBeginLine)
   {
@@ -449,10 +451,12 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
   else if (p_Key == keyBackwardKillWord)
   {
     StrUtil::DeleteToPrevMatch(entryStr, entryPos, -1, L" \n");
+    SetTyping(profileId, chatId, true);
   }
   else if (p_Key == keyKillWord)
   {
     StrUtil::DeleteToNextMatch(entryStr, entryPos, 0, L" \n");
+    SetTyping(profileId, chatId, true);
   }
   else if (StrUtil::IsValidTextKey(p_Key))
   {
