@@ -48,14 +48,14 @@ Interactive Commands:
     PageUp      history previous page
     Tab         next chat
     Sh-Tab      previous chat
-    Ctrl-e      insert emoji
     Ctrl-f      jump to unread chat
     Ctrl-g      toggle show help bar
     Ctrl-k      delete from cursor to end of line
     Ctrl-l      toggle show contact list
+    Ctrl-n      search contacts
     Ctrl-p      toggle show top bar
     Ctrl-q      quit
-    Ctrl-s      search contacts
+    Ctrl-s      insert emoji
     Ctrl-t      send file
     Ctrl-u      delete from cursor to start of line
     Ctrl-x      send message
@@ -498,8 +498,8 @@ This configuration file holds user interface key bindings. Default content:
     return=KEY_RETURN
     right=KEY_RIGHT
     save=KEY_CTRLR
-    select_contact=KEY_CTRLS
-    select_emoji=KEY_CTRLE
+    select_contact=KEY_CTRLN
+    select_emoji=KEY_CTRLS
     send_msg=KEY_CTRLX
     toggle_emoji=KEY_CTRLY
     toggle_help=KEY_CTRLG

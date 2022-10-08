@@ -1,6 +1,6 @@
 // uikeyconfig.cpp
 //
-// Copyright (c) 2019-2021 Kristofer Berggren
+// Copyright (c) 2019-2022 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -45,8 +45,8 @@ void UiKeyConfig::Init()
     { "open_link", "KEY_CTRLW" },
     { "save", "KEY_CTRLR" },
     { "transfer", "KEY_CTRLT" },
-    { "select_emoji", "KEY_CTRLE" },
-    { "select_contact", "KEY_CTRLS" },
+    { "select_emoji", "KEY_CTRLS" },
+    { "select_contact", "KEY_CTRLN" },
     { "other_commands_help", "KEY_CTRLO" },
   };
 
