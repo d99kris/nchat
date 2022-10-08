@@ -154,8 +154,6 @@ if [[ "${BUILD}" == "1" ]]; then
   mkdir -p build && cd build && cmake ${CMAKEARGS} .. && make -s ${MAKEARGS} && cd .. || exiterr "build failed, exiting."
 fi
 
-
-
 # debug
 if [[ "${DEBUG}" == "1" ]]; then
   OS="$(uname)"
@@ -190,7 +188,7 @@ if [[ "${DEBUG}" == "1" ]]; then
   MAKEARGS="-j${MAX_THREADS}"
   echo "using ${MAKEARGS} (${CPU_MAX_THREADS} cores, ${MEM} MB phys mem, ${MEM_NEEDED_PER_CORE} MB mem per core needed)"
 
-  CMAKEARGS="-DHAS_DUMMY=ON"
+  CMAKEARGS=""
 
   mkdir -p dbgbuild && cd dbgbuild && cmake -DCMAKE_BUILD_TYPE=Debug ${CMAKEARGS} .. && make -s ${MAKEARGS} && cd .. || exiterr "debug build failed, exiting."
 fi

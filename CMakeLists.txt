@@ -38,7 +38,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 endif()
 
 # Optional component - Dummy Protocol
-option(HAS_DUMMY "Dummy" OFF)
+option(HAS_DUMMY "Dummy" ON)
 message(STATUS "Dummy: ${HAS_DUMMY}")
 
 # Optional component - Telegram
