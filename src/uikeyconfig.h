@@ -22,6 +22,7 @@ public:
   static void Init();
   static void Cleanup();
   static int GetKey(const std::string& p_Param);
+  static std::string GetKeyName(int p_KeyCode);
 
 private:
   static int GetKeyCode(const std::string& p_KeyName);

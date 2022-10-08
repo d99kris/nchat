@@ -38,6 +38,7 @@ Command-line Options:
     -e, --verbose          enable verbose logging
     -ee, --extra-verbose   enable extra verbose logging
     -h, --help             display this help and exit
+    -k, --keydump          key code dump mode
     -s, --setup            set up chat protocol account
     -v, --version          output version information and exit
     -x, --export <DIR>     export message cache to specified dir
@@ -524,10 +525,15 @@ This configuration file holds user interface key bindings. Default content:
     unread_chat=KEY_CTRLF
     up=KEY_UP
 
-Refer to function UiKeyConfig::GetKeyCode() in
-[uikeyconfig.cpp](https://github.com/d99kris/nchat/blob/master/src/uikeyconfig.cpp)
-for a list of supported key names to use in the config file. Alternatively
-key codes may be entered in hex format (e.g. 0x9).
+The key bindings may be specified in the following formats:
+- Ncurses macro (ex: `KEY_CTRLK`)
+- Hex key code (ex: `0x22e`)
+- Octal key code sequence (ex: `\033\177`)
+- Plain-text single-char ASCII (ex: `r`)
+
+To determine the key code sequence for a key, one can run nchat in key code
+dump mode `nchat -k` which will output the octal code, and ncurses macro name
+(if present).
 
 ~/.nchat/color.conf
 -------------------

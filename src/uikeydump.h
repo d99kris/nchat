@@ -1,4 +1,4 @@
-// version.h
+// uikeydump.h
 //
 // Copyright (c) 2022 Kristofer Berggren
 // All rights reserved.
@@ -7,4 +7,8 @@
 
 #pragma once
 
-#define NCHAT_VERSION "2.90"
+class UiKeyDump
+{
+public:
+  static void Run();
+};

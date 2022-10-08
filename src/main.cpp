@@ -25,6 +25,7 @@
 #include "scopeddirlock.h"
 #include "ui.h"
 #include "uiconfig.h"
+#include "uikeydump.h"
 
 #ifdef HAS_DUMMY
 #include "duchat.h"
@@ -135,6 +136,11 @@ int main(int argc, char* argv[])
     else if ((*it == "-h") || (*it == "--help"))
     {
       ShowHelp();
+      return 0;
+    }
+    else if ((*it == "-k") || (*it == "--keydump"))
+    {
+      UiKeyDump::Run();
       return 0;
     }
     else if (*it == "-m")
@@ -401,6 +407,7 @@ void ShowHelp()
     "    -e, --verbose          enable verbose logging\n"
     "    -ee, --extra-verbose   enable extra verbose logging\n"
     "    -h, --help             display this help and exit\n"
+    "    -k, --keydump          key code dump mode\n"
     "    -s, --setup            set up chat protocol account\n"
     "    -v, --version          output version information and exit\n"
     "    -x, --export <DIR>     export message cache to specified dir\n"
