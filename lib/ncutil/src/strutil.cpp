@@ -21,24 +21,33 @@
 #include "emojiutil.h"
 #include "log.h"
 
-void StrUtil::DeleteFromMatch(std::wstring& p_Str, int& p_EndPos, const wchar_t p_StartChar)
+void StrUtil::DeleteToNextMatch(std::wstring& p_Str, int& p_Pos, int p_Offs, std::wstring p_Chars)
 {
-  if (p_Str.empty()) return;
-
-  size_t startPos = p_Str.rfind(p_StartChar, (p_EndPos > 0) ? (p_EndPos - 1) : 0);
-  if (startPos == std::wstring::npos)
+  int searchPos = std::max(0, (p_Pos + p_Offs));
+  size_t nextMatchPos = p_Str.find_first_of(p_Chars, searchPos);
+  if (nextMatchPos != std::string::npos)
   {
-    startPos = 0;
+    p_Str.erase(p_Pos, (nextMatchPos - searchPos + 1));
+  }
+  else
+  {
+    p_Str.erase(p_Pos);
   }
 
-  p_Str.erase(startPos, p_EndPos - startPos);
-  p_EndPos -= (p_EndPos - startPos);
+  p_Pos = std::min(p_Pos, (int)p_Str.size());
 }
 
-void StrUtil::DeleteToMatch(std::wstring& p_Str, const int p_StartPos, const wchar_t p_EndChar)
+void StrUtil::DeleteToPrevMatch(std::wstring& p_Str, int& p_Pos, int p_Offs, std::wstring p_Chars)
 {
-  size_t endPos = p_Str.find(p_EndChar, p_StartPos);
-  p_Str.erase(p_StartPos, (endPos == std::wstring::npos) ? endPos : (endPos - p_StartPos + 1));
+  int searchPos = std::max(0, (p_Pos + p_Offs));
+  size_t prevMatchPos = p_Str.find_last_of(p_Chars, searchPos);
+  if (prevMatchPos == std::string::npos)
+  {
+    prevMatchPos = 0;
+  }
+
+  p_Str.erase(prevMatchPos, p_Pos - prevMatchPos);
+  p_Pos = std::min((int)prevMatchPos, (int)p_Str.size());
 }
 
 std::string StrUtil::Emojize(const std::string& p_Str)
@@ -149,6 +158,34 @@ std::wstring StrUtil::Join(const std::vector<std::wstring>& p_Lines, const std::
   return str;
 }
 
+void StrUtil::JumpToNextMatch(std::wstring& p_Str, int& p_Pos, int p_Offs, std::wstring p_Chars)
+{
+  int searchPos = std::max(0, (p_Pos + p_Offs));
+  size_t nextMatchPos = p_Str.find_first_of(p_Chars, searchPos);
+  if (nextMatchPos != std::string::npos)
+  {
+    p_Pos = std::min((int)nextMatchPos, (int)p_Str.size());
+  }
+  else
+  {
+    p_Pos = p_Str.size();
+  }
+}
+
+void StrUtil::JumpToPrevMatch(std::wstring& p_Str, int& p_Pos, int p_Offs, std::wstring p_Chars)
+{
+  int searchPos = std::max(0, (p_Pos + p_Offs));
+  size_t prevMatchPos = p_Str.find_last_of(p_Chars, searchPos);
+  if (prevMatchPos != std::string::npos)
+  {
+    p_Pos = std::min((int)prevMatchPos + 1, (int)p_Str.size());
+  }
+  else
+  {
+    p_Pos = 0;
+  }
+}
+
 std::string StrUtil::NumAddPrefix(const std::string& p_Str, const char p_Ch)
 {
   std::string s = std::string(1, p_Ch);
@@ -195,6 +232,22 @@ std::string StrUtil::StrFromHex(const std::string& p_String)
   }
 
   return result;
+}
+
+std::string StrUtil::StrFromOct(const std::string& p_String)
+{
+  std::string rv;
+  std::vector<std::string> parts = Split(p_String, '\\');
+  for (auto& part : parts)
+  {
+    if (part.empty()) continue;
+
+    int val = 0;
+    std::istringstream(part) >> std::oct >> val;
+    rv += (char)val;
+  }
+
+  return rv;
 }
 
 std::string StrUtil::StrToHex(const std::string& p_String)

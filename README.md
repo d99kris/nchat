@@ -50,14 +50,12 @@ Interactive Commands:
     Sh-Tab      previous chat
     Ctrl-f      jump to unread chat
     Ctrl-g      toggle show help bar
-    Ctrl-k      delete from cursor to end of line
     Ctrl-l      toggle show contact list
     Ctrl-n      search contacts
     Ctrl-p      toggle show top bar
     Ctrl-q      quit
     Ctrl-s      insert emoji
     Ctrl-t      send file
-    Ctrl-u      delete from cursor to start of line
     Ctrl-x      send message
     Ctrl-y      toggle show emojis
     KeyUp       select message
@@ -67,8 +65,19 @@ Interactive Commands for Selected Message:
     Ctrl-d      delete selected message
     Ctrl-r      download attached file
     Ctrl-v      open/view attached file
-    Ctrl-w      open link in sponsored message
+    Ctrl-w      open link
     Ctrl-x      reply to selected message
+
+Interactive Commands for Text Input:
+
+    Ctrl-a      move cursor to start of line
+    Ctrl-e      move cursor to end of line
+    Ctrl-k      delete from cursor to end of line
+    Ctrl-u      delete from cursor to start of line
+    Alt-Left    move cursor backward one word
+    Alt-Right   move cursor forward one word
+    Alt-Backsp  delete previous word
+    Alt-Delete  delete next word
 
 
 Supported Platforms
@@ -478,6 +487,9 @@ This configuration file holds user interface key bindings. Default content:
 
     backspace=KEY_BACKSPACE
     backspace_alt=KEY_ALT_BACKSPACE
+    backward_kill_word=
+    backward_word=
+    begin_line=KEY_CTRLA
     cancel=KEY_CTRLC
     delete=KEY_DC
     delete_line_after_cursor=KEY_CTRLK
@@ -485,7 +497,10 @@ This configuration file holds user interface key bindings. Default content:
     delete_msg=KEY_CTRLD
     down=KEY_DOWN
     end=KEY_END
+    end_line=KEY_CTRLE
+    forward_word=
     home=KEY_HOME
+    kill_word=
     left=KEY_LEFT
     next_chat=KEY_TAB
     next_page=KEY_NPAGE

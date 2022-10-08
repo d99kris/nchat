@@ -268,6 +268,12 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
   static wint_t keyDelete = UiKeyConfig::GetKey("delete");
   static wint_t keyDeleteLineAfterCursor = UiKeyConfig::GetKey("delete_line_after_cursor");
   static wint_t keyDeleteLineBeforeCursor = UiKeyConfig::GetKey("delete_line_before_cursor");
+  static wint_t keyBeginLine = UiKeyConfig::GetKey("begin_line");
+  static wint_t keyEndLine = UiKeyConfig::GetKey("end_line");
+  static wint_t keyBackwardWord = UiKeyConfig::GetKey("backward_word");
+  static wint_t keyForwardWord = UiKeyConfig::GetKey("forward_word");
+  static wint_t keyBackwardKillWord = UiKeyConfig::GetKey("backward_kill_word");
+  static wint_t keyKillWord = UiKeyConfig::GetKey("kill_word");
 
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
@@ -418,11 +424,35 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
   }
   else if (p_Key == keyDeleteLineAfterCursor)
   {
-    StrUtil::DeleteToMatch(entryStr, entryPos, L'\n');
+    StrUtil::DeleteToNextMatch(entryStr, entryPos, 0, L"\n");
   }
   else if (p_Key == keyDeleteLineBeforeCursor)
   {
-    StrUtil::DeleteFromMatch(entryStr, entryPos, L'\n');
+    StrUtil::DeleteToPrevMatch(entryStr, entryPos, -1, L"\n");
+  }
+  else if (p_Key == keyBeginLine)
+  {
+    StrUtil::JumpToPrevMatch(entryStr, entryPos, -1, L"\n");
+  }
+  else if (p_Key == keyEndLine)
+  {
+    StrUtil::JumpToNextMatch(entryStr, entryPos, 0, L"\n");
+  }
+  else if (p_Key == keyBackwardWord)
+  {
+    StrUtil::JumpToPrevMatch(entryStr, entryPos, -2, L" \n");
+  }
+  else if (p_Key == keyForwardWord)
+  {
+    StrUtil::JumpToNextMatch(entryStr, entryPos, 1, L" \n");
+  }
+  else if (p_Key == keyBackwardKillWord)
+  {
+    StrUtil::DeleteToPrevMatch(entryStr, entryPos, -1, L" \n");
+  }
+  else if (p_Key == keyKillWord)
+  {
+    StrUtil::DeleteToNextMatch(entryStr, entryPos, 0, L" \n");
   }
   else if (StrUtil::IsValidTextKey(p_Key))
   {

@@ -7,10 +7,13 @@
 
 #include "uikeyconfig.h"
 
+#include <algorithm>
+
 #include <ncurses.h>
 
 #include "fileutil.h"
 #include "log.h"
+#include "strutil.h"
 
 void UiKeyConfig::Init()
 {
@@ -32,6 +35,19 @@ void UiKeyConfig::Init()
     { "delete", "KEY_DC" },
     { "delete_line_after_cursor", "KEY_CTRLK" },
     { "delete_line_before_cursor", "KEY_CTRLU" },
+    { "begin_line", "KEY_CTRLA" },
+    { "end_line", "KEY_CTRLE" },
+#if defined(__APPLE__)
+    { "backward_word", "\\033\\142" }, // opt-left
+    { "forward_word", "\\033\\146" }, // opt-right
+    { "backward_kill_word", "\\033\\177" }, // opt-backspace
+    { "kill_word", "\\033\\010" }, // opt-delete
+#else // defined(__linux__)
+    { "backward_word", "\\1040" }, // alt-left
+    { "forward_word", "\\1057" }, // alt-right
+    { "backward_kill_word", "\\033\\177" }, // alt-backspace
+    { "kill_word", "\\1006" }, // alt-delete
+#endif
     { "toggle_emoji", "KEY_CTRLY" },
     { "toggle_help", "KEY_CTRLG" },
     { "toggle_list", "KEY_CTRLL" },
@@ -228,12 +244,34 @@ int UiKeyConfig::GetKeyCode(const std::string& p_KeyName)
     keyCode = (int)p_KeyName.at(0);
     LOG_TRACE("map '%s' to code 0x%x", p_KeyName.c_str(), keyCode);
   }
+  else if ((p_KeyName.size() > 1) && (p_KeyName.substr(0, 1) == "\\"))
+  {
+    if (std::count(p_KeyName.begin(), p_KeyName.end(), '\\') > 1)
+    {
+      keyCode = ReserveVirtualKeyCode();
+      std::string keyStr = StrUtil::StrFromOct(p_KeyName);
+      define_key(keyStr.c_str(), keyCode);
+    }
+    else
+    {
+      std::string valstr = p_KeyName.substr(1);
+      keyCode = strtol(valstr.c_str(), 0, 8);
+    }
+
+    LOG_TRACE("map '%s' to code 0x%x", p_KeyName.c_str(), keyCode);
+  }
   else
   {
     LOG_WARNING("warning: unknown key \"%s\"", p_KeyName.c_str());
   }
 
   return keyCode;
+}
+
+int UiKeyConfig::ReserveVirtualKeyCode()
+{
+  static int keyCode = 0x8000;
+  return keyCode++;
 }
 
 Config UiKeyConfig::m_Config;

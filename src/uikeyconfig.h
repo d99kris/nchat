@@ -1,6 +1,6 @@
 // uikeyconfig.h
 //
-// Copyright (c) 2019-2021 Kristofer Berggren
+// Copyright (c) 2019-2022 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -25,6 +25,7 @@ public:
 
 private:
   static int GetKeyCode(const std::string& p_KeyName);
+  static int ReserveVirtualKeyCode();
 
 private:
   static Config m_Config;
