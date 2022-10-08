@@ -24,8 +24,6 @@
 #include "profiles.h"
 #include "scopeddirlock.h"
 #include "ui.h"
-#include "uiconfig.h"
-#include "uikeydump.h"
 
 #ifdef HAS_DUMMY
 #include "duchat.h"
@@ -140,7 +138,7 @@ int main(int argc, char* argv[])
     }
     else if ((*it == "-k") || (*it == "--keydump"))
     {
-      UiKeyDump::Run();
+      Ui::RunKeyDump();
       return 0;
     }
     else if (*it == "-m")

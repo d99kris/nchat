@@ -27,6 +27,8 @@ public:
   std::unordered_map<std::string, std::shared_ptr<Protocol>>& GetProtocols();
   void MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage);
 
+  static void RunKeyDump();
+
 private:
   std::shared_ptr<UiModel> m_Model;
   std::shared_ptr<UiController> m_Controller;

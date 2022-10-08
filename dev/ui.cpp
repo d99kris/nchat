@@ -464,3 +464,8 @@ void Ui::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
 
   ShowPrompt();
 }
+
+void Ui::RunKeyDump()
+{
+  std::cout << "Key dump mode is not supported in dev app\n";
+}

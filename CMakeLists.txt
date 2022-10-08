@@ -198,7 +198,7 @@ if(CMAKE_BUILD_TYPE MATCHES "Debug")
   message(STATUS "Building dev application.")
   add_executable(devnchat
     ext/apathy/path.hpp
-    dev/main.cpp
+    src/main.cpp
     dev/ui.cpp
     dev/ui.h
   )

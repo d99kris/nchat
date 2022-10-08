@@ -17,6 +17,7 @@
 #include "uiconfig.h"
 #include "uicontroller.h"
 #include "uikeyconfig.h"
+#include "uikeydump.h"
 #include "uimodel.h"
 
 Ui::Ui()
@@ -101,4 +102,9 @@ std::unordered_map<std::string, std::shared_ptr<Protocol>>& Ui::GetProtocols()
 void Ui::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
 {
   m_Model->MessageHandler(p_ServiceMessage);
+}
+
+void Ui::RunKeyDump()
+{
+  UiKeyDump::Run();
 }

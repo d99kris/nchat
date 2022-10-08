@@ -30,6 +30,8 @@ public:
   std::unordered_map<std::string, std::shared_ptr<Protocol>>& GetProtocols();
   void MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage);
 
+  static void RunKeyDump();
+
 private:
   std::mutex m_StdoutMutex;
   std::unordered_map<std::string, std::shared_ptr<Protocol>> m_Protocols;
