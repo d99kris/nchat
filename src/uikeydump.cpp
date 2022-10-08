@@ -7,6 +7,7 @@
 
 #include "uikeydump.h"
 
+#include <locale.h>
 #include <unistd.h>
 
 #include <ncurses.h>
