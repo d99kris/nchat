@@ -289,7 +289,7 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
     if (GetSelectMessage())
     {
       messageOffset = std::min(messageOffset + 1, messageCount - 1);
-      RequestMessages();
+      RequestMessagesCurrentChat();
     }
     else
     {
@@ -654,7 +654,7 @@ void UiModel::PrevPage()
   {
     messageOffsetStack.push(addOffset);
     messageOffset += addOffset;
-    RequestMessages();
+    RequestMessagesCurrentChat();
     UpdateHistory();
   }
 
@@ -741,7 +741,7 @@ void UiModel::Home()
     }
 
     messageOffset += addOffset;
-    RequestMessages();
+    RequestMessagesCurrentChat();
     UpdateHistory();
   }
 
@@ -778,7 +778,7 @@ void UiModel::HomeFetchNext(const std::string& p_ProfileId, const std::string& p
         }
 
         LOG_TRACE("home fetch offset + %d = %d", addOffset, messageOffset);
-        RequestMessages();
+        RequestMessagesCurrentChat();
         UpdateHistory();
       }
       else
@@ -1416,7 +1416,7 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
 
               if (!newMessagesNotify->cached)
               {
-                RequestMessages();
+                RequestMessagesCurrentChat();
               }
 
               UpdateHistory();
@@ -1847,20 +1847,56 @@ void UiModel::OnCurrentChatChanged()
   UpdateHistory();
   UpdateHelp();
   UpdateEntry();
-  RequestMessages();
+  RequestMessagesCurrentChat();
+  RequestMessagesNextChat();
   ProtocolSetCurrentChat();
 }
 
-void UiModel::RequestMessages()
+void UiModel::RequestMessagesCurrentChat()
 {
-  std::string profileId = m_CurrentChat.first;
-  std::string chatId = m_CurrentChat.second;
+  const std::string& profileId = m_CurrentChat.first;
+  const std::string& chatId = m_CurrentChat.second;
+  RequestMessages(profileId, chatId);
+}
 
-  std::unordered_set<std::string>& msgFromIdsRequested = m_MsgFromIdsRequested[profileId][chatId];
-  const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
+void UiModel::RequestMessagesNextChat()
+{
+  if (m_ChatVec.empty()) return;
+
+  {
+    int nextChatIndex = m_CurrentChatIndex + 1;
+    if (nextChatIndex >= (int)m_ChatVec.size())
+    {
+      nextChatIndex = 0;
+    }
+
+    const std::pair<std::string, std::string>& nextChat = m_ChatVec.at(nextChatIndex);
+    const std::string& profileId = nextChat.first;
+    const std::string& chatId = nextChat.second;
+    RequestMessages(profileId, chatId);
+  }
+
+  {
+    int prevChatIndex = m_CurrentChatIndex - 1;
+    if (prevChatIndex < 0)
+    {
+      prevChatIndex = (int)m_ChatVec.size() - 1;
+    }
+
+    const std::pair<std::string, std::string>& prevChat = m_ChatVec.at(prevChatIndex);
+    const std::string& profileId = prevChat.first;
+    const std::string& chatId = prevChat.second;
+    RequestMessages(profileId, chatId);
+  }
+}
+
+void UiModel::RequestMessages(const std::string& p_ProfileId, const std::string& p_ChatId)
+{
+  std::unordered_set<std::string>& msgFromIdsRequested = m_MsgFromIdsRequested[p_ProfileId][p_ChatId];
+  const std::vector<std::string>& messageVec = m_MessageVec[p_ProfileId][p_ChatId];
   std::string fromId = (msgFromIdsRequested.empty() || messageVec.empty()) ? "" : *messageVec.rbegin();
 
-  int messageOffset = m_MessageOffset[profileId][chatId];
+  int messageOffset = m_MessageOffset[p_ProfileId][p_ChatId];
   const int maxHistory = m_HomeFetchAll ? 8 : (((GetHistoryLines() * 2) / 3) + 1);
   const int limit = std::max(0, (messageOffset + 1 + maxHistory - (int)messageVec.size()));
   if (limit == 0)
@@ -1881,7 +1917,7 @@ void UiModel::RequestMessages()
   }
 
   std::shared_ptr<GetMessagesRequest> getMessagesRequest = std::make_shared<GetMessagesRequest>();
-  getMessagesRequest->chatId = chatId;
+  getMessagesRequest->chatId = p_ChatId;
   getMessagesRequest->fromMsgId = fromId;
   getMessagesRequest->limit = limit;
   LOG_TRACE("request messages from %s limit %d", fromId.c_str(), limit);

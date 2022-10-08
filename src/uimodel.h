@@ -106,7 +106,9 @@ public:
 private:
   void SortChats();
   void OnCurrentChatChanged();
-  void RequestMessages();
+  void RequestMessagesCurrentChat();
+  void RequestMessagesNextChat();
+  void RequestMessages(const std::string& p_ProfileId, const std::string& p_ChatId);
   void ProtocolSetCurrentChat();
   int GetHistoryLines();
   void ReinitView();
