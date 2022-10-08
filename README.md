@@ -72,6 +72,7 @@ Interactive Commands for Selected Message:
 Interactive Commands for Text Input:
 
     Ctrl-a      move cursor to start of line
+    Ctrl-c      clear input buffer
     Ctrl-e      move cursor to end of line
     Ctrl-k      delete from cursor to end of line
     Ctrl-u      delete from cursor to start of line
@@ -492,6 +493,7 @@ This configuration file holds user interface key bindings. Default content:
     backward_word=
     begin_line=KEY_CTRLA
     cancel=KEY_CTRLC
+    clear=KEY_CTRLC
     delete=KEY_DC
     delete_line_after_cursor=KEY_CTRLK
     delete_line_before_cursor=KEY_CTRLU

@@ -165,6 +165,7 @@ void UiKeyConfig::Init()
   const std::map<std::string, std::string> defaultConfig =
   {
     { "cancel", "KEY_CTRLC" },
+    { "clear", "KEY_CTRLC" },
     { "quit", "KEY_CTRLQ" },
     { "left", "KEY_LEFT" },
     { "right", "KEY_RIGHT" },

@@ -438,6 +438,7 @@ void ShowHelp()
     "\n"
     "Interactive Commands for Text Input:\n"
     "    Ctrl-a      move cursor to start of line\n"
+    "    Ctrl-c      clear input buffer\n"
     "    Ctrl-e      move cursor to end of line\n"
     "    Ctrl-k      delete from cursor to end of line\n"
     "    Ctrl-u      delete from cursor to start of line\n"

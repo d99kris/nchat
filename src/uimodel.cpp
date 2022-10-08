@@ -274,6 +274,7 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
   static wint_t keyForwardWord = UiKeyConfig::GetKey("forward_word");
   static wint_t keyBackwardKillWord = UiKeyConfig::GetKey("backward_kill_word");
   static wint_t keyKillWord = UiKeyConfig::GetKey("kill_word");
+  static wint_t keyClear = UiKeyConfig::GetKey("clear");
 
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
@@ -456,6 +457,12 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
   else if (p_Key == keyKillWord)
   {
     StrUtil::DeleteToNextMatch(entryStr, entryPos, 0, L" \n");
+    SetTyping(profileId, chatId, true);
+  }
+  else if (p_Key == keyClear)
+  {
+    entryStr.clear();
+    entryPos = 0;
     SetTyping(profileId, chatId, true);
   }
   else if (StrUtil::IsValidTextKey(p_Key))
