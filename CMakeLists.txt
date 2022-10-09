@@ -135,6 +135,9 @@ if(HAS_WHATSAPP)
   add_subdirectory(lib/wmchat)
 endif()
 
+# Dependency clip
+add_subdirectory(ext/clip)
+
 # Dependency ncurses
 set(CURSES_NEED_NCURSES TRUE)
 set(CURSES_NEED_WIDE TRUE)

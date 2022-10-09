@@ -12,6 +12,7 @@
 #include <ncurses.h>
 
 #include "appconfig.h"
+#include "clipboard.h"
 #include "fileutil.h"
 #include "log.h"
 #include "numutil.h"
@@ -65,6 +66,10 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keyOpen = UiKeyConfig::GetKey("open");
   static wint_t keyOpenLink = UiKeyConfig::GetKey("open_link");
   static wint_t keySave = UiKeyConfig::GetKey("save");
+
+  static wint_t keyCut = UiKeyConfig::GetKey("cut");
+  static wint_t keyCopy = UiKeyConfig::GetKey("copy");
+  static wint_t keyPaste = UiKeyConfig::GetKey("paste");
 
   static wint_t keyToggleList = UiKeyConfig::GetKey("toggle_list");
   static wint_t keyToggleTop = UiKeyConfig::GetKey("toggle_top");
@@ -183,6 +188,18 @@ void UiModel::KeyHandler(wint_t p_Key)
   {
     SetHelpOffset(GetHelpOffset() + 1);
     m_View->Draw();
+  }
+  else if (p_Key == keyCut)
+  {
+    Cut();
+  }
+  else if (p_Key == keyCopy)
+  {
+    Copy();
+  }
+  else if (p_Key == keyPaste)
+  {
+    Paste();
   }
   else
   {
@@ -2275,4 +2292,96 @@ bool UiModel::IsAttachmentDownloadable(const FileInfo& p_FileInfo)
 
   LOG_WARNING("message attachment unexpected state");
   return false;
+}
+
+std::string UiModel::GetSelectedMessageText()
+{
+  // must be called with m_ModelMutex held
+
+  std::string profileId = m_CurrentChat.first;
+  std::string chatId = m_CurrentChat.second;
+  const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
+  const int messageOffset = m_MessageOffset[profileId][chatId];
+  std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
+
+  auto it = std::next(messageVec.begin(), messageOffset);
+  if (it == messageVec.end())
+  {
+    LOG_WARNING("error finding message id");
+    return "";
+  }
+
+  std::string msgId = *it;
+  auto mit = messages.find(msgId);
+  if (mit == messages.end())
+  {
+    LOG_WARNING("error finding message");
+    return "";
+  }
+
+  return mit->second.text;
+}
+
+void UiModel::Cut()
+{
+  std::unique_lock<std::mutex> lock(m_ModelMutex);
+
+  if (GetSelectMessage())
+  {
+    std::string text = UiModel::GetSelectedMessageText();
+    Clipboard::SetText(text);
+  }
+  else
+  {
+    std::string profileId = m_CurrentChat.first;
+    std::string chatId = m_CurrentChat.second;
+    int& entryPos = m_EntryPos[profileId][chatId];
+    std::wstring& entryStr = m_EntryStr[profileId][chatId];
+
+    std::string text = StrUtil::ToString(entryStr);
+    Clipboard::SetText(text);
+
+    entryStr.clear();
+    entryPos = 0;
+
+    SetTyping(profileId, chatId, true);
+    UpdateEntry();
+  }
+}
+
+void UiModel::Copy()
+{
+  std::unique_lock<std::mutex> lock(m_ModelMutex);
+
+  if (GetSelectMessage())
+  {
+    std::string text = UiModel::GetSelectedMessageText();
+    Clipboard::SetText(text);
+  }
+  else
+  {
+    std::string profileId = m_CurrentChat.first;
+    std::string chatId = m_CurrentChat.second;
+    std::wstring& entryStr = m_EntryStr[profileId][chatId];
+
+    std::string text = StrUtil::ToString(entryStr);
+    Clipboard::SetText(text);
+  }
+}
+
+void UiModel::Paste()
+{
+  std::unique_lock<std::mutex> lock(m_ModelMutex);
+
+  std::string profileId = m_CurrentChat.first;
+  std::string chatId = m_CurrentChat.second;
+  int& entryPos = m_EntryPos[profileId][chatId];
+  std::wstring& entryStr = m_EntryStr[profileId][chatId];
+
+  std::wstring wtext = StrUtil::ToWString(Clipboard::GetText());
+  entryStr.insert(entryPos, wtext);
+  entryPos += wtext.size();
+
+  SetTyping(profileId, chatId, true);
+  UpdateEntry();
 }

@@ -121,6 +121,10 @@ private:
   void SetCurrentChatIndexIfNotSet();
   void DesktopNotifyUnread(const std::string& p_Name, const std::string& p_Text);
   void SetHistoryInteraction(bool p_HistoryInteraction);
+  std::string GetSelectedMessageText();
+  void Cut();
+  void Copy();
+  void Paste();
 
 private:
   bool m_Running = true;

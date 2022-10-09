@@ -80,6 +80,9 @@ Interactive Commands for Text Input:
     Alt-Right   move cursor forward one word
     Alt-Backsp  delete previous word
     Alt-Delete  delete next word
+    Alt-x       cut
+    Alt-c       copy
+    Alt-v       paste
 
 
 Supported Platforms
@@ -494,6 +497,8 @@ This configuration file holds user interface key bindings. Default content:
     begin_line=KEY_CTRLA
     cancel=KEY_CTRLC
     clear=KEY_CTRLC
+    copy=
+    cut=
     delete=KEY_DC
     delete_line_after_cursor=KEY_CTRLK
     delete_line_before_cursor=KEY_CTRLU
@@ -510,6 +515,7 @@ This configuration file holds user interface key bindings. Default content:
     open=KEY_CTRLV
     open_link=KEY_CTRLW
     other_commands_help=KEY_CTRLO
+    paste=
     prev_chat=KEY_BTAB
     prev_page=KEY_PPAGE
     quit=KEY_CTRLQ
@@ -633,6 +639,9 @@ includes the source code of the following third-party libraries:
 
 - [apathy](https://github.com/dlecocq/apathy) -
   Copyright 2013 Dan Lecocq - [MIT License](/ext/apathy/LICENSE)
+
+- [clip](https://github.com/dacap/clip) -
+  Copyright 2015 David Capello - [MIT License](/ext/clip/LICENSE.txt)
 
 - [sqlite_modern_cpp](https://github.com/SqliteModernCpp/sqlite_modern_cpp) -
   Copyright 2017 aminroosta - [MIT License](/ext/sqlite_modern_cpp/License.txt)

@@ -1,4 +1,4 @@
-// version.h
+// clipboard.h
 //
 // Copyright (c) 2022 Kristofer Berggren
 // All rights reserved.
@@ -7,4 +7,11 @@
 
 #pragma once
 
-#define NCHAT_VERSION "2.97"
+#include <string>
+
+class Clipboard
+{
+public:
+  static void SetText(const std::string& p_Text);
+  static std::string GetText();
+};

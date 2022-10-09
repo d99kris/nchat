@@ -186,14 +186,16 @@ void UiKeyConfig::Init()
 #if defined(__APPLE__)
     { "backward_word", "\\033\\142" }, // opt-left
     { "forward_word", "\\033\\146" }, // opt-right
-    { "backward_kill_word", "\\033\\177" }, // opt-backspace
     { "kill_word", "\\033\\010" }, // opt-delete
 #else // defined(__linux__)
     { "backward_word", "\\1040" }, // alt-left
     { "forward_word", "\\1057" }, // alt-right
-    { "backward_kill_word", "\\033\\177" }, // alt-backspace
     { "kill_word", "\\1006" }, // alt-delete
 #endif
+    { "backward_kill_word", "\\033\\177" }, // alt/opt-backspace
+    { "cut", "\\33\\170" }, // alt/opt-x
+    { "copy", "\\33\\143" }, // alt/opt-c
+    { "paste", "\\33\\166" }, // alt/opt-v
     { "toggle_emoji", "KEY_CTRLY" },
     { "toggle_help", "KEY_CTRLG" },
     { "toggle_list", "KEY_CTRLL" },

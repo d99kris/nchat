@@ -23,6 +23,8 @@ add_library(ncutil SHARED
   src/appconfig.h
   src/apputil.cpp
   src/apputil.h
+  src/clipboard.cpp
+  src/clipboard.h
   src/config.cpp
   src/config.h
   src/emojilist.cpp
@@ -59,6 +61,7 @@ target_include_directories(ncutil PRIVATE "../ncutil/src" ${MAGIC_INCLUDE_DIR})
 target_include_directories(ncutil PRIVATE "../common/src")
 target_include_directories(ncutil PRIVATE "../../ext/apathy")
 target_include_directories(ncutil PRIVATE "../../ext/sqlite_modern_cpp/hdr")
+target_include_directories(ncutil PRIVATE "../../ext/clip")
 
 # Compiler flags
 set_target_properties(ncutil PROPERTIES COMPILE_FLAGS
@@ -68,4 +71,4 @@ set_target_properties(ncutil PROPERTIES COMPILE_FLAGS
                        -Wcast-align")
 
 # Linking
-target_link_libraries(ncutil PUBLIC ${MAGIC_LIBRARY} SQLite::SQLite3)
+target_link_libraries(ncutil PUBLIC ${MAGIC_LIBRARY} SQLite::SQLite3 clip)
