@@ -561,12 +561,16 @@ This configuration file holds user interface color settings. Default content:
     history_name_attr_selected=reverse
     history_name_recv_color_bg=
     history_name_recv_color_fg=
+    history_name_recv_group_color_bg=
+    history_name_recv_group_color_fg=
     history_name_sent_color_bg=
     history_name_sent_color_fg=gray
     history_text_attr=
     history_text_attr_selected=reverse
     history_text_recv_color_bg=
     history_text_recv_color_fg=
+    history_text_recv_group_color_bg=
+    history_text_recv_group_color_fg=
     history_text_sent_color_bg=
     history_text_sent_color_fg=gray
     list_attr=
@@ -612,6 +616,34 @@ Supported text background `_bg` and foreground `_fg` colors:
     bright_white
 
 Custom colors may be specified using hex RGB code, for example `0xff8937`.
+
+The `history_name_recv_group_color` and `history_text_recv_group_color`
+parameters also supports the special value `usercolor`. When set, nchat will
+determine which color to use for a user, based on a hash of their user id
+used to pick a color from the list in `~/.nchat/usercolor.conf`.
+
+Themes
+------
+Example color config files are provided in `/usr/local/share/nchat/themes`
+and can be used by copying to `~/.nchat/`.
+
+### Default Theme
+
+```cp /usr/local/share/nchat/themes/default/* ~/.nchat/```
+
+### Basic Color Theme
+
+```cp /usr/local/share/nchat/themes/basic-color/* ~/.nchat/```
+
+![screenshot nchat](/doc/screenshot-nchat-basic-color.png) 
+
+### Previewing Theme Colors
+
+From a source code clone of `nchat` one can preview `usercolor.conf` colors
+like this:
+
+```./utils/showpalette.sh themes/basic-color/usercolor.conf```
+
 
 General
 -------

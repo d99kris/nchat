@@ -185,6 +185,15 @@ endif()
 # Manual
 install(FILES src/nchat.1 DESTINATION "${CMAKE_INSTALL_MANDIR}/man1")
 
+# Themes
+macro(add_theme themedir themefile)
+  configure_file(themes/${themedir}/${themefile} ${CMAKE_CURRENT_BINARY_DIR}/share/nchat/themes/${themedir}/${themefile} COPYONLY)
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/share/nchat/themes/${themedir}/${themefile} DESTINATION share/nchat/themes/${themedir})
+endmacro()
+add_theme("default" "color.conf")
+add_theme("basic-color" "color.conf")
+add_theme("basic-color" "usercolor.conf")
+
 # Uninstall
 add_custom_target(uninstall
   COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/bin/nchat"
@@ -194,6 +203,7 @@ add_custom_target(uninstall
   COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/lib/libtgchat${CMAKE_SHARED_LIBRARY_SUFFIX}"
   COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/lib/libduchat${CMAKE_SHARED_LIBRARY_SUFFIX}"
   COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/lib/libwmchat${CMAKE_SHARED_LIBRARY_SUFFIX}"
+  COMMAND "${CMAKE_COMMAND}" -E remove_directory "${CMAKE_INSTALL_PREFIX}/share/nchat"
 )
 
 # Dev Application

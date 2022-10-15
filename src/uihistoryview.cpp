@@ -87,8 +87,24 @@ void UiHistoryView::Draw()
 
     ChatMessage& msg = messages[*it];
 
-    int colorPairText = msg.isOutgoing ? colorPairTextSent : colorPairTextRecv;
     int attributeText = isSelectedMessage ? attributeTextSelected : attributeTextNormal;
+    int colorPairText = [&]()
+    {
+      if (msg.isOutgoing) return colorPairTextSent;
+
+      if (msg.senderId == currentChat.second) return colorPairTextRecv;
+
+      static bool isUserColor = UiColorConfig::IsUserColor("history_text_recv_group_color");
+      if (!isUserColor)
+      {
+        static int colorPairGroup = UiColorConfig::GetColorPair("history_text_recv_group_color");
+        return colorPairGroup;
+      }
+
+      int colorPairGroup = UiColorConfig::GetUserColorPair("history_text_recv_group_color",
+                                                           msg.senderId);
+      return colorPairGroup;
+    }();
 
     wattron(m_PaddedWin, attributeText | colorPairText);
     std::vector<std::wstring> wlines;
@@ -210,8 +226,24 @@ void UiHistoryView::Draw()
     wattroff(m_PaddedWin, attributeText | colorPairText);
     if (y < 0) break;
 
-    int colorPairName = msg.isOutgoing ? colorPairNameSent : colorPairNameRecv;
     int attributeName = isSelectedMessage ? attributeNameSelected : attributeNameNormal;
+    int colorPairName = [&]()
+    {
+      if (msg.isOutgoing) return colorPairNameSent;
+
+      if (msg.senderId == currentChat.second) return colorPairNameRecv;
+
+      static bool isUserColor = UiColorConfig::IsUserColor("history_name_recv_group_color");
+      if (!isUserColor)
+      {
+        static int colorPairGroup = UiColorConfig::GetColorPair("history_name_recv_group_color");
+        return colorPairGroup;
+      }
+
+      int colorPairGroup = UiColorConfig::GetUserColorPair("history_name_recv_group_color",
+                                                           msg.senderId);
+      return colorPairGroup;
+    }();
 
     wattron(m_PaddedWin, attributeName | colorPairName);
     std::string name = m_Model->GetContactName(currentChat.first, msg.senderId);

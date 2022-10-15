@@ -7,6 +7,7 @@
 
 #include "uicolorconfig.h"
 
+#include <algorithm>
 #include <map>
 #include <string>
 
@@ -15,6 +16,9 @@
 #include "fileutil.h"
 #include "log.h"
 #include "strutil.h"
+
+const static std::string userColor = "usercolor";
+static int colorPairId = 0;
 
 void UiColorConfig::Init()
 {
@@ -53,6 +57,8 @@ void UiColorConfig::Init()
     { "history_text_sent_color_fg", defaultSentColor },
     { "history_text_recv_color_bg", "" },
     { "history_text_recv_color_fg", "" },
+    { "history_text_recv_group_color_bg", "" },
+    { "history_text_recv_group_color_fg", "" },
 
     { "history_name_attr", "bold" },
     { "history_name_attr_selected", "reverse" },
@@ -60,6 +66,8 @@ void UiColorConfig::Init()
     { "history_name_sent_color_fg", defaultSentColor },
     { "history_name_recv_color_bg", "" },
     { "history_name_recv_color_fg", "" },
+    { "history_name_recv_group_color_bg", "" },
+    { "history_name_recv_group_color_fg", "" },
 
     { "dialog_attr", "" },
     { "dialog_attr_selected", "reverse" },
@@ -85,7 +93,6 @@ int UiColorConfig::GetColorPair(const std::string& p_Param)
   auto colorPair = colorPairs.find(p_Param);
   if (colorPair != colorPairs.end()) return colorPair->second;
 
-  static int colorPairId = 0;
   ++colorPairId;
   const int id = colorPairId;
   const int fg = GetColorId(m_Config.Get(p_Param + "_fg"));
@@ -96,6 +103,71 @@ int UiColorConfig::GetColorPair(const std::string& p_Param)
 
   colorPairs[p_Param] = COLOR_PAIR(id);
   return colorPairs[p_Param];
+}
+
+int UiColorConfig::GetUserColorPair(const std::string& p_Param, const std::string& p_UserId)
+{
+  if (!has_colors()) return 0;
+
+  // palette is a subset of: https://lospec.com/palette-list/st-64-natural
+  static std::vector<std::string> defaultUserColors =
+  {
+    "0x313199", "0x543fe0", "0x8463e0", "0xb896eb", "0xd9baf5", "0xf3e3e3",
+    "0xf5d7f3", "0xf5c4f2", "0xe48deb", "0xe063d8", "0xb842a0", "0x8f3370",
+    "0x991f2f", "0xe53737", "0xf56d58", "0xf59f7f", "0xf5ccb0", "0xfae7d2",
+    "0xf5db93", "0xf5be6c", "0xeb9b54", "0xcc7041", "0x8f4a39", "0x855d30",
+    "0xb88c33", "0xe0c03f", "0xebdf42", "0xecf56c", "0xf7fac8", "0xcbf558",
+    "0x45e02d", "0x2cb82c", "0x227a2e", "0x338f49", "0x42b86d", "0x51e099",
+    "0x7ff5ca", "0xbaf5ef", "0x7ff1f5", "0x42ceeb", "0x258cb8", "0x28628f",
+    "0x33408f", "0x496ccc", "0x5897f5", "0x7fbef5",
+  };
+
+  static std::vector<std::string> userColors = [&]()
+  {
+    static std::string path = FileUtil::GetApplicationDir() + std::string("/usercolor.conf");
+    std::string data = FileUtil::ReadFile(path);
+    if (!data.empty())
+    {
+      std::vector<std::string> lines = StrUtil::Split(data, '\n');
+      lines.erase(std::remove_if(lines.begin(), lines.end(),
+                                 [](const std::string& line) { return line.empty(); }),
+                  lines.end());
+      return lines;
+    }
+    else
+    {
+      data = StrUtil::Join(defaultUserColors, "\n");
+      FileUtil::WriteFile(path, data);
+      return defaultUserColors;
+    }
+  }();
+
+  static size_t userColorCount = userColors.size();
+  if (userColorCount == 0) return 0;
+
+  std::size_t userIdColor = CalcChecksum(p_UserId) % userColorCount;
+
+  static std::map<int, int> colorPairs;
+
+  auto colorPair = colorPairs.find(userIdColor);
+  if (colorPair != colorPairs.end()) return colorPair->second;
+
+  ++colorPairId;
+  const int id = colorPairId;
+  const int fg = GetColorId(userColors.at(userIdColor));
+  const int bg = GetColorId(m_Config.Get(p_Param + "_bg"));
+  init_pair(id, fg, bg);
+
+  LOG_TRACE("user color %s %d id %d fg %d bg %d", p_UserId.c_str(), userIdColor, id, fg, bg);
+
+  colorPairs[userIdColor] = COLOR_PAIR(id);
+  return colorPairs[userIdColor];
+}
+
+bool UiColorConfig::IsUserColor(const std::string& p_Param)
+{
+  return (m_Config.Get(p_Param + "_fg") == userColor) ||
+         (m_Config.Get(p_Param + "_bg") == userColor);
 }
 
 int UiColorConfig::GetAttribute(const std::string& p_Param)
@@ -212,6 +284,13 @@ void UiColorConfig::HexToRGB(const std::string p_Str, uint32_t& p_R, uint32_t& p
   p_R = (val / 0x10000);
   p_G = (val / 0x100) % 0x100;
   p_B = (val % 0x100);
+}
+
+size_t UiColorConfig::CalcChecksum(const std::string& p_Str)
+{
+  size_t sum = 0;
+  std::for_each(p_Str.begin(), p_Str.end(), [&](char ch) { sum += (size_t)ch; });
+  return sum;
 }
 
 Config UiColorConfig::m_Config;
