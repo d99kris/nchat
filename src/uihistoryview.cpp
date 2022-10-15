@@ -56,6 +56,8 @@ void UiHistoryView::Draw()
 
   static int colorPairTextSent = UiColorConfig::GetColorPair("history_text_sent_color");
   static int colorPairTextRecv = UiColorConfig::GetColorPair("history_text_recv_color");
+  static int colorPairTextQuoted = UiColorConfig::GetColorPair("history_text_quoted_color");
+  static int colorPairTextAttachment = UiColorConfig::GetColorPair("history_text_attachment_color");
   static int attributeTextNormal = UiColorConfig::GetAttribute("history_text_attr");
   static int attributeTextSelected = UiColorConfig::GetAttribute("history_text_attr_selected");
 
@@ -63,6 +65,10 @@ void UiHistoryView::Draw()
   static int colorPairNameRecv = UiColorConfig::GetColorPair("history_name_recv_color");
   static int attributeNameNormal = UiColorConfig::GetAttribute("history_name_attr");
   static int attributeNameSelected = UiColorConfig::GetAttribute("history_name_attr_selected");
+
+  static std::wstring attachmentIndicator =
+    StrUtil::ToWString(UiConfig::GetStr("attachment_indicator") + " ");
+  static std::wstring quoteIndicator = L"> ";
 
   std::pair<std::string, std::string>& currentChat = m_Model->GetCurrentChat();
   const bool emojiEnabled = m_Model->GetEmojiEnabled();
@@ -106,7 +112,6 @@ void UiHistoryView::Draw()
       return colorPairGroup;
     }();
 
-    wattron(m_PaddedWin, attributeText | colorPairText);
     std::vector<std::wstring> wlines;
     if (!msg.text.empty())
     {
@@ -146,7 +151,7 @@ void UiHistoryView::Draw()
       }
 
       int maxQuoteLen = m_PaddedW - 3;
-      std::wstring quote = L"> " + StrUtil::ToWString(quotedText);
+      std::wstring quote = quoteIndicator + StrUtil::ToWString(quotedText);
       if (StrUtil::WStringWidth(quote) > maxQuoteLen)
       {
         quote = StrUtil::TrimPadWString(quote, maxQuoteLen) + L"...";
@@ -203,9 +208,7 @@ void UiHistoryView::Draw()
         fileStatus = statusDownloadFailed;
       }
 
-      static const std::string attachmentIndicator = UiConfig::GetStr("attachment_indicator");
-      std::wstring fileStr =
-        StrUtil::ToWString(attachmentIndicator + " " + fileName + fileStatus);
+      std::wstring fileStr = attachmentIndicator + StrUtil::ToWString(fileName + fileStatus);
       wlines.insert(wlines.begin(), fileStr);
     }
 
@@ -219,11 +222,41 @@ void UiHistoryView::Draw()
     for (auto wline = wlines.rbegin(); wline != wlines.rend(); ++wline)
     {
       std::wstring wdisp = StrUtil::TrimPadWString(*wline, m_PaddedW);
+
+      bool isAttachment = (wdisp.rfind(attachmentIndicator, 0) == 0);
+      bool isQuote = (wdisp.rfind(quoteIndicator, 0) == 0);
+
+      if (isAttachment)
+      {
+        wattron(m_PaddedWin, attributeText | colorPairTextAttachment);
+      }
+      else if (isQuote)
+      {
+        wattron(m_PaddedWin, attributeText | colorPairTextQuoted);
+      }
+      else
+      {
+        wattron(m_PaddedWin, attributeText | colorPairText);
+      }
+
       mvwaddnwstr(m_PaddedWin, y, 0, wdisp.c_str(), std::min((int)wdisp.size(), m_PaddedW));
+
+      if (isAttachment)
+      {
+        wattroff(m_PaddedWin, attributeText | colorPairTextAttachment);
+      }
+      else if (isQuote)
+      {
+        wattroff(m_PaddedWin, attributeText | colorPairTextQuoted);
+      }
+      else
+      {
+        wattroff(m_PaddedWin, attributeText | colorPairText);
+      }
 
       if (--y < 0) break;
     }
-    wattroff(m_PaddedWin, attributeText | colorPairText);
+
     if (y < 0) break;
 
     int attributeName = isSelectedMessage ? attributeNameSelected : attributeNameNormal;

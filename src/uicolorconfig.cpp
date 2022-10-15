@@ -29,6 +29,8 @@ void UiColorConfig::Init()
   }
 
   const std::string defaultSentColor = (COLORS > 8) ? "gray" : "";
+  const std::string defaultQuotedColor = (COLORS > 8) ? "gray" : "";
+  const std::string defaultAttachmentColor = (COLORS > 8) ? "gray" : "";
   const std::map<std::string, std::string> defaultConfig =
   {
     { "top_attr", "reverse" },
@@ -57,6 +59,10 @@ void UiColorConfig::Init()
     { "history_text_sent_color_fg", defaultSentColor },
     { "history_text_recv_color_bg", "" },
     { "history_text_recv_color_fg", "" },
+    { "history_text_quoted_color_bg", "" },
+    { "history_text_quoted_color_fg", defaultQuotedColor },
+    { "history_text_attachment_color_bg", "" },
+    { "history_text_attachment_color_fg", defaultAttachmentColor },
     { "history_text_recv_group_color_bg", "" },
     { "history_text_recv_group_color_fg", "" },
 

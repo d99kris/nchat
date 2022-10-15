@@ -565,8 +565,12 @@ This configuration file holds user interface color settings. Default content:
     history_name_recv_group_color_fg=
     history_name_sent_color_bg=
     history_name_sent_color_fg=gray
+    history_text_attachment_color_bg=
+    history_text_attachment_color_fg=gray
     history_text_attr=
     history_text_attr_selected=reverse
+    history_text_quoted_color_bg=
+    history_text_quoted_color_fg=gray
     history_text_recv_color_bg=
     history_text_recv_color_fg=
     history_text_recv_group_color_bg=
