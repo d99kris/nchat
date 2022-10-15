@@ -6,9 +6,9 @@ nchat - ncurses chat
 | [![Linux](https://github.com/d99kris/nchat/workflows/Linux/badge.svg)](https://github.com/d99kris/nchat/actions?query=workflow%3ALinux) | [![macOS](https://github.com/d99kris/nchat/workflows/macOS/badge.svg)](https://github.com/d99kris/nchat/actions?query=workflow%3AmacOS) |
 
 nchat is a terminal-based chat client for Linux and macOS with support for
-Telegram. 
+Telegram.
 
-![screenshot nchat](/doc/screenshot-nchat.png) 
+![screenshot nchat](/doc/screenshot-nchat.png)
 
 Features
 --------
@@ -268,7 +268,7 @@ If you are not sure what phone number to enter, open Telegram on your phone
 and press the menu button and use the number displayed there (omitting spaces,
 so for the below screenshot the number to enter is +6511111111).
 
-![screenshot telegram phone](/doc/screenshot-phone.png) 
+![screenshot telegram phone](/doc/screenshot-phone.png)
 
 Once the setup process is completed, the main UI of nchat will be loader.
 
@@ -280,8 +280,8 @@ If any issues are observed, try running nchat with verbose logging
     nchat --verbose
 
 and provide a copy of ~/.nchat/log.txt when reporting the issue. The
-preferred way of reporting issues and asking questions is by opening 
-[a Github issue](https://github.com/d99kris/nchat/issues/new). 
+preferred way of reporting issues and asking questions is by opening
+[a Github issue](https://github.com/d99kris/nchat/issues/new).
 
 
 Telegram Group
@@ -635,11 +635,13 @@ and can be used by copying to `~/.nchat/`.
 
 ```cp /usr/local/share/nchat/themes/default/* ~/.nchat/```
 
+![screenshot nchat](/doc/screenshot-nchat.png)
+
 ### Basic Color Theme
 
 ```cp /usr/local/share/nchat/themes/basic-color/* ~/.nchat/```
 
-![screenshot nchat](/doc/screenshot-nchat-basic-color.png) 
+![screenshot nchat](/doc/screenshot-nchat-basic-color.png)
 
 ### Previewing Theme Colors
 

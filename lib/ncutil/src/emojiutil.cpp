@@ -11,8 +11,9 @@
 
 #include "emojiutil_map.h"
 #include "emojiutil_view.h"
+#include "strutil.h"
 
-std::string EmojiUtil::Emojize(const std::string& p_Str)
+std::string EmojiUtil::Emojize(const std::string& p_Str, bool p_Pad)
 {
   std::string str = p_Str;
   std::size_t position = 0;
@@ -26,7 +27,8 @@ std::string EmojiUtil::Emojize(const std::string& p_Str)
       std::map<std::string, std::string>::iterator it = s_Map.find(colonStr);
       if (it != s_Map.end())
       {
-        str.replace(firstColon, secondColon - firstColon + 1, it->second);
+        std::string emoji = it->second + (p_Pad ? std::string(EMOJI_PAD, 1) : "");
+        str.replace(firstColon, secondColon - firstColon + 1, emoji);
       }
     }
 

@@ -11,12 +11,14 @@
 #include <string>
 #include <vector>
 
+#define EMOJI_PAD 1
+
 class StrUtil
 {
 public:
   static void DeleteToNextMatch(std::wstring& p_Str, int& p_Pos, int p_Offs, std::wstring p_Chars);
   static void DeleteToPrevMatch(std::wstring& p_Str, int& p_Pos, int p_Offs, std::wstring p_Chars);
-  static std::string Emojize(const std::string& p_Str);
+  static std::string Emojize(const std::string& p_Str, bool p_Pad = false);
   static std::vector<std::string> ExtractUrlsFromStr(const std::string& p_Str);
   static std::string GetPass();
   static bool GetQuotePrefix(const std::wstring& p_String, std::wstring& p_Prefix, std::wstring& p_Line);

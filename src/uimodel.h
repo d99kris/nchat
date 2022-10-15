@@ -16,8 +16,6 @@
 
 #include "protocol.h"
 
-#define EMOJI_PAD 1
-
 class UiView;
 
 class UiModel

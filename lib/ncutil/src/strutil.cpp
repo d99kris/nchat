@@ -50,9 +50,9 @@ void StrUtil::DeleteToPrevMatch(std::wstring& p_Str, int& p_Pos, int p_Offs, std
   p_Pos = std::min((int)prevMatchPos, (int)p_Str.size());
 }
 
-std::string StrUtil::Emojize(const std::string& p_Str)
+std::string StrUtil::Emojize(const std::string& p_Str, bool p_Pad /*= false*/)
 {
-  return EmojiUtil::Emojize(p_Str);
+  return EmojiUtil::Emojize(p_Str, p_Pad);
 }
 
 std::vector<std::string> StrUtil::ExtractUrlsFromStr(const std::string& p_Str)

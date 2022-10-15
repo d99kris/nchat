@@ -2378,7 +2378,14 @@ void UiModel::Paste()
   int& entryPos = m_EntryPos[profileId][chatId];
   std::wstring& entryStr = m_EntryStr[profileId][chatId];
 
-  std::wstring wtext = StrUtil::ToWString(Clipboard::GetText());
+  std::string text = Clipboard::GetText();
+  text = StrUtil::Textize(text);
+  if (m_View->GetEmojiEnabled())
+  {
+    text = StrUtil::Emojize(text, true /*p_Pad*/);
+  }
+
+  std::wstring wtext = StrUtil::ToWString(text);
   entryStr.insert(entryPos, wtext);
   entryPos += wtext.size();
 

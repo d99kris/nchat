@@ -14,7 +14,7 @@
 class EmojiUtil
 {
 public:
-  static std::string Emojize(const std::string& p_Str);
+  static std::string Emojize(const std::string& p_Str, bool p_Pad);
   static std::string Textize(const std::string& p_In);
   static const std::map<std::string, std::string>& GetMap();
   static const std::set<std::string>& GetView();
