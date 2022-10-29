@@ -270,7 +270,7 @@ so for the below screenshot the number to enter is +6511111111).
 
 ![screenshot telegram phone](/doc/screenshot-phone.png)
 
-Once the setup process is completed, the main UI of nchat will be loader.
+Once the setup process is completed, the main UI of nchat will be loaded.
 
 
 Troubleshooting
