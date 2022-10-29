@@ -1219,7 +1219,7 @@ void UiModel::InsertEmoji()
 
     if (m_View->GetEmojiEnabled() && (StrUtil::WStringWidth(emoji) > 1))
     {
-      entryStr.insert(entryPos, std::wstring((wchar_t)EMOJI_PAD, 1));
+      entryStr.insert(entryPos, std::wstring(1, (wchar_t)EMOJI_PAD));
       entryPos += 1;
     }
 

@@ -27,7 +27,7 @@ std::string EmojiUtil::Emojize(const std::string& p_Str, bool p_Pad)
       std::map<std::string, std::string>::iterator it = s_Map.find(colonStr);
       if (it != s_Map.end())
       {
-        std::string emoji = it->second + (p_Pad ? std::string(EMOJI_PAD, 1) : "");
+        std::string emoji = it->second + (p_Pad ? std::string(1, EMOJI_PAD) : "");
         str.replace(firstColon, secondColon - firstColon + 1, emoji);
       }
     }
@@ -77,21 +77,22 @@ std::string EmojiUtil::Textize(const std::string& p_In)
         }
         else
         {
-          out += mbprev;
+          if (emojiToText.find(mbprev) != emojiToText.end())
+          {
+            out += emojiToText.at(mbprev);
+          }
+          else
+          {
+            out += mbprev;
+          }
+
           mbprev.clear();
         }
       }
 
       if (!mbcur.empty())
       {
-        if (emojiToText.find(mbcur) != emojiToText.end())
-        {
-          out += emojiToText.at(mbcur);
-        }
-        else
-        {
-          mbprev = mbcur;
-        }
+        mbprev = mbcur;
       }
     }
     else
@@ -111,7 +112,14 @@ std::string EmojiUtil::Textize(const std::string& p_In)
 
   if (enableDoubleMultiByteLookup && !mbprev.empty())
   {
-    out += mbprev;
+    if (emojiToText.find(mbprev) != emojiToText.end())
+    {
+      out += emojiToText.at(mbprev);
+    }
+    else
+    {
+      out += mbprev;
+    }
   }
 
   return out;
