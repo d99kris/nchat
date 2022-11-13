@@ -12,7 +12,7 @@ package main
 // extern void WmNewContactsNotify(int p_ConnId, char* p_ChatId, char* p_Name, int p_IsSelf);
 // extern void WmNewChatsNotify(int p_ConnId, char* p_ChatId, int p_IsUnread, int p_IsMuted, int p_LastMessageTime);
 // extern void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe, char* p_QuotedId, char* p_FileId, char* p_FilePath, int p_FileStatus, int p_TimeSent, int p_IsRead);
-// extern void WmNewStatusNotify(int p_ConnId, char* p_ChatId, char* p_UserId, int p_IsOnline, int p_IsTyping);
+// extern void WmNewStatusNotify(int p_ConnId, char* p_ChatId, char* p_UserId, int p_IsOnline, int p_IsTyping, int p_TimeSeen);
 // extern void WmNewMessageStatusNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsRead);
 // extern void WmNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_FilePath, int p_FileStatus, int p_Action);
 // extern void WmSetStatus(int p_Flags);
@@ -59,6 +59,11 @@ func CWmSendMessage(connId int, chatId *C.char, text *C.char, quotedId *C.char, 
 	return WmSendMessage(connId, C.GoString(chatId), C.GoString(text), C.GoString(quotedId), C.GoString(quotedText), C.GoString(quotedSender), C.GoString(filePath), C.GoString(fileType))
 }
 
+//export CWmGetStatus
+func CWmGetStatus(connId int, userId *C.char) int {
+	return WmGetStatus(connId, C.GoString(userId))
+}
+
 //export CWmMarkMessageRead
 func CWmMarkMessageRead(connId int, chatId *C.char, msgId *C.char) int {
 	return WmMarkMessageRead(connId, C.GoString(chatId), C.GoString(msgId))
@@ -96,8 +101,8 @@ func CWmNewMessagesNotify(connId int, chatId string, msgId string, senderId stri
 	C.WmNewMessagesNotify(C.int(connId), C.CString(chatId), C.CString(msgId), C.CString(senderId), C.CString(text), C.int(fromMe), C.CString(quotedId), C.CString(fileId), C.CString(filePath), C.int(fileStatus), C.int(timeSent), C.int(isRead))
 }
 
-func CWmNewStatusNotify(connId int, chatId string, userId string, isOnline int, isTyping int) {
-	C.WmNewStatusNotify(C.int(connId), C.CString(chatId), C.CString(userId), C.int(isOnline), C.int(isTyping))
+func CWmNewStatusNotify(connId int, chatId string, userId string, isOnline int, isTyping int, timeSeen int) {
+	C.WmNewStatusNotify(C.int(connId), C.CString(chatId), C.CString(userId), C.int(isOnline), C.int(isTyping), C.int(timeSeen))
 }
 
 func CWmNewMessageStatusNotify(connId int, chatId string, msgId string, isRead int) {

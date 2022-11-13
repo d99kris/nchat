@@ -131,6 +131,8 @@ private:
   void ProcessService();
   void ProcessResponse(td::Client::Response response);
   void ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> update);
+  void ProcessStatusUpdate(int64_t p_UserId,
+                           td::td_api::object_ptr<td::td_api::UserStatus> p_Status);
   std::function<void(Object)> CreateAuthQueryHandler();
   void OnAuthStateUpdate();
   void SendQuery(td::td_api::object_ptr<td::td_api::Function> f, std::function<void(Object)> handler);
@@ -149,6 +151,8 @@ private:
   void GetSponsoredMessages(const std::string& p_ChatId);
   void ViewSponsoredMessage(const std::string& p_ChatId, const std::string& p_MsgId);
   bool IsSponsoredMessageId(const std::string& p_MsgId);
+  bool IsGroup(int64_t p_UserId);
+  bool IsSelf(int64_t p_UserId);
 
 private:
   std::thread m_ServiceThread;
@@ -470,6 +474,37 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
       }
       break;
 
+    case GetStatusRequestType:
+      {
+        LOG_DEBUG("Get status");
+
+        std::shared_ptr<GetStatusRequest> getStatusRequest =
+          std::static_pointer_cast<GetStatusRequest>(p_RequestMessage);
+
+        std::int64_t userId = StrUtil::NumFromHex<int64_t>(getStatusRequest->userId);
+
+        if (IsGroup(userId) || IsSelf(userId)) return;
+
+        Status::Set(Status::FlagFetching);
+
+        auto get_user = td::td_api::make_object<td::td_api::getUser>();
+        get_user->user_id_ = userId;
+        SendQuery(std::move(get_user),
+                  [this](Object object)
+        {
+          Status::Clear(Status::FlagFetching);
+
+          if (object->get_id() == td::td_api::error::ID) return;
+
+          auto tuser = td::move_tl_object_as<td::td_api::user>(object);
+
+          if (!tuser) return;
+
+          ProcessStatusUpdate(tuser->id_, std::move(tuser->status_));
+        });
+      }
+      break;
+
     case DeferGetChatDetailsRequestType:
       {
         LOG_DEBUG("Get chat details");
@@ -614,7 +649,7 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
             contactInfo.id = StrUtil::NumToHex(contactId);
             contactInfo.name =
               tuser->first_name_ + (tuser->last_name_.empty() ? "" : " " + tuser->last_name_);
-            contactInfo.isSelf = (contactId == m_SelfUserId);
+            contactInfo.isSelf = IsSelf(contactId);
             m_ContactInfos[contactId] = contactInfo;
 
             std::vector<ContactInfo> contactInfos;
@@ -1083,7 +1118,7 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
     ContactInfo contactInfo;
     contactInfo.id = StrUtil::NumToHex(contactId);
     contactInfo.name = update_new_chat.chat_->title_;
-    contactInfo.isSelf = (contactId == m_SelfUserId);
+    contactInfo.isSelf = IsSelf(contactId);
     m_ContactInfos[contactId] = contactInfo;
 
     std::shared_ptr<NewContactsNotify> newContactsNotify =
@@ -1099,7 +1134,7 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
     ContactInfo contactInfo;
     contactInfo.id = StrUtil::NumToHex(contactId);
     contactInfo.name = update_chat_title.title_;
-    contactInfo.isSelf = (contactId == m_SelfUserId);
+    contactInfo.isSelf = IsSelf(contactId);
     m_ContactInfos[contactId] = contactInfo;
 
     std::shared_ptr<NewContactsNotify> newContactsNotify =
@@ -1118,7 +1153,7 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
     contactInfo.id = StrUtil::NumToHex(contactId);
     contactInfo.name =
       user->first_name_ + (user->last_name_.empty() ? "" : " " + user->last_name_);;
-    contactInfo.isSelf = (contactId == m_SelfUserId);
+    contactInfo.isSelf = IsSelf(contactId);
     m_ContactInfos[contactId] = contactInfo;
 
     std::shared_ptr<NewContactsNotify> newContactsNotify =
@@ -1203,19 +1238,7 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
   {
     LOG_TRACE("user status update");
 
-    int64_t userId = user_status.user_id_;
-    bool isOnline = false;
-
-    if (user_status.status_->get_id() == td::td_api::userStatusOnline::ID)
-    {
-      isOnline = true;
-    }
-
-    std::shared_ptr<ReceiveStatusNotify> receiveStatusNotify =
-      std::make_shared<ReceiveStatusNotify>(m_ProfileId);
-    receiveStatusNotify->userId = StrUtil::NumToHex(userId);
-    receiveStatusNotify->isOnline = isOnline;
-    CallMessageHandler(receiveStatusNotify);
+    ProcessStatusUpdate(user_status.user_id_, std::move(user_status.status_));
   },
   [this](td::td_api::updateChatReadOutbox& chat_read_outbox)
   {
@@ -1377,6 +1400,56 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
   }
   ));
   // *INDENT-ON*
+}
+
+void TgChat::Impl::ProcessStatusUpdate(int64_t p_UserId,
+                                       td::td_api::object_ptr<td::td_api::UserStatus> p_Status)
+{
+  if (!p_Status) return;
+
+  if (IsGroup(p_UserId) || IsSelf(p_UserId)) return;
+
+  bool isOnline = false;
+  int64_t timeSeen = TimeSeenNone;
+  std::int32_t statusId = p_Status->get_id();
+  switch (statusId)
+  {
+    case td::td_api::userStatusOnline::ID:
+      isOnline = true;
+      break;
+
+    case td::td_api::userStatusLastMonth::ID:
+      timeSeen = TimeSeenLastMonth;
+      break;
+
+    case td::td_api::userStatusLastWeek::ID:
+      timeSeen = TimeSeenLastWeek;
+      break;
+
+    case td::td_api::userStatusOffline::ID:
+      {
+        auto& user_status_offline =
+          static_cast<const td::td_api::userStatusOffline&>(*p_Status);
+        timeSeen = static_cast<int64_t>(user_status_offline.was_online_) * 1000;
+      }
+      break;
+
+    case td::td_api::userStatusEmpty::ID:
+      break;
+
+    case td::td_api::userStatusRecently::ID:
+      break;
+
+    default:
+      break;
+  }
+
+  std::shared_ptr<ReceiveStatusNotify> receiveStatusNotify =
+    std::make_shared<ReceiveStatusNotify>(m_ProfileId);
+  receiveStatusNotify->userId = StrUtil::NumToHex(p_UserId);
+  receiveStatusNotify->isOnline = isOnline;
+  receiveStatusNotify->timeSeen = timeSeen;
+  CallMessageHandler(receiveStatusNotify);
 }
 
 std::function<void(TgChat::Impl::Object)> TgChat::Impl::CreateAuthQueryHandler()
@@ -1912,7 +1985,7 @@ void TgChat::Impl::TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessag
     (p_TdMessage.reply_to_message_id_ != 0) ? StrUtil::NumToHex(p_TdMessage.reply_to_message_id_) : "";
   p_ChatMessage.hasMention = p_TdMessage.contains_unread_mention_;
 
-  if (p_TdMessage.chat_id_ == m_SelfUserId)
+  if (IsSelf(p_TdMessage.chat_id_))
   {
     p_ChatMessage.isRead = true;
   }
@@ -2179,4 +2252,14 @@ void TgChat::Impl::ViewSponsoredMessage(const std::string& p_ChatId, const std::
 bool TgChat::Impl::IsSponsoredMessageId(const std::string& p_MsgId)
 {
   return StrUtil::NumHasPrefix(p_MsgId, m_SponsoredMessageMsgIdPrefix);
+}
+
+bool TgChat::Impl::IsGroup(int64_t p_UserId)
+{
+  return (p_UserId < 0);
+}
+
+bool TgChat::Impl::IsSelf(int64_t p_UserId)
+{
+  return (p_UserId == m_SelfUserId);
 }

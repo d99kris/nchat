@@ -506,13 +506,16 @@ func (handler *WmEventHandler) HandleReceipt(receipt *events.Receipt) {
 }
 
 func (handler *WmEventHandler) HandlePresence(presence *events.Presence) {
-	connId := handler.connId
-	chatId := ""
-	userId := presence.From.ToNonAD().String()
-	isOnline := !presence.Unavailable
-	isTyping := false
-	LOG_TRACE(fmt.Sprintf("Call CWmNewStatusNotify"))
-	CWmNewStatusNotify(connId, chatId, userId, BoolToInt(isOnline), BoolToInt(isTyping))
+	if (presence.From.Server != types.GroupServer) {
+		connId := handler.connId
+		chatId := ""
+		userId := presence.From.ToNonAD().String()
+		isOnline := !presence.Unavailable
+		timeSeen := int(presence.LastSeen.Unix())
+		isTyping := false
+		LOG_TRACE(fmt.Sprintf("Call CWmNewStatusNotify"))
+		CWmNewStatusNotify(connId, chatId, userId, BoolToInt(isOnline), BoolToInt(isTyping), timeSeen)
+	}
 }
 
 func (handler *WmEventHandler) HandleChatPresence(chatPresence *events.ChatPresence) {
@@ -522,7 +525,7 @@ func (handler *WmEventHandler) HandleChatPresence(chatPresence *events.ChatPrese
 	isOnline := true
 	isTyping := (chatPresence.State == types.ChatPresenceComposing)
 	LOG_TRACE(fmt.Sprintf("Call CWmNewStatusNotify"))
-	CWmNewStatusNotify(connId, chatId, userId, BoolToInt(isOnline), BoolToInt(isTyping))
+	CWmNewStatusNotify(connId, chatId, userId, BoolToInt(isOnline), BoolToInt(isTyping), -1)
 }
 
 func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync) {
@@ -901,7 +904,7 @@ func UpdateTypingStatus(connId int, chatId string, userId string, fromMe bool, i
 	isTyping := false
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewStatusNotify"))
-	CWmNewStatusNotify(connId, chatId, userId, BoolToInt(isOnline), BoolToInt(isTyping))
+	CWmNewStatusNotify(connId, chatId, userId, BoolToInt(isOnline), BoolToInt(isTyping), -1)
 }
 
 func WmInit(path string) int {
@@ -1230,6 +1233,40 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 		handler := GetHandler(connId)
 		handler.HandleMessage(messageInfo, &message, false)
+	}
+
+	return 0
+}
+
+func WmGetStatus(connId int, userId string) int {
+
+	LOG_TRACE("get status " + strconv.Itoa(connId) + ", " + userId)
+
+	// sanity check arg
+	if connId == -1 {
+		LOG_WARNING("invalid connId")
+		return -1
+	}
+
+	// get client
+	client := GetClient(connId)
+
+	// get user
+	userJid, _ := types.ParseJID(userId)
+	if (userJid.Server == types.GroupServer) {
+		// ignore presence requests for groups
+		return -1
+	}
+
+	// subscribe user presence
+	err := client.SubscribePresence(userJid)
+
+	// log any error
+	if err != nil {
+		LOG_WARNING(fmt.Sprintf("get user status error %#v", err))
+		return -1
+	} else {
+		LOG_TRACE(fmt.Sprintf("get user status ok"))
 	}
 
 	return 0

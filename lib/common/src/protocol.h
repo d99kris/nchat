@@ -55,6 +55,7 @@ enum MessageType
   RequestMessageType,
   GetContactsRequestType,
   GetChatsRequestType,
+  GetStatusRequestType,
   GetMessageRequestType,
   GetMessagesRequestType,
   SendMessageRequestType,
@@ -161,6 +162,13 @@ class GetChatsRequest : public RequestMessage
 {
 public:
   virtual MessageType GetMessageType() const { return GetChatsRequestType; }
+};
+
+class GetStatusRequest : public RequestMessage
+{
+public:
+  virtual MessageType GetMessageType() const { return GetStatusRequestType; }
+  std::string userId;
 };
 
 class GetMessageRequest : public RequestMessage
@@ -410,6 +418,14 @@ public:
   bool isTyping;
 };
 
+enum TimeSeen
+{
+  TimeSeenNone = -1, // away, offline, seen recently
+  TimeSeenReserved = 0, // not used
+  TimeSeenLastMonth = 1, // seen last month
+  TimeSeenLastWeek = 2, // seen last week
+};
+
 class ReceiveStatusNotify : public ServiceMessage
 {
 public:
@@ -418,6 +434,7 @@ public:
   virtual MessageType GetMessageType() const { return ReceiveStatusNotifyType; }
   std::string userId;
   bool isOnline;
+  int64_t timeSeen = -1;
 };
 
 class NewMessageStatusNotify : public ServiceMessage

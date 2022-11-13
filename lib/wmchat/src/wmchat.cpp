@@ -230,6 +230,17 @@ void WmChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
       }
       break;
 
+    case GetStatusRequestType:
+      {
+        LOG_DEBUG("get status");
+        std::shared_ptr<GetStatusRequest> getStatusRequest =
+          std::static_pointer_cast<GetStatusRequest>(p_RequestMessage);
+        std::string userId = getStatusRequest->userId;
+
+        CWmGetStatus(m_ConnId, const_cast<char*>(userId.c_str()));
+      }
+      break;
+
     case GetMessageRequestType:
       {
         LOG_DEBUG("get message");
@@ -531,7 +542,7 @@ void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_Se
   free(p_FileId);
 }
 
-void WmNewStatusNotify(int p_ConnId, char* p_ChatId, char* p_UserId, int p_IsOnline, int p_IsTyping)
+void WmNewStatusNotify(int p_ConnId, char* p_ChatId, char* p_UserId, int p_IsOnline, int p_IsTyping, int p_TimeSeen)
 {
   WmChat* instance = WmChat::GetInstance(p_ConnId);
   if (instance == nullptr) return;
@@ -544,6 +555,7 @@ void WmNewStatusNotify(int p_ConnId, char* p_ChatId, char* p_UserId, int p_IsOnl
       std::make_shared<ReceiveStatusNotify>(instance->GetProfileId());
     receiveStatusNotify->userId = userId;
     receiveStatusNotify->isOnline = (p_IsOnline == 1);
+    receiveStatusNotify->timeSeen = (p_TimeSeen > 0) ? (((int64_t)p_TimeSeen) * 1000) : -1;
 
     std::shared_ptr<DeferNotifyRequest> deferNotifyRequest =
       std::make_shared<DeferNotifyRequest>();

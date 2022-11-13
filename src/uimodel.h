@@ -107,6 +107,7 @@ private:
   void RequestMessagesCurrentChat();
   void RequestMessagesNextChat();
   void RequestMessages(const std::string& p_ProfileId, const std::string& p_ChatId);
+  void RequestUserStatusCurrentChat();
   void ProtocolSetCurrentChat();
   int GetHistoryLines();
   void ReinitView();
@@ -154,6 +155,7 @@ private:
 
   std::unordered_map<std::string, std::unordered_map<std::string, std::set<std::string>>> m_UsersTyping;
   std::unordered_map<std::string, std::unordered_map<std::string, bool>> m_UserOnline;
+  std::unordered_map<std::string, std::unordered_map<std::string, int64_t>> m_UserTimeSeen;
 
   bool m_SelectMessage = false;
   bool m_ListDialogActive = false;

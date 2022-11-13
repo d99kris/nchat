@@ -1597,8 +1597,14 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
           p_ServiceMessage);
         std::string userId = receiveStatusNotify->userId;
         bool isOnline = receiveStatusNotify->isOnline;
-        LOG_TRACE("received user %s is %s", userId.c_str(), (isOnline ? "online" : "away"));
+        int64_t timeSeen = receiveStatusNotify->timeSeen;
+        LOG_TRACE("received user %s is %s seen %lld", userId.c_str(),
+                  (isOnline ? "online" : "away"), timeSeen);
         m_UserOnline[profileId][userId] = isOnline;
+        if (timeSeen != -1)
+        {
+          m_UserTimeSeen[profileId][userId] = timeSeen;
+        }
         UpdateStatus();
       }
       break;
@@ -1849,7 +1855,28 @@ std::string UiModel::GetChatStatus(const std::string& p_ProfileId, const std::st
 
   if (m_UserOnline[p_ProfileId].count(p_ChatId))
   {
-    return m_UserOnline[p_ProfileId][p_ChatId] ? "(online)" : "(away)";
+    if (m_UserOnline[p_ProfileId][p_ChatId])
+    {
+      return "(online)";
+    }
+    else
+    {
+      int64_t timeSeen = m_UserTimeSeen[p_ProfileId].count(p_ChatId) ? m_UserTimeSeen[p_ProfileId][p_ChatId] : -1;
+      switch (timeSeen)
+      {
+        case TimeSeenNone:
+          return "(away)";
+
+        case TimeSeenLastMonth:
+          return "(seen last month)";
+
+        case TimeSeenLastWeek:
+          return "(seen last week)";
+
+        default:
+          return "(seen " + TimeUtil::GetTimeString(timeSeen, true /* p_ShortToday */) + ")";
+      }
+    }
   }
 
   return "";
@@ -1866,6 +1893,7 @@ void UiModel::OnCurrentChatChanged()
   UpdateEntry();
   RequestMessagesCurrentChat();
   RequestMessagesNextChat();
+  RequestUserStatusCurrentChat();
   ProtocolSetCurrentChat();
 }
 
@@ -1939,6 +1967,22 @@ void UiModel::RequestMessages(const std::string& p_ProfileId, const std::string&
   getMessagesRequest->limit = limit;
   LOG_TRACE("request messages from %s limit %d", fromId.c_str(), limit);
   m_Protocols[m_CurrentChat.first]->SendRequest(getMessagesRequest);
+}
+
+void UiModel::RequestUserStatusCurrentChat()
+{
+  static std::set<std::pair<std::string, std::string>> requestedChats;
+  if (requestedChats.count(m_CurrentChat)) return;
+
+  requestedChats.insert(m_CurrentChat);
+
+  const std::string& profileId = m_CurrentChat.first;
+  const std::string& chatId = m_CurrentChat.second;
+
+  std::shared_ptr<GetStatusRequest> getStatusRequest = std::make_shared<GetStatusRequest>();
+  getStatusRequest->userId = chatId;
+  LOG_TRACE("get status %s", chatId.c_str());
+  m_Protocols[profileId]->SendRequest(getStatusRequest);
 }
 
 void UiModel::ProtocolSetCurrentChat()
