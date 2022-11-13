@@ -40,7 +40,7 @@ namespace {
 
     NSBitmapImageRep* bitmap = [NSBitmapImageRep imageRepWithData:data];
 
-    if ((bitmap.bitmapFormat & NSFloatingPointSamplesBitmapFormat) ||
+    if ((bitmap.bitmapFormat & NSBitmapFormatFloatingPointSamples) ||
         (bitmap.planar)) {
       error_handler e = get_error_handler();
       if (e)
@@ -61,7 +61,7 @@ namespace {
 
       // With alpha
       if (bitmap.alpha) {
-        if (bitmap.bitmapFormat & NSAlphaFirstBitmapFormat) {
+        if (bitmap.bitmapFormat & NSBitmapFormatAlphaFirst) {
           spec.alpha_shift = 0;
           bits_shift += bits_per_sample;
         }
@@ -81,16 +81,16 @@ namespace {
 
       // With alpha
       if (bitmap.alpha) {
-        if (bitmap.bitmapFormat & NS16BitBigEndianBitmapFormat ||
-            bitmap.bitmapFormat & NS32BitBigEndianBitmapFormat) {
+        if (bitmap.bitmapFormat & NSBitmapFormatSixteenBitBigEndian ||
+            bitmap.bitmapFormat & NSBitmapFormatThirtyTwoBitBigEndian) {
           std::swap(spec.red_shift, spec.alpha_shift);
           std::swap(spec.green_shift, spec.blue_shift);
         }
       }
       // Without alpha
       else {
-        if (bitmap.bitmapFormat & NS16BitBigEndianBitmapFormat ||
-            bitmap.bitmapFormat & NS32BitBigEndianBitmapFormat) {
+        if (bitmap.bitmapFormat & NSBitmapFormatSixteenBitBigEndian ||
+            bitmap.bitmapFormat & NSBitmapFormatThirtyTwoBitBigEndian) {
           std::swap(spec.red_shift, spec.blue_shift);
         }
       }
@@ -118,7 +118,7 @@ namespace {
       // Convert premultiplied data to unpremultiplied if needed.
       if (bitmap.alpha &&
           bitmap.samplesPerPixel >= 3 &&
-          !(bitmap.bitmapFormat & NSAlphaNonpremultipliedBitmapFormat)) {
+          !(bitmap.bitmapFormat & NSBitmapFormatAlphaNonpremultiplied)) {
         details::divide_rgb_by_alpha(
           img,
           true); // hasAlphaGreaterThanZero=true because we have valid alpha information
@@ -279,8 +279,8 @@ bool lock::impl::set_image(const image& image) {
   if (spec.alpha_mask) {
     samples_per_pixel = 4;
     if (spec.alpha_shift == 0)
-      bitmapFormat |= NSAlphaFirstBitmapFormat;
-    bitmapFormat |= NSAlphaNonpremultipliedBitmapFormat;
+      bitmapFormat |= NSBitmapFormatAlphaFirst;
+    bitmapFormat |= NSBitmapFormatAlphaNonpremultiplied;
   }
   else if (spec.red_mask || spec.green_mask || spec.blue_mask) {
     samples_per_pixel = 3;
@@ -290,9 +290,9 @@ bool lock::impl::set_image(const image& image) {
   }
 
   if (spec.bits_per_pixel == 32)
-    bitmapFormat |= NS32BitLittleEndianBitmapFormat;
+    bitmapFormat |= NSBitmapFormatThirtyTwoBitLittleEndian;
   else if (spec.bits_per_pixel == 16)
-    bitmapFormat |= NS16BitLittleEndianBitmapFormat;
+    bitmapFormat |= NSBitmapFormatSixteenBitLittleEndian;
 
   std::vector<unsigned char*> planes(1);
   planes[0] = (unsigned char*)image.data();
