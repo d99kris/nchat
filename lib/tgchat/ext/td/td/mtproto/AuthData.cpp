@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -21,7 +21,7 @@ Status check_message_id_duplicates(int64 *saved_message_ids, size_t max_size, si
   // In addition, the identifiers (msg_id) of the last N messages received from the other side must be stored, and if
   // a message comes in with msg_id lower than all or equal to any of the stored values, that message is to be
   // ignored. Otherwise, the new message msg_id is added to the set, and, if the number of stored msg_id values is
-  // greater than N, the oldest (i. e. the lowest) is forgotten.
+  // greater than N, the oldest (i.e. the lowest) is forgotten.
   if (end_pos == 2 * max_size) {
     std::copy_n(&saved_message_ids[max_size], max_size, &saved_message_ids[0]);
     end_pos = max_size;
@@ -100,7 +100,7 @@ std::vector<ServerSalt> AuthData::get_future_salts() const {
 
 int64 AuthData::next_message_id(double now) {
   double server_time = get_server_time(now);
-  auto t = static_cast<int64>(server_time * (1ll << 32));
+  auto t = static_cast<int64>(server_time * (static_cast<int64>(1) << 32));
 
   // randomize lower bits for clocks with low precision
   // TODO(perf) do not do this for systems with good precision?..
@@ -119,13 +119,13 @@ int64 AuthData::next_message_id(double now) {
 
 bool AuthData::is_valid_outbound_msg_id(int64 id, double now) const {
   double server_time = get_server_time(now);
-  auto id_time = static_cast<double>(id) / static_cast<double>(1ll << 32);
+  auto id_time = static_cast<double>(id) / static_cast<double>(static_cast<int64>(1) << 32);
   return server_time - 150 < id_time && id_time < server_time + 30;
 }
 
 bool AuthData::is_valid_inbound_msg_id(int64 id, double now) const {
   double server_time = get_server_time(now);
-  auto id_time = static_cast<double>(id) / static_cast<double>(1ll << 32);
+  auto id_time = static_cast<double>(id) / static_cast<double>(static_cast<int64>(1) << 32);
   return server_time - 300 < id_time && id_time < server_time + 30;
 }
 

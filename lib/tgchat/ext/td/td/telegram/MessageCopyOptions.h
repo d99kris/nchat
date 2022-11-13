@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -25,6 +25,17 @@ struct MessageCopyOptions {
 
   MessageCopyOptions() = default;
   MessageCopyOptions(bool send_copy, bool remove_caption) : send_copy(send_copy), replace_caption(remove_caption) {
+  }
+
+  bool is_supported_server_side() const {
+    if (!send_copy) {
+      return true;
+    }
+    if ((replace_caption && !new_caption.text.empty()) || top_thread_message_id.is_valid() ||
+        reply_to_message_id.is_valid() || reply_markup != nullptr) {
+      return false;
+    }
+    return true;
   }
 };
 

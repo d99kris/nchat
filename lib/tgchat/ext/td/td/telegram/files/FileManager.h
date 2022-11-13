@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -21,14 +21,16 @@
 #include "td/telegram/telegram_api.h"
 
 #include "td/actor/actor.h"
-#include "td/actor/PromiseFuture.h"
 
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
 #include "td/utils/Container.h"
 #include "td/utils/Enumerator.h"
+#include "td/utils/FlatHashMap.h"
+#include "td/utils/FlatHashSet.h"
 #include "td/utils/logging.h"
 #include "td/utils/optional.h"
+#include "td/utils/Promise.h"
 #include "td/utils/Slice.h"
 #include "td/utils/Status.h"
 #include "td/utils/StringBuilder.h"
@@ -36,8 +38,6 @@
 #include <map>
 #include <memory>
 #include <set>
-#include <unordered_map>
-#include <unordered_set>
 #include <utility>
 
 namespace td {
@@ -105,6 +105,7 @@ class FileNode {
 
   void set_download_offset(int64 download_offset);
   void set_download_limit(int64 download_limit);
+  void set_ignore_download_limit(bool ignore_download_limit);
 
   void on_changed();
   void on_info_changed();
@@ -116,6 +117,8 @@ class FileNode {
   void on_pmc_flushed();
   void on_info_flushed();
 
+  int64 get_download_limit() const;
+
   string suggested_path() const;
 
  private:
@@ -123,13 +126,13 @@ class FileNode {
   friend class FileManager;
 
   static constexpr char PERSISTENT_ID_VERSION_OLD = 2;
-  static constexpr char PERSISTENT_ID_VERSION_MAP = 3;
+  static constexpr char PERSISTENT_ID_VERSION_GENERATED = 3;
   static constexpr char PERSISTENT_ID_VERSION = 4;
 
   LocalFileLocation local_;
   FileLoadManager::QueryId upload_id_ = 0;
   int64 download_offset_ = 0;
-  int64 download_limit_ = 0;
+  int64 private_download_limit_ = 0;
   int64 local_ready_size_ = 0;         // PartialLocal only
   int64 local_ready_prefix_size_ = 0;  // PartialLocal only
 
@@ -184,9 +187,12 @@ class FileNode {
 
   bool upload_prefer_small_{false};
 
+  bool ignore_download_limit_{false};
+
   void init_ready_size();
 
   void recalc_ready_prefix_size(int64 prefix_offset, int64 ready_prefix_size);
+  void update_effective_download_limit(int64 old_download_limit);
 };
 
 class FileManager;
@@ -262,7 +268,7 @@ class FileView {
 
   bool get_by_hash() const;
 
-  FileId file_id() const {
+  FileId get_main_file_id() const {
     return node_->main_file_id_;
   }
 
@@ -299,10 +305,10 @@ class FileView {
     return get_type() == FileType::Encrypted;
   }
   bool is_encrypted_secure() const {
-    return get_type() == FileType::Secure;
+    return get_type() == FileType::SecureEncrypted;
   }
   bool is_secure() const {
-    return get_type() == FileType::Secure || get_type() == FileType::SecureRaw;
+    return get_type() == FileType::SecureEncrypted || get_type() == FileType::SecureDecrypted;
   }
   bool is_encrypted_any() const {
     return is_encrypted_secret() || is_encrypted_secure();
@@ -342,6 +348,9 @@ class FileView {
 
 class FileManager final : public FileLoadManager::Callback {
  public:
+  static constexpr int64 KEEP_DOWNLOAD_LIMIT = -1;
+  static constexpr int64 KEEP_DOWNLOAD_OFFSET = -1;
+  static constexpr int64 IGNORE_DOWNLOAD_LIMIT = -2;
   class DownloadCallback {
    public:
     DownloadCallback() = default;
@@ -362,9 +371,6 @@ class FileManager final : public FileLoadManager::Callback {
     UploadCallback &operator=(const UploadCallback &) = delete;
     virtual ~UploadCallback() = default;
 
-    virtual void on_progress(FileId file_id) {
-    }
-
     // After on_upload_ok all uploads of this file will be paused till merge, delete_partial_remote_location or
     // explicit upload request with the same file_id.
     // Also upload may be resumed after some other merges.
@@ -376,6 +382,8 @@ class FileManager final : public FileLoadManager::Callback {
 
   class Context {
    public:
+    virtual bool need_notify_on_new_files() = 0;
+
     virtual void on_new_file(int64 size, int64 real_size, int32 cnt) = 0;
 
     virtual void on_file_updated(FileId size) = 0;
@@ -409,6 +417,8 @@ class FileManager final : public FileLoadManager::Callback {
 
   static bool are_modification_times_equal(int64 old_mtime, int64 new_mtime);
 
+  static bool is_remotely_generated_file(Slice conversion);
+
   void init_actor();
 
   FileId dup_file_id(FileId file_id);
@@ -441,6 +451,8 @@ class FileManager final : public FileLoadManager::Callback {
   bool set_encryption_key(FileId file_id, FileEncryptionKey key);
   bool set_content(FileId file_id, BufferSlice bytes);
 
+  void check_local_location(FileId file_id);
+
   void download(FileId file_id, std::shared_ptr<DownloadCallback> callback, int32 new_priority, int64 offset,
                 int64 limit);
   void upload(FileId file_id, std::shared_ptr<UploadCallback> callback, int32 new_priority, uint64 upload_order);
@@ -453,13 +465,13 @@ class FileManager final : public FileLoadManager::Callback {
 
   Result<string> get_suggested_file_name(FileId file_id, const string &directory);
 
-  void read_file_part(FileId file_id, int32 offset, int32 count, int left_tries,
+  void read_file_part(FileId file_id, int64 offset, int64 count, int left_tries,
                       Promise<td_api::object_ptr<td_api::filePart>> promise);
 
   void delete_file(FileId file_id, Promise<Unit> promise, const char *source);
 
-  void external_file_generate_write_part(int64 id, int32 offset, string data, Promise<> promise);
-  void external_file_generate_progress(int64 id, int32 expected_size, int32 local_prefix_size, Promise<> promise);
+  void external_file_generate_write_part(int64 id, int64 offset, string data, Promise<> promise);
+  void external_file_generate_progress(int64 id, int64 expected_size, int64 local_prefix_size, Promise<> promise);
   void external_file_generate_finish(int64 id, Status status, Promise<> promise);
 
   Result<FileId> from_persistent_id(CSlice persistent_id, FileType file_type) TD_WARN_UNUSED_RESULT;
@@ -476,6 +488,9 @@ class FileManager final : public FileLoadManager::Callback {
 
   Result<FileId> get_map_thumbnail_file_id(Location location, int32 zoom, int32 width, int32 height, int32 scale,
                                            DialogId owner_dialog_id) TD_WARN_UNUSED_RESULT;
+
+  Result<FileId> get_audio_thumbnail_file_id(string title, string performer,
+                                             DialogId owner_dialog_id) TD_WARN_UNUSED_RESULT;
 
   FileType guess_file_type(const tl_object_ptr<td_api::InputFile> &file);
 
@@ -534,6 +549,7 @@ class FileManager final : public FileLoadManager::Callback {
     bool send_updates_flag_{false};
     bool pin_flag_{false};
     bool sent_file_id_flag_{false};
+    bool ignore_download_limit{false};
 
     int8 download_priority_{0};
     int8 upload_priority_{0};
@@ -566,7 +582,7 @@ class FileManager final : public FileLoadManager::Callback {
   };
   Enumerator<RemoteInfo> remote_location_info_;
 
-  std::unordered_map<string, FileId> file_hash_to_file_id_;
+  FlatHashMap<string, FileId> file_hash_to_file_id_;
 
   std::map<FullLocalFileLocation, FileId> local_location_to_file_id_;
   std::map<FullGenerateFileLocation, FileId> generate_location_to_file_id_;
@@ -609,7 +625,7 @@ class FileManager final : public FileLoadManager::Callback {
   void flush_to_pmc(FileNodePtr node, bool new_remote, bool new_local, bool new_generate, const char *source);
   void load_from_pmc(FileNodePtr node, bool new_remote, bool new_local, bool new_generate);
 
-  Result<FileId> from_persistent_id_map(Slice binary, FileType file_type);
+  Result<FileId> from_persistent_id_generated(Slice binary, FileType file_type);
   Result<FileId> from_persistent_id_v2(Slice binary, FileType file_type);
   Result<FileId> from_persistent_id_v3(Slice binary, FileType file_type);
   Result<FileId> from_persistent_id_v23(Slice binary, FileType file_type, int32 version);
@@ -649,14 +665,14 @@ class FileManager final : public FileLoadManager::Callback {
 
   void on_error_impl(FileNodePtr node, Query::Type type, bool was_active, Status status);
 
-  void on_partial_generate(QueryId, PartialLocalFileLocation partial_local, int32 expected_size);
+  void on_partial_generate(QueryId, PartialLocalFileLocation partial_local, int64 expected_size);
   void on_generate_ok(QueryId, FullLocalFileLocation local);
 
   std::pair<Query, bool> finish_query(QueryId query_id);
 
   FullRemoteFileLocation *get_remote(int32 key);
 
-  std::unordered_set<FileId, FileIdHash> get_main_file_ids(const vector<FileId> &file_ids);
+  FlatHashSet<FileId, FileIdHash> get_main_file_ids(const vector<FileId> &file_ids);
 
   void hangup() final;
   void tear_down() final;

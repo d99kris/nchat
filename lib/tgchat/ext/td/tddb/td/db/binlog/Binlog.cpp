@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -16,6 +16,7 @@
 #include "td/utils/port/FileFd.h"
 #include "td/utils/port/path.h"
 #include "td/utils/port/PollFlags.h"
+#include "td/utils/port/sleep.h"
 #include "td/utils/port/Stat.h"
 #include "td/utils/Random.h"
 #include "td/utils/ScopeGuard.h"
@@ -656,7 +657,7 @@ void Binlog::do_reindex() {
     event.realloc();
     do_event(std::move(event));  // NB: no move is actually happens
   });
-  need_sync_ = true;  // must sync creation of the file
+  need_sync_ = start_size != 0;  // must sync creation of the file if it is non-empty
   sync();
 
   // finish_reindex
@@ -670,14 +671,19 @@ void Binlog::do_reindex() {
   auto finish_time = Clocks::monotonic();
   auto finish_size = fd_size_;
   auto finish_events = fd_events_;
-  {
+  for (int left_tries = 10; left_tries > 0; left_tries--) {
     auto r_stat = stat(path_);
     if (r_stat.is_error()) {
+      if (left_tries != 1) {
+        usleep_for(200000 / left_tries);
+        continue;
+      }
       LOG(FATAL) << "Failed to rename binlog of size " << fd_size_ << " to " << path_ << ": " << r_stat.error()
-                 << ". Old file size is " << detail::file_size(new_path);
+                 << ". Temp file size is " << detail::file_size(new_path) << ", new size " << detail::file_size(path_);
     }
     LOG_CHECK(fd_size_ == r_stat.ok().size_) << fd_size_ << ' ' << r_stat.ok().size_ << ' '
                                              << detail::file_size(new_path) << ' ' << fd_events_ << ' ' << path_;
+    break;
   }
 
   auto ratio = static_cast<double>(start_size) / static_cast<double>(finish_size + 1);

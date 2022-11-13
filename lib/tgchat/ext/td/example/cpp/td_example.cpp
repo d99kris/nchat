@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -210,7 +210,7 @@ class TdExample {
                      [this](td_api::updateNewMessage &update_new_message) {
                        auto chat_id = update_new_message.message_->chat_id_;
                        std::string sender_name;
-                       td_api::downcast_call(*update_new_message.message_->sender_,
+                       td_api::downcast_call(*update_new_message.message_->sender_id_,
                                              overloaded(
                                                  [this, &sender_name](td_api::messageSenderUser &user) {
                                                    sender_name = get_user_name(user.user_id_);

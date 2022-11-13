@@ -3,7 +3,7 @@ if ((CMAKE_MAJOR_VERSION LESS 3) OR (CMAKE_VERSION VERSION_LESS "3.0.2"))
 endif()
 
 # Generates files for MIME type <-> extension conversions
-# DEPENDS ON: gperf grep bash/powershell
+# DEPENDS ON: gperf grep
 
 if (NOT TDUTILS_MIME_TYPE)
   return()
@@ -25,7 +25,7 @@ add_custom_target(tdmime_auto DEPENDS ${TDMIME_SOURCE})
 if (NOT CMAKE_CROSSCOMPILING)
   find_program(GPERF_EXECUTABLE gperf)
   if (NOT GPERF_EXECUTABLE)
-    message(FATAL_ERROR "Could NOT find gperf. Add path to gperf executable to PATH environment variable or specify it manually using GPERF_EXECUTABLE option, i. e. 'cmake -DGPERF_EXECUTABLE:FILEPATH=\"<path to gperf executable>\"'.")
+    message(FATAL_ERROR "Could NOT find gperf. Add path to gperf executable to PATH environment variable or specify it manually using GPERF_EXECUTABLE option, i.e. 'cmake -DGPERF_EXECUTABLE:FILEPATH=\"<path to gperf executable>\"'.")
   endif()
 
   set(GPERF_FILES

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -179,8 +179,8 @@ void ConnectionCreator::add_proxy(int32 old_proxy_id, string server, int32 port,
       proxy_id = max_proxy_id_++;
       G()->td_db()->get_binlog_pmc()->set("proxy_max_id", to_string(max_proxy_id_));
     }
-    CHECK(proxies_.count(proxy_id) == 0);
-    proxies_.emplace(proxy_id, std::move(new_proxy));
+    bool is_inserted = proxies_.emplace(proxy_id, std::move(new_proxy)).second;
+    CHECK(is_inserted);
     G()->td_db()->get_binlog_pmc()->set(get_proxy_database_key(proxy_id),
                                         log_event_store(proxies_[proxy_id]).as_slice().str());
     return proxy_id;
@@ -228,11 +228,12 @@ void ConnectionCreator::get_proxies(Promise<td_api::object_ptr<td_api::proxies>>
 }
 
 void ConnectionCreator::get_proxy_link(int32 proxy_id, Promise<string> promise) {
-  if (proxies_.count(proxy_id) == 0) {
+  auto it = proxies_.find(proxy_id);
+  if (it == proxies_.end()) {
     return promise.set_error(Status::Error(400, "Unknown proxy identifier"));
   }
 
-  auto &proxy = proxies_[proxy_id];
+  auto &proxy = it->second;
   string url = G()->shared_config().get_option_string("t_me_url", "https://t.me/");
   bool is_socks = false;
   switch (proxy.type()) {
@@ -419,7 +420,7 @@ void ConnectionCreator::set_active_proxy_id(int32 proxy_id, bool from_binlog) {
   if (!from_binlog) {
     if (proxy_id == 0) {
       G()->td_db()->get_binlog_pmc()->erase("proxy_active_id");
-      send_closure(G()->config_manager(), &ConfigManager::request_config);
+      send_closure(G()->config_manager(), &ConfigManager::request_config, false);
     } else {
       G()->td_db()->get_binlog_pmc()->set("proxy_active_id", to_string(proxy_id));
     }
@@ -1132,11 +1133,13 @@ void ConnectionCreator::start_up() {
     if (begins_with(info.first, "_used")) {
       auto proxy_id = to_integer_safe<int32>(Slice(info.first).substr(5)).move_as_ok();
       auto last_used = to_integer_safe<int32>(info.second).move_as_ok();
+      CHECK(proxy_id > 0);
       proxy_last_used_date_[proxy_id] = last_used;
       proxy_last_used_saved_date_[proxy_id] = last_used;
     } else {
       LOG_CHECK(!ends_with(info.first, "_max_id")) << info.first;
       auto proxy_id = info.first.empty() ? static_cast<int32>(1) : to_integer_safe<int32>(info.first).move_as_ok();
+      CHECK(proxy_id > 0);
       CHECK(proxies_.count(proxy_id) == 0);
       log_event_parse(proxies_[proxy_id], info.second).ensure();
       if (proxies_[proxy_id].type() == Proxy::Type::None) {

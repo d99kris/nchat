@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,10 +11,11 @@
 #include "td/telegram/telegram_api.h"
 
 #include "td/actor/actor.h"
-#include "td/actor/PromiseFuture.h"
 
 #include "td/utils/common.h"
 #include "td/utils/Container.h"
+#include "td/utils/FlatHashMap.h"
+#include "td/utils/Promise.h"
 #include "td/utils/Slice.h"
 #include "td/utils/Status.h"
 
@@ -100,7 +101,7 @@ class LanguagePackManager final : public NetQueryCallback {
     vector<Promise<td_api::object_ptr<td_api::languagePackStrings>>> queries_;
   };
 
-  std::unordered_map<string, std::unordered_map<string, PendingQueries>> get_all_language_pack_strings_queries_;
+  FlatHashMap<string, FlatHashMap<string, PendingQueries>> get_all_language_pack_strings_queries_;
 
   static int32 manager_count_;
 
@@ -125,11 +126,11 @@ class LanguagePackManager final : public NetQueryCallback {
       const PluralizedString &value);
   static td_api::object_ptr<td_api::LanguagePackStringValue> get_language_pack_string_value_object();
 
-  static td_api::object_ptr<td_api::languagePackString> get_language_pack_string_object(
-      const std::pair<string, string> &str);
-  static td_api::object_ptr<td_api::languagePackString> get_language_pack_string_object(
-      const std::pair<string, PluralizedString> &str);
-  static td_api::object_ptr<td_api::languagePackString> get_language_pack_string_object(const string &str);
+  static td_api::object_ptr<td_api::languagePackString> get_language_pack_string_object(const string &key,
+                                                                                        const string &value);
+  static td_api::object_ptr<td_api::languagePackString> get_language_pack_string_object(const string &key,
+                                                                                        const PluralizedString &value);
+  static td_api::object_ptr<td_api::languagePackString> get_language_pack_string_object(const string &key);
 
   static td_api::object_ptr<td_api::LanguagePackStringValue> get_language_pack_string_value_object(
       const Language *language, const string &key);

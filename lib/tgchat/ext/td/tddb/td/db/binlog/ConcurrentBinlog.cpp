@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -152,10 +152,7 @@ class BinlogActor final : public Actor {
     if (need_sync) {
       binlog_->sync();
       // LOG(ERROR) << "BINLOG SYNC";
-      for (auto &promise : sync_promises_) {
-        promise.set_value(Unit());
-      }
-      sync_promises_.clear();
+      set_promises(sync_promises_);
     } else if (need_flush) {
       try_flush();
       // LOG(ERROR) << "BINLOG FLUSH";

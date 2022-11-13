@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -9,6 +9,7 @@
 #if !TD_EMSCRIPTEN
 #include "td/utils/common.h"
 #include "td/utils/crypto.h"
+#include "td/utils/FlatHashMap.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/port/IPAddress.h"
@@ -26,7 +27,6 @@
 #include <cstring>
 #include <memory>
 #include <mutex>
-#include <unordered_map>
 
 #if TD_PORT_WINDOWS
 #include <wincrypt.h>
@@ -98,6 +98,11 @@ long strm_ctrl(BIO *b, int cmd, long num, void *ptr) {
     case BIO_CTRL_PUSH:
     case BIO_CTRL_POP:
       return 0;
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    case BIO_CTRL_GET_KTLS_SEND:
+    case BIO_CTRL_GET_KTLS_RECV:
+      return 0;
+#endif
     default:
       LOG(FATAL) << b << " " << cmd << " " << num << " " << ptr;
   }
@@ -130,7 +135,7 @@ int verify_callback(int preverify_ok, X509_STORE_CTX *ctx) {
     static std::mutex warning_mutex;
     {
       std::lock_guard<std::mutex> lock(warning_mutex);
-      static std::unordered_map<std::string, double> next_warning_time;
+      static FlatHashMap<string, double> next_warning_time;
       double &next = next_warning_time[warning];
       if (next <= now) {
         next = now + 300;  // one warning per 5 minutes

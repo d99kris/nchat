@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -130,9 +130,7 @@ void RecentDialogList::on_load_dialogs(vector<string> &&found_dialogs) {
   CHECK(!promises.empty());
 
   if (G()->close_flag()) {
-    for (auto &promise : promises) {
-      promise.set_error(Global::request_aborted_error());
-    }
+    fail_promises(promises, Global::request_aborted_error());
     return;
   }
 
@@ -162,9 +160,7 @@ void RecentDialogList::on_load_dialogs(vector<string> &&found_dialogs) {
     save_dialogs();
   }
 
-  for (auto &promise : promises) {
-    promise.set_value(Unit());
-  }
+  set_promises(promises);
 }
 
 void RecentDialogList::add_dialog(DialogId dialog_id) {
@@ -198,6 +194,9 @@ bool RecentDialogList::do_add_dialog(DialogId dialog_id) {
 }
 
 void RecentDialogList::remove_dialog(DialogId dialog_id) {
+  if (!dialog_id.is_valid()) {
+    return;
+  }
   if (!is_loaded_) {
     load_dialogs(Promise<Unit>());
   }

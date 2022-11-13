@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -7,12 +7,12 @@
 #include "td/utils/benchmark.h"
 #include "td/utils/ConcurrentHashTable.h"
 #include "td/utils/misc.h"
+#include "td/utils/port/Mutex.h"
 #include "td/utils/port/thread.h"
 #include "td/utils/SpinLock.h"
 #include "td/utils/tests.h"
 
 #include <atomic>
-#include <mutex>
 
 #if !TD_THREAD_UNSUPPORTED
 
@@ -72,11 +72,11 @@ class ConcurrentHashMapMutex {
     return "ConcurrentHashMapMutex";
   }
   void insert(KeyT key, ValueT value) {
-    std::unique_lock<std::mutex> lock(mutex_);
+    auto guard = mutex_.lock();
     hash_map_.emplace(key, value);
   }
   ValueT find(KeyT key, ValueT default_value) {
-    std::unique_lock<std::mutex> lock(mutex_);
+    auto guard = mutex_.lock();
     auto it = hash_map_.find(key);
     if (it == hash_map_.end()) {
       return default_value;
@@ -85,7 +85,7 @@ class ConcurrentHashMapMutex {
   }
 
  private:
-  std::mutex mutex_;
+  Mutex mutex_;
 #if TD_HAVE_ABSL
   absl::flat_hash_map<KeyT, ValueT> hash_map_;
 #else

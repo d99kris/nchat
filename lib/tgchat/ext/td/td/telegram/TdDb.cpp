@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -24,6 +24,7 @@
 #include "td/db/SqliteKeyValueAsync.h"
 #include "td/db/SqliteKeyValueSafe.h"
 
+#include "td/actor/actor.h"
 #include "td/actor/MultiPromise.h"
 
 #include "td/utils/common.h"
@@ -50,21 +51,8 @@ std::string get_sqlite_path(const TdParameters &parameters) {
   return parameters.database_directory + db_name + ".sqlite";
 }
 
-Result<TdDb::EncryptionInfo> check_encryption(string path) {
-  Binlog binlog;
-  auto status = binlog.init(std::move(path), Binlog::Callback());
-  if (status.is_error() && status.code() != Binlog::Error::WrongPassword) {
-    LOG(WARNING) << "Failed to check binlog: " << status;
-    return Status::Error(400, status.message());
-  }
-  TdDb::EncryptionInfo info;
-  info.is_encrypted = binlog.get_info().wrong_password;
-  binlog.close(false /*need_sync*/).ensure();
-  return info;
-}
-
 Status init_binlog(Binlog &binlog, string path, BinlogKeyValue<Binlog> &binlog_pmc, BinlogKeyValue<Binlog> &config_pmc,
-                   TdDb::Events &events, DbKey key) {
+                   TdDb::OpenedDatabase &events, DbKey key) {
   auto callback = [&](const BinlogEvent &event) {
     switch (event.type_) {
       case LogEvent::HandlerType::SecretChats:
@@ -100,12 +88,11 @@ Status init_binlog(Binlog &binlog, string path, BinlogKeyValue<Binlog> &binlog_p
       case LogEvent::HandlerType::SendInlineQueryResultMessage:
       case LogEvent::HandlerType::DeleteDialogHistoryOnServer:
       case LogEvent::HandlerType::ReadAllDialogMentionsOnServer:
-      case LogEvent::HandlerType::DeleteAllChannelMessagesFromUserOnServer:
+      case LogEvent::HandlerType::DeleteAllChannelMessagesFromSenderOnServer:
       case LogEvent::HandlerType::ToggleDialogIsPinnedOnServer:
       case LogEvent::HandlerType::ReorderPinnedDialogsOnServer:
       case LogEvent::HandlerType::SaveDialogDraftMessageOnServer:
       case LogEvent::HandlerType::UpdateDialogNotificationSettingsOnServer:
-      case LogEvent::HandlerType::UpdateScopeNotificationSettingsOnServer:
       case LogEvent::HandlerType::ResetAllNotificationSettingsOnServer:
       case LogEvent::HandlerType::ToggleDialogReportSpamStateOnServer:
       case LogEvent::HandlerType::RegetDialog:
@@ -120,11 +107,18 @@ Status init_binlog(Binlog &binlog, string path, BinlogKeyValue<Binlog> &binlog_p
       case LogEvent::HandlerType::UnpinAllDialogMessagesOnServer:
       case LogEvent::HandlerType::DeleteAllCallMessagesOnServer:
       case LogEvent::HandlerType::DeleteDialogMessagesByDateOnServer:
+      case LogEvent::HandlerType::ReadAllDialogReactionsOnServer:
         events.to_messages_manager.push_back(event.clone());
+        break;
+      case LogEvent::HandlerType::UpdateScopeNotificationSettingsOnServer:
+        events.to_notification_settings_manager.push_back(event.clone());
         break;
       case LogEvent::HandlerType::AddMessagePushNotification:
       case LogEvent::HandlerType::EditMessagePushNotification:
         events.to_notification_manager.push_back(event.clone());
+        break;
+      case LogEvent::HandlerType::SaveAppLog:
+        events.save_app_log_events.push_back(event.clone());
         break;
       case LogEvent::HandlerType::BinlogPmcMagic:
         binlog_pmc.external_init_handle(event);
@@ -282,7 +276,7 @@ void TdDb::do_close(Promise<> on_finished, bool destroy_flag) {
   lock.set_value(Unit());
 }
 
-Status TdDb::init_sqlite(int32 scheduler_id, const TdParameters &parameters, const DbKey &key, const DbKey &old_key,
+Status TdDb::init_sqlite(const TdParameters &parameters, const DbKey &key, const DbKey &old_key,
                          BinlogKeyValue<Binlog> &binlog_pmc) {
   CHECK(!parameters.use_message_db || parameters.use_chat_info_db);
   CHECK(!parameters.use_chat_info_db || parameters.use_file_db);
@@ -353,6 +347,8 @@ Status TdDb::init_sqlite(int32 scheduler_id, const TdParameters &parameters, con
     binlog_pmc.erase_by_prefix("unread_dialog_count");
     binlog_pmc.erase("sponsored_dialog_id");
     binlog_pmc.erase_by_prefix("top_dialogs");
+    binlog_pmc.erase("dlds_counter");
+    binlog_pmc.erase_by_prefix("dlds#");
   }
   if (user_version == 0) {
     binlog_pmc.erase("next_contacts_sync_date");
@@ -364,25 +360,33 @@ Status TdDb::init_sqlite(int32 scheduler_id, const TdParameters &parameters, con
 
   TRY_STATUS(db.exec("COMMIT TRANSACTION"));
 
-  file_db_ = create_file_db(sql_connection_, scheduler_id);
+  file_db_ = create_file_db(sql_connection_);
 
   common_kv_safe_ = std::make_shared<SqliteKeyValueSafe>("common", sql_connection_);
-  common_kv_async_ = create_sqlite_key_value_async(common_kv_safe_, scheduler_id);
+  common_kv_async_ = create_sqlite_key_value_async(common_kv_safe_);
 
   if (use_dialog_db) {
     dialog_db_sync_safe_ = create_dialog_db_sync(sql_connection_);
-    dialog_db_async_ = create_dialog_db_async(dialog_db_sync_safe_, scheduler_id);
+    dialog_db_async_ = create_dialog_db_async(dialog_db_sync_safe_);
   }
 
   if (use_message_db) {
     messages_db_sync_safe_ = create_messages_db_sync(sql_connection_);
-    messages_db_async_ = create_messages_db_async(messages_db_sync_safe_, scheduler_id);
+    messages_db_async_ = create_messages_db_async(messages_db_sync_safe_);
   }
 
   return Status::OK();
 }
 
-Status TdDb::init(int32 scheduler_id, const TdParameters &parameters, DbKey key, Events &events) {
+void TdDb::open(int32 scheduler_id, TdParameters parameters, DbKey key, Promise<OpenedDatabase> &&promise) {
+  Scheduler::instance()->run_on_scheduler(
+      scheduler_id, [parameters = std::move(parameters), key = std::move(key), promise = std::move(promise)](
+                        Unit) mutable { TdDb::open_impl(std::move(parameters), std::move(key), std::move(promise)); });
+}
+
+void TdDb::open_impl(TdParameters parameters, DbKey key, Promise<OpenedDatabase> &&promise) {
+  OpenedDatabase result;
+
   // Init pmc
   Binlog *binlog_ptr = nullptr;
   auto binlog = std::shared_ptr<Binlog>(new Binlog, [&](Binlog *ptr) { binlog_ptr = ptr; });
@@ -394,7 +398,8 @@ Status TdDb::init(int32 scheduler_id, const TdParameters &parameters, DbKey key,
 
   bool encrypt_binlog = !key.is_empty();
   VLOG(td_init) << "Start binlog loading";
-  TRY_STATUS(init_binlog(*binlog, get_binlog_path(parameters), *binlog_pmc, *config_pmc, events, std::move(key)));
+  TRY_STATUS_PROMISE(
+      promise, init_binlog(*binlog, get_binlog_path(parameters), *binlog_pmc, *config_pmc, result, std::move(key)));
   VLOG(td_init) << "Finish binlog loading";
 
   binlog_pmc->external_init_finish(binlog);
@@ -422,15 +427,16 @@ Status TdDb::init(int32 scheduler_id, const TdParameters &parameters, DbKey key,
     }
   }
   VLOG(td_init) << "Start to init database";
-  auto init_sqlite_status = init_sqlite(scheduler_id, parameters, new_sqlite_key, old_sqlite_key, *binlog_pmc);
+  auto db = make_unique<TdDb>();
+  auto init_sqlite_status = db->init_sqlite(parameters, new_sqlite_key, old_sqlite_key, *binlog_pmc);
   VLOG(td_init) << "Finish to init database";
   if (init_sqlite_status.is_error()) {
     LOG(ERROR) << "Destroy bad SQLite database because of " << init_sqlite_status;
-    if (sql_connection_ != nullptr) {
-      sql_connection_->get().close();
+    if (db->sql_connection_ != nullptr) {
+      db->sql_connection_->get().close();
     }
     SqliteDb::destroy(get_sqlite_path(parameters)).ignore();
-    TRY_STATUS(init_sqlite(scheduler_id, parameters, new_sqlite_key, old_sqlite_key, *binlog_pmc));
+    TRY_STATUS_PROMISE(promise, db->init_sqlite(parameters, new_sqlite_key, old_sqlite_key, *binlog_pmc));
   }
   if (drop_sqlite_key) {
     binlog_pmc->erase("sqlite_key");
@@ -453,31 +459,76 @@ Status TdDb::init(int32 scheduler_id, const TdParameters &parameters, DbKey key,
 
   CHECK(binlog_ptr != nullptr);
   VLOG(td_init) << "Create concurrent_binlog";
-  auto concurrent_binlog = std::make_shared<ConcurrentBinlog>(unique_ptr<Binlog>(binlog_ptr), scheduler_id);
+  auto concurrent_binlog = std::make_shared<ConcurrentBinlog>(unique_ptr<Binlog>(binlog_ptr));
 
   VLOG(td_init) << "Init concurrent_binlog_pmc";
   concurrent_binlog_pmc->external_init_finish(concurrent_binlog);
   VLOG(td_init) << "Init concurrent_config_pmc";
   concurrent_config_pmc->external_init_finish(concurrent_binlog);
 
-  binlog_pmc_ = std::move(concurrent_binlog_pmc);
-  config_pmc_ = std::move(concurrent_config_pmc);
-  binlog_ = std::move(concurrent_binlog);
+  db->binlog_pmc_ = std::move(concurrent_binlog_pmc);
+  db->config_pmc_ = std::move(concurrent_config_pmc);
+  db->binlog_ = std::move(concurrent_binlog);
 
-  return Status::OK();
+  result.database = std::move(db);
+
+  promise.set_value(std::move(result));
 }
 
 TdDb::TdDb() = default;
 TdDb::~TdDb() = default;
 
-Result<unique_ptr<TdDb>> TdDb::open(int32 scheduler_id, const TdParameters &parameters, DbKey key, Events &events) {
-  auto db = make_unique<TdDb>();
-  TRY_STATUS(db->init(scheduler_id, parameters, std::move(key), events));
-  return std::move(db);
+void TdDb::check_parameters(int32 scheduler_id, TdParameters parameters, Promise<CheckedParameters> promise) {
+  Scheduler::instance()->run_on_scheduler(
+      scheduler_id, [parameters = std::move(parameters), promise = std::move(promise)](Unit) mutable {
+        TdDb::check_parameters_impl(std::move(parameters), std::move(promise));
+      });
 }
 
-Result<TdDb::EncryptionInfo> TdDb::check_encryption(const TdParameters &parameters) {
-  return ::td::check_encryption(get_binlog_path(parameters));
+void TdDb::check_parameters_impl(TdParameters parameters, Promise<CheckedParameters> promise) {
+  CheckedParameters result;
+
+  auto prepare_dir = [](string dir) -> Result<string> {
+    CHECK(!dir.empty());
+    if (dir.back() != TD_DIR_SLASH) {
+      dir += TD_DIR_SLASH;
+    }
+    TRY_STATUS(mkpath(dir, 0750));
+    TRY_RESULT(real_dir, realpath(dir, true));
+    if (dir.back() != TD_DIR_SLASH) {
+      dir += TD_DIR_SLASH;
+    }
+    return real_dir;
+  };
+
+  auto r_database_directory = prepare_dir(parameters.database_directory);
+  if (r_database_directory.is_error()) {
+    VLOG(td_init) << "Invalid database_directory";
+    return promise.set_error(Status::Error(PSLICE()
+                                           << "Can't init database in the directory \"" << parameters.database_directory
+                                           << "\": " << r_database_directory.error()));
+  }
+  result.database_directory = r_database_directory.move_as_ok();
+  parameters.database_directory = result.database_directory;
+
+  auto r_files_directory = prepare_dir(parameters.files_directory);
+  if (r_files_directory.is_error()) {
+    VLOG(td_init) << "Invalid files_directory";
+    return promise.set_error(Status::Error(PSLICE() << "Can't init files directory \"" << parameters.files_directory
+                                                    << "\": " << r_files_directory.error()));
+  }
+  result.files_directory = r_files_directory.move_as_ok();
+
+  Binlog binlog;
+  auto status = binlog.init(get_binlog_path(parameters), Binlog::Callback());
+  if (status.is_error() && status.code() != Binlog::Error::WrongPassword) {
+    LOG(WARNING) << "Failed to check binlog: " << status;
+    return promise.set_error(std::move(status));
+  }
+  result.is_database_encrypted = binlog.get_info().wrong_password;
+  binlog.close(false /*need_sync*/).ensure();
+
+  promise.set_value(std::move(result));
 }
 
 void TdDb::change_key(DbKey key, Promise<> promise) {

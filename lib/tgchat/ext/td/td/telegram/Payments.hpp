@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -30,6 +30,7 @@ void parse(LabeledPricePart &labeled_price_part, ParserT &parser) {
 template <class StorerT>
 void store(const Invoice &invoice, StorerT &storer) {
   bool has_tip = invoice.max_tip_amount != 0;
+  bool is_recurring = !invoice.recurring_payment_terms_of_service_url.empty();
   BEGIN_STORE_FLAGS();
   STORE_FLAG(invoice.is_test);
   STORE_FLAG(invoice.need_name);
@@ -40,6 +41,7 @@ void store(const Invoice &invoice, StorerT &storer) {
   STORE_FLAG(invoice.send_phone_number_to_provider);
   STORE_FLAG(invoice.send_email_address_to_provider);
   STORE_FLAG(has_tip);
+  STORE_FLAG(is_recurring);
   END_STORE_FLAGS();
   store(invoice.currency, storer);
   store(invoice.price_parts, storer);
@@ -47,11 +49,15 @@ void store(const Invoice &invoice, StorerT &storer) {
     store(invoice.max_tip_amount, storer);
     store(invoice.suggested_tip_amounts, storer);
   }
+  if (is_recurring) {
+    store(invoice.recurring_payment_terms_of_service_url, storer);
+  }
 }
 
 template <class ParserT>
 void parse(Invoice &invoice, ParserT &parser) {
   bool has_tip;
+  bool is_recurring;
   BEGIN_PARSE_FLAGS();
   PARSE_FLAG(invoice.is_test);
   PARSE_FLAG(invoice.need_name);
@@ -62,12 +68,16 @@ void parse(Invoice &invoice, ParserT &parser) {
   PARSE_FLAG(invoice.send_phone_number_to_provider);
   PARSE_FLAG(invoice.send_email_address_to_provider);
   PARSE_FLAG(has_tip);
+  PARSE_FLAG(is_recurring);
   END_PARSE_FLAGS();
   parse(invoice.currency, parser);
   parse(invoice.price_parts, parser);
   if (has_tip) {
     parse(invoice.max_tip_amount, parser);
     parse(invoice.suggested_tip_amounts, parser);
+  }
+  if (is_recurring) {
+    parse(invoice.recurring_payment_terms_of_service_url, parser);
   }
 }
 

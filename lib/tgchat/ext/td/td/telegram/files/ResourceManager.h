@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -21,7 +21,7 @@ namespace td {
 class ResourceManager final : public Actor {
  public:
   enum class Mode : int32 { Baseline, Greedy };
-  explicit ResourceManager(Mode mode) : mode_(mode) {
+  ResourceManager(int64 max_resource_limit, Mode mode) : max_resource_limit_(max_resource_limit), mode_(mode) {
   }
   // use through ActorShared
   void update_priority(int8 priority);
@@ -29,10 +29,10 @@ class ResourceManager final : public Actor {
 
   void register_worker(ActorShared<FileLoaderActor> callback, int8 priority);
 
-  static constexpr int64 MAX_RESOURCE_LIMIT = 1 << 21;
-
  private:
+  int64 max_resource_limit_ = 0;
   Mode mode_;
+
   using NodeId = uint64;
   struct Node final : public HeapNode {
     NodeId node_id = 0;

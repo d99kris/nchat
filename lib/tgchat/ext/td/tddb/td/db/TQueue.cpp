@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,6 +11,7 @@
 #include "td/db/binlog/BinlogHelper.h"
 #include "td/db/binlog/BinlogInterface.h"
 
+#include "td/utils/FlatHashMap.h"
 #include "td/utils/misc.h"
 #include "td/utils/Random.h"
 #include "td/utils/StorerBase.h"
@@ -19,7 +20,6 @@
 #include "td/utils/tl_storers.h"
 
 #include <set>
-#include <unordered_map>
 
 namespace td {
 
@@ -96,7 +96,7 @@ class TQueueImpl final : public TQueue {
   bool do_push(QueueId queue_id, RawEvent &&raw_event) final {
     CHECK(raw_event.event_id.is_valid());
     // raw_event.data can be empty when replaying binlog
-    if (raw_event.data.size() > MAX_EVENT_LENGTH) {
+    if (raw_event.data.size() > MAX_EVENT_LENGTH || queue_id == 0) {
       return false;
     }
     auto &q = queues_[queue_id];
@@ -138,6 +138,9 @@ class TQueueImpl final : public TQueue {
     }
     if (data.size() > MAX_EVENT_LENGTH) {
       return Status::Error("Data is too big");
+    }
+    if (queue_id == 0) {
+      return Status::Error("Queue identifier is invalid");
     }
 
     auto &q = queues_[queue_id];
@@ -286,7 +289,7 @@ class TQueueImpl final : public TQueue {
     int32 gc_at = 0;
   };
 
-  std::unordered_map<QueueId, Queue> queues_;
+  FlatHashMap<QueueId, Queue> queues_;
   std::set<std::pair<int32, QueueId>> queue_gc_at_;
   unique_ptr<StorageCallback> callback_;
 

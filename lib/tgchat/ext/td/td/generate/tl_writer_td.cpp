@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -57,13 +57,13 @@ bool TD_TL_writer::is_default_constructor_generated(const tl::tl_combinator *t, 
 bool TD_TL_writer::is_full_constructor_generated(const tl::tl_combinator *t, bool can_be_parsed,
                                                  bool can_be_stored) const {
   return tl_name == "td_api" || tl_name == "TdApi" || can_be_stored || t->name == "phone.groupParticipants" ||
-         t->name == "user" || t->name == "userProfilePhoto" || t->name == "channelForbidden" ||
+         t->name == "user" || t->name == "userProfilePhoto" || t->name == "channelForbidden" || t->name == "message" ||
          t->name == "photoSizeEmpty" || t->name == "photoSize" || t->name == "photoCachedSize" ||
          t->name == "document" || t->name == "updateDeleteMessages" || t->name == "updateEditChannelMessage" ||
          t->name == "encryptedChatWaiting" || t->name == "encryptedChatRequested" || t->name == "encryptedChat" ||
          t->name == "langPackString" || t->name == "langPackStringPluralized" || t->name == "langPackStringDeleted" ||
          t->name == "peerUser" || t->name == "peerChat" || t->name == "updateServiceNotification" ||
-         t->name == "updateNewMessage" || t->name == "message" || t->name == "updateChannelTooLong";
+         t->name == "updateNewMessage" || t->name == "updateChannelTooLong" || t->name == "messages.stickerSet";
 }
 
 int TD_TL_writer::get_storer_type(const tl::tl_combinator *t, const std::string &storer_name) const {

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -8,7 +8,6 @@
 
 #include "td/utils/logging.h"
 #include "td/utils/port/thread_local.h"
-#include "td/utils/ThreadSafeCounter.h"
 
 #include <cstddef>
 #include <new>
@@ -26,18 +25,8 @@ TD_THREAD_LOCAL BufferAllocator::BufferRawTls *BufferAllocator::buffer_raw_tls; 
 
 std::atomic<size_t> BufferAllocator::buffer_mem;
 
-static ThreadSafeCounter buffer_slice_size_;
-
 int64 BufferAllocator::get_buffer_slice_size() {
-  return buffer_slice_size_.sum();
-}
-
-void BufferAllocator::track_buffer_slice(int64 size) {
-  if (size == 0) {
-    return;
-  }
-
-  buffer_slice_size_.add(size);
+  return 0;
 }
 
 size_t BufferAllocator::get_buffer_mem() {

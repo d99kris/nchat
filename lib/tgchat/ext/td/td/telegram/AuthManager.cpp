@@ -1,11 +1,12 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/telegram/AuthManager.h"
 
+#include "td/telegram/AttachMenuManager.h"
 #include "td/telegram/AuthManager.hpp"
 #include "td/telegram/ConfigManager.h"
 #include "td/telegram/ConfigShared.h"
@@ -27,12 +28,11 @@
 #include "td/telegram/TopDialogManager.h"
 #include "td/telegram/UpdatesManager.h"
 
-#include "td/actor/PromiseFuture.h"
-
 #include "td/utils/base64.h"
 #include "td/utils/format.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
+#include "td/utils/Promise.h"
 #include "td/utils/ScopeGuard.h"
 #include "td/utils/Slice.h"
 #include "td/utils/Time.h"
@@ -58,6 +58,7 @@ AuthManager::AuthManager(int32 api_id, const string &api_hash, ActorShared<> par
       ContactsManager::send_get_me_query(
           td_, PromiseCreator::lambda([this](Result<Unit> result) { update_state(State::Ok); }));
     }
+    G()->net_query_dispatcher().check_authorization_is_ok();
   } else if (auth_str == "logout") {
     LOG(WARNING) << "Continue to log out";
     update_state(State::LoggingOut);
@@ -75,8 +76,11 @@ void AuthManager::start_up() {
   if (state_ == State::LoggingOut) {
     send_log_out_query();
   } else if (state_ == State::DestroyingKeys) {
-    G()->net_query_dispatcher().destroy_auth_keys(
-        PromiseCreator::lambda([](Unit) { send_closure_later(G()->td(), &Td::destroy); }, PromiseCreator::Ignore()));
+    G()->net_query_dispatcher().destroy_auth_keys(PromiseCreator::lambda([](Result<Unit> result) {
+      if (result.is_ok()) {
+        send_closure_later(G()->td(), &Td::destroy);
+      }
+    }));
   }
 }
 void AuthManager::tear_down() {
@@ -390,14 +394,37 @@ void AuthManager::send_log_out_query() {
   start_net_query(NetQueryType::LogOut, std::move(query));
 }
 
-void AuthManager::delete_account(uint64 query_id, const string &reason) {
+void AuthManager::delete_account(uint64 query_id, string reason, string password) {
   if (state_ != State::Ok && state_ != State::WaitPassword) {
     return on_query_error(query_id, Status::Error(400, "Need to log in first"));
   }
+  if (password.empty() || state_ != State::Ok) {
+    on_new_query(query_id);
+    LOG(INFO) << "Deleting account";
+    start_net_query(NetQueryType::DeleteAccount,
+                    G()->net_query_creator().create_unauth(telegram_api::account_deleteAccount(0, reason, nullptr)));
+  } else {
+    send_closure(G()->password_manager(), &PasswordManager::get_input_check_password_srp, password,
+                 PromiseCreator::lambda(
+                     [actor_id = actor_id(this), query_id, reason = std::move(reason)](
+                         Result<tl_object_ptr<telegram_api::InputCheckPasswordSRP>> r_input_password) mutable {
+                       send_closure(actor_id, &AuthManager::do_delete_account, query_id, std::move(reason),
+                                    std::move(r_input_password));
+                     }));
+  }
+}
+
+void AuthManager::do_delete_account(uint64 query_id, string reason,
+                                    Result<tl_object_ptr<telegram_api::InputCheckPasswordSRP>> r_input_password) {
+  if (r_input_password.is_error()) {
+    return on_query_error(query_id, r_input_password.move_as_error());
+  }
+
   on_new_query(query_id);
-  LOG(INFO) << "Deleting account";
-  start_net_query(NetQueryType::DeleteAccount,
-                  G()->net_query_creator().create_unauth(telegram_api::account_deleteAccount(reason)));
+  LOG(INFO) << "Deleting account with password";
+  int32 flags = telegram_api::account_deleteAccount::PASSWORD_MASK;
+  start_net_query(NetQueryType::DeleteAccount, G()->net_query_creator().create(telegram_api::account_deleteAccount(
+                                                   flags, reason, r_input_password.move_as_ok())));
 }
 
 void AuthManager::on_closing(bool destroy_flag) {
@@ -672,8 +699,10 @@ void AuthManager::on_log_out_result(NetQueryPtr &result) {
   if (result->is_ok()) {
     auto r_log_out = fetch_result<telegram_api::auth_logOut>(result->ok());
     if (r_log_out.is_ok()) {
-      if (!r_log_out.ok()) {
-        status = Status::Error(500, "auth.logOut returned false!");
+      auto logged_out = r_log_out.move_as_ok();
+      if (!logged_out->future_auth_token_.empty()) {
+        G()->shared_config().set_option_string("authentication_token",
+                                               base64url_encode(logged_out->future_auth_token_.as_slice()));
       }
     } else {
       status = r_log_out.move_as_error();
@@ -681,14 +710,18 @@ void AuthManager::on_log_out_result(NetQueryPtr &result) {
   } else {
     status = std::move(result->error());
   }
-  LOG_IF(ERROR, status.is_error()) << "Receive error for auth.logOut: " << status;
+  LOG_IF(ERROR, status.is_error() && status.error().code() != 401) << "Receive error for auth.logOut: " << status;
   // state_ will stay LoggingOut, so no queries will work.
   destroy_auth_keys();
   if (query_id_ != 0) {
     on_query_ok();
   }
 }
-void AuthManager::on_authorization_lost(const string &source) {
+void AuthManager::on_authorization_lost(string source) {
+  if (state_ == State::LoggingOut && net_query_type_ == NetQueryType::LogOut) {
+    LOG(INFO) << "Ignore authorization loss because of " << source << ", while logging out";
+    return;
+  }
   LOG(WARNING) << "Lost authorization because of " << source;
   destroy_auth_keys();
 }
@@ -698,12 +731,15 @@ void AuthManager::destroy_auth_keys() {
     return;
   }
   update_state(State::DestroyingKeys);
-  auto promise = PromiseCreator::lambda(
-      [](Unit) {
-        G()->net_query_dispatcher().destroy_auth_keys(PromiseCreator::lambda(
-            [](Unit) { send_closure_later(G()->td(), &Td::destroy); }, PromiseCreator::Ignore()));
-      },
-      PromiseCreator::Ignore());
+  auto promise = PromiseCreator::lambda([](Result<Unit> result) {
+    if (result.is_ok()) {
+      G()->net_query_dispatcher().destroy_auth_keys(PromiseCreator::lambda([](Result<Unit> result) {
+        if (result.is_ok()) {
+          send_closure_later(G()->td(), &Td::destroy);
+        }
+      }));
+    }
+  });
   G()->td_db()->get_binlog_pmc()->set("auth", "destroy");
   G()->td_db()->get_binlog_pmc()->force_sync(std::move(promise));
 }
@@ -781,6 +817,10 @@ void AuthManager::on_get_authorization(tl_object_ptr<telegram_api::auth_Authoriz
   if ((auth->flags_ & telegram_api::auth_authorization::TMP_SESSIONS_MASK) != 0) {
     G()->shared_config().set_option_integer("session_count", auth->tmp_sessions_);
   }
+  if (auth->setup_password_required_ && auth->otherwise_relogin_days_ > 0) {
+    G()->shared_config().set_option_integer("otherwise_relogin_days", auth->otherwise_relogin_days_);
+  }
+  td_->attach_menu_manager_->init();
   td_->messages_manager_->on_authorization_success();
   td_->notification_manager_->init();
   td_->stickers_manager_->init();
@@ -795,7 +835,7 @@ void AuthManager::on_get_authorization(tl_object_ptr<telegram_api::auth_Authoriz
   } else {
     td_->set_is_bot_online(true);
   }
-  send_closure(G()->config_manager(), &ConfigManager::request_config);
+  send_closure(G()->config_manager(), &ConfigManager::request_config, false);
   if (query_id_ != 0) {
     on_query_ok();
   }
@@ -813,7 +853,8 @@ void AuthManager::on_result(NetQueryPtr result) {
     type = net_query_type_;
     net_query_type_ = NetQueryType::None;
     if (result->is_error()) {
-      if ((type == NetQueryType::SignIn || type == NetQueryType::RequestQrCode || type == NetQueryType::ImportQrCode) &&
+      if ((type == NetQueryType::SendCode || type == NetQueryType::SignIn || type == NetQueryType::RequestQrCode ||
+           type == NetQueryType::ImportQrCode) &&
           result->error().code() == 401 && result->error().message() == CSlice("SESSION_PASSWORD_NEEDED")) {
         auto dc_id = DcId::main();
         if (type == NetQueryType::ImportQrCode) {

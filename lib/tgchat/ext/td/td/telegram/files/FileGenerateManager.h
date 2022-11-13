@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -9,8 +9,8 @@
 #include "td/telegram/files/FileLocation.h"
 
 #include "td/actor/actor.h"
-#include "td/actor/PromiseFuture.h"
 
+#include "td/utils/Promise.h"
 #include "td/utils/Status.h"
 
 #include <map>
@@ -26,7 +26,7 @@ class FileGenerateCallback {
   FileGenerateCallback &operator=(const FileGenerateCallback &) = delete;
   virtual ~FileGenerateCallback() = default;
 
-  virtual void on_partial_generate(PartialLocalFileLocation partial_local, int32 expected_size) = 0;
+  virtual void on_partial_generate(PartialLocalFileLocation partial_local, int64 expected_size) = 0;
   virtual void on_ok(FullLocalFileLocation local) = 0;
   virtual void on_error(Status error) = 0;
 };
@@ -41,8 +41,8 @@ class FileGenerateManager final : public Actor {
   void cancel(uint64 query_id);
 
   // external updates about file generation state
-  void external_file_generate_write_part(uint64 query_id, int32 offset, string data, Promise<> promise);
-  void external_file_generate_progress(uint64 query_id, int32 expected_size, int32 local_prefix_size,
+  void external_file_generate_write_part(uint64 query_id, int64 offset, string data, Promise<> promise);
+  void external_file_generate_progress(uint64 query_id, int64 expected_size, int64 local_prefix_size,
                                        Promise<> promise);
   void external_file_generate_finish(uint64 query_id, Status status, Promise<> promise);
 

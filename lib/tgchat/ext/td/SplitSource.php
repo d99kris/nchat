@@ -158,15 +158,15 @@ function split_file($file, $chunks, $undo) {
     }
 
     if (count($functions) < $chunks) {
-        fwrite(STDERR, "ERROR: file is too small to be splitted more".PHP_EOL);
+        fwrite(STDERR, "ERROR: file is too small to be split more".PHP_EOL);
         return;
     }
 
     $deps = array();  // all functions from the same subarray must be in the same file
     $parents = array();
     foreach ($functions as $i => $f) {
-        if (preg_match_all('/(?J)(create_handler|create_net_actor)<(?<name>[A-Z][A-Za-z]*)>|'.
-                           '(?<name>[A-Z][A-Za-z]*) (final )?: public (Td::ResultHandler|NetActor|Request)|'.
+        if (preg_match_all('/(?J)create_handler<(?<name>[A-Z][A-Za-z]*)>|'.
+                           '(?<name>[A-Z][A-Za-z]*) (final )?: public (Td::ResultHandler|Request)|'.
                            '(CREATE_REQUEST|CREATE_NO_ARGS_REQUEST)[(](?<name>[A-Z][A-Za-z]*)|'.
                            '(?<name>complete_pending_preauthentication_requests)|'.
                            '(?<name>get_message_history_slice)|'.
@@ -219,7 +219,7 @@ function split_file($file, $chunks, $undo) {
         $new_content = $common.$namespace_begin.$f.$namespace_end;
 
         $std_methods = array();
-        preg_match_all('/std::[a-z_0-9]*/', $new_content, $std_methods);
+        preg_match_all('/std::[a-z_0-9]*|td::unique(?!_)/', $new_content, $std_methods);
         $std_methods = array_unique($std_methods[0]);
 
         $needed_std_headers = array();
@@ -230,6 +230,7 @@ function split_file($file, $chunks, $undo) {
             'std::uint32_t' => '',
             'std::int32_t' => '',
             'std::int64_t' => '',
+            'td::unique' => 'algorithm',
             'std::fill' => 'algorithm',
             'std::find' => 'algorithm',
             'std::max' => 'algorithm',
@@ -276,6 +277,7 @@ function split_file($file, $chunks, $undo) {
         if (!preg_match('/Td::~?Td/', $new_content)) {  // destructor Td::~Td needs to see definitions of all forward-declared classes
             $td_methods = array(
                 'animations_manager[_(-][^.]|AnimationsManager[^;>]' => "AnimationsManager",
+                'attach_menu_manager[_(-][^.]|AttachMenuManager[^;>]' => "AttachMenuManager",
                 'audios_manager[_(-][^.]|AudiosManager' => "AudiosManager",
                 'auth_manager[_(-][^.]|AuthManager' => 'AuthManager',
                 'background_manager[_(-][^.]|BackgroundManager' => "BackgroundManager",
@@ -296,6 +298,8 @@ function split_file($file, $chunks, $undo) {
                 'MessageCopyOptions' => 'MessageCopyOptions',
                 'messages_manager[_(-][^.]|MessagesManager' => 'MessagesManager',
                 'notification_manager[_(-][^.]|NotificationManager|notifications[)]' => 'NotificationManager',
+                'notification_settings_manager[_(-][^.]|NotificationSettingsManager' => 'NotificationSettingsManager',
+                'option_manager[_(-][^.]|OptionManager' => "OptionManager",
                 'phone_number_manager[_(-][^.]|PhoneNumberManager' => "PhoneNumberManager",
                 'poll_manager[_(-][^.]|PollManager' => "PollManager",
                 'PublicDialogType|get_public_dialog_type' => 'PublicDialogType',

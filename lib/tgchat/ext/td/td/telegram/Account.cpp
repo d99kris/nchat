@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -28,14 +28,85 @@
 
 namespace td {
 
+static td_api::object_ptr<td_api::SessionType> get_session_type_object(
+    const tl_object_ptr<telegram_api::authorization> &authorization) {
+  auto contains = [](const string &str, const char *substr) {
+    return str.find(substr) != string::npos;
+  };
+
+  const string &app_name = authorization->app_name_;
+  auto device_model = to_lower(authorization->device_model_);
+  auto platform = to_lower(authorization->platform_);
+  auto system_version = to_lower(authorization->system_version_);
+
+  if (device_model.find("xbox") != string::npos) {
+    return td_api::make_object<td_api::sessionTypeXbox>();
+  }
+
+  bool is_web = [&] {
+    CSlice web_name("Web");
+    auto pos = app_name.find(web_name.c_str());
+    if (pos == string::npos) {
+      return false;
+    }
+
+    auto next_character = app_name[pos + web_name.size()];
+    return !('a' <= next_character && next_character <= 'z');
+  }();
+
+  if (is_web) {
+    if (contains(device_model, "brave")) {
+      return td_api::make_object<td_api::sessionTypeBrave>();
+    } else if (contains(device_model, "vivaldi")) {
+      return td_api::make_object<td_api::sessionTypeVivaldi>();
+    } else if (contains(device_model, "opera") || contains(device_model, "opr")) {
+      return td_api::make_object<td_api::sessionTypeOpera>();
+    } else if (contains(device_model, "edg")) {
+      return td_api::make_object<td_api::sessionTypeEdge>();
+    } else if (contains(device_model, "chrome")) {
+      return td_api::make_object<td_api::sessionTypeChrome>();
+    } else if (contains(device_model, "firefox") || contains(device_model, "fxios")) {
+      return td_api::make_object<td_api::sessionTypeFirefox>();
+    } else if (contains(device_model, "safari")) {
+      return td_api::make_object<td_api::sessionTypeSafari>();
+    }
+  }
+
+  if (begins_with(platform, "android") || contains(system_version, "android")) {
+    return td_api::make_object<td_api::sessionTypeAndroid>();
+  } else if (begins_with(platform, "windows") || contains(system_version, "windows")) {
+    return td_api::make_object<td_api::sessionTypeWindows>();
+  } else if (begins_with(platform, "ubuntu") || contains(system_version, "ubuntu")) {
+    return td_api::make_object<td_api::sessionTypeUbuntu>();
+  } else if (begins_with(platform, "linux") || contains(system_version, "linux")) {
+    return td_api::make_object<td_api::sessionTypeLinux>();
+  }
+
+  auto is_ios = begins_with(platform, "ios") || contains(system_version, "ios");
+  auto is_macos = begins_with(platform, "macos") || contains(system_version, "macos");
+  if (is_ios && contains(device_model, "iphone")) {
+    return td_api::make_object<td_api::sessionTypeIphone>();
+  } else if (is_ios && contains(device_model, "ipad")) {
+    return td_api::make_object<td_api::sessionTypeIpad>();
+  } else if (is_macos && contains(device_model, "mac")) {
+    return td_api::make_object<td_api::sessionTypeMac>();
+  } else if (is_ios || is_macos) {
+    return td_api::make_object<td_api::sessionTypeApple>();
+  }
+
+  return td_api::make_object<td_api::sessionTypeUnknown>();
+}
+
 static td_api::object_ptr<td_api::session> convert_authorization_object(
     tl_object_ptr<telegram_api::authorization> &&authorization) {
   CHECK(authorization != nullptr);
   return td_api::make_object<td_api::session>(
-      authorization->hash_, authorization->current_, authorization->password_pending_, authorization->api_id_,
-      authorization->app_name_, authorization->app_version_, authorization->official_app_, authorization->device_model_,
-      authorization->platform_, authorization->system_version_, authorization->date_created_,
-      authorization->date_active_, authorization->ip_, authorization->country_, authorization->region_);
+      authorization->hash_, authorization->current_, authorization->password_pending_,
+      !authorization->encrypted_requests_disabled_, !authorization->call_requests_disabled_,
+      get_session_type_object(authorization), authorization->api_id_, authorization->app_name_,
+      authorization->app_version_, authorization->official_app_, authorization->device_model_, authorization->platform_,
+      authorization->system_version_, authorization->date_created_, authorization->date_active_, authorization->ip_,
+      authorization->country_, authorization->region_);
 }
 
 class SetAccountTtlQuery final : public Td::ResultHandler {
@@ -145,8 +216,14 @@ class GetAuthorizationsQuery final : public Td::ResultHandler {
     auto ptr = result_ptr.move_as_ok();
     LOG(INFO) << "Receive result for GetAuthorizationsQuery: " << to_string(ptr);
 
-    auto results =
-        td_api::make_object<td_api::sessions>(transform(std::move(ptr->authorizations_), convert_authorization_object));
+    auto ttl_days = ptr->authorization_ttl_days_;
+    if (ttl_days <= 0 || ttl_days > 366) {
+      LOG(ERROR) << "Receive invalid inactive sessions TTL " << ttl_days;
+      ttl_days = 180;
+    }
+
+    auto results = td_api::make_object<td_api::sessions>(
+        transform(std::move(ptr->authorizations_), convert_authorization_object), ttl_days);
     std::sort(results->sessions_.begin(), results->sessions_.end(),
               [](const td_api::object_ptr<td_api::session> &lhs, const td_api::object_ptr<td_api::session> &rhs) {
                 if (lhs->is_current_ != rhs->is_current_) {
@@ -213,6 +290,69 @@ class ResetAuthorizationsQuery final : public Td::ResultHandler {
     bool result = result_ptr.move_as_ok();
     LOG_IF(WARNING, !result) << "Failed to terminate all sessions";
     send_closure(td_->device_token_manager_, &DeviceTokenManager::reregister_device);
+    promise_.set_value(Unit());
+  }
+
+  void on_error(Status status) final {
+    promise_.set_error(std::move(status));
+  }
+};
+
+class ChangeAuthorizationSettingsQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+
+ public:
+  explicit ChangeAuthorizationSettingsQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(int64 hash, bool set_encrypted_requests_disabled, bool encrypted_requests_disabled,
+            bool set_call_requests_disabled, bool call_requests_disabled) {
+    int32 flags = 0;
+    if (set_encrypted_requests_disabled) {
+      flags |= telegram_api::account_changeAuthorizationSettings::ENCRYPTED_REQUESTS_DISABLED_MASK;
+    }
+    if (set_call_requests_disabled) {
+      flags |= telegram_api::account_changeAuthorizationSettings::CALL_REQUESTS_DISABLED_MASK;
+    }
+    send_query(G()->net_query_creator().create(telegram_api::account_changeAuthorizationSettings(
+        flags, hash, encrypted_requests_disabled, call_requests_disabled)));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::account_changeAuthorizationSettings>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    bool result = result_ptr.move_as_ok();
+    LOG_IF(WARNING, !result) << "Failed to change session settings";
+    promise_.set_value(Unit());
+  }
+
+  void on_error(Status status) final {
+    promise_.set_error(std::move(status));
+  }
+};
+
+class SetAuthorizationTtlQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+
+ public:
+  explicit SetAuthorizationTtlQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(int32 authorization_ttl_days) {
+    send_query(G()->net_query_creator().create(telegram_api::account_setAuthorizationTTL(authorization_ttl_days)));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::account_setAuthorizationTTL>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    bool result = result_ptr.move_as_ok();
+    LOG_IF(WARNING, !result) << "Failed to set inactive session TTL";
     promise_.set_value(Unit());
   }
 
@@ -323,6 +463,72 @@ class ResetWebAuthorizationsQuery final : public Td::ResultHandler {
   }
 };
 
+class SetBotGroupDefaultAdminRightsQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+
+ public:
+  explicit SetBotGroupDefaultAdminRightsQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(AdministratorRights administrator_rights) {
+    send_query(G()->net_query_creator().create(
+        telegram_api::bots_setBotGroupDefaultAdminRights(administrator_rights.get_chat_admin_rights())));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::bots_setBotGroupDefaultAdminRights>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    bool result = result_ptr.move_as_ok();
+    LOG_IF(WARNING, !result) << "Failed to set group default administrator rights";
+    td_->contacts_manager_->invalidate_user_full(td_->contacts_manager_->get_my_id());
+    promise_.set_value(Unit());
+  }
+
+  void on_error(Status status) final {
+    if (status.message() == "RIGHTS_NOT_MODIFIED") {
+      return promise_.set_value(Unit());
+    }
+    td_->contacts_manager_->invalidate_user_full(td_->contacts_manager_->get_my_id());
+    promise_.set_error(std::move(status));
+  }
+};
+
+class SetBotBroadcastDefaultAdminRightsQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+
+ public:
+  explicit SetBotBroadcastDefaultAdminRightsQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(AdministratorRights administrator_rights) {
+    send_query(G()->net_query_creator().create(
+        telegram_api::bots_setBotBroadcastDefaultAdminRights(administrator_rights.get_chat_admin_rights())));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::bots_setBotBroadcastDefaultAdminRights>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    bool result = result_ptr.move_as_ok();
+    LOG_IF(WARNING, !result) << "Failed to set channel default administrator rights";
+    td_->contacts_manager_->invalidate_user_full(td_->contacts_manager_->get_my_id());
+    promise_.set_value(Unit());
+  }
+
+  void on_error(Status status) final {
+    if (status.message() == "RIGHTS_NOT_MODIFIED") {
+      return promise_.set_value(Unit());
+    }
+    td_->contacts_manager_->invalidate_user_full(td_->contacts_manager_->get_my_id());
+    promise_.set_error(std::move(status));
+  }
+};
+
 void set_account_ttl(Td *td, int32 account_ttl, Promise<Unit> &&promise) {
   td->create_handler<SetAccountTtlQuery>(std::move(promise))->send(account_ttl);
 }
@@ -356,6 +562,21 @@ void terminate_all_other_sessions(Td *td, Promise<Unit> &&promise) {
   td->create_handler<ResetAuthorizationsQuery>(std::move(promise))->send();
 }
 
+void toggle_session_can_accept_calls(Td *td, int64 session_id, bool can_accept_calls, Promise<Unit> &&promise) {
+  td->create_handler<ChangeAuthorizationSettingsQuery>(std::move(promise))
+      ->send(session_id, false, false, true, !can_accept_calls);
+}
+
+void toggle_session_can_accept_secret_chats(Td *td, int64 session_id, bool can_accept_secret_chats,
+                                            Promise<Unit> &&promise) {
+  td->create_handler<ChangeAuthorizationSettingsQuery>(std::move(promise))
+      ->send(session_id, true, !can_accept_secret_chats, false, false);
+}
+
+void set_inactive_session_ttl_days(Td *td, int32 authorization_ttl_days, Promise<Unit> &&promise) {
+  td->create_handler<SetAuthorizationTtlQuery>(std::move(promise))->send(authorization_ttl_days);
+}
+
 void get_connected_websites(Td *td, Promise<td_api::object_ptr<td_api::connectedWebsites>> &&promise) {
   td->create_handler<GetWebAuthorizationsQuery>(std::move(promise))->send();
 }
@@ -366,6 +587,17 @@ void disconnect_website(Td *td, int64 website_id, Promise<Unit> &&promise) {
 
 void disconnect_all_websites(Td *td, Promise<Unit> &&promise) {
   td->create_handler<ResetWebAuthorizationsQuery>(std::move(promise))->send();
+}
+
+void set_default_group_administrator_rights(Td *td, AdministratorRights administrator_rights, Promise<Unit> &&promise) {
+  td->contacts_manager_->invalidate_user_full(td->contacts_manager_->get_my_id());
+  td->create_handler<SetBotGroupDefaultAdminRightsQuery>(std::move(promise))->send(administrator_rights);
+}
+
+void set_default_channel_administrator_rights(Td *td, AdministratorRights administrator_rights,
+                                              Promise<Unit> &&promise) {
+  td->contacts_manager_->invalidate_user_full(td->contacts_manager_->get_my_id());
+  td->create_handler<SetBotBroadcastDefaultAdminRightsQuery>(std::move(promise))->send(administrator_rights);
 }
 
 }  // namespace td

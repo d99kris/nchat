@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -199,7 +199,7 @@ using tl_object_ptr = tl::unique_ptr<Type>;
  * \return Wrapped pointer to the created TL-object.
  */
 template <class Type, class... Args>
-tl_object_ptr<Type> make_tl_object(Args &&... args) {
+tl_object_ptr<Type> make_tl_object(Args &&...args) {
   return tl_object_ptr<Type>(new Type(std::forward<Args>(args)...));
 }
 

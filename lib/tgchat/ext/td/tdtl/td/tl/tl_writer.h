@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -88,8 +88,8 @@ class TL_writer {
 
   virtual std::string gen_forward_class_declaration(const std::string &class_name, bool is_proxy) const = 0;
 
-  virtual std::string gen_class_begin(const std::string &class_name, const std::string &base_class_name,
-                                      bool is_proxy) const = 0;
+  virtual std::string gen_class_begin(const std::string &class_name, const std::string &base_class_name, bool is_proxy,
+                                      const tl_tree *result) const = 0;
   virtual std::string gen_class_end() const = 0;
 
   virtual std::string gen_class_alias(const std::string &class_name, const std::string &alias_name) const = 0;

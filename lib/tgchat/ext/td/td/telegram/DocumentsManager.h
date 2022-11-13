@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -10,7 +10,8 @@
 #include "td/telegram/Document.h"
 #include "td/telegram/EncryptedFile.h"
 #include "td/telegram/files/FileId.h"
-#include "td/telegram/Photo.h"
+#include "td/telegram/PhotoFormat.h"
+#include "td/telegram/PhotoSize.h"
 #include "td/telegram/secret_api.h"
 #include "td/telegram/SecretInputMedia.h"
 #include "td/telegram/td_api.h"
@@ -18,8 +19,8 @@
 
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
+#include "td/utils/FlatHashMap.h"
 
-#include <unordered_map>
 #include <utility>
 
 namespace td {
@@ -30,6 +31,11 @@ class Td;
 class DocumentsManager {
  public:
   explicit DocumentsManager(Td *td);
+  DocumentsManager(const DocumentsManager &) = delete;
+  DocumentsManager &operator=(const DocumentsManager &) = delete;
+  DocumentsManager(DocumentsManager &&) = delete;
+  DocumentsManager &operator=(DocumentsManager &&) = delete;
+  ~DocumentsManager();
 
   class RemoteDocument {
    public:
@@ -79,7 +85,7 @@ class DocumentsManager {
   Document on_get_document(RemoteDocument remote_document, DialogId owner_dialog_id,
                            MultiPromiseActor *load_data_multipromise_ptr = nullptr,
                            Document::Type default_document_type = Document::Type::General, bool is_background = false,
-                           bool is_pattern = false);
+                           bool is_pattern = false, bool is_ringtone = false);
 
   void create_document(FileId file_id, string minithumbnail, PhotoSize thumbnail, string file_name, string mime_type,
                        bool replace);
@@ -88,7 +94,7 @@ class DocumentsManager {
 
   SecretInputMedia get_secret_input_media(FileId document_file_id,
                                           tl_object_ptr<telegram_api::InputEncryptedFile> input_file,
-                                          const string &caption, BufferSlice thumbnail) const;
+                                          const string &caption, BufferSlice thumbnail, int32 layer) const;
 
   tl_object_ptr<telegram_api::InputMedia> get_input_media(FileId file_id,
                                                           tl_object_ptr<telegram_api::InputFile> input_file,
@@ -125,7 +131,7 @@ class DocumentsManager {
   FileId on_get_document(unique_ptr<GeneralDocument> new_document, bool replace);
 
   Td *td_;
-  std::unordered_map<FileId, unique_ptr<GeneralDocument>, FileIdHash> documents_;  // file_id -> GeneralDocument
+  FlatHashMap<FileId, unique_ptr<GeneralDocument>, FileIdHash> documents_;  // file_id -> GeneralDocument
 };
 
 }  // namespace td

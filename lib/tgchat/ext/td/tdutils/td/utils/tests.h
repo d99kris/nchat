@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -10,12 +10,14 @@
 #include "td/utils/Context.h"
 #include "td/utils/format.h"
 #include "td/utils/logging.h"
-#include "td/utils/port/thread.h"
+#include "td/utils/port/sleep.h"
 #include "td/utils/Slice.h"
 #include "td/utils/Status.h"
 
 #include <atomic>
+#include <condition_variable>
 #include <functional>
+#include <mutex>
 #include <utility>
 
 namespace td {
@@ -126,18 +128,38 @@ class RegisterTest {
   }
 };
 
-class Stage {
+class StageWait {
  public:
   void wait(uint64 need) {
     value_.fetch_add(1, std::memory_order_release);
     while (value_.load(std::memory_order_acquire) < need) {
-      td::this_thread::yield();
+      usleep_for(1);
     }
   };
 
  private:
   std::atomic<uint64> value_{0};
 };
+
+class StageMutex {
+ public:
+  void wait(uint64 need) {
+    std::unique_lock<std::mutex> lock{mutex_};
+    value_++;
+    if (value_ == need) {
+      cond_.notify_all();
+      return;
+    }
+    cond_.wait(lock, [&] { return value_ >= need; });
+  };
+
+ private:
+  std::mutex mutex_;
+  std::condition_variable cond_;
+  uint64 value_{0};
+};
+
+using Stage = StageMutex;
 
 string rand_string(int from, int to, size_t len);
 

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -18,7 +18,7 @@
 
 #if TD_PORT_WINDOWS
 #include "td/utils/port/detail/Iocp.h"
-#include "td/utils/SpinLock.h"
+#include "td/utils/port/Mutex.h"
 #endif
 
 #if TD_PORT_POSIX
@@ -154,7 +154,7 @@ class UdpSocketFdImpl final : private Iocp::Callback {
 
  private:
   PollableFdInfo info_;
-  SpinLock lock_;
+  Mutex lock_;
 
   std::atomic<int> refcnt_{1};
   bool is_connected_{false};
@@ -790,10 +790,10 @@ const NativeFd &UdpSocketFd::get_native_fd() const {
 }
 
 #if TD_PORT_POSIX
-static Result<uint32> maximize_buffer(int socket_fd, int optname, uint32 max) {
-  if (setsockopt(socket_fd, SOL_SOCKET, optname, &max, sizeof(max)) == 0) {
+static Result<uint32> maximize_buffer(int socket_fd, int optname, uint32 max_size) {
+  if (setsockopt(socket_fd, SOL_SOCKET, optname, &max_size, sizeof(max_size)) == 0) {
     // fast path
-    return max;
+    return max_size;
   }
 
   /* Start with the default size. */
@@ -807,32 +807,32 @@ static Result<uint32> maximize_buffer(int socket_fd, int optname, uint32 max) {
 #endif
 
   /* Binary-search for the real maximum. */
-  uint32 last_good = old_size;
-  uint32 min = old_size;
-  while (min <= max) {
-    uint32 avg = min + (max - min) / 2;
-    if (setsockopt(socket_fd, SOL_SOCKET, optname, &avg, sizeof(avg)) == 0) {
-      last_good = avg;
-      min = avg + 1;
+  uint32 last_good_size = old_size;
+  uint32 min_size = old_size;
+  while (min_size <= max_size) {
+    uint32 avg_size = min_size + (max_size - min_size) / 2;
+    if (setsockopt(socket_fd, SOL_SOCKET, optname, &avg_size, sizeof(avg_size)) == 0) {
+      last_good_size = avg_size;
+      min_size = avg_size + 1;
     } else {
-      max = avg - 1;
+      max_size = avg_size - 1;
     }
   }
-  return last_good;
+  return last_good_size;
 }
 
-Result<uint32> UdpSocketFd::maximize_snd_buffer(uint32 max) {
-  return maximize_buffer(get_native_fd().fd(), SO_SNDBUF, max == 0 ? DEFAULT_UDP_MAX_SND_BUFFER_SIZE : max);
+Result<uint32> UdpSocketFd::maximize_snd_buffer(uint32 max_size) {
+  return maximize_buffer(get_native_fd().fd(), SO_SNDBUF, max_size == 0 ? DEFAULT_UDP_MAX_SND_BUFFER_SIZE : max_size);
 }
 
-Result<uint32> UdpSocketFd::maximize_rcv_buffer(uint32 max) {
-  return maximize_buffer(get_native_fd().fd(), SO_RCVBUF, max == 0 ? DEFAULT_UDP_MAX_RCV_BUFFER_SIZE : max);
+Result<uint32> UdpSocketFd::maximize_rcv_buffer(uint32 max_size) {
+  return maximize_buffer(get_native_fd().fd(), SO_RCVBUF, max_size == 0 ? DEFAULT_UDP_MAX_RCV_BUFFER_SIZE : max_size);
 }
 #else
-Result<uint32> UdpSocketFd::maximize_snd_buffer(uint32 max) {
+Result<uint32> UdpSocketFd::maximize_snd_buffer(uint32 max_size) {
   return 0;
 }
-Result<uint32> UdpSocketFd::maximize_rcv_buffer(uint32 max) {
+Result<uint32> UdpSocketFd::maximize_rcv_buffer(uint32 max_size) {
   return 0;
 }
 #endif

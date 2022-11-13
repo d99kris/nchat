@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -191,9 +191,8 @@ class DefaultLog final : public LogInterface {
 #elif TD_EMSCRIPTEN
     switch (log_level) {
       case VERBOSITY_NAME(FATAL):
-        emscripten_log(
-            EM_LOG_ERROR | EM_LOG_CONSOLE | EM_LOG_C_STACK | EM_LOG_JS_STACK | EM_LOG_DEMANGLE | EM_LOG_FUNC_PARAMS,
-            "%s", slice.c_str());
+        emscripten_log(EM_LOG_ERROR | EM_LOG_CONSOLE | EM_LOG_C_STACK | EM_LOG_JS_STACK | EM_LOG_FUNC_PARAMS, "%s",
+                       slice.c_str());
         EM_ASM(throw(UTF8ToString($0)), slice.c_str());
         break;
       case VERBOSITY_NAME(ERROR):

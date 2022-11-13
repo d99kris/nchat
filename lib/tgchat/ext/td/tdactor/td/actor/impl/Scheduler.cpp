@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -21,6 +21,7 @@
 #include "td/utils/MpscPollableQueue.h"
 #include "td/utils/ObjectPool.h"
 #include "td/utils/port/thread_local.h"
+#include "td/utils/Promise.h"
 #include "td/utils/ScopeGuard.h"
 #include "td/utils/Time.h"
 
@@ -302,8 +303,9 @@ void Scheduler::register_migrated_actor(ActorInfo *actor_info) {
   VLOG(actor) << "Register migrated actor: " << tag("name", *actor_info) << tag("ptr", actor_info)
               << tag("actor_count", actor_count_);
   actor_count_++;
-  LOG_CHECK(actor_info->is_migrating()) << *actor_info << " " << actor_count_ << " " << sched_id_ << " "
-                                        << actor_info->migrate_dest() << " " << actor_info->is_running() << close_flag_;
+  LOG_CHECK(actor_info->is_migrating()) << *actor_info << ' ' << actor_count_ << ' ' << sched_id_ << ' '
+                                        << actor_info->migrate_dest() << ' ' << actor_info->is_running() << ' '
+                                        << close_flag_;
   CHECK(sched_id_ == actor_info->migrate_dest());
   // CHECK(!actor_info->is_running());
   actor_info->finish_migrate();
@@ -336,6 +338,43 @@ void Scheduler::send_to_other_scheduler(int32 sched_id, const ActorId<> &actor_i
     outbound_queues_[sched_id]->writer_put(EventCreator::event_unsafe(actor_id, std::move(event)));
     outbound_queues_[sched_id]->writer_flush();
   }
+}
+
+void Scheduler::run_on_scheduler(int32 sched_id, Promise<Unit> action) {
+  if (sched_id >= 0 && sched_id_ != sched_id) {
+    class Worker final : public Actor {
+     public:
+      explicit Worker(Promise<Unit> action) : action_(std::move(action)) {
+      }
+
+     private:
+      Promise<Unit> action_;
+
+      void start_up() final {
+        action_.set_value(Unit());
+        stop();
+      }
+    };
+    create_actor_on_scheduler<Worker>("RunOnSchedulerWorker", sched_id, std::move(action)).release();
+    return;
+  }
+
+  action.set_value(Unit());
+}
+
+void Scheduler::destroy_on_scheduler_impl(int32 sched_id, Promise<Unit> action) {
+  auto empty_context = std::make_shared<ActorContext>();
+  empty_context->this_ptr_ = empty_context;
+  ActorContext *current_context = context_;
+  context_ = empty_context.get();
+
+  const char *current_tag = LOG_TAG;
+  LOG_TAG = nullptr;
+
+  run_on_scheduler(sched_id, std::move(action));
+
+  context_ = current_context;
+  LOG_TAG = current_tag;
 }
 
 void Scheduler::add_to_mailbox(ActorInfo *actor_info, Event &&event) {
@@ -519,6 +558,9 @@ void Scheduler::run_no_guard(Timestamp timeout) {
 }
 
 Timestamp Scheduler::get_timeout() {
+  if (!ready_actors_list_.empty()) {
+    return Timestamp::in(0);
+  }
   if (timeout_queue_.empty()) {
     return Timestamp::in(10000);
   }

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -211,7 +211,7 @@ std::pair<size_t, vector<Hints::KeyT>> Hints::search(Slice query, int32 limit, b
 }
 
 bool Hints::has_key(KeyT key) const {
-  return key_to_name_.find(key) != key_to_name_.end();
+  return key_to_name_.count(key) > 0;
 }
 
 string Hints::key_to_string(KeyT key) const {

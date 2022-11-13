@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -200,8 +200,8 @@ class TlWriterDotNet final : public TL_writer {
     return ss.str();
   }
 
-  std::string gen_class_begin(const std::string &class_name, const std::string &base_class_name,
-                              bool is_proxy) const final {
+  std::string gen_class_begin(const std::string &class_name, const std::string &base_class_name, bool is_proxy,
+                              const tl::tl_tree *result) const final {
     if (!is_header_) {
       return "";
     }

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -8,7 +8,7 @@
 
 #include "td/utils/common.h"
 #include "td/utils/logging.h"
-#include "td/utils/port/thread.h"
+#include "td/utils/port/sleep.h"
 
 #include <algorithm>
 #include <atomic>
@@ -29,16 +29,17 @@ class MpmcEagerWaiter {
     slot.yields = 0;
     slot.worker_id = worker_id;
   }
+
   void wait(Slot &slot) {
     if (slot.yields < RoundsTillSleepy) {
-      td::this_thread::yield();
+      yield();
       slot.yields++;
     } else if (slot.yields == RoundsTillSleepy) {
       auto state = state_.load(std::memory_order_relaxed);
       if (!State::has_worker(state)) {
         auto new_state = State::with_worker(state, slot.worker_id);
         if (state_.compare_exchange_strong(state, new_state, std::memory_order_acq_rel)) {
-          td::this_thread::yield();
+          yield();
           slot.yields++;
           return;
         }
@@ -47,12 +48,12 @@ class MpmcEagerWaiter {
           return;
         }
       }
-      td::this_thread::yield();
+      yield();
       slot.yields = 0;
     } else if (slot.yields < RoundsTillAsleep) {
       auto state = state_.load(std::memory_order_acquire);
       if (State::still_sleepy(state, slot.worker_id)) {
-        td::this_thread::yield();
+        yield();
         slot.yields++;
         return;
       }
@@ -120,6 +121,10 @@ class MpmcEagerWaiter {
       std::lock_guard<std::mutex> guard(mutex_);
       condition_variable_.notify_all();
     }
+  }
+  static void yield() {
+    // whatever, this is better than sched_yield
+    usleep_for(1);
   }
 };
 
@@ -208,7 +213,7 @@ class MpmcSleepyWaiter {
     }
     if (slot.state_ == Slot::Search) {
       if (slot.yield_cnt++ < 10 && false) {
-        td::this_thread::yield();
+        // TODO some sleep backoff is possible
         return;
       }
 

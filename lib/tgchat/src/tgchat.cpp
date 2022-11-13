@@ -1167,30 +1167,37 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
     newMessagesNotify->chatMessages = chatMessages;
     CallMessageHandler(newMessagesNotify);
   },
-  [this](td::td_api::updateUserChatAction& user_chat_action)
+  [this](td::td_api::updateChatAction& user_chat_action)
   {
     LOG_TRACE("user chat action update");
 
     int64_t chatId = user_chat_action.chat_id_;
-    int64_t userId = user_chat_action.user_id_;
-    bool isTyping = false;
 
-    if (user_chat_action.action_->get_id() == td::td_api::chatActionTyping::ID)
+    if (user_chat_action.sender_id_->get_id() == td::td_api::messageSenderUser::ID)
     {
-      LOG_TRACE("user %d in chat %d is typing", userId, chatId);
-      isTyping = true;
-    }
-    else
-    {
-      LOG_TRACE("user %d in chat %d is not typing", userId, chatId);
-    }
+      auto& message_sender_user =
+        static_cast<const td::td_api::messageSenderUser&>(*user_chat_action.sender_id_);
+      int64_t userId = message_sender_user.user_id_;
 
-    std::shared_ptr<ReceiveTypingNotify> receiveTypingNotify =
-      std::make_shared<ReceiveTypingNotify>(m_ProfileId);
-    receiveTypingNotify->chatId = StrUtil::NumToHex(chatId);
-    receiveTypingNotify->userId = StrUtil::NumToHex(userId);
-    receiveTypingNotify->isTyping = isTyping;
-    CallMessageHandler(receiveTypingNotify);
+      bool isTyping = false;
+
+      if (user_chat_action.action_->get_id() == td::td_api::chatActionTyping::ID)
+      {
+        LOG_TRACE("user %d in chat %d is typing", userId, chatId);
+        isTyping = true;
+      }
+      else
+      {
+        LOG_TRACE("user %d in chat %d is not typing", userId, chatId);
+      }
+
+      std::shared_ptr<ReceiveTypingNotify> receiveTypingNotify =
+        std::make_shared<ReceiveTypingNotify>(m_ProfileId);
+      receiveTypingNotify->chatId = StrUtil::NumToHex(chatId);
+      receiveTypingNotify->userId = StrUtil::NumToHex(userId);
+      receiveTypingNotify->isTyping = isTyping;
+      CallMessageHandler(receiveTypingNotify);
+    }
   },
   [this](td::td_api::updateUserStatus& user_status)
   {
@@ -1650,14 +1657,16 @@ std::uint64_t TgChat::Impl::GetNextQueryId()
 std::int64_t TgChat::Impl::GetSenderId(const td::td_api::message& p_TdMessage)
 {
   std::int64_t senderId = 0;
-  if (p_TdMessage.sender_->get_id() == td::td_api::messageSenderUser::ID)
+  if (p_TdMessage.sender_id_->get_id() == td::td_api::messageSenderUser::ID)
   {
-    auto& message_sender_user = static_cast<const td::td_api::messageSenderUser&>(*p_TdMessage.sender_);
+    auto& message_sender_user =
+      static_cast<const td::td_api::messageSenderUser&>(*p_TdMessage.sender_id_);
     senderId = message_sender_user.user_id_;
   }
-  else if (p_TdMessage.sender_->get_id() == td::td_api::messageSenderChat::ID)
+  else if (p_TdMessage.sender_id_->get_id() == td::td_api::messageSenderChat::ID)
   {
-    auto& message_sender_chat = static_cast<const td::td_api::messageSenderChat&>(*p_TdMessage.sender_);
+    auto& message_sender_chat =
+      static_cast<const td::td_api::messageSenderChat&>(*p_TdMessage.sender_id_);
     senderId = message_sender_chat.chat_id_;
   }
 
@@ -2012,7 +2021,7 @@ void TgChat::Impl::GetSponsoredMessages(const std::string& p_ChatId)
 
 #ifdef SIMULATED_SPONSORED_MESSAGES
   // fake/simulated sponsored messages for dev/testing
-  static int32_t sponsoredMessageId = 0;
+  static int64_t sponsoredMessageId = 0;
   std::vector<ChatMessage> chatMessages;
   int num = 1 + (rand() % 2);
   for (int i = 0; i < num; ++i)
@@ -2068,17 +2077,16 @@ void TgChat::Impl::GetSponsoredMessages(const std::string& p_ChatId)
 #else
   // sponsored messages from telegram
   const int64_t chatId = StrUtil::NumFromHex<int64_t>(p_ChatId);
-  SendQuery(td::td_api::make_object<td::td_api::getChatSponsoredMessages>(chatId),
+  SendQuery(td::td_api::make_object<td::td_api::getChatSponsoredMessage>(chatId),
             [this, p_ChatId](Object object)
   {
     if (object->get_id() == td::td_api::error::ID) return;
 
     std::vector<ChatMessage> chatMessages;
-    auto sponsoredMessages = td::move_tl_object_as<td::td_api::sponsoredMessages>(object);
-    for (auto it = sponsoredMessages->messages_.begin(); it != sponsoredMessages->messages_.end(); ++it)
+    auto sponsoredMessage = td::move_tl_object_as<td::td_api::sponsoredMessage>(object);
+    if (sponsoredMessage)
     {
-      auto sponsoredMessage = td::move_tl_object_as<td::td_api::sponsoredMessage>(*it);
-      const int32_t sponsoredMessageId = sponsoredMessage->id_;
+      const int64_t sponsoredMessageId = sponsoredMessage->message_id_;
       ChatMessage chatMessage;
       TdMessageContentConvert(*sponsoredMessage->content_, chatMessage.text, chatMessage.fileInfo);
 
@@ -2118,7 +2126,7 @@ void TgChat::Impl::GetSponsoredMessages(const std::string& p_ChatId)
       chatMessage.link = chatMessage.senderId;
       chatMessages.push_back(chatMessage);
       m_SponsoredMessageIds[p_ChatId].insert(chatMessage.id);
-      LOG_DEBUG("new sponsored message %s (%d)", chatMessage.id.c_str(), sponsoredMessageId);
+      LOG_DEBUG("new sponsored message %s (%lld)", chatMessage.id.c_str(), sponsoredMessageId);
 
       // request chat type for senders
       const std::vector<std::string> chatIds = { chatMessage.senderId };
@@ -2144,21 +2152,25 @@ void TgChat::Impl::ViewSponsoredMessage(const std::string& p_ChatId, const std::
 {
   if (!m_SponsoredMessageIds[p_ChatId].count(p_MsgId)) return;
 
-  const int32_t sponsoredMessageId = StrUtil::NumFromHex<std::int32_t>(p_MsgId);
-  LOG_DEBUG("view sponsored message %s (%d)", p_MsgId.c_str(), sponsoredMessageId);
+  const int64_t msgId = StrUtil::NumFromHex<std::int64_t>(p_MsgId);
+  LOG_DEBUG("view sponsored message %s (%lld)", p_MsgId.c_str(), msgId);
 
 #ifdef SIMULATED_SPONSORED_MESSAGES
   // fake/simulated sponsored messages for dev/testing
 #else
   // sponsored messages from telegram
   const int64_t chatId = StrUtil::NumFromHex<int64_t>(p_ChatId);
-  SendQuery(td::td_api::make_object<td::td_api::viewSponsoredMessage>(chatId, sponsoredMessageId),
-            [sponsoredMessageId](Object object)
+  const std::vector<std::int64_t> msgIds = { msgId };
+  auto view_messages = td::td_api::make_object<td::td_api::viewMessages>();
+  view_messages->chat_id_ = chatId;
+  view_messages->message_ids_ = msgIds;
+  view_messages->force_read_ = true;
+
+  SendQuery(std::move(view_messages), [msgId](Object object)
   {
     if (object->get_id() == td::td_api::error::ID)
     {
-      LOG_WARNING("view sponsored message failed %d", sponsoredMessageId);
-      return;
+      LOG_WARNING("view sponsored message failed %lld", msgId);
     }
   });
 #endif

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -14,7 +14,9 @@
 #include "td/mtproto/mtproto_api.h"
 
 #include "td/utils/common.h"
+#include "td/utils/misc.h"
 #include "td/utils/Slice.h"
+#include "td/utils/Span.h"
 #include "td/utils/StorerBase.h"
 #include "td/utils/Time.h"
 
@@ -103,6 +105,33 @@ class CancelVectorImpl {
   vector<PacketStorer<CancelImpl>> storers_;
 };
 
+class InvokeAfter {
+ public:
+  explicit InvokeAfter(Span<uint64> ids) : ids_(ids) {
+  }
+  template <class StorerT>
+  void store(StorerT &storer) const {
+    if (ids_.empty()) {
+      return;
+    }
+    if (ids_.size() == 1) {
+      storer.store_int(static_cast<int32>(0xcb9f372d));
+      storer.store_long(static_cast<int64>(ids_[0]));
+      return;
+    }
+    //  invokeAfterMsgs#3dc4b4f0 {X:Type} msg_ids:Vector<long> query:!X = X;
+    storer.store_int(static_cast<int32>(0x3dc4b4f0));
+    storer.store_int(static_cast<int32>(0x1cb5c415));
+    storer.store_int(narrow_cast<int32>(ids_.size()));
+    for (auto id : ids_) {
+      storer.store_long(static_cast<int64>(id));
+    }
+  }
+
+ private:
+  Span<uint64> ids_;
+};
+
 class QueryImpl {
  public:
   QueryImpl(const MtprotoQuery &query, Slice header) : query_(query), header_(header) {
@@ -112,23 +141,9 @@ class QueryImpl {
   void do_store(StorerT &storer) const {
     storer.store_binary(query_.message_id);
     storer.store_binary(query_.seq_no);
-    Slice invoke_header;
 
-// TODO(refactor):
-// invokeAfterMsg#cb9f372d {X:Type} msg_id:long query:!X = X;
-// This code makes me very sad.
-// InvokeAfterMsg is not even in mtproto_api. It is in telegram_api.
-#pragma pack(push, 4)
-    struct {
-      uint32 constructor_id;
-      uint64 invoke_after_id;
-    } invoke_data;
-#pragma pack(pop)
-    if (query_.invoke_after_id != 0) {
-      invoke_data.constructor_id = 0xcb9f372d;
-      invoke_data.invoke_after_id = query_.invoke_after_id;
-      invoke_header = Slice(reinterpret_cast<const uint8 *>(&invoke_data), sizeof(invoke_data));
-    }
+    InvokeAfter invoke_after(query_.invoke_after_ids);
+    auto invoke_after_storer = create_default_storer(invoke_after);
 
     Slice data = query_.packet.as_slice();
     mtproto_api::gzip_packed packed(data);
@@ -136,9 +151,8 @@ class QueryImpl {
     auto gzip_storer = create_storer(packed);
     const Storer &data_storer =
         query_.gzip_flag ? static_cast<const Storer &>(gzip_storer) : static_cast<const Storer &>(plain_storer);
-    auto invoke_header_storer = create_storer(invoke_header);
     auto header_storer = create_storer(header_);
-    auto suff_storer = create_storer(invoke_header_storer, data_storer);
+    auto suff_storer = create_storer(invoke_after_storer, data_storer);
     auto all_storer = create_storer(header_storer, suff_storer);
 
     storer.store_binary(static_cast<uint32>(all_storer.size()));

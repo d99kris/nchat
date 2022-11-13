@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -166,7 +166,7 @@ void DcAuthManager::dc_loop(DcInfo &dc) {
       VLOG(dc) << "Send exportAuthorization to " << dc.dc_id;
       auto id = UniqueId::next();
       auto query = G()->net_query_creator().create(id, telegram_api::auth_exportAuthorization(dc.dc_id.get_raw_id()),
-                                                   DcId::main(), NetQuery::Type::Common, NetQuery::AuthFlag::On);
+                                                   {}, DcId::main(), NetQuery::Type::Common, NetQuery::AuthFlag::On);
       query->total_timeout_limit_ = 60 * 60 * 24;
       G()->net_query_dispatcher().dispatch_with_callback(std::move(query), actor_shared(this, dc.dc_id.get_raw_id()));
       dc.wait_id = id;
@@ -182,7 +182,7 @@ void DcAuthManager::dc_loop(DcInfo &dc) {
       uint64 id = UniqueId::next();
       VLOG(dc) << "Send importAuthorization to " << dc.dc_id;
       auto query = G()->net_query_creator().create(
-          id, telegram_api::auth_importAuthorization(dc.export_id, std::move(dc.export_bytes)), dc.dc_id,
+          id, telegram_api::auth_importAuthorization(dc.export_id, std::move(dc.export_bytes)), {}, dc.dc_id,
           NetQuery::Type::Common, NetQuery::AuthFlag::Off);
       query->total_timeout_limit_ = 60 * 60 * 24;
       G()->net_query_dispatcher().dispatch_with_callback(std::move(query), actor_shared(this, dc.dc_id.get_raw_id()));
@@ -231,13 +231,21 @@ void DcAuthManager::loop() {
   }
   auto main_dc = find_dc(main_dc_id_.get_raw_id());
   if (!main_dc || main_dc->auth_key_state != AuthKeyState::OK) {
+    if (main_dc && need_check_authorization_is_ok_) {
+      G()->log_out("Authorization check failed in DcAuthManager");
+    }
     VLOG(dc) << "Skip loop, because main DC is " << main_dc_id_ << ", main auth key state is "
              << (main_dc != nullptr ? main_dc->auth_key_state : AuthKeyState::Empty);
     return;
   }
+  need_check_authorization_is_ok_ = false;
   for (auto &dc : dcs_) {
     dc_loop(dc);
   }
+}
+
+void DcAuthManager::check_authorization_is_ok() {
+  need_check_authorization_is_ok_ = true;
 }
 
 }  // namespace td

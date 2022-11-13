@@ -60,6 +60,8 @@ function(td_set_up_compiler)
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffunction-sections -fdata-sections")
       if (CMAKE_SYSTEM_NAME STREQUAL "SunOS")
         set(TD_LINKER_FLAGS "-Wl,-z,ignore")
+      elseif (EMSCRIPTEN)
+        set(TD_LINKER_FLAGS "-Wl,--gc-sections")
       else()
         set(TD_LINKER_FLAGS "-Wl,--gc-sections -Wl,--exclude-libs,ALL")
       endif()
@@ -83,9 +85,11 @@ function(td_set_up_compiler)
     add_definitions(-D_DEFAULT_SOURCE=1 -DFD_SETSIZE=4096)
   endif()
 
-  if (NOT ANDROID) # _FILE_OFFSET_BITS is broken in NDK r15, r15b and r17 and doesn't work prior to Android 7.0
-    add_definitions(-D_FILE_OFFSET_BITS=64)
-  endif()
+  # _FILE_OFFSET_BITS is broken in Android NDK r15, r15b and r17 and doesn't work prior to Android 7.0
+  add_definitions(-D_FILE_OFFSET_BITS=64)
+
+  # _GNU_SOURCE might not be defined by g++
+  add_definitions(-D_GNU_SOURCE)
 
   if (CMAKE_SYSTEM_NAME STREQUAL "SunOS")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lsocket -lnsl")
@@ -132,7 +136,7 @@ function(td_set_up_compiler)
   endif()
 
   if (GCC AND NOT (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 7.0))
-    add_cxx_compiler_flag("-Wno-maybe-uninitialized")  # too much false positives
+    add_cxx_compiler_flag("-Wno-maybe-uninitialized")  # too many false positives
   endif()
   if (WIN32 AND GCC AND NOT (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 8.0))
     # warns about casts of function pointers returned by GetProcAddress
@@ -142,6 +146,9 @@ function(td_set_up_compiler)
     # warns about a lot of "return std::move", which are not redundant for compilers without fix for DR 1579, i.e. GCC 4.9 or clang 3.8
     # see http://www.open-std.org/jtc1/sc22/wg21/docs/cwg_defects.html#1579
     add_cxx_compiler_flag("-Wno-redundant-move")
+  endif()
+  if (GCC AND NOT (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 12.0))
+    add_cxx_compiler_flag("-Wno-stringop-overflow")  # some false positives
   endif()
   if (CLANG AND (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 3.5))
     # https://stackoverflow.com/questions/26744556/warning-returning-a-captured-reference-from-a-lambda

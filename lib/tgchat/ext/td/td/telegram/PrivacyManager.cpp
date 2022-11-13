@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -58,6 +58,9 @@ PrivacyManager::UserPrivacySetting::UserPrivacySetting(const telegram_api::Priva
     case telegram_api::privacyKeyAddedByPhone::ID:
       type_ = Type::FindByPhoneNumber;
       break;
+    case telegram_api::privacyKeyVoiceMessages::ID:
+      type_ = Type::VoiceMessages;
+      break;
     default:
       UNREACHABLE();
       type_ = Type::UserStatus;
@@ -82,6 +85,8 @@ tl_object_ptr<td_api::UserPrivacySetting> PrivacyManager::UserPrivacySetting::ge
       return make_tl_object<td_api::userPrivacySettingShowPhoneNumber>();
     case Type::FindByPhoneNumber:
       return make_tl_object<td_api::userPrivacySettingAllowFindingByPhoneNumber>();
+    case Type::VoiceMessages:
+      return make_tl_object<td_api::userPrivacySettingAllowPrivateVoiceAndVideoNoteMessages>();
     default:
       UNREACHABLE();
       return nullptr;
@@ -105,6 +110,8 @@ tl_object_ptr<telegram_api::InputPrivacyKey> PrivacyManager::UserPrivacySetting:
       return make_tl_object<telegram_api::inputPrivacyKeyPhoneNumber>();
     case Type::FindByPhoneNumber:
       return make_tl_object<telegram_api::inputPrivacyKeyAddedByPhone>();
+    case Type::VoiceMessages:
+      return make_tl_object<telegram_api::inputPrivacyKeyVoiceMessages>();
     default:
       UNREACHABLE();
       return nullptr;
@@ -137,6 +144,9 @@ PrivacyManager::UserPrivacySetting::UserPrivacySetting(const td_api::UserPrivacy
     case td_api::userPrivacySettingAllowFindingByPhoneNumber::ID:
       type_ = Type::FindByPhoneNumber;
       break;
+    case td_api::userPrivacySettingAllowPrivateVoiceAndVideoNoteMessages::ID:
+      type_ = Type::VoiceMessages;
+      break;
     default:
       UNREACHABLE();
       type_ = Type::UserStatus;
@@ -159,7 +169,7 @@ void PrivacyManager::UserPrivacySettingRule::set_chat_ids(const vector<int64> &d
         break;
       case DialogType::Channel: {
         auto channel_id = dialog_id.get_channel_id();
-        if (td->contacts_manager_->get_channel_type(channel_id) != ContactsManager::ChannelType::Megagroup) {
+        if (!td->contacts_manager_->is_megagroup_channel(channel_id)) {
           LOG(ERROR) << "Ignore broadcast " << channel_id;
           break;
         }
@@ -318,9 +328,9 @@ Result<PrivacyManager::UserPrivacySettingRule> PrivacyManager::UserPrivacySettin
 vector<tl_object_ptr<telegram_api::InputUser>> PrivacyManager::UserPrivacySettingRule::get_input_users() const {
   vector<tl_object_ptr<telegram_api::InputUser>> result;
   for (auto user_id : user_ids_) {
-    auto input_user = G()->td().get_actor_unsafe()->contacts_manager_->get_input_user(user_id);
-    if (input_user != nullptr) {
-      result.push_back(std::move(input_user));
+    auto r_input_user = G()->td().get_actor_unsafe()->contacts_manager_->get_input_user(user_id);
+    if (r_input_user.is_ok()) {
+      result.push_back(r_input_user.move_as_ok());
     } else {
       LOG(ERROR) << "Have no access to " << user_id;
     }
@@ -487,19 +497,19 @@ void PrivacyManager::update_privacy(tl_object_ptr<telegram_api::updatePrivacy> u
 }
 
 void PrivacyManager::on_get_result(UserPrivacySetting user_privacy_setting,
-                                   Result<UserPrivacySettingRules> privacy_rules) {
+                                   Result<UserPrivacySettingRules> r_privacy_rules) {
   auto &info = get_info(user_privacy_setting);
   auto promises = std::move(info.get_promises);
   reset_to_empty(info.get_promises);
   for (auto &promise : promises) {
-    if (privacy_rules.is_error()) {
-      promise.set_error(privacy_rules.error().clone());
+    if (r_privacy_rules.is_error()) {
+      promise.set_error(r_privacy_rules.error().clone());
     } else {
-      promise.set_value(privacy_rules.ok().get_user_privacy_setting_rules_object());
+      promise.set_value(r_privacy_rules.ok().get_user_privacy_setting_rules_object());
     }
   }
-  if (privacy_rules.is_ok()) {
-    do_update_privacy(user_privacy_setting, privacy_rules.move_as_ok(), false);
+  if (r_privacy_rules.is_ok()) {
+    do_update_privacy(user_privacy_setting, r_privacy_rules.move_as_ok(), false);
   }
 }
 

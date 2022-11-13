@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -12,10 +12,10 @@
 #include "td/telegram/UserId.h"
 
 #include "td/actor/actor.h"
-#include "td/actor/PromiseFuture.h"
 
 #include "td/utils/common.h"
 #include "td/utils/Container.h"
+#include "td/utils/Promise.h"
 #include "td/utils/Status.h"
 
 #include <array>
@@ -47,6 +47,7 @@ class PrivacyManager final : public NetQueryCallback {
       UserProfilePhoto,
       UserPhoneNumber,
       FindByPhoneNumber,
+      VoiceMessages,
       Size
     };
 
@@ -151,7 +152,7 @@ class PrivacyManager final : public NetQueryCallback {
     return info_[static_cast<size_t>(key.type())];
   }
 
-  void on_get_result(UserPrivacySetting user_privacy_setting, Result<UserPrivacySettingRules> privacy_rules);
+  void on_get_result(UserPrivacySetting user_privacy_setting, Result<UserPrivacySettingRules> r_privacy_rules);
   void do_update_privacy(UserPrivacySetting user_privacy_setting, UserPrivacySettingRules &&privacy_rules,
                          bool from_update);
 

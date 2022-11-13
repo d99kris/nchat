@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -21,15 +21,16 @@
 #include "td/net/NetStats.h"
 
 #include "td/actor/actor.h"
-#include "td/actor/PromiseFuture.h"
 #include "td/actor/SignalSlot.h"
 
 #include "td/utils/BufferedFd.h"
 #include "td/utils/common.h"
+#include "td/utils/FlatHashMap.h"
 #include "td/utils/FloodControlStrict.h"
 #include "td/utils/logging.h"
 #include "td/utils/port/IPAddress.h"
 #include "td/utils/port/SocketFd.h"
+#include "td/utils/Promise.h"
 #include "td/utils/Slice.h"
 #include "td/utils/Status.h"
 #include "td/utils/Time.h"
@@ -37,7 +38,6 @@
 #include <map>
 #include <memory>
 #include <set>
-#include <unordered_map>
 #include <utility>
 
 namespace td {
@@ -107,8 +107,8 @@ class ConnectionCreator final : public NetQueryCallback {
 
   static constexpr int32 MAX_PROXY_LAST_USED_SAVE_DELAY = 60;
   std::map<int32, Proxy> proxies_;
-  std::unordered_map<int32, int32> proxy_last_used_date_;
-  std::unordered_map<int32, int32> proxy_last_used_saved_date_;
+  FlatHashMap<int32, int32> proxy_last_used_date_;
+  FlatHashMap<int32, int32> proxy_last_used_saved_date_;
   int32 max_proxy_id_ = 0;
   int32 active_proxy_id_ = 0;
   ActorOwn<GetHostByNameActor> get_host_by_name_actor_;

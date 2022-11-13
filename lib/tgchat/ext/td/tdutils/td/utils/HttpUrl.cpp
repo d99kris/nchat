@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -218,6 +218,12 @@ HttpUrlQuery parse_url_query(Slice query) {
   }
 
   return result;
+}
+
+bool HttpUrlQuery::has_arg(Slice key) const {
+  auto it =
+      std::find_if(args_.begin(), args_.end(), [&key](const std::pair<string, string> &s) { return s.first == key; });
+  return it != args_.end();
 }
 
 Slice HttpUrlQuery::get_arg(Slice key) const {

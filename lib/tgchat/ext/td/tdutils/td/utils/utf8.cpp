@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -7,6 +7,8 @@
 #include "td/utils/utf8.h"
 
 #include "td/utils/logging.h"
+#include "td/utils/misc.h"
+#include "td/utils/SliceBuilder.h"
 #include "td/utils/unicode.h"
 
 namespace td {
@@ -119,6 +121,13 @@ string utf8_to_lower(Slice str) {
     append_utf8_character(result, unicode_to_lower(code));
   }
   return result;
+}
+
+string utf8_encode(CSlice data) {
+  if (check_utf8(data)) {
+    return data.str();
+  }
+  return PSTRING() << "url_decode(" << url_encode(data) << ')';
 }
 
 }  // namespace td

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -25,6 +25,7 @@
 #include "td/utils/Slice.h"
 #include "td/utils/SliceBuilder.h"
 
+#include <limits>
 #include <memory>
 
 namespace td {
@@ -411,12 +412,12 @@ void SetSecureValue::start_up() {
   // Remove duplicate files
   FileId front_side_file_id;
   if (secure_value_.front_side.file_id.is_valid()) {
-    front_side_file_id = file_manager->get_file_view(secure_value_.front_side.file_id).file_id();
+    front_side_file_id = file_manager->get_file_view(secure_value_.front_side.file_id).get_main_file_id();
     front_side_ = SecureInputFile();
   }
   FileId reverse_side_file_id;
   if (secure_value_.reverse_side.file_id.is_valid()) {
-    reverse_side_file_id = file_manager->get_file_view(secure_value_.reverse_side.file_id).file_id();
+    reverse_side_file_id = file_manager->get_file_view(secure_value_.reverse_side.file_id).get_main_file_id();
     reverse_side_ = SecureInputFile();
     if (front_side_file_id == reverse_side_file_id) {
       return on_error(Status::Error(400, "Front side and reverse side must be different"));
@@ -424,7 +425,7 @@ void SetSecureValue::start_up() {
   }
   FileId selfie_file_id;
   if (secure_value_.selfie.file_id.is_valid()) {
-    selfie_file_id = file_manager->get_file_view(secure_value_.selfie.file_id).file_id();
+    selfie_file_id = file_manager->get_file_view(secure_value_.selfie.file_id).get_main_file_id();
     selfie_ = SecureInputFile();
     if (front_side_file_id == selfie_file_id) {
       return on_error(Status::Error(400, "Front side and selfie must be different"));
@@ -439,10 +440,10 @@ void SetSecureValue::start_up() {
     CHECK(!reverse_side_file_id.is_valid());
     CHECK(!selfie_file_id.is_valid());
     for (auto it = secure_value_.files.begin(); it != secure_value_.files.end();) {
-      auto file_id = file_manager->get_file_view(it->file_id).file_id();
+      auto file_id = file_manager->get_file_view(it->file_id).get_main_file_id();
       bool is_duplicate = false;
       for (auto other_it = secure_value_.files.begin(); other_it != it; ++other_it) {
-        if (file_id == file_manager->get_file_view(other_it->file_id).file_id()) {
+        if (file_id == file_manager->get_file_view(other_it->file_id).get_main_file_id()) {
           is_duplicate = true;
           break;
         }
@@ -456,16 +457,16 @@ void SetSecureValue::start_up() {
   }
   if (!secure_value_.translations.empty()) {
     for (auto it = secure_value_.translations.begin(); it != secure_value_.translations.end();) {
-      auto file_id = file_manager->get_file_view(it->file_id).file_id();
+      auto file_id = file_manager->get_file_view(it->file_id).get_main_file_id();
       bool is_duplicate = file_id == front_side_file_id || file_id == reverse_side_file_id || file_id == selfie_file_id;
       for (auto other_it = secure_value_.translations.begin(); other_it != it; ++other_it) {
-        if (file_id == file_manager->get_file_view(other_it->file_id).file_id()) {
+        if (file_id == file_manager->get_file_view(other_it->file_id).get_main_file_id()) {
           is_duplicate = true;
           break;
         }
       }
       for (auto &dated_file : secure_value_.files) {
-        if (file_id == file_manager->get_file_view(dated_file.file_id).file_id()) {
+        if (file_id == file_manager->get_file_view(dated_file.file_id).get_main_file_id()) {
           is_duplicate = true;
           break;
         }
@@ -547,7 +548,7 @@ void SetSecureValue::start_upload(FileManager *file_manager, FileId &file_id, Se
       auto download_file_id = file_manager->dup_file_id(file_id);
       file_id =
           file_manager
-              ->register_generate(FileType::Secure, FileLocationSource::FromServer, file_view.suggested_path(),
+              ->register_generate(FileType::SecureEncrypted, FileLocationSource::FromServer, file_view.suggested_path(),
                                   PSTRING() << "#file_id#" << download_file_id.get(), DialogId(), file_view.size())
               .ok();
     }
@@ -954,8 +955,13 @@ void SecureManager::set_secure_value_errors(Td *td, tl_object_ptr<telegram_api::
 void SecureManager::get_passport_authorization_form(UserId bot_user_id, string scope, string public_key, string nonce,
                                                     Promise<TdApiAuthorizationForm> promise) {
   refcnt_++;
+  CHECK(max_authorization_form_id_ < std::numeric_limits<int32>::max());
   auto authorization_form_id = ++max_authorization_form_id_;
-  auto &form = authorization_forms_[authorization_form_id];
+  auto &form_ptr = authorization_forms_[authorization_form_id];
+  if (form_ptr == nullptr) {
+    form_ptr = make_unique<AuthorizationForm>();
+  }
+  auto &form = *form_ptr;
   form.bot_user_id = bot_user_id;
   form.scope = scope;
   form.public_key = public_key;
@@ -976,7 +982,8 @@ void SecureManager::on_get_passport_authorization_form(
     Result<telegram_api::object_ptr<telegram_api::account_authorizationForm>> r_authorization_form) {
   auto it = authorization_forms_.find(authorization_form_id);
   CHECK(it != authorization_forms_.end());
-  CHECK(it->second.is_received == false);
+  CHECK(it->second != nullptr);
+  CHECK(!it->second->is_received);
   if (r_authorization_form.is_error()) {
     authorization_forms_.erase(it);
     return promise.set_error(r_authorization_form.move_as_error());
@@ -1020,10 +1027,10 @@ void SecureManager::on_get_passport_authorization_form(
     }
   }
 
-  it->second.options = std::move(all_types);
-  it->second.values = std::move(authorization_form->values_);
-  it->second.errors = std::move(authorization_form->errors_);
-  it->second.is_received = true;
+  it->second->options = std::move(all_types);
+  it->second->values = std::move(authorization_form->values_);
+  it->second->errors = std::move(authorization_form->errors_);
+  it->second->is_received = true;
 
   promise.set_value(td_api::make_object<td_api::passportAuthorizationForm>(
       authorization_form_id, get_passport_required_elements_object(required_types),
@@ -1036,16 +1043,17 @@ void SecureManager::get_passport_authorization_form_available_elements(int32 aut
   if (it == authorization_forms_.end()) {
     return promise.set_error(Status::Error(400, "Unknown authorization_form_id"));
   }
-  if (!it->second.is_received) {
+  CHECK(it->second != nullptr);
+  if (!it->second->is_received) {
     return promise.set_error(Status::Error(400, "Authorization form isn't received yet"));
   }
 
   refcnt_++;
   send_closure(G()->password_manager(), &PasswordManager::get_secure_secret, password,
-               PromiseCreator::lambda([actor_id = actor_shared(this), authorization_form_id,
+               PromiseCreator::lambda([self = actor_shared(this), authorization_form_id,
                                        promise = std::move(promise)](Result<secure_storage::Secret> r_secret) mutable {
-                 send_closure(actor_id, &SecureManager::on_get_passport_authorization_form_secret,
-                              authorization_form_id, std::move(promise), std::move(r_secret));
+                 send_closure(self, &SecureManager::on_get_passport_authorization_form_secret, authorization_form_id,
+                              std::move(promise), std::move(r_secret));
                }));
 }
 
@@ -1056,8 +1064,9 @@ void SecureManager::on_get_passport_authorization_form_secret(int32 authorizatio
   if (it == authorization_forms_.end()) {
     return promise.set_error(Status::Error(400, "Authorization form has already been sent"));
   }
-  CHECK(it->second.is_received);
-  if (it->second.is_decrypted) {
+  CHECK(it->second != nullptr);
+  CHECK(it->second->is_received);
+  if (it->second->is_decrypted) {
     return promise.set_error(Status::Error(400, "Authorization form has already been decrypted"));
   }
 
@@ -1073,14 +1082,14 @@ void SecureManager::on_get_passport_authorization_form_secret(int32 authorizatio
   }
   auto secret = r_secret.move_as_ok();
 
-  it->second.is_decrypted = true;
+  it->second->is_decrypted = true;
 
   auto *file_manager = G()->td().get_actor_unsafe()->file_manager_.get();
   std::vector<TdApiSecureValue> values;
   std::map<SecureValueType, SecureValueCredentials> all_credentials;
-  for (const auto &suitable_type : it->second.options) {
+  for (const auto &suitable_type : it->second->options) {
     auto type = suitable_type.first;
-    for (auto &value : it->second.values) {
+    for (auto &value : it->second->values) {
       if (value == nullptr) {
         continue;
       }
@@ -1122,7 +1131,7 @@ void SecureManager::on_get_passport_authorization_form_secret(int32 authorizatio
   };
 
   vector<td_api::object_ptr<td_api::passportElementError>> errors;
-  for (auto &error_ptr : it->second.errors) {
+  for (auto &error_ptr : it->second->errors) {
     CHECK(error_ptr != nullptr);
     SecureValueType type = SecureValueType::None;
     td_api::object_ptr<td_api::PassportElementErrorSource> source;
@@ -1225,7 +1234,8 @@ void SecureManager::send_passport_authorization_form(int32 authorization_form_id
   if (it == authorization_forms_.end()) {
     return promise.set_error(Status::Error(400, "Unknown authorization_form_id"));
   }
-  if (!it->second.is_received) {
+  CHECK(it->second != nullptr);
+  if (!it->second->is_received) {
     return promise.set_error(Status::Error(400, "Authorization form isn't received yet"));
   }
   // there is no need to check for is_decrypted
@@ -1247,8 +1257,8 @@ void SecureManager::send_passport_authorization_form(int32 authorization_form_id
   for (auto &c : credentials) {
     hashes.push_back(telegram_api::make_object<telegram_api::secureValueHash>(get_input_secure_value_type(c.type),
                                                                               BufferSlice(c.hash)));
-    auto options_it = it->second.options.find(c.type);
-    if (options_it == it->second.options.end()) {
+    auto options_it = it->second->options.find(c.type);
+    if (options_it == it->second->options.end()) {
       return promise.set_error(Status::Error(400, "Passport Element with the specified type was not requested"));
     }
     auto &options = options_it->second;
@@ -1261,14 +1271,14 @@ void SecureManager::send_passport_authorization_form(int32 authorization_form_id
   }
 
   auto r_encrypted_credentials =
-      get_encrypted_credentials(credentials, it->second.nonce, it->second.public_key,
-                                it->second.scope[0] == '{' && it->second.scope.back() == '}');
+      get_encrypted_credentials(credentials, it->second->nonce, it->second->public_key,
+                                it->second->scope[0] == '{' && it->second->scope.back() == '}');
   if (r_encrypted_credentials.is_error()) {
     return promise.set_error(r_encrypted_credentials.move_as_error());
   }
 
   auto td_query = telegram_api::account_acceptAuthorization(
-      it->second.bot_user_id.get(), it->second.scope, it->second.public_key, std::move(hashes),
+      it->second->bot_user_id.get(), it->second->scope, it->second->public_key, std::move(hashes),
       get_secure_credentials_encrypted_object(r_encrypted_credentials.move_as_ok()));
   auto query = G()->net_query_creator().create(td_query);
   auto new_promise =

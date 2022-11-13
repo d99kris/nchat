@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -19,13 +19,13 @@
 
 #include "td/actor/actor.h"
 #include "td/actor/MultiPromise.h"
-#include "td/actor/PromiseFuture.h"
-#include "td/actor/Timeout.h"
+#include "td/actor/MultiTimeout.h"
 
 #include "td/utils/common.h"
+#include "td/utils/FlatHashMap.h"
+#include "td/utils/Promise.h"
 #include "td/utils/Status.h"
 
-#include <unordered_map>
 #include <utility>
 
 namespace td {
@@ -41,9 +41,18 @@ class InlineQueriesManager final : public Actor {
   void after_get_difference();
 
   void answer_inline_query(int64 inline_query_id, bool is_personal,
-                           vector<tl_object_ptr<td_api::InputInlineQueryResult>> &&input_results, int32 cache_time,
+                           vector<td_api::object_ptr<td_api::InputInlineQueryResult>> &&input_results, int32 cache_time,
                            const string &next_offset, const string &switch_pm_text, const string &switch_pm_parameter,
                            Promise<Unit> &&promise) const;
+
+  void get_simple_web_view_url(UserId bot_user_id, string &&url,
+                               const td_api::object_ptr<td_api::themeParameters> &theme, Promise<string> &&promise);
+
+  void send_web_view_data(UserId bot_user_id, string &&button_text, string &&data, Promise<Unit> &&promise) const;
+
+  void answer_web_view_query(const string &web_view_query_id,
+                             td_api::object_ptr<td_api::InputInlineQueryResult> &&input_result,
+                             Promise<td_api::object_ptr<td_api::sentWebAppMessage>> &&promise) const;
 
   uint64 send_inline_query(UserId bot_user_id, DialogId dialog_id, Location user_location, const string &query,
                            const string &offset, Promise<Unit> &&promise);
@@ -84,6 +93,9 @@ class InlineQueriesManager final : public Actor {
   static constexpr int32 BOT_INLINE_MEDIA_RESULT_FLAG_HAS_DOCUMENT = 1 << 1;
   static constexpr int32 BOT_INLINE_MEDIA_RESULT_FLAG_HAS_TITLE = 1 << 2;
   static constexpr int32 BOT_INLINE_MEDIA_RESULT_FLAG_HAS_DESCRIPTION = 1 << 3;
+
+  Result<tl_object_ptr<telegram_api::InputBotInlineResult>> get_input_bot_inline_result(
+      td_api::object_ptr<td_api::InputInlineQueryResult> &&result, bool *is_gallery, bool *force_vertical) const;
 
   Result<tl_object_ptr<telegram_api::InputBotInlineMessage>> get_inline_message(
       tl_object_ptr<td_api::InputMessageContent> &&input_message_content,
@@ -141,12 +153,12 @@ class InlineQueriesManager final : public Actor {
   };
 
   MultiTimeout drop_inline_query_result_timeout_{"DropInlineQueryResultTimeout"};
-  std::unordered_map<uint64, InlineQueryResult> inline_query_results_;  // query_hash -> result
+  FlatHashMap<uint64, InlineQueryResult> inline_query_results_;  // query_hash -> result
 
-  std::unordered_map<int64, std::unordered_map<string, InlineMessageContent>>
+  FlatHashMap<int64, FlatHashMap<string, InlineMessageContent>>
       inline_message_contents_;  // query_id -> [result_id -> inline_message_content]
 
-  std::unordered_map<int64, UserId> query_id_to_bot_user_id_;
+  FlatHashMap<int64, UserId> query_id_to_bot_user_id_;
 
   Td *td_;
   ActorShared<> parent_;

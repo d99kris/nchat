@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -17,7 +17,7 @@
 #if TD_PORT_WINDOWS
 #include "td/utils/buffer.h"
 #include "td/utils/port/detail/Iocp.h"
-#include "td/utils/SpinLock.h"
+#include "td/utils/port/Mutex.h"
 #include "td/utils/VectorQueue.h"
 
 #include <limits>
@@ -43,7 +43,7 @@ namespace detail {
 #if TD_PORT_WINDOWS
 class SocketFdImpl final : private Iocp::Callback {
  public:
-  explicit SocketFdImpl(NativeFd native_fd) : info(std::move(native_fd)) {
+  explicit SocketFdImpl(NativeFd native_fd) : info_(std::move(native_fd)) {
     VLOG(fd) << get_native_fd() << " create from native_fd";
     get_poll_info().add_flags(PollFlags::Write());
     Iocp::get()->subscribe(get_native_fd(), this);
@@ -51,7 +51,7 @@ class SocketFdImpl final : private Iocp::Callback {
     notify_iocp_connected();
   }
 
-  SocketFdImpl(NativeFd native_fd, const IPAddress &addr) : info(std::move(native_fd)) {
+  SocketFdImpl(NativeFd native_fd, const IPAddress &addr) : info_(std::move(native_fd)) {
     VLOG(fd) << get_native_fd() << " create from native_fd and connect";
     get_poll_info().add_flags(PollFlags::Write());
     Iocp::get()->subscribe(get_native_fd(), this);
@@ -78,24 +78,26 @@ class SocketFdImpl final : private Iocp::Callback {
   }
 
   void close() {
-    if (!is_write_waiting_) {
+    if (!is_write_waiting_ && is_connected_) {
       VLOG(fd) << get_native_fd() << " will close after ongoing write";
       auto lock = lock_.lock();
-      need_close_after_write_ = true;
-      return;
+      if (!is_write_waiting_) {
+        need_close_after_write_ = true;
+        return;
+      }
     }
     notify_iocp_close();
   }
 
   PollableFdInfo &get_poll_info() {
-    return info;
+    return info_;
   }
   const PollableFdInfo &get_poll_info() const {
-    return info;
+    return info_;
   }
 
   const NativeFd &get_native_fd() const {
-    return info.native_fd();
+    return info_.native_fd();
   }
 
   Result<size_t> write(Slice data) {
@@ -161,14 +163,14 @@ class SocketFdImpl final : private Iocp::Callback {
   }
 
  private:
-  PollableFdInfo info;
-  SpinLock lock_;
+  PollableFdInfo info_;
+  Mutex lock_;
 
   std::atomic<int> refcnt_{1};
   bool close_flag_{false};
   bool need_close_after_write_{false};
 
-  bool is_connected_{false};
+  std::atomic<bool> is_connected_{false};
   bool is_read_active_{false};
   ChainBufferWriter input_writer_;
   ChainBufferReader input_reader_ = input_writer_.extract_reader();
@@ -283,7 +285,12 @@ class SocketFdImpl final : private Iocp::Callback {
     if (overlapped == reinterpret_cast<WSAOVERLAPPED *>(&close_overlapped_)) {
       return on_close();
     }
-    UNREACHABLE();
+    LOG(ERROR) << this << ' ' << overlapped << ' ' << &read_overlapped_ << ' ' << &write_overlapped_ << ' '
+               << reinterpret_cast<WSAOVERLAPPED *>(&close_overlapped_) << ' ' << size;
+    LOG(FATAL) << get_native_fd() << ' ' << info_.get_flags_local() << ' ' << refcnt_.load() << ' ' << close_flag_
+               << ' ' << need_close_after_write_ << ' ' << is_connected_ << ' ' << is_read_active_ << ' '
+               << is_write_active_ << ' ' << is_write_waiting_.load() << ' ' << input_reader_.size() << ' '
+               << output_reader_.size();
   }
 
   void on_error(Status status) {
@@ -335,7 +342,7 @@ class SocketFdImpl final : private Iocp::Callback {
   void on_close() {
     VLOG(fd) << get_native_fd() << " on close";
     close_flag_ = true;
-    info.set_native_fd({});
+    info_.set_native_fd({});
   }
   bool dec_refcnt() {
     VLOG(fd) << get_native_fd() << " dec_refcnt from " << refcnt_;
@@ -386,18 +393,18 @@ static InitWSA init_wsa;
 #else
 class SocketFdImpl {
  public:
-  PollableFdInfo info;
-  explicit SocketFdImpl(NativeFd fd) : info(std::move(fd)) {
+  PollableFdInfo info_;
+  explicit SocketFdImpl(NativeFd fd) : info_(std::move(fd)) {
   }
   PollableFdInfo &get_poll_info() {
-    return info;
+    return info_;
   }
   const PollableFdInfo &get_poll_info() const {
-    return info;
+    return info_;
   }
 
   const NativeFd &get_native_fd() const {
-    return info.native_fd();
+    return info_.native_fd();
   }
 
   Result<size_t> writev(Span<IoSlice> slices) {

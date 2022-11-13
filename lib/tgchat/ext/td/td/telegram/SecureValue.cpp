@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -354,9 +354,9 @@ EncryptedSecureFile get_encrypted_secure_file(FileManager *file_manager,
         break;
       }
       result.file.file_id = file_manager->register_remote(
-          FullRemoteFileLocation(FileType::Secure, secure_file->id_, secure_file->access_hash_, DcId::internal(dc_id),
-                                 ""),
-          FileLocationSource::FromServer, DialogId(), 0, secure_file->size_, PSTRING() << secure_file->id_ << ".jpg");
+          FullRemoteFileLocation(FileType::SecureEncrypted, secure_file->id_, secure_file->access_hash_,
+                                 DcId::internal(dc_id), ""),
+          FileLocationSource::FromServer, DialogId(), secure_file->size_, 0, PSTRING() << secure_file->id_ << ".jpg");
       result.file.date = secure_file->date_;
       if (result.file.date < 0) {
         LOG(ERROR) << "Receive wrong date " << result.file.date;
@@ -393,8 +393,8 @@ telegram_api::object_ptr<telegram_api::InputSecureFile> get_input_secure_file_ob
     return nullptr;
   }
   CHECK(input_file.file_id.is_valid());
-  CHECK(file_manager->get_file_view(file.file.file_id).file_id() ==
-        file_manager->get_file_view(input_file.file_id).file_id());
+  CHECK(file_manager->get_file_view(file.file.file_id).get_main_file_id() ==
+        file_manager->get_file_view(input_file.file_id).get_main_file_id());
   auto res = std::move(input_file.input_file);
   if (res == nullptr) {
     return file_manager->get_file_view(file.file.file_id).remote_location().as_input_secure_file();
@@ -427,12 +427,16 @@ static td_api::object_ptr<td_api::datedFile> get_dated_file_object(FileManager *
     LOG(ERROR) << "Have wrong file in get_dated_file_object";
     return nullptr;
   }
-  dated_file.file_id =
-      file_manager->register_remote(FullRemoteFileLocation(FileType::SecureRaw, file_view.remote_location().get_id(),
-                                                           file_view.remote_location().get_access_hash(),
-                                                           file_view.remote_location().get_dc_id(), ""),
-                                    FileLocationSource::FromServer, DialogId(), file_view.size(),
-                                    file_view.expected_size(), file_view.suggested_path());
+  if (file_view.get_type() != FileType::SecureEncrypted) {
+    LOG(ERROR) << "Have file of a wrong type in get_dated_file_object";
+  } else if (file_view.encryption_key().empty()) {
+    return get_dated_file_object(file_manager, dated_file);
+  }
+  dated_file.file_id = file_manager->register_remote(
+      FullRemoteFileLocation(FileType::SecureDecrypted, file_view.remote_location().get_id(),
+                             file_view.remote_location().get_access_hash(), file_view.remote_location().get_dc_id(),
+                             ""),
+      FileLocationSource::FromServer, DialogId(), 0, file_view.expected_size(), file_view.suggested_path());
   return get_dated_file_object(file_manager, dated_file);
 }
 
@@ -709,7 +713,7 @@ static Result<int32> to_int32(Slice str) {
   int32 integer_value = 0;
   for (auto c : str) {
     if (!is_digit(c)) {
-      return Status::Error(PSLICE() << "Can't parse \"" << str << "\" as number");
+      return Status::Error(400, PSLICE() << "Can't parse \"" << utf8_encode(str.str()) << "\" as number");
     }
     integer_value = integer_value * 10 + c - '0';
   }
@@ -721,12 +725,12 @@ static Result<td_api::object_ptr<td_api::date>> get_date_object(Slice date) {
     return nullptr;
   }
   if (date.size() > 10u || date.size() < 8u) {
-    return Status::Error(400, PSLICE() << "Date \"" << date << "\" has wrong length");
+    return Status::Error(400, PSLICE() << "Date \"" << utf8_encode(date.str()) << "\" has wrong length");
   }
   auto parts = full_split(date, '.');
   if (parts.size() != 3 || parts[0].size() > 2 || parts[1].size() > 2 || parts[2].size() != 4 || parts[0].empty() ||
       parts[1].empty()) {
-    return Status::Error(400, PSLICE() << "Date \"" << date << "\" has wrong parts");
+    return Status::Error(400, PSLICE() << "Date \"" << utf8_encode(date.str()) << "\" has wrong parts");
   }
   TRY_RESULT(day, to_int32(parts[0]));
   TRY_RESULT(month, to_int32(parts[1]));
@@ -843,7 +847,8 @@ static Status check_document_number(string &number) {
 }
 
 static Result<DatedFile> get_secure_file(FileManager *file_manager, td_api::object_ptr<td_api::InputFile> &&file) {
-  TRY_RESULT(file_id, file_manager->get_input_file_id(FileType::Secure, file, DialogId(), false, false, false, true));
+  TRY_RESULT(file_id,
+             file_manager->get_input_file_id(FileType::SecureEncrypted, file, DialogId(), false, false, false, true));
   DatedFile result;
   result.file_id = file_id;
   result.date = G()->unix_time();
@@ -1191,7 +1196,7 @@ Result<SecureValueWithCredentials> decrypt_secure_value(FileManager *file_manage
   res_credentials.hash = encrypted_secure_value.hash;
   switch (encrypted_secure_value.type) {
     case SecureValueType::None:
-      return Status::Error("Receive invalid Telegram Passport element");
+      return Status::Error(400, "Receive invalid Telegram Passport element");
     case SecureValueType::EmailAddress:
     case SecureValueType::PhoneNumber:
       res.data = encrypted_secure_value.data.data;

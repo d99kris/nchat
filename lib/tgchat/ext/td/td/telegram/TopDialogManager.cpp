@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -21,6 +21,8 @@
 #include "td/telegram/Td.h"
 #include "td/telegram/TdDb.h"
 #include "td/telegram/TdParameters.h"
+
+#include "td/actor/PromiseFuture.h"
 
 #include "td/utils/algorithm.h"
 #include "td/utils/buffer.h"
@@ -587,7 +589,7 @@ void TopDialogManager::try_start() {
   db_sync_state_ = SyncState::Ok;
 
   send_closure(G()->state_manager(), &StateManager::wait_first_sync,
-               PromiseCreator::event(self_closure(this, &TopDialogManager::on_first_sync)));
+               create_event_promise(self_closure(this, &TopDialogManager::on_first_sync)));
 }
 
 void TopDialogManager::on_first_sync() {

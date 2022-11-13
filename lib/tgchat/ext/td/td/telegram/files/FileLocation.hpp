@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -289,36 +289,7 @@ void FullRemoteFileLocation::AsUnique::store(StorerT &storer) const {
     if (key->is_web()) {
       return 0;
     }
-    switch (key->file_type_) {
-      case FileType::Photo:
-      case FileType::ProfilePhoto:
-      case FileType::Thumbnail:
-      case FileType::EncryptedThumbnail:
-      case FileType::Wallpaper:
-        return 1;
-      case FileType::Video:
-      case FileType::VoiceNote:
-      case FileType::Document:
-      case FileType::Sticker:
-      case FileType::Audio:
-      case FileType::Animation:
-      case FileType::VideoNote:
-      case FileType::Background:
-      case FileType::DocumentAsFile:
-        return 2;
-      case FileType::SecureRaw:
-      case FileType::Secure:
-        return 3;
-      case FileType::Encrypted:
-        return 4;
-      case FileType::Temp:
-        return 5;
-      case FileType::None:
-      case FileType::Size:
-      default:
-        UNREACHABLE();
-        return -1;
-    }
+    return static_cast<int32>(get_file_type_class(key->file_type_)) + 1;
   }();
   store(type, storer);
   key.variant_.visit([&](auto &&value) {
@@ -342,11 +313,15 @@ void PartialLocalFileLocation::store(StorerT &storer) const {
   using td::store;
   store(file_type_, storer);
   store(path_, storer);
-  store(part_size_, storer);
-  int32 deprecated_ready_part_count = -1;
+  store(static_cast<int32>(part_size_ & 0x7FFFFFFF), storer);
+  int32 deprecated_ready_part_count = part_size_ > 0x7FFFFFFF ? -2 : -1;
   store(deprecated_ready_part_count, storer);
   store(iv_, storer);
   store(ready_bitmask_, storer);
+  if (deprecated_ready_part_count == -2) {
+    CHECK(part_size_ < (static_cast<int64>(1) << 62));
+    store(static_cast<int32>(part_size_ >> 31), storer);
+  }
 }
 
 template <class ParserT>
@@ -357,12 +332,19 @@ void PartialLocalFileLocation::parse(ParserT &parser) {
     return parser.set_error("Invalid type in PartialLocalFileLocation");
   }
   parse(path_, parser);
-  parse(part_size_, parser);
+  int32 part_size_low;
+  parse(part_size_low, parser);
+  part_size_ = part_size_low;
   int32 deprecated_ready_part_count;
   parse(deprecated_ready_part_count, parser);
   parse(iv_, parser);
-  if (deprecated_ready_part_count == -1) {
+  if (deprecated_ready_part_count == -1 || deprecated_ready_part_count == -2) {
     parse(ready_bitmask_, parser);
+    if (deprecated_ready_part_count == -2) {
+      int32 part_size_high;
+      parse(part_size_high, parser);
+      part_size_ += static_cast<int64>(part_size_high) << 31;
+    }
   } else {
     CHECK(0 <= deprecated_ready_part_count);
     CHECK(deprecated_ready_part_count <= (1 << 22));

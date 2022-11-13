@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -156,7 +156,7 @@ td::Result<TlsInfo> test_tls(const td::string &url) {
   size_t server_hello_length = 0;
   size_t encrypted_application_data_length_sum = 0;
   while (td::Time::now() < end_time) {
-    char buf[20000];
+    static char buf[20000];
     TRY_RESULT(res, socket.read(td::MutableSlice{buf, sizeof(buf)}));
     if (res > 0) {
       auto read_length = [&]() -> size_t {

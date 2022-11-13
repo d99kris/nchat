@@ -3,11 +3,13 @@
 
 <head>
   <title>TDLib build instructions</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     :root {
       --background: #fafafa;
       --color: black;
       --color-primary: #0088ff;
+      --color-primary-light: #42a7ff;
       --color-code-block: #ebf9ff;
       --color-select-border: rgb(211, 211, 211);
       --color-checkbox-background: rgb(211, 211, 211);
@@ -38,6 +40,14 @@
     body {
       font-family: 'Segoe UI', Arial, Helvetica, sans-serif;
     }
+    :focus:not(:focus-visible) {
+      outline: none;
+    }
+    input:focus-visible, select:focus-visible, button:focus-visible {
+      box-shadow: 0 0 0 3px var(--color-primary);
+      outline: none;
+    }
+
     .hide {
       display: none;
     }
@@ -62,6 +72,7 @@
       padding: 5px;
       margin-bottom: 0;
       display: block;
+      overflow-x: auto;
     }
     #buildCommands ul {
       list-style: '$ ';
@@ -70,10 +81,15 @@
     a {
       color: var(--color-primary);
       text-decoration-color: transparent;
-      transition: text-decoration-color 200ms;
+      transition: text-decoration 200ms, color 200ms;
     }
     a:hover {
       text-decoration: underline;
+    }
+    a:focus-visible {
+      text-decoration: underline 2px;
+      color: var(--color-primary-light);
+      outline: none;
     }
     select, button {
       border: 1px solid var(--color-select-border);
@@ -81,17 +97,11 @@
       color: var(--color);
       padding: 5px;
       margin-top: 5px;
-      transition: border 200ms, padding 200ms;
+      box-shadow: 0 0 0 0 var(--color-primary);
+      transition: border 200ms, padding 200ms, box-shadow 200ms;
       border-radius: 999em;
       font-size: 16px;
       cursor: pointer;
-    }
-
-    select:focus, button:focus {
-      outline: none;
-      border-color: var(--color-primary);
-      border-width: 2px;
-      padding: 4px;
     }
 
     label * {
@@ -108,7 +118,8 @@
       width: 20px;
       border-radius: 3px;
       position: relative;
-      transition: background-color 200ms;
+      top: -1px; // Fix alignment
+      transition: background-color 200ms, box-shadow 200ms;
     }
     input[type=checkbox]::after {
       content: "";
@@ -141,7 +152,8 @@
       width: 20px;
       border-radius: 100%;
       position: relative;
-      transition: background-color 200ms;
+      top: -2px; // Fix alignment
+      transition: background-color 200ms, box-shadow 200ms;
     }
     input[type=radio]::after {
       content: "";
@@ -181,7 +193,7 @@
 
 <div class="main">
   <div id="languageSelectDiv">
-    <p>Choose a programming language, from which you want to use TDLib:</p>
+    <p>Choose a programming language from which you want to use TDLib:</p>
     <select id="languageSelect" onchange="onLanguageChanged(false)" autofocus class="large">
       <option>Choose a programming language:</option>
       <option>Python</option>
@@ -207,12 +219,13 @@
       <option>D</option>
       <option>Elixir</option>
       <option>C</option>
+      <option>G</option>
       <option>Other</option>
     </select>
   </div>
 
   <div id="osSelectDiv" class="hide">
-    <p>Choose an operating system, on which you want to use TDLib:</p>
+    <p>Choose an operating system on which you want to use TDLib:</p>
     <select id="osSelect" onchange="onOsChanged()" class="large">
       <option>Choose an operating system:</option>
     </select>
@@ -220,7 +233,7 @@
   </div>
 
   <div id="linuxSelectDiv" class="hide">
-    <p>Choose a Linux distro, on which you want to use TDLib:</p>
+    <p>Choose a Linux distro on which you want to use TDLib:</p>
     <select id="linuxSelect" onchange="onOsChanged()" class="large">
       <option>Choose a Linux distro:</option>
       <option>Alpine</option>
@@ -233,6 +246,7 @@
       <option>Ubuntu 16</option>
       <option>Ubuntu 18</option>
       <option>Ubuntu 20</option>
+      <option>Ubuntu 22</option>
       <option>Other</option>
     </select>
     <p></p>
@@ -279,6 +293,13 @@
       <span>Choose which shell application you want to use for building:</span><br>
       <label><input type="radio" id="buildShellBsdRadioCsh" name="buildShellRadioBsd" onchange="onOptionsChanged()" checked/>tcsh/csh</label>
       <label><input type="radio" id="buildShellBsdRadioBash" name="buildShellRadioBsd" onchange="onOptionsChanged()"/>Bash</label>
+      <p></p>
+    </div>
+
+    <div id="buildMacOsHostDiv" class="hide">
+      <span>Choose host architecture:</span><br>
+      <label><input type="radio" id="buildMacOsHostRadioAppleSilicon" name="buildMacOsHostRadio" onchange="onOptionsChanged()" checked/>Apple silicon</label>
+      <label><input type="radio" id="buildMacOsHostRadioIntel" name="buildMacOsHostRadio" onchange="onOptionsChanged()"/>Intel</label>
       <p></p>
     </div>
 
@@ -377,6 +398,7 @@ function getExampleAnchor(language) {
     case 'D':
     case 'Elixir':
     case 'C':
+    case 'G':
       return language.toLowerCase();
     case 'Object Pascal':
       return 'object-pascal';
@@ -586,6 +608,8 @@ function onOptionsChanged() {
   var use_powershell = false;
   var use_cmd = false;
   var use_csh = false;
+  var homebrew_install_dir = '';
+  var os_mac_host_name = '';
   if (os_windows) {
     document.getElementById('buildShellDiv').style.display = 'block';
     use_powershell = document.getElementById('buildShellRadioPowerShell').checked;
@@ -598,12 +622,24 @@ function onOptionsChanged() {
   } else {
     document.getElementById('buildShellBsdDiv').style.display = 'none';
   }
+  if (os_mac) {
+    document.getElementById('buildMacOsHostDiv').style.display = 'block';
+    if (document.getElementById('buildMacOsHostRadioAppleSilicon').checked) {
+      homebrew_install_dir = '/opt/homebrew';
+      os_mac_host_name = 'Apple silicon';
+    } else {
+      homebrew_install_dir = '/usr/local';
+      os_mac_host_name = 'Intel';
+    }
+  } else {
+    document.getElementById('buildMacOsHostDiv').style.display = 'none';
+  }
 
   var use_msvc = os_windows;
   var use_vcpkg = os_windows;
 
   var use_lto = false;
-  if (!use_msvc && language !== 'Java' && language !== 'Kotlin' && (os_mac || (os_linux && (linux_distro === 'Ubuntu 18' || linux_distro === 'Ubuntu 20' || linux_distro === 'Other')))) {
+  if (!use_msvc && language !== 'Java' && language !== 'Kotlin' && (os_mac || (os_linux && (linux_distro === 'Ubuntu 18' || linux_distro === 'Ubuntu 20' || linux_distro === 'Ubuntu 22' || linux_distro === 'Other')))) {
     document.getElementById('buildLtoDiv').style.display = 'block';
     use_lto = document.getElementById('buildLtoCheckbox').checked;
   } else {
@@ -699,7 +735,7 @@ function onOptionsChanged() {
     pre_text.push('Install Git, ' + compiler + ', make, CMake >= 3.0.2, OpenSSL-dev, zlib-dev, gperf, PHP' + jdk + ' using your package manager.');
   }
   if (os_linux && os.includes('Node.js')) {
-    pre_text.push('Note that for Node.js &le; 9.11.2 you must build TDLib with OpenSSL 1.0.* and for Node.js &ge; 10 with OpenSSL 1.1.* instead, so you may need to modify the following commands to install a proper OpenSSL version.');
+    pre_text.push('Note that for Node.js &ge; 17 you must build TDLib with OpenSSL 3.0.*, for Node.js &ge; 10 with OpenSSL 1.1.*, and for Node.js &lt; 10 with OpenSSL 1.0.*, so you may need to modify the following commands to install a proper OpenSSL version.');
   }
   if (os_freebsd) {
     pre_text.push('Note that the following instruction is for FreeBSD 11.');
@@ -713,7 +749,7 @@ function onOptionsChanged() {
     pre_text.push('Note that the following instruction is for NetBSD 8.0 and default SH shell.');
   }
   if (os_mac) {
-    pre_text.push('Note that the following instruction will build TDLib only for the current architecture (x64 or Apple silicon).');
+    pre_text.push('Note that the following instruction will build TDLib only for ' + os_mac_host_name + '.');
     pre_text.push('If you want to create a universal XCFramework, take a look at our <a href="https://github.com/tdlib/td/tree/master/example/ios">example</a> instead.');
   }
 
@@ -762,6 +798,8 @@ function onOptionsChanged() {
         return '-6.0';
       case 'Ubuntu 20':
         return '-10';
+      case 'Ubuntu 22':
+        return '-14';
       default:
         return ''; // use default version
     }
@@ -773,7 +811,7 @@ function onOptionsChanged() {
   var cmake = 'cmake';
   if (os_mac) {
     commands.push('xcode-select --install');
-    commands.push('/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"');
+    commands.push('/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"');
     commands.push('brew install gperf cmake openssl' + (target === 'JNI' ? ' coreutils' : ''));
     if (target === 'JNI') {
       commands.push('brew install openjdk');
@@ -814,6 +852,7 @@ function onOptionsChanged() {
       case 'Ubuntu 16':
       case 'Ubuntu 18':
       case 'Ubuntu 20':
+      case 'Ubuntu 22':
         if (linux_distro.includes('Debian') && !use_root) {
           commands.push('su -');
         }
@@ -838,7 +877,7 @@ function onOptionsChanged() {
         }
         if (use_clang) {
           packages += ' clang' + getClangVersionSuffix() + ' libc++-dev';
-          if (linux_distro === 'Debian 10+' || linux_distro === 'Ubuntu 18' || linux_distro === 'Ubuntu 20') {
+          if (linux_distro === 'Debian 10+' || linux_distro === 'Ubuntu 18' || linux_distro === 'Ubuntu 20' || linux_distro === 'Ubuntu 22') {
             packages += ' libc++abi-dev';
           }
         } else {
@@ -888,11 +927,12 @@ function onOptionsChanged() {
   commands.push('git clone https://github.com/tdlib/td.git');
 
   commands.push('cd td');
-  // commands.push('git checkout v1.7.0');
+  // commands.push('git checkout v1.8.0');
 
   if (use_vcpkg) {
     commands.push('git clone https://github.com/Microsoft/vcpkg.git');
     commands.push('cd vcpkg');
+    commands.push('git checkout 1b1ae50e1a69f7c659bd7d731e80b358d21c86ad');
     commands.push(local + 'bootstrap-vcpkg.bat');
     if (target === 'C++/CX') {
       commands.push(local + 'vcpkg.exe install gperf:x86-windows openssl:arm-uwp openssl:arm64-uwp openssl:x64-uwp openssl:x86-uwp zlib:arm-uwp zlib:arm64-uwp zlib:x64-uwp zlib:x86-uwp');
@@ -926,7 +966,7 @@ function onOptionsChanged() {
         options.push('-DJAVA_HOME=/usr/local/openjdk7/');
       }
       if (os_mac) {
-        options.push('-DJAVA_HOME=/usr/local/opt/openjdk/libexec/openjdk.jdk/Contents/Home/');
+        options.push('-DJAVA_HOME=' + homebrew_install_dir + '/opt/openjdk/libexec/openjdk.jdk/Contents/Home/');
       }
     }
     return options;
@@ -957,7 +997,7 @@ function onOptionsChanged() {
 
     cmake_init_options = getBacicCmakeInitOptions();
     if (os_mac) {
-      cmake_init_options.push('-DOPENSSL_ROOT_DIR=/usr/local/opt/openssl/');
+      cmake_init_options.push('-DOPENSSL_ROOT_DIR=' + homebrew_install_dir + '/opt/openssl/');
     }
     if (install_dir) {
       cmake_init_options.push('-DCMAKE_INSTALL_PREFIX:PATH=' + install_dir);

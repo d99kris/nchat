@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,11 +11,11 @@
 #include "td/telegram/net/NetQuery.h"
 
 #include "td/actor/actor.h"
-#include "td/actor/PromiseFuture.h"
 
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
 #include "td/utils/logging.h"
+#include "td/utils/Promise.h"
 
 #include <memory>
 
@@ -30,6 +30,8 @@ class DcAuthManager final : public NetQueryCallback {
   void add_dc(std::shared_ptr<AuthDataShared> auth_data);
   void update_main_dc(DcId new_main_dc_id);
   void destroy(Promise<> promise);
+
+  void check_authorization_is_ok();
 
  private:
   struct DcInfo {
@@ -48,6 +50,7 @@ class DcAuthManager final : public NetQueryCallback {
 
   std::vector<DcInfo> dcs_;
   DcId main_dc_id_;
+  bool need_check_authorization_is_ok_{false};
   bool close_flag_{false};
   Promise<> destroy_promise_;
 

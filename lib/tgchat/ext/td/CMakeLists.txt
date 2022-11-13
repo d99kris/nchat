@@ -6,7 +6,7 @@ if (POLICY CMP0065)
   cmake_policy(SET CMP0065 NEW)
 endif()
 
-project(TDLib VERSION 1.7.9 LANGUAGES CXX C)
+project(TDLib VERSION 1.8.5 LANGUAGES CXX C)
 
 if (NOT DEFINED CMAKE_MODULE_PATH)
   set(CMAKE_MODULE_PATH "")
@@ -152,6 +152,12 @@ if (CLANG OR GCC)
   endif()
 endif()
 
+include(GetGitRevisionDescription)
+get_git_head_revision(TD_GIT_REFSPEC TD_GIT_COMMIT_HASH)
+message(STATUS "Git state: ${TD_GIT_COMMIT_HASH}")
+
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/td/telegram/GitCommitHash.cpp.in" "${CMAKE_CURRENT_BINARY_DIR}/td/telegram/GitCommitHash.cpp" @ONLY)
+
 add_subdirectory(tdtl)
 
 add_subdirectory(tdutils)
@@ -278,17 +284,23 @@ set(TDLIB_SOURCE
 
   td/telegram/Account.cpp
   td/telegram/AnimationsManager.cpp
+  td/telegram/Application.cpp
+  td/telegram/AttachMenuManager.cpp
   td/telegram/AudiosManager.cpp
   td/telegram/AuthManager.cpp
   td/telegram/AutoDownloadSettings.cpp
+  td/telegram/AvailableReaction.cpp
   td/telegram/BackgroundManager.cpp
   td/telegram/BackgroundType.cpp
   td/telegram/BotCommand.cpp
   td/telegram/BotCommandScope.cpp
+  td/telegram/BotMenuButton.cpp
+  td/telegram/BotMenuButton.h
   td/telegram/CallActor.cpp
   td/telegram/CallDiscardReason.cpp
   td/telegram/CallManager.cpp
   td/telegram/CallbackQueriesManager.cpp
+  td/telegram/ChannelParticipantFilter.cpp
   td/telegram/ClientActor.cpp
   td/telegram/ConfigManager.cpp
   td/telegram/ConfigShared.cpp
@@ -310,9 +322,13 @@ set(TDLIB_SOURCE
   td/telegram/DialogInviteLink.cpp
   td/telegram/DialogLocation.cpp
   td/telegram/DialogParticipant.cpp
+  td/telegram/DialogParticipantFilter.cpp
   td/telegram/DialogSource.cpp
+  td/telegram/Dimensions.cpp
   td/telegram/Document.cpp
   td/telegram/DocumentsManager.cpp
+  td/telegram/DownloadManager.cpp
+  td/telegram/DownloadManagerCallback.cpp
   td/telegram/DraftMessage.cpp
   td/telegram/FileReferenceManager.cpp
   td/telegram/files/FileBitmask.cpp
@@ -356,12 +372,13 @@ set(TDLIB_SOURCE
   td/telegram/MessageContentType.cpp
   td/telegram/MessageEntity.cpp
   td/telegram/MessageId.cpp
+  td/telegram/MessageReaction.cpp
   td/telegram/MessageReplyInfo.cpp
   td/telegram/MessagesDb.cpp
   td/telegram/MessageSearchFilter.cpp
   td/telegram/MessageSender.cpp
   td/telegram/MessagesManager.cpp
-  td/telegram/MessageTtlSetting.cpp
+  td/telegram/MessageTtl.cpp
   td/telegram/misc.cpp
   td/telegram/net/AuthDataShared.cpp
   td/telegram/net/ConnectionCreator.cpp
@@ -384,14 +401,20 @@ set(TDLIB_SOURCE
   td/telegram/NewPasswordState.cpp
   td/telegram/NotificationManager.cpp
   td/telegram/NotificationSettings.cpp
+  td/telegram/NotificationSettingsManager.cpp
+  td/telegram/NotificationSound.cpp
   td/telegram/NotificationType.cpp
+  td/telegram/OptionManager.cpp
   td/telegram/Payments.cpp
   td/telegram/PasswordManager.cpp
   td/telegram/PhoneNumberManager.cpp
   td/telegram/PrivacyManager.cpp
   td/telegram/Photo.cpp
+  td/telegram/PhotoSize.cpp
   td/telegram/PhotoSizeSource.cpp
   td/telegram/PollManager.cpp
+  td/telegram/Premium.cpp
+  td/telegram/PremiumGiftOption.cpp
   td/telegram/QueryCombiner.cpp
   td/telegram/RecentDialogList.cpp
   td/telegram/ReplyMarkup.cpp
@@ -400,6 +423,7 @@ set(TDLIB_SOURCE
   td/telegram/SecretChatActor.cpp
   td/telegram/SecretChatDb.cpp
   td/telegram/SecretChatsManager.cpp
+  td/telegram/SecretInputMedia.cpp
   td/telegram/SecureManager.cpp
   td/telegram/SecureStorage.cpp
   td/telegram/SecureValue.cpp
@@ -408,7 +432,9 @@ set(TDLIB_SOURCE
   td/telegram/SpecialStickerSetType.cpp
   td/telegram/SponsoredMessageManager.cpp
   td/telegram/StateManager.cpp
+  td/telegram/StickerFormat.cpp
   td/telegram/StickersManager.cpp
+  td/telegram/StickerType.cpp
   td/telegram/StorageManager.cpp
   td/telegram/SuggestedAction.cpp
   td/telegram/Td.cpp
@@ -458,9 +484,12 @@ set(TDLIB_SOURCE
   td/telegram/Account.h
   td/telegram/AffectedHistory.h
   td/telegram/AnimationsManager.h
+  td/telegram/Application.h
+  td/telegram/AttachMenuManager.h
   td/telegram/AudiosManager.h
   td/telegram/AuthManager.h
   td/telegram/AutoDownloadSettings.h
+  td/telegram/AvailableReaction.h
   td/telegram/BackgroundId.h
   td/telegram/BackgroundManager.h
   td/telegram/BackgroundType.h
@@ -471,7 +500,10 @@ set(TDLIB_SOURCE
   td/telegram/CallId.h
   td/telegram/CallManager.h
   td/telegram/CallbackQueriesManager.h
+  td/telegram/ChainId.h
   td/telegram/ChannelId.h
+  td/telegram/ChannelParticipantFilter.h
+  td/telegram/ChannelType.h
   td/telegram/ChatId.h
   td/telegram/ClientActor.h
   td/telegram/ConfigManager.h
@@ -498,9 +530,13 @@ set(TDLIB_SOURCE
   td/telegram/DialogListId.h
   td/telegram/DialogLocation.h
   td/telegram/DialogParticipant.h
+  td/telegram/DialogParticipantFilter.h
   td/telegram/DialogSource.h
+  td/telegram/Dimensions.h
   td/telegram/Document.h
   td/telegram/DocumentsManager.h
+  td/telegram/DownloadManager.h
+  td/telegram/DownloadManagerCallback.h
   td/telegram/DraftMessage.h
   td/telegram/EncryptedFile.h
   td/telegram/FileReferenceManager.h
@@ -534,6 +570,7 @@ set(TDLIB_SOURCE
   td/telegram/FullMessageId.h
   td/telegram/Game.h
   td/telegram/GameManager.h
+  td/telegram/GitCommitHash.h
   td/telegram/Global.h
   td/telegram/GroupCallId.h
   td/telegram/GroupCallManager.h
@@ -559,13 +596,15 @@ set(TDLIB_SOURCE
   td/telegram/MessageEntity.h
   td/telegram/MessageId.h
   td/telegram/MessageLinkInfo.h
+  td/telegram/MessageReaction.h
   td/telegram/MessageReplyInfo.h
   td/telegram/MessageThreadInfo.h
   td/telegram/MessagesDb.h
   td/telegram/MessageSearchFilter.h
   td/telegram/MessageSender.h
   td/telegram/MessagesManager.h
-  td/telegram/MessageTtlSetting.h
+  td/telegram/MessageTtl.h
+  td/telegram/MinChannel.h
   td/telegram/misc.h
   td/telegram/net/AuthDataShared.h
   td/telegram/net/ConnectionCreator.h
@@ -598,14 +637,22 @@ set(TDLIB_SOURCE
   td/telegram/NotificationId.h
   td/telegram/NotificationManager.h
   td/telegram/NotificationSettings.h
+  td/telegram/NotificationSettingsManager.h
+  td/telegram/NotificationSound.h
+  td/telegram/NotificationSoundType.h
   td/telegram/NotificationType.h
+  td/telegram/OptionManager.h
   td/telegram/PasswordManager.h
   td/telegram/Payments.h
   td/telegram/PhoneNumberManager.h
   td/telegram/Photo.h
+  td/telegram/PhotoFormat.h
+  td/telegram/PhotoSize.h
   td/telegram/PhotoSizeSource.h
   td/telegram/PollId.h
   td/telegram/PollManager.h
+  td/telegram/Premium.h
+  td/telegram/PremiumGiftOption.h
   td/telegram/PrivacyManager.h
   td/telegram/PtsManager.h
   td/telegram/PublicDialogType.h
@@ -632,8 +679,10 @@ set(TDLIB_SOURCE
   td/telegram/SpecialStickerSetType.h
   td/telegram/SponsoredMessageManager.h
   td/telegram/StateManager.h
+  td/telegram/StickerFormat.h
   td/telegram/StickerSetId.h
   td/telegram/StickersManager.h
+  td/telegram/StickerType.h
   td/telegram/StorageManager.h
   td/telegram/SuggestedAction.h
   td/telegram/Td.h
@@ -661,6 +710,7 @@ set(TDLIB_SOURCE
   td/telegram/AuthManager.hpp
   td/telegram/BackgroundType.hpp
   td/telegram/DialogFilter.hpp
+  td/telegram/Dimensions.hpp
   td/telegram/Document.hpp
   td/telegram/DocumentsManager.hpp
   td/telegram/DraftMessage.hpp
@@ -669,15 +719,21 @@ set(TDLIB_SOURCE
   td/telegram/files/FileId.hpp
   td/telegram/files/FileLocation.hpp
   td/telegram/files/FileManager.hpp
+  td/telegram/files/FileSourceId.hpp
   td/telegram/Game.hpp
   td/telegram/InputMessageText.hpp
   td/telegram/MessageEntity.hpp
+  td/telegram/MessageReaction.hpp
+  td/telegram/MessageReplyInfo.hpp
+  td/telegram/MinChannel.hpp
   td/telegram/NotificationSettings.hpp
   td/telegram/Payments.hpp
   td/telegram/Photo.hpp
+  td/telegram/PhotoSize.hpp
   td/telegram/PhotoSizeSource.hpp
   td/telegram/PollId.hpp
   td/telegram/PollManager.hpp
+  td/telegram/PremiumGiftOption.hpp
   td/telegram/ReplyMarkup.hpp
   td/telegram/SecureValue.hpp
   td/telegram/SendCodeHelper.hpp
@@ -688,6 +744,8 @@ set(TDLIB_SOURCE
   td/telegram/VoiceNotesManager.hpp
 
   ${TL_TD_SCHEME_SOURCE}
+
+  ${CMAKE_CURRENT_BINARY_DIR}/td/telegram/GitCommitHash.cpp
 )
 
 set(MEMPROF_SOURCE
@@ -695,20 +753,9 @@ set(MEMPROF_SOURCE
   memprof/memprof.h
 )
 
-#RULES
-
-file(MAKE_DIRECTORY auto)
-
-if (CMAKE_HOST_WIN32)
-  set(GIT_COMMIT_CMD powershell -ExecutionPolicy ByPass ./gen_git_commit_h.ps1)
-else()
-  set(GIT_COMMIT_CMD ./gen_git_commit_h.sh)
-endif()
-
-add_custom_target(git_commit ALL
-  WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-  COMMAND ${GIT_COMMIT_CMD}
-  COMMENT "Generate git_commit.h"
+set(MEMPROF_STAT_SOURCE
+  memprof/memprof_stat.cpp
+  memprof/memprof_stat.h
 )
 
 #LIBRARIES
@@ -727,6 +774,10 @@ if (MEMPROF)
     message(FATAL_ERROR "Unsupported MEMPROF value \"${MEMPROF}\"")
   endif()
 endif()
+
+add_library(memprof_stat EXCLUDE_FROM_ALL STATIC ${MEMPROF_STAT_SOURCE})
+target_include_directories(memprof_stat PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
+target_link_libraries(memprof_stat PRIVATE tdutils)
 
 
 add_library(tdapi ${TL_TD_API_SOURCE})

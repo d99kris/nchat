@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -104,6 +104,12 @@ StringBuilder &operator<<(StringBuilder &string_builder, MessageContentType cont
       return string_builder << "InviteToGroupCall";
     case MessageContentType::ChatSetTheme:
       return string_builder << "ChatSetTheme";
+    case MessageContentType::WebViewDataSent:
+      return string_builder << "WebViewDataSent";
+    case MessageContentType::WebViewDataReceived:
+      return string_builder << "WebViewDataReceived";
+    case MessageContentType::GiftPremium:
+      return string_builder << "GiftPremium";
     default:
       UNREACHABLE();
       return string_builder;
@@ -159,6 +165,9 @@ bool is_allowed_media_group_content(MessageContentType content_type) {
     case MessageContentType::GroupCall:
     case MessageContentType::InviteToGroupCall:
     case MessageContentType::ChatSetTheme:
+    case MessageContentType::WebViewDataSent:
+    case MessageContentType::WebViewDataReceived:
+    case MessageContentType::GiftPremium:
       return false;
     default:
       UNREACHABLE();
@@ -222,6 +231,9 @@ bool is_secret_message_content(int32 ttl, MessageContentType content_type) {
     case MessageContentType::GroupCall:
     case MessageContentType::InviteToGroupCall:
     case MessageContentType::ChatSetTheme:
+    case MessageContentType::WebViewDataSent:
+    case MessageContentType::WebViewDataReceived:
+    case MessageContentType::GiftPremium:
       return false;
     default:
       UNREACHABLE();
@@ -278,6 +290,9 @@ bool is_service_message_content(MessageContentType content_type) {
     case MessageContentType::GroupCall:
     case MessageContentType::InviteToGroupCall:
     case MessageContentType::ChatSetTheme:
+    case MessageContentType::WebViewDataSent:
+    case MessageContentType::WebViewDataReceived:
+    case MessageContentType::GiftPremium:
       return true;
     default:
       UNREACHABLE();
@@ -334,10 +349,29 @@ bool can_have_message_content_caption(MessageContentType content_type) {
     case MessageContentType::GroupCall:
     case MessageContentType::InviteToGroupCall:
     case MessageContentType::ChatSetTheme:
+    case MessageContentType::WebViewDataSent:
+    case MessageContentType::WebViewDataReceived:
+    case MessageContentType::GiftPremium:
       return false;
     default:
       UNREACHABLE();
       return false;
+  }
+}
+
+uint64 get_message_content_chain_id(MessageContentType content_type) {
+  switch (content_type) {
+    case MessageContentType::Animation:
+    case MessageContentType::Audio:
+    case MessageContentType::Document:
+    case MessageContentType::Photo:
+    case MessageContentType::Sticker:
+    case MessageContentType::Video:
+    case MessageContentType::VideoNote:
+    case MessageContentType::VoiceNote:
+      return 1;
+    default:
+      return 2;
   }
 }
 

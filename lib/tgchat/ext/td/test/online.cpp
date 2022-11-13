@@ -1,29 +1,35 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
-#include <iostream>
-#include <map>
-#include <tdutils/td/utils/FileLog.h>
-#include <tdutils/td/utils/OptionParser.h>
-#include <tdutils/td/utils/port/path.h>
-#include <td/telegram/ClientActor.h>
-#include <tdutils/td/utils/filesystem.h>
-#include "td/telegram/TdCallback.h"
-#include "td/utils/port/signals.h"
+#include "td/telegram/ClientActor.h"
 #include "td/telegram/Log.h"
-#include "td/utils/crypto.h"
-#include "td/utils/misc.h"
-#include "td/utils/Random.h"
+#include "td/telegram/td_api_json.h"
+#include "td/telegram/TdCallback.h"
+
 #include "td/actor/actor.h"
 #include "td/actor/ConcurrentScheduler.h"
-#include "td/actor/PromiseFuture.h"
 #include "td/actor/MultiPromise.h"
-#include "td/telegram/td_api_json.h"
+#include "td/actor/PromiseFuture.h"
+
+#include "td/utils/crypto.h"
+#include "td/utils/FileLog.h"
+#include "td/utils/filesystem.h"
+#include "td/utils/misc.h"
+#include "td/utils/OptionParser.h"
+#include "td/utils/port/path.h"
+#include "td/utils/port/signals.h"
+#include "td/utils/Promise.h"
+#include "td/utils/Random.h"
+
+#include <iostream>
+#include <map>
+#include <memory>
 
 namespace td {
+
 template <class T>
 static void check_td_error(T &result) {
   LOG_CHECK(result->get_id() != td::td_api::error::ID) << to_string(result);
@@ -155,7 +161,7 @@ class Task : public TestClient::Listener {
   void on_update(std::shared_ptr<TestClient::Update> update) override {
     auto it = sent_queries_.find(update->id);
     if (it != sent_queries_.end()) {
-      it->second(std::move(update->object));
+      it->second.set_value(std::move(update->object));
       sent_queries_.erase(it);
     }
     process_update(update);
@@ -283,7 +289,7 @@ class GetMe : public Task {
     int64 user_id;
     int64 chat_id;
   };
-  GetMe(Promise<Result> promise) : promise_(std::move(promise)) {
+  explicit GetMe(Promise<Result> promise) : promise_(std::move(promise)) {
   }
   void start_up() override {
     send_query(td::make_tl_object<td::td_api::getMe>(), [this](auto res) { with_user_id(res.move_as_ok()->id_); });
@@ -419,7 +425,7 @@ class TestDownloadFile : public Task {
       unlink(file.local_->path_).ignore();
     }
 
-    size_t size = file.size_;
+    auto size = narrow_cast<size_t>(file.size_);
     Random::Xorshift128plus rnd(123);
 
     size_t begin = 0;
@@ -454,13 +460,14 @@ class TestDownloadFile : public Task {
   }
 
   void start_chunk() {
-    send_query(td::make_tl_object<td::td_api::downloadFile>(file_id_, 1, int(ranges_.back().begin),
-                                                            int(ranges_.back().end - ranges_.back().begin), true),
+    send_query(td::make_tl_object<td::td_api::downloadFile>(
+                   file_id_, 1, static_cast<int64>(ranges_.back().begin),
+                   static_cast<int64>(ranges_.back().end - ranges_.back().begin), true),
                [this](auto res) { got_chunk(*res.ok()); });
   }
 };
 
-std::string gen_readable_file(size_t block_size, size_t block_count) {
+static std::string gen_readable_file(size_t block_size, size_t block_count) {
   std::string content;
   for (size_t block_id = 0; block_id < block_count; block_id++) {
     std::string block;
@@ -482,7 +489,7 @@ class TestTd : public Actor {
     string api_hash;
   };
 
-  TestTd(Options options) : options_(std::move(options)) {
+  explicit TestTd(Options options) : options_(std::move(options)) {
   }
 
  private:

@@ -28,8 +28,11 @@ if (CRC32C_FOUND)
   set(TD_HAVE_CRC32C 1)
 endif()
 
-if (ABSL_FOUND)
-  set(TD_HAVE_ABSL 1)
+if (TD_WITH_ABSEIL)
+  find_package(ABSL QUIET)
+  if (ABSL_FOUND)
+    set(TD_HAVE_ABSL 1)
+  endif()
 endif()
 
 configure_file(td/utils/config.h.in td/utils/config.h @ONLY)
@@ -95,6 +98,8 @@ set(TDUTILS_SOURCE
   td/utils/FileLog.cpp
   td/utils/filesystem.cpp
   td/utils/find_boundary.cpp
+  td/utils/FlatHashTable.cpp
+  td/utils/FloodControlGlobal.cpp
   td/utils/Gzip.cpp
   td/utils/GzipByteFlow.cpp
   td/utils/Hints.cpp
@@ -133,6 +138,7 @@ set(TDUTILS_SOURCE
   td/utils/port/IPAddress.h
   td/utils/port/IoSlice.h
   td/utils/port/MemoryMapping.h
+  td/utils/port/Mutex.h
   td/utils/port/path.h
   td/utils/port/platform.h
   td/utils/port/Poll.h
@@ -184,6 +190,7 @@ set(TDUTILS_SOURCE
   td/utils/BufferedUdp.h
   td/utils/ByteFlow.h
   td/utils/CancellationToken.h
+  td/utils/ChainScheduler.h
   td/utils/ChangesProcessor.h
   td/utils/check.h
   td/utils/Closure.h
@@ -201,8 +208,14 @@ set(TDUTILS_SOURCE
   td/utils/ExitGuard.h
   td/utils/FileLog.h
   td/utils/filesystem.h
+  td/utils/fixed_vector.h
   td/utils/find_boundary.h
+  td/utils/FlatHashMap.h
+  td/utils/FlatHashMapChunks.h
+  td/utils/FlatHashSet.h
+  td/utils/FlatHashTable.h
   td/utils/FloodControlFast.h
+  td/utils/FloodControlGlobal.h
   td/utils/FloodControlStrict.h
   td/utils/format.h
   td/utils/Gzip.h
@@ -210,6 +223,7 @@ set(TDUTILS_SOURCE
   td/utils/Hash.h
   td/utils/HashMap.h
   td/utils/HashSet.h
+  td/utils/HashTableUtils.h
   td/utils/HazardPointers.h
   td/utils/Heap.h
   td/utils/Hints.h
@@ -219,6 +233,7 @@ set(TDUTILS_SOURCE
   td/utils/JsonBuilder.h
   td/utils/List.h
   td/utils/logging.h
+  td/utils/MapNode.h
   td/utils/MemoryLog.h
   td/utils/misc.h
   td/utils/MovableValue.h
@@ -236,9 +251,11 @@ set(TDUTILS_SOURCE
   td/utils/overloaded.h
   td/utils/Parser.h
   td/utils/PathView.h
+  td/utils/Promise.h
   td/utils/queue.h
   td/utils/Random.h
   td/utils/ScopeGuard.h
+  td/utils/SetNode.h
   td/utils/SharedObjectPool.h
   td/utils/SharedSlice.h
   td/utils/Slice-decl.h
@@ -276,6 +293,7 @@ set(TDUTILS_SOURCE
   td/utils/utf8.h
   td/utils/Variant.h
   td/utils/VectorQueue.h
+  td/utils/WaitFreeHashMap.h
 )
 
 if (TDUTILS_MIME_TYPE)
@@ -289,13 +307,16 @@ endif()
 set(TDUTILS_TEST_SOURCE
   ${CMAKE_CURRENT_SOURCE_DIR}/test/bitmask.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/buffer.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/ChainScheduler.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/ConcurrentHashMap.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/crypto.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/emoji.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/Enumerator.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/EpochBasedMemoryReclamation.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/filesystem.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/gzip.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/HazardPointers.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/HashSet.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/heap.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/HttpUrl.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/json.cpp
@@ -313,10 +334,10 @@ set(TDUTILS_TEST_SOURCE
   ${CMAKE_CURRENT_SOURCE_DIR}/test/SharedSlice.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/StealingQueue.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/variant.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/WaitFreeHashMap.cpp
   PARENT_SCOPE
 )
 
-#RULES
 #LIBRARIES
 add_library(tdutils STATIC ${TDUTILS_SOURCE})
 
@@ -351,7 +372,7 @@ if (CRC32C_FOUND)
   target_link_libraries(tdutils PRIVATE crc32c)
 endif()
 if (ABSL_FOUND)
-  target_link_libraries(tdutils SYSTEM PUBLIC absl::flat_hash_map absl::flat_hash_set absl::hash)
+  target_link_libraries(tdutils PUBLIC absl::flat_hash_map absl::flat_hash_set absl::hash)
 endif()
 
 if (WIN32)
@@ -381,3 +402,14 @@ install(TARGETS tdutils EXPORT TdTargets
   LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 )
+
+if (TD_TEST_FOLLY AND ABSL_FOUND)
+  find_package(benchmark QUIET)
+  find_package(folly QUIET)
+  find_package(gflags QUIET)
+
+  if (benchmark_FOUND AND folly_FOUND)
+    add_executable(benchmark-hashset test/hashset_benchmark.cpp)
+    target_link_libraries(benchmark-hashset PRIVATE tdutils benchmark::benchmark Folly::folly absl::flat_hash_map absl::hash)
+  endif()
+endif()

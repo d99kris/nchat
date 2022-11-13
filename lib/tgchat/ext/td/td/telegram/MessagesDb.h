@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -13,10 +13,9 @@
 #include "td/telegram/NotificationId.h"
 #include "td/telegram/ServerMessageId.h"
 
-#include "td/actor/PromiseFuture.h"
-
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
+#include "td/utils/Promise.h"
 #include "td/utils/Status.h"
 
 #include <memory>
@@ -105,14 +104,15 @@ class MessagesDbSyncInterface {
   MessagesDbSyncInterface &operator=(const MessagesDbSyncInterface &) = delete;
   virtual ~MessagesDbSyncInterface() = default;
 
-  virtual Status add_message(FullMessageId full_message_id, ServerMessageId unique_message_id, UserId sender_user_id,
-                             int64 random_id, int32 ttl_expires_at, int32 index_mask, int64 search_id, string text,
-                             NotificationId notification_id, MessageId top_thread_message_id, BufferSlice data) = 0;
+  virtual Status add_message(FullMessageId full_message_id, ServerMessageId unique_message_id,
+                             DialogId sender_dialog_id, int64 random_id, int32 ttl_expires_at, int32 index_mask,
+                             int64 search_id, string text, NotificationId notification_id,
+                             MessageId top_thread_message_id, BufferSlice data) = 0;
   virtual Status add_scheduled_message(FullMessageId full_message_id, BufferSlice data) = 0;
 
   virtual Status delete_message(FullMessageId full_message_id) = 0;
   virtual Status delete_all_dialog_messages(DialogId dialog_id, MessageId from_message_id) = 0;
-  virtual Status delete_dialog_messages_from_user(DialogId dialog_id, UserId sender_user_id) = 0;
+  virtual Status delete_dialog_messages_by_sender(DialogId dialog_id, DialogId sender_dialog_id) = 0;
 
   virtual Result<MessagesDbDialogMessage> get_message(FullMessageId full_message_id) = 0;
   virtual Result<MessagesDbMessage> get_message_by_unique_message_id(ServerMessageId unique_message_id) = 0;
@@ -158,7 +158,7 @@ class MessagesDbAsyncInterface {
   MessagesDbAsyncInterface &operator=(const MessagesDbAsyncInterface &) = delete;
   virtual ~MessagesDbAsyncInterface() = default;
 
-  virtual void add_message(FullMessageId full_message_id, ServerMessageId unique_message_id, UserId sender_user_id,
+  virtual void add_message(FullMessageId full_message_id, ServerMessageId unique_message_id, DialogId sender_dialog_id,
                            int64 random_id, int32 ttl_expires_at, int32 index_mask, int64 search_id, string text,
                            NotificationId notification_id, MessageId top_thread_message_id, BufferSlice data,
                            Promise<> promise) = 0;
@@ -166,7 +166,7 @@ class MessagesDbAsyncInterface {
 
   virtual void delete_message(FullMessageId full_message_id, Promise<> promise) = 0;
   virtual void delete_all_dialog_messages(DialogId dialog_id, MessageId from_message_id, Promise<> promise) = 0;
-  virtual void delete_dialog_messages_from_user(DialogId dialog_id, UserId sender_user_id, Promise<> promise) = 0;
+  virtual void delete_dialog_messages_by_sender(DialogId dialog_id, DialogId sender_dialog_id, Promise<> promise) = 0;
 
   virtual void get_message(FullMessageId full_message_id, Promise<MessagesDbDialogMessage> promise) = 0;
   virtual void get_message_by_unique_message_id(ServerMessageId unique_message_id,
@@ -205,6 +205,6 @@ std::shared_ptr<MessagesDbSyncSafeInterface> create_messages_db_sync(
     std::shared_ptr<SqliteConnectionSafe> sqlite_connection);
 
 std::shared_ptr<MessagesDbAsyncInterface> create_messages_db_async(std::shared_ptr<MessagesDbSyncSafeInterface> sync_db,
-                                                                   int32 scheduler_id);
+                                                                   int32 scheduler_id = -1);
 
 }  // namespace td

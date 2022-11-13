@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -166,7 +166,7 @@ void PhoneNumberManager::process_check_code_result(Result<tl_object_ptr<telegram
     return on_query_error(result.move_as_error());
   }
   send_closure(G()->contacts_manager(), &ContactsManager::on_get_user, result.move_as_ok(), "process_check_code_result",
-               true, false);
+               true);
   state_ = State::Ok;
   on_query_ok();
 }

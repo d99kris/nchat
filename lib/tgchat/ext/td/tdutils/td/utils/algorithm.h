@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -118,6 +118,16 @@ bool contains(const V &v, const T &value) {
   return false;
 }
 
+template <class V, class F>
+bool all_of(const V &v, F &&f) {
+  for (const auto &x : v) {
+    if (!f(x)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 template <class T>
 void reset_to_empty(T &value) {
   using std::swap;
@@ -183,6 +193,25 @@ auto end(reversion_wrapper<T> w) {
 template <typename T>
 detail::reversion_wrapper<T> reversed(T &iterable) {
   return {iterable};
+}
+
+template <class TableT, class FuncT>
+void table_remove_if(TableT &table, FuncT &&func) {
+  for (auto it = table.begin(); it != table.end();) {
+    if (func(*it)) {
+      it = table.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+
+template <class NodeT, class HashT, class EqT>
+class FlatHashTable;
+
+template <class NodeT, class HashT, class EqT, class FuncT>
+void table_remove_if(FlatHashTable<NodeT, HashT, EqT> &table, FuncT &&func) {
+  table.remove_if(func);
 }
 
 }  // namespace td

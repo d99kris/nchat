@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -36,7 +36,7 @@ class HttpReader {
   HttpReader &operator=(HttpReader &&other) = delete;
   ~HttpReader() {
     if (!temp_file_.empty()) {
-      temp_file_.close();
+      clean_temporary_file();
     }
   }
 
@@ -105,7 +105,7 @@ class HttpReader {
   static constexpr size_t MAX_TOTAL_PARAMETERS_LENGTH = 1 << 20;                 // Some reasonable limit
   static constexpr size_t MAX_TOTAL_HEADERS_LENGTH = 1 << 18;                    // Some reasonable limit
   static constexpr size_t MAX_BOUNDARY_LENGTH = 70;                              // As defined by RFC1341
-  static constexpr int64 MAX_FILE_SIZE = 2000 << 20;                             // Telegram server file size limit
+  static constexpr int64 MAX_FILE_SIZE = static_cast<int64>(4000) << 20;         // Telegram server file size limit
   static constexpr const char TEMP_DIRECTORY_PREFIX[] = "tdlib-server-tmp";
 };
 

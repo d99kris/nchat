@@ -1,26 +1,26 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #pragma once
 
+#include "td/telegram/Dimensions.h"
 #include "td/telegram/files/FileId.h"
 #include "td/telegram/files/FileSourceId.h"
-#include "td/telegram/Photo.h"
+#include "td/telegram/PhotoSize.h"
 #include "td/telegram/SecretInputMedia.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 
 #include "td/actor/actor.h"
-#include "td/actor/PromiseFuture.h"
 
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
+#include "td/utils/FlatHashMap.h"
+#include "td/utils/Promise.h"
 #include "td/utils/Status.h"
-
-#include <unordered_map>
 
 namespace td {
 
@@ -29,6 +29,11 @@ class Td;
 class AnimationsManager final : public Actor {
  public:
   AnimationsManager(Td *td, ActorShared<> parent);
+  AnimationsManager(const AnimationsManager &) = delete;
+  AnimationsManager &operator=(const AnimationsManager &) = delete;
+  AnimationsManager(AnimationsManager &&) = delete;
+  AnimationsManager &operator=(AnimationsManager &&) = delete;
+  ~AnimationsManager() final;
 
   int32 get_animation_duration(FileId file_id) const;
 
@@ -44,7 +49,7 @@ class AnimationsManager final : public Actor {
 
   SecretInputMedia get_secret_input_media(FileId animation_file_id,
                                           tl_object_ptr<telegram_api::InputEncryptedFile> input_file,
-                                          const string &caption, BufferSlice thumbnail) const;
+                                          const string &caption, BufferSlice thumbnail, int32 layer) const;
 
   FileId get_animation_thumbnail_file_id(FileId file_id) const;
 
@@ -89,8 +94,6 @@ class AnimationsManager final : public Actor {
   FileId parse_animation(ParserT &parser);
 
   string get_animation_search_text(FileId file_id) const;
-
-  void after_get_difference();
 
   void get_current_state(vector<td_api::object_ptr<td_api::Update>> &updates) const;
 
@@ -142,7 +145,7 @@ class AnimationsManager final : public Actor {
   Td *td_;
   ActorShared<> parent_;
 
-  std::unordered_map<FileId, unique_ptr<Animation>, FileIdHash> animations_;
+  FlatHashMap<FileId, unique_ptr<Animation>, FileIdHash> animations_;
 
   int32 saved_animations_limit_ = 200;
   vector<FileId> saved_animation_ids_;

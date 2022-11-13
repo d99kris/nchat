@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -162,18 +162,24 @@ class AuthData {
       return main_auth_key_.need_header() ? Slice(header_) : Slice();
     }
   }
+
   void set_header(std::string header) {
     header_ = std::move(header);
   }
+
   void on_api_response() {
     if (use_pfs()) {
-      if (tmp_auth_key_.auth_flag()) {
-        tmp_auth_key_.set_need_header(false);
-      }
+      tmp_auth_key_.remove_header();
     } else {
-      if (main_auth_key_.auth_flag()) {
-        main_auth_key_.set_need_header(false);
-      }
+      main_auth_key_.remove_header();
+    }
+  }
+
+  void on_connection_not_inited() {
+    if (use_pfs()) {
+      tmp_auth_key_.restore_header();
+    } else {
+      main_auth_key_.restore_header();
     }
   }
 

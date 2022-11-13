@@ -72,3 +72,22 @@ if (NOT WIN32 AND NOT CYGWIN)
   add_executable(bench_queue bench_queue.cpp)
   target_link_libraries(bench_queue PRIVATE tdutils)
 endif()
+
+if (TD_TEST_FOLLY AND TD_WITH_ABSEIL)
+  find_package(ABSL QUIET)
+  find_package(folly QUIET)
+  find_package(gflags QUIET)
+
+  if (ABSL_FOUND AND folly_FOUND)
+    add_executable(memory-hashset-memprof EXCLUDE_FROM_ALL hashset_memory.cpp)
+    target_compile_definitions(memory-hashset-memprof PRIVATE USE_MEMPROF=1)
+    target_link_libraries(memory-hashset-memprof PRIVATE tdutils memprof_stat Folly::folly absl::flat_hash_map absl::hash)
+
+    add_executable(memory-hashset-os hashset_memory.cpp)
+    target_compile_definitions(memory-hashset-os PRIVATE USE_MEMPROF=0)
+    target_link_libraries(memory-hashset-os PRIVATE tdutils Folly::folly absl::flat_hash_map absl::hash)
+
+    add_executable(hashmap-build hashmap_build.cpp)
+    target_link_libraries(hashmap-build PRIVATE tdutils Folly::folly absl::flat_hash_map absl::hash)
+  endif()
+endif()

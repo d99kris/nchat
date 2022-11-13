@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -39,8 +39,7 @@ SessionMultiProxy::SessionMultiProxy(int32 session_count, std::shared_ptr<AuthDa
 
 void SessionMultiProxy::send(NetQueryPtr query) {
   size_t pos = 0;
-  // TODO temporary hack with total_timeout_limit
-  if (query->auth_flag() == NetQuery::AuthFlag::On && query->total_timeout_limit_ > 7) {
+  if (query->auth_flag() == NetQuery::AuthFlag::On) {
     if (query->session_rand()) {
       pos = query->session_rand() % sessions_.size();
     } else {

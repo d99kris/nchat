@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -26,10 +26,10 @@ struct GroupCallParticipant {
   GroupCallVideoPayload presentation_payload;
   int32 audio_source = 0;
   int32 presentation_audio_source = 0;
+  int64 raise_hand_rating = 0;
   int32 joined_date = 0;
   int32 active_date = 0;
   int32 volume_level = 10000;
-  int64 raise_hand_rating = 0;
   bool is_volume_level_local = false;
   bool server_is_muted_by_themselves = false;
   bool server_is_muted_by_admin = false;
@@ -78,7 +78,9 @@ struct GroupCallParticipant {
 
   bool set_pending_is_muted(bool is_muted, bool can_manage, bool is_admin);
 
-  GroupCallParticipantOrder get_real_order(bool can_self_unmute, bool joined_date_asc, bool keep_active_date) const;
+  GroupCallParticipantOrder get_real_order(bool can_self_unmute, bool joined_date_asc) const;
+
+  GroupCallParticipantOrder get_server_order(bool can_self_unmute, bool joined_date_asc) const;
 
   bool is_valid() const {
     return dialog_id.is_valid();

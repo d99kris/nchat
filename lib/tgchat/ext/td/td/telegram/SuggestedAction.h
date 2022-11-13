@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -9,9 +9,8 @@
 #include "td/telegram/DialogId.h"
 #include "td/telegram/td_api.h"
 
-#include "td/actor/PromiseFuture.h"
-
 #include "td/utils/common.h"
+#include "td/utils/Promise.h"
 #include "td/utils/Slice.h"
 
 namespace td {
@@ -21,18 +20,21 @@ struct SuggestedAction {
     Empty,
     EnableArchiveAndMuteNewChats,
     CheckPhoneNumber,
-    SeeTicksHint,
+    ViewChecksHint,
     ConvertToGigagroup,
-    CheckPassword
+    CheckPassword,
+    SetPassword
   };
   Type type_ = Type::Empty;
   DialogId dialog_id_;
+  int32 otherwise_relogin_days_ = 0;
 
   void init(Type type);
 
   SuggestedAction() = default;
 
-  explicit SuggestedAction(Type type, DialogId dialog_id = DialogId()) : type_(type), dialog_id_(dialog_id) {
+  explicit SuggestedAction(Type type, DialogId dialog_id = DialogId(), int32 otherwise_relogin_days = 0)
+      : type_(type), dialog_id_(dialog_id), otherwise_relogin_days_(otherwise_relogin_days) {
   }
 
   explicit SuggestedAction(Slice action_str);

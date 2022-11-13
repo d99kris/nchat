@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -16,12 +16,17 @@
 #include "td/utils/common.h"
 #include "td/utils/crypto.h"
 #include "td/utils/ExitGuard.h"
+#include "td/utils/FlatHashMap.h"
+#include "td/utils/FlatHashSet.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/MpscPollableQueue.h"
 #include "td/utils/port/RwMutex.h"
 #include "td/utils/port/thread.h"
 #include "td/utils/Slice.h"
+#include "td/utils/SliceBuilder.h"
+#include "td/utils/StringBuilder.h"
+#include "td/utils/utf8.h"
 
 #include <algorithm>
 #include <atomic>
@@ -29,8 +34,6 @@
 #include <memory>
 #include <mutex>
 #include <queue>
-#include <unordered_map>
-#include <unordered_set>
 
 namespace td {
 
@@ -204,8 +207,8 @@ class ClientManager::Impl final {
   unique_ptr<ConcurrentScheduler> concurrent_scheduler_;
   ClientId client_id_{0};
   Td::Options options_;
-  std::unordered_set<int32> pending_clients_;
-  std::unordered_map<int32, ActorOwn<Td>> tds_;
+  FlatHashSet<int32> pending_clients_;
+  FlatHashMap<int32, ActorOwn<Td>> tds_;
 };
 
 class Client::Impl final {
@@ -246,8 +249,8 @@ class MultiTd final : public Actor {
     auto old_context = set_context(context);
     auto old_tag = set_tag(to_string(td_id));
     td = create_actor<Td>("Td", std::move(callback), options_);
-    set_context(old_context);
-    set_tag(old_tag);
+    set_context(std::move(old_context));
+    set_tag(std::move(old_tag));
   }
 
   void send(ClientManager::ClientId client_id, ClientManager::RequestId request_id,
@@ -264,7 +267,7 @@ class MultiTd final : public Actor {
 
  private:
   Td::Options options_;
-  std::unordered_map<int32, ActorOwn<Td>> tds_;
+  FlatHashMap<int32, ActorOwn<Td>> tds_;
 };
 
 class TdReceiver {
@@ -274,11 +277,16 @@ class TdReceiver {
     output_queue_->init();
   }
 
-  ClientManager::Response receive(double timeout) {
+  ClientManager::Response receive(double timeout, bool from_manager) {
     VLOG(td_requests) << "Begin to wait for updates with timeout " << timeout;
     auto is_locked = receive_lock_.exchange(true);
     if (is_locked) {
-      LOG(FATAL) << "Receive is called after Client destroy, or simultaneously from different threads";
+      if (from_manager) {
+        LOG(FATAL) << "Receive must not be called simultaneously from two different threads, but this has just "
+                      "happened. Call it from a fixed thread, dedicated for updates and response processing.";
+      } else {
+        LOG(FATAL) << "Receive is called after Client destroy, or simultaneously from different threads";
+      }
     }
     auto response = receive_unlocked(clamp(timeout, 0.0, 1000000.0));
     is_locked = receive_lock_.exchange(false);
@@ -424,7 +432,11 @@ class MultiImplPool {
     if (impls_.empty()) {
       init_openssl_threads();
 
-      impls_.resize(clamp(thread::hardware_concurrency(), 8u, 20u) * 5 / 4);
+      auto max_client_threads = clamp(thread::hardware_concurrency(), 8u, 20u) * 5 / 4;
+#if TD_OPENBSD
+      max_client_threads = td::min(max_client_threads, 4u);
+#endif
+      impls_.resize(max_client_threads);
       CHECK(impls_.size() * (1 + MultiImpl::ADDITIONAL_THREAD_COUNT + 1 /* IOCP */) < 128);
 
       net_query_stats_ = std::make_shared<NetQueryStats>();
@@ -505,7 +517,7 @@ class ClientManager::Impl final {
   }
 
   Response receive(double timeout) {
-    auto response = receiver_.receive(timeout);
+    auto response = receiver_.receive(timeout, true);
     if (response.request_id == 0 && response.object != nullptr &&
         response.object->get_id() == td_api::updateAuthorizationState::ID &&
         static_cast<const td_api::updateAuthorizationState *>(response.object.get())->authorization_state_->get_id() ==
@@ -571,7 +583,7 @@ class ClientManager::Impl final {
     std::shared_ptr<MultiImpl> impl;
     bool is_closed = false;
   };
-  std::unordered_map<ClientId, MultiImplInfo> impls_;
+  FlatHashMap<ClientId, MultiImplInfo> impls_;
   TdReceiver receiver_;
 };
 
@@ -594,7 +606,7 @@ class Client::Impl final {
   }
 
   Response receive(double timeout) {
-    auto response = receiver_.receive(timeout);
+    auto response = receiver_.receive(timeout, false);
 
     Response old_response;
     old_response.id = response.request_id;
@@ -609,7 +621,7 @@ class Client::Impl final {
   ~Impl() {
     multi_impl_->close(td_id_);
     while (!ExitGuard::is_exited()) {
-      auto response = receiver_.receive(0.1);
+      auto response = receiver_.receive(0.1, false);
       if (response.object == nullptr && response.client_id != 0 && response.request_id == 0) {
         break;
       }
@@ -670,7 +682,18 @@ static std::atomic<ClientManager::LogMessageCallbackPtr> log_message_callback;
 static void log_message_callback_wrapper(int verbosity_level, CSlice message) {
   auto callback = log_message_callback.load(std::memory_order_relaxed);
   if (callback != nullptr) {
-    callback(verbosity_level, message.c_str());
+    if (check_utf8(message)) {
+      callback(verbosity_level, message.c_str());
+    } else {
+      size_t pos = 0;
+      while (1 <= message[pos] && message[pos] <= 126) {
+        pos++;
+      }
+      CHECK(pos + 1 < message.size());
+      auto utf8_message = PSTRING() << message.substr(0, pos)
+                                    << url_encode(message.substr(pos, message.size() - pos - 1)) << '\n';
+      callback(verbosity_level, utf8_message.c_str());
+    }
   }
 }
 

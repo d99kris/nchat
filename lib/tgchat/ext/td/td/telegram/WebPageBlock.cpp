@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -13,6 +13,7 @@
 #include "td/telegram/ChannelId.h"
 #include "td/telegram/ContactsManager.h"
 #include "td/telegram/DialogId.h"
+#include "td/telegram/Dimensions.h"
 #include "td/telegram/Document.h"
 #include "td/telegram/DocumentsManager.h"
 #include "td/telegram/DocumentsManager.hpp"
@@ -20,6 +21,7 @@
 #include "td/telegram/Location.h"
 #include "td/telegram/Photo.h"
 #include "td/telegram/Photo.hpp"
+#include "td/telegram/PhotoFormat.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/Version.h"
 #include "td/telegram/VideosManager.h"
@@ -36,6 +38,7 @@
 #include "td/utils/tl_helpers.h"
 
 #include <type_traits>
+#include <unordered_map>
 
 namespace td {
 
@@ -1763,10 +1766,10 @@ class WebPageBlockVoiceNote final : public WebPageBlock {
 };
 
 vector<RichText> get_rich_texts(vector<tl_object_ptr<telegram_api::RichText>> &&rich_text_ptrs,
-                                const std::unordered_map<int64, FileId> &documents);
+                                const FlatHashMap<int64, FileId> &documents);
 
 RichText get_rich_text(tl_object_ptr<telegram_api::RichText> &&rich_text_ptr,
-                       const std::unordered_map<int64, FileId> &documents) {
+                       const FlatHashMap<int64, FileId> &documents) {
   CHECK(rich_text_ptr != nullptr);
 
   RichText result;
@@ -1881,14 +1884,14 @@ RichText get_rich_text(tl_object_ptr<telegram_api::RichText> &&rich_text_ptr,
 }
 
 vector<RichText> get_rich_texts(vector<tl_object_ptr<telegram_api::RichText>> &&rich_text_ptrs,
-                                const std::unordered_map<int64, FileId> &documents) {
+                                const FlatHashMap<int64, FileId> &documents) {
   return transform(std::move(rich_text_ptrs), [&documents](tl_object_ptr<telegram_api::RichText> &&rich_text) {
     return get_rich_text(std::move(rich_text), documents);
   });
 }
 
 WebPageBlockCaption get_page_block_caption(tl_object_ptr<telegram_api::pageCaption> &&page_caption,
-                                           const std::unordered_map<int64, FileId> &documents) {
+                                           const FlatHashMap<int64, FileId> &documents) {
   CHECK(page_caption != nullptr);
   WebPageBlockCaption result;
   result.text = get_rich_text(std::move(page_caption->text_), documents);
@@ -1897,12 +1900,12 @@ WebPageBlockCaption get_page_block_caption(tl_object_ptr<telegram_api::pageCapti
 }
 
 unique_ptr<WebPageBlock> get_web_page_block(Td *td, tl_object_ptr<telegram_api::PageBlock> page_block_ptr,
-                                            const std::unordered_map<int64, FileId> &animations,
-                                            const std::unordered_map<int64, FileId> &audios,
-                                            const std::unordered_map<int64, FileId> &documents,
-                                            const std::unordered_map<int64, Photo> &photos,
-                                            const std::unordered_map<int64, FileId> &videos,
-                                            const std::unordered_map<int64, FileId> &voice_notes) {
+                                            const FlatHashMap<int64, FileId> &animations,
+                                            const FlatHashMap<int64, FileId> &audios,
+                                            const FlatHashMap<int64, FileId> &documents,
+                                            const FlatHashMap<int64, unique_ptr<Photo>> &photos,
+                                            const FlatHashMap<int64, FileId> &videos,
+                                            const FlatHashMap<int64, FileId> &voice_notes) {
   CHECK(page_block_ptr != nullptr);
   switch (page_block_ptr->get_id()) {
     case telegram_api::pageBlockUnsupported::ID:
@@ -2025,7 +2028,7 @@ unique_ptr<WebPageBlock> get_web_page_block(Td *td, tl_object_ptr<telegram_api::
       auto it = photos.find(page_block->photo_id_);
       Photo photo;
       if (it != photos.end()) {
-        photo = it->second;
+        photo = *it->second;
       }
       string url;
       WebPageId web_page_id;
@@ -2070,12 +2073,12 @@ unique_ptr<WebPageBlock> get_web_page_block(Td *td, tl_object_ptr<telegram_api::
       bool is_full_width = page_block->full_width_;
       bool allow_scrolling = page_block->allow_scrolling_;
       bool has_dimensions = (page_block->flags_ & telegram_api::pageBlockEmbed::W_MASK) != 0;
-      auto it = (page_block->flags_ & telegram_api::pageBlockEmbed::POSTER_PHOTO_ID_MASK) != 0
-                    ? photos.find(page_block->poster_photo_id_)
-                    : photos.end();
       Photo poster_photo;
-      if (it != photos.end()) {
-        poster_photo = it->second;
+      if ((page_block->flags_ & telegram_api::pageBlockEmbed::POSTER_PHOTO_ID_MASK) != 0) {
+        auto it = photos.find(page_block->poster_photo_id_);
+        if (it != photos.end()) {
+          poster_photo = *it->second;
+        }
       }
       Dimensions dimensions;
       if (has_dimensions) {
@@ -2090,7 +2093,7 @@ unique_ptr<WebPageBlock> get_web_page_block(Td *td, tl_object_ptr<telegram_api::
       auto it = photos.find(page_block->author_photo_id_);
       Photo author_photo;
       if (it != photos.end()) {
-        author_photo = it->second;
+        author_photo = *it->second;
       }
       return td::make_unique<WebPageBlockEmbeddedPost>(
           std::move(page_block->url_), std::move(page_block->author_), std::move(author_photo), page_block->date_,
@@ -2210,11 +2213,11 @@ unique_ptr<WebPageBlock> get_web_page_block(Td *td, tl_object_ptr<telegram_api::
             article.web_page_id = WebPageId(related_article->webpage_id_);
             article.title = std::move(related_article->title_);
             article.description = std::move(related_article->description_);
-            auto it = (related_article->flags_ & telegram_api::pageRelatedArticle::PHOTO_ID_MASK) != 0
-                          ? photos.find(related_article->photo_id_)
-                          : photos.end();
-            if (it != photos.end()) {
-              article.photo = it->second;
+            if ((related_article->flags_ & telegram_api::pageRelatedArticle::PHOTO_ID_MASK) != 0) {
+              auto it = photos.find(related_article->photo_id_);
+              if (it != photos.end()) {
+                article.photo = *it->second;
+              }
             }
             article.author = std::move(related_article->author_);
             if ((related_article->flags_ & telegram_api::pageRelatedArticle::PUBLISHED_DATE_MASK) != 0) {
@@ -2368,9 +2371,9 @@ void parse(unique_ptr<WebPageBlock> &block, LogEventParser &parser) {
 
 vector<unique_ptr<WebPageBlock>> get_web_page_blocks(
     Td *td, vector<tl_object_ptr<telegram_api::PageBlock>> page_block_ptrs,
-    const std::unordered_map<int64, FileId> &animations, const std::unordered_map<int64, FileId> &audios,
-    const std::unordered_map<int64, FileId> &documents, const std::unordered_map<int64, Photo> &photos,
-    const std::unordered_map<int64, FileId> &videos, const std::unordered_map<int64, FileId> &voice_notes) {
+    const FlatHashMap<int64, FileId> &animations, const FlatHashMap<int64, FileId> &audios,
+    const FlatHashMap<int64, FileId> &documents, const FlatHashMap<int64, unique_ptr<Photo>> &photos,
+    const FlatHashMap<int64, FileId> &videos, const FlatHashMap<int64, FileId> &voice_notes) {
   vector<unique_ptr<WebPageBlock>> result;
   result.reserve(page_block_ptrs.size());
   for (auto &page_block_ptr : page_block_ptrs) {

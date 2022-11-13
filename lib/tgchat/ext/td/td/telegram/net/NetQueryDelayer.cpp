@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -24,7 +24,7 @@ void NetQueryDelayer::delay(NetQueryPtr query) {
   query->is_ready();
   CHECK(query->is_error());
   auto code = query->error().code();
-  double timeout = 0;
+  int32 timeout = 0;
   if (code < 0) {
     // skip
   } else if (code == 500) {
@@ -73,8 +73,7 @@ void NetQueryDelayer::delay(NetQueryPtr query) {
     LOG(WARNING) << "Failed: " << query << " " << tag("timeout", timeout) << tag("total_timeout", query->total_timeout_)
                  << " because of " << error << " from " << query->source_;
     // NB: code must differ from tdapi FLOOD_WAIT code
-    query->set_error(
-        Status::Error(429, PSLICE() << "Too Many Requests: retry after " << static_cast<int32>(timeout + 0.999)));
+    query->set_error(Status::Error(429, PSLICE() << "Too Many Requests: retry after " << timeout));
     query->debug("DcManager: send to DcManager");
     G()->net_query_dispatcher().dispatch(std::move(query));
     return;

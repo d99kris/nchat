@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -70,7 +70,8 @@ SecretChatActor::SecretChatActor(int32 id, unique_ptr<Context> context, bool can
 template <class T>
 NetQueryPtr SecretChatActor::create_net_query(QueryType type, const T &function) {
   return context_->net_query_creator().create(UniqueId::next(UniqueId::Type::Default, static_cast<uint8>(type)),
-                                              function, DcId::main(), NetQuery::Type::Common, NetQuery::AuthFlag::On);
+                                              function, {}, DcId::main(), NetQuery::Type::Common,
+                                              NetQuery::AuthFlag::On);
 }
 
 void SecretChatActor::update_chat(telegram_api::object_ptr<telegram_api::EncryptedChat> chat) {
@@ -547,7 +548,7 @@ void SecretChatActor::run_fill_gaps() {
       auto message = std::move(begin->second);
       pending_inbound_messages_.erase(begin);
       check_status(do_inbound_message_decrypted_unchecked(std::move(message), -1));
-      CHECK(pending_inbound_messages_.find(next_seq_no) == pending_inbound_messages_.end());
+      CHECK(pending_inbound_messages_.count(next_seq_no) == 0);
     } else {
       break;
     }
@@ -632,13 +633,15 @@ void SecretChatActor::check_status(Status status) {
     if (status.code() == 1) {
       LOG(WARNING) << "Non-fatal error: " << status;
     } else {
-      on_fatal_error(std::move(status));
+      on_fatal_error(std::move(status), false);
     }
   }
 }
 
-void SecretChatActor::on_fatal_error(Status status) {
-  LOG(ERROR) << "Fatal error: " << status;
+void SecretChatActor::on_fatal_error(Status status, bool is_expected) {
+  if (!is_expected) {
+    LOG(ERROR) << "Fatal error: " << status;
+  }
   cancel_chat(false, false, Promise<>());
 }
 
@@ -949,6 +952,9 @@ Status SecretChatActor::do_inbound_message_decrypted_unchecked(unique_ptr<log_ev
     return status;
   }
 
+  LOG(INFO) << "Receive message encrypted with MTProto " << mtproto_version << ": "
+            << to_string(message->decrypted_message_layer);
+
   if (message->decrypted_message_layer->message_->get_id() == secret_api::decryptedMessageService8::ID) {
     auto old = move_tl_object_as<secret_api::decryptedMessageService8>(message->decrypted_message_layer->message_);
     message->decrypted_message_layer->message_ =
@@ -983,9 +989,6 @@ Status SecretChatActor::do_inbound_message_decrypted_unchecked(unique_ptr<log_ev
       decrypted_message_service->action_ = secret_api::make_object<secret_api::decryptedMessageActionNoop>();
     }
   }
-
-  LOG(INFO) << "Receive message encrypted with MTProto " << mtproto_version << ": "
-            << to_string(message->decrypted_message_layer);
 
   if (status.is_error()) {
     CHECK(status.code() == 2);  // gap found
@@ -1433,9 +1436,11 @@ NetQueryPtr SecretChatActor::create_net_query(const log_event::OutboundSecretMes
   }
   if (message.is_external && context_->get_config_option_boolean("use_quick_ack")) {
     query->quick_ack_promise_ =
-        PromiseCreator::lambda([actor_id = actor_id(this), random_id = message.random_id](
-                                   Unit) { send_closure(actor_id, &SecretChatActor::on_send_message_ack, random_id); },
-                               PromiseCreator::Ignore());
+        PromiseCreator::lambda([actor_id = actor_id(this), random_id = message.random_id](Result<Unit> result) {
+          if (result.is_ok()) {
+            send_closure(actor_id, &SecretChatActor::on_send_message_ack, random_id);
+          }
+        });
   }
 
   return query;
@@ -1515,7 +1520,7 @@ Status SecretChatActor::outbound_rewrite_with_empty(uint64 state_id) {
   state->message->is_external = false;
   state->message->need_notify_user = false;
   state->message->is_silent = true;
-  state->message->file = log_event::EncryptedInputFile::from_input_encrypted_file(nullptr);
+  state->message->file = log_event::EncryptedInputFile();
   binlog_rewrite(context_->binlog(), state->message->log_event_id(), LogEvent::HandlerType::SecretChats,
                  create_storer(*state->message));
   return Status::OK();
@@ -1605,15 +1610,14 @@ void SecretChatActor::on_outbound_send_message_result(NetQueryPtr query, Promise
         auto sent = move_tl_object_as<telegram_api::messages_sentEncryptedFile>(result);
         auto file = EncryptedFile::get_encrypted_file(std::move(sent->file_));
         if (file == nullptr) {
-          state->message->file = log_event::EncryptedInputFile::from_input_encrypted_file(nullptr);
+          state->message->file = log_event::EncryptedInputFile();
           state->send_result_ = [this, random_id = state->message->random_id,
                                  message_id = MessageId(ServerMessageId(state->message->message_id)),
                                  date = sent->date_](Promise<> promise) {
             context_->on_send_message_ok(random_id, message_id, date, nullptr, std::move(promise));
           };
         } else {
-          state->message->file = log_event::EncryptedInputFile::from_input_encrypted_file(
-              make_tl_object<telegram_api::inputEncryptedFile>(file->id_, file->access_hash_));
+          state->message->file = {log_event::EncryptedInputFile::Location, file->id_, file->access_hash_, 0, 0};
           state->send_result_ = [this, random_id = state->message->random_id,
                                  message_id = MessageId(ServerMessageId(state->message->message_id)),
                                  date = sent->date_, file = *file](Promise<> promise) {
@@ -1650,19 +1654,9 @@ void SecretChatActor::on_outbound_send_message_error(uint64 state_id, Status err
       state = outbound_message_states_.get(state_id);
       need_sync = true;
     }
-  } else {
-    bool should_fail = false;
-    if (error.code() == 429) {
-      should_fail = false;
-    } else if (error.code() == 400 && error.message() == "ENCRYPTION_DECLINED") {
-      should_fail = true;
-    } else {
-      LOG(ERROR) << "Got unknown error for encrypted service message: " << error;
-      should_fail = true;
-    }
-    if (should_fail) {
-      return on_fatal_error(std::move(error));
-    }
+  } else if (error.code() != 429) {
+    return on_fatal_error(std::move(error),
+                          (error.code() == 400 && error.message() == "ENCRYPTION_DECLINED") || error.code() == 403);
   }
   auto query = create_net_query(*state->message);
   state->net_query_id = query->id();
@@ -1773,7 +1767,7 @@ Status SecretChatActor::save_common_info(T &update) {
 
 Status SecretChatActor::on_update_chat(telegram_api::encryptedChatRequested &update) {
   if (auth_state_.state != State::Empty) {
-    LOG(WARNING) << "Unexpected ChatRequested ignored: " << to_string(update);
+    LOG(INFO) << "Unexpected encryptedChatRequested ignored: " << to_string(update);
     return Status::OK();
   }
   auth_state_.state = State::SendAccept;
@@ -1794,7 +1788,7 @@ Status SecretChatActor::on_update_chat(telegram_api::encryptedChatEmpty &update)
 }
 Status SecretChatActor::on_update_chat(telegram_api::encryptedChatWaiting &update) {
   if (auth_state_.state != State::WaitRequestResponse && auth_state_.state != State::WaitAcceptResponse) {
-    LOG(WARNING) << "Unexpected ChatWaiting ignored";
+    LOG(INFO) << "Unexpected encryptedChatWaiting ignored";
     return Status::OK();
   }
   TRY_STATUS(save_common_info(update));
@@ -1803,7 +1797,7 @@ Status SecretChatActor::on_update_chat(telegram_api::encryptedChatWaiting &updat
 }
 Status SecretChatActor::on_update_chat(telegram_api::encryptedChat &update) {
   if (auth_state_.state != State::WaitRequestResponse && auth_state_.state != State::WaitAcceptResponse) {
-    LOG(WARNING) << "Unexpected Chat ignored";
+    LOG(INFO) << "Unexpected encryptedChat ignored";
     return Status::OK();
   }
   TRY_STATUS(save_common_info(update));

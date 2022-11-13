@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -12,6 +12,7 @@
 #include "td/utils/common.h"
 #include "td/utils/crypto.h"
 #include "td/utils/logging.h"
+#include "td/utils/Promise.h"
 #include "td/utils/SliceBuilder.h"
 
 #if TD_MSVC
@@ -259,10 +260,12 @@ class QueryBench final : public td::Benchmark {
         } else if (type == 4) {
           int val = 0;
           send_lambda(client_, [&] { val = n_ * n_; });
+          CHECK(val == n_ * n_);
         } else if (type == 5) {
           send_closure(client_, &ClientActor::f_promise,
-                       td::PromiseCreator::lambda(
-                           [id = actor_id(this), n = n_](td::Unit) { send_closure(id, &ServerActor::result, n * n); }));
+                       td::PromiseCreator::lambda([actor_id = actor_id(this), n = n_](td::Unit) {
+                         send_closure(actor_id, &ServerActor::result, n * n);
+                       }));
           return;
         }
       }

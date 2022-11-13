@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -12,6 +12,7 @@
 #include "td/telegram/Td.h"
 
 #include "td/utils/algorithm.h"
+#include "td/utils/logging.h"
 #include "td/utils/misc.h"
 
 namespace td {
@@ -45,6 +46,7 @@ td_api::object_ptr<td_api::MessageSender> get_message_sender_object(Td *td, User
   }
   if (!user_id.is_valid() && td->auth_manager_->is_bot()) {
     td->contacts_manager_->add_anonymous_bot_user();
+    td->contacts_manager_->add_channel_bot_user();
     td->contacts_manager_->add_service_notifications_user();
   }
   return get_message_sender_object_const(td, user_id, dialog_id, source);
@@ -55,6 +57,29 @@ td_api::object_ptr<td_api::MessageSender> get_message_sender_object(Td *td, Dial
     return get_message_sender_object(td, dialog_id.get_user_id(), DialogId(), source);
   }
   return get_message_sender_object(td, UserId(), dialog_id, source);
+}
+
+td_api::object_ptr<td_api::MessageSender> get_min_message_sender_object(Td *td, DialogId dialog_id,
+                                                                        const char *source) {
+  auto dialog_type = dialog_id.get_type();
+  if (dialog_type == DialogType::User) {
+    auto user_id = dialog_id.get_user_id();
+    if (td->contacts_manager_->have_min_user(user_id)) {
+      return td_api::make_object<td_api::messageSenderUser>(td->contacts_manager_->get_user_id_object(user_id, source));
+    }
+  } else {
+    if (!td->messages_manager_->have_dialog(dialog_id) &&
+        (td->messages_manager_->have_dialog_info(dialog_id) ||
+         (dialog_type == DialogType::Channel && td->contacts_manager_->have_min_channel(dialog_id.get_channel_id())))) {
+      LOG(INFO) << "Force creation of " << dialog_id;
+      td->messages_manager_->force_create_dialog(dialog_id, source, true);
+    }
+    if (td->messages_manager_->have_dialog(dialog_id)) {
+      return td_api::make_object<td_api::messageSenderChat>(dialog_id.get());
+    }
+  }
+  LOG(ERROR) << "Can't return unknown " << dialog_id << " from " << source;
+  return nullptr;
 }
 
 vector<DialogId> get_message_sender_dialog_ids(Td *td,
@@ -113,7 +138,8 @@ Result<DialogId> get_message_sender_dialog_id(Td *td,
         }
         return Status::Error(400, "Invalid user identifier specified");
       }
-      if (check_access && !td->contacts_manager_->have_user_force(user_id)) {
+      bool know_user = td->contacts_manager_->have_user_force(user_id);
+      if (check_access && !know_user) {
         return Status::Error(400, "Unknown user identifier specified");
       }
       return DialogId(user_id);
@@ -126,12 +152,11 @@ Result<DialogId> get_message_sender_dialog_id(Td *td,
         }
         return Status::Error(400, "Invalid chat identifier specified");
       }
-      if (check_access) {
-        bool is_user = dialog_id.get_type() == DialogType::User;
-        if (is_user ? !td->contacts_manager_->have_user_force(dialog_id.get_user_id())
-                    : !td->messages_manager_->have_dialog_force(dialog_id, "get_message_sender_dialog_id")) {
-          return Status::Error(400, "Unknown chat identifier specified");
-        }
+      bool know_dialog = dialog_id.get_type() == DialogType::User
+                             ? td->contacts_manager_->have_user_force(dialog_id.get_user_id())
+                             : td->messages_manager_->have_dialog_force(dialog_id, "get_message_sender_dialog_id");
+      if (check_access && !know_dialog) {
+        return Status::Error(400, "Unknown chat identifier specified");
       }
       return dialog_id;
     }

@@ -1,21 +1,21 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #pragma once
 
+#include "td/telegram/Dimensions.h"
 #include "td/telegram/files/FileId.h"
-#include "td/telegram/Photo.h"
+#include "td/telegram/PhotoSize.h"
 #include "td/telegram/SecretInputMedia.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
-
-#include <unordered_map>
+#include "td/utils/FlatHashMap.h"
 
 namespace td {
 
@@ -24,6 +24,11 @@ class Td;
 class VideosManager {
  public:
   explicit VideosManager(Td *td);
+  VideosManager(const VideosManager &) = delete;
+  VideosManager &operator=(const VideosManager &) = delete;
+  VideosManager(VideosManager &&) = delete;
+  VideosManager &operator=(VideosManager &&) = delete;
+  ~VideosManager();
 
   int32 get_video_duration(FileId file_id) const;
 
@@ -40,7 +45,7 @@ class VideosManager {
 
   SecretInputMedia get_secret_input_media(FileId video_file_id,
                                           tl_object_ptr<telegram_api::InputEncryptedFile> input_file,
-                                          const string &caption, BufferSlice thumbnail) const;
+                                          const string &caption, BufferSlice thumbnail, int32 layer) const;
 
   FileId get_video_thumbnail_file_id(FileId file_id) const;
 
@@ -84,7 +89,7 @@ class VideosManager {
   FileId on_get_video(unique_ptr<Video> new_video, bool replace);
 
   Td *td_;
-  std::unordered_map<FileId, unique_ptr<Video>, FileIdHash> videos_;
+  FlatHashMap<FileId, unique_ptr<Video>, FileIdHash> videos_;
 };
 
 }  // namespace td

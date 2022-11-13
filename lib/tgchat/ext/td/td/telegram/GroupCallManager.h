@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -17,13 +17,13 @@
 #include "td/telegram/UserId.h"
 
 #include "td/actor/actor.h"
-#include "td/actor/PromiseFuture.h"
-#include "td/actor/Timeout.h"
+#include "td/actor/MultiTimeout.h"
 
 #include "td/utils/common.h"
+#include "td/utils/FlatHashMap.h"
+#include "td/utils/Promise.h"
 #include "td/utils/Status.h"
 
-#include <unordered_map>
 #include <utility>
 
 namespace td {
@@ -49,7 +49,11 @@ class GroupCallManager final : public Actor {
 
   void set_group_call_default_join_as(DialogId dialog_id, DialogId as_dialog_id, Promise<Unit> &&promise);
 
-  void create_voice_chat(DialogId dialog_id, string title, int32 start_date, Promise<GroupCallId> &&promise);
+  void create_voice_chat(DialogId dialog_id, string title, int32 start_date, bool is_rtmp_stream,
+                         Promise<GroupCallId> &&promise);
+
+  void get_voice_chat_rtmp_stream_url(DialogId dialog_id, bool revoke,
+                                      Promise<td_api::object_ptr<td_api::rtmpUrl>> &&promise);
 
   void get_group_call(GroupCallId group_call_id, Promise<td_api::object_ptr<td_api::groupCall>> &&promise);
 
@@ -57,6 +61,9 @@ class GroupCallManager final : public Actor {
 
   void reload_group_call(InputGroupCallId input_group_call_id,
                          Promise<td_api::object_ptr<td_api::groupCall>> &&promise);
+
+  void get_group_call_streams(GroupCallId group_call_id,
+                              Promise<td_api::object_ptr<td_api::groupCallStreams>> &&promise);
 
   void get_group_call_stream_segment(GroupCallId group_call_id, int64 time_offset, int32 scale, int32 channel_id,
                                      td_api::object_ptr<td_api::GroupCallVideoQuality> quality,
@@ -193,6 +200,10 @@ class GroupCallManager final : public Actor {
 
   void finish_get_group_call(InputGroupCallId input_group_call_id,
                              Result<tl_object_ptr<telegram_api::phone_groupCall>> &&result);
+
+  void finish_get_group_call_streams(InputGroupCallId input_group_call_id, int32 audio_source,
+                                     Result<td_api::object_ptr<td_api::groupCallStreams>> &&result,
+                                     Promise<td_api::object_ptr<td_api::groupCallStreams>> &&promise);
 
   void finish_get_group_call_stream_segment(InputGroupCallId input_group_call_id, int32 audio_source,
                                             Result<string> &&result, Promise<string> &&promise);
@@ -381,21 +392,20 @@ class GroupCallManager final : public Actor {
 
   vector<InputGroupCallId> input_group_call_ids_;
 
-  std::unordered_map<InputGroupCallId, unique_ptr<GroupCall>, InputGroupCallIdHash> group_calls_;
+  FlatHashMap<InputGroupCallId, unique_ptr<GroupCall>, InputGroupCallIdHash> group_calls_;
 
   string pending_group_call_join_params_;
 
-  std::unordered_map<InputGroupCallId, unique_ptr<GroupCallParticipants>, InputGroupCallIdHash>
-      group_call_participants_;
-  std::unordered_map<DialogId, vector<InputGroupCallId>, DialogIdHash> participant_id_to_group_call_id_;
+  FlatHashMap<InputGroupCallId, unique_ptr<GroupCallParticipants>, InputGroupCallIdHash> group_call_participants_;
+  FlatHashMap<DialogId, vector<InputGroupCallId>, DialogIdHash> participant_id_to_group_call_id_;
 
-  std::unordered_map<GroupCallId, unique_ptr<GroupCallRecentSpeakers>, GroupCallIdHash> group_call_recent_speakers_;
+  FlatHashMap<GroupCallId, unique_ptr<GroupCallRecentSpeakers>, GroupCallIdHash> group_call_recent_speakers_;
 
-  std::unordered_map<InputGroupCallId, vector<Promise<td_api::object_ptr<td_api::groupCall>>>, InputGroupCallIdHash>
+  FlatHashMap<InputGroupCallId, vector<Promise<td_api::object_ptr<td_api::groupCall>>>, InputGroupCallIdHash>
       load_group_call_queries_;
 
-  std::unordered_map<InputGroupCallId, unique_ptr<PendingJoinRequest>, InputGroupCallIdHash> pending_join_requests_;
-  std::unordered_map<InputGroupCallId, unique_ptr<PendingJoinRequest>, InputGroupCallIdHash>
+  FlatHashMap<InputGroupCallId, unique_ptr<PendingJoinRequest>, InputGroupCallIdHash> pending_join_requests_;
+  FlatHashMap<InputGroupCallId, unique_ptr<PendingJoinRequest>, InputGroupCallIdHash>
       pending_join_presentation_requests_;
   uint64 join_group_request_generation_ = 0;
 

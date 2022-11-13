@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -62,7 +62,7 @@ class ConcurrentScheduler final : private Scheduler::Callback {
   void finish();
 
   template <class ActorT, class... Args>
-  ActorOwn<ActorT> create_actor_unsafe(int32 sched_id, Slice name, Args &&... args) {
+  ActorOwn<ActorT> create_actor_unsafe(int32 sched_id, Slice name, Args &&...args) {
 #if TD_THREAD_UNSUPPORTED || TD_EVENTFD_UNSUPPORTED
     sched_id = 0;
 #endif

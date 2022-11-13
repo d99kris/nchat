@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -119,6 +119,30 @@ TEST(Port, SparseFiles) {
   if (real_size >= offset + 1) {
     LOG(ERROR) << "File system doesn't support sparse files, rewind during streaming can be slow";
   }
+  td::unlink(path).ensure();
+}
+
+TEST(Port, LargeFiles) {
+  td::CSlice path = "large.txt";
+  td::unlink(path).ignore();
+  auto fd = td::FileFd::open(path, td::FileFd::Write | td::FileFd::CreateNew).move_as_ok();
+  ASSERT_EQ(0, fd.get_size().move_as_ok());
+  td::int64 offset = static_cast<td::int64>(3) << 30;
+  if (fd.pwrite("abcd", offset).is_error()) {
+    LOG(ERROR) << "Writing to large files isn't supported";
+    td::unlink(path).ensure();
+    return;
+  }
+  fd = td::FileFd::open(path, td::FileFd::Read).move_as_ok();
+  ASSERT_EQ(offset + 4, fd.get_size().move_as_ok());
+  td::string res(4, '\0');
+  if (fd.pread(res, offset).is_error()) {
+    LOG(ERROR) << "Reading of large files isn't supported";
+    td::unlink(path).ensure();
+    return;
+  }
+  ASSERT_STREQ(res, "abcd");
+  fd.close();
   td::unlink(path).ensure();
 }
 

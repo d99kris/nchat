@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -14,6 +14,7 @@
 
 #include "td/utils/common.h"
 #include "td/utils/ExitGuard.h"
+#include "td/utils/FlatHashSet.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/port/detail/PollableFd.h"
@@ -26,7 +27,6 @@
 
 #include <cstring>
 #include <mutex>
-#include <unordered_set>
 #include <utility>
 
 #if TD_PORT_POSIX
@@ -103,7 +103,7 @@ StringBuilder &operator<<(StringBuilder &sb, const PrintFlags &print_flags) {
 namespace detail {
 class FileFdImpl {
  public:
-  PollableFdInfo info;
+  PollableFdInfo info_;
 };
 }  // namespace detail
 
@@ -242,8 +242,8 @@ Result<FileFd> FileFd::open(CSlice filepath, int32 flags, int32 mode) {
 
 FileFd FileFd::from_native_fd(NativeFd native_fd) {
   auto impl = make_unique<detail::FileFdImpl>();
-  impl->info.set_native_fd(std::move(native_fd));
-  impl->info.add_flags(PollFlags::Write());
+  impl->info_.set_native_fd(std::move(native_fd));
+  impl->info_.add_flags(PollFlags::Write());
   return FileFd(std::move(impl));
 }
 
@@ -384,14 +384,14 @@ Result<size_t> FileFd::pread(MutableSlice slice, int64 offset) const {
 }
 
 static std::mutex in_process_lock_mutex;
-static std::unordered_set<string> locked_files;
+static FlatHashSet<string> locked_files;
 static ExitGuard exit_guard;
 
 static Status create_local_lock(const string &path, int32 &max_tries) {
   while (true) {
     {  // mutex lock scope
       std::lock_guard<std::mutex> lock(in_process_lock_mutex);
-      if (locked_files.find(path) == locked_files.end()) {
+      if (!path.empty() && locked_files.count(path) == 0) {
         VLOG(fd) << "Lock file \"" << path << '"';
         locked_files.insert(path);
         return Status::OK();
@@ -505,7 +505,7 @@ void FileFd::remove_local_lock(const string &path) {
   VLOG(fd) << "Unlock file \"" << path << '"';
   std::unique_lock<std::mutex> lock(in_process_lock_mutex);
   auto erased_count = locked_files.erase(path);
-  CHECK(erased_count > 0 || ExitGuard::is_exited());
+  CHECK(erased_count > 0 || path.empty() || ExitGuard::is_exited());
 }
 
 void FileFd::close() {
@@ -648,11 +648,11 @@ Status FileFd::truncate_to_current_position(int64 current_position) {
 }
 PollableFdInfo &FileFd::get_poll_info() {
   CHECK(!empty());
-  return impl_->info;
+  return impl_->info_;
 }
 const PollableFdInfo &FileFd::get_poll_info() const {
   CHECK(!empty());
-  return impl_->info;
+  return impl_->info_;
 }
 
 }  // namespace td

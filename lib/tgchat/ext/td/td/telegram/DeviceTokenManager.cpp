@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -16,12 +16,15 @@
 
 #include "td/mtproto/DhHandshake.h"
 
+#include "td/actor/PromiseFuture.h"
+
 #include "td/utils/algorithm.h"
 #include "td/utils/base64.h"
 #include "td/utils/buffer.h"
 #include "td/utils/format.h"
 #include "td/utils/JsonBuilder.h"
 #include "td/utils/logging.h"
+#include "td/utils/misc.h"
 #include "td/utils/Random.h"
 #include "td/utils/SliceBuilder.h"
 #include "td/utils/Status.h"
@@ -240,9 +243,9 @@ void DeviceTokenManager::register_device(tl_object_ptr<td_api::DeviceToken> devi
       return promise.set_error(Status::Error(400, "Invalid user_id among other user_ids"));
     }
   }
+  auto input_user_ids = UserId::get_input_user_ids(other_user_ids);
 
   auto &info = tokens_[token_type];
-  info.net_query_id = 0;
   if (token.empty()) {
     if (info.token.empty()) {
       // already unregistered
@@ -251,10 +254,17 @@ void DeviceTokenManager::register_device(tl_object_ptr<td_api::DeviceToken> devi
 
     info.state = TokenInfo::State::Unregister;
   } else {
+    if ((info.state == TokenInfo::State::Reregister || info.state == TokenInfo::State::Sync) && info.token == token &&
+        info.other_user_ids == input_user_ids && info.is_app_sandbox == is_app_sandbox && encrypt == info.encrypt) {
+      int64 push_token_id = encrypt ? info.encryption_key_id : G()->get_my_id();
+      return promise.set_value(td_api::make_object<td_api::pushReceiverId>(push_token_id));
+    }
+
     info.state = TokenInfo::State::Register;
     info.token = std::move(token);
   }
-  info.other_user_ids = UserId::get_input_user_ids(other_user_ids);
+  info.net_query_id = 0;
+  info.other_user_ids = std::move(input_user_ids);
   info.is_app_sandbox = is_app_sandbox;
   if (encrypt != info.encrypt) {
     if (encrypt) {
@@ -356,7 +366,7 @@ void DeviceTokenManager::save_info(int32 token_type) {
   }
   sync_cnt_++;
   G()->td_db()->get_binlog_pmc()->force_sync(
-      PromiseCreator::event(self_closure(this, &DeviceTokenManager::dec_sync_cnt)));
+      create_event_promise(self_closure(this, &DeviceTokenManager::dec_sync_cnt)));
 }
 
 void DeviceTokenManager::dec_sync_cnt() {
@@ -424,9 +434,13 @@ void DeviceTokenManager::on_result(NetQueryPtr net_query) {
     }
     info.state = TokenInfo::State::Sync;
   } else {
+    int32 retry_after = 0;
     if (r_flag.is_error()) {
-      if (!G()->is_expected_error(r_flag.error())) {
-        LOG(ERROR) << "Failed to " << info.state << " device: " << r_flag.error();
+      auto &error = r_flag.error();
+      if (!G()->is_expected_error(error)) {
+        LOG(ERROR) << "Failed to " << info.state << " device: " << error;
+      } else {
+        retry_after = Global::get_retry_after(error.code(), error.message());
       }
       info.promise.set_error(r_flag.move_as_error());
     } else {
@@ -434,7 +448,7 @@ void DeviceTokenManager::on_result(NetQueryPtr net_query) {
     }
     if (info.state == TokenInfo::State::Reregister) {
       // keep trying to reregister the token
-      return loop();
+      return set_timeout_in(clamp(retry_after, 1, 3600));
     } else if (info.state == TokenInfo::State::Register) {
       info.state = TokenInfo::State::Unregister;
     } else {

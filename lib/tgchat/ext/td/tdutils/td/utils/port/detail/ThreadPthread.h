@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -40,7 +40,7 @@ class ThreadPthread {
     return *this;
   }
   template <class Function, class... Args>
-  explicit ThreadPthread(Function &&f, Args &&... args) {
+  explicit ThreadPthread(Function &&f, Args &&...args) {
     auto func = create_destructor([args = std::make_tuple(decay_copy(std::forward<Function>(f)),
                                                           decay_copy(std::forward<Args>(args))...)]() mutable {
       invoke_tuple(std::move(args));
@@ -83,7 +83,6 @@ class ThreadPthread {
 };
 
 namespace this_thread_pthread {
-void yield();
 ThreadPthread::id get_id();
 }  // namespace this_thread_pthread
 }  // namespace detail

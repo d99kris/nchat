@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -27,16 +27,16 @@ bool is_memprof_on() {
   return true;
 }
 
+#define my_assert(f) \
+  if (!(f)) {        \
+    std::abort();    \
+  }
+
 #if USE_MEMPROF_SAFE
 double get_fast_backtrace_success_rate() {
   return 0;
 }
 #else
-
-#define my_assert(f) \
-  if (!(f)) {        \
-    std::abort();    \
-  }
 
 #if TD_LINUX
 extern void *__libc_stack_end;
@@ -45,9 +45,9 @@ extern void *__libc_stack_end;
 static void *get_bp() {
   void *bp;
 #if defined(__i386__)
-  __asm__ volatile("movl %%ebp, %[r]" : [ r ] "=r"(bp));
+  __asm__ volatile("movl %%ebp, %[r]" : [r] "=r"(bp));
 #elif defined(__x86_64__)
-  __asm__ volatile("movq %%rbp, %[r]" : [ r ] "=r"(bp));
+  __asm__ volatile("movq %%rbp, %[r]" : [r] "=r"(bp));
 #endif
   return bp;
 }
@@ -265,12 +265,14 @@ void free(void *data_void) {
 #endif
   return free_old(info);
 }
+
 void *calloc(std::size_t size_a, std::size_t size_b) {
   auto size = size_a * size_b;
   void *res = malloc_with_frame(size, get_backtrace());
   std::memset(res, 0, size);
   return res;
 }
+
 void *realloc(void *ptr, std::size_t size) {
   if (ptr == nullptr) {
     return malloc_with_frame(size, get_backtrace());
@@ -282,6 +284,7 @@ void *realloc(void *ptr, std::size_t size) {
   free(ptr);
   return new_ptr;
 }
+
 void *memalign(std::size_t aligment, std::size_t size) {
   my_assert(false && "Memalign is unsupported");
   return nullptr;

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -117,8 +117,8 @@ void StorageManager::run_gc(FileGcParameters parameters, bool return_deleted_fil
     close_gc_worker();
   }
 
-  bool split_by_owner_dialog_id = !parameters.owner_dialog_ids.empty() ||
-                                  !parameters.exclude_owner_dialog_ids.empty() || parameters.dialog_limit != 0;
+  bool split_by_owner_dialog_id = !parameters.owner_dialog_ids_.empty() ||
+                                  !parameters.exclude_owner_dialog_ids_.empty() || parameters.dialog_limit_ != 0;
   get_storage_stats(
       true /*need_all_files*/, split_by_owner_dialog_id,
       PromiseCreator::lambda(
@@ -135,10 +135,7 @@ void StorageManager::on_file_stats(Result<FileStats> r_file_stats, uint32 genera
     return;
   }
   if (r_file_stats.is_error()) {
-    auto promises = std::move(pending_storage_stats_);
-    for (auto &promise : promises) {
-      promise.set_error(r_file_stats.error().clone());
-    }
+    fail_promises(pending_storage_stats_, r_file_stats.move_as_error());
     return;
   }
 
@@ -156,7 +153,7 @@ void StorageManager::create_stats_worker() {
 }
 
 void StorageManager::on_all_files(FileGcParameters gc_parameters, Result<FileStats> r_file_stats) {
-  int32 dialog_limit = gc_parameters.dialog_limit;
+  int32 dialog_limit = gc_parameters.dialog_limit_;
   if (is_closed_ && r_file_stats.is_ok()) {
     r_file_stats = Global::request_aborted_error();
   }
@@ -223,9 +220,7 @@ void StorageManager::on_gc_finished(int32 dialog_limit, Result<FileGcResult> r_f
     append(promises, std::move(pending_run_gc_[1]));
     pending_run_gc_[0].clear();
     pending_run_gc_[1].clear();
-    for (auto &promise : promises) {
-      promise.set_error(r_file_gc_result.error().clone());
-    }
+    fail_promises(promises, r_file_gc_result.move_as_error());
     return;
   }
 
@@ -288,11 +283,7 @@ void StorageManager::hangup_shared() {
 }
 
 void StorageManager::close_stats_worker() {
-  auto promises = std::move(pending_storage_stats_);
-  pending_storage_stats_.clear();
-  for (auto &promise : promises) {
-    promise.set_error(Global::request_aborted_error());
-  }
+  fail_promises(pending_storage_stats_, Global::request_aborted_error());
   stats_generation_++;
   stats_worker_.reset();
   stats_cancellation_token_source_.cancel();
@@ -303,9 +294,7 @@ void StorageManager::close_gc_worker() {
   append(promises, std::move(pending_run_gc_[1]));
   pending_run_gc_[0].clear();
   pending_run_gc_[1].clear();
-  for (auto &promise : promises) {
-    promise.set_error(Global::request_aborted_error());
-  }
+  fail_promises(promises, Global::request_aborted_error());
   gc_worker_.reset();
   gc_cancellation_token_source_.cancel();
 }

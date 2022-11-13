@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -83,7 +83,7 @@ Status init_dialog_db(SqliteDb &db, int32 version, KeyValueSyncInterface &binlog
   if (version < static_cast<int32>(DbVersion::StorePinnedDialogsInBinlog)) {
     // 9221294780217032704 == get_dialog_order(Auto(), MIN_PINNED_DIALOG_DATE - 1)
     TRY_RESULT(get_pinned_dialogs_stmt,
-               db.get_statement("SELECT dialog_id FROM dialogs WHERE folder_id == ?1 AND dialog_order > "
+               db.get_statement("SELECT dialog_id FROM dialogs WHERE folder_id = ?1 AND dialog_order > "
                                 "9221294780217032704 ORDER BY dialog_order DESC, dialog_id DESC"));
     for (auto folder_id = 0; folder_id < 2; folder_id++) {
       vector<string> pinned_dialog_ids;
@@ -137,7 +137,7 @@ class DialogDbImpl final : public DialogDbSyncInterface {
     TRY_RESULT_ASSIGN(
         get_dialogs_stmt_,
         db_.get_statement("SELECT data, dialog_id, dialog_order FROM dialogs WHERE "
-                          "folder_id == ?1 AND (dialog_order < ?2 OR (dialog_order = ?2 AND dialog_id < ?3)) ORDER "
+                          "folder_id = ?1 AND (dialog_order < ?2 OR (dialog_order = ?2 AND dialog_id < ?3)) ORDER "
                           "BY dialog_order DESC, dialog_id DESC LIMIT ?4"));
     TRY_RESULT_ASSIGN(
         get_notification_groups_by_last_notification_date_stmt_,
@@ -252,6 +252,8 @@ class DialogDbImpl final : public DialogDbSyncInterface {
     get_dialogs_stmt_.bind_int32(4, limit).ensure();
 
     DialogDbGetDialogsResult result;
+    result.next_dialog_id = dialog_id;
+    result.next_order = order;
     TRY_STATUS(get_dialogs_stmt_.step());
     while (get_dialogs_stmt_.has_row()) {
       BufferSlice data(get_dialogs_stmt_.view_blob(0));
@@ -441,12 +443,12 @@ class DialogDbAsync final : public DialogDbAsyncInterface {
 
     //NB: order is important, destructor of pending_writes_ will change pending_write_results_
     std::vector<std::pair<Promise<>, Status>> pending_write_results_;
-    vector<Promise<>> pending_writes_;
+    vector<Promise<>> pending_writes_;  // TODO use Action
     double wakeup_at_ = 0;
 
     template <class F>
     void add_write_query(F &&f) {
-      pending_writes_.push_back(PromiseCreator::lambda(std::forward<F>(f), PromiseCreator::Ignore()));
+      pending_writes_.push_back(PromiseCreator::lambda(std::forward<F>(f)));
       if (pending_writes_.size() > MAX_PENDING_QUERIES_COUNT) {
         do_flush();
         wakeup_at_ = 0;

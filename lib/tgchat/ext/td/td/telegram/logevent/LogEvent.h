@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -81,7 +81,7 @@ class LogEvent {
     SendInlineQueryResultMessage = 0x108,
     DeleteDialogHistoryOnServer = 0x109,
     ReadAllDialogMentionsOnServer = 0x10a,
-    DeleteAllChannelMessagesFromUserOnServer = 0x10b,
+    DeleteAllChannelMessagesFromSenderOnServer = 0x10b,
     ToggleDialogIsPinnedOnServer = 0x10c,
     ReorderPinnedDialogsOnServer = 0x10d,
     SaveDialogDraftMessageOnServer = 0x10e,
@@ -100,9 +100,11 @@ class LogEvent {
     UnpinAllDialogMessagesOnServer = 0x121,
     DeleteAllCallMessagesOnServer = 0x122,
     DeleteDialogMessagesByDateOnServer = 0x123,
+    ReadAllDialogReactionsOnServer = 0x124,
     GetChannelDifference = 0x140,
     AddMessagePushNotification = 0x200,
     EditMessagePushNotification = 0x201,
+    SaveAppLog = 0x300,
     ConfigPmcMagic = 0x1f18,
     BinlogPmcMagic = 0x4327
   };
@@ -197,7 +199,7 @@ Status log_event_parse(T &data, Slice slice) {
 }
 
 template <class T>
-BufferSlice log_event_store(const T &data) {
+BufferSlice log_event_store_impl(const T &data, const char *file, int line) {
   LogEventStorerCalcLength storer_calc_length;
   store(data, storer_calc_length);
 
@@ -210,10 +212,15 @@ BufferSlice log_event_store(const T &data) {
 
 #ifdef TD_DEBUG
   T check_result;
-  log_event_parse(check_result, value_buffer.as_slice()).ensure();
+  auto status = log_event_parse(check_result, value_buffer.as_slice());
+  if (status.is_error()) {
+    LOG(FATAL) << status << ' ' << file << ' ' << line;
+  }
 #endif
   return value_buffer;
 }
+
+#define log_event_store(data) log_event_store_impl((data), __FILE__, __LINE__)
 
 template <class T>
 log_event::LogEventStorerImpl<T> get_log_event_storer(const T &event) {

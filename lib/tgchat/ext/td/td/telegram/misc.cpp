@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -49,6 +49,10 @@ string clean_username(string str) {
   td::remove(str, '.');
   to_lower_inplace(str);
   return trim(str);
+}
+
+void clean_phone_number(string &phone_number) {
+  td::remove_if(phone_number, [](char c) { return !is_digit(c); });
 }
 
 void replace_offending_characters(string &str) {

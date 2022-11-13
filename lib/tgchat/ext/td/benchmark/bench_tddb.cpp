@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -16,12 +16,12 @@
 #include "td/db/SqliteDb.h"
 
 #include "td/actor/ConcurrentScheduler.h"
-#include "td/actor/PromiseFuture.h"
 
 #include "td/utils/benchmark.h"
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
 #include "td/utils/logging.h"
+#include "td/utils/Promise.h"
 #include "td/utils/Random.h"
 #include "td/utils/Status.h"
 
@@ -54,13 +54,13 @@ class MessagesDbBench final : public td::Benchmark {
       for (int j = 0; j < 20; j++) {
         auto message_id = td::MessageId{td::ServerMessageId{message_id_raw + j}};
         auto unique_message_id = td::ServerMessageId{i + 1};
-        auto sender_user_id = td::UserId(static_cast<td::int64>(td::Random::fast(1, 1000)));
+        auto sender_dialog_id = td::DialogId(td::UserId(static_cast<td::int64>(td::Random::fast(1, 1000))));
         auto random_id = i + 1;
         auto ttl_expires_at = 0;
         auto data = td::BufferSlice(td::Random::fast(100, 299));
 
         // use async on same thread.
-        messages_db_async_->add_message({dialog_id, message_id}, unique_message_id, sender_user_id, random_id,
+        messages_db_async_->add_message({dialog_id, message_id}, unique_message_id, sender_dialog_id, random_id,
                                         ttl_expires_at, 0, 0, "", td::NotificationId(), td::MessageId(),
                                         std::move(data), td::Promise<>());
       }

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,6 +11,7 @@
 #include "td/mtproto/RawConnection.h"
 
 #include "td/utils/buffer.h"
+#include "td/utils/FlatHashMap.h"
 #include "td/utils/format.h"
 #include "td/utils/logging.h"
 #include "td/utils/Named.h"
@@ -22,7 +23,6 @@
 #include "td/utils/StringBuilder.h"
 #include "td/utils/tl_parsers.h"
 
-#include <unordered_map>
 #include <utility>
 
 namespace td {
@@ -82,7 +82,7 @@ class SessionConnection final
 
   // Interface
   Result<uint64> TD_WARN_UNUSED_RESULT send_query(BufferSlice buffer, bool gzip_flag, int64 message_id = 0,
-                                                  uint64 invoke_after_id = 0, bool use_quick_ack = false);
+                                                  std::vector<uint64> invoke_after_id = {}, bool use_quick_ack = false);
   std::pair<uint64, BufferSlice> encrypted_bind(int64 perm_key, int64 nonce, int32 expires_at);
 
   void get_state_info(int64 message_id);
@@ -91,6 +91,7 @@ class SessionConnection final
   void destroy_key();
 
   void set_online(bool online_flag, bool is_main);
+  void force_ack();
 
   class Callback {
    public:
@@ -176,10 +177,10 @@ class SessionConnection final
   vector<int64> to_resend_answer_;
   vector<int64> to_cancel_answer_;
   vector<int64> to_get_state_info_;
-  std::unordered_map<uint64, ServiceQuery> service_queries_;
+  FlatHashMap<uint64, ServiceQuery> service_queries_;
 
   // nobody cleans up this map. But it should be really small.
-  std::unordered_map<uint64, vector<uint64>> container_to_service_msg_;
+  FlatHashMap<uint64, vector<uint64>> container_to_service_msg_;
 
   double last_read_at_ = 0;
   double last_ping_at_ = 0;

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -13,6 +13,7 @@
 #include "td/telegram/files/FileManager.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/MessagesManager.h"
+#include "td/telegram/NotificationSettingsManager.h"
 #include "td/telegram/StickerSetId.h"
 #include "td/telegram/StickersManager.h"
 #include "td/telegram/Td.h"
@@ -30,6 +31,10 @@
 namespace td {
 
 int VERBOSITY_NAME(file_references) = VERBOSITY_NAME(INFO);
+
+FileReferenceManager::~FileReferenceManager() {
+  Scheduler::instance()->destroy_on_scheduler(G()->get_gc_scheduler_id(), file_sources_);
+}
 
 bool FileReferenceManager::is_file_reference_error(const Status &error) {
   return error.is_error() && error.code() == 400 && begins_with(error.message(), "FILE_REFERENCE_");
@@ -60,6 +65,7 @@ fileSourceBackground background_id:int64 access_hash:int64 = FileSource; // repa
 fileSourceBasicGroupFull basic_group_id:int32 = FileSource;              // repaired with messages.getFullChat
 fileSourceSupergroupFull supergroup_id:int32 = FileSource;               // repaired with messages.getFullChannel
 fileSourceAppConfig = FileSource;                                        // repaired with help.getAppConfig, not reliable
+fileSourceSavedRingtones = FileSource;                                   // repaired with account.getSavedRingtones
 */
 
 FileSourceId FileReferenceManager::get_current_file_source_id() const {
@@ -125,12 +131,19 @@ FileSourceId FileReferenceManager::create_app_config_file_source() {
 }
 
 bool FileReferenceManager::add_file_source(NodeId node_id, FileSourceId file_source_id) {
+  CHECK(node_id.is_valid());
   bool is_added = nodes_[node_id].file_source_ids.add(file_source_id);
   VLOG(file_references) << "Add " << (is_added ? "new" : "old") << ' ' << file_source_id << " for file " << node_id;
   return is_added;
 }
 
+FileSourceId FileReferenceManager::create_saved_ringtones_file_source() {
+  FileSourceSavedRingtones source;
+  return add_file_source_id(source, "saved notification sounds");
+}
+
 bool FileReferenceManager::remove_file_source(NodeId node_id, FileSourceId file_source_id) {
+  CHECK(node_id.is_valid());
   bool is_removed = nodes_[node_id].file_source_ids.remove(file_source_id);
   if (is_removed) {
     VLOG(file_references) << "Remove " << file_source_id << " from file " << node_id;
@@ -169,6 +182,7 @@ void FileReferenceManager::merge(NodeId to_node_id, NodeId from_node_id) {
     return;
   }
 
+  CHECK(to_node_id.is_valid());
   auto &to = nodes_[to_node_id];
   auto &from = from_it->second;
   VLOG(file_references) << "Merge " << to.file_source_ids.size() << " and " << from.file_source_ids.size()
@@ -192,6 +206,7 @@ void FileReferenceManager::merge(NodeId to_node_id, NodeId from_node_id) {
 }
 
 void FileReferenceManager::run_node(NodeId node_id) {
+  CHECK(node_id.is_valid());
   Node &node = nodes_[node_id];
   if (!node.query) {
     return;
@@ -231,6 +246,7 @@ void FileReferenceManager::run_node(NodeId node_id) {
 void FileReferenceManager::send_query(Destination dest, FileSourceId file_source_id) {
   VLOG(file_references) << "Send file reference repair query for file " << dest.node_id << " with generation "
                         << dest.generation << " from " << file_source_id;
+  CHECK(dest.node_id.is_valid());
   auto &node = nodes_[dest.node_id];
   node.query->active_queries++;
 
@@ -300,6 +316,10 @@ void FileReferenceManager::send_query(Destination dest, FileSourceId file_source
       },
       [&](const FileSourceAppConfig &source) {
         send_closure_later(G()->config_manager(), &ConfigManager::reget_app_config, std::move(promise));
+      },
+      [&](const FileSourceSavedRingtones &source) {
+        send_closure_later(G()->notification_settings_manager(), &NotificationSettingsManager::repair_saved_ringtones,
+                           std::move(promise));
       }));
 }
 
@@ -313,6 +333,7 @@ FileReferenceManager::Destination FileReferenceManager::on_query_result(Destinat
   VLOG(file_references) << "Receive result of file reference repair query for file " << dest.node_id
                         << " with generation " << dest.generation << " from " << file_source_id << ": " << status << " "
                         << sub;
+  CHECK(dest.node_id.is_valid());
   auto &node = nodes_[dest.node_id];
 
   auto query = node.query.get();
@@ -347,9 +368,10 @@ FileReferenceManager::Destination FileReferenceManager::on_query_result(Destinat
 }
 
 void FileReferenceManager::repair_file_reference(NodeId node_id, Promise<> promise) {
-  auto main_file_id = G()->td().get_actor_unsafe()->file_manager_->get_file_view(node_id).file_id();
+  auto main_file_id = G()->td().get_actor_unsafe()->file_manager_->get_file_view(node_id).get_main_file_id();
   VLOG(file_references) << "Repair file reference for file " << node_id << "/" << main_file_id;
   node_id = main_file_id;
+  CHECK(node_id.is_valid());
   auto &node = nodes_[node_id];
   if (!node.query) {
     node.query = make_unique<Query>();
@@ -385,6 +407,31 @@ void FileReferenceManager::reload_photo(PhotoSizeSource source, Promise<Unit> pr
     default:
       UNREACHABLE();
   }
+}
+
+void FileReferenceManager::get_file_search_text(FileSourceId file_source_id, string unique_file_id,
+                                                Promise<string> promise) {
+  auto index = static_cast<size_t>(file_source_id.get()) - 1;
+  CHECK(index < file_sources_.size());
+  file_sources_[index].visit(overloaded(
+      [&](const FileSourceMessage &source) {
+        send_closure_later(G()->messages_manager(), &MessagesManager::get_message_file_search_text,
+                           source.full_message_id, std::move(unique_file_id), std::move(promise));
+      },
+      [&](const auto &source) { promise.set_error(Status::Error(500, "Unsupported file source")); }));
+}
+
+td_api::object_ptr<td_api::message> FileReferenceManager::get_message_object(FileSourceId file_source_id) const {
+  auto index = static_cast<size_t>(file_source_id.get()) - 1;
+  CHECK(index < file_sources_.size());
+  td_api::object_ptr<td_api::message> result;
+  file_sources_[index].visit(overloaded(
+      [&](const FileSourceMessage &source) {
+        result = G()->td().get_actor_unsafe()->messages_manager_->get_message_object(source.full_message_id,
+                                                                                     "FileReferenceManager");
+      },
+      [&](const auto &source) { LOG(ERROR) << "Unsupported file source"; }));
+  return result;
 }
 
 }  // namespace td

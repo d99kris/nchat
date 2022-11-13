@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -39,7 +39,7 @@ void TransparentProxy::tear_down() {
   if (callback_) {
     if (!fd_.input_buffer().empty()) {
       LOG(ERROR) << "Have " << fd_.input_buffer().size() << " unread bytes";
-      callback_->set_result(Status::Error("Proxy has sent to much data"));
+      callback_->set_result(Status::Error("Proxy has sent too many data"));
     } else {
       callback_->set_result(std::move(fd_));
     }

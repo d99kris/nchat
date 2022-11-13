@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -156,7 +156,7 @@ class ObjectPool {
   };
 
   template <class... ArgsT>
-  OwnerPtr create(ArgsT &&... args) {
+  OwnerPtr create(ArgsT &&...args) {
     Storage *storage = get_storage();
     storage->init_data(std::forward<ArgsT>(args)...);
     return OwnerPtr(storage, this);
@@ -201,7 +201,7 @@ class ObjectPool {
     std::atomic<int32> generation{1};
 
     template <class... ArgsT>
-    void init_data(ArgsT &&... args) {
+    void init_data(ArgsT &&...args) {
       // new  (&data) DataT(std::forward<ArgsT>(args)...);
       data = DataT(std::forward<ArgsT>(args)...);
     }

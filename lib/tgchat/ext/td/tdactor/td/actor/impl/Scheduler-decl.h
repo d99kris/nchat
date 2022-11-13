@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,6 +11,8 @@
 #include "td/actor/impl/EventFull-decl.h"
 
 #include "td/utils/Closure.h"
+#include "td/utils/common.h"
+#include "td/utils/FlatHashMap.h"
 #include "td/utils/Heap.h"
 #include "td/utils/List.h"
 #include "td/utils/logging.h"
@@ -21,6 +23,7 @@
 #include "td/utils/port/Poll.h"
 #include "td/utils/port/PollFlags.h"
 #include "td/utils/port/thread_local.h"
+#include "td/utils/Promise.h"
 #include "td/utils/Slice.h"
 #include "td/utils/Time.h"
 #include "td/utils/type_traits.h"
@@ -28,7 +31,6 @@
 #include <functional>
 #include <memory>
 #include <type_traits>
-#include <unordered_map>
 #include <utility>
 
 namespace td {
@@ -84,9 +86,9 @@ class Scheduler {
   int32 sched_count() const;
 
   template <class ActorT, class... Args>
-  TD_WARN_UNUSED_RESULT ActorOwn<ActorT> create_actor(Slice name, Args &&... args);
+  TD_WARN_UNUSED_RESULT ActorOwn<ActorT> create_actor(Slice name, Args &&...args);
   template <class ActorT, class... Args>
-  TD_WARN_UNUSED_RESULT ActorOwn<ActorT> create_actor_on_scheduler(Slice name, int32 sched_id, Args &&... args);
+  TD_WARN_UNUSED_RESULT ActorOwn<ActorT> create_actor_on_scheduler(Slice name, int32 sched_id, Args &&...args);
   template <class ActorT>
   TD_WARN_UNUSED_RESULT ActorOwn<ActorT> register_actor(Slice name, ActorT *actor_ptr, int32 sched_id = -1);
   template <class ActorT>
@@ -97,6 +99,14 @@ class Scheduler {
 
   void send_to_scheduler(int32 sched_id, const ActorId<> &actor_id, Event &&event);
   void send_to_other_scheduler(int32 sched_id, const ActorId<> &actor_id, Event &&event);
+
+  void run_on_scheduler(int32 sched_id, Promise<Unit> action);  // TODO Action
+
+  template <class T>
+  void destroy_on_scheduler(int32 sched_id, T &value);
+
+  template <class... ArgsT>
+  void destroy_on_scheduler(int32 sched_id, ArgsT &...values);
 
   template <ActorSendType send_type, class EventT>
   void send_lambda(ActorRef actor_ref, EventT &&lambda);
@@ -145,6 +155,8 @@ class Scheduler {
 
  private:
   static void set_scheduler(Scheduler *scheduler);
+
+  void destroy_on_scheduler_impl(int32 sched_id, Promise<Unit> action);
 
   class ServiceActor final : public Actor {
    public:
@@ -210,7 +222,7 @@ class Scheduler {
   ListNode ready_actors_list_;
   KHeap<double> timeout_queue_;
 
-  std::unordered_map<ActorInfo *, std::vector<Event>> pending_events_;
+  FlatHashMap<ActorInfo *, std::vector<Event>> pending_events_;
 
   ServiceActor service_actor_;
   Poll poll_;
@@ -244,9 +256,9 @@ class Scheduler {
 
 /*** Interface to current scheduler ***/
 template <class ActorT, class... Args>
-TD_WARN_UNUSED_RESULT ActorOwn<ActorT> create_actor(Slice name, Args &&... args);
+TD_WARN_UNUSED_RESULT ActorOwn<ActorT> create_actor(Slice name, Args &&...args);
 template <class ActorT, class... Args>
-TD_WARN_UNUSED_RESULT ActorOwn<ActorT> create_actor_on_scheduler(Slice name, int32 sched_id, Args &&... args);
+TD_WARN_UNUSED_RESULT ActorOwn<ActorT> create_actor_on_scheduler(Slice name, int32 sched_id, Args &&...args);
 template <class ActorT>
 TD_WARN_UNUSED_RESULT ActorOwn<ActorT> register_actor(Slice name, ActorT *actor_ptr, int32 sched_id = -1);
 template <class ActorT>
@@ -256,7 +268,7 @@ template <class ActorT>
 TD_WARN_UNUSED_RESULT ActorOwn<ActorT> register_existing_actor(unique_ptr<ActorT> actor_ptr);
 
 template <class ActorIdT, class FunctionT, class... ArgsT>
-void send_closure(ActorIdT &&actor_id, FunctionT function, ArgsT &&... args) {
+void send_closure(ActorIdT &&actor_id, FunctionT function, ArgsT &&...args) {
   using ActorT = typename std::decay_t<ActorIdT>::ActorT;
   using FunctionClassT = member_function_class_t<FunctionT>;
   static_assert(std::is_base_of<FunctionClassT, ActorT>::value, "unsafe send_closure");
@@ -266,7 +278,7 @@ void send_closure(ActorIdT &&actor_id, FunctionT function, ArgsT &&... args) {
 }
 
 template <class ActorIdT, class FunctionT, class... ArgsT>
-void send_closure_later(ActorIdT &&actor_id, FunctionT function, ArgsT &&... args) {
+void send_closure_later(ActorIdT &&actor_id, FunctionT function, ArgsT &&...args) {
   using ActorT = typename std::decay_t<ActorIdT>::ActorT;
   using FunctionClassT = member_function_class_t<FunctionT>;
   static_assert(std::is_base_of<FunctionClassT, ActorT>::value, "unsafe send_closure");
@@ -276,17 +288,17 @@ void send_closure_later(ActorIdT &&actor_id, FunctionT function, ArgsT &&... arg
 }
 
 template <class... ArgsT>
-void send_lambda(ActorRef actor_ref, ArgsT &&... args) {
+void send_lambda(ActorRef actor_ref, ArgsT &&...args) {
   Scheduler::instance()->send_lambda<ActorSendType::Immediate>(actor_ref, std::forward<ArgsT>(args)...);
 }
 
 template <class... ArgsT>
-void send_event(ActorRef actor_ref, ArgsT &&... args) {
+void send_event(ActorRef actor_ref, ArgsT &&...args) {
   Scheduler::instance()->send<ActorSendType::Immediate>(actor_ref, std::forward<ArgsT>(args)...);
 }
 
 template <class... ArgsT>
-void send_event_later(ActorRef actor_ref, ArgsT &&... args) {
+void send_event_later(ActorRef actor_ref, ArgsT &&...args) {
   Scheduler::instance()->send<ActorSendType::Later>(actor_ref, std::forward<ArgsT>(args)...);
 }
 

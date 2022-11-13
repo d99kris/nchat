@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -26,7 +26,7 @@ static void usage() {
   td::TsCerr() << "Options:\n";
   td::TsCerr() << "  -v<N>\tSet verbosity level to N\n";
   td::TsCerr() << "  -h/--help\tDisplay this information\n";
-  td::TsCerr() << "  -d/--dc-id\tIdentifier of a datacenter, to which try to connect (default is 2)\n";
+  td::TsCerr() << "  -d/--dc-id\tIdentifier of a datacenter to which try to connect (default is 2)\n";
   td::TsCerr() << "  -l/--proxy-list\tName of a file with proxies to check; one proxy per line\n";
   td::TsCerr() << "  -t/--timeout\tMaximum overall timeout for the request (default is 10 seconds)\n";
   std::exit(2);

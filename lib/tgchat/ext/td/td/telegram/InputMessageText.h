@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -14,7 +14,7 @@
 
 namespace td {
 
-class ContactsManager;
+class Td;
 
 class InputMessageText {
  public:
@@ -30,7 +30,7 @@ class InputMessageText {
 bool operator==(const InputMessageText &lhs, const InputMessageText &rhs);
 bool operator!=(const InputMessageText &lhs, const InputMessageText &rhs);
 
-Result<InputMessageText> process_input_message_text(const ContactsManager *contacts_manager, DialogId dialog_id,
+Result<InputMessageText> process_input_message_text(const Td *td, DialogId dialog_id,
                                                     tl_object_ptr<td_api::InputMessageContent> &&input_message_content,
                                                     bool is_bot, bool for_draft = false) TD_WARN_UNUSED_RESULT;
 

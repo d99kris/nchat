@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -14,11 +14,11 @@
 #include "td/telegram/telegram_api.h"
 
 #include "td/actor/actor.h"
-#include "td/actor/PromiseFuture.h"
 
 #include "td/utils/common.h"
 #include "td/utils/FloodControlStrict.h"
 #include "td/utils/logging.h"
+#include "td/utils/Promise.h"
 #include "td/utils/Slice.h"
 #include "td/utils/Status.h"
 #include "td/utils/Time.h"
@@ -81,7 +81,7 @@ class ConfigManager final : public NetQueryCallback {
  public:
   explicit ConfigManager(ActorShared<> parent);
 
-  void request_config();
+  void request_config(bool reopen_sessions);
 
   void lazy_request_config();
 
@@ -108,6 +108,7 @@ class ConfigManager final : public NetQueryCallback {
  private:
   ActorShared<> parent_;
   int32 config_sent_cnt_{0};
+  bool reopen_sessions_after_get_config_{false};
   ActorOwn<ConfigRecoverer> config_recoverer_;
   int ref_cnt_{1};
   Timestamp expire_time_;
@@ -141,7 +142,7 @@ class ConfigManager final : public NetQueryCallback {
 
   void on_result(NetQueryPtr res) final;
 
-  void request_config_from_dc_impl(DcId dc_id);
+  void request_config_from_dc_impl(DcId dc_id, bool reopen_sessions);
   void process_config(tl_object_ptr<telegram_api::config> config);
 
   void try_request_app_config();

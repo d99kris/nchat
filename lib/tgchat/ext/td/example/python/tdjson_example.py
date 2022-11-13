@@ -1,6 +1,6 @@
 #
 # Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com),
-# Pellegrino Prevete (pellegrinoprevete@gmail.com)  2014-2021
+# Pellegrino Prevete (pellegrinoprevete@gmail.com)  2014-2022
 #
 # Distributed under the Boost Software License, Version 1.0. (See accompanying
 # file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -40,6 +40,7 @@ _td_set_log_message_callback.restype = None
 _td_set_log_message_callback.argtypes = [c_int, log_message_callback_type]
 
 # initialize TDLib log with desired parameters
+@log_message_callback_type
 def on_log_message_callback(verbosity_level, message):
     if verbosity_level == 0:
         sys.exit('TDLib fatal error: %r' % message)
@@ -51,8 +52,7 @@ def td_execute(query):
         result = json.loads(result.decode('utf-8'))
     return result
 
-c_on_log_message_callback = log_message_callback_type(on_log_message_callback)
-_td_set_log_message_callback(2, c_on_log_message_callback)
+_td_set_log_message_callback(2, on_log_message_callback)
 
 # setting TDLib log verbosity level to 1 (errors)
 print(str(td_execute({'@type': 'setLogVerbosityLevel', 'new_verbosity_level': 1, '@extra': 1.01234})).encode('utf-8'))
@@ -73,7 +73,7 @@ def td_receive():
     return result
 
 # another test for TDLib execute method
-print(str(td_execute({'@type': 'getTextEntities', 'text': '@telegram /test_command https://telegram.org telegram.me', '@extra': ['5', 7.0, 'ä']})).encode('utf-8'))
+print(str(td_execute({'@type': 'getTextEntities', 'text': '@telegram /test_command https://telegram.org telegram.me', '@extra': ['5', 7.0, 'a']})).encode('utf-8'))
 
 # start the client by sending request to it
 td_send({'@type': 'getAuthorizationState', '@extra': 1.01234})

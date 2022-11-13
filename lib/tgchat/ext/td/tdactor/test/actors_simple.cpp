@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -16,6 +16,7 @@
 #include "td/utils/Observer.h"
 #include "td/utils/port/FileFd.h"
 #include "td/utils/port/thread.h"
+#include "td/utils/Promise.h"
 #include "td/utils/Slice.h"
 #include "td/utils/Status.h"
 #include "td/utils/StringBuilder.h"
@@ -301,11 +302,7 @@ class OpenClose final : public td::Actor {
 TEST(Actors, open_close) {
   td::ConcurrentScheduler scheduler;
   scheduler.init(2);
-  int cnt = 1000000;
-#if TD_WINDOWS || TD_ANDROID
-  // TODO(perf) optimize
-  cnt = 100;
-#endif
+  int cnt = 10000;  // TODO(perf) optimize
   scheduler.create_actor_unsafe<OpenClose>(1, "A", cnt).release();
   scheduler.create_actor_unsafe<OpenClose>(2, "B", cnt).release();
   scheduler.start();
@@ -333,7 +330,7 @@ class MasterActor final : public MsgActor {
  public:
   void loop() final {
     alive_ = true;
-    slave = td::create_actor<Slave>("slave", static_cast<td::ActorId<MsgActor>>(actor_id(this)));
+    slave = td::create_actor<Slave>("Slave", static_cast<td::ActorId<MsgActor>>(actor_id(this)));
     stop();
   }
   td::ActorOwn<Slave> slave;

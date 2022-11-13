@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,7 +11,6 @@
 #include "td/utils/bits.h"
 #include "td/utils/CancellationToken.h"
 #include "td/utils/common.h"
-#include "td/utils/emoji.h"
 #include "td/utils/ExitGuard.h"
 #include "td/utils/Hash.h"
 #include "td/utils/HashMap.h"
@@ -43,7 +42,6 @@
 
 #include <algorithm>
 #include <atomic>
-#include <clocale>
 #include <limits>
 #include <locale>
 #include <unordered_map>
@@ -51,6 +49,7 @@
 
 #if TD_HAVE_ABSL
 #include <absl/container/flat_hash_map.h>
+#include <absl/hash/hash.h>
 #endif
 
 struct CheckExitGuard {
@@ -476,8 +475,7 @@ static void test_to_double() {
 
 TEST(Misc, to_double) {
   test_to_double();
-  const char *locale_name = (std::setlocale(LC_ALL, "fr-FR") == nullptr ? "C" : "fr-FR");
-  std::locale new_locale(locale_name);
+  std::locale new_locale("C");
   auto host_locale = std::locale::global(new_locale);
   test_to_double();
   new_locale = std::locale::global(std::locale::classic());
@@ -1176,7 +1174,7 @@ static void test_hash() {
 TEST(Misc, Hasher) {
   test_hash<td::TdHash>();
 #if TD_HAVE_ABSL
-  test_hash<AbslHash>();
+  test_hash<td::AbslHash>();
 #endif
 }
 
@@ -1214,24 +1212,6 @@ TEST(Misc, uname) {
   ASSERT_STREQ(first_version, second_version);
   ASSERT_EQ(first_version.begin(), second_version.begin());
   ASSERT_TRUE(!first_version.empty());
-}
-
-TEST(Misc, is_emoji) {
-  ASSERT_TRUE(td::is_emoji("👩🏼‍❤‍💋‍👩🏻"));
-  ASSERT_TRUE(td::is_emoji("👩🏼‍❤️‍💋‍👩🏻"));
-  ASSERT_TRUE(!td::is_emoji("👩🏼‍❤️️‍💋‍👩🏻"));
-  ASSERT_TRUE(td::is_emoji("⌚"));
-  ASSERT_TRUE(td::is_emoji("↔"));
-  ASSERT_TRUE(td::is_emoji("🪗"));
-  ASSERT_TRUE(td::is_emoji("2️⃣"));
-  ASSERT_TRUE(td::is_emoji("2⃣"));
-  ASSERT_TRUE(!td::is_emoji(" 2⃣"));
-  ASSERT_TRUE(!td::is_emoji("2⃣ "));
-  ASSERT_TRUE(!td::is_emoji(" "));
-  ASSERT_TRUE(!td::is_emoji(""));
-  ASSERT_TRUE(!td::is_emoji("1234567890123456789012345678901234567890123456789012345678901234567890"));
-  ASSERT_TRUE(td::is_emoji("❤️"));
-  ASSERT_TRUE(td::is_emoji("❤"));
 }
 
 TEST(Misc, serialize) {

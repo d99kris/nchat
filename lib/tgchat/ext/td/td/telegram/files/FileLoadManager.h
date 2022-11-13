@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -17,10 +17,11 @@
 #include "td/telegram/net/DcId.h"
 
 #include "td/actor/actor.h"
-#include "td/actor/PromiseFuture.h"
 
 #include "td/utils/buffer.h"
+#include "td/utils/common.h"
 #include "td/utils/Container.h"
+#include "td/utils/Promise.h"
 #include "td/utils/Status.h"
 
 #include <map>
@@ -57,7 +58,11 @@ class FileLoadManager final : public Actor {
   void update_local_file_location(QueryId id, const LocalFileLocation &local);
   void update_downloaded_part(QueryId id, int64 offset, int64 limit);
 
-  void get_content(const FullLocalFileLocation &local_location, Promise<BufferSlice> promise);
+  void get_content(string file_path, Promise<BufferSlice> promise);
+
+  void read_file_part(string file_path, int64 offset, int64 count, Promise<string> promise);
+
+  void unlink_file(string file_path, Promise<Unit> promise);
 
  private:
   struct Node {
@@ -75,6 +80,7 @@ class FileLoadManager final : public Actor {
   ActorShared<Callback> callback_;
   ActorShared<> parent_;
   std::map<QueryId, NodeId> query_id_to_node_id_;
+  int64 max_download_resource_limit_ = 1 << 21;
   bool stop_flag_ = false;
 
   void start_up() final;

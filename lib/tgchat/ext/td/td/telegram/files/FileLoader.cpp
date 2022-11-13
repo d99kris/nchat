@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -72,12 +72,12 @@ void FileLoader::update_local_file_location(const LocalFileLocation &local) {
   loop();
 }
 
-void FileLoader::update_downloaded_part(int64 offset, int64 limit) {
+void FileLoader::update_downloaded_part(int64 offset, int64 limit, int64 max_resource_limit) {
   if (parts_manager_.get_streaming_offset() != offset) {
     auto begin_part_id = parts_manager_.set_streaming_offset(offset, limit);
     auto new_end_part_id = limit <= 0 ? parts_manager_.get_part_count()
-                                      : static_cast<int32>((offset + limit - 1) / parts_manager_.get_part_size()) + 1;
-    auto max_parts = static_cast<int32>(ResourceManager::MAX_RESOURCE_LIMIT / parts_manager_.get_part_size());
+                                      : narrow_cast<int32>((offset + limit - 1) / parts_manager_.get_part_size()) + 1;
+    auto max_parts = narrow_cast<int32>(max_resource_limit / parts_manager_.get_part_size());
     auto end_part_id = begin_part_id + td::min(max_parts, new_end_part_id - begin_part_id);
     VLOG(file_loader) << "Protect parts " << begin_part_id << " ... " << end_part_id - 1;
     for (auto &it : part_map_) {
@@ -122,7 +122,7 @@ void FileLoader::start_up() {
   // location untouched. This is completely possible at this point, but probably should be fixed.
   auto status =
       parts_manager_.init(size, expected_size, is_size_final, part_size, ready_parts, use_part_count_limit, is_upload);
-  LOG(DEBUG) << "Start " << (is_upload ? "up" : "down") << "load of a file of size " << size << " with expected "
+  LOG(DEBUG) << "Start " << (is_upload ? "up" : "down") << "loading a file of size " << size << " with expected "
              << (is_size_final ? "exact" : "approximate") << " size " << expected_size << ", part size " << part_size
              << " and " << ready_parts.size() << " ready parts: " << status;
   if (status.is_error()) {
@@ -196,7 +196,7 @@ Status FileLoader::do_loop() {
     if (blocking_id_ != 0) {
       break;
     }
-    if (resource_state_.unused() < static_cast<int64>(parts_manager_.get_part_size())) {
+    if (resource_state_.unused() < narrow_cast<int64>(parts_manager_.get_part_size())) {
       VLOG(file_loader) << "Got only " << resource_state_.unused() << " resource";
       break;
     }

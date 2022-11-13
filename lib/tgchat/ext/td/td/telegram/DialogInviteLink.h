@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -40,7 +40,7 @@ class DialogInviteLink {
  public:
   DialogInviteLink() = default;
 
-  explicit DialogInviteLink(tl_object_ptr<telegram_api::chatInviteExported> exported_invite);
+  DialogInviteLink(tl_object_ptr<telegram_api::ExportedChatInvite> exported_invite_ptr, const char *source);
 
   static bool is_valid_invite_link(Slice invite_link);
 

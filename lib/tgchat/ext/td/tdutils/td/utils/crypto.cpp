@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -55,41 +55,56 @@
 
 namespace td {
 
-static uint64 gcd(uint64 a, uint64 b) {
+static uint64 pq_gcd(uint64 a, uint64 b) {
   if (a == 0) {
     return b;
   }
-  if (b == 0) {
-    return a;
-  }
-
-  int shift = 0;
-  while ((a & 1) == 0 && (b & 1) == 0) {
+  while ((a & 1) == 0) {
     a >>= 1;
-    b >>= 1;
-    shift++;
   }
+  DCHECK((b & 1) != 0);
 
   while (true) {
-    while ((a & 1) == 0) {
-      a >>= 1;
-    }
-    while ((b & 1) == 0) {
-      b >>= 1;
-    }
     if (a > b) {
-      a -= b;
+      a = (a - b) >> 1;
+      while ((a & 1) == 0) {
+        a >>= 1;
+      }
     } else if (b > a) {
-      b -= a;
+      b = (b - a) >> 1;
+      while ((b & 1) == 0) {
+        b >>= 1;
+      }
     } else {
-      return a << shift;
+      return a;
     }
   }
 }
 
+// returns (c + a * b) % pq
+static uint64 pq_add_mul(uint64 c, uint64 a, uint64 b, uint64 pq) {
+  while (b) {
+    if (b & 1) {
+      c += a;
+      if (c >= pq) {
+        c -= pq;
+      }
+    }
+    a += a;
+    if (a >= pq) {
+      a -= pq;
+    }
+    b >>= 1;
+  }
+  return c;
+}
+
 uint64 pq_factorize(uint64 pq) {
-  if (pq < 2 || pq > (static_cast<uint64>(1) << 63)) {
+  if (pq <= 2 || pq > (static_cast<uint64>(1) << 63)) {
     return 1;
+  }
+  if ((pq & 1) == 0) {
+    return 2;
   }
   uint64 g = 0;
   for (int i = 0, iter = 0; i < 3 || iter < 1000; i++) {
@@ -99,28 +114,9 @@ uint64 pq_factorize(uint64 pq) {
     int lim = 1 << (min(5, i) + 18);
     for (int j = 1; j < lim; j++) {
       iter++;
-      uint64 a = x;
-      uint64 b = x;
-      uint64 c = q;
-
-      // c += a * b
-      while (b) {
-        if (b & 1) {
-          c += a;
-          if (c >= pq) {
-            c -= pq;
-          }
-        }
-        a += a;
-        if (a >= pq) {
-          a -= pq;
-        }
-        b >>= 1;
-      }
-
-      x = c;
+      x = pq_add_mul(q, x, x, pq);
       uint64 z = x < y ? pq + x - y : x - y;
-      g = gcd(z, pq);
+      g = pq_gcd(z, pq);
       if (g != 1) {
         break;
       }
@@ -1117,7 +1113,10 @@ Status create_openssl_error(int code, Slice message) {
 
 void clear_openssl_errors(Slice source) {
   if (ERR_peek_error() != 0) {
-    LOG(ERROR) << source << ": " << create_openssl_error(0, "Unprocessed OPENSSL_ERROR");
+    auto error = create_openssl_error(0, "Unprocessed OPENSSL_ERROR");
+    if (!ends_with(error.message(), ":def_load:system lib}]")) {
+      LOG(ERROR) << source << ": " << error;
+    }
   }
 #if TD_PORT_WINDOWS
   WSASetLastError(0);

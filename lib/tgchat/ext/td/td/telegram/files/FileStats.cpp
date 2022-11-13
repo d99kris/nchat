@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,11 +11,11 @@
 
 #include "td/utils/algorithm.h"
 #include "td/utils/common.h"
+#include "td/utils/FlatHashSet.h"
 #include "td/utils/format.h"
 #include "td/utils/misc.h"
 
 #include <algorithm>
-#include <unordered_set>
 #include <utility>
 
 namespace td {
@@ -109,21 +109,24 @@ void FileStats::apply_dialog_limit(int32 limit) {
 }
 
 void FileStats::apply_dialog_ids(const vector<DialogId> &dialog_ids) {
-  std::unordered_set<DialogId, DialogIdHash> all_dialogs(dialog_ids.begin(), dialog_ids.end());
+  FlatHashSet<DialogId, DialogIdHash> all_dialog_ids;
+  for (auto &dialog_id : dialog_ids) {
+    CHECK(dialog_id.is_valid());
+    all_dialog_ids.insert(dialog_id);
+  }
   StatByType other_stats;
   bool other_flag = false;
-  for (auto it = stat_by_owner_dialog_id_.begin(); it != stat_by_owner_dialog_id_.end();) {
-    if (all_dialogs.count(it->first)) {
-      ++it;
-    } else {
+  table_remove_if(stat_by_owner_dialog_id_, [&](const auto &it) {
+    if (!all_dialog_ids.count(it.first)) {
       for (int32 i = 0; i < MAX_FILE_TYPE; i++) {
-        other_stats[i].size += it->second[i].size;
-        other_stats[i].cnt += it->second[i].cnt;
+        other_stats[i].size += it.second[i].size;
+        other_stats[i].cnt += it.second[i].cnt;
       }
       other_flag = true;
-      it = stat_by_owner_dialog_id_.erase(it);
+      return true;
     }
-  }
+    return false;
+  });
 
   if (other_flag) {
     DialogId other_dialog_id;  // prevents MSVC warning C4709: comma operator within array index expression

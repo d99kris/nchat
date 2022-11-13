@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -192,31 +192,17 @@ class FullRemoteFileLocation {
     if (is_web()) {
       return LocationType::Web;
     }
-    switch (file_type_) {
-      case FileType::Photo:
-      case FileType::ProfilePhoto:
-      case FileType::Thumbnail:
-      case FileType::EncryptedThumbnail:
-      case FileType::Wallpaper:
+    switch (get_file_type_class(file_type_)) {
+      case FileTypeClass::Photo:
         return LocationType::Photo;
-      case FileType::Video:
-      case FileType::VoiceNote:
-      case FileType::Document:
-      case FileType::Sticker:
-      case FileType::Audio:
-      case FileType::Animation:
-      case FileType::Encrypted:
-      case FileType::VideoNote:
-      case FileType::SecureRaw:
-      case FileType::Secure:
-      case FileType::Background:
-      case FileType::DocumentAsFile:
+      case FileTypeClass::Document:
+      case FileTypeClass::Secure:
+      case FileTypeClass::Encrypted:
         return LocationType::Common;
-      case FileType::None:
-      case FileType::Size:
+      case FileTypeClass::Temp:
+        return LocationType::None;
       default:
         UNREACHABLE();
-      case FileType::Temp:
         return LocationType::None;
     }
   }
@@ -375,13 +361,13 @@ class FullRemoteFileLocation {
     return file_type_ == FileType::Encrypted;
   }
   bool is_encrypted_secure() const {
-    return file_type_ == FileType::Secure;
+    return file_type_ == FileType::SecureEncrypted;
   }
   bool is_encrypted_any() const {
     return is_encrypted_secret() || is_encrypted_secure();
   }
   bool is_secure() const {
-    return file_type_ == FileType::SecureRaw || file_type_ == FileType::Secure;
+    return file_type_ == FileType::SecureDecrypted || file_type_ == FileType::SecureEncrypted;
   }
   bool is_document() const {
     return is_common() && !is_secure() && !is_encrypted_secret();
@@ -698,7 +684,7 @@ inline bool operator!=(const EmptyLocalFileLocation &lhs, const EmptyLocalFileLo
 
 struct PartialLocalFileLocation {
   FileType file_type_;
-  int32 part_size_;
+  int64 part_size_;
   string path_;
   string iv_;
   string ready_bitmask_;

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -14,14 +14,14 @@
 #include "td/telegram/UserId.h"
 
 #include "td/actor/actor.h"
-#include "td/actor/PromiseFuture.h"
 
 #include "td/utils/common.h"
 #include "td/utils/Container.h"
+#include "td/utils/FlatHashMap.h"
+#include "td/utils/Promise.h"
 #include "td/utils/Status.h"
 
 #include <map>
-#include <unordered_map>
 #include <utility>
 
 namespace td {
@@ -77,7 +77,7 @@ class SecureManager final : public NetQueryCallback {
     vector<telegram_api::object_ptr<telegram_api::SecureValueError>> errors;
   };
 
-  std::unordered_map<int32, AuthorizationForm> authorization_forms_;
+  FlatHashMap<int32, unique_ptr<AuthorizationForm>> authorization_forms_;
   int32 max_authorization_form_id_{0};
 
   void hangup() final;

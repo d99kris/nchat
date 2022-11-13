@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -8,13 +8,13 @@
 
 #include "td/telegram/Client.h"
 
+#include "td/utils/FlatHashMap.h"
 #include "td/utils/Slice.h"
 
 #include <atomic>
 #include <cstdint>
 #include <mutex>
 #include <string>
-#include <unordered_map>
 
 namespace td {
 
@@ -30,7 +30,7 @@ class ClientJson final {
  private:
   Client client_;
   std::mutex mutex_;  // for extra_
-  std::unordered_map<std::int64_t, std::string> extra_;
+  FlatHashMap<std::int64_t, std::string> extra_;
   std::atomic<std::uint64_t> extra_id_{1};
 };
 

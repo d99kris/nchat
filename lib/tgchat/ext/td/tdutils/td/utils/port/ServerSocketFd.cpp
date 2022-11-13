@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -29,7 +29,7 @@
 
 #if TD_PORT_WINDOWS
 #include "td/utils/port/detail/Iocp.h"
-#include "td/utils/SpinLock.h"
+#include "td/utils/port/Mutex.h"
 #include "td/utils/VectorQueue.h"
 #endif
 
@@ -87,7 +87,7 @@ class ServerSocketFdImpl final : private Iocp::Callback {
  private:
   PollableFdInfo info_;
 
-  SpinLock lock_;
+  Mutex lock_;
   VectorQueue<SocketFd> accepted_;
   VectorQueue<Status> pending_errors_;
   static constexpr size_t MAX_ADDR_SIZE = sizeof(sockaddr_in6) + 16;

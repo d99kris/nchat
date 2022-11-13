@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -74,7 +74,8 @@ class BufferAllocator {
  private:
   friend class BufferSlice;
 
-  static void track_buffer_slice(int64 size);
+  static void track_buffer_slice(int64 size) {
+  }
 
   static ReaderPtr create_reader_fast(size_t size);
 

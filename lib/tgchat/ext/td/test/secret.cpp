@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -26,7 +26,6 @@
 
 #include "td/actor/actor.h"
 #include "td/actor/ConcurrentScheduler.h"
-#include "td/actor/PromiseFuture.h"
 
 #include "td/utils/algorithm.h"
 #include "td/utils/as.h"
@@ -38,6 +37,7 @@
 #include "td/utils/Gzip.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
+#include "td/utils/Promise.h"
 #include "td/utils/Random.h"
 #include "td/utils/Slice.h"
 #include "td/utils/SliceBuilder.h"
@@ -433,7 +433,7 @@ class FakeBinlog final
     has_request_sync = false;
     auto pos = static_cast<size_t>(Random::fast_uint64() % pending_events_.size());
     // pos = pending_events_.size() - 1;
-    std::vector<Promise<>> promises;
+    td::vector<Promise<Unit>> promises;
     for (size_t i = 0; i <= pos; i++) {
       auto &pending = pending_events_[i];
       auto event = std::move(pending.event);
@@ -444,9 +444,7 @@ class FakeBinlog final
       append(promises, std::move(pending.promises_));
     }
     pending_events_.erase(pending_events_.begin(), pending_events_.begin() + pos + 1);
-    for (auto &promise : promises) {
-      promise.set_value(Unit());
-    }
+    set_promises(promises);
 
     for (auto &event : pending_events_) {
       if (event.sync_flag) {
@@ -470,7 +468,7 @@ class FakeBinlog final
   struct PendingEvent {
     BinlogEvent event;
     bool sync_flag = false;
-    std::vector<Promise<>> promises_;
+    td::vector<Promise<Unit>> promises_;
   };
 
   std::vector<PendingEvent> pending_events_;
@@ -791,13 +789,13 @@ class Master final : public Actor {
     if (can_fail(query) && Random::fast_bool()) {
       LOG(INFO) << "Fail query " << query;
       auto resend_promise =
-          PromiseCreator::lambda([id = actor_shared(this, get_link_token()), callback_actor = callback.get(),
+          PromiseCreator::lambda([self = actor_shared(this, get_link_token()), callback_actor = callback.get(),
                                   callback_token = callback.token()](Result<NetQueryPtr> r_net_query) mutable {
             if (r_net_query.is_error()) {
-              id.release();
+              self.release();
               return;
             }
-            send_closure(std::move(id), &Master::send_net_query, r_net_query.move_as_ok(),
+            send_closure(std::move(self), &Master::send_net_query, r_net_query.move_as_ok(),
                          ActorShared<NetQueryCallback>(callback_actor, callback_token), true);
           });
       query->set_error(Status::Error(429, "Test error"));

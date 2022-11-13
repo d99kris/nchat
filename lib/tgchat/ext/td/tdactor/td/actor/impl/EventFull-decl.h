@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -56,7 +56,7 @@ class EventFull {
 class EventCreator {
  public:
   template <class ActorIdT, class FunctionT, class... ArgsT>
-  static EventFull closure(ActorIdT &&actor_id, FunctionT function, ArgsT &&... args) {
+  static EventFull closure(ActorIdT &&actor_id, FunctionT function, ArgsT &&...args) {
     using ActorT = typename std::decay_t<ActorIdT>::ActorT;
     using FunctionClassT = member_function_class_t<FunctionT>;
     static_assert(std::is_base_of<FunctionClassT, ActorT>::value, "unsafe send_closure");

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -9,11 +9,11 @@
 #include "td/db/SqliteDb.h"
 #include "td/db/SqliteStatement.h"
 
+#include "td/utils/common.h"
+#include "td/utils/FlatHashMap.h"
 #include "td/utils/Slice.h"
 #include "td/utils/SliceBuilder.h"
 #include "td/utils/Status.h"
-
-#include <unordered_map>
 
 namespace td {
 
@@ -27,8 +27,6 @@ class SqliteKeyValue {
     return connection.exec(PSLICE() << "CREATE TABLE IF NOT EXISTS " << table_name << " (k BLOB PRIMARY KEY, v BLOB)");
   }
 
-  using SeqNo = uint64;
-
   bool empty() const {
     return db_.empty();
   }
@@ -41,27 +39,32 @@ class SqliteKeyValue {
 
   Status drop();
 
-  SeqNo set(Slice key, Slice value);
+  void set(Slice key, Slice value);
+
+  void set_all(const FlatHashMap<string, string> &key_values);
 
   string get(Slice key);
 
-  SeqNo erase(Slice key);
+  void erase(Slice key);
 
   Status begin_read_transaction() TD_WARN_UNUSED_RESULT {
     return db_.begin_read_transaction();
   }
+
   Status begin_write_transaction() TD_WARN_UNUSED_RESULT {
     return db_.begin_write_transaction();
   }
+
   Status commit_transaction() TD_WARN_UNUSED_RESULT {
     return db_.commit_transaction();
   }
 
   void erase_by_prefix(Slice prefix);
 
-  std::unordered_map<string, string> get_all() {
-    std::unordered_map<string, string> res;
+  FlatHashMap<string, string> get_all() {
+    FlatHashMap<string, string> res;
     get_by_prefix("", [&](Slice key, Slice value) {
+      CHECK(!key.empty());
       res.emplace(key.str(), value.str());
       return true;
     });

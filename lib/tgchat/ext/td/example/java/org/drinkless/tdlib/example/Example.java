@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -9,14 +9,15 @@ package org.drinkless.tdlib.example;
 import org.drinkless.tdlib.Client;
 import org.drinkless.tdlib.TdApi;
 
+import java.io.BufferedReader;
 import java.io.IOError;
 import java.io.IOException;
-import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.util.NavigableSet;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -248,7 +249,7 @@ public final class Example {
     private static void getMainChatList(final int limit) {
         synchronized (mainChatList) {
             if (!haveFullMainChatList && limit > mainChatList.size()) {
-                // send GetChats request if there are some unknown chats and have not enough known chats
+                // send LoadChats request if there are some unknown chats and have not enough known chats
                 client.send(new TdApi.LoadChats(new TdApi.ChatListMain(), limit - mainChatList.size()), new Client.ResultHandler() {
                     @Override
                     public void onResult(TdApi.Object object) {
@@ -259,7 +260,7 @@ public final class Example {
                                         haveFullMainChatList = true;
                                     }
                                 } else {
-                                    System.err.println("Receive an error for GetChats:" + newLine + object);
+                                    System.err.println("Receive an error for LoadChats:" + newLine + object);
                                 }
                                 break;
                             case TdApi.Ok.CONSTRUCTOR:
@@ -298,7 +299,10 @@ public final class Example {
     }
 
     public static void main(String[] args) throws InterruptedException {
-        // disable TDLib log
+        // set log message handler to handle only fatal errors (0) and plain log messages (-1)
+        Client.setLogMessageHandler(0, new LogMessageHandler());
+
+        // disable TDLib log and redirect fatal errors and plain log messages to a file
         Client.execute(new TdApi.SetLogVerbosityLevel(0));
         if (Client.execute(new TdApi.SetLogStream(new TdApi.LogStreamFile("tdlib.log", 1 << 27, false))) instanceof TdApi.Error) {
             throw new IOError(new IOException("Write access to the current directory is required"));
@@ -377,7 +381,7 @@ public final class Example {
                     TdApi.UpdateUser updateUser = (TdApi.UpdateUser) object;
                     users.put(updateUser.user.id, updateUser.user);
                     break;
-                case TdApi.UpdateUserStatus.CONSTRUCTOR:  {
+                case TdApi.UpdateUserStatus.CONSTRUCTOR: {
                     TdApi.UpdateUserStatus updateUserStatus = (TdApi.UpdateUserStatus) object;
                     TdApi.User user = users.get(updateUserStatus.userId);
                     synchronized (user) {
@@ -438,7 +442,7 @@ public final class Example {
                 case TdApi.UpdateChatPosition.CONSTRUCTOR: {
                     TdApi.UpdateChatPosition updateChat = (TdApi.UpdateChatPosition) object;
                     if (updateChat.position.list.getConstructor() != TdApi.ChatListMain.CONSTRUCTOR) {
-                      break;
+                        break;
                     }
 
                     TdApi.Chat chat = chats.get(updateChat.chatId);
@@ -452,7 +456,7 @@ public final class Example {
                         TdApi.ChatPosition[] new_positions = new TdApi.ChatPosition[chat.positions.length + (updateChat.position.order == 0 ? 0 : 1) - (i < chat.positions.length ? 1 : 0)];
                         int pos = 0;
                         if (updateChat.position.order != 0) {
-                          new_positions[pos++] = updateChat.position;
+                            new_positions[pos++] = updateChat.position;
                         }
                         for (int j = 0; j < chat.positions.length; j++) {
                             if (j != i) {
@@ -595,6 +599,87 @@ public final class Example {
                     break;
                 default:
                     System.err.println("Receive wrong response from TDLib:" + newLine + object);
+            }
+        }
+    }
+
+    private static class LogMessageHandler implements Client.LogMessageHandler {
+        @Override
+        public void onLogMessage(int verbosityLevel, String message) {
+            if (verbosityLevel == 0) {
+                onFatalError(message);
+                return;
+            }
+            System.err.println(message);
+        }
+    }
+
+    private static void onFatalError(String errorMessage) {
+        final class ThrowError implements Runnable {
+            private final String errorMessage;
+            private final AtomicLong errorThrowTime;
+
+            private ThrowError(String errorMessage, AtomicLong errorThrowTime) {
+                this.errorMessage = errorMessage;
+                this.errorThrowTime = errorThrowTime;
+            }
+
+            @Override
+            public void run() {
+                if (isDatabaseBrokenError(errorMessage) || isDiskFullError(errorMessage) || isDiskError(errorMessage)) {
+                    processExternalError();
+                    return;
+                }
+
+                errorThrowTime.set(System.currentTimeMillis());
+                throw new ClientError("TDLib fatal error: " + errorMessage);
+            }
+
+            private void processExternalError() {
+                errorThrowTime.set(System.currentTimeMillis());
+                throw new ExternalClientError("Fatal error: " + errorMessage);
+            }
+
+            final class ClientError extends Error {
+                private ClientError(String message) {
+                    super(message);
+                }
+            }
+
+            final class ExternalClientError extends Error {
+                public ExternalClientError(String message) {
+                    super(message);
+                }
+            }
+
+            private boolean isDatabaseBrokenError(String message) {
+                return message.contains("Wrong key or database is corrupted") ||
+                        message.contains("SQL logic error or missing database") ||
+                        message.contains("database disk image is malformed") ||
+                        message.contains("file is encrypted or is not a database") ||
+                        message.contains("unsupported file format") ||
+                        message.contains("Database was corrupted and deleted during execution and can't be recreated");
+            }
+
+            private boolean isDiskFullError(String message) {
+                return message.contains("PosixError : No space left on device") ||
+                        message.contains("database or disk is full");
+            }
+
+            private boolean isDiskError(String message) {
+                return message.contains("I/O error") || message.contains("Structure needs cleaning");
+            }
+        }
+
+        final AtomicLong errorThrowTime = new AtomicLong(Long.MAX_VALUE);
+        new Thread(new ThrowError(errorMessage, errorThrowTime), "TDLib fatal error thread").start();
+
+        // wait at least 10 seconds after the error is thrown
+        while (errorThrowTime.get() >= System.currentTimeMillis() - 10000) {
+            try {
+                Thread.sleep(1000 /* milliseconds */);
+            } catch (InterruptedException ignore) {
+                Thread.currentThread().interrupt();
             }
         }
     }

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -437,13 +437,13 @@ Status SessionConnection::on_packet(const MsgInfo &info, const mtproto_api::msgs
   if (it == service_queries_.end()) {
     return Status::Error("Unknown msgs_state_info");
   }
-  SCOPE_EXIT {
-    service_queries_.erase(it);
-  };
-  if (it->second.type != ServiceQuery::GetStateInfo) {
-    return Status::Error("Got msg_state_info in response not to GetStateInfo");
+  auto query = std::move(it->second);
+  service_queries_.erase(it);
+
+  if (query.type != ServiceQuery::GetStateInfo) {
+    return Status::Error("Receive msg_state_info in response not to GetStateInfo");
   }
-  return on_msgs_state_info(it->second.message_ids, msgs_state_info.info_);
+  return on_msgs_state_info(query.message_ids, msgs_state_info.info_);
 }
 
 Status SessionConnection::on_packet(const MsgInfo &info, const mtproto_api::msgs_all_info &msgs_all_info) {
@@ -573,8 +573,9 @@ void SessionConnection::on_message_failed(uint64 id, Status status) {
 
   auto cit = container_to_service_msg_.find(id);
   if (cit != container_to_service_msg_.end()) {
-    for (auto nid : cit->second) {
-      on_message_failed_inner(nid);
+    auto message_ids = cit->second;
+    for (auto message_id : message_ids) {
+      on_message_failed_inner(message_id);
     }
   } else {
     on_message_failed_inner(id);
@@ -586,21 +587,25 @@ void SessionConnection::on_message_failed_inner(uint64 id) {
   if (it == service_queries_.end()) {
     return;
   }
-  switch (it->second.type) {
+  auto query = std::move(it->second);
+  service_queries_.erase(it);
+
+  switch (query.type) {
     case ServiceQuery::ResendAnswer: {
-      for (auto message_id : it->second.message_ids) {
+      for (auto message_id : query.message_ids) {
         resend_answer(message_id);
       }
       break;
     }
     case ServiceQuery::GetStateInfo: {
-      for (auto message_id : it->second.message_ids) {
+      for (auto message_id : query.message_ids) {
         get_state_info(message_id);
       }
       break;
     }
+    default:
+      UNREACHABLE();
   }
-  service_queries_.erase(id);
 }
 
 bool SessionConnection::must_flush_packet() {
@@ -765,7 +770,7 @@ void SessionConnection::send_crypto(const Storer &storer, uint64 quick_ack_token
 }
 
 Result<uint64> SessionConnection::send_query(BufferSlice buffer, bool gzip_flag, int64 message_id,
-                                             uint64 invoke_after_id, bool use_quick_ack) {
+                                             vector<uint64> invoke_after_ids, bool use_quick_ack) {
   CHECK(mode_ != Mode::HttpLongPoll);  // "LongPoll connection is only for http_wait"
   if (message_id == 0) {
     message_id = auth_data_->next_message_id(Time::now_cached());
@@ -774,9 +779,10 @@ Result<uint64> SessionConnection::send_query(BufferSlice buffer, bool gzip_flag,
   if (to_send_.empty()) {
     send_before(Time::now_cached() + QUERY_DELAY);
   }
-  to_send_.push_back(MtprotoQuery{message_id, seq_no, std::move(buffer), gzip_flag, invoke_after_id, use_quick_ack});
+  to_send_.push_back(
+      MtprotoQuery{message_id, seq_no, std::move(buffer), gzip_flag, std::move(invoke_after_ids), use_quick_ack});
   VLOG(mtproto) << "Invoke query " << message_id << " of size " << to_send_.back().packet.size() << " with seq_no "
-                << seq_no << " after " << invoke_after_id << (use_quick_ack ? " with quick ack" : "");
+                << seq_no << " after " << invoke_after_ids << (use_quick_ack ? " with quick ack" : "");
 
   return message_id;
 }
@@ -817,7 +823,7 @@ std::pair<uint64, BufferSlice> SessionConnection::encrypted_bind(int64 perm_key,
   CHECK(size == real_size);
 
   MtprotoQuery query{
-      auth_data_->next_message_id(Time::now_cached()), 0, object_packet.as_buffer_slice(), false, 0, false};
+      auth_data_->next_message_id(Time::now_cached()), 0, object_packet.as_buffer_slice(), false, {}, false};
   PacketStorer<QueryImpl> query_storer(query, Slice());
 
   PacketInfo info;
@@ -830,6 +836,12 @@ std::pair<uint64, BufferSlice> SessionConnection::encrypted_bind(int64 perm_key,
   auto packet = BufferWriter{Transport::write(query_storer, main_auth_key, &info), 0, 0};
   Transport::write(query_storer, main_auth_key, &info, packet.as_slice());
   return std::make_pair(query.message_id, packet.as_buffer_slice());
+}
+
+void SessionConnection::force_ack() {
+  if (!to_ack_.empty()) {
+    send_before(Time::now_cached());
+  }
 }
 
 void SessionConnection::send_ack(uint64 message_id) {
@@ -935,7 +947,7 @@ void SessionConnection::flush_packet() {
       v.clear();
       return result;
     }
-    LOG(WARNING) << "Too much message identifiers in container " << name << ": " << v.size() << " instead of " << size;
+    LOG(WARNING) << "Too many message identifiers in container " << name << ": " << v.size() << " instead of " << size;
     vector<int64> result(v.end() - size, v.end());
     v.resize(v.size() - size);
     return result;
@@ -955,6 +967,7 @@ void SessionConnection::flush_packet() {
       std::any_of(queries.begin(), queries.end(), [](const auto &query) { return query.use_quick_ack; });
 
   {
+    // LOG(ERROR) << (auth_data_->get_header().empty() ? '-' : '+');
     uint64 parent_message_id = 0;
     auto storer = PacketStorer<CryptoImpl>(
         queries, auth_data_->get_header(), std::move(to_ack), ping_id, ping_disconnect_delay() + 2, max_delay,
@@ -966,11 +979,10 @@ void SessionConnection::flush_packet() {
   }
 
   if (resend_answer_id) {
-    service_queries_.insert({resend_answer_id, ServiceQuery{ServiceQuery::ResendAnswer, std::move(to_resend_answer)}});
+    service_queries_.emplace(resend_answer_id, ServiceQuery{ServiceQuery::ResendAnswer, std::move(to_resend_answer)});
   }
   if (get_state_info_id) {
-    service_queries_.insert(
-        {get_state_info_id, ServiceQuery{ServiceQuery::GetStateInfo, std::move(to_get_state_info)}});
+    service_queries_.emplace(get_state_info_id, ServiceQuery{ServiceQuery::GetStateInfo, std::move(to_get_state_info)});
   }
   if (ping_id != 0) {
     last_ping_container_id_ = container_id;
