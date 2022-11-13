@@ -51,6 +51,7 @@ message DeviceProps {
     message HistorySyncConfig {
         optional uint32 fullSyncDaysLimit = 1;
         optional uint32 fullSyncSizeMbLimit = 2;
+        optional uint32 storageQuotaMb = 3;
     }
     
     message AppVersion {
@@ -385,6 +386,7 @@ message HistorySyncNotification {
     optional uint32 chunkOrder = 7;
     optional string originalMessageId = 8;
     optional uint32 progress = 9;
+    optional int64 oldestMsgInChunkTimestampSec = 10;
 }
 
 message HighlyStructuredMessage {
@@ -648,6 +650,7 @@ message AudioMessage {
     optional ContextInfo contextInfo = 17;
     optional bytes streamingSidecar = 18;
     optional bytes waveform = 19;
+    optional fixed32 backgroundArgb = 20;
 }
 
 message AppStateSyncKey {
@@ -800,6 +803,8 @@ message ContextInfo {
     optional ActionLink actionLink = 33;
     optional string groupSubject = 34;
     optional string parentGroupJid = 35;
+    optional string trustBannerType = 37;
+    optional uint32 trustBannerAction = 38;
 }
 
 message ActionLink {
@@ -917,7 +922,7 @@ message Message {
     optional RequestPhoneNumberMessage requestPhoneNumberMessage = 54;
     optional FutureProofMessage viewOnceMessageV2 = 55;
     optional EncReactionMessage encReactionMessage = 56;
-    optional FutureProofMessage editedMessage = 57;
+    optional FutureProofMessage editedMessage = 58;
 }
 
 message MessageContextInfo {
@@ -988,9 +993,11 @@ message TemplateMessage {
     
     optional ContextInfo contextInfo = 3;
     optional HydratedFourRowTemplate hydratedTemplate = 4;
+    optional string templateId = 9;
     oneof format {
         FourRowTemplate fourRowTemplate = 1;
         HydratedFourRowTemplate hydratedFourRowTemplate = 2;
+        InteractiveMessage interactiveMessageTemplate = 5;
     }
 }
 
@@ -1024,6 +1031,7 @@ message StickerMessage {
     optional bytes pngThumbnail = 16;
     optional ContextInfo contextInfo = 17;
     optional int64 stickerSentTs = 18;
+    optional bool isAvatar = 19;
 }
 
 message SenderKeyDistributionMessage {
@@ -1247,6 +1255,7 @@ message GlobalSettings {
     optional bool showGroupNotificationsPreview = 8;
     optional int32 disappearingModeDuration = 9;
     optional int64 disappearingModeTimestamp = 10;
+    optional AvatarUserSettings avatarUserSettings = 11;
 }
 
 message Conversation {
@@ -1294,6 +1303,13 @@ message Conversation {
     optional string displayName = 38;
     optional string pnJid = 39;
     optional bool shareOwnPn = 40;
+    optional bool pnhDuplicateLidThread = 41;
+    optional string lidJid = 42;
+}
+
+message AvatarUserSettings {
+    optional string fbid = 1;
+    optional string password = 2;
 }
 
 message AutoDownloadSettings {
@@ -1564,6 +1580,7 @@ message NuxAction {
 message MuteAction {
     optional bool muted = 1;
     optional int64 muteEndTimestamp = 2;
+    optional bool autoMuted = 3;
 }
 
 message MarkChatAsReadAction {
@@ -1602,6 +1619,7 @@ message DeleteChatAction {
 message ContactAction {
     optional string fullName = 1;
     optional string firstName = 2;
+    optional string lidJid = 3;
 }
 
 message ClearChatAction {
@@ -1796,6 +1814,9 @@ message ClientPayload {
             OCULUS_CALL = 26;
             MILAN = 27;
             CAPI = 28;
+            WEAROS = 29;
+            ARDEVICE = 30;
+            VRDEVICE = 31;
         }
         message AppVersion {
             optional uint32 primary = 1;
@@ -2077,6 +2098,11 @@ message WebMessageInfo {
         BIZ_CHAT_ASSIGNMENT = 154;
         CHAT_PSA = 155;
         CHAT_POLL_CREATION_MESSAGE = 156;
+        CAG_MASKED_THREAD_CREATED = 157;
+        COMMUNITY_PARENT_GROUP_SUBJECT_CHANGED = 158;
+        CAG_INVITE_AUTO_ADD = 159;
+        BIZ_CHAT_ASSIGNMENT_UNASSIGN = 160;
+        CAG_INVITE_AUTO_JOINED = 161;
     }
     enum Status {
         ERROR = 0;

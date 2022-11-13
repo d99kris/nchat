@@ -492,7 +492,7 @@ func handleCmd(cmd string, args []string) {
 			return
 		}
 		messageID := args[1]
-		resp, err := cli.RevokeMessage(recipient, messageID)
+		resp, err := cli.SendMessage(context.Background(), recipient, "", cli.BuildRevoke(recipient, types.EmptyJID, messageID))
 		if err != nil {
 			log.Errorf("Error sending revocation: %v", err)
 		} else {
@@ -588,6 +588,15 @@ func handler(rawEvt interface{}) {
 		}
 		if evt.IsViewOnce {
 			metaParts = append(metaParts, "ephemeral")
+		}
+		if evt.IsViewOnceV2 {
+			metaParts = append(metaParts, "ephemeral (v2)")
+		}
+		if evt.IsDocumentWithCaption {
+			metaParts = append(metaParts, "document with caption")
+		}
+		if evt.IsEdit {
+			metaParts = append(metaParts, "edit")
 		}
 
 		log.Infof("Received message %s from %s (%s): %+v", evt.Info.ID, evt.Info.SourceString(), strings.Join(metaParts, ", "), evt.Message)
