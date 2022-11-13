@@ -20,34 +20,55 @@ int64_t TimeUtil::GetCurrentTimeMSec()
   return static_cast<int64_t>((now.tv_sec * 1000) + (now.tv_usec / 1000));
 }
 
-std::string TimeUtil::GetTimeString(int64_t p_TimeSent, bool p_ShortToday)
+std::string TimeUtil::GetTimeString(int64_t p_TimeSent, bool p_Short)
 {
-  time_t rawtime = (time_t)(p_TimeSent / 1000);
-  struct tm* timeinfo;
-  timeinfo = localtime(&rawtime);
+  time_t timeSent = (time_t)(p_TimeSent / 1000);
+  struct tm tmSent;
+  localtime_r(&timeSent, &tmSent);
+  time_t timeNow = time(NULL);
+  struct tm tmNow;
+  localtime_r(&timeNow, &tmNow);
+  char tmpstr[32] = { 0 };
 
-  char senttimestr[64];
-  strftime(senttimestr, sizeof(senttimestr), "%H:%M", timeinfo);
-  std::string senttime(senttimestr);
-
-  char sentdatestr[64];
-  strftime(sentdatestr, sizeof(sentdatestr), "%Y-%m-%d", timeinfo);
-  std::string sentdate(sentdatestr);
-
-  if (p_ShortToday)
+  if (p_Short)
   {
-    time_t nowtime = time(NULL);
-    struct tm* nowtimeinfo = localtime(&nowtime);
-    char nowdatestr[64];
-    strftime(nowdatestr, sizeof(nowdatestr), "%Y-%m-%d", nowtimeinfo);
-    std::string nowdate(nowdatestr);
-
-    return (sentdate == nowdate) ? senttime : sentdate + std::string(" ") + senttime;
+    if (tmSent.tm_year == tmNow.tm_year)
+    {
+      if (tmSent.tm_mon == tmNow.tm_mon)
+      {
+        if (tmSent.tm_mday == tmNow.tm_mday)
+        {
+          strftime(tmpstr, sizeof(tmpstr), "%H:%M", &tmSent);
+        }
+        else if ((tmNow.tm_mday - tmSent.tm_mday) <= 7)
+        {
+          strftime(tmpstr, sizeof(tmpstr), "%a %H:%M", &tmSent);
+        }
+        else
+        {
+          int dlen = snprintf(tmpstr, sizeof(tmpstr), "%d ", tmSent.tm_mday);
+          strftime(tmpstr + dlen, sizeof(tmpstr) - dlen, "%b %H:%M", &tmSent);
+        }
+      }
+      else
+      {
+        int dlen = snprintf(tmpstr, sizeof(tmpstr), "%d ", tmSent.tm_mday);
+        strftime(tmpstr + dlen, sizeof(tmpstr) - dlen, "%b %H:%M", &tmSent);
+      }
+    }
+    else
+    {
+      int dlen = snprintf(tmpstr, sizeof(tmpstr), "%d ", tmSent.tm_mday);
+      strftime(tmpstr + dlen, sizeof(tmpstr) - dlen, "%b %Y %H:%M", &tmSent);
+    }
   }
   else
   {
-    return sentdate + std::string(" ") + senttime;
+    int dlen = snprintf(tmpstr, sizeof(tmpstr), "%d ", tmSent.tm_mday);
+    strftime(tmpstr + dlen, sizeof(tmpstr) - dlen, "%b %Y %H:%M", &tmSent);
   }
+
+  return std::string(tmpstr);
 }
 
 void TimeUtil::Sleep(double p_Sec)

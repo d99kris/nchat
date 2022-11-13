@@ -289,7 +289,7 @@ void UiHistoryView::Draw()
     std::wstring wtime;
     if (msg.timeSent != std::numeric_limits<int64_t>::max())
     {
-      wtime = L" (" + StrUtil::ToWString(TimeUtil::GetTimeString(msg.timeSent, true /* p_ShortToday */)) + L") ";
+      wtime = L" (" + StrUtil::ToWString(TimeUtil::GetTimeString(msg.timeSent, true /* p_Short */)) + L") ";
     }
     else
     {

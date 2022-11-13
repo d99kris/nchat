@@ -1874,7 +1874,7 @@ std::string UiModel::GetChatStatus(const std::string& p_ProfileId, const std::st
           return "(seen last week)";
 
         default:
-          return "(seen " + TimeUtil::GetTimeString(timeSeen, true /* p_ShortToday */) + ")";
+          return "(seen " + TimeUtil::GetTimeString(timeSeen, true /* p_Short */) + ")";
       }
     }
   }

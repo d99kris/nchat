@@ -487,7 +487,7 @@ void MessageCache::Export(const std::string& p_ExportDir)
       std::map<std::string, std::string> messageMap;
       for (auto chatMessage = chatMessages.rbegin(); chatMessage != chatMessages.rend(); ++chatMessage)
       {
-        std::string timestr = TimeUtil::GetTimeString(chatMessage->timeSent, false /* p_ShortToday */);
+        std::string timestr = TimeUtil::GetTimeString(chatMessage->timeSent, false /* p_Short */);
         std::string year = timestr.substr(0, 4);
         if (year != lastYear)
         {
