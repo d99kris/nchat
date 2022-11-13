@@ -506,7 +506,7 @@ func (handler *WmEventHandler) HandleReceipt(receipt *events.Receipt) {
 }
 
 func (handler *WmEventHandler) HandlePresence(presence *events.Presence) {
-	if (presence.From.Server != types.GroupServer) {
+	if presence.From.Server != types.GroupServer {
 		connId := handler.connId
 		chatId := ""
 		userId := presence.From.ToNonAD().String()
@@ -1253,7 +1253,7 @@ func WmGetStatus(connId int, userId string) int {
 
 	// get user
 	userJid, _ := types.ParseJID(userId)
-	if (userJid.Server == types.GroupServer) {
+	if userJid.Server == types.GroupServer {
 		// ignore presence requests for groups
 		return -1
 	}

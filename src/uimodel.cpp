@@ -1853,7 +1853,8 @@ std::string UiModel::GetChatStatus(const std::string& p_ProfileId, const std::st
     }
   }
 
-  if (m_UserOnline[p_ProfileId].count(p_ChatId))
+  const ContactInfo& contactInfo = m_ContactInfos[p_ProfileId][p_ChatId];
+  if (m_UserOnline[p_ProfileId].count(p_ChatId) && !contactInfo.isSelf)
   {
     if (m_UserOnline[p_ProfileId][p_ChatId])
     {
