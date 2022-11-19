@@ -47,6 +47,8 @@ add_library(ncutil SHARED
   src/protocolutil.h
   src/scopeddirlock.cpp
   src/scopeddirlock.h
+  src/sqlitehelp.cpp
+  src/sqlitehelp.h
   src/status.cpp
   src/status.h
   src/strutil.cpp

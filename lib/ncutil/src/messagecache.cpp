@@ -19,6 +19,7 @@
 #include "log.h"
 #include "fileutil.h"
 #include "protocolutil.h"
+#include "sqlitehelp.h"
 #include "strutil.h"
 #include "timeutil.h"
 
@@ -179,40 +180,47 @@ void MessageCache::AddProfile(const std::string& p_ProfileId, bool p_CheckSync, 
   m_Dbs[p_ProfileId].reset(new sqlite::database(dbPath));
   if (!m_Dbs[p_ProfileId]) return;
 
-  *m_Dbs[p_ProfileId] << "PRAGMA synchronous = OFF";
-  *m_Dbs[p_ProfileId] << "PRAGMA journal_mode = MEMORY";
+  try
+  {
+    *m_Dbs[p_ProfileId] << "PRAGMA synchronous = OFF";
+    *m_Dbs[p_ProfileId] << "PRAGMA journal_mode = MEMORY";
 
-  // create table if not exists
-  *m_Dbs[p_ProfileId] << "CREATE TABLE IF NOT EXISTS messages ("
-    "chatId TEXT,"
-    "id TEXT,"
-    "senderId TEXT,"
-    "text TEXT,"
-    "quotedId TEXT,"
-    "quotedText TEXT,"
-    "quotedSender TEXT,"
-    "fileInfo TEXT,"
-    "fileStatus INT,"
-    "fileType TEXT,"
-    "timeSent INT,"
-    "isOutgoing INT,"
-    "isRead INT,"
-    "UNIQUE(chatId, id) ON CONFLICT REPLACE"
-    ");";
+    // create table if not exists
+    *m_Dbs[p_ProfileId] << "CREATE TABLE IF NOT EXISTS messages ("
+      "chatId TEXT,"
+      "id TEXT,"
+      "senderId TEXT,"
+      "text TEXT,"
+      "quotedId TEXT,"
+      "quotedText TEXT,"
+      "quotedSender TEXT,"
+      "fileInfo TEXT,"
+      "fileStatus INT,"
+      "fileType TEXT,"
+      "timeSent INT,"
+      "isOutgoing INT,"
+      "isRead INT,"
+      "UNIQUE(chatId, id) ON CONFLICT REPLACE"
+      ");";
 
-  *m_Dbs[p_ProfileId] << "CREATE TABLE IF NOT EXISTS contacts ("
-    "id TEXT,"
-    "name TEXT,"
-    "isSelf INT,"
-    "UNIQUE(id) ON CONFLICT REPLACE"
-    ");";
+    *m_Dbs[p_ProfileId] << "CREATE TABLE IF NOT EXISTS contacts ("
+      "id TEXT,"
+      "name TEXT,"
+      "isSelf INT,"
+      "UNIQUE(id) ON CONFLICT REPLACE"
+      ");";
 
-  *m_Dbs[p_ProfileId] << "CREATE TABLE IF NOT EXISTS chats ("
-    "id TEXT,"
-    "UNIQUE(id) ON CONFLICT REPLACE"
-    ");";
+    *m_Dbs[p_ProfileId] << "CREATE TABLE IF NOT EXISTS chats ("
+      "id TEXT,"
+      "UNIQUE(id) ON CONFLICT REPLACE"
+      ");";
 
-  // @todo: create index (id, timeSent, chatId)
+    // @todo: create index (id, timeSent, chatId)
+  }
+  catch (const sqlite::sqlite_exception& ex)
+  {
+    HANDLE_SQLITE_EXCEPTION(ex);
+  }
 }
 
 void MessageCache::AddMessages(const std::string& p_ProfileId, const std::string& p_ChatId,
@@ -296,32 +304,40 @@ bool MessageCache::FetchMessagesFrom(const std::string& p_ProfileId, const std::
 
   if (m_CheckSync[p_ProfileId] && !m_InSync[p_ProfileId][p_ChatId]) return false;
 
-  int64_t fromMsgIdTimeSent = 0;
-  if (!p_FromMsgId.empty())
+  int count = 0;
+
+  try
   {
+    int64_t fromMsgIdTimeSent = 0;
+    if (!p_FromMsgId.empty())
+    {
+      // *INDENT-OFF*
+      *m_Dbs[p_ProfileId] << "SELECT timeSent FROM messages WHERE chatId = ? AND id = ?;"
+                          << p_ChatId << p_FromMsgId >>
+        [&](const int64_t& timeSent)
+        {
+          fromMsgIdTimeSent = timeSent;
+        };
+      // *INDENT-ON*
+    }
+    else
+    {
+      fromMsgIdTimeSent = std::numeric_limits<int64_t>::max();
+    }
+
     // *INDENT-OFF*
-    *m_Dbs[p_ProfileId] << "SELECT timeSent FROM messages WHERE chatId = ? AND id = ?;"
-                        << p_ChatId << p_FromMsgId >>
-      [&](const int64_t& timeSent)
+    *m_Dbs[p_ProfileId] << "SELECT COUNT(*) FROM messages WHERE chatId = ? AND timeSent < ?;"
+                        << p_ChatId << fromMsgIdTimeSent >>
+      [&](const int& countRes)
       {
-        fromMsgIdTimeSent = timeSent;
+        count = countRes;
       };
     // *INDENT-ON*
   }
-  else
+  catch (const sqlite::sqlite_exception& ex)
   {
-    fromMsgIdTimeSent = std::numeric_limits<int64_t>::max();
+    HANDLE_SQLITE_EXCEPTION(ex);
   }
-
-  // *INDENT-OFF*
-  int count = 0;
-  *m_Dbs[p_ProfileId] << "SELECT COUNT(*) FROM messages WHERE chatId = ? AND timeSent < ?;"
-                      << p_ChatId << fromMsgIdTimeSent >>
-    [&](const int& countRes)
-    {
-      count = countRes;
-    };
-  // *INDENT-ON*
 
   lock.unlock();
 
@@ -368,15 +384,22 @@ bool MessageCache::FetchOneMessage(const std::string& p_ProfileId, const std::st
   bool inSync = (!m_CheckSync[p_ProfileId] || m_InSync[p_ProfileId][p_ChatId]);
   LOG_TRACE("get cached message %d %d in %s", inSync, p_MsgId.c_str(), p_ChatId.c_str());
 
-  // *INDENT-OFF*
   int count = 0;
-  *m_Dbs[p_ProfileId] << "SELECT COUNT(*) FROM messages WHERE chatId = ? AND id = ?;"
-                      << p_ChatId << p_MsgId >>
-    [&](const int& countRes)
-    {
-      count = countRes;
-    };
-  // *INDENT-ON*
+  try
+  {
+    // *INDENT-OFF*
+    *m_Dbs[p_ProfileId] << "SELECT COUNT(*) FROM messages WHERE chatId = ? AND id = ?;"
+                        << p_ChatId << p_MsgId >>
+      [&](const int& countRes)
+      {
+        count = countRes;
+      };
+    // *INDENT-ON*
+  }
+  catch (const sqlite::sqlite_exception& ex)
+  {
+    HANDLE_SQLITE_EXCEPTION(ex);
+  }
 
   lock.unlock();
 
@@ -467,22 +490,30 @@ void MessageCache::Export(const std::string& p_ExportDir)
 
     std::cout << profileId << "\n";
 
-    // *INDENT-OFF*
     std::vector<std::string> chatIds;
-    *m_Dbs[profileId] << "SELECT DISTINCT chatId FROM messages;" >>
-      [&](const std::string& chatId)
-      {
-        chatIds.push_back(chatId);
-      };
-
-    const std::string selfName = "You";
     std::map<std::string, std::string> contactNames;
-    *m_Dbs[profileId] << "SELECT id, name, isSelf FROM contacts;" >>
-      [&](const std::string& id, const std::string& name, int32_t isSelf)
-      {
-        contactNames[id] = isSelf ? selfName : name;
-      };
-    // *INDENT-ON*
+
+    try
+    {
+      // *INDENT-OFF*
+      *m_Dbs[profileId] << "SELECT DISTINCT chatId FROM messages;" >>
+        [&](const std::string& chatId)
+        {
+          chatIds.push_back(chatId);
+        };
+
+      const std::string selfName = "You";
+      *m_Dbs[profileId] << "SELECT id, name, isSelf FROM contacts;" >>
+        [&](const std::string& id, const std::string& name, int32_t isSelf)
+        {
+          contactNames[id] = isSelf ? selfName : name;
+        };
+      // *INDENT-ON*
+    }
+    catch (const sqlite::sqlite_exception& ex)
+    {
+      HANDLE_SQLITE_EXCEPTION(ex);
+    }
 
     const int limit = std::numeric_limits<int>::max();
     const int64_t fromMsgIdTimeSent = std::numeric_limits<int64_t>::max();
@@ -626,15 +657,22 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
               msgIds += "'" + msg.id + "'";
             }
 
-            // *INDENT-OFF*
             int count = 0;
-            *m_Dbs[profileId] << "SELECT COUNT(*) FROM messages WHERE chatId = ? AND id IN (" +
-              msgIds + ");" << chatId >>
-              [&](const int& countRes)
-              {
-                count = countRes;
-              };
-            // *INDENT-ON*
+            try
+            {
+              // *INDENT-OFF*
+              *m_Dbs[profileId] << "SELECT COUNT(*) FROM messages WHERE chatId = ? AND id IN (" +
+                msgIds + ");" << chatId >>
+                [&](const int& countRes)
+                {
+                  count = countRes;
+                };
+              // *INDENT-ON*
+            }
+            catch (const sqlite::sqlite_exception& ex)
+            {
+              HANDLE_SQLITE_EXCEPTION(ex);
+            }
 
             if (count > 0)
             {
@@ -648,17 +686,24 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
           }
         }
 
-        *m_Dbs[profileId] << "BEGIN;";
-        for (const auto& msg : addMessagesRequest->chatMessages)
+        try
         {
-          *m_Dbs[profileId] << "INSERT INTO messages "
-            "(chatId, id, senderId, text, quotedId, quotedText, quotedSender, fileInfo, timeSent, isOutgoing, isRead) VALUES "
-            "(?,?,?,?,?,?,?,?,?,?,?);" <<
-            chatId << msg.id << msg.senderId << msg.text << msg.quotedId << msg.quotedText << msg.quotedSender <<
-            msg.fileInfo << msg.timeSent <<
-            msg.isOutgoing << msg.isRead;
+          *m_Dbs[profileId] << "BEGIN;";
+          for (const auto& msg : addMessagesRequest->chatMessages)
+          {
+            *m_Dbs[profileId] << "INSERT INTO messages "
+              "(chatId, id, senderId, text, quotedId, quotedText, quotedSender, fileInfo, timeSent, isOutgoing, isRead) VALUES "
+              "(?,?,?,?,?,?,?,?,?,?,?);" <<
+              chatId << msg.id << msg.senderId << msg.text << msg.quotedId << msg.quotedText << msg.quotedSender <<
+              msg.fileInfo << msg.timeSent <<
+              msg.isOutgoing << msg.isRead;
+          }
+          *m_Dbs[profileId] << "COMMIT;";
         }
-        *m_Dbs[profileId] << "COMMIT;";
+        catch (const sqlite::sqlite_exception& ex)
+        {
+          HANDLE_SQLITE_EXCEPTION(ex);
+        }
       }
       break;
 
@@ -674,16 +719,22 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
 
         if (addChatsRequest->chatInfos.empty()) return;
 
-        const std::string selfName = "You";
-        *m_Dbs[profileId] << "BEGIN;";
-        for (const auto& chatInfo : addChatsRequest->chatInfos)
+        try
         {
-          *m_Dbs[profileId] << "INSERT INTO chats "
-            "(id) VALUES "
-            "(?);" <<
-            chatInfo.id;
+          *m_Dbs[profileId] << "BEGIN;";
+          for (const auto& chatInfo : addChatsRequest->chatInfos)
+          {
+            *m_Dbs[profileId] << "INSERT INTO chats "
+              "(id) VALUES "
+              "(?);" <<
+              chatInfo.id;
+          }
+          *m_Dbs[profileId] << "COMMIT;";
         }
-        *m_Dbs[profileId] << "COMMIT;";
+        catch (const sqlite::sqlite_exception& ex)
+        {
+          HANDLE_SQLITE_EXCEPTION(ex);
+        }
       }
       break;
 
@@ -699,15 +750,22 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
 
         if (addContactsRequest->contactInfos.empty()) return;
 
-        *m_Dbs[profileId] << "BEGIN;";
-        for (const auto& contactInfo : addContactsRequest->contactInfos)
+        try
         {
-          *m_Dbs[profileId] << "INSERT INTO contacts "
-            "(id, name, isSelf) VALUES "
-            "(?,?,?);" <<
-            contactInfo.id << contactInfo.name << contactInfo.isSelf;
+          *m_Dbs[profileId] << "BEGIN;";
+          for (const auto& contactInfo : addContactsRequest->contactInfos)
+          {
+            *m_Dbs[profileId] << "INSERT INTO contacts "
+              "(id, name, isSelf) VALUES "
+              "(?,?,?);" <<
+              contactInfo.id << contactInfo.name << contactInfo.isSelf;
+          }
+          *m_Dbs[profileId] << "COMMIT;";
         }
-        *m_Dbs[profileId] << "COMMIT;";
+        catch (const sqlite::sqlite_exception& ex)
+        {
+          HANDLE_SQLITE_EXCEPTION(ex);
+        }
       }
       break;
 
@@ -719,19 +777,26 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         const std::string& profileId = fetchChatsRequest->profileId;
         if (!m_Dbs[profileId]) return;
 
-        // *INDENT-OFF*
         std::vector<ChatInfo> chatInfos;
-        *m_Dbs[profileId] << "SELECT chatId, MAX(timeSent), isOutgoing, isRead FROM messages "
-          "GROUP BY chatId;" >>
-          [&](const std::string& chatId, int64_t timeSent, int32_t isOutgoing, int32_t isRead)
-          {
-            ChatInfo chatInfo;
-            chatInfo.id = chatId;
-            chatInfo.isUnread = !isOutgoing && !isRead;
-            chatInfo.lastMessageTime = timeSent;
-            chatInfos.push_back(chatInfo);
-          };
-        // *INDENT-ON*
+        try
+        {
+          // *INDENT-OFF*
+          *m_Dbs[profileId] << "SELECT chatId, MAX(timeSent), isOutgoing, isRead FROM messages "
+            "GROUP BY chatId;" >>
+            [&](const std::string& chatId, int64_t timeSent, int32_t isOutgoing, int32_t isRead)
+            {
+              ChatInfo chatInfo;
+              chatInfo.id = chatId;
+              chatInfo.isUnread = !isOutgoing && !isRead;
+              chatInfo.lastMessageTime = timeSent;
+              chatInfos.push_back(chatInfo);
+            };
+          // *INDENT-ON*
+        }
+        catch (const sqlite::sqlite_exception& ex)
+        {
+          HANDLE_SQLITE_EXCEPTION(ex);
+        }
 
         lock.unlock();
         LOG_DEBUG("cache fetch %d chats", chatInfos.size());
@@ -752,18 +817,25 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         const std::string& profileId = fetchContactsRequest->profileId;
         if (!m_Dbs[profileId]) return;
 
-        // *INDENT-OFF*
         std::vector<ContactInfo> contactInfos;
-        *m_Dbs[profileId] << "SELECT id, name, isSelf FROM contacts;" >>
-          [&](const std::string& id, const std::string& name, int32_t isSelf)
-          {
-            ContactInfo contactInfo;
-            contactInfo.id = id;
-            contactInfo.name = name;
-            contactInfo.isSelf = isSelf;
-            contactInfos.push_back(contactInfo);
-          };
-        // *INDENT-ON*
+        try
+        {
+          // *INDENT-OFF*
+          *m_Dbs[profileId] << "SELECT id, name, isSelf FROM contacts;" >>
+            [&](const std::string& id, const std::string& name, int32_t isSelf)
+            {
+              ContactInfo contactInfo;
+              contactInfo.id = id;
+              contactInfo.name = name;
+              contactInfo.isSelf = isSelf;
+              contactInfos.push_back(contactInfo);
+            };
+          // *INDENT-ON*
+        }
+        catch (const sqlite::sqlite_exception& ex)
+        {
+          HANDLE_SQLITE_EXCEPTION(ex);
+        }
 
         lock.unlock();
         LOG_DEBUG("cache fetch %d contacts", contactInfos.size());
@@ -790,14 +862,21 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         int64_t fromMsgIdTimeSent = 0;
         if (!fromMsgId.empty())
         {
-          // *INDENT-OFF*
-          *m_Dbs[profileId] << "SELECT timeSent FROM messages WHERE chatId = ? AND id = ?;" <<
-            chatId << fromMsgId >>
-            [&](const int64_t& timeSent)
-            {
-              fromMsgIdTimeSent = timeSent;
-            };
-          // *INDENT-ON*
+          try
+          {
+            // *INDENT-OFF*
+            *m_Dbs[profileId] << "SELECT timeSent FROM messages WHERE chatId = ? AND id = ?;" <<
+              chatId << fromMsgId >>
+              [&](const int64_t& timeSent)
+              {
+                fromMsgIdTimeSent = timeSent;
+              };
+            // *INDENT-ON*
+          }
+          catch (const sqlite::sqlite_exception& ex)
+          {
+            HANDLE_SQLITE_EXCEPTION(ex);
+          }
         }
         else
         {
@@ -858,7 +937,15 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         const std::string& chatId = deleteOneMessageRequest->chatId;
         const std::string& msgId = deleteOneMessageRequest->msgId;
 
-        *m_Dbs[profileId] << "DELETE FROM messages WHERE chatId = ? AND id = ?;" << chatId << msgId;
+        try
+        {
+          *m_Dbs[profileId] << "DELETE FROM messages WHERE chatId = ? AND id = ?;" << chatId << msgId;
+        }
+        catch (const sqlite::sqlite_exception& ex)
+        {
+          HANDLE_SQLITE_EXCEPTION(ex);
+        }
+
         LOG_DEBUG("cache delete %s %s", chatId.c_str(), msgId.c_str());
       }
       break;
@@ -875,8 +962,16 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         const std::string& msgId = updateIsReadRequest->msgId;
         bool isRead = updateIsReadRequest->isRead;
 
-        *m_Dbs[profileId] << "UPDATE messages SET isRead = ? WHERE chatId = ? AND id = ?;" << (int)isRead << chatId <<
-          msgId;
+        try
+        {
+          *m_Dbs[profileId] << "UPDATE messages SET isRead = ? WHERE chatId = ? AND id = ?;" << (int)isRead << chatId <<
+            msgId;
+        }
+        catch (const sqlite::sqlite_exception& ex)
+        {
+          HANDLE_SQLITE_EXCEPTION(ex);
+        }
+
         LOG_DEBUG("cache update read %s %s %d", chatId.c_str(), msgId.c_str(), isRead);
       }
       break;
@@ -893,8 +988,16 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         const std::string& msgId = updateMessageFileInfoRequest->msgId;
         const std::string& fileInfo = updateMessageFileInfoRequest->fileInfo;
 
-        *m_Dbs[profileId] << "UPDATE messages SET fileInfo = ? WHERE chatId = ? AND id = ?;"
-                          << fileInfo << chatId << msgId;
+        try
+        {
+          *m_Dbs[profileId] << "UPDATE messages SET fileInfo = ? WHERE chatId = ? AND id = ?;"
+                            << fileInfo << chatId << msgId;
+        }
+        catch (const sqlite::sqlite_exception& ex)
+        {
+          HANDLE_SQLITE_EXCEPTION(ex);
+        }
+
         LOG_DEBUG("cache update fileInfo %s %s %s %d", chatId.c_str(), msgId.c_str(), fileInfo.c_str());
       }
       break;
@@ -911,61 +1014,75 @@ void MessageCache::PerformFetchMessagesFrom(const std::string& p_ProfileId, cons
                                             const int64_t p_FromMsgIdTimeSent, const int p_Limit,
                                             std::vector<ChatMessage>& p_ChatMessages)
 {
-  // *INDENT-OFF*
-  *m_Dbs[p_ProfileId] <<
-    "SELECT id, senderId, text, quotedId, quotedText, quotedSender, fileInfo, timeSent, "
-    "isOutgoing, isRead FROM messages WHERE chatId = ? AND timeSent < ? "
-    "ORDER BY timeSent DESC LIMIT ?;" << p_ChatId << p_FromMsgIdTimeSent << p_Limit >>
-    [&](const std::string& id, const std::string& senderId, const std::string& text,
-        const std::string& quotedId, const std::string& quotedText,
-        const std::string& quotedSender, const std::string& fileInfo,
-        int64_t timeSent, int32_t isOutgoing, int32_t isRead)
-    {
-      ChatMessage chatMessage;
-      chatMessage.id = id;
-      chatMessage.senderId = senderId;
-      chatMessage.text = text;
-      chatMessage.quotedId = quotedId;
-      chatMessage.quotedText = quotedText;
-      chatMessage.quotedSender = quotedSender;
-      chatMessage.fileInfo = fileInfo;
-      chatMessage.timeSent = timeSent;
-      chatMessage.isOutgoing = isOutgoing;
-      chatMessage.isRead = isRead;
+  try
+  {
+    // *INDENT-OFF*
+    *m_Dbs[p_ProfileId] <<
+      "SELECT id, senderId, text, quotedId, quotedText, quotedSender, fileInfo, timeSent, "
+      "isOutgoing, isRead FROM messages WHERE chatId = ? AND timeSent < ? "
+      "ORDER BY timeSent DESC LIMIT ?;" << p_ChatId << p_FromMsgIdTimeSent << p_Limit >>
+      [&](const std::string& id, const std::string& senderId, const std::string& text,
+          const std::string& quotedId, const std::string& quotedText,
+          const std::string& quotedSender, const std::string& fileInfo,
+          int64_t timeSent, int32_t isOutgoing, int32_t isRead)
+      {
+        ChatMessage chatMessage;
+        chatMessage.id = id;
+        chatMessage.senderId = senderId;
+        chatMessage.text = text;
+        chatMessage.quotedId = quotedId;
+        chatMessage.quotedText = quotedText;
+        chatMessage.quotedSender = quotedSender;
+        chatMessage.fileInfo = fileInfo;
+        chatMessage.timeSent = timeSent;
+        chatMessage.isOutgoing = isOutgoing;
+        chatMessage.isRead = isRead;
 
-      p_ChatMessages.push_back(chatMessage);
-    };
-  // *INDENT-ON*
+        p_ChatMessages.push_back(chatMessage);
+      };
+    // *INDENT-ON*
+  }
+  catch (const sqlite::sqlite_exception& ex)
+  {
+    HANDLE_SQLITE_EXCEPTION(ex);
+  }
 }
 
 void MessageCache::PerformFetchOneMessage(const std::string& p_ProfileId, const std::string& p_ChatId,
                                           const std::string& p_MsgId,
                                           std::vector<ChatMessage>& p_ChatMessages)
 {
-  // *INDENT-OFF*
-  *m_Dbs[p_ProfileId] <<
-    "SELECT id, senderId, text, quotedId, quotedText, quotedSender, fileInfo, timeSent, "
-    "isOutgoing, isRead FROM messages WHERE chatId = ? AND id = ?;" << p_ChatId << p_MsgId >>
-    [&](const std::string& id, const std::string& senderId, const std::string& text,
-           const std::string& quotedId, const std::string& quotedText,
-           const std::string& quotedSender, const std::string& fileInfo,
-           int64_t timeSent, int32_t isOutgoing, int32_t isRead)
-    {
-      ChatMessage chatMessage;
-      chatMessage.id = id;
-      chatMessage.senderId = senderId;
-      chatMessage.text = text;
-      chatMessage.quotedId = quotedId;
-      chatMessage.quotedText = quotedText;
-      chatMessage.quotedSender = quotedSender;
-      chatMessage.fileInfo = fileInfo;
-      chatMessage.timeSent = timeSent;
-      chatMessage.isOutgoing = isOutgoing;
-      chatMessage.isRead = isRead;
+  try
+  {
+    // *INDENT-OFF*
+    *m_Dbs[p_ProfileId] <<
+      "SELECT id, senderId, text, quotedId, quotedText, quotedSender, fileInfo, timeSent, "
+      "isOutgoing, isRead FROM messages WHERE chatId = ? AND id = ?;" << p_ChatId << p_MsgId >>
+      [&](const std::string& id, const std::string& senderId, const std::string& text,
+          const std::string& quotedId, const std::string& quotedText,
+          const std::string& quotedSender, const std::string& fileInfo,
+          int64_t timeSent, int32_t isOutgoing, int32_t isRead)
+      {
+        ChatMessage chatMessage;
+        chatMessage.id = id;
+        chatMessage.senderId = senderId;
+        chatMessage.text = text;
+        chatMessage.quotedId = quotedId;
+        chatMessage.quotedText = quotedText;
+        chatMessage.quotedSender = quotedSender;
+        chatMessage.fileInfo = fileInfo;
+        chatMessage.timeSent = timeSent;
+        chatMessage.isOutgoing = isOutgoing;
+        chatMessage.isRead = isRead;
 
-      p_ChatMessages.push_back(chatMessage);
-    };
-  // *INDENT-ON*
+        p_ChatMessages.push_back(chatMessage);
+      };
+    // *INDENT-ON*
+  }
+  catch (const sqlite::sqlite_exception& ex)
+  {
+    HANDLE_SQLITE_EXCEPTION(ex);
+  }
 }
 
 void MessageCache::CallMessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
