@@ -84,8 +84,8 @@ public:
   void RequestContacts();
   void SetRunning(bool p_Running);
 
-  void SetSelectMessage(bool p_SelectMessage);
-  bool GetSelectMessage();
+  void SetSelectMessageActive(bool p_SelectMessageActive);
+  bool GetSelectMessageActive();
 
   bool GetListDialogActive();
   void SetListDialogActive(bool p_ListDialogActive);
@@ -168,14 +168,15 @@ private:
   std::unordered_map<std::string, std::unordered_map<std::string, bool>> m_UserOnline;
   std::unordered_map<std::string, std::unordered_map<std::string, int64_t>> m_UserTimeSeen;
 
-  bool m_SelectMessage = false;
+  bool m_SelectMessageActive = false;
   bool m_ListDialogActive = false;
   bool m_MessageDialogActive = false;
+  bool m_EditMessageActive = false;
+
   bool m_TriggerTerminalBell = false;
   bool m_HomeFetchAll = false;
   bool m_TerminalActive = true;
   bool m_HistoryInteraction = false;
-  bool m_EditMessageActive = false;
 
   int m_HelpOffset = 0;
 };

@@ -13,6 +13,7 @@
 #include <ncurses.h>
 
 #include "emojilist.h"
+#include "log.h"
 #include "uicolorconfig.h"
 #include "uiconfig.h"
 #include "uicontroller.h"
@@ -70,6 +71,8 @@ Ui::~Ui()
 
 void Ui::Run()
 {
+  LOG_INFO("entering ui loop");
+
   curs_set(1);
   while (m_Model->Process())
   {
@@ -79,6 +82,8 @@ void Ui::Run()
       m_Model->KeyHandler(key);
     }
   }
+
+  LOG_INFO("exiting ui loop");
 
   std::unordered_map<std::string, std::shared_ptr<Protocol>>& protocols = m_Model->GetProtocols();
   for (auto& protocol : protocols)

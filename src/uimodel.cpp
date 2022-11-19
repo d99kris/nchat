@@ -239,7 +239,7 @@ void UiModel::SendMessage()
   sendMessageRequest->chatId = chatId;
   sendMessageRequest->chatMessage.text = EntryStrToSendStr(entryStr);
 
-  if (GetSelectMessage())
+  if (GetSelectMessageActive())
   {
     const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
     const int messageOffset = m_MessageOffset[profileId][chatId];
@@ -263,7 +263,7 @@ void UiModel::SendMessage()
     sendMessageRequest->chatMessage.quotedText = msg->second.text;
     sendMessageRequest->chatMessage.quotedSender = msg->second.senderId;
 
-    SetSelectMessage(false);
+    SetSelectMessageActive(false);
   }
 
   m_Protocols[profileId]->SendRequest(sendMessageRequest);
@@ -307,7 +307,7 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
 
   if (p_Key == keyUp)
   {
-    if (GetSelectMessage())
+    if (GetSelectMessageActive())
     {
       messageOffset = std::min(messageOffset + 1, messageCount - 1);
       RequestMessagesCurrentChat();
@@ -316,7 +316,7 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
     {
       if ((entryPos == 0) && (messageCount > 0))
       {
-        SetSelectMessage(true);
+        SetSelectMessageActive(true);
       }
       else
       {
@@ -357,7 +357,7 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
   }
   else if (p_Key == keyDown)
   {
-    if (GetSelectMessage())
+    if (GetSelectMessageActive())
     {
       if (messageOffset > 0)
       {
@@ -365,7 +365,7 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
       }
       else
       {
-        SetSelectMessage(false);
+        SetSelectMessageActive(false);
       }
     }
     else
@@ -592,7 +592,7 @@ void UiModel::NextChat()
 
   m_CurrentChat = m_ChatVec.at(m_CurrentChatIndex);
   OnCurrentChatChanged();
-  SetSelectMessage(false);
+  SetSelectMessageActive(false);
 }
 
 void UiModel::PrevChat()
@@ -611,7 +611,7 @@ void UiModel::PrevChat()
 
   m_CurrentChat = m_ChatVec.at(m_CurrentChatIndex);
   OnCurrentChatChanged();
-  SetSelectMessage(false);
+  SetSelectMessageActive(false);
 }
 
 void UiModel::UnreadChat()
@@ -663,7 +663,7 @@ void UiModel::UnreadChat()
 
     m_CurrentChat = m_ChatVec.at(m_CurrentChatIndex);
     OnCurrentChatChanged();
-    SetSelectMessage(false);
+    SetSelectMessageActive(false);
   }
 }
 
@@ -691,7 +691,7 @@ void UiModel::PrevPage()
     UpdateHistory();
   }
 
-  SetSelectMessage(false);
+  SetSelectMessageActive(false);
 }
 
 void UiModel::NextPage()
@@ -727,7 +727,7 @@ void UiModel::NextPage()
     SetHistoryInteraction(true);
   }
 
-  SetSelectMessage(false);
+  SetSelectMessageActive(false);
 }
 
 void UiModel::Home()
@@ -783,7 +783,7 @@ void UiModel::Home()
     UpdateHistory();
   }
 
-  SetSelectMessage(false);
+  SetSelectMessageActive(false);
 }
 
 void UiModel::HomeFetchNext(const std::string& p_ProfileId, const std::string& p_ChatId, int p_MsgCount)
@@ -837,7 +837,7 @@ void UiModel::End()
   ResetMessageOffset();
 
   SetHistoryInteraction(true);
-  SetSelectMessage(false);
+  SetSelectMessageActive(false);
 }
 
 void UiModel::ResetMessageOffset()
@@ -907,7 +907,7 @@ void UiModel::DeleteMessage()
 {
   std::unique_lock<std::mutex> lock(m_ModelMutex);
 
-  if (!GetSelectMessage() || GetEditMessageActive()) return;
+  if (!GetSelectMessageActive() || GetEditMessageActive()) return;
 
   static const bool confirmDeletion = UiConfig::GetBool("confirm_deletion");
   if (confirmDeletion)
@@ -941,7 +941,7 @@ bool UiModel::GetMessageAttachmentPath(std::string& p_FilePath, DownloadFileActi
 {
   std::unique_lock<std::mutex> lock(m_ModelMutex);
 
-  if (!GetSelectMessage()) return false;
+  if (!GetSelectMessageActive()) return false;
 
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
@@ -1051,7 +1051,7 @@ void UiModel::OpenMessageLink()
 {
   std::unique_lock<std::mutex> lock(m_ModelMutex);
 
-  if (!GetSelectMessage()) return;
+  if (!GetSelectMessageActive()) return;
 
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
@@ -1082,7 +1082,7 @@ void UiModel::OpenMessageLink()
     std::shared_ptr<CreateChatRequest> createChatRequest = std::make_shared<CreateChatRequest>();
     createChatRequest->userId = linkChatId;
     m_Protocols[profileId]->SendRequest(createChatRequest);
-    SetSelectMessage(false);
+    SetSelectMessageActive(false);
   }
   else if (!msgUrls.empty())
   {
@@ -1275,7 +1275,7 @@ void UiModel::SearchContact()
       m_CurrentChat.second = userId;
       SortChats();
       OnCurrentChatChanged();
-      SetSelectMessage(false);
+      SetSelectMessageActive(false);
     }
     else
     {
@@ -1431,7 +1431,7 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
             int& messageOffset = m_MessageOffset[profileId][chatId];
             if ((profileId == m_CurrentChat.first) && (chatId == m_CurrentChat.second))
             {
-              if (GetSelectMessage() && (messageOffset < (int)messageVec.size()))
+              if (GetSelectMessageActive() && (messageOffset < (int)messageVec.size()))
               {
                 currentMessageId = messageVec[messageOffset];
               }
@@ -1508,13 +1508,13 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
           std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
           messages.erase(msgId);
 
-          if (GetSelectMessage())
+          if (GetSelectMessageActive())
           {
             int& messageOffset = m_MessageOffset[profileId][chatId];
             if (messageVec.empty())
             {
               messageOffset = 0;
-              SetSelectMessage(false);
+              SetSelectMessageActive(false);
             }
             else
             {
@@ -1653,7 +1653,7 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
           m_CurrentChat.second = chatInfo.id;
           SortChats();
           OnCurrentChatChanged();
-          SetSelectMessage(false);
+          SetSelectMessageActive(false);
         }
       }
       break;
@@ -2142,14 +2142,14 @@ int& UiModel::GetMessageOffset(const std::string& p_ProfileId, const std::string
   return m_MessageOffset[p_ProfileId][p_ChatId];
 }
 
-bool UiModel::GetSelectMessage()
+bool UiModel::GetSelectMessageActive()
 {
-  return m_SelectMessage;
+  return m_SelectMessageActive;
 }
 
-void UiModel::SetSelectMessage(bool p_SelectMessage)
+void UiModel::SetSelectMessageActive(bool p_SelectMessageActive)
 {
-  m_SelectMessage = p_SelectMessage;
+  m_SelectMessageActive = p_SelectMessageActive;
   SetHelpOffset(0);
   UpdateHelp();
 }
@@ -2413,7 +2413,7 @@ void UiModel::Cut()
 {
   std::unique_lock<std::mutex> lock(m_ModelMutex);
 
-  if (GetSelectMessage())
+  if (GetSelectMessageActive())
   {
     std::string text = UiModel::GetSelectedMessageText();
     Clipboard::SetText(text);
@@ -2440,7 +2440,7 @@ void UiModel::Copy()
 {
   std::unique_lock<std::mutex> lock(m_ModelMutex);
 
-  if (GetSelectMessage())
+  if (GetSelectMessageActive())
   {
     std::string text = UiModel::GetSelectedMessageText();
     Clipboard::SetText(text);
@@ -2499,7 +2499,7 @@ void UiModel::EditMessage()
   {
     std::unique_lock<std::mutex> lock(m_ModelMutex);
 
-    if (!GetSelectMessage() || GetEditMessageActive()) return;
+    if (!GetSelectMessageActive() || GetEditMessageActive()) return;
 
     std::string profileId = m_CurrentChat.first;
     if (!m_Protocols[profileId]->HasFeature(FeatureEditMessages))

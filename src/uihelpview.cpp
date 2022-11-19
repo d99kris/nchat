@@ -143,7 +143,7 @@ void UiHelpView::Draw()
   {
     wstr = editMessageHelpViews.at(m_Model->GetHelpOffset() % editMessageHelpViews.size());
   }
-  else if (m_Model->GetSelectMessage())
+  else if (m_Model->GetSelectMessageActive())
   {
     wstr = selectHelpViews.at(m_Model->GetHelpOffset() % selectHelpViews.size());
   }

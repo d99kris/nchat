@@ -88,7 +88,7 @@ void UiHistoryView::Draw()
   int y = m_PaddedH - 1;
   for (auto it = std::next(messageVec.begin(), messageOffset); it != messageVec.end(); ++it)
   {
-    bool isSelectedMessage = firstMessage && m_Model->GetSelectMessage();
+    bool isSelectedMessage = firstMessage && m_Model->GetSelectMessageActive();
     firstMessage = false;
 
     ChatMessage& msg = messages[*it];

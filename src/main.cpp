@@ -328,6 +328,8 @@ int main(int argc, char* argv[])
     rv = 1;
   }
 
+  LOG_INFO("exiting nchat");
+
   return rv;
 }
 

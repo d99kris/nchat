@@ -2274,6 +2274,7 @@ bool TgChat::Impl::IsSelf(int64_t p_UserId)
 
 void TgChat::Impl::GetChatHistory(int64_t p_ChatId, int64_t p_FromMsgId, int32_t p_Offset, int32_t p_Limit)
 {
+  // *INDENT-OFF*
   Status::Set(Status::FlagFetching);
   SendQuery(td::td_api::make_object<td::td_api::getChatHistory>(p_ChatId, p_FromMsgId, p_Offset,
                                                                 p_Limit, false),
@@ -2302,6 +2303,7 @@ void TgChat::Impl::GetChatHistory(int64_t p_ChatId, int64_t p_FromMsgId, int32_t
     newMessagesNotify->fromMsgId = ((p_FromMsgId != 0) && (p_Offset == 0)) ? StrUtil::NumToHex(p_FromMsgId) : "";
     CallMessageHandler(newMessagesNotify);
   });
+  // *INDENT-ON*
 }
 
 td::td_api::object_ptr<td::td_api::inputMessageText> TgChat::Impl::GetMessageText(const std::string& p_Text)
@@ -2319,7 +2321,7 @@ td::td_api::object_ptr<td::td_api::inputMessageText> TgChat::Impl::GetMessageTex
                                                              std::move(textParseMarkdown));
     td::Client::Request parseRequest{ 1, std::move(parseTextEntities) };
     auto parseResponse = td::Client::execute(std::move(parseRequest));
-    if (parseResponse.object->get_id()  == td::td_api::formattedText::ID)
+    if (parseResponse.object->get_id() == td::td_api::formattedText::ID)
     {
       auto formattedText =
         td::td_api::move_object_as<td::td_api::formattedText>(parseResponse.object);
