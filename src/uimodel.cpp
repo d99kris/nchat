@@ -62,6 +62,8 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keySelectContact = UiKeyConfig::GetKey("select_contact");
   static wint_t keyTransfer = UiKeyConfig::GetKey("transfer");
   static wint_t keyDeleteMsg = UiKeyConfig::GetKey("delete_msg");
+  static wint_t keyEditMsg = UiKeyConfig::GetKey("edit_msg");
+  static wint_t keyCancel = UiKeyConfig::GetKey("cancel");
 
   static wint_t keyOpen = UiKeyConfig::GetKey("open");
   static wint_t keyOpenLink = UiKeyConfig::GetKey("open_link");
@@ -154,7 +156,14 @@ void UiModel::KeyHandler(wint_t p_Key)
   }
   else if (p_Key == keySendMsg)
   {
-    SendMessage();
+    if (GetEditMessageActive())
+    {
+      SaveEditMessage();
+    }
+    else
+    {
+      SendMessage();
+    }
   }
   else if (p_Key == keyDeleteMsg)
   {
@@ -201,6 +210,14 @@ void UiModel::KeyHandler(wint_t p_Key)
   {
     Paste();
   }
+  else if (p_Key == keyEditMsg)
+  {
+    EditMessage();
+  }
+  else if ((p_Key == keyCancel) && GetEditMessageActive())
+  {
+    CancelEditMessage();
+  }
   else
   {
     EntryKeyHandler(p_Key);
@@ -220,20 +237,7 @@ void UiModel::SendMessage()
 
   std::shared_ptr<SendMessageRequest> sendMessageRequest = std::make_shared<SendMessageRequest>();
   sendMessageRequest->chatId = chatId;
-  std::string str;
-  if (m_View->GetEmojiEnabled())
-  {
-    std::wstring wstr = entryStr;
-    wstr.erase(std::remove(wstr.begin(), wstr.end(), EMOJI_PAD), wstr.end());
-    str = StrUtil::ToString(wstr);
-  }
-  else
-  {
-    std::wstring wstr = entryStr;
-    str = StrUtil::Emojize(StrUtil::ToString(wstr));
-  }
-
-  sendMessageRequest->chatMessage.text = str;
+  sendMessageRequest->chatMessage.text = EntryStrToSendStr(entryStr);
 
   if (GetSelectMessage())
   {
@@ -575,6 +579,9 @@ void UiModel::SetTyping(const std::string& p_ProfileId, const std::string& p_Cha
 void UiModel::NextChat()
 {
   std::unique_lock<std::mutex> lock(m_ModelMutex);
+
+  if (GetEditMessageActive()) return;
+
   if (m_ChatVec.empty()) return;
 
   ++m_CurrentChatIndex;
@@ -591,6 +598,9 @@ void UiModel::NextChat()
 void UiModel::PrevChat()
 {
   std::unique_lock<std::mutex> lock(m_ModelMutex);
+
+  if (GetEditMessageActive()) return;
+
   if (m_ChatVec.empty()) return;
 
   --m_CurrentChatIndex;
@@ -607,6 +617,9 @@ void UiModel::PrevChat()
 void UiModel::UnreadChat()
 {
   std::unique_lock<std::mutex> lock(m_ModelMutex);
+
+  if (GetEditMessageActive()) return;
+
   if (m_ChatVec.empty()) return;
 
   std::vector<int> unreadVec;
@@ -657,6 +670,9 @@ void UiModel::UnreadChat()
 void UiModel::PrevPage()
 {
   std::unique_lock<std::mutex> lock(m_ModelMutex);
+
+  if (GetEditMessageActive()) return;
+
   int historyShowCount = m_View->GetHistoryShowCount();
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
@@ -681,6 +697,9 @@ void UiModel::PrevPage()
 void UiModel::NextPage()
 {
   std::unique_lock<std::mutex> lock(m_ModelMutex);
+
+  if (GetEditMessageActive()) return;
+
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
 
@@ -714,6 +733,8 @@ void UiModel::NextPage()
 void UiModel::Home()
 {
   std::unique_lock<std::mutex> lock(m_ModelMutex);
+
+  if (GetEditMessageActive()) return;
 
   static const bool homeFetchAll = UiConfig::GetBool("home_fetch_all");
   if (homeFetchAll)
@@ -810,6 +831,9 @@ void UiModel::HomeFetchNext(const std::string& p_ProfileId, const std::string& p
 void UiModel::End()
 {
   std::unique_lock<std::mutex> lock(m_ModelMutex);
+
+  if (GetEditMessageActive()) return;
+
   ResetMessageOffset();
 
   SetHistoryInteraction(true);
@@ -883,21 +907,15 @@ void UiModel::DeleteMessage()
 {
   std::unique_lock<std::mutex> lock(m_ModelMutex);
 
-  if (!GetSelectMessage()) return;
+  if (!GetSelectMessage() || GetEditMessageActive()) return;
 
   static const bool confirmDeletion = UiConfig::GetBool("confirm_deletion");
   if (confirmDeletion)
   {
-    UiDialogParams params(m_View.get(), this, "Confirmation", 50, 25);
-    std::string dialogText = "Confirm message deletion?";
-    UiMessageDialog messageDialog(params, dialogText);
-    if (!messageDialog.Run())
+    if (!MessageDialog("Confirmation", "Confirm message deletion?", 50, 25))
     {
-      ReinitView();
       return;
     }
-
-    ReinitView();
   }
 
   const std::string& profileId = m_CurrentChat.first;
@@ -1109,11 +1127,7 @@ void UiModel::SaveMessageAttachment(std::string p_FilePath /*= std::string()*/)
 
   if (userTriggered)
   {
-    UiDialogParams params(m_View.get(), this, "Notification", 80, 25);
-    std::string dialogText = "File saved in\n" + dstFilePath;
-    UiMessageDialog messageDialog(params, dialogText);
-    messageDialog.Run();
-    ReinitView();
+    MessageDialog("Notification", "File saved in\n" + dstFilePath, 80, 25);
   }
 }
 
@@ -1170,6 +1184,11 @@ std::vector<std::string> UiModel::SelectFile()
 
 void UiModel::TransferFile()
 {
+  {
+    std::unique_lock<std::mutex> lock(m_ModelMutex);
+    if (GetEditMessageActive()) return;
+  }
+
   std::vector<std::string> filePaths = SelectFile();
   if (!filePaths.empty())
   {
@@ -1232,6 +1251,11 @@ void UiModel::InsertEmoji()
 
 void UiModel::SearchContact()
 {
+  {
+    std::unique_lock<std::mutex> lock(m_ModelMutex);
+    if (GetEditMessageActive()) return;
+  }
+
   UiDialogParams params(m_View.get(), this, "Select Contact", 75, 65);
   UiContactListDialog dialog(params);
   if (dialog.Run())
@@ -1280,6 +1304,7 @@ void UiModel::FetchCachedMessage(const std::string& p_ProfileId, const std::stri
     std::shared_ptr<GetMessageRequest> getMessageRequest = std::make_shared<GetMessageRequest>();
     getMessageRequest->chatId = p_ChatId;
     getMessageRequest->msgId = p_MsgId;
+    getMessageRequest->cached = true;
     LOG_TRACE("request message %s in %s", p_MsgId.c_str(), p_ChatId.c_str());
     m_Protocols[m_CurrentChat.first]->SendRequest(getMessageRequest);
 
@@ -2153,6 +2178,23 @@ void UiModel::SetMessageDialogActive(bool p_MessageDialogActive)
   UpdateHelp();
 }
 
+bool UiModel::GetEditMessageActive()
+{
+  return m_EditMessageActive;
+}
+
+void UiModel::SetEditMessageActive(bool p_EditMessageActive)
+{
+  m_EditMessageActive = p_EditMessageActive;
+  if (!m_EditMessageActive)
+  {
+    m_EditMessageId.clear();
+  }
+
+  SetHelpOffset(0);
+  UpdateHelp();
+}
+
 void UiModel::SetHelpOffset(int p_HelpOffset)
 {
   m_HelpOffset = p_HelpOffset;
@@ -2436,4 +2478,132 @@ void UiModel::Paste()
 
   SetTyping(profileId, chatId, true);
   UpdateEntry();
+}
+
+void UiModel::Clear()
+{
+  std::unique_lock<std::mutex> lock(m_ModelMutex);
+
+  std::string profileId = m_CurrentChat.first;
+  std::string chatId = m_CurrentChat.second;
+  int& entryPos = m_EntryPos[profileId][chatId];
+  std::wstring& entryStr = m_EntryStr[profileId][chatId];
+  entryStr.clear();
+  entryPos = 0;
+
+  UpdateEntry();
+}
+
+void UiModel::EditMessage()
+{
+  {
+    std::unique_lock<std::mutex> lock(m_ModelMutex);
+
+    if (!GetSelectMessage() || GetEditMessageActive()) return;
+
+    std::string profileId = m_CurrentChat.first;
+    if (!m_Protocols[profileId]->HasFeature(FeatureEditMessages))
+    {
+      MessageDialog("Warning", "Protocol does not support editing!", 80, 25);
+      return;
+    }
+
+    std::string chatId = m_CurrentChat.second;
+    const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
+    const int messageOffset = m_MessageOffset[profileId][chatId];
+    auto it = std::next(messageVec.begin(), messageOffset);
+    if (it == messageVec.end()) return;
+
+    const std::string messageId = *it;
+    const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
+    const ChatMessage& chatMessage = messages.at(messageId);
+    if (!chatMessage.isOutgoing)
+    {
+      MessageDialog("Warning", "Received messages cannot be edited!", 80, 25);
+      return;
+    }
+
+    const time_t timeNow = time(NULL);
+    const time_t timeSent = (time_t)(chatMessage.timeSent / 1000);
+    const time_t messageAgeSec = timeNow - timeSent;
+    static const time_t maxEditAgeSec = 48 * 3600;
+    if (messageAgeSec >= maxEditAgeSec)
+    {
+      MessageDialog("Warning", "Messages older than 48 hours cannot be edited!", 80, 25);
+      return;
+    }
+
+    m_EditMessageId = messageId;
+    SetEditMessageActive(true);
+  }
+
+  Copy();
+  Clear();
+  Paste();
+}
+
+void UiModel::SaveEditMessage()
+{
+  {
+    std::unique_lock<std::mutex> lock(m_ModelMutex);
+
+    if (!GetEditMessageActive()) return;
+
+    std::string profileId = m_CurrentChat.first;
+    std::string chatId = m_CurrentChat.second;
+    std::wstring& entryStr = m_EntryStr[profileId][chatId];
+
+    if (entryStr.empty()) return;
+
+    std::shared_ptr<EditMessageRequest> editMessageRequest =
+      std::make_shared<EditMessageRequest>();
+    editMessageRequest->chatId = chatId;
+    editMessageRequest->msgId = m_EditMessageId;
+    editMessageRequest->chatMessage.text = EntryStrToSendStr(entryStr);
+    m_Protocols[profileId]->SendRequest(editMessageRequest);
+
+    SetEditMessageActive(false);
+  }
+
+  Clear();
+}
+
+void UiModel::CancelEditMessage()
+{
+  {
+    std::unique_lock<std::mutex> lock(m_ModelMutex);
+
+    if (!GetEditMessageActive()) return;
+
+    SetEditMessageActive(false);
+  }
+
+  Clear();
+}
+
+std::string UiModel::EntryStrToSendStr(const std::wstring& p_EntryStr)
+{
+  std::string str;
+  if (m_View->GetEmojiEnabled())
+  {
+    std::wstring wstr = p_EntryStr;
+    wstr.erase(std::remove(wstr.begin(), wstr.end(), EMOJI_PAD), wstr.end());
+    str = StrUtil::ToString(wstr);
+  }
+  else
+  {
+    std::wstring wstr = p_EntryStr;
+    str = StrUtil::Emojize(StrUtil::ToString(wstr));
+  }
+
+  return str;
+}
+
+bool UiModel::MessageDialog(const std::string& p_Title, const std::string& p_Text, int p_WPerc, int p_HPerc)
+{
+  UiDialogParams params(m_View.get(), this, p_Title, p_WPerc, p_HPerc);
+  UiMessageDialog messageDialog(params, p_Text);
+  bool rv = messageDialog.Run();
+  ReinitView();
+  return rv;
 }

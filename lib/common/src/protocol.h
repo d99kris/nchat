@@ -21,6 +21,7 @@ enum ProtocolFeature
   FeatureNone = 0,
   FeatureAutoGetChatsOnLogin = (1 << 0),
   FeatureTypingTimeout = (1 << 1),
+  FeatureEditMessages = (1 << 2),
 };
 
 class Protocol
@@ -59,6 +60,7 @@ enum MessageType
   GetMessageRequestType,
   GetMessagesRequestType,
   SendMessageRequestType,
+  EditMessageRequestType,
   DeferNotifyRequestType,
   DeferGetChatDetailsRequestType,
   DeferGetUserDetailsRequestType,
@@ -177,6 +179,7 @@ public:
   virtual MessageType GetMessageType() const { return GetMessageRequestType; }
   std::string chatId;
   std::string msgId;
+  bool cached = true; // try cache before fetch
 };
 
 class GetMessagesRequest : public RequestMessage
@@ -193,6 +196,15 @@ class SendMessageRequest : public RequestMessage
 public:
   virtual MessageType GetMessageType() const { return SendMessageRequestType; }
   std::string chatId;
+  ChatMessage chatMessage;
+};
+
+class EditMessageRequest : public RequestMessage
+{
+public:
+  virtual MessageType GetMessageType() const { return EditMessageRequestType; }
+  std::string chatId;
+  std::string msgId;
   ChatMessage chatMessage;
 };
 

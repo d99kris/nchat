@@ -192,6 +192,7 @@ void UiKeyConfig::Init()
     { "forward_word", "\\1057" }, // alt-right
     { "kill_word", "\\1006" }, // alt-delete
 #endif
+    { "edit_msg", "KEY_CTRLZ" },
     { "backward_kill_word", "\\033\\177" }, // alt/opt-backspace
     { "cut", "\\33\\170" }, // alt/opt-x
     { "copy", "\\33\\143" }, // alt/opt-c

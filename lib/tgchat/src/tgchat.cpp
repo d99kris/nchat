@@ -153,6 +153,8 @@ private:
   bool IsSponsoredMessageId(const std::string& p_MsgId);
   bool IsGroup(int64_t p_UserId);
   bool IsSelf(int64_t p_UserId);
+  void GetChatHistory(int64_t p_ChatId, int64_t p_FromMsgId, int32_t p_Offset, int32_t p_Limit);
+  td::td_api::object_ptr<td::td_api::inputMessageText> GetMessageText(const std::string& p_Text);
 
 private:
   std::thread m_ServiceThread;
@@ -251,7 +253,7 @@ std::string TgChat::Impl::GetProfileId() const
 
 bool TgChat::Impl::HasFeature(ProtocolFeature p_ProtocolFeature) const
 {
-  ProtocolFeature customFeatures = FeatureTypingTimeout;
+  static int customFeatures = FeatureTypingTimeout | FeatureEditMessages;
   return (p_ProtocolFeature & customFeatures);
 }
 
@@ -392,7 +394,6 @@ void TgChat::Impl::SetMessageHandler(const std::function<void(std::shared_ptr<Se
 {
   m_MessageHandler = p_MessageHandler;
 }
-
 
 void TgChat::Impl::CallMessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
 {
@@ -669,8 +670,21 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         LOG_DEBUG("Get message");
         std::shared_ptr<GetMessageRequest> getMessageRequest =
           std::static_pointer_cast<GetMessageRequest>(p_RequestMessage);
-        MessageCache::FetchOneMessage(m_ProfileId, getMessageRequest->chatId,
-                                      getMessageRequest->msgId, false /*p_Sync*/);
+
+        if (getMessageRequest->cached)
+        {
+          if (MessageCache::FetchOneMessage(m_ProfileId, getMessageRequest->chatId,
+                                            getMessageRequest->msgId, false /*p_Sync*/))
+          {
+            return;
+          }
+        }
+
+        int64_t chatId = StrUtil::NumFromHex<int64_t>(getMessageRequest->chatId);
+        int64_t fromMsgId = StrUtil::NumFromHex<int64_t>(getMessageRequest->msgId);
+        int32_t offset = -1; // to get fromMsgId itself
+        int32_t limit = 1;
+        GetChatHistory(chatId, fromMsgId, offset, limit);
       }
       break;
 
@@ -691,38 +705,11 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
           }
         }
 
-        Status::Set(Status::FlagFetching);
         int64_t chatId = StrUtil::NumFromHex<int64_t>(getMessagesRequest->chatId);
         int64_t fromMsgId = StrUtil::NumFromHex<int64_t>(getMessagesRequest->fromMsgId);
+        int32_t offset = 0;
         int32_t limit = getMessagesRequest->limit;
-
-        SendQuery(td::td_api::make_object<td::td_api::getChatHistory>(chatId, fromMsgId, 0,
-                                                                      limit, false),
-        [this, chatId, fromMsgId](Object object)
-        {
-          Status::Clear(Status::FlagFetching);
-
-          if (object->get_id() == td::td_api::error::ID) return;
-
-          auto messages = td::move_tl_object_as<td::td_api::messages>(object);
-
-          std::vector<ChatMessage> chatMessages;
-          for (auto it = messages->messages_.begin(); it != messages->messages_.end(); ++it)
-          {
-            auto message = td::move_tl_object_as<td::td_api::message>(*it);
-            ChatMessage chatMessage;
-            TdMessageConvert(*message, chatMessage);
-            chatMessages.push_back(chatMessage);
-          }
-
-          std::shared_ptr<NewMessagesNotify> newMessagesNotify =
-            std::make_shared<NewMessagesNotify>(m_ProfileId);
-          newMessagesNotify->success = true;
-          newMessagesNotify->chatId = StrUtil::NumToHex(chatId);
-          newMessagesNotify->chatMessages = chatMessages;
-          newMessagesNotify->fromMsgId = (fromMsgId != 0) ? StrUtil::NumToHex(fromMsgId) : "";
-          CallMessageHandler(newMessagesNotify);
-        });
+        GetChatHistory(chatId, fromMsgId, offset, limit);
       }
       break;
 
@@ -739,34 +726,7 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
 
         if (sendMessageRequest->chatMessage.fileInfo.empty())
         {
-          auto message_content = td::td_api::make_object<td::td_api::inputMessageText>();
-
-          static const bool markdownEnabled = (m_Config.Get("markdown_enabled") == "1");
-          static const int32_t markdownVersion = (m_Config.Get("markdown_version") == "1") ? 1 : 2;
-          if (markdownEnabled)
-          {
-            const std::string text = sendMessageRequest->chatMessage.text;
-            auto textParseMarkdown =
-              td::td_api::make_object<td::td_api::textParseModeMarkdown>(markdownVersion);
-            auto parseTextEntities =
-              td::td_api::make_object<td::td_api::parseTextEntities>(text,
-                                                                     std::move(textParseMarkdown));
-            td::Client::Request parseRequest{ 1, std::move(parseTextEntities) };
-            auto parseResponse = td::Client::execute(std::move(parseRequest));
-            if (parseResponse.object->get_id()  == td::td_api::formattedText::ID)
-            {
-              auto formattedText =
-                td::td_api::move_object_as<td::td_api::formattedText>(parseResponse.object);
-              message_content->text_ = std::move(formattedText);
-            }
-          }
-
-          if (!message_content->text_)
-          {
-            message_content->text_ = td::td_api::make_object<td::td_api::formattedText>();
-            message_content->text_->text_ = sendMessageRequest->chatMessage.text;
-          }
-
+          auto message_content = GetMessageText(sendMessageRequest->chatMessage.text);
           send_message->input_message_content_ = std::move(message_content);
           send_message->reply_to_message_id_ =
             StrUtil::NumFromHex<int64_t>(sendMessageRequest->chatMessage.quotedId);
@@ -795,6 +755,30 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
           sendMessageNotify->chatId = sendMessageRequest->chatId;
           sendMessageNotify->chatMessage = sendMessageRequest->chatMessage;
           CallMessageHandler(sendMessageNotify);
+        });
+      }
+      break;
+
+    case EditMessageRequestType:
+      {
+        LOG_DEBUG("Edit message");
+        Status::Set(Status::FlagSending);
+        std::shared_ptr<EditMessageRequest> editMessageRequest =
+          std::static_pointer_cast<EditMessageRequest>(p_RequestMessage);
+
+        auto edit_message = td::td_api::make_object<td::td_api::editMessageText>();
+        edit_message->chat_id_ = StrUtil::NumFromHex<int64_t>(editMessageRequest->chatId);
+        edit_message->message_id_ = StrUtil::NumFromHex<int64_t>(editMessageRequest->msgId);
+
+        auto message_content = GetMessageText(editMessageRequest->chatMessage.text);
+        edit_message->input_message_content_ = std::move(message_content);
+
+        SendQuery(std::move(edit_message),
+                  [](Object object)
+        {
+          Status::Clear(Status::FlagSending);
+
+          if (object->get_id() == td::td_api::error::ID) return;
         });
       }
       break;
@@ -1310,6 +1294,34 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
       Status::Clear(Status::FlagOnline);
     }
   },
+  [this](td::td_api::updateMessageContent& update_message_content)
+  {
+    LOG_TRACE("update message content");
+
+    int64_t chatId = update_message_content.chat_id_;
+    int64_t msgId = update_message_content.message_id_;
+
+    std::shared_ptr<GetMessageRequest> getMessageRequest =
+      std::make_shared<GetMessageRequest>();
+    getMessageRequest->chatId = StrUtil::NumToHex(chatId);
+    getMessageRequest->msgId = StrUtil::NumToHex(msgId);
+    getMessageRequest->cached = false;
+    SendRequest(getMessageRequest);
+  },
+  [this](td::td_api::updateMessageEdited& update_message_edited)
+  {
+    LOG_TRACE("update message edited");
+
+    int64_t chatId = update_message_edited.chat_id_;
+    int64_t msgId = update_message_edited.message_id_;
+
+    std::shared_ptr<GetMessageRequest> getMessageRequest =
+      std::make_shared<GetMessageRequest>();
+    getMessageRequest->chatId = StrUtil::NumToHex(chatId);
+    getMessageRequest->msgId = StrUtil::NumToHex(msgId);
+    getMessageRequest->cached = false;
+    SendRequest(getMessageRequest);
+  },
   [](td::td_api::updateRecentStickers&)
   {
     LOG_TRACE("update recent stickers");
@@ -1389,10 +1401,6 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
   [](td::td_api::updateFile&)
   {
     LOG_TRACE("update file");
-  },
-  [](td::td_api::updateMessageContent&)
-  {
-    LOG_TRACE("update message content");
   },
   [](auto& anyupdate)
   {
@@ -2262,4 +2270,68 @@ bool TgChat::Impl::IsGroup(int64_t p_UserId)
 bool TgChat::Impl::IsSelf(int64_t p_UserId)
 {
   return (p_UserId == m_SelfUserId);
+}
+
+void TgChat::Impl::GetChatHistory(int64_t p_ChatId, int64_t p_FromMsgId, int32_t p_Offset, int32_t p_Limit)
+{
+  Status::Set(Status::FlagFetching);
+  SendQuery(td::td_api::make_object<td::td_api::getChatHistory>(p_ChatId, p_FromMsgId, p_Offset,
+                                                                p_Limit, false),
+  [this, p_ChatId, p_FromMsgId, p_Offset](Object object)
+  {
+    Status::Clear(Status::FlagFetching);
+
+    if (object->get_id() == td::td_api::error::ID) return;
+
+    auto messages = td::move_tl_object_as<td::td_api::messages>(object);
+
+    std::vector<ChatMessage> chatMessages;
+    for (auto it = messages->messages_.begin(); it != messages->messages_.end(); ++it)
+    {
+      auto message = td::move_tl_object_as<td::td_api::message>(*it);
+      ChatMessage chatMessage;
+      TdMessageConvert(*message, chatMessage);
+      chatMessages.push_back(chatMessage);
+    }
+
+    std::shared_ptr<NewMessagesNotify> newMessagesNotify =
+      std::make_shared<NewMessagesNotify>(m_ProfileId);
+    newMessagesNotify->success = true;
+    newMessagesNotify->chatId = StrUtil::NumToHex(p_ChatId);
+    newMessagesNotify->chatMessages = chatMessages;
+    newMessagesNotify->fromMsgId = ((p_FromMsgId != 0) && (p_Offset == 0)) ? StrUtil::NumToHex(p_FromMsgId) : "";
+    CallMessageHandler(newMessagesNotify);
+  });
+}
+
+td::td_api::object_ptr<td::td_api::inputMessageText> TgChat::Impl::GetMessageText(const std::string& p_Text)
+{
+  auto message_content = td::td_api::make_object<td::td_api::inputMessageText>();
+
+  static const bool markdownEnabled = (m_Config.Get("markdown_enabled") == "1");
+  static const int32_t markdownVersion = (m_Config.Get("markdown_version") == "1") ? 1 : 2;
+  if (markdownEnabled)
+  {
+    auto textParseMarkdown =
+      td::td_api::make_object<td::td_api::textParseModeMarkdown>(markdownVersion);
+    auto parseTextEntities =
+      td::td_api::make_object<td::td_api::parseTextEntities>(p_Text,
+                                                             std::move(textParseMarkdown));
+    td::Client::Request parseRequest{ 1, std::move(parseTextEntities) };
+    auto parseResponse = td::Client::execute(std::move(parseRequest));
+    if (parseResponse.object->get_id()  == td::td_api::formattedText::ID)
+    {
+      auto formattedText =
+        td::td_api::move_object_as<td::td_api::formattedText>(parseResponse.object);
+      message_content->text_ = std::move(formattedText);
+    }
+  }
+
+  if (!message_content->text_)
+  {
+    message_content->text_ = td::td_api::make_object<td::td_api::formattedText>();
+    message_content->text_->text_ = p_Text;
+  }
+
+  return message_content;
 }

@@ -433,6 +433,7 @@ void ShowHelp()
     "    Ctrl-v      open/view attached file\n"
     "    Ctrl-w      open link\n"
     "    Ctrl-x      reply to selected message\n"
+    "    Ctrl-z      edit selected message\n"
     "\n"
     "Interactive Commands for Text Input:\n"
     "    Ctrl-a      move cursor to start of line\n"

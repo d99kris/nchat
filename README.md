@@ -68,6 +68,7 @@ Interactive Commands for Selected Message:
     Ctrl-v      open/view attached file
     Ctrl-w      open link
     Ctrl-x      reply to selected message
+    Ctrl-z      edit selected message
 
 Interactive Commands for Text Input:
 
@@ -504,6 +505,7 @@ This configuration file holds user interface key bindings. Default content:
     delete_line_before_cursor=KEY_CTRLU
     delete_msg=KEY_CTRLD
     down=KEY_DOWN
+    edit_msg=KEY_CTRLZ
     end=KEY_END
     end_line=KEY_CTRLE
     forward_word=

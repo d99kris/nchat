@@ -93,6 +93,9 @@ public:
   bool GetMessageDialogActive();
   void SetMessageDialogActive(bool p_MessageDialogActive);
 
+  bool GetEditMessageActive();
+  void SetEditMessageActive(bool p_EditMessageActive);
+
   void SetHelpOffset(int p_HelpOffset);
   int GetHelpOffset();
 
@@ -124,6 +127,12 @@ private:
   void Cut();
   void Copy();
   void Paste();
+  void Clear();
+  void EditMessage();
+  void SaveEditMessage();
+  void CancelEditMessage();
+  std::string EntryStrToSendStr(const std::wstring& p_EntryStr);
+  bool MessageDialog(const std::string& p_Title, const std::string& p_Text, int p_WPerc, int p_HPerc);
 
 private:
   bool m_Running = true;
@@ -140,6 +149,8 @@ private:
 
   std::pair<std::string, std::string> m_CurrentChat;
   int m_CurrentChatIndex = -1;
+
+  std::string m_EditMessageId;
 
   std::unordered_map<std::string, std::unordered_map<std::string, std::vector<std::string>>> m_MessageVec;
   std::unordered_map<std::string,
@@ -164,6 +175,7 @@ private:
   bool m_HomeFetchAll = false;
   bool m_TerminalActive = true;
   bool m_HistoryInteraction = false;
+  bool m_EditMessageActive = false;
 
   int m_HelpOffset = 0;
 };

@@ -47,6 +47,14 @@ void UiHelpView::Draw()
     return helpItems;
   }();
 
+  static std::vector<std::wstring> editMessageHelpItems = []()
+  {
+    std::vector<std::wstring> helpItems;
+    AppendHelpItem(UiKeyConfig::GetKey("cancel"), "Cancel", helpItems);
+    AppendHelpItem(UiKeyConfig::GetKey("send_msg"), "Save", helpItems);
+    return helpItems;
+  }();
+
   static std::vector<std::wstring> selectHelpItems = []()
   {
     std::vector<std::wstring> helpItems;
@@ -63,6 +71,7 @@ void UiHelpView::Draw()
     AppendHelpItem(UiKeyConfig::GetKey("down"), "NextMsg", helpItems);
 
     AppendHelpItem(UiKeyConfig::GetKey("delete_msg"), "DelMsg", helpItems);
+    AppendHelpItem(UiKeyConfig::GetKey("edit_msg"), "EditMsg", helpItems);
     AppendHelpItem(UiKeyConfig::GetKey("open"), "OpenFile", helpItems);
     AppendHelpItem(UiKeyConfig::GetKey("save"), "SaveFile", helpItems);
     AppendHelpItem(UiKeyConfig::GetKey("open_link"), "OpenLink", helpItems);
@@ -97,6 +106,7 @@ void UiHelpView::Draw()
 
   static std::vector<std::wstring> listDialogHelpViews;
   static std::vector<std::wstring> messageDialogHelpViews;
+  static std::vector<std::wstring> editMessageHelpViews;
   static std::vector<std::wstring> selectHelpViews;
   static std::vector<std::wstring> defaultHelpViews;
 
@@ -108,6 +118,7 @@ void UiHelpView::Draw()
     const int maxW = m_W - 2;
     listDialogHelpViews = GetHelpViews(maxW, listDialogHelpItems, otherHelpItem);
     messageDialogHelpViews = GetHelpViews(maxW, messageDialogHelpItems, otherHelpItem);
+    editMessageHelpViews = GetHelpViews(maxW, editMessageHelpItems, otherHelpItem);
     selectHelpViews = GetHelpViews(maxW, selectHelpItems, otherHelpItem);
     defaultHelpViews = GetHelpViews(maxW, defaultHelpItems, otherHelpItem);
   }
@@ -127,6 +138,10 @@ void UiHelpView::Draw()
   else if (m_Model->GetMessageDialogActive())
   {
     wstr = messageDialogHelpViews.at(m_Model->GetHelpOffset() % messageDialogHelpViews.size());
+  }
+  else if (m_Model->GetEditMessageActive())
+  {
+    wstr = editMessageHelpViews.at(m_Model->GetHelpOffset() % editMessageHelpViews.size());
   }
   else if (m_Model->GetSelectMessage())
   {

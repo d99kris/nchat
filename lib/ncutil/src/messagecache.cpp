@@ -368,26 +368,43 @@ bool MessageCache::FetchOneMessage(const std::string& p_ProfileId, const std::st
   bool inSync = (!m_CheckSync[p_ProfileId] || m_InSync[p_ProfileId][p_ChatId]);
   LOG_TRACE("get cached message %d %d in %s", inSync, p_MsgId.c_str(), p_ChatId.c_str());
 
+  // *INDENT-OFF*
+  int count = 0;
+  *m_Dbs[p_ProfileId] << "SELECT COUNT(*) FROM messages WHERE chatId = ? AND id = ?;"
+                      << p_ChatId << p_MsgId >>
+    [&](const int& countRes)
+    {
+      count = countRes;
+    };
+  // *INDENT-ON*
+
   lock.unlock();
 
-  std::shared_ptr<FetchOneMessageRequest> fetchOneRequest =
-    std::make_shared<FetchOneMessageRequest>();
-  fetchOneRequest->profileId = p_ProfileId;
-  fetchOneRequest->chatId = p_ChatId;
-  fetchOneRequest->msgId = p_MsgId;
-
-  if (p_Sync)
+  if (count > 0)
   {
-    LOG_DEBUG("cache sync fetch one %s %s", p_ChatId.c_str(), p_MsgId.c_str());
-    PerformRequest(fetchOneRequest);
+    std::shared_ptr<FetchOneMessageRequest> fetchOneRequest =
+      std::make_shared<FetchOneMessageRequest>();
+    fetchOneRequest->profileId = p_ProfileId;
+    fetchOneRequest->chatId = p_ChatId;
+    fetchOneRequest->msgId = p_MsgId;
+
+    if (p_Sync)
+    {
+      LOG_DEBUG("cache sync fetch one %s %s", p_ChatId.c_str(), p_MsgId.c_str());
+      PerformRequest(fetchOneRequest);
+    }
+    else
+    {
+      LOG_DEBUG("cache async fetch one %s %s", p_ChatId.c_str(), p_MsgId.c_str());
+      EnqueueRequest(fetchOneRequest);
+    }
+
+    return true;
   }
   else
   {
-    LOG_DEBUG("cache async fetch one %s %s", p_ChatId.c_str(), p_MsgId.c_str());
-    EnqueueRequest(fetchOneRequest);
+    return false;
   }
-
-  return true;
 }
 
 void MessageCache::DeleteOneMessage(const std::string& p_ProfileId, const std::string& p_ChatId,
