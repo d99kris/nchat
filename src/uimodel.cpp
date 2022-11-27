@@ -307,14 +307,14 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
 
   if (p_Key == keyUp)
   {
-    if (GetSelectMessageActive())
+    if (GetSelectMessageActive() && !GetEditMessageActive())
     {
       messageOffset = std::min(messageOffset + 1, messageCount - 1);
       RequestMessagesCurrentChat();
     }
     else
     {
-      if ((entryPos == 0) && (messageCount > 0))
+      if ((entryPos == 0) && (messageCount > 0) && !GetEditMessageActive())
       {
         SetSelectMessageActive(true);
       }
@@ -357,7 +357,7 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
   }
   else if (p_Key == keyDown)
   {
-    if (GetSelectMessageActive())
+    if (GetSelectMessageActive() && !GetEditMessageActive())
     {
       if (messageOffset > 0)
       {
