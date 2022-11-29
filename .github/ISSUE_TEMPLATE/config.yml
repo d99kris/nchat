@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Feature request
+    url: https://github.com/d99kris/nchat/discussions/new?category=ideas
+    about: Suggest a new feature by creating a new discussion.

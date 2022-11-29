@@ -280,20 +280,13 @@ If any issues are observed, try running nchat with verbose logging
 
     nchat --verbose
 
-and provide a copy of ~/.nchat/log.txt when reporting the issue. The
-preferred way of reporting issues and asking questions is by opening
-[a Github issue](https://github.com/d99kris/nchat/issues/new).
+and provide a copy of `~/.nchat/log.txt` when reporting a bug.
 
 
 Telegram Group
 ==============
 A Telegram group [https://t.me/nchatusers](https://t.me/nchatusers) is
 available for users to discuss nchat usage and related topics.
-
-Bug reports, feature requests and usage questions directed at the nchat
-maintainer(s) should however be reported using
-[Github issues](https://github.com/d99kris/nchat/issues/new) to ensure they
-are properly tracked and get addressed.
 
 
 Security
