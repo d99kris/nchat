@@ -13,7 +13,16 @@ endif()
 set(ATOMIC_TEST_SOURCE
   "
   #include <atomic>
-  int main() { std::atomic<int64_t> i(0); i++; return 0; }
+  #include <cstdint>
+
+  std::atomic<int> x;
+  std::atomic<uint64_t> y(0);
+
+  int main()
+  {
+    uint64_t i = y.load(std::memory_order_relaxed);
+    return std::atomic_is_lock_free(&y) && std::atomic_is_lock_free(&x);
+  }
   ")
 check_cxx_source_compiles("${ATOMIC_TEST_SOURCE}" HAVE_BUILTIN_ATOMIC)
 if (NOT HAVE_BUILTIN_ATOMIC)
@@ -54,7 +63,7 @@ install(FILES ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${TDLIBNAME} DESTINATION lib)
 # Linking
 target_link_libraries(tgchat PUBLIC ncutil tdclientshared)
 if (USE_LIBATOMIC)
-  set_target_properties(nchat PROPERTIES LINK_FLAGS "-latomic")
+  set_target_properties(tgchat PROPERTIES LINK_FLAGS "-latomic")
 endif()
 
 # Compiler flags
