@@ -63,6 +63,7 @@ public:
   virtual std::shared_ptr<Protocol> Create() const
   {
     std::shared_ptr<T> protocol;
+#ifdef HAS_DYNAMICLOAD
     std::string libPath =
       FileUtil::DirName(FileUtil::GetSelfPath()) + "/../lib/" + T::GetLibName() + FileUtil::GetLibSuffix();
     std::string createFunc = T::GetCreateFunc();
@@ -81,7 +82,9 @@ public:
     }
 
     protocol.reset(CreateFunc());
-
+#else
+    protocol = std::make_shared<T>();
+#endif
     return protocol;
   }
 };

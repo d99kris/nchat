@@ -49,6 +49,10 @@ message(STATUS "Telegram: ${HAS_TELEGRAM}")
 option(HAS_WHATSAPP "WhatsApp" ON)
 message(STATUS "WhatsApp: ${HAS_WHATSAPP}")
 
+# Features
+option(HAS_DYNAMICLOAD "Dynamic Load" ON)
+message(STATUS "Dynamic Load: ${HAS_DYNAMICLOAD}")
+
 # Check Go version
 if(HAS_WHATSAPP)
   # Check Golang version - whatsmeow requires >= v1.16
@@ -155,20 +159,34 @@ target_link_libraries(nchat PUBLIC ncutil pthread ${CURSES_LIBRARIES} dl)
 if(HAS_DUMMY)
   target_include_directories(nchat PRIVATE "lib/duchat/src")
   target_compile_definitions(nchat PRIVATE HAS_DUMMY="${HAS_DUMMY}")
+  if(NOT HAS_DYNAMICLOAD)
+    target_link_libraries(nchat PUBLIC duchat)
+  endif()
 endif()
 
 if(HAS_TELEGRAM)
   target_include_directories(nchat PRIVATE "lib/tgchat/src")
   target_compile_definitions(nchat PRIVATE HAS_TELEGRAM="${HAS_TELEGRAM}")
+  if(NOT HAS_DYNAMICLOAD)
+    target_link_libraries(nchat PUBLIC tgchat)
+  endif()
 endif()
 
 if(HAS_WHATSAPP)
   target_include_directories(nchat PRIVATE "lib/wmchat/src")
   target_compile_definitions(nchat PRIVATE HAS_WHATSAPP="${HAS_WHATSAPP}")
+  if(NOT HAS_DYNAMICLOAD)
+    target_link_libraries(nchat PUBLIC wmchat)
+  endif()
 endif()
 
+# Features
 if(HAS_MULTIPROTOCOL)
   target_compile_definitions(nchat PRIVATE HAS_MULTIPROTOCOL="${HAS_MULTIPROTOCOL}")
+endif()
+
+if(HAS_DYNAMICLOAD)
+  target_compile_definitions(nchat PRIVATE HAS_DYNAMICLOAD="${HAS_DYNAMICLOAD}")
 endif()
 
 # Manual install dir
@@ -236,20 +254,34 @@ if(CMAKE_BUILD_TYPE MATCHES "Debug")
   if(HAS_DUMMY)
     target_include_directories(devnchat PRIVATE "lib/duchat/src")
     target_compile_definitions(devnchat PRIVATE HAS_DUMMY="${HAS_DUMMY}")
+    if(NOT HAS_DYNAMICLOAD)
+      target_link_libraries(nchat PUBLIC duchat)
+    endif()
   endif()
 
   if(HAS_TELEGRAM)
     target_include_directories(devnchat PRIVATE "lib/tgchat/src")
     target_compile_definitions(devnchat PRIVATE HAS_TELEGRAM="${HAS_TELEGRAM}")
+    if(NOT HAS_DYNAMICLOAD)
+      target_link_libraries(nchat PUBLIC tgchat)
+    endif()
   endif()
 
   if(HAS_WHATSAPP)
     target_include_directories(devnchat PRIVATE "lib/wmchat/src")
     target_compile_definitions(devnchat PRIVATE HAS_WHATSAPP="${HAS_WHATSAPP}")
+    if(NOT HAS_DYNAMICLOAD)
+      target_link_libraries(nchat PUBLIC wmchat)
+    endif()
   endif()
 
+  # Features
   if(HAS_MULTIPROTOCOL)
     target_compile_definitions(devnchat PRIVATE HAS_MULTIPROTOCOL="${HAS_MULTIPROTOCOL}")
   endif()
-  
+
+  if(HAS_DYNAMICLOAD)
+    target_compile_definitions(nchat PRIVATE HAS_DYNAMICLOAD="${HAS_DYNAMICLOAD}")
+  endif()
+
 endif()
