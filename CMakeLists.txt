@@ -49,11 +49,12 @@ message(STATUS "Telegram: ${HAS_TELEGRAM}")
 option(HAS_WHATSAPP "WhatsApp" ON)
 message(STATUS "WhatsApp: ${HAS_WHATSAPP}")
 
+# Check Go version
 if(HAS_WHATSAPP)
   # Check Golang version - whatsmeow requires >= v1.16
   execute_process(COMMAND bash "-c" "go version | cut -c14- | cut -d' ' -f1 | tr -d '\n'" OUTPUT_VARIABLE GO_VERSION)
   if(NOT GO_VERSION VERSION_GREATER_EQUAL 1.16.0)
-    message(FATAL_ERROR "Go version ${GO_VERSION} (need v1.16 to build WhatsApp).")
+    message(WARNING "Go version ${GO_VERSION} (need v1.16 to build WhatsApp).")
     SET(HAS_WHATSAPP OFF)
   endif()
 endif()
