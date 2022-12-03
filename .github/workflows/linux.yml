@@ -1,10 +1,16 @@
 name: Linux
 
-on: [push, pull_request]
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+      - main
+      - dev/*
 
 jobs:
   linux-build:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
     - name: Checkout
       uses: actions/checkout@v1
