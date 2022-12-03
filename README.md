@@ -183,18 +183,24 @@ Steps to build nchat on a low memory system:
 
 **Extra Dependencies (Linux)**
 
-    sudo apt install php-cli
+    sudo apt install php-cli clang
 
 **Source**
 
     git clone https://github.com/d99kris/nchat && cd nchat
 
-**Build**
+**Setup**
 
     mkdir -p build && cd build
     CC=/usr/bin/clang CXX=/usr/bin/clang++ cmake -DCMAKE_BUILD_TYPE=Release ..
+
+**Split source (optional)**
+
     cmake --build . --target prepare_cross_compiling
     cd ../lib/tgchat/ext/td ; php SplitSource.php ; cd -
+
+**Build**
+
     make -s
 
 **Install**
