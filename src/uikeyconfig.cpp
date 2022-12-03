@@ -197,6 +197,7 @@ void UiKeyConfig::Init()
     { "cut", "\\33\\170" }, // alt/opt-x
     { "copy", "\\33\\143" }, // alt/opt-c
     { "paste", "\\33\\166" }, // alt/opt-v
+    { "ext_edit", "\\33\\145" }, // alt/opt-e
     { "toggle_emoji", "KEY_CTRLY" },
     { "toggle_help", "KEY_CTRLG" },
     { "toggle_list", "KEY_CTRLL" },

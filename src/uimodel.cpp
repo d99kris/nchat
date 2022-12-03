@@ -78,6 +78,8 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keyToggleHelp = UiKeyConfig::GetKey("toggle_help");
   static wint_t keyToggleEmoji = UiKeyConfig::GetKey("toggle_emoji");
 
+  static wint_t keyExtEdit = UiKeyConfig::GetKey("ext_edit");
+
   static wint_t keyOtherCommandsHelp = UiKeyConfig::GetKey("other_commands_help");
 
   if (p_Key == KEY_RESIZE)
@@ -164,6 +166,10 @@ void UiModel::KeyHandler(wint_t p_Key)
     {
       SendMessage();
     }
+  }
+  else if (p_Key == keyExtEdit)
+  {
+    ExternalEditCompose();
   }
   else if (p_Key == keyDeleteMsg)
   {
@@ -2606,4 +2612,51 @@ bool UiModel::MessageDialog(const std::string& p_Title, const std::string& p_Tex
   bool rv = messageDialog.Run();
   ReinitView();
   return rv;
+}
+
+void UiModel::ExternalEditCompose()
+{
+  std::unique_lock<std::mutex> lock(m_ModelMutex);
+
+  std::string profileId = m_CurrentChat.first;
+  std::string chatId = m_CurrentChat.second;
+  std::wstring& entryStr = m_EntryStr[profileId][chatId];
+  int& entryPos = m_EntryPos[profileId][chatId];
+
+  endwin();
+  std::string tempPath = FileUtil::GetApplicationDir() + "/tmpcompose.txt";
+  std::string composeStr = StrUtil::ToString(entryStr);
+  FileUtil::WriteFile(tempPath, composeStr);
+  const std::string editorCmd = std::string(getenv("EDITOR") ? getenv("EDITOR") : "nano");
+  const std::string cmd = editorCmd + " " + tempPath;
+  LOG_DEBUG("launching external editor: %s", cmd.c_str());
+  int rv = system(cmd.c_str());
+  if (rv == 0)
+  {
+    LOG_DEBUG("external editor exited successfully");
+    std::string str = FileUtil::ReadFile(tempPath);
+
+    // trim trailing linebreak
+    if (!str.empty() && str.back() == '\n')
+    {
+      str = str.substr(0, str.length() - 1);
+    }
+
+    entryStr = StrUtil::ToWString(str);
+    entryPos = (int)entryStr.size();
+  }
+  else
+  {
+    LOG_WARNING("external editor exited with %d", rv);
+  }
+
+  FileUtil::RmFile(tempPath);
+  refresh();
+  wint_t key = 0;
+  while (get_wch(&key) != ERR)
+  {
+    // Discard any remaining input
+  }
+
+  UpdateEntry();
 }

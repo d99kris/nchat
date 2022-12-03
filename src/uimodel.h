@@ -133,6 +133,7 @@ private:
   void CancelEditMessage();
   std::string EntryStrToSendStr(const std::wstring& p_EntryStr);
   bool MessageDialog(const std::string& p_Title, const std::string& p_Text, int p_WPerc, int p_HPerc);
+  void ExternalEditCompose();
 
 private:
   bool m_Running = true;

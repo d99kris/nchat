@@ -450,6 +450,10 @@ void ShowHelp()
     "    Alt-Right   move cursor forward one word\n"
     "    Alt-Backsp  delete previous word\n"
     "    Alt-Delete  delete next word\n"
+    "    Alt-e       external editor compose\n"
+    "    Alt-c       copy\n"
+    "    Alt-v       paste\n"
+    "    Alt-x       cut\n"
     "\n"
     "Report bugs at https://github.com/d99kris/nchat\n"
     "\n";

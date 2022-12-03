@@ -81,9 +81,10 @@ Interactive Commands for Text Input:
     Alt-Right   move cursor forward one word
     Alt-Backsp  delete previous word
     Alt-Delete  delete next word
-    Alt-x       cut
+    Alt-e       external editor compose
     Alt-c       copy
     Alt-v       paste
+    Alt-x       cut
 
 
 Supported Platforms
