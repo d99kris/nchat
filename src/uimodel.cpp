@@ -1005,10 +1005,33 @@ void UiModel::OpenMessageAttachment(std::string p_FilePath /*= std::string()*/)
     LOG_TRACE("download file action open %s", p_FilePath.c_str());
   }
 
-  SysOpen(p_FilePath);
+  OpenAttachment(p_FilePath);
 }
 
-void UiModel::SysOpen(const std::string& p_Path)
+void UiModel::OpenLink(const std::string& p_Url)
+{
+  static const std::string cmdTemplate = []()
+  {
+    std::string linkOpenCommand = UiConfig::GetStr("link_open_command");
+    if (linkOpenCommand.empty())
+    {
+#if defined(__APPLE__)
+      linkOpenCommand = "open '%1' &";
+#else
+      linkOpenCommand = "xdg-open >/dev/null 2>&1 '%1' &";
+#endif
+    }
+
+    return linkOpenCommand;
+  }();
+
+  std::string cmd = cmdTemplate;
+  StrUtil::ReplaceString(cmd, "%1", p_Url);
+
+  RunCommand(cmd);
+}
+
+void UiModel::OpenAttachment(const std::string& p_Path)
 {
   static const std::string cmdTemplate = []()
   {
@@ -1027,7 +1050,13 @@ void UiModel::SysOpen(const std::string& p_Path)
 
   std::string cmd = cmdTemplate;
   StrUtil::ReplaceString(cmd, "%1", p_Path);
-  bool isBackground = (cmd.back() == '&');
+
+  RunCommand(cmd);
+}
+
+void UiModel::RunCommand(const std::string& p_Cmd)
+{
+  bool isBackground = (p_Cmd.back() == '&');
 
   if (!isBackground)
   {
@@ -1035,11 +1064,11 @@ void UiModel::SysOpen(const std::string& p_Path)
   }
 
   // run command
-  LOG_TRACE("cmd \"%s\" start", cmd.c_str());
-  int rv = system(cmd.c_str());
+  LOG_TRACE("cmd \"%s\" start", p_Cmd.c_str());
+  int rv = system(p_Cmd.c_str());
   if (rv != 0)
   {
-    LOG_WARNING("cmd \"%s\" failed (%d)", cmd.c_str(), rv);
+    LOG_WARNING("cmd \"%s\" failed (%d)", p_Cmd.c_str(), rv);
   }
 
   if (!isBackground)
@@ -1095,7 +1124,7 @@ void UiModel::OpenMessageLink()
     for (const auto& msgUrl : msgUrls)
     {
       LOG_DEBUG("open url %s", msgUrl.c_str());
-      SysOpen(msgUrl);
+      OpenLink(msgUrl);
     }
   }
   else

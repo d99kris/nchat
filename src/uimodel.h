@@ -43,7 +43,9 @@ public:
   void DeleteMessage();
   bool GetMessageAttachmentPath(std::string& p_FilePath, DownloadFileAction p_DownloadFileAction);
   void OpenMessageAttachment(std::string p_FilePath = std::string());
-  void SysOpen(const std::string& p_Path);
+  void OpenLink(const std::string& p_Url);
+  void OpenAttachment(const std::string& p_Path);
+  void RunCommand(const std::string& p_Cmd);
   void OpenMessageLink();
   void SaveMessageAttachment(std::string p_FilePath = std::string());
   std::vector<std::string> SelectFile();

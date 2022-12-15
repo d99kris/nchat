@@ -340,6 +340,7 @@ specified, the default dir is `~/Downloads` if exists, otherwise `~`.
 This configuration file holds general user interface settings. Default content:
 
     attachment_indicator=📎
+    attachment_open_command=
     confirm_deletion=1
     desktop_notify_active=0
     desktop_notify_command=
@@ -350,6 +351,7 @@ This configuration file holds general user interface settings. Default content:
     file_picker_command=
     help_enabled=1
     home_fetch_all=0
+    link_open_command=
     list_enabled=1
     mark_read_on_view=1
     muted_indicate_unread=1
@@ -369,7 +371,7 @@ Specifies text to prefix attachment filenames in message view.
 ### attachment_open_command
 
 Specifies a custom command to use for opening/viewing attachments. The
-command shall include `%1` which will be replaced by the filename or url
+command shall include `%1` which will be replaced by the filename
 to open. If not specified, the following default commands are used:
 
 Linux: `xdg-open >/dev/null 2>&1 '%1' &`
@@ -435,6 +437,19 @@ Specifies whether to display help bar. Controlled by Ctrl-g in run-time.
 ### home_fetch_all
 
 Specifies whether `home` button shall repeatedly fetch all chat history.
+
+### link_open_command
+
+Specifies a custom command to use for opening/viewing links. The
+command shall include `%1` which will be replaced by the url
+to open. If not specified, the following default commands are used:
+
+Linux: `xdg-open >/dev/null 2>&1 '%1' &`
+
+macOS: `open '%1' &`
+
+Note: Omit the trailing `&` for commands taking over the terminal, for
+example `w3m -o confirm_qq=false '%1'` and `see '%1'`.
 
 ### list_enabled
 

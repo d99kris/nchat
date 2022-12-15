@@ -30,6 +30,7 @@ void UiConfig::Init()
     { "file_picker_command", "" },
     { "help_enabled", "1" },
     { "home_fetch_all", "0" },
+    { "link_open_command", "" },
     { "list_enabled", "1" },
     { "mark_read_on_view", "1" },
     { "muted_indicate_unread", "1" },
