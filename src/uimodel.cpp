@@ -78,6 +78,9 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keyToggleHelp = UiKeyConfig::GetKey("toggle_help");
   static wint_t keyToggleEmoji = UiKeyConfig::GetKey("toggle_emoji");
 
+  static wint_t keyNarrowList = UiKeyConfig::GetKey("narrow_list");
+  static wint_t keyEnlargeList = UiKeyConfig::GetKey("enlarge_list");
+
   static wint_t keyExtEdit = UiKeyConfig::GetKey("ext_edit");
 
   static wint_t keyOtherCommandsHelp = UiKeyConfig::GetKey("other_commands_help");
@@ -223,6 +226,16 @@ void UiModel::KeyHandler(wint_t p_Key)
   else if ((p_Key == keyCancel) && GetEditMessageActive())
   {
     CancelEditMessage();
+  }
+  else if (p_Key == keyNarrowList)
+  {
+    m_View->NarrowList();
+    ReinitView();
+  }
+  else if (p_Key == keyEnlargeList)
+  {
+    m_View->EnlargeList();
+    ReinitView();
   }
   else
   {

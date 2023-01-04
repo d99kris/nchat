@@ -431,6 +431,8 @@ void ShowHelp()
     "    Ctrl-x      send message\n"
     "    Ctrl-y      toggle show emojis\n"
     "    KeyUp       select message\n"
+    "    Ctrl-,      decrease contact list width\n"
+    "    Ctrl-.      increase contact list width\n"
     "\n"
     "Interactive Commands for Selected Message:\n"
     "    Ctrl-d      delete selected message\n"
