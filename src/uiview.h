@@ -46,6 +46,8 @@ public:
   int GetEntryWidth();
   int GetScreenWidth();
   int GetScreenHeight();
+  void NarrowList();
+  void EnlargeList();
 
 private:
   UiModel* m_UiModel = nullptr;
@@ -67,4 +69,5 @@ private:
   const bool m_StatusEnabled = true;
   bool m_ListEnabled = true;
   const bool m_HistoryEnabled = true;
+  int m_ListWidth = 14;
 };

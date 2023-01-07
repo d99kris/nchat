@@ -42,6 +42,7 @@ void UiConfig::Init()
     { "terminal_bell_inactive", "1" },
     { "terminal_title", "" },
     { "top_enabled", "1" },
+    { "list_width", "14" },
   };
 
   const std::string configPath(FileUtil::GetApplicationDir() + std::string("/ui.conf"));
@@ -74,4 +75,9 @@ int UiConfig::GetNum(const std::string& p_Param)
   if (!StrUtil::IsInteger(value)) return 0;
 
   return StrUtil::ToInteger(value);
+}
+
+void UiConfig::SetNum(const std::string& p_Param, const int& p_Value)
+{
+  m_Config.Set(p_Param, std::to_string(p_Value));
 }

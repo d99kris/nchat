@@ -27,6 +27,7 @@ UiView::UiView(UiModel* p_UiModel)
   m_HelpEnabled = UiConfig::GetBool("help_enabled");
   m_ListEnabled = UiConfig::GetBool("list_enabled");
   m_TopEnabled = UiConfig::GetBool("top_enabled");
+  m_ListWidth = UiConfig::GetNum("list_width");
   Init();
 }
 
@@ -36,6 +37,7 @@ UiView::~UiView()
   UiConfig::SetBool("help_enabled", m_HelpEnabled);
   UiConfig::SetBool("list_enabled", m_ListEnabled);
   UiConfig::SetBool("top_enabled", m_TopEnabled);
+  UiConfig::SetNum("list_width", m_ListWidth);
 }
 
 void UiView::Init()
@@ -79,7 +81,7 @@ void UiView::Init()
   }
 
   {
-    int w = 14;
+    int w = m_ListWidth;
     int h = m_UiScreen->H() - m_UiTopView->H() - m_UiHelpView->H() -
       m_UiEntryView->H() - m_UiStatusView->H();
     int x = 0;
@@ -94,7 +96,7 @@ void UiView::Init()
       m_UiEntryView->H() - m_UiStatusView->H();
     int x = m_UiListView->X() + m_UiListView->W();
     int y = m_UiTopView->H();
-    UiViewParams params(x, y, w, h, m_ListEnabled, m_UiModel);
+    UiViewParams params(x, y, w, h, m_ListEnabled && m_ListWidth, m_UiModel);
     m_UiListBorderView = std::make_shared<UiListBorderView>(params);
   }
 
@@ -214,4 +216,20 @@ int UiView::GetScreenWidth()
 int UiView::GetScreenHeight()
 {
   return m_UiScreen->H();
+}
+
+void UiView::NarrowList()
+{
+  if (m_ListWidth > 0)
+  {
+    --m_ListWidth;
+  }
+}
+
+void UiView::EnlargeList()
+{
+  if (m_ListWidth < m_UiScreen->W())
+  {
+    ++m_ListWidth;
+  }
 }
