@@ -1,6 +1,6 @@
 // timeutil.h
 //
-// Copyright (c) 2020-2021 Kristofer Berggren
+// Copyright (c) 2020-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -15,5 +15,6 @@ class TimeUtil
 public:
   static int64_t GetCurrentTimeMSec();
   static std::string GetTimeString(int64_t p_TimeSent, bool p_Short);
+  static std::string GetYearString(int64_t p_TimeSent);
   static void Sleep(double p_Sec);
 };

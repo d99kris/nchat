@@ -1,6 +1,6 @@
 // timeutil.cpp
 //
-// Copyright (c) 2020-2021 Kristofer Berggren
+// Copyright (c) 2020-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -57,6 +57,21 @@ std::string TimeUtil::GetTimeString(int64_t p_TimeSent, bool p_Short)
     int dlen = snprintf(tmpstr, sizeof(tmpstr), "%d ", tmSent.tm_mday);
     strftime(tmpstr + dlen, sizeof(tmpstr) - dlen, "%b %Y %H:%M", &tmSent);
   }
+
+  return std::string(tmpstr);
+}
+
+std::string TimeUtil::GetYearString(int64_t p_TimeSent)
+{
+  time_t timeSent = (time_t)(p_TimeSent / 1000);
+  struct tm tmSent;
+  localtime_r(&timeSent, &tmSent);
+  time_t timeNow = time(NULL);
+  struct tm tmNow;
+  localtime_r(&timeNow, &tmNow);
+  char tmpstr[32] = { 0 };
+
+  strftime(tmpstr, sizeof(tmpstr), "%Y", &tmSent);
 
   return std::string(tmpstr);
 }
