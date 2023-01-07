@@ -555,6 +555,7 @@ The key bindings may be specified in the following formats:
 - Hex key code (ex: `0x22e`)
 - Octal key code sequence (ex: `\033\177`)
 - Plain-text single-char ASCII (ex: `r`)
+- Disable key binding (`KEY_NONE`)
 
 To determine the key code sequence for a key, one can run nchat in key code
 dump mode `nchat -k` which will output the octal code, and ncurses macro name

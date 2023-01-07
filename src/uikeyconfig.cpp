@@ -1,6 +1,6 @@
 // uikeyconfig.cpp
 //
-// Copyright (c) 2019-2022 Kristofer Berggren
+// Copyright (c) 2019-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -21,6 +21,7 @@ static std::map<std::string, int> s_KeyCodes =
   { "KEY_TAB", KEY_TAB },
   { "KEY_RETURN", KEY_RETURN },
   { "KEY_SPACE", KEY_SPACE },
+  { "KEY_NONE", -1 },
 
   // ctrl keys
   { "KEY_CTRL@", 0 },
