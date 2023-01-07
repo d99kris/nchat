@@ -1,6 +1,6 @@
 // tgchat.cpp
 //
-// Copyright (c) 2020-2022 Kristofer Berggren
+// Copyright (c) 2020-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -153,7 +153,7 @@ private:
   bool IsSponsoredMessageId(const std::string& p_MsgId);
   bool IsGroup(int64_t p_UserId);
   bool IsSelf(int64_t p_UserId);
-  void GetChatHistory(int64_t p_ChatId, int64_t p_FromMsgId, int32_t p_Offset, int32_t p_Limit);
+  void GetChatHistory(int64_t p_ChatId, int64_t p_FromMsgId, int32_t p_Offset, int32_t p_Limit, bool p_Sequence);
   td::td_api::object_ptr<td::td_api::inputMessageText> GetMessageText(const std::string& p_Text);
 
 private:
@@ -177,7 +177,7 @@ private:
   int64_t m_CurrentChat = 0;
   const char m_SponsoredMessageMsgIdPrefix = '+';
   std::map<std::string, std::set<std::string>> m_SponsoredMessageIds;
-  static const int s_CacheDirVersion = 1;
+  static const int s_CacheDirVersion = 2;
 };
 
 // Public interface
@@ -684,7 +684,8 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         int64_t fromMsgId = StrUtil::NumFromHex<int64_t>(getMessageRequest->msgId);
         int32_t offset = -1; // to get fromMsgId itself
         int32_t limit = 1;
-        GetChatHistory(chatId, fromMsgId, offset, limit);
+        bool sequence = false; // out-of-sequence single message
+        GetChatHistory(chatId, fromMsgId, offset, limit, sequence);
       }
       break;
 
@@ -709,7 +710,8 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         int64_t fromMsgId = StrUtil::NumFromHex<int64_t>(getMessagesRequest->fromMsgId);
         int32_t offset = 0;
         int32_t limit = getMessagesRequest->limit;
-        GetChatHistory(chatId, fromMsgId, offset, limit);
+        bool sequence = true; // in-sequence history request
+        GetChatHistory(chatId, fromMsgId, offset, limit, sequence);
       }
       break;
 
@@ -1164,6 +1166,8 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
       newMessagesNotify->success = true;
       newMessagesNotify->chatId = StrUtil::NumToHex(message->chat_id_);
       newMessagesNotify->chatMessages = chatMessages;
+      newMessagesNotify->cached = false;
+      newMessagesNotify->sequence = true;
       CallMessageHandler(newMessagesNotify);
     }
   },
@@ -1184,6 +1188,8 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
     newMessagesNotify->success = true;
     newMessagesNotify->chatId = StrUtil::NumToHex(message->chat_id_);
     newMessagesNotify->chatMessages = chatMessages;
+    newMessagesNotify->cached = false;
+    newMessagesNotify->sequence = true;
     CallMessageHandler(newMessagesNotify);
   },
   [this](td::td_api::updateChatAction& user_chat_action)
@@ -2154,6 +2160,7 @@ void TgChat::Impl::GetSponsoredMessages(const std::string& p_ChatId)
   newMessagesNotify->chatMessages = chatMessages;
   newMessagesNotify->fromMsgId = "";
   newMessagesNotify->cached = true; // do not cache sponsored messages
+  newMessagesNotify->sequence = false;
   CallMessageHandler(newMessagesNotify);
 #else
   // sponsored messages from telegram
@@ -2224,6 +2231,7 @@ void TgChat::Impl::GetSponsoredMessages(const std::string& p_ChatId)
     newMessagesNotify->chatMessages = chatMessages;
     newMessagesNotify->fromMsgId = "";
     newMessagesNotify->cached = true; // do not cache sponsored messages
+    newMessagesNotify->sequence = false;
     CallMessageHandler(newMessagesNotify);
   });
 #endif
@@ -2272,13 +2280,13 @@ bool TgChat::Impl::IsSelf(int64_t p_UserId)
   return (p_UserId == m_SelfUserId);
 }
 
-void TgChat::Impl::GetChatHistory(int64_t p_ChatId, int64_t p_FromMsgId, int32_t p_Offset, int32_t p_Limit)
+void TgChat::Impl::GetChatHistory(int64_t p_ChatId, int64_t p_FromMsgId, int32_t p_Offset, int32_t p_Limit, bool p_Sequence)
 {
   // *INDENT-OFF*
   Status::Set(Status::FlagFetching);
   SendQuery(td::td_api::make_object<td::td_api::getChatHistory>(p_ChatId, p_FromMsgId, p_Offset,
                                                                 p_Limit, false),
-  [this, p_ChatId, p_FromMsgId, p_Offset](Object object)
+  [this, p_ChatId, p_FromMsgId, p_Offset, p_Sequence](Object object)
   {
     Status::Clear(Status::FlagFetching);
 
@@ -2301,6 +2309,7 @@ void TgChat::Impl::GetChatHistory(int64_t p_ChatId, int64_t p_FromMsgId, int32_t
     newMessagesNotify->chatId = StrUtil::NumToHex(p_ChatId);
     newMessagesNotify->chatMessages = chatMessages;
     newMessagesNotify->fromMsgId = ((p_FromMsgId != 0) && (p_Offset == 0)) ? StrUtil::NumToHex(p_FromMsgId) : "";
+    newMessagesNotify->sequence = p_Sequence;
     CallMessageHandler(newMessagesNotify);
   });
   // *INDENT-ON*

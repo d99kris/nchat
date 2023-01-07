@@ -1,6 +1,6 @@
 // protocol.h
 //
-// Copyright (c) 2020-2022 Kristofer Berggren
+// Copyright (c) 2020-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -344,6 +344,7 @@ public:
   std::vector<ChatMessage> chatMessages;
   std::string fromMsgId;
   bool cached = false;
+  bool sequence = false;
 };
 
 class SendMessageNotify : public ServiceMessage

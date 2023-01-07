@@ -340,6 +340,8 @@ void DuChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
           std::make_shared<NewMessagesNotify>(m_ProfileId);
         newMessagesNotify->success = true;
         newMessagesNotify->chatId = getMessagesRequest->chatId;
+        newMessagesNotify->cached = false;
+        newMessagesNotify->sequence = true;
 
         newMessagesNotify->chatMessages = s_Messages[getMessagesRequest->chatId];
         m_MessageHandler(newMessagesNotify);

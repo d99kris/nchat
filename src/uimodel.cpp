@@ -1,6 +1,6 @@
 // uimodel.cpp
 //
-// Copyright (c) 2019-2022 Kristofer Berggren
+// Copyright (c) 2019-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -1447,6 +1447,9 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
                       fromMsgId.c_str());
           }
 
+          std::string& oldestMessageId = m_OldestMessageId[profileId][chatId];
+          int64_t& oldestMessageTime = m_OldestMessageTime[profileId][chatId];
+
           for (auto& chatMessage : chatMessages)
           {
             hasNewMessage = true;
@@ -1457,6 +1460,17 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
             else
             {
               messages[chatMessage.id] = chatMessage;
+            }
+
+            if (newMessagesNotify->sequence)
+            {
+              int64_t messageTime = chatMessage.timeSent;
+              if ((messageTime < oldestMessageTime) || (oldestMessageTime == 0))
+              {
+                oldestMessageTime = messageTime;
+                oldestMessageId = chatMessage.id;
+                LOG_TRACE("oldest %s at %lld", oldestMessageId.c_str(), oldestMessageTime);
+              }
             }
           }
 
@@ -1999,16 +2013,32 @@ void UiModel::RequestMessagesNextChat()
 void UiModel::RequestMessages(const std::string& p_ProfileId, const std::string& p_ChatId)
 {
   std::unordered_set<std::string>& msgFromIdsRequested = m_MsgFromIdsRequested[p_ProfileId][p_ChatId];
-  const std::vector<std::string>& messageVec = m_MessageVec[p_ProfileId][p_ChatId];
-  std::string fromId = (msgFromIdsRequested.empty() || messageVec.empty()) ? "" : *messageVec.rbegin();
+  const std::string& oldestMessageId = m_OldestMessageId[p_ProfileId][p_ChatId];
+  std::string fromId = (msgFromIdsRequested.empty() || oldestMessageId.empty()) ? "" : oldestMessageId;
+
+  int historySize = 0;
+  if (!oldestMessageId.empty())
+  {
+    const std::vector<std::string>& messageVec = m_MessageVec[p_ProfileId][p_ChatId];
+    historySize = messageVec.size();
+    for (auto msgIt = messageVec.rbegin(); msgIt != messageVec.rend(); ++msgIt)
+    {
+      if (*msgIt == oldestMessageId)
+      {
+        break;
+      }
+
+      --historySize;
+    }
+  }
 
   int messageOffset = m_MessageOffset[p_ProfileId][p_ChatId];
   const int maxHistory = m_HomeFetchAll ? 8 : (((GetHistoryLines() * 2) / 3) + 1);
-  const int limit = std::max(0, (messageOffset + 1 + maxHistory - (int)messageVec.size()));
+  const int limit = std::max(0, (messageOffset + 1 + maxHistory - historySize));
   if (limit == 0)
   {
-    LOG_TRACE("no message to request %d + %d - %d = %d",
-              messageOffset, maxHistory, (int)messageVec.size(), limit);
+    LOG_TRACE("no message to request %d + %d - %d >= %d",
+              messageOffset, maxHistory, historySize, limit);
     return;
   }
 
@@ -2022,10 +2052,11 @@ void UiModel::RequestMessages(const std::string& p_ProfileId, const std::string&
     msgFromIdsRequested.insert(fromId);
   }
 
+  const int minLimit = 12; // hack: up to 10 tgchat messages may share same timestamp
   std::shared_ptr<GetMessagesRequest> getMessagesRequest = std::make_shared<GetMessagesRequest>();
   getMessagesRequest->chatId = p_ChatId;
   getMessagesRequest->fromMsgId = fromId;
-  getMessagesRequest->limit = limit;
+  getMessagesRequest->limit = std::max(limit, minLimit);
   LOG_TRACE("request messages from %s limit %d", fromId.c_str(), limit);
   m_Protocols[m_CurrentChat.first]->SendRequest(getMessagesRequest);
 }

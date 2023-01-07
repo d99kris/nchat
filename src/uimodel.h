@@ -1,6 +1,6 @@
 // uimodel.h
 //
-// Copyright (c) 2019-2022 Kristofer Berggren
+// Copyright (c) 2019-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -163,6 +163,9 @@ private:
   std::unordered_map<std::string,
                      std::unordered_map<std::string, std::unordered_set<std::string>>> m_MsgFromIdsRequested;
   std::unordered_map<std::string, std::unordered_map<std::string, bool>> m_FetchedAllCache;
+
+  std::unordered_map<std::string, std::unordered_map<std::string, std::string>> m_OldestMessageId;
+  std::unordered_map<std::string, std::unordered_map<std::string, int64_t>> m_OldestMessageTime;
 
   std::unordered_map<std::string, std::unordered_map<std::string, std::wstring>> m_EntryStr;
   std::unordered_map<std::string, std::unordered_map<std::string, int>> m_EntryPos;

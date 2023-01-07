@@ -1,6 +1,6 @@
 // messagecache.cpp
 //
-// Copyright (c) 2020-2022 Kristofer Berggren
+// Copyright (c) 2020-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -108,7 +108,8 @@ void MessageCache::AddFromServiceMessage(const std::string& p_ProfileId,
       {
         std::shared_ptr<NewMessagesNotify> newMessagesNotify =
           std::static_pointer_cast<NewMessagesNotify>(p_ServiceMessage);
-        if (newMessagesNotify->success && !newMessagesNotify->cached)
+        if (newMessagesNotify->success && !newMessagesNotify->cached &&
+            newMessagesNotify->sequence)
         {
           MessageCache::AddMessages(p_ProfileId, newMessagesNotify->chatId,
                                     newMessagesNotify->fromMsgId, newMessagesNotify->chatMessages);
@@ -894,6 +895,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         newMessagesNotify->chatMessages = chatMessages;
         newMessagesNotify->fromMsgId = fromMsgId;
         newMessagesNotify->cached = true;
+        newMessagesNotify->sequence = true; // in-sequence history request
         CallMessageHandler(newMessagesNotify);
       }
       break;
@@ -921,6 +923,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
           newMessagesNotify->chatId = chatId;
           newMessagesNotify->chatMessages = chatMessages;
           newMessagesNotify->cached = true;
+          newMessagesNotify->sequence = false; // out-of-sequence single message
           CallMessageHandler(newMessagesNotify);
         }
       }

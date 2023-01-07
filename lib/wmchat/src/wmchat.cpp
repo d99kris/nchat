@@ -1,6 +1,6 @@
 // wmchat.cpp
 //
-// Copyright (c) 2020-2022 Kristofer Berggren
+// Copyright (c) 2020-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -529,6 +529,8 @@ void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_Se
   newMessagesNotify->success = true;
   newMessagesNotify->chatId = std::string(p_ChatId);
   newMessagesNotify->chatMessages = std::vector<ChatMessage>({ chatMessage });
+  newMessagesNotify->cached = false;
+  newMessagesNotify->sequence = true;
 
   std::shared_ptr<DeferNotifyRequest> deferNotifyRequest = std::make_shared<DeferNotifyRequest>();
   deferNotifyRequest->serviceMessage = newMessagesNotify;
