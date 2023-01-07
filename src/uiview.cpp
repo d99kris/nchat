@@ -1,6 +1,6 @@
 // uiview.cpp
 //
-// Copyright (c) 2019-2021 Kristofer Berggren
+// Copyright (c) 2019-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -96,7 +96,7 @@ void UiView::Init()
       m_UiEntryView->H() - m_UiStatusView->H();
     int x = m_UiListView->X() + m_UiListView->W();
     int y = m_UiTopView->H();
-    UiViewParams params(x, y, w, h, m_ListEnabled && m_ListWidth, m_UiModel);
+    UiViewParams params(x, y, w, h, m_ListEnabled && (m_ListWidth > 0), m_UiModel);
     m_UiListBorderView = std::make_shared<UiListBorderView>(params);
   }
 
@@ -218,7 +218,7 @@ int UiView::GetScreenHeight()
   return m_UiScreen->H();
 }
 
-void UiView::NarrowList()
+void UiView::DecreaseListWidth()
 {
   if (m_ListWidth > 0)
   {
@@ -226,7 +226,7 @@ void UiView::NarrowList()
   }
 }
 
-void UiView::EnlargeList()
+void UiView::IncreaseListWidth()
 {
   if (m_ListWidth < m_UiScreen->W())
   {

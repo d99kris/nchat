@@ -56,8 +56,6 @@ static std::map<std::string, int> s_KeyCodes =
   { "KEY_CTRL]", 29 },
   { "KEY_CTRL^", 30 },
   { "KEY_CTRL_", 31 },
-  { "KEY_CTRL,", 44 },
-  { "KEY_CTRL.", 46 },
 
   // ncurses keys
   { "KEY_DOWN", KEY_DOWN },
@@ -217,8 +215,8 @@ void UiKeyConfig::Init()
     { "select_emoji", "KEY_CTRLS" },
     { "select_contact", "KEY_CTRLN" },
     { "other_commands_help", "KEY_CTRLO" },
-    { "narrow_list", "KEY_CTRL," },
-    { "enlarge_list", "KEY_CTRL." },
+    { "decrease_list_width", "\\33\\54" }, // alt/opt-,
+    { "increase_list_width", "\\33\\56" }, // alt/opt-.
   };
 
   const std::string configPath(FileUtil::GetApplicationDir() + std::string("/key.conf"));

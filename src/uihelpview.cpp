@@ -80,8 +80,6 @@ void UiHelpView::Draw()
     AppendHelpItem(UiKeyConfig::GetKey("toggle_list"), "TgList", helpItems);
     AppendHelpItem(UiKeyConfig::GetKey("toggle_top"), "TgTop", helpItems);
     AppendHelpItem(UiKeyConfig::GetKey("toggle_help"), "TgHelp", helpItems);
-    AppendHelpItem(UiKeyConfig::GetKey("narrow_list"), "NarrowList", helpItems);
-    AppendHelpItem(UiKeyConfig::GetKey("enlarge_list"), "EnlargeList", helpItems);
     return helpItems;
   }();
 
@@ -103,8 +101,6 @@ void UiHelpView::Draw()
     AppendHelpItem(UiKeyConfig::GetKey("toggle_list"), "TgList", helpItems);
     AppendHelpItem(UiKeyConfig::GetKey("toggle_top"), "TgTop", helpItems);
     AppendHelpItem(UiKeyConfig::GetKey("toggle_help"), "TgHelp", helpItems);
-    AppendHelpItem(UiKeyConfig::GetKey("narrow_list"), "NarrowList", helpItems);
-    AppendHelpItem(UiKeyConfig::GetKey("enlarge_list"), "EnlargeList", helpItems);
     return helpItems;
   }();
 
@@ -257,10 +253,6 @@ std::string UiHelpView::GetKeyDisplay(int p_Key)
   else if ((p_Key >= 0x0) && (p_Key <= 0x1F))
   {
     return "^" + std::string(1, (char)p_Key + 0x40);
-  }
-  else if ((p_Key == 0x2c) || (p_Key == 0x2e))
-  {
-    return "^" + std::string(1, (char)p_Key);
   }
 
   return "";

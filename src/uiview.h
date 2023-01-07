@@ -1,6 +1,6 @@
 // uiview.h
 //
-// Copyright (c) 2019-2021 Kristofer Berggren
+// Copyright (c) 2019-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -46,8 +46,8 @@ public:
   int GetEntryWidth();
   int GetScreenWidth();
   int GetScreenHeight();
-  void NarrowList();
-  void EnlargeList();
+  void DecreaseListWidth();
+  void IncreaseListWidth();
 
 private:
   UiModel* m_UiModel = nullptr;

@@ -1,6 +1,6 @@
 // uiconfig.cpp
 //
-// Copyright (c) 2019-2022 Kristofer Berggren
+// Copyright (c) 2019-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -32,6 +32,7 @@ void UiConfig::Init()
     { "home_fetch_all", "0" },
     { "link_open_command", "" },
     { "list_enabled", "1" },
+    { "list_width", "14" },
     { "mark_read_on_view", "1" },
     { "muted_indicate_unread", "1" },
     { "muted_notify_unread", "0" },
@@ -42,7 +43,6 @@ void UiConfig::Init()
     { "terminal_bell_inactive", "1" },
     { "terminal_title", "" },
     { "top_enabled", "1" },
-    { "list_width", "14" },
   };
 
   const std::string configPath(FileUtil::GetApplicationDir() + std::string("/ui.conf"));
