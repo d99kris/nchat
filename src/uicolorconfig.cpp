@@ -249,9 +249,10 @@ int UiColorConfig::GetColorId(const std::string& p_Str)
     {
       static int colorId = 31;
       colorId++;
-      if (colorId > COLORS)
+      if (colorId >= COLORS)
       {
-        LOG_WARNING("max number of colors (%d) already defined, skipping \"%s\"", p_Str.c_str());
+        LOG_WARNING("max number of colors (%d) already defined, skipping \"%s\"",
+                    COLORS, p_Str.c_str());
         return -1;
       }
 
