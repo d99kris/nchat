@@ -6,24 +6,41 @@ nchat - ncurses chat
 | [![Linux](https://github.com/d99kris/nchat/workflows/Linux/badge.svg)](https://github.com/d99kris/nchat/actions?query=workflow%3ALinux) | [![macOS](https://github.com/d99kris/nchat/workflows/macOS/badge.svg)](https://github.com/d99kris/nchat/actions?query=workflow%3AmacOS) |
 
 nchat is a terminal-based chat client for Linux and macOS with support for
-Telegram.
+Telegram and WhatsApp.
 
 ![screenshot nchat](/doc/screenshot-nchat.png)
 
 Features
 --------
-- Message history cache (sqlite db backed)
-- View/save media files: documents, photos, videos
-- Show user status (online, away, typing)
-- Message read receipt
-- List dialogs (with text filter) for selecting files, emojis, contacts
-- Reply / delete / send messages
-- Jump to unread chat
-- Toggle to view textized emojis vs. graphical (default)
-- Toggle to hide/show UI elements (top bar, status bar, help bar, contact list)
-- Receive / send markdown formatted messages
 - Customizable color schemes and key bindings
-- Experimental WhatsApp support
+- Jump to unread chat
+- Message history cache with support for text export
+- Message read receipt
+- Receive / send markdown formatted messages
+- Reply / delete / edit / send messages
+- Searchable list dialogs for selecting files, emojis, contacts
+- Show user status (online, away, typing)
+- Toggle to view textized emojis vs. graphical
+- Toggle to view UI elements (top bar, status bar, help bar, contact list)
+- View / save media files (documents, photos, videos)
+- Customizable color schemes and key bindings
+
+Limitations
+-----------
+There are no plans to support the following features:
+- Facebook Messenger
+- Signal
+- Telegram secret chats
+- Voice / video calls
+
+Roadmap
+-------
+There is currently no concrete roadmap for further feature development of
+nchat. It is not intended to be a full-featured client on par with official
+Telegram / WhatsApp clients, but rather a light-weight client providing
+essential functionality suitable for the terminal. However, feel free to
+submit feature requests if there's something missing, and if it's useful
+and low effort it can probably be added.
 
 
 Usage
