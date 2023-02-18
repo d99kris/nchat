@@ -1,6 +1,6 @@
 // uimessagedialog.cpp
 //
-// Copyright (c) 2019-2022 Kristofer Berggren
+// Copyright (c) 2019-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -22,6 +22,7 @@ UiMessageDialog::UiMessageDialog(const UiDialogParams& p_Params, const std::stri
 {
   m_Model->SetMessageDialogActive(true);
   m_View->Draw();
+  curs_set(0);
 }
 
 UiMessageDialog::~UiMessageDialog()
