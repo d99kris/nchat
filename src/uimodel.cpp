@@ -1982,6 +1982,7 @@ void UiModel::OnCurrentChatChanged()
   RequestMessagesCurrentChat();
   RequestMessagesNextChat();
   RequestUserStatusCurrentChat();
+  RequestUserStatusNextChat();
   ProtocolSetCurrentChat();
 }
 
@@ -2006,19 +2007,6 @@ void UiModel::RequestMessagesNextChat()
     const std::pair<std::string, std::string>& nextChat = m_ChatVec.at(nextChatIndex);
     const std::string& profileId = nextChat.first;
     const std::string& chatId = nextChat.second;
-    RequestMessages(profileId, chatId);
-  }
-
-  {
-    int prevChatIndex = m_CurrentChatIndex - 1;
-    if (prevChatIndex < 0)
-    {
-      prevChatIndex = (int)m_ChatVec.size() - 1;
-    }
-
-    const std::pair<std::string, std::string>& prevChat = m_ChatVec.at(prevChatIndex);
-    const std::string& profileId = prevChat.first;
-    const std::string& chatId = prevChat.second;
     RequestMessages(profileId, chatId);
   }
 }
@@ -2076,13 +2064,36 @@ void UiModel::RequestMessages(const std::string& p_ProfileId, const std::string&
 
 void UiModel::RequestUserStatusCurrentChat()
 {
-  static std::set<std::pair<std::string, std::string>> requestedChats;
-  if (requestedChats.count(m_CurrentChat)) return;
+  RequestUserStatus(m_CurrentChat);
+}
 
-  requestedChats.insert(m_CurrentChat);
+void UiModel::RequestUserStatusNextChat()
+{
+  if (m_ChatVec.empty()) return;
 
-  const std::string& profileId = m_CurrentChat.first;
-  const std::string& chatId = m_CurrentChat.second;
+  const int chatIndex = std::max(m_CurrentChatIndex, 0);
+
+  {
+    int nextChatIndex = chatIndex + 1;
+    if (nextChatIndex >= (int)m_ChatVec.size())
+    {
+      nextChatIndex = 0;
+    }
+
+    const std::pair<std::string, std::string>& nextChat = m_ChatVec.at(nextChatIndex);
+    RequestUserStatus(nextChat);
+  }
+}
+
+void UiModel::RequestUserStatus(const std::pair<std::string, std::string>& p_Chat)
+{
+  static std::set<std::pair<std::string, std::string>> requestedStatuses;
+  if (requestedStatuses.count(p_Chat)) return;
+
+  requestedStatuses.insert(p_Chat);
+
+  const std::string& profileId = p_Chat.first;
+  const std::string& chatId = p_Chat.second;
 
   std::shared_ptr<GetStatusRequest> getStatusRequest = std::make_shared<GetStatusRequest>();
   getStatusRequest->userId = chatId;

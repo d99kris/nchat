@@ -113,6 +113,8 @@ private:
   void RequestMessagesNextChat();
   void RequestMessages(const std::string& p_ProfileId, const std::string& p_ChatId);
   void RequestUserStatusCurrentChat();
+  void RequestUserStatusNextChat();
+  void RequestUserStatus(const std::pair<std::string, std::string>& p_Chat);
   void ProtocolSetCurrentChat();
   int GetHistoryLines();
   void ReinitView();
