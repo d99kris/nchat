@@ -1997,8 +1997,10 @@ void UiModel::RequestMessagesNextChat()
 {
   if (m_ChatVec.empty()) return;
 
+  const int chatIndex = std::max(m_CurrentChatIndex, 0);
+
   {
-    int nextChatIndex = m_CurrentChatIndex + 1;
+    int nextChatIndex = chatIndex + 1;
     if (nextChatIndex >= (int)m_ChatVec.size())
     {
       nextChatIndex = 0;
@@ -2058,7 +2060,7 @@ void UiModel::RequestMessages(const std::string& p_ProfileId, const std::string&
   getMessagesRequest->chatId = p_ChatId;
   getMessagesRequest->fromMsgId = fromId;
   getMessagesRequest->limit = std::max(limit, minLimit);
-  LOG_TRACE("request messages from %s limit %d", fromId.c_str(), limit);
+  LOG_TRACE("request messages in %s from %s limit %d", p_ChatId.c_str(), fromId.c_str(), limit);
   m_Protocols[m_CurrentChat.first]->SendRequest(getMessagesRequest);
 }
 
