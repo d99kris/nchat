@@ -138,6 +138,7 @@ private:
   std::string EntryStrToSendStr(const std::wstring& p_EntryStr);
   bool MessageDialog(const std::string& p_Title, const std::string& p_Text, int p_WPerc, int p_HPerc);
   void ExternalEditCompose();
+  const std::pair<std::string, std::string>& GetNextChat();
 
 private:
   bool m_Running = true;
@@ -154,6 +155,7 @@ private:
 
   std::pair<std::string, std::string> m_CurrentChat;
   int m_CurrentChatIndex = -1;
+  static const std::pair<std::string, std::string> s_ChatNone;
 
   std::string m_EditMessageId;
 

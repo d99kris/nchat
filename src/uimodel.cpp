@@ -30,6 +30,8 @@
 #include "uimessagedialog.h"
 #include "uiview.h"
 
+const std::pair<std::string, std::string> UiModel::s_ChatNone;
+
 UiModel::UiModel()
 {
   m_View = std::make_shared<UiView>(this);
@@ -1529,6 +1531,15 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
             SetHistoryInteraction(false);
           }
 
+          const std::pair<std::string, std::string>& nextChat = GetNextChat();
+          if ((profileId == nextChat.first) && (chatId == nextChat.second))
+          {
+            if (!newMessagesNotify->cached)
+            {
+              RequestMessagesNextChat();
+            }
+          }
+
           UpdateChatInfoLastMessageTime(profileId, chatId);
           UpdateChatInfoIsUnread(profileId, chatId);
           SortChats();
@@ -1995,22 +2006,12 @@ void UiModel::RequestMessagesCurrentChat()
 
 void UiModel::RequestMessagesNextChat()
 {
-  if (m_ChatVec.empty()) return;
+  const std::pair<std::string, std::string>& nextChat = GetNextChat();
+  if (nextChat == s_ChatNone) return;
 
-  const int chatIndex = std::max(m_CurrentChatIndex, 0);
-
-  {
-    int nextChatIndex = chatIndex + 1;
-    if (nextChatIndex >= (int)m_ChatVec.size())
-    {
-      nextChatIndex = 0;
-    }
-
-    const std::pair<std::string, std::string>& nextChat = m_ChatVec.at(nextChatIndex);
-    const std::string& profileId = nextChat.first;
-    const std::string& chatId = nextChat.second;
-    RequestMessages(profileId, chatId);
-  }
+  const std::string& profileId = nextChat.first;
+  const std::string& chatId = nextChat.second;
+  RequestMessages(profileId, chatId);
 }
 
 void UiModel::RequestMessages(const std::string& p_ProfileId, const std::string& p_ChatId)
@@ -2060,7 +2061,7 @@ void UiModel::RequestMessages(const std::string& p_ProfileId, const std::string&
   getMessagesRequest->chatId = p_ChatId;
   getMessagesRequest->fromMsgId = fromId;
   getMessagesRequest->limit = std::max(limit, minLimit);
-  LOG_TRACE("request messages in %s from %s limit %d", p_ChatId.c_str(), fromId.c_str(), limit);
+  LOG_TRACE("request messages in %s from %s limit %d", p_ChatId.c_str(), fromId.c_str(), getMessagesRequest->limit);
   m_Protocols[m_CurrentChat.first]->SendRequest(getMessagesRequest);
 }
 
@@ -2071,20 +2072,10 @@ void UiModel::RequestUserStatusCurrentChat()
 
 void UiModel::RequestUserStatusNextChat()
 {
-  if (m_ChatVec.empty()) return;
+  const std::pair<std::string, std::string>& nextChat = GetNextChat();
+  if (nextChat == s_ChatNone) return;
 
-  const int chatIndex = std::max(m_CurrentChatIndex, 0);
-
-  {
-    int nextChatIndex = chatIndex + 1;
-    if (nextChatIndex >= (int)m_ChatVec.size())
-    {
-      nextChatIndex = 0;
-    }
-
-    const std::pair<std::string, std::string>& nextChat = m_ChatVec.at(nextChatIndex);
-    RequestUserStatus(nextChat);
-  }
+  RequestUserStatus(nextChat);
 }
 
 void UiModel::RequestUserStatus(const std::pair<std::string, std::string>& p_Chat)
@@ -2745,4 +2736,19 @@ void UiModel::ExternalEditCompose()
   }
 
   UpdateEntry();
+}
+
+const std::pair<std::string, std::string>& UiModel::GetNextChat()
+{
+  if (m_ChatVec.empty()) return s_ChatNone;
+
+  const int chatIndex = std::max(m_CurrentChatIndex, 0);
+  int nextChatIndex = chatIndex + 1;
+  if (nextChatIndex >= (int)m_ChatVec.size())
+  {
+    nextChatIndex = 0;
+  }
+
+  const std::pair<std::string, std::string>& nextChat = m_ChatVec.at(nextChatIndex);
+  return nextChat;
 }
