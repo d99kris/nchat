@@ -56,6 +56,7 @@ Command-line Options:
     -ee, --extra-verbose   enable extra verbose logging
     -h, --help             display this help and exit
     -k, --keydump          key code dump mode
+    -m, --devmode          developer mode
     -s, --setup            set up chat protocol account
     -v, --version          output version information and exit
     -x, --export <DIR>     export message cache to specified dir

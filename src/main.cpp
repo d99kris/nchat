@@ -144,8 +144,10 @@ int main(int argc, char* argv[])
       Ui::RunKeyDump();
       return 0;
     }
-    else if (*it == "-m")
+    else if ((*it == "-m") || (*it == "--devmode"))
     {
+      std::cout << "dev mode starting in 5 sec\n";
+      sleep(5);
       AppUtil::SetDeveloperMode(true);
     }
     else if ((*it == "-s") || (*it == "--setup"))
@@ -411,6 +413,7 @@ void ShowHelp()
     "    -ee, --extra-verbose   enable extra verbose logging\n"
     "    -h, --help             display this help and exit\n"
     "    -k, --keydump          key code dump mode\n"
+    "    -m, --devmode          developer mode\n"
     "    -s, --setup            set up chat protocol account\n"
     "    -v, --version          output version information and exit\n"
     "    -x, --export <DIR>     export message cache to specified dir\n"
