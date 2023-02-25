@@ -583,6 +583,8 @@ dump mode `nchat -k` which will output the octal code, and ncurses macro name
 -------------------
 This configuration file holds user interface color settings. Default content:
 
+    default_color_bg=
+    default_color_fg=
     dialog_attr=
     dialog_attr_selected=reverse
     dialog_color_bg=
