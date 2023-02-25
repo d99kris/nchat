@@ -22,6 +22,11 @@ static int colorPairId = 0;
 
 void UiColorConfig::Init()
 {
+  if (has_colors())
+  {
+    start_color();
+  }
+
   const std::string defaultSentColor = (COLORS > 8) ? "gray" : "";
   const std::string defaultQuotedColor = (COLORS > 8) ? "gray" : "";
   const std::string defaultAttachmentColor = (COLORS > 8) ? "gray" : "";
@@ -83,8 +88,6 @@ void UiColorConfig::Init()
 
   if (has_colors())
   {
-    start_color();
-
     const int bg = GetColorId(m_Config.Get("default_color_bg"));
     const int fg = GetColorId(m_Config.Get("default_color_fg"));
     assume_default_colors(fg, bg);
