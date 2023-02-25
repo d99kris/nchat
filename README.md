@@ -679,7 +679,13 @@ and can be used by copying to `~/.nchat/`.
 
 ![screenshot nchat](/doc/screenshot-nchat-basic-color.png)
 
-### Previewing Theme Colors
+### Dracula Theme
+
+```cp /usr/local/share/nchat/themes/dracula/* ~/.nchat/```
+
+![screenshot nchat](/doc/screenshot-nchat-dracula.png)
+
+### Previewing User Theme Palette
 
 From a source code clone of `nchat` one can preview `usercolor.conf` colors
 like this:
