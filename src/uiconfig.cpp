@@ -38,6 +38,7 @@ void UiConfig::Init()
     { "muted_notify_unread", "0" },
     { "muted_position_by_timestamp", "1" },
     { "read_indicator", "\xe2\x9c\x93" },
+    { "spell_check_command", "" },
     { "syncing_indicator", "\xe2\x87\x84" },
     { "terminal_bell_active", "0" },
     { "terminal_bell_inactive", "1" },

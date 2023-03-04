@@ -75,6 +75,8 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keyCopy = UiKeyConfig::GetKey("copy");
   static wint_t keyPaste = UiKeyConfig::GetKey("paste");
 
+  static wint_t keySpell = UiKeyConfig::GetKey("spell");
+
   static wint_t keyToggleList = UiKeyConfig::GetKey("toggle_list");
   static wint_t keyToggleTop = UiKeyConfig::GetKey("toggle_top");
   static wint_t keyToggleHelp = UiKeyConfig::GetKey("toggle_help");
@@ -174,7 +176,7 @@ void UiModel::KeyHandler(wint_t p_Key)
   }
   else if (p_Key == keyExtEdit)
   {
-    ExternalEditCompose();
+    ExternalEdit();
   }
   else if (p_Key == keyDeleteMsg)
   {
@@ -220,6 +222,10 @@ void UiModel::KeyHandler(wint_t p_Key)
   else if (p_Key == keyPaste)
   {
     Paste();
+  }
+  else if (p_Key == keySpell)
+  {
+    ExternalSpell();
   }
   else if (p_Key == keyEditMsg)
   {
@@ -2691,7 +2697,49 @@ bool UiModel::MessageDialog(const std::string& p_Title, const std::string& p_Tex
   return rv;
 }
 
-void UiModel::ExternalEditCompose()
+void UiModel::ExternalSpell()
+{
+  static const std::string cmd = []()
+  {
+    std::string spellCheckCommand = UiConfig::GetStr("spell_check_command");
+    if (spellCheckCommand.empty())
+    {
+      const std::string& commandOutPath = FileUtil::MkTempFile();
+      const std::string& whichCommand =
+        std::string("which nspell-gpt 2> /dev/null | head -1 > ") + commandOutPath;
+
+      if (system(whichCommand.c_str()) == 0)
+      {
+        std::string output = FileUtil::ReadFile(commandOutPath);
+        output.erase(std::remove(output.begin(), output.end(), '\n'), output.end());
+        if (!output.empty())
+        {
+          if (output.find("/nspell-gpt") != std::string::npos)
+          {
+            spellCheckCommand = "nspell-gpt -p";
+          }
+        }
+      }
+
+      FileUtil::RmFile(commandOutPath);
+    }
+
+    return spellCheckCommand;
+  }();
+
+  if (!cmd.empty())
+  {
+    CallExternalEdit(cmd);
+  }
+}
+
+void UiModel::ExternalEdit()
+{
+  const std::string editorCmd = std::string(getenv("EDITOR") ? getenv("EDITOR") : "nano");
+  CallExternalEdit(editorCmd);
+}
+
+void UiModel::CallExternalEdit(const std::string& p_EditorCmd)
 {
   std::unique_lock<std::mutex> lock(m_ModelMutex);
 
@@ -2704,8 +2752,7 @@ void UiModel::ExternalEditCompose()
   std::string tempPath = FileUtil::GetApplicationDir() + "/tmpcompose.txt";
   std::string composeStr = StrUtil::ToString(entryStr);
   FileUtil::WriteFile(tempPath, composeStr);
-  const std::string editorCmd = std::string(getenv("EDITOR") ? getenv("EDITOR") : "nano");
-  const std::string cmd = editorCmd + " " + tempPath;
+  const std::string cmd = p_EditorCmd + " " + tempPath;
   LOG_DEBUG("launching external editor: %s", cmd.c_str());
   int rv = system(cmd.c_str());
   if (rv == 0)

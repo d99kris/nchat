@@ -199,6 +199,7 @@ void UiKeyConfig::Init()
     { "copy", "\\33\\143" }, // alt/opt-c
     { "paste", "\\33\\166" }, // alt/opt-v
     { "ext_edit", "\\33\\145" }, // alt/opt-e
+    { "spell", "\\33\\163" }, // alt/opt-s
     { "toggle_emoji", "KEY_CTRLY" },
     { "toggle_help", "KEY_CTRLG" },
     { "toggle_list", "KEY_CTRLL" },

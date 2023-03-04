@@ -137,7 +137,9 @@ private:
   void CancelEditMessage();
   std::string EntryStrToSendStr(const std::wstring& p_EntryStr);
   bool MessageDialog(const std::string& p_Title, const std::string& p_Text, int p_WPerc, int p_HPerc);
-  void ExternalEditCompose();
+  void ExternalSpell();
+  void ExternalEdit();
+  void CallExternalEdit(const std::string& p_EditorCmd);
   const std::pair<std::string, std::string>& GetNextChat();
 
 private:

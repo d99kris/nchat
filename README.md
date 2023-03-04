@@ -100,6 +100,7 @@ Interactive Commands for Text Input:
     Alt-Backsp  delete previous word
     Alt-Delete  delete next word
     Alt-e       external editor compose
+    Alt-s       external spell check
     Alt-c       copy
     Alt-v       paste
     Alt-x       cut
@@ -376,6 +377,7 @@ This configuration file holds general user interface settings. Default content:
     muted_notify_unread=0
     muted_position_by_timestamp=1
     read_indicator=✓
+    spell_check_command=
     syncing_indicator=⇄
     terminal_bell_active=0
     terminal_bell_inactive=1
@@ -492,6 +494,11 @@ Specifies whether to notify (terminal bell) new unread messages in muted chats.
 
 Specifies whether chat list position of muted chats should reflect the time of
 their last received/sent message. Otherwise muted chats are listed last.
+
+### spell_check_command
+
+Specifies a custom command to use for spell checking composed messages. If not
+specified, nchat will use `nspell-gpt` if installed.
 
 ### read_indicator
 
