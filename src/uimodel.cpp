@@ -2716,7 +2716,7 @@ void UiModel::ExternalSpell()
         {
           if (output.find("/nspell-gpt") != std::string::npos)
           {
-            spellCheckCommand = "nspell-gpt -p";
+            spellCheckCommand = "nspell-gpt";
           }
           else if (output.find("/aspell") != std::string::npos)
           {
