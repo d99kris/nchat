@@ -498,7 +498,8 @@ their last received/sent message. Otherwise muted chats are listed last.
 ### spell_check_command
 
 Specifies a custom command to use for spell checking composed messages. If not
-specified, nchat will use `nspell-gpt` if installed.
+specified, nchat checks if `nspell-gpt`, `aspell` or `ispell` is available on
+the system (in that order), and uses the first found.
 
 ### read_indicator
 
