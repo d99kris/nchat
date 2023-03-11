@@ -2,7 +2,7 @@
 
 # make.sh
 #
-# Copyright (C) 2020-2022 Kristofer Berggren
+# Copyright (C) 2020-2023 Kristofer Berggren
 # All rights reserved.
 #
 # See LICENSE for redistribution information.
@@ -96,6 +96,8 @@ if [[ "${DEPS}" == "1" ]]; then
       else
         sudo snap install go --classic || exiterr "deps failed (snap go), exiting."
       fi
+    elif [[ "${NAME}" == "Gentoo" ]]; then
+      sudo emerge -n dev-util/cmake dev-util/gperf sys-apps/help2man sys-libs/readline dev-libs/openssl sys-libs/ncurses sys-libs/zlib dev-db/sqlite sys-apps/file dev-lang/go || exiterr "deps failed (gentoo), exiting."
     else
       exiterr "deps failed (unsupported linux distro ${NAME}), exiting."
     fi
