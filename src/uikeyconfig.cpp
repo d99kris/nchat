@@ -211,6 +211,7 @@ void UiKeyConfig::Init()
     { "delete_msg", "KEY_CTRLD" },
     { "open", "KEY_CTRLV" },
     { "open_link", "KEY_CTRLW" },
+    { "open_msg", "\\33\\167" }, // alt/opt-w
     { "save", "KEY_CTRLR" },
     { "transfer", "KEY_CTRLT" },
     { "select_emoji", "KEY_CTRLS" },

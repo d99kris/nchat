@@ -41,6 +41,7 @@ public:
   void DownloadAttachment(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId,
                           const std::string& p_FileId, DownloadFileAction p_DownloadFileAction);
   void DeleteMessage();
+  void OpenMessage();
   bool GetMessageAttachmentPath(std::string& p_FilePath, DownloadFileAction p_DownloadFileAction);
   void OpenMessageAttachment(std::string p_FilePath = std::string());
   void OpenLink(const std::string& p_Url);

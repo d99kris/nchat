@@ -69,6 +69,7 @@ void UiModel::KeyHandler(wint_t p_Key)
 
   static wint_t keyOpen = UiKeyConfig::GetKey("open");
   static wint_t keyOpenLink = UiKeyConfig::GetKey("open_link");
+  static wint_t keyOpenMsg = UiKeyConfig::GetKey("open_msg");
   static wint_t keySave = UiKeyConfig::GetKey("save");
 
   static wint_t keyCut = UiKeyConfig::GetKey("cut");
@@ -244,6 +245,10 @@ void UiModel::KeyHandler(wint_t p_Key)
   {
     m_View->IncreaseListWidth();
     ReinitView();
+  }
+  else if (p_Key == keyOpenMsg)
+  {
+    OpenMessage();
   }
   else
   {
@@ -962,6 +967,59 @@ void UiModel::DeleteMessage()
   deleteMessageRequest->chatId = chatId;
   deleteMessageRequest->msgId = msgId;
   m_Protocols[profileId]->SendRequest(deleteMessageRequest);
+}
+
+void UiModel::OpenMessage()
+{
+  std::unique_lock<std::mutex> lock(m_ModelMutex);
+
+  if (!GetSelectMessageActive() || GetEditMessageActive()) return;
+
+  static const std::string openCmd = []()
+  {
+    std::string messageOpenCommand = UiConfig::GetStr("message_open_command");
+    if (messageOpenCommand.empty())
+    {
+      messageOpenCommand = std::string(getenv("PAGER") ? getenv("PAGER") : "less");
+    }
+
+    return messageOpenCommand;
+  }();
+
+  const std::string profileId = m_CurrentChat.first;
+  const std::string chatId = m_CurrentChat.second;
+  const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
+  const int messageOffset = m_MessageOffset[profileId][chatId];
+  auto it = std::next(messageVec.begin(), messageOffset);
+  if (it == messageVec.end()) return;
+
+  const std::string messageId = *it;
+  const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
+  const ChatMessage& chatMessage = messages.at(messageId);
+
+  endwin();
+  std::string tempPath = FileUtil::GetApplicationDir() + "/tmpview.txt";
+  FileUtil::WriteFile(tempPath, chatMessage.text);
+
+  const std::string cmd = openCmd + " " + tempPath;
+  LOG_DEBUG("launching external pager: %s", cmd.c_str());
+  int rv = system(cmd.c_str());
+  if (rv == 0)
+  {
+    LOG_DEBUG("external pager exited successfully");
+  }
+  else
+  {
+    LOG_WARNING("external pager exited with %d", rv);
+  }
+
+  FileUtil::RmFile(tempPath);
+  refresh();
+  wint_t key = 0;
+  while (get_wch(&key) != ERR)
+  {
+    // Discard any remaining input
+  }
 }
 
 bool UiModel::GetMessageAttachmentPath(std::string& p_FilePath, DownloadFileAction p_DownloadFileAction)

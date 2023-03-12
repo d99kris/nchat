@@ -103,6 +103,7 @@ Interactive Commands for Text Input:
     Alt-s       external spell check
     Alt-c       copy
     Alt-v       paste
+    Alt-w       external message viewer
     Alt-x       cut
 
 
@@ -373,6 +374,7 @@ This configuration file holds general user interface settings. Default content:
     link_open_command=
     list_enabled=1
     mark_read_on_view=1
+    message_open_command=
     muted_indicate_unread=1
     muted_notify_unread=0
     muted_position_by_timestamp=1
@@ -481,6 +483,12 @@ Specifies whether nchat should send message read receipts upon viewing. If
 false nchat will only mark the messages read upon `next_page` (page down),
 `end` (end) or upon sending a message/file in the chat.
 
+### message_open_command
+
+Specifies a custom command to use for opening/viewing message text part. If
+not specified, nchat will use `PAGER` environment variable if set, or
+otherwise use `less`.
+
 ### muted_indicate_unread
 
 Specifies whether chat list should indicate unread status `*` for muted chats.
@@ -557,6 +565,7 @@ This configuration file holds user interface key bindings. Default content:
     next_page=KEY_NPAGE
     open=KEY_CTRLV
     open_link=KEY_CTRLW
+    open_msg=
     other_commands_help=KEY_CTRLO
     paste=
     prev_chat=KEY_BTAB
