@@ -980,6 +980,7 @@ func WmLogin(connId int) int {
 
 	// authenticate if needed, otherwise just connect
 	SetState(connId, Connecting)
+	var timeoutMs int = 10000 // 10 sec timeout by default (regular connect)
 
 	ch, err := cli.GetQRChannel(context.Background())
 	if err != nil {
@@ -988,6 +989,7 @@ func WmLogin(connId int) int {
 			LOG_WARNING(fmt.Sprintf("failed to get qr channel %#v", err))
 		}
 	} else {
+		timeoutMs = 60000 // 60 sec timeout during setup / qr code scan
 		go func() {
 			for evt := range ch {
 				if evt.Event == "code" {
@@ -1015,12 +1017,12 @@ func WmLogin(connId int) int {
 
 	LOG_DEBUG("connect ok")
 
-	// wait for result (up to 10 sec, 100 ms at a time)
+	// wait for result (up to timeout, 100 ms at a time)
 	LOG_DEBUG("wait start")
-	i := 0
-	for (i < 100) && (GetState(connId) == Connecting) {
+	waitedMs := 0
+	for (waitedMs < timeoutMs) && (GetState(connId) == Connecting) {
 		time.Sleep(100 * time.Millisecond)
-		i++
+		waitedMs += 100
 	}
 	LOG_DEBUG("wait done")
 
