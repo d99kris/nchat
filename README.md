@@ -367,12 +367,14 @@ This configuration file holds general user interface settings. Default content:
     desktop_notify_inactive=0
     downloadable_indicator=+
     emoji_enabled=1
+    entry_height=4
     failed_indicator=✗
     file_picker_command=
     help_enabled=1
     home_fetch_all=0
     link_open_command=
     list_enabled=1
+    list_width=14
     mark_read_on_view=1
     message_open_command=
     muted_indicate_unread=1
@@ -437,6 +439,10 @@ not yet downloaded. This is only shown for `attachment_prefetch` < 2.
 
 Specifies whether to display emojis. Controlled by Ctrl-y in run-time.
 
+### entry_height
+
+Specifies height of text entry area.
+
 ### failed_indicator
 
 Specifies text to suffix attachment filenames in message view for failed
@@ -476,6 +482,10 @@ example `w3m -o confirm_qq=false '%1'` and `see '%1'`.
 ### list_enabled
 
 Specifies whether to display chat list. Controlled by Ctrl-l in run-time.
+
+### list_width
+
+Specifies width of chat list.
 
 ### mark_read_on_view
 

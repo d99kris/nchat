@@ -26,6 +26,7 @@ void UiConfig::Init()
     { "desktop_notify_command", "" },
     { "downloadable_indicator", "+" },
     { "emoji_enabled", "1" },
+    { "entry_height", "4" },
     { "failed_indicator", "\xe2\x9c\x97" },
     { "file_picker_command", "" },
     { "help_enabled", "1" },

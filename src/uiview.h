@@ -70,4 +70,5 @@ private:
   bool m_ListEnabled = true;
   const bool m_HistoryEnabled = true;
   int m_ListWidth = 14;
+  int m_EntryHeight = 4;
 };
