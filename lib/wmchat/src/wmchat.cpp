@@ -644,25 +644,25 @@ void WmClearStatus(int p_Flags)
 
 void WmLogTrace(char* p_Filename, int p_LineNo, char* p_Message)
 {
-  Log::Trace(p_Filename, p_LineNo, p_Message);
+  Log::Trace(p_Filename, p_LineNo, "%s", p_Message);
 }
 
 void WmLogDebug(char* p_Filename, int p_LineNo, char* p_Message)
 {
-  Log::Debug(p_Filename, p_LineNo, p_Message);
+  Log::Debug(p_Filename, p_LineNo, "%s", p_Message);
 }
 
 void WmLogInfo(char* p_Filename, int p_LineNo, char* p_Message)
 {
-  Log::Info(p_Filename, p_LineNo, p_Message);
+  Log::Info(p_Filename, p_LineNo, "%s", p_Message);
 }
 
 void WmLogWarning(char* p_Filename, int p_LineNo, char* p_Message)
 {
-  Log::Warning(p_Filename, p_LineNo, p_Message);
+  Log::Warning(p_Filename, p_LineNo, "%s", p_Message);
 }
 
 void WmLogError(char* p_Filename, int p_LineNo, char* p_Message)
 {
-  Log::Error(p_Filename, p_LineNo, p_Message);
+  Log::Error(p_Filename, p_LineNo, "%s", p_Message);
 }
