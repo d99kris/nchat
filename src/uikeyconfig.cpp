@@ -304,7 +304,11 @@ int UiKeyConfig::GetKeyCode(const std::string& p_KeyName)
 
 int UiKeyConfig::ReserveVirtualKeyCode()
 {
-  static int keyCode = 0x8000;
+  // Using Unicode's first Private Use Area (U+E000–U+F8FF) and starting at a
+  // code point currently not identified as used by any vendor in
+  // https://en.wikipedia.org/wiki/Private_Use_Areas
+  // (side-note: wchar_t is UTF-32 on Linux/Mac, i.e. equal to Unicode code points.)
+  static int keyCode = 0xF300;
   return keyCode++;
 }
 
