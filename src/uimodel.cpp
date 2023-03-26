@@ -523,7 +523,7 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
     entryStr.insert(entryPos++, 1, p_Key);
     if (p_Key > 0xff)
     {
-      if (StrUtil::WStringWidth(std::wstring(p_Key, 1)) > 1)
+      if (StrUtil::WStringWidth(std::wstring(1, p_Key)) > 1)
       {
         entryStr.insert(entryPos++, std::wstring(1, (wchar_t)EMOJI_PAD));
       }
