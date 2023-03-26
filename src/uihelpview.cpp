@@ -22,6 +22,8 @@ void UiHelpView::Draw()
   if (!m_Enabled || !m_Dirty) return;
   m_Dirty = false;
 
+  curs_set(0);
+
   static std::wstring otherHelpItem = []()
   {
     std::vector<std::wstring> helpItems;

@@ -31,6 +31,8 @@ void UiEntryView::Draw()
 
   m_Dirty = false;
 
+  curs_set(0);
+
   std::wstring input = m_Model->GetEntryStr();
   const int inputPos = m_Model->GetEntryPos();
   std::wstring line;

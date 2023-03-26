@@ -26,6 +26,8 @@ void UiTopView::Draw()
   if (!m_Enabled || !m_Dirty) return;
   m_Dirty = false;
 
+  curs_set(0);
+
   int topPadLeft = 1;
   int topPadRight = 1;
   static int colorPair = UiColorConfig::GetColorPair("top_color");

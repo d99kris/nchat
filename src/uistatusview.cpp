@@ -24,6 +24,8 @@ void UiStatusView::Draw()
   if (!m_Enabled || !m_Dirty) return;
   m_Dirty = false;
 
+  curs_set(0);
+
   std::pair<std::string, std::string>& currentChat = m_Model->GetCurrentChat();
   std::string name = m_Model->GetContactListName(currentChat.first, currentChat.second);
   if (!m_Model->GetEmojiEnabled())

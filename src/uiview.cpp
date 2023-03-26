@@ -114,7 +114,6 @@ void UiView::Init()
 
 void UiView::Draw()
 {
-  curs_set(0);
   m_UiTopView->Draw();
   m_UiHelpView->Draw();
   m_UiStatusView->Draw();

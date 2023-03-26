@@ -47,6 +47,8 @@ void UiListView::Draw()
   if (!m_Enabled || !m_Dirty) return;
   m_Dirty = false;
 
+  curs_set(0);
+
   static int colorPair = UiColorConfig::GetColorPair("list_color");
   static int attribute = UiColorConfig::GetAttribute("list_attr");
   static int attributeSelected = UiColorConfig::GetAttribute("list_attr_selected");

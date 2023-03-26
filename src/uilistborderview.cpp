@@ -21,6 +21,8 @@ void UiListBorderView::Draw()
   if (!m_Enabled || !m_Dirty) return;
   m_Dirty = false;
 
+  curs_set(0);
+
   static int colorPair = UiColorConfig::GetColorPair("listborder_color");
   static int attribute = UiColorConfig::GetAttribute("listborder_attr");
 

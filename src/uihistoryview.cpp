@@ -54,6 +54,8 @@ void UiHistoryView::Draw()
   if (!m_Enabled || !m_Dirty) return;
   m_Dirty = false;
 
+  curs_set(0);
+
   static int colorPairTextSent = UiColorConfig::GetColorPair("history_text_sent_color");
   static int colorPairTextRecv = UiColorConfig::GetColorPair("history_text_recv_color");
   static int colorPairTextQuoted = UiColorConfig::GetColorPair("history_text_quoted_color");
