@@ -274,6 +274,7 @@ int main(int argc, char* argv[])
     }
     else
     {
+      bool found = false;
       std::vector<ProtocolBaseFactory*> allProtocolFactorys = GetProtocolFactorys();
       for (auto& protocolFactory : allProtocolFactorys)
       {
@@ -283,7 +284,13 @@ int main(int argc, char* argv[])
           std::shared_ptr<Protocol> protocol = protocolFactory->Create();
           protocol->LoadProfile(profilesDir, profileId);
           ui->AddProtocol(protocol);
+          found = true;
         }
+      }
+
+      if (!found)
+      {
+        LOG_WARNING("protocol %s not supported", protocolName.c_str());
       }
     }
   }
