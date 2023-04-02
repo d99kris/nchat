@@ -270,30 +270,64 @@ func (cli *Client) GetUserDevicesContext(ctx context.Context, jids []types.JID) 
 	return devices, nil
 }
 
+type GetProfilePictureParams struct {
+	Preview     bool
+	ExistingID  string
+	IsCommunity bool
+}
+
 // GetProfilePictureInfo gets the URL where you can download a WhatsApp user's profile picture or group's photo.
 //
 // Optionally, you can pass the last known profile picture ID.
 // If the profile picture hasn't changed, this will return nil with no error.
-func (cli *Client) GetProfilePictureInfo(jid types.JID, preview bool, existingID string) (*types.ProfilePictureInfo, error) {
+//
+// To get a community photo, you should pass `IsCommunity: true`, as otherwise you may get a 401 error.
+func (cli *Client) GetProfilePictureInfo(jid types.JID, params *GetProfilePictureParams) (*types.ProfilePictureInfo, error) {
 	attrs := waBinary.Attrs{
 		"query": "url",
 	}
-	if preview {
+	var target, to types.JID
+	if params == nil {
+		params = &GetProfilePictureParams{}
+	}
+	if params.Preview {
 		attrs["type"] = "preview"
 	} else {
 		attrs["type"] = "image"
 	}
-	if existingID != "" {
-		attrs["id"] = existingID
+	if params.ExistingID != "" {
+		attrs["id"] = params.ExistingID
 	}
-	resp, err := cli.sendIQ(infoQuery{
-		Namespace: "w:profile:picture",
-		Type:      "get",
-		To:        jid,
-		Content: []waBinary.Node{{
+	var expectWrapped bool
+	var content []waBinary.Node
+	namespace := "w:profile:picture"
+	if params.IsCommunity {
+		target = types.EmptyJID
+		namespace = "w:g2"
+		to = jid
+		attrs["parent_group_jid"] = jid
+		expectWrapped = true
+		content = []waBinary.Node{{
+			Tag: "pictures",
+			Content: []waBinary.Node{{
+				Tag:   "picture",
+				Attrs: attrs,
+			}},
+		}}
+	} else {
+		to = types.ServerJID
+		target = jid
+		content = []waBinary.Node{{
 			Tag:   "picture",
 			Attrs: attrs,
-		}},
+		}}
+	}
+	resp, err := cli.sendIQ(infoQuery{
+		Namespace: namespace,
+		Type:      "get",
+		To:        to,
+		Target:    target,
+		Content:   content,
 	})
 	if errors.Is(err, ErrIQNotAuthorized) {
 		return nil, wrapIQError(ErrProfilePictureUnauthorized, err)
@@ -302,15 +336,25 @@ func (cli *Client) GetProfilePictureInfo(jid types.JID, preview bool, existingID
 	} else if err != nil {
 		return nil, err
 	}
+	if expectWrapped {
+		pics, ok := resp.GetOptionalChildByTag("pictures")
+		if !ok {
+			return nil, &ElementMissingError{Tag: "pictures", In: "response to profile picture query"}
+		}
+		resp = &pics
+	}
 	picture, ok := resp.GetOptionalChildByTag("picture")
 	if !ok {
-		if existingID != "" {
+		if params.ExistingID != "" {
 			return nil, nil
 		}
 		return nil, &ElementMissingError{Tag: "picture", In: "response to profile picture query"}
 	}
 	var info types.ProfilePictureInfo
 	ag := picture.AttrGetter()
+	if ag.OptionalInt("status") == 304 {
+		return nil, nil
+	}
 	info.ID = ag.String("id")
 	info.URL = ag.String("url")
 	info.Type = ag.String("type")

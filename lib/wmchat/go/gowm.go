@@ -1091,7 +1091,6 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 	// local vars
 	var sendErr error
 	var message waProto.Message
-	var msgId types.MessageID
 	var timeStamp time.Time
 	var sendResponse whatsmeow.SendResponse
 
@@ -1101,10 +1100,6 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 		LOG_WARNING(fmt.Sprintf("jid err %#v", jidErr))
 		return -1
 	}
-
-	// message id
-	// skip assign, let server generate
-	// msgId = whatsmeow.GenerateMessageID()
 
 	// check message type
 	if len(filePath) == 0 {
@@ -1142,7 +1137,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 		}
 
 		// send message
-		sendResponse, sendErr = client.SendMessage(context.Background(), chatJid, msgId, &message)
+		sendResponse, sendErr = client.SendMessage(context.Background(), chatJid, &message)
 
 	} else {
 
@@ -1177,7 +1172,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 			message.ImageMessage = &imageMessage
 
 			// send message
-			sendResponse, sendErr = client.SendMessage(context.Background(), chatJid, msgId, &message)
+			sendResponse, sendErr = client.SendMessage(context.Background(), chatJid, &message)
 
 		} else {
 
@@ -1211,7 +1206,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 			message.DocumentMessage = &documentMessage
 
 			// send message
-			sendResponse, sendErr = client.SendMessage(context.Background(), chatJid, msgId, &message)
+			sendResponse, sendErr = client.SendMessage(context.Background(), chatJid, &message)
 		}
 	}
 
@@ -1223,7 +1218,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 		LOG_TRACE(fmt.Sprintf("send message ok"))
 
 		timeStamp = sendResponse.Timestamp
-		msgId = sendResponse.ID
+		msgId := sendResponse.ID
 
 		// messageInfo
 		var messageInfo types.MessageInfo
