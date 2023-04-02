@@ -14,7 +14,7 @@
 
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
-#include "td/utils/FlatHashMap.h"
+#include "td/utils/WaitFreeHashMap.h"
 
 namespace td {
 
@@ -48,11 +48,13 @@ class AudiosManager {
 
   FileId get_audio_thumbnail_file_id(FileId file_id) const;
 
+  void append_audio_album_cover_file_ids(FileId file_id, vector<FileId> &file_ids) const;
+
   void delete_audio_thumbnail(FileId file_id);
 
   FileId dup_audio(FileId new_id, FileId old_id);
 
-  void merge_audios(FileId new_id, FileId old_id, bool can_delete_old);
+  void merge_audios(FileId new_id, FileId old_id);
 
   template <class StorerT>
   void store_audio(FileId file_id, StorerT &storer) const;
@@ -82,7 +84,7 @@ class AudiosManager {
   FileId on_get_audio(unique_ptr<Audio> new_audio, bool replace);
 
   Td *td_;
-  FlatHashMap<FileId, unique_ptr<Audio>, FileIdHash> audios_;
+  WaitFreeHashMap<FileId, unique_ptr<Audio>, FileIdHash> audios_;
 };
 
 }  // namespace td

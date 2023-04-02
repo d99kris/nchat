@@ -15,7 +15,7 @@
 
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
-#include "td/utils/FlatHashMap.h"
+#include "td/utils/WaitFreeHashMap.h"
 
 namespace td {
 
@@ -51,7 +51,7 @@ class VideoNotesManager {
 
   FileId dup_video_note(FileId new_id, FileId old_id);
 
-  void merge_video_notes(FileId new_id, FileId old_id, bool can_delete_old);
+  void merge_video_notes(FileId new_id, FileId old_id);
 
   template <class StorerT>
   void store_video_note(FileId file_id, StorerT &storer) const;
@@ -75,7 +75,7 @@ class VideoNotesManager {
   FileId on_get_video_note(unique_ptr<VideoNote> new_video_note, bool replace);
 
   Td *td_;
-  FlatHashMap<FileId, unique_ptr<VideoNote>, FileIdHash> video_notes_;
+  WaitFreeHashMap<FileId, unique_ptr<VideoNote>, FileIdHash> video_notes_;
 };
 
 }  // namespace td

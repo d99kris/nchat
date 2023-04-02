@@ -15,6 +15,7 @@
 #include "td/telegram/files/FileLocation.h"
 #include "td/telegram/files/FileManager.h"
 #include "td/telegram/files/FileType.h"
+#include "td/telegram/Global.h"
 #include "td/telegram/misc.h"
 #include "td/telegram/net/DcId.h"
 #include "td/telegram/PhotoSizeSource.h"
@@ -28,6 +29,8 @@
 #include "td/telegram/VideoNotesManager.h"
 #include "td/telegram/VideosManager.h"
 #include "td/telegram/VoiceNotesManager.h"
+
+#include "td/actor/actor.h"
 
 #include "td/utils/common.h"
 #include "td/utils/HttpUrl.h"
@@ -59,9 +62,7 @@ tl_object_ptr<td_api::document> DocumentsManager::get_document_object(FileId fil
     return nullptr;
   }
 
-  auto it = documents_.find(file_id);
-  CHECK(it != documents_.end());
-  auto document = it->second.get();
+  auto document = get_document(file_id);
   CHECK(document != nullptr);
   return make_tl_object<td_api::document>(
       document->file_name, document->mime_type, get_minithumbnail_object(document->minithumbnail),
@@ -581,13 +582,7 @@ void DocumentsManager::create_document(FileId file_id, string minithumbnail, Pho
 }
 
 const DocumentsManager::GeneralDocument *DocumentsManager::get_document(FileId file_id) const {
-  auto document = documents_.find(file_id);
-  if (document == documents_.end()) {
-    return nullptr;
-  }
-
-  CHECK(document->second->file_id == file_id);
-  return document->second.get();
+  return documents_.get_pointer(file_id);
 }
 
 bool DocumentsManager::has_input_media(FileId file_id, FileId thumbnail_file_id, bool is_secret) const {
@@ -708,7 +703,7 @@ FileId DocumentsManager::dup_document(FileId new_id, FileId old_id) {
   return new_id;
 }
 
-void DocumentsManager::merge_documents(FileId new_id, FileId old_id, bool can_delete_old) {
+void DocumentsManager::merge_documents(FileId new_id, FileId old_id) {
   CHECK(old_id.is_valid() && new_id.is_valid());
   CHECK(new_id != old_id);
 
@@ -716,27 +711,15 @@ void DocumentsManager::merge_documents(FileId new_id, FileId old_id, bool can_de
   const GeneralDocument *old_ = get_document(old_id);
   CHECK(old_ != nullptr);
 
-  auto new_it = documents_.find(new_id);
-  if (new_it == documents_.end()) {
-    auto &old = documents_[old_id];
-    if (!can_delete_old) {
-      dup_document(new_id, old_id);
-    } else {
-      old->file_id = new_id;
-      documents_.emplace(new_id, std::move(old));
-    }
+  const auto *new_ = get_document(new_id);
+  if (new_ == nullptr) {
+    dup_document(new_id, old_id);
   } else {
-    GeneralDocument *new_ = new_it->second.get();
-    CHECK(new_ != nullptr);
-
     if (old_->thumbnail != new_->thumbnail) {
       // LOG_STATUS(td_->file_manager_->merge(new_->thumbnail.file_id, old_->thumbnail.file_id));
     }
   }
   LOG_STATUS(td_->file_manager_->merge(new_id, old_id));
-  if (can_delete_old) {
-    documents_.erase(old_id);
-  }
 }
 
 string DocumentsManager::get_document_search_text(FileId file_id) const {

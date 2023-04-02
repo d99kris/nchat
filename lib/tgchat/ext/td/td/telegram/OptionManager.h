@@ -8,35 +8,54 @@
 
 #include "td/telegram/td_api.h"
 
-#include "td/actor/actor.h"
-
 #include "td/utils/common.h"
 #include "td/utils/Promise.h"
 #include "td/utils/Slice.h"
 
+#include <atomic>
+#include <memory>
+#include <utility>
+
 namespace td {
 
+class KeyValueSyncInterface;
 class Td;
+class TsSeqKeyValue;
 
-class OptionManager final : public Actor {
+class OptionManager {
  public:
-  OptionManager(Td *td, ActorShared<> parent);
-
+  explicit OptionManager(Td *td);
   OptionManager(const OptionManager &) = delete;
   OptionManager &operator=(const OptionManager &) = delete;
   OptionManager(OptionManager &&) = delete;
   OptionManager &operator=(OptionManager &&) = delete;
-  ~OptionManager() final;
+  ~OptionManager();
+
+  void on_td_inited();
+
+  void set_option_boolean(Slice name, bool value);
+
+  void set_option_empty(Slice name);
+
+  void set_option_integer(Slice name, int64 value);
+
+  void set_option_string(Slice name, Slice value);
+
+  bool have_option(Slice name) const;
+
+  bool get_option_boolean(Slice name, bool default_value = false) const;
+
+  int64 get_option_integer(Slice name, int64 default_value = 0) const;
+
+  string get_option_string(Slice name, string default_value = "") const;
 
   void on_update_server_time_difference();
-
-  void on_option_updated(const string &name);
 
   void get_option(const string &name, Promise<td_api::object_ptr<td_api::OptionValue>> &&promise);
 
   void set_option(const string &name, td_api::object_ptr<td_api::OptionValue> &&value, Promise<Unit> &&promise);
 
-  static void clear_options();
+  void clear_options();
 
   static bool is_synchronous_option(Slice name);
 
@@ -47,7 +66,11 @@ class OptionManager final : public Actor {
   void get_current_state(vector<td_api::object_ptr<td_api::Update>> &updates) const;
 
  private:
-  void tear_down() final;
+  void set_option(Slice name, Slice value);
+
+  void on_option_updated(Slice name);
+
+  string get_option(Slice name) const;
 
   static bool is_internal_option(Slice name);
 
@@ -59,14 +82,14 @@ class OptionManager final : public Actor {
 
   void send_unix_time_update();
 
-  void set_default_reaction();
-
-  void on_set_default_reaction(bool success);
-
   Td *td_;
-  ActorShared<> parent_;
+  bool is_td_inited_ = false;
+  vector<std::pair<string, Promise<td_api::object_ptr<td_api::OptionValue>>>> pending_get_options_;
 
-  double last_sent_server_time_difference_ = 1e100;
+  unique_ptr<TsSeqKeyValue> options_;
+  std::shared_ptr<KeyValueSyncInterface> option_pmc_;
+
+  std::atomic<double> last_sent_server_time_difference_{1e100};
 };
 
 }  // namespace td

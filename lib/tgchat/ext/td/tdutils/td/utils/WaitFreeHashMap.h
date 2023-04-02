@@ -27,12 +27,29 @@ class WaitFreeHashMap {
   };
   unique_ptr<WaitFreeStorage> wait_free_storage_;
 
+  Storage &get_wait_free_storage(const KeyT &key) {
+    return wait_free_storage_->maps_[randomize_hash(HashT()(key)) & (MAX_STORAGE_COUNT - 1)];
+  }
+
   Storage &get_storage(const KeyT &key) {
     if (wait_free_storage_ == nullptr) {
       return default_map_;
     }
 
-    return wait_free_storage_->maps_[randomize_hash(HashT()(key)) & (MAX_STORAGE_COUNT - 1)];
+    return get_wait_free_storage(key);
+  }
+
+  const Storage &get_storage(const KeyT &key) const {
+    return const_cast<WaitFreeHashMap *>(this)->get_storage(key);
+  }
+
+  void split_storage() {
+    CHECK(wait_free_storage_ == nullptr);
+    wait_free_storage_ = make_unique<WaitFreeStorage>();
+    for (auto &it : default_map_) {
+      get_wait_free_storage(it.first).emplace(it.first, std::move(it.second));
+    }
+    default_map_.clear();
   }
 
  public:
@@ -40,17 +57,12 @@ class WaitFreeHashMap {
     auto &storage = get_storage(key);
     storage[key] = std::move(value);
     if (default_map_.size() == MAX_STORAGE_SIZE) {
-      CHECK(wait_free_storage_ == nullptr);
-      wait_free_storage_ = make_unique<WaitFreeStorage>();
-      for (auto &it : default_map_) {
-        get_storage(it.first).emplace(it.first, std::move(it.second));
-      }
-      default_map_.clear();
+      split_storage();
     }
   }
 
-  ValueT get(const KeyT &key) {
-    auto &storage = get_storage(key);
+  ValueT get(const KeyT &key) const {
+    const auto &storage = get_storage(key);
     auto it = storage.find(key);
     if (it == storage.end()) {
       return {};
@@ -58,8 +70,77 @@ class WaitFreeHashMap {
     return it->second;
   }
 
+  size_t count(const KeyT &key) const {
+    const auto &storage = get_storage(key);
+    return storage.count(key);
+  }
+
+  // specialization for WaitFreeHashMap<..., unique_ptr<T>>
+  template <class T = ValueT>
+  typename T::element_type *get_pointer(const KeyT &key) {
+    auto &storage = get_storage(key);
+    auto it = storage.find(key);
+    if (it == storage.end()) {
+      return nullptr;
+    }
+    return it->second.get();
+  }
+
+  template <class T = ValueT>
+  const typename T::element_type *get_pointer(const KeyT &key) const {
+    auto &storage = get_storage(key);
+    auto it = storage.find(key);
+    if (it == storage.end()) {
+      return nullptr;
+    }
+    return it->second.get();
+  }
+
+  ValueT &operator[](const KeyT &key) {
+    if (wait_free_storage_ == nullptr) {
+      ValueT &result = default_map_[key];
+      if (default_map_.size() != MAX_STORAGE_SIZE) {
+        return result;
+      }
+
+      split_storage();
+    }
+
+    return get_wait_free_storage(key)[key];
+  }
+
   size_t erase(const KeyT &key) {
     return get_storage(key).erase(key);
+  }
+
+  void foreach(std::function<void(const KeyT &key, ValueT &value)> callback) {
+    if (wait_free_storage_ == nullptr) {
+      for (auto &it : default_map_) {
+        callback(it.first, it.second);
+      }
+      return;
+    }
+
+    for (size_t i = 0; i < MAX_STORAGE_COUNT; i++) {
+      for (auto &it : wait_free_storage_->maps_[i]) {
+        callback(it.first, it.second);
+      }
+    }
+  }
+
+  void foreach(std::function<void(const KeyT &key, const ValueT &value)> callback) const {
+    if (wait_free_storage_ == nullptr) {
+      for (auto &it : default_map_) {
+        callback(it.first, it.second);
+      }
+      return;
+    }
+
+    for (size_t i = 0; i < MAX_STORAGE_COUNT; i++) {
+      for (auto &it : wait_free_storage_->maps_[i]) {
+        callback(it.first, it.second);
+      }
+    }
   }
 
   size_t size() const {

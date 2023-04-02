@@ -67,27 +67,33 @@ namespace TdExample
             }
             if (_authorizationState is TdApi.AuthorizationStateWaitTdlibParameters)
             {
-                TdApi.TdlibParameters parameters = new TdApi.TdlibParameters();
-                parameters.DatabaseDirectory = "tdlib";
-                parameters.UseMessageDatabase = true;
-                parameters.UseSecretChats = true;
-                parameters.ApiId = 94575;
-                parameters.ApiHash = "a3406de8d171bb422bb6ddf3bbd800e2";
-                parameters.SystemLanguageCode = "en";
-                parameters.DeviceModel = "Desktop";
-                parameters.ApplicationVersion = "1.0";
-                parameters.EnableStorageOptimizer = true;
+                TdApi.SetTdlibParameters request = new TdApi.SetTdlibParameters();
+                request.DatabaseDirectory = "tdlib";
+                request.UseMessageDatabase = true;
+                request.UseSecretChats = true;
+                request.ApiId = 94575;
+                request.ApiHash = "a3406de8d171bb422bb6ddf3bbd800e2";
+                request.SystemLanguageCode = "en";
+                request.DeviceModel = "Desktop";
+                request.ApplicationVersion = "1.0";
+                request.EnableStorageOptimizer = true;
 
-                _client.Send(new TdApi.SetTdlibParameters(parameters), new AuthorizationRequestHandler());
-            }
-            else if (_authorizationState is TdApi.AuthorizationStateWaitEncryptionKey)
-            {
-                _client.Send(new TdApi.CheckDatabaseEncryptionKey(), new AuthorizationRequestHandler());
+                _client.Send(request, new AuthorizationRequestHandler());
             }
             else if (_authorizationState is TdApi.AuthorizationStateWaitPhoneNumber)
             {
                 string phoneNumber = ReadLine("Please enter phone number: ");
                 _client.Send(new TdApi.SetAuthenticationPhoneNumber(phoneNumber, null), new AuthorizationRequestHandler());
+            }
+            else if (_authorizationState is TdApi.AuthorizationStateWaitEmailAddress)
+            {
+                string emailAddress = ReadLine("Please enter email address: ");
+                _client.Send(new TdApi.SetAuthenticationEmailAddress(emailAddress), new AuthorizationRequestHandler());
+            }
+            else if (_authorizationState is TdApi.AuthorizationStateWaitEmailCode)
+            {
+                string code = ReadLine("Please enter email authentication code: ");
+                _client.Send(new TdApi.CheckAuthenticationEmailCode(new TdApi.EmailAddressAuthenticationCode(code)), new AuthorizationRequestHandler());
             }
             else if (_authorizationState is TdApi.AuthorizationStateWaitOtherDeviceConfirmation state)
             {

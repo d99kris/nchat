@@ -45,7 +45,7 @@ void PhoneNumberManager::send_new_send_code_query(uint64 query_id, const telegra
 
 void PhoneNumberManager::set_phone_number(uint64 query_id, string phone_number, Settings settings) {
   if (phone_number.empty()) {
-    return on_query_error(query_id, Status::Error(400, "Phone number can't be empty"));
+    return on_query_error(query_id, Status::Error(400, "Phone number must be non-empty"));
   }
 
   switch (type_) {
@@ -64,10 +64,10 @@ void PhoneNumberManager::set_phone_number(uint64 query_id, string phone_number, 
 void PhoneNumberManager::set_phone_number_and_hash(uint64 query_id, string hash, string phone_number,
                                                    Settings settings) {
   if (phone_number.empty()) {
-    return on_query_error(query_id, Status::Error(400, "Phone number can't be empty"));
+    return on_query_error(query_id, Status::Error(400, "Phone number must be non-empty"));
   }
   if (hash.empty()) {
-    return on_query_error(query_id, Status::Error(400, "Hash can't be empty"));
+    return on_query_error(query_id, Status::Error(400, "Hash must be non-empty"));
   }
 
   switch (type_) {
@@ -212,6 +212,14 @@ void PhoneNumberManager::on_send_code_result(NetQueryPtr &result) {
   auto sent_code = r_sent_code.move_as_ok();
 
   LOG(INFO) << "Receive " << to_string(sent_code);
+
+  switch (sent_code->type_->get_id()) {
+    case telegram_api::auth_sentCodeTypeSetUpEmailRequired::ID:
+    case telegram_api::auth_sentCodeTypeEmailCode::ID:
+      return on_query_error(Status::Error(500, "Receive incorrect response"));
+    default:
+      break;
+  }
 
   send_code_helper_.on_sent_code(std::move(sent_code));
 

@@ -29,9 +29,12 @@ class PremiumGiftOption {
  public:
   PremiumGiftOption() = default;
   explicit PremiumGiftOption(telegram_api::object_ptr<telegram_api::premiumGiftOption> &&option);
+  explicit PremiumGiftOption(telegram_api::object_ptr<telegram_api::premiumSubscriptionOption> &&option);
 
-  td_api::object_ptr<td_api::premiumGiftOption> get_premium_gift_option_object(
+  td_api::object_ptr<td_api::premiumPaymentOption> get_premium_payment_option_object(
       const PremiumGiftOption &base_option) const;
+
+  bool is_valid() const;
 
   template <class StorerT>
   void store(StorerT &storer) const;
@@ -42,5 +45,14 @@ class PremiumGiftOption {
 
 bool operator==(const PremiumGiftOption &lhs, const PremiumGiftOption &rhs);
 bool operator!=(const PremiumGiftOption &lhs, const PremiumGiftOption &rhs);
+
+vector<PremiumGiftOption> get_premium_gift_options(
+    vector<telegram_api::object_ptr<telegram_api::premiumGiftOption>> &&options);
+
+vector<PremiumGiftOption> get_premium_gift_options(
+    vector<telegram_api::object_ptr<telegram_api::premiumSubscriptionOption>> &&options);
+
+vector<td_api::object_ptr<td_api::premiumPaymentOption>> get_premium_payment_options_object(
+    const vector<PremiumGiftOption> &options);
 
 }  // namespace td

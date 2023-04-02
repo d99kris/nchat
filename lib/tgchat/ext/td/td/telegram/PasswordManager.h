@@ -6,9 +6,11 @@
 //
 #pragma once
 
+#include "td/telegram/EmailVerification.h"
 #include "td/telegram/net/NetQuery.h"
 #include "td/telegram/NewPasswordState.h"
 #include "td/telegram/SecureStorage.h"
+#include "td/telegram/SentEmailCode.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 
@@ -69,18 +71,21 @@ class PasswordManager final : public NetQueryCallback {
   void get_state(Promise<State> promise);
   void set_password(string current_password, string new_password, string new_hint, bool set_recovery_email_address,
                     string recovery_email_address, Promise<State> promise);
+
+  void set_login_email_address(string new_login_email_address, Promise<SentEmailCode> promise);
+  void resend_login_email_address_code(Promise<SentEmailCode> promise);
+  void check_login_email_address_code(EmailVerification &&code, Promise<Unit> promise);
+
   void set_recovery_email_address(string password, string new_recovery_email_address, Promise<State> promise);
   void get_recovery_email_address(string password, Promise<tl_object_ptr<td_api::recoveryEmailAddress>> promise);
   void check_recovery_email_address_code(string code, Promise<State> promise);
   void resend_recovery_email_address_code(Promise<State> promise);
 
-  void send_email_address_verification_code(
-      string email, Promise<td_api::object_ptr<td_api::emailAddressAuthenticationCodeInfo>> promise);
-  void resend_email_address_verification_code(
-      Promise<td_api::object_ptr<td_api::emailAddressAuthenticationCodeInfo>> promise);
+  void send_email_address_verification_code(string email, Promise<SentEmailCode> promise);
+  void resend_email_address_verification_code(Promise<SentEmailCode> promise);
   void check_email_address_verification_code(string code, Promise<Unit> promise);
 
-  void request_password_recovery(Promise<td_api::object_ptr<td_api::emailAddressAuthenticationCodeInfo>> promise);
+  void request_password_recovery(Promise<SentEmailCode> promise);
   void check_password_recovery_code(string code, Promise<Unit> promise);
   void recover_password(string code, string new_password, string new_hint, Promise<State> promise);
 
@@ -106,8 +111,8 @@ class PasswordManager final : public NetQueryCallback {
     string password_hint;
     bool has_recovery_email_address = false;
     bool has_secure_values = false;
-    string unconfirmed_recovery_email_address_pattern;
-    int32 code_length = 0;
+    SentEmailCode unconfirmed_recovery_email_code;
+    string login_email_pattern;
     int32 pending_reset_date = 0;
 
     string current_client_salt;
@@ -120,13 +125,10 @@ class PasswordManager final : public NetQueryCallback {
     NewPasswordState new_state;
 
     State get_password_state_object() const {
-      td_api::object_ptr<td_api::emailAddressAuthenticationCodeInfo> code_info;
-      if (!unconfirmed_recovery_email_address_pattern.empty()) {
-        code_info = td_api::make_object<td_api::emailAddressAuthenticationCodeInfo>(
-            unconfirmed_recovery_email_address_pattern, code_length);
-      }
-      return td_api::make_object<td_api::passwordState>(has_password, password_hint, has_recovery_email_address,
-                                                        has_secure_values, std::move(code_info), pending_reset_date);
+      return td_api::make_object<td_api::passwordState>(
+          has_password, password_hint, has_recovery_email_address, has_secure_values,
+          unconfirmed_recovery_email_code.get_email_address_authentication_code_info_object(), login_email_pattern,
+          pending_reset_date);
     }
   };
 
@@ -159,6 +161,7 @@ class PasswordManager final : public NetQueryCallback {
   TempPasswordState temp_password_state_;
   Promise<TempState> create_temp_password_promise_;
 
+  string last_set_login_email_address_;
   string last_verified_email_address_;
 
   int32 last_code_length_ = 0;

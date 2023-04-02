@@ -12,17 +12,14 @@
 #include "td/telegram/PhotoSize.hpp"
 #include "td/telegram/Version.h"
 
-#include "td/utils/logging.h"
 #include "td/utils/tl_helpers.h"
 
 namespace td {
 
 template <class StorerT>
 void DocumentsManager::store_document(FileId file_id, StorerT &storer) const {
-  LOG(DEBUG) << "Store document " << file_id;
-  auto it = documents_.find(file_id);
-  CHECK(it != documents_.end());
-  const GeneralDocument *document = it->second.get();
+  const GeneralDocument *document = get_document(file_id);
+  CHECK(document != nullptr);
   store(document->file_name, storer);
   store(document->mime_type, storer);
   store(document->minithumbnail, storer);
@@ -40,7 +37,6 @@ FileId DocumentsManager::parse_document(ParserT &parser) {
   }
   parse(document->thumbnail, parser);
   parse(document->file_id, parser);
-  LOG(DEBUG) << "Parsed document " << document->file_id;
   if (parser.get_error() != nullptr || !document->file_id.is_valid()) {
     return FileId();
   }

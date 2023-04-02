@@ -12,10 +12,14 @@
 namespace td {
 
 void SendCodeHelper::on_sent_code(telegram_api::object_ptr<telegram_api::auth_sentCode> sent_code) {
-  phone_code_hash_ = sent_code->phone_code_hash_;
-  sent_code_info_ = get_authentication_code_info(std::move(sent_code->type_));
+  phone_code_hash_ = std::move(sent_code->phone_code_hash_);
+  sent_code_info_ = get_sent_authentication_code_info(std::move(sent_code->type_));
   next_code_info_ = get_authentication_code_info(std::move(sent_code->next_type_));
   next_code_timestamp_ = Timestamp::in((sent_code->flags_ & SENT_CODE_FLAG_HAS_TIMEOUT) != 0 ? sent_code->timeout_ : 0);
+}
+
+void SendCodeHelper::on_phone_code_hash(string &&phone_code_hash) {
+  phone_code_hash_ = std::move(phone_code_hash);
 }
 
 td_api::object_ptr<td_api::authorizationStateWaitCode> SendCodeHelper::get_authorization_state_wait_code() const {
@@ -76,6 +80,10 @@ telegram_api::auth_sendCode SendCodeHelper::send_code(string phone_number, const
   return telegram_api::auth_sendCode(phone_number_, api_id, api_hash, get_input_code_settings(settings));
 }
 
+telegram_api::account_sendVerifyEmailCode SendCodeHelper::send_verify_email_code(const string &email_address) {
+  return telegram_api::account_sendVerifyEmailCode(get_email_verify_purpose_login_setup(), email_address);
+}
+
 telegram_api::account_sendChangePhoneCode SendCodeHelper::send_change_phone_code(Slice phone_number,
                                                                                  const Settings &settings) {
   phone_number_ = phone_number.str();
@@ -116,7 +124,7 @@ SendCodeHelper::AuthenticationCodeInfo SendCodeHelper::get_authentication_code_i
   }
 }
 
-SendCodeHelper::AuthenticationCodeInfo SendCodeHelper::get_authentication_code_info(
+SendCodeHelper::AuthenticationCodeInfo SendCodeHelper::get_sent_authentication_code_info(
     tl_object_ptr<telegram_api::auth_SentCodeType> &&sent_code_type_ptr) {
   CHECK(sent_code_type_ptr != nullptr);
   switch (sent_code_type_ptr->get_id()) {
@@ -141,6 +149,8 @@ SendCodeHelper::AuthenticationCodeInfo SendCodeHelper::get_authentication_code_i
       return AuthenticationCodeInfo{AuthenticationCodeInfo::Type::MissedCall, code_type->length_,
                                     std::move(code_type->prefix_)};
     }
+    case telegram_api::auth_sentCodeTypeEmailCode::ID:
+    case telegram_api::auth_sentCodeTypeSetUpEmailRequired::ID:
     default:
       UNREACHABLE();
       return AuthenticationCodeInfo();
@@ -167,6 +177,11 @@ td_api::object_ptr<td_api::AuthenticationCodeType> SendCodeHelper::get_authentic
       UNREACHABLE();
       return nullptr;
   }
+}
+
+telegram_api::object_ptr<telegram_api::emailVerifyPurposeLoginSetup>
+SendCodeHelper::get_email_verify_purpose_login_setup() const {
+  return telegram_api::make_object<telegram_api::emailVerifyPurposeLoginSetup>(phone_number_, phone_code_hash_);
 }
 
 }  // namespace td

@@ -10,13 +10,13 @@
 #include "td/telegram/AttachMenuManager.h"
 #include "td/telegram/AuthManager.h"
 #include "td/telegram/ConfigManager.h"
-#include "td/telegram/ConfigShared.h"
 #include "td/telegram/ContactsManager.h"
 #include "td/telegram/DialogId.h"
 #include "td/telegram/GitCommitHash.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/JsonValue.h"
 #include "td/telegram/LanguagePackManager.h"
+#include "td/telegram/MessageReaction.h"
 #include "td/telegram/net/MtprotoHeader.h"
 #include "td/telegram/net/NetQueryDispatcher.h"
 #include "td/telegram/NotificationManager.h"
@@ -26,11 +26,14 @@
 #include "td/telegram/SuggestedAction.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/TdDb.h"
-#include "td/telegram/telegram_api.h"
 #include "td/telegram/TopDialogManager.h"
 
+#include "td/db/KeyValueSyncInterface.h"
+#include "td/db/TsSeqKeyValue.h"
+
+#include "td/actor/actor.h"
+
 #include "td/utils/algorithm.h"
-#include "td/utils/buffer.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/port/Clocks.h"
@@ -43,94 +46,167 @@
 
 namespace td {
 
-class SetDefaultReactionQuery final : public Td::ResultHandler {
-  Promise<Unit> promise_;
-
- public:
-  explicit SetDefaultReactionQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
-  }
-
-  void send(const string &reaction) {
-    send_query(G()->net_query_creator().create(telegram_api::messages_setDefaultReaction(reaction)));
-  }
-
-  void on_result(BufferSlice packet) final {
-    auto result_ptr = fetch_result<telegram_api::messages_setDefaultReaction>(packet);
-    if (result_ptr.is_error()) {
-      return on_error(result_ptr.move_as_error());
-    }
-
-    if (result_ptr.ok()) {
-      promise_.set_value(Unit());
-    } else {
-      on_error(Status::Error(400, "Receive false"));
-    }
-  }
-
-  void on_error(Status status) final {
-    LOG(INFO) << "Failed to set default reaction: " << status;
-    promise_.set_error(std::move(status));
-  }
-};
-
-OptionManager::OptionManager(Td *td, ActorShared<> parent) : td_(td), parent_(std::move(parent)) {
+OptionManager::OptionManager(Td *td)
+    : td_(td), options_(td::make_unique<TsSeqKeyValue>()), option_pmc_(G()->td_db()->get_config_pmc_shared()) {
   send_unix_time_update();
 
-  if (G()->shared_config().have_option("language_database_path")) {
-    G()->shared_config().set_option_string("language_pack_database_path",
-                                           G()->shared_config().get_option_string("language_database_path"));
-    G()->shared_config().set_option_empty("language_database_path");
+  auto all_options = option_pmc_->get_all();
+  all_options["utc_time_offset"] = PSTRING() << 'I' << Clocks::tz_offset();
+  for (const auto &name_value : all_options) {
+    const string &name = name_value.first;
+    options_->set(name, name_value.second);
+    if (!is_internal_option(name)) {
+      send_closure(G()->td(), &Td::send_update,
+                   td_api::make_object<td_api::updateOption>(name, get_option_value_object(name_value.second)));
+    } else if (name == "otherwise_relogin_days") {
+      auto days = narrow_cast<int32>(get_option_integer(name));
+      if (days > 0) {
+        vector<SuggestedAction> added_actions{SuggestedAction{SuggestedAction::Type::SetPassword, DialogId(), days}};
+        send_closure(G()->td(), &Td::send_update, get_update_suggested_actions_object(added_actions, {}));
+      }
+    } else if (name == "default_reaction") {
+      send_update_default_reaction_type(get_option_string(name));
+    }
   }
-  if (G()->shared_config().have_option("language_pack")) {
-    G()->shared_config().set_option_string("localization_target",
-                                           G()->shared_config().get_option_string("language_pack"));
-    G()->shared_config().set_option_empty("language_pack");
-  }
-  if (G()->shared_config().have_option("language_code")) {
-    G()->shared_config().set_option_string("language_pack_id", G()->shared_config().get_option_string("language_code"));
-    G()->shared_config().set_option_empty("language_code");
-  }
-  if (!G()->shared_config().have_option("message_text_length_max")) {
-    G()->shared_config().set_option_integer("message_text_length_max", 4096);
-  }
-  if (!G()->shared_config().have_option("message_caption_length_max")) {
-    G()->shared_config().set_option_integer("message_caption_length_max", 1024);
-  }
-  if (!G()->shared_config().have_option("bio_length_max")) {
-    G()->shared_config().set_option_integer("bio_length_max", 70);
-  }
-  if (!G()->shared_config().have_option("suggested_video_note_length")) {
-    G()->shared_config().set_option_integer("suggested_video_note_length", 384);
-  }
-  if (!G()->shared_config().have_option("suggested_video_note_video_bitrate")) {
-    G()->shared_config().set_option_integer("suggested_video_note_video_bitrate", 1000);
-  }
-  if (!G()->shared_config().have_option("suggested_video_note_audio_bitrate")) {
-    G()->shared_config().set_option_integer("suggested_video_note_audio_bitrate", 64);
-  }
-  if (!G()->shared_config().have_option("notification_sound_duration_max")) {
-    G()->shared_config().set_option_integer("notification_sound_duration_max", 5);
-  }
-  if (!G()->shared_config().have_option("notification_sound_size_max")) {
-    G()->shared_config().set_option_integer("notification_sound_size_max", 307200);
-  }
-  if (!G()->shared_config().have_option("notification_sound_count_max")) {
-    G()->shared_config().set_option_integer("notification_sound_count_max", G()->is_test_dc() ? 5 : 100);
-  }
-  if (!G()->shared_config().have_option("chat_filter_count_max")) {
-    G()->shared_config().set_option_integer("chat_filter_count_max", G()->is_test_dc() ? 3 : 10);
-  }
-  if (!G()->shared_config().have_option("chat_filter_chosen_chat_count_max")) {
-    G()->shared_config().set_option_integer("chat_filter_chosen_chat_count_max", G()->is_test_dc() ? 5 : 100);
-  }
-  G()->shared_config().set_option_integer("utc_time_offset", Clocks::tz_offset());
-}
 
-void OptionManager::tear_down() {
-  parent_.reset();
+  if (!have_option("message_text_length_max")) {
+    set_option_integer("message_text_length_max", 4096);
+  }
+  if (!have_option("message_caption_length_max")) {
+    set_option_integer("message_caption_length_max", 1024);
+  }
+  if (!have_option("bio_length_max")) {
+    set_option_integer("bio_length_max", 70);
+  }
+  if (!have_option("suggested_video_note_length")) {
+    set_option_integer("suggested_video_note_length", 384);
+  }
+  if (!have_option("suggested_video_note_video_bitrate")) {
+    set_option_integer("suggested_video_note_video_bitrate", 1000);
+  }
+  if (!have_option("suggested_video_note_audio_bitrate")) {
+    set_option_integer("suggested_video_note_audio_bitrate", 64);
+  }
+  if (!have_option("notification_sound_duration_max")) {
+    set_option_integer("notification_sound_duration_max", 5);
+  }
+  if (!have_option("notification_sound_size_max")) {
+    set_option_integer("notification_sound_size_max", 307200);
+  }
+  if (!have_option("notification_sound_count_max")) {
+    set_option_integer("notification_sound_count_max", G()->is_test_dc() ? 5 : 100);
+  }
+  if (!have_option("chat_filter_count_max")) {
+    set_option_integer("chat_filter_count_max", G()->is_test_dc() ? 3 : 10);
+  }
+  if (!have_option("chat_filter_chosen_chat_count_max")) {
+    set_option_integer("chat_filter_chosen_chat_count_max", G()->is_test_dc() ? 5 : 100);
+  }
+  if (!have_option("themed_emoji_statuses_sticker_set_id")) {
+    auto sticker_set_id =
+        G()->is_test_dc() ? static_cast<int64>(2964141614563343) : static_cast<int64>(773947703670341676);
+    set_option_integer("themed_emoji_statuses_sticker_set_id", sticker_set_id);
+  }
 }
 
 OptionManager::~OptionManager() = default;
+
+void OptionManager::on_td_inited() {
+  is_td_inited_ = true;
+
+  for (auto &request : pending_get_options_) {
+    get_option(request.first, std::move(request.second));
+  }
+  reset_to_empty(pending_get_options_);
+}
+
+void OptionManager::set_option_boolean(Slice name, bool value) {
+  set_option(name, value ? Slice("Btrue") : Slice("Bfalse"));
+}
+
+void OptionManager::set_option_empty(Slice name) {
+  set_option(name, Slice());
+}
+
+void OptionManager::set_option_integer(Slice name, int64 value) {
+  set_option(name, PSLICE() << 'I' << value);
+}
+
+void OptionManager::set_option_string(Slice name, Slice value) {
+  set_option(name, PSLICE() << 'S' << value);
+}
+
+bool OptionManager::have_option(Slice name) const {
+  return options_->isset(name.str());
+}
+
+bool OptionManager::get_option_boolean(Slice name, bool default_value) const {
+  auto value = get_option(name);
+  if (value.empty()) {
+    return default_value;
+  }
+  if (value == "Btrue") {
+    return true;
+  }
+  if (value == "Bfalse") {
+    return false;
+  }
+  LOG(ERROR) << "Found \"" << value << "\" instead of boolean option " << name;
+  return default_value;
+}
+
+int64 OptionManager::get_option_integer(Slice name, int64 default_value) const {
+  auto value = get_option(name);
+  if (value.empty()) {
+    return default_value;
+  }
+  if (value[0] != 'I') {
+    LOG(ERROR) << "Found \"" << value << "\" instead of integer option " << name;
+    return default_value;
+  }
+  return to_integer<int64>(value.substr(1));
+}
+
+string OptionManager::get_option_string(Slice name, string default_value) const {
+  auto value = get_option(name);
+  if (value.empty()) {
+    return default_value;
+  }
+  if (value[0] != 'S') {
+    LOG(ERROR) << "Found \"" << value << "\" instead of string option " << name;
+    return default_value;
+  }
+  return value.substr(1);
+}
+
+void OptionManager::set_option(Slice name, Slice value) {
+  CHECK(!name.empty());
+  CHECK(Scheduler::instance()->sched_id() == 0);
+  if (value.empty()) {
+    if (option_pmc_->erase(name.str()) == 0) {
+      return;
+    }
+    option_pmc_->erase(name.str());
+  } else {
+    if (options_->set(name, value) == 0) {
+      return;
+    }
+    option_pmc_->set(name.str(), value.str());
+  }
+
+  if (!G()->close_flag() && is_td_inited_) {
+    on_option_updated(name);
+  }
+
+  if (!is_internal_option(name)) {
+    send_closure(G()->td(), &Td::send_update,
+                 td_api::make_object<td_api::updateOption>(name.str(), get_option_value_object(get_option(name))));
+  }
+}
+
+string OptionManager::get_option(Slice name) const {
+  return options_->get(name.str());
+}
 
 td_api::object_ptr<td_api::OptionValue> OptionManager::get_unix_time_option_value_object() {
   return td_api::make_object<td_api::optionValueInteger>(G()->unix_time());
@@ -142,6 +218,7 @@ void OptionManager::send_unix_time_update() {
 }
 
 void OptionManager::on_update_server_time_difference() {
+  // can be called from any thread
   if (std::abs(G()->get_server_time_difference() - last_sent_server_time_difference_) < 0.5) {
     return;
   }
@@ -150,7 +227,7 @@ void OptionManager::on_update_server_time_difference() {
 }
 
 void OptionManager::clear_options() {
-  for (const auto &option : G()->shared_config().get_options()) {
+  for (const auto &option : options_->get_all()) {
     if (!is_internal_option(option.first)) {
       send_closure(
           G()->td(), &Td::send_update,
@@ -163,8 +240,7 @@ bool OptionManager::is_internal_option(Slice name) {
   switch (name[0]) {
     case 'a':
       return name == "about_length_limit_default" || name == "about_length_limit_premium" ||
-             name == "animated_emoji_zoom" || name == "animation_search_emojis" ||
-             name == "animation_search_provider" || name == "auth";
+             name == "animated_emoji_zoom" || name == "animation_search_emojis" || name == "animation_search_provider";
     case 'b':
       return name == "base_language_pack_version";
     case 'c':
@@ -175,7 +251,7 @@ bool OptionManager::is_internal_option(Slice name) {
              name == "channels_read_media_period" || name == "chat_read_mark_expire_period" ||
              name == "chat_read_mark_size_threshold";
     case 'd':
-      return name == "dc_txt_domain_name" || name == "default_reaction_needs_sync" ||
+      return name == "dc_txt_domain_name" || name == "default_reaction" || name == "default_reaction_needs_sync" ||
              name == "dialog_filters_chats_limit_default" || name == "dialog_filters_chats_limit_premium" ||
              name == "dialog_filters_limit_default" || name == "dialog_filters_limit_premium" ||
              name == "dialogs_folder_pinned_limit_default" || name == "dialogs_folder_pinned_limit_premium" ||
@@ -196,8 +272,9 @@ bool OptionManager::is_internal_option(Slice name) {
     case 'p':
       return name == "premium_bot_username" || name == "premium_features" || name == "premium_invoice_slug";
     case 'r':
-      return name == "rating_e_decay" || name == "reactions_uniq_max" || name == "recent_stickers_limit" ||
-             name == "revoke_pm_inbox" || name == "revoke_time_limit" || name == "revoke_pm_time_limit";
+      return name == "rating_e_decay" || name == "reactions_uniq_max" || name == "reactions_user_max_default" ||
+             name == "reactions_user_max_premium" || name == "recent_stickers_limit" || name == "revoke_pm_inbox" ||
+             name == "revoke_time_limit" || name == "revoke_pm_time_limit";
     case 's':
       return name == "saved_animations_limit" || name == "saved_gifs_limit_default" ||
              name == "saved_gifs_limit_premium" || name == "session_count" || name == "stickers_faved_limit_default" ||
@@ -221,24 +298,17 @@ bool OptionManager::is_synchronous_option(Slice name) {
   return td::contains(get_synchronous_options(), name);
 }
 
-void OptionManager::on_option_updated(const string &name) {
-  if (G()->close_flag()) {
-    return;
-  }
+void OptionManager::on_option_updated(Slice name) {
   switch (name[0]) {
     case 'a':
       if (name == "animated_emoji_zoom") {
         // nothing to do: animated emoji zoom is updated only at launch
       }
       if (name == "animation_search_emojis") {
-        td_->animations_manager_->on_update_animation_search_emojis(G()->shared_config().get_option_string(name));
+        td_->animations_manager_->on_update_animation_search_emojis();
       }
       if (name == "animation_search_provider") {
-        td_->animations_manager_->on_update_animation_search_provider(G()->shared_config().get_option_string(name));
-      }
-      if (name == "auth") {
-        send_closure(td_->auth_manager_actor_, &AuthManager::on_authorization_lost,
-                     G()->shared_config().get_option_string(name));
+        td_->animations_manager_->on_update_animation_search_provider();
       }
       break;
     case 'b':
@@ -248,14 +318,14 @@ void OptionManager::on_option_updated(const string &name) {
       break;
     case 'c':
       if (name == "connection_parameters") {
-        if (G()->mtproto_header().set_parameters(G()->shared_config().get_option_string(name))) {
+        if (G()->mtproto_header().set_parameters(get_option_string(name))) {
           G()->net_query_dispatcher().update_mtproto_header();
         }
       }
       break;
     case 'd':
-      if (name == "default_reaction_needs_sync" && G()->shared_config().get_option_boolean(name)) {
-        set_default_reaction();
+      if (name == "default_reaction") {
+        send_update_default_reaction_type(get_option_string(name));
       }
       if (name == "dice_emojis") {
         send_closure(td_->stickers_manager_actor_, &StickersManager::on_update_dice_emojis);
@@ -271,8 +341,7 @@ void OptionManager::on_option_updated(const string &name) {
                      &NotificationManager::on_disable_contact_registered_notifications_changed);
       }
       if (name == "disable_top_chats") {
-        send_closure(td_->top_dialog_manager_actor_, &TopDialogManager::update_is_enabled,
-                     !G()->shared_config().get_option_boolean(name));
+        send_closure(td_->top_dialog_manager_actor_, &TopDialogManager::update_is_enabled, !get_option_boolean(name));
       }
       break;
     case 'e':
@@ -282,8 +351,7 @@ void OptionManager::on_option_updated(const string &name) {
       break;
     case 'f':
       if (name == "favorite_stickers_limit") {
-        td_->stickers_manager_->on_update_favorite_stickers_limit(
-            narrow_cast<int32>(G()->shared_config().get_option_integer(name)));
+        td_->stickers_manager_->on_update_favorite_stickers_limit();
       }
       break;
     case 'i':
@@ -291,7 +359,7 @@ void OptionManager::on_option_updated(const string &name) {
         send_closure(td_->contacts_manager_actor_, &ContactsManager::on_ignored_restriction_reasons_changed);
       }
       if (name == "is_emulator") {
-        if (G()->mtproto_header().set_is_emulator(G()->shared_config().get_option_boolean(name))) {
+        if (G()->mtproto_header().set_is_emulator(get_option_boolean(name))) {
           G()->net_query_dispatcher().update_mtproto_header();
         }
       }
@@ -299,7 +367,7 @@ void OptionManager::on_option_updated(const string &name) {
     case 'l':
       if (name == "language_pack_id") {
         send_closure(td_->language_pack_manager_, &LanguagePackManager::on_language_code_changed);
-        if (G()->mtproto_header().set_language_code(G()->shared_config().get_option_string(name))) {
+        if (G()->mtproto_header().set_language_code(get_option_string(name))) {
           G()->net_query_dispatcher().update_mtproto_header();
         }
         send_closure(td_->attach_menu_manager_actor_, &AttachMenuManager::reload_attach_menu_bots, Promise<Unit>());
@@ -309,14 +377,9 @@ void OptionManager::on_option_updated(const string &name) {
       }
       if (name == "localization_target") {
         send_closure(td_->language_pack_manager_, &LanguagePackManager::on_language_pack_changed);
-        if (G()->mtproto_header().set_language_pack(G()->shared_config().get_option_string(name))) {
+        if (G()->mtproto_header().set_language_pack(get_option_string(name))) {
           G()->net_query_dispatcher().update_mtproto_header();
         }
-      }
-      break;
-    case 'm':
-      if (name == "my_id") {
-        G()->set_my_id(G()->shared_config().get_option_integer(name));
       }
       break;
     case 'n':
@@ -339,7 +402,7 @@ void OptionManager::on_option_updated(const string &name) {
         send_closure(td_->notification_manager_actor_, &NotificationManager::on_online_cloud_timeout_changed);
       }
       if (name == "otherwise_relogin_days") {
-        auto days = narrow_cast<int32>(G()->shared_config().get_option_integer(name));
+        auto days = narrow_cast<int32>(get_option_integer(name));
         if (days > 0) {
           vector<SuggestedAction> added_actions{SuggestedAction{SuggestedAction::Type::SetPassword, DialogId(), days}};
           send_closure(G()->td(), &Td::send_update, get_update_suggested_actions_object(added_actions, {}));
@@ -351,14 +414,12 @@ void OptionManager::on_option_updated(const string &name) {
         send_closure(td_->top_dialog_manager_actor_, &TopDialogManager::update_rating_e_decay);
       }
       if (name == "recent_stickers_limit") {
-        td_->stickers_manager_->on_update_recent_stickers_limit(
-            narrow_cast<int32>(G()->shared_config().get_option_integer(name)));
+        td_->stickers_manager_->on_update_recent_stickers_limit();
       }
       break;
     case 's':
       if (name == "saved_animations_limit") {
-        td_->animations_manager_->on_update_saved_animations_limit(
-            narrow_cast<int32>(G()->shared_config().get_option_integer(name)));
+        td_->animations_manager_->on_update_saved_animations_limit();
       }
       if (name == "session_count") {
         G()->net_query_dispatcher().update_session_count();
@@ -372,7 +433,7 @@ void OptionManager::on_option_updated(const string &name) {
         send_closure(td_->storage_manager_, &StorageManager::update_use_storage_optimizer);
       }
       if (name == "utc_time_offset") {
-        if (G()->mtproto_header().set_tz_offset(static_cast<int32>(G()->shared_config().get_option_integer(name)))) {
+        if (G()->mtproto_header().set_tz_offset(static_cast<int32>(get_option_integer(name)))) {
           G()->net_query_dispatcher().update_mtproto_header();
         }
       }
@@ -380,22 +441,14 @@ void OptionManager::on_option_updated(const string &name) {
     default:
       break;
   }
-
-  if (is_internal_option(name)) {
-    return;
-  }
-
-  // send_closure was already used in the callback
-  td_->send_update(
-      td_api::make_object<td_api::updateOption>(name, get_option_value_object(G()->shared_config().get_option(name))));
 }
 
 void OptionManager::get_option(const string &name, Promise<td_api::object_ptr<td_api::OptionValue>> &&promise) {
   bool is_bot = td_->auth_manager_ != nullptr && td_->auth_manager_->is_authorized() && td_->auth_manager_->is_bot();
-  auto wrap_promise = [&] {
-    return PromiseCreator::lambda([promise = std::move(promise), name](Unit result) mutable {
+  auto wrap_promise = [this, &promise, &name] {
+    return PromiseCreator::lambda([this, promise = std::move(promise), name](Unit result) mutable {
       // the option is already updated on success, ignore errors
-      promise.set_value(get_option_value_object(G()->shared_config().get_option(name)));
+      promise.set_value(get_option_value_object(get_option(name)));
     });
   };
   switch (name[0]) {
@@ -412,8 +465,13 @@ void OptionManager::get_option(const string &name, Promise<td_api::object_ptr<td
       break;
     case 'd':
       if (!is_bot && name == "disable_contact_registered_notifications") {
-        return send_closure_later(td_->notification_manager_actor_,
-                                  &NotificationManager::get_disable_contact_registered_notifications, wrap_promise());
+        if (is_td_inited_) {
+          send_closure_later(td_->notification_manager_actor_,
+                             &NotificationManager::get_disable_contact_registered_notifications, wrap_promise());
+        } else {
+          pending_get_options_.emplace_back(name, std::move(promise));
+        }
+        return;
       }
       break;
     case 'i':
@@ -421,8 +479,12 @@ void OptionManager::get_option(const string &name, Promise<td_api::object_ptr<td
         return send_closure_later(td_->config_manager_, &ConfigManager::get_content_settings, wrap_promise());
       }
       if (!is_bot && name == "is_location_visible") {
-        return send_closure_later(td_->contacts_manager_actor_, &ContactsManager::get_is_location_visible,
-                                  wrap_promise());
+        if (is_td_inited_) {
+          send_closure_later(td_->contacts_manager_actor_, &ContactsManager::get_is_location_visible, wrap_promise());
+        } else {
+          pending_get_options_.emplace_back(name, std::move(promise));
+        }
+        return;
       }
       break;
     case 'o':
@@ -449,7 +511,7 @@ td_api::object_ptr<td_api::OptionValue> OptionManager::get_option_synchronously(
       break;
     case 'v':
       if (name == "version") {
-        return td_api::make_object<td_api::optionValueString>("1.8.5");
+        return td_api::make_object<td_api::optionValueString>("1.8.6");
       }
       break;
   }
@@ -466,7 +528,7 @@ void OptionManager::set_option(const string &name, td_api::object_ptr<td_api::Op
       return false;
     }
     if (value_constructor_id == td_api::optionValueEmpty::ID) {
-      G()->shared_config().set_option_empty(option_name);
+      set_option_empty(option_name);
     } else {
       if (value_constructor_id != td_api::optionValueInteger::ID) {
         promise.set_error(Status::Error(400, PSLICE() << "Option \"" << name << "\" must have integer value"));
@@ -480,7 +542,7 @@ void OptionManager::set_option(const string &name, td_api::object_ptr<td_api::Op
                                                       << max_value << "]"));
         return false;
       }
-      G()->shared_config().set_option_integer(name, int_value);
+      set_option_integer(name, int_value);
     }
     promise.set_value(Unit());
     return true;
@@ -491,7 +553,7 @@ void OptionManager::set_option(const string &name, td_api::object_ptr<td_api::Op
       return false;
     }
     if (value_constructor_id == td_api::optionValueEmpty::ID) {
-      G()->shared_config().set_option_empty(name);
+      set_option_empty(name);
     } else {
       if (value_constructor_id != td_api::optionValueBoolean::ID) {
         promise.set_error(Status::Error(400, PSLICE() << "Option \"" << name << "\" must have boolean value"));
@@ -499,7 +561,7 @@ void OptionManager::set_option(const string &name, td_api::object_ptr<td_api::Op
       }
 
       bool bool_value = static_cast<td_api::optionValueBoolean *>(value.get())->value_;
-      G()->shared_config().set_option_boolean(name, bool_value);
+      set_option_boolean(name, bool_value);
     }
     promise.set_value(Unit());
     return true;
@@ -510,7 +572,7 @@ void OptionManager::set_option(const string &name, td_api::object_ptr<td_api::Op
       return false;
     }
     if (value_constructor_id == td_api::optionValueEmpty::ID) {
-      G()->shared_config().set_option_empty(name);
+      set_option_empty(name);
     } else {
       if (value_constructor_id != td_api::optionValueString::ID) {
         promise.set_error(Status::Error(400, PSLICE() << "Option \"" << name << "\" must have string value"));
@@ -519,10 +581,10 @@ void OptionManager::set_option(const string &name, td_api::object_ptr<td_api::Op
 
       const string &str_value = static_cast<td_api::optionValueString *>(value.get())->value_;
       if (str_value.empty()) {
-        G()->shared_config().set_option_empty(name);
+        set_option_empty(name);
       } else {
         if (check_value(str_value)) {
-          G()->shared_config().set_option_string(name, str_value);
+          set_option_string(name, str_value);
         } else {
           promise.set_error(Status::Error(400, PSLICE() << "Option \"" << name << "\" can't have specified value"));
           return false;
@@ -566,12 +628,6 @@ void OptionManager::set_option(const string &name, td_api::object_ptr<td_api::Op
       }
       break;
     case 'd':
-      if (!is_bot && set_string_option("default_reaction", [td = td_](Slice value) {
-            return td->stickers_manager_->is_active_reaction(value.str());
-          })) {
-        G()->shared_config().set_option_boolean("default_reaction_needs_sync", true);
-        return;
-      }
       if (!is_bot && set_boolean_option("disable_animated_emoji")) {
         return;
       }
@@ -613,7 +669,7 @@ void OptionManager::set_option(const string &name, td_api::object_ptr<td_api::Op
         return;
       }
       if (!is_bot && name == "ignore_sensitive_content_restrictions") {
-        if (!G()->shared_config().get_option_boolean("can_ignore_sensitive_content_restrictions")) {
+        if (!get_option_boolean("can_ignore_sensitive_content_restrictions")) {
           return promise.set_error(
               Status::Error(400, "Option \"ignore_sensitive_content_restrictions\" can't be changed by the user"));
         }
@@ -631,7 +687,7 @@ void OptionManager::set_option(const string &name, td_api::object_ptr<td_api::Op
         return;
       }
       if (!is_bot && set_boolean_option("is_location_visible")) {
-        td_->contacts_manager_->set_location_visibility();
+        ContactsManager::set_location_visibility(td_);
         return;
       }
       break;
@@ -733,19 +789,16 @@ void OptionManager::set_option(const string &name, td_api::object_ptr<td_api::Op
       }
       switch (value_constructor_id) {
         case td_api::optionValueBoolean::ID:
-          G()->shared_config().set_option_boolean(name,
-                                                  static_cast<const td_api::optionValueBoolean *>(value.get())->value_);
+          set_option_boolean(name, static_cast<const td_api::optionValueBoolean *>(value.get())->value_);
           break;
         case td_api::optionValueEmpty::ID:
-          G()->shared_config().set_option_empty(name);
+          set_option_empty(name);
           break;
         case td_api::optionValueInteger::ID:
-          G()->shared_config().set_option_integer(name,
-                                                  static_cast<const td_api::optionValueInteger *>(value.get())->value_);
+          set_option_integer(name, static_cast<const td_api::optionValueInteger *>(value.get())->value_);
           break;
         case td_api::optionValueString::ID:
-          G()->shared_config().set_option_string(name,
-                                                 static_cast<const td_api::optionValueString *>(value.get())->value_);
+          set_option_string(name, static_cast<const td_api::optionValueString *>(value.get())->value_);
           break;
         default:
           UNREACHABLE();
@@ -797,30 +850,11 @@ void OptionManager::get_current_state(vector<td_api::object_ptr<td_api::Update>>
 
   updates.push_back(td_api::make_object<td_api::updateOption>("unix_time", get_unix_time_option_value_object()));
 
-  for (const auto &option : G()->shared_config().get_options()) {
+  for (const auto &option : options_->get_all()) {
     if (!is_internal_option(option.first)) {
       updates.push_back(
           td_api::make_object<td_api::updateOption>(option.first, get_option_value_object(option.second)));
     }
-  }
-}
-
-void OptionManager::set_default_reaction() {
-  auto promise = PromiseCreator::lambda([actor_id = actor_id(this)](Result<Unit> &&result) {
-    send_closure(actor_id, &OptionManager::on_set_default_reaction, result.is_ok());
-  });
-  td_->create_handler<SetDefaultReactionQuery>(std::move(promise))
-      ->send(G()->shared_config().get_option_string("default_reaction"));
-}
-
-void OptionManager::on_set_default_reaction(bool success) {
-  if (G()->close_flag() && !success) {
-    return;
-  }
-
-  G()->shared_config().set_option_empty("default_reaction_needs_sync");
-  if (!success) {
-    send_closure(G()->config_manager(), &ConfigManager::reget_app_config, Promise<Unit>());
   }
 }
 

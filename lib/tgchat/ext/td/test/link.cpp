@@ -27,7 +27,8 @@ static void check_find_urls(const td::string &url, bool is_valid) {
 
   {
     if (is_valid && (td::begins_with(url_lower, "http") || td::begins_with(url_lower, "t.me")) &&
-        url.find('.') != td::string::npos && url.find(' ') == td::string::npos && url != "http://..") {
+        url.find('.') != td::string::npos && url.find(' ') == td::string::npos && url != "http://.." &&
+        url.find("ra.ph") == td::string::npos && url.find("Aph") == td::string::npos) {
       auto urls = td::find_urls(url);
       ASSERT_EQ(1u, urls.size());
       ASSERT_STREQ(url, urls[0].first);
@@ -86,8 +87,9 @@ static void parse_internal_link(const td::string &url, td::td_api::object_ptr<td
     if (object->get_id() == td::td_api::internalLinkTypeMessageDraft::ID) {
       static_cast<td::td_api::internalLinkTypeMessageDraft *>(object.get())->text_->entities_.clear();
     }
-    ASSERT_STREQ(url + " " + to_string(expected), url + " " + to_string(object));
+    ASSERT_STREQ(url + ' ' + to_string(expected), url + ' ' + to_string(object));
   } else {
+    LOG_IF(ERROR, expected != nullptr) << url;
     ASSERT_TRUE(expected == nullptr);
   }
 
@@ -154,6 +156,9 @@ TEST(Link, parse_internal_link) {
   };
   auto game = [](const td::string &bot_username, const td::string &game_short_name) {
     return td::td_api::make_object<td::td_api::internalLinkTypeGame>(bot_username, game_short_name);
+  };
+  auto instant_view = [](const td::string &url) {
+    return td::td_api::make_object<td::td_api::internalLinkTypeInstantView>(url);
   };
   auto invoice = [](const td::string &invoice_name) {
     return td::td_api::make_object<td::td_api::internalLinkTypeInvoice>(invoice_name);
@@ -638,6 +643,20 @@ TEST(Link, parse_internal_link) {
   parse_internal_link("tg:setlanguage?lang=abc%30ef", language_pack("abc0ef"));
   parse_internal_link("tg://setlanguage?lang=", unknown_deep_link("tg://setlanguage?lang="));
 
+  parse_internal_link("http://telegram.dog/iv?url=https://telegram.org&rhash=abcdef&test=1&tg_rhash=1",
+                      instant_view("https://t.me/iv?url=https%3A%2F%2Ftelegram.org&rhash=abcdef"));
+  parse_internal_link("t.me/iva?url=https://telegram.org&rhash=abcdef", public_chat("iva"));
+  parse_internal_link("t.me/iv?url=&rhash=abcdef", nullptr);
+  parse_internal_link("t.me/iv?url=https://telegram.org&rhash=",
+                      instant_view("https://t.me/iv?url=https%3A%2F%2Ftelegram.org&rhash"));
+  parse_internal_link("t.me/iv//////?url=https://telegram.org&rhash=",
+                      instant_view("https://t.me/iv?url=https%3A%2F%2Ftelegram.org&rhash"));
+  parse_internal_link("t.me/iv/////1/?url=https://telegram.org&rhash=", nullptr);
+  parse_internal_link("t.me/iv", nullptr);
+  parse_internal_link("t.me/iv?#url=https://telegram.org&rhash=abcdef", nullptr);
+  parse_internal_link("tg:iv?url=https://telegram.org&rhash=abcdef",
+                      unknown_deep_link("tg://iv?url=https://telegram.org&rhash=abcdef"));
+
   parse_internal_link("t.me/addtheme?slug=abcdef", nullptr);
   parse_internal_link("t.me/addtheme", nullptr);
   parse_internal_link("t.me/addtheme/", nullptr);
@@ -921,4 +940,35 @@ TEST(Link, parse_internal_link) {
   parse_internal_link("tg://settings/filters", settings());
   parse_internal_link("tg://settings/language", language_settings());
   parse_internal_link("tg://settings/privacy", privacy_and_security_settings());
+
+  parse_internal_link("username.t.me////0/a//s/as?start=", bot_start("username", ""));
+  parse_internal_link("username.t.me?start=as", bot_start("username", "as"));
+  parse_internal_link("username.t.me", public_chat("username"));
+  parse_internal_link("aAAb.t.me/12345?single", message("tg:resolve?domain=aaab&post=12345&single"));
+  parse_internal_link("telegram.t.me/195", message("tg:resolve?domain=telegram&post=195"));
+  parse_internal_link("shares.t.me", public_chat("shares"));
+
+  parse_internal_link("c.t.me/12345?single", nullptr);
+  parse_internal_link("aaa.t.me/12345?single", nullptr);
+  parse_internal_link("aaa_.t.me/12345?single", nullptr);
+  parse_internal_link("0aaa.t.me/12345?single", nullptr);
+  parse_internal_link("_aaa.t.me/12345?single", nullptr);
+  parse_internal_link("addemoji.t.me", nullptr);
+  parse_internal_link("addstickers.t.me", nullptr);
+  parse_internal_link("addtheme.t.me", nullptr);
+  parse_internal_link("auth.t.me", nullptr);
+  parse_internal_link("confirmphone.t.me", nullptr);
+  parse_internal_link("invoice.t.me", nullptr);
+  parse_internal_link("joinchat.t.me", nullptr);
+  parse_internal_link("login.t.me", nullptr);
+  parse_internal_link("proxy.t.me", nullptr);
+  parse_internal_link("setlanguage.t.me", nullptr);
+  parse_internal_link("share.t.me", nullptr);
+  parse_internal_link("socks.t.me", nullptr);
+
+  parse_internal_link("www.telegra.ph/", nullptr);
+  parse_internal_link("www.telegrA.ph/#", nullptr);
+  parse_internal_link("www.telegrA.ph/?", instant_view("https://telegra.ph/?"));
+  parse_internal_link("http://te.leGra.ph/?", instant_view("https://telegra.ph/?"));
+  parse_internal_link("https://grAph.org/12345", instant_view("https://telegra.ph/12345"));
 }

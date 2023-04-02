@@ -8,6 +8,7 @@
 
 #include "td/telegram/DialogId.h"
 #include "td/telegram/files/FileId.h"
+#include "td/telegram/files/FileSourceId.h"
 #include "td/telegram/MessageId.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
@@ -32,7 +33,7 @@ class AttachMenuManager final : public Actor {
   void init();
 
   void request_web_view(DialogId dialog_id, UserId bot_user_id, MessageId reply_to_message_id, string &&url,
-                        td_api::object_ptr<td_api::themeParameters> &&theme,
+                        td_api::object_ptr<td_api::themeParameters> &&theme, string &&platform,
                         Promise<td_api::object_ptr<td_api::webAppInfo>> &&promise);
 
   void open_web_view(int64 query_id, DialogId dialog_id, UserId bot_user_id, MessageId reply_to_message_id,
@@ -43,6 +44,10 @@ class AttachMenuManager final : public Actor {
   void reload_attach_menu_bots(Promise<Unit> &&promise);
 
   void get_attach_menu_bot(UserId user_id, Promise<td_api::object_ptr<td_api::attachmentMenuBot>> &&promise);
+
+  void reload_attach_menu_bot(UserId user_id, Promise<Unit> &&promise);
+
+  FileSourceId get_attach_menu_bot_file_source_id(UserId user_id);
 
   void toggle_bot_is_added_to_attach_menu(UserId user_id, bool is_added, Promise<Unit> &&promise);
 
@@ -117,7 +122,7 @@ class AttachMenuManager final : public Actor {
 
   void schedule_ping_web_view();
 
-  Result<AttachMenuBot> get_attach_menu_bot(tl_object_ptr<telegram_api::attachMenuBot> &&bot) const;
+  Result<AttachMenuBot> get_attach_menu_bot(tl_object_ptr<telegram_api::attachMenuBot> &&bot);
 
   td_api::object_ptr<td_api::attachmentMenuBot> get_attachment_menu_bot_object(const AttachMenuBot &bot) const;
 
@@ -131,8 +136,7 @@ class AttachMenuManager final : public Actor {
 
   void save_attach_menu_bots();
 
-  void on_reload_attach_menu_bots(Result<telegram_api::object_ptr<telegram_api::AttachMenuBots>> &&result,
-                                  Promise<Unit> &&promise);
+  void on_reload_attach_menu_bots(Result<telegram_api::object_ptr<telegram_api::AttachMenuBots>> &&result);
 
   void on_get_attach_menu_bot(UserId user_id,
                               Result<telegram_api::object_ptr<telegram_api::attachMenuBotsBot>> &&result,
@@ -144,6 +148,8 @@ class AttachMenuManager final : public Actor {
   bool is_inited_ = false;
   int64 hash_ = 0;
   vector<AttachMenuBot> attach_menu_bots_;
+  FlatHashMap<UserId, FileSourceId, UserIdHash> attach_menu_bot_file_source_ids_;
+  vector<Promise<Unit>> reload_attach_menu_bots_queries_;
 
   struct OpenedWebView {
     DialogId dialog_id_;

@@ -18,9 +18,9 @@
 
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
-#include "td/utils/FlatHashMap.h"
 #include "td/utils/Promise.h"
 #include "td/utils/Status.h"
+#include "td/utils/WaitFreeHashMap.h"
 
 namespace td {
 
@@ -59,13 +59,13 @@ class AnimationsManager final : public Actor {
 
   FileId dup_animation(FileId new_id, FileId old_id);
 
-  void merge_animations(FileId new_id, FileId old_id, bool can_delete_old);
+  void merge_animations(FileId new_id, FileId old_id);
 
-  void on_update_animation_search_emojis(string animation_search_emojis);
+  void on_update_animation_search_emojis();
 
-  void on_update_animation_search_provider(string animation_search_provider);
+  void on_update_animation_search_provider();
 
-  void on_update_saved_animations_limit(int32 saved_animations_limit);
+  void on_update_saved_animations_limit();
 
   void reload_saved_animations(bool force);
 
@@ -145,7 +145,7 @@ class AnimationsManager final : public Actor {
   Td *td_;
   ActorShared<> parent_;
 
-  FlatHashMap<FileId, unique_ptr<Animation>, FileIdHash> animations_;
+  WaitFreeHashMap<FileId, unique_ptr<Animation>, FileIdHash> animations_;
 
   int32 saved_animations_limit_ = 200;
   vector<FileId> saved_animation_ids_;

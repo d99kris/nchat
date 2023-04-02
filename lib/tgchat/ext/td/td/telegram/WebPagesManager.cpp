@@ -796,31 +796,20 @@ void WebPagesManager::on_get_web_page_preview_fail(int64 request_id, const strin
 }
 
 int64 WebPagesManager::get_web_page_preview(td_api::object_ptr<td_api::formattedText> &&text, Promise<Unit> &&promise) {
-  if (text == nullptr) {
-    promise.set_value(Unit());
+  auto r_formatted_text = get_formatted_text(td_, DialogId(), std::move(text), false, true, true, true);
+  if (r_formatted_text.is_error()) {
+    promise.set_error(r_formatted_text.move_as_error());
     return 0;
   }
+  auto formatted_text = r_formatted_text.move_as_ok();
 
-  auto r_entities = get_message_entities(td_->contacts_manager_.get(), std::move(text->entities_));
-  if (r_entities.is_error()) {
-    promise.set_error(r_entities.move_as_error());
-    return 0;
-  }
-  auto entities = r_entities.move_as_ok();
-
-  auto result = fix_formatted_text(text->text_, entities, true, false, true, true, false);
-  if (result.is_error() || text->text_.empty()) {
-    promise.set_value(Unit());
-    return 0;
-  }
-
-  auto url = get_first_url(text->text_, entities);
+  auto url = get_first_url(formatted_text);
   if (url.empty()) {
     promise.set_value(Unit());
     return 0;
   }
 
-  LOG(INFO) << "Trying to get web page preview for message \"" << text->text_ << '"';
+  LOG(INFO) << "Trying to get web page preview for message \"" << formatted_text.text << '"';
   int64 request_id = get_web_page_preview_request_id_++;
 
   auto web_page_id = get_web_page_by_url(url);
@@ -829,8 +818,10 @@ int64 WebPagesManager::get_web_page_preview(td_api::object_ptr<td_api::formatted
     promise.set_value(Unit());
   } else {
     td_->create_handler<GetWebPagePreviewQuery>(std::move(promise))
-        ->send(text->text_, get_input_message_entities(td_->contacts_manager_.get(), entities, "get_web_page_preview"),
-               request_id, std::move(url));
+        ->send(
+            formatted_text.text,
+            get_input_message_entities(td_->contacts_manager_.get(), formatted_text.entities, "get_web_page_preview"),
+            request_id, std::move(url));
   }
   return request_id;
 }
@@ -952,8 +943,8 @@ void WebPagesManager::on_load_web_page_instant_view_from_database(WebPageId web_
   //  G()->td_db()->get_sqlite_pmc()->erase(get_web_page_instant_view_database_key(web_page_id), Auto());
   //  value.clear();
 
-  auto web_page_it = web_pages_.find(web_page_id);
-  if (web_page_it == web_pages_.end() || web_page_it->second->instant_view.is_empty) {
+  WebPage *web_page = web_pages_.get_pointer(web_page_id);
+  if (web_page == nullptr || web_page->instant_view.is_empty) {
     // possible if web page loses preview/instant view
     LOG(WARNING) << "There is no instant view in " << web_page_id;
     if (!value.empty()) {
@@ -962,7 +953,6 @@ void WebPagesManager::on_load_web_page_instant_view_from_database(WebPageId web_
     update_web_page_instant_view_load_requests(web_page_id, true, web_page_id);
     return;
   }
-  WebPage *web_page = web_page_it->second.get();
   auto &web_page_instant_view = web_page->instant_view;
   if (web_page_instant_view.was_loaded_from_database) {
     return;
@@ -1321,7 +1311,7 @@ tl_object_ptr<td_api::webPageInstantView> WebPagesManager::get_web_page_instant_
   auto feedback_link = td_api::make_object<td_api::internalLinkTypeBotStart>(
       "previews", PSTRING() << "webpage" << web_page_id.get(), true);
   return td_api::make_object<td_api::webPageInstantView>(
-      get_page_block_objects(web_page_instant_view->page_blocks, td_, web_page_instant_view->url),
+      get_page_blocks_object(web_page_instant_view->page_blocks, td_, web_page_instant_view->url),
       web_page_instant_view->view_count, web_page_instant_view->is_v2 ? 2 : 1, web_page_instant_view->is_rtl,
       web_page_instant_view->is_full, std::move(feedback_link));
 }
@@ -1361,12 +1351,7 @@ void WebPagesManager::on_web_page_changed(WebPageId web_page_id, bool have_web_p
 }
 
 const WebPagesManager::WebPage *WebPagesManager::get_web_page(WebPageId web_page_id) const {
-  auto p = web_pages_.find(web_page_id);
-  if (p == web_pages_.end()) {
-    return nullptr;
-  } else {
-    return p->second.get();
-  }
+  return web_pages_.get_pointer(web_page_id);
 }
 
 const WebPagesManager::WebPageInstantView *WebPagesManager::get_web_page_instant_view(WebPageId web_page_id) const {

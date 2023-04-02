@@ -1601,7 +1601,7 @@ void TgChat::Impl::OnAuthStateUpdate()
       m_Running = false;
     }
   },
-  [this](td::td_api::authorizationStateWaitEncryptionKey&)
+  [this](td::td_api::authorizationStateWaitTdlibParameters&)
   {
     std::string key;
     if (m_IsSetup)
@@ -1616,48 +1616,35 @@ void TgChat::Impl::OnAuthStateUpdate()
       key = m_Config.Get("local_key");
     }
 
-    if (key.empty())
-    {
-      LOG_ERROR("Empty key");
-      m_Running = false;
-    }
-    else
-    {
-      SendQuery(td::td_api::make_object<td::td_api::checkDatabaseEncryptionKey>(std::move(key)),
-                CreateAuthQueryHandler());
-    }
-  },
-  [this](td::td_api::authorizationStateWaitTdlibParameters&)
-  {
     const std::string dbPath(m_ProfileDir + std::string("/tdlib"));
-    auto parameters = td::td_api::make_object<td::td_api::tdlibParameters>();
-    parameters->use_test_dc_ = false;
-    parameters->database_directory_ = dbPath;
-    parameters->use_message_database_ = true;
-    parameters->use_secret_chats_ = true;
+    auto set_parameters = td::td_api::make_object<td::td_api::setTdlibParameters>();
+    set_parameters->use_test_dc_ = false;
+    set_parameters->database_directory_ = dbPath;
+    set_parameters->database_encryption_key_ = key;
+    set_parameters->use_message_database_ = true;
+    set_parameters->use_secret_chats_ = true;
 
     std::string apiId = getenv("TG_APIID") ? getenv("TG_APIID")
       : StrUtil::StrFromHex("3130343132303237");
-    parameters->api_id_ = StrUtil::ToInteger(apiId);
+    set_parameters->api_id_ = StrUtil::ToInteger(apiId);
 
     std::string apiHash = getenv("TG_APIHASH") ? getenv("TG_APIHASH")
       : StrUtil::StrFromHex("3536373261353832633265666532643939363232326636343237386563616163");
-    parameters->api_hash_ = apiHash;
+    set_parameters->api_hash_ = apiHash;
 
-    parameters->system_language_code_ = "en";
-    parameters->device_model_ = "Desktop";
+    set_parameters->system_language_code_ = "en";
+    set_parameters->device_model_ = "Desktop";
 #ifdef __linux__
-    parameters->system_version_ = "Linux";
+    set_parameters->system_version_ = "Linux";
 #elif __APPLE__
-    parameters->system_version_ = "Darwin";
+    set_parameters->system_version_ = "Darwin";
 #else
-    parameters->system_version_ = "Unknown";
+    set_parameters->system_version_ = "Unknown";
 #endif
     static std::string appVersion = AppUtil::GetAppVersion();
-    parameters->application_version_ = appVersion.c_str();
-    parameters->enable_storage_optimizer_ = true;
-    SendQuery(td::td_api::make_object<td::td_api::setTdlibParameters>(std::move(parameters)),
-              CreateAuthQueryHandler());
+    set_parameters->application_version_ = appVersion.c_str();
+    set_parameters->enable_storage_optimizer_ = true;
+    SendQuery(std::move(set_parameters), CreateAuthQueryHandler());
   },
   [](td::td_api::authorizationStateWaitOtherDeviceConfirmation& state)
   {

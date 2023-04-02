@@ -33,29 +33,41 @@ class TsSeqKeyValue {
     auto lock = rw_mutex_.lock_write().move_as_ok();
     return kv_.set(key, value);
   }
+
   std::pair<SeqNo, RwMutex::WriteLock> set_and_lock(Slice key, Slice value) {
     auto lock = rw_mutex_.lock_write().move_as_ok();
     return std::make_pair(kv_.set(key, value), std::move(lock));
   }
+
   SeqNo erase(const string &key) {
     auto lock = rw_mutex_.lock_write().move_as_ok();
     return kv_.erase(key);
   }
+
   std::pair<SeqNo, RwMutex::WriteLock> erase_and_lock(const string &key) {
     auto lock = rw_mutex_.lock_write().move_as_ok();
     return std::make_pair(kv_.erase(key), std::move(lock));
   }
-  string get(const string &key) {
+
+  string get(const string &key) const {
     auto lock = rw_mutex_.lock_read().move_as_ok();
     return kv_.get(key);
   }
+
+  bool isset(const string &key) const {
+    auto lock = rw_mutex_.lock_read().move_as_ok();
+    return kv_.isset(key);
+  }
+
   size_t size() const {
     return kv_.size();
   }
-  std::unordered_map<string, string> get_all() {
+
+  std::unordered_map<string, string> get_all() const {
     auto lock = rw_mutex_.lock_write().move_as_ok();
     return kv_.get_all();
   }
+
   // not thread safe method
   SeqKeyValue &inner() {
     return kv_;
@@ -66,7 +78,7 @@ class TsSeqKeyValue {
   }
 
  private:
-  RwMutex rw_mutex_;
+  mutable RwMutex rw_mutex_;
   SeqKeyValue kv_;
 };
 

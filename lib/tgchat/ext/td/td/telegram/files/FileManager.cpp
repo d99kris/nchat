@@ -6,7 +6,6 @@
 //
 #include "td/telegram/files/FileManager.h"
 
-#include "td/telegram/ConfigShared.h"
 #include "td/telegram/DownloadManager.h"
 #include "td/telegram/FileReferenceManager.h"
 #include "td/telegram/files/FileData.h"
@@ -998,7 +997,7 @@ Status FileManager::check_local_location(FullLocalFileLocation &location, int64 
     return get_file_size_error(" for a photo");
   }
   if (location.file_type_ == FileType::VideoNote &&
-      size > G()->shared_config().get_option_integer("video_note_size_max", DEFAULT_VIDEO_NOTE_SIZE_MAX)) {
+      size > G()->get_option_integer("video_note_size_max", DEFAULT_VIDEO_NOTE_SIZE_MAX)) {
     return get_file_size_error(" for a video note");
   }
   return Status::OK();
@@ -1248,7 +1247,7 @@ Result<FileId> FileManager::register_file(FileData &&data, FileLocationSource fi
 
   FileView file_view(get_file_node(file_id));
 
-  std::vector<FileId> to_merge;
+  vector<FileId> to_merge;
   auto register_location = [&](const auto &location, auto &mp) {
     auto &other_id = mp[location];
     if (other_id.empty()) {
@@ -2026,7 +2025,7 @@ bool FileManager::set_encryption_key(FileId file_id, FileEncryptionKey key) {
 }
 
 bool FileManager::set_content(FileId file_id, BufferSlice bytes) {
-  if (G()->shared_config().get_option_boolean("ignore_inline_thumbnails")) {
+  if (G()->get_option_boolean("ignore_inline_thumbnails")) {
     return false;
   }
 
@@ -2512,7 +2511,7 @@ class FileManager::ForceUploadActor final : public Actor {
 
     is_active_ = true;
     attempt_++;
-    send_closure(G()->file_manager(), &FileManager::resume_upload, file_id_, std::vector<int>(), create_callback(),
+    send_closure(G()->file_manager(), &FileManager::resume_upload, file_id_, vector<int>(), create_callback(),
                  new_priority_, upload_order_, attempt_ == 2, prefer_small_);
   }
 
@@ -2531,7 +2530,7 @@ void FileManager::on_force_reupload_success(FileId file_id) {
   }
 }
 
-void FileManager::resume_upload(FileId file_id, std::vector<int> bad_parts, std::shared_ptr<UploadCallback> callback,
+void FileManager::resume_upload(FileId file_id, vector<int> bad_parts, std::shared_ptr<UploadCallback> callback,
                                 int32 new_priority, uint64 upload_order, bool force, bool prefer_small) {
   auto node = get_sync_file_node(file_id);
   if (!node) {
@@ -2576,7 +2575,7 @@ void FileManager::resume_upload(FileId file_id, std::vector<int> bad_parts, std:
     return;
   }
 
-  if (file_view.has_local_location()) {
+  if (file_view.has_local_location() && new_priority != 0) {
     auto status = check_local_location(node);
     if (status.is_error()) {
       LOG(INFO) << "Full local location of file " << file_id << " for upload is invalid: " << status;
@@ -2642,7 +2641,7 @@ bool FileManager::delete_partial_remote_location(FileId file_id) {
     return false;
   }
 
-  run_upload(node, std::vector<int>());
+  run_upload(node, vector<int>());
   try_flush_node(node, "delete_partial_remote_location");
   return true;
 }
@@ -2767,7 +2766,7 @@ void FileManager::run_generate(FileNodePtr node) {
   LOG(INFO) << "File " << file_id << " generate request has sent to FileGenerateManager";
 }
 
-void FileManager::run_upload(FileNodePtr node, std::vector<int> bad_parts) {
+void FileManager::run_upload(FileNodePtr node, vector<int> bad_parts) {
   int8 priority = 0;
   FileId file_id = node->main_file_id_;
   for (auto id : node->file_ids_) {
@@ -2884,11 +2883,11 @@ void FileManager::run_upload(FileNodePtr node, std::vector<int> bad_parts) {
 
 void FileManager::upload(FileId file_id, std::shared_ptr<UploadCallback> callback, int32 new_priority,
                          uint64 upload_order) {
-  return resume_upload(file_id, std::vector<int>(), std::move(callback), new_priority, upload_order);
+  return resume_upload(file_id, vector<int>(), std::move(callback), new_priority, upload_order);
 }
 
 void FileManager::cancel_upload(FileId file_id) {
-  return resume_upload(file_id, std::vector<int>(), nullptr, 0, 0);
+  return resume_upload(file_id, vector<int>(), nullptr, 0, 0);
 }
 
 static bool is_background_type(FileType type) {
@@ -2914,7 +2913,7 @@ Result<FileId> FileManager::from_persistent_id(CSlice persistent_id, FileType fi
   }
   auto binary = r_binary.move_as_ok();
   if (binary.empty()) {
-    return Status::Error(400, "Remote file identifier can't be empty");
+    return Status::Error(400, "Remote file identifier must be non-empty");
   }
   if (binary.back() == FileNode::PERSISTENT_ID_VERSION_OLD) {
     return from_persistent_id_v2(binary, file_type);
@@ -2939,7 +2938,7 @@ Result<FileId> FileManager::from_persistent_id_generated(Slice binary, FileType 
   auto real_file_type = generate_location.file_type_;
   if ((real_file_type != file_type && file_type != FileType::Temp) ||
       (real_file_type != FileType::Thumbnail && real_file_type != FileType::EncryptedThumbnail)) {
-    return Status::Error(400, "Type of file mismatch");
+    return Status::Error(400, PSLICE() << "Can't use file of type " << real_file_type << " as " << file_type);
   }
   if (!is_remotely_generated_file(generate_location.conversion_)) {
     return Status::Error(400, "Unexpected conversion type");
@@ -2970,7 +2969,7 @@ Result<FileId> FileManager::from_persistent_id_v23(Slice binary, FileType file_t
   } else if (is_background_type(real_file_type) && is_background_type(file_type)) {
     // type of file matches, but real type is in the stored remote location
   } else if (real_file_type != file_type && file_type != FileType::Temp) {
-    return Status::Error(400, "Type of file mismatch");
+    return Status::Error(400, PSLICE() << "Can't use file of type " << real_file_type << " as " << file_type);
   }
   FileData data;
   data.remote_ = RemoteFileLocation(std::move(remote_location));
@@ -3089,7 +3088,7 @@ Result<FileId> FileManager::check_input_file_id(FileType type, Result<FileId> re
         !(is_background_type(real_type) && is_background_type(type)) &&
         !(file_view.is_encrypted() && type == FileType::Ringtone)) {
       // TODO: send encrypted file to unencrypted chat
-      return Status::Error(400, "Type of file mismatch");
+      return Status::Error(400, PSLICE() << "Can't use file of type " << real_type << " as " << type);
     }
   }
 
@@ -3146,7 +3145,7 @@ Result<FileId> FileManager::get_input_thumbnail_file_id(const tl_object_ptr<td_a
 
 Result<FileId> FileManager::get_input_file_id(FileType type, const tl_object_ptr<td_api::InputFile> &file,
                                               DialogId owner_dialog_id, bool allow_zero, bool is_encrypted,
-                                              bool get_by_hash, bool is_secure) {
+                                              bool get_by_hash, bool is_secure, bool force_reuse) {
   if (file == nullptr) {
     if (allow_zero) {
       return FileId();
@@ -3168,17 +3167,22 @@ Result<FileId> FileManager::get_input_file_id(FileType type, const tl_object_ptr
           return FileId();
         }
         string hash;
-        if (G()->shared_config().get_option_boolean("reuse_uploaded_photos_by_hash") && new_type == FileType::Photo) {
+        if (G()->get_option_boolean("reuse_uploaded_photos_by_hash") && new_type == FileType::Photo) {
           auto r_stat = stat(path);
           if (r_stat.is_ok() && r_stat.ok().size_ > 0 && r_stat.ok().size_ < 11000000) {
             auto r_file_content = read_file_str(path, r_stat.ok().size_);
             if (r_file_content.is_ok()) {
               hash = sha256(r_file_content.ok());
-              auto it = file_hash_to_file_id_.find(hash);
-              if (it != file_hash_to_file_id_.end()) {
-                auto file_view = get_file_view(it->second);
-                if (!file_view.empty() && file_view.has_remote_location() && !file_view.remote_location().is_web()) {
-                  return it->second;
+              auto file_id = file_hash_to_file_id_.get(hash);
+              if (file_id.is_valid()) {
+                auto file_view = get_file_view(file_id);
+                if (!file_view.empty()) {
+                  if (force_reuse) {
+                    return file_id;
+                  }
+                  if (file_view.has_remote_location() && !file_view.remote_location().is_web()) {
+                    return file_id;
+                  }
                 }
               }
             }
@@ -3186,7 +3190,7 @@ Result<FileId> FileManager::get_input_file_id(FileType type, const tl_object_ptr
         }
         TRY_RESULT(file_id, register_local(FullLocalFileLocation(new_type, path, 0), owner_dialog_id, 0, get_by_hash));
         if (!hash.empty()) {
-          file_hash_to_file_id_[hash] = file_id;
+          file_hash_to_file_id_.set(hash, file_id);
         }
         return file_id;
       }
@@ -3251,7 +3255,8 @@ Result<FileId> FileManager::get_map_thumbnail_file_id(Location location, int32 z
       FileLocationSource::FromUser, string(), std::move(conversion), owner_dialog_id, 0);
 }
 
-Result<FileId> FileManager::get_audio_thumbnail_file_id(string title, string performer, DialogId owner_dialog_id) {
+Result<FileId> FileManager::get_audio_thumbnail_file_id(string title, string performer, bool is_small,
+                                                        DialogId owner_dialog_id) {
   if (!clean_input_string(title)) {
     return Status::Error(400, "Title must be encoded in UTF-8");
   }
@@ -3274,7 +3279,7 @@ Result<FileId> FileManager::get_audio_thumbnail_file_id(string title, string per
     return Status::Error(400, "Title or performer must be non-empty");
   }
 
-  string conversion = PSTRING() << "#audio_t#" << title << '#' << performer << '#';
+  string conversion = PSTRING() << "#audio_t#" << title << '#' << performer << '#' << (is_small ? '1' : '0') << '#';
   return register_generate(
       owner_dialog_id.get_type() == DialogType::SecretChat ? FileType::EncryptedThumbnail : FileType::Thumbnail,
       FileLocationSource::FromUser, string(), std::move(conversion), owner_dialog_id, 0);

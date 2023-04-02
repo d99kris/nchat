@@ -170,7 +170,7 @@ vector<std::pair<Slice, int32>> find_media_timestamps(Slice str);  // slice + me
 
 void remove_empty_entities(vector<MessageEntity> &entities);
 
-string get_first_url(Slice text, const vector<MessageEntity> &entities);
+string get_first_url(const FormattedText &text);
 
 Result<vector<MessageEntity>> parse_markdown(string &text);
 
@@ -212,8 +212,9 @@ FormattedText get_message_text(const ContactsManager *contacts_manager, string m
 td_api::object_ptr<td_api::formattedText> extract_input_caption(
     tl_object_ptr<td_api::InputMessageContent> &input_message_content);
 
-Result<FormattedText> process_input_caption(const ContactsManager *contacts_manager, DialogId dialog_id,
-                                            tl_object_ptr<td_api::formattedText> &&caption, bool is_bot);
+Result<FormattedText> get_formatted_text(const Td *td, DialogId dialog_id,
+                                         td_api::object_ptr<td_api::formattedText> &&text, bool is_bot,
+                                         bool allow_empty, bool skip_media_timestamps, bool for_draft);
 
 void add_formatted_text_dependencies(Dependencies &dependencies, const FormattedText *text);
 

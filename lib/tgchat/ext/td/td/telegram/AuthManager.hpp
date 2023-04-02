@@ -62,6 +62,8 @@ void AuthManager::DbState::store(StorerT &storer) const {
   STORE_FLAG(is_wait_registration_supported);
   STORE_FLAG(is_wait_registration_stores_phone_number);
   STORE_FLAG(is_wait_qr_code_confirmation_supported);
+  STORE_FLAG(allow_apple_id_);
+  STORE_FLAG(allow_google_id_);
   END_STORE_FLAGS();
   store(state_, storer);
   store(api_id_, storer);
@@ -72,7 +74,14 @@ void AuthManager::DbState::store(StorerT &storer) const {
     store(terms_of_service_, storer);
   }
 
-  if (state_ == State::WaitCode) {
+  if (state_ == State::WaitEmailAddress) {
+    store(send_code_helper_, storer);
+  } else if (state_ == State::WaitEmailCode) {
+    store(send_code_helper_, storer);
+    store(email_address_, storer);
+    store(email_code_info_, storer);
+    store(next_phone_number_login_date_, storer);
+  } else if (state_ == State::WaitCode) {
     store(send_code_helper_, storer);
   } else if (state_ == State::WaitQrCodeConfirmation) {
     store(other_user_ids_, storer);
@@ -104,6 +113,8 @@ void AuthManager::DbState::parse(ParserT &parser) {
     PARSE_FLAG(is_wait_registration_supported);
     PARSE_FLAG(is_wait_registration_stores_phone_number);
     PARSE_FLAG(is_wait_qr_code_confirmation_supported);
+    PARSE_FLAG(allow_apple_id_);
+    PARSE_FLAG(allow_google_id_);
     END_PARSE_FLAGS();
   }
   if (!is_wait_qr_code_confirmation_supported) {
@@ -123,7 +134,14 @@ void AuthManager::DbState::parse(ParserT &parser) {
     parse(terms_of_service_, parser);
   }
 
-  if (state_ == State::WaitCode) {
+  if (state_ == State::WaitEmailAddress) {
+    parse(send_code_helper_, parser);
+  } else if (state_ == State::WaitEmailCode) {
+    parse(send_code_helper_, parser);
+    parse(email_address_, parser);
+    parse(email_code_info_, parser);
+    parse(next_phone_number_login_date_, parser);
+  } else if (state_ == State::WaitCode) {
     parse(send_code_helper_, parser);
   } else if (state_ == State::WaitQrCodeConfirmation) {
     parse(other_user_ids_, parser);

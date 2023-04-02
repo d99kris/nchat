@@ -6,7 +6,6 @@
 //
 #include "td/telegram/CallActor.h"
 
-#include "td/telegram/ConfigShared.h"
 #include "td/telegram/ContactsManager.h"
 #include "td/telegram/DhCache.h"
 #include "td/telegram/DialogId.h"
@@ -352,10 +351,11 @@ void CallActor::on_save_debug_query_result(Result<NetQueryPtr> r_net_query) {
 }
 
 void CallActor::send_call_log(td_api::object_ptr<td_api::InputFile> log_file, Promise<Unit> promise) {
+  TRY_STATUS_PROMISE(promise, G()->close_status());
+
   if (!call_state_.need_log) {
     return promise.set_error(Status::Error(400, "Unexpected sendCallLog"));
   }
-  TRY_STATUS_PROMISE(promise, G()->close_status());
 
   auto *file_manager = G()->td().get_actor_unsafe()->file_manager_.get();
   auto r_file_id = file_manager->get_input_file_id(FileType::CallLog, log_file, DialogId(), false, false);
@@ -418,17 +418,18 @@ void CallActor::upload_log_file(FileId file_id, Promise<Unit> &&promise) {
 
 void CallActor::on_upload_log_file(FileId file_id, Promise<Unit> &&promise,
                                    tl_object_ptr<telegram_api::InputFile> input_file) {
-  LOG(INFO) << "Log file " << file_id << " has been uploaded";
   TRY_STATUS_PROMISE(promise, G()->close_status());
+
+  LOG(INFO) << "Log file " << file_id << " has been uploaded";
 
   do_upload_log_file(file_id, std::move(input_file), std::move(promise));
 }
 
 void CallActor::on_upload_log_file_error(FileId file_id, Promise<Unit> &&promise, Status status) {
+  TRY_STATUS_PROMISE(promise, G()->close_status());
+
   LOG(WARNING) << "Log file " << file_id << " has upload error " << status;
   CHECK(status.is_error());
-
-  TRY_STATUS_PROMISE(promise, G()->close_status());
 
   promise.set_error(Status::Error(status.code() > 0 ? status.code() : 500,
                                   status.message()));  // TODO CHECK that status has always a code
@@ -509,7 +510,7 @@ Status CallActor::do_update_call(telegram_api::phoneCallWaiting &call) {
     if ((call.flags_ & telegram_api::phoneCallWaiting::RECEIVE_DATE_MASK) != 0) {
       call_state_.is_received = true;
       call_state_need_flush_ = true;
-      int64 call_ring_timeout_ms = G()->shared_config().get_option_integer("call_ring_timeout_ms", 90000);
+      int64 call_ring_timeout_ms = G()->get_option_integer("call_ring_timeout_ms", 90000);
       set_timeout_in(static_cast<double>(call_ring_timeout_ms) * 0.001);
     }
   }
@@ -592,7 +593,7 @@ Status CallActor::do_update_call(telegram_api::phoneCallAccepted &call) {
 void CallActor::on_begin_exchanging_key() {
   call_state_.type = CallState::Type::ExchangingKey;
   call_state_need_flush_ = true;
-  int64 call_receive_timeout_ms = G()->shared_config().get_option_integer("call_receive_timeout_ms", 20000);
+  int64 call_receive_timeout_ms = G()->get_option_integer("call_receive_timeout_ms", 20000);
   auto timeout = static_cast<double>(call_receive_timeout_ms) * 0.001;
   LOG(INFO) << "Set call timeout to " << timeout;
   set_timeout_in(timeout);
@@ -771,7 +772,7 @@ void CallActor::try_send_request_query() {
                                                   call_state_.protocol.get_input_phone_call_protocol());
   auto query = G()->net_query_creator().create(tl_query);
   state_ = State::WaitRequestResult;
-  int64 call_receive_timeout_ms = G()->shared_config().get_option_integer("call_receive_timeout_ms", 20000);
+  int64 call_receive_timeout_ms = G()->get_option_integer("call_receive_timeout_ms", 20000);
   auto timeout = static_cast<double>(call_receive_timeout_ms) * 0.001;
   LOG(INFO) << "Set call timeout to " << timeout;
   set_timeout_in(timeout);

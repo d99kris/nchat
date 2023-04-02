@@ -10,7 +10,6 @@
 #include "td/telegram/ChannelId.h"
 #include "td/telegram/ChannelType.h"
 #include "td/telegram/ConfigManager.h"
-#include "td/telegram/ConfigShared.h"
 #include "td/telegram/ContactsManager.h"
 #include "td/telegram/DialogId.h"
 #include "td/telegram/DialogParticipant.h"
@@ -254,8 +253,7 @@ class LinkManager::InternalLinkBotStart final : public InternalLink {
 
   td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
     bool autostart = autostart_;
-    if (Scheduler::context() != nullptr &&
-        bot_username_ == G()->shared_config().get_option_string("premium_bot_username")) {
+    if (Scheduler::context() != nullptr && bot_username_ == G()->get_option_string("premium_bot_username")) {
       autostart = true;
     }
     return td_api::make_object<td_api::internalLinkTypeBotStart>(bot_username_, start_parameter_, autostart);
@@ -336,6 +334,18 @@ class LinkManager::InternalLinkGame final : public InternalLink {
  public:
   InternalLinkGame(string bot_username, string game_short_name)
       : bot_username_(std::move(bot_username)), game_short_name_(std::move(game_short_name)) {
+  }
+};
+
+class LinkManager::InternalLinkInstantView final : public InternalLink {
+  string url_;
+
+  td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
+    return td_api::make_object<td_api::internalLinkTypeInstantView>(url_);
+  }
+
+ public:
+  explicit InternalLinkInstantView(string url) : url_(std::move(url)) {
   }
 };
 
@@ -878,8 +888,7 @@ LinkManager::LinkInfo LinkManager::get_link_info(Slice link) {
       return result;
     }
 
-    result.is_internal_ = true;
-    result.is_tg_ = true;
+    result.type_ = LinkType::Tg;
     result.query_ = link.str();
     return result;
   } else {
@@ -887,9 +896,27 @@ LinkManager::LinkInfo LinkManager::get_link_info(Slice link) {
       return result;
     }
 
+    auto host = url_decode(http_url.host_, false);
+    to_lower_inplace(host);
+    if (ends_with(host, ".t.me") && host.size() >= 9 && host.find('.') == host.size() - 5) {
+      Slice subdomain(&host[0], host.size() - 5);
+      if (is_valid_username(subdomain) && subdomain != "addemoji" && subdomain != "addstickers" &&
+          subdomain != "addtheme" && subdomain != "auth" && subdomain != "confirmphone" && subdomain != "invoice" &&
+          subdomain != "joinchat" && subdomain != "login" && subdomain != "proxy" && subdomain != "setlanguage" &&
+          subdomain != "share" && subdomain != "socks") {
+        result.type_ = LinkType::TMe;
+        result.query_ = PSTRING() << '/' << subdomain << http_url.query_;
+        return result;
+      }
+    }
+    if (begins_with(host, "www.")) {
+      host = host.substr(4);
+    }
+
+    string cur_t_me_url;
     vector<Slice> t_me_urls{Slice("t.me"), Slice("telegram.me"), Slice("telegram.dog")};
     if (Scheduler::context() != nullptr) {  // for tests only
-      string cur_t_me_url = G()->shared_config().get_option_string("t_me_url");
+      cur_t_me_url = G()->get_option_string("t_me_url");
       if (tolower_begins_with(cur_t_me_url, "http://") || tolower_begins_with(cur_t_me_url, "https://")) {
         Slice t_me_url = cur_t_me_url;
         t_me_url = t_me_url.substr(t_me_url[4] == 's' ? 8 : 7);
@@ -899,16 +926,9 @@ LinkManager::LinkInfo LinkManager::get_link_info(Slice link) {
       }
     }
 
-    auto host = url_decode(http_url.host_, false);
-    to_lower_inplace(host);
-    if (begins_with(host, "www.")) {
-      host = host.substr(4);
-    }
-
     for (auto t_me_url : t_me_urls) {
       if (host == t_me_url) {
-        result.is_internal_ = true;
-        result.is_tg_ = false;
+        result.type_ = LinkType::TMe;
 
         Slice query = http_url.query_;
         while (true) {
@@ -926,24 +946,39 @@ LinkManager::LinkInfo LinkManager::get_link_info(Slice link) {
         return result;
       }
     }
+
+    if (http_url.query_.size() > 1) {
+      for (auto telegraph_url : {Slice("telegra.ph"), Slice("te.legra.ph"), Slice("graph.org")}) {
+        if (host == telegraph_url) {
+          result.type_ = LinkType::Telegraph;
+          result.query_ = std::move(http_url.query_);
+          return result;
+        }
+      }
+    }
   }
   return result;
 }
 
 bool LinkManager::is_internal_link(Slice link) {
   auto info = get_link_info(link);
-  return info.is_internal_;
+  return info.type_ != LinkType::External;
 }
 
 unique_ptr<LinkManager::InternalLink> LinkManager::parse_internal_link(Slice link, bool is_trusted) {
   auto info = get_link_info(link);
-  if (!info.is_internal_) {
-    return nullptr;
-  }
-  if (info.is_tg_) {
-    return parse_tg_link_query(info.query_, is_trusted);
-  } else {
-    return parse_t_me_link_query(info.query_, is_trusted);
+  switch (info.type_) {
+    case LinkType::External:
+      return nullptr;
+    case LinkType::Tg:
+      return parse_tg_link_query(info.query_, is_trusted);
+    case LinkType::TMe:
+      return parse_t_me_link_query(info.query_, is_trusted);
+    case LinkType::Telegraph:
+      return td::make_unique<InternalLinkInstantView>(PSTRING() << "https://telegra.ph" << info.query_);
+    default:
+      UNREACHABLE();
+      return nullptr;
   }
 }
 
@@ -1326,6 +1361,12 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_t_me_link_query(Slice q
       // /share/url?url=<url>&text=<text>
       return get_internal_link_message_draft(get_arg("url"), get_arg("text"));
     }
+  } else if (path[0] == "iv") {
+    if (path.size() == 1 && has_arg("url")) {
+      // /iv?url=<url>&rhash=<rhash>
+      return td::make_unique<InternalLinkInstantView>(PSTRING()
+                                                      << "https://t.me/iv" << copy_arg("url") << copy_arg("rhash"));
+    }
   } else if (is_valid_username(path[0])) {
     if (path.size() >= 2 && to_integer<int64>(path[1]) > 0) {
       // /<username>/12345?single&thread=<thread_id>&comment=<message_id>&t=<media_timestamp>
@@ -1556,11 +1597,11 @@ void LinkManager::get_link_login_url(const string &url, bool allow_write_access,
 
 string LinkManager::get_dialog_invite_link_hash(Slice invite_link) {
   auto link_info = get_link_info(invite_link);
-  if (!link_info.is_internal_) {
+  if (link_info.type_ != LinkType::Tg && link_info.type_ != LinkType::TMe) {
     return string();
   }
   const auto url_query = parse_url_query(link_info.query_);
-  return get_url_query_hash(link_info.is_tg_, url_query);
+  return get_url_query_hash(link_info.type_ == LinkType::Tg, url_query);
 }
 
 string LinkManager::get_dialog_invite_link(Slice hash, bool is_internal) {
@@ -1570,7 +1611,7 @@ string LinkManager::get_dialog_invite_link(Slice hash, bool is_internal) {
   if (is_internal) {
     return PSTRING() << "tg:join?invite=" << hash;
   } else {
-    return PSTRING() << G()->shared_config().get_option_string("t_me_url", "https://t.me/") << '+' << hash;
+    return PSTRING() << G()->get_option_string("t_me_url", "https://t.me/") << '+' << hash;
   }
 }
 
@@ -1663,7 +1704,7 @@ Result<MessageLinkInfo> LinkManager::get_message_link_info(Slice url) {
     return Status::Error("URL must be non-empty");
   }
   auto link_info = get_link_info(url);
-  if (!link_info.is_internal_) {
+  if (link_info.type_ != LinkType::Tg && link_info.type_ != LinkType::TMe) {
     return Status::Error("Invalid message link URL");
   }
   url = link_info.query_;
@@ -1675,7 +1716,7 @@ Result<MessageLinkInfo> LinkManager::get_message_link_info(Slice url) {
   Slice media_timestamp_slice;
   bool is_single = false;
   bool for_comment = false;
-  if (link_info.is_tg_) {
+  if (link_info.type_ == LinkType::Tg) {
     // resolve?domain=username&post=12345&single&t=123&comment=12&thread=21
     // privatepost?channel=123456789&post=12345&single&t=123&comment=12&thread=21
 

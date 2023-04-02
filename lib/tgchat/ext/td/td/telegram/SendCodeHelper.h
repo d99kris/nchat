@@ -20,6 +20,8 @@ class SendCodeHelper {
  public:
   void on_sent_code(telegram_api::object_ptr<telegram_api::auth_sentCode> sent_code);
 
+  void on_phone_code_hash(string &&phone_code_hash);
+
   td_api::object_ptr<td_api::authorizationStateWaitCode> get_authorization_state_wait_code() const;
 
   td_api::object_ptr<td_api::authenticationCodeInfo> get_authentication_code_info_object() const;
@@ -31,12 +33,16 @@ class SendCodeHelper {
   telegram_api::auth_sendCode send_code(string phone_number, const Settings &settings, int32 api_id,
                                         const string &api_hash);
 
+  telegram_api::account_sendVerifyEmailCode send_verify_email_code(const string &email_address);
+
   telegram_api::account_sendChangePhoneCode send_change_phone_code(Slice phone_number, const Settings &settings);
 
   telegram_api::account_sendVerifyPhoneCode send_verify_phone_code(Slice phone_number, const Settings &settings);
 
   telegram_api::account_sendConfirmPhoneCode send_confirm_phone_code(const string &hash, Slice phone_number,
                                                                      const Settings &settings);
+
+  telegram_api::object_ptr<telegram_api::emailVerifyPurposeLoginSetup> get_email_verify_purpose_login_setup() const;
 
   Slice phone_number() const {
     return phone_number_;
@@ -81,7 +87,7 @@ class SendCodeHelper {
 
   static AuthenticationCodeInfo get_authentication_code_info(
       tl_object_ptr<telegram_api::auth_CodeType> &&code_type_ptr);
-  static AuthenticationCodeInfo get_authentication_code_info(
+  static AuthenticationCodeInfo get_sent_authentication_code_info(
       tl_object_ptr<telegram_api::auth_SentCodeType> &&sent_code_type_ptr);
 
   static td_api::object_ptr<td_api::AuthenticationCodeType> get_authentication_code_type_object(

@@ -6,6 +6,8 @@
 //
 #include "td/telegram/MessageEntity.h"
 
+#include "td/telegram/UserId.h"
+
 #include "td/utils/algorithm.h"
 #include "td/utils/common.h"
 #include "td/utils/format.h"
@@ -560,7 +562,8 @@ TEST(MessageEntities, url) {
   check_url("http://ÀТеСт.МоСкВач", {"http://ÀТеСт.МоСкВач"});
   check_url("ÀÁ.com. ÀÁ.com.", {"ÀÁ.com", "ÀÁ.com"});
   check_url("ÀÁ.com,ÀÁ.com.", {"ÀÁ.com", "ÀÁ.com"});
-  check_url("teiegram.org", {});
+  check_url("teiegram.org/test", {});
+  check_url("TeiegraM.org/test", {});
   check_url("http://test.google.com/?q=abc()}[]def", {"http://test.google.com/?q=abc()"});
   check_url("http://test.google.com/?q=abc([{)]}def", {"http://test.google.com/?q=abc([{)]}def"});
   check_url("http://test.google.com/?q=abc(){}]def", {"http://test.google.com/?q=abc(){}"});
@@ -653,11 +656,11 @@ TEST(MessageEntities, url) {
   check_url("https://a.de}bc@c.com", {"https://a.de"}, {"bc@c.com"});
   check_url("https://a.de(bc@c.com", {"https://a.de"}, {"bc@c.com"});
   check_url("https://a.de)bc@c.com", {"https://a.de"}, {"bc@c.com"});
-  check_url("https://a.de\\bc@c.com", {"https://a.de\\bc@c.com"});
+  check_url("https://a.debc@c.com", {"https://a.debc@c.com"});
   check_url("https://a.de'bc@c.com", {"https://a.de"}, {"bc@c.com"});
   check_url("https://a.de`bc@c.com", {"https://a.de"}, {"bc@c.com"});
-  check_url("https://a.bc:de.fg@c.com", {"https://a.bc:de.fg@c.com"});
-  check_url("https://a:h.bc:de.fg@c.com", {"https://a:h.bc:de.fg@c.com"});
+  check_url("https://a.bcde.fg@c.com", {"https://a.bcde.fg@c.com"});
+  check_url("https://a:h.bcde.fg@c.com", {"https://a:h.bcde.fg@c.com"});
   check_url("https://abc@c.com", {"https://abc@c.com"});
   check_url("https://de[bc@c.com", {}, {"bc@c.com"});
   check_url("https://de/bc@c.com", {});
@@ -702,6 +705,7 @@ TEST(MessageEntities, url) {
   check_url("http://test―‑@―google―.―com―/―–―‐―/―/―/―?―‑―#―――", {"http://test―‑@―google―.―com―/―–―‐―/―/―/―?―‑―#―――"});
   check_url("http://google.com/‖", {"http://google.com/"});
   check_url("a@b@c.com", {}, {});
+  check_url("abc@c.com@d.com", {});
   check_url("a@b.com:c@1", {}, {"a@b.com"});
   check_url("test@test.software", {}, {"test@test.software"});
   check_url("a:b?@gmail.com", {});
@@ -710,6 +714,10 @@ TEST(MessageEntities, url) {
   check_url("a:b#@gmail.com", {});
   check_url("a!:b@gmail.com", {"a!:b@gmail.com"});
   check_url("a:b!@gmail.com", {"a:b!@gmail.com"});
+  check_url("http://test_.com", {});
+  check_url("test_.com", {});
+  check_url("_test.com", {});
+  check_url("_.test.com", {"_.test.com"});
 }
 
 static void check_fix_formatted_text(td::string str, td::vector<td::MessageEntity> entities,
@@ -832,6 +840,7 @@ TEST(MessageEntities, fix_formatted_text) {
   }
 
   str = "aba \r\n caba ";
+  td::UserId user_id(static_cast<td::int64>(1));
   for (td::int32 length = 1; length <= 3; length++) {
     for (td::int32 offset = 0; static_cast<size_t>(offset + length) <= str.size(); offset++) {
       for (auto type : {td::MessageEntity::Type::Bold, td::MessageEntity::Type::Url, td::MessageEntity::Type::TextUrl,
@@ -855,12 +864,22 @@ TEST(MessageEntities, fix_formatted_text) {
 
           td::vector<td::MessageEntity> entities;
           entities.emplace_back(type, offset, length);
+          if (type == td::MessageEntity::Type::TextUrl) {
+            entities.back().argument = "t.me";
+          } else if (type == td::MessageEntity::Type::MentionName) {
+            entities.back().user_id = user_id;
+          }
           td::vector<td::MessageEntity> fixed_entities;
           if (fixed_length > 0) {
             for (auto i = 0; i < length; i++) {
               if (!td::is_space(str[offset + i]) || type == td::MessageEntity::Type::TextUrl ||
                   type == td::MessageEntity::Type::MentionName) {
                 fixed_entities.emplace_back(type, fixed_offset, fixed_length);
+                if (type == td::MessageEntity::Type::TextUrl) {
+                  fixed_entities.back().argument = "t.me";
+                } else if (type == td::MessageEntity::Type::MentionName) {
+                  fixed_entities.back().user_id = user_id;
+                }
                 break;
               }
             }
@@ -905,9 +924,11 @@ TEST(MessageEntities, fix_formatted_text) {
         for (td::int32 offset2 = 0; offset2 <= 8 - length2; offset2++) {
           if (offset != offset2) {
             td::vector<td::MessageEntity> entities;
-            entities.emplace_back(td::MessageEntity::Type::TextUrl, offset, length);
-            entities.emplace_back(td::MessageEntity::Type::TextUrl, offset2, length2);
+            entities.emplace_back(td::MessageEntity::Type::TextUrl, offset, length, "t.me");
+            entities.emplace_back(td::MessageEntity::Type::TextUrl, offset2, length2, "t.me");
+            entities.emplace_back(td::MessageEntity::Type::TextUrl, offset2 + length2, 1);
             td::vector<td::MessageEntity> fixed_entities = entities;
+            fixed_entities.pop_back();
             std::sort(fixed_entities.begin(), fixed_entities.end());
             if (fixed_entities[0].offset + fixed_entities[0].length > fixed_entities[1].offset) {
               fixed_entities.pop_back();

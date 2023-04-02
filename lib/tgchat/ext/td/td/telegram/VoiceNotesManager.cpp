@@ -122,11 +122,11 @@ void VoiceNotesManager::on_voice_note_transcription_timeout_callback(void *voice
 }
 
 int32 VoiceNotesManager::get_voice_note_duration(FileId file_id) const {
-  auto it = voice_notes_.find(file_id);
-  if (it == voice_notes_.end()) {
+  auto voice_note = get_voice_note(file_id);
+  if (voice_note == nullptr) {
     return 0;
   }
-  return it->second->duration;
+  return voice_note->duration;
 }
 
 tl_object_ptr<td_api::voiceNote> VoiceNotesManager::get_voice_note_object(FileId file_id) const {
@@ -134,9 +134,7 @@ tl_object_ptr<td_api::voiceNote> VoiceNotesManager::get_voice_note_object(FileId
     return nullptr;
   }
 
-  auto it = voice_notes_.find(file_id);
-  CHECK(it != voice_notes_.end());
-  auto voice_note = it->second.get();
+  auto voice_note = get_voice_note(file_id);
   CHECK(voice_note != nullptr);
 
   auto speech_recognition_result = [this, voice_note]() -> td_api::object_ptr<td_api::SpeechRecognitionResult> {
@@ -192,23 +190,11 @@ FileId VoiceNotesManager::on_get_voice_note(unique_ptr<VoiceNote> new_voice_note
 }
 
 VoiceNotesManager::VoiceNote *VoiceNotesManager::get_voice_note(FileId file_id) {
-  auto voice_note = voice_notes_.find(file_id);
-  if (voice_note == voice_notes_.end()) {
-    return nullptr;
-  }
-
-  CHECK(voice_note->second->file_id == file_id);
-  return voice_note->second.get();
+  return voice_notes_.get_pointer(file_id);
 }
 
 const VoiceNotesManager::VoiceNote *VoiceNotesManager::get_voice_note(FileId file_id) const {
-  auto voice_note = voice_notes_.find(file_id);
-  if (voice_note == voice_notes_.end()) {
-    return nullptr;
-  }
-
-  CHECK(voice_note->second->file_id == file_id);
-  return voice_note->second.get();
+  return voice_notes_.get_pointer(file_id);
 }
 
 FileId VoiceNotesManager::dup_voice_note(FileId new_id, FileId old_id) {
@@ -228,7 +214,7 @@ FileId VoiceNotesManager::dup_voice_note(FileId new_id, FileId old_id) {
   return new_id;
 }
 
-void VoiceNotesManager::merge_voice_notes(FileId new_id, FileId old_id, bool can_delete_old) {
+void VoiceNotesManager::merge_voice_notes(FileId new_id, FileId old_id) {
   CHECK(old_id.is_valid() && new_id.is_valid());
   CHECK(new_id != old_id);
 
@@ -236,27 +222,15 @@ void VoiceNotesManager::merge_voice_notes(FileId new_id, FileId old_id, bool can
   const VoiceNote *old_ = get_voice_note(old_id);
   CHECK(old_ != nullptr);
 
-  auto new_it = voice_notes_.find(new_id);
-  if (new_it == voice_notes_.end()) {
-    auto &old = voice_notes_[old_id];
-    if (!can_delete_old) {
-      dup_voice_note(new_id, old_id);
-    } else {
-      old->file_id = new_id;
-      voice_notes_.emplace(new_id, std::move(old));
-    }
+  const auto *new_ = get_voice_note(new_id);
+  if (new_ == nullptr) {
+    dup_voice_note(new_id, old_id);
   } else {
-    VoiceNote *new_ = new_it->second.get();
-    CHECK(new_ != nullptr);
-
     if (!old_->mime_type.empty() && old_->mime_type != new_->mime_type) {
       LOG(INFO) << "Voice note has changed: mime_type = (" << old_->mime_type << ", " << new_->mime_type << ")";
     }
   }
   LOG_STATUS(td_->file_manager_->merge(new_id, old_id));
-  if (can_delete_old) {
-    voice_notes_.erase(old_id);
-  }
 }
 
 void VoiceNotesManager::create_voice_note(FileId file_id, string mime_type, int32 duration, string waveform,

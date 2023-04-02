@@ -190,7 +190,7 @@ unique_ptr<MessageContent> get_secret_message_content(
 unique_ptr<MessageContent> get_message_content(Td *td, FormattedText message_text,
                                                tl_object_ptr<telegram_api::MessageMedia> &&media_ptr,
                                                DialogId owner_dialog_id, bool is_content_read, UserId via_bot_user_id,
-                                               int32 *ttl, bool *disable_web_page_preview);
+                                               int32 *ttl, bool *disable_web_page_preview, const char *source);
 
 enum class MessageContentDupType : int32 { Send, SendViaBot, Forward, Copy, ServerCopy };
 
@@ -245,6 +245,8 @@ void update_failed_to_send_message_content(Td *td, unique_ptr<MessageContent> &c
 void add_message_content_dependencies(Dependencies &dependencies, const MessageContent *message_content);
 
 void on_sent_message_content(Td *td, const MessageContent *content);
+
+void move_message_content_sticker_set_to_top(Td *td, const MessageContent *content);
 
 bool is_unsent_animated_emoji_click(Td *td, DialogId dialog_id, const DialogAction &action);
 

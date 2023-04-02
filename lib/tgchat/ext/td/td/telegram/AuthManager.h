@@ -6,9 +6,11 @@
 //
 #pragma once
 
+#include "td/telegram/EmailVerification.h"
 #include "td/telegram/net/NetActor.h"
 #include "td/telegram/net/NetQuery.h"
 #include "td/telegram/SendCodeHelper.h"
+#include "td/telegram/SentEmailCode.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/TermsOfService.h"
@@ -35,7 +37,9 @@ class AuthManager final : public NetActor {
 
   void set_phone_number(uint64 query_id, string phone_number,
                         td_api::object_ptr<td_api::phoneNumberAuthenticationSettings> settings);
+  void set_email_address(uint64 query_id, string email_address);
   void resend_authentication_code(uint64 query_id);
+  void check_email_code(uint64 query_id, EmailVerification &&code);
   void check_code(uint64 query_id, string code);
   void register_user(uint64 query_id, string first_name, string last_name);
   void request_qr_code_authentication(uint64 query_id, vector<UserId> other_user_ids);
@@ -65,6 +69,8 @@ class AuthManager final : public NetActor {
     WaitQrCodeConfirmation,
     WaitPassword,
     WaitRegistration,
+    WaitEmailAddress,
+    WaitEmailCode,
     Ok,
     LoggingOut,
     DestroyingKeys,
@@ -75,6 +81,8 @@ class AuthManager final : public NetActor {
     SignIn,
     SignUp,
     SendCode,
+    SendEmailCode,
+    VerifyEmailAddress,
     RequestQrCode,
     ImportQrCode,
     GetPassword,
@@ -111,7 +119,16 @@ class AuthManager final : public NetActor {
     string api_hash_;
     Timestamp state_timestamp_;
 
-    // WaitCode
+    // WaitEmailAddress and WaitEmailCode
+    bool allow_apple_id_ = false;
+    bool allow_google_id_ = false;
+
+    // WaitEmailCode
+    string email_address_;
+    SentEmailCode email_code_info_;
+    int32 next_phone_number_login_date_ = 0;
+
+    // WaitEmailAddress, WaitEmailCode, WaitCode and WaitRegistration
     SendCodeHelper send_code_helper_;
 
     // WaitQrCodeConfirmation
@@ -126,6 +143,28 @@ class AuthManager final : public NetActor {
     TermsOfService terms_of_service_;
 
     DbState() = default;
+
+    static DbState wait_email_address(int32 api_id, string api_hash, bool allow_apple_id, bool allow_google_id,
+                                      SendCodeHelper send_code_helper) {
+      DbState state(State::WaitEmailAddress, api_id, std::move(api_hash));
+      state.send_code_helper_ = std::move(send_code_helper);
+      state.allow_apple_id_ = allow_apple_id;
+      state.allow_google_id_ = allow_google_id;
+      return state;
+    }
+
+    static DbState wait_email_code(int32 api_id, string api_hash, bool allow_apple_id, bool allow_google_id,
+                                   string email_address, SentEmailCode email_code_info,
+                                   int32 next_phone_number_login_date, SendCodeHelper send_code_helper) {
+      DbState state(State::WaitEmailCode, api_id, std::move(api_hash));
+      state.send_code_helper_ = std::move(send_code_helper);
+      state.allow_apple_id_ = allow_apple_id;
+      state.allow_google_id_ = allow_google_id;
+      state.email_address_ = std::move(email_address);
+      state.email_code_info_ = std::move(email_code_info);
+      state.next_phone_number_login_date_ = next_phone_number_login_date;
+      return state;
+    }
 
     static DbState wait_code(int32 api_id, string api_hash, SendCodeHelper send_code_helper) {
       DbState state(State::WaitCode, api_id, std::move(api_hash));
@@ -177,6 +216,16 @@ class AuthManager final : public NetActor {
   int32 api_id_;
   string api_hash_;
 
+  // State::WaitEmailAddress
+  bool allow_apple_id_ = false;
+  bool allow_google_id_ = false;
+
+  // State::WaitEmailCode
+  string email_address_;
+  SentEmailCode email_code_info_;
+  int32 next_phone_number_login_date_ = 0;
+  EmailVerification email_code_;
+
   // State::WaitCode
   SendCodeHelper send_code_helper_;
   string code_;
@@ -227,10 +276,15 @@ class AuthManager final : public NetActor {
   void do_delete_account(uint64 query_id, string reason,
                          Result<tl_object_ptr<telegram_api::InputCheckPasswordSRP>> r_input_password);
 
+  void send_auth_sign_in_query();
   void send_log_out_query();
   void destroy_auth_keys();
 
+  void on_sent_code(telegram_api::object_ptr<telegram_api::auth_sentCode> &&sent_code);
+
   void on_send_code_result(NetQueryPtr &result);
+  void on_send_email_code_result(NetQueryPtr &result);
+  void on_verify_email_address_result(NetQueryPtr &result);
   void on_request_qr_code_result(NetQueryPtr &result, bool is_import);
   void on_get_password_result(NetQueryPtr &result);
   void on_request_password_recovery_result(NetQueryPtr &result);

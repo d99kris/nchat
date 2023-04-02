@@ -6,11 +6,11 @@
 //
 #include "td/telegram/MessageEntity.h"
 
-#include "td/telegram/ConfigShared.h"
 #include "td/telegram/ContactsManager.h"
 #include "td/telegram/Dependencies.h"
 #include "td/telegram/LinkManager.h"
 #include "td/telegram/misc.h"
+#include "td/telegram/OptionManager.h"
 #include "td/telegram/SecretChatLayer.h"
 #include "td/telegram/StickersManager.h"
 #include "td/telegram/Td.h"
@@ -21,6 +21,7 @@
 #include "td/utils/format.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
+#include "td/utils/Promise.h"
 #include "td/utils/SliceBuilder.h"
 #include "td/utils/unicode.h"
 #include "td/utils/utf8.h"
@@ -261,7 +262,7 @@ static vector<Slice> match_mentions(Slice str) {
 
     if (ptr != begin) {
       uint32 prev;
-      next_utf8_unsafe(prev_utf8_unsafe(ptr), &prev, "match_mentions");
+      next_utf8_unsafe(prev_utf8_unsafe(ptr), &prev);
 
       if (is_word_character(prev)) {
         ptr++;
@@ -279,7 +280,7 @@ static vector<Slice> match_mentions(Slice str) {
     }
     uint32 next = 0;
     if (ptr != end) {
-      next_utf8_unsafe(ptr, &next, "match_mentions 2");
+      next_utf8_unsafe(ptr, &next);
     }
     if (is_word_character(next)) {
       continue;
@@ -305,7 +306,7 @@ static vector<Slice> match_bot_commands(Slice str) {
 
     if (ptr != begin) {
       uint32 prev;
-      next_utf8_unsafe(prev_utf8_unsafe(ptr), &prev, "match_bot_commands");
+      next_utf8_unsafe(prev_utf8_unsafe(ptr), &prev);
 
       if (is_word_character(prev) || prev == '/' || prev == '<' || prev == '>') {
         ptr++;
@@ -338,7 +339,7 @@ static vector<Slice> match_bot_commands(Slice str) {
 
     uint32 next = 0;
     if (ptr != end) {
-      next_utf8_unsafe(ptr, &next, "match_bot_commands 2");
+      next_utf8_unsafe(ptr, &next);
     }
     if (is_word_character(next) || next == '/' || next == '<' || next == '>') {
       continue;
@@ -381,7 +382,7 @@ static vector<Slice> match_hashtags(Slice str) {
 
     if (ptr != begin) {
       uint32 prev;
-      next_utf8_unsafe(prev_utf8_unsafe(ptr), &prev, "match_hashtags");
+      next_utf8_unsafe(prev_utf8_unsafe(ptr), &prev);
 
       if (is_hashtag_letter(prev, category)) {
         ptr++;
@@ -394,7 +395,7 @@ static vector<Slice> match_hashtags(Slice str) {
     bool was_letter = false;
     while (ptr != end) {
       uint32 code;
-      auto next_ptr = next_utf8_unsafe(ptr, &code, "match_hashtags 2");
+      auto next_ptr = next_utf8_unsafe(ptr, &code);
       if (!is_hashtag_letter(code, category)) {
         break;
       }
@@ -442,7 +443,7 @@ static vector<Slice> match_cashtags(Slice str) {
 
     if (ptr != begin) {
       uint32 prev;
-      next_utf8_unsafe(prev_utf8_unsafe(ptr), &prev, "match_cashtags");
+      next_utf8_unsafe(prev_utf8_unsafe(ptr), &prev);
 
       if (is_hashtag_letter(prev, category) || prev == '$') {
         ptr++;
@@ -466,7 +467,7 @@ static vector<Slice> match_cashtags(Slice str) {
 
     if (cashtag_end != end) {
       uint32 code;
-      next_utf8_unsafe(ptr, &code, "match_cashtags 2");
+      next_utf8_unsafe(ptr, &code);
       if (is_hashtag_letter(code, category) || code == '$') {
         continue;
       }
@@ -505,7 +506,7 @@ static vector<Slice> match_media_timestamps(Slice str) {
 
       if (media_timestamp_begin != begin) {
         uint32 prev;
-        next_utf8_unsafe(prev_utf8_unsafe(media_timestamp_begin), &prev, "match_media_timestamps 1");
+        next_utf8_unsafe(prev_utf8_unsafe(media_timestamp_begin), &prev);
 
         if (is_word_character(prev)) {
           continue;
@@ -513,7 +514,7 @@ static vector<Slice> match_media_timestamps(Slice str) {
       }
       if (media_timestamp_end != end) {
         uint32 next;
-        next_utf8_unsafe(media_timestamp_end, &next, "match_media_timestamps 2");
+        next_utf8_unsafe(media_timestamp_end, &next);
 
         if (is_word_character(next)) {
           continue;
@@ -545,7 +546,7 @@ static vector<Slice> match_bank_card_numbers(Slice str) {
     }
     if (ptr != begin) {
       uint32 prev;
-      next_utf8_unsafe(prev_utf8_unsafe(ptr), &prev, "match_bank_card_numbers");
+      next_utf8_unsafe(prev_utf8_unsafe(ptr), &prev);
 
       if (prev == '.' || prev == ',' || prev == '+' || prev == '-' || prev == '_' ||
           get_unicode_simple_category(prev) == UnicodeSimpleCategory::Letter) {
@@ -581,7 +582,7 @@ static vector<Slice> match_bank_card_numbers(Slice str) {
     }
     if (card_number_end != end) {
       uint32 next;
-      next_utf8_unsafe(card_number_end, &next, "match_bank_card_numbers 2");
+      next_utf8_unsafe(card_number_end, &next);
       if (next == '-' || next == '_' || get_unicode_simple_category(next) == UnicodeSimpleCategory::Letter) {
         continue;
       }
@@ -656,7 +657,7 @@ static vector<Slice> match_tg_urls(Slice str) {
       auto path_end_ptr = ptr + 1;
       while (path_end_ptr != end) {
         uint32 code = 0;
-        auto next_ptr = next_utf8_unsafe(path_end_ptr, &code, "match_tg_urls");
+        auto next_ptr = next_utf8_unsafe(path_end_ptr, &code);
         if (!is_url_path_symbol(code)) {
           break;
         }
@@ -738,7 +739,7 @@ static vector<Slice> match_urls(Slice str) {
     while (domain_begin_ptr != begin) {
       domain_begin_ptr = prev_utf8_unsafe(domain_begin_ptr);
       uint32 code = 0;
-      auto next_ptr = next_utf8_unsafe(domain_begin_ptr, &code, "match_urls 0");
+      auto next_ptr = next_utf8_unsafe(domain_begin_ptr, &code);
       if (!is_domain_symbol(code)) {
         domain_begin_ptr = next_ptr;
         break;
@@ -747,25 +748,12 @@ static vector<Slice> match_urls(Slice str) {
 
     const unsigned char *last_at_ptr = nullptr;
     const unsigned char *domain_end_ptr = begin + dot_pos;
-    if (domain_begin_ptr == begin || domain_begin_ptr[-1] != '@') {
-      // try to find '@' to the right if there is no '@' to the left
-      while (domain_end_ptr != end) {
-        uint32 code = 0;
-        auto next_ptr = next_utf8_unsafe(domain_end_ptr, &code, "match_urls");
-        if (code == '@') {
-          last_at_ptr = domain_end_ptr;
-        }
-        if (!is_user_data_symbol(code)) {
-          break;
-        }
-        domain_end_ptr = next_ptr;
-      }
-      domain_end_ptr = last_at_ptr == nullptr ? begin + dot_pos : last_at_ptr + 1;
-    }
     while (domain_end_ptr != end) {
       uint32 code = 0;
-      auto next_ptr = next_utf8_unsafe(domain_end_ptr, &code, "match_urls 2");
-      if (!is_domain_symbol(code)) {
+      auto next_ptr = next_utf8_unsafe(domain_end_ptr, &code);
+      if (code == '@') {
+        last_at_ptr = domain_end_ptr;
+      } else if (!is_domain_symbol(code)) {
         break;
       }
       domain_end_ptr = next_ptr;
@@ -775,7 +763,7 @@ static vector<Slice> match_urls(Slice str) {
       while (domain_begin_ptr != begin) {
         domain_begin_ptr = prev_utf8_unsafe(domain_begin_ptr);
         uint32 code = 0;
-        auto next_ptr = next_utf8_unsafe(domain_begin_ptr, &code, "match_urls 3");
+        auto next_ptr = next_utf8_unsafe(domain_begin_ptr, &code);
         if (!is_user_data_symbol(code)) {
           domain_begin_ptr = next_ptr;
           break;
@@ -807,7 +795,7 @@ static vector<Slice> match_urls(Slice str) {
       auto path_end_ptr = url_end_ptr + 1;
       while (path_end_ptr != end) {
         uint32 code = 0;
-        auto next_ptr = next_utf8_unsafe(path_end_ptr, &code, "match_urls 4");
+        auto next_ptr = next_utf8_unsafe(path_end_ptr, &code);
         if (!is_url_path_symbol(code)) {
           break;
         }
@@ -835,7 +823,7 @@ static vector<Slice> match_urls(Slice str) {
       while (user_data_begin_ptr != begin) {
         user_data_begin_ptr = prev_utf8_unsafe(user_data_begin_ptr);
         uint32 code = 0;
-        auto next_ptr = next_utf8_unsafe(user_data_begin_ptr, &code, "match_urls 5");
+        auto next_ptr = next_utf8_unsafe(user_data_begin_ptr, &code);
         if (!is_user_data_symbol(code)) {
           user_data_begin_ptr = next_ptr;
           break;
@@ -855,7 +843,7 @@ static vector<Slice> match_urls(Slice str) {
         while (protocol_begin_ptr != begin) {
           protocol_begin_ptr = prev_utf8_unsafe(protocol_begin_ptr);
           uint32 code = 0;
-          auto next_ptr = next_utf8_unsafe(protocol_begin_ptr, &code, "match_urls 6");
+          auto next_ptr = next_utf8_unsafe(protocol_begin_ptr, &code);
           if (!is_protocol_symbol(code)) {
             protocol_begin_ptr = next_ptr;
             break;
@@ -875,7 +863,7 @@ static vector<Slice> match_urls(Slice str) {
         auto prefix_end = prefix.uend();
         auto prefix_back = prev_utf8_unsafe(prefix_end);
         uint32 code = 0;
-        next_utf8_unsafe(prefix_back, &code, "match_urls 7");
+        next_utf8_unsafe(prefix_back, &code);
         if (is_word_character(code) || code == '/' || code == '#' || code == '@') {
           is_bad = true;
         }
@@ -965,33 +953,30 @@ bool is_email_address(Slice str) {
   Slice userdata;
   Slice domain;
   std::tie(userdata, domain) = split(str, '@');
-  vector<Slice> userdata_parts;
+  if (domain.empty()) {
+    return false;
+  }
+
   size_t prev = 0;
+  size_t userdata_part_count = 0;
   for (size_t i = 0; i < userdata.size(); i++) {
     if (userdata[i] == '.' || userdata[i] == '+') {
-      userdata_parts.push_back(userdata.substr(prev, i - prev));
-      prev = i + 1;
-    }
-  }
-  userdata_parts.push_back(userdata.substr(prev));
-  if (userdata_parts.size() >= 12) {
-    return false;
-  }
-  for (auto &part : userdata_parts) {
-    for (auto c : part) {
-      if (!is_alpha_digit_or_underscore_or_minus(c)) {
+      if (i - prev >= 27) {
         return false;
       }
-    }
-  }
-  if (userdata_parts.back().empty() || userdata_parts.back().size() >= 36) {
-    return false;
-  }
-  userdata_parts.pop_back();
-  for (auto &part : userdata_parts) {
-    if (part.size() >= 27) {
+      userdata_part_count++;
+      prev = i + 1;
+    } else if (!is_alpha_digit_or_underscore_or_minus(userdata[i])) {
       return false;
     }
+  }
+  userdata_part_count++;
+  if (userdata_part_count >= 12) {
+    return false;
+  }
+  auto last_part_length = userdata.size() - prev;
+  if (last_part_length == 0 || last_part_length >= 36) {
+    return false;
   }
 
   vector<Slice> domain_parts = full_split(domain, '.');
@@ -1158,6 +1143,17 @@ static bool is_common_tld(Slice str) {
        "zippo", "zm", "zone", "zuerich",
        // comment for clang-format to prevent it from placing all strings on separate lines
        "zw"});
+  bool is_lower = true;
+  for (auto c : str) {
+    if (static_cast<uint32>(c - 'a') > 'z' - 'a') {
+      is_lower = false;
+      break;
+    }
+  }
+  if (is_lower) {
+    // fast path
+    return tlds.count(str) > 0;
+  }
   string str_lower = utf8_to_lower(str);
   if (str_lower != str && utf8_substr(Slice(str_lower), 1) == utf8_substr(str, 1)) {
     return false;
@@ -1185,10 +1181,12 @@ static Slice fix_url(Slice str) {
   }
   domain.truncate(domain.rfind(':'));
 
-  string domain_lower = domain.str();
-  to_lower_inplace(domain_lower);
-  if (domain_lower == "teiegram.org") {
-    return Slice();
+  if (domain.size() == 12 && (domain[0] == 't' || domain[0] == 'T')) {
+    string domain_lower = domain.str();
+    to_lower_inplace(domain_lower);
+    if (domain_lower == "teiegram.org") {
+      return Slice();
+    }
   }
 
   int32 balance[3] = {0, 0, 0};
@@ -1224,42 +1222,44 @@ static Slice fix_url(Slice str) {
   }
   full_url.remove_suffix(path.size() - path_pos);
 
-  vector<Slice> domain_parts = full_split(domain, '.');
-  if (domain_parts.size() <= 1) {
+  size_t prev = 0;
+  size_t domain_part_count = 0;
+  bool has_non_digit = false;
+  bool is_ipv4 = true;
+  for (size_t i = 0; i <= domain.size(); i++) {
+    if (i == domain.size() || domain[i] == '.') {
+      auto part_size = i - prev;
+      if (part_size == 0 || part_size >= 64 || domain[i - 1] == '-') {
+        return Slice();
+      }
+      if (is_ipv4) {
+        if (part_size > 3) {
+          is_ipv4 = false;
+        }
+        if (part_size == 3 &&
+            (domain[prev] >= '3' || (domain[prev] == '2' && (domain[prev + 1] >= '6' ||
+                                                             (domain[prev + 1] == '5' && domain[prev + 2] >= '6'))))) {
+          is_ipv4 = false;
+        }
+        if (domain[prev] == '0' && part_size >= 2) {
+          is_ipv4 = false;
+        }
+      }
+
+      domain_part_count++;
+      if (i != domain.size()) {
+        prev = i + 1;
+      }
+    } else if (!is_digit(domain[i])) {
+      is_ipv4 = false;
+      has_non_digit = true;
+    }
+  }
+  if (domain_part_count == 1) {
     return Slice();
   }
 
-  bool is_ipv4 = domain_parts.size() == 4;
-  bool has_non_digit = false;
-  for (auto &part : domain_parts) {
-    if (part.empty() || part.size() >= 64) {
-      return Slice();
-    }
-    if (part.back() == '-') {
-      return Slice();
-    }
-
-    if (!has_non_digit) {
-      if (part.size() > 3) {
-        is_ipv4 = false;
-      }
-      for (auto c : part) {
-        if (!is_digit(c)) {
-          is_ipv4 = false;
-          has_non_digit = true;
-        }
-      }
-      if (part.size() == 3 &&
-          (part[0] >= '3' || (part[0] == '2' && (part[1] >= '6' || (part[1] == '5' && part[2] >= '6'))))) {
-        is_ipv4 = false;
-      }
-      if (part[0] == '0' && part.size() >= 2) {
-        is_ipv4 = false;
-      }
-    }
-  }
-
-  if (is_ipv4) {
+  if (is_ipv4 && domain_part_count == 4) {
     return full_url;
   }
 
@@ -1267,7 +1267,7 @@ static Slice fix_url(Slice str) {
     return Slice();
   }
 
-  auto tld = domain_parts.back();
+  auto tld = domain.substr(prev);
   if (utf8_length(tld) <= 1) {
     return Slice();
   }
@@ -1294,9 +1294,14 @@ static Slice fix_url(Slice str) {
     }
   }
 
-  domain_parts.pop_back();
-  if (domain_parts.back().find('_') < domain_parts.back().size()) {
-    return Slice();
+  CHECK(prev > 0);
+  prev--;
+  while (prev-- > 0) {
+    if (domain[prev] == '_') {
+      return Slice();
+    } else if (domain[prev] == '.') {
+      break;
+    }
   }
 
   return full_url;
@@ -1664,10 +1669,11 @@ static void fix_entity_offsets(Slice text, vector<MessageEntity> &entities) {
       entity.offset = utf16_pos;
     }
 
+    uint32 skipped_code = 0;
     while (ptr != end && cnt > 0) {
       unsigned char c = ptr[0];
       utf16_pos += 1 + (c >= 0xf0);
-      ptr = next_utf8_unsafe(ptr, nullptr, "fix_entity_offsets");
+      ptr = next_utf8_unsafe(ptr, &skipped_code);
 
       pos = static_cast<int32>(ptr - begin);
       if (entity_begin == pos) {
@@ -1774,8 +1780,8 @@ static bool is_plain_domain(Slice url) {
   return url.find('/') >= url.size() && url.find('?') >= url.size() && url.find('#') >= url.size();
 }
 
-string get_first_url(Slice text, const vector<MessageEntity> &entities) {
-  for (auto &entity : entities) {
+string get_first_url(const FormattedText &text) {
+  for (auto &entity : text.entities) {
     switch (entity.type) {
       case MessageEntity::Type::Mention:
         break;
@@ -1784,7 +1790,10 @@ string get_first_url(Slice text, const vector<MessageEntity> &entities) {
       case MessageEntity::Type::BotCommand:
         break;
       case MessageEntity::Type::Url: {
-        Slice url = utf8_utf16_substr(text, entity.offset, entity.length);
+        if (entity.length <= 4) {
+          continue;
+        }
+        Slice url = utf8_utf16_substr(text.text, entity.offset, entity.length);
         string scheme = to_lower(url.substr(0, 4));
         if (scheme == "ton:" || begins_with(scheme, "tg:") || scheme == "ftp:" || is_plain_domain(url)) {
           continue;
@@ -4287,15 +4296,32 @@ td_api::object_ptr<td_api::formattedText> extract_input_caption(
   }
 }
 
-Result<FormattedText> process_input_caption(const ContactsManager *contacts_manager, DialogId dialog_id,
-                                            tl_object_ptr<td_api::formattedText> &&caption, bool is_bot) {
-  if (caption == nullptr) {
-    return FormattedText();
+Result<FormattedText> get_formatted_text(const Td *td, DialogId dialog_id,
+                                         td_api::object_ptr<td_api::formattedText> &&text, bool is_bot,
+                                         bool allow_empty, bool skip_media_timestamps, bool for_draft) {
+  if (text == nullptr) {
+    if (allow_empty) {
+      return FormattedText();
+    }
+
+    return Status::Error(400, "Text must be non-empty");
   }
-  TRY_RESULT(entities, get_message_entities(contacts_manager, std::move(caption->entities_)));
-  TRY_STATUS(fix_formatted_text(caption->text_, entities, true, false,
-                                need_always_skip_bot_commands(contacts_manager, dialog_id, is_bot), is_bot, false));
-  return FormattedText{std::move(caption->text_), std::move(entities)};
+
+  TRY_RESULT(entities, get_message_entities(td->contacts_manager_.get(), std::move(text->entities_)));
+  auto need_skip_bot_commands = need_always_skip_bot_commands(td->contacts_manager_.get(), dialog_id, is_bot);
+  bool parse_markdown = td->option_manager_->get_option_boolean("always_parse_markdown");
+  TRY_STATUS(fix_formatted_text(text->text_, entities, allow_empty, parse_markdown, need_skip_bot_commands,
+                                is_bot || skip_media_timestamps || parse_markdown, for_draft));
+
+  FormattedText result{std::move(text->text_), std::move(entities)};
+  if (parse_markdown) {
+    result = parse_markdown_v3(std::move(result));
+    fix_formatted_text(result.text, result.entities, allow_empty, false, need_skip_bot_commands,
+                       is_bot || skip_media_timestamps, for_draft)
+        .ensure();
+  }
+  remove_unallowed_entities(td, result, dialog_id);
+  return std::move(result);
 }
 
 void add_formatted_text_dependencies(Dependencies &dependencies, const FormattedText *text) {
@@ -4473,7 +4499,8 @@ void remove_unallowed_entities(const Td *td, FormattedText &text, DialogId dialo
       remove_intersecting_entities(text.entities);
     }
   }
-  if (!G()->shared_config().get_option_boolean("is_premium")) {
+  if (!td->option_manager_->get_option_boolean("is_premium") &&
+      dialog_id != DialogId(td->contacts_manager_->get_my_id())) {
     remove_premium_custom_emoji_entities(td, text.entities, false);
   }
 }
