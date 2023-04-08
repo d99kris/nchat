@@ -1,6 +1,6 @@
 // uidialog.h
 //
-// Copyright (c) 2019-2021 Kristofer Berggren
+// Copyright (c) 2019-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -16,20 +16,22 @@ class UiView;
 
 struct UiDialogParams
 {
-  UiDialogParams(UiView* p_View, UiModel* p_Model, std::string p_Title, int p_WPerc, int p_HPerc)
+  // Requested geometry (WReq/HReq) may be specified as 0.0-1.0 fraction of screen size, or as
+  // integer number (> 1) of columns and rows.
+  UiDialogParams(UiView* p_View, UiModel* p_Model, std::string p_Title, float p_WReq, float p_HReq)
     : view(p_View)
     , model(p_Model)
     , title(p_Title)
-    , wPerc(p_WPerc)
-    , hPerc(p_HPerc)
+    , wReq(p_WReq)
+    , hReq(p_HReq)
   {
   }
 
   UiView* view = nullptr;
   UiModel* model = nullptr;
   std::string title;
-  int wPerc = 0;
-  int hPerc = 0;
+  float wReq = 0;
+  float hReq = 0;
 };
 
 class UiDialog
@@ -45,8 +47,8 @@ protected:
   UiView* m_View = nullptr;
   UiModel* m_Model = nullptr;
   std::string m_Title;
-  int m_WPerc = 0;
-  int m_HPerc = 0;
+  float m_WReq = 0;
+  float m_HReq = 0;
 
   int m_X = 0;
   int m_Y = 0;

@@ -952,7 +952,7 @@ void UiModel::DeleteMessage()
   static const bool confirmDeletion = UiConfig::GetBool("confirm_deletion");
   if (confirmDeletion)
   {
-    if (!MessageDialog("Confirmation", "Confirm message deletion?", 50, 25))
+    if (!MessageDialog("Confirmation", "Confirm message deletion?", 0.5, 5))
     {
       return;
     }
@@ -1249,7 +1249,7 @@ void UiModel::SaveMessageAttachment(std::string p_FilePath /*= std::string()*/)
 
   if (userTriggered)
   {
-    MessageDialog("Notification", "File saved in\n" + dstFilePath, 80, 25);
+    MessageDialog("Notification", "File saved in\n" + dstFilePath, 0.8, 6);
   }
 }
 
@@ -2659,7 +2659,7 @@ void UiModel::EditMessage()
     std::string profileId = m_CurrentChat.first;
     if (!m_Protocols[profileId]->HasFeature(FeatureEditMessages))
     {
-      MessageDialog("Warning", "Protocol does not support editing!", 80, 25);
+      MessageDialog("Warning", "Protocol does not support editing.", 0.7, 5);
       return;
     }
 
@@ -2674,7 +2674,7 @@ void UiModel::EditMessage()
     const ChatMessage& chatMessage = messages.at(messageId);
     if (!chatMessage.isOutgoing)
     {
-      MessageDialog("Warning", "Received messages cannot be edited!", 80, 25);
+      MessageDialog("Warning", "Received messages cannot be edited.", 0.7, 5);
       return;
     }
 
@@ -2684,7 +2684,7 @@ void UiModel::EditMessage()
     static const time_t maxEditAgeSec = 48 * 3600;
     if (messageAgeSec >= maxEditAgeSec)
     {
-      MessageDialog("Warning", "Messages older than 48 hours cannot be edited!", 80, 25);
+      MessageDialog("Warning", "Messages older than 48 hours cannot be edited.", 0.8, 5);
       return;
     }
 
@@ -2754,9 +2754,9 @@ std::string UiModel::EntryStrToSendStr(const std::wstring& p_EntryStr)
   return str;
 }
 
-bool UiModel::MessageDialog(const std::string& p_Title, const std::string& p_Text, int p_WPerc, int p_HPerc)
+bool UiModel::MessageDialog(const std::string& p_Title, const std::string& p_Text, float p_WReq, float p_HReq)
 {
-  UiDialogParams params(m_View.get(), this, p_Title, p_WPerc, p_HPerc);
+  UiDialogParams params(m_View.get(), this, p_Title, p_WReq, p_HReq);
   UiMessageDialog messageDialog(params, p_Text);
   bool rv = messageDialog.Run();
   ReinitView();
