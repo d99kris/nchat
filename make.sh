@@ -96,6 +96,8 @@ if [[ "${DEPS}" == "1" ]]; then
       else
         sudo snap install go --classic || exiterr "deps failed (snap go), exiting."
       fi
+    elif [[ "${NAME}" == "Raspbian GNU/Linux" ]]; then
+      sudo apt update && sudo apt -y install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev golang || exiterr "deps failed (raspbian gnu/linux), exiting."
     elif [[ "${NAME}" == "Gentoo" ]]; then
       sudo emerge -n dev-util/cmake dev-util/gperf sys-apps/help2man sys-libs/readline dev-libs/openssl sys-libs/ncurses sys-libs/zlib dev-db/sqlite sys-apps/file dev-lang/go || exiterr "deps failed (gentoo), exiting."
     else
