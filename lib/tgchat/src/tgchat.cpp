@@ -1822,9 +1822,21 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
   {
     p_Text = "[Contact]";
   }
+  else if (p_TdMessageContent.get_id() == td::td_api::messageLocation::ID)
+  {
+    auto& messageLocation = static_cast<td::td_api::messageLocation&>(p_TdMessageContent);
+    if (messageLocation.live_period_ == 0)
+    {
+      p_Text = "[Location]";
+    }
+    else
+    {
+      p_Text = "[LiveLocation]";
+    }
+  }
   else if (p_TdMessageContent.get_id() == td::td_api::messageContactRegistered::ID)
   {
-    p_Text = "[ContactRegistered]";
+    p_Text = "[Joined Telegram]";
   }
   else if (p_TdMessageContent.get_id() == td::td_api::messageCustomServiceAction::ID)
   {
@@ -2221,7 +2233,7 @@ void TgChat::Impl::GetSponsoredMessages(const std::string& p_ChatId)
     {
       const int64_t sponsoredMessageId = sponsoredMessage->message_id_;
       ChatMessage chatMessage;
-      TdMessageContentConvert(*sponsoredMessage->content_, 0, chatMessage.text, chatMessage.fileInfo);
+      TdMessageContentConvert(*sponsoredMessage->content_, sponsoredMessage->sponsor_chat_id_, chatMessage.text, chatMessage.fileInfo);
 
       chatMessage.id = StrUtil::NumAddPrefix(StrUtil::NumToHex(sponsoredMessageId), m_SponsoredMessageMsgIdPrefix);
       chatMessage.timeSent = std::numeric_limits<int64_t>::max();

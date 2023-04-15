@@ -1068,11 +1068,11 @@ func (handler *WmEventHandler) HandleUnsupportedMessage(messageInfo types.Messag
 		msgType = "SenderKeyDistributionMessage"
 
 	case msg.ContactMessage != nil:
-		msgType = "ContactMessage"
+		msgType = "Contact"
 		msgNotify = true
 
 	case msg.LocationMessage != nil:
-		msgType = "LocationMessage"
+		msgType = "Location"
 		msgNotify = true
 
 	case msg.Call != nil:
@@ -1081,7 +1081,6 @@ func (handler *WmEventHandler) HandleUnsupportedMessage(messageInfo types.Messag
 
 	case msg.Chat != nil:
 		msgType = "Chat"
-		msgNotify = true
 
 	case msg.ProtocolMessage != nil:
 		msgType = "ProtocolMessage"
@@ -1099,7 +1098,7 @@ func (handler *WmEventHandler) HandleUnsupportedMessage(messageInfo types.Messag
 		msgType = "SendPaymentMessage"
 
 	case msg.LiveLocationMessage != nil:
-		msgType = "LiveLocationMessage"
+		msgType = "LiveLocation"
 		msgNotify = true
 
 	case msg.RequestPaymentMessage != nil:
