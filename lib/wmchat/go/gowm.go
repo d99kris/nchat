@@ -471,6 +471,10 @@ func (handler *WmEventHandler) HandleEvent(rawEvt interface{}) {
 		LOG_TRACE(fmt.Sprintf("%#v", evt))
 		handler.GetContacts()
 
+	case *events.GroupInfo:
+		LOG_TRACE(fmt.Sprintf("%#v", evt))
+		handler.HandleGroupInfo(evt)
+
 	default:
 		LOG_TRACE(fmt.Sprintf("Event type not handled: %#v", rawEvt))
 	}
@@ -571,6 +575,96 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 	}
 
 	CWmClearStatus(FlagSyncing)
+}
+
+func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
+	connId := handler.connId
+	client := GetClient(connId)
+	chatId := JidToStr(groupInfo.JID)
+
+	quotedId := ""
+	selfJid := *client.Store.ID
+	senderJidStr := ""
+	if ((groupInfo.Sender != nil) && (JidToStr(*groupInfo.Sender) != JidToStr(groupInfo.JID))) {
+		senderJidStr = JidToStr(*groupInfo.Sender)
+	}
+
+	fileId := ""
+	filePath := ""
+	fileStatus := FileStatusNone
+
+	text := ""
+	if (groupInfo.Name != nil) {
+		// Group name change
+		if (senderJidStr == "") {
+			senderJidStr = JidToStr(groupInfo.JID)
+		}
+
+		groupName := *groupInfo.Name
+		text = "[Changed group name to " + groupName.Name + "]"
+	} else if (len(groupInfo.Join) > 0) {
+		// Group member joined
+		if ((len(groupInfo.Join) == 1) && ((senderJidStr == "") || (senderJidStr == JidToStr(groupInfo.Join[0])))) {
+			senderJidStr = JidToStr(groupInfo.Join[0])
+			text = "[Joined]"
+		} else {
+			if (senderJidStr == "") {
+				senderJidStr = JidToStr(groupInfo.JID)
+			}
+
+			joined := ""
+			for _, jid := range groupInfo.Join {
+				if joined != "" {
+					joined += ","
+				}
+
+				joined += JidToStr(jid)
+			}
+
+			text = "[Added " + joined + "]"
+		}
+	} else if (len(groupInfo.Leave) > 0) {
+		// Group member left
+		if ((len(groupInfo.Leave) == 1) && ((senderJidStr == "") || (senderJidStr == JidToStr(groupInfo.Leave[0])))) {
+			senderJidStr = JidToStr(groupInfo.Leave[0])
+			text = "[Left]"
+		} else {
+			if (senderJidStr == "") {
+				senderJidStr = JidToStr(groupInfo.JID)
+			}
+
+			left := ""
+			for _, jid := range groupInfo.Leave {
+				if left != "" {
+					left += ","
+				}
+
+				left += JidToStr(jid)
+			}
+
+			text = "[Removed " + left + "]"
+		}
+	}
+
+	if text == "" {
+		LOG_TRACE(fmt.Sprintf("HandleGroupInfo ignore"))
+		return
+	} else {
+		LOG_TRACE(fmt.Sprintf("HandleGroupInfo notify"))
+	}
+
+	fromMe := (senderJidStr == JidToStr(selfJid))
+	senderId := senderJidStr
+
+	timeSent := int(groupInfo.Timestamp.Unix())
+	isSeen := false
+	isOld := (timeSent <= timeUnread[intString{i: connId, s: chatId}])
+	isRead := (fromMe && isSeen) || (!fromMe && isOld)
+
+	msgId := strconv.Itoa(timeSent) // group info updates do not have msg id
+
+	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: %s", chatId, text))
+	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
 }
 
 func GetNameFromContactInfo(contactInfo types.ContactInfo) string {
