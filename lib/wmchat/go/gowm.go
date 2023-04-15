@@ -1,6 +1,6 @@
 // gowm.go
 //
-// Copyright (c) 2021-2022 Kristofer Berggren
+// Copyright (c) 2021-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -40,7 +40,7 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
-var whatsmeowDate = "20221104"
+var whatsmeowDate = "20230324"
 
 type JSONMessage []json.RawMessage
 type JSONMessageType string
@@ -657,6 +657,9 @@ func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg 
 
 	case msg.StickerMessage != nil:
 		handler.HandleStickerMessage(messageInfo, msg, isSync)
+
+	default:
+		handler.HandleUnsupportedMessage(messageInfo, msg, isSync)
 	}
 }
 
@@ -941,6 +944,212 @@ func (handler *WmEventHandler) HandleStickerMessage(messageInfo types.MessageInf
 
 	UpdateTypingStatus(connId, chatId, senderId, fromMe, isOld)
 
+	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
+}
+
+func (handler *WmEventHandler) HandleUnsupportedMessage(messageInfo types.MessageInfo, msg *waProto.Message, isSync bool) {
+	// list from type Message struct in def.pb.go
+	msgType := "Unknown"
+	msgNotify := false
+	switch {
+	case msg.ImageMessage != nil:
+		msgType = "ImageMessage"
+
+	case msg.ExtendedTextMessage != nil:
+		msgType = "ExtendedTextMessage"
+
+	case msg.DocumentMessage != nil:
+		msgType = "DocumentMessage"
+
+	case msg.AudioMessage != nil:
+		msgType = "AudioMessage"
+
+	case msg.VideoMessage != nil:
+		msgType = "VideoMessage"
+
+	case msg.StickerMessage != nil:
+		msgType = "StickerMessage"
+
+	case msg.SenderKeyDistributionMessage != nil:
+		msgType = "SenderKeyDistributionMessage"
+
+	case msg.ContactMessage != nil:
+		msgType = "ContactMessage"
+		msgNotify = true
+
+	case msg.LocationMessage != nil:
+		msgType = "LocationMessage"
+		msgNotify = true
+
+	case msg.Call != nil:
+		msgType = "Call"
+		msgNotify = true
+
+	case msg.Chat != nil:
+		msgType = "Chat"
+		msgNotify = true
+
+	case msg.ProtocolMessage != nil:
+		msgType = "ProtocolMessage"
+
+	case msg.ContactsArrayMessage != nil:
+		msgType = "ContactsArrayMessage"
+
+	case msg.HighlyStructuredMessage != nil:
+		msgType = "HighlyStructuredMessage"
+
+	case msg.FastRatchetKeySenderKeyDistributionMessage != nil:
+		msgType = "FastRatchetKeySenderKeyDistributionMessage"
+
+	case msg.SendPaymentMessage != nil:
+		msgType = "SendPaymentMessage"
+
+	case msg.LiveLocationMessage != nil:
+		msgType = "LiveLocationMessage"
+		msgNotify = true
+
+	case msg.RequestPaymentMessage != nil:
+		msgType = "RequestPaymentMessage"
+
+	case msg.DeclinePaymentRequestMessage != nil:
+		msgType = "DeclinePaymentRequestMessage"
+
+	case msg.CancelPaymentRequestMessage != nil:
+		msgType = "CancelPaymentRequestMessage"
+
+	case msg.TemplateMessage != nil:
+		msgType = "TemplateMessage"
+
+	case msg.GroupInviteMessage != nil:
+		msgType = "GroupInviteMessage"
+
+	case msg.TemplateButtonReplyMessage != nil:
+		msgType = "TemplateButtonReplyMessage"
+
+	case msg.ProductMessage != nil:
+		msgType = "ProductMessage"
+
+	case msg.DeviceSentMessage != nil:
+		msgType = "DeviceSentMessage"
+
+	case msg.MessageContextInfo != nil:
+		msgType = "MessageContextInfo"
+
+	case msg.ListMessage != nil:
+		msgType = "ListMessage"
+
+	case msg.ViewOnceMessage != nil:
+		msgType = "ViewOnceMessage"
+
+	case msg.OrderMessage != nil:
+		msgType = "OrderMessage"
+
+	case msg.ListResponseMessage != nil:
+		msgType = "ListResponseMessage"
+
+	case msg.EphemeralMessage != nil:
+		msgType = "EphemeralMessage"
+
+	case msg.InvoiceMessage != nil:
+		msgType = "InvoiceMessage"
+
+	case msg.ButtonsMessage != nil:
+		msgType = "ButtonsMessage"
+
+	case msg.ButtonsResponseMessage != nil:
+		msgType = "ButtonsResponseMessage"
+
+	case msg.PaymentInviteMessage != nil:
+		msgType = "PaymentInviteMessage"
+
+	case msg.InteractiveMessage != nil:
+		msgType = "InteractiveMessage"
+
+	case msg.ReactionMessage != nil:
+		msgType = "ReactionMessage"
+
+	case msg.StickerSyncRmrMessage != nil:
+		msgType = "StickerSyncRmrMessage"
+
+	case msg.InteractiveResponseMessage != nil:
+		msgType = "InteractiveResponseMessage"
+
+	case msg.PollCreationMessage != nil:
+		msgType = "PollCreationMessage"
+
+	case msg.PollUpdateMessage != nil:
+		msgType = "PollUpdateMessage"
+
+	case msg.KeepInChatMessage != nil:
+		msgType = "KeepInChatMessage"
+
+	case msg.DocumentWithCaptionMessage != nil:
+		msgType = "DocumentWithCaptionMessage"
+
+	case msg.RequestPhoneNumberMessage != nil:
+		msgType = "RequestPhoneNumberMessage"
+
+	case msg.ViewOnceMessageV2 != nil:
+		msgType = "ViewOnceMessageV2"
+
+	case msg.EncReactionMessage != nil:
+		msgType = "EncReactionMessage"
+
+	case msg.EditedMessage != nil:
+		msgType = "EditedMessage"
+
+	case msg.ViewOnceMessageV2Extension != nil:
+		msgType = "ViewOnceMessageV2Extension"
+
+	case msg.PollCreationMessageV2 != nil:
+		msgType = "PollCreationMessageV2"
+
+	case msg.ScheduledCallCreationMessage != nil:
+		msgType = "ScheduledCallCreationMessage"
+
+	case msg.GroupMentionedMessage != nil:
+		msgType = "GroupMentionedMessage"
+
+	case msg.PinMessage != nil:
+		msgType = "PinMessage"
+
+	case msg.PollCreationMessageV3 != nil:
+		msgType = "PollCreationMessageV3"
+
+	case msg.ScheduledCallEditMessage != nil:
+		msgType = "ScheduledCallEditMessage"
+
+	case msg.PtvMessage != nil:
+		msgType = "PtvMessage"
+	}
+
+	if !msgNotify {
+		LOG_TRACE(fmt.Sprintf("%s ignore", msgType))
+		return
+	} else {
+		LOG_TRACE(fmt.Sprintf("%s notify", msgType))
+	}
+
+	connId := handler.connId
+	chatId := JidToStr(messageInfo.Chat)
+	msgId := messageInfo.ID
+	text := "[" + msgType + "]"
+
+	quotedId := ""
+	fromMe := messageInfo.IsFromMe
+	senderId := JidToStr(messageInfo.Sender)
+	fileId := ""
+	filePath := ""
+	fileStatus := FileStatusNone
+
+	timeSent := int(messageInfo.Timestamp.Unix())
+	isSeen := isSync
+	isOld := (timeSent <= timeUnread[intString{i: connId, s: chatId}])
+	isRead := (fromMe && isSeen) || (!fromMe && isOld)
+
+	UpdateTypingStatus(connId, chatId, senderId, fromMe, isOld)
+
+	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: %s", chatId, text))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
 }
 
