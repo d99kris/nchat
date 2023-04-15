@@ -142,7 +142,7 @@ private:
   std::uint64_t GetNextQueryId();
   std::int64_t GetSenderId(const td::td_api::message& p_TdMessage);
   std::string GetText(td::td_api::object_ptr<td::td_api::formattedText>&& p_FormattedText);
-  void TdMessageContentConvert(td::td_api::MessageContent& p_TdMessageContent,
+  void TdMessageContentConvert(td::td_api::MessageContent& p_TdMessageContent, int64_t p_SenderId,
                                std::string& p_Text, std::string& p_FileInfo);
   void TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessage& p_ChatMessage);
   void DownloadFile(std::string p_ChatId, std::string p_MsgId, std::string p_FileId, std::string p_DownloadId,
@@ -153,6 +153,7 @@ private:
   bool IsSponsoredMessageId(const std::string& p_MsgId);
   bool IsGroup(int64_t p_UserId);
   bool IsSelf(int64_t p_UserId);
+  std::string GetContactName(int64_t p_UserId);
   void GetChatHistory(int64_t p_ChatId, int64_t p_FromMsgId, int32_t p_Offset, int32_t p_Limit, bool p_Sequence);
   td::td_api::object_ptr<td::td_api::inputMessageText> GetMessageText(const std::string& p_Text);
 
@@ -1773,7 +1774,7 @@ std::string TgChat::Impl::GetText(td::td_api::object_ptr<td::td_api::formattedTe
   return text;
 }
 
-void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessageContent,
+void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessageContent, int64_t p_SenderId,
                                            std::string& p_Text, std::string& p_FileInfo)
 {
   if (p_TdMessageContent.get_id() == td::td_api::messageText::ID)
@@ -1981,13 +1982,48 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
 
     p_FileInfo = ProtocolUtil::FileInfoToHex(fileInfo);
   }
+  else if (p_TdMessageContent.get_id() == td::td_api::messageChatJoinByLink::ID)
+  {
+    p_Text = "[Joined]";
+  }
   else if (p_TdMessageContent.get_id() == td::td_api::messageChatAddMembers::ID)
   {
-    p_Text = "[ChatAddMembers]";
+    auto& messageChatAddMembers = static_cast<td::td_api::messageChatAddMembers&>(p_TdMessageContent);
+    auto ids = messageChatAddMembers.member_user_ids_;
+
+    if ((ids.size() == 1) && (ids.at(0) == p_SenderId))
+    {
+      p_Text = "[Joined]";
+    }
+    else
+    {
+      std::string idsStr;
+      for (auto& id : ids)
+      {
+        idsStr += (idsStr.empty() ? "" : ",") + GetContactName(id);
+      }
+
+      p_Text = "[Added " + idsStr + "]";
+    }
   }
   else if (p_TdMessageContent.get_id() == td::td_api::messageChatDeleteMember::ID)
   {
-    p_Text = "[ChatDeleteMember]";
+    auto& messageChatDeleteMember = static_cast<td::td_api::messageChatDeleteMember&>(p_TdMessageContent);
+    auto id = messageChatDeleteMember.user_id_;
+    if (id == p_SenderId)
+    {
+      p_Text = "[Left]";
+    }
+    else
+    {
+      p_Text = "[Removed " + GetContactName(id) + "]";
+    }
+  }
+  else if (p_TdMessageContent.get_id() == td::td_api::messageChatChangeTitle::ID)
+  {
+    auto& messageChatChangeTitle = static_cast<td::td_api::messageChatChangeTitle&>(p_TdMessageContent);
+    auto title = messageChatChangeTitle.title_;
+    p_Text = "[Changed group name to " + title + "]";
   }
   else
   {
@@ -1997,10 +2033,11 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
 
 void TgChat::Impl::TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessage& p_ChatMessage)
 {
-  TdMessageContentConvert(*p_TdMessage.content_, p_ChatMessage.text, p_ChatMessage.fileInfo);
+  const int64_t senderId = GetSenderId(p_TdMessage);
+  TdMessageContentConvert(*p_TdMessage.content_, senderId, p_ChatMessage.text, p_ChatMessage.fileInfo);
 
   p_ChatMessage.id = StrUtil::NumToHex(p_TdMessage.id_);
-  p_ChatMessage.senderId = StrUtil::NumToHex(GetSenderId(p_TdMessage));
+  p_ChatMessage.senderId = StrUtil::NumToHex(senderId);
   p_ChatMessage.isOutgoing = p_TdMessage.is_outgoing_;
   p_ChatMessage.timeSent = (((int64_t)p_TdMessage.date_) * 1000) + (std::hash<std::string>{ }(p_ChatMessage.id) % 256);
   p_ChatMessage.quotedId =
@@ -2184,7 +2221,7 @@ void TgChat::Impl::GetSponsoredMessages(const std::string& p_ChatId)
     {
       const int64_t sponsoredMessageId = sponsoredMessage->message_id_;
       ChatMessage chatMessage;
-      TdMessageContentConvert(*sponsoredMessage->content_, chatMessage.text, chatMessage.fileInfo);
+      TdMessageContentConvert(*sponsoredMessage->content_, 0, chatMessage.text, chatMessage.fileInfo);
 
       chatMessage.id = StrUtil::NumAddPrefix(StrUtil::NumToHex(sponsoredMessageId), m_SponsoredMessageMsgIdPrefix);
       chatMessage.timeSent = std::numeric_limits<int64_t>::max();
@@ -2286,6 +2323,19 @@ bool TgChat::Impl::IsGroup(int64_t p_UserId)
 bool TgChat::Impl::IsSelf(int64_t p_UserId)
 {
   return (p_UserId == m_SelfUserId);
+}
+
+std::string TgChat::Impl::GetContactName(int64_t p_UserId)
+{
+  auto it = m_ContactInfos.find(p_UserId);
+  if (it != m_ContactInfos.end())
+  {
+    return it->second.name;
+  }
+  else
+  {
+    return std::to_string(p_UserId);
+  }
 }
 
 void TgChat::Impl::GetChatHistory(int64_t p_ChatId, int64_t p_FromMsgId, int32_t p_Offset, int32_t p_Limit, bool p_Sequence)
