@@ -63,6 +63,7 @@ var (
 	mx         sync.Mutex
 	clients    map[int]*whatsmeow.Client = make(map[int]*whatsmeow.Client)
 	paths      map[int]string            = make(map[int]string)
+	contacts   map[int]map[string]string = make(map[int]map[string]string)
 	states     map[int]State             = make(map[int]State)
 	timeUnread map[intString]int         = make(map[intString]int)
 	handlers   map[int]*WmEventHandler   = make(map[int]*WmEventHandler)
@@ -90,10 +91,21 @@ func AddConn(conn *whatsmeow.Client, path string) int {
 	var connId int = len(clients)
 	clients[connId] = conn
 	paths[connId] = path
+	contacts[connId] = make(map[string]string)
 	states[connId] = None
 	handlers[connId] = &WmEventHandler{connId}
 	mx.Unlock()
 	return connId
+}
+
+func RemoveConn(connId int) {
+	mx.Lock()
+	delete(clients, connId)
+	delete(paths, connId)
+	delete(contacts, connId)
+	delete(states, connId)
+	delete(handlers, connId)
+	mx.Unlock()
 }
 
 func GetClient(connId int) *whatsmeow.Client {
@@ -130,12 +142,22 @@ func SetState(connId int, status State) {
 	mx.Unlock()
 }
 
-func RemoveConn(connId int) {
+func AddContactName(connId int, id string, name string) {
 	mx.Lock()
-	delete(clients, connId)
-	delete(paths, connId)
-	delete(handlers, connId)
+	contacts[connId][id] = name
 	mx.Unlock()
+}
+
+func GetContactName(connId int, id string) string {
+	var name string
+	var ok bool
+	mx.Lock()
+	name, ok = contacts[connId][id]
+	mx.Unlock()
+	if !ok {
+		name = id
+	}
+	return name
 }
 
 // download info
@@ -615,10 +637,10 @@ func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 			joined := ""
 			for _, jid := range groupInfo.Join {
 				if joined != "" {
-					joined += ","
+					joined += ", "
 				}
 
-				joined += JidToStr(jid)
+				joined += GetContactName(connId, JidToStr(jid))
 			}
 
 			text = "[Added " + joined + "]"
@@ -636,10 +658,10 @@ func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 			left := ""
 			for _, jid := range groupInfo.Leave {
 				if left != "" {
-					left += ","
+					left += ", "
 				}
 
-				left += JidToStr(jid)
+				left += GetContactName(connId, JidToStr(jid))
 			}
 
 			text = "[Removed " + left + "]"
@@ -703,8 +725,10 @@ func (handler *WmEventHandler) GetContacts() {
 		for jid, contactInfo := range contacts {
 			name := GetNameFromContactInfo(contactInfo)
 			if len(name) > 0 {
-				LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", JidToStr(jid), name))
-				CWmNewContactsNotify(connId, JidToStr(jid), name, BoolToInt(false))
+				userId := JidToStr(jid)
+				LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", userId, name))
+				CWmNewContactsNotify(connId, userId, name, BoolToInt(false))
+				AddContactName(connId, userId, name)
 			} else {
 				LOG_WARNING(fmt.Sprintf("Skip CWmNewContactsNotify %s %#v", JidToStr(jid), contactInfo))
 			}
@@ -716,6 +740,7 @@ func (handler *WmEventHandler) GetContacts() {
 	selfName := "" // overridden by ui
 	LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", selfId, selfName))
 	CWmNewContactsNotify(connId, selfId, selfName, BoolToInt(true))
+	AddContactName(connId, selfId, selfName)
 
 	// groups
 	groups, groupErr := client.GetJoinedGroups()
@@ -724,8 +749,11 @@ func (handler *WmEventHandler) GetContacts() {
 	} else {
 		LOG_TRACE(fmt.Sprintf("groups %#v", groups))
 		for _, group := range groups {
-			LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", JidToStr(group.JID), group.GroupName.Name))
-			CWmNewContactsNotify(connId, JidToStr(group.JID), group.GroupName.Name, BoolToInt(false))
+			groupId := JidToStr(group.JID)
+			groupName := group.GroupName.Name
+			LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", groupId, groupName))
+			CWmNewContactsNotify(connId, groupId, groupName, BoolToInt(false))
+			AddContactName(connId, groupId, groupName)
 		}
 	}
 
