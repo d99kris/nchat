@@ -654,6 +654,9 @@ func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg 
 
 	case msg.DocumentMessage != nil:
 		handler.HandleDocumentMessage(messageInfo, msg, isSync)
+
+	case msg.StickerMessage != nil:
+		handler.HandleStickerMessage(messageInfo, msg, isSync)
 	}
 }
 
@@ -879,6 +882,57 @@ func (handler *WmEventHandler) HandleDocumentMessage(messageInfo types.MessageIn
 	fromMe := messageInfo.IsFromMe
 	senderId := JidToStr(messageInfo.Sender)
 	text := ""
+
+	timeSent := int(messageInfo.Timestamp.Unix())
+	isSeen := isSync
+	isOld := (timeSent <= timeUnread[intString{i: connId, s: chatId}])
+	isRead := (fromMe && isSeen) || (!fromMe && isOld)
+
+	UpdateTypingStatus(connId, chatId, senderId, fromMe, isOld)
+
+	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
+}
+
+func (handler *WmEventHandler) HandleStickerMessage(messageInfo types.MessageInfo, msg *waProto.Message, isSync bool) {
+	LOG_TRACE(fmt.Sprintf("StickerMessage"))
+
+	connId := handler.connId
+	var client *whatsmeow.Client = GetClient(handler.connId)
+
+	// get sticker part
+	sticker := msg.GetStickerMessage()
+	if sticker == nil {
+		LOG_WARNING(fmt.Sprintf("get sticker message failed"))
+		return
+	}
+
+	// get extension
+	ext := "webp"
+	exts, extErr := mime.ExtensionsByType(sticker.GetMimetype())
+	if extErr != nil && len(exts) > 0 {
+		ext = exts[0]
+	}
+
+	// context
+	quotedId := ""
+	ci := sticker.GetContextInfo()
+	if ci != nil {
+		quotedId = ci.GetStanzaId()
+	}
+
+	// get temp file path
+	var tmpPath string = GetPath(connId) + "/tmp"
+	filePath := fmt.Sprintf("%s/%s.%s", tmpPath, messageInfo.ID, ext)
+
+	// file id and status
+	fileId := DownloadableMessageToFileId(client, sticker, filePath)
+	fileStatus := FileStatusNotDownloaded
+
+	chatId := JidToStr(messageInfo.Chat)
+	msgId := messageInfo.ID
+	fromMe := messageInfo.IsFromMe
+	senderId := JidToStr(messageInfo.Sender)
+	text := "[Sticker]"
 
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isSeen := isSync

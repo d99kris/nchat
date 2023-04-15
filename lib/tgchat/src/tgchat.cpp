@@ -1887,7 +1887,28 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
   }
   else if (p_TdMessageContent.get_id() == td::td_api::messageSticker::ID)
   {
-    p_Text = "[Sticker]";
+    auto& messageSticker = static_cast<td::td_api::messageSticker&>(p_TdMessageContent);
+    auto& sticker = messageSticker.sticker_;
+    p_Text = sticker->emoji_;
+
+    auto& stickerFile = sticker->sticker_;
+    auto& localFile = stickerFile->local_;
+    auto& localPath = localFile->path_;
+    FileInfo fileInfo;
+    std::string id = stickerFile->remote_->id_;
+    fileInfo.fileId = id;
+    if (!localPath.empty())
+    {
+      fileInfo.filePath = localPath;
+      fileInfo.fileStatus = FileStatusDownloaded;
+    }
+    else
+    {
+      fileInfo.filePath = "[Sticker]";
+      fileInfo.fileStatus = FileStatusNotDownloaded;
+    }
+
+    p_FileInfo = ProtocolUtil::FileInfoToHex(fileInfo);
   }
   else if (p_TdMessageContent.get_id() == td::td_api::messageVideo::ID)
   {
