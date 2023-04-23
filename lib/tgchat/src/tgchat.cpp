@@ -2037,6 +2037,10 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
     auto title = messageChatChangeTitle.title_;
     p_Text = "[Changed group name to " + title + "]";
   }
+  else if (p_TdMessageContent.get_id() == td::td_api::messageChatUpgradeFrom::ID)
+  {
+    p_Text = "[Created]";
+  }
   else
   {
     p_Text = "[UnknownMessage " + std::to_string(p_TdMessageContent.get_id()) + "]";
