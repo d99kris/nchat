@@ -1,6 +1,6 @@
 // appconfig.cpp
 //
-// Copyright (c) 2021-2022 Kristofer Berggren
+// Copyright (c) 2021-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -21,6 +21,10 @@ void AppConfig::Init()
     { "attachment_prefetch", "1" },
     { "cache_enabled", "1" },
     { "downloads_dir", "" },
+    { "proxy_host", "" },
+    { "proxy_pass", "" },
+    { "proxy_port", "" },
+    { "proxy_user", "" },
   };
 
   const std::string configPath(FileUtil::GetApplicationDir() + std::string("/app.conf"));

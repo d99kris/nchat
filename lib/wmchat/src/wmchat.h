@@ -1,6 +1,6 @@
 // wmchat.h
 //
-// Copyright (c) 2020-2022 Kristofer Berggren
+// Copyright (c) 2020-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -45,6 +45,7 @@ public:
 private:
   void CallMessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage);
   void PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage);
+  std::string GetProxyUrl() const;
 
 private:
   std::string m_ProfileId;

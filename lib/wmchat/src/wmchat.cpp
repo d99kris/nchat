@@ -75,7 +75,8 @@ bool WmChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_Profi
 
   p_ProfileId = m_ProfileId;
 
-  int connId = CWmInit(const_cast<char*>(profileDir.c_str()));
+  std::string proxyUrl = GetProxyUrl();
+  int connId = CWmInit(const_cast<char*>(profileDir.c_str()), const_cast<char*>(proxyUrl.c_str()));
   if (connId == -1) return false;
 
   m_ConnId = connId;
@@ -93,7 +94,8 @@ bool WmChat::LoadProfile(const std::string& p_ProfilesDir, const std::string& p_
   m_ProfileDir = p_ProfilesDir + "/" + p_ProfileId;
   m_ProfileId = p_ProfileId;
 
-  m_ConnId = CWmInit(const_cast<char*>(m_ProfileDir.c_str()));
+  std::string proxyUrl = GetProxyUrl();
+  m_ConnId = CWmInit(const_cast<char*>(m_ProfileDir.c_str()), const_cast<char*>(proxyUrl.c_str()));
   if (m_ConnId == -1) return false;
 
   AddInstance(m_ConnId, this);
@@ -437,6 +439,27 @@ void WmChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
   {
     TimeUtil::Sleep(0.050);
   }
+}
+
+std::string WmChat::GetProxyUrl() const
+{
+  const std::string proxyHost = AppConfig::GetStr("proxy_host");
+  const int proxyPort = AppConfig::GetNum("proxy_port");
+  if (!proxyHost.empty() && (proxyPort != 0))
+  {
+    std::string proxyUrl = "socks5://";
+    const std::string proxyUser = AppConfig::GetStr("proxy_user");
+    const std::string proxyPass = AppConfig::GetStr("proxy_pass");
+    if (!proxyUser.empty())
+    {
+      proxyUrl += proxyUser + ":" + proxyPass + "@";
+    }
+
+    proxyUrl += proxyHost + ":" + std::to_string(proxyPort);
+    return proxyUrl;
+  }
+
+  return "";
 }
 
 void WmChat::AddInstance(int p_ConnId, WmChat* p_Instance)

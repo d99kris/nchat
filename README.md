@@ -337,6 +337,10 @@ This configuration file holds general application settings. Default content:
     attachment_prefetch=1
     cache_enabled=1
     downloads_dir=
+    proxy_host=
+    proxy_pass=
+    proxy_port=
+    proxy_user=
 
 ### attachment_prefetch
 
@@ -354,6 +358,15 @@ Specifies whether to enable (experimental) cache functionality.
 
 Specifies a custom downloads directory path to save attachments to. If not
 specified, the default dir is `~/Downloads` if exists, otherwise `~`.
+
+### proxy_
+
+SOCKS5 proxy server details. To enable proxy usage the parameters `host` and
+`port` are required, while `user` and `pass` are optional (depending on the
+SOCKS server). Note: In order to use a proxy while setting up nchat the first
+time, it is recommended to first run nchat without arguments (`nchat`) for its
+config dir to be created, and then edit proxy settings in `~/.nchat/app.conf`
+as needed, before running `nchat -s` to setup an account.
 
 ~/.nchat/ui.conf
 ----------------

@@ -1291,7 +1291,7 @@ func UpdateTypingStatus(connId int, chatId string, userId string, fromMe bool, i
 	CWmNewStatusNotify(connId, chatId, userId, BoolToInt(isOnline), BoolToInt(isTyping), -1)
 }
 
-func WmInit(path string) int {
+func WmInit(path string, proxy string) int {
 
 	LOG_DEBUG("init " + filepath.Base(path))
 
@@ -1338,6 +1338,11 @@ func WmInit(path string) int {
 	if client == nil {
 		LOG_WARNING("client error")
 		return -1
+	}
+
+	// set proxy details
+	if len(proxy) > 0 {
+		client.SetProxyAddress(proxy)
 	}
 
 	// store connection and get id

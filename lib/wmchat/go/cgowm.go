@@ -1,6 +1,6 @@
 // cgowm.go
 //
-// Copyright (c) 2020-2022 Kristofer Berggren
+// Copyright (c) 2020-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -30,8 +30,8 @@ import (
 )
 
 //export CWmInit
-func CWmInit(path *C.char) int {
-	return WmInit(C.GoString(path))
+func CWmInit(path *C.char, proxy *C.char) int {
+	return WmInit(C.GoString(path), C.GoString(proxy))
 }
 
 //export CWmLogin

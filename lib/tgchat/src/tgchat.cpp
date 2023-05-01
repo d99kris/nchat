@@ -127,6 +127,7 @@ private:
 
   using Object = td::td_api::object_ptr<td::td_api::Object>;
   void Init();
+  void InitProxy();
   void Cleanup();
   void ProcessService();
   void ProcessResponse(td::Client::Response response);
@@ -1053,6 +1054,54 @@ void TgChat::Impl::Init()
   td::Log::set_file_path(logPath);
   td::Log::set_max_file_size(1024 * 1024);
   m_Client = std::make_unique<td::Client>();
+  InitProxy();
+}
+
+void TgChat::Impl::InitProxy()
+{
+  SendQuery(td::td_api::make_object<td::td_api::getProxies>(),
+            [this](Object proxiesObject)
+  {
+    if (!proxiesObject) return;
+
+    if (proxiesObject->get_id() == td::td_api::error::ID) return;
+
+    auto proxies = td::move_tl_object_as<td::td_api::proxies>(proxiesObject);
+    if (!proxies) return;
+
+    for (const td::td_api::object_ptr<td::td_api::proxy> &proxy : proxies->proxies_)
+    {
+      if (proxy)
+      {
+        const int32_t proxyId = proxy->id_;
+        SendQuery(td::td_api::make_object<td::td_api::removeProxy>(proxyId),
+                  [proxyId](Object object)
+        {
+          if (object->get_id() == td::td_api::error::ID) return;
+
+          LOG_TRACE("removed proxy %d", proxyId);
+        });
+      }
+    }
+
+    const std::string proxyHost = AppConfig::GetStr("proxy_host");
+    const int proxyPort = AppConfig::GetNum("proxy_port");
+    if (!proxyHost.empty() && (proxyPort != 0))
+    {
+      const std::string proxyUser = AppConfig::GetStr("proxy_user");
+      const std::string proxyPass = AppConfig::GetStr("proxy_pass");
+      const bool proxyEnable = true;
+      auto proxyType = (!proxyUser.empty()) ? td::make_tl_object<td::td_api::proxyTypeSocks5>(proxyUser, proxyPass)
+                                            : td::td_api::make_object<td::td_api::proxyTypeSocks5>();
+      SendQuery(td::td_api::make_object<td::td_api::addProxy>(proxyHost, proxyPort, proxyEnable, std::move(proxyType)),
+                [](Object object)
+      {
+        if (object->get_id() == td::td_api::error::ID) return;
+
+        LOG_TRACE("added proxy");
+      });
+    }
+  });
 }
 
 void TgChat::Impl::Cleanup()
