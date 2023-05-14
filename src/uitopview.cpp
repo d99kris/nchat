@@ -7,9 +7,12 @@
 
 #include "uitopview.h"
 
+#include "appconfig.h"
 #include "apputil.h"
 #include "status.h"
+#include "strutil.h"
 #include "uicolorconfig.h"
+#include "uiconfig.h"
 
 UiTopView::UiTopView(const UiViewParams& p_Params)
   : UiViewBase(p_Params)
@@ -37,12 +40,30 @@ void UiTopView::Draw()
   wbkgd(m_Win, attribute | colorPair | ' ');
   wattron(m_Win, attribute | colorPair);
 
-  const std::string statusStr = Status::ToString();
+  // simple proxy config check
+  static const std::string statusSuffixStr = []()
+  {
+    const std::string proxyHost = AppConfig::GetStr("proxy_host");
+    const int proxyPort = AppConfig::GetNum("proxy_port");
+    const bool proxyEnabled = (!proxyHost.empty() && (proxyPort != 0));
+    if (proxyEnabled)
+    {
+      std::string proxyIndicator = UiConfig::GetStr("proxy_indicator");
+      return " " + proxyIndicator;
+    }
+
+    return std::string("");
+  }();
+
+  const std::string statusStr = Status::ToString() + statusSuffixStr;
   static const std::string appNameVersion = AppUtil::GetAppNameVersion();
-  std::string topStrLeft = std::string(topPadLeft, ' ') + appNameVersion;
-  std::string topStrRight = statusStr + std::string(topPadRight, ' ');
-  std::string topStr = topStrLeft + std::string(m_W - topStrLeft.size() - topStrRight.size(), ' ') + topStrRight;
-  mvwprintw(m_Win, 0, 0, "%s", topStr.c_str());
+  std::wstring topWStrLeft = StrUtil::ToWString(std::string(topPadLeft, ' ') + appNameVersion);
+  std::wstring topWStrRight = StrUtil::ToWString(statusStr + std::string(topPadRight, ' '));
+  int topStrLeftWidth = StrUtil::WStringWidth(topWStrLeft);
+  int topStrRightWidth = StrUtil::WStringWidth(topWStrRight);
+
+  std::wstring topWStr = topWStrLeft + std::wstring(m_W - topStrLeftWidth - topStrRightWidth, ' ') + topWStrRight;
+  mvwaddnwstr(m_Win, 0, 0, topWStr.c_str(), topWStr.size());
 
   wattroff(m_Win, attribute | colorPair);
   wrefresh(m_Win);

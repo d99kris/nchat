@@ -393,6 +393,7 @@ This configuration file holds general user interface settings. Default content:
     muted_indicate_unread=1
     muted_notify_unread=0
     muted_position_by_timestamp=1
+    proxy_indicator=🔒
     read_indicator=✓
     spell_check_command=
     syncing_indicator=⇄
