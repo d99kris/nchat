@@ -1,6 +1,6 @@
 // status.h
 //
-// Copyright (c) 2020-2021 Kristofer Berggren
+// Copyright (c) 2020-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -26,6 +26,7 @@ public:
     FlagMax = FlagSyncing,
   };
 
+  static uint32_t Get();
   static void Set(uint32_t p_Flags);
   static void Clear(uint32_t p_Flags);
   static std::string ToString();

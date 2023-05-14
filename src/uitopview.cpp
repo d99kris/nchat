@@ -1,6 +1,6 @@
 // uitopview.cpp
 //
-// Copyright (c) 2019-2021 Kristofer Berggren
+// Copyright (c) 2019-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -18,8 +18,8 @@ UiTopView::UiTopView(const UiViewParams& p_Params)
 
 void UiTopView::Draw()
 {
-  static std::string lastStatus;
-  std::string status = Status::ToString();
+  static uint32_t lastStatus = 0;
+  uint32_t status = Status::Get();
   m_Dirty |= (status != lastStatus);
   lastStatus = status;
 
@@ -37,9 +37,10 @@ void UiTopView::Draw()
   wbkgd(m_Win, attribute | colorPair | ' ');
   wattron(m_Win, attribute | colorPair);
 
+  const std::string statusStr = Status::ToString();
   static const std::string appNameVersion = AppUtil::GetAppNameVersion();
   std::string topStrLeft = std::string(topPadLeft, ' ') + appNameVersion;
-  std::string topStrRight = status + std::string(topPadRight, ' ');
+  std::string topStrRight = statusStr + std::string(topPadRight, ' ');
   std::string topStr = topStrLeft + std::string(m_W - topStrLeft.size() - topStrRight.size(), ' ') + topStrRight;
   mvwprintw(m_Win, 0, 0, "%s", topStr.c_str());
 

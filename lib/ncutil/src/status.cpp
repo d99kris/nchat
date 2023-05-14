@@ -1,6 +1,6 @@
 // status.cpp
 //
-// Copyright (c) 2020-2021 Kristofer Berggren
+// Copyright (c) 2020-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -9,6 +9,11 @@
 
 uint32_t Status::m_Flags = 0;
 std::mutex Status::m_Mutex;
+
+uint32_t Status::Get()
+{
+  return m_Flags;
+}
 
 void Status::Set(uint32_t p_Flags)
 {
