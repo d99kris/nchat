@@ -12,6 +12,7 @@
 #include <iostream>
 #include <limits>
 #include <map>
+#include <regex>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -157,6 +158,7 @@ private:
   std::string GetContactName(int64_t p_UserId);
   void GetChatHistory(int64_t p_ChatId, int64_t p_FromMsgId, int32_t p_Offset, int32_t p_Limit, bool p_Sequence);
   td::td_api::object_ptr<td::td_api::inputMessageText> GetMessageText(const std::string& p_Text);
+  std::string ConvertMarkdownV2ToV1(const std::string& p_Str);
 
 private:
   std::thread m_ServiceThread;
@@ -1813,9 +1815,7 @@ std::string TgChat::Impl::GetText(td::td_api::object_ptr<td::td_api::formattedTe
       text = formattedText->text_;
       if (markdownVersion == 1)
       {
-        StrUtil::ReplaceString(text, "**", "*");
-        StrUtil::ReplaceString(text, "__", "_");
-        StrUtil::ReplaceString(text, "~~", "~");
+        text = ConvertMarkdownV2ToV1(text);
       }
     }
   }
@@ -2468,4 +2468,30 @@ td::td_api::object_ptr<td::td_api::inputMessageText> TgChat::Impl::GetMessageTex
   }
 
   return message_content;
+}
+
+std::string TgChat::Impl::ConvertMarkdownV2ToV1(const std::string& p_Str)
+{
+  auto ReplaceV2Markup = [](const std::string& p_Text) -> std::string
+  {
+    std::string text = p_Text;
+    StrUtil::ReplaceString(text, "**", "*");
+    StrUtil::ReplaceString(text, "__", "_");
+    StrUtil::ReplaceString(text, "~~", "~");
+    return text;
+  };
+
+  std::string rv;
+  std::string str = p_Str;
+  std::regex rg("(http|https):\\/\\/([^\\s]+)");
+  std::smatch sm;
+  while (regex_search(str, sm, rg))
+  {
+    rv += ReplaceV2Markup(sm.prefix().str()); // text non-match
+    rv += sm.str(); // url match
+    str = sm.suffix().str();
+  }
+
+  rv += ReplaceV2Markup(str); // text non-match
+  return rv;
 }
