@@ -40,4 +40,5 @@ set_target_properties(wmchat PROPERTIES COMPILE_FLAGS
                        -Wcast-align")
 
 # Linking
-target_link_libraries(wmchat PUBLIC ref-cgowm ncutil)
+message(STATUS "Go libraries: ${GO_LIBRARIES}")
+target_link_libraries(wmchat PUBLIC ref-cgowm ncutil ${GO_LIBRARIES})

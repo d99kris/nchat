@@ -12,6 +12,16 @@ else ()
   SET(CUSTOM_GO_FLAGS "")
 endif ()
 
+# Check Go package
+execute_process(COMMAND bash "-c" "go version | grep -v -q gccgo" RESULT_VARIABLE GO_GCC)
+if (GO_GCC EQUAL "1")
+  message(STATUS "Go gccgo.")
+  set(GO_LIBRARIES "go" PARENT_SCOPE)
+else ()
+  message(STATUS "Go golang.")
+  set(GO_LIBRARIES "" PARENT_SCOPE)
+endif ()
+
 # Build Go library / C archive
 set(TARGET cgowm)
 set(GOPATH ${CMAKE_CURRENT_BINARY_DIR})
@@ -21,7 +31,7 @@ add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${LIB}
   DEPENDS ${SRCS}
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   COMMAND env GOPATH=${GOPATH} CGO_ENABLED=1 go build -buildmode=c-archive ${CUSTOM_GO_FLAGS}
-  -o "${CMAKE_CURRENT_BINARY_DIR}/${LIB}" 
+  -o "${CMAKE_CURRENT_BINARY_DIR}/${LIB}"
   ${CMAKE_GO_FLAGS} ./...
   COMMENT "Building Go library")
 add_custom_target(${TARGET} DEPENDS ${LIB} ${HEADER})
