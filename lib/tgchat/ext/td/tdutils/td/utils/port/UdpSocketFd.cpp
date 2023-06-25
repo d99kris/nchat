@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -574,7 +574,7 @@ class UdpSocketFdImpl {
 
     auto error = Status::PosixError(sendmsg_errno, PSLICE() << "Send from " << get_native_fd() << " has failed");
     switch (sendmsg_errno) {
-      // Still may send some other packets, but there is no point to resend this particular message
+      // We still may send some other packets, but there is no point to resend this particular message
       case EACCES:
       case EMSGSIZE:
       case EPERM:
@@ -583,7 +583,7 @@ class UdpSocketFdImpl {
         is_sent = true;
         return error;
 
-      // Some general problems, which may be fixed in future
+      // Some general issues, which may be fixed in the future
       case ENOMEM:
       case EDQUOT:
       case EFBIG:
@@ -600,12 +600,12 @@ class UdpSocketFdImpl {
 
       case EBADF:         // impossible
       case ENOTSOCK:      // impossible
-      case EPIPE:         // impossible for udp
-      case ECONNRESET:    // impossible for udp
+      case EPIPE:         // impossible for UDP
+      case ECONNRESET:    // impossible for UDP
       case EDESTADDRREQ:  // we checked that address is valid
       case ENOTCONN:      // we checked that address is valid
       case EINTR:         // we already skipped all EINTR
-      case EISCONN:       // impossible for udp socket
+      case EISCONN:       // impossible for UDP socket
       case EOPNOTSUPP:
       case ENOTDIR:
       case EFAULT:

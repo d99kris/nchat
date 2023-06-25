@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -13,6 +13,7 @@
 #include "td/telegram/MinChannel.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
+#include "td/telegram/UserId.h"
 
 #include "td/utils/common.h"
 #include "td/utils/FlatHashMap.h"
@@ -23,9 +24,15 @@
 
 namespace td {
 
+class Dependencies;
+
 class Td;
 
 class MessageReaction {
+  static constexpr int32 MAX_CHOOSE_COUNT = 2147483640;
+
+  static constexpr size_t MAX_RECENT_CHOOSERS = 3;
+
   string reaction_;
   int32 choose_count_ = 0;
   bool is_chosen_ = false;
@@ -63,16 +70,6 @@ class MessageReaction {
 
   void update_recent_chooser_dialog_ids(const MessageReaction &old_reaction);
 
- public:
-  static constexpr size_t MAX_RECENT_CHOOSERS = 3;
-  static constexpr int32 MAX_CHOOSE_COUNT = 2147483640;
-
-  MessageReaction() = default;
-
-  const string &get_reaction() const {
-    return reaction_;
-  }
-
   int32 get_choose_count() const {
     return choose_count_;
   }
@@ -87,6 +84,13 @@ class MessageReaction {
 
   td_api::object_ptr<td_api::messageReaction> get_message_reaction_object(Td *td, UserId my_user_id,
                                                                           UserId peer_user_id) const;
+
+ public:
+  MessageReaction() = default;
+
+  const string &get_reaction() const {
+    return reaction_;
+  }
 
   template <class StorerT>
   void store(StorerT &storer) const;
@@ -166,6 +170,16 @@ struct MessageReactions {
 
   vector<string> get_chosen_reactions() const;
 
+  bool are_consistent_with_list(const string &reaction, FlatHashMap<string, vector<DialogId>> reactions,
+                                int32 total_count) const;
+
+  vector<td_api::object_ptr<td_api::messageReaction>> get_message_reactions_object(Td *td, UserId my_user_id,
+                                                                                   UserId peer_user_id) const;
+
+  void add_min_channels(Td *td) const;
+
+  void add_dependencies(Dependencies &dependencies) const;
+
   static bool need_update_message_reactions(const MessageReactions *old_reactions,
                                             const MessageReactions *new_reactions);
 
@@ -210,7 +224,7 @@ void set_default_reaction(Td *td, string reaction, Promise<Unit> &&promise);
 
 void send_set_default_reaction_query(Td *td);
 
-void send_update_default_reaction_type(const string &default_reaction);
+td_api::object_ptr<td_api::updateDefaultReactionType> get_update_default_reaction_type(const string &default_reaction);
 
 void report_message_reactions(Td *td, FullMessageId full_message_id, DialogId chooser_dialog_id,
                               Promise<Unit> &&promise);

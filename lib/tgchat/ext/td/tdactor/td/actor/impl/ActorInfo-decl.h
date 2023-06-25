@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -108,17 +108,11 @@ class ActorInfo final
   bool need_context() const;
   bool need_start_up() const;
 
-  void set_wait_generation(uint32 wait_generation);
-  bool must_wait(uint32 wait_generation) const;
-  void always_wait_for_mailbox();
-
  private:
   Deleter deleter_ = Deleter::None;
   bool need_context_ = true;
   bool need_start_up_ = true;
   bool is_running_ = false;
-  bool always_wait_for_mailbox_{false};
-  uint32 wait_generation_{0};
 
   std::atomic<int32> sched_id_{0};
   Actor *actor_ = nullptr;

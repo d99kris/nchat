@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -64,11 +64,11 @@ FileType PhotoSizeSource::get_file_type(const char *source) const {
   }
 }
 
-string PhotoSizeSource::get_unique() const {
+string PhotoSizeSource::get_unique(const char *source) const {
   auto ptr = StackAllocator::alloc(16);
   MutableSlice data = ptr.as_slice();
   TlStorerUnsafe storer(data.ubegin());
-  switch (get_type("get_unique")) {
+  switch (get_type(source)) {
     case Type::Legacy:
       UNREACHABLE();
       break;
@@ -128,8 +128,8 @@ string PhotoSizeSource::get_unique() const {
   return string(data.begin(), size);
 }
 
-string PhotoSizeSource::get_unique_name(int64 photo_id) const {
-  switch (get_type("get_unique_name")) {
+string PhotoSizeSource::get_unique_name(int64 photo_id, const char *source) const {
+  switch (get_type(source)) {
     case Type::Thumbnail:
       CHECK(0 <= thumbnail().thumbnail_type && thumbnail().thumbnail_type <= 127);
       return PSTRING() << photo_id << '_' << thumbnail().thumbnail_type;

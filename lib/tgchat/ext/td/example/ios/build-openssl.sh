@@ -3,8 +3,9 @@ cd $(dirname $0)
 
 git clone https://github.com/beeware/Python-Apple-support
 cd Python-Apple-support
-git checkout 60b990128d5f1f04c336ff66594574515ab56604
-git apply ../Python-Apple-support.patch
+git checkout 60b990128d5f1f04c336ff66594574515ab56604 || exit 1
+git reset --hard || exit 1
+git apply ../Python-Apple-support.patch || exit 1
 cd ..
 
 #TODO: change openssl version
@@ -26,12 +27,12 @@ do
     echo $platform
     cd Python-Apple-support
     #NB: -j will fail
-    make OpenSSL-$platform
+    make OpenSSL-$platform || exit 1
     cd ..
-    rm -rf third_party/openssl/$platform
-    mkdir -p third_party/openssl/$platform/lib
-    cp ./Python-Apple-support/build/$platform/libcrypto.a third_party/openssl/$platform/lib/
-    cp ./Python-Apple-support/build/$platform/libssl.a third_party/openssl/$platform/lib/
-    cp -r ./Python-Apple-support/build/$platform/Support/OpenSSL/Headers/ third_party/openssl/$platform/include
+    rm -rf third_party/openssl/$platform || exit 1
+    mkdir -p third_party/openssl/$platform/lib || exit 1
+    cp ./Python-Apple-support/build/$platform/libcrypto.a third_party/openssl/$platform/lib/ || exit 1
+    cp ./Python-Apple-support/build/$platform/libssl.a third_party/openssl/$platform/lib/ || exit 1
+    cp -r ./Python-Apple-support/build/$platform/openssl/include/ third_party/openssl/$platform/include || exit 1
   done
 done

@@ -66,7 +66,7 @@ function split_file($file, $chunks, $undo) {
     }
 
     if (!file_exists($cpp_name)) {
-        echo "ERROR: skip unexisting file $cpp_name".PHP_EOL;
+        echo "ERROR: skip nonexistent file $cpp_name".PHP_EOL;
         return;
     }
 
@@ -280,18 +280,23 @@ function split_file($file, $chunks, $undo) {
                 'attach_menu_manager[_(-][^.]|AttachMenuManager[^;>]' => "AttachMenuManager",
                 'audios_manager[_(-][^.]|AudiosManager' => "AudiosManager",
                 'auth_manager[_(-][^.]|AuthManager' => 'AuthManager',
+                'autosave_manager[_(-][^.]|AutosaveManager' => 'AutosaveManager',
                 'background_manager[_(-][^.]|BackgroundManager' => "BackgroundManager",
+                'bot_info_manager[_(-][^.]|BotInfoManager' => "BotInfoManager",
                 'contacts_manager[_(-][^.]|ContactsManager([^ ;.]| [^*])' => 'ContactsManager',
                 'country_info_manager[_(-][^.]|CountryInfoManager' => 'CountryInfoManager',
+                'dialog_filter_manager[_(-][^.]|DialogFilterManager' => "DialogFilterManager",
                 'documents_manager[_(-][^.]|DocumentsManager' => "DocumentsManager",
+                'download_manager[_(-][^.]|DownloadManager' => "DownloadManager",
                 'file_reference_manager[_(-][^.]|FileReferenceManager|file_references[)]' => 'FileReferenceManager',
                 'file_manager[_(-][^.]|FileManager([^ ;.]| [^*])|update_file[)]' => 'files/FileManager',
+                'forum_topic_manager[_(-][^.]|ForumTopicManager' => 'ForumTopicManager',
                 'G[(][)]|Global[^A-Za-z]' => 'Global',
                 'game_manager[_(-][^.]|GameManager' => 'GameManager',
                 'group_call_manager[_(-][^.]|GroupCallManager' => 'GroupCallManager',
                 'HashtagHints' => 'HashtagHints',
                 'inline_queries_manager[_(-][^.]|InlineQueriesManager' => 'InlineQueriesManager',
-                'language_pack_manager[_(-][^.]|LanguagePackManager' => 'LanguagePackManager',
+                'language_pack_manager[_(-]|LanguagePackManager' => 'LanguagePackManager',
                 'link_manager[_(-][^.]|LinkManager' => 'LinkManager',
                 'LogeventIdWithGeneration|add_log_event|delete_log_event|get_erase_log_event_promise|parse_time|store_time' => 'logevent/LogEventHelper',
                 'MessageCopyOptions' => 'MessageCopyOptions',
@@ -303,13 +308,14 @@ function split_file($file, $chunks, $undo) {
                 'poll_manager[_(-][^.]|PollManager' => "PollManager",
                 'PublicDialogType|get_public_dialog_type' => 'PublicDialogType',
                 'SecretChatActor' => 'SecretChatActor',
-                'secret_chats_manager[_(-][^.]|SecretChatsManager' => 'SecretChatsManager',
+                'secret_chats_manager[_(-]|SecretChatsManager' => 'SecretChatsManager',
                 'sponsored_message_manager[_(-][^.]|SponsoredMessageManager' => 'SponsoredMessageManager',
                 'stickers_manager[_(-][^.]|StickersManager' => 'StickersManager',
                 '[>](td_db[(][)]|get_td_db_impl[(])|TdDb[^A-Za-z]' => 'TdDb',
                 'theme_manager[_(-][^.]|ThemeManager' => "ThemeManager",
                 'TopDialogCategory|get_top_dialog_category' => 'TopDialogCategory',
                 'top_dialog_manager[_(-][^.]|TopDialogManager' => 'TopDialogManager',
+                'translation_manager[_(-][^.]|TranslationManager' => "TranslationManager",
                 'updates_manager[_(-][^.]|UpdatesManager|get_difference[)]|updateSentMessage|dummyUpdate' => 'UpdatesManager',
                 'WebPageId(Hash)?' => 'WebPageId',
                 'web_pages_manager[_(-][^.]|WebPagesManager' => 'WebPagesManager');

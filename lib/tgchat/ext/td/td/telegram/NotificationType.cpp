@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -296,19 +296,25 @@ class NotificationTypePushMessage final : public NotificationType {
         }
         break;
       case 'S':
+        if (key == "MESSAGE_SAME_WALLPAPER") {
+          return td_api::make_object<td_api::pushMessageContentChatSetBackground>(true);
+        }
+        if (key == "MESSAGE_SCREENSHOT_TAKEN") {
+          return td_api::make_object<td_api::pushMessageContentScreenshotTaken>();
+        }
         if (key == "MESSAGE_SECRET_PHOTO") {
           return td_api::make_object<td_api::pushMessageContentPhoto>(nullptr, arg, true, false);
         }
         if (key == "MESSAGE_SECRET_VIDEO") {
           return td_api::make_object<td_api::pushMessageContentVideo>(nullptr, arg, true, false);
         }
-        if (key == "MESSAGE_SCREENSHOT_TAKEN") {
-          return td_api::make_object<td_api::pushMessageContentScreenshotTaken>();
-        }
         if (key == "MESSAGE_STICKER") {
           auto stickers_manager = G()->td().get_actor_unsafe()->stickers_manager_.get();
           return td_api::make_object<td_api::pushMessageContentSticker>(
               stickers_manager->get_sticker_object(document.file_id), trim(arg), is_pinned);
+        }
+        if (key == "MESSAGE_SUGGEST_PHOTO") {
+          return td_api::make_object<td_api::pushMessageContentSuggestProfilePhoto>();
         }
         break;
       case 'T':
@@ -335,6 +341,11 @@ class NotificationTypePushMessage final : public NotificationType {
           auto voice_notes_manager = G()->td().get_actor_unsafe()->voice_notes_manager_.get();
           return td_api::make_object<td_api::pushMessageContentVoiceNote>(
               voice_notes_manager->get_voice_note_object(document.file_id), is_pinned);
+        }
+        break;
+      case 'W':
+        if (key == "MESSAGE_WALLPAPER") {
+          return td_api::make_object<td_api::pushMessageContentChatSetBackground>(false);
         }
         break;
       default:

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -9,7 +9,6 @@
 
 #include "td/utils/benchmark.h"
 #include "td/utils/common.h"
-#include "td/utils/format.h"
 #include "td/utils/logging.h"
 #include "td/utils/port/Clocks.h"
 #include "td/utils/port/EventFd.h"
@@ -228,13 +227,7 @@ class CreateFileBench final : public td::Benchmark {
     }
   }
   void tear_down() final {
-    td::walk_path("A/", [&](td::CSlice path, auto type) {
-      if (type == td::WalkPath::Type::ExitDir) {
-        td::rmdir(path).ignore();
-      } else if (type == td::WalkPath::Type::NotDir) {
-        td::unlink(path).ignore();
-      }
-    }).ignore();
+    td::rmrf("A/").ignore();
   }
 };
 
@@ -259,13 +252,7 @@ class WalkPathBench final : public td::Benchmark {
     }).ignore();
   }
   void tear_down() final {
-    td::walk_path("A/", [&](td::CSlice path, auto type) {
-      if (type == td::WalkPath::Type::ExitDir) {
-        td::rmdir(path).ignore();
-      } else if (type == td::WalkPath::Type::NotDir) {
-        td::unlink(path).ignore();
-      }
-    }).ignore();
+    td::rmrf("A/").ignore();
   }
 };
 
@@ -433,13 +420,12 @@ class IdDuplicateCheckerOld {
     if (saved_message_ids_.size() == MAX_SAVED_MESSAGE_IDS) {
       auto oldest_message_id = *saved_message_ids_.begin();
       if (message_id < oldest_message_id) {
-        return td::Status::Error(2, PSLICE() << "Ignore very old message_id "
-                                             << td::tag("oldest message_id", oldest_message_id)
-                                             << td::tag("got message_id", message_id));
+        return td::Status::Error(2, PSLICE() << "Ignore very old message " << message_id
+                                             << " older than the oldest known message " << oldest_message_id);
       }
     }
     if (saved_message_ids_.count(message_id) != 0) {
-      return td::Status::Error(1, PSLICE() << "Ignore duplicated message_id " << td::tag("message_id", message_id));
+      return td::Status::Error(1, PSLICE() << "Ignore already processed message " << message_id);
     }
 
     saved_message_ids_.insert(message_id);
@@ -463,16 +449,15 @@ class IdDuplicateCheckerNew {
   td::Status check(td::int64 message_id) {
     auto insert_result = saved_message_ids_.insert(message_id);
     if (!insert_result.second) {
-      return td::Status::Error(1, PSLICE() << "Ignore duplicated message_id " << td::tag("message_id", message_id));
+      return td::Status::Error(1, PSLICE() << "Ignore already processed message " << message_id);
     }
     if (saved_message_ids_.size() == MAX_SAVED_MESSAGE_IDS + 1) {
       auto begin_it = saved_message_ids_.begin();
       bool is_very_old = begin_it == insert_result.first;
       saved_message_ids_.erase(begin_it);
       if (is_very_old) {
-        return td::Status::Error(2, PSLICE() << "Ignore very old message_id "
-                                             << td::tag("oldest message_id", *saved_message_ids_.begin())
-                                             << td::tag("got message_id", message_id));
+        return td::Status::Error(2, PSLICE() << "Ignore very old message " << message_id
+                                             << " older than the oldest known message " << *saved_message_ids_.begin());
       }
     }
     return td::Status::OK();
@@ -489,16 +474,15 @@ class IdDuplicateCheckerNewOther {
   }
   td::Status check(td::int64 message_id) {
     if (!saved_message_ids_.insert(message_id).second) {
-      return td::Status::Error(1, PSLICE() << "Ignore duplicated message_id " << td::tag("message_id", message_id));
+      return td::Status::Error(1, PSLICE() << "Ignore already processed message " << message_id);
     }
     if (saved_message_ids_.size() == MAX_SAVED_MESSAGE_IDS + 1) {
       auto begin_it = saved_message_ids_.begin();
       bool is_very_old = *begin_it == message_id;
       saved_message_ids_.erase(begin_it);
       if (is_very_old) {
-        return td::Status::Error(2, PSLICE() << "Ignore very old message_id "
-                                             << td::tag("oldest message_id", *saved_message_ids_.begin())
-                                             << td::tag("got message_id", message_id));
+        return td::Status::Error(2, PSLICE() << "Ignore very old message " << message_id
+                                             << " older than the oldest known message " << *saved_message_ids_.begin());
       }
     }
     return td::Status::OK();
@@ -517,14 +501,14 @@ class IdDuplicateCheckerNewSimple {
   td::Status check(td::int64 message_id) {
     auto insert_result = saved_message_ids_.insert(message_id);
     if (!insert_result.second) {
-      return td::Status::Error(1, "Ignore duplicated message_id");
+      return td::Status::Error(1, "Ignore already processed message");
     }
     if (saved_message_ids_.size() == MAX_SAVED_MESSAGE_IDS + 1) {
       auto begin_it = saved_message_ids_.begin();
       bool is_very_old = begin_it == insert_result.first;
       saved_message_ids_.erase(begin_it);
       if (is_very_old) {
-        return td::Status::Error(2, "Ignore very old message_id");
+        return td::Status::Error(2, "Ignore very old message");
       }
     }
     return td::Status::OK();
@@ -552,13 +536,12 @@ class IdDuplicateCheckerArray {
       return td::Status::OK();
     }
     if (end_pos_ >= max_size && message_id < saved_message_ids_[0]) {
-      return td::Status::Error(2, PSLICE() << "Ignore very old message_id "
-                                           << td::tag("oldest message_id", saved_message_ids_[0])
-                                           << td::tag("got message_id", message_id));
+      return td::Status::Error(2, PSLICE() << "Ignore very old message " << message_id
+                                           << " older than the oldest known message " << saved_message_ids_[0]);
     }
     auto it = std::lower_bound(&saved_message_ids_[0], &saved_message_ids_[end_pos_], message_id);
     if (*it == message_id) {
-      return td::Status::Error(1, PSLICE() << "Ignore duplicated message_id " << td::tag("message_id", message_id));
+      return td::Status::Error(1, PSLICE() << "Ignore already processed message " << message_id);
     }
     std::copy_backward(it, &saved_message_ids_[end_pos_], &saved_message_ids_[end_pos_ + 1]);
     *it = message_id;

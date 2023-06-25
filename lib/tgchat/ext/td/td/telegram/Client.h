@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -23,7 +23,7 @@ namespace td {
  * Requests can be sent using the method ClientManager::send from any thread.
  * New updates and responses to requests can be received using the method ClientManager::receive from any thread after
  * the first request has been sent to the client instance. ClientManager::receive must not be called simultaneously from
- * two different threads. Also note that all updates and responses to requests should be applied in the same order as
+ * two different threads. Also, note that all updates and responses to requests should be applied in the same order as
  * they were received, to ensure consistency.
  * Some TDLib requests can be executed synchronously from any thread using the method ClientManager::execute.
  *
@@ -177,7 +177,7 @@ class ClientManager final {
  * The TDLib instance is created for the lifetime of the Client object.
  * Requests to TDLib can be sent using the Client::send method from any thread.
  * New updates and responses to requests can be received using the Client::receive method from any thread,
- * this function must not be called simultaneously from two different threads. Also note that all updates and
+ * this function must not be called simultaneously from two different threads. Also, note that all updates and
  * responses to requests should be applied in the same order as they were received, to ensure consistency.
  * Given this information, it's advisable to call this function from a dedicated thread.
  * Some service TDLib requests can be executed synchronously from any thread using the Client::execute method.
@@ -199,7 +199,7 @@ class ClientManager final {
  *   if (response.id == 0) {
  *     // process response.object as an incoming update of type td_api::Update
  *   } else {
- *     // process response.object as an answer to a sent request with id response.id
+ *     // process response.object as an answer to a sent request with identifier response.id
  *   }
  * }
  * \endcode

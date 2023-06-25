@@ -1,11 +1,13 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #pragma once
 
+#include "td/telegram/DialogId.h"
+#include "td/telegram/RequestedDialogType.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/UserId.h"
@@ -28,11 +30,13 @@ struct KeyboardButton {
     RequestPoll,
     RequestPollQuiz,
     RequestPollRegular,
-    WebView
+    WebView,
+    RequestDialog
   };
   Type type;
   string text;
-  string url;  // WebView only
+  string url;                                             // WebView only
+  unique_ptr<RequestedDialogType> requested_dialog_type;  // RequestDialog only
 };
 
 struct InlineKeyboardButton {
@@ -49,8 +53,16 @@ struct InlineKeyboardButton {
     User,
     WebView
   };
+
+  static constexpr int64 USERS_MASK = 1;
+  static constexpr int64 BOTS_MASK = 2;
+  static constexpr int64 CHATS_MASK = 4;
+  static constexpr int64 BROADCASTS_MASK = 8;
+  static constexpr int64 FULL_MASK = USERS_MASK | BOTS_MASK | CHATS_MASK | BROADCASTS_MASK;
+
   Type type;
-  int64 id = 0;    // UrlAuth only, button_id or (2 * request_write_access - 1) * bot_user_id
+  int64 id = 0;    // UrlAuth: button_id or (2 * request_write_access - 1) * bot_user_id
+                   // SwitchInline: mask of allowed target chats; 0 if any
   UserId user_id;  // User only
   string text;
   string forward_text;  // UrlAuth only
@@ -64,6 +76,7 @@ struct ReplyMarkup {
 
   bool is_personal = false;  // for ShowKeyboard, RemoveKeyboard, ForceReply
 
+  bool is_persistent = false;               // for ShowKeyboard
   bool need_resize_keyboard = false;        // for ShowKeyboard
   bool is_one_time_keyboard = false;        // for ShowKeyboard
   vector<vector<KeyboardButton>> keyboard;  // for ShowKeyboard
@@ -76,6 +89,8 @@ struct ReplyMarkup {
   tl_object_ptr<telegram_api::ReplyMarkup> get_input_reply_markup(ContactsManager *contacts_manager) const;
 
   tl_object_ptr<td_api::ReplyMarkup> get_reply_markup_object(ContactsManager *contacts_manager) const;
+
+  Status check_shared_dialog(Td *td, int32 button_id, DialogId dialog_id) const;
 };
 
 bool operator==(const ReplyMarkup &lhs, const ReplyMarkup &rhs);
@@ -89,6 +104,8 @@ unique_ptr<ReplyMarkup> get_reply_markup(tl_object_ptr<telegram_api::ReplyMarkup
 Result<unique_ptr<ReplyMarkup>> get_reply_markup(tl_object_ptr<td_api::ReplyMarkup> &&reply_markup_ptr, bool is_bot,
                                                  bool only_inline_keyboard, bool request_buttons_allowed,
                                                  bool switch_inline_buttons_allowed) TD_WARN_UNUSED_RESULT;
+
+unique_ptr<ReplyMarkup> dup_reply_markup(const unique_ptr<ReplyMarkup> &reply_markup);
 
 tl_object_ptr<telegram_api::ReplyMarkup> get_input_reply_markup(ContactsManager *contacts_manager,
                                                                 const unique_ptr<ReplyMarkup> &reply_markup);

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,6 +11,7 @@
 #include "td/telegram/AuthManager.h"
 #include "td/telegram/ConfigManager.h"
 #include "td/telegram/ContactsManager.h"
+#include "td/telegram/CountryInfoManager.h"
 #include "td/telegram/DialogId.h"
 #include "td/telegram/GitCommitHash.h"
 #include "td/telegram/Global.h"
@@ -47,7 +48,10 @@
 namespace td {
 
 OptionManager::OptionManager(Td *td)
-    : td_(td), options_(td::make_unique<TsSeqKeyValue>()), option_pmc_(G()->td_db()->get_config_pmc_shared()) {
+    : td_(td)
+    , current_scheduler_id_(Scheduler::instance()->sched_id())
+    , options_(td::make_unique<TsSeqKeyValue>())
+    , option_pmc_(G()->td_db()->get_config_pmc_shared()) {
   send_unix_time_update();
 
   auto all_options = option_pmc_->get_all();
@@ -58,14 +62,11 @@ OptionManager::OptionManager(Td *td)
     if (!is_internal_option(name)) {
       send_closure(G()->td(), &Td::send_update,
                    td_api::make_object<td_api::updateOption>(name, get_option_value_object(name_value.second)));
-    } else if (name == "otherwise_relogin_days") {
-      auto days = narrow_cast<int32>(get_option_integer(name));
-      if (days > 0) {
-        vector<SuggestedAction> added_actions{SuggestedAction{SuggestedAction::Type::SetPassword, DialogId(), days}};
-        send_closure(G()->td(), &Td::send_update, get_update_suggested_actions_object(added_actions, {}));
+    } else {
+      auto update = get_internal_option_update(name);
+      if (update != nullptr) {
+        send_closure(G()->td(), &Td::send_update, std::move(update));
       }
-    } else if (name == "default_reaction") {
-      send_update_default_reaction_type(get_option_string(name));
     }
   }
 
@@ -96,17 +97,24 @@ OptionManager::OptionManager(Td *td)
   if (!have_option("notification_sound_count_max")) {
     set_option_integer("notification_sound_count_max", G()->is_test_dc() ? 5 : 100);
   }
-  if (!have_option("chat_filter_count_max")) {
-    set_option_integer("chat_filter_count_max", G()->is_test_dc() ? 3 : 10);
+  if (!have_option("chat_folder_count_max")) {
+    set_option_integer("chat_folder_count_max", G()->is_test_dc() ? 3 : 10);
   }
-  if (!have_option("chat_filter_chosen_chat_count_max")) {
-    set_option_integer("chat_filter_chosen_chat_count_max", G()->is_test_dc() ? 5 : 100);
+  if (!have_option("chat_folder_chosen_chat_count_max")) {
+    set_option_integer("chat_folder_chosen_chat_count_max", G()->is_test_dc() ? 5 : 100);
   }
-  if (!have_option("themed_emoji_statuses_sticker_set_id")) {
-    auto sticker_set_id =
-        G()->is_test_dc() ? static_cast<int64>(2964141614563343) : static_cast<int64>(773947703670341676);
-    set_option_integer("themed_emoji_statuses_sticker_set_id", sticker_set_id);
+  if (!have_option("aggressive_anti_spam_supergroup_member_count_min")) {
+    set_option_integer("aggressive_anti_spam_supergroup_member_count_min", G()->is_test_dc() ? 1 : 100);
   }
+  if (!have_option("pinned_forum_topic_count_max")) {
+    set_option_integer("pinned_forum_topic_count_max", G()->is_test_dc() ? 3 : 5);
+  }
+
+  set_option_empty("chat_filter_count_max");
+  set_option_empty("chat_filter_chosen_chat_count_max");
+  set_option_empty("forum_member_count_min");
+  set_option_empty("themed_emoji_statuses_sticker_set_id");
+  set_option_empty("themed_premium_statuses_sticker_set_id");
 }
 
 OptionManager::~OptionManager() = default;
@@ -181,9 +189,9 @@ string OptionManager::get_option_string(Slice name, string default_value) const 
 
 void OptionManager::set_option(Slice name, Slice value) {
   CHECK(!name.empty());
-  CHECK(Scheduler::instance()->sched_id() == 0);
+  CHECK(Scheduler::instance()->sched_id() == current_scheduler_id_);
   if (value.empty()) {
-    if (option_pmc_->erase(name.str()) == 0) {
+    if (options_->erase(name.str()) == 0) {
       return;
     }
     option_pmc_->erase(name.str());
@@ -201,6 +209,11 @@ void OptionManager::set_option(Slice name, Slice value) {
   if (!is_internal_option(name)) {
     send_closure(G()->td(), &Td::send_update,
                  td_api::make_object<td_api::updateOption>(name.str(), get_option_value_object(get_option(name))));
+  } else {
+    auto update = get_internal_option_update(name);
+    if (update != nullptr) {
+      send_closure(G()->td(), &Td::send_update, std::move(update));
+    }
   }
 }
 
@@ -226,21 +239,12 @@ void OptionManager::on_update_server_time_difference() {
   send_unix_time_update();
 }
 
-void OptionManager::clear_options() {
-  for (const auto &option : options_->get_all()) {
-    if (!is_internal_option(option.first)) {
-      send_closure(
-          G()->td(), &Td::send_update,
-          td_api::make_object<td_api::updateOption>(option.first, td_api::make_object<td_api::optionValueEmpty>()));
-    }
-  }
-}
-
 bool OptionManager::is_internal_option(Slice name) {
   switch (name[0]) {
     case 'a':
       return name == "about_length_limit_default" || name == "about_length_limit_premium" ||
-             name == "animated_emoji_zoom" || name == "animation_search_emojis" || name == "animation_search_provider";
+             name == "aggressive_anti_spam_supergroup_member_count_min" || name == "animated_emoji_zoom" ||
+             name == "animation_search_emojis" || name == "animation_search_provider";
     case 'b':
       return name == "base_language_pack_version";
     case 'c':
@@ -259,6 +263,10 @@ bool OptionManager::is_internal_option(Slice name) {
              name == "dice_emojis" || name == "dice_success_values";
     case 'e':
       return name == "edit_time_limit" || name == "emoji_sounds";
+    case 'f':
+      return name == "fragment_prefixes";
+    case 'h':
+      return name == "hidden_members_group_size_min";
     case 'i':
       return name == "ignored_restriction_reasons";
     case 'l':
@@ -277,9 +285,9 @@ bool OptionManager::is_internal_option(Slice name) {
              name == "revoke_time_limit" || name == "revoke_pm_time_limit";
     case 's':
       return name == "saved_animations_limit" || name == "saved_gifs_limit_default" ||
-             name == "saved_gifs_limit_premium" || name == "session_count" || name == "stickers_faved_limit_default" ||
-             name == "stickers_faved_limit_premium" || name == "stickers_normal_by_emoji_per_premium_num" ||
-             name == "stickers_premium_by_emoji_num";
+             name == "saved_gifs_limit_premium" || name == "session_count" || name == "since_last_open" ||
+             name == "stickers_faved_limit_default" || name == "stickers_faved_limit_premium" ||
+             name == "stickers_normal_by_emoji_per_premium_num" || name == "stickers_premium_by_emoji_num";
     case 'v':
       return name == "video_note_size_max";
     case 'w':
@@ -287,6 +295,20 @@ bool OptionManager::is_internal_option(Slice name) {
     default:
       return false;
   }
+}
+
+td_api::object_ptr<td_api::Update> OptionManager::get_internal_option_update(Slice name) const {
+  if (name == "default_reaction") {
+    return get_update_default_reaction_type(get_option_string(name));
+  }
+  if (name == "otherwise_relogin_days") {
+    auto days = narrow_cast<int32>(get_option_integer(name));
+    if (days > 0) {
+      vector<SuggestedAction> added_actions{SuggestedAction{SuggestedAction::Type::SetPassword, DialogId(), days}};
+      return get_update_suggested_actions_object(added_actions, {}, "get_internal_option_update");
+    }
+  }
+  return nullptr;
 }
 
 const vector<Slice> &OptionManager::get_synchronous_options() {
@@ -324,9 +346,6 @@ void OptionManager::on_option_updated(Slice name) {
       }
       break;
     case 'd':
-      if (name == "default_reaction") {
-        send_update_default_reaction_type(get_option_string(name));
-      }
       if (name == "dice_emojis") {
         send_closure(td_->stickers_manager_actor_, &StickersManager::on_update_dice_emojis);
       }
@@ -352,6 +371,9 @@ void OptionManager::on_option_updated(Slice name) {
     case 'f':
       if (name == "favorite_stickers_limit") {
         td_->stickers_manager_->on_update_favorite_stickers_limit();
+      }
+      if (name == "fragment_prefixes") {
+        send_closure(td_->country_info_manager_actor_, &CountryInfoManager::on_update_fragment_prefixes);
       }
       break;
     case 'i':
@@ -400,13 +422,6 @@ void OptionManager::on_option_updated(Slice name) {
     case 'o':
       if (name == "online_cloud_timeout_ms") {
         send_closure(td_->notification_manager_actor_, &NotificationManager::on_online_cloud_timeout_changed);
-      }
-      if (name == "otherwise_relogin_days") {
-        auto days = narrow_cast<int32>(get_option_integer(name));
-        if (days > 0) {
-          vector<SuggestedAction> added_actions{SuggestedAction{SuggestedAction::Type::SetPassword, DialogId(), days}};
-          send_closure(G()->td(), &Td::send_update, get_update_suggested_actions_object(added_actions, {}));
-        }
       }
       break;
     case 'r':
@@ -511,7 +526,7 @@ td_api::object_ptr<td_api::OptionValue> OptionManager::get_option_synchronously(
       break;
     case 'v':
       if (name == "version") {
-        return td_api::make_object<td_api::optionValueString>("1.8.6");
+        return td_api::make_object<td_api::optionValueString>("1.8.14");
       }
       break;
   }
@@ -640,6 +655,9 @@ void OptionManager::set_option(const string &name, td_api::object_ptr<td_api::Op
       if (!is_bot && set_boolean_option("disable_top_chats")) {
         return;
       }
+      if (set_boolean_option("disable_network_statistics")) {
+        return;
+      }
       if (set_boolean_option("disable_persistent_network_statistics")) {
         return;
       }
@@ -657,6 +675,9 @@ void OptionManager::set_option(const string &name, td_api::object_ptr<td_api::Op
         return;
       }
       if (set_boolean_option("ignore_default_disable_notification")) {
+        return;
+      }
+      if (set_boolean_option("ignore_file_names")) {
         return;
       }
       if (set_boolean_option("ignore_inline_thumbnails")) {
@@ -854,6 +875,11 @@ void OptionManager::get_current_state(vector<td_api::object_ptr<td_api::Update>>
     if (!is_internal_option(option.first)) {
       updates.push_back(
           td_api::make_object<td_api::updateOption>(option.first, get_option_value_object(option.second)));
+    } else {
+      auto update = get_internal_option_update(option.first);
+      if (update != nullptr) {
+        updates.push_back(std::move(update));
+      }
     }
   }
 }

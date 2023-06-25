@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -859,8 +859,8 @@ static void test_queue() {
   for (size_t i = 0; i < THREAD_COUNT; i++) {
     threads.emplace_back([&q = queues[i]] {
       while (true) {
-        auto got = q.reader_wait_nonblock();
-        while (got-- > 0) {
+        auto ready_count = q.reader_wait_nonblock();
+        while (ready_count-- > 0) {
           q.reader_get_unsafe();
         }
         q.reader_get_event_fd().wait(1000);
@@ -888,7 +888,6 @@ int main() {
 #endif
 
 #if TD_PORT_POSIX
-  // TODO: yield makes it extremely slow. Yet some backoff may be necessary.
   // td::bench(RingBenchmark<SemQueue>());
   // td::bench(RingBenchmark<td::PollQueue<qvalue_t>>());
 

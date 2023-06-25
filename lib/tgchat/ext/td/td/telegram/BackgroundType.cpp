@@ -1,11 +1,12 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/telegram/BackgroundType.h"
 
+#include "td/utils/base64.h"
 #include "td/utils/HttpUrl.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
@@ -82,6 +83,8 @@ BackgroundFill::BackgroundFill(const telegram_api::wallPaperSettings *settings) 
       LOG(ERROR) << "Receive " << to_string(*settings);
       rotation_angle_ = 0;
     }
+  } else {
+    bottom_color_ = top_color_;
   }
 }
 
@@ -140,7 +143,7 @@ Result<BackgroundFill> BackgroundFill::get_background_fill(Slice name) {
   }
 
   auto get_color = [](Slice color_string) -> Result<int32> {
-    auto r_color = hex_to_integer_safe<uint32>(color_string);
+    auto r_color = hex_to_integer_safe<uint32>(url_decode(color_string, true));
     if (r_color.is_error() || color_string.size() > 6) {
       return Status::Error(400, "WALLPAPER_INVALID");
     }
@@ -176,7 +179,7 @@ Result<BackgroundFill> BackgroundFill::get_background_fill(Slice name) {
 
     Slice prefix("rotation=");
     if (begins_with(parameters, prefix)) {
-      rotation_angle = to_integer<int32>(parameters.substr(prefix.size()));
+      rotation_angle = to_integer<int32>(url_decode(parameters.substr(prefix.size()), true));
       if (!is_valid_rotation_angle(rotation_angle)) {
         rotation_angle = 0;
       }
@@ -273,7 +276,7 @@ void BackgroundType::apply_parameters_from_link(Slice name) {
   }
 }
 
-string BackgroundType::get_link() const {
+string BackgroundType::get_link(bool is_first) const {
   string mode;
   if (is_blurred_) {
     mode = "blur";
@@ -301,7 +304,7 @@ string BackgroundType::get_link() const {
       return link;
     }
     case Type::Fill:
-      return fill_.get_link(true);
+      return fill_.get_link(is_first);
     default:
       UNREACHABLE();
       return string();
@@ -332,15 +335,19 @@ StringBuilder &operator<<(StringBuilder &string_builder, const BackgroundType &t
   return string_builder << '[' << type.get_link() << ']';
 }
 
-Result<BackgroundType> BackgroundType::get_background_type(const td_api::BackgroundType *background_type) {
+Result<BackgroundType> BackgroundType::get_background_type(const td_api::BackgroundType *background_type,
+                                                           int32 dark_theme_dimming) {
   if (background_type == nullptr) {
-    return Status::Error(400, "Type must be non-empty");
+    return BackgroundType();
+  }
+  if (dark_theme_dimming < 0 || dark_theme_dimming > 100) {
+    return Status::Error(400, "Invalid dark them brightness specified");
   }
 
   switch (background_type->get_id()) {
     case td_api::backgroundTypeWallpaper::ID: {
       auto wallpaper_type = static_cast<const td_api::backgroundTypeWallpaper *>(background_type);
-      return BackgroundType(wallpaper_type->is_blurred_, wallpaper_type->is_moving_);
+      return BackgroundType(wallpaper_type->is_blurred_, wallpaper_type->is_moving_, dark_theme_dimming);
     }
     case td_api::backgroundTypePattern::ID: {
       auto pattern_type = static_cast<const td_api::backgroundTypePattern *>(background_type);
@@ -354,7 +361,7 @@ Result<BackgroundType> BackgroundType::get_background_type(const td_api::Backgro
     case td_api::backgroundTypeFill::ID: {
       auto fill_type = static_cast<const td_api::backgroundTypeFill *>(background_type);
       TRY_RESULT(background_fill, BackgroundFill::get_background_fill(fill_type->fill_.get()));
-      return BackgroundType(std::move(background_fill));
+      return BackgroundType(std::move(background_fill), dark_theme_dimming);
     }
     default:
       UNREACHABLE();
@@ -364,31 +371,35 @@ Result<BackgroundType> BackgroundType::get_background_type(const td_api::Backgro
 
 Result<BackgroundType> BackgroundType::get_local_background_type(Slice name) {
   TRY_RESULT(fill, BackgroundFill::get_background_fill(name));
-  return BackgroundType(fill);
+  return BackgroundType(std::move(fill), 0);
+}
+
+bool BackgroundType::is_background_name_local(Slice name) {
+  return name.size() <= 13u || name.find('?') <= 13u || !is_base64url_characters(name.substr(0, name.find('?')));
 }
 
 BackgroundType::BackgroundType(bool is_fill, bool is_pattern,
                                telegram_api::object_ptr<telegram_api::wallPaperSettings> settings) {
+  if (settings != nullptr && (settings->flags_ & telegram_api::wallPaperSettings::INTENSITY_MASK) != 0) {
+    intensity_ = settings->intensity_;
+    if (!is_valid_intensity(intensity_, is_pattern)) {
+      LOG(ERROR) << "Receive " << to_string(settings);
+      intensity_ = is_pattern ? 50 : 0;
+    }
+  }
   if (is_fill) {
     type_ = Type::Fill;
     CHECK(settings != nullptr);
     fill_ = BackgroundFill(settings.get());
   } else if (is_pattern) {
     type_ = Type::Pattern;
-    if (settings) {
+    if (settings != nullptr) {
       fill_ = BackgroundFill(settings.get());
       is_moving_ = (settings->flags_ & telegram_api::wallPaperSettings::MOTION_MASK) != 0;
-      if ((settings->flags_ & telegram_api::wallPaperSettings::INTENSITY_MASK) != 0) {
-        intensity_ = settings->intensity_;
-        if (!is_valid_intensity(intensity_, true)) {
-          LOG(ERROR) << "Receive " << to_string(settings);
-          intensity_ = 50;
-        }
-      }
     }
   } else {
     type_ = Type::Wallpaper;
-    if (settings) {
+    if (settings != nullptr) {
       is_blurred_ = (settings->flags_ & telegram_api::wallPaperSettings::BLUR_MASK) != 0;
       is_moving_ = (settings->flags_ & telegram_api::wallPaperSettings::MOTION_MASK) != 0;
     }
@@ -430,8 +441,6 @@ td_api::object_ptr<td_api::BackgroundType> BackgroundType::get_background_type_o
 }
 
 telegram_api::object_ptr<telegram_api::wallPaperSettings> BackgroundType::get_input_wallpaper_settings() const {
-  CHECK(has_file());
-
   int32 flags = 0;
   if (is_blurred_) {
     flags |= telegram_api::wallPaperSettings::BLUR_MASK;

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -35,7 +35,7 @@ bool GzipByteFlow::loop() {
   auto r_state = gzip_.run();
   auto output_size = gzip_.flush_output();
   if (output_size) {
-    uncommited_size_ += output_size;
+    uncommitted_size_ += output_size;
     total_output_size_ += output_size;
     if (total_output_size_ > max_output_size_) {
       finish(Status::Error("Max output size limit exceeded"));

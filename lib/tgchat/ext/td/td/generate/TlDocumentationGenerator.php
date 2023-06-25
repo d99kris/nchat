@@ -6,6 +6,15 @@ abstract class TlDocumentationGenerator
     private $documentation = array();
     private $line_replacement = array();
 
+    private function isBuiltInType($type)
+    {
+        if (in_array($type, array('Bool', 'int32', 'int53', 'int64', 'double', 'string', 'bytes'))) {
+          return true;
+        }
+        return substr($type, 0, 7) === 'vector<' && substr($type, -1, 1) === '>' && $this->isBuiltInType(substr($type, 7, -1));
+    }
+
+
     final protected function printError($error)
     {
         fwrite(STDERR, "$error near line \"".rtrim($this->current_line)."\"\n");
@@ -101,6 +110,7 @@ abstract class TlDocumentationGenerator
     {
         $lines = array_filter(array_map('trim', file($tl_scheme_file)));
         $description = '';
+        $description_line_count = 0;
         $current_class = '';
         $is_function = false;
         $need_class_description = false;
@@ -120,8 +130,16 @@ abstract class TlDocumentationGenerator
                     $this->printError('Wrong comment');
                     continue;
                 }
-                if ($line[2] === '@' || $line[2] === '-') {
-                    $description .= trim(substr($line, 2 + intval($line[2] === '-'))).' ';
+                if ($line[2] === '@') {
+                    if (substr($line, 2, 7) !== '@class ') {
+                      $description_line_count++;
+                    }
+                    $description .= trim(substr($line, 2)).' ';
+                } elseif ($line[2] === '-') {
+                    if (strpos($line, '@') !== false) {
+                      $description_line_count += 100;
+                    }
+                    $description .= trim(substr($line, 3)).' ';
                 } else {
                     $this->printError('Unexpected comment');
                 }
@@ -212,14 +230,14 @@ abstract class TlDocumentationGenerator
                         $known_fields[$field_name] = $field_type;
                         continue;
                     }
-                    $this->printError("Have no info about field `$field_name`");
+                    $this->printError("Have no documentation for field `$field_name`");
                 }
 
                 foreach ($info as $name => $value) {
                     if (!$value) {
-                        $this->printError("info[$name] for $class_name is empty");
+                        $this->printError("Documentation for field $name of $class_name is empty");
                     } elseif (($value[0] < 'A' || $value[0] > 'Z') && ($value[0] < '0' || $value[0] > '9')) {
-                        $this->printError("info[$name] for $class_name doesn't begins with capital letter");
+                        $this->printError("Documentation for field $name of $class_name doesn't begin with a capital letter");
                     }
                 }
 
@@ -235,11 +253,13 @@ abstract class TlDocumentationGenerator
                 }
 
                 foreach (array_diff_key($info, $known_fields) as $field_name => $field_info) {
-                    $this->printError("Have info about unexisted field `$field_name`");
+                    $this->printError("Have info about nonexistent field `$field_name`");
                 }
 
                 if (array_keys($info) !== array_keys($known_fields)) {
                     $this->printError("Have wrong documentation for class `$class_name`");
+                } else if ($description_line_count === 1 ? count($known_fields) >= 4 : $description_line_count !== count($known_fields) + 1) {
+                    $this->printError("Documentation for fields of class `$class_name` must be split to different lines");
                 }
 
                 $base_class_name = $current_class ?: $this->getBaseClassName($is_function);
@@ -255,6 +275,9 @@ abstract class TlDocumentationGenerator
                     $may_be_null = stripos($info[$name], 'may be null') !== false;
                     $field_name = $this->getFieldName($name, $class_name);
                     $field_type_name = $this->getTypeName($field_type);
+                    if ($this->isBuiltInType($field_type) && ($may_be_null || stripos($info[$name], '; pass null') !== false)) {
+                        $this->printError("Field `$name` of class `$class_name` can't be marked as nullable");
+                    }
                     $this->addFieldDocumentation($class_name, $field_name, $field_type_name, $info[$name], $may_be_null);
                 }
 
@@ -274,6 +297,7 @@ abstract class TlDocumentationGenerator
                 }
 
                 $description = '';
+                $description_line_count = 0;
             }
         }
 

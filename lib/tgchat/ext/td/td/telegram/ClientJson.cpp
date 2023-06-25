@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -48,8 +48,7 @@ static std::pair<td_api::object_ptr<td_api::Function>, string> to_request(Slice 
   td_api::object_ptr<td_api::Function> func;
   auto status = from_json(func, std::move(json_value));
   if (status.is_error()) {
-    return {get_return_error_function(PSLICE()
-                                      << "Failed to parse JSON object as TDLib request: " << status.error().message()),
+    return {get_return_error_function(PSLICE() << "Failed to parse JSON object as TDLib request: " << status.message()),
             std::move(extra)};
   }
   return std::make_pair(std::move(func), std::move(extra));

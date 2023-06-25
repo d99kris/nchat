@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -242,10 +242,10 @@ struct PhotoSizeSource {
   }
 
   // returns unique representation of the source
-  string get_unique() const;
+  string get_unique(const char *source) const;
 
   // can't be called for Legacy sources
-  string get_unique_name(int64 photo_id) const;
+  string get_unique_name(int64 photo_id, const char *source) const;
 
   template <class StorerT>
   void store(StorerT &storer) const;

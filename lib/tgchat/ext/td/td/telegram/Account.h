@@ -1,12 +1,11 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #pragma once
 
-#include "td/telegram/DialogParticipant.h"
 #include "td/telegram/td_api.h"
 
 #include "td/utils/common.h"
@@ -15,6 +14,10 @@
 namespace td {
 
 class Td;
+
+void set_default_message_ttl(Td *td, int32 message_ttl, Promise<Unit> &&promise);
+
+void get_default_message_ttl(Td *td, Promise<int32> &&promise);
 
 void set_account_ttl(Td *td, int32 account_ttl, Promise<Unit> &&promise);
 
@@ -41,9 +44,8 @@ void disconnect_website(Td *td, int64 website_id, Promise<Unit> &&promise);
 
 void disconnect_all_websites(Td *td, Promise<Unit> &&promise);
 
-void set_default_group_administrator_rights(Td *td, AdministratorRights administrator_rights, Promise<Unit> &&promise);
+void export_contact_token(Td *td, Promise<td_api::object_ptr<td_api::userLink>> &&promise);
 
-void set_default_channel_administrator_rights(Td *td, AdministratorRights administrator_rights,
-                                              Promise<Unit> &&promise);
+void import_contact_token(Td *td, const string &token, Promise<td_api::object_ptr<td_api::user>> &&promise);
 
 }  // namespace td

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -18,14 +18,14 @@
 
 namespace td {
 
-SessionMultiProxy::SessionMultiProxy() = default;
 SessionMultiProxy::~SessionMultiProxy() = default;
 
 SessionMultiProxy::SessionMultiProxy(int32 session_count, std::shared_ptr<AuthDataShared> shared_auth_data,
-                                     bool is_main, bool use_pfs, bool allow_media_only, bool is_media, bool is_cdn,
-                                     bool need_destroy_auth_key)
+                                     bool is_primary, bool is_main, bool use_pfs, bool allow_media_only, bool is_media,
+                                     bool is_cdn, bool need_destroy_auth_key)
     : session_count_(session_count)
     , auth_data_(std::move(shared_auth_data))
+    , is_primary_(is_primary)
     , is_main_(is_main)
     , use_pfs_(use_pfs)
     , allow_media_only_(allow_media_only)
@@ -44,12 +44,12 @@ void SessionMultiProxy::send(NetQueryPtr query) {
       pos = query->session_rand() % sessions_.size();
     } else {
       pos = std::min_element(sessions_.begin(), sessions_.end(),
-                             [](const auto &a, const auto &b) { return a.queries_count < b.queries_count; }) -
+                             [](const auto &a, const auto &b) { return a.query_count < b.query_count; }) -
             sessions_.begin();
     }
   }
   // query->debug(PSTRING() << get_name() << ": send to proxy #" << pos);
-  sessions_[pos].queries_count++;
+  sessions_[pos].query_count++;
   send_closure(sessions_[pos].proxy, &SessionProxy::send, std::move(query));
 }
 
@@ -142,8 +142,8 @@ void SessionMultiProxy::init() {
       int32 session_id_;
     };
     info.proxy = create_actor<SessionProxy>(name, make_unique<Callback>(actor_id(this), sessions_generation_, i),
-                                            auth_data_, is_main_, allow_media_only_, is_media_, get_pfs_flag(), is_cdn_,
-                                            need_destroy_auth_key_ && i == 0);
+                                            auth_data_, is_primary_, is_main_, allow_media_only_, is_media_,
+                                            get_pfs_flag(), is_cdn_, need_destroy_auth_key_ && i == 0);
     sessions_.push_back(std::move(info));
   }
 }
@@ -152,8 +152,10 @@ void SessionMultiProxy::on_query_finished(uint32 generation, int session_id) {
   if (generation != sessions_generation_) {
     return;
   }
-  sessions_.at(session_id).queries_count--;
-  CHECK(sessions_.at(session_id).queries_count >= 0);
+  CHECK(static_cast<size_t>(session_id) < sessions_.size());
+  auto &query_count = sessions_[session_id].query_count;
+  CHECK(query_count > 0);
+  query_count--;
 }
 
 }  // namespace td

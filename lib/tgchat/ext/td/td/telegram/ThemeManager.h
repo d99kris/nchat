@@ -1,13 +1,12 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #pragma once
 
-#include "td/telegram/BackgroundId.h"
-#include "td/telegram/BackgroundType.h"
+#include "td/telegram/BackgroundInfo.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 
@@ -43,8 +42,7 @@ class ThemeManager final : public Actor {
   struct ThemeSettings {
     int32 accent_color = 0;
     int32 message_accent_color = 0;
-    BackgroundId background_id;
-    BackgroundType background_type;
+    BackgroundInfo background_info;
     BaseTheme base_theme = BaseTheme::Classic;
     vector<int32> message_colors;
     bool animate_message_colors = false;

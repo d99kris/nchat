@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -14,45 +14,49 @@
 
 namespace td {
 
-Status BinlogEvent::init(BufferSlice &&raw_event, bool check_crc) {
-  TlParser parser(raw_event.as_slice());
-  size_ = parser.fetch_int();
-  LOG_CHECK(size_ == raw_event.size()) << size_ << " " << raw_event.size() << debug_info_;
-  id_ = parser.fetch_long();
+void BinlogEvent::init(string raw_event) {
+  TlParser parser(as_slice(raw_event));
+  size_ = static_cast<uint32>(parser.fetch_int());
+  LOG_CHECK(size_ == raw_event.size()) << size_ << ' ' << raw_event.size() << debug_info_;
+  id_ = static_cast<uint64>(parser.fetch_long());
   type_ = parser.fetch_int();
   flags_ = parser.fetch_int();
-  extra_ = parser.fetch_long();
+  extra_ = static_cast<uint64>(parser.fetch_long());
   CHECK(size_ >= MIN_SIZE);
-  auto slice_data = parser.fetch_string_raw<Slice>(size_ - MIN_SIZE);
-  data_ = MutableSlice(const_cast<char *>(slice_data.begin()), slice_data.size());
+  parser.fetch_string_raw<Slice>(size_ - MIN_SIZE);  // skip data
   crc32_ = static_cast<uint32>(parser.fetch_int());
-  if (check_crc) {
-    auto calculated_crc = crc32(raw_event.as_slice().substr(0, size_ - TAIL_SIZE));
-    if (calculated_crc != crc32_) {
-      return Status::Error(PSLICE() << "crc mismatch " << tag("actual", format::as_hex(calculated_crc))
-                                    << tag("expected", format::as_hex(crc32_)) << public_to_string());
-    }
-  }
   raw_event_ = std::move(raw_event);
-  return Status::OK();
+}
+
+Slice BinlogEvent::get_data() const {
+  CHECK(raw_event_.size() >= MIN_SIZE);
+  return Slice(as_slice(raw_event_).data() + HEADER_SIZE, raw_event_.size() - MIN_SIZE);
 }
 
 Status BinlogEvent::validate() const {
-  BinlogEvent event;
-  if (raw_event_.size() < 4) {
+  if (raw_event_.size() < MIN_SIZE) {
     return Status::Error("Too small event");
   }
-  uint32 size = TlParser(raw_event_.as_slice().substr(0, 4)).fetch_int();
-  if (size_ != size) {
-    return Status::Error(PSLICE() << "Size of event changed: " << tag("was", size_) << tag("now", size));
+  TlParser parser(as_slice(raw_event_));
+  auto size = static_cast<uint32>(parser.fetch_int());
+  if (size_ != size || size_ != raw_event_.size()) {
+    return Status::Error(PSLICE() << "Size of event changed: " << tag("was", size_) << tag("now", size)
+                                  << tag("real size", raw_event_.size()));
   }
-  return event.init(raw_event_.clone(), true);
+  parser.fetch_string_raw<Slice>(size_ - TAIL_SIZE - sizeof(int));  // skip
+  auto stored_crc32 = static_cast<uint32>(parser.fetch_int());
+  auto calculated_crc = crc32(Slice(as_slice(raw_event_).data(), size_ - TAIL_SIZE));
+  if (calculated_crc != crc32_ || calculated_crc != stored_crc32) {
+    return Status::Error(PSLICE() << "CRC mismatch " << tag("actual", format::as_hex(calculated_crc))
+                                  << tag("expected", format::as_hex(crc32_)) << public_to_string());
+  }
+  return Status::OK();
 }
 
 BufferSlice BinlogEvent::create_raw(uint64 id, int32 type, int32 flags, const Storer &storer) {
   auto raw_event = BufferSlice{storer.size() + MIN_SIZE};
 
-  TlStorerUnsafe tl_storer(raw_event.as_slice().ubegin());
+  TlStorerUnsafe tl_storer(raw_event.as_mutable_slice().ubegin());
   tl_storer.store_int(narrow_cast<int32>(raw_event.size()));
   tl_storer.store_long(id);
   tl_storer.store_int(type);
@@ -66,13 +70,6 @@ BufferSlice BinlogEvent::create_raw(uint64 id, int32 type, int32 flags, const St
   tl_storer.store_int(crc32(raw_event.as_slice().truncate(raw_event.size() - TAIL_SIZE)));
 
   return raw_event;
-}
-
-void BinlogEvent::realloc() {
-  auto data_offset = data_.begin() - raw_event_.as_slice().begin();
-  auto data_size = data_.size();
-  raw_event_ = raw_event_.copy();
-  data_ = raw_event_.as_slice().substr(data_offset, data_size);
 }
 
 }  // namespace td

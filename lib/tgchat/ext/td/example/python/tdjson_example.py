@@ -1,6 +1,6 @@
 #
 # Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com),
-# Pellegrino Prevete (pellegrinoprevete@gmail.com)  2014-2022
+# Pellegrino Prevete (pellegrinoprevete@gmail.com)  2014-2023
 #
 # Distributed under the Boost Software License, Version 1.0. (See accompanying
 # file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -75,8 +75,8 @@ def td_receive():
 # another test for TDLib execute method
 print(str(td_execute({'@type': 'getTextEntities', 'text': '@telegram /test_command https://telegram.org telegram.me', '@extra': ['5', 7.0, 'a']})).encode('utf-8'))
 
-# start the client by sending request to it
-td_send({'@type': 'getAuthorizationState', '@extra': 1.01234})
+# start the client by sending a request to it
+td_send({'@type': 'getOption', 'name': 'version', '@extra': 1.01234})
 
 # main events cycle
 while True:
@@ -119,7 +119,7 @@ while True:
             if auth_state['@type'] == 'authorizationStateWaitEmailCode':
                 code = input('Please enter the email authentication code you received: ')
                 td_send({'@type': 'checkAuthenticationEmailCode',
-                         'code': {'@type': 'emailAddressAuthenticationCode', 'code' : 'code'}})
+                         'code': {'@type': 'emailAddressAuthenticationCode', 'code' : code}})
 
             # wait for authorization code
             if auth_state['@type'] == 'authorizationStateWaitCode':

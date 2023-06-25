@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -196,7 +196,7 @@ inline StringBuilder &operator<<(StringBuilder &logger, Size t) {
   static constexpr size_t sizes_n = sizeof(sizes) / sizeof(NamedValue);
 
   size_t i = 0;
-  while (i + 1 < sizes_n && t.size_ > 10 * sizes[i + 1].value) {
+  while (i + 1 < sizes_n && t.size_ >= 100000 * sizes[i].value) {
     i++;
   }
   logger << t.size_ / sizes[i].value << Slice(sizes[i].name);

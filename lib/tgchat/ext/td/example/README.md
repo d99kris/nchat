@@ -4,7 +4,7 @@ This directory contains basic examples of TDLib usage from different programming
 If you are looking for documentation of all available TDLib methods, see the [td_api.tl](https://github.com/tdlib/td/blob/master/td/generate/scheme/td_api.tl) scheme or the
 automatically generated [HTML documentation](https://core.telegram.org/tdlib/docs/td__api_8h.html) for a list of all available TDLib
 [methods](https://core.telegram.org/tdlib/docs/classtd_1_1td__api_1_1_function.html) and [classes](https://core.telegram.org/tdlib/docs/classtd_1_1td__api_1_1_object.html).
-Also take a look at our [Getting Started](https://core.telegram.org/tdlib/getting-started) tutorial for a description of basic TDLib concepts.
+Also, take a look at our [Getting Started](https://core.telegram.org/tdlib/getting-started) tutorial for a description of basic TDLib concepts.
 
 TDLib can be easily used from almost any programming language on any platform. See a [TDLib build instructions generator](https://tdlib.github.io/td/build.html) for detailed instructions on how to build TDLib.
 Choose your preferred programming language to see examples of usage and a detailed description:
@@ -32,6 +32,7 @@ Choose your preferred programming language to see examples of usage and a detail
 - [Emacs Lisp](#emacslisp)
 - [D](#d)
 - [Elixir](#elixir)
+- [Vala](#vala)
 - [1С](#1s)
 - [C](#c)
 - [G](#g)
@@ -84,9 +85,9 @@ See [nativescript-tglib](https://github.com/arpit2438735/nativescript-tglib) as 
 TDLib can be used from the Go programming language through the [JSON](https://github.com/tdlib/td#using-json) interface and Cgo, and can be linked either statically or dynamically.
 
 Convenient Go wrappers already exist for our JSON interface.
-For example, take a look at [go-tdlib](https://github.com/zelenin/go-tdlib) or [go-tdlib](https://github.com/Arman92/go-tdlib), which provide a convenient TDLib client, a generator for TDLib API classes and contain many examples.
+For example, take a look at [github.com/zelenin/go-tdlib](https://github.com/zelenin/go-tdlib) or [github.com/Arman92/go-tdlib](https://github.com/Arman92/go-tdlib), which provide a convenient TDLib client, a generator for TDLib API classes and contain many examples.
 
-You can also see [go-tdjson](https://github.com/L11R/go-tdjson) for another example of TDLib JSON interface integration with Go.
+You can also see [github.com/aliforever/go-tdlib](https://github.com/aliforever/go-tdlib) or [github.com/L11R/go-tdjson](https://github.com/L11R/go-tdjson) for another examples of TDLib JSON interface integration with Go.
 
 <a name="java"></a>
 ## Using TDLib in Java projects
@@ -119,7 +120,7 @@ provides an asynchronous interface for interaction with TDLib, automatically gen
 
 You can also use [TDLibCore](https://github.com/ph09nix/TDLibCore) library.
 
-Also see [Unigram](https://github.com/UnigramDev/Unigram), which is a full-featured client rewritten from scratch in C# using TDLib SDK for Universal Windows Platform in less than 2 months,
+Also, see [Unigram](https://github.com/UnigramDev/Unigram), which is a full-featured client rewritten from scratch in C# using TDLib SDK for Universal Windows Platform in less than 2 months,
 [egram.tel](https://github.com/egramtel/egram.tel) – a cross-platform Telegram client written in C#, .NET Core, ReactiveUI and Avalonia, or
 [telewear](https://github.com/telewear/telewear) - a Telegram client for Samsung watches.
 
@@ -134,7 +135,7 @@ See [example/cpp](https://github.com/tdlib/td/tree/master/example/cpp) for an ex
 See also the source code of [Fernschreiber](https://github.com/Wunderfitz/harbour-fernschreiber) and [Depecher](https://github.com/blacksailer/depecher) – Telegram apps for Sailfish OS,
 [TELEports](https://gitlab.com/ubports/development/apps/teleports) – a Qt-client for Ubuntu Touch, [tdlib-purple](https://github.com/ars3niy/tdlib-purple) - Telegram plugin for Pidgin,
 or [MeeGram](https://github.com/qtinsider/meegram2) - a Telegram client for Nokia N9,
-[TDLib Native Sciter Extension](https://github.com/RadRussianRus/TDLibNSE) - a Sciter native extension for TDLib's JSON interface, all of which are based on TDLib.
+[TDLib Native Sciter Extension](https://github.com/EricKotato/TDLibNSE) - a Sciter native extension for TDLib's JSON interface, all of which are based on TDLib.
 
 <a name="swift"></a>
 ## Using TDLib in Swift projects
@@ -170,24 +171,26 @@ See [tdlib-lazarus](https://github.com/dieletro/tdlib-lazarus) for an example of
 
 TDLib can be used from the Dart programming language through the [JSON](https://github.com/tdlib/td#using-json) interface and a Dart Native Extension or Dart FFI.
 
-See [dart_tdlib](https://github.com/periodicaidan/dart_tdlib), [flutter_libtdjson](https://github.com/up9cloud/flutter_libtdjson), [Dart wrapper for TDLib](https://github.com/tdlib/td/pull/708/commits/237060abd4c205768153180e9f814298d1aa9d49), or [tdlib_bindings](https://github.com/lesnitsky/tdlib_bindings) for an example of a TDLib Dart bindings through FFI.
+See [tdlib-dart](https://github.com/ivk1800/tdlib-dart), which provide convenient TDLib client with automatically generated and fully-documented classes for all TDLib API methods and objects.
+
+See also [dart_tdlib](https://github.com/periodicaidan/dart_tdlib), [flutter_libtdjson](https://github.com/up9cloud/flutter_libtdjson), [Dart wrapper for TDLib](https://github.com/tdlib/td/pull/708/commits/237060abd4c205768153180e9f814298d1aa9d49), or [tdlib_bindings](https://github.com/lesnitsky/tdlib_bindings) for an example of a TDLib Dart bindings through FFI.
 
 See [Telegram Client library](https://github.com/azkadev/telegram_client), [project.scarlet](https://github.com/aaugmentum/project.scarlet), [tdlib](https://github.com/i-Naji/tdlib),
 [tdlib-dart](https://github.com/drewpayment/tdlib-dart), [FluGram](https://github.com/triedcatched/tdlib-dart), or [telegram-service](https://github.com/igorder-dev/telegram-service) for examples of using TDLib from Dart.
 
-See also [f-Telegram](https://github.com/evgfilim1/ftg) - Flutter Telegram client.
+See also [telegram-flutter](https://github.com/ivk1800/telegram-flutter) - Telegram client written in Dart, and [f-Telegram](https://github.com/evgfilim1/ftg) - Flutter Telegram client.
 
 <a name="rust"></a>
 ## Using TDLib in Rust projects
 
 TDLib can be used from the Rust programming language through the [JSON](https://github.com/tdlib/td#using-json) interface.
 
-See [rust-tdlib](https://github.com/aCLr/rust-tdlib), [tdlib](https://github.com/melix99/tdlib-rs), or [tdlib-rs](https://github.com/agnipau/tdlib-rs), which provide convenient TDLib clients with automatically generated and fully-documented classes for all TDLib API methods and objects.
+See [rust-tdlib](https://github.com/antonio-antuan/rust-tdlib), or [tdlib](https://github.com/melix99/tdlib-rs), which provide convenient TDLib clients with automatically generated and fully-documented classes for all TDLib API methods and objects.
 
 See [rtdlib](https://github.com/fewensa/rtdlib), [tdlib-rs](https://github.com/d653/tdlib-rs), [tdlib-futures](https://github.com/yuri91/tdlib-futures),
 [tdlib-sys](https://github.com/nuxeh/tdlib-sys), [tdjson-rs](https://github.com/mersinvald/tdjson-rs), [rust-tdlib](https://github.com/vhaoran/rust-tdlib), or [tdlib-json-sys](https://github.com/aykxt/tdlib-json-sys) for examples of TDLib Rust bindings.
 
-Also see [Telegrand](https://github.com/melix99/telegrand) – a Telegram client optimized for the GNOME desktop.
+Also, see [Telegrand](https://github.com/melix99/telegrand) – a Telegram client optimized for the GNOME desktop.
 
 <a name="erlang"></a>
 ## Using TDLib in Erlang projects
@@ -277,6 +280,13 @@ TDLib can be used from the Elixir programming language.
 
 See [Elixir TDLib](https://github.com/QuantLayer/elixir-tdlib) for an example of such usage and an Elixir client for TDLib.
 The library contains automatically generated and fully-documented classes for all TDLib API methods and objects.
+
+<a name="vala"></a>
+## Using TDLib in Vala projects
+
+TDLib can be used from the Vala programming language.
+
+See [TDLib Vala](https://github.com/AYMENJD/td-vala) for an example of such usage.
 
 <a name="1s"></a>
 ## Using TDLib from 1С:Enterprise

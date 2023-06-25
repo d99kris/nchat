@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -62,13 +62,13 @@ class Session final
                                         Promise<unique_ptr<mtproto::RawConnection>>) = 0;
     virtual void on_tmp_auth_key_updated(mtproto::AuthKey auth_key) = 0;
     virtual void on_server_salt_updated(vector<mtproto::ServerSalt> server_salts) = 0;
-    virtual void on_update(BufferSlice &&update) = 0;
+    virtual void on_update(BufferSlice &&update, uint64 auth_key_id) = 0;
     virtual void on_result(NetQueryPtr net_query) = 0;
   };
 
   Session(unique_ptr<Callback> callback, std::shared_ptr<AuthDataShared> shared_auth_data, int32 raw_dc_id, int32 dc_id,
-          bool is_main, bool use_pfs, bool is_cdn, bool need_destroy, const mtproto::AuthKey &tmp_auth_key,
-          const vector<mtproto::ServerSalt> &server_salts);
+          bool is_primary, bool is_main, bool use_pfs, bool is_cdn, bool need_destroy,
+          const mtproto::AuthKey &tmp_auth_key, const vector<mtproto::ServerSalt> &server_salts);
 
   void send(NetQueryPtr &&query);
 
@@ -78,7 +78,7 @@ class Session final
 
  private:
   struct Query final : private ListNode {
-    uint64 container_id;
+    uint64 container_message_id;
     NetQueryPtr query;
 
     bool ack = false;
@@ -87,7 +87,7 @@ class Session final
     int8 connection_id;
     double sent_at_;
     Query(uint64 message_id, NetQueryPtr &&q, int8 connection_id, double sent_at)
-        : container_id(message_id), query(std::move(q)), connection_id(connection_id), sent_at_(sent_at) {
+        : container_message_id(message_id), query(std::move(q)), connection_id(connection_id), sent_at_(sent_at) {
     }
 
     ListNode *get_list_node() {
@@ -101,20 +101,21 @@ class Session final
   // When connection is closed, mark all queries without ack as unknown.
   // Ask state of all unknown queries when new connection is created.
   //
-  // Just re-ask answer_id each time we get information about it.
+  // Just re-ask answer_message_id each time we get information about it.
   // Though mtproto::Connection must ensure delivery of such query.
 
-  int32 raw_dc_id_;  // numerical datacenter ID, i.e. 2
-  int32 dc_id_;      // unique datacenter ID, i.e. -10002
-  enum class Mode : int8 { Tcp, Http } mode_ = Mode::Tcp;
-  bool is_main_;  // true only for the primary Session(s) to the main DC
-  bool is_cdn_;
-  bool need_destroy_;
+  const int32 raw_dc_id_;  // numerical datacenter ID, i.e. 2
+  const int32 dc_id_;      // unique datacenter ID, i.e. -10002
+  const bool is_primary_;  // true for primary Sessions to all DCs
+  const bool is_main_;     // true only for the primary Session(s) to the main DC
+  const bool is_cdn_;
+  const bool need_destroy_;
   bool was_on_network_ = false;
   bool network_flag_ = false;
   bool online_flag_ = false;
   bool logging_out_flag_ = false;
   bool connection_online_flag_ = false;
+  enum class Mode : int8 { Tcp, Http } mode_ = Mode::Tcp;
   uint32 network_generation_ = 0;
   uint64 being_binded_tmp_auth_key_id_ = 0;
   uint64 being_checked_main_auth_key_id_ = 0;
@@ -175,7 +176,7 @@ class Session final
 
   struct ContainerInfo {
     size_t ref_cnt;
-    std::vector<uint64> message_ids;
+    vector<uint64> message_ids;
   };
   FlatHashMap<uint64, ContainerInfo> sent_containers_;
 
@@ -191,7 +192,7 @@ class Session final
   double wakeup_at_;
   void on_handshake_ready(Result<unique_ptr<mtproto::AuthKeyHandshake>> r_handshake);
   void create_gen_auth_key_actor(HandshakeId handshake_id);
-  void auth_loop();
+  void auth_loop(double now);
 
   // mtproto::Connection::Callback
   void on_connected() final;
@@ -208,45 +209,45 @@ class Session final
   void on_server_salt_updated() final;
   void on_server_time_difference_updated() final;
 
-  void on_session_created(uint64 unique_id, uint64 first_id) final;
+  void on_session_created(uint64 unique_id, uint64 first_message_id) final;
   void on_session_failed(Status status) final;
 
-  void on_container_sent(uint64 container_id, vector<uint64> msg_ids) final;
+  void on_container_sent(uint64 container_message_id, vector<uint64> message_ids) final;
 
   Status on_update(BufferSlice packet) final;
 
-  void on_message_ack(uint64 id) final;
-  Status on_message_result_ok(uint64 id, BufferSlice packet, size_t original_size) final;
-  void on_message_result_error(uint64 id, int error_code, string message) final;
-  void on_message_failed(uint64 id, Status status) final;
+  void on_message_ack(uint64 message_id) final;
+  Status on_message_result_ok(uint64 message_id, BufferSlice packet, size_t original_size) final;
+  void on_message_result_error(uint64 message_id, int error_code, string message) final;
+  void on_message_failed(uint64 message_id, Status status) final;
 
-  void on_message_info(uint64 id, int32 state, uint64 answer_id, int32 answer_size) final;
+  void on_message_info(uint64 message_id, int32 state, uint64 answer_message_id, int32 answer_size) final;
 
   Status on_destroy_auth_key() final;
 
   void flush_pending_invoke_after_queries();
   bool has_queries() const;
 
-  void dec_container(uint64 message_id, Query *query);
-  void cleanup_container(uint64 id, Query *query);
-  void mark_as_known(uint64 id, Query *query);
-  void mark_as_unknown(uint64 id, Query *query);
+  void dec_container(uint64 container_message_id, Query *query);
+  void cleanup_container(uint64 container_message_id, Query *query);
+  void mark_as_known(uint64 message_id, Query *query);
+  void mark_as_unknown(uint64 message_id, Query *query);
 
-  void on_message_ack_impl(uint64 id, int32 type);
-  void on_message_ack_impl_inner(uint64 id, int32 type, bool in_container);
-  void on_message_failed_inner(uint64 id, bool in_container);
+  void on_message_ack_impl(uint64 container_message_id, int32 type);
+  void on_message_ack_impl_inner(uint64 message_id, int32 type, bool in_container);
+  void on_message_failed_inner(uint64 message_id, bool in_container);
 
   // send NetQueryPtr to parent
   void return_query(NetQueryPtr &&query);
   void add_query(NetQueryPtr &&net_query);
   void resend_query(NetQueryPtr query);
 
-  void connection_open(ConnectionInfo *info, bool ask_info = false);
+  void connection_open(ConnectionInfo *info, double now, bool ask_info = false);
   void connection_add(unique_ptr<mtproto::RawConnection> raw_connection);
   void connection_check_mode(ConnectionInfo *info);
   void connection_open_finish(ConnectionInfo *info, Result<unique_ptr<mtproto::RawConnection>> r_raw_connection);
 
-  void connection_online_update(bool force = false);
+  void connection_online_update(double now, bool force);
   void connection_close(ConnectionInfo *info);
   void connection_flush(ConnectionInfo *info);
   void connection_send_query(ConnectionInfo *info, NetQueryPtr &&net_query, uint64 message_id = 0);
@@ -268,7 +269,7 @@ class Session final
   void raw_event(const Event::Raw &event) final;
 
   friend StringBuilder &operator<<(StringBuilder &sb, Mode mode) {
-    return sb << (mode == Mode::Http ? "Http" : "Tcp");
+    return sb << (mode == Mode::Http ? "HTTP" : "TCP");
   }
 };
 

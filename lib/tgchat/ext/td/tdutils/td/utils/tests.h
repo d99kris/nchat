@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -12,6 +12,7 @@
 #include "td/utils/logging.h"
 #include "td/utils/port/sleep.h"
 #include "td/utils/Slice.h"
+#include "td/utils/Span.h"
 #include "td/utils/Status.h"
 
 #include <atomic>
@@ -165,24 +166,34 @@ string rand_string(int from, int to, size_t len);
 
 vector<string> rand_split(Slice str);
 
+template <class T, class R>
+void rand_shuffle(MutableSpan<T> v, R &rnd) {
+  for (size_t i = 1; i < v.size(); i++) {
+    auto pos = static_cast<size_t>(rnd()) % (i + 1);
+    using std::swap;
+    swap(v[i], v[pos]);
+  }
+}
+
 template <class T1, class T2>
-void assert_eq_impl(const T1 &expected, const T2 &got, const char *file, int line) {
-  LOG_CHECK(expected == got) << tag("expected", expected) << tag("got", got) << " in " << file << " at line " << line;
+void assert_eq_impl(const T1 &expected, const T2 &received, const char *file, int line) {
+  LOG_CHECK(expected == received) << tag("expected", expected) << tag("received", received) << " in " << file
+                                  << " at line " << line;
 }
 
 template <class T>
-void assert_true_impl(const T &got, const char *file, int line) {
-  LOG_CHECK(got) << "Expected true in " << file << " at line " << line;
+void assert_true_impl(const T &received, const char *file, int line) {
+  LOG_CHECK(received) << "Expected true in " << file << " at line " << line;
 }
 
 }  // namespace td
 
-#define ASSERT_EQ(expected, got) ::td::assert_eq_impl((expected), (got), __FILE__, __LINE__)
+#define ASSERT_EQ(expected, received) ::td::assert_eq_impl((expected), (received), __FILE__, __LINE__)
 
-#define ASSERT_TRUE(got) ::td::assert_true_impl((got), __FILE__, __LINE__)
+#define ASSERT_TRUE(received) ::td::assert_true_impl((received), __FILE__, __LINE__)
 
-#define ASSERT_STREQ(expected, got) \
-  ::td::assert_eq_impl(::td::Slice((expected)), ::td::Slice((got)), __FILE__, __LINE__)
+#define ASSERT_STREQ(expected, received) \
+  ::td::assert_eq_impl(::td::Slice((expected)), ::td::Slice((received)), __FILE__, __LINE__)
 
 #define REGRESSION_VERIFY(data) ::td::TestContext::get()->verify(data).ensure()
 

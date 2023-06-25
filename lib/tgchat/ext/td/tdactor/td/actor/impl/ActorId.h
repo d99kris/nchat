@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -30,15 +30,6 @@ ActorType *ActorId<ActorType>::get_actor_unsafe() const {
 }
 
 template <class ActorType>
-ActorType *ActorId<ActorType>::try_get_actor() const {
-  auto info = get_actor_info();
-  if (info && !info->is_migrating() && Scheduler::instance()->sched_id() == info->migrate_dest()) {
-    return static_cast<ActorType *>(info->get_actor_unsafe());
-  }
-  return nullptr;
-}
-
-template <class ActorType>
 Slice ActorId<ActorType>::get_name() const {
   return ptr_->get_name();
 }
@@ -46,14 +37,17 @@ Slice ActorId<ActorType>::get_name() const {
 template <class ActorType>
 ActorOwn<ActorType>::ActorOwn(ActorId<ActorType> id) : id_(std::move(id)) {
 }
+
 template <class ActorType>
 template <class OtherActorType>
 ActorOwn<ActorType>::ActorOwn(ActorId<OtherActorType> id) : id_(std::move(id)) {
 }
+
 template <class ActorType>
 template <class OtherActorType>
 ActorOwn<ActorType>::ActorOwn(ActorOwn<OtherActorType> &&other) : id_(other.release()) {
 }
+
 template <class ActorType>
 template <class OtherActorType>
 ActorOwn<ActorType> &ActorOwn<ActorType>::operator=(ActorOwn<OtherActorType> &&other) {
@@ -64,6 +58,7 @@ ActorOwn<ActorType> &ActorOwn<ActorType>::operator=(ActorOwn<OtherActorType> &&o
 template <class ActorType>
 ActorOwn<ActorType>::ActorOwn(ActorOwn &&other) noexcept : id_(other.release()) {
 }
+
 template <class ActorType>
 ActorOwn<ActorType> &ActorOwn<ActorType>::operator=(ActorOwn &&other) noexcept {
   reset(other.release());
@@ -79,6 +74,7 @@ template <class ActorType>
 bool ActorOwn<ActorType>::empty() const {
   return id_.empty();
 }
+
 template <class ActorType>
 ActorId<ActorType> ActorOwn<ActorType>::get() const {
   return id_;
@@ -88,36 +84,36 @@ template <class ActorType>
 ActorId<ActorType> ActorOwn<ActorType>::release() {
   return std::move(id_);
 }
+
 template <class ActorType>
 void ActorOwn<ActorType>::reset(ActorId<ActorType> other) {
   static_assert(sizeof(ActorType) > 0, "Can't use ActorOwn with incomplete type");
-  hangup();
+  if (!id_.empty()) {
+    send_event(id_, Event::hangup());
+  }
   id_ = std::move(other);
 }
 
 template <class ActorType>
-void ActorOwn<ActorType>::hangup() const {
-  if (!id_.empty()) {
-    send_event(id_, Event::hangup());
-  }
-}
-template <class ActorType>
-const ActorId<ActorType> *ActorOwn<ActorType>::operator->() const {
-  return &id_;
+ActorType *ActorOwn<ActorType>::get_actor_unsafe() const {
+  return id_.get_actor_unsafe();
 }
 
 template <class ActorType>
 template <class OtherActorType>
 ActorShared<ActorType>::ActorShared(ActorId<OtherActorType> id, uint64 token) : id_(std::move(id)), token_(token) {
 }
+
 template <class ActorType>
 template <class OtherActorType>
 ActorShared<ActorType>::ActorShared(ActorShared<OtherActorType> &&other) : id_(other.release()), token_(other.token()) {
 }
+
 template <class ActorType>
 template <class OtherActorType>
 ActorShared<ActorType>::ActorShared(ActorOwn<OtherActorType> &&other) : id_(other.release()), token_(0) {
 }
+
 template <class ActorType>
 template <class OtherActorType>
 ActorShared<ActorType> &ActorShared<ActorType>::operator=(ActorShared<OtherActorType> &&other) {
@@ -129,6 +125,7 @@ ActorShared<ActorType> &ActorShared<ActorType>::operator=(ActorShared<OtherActor
 template <class ActorType>
 ActorShared<ActorType>::ActorShared(ActorShared &&other) noexcept : id_(other.release()), token_(other.token_) {
 }
+
 template <class ActorType>
 ActorShared<ActorType> &ActorShared<ActorType>::operator=(ActorShared &&other) noexcept {
   reset(other.release());
@@ -145,10 +142,12 @@ template <class ActorType>
 uint64 ActorShared<ActorType>::token() const {
   return token_;
 }
+
 template <class ActorType>
 bool ActorShared<ActorType>::empty() const {
   return id_.empty();
 }
+
 template <class ActorType>
 ActorId<ActorType> ActorShared<ActorType>::get() const {
   return id_;
@@ -158,41 +157,37 @@ template <class ActorType>
 ActorId<ActorType> ActorShared<ActorType>::release() {
   return std::move(id_);
 }
-template <class ActorType>
-void ActorShared<ActorType>::reset(ActorId<ActorType> other) {
-  reset<ActorType>(std::move(other));
-}
 
 template <class ActorType>
-template <class OtherActorType>
-void ActorShared<ActorType>::reset(ActorId<OtherActorType> other) {
+void ActorShared<ActorType>::reset(ActorId<ActorType> other) {
   static_assert(sizeof(ActorType) > 0, "Can't use ActorShared with incomplete type");
   if (!id_.empty()) {
     send_event(*this, Event::hangup());
   }
-  id_ = static_cast<ActorId<ActorType>>(other);
-}
-template <class ActorType>
-const ActorId<ActorType> *ActorShared<ActorType>::operator->() const {
-  return &id_;
+  id_ = std::move(other);
 }
 
 template <class T>
 ActorRef::ActorRef(const ActorId<T> &actor_id) : actor_id_(actor_id) {
 }
+
 template <class T>
 ActorRef::ActorRef(ActorId<T> &&actor_id) : actor_id_(actor_id) {
   actor_id.clear();
 }
+
 template <class T>
 ActorRef::ActorRef(const ActorShared<T> &actor_id) : actor_id_(actor_id.get()), token_(actor_id.token()) {
 }
+
 template <class T>
 ActorRef::ActorRef(ActorShared<T> &&actor_id) : actor_id_(actor_id.release()), token_(actor_id.token()) {
 }
+
 template <class T>
 ActorRef::ActorRef(const ActorOwn<T> &actor_id) : actor_id_(actor_id.get()) {
 }
+
 template <class T>
 ActorRef::ActorRef(ActorOwn<T> &&actor_id) : actor_id_(actor_id.release()) {
 }

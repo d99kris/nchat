@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -18,7 +18,9 @@
 #include "td/telegram/files/FileType.h"
 #include "td/telegram/Game.h"
 #include "td/telegram/Global.h"
+#include "td/telegram/InputInvoice.h"
 #include "td/telegram/InputMessageText.h"
+#include "td/telegram/LinkManager.h"
 #include "td/telegram/Location.h"
 #include "td/telegram/MessageContent.h"
 #include "td/telegram/MessageContentType.h"
@@ -26,7 +28,6 @@
 #include "td/telegram/MessagesManager.h"
 #include "td/telegram/misc.h"
 #include "td/telegram/net/DcId.h"
-#include "td/telegram/Payments.h"
 #include "td/telegram/Photo.h"
 #include "td/telegram/PhotoFormat.h"
 #include "td/telegram/PhotoSize.h"
@@ -35,7 +36,6 @@
 #include "td/telegram/Td.h"
 #include "td/telegram/td_api.hpp"
 #include "td/telegram/TdDb.h"
-#include "td/telegram/TdParameters.h"
 #include "td/telegram/telegram_api.hpp"
 #include "td/telegram/ThemeManager.h"
 #include "td/telegram/UpdatesManager.h"
@@ -46,6 +46,7 @@
 #include "td/utils/algorithm.h"
 #include "td/utils/base64.h"
 #include "td/utils/buffer.h"
+#include "td/utils/HashTableUtils.h"
 #include "td/utils/HttpUrl.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
@@ -57,7 +58,6 @@
 #include "td/utils/tl_parsers.h"
 
 #include <algorithm>
-#include <functional>
 
 namespace td {
 
@@ -126,8 +126,10 @@ class SetInlineBotResultsQuery final : public Td::ResultHandler {
   }
 
   void send(int64 inline_query_id, bool is_gallery, bool is_personal,
+            telegram_api::object_ptr<telegram_api::inlineBotSwitchPM> switch_pm,
+            telegram_api::object_ptr<telegram_api::inlineBotWebView> web_view,
             vector<tl_object_ptr<telegram_api::InputBotInlineResult>> &&results, int32 cache_time,
-            const string &next_offset, const string &switch_pm_text, const string &switch_pm_parameter) {
+            const string &next_offset) {
     int32 flags = 0;
     if (is_gallery) {
       flags |= telegram_api::messages_setInlineBotResults::GALLERY_MASK;
@@ -138,14 +140,15 @@ class SetInlineBotResultsQuery final : public Td::ResultHandler {
     if (!next_offset.empty()) {
       flags |= telegram_api::messages_setInlineBotResults::NEXT_OFFSET_MASK;
     }
-    tl_object_ptr<telegram_api::inlineBotSwitchPM> inline_bot_switch_pm;
-    if (!switch_pm_text.empty()) {
+    if (switch_pm != nullptr) {
       flags |= telegram_api::messages_setInlineBotResults::SWITCH_PM_MASK;
-      inline_bot_switch_pm = make_tl_object<telegram_api::inlineBotSwitchPM>(switch_pm_text, switch_pm_parameter);
+    }
+    if (web_view != nullptr) {
+      flags |= telegram_api::messages_setInlineBotResults::SWITCH_WEBVIEW_MASK;
     }
     send_query(G()->net_query_creator().create(telegram_api::messages_setInlineBotResults(
         flags, false /*ignored*/, false /*ignored*/, inline_query_id, std::move(results), cache_time, next_offset,
-        std::move(inline_bot_switch_pm))));
+        std::move(switch_pm), std::move(web_view))));
   }
 
   void on_result(BufferSlice packet) final {
@@ -183,8 +186,17 @@ class RequestSimpleWebViewQuery final : public Td::ResultHandler {
       theme_parameters = make_tl_object<telegram_api::dataJSON>(string());
       theme_parameters->data_ = ThemeManager::get_theme_parameters_json_string(theme, false);
     }
+    if (ends_with(url, "#kb")) {
+      // a URL from keyboard button
+    } else if (ends_with(url, "#iq")) {
+      // a URL from inline query results button
+      flags |= telegram_api::messages_requestSimpleWebView::FROM_SWITCH_WEBVIEW_MASK;
+    } else {
+      return on_error(Status::Error(400, "Invalid URL specified"));
+    }
     send_query(G()->net_query_creator().create(telegram_api::messages_requestSimpleWebView(
-        flags, std::move(input_user), url, std::move(theme_parameters), platform)));
+        flags, false /*ignored*/, std::move(input_user), url.substr(0, url.size() - 3), std::move(theme_parameters),
+        platform)));
   }
 
   void on_result(BufferSlice packet) final {
@@ -337,7 +349,7 @@ string InlineQueriesManager::get_inline_message_id(
   if (input_bot_inline_message_id == nullptr) {
     return string();
   }
-  LOG(INFO) << "Got inline message identifier: " << to_string(input_bot_inline_message_id);
+  LOG(INFO) << "Receive inline message identifier: " << to_string(input_bot_inline_message_id);
 
   return base64url_encode(serialize(*input_bot_inline_message_id));
 }
@@ -376,8 +388,9 @@ Result<tl_object_ptr<telegram_api::InputBotInlineMessage>> InlineQueriesManager:
     return contact.get_input_bot_inline_message_media_contact(std::move(input_reply_markup));
   }
   if (constructor_id == td_api::inputMessageInvoice::ID) {
-    TRY_RESULT(input_invoice, process_input_message_invoice(std::move(input_message_content), td_));
-    return get_input_bot_inline_message_media_invoice(input_invoice, std::move(input_reply_markup), td_);
+    TRY_RESULT(input_invoice,
+               InputInvoice::process_input_message_invoice(std::move(input_message_content), td_, DialogId(), false));
+    return input_invoice.get_input_bot_inline_message_media_invoice(std::move(input_reply_markup), td_);
   }
   if (constructor_id == td_api::inputMessageLocation::ID) {
     TRY_RESULT(location, process_input_message_location(std::move(input_message_content)));
@@ -465,25 +478,55 @@ UserId InlineQueriesManager::get_inline_bot_user_id(int64 query_id) const {
 }
 
 void InlineQueriesManager::answer_inline_query(
-    int64 inline_query_id, bool is_personal, vector<td_api::object_ptr<td_api::InputInlineQueryResult>> &&input_results,
-    int32 cache_time, const string &next_offset, const string &switch_pm_text, const string &switch_pm_parameter,
-    Promise<Unit> &&promise) const {
+    int64 inline_query_id, bool is_personal, td_api::object_ptr<td_api::inlineQueryResultsButton> &&button,
+    vector<td_api::object_ptr<td_api::InputInlineQueryResult>> &&input_results, int32 cache_time,
+    const string &next_offset, Promise<Unit> &&promise) const {
   CHECK(td_->auth_manager_->is_bot());
 
-  if (!switch_pm_text.empty()) {
-    if (switch_pm_parameter.empty()) {
-      return promise.set_error(Status::Error(400, "Can't use empty switch_pm_parameter"));
+  telegram_api::object_ptr<telegram_api::inlineBotSwitchPM> switch_pm;
+  telegram_api::object_ptr<telegram_api::inlineBotWebView> web_view;
+  if (button != nullptr) {
+    if (!clean_input_string(button->text_)) {
+      return promise.set_error(Status::Error(400, "Strings must be encoded in UTF-8"));
     }
-    if (switch_pm_parameter.size() > 64) {
-      return promise.set_error(Status::Error(400, "Too long switch_pm_parameter specified"));
+    if (button->type_ == nullptr) {
+      return promise.set_error(Status::Error(400, "Button type must be non-empty"));
     }
-    if (!is_base64url_characters(switch_pm_parameter)) {
-      return promise.set_error(Status::Error(400, "Unallowed characters in switch_pm_parameter are used"));
+    switch (button->type_->get_id()) {
+      case td_api::inlineQueryResultsButtonTypeStartBot::ID: {
+        auto type = td_api::move_object_as<td_api::inlineQueryResultsButtonTypeStartBot>(button->type_);
+        if (type->parameter_.empty()) {
+          return promise.set_error(Status::Error(400, "Can't use empty switch_pm_parameter"));
+        }
+        if (type->parameter_.size() > 64) {
+          return promise.set_error(Status::Error(400, "Too long switch_pm_parameter specified"));
+        }
+        if (!is_base64url_characters(type->parameter_)) {
+          return promise.set_error(Status::Error(400, "Unallowed characters in switch_pm_parameter are used"));
+        }
+        switch_pm = telegram_api::make_object<telegram_api::inlineBotSwitchPM>(button->text_, type->parameter_);
+        break;
+      }
+      case td_api::inlineQueryResultsButtonTypeWebApp::ID: {
+        auto type = td_api::move_object_as<td_api::inlineQueryResultsButtonTypeWebApp>(button->type_);
+        auto user_id = LinkManager::get_link_user_id(type->url_);
+        if (user_id.is_valid()) {
+          return promise.set_error(Status::Error(400, "Link to a user can't be used in the Web App button"));
+        }
+        auto r_url = LinkManager::check_link(type->url_, true, !G()->is_test_dc());
+        if (r_url.is_error()) {
+          return promise.set_error(
+              Status::Error(400, PSLICE() << "Inline query button Web App " << r_url.error().message()));
+        }
+        web_view = telegram_api::make_object<telegram_api::inlineBotWebView>(button->text_, type->url_);
+        break;
+      }
+      default:
+        UNREACHABLE();
     }
   }
 
   vector<tl_object_ptr<telegram_api::InputBotInlineResult>> results;
-
   bool is_gallery = false;
   bool force_vertical = false;
   for (auto &input_result : input_results) {
@@ -493,8 +536,8 @@ void InlineQueriesManager::answer_inline_query(
   }
 
   td_->create_handler<SetInlineBotResultsQuery>(std::move(promise))
-      ->send(inline_query_id, is_gallery && !force_vertical, is_personal, std::move(results), cache_time, next_offset,
-             switch_pm_text, switch_pm_parameter);
+      ->send(inline_query_id, is_gallery && !force_vertical, is_personal, std::move(switch_pm), std::move(web_view),
+             std::move(results), cache_time, next_offset);
 }
 
 void InlineQueriesManager::get_simple_web_view_url(UserId bot_user_id, string &&url,
@@ -860,12 +903,8 @@ Result<tl_object_ptr<telegram_api::InputBotInlineResult>> InlineQueriesManager::
   }
 
   if (file_type != FileType::Temp && content_url.find('.') == string::npos) {
-    auto r_file_id = td_->file_manager_->get_input_file_id(
-        file_type, make_tl_object<td_api::inputFileRemote>(content_url), DialogId(), false, false);
-    if (r_file_id.is_error()) {
-      return Status::Error(400, r_file_id.error().message());
-    }
-    auto file_id = r_file_id.ok();
+    TRY_RESULT(file_id, td_->file_manager_->get_input_file_id(
+                            file_type, make_tl_object<td_api::inputFileRemote>(content_url), DialogId(), false, false));
     FileView file_view = td_->file_manager_->get_file_view(file_id);
     CHECK(file_view.has_remote_location());
     if (file_view.is_encrypted()) {
@@ -980,10 +1019,10 @@ uint64 InlineQueriesManager::send_inline_query(UserId bot_user_id, DialogId dial
     }
   }();
 
-  uint64 query_hash = std::hash<std::string>()(trim(query));
+  uint64 query_hash = Hash<string>()(trim(query));
   query_hash = query_hash * 2023654985u + bot_user_id.get();
   query_hash = query_hash * 2023654985u + static_cast<uint64>(peer_type);
-  query_hash = query_hash * 2023654985u + std::hash<std::string>()(offset);
+  query_hash = query_hash * 2023654985u + Hash<string>()(offset);
   if (r_bot_data.ok().need_location) {
     query_hash = query_hash * 2023654985u + static_cast<uint64>(user_location.get_latitude() * 1e4);
     query_hash = query_hash * 2023654985u + static_cast<uint64>(user_location.get_longitude() * 1e4);
@@ -1168,14 +1207,20 @@ tl_object_ptr<td_api::maskPosition> copy(const td_api::maskPosition &obj) {
 }
 
 template <>
-tl_object_ptr<td_api::StickerType> copy(const td_api::StickerType &obj) {
+tl_object_ptr<td_api::StickerFullType> copy(const td_api::StickerFullType &obj) {
   switch (obj.get_id()) {
-    case td_api::stickerTypeRegular::ID:
-      return td_api::make_object<td_api::stickerTypeRegular>();
-    case td_api::stickerTypeMask::ID:
-      return td_api::make_object<td_api::stickerTypeMask>();
-    case td_api::stickerTypeCustomEmoji::ID:
-      return td_api::make_object<td_api::stickerTypeCustomEmoji>();
+    case td_api::stickerFullTypeRegular::ID: {
+      auto &info = static_cast<const td_api::stickerFullTypeRegular &>(obj);
+      return td_api::make_object<td_api::stickerFullTypeRegular>(copy(info.premium_animation_));
+    }
+    case td_api::stickerFullTypeMask::ID: {
+      auto &info = static_cast<const td_api::stickerFullTypeMask &>(obj);
+      return td_api::make_object<td_api::stickerFullTypeMask>(copy(info.mask_position_));
+    }
+    case td_api::stickerFullTypeCustomEmoji::ID: {
+      auto &info = static_cast<const td_api::stickerFullTypeCustomEmoji &>(obj);
+      return td_api::make_object<td_api::stickerFullTypeCustomEmoji>(info.custom_emoji_id_, info.needs_repainting_);
+    }
     default:
       UNREACHABLE();
   }
@@ -1268,10 +1313,9 @@ tl_object_ptr<td_api::photo> copy(const td_api::photo &obj) {
 
 template <>
 tl_object_ptr<td_api::sticker> copy(const td_api::sticker &obj) {
-  return td_api::make_object<td_api::sticker>(obj.set_id_, obj.width_, obj.height_, obj.emoji_, copy(obj.format_),
-                                              copy(obj.type_), copy(obj.mask_position_), obj.custom_emoji_id_,
-                                              transform(obj.outline_, copy_closed_vector_path), copy(obj.thumbnail_),
-                                              obj.is_premium_, copy(obj.premium_animation_), copy(obj.sticker_));
+  return td_api::make_object<td_api::sticker>(
+      obj.id_, obj.set_id_, obj.width_, obj.height_, obj.emoji_, copy(obj.format_), copy(obj.full_type_),
+      transform(obj.outline_, copy_closed_vector_path), copy(obj.thumbnail_), copy(obj.sticker_));
 }
 
 template <>
@@ -1314,6 +1358,26 @@ template <>
 tl_object_ptr<td_api::game> copy(const td_api::game &obj) {
   return td_api::make_object<td_api::game>(obj.id_, obj.short_name_, obj.title_, copy(obj.text_), obj.description_,
                                            copy(obj.photo_), copy(obj.animation_));
+}
+
+template <>
+tl_object_ptr<td_api::InlineQueryResultsButtonType> copy(const td_api::InlineQueryResultsButtonType &obj) {
+  switch (obj.get_id()) {
+    case td_api::inlineQueryResultsButtonTypeStartBot::ID:
+      return td_api::make_object<td_api::inlineQueryResultsButtonTypeStartBot>(
+          static_cast<const td_api::inlineQueryResultsButtonTypeStartBot &>(obj).parameter_);
+    case td_api::inlineQueryResultsButtonTypeWebApp::ID:
+      return td_api::make_object<td_api::inlineQueryResultsButtonTypeWebApp>(
+          static_cast<const td_api::inlineQueryResultsButtonTypeWebApp &>(obj).url_);
+    default:
+      UNREACHABLE();
+  }
+  return nullptr;
+}
+
+template <>
+tl_object_ptr<td_api::inlineQueryResultsButton> copy(const td_api::inlineQueryResultsButton &obj) {
+  return td_api::make_object<td_api::inlineQueryResultsButton>(obj.text_, copy(obj.type_));
 }
 
 template <>
@@ -1387,9 +1451,8 @@ static tl_object_ptr<td_api::InlineQueryResult> copy_result(const tl_object_ptr<
 
 template <>
 tl_object_ptr<td_api::inlineQueryResults> copy(const td_api::inlineQueryResults &obj) {
-  return td_api::make_object<td_api::inlineQueryResults>(obj.inline_query_id_, obj.next_offset_,
-                                                         transform(obj.results_, copy_result), obj.switch_pm_text_,
-                                                         obj.switch_pm_parameter_);
+  return td_api::make_object<td_api::inlineQueryResults>(obj.inline_query_id_, copy(obj.button_),
+                                                         transform(obj.results_, copy_result), obj.next_offset_);
 }
 
 tl_object_ptr<td_api::inlineQueryResults> InlineQueriesManager::decrease_pending_request_count(uint64 query_hash) {
@@ -1645,7 +1708,7 @@ void InlineQueriesManager::on_get_inline_query_results(DialogId dialog_id, UserI
           LOG_IF(ERROR, !is_photo) << "Wrong result type " << result->type_;
           auto photo = make_tl_object<td_api::inlineQueryResultPhoto>();
           photo->id_ = std::move(result->id_);
-          Photo p = get_photo(td_->file_manager_.get(), std::move(result->photo_), DialogId());
+          Photo p = get_photo(td_, std::move(result->photo_), DialogId());
           if (p.is_empty()) {
             LOG(ERROR) << "Receive empty cached photo in the result of inline query";
             break;
@@ -1676,7 +1739,7 @@ void InlineQueriesManager::on_get_inline_query_results(DialogId dialog_id, UserI
             article->hide_url_ = true;
           } else {
             LOG_IF(ERROR, result->url_ != article->url_)
-                << "Url has changed from " << article->url_ << " to " << result->url_;
+                << "URL has changed from " << article->url_ << " to " << result->url_;
             article->hide_url_ = false;
           }
           article->title_ = std::move(result->title_);
@@ -1914,15 +1977,19 @@ void InlineQueriesManager::on_get_inline_query_results(DialogId dialog_id, UserI
 
   query_id_to_bot_user_id_[results->query_id_] = bot_user_id;
 
-  string switch_pm_text;
-  string switch_pm_parameter;
+  td_api::object_ptr<td_api::inlineQueryResultsButton> button;
   if (results->switch_pm_ != nullptr) {
-    switch_pm_text = std::move(results->switch_pm_->text_);
-    switch_pm_parameter = std::move(results->switch_pm_->start_param_);
+    button = td_api::make_object<td_api::inlineQueryResultsButton>(
+        results->switch_pm_->text_,
+        td_api::make_object<td_api::inlineQueryResultsButtonTypeStartBot>(results->switch_pm_->start_param_));
+  } else if (results->switch_webview_) {
+    button = td_api::make_object<td_api::inlineQueryResultsButton>(
+        results->switch_webview_->text_,
+        td_api::make_object<td_api::inlineQueryResultsButtonTypeWebApp>(results->switch_webview_->url_ + "#iq"));
   }
 
-  it->second.results = make_tl_object<td_api::inlineQueryResults>(
-      results->query_id_, results->next_offset_, std::move(output_results), switch_pm_text, switch_pm_parameter);
+  it->second.results = make_tl_object<td_api::inlineQueryResults>(results->query_id_, std::move(button),
+                                                                  std::move(output_results), results->next_offset_);
   it->second.cache_expire_time = Time::now() + results->cache_time_;
 }
 
@@ -1947,7 +2014,7 @@ void InlineQueriesManager::save_recently_used_bots() {
       value += ',';
       value_ids += ',';
     }
-    value += td_->contacts_manager_->get_user_username(bot_user_id);
+    value += td_->contacts_manager_->get_user_first_username(bot_user_id);
     value_ids += to_string(bot_user_id.get());
   }
   G()->td_db()->get_binlog_pmc()->set("recently_used_inline_bot_usernames", value);
@@ -1999,7 +2066,7 @@ bool InlineQueriesManager::load_recently_used_bots(Promise<Unit> &promise) {
   if (recently_used_bots_loaded_ == 0) {
     resolve_recent_inline_bots_multipromise_.set_ignore_errors(true);
     auto lock = resolve_recent_inline_bots_multipromise_.get_promise();
-    if (!G()->parameters().use_chat_info_db) {
+    if (!G()->use_chat_info_database()) {
       for (auto &bot_username : bot_usernames) {
         td_->messages_manager_->search_public_dialog(bot_username, false,
                                                      resolve_recent_inline_bots_multipromise_.get_promise());
@@ -2027,7 +2094,7 @@ void InlineQueriesManager::on_new_query(int64 query_id, UserId sender_user_id, L
     LOG(ERROR) << "Receive new inline query from invalid " << sender_user_id;
     return;
   }
-  LOG_IF(ERROR, !td_->contacts_manager_->have_user(sender_user_id)) << "Have no info about " << sender_user_id;
+  LOG_IF(ERROR, !td_->contacts_manager_->have_user(sender_user_id)) << "Receive unknown " << sender_user_id;
   if (!td_->auth_manager_->is_bot()) {
     LOG(ERROR) << "Receive new inline query";
     return;
@@ -2040,6 +2107,7 @@ void InlineQueriesManager::on_new_query(int64 query_id, UserId sender_user_id, L
     switch (peer_type->get_id()) {
       case telegram_api::inlineQueryPeerTypeSameBotPM::ID:
         return td_api::make_object<td_api::chatTypePrivate>(sender_user_id.get());
+      case telegram_api::inlineQueryPeerTypeBotPM::ID:
       case telegram_api::inlineQueryPeerTypePM::ID:
         return td_api::make_object<td_api::chatTypePrivate>(0);
       case telegram_api::inlineQueryPeerTypeChat::ID:
@@ -2066,7 +2134,7 @@ void InlineQueriesManager::on_chosen_result(
     LOG(ERROR) << "Receive chosen inline query result from invalid " << user_id;
     return;
   }
-  LOG_IF(ERROR, !td_->contacts_manager_->have_user(user_id)) << "Have no info about " << user_id;
+  LOG_IF(ERROR, !td_->contacts_manager_->have_user(user_id)) << "Receive unknown " << user_id;
   if (!td_->auth_manager_->is_bot()) {
     LOG(ERROR) << "Receive chosen inline query result";
     return;

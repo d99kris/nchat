@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -19,10 +19,12 @@
 
 #include "td/utils/algorithm.h"
 #include "td/utils/format.h"
+#include "td/utils/HashTableUtils.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/Promise.h"
 #include "td/utils/SliceBuilder.h"
+#include "td/utils/StringBuilder.h"
 #include "td/utils/unicode.h"
 #include "td/utils/utf8.h"
 
@@ -122,8 +124,8 @@ StringBuilder &operator<<(StringBuilder &string_builder, const MessageEntity &me
   if (message_entity.user_id.is_valid()) {
     string_builder << ", " << message_entity.user_id;
   }
-  if (message_entity.document_id != 0) {
-    string_builder << ", emoji = " << message_entity.document_id;
+  if (message_entity.custom_emoji_id.is_valid()) {
+    string_builder << ", " << message_entity.custom_emoji_id;
   }
   string_builder << ']';
   return string_builder;
@@ -173,7 +175,7 @@ tl_object_ptr<td_api::TextEntityType> MessageEntity::get_text_entity_type_object
     case MessageEntity::Type::Spoiler:
       return make_tl_object<td_api::textEntityTypeSpoiler>();
     case MessageEntity::Type::CustomEmoji:
-      return make_tl_object<td_api::textEntityTypeCustomEmoji>(document_id);
+      return make_tl_object<td_api::textEntityTypeCustomEmoji>(custom_emoji_id.get());
     default:
       UNREACHABLE();
       return nullptr;
@@ -1322,7 +1324,7 @@ vector<Slice> find_mentions(Slice str) {
   auto mentions = match_mentions(str);
   td::remove_if(mentions, [](Slice mention) {
     mention.remove_prefix(1);
-    if (mention.size() >= 5) {
+    if (mention.size() >= 4) {
       return false;
     }
     auto lowered_mention = to_lower(mention);
@@ -1421,7 +1423,7 @@ void remove_empty_entities(vector<MessageEntity> &entities) {
       case MessageEntity::Type::MentionName:
         return !entity.user_id.is_valid();
       case MessageEntity::Type::CustomEmoji:
-        return entity.document_id == 0;
+        return !entity.custom_emoji_id.is_valid();
       default:
         return false;
     }
@@ -1563,12 +1565,12 @@ static bool are_entities_valid(const vector<MessageEntity> &entities) {
       }
       // parents are not pre after this point
       if (is_pre_entity(entity.type) && (nested_entity_type_mask & ~get_blockquote_entities_mask()) != 0) {
-        // Pre and Code can't be contained in other entities, except blockquote
+        // Pre and Code can't be part of other entities, except blockquote
         return false;
       }
       if ((is_continuous_entity(entity.type) || is_blockquote_entity(entity.type)) &&
           (nested_entity_type_mask & get_continuous_entities_mask()) != 0) {
-        // continuous and blockquote can't be contained in continuous
+        // continuous and blockquote can't be part of other continuous entity
         return false;
       }
       if ((nested_entity_type_mask & get_splittable_entities_mask()) != 0) {
@@ -1793,7 +1795,7 @@ string get_first_url(const FormattedText &text) {
         if (entity.length <= 4) {
           continue;
         }
-        Slice url = utf8_utf16_substr(text.text, entity.offset, entity.length);
+        auto url = utf8_utf16_substr(text.text, entity.offset, entity.length);
         string scheme = to_lower(url.substr(0, 4));
         if (scheme == "ton:" || begins_with(scheme, "tg:") || scheme == "ftp:" || is_plain_domain(url)) {
           continue;
@@ -1848,7 +1850,7 @@ string get_first_url(const FormattedText &text) {
 }
 
 Result<vector<MessageEntity>> parse_markdown(string &text) {
-  string result;
+  size_t result_size = 0;
   vector<MessageEntity> entities;
   size_t size = text.size();
   int32 utf16_offset = 0;
@@ -1856,7 +1858,7 @@ Result<vector<MessageEntity>> parse_markdown(string &text) {
     auto c = static_cast<unsigned char>(text[i]);
     if (c == '\\' && (text[i + 1] == '_' || text[i + 1] == '*' || text[i + 1] == '`' || text[i + 1] == '[')) {
       i++;
-      result.push_back(text[i]);
+      text[result_size++] = text[i];
       utf16_offset++;
       continue;
     }
@@ -1864,7 +1866,7 @@ Result<vector<MessageEntity>> parse_markdown(string &text) {
       if (is_utf8_character_first_code_unit(c)) {
         utf16_offset += 1 + (c >= 0xf0);  // >= 4 bytes in symbol => surrogate pair
       }
-      result.push_back(text[i]);
+      text[result_size++] = text[i];
       continue;
     }
 
@@ -1906,7 +1908,7 @@ Result<vector<MessageEntity>> parse_markdown(string &text) {
       if (is_utf8_character_first_code_unit(cur_ch)) {
         utf16_offset += 1 + (cur_ch >= 0xf0);  // >= 4 bytes in symbol => surrogate pair
       }
-      result.push_back(text[i++]);
+      text[result_size++] = text[i++];
     }
     if (i == size) {
       return Status::Error(400, PSLICE() << "Can't find end of the entity starting at byte offset " << begin_pos);
@@ -1962,11 +1964,12 @@ Result<vector<MessageEntity>> parse_markdown(string &text) {
       i += 2;
     }
   }
-  text = result;
-  return entities;
+  text.resize(result_size);
+  return std::move(entities);
 }
 
-static Result<vector<MessageEntity>> do_parse_markdown_v2(CSlice text, string &result) {
+Result<vector<MessageEntity>> parse_markdown_v2(string &text) {
+  size_t result_size = 0;
   vector<MessageEntity> entities;
   int32 utf16_offset = 0;
 
@@ -1993,7 +1996,7 @@ static Result<vector<MessageEntity>> do_parse_markdown_v2(CSlice text, string &r
     if (c == '\\' && text[i + 1] > 0 && text[i + 1] <= 126) {
       i++;
       utf16_offset += 1;
-      result += text[i];
+      text[result_size++] = text[i];
       continue;
     }
 
@@ -2014,7 +2017,7 @@ static Result<vector<MessageEntity>> do_parse_markdown_v2(CSlice text, string &r
       if (is_utf8_character_first_code_unit(c)) {
         utf16_offset += 1 + (c >= 0xf0);  // >= 4 bytes in symbol => surrogate pair
       }
-      result.push_back(text[i]);
+      text[result_size++] = text[i];
       continue;
     }
 
@@ -2090,7 +2093,7 @@ static Result<vector<MessageEntity>> do_parse_markdown_v2(CSlice text, string &r
             }
             if (i != language_end && language_end < text.size() && text[language_end] != '`') {
               type = MessageEntity::Type::PreCode;
-              argument = text.substr(i, language_end - i).str();
+              argument = text.substr(i, language_end - i);
               i = language_end;
             }
             // skip one new line in the beginning of the text
@@ -2120,13 +2123,13 @@ static Result<vector<MessageEntity>> do_parse_markdown_v2(CSlice text, string &r
           return Status::Error(
               400, PSLICE() << "Character '" << text[i] << "' is reserved and must be escaped with the preceding '\\'");
       }
-      nested_entities.emplace_back(type, std::move(argument), utf16_offset, entity_byte_offset, result.size());
+      nested_entities.emplace_back(type, std::move(argument), utf16_offset, entity_byte_offset, result_size);
     } else {
       // end of an entity
       auto type = nested_entities.back().type;
       auto argument = std::move(nested_entities.back().argument);
       UserId user_id;
-      int64 document_id = 0;
+      CustomEmojiId custom_emoji_id;
       bool skip_entity = utf16_offset == nested_entities.back().entity_offset;
       switch (type) {
         case MessageEntity::Type::Bold:
@@ -2146,7 +2149,8 @@ static Result<vector<MessageEntity>> do_parse_markdown_v2(CSlice text, string &r
           string url;
           if (text[i + 1] != '(') {
             // use text as a URL
-            url = result.substr(nested_entities.back().entity_begin_pos);
+            url = text.substr(nested_entities.back().entity_begin_pos,
+                              result_size - nested_entities.back().entity_begin_pos);
           } else {
             i += 2;
             auto url_begin_pos = i;
@@ -2192,7 +2196,7 @@ static Result<vector<MessageEntity>> do_parse_markdown_v2(CSlice text, string &r
             return Status::Error(400, PSLICE()
                                           << "Can't find end of a custom emoji URL at byte offset " << url_begin_pos);
           }
-          TRY_RESULT_ASSIGN(document_id, LinkManager::get_link_custom_emoji_document_id(url));
+          TRY_RESULT_ASSIGN(custom_emoji_id, LinkManager::get_link_custom_emoji_id(url));
           break;
         }
         default:
@@ -2205,8 +2209,8 @@ static Result<vector<MessageEntity>> do_parse_markdown_v2(CSlice text, string &r
         auto entity_length = utf16_offset - entity_offset;
         if (user_id.is_valid()) {
           entities.emplace_back(entity_offset, entity_length, user_id);
-        } else if (document_id != 0) {
-          entities.emplace_back(type, entity_offset, entity_length, document_id);
+        } else if (custom_emoji_id.is_valid()) {
+          entities.emplace_back(type, entity_offset, entity_length, custom_emoji_id);
         } else {
           entities.emplace_back(type, entity_offset, entity_length, std::move(argument));
         }
@@ -2221,14 +2225,8 @@ static Result<vector<MessageEntity>> do_parse_markdown_v2(CSlice text, string &r
 
   sort_entities(entities);
 
-  return entities;
-}
-
-Result<vector<MessageEntity>> parse_markdown_v2(string &text) {
-  string result;
-  TRY_RESULT(entities, do_parse_markdown_v2(text, result));
-  text = result;
-  return entities;
+  text.resize(result_size);
+  return std::move(entities);
 }
 
 static vector<Slice> find_text_url_entities_v3(Slice text) {
@@ -2455,7 +2453,7 @@ static FormattedText parse_text_url_entities_v3(Slice text, const vector<Message
 }
 
 static vector<MessageEntity> find_splittable_entities_v3(Slice text, const vector<MessageEntity> &entities) {
-  std::unordered_set<size_t> unallowed_boundaries;
+  std::unordered_set<int32, Hash<int32>> unallowed_boundaries;
   for (auto &entity : entities) {
     unallowed_boundaries.insert(entity.offset);
     unallowed_boundaries.insert(entity.offset + entity.length);
@@ -2489,7 +2487,8 @@ static vector<MessageEntity> find_splittable_entities_v3(Slice text, const vecto
     if ((c == '_' || c == '*' || c == '~' || c == '|') && text[i] == text[i + 1] &&
         unallowed_boundaries.count(utf16_offset) == 0) {
       auto j = i + 2;
-      while (j != text.size() && text[j] == text[i] && unallowed_boundaries.count(utf16_offset + j - i - 1) == 0) {
+      while (j != text.size() && text[j] == text[i] &&
+             unallowed_boundaries.count(utf16_offset + static_cast<int32>(j - i - 1)) == 0) {
         j++;
       }
       if (j == i + 2) {
@@ -2936,11 +2935,7 @@ FormattedText get_markdown_v3(FormattedText text) {
 }
 
 static uint32 decode_html_entity(CSlice text, size_t &pos) {
-  auto c = static_cast<unsigned char>(text[pos]);
-  if (c != '&') {
-    return 0;
-  }
-
+  CHECK(text[pos] == '&');
   size_t end_pos = pos + 1;
   uint32 res = 0;
   if (text[pos + 1] == '#') {
@@ -2988,9 +2983,15 @@ static uint32 decode_html_entity(CSlice text, size_t &pos) {
   return res;
 }
 
-static Result<vector<MessageEntity>> do_parse_html(CSlice text, string &result) {
+Result<vector<MessageEntity>> parse_html(string &str) {
+  auto str_size = str.size();
+  const char *text = str.c_str();
+  auto result_end = MutableSlice(str).ubegin();
+  const unsigned char *result_begin = result_end;
+
   vector<MessageEntity> entities;
   int32 utf16_offset = 0;
+  bool need_recheck_utf8 = false;
 
   struct EntityInfo {
     string tag_name;
@@ -2998,23 +2999,28 @@ static Result<vector<MessageEntity>> do_parse_html(CSlice text, string &result) 
     int32 entity_offset;
     size_t entity_begin_pos;
 
-    EntityInfo(string tag_name, string argument, int32 entity_offset, size_t entity_begin_pos)
+    EntityInfo(string &&tag_name, string &&argument, int32 entity_offset, size_t entity_begin_pos)
         : tag_name(std::move(tag_name))
         , argument(std::move(argument))
         , entity_offset(entity_offset)
         , entity_begin_pos(entity_begin_pos) {
     }
   };
-  std::vector<EntityInfo> nested_entities;
+  vector<EntityInfo> nested_entities;
 
-  for (size_t i = 0; i < text.size(); i++) {
+  for (size_t i = 0; i < str_size; i++) {
     auto c = static_cast<unsigned char>(text[i]);
     if (c == '&') {
-      auto ch = decode_html_entity(text, i);
-      if (ch != 0) {
+      auto code = decode_html_entity(str, i);
+      if (code != 0) {
         i--;  // i will be incremented in for
-        utf16_offset += 1 + (ch > 0xffff);
-        append_utf8_character(result, ch);
+        utf16_offset += 1 + (code > 0xffff);
+        if (code >= 0xd800 && code <= 0xdfff) {
+          // half of a surrogate pair
+          need_recheck_utf8 = true;
+        }
+        result_end = append_utf8_character_unsafe(result_end, code);
+        CHECK(result_end <= result_begin + i);
         continue;
       }
     }
@@ -3022,7 +3028,7 @@ static Result<vector<MessageEntity>> do_parse_html(CSlice text, string &result) 
       if (is_utf8_character_first_code_unit(c)) {
         utf16_offset += 1 + (c >= 0xf0);  // >= 4 bytes in symbol => surrogate pair
       }
-      result.push_back(text[i]);
+      *result_end++ = c;
       continue;
     }
 
@@ -3036,7 +3042,7 @@ static Result<vector<MessageEntity>> do_parse_html(CSlice text, string &result) 
         return Status::Error(400, PSLICE() << "Unclosed start tag at byte offset " << begin_pos);
       }
 
-      string tag_name = to_lower(text.substr(begin_pos + 1, i - begin_pos - 1));
+      string tag_name = to_lower(Slice(text + begin_pos + 1, i - begin_pos - 1));
       if (tag_name != "a" && tag_name != "b" && tag_name != "strong" && tag_name != "i" && tag_name != "em" &&
           tag_name != "s" && tag_name != "strike" && tag_name != "del" && tag_name != "u" && tag_name != "ins" &&
           tag_name != "tg-spoiler" && tag_name != "tg-emoji" && tag_name != "span" && tag_name != "pre" &&
@@ -3057,7 +3063,7 @@ static Result<vector<MessageEntity>> do_parse_html(CSlice text, string &result) 
         while (!is_space(text[i]) && text[i] != '=') {
           i++;
         }
-        Slice attribute_name = text.substr(attribute_begin_pos, i - attribute_begin_pos);
+        Slice attribute_name(text + attribute_begin_pos, i - attribute_begin_pos);
         if (attribute_name.empty()) {
           return Status::Error(
               400, PSLICE() << "Empty attribute name in the tag \"" << tag_name << "\" at byte offset " << begin_pos);
@@ -3085,7 +3091,7 @@ static Result<vector<MessageEntity>> do_parse_html(CSlice text, string &result) 
           while (is_alnum(text[i]) || text[i] == '.' || text[i] == '-') {
             i++;
           }
-          attribute_value = to_lower(text.substr(token_begin_pos, i - token_begin_pos));
+          attribute_value = to_lower(Slice(text + token_begin_pos, i - token_begin_pos));
 
           if (!is_space(text[i]) && text[i] != '>') {
             return Status::Error(400, PSLICE() << "Unexpected end of name token at byte offset " << token_begin_pos);
@@ -3093,19 +3099,23 @@ static Result<vector<MessageEntity>> do_parse_html(CSlice text, string &result) 
         } else {
           // A string literal
           char end_character = text[i++];
+          char *attribute_end = &str[i];
+          const char *attribute_begin = attribute_end;
           while (text[i] != end_character && text[i] != 0) {
             if (text[i] == '&') {
-              auto ch = decode_html_entity(text, i);
-              if (ch != 0) {
-                append_utf8_character(attribute_value, ch);
+              auto code = decode_html_entity(str, i);
+              if (code != 0) {
+                attribute_end = reinterpret_cast<char *>(
+                    append_utf8_character_unsafe(reinterpret_cast<unsigned char *>(attribute_end), code));
                 continue;
               }
             }
-            attribute_value.push_back(text[i++]);
+            *attribute_end++ = text[i++];
           }
           if (text[i] == end_character) {
             i++;
           }
+          attribute_value.assign(attribute_begin, static_cast<size_t>(attribute_end - attribute_begin));
         }
         if (text[i] == 0) {
           return Status::Error(400, PSLICE() << "Unclosed start tag at byte offset " << begin_pos);
@@ -3128,7 +3138,7 @@ static Result<vector<MessageEntity>> do_parse_html(CSlice text, string &result) 
                                       << "Tag \"span\" must have class \"tg-spoiler\" at byte offset " << begin_pos);
       }
 
-      nested_entities.emplace_back(std::move(tag_name), std::move(argument), utf16_offset, result.size());
+      nested_entities.emplace_back(std::move(tag_name), std::move(argument), utf16_offset, result_end - result_begin);
     } else {
       // end of an entity
       if (nested_entities.empty()) {
@@ -3138,7 +3148,7 @@ static Result<vector<MessageEntity>> do_parse_html(CSlice text, string &result) 
       while (!is_space(text[i]) && text[i] != '>') {
         i++;
       }
-      string end_tag_name = to_lower(text.substr(begin_pos + 2, i - begin_pos - 2));
+      string end_tag_name = to_lower(Slice(text + begin_pos + 2, i - begin_pos - 2));
       while (is_space(text[i]) && text[i] != 0) {
         i++;
       }
@@ -3146,7 +3156,7 @@ static Result<vector<MessageEntity>> do_parse_html(CSlice text, string &result) 
         return Status::Error(400, PSLICE() << "Unclosed end tag at byte offset " << begin_pos);
       }
 
-      string tag_name = std::move(nested_entities.back().tag_name);
+      const string &tag_name = nested_entities.back().tag_name;
       if (!end_tag_name.empty() && end_tag_name != tag_name) {
         return Status::Error(400, PSLICE() << "Unmatched end tag at byte offset " << begin_pos << ", expected \"</"
                                            << tag_name << ">\", found \"</" << end_tag_name << ">\"");
@@ -3170,11 +3180,12 @@ static Result<vector<MessageEntity>> do_parse_html(CSlice text, string &result) 
           if (r_document_id.is_error() || r_document_id.ok() == 0) {
             return Status::Error(400, "Invalid custom emoji identifier specified");
           }
-          entities.emplace_back(MessageEntity::Type::CustomEmoji, entity_offset, entity_length, r_document_id.ok());
+          entities.emplace_back(MessageEntity::Type::CustomEmoji, entity_offset, entity_length,
+                                CustomEmojiId(r_document_id.ok()));
         } else if (tag_name == "a") {
           auto url = std::move(nested_entities.back().argument);
           if (url.empty()) {
-            url = result.substr(nested_entities.back().entity_begin_pos);
+            url = Slice(result_begin + nested_entities.back().entity_begin_pos, result_end).str();
           }
           auto user_id = LinkManager::get_link_user_id(url);
           if (user_id.is_valid()) {
@@ -3223,19 +3234,13 @@ static Result<vector<MessageEntity>> do_parse_html(CSlice text, string &result) 
 
   sort_entities(entities);
 
-  return entities;
-}
-
-Result<vector<MessageEntity>> parse_html(string &text) {
-  string result;
-  TRY_RESULT(entities, do_parse_html(text, result));
-  if (!check_utf8(result)) {
+  str.resize(static_cast<size_t>(result_end - result_begin));
+  if (need_recheck_utf8 && !check_utf8(str)) {
     return Status::Error(400,
                          "Text contains invalid Unicode characters after decoding HTML entities, check for unmatched "
                          "surrogate code units");
   }
-  text = result;
-  return entities;
+  return std::move(entities);
 }
 
 vector<tl_object_ptr<secret_api::MessageEntity>> get_input_secret_message_entities(
@@ -3308,8 +3313,8 @@ vector<tl_object_ptr<secret_api::MessageEntity>> get_input_secret_message_entiti
         break;
       case MessageEntity::Type::CustomEmoji:
         if (layer >= static_cast<int32>(SecretChatLayer::SpoilerAndCustomEmojiEntities)) {
-          result.push_back(
-              make_tl_object<secret_api::messageEntityCustomEmoji>(entity.offset, entity.length, entity.document_id));
+          result.push_back(make_tl_object<secret_api::messageEntityCustomEmoji>(entity.offset, entity.length,
+                                                                                entity.custom_emoji_id.get()));
         }
         break;
       default:
@@ -3404,7 +3409,7 @@ Result<vector<MessageEntity>> get_message_entities(const ContactsManager *contac
         break;
       }
       case td_api::textEntityTypeMentionName::ID: {
-        auto entity = static_cast<td_api::textEntityTypeMentionName *>(input_entity->type_.get());
+        auto entity = static_cast<const td_api::textEntityTypeMentionName *>(input_entity->type_.get());
         UserId user_id(entity->user_id_);
         if (contacts_manager != nullptr) {
           TRY_STATUS(contacts_manager->get_input_user(user_id));
@@ -3413,7 +3418,7 @@ Result<vector<MessageEntity>> get_message_entities(const ContactsManager *contac
         break;
       }
       case td_api::textEntityTypeMediaTimestamp::ID: {
-        auto entity = static_cast<td_api::textEntityTypeMediaTimestamp *>(input_entity->type_.get());
+        auto entity = static_cast<const td_api::textEntityTypeMediaTimestamp *>(input_entity->type_.get());
         if (entity->media_timestamp_ < 0) {
           return Status::Error(400, "Invalid media timestamp specified");
         }
@@ -3424,8 +3429,12 @@ Result<vector<MessageEntity>> get_message_entities(const ContactsManager *contac
         entities.emplace_back(MessageEntity::Type::Spoiler, offset, length);
         break;
       case td_api::textEntityTypeCustomEmoji::ID: {
-        auto entity = static_cast<td_api::textEntityTypeCustomEmoji *>(input_entity->type_.get());
-        entities.emplace_back(MessageEntity::Type::CustomEmoji, offset, length, entity->custom_emoji_id_);
+        auto entity = static_cast<const td_api::textEntityTypeCustomEmoji *>(input_entity->type_.get());
+        CustomEmojiId custom_emoji_id(entity->custom_emoji_id_);
+        if (!custom_emoji_id.is_valid()) {
+          return Status::Error(400, "Invalid custom emoji identifier specified");
+        }
+        entities.emplace_back(MessageEntity::Type::CustomEmoji, offset, length, custom_emoji_id);
         break;
       }
       default:
@@ -3436,7 +3445,7 @@ Result<vector<MessageEntity>> get_message_entities(const ContactsManager *contac
       entities.pop_back();
     }
   }
-  return entities;
+  return std::move(entities);
 }
 
 vector<MessageEntity> get_message_entities(const ContactsManager *contacts_manager,
@@ -3564,7 +3573,8 @@ vector<MessageEntity> get_message_entities(const ContactsManager *contacts_manag
       }
       case telegram_api::messageEntityCustomEmoji::ID: {
         auto entity = static_cast<const telegram_api::messageEntityCustomEmoji *>(server_entity.get());
-        entities.emplace_back(MessageEntity::Type::CustomEmoji, entity->offset_, entity->length_, entity->document_id_);
+        entities.emplace_back(MessageEntity::Type::CustomEmoji, entity->offset_, entity->length_,
+                              CustomEmojiId(entity->document_id_));
         break;
       }
       default:
@@ -3580,7 +3590,7 @@ vector<MessageEntity> get_message_entities(Td *td, vector<tl_object_ptr<secret_a
   constexpr size_t MAX_CUSTOM_EMOJI_ENTITIES = 100;
   vector<MessageEntity> entities;
   entities.reserve(secret_entities.size());
-  vector<int64> document_ids;
+  vector<CustomEmojiId> custom_emoji_ids;
   for (auto &secret_entity : secret_entities) {
     switch (secret_entity->get_id()) {
       case secret_api::messageEntityUnknown::ID:
@@ -3683,11 +3693,11 @@ vector<MessageEntity> get_message_entities(Td *td, vector<tl_object_ptr<secret_a
       }
       case secret_api::messageEntityCustomEmoji::ID: {
         auto entity = static_cast<const secret_api::messageEntityCustomEmoji *>(secret_entity.get());
-        if (is_premium || !td->stickers_manager_->is_premium_custom_emoji(entity->document_id_, false)) {
-          if (document_ids.size() < MAX_CUSTOM_EMOJI_ENTITIES) {
-            entities.emplace_back(MessageEntity::Type::CustomEmoji, entity->offset_, entity->length_,
-                                  entity->document_id_);
-            document_ids.push_back(entity->document_id_);
+        CustomEmojiId custom_emoji_id(entity->document_id_);
+        if (is_premium || !td->stickers_manager_->is_premium_custom_emoji(custom_emoji_id, false)) {
+          if (custom_emoji_ids.size() < MAX_CUSTOM_EMOJI_ENTITIES) {
+            entities.emplace_back(MessageEntity::Type::CustomEmoji, entity->offset_, entity->length_, custom_emoji_id);
+            custom_emoji_ids.push_back(custom_emoji_id);
           }
         }
         break;
@@ -3701,10 +3711,10 @@ vector<MessageEntity> get_message_entities(Td *td, vector<tl_object_ptr<secret_a
     }
   }
 
-  if (!document_ids.empty() && !is_premium) {
+  if (!custom_emoji_ids.empty() && !is_premium) {
     // preload custom emoji to check that they aren't premium
     td->stickers_manager_->get_custom_emoji_stickers(
-        std::move(document_ids), true,
+        std::move(custom_emoji_ids), true,
         PromiseCreator::lambda(
             [promise = load_data_multipromise.get_promise()](td_api::object_ptr<td_api::stickers> result) mutable {
               promise.set_value(Unit());
@@ -3712,6 +3722,29 @@ vector<MessageEntity> get_message_entities(Td *td, vector<tl_object_ptr<secret_a
   }
 
   return entities;
+}
+
+telegram_api::object_ptr<telegram_api::textWithEntities> get_input_text_with_entities(
+    const ContactsManager *contacts_manager, const FormattedText &text, const char *source) {
+  return telegram_api::make_object<telegram_api::textWithEntities>(
+      text.text, get_input_message_entities(contacts_manager, text.entities, source));
+}
+
+FormattedText get_formatted_text(const ContactsManager *contacts_manager,
+                                 telegram_api::object_ptr<telegram_api::textWithEntities> text_with_entities,
+                                 bool allow_empty, bool skip_new_entities, bool skip_bot_commands,
+                                 bool skip_media_timestamps, bool skip_trim, const char *source) {
+  CHECK(text_with_entities != nullptr);
+  auto entities = get_message_entities(contacts_manager, std::move(text_with_entities->entities_), source);
+  auto status = fix_formatted_text(text_with_entities->text_, entities, allow_empty, skip_new_entities,
+                                   skip_bot_commands, skip_media_timestamps, skip_trim);
+  if (status.is_error()) {
+    if (!clean_input_string(text_with_entities->text_)) {
+      text_with_entities->text_.clear();
+    }
+    entities = find_entities(text_with_entities->text_, skip_bot_commands, skip_media_timestamps);
+  }
+  return {std::move(text_with_entities->text_), std::move(entities)};
 }
 
 // like clean_input_string but also fixes entities
@@ -4120,7 +4153,7 @@ static void merge_new_entities(vector<MessageEntity> &entities, vector<MessageEn
 }
 
 Status fix_formatted_text(string &text, vector<MessageEntity> &entities, bool allow_empty, bool skip_new_entities,
-                          bool skip_bot_commands, bool skip_media_timestamps, bool for_draft) {
+                          bool skip_bot_commands, bool skip_media_timestamps, bool skip_trim) {
   string result;
   if (entities.empty()) {
     // fast path
@@ -4168,7 +4201,7 @@ Status fix_formatted_text(string &text, vector<MessageEntity> &entities, bool al
   // some splittable entities may be needed to be concatenated
   fix_entities(entities);
 
-  if (for_draft) {
+  if (skip_trim) {
     text = std::move(result);
   } else {
     // rtrim
@@ -4236,8 +4269,6 @@ Status fix_formatted_text(string &text, vector<MessageEntity> &entities, bool al
   // new whitespace-only entities could be added after splitting of entities
   remove_invalid_entities(text, entities);
 
-  // TODO MAX_MESSAGE_LENGTH and MAX_CAPTION_LENGTH
-
   return Status::OK();
 }
 
@@ -4298,7 +4329,7 @@ td_api::object_ptr<td_api::formattedText> extract_input_caption(
 
 Result<FormattedText> get_formatted_text(const Td *td, DialogId dialog_id,
                                          td_api::object_ptr<td_api::formattedText> &&text, bool is_bot,
-                                         bool allow_empty, bool skip_media_timestamps, bool for_draft) {
+                                         bool allow_empty, bool skip_media_timestamps, bool skip_trim) {
   if (text == nullptr) {
     if (allow_empty) {
       return FormattedText();
@@ -4311,13 +4342,13 @@ Result<FormattedText> get_formatted_text(const Td *td, DialogId dialog_id,
   auto need_skip_bot_commands = need_always_skip_bot_commands(td->contacts_manager_.get(), dialog_id, is_bot);
   bool parse_markdown = td->option_manager_->get_option_boolean("always_parse_markdown");
   TRY_STATUS(fix_formatted_text(text->text_, entities, allow_empty, parse_markdown, need_skip_bot_commands,
-                                is_bot || skip_media_timestamps || parse_markdown, for_draft));
+                                is_bot || skip_media_timestamps || parse_markdown, skip_trim));
 
   FormattedText result{std::move(text->text_), std::move(entities)};
   if (parse_markdown) {
     result = parse_markdown_v3(std::move(result));
     fix_formatted_text(result.text, result.entities, allow_empty, false, need_skip_bot_commands,
-                       is_bot || skip_media_timestamps, for_draft)
+                       is_bot || skip_media_timestamps, skip_trim)
         .ensure();
   }
   remove_unallowed_entities(td, result, dialog_id);
@@ -4392,6 +4423,8 @@ vector<tl_object_ptr<telegram_api::MessageEntity>> get_input_message_entities(co
                                                                               const char *source) {
   vector<tl_object_ptr<telegram_api::MessageEntity>> result;
   vector<MessageEntity> splittable_entities;
+  constexpr size_t MAX_USER_ENTITY_COUNT = 100;  // server-side limit
+  size_t user_entity_count = 0;
   for (auto &entity : entities) {
     if (!is_user_entity(entity.type)) {
       continue;
@@ -4400,6 +4433,15 @@ vector<tl_object_ptr<telegram_api::MessageEntity>> get_input_message_entities(co
       splittable_entities.push_back(entity);
       continue;
     }
+    if (entity.type == MessageEntity::Type::CustomEmoji) {
+      result.push_back(make_tl_object<telegram_api::messageEntityCustomEmoji>(entity.offset, entity.length,
+                                                                              entity.custom_emoji_id.get()));
+      continue;
+    }
+    if (user_entity_count >= MAX_USER_ENTITY_COUNT) {
+      continue;
+    }
+    user_entity_count++;
     switch (entity.type) {
       case MessageEntity::Type::BlockQuote:
         result.push_back(make_tl_object<telegram_api::messageEntityBlockquote>(entity.offset, entity.length));
@@ -4418,22 +4460,22 @@ vector<tl_object_ptr<telegram_api::MessageEntity>> get_input_message_entities(co
             make_tl_object<telegram_api::messageEntityTextUrl>(entity.offset, entity.length, entity.argument));
         break;
       case MessageEntity::Type::MentionName: {
-        auto r_input_user = contacts_manager->get_input_user(entity.user_id);
-        LOG_CHECK(r_input_user.is_ok()) << source << ' ' << entity.user_id << ' ' << r_input_user.error();
+        auto input_user = contacts_manager->get_input_user_force(entity.user_id);
         result.push_back(make_tl_object<telegram_api::inputMessageEntityMentionName>(entity.offset, entity.length,
-                                                                                     r_input_user.move_as_ok()));
+                                                                                     std::move(input_user)));
         break;
       }
-      case MessageEntity::Type::CustomEmoji:
-        result.push_back(
-            make_tl_object<telegram_api::messageEntityCustomEmoji>(entity.offset, entity.length, entity.document_id));
-        break;
       default:
         UNREACHABLE();
     }
   }
   split_entities(splittable_entities, vector<MessageEntity>());
   for (auto &entity : splittable_entities) {
+    if (user_entity_count >= MAX_USER_ENTITY_COUNT) {
+      break;
+    }
+    user_entity_count++;
+
     switch (entity.type) {
       case MessageEntity::Type::Bold:
         result.push_back(make_tl_object<telegram_api::messageEntityBold>(entity.offset, entity.length));
@@ -4470,7 +4512,7 @@ vector<tl_object_ptr<telegram_api::MessageEntity>> get_input_message_entities(co
 void remove_premium_custom_emoji_entities(const Td *td, vector<MessageEntity> &entities, bool remove_unknown) {
   td::remove_if(entities, [&](const MessageEntity &entity) {
     return entity.type == MessageEntity::Type::CustomEmoji &&
-           td->stickers_manager_->is_premium_custom_emoji(entity.document_id, remove_unknown);
+           td->stickers_manager_->is_premium_custom_emoji(entity.custom_emoji_id, remove_unknown);
   });
 }
 

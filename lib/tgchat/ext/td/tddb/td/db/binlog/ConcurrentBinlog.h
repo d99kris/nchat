@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -45,26 +45,28 @@ class ConcurrentBinlog final : public BinlogInterface {
   void force_flush() final;
   void change_key(DbKey db_key, Promise<> promise) final;
 
-  uint64 next_id() final {
-    return last_id_.fetch_add(1, std::memory_order_relaxed);
+  uint64 next_event_id() final {
+    return last_event_id_.fetch_add(1, std::memory_order_relaxed);
   }
-  uint64 next_id(int32 shift) final {
-    return last_id_.fetch_add(shift, std::memory_order_relaxed);
+  uint64 next_event_id(int32 shift) final {
+    return last_event_id_.fetch_add(shift, std::memory_order_relaxed);
   }
 
   CSlice get_path() const {
     return path_;
   }
 
+  uint64 erase_batch(vector<uint64> event_ids) final;
+
  private:
   void init_impl(unique_ptr<Binlog> binlog, int scheduler_id);
   void close_impl(Promise<> promise) final;
   void close_and_destroy_impl(Promise<> promise) final;
-  void add_raw_event_impl(uint64 id, BufferSlice &&raw_event, Promise<> promise, BinlogDebugInfo info) final;
+  void add_raw_event_impl(uint64 event_id, BufferSlice &&raw_event, Promise<> promise, BinlogDebugInfo info) final;
 
   ActorOwn<detail::BinlogActor> binlog_actor_;
   string path_;
-  std::atomic<uint64> last_id_{0};
+  std::atomic<uint64> last_event_id_{0};
 };
 
 }  // namespace td

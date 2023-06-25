@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -63,7 +63,7 @@ FileId VideosManager::on_get_video(unique_ptr<Video> new_video, bool replace) {
     CHECK(v->file_id == new_video->file_id);
     if (v->mime_type != new_video->mime_type) {
       LOG(DEBUG) << "Video " << file_id << " MIME type has changed";
-      v->mime_type = new_video->mime_type;
+      v->mime_type = std::move(new_video->mime_type);
     }
     if (v->duration != new_video->duration || v->dimensions != new_video->dimensions ||
         v->supports_streaming != new_video->supports_streaming) {
@@ -86,7 +86,7 @@ FileId VideosManager::on_get_video(unique_ptr<Video> new_video, bool replace) {
         LOG(INFO) << "Video " << file_id << " thumbnail has changed from " << v->thumbnail << " to "
                   << new_video->thumbnail;
       }
-      v->thumbnail = new_video->thumbnail;
+      v->thumbnail = std::move(new_video->thumbnail);
     }
     if (v->animated_thumbnail != new_video->animated_thumbnail) {
       if (!v->animated_thumbnail.file_id.is_valid()) {
@@ -95,7 +95,7 @@ FileId VideosManager::on_get_video(unique_ptr<Video> new_video, bool replace) {
         LOG(INFO) << "Video " << file_id << " animated thumbnail has changed from " << v->animated_thumbnail << " to "
                   << new_video->animated_thumbnail;
       }
-      v->animated_thumbnail = new_video->animated_thumbnail;
+      v->animated_thumbnail = std::move(new_video->animated_thumbnail);
     }
     if (v->has_stickers != new_video->has_stickers && new_video->has_stickers) {
       v->has_stickers = new_video->has_stickers;
@@ -137,8 +137,9 @@ FileId VideosManager::dup_video(FileId new_id, FileId old_id) {
   CHECK(new_video == nullptr);
   new_video = make_unique<Video>(*old_video);
   new_video->file_id = new_id;
-  new_video->thumbnail.file_id = td_->file_manager_->dup_file_id(new_video->thumbnail.file_id);
-  new_video->animated_thumbnail.file_id = td_->file_manager_->dup_file_id(new_video->animated_thumbnail.file_id);
+  new_video->thumbnail.file_id = td_->file_manager_->dup_file_id(new_video->thumbnail.file_id, "dup_video");
+  new_video->animated_thumbnail.file_id =
+      td_->file_manager_->dup_file_id(new_video->animated_thumbnail.file_id, "dup_video");
   return new_id;
 }
 
@@ -206,8 +207,8 @@ SecretInputMedia VideosManager::get_secret_input_media(FileId video_file_id,
     return {};
   }
   vector<tl_object_ptr<secret_api::DocumentAttribute>> attributes;
-  attributes.emplace_back(make_tl_object<secret_api::documentAttributeVideo>(video->duration, video->dimensions.width,
-                                                                             video->dimensions.height));
+  attributes.emplace_back(make_tl_object<secret_api::documentAttributeVideo>(
+      0, false, video->duration, video->dimensions.width, video->dimensions.height));
 
   return {std::move(input_file),
           std::move(thumbnail),
@@ -221,7 +222,7 @@ SecretInputMedia VideosManager::get_secret_input_media(FileId video_file_id,
 
 tl_object_ptr<telegram_api::InputMedia> VideosManager::get_input_media(
     FileId file_id, tl_object_ptr<telegram_api::InputFile> input_file,
-    tl_object_ptr<telegram_api::InputFile> input_thumbnail, int32 ttl) const {
+    tl_object_ptr<telegram_api::InputFile> input_thumbnail, int32 ttl, bool has_spoiler) const {
   if (!file_id.is_valid()) {
     LOG_IF(ERROR, ttl == 0) << "Video has invalid file_id";
     return nullptr;
@@ -235,15 +236,21 @@ tl_object_ptr<telegram_api::InputMedia> VideosManager::get_input_media(
     if (ttl != 0) {
       flags |= telegram_api::inputMediaDocument::TTL_SECONDS_MASK;
     }
-    return make_tl_object<telegram_api::inputMediaDocument>(flags, file_view.main_remote_location().as_input_document(),
-                                                            ttl, string());
+    if (has_spoiler) {
+      flags |= telegram_api::inputMediaDocument::SPOILER_MASK;
+    }
+    return make_tl_object<telegram_api::inputMediaDocument>(
+        flags, false /*ignored*/, file_view.main_remote_location().as_input_document(), ttl, string());
   }
   if (file_view.has_url()) {
     int32 flags = 0;
     if (ttl != 0) {
       flags |= telegram_api::inputMediaDocumentExternal::TTL_SECONDS_MASK;
     }
-    return make_tl_object<telegram_api::inputMediaDocumentExternal>(flags, file_view.url(), ttl);
+    if (has_spoiler) {
+      flags |= telegram_api::inputMediaDocumentExternal::SPOILER_MASK;
+    }
+    return make_tl_object<telegram_api::inputMediaDocumentExternal>(flags, false /*ignored*/, file_view.url(), ttl);
   }
 
   if (input_file != nullptr) {
@@ -278,9 +285,12 @@ tl_object_ptr<telegram_api::InputMedia> VideosManager::get_input_media(
     if (input_thumbnail != nullptr) {
       flags |= telegram_api::inputMediaUploadedDocument::THUMB_MASK;
     }
+    if (has_spoiler) {
+      flags |= telegram_api::inputMediaUploadedDocument::SPOILER_MASK;
+    }
     return make_tl_object<telegram_api::inputMediaUploadedDocument>(
-        flags, false /*ignored*/, false /*ignored*/, std::move(input_file), std::move(input_thumbnail), mime_type,
-        std::move(attributes), std::move(added_stickers), ttl);
+        flags, false /*ignored*/, false /*ignored*/, false /*ignored*/, std::move(input_file),
+        std::move(input_thumbnail), mime_type, std::move(attributes), std::move(added_stickers), ttl);
   } else {
     CHECK(!file_view.has_remote_location());
   }

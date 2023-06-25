@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -26,7 +26,7 @@ class ActorId {
   ActorId(const ActorId &other) = default;
   ActorId &operator=(const ActorId &other) = default;
   ActorId(ActorId &&other) noexcept : ptr_(other.ptr_) {
-    other.ptr_.clear();
+    other.clear();
   }
   ActorId &operator=(ActorId &&other) noexcept {
     if (&other == this) {
@@ -50,10 +50,8 @@ class ActorId {
   }
 
   ActorInfo *get_actor_info() const;
-  ActorType *get_actor_unsafe() const;
 
-  // returns pointer to actor if it is on current thread. nullptr otherwise
-  ActorType *try_get_actor() const;
+  ActorType *get_actor_unsafe() const;
 
   Slice get_name() const;
 
@@ -62,17 +60,11 @@ class ActorId {
     return ActorId<ToActorType>(ptr_);
   }
 
-  template <class AsActorType>
-  ActorId<AsActorType> as() const {
-    return ActorId<AsActorType>(ptr_);
-  }
-
  private:
   ObjectPool<ActorInfo>::WeakPtr ptr_;
 };
 
-// threat ActorId as pointer and ActorOwn as
-// unique_ptr<ActorId>
+// treat ActorId as pointer and ActorOwn as unique_ptr<ActorId>
 template <class ActorType = Actor>
 class ActorOwn {
  public:
@@ -98,11 +90,7 @@ class ActorOwn {
   ActorId<ActorType> get() const;
   ActorId<ActorType> release();
   void reset(ActorId<ActorType> other = ActorId<ActorType>());
-  void hangup() const;
-  const ActorId<ActorType> *operator->() const;
-
-  using ActorIdConstRef = const ActorId<ActorType> &;
-  // operator ActorIdConstRef();
+  ActorType *get_actor_unsafe() const;
 
  private:
   ActorId<ActorType> id_;
@@ -135,9 +123,6 @@ class ActorShared {
   ActorId<ActorType> get() const;
   ActorId<ActorType> release();
   void reset(ActorId<ActorType> other = ActorId<ActorType>());
-  template <class OtherActorType>
-  void reset(ActorId<OtherActorType> other);
-  const ActorId<ActorType> *operator->() const;
 
  private:
   ActorId<ActorType> id_;

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,9 +11,9 @@
 #include "td/telegram/td_api.h"
 
 #include "td/utils/common.h"
+#include "td/utils/HashTableUtils.h"
 #include "td/utils/StringBuilder.h"
 
-#include <functional>
 #include <limits>
 #include <type_traits>
 
@@ -49,8 +49,8 @@ class DialogListId {
       case td_api::chatListMain::ID:
         CHECK(id == FolderId::main().get());
         break;
-      case td_api::chatListFilter::ID: {
-        DialogFilterId filter_id(static_cast<const td_api::chatListFilter *>(chat_list.get())->chat_filter_id_);
+      case td_api::chatListFolder::ID: {
+        DialogFilterId filter_id(static_cast<const td_api::chatListFolder *>(chat_list.get())->chat_folder_id_);
         if (filter_id.is_valid()) {
           *this = DialogListId(filter_id);
         }
@@ -74,7 +74,7 @@ class DialogListId {
       return td_api::make_object<td_api::chatListMain>();
     }
     if (is_filter()) {
-      return td_api::make_object<td_api::chatListFilter>(get_filter_id().get());
+      return td_api::make_object<td_api::chatListFolder>(get_filter_id().get());
     }
     UNREACHABLE();
     return nullptr;
@@ -113,8 +113,8 @@ class DialogListId {
 };
 
 struct DialogListIdHash {
-  std::size_t operator()(DialogListId dialog_list_id) const {
-    return std::hash<int64>()(dialog_list_id.get());
+  uint32 operator()(DialogListId dialog_list_id) const {
+    return Hash<int64>()(dialog_list_id.get());
   }
 };
 

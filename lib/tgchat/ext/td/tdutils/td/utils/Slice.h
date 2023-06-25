@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -290,10 +290,10 @@ inline CSlice::CSlice(const char *s, const char *t) : Slice(s, t) {
   CHECK(*t == '\0');
 }
 
-inline std::size_t SliceHash::operator()(Slice slice) const {
+inline uint32 SliceHash::operator()(Slice slice) const {
   // simple string hash
-  std::size_t result = 0;
-  constexpr std::size_t MUL = 123456789;
+  uint32 result = 0;
+  constexpr uint32 MUL = 123456789;
   for (auto c : slice) {
     result = result * MUL + c;
   }
@@ -304,15 +304,11 @@ inline Slice as_slice(Slice slice) {
   return slice;
 }
 
-inline MutableSlice as_slice(MutableSlice slice) {
+inline Slice as_slice(MutableSlice slice) {
   return slice;
 }
 
 inline Slice as_slice(const string &str) {
-  return str;
-}
-
-inline MutableSlice as_slice(string &str) {
   return str;
 }
 

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -35,13 +35,11 @@ void Global::log_out(Slice reason) {
 void Global::close_all(Promise<> on_finished) {
   td_db_->close_all(std::move(on_finished));
   state_manager_.clear();
-  parameters_ = TdParameters();
 }
 
 void Global::close_and_destroy_all(Promise<> on_finished) {
   td_db_->close_and_destroy_all(std::move(on_finished));
   state_manager_.clear();
-  parameters_ = TdParameters();
 }
 
 ActorId<ConnectionCreator> Global::connection_creator() const {
@@ -87,9 +85,7 @@ struct ServerTimeDiff {
   }
 };
 
-Status Global::init(const TdParameters &parameters, ActorId<Td> td, unique_ptr<TdDb> td_db_ptr) {
-  parameters_ = parameters;
-
+Status Global::init(ActorId<Td> td, unique_ptr<TdDb> td_db_ptr) {
   gc_scheduler_id_ = min(Scheduler::instance()->sched_id() + 2, Scheduler::instance()->sched_count() - 1);
   slow_net_scheduler_id_ = min(Scheduler::instance()->sched_id() + 3, Scheduler::instance()->sched_count() - 1);
 
@@ -135,6 +131,34 @@ Status Global::init(const TdParameters &parameters, ActorId<Td> td, unique_ptr<T
   dns_time_difference_was_updated_ = false;
 
   return Status::OK();
+}
+
+Slice Global::get_dir() const {
+  return td_db_->get_database_directory();
+}
+
+Slice Global::get_files_dir() const {
+  return td_db_->get_files_directory();
+}
+
+bool Global::is_test_dc() const {
+  return td_db_->is_test_dc();
+}
+
+bool Global::use_file_database() const {
+  return td_db_->use_file_database();
+}
+
+bool Global::use_sqlite_pmc() const {
+  return td_db_->use_sqlite_pmc();
+}
+
+bool Global::use_chat_info_database() const {
+  return td_db_->use_chat_info_database();
+}
+
+bool Global::use_message_database() const {
+  return td_db_->use_message_database();
 }
 
 int32 Global::get_retry_after(int32 error_code, Slice error_message) {
@@ -231,10 +255,6 @@ DcId Global::get_webfile_dc_id() const {
   }
 
   return DcId::internal(dc_id);
-}
-
-bool Global::ignore_background_updates() const {
-  return !parameters_.use_file_db && !parameters_.use_secret_chats && get_option_boolean("ignore_background_updates");
 }
 
 void Global::set_net_query_stats(std::shared_ptr<NetQueryStats> net_query_stats) {

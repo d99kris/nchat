@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -102,10 +102,12 @@ struct PhotoRemoteFileLocation {
     if (id_ != other.id_) {
       return id_ < other.id_;
     }
-    return source_.get_unique() < other.source_.get_unique();
+    return source_.get_unique("PhotoRemoteFileLocation::operator<") <
+           other.source_.get_unique("PhotoRemoteFileLocation::operator<");
   }
   bool operator==(const PhotoRemoteFileLocation &other) const {
-    return id_ == other.id_ && source_.get_unique() == other.source_.get_unique();
+    return id_ == other.id_ && source_.get_unique("PhotoRemoteFileLocation::operator==") ==
+                                   other.source_.get_unique("PhotoRemoteFileLocation::operator==");
   }
 };
 
@@ -142,7 +144,7 @@ struct WebRemoteFileLocation {
 };
 
 inline StringBuilder &operator<<(StringBuilder &string_builder, const WebRemoteFileLocation &location) {
-  return string_builder << "[url = " << location.url_ << ", access_hash = " << location.access_hash_ << "]";
+  return string_builder << "[URL = " << location.url_ << ", access_hash = " << location.access_hash_ << "]";
 }
 
 struct CommonRemoteFileLocation {
@@ -724,8 +726,7 @@ struct FullLocalFileLocation {
     return *this;
   }
 
-  // TODO: remove this constructor
-  FullLocalFileLocation() : file_type_(FileType::Photo) {
+  FullLocalFileLocation() : file_type_(FileType::None), path_(), mtime_nsec_() {
   }
   FullLocalFileLocation(FileType file_type, string path, uint64 mtime_nsec)
       : file_type_(file_type), path_(std::move(path)), mtime_nsec_(mtime_nsec) {

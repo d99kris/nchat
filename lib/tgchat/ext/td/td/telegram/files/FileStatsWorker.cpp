@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -15,11 +15,11 @@
 #include "td/telegram/Global.h"
 #include "td/telegram/logevent/LogEvent.h"
 #include "td/telegram/TdDb.h"
-#include "td/telegram/TdParameters.h"
 
 #include "td/db/SqliteKeyValue.h"
 
 #include "td/utils/format.h"
+#include "td/utils/HashTableUtils.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/PathView.h"
@@ -30,7 +30,6 @@
 #include "td/utils/Time.h"
 #include "td/utils/tl_parsers.h"
 
-#include <functional>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -102,19 +101,17 @@ struct FsFileInfo {
 
 template <class CallbackT>
 void scan_fs(CancellationToken &token, CallbackT &&callback) {
-  std::unordered_set<string> scanned_file_dirs;
-  for (int32 i = 0; i < MAX_FILE_TYPE; i++) {
-    auto file_type = static_cast<FileType>(i);
-    auto file_dir = get_files_dir(file_type);
+  std::unordered_set<string, Hash<string>> scanned_file_dirs;
+  auto scan_dir = [&](FileType file_type, const string &file_dir) {
+    LOG(INFO) << "Trying to scan directory " << file_dir;
     if (!scanned_file_dirs.insert(file_dir).second) {
-      continue;
+      return;
     }
-    auto main_file_type = get_main_file_type(file_type);
     walk_path(file_dir, [&](CSlice path, WalkPath::Type type) {
       if (token) {
         return WalkPath::Action::Abort;
       }
-      if (type != WalkPath::Type::NotDir) {
+      if (type != WalkPath::Type::RegularFile) {
         return WalkPath::Action::Continue;
       }
       auto r_stat = stat(path);
@@ -131,18 +128,24 @@ void scan_fs(CancellationToken &token, CallbackT &&callback) {
       FsFileInfo info;
       info.path = path.str();
       info.size = stat.real_size_;
-      info.file_type = main_file_type;
+      info.file_type = file_type;
       info.atime_nsec = stat.atime_nsec_;
       info.mtime_nsec = stat.mtime_nsec_;
       callback(info);
       return WalkPath::Action::Continue;
     }).ignore();
+  };
+  for (int32 i = 0; i < MAX_FILE_TYPE; i++) {
+    auto file_type = static_cast<FileType>(i);
+    scan_dir(get_main_file_type(file_type), get_files_dir(file_type));
   }
+  scan_dir(get_main_file_type(FileType::Temp), get_files_temp_dir(FileType::SecureDecrypted));
+  scan_dir(get_main_file_type(FileType::Temp), get_files_temp_dir(FileType::Video));
 }
 }  // namespace
 
 void FileStatsWorker::get_stats(bool need_all_files, bool split_by_owner_dialog_id, Promise<FileStats> promise) {
-  if (!G()->parameters().use_chat_info_db) {
+  if (!G()->use_chat_info_database()) {
     split_by_owner_dialog_id = false;
   }
   if (!split_by_owner_dialog_id) {
@@ -184,17 +187,17 @@ void FileStatsWorker::get_stats(bool need_all_files, bool split_by_owner_dialog_
       return promise.set_error(Global::request_aborted_error());
     }
 
-    std::unordered_map<size_t, size_t> hash_to_pos;
+    std::unordered_map<int64, size_t, Hash<int64>> hash_to_pos;
     size_t pos = 0;
     for (auto &full_info : full_infos) {
-      hash_to_pos[std::hash<std::string>()(full_info.path)] = pos;
+      hash_to_pos[Hash<string>()(full_info.path)] = pos;
       pos++;
       if (token_) {
         return promise.set_error(Global::request_aborted_error());
       }
     }
     scan_db(token_, [&](DbFileInfo &db_info) {
-      auto it = hash_to_pos.find(std::hash<std::string>()(db_info.path));
+      auto it = hash_to_pos.find(Hash<string>()(db_info.path));
       if (it == hash_to_pos.end()) {
         return;
       }

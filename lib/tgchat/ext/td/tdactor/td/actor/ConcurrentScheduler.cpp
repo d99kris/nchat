@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -70,6 +70,14 @@ void ConcurrentScheduler::test_one_thread_run() {
   } while (!is_finished_.load(std::memory_order_relaxed));
 }
 
+#if !TD_THREAD_UNSUPPORTED
+thread::id ConcurrentScheduler::get_scheduler_thread_id(int32 sched_id) {
+  auto thread_pos = static_cast<size_t>(sched_id - 1);
+  CHECK(thread_pos < threads_.size());
+  return threads_[thread_pos].get_id();
+}
+#endif
+
 void ConcurrentScheduler::start() {
   CHECK(state_ == State::Start);
   is_finished_.store(false, std::memory_order_relaxed);
@@ -80,9 +88,13 @@ void ConcurrentScheduler::start() {
 #if TD_PORT_WINDOWS
       detail::Iocp::Guard iocp_guard(iocp_.get());
 #endif
+#if TD_HAVE_THREAD_AFFINITY
       if (thread_affinity_mask != 0) {
         thread::set_affinity_mask(this_thread::get_id(), thread_affinity_mask).ignore();
       }
+#else
+      (void)thread_affinity_mask;
+#endif
       while (!is_finished()) {
         sched->run(Timestamp::in(10));
       }
@@ -98,6 +110,7 @@ void ConcurrentScheduler::start() {
 
   state_ = State::Run;
 }
+
 static TD_THREAD_LOCAL double emscripten_timeout;
 
 bool ConcurrentScheduler::run_main(Timestamp timeout) {

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -25,7 +25,7 @@
 namespace td {
 
 Wget::Wget(Promise<unique_ptr<HttpQuery>> promise, string url, std::vector<std::pair<string, string>> headers,
-           int32 timeout_in, int32 ttl, bool prefer_ipv6, SslStream::VerifyPeer verify_peer, string content,
+           int32 timeout_in, int32 ttl, bool prefer_ipv6, SslCtx::VerifyPeer verify_peer, string content,
            string content_type)
     : promise_(std::move(promise))
     , input_url_(std::move(url))
@@ -84,7 +84,8 @@ Status Wget::try_init() {
                                                        std::numeric_limits<std::size_t>::max(), 0, 0,
                                                        ActorOwn<HttpOutboundConnection::Callback>(actor_id(this)));
   } else {
-    TRY_RESULT(ssl_stream, SslStream::create(url.host_, CSlice() /* certificate */, verify_peer_));
+    TRY_RESULT(ssl_ctx, SslCtx::create(CSlice() /* certificate */, verify_peer_));
+    TRY_RESULT(ssl_stream, SslStream::create(url.host_, std::move(ssl_ctx)));
     connection_ = create_actor<HttpOutboundConnection>(
         "Connect", BufferedFd<SocketFd>(std::move(fd)), std::move(ssl_stream), std::numeric_limits<std::size_t>::max(),
         0, 0, ActorOwn<HttpOutboundConnection::Callback>(actor_id(this)));

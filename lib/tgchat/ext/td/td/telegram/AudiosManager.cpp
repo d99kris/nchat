@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -101,13 +101,13 @@ FileId AudiosManager::on_get_audio(unique_ptr<Audio> new_audio, bool replace) {
     CHECK(a->file_id == new_audio->file_id);
     if (a->mime_type != new_audio->mime_type) {
       LOG(DEBUG) << "Audio " << file_id << " info has changed";
-      a->mime_type = new_audio->mime_type;
+      a->mime_type = std::move(new_audio->mime_type);
     }
     if (a->duration != new_audio->duration || a->title != new_audio->title || a->performer != new_audio->performer) {
       LOG(DEBUG) << "Audio " << file_id << " info has changed";
       a->duration = new_audio->duration;
-      a->title = new_audio->title;
-      a->performer = new_audio->performer;
+      a->title = std::move(new_audio->title);
+      a->performer = std::move(new_audio->performer);
     }
     if (a->file_name != new_audio->file_name) {
       LOG(DEBUG) << "Audio " << file_id << " file name has changed";
@@ -126,7 +126,7 @@ FileId AudiosManager::on_get_audio(unique_ptr<Audio> new_audio, bool replace) {
         LOG(INFO) << "Audio " << file_id << " thumbnail has changed from " << a->thumbnail << " to "
                   << new_audio->thumbnail;
       }
-      a->thumbnail = new_audio->thumbnail;
+      a->thumbnail = std::move(new_audio->thumbnail);
     }
   }
 
@@ -144,7 +144,7 @@ FileId AudiosManager::dup_audio(FileId new_id, FileId old_id) {
   CHECK(new_audio == nullptr);
   new_audio = make_unique<Audio>(*old_audio);
   new_audio->file_id = new_id;
-  new_audio->thumbnail.file_id = td_->file_manager_->dup_file_id(new_audio->thumbnail.file_id);
+  new_audio->thumbnail.file_id = td_->file_manager_->dup_file_id(new_audio->thumbnail.file_id, "dup_audio");
   return new_id;
 }
 
@@ -271,11 +271,11 @@ tl_object_ptr<telegram_api::InputMedia> AudiosManager::get_input_media(
     return nullptr;
   }
   if (file_view.has_remote_location() && !file_view.main_remote_location().is_web() && input_file == nullptr) {
-    return make_tl_object<telegram_api::inputMediaDocument>(0, file_view.main_remote_location().as_input_document(), 0,
-                                                            string());
+    return make_tl_object<telegram_api::inputMediaDocument>(
+        0, false /*ignored*/, file_view.main_remote_location().as_input_document(), 0, string());
   }
   if (file_view.has_url()) {
-    return make_tl_object<telegram_api::inputMediaDocumentExternal>(0, file_view.url(), 0);
+    return make_tl_object<telegram_api::inputMediaDocumentExternal>(0, false /*ignored*/, file_view.url(), 0);
   }
 
   if (input_file != nullptr) {
@@ -298,8 +298,9 @@ tl_object_ptr<telegram_api::InputMedia> AudiosManager::get_input_media(
       flags |= telegram_api::inputMediaUploadedDocument::THUMB_MASK;
     }
     return make_tl_object<telegram_api::inputMediaUploadedDocument>(
-        flags, false /*ignored*/, false /*ignored*/, std::move(input_file), std::move(input_thumbnail), mime_type,
-        std::move(attributes), vector<tl_object_ptr<telegram_api::InputDocument>>(), 0);
+        flags, false /*ignored*/, false /*ignored*/, false /*ignored*/, std::move(input_file),
+        std::move(input_thumbnail), mime_type, std::move(attributes),
+        vector<tl_object_ptr<telegram_api::InputDocument>>(), 0);
   } else {
     CHECK(!file_view.has_remote_location());
   }

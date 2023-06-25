@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -231,7 +231,7 @@ void GetSecureValue::on_result(NetQueryPtr query) {
     return on_error(Status::Error(404, "Not Found"));
   }
   if (result.size() != 1) {
-    return on_error(Status::Error(PSLICE() << "Expected vector of size 1 got " << result.size()));
+    return on_error(Status::Error(PSLICE() << "Expected result of size 1, but receive of size " << result.size()));
   }
   encrypted_secure_value_ =
       get_encrypted_secure_value(G()->td().get_actor_unsafe()->file_manager_.get(), std::move(result[0]));
@@ -546,7 +546,7 @@ void SetSecureValue::start_upload(FileManager *file_manager, FileId &file_id, Se
   bool force = false;
   if (info.file_id.empty()) {
     if (!file_view.is_encrypted_secure()) {
-      auto download_file_id = file_manager->dup_file_id(file_id);
+      auto download_file_id = file_manager->dup_file_id(file_id, "SetSecureValue");
       file_id =
           file_manager
               ->register_generate(FileType::SecureEncrypted, FileLocationSource::FromServer, file_view.suggested_path(),
@@ -554,7 +554,7 @@ void SetSecureValue::start_upload(FileManager *file_manager, FileId &file_id, Se
               .ok();
     }
 
-    info.file_id = file_manager->dup_file_id(file_id);
+    info.file_id = file_manager->dup_file_id(file_id, "SetSecureValue");
   } else {
     force = true;
   }
@@ -650,8 +650,7 @@ void SetSecureValue::merge(FileManager *file_manager, FileId file_id, EncryptedS
     LOG(ERROR) << "Hash mismatch";
     return;
   }
-  auto status = file_manager->merge(encrypted_file.file.file_id, file_id);
-  LOG_IF(ERROR, status.is_error()) << status.error();
+  LOG_STATUS(file_manager->merge(encrypted_file.file.file_id, file_id));
 }
 
 class DeleteSecureValue final : public NetQueryCallback {

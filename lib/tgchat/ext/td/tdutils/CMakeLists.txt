@@ -2,7 +2,7 @@ if ((CMAKE_MAJOR_VERSION LESS 3) OR (CMAKE_VERSION VERSION_LESS "3.0.2"))
   message(FATAL_ERROR "CMake >= 3.0.2 is required")
 endif()
 
-option(TDUTILS_MIME_TYPE "Generate mime types conversion; requires gperf" ON)
+option(TDUTILS_MIME_TYPE "Generate MIME types conversion; requires gperf" ON)
 
 if (NOT DEFINED CMAKE_INSTALL_LIBDIR)
   set(CMAKE_INSTALL_LIBDIR "lib")
@@ -87,6 +87,7 @@ set(TDUTILS_SOURCE
 
   ${TDMIME_AUTO}
 
+  td/utils/AsyncFileLog.cpp
   td/utils/base64.cpp
   td/utils/BigNum.cpp
   td/utils/buffer.cpp
@@ -179,6 +180,7 @@ set(TDUTILS_SOURCE
   td/utils/AesCtrByteFlow.h
   td/utils/algorithm.h
   td/utils/as.h
+  td/utils/AsyncFileLog.h
   td/utils/AtomicRead.h
   td/utils/base64.h
   td/utils/benchmark.h
@@ -290,6 +292,7 @@ set(TDUTILS_SOURCE
   td/utils/uint128.h
   td/utils/unicode.h
   td/utils/unique_ptr.h
+  td/utils/unique_value_ptr.h
   td/utils/utf8.h
   td/utils/Variant.h
   td/utils/VectorQueue.h

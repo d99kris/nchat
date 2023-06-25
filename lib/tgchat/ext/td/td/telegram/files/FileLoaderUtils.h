@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -37,5 +37,19 @@ Slice get_files_base_dir(FileType file_type);
 string get_files_temp_dir(FileType file_type);
 
 string get_files_dir(FileType file_type);
+
+bool are_modification_times_equal(int64 old_mtime, int64 new_mtime);
+
+struct FullLocalLocationInfo {
+  FullLocalFileLocation location_;
+  int64 size_ = 0;
+
+  FullLocalLocationInfo(const FullLocalFileLocation &location, int64 size) : location_(location), size_(size) {
+  }
+};
+
+Result<FullLocalLocationInfo> check_full_local_location(FullLocalLocationInfo local_info, bool skip_file_size_checks);
+
+Status check_partial_local_location(const PartialLocalFileLocation &location);
 
 }  // namespace td

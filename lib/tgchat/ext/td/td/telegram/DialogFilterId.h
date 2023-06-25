@@ -1,15 +1,17 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #pragma once
 
+#include "td/telegram/telegram_api.h"
+
 #include "td/utils/common.h"
+#include "td/utils/HashTableUtils.h"
 #include "td/utils/StringBuilder.h"
 
-#include <functional>
 #include <type_traits>
 
 namespace td {
@@ -41,6 +43,10 @@ class DialogFilterId {
     return id;
   }
 
+  telegram_api::object_ptr<telegram_api::inputChatlistDialogFilter> get_input_chatlist() const {
+    return telegram_api::make_object<telegram_api::inputChatlistDialogFilter>(id);
+  }
+
   bool operator==(const DialogFilterId &other) const {
     return id == other.id;
   }
@@ -61,13 +67,13 @@ class DialogFilterId {
 };
 
 struct DialogFilterIdHash {
-  std::size_t operator()(DialogFilterId dialog_filter_id) const {
-    return std::hash<int32>()(dialog_filter_id.get());
+  uint32 operator()(DialogFilterId dialog_filter_id) const {
+    return Hash<int32>()(dialog_filter_id.get());
   }
 };
 
 inline StringBuilder &operator<<(StringBuilder &string_builder, DialogFilterId dialog_filter_id) {
-  return string_builder << "filter " << dialog_filter_id.get();
+  return string_builder << "folder " << dialog_filter_id.get();
 }
 
 }  // namespace td

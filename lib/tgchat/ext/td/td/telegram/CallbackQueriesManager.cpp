@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -176,7 +176,7 @@ void CallbackQueriesManager::on_new_query(int32 flags, int64 callback_query_id, 
     LOG(ERROR) << "Receive new callback query from invalid " << sender_user_id << " in " << dialog_id;
     return;
   }
-  LOG_IF(ERROR, !td_->contacts_manager_->have_user(sender_user_id)) << "Have no info about " << sender_user_id;
+  LOG_IF(ERROR, !td_->contacts_manager_->have_user(sender_user_id)) << "Receive unknown " << sender_user_id;
   if (!td_->auth_manager_->is_bot()) {
     LOG(ERROR) << "Receive new callback query";
     return;
@@ -195,9 +195,10 @@ void CallbackQueriesManager::on_new_query(int32 flags, int64 callback_query_id, 
   td_->messages_manager_->force_create_dialog(dialog_id, "on_new_callback_query", true);
   send_closure(
       G()->td(), &Td::send_update,
-      make_tl_object<td_api::updateNewCallbackQuery>(
+      td_api::make_object<td_api::updateNewCallbackQuery>(
           callback_query_id, td_->contacts_manager_->get_user_id_object(sender_user_id, "updateNewCallbackQuery"),
-          dialog_id.get(), message_id.get(), chat_instance, std::move(payload)));
+          td_->messages_manager_->get_chat_id_object(dialog_id, "updateNewCallbackQuery"), message_id.get(),
+          chat_instance, std::move(payload)));
 }
 
 void CallbackQueriesManager::on_new_inline_query(
@@ -208,7 +209,7 @@ void CallbackQueriesManager::on_new_inline_query(
     LOG(ERROR) << "Receive new callback query from invalid " << sender_user_id;
     return;
   }
-  LOG_IF(ERROR, !td_->contacts_manager_->have_user(sender_user_id)) << "Have no info about " << sender_user_id;
+  LOG_IF(ERROR, !td_->contacts_manager_->have_user(sender_user_id)) << "Receive unknown " << sender_user_id;
   if (!td_->auth_manager_->is_bot()) {
     LOG(ERROR) << "Receive new callback query";
     return;
@@ -252,6 +253,9 @@ void CallbackQueriesManager::send_callback_query(FullMessageId full_message_id,
   }
   if (!full_message_id.get_message_id().is_server()) {
     return promise.set_error(Status::Error(400, "Bad message identifier"));
+  }
+  if (dialog_id.get_type() == DialogType::SecretChat) {
+    return promise.set_error(Status::Error(400, "Secret chat messages can't have callback buttons"));
   }
 
   if (payload->get_id() == td_api::callbackQueryPayloadDataWithPassword::ID) {

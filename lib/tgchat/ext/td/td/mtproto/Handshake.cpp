@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -13,7 +13,6 @@
 #include "td/mtproto/utils.h"
 
 #include "td/utils/as.h"
-#include "td/utils/buffer.h"
 #include "td/utils/common.h"
 #include "td/utils/crypto.h"
 #include "td/utils/format.h"
@@ -60,7 +59,7 @@ void AuthKeyHandshake::set_timeout_in(double timeout_in) {
 }
 
 void AuthKeyHandshake::clear() {
-  last_query_ = BufferSlice();
+  last_query_ = string();
   state_ = Start;
   start_time_ = Time::now();
   timeout_in_ = 1e9;
@@ -185,7 +184,7 @@ Status AuthKeyHandshake::on_server_dh_params(Slice message, Callback *connection
   auto save_tmp_aes_iv = tmp_aes_iv;
   // encrypted_answer := AES256_ige_encrypt (answer_with_hash, tmp_aes_key, tmp_aes_iv);
   MutableSlice answer(const_cast<char *>(dh_params->encrypted_answer_.begin()), dh_params->encrypted_answer_.size());
-  aes_ige_decrypt(as_slice(tmp_aes_key), as_slice(tmp_aes_iv), answer, answer);
+  aes_ige_decrypt(as_slice(tmp_aes_key), as_mutable_slice(tmp_aes_iv), answer, answer);
   tmp_aes_iv = save_tmp_aes_iv;
 
   // answer_with_hash := SHA1(answer) + answer + (0-15 random bytes)
@@ -238,7 +237,7 @@ Status AuthKeyHandshake::on_server_dh_params(Slice message, Callback *connection
   Random::secure_bytes(encrypted_data.ubegin() + encrypted_data_size,
                        encrypted_data_size_with_pad - encrypted_data_size);
   tmp_KDF(server_nonce_, new_nonce_, &tmp_aes_key, &tmp_aes_iv);
-  aes_ige_encrypt(as_slice(tmp_aes_key), as_slice(tmp_aes_iv), encrypted_data, encrypted_data);
+  aes_ige_encrypt(as_slice(tmp_aes_key), as_mutable_slice(tmp_aes_iv), encrypted_data, encrypted_data);
 
   mtproto_api::set_client_DH_params set_client_dh_params(nonce_, server_nonce_, encrypted_data);
   send(connection, create_storer(set_client_dh_params));
@@ -288,11 +287,10 @@ Status AuthKeyHandshake::on_dh_gen_response(Slice message, Callback *connection)
 
 void AuthKeyHandshake::send(Callback *connection, const Storer &storer) {
   auto size = storer.size();
-  auto writer = BufferWriter{size, 0, 0};
-  auto real_size = storer.store(writer.as_slice().ubegin());
+  last_query_.resize(size);
+  auto real_size = storer.store(MutableSlice(last_query_).ubegin());
   CHECK(real_size == size);
-  last_query_ = writer.as_buffer_slice();
-  return do_send(connection, create_storer(last_query_.as_slice()));
+  return do_send(connection, create_storer(Slice(last_query_)));
 }
 
 void AuthKeyHandshake::do_send(Callback *connection, const Storer &storer) {
@@ -312,7 +310,7 @@ void AuthKeyHandshake::resume(Callback *connection) {
     return clear();
   }
   LOG(INFO) << "Resume handshake";
-  do_send(connection, create_storer(last_query_.as_slice()));
+  do_send(connection, create_storer(Slice(last_query_)));
 }
 
 Status AuthKeyHandshake::on_start(Callback *connection) {

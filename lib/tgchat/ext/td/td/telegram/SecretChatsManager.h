@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -20,7 +20,6 @@
 #include "td/utils/Time.h"
 
 #include <map>
-#include <utility>
 
 namespace td {
 
@@ -28,7 +27,7 @@ struct BinlogEvent;
 
 class SecretChatsManager final : public Actor {
  public:
-  explicit SecretChatsManager(ActorShared<> parent);
+  SecretChatsManager(ActorShared<> parent, bool use_secret_chats);
 
   // proxy query to corresponding SecretChatActor
   void on_update_chat(tl_object_ptr<telegram_api::updateEncryption> update);
@@ -52,14 +51,19 @@ class SecretChatsManager final : public Actor {
 
  private:
   bool binlog_replay_finish_flag_ = false;
-  bool dummy_mode_ = false;
+  bool use_secret_chats_ = false;
   bool close_flag_ = false;
   ActorShared<> parent_;
   std::map<int32, ActorOwn<SecretChatActor>> id_to_actor_;
 
   bool is_online_{false};
 
-  std::vector<std::pair<Timestamp, telegram_api::object_ptr<telegram_api::updateEncryption>>> pending_chat_updates_;
+  struct PendingChatUpdate {
+    Timestamp online_process_time_;
+    Timestamp offline_process_time_;
+    telegram_api::object_ptr<telegram_api::updateEncryption> update_;
+  };
+  vector<PendingChatUpdate> pending_chat_updates_;
   void flush_pending_chat_updates();
   void do_update_chat(tl_object_ptr<telegram_api::updateEncryption> update);
 

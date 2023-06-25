@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -13,6 +13,7 @@
 #include "td/telegram/net/DcId.h"
 #include "td/telegram/PhotoFormat.h"
 #include "td/telegram/PhotoSizeSource.h"
+#include "td/telegram/StickerPhotoSize.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 
@@ -24,6 +25,7 @@
 namespace td {
 
 class FileManager;
+class Td;
 
 struct PhotoSize {
   int32 type = 0;
@@ -43,7 +45,7 @@ td_api::object_ptr<td_api::minithumbnail> get_minithumbnail_object(const string 
 
 FileId register_photo_size(FileManager *file_manager, const PhotoSizeSource &source, int64 id, int64 access_hash,
                            string file_reference, DialogId owner_dialog_id, int32 file_size, DcId dc_id,
-                           PhotoFormat format);
+                           PhotoFormat format, const char *call_source);
 
 PhotoSize get_secret_thumbnail_photo_size(FileManager *file_manager, BufferSlice bytes, DialogId owner_dialog_id,
                                           int32 width, int32 height);
@@ -53,9 +55,12 @@ Variant<PhotoSize, string> get_photo_size(FileManager *file_manager, PhotoSizeSo
                                           DialogId owner_dialog_id, tl_object_ptr<telegram_api::PhotoSize> &&size_ptr,
                                           PhotoFormat format);
 
-AnimationSize get_animation_size(FileManager *file_manager, PhotoSizeSource source, int64 id, int64 access_hash,
-                                 string file_reference, DcId dc_id, DialogId owner_dialog_id,
-                                 tl_object_ptr<telegram_api::videoSize> &&size);
+AnimationSize get_animation_size(Td *td, PhotoSizeSource source, int64 id, int64 access_hash, string file_reference,
+                                 DcId dc_id, DialogId owner_dialog_id, tl_object_ptr<telegram_api::videoSize> &&size);
+
+Variant<AnimationSize, unique_ptr<StickerPhotoSize>> process_video_size(
+    Td *td, PhotoSizeSource source, int64 id, int64 access_hash, string file_reference, DcId dc_id,
+    DialogId owner_dialog_id, tl_object_ptr<telegram_api::VideoSize> &&size_ptr);
 
 PhotoSize get_web_document_photo_size(FileManager *file_manager, FileType file_type, DialogId owner_dialog_id,
                                       tl_object_ptr<telegram_api::WebDocument> web_document_ptr);

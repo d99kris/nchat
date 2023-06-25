@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -32,7 +32,9 @@ class MessageTtl {
 
   bool is_empty() const;
 
-  int32 get_message_ttl_object() const;
+  int32 get_message_auto_delete_time_object() const;
+
+  int32 get_input_ttl_period() const;
 
   template <class StorerT>
   void store(StorerT &storer) const {

@@ -1436,10 +1436,6 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
   {
     LOG_TRACE("update chat themes");
   },
-  [](td::td_api::updateChatFilters&)
-  {
-    LOG_TRACE("update chat filters");
-  },
   [](td::td_api::updateUnreadMessageCount&)
   {
     LOG_TRACE("update unread message count");
@@ -2275,15 +2271,18 @@ void TgChat::Impl::GetSponsoredMessages(const std::string& p_ChatId)
 #else
   // sponsored messages from telegram
   const int64_t chatId = StrUtil::NumFromHex<int64_t>(p_ChatId);
-  SendQuery(td::td_api::make_object<td::td_api::getChatSponsoredMessage>(chatId),
+  SendQuery(td::td_api::make_object<td::td_api::getChatSponsoredMessages>(chatId),
             [this, p_ChatId](Object object)
   {
     if (object->get_id() == td::td_api::error::ID) return;
 
+    auto sponsoredMessages = td::move_tl_object_as<td::td_api::sponsoredMessages>(object);
+
     std::vector<ChatMessage> chatMessages;
-    auto sponsoredMessage = td::move_tl_object_as<td::td_api::sponsoredMessage>(object);
-    if (sponsoredMessage)
+    for (auto it = sponsoredMessages->messages_.begin(); it != sponsoredMessages->messages_.end(); ++it)
     {
+      auto sponsoredMessage = td::move_tl_object_as<td::td_api::sponsoredMessage>(*it);
+
       const int64_t sponsoredMessageId = sponsoredMessage->message_id_;
       ChatMessage chatMessage;
       TdMessageContentConvert(*sponsoredMessage->content_, sponsoredMessage->sponsor_chat_id_, chatMessage.text, chatMessage.fileInfo);
@@ -2364,12 +2363,18 @@ void TgChat::Impl::ViewSponsoredMessage(const std::string& p_ChatId, const std::
   view_messages->chat_id_ = chatId;
   view_messages->message_ids_ = msgIds;
   view_messages->force_read_ = true;
+  view_messages->source_ = td::td_api::make_object<td::td_api::messageSourceChatHistory>();
 
   SendQuery(std::move(view_messages), [msgId](Object object)
   {
     if (object->get_id() == td::td_api::error::ID)
     {
-      LOG_WARNING("view sponsored message failed %lld", msgId);
+      auto error = td::td_api::move_object_as<td::td_api::error>(object);
+      LOG_WARNING("view sponsored message failed %lld code %d (%s)", msgId, error->code_, error->message_.c_str());
+    }
+    else
+    {
+      LOG_TRACE("view sponsored message ok %lld", msgId);
     }
   });
 #endif

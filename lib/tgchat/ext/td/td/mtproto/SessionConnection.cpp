@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -89,10 +89,9 @@ namespace mtproto {
  *
  * 6. New session creation
  *  A notification about new session.
- *  It is reasonable to store unique_id with current session, in order to process duplicated notifications once.
+ *  It is reasonable to store unique_id with current session in order to process duplicated notifications only once.
  *
- *  Causes all older than first_msg_id to be re-sent.
- *  Also there is a gap in updates, so getDifference MUST be sent
+ *  Causes all messages older than first_msg_id to be re-sent and notifies about a gap in updates
  *  output:
  *   - new_session_created#9ec20908 first_msg_id:long unique_id:long server_salt:long = NewSession
  *
@@ -405,8 +404,10 @@ Status SessionConnection::on_packet(const MsgInfo &info, const mtproto_api::gzip
 Status SessionConnection::on_packet(const MsgInfo &info, const mtproto_api::pong &pong) {
   VLOG(mtproto) << "PONG";
   last_pong_at_ = Time::now_cached();
+  real_last_pong_at_ = last_pong_at_;
   return callback_->on_pong();
 }
+
 Status SessionConnection::on_packet(const MsgInfo &info, const mtproto_api::future_salts &salts) {
   VLOG(mtproto) << "FUTURE_SALTS";
   vector<ServerSalt> new_salts;
@@ -414,19 +415,24 @@ Status SessionConnection::on_packet(const MsgInfo &info, const mtproto_api::futu
     new_salts.push_back(
         ServerSalt{it->salt_, static_cast<double>(it->valid_since_), static_cast<double>(it->valid_until_)});
   }
-  auth_data_->set_future_salts(new_salts, Time::now_cached());
+  auto now = Time::now_cached();
+  auth_data_->set_future_salts(new_salts, now);
+  VLOG(mtproto) << "Have server salts: is_valid = " << auth_data_->is_server_salt_valid(now)
+                << ", has_salt = " << auth_data_->has_salt(now)
+                << ", need_future_salts = " << auth_data_->need_future_salts(now);
   callback_->on_server_salt_updated();
 
   return Status::OK();
 }
 
-Status SessionConnection::on_msgs_state_info(const vector<int64> &ids, Slice info) {
-  if (ids.size() != info.size()) {
-    return Status::Error(PSLICE() << tag("ids.size()", ids.size()) << " != " << tag("info.size()", info.size()));
+Status SessionConnection::on_msgs_state_info(const vector<int64> &message_ids, Slice info) {
+  if (message_ids.size() != info.size()) {
+    return Status::Error(PSLICE() << tag("message count", message_ids.size())
+                                  << " != " << tag("info.size()", info.size()));
   }
   size_t i = 0;
-  for (auto id : ids) {
-    callback_->on_message_info(id, info[i], 0, 0);
+  for (auto message_id : message_ids) {
+    callback_->on_message_info(message_id, info[i], 0, 0);
     i++;
   }
   return Status::OK();
@@ -441,7 +447,7 @@ Status SessionConnection::on_packet(const MsgInfo &info, const mtproto_api::msgs
   service_queries_.erase(it);
 
   if (query.type != ServiceQuery::GetStateInfo) {
-    return Status::Error("Receive msg_state_info in response not to GetStateInfo");
+    return Status::Error("Receive msgs_state_info in response not to GetStateInfo");
   }
   return on_msgs_state_info(query.message_ids, msgs_state_info.info_);
 }
@@ -497,33 +503,29 @@ Status SessionConnection::on_slice_packet(const MsgInfo &info, Slice packet) {
     return status;
   }
 
+  auto get_update_description = [&] {
+    return PSTRING() << "update from " << get_name() << " active for " << (Time::now() - created_at_)
+                     << " seconds in container " << container_id_ << " from session " << auth_data_->get_session_id()
+                     << " with message_id " << info.message_id << ", main_message_id = " << main_message_id_
+                     << ", seq_no = " << info.seq_no << " and original size = " << info.size;
+  };
+
   // It is an update... I hope.
   status = auth_data_->check_update(info.message_id);
   auto recheck_status = auth_data_->recheck_update(info.message_id);
   if (recheck_status.is_error() && recheck_status.code() == 2) {
-    LOG(WARNING) << "Receive very old update from " << get_name() << " created in " << (Time::now() - created_at_)
-                 << " in container " << container_id_ << " from session " << auth_data_->get_session_id()
-                 << " with message_id " << info.message_id << ", main_message_id = " << main_message_id_
-                 << ", seq_no = " << info.seq_no << " and original size " << info.size << ": " << status << ' '
-                 << recheck_status;
+    LOG(WARNING) << "Receive very old " << get_update_description() << ": " << status << ' ' << recheck_status;
   }
   if (status.is_error()) {
     if (status.code() == 2) {
-      LOG(WARNING) << "Receive too old update from " << get_name() << " created in " << (Time::now() - created_at_)
-                   << " in container " << container_id_ << " from session " << auth_data_->get_session_id()
-                   << " with message_id " << info.message_id << ", main_message_id = " << main_message_id_
-                   << ", seq_no = " << info.seq_no << " and original size " << info.size << ": " << status;
+      LOG(WARNING) << "Receive too old " << get_update_description() << ": " << status;
       callback_->on_session_failed(Status::Error("Receive too old update"));
       return status;
     }
-    VLOG(mtproto) << "Skip update " << info.message_id << " of size " << info.size << " with seq_no " << info.seq_no
-                  << " from " << get_name() << " created in " << (Time::now() - created_at_) << ": " << status;
+    VLOG(mtproto) << "Skip " << get_update_description() << ": " << status;
     return Status::OK();
   } else {
-    VLOG(mtproto) << "Got update from " << get_name() << " created in " << (Time::now() - created_at_)
-                  << " in container " << container_id_ << " from session " << auth_data_->get_session_id()
-                  << " with message_id " << info.message_id << ", main_message_id = " << main_message_id_
-                  << ", seq_no = " << info.seq_no << " and original size " << info.size;
+    VLOG(mtproto) << "Receive " << get_update_description();
     return callback_->on_update(as_buffer_slice(packet));
   }
 }
@@ -536,15 +538,16 @@ Status SessionConnection::parse_packet(TlParser &parser) {
 }
 
 Status SessionConnection::on_main_packet(const PacketInfo &info, Slice packet) {
-  // Update pong here too. Real pong can be delayed by lots of big packets
+  // Update pong here too. Real pong can be delayed by many big packets
   last_pong_at_ = Time::now_cached();
+  real_last_pong_at_ = last_pong_at_;
 
   if (!connected_flag_) {
     connected_flag_ = true;
     callback_->on_connected();
   }
 
-  VLOG(raw_mtproto) << "Got packet of size " << packet.size() << " from session " << format::as_hex(info.session_id)
+  VLOG(raw_mtproto) << "Receive packet of size " << packet.size() << " from session " << format::as_hex(info.session_id)
                     << ":" << format::as_hex_dump<4>(packet);
   if (info.no_crypto_flag) {
     return Status::Error("Unencrypted packet");
@@ -717,6 +720,8 @@ Status SessionConnection::on_quick_ack(uint64 quick_ack_token) {
 
 void SessionConnection::on_read(size_t size) {
   last_read_at_ = Time::now_cached();
+  real_last_read_at_ = last_read_at_;
+  last_read_size_ += size;
 }
 
 SessionConnection::SessionConnection(Mode mode, unique_ptr<RawConnection> raw_connection, AuthData *auth_data)
@@ -743,6 +748,7 @@ Status SessionConnection::init() {
 }
 
 void SessionConnection::set_online(bool online_flag, bool is_main) {
+  LOG(DEBUG) << "Set online to " << online_flag;
   bool need_ping = online_flag || !online_flag_;
   online_flag_ = online_flag;
   is_main_ = is_main;
@@ -767,8 +773,9 @@ void SessionConnection::do_close(Status status) {
 
 void SessionConnection::send_crypto(const Storer &storer, uint64 quick_ack_token) {
   CHECK(state_ != Closed);
-  raw_connection_->send_crypto(storer, auth_data_->get_session_id(), auth_data_->get_server_salt(Time::now_cached()),
-                               auth_data_->get_auth_key(), quick_ack_token);
+  last_write_size_ += raw_connection_->send_crypto(storer, auth_data_->get_session_id(),
+                                                   auth_data_->get_server_salt(Time::now_cached()),
+                                                   auth_data_->get_auth_key(), quick_ack_token);
 }
 
 Result<uint64> SessionConnection::send_query(BufferSlice buffer, bool gzip_flag, int64 message_id,
@@ -821,7 +828,7 @@ std::pair<uint64, BufferSlice> SessionConnection::encrypted_bind(int64 perm_key,
   auto object_storer = create_storer(object);
   auto size = object_storer.size();
   auto object_packet = BufferWriter{size, 0, 0};
-  auto real_size = object_storer.store(object_packet.as_slice().ubegin());
+  auto real_size = object_storer.store(object_packet.as_mutable_slice().ubegin());
   CHECK(size == real_size);
 
   MtprotoQuery query{
@@ -836,7 +843,7 @@ std::pair<uint64, BufferSlice> SessionConnection::encrypted_bind(int64 perm_key,
 
   const AuthKey &main_auth_key = auth_data_->get_main_auth_key();
   auto packet = BufferWriter{Transport::write(query_storer, main_auth_key, &info), 0, 0};
-  Transport::write(query_storer, main_auth_key, &info, packet.as_slice());
+  Transport::write(query_storer, main_auth_key, &info, packet.as_mutable_slice());
   return std::make_pair(query.message_id, packet.as_buffer_slice());
 }
 
@@ -852,7 +859,7 @@ void SessionConnection::send_ack(uint64 message_id) {
     send_before(Time::now_cached() + ACK_DELAY);
   }
   auto ack = static_cast<int64>(message_id);
-  // an easiest way to eliminate duplicated acks for gzipped packets
+  // an easiest way to eliminate duplicated acknowledgements for gzipped packets
   if (to_ack_.empty() || to_ack_.back() != ack) {
     to_ack_.push_back(ack);
 
@@ -955,7 +962,7 @@ void SessionConnection::flush_packet() {
     return result;
   };
 
-  // no more than 8192 ids per container..
+  // no more than 8192 message identifiers per container..
   auto to_resend_answer = cut_tail(to_resend_answer_, 8192, "resend_answer");
   uint64 resend_answer_id = 0;
   CHECK(queries.size() <= 1020);
@@ -993,14 +1000,14 @@ void SessionConnection::flush_packet() {
   }
 
   if (container_id != 0) {
-    vector<uint64> ids = transform(queries, [](const MtprotoQuery &x) { return static_cast<uint64>(x.message_id); });
+    auto message_ids = transform(queries, [](const MtprotoQuery &x) { return static_cast<uint64>(x.message_id); });
 
     // some acks may be lost here. Nobody will resend them if something goes wrong with query.
     // It is mostly problem for server. We will just drop this answers in next connection
     //
     // get future salt too.
     // So I will re-ask salt if have no answer in 60 second.
-    callback_->on_container_sent(container_id, std::move(ids));
+    callback_->on_container_sent(container_id, std::move(message_ids));
 
     if (resend_answer_id) {
       container_to_service_msg_[container_id].push_back(resend_answer_id);
@@ -1035,14 +1042,27 @@ Status SessionConnection::do_flush() {
     return Status::Error("No auth key");
   }
 
-  TRY_STATUS(raw_connection_->flush(auth_data_->get_auth_key(), *this));
+  last_read_size_ = 0;
+  last_write_size_ = 0;
+  auto start_time = Time::now();
+  auto result = raw_connection_->flush(auth_data_->get_auth_key(), *this);
+  auto elapsed_time = Time::now() - start_time;
+  if (elapsed_time >= 0.1) {
+    LOG(ERROR) << "RawConnection::flush took " << elapsed_time << " seconds, written " << last_write_size_
+               << " bytes, read " << last_read_size_ << " bytes and returned " << result;
+  }
+  if (result.is_error()) {
+    return result;
+  }
 
   if (last_pong_at_ + ping_disconnect_delay() < Time::now_cached()) {
     auto stats_callback = raw_connection_->stats_callback();
     if (stats_callback != nullptr) {
       stats_callback->on_error();
     }
-    return Status::Error(PSLICE() << "Ping timeout of " << ping_disconnect_delay() << " seconds expired");
+    return Status::Error(PSLICE() << "Ping timeout of " << ping_disconnect_delay()
+                                  << " seconds expired; last pong was received " << (Time::now() - real_last_pong_at_)
+                                  << " seconds ago");
   }
 
   if (last_read_at_ + read_disconnect_delay() < Time::now_cached()) {
@@ -1050,7 +1070,8 @@ Status SessionConnection::do_flush() {
     if (stats_callback != nullptr) {
       stats_callback->on_error();
     }
-    return Status::Error(PSLICE() << "Read timeout of " << read_disconnect_delay() << " seconds expired");
+    return Status::Error(PSLICE() << "Read timeout of " << read_disconnect_delay() << " seconds expired; last read was "
+                                  << (Time::now() - real_last_read_at_) << " seconds ago");
   }
 
   return Status::OK();
@@ -1058,24 +1079,31 @@ Status SessionConnection::do_flush() {
 
 double SessionConnection::flush(SessionConnection::Callback *callback) {
   callback_ = callback;
-  wakeup_at_ = 0;
   auto status = do_flush();
   // check error
   if (status.is_error()) {
     do_close(std::move(status));
+    LOG(DEBUG) << "Close session because of an error";
     return 0;
   }
 
-  // wakeup_at
-  // two independent timeouts
-  // 1. close connection after PING_DISCONNECT_DELAY after last_pong.
-  // 2. the one returned by must_flush_packet
-  relax_timeout_at(&wakeup_at_, last_pong_at_ + ping_disconnect_delay() + 0.002);
-  relax_timeout_at(&wakeup_at_, last_read_at_ + read_disconnect_delay() + 0.002);
-  // CHECK(wakeup_at > Time::now_cached());
+  double wakeup_at = 0;
+  // three independent timeouts
+  // 1. close connection after ping_disconnect_delay() after last pong
+  // 2. close connection after read_disconnect_delay() after last read
+  // 3. the one returned by must_flush_packet
+  relax_timeout_at(&wakeup_at, last_pong_at_ + ping_disconnect_delay() + 0.002);
+  relax_timeout_at(&wakeup_at, last_read_at_ + read_disconnect_delay() + 0.002);
+  relax_timeout_at(&wakeup_at, flush_packet_at_);
 
-  relax_timeout_at(&wakeup_at_, flush_packet_at_);
-  return wakeup_at_;
+  auto now = Time::now();
+  LOG(DEBUG) << "Last pong was in " << (now - last_pong_at_) << '/' << (now - real_last_pong_at_)
+             << ", last read was in " << (now - last_read_at_) << '/' << (now - real_last_read_at_)
+             << ", RTT = " << rtt() << ", ping timeout = " << ping_disconnect_delay()
+             << ", read timeout = " << read_disconnect_delay() << ", flush packet in " << (flush_packet_at_ - now)
+             << ", wakeup in " << (wakeup_at - now);
+
+  return wakeup_at;
 }
 
 void SessionConnection::force_close(SessionConnection::Callback *callback) {

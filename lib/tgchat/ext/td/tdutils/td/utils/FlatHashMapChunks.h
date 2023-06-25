@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -36,7 +36,7 @@ namespace td {
 template <int shift>
 struct MaskIterator {
   uint64 mask;
-  explicit operator bool() const {
+  explicit operator bool() const noexcept {
     return mask != 0;
   }
   int pos() const {
@@ -487,7 +487,7 @@ class FlatHashTableChunks {
   }
 
   HashInfo calc_hash(const KeyT &key) {
-    auto h = randomize_hash(HashT()(key));
+    auto h = HashT()(key);
     return {(h >> 8) % chunks_.size(), static_cast<uint8>(0x80 | h)};
   }
 
@@ -561,9 +561,10 @@ class FlatHashTableChunks {
   }
 };
 
-template <class KeyT, class ValueT, class HashT = std::hash<KeyT>, class EqT = std::equal_to<KeyT>>
+template <class KeyT, class ValueT, class HashT = Hash<KeyT>, class EqT = std::equal_to<KeyT>>
 using FlatHashMapChunks = FlatHashTableChunks<MapNode<KeyT, ValueT>, HashT, EqT>;
-template <class KeyT, class HashT = std::hash<KeyT>, class EqT = std::equal_to<KeyT>>
+
+template <class KeyT, class HashT = Hash<KeyT>, class EqT = std::equal_to<KeyT>>
 using FlatHashSetChunks = FlatHashTableChunks<SetNode<KeyT>, HashT, EqT>;
 
 template <class NodeT, class HashT, class EqT, class FuncT>

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -63,7 +63,7 @@ void FileLoader::update_local_file_location(const LocalFileLocation &local) {
     return;
   }
   auto prefix_info = r_prefix_info.move_as_ok();
-  auto status = parts_manager_.set_known_prefix(narrow_cast<size_t>(prefix_info.size), prefix_info.is_ready);
+  auto status = parts_manager_.set_known_prefix(prefix_info.size, prefix_info.is_ready);
   if (status.is_error()) {
     on_error(std::move(status));
     stop_flag_ = true;
@@ -115,11 +115,10 @@ void FileLoader::start_up() {
   // This error is definitely ok, because we are using actual size of the file on disk (mtime is checked by
   // somebody else). And actual size could change arbitrarily.
   //
-  // 2. size is unknown/zero, size is not final, some parts of file are already uploaded
+  // 2. File size is not final, and some parts ending after known file size were uploaded
   // pm.init(0, 100000, false, 10, {0, 1, 2}, false, true).ensure_error();
-  // This case is more complicated
-  // It means that at some point we got inconsistent state. Like deleted local location, but left partial remote
-  // location untouched. This is completely possible at this point, but probably should be fixed.
+  // This can happen only if file state became inconsistent at some point. For example, local location was deleted,
+  // but partial remote location was kept. This is possible, but probably should be fixed.
   auto status =
       parts_manager_.init(size, expected_size, is_size_final, part_size, ready_parts, use_part_count_limit, is_upload);
   LOG(DEBUG) << "Start " << (is_upload ? "up" : "down") << "loading a file of size " << size << " with expected "
@@ -153,7 +152,7 @@ void FileLoader::loop() {
   }
   auto status = do_loop();
   if (status.is_error()) {
-    if (status.code() == 1) {
+    if (status.code() == -1) {
       return;
     }
     on_error(std::move(status));
@@ -197,7 +196,7 @@ Status FileLoader::do_loop() {
       break;
     }
     if (resource_state_.unused() < narrow_cast<int64>(parts_manager_.get_part_size())) {
-      VLOG(file_loader) << "Got only " << resource_state_.unused() << " resource";
+      VLOG(file_loader) << "Receive only " << resource_state_.unused() << " resource";
       break;
     }
     TRY_RESULT(part, parts_manager_.start_part());
@@ -211,15 +210,15 @@ Status FileLoader::do_loop() {
     NetQueryPtr query;
     bool is_blocking;
     std::tie(query, is_blocking) = std::move(query_flag);
-    uint64 id = UniqueId::next();
+    uint64 unique_id = UniqueId::next();
     if (is_blocking) {
       CHECK(blocking_id_ == 0);
-      blocking_id_ = id;
+      blocking_id_ = unique_id;
     }
-    part_map_[id] = std::make_pair(part, query->cancel_slot_.get_signal_new());
-    // part_map_[id] = std::make_pair(part, query.get_weak());
+    part_map_[unique_id] = std::make_pair(part, query->cancel_slot_.get_signal_new());
+    // part_map_[unique_id] = std::make_pair(part, query.get_weak());
 
-    auto callback = actor_shared(this, id);
+    auto callback = actor_shared(this, unique_id);
     if (delay_dispatcher_.empty()) {
       G()->net_query_dispatcher().dispatch_with_callback(std::move(query), std::move(callback));
     } else {
@@ -259,17 +258,17 @@ void FileLoader::on_result(NetQueryPtr query) {
   if (stop_flag_) {
     return;
   }
-  auto id = get_link_token();
-  if (id == blocking_id_) {
+  auto unique_id = get_link_token();
+  if (unique_id == blocking_id_) {
     blocking_id_ = 0;
   }
-  if (UniqueId::extract_key(id) == COMMON_QUERY_KEY) {
+  if (UniqueId::extract_key(unique_id) == COMMON_QUERY_KEY) {
     on_common_query(std::move(query));
     return loop();
   }
-  auto it = part_map_.find(id);
+  auto it = part_map_.find(unique_id);
   if (it == part_map_.end()) {
-    LOG(WARNING) << "Got result for unknown part";
+    LOG(WARNING) << "Receive result for unknown part";
     return;
   }
 

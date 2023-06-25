@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -45,12 +45,11 @@ inline void ActorInfo::init(int32 sched_id, Slice name, ObjectPool<ActorInfo>::O
   name_.assign(name.data(), name.size());
 #endif
 
-  actor_->init(std::move(this_ptr));
+  actor_->set_info(std::move(this_ptr));
   deleter_ = deleter;
   need_context_ = need_context;
   need_start_up_ = need_start_up;
   is_running_ = false;
-  wait_generation_ = 0;
 }
 
 inline bool ActorInfo::need_context() const {
@@ -59,18 +58,6 @@ inline bool ActorInfo::need_context() const {
 
 inline bool ActorInfo::need_start_up() const {
   return need_start_up_;
-}
-
-inline void ActorInfo::set_wait_generation(uint32 wait_generation) {
-  wait_generation_ = wait_generation;
-}
-
-inline bool ActorInfo::must_wait(uint32 wait_generation) const {
-  return wait_generation_ == wait_generation || (always_wait_for_mailbox_ && !mailbox_.empty());
-}
-
-inline void ActorInfo::always_wait_for_mailbox() {
-  always_wait_for_mailbox_ = true;
 }
 
 inline void ActorInfo::on_actor_moved(Actor *actor_new_ptr) {
@@ -82,8 +69,8 @@ inline void ActorInfo::clear() {
   CHECK(!actor_);
   CHECK(!is_running());
   CHECK(!is_migrating());
-  // NB: must be in non migrating state
-  // store invalid scheduler id.
+  // NB: must be in non-migrating state
+  // store invalid scheduler identifier
   sched_id_.store((1 << 30) - 1, std::memory_order_relaxed);
   VLOG(actor) << "Clear context " << context_.get() << " for " << get_name();
   context_.reset();

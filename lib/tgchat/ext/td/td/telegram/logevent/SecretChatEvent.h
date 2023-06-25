@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -219,7 +219,7 @@ inline StringBuilder &operator<<(StringBuilder &sb, const EncryptedInputFile &fi
 }
 
 // LogEvents
-// TODO: Qts and SeqNoState could be just Logevents that are updated during regenerate
+// TODO: QTS and SeqNoState could be just Logevents that are updated during regenerate
 class InboundSecretMessage final : public SecretChatLogEventBase<InboundSecretMessage> {
  public:
   static constexpr Type type = SecretChatEvent::Type::InboundSecretMessage;

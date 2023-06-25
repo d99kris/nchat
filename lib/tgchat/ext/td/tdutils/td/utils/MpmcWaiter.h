@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -186,9 +186,8 @@ class MpmcSleepyWaiter {
   // This may put it in a Sleep for some time.
   // After wait returns worker will be in Search state again.
   //
-  // Suppose worker found a work and ready to process it.
-  // Then it may call stop_wait. This will cause transition from
-  // Search to Work state.
+  // If a worker found a work and ready to process it, then it may call stop_wait.
+  // This will cause transition from Search to Work state.
   //
   // Main invariant:
   // After notify is called there should be at least on worker in Search or Work state.
@@ -260,7 +259,7 @@ class MpmcSleepyWaiter {
         guard.unlock();
       } else {
         guard.unlock();
-        VLOG(waiter) << "Not in sleepers" << slot.worker_id;
+        VLOG(waiter) << "Not in sleepers " << slot.worker_id;
         CHECK(slot.cancel_park());
       }
     }
@@ -282,16 +281,16 @@ class MpmcSleepyWaiter {
     auto view = StateView(state_.load());
     //LOG(ERROR) << view.parked_count;
     if (view.searching_count > 0 || view.parked_count == 0) {
-      VLOG(waiter) << "Ingore notify: " << view.searching_count << " " << view.parked_count;
+      VLOG(waiter) << "Ingore notify: " << view.searching_count << ' ' << view.parked_count;
       return;
     }
 
-    VLOG(waiter) << "Notify: " << view.searching_count << " " << view.parked_count;
+    VLOG(waiter) << "Notify: " << view.searching_count << ' ' << view.parked_count;
     std::unique_lock<std::mutex> guard(sleepers_mutex_);
 
     view = StateView(state_.load());
     if (view.searching_count > 0) {
-      VLOG(waiter) << "Skip notify: got searching";
+      VLOG(waiter) << "Skip notify: search is active";
       return;
     }
 

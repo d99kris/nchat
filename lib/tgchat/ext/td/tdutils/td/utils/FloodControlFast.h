@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -7,56 +7,81 @@
 #pragma once
 
 #include "td/utils/common.h"
-#include "td/utils/TimedStat.h"
 
 namespace td {
 
 class FloodControlFast {
  public:
-  void add_event(int32 now) {
-    for (auto &limit : limits_) {
-      limit.stat_.add_event(CounterStat::Event(), now);
-      if (limit.stat_.get_stat(now).count_ > limit.count_) {
-        wakeup_at_ = max(wakeup_at_, now + limit.duration_ * 2);
-      }
+  void add_event(double now) {
+    for (auto &bucket : buckets_) {
+      bucket.add_event(now);
+      wakeup_at_ = td::max(wakeup_at_, bucket.get_wakeup_at());
     }
   }
 
-  uint32 get_wakeup_at() const {
+  double get_wakeup_at() const {
     return wakeup_at_;
   }
 
-  void add_limit(uint32 duration, int32 count) {
-    limits_.push_back({TimedStat<CounterStat>(duration, 0), duration, count});
+  void add_limit(double duration, double count) {
+    buckets_.emplace_back(duration, count);
   }
 
   void clear_events() {
-    for (auto &limit : limits_) {
-      limit.stat_.clear_events();
+    for (auto &bucket : buckets_) {
+      bucket.clear_events();
     }
     wakeup_at_ = 0;
   }
 
  private:
-  class CounterStat {
+  class FloodControlBucket {
    public:
-    struct Event {};
-    int32 count_ = 0;
-    void on_event(Event e) {
-      count_++;
+    FloodControlBucket(double duration, double count)
+        : max_capacity_(count - 1), speed_(count / duration), volume_(max_capacity_) {
     }
-    void clear() {
-      count_ = 0;
+
+    void add_event(double now, double size = 1) {
+      CHECK(now >= wakeup_at_);
+      update_volume(now);
+      if (volume_ >= size) {
+        volume_ -= size;
+        return;
+      }
+      size -= volume_;
+      volume_ = 0;
+      wakeup_at_ = volume_at_ + size / speed_;
+      volume_at_ = wakeup_at_;
+    }
+
+    double get_wakeup_at() const {
+      return wakeup_at_;
+    }
+
+    void clear_events() {
+      volume_ = max_capacity_;
+      volume_at_ = 0;
+      wakeup_at_ = 0;
+    }
+
+   private:
+    const double max_capacity_{1};
+    const double speed_{1};
+    double volume_{1};
+
+    double volume_at_{0};
+    double wakeup_at_{0};
+
+    void update_volume(double now) {
+      CHECK(now >= volume_at_);
+      auto passed = now - volume_at_;
+      volume_ = td::min(volume_ + passed * speed_, max_capacity_);
+      volume_at_ = now;
     }
   };
 
-  uint32 wakeup_at_ = 0;
-  struct Limit {
-    TimedStat<CounterStat> stat_;
-    uint32 duration_;
-    int32 count_;
-  };
-  std::vector<Limit> limits_;
+  double wakeup_at_ = 0;
+  vector<FloodControlBucket> buckets_;
 };
 
 }  // namespace td

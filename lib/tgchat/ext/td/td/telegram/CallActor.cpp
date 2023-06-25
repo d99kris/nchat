@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -358,11 +358,8 @@ void CallActor::send_call_log(td_api::object_ptr<td_api::InputFile> log_file, Pr
   }
 
   auto *file_manager = G()->td().get_actor_unsafe()->file_manager_.get();
-  auto r_file_id = file_manager->get_input_file_id(FileType::CallLog, log_file, DialogId(), false, false);
-  if (r_file_id.is_error()) {
-    return promise.set_error(Status::Error(400, r_file_id.error().message()));
-  }
-  auto file_id = r_file_id.move_as_ok();
+  TRY_RESULT_PROMISE(promise, file_id,
+                     file_manager->get_input_file_id(FileType::CallLog, log_file, DialogId(), false, false));
 
   FileView file_view = file_manager->get_file_view(file_id);
   if (file_view.is_encrypted()) {
@@ -377,7 +374,7 @@ void CallActor::send_call_log(td_api::object_ptr<td_api::InputFile> log_file, Pr
 
 void CallActor::upload_log_file(FileId file_id, Promise<Unit> &&promise) {
   auto *file_manager = G()->td().get_actor_unsafe()->file_manager_.get();
-  auto upload_file_id = file_manager->dup_file_id(file_id);
+  auto upload_file_id = file_manager->dup_file_id(file_id, "upload_log_file");
   LOG(INFO) << "Ask to upload call log file " << upload_file_id;
 
   class UploadLogFileCallback final : public FileManager::UploadCallback {
@@ -953,6 +950,8 @@ void CallActor::loop() {
         break;
       }
       LOG(INFO) << "Close " << local_call_id_;
+      container_.for_each(
+          [](auto id, Promise<NetQueryPtr> &promise) { promise.set_error(Global::request_aborted_error()); });
       stop();
       break;
     }

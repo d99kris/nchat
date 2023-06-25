@@ -80,6 +80,12 @@ if [[ -d "${RMPATH}" ]]; then
   rm -rf ${RMPATH} || exiterr "rm ${RMPATH} failed"
 fi
 
+RMPATH="lib/tgchat/ext/td/example/java"
+if [[ -d "${RMPATH}" ]]; then
+  git restore --staged ${RMPATH} || exiterr "git restore ${RMPATH} failed"
+  rm -rf ${RMPATH} || exiterr "rm ${RMPATH} failed"
+fi
+
 # Add customizations
 cat <<EOT >> lib/tgchat/ext/td/CMakeLists.txt
 

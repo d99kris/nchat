@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -7,9 +7,11 @@
 #include "td/telegram/Support.h"
 
 #include "td/telegram/ContactsManager.h"
+#include "td/telegram/DialogId.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/MessageEntity.h"
 #include "td/telegram/Td.h"
+#include "td/telegram/telegram_api.h"
 
 #include "td/utils/buffer.h"
 #include "td/utils/Status.h"
@@ -96,16 +98,45 @@ class EditUserInfoQuery final : public Td::ResultHandler {
   }
 };
 
+class GetSupportNameQuery final : public Td::ResultHandler {
+  Promise<string> promise_;
+
+ public:
+  explicit GetSupportNameQuery(Promise<string> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send() {
+    send_query(G()->net_query_creator().create(telegram_api::help_getSupportName()));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::help_getSupportName>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    promise_.set_value(std::move(result_ptr.ok_ref()->name_));
+  }
+
+  void on_error(Status status) final {
+    promise_.set_error(std::move(status));
+  }
+};
+
 void get_user_info(Td *td, UserId user_id, Promise<td_api::object_ptr<td_api::userSupportInfo>> &&promise) {
   td->create_handler<GetUserInfoQuery>(std::move(promise))->send(user_id);
 }
 
 void set_user_info(Td *td, UserId user_id, td_api::object_ptr<td_api::formattedText> &&message,
                    Promise<td_api::object_ptr<td_api::userSupportInfo>> &&promise) {
-  TRY_RESULT_PROMISE(
-      promise, formatted_text,
-      get_formatted_text(td, DialogId(td->contacts_manager_->get_my_id()), std::move(message), false, true, true, false));
+  TRY_RESULT_PROMISE(promise, formatted_text,
+                     get_formatted_text(td, DialogId(td->contacts_manager_->get_my_id()), std::move(message), false,
+                                        true, true, false));
   td->create_handler<EditUserInfoQuery>(std::move(promise))->send(user_id, std::move(formatted_text));
+}
+
+void get_support_name(Td *td, Promise<string> &&promise) {
+  td->create_handler<GetSupportNameQuery>(std::move(promise))->send();
 }
 
 }  // namespace td

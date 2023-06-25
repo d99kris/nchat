@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -571,7 +571,6 @@ TEST(Actors, stop_in_teardown) {
 class AlwaysWaitForMailbox final : public td::Actor {
  public:
   void start_up() final {
-    always_wait_for_mailbox();
     td::create_actor<td::SleepActor>("Sleep", 0.1,
                                      td::PromiseCreator::lambda([actor_id = actor_id(this), ptr = this](td::Unit) {
                                        td::send_closure(actor_id, &AlwaysWaitForMailbox::g);

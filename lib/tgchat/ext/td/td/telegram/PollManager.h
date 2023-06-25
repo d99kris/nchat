@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -24,6 +24,8 @@
 #include "td/utils/FlatHashSet.h"
 #include "td/utils/Promise.h"
 #include "td/utils/Status.h"
+#include "td/utils/WaitFreeHashMap.h"
+#include "td/utils/WaitFreeHashSet.h"
 
 #include <utility>
 
@@ -213,7 +215,8 @@ class PollManager final : public Actor {
   void do_stop_poll(PollId poll_id, FullMessageId full_message_id, unique_ptr<ReplyMarkup> &&reply_markup,
                     uint64 log_event_id, Promise<Unit> &&promise);
 
-  void on_stop_poll_finished(PollId poll_id, uint64 log_event_id, Result<Unit> &&result, Promise<Unit> &&promise);
+  void on_stop_poll_finished(PollId poll_id, FullMessageId full_message_id, uint64 log_event_id, Result<Unit> &&result,
+                             Promise<Unit> &&promise);
 
   void forget_local_poll(PollId poll_id);
 
@@ -223,10 +226,10 @@ class PollManager final : public Actor {
 
   Td *td_;
   ActorShared<> parent_;
-  FlatHashMap<PollId, unique_ptr<Poll>, PollIdHash> polls_;
+  WaitFreeHashMap<PollId, unique_ptr<Poll>, PollIdHash> polls_;
 
-  FlatHashMap<PollId, FlatHashSet<FullMessageId, FullMessageIdHash>, PollIdHash> server_poll_messages_;
-  FlatHashMap<PollId, FlatHashSet<FullMessageId, FullMessageIdHash>, PollIdHash> other_poll_messages_;
+  WaitFreeHashMap<PollId, WaitFreeHashSet<FullMessageId, FullMessageIdHash>, PollIdHash> server_poll_messages_;
+  WaitFreeHashMap<PollId, WaitFreeHashSet<FullMessageId, FullMessageIdHash>, PollIdHash> other_poll_messages_;
 
   struct PendingPollAnswer {
     vector<string> options_;

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -88,8 +88,8 @@ class HazardPointers {
 
   size_t to_delete_size_unsafe() const {
     size_t res = 0;
-    for (auto &thread : threads_) {
-      res += thread.to_delete_.size();
+    for (auto &thread_data : threads_) {
+      res += thread_data.to_delete_.size();
     }
     return res;
   }
@@ -122,8 +122,8 @@ class HazardPointers {
   }
 
   bool is_protected(T *ptr) {
-    for (auto &thread : threads_) {
-      for (auto &hazard_ptr : thread.hazard_) {
+    for (auto &thread_data : threads_) {
+      for (auto &hazard_ptr : thread_data.hazard_) {
         if (hazard_ptr.load() == ptr) {
           return true;
         }

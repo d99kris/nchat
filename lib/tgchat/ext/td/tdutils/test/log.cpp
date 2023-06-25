@@ -1,9 +1,10 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
+#include "td/utils/AsyncFileLog.h"
 #include "td/utils/benchmark.h"
 #include "td/utils/CombinedLog.h"
 #include "td/utils/FileLog.h"
@@ -43,6 +44,9 @@ class LogBenchmark final : public td::Benchmark {
     threads_.resize(threads_n_);
   }
   void tear_down() final {
+    if (log_ == nullptr) {
+      return;
+    }
     for (const auto &path : log_->get_file_paths()) {
       td::unlink(path).ignore();
     }
@@ -50,7 +54,9 @@ class LogBenchmark final : public td::Benchmark {
   }
   void run(int n) final {
     auto old_log_interface = td::log_interface;
-    td::log_interface = log_.get();
+    if (log_ != nullptr) {
+      td::log_interface = log_.get();
+    }
 
     for (auto &thread : threads_) {
       thread = td::thread([this, n] { this->run_thread(n); });
@@ -65,7 +71,7 @@ class LogBenchmark final : public td::Benchmark {
   void run_thread(int n) {
     auto str = PSTRING() << "#" << n << " : fsjklfdjsklfjdsklfjdksl\n";
     for (int i = 0; i < n; i++) {
-      if (i % 10000 == 0) {
+      if (i % 10000 == 0 && log_ != nullptr) {
         log_->after_rotation();
       }
       if (test_full_logging_) {
@@ -96,6 +102,8 @@ static void bench_log(std::string name, F &&f) {
 
 TEST(Log, Bench) {
   bench_log("NullLog", [] { return td::make_unique<td::NullLog>(); });
+
+  // bench_log("Default", []() -> td::unique_ptr<td::NullLog> { return nullptr; });
 
   bench_log("MemoryLog", [] { return td::make_unique<td::MemoryLog<1 << 20>>(); });
 
@@ -154,5 +162,26 @@ TEST(Log, Bench) {
     };
     return td::make_unique<FileLog>();
   });
+
+#if !TD_EVENTFD_UNSUPPORTED
+  bench_log("AsyncFileLog", [] {
+    class AsyncFileLog final : public td::LogInterface {
+     public:
+      AsyncFileLog() {
+        file_log_.init("tmplog", std::numeric_limits<td::int64>::max()).ensure();
+      }
+      void do_append(int log_level, td::CSlice slice) final {
+        static_cast<td::LogInterface &>(file_log_).do_append(log_level, slice);
+      }
+      std::vector<std::string> get_file_paths() final {
+        return static_cast<td::LogInterface &>(file_log_).get_file_paths();
+      }
+
+     private:
+      td::AsyncFileLog file_log_;
+    };
+    return td::make_unique<AsyncFileLog>();
+  });
+#endif
 }
 #endif

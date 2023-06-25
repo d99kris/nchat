@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -24,7 +24,7 @@ class As {
   As(const As &new_value) = delete;
   As &operator=(const As &) = delete;
   As(As &&) = default;
-  As &operator=(As &&new_value) &&noexcept {
+  As &operator=(As &&new_value) && noexcept {
     std::memcpy(ptr_, new_value.ptr_, sizeof(T));
     return *this;
   }

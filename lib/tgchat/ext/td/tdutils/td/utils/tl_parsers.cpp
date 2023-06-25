@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -40,8 +40,7 @@ void TlParser::set_error(const string &error_message) {
     data_len = 0;
   } else {
     LOG_CHECK(error_pos != std::numeric_limits<size_t>::max() && data_len == 0 && left_len == 0)
-        << data_len << " " << left_len << " " << data << " " << &empty_data[0] << " " << error_pos << " " << error
-        << " " << data << " " << &empty_data;
+        << data_len << ' ' << left_len << ' ' << data << ' ' << &empty_data[0] << ' ' << error_pos << ' ' << error;
     data = empty_data;
   }
 }

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -24,8 +24,10 @@ TEST(WaitFreeHashMap, stress_test) {
     return rnd() % 100000 + 1;
   };
 
-  auto check = [&] {
-    ASSERT_EQ(reference.size(), map.size());
+  auto check = [&](bool check_size = false) {
+    if (check_size) {
+      ASSERT_EQ(reference.size(), map.calc_size());
+    }
     ASSERT_EQ(reference.empty(), map.empty());
 
     if (reference.size() < 100) {
@@ -58,7 +60,7 @@ TEST(WaitFreeHashMap, stress_test) {
   add_step(200, [&] {
     auto key = gen_key();
     ASSERT_EQ(reference[key], map[key]);
-    check();
+    check(true);
   });
 
   add_step(2000, [&] {

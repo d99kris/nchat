@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -7,11 +7,13 @@
 #include "td/telegram/EncryptedFile.h"
 #include "td/telegram/FolderId.h"
 #include "td/telegram/Global.h"
+#include "td/telegram/logevent/LogEvent.h"
 #include "td/telegram/MessageId.h"
 #include "td/telegram/secret_api.h"
 #include "td/telegram/SecretChatActor.h"
 #include "td/telegram/SecretChatId.h"
 #include "td/telegram/telegram_api.h"
+#include "td/telegram/UserId.h"
 
 #include "td/db/binlog/BinlogInterface.h"
 #include "td/db/binlog/detail/BinlogEventsProcessor.h"
@@ -380,14 +382,14 @@ class FakeBinlog final
   void force_flush() final {
   }
 
-  uint64 next_id() final {
-    auto res = last_id_;
-    last_id_++;
+  uint64 next_event_id() final {
+    auto res = last_event_id_;
+    last_event_id_++;
     return res;
   }
-  uint64 next_id(int32 shift) final {
-    auto res = last_id_;
-    last_id_ += shift;
+  uint64 next_event_id(int32 shift) final {
+    auto res = last_event_id_;
+    last_event_id_ += shift;
     return res;
   }
   template <class F>
@@ -403,7 +405,7 @@ class FakeBinlog final
     cancel_timeout();
     for (auto &pending : pending_events_) {
       auto &event = pending.event;
-      if (!event.empty()) {
+      if (!event.is_empty()) {
         // LOG(ERROR) << "FORGET EVENT: " << event.id_ << " " << event;
       }
     }
@@ -418,7 +420,7 @@ class FakeBinlog final
   }
   void close_and_destroy_impl(Promise<> promise) final {
   }
-  void add_raw_event_impl(uint64 id, BufferSlice &&raw_event, Promise<> promise, BinlogDebugInfo info) final {
+  void add_raw_event_impl(uint64 event_id, BufferSlice &&raw_event, Promise<> promise, BinlogDebugInfo info) final {
     auto event = BinlogEvent(std::move(raw_event), info);
     LOG(INFO) << "ADD EVENT: " << event.id_ << " " << event;
     pending_events_.emplace_back();
@@ -437,7 +439,7 @@ class FakeBinlog final
     for (size_t i = 0; i <= pos; i++) {
       auto &pending = pending_events_[i];
       auto event = std::move(pending.event);
-      if (!event.empty()) {
+      if (!event.is_empty()) {
         LOG(INFO) << "SAVE EVENT: " << event.id_ << " " << event;
         events_processor_.add_event(std::move(event)).ensure();
       }
@@ -462,7 +464,7 @@ class FakeBinlog final
     }
   }
   bool has_request_sync = false;
-  uint64 last_id_ = 1;
+  uint64 last_event_id_ = 1;
   detail::BinlogEventsProcessor events_processor_;
 
   struct PendingEvent {
@@ -760,13 +762,13 @@ class Master final : public Actor {
     auto old_context = set_context(std::make_shared<Global>());
     alice_ = create_actor<SecretChatProxy>("SecretChatProxy alice", "alice", actor_shared(this, 1));
     bob_ = create_actor<SecretChatProxy>("SecretChatProxy bob", "bob", actor_shared(this, 2));
-    send_closure(alice_->get_actor_unsafe()->actor_, &SecretChatActor::create_chat, UserId(static_cast<int64>(2)), 0,
+    send_closure(alice_.get_actor_unsafe()->actor_, &SecretChatActor::create_chat, UserId(static_cast<int64>(2)), 0,
                  123, PromiseCreator::lambda([actor_id = actor_id(this)](Result<SecretChatId> res) {
-                   send_closure(actor_id, &Master::got_secret_chat_id, std::move(res), false);
+                   send_closure(actor_id, &Master::on_get_secret_chat_id, std::move(res), false);
                  }));
   }
 
-  void got_secret_chat_id(Result<SecretChatId> res, bool dummy) {
+  void on_get_secret_chat_id(Result<SecretChatId> res, bool dummy) {
     CHECK(res.is_ok());
     auto id = res.move_as_ok();
     LOG(INFO) << "SecretChatId = " << id;
@@ -823,14 +825,14 @@ class Master final : public Actor {
   }
   void process_net_query(my_api::messages_getDhConfig &&get_dh_config, NetQueryPtr net_query,
                          ActorShared<NetQueryCallback> callback) {
-    //LOG(INFO) << "Got query " << to_string(get_dh_config);
+    //LOG(INFO) << "Receive query " << to_string(get_dh_config);
     my_api::messages_dhConfig config;
     config.p_ = BufferSlice(base64url_decode(prime_base64).move_as_ok());
     config.g_ = g;
     config.version_ = 12;
     auto storer = TLObjectStorer<my_api::messages_dhConfig>(config);
     BufferSlice answer(storer.size());
-    auto real_size = storer.store(answer.as_slice().ubegin());
+    auto real_size = storer.store(answer.as_mutable_slice().ubegin());
     CHECK(real_size == answer.size());
     net_query->set_ok(std::move(answer));
     send_closure(std::move(callback), &NetQueryCallback::on_result, std::move(net_query));
@@ -838,9 +840,9 @@ class Master final : public Actor {
   void process_net_query(my_api::messages_requestEncryption &&request_encryption, NetQueryPtr net_query,
                          ActorShared<NetQueryCallback> callback) {
     CHECK(get_link_token() == 1);
-    send_closure(alice_->get_actor_unsafe()->actor_, &SecretChatActor::update_chat,
+    send_closure(alice_.get_actor_unsafe()->actor_, &SecretChatActor::update_chat,
                  make_tl_object<telegram_api::encryptedChatWaiting>(123, 321, 0, 1, 2));
-    send_closure(bob_->get_actor_unsafe()->actor_, &SecretChatActor::update_chat,
+    send_closure(bob_.get_actor_unsafe()->actor_, &SecretChatActor::update_chat,
                  make_tl_object<telegram_api::encryptedChatRequested>(0, false, 123, 321, 0, 1, 2,
                                                                       request_encryption.g_a_.clone()));
     net_query->clear();
@@ -848,14 +850,14 @@ class Master final : public Actor {
   void process_net_query(my_api::messages_acceptEncryption &&request_encryption, NetQueryPtr net_query,
                          ActorShared<NetQueryCallback> callback) {
     CHECK(get_link_token() == 2);
-    send_closure(alice_->get_actor_unsafe()->actor_, &SecretChatActor::update_chat,
+    send_closure(alice_.get_actor_unsafe()->actor_, &SecretChatActor::update_chat,
                  make_tl_object<telegram_api::encryptedChat>(123, 321, 0, 1, 2, request_encryption.g_b_.clone(),
                                                              request_encryption.key_fingerprint_));
 
     my_api::encryptedChat encrypted_chat(123, 321, 0, 1, 2, BufferSlice(), request_encryption.key_fingerprint_);
     auto storer = TLObjectStorer<my_api::encryptedChat>(encrypted_chat);
     BufferSlice answer(storer.size());
-    auto real_size = storer.store(answer.as_slice().ubegin());
+    auto real_size = storer.store(answer.as_mutable_slice().ubegin());
     CHECK(real_size == answer.size());
     net_query->set_ok(std::move(answer));
     send_closure(std::move(callback), &NetQueryCallback::on_result, std::move(net_query));
@@ -897,8 +899,8 @@ class Master final : public Actor {
   void process_net_query_send_encrypted(BufferSlice data, NetQueryPtr net_query,
                                         ActorShared<NetQueryCallback> callback) {
     BufferSlice answer(8);
-    answer.as_slice().fill(0);
-    as<int32>(answer.as_slice().begin()) = static_cast<int32>(my_api::messages_sentEncryptedMessage::ID);
+    answer.as_mutable_slice().fill(0);
+    as<int32>(answer.as_mutable_slice().begin()) = static_cast<int32>(my_api::messages_sentEncryptedMessage::ID);
     net_query->set_ok(std::move(answer));
     send_closure(std::move(callback), &NetQueryCallback::on_result, std::move(net_query));
 
@@ -912,7 +914,7 @@ class Master final : public Actor {
   int32 last_ping_ = std::numeric_limits<int32>::max();
   void on_inbound_message(string message, Promise<> promise) {
     promise.set_value(Unit());
-    LOG(INFO) << "GOT INBOUND MESSAGE: " << message << " " << get_link_token();
+    LOG(INFO) << "Receive inbound message: " << message << " " << get_link_token();
     int32 cnt;
     int x = std::sscanf(message.c_str(), "PING: %d", &cnt);
     if (x != 1) {
@@ -965,7 +967,7 @@ class Master final : public Actor {
   std::map<int64, Message> sent_messages_;
 
   void hangup_shared() final {
-    LOG(INFO) << "GOT HANGUP: " << get_link_token();
+    LOG(INFO) << "Receive hang up: " << get_link_token();
     send_closure(from(), &SecretChatProxy::on_closed);
   }
 };

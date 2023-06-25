@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -181,10 +181,9 @@ Status SqliteStatement::step() {
   VLOG(sqlite) << "Start step " << tag("query", tdsqlite3_sql(stmt_.get())) << tag("statement", stmt_.get())
                << tag("database", db_.get());
   auto rc = tdsqlite3_step(stmt_.get());
-  VLOG(sqlite) << "Finish step " << tag("query", tdsqlite3_sql(stmt_.get())) << tag("statement", stmt_.get())
-               << tag("database", db_.get());
+  VLOG(sqlite) << "Finish step with response " << (rc == SQLITE_ROW ? "ROW" : (rc == SQLITE_DONE ? "DONE" : "ERROR"));
   if (rc == SQLITE_ROW) {
-    state_ = State::GotRow;
+    state_ = State::HaveRow;
     return Status::OK();
   }
 

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -117,7 +117,7 @@ FileType get_main_file_type(FileType file_type) {
 }
 
 CSlice get_file_type_name(FileType file_type) {
-  switch (file_type) {
+  switch (get_main_file_type(file_type)) {
     case FileType::Thumbnail:
       return CSlice("thumbnails");
     case FileType::ProfilePhoto:
@@ -142,24 +142,14 @@ CSlice get_file_type_name(FileType file_type) {
       return CSlice("animations");
     case FileType::EncryptedThumbnail:
       return CSlice("secret_thumbnails");
-    case FileType::Wallpaper:
-      return CSlice("wallpapers");
     case FileType::VideoNote:
       return CSlice("video_notes");
-    case FileType::SecureDecrypted:
-      return CSlice("passport");
     case FileType::SecureEncrypted:
       return CSlice("passport");
     case FileType::Background:
       return CSlice("wallpapers");
-    case FileType::DocumentAsFile:
-      return CSlice("documents");
     case FileType::Ringtone:
       return CSlice("notification_sounds");
-    case FileType::CallLog:
-      return CSlice("documents");
-    case FileType::Size:
-    case FileType::None:
     default:
       UNREACHABLE();
       return CSlice("none");
@@ -274,11 +264,10 @@ FileDirType get_file_dir_type(FileType file_type) {
 }
 
 bool is_file_big(FileType file_type, int64 expected_size) {
+  if (get_file_type_class(file_type) == FileTypeClass::Photo) {
+    return false;
+  }
   switch (file_type) {
-    case FileType::Thumbnail:
-    case FileType::ProfilePhoto:
-    case FileType::Photo:
-    case FileType::EncryptedThumbnail:
     case FileType::VideoNote:
     case FileType::Ringtone:
     case FileType::CallLog:

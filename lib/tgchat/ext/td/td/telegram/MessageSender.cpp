@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -20,7 +20,8 @@ namespace td {
 td_api::object_ptr<td_api::MessageSender> get_message_sender_object_const(Td *td, UserId user_id, DialogId dialog_id,
                                                                           const char *source) {
   if (dialog_id.is_valid() && td->messages_manager_->have_dialog(dialog_id)) {
-    return td_api::make_object<td_api::messageSenderChat>(dialog_id.get());
+    return td_api::make_object<td_api::messageSenderChat>(
+        td->messages_manager_->get_chat_id_object(dialog_id, "get_message_sender_object_const"));
   }
   if (!user_id.is_valid()) {
     // can happen only if the server sends a message with wrong sender
@@ -75,7 +76,8 @@ td_api::object_ptr<td_api::MessageSender> get_min_message_sender_object(Td *td, 
       td->messages_manager_->force_create_dialog(dialog_id, source, true);
     }
     if (td->messages_manager_->have_dialog(dialog_id)) {
-      return td_api::make_object<td_api::messageSenderChat>(dialog_id.get());
+      return td_api::make_object<td_api::messageSenderChat>(
+          td->messages_manager_->get_chat_id_object(dialog_id, "get_min_message_sender_object"));
     }
   }
   LOG(ERROR) << "Can't return unknown " << dialog_id << " from " << source;
@@ -94,7 +96,7 @@ vector<DialogId> get_message_sender_dialog_ids(Td *td,
     }
     if (dialog_id.get_type() == DialogType::User) {
       if (!td->contacts_manager_->have_user(dialog_id.get_user_id())) {
-        LOG(ERROR) << "Have no info about " << dialog_id.get_user_id();
+        LOG(ERROR) << "Receive unknown " << dialog_id.get_user_id();
         continue;
       }
     } else {

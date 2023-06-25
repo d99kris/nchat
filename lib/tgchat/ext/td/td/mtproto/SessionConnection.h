@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -185,14 +185,18 @@ class SessionConnection final
   double last_read_at_ = 0;
   double last_ping_at_ = 0;
   double last_pong_at_ = 0;
+  double real_last_read_at_ = 0;
+  double real_last_pong_at_ = 0;
   int64 cur_ping_id_ = 0;
   uint64 last_ping_message_id_ = 0;
   uint64 last_ping_container_id_ = 0;
 
+  uint64 last_read_size_ = 0;
+  uint64 last_write_size_ = 0;
+
   bool need_destroy_auth_key_ = false;
   bool sent_destroy_auth_key_ = false;
 
-  double wakeup_at_ = 0;
   double flush_packet_at_ = 0;
 
   double last_get_future_salt_at_ = 0;
@@ -238,7 +242,7 @@ class SessionConnection final
   Status on_packet(const MsgInfo &info, const mtproto_api::pong &pong) TD_WARN_UNUSED_RESULT;
   Status on_packet(const MsgInfo &info, const mtproto_api::future_salts &salts) TD_WARN_UNUSED_RESULT;
 
-  Status on_msgs_state_info(const vector<int64> &ids, Slice info) TD_WARN_UNUSED_RESULT;
+  Status on_msgs_state_info(const vector<int64> &message_ids, Slice info) TD_WARN_UNUSED_RESULT;
   Status on_packet(const MsgInfo &info, const mtproto_api::msgs_state_info &msgs_state_info) TD_WARN_UNUSED_RESULT;
   Status on_packet(const MsgInfo &info, const mtproto_api::msgs_all_info &msgs_all_info) TD_WARN_UNUSED_RESULT;
   Status on_packet(const MsgInfo &info, const mtproto_api::msg_detailed_info &msg_detailed_info) TD_WARN_UNUSED_RESULT;

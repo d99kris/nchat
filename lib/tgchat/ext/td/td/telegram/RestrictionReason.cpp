@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -22,11 +22,8 @@ string get_restriction_reason_description(const vector<RestrictionReason> &restr
   }
 
   auto ignored_restriction_reasons = full_split(G()->get_option_string("ignored_restriction_reasons"), ',');
+  auto restriction_add_platforms = full_split(G()->get_option_string("restriction_add_platforms"), ',');
   auto platform = [] {
-    if (G()->get_option_boolean("ignore_platform_restrictions")) {
-      return Slice();
-    }
-
 #if TD_ANDROID
     return Slice("android");
 #elif TD_WINDOWS
@@ -38,7 +35,13 @@ string get_restriction_reason_description(const vector<RestrictionReason> &restr
 #endif
   }();
 
+  if (G()->get_option_boolean("ignore_platform_restrictions")) {
+    platform = Slice();
+    restriction_add_platforms.clear();
+  }
+
   if (!platform.empty()) {
+    // first find restriction for the current platform
     for (auto &restriction_reason : restriction_reasons) {
       if (restriction_reason.platform_ == platform &&
           !td::contains(ignored_restriction_reasons, restriction_reason.reason_)) {
@@ -47,6 +50,17 @@ string get_restriction_reason_description(const vector<RestrictionReason> &restr
     }
   }
 
+  if (!restriction_add_platforms.empty()) {
+    // then find restriction for added platforms
+    for (auto &restriction_reason : restriction_reasons) {
+      if (td::contains(restriction_add_platforms, restriction_reason.platform_) &&
+          !td::contains(ignored_restriction_reasons, restriction_reason.reason_)) {
+        return restriction_reason.description_;
+      }
+    }
+  }
+
+  // then find restriction for all platforms
   for (auto &restriction_reason : restriction_reasons) {
     if (restriction_reason.platform_ == "all" &&
         !td::contains(ignored_restriction_reasons, restriction_reason.reason_)) {

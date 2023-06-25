@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -9,6 +9,7 @@
 #include "td/telegram/AccessRights.h"
 #include "td/telegram/ConfigManager.h"
 #include "td/telegram/ContactsManager.h"
+#include "td/telegram/Dependencies.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/MessageSender.h"
 #include "td/telegram/MessagesManager.h"
@@ -29,6 +30,8 @@
 #include "td/utils/emoji.h"
 #include "td/utils/FlatHashSet.h"
 #include "td/utils/logging.h"
+#include "td/utils/Slice.h"
+#include "td/utils/SliceBuilder.h"
 #include "td/utils/Status.h"
 #include "td/utils/utf8.h"
 
@@ -132,7 +135,7 @@ class GetMessagesReactionsQuery final : public Td::ResultHandler {
     CHECK(input_peer != nullptr);
 
     send_query(G()->net_query_creator().create(telegram_api::messages_getMessagesReactions(
-        std::move(input_peer), MessagesManager::get_server_message_ids(message_ids_))));
+        std::move(input_peer), MessageId::get_server_message_ids(message_ids_))));
   }
 
   void on_result(BufferSlice packet) final {
@@ -219,6 +222,9 @@ class SendReactionQuery final : public Td::ResultHandler {
   }
 
   void on_error(Status status) final {
+    if (status.message() == "MESSAGE_NOT_MODIFIED") {
+      return promise_.set_value(Unit());
+    }
     td_->messages_manager_->on_get_dialog_error(dialog_id_, status, "SendReactionQuery");
     promise_.set_error(std::move(status));
   }
@@ -298,7 +304,7 @@ class GetMessageReactionsListQuery final : public Td::ResultHandler {
       auto message_sender = get_min_message_sender_object(td_, dialog_id, "GetMessageReactionsListQuery");
       if (message_sender != nullptr) {
         reactions.push_back(td_api::make_object<td_api::addedReaction>(get_reaction_type_object(reaction_str),
-                                                                       std::move(message_sender)));
+                                                                       std::move(message_sender), reaction->date_));
       }
     }
 
@@ -550,19 +556,19 @@ unique_ptr<MessageReactions> MessageReactions::get_message_reactions(
           if (dialog_type == DialogType::User) {
             auto user_id = dialog_id.get_user_id();
             if (!td->contacts_manager_->have_min_user(user_id)) {
-              LOG(ERROR) << "Have no info about " << user_id;
+              LOG(ERROR) << "Receive unknown " << user_id;
               continue;
             }
           } else if (dialog_type == DialogType::Channel) {
             auto channel_id = dialog_id.get_channel_id();
             auto min_channel = td->contacts_manager_->get_min_channel(channel_id);
             if (min_channel == nullptr) {
-              LOG(ERROR) << "Have no info about reacted " << channel_id;
+              LOG(ERROR) << "Receive unknown reacted " << channel_id;
               continue;
             }
             recent_chooser_min_channels.emplace_back(channel_id, *min_channel);
           } else {
-            LOG(ERROR) << "Have no info about reacted " << dialog_id;
+            LOG(ERROR) << "Receive unknown reacted " << dialog_id;
             continue;
           }
         }
@@ -762,6 +768,67 @@ vector<string> MessageReactions::get_chosen_reactions() const {
   return reaction_order;
 }
 
+bool MessageReactions::are_consistent_with_list(const string &reaction, FlatHashMap<string, vector<DialogId>> reactions,
+                                                int32 total_count) const {
+  auto are_consistent = [](const vector<DialogId> &lhs, const vector<DialogId> &rhs) {
+    size_t i = 0;
+    size_t max_i = td::min(lhs.size(), rhs.size());
+    while (i < max_i && lhs[i] == rhs[i]) {
+      i++;
+    }
+    return i == max_i;
+  };
+
+  if (reaction.empty()) {
+    // received list and total_count for all reactions
+    int32 old_total_count = 0;
+    for (const auto &message_reaction : reactions_) {
+      CHECK(!message_reaction.get_reaction().empty());
+      if (!are_consistent(reactions[message_reaction.get_reaction()],
+                          message_reaction.get_recent_chooser_dialog_ids())) {
+        return false;
+      }
+      old_total_count += message_reaction.get_choose_count();
+      reactions.erase(message_reaction.get_reaction());
+    }
+    return old_total_count == total_count && reactions.empty();
+  }
+
+  // received list and total_count for a single reaction
+  const auto *message_reaction = get_reaction(reaction);
+  if (message_reaction == nullptr) {
+    return reactions.count(reaction) == 0 && total_count == 0;
+  } else {
+    return are_consistent(reactions[reaction], message_reaction->get_recent_chooser_dialog_ids()) &&
+           message_reaction->get_choose_count() == total_count;
+  }
+}
+
+vector<td_api::object_ptr<td_api::messageReaction>> MessageReactions::get_message_reactions_object(
+    Td *td, UserId my_user_id, UserId peer_user_id) const {
+  return transform(reactions_, [td, my_user_id, peer_user_id](const MessageReaction &reaction) {
+    return reaction.get_message_reaction_object(td, my_user_id, peer_user_id);
+  });
+}
+
+void MessageReactions::add_min_channels(Td *td) const {
+  for (const auto &reaction : reactions_) {
+    for (const auto &recent_chooser_min_channel : reaction.get_recent_chooser_min_channels()) {
+      LOG(INFO) << "Add min reacted " << recent_chooser_min_channel.first;
+      td->contacts_manager_->add_min_channel(recent_chooser_min_channel.first, recent_chooser_min_channel.second);
+    }
+  }
+}
+
+void MessageReactions::add_dependencies(Dependencies &dependencies) const {
+  for (const auto &reaction : reactions_) {
+    const auto &dialog_ids = reaction.get_recent_chooser_dialog_ids();
+    for (auto dialog_id : dialog_ids) {
+      dependencies.add_message_sender_dependencies(dialog_id);
+    }
+  }
+}
+
 bool MessageReactions::need_update_message_reactions(const MessageReactions *old_reactions,
                                                      const MessageReactions *new_reactions) {
   if (old_reactions == nullptr) {
@@ -810,7 +877,8 @@ bool is_active_reaction(const string &reaction, const FlatHashMap<string, size_t
 }
 
 void reload_message_reactions(Td *td, DialogId dialog_id, vector<MessageId> &&message_ids) {
-  if (!td->messages_manager_->have_input_peer(dialog_id, AccessRights::Read) || message_ids.empty()) {
+  if (!td->messages_manager_->have_input_peer(dialog_id, AccessRights::Read) ||
+      dialog_id.get_type() == DialogType::SecretChat || message_ids.empty()) {
     return;
   }
 
@@ -874,13 +942,11 @@ void send_set_default_reaction_query(Td *td) {
   td->create_handler<SetDefaultReactionQuery>()->send(td->option_manager_->get_option_string("default_reaction"));
 }
 
-void send_update_default_reaction_type(const string &default_reaction) {
+td_api::object_ptr<td_api::updateDefaultReactionType> get_update_default_reaction_type(const string &default_reaction) {
   if (default_reaction.empty()) {
-    LOG(ERROR) << "Have no default reaction";
-    return;
+    return nullptr;
   }
-  send_closure(G()->td(), &Td::send_update,
-               td_api::make_object<td_api::updateDefaultReactionType>(get_reaction_type_object(default_reaction)));
+  return td_api::make_object<td_api::updateDefaultReactionType>(get_reaction_type_object(default_reaction));
 }
 
 void report_message_reactions(Td *td, FullMessageId full_message_id, DialogId chooser_dialog_id,
@@ -891,6 +957,9 @@ void report_message_reactions(Td *td, FullMessageId full_message_id, DialogId ch
   }
   if (!td->messages_manager_->have_input_peer(dialog_id, AccessRights::Read)) {
     return promise.set_error(Status::Error(400, "Can't access the chat"));
+  }
+  if (dialog_id.get_type() == DialogType::SecretChat) {
+    return promise.set_error(Status::Error(400, "Reactions can't be reported in the chat"));
   }
 
   if (!td->messages_manager_->have_message_force(full_message_id, "report_user_reactions")) {

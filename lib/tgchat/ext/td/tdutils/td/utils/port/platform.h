@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -99,7 +99,7 @@
   #undef TD_HAVE_ATOMIC_SHARED_PTR
 #endif
 
-// Also no atomic operations on std::shared_ptr when clang __has_feature(cxx_atomic) is defined and zero
+// Also, no atomic operations on std::shared_ptr when clang __has_feature(cxx_atomic) is defined and zero
 #if defined(__has_feature)
   #if !__has_feature(cxx_atomic)
     #undef TD_HAVE_ATOMIC_SHARED_PTR

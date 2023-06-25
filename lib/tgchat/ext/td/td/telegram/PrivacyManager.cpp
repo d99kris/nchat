@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -307,7 +307,7 @@ Result<PrivacyManager::UserPrivacySettingRule> PrivacyManager::UserPrivacySettin
   auto td = G()->td().get_actor_unsafe();
   for (auto user_id : result.user_ids_) {
     if (!td->contacts_manager_->have_user(user_id)) {
-      return Status::Error(500, "Got inaccessible user from the server");
+      return Status::Error(500, "Receive inaccessible user from the server");
     }
   }
   for (auto chat_id_int : result.chat_ids_) {
@@ -317,7 +317,7 @@ Result<PrivacyManager::UserPrivacySettingRule> PrivacyManager::UserPrivacySettin
       ChannelId channel_id(chat_id_int);
       dialog_id = DialogId(channel_id);
       if (!td->contacts_manager_->have_channel(channel_id)) {
-        return Status::Error(500, "Got inaccessible chat from the server");
+        return Status::Error(500, "Receive inaccessible chat from the server");
       }
     }
     td->messages_manager_->force_create_dialog(dialog_id, "UserPrivacySettingRule");
@@ -350,7 +350,7 @@ vector<int64> PrivacyManager::UserPrivacySettingRule::chat_ids_as_dialog_ids() c
       CHECK(td->contacts_manager_->have_channel(channel_id));
     }
     CHECK(td->messages_manager_->have_dialog(dialog_id));
-    result.push_back(dialog_id.get());
+    result.push_back(td->messages_manager_->get_chat_id_object(dialog_id, "UserPrivacySettingRule"));
   }
   return result;
 }

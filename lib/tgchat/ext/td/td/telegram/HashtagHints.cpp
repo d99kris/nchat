@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -8,15 +8,13 @@
 
 #include "td/telegram/Global.h"
 #include "td/telegram/TdDb.h"
-#include "td/telegram/TdParameters.h"
 
 #include "td/db/SqliteKeyValueAsync.h"
 
+#include "td/utils/HashTableUtils.h"
 #include "td/utils/logging.h"
 #include "td/utils/tl_helpers.h"
 #include "td/utils/utf8.h"
-
-#include <functional>
 
 namespace td {
 
@@ -24,7 +22,7 @@ HashtagHints::HashtagHints(string mode, ActorShared<> parent) : mode_(std::move(
 }
 
 void HashtagHints::start_up() {
-  if (G()->parameters().use_file_db) {  // TODO hashtag hints should not depend on use_file_db
+  if (G()->use_sqlite_pmc()) {  // TODO hashtag hints should not depend on use_sqlite_pmc
     G()->td_db()->get_sqlite_pmc()->get(get_key(),
                                         PromiseCreator::lambda([actor_id = actor_id(this)](Result<string> res) {
                                           send_closure(actor_id, &HashtagHints::from_db, std::move(res), false);
@@ -49,7 +47,7 @@ void HashtagHints::remove_hashtag(string hashtag, Promise<> promise) {
   if (hashtag[0] == '#') {
     hashtag = hashtag.substr(1);
   }
-  auto key = std::hash<std::string>()(hashtag);
+  auto key = Hash<string>()(hashtag);
   if (hints_.has_key(key)) {
     hints_.remove(key);
     G()->td_db()->get_sqlite_pmc()->set(get_key(), serialize(keys_to_strings(hints_.search_empty(101).second)),
@@ -80,8 +78,7 @@ void HashtagHints::hashtag_used_impl(const string &hashtag) {
     return;
   }
 
-  // TODO: may be it should be optimized a little
-  auto key = std::hash<std::string>()(hashtag);
+  auto key = Hash<string>()(hashtag);
   hints_.add(key, hashtag);
   hints_.set_rating(key, -++counter_);
 }

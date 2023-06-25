@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -87,7 +87,7 @@ void Scheduler::ServiceActor::loop() {
     EventFull event = queue->reader_get_unsafe();
     if (event.actor_id().empty()) {
       if (event.data().empty()) {
-        yield_scheduler();
+        Scheduler::instance()->yield();
       } else {
         Scheduler::instance()->register_migrated_actor(static_cast<ActorInfo *>(event.data().data.ptr));
       }
@@ -497,7 +497,6 @@ void Scheduler::run_mailbox() {
     ListNode *node = actors_list.get();
     CHECK(node);
     auto actor_info = ActorInfo::from_list_node(node);
-    inc_wait_generation();
     flush_mailbox(actor_info, static_cast<void (*)(ActorInfo *)>(nullptr), static_cast<Event (*)()>(nullptr));
   }
   VLOG(actor) << "Run mailbox : finish " << actor_count_;
@@ -526,7 +525,6 @@ Timestamp Scheduler::run_timeout() {
   while (!timeout_queue_.empty() && timeout_queue_.top_key() < now) {
     HeapNode *node = timeout_queue_.pop();
     ActorInfo *actor_info = ActorInfo::from_heap_node(node);
-    inc_wait_generation();
     send<ActorSendType::Immediate>(actor_info->actor_id(), Event::timeout());
   }
   return get_timeout();

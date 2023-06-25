@@ -1,11 +1,12 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/telegram/MessageId.h"
 
+#include "td/utils/algorithm.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 
@@ -22,6 +23,46 @@ MessageId::MessageId(ScheduledServerMessageId server_message_id, int32 send_date
   }
   id = (static_cast<int64>(send_date - (1 << 30)) << 21) | (static_cast<int64>(server_message_id.get()) << 3) |
        SCHEDULED_MASK;
+}
+
+MessageId MessageId::get_message_id(const telegram_api::Message *message_ptr, bool is_scheduled) {
+  CHECK(message_ptr != nullptr)
+  switch (message_ptr->get_id()) {
+    case telegram_api::messageEmpty::ID: {
+      auto message = static_cast<const telegram_api::messageEmpty *>(message_ptr);
+      return is_scheduled ? MessageId() : MessageId(ServerMessageId(message->id_));
+    }
+    case telegram_api::message::ID: {
+      auto message = static_cast<const telegram_api::message *>(message_ptr);
+      return is_scheduled ? MessageId(ScheduledServerMessageId(message->id_), message->date_)
+                          : MessageId(ServerMessageId(message->id_));
+    }
+    case telegram_api::messageService::ID: {
+      auto message = static_cast<const telegram_api::messageService *>(message_ptr);
+      return is_scheduled ? MessageId(ScheduledServerMessageId(message->id_), message->date_)
+                          : MessageId(ServerMessageId(message->id_));
+    }
+    default:
+      UNREACHABLE();
+      return MessageId();
+  }
+}
+
+MessageId MessageId::get_message_id(const tl_object_ptr<telegram_api::Message> &message_ptr, bool is_scheduled) {
+  return get_message_id(message_ptr.get(), is_scheduled);
+}
+
+vector<MessageId> MessageId::get_message_ids(const vector<int64> &input_message_ids) {
+  return transform(input_message_ids, [](int64 input_message_id) { return MessageId(input_message_id); });
+}
+
+vector<int32> MessageId::get_server_message_ids(const vector<MessageId> &message_ids) {
+  return transform(message_ids, [](MessageId message_id) { return message_id.get_server_message_id().get(); });
+}
+
+vector<int32> MessageId::get_scheduled_server_message_ids(const vector<MessageId> &message_ids) {
+  return transform(message_ids,
+                   [](MessageId message_id) { return message_id.get_scheduled_server_message_id().get(); });
 }
 
 bool MessageId::is_valid() const {

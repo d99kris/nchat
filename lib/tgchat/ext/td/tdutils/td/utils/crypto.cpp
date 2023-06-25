@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -10,6 +10,7 @@
 #include "td/utils/BigNum.h"
 #include "td/utils/bits.h"
 #include "td/utils/common.h"
+#include "td/utils/Destructor.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/port/RwMutex.h"
@@ -721,15 +722,22 @@ void AesCtrState::decrypt(Slice from, MutableSlice to) {
 
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L && !defined(LIBRESSL_VERSION_NUMBER)
 static void make_digest(Slice data, MutableSlice output, const EVP_MD *evp_md) {
-  EVP_MD_CTX *ctx = EVP_MD_CTX_new();
-  LOG_IF(FATAL, ctx == nullptr);
+  static TD_THREAD_LOCAL EVP_MD_CTX *ctx;
+  if (unlikely(ctx == nullptr)) {
+    ctx = EVP_MD_CTX_new();
+    LOG_IF(FATAL, ctx == nullptr);
+    detail::add_thread_local_destructor(create_destructor([] {
+      EVP_MD_CTX_free(ctx);
+      ctx = nullptr;
+    }));
+  }
   int res = EVP_DigestInit_ex(ctx, evp_md, nullptr);
   LOG_IF(FATAL, res != 1);
   res = EVP_DigestUpdate(ctx, data.ubegin(), data.size());
   LOG_IF(FATAL, res != 1);
   res = EVP_DigestFinal_ex(ctx, output.ubegin(), nullptr);
   LOG_IF(FATAL, res != 1);
-  EVP_MD_CTX_free(ctx);
+  EVP_MD_CTX_reset(ctx);
 }
 
 static void init_thread_local_evp_md(const EVP_MD *&evp_md, const char *algorithm) {
@@ -1035,7 +1043,7 @@ Result<BufferSlice> rsa_encrypt_pkcs1_oaep(Slice public_key, Slice data) {
   int outlen = RSA_size(rsa);
   BufferSlice res(outlen);
   if (RSA_public_encrypt(narrow_cast<int>(data.size()), const_cast<unsigned char *>(data.ubegin()),
-                         res.as_slice().ubegin(), rsa, RSA_PKCS1_OAEP_PADDING) != outlen) {
+                         res.as_mutable_slice().ubegin(), rsa, RSA_PKCS1_OAEP_PADDING) != outlen) {
 #else
   EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new(pkey, nullptr);
   if (!ctx) {
@@ -1057,7 +1065,7 @@ Result<BufferSlice> rsa_encrypt_pkcs1_oaep(Slice public_key, Slice data) {
     return Status::Error("Cannot calculate encrypted length");
   }
   BufferSlice res(outlen);
-  if (EVP_PKEY_encrypt(ctx, res.as_slice().ubegin(), &outlen, data.ubegin(), data.size()) <= 0) {
+  if (EVP_PKEY_encrypt(ctx, res.as_mutable_slice().ubegin(), &outlen, data.ubegin(), data.size()) <= 0) {
 #endif
     return Status::Error("Cannot encrypt");
   }
@@ -1087,7 +1095,7 @@ Result<BufferSlice> rsa_decrypt_pkcs1_oaep(Slice private_key, Slice data) {
   size_t outlen = RSA_size(rsa);
   BufferSlice res(outlen);
   auto inlen = RSA_private_decrypt(narrow_cast<int>(data.size()), const_cast<unsigned char *>(data.ubegin()),
-                                   res.as_slice().ubegin(), rsa, RSA_PKCS1_OAEP_PADDING);
+                                   res.as_mutable_slice().ubegin(), rsa, RSA_PKCS1_OAEP_PADDING);
   if (inlen == -1) {
     return Status::Error("Cannot decrypt");
   }
@@ -1113,7 +1121,7 @@ Result<BufferSlice> rsa_decrypt_pkcs1_oaep(Slice private_key, Slice data) {
     return Status::Error("Cannot calculate decrypted length");
   }
   BufferSlice res(outlen);
-  if (EVP_PKEY_decrypt(ctx, res.as_slice().ubegin(), &outlen, data.ubegin(), data.size()) <= 0) {
+  if (EVP_PKEY_decrypt(ctx, res.as_mutable_slice().ubegin(), &outlen, data.ubegin(), data.size()) <= 0) {
     return Status::Error("Cannot decrypt");
   }
 #endif

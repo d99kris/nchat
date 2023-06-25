@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -75,13 +75,14 @@ class BackgroundType {
 
   friend StringBuilder &operator<<(StringBuilder &string_builder, const BackgroundType &type);
 
-  BackgroundType(bool is_blurred, bool is_moving)
-      : type_(Type::Wallpaper), is_blurred_(is_blurred), is_moving_(is_moving) {
+  BackgroundType(bool is_blurred, bool is_moving, int32 dark_theme_dimming)
+      : type_(Type::Wallpaper), is_blurred_(is_blurred), is_moving_(is_moving), intensity_(dark_theme_dimming) {
   }
-  BackgroundType(bool is_moving, const BackgroundFill &fill, int32 intensity)
-      : type_(Type::Pattern), is_moving_(is_moving), intensity_(intensity), fill_(fill) {
+  BackgroundType(bool is_moving, BackgroundFill &&fill, int32 intensity)
+      : type_(Type::Pattern), is_moving_(is_moving), intensity_(intensity), fill_(std::move(fill)) {
   }
-  explicit BackgroundType(BackgroundFill fill) : type_(Type::Fill), fill_(fill) {
+  BackgroundType(BackgroundFill &&fill, int32 dark_theme_dimming)
+      : type_(Type::Fill), intensity_(dark_theme_dimming), fill_(std::move(fill)) {
   }
 
  public:
@@ -89,19 +90,26 @@ class BackgroundType {
 
   BackgroundType(bool is_fill, bool is_pattern, telegram_api::object_ptr<telegram_api::wallPaperSettings> settings);
 
-  static Result<BackgroundType> get_background_type(const td_api::BackgroundType *background_type);
+  static Result<BackgroundType> get_background_type(const td_api::BackgroundType *background_type,
+                                                    int32 dark_theme_dimming);
 
   static Result<BackgroundType> get_local_background_type(Slice name);
 
+  static bool is_background_name_local(Slice name);
+
   bool has_file() const {
     return type_ == Type::Wallpaper || type_ == Type::Pattern;
+  }
+
+  bool has_gradient_fill() const {
+    return type_ == Type::Fill && fill_.get_type() != BackgroundFill::Type::Solid;
   }
 
   string get_mime_type() const;
 
   void apply_parameters_from_link(Slice name);
 
-  string get_link() const;
+  string get_link(bool is_first = true) const;
 
   bool has_equal_type(const BackgroundType &other) const {
     return type_ == other.type_;
@@ -114,6 +122,13 @@ class BackgroundType {
   bool is_dark() const {
     CHECK(type_ == Type::Fill);
     return fill_.is_dark();
+  }
+
+  int32 get_dark_theme_dimming() const {
+    if (type_ == Type::Pattern) {
+      return 0;
+    }
+    return intensity_;
   }
 
   template <class StorerT>

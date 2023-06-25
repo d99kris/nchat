@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -23,7 +23,14 @@
 #include <type_traits>
 #include <utility>
 
+#if TD_OPENBSD || TD_SOLARIS
+#include <pthread.h>
+#endif
 #include <sys/types.h>
+
+#if TD_LINUX || TD_FREEBSD || TD_NETBSD
+#define TD_HAVE_THREAD_AFFINITY 1
+#endif
 
 namespace td {
 namespace detail {
@@ -65,11 +72,17 @@ class ThreadPthread {
 
   using id = pthread_t;
 
+  id get_id() noexcept {
+    return thread_;
+  }
+
   static void send_real_time_signal(id thread_id, int real_time_signal_number);
 
+#if TD_HAVE_THREAD_AFFINITY
   static Status set_affinity_mask(id thread_id, uint64 mask);
 
   static uint64 get_affinity_mask(id thread_id);
+#endif
 
  private:
   MovableValue<bool> is_inited_;

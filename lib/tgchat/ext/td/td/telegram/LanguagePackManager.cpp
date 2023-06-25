@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -291,10 +291,10 @@ string LanguagePackManager::get_main_language_code() {
   }
 
   if (info == nullptr) {
-    LOG(WARNING) << "Failed to find information about chosen language " << language_code_
-                 << ", ensure that valid language pack ID is used";
+    LOG(INFO) << "Failed to find information about chosen language " << language_code_
+              << ", ensure that valid language pack ID is used";
     if (!is_custom_language_code(language_code_)) {
-      search_language_info(language_code_, Auto());
+      get_languages(false, Auto());
     }
   } else {
     if (!info->base_language_code_.empty()) {
@@ -340,7 +340,7 @@ vector<string> LanguagePackManager::get_used_language_codes() {
     LOG(INFO) << "Failed to find information about chosen language " << language_code_
               << ", ensure that valid language pack ID is used";
     if (!is_custom_language_code(language_code_)) {
-      search_language_info(language_code_, Auto());
+      get_languages(false, Auto());
     }
   } else {
     if (!info->base_language_code_.empty()) {
@@ -382,7 +382,7 @@ void LanguagePackManager::on_language_pack_version_changed(bool is_base, int32 n
 
   Language *language = get_language(database_, language_pack_, language_code_);
   int32 version = language == nullptr ? static_cast<int32>(-1) : language->version_.load();
-  LOG(INFO) << (is_base ? "Base" : "Main") << " language pack vesrion has changed from main " << version << " to "
+  LOG(INFO) << (is_base ? "Base" : "Main") << " language pack version has changed from main " << version << " to "
             << new_version;
   if (version == -1) {
     return load_empty_language_pack(language_code_);
@@ -415,7 +415,7 @@ void LanguagePackManager::on_language_pack_version_changed(bool is_base, int32 n
     return;
   }
 
-  LOG(INFO) << (is_base ? "Base" : "Main") << " language pack " << language_code << " vesrion has changed to "
+  LOG(INFO) << (is_base ? "Base" : "Main") << " language pack " << language_code << " version has changed to "
             << new_version;
   send_language_get_difference_query(language, std::move(language_code), version, Auto());
 }
@@ -896,6 +896,7 @@ void LanguagePackManager::search_language_info(string language_code,
           return promise.set_error(r_result.move_as_error());
         }
 
+        LOG(INFO) << "Receive " << to_string(r_result.ok());
         send_closure(actor_id, &LanguagePackManager::on_get_language, r_result.move_as_ok(), std::move(language_pack),
                      std::move(language_code), std::move(promise));
       });
@@ -1384,6 +1385,7 @@ void LanguagePackManager::on_get_language_pack_strings(
     std::lock_guard<std::mutex> lock(language->mutex_);
     int32 key_count_delta = 0;
     if (language->version_ < version || !keys.empty()) {
+      auto is_first = language->version_ == -1;
       vector<td_api::object_ptr<td_api::languagePackString>> strings;
       if (language->version_ < version) {
         LOG(INFO) << "Set language pack " << language_code << " version to " << version;
@@ -1482,18 +1484,18 @@ void LanguagePackManager::on_get_language_pack_strings(
         language->key_count_ = new_key_count;
       }
 
-      if (is_diff) {
-        send_closure(
-            G()->td(), &Td::send_update,
-            td_api::make_object<td_api::updateLanguagePackStrings>(language_pack, language_code, std::move(strings)));
-      }
-
       if (keys.empty() && !is_diff) {
         CHECK(new_database_version >= 0);
         language->is_full_ = true;
         language->deleted_strings_.clear();
       }
       new_is_full = language->is_full_;
+
+      if (is_diff || (new_is_full && is_first)) {
+        send_closure(
+            G()->td(), &Td::send_update,
+            td_api::make_object<td_api::updateLanguagePackStrings>(language_pack, language_code, std::move(strings)));
+      }
     }
   }
   if (is_custom_language_code(language_code) && new_database_version == -1) {
@@ -1688,7 +1690,7 @@ Result<LanguagePackManager::LanguageInfo> LanguagePackManager::get_language_info
     return Status::Error(400, "Language pack plural code must be encoded in UTF-8");
   }
   if (!clean_input_string(language_pack_info->translation_url_)) {
-    return Status::Error(400, "Language pack translation url must be encoded in UTF-8");
+    return Status::Error(400, "Language pack translation URL must be encoded in UTF-8");
   }
   if (language_pack_info->total_string_count_ < 0) {
     language_pack_info->total_string_count_ = 0;
@@ -1914,6 +1916,7 @@ void LanguagePackManager::hangup() {
 
 int32 LanguagePackManager::manager_count_ = 0;
 std::mutex LanguagePackManager::language_database_mutex_;
-std::unordered_map<string, unique_ptr<LanguagePackManager::LanguageDatabase>> LanguagePackManager::language_databases_;
+std::unordered_map<string, unique_ptr<LanguagePackManager::LanguageDatabase>, Hash<string>>
+    LanguagePackManager::language_databases_;
 
 }  // namespace td

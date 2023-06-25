@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -13,9 +13,9 @@
 #include "td/telegram/UserId.h"
 
 #include "td/utils/common.h"
+#include "td/utils/HashTableUtils.h"
 #include "td/utils/StringBuilder.h"
 
-#include <functional>
 #include <type_traits>
 
 namespace td {
@@ -66,6 +66,12 @@ class DialogId {
   ChannelId get_channel_id() const;
   SecretChatId get_secret_chat_id() const;
 
+  static DialogId get_message_dialog_id(const telegram_api::Message *message_ptr);
+
+  static DialogId get_message_dialog_id(const tl_object_ptr<telegram_api::Message> &message_ptr);
+
+  static vector<DialogId> get_dialog_ids(const vector<int64> &chat_ids);
+
   template <class StorerT>
   void store(StorerT &storer) const {
     storer.store_long(id);
@@ -78,8 +84,8 @@ class DialogId {
 };
 
 struct DialogIdHash {
-  std::size_t operator()(DialogId dialog_id) const {
-    return std::hash<int64>()(dialog_id.get());
+  uint32 operator()(DialogId dialog_id) const {
+    return Hash<int64>()(dialog_id.get());
   }
 };
 

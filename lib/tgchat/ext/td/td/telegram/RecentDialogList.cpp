@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -15,7 +15,6 @@
 #include "td/telegram/Td.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/TdDb.h"
-#include "td/telegram/TdParameters.h"
 
 #include "td/actor/MultiPromise.h"
 
@@ -46,19 +45,19 @@ void RecentDialogList::save_dialogs() const {
   SliceBuilder sb;
   for (auto &dialog_id : dialog_ids_) {
     sb << ',';
-    if (!G()->parameters().use_chat_info_db) {
+    if (!G()->use_chat_info_database()) {
       // if there is no dialog info database, prefer to save dialogs by username
       string username;
       switch (dialog_id.get_type()) {
         case DialogType::User:
           if (!td_->contacts_manager_->is_user_contact(dialog_id.get_user_id())) {
-            username = td_->contacts_manager_->get_user_username(dialog_id.get_user_id());
+            username = td_->contacts_manager_->get_user_first_username(dialog_id.get_user_id());
           }
           break;
         case DialogType::Chat:
           break;
         case DialogType::Channel:
-          username = td_->contacts_manager_->get_channel_username(dialog_id.get_channel_id());
+          username = td_->contacts_manager_->get_channel_first_username(dialog_id.get_channel_id());
           break;
         case DialogType::SecretChat:
           break;
@@ -107,7 +106,7 @@ void RecentDialogList::load_dialogs(Promise<Unit> &&promise) {
     }
   }
   if (!dialog_ids.empty()) {
-    if (G()->parameters().use_chat_info_db) {
+    if (G()->use_chat_info_database()) {
       td_->messages_manager_->load_dialogs(
           std::move(dialog_ids),
           PromiseCreator::lambda(

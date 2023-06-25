@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -16,12 +16,11 @@
 
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
+#include "td/utils/HashTableUtils.h"
 #include "td/utils/logging.h"
 #include "td/utils/Promise.h"
 #include "td/utils/Slice.h"
 #include "td/utils/SliceBuilder.h"
-
-#include <functional>
 
 namespace td {
 
@@ -31,7 +30,7 @@ class RawConnection;
 
 class SessionCallback final : public Session::Callback {
  public:
-  SessionCallback(ActorShared<SessionProxy> parent, DcId dc_id, bool allow_media_only, bool is_media, size_t hash)
+  SessionCallback(ActorShared<SessionProxy> parent, DcId dc_id, bool allow_media_only, bool is_media, uint32 hash)
       : parent_(std::move(parent))
       , dc_id_(dc_id)
       , allow_media_only_(allow_media_only)
@@ -59,8 +58,8 @@ class SessionCallback final : public Session::Callback {
     send_closure(parent_, &SessionProxy::on_server_salt_updated, std::move(server_salts));
   }
 
-  void on_update(BufferSlice &&update) final {
-    send_closure_later(G()->td(), &Td::on_update, std::move(update));
+  void on_update(BufferSlice &&update, uint64 auth_key_id) final {
+    send_closure_later(G()->td(), &Td::on_update, std::move(update), auth_key_id);
   }
 
   void on_result(NetQueryPtr query) final {
@@ -75,14 +74,15 @@ class SessionCallback final : public Session::Callback {
   DcId dc_id_;
   bool allow_media_only_ = false;
   bool is_media_ = false;
-  size_t hash_ = 0;
+  uint32 hash_ = 0;
 };
 
 SessionProxy::SessionProxy(unique_ptr<Callback> callback, std::shared_ptr<AuthDataShared> shared_auth_data,
-                           bool is_main, bool allow_media_only, bool is_media, bool use_pfs, bool is_cdn,
-                           bool need_destroy)
+                           bool is_primary, bool is_main, bool allow_media_only, bool is_media, bool use_pfs,
+                           bool is_cdn, bool need_destroy)
     : callback_(std::move(callback))
     , auth_data_(std::move(shared_auth_data))
+    , is_primary_(is_primary)
     , is_main_(is_main)
     , allow_media_only_(allow_media_only)
     , is_media_(is_media)
@@ -188,10 +188,13 @@ void SessionProxy::open_session(bool force) {
     if (need_destroy_) {
       return auth_key_state_ != AuthKeyState::Empty;
     }
+    if (is_main_) {
+      return true;
+    }
     if (auth_key_state_ != AuthKeyState::OK) {
       return false;
     }
-    return is_main_ || !pending_queries_.empty();
+    return !pending_queries_.empty();
   }();
   if (!should_open) {
     return;
@@ -201,7 +204,7 @@ void SessionProxy::open_session(bool force) {
   auto dc_id = auth_data_->dc_id();
   string name = PSTRING() << "Session" << get_name().substr(Slice("SessionProxy").size());
   string hash_string = PSTRING() << name << " " << dc_id.get_raw_id() << " " << allow_media_only_;
-  auto hash = std::hash<std::string>()(hash_string);
+  auto hash = Hash<string>()(hash_string);
   int32 raw_dc_id = dc_id.get_raw_id();
   int32 int_dc_id = raw_dc_id;
   if (G()->is_test_dc()) {
@@ -213,7 +216,8 @@ void SessionProxy::open_session(bool force) {
   session_ = create_actor<Session>(
       name,
       make_unique<SessionCallback>(actor_shared(this, session_generation_), dc_id, allow_media_only_, is_media_, hash),
-      auth_data_, raw_dc_id, int_dc_id, is_main_, use_pfs_, is_cdn_, need_destroy_, tmp_auth_key_, server_salts_);
+      auth_data_, raw_dc_id, int_dc_id, is_primary_, is_main_, use_pfs_, is_cdn_, need_destroy_, tmp_auth_key_,
+      server_salts_);
 }
 
 void SessionProxy::update_auth_key_state() {

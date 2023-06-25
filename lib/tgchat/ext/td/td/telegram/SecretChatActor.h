@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -111,7 +111,7 @@ class SecretChatActor final : public NetQueryCallback {
   void cancel_chat(bool delete_history, bool is_already_discarded, Promise<> promise);
 
   // Inbound messages
-  // Logevent is created by SecretChatsManager, because it must contain qts
+  // Logevent is created by SecretChatsManager, because it must contain QTS
   void add_inbound_message(unique_ptr<log_event::InboundSecretMessage> message);
 
   // Outbound messages
@@ -479,10 +479,10 @@ class SecretChatActor final : public NetQueryCallback {
   // This is completly flawed.
   // (A-start_save_to_binlog ----> B-start_save_to_binlog+change_memory ----> A-finish_save_to_binlog+surprise)
   //
-  // Instead I suggest general solution that is already used with SeqNoState and qts
+  // Instead, I suggest general solution that is already used with SeqNoState and QTS
   // 1. We APPLY CHANGE to memory immediately AFTER corresponding EVENT is SENT to the binlog.
   // 2. We SEND CHANGE to database only after corresponding EVENT is SAVED to the binlog.
-  // 3. Then we are able to ERASE EVENT just AFTER the CHANGE is SAVED to the binlog.
+  // 3. Then, we are able to ERASE EVENT just AFTER the CHANGE is SAVED to the binlog.
   //
   // Actually the change will be saved to binlog too.
   // So we can do it immediatelly after EVENT is SENT to the binlog, because SEND CHANGE and ERASE EVENT will be
@@ -496,7 +496,7 @@ class SecretChatActor final : public NetQueryCallback {
    public:
     Change() : message_id() {
     }
-    explicit operator bool() const {
+    explicit operator bool() const noexcept {
       return !data.empty();
     }
     explicit Change(const StateT &state) {

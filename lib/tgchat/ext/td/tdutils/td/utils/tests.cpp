@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -84,7 +84,7 @@ class RegressionTesterImpl final : public RegressionTester {
       auto wa_path = db_cache_dir_ + "WA";
       write_file(wa_path, result).ensure();
       return Status::Error(PSLICE() << "Test " << name << " changed: " << tag("expected", old_test_info.result_hash)
-                                    << tag("got", hash));
+                                    << tag("received", hash));
     }
     auto result_cache_path = db_cache_dir_ + hash;
     if (stat(result_cache_path).is_error()) {

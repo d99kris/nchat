@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -46,9 +46,11 @@ static FileFd &get_file_fd() {
 #if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP | WINAPI_PARTITION_SYSTEM)
   static auto handle = GetStdHandle(id);
   LOG_IF(FATAL, handle == INVALID_HANDLE_VALUE) << "Failed to GetStdHandle " << id;
-  static FileFd result = FileFd::from_native_fd(NativeFd(handle, true));
+  static FileFd result = handle == nullptr ? FileFd() : FileFd::from_native_fd(NativeFd(handle, true));
   static auto guard = ScopeExit() + [&] {
-    result.move_as_native_fd().release();
+    if (handle != nullptr) {
+      result.move_as_native_fd().release();
+    }
   };
 #else
   static FileFd result;

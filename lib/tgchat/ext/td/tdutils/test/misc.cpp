@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -12,9 +12,11 @@
 #include "td/utils/CancellationToken.h"
 #include "td/utils/common.h"
 #include "td/utils/ExitGuard.h"
+#include "td/utils/FloodControlFast.h"
 #include "td/utils/Hash.h"
 #include "td/utils/HashMap.h"
 #include "td/utils/HashSet.h"
+#include "td/utils/HashTableUtils.h"
 #include "td/utils/invoke.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
@@ -38,6 +40,7 @@
 #include "td/utils/translit.h"
 #include "td/utils/uint128.h"
 #include "td/utils/unicode.h"
+#include "td/utils/unique_value_ptr.h"
 #include "td/utils/utf8.h"
 
 #include <algorithm>
@@ -438,7 +441,7 @@ static void test_to_double_one(td::CSlice str, td::Slice expected, int precision
   auto result = PSTRING() << td::StringBuilder::FixedDouble(to_double(str), precision);
   if (expected != result) {
     LOG(ERROR) << "To double conversion failed: have " << str << ", expected " << expected << ", parsed "
-               << to_double(str) << ", got " << result;
+               << to_double(str) << ", receive " << result;
   }
 }
 
@@ -514,7 +517,8 @@ TEST(Misc, print_uint) {
 
 static void test_idn_to_ascii_one(const td::string &host, const td::string &result) {
   if (result != td::idn_to_ascii(host).ok()) {
-    LOG(ERROR) << "Failed to convert " << host << " to " << result << ", got \"" << td::idn_to_ascii(host).ok() << "\"";
+    LOG(ERROR) << "Failed to convert " << host << " to " << result << ", receive \"" << td::idn_to_ascii(host).ok()
+               << "\"";
   }
 }
 
@@ -832,9 +836,9 @@ TEST(Misc, StringBuilder) {
         if (use_buf) {
           ASSERT_EQ(res, sb.as_cslice());
         } else {
-          auto got = sb.as_cslice();
-          res.resize(got.size());
-          ASSERT_EQ(res, got);
+          auto sb_result = sb.as_cslice();
+          res.resize(sb_result.size());
+          ASSERT_EQ(res, sb_result);
         }
       }
     }
@@ -1243,4 +1247,47 @@ TEST(Misc, serialize) {
 
 TEST(Misc, check_reset_guard) {
   CheckExitGuard check_exit_guard{false};
+}
+
+TEST(FloodControl, Fast) {
+  td::FloodControlFast fc;
+  fc.add_limit(1, 5);
+  fc.add_limit(5, 10);
+
+  td::int32 count = 0;
+  double now = 0;
+  for (int i = 0; i < 100; i++) {
+    now = fc.get_wakeup_at();
+    fc.add_event(now);
+    LOG(INFO) << ++count << ": " << now;
+  }
+}
+
+TEST(UniqueValuePtr, Basic) {
+  auto a = td::make_unique_value<int>(5);
+  td::unique_value_ptr<int> b;
+  ASSERT_TRUE(b == nullptr);
+  ASSERT_TRUE(a != nullptr);
+  ASSERT_TRUE(a != b);
+  b = a;
+  ASSERT_TRUE(a != nullptr);
+  ASSERT_TRUE(b != nullptr);
+  ASSERT_TRUE(a == b);
+  *a = 6;
+  ASSERT_TRUE(a != nullptr);
+  ASSERT_TRUE(b != nullptr);
+  ASSERT_TRUE(a != b);
+  b = std::move(a);
+  ASSERT_TRUE(a == nullptr);
+  ASSERT_TRUE(b != nullptr);
+  ASSERT_TRUE(a != b);
+  auto c = td::make_unique_value<td::unique_value_ptr<int>>(a);
+  ASSERT_TRUE(*c == a);
+  ASSERT_TRUE(*c == nullptr);
+  c = td::make_unique_value<td::unique_value_ptr<int>>(b);
+  ASSERT_TRUE(*c == b);
+  ASSERT_TRUE(**c == 6);
+  auto d = c;
+  ASSERT_TRUE(c == d);
+  ASSERT_TRUE(6 == **d);
 }

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,7 +11,9 @@
 namespace td {
 
 StickerFormat get_sticker_format(const td_api::object_ptr<td_api::StickerFormat> &format) {
-  CHECK(format != nullptr);
+  if (format == nullptr) {
+    return StickerFormat::Unknown;
+  }
   switch (format->get_id()) {
     case td_api::stickerFormatWebp::ID:
       return StickerFormat::Webp;

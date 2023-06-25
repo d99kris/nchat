@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,6 +11,7 @@
 #include "td/telegram/logevent/LogEventHelper.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/TdDb.h"
+#include "td/telegram/UpdatesManager.h"
 
 #include "td/db/binlog/BinlogEvent.h"
 #include "td/db/binlog/BinlogHelper.h"
@@ -77,6 +78,35 @@ class SaveAppLogQuery final : public Td::ResultHandler {
   }
 };
 
+class GetAppChangelogQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+
+ public:
+  explicit GetAppChangelogQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(const string &prev_app_version) {
+    send_query(G()->net_query_creator().create(telegram_api::help_getAppChangelog(prev_app_version)));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::help_getAppChangelog>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    auto ptr = result_ptr.move_as_ok();
+    if (td_->updates_manager_->are_empty_updates(ptr.get())) {
+      return promise_.set_error(Status::Error(404, "Changelog not found"));
+    }
+    td_->updates_manager_->on_get_updates(std::move(ptr), std::move(promise_));
+  }
+
+  void on_error(Status status) final {
+    promise_.set_error(std::move(status));
+  }
+};
+
 void get_invite_text(Td *td, Promise<string> &&promise) {
   td->create_handler<GetInviteTextQuery>(std::move(promise))->send();
 }
@@ -95,7 +125,11 @@ class SaveAppLogLogEvent {
   void parse(ParserT &parser) {
     auto buffer = parser.template fetch_string_raw<BufferSlice>(parser.get_left_len());
     TlBufferParser buffer_parser{&buffer};
-    input_app_event_out_ = telegram_api::make_object<telegram_api::inputAppEvent>(buffer_parser);
+    input_app_event_out_ = telegram_api::inputAppEvent::fetch(buffer_parser);
+    buffer_parser.fetch_end();
+    if (buffer_parser.get_error() != nullptr) {
+      return parser.set_error(buffer_parser.get_error());
+    }
   }
 };
 
@@ -127,9 +161,17 @@ void on_save_app_log_binlog_event(Td *td, BinlogEvent &&event) {
   CHECK(event.id_ != 0);
   CHECK(event.type_ == LogEvent::HandlerType::SaveAppLog);
   SaveAppLogLogEvent log_event;
-  log_event_parse(log_event, event.data_).ensure();
+  if (log_event_parse(log_event, event.get_data()).is_error()) {
+    LOG(ERROR) << "Failed to parse application log event";
+    binlog_erase(G()->td_db()->get_binlog(), event.id_);
+    return;
+  }
 
   save_app_log_impl(td, std::move(log_event.input_app_event_out_), event.id_, Promise<Unit>());
+}
+
+void add_app_changelog(Td *td, const string &previous_application_version, Promise<Unit> &&promise) {
+  td->create_handler<GetAppChangelogQuery>(std::move(promise))->send(previous_application_version);
 }
 
 }  // namespace td

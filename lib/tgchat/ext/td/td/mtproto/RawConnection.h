@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -48,8 +48,8 @@ class RawConnection {
 
   virtual bool can_send() const = 0;
   virtual TransportType get_transport_type() const = 0;
-  virtual void send_crypto(const Storer &storer, int64 session_id, int64 salt, const AuthKey &auth_key,
-                           uint64 quick_ack_token) = 0;
+  virtual size_t send_crypto(const Storer &storer, int64 session_id, int64 salt, const AuthKey &auth_key,
+                             uint64 quick_ack_token) = 0;
   virtual uint64 send_no_crypto(const Storer &storer) = 0;
 
   virtual PollableFdInfo &get_poll_info() = 0;

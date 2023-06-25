@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -58,7 +58,7 @@ class MultiTimeout final : public Actor {
 
   void add_timeout_at(int64 key, double timeout);  // memcache semantics, doesn't replace old timeout
 
-  void cancel_timeout(int64 key);
+  void cancel_timeout(int64 key, const char *source = "cancel_timeout");
 
   void run_all();
 
@@ -71,7 +71,7 @@ class MultiTimeout final : public Actor {
   KHeap<double> timeout_queue_;
   std::set<Item> items_;
 
-  void update_timeout();
+  void update_timeout(const char *source);
 
   void timeout_expired() final;
 

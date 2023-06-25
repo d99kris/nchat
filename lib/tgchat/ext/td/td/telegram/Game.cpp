@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -26,7 +26,7 @@ Game::Game(Td *td, UserId bot_user_id, tl_object_ptr<telegram_api::game> &&game,
   id_ = game->id_;
   access_hash_ = game->access_hash_;
   bot_user_id_ = bot_user_id.is_valid() ? bot_user_id : UserId();
-  short_name_ = game->short_name_;
+  short_name_ = std::move(game->short_name_);
   text_ = std::move(text);
 }
 
@@ -35,7 +35,7 @@ Game::Game(Td *td, string title, string description, tl_object_ptr<telegram_api:
     : title_(std::move(title)), description_(std::move(description)) {
   CHECK(td != nullptr);
   CHECK(photo != nullptr);
-  photo_ = get_photo(td->file_manager_.get(), std::move(photo), owner_dialog_id);
+  photo_ = get_photo(td, std::move(photo), owner_dialog_id);
   if (photo_.is_empty()) {
     LOG(ERROR) << "Receive empty photo for game " << title_;
     photo_.id = 0;  // to prevent null photo in td_api
@@ -90,10 +90,9 @@ bool Game::has_input_media() const {
 }
 
 tl_object_ptr<telegram_api::inputMediaGame> Game::get_input_media_game(const Td *td) const {
-  auto r_input_user = td->contacts_manager_->get_input_user(bot_user_id_);
-  CHECK(r_input_user.is_ok());
+  auto input_user = td->contacts_manager_->get_input_user_force(bot_user_id_);
   return make_tl_object<telegram_api::inputMediaGame>(
-      make_tl_object<telegram_api::inputGameShortName>(r_input_user.move_as_ok(), short_name_));
+      make_tl_object<telegram_api::inputGameShortName>(std::move(input_user), short_name_));
 }
 
 bool operator==(const Game &lhs, const Game &rhs) {

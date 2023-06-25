@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -32,12 +32,26 @@ class StringBuilder {
     current_ptr_--;
   }
 
+  void push_back(char c) {
+    if (unlikely(end_ptr_ <= current_ptr_)) {
+      if (!reserve_inner(RESERVED_SIZE)) {
+        error_flag_ = true;
+        return;
+      }
+    }
+    *current_ptr_++ = c;
+  }
+
   MutableCSlice as_cslice() {
     if (current_ptr_ >= end_ptr_ + RESERVED_SIZE) {
       std::abort();  // shouldn't happen
     }
     *current_ptr_ = 0;
     return MutableCSlice(begin_ptr_, current_ptr_);
+  }
+
+  size_t size() {
+    return static_cast<size_t>(current_ptr_ - begin_ptr_);
   }
 
   bool is_error() const {
@@ -132,6 +146,7 @@ class StringBuilder {
     }
     return reserve_inner(RESERVED_SIZE);
   }
+
   bool reserve(size_t size) {
     if (end_ptr_ > current_ptr_ && static_cast<size_t>(end_ptr_ - current_ptr_) >= size) {
       return true;
@@ -142,7 +157,8 @@ class StringBuilder {
 };
 
 template <class T>
-std::enable_if_t<std::is_arithmetic<T>::value, string> to_string(const T &x) {
+std::enable_if_t<std::is_arithmetic<T>::value && !std::is_same<std::decay_t<T>, bool>::value, string> to_string(
+    const T &x) {
   const size_t buf_size = 1000;
   auto buf = StackAllocator::alloc(buf_size);
   StringBuilder sb(buf.as_slice());

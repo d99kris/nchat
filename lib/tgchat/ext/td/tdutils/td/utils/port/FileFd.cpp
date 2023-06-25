@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -157,11 +157,25 @@ Result<FileFd> FileFd::open(CSlice filepath, int32 flags, int32 mode) {
   }
 #endif
 
-  int native_fd = detail::skip_eintr([&] { return ::open(filepath.c_str(), native_flags, static_cast<mode_t>(mode)); });
-  if (native_fd < 0) {
-    return OS_ERROR(PSLICE() << "File \"" << filepath << "\" can't be " << PrintFlags{flags});
+  while (true) {
+    int native_fd =
+        detail::skip_eintr([&] { return ::open(filepath.c_str(), native_flags, static_cast<mode_t>(mode)); });
+    if (native_fd < 0) {
+      return OS_ERROR(PSLICE() << "File \"" << filepath << "\" can't be " << PrintFlags{flags});
+    }
+    // Avoid the use of low-numbered file descriptors, which can be used directly by some other functions
+    constexpr int MINIMUM_FILE_DESCRIPTOR = 3;
+    if (native_fd < MINIMUM_FILE_DESCRIPTOR) {
+      ::close(native_fd);
+      LOG(ERROR) << "Receive " << native_fd << " as a file descriptor";
+      int dummy_fd = detail::skip_eintr([&] { return ::open("/dev/null", O_RDONLY, 0); });
+      if (dummy_fd < 0) {
+        return OS_ERROR("Can't open /dev/null");
+      }
+      continue;
+    }
+    return from_native_fd(NativeFd(native_fd));
   }
-  return from_native_fd(NativeFd(native_fd));
 #elif TD_PORT_WINDOWS
   // TODO: support modes
   auto r_filepath = to_wstring(filepath);
@@ -182,6 +196,8 @@ Result<FileFd> FileFd::open(CSlice filepath, int32 flags, int32 mode) {
   // TODO: share mode
   DWORD share_mode = FILE_SHARE_READ | FILE_SHARE_DELETE | FILE_SHARE_WRITE;
 
+  DWORD native_flags = 0;
+
   DWORD creation_disposition = 0;
   if (flags & Create) {
     if (flags & Truncate) {
@@ -197,9 +213,11 @@ Result<FileFd> FileFd::open(CSlice filepath, int32 flags, int32 mode) {
     } else {
       creation_disposition = OPEN_EXISTING;
     }
+#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP | WINAPI_PARTITION_SYSTEM)
+    native_flags |= FILE_FLAG_OPEN_REPARSE_POINT;
+#endif
   }
 
-  DWORD native_flags = 0;
   if (flags & Direct) {
     native_flags |= FILE_FLAG_WRITE_THROUGH | FILE_FLAG_NO_BUFFERING;
   }
@@ -593,7 +611,19 @@ Result<Stat> FileFd::stat() const {
   res.atime_nsec_ = filetime_to_unix_time_nsec(basic_info.LastAccessTime.QuadPart);
   res.mtime_nsec_ = filetime_to_unix_time_nsec(basic_info.LastWriteTime.QuadPart);
   res.is_dir_ = (basic_info.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
-  res.is_reg_ = !res.is_dir_;  // TODO this is still wrong
+  if ((basic_info.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0) {
+    FILE_ATTRIBUTE_TAG_INFO tag_info;
+    status = GetFileInformationByHandleEx(get_native_fd().fd(), FileAttributeTagInfo, &tag_info, sizeof(tag_info));
+    if (!status) {
+      return OS_ERROR("Get FileAttributeTagInfo failed");
+    }
+    res.is_reg_ = false;
+    res.is_symbolic_link_ =
+        (tag_info.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0 && tag_info.ReparseTag == IO_REPARSE_TAG_SYMLINK;
+  } else {
+    res.is_reg_ = !res.is_dir_;
+    res.is_symbolic_link_ = false;
+  }
 
   TRY_RESULT(file_size, get_file_size(*this));
   res.size_ = file_size.size_;
@@ -617,6 +647,16 @@ Status FileFd::sync() {
     return OS_ERROR("Sync failed");
   }
   return Status::OK();
+}
+
+Status FileFd::sync_barrier() {
+  CHECK(!empty());
+#if TD_DARWIN && defined(F_BARRIERFSYNC)
+  if (detail::skip_eintr([&] { return fcntl(get_native_fd().fd(), F_BARRIERFSYNC); }) != -1) {
+    return Status::OK();
+  }
+#endif
+  return sync();
 }
 
 Status FileFd::seek(int64 position) {

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -18,7 +18,6 @@
 #include "td/telegram/SequenceDispatcher.h"
 #include "td/telegram/StateManager.h"
 #include "td/telegram/TdDb.h"
-#include "td/telegram/TdParameters.h"
 #include "td/telegram/telegram_api.hpp"
 
 #include "td/mtproto/DhCallback.h"
@@ -70,12 +69,12 @@ namespace td {
 // TODO
 // Just fail chat.
 
-SecretChatsManager::SecretChatsManager(ActorShared<> parent) : parent_(std::move(parent)) {
+SecretChatsManager::SecretChatsManager(ActorShared<> parent, bool use_secret_chats)
+    : use_secret_chats_(use_secret_chats), parent_(std::move(parent)) {
 }
 
 void SecretChatsManager::start_up() {
-  if (!G()->parameters().use_secret_chats) {
-    dummy_mode_ = true;
+  if (!use_secret_chats_) {
     return;
   }
 
@@ -162,11 +161,22 @@ void SecretChatsManager::send_set_ttl_message(SecretChatId secret_chat_id, int32
 }
 
 void SecretChatsManager::on_update_chat(tl_object_ptr<telegram_api::updateEncryption> update) {
-  if (dummy_mode_ || close_flag_) {
+  if (!use_secret_chats_ || close_flag_) {
     return;
   }
-  bool chat_requested = update->chat_->get_id() == telegram_api::encryptedChatRequested::ID;
-  pending_chat_updates_.emplace_back(Timestamp::in(chat_requested ? 1 : 0), std::move(update));
+  PendingChatUpdate pending_update;
+  pending_update.online_process_time_ = Timestamp::now();
+  if (update->chat_->get_id() == telegram_api::encryptedChatRequested::ID) {
+#if TD_ANDROID || TD_DARWIN_IOS || TD_DARWIN_WATCH_OS || TD_TIZEN
+    pending_update.offline_process_time_ = Timestamp::in(1.0);
+#else
+    pending_update.online_process_time_ = Timestamp::in(2.0);
+    pending_update.offline_process_time_ = Timestamp::in(3.0);
+#endif
+  }
+  pending_update.update_ = std::move(update);
+
+  pending_chat_updates_.push_back(std::move(pending_update));
   flush_pending_chat_updates();
 }
 
@@ -181,8 +191,8 @@ void SecretChatsManager::do_update_chat(tl_object_ptr<telegram_api::updateEncryp
 
 void SecretChatsManager::on_new_message(tl_object_ptr<telegram_api::EncryptedMessage> &&message_ptr,
                                         Promise<Unit> &&promise) {
-  if (dummy_mode_ || close_flag_) {
-    return;
+  if (!use_secret_chats_ || close_flag_) {
+    return promise.set_value(Unit());
   }
   CHECK(message_ptr != nullptr);
 
@@ -201,7 +211,7 @@ void SecretChatsManager::on_new_message(tl_object_ptr<telegram_api::EncryptedMes
 }
 
 void SecretChatsManager::replay_binlog_event(BinlogEvent &&binlog_event) {
-  if (dummy_mode_) {
+  if (!use_secret_chats_) {
     binlog_erase(G()->td_db()->get_binlog(), binlog_event.id_);
     return;
   }
@@ -407,9 +417,6 @@ ActorId<SecretChatActor> SecretChatsManager::create_chat_actor_impl(int32 id, bo
 
 void SecretChatsManager::hangup() {
   close_flag_ = true;
-  if (dummy_mode_) {
-    return stop();
-  }
   for (auto &it : id_to_actor_) {
     LOG(INFO) << "Ask to close SecretChatActor " << tag("id", it.first);
     it.second.reset();
@@ -420,7 +427,7 @@ void SecretChatsManager::hangup() {
 }
 
 void SecretChatsManager::hangup_shared() {
-  CHECK(!dummy_mode_);
+  CHECK(use_secret_chats_);
   auto token = get_link_token();
   auto it = id_to_actor_.find(static_cast<int32>(token));
   CHECK(it != id_to_actor_.end());
@@ -437,16 +444,17 @@ void SecretChatsManager::timeout_expired() {
 }
 
 void SecretChatsManager::flush_pending_chat_updates() {
-  if (close_flag_ || dummy_mode_) {
+  if (close_flag_ || !use_secret_chats_) {
     return;
   }
   auto it = pending_chat_updates_.begin();
-  while (it != pending_chat_updates_.end() && (it->first.is_in_past() || is_online_)) {
-    do_update_chat(std::move(it->second));
+  while (it != pending_chat_updates_.end() &&
+         (is_online_ ? it->online_process_time_.is_in_past() : it->offline_process_time_.is_in_past())) {
+    do_update_chat(std::move(it->update_));
     ++it;
   }
   if (it != pending_chat_updates_.end()) {
-    set_timeout_at(it->first.at());
+    set_timeout_at(is_online_ ? it->online_process_time_.at() : it->offline_process_time_.at());
   }
   pending_chat_updates_.erase(pending_chat_updates_.begin(), it);
 }

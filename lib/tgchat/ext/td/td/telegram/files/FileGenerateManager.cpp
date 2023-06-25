@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -83,11 +83,12 @@ class FileDownloadGenerateActor final : public FileGenerateActor {
     };
 
     send_closure(G()->file_manager(), &FileManager::download, file_id_, std::make_shared<Callback>(actor_id(this)), 1,
-                 FileManager::KEEP_DOWNLOAD_OFFSET, FileManager::KEEP_DOWNLOAD_LIMIT);
+                 FileManager::KEEP_DOWNLOAD_OFFSET, FileManager::KEEP_DOWNLOAD_LIMIT,
+                 Promise<td_api::object_ptr<td_api::file>>());
   }
   void hangup() final {
     send_closure(G()->file_manager(), &FileManager::download, file_id_, nullptr, 0, FileManager::KEEP_DOWNLOAD_OFFSET,
-                 FileManager::KEEP_DOWNLOAD_LIMIT);
+                 FileManager::KEEP_DOWNLOAD_LIMIT, Promise<td_api::object_ptr<td_api::file>>());
     stop();
   }
 
@@ -258,7 +259,7 @@ class WebFileDownloadGenerateActor final : public FileGenerateActor {
   }
 
   void hangup_shared() final {
-    on_error(Status::Error(1, "Canceled"));
+    on_error(Status::Error(-1, "Canceled"));
   }
 };
 
@@ -328,7 +329,7 @@ class FileExternalGenerateActor final : public FileGenerateActor {
             static_cast<int64>(query_id_), generate_location_.original_path_, path_, generate_location_.conversion_));
   }
   void hangup() final {
-    check_status(Status::Error(1, "Canceled"));
+    check_status(Status::Error(-1, "Canceled"));
   }
 
   Status do_file_generate_write_part(int64 offset, const string &data) {
@@ -365,7 +366,7 @@ class FileExternalGenerateActor final : public FileGenerateActor {
 
   void check_status(Status status, Promise<> promise = Promise<>()) {
     if (promise) {
-      if (status.is_ok() || status.code() == 1) {
+      if (status.is_ok() || status.code() == -1) {
         promise.set_value(Unit());
       } else {
         promise.set_error(Status::Error(400, status.message()));
@@ -412,7 +413,7 @@ static Status check_mtime(std::string &conversion, CSlice original_path) {
   conversion = parser.read_all().str();
   auto r_stat = stat(original_path);
   uint64 actual_mtime = r_stat.is_ok() ? r_stat.ok().mtime_nsec_ : 0;
-  if (FileManager::are_modification_times_equal(expected_mtime, actual_mtime)) {
+  if (are_modification_times_equal(expected_mtime, actual_mtime)) {
     LOG(DEBUG) << "File \"" << original_path << "\" modification time " << actual_mtime << " matches";
     return Status::OK();
   }
@@ -468,8 +469,9 @@ void FileGenerateManager::external_file_generate_write_part(uint64 query_id, int
   if (it == query_id_to_query_.end()) {
     return promise.set_error(Status::Error(400, "Unknown generation_id"));
   }
+  auto safe_promise = SafePromise<>(std::move(promise), Status::Error(400, "Generation has already been finished"));
   send_closure(it->second.worker_, &FileGenerateActor::file_generate_write_part, offset, std::move(data),
-               std::move(promise));
+               std::move(safe_promise));
 }
 
 void FileGenerateManager::external_file_generate_progress(uint64 query_id, int64 expected_size, int64 local_prefix_size,
@@ -478,8 +480,9 @@ void FileGenerateManager::external_file_generate_progress(uint64 query_id, int64
   if (it == query_id_to_query_.end()) {
     return promise.set_error(Status::Error(400, "Unknown generation_id"));
   }
+  auto safe_promise = SafePromise<>(std::move(promise), Status::Error(400, "Generation has already been finished"));
   send_closure(it->second.worker_, &FileGenerateActor::file_generate_progress, expected_size, local_prefix_size,
-               std::move(promise));
+               std::move(safe_promise));
 }
 
 void FileGenerateManager::external_file_generate_finish(uint64 query_id, Status status, Promise<> promise) {
@@ -487,7 +490,9 @@ void FileGenerateManager::external_file_generate_finish(uint64 query_id, Status 
   if (it == query_id_to_query_.end()) {
     return promise.set_error(Status::Error(400, "Unknown generation_id"));
   }
-  send_closure(it->second.worker_, &FileGenerateActor::file_generate_finish, std::move(status), std::move(promise));
+  auto safe_promise = SafePromise<>(std::move(promise), Status::Error(400, "Generation has already been finished"));
+  send_closure(it->second.worker_, &FileGenerateActor::file_generate_finish, std::move(status),
+               std::move(safe_promise));
 }
 
 void FileGenerateManager::do_cancel(uint64 query_id) {

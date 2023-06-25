@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -15,7 +15,6 @@
 #include "td/utils/format.h"
 #include "td/utils/Gzip.h"
 #include "td/utils/logging.h"
-#include "td/utils/Slice.h"
 #include "td/utils/Storer.h"
 
 namespace td {
@@ -35,9 +34,9 @@ NetQueryPtr NetQueryCreator::create(uint64 id, const telegram_api::Function &fun
   LOG(INFO) << "Create query " << to_string(function);
   auto storer = DefaultStorer<telegram_api::Function>(function);
   BufferSlice slice(storer.size());
-  auto real_size = storer.store(slice.as_slice().ubegin());
+  auto real_size = storer.store(slice.as_mutable_slice().ubegin());
   LOG_CHECK(real_size == slice.size()) << real_size << " " << slice.size() << " "
-                                       << format::as_hex_dump<4>(Slice(slice.as_slice()));
+                                       << format::as_hex_dump<4>(slice.as_slice());
 
   int32 tl_constructor = function.get_id();
 

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -10,7 +10,6 @@
 #include "td/telegram/net/DcId.h"
 #include "td/telegram/net/MtprotoHeader.h"
 #include "td/telegram/net/NetQueryCreator.h"
-#include "td/telegram/TdParameters.h"
 
 #include "td/net/NetStats.h"
 
@@ -34,14 +33,17 @@ namespace td {
 class AnimationsManager;
 class AttachMenuManager;
 class AuthManager;
+class AutosaveManager;
 class BackgroundManager;
 class CallManager;
 class ConfigManager;
 class ConnectionCreator;
 class ContactsManager;
+class DialogFilterManager;
 class DownloadManager;
 class FileManager;
 class FileReferenceManager;
+class ForumTopicManager;
 class GameManager;
 class GroupCallManager;
 class LanguagePackManager;
@@ -90,25 +92,20 @@ class Global final : public ActorContext {
   void close_all(Promise<> on_finished);
   void close_and_destroy_all(Promise<> on_finished);
 
-  Status init(const TdParameters &parameters, ActorId<Td> td, unique_ptr<TdDb> td_db_ptr) TD_WARN_UNUSED_RESULT;
+  Status init(ActorId<Td> td, unique_ptr<TdDb> td_db_ptr) TD_WARN_UNUSED_RESULT;
 
-  Slice get_dir() const {
-    return parameters_.database_directory;
-  }
+  Slice get_dir() const;
+
   Slice get_secure_files_dir() const {
     if (store_all_files_in_files_directory_) {
       return get_files_dir();
     }
     return get_dir();
   }
-  Slice get_files_dir() const {
-    return parameters_.files_directory;
-  }
-  bool is_test_dc() const {
-    return parameters_.use_test_dc;
-  }
 
-  bool ignore_background_updates() const;
+  Slice get_files_dir() const;
+
+  bool is_test_dc() const;
 
   NetQueryCreator &net_query_creator() {
     return *net_query_creator_.get();
@@ -203,6 +200,13 @@ class Global final : public ActorContext {
     auth_manager_ = auth_manager;
   }
 
+  ActorId<AutosaveManager> autosave_manager() const {
+    return autosave_manager_;
+  }
+  void set_autosave_manager(ActorId<AutosaveManager> autosave_manager) {
+    autosave_manager_ = autosave_manager;
+  }
+
   ActorId<BackgroundManager> background_manager() const {
     return background_manager_;
   }
@@ -231,6 +235,13 @@ class Global final : public ActorContext {
     contacts_manager_ = contacts_manager;
   }
 
+  ActorId<DialogFilterManager> dialog_filter_manager() const {
+    return dialog_filter_manager_;
+  }
+  void set_dialog_filter_manager(ActorId<DialogFilterManager> dialog_filter_manager) {
+    dialog_filter_manager_ = std::move(dialog_filter_manager);
+  }
+
   ActorId<DownloadManager> download_manager() const {
     return download_manager_;
   }
@@ -250,6 +261,13 @@ class Global final : public ActorContext {
   }
   void set_file_reference_manager(ActorId<FileReferenceManager> file_reference_manager) {
     file_reference_manager_ = std::move(file_reference_manager);
+  }
+
+  ActorId<ForumTopicManager> forum_topic_manager() const {
+    return forum_topic_manager_;
+  }
+  void set_forum_topic_manager(ActorId<ForumTopicManager> forum_topic_manager) {
+    forum_topic_manager_ = forum_topic_manager;
   }
 
   ActorId<GameManager> game_manager() const {
@@ -380,8 +398,16 @@ class Global final : public ActorContext {
     return mtproto_header_ != nullptr;
   }
 
-  const TdParameters &parameters() const {
-    return parameters_;
+  bool use_file_database() const;
+
+  bool use_sqlite_pmc() const;
+
+  bool use_chat_info_database() const;
+
+  bool use_message_database() const;
+
+  bool keep_media_order() const {
+    return use_file_database();
   }
 
   int32 get_gc_scheduler_id() const {
@@ -415,6 +441,13 @@ class Global final : public ActorContext {
 
   static Status request_aborted_error() {
     return Status::Error(500, "Request aborted");
+  }
+
+  template <class T>
+  void ignore_result_if_closing(Result<T> &result) const {
+    if (close_flag() && result.is_ok()) {
+      result = request_aborted_error();
+    }
   }
 
   void set_close_flag() {
@@ -467,13 +500,16 @@ class Global final : public ActorContext {
   ActorId<AnimationsManager> animations_manager_;
   ActorId<AttachMenuManager> attach_menu_manager_;
   ActorId<AuthManager> auth_manager_;
+  ActorId<AutosaveManager> autosave_manager_;
   ActorId<BackgroundManager> background_manager_;
   ActorId<CallManager> call_manager_;
   ActorId<ConfigManager> config_manager_;
   ActorId<ContactsManager> contacts_manager_;
+  ActorId<DialogFilterManager> dialog_filter_manager_;
   ActorId<DownloadManager> download_manager_;
   ActorId<FileManager> file_manager_;
   ActorId<FileReferenceManager> file_reference_manager_;
+  ActorId<ForumTopicManager> forum_topic_manager_;
   ActorId<GameManager> game_manager_;
   ActorId<GroupCallManager> group_call_manager_;
   ActorId<LanguagePackManager> language_pack_manager_;
@@ -497,7 +533,6 @@ class Global final : public ActorContext {
 
   OptionManager *option_manager_ = nullptr;
 
-  TdParameters parameters_;
   int32 gc_scheduler_id_ = 0;
   int32 slow_net_scheduler_id_ = 0;
 

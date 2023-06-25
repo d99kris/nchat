@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -8,6 +8,7 @@
 
 #include "td/telegram/ConfigManager.h"
 #include "td/telegram/Global.h"
+#include "td/telegram/LinkManager.h"
 #include "td/telegram/logevent/LogEvent.h"
 #include "td/telegram/MessagesManager.h"
 #include "td/telegram/net/MtprotoHeader.h"
@@ -50,7 +51,7 @@ namespace detail {
 class StatsCallback final : public mtproto::RawConnection::StatsCallback {
  public:
   StatsCallback(std::shared_ptr<NetStatsCallback> net_stats_callback, ActorId<ConnectionCreator> connection_creator,
-                size_t hash, DcOptionsSet::Stat *option_stat)
+                uint32 hash, DcOptionsSet::Stat *option_stat)
       : net_stats_callback_(std::move(net_stats_callback))
       , connection_creator_(std::move(connection_creator))
       , hash_(hash)
@@ -58,10 +59,14 @@ class StatsCallback final : public mtproto::RawConnection::StatsCallback {
   }
 
   void on_read(uint64 bytes) final {
-    net_stats_callback_->on_read(bytes);
+    if (net_stats_callback_ != nullptr) {
+      net_stats_callback_->on_read(bytes);
+    }
   }
   void on_write(uint64 bytes) final {
-    net_stats_callback_->on_write(bytes);
+    if (net_stats_callback_ != nullptr) {
+      net_stats_callback_->on_write(bytes);
+    }
   }
 
   void on_pong() final {
@@ -84,7 +89,7 @@ class StatsCallback final : public mtproto::RawConnection::StatsCallback {
  private:
   std::shared_ptr<NetStatsCallback> net_stats_callback_;
   ActorId<ConnectionCreator> connection_creator_;
-  size_t hash_;
+  uint32 hash_;
   DcOptionsSet::Stat *option_stat_;
 };
 
@@ -232,39 +237,7 @@ void ConnectionCreator::get_proxy_link(int32 proxy_id, Promise<string> promise) 
     return promise.set_error(Status::Error(400, "Unknown proxy identifier"));
   }
 
-  auto &proxy = it->second;
-  string url = G()->get_option_string("t_me_url", "https://t.me/");
-  bool is_socks = false;
-  switch (proxy.type()) {
-    case Proxy::Type::Socks5:
-      url += "socks";
-      is_socks = true;
-      break;
-    case Proxy::Type::HttpTcp:
-    case Proxy::Type::HttpCaching:
-      return promise.set_error(Status::Error(400, "HTTP proxy can't have public link"));
-    case Proxy::Type::Mtproto:
-      url += "proxy";
-      break;
-    default:
-      UNREACHABLE();
-  }
-  url += "?server=";
-  url += url_encode(proxy.server());
-  url += "&port=";
-  url += to_string(proxy.port());
-  if (is_socks) {
-    if (!proxy.user().empty() || !proxy.password().empty()) {
-      url += "&user=";
-      url += url_encode(proxy.user());
-      url += "&pass=";
-      url += url_encode(proxy.password());
-    }
-  } else {
-    url += "&secret=";
-    url += proxy.secret().get_encoded_secret();
-  }
-  promise.set_value(std::move(url));
+  promise.set_result(LinkManager::get_proxy_link(it->second, false));
 }
 
 ActorId<GetHostByNameActor> ConnectionCreator::get_dns_resolver() {
@@ -446,7 +419,7 @@ void ConnectionCreator::enable_proxy_impl(int32 proxy_id) {
 void ConnectionCreator::disable_proxy_impl() {
   if (active_proxy_id_ == 0) {
     send_closure(G()->messages_manager(), &MessagesManager::remove_sponsored_dialog);
-    send_closure(G()->td(), &Td::schedule_get_promo_data, 0);
+    send_closure(G()->td(), &Td::reload_promo_data);
     return;
   }
   CHECK(proxies_.count(active_proxy_id_) == 1);
@@ -481,7 +454,7 @@ void ConnectionCreator::on_proxy_changed(bool from_db) {
   if (active_proxy_id_ == 0 || !from_db) {
     send_closure(G()->messages_manager(), &MessagesManager::remove_sponsored_dialog);
   }
-  send_closure(G()->td(), &Td::schedule_get_promo_data, 0);
+  send_closure(G()->td(), &Td::reload_promo_data);
 
   loop();
 }
@@ -595,7 +568,7 @@ void ConnectionCreator::on_logging_out(bool is_logging_out) {
   }
 }
 
-void ConnectionCreator::on_pong(size_t hash) {
+void ConnectionCreator::on_pong(uint32 hash) {
   G()->save_server_time();
   if (active_proxy_id_ != 0) {
     auto now = G()->unix_time();
@@ -607,14 +580,14 @@ void ConnectionCreator::on_pong(size_t hash) {
   }
 }
 
-void ConnectionCreator::on_mtproto_error(size_t hash) {
+void ConnectionCreator::on_mtproto_error(uint32 hash) {
   auto &client = clients_[hash];
   client.hash = hash;
-  client.mtproto_error_flood_control.add_event(static_cast<int32>(Time::now_cached()));
+  client.mtproto_error_flood_control.add_event(Time::now_cached());
 }
 
 void ConnectionCreator::request_raw_connection(DcId dc_id, bool allow_media_only, bool is_media,
-                                               Promise<unique_ptr<mtproto::RawConnection>> promise, size_t hash,
+                                               Promise<unique_ptr<mtproto::RawConnection>> promise, uint32 hash,
                                                unique_ptr<mtproto::AuthData> auth_data) {
   auto &client = clients_[hash];
   if (!client.inited) {
@@ -892,12 +865,12 @@ void ConnectionCreator::client_loop(ClientInfo &client) {
     wakeup_at = max(client.sanity_flood_control.get_wakeup_at(), wakeup_at);
 
     if (!act_as_if_online) {
-      wakeup_at = max(wakeup_at, client.backoff.get_wakeup_at());
+      wakeup_at = max(wakeup_at, static_cast<double>(client.backoff.get_wakeup_at()));
     }
     if (wakeup_at > Time::now()) {
       return client_set_timeout_at(client, wakeup_at);
     }
-    client.sanity_flood_control.add_event(static_cast<int32>(Time::now()));
+    client.sanity_flood_control.add_event(Time::now());
     if (!act_as_if_online) {
       client.backoff.add_event(static_cast<int32>(Time::now()));
     }
@@ -916,7 +889,7 @@ void ConnectionCreator::client_loop(ClientInfo &client) {
     }
 
     // Events with failed socket creation are ignored
-    flood_control.add_event(static_cast<int32>(Time::now()));
+    flood_control.add_event(Time::now());
 
     auto socket_fd = r_socket_fd.move_as_ok();
     IPAddress debug_ip;
@@ -957,7 +930,7 @@ void ConnectionCreator::client_loop(ClientInfo &client) {
 }
 
 void ConnectionCreator::client_create_raw_connection(Result<ConnectionData> r_connection_data, bool check_mode,
-                                                     mtproto::TransportType transport_type, size_t hash,
+                                                     mtproto::TransportType transport_type, uint32 hash,
                                                      string debug_str, uint32 network_generation) {
   unique_ptr<mtproto::AuthData> auth_data;
   uint64 auth_data_generation{0};
@@ -1018,7 +991,7 @@ void ConnectionCreator::client_set_timeout_at(ClientInfo &client, double wakeup_
                     << wakeup_at - Time::now_cached();
 }
 
-void ConnectionCreator::client_add_connection(size_t hash, Result<unique_ptr<mtproto::RawConnection>> r_raw_connection,
+void ConnectionCreator::client_add_connection(uint32 hash, Result<unique_ptr<mtproto::RawConnection>> r_raw_connection,
                                               bool check_flag, uint64 auth_data_generation, int64 session_id) {
   auto &client = clients_[hash];
   client.add_session_id(session_id);
@@ -1044,7 +1017,7 @@ void ConnectionCreator::client_add_connection(size_t hash, Result<unique_ptr<mtp
   client_loop(client);
 }
 
-void ConnectionCreator::client_wakeup(size_t hash) {
+void ConnectionCreator::client_wakeup(uint32 hash) {
   VLOG(connections) << tag("hash", format::as_hex(hash)) << " wakeup";
   G()->save_server_time();
   client_loop(clients_[hash]);
@@ -1203,20 +1176,21 @@ void ConnectionCreator::hangup() {
 DcOptions ConnectionCreator::get_default_dc_options(bool is_test) {
   DcOptions res;
   enum class HostType : int32 { IPv4, IPv6, Url };
-  auto add_ip_ports = [&res](int32 dc_id, const vector<string> &ips, const vector<int> &ports,
+  auto add_ip_ports = [&res](int32 dc_id, vector<string> ip_address_strings, const vector<int> &ports,
                              HostType type = HostType::IPv4) {
     IPAddress ip_address;
+    Random::shuffle(ip_address_strings);
     for (auto port : ports) {
-      for (auto &ip : ips) {
+      for (auto &ip_address_string : ip_address_strings) {
         switch (type) {
           case HostType::IPv4:
-            ip_address.init_ipv4_port(ip, port).ensure();
+            ip_address.init_ipv4_port(ip_address_string, port).ensure();
             break;
           case HostType::IPv6:
-            ip_address.init_ipv6_port(ip, port).ensure();
+            ip_address.init_ipv6_port(ip_address_string, port).ensure();
             break;
           case HostType::Url:
-            ip_address.init_host_port(ip, port).ensure();
+            ip_address.init_host_port(ip_address_string, port).ensure();
             break;
         }
         res.dc_options.emplace_back(DcId::internal(dc_id), ip_address);

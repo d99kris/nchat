@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -37,7 +37,7 @@ FileReferenceManager::FileReferenceManager(ActorShared<> parent) : parent_(std::
 }
 
 FileReferenceManager::~FileReferenceManager() {
-  Scheduler::instance()->destroy_on_scheduler(G()->get_gc_scheduler_id(), file_sources_);
+  Scheduler::instance()->destroy_on_scheduler(G()->get_gc_scheduler_id(), file_sources_, nodes_);
 }
 
 void FileReferenceManager::tear_down() {
@@ -61,21 +61,22 @@ size_t FileReferenceManager::get_file_reference_error_pos(const Status &error) {
 
 /*
 fileSourceMessage chat_id:int53 message_id:int53 = FileSource;           // repaired with get_message_from_server
-fileSourceUserProfilePhoto user_id:int32 photo_id:int64 = FileSource;    // repaired with photos.getUserPhotos
-fileSourceBasicGroupPhoto basic_group_id:int32 = FileSource;             // no need to repair
-fileSourceSupergroupPhoto supergroup_id:int32 = FileSource;              // no need to repair
+fileSourceUserProfilePhoto user_id:int53 photo_id:int64 = FileSource;    // repaired with photos.getUserPhotos
+fileSourceBasicGroupPhoto basic_group_id:int53 = FileSource;             // no need to repair
+fileSourceSupergroupPhoto supergroup_id:int53 = FileSource;              // no need to repair
 fileSourceWebPage url:string = FileSource;                               // repaired with messages.getWebPage
 fileSourceWallpapers = FileSource;                                       // can't be repaired
 fileSourceSavedAnimations = FileSource;                                  // repaired with messages.getSavedGifs
 fileSourceRecentStickers is_attached:Bool = FileSource;                  // repaired with messages.getRecentStickers, not reliable
 fileSourceFavoriteStickers = FileSource;                                 // repaired with messages.getFavedStickers, not reliable
 fileSourceBackground background_id:int64 access_hash:int64 = FileSource; // repaired with account.getWallPaper
-fileSourceBasicGroupFull basic_group_id:int32 = FileSource;              // repaired with messages.getFullChat
-fileSourceSupergroupFull supergroup_id:int32 = FileSource;               // repaired with messages.getFullChannel
+fileSourceBasicGroupFull basic_group_id:int53 = FileSource;              // repaired with messages.getFullChat
+fileSourceSupergroupFull supergroup_id:int53 = FileSource;               // repaired with messages.getFullChannel
 fileSourceAppConfig = FileSource;                                        // repaired with help.getAppConfig, not reliable
 fileSourceSavedRingtones = FileSource;                                   // repaired with account.getSavedRingtones
 fileSourceUserFull = FileSource;                                         // repaired with users.getFullUser
-fileSourceAttachmentMenuBot = FileSource;                                // repaired with messages.getAttachMenuBot
+fileSourceAttachmentMenuBot user_id:int53 = FileSource;                  // repaired with messages.getAttachMenuBot
+fileSourceWebApp user_id:int53 short_name:string = FileSource;           // repaired with messages.getAttachMenuBot
 */
 
 FileSourceId FileReferenceManager::get_current_file_source_id() const {
@@ -83,7 +84,7 @@ FileSourceId FileReferenceManager::get_current_file_source_id() const {
 }
 
 template <class T>
-FileSourceId FileReferenceManager::add_file_source_id(T source, Slice source_str) {
+FileSourceId FileReferenceManager::add_file_source_id(T &source, Slice source_str) {
   file_sources_.emplace_back(std::move(source));
   VLOG(file_references) << "Create file source " << file_sources_.size() << " for " << source_str;
   return get_current_file_source_id();
@@ -102,7 +103,7 @@ FileSourceId FileReferenceManager::create_user_photo_file_source(UserId user_id,
 FileSourceId FileReferenceManager::create_web_page_file_source(string url) {
   FileSourceWebPage source{std::move(url)};
   auto source_str = PSTRING() << "web page of " << source.url;
-  return add_file_source_id(std::move(source), source_str);
+  return add_file_source_id(source, source_str);
 }
 
 FileSourceId FileReferenceManager::create_saved_animations_file_source() {
@@ -155,16 +156,31 @@ FileSourceId FileReferenceManager::create_attach_menu_bot_file_source(UserId use
   return add_file_source_id(source, PSLICE() << "attachment menu bot " << user_id);
 }
 
-bool FileReferenceManager::add_file_source(NodeId node_id, FileSourceId file_source_id) {
+FileSourceId FileReferenceManager::create_web_app_file_source(UserId user_id, const string &short_name) {
+  FileSourceWebApp source{user_id, short_name};
+  return add_file_source_id(source, PSLICE() << "Web App " << user_id << '/' << short_name);
+}
+
+FileReferenceManager::Node &FileReferenceManager::add_node(NodeId node_id) {
   CHECK(node_id.is_valid());
-  bool is_added = nodes_[node_id].file_source_ids.add(file_source_id);
+  auto &node = nodes_[node_id];
+  if (node == nullptr) {
+    node = make_unique<Node>();
+  }
+  return *node;
+}
+
+bool FileReferenceManager::add_file_source(NodeId node_id, FileSourceId file_source_id) {
+  auto &node = add_node(node_id);
+  bool is_added = node.file_source_ids.add(file_source_id);
   VLOG(file_references) << "Add " << (is_added ? "new" : "old") << ' ' << file_source_id << " for file " << node_id;
   return is_added;
 }
 
 bool FileReferenceManager::remove_file_source(NodeId node_id, FileSourceId file_source_id) {
   CHECK(node_id.is_valid());
-  bool is_removed = nodes_[node_id].file_source_ids.remove(file_source_id);
+  auto *node = nodes_.get_pointer(node_id);
+  bool is_removed = node != nullptr && node->file_source_ids.remove(file_source_id);
   if (is_removed) {
     VLOG(file_references) << "Remove " << file_source_id << " from file " << node_id;
   } else {
@@ -174,11 +190,11 @@ bool FileReferenceManager::remove_file_source(NodeId node_id, FileSourceId file_
 }
 
 vector<FileSourceId> FileReferenceManager::get_some_file_sources(NodeId node_id) {
-  auto it = nodes_.find(node_id);
-  if (it == nodes_.end()) {
+  auto *node = nodes_.get_pointer(node_id);
+  if (node == nullptr) {
     return {};
   }
-  return it->second.file_source_ids.get_some_elements();
+  return node->file_source_ids.get_some_elements();
 }
 
 vector<FullMessageId> FileReferenceManager::get_some_message_file_sources(NodeId node_id) {
@@ -197,14 +213,13 @@ vector<FullMessageId> FileReferenceManager::get_some_message_file_sources(NodeId
 }
 
 void FileReferenceManager::merge(NodeId to_node_id, NodeId from_node_id) {
-  auto from_it = nodes_.find(from_node_id);
-  if (from_it == nodes_.end()) {
+  auto *from_node_ptr = nodes_.get_pointer(from_node_id);
+  if (from_node_ptr == nullptr) {
     return;
   }
+  auto &from = *from_node_ptr;
 
-  CHECK(to_node_id.is_valid());
-  auto &to = nodes_[to_node_id];
-  auto &from = from_it->second;
+  auto &to = add_node(to_node_id);
   VLOG(file_references) << "Merge " << to.file_source_ids.size() << " and " << from.file_source_ids.size()
                         << " sources of files " << to_node_id << " and " << from_node_id;
   CHECK(!to.query || to.query->proxy.is_empty());
@@ -227,7 +242,11 @@ void FileReferenceManager::merge(NodeId to_node_id, NodeId from_node_id) {
 
 void FileReferenceManager::run_node(NodeId node_id) {
   CHECK(node_id.is_valid());
-  Node &node = nodes_[node_id];
+  auto *node_ptr = nodes_.get_pointer(node_id);
+  if (node_ptr == nullptr) {
+    return;
+  }
+  Node &node = *node_ptr;
   if (!node.query) {
     return;
   }
@@ -266,8 +285,7 @@ void FileReferenceManager::run_node(NodeId node_id) {
 void FileReferenceManager::send_query(Destination dest, FileSourceId file_source_id) {
   VLOG(file_references) << "Send file reference repair query for file " << dest.node_id << " with generation "
                         << dest.generation << " from " << file_source_id;
-  CHECK(dest.node_id.is_valid());
-  auto &node = nodes_[dest.node_id];
+  auto &node = add_node(dest.node_id);
   node.query->active_queries++;
 
   auto promise = PromiseCreator::lambda([dest, file_source_id, actor_id = actor_id(this),
@@ -348,6 +366,10 @@ void FileReferenceManager::send_query(Destination dest, FileSourceId file_source
       [&](const FileSourceAttachMenuBot &source) {
         send_closure_later(G()->attach_menu_manager(), &AttachMenuManager::reload_attach_menu_bot, source.user_id,
                            std::move(promise));
+      },
+      [&](const FileSourceWebApp &source) {
+        send_closure_later(G()->attach_menu_manager(), &AttachMenuManager::reload_web_app, source.user_id,
+                           source.short_name, std::move(promise));
       }));
 }
 
@@ -361,8 +383,7 @@ FileReferenceManager::Destination FileReferenceManager::on_query_result(Destinat
   VLOG(file_references) << "Receive result of file reference repair query for file " << dest.node_id
                         << " with generation " << dest.generation << " from " << file_source_id << ": " << status << " "
                         << sub;
-  CHECK(dest.node_id.is_valid());
-  auto &node = nodes_[dest.node_id];
+  auto &node = add_node(dest.node_id);
 
   auto query = node.query.get();
   if (!query) {
@@ -399,8 +420,7 @@ void FileReferenceManager::repair_file_reference(NodeId node_id, Promise<> promi
   auto main_file_id = G()->td().get_actor_unsafe()->file_manager_->get_file_view(node_id).get_main_file_id();
   VLOG(file_references) << "Repair file reference for file " << node_id << "/" << main_file_id;
   node_id = main_file_id;
-  CHECK(node_id.is_valid());
-  auto &node = nodes_[node_id];
+  auto &node = add_node(node_id);
   if (!node.query) {
     node.query = make_unique<Query>();
     node.query->generation = ++query_generation_;

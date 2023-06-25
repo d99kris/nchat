@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -10,9 +10,10 @@
 #include "td/telegram/MessageId.h"
 #include "td/telegram/ServerMessageId.h"
 
+#include "td/utils/common.h"
+#include "td/utils/HashTableUtils.h"
 #include "td/utils/StringBuilder.h"
 
-#include <functional>
 #include <limits>
 
 namespace td {
@@ -60,8 +61,8 @@ const DialogDate MAX_DIALOG_DATE(0, DialogId());
 const int64 DEFAULT_ORDER = -1;
 
 struct DialogDateHash {
-  std::size_t operator()(const DialogDate &dialog_date) const {
-    return std::hash<int64>()(dialog_date.get_order()) * 2023654985u + DialogIdHash()(dialog_date.get_dialog_id());
+  uint32 operator()(const DialogDate &dialog_date) const {
+    return Hash<int64>()(dialog_date.get_order()) * 2023654985u + DialogIdHash()(dialog_date.get_dialog_id());
   }
 };
 

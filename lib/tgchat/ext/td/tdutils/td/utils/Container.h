@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -21,6 +21,14 @@ class Container {
  public:
   using Id = uint64;
   DataT *get(Id id) {
+    int32 slot_id = decode_id(id);
+    if (slot_id == -1) {
+      return nullptr;
+    }
+    return &slots_[slot_id].data;
+  }
+
+  const DataT *get(Id id) const {
     int32 slot_id = decode_id(id);
     if (slot_id == -1) {
       return nullptr;
@@ -60,7 +68,7 @@ class Container {
     return static_cast<uint8>(id);
   }
 
-  vector<Id> ids() {
+  vector<Id> ids() const {
     vector<bool> is_bad(slots_.size(), false);
     for (auto id : empty_slots_) {
       is_bad[id] = true;
@@ -73,6 +81,7 @@ class Container {
     }
     return res;
   }
+
   template <class F>
   void for_each(const F &f) {
     auto ids = this->ids();
@@ -80,13 +89,24 @@ class Container {
       f(id, *get(id));
     }
   }
+
+  template <class F>
+  void for_each(const F &f) const {
+    auto ids = this->ids();
+    for (auto id : ids) {
+      f(id, *get(id));
+    }
+  }
+
   size_t size() const {
     CHECK(empty_slots_.size() <= slots_.size());
     return slots_.size() - empty_slots_.size();
   }
+
   bool empty() const {
     return size() == 0;
   }
+
   void clear() {
     *this = Container<DataT>();
   }
@@ -135,7 +155,7 @@ class Container {
   void release(int32 id) {
     inc_generation(id);
     slots_[id].data = DataT();
-    if (slots_[id].generation & ~TYPE_MASK) {  // generation overflow. Can't use this id anymore
+    if (slots_[id].generation & ~TYPE_MASK) {  // generation overflow. Can't use this identifier anymore
       empty_slots_.push_back(id);
     }
   }

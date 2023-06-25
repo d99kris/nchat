@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -10,13 +10,14 @@
 #include "td/utils/FlatHashMapChunks.h"
 #include "td/utils/FlatHashTable.h"
 #include "td/utils/format.h"
-#include "td/utils/Hash.h"
+#include "td/utils/HashTableUtils.h"
 #include "td/utils/logging.h"
 #include "td/utils/MapNode.h"
 #include "td/utils/Random.h"
 #include "td/utils/Slice.h"
 #include "td/utils/Span.h"
 #include "td/utils/StringBuilder.h"
+#include "td/utils/tests.h"
 #include "td/utils/Time.h"
 #include "td/utils/VectorQueue.h"
 
@@ -204,7 +205,7 @@ static void BM_Get(benchmark::State &state) {
   }
 
   std::size_t key_i = 0;
-  td::random_shuffle(td::as_mutable_span(keys), rnd);
+  td::rand_shuffle(td::as_mutable_span(keys), rnd);
   auto next_key = [&] {
     key_i++;
     if (key_i == data.size()) {
@@ -588,7 +589,7 @@ BENCHMARK_TEMPLATE(BM_mask, td::MaskNeon);
 BENCHMARK_TEMPLATE(BM_mask, td::MaskSse2);
 #endif
 
-template <class KeyT, class ValueT, class HashT = std::hash<KeyT>, class EqT = std::equal_to<KeyT>>
+template <class KeyT, class ValueT, class HashT = td::Hash<KeyT>, class EqT = std::equal_to<KeyT>>
 using FlatHashMapImpl = td::FlatHashTable<td::MapNode<KeyT, ValueT>, HashT, EqT>;
 
 #define FOR_EACH_TABLE(F)  \

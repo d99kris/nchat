@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -20,12 +20,12 @@
 #include "td/actor/actor.h"
 
 #include "td/utils/common.h"
-#include "td/utils/FlatHashMap.h"
 #include "td/utils/logging.h"
 #include "td/utils/Promise.h"
 #include "td/utils/Slice.h"
 #include "td/utils/Status.h"
 #include "td/utils/Variant.h"
+#include "td/utils/WaitFreeHashMap.h"
 #include "td/utils/WaitFreeVector.h"
 
 namespace td {
@@ -63,6 +63,7 @@ class FileReferenceManager final : public Actor {
   FileSourceId create_saved_ringtones_file_source();
   FileSourceId create_user_full_file_source(UserId user_id);
   FileSourceId create_attach_menu_bot_file_source(UserId user_id);
+  FileSourceId create_web_app_file_source(UserId user_id, const string &short_name);
 
   using NodeId = FileId;
   void repair_file_reference(NodeId node_id, Promise<> promise);
@@ -164,27 +165,33 @@ class FileReferenceManager final : public Actor {
   struct FileSourceAttachMenuBot {
     UserId user_id;
   };
+  struct FileSourceWebApp {
+    UserId user_id;
+    string short_name;
+  };
 
   // append only
   using FileSource =
       Variant<FileSourceMessage, FileSourceUserPhoto, FileSourceChatPhoto, FileSourceChannelPhoto, FileSourceWallpapers,
               FileSourceWebPage, FileSourceSavedAnimations, FileSourceRecentStickers, FileSourceFavoriteStickers,
               FileSourceBackground, FileSourceChatFull, FileSourceChannelFull, FileSourceAppConfig,
-              FileSourceSavedRingtones, FileSourceUserFull, FileSourceAttachMenuBot>;
+              FileSourceSavedRingtones, FileSourceUserFull, FileSourceAttachMenuBot, FileSourceWebApp>;
   WaitFreeVector<FileSource> file_sources_;
 
   int64 query_generation_{0};
 
-  FlatHashMap<NodeId, Node, FileIdHash> nodes_;
+  WaitFreeHashMap<NodeId, unique_ptr<Node>, FileIdHash> nodes_;
 
   ActorShared<> parent_;
+
+  Node &add_node(NodeId node_id);
 
   void run_node(NodeId node);
   void send_query(Destination dest, FileSourceId file_source_id);
   Destination on_query_result(Destination dest, FileSourceId file_source_id, Status status, int32 sub = 0);
 
   template <class T>
-  FileSourceId add_file_source_id(T source, Slice source_str);
+  FileSourceId add_file_source_id(T &source, Slice source_str);
 
   FileSourceId get_current_file_source_id() const;
 

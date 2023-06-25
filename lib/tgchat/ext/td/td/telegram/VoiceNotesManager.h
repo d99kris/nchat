@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,9 +11,9 @@
 #include "td/telegram/SecretInputMedia.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
+#include "td/telegram/TranscriptionInfo.h"
 
 #include "td/actor/actor.h"
-#include "td/actor/MultiTimeout.h"
 
 #include "td/utils/common.h"
 #include "td/utils/FlatHashMap.h"
@@ -49,12 +49,6 @@ class VoiceNotesManager final : public Actor {
 
   void rate_speech_recognition(FullMessageId full_message_id, bool is_good, Promise<Unit> &&promise);
 
-  void on_update_transcribed_audio(string &&text, int64 transcription_id, bool is_final);
-
-  void on_voice_note_transcribed(FileId file_id, string &&text, int64 transcription_id, bool is_final);
-
-  void on_voice_note_transcription_failed(FileId file_id, Status &&error);
-
   tl_object_ptr<telegram_api::InputMedia> get_input_media(FileId file_id,
                                                           tl_object_ptr<telegram_api::InputFile> input_file) const;
 
@@ -73,22 +67,15 @@ class VoiceNotesManager final : public Actor {
   FileId parse_voice_note(ParserT &parser);
 
  private:
-  static constexpr int32 TRANSCRIPTION_TIMEOUT = 60;
-
   class VoiceNote {
    public:
     string mime_type;
     int32 duration = 0;
-    bool is_transcribed = false;
     string waveform;
-    int64 transcription_id = 0;
-    string text;
-    Status last_transcription_error;
+    unique_ptr<TranscriptionInfo> transcription_info;
 
     FileId file_id;
   };
-
-  static void on_voice_note_transcription_timeout_callback(void *voice_notes_manager_ptr, int64 transcription_id);
 
   VoiceNote *get_voice_note(FileId file_id);
 
@@ -96,9 +83,12 @@ class VoiceNotesManager final : public Actor {
 
   FileId on_get_voice_note(unique_ptr<VoiceNote> new_voice_note, bool replace);
 
-  void on_pending_voice_note_transcription_failed(int64 transcription_id, Status &&error);
-
   void on_voice_note_transcription_updated(FileId file_id);
+
+  void on_voice_note_transcription_completed(FileId file_id);
+
+  void on_transcribed_audio_update(FileId file_id, bool is_initial,
+                                   Result<telegram_api::object_ptr<telegram_api::updateTranscribedAudio>> r_update);
 
   void tear_down() final;
 
@@ -106,10 +96,6 @@ class VoiceNotesManager final : public Actor {
   ActorShared<> parent_;
 
   WaitFreeHashMap<FileId, unique_ptr<VoiceNote>, FileIdHash> voice_notes_;
-
-  FlatHashMap<FileId, vector<Promise<Unit>>, FileIdHash> speech_recognition_queries_;
-  FlatHashMap<int64, FileId> pending_voice_note_transcription_queries_;
-  MultiTimeout voice_note_transcription_timeout_{"VoiceNoteTranscriptionTimeout"};
 
   FlatHashMap<FileId, FlatHashSet<FullMessageId, FullMessageIdHash>, FileIdHash> voice_note_messages_;
   FlatHashMap<FullMessageId, FileId, FullMessageIdHash> message_voice_notes_;

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -10,6 +10,7 @@
 #include "td/utils/common.h"
 #include "td/utils/Container.h"
 #include "td/utils/FlatHashSet.h"
+#include "td/utils/HashTableUtils.h"
 #include "td/utils/List.h"
 #include "td/utils/logging.h"
 #include "td/utils/optional.h"
@@ -140,8 +141,8 @@ class ChainScheduler final : public ChainSchedulerBase {
     vector<TaskChainInfo> chains;
     ExtraT extra;
   };
-  std::unordered_map<ChainId, ChainInfo> chains_;
-  std::unordered_map<ChainId, TaskId> limited_tasks_;
+  std::unordered_map<ChainId, ChainInfo, Hash<ChainId>> chains_;
+  std::unordered_map<ChainId, TaskId, Hash<ChainId>> limited_tasks_;
   Container<Task> tasks_;
   VectorQueue<TaskId> pending_tasks_;
 

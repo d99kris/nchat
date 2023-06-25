@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -143,7 +143,7 @@ struct HashtableNode {
   std::atomic<std::size_t> size;
 };
 
-static constexpr std::size_t HT_MAX_SIZE = 1000000;
+static constexpr std::size_t HT_MAX_SIZE = 10000000;
 static std::atomic<std::size_t> ht_size{0};
 static std::array<HashtableNode, HT_MAX_SIZE> ht;
 

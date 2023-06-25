@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -82,6 +82,8 @@ class ConfigManager final : public NetQueryCallback {
 
   void lazy_request_config();
 
+  void reget_config(Promise<Unit> &&promise);
+
   void get_app_config(Promise<td_api::object_ptr<td_api::JsonValue>> &&promise);
 
   void reget_app_config(Promise<Unit> &&promise);
@@ -103,6 +105,19 @@ class ConfigManager final : public NetQueryCallback {
   void get_current_state(vector<td_api::object_ptr<td_api::Update>> &updates) const;
 
  private:
+  struct AppConfig {
+    static constexpr int32 CURRENT_VERSION = 2;
+    int32 version_ = 0;
+    int32 hash_ = 0;
+    telegram_api::object_ptr<telegram_api::JSONValue> config_;
+
+    template <class StorerT>
+    void store(StorerT &storer) const;
+
+    template <class ParserT>
+    void parse(ParserT &parser);
+  };
+
   ActorShared<> parent_;
   int32 config_sent_cnt_{0};
   bool reopen_sessions_after_get_config_{false};
@@ -111,6 +126,8 @@ class ConfigManager final : public NetQueryCallback {
   Timestamp expire_time_;
 
   FloodControlStrict lazy_request_flood_control_;
+
+  vector<Promise<Unit>> reget_config_queries_;
 
   vector<Promise<td_api::object_ptr<td_api::JsonValue>>> get_app_config_queries_;
   vector<Promise<Unit>> reget_app_config_queries_;
@@ -124,6 +141,8 @@ class ConfigManager final : public NetQueryCallback {
   vector<Promise<Unit>> set_archive_and_mute_queries_[2];
   bool is_set_archive_and_mute_request_sent_ = false;
   bool last_set_archive_and_mute_ = false;
+
+  AppConfig app_config_;
 
   vector<SuggestedAction> suggested_actions_;
   size_t dismiss_suggested_action_request_count_ = 0;
@@ -144,7 +163,7 @@ class ConfigManager final : public NetQueryCallback {
 
   void try_request_app_config();
 
-  void process_app_config(tl_object_ptr<telegram_api::JSONValue> &config);
+  void process_app_config(telegram_api::object_ptr<telegram_api::JSONValue> &config);
 
   void do_set_ignore_sensitive_content_restrictions(bool ignore_sensitive_content_restrictions);
 

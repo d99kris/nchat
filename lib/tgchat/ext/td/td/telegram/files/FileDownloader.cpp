@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -33,8 +33,8 @@
 namespace td {
 
 FileDownloader::FileDownloader(const FullRemoteFileLocation &remote, const LocalFileLocation &local, int64 size,
-                               string name, const FileEncryptionKey &encryption_key, bool is_small, bool search_file,
-                               int64 offset, int64 limit, unique_ptr<Callback> callback)
+                               string name, const FileEncryptionKey &encryption_key, bool is_small,
+                               bool need_search_file, int64 offset, int64 limit, unique_ptr<Callback> callback)
     : remote_(remote)
     , local_(local)
     , size_(size)
@@ -42,7 +42,7 @@ FileDownloader::FileDownloader(const FullRemoteFileLocation &remote, const Local
     , encryption_key_(encryption_key)
     , callback_(std::move(callback))
     , is_small_(is_small)
-    , search_file_(search_file)
+    , need_search_file_(need_search_file)
     , offset_(offset)
     , limit_(limit) {
   if (encryption_key.is_secret()) {
@@ -74,20 +74,21 @@ Result<FileLoader::FileInfo> FileDownloader::init() {
     auto result_fd = FileFd::open(path_, FileFd::Write | FileFd::Read);
     // TODO: check timestamps..
     if (result_fd.is_ok()) {
-      bitmask = Bitmask(Bitmask::Decode{}, partial.ready_bitmask_);
-      if (encryption_key_.is_secret()) {
-        LOG_CHECK(partial.iv_.size() == 32) << partial.iv_.size();
-        encryption_key_.mutable_iv() = as<UInt256>(partial.iv_.data());
-        next_part_ = narrow_cast<int32>(bitmask.get_ready_parts(0));
+      if ((!encryption_key_.is_secret() || partial.iv_.size() == 32) && partial.part_size_ >= 0 &&
+          partial.part_size_ <= (1 << 20) && (partial.part_size_ & (partial.part_size_ - 1)) == 0) {
+        bitmask = Bitmask(Bitmask::Decode{}, partial.ready_bitmask_);
+        if (encryption_key_.is_secret()) {
+          encryption_key_.mutable_iv() = as<UInt256>(partial.iv_.data());
+          next_part_ = narrow_cast<int32>(bitmask.get_ready_parts(0));
+        }
+        fd_ = result_fd.move_as_ok();
+        part_size = static_cast<int32>(partial.part_size_);
+      } else {
+        LOG(ERROR) << "Have invalid " << partial;
       }
-      fd_ = result_fd.move_as_ok();
-      CHECK(partial.part_size_ <= (1 << 20));
-      CHECK(0 <= partial.part_size_);
-      part_size = static_cast<int32>(partial.part_size_);
-      CHECK((part_size & (part_size - 1)) == 0);
     }
   }
-  if (search_file_ && fd_.empty() && size_ > 0 && encryption_key_.empty() && !remote_.is_web()) {
+  if (need_search_file_ && fd_.empty() && size_ > 0 && encryption_key_.empty() && !remote_.is_web()) {
     [&] {
       TRY_RESULT(path, search_file(remote_.file_type_, name_, size_));
       TRY_RESULT(fd, FileFd::open(path, FileFd::Read));
@@ -109,12 +110,11 @@ Result<FileLoader::FileInfo> FileDownloader::init() {
   res.ready_parts = bitmask.as_vector();
   res.use_part_count_limit = false;
   res.only_check = only_check_;
-  auto file_type = remote_.file_type_;
+  auto file_type = get_main_file_type(remote_.file_type_);
   res.need_delay =
-      !is_small_ &&
-      (file_type == FileType::VideoNote || file_type == FileType::Document || file_type == FileType::DocumentAsFile ||
-       file_type == FileType::VoiceNote || file_type == FileType::Audio || file_type == FileType::Video ||
-       file_type == FileType::Animation || (file_type == FileType::Encrypted && size_ > (1 << 20)));
+      !is_small_ && (file_type == FileType::VideoNote || file_type == FileType::Document ||
+                     file_type == FileType::VoiceNote || file_type == FileType::Audio || file_type == FileType::Video ||
+                     file_type == FileType::Animation || (file_type == FileType::Encrypted && size_ > (1 << 20)));
   res.offset = offset_;
   res.limit = limit_;
   return res;
@@ -167,7 +167,7 @@ Result<bool> FileDownloader::should_restart_part(Part part, NetQueryPtr &net_que
         TRY_RESULT(file_base, fetch_result<telegram_api::upload_getFile>(net_query->ok()));
         CHECK(file_base->get_id() == telegram_api::upload_fileCdnRedirect::ID);
         auto file = move_tl_object_as<telegram_api::upload_fileCdnRedirect>(file_base);
-        LOG(DEBUG) << part.id << " got REDIRECT " << to_string(file);
+        LOG(DEBUG) << "Downloading of part " << part.id << " was redirected to " << oneline(to_string(file));
 
         auto new_cdn_file_token = file->file_token_.as_slice();
         if (cdn_file_token_ == new_cdn_file_token) {
@@ -193,7 +193,7 @@ Result<bool> FileDownloader::should_restart_part(Part part, NetQueryPtr &net_que
     case QueryType::ReuploadCDN: {
       TRY_RESULT(file_hashes, fetch_result<telegram_api::upload_reuploadCdnFile>(net_query->ok()));
       add_hash_info(file_hashes);
-      LOG(DEBUG) << part.id << " got REUPLOAD_OK";
+      LOG(DEBUG) << "Part " << part.id << " was reuplaoded to CDN";
       return true;
     }
     case QueryType::CDN: {
@@ -201,14 +201,14 @@ Result<bool> FileDownloader::should_restart_part(Part part, NetQueryPtr &net_que
         TRY_RESULT(file_base, fetch_result<telegram_api::upload_getCdnFile>(net_query->ok()));
         CHECK(file_base->get_id() == telegram_api::upload_cdnFileReuploadNeeded::ID);
         auto file = move_tl_object_as<telegram_api::upload_cdnFileReuploadNeeded>(file_base);
-        LOG(DEBUG) << part.id << " got REUPLOAD " << to_string(file);
+        LOG(DEBUG) << "Part " << part.id << " must be reuplaoded to " << oneline(to_string(file));
         cdn_part_reupload_token_[part.id] = file->request_token_.as_slice().str();
         return true;
       }
       auto it = cdn_part_file_token_generation_.find(part.id);
       CHECK(it != cdn_part_file_token_generation_.end());
       if (it->second != cdn_file_token_generation_) {
-        LOG(DEBUG) << part.id << " got part with old file_token";
+        LOG(DEBUG) << "Receive part " << part.id << " with an old file_token";
         return true;
       }
       return false;
@@ -246,16 +246,16 @@ Result<std::pair<NetQueryPtr, bool>> FileDownloader::start_part(Part part, int32
     }
 #endif
     DcId dc_id = remote_.is_web() ? G()->get_webfile_dc_id() : remote_.get_dc_id();
-    auto id = UniqueId::next(UniqueId::Type::Default, static_cast<uint8>(QueryType::Default));
+    auto unique_id = UniqueId::next(UniqueId::Type::Default, static_cast<uint8>(QueryType::Default));
     net_query =
         remote_.is_web()
             ? G()->net_query_creator().create(
-                  id,
+                  unique_id,
                   telegram_api::upload_getWebFile(remote_.as_input_web_file_location(), narrow_cast<int32>(part.offset),
                                                   narrow_cast<int32>(size)),
                   {}, dc_id, net_query_type, NetQuery::AuthFlag::On)
             : G()->net_query_creator().create(
-                  id,
+                  unique_id,
                   telegram_api::upload_getFile(flags, false /*ignored*/, false /*ignored*/,
                                                remote_.as_input_file_location(), part.offset, narrow_cast<int32>(size)),
                   {}, dc_id, net_query_type, NetQuery::AuthFlag::On);
@@ -267,13 +267,11 @@ Result<std::pair<NetQueryPtr, bool>> FileDownloader::start_part(Part part, int32
     if (it == cdn_part_reupload_token_.end()) {
       auto query = telegram_api::upload_getCdnFile(BufferSlice(cdn_file_token_), part.offset, narrow_cast<int32>(size));
       cdn_part_file_token_generation_[part.id] = cdn_file_token_generation_;
-      LOG(DEBUG) << part.id << " " << to_string(query);
       net_query =
           G()->net_query_creator().create(UniqueId::next(UniqueId::Type::Default, static_cast<uint8>(QueryType::CDN)),
                                           query, {}, cdn_dc_id_, net_query_type, NetQuery::AuthFlag::Off);
     } else {
       auto query = telegram_api::upload_reuploadCdnFile(BufferSlice(cdn_file_token_), BufferSlice(it->second));
-      LOG(DEBUG) << part.id << " " << to_string(query);
       net_query = G()->net_query_creator().create(
           UniqueId::next(UniqueId::Type::Default, static_cast<uint8>(QueryType::ReuploadCDN)), query, {},
           remote_.get_dc_id(), net_query_type, NetQuery::AuthFlag::On);
@@ -312,7 +310,7 @@ Result<size_t> FileDownloader::process_part(Part part, NetQueryPtr net_query) {
         TRY_RESULT(file_base, fetch_result<telegram_api::upload_getFile>(net_query->ok()));
         CHECK(file_base->get_id() == telegram_api::upload_file::ID);
         auto file = move_tl_object_as<telegram_api::upload_file>(file_base);
-        LOG(DEBUG) << part.id << " upload.getFile result " << to_string(file);
+        LOG(DEBUG) << "Receive part " << part.id << ": " << to_string(file);
         bytes = std::move(file->bytes_);
       }
       break;
@@ -321,7 +319,7 @@ Result<size_t> FileDownloader::process_part(Part part, NetQueryPtr net_query) {
       TRY_RESULT(file_base, fetch_result<telegram_api::upload_getCdnFile>(net_query->ok()));
       CHECK(file_base->get_id() == telegram_api::upload_cdnFile::ID);
       auto file = move_tl_object_as<telegram_api::upload_cdnFile>(file_base);
-      LOG(DEBUG) << part.id << " upload.getCdnFile result " << to_string(file);
+      LOG(DEBUG) << "Receive part " << part.id << " from CDN: " << to_string(file);
       bytes = std::move(file->bytes_);
       need_cdn_decrypt = true;
       break;
@@ -352,7 +350,7 @@ Result<size_t> FileDownloader::process_part(Part part, NetQueryPtr net_query) {
     string iv = cdn_encryption_iv_;
     as<uint32>(&iv[12]) = offset;
     ctr_state.init(cdn_encryption_key_, iv);
-    ctr_state.decrypt(bytes.as_slice(), bytes.as_slice());
+    ctr_state.decrypt(bytes.as_slice(), bytes.as_mutable_slice());
   }
   if (encryption_key_.is_secret()) {
     LOG_CHECK(next_part_ == part.id) << tag("expected part.id", next_part_) << "!=" << tag("part.id", part.id);
@@ -361,13 +359,13 @@ Result<size_t> FileDownloader::process_part(Part part, NetQueryPtr net_query) {
     if (part.size % 16 != 0) {
       next_part_stop_ = true;
     }
-    aes_ige_decrypt(as_slice(encryption_key_.key()), as_slice(encryption_key_.mutable_iv()), bytes.as_slice(),
-                    bytes.as_slice());
+    aes_ige_decrypt(as_slice(encryption_key_.key()), as_mutable_slice(encryption_key_.mutable_iv()), bytes.as_slice(),
+                    bytes.as_mutable_slice());
   }
 
   auto slice = bytes.as_slice().substr(0, part.size);
   TRY_STATUS(acquire_fd());
-  LOG(INFO) << "Got " << slice.size() << " bytes at offset " << part.offset << " for \"" << path_ << '"';
+  LOG(INFO) << "Receive " << slice.size() << " bytes at offset " << part.offset << " for \"" << path_ << '"';
   TRY_RESULT(written, fd_.pwrite(slice, part.offset));
   LOG(INFO) << "Written " << written << " bytes";
   // may write less than part.size, when size of downloadable file is unknown
@@ -446,7 +444,7 @@ Result<FileLoader::CheckInfo> FileDownloader::check_loop(int64 checked_prefix_si
       auto size = narrow_cast<size_t>(end_offset - begin_offset);
       auto slice = BufferSlice(size);
       TRY_STATUS(acquire_fd());
-      TRY_RESULT(read_size, fd_.pread(slice.as_slice(), begin_offset));
+      TRY_RESULT(read_size, fd_.pread(slice.as_mutable_slice(), begin_offset));
       if (size != read_size) {
         return Status::Error("Failed to read file to check hash");
       }

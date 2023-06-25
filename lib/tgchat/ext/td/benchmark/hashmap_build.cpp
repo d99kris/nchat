@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -25,19 +25,19 @@
 //#define CREATE_MAP(num) CREATE_MAP_IMPL(num)
 #define CREATE_MAP(num)
 
-#define CREATE_MAP_IMPL(num)                \
-  int f_##num() {                           \
-    test_map<int, std::array<char, num>> m; \
-    m.emplace(1, std::array<char, num>{});  \
-    int sum = 0;                            \
-    for (auto &it : m) {                    \
-      sum += it.first;                      \
-    }                                       \
-    auto it = m.find(1);                    \
-    sum += it->first;                       \
-    m.erase(it);                            \
-    return sum;                             \
-  }                                         \
+#define CREATE_MAP_IMPL(num)                      \
+  int f_##num() {                                 \
+    test_map<td::int32, std::array<char, num>> m; \
+    m.emplace(1, std::array<char, num>{});        \
+    int sum = 0;                                  \
+    for (auto &it : m) {                          \
+      sum += it.first;                            \
+    }                                             \
+    auto it = m.find(1);                          \
+    sum += it->first;                             \
+    m.erase(it);                                  \
+    return sum;                                   \
+  }                                               \
   int x_##num = f_##num()
 
 CREATE_MAP(__LINE__);

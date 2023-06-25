@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -16,6 +16,7 @@
 #include "td/utils/Status.h"
 #include "td/utils/tl_parsers.h"
 #include "td/utils/tl_storers.h"
+#include "td/utils/unique_value_ptr.h"
 #include "td/utils/Variant.h"
 
 #include <type_traits>
@@ -169,6 +170,18 @@ template <class T, class ParserT>
 void parse(unique_ptr<T> &ptr, ParserT &parser) {
   CHECK(ptr == nullptr);
   ptr = make_unique<T>();
+  parse(*ptr, parser);
+}
+
+template <class T, class StorerT>
+void store(const unique_value_ptr<T> &ptr, StorerT &storer) {
+  CHECK(ptr != nullptr);
+  store(*ptr, storer);
+}
+template <class T, class ParserT>
+void parse(unique_value_ptr<T> &ptr, ParserT &parser) {
+  CHECK(ptr == nullptr);
+  ptr = make_unique_value<T>();
   parse(*ptr, parser);
 }
 

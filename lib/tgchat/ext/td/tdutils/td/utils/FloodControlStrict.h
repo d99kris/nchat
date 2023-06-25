@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -17,7 +17,7 @@ namespace td {
 class FloodControlStrict {
  public:
   // there is no reason to return wakeup_at_, because it will be a time before the next allowed event, not current
-  void add_event(int32 now) {
+  void add_event(double now) {
     events_.push_back(Event{now});
     if (without_update_ > 0) {
       without_update_--;
@@ -32,7 +32,7 @@ class FloodControlStrict {
     without_update_ = 0;
   }
 
-  int32 get_wakeup_at() const {
+  double get_wakeup_at() const {
     return wakeup_at_;
   }
 
@@ -42,10 +42,11 @@ class FloodControlStrict {
       limit.pos_ = 0;
     }
     without_update_ = 0;
-    wakeup_at_ = 1;
+    wakeup_at_ = 0.0;
   }
 
-  int32 update(int32 now) {
+ private:
+  void update(double now) {
     size_t min_pos = events_.size();
 
     without_update_ = std::numeric_limits<size_t>::max();
@@ -55,7 +56,8 @@ class FloodControlStrict {
       }
 
       // binary-search? :D
-      while (limit.pos_ < events_.size() && events_[limit.pos_].timestamp_ + limit.duration_ < now) {
+      auto end_time = now - limit.duration_;
+      while (limit.pos_ < events_.size() && events_[limit.pos_].timestamp_ < end_time) {
         limit.pos_++;
       }
 
@@ -76,13 +78,11 @@ class FloodControlStrict {
       }
       events_.erase(events_.begin(), events_.begin() + min_pos);
     }
-    return wakeup_at_;
   }
 
- private:
-  int32 wakeup_at_ = 1;
+  double wakeup_at_ = 0.0;
   struct Event {
-    int32 timestamp_;
+    double timestamp_;
   };
   struct Limit {
     int32 duration_;
@@ -90,8 +90,8 @@ class FloodControlStrict {
     size_t pos_;
   };
   size_t without_update_ = 0;
-  std::vector<Event> events_;
-  std::vector<Limit> limits_;
+  vector<Event> events_;
+  vector<Limit> limits_;
 };
 
 }  // namespace td

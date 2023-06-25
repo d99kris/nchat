@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -134,6 +134,14 @@ Result<size_t> BufferedFdBase<FdT>::flush_write() {
     TRY_RESULT(x, FdT::writev(Span<IoSlice>(buf, buf_i)));
     write_->advance(x);
     result += x;
+  }
+  if (result == 0) {
+    if (write_->empty()) {
+      LOG(DEBUG) << "Nothing to write to " << FdT::get_poll_info().native_fd();
+    } else {
+      LOG(DEBUG) << "Can't flush write to " << FdT::get_poll_info().native_fd()
+                 << " with flags = " << FdT::get_poll_info().get_flags_local();
+    }
   }
   return result;
 }

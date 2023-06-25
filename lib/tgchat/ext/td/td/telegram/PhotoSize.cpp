@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -8,6 +8,7 @@
 
 #include "td/telegram/files/FileLocation.h"
 #include "td/telegram/files/FileManager.h"
+#include "td/telegram/Td.h"
 
 #include "td/utils/base64.h"
 #include "td/utils/HttpUrl.h"
@@ -122,10 +123,10 @@ static StringBuilder &operator<<(StringBuilder &string_builder, PhotoFormat form
 
 FileId register_photo_size(FileManager *file_manager, const PhotoSizeSource &source, int64 id, int64 access_hash,
                            string file_reference, DialogId owner_dialog_id, int32 file_size, DcId dc_id,
-                           PhotoFormat format) {
-  LOG(DEBUG) << "Receive " << format << " photo " << id << " of type " << source.get_file_type("register_photo_size")
-             << " from " << dc_id;
-  auto suggested_name = PSTRING() << source.get_unique_name(id) << '.' << format;
+                           PhotoFormat format, const char *call_source) {
+  LOG(DEBUG) << "Receive " << format << " photo " << id << " of type " << source.get_file_type(call_source) << " from "
+             << dc_id << " from " << call_source;
+  auto suggested_name = PSTRING() << source.get_unique_name(id, call_source) << '.' << format;
   auto file_location_source = owner_dialog_id.get_type() == DialogType::SecretChat ? FileLocationSource::FromUser
                                                                                    : FileLocationSource::FromServer;
   return file_manager->register_remote(
@@ -249,7 +250,7 @@ Variant<PhotoSize, string> get_photo_size(FileManager *file_manager, PhotoSizeSo
   }
 
   res.file_id = register_photo_size(file_manager, source, id, access_hash, std::move(file_reference), owner_dialog_id,
-                                    res.size, dc_id, format);
+                                    res.size, dc_id, format, "get_photo_size");
 
   if (!content.empty()) {
     file_manager->set_content(res.file_id, std::move(content));
@@ -258,36 +259,63 @@ Variant<PhotoSize, string> get_photo_size(FileManager *file_manager, PhotoSizeSo
   return std::move(res);
 }
 
-AnimationSize get_animation_size(FileManager *file_manager, PhotoSizeSource source, int64 id, int64 access_hash,
+AnimationSize get_animation_size(Td *td, PhotoSizeSource source, int64 id, int64 access_hash,
                                  std::string file_reference, DcId dc_id, DialogId owner_dialog_id,
                                  tl_object_ptr<telegram_api::videoSize> &&size) {
   CHECK(size != nullptr);
-  AnimationSize res;
+  AnimationSize result;
   if (size->type_ != "p" && size->type_ != "u" && size->type_ != "v") {
     LOG(ERROR) << "Unsupported videoSize \"" << size->type_ << "\" in " << to_string(size);
   }
-  res.type = static_cast<uint8>(size->type_[0]);
-  if (res.type >= 128) {
-    LOG(ERROR) << "Wrong videoSize \"" << res.type << "\" " << res;
-    res.type = 0;
+  result.type = static_cast<uint8>(size->type_[0]);
+  if (result.type >= 128) {
+    LOG(ERROR) << "Wrong videoSize \"" << result.type << "\" " << result;
+    result.type = 0;
   }
-  res.dimensions = get_dimensions(size->w_, size->h_, "get_animation_size");
-  res.size = size->size_;
+  result.dimensions = get_dimensions(size->w_, size->h_, "get_animation_size");
+  result.size = size->size_;
   if ((size->flags_ & telegram_api::videoSize::VIDEO_START_TS_MASK) != 0) {
-    res.main_frame_timestamp = size->video_start_ts_;
+    result.main_frame_timestamp = size->video_start_ts_;
   }
 
   if (source.get_type("get_animation_size") == PhotoSizeSource::Type::Thumbnail) {
-    source.thumbnail().thumbnail_type = res.type;
+    source.thumbnail().thumbnail_type = result.type;
   }
-  if (res.size < 0 || res.size > 1000000000) {
-    LOG(ERROR) << "Receive animation of size " << res.size;
-    res.size = 0;
+  if (result.size < 0 || result.size > 1000000000) {
+    LOG(ERROR) << "Receive animation of size " << result.size;
+    result.size = 0;
   }
 
-  res.file_id = register_photo_size(file_manager, source, id, access_hash, std::move(file_reference), owner_dialog_id,
-                                    res.size, dc_id, PhotoFormat::Mpeg4);
-  return res;
+  result.file_id = register_photo_size(td->file_manager_.get(), source, id, access_hash, std::move(file_reference),
+                                       owner_dialog_id, result.size, dc_id, PhotoFormat::Mpeg4, "get_animation_size");
+  return result;
+}
+
+Variant<AnimationSize, unique_ptr<StickerPhotoSize>> process_video_size(
+    Td *td, PhotoSizeSource source, int64 id, int64 access_hash, std::string file_reference, DcId dc_id,
+    DialogId owner_dialog_id, tl_object_ptr<telegram_api::VideoSize> &&size_ptr) {
+  CHECK(size_ptr != nullptr);
+  switch (size_ptr->get_id()) {
+    case telegram_api::videoSize::ID: {
+      auto animation_size = get_animation_size(td, source, id, access_hash, std::move(file_reference), dc_id,
+                                               owner_dialog_id, move_tl_object_as<telegram_api::videoSize>(size_ptr));
+      if (animation_size.type == 0) {
+        return {};
+      }
+      return std::move(animation_size);
+    }
+    case telegram_api::videoSizeEmojiMarkup::ID:
+    case telegram_api::videoSizeStickerMarkup::ID: {
+      auto sticker_photo_size = StickerPhotoSize::get_sticker_photo_size(td, std::move(size_ptr));
+      if (sticker_photo_size == nullptr) {
+        return {};
+      }
+      return std::move(sticker_photo_size);
+    }
+    default:
+      UNREACHABLE();
+      return {};
+  }
 }
 
 PhotoSize get_web_document_photo_size(FileManager *file_manager, FileType file_type, DialogId owner_dialog_id,
@@ -425,7 +453,8 @@ bool operator<(const PhotoSize &lhs, const PhotoSize &rhs) {
 }
 
 StringBuilder &operator<<(StringBuilder &string_builder, const PhotoSize &photo_size) {
-  return string_builder << "{type = " << photo_size.type << ", dimensions = " << photo_size.dimensions
+  char type = 32 <= photo_size.type && photo_size.type <= 127 ? static_cast<char>(photo_size.type) : '?';
+  return string_builder << "{type = " << type << ", dimensions = " << photo_size.dimensions
                         << ", size = " << photo_size.size << ", file_id = " << photo_size.file_id
                         << ", progressive_sizes = " << photo_size.progressive_sizes << "}";
 }

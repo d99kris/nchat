@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,8 +11,10 @@
 #include "td/utils/port/FileFd.h"
 #include "td/utils/port/path.h"
 #include "td/utils/port/StdStreams.h"
+#include "td/utils/port/thread_local.h"
 #include "td/utils/Slice.h"
 #include "td/utils/SliceBuilder.h"
+#include "td/utils/Time.h"
 
 namespace td {
 
@@ -71,14 +73,20 @@ bool FileLog::get_redirect_stderr() const {
 }
 
 void FileLog::do_append(int log_level, CSlice slice) {
+  auto start_time = Time::now();
   if (size_ > rotate_threshold_ || want_rotate_.load(std::memory_order_relaxed)) {
     auto status = rename(path_, PSLICE() << path_ << ".old");
     if (status.is_error()) {
-      process_fatal_error(PSLICE() << status.error() << " in " << __FILE__ << " at " << __LINE__ << '\n');
+      process_fatal_error(PSLICE() << status << " in " << __FILE__ << " at " << __LINE__ << '\n');
     }
     do_after_rotation();
   }
   while (!slice.empty()) {
+    if (redirect_stderr_) {
+      while (has_log_guard()) {
+        // spin
+      }
+    }
     auto r_size = fd_.write(slice);
     if (r_size.is_error()) {
       process_fatal_error(PSLICE() << r_size.error() << " in " << __FILE__ << " at " << __LINE__ << '\n');
@@ -86,6 +94,13 @@ void FileLog::do_append(int log_level, CSlice slice) {
     auto written = r_size.ok();
     size_ += static_cast<int64>(written);
     slice.remove_prefix(written);
+  }
+  auto total_time = Time::now() - start_time;
+  if (total_time >= 0.1 && log_level >= 1) {
+    auto thread_id = get_thread_id();
+    auto r_size = fd_.write(PSLICE() << "[ 1][t" << (0 <= thread_id && thread_id < 10 ? " " : "") << thread_id
+                                     << "] !!! Previous logging took " << total_time << " seconds !!!\n");
+    r_size.ignore();
   }
 }
 
@@ -105,7 +120,7 @@ void FileLog::do_after_rotation() {
   ScopedDisableLog disable_log;  // to ensure that nothing will be printed to the closed log
   CHECK(!path_.empty());
   fd_.close();
-  auto r_fd = FileFd::open(path_, FileFd::Create | FileFd::Truncate | FileFd::Write);
+  auto r_fd = FileFd::open(path_, FileFd::Create | FileFd::Write | FileFd::Append);
   if (r_fd.is_error()) {
     process_fatal_error(PSLICE() << r_fd.error() << " in " << __FILE__ << " at " << __LINE__ << '\n');
   }
@@ -113,7 +128,12 @@ void FileLog::do_after_rotation() {
   if (!Stderr().empty() && redirect_stderr_) {
     fd_.get_native_fd().duplicate(Stderr().get_native_fd()).ignore();
   }
-  size_ = 0;
+  auto r_size = fd_.get_size();
+  if (r_fd.is_error()) {
+    process_fatal_error(PSLICE() << "Failed to get log size: " << r_fd.error() << " in " << __FILE__ << " at "
+                                 << __LINE__ << '\n');
+  }
+  size_ = r_size.move_as_ok();
 }
 
 Result<unique_ptr<LogInterface>> FileLog::create(string path, int64 rotate_threshold, bool redirect_stderr) {

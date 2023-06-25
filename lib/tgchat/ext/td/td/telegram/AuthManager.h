@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -37,9 +37,11 @@ class AuthManager final : public NetActor {
 
   void set_phone_number(uint64 query_id, string phone_number,
                         td_api::object_ptr<td_api::phoneNumberAuthenticationSettings> settings);
+  void set_firebase_token(uint64 query_id, string token);
   void set_email_address(uint64 query_id, string email_address);
   void resend_authentication_code(uint64 query_id);
   void check_email_code(uint64 query_id, EmailVerification &&code);
+  void reset_email_address(uint64 query_id);
   void check_code(uint64 query_id, string code);
   void register_user(uint64 query_id, string first_name, string last_name);
   void request_qr_code_authentication(uint64 query_id, vector<UserId> other_user_ids);
@@ -83,6 +85,7 @@ class AuthManager final : public NetActor {
     SendCode,
     SendEmailCode,
     VerifyEmailAddress,
+    ResetEmailAddress,
     RequestQrCode,
     ImportQrCode,
     GetPassword,
@@ -90,6 +93,7 @@ class AuthManager final : public NetActor {
     RequestPasswordRecovery,
     CheckPasswordRecoveryCode,
     RecoverPassword,
+    RequestFirebaseSms,
     BotAuthentication,
     Authentication,
     LogOut,
@@ -105,6 +109,7 @@ class AuthManager final : public NetActor {
     int64 srp_id_ = 0;
     string hint_;
     bool has_recovery_ = false;
+    bool has_secure_values_ = false;
     string email_address_pattern_;
 
     template <class StorerT>
@@ -117,7 +122,7 @@ class AuthManager final : public NetActor {
     State state_;
     int32 api_id_;
     string api_hash_;
-    Timestamp state_timestamp_;
+    double expires_at_;
 
     // WaitEmailAddress and WaitEmailCode
     bool allow_apple_id_ = false;
@@ -126,7 +131,8 @@ class AuthManager final : public NetActor {
     // WaitEmailCode
     string email_address_;
     SentEmailCode email_code_info_;
-    int32 next_phone_number_login_date_ = 0;
+    int32 reset_available_period_ = -1;
+    int32 reset_pending_date_ = -1;
 
     // WaitEmailAddress, WaitEmailCode, WaitCode and WaitRegistration
     SendCodeHelper send_code_helper_;
@@ -154,15 +160,16 @@ class AuthManager final : public NetActor {
     }
 
     static DbState wait_email_code(int32 api_id, string api_hash, bool allow_apple_id, bool allow_google_id,
-                                   string email_address, SentEmailCode email_code_info,
-                                   int32 next_phone_number_login_date, SendCodeHelper send_code_helper) {
+                                   string email_address, SentEmailCode email_code_info, int32 reset_available_period,
+                                   int32 reset_pending_date, SendCodeHelper send_code_helper) {
       DbState state(State::WaitEmailCode, api_id, std::move(api_hash));
       state.send_code_helper_ = std::move(send_code_helper);
       state.allow_apple_id_ = allow_apple_id;
       state.allow_google_id_ = allow_google_id;
       state.email_address_ = std::move(email_address);
       state.email_code_info_ = std::move(email_code_info);
-      state.next_phone_number_login_date_ = next_phone_number_login_date;
+      state.reset_available_period_ = reset_available_period;
+      state.reset_pending_date_ = reset_pending_date;
       return state;
     }
 
@@ -202,7 +209,23 @@ class AuthManager final : public NetActor {
 
    private:
     DbState(State state, int32 api_id, string &&api_hash)
-        : state_(state), api_id_(api_id), api_hash_(std::move(api_hash)), state_timestamp_(Timestamp::now()) {
+        : state_(state), api_id_(api_id), api_hash_(std::move(api_hash)) {
+      auto state_timeout = [state] {
+        switch (state) {
+          case State::WaitPassword:
+          case State::WaitRegistration:
+            return 86400;
+          case State::WaitEmailAddress:
+          case State::WaitEmailCode:
+          case State::WaitCode:
+          case State::WaitQrCodeConfirmation:
+            return 5 * 60;
+          default:
+            UNREACHABLE();
+            return 0;
+        }
+      }();
+      expires_at_ = Time::now() + state_timeout;
     }
   };
 
@@ -223,7 +246,8 @@ class AuthManager final : public NetActor {
   // State::WaitEmailCode
   string email_address_;
   SentEmailCode email_code_info_;
-  int32 next_phone_number_login_date_ = 0;
+  int32 reset_available_period_ = -1;
+  int32 reset_pending_date_ = -1;
   EmailVerification email_code_;
 
   // State::WaitCode
@@ -256,6 +280,7 @@ class AuthManager final : public NetActor {
   int32 login_code_retry_delay_ = 0;
   Timeout poll_export_login_code_timeout_;
 
+  bool checking_password_ = false;
   bool was_qr_code_request_ = false;
   bool was_check_bot_token_ = false;
   bool is_bot_ = false;
@@ -280,15 +305,17 @@ class AuthManager final : public NetActor {
   void send_log_out_query();
   void destroy_auth_keys();
 
-  void on_sent_code(telegram_api::object_ptr<telegram_api::auth_sentCode> &&sent_code);
+  void on_sent_code(telegram_api::object_ptr<telegram_api::auth_SentCode> &&sent_code_ptr);
 
   void on_send_code_result(NetQueryPtr &result);
   void on_send_email_code_result(NetQueryPtr &result);
   void on_verify_email_address_result(NetQueryPtr &result);
+  void on_reset_email_address_result(NetQueryPtr &result);
   void on_request_qr_code_result(NetQueryPtr &result, bool is_import);
   void on_get_password_result(NetQueryPtr &result);
   void on_request_password_recovery_result(NetQueryPtr &result);
   void on_check_password_recovery_code_result(NetQueryPtr &result);
+  void on_request_firebase_sms_result(NetQueryPtr &result);
   void on_authentication_result(NetQueryPtr &result, bool is_from_current_query);
   void on_log_out_result(NetQueryPtr &result);
   void on_delete_account_result(NetQueryPtr &result);

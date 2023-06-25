@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -8,6 +8,7 @@
 
 #include "td/telegram/DialogId.h"
 #include "td/telegram/MessageId.h"
+#include "td/telegram/telegram_api.h"
 
 #include "td/utils/common.h"
 #include "td/utils/StringBuilder.h"
@@ -37,8 +38,13 @@ struct FullMessageId {
   DialogId get_dialog_id() const {
     return dialog_id;
   }
+
   MessageId get_message_id() const {
     return message_id;
+  }
+
+  static FullMessageId get_full_message_id(const tl_object_ptr<telegram_api::Message> &message_ptr, bool is_scheduled) {
+    return {DialogId::get_message_dialog_id(message_ptr), MessageId::get_message_id(message_ptr, is_scheduled)};
   }
 
   template <class StorerT>
@@ -55,7 +61,7 @@ struct FullMessageId {
 };
 
 struct FullMessageIdHash {
-  std::size_t operator()(FullMessageId full_message_id) const {
+  uint32 operator()(FullMessageId full_message_id) const {
     return DialogIdHash()(full_message_id.get_dialog_id()) * 2023654985u +
            MessageIdHash()(full_message_id.get_message_id());
   }

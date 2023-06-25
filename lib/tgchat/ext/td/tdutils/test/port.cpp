@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2022
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -14,6 +14,7 @@
 #include "td/utils/port/path.h"
 #include "td/utils/port/signals.h"
 #include "td/utils/port/sleep.h"
+#include "td/utils/port/Stat.h"
 #include "td/utils/port/thread.h"
 #include "td/utils/port/thread_local.h"
 #include "td/utils/Random.h"
@@ -54,7 +55,7 @@ TEST(Port, files) {
   const int ITER_COUNT = 1000;
   for (int i = 0; i < ITER_COUNT; i++) {
     td::walk_path(main_dir, [&](td::CSlice name, td::WalkPath::Type type) {
-      if (type == td::WalkPath::Type::NotDir) {
+      if (type == td::WalkPath::Type::RegularFile) {
         ASSERT_TRUE(name == fd_path || name == fd2_path);
       }
       cnt++;
@@ -167,6 +168,14 @@ TEST(Port, Writev) {
   td::string content(expected_content.size(), '\0');
   ASSERT_EQ(content.size(), fd.read(content).move_as_ok());
   ASSERT_EQ(expected_content, content);
+
+  auto stat = td::stat(test_file_path).move_as_ok();
+  CHECK(!stat.is_dir_);
+  CHECK(stat.is_reg_);
+  CHECK(!stat.is_symbolic_link_);
+  CHECK(stat.size_ == static_cast<td::int64>(expected_content.size()));
+
+  td::unlink(test_file_path).ignore();
 }
 
 #if TD_PORT_POSIX && !TD_THREAD_UNSUPPORTED
@@ -285,24 +294,27 @@ TEST(Port, EventFdAndSignals) {
 #endif
 #endif
 
-#if !TD_THREAD_UNSUPPORTED
+#if TD_HAVE_THREAD_AFFINITY
 TEST(Port, ThreadAffinityMask) {
   auto thread_id = td::this_thread::get_id();
   auto old_mask = td::thread::get_affinity_mask(thread_id);
-  LOG(INFO) << "Initial thread affinity mask: " << old_mask;
+  LOG(INFO) << "Initial thread " << thread_id << " affinity mask: " << old_mask;
   for (size_t i = 0; i < 64; i++) {
     auto mask = td::thread::get_affinity_mask(thread_id);
     LOG(INFO) << mask;
     auto result = td::thread::set_affinity_mask(thread_id, static_cast<td::uint64>(1) << i);
-    LOG(INFO) << i << ": " << result;
-    mask = td::thread::get_affinity_mask(thread_id);
-    LOG(INFO) << mask;
+    LOG(INFO) << i << ": " << result << ' ' << td::thread::get_affinity_mask(thread_id);
 
     if (i <= 1) {
       td::thread thread([] {
-        auto mask = td::thread::get_affinity_mask(td::this_thread::get_id());
-        LOG(INFO) << "New thread affinity mask: " << mask;
+        auto thread_id = td::this_thread::get_id();
+        auto mask = td::thread::get_affinity_mask(thread_id);
+        LOG(INFO) << "New thread " << thread_id << " affinity mask: " << mask;
+        auto result = td::thread::set_affinity_mask(thread_id, 1);
+        LOG(INFO) << "Thread " << thread_id << ": " << result << ' ' << td::thread::get_affinity_mask(thread_id);
       });
+      LOG(INFO) << "Will join new thread " << thread.get_id()
+                << " with affinity mask: " << td::thread::get_affinity_mask(thread.get_id());
     }
   }
   auto result = td::thread::set_affinity_mask(thread_id, old_mask);
