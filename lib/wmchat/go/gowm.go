@@ -40,7 +40,7 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
-var whatsmeowDate = "20230324"
+var whatsmeowDate = "20230622"
 
 type JSONMessage []json.RawMessage
 type JSONMessageType string
@@ -1230,9 +1230,6 @@ func (handler *WmEventHandler) HandleUnsupportedMessage(messageInfo types.Messag
 
 	case msg.GroupMentionedMessage != nil:
 		msgType = "GroupMentionedMessage"
-
-	case msg.PinMessage != nil:
-		msgType = "PinMessage"
 
 	case msg.PollCreationMessageV3 != nil:
 		msgType = "PollCreationMessageV3"
