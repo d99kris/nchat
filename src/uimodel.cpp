@@ -2772,7 +2772,7 @@ void UiModel::ExternalSpell()
     {
       const std::string& commandOutPath = FileUtil::MkTempFile();
       const std::string& whichCommand =
-        std::string("which nspell-gpt aspell ispell 2> /dev/null | head -1 > ") + commandOutPath;
+        std::string("which aspell ispell 2> /dev/null | head -1 > ") + commandOutPath;
 
       if (system(whichCommand.c_str()) == 0)
       {
@@ -2780,11 +2780,7 @@ void UiModel::ExternalSpell()
         output.erase(std::remove(output.begin(), output.end(), '\n'), output.end());
         if (!output.empty())
         {
-          if (output.find("/nspell-gpt") != std::string::npos)
-          {
-            spellCheckCommand = "nspell-gpt";
-          }
-          else if (output.find("/aspell") != std::string::npos)
+          if (output.find("/aspell") != std::string::npos)
           {
             spellCheckCommand = "aspell -c";
           }
