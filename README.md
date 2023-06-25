@@ -195,10 +195,7 @@ The Telegram client library subcomponent requires relatively large amount of
 RAM to build by default (3.5GB using g++, and 1.5 GB for clang++). It is
 possible to adjust the Telegram client library source code so that it requires
 less RAM (but takes longer time). Doing so reduces the memory requirement to
-around 1GB under g++ and 0.5GB for clang++. Also, it is recommended to build
-nchat in release mode (which is default if downloading zip/tar release
-package - but with a git/svn clone it defaults to release with debug symbols),
-to minimize memory usage.
+around 1GB under g++ and 0.5GB for clang++.
 
 Steps to build nchat on a low memory system:
 
@@ -213,7 +210,7 @@ Steps to build nchat on a low memory system:
 **Setup**
 
     mkdir -p build && cd build
-    CC=/usr/bin/clang CXX=/usr/bin/clang++ cmake -DCMAKE_BUILD_TYPE=Release ..
+    CC=/usr/bin/clang CXX=/usr/bin/clang++ cmake ..
 
 **Split source (optional)**
 
@@ -265,7 +262,7 @@ Fedora
 **Build**
 
     mkdir -p build && cd build
-    CC=/usr/bin/clang CXX=/usr/bin/clang++ cmake -DCMAKE_BUILD_TYPE=Release ..
+    CC=/usr/bin/clang CXX=/usr/bin/clang++ cmake ..
     cmake --build . --target prepare_cross_compiling
     cd ../lib/tgchat/ext/td ; php SplitSource.php ; cd -
     make -s

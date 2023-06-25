@@ -151,7 +151,7 @@ if [[ "${BUILD}" == "1" ]]; then
   fi
 
   MAKEARGS="-j${MAX_THREADS}"
-  echo "using ${MAKEARGS} (${CPU_MAX_THREADS} cores, ${MEM} MB phys mem, ${MEM_NEEDED_PER_CORE} MB mem per core needed)"
+  echo "-- Using ${MAKEARGS} (${CPU_MAX_THREADS} cores, ${MEM} MB phys mem, ${MEM_NEEDED_PER_CORE} MB mem per core needed)"
 
   CMAKEARGS=""
 
@@ -190,7 +190,7 @@ if [[ "${DEBUG}" == "1" ]]; then
   fi
 
   MAKEARGS="-j${MAX_THREADS}"
-  echo "using ${MAKEARGS} (${CPU_MAX_THREADS} cores, ${MEM} MB phys mem, ${MEM_NEEDED_PER_CORE} MB mem per core needed)"
+  echo "-- Using ${MAKEARGS} (${CPU_MAX_THREADS} cores, ${MEM} MB phys mem, ${MEM_NEEDED_PER_CORE} MB mem per core needed)"
 
   CMAKEARGS=""
 
