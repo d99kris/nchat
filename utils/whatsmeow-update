@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+
+# whatsmeow-update
+#
+# Copyright (c) 2023 Kristofer Berggren
+# All rights reserved.
+#
+# whatsmeow-update is distributed under the MIT license.
+
+SYNCNAME="whatsmeow"
+SYNCBRANCH="main"
+SYNCURL="https://github.com/tulir/whatsmeow"
+TARGET="lib/wmchat/go/ext/whatsmeow"
+if [[ "${1}" == "-h" ]]; then
+  echo "usage: ./utils/whatsmeow-update [commit]"
+  exit 0
+fi
+
+exiterr()
+{
+  >&2 echo "${1}"
+  exit 1
+}
+
+REPOROOT="$(git rev-parse --show-toplevel)"
+if [[ "${REPOROOT}" == "" ]]; then
+  exit 1
+fi
+
+cd "${REPOROOT}"
+REPOPARENT=$(dirname "${REPOROOT}")
+SYNCDIR="${REPOPARENT}/${SYNCNAME}"
+
+# Clone / Update source repository
+if [[ ! -d "${SYNCDIR}" ]]; then
+  echo "Clone"
+  git clone "${SYNCURL}" "${SYNCDIR}" || exiterr "git clone failed"
+else
+  echo "Update"
+  pushd "${SYNCDIR}" > /dev/null || exiterr "pushd failed"
+  [[ "$(${REPOROOT}/utils/cvc ur)" == "${SYNCURL}" ]] || exiterr "clone mismatch"
+  git checkout ${SYNCBRANCH} || exiterr "git checkout ${SYNCBRANCH} failed"
+  git pull --prune --rebase --autostash > /dev/null || exiterr "git pull failed"
+  git clean -ffdx || exiterr "git clean failed"
+  git diff --exit-code > /dev/null || exiterr "source dir has local changes"
+  popd > /dev/null || exiterr "popd failed"
+fi
+
+# Checkout commit, if specified
+if [[ "${1}" != "" ]]; then
+  echo "Checkout"
+  COMMIT="${1}"
+  pushd "${SYNCDIR}" > /dev/null || exiterr "pushd failed"
+  git checkout ${COMMIT} || exiterr "git checkout ${COMMIT} failed"
+  NEWVERSION="$(git show -s --date=format:'%Y%m%d' --format=%cd)"
+  SYNCCOMMIT="$(git show -s | head -1 | cut -d' ' -f2 | cut -c1-7)"
+  popd > /dev/null || exiterr "popd failed"
+else
+  echo "Get date"
+  pushd "${SYNCDIR}" > /dev/null || exiterr "pushd failed"
+  NEWVERSION="$(git show -s --date=format:'%Y%m%d' --format=%cd)"
+  SYNCCOMMIT="$(git show -s | head -1 | cut -d' ' -f2 | cut -c1-7)"
+  popd > /dev/null || exiterr "popd failed"
+fi
+
+# Sync repository
+echo "Sync"
+REPOTARGET="${REPOROOT}/${TARGET}"
+pushd "${REPOTARGET}" > /dev/null || exiterr "pushd failed"
+${REPOROOT}/utils/cvc sync "${SYNCDIR}" || exiterr "cvc sync failed"
+popd > /dev/null || exiterr "popd failed"
+
+# Remove unwanted files
+RMPATH="lib/wmchat/go/ext/whatsmeow/binary/proto/extract/yarn.lock"
+if [[ -f "${RMPATH}" ]]; then
+  git restore --staged ${RMPATH} || exiterr "git restore ${RMPATH} failed"
+  rm ${RMPATH} || exiterr "rm ${RMPATH} failed"
+fi
+
+# Add customizations
+cat <<EOT >> lib/wmchat/go/ext/whatsmeow/download.go
+
+// nchat additions start
+func (cli *Client) DownloadMediaWithUrl(url string, mediaKey []byte, appInfo MediaType, fileLength int, fileEncSha256 []byte, fileSha256 []byte) (data []byte, err error) {
+	return cli.downloadAndDecrypt(url, mediaKey, appInfo, fileLength, fileEncSha256, fileSha256)
+}
+
+func GetDownloadSize(msg DownloadableMessage) int {
+	return getSize(msg)
+}
+
+func GetMMSType(mediaType MediaType) string {
+	return mediaTypeToMMSType[mediaType]
+}
+
+type DownloadableMessageWithURL interface {
+	DownloadableMessage
+	GetUrl() string
+}
+// nchat additions end
+EOT
+
+[[ "$(uname)" == "Linux" ]] && SEDCMD="sed" || SEDCMD="gsed"
+${SEDCMD} -E -i -e "s/^var whatsmeowDate.*$/var whatsmeowDate = \"${NEWVERSION}\"/g" lib/wmchat/go/gowm.go
+
+# Complete
+echo "Done"
+echo "Proceed to bump project version and build:"
+echo "nano lib/common/src/version.h"
+echo "./make.sh doc"
+echo ""
+echo "If succesful proceed to commit the changes:"
+echo "git add -u"
+echo "git commit -m \"update whatsmeow to ${NEWVERSION} from tulir/whatsmeow@${SYNCCOMMIT}\""
+echo "git push"
+
+exit 0

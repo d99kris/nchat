@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+
+# tdlib-update
+#
+# Copyright (c) 2023 Kristofer Berggren
+# All rights reserved.
+#
+# tdlib-update is distributed under the MIT license.
+
+SYNCNAME="td"
+SYNCBRANCH="master"
+SYNCURL="https://github.com/tdlib/td"
+TARGET="lib/tgchat/ext/td"
+if [[ "${1}" == "-h" ]]; then
+  echo "usage: ./utils/tdlib-update [commit]"
+  echo ""
+  echo "list tdlib releases with:"
+  echo "git log --reverse CMakeLists.txt | grep -B4 \"Update version to\""
+  exit 0
+fi
+
+exiterr()
+{
+  >&2 echo "${1}"
+  exit 1
+}
+
+REPOROOT="$(git rev-parse --show-toplevel)"
+if [[ "${REPOROOT}" == "" ]]; then
+  exit 1
+fi
+
+cd "${REPOROOT}"
+REPOPARENT=$(dirname "${REPOROOT}")
+SYNCDIR="${REPOPARENT}/${SYNCNAME}"
+
+# Clone / Update source repository
+if [[ ! -d "${SYNCDIR}" ]]; then
+  echo "Clone"
+  git clone "${SYNCURL}" "${SYNCDIR}" || exiterr "git clone failed"
+else
+  echo "Update"
+  pushd "${SYNCDIR}" > /dev/null || exiterr "pushd failed"
+  [[ "$(${REPOROOT}/utils/cvc ur)" == "${SYNCURL}" ]] || exiterr "clone mismatch"
+  git checkout ${SYNCBRANCH} || exiterr "git checkout ${SYNCBRANCH} failed"
+  git pull --prune --rebase --autostash > /dev/null || exiterr "git pull failed"
+  git clean -ffdx || exiterr "git clean failed"
+  git diff --exit-code > /dev/null || exiterr "source dir has local changes"
+  popd > /dev/null || exiterr "popd failed"
+fi
+
+# Checkout commit, if specified
+if [[ "${1}" != "" ]]; then
+  echo "Checkout"
+  COMMIT="${1}"
+  pushd "${SYNCDIR}" > /dev/null || exiterr "pushd failed"
+  git checkout ${COMMIT} || exiterr "git checkout ${COMMIT} failed"
+  NEWVERSION="$(git show -s | tail -1 | awk -F'Update version to ' '{print $2}' | sed 's/\.$//')"
+  SYNCCOMMIT="$(git show -s | head -1 | cut -d' ' -f2 | cut -c1-7)"
+  popd > /dev/null || exiterr "popd failed"
+else
+  echo "Get date"
+  pushd "${SYNCDIR}" > /dev/null || exiterr "pushd failed"
+  NEWVERSION="$(git show -s | tail -1 | awk -F'Update version to ' '{print $2}' | sed 's/\.$//')"
+  SYNCCOMMIT="$(git show -s | head -1 | cut -d' ' -f2 | cut -c1-7)"
+  popd > /dev/null || exiterr "popd failed"
+fi
+
+# Sync repository
+echo "Sync"
+REPOTARGET="${REPOROOT}/${TARGET}"
+pushd "${REPOTARGET}" > /dev/null || exiterr "pushd failed"
+${REPOROOT}/utils/cvc sync "${SYNCDIR}" || exiterr "cvc sync failed"
+popd > /dev/null || exiterr "popd failed"
+
+# Remove unwanted files
+RMPATH="lib/tgchat/ext/td/example/web"
+if [[ -d "${RMPATH}" ]]; then
+  git restore --staged ${RMPATH} || exiterr "git restore ${RMPATH} failed"
+  rm -rf ${RMPATH} || exiterr "rm ${RMPATH} failed"
+fi
+
+# Add customizations
+cat <<EOT >> lib/tgchat/ext/td/CMakeLists.txt
+
+# nchat additions start
+add_library(tdclientshared SHARED td/telegram/Client.cpp td/telegram/Client.h td/telegram/Log.cpp td/telegram/Log.h)
+target_include_directories(tdclientshared PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+ )
+target_link_libraries(tdclientshared PUBLIC tdcore)
+# nchat additions end
+EOT
+
+[[ "$(uname)" == "Linux" ]] && SEDCMD="sed" || SEDCMD="gsed"
+${SEDCMD} -E -i -e "s/virtual void store\(TlStorerUnsafe \&s\)/virtual void store\(TlStorerUnsafe \&\)/g" lib/tgchat/ext/td/td/tl/TlObject.h
+${SEDCMD} -E -i -e "s/virtual void store\(TlStorerCalcLength \&s\)/virtual void store\(TlStorerCalcLength \&\)/g" lib/tgchat/ext/td/td/tl/TlObject.h
+
+# Complete
+echo "Done"
+echo "Proceed to bump project version and build:"
+echo "nano lib/common/src/version.h"
+echo "./make.sh doc"
+echo ""
+echo "If succesful proceed to commit the changes:"
+echo "git add -u"
+echo "git commit -m \"update tdlib to ${NEWVERSION} from tdlib/td@${SYNCCOMMIT}\""
+echo "git push"
+
+exit 0

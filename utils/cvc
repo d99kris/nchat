@@ -1,0 +1,1033 @@
+#!/usr/bin/env bash
+
+# cvc v0.20
+#
+# Copyright (c) 2018-2023 Kristofer Berggren
+# All rights reserved.
+#
+# cvc is distributed under the MIT license.
+
+# DESCRIPTION
+# -----------
+# cvc (common version control) provides a unified and simplified command line
+# interface for the version control systems Git and Subversion (SVN).
+#
+# cvc only supports a basic set of functionalities and is not intended to cover
+# all features of the underlying tools.
+#
+# Some operations are simplified (i.e. ci performs commit and push on Git) and
+# may not be suitable for all workflows. Do read this script before using it.
+#
+# BASH COMPLETIONS
+# ----------------
+# For sb (switch branch) auto-completion, create
+# ~/common/.local/share/bash-completion/completions/sb
+# with the following content:
+# _sb()
+# {
+#   local OPTS CUR PREV
+#   COMPREPLY=()
+#   if [[ "${COMP_CWORD}" == "1" ]]; then
+#     OPTS="$(lb | cut -c3-)"
+#     CUR="${COMP_WORDS[COMP_CWORD]}"
+#     PREV="${COMP_WORDS[COMP_CWORD-1]}"
+#     COMPREPLY=($(compgen -W "${OPTS}" -- ${CUR}))
+#     return 0
+#   fi
+# }
+# complete -F _sb sb
+#
+# CONFIGURATION
+# -------------
+# Create a file .cvc in home dir or in repository root with the following
+# parameters:
+# CVC_DEFAULT_VC="git"      # Default VCS for fresh clone and init, other
+#                           # supported value is "svn". For clone one can
+#                           # use gco and sco to specify VCS at run-time.
+# CVC_NONSTRICT_USAGE=1     # Non-strict usage (disabled by default) permits
+#                           # commit all locally modified files without
+#                           # specifying them. It also allows ci without -m
+#                           # commit message and will default it to "(empty)".
+
+
+git_add()
+{
+  # Check arguments
+  if [[ "${2}" == "" ]]; then
+    echo "usage: cvc add <FILES>"
+    exit 1
+  fi
+
+  # Add specified files
+  FILES="${@:2}"
+  git add $FILES
+
+  # Propagate exit status
+  exit ${?}
+}
+
+
+git_apply()
+{
+  # Check arguments
+  if [[ "${2}" == "" ]]; then
+    echo "usage: cvc apply <PATCHFILE>"
+    exit 1
+  fi
+
+  # Apply specified patchfile
+  PATCHFILE="${2}"
+  git apply --summary "${PATCHFILE}"
+  if [[ "${?}" == "0" ]]; then
+    git apply "${PATCHFILE}"
+  else
+    git am -3 "${PATCHFILE}"
+  fi
+
+  # Propagate exit status
+  exit ${?}
+}
+
+
+git_ci()
+{
+  # Check arguments
+  if [[ "${2}" == "-m" ]] && [[ "${3}" != "" ]]; then
+    MSG="${3}"
+    FILES="${@:4}"
+  elif [[ "${CVC_NONSTRICT_USAGE}" == "1" ]]; then
+    MSG="(empty)"
+    FILES="${@:2}"
+  else
+    echo "usage: cvc ci -m \"msg\" <FILES>"
+    exit 1
+  fi
+
+  # Check if user specified files to commit
+  if [[ "${FILES}" == "" ]]; then
+    if [[ "${CVC_NONSTRICT_USAGE}" == "1" ]]; then
+      # Otherwise find all locally modified files
+      FILES="$(git status | grep -e 'modified: ' | cut -d':' -f2 | tr '\n' ' ')"
+    else
+      echo "usage: cvc ci -m \"msg\" <FILES>"
+      exit 1
+    fi
+  fi
+
+  # Stage files
+  if [[ "${FILES}" != "" ]]; then
+    git stage ${FILES} || exit ${?}
+  fi
+
+  # Commit
+  git commit -m "${MSG}" || exit ${?}
+
+  # Push
+  REMOTE="$(git remote)"
+  if [[ "${REMOTE}" != "" ]]; then
+    git push
+  fi
+
+  # Propagate exit status
+  exit ${?}
+}
+
+
+git_clean()
+{
+  git clean -ffdx
+}
+
+
+git_co()
+{
+  # Check arguments
+  if [[ "${2}" == "" ]]; then
+    echo "usage: cvc co https://<USER>@<HOST>/<PATH> [TARGET]"
+    echo "ex:    cvc co https://${USER}@github.com/${USER}/dev"
+    echo "       cvc co git@github.com:${USER}/dev.git"
+    echo "       cvc co dev"
+    exit 1
+  fi
+
+  URL=""
+  if [[ ${2} == http* ]] || [[ ${2} == git@github* ]]; then
+    URL="${2%/}"
+  else
+    URL="git@github.com:${USER}/${2%/}.git"
+  fi
+
+  TARGET=""
+  if [[ "${3}" != "" ]]; then
+    TARGET="${3}"
+  fi
+
+  # Clone repository
+  git clone ${URL} ${TARGET} || exit ${?}
+
+  # Propagate exit status
+  exit ${?}
+}
+
+
+git_del()
+{
+  # Check arguments
+  if [[ "${2}" == "" ]]; then
+    echo "usage: cvc del <FILES>"
+    exit 1
+  fi
+
+  # Remove specified files
+  FILES="${@:2}"
+  git rm $FILES
+
+  # Propagate exit status
+  exit ${?}
+}
+
+
+git_diff()
+{
+  # Git diff
+  if [[ "${2}" == "" ]]; then
+    BRANCH="$(git branch --show-current)"
+    git --no-pager diff ${BRANCH}
+  else
+    git --no-pager diff ${@:2}
+  fi
+
+  # Propagate exit status
+  exit ${?}
+}
+
+
+git_diffgrep()
+{
+  # Check arguments
+  if [[ "${2}" == "" ]]; then
+    echo "usage: cvc dg <STRING>"
+    exit 1
+  fi
+
+  # Create temp dir
+  TMPDIR=$(mktemp -d)
+
+  # Iterate over added/modified files
+  FILES=$(git status | grep "^	" | cut -d: -f2-)
+  for FILE in $FILES; do
+
+    # Filename
+    FILENAME=$(basename ${FILE})
+
+    # Create diff for each file (excluding removed lines, and without patch header)
+    git diff -U$(wc -l "${FILE}" | awk '{print $1}') "${FILE}" | tail -n +5 | grep -v "^-" | grep -v "^@@" > ${TMPDIR}/${FILENAME}
+
+  done
+
+  # Search diffs
+  pushd ${TMPDIR} > /dev/null
+  grep -rsIn -E "^\+.*${2}" * | sed "s/:+/: /" | grep --color=auto "${2}"
+  popd > /dev/null
+
+  # Cleanup
+  rm -rf ${TMPDIR}
+
+  # Propagate exit status
+  exit ${?}
+}
+
+
+git_init()
+{
+  # Git init
+  git init ${@:2}
+
+  # Propagate exit status
+  exit ${?}
+}
+
+
+git_listbranches()
+{
+  # Create temp dir
+  TMPDIR=$(mktemp -d)
+
+  # Git list all branches
+  TMPALL=${TMPDIR}/all.txt
+  git branch -a ${@:2} | sed -e "s/remotes\/origin\///g" | grep -v "HEAD ->" \
+    | sort | uniq > ${TMPALL}
+
+  # Get current branch
+  CURRENTBRANCH=$(cat ${TMPALL} | grep '^*')
+  CURRENTBRANCHNAME=$(echo "${CURRENTBRANCH}" | cut -c3-)
+
+  # List all non-current branches
+  while IFS='' read -r BRANCH; do
+    if [[ "$(echo "${BRANCH}" | cut -c3-)" != "${CURRENTBRANCHNAME}" ]]; then
+      echo "${BRANCH}"
+    fi
+  done < ${TMPALL}
+
+  # Show current branch, if detached: "(HEAD detached at 4f888b9)"
+  echo "${CURRENTBRANCH}"
+
+  # Cleanup
+  rm -rf ${TMPDIR}
+
+  # Propagate exit status
+  exit ${?}
+}
+
+
+git_log()
+{
+  # Git log
+  if [[ "${2}" == "-v" ]]; then
+    git --no-pager log --reverse --name-only ${@:3}
+  else
+    git --no-pager log --reverse ${@:2}
+  fi
+
+  # Propagate exit status
+  exit ${?}
+}
+
+
+git_newbranch()
+{
+  # Check arguments
+  if [[ "${2}" == "" ]]; then
+    echo "usage: cvc ne[wbranch] <name>"
+    exit 1
+  fi
+
+  # Git branch
+  NAME="${2}"
+  git checkout -b ${NAME} || exit ${?}
+  git checkout ${NAME} || exit ${?}
+  REMOTE="$(git remote)"
+  if [[ "${REMOTE}" != "" ]]; then
+    git push -u origin ${NAME} || exit ${?}
+  fi
+
+  # Propagate exit status
+  exit ${?}
+}
+
+
+git_revert()
+{
+  # Check arguments
+  if [[ "${2}" == "" ]]; then
+    # Revert all
+    git checkout .
+    git restore --staged .
+    git restore .
+    exit ${?}
+  else
+    # Revert specified files
+    FILES="${@:2}"
+    git checkout $FILES
+    git restore --staged $FILES
+    exit ${?}
+  fi
+}
+
+
+git_stat()
+{
+  # Git status
+  git status
+
+  # Propagate exit status
+  exit ${?}
+}
+
+
+git_sync()
+{
+  # Check argument
+  if [ ! -d "${2}" ]; then
+    echo "usage: cvc sync <srcdir>"
+    exit 1
+  fi
+
+  # Check current dir
+  git rev-parse --is-inside-work-tree &> /dev/null
+  if [ "${?}" != "0" ]; then
+    echo "current dir is not a valid svn repo, exiting."
+    exit 1
+  fi
+
+  # Set up params
+  SRCDIR="`realpath ${2}`"
+  DSTDIR="`pwd`"
+
+  # Process dir diffs
+  diff --brief -r ${SRCDIR} ${DSTDIR} | while read LINE; do
+    TYPE="${LINE:0:4}"
+    #echo "Line: ${LINE}"
+    if [ "${TYPE}" == "Only" ]; then
+      ONLYDIR="`echo ${LINE} | cut -d':' -f1 | cut -c9-`"
+      ONLYNAME="`echo ${LINE} | cut -d':' -f2 | cut -c2-`"
+
+      if [[ "${ONLYDIR}/" == *"/.svn/"* ]] || [[ "${ONLYDIR}/" == *"/.git/"* ]] ||
+         [[ "${ONLYNAME}" == ".svn" ]] || [[ "${ONLYNAME}" == ".git" ]]; then
+        continue
+      fi
+
+      if [[ "${ONLYDIR}/" == "${SRCDIR}/"* ]]; then
+        SRCPATH="${ONLYDIR}/${ONLYNAME}"
+        DSTPATH="${DSTDIR}${SRCPATH:${#SRCDIR}}"
+
+        git check-ignore -q "${DSTPATH}"
+        if [[ "${?}" == "0" ]]; then
+          echo "Ignoring: ${ONLYDIR}/${ONLYNAME}"
+          continue
+        fi
+
+        echo "Copy/Add: ${SRCPATH} -> ${DSTPATH}"
+        if [[ "${DRYRUN}" != "1" ]]; then
+          cp -a ${SRCPATH} ${DSTPATH}
+          git add ${DSTPATH}
+        fi
+      elif [[ "${ONLYDIR}/" == "${DSTDIR}/"* ]]; then
+        DELPATH="${ONLYDIR}/${ONLYNAME}"
+
+        git check-ignore -q "${DELPATH}"
+        if [[ "${?}" == "0" ]]; then
+          echo "Ignoring: ${ONLYDIR}/${ONLYNAME}"
+          continue
+        fi
+
+        echo "Delete:   ${DELPATH}"
+        if [[ "${DRYRUN}" != "1" ]]; then
+          git rm -r ${DELPATH}
+        fi
+      else
+        echo "warning: unknown dir in diff output (${ONLYDIR}), ignoring."
+        continue
+      fi
+    elif [ "${TYPE}" == "File" ]; then
+      FIRST="`echo ${LINE} | cut -d' ' -f2`"
+      SECOND="`echo ${LINE} | cut -d' ' -f4`"
+      if [[ "${FIRST}" == *"${DSTDIR}/"* ]]; then
+        DSTPATH="${FIRST}"
+        SRCPATH="${SECOND}"
+      elif [[ "${FIRST}" == *"${SRCDIR}/"* ]]; then
+        SRCPATH="${FIRST}"
+        DSTPATH="${SECOND}"
+      else
+        echo "warning: unknown file in diff output (${LINE}), ignoring."
+        continue
+      fi
+
+      if [[ "${SRCPATH}" == *"/.svn/"* ]] || [[ "${SRCPATH}" == *"/.git/"* ]] ||
+         [[ "${DSTPATH}" == *"/.svn/"* ]] || [[ "${DSTPATH}" == *"/.git/"* ]]; then
+        continue
+      fi
+
+      git check-ignore -q "${DSTPATH}"
+      if [[ "${?}" == "0" ]]; then
+        echo "Ignoring: ${SRCPATH}"
+        continue
+      fi
+
+      echo "Copy/Upd: ${SRCPATH} -> ${DSTPATH}"
+      if [[ "${DRYRUN}" != "1" ]]; then
+        cp ${SRCPATH} ${DSTPATH}
+      fi
+    else
+      echo "warning: unknown diff output (${LINE}), ignoring."
+    fi
+  done
+
+  # Exit status
+  exit 0
+}
+
+
+git_switchbranch()
+{
+  # Check arguments
+  if [[ "${2}" == "" ]]; then
+    echo "usage: cvc sb <name>"
+    exit 1
+  fi
+
+  # Git switch branch
+  NAME="${2}"
+  git checkout ${NAME} || exit ${?}
+
+  # Propagate exit status
+  exit ${?}
+}
+
+
+git_up()
+{
+  # Git update
+  git pull --prune --rebase --autostash
+
+  # Propagate exit status
+  exit ${?}
+}
+
+
+git_url()
+{
+  # Git get remote url
+  git config --get remote.origin.url
+
+  # Propagate exit status
+  exit ${?}
+}
+
+
+svn_add()
+{
+  # Check arguments
+  if [[ "${2}" == "" ]]; then
+    echo "usage: cvc add <FILES>"
+    exit 1
+  fi
+
+  # Add specified files
+  FILES="${@:2}"
+  svn add ${FILES}
+
+  # Propagate exit status
+  exit ${?}
+}
+
+
+svn_apply()
+{
+  # Check arguments
+  if [[ "${2}" == "" ]]; then
+    echo "usage: cvc apply <PATCHFILE>"
+    exit 1
+  fi
+
+  # Apply specified patchfile
+  PATCHFILE="${2}"
+  svn patch --dry-run ${PATCHFILE} | grep "^Summary of conflicts:" > /dev/null
+  if [[ "${?}" == "0" ]]; then
+    # With issues applying the patch, try to update affected repository files to base version
+    ORIGREV=$(svnversion -c | cut -d: -f2 | sed 's/[^0-9]*//g')
+    TMPREV=$(grep "\-\-\- " "${PATCHFILE}" | head -1 | cut -c5- | cut -d"(" -f2 | sed 's/[^0-9]*//g')
+    grep "\-\-\- " "${PATCHFILE}" | cut -c5- | cut -d"(" -f1 | xargs svn up -r${TMPREV} && \
+    svn patch ${PATCHFILE} && \
+    svn up -r${ORIGREV}
+    RV=${?}
+  else
+    # With no issues, just apply the patch
+    svn patch ${PATCHFILE}
+    RV=${?}
+  fi
+
+  # Propagate exit status
+  exit ${RV}
+}
+
+
+svn_ci()
+{
+  # Check arguments
+  if [[ "${2}" == "-m" ]] && [[ "${3}" != "" ]]; then
+    MSG="${3}"
+    FILES="${@:4}"
+  elif [[ "${CVC_NONSTRICT_USAGE}" == "1" ]]; then
+    MSG="(empty)"
+    FILES="${@:2}"
+  else
+    echo "usage: cvc ci -m \"msg\" <FILES>"
+    exit 1
+  fi
+
+  # Commit
+  svn commit -m "${MSG}" ${FILES} || exit ${?}
+
+  # Propagate exit status
+  exit ${?}
+}
+
+
+svn_clean()
+{
+  svn cleanup --remove-unversioned --remove-ignored
+}
+
+
+svn_co()
+{
+  # Check arguments
+  if [[ "${2}" == "" ]]; then
+    echo "usage: cvc co https://<USER>@<HOST>/<PATH> [TARGET]"
+    echo "ex:    cvc co https://${USER}@github.com/${USER}/dev/trunk"
+    echo "       cvc co dev"
+    exit 1
+  fi
+
+  URL=""
+  TARGET=""
+  if [[ ${2} == http* ]]; then
+    URL="${2}"
+  else
+    URL="https://${USER}@github.com/${USER}/${2}/trunk"
+    TARGET="${2}"
+  fi
+
+  if [[ "${3}" != "" ]]; then
+    TARGET="${3}"
+  fi
+
+  # Clone repository
+  svn co ${URL} ${TARGET} || exit ${?}
+
+  # Propagate exit status
+  exit ${?}
+}
+
+
+svn_del()
+{
+  # Check arguments
+  if [[ "${2}" == "" ]]; then
+    echo "usage: cvc del <FILES>"
+    exit 1
+  fi
+
+  # Remove specified files
+  FILES="${@:2}"
+  svn del ${FILES}
+
+  # Propagate exit status
+  exit ${?}
+}
+
+
+svn_diff()
+{
+  # Diff
+  svn diff ${@:2}
+
+  # Propagate exit status
+  exit ${?}
+}
+
+
+svn_diffgrep()
+{
+  # Check arguments
+  if [[ "${2}" == "" ]]; then
+    echo "usage: cvc dg <STRING>"
+    exit 1
+  fi
+
+  # Create temp dir
+  TMPDIR=$(mktemp -d)
+
+  # Iterate over added/modified files
+  FILES=$(svn stat | grep -e "^M" -e "^A" | cut -c9-)
+  for FILE in $FILES; do
+
+    # Filename
+    FILENAME=$(basename ${FILE})
+
+    # Create diff for each file (excluding removed lines, and without patch header)
+    svn diff --diff-cmd /usr/bin/diff -x "-U -1" ${FILE} | grep -v "^-" | tail -n +5 > ${TMPDIR}/${FILENAME}
+
+  done
+
+  # Search diffs
+  pushd ${TMPDIR} > /dev/null
+  grep -rsIn -E "^\+.*${2}" * | sed "s/:+/: /" | grep --color=auto "${2}"
+  popd > /dev/null
+
+  # Cleanup
+  rm -rf ${TMPDIR}
+
+  # Propagate exit status
+  exit ${?}
+}
+
+
+svn_init()
+{
+  # Svn init: N/A?
+  echo "error: not yet implemented"
+  exit 1
+}
+
+
+svn_listbranches()
+{
+  # Svn ls
+  BRANCHES=$(echo trunk ; svn ls $(svn info | grep "Repository Root: " | awk -F'Repository Root: ' '{print $2}')/branches 2> /dev/null | sed -e "s/\///g")
+  CURRENT=$(svn info | grep '^URL:' | egrep -o '(tags|branches)/[^/]+|trunk' | egrep -o '[^/]+$')
+  for BRANCH in $BRANCHES; do
+    if [[ "${BRANCH}" == "${CURRENT}" ]]; then
+      echo "* ${BRANCH}"
+    else
+      echo "  ${BRANCH}"
+    fi
+  done
+
+  # Propagate exit status
+  exit ${?}
+}
+
+
+svn_log()
+{
+  if [[ "${2}" == "" ]]; then
+    svn log -r1:HEAD
+  else
+    svn log ${@:2}
+  fi
+
+  # Propagate exit status
+  exit ${?}
+}
+
+
+svn_newbranch()
+{
+  echo "error: not yet implemented"
+  exit 1
+}
+
+
+svn_revert()
+{
+  # Check arguments
+  if [[ "${2}" == "" ]]; then
+    # Revert all
+    svn revert -R .
+    exit ${?}
+  else
+    # Revert specified files
+    FILES="${@:2}"
+    svn revert ${FILES}
+    exit ${?}
+  fi
+}
+
+
+svn_stat()
+{
+  # Status
+  svn status
+
+  # Propagate exit status
+  exit ${?}
+}
+
+
+svn_sync()
+{
+  # Check argument
+  if [ ! -d "${2}" ]; then
+    echo "usage: cvc sync <srcdir>"
+    exit 1
+  fi
+
+  # Check current dir
+  svn info > /dev/null 2> /dev/null
+  if [ "${?}" != "0" ]; then
+    echo "current dir is not a valid svn repo, exiting."
+    exit 1
+  fi
+
+  # Set up params
+  SRCDIR="`realpath ${2}`"
+  DSTDIR="`pwd`"
+
+  # Process dir diffs
+  diff --brief -r ${SRCDIR} ${DSTDIR} | while read LINE; do
+    TYPE="${LINE:0:4}"
+    #echo "Line: ${LINE}"
+    if [ "${TYPE}" == "Only" ]; then
+      ONLYDIR="`echo ${LINE} | cut -d':' -f1 | cut -c9-`"
+      ONLYNAME="`echo ${LINE} | cut -d':' -f2 | cut -c2-`"
+
+      if [[ "${ONLYDIR}" == *"/.svn/"* ]] || [[ "${ONLYDIR}" == *"/.git/"* ]] ||
+         [[ "${ONLYNAME}" == ".svn" ]] || [[ "${ONLYNAME}" == ".git" ]]; then
+        echo "Ignoring: ${ONLYDIR}/${ONLYNAME}"
+        continue
+      fi
+
+      ! svn propget svn:ignore "${ONLYDIR}" > /dev/null 2> /dev/null || \
+      svn propget svn:ignore "${ONLYDIR}" | grep -q "^${ONLYNAME}$"
+      if [[ "${?}" == "0" ]]; then
+        echo "Ignoring: ${ONLYDIR}/${ONLYNAME}"
+        continue
+      fi
+
+      if [[ "${ONLYDIR}/" == "${SRCDIR}/"* ]]; then
+        SRCPATH="${ONLYDIR}/${ONLYNAME}"
+        DSTPATH="${DSTDIR}${SRCPATH:${#SRCDIR}}"
+        echo "Copy/Add: ${SRCPATH} -> ${DSTPATH}"
+        if [[ "${DRYRUN}" != "1" ]]; then
+          cp -a ${SRCPATH} ${DSTPATH}
+          svn add ${DSTPATH}
+        fi
+      elif [[ "${ONLYDIR}/" == "${DSTDIR}/"* ]]; then
+        DELPATH="${ONLYDIR}/${ONLYNAME}"
+        echo "Delete:   ${DELPATH}"
+        if [[ "${DRYRUN}" != "1" ]]; then
+          svn del ${DELPATH}
+        fi
+      else
+        echo "warning: unknown dir in diff output (${ONLYDIR}), ignoring."
+        continue
+      fi
+    elif [ "${TYPE}" == "File" ]; then
+      FIRST="`echo ${LINE} | cut -d' ' -f2`"
+      SECOND="`echo ${LINE} | cut -d' ' -f4`"
+      if [[ "${FIRST}" == *"${DSTDIR}/"* ]]; then
+        DSTPATH="${FIRST}"
+        SRCPATH="${SECOND}"
+      elif [[ "${FIRST}" == *"${SRCDIR}/"* ]]; then
+        SRCPATH="${FIRST}"
+        DSTPATH="${SECOND}"
+      else
+        echo "warning: unknown file in diff output (${LINE}), ignoring."
+        continue
+      fi
+
+      if [[ "${SRCPATH}" == *"/.svn/"* ]] || [[ "${SRCPATH}" == *"/.git/"* ]] ||
+           [[ "${DSTPATH}" == *"/.svn/"* ]] || [[ "${DSTPATH}" == *"/.git/"* ]]; then
+        continue
+      fi
+
+      ! svn propget svn:ignore "$(dirname "${DSTPATH}")" > /dev/null 2> /dev/null || \
+      svn propget svn:ignore "$(dirname "${DSTPATH}")" | grep -q "^$(basename "${DSTPATH}")$"
+      if [[ "${?}" == "0" ]]; then
+        echo "Ignoring: ${SRCPATH}"
+        continue
+      fi
+
+      echo "Copy/Upd: ${SRCPATH} -> ${DSTPATH}"
+      if [[ "${DRYRUN}" != "1" ]]; then
+        cp ${SRCPATH} ${DSTPATH}
+      fi
+    else
+      echo "warning: unknown diff output (${LINE}), ignoring."
+    fi
+  done
+
+  # Exit status
+  exit 0
+}
+
+
+svn_switchbranch()
+{
+  # Check arguments
+  if [[ "${2}" == "" ]]; then
+    echo "usage: cvc sb <name>"
+    exit 1
+  fi
+
+  # Svn switch branch
+  if [[ "${2}" != "trunk" ]]; then
+    BRANCH="branches/${2}"
+  else
+    BRANCH="${2}"
+  fi
+
+  ROOT="$(svn info | grep "Repository Root: " | awk -F'Repository Root: ' '{print $2}')"
+  svn switch ${ROOT}/${BRANCH}
+
+  # Propagate exit status
+  exit ${?}
+}
+
+
+svn_up()
+{
+  # Update
+  svn up
+
+  # Propagate exit status
+  exit ${?}
+}
+
+
+svn_url()
+{
+  # Svn info repo root
+  svn info | grep "Repository Root: " | awk -F'Repository Root: ' '{print $2}'
+
+  # Propagate exit status
+  exit ${?}
+}
+
+
+# Global config
+CVC_DEFAULT_VC="git"
+if [[ -f "${HOME}/.cvc" ]]; then
+  source "${HOME}/.cvc"
+  if [[ "${CVC_DEFAULT_VC}" != "svn" ]] && [[ "${CVC_DEFAULT_VC}" != "git" ]]; then
+    echo "${HOME}/.cvc: unsupported CVC_DEFAULT_VC = ${CVC_DEFAULT_VC}"
+    exit 1
+  fi
+fi
+
+
+# Init commands
+TYPE="${CVC_DEFAULT_VC}"
+case "${1}" in
+  co)
+    ${TYPE}_co "${@}"
+    exit 0
+    ;;
+
+  gco)
+    git_co "${@}"
+    ;;
+
+  in*)
+    ${TYPE}_init "${@}"
+    exit 0
+    ;;
+
+  sco)
+    svn_co "${@}"
+    ;;
+
+  *)
+    ;;
+esac
+
+# Ensure git is installed
+if [[ "$(command -v git)" == "" ]]; then
+  echo "error: git is not installed on system."
+  exit 1
+fi
+
+# Ensure svn is installed
+if [[ "$(command -v svn)" == "" ]]; then
+  echo "error: svn is not installed on system."
+  exit 1
+fi
+
+# Current dir config
+TYPE=""
+git rev-parse --is-inside-work-tree &> /dev/null
+if [[ "${?}" == "0" ]]; then
+  TYPE="git"
+  CVCCONF="$(git rev-parse --show-toplevel)/.cvc"
+else
+  svn info &> /dev/null
+  if [[ "${?}" == "0" ]]; then
+    TYPE="svn"
+    CVCCONF="$(svn info . | grep -F "Working Copy Root Path:" | awk '{print $5}')/.cvc"
+  fi
+fi
+
+if [[ "${TYPE}" == "" ]]; then
+  echo "error: cvc must be called from a directory under git or svn control."
+  exit 1
+fi
+
+if [[ -f "${CVCCONF}" ]]; then
+  source "${CVCCONF}"
+fi
+
+
+# Command
+case "${1}" in
+  ad*)
+    ${TYPE}_add "${@}"
+    ;;
+
+  ap*)
+    ${TYPE}_apply "${@}"
+    ;;
+
+  ci)
+    ${TYPE}_ci "${@}"
+    ;;
+
+  cl*)
+    ${TYPE}_clean "${@}"
+    ;;
+
+  de*)
+    ${TYPE}_del "${@}"
+    ;;
+
+  dg)
+    ${TYPE}_diffgrep "${@}"
+    ;;
+
+  di*)
+    ${TYPE}_diff "${@}"
+    ;;
+
+  lb)
+    ${TYPE}_listbranches "${@}"
+    ;;
+
+  lo*)
+    ${TYPE}_log "${@}"
+    ;;
+
+  nb)
+    ${TYPE}_newbranch "${@}"
+    ;;
+
+  re*)
+    ${TYPE}_revert "${@}"
+    ;;
+
+  sb)
+    ${TYPE}_switchbranch "${@}"
+    ;;
+
+  st*)
+    ${TYPE}_stat "${@}"
+    ;;
+
+  sy*)
+    ${TYPE}_sync "${@}"
+    ;;
+
+  up*)
+    ${TYPE}_up "${@}"
+    ;;
+
+  ur*)
+    ${TYPE}_url "${@}"
+    ;;
+
+  *)
+    echo "usage: cvc ad[d] | ap[ply] | ci | cl[ean] | co | de[l] | dg | di[ff] | in[it]"
+    echo "           lo[g] [-v] | re[vert] | st[atus] | sy[nc] | up[date] | ur[l]"
+    echo "           lb | nb | sb "
+    echo ""
+    echo "cvc ad      add to version control"
+    echo "cvc ap      apply patch"
+    echo "cvc ci [-m] commit and push"
+    echo "cvc cl      clean up untracked files"
+    echo "cvc co      check out / clone"
+    echo "cvc de      delete"
+    echo "cvc dg      diffgrep grepping added lines"
+    echo "cvc di      diff"
+    echo "cvc in      init local repository"
+    echo "cvc lo [-v] log"
+    echo "cvc re      revert local file change"
+    echo "cvc st      status"
+    echo "cvc sy      sync changes from other repository"
+    echo "cvc up      update"
+    echo "cvc ur      remote clone url"
+    echo "cvc lb      list branches"
+    echo "cvc nb      new branch"
+    echo "cvc sb      switch branch"
+    echo ""
+    exit 1
+esac

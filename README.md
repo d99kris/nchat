@@ -769,7 +769,6 @@ account. Example (below values must be changed to valid api id/hash):
 
     TG_APIID="123456" TG_APIHASH="aaeaeab342aaa23423" nchat -s
 
-
 Third-party Libraries
 ---------------------
 nchat is primarily implemented in C++ with some parts in Go. Its source tree
@@ -791,6 +790,16 @@ includes the source code of the following third-party libraries:
 - [whatsmeow](https://github.com/tulir/whatsmeow) -
   Copyright 2022 Tulir Asokan -
   [MPL License](/lib/wmchat/go/ext/whatsmeow/LICENSE)
+
+The [tdlib](https://github.com/tdlib/td) and
+[whatsmeow](https://github.com/tulir/whatsmeow) libraries are actively
+developed and need to be updated and integrated into nchat on a regular
+basis by nchat maintainer(s). To facilitate this there are scripts available
+to update to latest (or a specific) version of these libraries. Example usages:
+
+    ./utils/tdlib-update 8517026
+
+    ./utils/whatsmeow-update 7aedaa1
 
 Code Formatting
 ---------------
