@@ -149,7 +149,7 @@ There are two methods to install nchat on macOS: through Homebrew or building fr
 First, tap the repository:
 
 ```bash
-brew tap hawkingradiation42/homebrew-nchat
+brew tap hawkingradiation42/nchat
 ```
 Then, install nchat:
 
