@@ -7,11 +7,12 @@
 package sqlstore
 
 import (
-	"crypto/rand"
 	"database/sql"
 	"errors"
 	"fmt"
 	mathRand "math/rand"
+
+	"go.mau.fi/util/random"
 
 	waProto "go.mau.fi/whatsmeow/binary/proto"
 	"go.mau.fi/whatsmeow/store"
@@ -210,11 +211,7 @@ func (c *Container) NewDevice() *store.Device {
 		NoiseKey:       keys.NewKeyPair(),
 		IdentityKey:    keys.NewKeyPair(),
 		RegistrationID: mathRand.Uint32(),
-		AdvSecretKey:   make([]byte, 32),
-	}
-	_, err := rand.Read(device.AdvSecretKey)
-	if err != nil {
-		panic(err)
+		AdvSecretKey:   random.Bytes(32),
 	}
 	device.SignedPreKey = device.IdentityKey.CreateSignedPreKey(1)
 	return device

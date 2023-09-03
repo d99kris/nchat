@@ -57,7 +57,7 @@ func (cli *Client) CreateGroup(req ReqCreateGroup) (*types.GroupInfo, error) {
 		}
 	}
 	if req.CreateKey == "" {
-		req.CreateKey = GenerateMessageID()
+		req.CreateKey = cli.GenerateMessageID()
 	}
 	if req.IsParent {
 		if req.DefaultMembershipApprovalMode == "" {
@@ -99,7 +99,7 @@ func (cli *Client) CreateGroup(req ReqCreateGroup) (*types.GroupInfo, error) {
 func (cli *Client) UnlinkGroup(parent, child types.JID) error {
 	_, err := cli.sendGroupIQ(context.TODO(), iqSet, parent, waBinary.Node{
 		Tag:   "unlink",
-		Attrs: waBinary.Attrs{"unlink_type": types.GroupLinkChangeTypeSub},
+		Attrs: waBinary.Attrs{"unlink_type": string(types.GroupLinkChangeTypeSub)},
 		Content: []waBinary.Node{{
 			Tag:   "group",
 			Attrs: waBinary.Attrs{"jid": child},
@@ -116,7 +116,7 @@ func (cli *Client) LinkGroup(parent, child types.JID) error {
 		Tag: "links",
 		Content: []waBinary.Node{{
 			Tag:   "link",
-			Attrs: waBinary.Attrs{"link_type": types.GroupLinkChangeTypeSub},
+			Attrs: waBinary.Attrs{"link_type": string(types.GroupLinkChangeTypeSub)},
 			Content: []waBinary.Node{{
 				Tag:   "group",
 				Attrs: waBinary.Attrs{"jid": child},
@@ -221,7 +221,7 @@ func (cli *Client) SetGroupName(jid types.JID, name string) error {
 //
 // The previousID and newID fields are optional. If the previous ID is not specified, this will
 // automatically fetch the current group info to find the previous topic ID. If the new ID is not
-// specified, one will be generated with GenerateMessageID().
+// specified, one will be generated with Client.GenerateMessageID().
 func (cli *Client) SetGroupTopic(jid types.JID, previousID, newID, topic string) error {
 	if previousID == "" {
 		oldInfo, err := cli.GetGroupInfo(jid)
@@ -231,7 +231,7 @@ func (cli *Client) SetGroupTopic(jid types.JID, previousID, newID, topic string)
 		previousID = oldInfo.TopicID
 	}
 	if newID == "" {
-		newID = GenerateMessageID()
+		newID = cli.GenerateMessageID()
 	}
 	attrs := waBinary.Attrs{
 		"id": newID,
@@ -526,6 +526,12 @@ func (cli *Client) parseGroupNode(groupNode *waBinary.Node) (*types.GroupInfo, e
 				IsAdmin:      pcpType == "admin" || pcpType == "superadmin",
 				IsSuperAdmin: pcpType == "superadmin",
 				JID:          childAG.JID("jid"),
+				LID:          childAG.OptionalJIDOrEmpty("lid"),
+				DisplayName:  childAG.OptionalString("display_name"),
+			}
+			if participant.JID.Server == types.HiddenUserServer && participant.LID.IsEmpty() {
+				participant.LID = participant.JID
+				//participant.JID = types.EmptyJID
 			}
 			if errorCode := childAG.OptionalInt("error"); errorCode != 0 {
 				participant.Error = errorCode
@@ -565,6 +571,9 @@ func (cli *Client) parseGroupNode(groupNode *waBinary.Node) (*types.GroupInfo, e
 		case "parent":
 			group.IsParent = true
 			group.DefaultMembershipApprovalMode = childAG.OptionalString("default_membership_approval_mode")
+		case "incognito":
+			group.IsIncognito = true
+		// TODO: membership_approval_mode
 		default:
 			cli.Log.Debugf("Unknown element in group node %s: %s", group.JID.String(), child.XMLString())
 		}

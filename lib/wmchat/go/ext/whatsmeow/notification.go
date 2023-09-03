@@ -152,7 +152,6 @@ func (cli *Client) handleOwnDevicesNotification(node *waBinary.Node) {
 	for _, child := range node.GetChildren() {
 		jid := child.AttrGetter().JID("jid")
 		if child.Tag == "device" && !jid.IsEmpty() {
-			jid.AD = true
 			newDeviceList = append(newDeviceList, jid)
 		}
 	}
@@ -259,6 +258,8 @@ func (cli *Client) handleNotification(node *waBinary.Node) {
 		go cli.handleMediaRetryNotification(node)
 	case "privacy_token":
 		go cli.handlePrivacyTokenNotification(node)
+	case "link_code_companion_reg":
+		go cli.tryHandleCodePairNotification(node)
 	// Other types: business, disappearing_mode, server, status, pay, psa
 	default:
 		cli.Log.Debugf("Unhandled notification with type %s", notifType)

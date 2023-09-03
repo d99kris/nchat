@@ -10,13 +10,14 @@ import (
 	"bytes"
 	"context"
 	"crypto/hmac"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
+
+	"go.mau.fi/util/random"
 
 	"go.mau.fi/whatsmeow/socket"
 	"go.mau.fi/whatsmeow/util/cbcutil"
@@ -62,11 +63,7 @@ type UploadResponse struct {
 // The same applies to the other message types like DocumentMessage, just replace the struct type and Message field name.
 func (cli *Client) Upload(ctx context.Context, plaintext []byte, appInfo MediaType) (resp UploadResponse, err error) {
 	resp.FileLength = uint64(len(plaintext))
-	resp.MediaKey = make([]byte, 32)
-	_, err = rand.Read(resp.MediaKey)
-	if err != nil {
-		return
-	}
+	resp.MediaKey = random.Bytes(32)
 
 	plaintextSHA256 := sha256.Sum256(plaintext)
 	resp.FileSHA256 = plaintextSHA256[:]
