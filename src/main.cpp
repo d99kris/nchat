@@ -210,7 +210,7 @@ int main(int argc, char* argv[])
 
   // Init logging
   const std::string& logPath = FileUtil::GetApplicationDir() + std::string("/log.txt");
-  Log::SetPath(logPath);
+  Log::Init(logPath);
   std::string appNameVersion = AppUtil::GetAppNameVersion();
   LOG_INFO("starting %s", appNameVersion.c_str());
 

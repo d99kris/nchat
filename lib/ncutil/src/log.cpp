@@ -1,6 +1,6 @@
 // log.cpp
 //
-// Copyright (c) 2020-2021 Kristofer Berggren
+// Copyright (c) 2020-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -14,10 +14,12 @@ std::string Log::m_Path;
 int Log::m_VerboseLevel = 0;
 std::mutex Log::m_Mutex;
 
-void Log::SetPath(const std::string& p_Path)
+void Log::Init(const std::string& p_Path)
 {
   m_Path = p_Path;
-  remove(m_Path.c_str());
+  const std::string archivePath = m_Path + ".1";
+  remove(archivePath.c_str());
+  rename(m_Path.c_str(), archivePath.c_str());
 }
 
 void Log::SetVerboseLevel(int p_Level)

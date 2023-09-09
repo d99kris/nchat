@@ -1,6 +1,6 @@
 // log.h
 //
-// Copyright (c) 2020-2021 Kristofer Berggren
+// Copyright (c) 2020-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -26,7 +26,7 @@ public:
   static const int DEBUG_LEVEL = 1;
   static const int TRACE_LEVEL = 2;
 
-  static void SetPath(const std::string& p_Path);
+  static void Init(const std::string& p_Path);
   static void SetVerboseLevel(int p_Level);
   static inline int GetVerboseLevel() { return m_VerboseLevel; }
   static inline bool GetDebugEnabled() { return m_VerboseLevel >= DEBUG_LEVEL; }

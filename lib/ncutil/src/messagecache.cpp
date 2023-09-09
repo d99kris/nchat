@@ -611,6 +611,10 @@ void MessageCache::Process()
 
       if (!m_Running)
       {
+        if (!m_Queue.empty())
+        {
+          LOG_WARNING("Exiting with non-empty queue %d", m_Queue.size());
+        }
         break;
       }
 
@@ -620,6 +624,11 @@ void MessageCache::Process()
 
     PerformRequest(request);
     TimeUtil::Sleep(0.001); // hack for GCC -O2 to enable context switching for non-empty queue
+  }
+
+  if (!m_Queue.empty())
+  {
+    LOG_WARNING("Exiting with non-empty queue %d", m_Queue.size());
   }
 }
 
