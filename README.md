@@ -141,6 +141,23 @@ Linux / Ubuntu
 
 macOS
 -----
+
+There are two methods to install nchat on macOS: through Homebrew or building from source.
+
+### Using Homebrew
+
+First, tap the repository:
+
+```bash
+brew tap d99kris/nchat
+```
+Then, install nchat:
+
+```bash
+brew install nchat
+```
+
+### Building from source
 **Dependencies**
 
     brew install gperf cmake openssl ncurses ccache readline help2man sqlite libmagic go
