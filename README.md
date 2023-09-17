@@ -121,8 +121,8 @@ Build / Install
 Nchat consists of a large code-base (mainly the Telegram client library), so be
 prepared for a relatively long first build time.
 
-Linux / Ubuntu
---------------
+Ubuntu
+------
 **Dependencies**
 
     sudo apt install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev golang
