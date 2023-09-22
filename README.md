@@ -190,7 +190,7 @@ Fedora
 ------
 **Dependencies**
 
-    sudo dnf install ccache file-devel file-libs gperf readline-devel clang
+    sudo dnf install ccache file-devel file-libs gperf readline-devel clang golang
 
 **Source**
 
