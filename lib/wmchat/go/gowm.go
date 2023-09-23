@@ -1722,6 +1722,12 @@ func WmSendTyping(connId int, chatId string, isTyping int) int {
 	// get client
 	client := GetClient(connId)
 
+	// do not send typing to self chat
+	selfId := JidToStr(*client.Store.ID)
+	if chatId == selfId {
+		return 0
+	}
+
 	// set presence
 	var chatPresence types.ChatPresence = types.ChatPresencePaused
 	if isTyping == 1 {
