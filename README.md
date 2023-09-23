@@ -190,7 +190,7 @@ Fedora
 ------
 **Dependencies**
 
-    sudo dnf install ccache file-devel file-libs gperf readline-devel
+    sudo dnf install git cmake clang golang ccache file-devel file-libs gperf readline-devel openssl-devel ncurses-devel sqlite-devel zlib-devel
 
 **Source**
 
