@@ -190,7 +190,7 @@ Fedora
 ------
 **Dependencies**
 
-    sudo dnf install ccache file-devel file-libs gperf readline-devel
+    sudo dnf install ccache file-devel file-libs gperf readline-devel clang golang libsqlite3x-devel libsqlite3x libsq3-devel
 
 **Source**
 
