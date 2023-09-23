@@ -541,6 +541,9 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
 
 void UiModel::SetTyping(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_IsTyping)
 {
+  static const bool typingStatusShare = UiConfig::GetBool("typing_status_share");
+  if (!typingStatusShare) return;
+
   static std::string lastProfileId;
   static std::string lastChatId;
   static bool lastIsTyping = false;
@@ -2184,6 +2187,9 @@ void UiModel::ProtocolSetCurrentChat()
 
 void UiModel::SetStatusOnline(const std::string& p_ProfileId, bool p_IsOnline)
 {
+  static const bool onlineStatusShare = UiConfig::GetBool("online_status_share");
+  if (!onlineStatusShare) return;
+
   std::shared_ptr<SetStatusRequest> setStatusRequest = std::make_shared<SetStatusRequest>();
   setStatusRequest->isOnline = p_IsOnline;
   LOG_TRACE("set status %s online %d", p_ProfileId.c_str(), (int)p_IsOnline);
@@ -2377,7 +2383,21 @@ void UiModel::SetCurrentChatIndexIfNotSet()
 
 void UiModel::SetTerminalActive(bool p_TerminalActive)
 {
-  m_TerminalActive = p_TerminalActive;
+  if (p_TerminalActive != m_TerminalActive)
+  {
+    m_TerminalActive = p_TerminalActive;
+    LOG_TRACE("set terminal active %d", m_TerminalActive);
+
+    static const bool onlineStatusDynamic = UiConfig::GetBool("online_status_dynamic");
+    if (onlineStatusDynamic)
+    {
+      for (auto& protocol : m_Protocols)
+      {
+        const std::string& profileId = protocol.first;
+        SetStatusOnline(profileId, m_TerminalActive);
+      }
+    }
+  }
 }
 
 void UiModel::DesktopNotifyUnread(const std::string& p_Name, const std::string& p_Text)

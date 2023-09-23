@@ -509,13 +509,6 @@ func (handler *WmEventHandler) HandleConnected() {
 	if len(client.Store.PushName) == 0 {
 		return
 	}
-
-	err := client.SendPresence(types.PresenceAvailable)
-	if err != nil {
-		LOG_WARNING("Failed to send available presence")
-	} else {
-		LOG_TRACE("Marked self as available")
-	}
 }
 
 func (handler *WmEventHandler) HandleReceipt(receipt *events.Receipt) {

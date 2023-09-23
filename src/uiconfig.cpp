@@ -39,6 +39,8 @@ void UiConfig::Init()
     { "muted_indicate_unread", "1" },
     { "muted_notify_unread", "0" },
     { "muted_position_by_timestamp", "1" },
+    { "online_status_share", "1" },
+    { "online_status_dynamic", "0" },
     { "proxy_indicator", "\xF0\x9F\x94\x92" },
     { "read_indicator", "\xe2\x9c\x93" },
     { "spell_check_command", "" },
@@ -47,6 +49,7 @@ void UiConfig::Init()
     { "terminal_bell_inactive", "1" },
     { "terminal_title", "" },
     { "top_enabled", "1" },
+    { "typing_status_share", "1" },
   };
 
   const std::string configPath(FileUtil::GetApplicationDir() + std::string("/ui.conf"));
