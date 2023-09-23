@@ -165,6 +165,28 @@ func (cli *Client) handleOwnDevicesNotification(node *waBinary.Node) {
 	}
 }
 
+func (cli *Client) handleBlocklist(node *waBinary.Node) {
+	ag := node.AttrGetter()
+	evt := events.Blocklist{
+		Action:    events.BlocklistAction(ag.OptionalString("action")),
+		DHash:     ag.String("dhash"),
+		PrevDHash: ag.OptionalString("prev_dhash"),
+	}
+	for _, child := range node.GetChildren() {
+		ag := child.AttrGetter()
+		change := events.BlocklistChange{
+			JID:    ag.JID("jid"),
+			Action: events.BlocklistChangeAction(ag.String("action")),
+		}
+		if !ag.OK() {
+			cli.Log.Warnf("Unexpected data in blocklist event child %v: %v", child.XMLString(), ag.Error())
+			continue
+		}
+		evt.Changes = append(evt.Changes, change)
+	}
+	cli.dispatchEvent(&evt)
+}
+
 func (cli *Client) handleAccountSyncNotification(node *waBinary.Node) {
 	for _, child := range node.GetChildren() {
 		switch child.Tag {
@@ -177,6 +199,8 @@ func (cli *Client) handleAccountSyncNotification(node *waBinary.Node) {
 				Timestamp: node.AttrGetter().UnixTime("t"),
 				JID:       cli.getOwnID().ToNonAD(),
 			})
+		case "blocklist":
+			cli.handleBlocklist(&child)
 		default:
 			cli.Log.Debugf("Unhandled account sync item %s", child.Tag)
 		}

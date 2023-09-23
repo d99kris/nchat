@@ -517,3 +517,58 @@ func (cli *Client) usync(ctx context.Context, jids []types.JID, mode, context st
 		return &list, err
 	}
 }
+
+func (cli *Client) parseBlocklist(node *waBinary.Node) *types.Blocklist {
+	output := &types.Blocklist{
+		DHash: node.AttrGetter().String("dhash"),
+	}
+	for _, child := range node.GetChildren() {
+		ag := child.AttrGetter()
+		blockedJID := ag.JID("jid")
+		if !ag.OK() {
+			cli.Log.Debugf("Ignoring contact blocked data with unexpected attributes: %v", ag.Error())
+			continue
+		}
+
+		output.JIDs = append(output.JIDs, blockedJID)
+	}
+	return output
+}
+
+// GetBlocklist gets the list of users that this user has blocked.
+func (cli *Client) GetBlocklist() (*types.Blocklist, error) {
+	resp, err := cli.sendIQ(infoQuery{
+		Namespace: "blocklist",
+		Type:      iqGet,
+		To:        types.ServerJID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	list, ok := resp.GetOptionalChildByTag("list")
+	if !ok {
+		return nil, &ElementMissingError{Tag: "list", In: "response to blocklist query"}
+	}
+	return cli.parseBlocklist(&list), nil
+}
+
+// UpdateBlocklist updates the user's block list and returns the updated list.
+func (cli *Client) UpdateBlocklist(jid types.JID, action events.BlocklistChangeAction) (*types.Blocklist, error) {
+	resp, err := cli.sendIQ(infoQuery{
+		Namespace: "blocklist",
+		Type:      iqSet,
+		To:        types.ServerJID,
+		Content: []waBinary.Node{{
+			Tag: "item",
+			Attrs: waBinary.Attrs{
+				"jid":    jid,
+				"action": string(action),
+			},
+		}},
+	})
+	list, ok := resp.GetOptionalChildByTag("list")
+	if !ok {
+		return nil, &ElementMissingError{Tag: "list", In: "response to blocklist update"}
+	}
+	return cli.parseBlocklist(&list), err
+}

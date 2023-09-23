@@ -183,7 +183,7 @@ func handleCmd(cmd string, args []string) {
 			log.Errorf("Usage: pair-phone <number>")
 			return
 		}
-		linkingCode, err := cli.PairPhone(args[0], true, whatsmeow.PairClientFirefox, "Firefox (Linux)")
+		linkingCode, err := cli.PairPhone(args[0], true, whatsmeow.PairClientChrome, "Chrome (Linux)")
 		if err != nil {
 			panic(err)
 		}
@@ -745,6 +745,43 @@ func handleCmd(cmd string, args []string) {
 		if err != nil {
 			log.Errorf("Error changing chat's pin state: %v", err)
 		}
+	case "getblocklist":
+		blocklist, err := cli.GetBlocklist()
+		if err != nil {
+			log.Errorf("Failed to get blocked contacts list: %v", err)
+		} else {
+			log.Infof("Blocklist: %+v", blocklist)
+		}
+	case "block":
+		if len(args) < 1 {
+			log.Errorf("Usage: block <jid>")
+			return
+		}
+		jid, ok := parseJID(args[0])
+		if !ok {
+			return
+		}
+		resp, err := cli.UpdateBlocklist(jid, events.BlocklistChangeActionBlock)
+		if err != nil {
+			log.Errorf("Error updating blocklist: %v", err)
+		} else {
+			log.Infof("Blocklist updated: %+v", resp)
+		}
+	case "unblock":
+		if len(args) < 1 {
+			log.Errorf("Usage: unblock <jid>")
+			return
+		}
+		jid, ok := parseJID(args[0])
+		if !ok {
+			return
+		}
+		resp, err := cli.UpdateBlocklist(jid, events.BlocklistChangeActionUnblock)
+		if err != nil {
+			log.Errorf("Error updating blocklist: %v", err)
+		} else {
+			log.Infof("Blocklist updated: %+v", resp)
+		}
 	}
 }
 
@@ -876,5 +913,7 @@ func handler(rawEvt interface{}) {
 		log.Debugf("Keepalive timeout event: %+v", evt)
 	case *events.KeepAliveRestored:
 		log.Debugf("Keepalive restored")
+	case *events.Blocklist:
+		log.Infof("Blocklist event: %+v", evt)
 	}
 }

@@ -460,3 +460,32 @@ type MediaRetry struct {
 	SenderID  types.JID       // The user who sent the message. Only present in groups.
 	FromMe    bool            // Whether the message was sent by the current user or someone else.
 }
+
+type BlocklistAction string
+
+const (
+	BlocklistActionDefault BlocklistAction = ""
+	BlocklistActionModify  BlocklistAction = "modify"
+)
+
+// Blocklist is emitted when the user's blocked user list is changed.
+type Blocklist struct {
+	// Action specifies what happened. If it's empty, there should be a list of changes in the Changes list.
+	// If it's "modify", then the Changes list will be empty and the whole blocklist should be re-requested.
+	Action    BlocklistAction
+	DHash     string
+	PrevDHash string
+	Changes   []BlocklistChange
+}
+
+type BlocklistChangeAction string
+
+const (
+	BlocklistChangeActionBlock   BlocklistChangeAction = "block"
+	BlocklistChangeActionUnblock BlocklistChangeAction = "unblock"
+)
+
+type BlocklistChange struct {
+	JID    types.JID
+	Action BlocklistChangeAction
+}
