@@ -100,6 +100,8 @@ if [[ "${DEPS}" == "1" ]]; then
       sudo apt update && sudo apt -y install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev golang || exiterr "deps failed (raspbian gnu/linux), exiting."
     elif [[ "${NAME}" == "Gentoo" ]]; then
       sudo emerge -n dev-util/cmake dev-util/gperf sys-apps/help2man sys-libs/readline dev-libs/openssl sys-libs/ncurses sys-libs/zlib dev-db/sqlite sys-apps/file dev-lang/go || exiterr "deps failed (gentoo), exiting."
+    elif [[ "${NAME}" == "Fedora Linux" ]]; then
+      sudo dnf -y install git cmake clang golang ccache file-devel file-libs gperf readline-devel openssl-devel ncurses-devel sqlite-devel zlib-devel
     else
       exiterr "deps failed (unsupported linux distro ${NAME}), exiting."
     fi
