@@ -1559,7 +1559,7 @@ func WmGetMessages(connId int, chatId string, limit int, fromMsgId string, owner
 	return -1
 }
 
-func WmSendMessage(connId int, chatId string, text string, quotedId string, quotedText string, quotedSender string, filePath string, fileType string) int {
+func WmSendMessage(connId int, chatId string, text string, quotedId string, quotedText string, quotedSender string, filePath string, fileType string, editMsgId string, editMsgSent int) int {
 
 	LOG_TRACE("send message " + strconv.Itoa(connId) + ", " + chatId + ", " + text)
 
@@ -1575,7 +1575,6 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 	// local vars
 	var sendErr error
 	var message waProto.Message
-	var timeStamp time.Time
 	var sendResponse whatsmeow.SendResponse
 
 	// recipient
@@ -1584,6 +1583,8 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 		LOG_WARNING(fmt.Sprintf("jid err %#v", jidErr))
 		return -1
 	}
+
+	isSend := false
 
 	// check message type
 	if len(filePath) == 0 {
@@ -1620,9 +1621,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 			message.Conversation = &text
 		}
 
-		// send message
-		sendResponse, sendErr = client.SendMessage(context.Background(), chatJid, &message)
-
+		isSend = true
 	} else {
 
 		mimeType := strings.Split(fileType, "/")[0] // image, text, application, etc.
@@ -1655,9 +1654,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 			message.ImageMessage = &imageMessage
 
-			// send message
-			sendResponse, sendErr = client.SendMessage(context.Background(), chatJid, &message)
-
+			isSend = true
 		} else {
 
 			LOG_TRACE("send document " + fileType)
@@ -1689,8 +1686,21 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 			message.DocumentMessage = &documentMessage
 
+			isSend = true
+		}
+	}
+
+	if isSend {
+
+		if len(editMsgId) > 0 {
+			// edit message
+			sendResponse, sendErr =
+				client.SendMessage(context.Background(), chatJid, client.BuildEdit(chatJid, editMsgId, &message))
+
+		} else {
 			// send message
 			sendResponse, sendErr = client.SendMessage(context.Background(), chatJid, &message)
+
 		}
 	}
 
@@ -1701,16 +1711,19 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 	} else {
 		LOG_TRACE(fmt.Sprintf("send message ok"))
 
-		timeStamp = sendResponse.Timestamp
-		msgId := sendResponse.ID
-
 		// messageInfo
 		var messageInfo types.MessageInfo
 		messageInfo.Chat = chatJid
-		messageInfo.ID = msgId
 		messageInfo.IsFromMe = true
 		messageInfo.Sender = *client.Store.ID
-		messageInfo.Timestamp = timeStamp
+
+		if len(editMsgId) > 0 {
+			messageInfo.ID = editMsgId
+			messageInfo.Timestamp = time.Unix(int64(editMsgSent), 0)
+		} else {
+			messageInfo.ID = sendResponse.ID
+			messageInfo.Timestamp = sendResponse.Timestamp
+		}
 
 		handler := GetHandler(connId)
 		handler.HandleMessage(messageInfo, &message, false)

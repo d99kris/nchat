@@ -43,7 +43,7 @@ std::string WmChat::GetProfileId() const
 
 bool WmChat::HasFeature(ProtocolFeature p_ProtocolFeature) const
 {
-  ProtocolFeature customFeatures = FeatureNone;
+  ProtocolFeature customFeatures = FeatureEditMessagesWithinFifteenMins;
   return (p_ProtocolFeature & customFeatures);
 }
 
@@ -278,12 +278,14 @@ void WmChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
         std::shared_ptr<SendMessageRequest> sendMessageRequest =
           std::static_pointer_cast<SendMessageRequest>(p_RequestMessage);
         std::string chatId = sendMessageRequest->chatId;
+        std::string editMsgId = "";
         std::string text = sendMessageRequest->chatMessage.text;
         std::string quotedId = sendMessageRequest->chatMessage.quotedId;
         std::string quotedText = sendMessageRequest->chatMessage.quotedText;
         std::string quotedSender = sendMessageRequest->chatMessage.quotedSender;
         std::string filePath;
         std::string fileType;
+        int editMsgSent = 0;
         if (!sendMessageRequest->chatMessage.fileInfo.empty())
         {
           FileInfo fileInfo =
@@ -296,7 +298,8 @@ void WmChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
           CWmSendMessage(m_ConnId, const_cast<char*>(chatId.c_str()), const_cast<char*>(text.c_str()),
                          const_cast<char*>(quotedId.c_str()), const_cast<char*>(quotedText.c_str()),
                          const_cast<char*>(quotedSender.c_str()), const_cast<char*>(filePath.c_str()),
-                         const_cast<char*>(fileType.c_str()));
+                         const_cast<char*>(fileType.c_str()), const_cast<char*>(editMsgId.c_str()),
+                         editMsgSent);
         Status::Clear(Status::FlagSending);
 
         std::shared_ptr<SendMessageNotify> sendMessageNotify = std::make_shared<SendMessageNotify>(m_ProfileId);
@@ -304,6 +307,38 @@ void WmChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
         sendMessageNotify->chatId = sendMessageRequest->chatId;
         sendMessageNotify->chatMessage = sendMessageRequest->chatMessage;
         CallMessageHandler(sendMessageNotify);
+      }
+      break;
+
+    case EditMessageRequestType:
+      {
+        LOG_DEBUG("edit message");
+        Status::Set(Status::FlagSending);
+        std::shared_ptr<EditMessageRequest> editMessageRequest =
+          std::static_pointer_cast<EditMessageRequest>(p_RequestMessage);
+        std::string chatId = editMessageRequest->chatId;
+        std::string editMsgId = editMessageRequest->msgId;
+        std::string text = editMessageRequest->chatMessage.text;
+        std::string quotedId = editMessageRequest->chatMessage.quotedId;
+        std::string quotedText = editMessageRequest->chatMessage.quotedText;
+        std::string quotedSender = editMessageRequest->chatMessage.quotedSender;
+        std::string filePath;
+        std::string fileType;
+        int editMsgSent = editMessageRequest->chatMessage.timeSent / 1000;
+        if (!editMessageRequest->chatMessage.fileInfo.empty())
+        {
+          FileInfo fileInfo =
+            ProtocolUtil::FileInfoFromHex(editMessageRequest->chatMessage.fileInfo);
+          filePath = fileInfo.filePath;
+          fileType = fileInfo.fileType;
+        }
+
+        CWmSendMessage(m_ConnId, const_cast<char*>(chatId.c_str()), const_cast<char*>(text.c_str()),
+                       const_cast<char*>(quotedId.c_str()), const_cast<char*>(quotedText.c_str()),
+                       const_cast<char*>(quotedSender.c_str()), const_cast<char*>(filePath.c_str()),
+                       const_cast<char*>(fileType.c_str()), const_cast<char*>(editMsgId.c_str()),
+                       editMsgSent);
+        Status::Clear(Status::FlagSending);
       }
       break;
 

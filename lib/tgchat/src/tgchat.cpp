@@ -257,7 +257,7 @@ std::string TgChat::Impl::GetProfileId() const
 
 bool TgChat::Impl::HasFeature(ProtocolFeature p_ProtocolFeature) const
 {
-  static int customFeatures = FeatureTypingTimeout | FeatureEditMessages;
+  static int customFeatures = FeatureTypingTimeout | FeatureEditMessagesWithinTwoDays;
   return (p_ProtocolFeature & customFeatures);
 }
 

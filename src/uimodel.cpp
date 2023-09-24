@@ -2677,7 +2677,8 @@ void UiModel::EditMessage()
     if (!GetSelectMessageActive() || GetEditMessageActive()) return;
 
     std::string profileId = m_CurrentChat.first;
-    if (!m_Protocols[profileId]->HasFeature(FeatureEditMessages))
+    if (!m_Protocols[profileId]->HasFeature(FeatureEditMessagesWithinTwoDays) &&
+        !m_Protocols[profileId]->HasFeature(FeatureEditMessagesWithinFifteenMins))
     {
       MessageDialog("Warning", "Protocol does not support editing.", 0.7, 5);
       return;
@@ -2701,10 +2702,20 @@ void UiModel::EditMessage()
     const time_t timeNow = time(NULL);
     const time_t timeSent = (time_t)(chatMessage.timeSent / 1000);
     const time_t messageAgeSec = timeNow - timeSent;
-    static const time_t maxEditAgeSec = 48 * 3600;
-    if (messageAgeSec >= maxEditAgeSec)
+    static const time_t twoDaysSec = 48 * 3600;
+    static const time_t fifteenMinsSec = 15 * 60;
+
+    if (m_Protocols[profileId]->HasFeature(FeatureEditMessagesWithinTwoDays) &&
+        (messageAgeSec >= twoDaysSec))
     {
       MessageDialog("Warning", "Messages older than 48 hours cannot be edited.", 0.8, 5);
+      return;
+    }
+    else if (m_Protocols[profileId]->HasFeature(FeatureEditMessagesWithinFifteenMins) &&
+             (messageAgeSec >= fifteenMinsSec))
+
+    {
+      MessageDialog("Warning", "Messages older than 15 minutes cannot be edited.", 0.8, 5);
       return;
     }
 
@@ -2727,6 +2738,8 @@ void UiModel::SaveEditMessage()
     std::string profileId = m_CurrentChat.first;
     std::string chatId = m_CurrentChat.second;
     std::wstring& entryStr = m_EntryStr[profileId][chatId];
+    const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
+    const ChatMessage& chatMessage = messages.at(m_EditMessageId);
 
     if (entryStr.empty()) return;
 
@@ -2735,6 +2748,7 @@ void UiModel::SaveEditMessage()
     editMessageRequest->chatId = chatId;
     editMessageRequest->msgId = m_EditMessageId;
     editMessageRequest->chatMessage.text = EntryStrToSendStr(entryStr);
+    editMessageRequest->chatMessage.timeSent = chatMessage.timeSent;
     m_Protocols[profileId]->SendRequest(editMessageRequest);
 
     SetEditMessageActive(false);

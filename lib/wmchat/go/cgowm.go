@@ -55,8 +55,8 @@ func CWmGetMessages(connId int, chatId *C.char, limit int, fromMsgId *C.char, ow
 }
 
 //export CWmSendMessage
-func CWmSendMessage(connId int, chatId *C.char, text *C.char, quotedId *C.char, quotedText *C.char, quotedSender *C.char, filePath *C.char, fileType *C.char) int {
-	return WmSendMessage(connId, C.GoString(chatId), C.GoString(text), C.GoString(quotedId), C.GoString(quotedText), C.GoString(quotedSender), C.GoString(filePath), C.GoString(fileType))
+func CWmSendMessage(connId int, chatId *C.char, text *C.char, quotedId *C.char, quotedText *C.char, quotedSender *C.char, filePath *C.char, fileType *C.char, editMsgId *C.char, editMsgSent int) int {
+	return WmSendMessage(connId, C.GoString(chatId), C.GoString(text), C.GoString(quotedId), C.GoString(quotedText), C.GoString(quotedSender), C.GoString(filePath), C.GoString(fileType), C.GoString(editMsgId), editMsgSent)
 }
 
 //export CWmGetStatus

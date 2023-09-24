@@ -21,7 +21,8 @@ enum ProtocolFeature
   FeatureNone = 0,
   FeatureAutoGetChatsOnLogin = (1 << 0),
   FeatureTypingTimeout = (1 << 1),
-  FeatureEditMessages = (1 << 2),
+  FeatureEditMessagesWithinTwoDays = (1 << 2),
+  FeatureEditMessagesWithinFifteenMins = (1 << 3),
 };
 
 class Protocol
