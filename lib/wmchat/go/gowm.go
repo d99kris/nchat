@@ -330,7 +330,6 @@ func JidToStr(jid types.JID) string {
 	return jid.User + "@" + jid.Server
 }
 
-// based on https://github.com/mautrix/whatsapp/blob/master/historysync.go
 func ParseWebMessageInfo(selfJid types.JID, chatJid types.JID, webMsg *waProto.WebMessageInfo) *types.MessageInfo {
 	info := types.MessageInfo{
 		MessageSource: types.MessageSource{
@@ -406,9 +405,7 @@ func (s *ncSignalLogger) Error(caller, msg string) {
 func (s *ncSignalLogger) Configure(ss string) {
 }
 
-// event handling - based on:
-// https://github.com/hoehermann/purple-gowhatsapp/blob/whatsmeow/src/go/handler.go
-// https://github.com/tulir/whatsmeow/blob/main/mdtest/main.go
+// event handling
 type WmEventHandler struct {
 	connId int
 }
@@ -745,6 +742,13 @@ func (handler *WmEventHandler) GetContacts() {
 	CWmNewContactsNotify(connId, selfId, selfName, BoolToInt(true))
 	AddContactName(connId, selfId, selfName)
 
+	// special handling for official whatsapp account
+	whatsappId := "0@s.whatsapp.net"
+	whatsappName := "WhatsApp"
+	LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", whatsappId, whatsappName))
+	CWmNewContactsNotify(connId, whatsappId, whatsappName, BoolToInt(false))
+	AddContactName(connId, whatsappId, whatsappName)
+
 	// groups
 	groups, groupErr := client.GetJoinedGroups()
 	if groupErr != nil {
@@ -782,6 +786,9 @@ func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg 
 
 	case msg.StickerMessage != nil:
 		handler.HandleStickerMessage(messageInfo, msg, isSync)
+
+	case msg.TemplateMessage != nil:
+		handler.HandleTemplateMessage(messageInfo, msg, isSync)
 
 	default:
 		handler.HandleUnsupportedMessage(messageInfo, msg, isSync)
@@ -1072,6 +1079,97 @@ func (handler *WmEventHandler) HandleStickerMessage(messageInfo types.MessageInf
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
 }
 
+func (handler *WmEventHandler) HandleTemplateMessage(messageInfo types.MessageInfo, msg *waProto.Message, isSync bool) {
+	LOG_TRACE(fmt.Sprintf("TemplateMessage"))
+
+	connId := handler.connId
+
+	// get template part
+	tpl := msg.GetTemplateMessage()
+	if tpl == nil {
+		LOG_WARNING(fmt.Sprintf("get template message failed"))
+		return
+	}
+
+	// handle hydrated template
+	hydtpl := tpl.GetHydratedTemplate()
+	if hydtpl == nil {
+		LOG_TRACE(fmt.Sprintf("unhandled template type"))
+		return
+	}
+
+	// text slice
+	var texts []string
+
+	// title
+	switch hydtitle := hydtpl.GetTitle().(type) {
+	case *waProto.TemplateMessage_HydratedFourRowTemplate_DocumentMessage:
+		texts = append(texts, "[Document]")
+	case *waProto.TemplateMessage_HydratedFourRowTemplate_ImageMessage:
+		texts = append(texts, "[Image]")
+	case *waProto.TemplateMessage_HydratedFourRowTemplate_VideoMessage:
+		texts = append(texts, "[Video]")
+	case *waProto.TemplateMessage_HydratedFourRowTemplate_LocationMessage:
+		texts = append(texts, "[Location]")
+	case *waProto.TemplateMessage_HydratedFourRowTemplate_HydratedTitleText:
+		if hydtitle.HydratedTitleText != "" {
+			texts = append(texts, hydtitle.HydratedTitleText)
+		}
+	}
+
+	// content
+	content := hydtpl.GetHydratedContentText()
+	if content != "" {
+		texts = append(texts, content)
+	}
+
+	// buttons
+	buttons := hydtpl.GetHydratedButtons()
+	for _, button := range buttons {
+		switch hydbutton := button.GetHydratedButton().(type) {
+		case *waProto.HydratedTemplateButton_QuickReplyButton:
+			texts = append(texts, fmt.Sprintf("%s", hydbutton.QuickReplyButton.GetDisplayText()))
+		case *waProto.HydratedTemplateButton_UrlButton:
+			texts = append(texts, fmt.Sprintf("%s: %s", hydbutton.UrlButton.GetDisplayText(), hydbutton.UrlButton.GetUrl()))
+		case *waProto.HydratedTemplateButton_CallButton:
+			texts = append(texts, fmt.Sprintf("%s: %s", hydbutton.CallButton.GetDisplayText(), hydbutton.CallButton.GetPhoneNumber()))
+		}
+	}
+
+	// footer
+	footer := hydtpl.GetHydratedFooterText()
+	if footer != "" {
+		texts = append(texts, footer)
+	}
+
+	// combined text
+	text := strings.Join(texts, "\n")
+
+	// context
+	quotedId := ""
+	ci := tpl.GetContextInfo()
+	if ci != nil {
+		quotedId = ci.GetStanzaId()
+	}
+
+	chatId := JidToStr(messageInfo.Chat)
+	msgId := messageInfo.ID
+	fromMe := messageInfo.IsFromMe
+	senderId := JidToStr(messageInfo.Sender)
+	fileId := ""
+	filePath := ""
+	fileStatus := FileStatusNone
+
+	timeSent := int(messageInfo.Timestamp.Unix())
+	isSeen := isSync
+	isOld := (timeSent <= timeUnread[intString{i: connId, s: chatId}])
+	isRead := (fromMe && isSeen) || (!fromMe && isOld)
+
+	UpdateTypingStatus(connId, chatId, senderId, fromMe, isOld)
+
+	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
+}
+
 func (handler *WmEventHandler) HandleUnsupportedMessage(messageInfo types.MessageInfo, msg *waProto.Message, isSync bool) {
 	// list from type Message struct in def.pb.go
 	msgType := "Unknown"
@@ -1140,9 +1238,6 @@ func (handler *WmEventHandler) HandleUnsupportedMessage(messageInfo types.Messag
 
 	case msg.CancelPaymentRequestMessage != nil:
 		msgType = "CancelPaymentRequestMessage"
-
-	case msg.TemplateMessage != nil:
-		msgType = "TemplateMessage"
 
 	case msg.GroupInviteMessage != nil:
 		msgType = "GroupInviteMessage"
