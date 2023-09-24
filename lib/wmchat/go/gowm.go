@@ -420,8 +420,11 @@ func (handler *WmEventHandler) HandleEvent(rawEvt interface{}) {
 		// this happens after initial logon via QR code
 		LOG_TRACE(fmt.Sprintf("%#v", evt))
 		if evt.Name == appstate.WAPatchCriticalBlock {
-			LOG_TRACE("AppStateSyncComplete and WAPatchCriticalBlock")
+			LOG_TRACE("AppStateSyncComplete WAPatchCriticalBlock")
 			handler.HandleConnected()
+		} else if evt.Name == appstate.WAPatchRegular {
+			LOG_TRACE("AppStateSyncComplete WAPatchRegular")
+			handler.GetContacts()
 		}
 
 	case *events.PushNameSetting:
@@ -572,9 +575,7 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 		isMuted := 0
 		lastMessageTime := 0
 
-		LOG_TRACE(fmt.Sprintf("Call CWmNewChatsNotify %s", JidToStr(chatJid)))
-		CWmNewChatsNotify(handler.connId, JidToStr(chatJid), isUnread, isMuted, lastMessageTime)
-
+		hasMessages := false
 		syncMessages := conversation.GetMessages()
 		for _, syncMessage := range syncMessages {
 			webMessageInfo := syncMessage.Message
@@ -586,7 +587,16 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 			}
 
 			handler.HandleMessage(*messageInfo, message, true)
+			hasMessages = true
 		}
+
+		if (hasMessages) {
+			LOG_TRACE(fmt.Sprintf("Call CWmNewChatsNotify %s %d", JidToStr(chatJid), len(syncMessages)))
+			CWmNewChatsNotify(handler.connId, JidToStr(chatJid), isUnread, isMuted, lastMessageTime)
+		} else {
+			LOG_TRACE(fmt.Sprintf("Skip CWmNewChatsNotify %s %d", JidToStr(chatJid), len(syncMessages)))
+		}
+
 	}
 
 	CWmClearStatus(FlagSyncing)
