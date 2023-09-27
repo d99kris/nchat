@@ -114,7 +114,7 @@ tested on:
 
 - macOS Big Sur 11.5
 - Ubuntu 20.04 LTS
-
+- Arch Linux x86_64
 
 Build / Install
 ===============
