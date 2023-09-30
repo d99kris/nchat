@@ -81,7 +81,7 @@ bool WmChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_Profi
 
   m_ConnId = connId;
   AddInstance(m_ConnId, this);
-  MessageCache::AddProfile(m_ProfileId, false, s_CacheDirVersion);
+  MessageCache::AddProfile(m_ProfileId, false, s_CacheDirVersion, true);
 
   bool rv = Login();
   if (!rv) return false;
@@ -99,7 +99,7 @@ bool WmChat::LoadProfile(const std::string& p_ProfilesDir, const std::string& p_
   if (m_ConnId == -1) return false;
 
   AddInstance(m_ConnId, this);
-  MessageCache::AddProfile(m_ProfileId, false, s_CacheDirVersion);
+  MessageCache::AddProfile(m_ProfileId, false, s_CacheDirVersion, false);
 
   return true;
 }
