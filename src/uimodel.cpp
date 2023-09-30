@@ -1865,12 +1865,14 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
           if ((m_CurrentChat.first == profileId) && (m_CurrentChat.second == chatId))
           {
             m_CurrentChat = m_ChatVec.at(NumUtil::Bound(0, m_CurrentChatIndex, ((int)m_ChatVec.size() - 1)));
+            SortChats();
             OnCurrentChatChanged();
             SetSelectMessageActive(false);
           }
           else
           {
-            UpdateList();
+            SortChats();
+            OnCurrentChatChanged();
           }
         }
       }
