@@ -709,6 +709,16 @@ func GetNameFromContactInfo(contactInfo types.ContactInfo) string {
 	return ""
 }
 
+func PhoneFromUserId(userId string) string {
+	phone := ""
+	if strings.HasSuffix(userId, "@s.whatsapp.net") {
+		phone = strings.Replace(userId, "@s.whatsapp.net", "", 1)
+	}
+
+	LOG_TRACE(fmt.Sprintf("user %s phone %s", userId, phone))
+	return phone
+}
+
 func (handler *WmEventHandler) GetContacts() {
 	var client *whatsmeow.Client = GetClient(handler.connId)
 	connId := handler.connId
@@ -726,8 +736,9 @@ func (handler *WmEventHandler) GetContacts() {
 			name := GetNameFromContactInfo(contactInfo)
 			if len(name) > 0 {
 				userId := JidToStr(jid)
+				phone := PhoneFromUserId(userId)
 				LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", userId, name))
-				CWmNewContactsNotify(connId, userId, name, BoolToInt(false))
+				CWmNewContactsNotify(connId, userId, name, phone, BoolToInt(false))
 				AddContactName(connId, userId, name)
 			} else {
 				LOG_WARNING(fmt.Sprintf("Skip CWmNewContactsNotify %s %#v", JidToStr(jid), contactInfo))
@@ -738,15 +749,17 @@ func (handler *WmEventHandler) GetContacts() {
 	// special handling for self
 	selfId := JidToStr(*client.Store.ID)
 	selfName := "" // overridden by ui
+	selfPhone := PhoneFromUserId(selfId)
 	LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", selfId, selfName))
-	CWmNewContactsNotify(connId, selfId, selfName, BoolToInt(true))
+	CWmNewContactsNotify(connId, selfId, selfName, selfPhone, BoolToInt(true))
 	AddContactName(connId, selfId, selfName)
 
 	// special handling for official whatsapp account
 	whatsappId := "0@s.whatsapp.net"
 	whatsappName := "WhatsApp"
+	whatsappPhone := ""
 	LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", whatsappId, whatsappName))
-	CWmNewContactsNotify(connId, whatsappId, whatsappName, BoolToInt(false))
+	CWmNewContactsNotify(connId, whatsappId, whatsappName, whatsappPhone, BoolToInt(false))
 	AddContactName(connId, whatsappId, whatsappName)
 
 	// groups
@@ -758,8 +771,9 @@ func (handler *WmEventHandler) GetContacts() {
 		for _, group := range groups {
 			groupId := JidToStr(group.JID)
 			groupName := group.GroupName.Name
+			groupPhone := ""
 			LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", groupId, groupName))
-			CWmNewContactsNotify(connId, groupId, groupName, BoolToInt(false))
+			CWmNewContactsNotify(connId, groupId, groupName, groupPhone, BoolToInt(false))
 			AddContactName(connId, groupId, groupName)
 		}
 	}

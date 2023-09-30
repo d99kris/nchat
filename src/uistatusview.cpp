@@ -10,6 +10,7 @@
 #include "apputil.h"
 #include "strutil.h"
 #include "uicolorconfig.h"
+#include "uiconfig.h"
 #include "uimodel.h"
 
 UiStatusView::UiStatusView(const UiViewParams& p_Params)
@@ -43,12 +44,31 @@ void UiStatusView::Draw()
 
   std::string chatStatus = m_Model->GetChatStatus(currentChat.first, currentChat.second);
   std::wstring wstatus = std::wstring(statusVPad, ' ') +
-    StrUtil::ToWString(name).substr(0, m_W / 2) + L" " + StrUtil::ToWString(chatStatus);
+    StrUtil::ToWString(name).substr(0, m_W / 2) + StrUtil::ToWString(chatStatus);
+
+  static const std::string phoneNumberIndicator = UiConfig::GetStr("phone_number_indicator");
+  if (!phoneNumberIndicator.empty())
+  {
+    static std::string placeholder = "%1";
+    static const bool isDynamicIndicator = (phoneNumberIndicator.find(placeholder) != std::string::npos);
+    if (isDynamicIndicator)
+    {
+      std::string dynamicIndicator = phoneNumberIndicator;
+      std::string phone = m_Model->GetContactPhone(currentChat.first, currentChat.second);
+      StrUtil::ReplaceString(dynamicIndicator, placeholder, phone);
+      wstatus += L" " + StrUtil::ToWString(dynamicIndicator);
+    }
+    else
+    {
+      wstatus += L" " + StrUtil::ToWString(phoneNumberIndicator);
+    }
+  }
 
   static const bool developerMode = AppUtil::GetDeveloperMode();
   if (developerMode)
   {
-    wstatus = wstatus + L" " + StrUtil::ToWString(currentChat.second);
+    std::string phone = m_Model->GetContactPhone(currentChat.first, currentChat.second);
+    wstatus = wstatus + L" " + StrUtil::ToWString(currentChat.second) + L" " + StrUtil::ToWString(phone);
   }
 
   wstatus = StrUtil::TrimPadWString(wstatus, m_W);

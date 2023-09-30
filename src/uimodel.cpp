@@ -87,6 +87,7 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keyIncreaseListWidth = UiKeyConfig::GetKey("increase_list_width");
 
   static wint_t keyExtEdit = UiKeyConfig::GetKey("ext_edit");
+  static wint_t keyExtCall = UiKeyConfig::GetKey("ext_call");
 
   static wint_t keyOtherCommandsHelp = UiKeyConfig::GetKey("other_commands_help");
 
@@ -249,6 +250,10 @@ void UiModel::KeyHandler(wint_t p_Key)
   else if (p_Key == keyOpenMsg)
   {
     OpenMessage();
+  }
+  else if (p_Key == keyExtCall)
+  {
+    ExternalCall();
   }
   else
   {
@@ -1988,6 +1993,12 @@ std::string UiModel::GetContactListName(const std::string& p_ProfileId, const st
   return chatName;
 }
 
+std::string UiModel::GetContactPhone(const std::string& p_ProfileId, const std::string& p_ChatId)
+{
+  const ContactInfo& contactInfo = m_ContactInfos[p_ProfileId][p_ChatId];
+  return contactInfo.phone.empty() ? "" : "+" + contactInfo.phone;
+}
+
 bool UiModel::GetChatIsUnread(const std::string& p_ProfileId, const std::string& p_ChatId)
 {
   const ChatInfo& chatInfo = m_ChatInfos.at(p_ProfileId).at(p_ChatId);
@@ -2009,19 +2020,19 @@ std::string UiModel::GetChatStatus(const std::string& p_ProfileId, const std::st
       }
 
       std::string userNamesJoined = StrUtil::Join(userNames, ", ");
-      return "(" + userNamesJoined + " are typing)";
+      return " (" + userNamesJoined + " are typing)";
     }
     else
     {
       std::string userId = *usersTyping.begin();
       if (userId == p_ChatId)
       {
-        return "(typing)";
+        return " (typing)";
       }
       else
       {
         std::string userName = GetContactName(p_ProfileId, userId);
-        return "(" + userName + " is typing)";
+        return " (" + userName + " is typing)";
       }
     }
   }
@@ -2031,7 +2042,7 @@ std::string UiModel::GetChatStatus(const std::string& p_ProfileId, const std::st
   {
     if (m_UserOnline[p_ProfileId][p_ChatId])
     {
-      return "(online)";
+      return " (online)";
     }
     else
     {
@@ -2039,16 +2050,16 @@ std::string UiModel::GetChatStatus(const std::string& p_ProfileId, const std::st
       switch (timeSeen)
       {
         case TimeSeenNone:
-          return "(away)";
+          return " (away)";
 
         case TimeSeenLastMonth:
-          return "(seen last month)";
+          return " (seen last month)";
 
         case TimeSeenLastWeek:
-          return "(seen last week)";
+          return " (seen last week)";
 
         default:
-          return "(seen " + TimeUtil::GetTimeString(timeSeen, true /* p_Short */) + ")";
+          return " (seen " + TimeUtil::GetTimeString(timeSeen, true /* p_Short */) + ")";
       }
     }
   }
@@ -2902,4 +2913,34 @@ const std::pair<std::string, std::string>& UiModel::GetNextChat()
 
   const std::pair<std::string, std::string>& nextChat = m_ChatVec.at(nextChatIndex);
   return nextChat;
+}
+
+void UiModel::ExternalCall()
+{
+  const std::string phone = GetContactPhone(m_CurrentChat.first, m_CurrentChat.second);
+  if (phone.empty())
+  {
+    MessageDialog("Warning", "Contact phone number unknown.", 0.7, 5);
+    return;
+  }
+
+  static const std::string cmdTemplate = []()
+  {
+    std::string callCommand = UiConfig::GetStr("call_command");
+    if (callCommand.empty())
+    {
+#if defined(__APPLE__)
+      callCommand = "open 'tel://%1' &";
+#else
+      callCommand = "xdg-open >/dev/null 2>&1 'tel://%1' &";
+#endif
+    }
+
+    return callCommand;
+  }();
+
+  std::string cmd = cmdTemplate;
+  StrUtil::ReplaceString(cmd, "%1", phone);
+
+  RunCommand(cmd);
 }

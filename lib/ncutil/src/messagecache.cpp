@@ -36,6 +36,9 @@ std::deque<std::shared_ptr<MessageCache::Request>> MessageCache::m_Queue;
 std::string MessageCache::m_HistoryDir;
 bool MessageCache::m_CacheEnabled = true;
 
+// @note: minor db schema updates can simply update table name to avoid losing other tables data
+static const std::string s_TableContacts = "contacts2";
+
 void MessageCache::Init()
 {
   m_CacheEnabled = AppConfig::GetBool("cache_enabled");
@@ -210,9 +213,10 @@ void MessageCache::AddProfile(const std::string& p_ProfileId, bool p_CheckSync, 
       "UNIQUE(chatId, id) ON CONFLICT REPLACE"
       ");";
 
-    *m_Dbs[p_ProfileId] << "CREATE TABLE IF NOT EXISTS contacts ("
+    *m_Dbs[p_ProfileId] << "CREATE TABLE IF NOT EXISTS " + s_TableContacts + " ("
       "id TEXT,"
       "name TEXT,"
+      "phone TEXT,"
       "isSelf INT,"
       "UNIQUE(id) ON CONFLICT REPLACE"
       ");";
@@ -510,7 +514,7 @@ void MessageCache::Export(const std::string& p_ExportDir)
         };
 
       const std::string selfName = "You";
-      *m_Dbs[profileId] << "SELECT id, name, isSelf FROM contacts;" >>
+      *m_Dbs[profileId] << "SELECT id, name, isSelf FROM " + s_TableContacts + ";" >>
         [&](const std::string& id, const std::string& name, int32_t isSelf)
         {
           contactNames[id] = isSelf ? selfName : name;
@@ -771,10 +775,10 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
           *m_Dbs[profileId] << "BEGIN;";
           for (const auto& contactInfo : addContactsRequest->contactInfos)
           {
-            *m_Dbs[profileId] << "INSERT INTO contacts "
-              "(id, name, isSelf) VALUES "
-              "(?,?,?);" <<
-              contactInfo.id << contactInfo.name << contactInfo.isSelf;
+            *m_Dbs[profileId] << "INSERT INTO " + s_TableContacts + " "
+              "(id, name, phone, isSelf) VALUES "
+              "(?,?,?,?);" <<
+              contactInfo.id << contactInfo.name << contactInfo.phone << contactInfo.isSelf;
           }
           *m_Dbs[profileId] << "COMMIT;";
         }
@@ -837,12 +841,13 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         try
         {
           // *INDENT-OFF*
-          *m_Dbs[profileId] << "SELECT id, name, isSelf FROM contacts;" >>
-            [&](const std::string& id, const std::string& name, int32_t isSelf)
+          *m_Dbs[profileId] << "SELECT id, name, phone, isSelf FROM " + s_TableContacts + ";" >>
+            [&](const std::string& id, const std::string& name, const std::string& phone, int32_t isSelf)
             {
               ContactInfo contactInfo;
               contactInfo.id = id;
               contactInfo.name = name;
+              contactInfo.phone = phone;
               contactInfo.isSelf = isSelf;
               contactInfos.push_back(contactInfo);
             };

@@ -516,7 +516,7 @@ WmChat* WmChat::GetInstance(int p_ConnId)
   return (it != s_ConnIdMap.end()) ? it->second : nullptr;
 }
 
-void WmNewContactsNotify(int p_ConnId, char* p_ChatId, char* p_Name, int p_IsSelf)
+void WmNewContactsNotify(int p_ConnId, char* p_ChatId, char* p_Name, char* p_Phone, int p_IsSelf)
 {
   WmChat* instance = WmChat::GetInstance(p_ConnId);
   if (instance == nullptr) return;
@@ -524,6 +524,7 @@ void WmNewContactsNotify(int p_ConnId, char* p_ChatId, char* p_Name, int p_IsSel
   ContactInfo contactInfo;
   contactInfo.id = std::string(p_ChatId);
   contactInfo.name = std::string(p_Name);
+  contactInfo.phone = std::string(p_Phone);
   contactInfo.isSelf = (p_IsSelf == 1) ? true : false;
 
   std::shared_ptr<NewContactsNotify> newContactsNotify = std::make_shared<NewContactsNotify>(instance->GetProfileId());

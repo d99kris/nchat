@@ -654,6 +654,7 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
             contactInfo.id = StrUtil::NumToHex(contactId);
             contactInfo.name =
               tuser->first_name_ + (tuser->last_name_.empty() ? "" : " " + tuser->last_name_);
+            contactInfo.phone = tuser->phone_number_;
             contactInfo.isSelf = IsSelf(contactId);
             m_ContactInfos[contactId] = contactInfo;
 
@@ -1156,6 +1157,7 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
     ContactInfo contactInfo;
     contactInfo.id = StrUtil::NumToHex(contactId);
     contactInfo.name = update_new_chat.chat_->title_;
+    contactInfo.phone = m_ContactInfos[contactId].phone;
     contactInfo.isSelf = IsSelf(contactId);
     m_ContactInfos[contactId] = contactInfo;
 
@@ -1172,6 +1174,7 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
     ContactInfo contactInfo;
     contactInfo.id = StrUtil::NumToHex(contactId);
     contactInfo.name = update_chat_title.title_;
+    contactInfo.phone = m_ContactInfos[contactId].phone;
     contactInfo.isSelf = IsSelf(contactId);
     m_ContactInfos[contactId] = contactInfo;
 
@@ -1191,6 +1194,7 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
     contactInfo.id = StrUtil::NumToHex(contactId);
     contactInfo.name =
       user->first_name_ + (user->last_name_.empty() ? "" : " " + user->last_name_);;
+    contactInfo.phone = user->phone_number_;
     contactInfo.isSelf = IsSelf(contactId);
     m_ContactInfos[contactId] = contactInfo;
 
@@ -1552,6 +1556,7 @@ void TgChat::Impl::OnAuthStateUpdate()
         {
           // notify of (self) contact again, now that self user id is known
           m_ContactInfos[m_SelfUserId].isSelf = true;
+          m_ContactInfos[m_SelfUserId].phone = user_->phone_number_;
           std::shared_ptr<NewContactsNotify> newContactsNotify =
             std::make_shared<NewContactsNotify>(m_ProfileId);
           newContactsNotify->contactInfos =

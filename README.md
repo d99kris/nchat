@@ -78,6 +78,11 @@ Interactive Commands:
     Ctrl-x      send message
     Ctrl-y      toggle show emojis
     KeyUp       select message
+    Alt-,       decrease contact list width
+    Alt-.       increase contact list width
+    Alt-e       external editor compose
+    Alt-s       external spell check
+    Alt-t       external telephone call
 
 Interactive Commands for Selected Message:
 
@@ -87,6 +92,7 @@ Interactive Commands for Selected Message:
     Ctrl-w      open link
     Ctrl-x      reply to selected message
     Ctrl-z      edit selected message
+    Alt-w       external message viewer
 
 Interactive Commands for Text Input:
 
@@ -99,11 +105,8 @@ Interactive Commands for Text Input:
     Alt-Right   move cursor forward one word
     Alt-Backsp  delete previous word
     Alt-Delete  delete next word
-    Alt-e       external editor compose
-    Alt-s       external spell check
     Alt-c       copy
     Alt-v       paste
-    Alt-w       external message viewer
     Alt-x       cut
 
 
@@ -400,6 +403,7 @@ This configuration file holds general user interface settings. Default content:
 
     attachment_indicator=📎
     attachment_open_command=
+    call_command=
     confirm_deletion=1
     desktop_notify_active=0
     desktop_notify_command=
@@ -421,6 +425,7 @@ This configuration file holds general user interface settings. Default content:
     muted_position_by_timestamp=1
     online_status_share=1
     online_status_dynamic=0
+    phone_number_indicator=
     proxy_indicator=🔒
     read_indicator=✓
     spell_check_command=
@@ -447,6 +452,17 @@ macOS: `open '%1' &`
 
 Note: Omit the trailing `&` for commands taking over the terminal, for
 example `w3m -o confirm_qq=false '%1'` and `see '%1'`.
+
+### call_command
+
+Specifies a custom command to use for starting a call using an external
+tool. The command shall include `%1` which will be replaced by the phone
+number of the contact. If not specified, the following default commands
+are used:
+
+Linux: `xdg-open >/dev/null 2>&1 'tel://%1' &`
+
+macOS: `open 'tel://%1' &`
 
 ### confirm_deletion
 
@@ -568,15 +584,25 @@ Dynamically update online status based on terminal active state.
 Note: Enabling this stops updates on other users online/typing status for
 WhatsApp when the terminal is not active.
 
+### phone_number_indicator
+
+Specifies status bar text to indicate phone number of the current chat is
+available. This field may contain `%1` which will be replaced with the actual
+phone number of the contact. Other examples: `🎧`
+
+### proxy_indicator
+
+Specifies top bar text to indicate proxy is enabled.
+
+### read_indicator
+
+Specifies text to indicate a message has been read by the receiver.
+
 ### spell_check_command
 
 Specifies a custom command to use for spell checking composed messages. If not
 specified, nchat checks if `aspell` or `ispell` is available on the system (in
 that order), and uses the first found.
-
-### read_indicator
-
-Specifies text to indicate a message has been read by the receiver.
 
 ### syncing_indicator
 

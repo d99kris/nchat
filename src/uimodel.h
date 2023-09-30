@@ -66,6 +66,7 @@ public:
   void UpdateChatInfoIsUnread(const std::string& p_ProfileId, const std::string& p_ChatId);
   std::string GetContactName(const std::string& p_ProfileId, const std::string& p_ChatId);
   std::string GetContactListName(const std::string& p_ProfileId, const std::string& p_ChatId);
+  std::string GetContactPhone(const std::string& p_ProfileId, const std::string& p_ChatId);
   bool GetChatIsUnread(const std::string& p_ProfileId, const std::string& p_ChatId);
   std::string GetChatStatus(const std::string& p_ProfileId, const std::string& p_ChatId);
 
@@ -142,6 +143,7 @@ private:
   void ExternalEdit();
   void CallExternalEdit(const std::string& p_EditorCmd);
   const std::pair<std::string, std::string>& GetNextChat();
+  void ExternalCall();
 
 private:
   bool m_Running = true;
