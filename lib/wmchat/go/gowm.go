@@ -497,6 +497,10 @@ func (handler *WmEventHandler) HandleEvent(rawEvt interface{}) {
 		LOG_TRACE(fmt.Sprintf("%#v", evt))
 		handler.HandleGroupInfo(evt)
 
+	case *events.DeleteChat:
+		LOG_TRACE(fmt.Sprintf("%#v", evt))
+		handler.HandleDeleteChat(evt)
+
 	default:
 		LOG_TRACE(fmt.Sprintf("Event type not handled: %#v", rawEvt))
 	}
@@ -687,6 +691,14 @@ func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: %s", chatId, text))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
+}
+
+func (handler *WmEventHandler) HandleDeleteChat(deleteChat *events.DeleteChat) {
+	connId := handler.connId
+	chatId := deleteChat.JID.ToNonAD().String()
+
+	LOG_TRACE(fmt.Sprintf("Call CWmDeleteChatNotify %s", chatId))
+	CWmDeleteChatNotify(connId, chatId);
 }
 
 func GetNameFromContactInfo(contactInfo types.ContactInfo) string {

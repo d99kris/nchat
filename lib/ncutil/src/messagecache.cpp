@@ -140,6 +140,17 @@ void MessageCache::AddFromServiceMessage(const std::string& p_ProfileId,
       }
       break;
 
+    case DeleteChatNotifyType:
+      {
+        std::shared_ptr<DeleteChatNotify> deleteChatNotify =
+          std::static_pointer_cast<DeleteChatNotify>(p_ServiceMessage);
+        if (deleteChatNotify->success)
+        {
+          MessageCache::DeleteChat(p_ProfileId, deleteChatNotify->chatId);
+        }
+      }
+      break;
+
     case NewMessageStatusNotifyType:
       {
         std::shared_ptr<NewMessageStatusNotify> newMessageStatusNotify =
@@ -452,6 +463,17 @@ void MessageCache::DeleteOneMessage(const std::string& p_ProfileId, const std::s
   deleteOneMessageRequest->chatId = p_ChatId;
   deleteOneMessageRequest->msgId = p_MsgId;
   EnqueueRequest(deleteOneMessageRequest);
+}
+
+void MessageCache::DeleteChat(const std::string& p_ProfileId, const std::string& p_ChatId)
+{
+  if (!m_CacheEnabled) return;
+
+  std::shared_ptr<DeleteChatRequest> deleteChatRequest =
+    std::make_shared<DeleteChatRequest>();
+  deleteChatRequest->profileId = p_ProfileId;
+  deleteChatRequest->chatId = p_ChatId;
+  EnqueueRequest(deleteChatRequest);
 }
 
 void MessageCache::UpdateMessageIsRead(const std::string& p_ProfileId, const std::string& p_ChatId,
@@ -970,6 +992,29 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         }
 
         LOG_DEBUG("cache delete %s %s", chatId.c_str(), msgId.c_str());
+      }
+      break;
+
+    case DeleteChatRequestType:
+      {
+        std::unique_lock<std::mutex> lock(m_DbMutex);
+        std::shared_ptr<DeleteChatRequest> deleteChatRequest =
+          std::static_pointer_cast<DeleteChatRequest>(p_Request);
+        const std::string& profileId = deleteChatRequest->profileId;
+        if (!m_Dbs[profileId]) return;
+
+        const std::string& chatId = deleteChatRequest->chatId;
+
+        try
+        {
+          *m_Dbs[profileId] << "DELETE FROM messages WHERE chatId = ?;" << chatId;
+        }
+        catch (const sqlite::sqlite_exception& ex)
+        {
+          HANDLE_SQLITE_EXCEPTION(ex);
+        }
+
+        LOG_DEBUG("cache delete %s", chatId.c_str());
       }
       break;
 

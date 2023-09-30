@@ -698,6 +698,26 @@ void WmNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p
   free(p_FilePath);
 }
 
+void WmDeleteChatNotify(int p_ConnId, char* p_ChatId)
+{
+  WmChat* instance = WmChat::GetInstance(p_ConnId);
+  if (instance == nullptr) return;
+
+  {
+    std::shared_ptr<DeleteChatNotify> deleteChatNotify =
+      std::make_shared<DeleteChatNotify>(instance->GetProfileId());
+    deleteChatNotify->success = true;
+    deleteChatNotify->chatId = std::string(p_ChatId);
+
+    std::shared_ptr<DeferNotifyRequest> deferNotifyRequest =
+      std::make_shared<DeferNotifyRequest>();
+    deferNotifyRequest->serviceMessage = deleteChatNotify;
+    instance->SendRequest(deferNotifyRequest);
+  }
+
+  free(p_ChatId);
+}
+
 void WmSetStatus(int p_Flags)
 {
   Status::Set(p_Flags);

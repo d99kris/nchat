@@ -1793,8 +1793,8 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
           std::static_pointer_cast<CreateChatNotify>(p_ServiceMessage);
         if (createChatNotify->success)
         {
-          LOG_TRACE("chat created %s", profileId.c_str());
           const ChatInfo& chatInfo = createChatNotify->chatInfo;
+          LOG_TRACE("chat created %s", chatInfo.id.c_str());
           m_ChatInfos[profileId][chatInfo.id] = chatInfo;
           if (m_ChatSet[profileId].insert(chatInfo.id).second)
           {
@@ -1807,6 +1807,43 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
           SortChats();
           OnCurrentChatChanged();
           SetSelectMessageActive(false);
+        }
+      }
+      break;
+
+    case DeleteChatNotifyType:
+      {
+        std::shared_ptr<DeleteChatNotify> deleteChatNotify = std::static_pointer_cast<DeleteChatNotify>(
+          p_ServiceMessage);
+        if (deleteChatNotify->success)
+        {
+          std::string chatId = deleteChatNotify->chatId;
+          LOG_TRACE("chat deleted %s", chatId.c_str());
+
+          for (auto it = m_ChatVec.begin(); it != m_ChatVec.end(); /* incremented in loop */)
+          {
+            if ((it->first == profileId) && (it->second == chatId))
+            {
+              it = m_ChatVec.erase(it);
+            }
+            else
+            {
+              ++it;
+            }
+          }
+
+          m_ChatInfos[profileId].erase(chatId);
+
+          if ((m_CurrentChat.first == profileId) && (m_CurrentChat.second == chatId))
+          {
+            m_CurrentChat = m_ChatVec.at(NumUtil::Bound(0, m_CurrentChatIndex, ((int)m_ChatVec.size() - 1)));
+            OnCurrentChatChanged();
+            SetSelectMessageActive(false);
+          }
+          else
+          {
+            UpdateList();
+          }
         }
       }
       break;

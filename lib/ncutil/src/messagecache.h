@@ -38,6 +38,7 @@ private:
     FetchMessagesFromRequestType,
     FetchOneMessageRequestType,
     DeleteOneMessageRequestType,
+    DeleteChatRequestType,
     UpdateMessageIsReadRequestType,
     UpdateMessageFileInfoRequestType,
   };
@@ -117,6 +118,14 @@ private:
     std::string msgId;
   };
 
+  class DeleteChatRequest : public Request
+  {
+  public:
+    virtual RequestType GetRequestType() const { return DeleteChatRequestType; }
+    std::string profileId;
+    std::string chatId;
+  };
+
   class UpdateMessageIsReadRequest : public Request
   {
   public:
@@ -157,6 +166,7 @@ public:
   static bool FetchOneMessage(const std::string& p_ProfileId, const std::string& p_ChatId,
                               const std::string& p_MsgId, const bool p_Sync);
   static void DeleteOneMessage(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId);
+  static void DeleteChat(const std::string& p_ProfileId, const std::string& p_ChatId);
   static void UpdateMessageIsRead(const std::string& p_ProfileId, const std::string& p_ChatId,
                                   const std::string& p_MsgId,
                                   bool p_IsRead);

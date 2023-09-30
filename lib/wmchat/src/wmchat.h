@@ -74,6 +74,7 @@ void WmNewStatusNotify(int p_ConnId, char* p_ChatId, char* p_UserId, int p_IsOnl
 void WmNewMessageStatusNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsRead);
 void WmNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_FilePath, int p_FileStatus,
                             int p_Action);
+void WmDeleteChatNotify(int p_ConnId, char* p_ChatId);
 void WmSetStatus(int p_Flags);
 void WmClearStatus(int p_Flags);
 void WmLogTrace(char* p_Filename, int p_LineNo, char* p_Message);

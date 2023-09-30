@@ -1384,6 +1384,27 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
     getMessageRequest->cached = false;
     SendRequest(getMessageRequest);
   },
+  [this](td::td_api::updateChatPosition& update_chat_position)
+  {
+    LOG_TRACE("update chat position");
+
+    auto position = td::move_tl_object_as<td::td_api::chatPosition>(update_chat_position.position_);
+    if (position && (position->order_ == 0)) // position 0 indicates removal
+    {
+      auto chatList = td::move_tl_object_as<td::td_api::ChatList>(position->list_);
+      if (chatList && (chatList->get_id() == td::td_api::chatListMain::ID)) // removed from main chat list
+      {
+        std::string chatId = StrUtil::NumToHex(update_chat_position.chat_id_);
+        LOG_TRACE("delete chat notify %s", chatId.c_str());
+
+        std::shared_ptr<DeleteChatNotify> deleteChatNotify =
+          std::make_shared<DeleteChatNotify>(m_ProfileId);
+        deleteChatNotify->success = true;
+        deleteChatNotify->chatId = chatId;
+        CallMessageHandler(deleteChatNotify);
+      }
+    }
+  },
   [](td::td_api::updateRecentStickers&)
   {
     LOG_TRACE("update recent stickers");
@@ -1427,10 +1448,6 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
   [](td::td_api::updateDiceEmojis&)
   {
     LOG_TRACE("update dice emojis");
-  },
-  [](td::td_api::updateChatPosition&)
-  {
-    LOG_TRACE("update chat position");
   },
   [](td::td_api::updateSupergroup&)
   {
@@ -2088,6 +2105,10 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
     p_Text = "[Changed group name to " + title + "]";
   }
   else if (p_TdMessageContent.get_id() == td::td_api::messageChatUpgradeFrom::ID)
+  {
+    p_Text = "[Created]";
+  }
+  else if (p_TdMessageContent.get_id() == td::td_api::messageBasicGroupChatCreate::ID)
   {
     p_Text = "[Created]";
   }

@@ -89,6 +89,7 @@ enum MessageType
   ReceiveStatusNotifyType,
   NewMessageStatusNotifyType,
   NewMessageFileNotifyType,
+  DeleteChatNotifyType,
 };
 
 struct ContactInfo
@@ -473,4 +474,14 @@ public:
   std::string msgId;
   std::string fileInfo;
   DownloadFileAction downloadFileAction;
+};
+
+class DeleteChatNotify : public ServiceMessage
+{
+public:
+  explicit DeleteChatNotify(const std::string& p_ProfileId) :
+    ServiceMessage(p_ProfileId) { }
+  virtual MessageType GetMessageType() const { return DeleteChatNotifyType; }
+  bool success;
+  std::string chatId;
 };
