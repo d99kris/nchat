@@ -409,8 +409,7 @@ std::shared_ptr<Protocol> SetupProfile()
 void ShowHelp()
 {
   std::cout <<
-    "nchat is a minimalistic terminal-based chat client with support for\n"
-    "telegram.\n"
+    "nchat is a terminal-based telegram / whatsapp client.\n"
     "\n"
     "Usage: nchat [OPTION]\n"
     "\n"

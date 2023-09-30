@@ -14,6 +14,7 @@
 
 #include "emojilist.h"
 #include "log.h"
+#include "messagecache.h"
 #include "uicolorconfig.h"
 #include "uiconfig.h"
 #include "uicontroller.h"
@@ -71,6 +72,14 @@ Ui::~Ui()
 
 void Ui::Run()
 {
+  std::unordered_map<std::string, std::shared_ptr<Protocol>>& protocols = m_Model->GetProtocols();
+
+  // retrieve cached contacts for use until receiving latest from chat service
+  for (auto& protocol : protocols)
+  {
+    MessageCache::FetchContacts(protocol.first);
+  }
+
   LOG_INFO("entering ui loop");
 
   curs_set(1);
@@ -85,7 +94,7 @@ void Ui::Run()
 
   LOG_INFO("exiting ui loop");
 
-  std::unordered_map<std::string, std::shared_ptr<Protocol>>& protocols = m_Model->GetProtocols();
+  // set as offline before logging off
   for (auto& protocol : protocols)
   {
     m_Model->SetStatusOnline(protocol.first, false);
