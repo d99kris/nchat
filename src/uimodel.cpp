@@ -64,6 +64,7 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keySelectContact = UiKeyConfig::GetKey("select_contact");
   static wint_t keyTransfer = UiKeyConfig::GetKey("transfer");
   static wint_t keyDeleteMsg = UiKeyConfig::GetKey("delete_msg");
+  static wint_t keyDeleteChat = UiKeyConfig::GetKey("delete_chat");
   static wint_t keyEditMsg = UiKeyConfig::GetKey("edit_msg");
   static wint_t keyCancel = UiKeyConfig::GetKey("cancel");
 
@@ -183,6 +184,10 @@ void UiModel::KeyHandler(wint_t p_Key)
   else if (p_Key == keyDeleteMsg)
   {
     DeleteMessage();
+  }
+  else if (p_Key == keyDeleteChat)
+  {
+    DeleteChat();
   }
   else if (p_Key == keyOpen)
   {
@@ -983,6 +988,29 @@ void UiModel::DeleteMessage()
   deleteMessageRequest->chatId = chatId;
   deleteMessageRequest->msgId = msgId;
   m_Protocols[profileId]->SendRequest(deleteMessageRequest);
+}
+
+void UiModel::DeleteChat()
+{
+  std::unique_lock<std::mutex> lock(m_ModelMutex);
+
+  if (GetEditMessageActive()) return;
+
+  static const bool confirmDeletion = UiConfig::GetBool("confirm_deletion");
+  if (confirmDeletion)
+  {
+    if (!MessageDialog("Confirmation", "Confirm chat deletion?", 0.5, 5))
+    {
+      return;
+    }
+  }
+
+  const std::string& profileId = m_CurrentChat.first;
+  const std::string& chatId = m_CurrentChat.second;
+
+  std::shared_ptr<DeleteChatRequest> deleteChatRequest = std::make_shared<DeleteChatRequest>();
+  deleteChatRequest->chatId = chatId;
+  m_Protocols[profileId]->SendRequest(deleteChatRequest);
 }
 
 void UiModel::OpenMessage()

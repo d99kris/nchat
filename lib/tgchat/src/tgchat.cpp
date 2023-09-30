@@ -864,6 +864,37 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
       }
       break;
 
+    case DeleteChatRequestType:
+      {
+        LOG_DEBUG("Delete chat");
+        Status::Set(Status::FlagUpdating);
+        std::shared_ptr<DeleteChatRequest> deleteChatRequest =
+          std::static_pointer_cast<DeleteChatRequest>(
+          p_RequestMessage);
+        int64_t chatId = StrUtil::NumFromHex<int64_t>(deleteChatRequest->chatId);
+
+        auto delete_chat = td::td_api::make_object<td::td_api::deleteChat>();
+        delete_chat->chat_id_ = chatId;
+
+        SendQuery(std::move(delete_chat),
+                  [this, deleteChatRequest](Object object)
+        {
+          Status::Clear(Status::FlagUpdating);
+
+          if (object->get_id() == td::td_api::error::ID)
+          {
+            LOG_TRACE("Ignore chat delete error");
+          }
+
+          std::shared_ptr<DeleteChatNotify> deleteChatNotify =
+            std::make_shared<DeleteChatNotify>(m_ProfileId);
+          deleteChatNotify->success = true; // to allow deleting "ghost" chats only existing locally
+          deleteChatNotify->chatId = deleteChatRequest->chatId;
+          CallMessageHandler(deleteChatNotify);
+        });
+      }
+      break;
+
     case SendTypingRequestType:
       {
         LOG_DEBUG("Send typing");

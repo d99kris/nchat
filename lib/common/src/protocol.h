@@ -69,6 +69,7 @@ enum MessageType
   DeferDownloadFileRequestType,
   MarkMessageReadRequestType,
   DeleteMessageRequestType,
+  DeleteChatRequestType,
   SendTypingRequestType,
   SetStatusRequestType,
   CreateChatRequestType,
@@ -225,6 +226,13 @@ public:
   virtual MessageType GetMessageType() const { return DeleteMessageRequestType; }
   std::string chatId;
   std::string msgId;
+};
+
+class DeleteChatRequest : public RequestMessage
+{
+public:
+  virtual MessageType GetMessageType() const { return DeleteChatRequestType; }
+  std::string chatId;
 };
 
 class SendTypingRequest : public RequestMessage

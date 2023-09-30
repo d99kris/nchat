@@ -1,6 +1,6 @@
 // messagecache.h
 //
-// Copyright (c) 2020-2022 Kristofer Berggren
+// Copyright (c) 2020-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -38,7 +38,7 @@ private:
     FetchMessagesFromRequestType,
     FetchOneMessageRequestType,
     DeleteOneMessageRequestType,
-    DeleteChatRequestType,
+    DeleteOneChatRequestType,
     UpdateMessageIsReadRequestType,
     UpdateMessageFileInfoRequestType,
   };
@@ -118,10 +118,10 @@ private:
     std::string msgId;
   };
 
-  class DeleteChatRequest : public Request
+  class DeleteOneChatRequest : public Request
   {
   public:
-    virtual RequestType GetRequestType() const { return DeleteChatRequestType; }
+    virtual RequestType GetRequestType() const { return DeleteOneChatRequestType; }
     std::string profileId;
     std::string chatId;
   };

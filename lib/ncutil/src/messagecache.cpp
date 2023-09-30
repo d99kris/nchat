@@ -469,8 +469,8 @@ void MessageCache::DeleteChat(const std::string& p_ProfileId, const std::string&
 {
   if (!m_CacheEnabled) return;
 
-  std::shared_ptr<DeleteChatRequest> deleteChatRequest =
-    std::make_shared<DeleteChatRequest>();
+  std::shared_ptr<DeleteOneChatRequest> deleteChatRequest =
+    std::make_shared<DeleteOneChatRequest>();
   deleteChatRequest->profileId = p_ProfileId;
   deleteChatRequest->chatId = p_ChatId;
   EnqueueRequest(deleteChatRequest);
@@ -995,11 +995,11 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
       }
       break;
 
-    case DeleteChatRequestType:
+    case DeleteOneChatRequestType:
       {
         std::unique_lock<std::mutex> lock(m_DbMutex);
-        std::shared_ptr<DeleteChatRequest> deleteChatRequest =
-          std::static_pointer_cast<DeleteChatRequest>(p_Request);
+        std::shared_ptr<DeleteOneChatRequest> deleteChatRequest =
+          std::static_pointer_cast<DeleteOneChatRequest>(p_Request);
         const std::string& profileId = deleteChatRequest->profileId;
         if (!m_Dbs[profileId]) return;
 

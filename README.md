@@ -80,6 +80,7 @@ Interactive Commands:
     KeyUp       select message
     Alt-,       decrease contact list width
     Alt-.       increase contact list width
+    Alt-d       delete/leave current chat
     Alt-e       external editor compose
     Alt-s       external spell check
     Alt-t       external telephone call
@@ -466,7 +467,8 @@ macOS: `open 'tel://%1' &`
 
 ### confirm_deletion
 
-Specifies whether to prompt the user for confirmation when deleting a message.
+Specifies whether to prompt the user for confirmation when deleting a message
+or a chat.
 
 ### desktop_notify_active
 
@@ -648,6 +650,7 @@ This configuration file holds user interface key bindings. Default content:
     delete=KEY_DC
     delete_line_after_cursor=KEY_CTRLK
     delete_line_before_cursor=KEY_CTRLU
+    delete_chat=
     delete_msg=KEY_CTRLD
     down=KEY_DOWN
     edit_msg=KEY_CTRLZ

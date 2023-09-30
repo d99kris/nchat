@@ -383,6 +383,24 @@ void WmChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
       }
       break;
 
+    case DeleteChatRequestType:
+      {
+        LOG_DEBUG("delete chat");
+        Status::Set(Status::FlagUpdating);
+        std::shared_ptr<DeleteChatRequest> deleteChatRequest =
+          std::static_pointer_cast<DeleteChatRequest>(p_RequestMessage);
+        std::string chatId = deleteChatRequest->chatId;
+
+        CWmDeleteChat(m_ConnId, const_cast<char*>(chatId.c_str()));
+        Status::Clear(Status::FlagUpdating);
+
+        std::shared_ptr<DeleteChatNotify> deleteChatNotify = std::make_shared<DeleteChatNotify>(m_ProfileId);
+        deleteChatNotify->success = true; // to allow deleting "ghost" chats only existing locally
+        deleteChatNotify->chatId = deleteChatRequest->chatId;
+        CallMessageHandler(deleteChatNotify);
+      }
+      break;
+
     case SendTypingRequestType:
       {
         LOG_DEBUG("send typing");

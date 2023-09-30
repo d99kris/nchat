@@ -75,6 +75,11 @@ func CWmDeleteMessage(connId int, chatId *C.char, msgId *C.char) int {
 	return WmDeleteMessage(connId, C.GoString(chatId), C.GoString(msgId))
 }
 
+//export CWmDeleteChat
+func CWmDeleteChat(connId int, chatId *C.char) int {
+	return WmDeleteChat(connId, C.GoString(chatId))
+}
+
 //export CWmSendTyping
 func CWmSendTyping(connId int, chatId *C.char, isTyping int) int {
 	return WmSendTyping(connId, C.GoString(chatId), isTyping)

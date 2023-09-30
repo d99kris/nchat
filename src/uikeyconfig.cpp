@@ -210,6 +210,7 @@ void UiKeyConfig::Init()
     { "unread_chat", "KEY_CTRLF" },
     { "send_msg", "KEY_CTRLX" },
     { "delete_msg", "KEY_CTRLD" },
+    { "delete_chat", "\\33\\144" }, // alt/opt-d
     { "open", "KEY_CTRLV" },
     { "open_link", "KEY_CTRLW" },
     { "open_msg", "\\33\\167" }, // alt/opt-w

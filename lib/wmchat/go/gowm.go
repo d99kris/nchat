@@ -1853,6 +1853,42 @@ func WmDeleteMessage(connId int, chatId string, msgId string) int {
 	return 0
 }
 
+func WmDeleteChat(connId int, chatId string) int {
+
+	LOG_TRACE("delete chat " + strconv.Itoa(connId) + ", " + chatId)
+
+	// sanity check arg
+	if connId == -1 {
+		LOG_WARNING("invalid connId")
+		return -1
+	}
+
+	// get client
+	client := GetClient(connId)
+
+	// get chat jid
+	chatJid, _ := types.ParseJID(chatId)
+
+	// leave / delete
+	if chatJid.Server == types.GroupServer {
+		// if group, exit it
+		err := client.LeaveGroup(chatJid)
+
+		// log any error
+		if err != nil {
+			LOG_WARNING(fmt.Sprintf("leave group error %s %#v", chatId, err))
+			return -1
+		} else {
+			LOG_TRACE(fmt.Sprintf("leave group ok (but not deleted) %s", chatId))
+		}
+	} else {
+		// if private, log warning (function not supported by underlying library)
+		LOG_WARNING(fmt.Sprintf("delete chat not supported %s", chatId))
+	}
+
+	return 0
+}
+
 func WmSendTyping(connId int, chatId string, isTyping int) int {
 
 	LOG_TRACE("send typing " + strconv.Itoa(connId) + ", " + chatId + ", " + strconv.Itoa(isTyping))
