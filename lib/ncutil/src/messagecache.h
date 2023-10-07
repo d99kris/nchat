@@ -41,6 +41,7 @@ private:
     DeleteOneChatRequestType,
     UpdateMessageIsReadRequestType,
     UpdateMessageFileInfoRequestType,
+    UpdateMuteRequestType,
   };
 
   class Request
@@ -146,6 +147,15 @@ private:
     std::string fileInfo;
   };
 
+  class UpdateMuteRequest : public Request
+  {
+  public:
+    virtual RequestType GetRequestType() const { return UpdateMuteRequestType; }
+    std::string profileId;
+    std::string chatId;
+    bool isMuted;
+  };
+
 public:
   static void Init();
   static void Cleanup();
@@ -173,6 +183,7 @@ public:
   static void UpdateMessageFileInfo(const std::string& p_ProfileId, const std::string& p_ChatId,
                                     const std::string& p_MsgId, const std::string& p_FileInfo);
 
+  static void UpdateMute(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_IsMuted);
   static void Export(const std::string& p_ExportDir);
 
 private:

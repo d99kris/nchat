@@ -736,6 +736,27 @@ void WmDeleteChatNotify(int p_ConnId, char* p_ChatId)
   free(p_ChatId);
 }
 
+void WmUpdateMuteNotify(int p_ConnId, char* p_ChatId, int p_IsMuted)
+{
+  WmChat* instance = WmChat::GetInstance(p_ConnId);
+  if (instance == nullptr) return;
+
+  {
+    std::shared_ptr<UpdateMuteNotify> updateMuteNotify =
+      std::make_shared<UpdateMuteNotify>(instance->GetProfileId());
+    updateMuteNotify->success = true;
+    updateMuteNotify->chatId = std::string(p_ChatId);
+    updateMuteNotify->isMuted = p_IsMuted;
+
+    std::shared_ptr<DeferNotifyRequest> deferNotifyRequest =
+      std::make_shared<DeferNotifyRequest>();
+    deferNotifyRequest->serviceMessage = updateMuteNotify;
+    instance->SendRequest(deferNotifyRequest);
+  }
+
+  free(p_ChatId);
+}
+
 void WmSetStatus(int p_Flags)
 {
   Status::Set(p_Flags);

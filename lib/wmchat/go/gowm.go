@@ -509,6 +509,10 @@ func (handler *WmEventHandler) HandleEvent(rawEvt interface{}) {
 		LOG_TRACE(fmt.Sprintf("%#v", evt))
 		handler.HandleDeleteChat(evt)
 
+	case *events.Mute:
+		LOG_TRACE(fmt.Sprintf("%#v", evt))
+		handler.HandleMute(evt)
+
 	default:
 		LOG_TRACE(fmt.Sprintf("Event type not handled: %#v", rawEvt))
 	}
@@ -581,7 +585,6 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 		chatJid, _ := types.ParseJID(conversation.GetId())
 
 		isUnread := 0
-		isMuted := 0
 		lastMessageTime := 0
 
 		hasMessages := false
@@ -600,8 +603,21 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 		}
 
 		if (hasMessages) {
-			LOG_TRACE(fmt.Sprintf("Call CWmNewChatsNotify %s %d", JidToStr(chatJid), len(syncMessages)))
-			CWmNewChatsNotify(handler.connId, JidToStr(chatJid), isUnread, isMuted, lastMessageTime)
+			isMuted := false
+			settings, setErr := client.Store.ChatSettings.GetChatSettings(chatJid)
+			if setErr != nil {
+				LOG_WARNING(fmt.Sprintf("Get chat settings failed %#v", setErr))
+			} else {
+				if settings.Found {
+					mutedUntil := settings.MutedUntil.Unix()
+					isMuted = (mutedUntil == -1) || (mutedUntil > time.Now().Unix())
+				} else {
+					LOG_WARNING(fmt.Sprintf("Chat settings not found"))
+				}
+			}
+
+			LOG_TRACE(fmt.Sprintf("Call CWmNewChatsNotify %s %d %t", JidToStr(chatJid), len(syncMessages), isMuted))
+			CWmNewChatsNotify(handler.connId, JidToStr(chatJid), isUnread, BoolToInt(isMuted), lastMessageTime)
 		} else {
 			LOG_TRACE(fmt.Sprintf("Skip CWmNewChatsNotify %s %d", JidToStr(chatJid), len(syncMessages)))
 		}
@@ -707,6 +723,21 @@ func (handler *WmEventHandler) HandleDeleteChat(deleteChat *events.DeleteChat) {
 
 	LOG_TRACE(fmt.Sprintf("Call CWmDeleteChatNotify %s", chatId))
 	CWmDeleteChatNotify(connId, chatId);
+}
+
+func (handler *WmEventHandler) HandleMute(mute *events.Mute) {
+	connId := handler.connId
+	chatId := mute.JID.ToNonAD().String()
+	muteAction := mute.Action
+	if muteAction == nil {
+		LOG_WARNING(fmt.Sprintf("mute event missing mute action"))
+		return
+	}
+
+	isMuted := *muteAction.Muted
+
+	LOG_TRACE(fmt.Sprintf("Call CWmUpdateMuteNotify %s %s", chatId, strconv.FormatBool(isMuted)))
+	CWmUpdateMuteNotify(connId, chatId, BoolToInt(isMuted));
 }
 
 func GetNameFromContactInfo(contactInfo types.ContactInfo) string {

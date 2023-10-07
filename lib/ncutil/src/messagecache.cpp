@@ -38,6 +38,7 @@ bool MessageCache::m_CacheEnabled = true;
 
 // @note: minor db schema updates can simply update table name to avoid losing other tables data
 static const std::string s_TableContacts = "contacts2";
+static const std::string s_TableChats = "chats2";
 
 void MessageCache::Init()
 {
@@ -169,6 +170,17 @@ void MessageCache::AddFromServiceMessage(const std::string& p_ProfileId,
       }
       break;
 
+    case UpdateMuteNotifyType:
+      {
+        std::shared_ptr<UpdateMuteNotify> updateMuteNotify = std::static_pointer_cast<UpdateMuteNotify>(
+          p_ServiceMessage);
+        if (updateMuteNotify->success)
+        {
+          MessageCache::UpdateMute(p_ProfileId, updateMuteNotify->chatId, updateMuteNotify->isMuted);
+        }
+      }
+      break;
+
     default:
       break;
   }
@@ -232,8 +244,9 @@ void MessageCache::AddProfile(const std::string& p_ProfileId, bool p_CheckSync, 
       "UNIQUE(id) ON CONFLICT REPLACE"
       ");";
 
-    *m_Dbs[p_ProfileId] << "CREATE TABLE IF NOT EXISTS chats ("
+    *m_Dbs[p_ProfileId] << "CREATE TABLE IF NOT EXISTS " + s_TableChats + " ("
       "id TEXT,"
+      "isMuted INT,"
       "UNIQUE(id) ON CONFLICT REPLACE"
       ");";
 
@@ -503,6 +516,18 @@ void MessageCache::UpdateMessageFileInfo(const std::string& p_ProfileId, const s
   EnqueueRequest(updateMessageFileInfoRequest);
 }
 
+void MessageCache::UpdateMute(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_IsMuted)
+{
+  if (!m_CacheEnabled) return;
+
+  std::shared_ptr<UpdateMuteRequest> updateMuteRequest =
+    std::make_shared<UpdateMuteRequest>();
+  updateMuteRequest->profileId = p_ProfileId;
+  updateMuteRequest->chatId = p_ChatId;
+  updateMuteRequest->isMuted = p_IsMuted;
+  EnqueueRequest(updateMuteRequest);
+}
+
 void MessageCache::Export(const std::string& p_ExportDir)
 {
   if (!m_CacheEnabled)
@@ -766,10 +791,10 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
           *m_Dbs[profileId] << "BEGIN;";
           for (const auto& chatInfo : addChatsRequest->chatInfos)
           {
-            *m_Dbs[profileId] << "INSERT INTO chats "
-              "(id) VALUES "
-              "(?);" <<
-              chatInfo.id;
+            *m_Dbs[profileId] << "INSERT INTO " + s_TableChats + " "
+              "(id, isMuted) VALUES "
+              "(?, ?);" <<
+              chatInfo.id << chatInfo.isMuted;
           }
           *m_Dbs[profileId] << "COMMIT;";
         }
@@ -823,6 +848,14 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         try
         {
           // *INDENT-OFF*
+          std::map<std::string, int32_t> chatIdMuted;
+          *m_Dbs[profileId] << "SELECT id, isMuted FROM " + s_TableChats + ";"
+                            >>
+            [&](const std::string& chatId, int32_t isMuted)
+            {
+              chatIdMuted[chatId] = isMuted;
+            };
+
           *m_Dbs[profileId] << "SELECT chatId, MAX(timeSent), isOutgoing, isRead FROM messages "
             "GROUP BY chatId;" >>
             [&](const std::string& chatId, int64_t timeSent, int32_t isOutgoing, int32_t isRead)
@@ -831,6 +864,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
               chatInfo.id = chatId;
               chatInfo.isUnread = !isOutgoing && !isRead;
               chatInfo.lastMessageTime = timeSent;
+              chatInfo.isMuted = chatIdMuted[chatId];
               chatInfos.push_back(chatInfo);
             };
           // *INDENT-ON*
@@ -1008,6 +1042,8 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         try
         {
           *m_Dbs[profileId] << "DELETE FROM messages WHERE chatId = ?;" << chatId;
+
+          *m_Dbs[profileId] << "DELETE FROM " + s_TableChats + " WHERE id = ?;" << chatId;
         }
         catch (const sqlite::sqlite_exception& ex)
         {
@@ -1067,6 +1103,33 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         }
 
         LOG_DEBUG("cache update fileInfo %s %s %s %d", chatId.c_str(), msgId.c_str(), fileInfo.c_str());
+      }
+      break;
+
+    case UpdateMuteRequestType:
+      {
+        std::unique_lock<std::mutex> lock(m_DbMutex);
+        std::shared_ptr<UpdateMuteRequest> updateMuteRequest =
+          std::static_pointer_cast<UpdateMuteRequest>(p_Request);
+        const std::string& profileId = updateMuteRequest->profileId;
+        if (!m_Dbs[profileId]) return;
+
+        const std::string& chatId = updateMuteRequest->chatId;
+        bool isMuted = updateMuteRequest->isMuted;
+
+        try
+        {
+          *m_Dbs[profileId] << "INSERT INTO " + s_TableChats + " "
+            "(id, isMuted) VALUES "
+            "(?, ?);" <<
+            chatId << isMuted;
+        }
+        catch (const sqlite::sqlite_exception& ex)
+        {
+          HANDLE_SQLITE_EXCEPTION(ex);
+        }
+
+        LOG_DEBUG("cache update muted %s %d", chatId.c_str(), isMuted);
       }
       break;
 

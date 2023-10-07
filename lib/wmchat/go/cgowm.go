@@ -16,6 +16,7 @@ package main
 // extern void WmNewMessageStatusNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsRead);
 // extern void WmNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_FilePath, int p_FileStatus, int p_Action);
 // extern void WmDeleteChatNotify(int p_ConnId, char* p_ChatId);
+// extern void WmUpdateMuteNotify(int p_ConnId, char* p_ChatId, int p_IsMuted);
 // extern void WmSetStatus(int p_Flags);
 // extern void WmClearStatus(int p_Flags);
 // extern void WmLogTrace(char* p_Filename, int p_LineNo, char* p_Message);
@@ -121,6 +122,10 @@ func CWmNewMessageFileNotify(connId int, chatId string, msgId string, filePath s
 
 func CWmDeleteChatNotify(connId int, chatId string) {
 	C.WmDeleteChatNotify(C.int(connId), C.CString(chatId))
+}
+
+func CWmUpdateMuteNotify(connId int, chatId string, isMuted int) {
+	C.WmUpdateMuteNotify(C.int(connId), C.CString(chatId), C.int(isMuted))
 }
 
 func CWmSetStatus(flags int) {
