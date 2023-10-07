@@ -16,6 +16,7 @@
 
 #include "td/actor/actor.h"
 
+#include "td/utils/common.h"
 #include "td/utils/OrderedEventsProcessor.h"
 #include "td/utils/Status.h"
 
@@ -87,7 +88,7 @@ class FileLoader : public FileLoaderActor {
                                                       int64 file_size) TD_WARN_UNUSED_RESULT {
     return Status::Error("Unsupported");
   }
-  virtual Result<bool> should_restart_part(Part part, NetQueryPtr &net_query) TD_WARN_UNUSED_RESULT {
+  virtual Result<bool> should_restart_part(Part part, const NetQueryPtr &net_query) TD_WARN_UNUSED_RESULT {
     return false;
   }
 

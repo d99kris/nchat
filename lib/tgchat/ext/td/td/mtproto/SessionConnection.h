@@ -6,13 +6,14 @@
 //
 #pragma once
 
+#include "td/mtproto/MessageId.h"
 #include "td/mtproto/MtprotoQuery.h"
 #include "td/mtproto/PacketInfo.h"
 #include "td/mtproto/RawConnection.h"
 
 #include "td/utils/buffer.h"
+#include "td/utils/common.h"
 #include "td/utils/FlatHashMap.h"
-#include "td/utils/format.h"
 #include "td/utils/logging.h"
 #include "td/utils/Named.h"
 #include "td/utils/port/detail/PollableFd.h"
@@ -30,8 +31,6 @@ namespace td {
 extern int VERBOSITY_NAME(mtproto);
 
 namespace mtproto_api {
-
-class rpc_error;
 class new_session_created;
 class bad_msg_notification;
 class bad_server_salt;
@@ -53,18 +52,6 @@ namespace mtproto {
 
 class AuthData;
 
-struct MsgInfo {
-  uint64 session_id;
-  int64 message_id;
-  int32 seq_no;
-  size_t size;
-};
-
-inline StringBuilder &operator<<(StringBuilder &stream, const MsgInfo &id) {
-  return stream << "[session_id:" << format::as_hex(id.session_id) << "] [msg_id:" << format::as_hex(id.message_id)
-                << "] [seq_no:" << format::as_hex(id.seq_no) << "]";
-}
-
 class SessionConnection final
     : public Named
     , private RawConnection::Callback {
@@ -81,13 +68,14 @@ class SessionConnection final
   unique_ptr<RawConnection> move_as_raw_connection();
 
   // Interface
-  Result<uint64> TD_WARN_UNUSED_RESULT send_query(BufferSlice buffer, bool gzip_flag, int64 message_id = 0,
-                                                  std::vector<uint64> invoke_after_id = {}, bool use_quick_ack = false);
-  std::pair<uint64, BufferSlice> encrypted_bind(int64 perm_key, int64 nonce, int32 expires_at);
+  Result<MessageId> TD_WARN_UNUSED_RESULT send_query(BufferSlice buffer, bool gzip_flag, MessageId message_id = {},
+                                                     vector<MessageId> invoke_after_message_ids = {},
+                                                     bool use_quick_ack = false);
+  std::pair<MessageId, BufferSlice> encrypted_bind(int64 perm_key, int64 nonce, int32 expires_at);
 
-  void get_state_info(int64 message_id);
-  void resend_answer(int64 message_id);
-  void cancel_answer(int64 message_id);
+  void get_state_info(MessageId message_id);
+  void resend_answer(MessageId message_id);
+  void cancel_answer(MessageId message_id);
   void destroy_key();
 
   void set_online(bool online_flag, bool is_main);
@@ -106,21 +94,22 @@ class SessionConnection final
     virtual void on_auth_key_updated() = 0;
     virtual void on_tmp_auth_key_updated() = 0;
     virtual void on_server_salt_updated() = 0;
-    virtual void on_server_time_difference_updated() = 0;
+    virtual void on_server_time_difference_updated(bool force) = 0;
 
-    virtual void on_session_created(uint64 unique_id, uint64 first_id) = 0;
+    virtual void on_new_session_created(uint64 unique_id, MessageId first_message_id) = 0;
     virtual void on_session_failed(Status status) = 0;
 
-    virtual void on_container_sent(uint64 container_id, vector<uint64> msgs_id) = 0;
+    virtual void on_container_sent(MessageId container_message_id, vector<MessageId> message_ids) = 0;
     virtual Status on_pong() = 0;
 
     virtual Status on_update(BufferSlice packet) = 0;
 
-    virtual void on_message_ack(uint64 id) = 0;
-    virtual Status on_message_result_ok(uint64 id, BufferSlice packet, size_t original_size) = 0;
-    virtual void on_message_result_error(uint64 id, int code, string message) = 0;
-    virtual void on_message_failed(uint64 id, Status status) = 0;
-    virtual void on_message_info(uint64 id, int32 state, uint64 answer_id, int32 answer_size) = 0;
+    virtual void on_message_ack(MessageId message_id) = 0;
+    virtual Status on_message_result_ok(MessageId message_id, BufferSlice packet, size_t original_size) = 0;
+    virtual void on_message_result_error(MessageId message_id, int code, string message) = 0;
+    virtual void on_message_failed(MessageId message_id, Status status) = 0;
+    virtual void on_message_info(MessageId message_id, int32 state, MessageId answer_message_id, int32 answer_size,
+                                 int32 source) = 0;
 
     virtual Status on_destroy_auth_key() = 0;
   };
@@ -134,6 +123,14 @@ class SessionConnection final
   static constexpr int ACK_DELAY = 30;                  // 30s
   static constexpr double QUERY_DELAY = 0.001;          // 0.001s
   static constexpr double RESEND_ANSWER_DELAY = 0.001;  // 0.001s
+
+  struct MsgInfo {
+    MessageId message_id;
+    int32 seq_no;
+    size_t size;
+  };
+
+  friend StringBuilder &operator<<(StringBuilder &string_builder, const MsgInfo &info);
 
   bool online_flag_ = false;
   bool is_main_ = false;
@@ -166,20 +163,21 @@ class SessionConnection final
   static constexpr int HTTP_MAX_DELAY = 30;  // 0.03s
 
   vector<MtprotoQuery> to_send_;
-  vector<int64> to_ack_;
+  vector<MessageId> to_ack_message_ids_;
   double force_send_at_ = 0;
 
   struct ServiceQuery {
-    enum Type { GetStateInfo, ResendAnswer } type;
-    vector<int64> message_ids;
+    enum Type { GetStateInfo, ResendAnswer } type_;
+    MessageId container_message_id_;
+    vector<int64> msg_ids_;
   };
-  vector<int64> to_resend_answer_;
-  vector<int64> to_cancel_answer_;
-  vector<int64> to_get_state_info_;
-  FlatHashMap<uint64, ServiceQuery> service_queries_;
+  vector<MessageId> to_resend_answer_message_ids_;
+  vector<MessageId> to_cancel_answer_message_ids_;
+  vector<MessageId> to_get_state_info_message_ids_;
+  FlatHashMap<MessageId, ServiceQuery, MessageIdHash> service_queries_;
 
   // nobody cleans up this map. But it should be really small.
-  FlatHashMap<uint64, vector<uint64>> container_to_service_msg_;
+  FlatHashMap<MessageId, vector<MessageId>, MessageIdHash> container_to_service_message_id_;
 
   double random_delay_ = 0;
   double last_read_at_ = 0;
@@ -188,8 +186,8 @@ class SessionConnection final
   double real_last_read_at_ = 0;
   double real_last_pong_at_ = 0;
   int64 cur_ping_id_ = 0;
-  uint64 last_ping_message_id_ = 0;
-  uint64 last_ping_container_id_ = 0;
+  MessageId last_ping_message_id_;
+  MessageId last_ping_container_message_id_;
 
   uint64 last_read_size_ = 0;
   uint64 last_write_size_ = 0;
@@ -204,8 +202,8 @@ class SessionConnection final
   Mode mode_;
   bool connected_flag_ = false;
 
-  uint64 container_id_ = 0;
-  int64 main_message_id_ = 0;
+  MessageId container_message_id_;
+  MessageId main_message_id_;
   double created_at_ = 0;
 
   unique_ptr<RawConnection> raw_connection_;
@@ -222,6 +220,8 @@ class SessionConnection final
     };
   }
 
+  void reset_server_time_difference(MessageId message_id);
+
   static Status parse_message(TlParser &parser, MsgInfo *info, Slice *packet,
                               bool crypto_flag = true) TD_WARN_UNUSED_RESULT;
   Status parse_packet(TlParser &parser) TD_WARN_UNUSED_RESULT;
@@ -231,7 +231,6 @@ class SessionConnection final
   template <class T>
   Status on_packet(const MsgInfo &info, const T &packet) TD_WARN_UNUSED_RESULT;
 
-  Status on_packet(const MsgInfo &info, const mtproto_api::rpc_error &rpc_error) TD_WARN_UNUSED_RESULT;
   Status on_packet(const MsgInfo &info,
                    const mtproto_api::new_session_created &new_session_created) TD_WARN_UNUSED_RESULT;
   Status on_packet(const MsgInfo &info,
@@ -242,7 +241,7 @@ class SessionConnection final
   Status on_packet(const MsgInfo &info, const mtproto_api::pong &pong) TD_WARN_UNUSED_RESULT;
   Status on_packet(const MsgInfo &info, const mtproto_api::future_salts &salts) TD_WARN_UNUSED_RESULT;
 
-  Status on_msgs_state_info(const vector<int64> &message_ids, Slice info) TD_WARN_UNUSED_RESULT;
+  Status on_msgs_state_info(const vector<int64> &msg_ids, Slice info) TD_WARN_UNUSED_RESULT;
   Status on_packet(const MsgInfo &info, const mtproto_api::msgs_state_info &msgs_state_info) TD_WARN_UNUSED_RESULT;
   Status on_packet(const MsgInfo &info, const mtproto_api::msgs_all_info &msgs_all_info) TD_WARN_UNUSED_RESULT;
   Status on_packet(const MsgInfo &info, const mtproto_api::msg_detailed_info &msg_detailed_info) TD_WARN_UNUSED_RESULT;
@@ -256,13 +255,13 @@ class SessionConnection final
   Status on_destroy_auth_key(const mtproto_api::DestroyAuthKeyRes &destroy_auth_key);
 
   Status on_slice_packet(const MsgInfo &info, Slice packet) TD_WARN_UNUSED_RESULT;
-  Status on_main_packet(const PacketInfo &info, Slice packet) TD_WARN_UNUSED_RESULT;
-  void on_message_failed(uint64 id, Status status);
-  void on_message_failed_inner(uint64 id);
+  Status on_main_packet(const PacketInfo &packet_info, Slice packet) TD_WARN_UNUSED_RESULT;
+  void on_message_failed(MessageId message_id, Status status);
+  void on_message_failed_inner(MessageId message_id);
 
   void do_close(Status status);
 
-  void send_ack(uint64 message_id);
+  void send_ack(MessageId message_id);
   void send_crypto(const Storer &storer, uint64 quick_ack_token);
   void send_before(double tm);
   bool may_ping() const;
@@ -274,7 +273,7 @@ class SessionConnection final
   Status do_flush() TD_WARN_UNUSED_RESULT;
 
   Status before_write() final TD_WARN_UNUSED_RESULT;
-  Status on_raw_packet(const PacketInfo &info, BufferSlice packet) final;
+  Status on_raw_packet(const PacketInfo &packet_info, BufferSlice packet) final;
   Status on_quick_ack(uint64 quick_ack_token) final;
   void on_read(size_t size) final;
 };

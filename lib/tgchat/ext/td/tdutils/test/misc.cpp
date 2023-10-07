@@ -7,6 +7,7 @@
 #include "td/utils/algorithm.h"
 #include "td/utils/as.h"
 #include "td/utils/base64.h"
+#include "td/utils/benchmark.h"
 #include "td/utils/BigNum.h"
 #include "td/utils/bits.h"
 #include "td/utils/CancellationToken.h"
@@ -263,6 +264,65 @@ TEST(Misc, base64) {
   ASSERT_TRUE(td::base64url_encode("ab><") == "YWI-PA");
   ASSERT_TRUE(td::base64url_encode("ab><c") == "YWI-PGM");
   ASSERT_TRUE(td::base64url_encode("ab><cd") == "YWI-PGNk");
+}
+
+static void test_zero_encode(td::Slice str, td::Slice expected_zero = td::Slice(),
+                             td::Slice expected_zero_one = td::Slice()) {
+  auto encoded = td::zero_encode(str);
+  if (!expected_zero.empty()) {
+    ASSERT_EQ(encoded, expected_zero);
+  }
+  ASSERT_EQ(td::zero_decode(encoded), str);
+
+  encoded = td::zero_one_encode(str);
+  if (!expected_zero_one.empty()) {
+    ASSERT_EQ(encoded, expected_zero_one);
+  }
+  ASSERT_EQ(td::zero_one_decode(encoded), str);
+}
+
+TEST(Misc, zero_encode) {
+  td::string str;
+  for (unsigned char i = 1; i < 255; i++) {
+    str += static_cast<char>(i);
+  }
+  test_zero_encode(str, str, str);
+
+  test_zero_encode("");
+  test_zero_encode(td::Slice("\0"), td::Slice("\0\1"), td::Slice("\0\1"));
+  test_zero_encode(td::Slice("\0\xff\0\xff\0\xff\0\xff\0\xff\0\xff\0\xff"),
+                   td::Slice("\0\1\xff\0\1\xff\0\1\xff\0\1\xff\0\1\xff\0\1\xff\0\1\xff"),
+                   td::Slice("\0\1\xff\1\0\1\xff\1\0\1\xff\1\0\1\xff\1\0\1\xff\1\0\1\xff\1\0\1\xff\1"));
+  test_zero_encode(td::Slice("\0\0\xff\xff\0\0\xff\xff\0\0\xff\xff\0\0\xff\xff\0\0\xff\xff\0\0\xff\xff"),
+                   td::Slice("\0\2\xff\xff\0\2\xff\xff\0\2\xff\xff\0\2\xff\xff\0\2\xff\xff\0\2\xff\xff"),
+                   td::Slice("\0\2\xff\2\0\2\xff\2\0\2\xff\2\0\2\xff\2\0\2\xff\2\0\2\xff\2"));
+  test_zero_encode(td::Slice("\0\0\0\0\0\xff\xff\xff\xff\xff"), td::Slice("\0\5\xff\xff\xff\xff\xff"),
+                   td::Slice("\0\5\xff\5"));
+  test_zero_encode(td::Slice(
+      "\0\0\0\0\0\xff\xff\xff\xff\xff\0\0\0\0\0\xff\xff\xff\xff\xff\0\0\0\0\0\xff\xff\xff\xff\xff\0\0\0\0\0\xff\xff\xff"
+      "\xff\xff\0\0\0\0\0\xff\xff\xff\xff\xff\0\0\0\0\0\xff\xff\xff\xff\xff\0\0\0\0\0\xff\xff\xff\xff\xff"));
+  test_zero_encode(td::string(1000, '\0'));
+  test_zero_encode(str + td::string(1000, '\0') + str + td::string(1000, '\xff') + str);
+}
+
+class ZeroEncodeBenchmark final : public td::Benchmark {
+ public:
+  td::string get_description() const final {
+    return "ZeroEncodeBenchmark";
+  }
+
+  void run(int n) final {
+    for (int i = 0; i < n; i++) {
+      zero_encode(
+          td::Slice("\x02\x00\x00\x02\x01\x00\x00\x00\x19\x01\x00\x00\x7c\xc8\x64\xc1\x04\xec\x82\xb8\x20\x9e\xa0\x8d"
+                    "\x1e\xbe\xb2\x79\xc4\x5a\x4c\x1e\x49\x1e\x00\x00\xa9\xa7\x31\x1b\x80\x9f\x11\x46\xfc\x97\xde\x6a"
+                    "\x18\x6e\xc0\x73\x01\x00\x00\x00\x02\x00\x00\x00\x6d\x00\x00\x00\x30\x04"));
+    }
+  }
+};
+
+TEST(Misc, bench_zero_encode) {
+  td::bench(ZeroEncodeBenchmark());
 }
 
 template <class T>

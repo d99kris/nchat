@@ -65,7 +65,7 @@ set (IOS_PLATFORM ${IOS_PLATFORM} CACHE STRING "Type of iOS Platform")
 # Check the platform selection and setup for developer root
 if (IOS_PLATFORM STREQUAL "OS")
     set (IOS_PLATFORM_LOCATION "iPhoneOS.platform")
-    set (XCODE_IOS_PLATFORM iphoneos)
+    set (XCODE_IOS_PLATFORM ios)
 
     # This causes the installers to properly locate the output libraries
     set (CMAKE_XCODE_EFFECTIVE_PLATFORMS "-iphoneos")
@@ -74,7 +74,7 @@ if (IOS_PLATFORM STREQUAL "OS")
 elseif (IOS_PLATFORM STREQUAL "SIMULATOR")
     set (SIMULATOR_FLAG true)
     set (IOS_PLATFORM_LOCATION "iPhoneSimulator.platform")
-    set (XCODE_IOS_PLATFORM iphonesimulator)
+    set (XCODE_IOS_PLATFORM ios-simulator)
 
     # This causes the installers to properly locate the output libraries
     set (CMAKE_XCODE_EFFECTIVE_PLATFORMS "-iphonesimulator")
@@ -91,7 +91,7 @@ elseif (IOS_PLATFORM STREQUAL "WATCHOS")
 elseif (IOS_PLATFORM STREQUAL "WATCHSIMULATOR")
     set (SIMULATOR_FLAG true)
     set (IOS_PLATFORM_LOCATION "WatchSimulator.platform")
-    set (XCODE_IOS_PLATFORM watchsimulator)
+    set (XCODE_IOS_PLATFORM watchos-simulator)
 
     # This causes the installers to properly locate the output libraries
     set (CMAKE_XCODE_EFFECTIVE_PLATFORMS "-watchsimulator")
@@ -108,7 +108,7 @@ elseif (IOS_PLATFORM STREQUAL "TVOS")
 elseif (IOS_PLATFORM STREQUAL "TVSIMULATOR")
     set (SIMULATOR_FLAG true)
     set (IOS_PLATFORM_LOCATION "AppleTvSimulator.platform")
-    set (XCODE_IOS_PLATFORM tvsimulator)
+    set (XCODE_IOS_PLATFORM tvos-simulator)
 
     # This causes the installers to properly locate the output libraries
     set (CMAKE_XCODE_EFFECTIVE_PLATFORMS "-tvsimulator")
@@ -195,13 +195,19 @@ set (CMAKE_OSX_SYSROOT ${CMAKE_IOS_SDK_ROOT} CACHE PATH "Sysroot used for iOS su
 # Set the architectures unless specified manually with IOS_ARCH
 if (NOT DEFINED IOS_ARCH)
     if (IOS_PLATFORM STREQUAL "OS")
-        set (IOS_ARCH "armv7;armv7s;arm64")
+        set (IOS_ARCH "arm64")
     elseif (IOS_PLATFORM STREQUAL "SIMULATOR")
-        set (IOS_ARCH "i386;x86_64;arm64")
+        set (IOS_ARCH "x86_64;arm64")
     elseif (IOS_PLATFORM STREQUAL "WATCHOS")
         set (IOS_ARCH "armv7k;arm64_32;arm64")
+
+        # Include C++ Standard Library for Xcode 15 builds.
+        include_directories(SYSTEM "${CMAKE_IOS_SDK_ROOT}/usr/include/c++/v1")
     elseif (IOS_PLATFORM STREQUAL "WATCHSIMULATOR")
-        set (IOS_ARCH "i386;x86_64;arm64")
+        set (IOS_ARCH "x86_64;arm64")
+
+        # Include C++ Standard Library for Xcode 15 builds.
+        include_directories(SYSTEM "${CMAKE_IOS_SDK_ROOT}/usr/include/c++/v1")
     elseif (IOS_PLATFORM STREQUAL "TVOS")
         set (IOS_ARCH "arm64")
     elseif (IOS_PLATFORM STREQUAL "TVSIMULATOR")

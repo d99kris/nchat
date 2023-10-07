@@ -13,7 +13,7 @@
 #include "td/telegram/EmojiGroupType.h"
 #include "td/telegram/files/FileId.h"
 #include "td/telegram/files/FileSourceId.h"
-#include "td/telegram/FullMessageId.h"
+#include "td/telegram/MessageFullId.h"
 #include "td/telegram/PhotoFormat.h"
 #include "td/telegram/PhotoSize.h"
 #include "td/telegram/SecretInputMedia.h"
@@ -81,6 +81,9 @@ class StickersManager final : public Actor {
 
   tl_object_ptr<td_api::stickers> get_stickers_object(const vector<FileId> &sticker_ids) const;
 
+  td_api::object_ptr<td_api::emojis> get_sticker_emojis_object(const vector<FileId> &sticker_ids,
+                                                               bool return_only_main_emoji);
+
   td_api::object_ptr<td_api::sticker> get_custom_emoji_sticker_object(CustomEmojiId custom_emoji_id);
 
   tl_object_ptr<td_api::DiceStickers> get_dice_stickers_object(const string &emoji, int32 value) const;
@@ -100,18 +103,18 @@ class StickersManager final : public Actor {
 
   tl_object_ptr<telegram_api::InputStickerSet> get_input_sticker_set(StickerSetId sticker_set_id) const;
 
-  void register_premium_gift(int32 months, FullMessageId full_message_id, const char *source);
+  void register_premium_gift(int32 months, MessageFullId message_full_id, const char *source);
 
-  void unregister_premium_gift(int32 months, FullMessageId full_message_id, const char *source);
+  void unregister_premium_gift(int32 months, MessageFullId message_full_id, const char *source);
 
-  void register_dice(const string &emoji, int32 value, FullMessageId full_message_id, const char *source);
+  void register_dice(const string &emoji, int32 value, MessageFullId message_full_id, const char *source);
 
-  void unregister_dice(const string &emoji, int32 value, FullMessageId full_message_id, const char *source);
+  void unregister_dice(const string &emoji, int32 value, MessageFullId message_full_id, const char *source);
 
-  void register_emoji(const string &emoji, CustomEmojiId custom_emoji_id, FullMessageId full_message_id,
+  void register_emoji(const string &emoji, CustomEmojiId custom_emoji_id, MessageFullId message_full_id,
                       const char *source);
 
-  void unregister_emoji(const string &emoji, CustomEmojiId custom_emoji_id, FullMessageId full_message_id,
+  void unregister_emoji(const string &emoji, CustomEmojiId custom_emoji_id, MessageFullId message_full_id,
                         const char *source);
 
   void get_animated_emoji(string emoji, bool is_recursive,
@@ -137,16 +140,14 @@ class StickersManager final : public Actor {
   void get_premium_gift_option_sticker(int32 month_count, bool is_recursive,
                                        Promise<td_api::object_ptr<td_api::sticker>> &&promise);
 
-  void get_animated_emoji_click_sticker(const string &message_text, FullMessageId full_message_id,
+  void get_animated_emoji_click_sticker(const string &message_text, MessageFullId message_full_id,
                                         Promise<td_api::object_ptr<td_api::sticker>> &&promise);
 
   void on_send_animated_emoji_clicks(DialogId dialog_id, const string &emoji);
 
   bool is_sent_animated_emoji_click(DialogId dialog_id, const string &emoji);
 
-  Status on_animated_emoji_message_clicked(string &&emoji, FullMessageId full_message_id, string data);
-
-  bool is_active_reaction(const string &reaction) const;
+  Status on_animated_emoji_message_clicked(string &&emoji, MessageFullId message_full_id, string data);
 
   void create_sticker(FileId file_id, FileId premium_animation_file_id, string minithumbnail, PhotoSize thumbnail,
                       Dimensions dimensions, tl_object_ptr<telegram_api::documentAttributeSticker> sticker,
@@ -193,29 +194,10 @@ class StickersManager final : public Actor {
 
   void view_featured_sticker_sets(const vector<StickerSetId> &sticker_set_ids);
 
-  void get_emoji_reaction(const string &emoji, Promise<td_api::object_ptr<td_api::emojiReaction>> &&promise);
-
-  vector<string> get_recent_reactions();
-
-  vector<string> get_top_reactions();
-
-  void add_recent_reaction(const string &reaction);
-
-  void clear_recent_reactions(Promise<Unit> &&promise);
-
-  void reload_reactions();
-
-  void reload_recent_reactions();
-
-  void reload_top_reactions();
-
   void reload_special_sticker_set_by_type(SpecialStickerSetType type, bool is_recursive = false);
 
-  void on_get_available_reactions(tl_object_ptr<telegram_api::messages_AvailableReactions> &&available_reactions_ptr);
-
-  void on_get_recent_reactions(tl_object_ptr<telegram_api::messages_Reactions> &&reactions_ptr);
-
-  void on_get_top_reactions(tl_object_ptr<telegram_api::messages_Reactions> &&reactions_ptr);
+  std::pair<int64, FileId> on_get_sticker_document(tl_object_ptr<telegram_api::Document> &&document_ptr,
+                                                   StickerFormat expected_format);
 
   void on_get_installed_sticker_sets(StickerType sticker_type,
                                      tl_object_ptr<telegram_api::messages_AllStickers> &&stickers_ptr);
@@ -457,8 +439,6 @@ class StickersManager final : public Actor {
   static constexpr int32 EMOJI_KEYWORDS_UPDATE_DELAY = 3600;
   static constexpr double MIN_ANIMATED_EMOJI_CLICK_DELAY = 0.2;
 
-  static constexpr int32 MAX_RECENT_REACTIONS = 100;  // some reasonable value
-
   class Sticker {
    public:
     StickerSetId set_id_;
@@ -551,14 +531,14 @@ class StickersManager final : public Actor {
 
   struct PendingGetAnimatedEmojiClickSticker {
     string message_text_;
-    FullMessageId full_message_id_;
+    MessageFullId message_full_id_;
     double start_time_ = 0;
     Promise<td_api::object_ptr<td_api::sticker>> promise_;
   };
 
   struct PendingOnAnimatedEmojiClicked {
     string emoji_;
-    FullMessageId full_message_id_;
+    MessageFullId message_full_id_;
     vector<std::pair<int, double>> clicks_;
   };
 
@@ -575,55 +555,6 @@ class StickersManager final : public Actor {
     vector<FileId> sticker_ids_;
     int32 cache_time_ = 300;
     double next_reload_time_ = 0;
-
-    template <class StorerT>
-    void store(StorerT &storer) const;
-
-    template <class ParserT>
-    void parse(ParserT &parser);
-  };
-
-  struct Reaction {
-    string reaction_;
-    string title_;
-    bool is_active_ = false;
-    bool is_premium_ = false;
-    FileId static_icon_;
-    FileId appear_animation_;
-    FileId select_animation_;
-    FileId activate_animation_;
-    FileId effect_animation_;
-    FileId around_animation_;
-    FileId center_animation_;
-
-    bool is_valid() const {
-      return static_icon_.is_valid() && appear_animation_.is_valid() && select_animation_.is_valid() &&
-             activate_animation_.is_valid() && effect_animation_.is_valid() && !reaction_.empty();
-    }
-
-    template <class StorerT>
-    void store(StorerT &storer) const;
-
-    template <class ParserT>
-    void parse(ParserT &parser);
-  };
-
-  struct Reactions {
-    int32 hash_ = 0;
-    bool are_being_reloaded_ = false;
-    vector<Reaction> reactions_;
-
-    template <class StorerT>
-    void store(StorerT &storer) const;
-
-    template <class ParserT>
-    void parse(ParserT &parser);
-  };
-
-  struct ReactionList {
-    int64 hash_ = 0;
-    bool is_being_reloaded_ = false;
-    vector<string> reactions_;
 
     template <class StorerT>
     void store(StorerT &storer) const;
@@ -653,8 +584,6 @@ class StickersManager final : public Actor {
 
   tl_object_ptr<td_api::stickerSetInfo> get_sticker_set_info_object(StickerSetId sticker_set_id, size_t covers_limit,
                                                                     bool prefer_premium) const;
-
-  td_api::object_ptr<td_api::emojiReaction> get_emoji_reaction_object(const string &emoji) const;
 
   Sticker *get_sticker(FileId file_id);
   const Sticker *get_sticker(FileId file_id) const;
@@ -707,9 +636,6 @@ class StickersManager final : public Actor {
   StickerSet *add_sticker_set(StickerSetId sticker_set_id, int64 access_hash);
 
   static PhotoFormat get_sticker_set_thumbnail_format(StickerFormat sticker_format);
-
-  std::pair<int64, FileId> on_get_sticker_document(tl_object_ptr<telegram_api::Document> &&document_ptr,
-                                                   StickerFormat expected_format);
 
   static tl_object_ptr<telegram_api::InputStickerSet> get_input_sticker_set(const StickerSet *set);
 
@@ -923,7 +849,7 @@ class StickersManager final : public Actor {
   vector<FileId> get_animated_emoji_click_stickers(const StickerSet *sticker_set, Slice emoji) const;
 
   void choose_animated_emoji_click_sticker(const StickerSet *sticker_set, string message_text,
-                                           FullMessageId full_message_id, double start_time,
+                                           MessageFullId message_full_id, double start_time,
                                            Promise<td_api::object_ptr<td_api::sticker>> &&promise);
 
   void send_click_animated_emoji_message_response(FileId sticker_id,
@@ -933,10 +859,10 @@ class StickersManager final : public Actor {
 
   void flush_pending_animated_emoji_clicks();
 
-  void schedule_update_animated_emoji_clicked(const StickerSet *sticker_set, Slice emoji, FullMessageId full_message_id,
+  void schedule_update_animated_emoji_clicked(const StickerSet *sticker_set, Slice emoji, MessageFullId message_full_id,
                                               vector<std::pair<int, double>> clicks);
 
-  void send_update_animated_emoji_clicked(FullMessageId full_message_id, FileId sticker_id);
+  void send_update_animated_emoji_clicked(MessageFullId message_full_id, FileId sticker_id);
 
   td_api::object_ptr<td_api::updateDiceEmojis> get_update_dice_emojis_object() const;
 
@@ -945,26 +871,6 @@ class StickersManager final : public Actor {
   void timeout_expired() final;
 
   void tear_down() final;
-
-  void save_active_reactions();
-
-  void save_reactions();
-
-  void save_recent_reactions();
-
-  void save_top_reactions();
-
-  void load_active_reactions();
-
-  void load_reactions();
-
-  void load_recent_reactions();
-
-  void load_top_reactions();
-
-  void update_active_reactions();
-
-  td_api::object_ptr<td_api::updateActiveEmojiReactions> get_update_active_emoji_reactions_object() const;
 
   SpecialStickerSet &add_special_sticker_set(const SpecialStickerSetType &type);
 
@@ -1053,7 +959,7 @@ class StickersManager final : public Actor {
 
   bool is_inited_ = false;
 
-  WaitFreeHashMap<FileId, unique_ptr<Sticker>, FileIdHash> stickers_;  // file_id -> Sticker
+  WaitFreeHashMap<FileId, unique_ptr<Sticker>, FileIdHash> stickers_;
   WaitFreeHashMap<StickerSetId, unique_ptr<StickerSet>, StickerSetIdHash>
       sticker_sets_;  // sticker_set_id -> StickerSet
   WaitFreeHashMap<string, StickerSetId> short_name_to_sticker_set_id_;
@@ -1155,15 +1061,13 @@ class StickersManager final : public Actor {
   vector<Promise<Unit>> pending_get_default_statuses_queries_;
   vector<Promise<Unit>> pending_get_default_topic_icons_queries_;
 
-  vector<std::pair<string, Promise<td_api::object_ptr<td_api::emojiReaction>>>> pending_get_emoji_reaction_queries_;
-
   double next_click_animated_emoji_message_time_ = 0;
   double next_update_animated_emoji_clicked_time_ = 0;
   vector<PendingGetAnimatedEmojiClickSticker> pending_get_animated_emoji_click_stickers_;
   vector<PendingOnAnimatedEmojiClicked> pending_on_animated_emoji_message_clicked_;
 
   string last_clicked_animated_emoji_;
-  FullMessageId last_clicked_animated_emoji_full_message_id_;
+  MessageFullId last_clicked_animated_emoji_message_full_id_;
   std::vector<std::pair<int, double>> pending_animated_emoji_clicks_;
 
   struct SentAnimatedEmojiClicks {
@@ -1177,16 +1081,6 @@ class StickersManager final : public Actor {
 
   FlatHashMap<FileId, std::pair<UserId, Promise<Unit>>, FileIdHash> being_uploaded_files_;
 
-  Reactions reactions_;
-  vector<string> active_reactions_;
-
-  ReactionList recent_reactions_;
-  ReactionList top_reactions_;
-
-  bool are_reactions_loaded_from_database_ = false;
-  bool are_recent_reactions_loaded_from_database_ = false;
-  bool are_top_reactions_loaded_from_database_ = false;
-
   FlatHashMap<string, vector<string>> emoji_language_codes_;
   FlatHashMap<string, int32> emoji_language_code_versions_;
   FlatHashMap<string, double> emoji_language_code_last_difference_times_;
@@ -1196,22 +1090,22 @@ class StickersManager final : public Actor {
   FlatHashMap<int64, string> emoji_suggestions_urls_;
 
   struct GiftPremiumMessages {
-    FlatHashSet<FullMessageId, FullMessageIdHash> full_message_ids_;
+    FlatHashSet<MessageFullId, MessageFullIdHash> message_full_ids_;
     FileId sticker_id_;
   };
   FlatHashMap<int32, unique_ptr<GiftPremiumMessages>> premium_gift_messages_;
 
-  FlatHashMap<string, WaitFreeHashSet<FullMessageId, FullMessageIdHash>> dice_messages_;
+  FlatHashMap<string, WaitFreeHashSet<MessageFullId, MessageFullIdHash>> dice_messages_;
 
   struct EmojiMessages {
-    WaitFreeHashSet<FullMessageId, FullMessageIdHash> full_message_ids_;
+    WaitFreeHashSet<MessageFullId, MessageFullIdHash> message_full_ids_;
     std::pair<FileId, int> animated_emoji_sticker_;
     FileId sound_file_id_;
   };
   FlatHashMap<string, unique_ptr<EmojiMessages>> emoji_messages_;
 
   struct CustomEmojiMessages {
-    WaitFreeHashSet<FullMessageId, FullMessageIdHash> full_message_ids_;
+    WaitFreeHashSet<MessageFullId, MessageFullIdHash> message_full_ids_;
     FileId sticker_id_;
   };
   FlatHashMap<CustomEmojiId, unique_ptr<CustomEmojiMessages>, CustomEmojiIdHash> custom_emoji_messages_;

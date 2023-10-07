@@ -11,7 +11,7 @@
 TEST(Emoji, is_emoji) {
   ASSERT_TRUE(!td::is_emoji(""));
   ASSERT_TRUE(td::is_emoji("👩🏼‍❤‍💋‍👩🏻"));
-  ASSERT_TRUE(!td::is_emoji("👩🏼‍❤‍💋‍👩🏻️"));
+  ASSERT_TRUE(td::is_emoji("👩🏼‍❤‍💋‍👩🏻️"));  // not in RGI emoji ZWJ sequence set
   ASSERT_TRUE(td::is_emoji("👩🏼‍❤️‍💋‍👩🏻"));
   ASSERT_TRUE(td::is_emoji("👩🏼‍❤️‍💋‍👩🏻️"));
   ASSERT_TRUE(!td::is_emoji("👩🏼‍❤️️‍💋‍👩🏻"));
@@ -35,9 +35,17 @@ TEST(Emoji, is_emoji) {
   ASSERT_TRUE(td::is_emoji("©"));
   ASSERT_TRUE(!td::is_emoji("©️️"));
   ASSERT_TRUE(td::is_emoji("🕵️‍♂️"));
-  ASSERT_TRUE(!td::is_emoji("🕵‍♂️"));
-  ASSERT_TRUE(!td::is_emoji("🕵️‍♂"));
+  ASSERT_TRUE(td::is_emoji("🕵‍♂️"));  // not in RGI emoji ZWJ sequence set
+  ASSERT_TRUE(td::is_emoji("🕵️‍♂"));  // not in RGI emoji ZWJ sequence set
   ASSERT_TRUE(td::is_emoji("🕵‍♂"));
+  ASSERT_TRUE(td::is_emoji("🏌️‍♂️"));
+  ASSERT_TRUE(td::is_emoji("🏋️‍♂️"));
+  ASSERT_TRUE(td::is_emoji("🏌‍♂️"));  // not in RGI emoji ZWJ sequence set
+  ASSERT_TRUE(td::is_emoji("🏋‍♂️"));  // not in RGI emoji ZWJ sequence set
+  ASSERT_TRUE(!td::is_emoji("a‍🤝‍👨"));
+  ASSERT_TRUE(!td::is_emoji("👩‍a‍👨"));
+  ASSERT_TRUE(!td::is_emoji("👩‍🤝‍a"));
+  ASSERT_TRUE(td::is_emoji("👩‍🤝‍👨"));  // not in RGI emoji ZWJ sequence set
 }
 
 static void test_get_fitzpatrick_modifier(td::string emoji, int result) {

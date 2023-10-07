@@ -7,6 +7,7 @@
 #pragma once
 
 #include "td/mtproto/AuthKey.h"
+#include "td/mtproto/MessageId.h"
 
 #include "td/utils/common.h"
 #include "td/utils/Slice.h"
@@ -37,17 +38,18 @@ void parse(ServerSalt &salt, ParserT &parser) {
   salt.valid_until = parser.fetch_double();
 }
 
-Status check_message_id_duplicates(int64 *saved_message_ids, size_t max_size, size_t &end_pos, int64 message_id);
+Status check_message_id_duplicates(MessageId *saved_message_ids, size_t max_size, size_t &end_pos,
+                                   MessageId message_id);
 
 template <size_t max_size>
 class MessageIdDuplicateChecker {
  public:
-  Status check(int64 message_id) {
+  Status check(MessageId message_id) {
     return check_message_id_duplicates(&saved_message_ids_[0], max_size, end_pos_, message_id);
   }
 
  private:
-  std::array<int64, 2 * max_size> saved_message_ids_;
+  std::array<MessageId, 2 * max_size> saved_message_ids_;
   size_t end_pos_ = 0;
 };
 
@@ -84,23 +86,19 @@ class AuthData {
     tmp_auth_key_ = std::move(auth_key);
   }
   const AuthKey &get_tmp_auth_key() const {
-    // CHECK(has_tmp_auth_key());
     return tmp_auth_key_;
   }
   bool was_tmp_auth_key() const {
     return use_pfs() && !tmp_auth_key_.empty();
   }
-  bool need_tmp_auth_key(double now) const {
+  bool need_tmp_auth_key(double now, double refresh_margin) const {
     if (!use_pfs()) {
       return false;
     }
     if (tmp_auth_key_.empty()) {
       return true;
     }
-    if (now > tmp_auth_key_.expires_at() - 60 * 60 * 2 /*2 hours*/) {
-      return true;
-    }
-    if (!has_tmp_auth_key(now)) {
+    if (now > tmp_auth_key_.expires_at() - refresh_margin) {
       return true;
     }
     return false;
@@ -118,7 +116,7 @@ class AuthData {
     if (tmp_auth_key_.empty()) {
       return false;
     }
-    if (now > tmp_auth_key_.expires_at() - 60 * 60 /*1 hour*/) {
+    if (now > tmp_auth_key_.expires_at()) {
       return false;
     }
     return true;
@@ -203,10 +201,7 @@ class AuthData {
   // server_time_difference >= max{diff}
   bool update_server_time_difference(double diff);
 
-  void set_server_time_difference(double diff) {
-    server_time_difference_was_updated_ = false;
-    server_time_difference_ = diff;
-  }
+  void reset_server_time_difference(double diff);
 
   uint64 get_server_salt(double now) {
     update_salt(now);
@@ -239,19 +234,19 @@ class AuthData {
 
   std::vector<ServerSalt> get_future_salts() const;
 
-  int64 next_message_id(double now);
+  MessageId next_message_id(double now);
 
-  bool is_valid_outbound_msg_id(int64 id, double now) const;
+  bool is_valid_outbound_msg_id(MessageId message_id, double now) const;
 
-  bool is_valid_inbound_msg_id(int64 id, double now) const;
+  bool is_valid_inbound_msg_id(MessageId message_id, double now) const;
 
-  Status check_packet(int64 session_id, int64 message_id, double now, bool &time_difference_was_updated);
+  Status check_packet(uint64 session_id, MessageId message_id, double now, bool &time_difference_was_updated);
 
-  Status check_update(int64 message_id) {
+  Status check_update(MessageId message_id) {
     return updates_duplicate_checker_.check(message_id);
   }
 
-  Status recheck_update(int64 message_id) {
+  Status recheck_update(MessageId message_id) {
     return updates_duplicate_rechecker_.check(message_id);
   }
 
@@ -282,9 +277,9 @@ class AuthData {
   bool server_time_difference_was_updated_ = false;
   double server_time_difference_ = 0;
   ServerSalt server_salt_;
-  int64 last_message_id_ = 0;
+  MessageId last_message_id_;
   int32 seq_no_ = 0;
-  std::string header_;
+  string header_;
   uint64 session_id_ = 0;
 
   std::vector<ServerSalt> future_salts_;

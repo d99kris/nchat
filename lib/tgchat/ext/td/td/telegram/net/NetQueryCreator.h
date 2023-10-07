@@ -12,6 +12,7 @@
 #include "td/telegram/net/NetQueryStats.h"
 #include "td/telegram/UniqueId.h"
 
+#include "td/utils/common.h"
 #include "td/utils/ObjectPool.h"
 
 #include <memory>
@@ -43,6 +44,7 @@ class NetQueryCreator {
  private:
   std::shared_ptr<NetQueryStats> net_query_stats_;
   ObjectPool<NetQuery> object_pool_;
+  int32 current_scheduler_id_ = 0;
 };
 
 }  // namespace td

@@ -7,7 +7,10 @@
 #pragma once
 
 #include "td/telegram/MessageReaction.h"
+#include "td/telegram/MinChannel.hpp"
+#include "td/telegram/ReactionType.hpp"
 
+#include "td/utils/algorithm.h"
 #include "td/utils/common.h"
 #include "td/utils/tl_helpers.h"
 
@@ -18,12 +21,14 @@ void MessageReaction::store(StorerT &storer) const {
   CHECK(!is_empty());
   bool has_recent_chooser_dialog_ids = !recent_chooser_dialog_ids_.empty();
   bool has_recent_chooser_min_channels = !recent_chooser_min_channels_.empty();
+  bool has_my_recent_chooser_dialog_id = my_recent_chooser_dialog_id_.is_valid();
   BEGIN_STORE_FLAGS();
   STORE_FLAG(is_chosen_);
   STORE_FLAG(has_recent_chooser_dialog_ids);
   STORE_FLAG(has_recent_chooser_min_channels);
+  STORE_FLAG(has_my_recent_chooser_dialog_id);
   END_STORE_FLAGS();
-  td::store(reaction_, storer);
+  td::store(reaction_type_, storer);
   td::store(choose_count_, storer);
   if (has_recent_chooser_dialog_ids) {
     td::store(recent_chooser_dialog_ids_, storer);
@@ -31,18 +36,23 @@ void MessageReaction::store(StorerT &storer) const {
   if (has_recent_chooser_min_channels) {
     td::store(recent_chooser_min_channels_, storer);
   }
+  if (has_my_recent_chooser_dialog_id) {
+    td::store(my_recent_chooser_dialog_id_, storer);
+  }
 }
 
 template <class ParserT>
 void MessageReaction::parse(ParserT &parser) {
   bool has_recent_chooser_dialog_ids;
   bool has_recent_chooser_min_channels;
+  bool has_my_recent_chooser_dialog_id;
   BEGIN_PARSE_FLAGS();
   PARSE_FLAG(is_chosen_);
   PARSE_FLAG(has_recent_chooser_dialog_ids);
   PARSE_FLAG(has_recent_chooser_min_channels);
+  PARSE_FLAG(has_my_recent_chooser_dialog_id);
   END_PARSE_FLAGS();
-  td::parse(reaction_, parser);
+  td::parse(reaction_type_, parser);
   td::parse(choose_count_, parser);
   if (has_recent_chooser_dialog_ids) {
     td::parse(recent_chooser_dialog_ids_, parser);
@@ -50,8 +60,13 @@ void MessageReaction::parse(ParserT &parser) {
   if (has_recent_chooser_min_channels) {
     td::parse(recent_chooser_min_channels_, parser);
   }
+  if (has_my_recent_chooser_dialog_id) {
+    td::parse(my_recent_chooser_dialog_id_, parser);
+    CHECK(my_recent_chooser_dialog_id_.is_valid());
+    CHECK(td::contains(recent_chooser_dialog_ids_, my_recent_chooser_dialog_id_));
+  }
   CHECK(!is_empty());
-  CHECK(!reaction_.empty());
+  CHECK(!reaction_type_.is_empty());
 }
 
 template <class StorerT>
@@ -59,7 +74,7 @@ void UnreadMessageReaction::store(StorerT &storer) const {
   BEGIN_STORE_FLAGS();
   STORE_FLAG(is_big_);
   END_STORE_FLAGS();
-  td::store(reaction_, storer);
+  td::store(reaction_type_, storer);
   td::store(sender_dialog_id_, storer);
 }
 
@@ -68,9 +83,9 @@ void UnreadMessageReaction::parse(ParserT &parser) {
   BEGIN_PARSE_FLAGS();
   PARSE_FLAG(is_big_);
   END_PARSE_FLAGS();
-  td::parse(reaction_, parser);
+  td::parse(reaction_type_, parser);
   td::parse(sender_dialog_id_, parser);
-  CHECK(!reaction_.empty());
+  CHECK(!reaction_type_.is_empty());
 }
 
 template <class StorerT>

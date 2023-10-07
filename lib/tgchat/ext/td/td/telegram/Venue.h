@@ -19,6 +19,8 @@
 
 namespace td {
 
+class Td;
+
 class Venue {
   Location location_;
   string title_;
@@ -34,14 +36,18 @@ class Venue {
  public:
   Venue() = default;
 
-  Venue(const tl_object_ptr<telegram_api::GeoPoint> &geo_point_ptr, string title, string address, string provider,
-        string id, string type);
+  Venue(Td *td, const tl_object_ptr<telegram_api::GeoPoint> &geo_point_ptr, string title, string address,
+        string provider, string id, string type);
 
   Venue(Location location, string title, string address, string provider, string id, string type);
 
   explicit Venue(const tl_object_ptr<td_api::venue> &venue);
 
   bool empty() const;
+
+  bool is_same(const string &provider, const string &id) const {
+    return provider_ == provider && id_ == id;
+  }
 
   Location &location();
 
@@ -55,6 +61,9 @@ class Venue {
 
   tl_object_ptr<telegram_api::inputBotInlineMessageMediaVenue> get_input_bot_inline_message_media_venue(
       tl_object_ptr<telegram_api::ReplyMarkup> &&reply_markup) const;
+
+  telegram_api::object_ptr<telegram_api::mediaAreaVenue> get_input_media_area_venue(
+      telegram_api::object_ptr<telegram_api::mediaAreaCoordinates> &&coordinates) const;
 
   template <class StorerT>
   void store(StorerT &storer) const {

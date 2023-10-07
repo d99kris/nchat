@@ -193,11 +193,18 @@ static tl_object_ptr<td_api::invoice> convert_invoice(tl_object_ptr<telegram_api
     invoice->suggested_tip_amounts_.resize(4);
   }
 
+  string recurring_terms_url;
+  string terms_url;
+  if (invoice->recurring_) {
+    recurring_terms_url = std::move(invoice->terms_url_);
+  } else {
+    terms_url = std::move(invoice->terms_url_);
+  }
   return make_tl_object<td_api::invoice>(std::move(invoice->currency_), std::move(labeled_prices),
                                          invoice->max_tip_amount_, std::move(invoice->suggested_tip_amounts_),
-                                         std::move(invoice->recurring_terms_url_), is_test, need_name,
-                                         need_phone_number, need_email_address, need_shipping_address,
-                                         send_phone_number_to_provider, send_email_address_to_provider, is_flexible);
+                                         recurring_terms_url, terms_url, is_test, need_name, need_phone_number,
+                                         need_email_address, need_shipping_address, send_phone_number_to_provider,
+                                         send_email_address_to_provider, is_flexible);
 }
 
 static tl_object_ptr<td_api::PaymentProvider> convert_payment_provider(
@@ -220,13 +227,13 @@ static tl_object_ptr<td_api::PaymentProvider> convert_payment_provider(
       return nullptr;
     }
 
-    auto r_public_token = get_json_object_string_field(value.get_object(), "public_token", false);
-
+    const auto &object = value.get_object();
+    auto r_public_token = object.get_required_string_field("public_token");
     if (r_public_token.is_error()) {
       LOG(ERROR) << "Unsupported JSON data \"" << native_parameters->data_ << '"';
       return nullptr;
     }
-    if (value.get_object().size() != 1) {
+    if (object.field_count() != 1) {
       LOG(ERROR) << "Unsupported JSON data \"" << native_parameters->data_ << '"';
     }
 
@@ -246,10 +253,11 @@ static tl_object_ptr<td_api::PaymentProvider> convert_payment_provider(
       return nullptr;
     }
 
-    auto r_need_country = get_json_object_bool_field(value.get_object(), "need_country", false);
-    auto r_need_postal_code = get_json_object_bool_field(value.get_object(), "need_zip", false);
-    auto r_need_cardholder_name = get_json_object_bool_field(value.get_object(), "need_cardholder_name", false);
-    auto r_publishable_key = get_json_object_string_field(value.get_object(), "publishable_key", false);
+    const auto &object = value.get_object();
+    auto r_need_country = object.get_required_bool_field("need_country");
+    auto r_need_postal_code = object.get_required_bool_field("need_zip");
+    auto r_need_cardholder_name = object.get_required_bool_field("need_cardholder_name");
+    auto r_publishable_key = object.get_required_string_field("publishable_key");
     // TODO support "gpay_parameters":{"gateway":"stripe","stripe:publishableKey":"...","stripe:version":"..."}
 
     if (r_need_country.is_error() || r_need_postal_code.is_error() || r_need_cardholder_name.is_error() ||
@@ -257,7 +265,7 @@ static tl_object_ptr<td_api::PaymentProvider> convert_payment_provider(
       LOG(ERROR) << "Unsupported JSON data \"" << native_parameters->data_ << '"';
       return nullptr;
     }
-    if (value.get_object().size() != 5) {
+    if (object.field_count() != 5) {
       LOG(ERROR) << "Unsupported JSON data \"" << native_parameters->data_ << '"';
     }
 
@@ -855,12 +863,12 @@ void send_payment_form(Td *td, td_api::object_ptr<td_api::InputInvoice> &&input_
              std::move(input_credentials), tip_amount);
 }
 
-void get_payment_receipt(Td *td, FullMessageId full_message_id,
+void get_payment_receipt(Td *td, MessageFullId message_full_id,
                          Promise<tl_object_ptr<td_api::paymentReceipt>> &&promise) {
   TRY_RESULT_PROMISE(promise, server_message_id,
-                     td->messages_manager_->get_payment_successful_message_id(full_message_id));
+                     td->messages_manager_->get_payment_successful_message_id(message_full_id));
   td->create_handler<GetPaymentReceiptQuery>(std::move(promise))
-      ->send(full_message_id.get_dialog_id(), server_message_id);
+      ->send(message_full_id.get_dialog_id(), server_message_id);
 }
 
 void get_saved_order_info(Td *td, Promise<tl_object_ptr<td_api::orderInfo>> &&promise) {

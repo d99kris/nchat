@@ -31,7 +31,6 @@ class Td;
 
 class MessageEntity {
  public:
-  // don't forget to update get_type_priority()
   enum class Type : int32 {
     Mention,
     Hashtag,
@@ -136,9 +135,9 @@ struct FormattedTextHash {
   uint32 operator()(const FormattedText &formatted_text) const {
     auto hash = Hash<string>()(formatted_text.text);
     for (auto &entity : formatted_text.entities) {
-      hash = hash * 2023654985u + Hash<int32>()(static_cast<int32>(entity.type));
-      hash = hash * 2023654985u + Hash<int32>()(entity.length);
-      hash = hash * 2023654985u + Hash<int32>()(entity.offset);
+      hash = combine_hashes(hash, Hash<int32>()(static_cast<int32>(entity.type)));
+      hash = combine_hashes(hash, Hash<int32>()(entity.length));
+      hash = combine_hashes(hash, Hash<int32>()(entity.offset));
     }
     return hash;
   }

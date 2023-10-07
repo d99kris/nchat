@@ -22,6 +22,7 @@
 #include "td/telegram/PhotoFormat.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/TdDb.h"
+#include "td/telegram/telegram_api.h"
 #include "td/telegram/UpdatesManager.h"
 
 #include "td/db/SqliteKeyValueAsync.h"
@@ -224,8 +225,9 @@ class UploadBackgroundQuery final : public Td::ResultHandler {
 
   void on_error(Status status) final {
     CHECK(file_id_.is_valid());
-    if (begins_with(status.message(), "FILE_PART_") && ends_with(status.message(), "_MISSING")) {
-      // TODO td_->background_manager_->on_upload_background_file_part_missing(file_id_, to_integer<int32>(status.message().substr(10)));
+    auto bad_parts = FileManager::get_missing_file_parts(status);
+    if (!bad_parts.empty()) {
+      // TODO td_->background_manager_->on_upload_background_file_parts_missing(file_id_, std::move(bad_parts));
       // return;
     } else {
       if (status.code() != 429 && status.code() < 500 && !G()->close_flag()) {
@@ -1283,7 +1285,7 @@ std::pair<BackgroundId, BackgroundType> BackgroundManager::on_get_background(
 
   Document document = td_->documents_manager_->on_get_document(
       telegram_api::move_object_as<telegram_api::document>(wallpaper->document_), DialogId(), nullptr,
-      Document::Type::General, true, is_pattern);
+      Document::Type::General, is_pattern ? DocumentsManager::Subtype::Pattern : DocumentsManager::Subtype::Background);
   if (!document.file_id.is_valid()) {
     LOG(ERROR) << "Receive wrong document in " << to_string(wallpaper);
     return {};

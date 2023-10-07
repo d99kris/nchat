@@ -7,6 +7,7 @@
 #pragma once
 
 #include "td/telegram/net/AuthDataShared.h"
+#include "td/telegram/net/AuthKeyState.h"
 #include "td/telegram/net/DcId.h"
 #include "td/telegram/net/NetQuery.h"
 
@@ -59,7 +60,7 @@ class DcAuthManager final : public NetQueryCallback {
 
   void update_auth_key_state();
 
-  void on_result(NetQueryPtr result) final;
+  void on_result(NetQueryPtr net_query) final;
   void dc_loop(DcInfo &dc);
 
   void destroy_loop();

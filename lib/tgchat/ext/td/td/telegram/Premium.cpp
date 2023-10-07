@@ -78,6 +78,12 @@ static td_api::object_ptr<td_api::PremiumFeature> get_premium_feature_object(Sli
   if (premium_feature == "translations") {
     return td_api::make_object<td_api::premiumFeatureRealTimeChatTranslation>();
   }
+  if (premium_feature == "stories") {
+    return td_api::make_object<td_api::premiumFeatureUpgradedStories>();
+  }
+  if (premium_feature == "channel_boost") {
+    return td_api::make_object<td_api::premiumFeatureChatBoost>();
+  }
   return nullptr;
 }
 
@@ -302,7 +308,12 @@ const vector<Slice> &get_premium_limit_keys() {
                                         "caption_length",
                                         "about_length",
                                         "chatlist_invites",
-                                        "chatlists_joined"};
+                                        "chatlists_joined",
+                                        "story_expiring",
+                                        "story_caption_length",
+                                        "stories_sent_weekly",
+                                        "stories_sent_monthly",
+                                        "stories_suggested_reactions"};
   return limit_keys;
 }
 
@@ -333,6 +344,16 @@ static Slice get_limit_type_key(const td_api::PremiumLimitType *limit_type) {
       return Slice("chatlist_invites");
     case td_api::premiumLimitTypeShareableChatFolderCount::ID:
       return Slice("chatlists_joined");
+    case td_api::premiumLimitTypeActiveStoryCount::ID:
+      return Slice("story_expiring");
+    case td_api::premiumLimitTypeStoryCaptionLength::ID:
+      return Slice("story_caption_length");
+    case td_api::premiumLimitTypeWeeklySentStoryCount::ID:
+      return Slice("stories_sent_weekly");
+    case td_api::premiumLimitTypeMonthlySentStoryCount::ID:
+      return Slice("stories_sent_monthly");
+    case td_api::premiumLimitTypeStorySuggestedReactionAreaCount::ID:
+      return Slice("stories_suggested_reactions");
     default:
       UNREACHABLE();
       return Slice();
@@ -383,10 +404,38 @@ static string get_premium_source(const td_api::PremiumFeature *feature) {
       return "app_icons";
     case td_api::premiumFeatureRealTimeChatTranslation::ID:
       return "translations";
+    case td_api::premiumFeatureUpgradedStories::ID:
+      return "stories";
+    case td_api::premiumFeatureChatBoost::ID:
+      return "channel_boost";
     default:
       UNREACHABLE();
   }
   return string();
+}
+
+static string get_premium_source(const td_api::PremiumStoryFeature *feature) {
+  if (feature == nullptr) {
+    return string();
+  }
+
+  switch (feature->get_id()) {
+    case td_api::premiumStoryFeaturePriorityOrder::ID:
+      return "stories__priority_order";
+    case td_api::premiumStoryFeatureStealthMode::ID:
+      return "stories__stealth_mode";
+    case td_api::premiumStoryFeaturePermanentViewsHistory::ID:
+      return "stories__permanent_views_history";
+    case td_api::premiumStoryFeatureCustomExpirationDuration::ID:
+      return "stories__expiration_durations";
+    case td_api::premiumStoryFeatureSaveStories::ID:
+      return "stories__save_stories_to_gallery";
+    case td_api::premiumStoryFeatureLinksAndFormatting::ID:
+      return "stories__links_and_formatting";
+    default:
+      UNREACHABLE();
+      return string();
+  }
 }
 
 static string get_premium_source(const td_api::object_ptr<td_api::PremiumSource> &source) {
@@ -400,6 +449,10 @@ static string get_premium_source(const td_api::object_ptr<td_api::PremiumSource>
     }
     case td_api::premiumSourceFeature::ID: {
       auto *feature = static_cast<const td_api::premiumSourceFeature *>(source.get())->feature_.get();
+      return get_premium_source(feature);
+    }
+    case td_api::premiumSourceStoryFeature::ID: {
+      auto *feature = static_cast<const td_api::premiumSourceStoryFeature *>(source.get())->feature_.get();
       return get_premium_source(feature);
     }
     case td_api::premiumSourceLink::ID: {
@@ -460,6 +513,21 @@ static td_api::object_ptr<td_api::premiumLimit> get_premium_limit_object(Slice k
     if (key == "chatlists_joined") {
       return td_api::make_object<td_api::premiumLimitTypeShareableChatFolderCount>();
     }
+    if (key == "story_expiring") {
+      return td_api::make_object<td_api::premiumLimitTypeActiveStoryCount>();
+    }
+    if (key == "story_caption_length") {
+      return td_api::make_object<td_api::premiumLimitTypeStoryCaptionLength>();
+    }
+    if (key == "stories_sent_weekly") {
+      return td_api::make_object<td_api::premiumLimitTypeWeeklySentStoryCount>();
+    }
+    if (key == "stories_sent_monthly") {
+      return td_api::make_object<td_api::premiumLimitTypeMonthlySentStoryCount>();
+    }
+    if (key == "stories_suggested_reactions") {
+      return td_api::make_object<td_api::premiumLimitTypeStorySuggestedReactionAreaCount>();
+    }
     UNREACHABLE();
     return nullptr;
   }();
@@ -480,9 +548,8 @@ void get_premium_features(Td *td, const td_api::object_ptr<td_api::PremiumSource
   auto premium_features = full_split(
       G()->get_option_string(
           "premium_features",
-          "double_limits,more_upload,faster_download,voice_to_text,no_ads,infinite_reactions,premium_stickers,"
-          "animated_emoji,advanced_chat_management,profile_badge,emoji_status,animated_userpics,app_icons,"
-          "translations"),
+          "stories,double_limits,animated_emoji,translations,more_upload,faster_download,voice_to_text,no_ads,infinite_"
+          "reactions,premium_stickers,advanced_chat_management,profile_badge,animated_userpics,app_icons,emoji_status"),
       ',');
   vector<td_api::object_ptr<td_api::PremiumFeature>> features;
   for (const auto &premium_feature : premium_features) {
@@ -557,6 +624,7 @@ void assign_app_store_transaction(Td *td, const string &receipt,
   if (purpose != nullptr && purpose->get_id() == td_api::storePaymentPurposePremiumSubscription::ID) {
     dismiss_suggested_action(SuggestedAction{SuggestedAction::Type::UpgradePremium}, Promise<Unit>());
     dismiss_suggested_action(SuggestedAction{SuggestedAction::Type::SubscribeToAnnualPremium}, Promise<Unit>());
+    dismiss_suggested_action(SuggestedAction{SuggestedAction::Type::RestorePremium}, Promise<Unit>());
   }
   td->create_handler<AssignAppStoreTransactionQuery>(std::move(promise))->send(receipt, std::move(purpose));
 }
@@ -568,6 +636,7 @@ void assign_play_market_transaction(Td *td, const string &package_name, const st
   if (purpose != nullptr && purpose->get_id() == td_api::storePaymentPurposePremiumSubscription::ID) {
     dismiss_suggested_action(SuggestedAction{SuggestedAction::Type::UpgradePremium}, Promise<Unit>());
     dismiss_suggested_action(SuggestedAction{SuggestedAction::Type::SubscribeToAnnualPremium}, Promise<Unit>());
+    dismiss_suggested_action(SuggestedAction{SuggestedAction::Type::RestorePremium}, Promise<Unit>());
   }
   td->create_handler<AssignPlayMarketTransactionQuery>(std::move(promise))
       ->send(package_name, store_product_id, purchase_token, std::move(purpose));

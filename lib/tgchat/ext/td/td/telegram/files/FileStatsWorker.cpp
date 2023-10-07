@@ -18,6 +18,7 @@
 
 #include "td/db/SqliteKeyValue.h"
 
+#include "td/utils/common.h"
 #include "td/utils/format.h"
 #include "td/utils/HashTableUtils.h"
 #include "td/utils/logging.h"
@@ -103,10 +104,10 @@ template <class CallbackT>
 void scan_fs(CancellationToken &token, CallbackT &&callback) {
   std::unordered_set<string, Hash<string>> scanned_file_dirs;
   auto scan_dir = [&](FileType file_type, const string &file_dir) {
-    LOG(INFO) << "Trying to scan directory " << file_dir;
     if (!scanned_file_dirs.insert(file_dir).second) {
       return;
     }
+    LOG(INFO) << "Scanning directory " << file_dir;
     walk_path(file_dir, [&](CSlice path, WalkPath::Type type) {
       if (token) {
         return WalkPath::Action::Abort;
@@ -128,7 +129,7 @@ void scan_fs(CancellationToken &token, CallbackT &&callback) {
       FsFileInfo info;
       info.path = path.str();
       info.size = stat.real_size_;
-      info.file_type = file_type;
+      info.file_type = guess_file_type_by_path(path, file_type);
       info.atime_nsec = stat.atime_nsec_;
       info.mtime_nsec = stat.mtime_nsec_;
       callback(info);
@@ -145,10 +146,7 @@ void scan_fs(CancellationToken &token, CallbackT &&callback) {
 }  // namespace
 
 void FileStatsWorker::get_stats(bool need_all_files, bool split_by_owner_dialog_id, Promise<FileStats> promise) {
-  if (!G()->use_chat_info_database()) {
-    split_by_owner_dialog_id = false;
-  }
-  if (!split_by_owner_dialog_id) {
+  if (!G()->use_file_database()) {
     FileStats file_stats(need_all_files, false);
     auto start = Time::now();
     scan_fs(token_, [&](FsFileInfo &fs_info) {
@@ -169,7 +167,7 @@ void FileStatsWorker::get_stats(bool need_all_files, bool split_by_owner_dialog_
   } else {
     auto start = Time::now();
 
-    std::vector<FullFileInfo> full_infos;
+    vector<FullFileInfo> full_infos;
     scan_fs(token_, [&](FsFileInfo &fs_info) {
       FullFileInfo info;
       info.file_type = fs_info.file_type;
@@ -202,7 +200,9 @@ void FileStatsWorker::get_stats(bool need_all_files, bool split_by_owner_dialog_
         return;
       }
       // LOG(INFO) << "Match! " << db_info.path << " from " << db_info.owner_dialog_id;
-      full_infos[it->second].owner_dialog_id = db_info.owner_dialog_id;
+      auto &full_info = full_infos[it->second];
+      full_info.owner_dialog_id = db_info.owner_dialog_id;
+      full_info.file_type = db_info.file_type;  // database file_type is the correct one
     });
     if (token_) {
       return promise.set_error(Global::request_aborted_error());

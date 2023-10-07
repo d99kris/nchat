@@ -15,7 +15,7 @@ class JavadocTlDocumentationGenerator extends TlDocumentationGenerator
             {
                 return preg_replace_callback('/_([A-Za-z])/', function ($matches) {return strtoupper($matches[1]);}, $word_matches[0]);
             }, $doc);
-        $doc = htmlspecialchars($doc);
+        $doc = htmlspecialchars($doc, ENT_COMPAT, 'UTF-8');
         $doc = str_replace('*/', '*&#47;', $doc);
         return $doc;
     }
@@ -171,6 +171,8 @@ EOT
         $this->addDocumentation('    public abstract static class Function<R extends Object> extends Object {', <<<EOT
     /**
      * This class is a base class for all TDLib interface function-classes.
+     *
+     * @param <R> The object type that is returned by the function
      */
 EOT
 );

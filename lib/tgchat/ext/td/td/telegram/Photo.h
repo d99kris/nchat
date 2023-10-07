@@ -9,6 +9,7 @@
 #include "td/telegram/DialogId.h"
 #include "td/telegram/EncryptedFile.h"
 #include "td/telegram/files/FileId.h"
+#include "td/telegram/files/FileType.h"
 #include "td/telegram/PhotoSize.h"
 #include "td/telegram/secret_api.h"
 #include "td/telegram/SecretInputMedia.h"
@@ -20,6 +21,7 @@
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
 #include "td/utils/MovableValue.h"
+#include "td/utils/Status.h"
 #include "td/utils/StringBuilder.h"
 #include "td/utils/unique_value_ptr.h"
 
@@ -83,6 +85,7 @@ StringBuilder &operator<<(StringBuilder &string_builder, const ProfilePhoto &pro
 
 DialogPhoto get_dialog_photo(FileManager *file_manager, DialogId dialog_id, int64 dialog_access_hash,
                              tl_object_ptr<telegram_api::ChatPhoto> &&chat_photo_ptr);
+
 tl_object_ptr<td_api::chatPhotoInfo> get_chat_photo_info_object(FileManager *file_manager,
                                                                 const DialogPhoto *dialog_photo);
 
@@ -103,14 +106,27 @@ bool need_update_dialog_photo(const DialogPhoto &from, const DialogPhoto &to);
 
 StringBuilder &operator<<(StringBuilder &string_builder, const DialogPhoto &dialog_photo);
 
-Photo get_photo(Td *td, tl_object_ptr<telegram_api::Photo> &&photo, DialogId owner_dialog_id);
-Photo get_photo(Td *td, tl_object_ptr<telegram_api::photo> &&photo, DialogId owner_dialog_id);
+Photo get_photo(Td *td, tl_object_ptr<telegram_api::Photo> &&photo, DialogId owner_dialog_id,
+                FileType file_type = FileType::Photo);
+
+Photo get_photo(Td *td, tl_object_ptr<telegram_api::photo> &&photo, DialogId owner_dialog_id,
+                FileType file_type = FileType::Photo);
+
 Photo get_encrypted_file_photo(FileManager *file_manager, unique_ptr<EncryptedFile> &&file,
                                tl_object_ptr<secret_api::decryptedMessageMediaPhoto> &&photo, DialogId owner_dialog_id);
+
 Photo get_web_document_photo(FileManager *file_manager, tl_object_ptr<telegram_api::WebDocument> web_document,
                              DialogId owner_dialog_id);
+
+Result<Photo> create_photo(FileManager *file_manager, FileId file_id, PhotoSize &&thumbnail, int32 width, int32 height,
+                           vector<FileId> &&sticker_file_ids);
+
 tl_object_ptr<td_api::photo> get_photo_object(FileManager *file_manager, const Photo &photo);
+
 tl_object_ptr<td_api::chatPhoto> get_chat_photo_object(FileManager *file_manager, const Photo &photo);
+
+void merge_photos(Td *td, const Photo *old_photo, Photo *new_photo, DialogId dialog_id, bool need_merge_files,
+                  bool &is_content_changed, bool &need_update);
 
 void photo_delete_thumbnail(Photo &photo);
 

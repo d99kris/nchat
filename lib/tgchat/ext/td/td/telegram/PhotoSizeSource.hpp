@@ -7,6 +7,7 @@
 #pragma once
 
 #include "td/telegram/PhotoSizeSource.h"
+#include "td/telegram/Version.h"
 
 #include "td/utils/SliceBuilder.h"
 #include "td/utils/tl_helpers.h"
@@ -186,6 +187,17 @@ void PhotoSizeSource::store(StorerT &storer) const {
 template <class ParserT>
 void PhotoSizeSource::parse(ParserT &parser) {
   td::parse(variant_, parser);
+  if (parser.get_error() == nullptr && parser.version() >= static_cast<int32>(Version::RemovePhotoVolumeAndLocalId)) {
+    switch (get_type("PhotoSizeSource::parse")) {
+      case Type::Legacy:
+      case Type::StickerSetThumbnail:
+        parser.set_error("Invalid photo size source stored");
+        break;
+      default:
+        // ok
+        break;
+    }
+  }
 }
 
 }  // namespace td

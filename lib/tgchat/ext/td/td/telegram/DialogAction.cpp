@@ -8,6 +8,7 @@
 
 #include "td/telegram/misc.h"
 #include "td/telegram/ServerMessageId.h"
+#include "td/telegram/telegram_api.h"
 
 #include "td/utils/emoji.h"
 #include "td/utils/misc.h"
@@ -410,6 +411,8 @@ bool DialogAction::is_canceled_by_message_of_type(MessageContentType message_con
     case MessageContentType::RequestedDialog:
     case MessageContentType::WebViewWriteAccessAllowed:
     case MessageContentType::SetBackground:
+    case MessageContentType::Story:
+    case MessageContentType::WriteAccessAllowedByRequest:
       return false;
     default:
       UNREACHABLE();

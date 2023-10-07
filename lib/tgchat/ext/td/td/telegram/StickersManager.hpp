@@ -13,8 +13,6 @@
 #include "td/telegram/PhotoSize.hpp"
 #include "td/telegram/StickerFormat.h"
 #include "td/telegram/StickerMaskPosition.hpp"
-#include "td/telegram/StickersManager.h"
-#include "td/telegram/Td.h"
 
 #include "td/utils/emoji.h"
 #include "td/utils/logging.h"
@@ -354,15 +352,19 @@ void StickersManager::parse_sticker_set(StickerSet *sticker_set, ParserT &parser
       }
       on_update_sticker_set(sticker_set, is_installed, is_archived, false, true);
     } else {
-      if (sticker_set->title_ != title) {
-        LOG(INFO) << "Title of " << sticker_set->id_ << " has changed";
+      if (sticker_set->title_ != title || sticker_set->minithumbnail_ != minithumbnail ||
+          sticker_set->thumbnail_ != thumbnail || sticker_set->thumbnail_document_id_ != thumbnail_document_id ||
+          sticker_set->is_official_ != is_official) {
+        sticker_set->is_changed_ = true;
       }
       if (sticker_set->short_name_ != short_name) {
-        LOG(ERROR) << "Short name of " << sticker_set->id_ << " has changed from \"" << short_name << "\" to \""
-                   << sticker_set->short_name_ << "\"";
+        LOG(INFO) << "Short name of " << sticker_set->id_ << " has changed from \"" << short_name << "\" to \""
+                  << sticker_set->short_name_ << "\"";
+        sticker_set->is_changed_ = true;
       }
-      if (sticker_set->sticker_count_ != sticker_count || sticker_set->hash_ != hash) {
+      if (sticker_set->is_loaded_ && (sticker_set->sticker_count_ != sticker_count || sticker_set->hash_ != hash)) {
         sticker_set->is_loaded_ = false;
+        sticker_set->is_changed_ = true;
       }
       if (sticker_set->sticker_format_ != sticker_format) {
         LOG(ERROR) << "Sticker format of " << sticker_set->id_ << " has changed from \"" << sticker_format << "\" to \""
@@ -459,108 +461,6 @@ void StickersManager::parse_sticker_set_id(StickerSetId &sticker_set_id, ParserT
   int64 sticker_set_access_hash;
   parse(sticker_set_access_hash, parser);
   add_sticker_set(sticker_set_id, sticker_set_access_hash);
-}
-
-template <class StorerT>
-void StickersManager::Reaction::store(StorerT &storer) const {
-  StickersManager *stickers_manager = storer.context()->td().get_actor_unsafe()->stickers_manager_.get();
-  bool has_around_animation = !around_animation_.empty();
-  bool has_center_animation = !center_animation_.empty();
-  BEGIN_STORE_FLAGS();
-  STORE_FLAG(is_active_);
-  STORE_FLAG(has_around_animation);
-  STORE_FLAG(has_center_animation);
-  STORE_FLAG(is_premium_);
-  END_STORE_FLAGS();
-  td::store(reaction_, storer);
-  td::store(title_, storer);
-  stickers_manager->store_sticker(static_icon_, false, storer, "Reaction");
-  stickers_manager->store_sticker(appear_animation_, false, storer, "Reaction");
-  stickers_manager->store_sticker(select_animation_, false, storer, "Reaction");
-  stickers_manager->store_sticker(activate_animation_, false, storer, "Reaction");
-  stickers_manager->store_sticker(effect_animation_, false, storer, "Reaction");
-  if (has_around_animation) {
-    stickers_manager->store_sticker(around_animation_, false, storer, "Reaction");
-  }
-  if (has_center_animation) {
-    stickers_manager->store_sticker(center_animation_, false, storer, "Reaction");
-  }
-}
-
-template <class ParserT>
-void StickersManager::Reaction::parse(ParserT &parser) {
-  StickersManager *stickers_manager = parser.context()->td().get_actor_unsafe()->stickers_manager_.get();
-  bool has_around_animation;
-  bool has_center_animation;
-  BEGIN_PARSE_FLAGS();
-  PARSE_FLAG(is_active_);
-  PARSE_FLAG(has_around_animation);
-  PARSE_FLAG(has_center_animation);
-  PARSE_FLAG(is_premium_);
-  END_PARSE_FLAGS();
-  td::parse(reaction_, parser);
-  td::parse(title_, parser);
-  static_icon_ = stickers_manager->parse_sticker(false, parser);
-  appear_animation_ = stickers_manager->parse_sticker(false, parser);
-  select_animation_ = stickers_manager->parse_sticker(false, parser);
-  activate_animation_ = stickers_manager->parse_sticker(false, parser);
-  effect_animation_ = stickers_manager->parse_sticker(false, parser);
-  if (has_around_animation) {
-    around_animation_ = stickers_manager->parse_sticker(false, parser);
-  }
-  if (has_center_animation) {
-    center_animation_ = stickers_manager->parse_sticker(false, parser);
-  }
-
-  is_premium_ = false;
-}
-
-template <class StorerT>
-void StickersManager::Reactions::store(StorerT &storer) const {
-  bool has_reactions = !reactions_.empty();
-  BEGIN_STORE_FLAGS();
-  STORE_FLAG(has_reactions);
-  END_STORE_FLAGS();
-  if (has_reactions) {
-    td::store(reactions_, storer);
-    td::store(hash_, storer);
-  }
-}
-
-template <class ParserT>
-void StickersManager::Reactions::parse(ParserT &parser) {
-  bool has_reactions;
-  BEGIN_PARSE_FLAGS();
-  PARSE_FLAG(has_reactions);
-  END_PARSE_FLAGS();
-  if (has_reactions) {
-    td::parse(reactions_, parser);
-    td::parse(hash_, parser);
-  }
-}
-
-template <class StorerT>
-void StickersManager::ReactionList::store(StorerT &storer) const {
-  bool has_reactions = !reactions_.empty();
-  BEGIN_STORE_FLAGS();
-  STORE_FLAG(has_reactions);
-  END_STORE_FLAGS();
-  if (has_reactions) {
-    td::store(reactions_, storer);
-    td::store(hash_, storer);
-  }
-}
-
-template <class ParserT>
-void StickersManager::ReactionList::parse(ParserT &parser) {
-  bool has_reactions;
-  BEGIN_PARSE_FLAGS();
-  PARSE_FLAG(has_reactions);
-  END_PARSE_FLAGS();
-  if (has_reactions) {
-    td::parse(reactions_, parser);
-    td::parse(hash_, parser);
-  }
 }
 
 }  // namespace td

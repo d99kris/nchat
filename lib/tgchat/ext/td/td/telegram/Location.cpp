@@ -6,6 +6,9 @@
 //
 #include "td/telegram/Location.h"
 
+#include "td/telegram/AuthManager.h"
+#include "td/telegram/Td.h"
+
 #include <cmath>
 
 namespace td {
@@ -20,26 +23,28 @@ double Location::fix_accuracy(double accuracy) {
   return accuracy;
 }
 
-void Location::init(double latitude, double longitude, double horizontal_accuracy, int64 access_hash) {
+void Location::init(Td *td, double latitude, double longitude, double horizontal_accuracy, int64 access_hash) {
   if (std::isfinite(latitude) && std::isfinite(longitude) && std::abs(latitude) <= 90 && std::abs(longitude) <= 180) {
     is_empty_ = false;
     latitude_ = latitude;
     longitude_ = longitude;
     horizontal_accuracy_ = fix_accuracy(horizontal_accuracy);
     access_hash_ = access_hash;
-    G()->add_location_access_hash(latitude_, longitude_, access_hash_);
+    if (td != nullptr && !td->auth_manager_->is_bot()) {
+      G()->add_location_access_hash(latitude_, longitude_, access_hash_);
+    }
   }
 }
 
-Location::Location(double latitude, double longitude, double horizontal_accuracy, int64 access_hash) {
-  init(latitude, longitude, horizontal_accuracy, access_hash);
+Location::Location(Td *td, double latitude, double longitude, double horizontal_accuracy, int64 access_hash) {
+  init(td, latitude, longitude, horizontal_accuracy, access_hash);
 }
 
 Location::Location(const tl_object_ptr<secret_api::decryptedMessageMediaGeoPoint> &geo_point)
-    : Location(geo_point->lat_, geo_point->long_, 0.0, 0) {
+    : Location(nullptr, geo_point->lat_, geo_point->long_, 0.0, 0) {
 }
 
-Location::Location(const tl_object_ptr<telegram_api::GeoPoint> &geo_point_ptr) {
+Location::Location(Td *td, const tl_object_ptr<telegram_api::GeoPoint> &geo_point_ptr) {
   if (geo_point_ptr == nullptr) {
     return;
   }
@@ -48,7 +53,7 @@ Location::Location(const tl_object_ptr<telegram_api::GeoPoint> &geo_point_ptr) {
       break;
     case telegram_api::geoPoint::ID: {
       auto geo_point = static_cast<const telegram_api::geoPoint *>(geo_point_ptr.get());
-      init(geo_point->lat_, geo_point->long_, geo_point->accuracy_radius_, geo_point->access_hash_);
+      init(td, geo_point->lat_, geo_point->long_, geo_point->accuracy_radius_, geo_point->access_hash_);
       break;
     }
     default:
@@ -62,7 +67,7 @@ Location::Location(const tl_object_ptr<td_api::location> &location) {
     return;
   }
 
-  init(location->latitude_, location->longitude_, location->horizontal_accuracy_, 0);
+  init(nullptr, location->latitude_, location->longitude_, location->horizontal_accuracy_, 0);
 }
 
 bool Location::empty() const {
@@ -93,6 +98,19 @@ tl_object_ptr<telegram_api::InputGeoPoint> Location::get_input_geo_point() const
 
   return make_tl_object<telegram_api::inputGeoPoint>(flags, latitude_, longitude_,
                                                      static_cast<int32>(std::ceil(horizontal_accuracy_)));
+}
+
+telegram_api::object_ptr<telegram_api::GeoPoint> Location::get_fake_geo_point() const {
+  if (empty()) {
+    return make_tl_object<telegram_api::geoPointEmpty>();
+  }
+
+  int32 flags = 0;
+  if (horizontal_accuracy_ > 0) {
+    flags |= telegram_api::geoPoint::ACCURACY_RADIUS_MASK;
+  }
+  return telegram_api::make_object<telegram_api::geoPoint>(flags, longitude_, latitude_, 0,
+                                                           static_cast<int32>(std::ceil(horizontal_accuracy_)));
 }
 
 tl_object_ptr<telegram_api::inputMediaGeoPoint> Location::get_input_media_geo_point() const {

@@ -118,8 +118,6 @@ See [example/csharp](https://github.com/tdlib/td/tree/master/example/csharp) for
 If you want to write a cross-platform C# application using .NET Core, see [tdsharp](https://github.com/egramtel/tdsharp). It uses our [JSON](https://github.com/tdlib/td#using-json) interface,
 provides an asynchronous interface for interaction with TDLib, automatically generated classes for TDLib API and has some examples.
 
-You can also use [TDLibCore](https://github.com/ph09nix/TDLibCore) library.
-
 Also, see [Unigram](https://github.com/UnigramDev/Unigram), which is a full-featured client rewritten from scratch in C# using TDLib SDK for Universal Windows Platform in less than 2 months,
 [egram.tel](https://github.com/egramtel/egram.tel) – a cross-platform Telegram client written in C#, .NET Core, ReactiveUI and Avalonia, or
 [telewear](https://github.com/telewear/telewear) - a Telegram client for Samsung watches.
@@ -185,12 +183,12 @@ See also [telegram-flutter](https://github.com/ivk1800/telegram-flutter) - Teleg
 
 TDLib can be used from the Rust programming language through the [JSON](https://github.com/tdlib/td#using-json) interface.
 
-See [rust-tdlib](https://github.com/antonio-antuan/rust-tdlib), or [tdlib](https://github.com/melix99/tdlib-rs), which provide convenient TDLib clients with automatically generated and fully-documented classes for all TDLib API methods and objects.
+See [rust-tdlib](https://github.com/antonio-antuan/rust-tdlib), or [tdlib](https://github.com/paper-plane-developers/tdlib-rs), which provide convenient TDLib clients with automatically generated and fully-documented classes for all TDLib API methods and objects.
 
 See [rtdlib](https://github.com/fewensa/rtdlib), [tdlib-rs](https://github.com/d653/tdlib-rs), [tdlib-futures](https://github.com/yuri91/tdlib-futures),
 [tdlib-sys](https://github.com/nuxeh/tdlib-sys), [tdjson-rs](https://github.com/mersinvald/tdjson-rs), [rust-tdlib](https://github.com/vhaoran/rust-tdlib), or [tdlib-json-sys](https://github.com/aykxt/tdlib-json-sys) for examples of TDLib Rust bindings.
 
-Also, see [Telegrand](https://github.com/melix99/telegrand) – a Telegram client optimized for the GNOME desktop.
+Also, see [Paper Plane](https://github.com/paper-plane-developers/paper-plane) – a Telegram client written in Rust and GTK.
 
 <a name="erlang"></a>
 ## Using TDLib in Erlang projects

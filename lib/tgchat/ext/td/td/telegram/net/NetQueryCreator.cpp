@@ -11,6 +11,8 @@
 #include "td/telegram/Td.h"
 #include "td/telegram/telegram_api.h"
 
+#include "td/actor/actor.h"
+
 #include "td/utils/buffer.h"
 #include "td/utils/format.h"
 #include "td/utils/Gzip.h"
@@ -20,7 +22,8 @@
 namespace td {
 
 NetQueryCreator::NetQueryCreator(std::shared_ptr<NetQueryStats> net_query_stats)
-    : net_query_stats_(std::move(net_query_stats)) {
+    : net_query_stats_(std::move(net_query_stats))
+    , current_scheduler_id_(Scheduler::instance() == nullptr ? -2 : Scheduler::instance()->sched_id()) {
   object_pool_.set_check_empty(true);
 }
 
@@ -38,10 +41,28 @@ NetQueryPtr NetQueryCreator::create(uint64 id, const telegram_api::Function &fun
   LOG_CHECK(real_size == slice.size()) << real_size << " " << slice.size() << " "
                                        << format::as_hex_dump<4>(slice.as_slice());
 
+  size_t min_gzipped_size = 128;
   int32 tl_constructor = function.get_id();
+  int32 total_timeout_limit = 60;
 
-  size_t MIN_GZIPPED_SIZE = 128;
-  auto gzip_flag = slice.size() < MIN_GZIPPED_SIZE ? NetQuery::GzipFlag::Off : NetQuery::GzipFlag::On;
+  if (Scheduler::instance() != nullptr && current_scheduler_id_ == Scheduler::instance()->sched_id() &&
+      !G()->close_flag()) {
+    auto td = G()->td();
+    if (!td.empty()) {
+      auto auth_manager = td.get_actor_unsafe()->auth_manager_.get();
+      if (auth_manager != nullptr && auth_manager->is_bot()) {
+        total_timeout_limit = 8;
+        min_gzipped_size = 1024;
+      }
+      if ((auth_manager == nullptr || !auth_manager->was_authorized()) && auth_flag == NetQuery::AuthFlag::On &&
+          tl_constructor != telegram_api::auth_exportAuthorization::ID &&
+          tl_constructor != telegram_api::auth_bindTempAuthKey::ID) {
+        LOG(ERROR) << "Send query before authorization: " << to_string(function);
+      }
+    }
+  }
+
+  auto gzip_flag = slice.size() < min_gzipped_size ? NetQuery::GzipFlag::Off : NetQuery::GzipFlag::On;
   if (slice.size() >= 16384) {
     // test compression ratio for the middle part
     // if it is less than 0.9, then try to compress the whole request
@@ -60,24 +81,8 @@ NetQueryPtr NetQueryCreator::create(uint64 id, const telegram_api::Function &fun
     }
   }
 
-  int32 total_timeout_limit = 60;
-  if (!G()->close_flag()) {
-    auto td = G()->td();
-    if (!td.empty()) {
-      auto auth_manager = td.get_actor_unsafe()->auth_manager_.get();
-      if (auth_manager != nullptr && auth_manager->is_bot()) {
-        total_timeout_limit = 8;
-      }
-      if ((auth_manager == nullptr || !auth_manager->was_authorized()) && auth_flag == NetQuery::AuthFlag::On &&
-          tl_constructor != telegram_api::auth_exportAuthorization::ID &&
-          tl_constructor != telegram_api::auth_bindTempAuthKey::ID) {
-        LOG(ERROR) << "Send query before authorization: " << to_string(function);
-      }
-    }
-  }
-  auto query =
-      object_pool_.create(NetQuery::State::Query, id, std::move(slice), BufferSlice(), dc_id, type, auth_flag,
-                          gzip_flag, tl_constructor, total_timeout_limit, net_query_stats_.get(), std::move(chain_ids));
+  auto query = object_pool_.create(id, std::move(slice), dc_id, type, auth_flag, gzip_flag, tl_constructor,
+                                   total_timeout_limit, net_query_stats_.get(), std::move(chain_ids));
   query->set_cancellation_token(query.generation());
   return query;
 }

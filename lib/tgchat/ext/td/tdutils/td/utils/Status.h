@@ -151,8 +151,11 @@ class Status {
  public:
   Status() = default;
 
-  bool operator==(const Status &other) const {
-    return ptr_ == other.ptr_;
+  bool is_static() const {
+    if (is_ok()) {
+      return true;
+    }
+    return get_info().static_flag;
   }
 
   Status clone() const TD_WARN_UNUSED_RESULT {
@@ -189,10 +192,6 @@ class Status {
     return Status(false, ErrorType::Os, saved_errno, message);
   }
 #endif
-
-  static Status Error() TD_WARN_UNUSED_RESULT {
-    return Error<0>();
-  }
 
   template <int Code>
   static Status Error() {

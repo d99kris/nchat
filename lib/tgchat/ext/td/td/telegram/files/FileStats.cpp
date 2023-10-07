@@ -134,13 +134,13 @@ void FileStats::apply_dialog_ids(const vector<DialogId> &dialog_ids) {
 }
 
 td_api::object_ptr<td_api::storageStatisticsByChat> FileStats::get_storage_statistics_by_chat_object(
-    DialogId dialog_id, const FileStats::StatByType &stat_by_type_) {
+    DialogId dialog_id, const FileStats::StatByType &stat_by_type) {
   auto stats = make_tl_object<td_api::storageStatisticsByChat>(dialog_id.get(), 0, 0, Auto());
   FileStats::StatByType aggregated_stats;
   for (int32 i = 0; i < MAX_FILE_TYPE; i++) {
     auto file_type = narrow_cast<size_t>(get_main_file_type(static_cast<FileType>(i)));
-    aggregated_stats[file_type].size += stat_by_type_[i].size;
-    aggregated_stats[file_type].cnt += stat_by_type_[i].cnt;
+    aggregated_stats[file_type].size += stat_by_type[i].size;
+    aggregated_stats[file_type].cnt += stat_by_type[i].cnt;
   }
 
   for (int32 i = 0; i < MAX_FILE_TYPE; i++) {
@@ -216,9 +216,11 @@ StringBuilder &operator<<(StringBuilder &sb, const FileStats &file_stats) {
 
     sb << "[FileStat " << tag("total", total_stat);
     for (int32 i = 0; i < MAX_FILE_TYPE; i++) {
-      sb << tag(get_file_type_name(FileType(i)), file_stats.stat_by_type_[i]);
+      if (file_stats.stat_by_type_[i].size != 0) {
+        sb << '[' << FileType(i) << ':' << file_stats.stat_by_type_[i] << ']';
+      }
     }
-    sb << "]";
+    sb << ']';
   } else {
     {
       FileTypeStat total_stat;
@@ -239,11 +241,13 @@ StringBuilder &operator<<(StringBuilder &sb, const FileStats &file_stats) {
 
       sb << "[FileStat " << tag("owner_dialog_id", by_type.first) << tag("total", dialog_stat);
       for (int32 i = 0; i < MAX_FILE_TYPE; i++) {
-        sb << tag(get_file_type_name(FileType(i)), by_type.second[i]);
+        if (by_type.second[i].size != 0) {
+          sb << '[' << FileType(i) << ':' << by_type.second[i] << ']';
+        }
       }
-      sb << "]";
+      sb << ']';
     }
-    sb << "]";
+    sb << ']';
   }
 
   return sb;

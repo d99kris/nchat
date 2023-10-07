@@ -6,14 +6,16 @@
 //
 #pragma once
 
-#include "td/telegram/FullMessageId.h"
+#include "td/telegram/ChannelId.h"
+#include "td/telegram/DialogId.h"
 #include "td/telegram/MessageEntity.h"
+#include "td/telegram/MessageFullId.h"
+#include "td/telegram/MinChannel.h"
 #include "td/telegram/net/NetQuery.h"
 #include "td/telegram/PollId.h"
 #include "td/telegram/ReplyMarkup.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
-#include "td/telegram/UserId.h"
 
 #include "td/actor/actor.h"
 #include "td/actor/MultiTimeout.h"
@@ -51,9 +53,9 @@ class PollManager final : public Actor {
                      bool is_quiz, int32 correct_option_id, FormattedText &&explanation, int32 open_period,
                      int32 close_date, bool is_closed);
 
-  void register_poll(PollId poll_id, FullMessageId full_message_id, const char *source);
+  void register_poll(PollId poll_id, MessageFullId message_full_id, const char *source);
 
-  void unregister_poll(PollId poll_id, FullMessageId full_message_id, const char *source);
+  void unregister_poll(PollId poll_id, MessageFullId message_full_id, const char *source);
 
   bool get_poll_is_closed(PollId poll_id) const;
 
@@ -61,13 +63,13 @@ class PollManager final : public Actor {
 
   string get_poll_search_text(PollId poll_id) const;
 
-  void set_poll_answer(PollId poll_id, FullMessageId full_message_id, vector<int32> &&option_ids,
+  void set_poll_answer(PollId poll_id, MessageFullId message_full_id, vector<int32> &&option_ids,
                        Promise<Unit> &&promise);
 
-  void get_poll_voters(PollId poll_id, FullMessageId full_message_id, int32 option_id, int32 offset, int32 limit,
-                       Promise<std::pair<int32, vector<UserId>>> &&promise);
+  void get_poll_voters(PollId poll_id, MessageFullId message_full_id, int32 option_id, int32 offset, int32 limit,
+                       Promise<td_api::object_ptr<td_api::messageSenders>> &&promise);
 
-  void stop_poll(PollId poll_id, FullMessageId full_message_id, unique_ptr<ReplyMarkup> &&reply_markup,
+  void stop_poll(PollId poll_id, MessageFullId message_full_id, unique_ptr<ReplyMarkup> &&reply_markup,
                  Promise<Unit> &&promise);
 
   void stop_local_poll(PollId poll_id);
@@ -81,7 +83,7 @@ class PollManager final : public Actor {
   PollId on_get_poll(PollId poll_id, tl_object_ptr<telegram_api::poll> &&poll_server,
                      tl_object_ptr<telegram_api::pollResults> &&poll_results, const char *source);
 
-  void on_get_poll_vote(PollId poll_id, UserId user_id, vector<BufferSlice> &&options);
+  void on_get_poll_vote(PollId poll_id, DialogId dialog_id, vector<BufferSlice> &&options);
 
   td_api::object_ptr<td_api::poll> get_poll_object(PollId poll_id) const;
 
@@ -97,10 +99,10 @@ class PollManager final : public Actor {
 
  private:
   struct PollOption {
-    string text;
-    string data;
-    int32 voter_count = 0;
-    bool is_chosen = false;
+    string text_;
+    string data_;
+    int32 voter_count_ = 0;
+    bool is_chosen_ = false;
 
     template <class StorerT>
     void store(StorerT &storer) const;
@@ -109,20 +111,21 @@ class PollManager final : public Actor {
   };
 
   struct Poll {
-    string question;
-    vector<PollOption> options;
-    vector<UserId> recent_voter_user_ids;
-    FormattedText explanation;
-    int32 total_voter_count = 0;
-    int32 correct_option_id = -1;
-    int32 open_period = 0;
-    int32 close_date = 0;
-    bool is_anonymous = true;
-    bool allow_multiple_answers = false;
-    bool is_quiz = false;
-    bool is_closed = false;
-    bool is_updated_after_close = false;
-    mutable bool was_saved = false;
+    string question_;
+    vector<PollOption> options_;
+    vector<DialogId> recent_voter_dialog_ids_;
+    vector<std::pair<ChannelId, MinChannel>> recent_voter_min_channels_;
+    FormattedText explanation_;
+    int32 total_voter_count_ = 0;
+    int32 correct_option_id_ = -1;
+    int32 open_period_ = 0;
+    int32 close_date_ = 0;
+    bool is_anonymous_ = true;
+    bool allow_multiple_answers_ = false;
+    bool is_quiz_ = false;
+    bool is_closed_ = false;
+    bool is_updated_after_close_ = false;
+    mutable bool was_saved_ = false;
 
     template <class StorerT>
     void store(StorerT &storer) const;
@@ -131,10 +134,10 @@ class PollManager final : public Actor {
   };
 
   struct PollOptionVoters {
-    vector<UserId> voter_user_ids;
-    string next_offset;
-    vector<Promise<std::pair<int32, vector<UserId>>>> pending_queries;
-    bool was_invalidated = false;  // the list needs to be invalidated when voters are changed
+    vector<DialogId> voter_dialog_ids_;
+    string next_offset_;
+    vector<Promise<td_api::object_ptr<td_api::messageSenders>>> pending_queries_;
+    bool was_invalidated_ = false;  // the list needs to be invalidated when voters are changed
   };
 
   static constexpr int32 MAX_GET_POLL_VOTERS = 50;  // server side limit
@@ -196,12 +199,12 @@ class PollManager final : public Actor {
 
   void on_get_poll_results(PollId poll_id, uint64 generation, Result<tl_object_ptr<telegram_api::Updates>> result);
 
-  void do_set_poll_answer(PollId poll_id, FullMessageId full_message_id, vector<string> &&options, uint64 log_event_id,
+  void do_set_poll_answer(PollId poll_id, MessageFullId message_full_id, vector<string> &&options, uint64 log_event_id,
                           Promise<Unit> &&promise);
 
   void on_set_poll_answer(PollId poll_id, uint64 generation, Result<tl_object_ptr<telegram_api::Updates>> &&result);
 
-  void on_set_poll_answer_finished(PollId poll_id, Result<Unit> &&result, vector<Promise<Unit>> &&promises);
+  void on_set_poll_answer_finished(PollId poll_id, Result<Unit> &&result, uint64 generation);
 
   void invalidate_poll_voters(const Poll *poll, PollId poll_id);
 
@@ -209,13 +212,16 @@ class PollManager final : public Actor {
 
   PollOptionVoters &get_poll_option_voters(const Poll *poll, PollId poll_id, int32 option_id);
 
+  td_api::object_ptr<td_api::messageSenders> get_poll_voters_object(int32 total_count,
+                                                                    const vector<DialogId> &voter_dialog_ids) const;
+
   void on_get_poll_voters(PollId poll_id, int32 option_id, string offset, int32 limit,
                           Result<tl_object_ptr<telegram_api::messages_votesList>> &&result);
 
-  void do_stop_poll(PollId poll_id, FullMessageId full_message_id, unique_ptr<ReplyMarkup> &&reply_markup,
+  void do_stop_poll(PollId poll_id, MessageFullId message_full_id, unique_ptr<ReplyMarkup> &&reply_markup,
                     uint64 log_event_id, Promise<Unit> &&promise);
 
-  void on_stop_poll_finished(PollId poll_id, FullMessageId full_message_id, uint64 log_event_id, Result<Unit> &&result,
+  void on_stop_poll_finished(PollId poll_id, MessageFullId message_full_id, uint64 log_event_id, Result<Unit> &&result,
                              Promise<Unit> &&promise);
 
   void forget_local_poll(PollId poll_id);
@@ -224,12 +230,10 @@ class PollManager final : public Actor {
   MultiTimeout close_poll_timeout_{"ClosePollTimeout"};
   MultiTimeout unload_poll_timeout_{"UnloadPollTimeout"};
 
-  Td *td_;
-  ActorShared<> parent_;
   WaitFreeHashMap<PollId, unique_ptr<Poll>, PollIdHash> polls_;
 
-  WaitFreeHashMap<PollId, WaitFreeHashSet<FullMessageId, FullMessageIdHash>, PollIdHash> server_poll_messages_;
-  WaitFreeHashMap<PollId, WaitFreeHashSet<FullMessageId, FullMessageIdHash>, PollIdHash> other_poll_messages_;
+  WaitFreeHashMap<PollId, WaitFreeHashSet<MessageFullId, MessageFullIdHash>, PollIdHash> server_poll_messages_;
+  WaitFreeHashMap<PollId, WaitFreeHashSet<MessageFullId, MessageFullIdHash>, PollIdHash> other_poll_messages_;
 
   struct PendingPollAnswer {
     vector<string> options_;
@@ -237,6 +241,7 @@ class PollManager final : public Actor {
     uint64 generation_ = 0;
     uint64 log_event_id_ = 0;
     NetQueryRef query_ref_;
+    bool is_finished_ = false;
   };
   FlatHashMap<PollId, PendingPollAnswer, PollIdHash> pending_answers_;
 
@@ -249,6 +254,9 @@ class PollManager final : public Actor {
   FlatHashSet<PollId, PollIdHash> loaded_from_database_polls_;
 
   FlatHashSet<PollId, PollIdHash> being_closed_polls_;
+
+  Td *td_;
+  ActorShared<> parent_;
 };
 
 }  // namespace td

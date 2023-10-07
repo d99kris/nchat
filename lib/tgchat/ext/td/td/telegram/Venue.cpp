@@ -11,9 +11,9 @@
 
 namespace td {
 
-Venue::Venue(const tl_object_ptr<telegram_api::GeoPoint> &geo_point_ptr, string title, string address, string provider,
-             string id, string type)
-    : location_(geo_point_ptr)
+Venue::Venue(Td *td, const tl_object_ptr<telegram_api::GeoPoint> &geo_point_ptr, string title, string address,
+             string provider, string id, string type)
+    : location_(td, geo_point_ptr)
     , title_(std::move(title))
     , address_(std::move(address))
     , provider_(std::move(provider))
@@ -74,6 +74,12 @@ tl_object_ptr<telegram_api::inputBotInlineMessageMediaVenue> Venue::get_input_bo
   }
   return make_tl_object<telegram_api::inputBotInlineMessageMediaVenue>(
       flags, location_.get_input_geo_point(), title_, address_, provider_, id_, type_, std::move(reply_markup));
+}
+
+telegram_api::object_ptr<telegram_api::mediaAreaVenue> Venue::get_input_media_area_venue(
+    telegram_api::object_ptr<telegram_api::mediaAreaCoordinates> &&coordinates) const {
+  return telegram_api::make_object<telegram_api::mediaAreaVenue>(std::move(coordinates), location_.get_fake_geo_point(),
+                                                                 title_, address_, provider_, id_, type_);
 }
 
 bool operator==(const Venue &lhs, const Venue &rhs) {

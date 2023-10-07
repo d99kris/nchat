@@ -10,6 +10,7 @@
 
 #include "td/actor/actor.h"
 
+#include "td/utils/common.h"
 #include "td/utils/Promise.h"
 #include "td/utils/Status.h"
 
@@ -49,8 +50,8 @@ class FileGenerateManager final : public Actor {
  private:
   struct Query {
     Query() = default;
-    Query(const Query &other) = delete;
-    Query &operator=(const Query &other) = delete;
+    Query(const Query &) = delete;
+    Query &operator=(const Query &) = delete;
     Query(Query &&other) noexcept;
     Query &operator=(Query &&other) noexcept;
     ~Query();

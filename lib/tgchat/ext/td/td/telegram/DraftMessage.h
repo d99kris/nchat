@@ -13,26 +13,61 @@
 #include "td/telegram/telegram_api.h"
 
 #include "td/utils/common.h"
+#include "td/utils/Promise.h"
 #include "td/utils/Status.h"
 
 namespace td {
 
 class ContactsManager;
+class Dependencies;
 class Td;
 
 class DraftMessage {
+  int32 date_ = 0;
+  MessageId reply_to_message_id_;
+  InputMessageText input_message_text_;
+
+  friend class SaveDraftMessageQuery;
+
  public:
-  int32 date = 0;
-  MessageId reply_to_message_id;
-  InputMessageText input_message_text;
+  DraftMessage() = default;
+  DraftMessage(ContactsManager *contacts_manager, telegram_api::object_ptr<telegram_api::draftMessage> &&draft_message);
+
+  int32 get_date() const {
+    return date_;
+  }
+
+  bool need_update_to(const DraftMessage &other, bool from_update) const;
+
+  void add_dependencies(Dependencies &dependencies) const;
+
+  td_api::object_ptr<td_api::draftMessage> get_draft_message_object() const;
+
+  static Result<unique_ptr<DraftMessage>> get_draft_message(Td *td, DialogId dialog_id, MessageId top_thread_message_id,
+                                                            td_api::object_ptr<td_api::draftMessage> &&draft_message);
+
+  template <class StorerT>
+  void store(StorerT &storer) const;
+
+  template <class ParserT>
+  void parse(ParserT &parser);
 };
+
+bool need_update_draft_message(const unique_ptr<DraftMessage> &old_draft_message,
+                               const unique_ptr<DraftMessage> &new_draft_message, bool from_update);
+
+void add_draft_message_dependencies(Dependencies &dependencies, const unique_ptr<DraftMessage> &draft_message);
 
 td_api::object_ptr<td_api::draftMessage> get_draft_message_object(const unique_ptr<DraftMessage> &draft_message);
 
 unique_ptr<DraftMessage> get_draft_message(ContactsManager *contacts_manager,
                                            telegram_api::object_ptr<telegram_api::DraftMessage> &&draft_message_ptr);
 
-Result<unique_ptr<DraftMessage>> get_draft_message(Td *td, DialogId dialog_id,
-                                                   td_api::object_ptr<td_api::draftMessage> &&draft_message);
+void save_draft_message(Td *td, DialogId dialog_id, const unique_ptr<DraftMessage> &draft_message,
+                        Promise<Unit> &&promise);
+
+void load_all_draft_messages(Td *td);
+
+void clear_all_draft_messages(Td *td, Promise<Unit> &&promise);
 
 }  // namespace td

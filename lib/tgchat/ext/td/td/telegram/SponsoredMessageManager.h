@@ -37,8 +37,11 @@ class SponsoredMessageManager final : public Actor {
 
   void view_sponsored_message(DialogId dialog_id, MessageId sponsored_message_id);
 
+  void click_sponsored_message(DialogId dialog_id, MessageId sponsored_message_id, Promise<Unit> &&promise);
+
  private:
   struct SponsoredMessage;
+  struct SponsoredMessageInfo;
   struct DialogSponsoredMessages;
 
   void tear_down() final;
@@ -47,6 +50,9 @@ class SponsoredMessageManager final : public Actor {
                                                                    int64 dialog_id_int);
 
   void delete_cached_sponsored_messages(DialogId dialog_id);
+
+  td_api::object_ptr<td_api::messageSponsor> get_message_sponsor_object(
+      const SponsoredMessage &sponsored_message) const;
 
   td_api::object_ptr<td_api::sponsoredMessage> get_sponsored_message_object(
       DialogId dialog_id, const SponsoredMessage &sponsored_message) const;

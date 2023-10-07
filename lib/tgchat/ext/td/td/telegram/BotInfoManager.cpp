@@ -13,6 +13,7 @@
 #include "td/telegram/net/NetQueryCreator.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/telegram_api.h"
+#include "td/telegram/UpdatesManager.h"
 
 #include "td/utils/algorithm.h"
 #include "td/utils/buffer.h"
@@ -89,6 +90,72 @@ class SetBotBroadcastDefaultAdminRightsQuery final : public Td::ResultHandler {
   }
 };
 
+class CanBotSendMessageQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+
+ public:
+  explicit CanBotSendMessageQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(UserId bot_user_id) {
+    auto r_input_user = td_->contacts_manager_->get_input_user(bot_user_id);
+    if (r_input_user.is_error()) {
+      return on_error(r_input_user.move_as_error());
+    }
+    send_query(
+        G()->net_query_creator().create(telegram_api::bots_canSendMessage(r_input_user.move_as_ok()), {{bot_user_id}}));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::bots_canSendMessage>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    if (result_ptr.ok()) {
+      promise_.set_value(Unit());
+    } else {
+      promise_.set_error(Status::Error(404, "Not Found"));
+    }
+  }
+
+  void on_error(Status status) final {
+    promise_.set_error(std::move(status));
+  }
+};
+
+class AllowBotSendMessageQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+
+ public:
+  explicit AllowBotSendMessageQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(UserId bot_user_id) {
+    auto r_input_user = td_->contacts_manager_->get_input_user(bot_user_id);
+    if (r_input_user.is_error()) {
+      return on_error(r_input_user.move_as_error());
+    }
+    send_query(G()->net_query_creator().create(telegram_api::bots_allowSendMessage(r_input_user.move_as_ok()),
+                                               {{bot_user_id}}));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::bots_allowSendMessage>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    auto ptr = result_ptr.move_as_ok();
+    LOG(INFO) << "Receive result for AllowBotSendMessageQuery: " << to_string(ptr);
+    td_->updates_manager_->on_get_updates(std::move(ptr), std::move(promise_));
+  }
+
+  void on_error(Status status) final {
+    promise_.set_error(std::move(status));
+  }
+};
+
 static Result<telegram_api::object_ptr<telegram_api::InputUser>> get_bot_input_user(const Td *td, UserId bot_user_id) {
   if (td->auth_manager_->is_bot()) {
     if (bot_user_id != UserId() && bot_user_id != td->contacts_manager_->get_my_id()) {
@@ -120,8 +187,8 @@ class SetBotInfoQuery final : public Td::ResultHandler {
   explicit SetBotInfoQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
   }
 
-  void send(UserId bot_user_id, const string &language_code, bool set_name, const string &name, bool set_about,
-            const string &about, bool set_description, const string &description) {
+  void send(UserId bot_user_id, const string &language_code, bool set_name, const string &name, bool set_description,
+            const string &description, bool set_about, const string &about) {
     int32 flags = 0;
     if (set_name) {
       flags |= telegram_api::bots_setBotInfo::NAME_MASK;
@@ -161,7 +228,7 @@ class SetBotInfoQuery final : public Td::ResultHandler {
     if (set_info_) {
       invalidate_bot_info();
       if (!td_->auth_manager_->is_bot()) {
-        return td_->contacts_manager_->reload_user_full(bot_user_id_, std::move(promise_));
+        return td_->contacts_manager_->reload_user_full(bot_user_id_, std::move(promise_), "SetBotInfoQuery");
       }
     }
     if (set_name_) {
@@ -315,6 +382,14 @@ void BotInfoManager::set_default_channel_administrator_rights(AdministratorRight
                                                               Promise<Unit> &&promise) {
   td_->contacts_manager_->invalidate_user_full(td_->contacts_manager_->get_my_id());
   td_->create_handler<SetBotBroadcastDefaultAdminRightsQuery>(std::move(promise))->send(administrator_rights);
+}
+
+void BotInfoManager::can_bot_send_messages(UserId bot_user_id, Promise<Unit> &&promise) {
+  td_->create_handler<CanBotSendMessageQuery>(std::move(promise))->send(bot_user_id);
+}
+
+void BotInfoManager::allow_bot_to_send_messages(UserId bot_user_id, Promise<Unit> &&promise) {
+  td_->create_handler<AllowBotSendMessageQuery>(std::move(promise))->send(bot_user_id);
 }
 
 void BotInfoManager::add_pending_set_query(UserId bot_user_id, const string &language_code, int type,

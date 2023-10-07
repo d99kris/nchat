@@ -92,10 +92,6 @@ class ConfigManager final : public NetQueryCallback {
 
   void set_content_settings(bool ignore_sensitive_content_restrictions, Promise<Unit> &&promise);
 
-  void get_global_privacy_settings(Promise<Unit> &&promise);
-
-  void set_archive_and_mute(bool archive_and_mute, Promise<Unit> &&promise);
-
   void hide_suggested_action(SuggestedAction suggested_action);
 
   void dismiss_suggested_action(SuggestedAction suggested_action, Promise<Unit> &&promise);
@@ -106,7 +102,7 @@ class ConfigManager final : public NetQueryCallback {
 
  private:
   struct AppConfig {
-    static constexpr int32 CURRENT_VERSION = 2;
+    static constexpr int32 CURRENT_VERSION = 14;
     int32 version_ = 0;
     int32 hash_ = 0;
     telegram_api::object_ptr<telegram_api::JSONValue> config_;
@@ -137,11 +133,6 @@ class ConfigManager final : public NetQueryCallback {
   bool is_set_content_settings_request_sent_ = false;
   bool last_set_content_settings_ = false;
 
-  vector<Promise<Unit>> get_global_privacy_settings_queries_;
-  vector<Promise<Unit>> set_archive_and_mute_queries_[2];
-  bool is_set_archive_and_mute_request_sent_ = false;
-  bool last_set_archive_and_mute_ = false;
-
   AppConfig app_config_;
 
   vector<SuggestedAction> suggested_actions_;
@@ -156,7 +147,7 @@ class ConfigManager final : public NetQueryCallback {
   void loop() final;
   void try_stop();
 
-  void on_result(NetQueryPtr res) final;
+  void on_result(NetQueryPtr net_query) final;
 
   void request_config_from_dc_impl(DcId dc_id, bool reopen_sessions);
   void process_config(tl_object_ptr<telegram_api::config> config);
@@ -166,8 +157,6 @@ class ConfigManager final : public NetQueryCallback {
   void process_app_config(telegram_api::object_ptr<telegram_api::JSONValue> &config);
 
   void do_set_ignore_sensitive_content_restrictions(bool ignore_sensitive_content_restrictions);
-
-  void do_set_archive_and_mute(bool archive_and_mute);
 
   static Timestamp load_config_expire_time();
   static void save_config_expire(Timestamp timestamp);

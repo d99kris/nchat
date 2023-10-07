@@ -64,17 +64,16 @@ void NetQueryDispatcher::dispatch(NetQueryPtr net_query) {
     return;
   }
 
-  if (net_query->is_ready()) {
-    if (net_query->is_error()) {
-      auto code = net_query->error().code();
-      if (code == 303) {
-        try_fix_migrate(net_query);
-      } else if (code == NetQuery::Resend) {
-        net_query->resend();
-      } else if (code < 0 || code == 500 || code == 420) {
-        net_query->debug("sent to NetQueryDelayer");
-        return send_closure_later(delayer_, &NetQueryDelayer::delay, std::move(net_query));
-      }
+  if (net_query->is_ready() && net_query->is_error()) {
+    auto code = net_query->error().code();
+    if (code == 303) {
+      try_fix_migrate(net_query);
+    } else if (code == NetQuery::Resend) {
+      net_query->resend();
+    } else if (code < 0 || code == 500 ||
+               (code == 420 && !begins_with(net_query->error().message(), "STORY_SEND_FLOOD_"))) {
+      net_query->debug("sent to NetQueryDelayer");
+      return send_closure_later(delayer_, &NetQueryDelayer::delay, std::move(net_query));
     }
   }
 
@@ -171,9 +170,10 @@ Status NetQueryDispatcher::wait_dc_init(DcId dc_id, bool force) {
     int32 upload_session_count = (raw_dc_id != 2 && raw_dc_id != 4) || is_premium ? 8 : 4;
     int32 download_session_count = is_premium ? 8 : 2;
     int32 download_small_session_count = is_premium ? 8 : 2;
-    dc.main_session_ = create_actor<SessionMultiProxy>(PSLICE() << "SessionMultiProxy:" << raw_dc_id << ":main",
-                                                       session_count, auth_data, true, raw_dc_id == main_dc_id_,
-                                                       use_pfs, false, false, is_cdn, need_destroy_key);
+    int32 main_session_scheduler_id = G()->use_sqlite_pmc() ? -1 : G()->get_database_scheduler_id();
+    dc.main_session_ = create_actor_on_scheduler<SessionMultiProxy>(
+        PSLICE() << "SessionMultiProxy:" << raw_dc_id << ":main", main_session_scheduler_id, session_count, auth_data,
+        true, raw_dc_id == main_dc_id_, use_pfs, false, false, is_cdn, need_destroy_key);
     dc.upload_session_ = create_actor_on_scheduler<SessionMultiProxy>(
         PSLICE() << "SessionMultiProxy:" << raw_dc_id << ":upload", slow_net_scheduler_id, upload_session_count,
         auth_data, false, false, use_pfs, false, true, is_cdn, need_destroy_key);

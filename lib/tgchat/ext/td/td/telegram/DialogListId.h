@@ -28,6 +28,11 @@ class DialogListId {
   DialogListId() = default;
 
   explicit DialogListId(int64 dialog_list_id) : id(dialog_list_id) {
+    if (is_folder() && get_folder_id() != FolderId::archive()) {
+      id = FolderId::main().get();
+    } else if (is_filter()) {
+      CHECK(get_filter_id().is_valid());
+    }
   }
   template <class T, typename = std::enable_if_t<std::is_convertible<T, int32>::value>>
   DialogListId(T dialog_list_id) = delete;
@@ -67,9 +72,6 @@ class DialogListId {
       auto folder_id = get_folder_id();
       if (folder_id == FolderId::archive()) {
         return td_api::make_object<td_api::chatListArchive>();
-      }
-      if (folder_id == FolderId::main()) {
-        return td_api::make_object<td_api::chatListMain>();
       }
       return td_api::make_object<td_api::chatListMain>();
     }
@@ -132,7 +134,7 @@ inline StringBuilder &operator<<(StringBuilder &string_builder, DialogListId dia
   if (dialog_list_id.is_filter()) {
     return string_builder << "chat list " << dialog_list_id.get_filter_id();
   }
-  return string_builder << "chat list " << dialog_list_id.get();
+  return string_builder << "unknown chat list " << dialog_list_id.get();
 }
 
 }  // namespace td

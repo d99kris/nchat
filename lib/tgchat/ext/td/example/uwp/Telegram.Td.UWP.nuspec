@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2013/01/nuspec.xsd">
   <metadata>
     <id>Telegram.Td.UWP</id>
-    <version>1.8.14</version>
+    <version>1.8.19</version>
     <title>TDLib for Universal Windows Platform</title>
     <authors>Telegram</authors>
     <owners>Telegram</owners>
@@ -12,5 +12,8 @@
     <releaseNotes>https://github.com/tdlib/td/blob/master/CHANGELOG.md</releaseNotes>
     <description>TDLib for Universal Windows Platform</description>
     <copyright>© Telegram FZ-LLC. All rights reserved.</copyright>
+    <dependencies>
+      <group targetFramework="UAP10.0" />
+    </dependencies>
   </metadata>
 </package>

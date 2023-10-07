@@ -414,6 +414,35 @@ class GetForumTopicsQuery final : public Td::ResultHandler {
   }
 };
 
+class ReadForumTopicQuery final : public Td::ResultHandler {
+  DialogId dialog_id_;
+
+ public:
+  void send(DialogId dialog_id, MessageId top_thread_message_id, MessageId max_message_id) {
+    dialog_id_ = dialog_id;
+    auto input_peer = td_->messages_manager_->get_input_peer(dialog_id, AccessRights::Read);
+    if (input_peer == nullptr) {
+      return on_error(Status::Error(400, "Can't access the chat"));
+    }
+    send_query(G()->net_query_creator().create(
+        telegram_api::messages_readDiscussion(std::move(input_peer),
+                                              top_thread_message_id.get_server_message_id().get(),
+                                              max_message_id.get_server_message_id().get()),
+        {{dialog_id}}));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::messages_readDiscussion>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+  }
+
+  void on_error(Status status) final {
+    td_->messages_manager_->on_get_dialog_error(dialog_id_, status, "ReadForumTopicQuery");
+  }
+};
+
 template <class StorerT>
 void ForumTopicManager::Topic::store(StorerT &storer) const {
   CHECK(info_ != nullptr);
@@ -538,6 +567,23 @@ void ForumTopicManager::edit_forum_topic(DialogId dialog_id, MessageId top_threa
       ->send(channel_id, top_thread_message_id, edit_title, new_title, edit_icon_custom_emoji, icon_custom_emoji_id);
 }
 
+void ForumTopicManager::read_forum_topic_messages(DialogId dialog_id, MessageId top_thread_message_id,
+                                                  MessageId last_read_inbox_message_id) {
+  CHECK(!td_->auth_manager_->is_bot());
+  auto topic = get_topic(dialog_id, top_thread_message_id);
+  if (topic == nullptr || topic->topic_ == nullptr) {
+    return;
+  }
+
+  if (topic->topic_->update_last_read_inbox_message_id(last_read_inbox_message_id, -1)) {
+    // TODO send updates
+    auto max_message_id = last_read_inbox_message_id.get_prev_server_message_id();
+    LOG(INFO) << "Send read topic history request in topic of " << top_thread_message_id << " in " << dialog_id
+              << " up to " << max_message_id;
+    td_->create_handler<ReadForumTopicQuery>()->send(dialog_id, top_thread_message_id, max_message_id);
+  }
+}
+
 void ForumTopicManager::on_update_forum_topic_unread(DialogId dialog_id, MessageId top_thread_message_id,
                                                      MessageId last_message_id, MessageId last_read_inbox_message_id,
                                                      MessageId last_read_outbox_message_id, int32 unread_count) {
@@ -603,6 +649,9 @@ void ForumTopicManager::on_update_forum_topic_notify_settings(
 
 void ForumTopicManager::on_update_forum_topic_is_pinned(DialogId dialog_id, MessageId top_thread_message_id,
                                                         bool is_pinned) {
+  if (!td_->messages_manager_->have_dialog_force(dialog_id, "on_update_forum_topic_is_pinned")) {
+    return;
+  }
   if (!can_be_forum(dialog_id)) {
     LOG(ERROR) << "Receive pinned topics in " << dialog_id;
     return;
@@ -623,6 +672,9 @@ void ForumTopicManager::on_update_forum_topic_is_pinned(DialogId dialog_id, Mess
 }
 
 void ForumTopicManager::on_update_pinned_forum_topics(DialogId dialog_id, vector<MessageId> top_thread_message_ids) {
+  if (!td_->messages_manager_->have_dialog_force(dialog_id, "on_update_pinned_forum_topics")) {
+    return;
+  }
   if (!can_be_forum(dialog_id)) {
     LOG(ERROR) << "Receive pinned topics in " << dialog_id;
     return;

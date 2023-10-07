@@ -102,12 +102,11 @@ struct PhotoRemoteFileLocation {
     if (id_ != other.id_) {
       return id_ < other.id_;
     }
-    return source_.get_unique("PhotoRemoteFileLocation::operator<") <
-           other.source_.get_unique("PhotoRemoteFileLocation::operator<");
+    return PhotoSizeSource::unique_less(source_, other.source_);
   }
+
   bool operator==(const PhotoRemoteFileLocation &other) const {
-    return id_ == other.id_ && source_.get_unique("PhotoRemoteFileLocation::operator==") ==
-                                   other.source_.get_unique("PhotoRemoteFileLocation::operator==");
+    return id_ == other.id_ && PhotoSizeSource::unique_equal(source_, other.source_);
   }
 };
 
@@ -395,6 +394,7 @@ class FullRemoteFileLocation {
             auto &thumbnail = source.thumbnail();
             switch (thumbnail.file_type) {
               case FileType::Photo:
+              case FileType::PhotoStory:
                 return make_tl_object<telegram_api::inputPhotoFileLocation>(
                     id, access_hash, BufferSlice(file_reference_),
                     std::string(1, static_cast<char>(static_cast<uint8>(thumbnail.thumbnail_type))));
@@ -524,25 +524,17 @@ class FullRemoteFileLocation {
   }
 
   bool operator<(const FullRemoteFileLocation &other) const {
-    if (key_type() != other.key_type()) {
-      return key_type() < other.key_type();
+    auto lhs_key_type = key_type();
+    auto rhs_key_type = other.key_type();
+    if (lhs_key_type != rhs_key_type) {
+      return lhs_key_type < rhs_key_type;
     }
     if (dc_id_ != other.dc_id_) {
       return dc_id_ < other.dc_id_;
     }
-    switch (location_type()) {
-      case LocationType::Photo:
-        return photo() < other.photo();
-      case LocationType::Common:
-        return common() < other.common();
-      case LocationType::Web:
-        return web() < other.web();
-      case LocationType::None:
-      default:
-        UNREACHABLE();
-        return false;
-    }
+    return variant_ < other.variant_;
   }
+
   bool operator==(const FullRemoteFileLocation &other) const {
     if (key_type() != other.key_type()) {
       return false;
@@ -550,18 +542,7 @@ class FullRemoteFileLocation {
     if (dc_id_ != other.dc_id_) {
       return false;
     }
-    switch (location_type()) {
-      case LocationType::Photo:
-        return photo() == other.photo();
-      case LocationType::Common:
-        return common() == other.common();
-      case LocationType::Web:
-        return web() == other.web();
-      case LocationType::None:
-      default:
-        UNREACHABLE();
-        return false;
-    }
+    return variant_ == other.variant_;
   }
 
   static const int32 KEY_MAGIC = 0x64374632;

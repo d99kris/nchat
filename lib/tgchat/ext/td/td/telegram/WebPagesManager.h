@@ -9,10 +9,12 @@
 #include "td/telegram/DialogId.h"
 #include "td/telegram/files/FileId.h"
 #include "td/telegram/files/FileSourceId.h"
-#include "td/telegram/FullMessageId.h"
+#include "td/telegram/MessageFullId.h"
 #include "td/telegram/SecretInputMedia.h"
+#include "td/telegram/StoryFullId.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
+#include "td/telegram/UserId.h"
 #include "td/telegram/WebPageId.h"
 
 #include "td/actor/actor.h"
@@ -50,9 +52,9 @@ class WebPagesManager final : public Actor {
 
   void on_get_web_page_instant_view_view_count(WebPageId web_page_id, int32 view_count);
 
-  void register_web_page(WebPageId web_page_id, FullMessageId full_message_id, const char *source);
+  void register_web_page(WebPageId web_page_id, MessageFullId message_full_id, const char *source);
 
-  void unregister_web_page(WebPageId web_page_id, FullMessageId full_message_id, const char *source);
+  void unregister_web_page(WebPageId web_page_id, MessageFullId message_full_id, const char *source);
 
   bool have_web_page(WebPageId web_page_id) const;
 
@@ -85,6 +87,12 @@ class WebPagesManager final : public Actor {
   string get_web_page_search_text(WebPageId web_page_id) const;
 
   int32 get_web_page_media_duration(WebPageId web_page_id) const;
+
+  StoryFullId get_web_page_story_full_id(WebPageId web_page_id) const;
+
+  vector<UserId> get_web_page_user_ids(WebPageId web_page_id) const;
+
+  void on_story_changed(StoryFullId story_full_id);
 
  private:
   class WebPage;
@@ -156,7 +164,7 @@ class WebPagesManager final : public Actor {
 
   void tear_down() final;
 
-  static int32 get_web_page_media_duration(const WebPage *web_page);
+  int32 get_web_page_media_duration(const WebPage *web_page) const;
 
   FileSourceId get_web_page_file_source_id(WebPage *web_page);
 
@@ -175,10 +183,12 @@ class WebPagesManager final : public Actor {
   };
   FlatHashMap<WebPageId, PendingWebPageInstantViewQueries, WebPageIdHash> load_web_page_instant_view_queries_;
 
-  FlatHashMap<WebPageId, FlatHashSet<FullMessageId, FullMessageIdHash>, WebPageIdHash> web_page_messages_;
+  FlatHashMap<WebPageId, FlatHashSet<MessageFullId, MessageFullIdHash>, WebPageIdHash> web_page_messages_;
 
   FlatHashMap<WebPageId, vector<std::pair<string, Promise<td_api::object_ptr<td_api::webPage>>>>, WebPageIdHash>
       pending_get_web_pages_;
+
+  FlatHashMap<StoryFullId, FlatHashSet<WebPageId, WebPageIdHash>, StoryFullIdHash> story_web_pages_;
 
   FlatHashMap<string, WebPageId> url_to_web_page_id_;
 

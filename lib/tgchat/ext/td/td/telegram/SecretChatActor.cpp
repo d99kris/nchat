@@ -10,6 +10,7 @@
 #include "td/telegram/net/NetQueryCreator.h"
 #include "td/telegram/secret_api.hpp"
 #include "td/telegram/ServerMessageId.h"
+#include "td/telegram/telegram_api.h"
 #include "td/telegram/telegram_api.hpp"
 #include "td/telegram/UniqueId.h"
 
@@ -43,10 +44,6 @@
 #undef G
 
 namespace td {
-
-inline TLObjectStorer<secret_api::Object> create_storer(const secret_api::Object &object) {
-  return TLObjectStorer<secret_api::Object>(object);
-}
 
 class SecretImpl {
  public:
@@ -220,14 +217,13 @@ Result<BufferSlice> SecretChatActor::create_encrypted_message(int32 my_in_seq_no
   auto message_with_layer = secret_api::make_object<secret_api::decryptedMessageLayer>(
       std::move(random_bytes), layer, in_seq_no, out_seq_no, std::move(message));
   LOG(INFO) << "Create message " << to_string(message_with_layer);
-  auto storer = create_storer(*message_with_layer);
+  auto storer = TLObjectStorer<secret_api::decryptedMessageLayer>(*message_with_layer);
   auto new_storer = mtproto::PacketStorer<SecretImpl>(storer);
-  mtproto::PacketInfo info;
-  info.type = mtproto::PacketInfo::EndToEnd;
-  info.version = 2;
-  info.is_creator = auth_state_.x == 0;
-  auto packet_writer = BufferWriter{mtproto::Transport::write(new_storer, *auth_key, &info), 0, 0};
-  mtproto::Transport::write(new_storer, *auth_key, &info, packet_writer.as_mutable_slice());
+  mtproto::PacketInfo packet_info;
+  packet_info.type = mtproto::PacketInfo::EndToEnd;
+  packet_info.version = 2;
+  packet_info.is_creator = auth_state_.x == 0;
+  auto packet_writer = mtproto::Transport::write(new_storer, *auth_key, &packet_info);
   message = std::move(message_with_layer->message_);
   return packet_writer.as_buffer_slice();
 }
@@ -792,12 +788,12 @@ Result<std::tuple<uint64, BufferSlice, int32>> SecretChatActor::decrypt(BufferSl
     data = encrypted_message_copy.as_mutable_slice();
     CHECK(is_aligned_pointer<4>(data.data()));
 
-    mtproto::PacketInfo info;
-    info.type = mtproto::PacketInfo::EndToEnd;
+    mtproto::PacketInfo packet_info;
+    packet_info.type = mtproto::PacketInfo::EndToEnd;
     mtproto_version = versions[i];
-    info.version = mtproto_version;
-    info.is_creator = auth_state_.x == 0;
-    r_read_result = mtproto::Transport::read(data, *auth_key, &info);
+    packet_info.version = mtproto_version;
+    packet_info.is_creator = auth_state_.x == 0;
+    r_read_result = mtproto::Transport::read(data, *auth_key, &packet_info);
     if (i + 1 != versions.size() && r_read_result.is_error()) {
       if (config_state_.his_layer >= static_cast<int32>(SecretChatLayer::Mtproto2)) {
         LOG(WARNING) << tag("mtproto", mtproto_version) << " decryption failed " << r_read_result.error();
@@ -1776,9 +1772,7 @@ Status SecretChatActor::on_update_chat(telegram_api::encryptedChatRequested &upd
   auth_state_.date = context_->unix_time();
   TRY_STATUS(save_common_info(update));
   auth_state_.handshake.set_g_a(update.g_a_.as_slice());
-  if ((update.flags_ & telegram_api::encryptedChatRequested::FOLDER_ID_MASK) != 0) {
-    auth_state_.initial_folder_id = FolderId(update.folder_id_);
-  }
+  auth_state_.initial_folder_id = FolderId(update.folder_id_);
 
   send_update_secret_chat();
   return Status::OK();

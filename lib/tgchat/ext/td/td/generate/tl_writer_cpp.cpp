@@ -10,7 +10,7 @@
 
 namespace td {
 
-std::string TD_TL_writer_cpp::gen_output_begin() const {
+std::string TD_TL_writer_cpp::gen_output_begin(const std::string &additional_imports) const {
   std::string ext_include_str;
   for (auto &it : ext_include) {
     ext_include_str += "#include " + it + "\n";
@@ -26,12 +26,15 @@ std::string TD_TL_writer_cpp::gen_output_begin() const {
          "#include \"td/utils/SliceBuilder.h\"\n"
          "#include \"td/utils/tl_parsers.h\"\n"
          "#include \"td/utils/tl_storers.h\"\n"
-         "#include \"td/utils/TlStorerToString.h\"\n\n"
+         "#include \"td/utils/TlStorerToString.h\"\n\n" +
+         additional_imports +
          "namespace td {\n"
          "namespace " +
-         tl_name +
-         " {\n\n"
-         "std::string to_string(const BaseObject &value) {\n"
+         tl_name + " {\n\n";
+}
+
+std::string TD_TL_writer_cpp::gen_output_begin_once() const {
+  return "std::string to_string(const BaseObject &value) {\n"
          "  TlStorerToString storer;\n"
          "  value.store(storer, \"\");\n"
          "  return storer.move_as_string();\n"
@@ -538,9 +541,7 @@ std::string TD_TL_writer_cpp::gen_fetch_function_begin(const std::string &parser
       result +=
           "p);\n"
           "}\n\n" +
-          class_name + "::" + class_name + "(" + parser_name +
-          " &p)\n"
-          "#define FAIL(error) p.set_error(error)\n";
+          class_name + "::" + class_name + "(" + parser_name + " &p)\n";
     }
     return result;
   }
@@ -562,8 +563,7 @@ std::string TD_TL_writer_cpp::gen_fetch_function_end(bool has_parent, int field_
     if (field_count == 0) {
       return "}\n";
     }
-    return "#undef FAIL\n"
-           "{}\n";
+    return "{}\n";
   }
 
   if (parser_type == -1) {

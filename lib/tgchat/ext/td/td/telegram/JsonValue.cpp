@@ -7,6 +7,7 @@
 #include "td/telegram/JsonValue.h"
 
 #include "td/telegram/misc.h"
+#include "td/telegram/telegram_api.h"
 
 #include "td/utils/algorithm.h"
 #include "td/utils/JsonBuilder.h"
@@ -17,14 +18,6 @@
 #include <utility>
 
 namespace td {
-
-static td_api::object_ptr<td_api::JsonValue> get_json_value_object(const JsonValue &json_value);
-
-static td_api::object_ptr<td_api::jsonObjectMember> get_json_value_member_object(
-    const std::pair<MutableSlice, JsonValue> &json_value_member) {
-  return td_api::make_object<td_api::jsonObjectMember>(json_value_member.first.str(),
-                                                       get_json_value_object(json_value_member.second));
-}
 
 static td_api::object_ptr<td_api::JsonValue> get_json_value_object(const JsonValue &json_value) {
   switch (json_value.type()) {
@@ -38,9 +31,13 @@ static td_api::object_ptr<td_api::JsonValue> get_json_value_object(const JsonVal
       return td_api::make_object<td_api::jsonValueString>(json_value.get_string().str());
     case JsonValue::Type::Array:
       return td_api::make_object<td_api::jsonValueArray>(transform(json_value.get_array(), get_json_value_object));
-    case JsonValue::Type::Object:
-      return td_api::make_object<td_api::jsonValueObject>(
-          transform(json_value.get_object(), get_json_value_member_object));
+    case JsonValue::Type::Object: {
+      vector<td_api::object_ptr<td_api::jsonObjectMember>> members;
+      json_value.get_object().foreach([&members](Slice name, const JsonValue &value) {
+        members.push_back(td_api::make_object<td_api::jsonObjectMember>(name.str(), get_json_value_object(value)));
+      });
+      return td_api::make_object<td_api::jsonValueObject>(std::move(members));
+    }
     default:
       UNREACHABLE();
       return nullptr;
@@ -221,6 +218,9 @@ int64 get_json_value_long(telegram_api::object_ptr<telegram_api::JSONValue> &&js
   CHECK(json_value != nullptr);
   if (json_value->get_id() == telegram_api::jsonString::ID) {
     return to_integer<int64>(static_cast<const telegram_api::jsonString *>(json_value.get())->value_);
+  }
+  if (json_value->get_id() == telegram_api::jsonNumber::ID) {
+    return static_cast<int64>(static_cast<const telegram_api::jsonNumber *>(json_value.get())->value_);
   }
   LOG(ERROR) << "Expected Long as " << name << ", but found " << to_string(json_value);
   return 0;

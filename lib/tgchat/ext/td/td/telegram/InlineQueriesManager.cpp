@@ -36,7 +36,7 @@
 #include "td/telegram/Td.h"
 #include "td/telegram/td_api.hpp"
 #include "td/telegram/TdDb.h"
-#include "td/telegram/telegram_api.hpp"
+#include "td/telegram/telegram_api.h"
 #include "td/telegram/ThemeManager.h"
 #include "td/telegram/UpdatesManager.h"
 #include "td/telegram/Venue.h"
@@ -176,7 +176,7 @@ class RequestSimpleWebViewQuery final : public Td::ResultHandler {
   explicit RequestSimpleWebViewQuery(Promise<string> &&promise) : promise_(std::move(promise)) {
   }
 
-  void send(tl_object_ptr<telegram_api::InputUser> &&input_user, const string &url,
+  void send(tl_object_ptr<telegram_api::InputUser> &&input_user, string url,
             const td_api::object_ptr<td_api::themeParameters> &theme, string &&platform) {
     tl_object_ptr<telegram_api::dataJSON> theme_parameters;
     int32 flags = 0;
@@ -186,17 +186,30 @@ class RequestSimpleWebViewQuery final : public Td::ResultHandler {
       theme_parameters = make_tl_object<telegram_api::dataJSON>(string());
       theme_parameters->data_ = ThemeManager::get_theme_parameters_json_string(theme, false);
     }
+    string start_parameter;
     if (ends_with(url, "#kb")) {
       // a URL from keyboard button
+      url.resize(url.size() - 3);
+      flags |= telegram_api::messages_requestSimpleWebView::URL_MASK;
     } else if (ends_with(url, "#iq")) {
       // a URL from inline query results button
+      url.resize(url.size() - 3);
       flags |= telegram_api::messages_requestSimpleWebView::FROM_SWITCH_WEBVIEW_MASK;
+      flags |= telegram_api::messages_requestSimpleWebView::URL_MASK;
+    } else if (url.empty()) {
+      flags |= telegram_api::messages_requestSimpleWebView::FROM_SIDE_MENU_MASK;
+    } else if (begins_with(url, "start://")) {
+      start_parameter = url.substr(8);
+      url = string();
+
+      flags |= telegram_api::messages_requestSimpleWebView::FROM_SIDE_MENU_MASK;
+      flags |= telegram_api::messages_requestSimpleWebView::START_PARAM_MASK;
     } else {
       return on_error(Status::Error(400, "Invalid URL specified"));
     }
-    send_query(G()->net_query_creator().create(telegram_api::messages_requestSimpleWebView(
-        flags, false /*ignored*/, std::move(input_user), url.substr(0, url.size() - 3), std::move(theme_parameters),
-        platform)));
+    send_query(G()->net_query_creator().create(
+        telegram_api::messages_requestSimpleWebView(flags, false /*ignored*/, false /*ignored*/, std::move(input_user),
+                                                    url, start_parameter, std::move(theme_parameters), platform)));
   }
 
   void on_result(BufferSlice packet) final {
@@ -547,7 +560,7 @@ void InlineQueriesManager::get_simple_web_view_url(UserId bot_user_id, string &&
   TRY_RESULT_PROMISE(promise, bot_data, td_->contacts_manager_->get_bot_data(bot_user_id));
 
   td_->create_handler<RequestSimpleWebViewQuery>(std::move(promise))
-      ->send(std::move(input_user), url, theme, std::move(platform));
+      ->send(std::move(input_user), std::move(url), theme, std::move(platform));
 }
 
 void InlineQueriesManager::send_web_view_data(UserId bot_user_id, string &&button_text, string &&data,
@@ -956,7 +969,7 @@ Result<tl_object_ptr<telegram_api::InputBotInlineResult>> InlineQueriesManager::
     if (width > 0 && height > 0) {
       if ((duration > 0 || type == "video" || content_type == "video/mp4") && !begins_with(content_type, "image/")) {
         attributes.push_back(make_tl_object<telegram_api::documentAttributeVideo>(
-            0, false /*ignored*/, false /*ignored*/, duration, width, height));
+            0, false /*ignored*/, false /*ignored*/, false /*ignored*/, duration, width, height, 0));
       } else {
         attributes.push_back(make_tl_object<telegram_api::documentAttributeImageSize>(width, height));
       }
@@ -1778,11 +1791,11 @@ void InlineQueriesManager::on_get_inline_query_results(DialogId dialog_id, UserI
           if (result->send_message_->get_id() == telegram_api::botInlineMessageMediaGeo::ID) {
             auto inline_message_geo =
                 static_cast<const telegram_api::botInlineMessageMediaGeo *>(result->send_message_.get());
-            Location l(inline_message_geo->geo_);
+            Location l(td_, inline_message_geo->geo_);
             location->location_ = l.get_location_object();
           } else {
             auto latitude_longitude = split(Slice(result->description_));
-            Location l(to_double(latitude_longitude.first), to_double(latitude_longitude.second), 0.0, 0);
+            Location l(td_, to_double(latitude_longitude.first), to_double(latitude_longitude.second), 0.0, 0);
             location->location_ = l.get_location_object();
           }
           location->thumbnail_ = register_thumbnail(std::move(result->thumb_));
@@ -1798,18 +1811,19 @@ void InlineQueriesManager::on_get_inline_query_results(DialogId dialog_id, UserI
           if (result->send_message_->get_id() == telegram_api::botInlineMessageMediaVenue::ID) {
             auto inline_message_venue =
                 static_cast<const telegram_api::botInlineMessageMediaVenue *>(result->send_message_.get());
-            Venue v(inline_message_venue->geo_, inline_message_venue->title_, inline_message_venue->address_,
+            Venue v(td_, inline_message_venue->geo_, inline_message_venue->title_, inline_message_venue->address_,
                     inline_message_venue->provider_, inline_message_venue->venue_id_,
                     inline_message_venue->venue_type_);
             venue->venue_ = v.get_venue_object();
           } else if (result->send_message_->get_id() == telegram_api::botInlineMessageMediaGeo::ID) {
             auto inline_message_geo =
                 static_cast<const telegram_api::botInlineMessageMediaGeo *>(result->send_message_.get());
-            Venue v(inline_message_geo->geo_, std::move(result->title_), std::move(result->description_), string(),
+            Venue v(td_, inline_message_geo->geo_, std::move(result->title_), std::move(result->description_), string(),
                     string(), string());
             venue->venue_ = v.get_venue_object();
           } else {
-            Venue v(nullptr, std::move(result->title_), std::move(result->description_), string(), string(), string());
+            Venue v(td_, nullptr, std::move(result->title_), std::move(result->description_), string(), string(),
+                    string());
             venue->venue_ = v.get_venue_object();
           }
           venue->thumbnail_ = register_thumbnail(std::move(result->thumb_));
@@ -1855,9 +1869,17 @@ void InlineQueriesManager::on_get_inline_query_results(DialogId dialog_id, UserI
             continue;
           }
 
-          vector<tl_object_ptr<telegram_api::DocumentAttribute>> attributes;
-          downcast_call(*result->content_,
-                        [&attributes](auto &web_document) { attributes = std::move(web_document.attributes_); });
+          auto attributes = [content = result->content_.get()] {
+            switch (content->get_id()) {
+              case telegram_api::webDocument::ID:
+                return std::move(static_cast<telegram_api::webDocument *>(content)->attributes_);
+              case telegram_api::webDocumentNoProxy::ID:
+                return std::move(static_cast<telegram_api::webDocumentNoProxy *>(content)->attributes_);
+              default:
+                UNREACHABLE();
+                return vector<telegram_api::object_ptr<telegram_api::DocumentAttribute>>();
+            }
+          }();
 
           bool is_animation = result->type_ == "gif" && (content_type == "image/gif" || content_type == "video/mp4");
           if (is_animation) {

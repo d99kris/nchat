@@ -14,6 +14,7 @@
 
 #include "td/actor/actor.h"
 
+#include "td/utils/common.h"
 #include "td/utils/Promise.h"
 #include "td/utils/Slice.h"
 
@@ -127,7 +128,7 @@ class NetStatsManager final : public Actor {
     for (int32 file_type_i = 0; file_type_i < MAX_FILE_TYPE; file_type_i++) {
       auto &stat = files_stats_[file_type_i];
       auto file_type = static_cast<FileType>(file_type_i);
-      f(stat, file_type_i + 2, get_file_type_name(file_type), file_type);
+      f(stat, file_type_i + 2, get_file_type_unique_name(file_type), file_type);
     }
     f(call_net_stats_, CALL_NET_STATS_ID, CSlice("calls"), FileType::None);
   }

@@ -39,7 +39,7 @@ class DoxygenTlDocumentationGenerator extends TlDocumentationGenerator
 
     protected function escapeDocumentation($doc)
     {
-        $doc = htmlspecialchars($doc);
+        $doc = htmlspecialchars($doc, ENT_COMPAT, 'UTF-8');
         $doc = preg_replace_callback('/&quot;((http|https|tg):\/\/[^" ]*)&quot;/',
             function ($quoted_link)
             {
@@ -129,7 +129,8 @@ class DoxygenTlDocumentationGenerator extends TlDocumentationGenerator
             preg_match('/class [A-Za-z0-9_]*;/', $line) || $tline === 'if (value == nullptr) {' ||
             strpos($tline, 'result += ') === 0 || strpos($tline, 'result = ') || strpos($tline, ' : values') ||
             strpos($line, 'JNIEnv') || strpos($line, 'jfieldID') || $tline === 'virtual ~Object() {' ||
-            $tline === 'virtual void store(TlStorerToString &s, const char *field_name) const = 0;';
+            $tline === 'virtual void store(TlStorerToString &s, const char *field_name) const = 0;' ||
+            $tline === 'const char *&get_package_name_ref();';
     }
 
     protected function isHeaderLine($line)
@@ -234,7 +235,7 @@ EOT
  * auto get_me_request = td::td_api::make_object<td::td_api::getMe>();
  * auto message_text = td::td_api::make_object<td::td_api::formattedText>("Hello, world!!!",
  *                     td::td_api::array<td::td_api::object_ptr<td::td_api::textEntity>>());
- * auto send_message_request = td::td_api::make_object<td::td_api::sendMessage>(chat_id, 0, 0, nullptr, nullptr,
+ * auto send_message_request = td::td_api::make_object<td::td_api::sendMessage>(chat_id, 0, nullptr, nullptr, nullptr,
  *      td::td_api::make_object<td::td_api::inputMessageText>(std::move(message_text), false, true));
  * \\endcode
  *

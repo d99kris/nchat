@@ -6,6 +6,7 @@
 //
 #include "td/telegram/OptionManager.h"
 
+#include "td/telegram/AccountManager.h"
 #include "td/telegram/AnimationsManager.h"
 #include "td/telegram/AttachMenuManager.h"
 #include "td/telegram/AuthManager.h"
@@ -17,17 +18,19 @@
 #include "td/telegram/Global.h"
 #include "td/telegram/JsonValue.h"
 #include "td/telegram/LanguagePackManager.h"
-#include "td/telegram/MessageReaction.h"
 #include "td/telegram/net/MtprotoHeader.h"
 #include "td/telegram/net/NetQueryDispatcher.h"
 #include "td/telegram/NotificationManager.h"
+#include "td/telegram/ReactionType.h"
 #include "td/telegram/StateManager.h"
 #include "td/telegram/StickersManager.h"
 #include "td/telegram/StorageManager.h"
+#include "td/telegram/StoryManager.h"
 #include "td/telegram/SuggestedAction.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/TdDb.h"
 #include "td/telegram/TopDialogManager.h"
+#include "td/telegram/UpdatesManager.h"
 
 #include "td/db/KeyValueSyncInterface.h"
 #include "td/db/TsSeqKeyValue.h"
@@ -58,6 +61,7 @@ OptionManager::OptionManager(Td *td)
   all_options["utc_time_offset"] = PSTRING() << 'I' << Clocks::tz_offset();
   for (const auto &name_value : all_options) {
     const string &name = name_value.first;
+    CHECK(!name.empty());
     options_->set(name, name_value.second);
     if (!is_internal_option(name)) {
       send_closure(G()->td(), &Td::send_update,
@@ -75,6 +79,9 @@ OptionManager::OptionManager(Td *td)
   }
   if (!have_option("message_caption_length_max")) {
     set_option_integer("message_caption_length_max", 1024);
+  }
+  if (!have_option("story_caption_length_max")) {
+    set_option_integer("story_caption_length_max", 200);
   }
   if (!have_option("bio_length_max")) {
     set_option_integer("bio_length_max", 70);
@@ -109,7 +116,20 @@ OptionManager::OptionManager(Td *td)
   if (!have_option("pinned_forum_topic_count_max")) {
     set_option_integer("pinned_forum_topic_count_max", G()->is_test_dc() ? 3 : 5);
   }
+  if (!have_option("archive_all_stories")) {
+    // set_option_boolean("archive_all_stories", false);
+  }
+  if (!have_option("story_stealth_mode_past_period")) {
+    set_option_integer("story_stealth_mode_past_period", 300);
+  }
+  if (!have_option("story_stealth_mode_future_period")) {
+    set_option_integer("story_stealth_mode_future_period", 1500);
+  }
+  if (!have_option("story_stealth_mode_cooldown_period")) {
+    set_option_integer("story_stealth_mode_cooldown_period", 3600);
+  }
 
+  set_option_empty("archive_and_mute_new_chats_from_unknown_users");
   set_option_empty("chat_filter_count_max");
   set_option_empty("chat_filter_chosen_chat_count_max");
   set_option_empty("forum_member_count_min");
@@ -244,7 +264,8 @@ bool OptionManager::is_internal_option(Slice name) {
     case 'a':
       return name == "about_length_limit_default" || name == "about_length_limit_premium" ||
              name == "aggressive_anti_spam_supergroup_member_count_min" || name == "animated_emoji_zoom" ||
-             name == "animation_search_emojis" || name == "animation_search_provider";
+             name == "animation_search_emojis" || name == "animation_search_provider" ||
+             name == "authorization_autoconfirm_period";
     case 'b':
       return name == "base_language_pack_version";
     case 'c':
@@ -253,7 +274,9 @@ bool OptionManager::is_internal_option(Slice name) {
              name == "channels_limit_default" || name == "channels_limit_premium" ||
              name == "channels_public_limit_default" || name == "channels_public_limit_premium" ||
              name == "channels_read_media_period" || name == "chat_read_mark_expire_period" ||
-             name == "chat_read_mark_size_threshold";
+             name == "chat_read_mark_size_threshold" || name == "chatlist_invites_limit_default" ||
+             name == "chatlist_invites_limit_premium" || name == "chatlists_joined_limit_default" ||
+             name == "chatlists_joined_limit_premium";
     case 'd':
       return name == "dc_txt_domain_name" || name == "default_reaction" || name == "default_reaction_needs_sync" ||
              name == "dialog_filters_chats_limit_default" || name == "dialog_filters_chats_limit_premium" ||
@@ -274,20 +297,28 @@ bool OptionManager::is_internal_option(Slice name) {
     case 'm':
       return name == "my_phone_number";
     case 'n':
-      return name == "notification_cloud_delay_ms" || name == "notification_default_delay_ms";
+      return name == "need_premium_for_story_caption_entities" || name == "need_synchronize_archive_all_stories" ||
+             name == "notification_cloud_delay_ms" || name == "notification_default_delay_ms";
     case 'o':
       return name == "online_cloud_timeout_ms" || name == "online_update_period_ms" || name == "otherwise_relogin_days";
     case 'p':
       return name == "premium_bot_username" || name == "premium_features" || name == "premium_invoice_slug";
     case 'r':
       return name == "rating_e_decay" || name == "reactions_uniq_max" || name == "reactions_user_max_default" ||
-             name == "reactions_user_max_premium" || name == "recent_stickers_limit" || name == "revoke_pm_inbox" ||
-             name == "revoke_time_limit" || name == "revoke_pm_time_limit";
+             name == "reactions_user_max_premium" || name == "recent_stickers_limit" ||
+             name == "restriction_add_platforms" || name == "revoke_pm_inbox" || name == "revoke_time_limit" ||
+             name == "revoke_pm_time_limit";
     case 's':
       return name == "saved_animations_limit" || name == "saved_gifs_limit_default" ||
              name == "saved_gifs_limit_premium" || name == "session_count" || name == "since_last_open" ||
              name == "stickers_faved_limit_default" || name == "stickers_faved_limit_premium" ||
-             name == "stickers_normal_by_emoji_per_premium_num" || name == "stickers_premium_by_emoji_num";
+             name == "stickers_normal_by_emoji_per_premium_num" || name == "stickers_premium_by_emoji_num" ||
+             name == "stories_changelog_user_id" || name == "stories_sent_monthly_limit_default" ||
+             name == "stories_sent_monthly_limit_premium" || name == "stories_sent_weekly_limit_default" ||
+             name == "stories_sent_weekly_limit_premium" || name == "stories_suggested_reactions_limit_default" ||
+             name == "stories_suggested_reactions_limit_premium" || name == "story_caption_length_limit_default" ||
+             name == "story_caption_length_limit_premium" || name == "story_expiring_limit_default" ||
+             name == "story_expiring_limit_premium";
     case 'v':
       return name == "video_note_size_max";
     case 'w':
@@ -299,7 +330,7 @@ bool OptionManager::is_internal_option(Slice name) {
 
 td_api::object_ptr<td_api::Update> OptionManager::get_internal_option_update(Slice name) const {
   if (name == "default_reaction") {
-    return get_update_default_reaction_type(get_option_string(name));
+    return ReactionType(get_option_string(name)).get_update_default_reaction_type();
   }
   if (name == "otherwise_relogin_days") {
     auto days = narrow_cast<int32>(get_option_integer(name));
@@ -331,6 +362,9 @@ void OptionManager::on_option_updated(Slice name) {
       }
       if (name == "animation_search_provider") {
         td_->animations_manager_->on_update_animation_search_provider();
+      }
+      if (name == "authorization_autoconfirm_period") {
+        td_->account_manager_->update_unconfirmed_authorization_timeout(true);
       }
       break;
     case 'b':
@@ -385,6 +419,11 @@ void OptionManager::on_option_updated(Slice name) {
           G()->net_query_dispatcher().update_mtproto_header();
         }
       }
+      if (name == "is_premium") {
+        set_option_boolean(
+            "can_use_text_entities_in_story_caption",
+            !get_option_boolean("need_premium_for_story_caption_entities") || get_option_boolean("is_premium"));
+      }
       break;
     case 'l':
       if (name == "language_pack_id") {
@@ -405,6 +444,14 @@ void OptionManager::on_option_updated(Slice name) {
       }
       break;
     case 'n':
+      if (name == "need_premium_for_story_caption_entities") {
+        set_option_boolean(
+            "can_use_text_entities_in_story_caption",
+            !get_option_boolean("need_premium_for_story_caption_entities") || get_option_boolean("is_premium"));
+      }
+      if (name == "need_synchronize_archive_all_stories") {
+        send_closure(td_->story_manager_actor_, &StoryManager::try_synchronize_archive_all_stories);
+      }
       if (name == "notification_cloud_delay_ms") {
         send_closure(td_->notification_manager_actor_, &NotificationManager::on_notification_cloud_delay_changed);
       }
@@ -438,6 +485,7 @@ void OptionManager::on_option_updated(Slice name) {
       }
       if (name == "session_count") {
         G()->net_query_dispatcher().update_session_count();
+        td_->updates_manager_->init_sessions(false);
       }
       break;
     case 'u':
@@ -468,11 +516,6 @@ void OptionManager::get_option(const string &name, Promise<td_api::object_ptr<td
   };
   switch (name[0]) {
     // all these options should be added to getCurrentState
-    case 'a':
-      if (!is_bot && name == "archive_and_mute_new_chats_from_unknown_users") {
-        return send_closure_later(td_->config_manager_, &ConfigManager::get_global_privacy_settings, wrap_promise());
-      }
-      break;
     case 'c':
       if (!is_bot && name == "can_ignore_sensitive_content_restrictions") {
         return send_closure_later(td_->config_manager_, &ConfigManager::get_content_settings, wrap_promise());
@@ -526,7 +569,7 @@ td_api::object_ptr<td_api::OptionValue> OptionManager::get_option_synchronously(
       break;
     case 'v':
       if (name == "version") {
-        return td_api::make_object<td_api::optionValueString>("1.8.14");
+        return td_api::make_object<td_api::optionValueString>("1.8.19");
       }
       break;
   }
@@ -616,19 +659,12 @@ void OptionManager::set_option(const string &name, td_api::object_ptr<td_api::Op
       if (set_boolean_option("always_parse_markdown")) {
         return;
       }
-      if (!is_bot && name == "archive_and_mute_new_chats_from_unknown_users") {
-        if (value_constructor_id != td_api::optionValueBoolean::ID &&
-            value_constructor_id != td_api::optionValueEmpty::ID) {
-          return promise.set_error(
-              Status::Error(400, "Option \"archive_and_mute_new_chats_from_unknown_users\" must have boolean value"));
-        }
-
-        auto archive_and_mute = value_constructor_id == td_api::optionValueBoolean::ID &&
-                                static_cast<td_api::optionValueBoolean *>(value.get())->value_;
-        send_closure_later(td_->config_manager_, &ConfigManager::set_archive_and_mute, archive_and_mute,
-                           std::move(promise));
+      /*
+      if (!is_bot && set_boolean_option("archive_all_stories")) {
+        set_option_boolean("need_synchronize_archive_all_stories", true);
         return;
       }
+      */
       break;
     case 'c':
       if (!is_bot && set_string_option("connection_parameters", [](Slice value) {

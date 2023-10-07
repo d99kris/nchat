@@ -8,6 +8,7 @@
 
 #include "td/mtproto/AuthData.h"
 #include "td/mtproto/AuthKey.h"
+#include "td/mtproto/MessageId.h"
 #include "td/mtproto/mtproto_api.h"
 #include "td/mtproto/NoCryptoStorer.h"
 #include "td/mtproto/PacketInfo.h"
@@ -47,7 +48,8 @@ class PingConnectionReqPQ final
     if (!was_ping_) {
       UInt128 nonce;
       Random::secure_bytes(nonce.raw, sizeof(nonce));
-      raw_connection_->send_no_crypto(PacketStorer<NoCryptoImpl>(1, create_storer(mtproto_api::req_pq_multi(nonce))));
+      raw_connection_->send_no_crypto(PacketStorer<NoCryptoImpl>(
+          MessageId(static_cast<uint64>(1)), create_function_storer(mtproto_api::req_pq_multi(nonce))));
       was_ping_ = true;
       if (ping_count_ == 1) {
         start_time_ = Time::now();
@@ -55,9 +57,11 @@ class PingConnectionReqPQ final
     }
     return raw_connection_->flush(AuthKey(), *this);
   }
+
   bool was_pong() const final {
     return finish_time_ > 0;
   }
+
   double rtt() const final {
     return finish_time_ - start_time_;
   }
@@ -105,8 +109,10 @@ class PingConnectionPingPong final
   double rtt_;
   bool is_closed_{false};
   Status status_;
+
   void on_connected() final {
   }
+
   void on_closed(Status status) final {
     is_closed_ = true;
     CHECK(status.is_error());
@@ -115,20 +121,25 @@ class PingConnectionPingPong final
 
   void on_auth_key_updated() final {
   }
+
   void on_tmp_auth_key_updated() final {
   }
+
   void on_server_salt_updated() final {
   }
-  void on_server_time_difference_updated() final {
+
+  void on_server_time_difference_updated(bool force) final {
   }
 
-  void on_session_created(uint64 unique_id, uint64 first_id) final {
+  void on_new_session_created(uint64 unique_id, MessageId first_message_id) final {
   }
+
   void on_session_failed(Status status) final {
   }
 
-  void on_container_sent(uint64 container_id, vector<uint64> msgs_id) final {
+  void on_container_sent(MessageId container_message_id, vector<MessageId> message_ids) final {
   }
+
   Status on_pong() final {
     pong_cnt_++;
     if (pong_cnt_ == 1) {
@@ -143,29 +154,38 @@ class PingConnectionPingPong final
   Status on_update(BufferSlice packet) final {
     return Status::OK();
   }
-  void on_message_ack(uint64 id) final {
+
+  void on_message_ack(MessageId message_id) final {
   }
-  Status on_message_result_ok(uint64 id, BufferSlice packet, size_t original_size) final {
+
+  Status on_message_result_ok(MessageId message_id, BufferSlice packet, size_t original_size) final {
     LOG(ERROR) << "Unexpected message";
     return Status::OK();
   }
-  void on_message_result_error(uint64 id, int code, string message) final {
+
+  void on_message_result_error(MessageId message_id, int code, string message) final {
   }
-  void on_message_failed(uint64 id, Status status) final {
+
+  void on_message_failed(MessageId message_id, Status status) final {
   }
-  void on_message_info(uint64 id, int32 state, uint64 answer_id, int32 answer_size) final {
+
+  void on_message_info(MessageId message_id, int32 state, MessageId answer_message_id, int32 answer_size,
+                       int32 source) final {
   }
 
   Status on_destroy_auth_key() final {
     LOG(ERROR) << "Destroy auth key";
     return Status::OK();
   }
+
   PollableFdInfo &get_poll_info() final {
     return connection_->get_poll_info();
   }
+
   unique_ptr<RawConnection> move_as_raw_connection() final {
     return connection_->move_as_raw_connection();
   }
+
   Status flush() final {
     if (was_pong()) {
       return Status::OK();
@@ -178,9 +198,11 @@ class PingConnectionPingPong final
     }
     return Status::OK();
   }
+
   bool was_pong() const final {
     return pong_cnt_ >= 2;
   }
+
   double rtt() const final {
     return rtt_;
   }

@@ -12,6 +12,7 @@
 #include "td/telegram/MessageContentType.h"
 #include "td/telegram/PhotoSize.h"
 #include "td/telegram/Td.h"
+#include "td/telegram/telegram_api.h"
 #include "td/telegram/VideosManager.h"
 
 #include "td/utils/algorithm.h"
@@ -74,7 +75,7 @@ MessageExtendedMedia::MessageExtendedMedia(
           CHECK(document_id == telegram_api::document::ID);
 
           auto parsed_document = td->documents_manager_->on_get_document(
-              move_tl_object_as<telegram_api::document>(document_ptr), owner_dialog_id, nullptr);
+              move_tl_object_as<telegram_api::document>(document_ptr), owner_dialog_id);
           if (parsed_document.empty() || parsed_document.type != Document::Type::Video) {
             break;
           }
@@ -217,7 +218,7 @@ void MessageExtendedMedia::delete_thumbnail(Td *td) {
 
 int32 MessageExtendedMedia::get_duration(const Td *td) const {
   if (!has_media_timestamp()) {
-    return 0;
+    return -1;
   }
   return td->videos_manager_->get_video_duration(video_file_id_);
 }

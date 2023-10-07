@@ -20,10 +20,15 @@ class DialogNotificationSettings {
  public:
   int32 mute_until = 0;
   unique_ptr<NotificationSound> sound;
+  unique_ptr<NotificationSound> story_sound;
   bool show_preview = true;
+  bool mute_stories = false;
+  bool hide_story_sender = false;
   bool silent_send_message = false;
   bool use_default_mute_until = true;
   bool use_default_show_preview = true;
+  bool use_default_mute_stories = true;
+  bool use_default_hide_story_sender = true;
   bool is_use_default_fixed = true;
   bool is_secret_chat_show_preview_fixed = false;
   bool is_synchronized = false;
@@ -37,22 +42,31 @@ class DialogNotificationSettings {
   DialogNotificationSettings() = default;
 
   DialogNotificationSettings(bool use_default_mute_until, int32 mute_until, unique_ptr<NotificationSound> &&sound,
-                             bool use_default_show_preview, bool show_preview, bool silent_send_message,
+                             bool use_default_show_preview, bool show_preview, bool use_default_mute_stories,
+                             bool mute_stories, unique_ptr<NotificationSound> &&story_sound,
+                             bool use_default_hide_story_sender, bool hide_story_sender, bool silent_send_message,
                              bool use_default_disable_pinned_message_notifications,
                              bool disable_pinned_message_notifications, bool use_default_disable_mention_notifications,
                              bool disable_mention_notifications)
       : mute_until(mute_until)
       , sound(std::move(sound))
+      , story_sound(std::move(story_sound))
       , show_preview(show_preview)
+      , mute_stories(mute_stories)
+      , hide_story_sender(hide_story_sender)
       , silent_send_message(silent_send_message)
       , use_default_mute_until(use_default_mute_until)
       , use_default_show_preview(use_default_show_preview)
+      , use_default_mute_stories(use_default_mute_stories)
+      , use_default_hide_story_sender(use_default_hide_story_sender)
       , is_synchronized(true)
       , use_default_disable_pinned_message_notifications(use_default_disable_pinned_message_notifications)
       , disable_pinned_message_notifications(disable_pinned_message_notifications)
       , use_default_disable_mention_notifications(use_default_disable_mention_notifications)
       , disable_mention_notifications(disable_mention_notifications) {
   }
+
+  telegram_api::object_ptr<telegram_api::inputPeerNotifySettings> get_input_peer_notify_settings() const;
 };
 
 StringBuilder &operator<<(StringBuilder &string_builder, const DialogNotificationSettings &notification_settings);
@@ -68,6 +82,8 @@ DialogNotificationSettings get_dialog_notification_settings(tl_object_ptr<telegr
                                                             const DialogNotificationSettings *old_settings);
 
 bool are_default_dialog_notification_settings(const DialogNotificationSettings &settings, bool compare_sound);
+
+bool are_default_story_notification_settings(const DialogNotificationSettings &settings);
 
 struct NeedUpdateDialogNotificationSettings {
   bool need_update_server = false;

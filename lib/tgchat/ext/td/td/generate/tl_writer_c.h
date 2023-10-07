@@ -17,11 +17,10 @@
 namespace td {
 
 class TlWriterCCommon final : public tl::TL_writer {
- public:
   int is_header_;
-  std::string prefix_;
-  TlWriterCCommon(const std::string &name, int is_header, const std::string &prefix = "")
-      : TL_writer(name), is_header_(is_header), prefix_(prefix) {
+
+ public:
+  TlWriterCCommon(const std::string &name, int is_header) : TL_writer(name), is_header_(is_header) {
   }
 
   int get_max_arity() const final {
@@ -223,13 +222,26 @@ class TlWriterCCommon final : public tl::TL_writer {
   std::string gen_type_name(const tl::tl_tree_type *tree_type) const final {
     return gen_type_name(tree_type, false);
   }
-  std::string gen_output_begin() const final {
+  std::string gen_output_begin(const std::string &additional_imports) const final {
     if (is_header_ == 1) {
-      return "#pragma once\n"
+      return "#pragma once\n\n" + additional_imports +
              "#ifdef __cplusplus\n"
              "extern \"C\" {\n"
-             "#endif\n"
-             "struct TdBytes {\n"
+             "#endif\n";
+    }
+    if (is_header_ == -1) {
+      return "#pragma once\n\n" + gen_import_declaration("td/telegram/td_tdc_api.h", false) +
+             gen_import_declaration("td/telegram/td_api.h", false) + "\n" + additional_imports;
+    }
+    return gen_import_declaration("td/telegram/td_tdc_api_inner.h", false) + "\n" +
+           gen_import_declaration("td/utils/format.h", false) + gen_import_declaration("td/utils/logging.h", false) +
+           gen_import_declaration("td/utils/misc.h", false) + gen_import_declaration("td/utils/Slice.h", false) + "\n" +
+           additional_imports;
+  }
+
+  std::string gen_output_begin_once() const final {
+    if (is_header_ == 1) {
+      return "struct TdBytes {\n"
              "  unsigned char *data;\n"
              "  int len;\n"
              "};\n"
@@ -266,18 +278,9 @@ class TlWriterCCommon final : public tl::TL_writer {
              "  int (*is_nil)(void);\n"
              "};\n";
     }
-    if (is_header_ == -1) {
-      return "#pragma once\n"
-             "#include \"td/telegram/td_tdc_api.h\"\n"
-             "#include \"td/telegram/td_api.h\"\n";
-    }
-    return "#include \"td/telegram/td_tdc_api_inner.h\"\n\n"
-           "#include \"td/utils/format.h\"\n"
-           "#include \"td/utils/logging.h\"\n"
-           "#include \"td/utils/misc.h\"\n"
-           "#include \"td/utils/Slice.h\"\n"
-           "\n";
+    return std::string();
   }
+
   std::string gen_output_end() const final {
     if (is_header_ == 1) {
       return "#ifdef __cplusplus\n"
@@ -289,17 +292,29 @@ class TlWriterCCommon final : public tl::TL_writer {
     return "";
   }
 
+  std::string gen_import_declaration(const std::string &name, bool is_system) const final {
+    if (is_system) {
+      return "#include <" + name + ">\n";
+    } else {
+      return "#include \"" + name + "\"\n";
+    }
+  }
+
+  std::string gen_package_suffix() const final {
+    return ".h";
+  }
+
   std::string gen_forward_class_declaration(const std::string &class_name, bool is_proxy) const final {
     if (is_header_ != 1 || class_name == "") {
       return "";
     }
     return "struct Td" + class_name +
            ";\n"
-           "TDC_VECTOR(" +
-           class_name + ", struct Td" + class_name +
-           " *);\n"
-           "TDC_VECTOR(Vector" +
-           class_name + ", struct TdVector" + class_name + " *);\n";
+           "struct TdVector" +
+           class_name +
+           ";\n"
+           "struct TdVectorVector" +
+           class_name + ";\n";
   }
 
   std::string gen_class_begin(const std::string &class_name, const std::string &base_class_name, bool is_proxy,
@@ -312,7 +327,13 @@ class TlWriterCCommon final : public tl::TL_writer {
     if (class_name == "Function" || class_name == "Object") {
       tail = "};\n";
     }
-    return "struct Td" + class_name + " {\n" + "  int ID;\n  int refcnt;\n" + tail;
+    return "TDC_VECTOR(" + class_name + ", struct Td" + class_name +
+           " *);\n"
+           "TDC_VECTOR(Vector" +
+           class_name + ", struct TdVector" + class_name +
+           " *);\n"
+           "struct Td" +
+           class_name + " {\n" + "  int ID;\n  int refcnt;\n" + tail;
   }
   std::string gen_class_end() const final {
     return "";
@@ -1353,4 +1374,5 @@ class TlWriterCCommon final : public tl::TL_writer {
     return 2;
   }
 };
+
 }  // namespace td

@@ -15,7 +15,7 @@
 #include "td/telegram/misc.h"
 #include "td/telegram/net/DcId.h"
 #include "td/telegram/OrderInfo.h"
-#include "td/telegram/telegram_api.hpp"
+#include "td/telegram/telegram_api.h"
 
 #include "td/utils/algorithm.h"
 #include "td/utils/base64.h"
@@ -24,7 +24,6 @@
 #include "td/utils/JsonBuilder.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
-#include "td/utils/overloaded.h"
 #include "td/utils/SliceBuilder.h"
 #include "td/utils/utf8.h"
 
@@ -399,12 +398,10 @@ telegram_api::object_ptr<telegram_api::InputSecureFile> get_input_secure_file_ob
   if (res == nullptr) {
     return file_manager->get_file_view(file.file.file_id).remote_location().as_input_secure_file();
   }
-  telegram_api::downcast_call(*res, overloaded(
-                                        [&](telegram_api::inputSecureFileUploaded &uploaded) {
-                                          uploaded.secret_ = BufferSlice(file.encrypted_secret);
-                                          uploaded.file_hash_ = BufferSlice(file.file_hash);
-                                        },
-                                        [&](telegram_api::inputSecureFile &) { UNREACHABLE(); }));
+  CHECK(res->get_id() == telegram_api::inputSecureFileUploaded::ID);
+  auto uploaded = static_cast<telegram_api::inputSecureFileUploaded *>(res.get());
+  uploaded->secret_ = BufferSlice(file.encrypted_secret);
+  uploaded->file_hash_ = BufferSlice(file.file_hash);
   return res;
 }
 
@@ -802,19 +799,19 @@ static Result<td_api::object_ptr<td_api::personalDetails>> get_personal_details_
   }
 
   auto &object = value.get_object();
-  TRY_RESULT(first_name, get_json_object_string_field(object, "first_name"));
-  TRY_RESULT(middle_name, get_json_object_string_field(object, "middle_name"));
-  TRY_RESULT(last_name, get_json_object_string_field(object, "last_name"));
-  TRY_RESULT(native_first_name, get_json_object_string_field(object, "first_name_native"));
-  TRY_RESULT(native_middle_name, get_json_object_string_field(object, "middle_name_native"));
-  TRY_RESULT(native_last_name, get_json_object_string_field(object, "last_name_native"));
-  TRY_RESULT(birthdate, get_json_object_string_field(object, "birth_date"));
+  TRY_RESULT(first_name, object.get_optional_string_field("first_name"));
+  TRY_RESULT(middle_name, object.get_optional_string_field("middle_name"));
+  TRY_RESULT(last_name, object.get_optional_string_field("last_name"));
+  TRY_RESULT(native_first_name, object.get_optional_string_field("first_name_native"));
+  TRY_RESULT(native_middle_name, object.get_optional_string_field("middle_name_native"));
+  TRY_RESULT(native_last_name, object.get_optional_string_field("last_name_native"));
+  TRY_RESULT(birthdate, object.get_optional_string_field("birth_date"));
   if (birthdate.empty()) {
     return Status::Error(400, "Birthdate must be non-empty");
   }
-  TRY_RESULT(gender, get_json_object_string_field(object, "gender"));
-  TRY_RESULT(country_code, get_json_object_string_field(object, "country_code"));
-  TRY_RESULT(residence_country_code, get_json_object_string_field(object, "residence_country_code"));
+  TRY_RESULT(gender, object.get_optional_string_field("gender"));
+  TRY_RESULT(country_code, object.get_optional_string_field("country_code"));
+  TRY_RESULT(residence_country_code, object.get_optional_string_field("residence_country_code"));
 
   TRY_STATUS(check_name(first_name));
   TRY_STATUS(check_name(middle_name));
@@ -872,7 +869,7 @@ static Result<SecureValue> get_identity_document(SecureValueType type, FileManag
     return Status::Error(400, "Identity document must be non-empty");
   }
   TRY_STATUS(check_document_number(identity_document->number_));
-  TRY_RESULT(date, get_date(std::move(identity_document->expiry_date_)));
+  TRY_RESULT(date, get_date(std::move(identity_document->expiration_date_)));
 
   SecureValue res;
   res.type = type;
@@ -936,8 +933,8 @@ static Result<td_api::object_ptr<td_api::identityDocument>> get_identity_documen
   }
 
   auto &object = json_value.get_object();
-  TRY_RESULT(number, get_json_object_string_field(object, "document_no"));
-  TRY_RESULT(expiry_date, get_json_object_string_field(object, "expiry_date"));
+  TRY_RESULT(number, object.get_optional_string_field("document_no"));
+  TRY_RESULT(expiry_date, object.get_optional_string_field("expiry_date"));
 
   TRY_STATUS(check_document_number(number));
   TRY_RESULT(date, get_date_object(expiry_date));

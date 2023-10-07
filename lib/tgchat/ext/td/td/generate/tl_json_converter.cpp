@@ -103,8 +103,8 @@ void gen_from_json_constructor(StringBuilder &sb, const T *constructor, bool is_
     sb << " {\n";
     for (auto &arg : constructor->args) {
       sb << "  TRY_STATUS(from_json" << (arg.type->type == tl::simple::Type::Bytes ? "_bytes" : "") << "(to."
-         << tl::simple::gen_cpp_field_name(arg.name) << ", get_json_object_field_force(from, \""
-         << tl::simple::gen_cpp_name(arg.name) << "\")));\n";
+         << tl::simple::gen_cpp_field_name(arg.name) << ", from.extract_field(\"" << tl::simple::gen_cpp_name(arg.name)
+         << "\")));\n";
     }
     sb << "  return Status::OK();\n";
     sb << "}\n\n";
@@ -187,7 +187,6 @@ void gen_tl_constructor_from_string(StringBuilder &sb, const tl::simple::Schema 
 void gen_json_converter_file(const tl::simple::Schema &schema, const std::string &file_name_base, bool is_header,
                              Mode mode) {
   auto file_name = is_header ? file_name_base + ".h" : file_name_base + ".cpp";
-  file_name = "auto/" + file_name;
   auto old_file_content = [&] {
     auto r_content = read_file(file_name);
     if (r_content.is_error()) {

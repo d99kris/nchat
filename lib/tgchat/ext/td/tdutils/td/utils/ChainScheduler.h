@@ -9,8 +9,8 @@
 #include "td/utils/algorithm.h"
 #include "td/utils/common.h"
 #include "td/utils/Container.h"
+#include "td/utils/FlatHashMap.h"
 #include "td/utils/FlatHashSet.h"
-#include "td/utils/HashTableUtils.h"
 #include "td/utils/List.h"
 #include "td/utils/logging.h"
 #include "td/utils/optional.h"
@@ -19,7 +19,6 @@
 #include "td/utils/VectorQueue.h"
 
 #include <functional>
-#include <unordered_map>
 
 namespace td {
 
@@ -50,7 +49,7 @@ class ChainScheduler final : public ChainSchedulerBase {
 
   template <class F>
   void for_each(F &&f) {
-    tasks_.for_each([&f](auto, Task &task) { f(task.extra); });
+    tasks_.for_each([&f](uint64, Task &task) { f(task.extra); });
   }
 
   template <class F>
@@ -141,10 +140,18 @@ class ChainScheduler final : public ChainSchedulerBase {
     vector<TaskChainInfo> chains;
     ExtraT extra;
   };
-  std::unordered_map<ChainId, ChainInfo, Hash<ChainId>> chains_;
-  std::unordered_map<ChainId, TaskId, Hash<ChainId>> limited_tasks_;
+  FlatHashMap<ChainId, unique_ptr<ChainInfo>> chains_;
+  FlatHashMap<ChainId, TaskId> limited_tasks_;
   Container<Task> tasks_;
   VectorQueue<TaskId> pending_tasks_;
+
+  ChainInfo &get_chain_info(ChainId chain_id) {
+    auto &chain = chains_[chain_id];
+    if (chain == nullptr) {
+      chain = make_unique<ChainInfo>();
+    }
+    return *chain;
+  }
 
   void try_start_task(TaskId task_id) {
     auto *task = tasks_.get(task_id);
@@ -172,7 +179,7 @@ class ChainScheduler final : public ChainSchedulerBase {
 
   void do_start_task(TaskId task_id, Task *task) {
     for (TaskChainInfo &task_chain_info : task->chains) {
-      ChainInfo &chain_info = chains_[task_chain_info.chain_id];
+      ChainInfo &chain_info = get_chain_info(task_chain_info.chain_id);
       chain_info.active_tasks++;
       task_chain_info.chain_node.generation = chain_info.generation;
     }
@@ -255,14 +262,14 @@ class ChainScheduler final : public ChainSchedulerBase {
 };
 
 template <class ExtraT>
-typename ChainScheduler<ExtraT>::TaskId ChainScheduler<ExtraT>::create_task(Span<ChainScheduler::ChainId> chains,
-                                                                            ExtraT extra) {
+typename ChainScheduler<ExtraT>::TaskId ChainScheduler<ExtraT>::create_task(Span<ChainId> chains, ExtraT extra) {
   auto task_id = tasks_.create();
   Task &task = *tasks_.get(task_id);
   task.extra = std::move(extra);
-  task.chains = transform(chains, [&](auto chain_id) {
+  task.chains = transform(chains, [&](ChainId chain_id) {
+    CHECK(chain_id != 0);
     TaskChainInfo task_chain_info;
-    ChainInfo &chain_info = chains_[chain_id];
+    ChainInfo &chain_info = get_chain_info(chain_id);
     task_chain_info.chain_id = chain_id;
     task_chain_info.chain_info = &chain_info;
     task_chain_info.chain_node.task_id = task_id;
@@ -281,7 +288,7 @@ typename ChainScheduler<ExtraT>::TaskId ChainScheduler<ExtraT>::create_task(Span
 
 // TODO: return reference
 template <class ExtraT>
-ExtraT *ChainScheduler<ExtraT>::get_task_extra(ChainScheduler::TaskId task_id) {  // may return nullptr
+ExtraT *ChainScheduler<ExtraT>::get_task_extra(TaskId task_id) {  // may return nullptr
   auto *task = tasks_.get(task_id);
   if (task == nullptr) {
     return nullptr;
@@ -310,7 +317,7 @@ optional<ChainSchedulerBase::TaskWithParents> ChainScheduler<ExtraT>::start_next
 }
 
 template <class ExtraT>
-void ChainScheduler<ExtraT>::finish_task(ChainScheduler::TaskId task_id) {
+void ChainScheduler<ExtraT>::finish_task(TaskId task_id) {
   auto *task = tasks_.get(task_id);
   CHECK(task != nullptr);
   CHECK(to_start_.empty());
@@ -328,7 +335,7 @@ void ChainScheduler<ExtraT>::finish_task(ChainScheduler::TaskId task_id) {
 }
 
 template <class ExtraT>
-void ChainScheduler<ExtraT>::reset_task(ChainScheduler::TaskId task_id) {
+void ChainScheduler<ExtraT>::reset_task(TaskId task_id) {
   CHECK(to_start_.empty());
   auto *task = tasks_.get(task_id);
   CHECK(task != nullptr);
@@ -351,15 +358,17 @@ StringBuilder &operator<<(StringBuilder &sb, ChainScheduler<ExtraT> &scheduler) 
   // 1 print chains
   sb << '\n';
   for (auto &it : scheduler.chains_) {
+    CHECK(it.second != nullptr);
     sb << "ChainId{" << it.first << "}";
-    sb << " active_cnt = " << it.second.active_tasks;
-    sb << " g = " << it.second.generation;
+    sb << " active_cnt = " << it.second->active_tasks;
+    sb << " g = " << it.second->generation;
     sb << ':';
-    it.second.chain.foreach(
-        [&](auto task_id, auto generation) { sb << ' ' << *scheduler.get_task_extra(task_id) << ':' << generation; });
+    it.second->chain.foreach([&](typename ChainScheduler<ExtraT>::TaskId task_id, uint64 generation) {
+      sb << ' ' << *scheduler.get_task_extra(task_id) << ':' << generation;
+    });
     sb << '\n';
   }
-  scheduler.tasks_.for_each([&](auto id, auto &task) {
+  scheduler.tasks_.for_each([&](uint64, typename ChainScheduler<ExtraT>::Task &task) {
     sb << "Task: " << task.extra;
     sb << " state = " << static_cast<int>(task.state);
     for (auto &task_chain_info : task.chains) {

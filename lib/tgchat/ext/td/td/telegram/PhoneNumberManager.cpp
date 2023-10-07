@@ -16,7 +16,6 @@
 #include "td/telegram/telegram_api.h"
 
 #include "td/utils/logging.h"
-#include "td/utils/ScopeGuard.h"
 
 namespace td {
 
@@ -83,7 +82,7 @@ void PhoneNumberManager::set_phone_number_and_hash(uint64 query_id, string hash,
 
 void PhoneNumberManager::resend_authentication_code(uint64 query_id) {
   if (state_ != State::WaitCode) {
-    return on_query_error(query_id, Status::Error(400, "resendAuthenticationCode unexpected"));
+    return on_query_error(query_id, Status::Error(400, "Can't resend code"));
   }
 
   auto r_resend_code = send_code_helper_.resend_code();
@@ -102,7 +101,7 @@ void PhoneNumberManager::send_new_check_code_query(const telegram_api::Function 
 
 void PhoneNumberManager::check_code(uint64 query_id, string code) {
   if (state_ != State::WaitCode) {
-    return on_query_error(query_id, Status::Error(400, "checkAuthenticationCode unexpected"));
+    return on_query_error(query_id, Status::Error(400, "Can't check code"));
   }
 
   on_new_query(query_id);
@@ -124,7 +123,7 @@ void PhoneNumberManager::check_code(uint64 query_id, string code) {
 
 void PhoneNumberManager::on_new_query(uint64 query_id) {
   if (query_id_ != 0) {
-    on_query_error(Status::Error(400, "Another authorization query has started"));
+    on_current_query_error(Status::Error(400, "Another query has started"));
   }
   net_query_id_ = 0;
   net_query_type_ = NetQueryType::None;
@@ -132,8 +131,10 @@ void PhoneNumberManager::on_new_query(uint64 query_id) {
   // TODO: cancel older net_query
 }
 
-void PhoneNumberManager::on_query_error(Status status) {
-  CHECK(query_id_ != 0);
+void PhoneNumberManager::on_current_query_error(Status status) {
+  if (query_id_ == 0) {
+    return;
+  }
   auto id = query_id_;
   query_id_ = 0;
   net_query_id_ = 0;
@@ -145,8 +146,10 @@ void PhoneNumberManager::on_query_error(uint64 id, Status status) {
   send_closure(G()->td(), &Td::send_error, id, std::move(status));
 }
 
-void PhoneNumberManager::on_query_ok() {
-  CHECK(query_id_ != 0);
+void PhoneNumberManager::on_current_query_ok() {
+  if (query_id_ == 0) {
+    return;
+  }
   auto id = query_id_;
   net_query_id_ = 0;
   net_query_type_ = NetQueryType::None;
@@ -163,57 +166,57 @@ void PhoneNumberManager::start_net_query(NetQueryType net_query_type, NetQueryPt
 
 void PhoneNumberManager::process_check_code_result(Result<tl_object_ptr<telegram_api::User>> &&result) {
   if (result.is_error()) {
-    return on_query_error(result.move_as_error());
+    return on_current_query_error(result.move_as_error());
   }
-  send_closure(G()->contacts_manager(), &ContactsManager::on_get_user, result.move_as_ok(), "process_check_code_result",
-               true);
+  send_closure(G()->contacts_manager(), &ContactsManager::on_get_user, result.move_as_ok(),
+               "process_check_code_result");
   state_ = State::Ok;
-  on_query_ok();
+  on_current_query_ok();
 }
 
 void PhoneNumberManager::process_check_code_result(Result<bool> &&result) {
   if (result.is_error()) {
-    return on_query_error(result.move_as_error());
+    return on_current_query_error(result.move_as_error());
   }
   state_ = State::Ok;
-  on_query_ok();
+  on_current_query_ok();
 }
 
-void PhoneNumberManager::on_check_code_result(NetQueryPtr &result) {
+void PhoneNumberManager::on_check_code_result(NetQueryPtr &&net_query) {
   switch (type_) {
     case Type::ChangePhone:
-      return process_check_code_result(fetch_result<telegram_api::account_changePhone>(result->ok()));
+      return process_check_code_result(fetch_result<telegram_api::account_changePhone>(std::move(net_query)));
     case Type::VerifyPhone:
-      return process_check_code_result(fetch_result<telegram_api::account_verifyPhone>(result->ok()));
+      return process_check_code_result(fetch_result<telegram_api::account_verifyPhone>(std::move(net_query)));
     case Type::ConfirmPhone:
-      return process_check_code_result(fetch_result<telegram_api::account_confirmPhone>(result->ok()));
+      return process_check_code_result(fetch_result<telegram_api::account_confirmPhone>(std::move(net_query)));
     default:
       UNREACHABLE();
   }
 }
 
-void PhoneNumberManager::on_send_code_result(NetQueryPtr &result) {
+void PhoneNumberManager::on_send_code_result(NetQueryPtr &&net_query) {
   auto r_sent_code = [&] {
     switch (type_) {
       case Type::ChangePhone:
-        return fetch_result<telegram_api::account_sendChangePhoneCode>(result->ok());
+        return fetch_result<telegram_api::account_sendChangePhoneCode>(std::move(net_query));
       case Type::VerifyPhone:
-        return fetch_result<telegram_api::account_sendVerifyPhoneCode>(result->ok());
+        return fetch_result<telegram_api::account_sendVerifyPhoneCode>(std::move(net_query));
       case Type::ConfirmPhone:
-        return fetch_result<telegram_api::account_sendConfirmPhoneCode>(result->ok());
+        return fetch_result<telegram_api::account_sendConfirmPhoneCode>(std::move(net_query));
       default:
         UNREACHABLE();
-        return fetch_result<telegram_api::account_sendChangePhoneCode>(result->ok());
+        return fetch_result<telegram_api::account_sendChangePhoneCode>(std::move(net_query));
     }
   }();
   if (r_sent_code.is_error()) {
-    return on_query_error(r_sent_code.move_as_error());
+    return on_current_query_error(r_sent_code.move_as_error());
   }
   auto sent_code_ptr = r_sent_code.move_as_ok();
   auto sent_code_id = sent_code_ptr->get_id();
   if (sent_code_id != telegram_api::auth_sentCode::ID) {
     CHECK(sent_code_id == telegram_api::auth_sentCodeSuccess::ID);
-    return on_query_error(Status::Error(500, "Receive invalid response"));
+    return on_current_query_error(Status::Error(500, "Receive invalid response"));
   }
   auto sent_code = telegram_api::move_object_as<telegram_api::auth_sentCode>(sent_code_ptr);
 
@@ -222,7 +225,7 @@ void PhoneNumberManager::on_send_code_result(NetQueryPtr &result) {
   switch (sent_code->type_->get_id()) {
     case telegram_api::auth_sentCodeTypeSetUpEmailRequired::ID:
     case telegram_api::auth_sentCodeTypeEmailCode::ID:
-      return on_query_error(Status::Error(500, "Receive incorrect response"));
+      return on_current_query_error(Status::Error(500, "Receive incorrect response"));
     default:
       break;
   }
@@ -230,35 +233,28 @@ void PhoneNumberManager::on_send_code_result(NetQueryPtr &result) {
   send_code_helper_.on_sent_code(std::move(sent_code));
 
   state_ = State::WaitCode;
-  on_query_ok();
+  on_current_query_ok();
 }
 
-void PhoneNumberManager::on_result(NetQueryPtr result) {
-  SCOPE_EXIT {
-    result->clear();
-  };
+void PhoneNumberManager::on_result(NetQueryPtr net_query) {
   NetQueryType type = NetQueryType::None;
-  if (result->id() == net_query_id_) {
+  if (net_query->id() == net_query_id_) {
     net_query_id_ = 0;
     type = net_query_type_;
     net_query_type_ = NetQueryType::None;
-    if (result->is_error()) {
-      if (query_id_ != 0) {
-        on_query_error(std::move(result->error()));
-      }
-      return;
-    }
   }
   switch (type) {
     case NetQueryType::None:
-      result->ignore();
+      net_query->clear();
       break;
     case NetQueryType::SendCode:
-      on_send_code_result(result);
+      on_send_code_result(std::move(net_query));
       break;
     case NetQueryType::CheckCode:
-      on_check_code_result(result);
+      on_check_code_result(std::move(net_query));
       break;
+    default:
+      UNREACHABLE();
   }
 }
 

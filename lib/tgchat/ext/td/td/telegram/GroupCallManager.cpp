@@ -19,6 +19,7 @@
 #include "td/telegram/net/DcId.h"
 #include "td/telegram/net/NetQuery.h"
 #include "td/telegram/Td.h"
+#include "td/telegram/telegram_api.h"
 #include "td/telegram/UpdatesManager.h"
 
 #include "td/utils/algorithm.h"
@@ -2638,7 +2639,7 @@ void GroupCallManager::join_group_call(GroupCallId group_call_id, DialogId as_di
       if (as_dialog_id != my_dialog_id) {
         return promise.set_error(Status::Error(400, "Can't join voice chat as another user"));
       }
-      if (!td_->contacts_manager_->have_user_force(as_dialog_id.get_user_id())) {
+      if (!td_->contacts_manager_->have_user_force(as_dialog_id.get_user_id(), "join_group_call")) {
         have_as_dialog_id = false;
       }
     } else {
@@ -4442,7 +4443,7 @@ InputGroupCallId GroupCallManager::update_group_call(const tl_object_ptr<telegra
       }
       if (call.scheduled_start_date != group_call->scheduled_start_date &&
           call.scheduled_start_date_version >= group_call->scheduled_start_date_version) {
-        LOG_IF(ERROR, group_call->scheduled_start_date == 0) << call.group_call_id << " became scheduled";
+        LOG_IF(ERROR, group_call->scheduled_start_date == 0) << input_group_call_id << " became scheduled";
         group_call->scheduled_start_date = call.scheduled_start_date;
         group_call->scheduled_start_date_version = call.scheduled_start_date_version;
         need_update = true;
@@ -4545,7 +4546,7 @@ void GroupCallManager::on_user_speaking_in_group_call(GroupCallId group_call_id,
     return;
   }
 
-  if (!td_->messages_manager_->have_dialog_info_force(dialog_id) ||
+  if (!td_->messages_manager_->have_dialog_info_force(dialog_id, "on_user_speaking_in_group_call") ||
       (!is_recursive && need_group_call_participants(input_group_call_id, group_call) &&
        get_group_call_participant(input_group_call_id, dialog_id) == nullptr)) {
     if (is_recursive) {

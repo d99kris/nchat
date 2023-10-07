@@ -13,6 +13,7 @@
 #include "td/telegram/logevent/LogEvent.h"
 #include "td/telegram/MessageDb.h"
 #include "td/telegram/MessageThreadDb.h"
+#include "td/telegram/StoryDb.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/Version.h"
 
@@ -126,6 +127,13 @@ Status init_binlog(Binlog &binlog, string path, BinlogKeyValue<Binlog> &binlog_p
       case LogEvent::HandlerType::ToggleDialogIsTranslatableOnServer:
         events.to_messages_manager.push_back(event.clone());
         break;
+      case LogEvent::HandlerType::DeleteStoryOnServer:
+      case LogEvent::HandlerType::ReadStoriesOnServer:
+      case LogEvent::HandlerType::LoadDialogExpiringStories:
+      case LogEvent::HandlerType::SendStory:
+      case LogEvent::HandlerType::EditStory:
+        events.to_story_manager.push_back(event.clone());
+        break;
       case LogEvent::HandlerType::UpdateScopeNotificationSettingsOnServer:
         events.to_notification_settings_manager.push_back(event.clone());
         break;
@@ -135,6 +143,17 @@ Status init_binlog(Binlog &binlog, string path, BinlogKeyValue<Binlog> &binlog_p
         break;
       case LogEvent::HandlerType::SaveAppLog:
         events.save_app_log_events.push_back(event.clone());
+        break;
+      case LogEvent::HandlerType::ChangeAuthorizationSettingsOnServer:
+      case LogEvent::HandlerType::InvalidateSignInCodesOnServer:
+      case LogEvent::HandlerType::ResetAuthorizationOnServer:
+      case LogEvent::HandlerType::ResetAuthorizationsOnServer:
+      case LogEvent::HandlerType::ResetWebAuthorizationOnServer:
+      case LogEvent::HandlerType::ResetWebAuthorizationsOnServer:
+      case LogEvent::HandlerType::SetAccountTtlOnServer:
+      case LogEvent::HandlerType::SetAuthorizationTtlOnServer:
+      case LogEvent::HandlerType::SetDefaultHistoryTtlOnServer:
+        events.to_account_manager.push_back(event.clone());
         break;
       case LogEvent::HandlerType::BinlogPmcMagic:
         binlog_pmc.external_init_handle(event);
@@ -226,6 +245,14 @@ DialogDbAsyncInterface *TdDb::get_dialog_db_async() {
   return dialog_db_async_.get();
 }
 
+StoryDbSyncInterface *TdDb::get_story_db_sync() {
+  return &story_db_sync_safe_->get();
+}
+
+StoryDbAsyncInterface *TdDb::get_story_db_async() {
+  return story_db_async_.get();
+}
+
 void TdDb::flush_all() {
   LOG(INFO) << "Flush all databases";
   if (message_db_async_) {
@@ -236,6 +263,9 @@ void TdDb::flush_all() {
   }
   if (dialog_db_async_) {
     dialog_db_async_->force_flush();
+  }
+  if (story_db_async_) {
+    story_db_async_->force_flush();
   }
   binlog_->force_flush();
 }
@@ -292,6 +322,11 @@ void TdDb::do_close(Promise<> on_finished, bool destroy_flag) {
     dialog_db_async_->close(mpas.get_promise());
   }
 
+  story_db_sync_safe_.reset();
+  if (story_db_async_) {
+    story_db_async_->close(mpas.get_promise());
+  }
+
   // binlog_pmc is dependent on binlog_ and anyway it doesn't support close_and_destroy
   CHECK(binlog_pmc_.unique());
   binlog_pmc_.reset();
@@ -318,10 +353,14 @@ Status TdDb::init_sqlite(const Parameters &parameters, const DbKey &key, const D
   const string sql_database_path = get_sqlite_path(parameters);
 
   bool use_sqlite = parameters.use_file_database_;
-  bool use_file_database_ = parameters.use_file_database_;
+  bool use_file_database = parameters.use_file_database_;
   bool use_dialog_db = parameters.use_message_database_;
   bool use_message_thread_db = parameters.use_message_database_ && false;
-  bool use_message_database_ = parameters.use_message_database_;
+  bool use_message_database = parameters.use_message_database_;
+  bool use_story_database = parameters.use_message_database_;
+
+  was_dialog_db_created_ = false;
+
   if (!use_sqlite) {
     SqliteDb::destroy(sql_database_path).ignore();
     return Status::OK();
@@ -346,9 +385,8 @@ Status TdDb::init_sqlite(const Parameters &parameters, const DbKey &key, const D
   LOG(INFO) << "Have PRAGMA user_version = " << user_version;
 
   // init DialogDb
-  bool dialog_db_was_created = false;
   if (use_dialog_db) {
-    TRY_STATUS(init_dialog_db(db, user_version, binlog_pmc, dialog_db_was_created));
+    TRY_STATUS(init_dialog_db(db, user_version, binlog_pmc, was_dialog_db_created_));
   } else {
     TRY_STATUS(drop_dialog_db(db, user_version));
   }
@@ -361,14 +399,21 @@ Status TdDb::init_sqlite(const Parameters &parameters, const DbKey &key, const D
   }
 
   // init MessageDb
-  if (use_message_database_) {
+  if (use_message_database) {
     TRY_STATUS(init_message_db(db, user_version));
   } else {
     TRY_STATUS(drop_message_db(db, user_version));
   }
 
-  // init filesDb
-  if (use_file_database_) {
+  // init StoryDb
+  if (use_story_database) {
+    TRY_STATUS(init_story_db(db, user_version));
+  } else {
+    TRY_STATUS(drop_story_db(db, user_version));
+  }
+
+  // init FileDb
+  if (use_file_database) {
     TRY_STATUS(init_file_db(db, user_version));
   } else {
     TRY_STATUS(drop_file_db(db, user_version));
@@ -381,15 +426,18 @@ Status TdDb::init_sqlite(const Parameters &parameters, const DbKey &key, const D
     TRY_STATUS(db.set_user_version(db_version));
   }
 
-  if (dialog_db_was_created) {
+  if (was_dialog_db_created_) {
     binlog_pmc.erase_by_prefix("pinned_dialog_ids");
     binlog_pmc.erase_by_prefix("last_server_dialog_date");
     binlog_pmc.erase_by_prefix("unread_message_count");
     binlog_pmc.erase_by_prefix("unread_dialog_count");
     binlog_pmc.erase("sponsored_dialog_id");
-    binlog_pmc.erase_by_prefix("top_dialogs");
+    binlog_pmc.erase_by_prefix("top_dialogs#");
     binlog_pmc.erase("dlds_counter");
     binlog_pmc.erase_by_prefix("dlds#");
+    binlog_pmc.erase("fetched_marks_as_unread");
+    binlog_pmc.erase_by_prefix("public_channels");
+    binlog_pmc.erase("channels_to_send_stories");
   }
   if (user_version == 0) {
     binlog_pmc.erase("next_contacts_sync_date");
@@ -407,6 +455,11 @@ Status TdDb::init_sqlite(const Parameters &parameters, const DbKey &key, const D
   common_kv_safe_ = std::make_shared<SqliteKeyValueSafe>("common", sql_connection_);
   common_kv_async_ = create_sqlite_key_value_async(common_kv_safe_);
 
+  if (was_dialog_db_created_) {
+    get_sqlite_sync_pmc()->erase("calls_db_state");
+    get_sqlite_sync_pmc()->erase("di_active_live_location_messages");
+  }
+
   if (use_dialog_db) {
     dialog_db_sync_safe_ = create_dialog_db_sync(sql_connection_);
     dialog_db_async_ = create_dialog_db_async(dialog_db_sync_safe_);
@@ -417,9 +470,14 @@ Status TdDb::init_sqlite(const Parameters &parameters, const DbKey &key, const D
     message_thread_db_async_ = create_message_thread_db_async(message_thread_db_sync_safe_);
   }
 
-  if (use_message_database_) {
+  if (use_message_database) {
     message_db_sync_safe_ = create_message_db_sync(sql_connection_);
     message_db_async_ = create_message_db_async(message_db_sync_safe_);
+  }
+
+  if (use_story_database) {
+    story_db_sync_safe_ = create_story_db_sync(sql_connection_);
+    story_db_async_ = create_story_db_async(story_db_sync_safe_);
   }
 
   return Status::OK();
@@ -629,6 +687,7 @@ Result<string> TdDb::get_stats() {
                               << mask << "'",
                      PSLICE() << table << ":" << mask);
   };
+  TRY_STATUS(run_query("SELECT 0, SUM(length(data)), COUNT(*) FROM stories WHERE 1", "stories"));
   TRY_STATUS(run_query("SELECT 0, SUM(length(data)), COUNT(*) FROM messages WHERE 1", "messages"));
   TRY_STATUS(run_query("SELECT 0, SUM(length(data)), COUNT(*) FROM dialogs WHERE 1", "dialogs"));
   TRY_STATUS(run_kv_query("%", "common"));

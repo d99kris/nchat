@@ -79,10 +79,15 @@ Result<FileLoader::FileInfo> FileUploader::init() {
       parts.push_back(i);
     }
   }
-  LOG(DEBUG) << "Init file uploader for " << remote_ << " with offset = " << offset << " and part size = " << part_size;
   if (!ok.empty() && !ok[0]) {
     parts.clear();
+    part_size = 0;
+    remote_ = RemoteFileLocation();
+    file_id_ = Random::secure_int64();
+    big_flag_ = is_file_big(file_type_, expected_size_);
   }
+
+  LOG(DEBUG) << "Init file uploader for " << remote_ << " with offset = " << offset << " and part size = " << part_size;
   FileInfo res;
   res.size = local_size_;
   res.is_size_final = local_is_ready_;
@@ -290,14 +295,11 @@ Result<std::pair<NetQueryPtr, bool>> FileUploader::start_part(Part part, int32 p
 }
 
 Result<size_t> FileUploader::process_part(Part part, NetQueryPtr net_query) {
-  if (net_query->is_error()) {
-    return std::move(net_query->error());
-  }
   Result<bool> result = [&] {
     if (big_flag_) {
-      return fetch_result<telegram_api::upload_saveBigFilePart>(net_query->ok());
+      return fetch_result<telegram_api::upload_saveBigFilePart>(std::move(net_query));
     } else {
-      return fetch_result<telegram_api::upload_saveFilePart>(net_query->ok());
+      return fetch_result<telegram_api::upload_saveFilePart>(std::move(net_query));
     }
   }();
   if (result.is_error()) {

@@ -121,6 +121,7 @@ function(td_set_up_compiler)
     add_cxx_compiler_flag("-Wdeprecated")
     add_cxx_compiler_flag("-Wno-unused-command-line-argument")
     add_cxx_compiler_flag("-Qunused-arguments")
+    add_cxx_compiler_flag("-Wno-unknown-warning-option")
     add_cxx_compiler_flag("-Wodr")
     add_cxx_compiler_flag("-flto-odr-type-merging")
 
@@ -135,7 +136,7 @@ function(td_set_up_compiler)
   #  add_cxx_compiler_flag("-Wzero-as-null-pointer-constant")
   endif()
 
-  if (GCC AND NOT (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 7.0))
+  if (GCC)
     add_cxx_compiler_flag("-Wno-maybe-uninitialized")  # too many false positives
   endif()
   if (WIN32 AND GCC AND NOT (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 8.0))

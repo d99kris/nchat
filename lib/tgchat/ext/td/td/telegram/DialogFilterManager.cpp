@@ -19,6 +19,7 @@
 #include "td/telegram/OptionManager.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/TdDb.h"
+#include "td/telegram/telegram_api.h"
 #include "td/telegram/UpdatesManager.h"
 #include "td/telegram/Version.h"
 
@@ -533,6 +534,8 @@ class GetSuggestedDialogFiltersQuery final : public Td::ResultHandler {
 DialogFilterManager::DialogFilterManager(Td *td, ActorShared<> parent) : td_(td), parent_(std::move(parent)) {
 }
 
+DialogFilterManager::~DialogFilterManager() = default;
+
 void DialogFilterManager::hangup() {
   fail_promises(dialog_filter_reload_queries_, Global::request_aborted_error());
   stop();
@@ -941,7 +944,7 @@ void DialogFilterManager::load_dialog_filter(const DialogFilter *dialog_filter, 
     // TODO load dialogs asynchronously
     if (!td_->messages_manager_->have_dialog_force(dialog_id, "load_dialog_filter")) {
       if (dialog_id.get_type() == DialogType::SecretChat) {
-        if (td_->messages_manager_->have_dialog_info_force(dialog_id)) {
+        if (td_->messages_manager_->have_dialog_info_force(dialog_id, "load_dialog_filter")) {
           td_->messages_manager_->force_create_dialog(dialog_id, "load_dialog_filter");
         }
       } else {
@@ -1016,6 +1019,7 @@ void DialogFilterManager::delete_dialogs_from_filter(const DialogFilter *dialog_
     return;
   }
 
+  bool was_valid = dialog_filter->check_limits().is_ok();
   auto new_dialog_filter = td::make_unique<DialogFilter>(*dialog_filter);
   for (auto dialog_id : dialog_ids) {
     new_dialog_filter->remove_dialog_id(dialog_id);
@@ -1024,7 +1028,7 @@ void DialogFilterManager::delete_dialogs_from_filter(const DialogFilter *dialog_
     delete_dialog_filter(dialog_filter->get_dialog_filter_id(), vector<DialogId>(), Promise<Unit>());
     return;
   }
-  CHECK(new_dialog_filter->check_limits().is_ok());
+  CHECK(!was_valid || new_dialog_filter->check_limits().is_ok());
 
   if (*new_dialog_filter != *dialog_filter) {
     LOG(INFO) << "Update " << *dialog_filter << " to " << *new_dialog_filter;
@@ -1467,7 +1471,6 @@ td_api::object_ptr<td_api::updateChatFolders> DialogFilterManager::get_update_ch
 
 void DialogFilterManager::create_dialog_filter(td_api::object_ptr<td_api::chatFolder> filter,
                                                Promise<td_api::object_ptr<td_api::chatFolderInfo>> &&promise) {
-  CHECK(!td_->auth_manager_->is_bot());
   auto max_dialog_filters = clamp(td_->option_manager_->get_option_integer("chat_folder_count_max"),
                                   static_cast<int64>(0), static_cast<int64>(100));
   if (dialog_filters_.size() >= narrow_cast<size_t>(max_dialog_filters)) {
@@ -2000,8 +2003,8 @@ void DialogFilterManager::on_get_chatlist_invite(
       if (icon_name.empty()) {
         icon_name = "Custom";
       }
-      info = td_api::make_object<td_api::chatFolderInfo>(0, invite->title_,
-                                                         td_api::make_object<td_api::chatFolderIcon>(icon_name), false);
+      info = td_api::make_object<td_api::chatFolderInfo>(
+          0, invite->title_, td_api::make_object<td_api::chatFolderIcon>(icon_name), true, false);
       missing_peers = std::move(invite->peers_);
       chats = std::move(invite->chats_);
       users = std::move(invite->users_);

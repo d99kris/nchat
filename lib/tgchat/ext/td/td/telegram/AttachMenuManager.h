@@ -10,6 +10,7 @@
 #include "td/telegram/files/FileId.h"
 #include "td/telegram/files/FileSourceId.h"
 #include "td/telegram/MessageId.h"
+#include "td/telegram/MessageInputReplyTo.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/UserId.h"
@@ -42,14 +43,17 @@ class AttachMenuManager final : public Actor {
                             string &&platform, bool allow_write_access, Promise<string> &&promise);
 
   void request_web_view(DialogId dialog_id, UserId bot_user_id, MessageId top_thread_message_id,
-                        MessageId reply_to_message_id, string &&url,
+                        td_api::object_ptr<td_api::MessageReplyTo> &&reply_to, string &&url,
                         td_api::object_ptr<td_api::themeParameters> &&theme, string &&platform,
                         Promise<td_api::object_ptr<td_api::webAppInfo>> &&promise);
 
   void open_web_view(int64 query_id, DialogId dialog_id, UserId bot_user_id, MessageId top_thread_message_id,
-                     MessageId reply_to_message_id, DialogId as_dialog_id);
+                     MessageInputReplyTo input_reply_to, DialogId as_dialog_id);
 
   void close_web_view(int64 query_id, Promise<Unit> &&promise);
+
+  void invoke_web_view_custom_method(UserId bot_user_id, const string &method, const string &parameters,
+                                     Promise<td_api::object_ptr<td_api::customRequestResult>> &&promise);
 
   void reload_attach_menu_bots(Promise<Unit> &&promise);
 
@@ -102,6 +106,9 @@ class AttachMenuManager final : public Actor {
     bool supports_broadcast_dialogs_ = false;
     bool supports_settings_ = false;
     bool request_write_access_ = false;
+    bool show_in_attach_menu_ = false;
+    bool show_in_side_menu_ = false;
+    bool side_menu_disclaimer_needed_ = false;
     string name_;
     AttachMenuBotColor name_color_;
     FileId default_icon_file_id_;
@@ -109,10 +116,13 @@ class AttachMenuManager final : public Actor {
     FileId ios_animated_icon_file_id_;
     FileId android_icon_file_id_;
     FileId macos_icon_file_id_;
+    FileId android_side_menu_icon_file_id_;
+    FileId ios_side_menu_icon_file_id_;
+    FileId macos_side_menu_icon_file_id_;
     AttachMenuBotColor icon_color_;
     FileId placeholder_file_id_;
 
-    static constexpr uint32 CACHE_VERSION = 2;
+    static constexpr uint32 CACHE_VERSION = 3;
     uint32 cache_version_ = 0;
 
     template <class StorerT>
@@ -175,7 +185,7 @@ class AttachMenuManager final : public Actor {
     DialogId dialog_id_;
     UserId bot_user_id_;
     MessageId top_thread_message_id_;
-    MessageId reply_to_message_id_;
+    MessageInputReplyTo input_reply_to_;
     DialogId as_dialog_id_;
   };
   FlatHashMap<int64, OpenedWebView> opened_web_views_;

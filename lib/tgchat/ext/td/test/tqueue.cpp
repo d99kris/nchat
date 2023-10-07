@@ -31,7 +31,7 @@ TEST(TQueue, hands) {
   auto qid = 12;
   ASSERT_EQ(true, tqueue->get_head(qid).empty());
   ASSERT_EQ(true, tqueue->get_tail(qid).empty());
-  tqueue->push(qid, "hello", 1, 0, td::TQueue::EventId());
+  tqueue->push(qid, "hello", 1, 0, td::TQueue::EventId()).ignore();
   auto head = tqueue->get_head(qid);
   auto tail = tqueue->get_tail(qid);
   ASSERT_EQ(head.next().ok(), tail);
@@ -66,6 +66,15 @@ class TestTQueue {
     binlog->init(binlog_path().str(), [&](const td::BinlogEvent &event) { UNREACHABLE(); }).ensure();
     tqueue_binlog->set_binlog(std::move(binlog));
     binlog_->set_callback(std::move(tqueue_binlog));
+  }
+
+  TestTQueue(const TestTQueue &) = delete;
+  TestTQueue &operator=(const TestTQueue &) = delete;
+  TestTQueue(TestTQueue &&) = delete;
+  TestTQueue &operator=(TestTQueue &&) = delete;
+
+  ~TestTQueue() {
+    td::Binlog::destroy(binlog_path()).ensure();
   }
 
   void restart(td::Random::Xorshift128plus &rnd, td::int32 now) {

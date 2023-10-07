@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <map>
 #include <set>
 #include <string>
 #include <vector>
@@ -48,6 +49,62 @@ static bool is_reachable_for_storer(int storer_type, const std::string &name,
     return result_types.count(name) > 0;
   }
   return true;
+}
+
+static void get_children_types(const tl_tree *tree, const TL_writer &w, std::map<std::string, bool> &children_types) {
+  if (tree->get_type() != NODE_TYPE_TYPE) {
+    return;
+  }
+  const tl_tree_type *tree_type = static_cast<const tl_tree_type *>(tree);
+  for (std::size_t i = 0; i < tree_type->children.size(); i++) {
+    get_children_types(tree_type->children[i], w, children_types);
+  }
+
+  const tl_type *t = tree_type->type;
+  if (t->constructors_num == 0 || w.is_built_in_simple_type(t->name) || w.is_built_in_complex_type(t->name) ||
+      (t->flags & FLAG_COMPLEX)) {  // built-in or complex types
+    return;
+  }
+
+  assert(t->flags == 0);
+
+  if (t->simple_constructors != 1) {
+    children_types.emplace(w.gen_main_class_name(t), true);
+  } else {
+    for (std::size_t i = 0; i < t->constructors_num; i++) {
+      if (w.is_combinator_supported(t->constructors[i])) {
+        children_types.emplace(w.gen_class_name(t->constructors[i]->name), false);
+      }
+    }
+  }
+}
+
+static std::map<std::string, bool> get_children_types(const tl_combinator *t, const TL_writer &w) {
+  std::map<std::string, bool> children_types;
+  for (std::size_t i = 0; i < t->args.size(); i++) {
+    get_children_types(t->args[i].type, w, children_types);
+  }
+  get_children_types(t->result, w, children_types);
+  return children_types;
+}
+
+static std::map<std::string, bool> get_children_types(const tl_type *t, const TL_writer &w) {
+  std::map<std::string, bool> children_types;
+  for (std::size_t i = 0; i < t->constructors_num; i++) {
+    if (w.is_combinator_supported(t->constructors[i])) {
+      for (std::size_t j = 0; j < t->constructors[i]->args.size(); j++) {
+        get_children_types(t->constructors[i]->args[j].type, w, children_types);
+      }
+    }
+  }
+  return children_types;
+}
+
+static void write_forward_declarations(tl_outputer &out, const std::map<std::string, bool> &children_types,
+                                       const TL_writer &w) {
+  for (std::map<std::string, bool>::const_iterator it = children_types.begin(); it != children_types.end(); ++it) {
+    out.append(w.gen_forward_class_declaration(it->first, it->second));
+  }
 }
 
 static void write_class_constructor(tl_outputer &out, const tl_combinator *t, const std::string &class_name,
@@ -243,6 +300,8 @@ static void write_function(tl_outputer &out, const tl_combinator *t, const std::
                            const std::set<std::string> &result_types, const TL_writer &w) {
   assert(w.is_combinator_supported(t));
 
+  write_forward_declarations(out, get_children_types(t, w), w);
+
   std::string class_name = w.gen_class_name(t->name);
 
   out.append(w.gen_class_begin(class_name, w.gen_base_function_class_name(), false, t->result));
@@ -369,8 +428,8 @@ static void write_constructor(tl_outputer &out, const tl_combinator *t, const st
   out.append(w.gen_class_end());
 }
 
-void write_class(tl_outputer &out, const tl_type *t, const std::set<std::string> &request_types,
-                 const std::set<std::string> &result_types, const TL_writer &w) {
+static void write_class(tl_outputer &out, const tl_type *t, const std::set<std::string> &request_types,
+                        const std::set<std::string> &result_types, const TL_writer &w) {
   assert(t->constructors_num > 0);
   assert(!w.is_built_in_simple_type(t->name));
   assert(!w.is_built_in_complex_type(t->name));
@@ -382,6 +441,8 @@ void write_class(tl_outputer &out, const tl_type *t, const std::set<std::string>
 
   const std::string base_class = w.gen_base_type_class_name(t->arity);
   const std::string class_name = w.gen_class_name(t->name);
+
+  write_forward_declarations(out, get_children_types(t, w), w);
 
   std::vector<var_description> empty_vars;
   bool optimize_one_constructor = (t->simple_constructors == 1);
@@ -449,6 +510,7 @@ void write_class(tl_outputer &out, const tl_type *t, const std::set<std::string>
       std::fprintf(stderr, "Skip complex constructor %s of %s\n", t->constructors[i]->name.c_str(), t->name.c_str());
     }
   }
+  (void)written_constructors;
   assert(written_constructors == t->simple_constructors);
 }
 
@@ -503,13 +565,8 @@ static void dfs_type(const tl_type *t, std::set<std::string> &found, const TL_wr
   }
 }
 
-void write_tl(const tl_config &config, tl_outputer &out, const TL_writer &w) {
-  out.append(w.gen_output_begin());
-
-  std::size_t types_n = config.get_type_count();
-  std::size_t functions_n = config.get_function_count();
-
-  for (std::size_t type = 0; type < types_n; type++) {
+static void find_complex_types(const tl_config &config, const TL_writer &w) {
+  for (std::size_t type = 0; type < config.get_type_count(); type++) {
     tl_type *t = config.get_type_by_num(type);
     assert(t->constructors_num == t->constructors.size());
     if (t->constructors_num == 0) {  // built-in dummy types
@@ -579,7 +636,7 @@ void write_tl(const tl_config &config, tl_outputer &out, const TL_writer &w) {
 
   while (true) {
     bool found_complex = false;
-    for (std::size_t type = 0; type < types_n; type++) {
+    for (std::size_t type = 0; type < config.get_type_count(); type++) {
       tl_type *t = config.get_type_by_num(type);
       if (t->constructors_num == 0 || w.is_built_in_complex_type(t->name)) {  // built-in dummy or complex types
         continue;
@@ -602,50 +659,11 @@ void write_tl(const tl_config &config, tl_outputer &out, const TL_writer &w) {
       break;
     }
   }
+}
 
-  std::set<std::string> request_types;
-  std::set<std::string> result_types;
-  for (std::size_t function = 0; function < functions_n; function++) {
-    const tl_combinator *t = config.get_function_by_num(function);
-    dfs_combinator(t, request_types, w);
-    dfs_tree(t->result, result_types, w);
-  }
-
-  // write forward declarations
-  for (std::size_t type = 0; type < types_n; type++) {
-    tl_type *t = config.get_type_by_num(type);
-    if (t->constructors_num == 0 || w.is_built_in_simple_type(t->name) || w.is_built_in_complex_type(t->name) ||
-        (t->flags & FLAG_COMPLEX)) {  // built-in or complex types
-      continue;
-    }
-
-    assert(t->flags == 0);
-
-    if (t->simple_constructors != 1) {
-      out.append(w.gen_forward_class_declaration(w.gen_class_name(t->name), true));
-    } else {
-      for (std::size_t i = 0; i < t->constructors_num; i++) {
-        if (w.is_combinator_supported(t->constructors[i])) {
-          out.append(w.gen_forward_class_declaration(w.gen_class_name(t->constructors[i]->name), false));
-        }
-      }
-    }
-  }
-  for (int i = 0; i <= w.get_max_arity(); i++) {
-    out.append(w.gen_forward_class_declaration(w.gen_base_type_class_name(i), true));
-  }
-
-  for (std::size_t function = 0; function < functions_n; function++) {
-    tl_combinator *t = config.get_function_by_num(function);
-    if (!w.is_combinator_supported(t)) {
-      continue;
-    }
-
-    // out.append(w.gen_forward_class_declaration(w.gen_class_name(t->name), false));
-  }
-  // out.append(w.gen_forward_class_declaration(w.gen_base_function_class_name(), true));
-
-  // write base classes
+static void write_base_object_classes(const tl_config &config, tl_outputer &out,
+                                      const std::set<std::string> &request_types,
+                                      const std::set<std::string> &result_types, const TL_writer &w) {
   std::vector<var_description> empty_vars;
   for (int i = 0; i <= w.get_max_arity(); i++) {
     out.append(w.gen_class_begin(w.gen_base_type_class_name(i), w.gen_base_tl_class_name(), true, nullptr));
@@ -655,7 +673,7 @@ void write_tl(const tl_config &config, tl_outputer &out, const TL_writer &w) {
     std::vector<std::string> parsers = w.get_parsers();
     for (std::size_t j = 0; j < parsers.size(); j++) {
       int case_count = 0;
-      for (std::size_t type = 0; type < types_n; type++) {
+      for (std::size_t type = 0; type < config.get_type_count(); type++) {
         tl_type *t = config.get_type_by_num(type);
         if (t->constructors_num == 0 || w.is_built_in_simple_type(t->name) || w.is_built_in_complex_type(t->name) ||
             (t->flags & FLAG_COMPLEX)) {  // built-in or complex types
@@ -680,7 +698,7 @@ void write_tl(const tl_config &config, tl_outputer &out, const TL_writer &w) {
       out.append(w.gen_fetch_function_begin(parsers[j], w.gen_base_type_class_name(i), w.gen_base_type_class_name(i), i,
                                             -1, empty_vars, -1));
       out.append(w.gen_fetch_switch_begin());
-      for (std::size_t type = 0; type < types_n; type++) {
+      for (std::size_t type = 0; type < config.get_type_count(); type++) {
         tl_type *t = config.get_type_by_num(type);
         if (t->constructors_num == 0 || w.is_built_in_simple_type(t->name) || w.is_built_in_complex_type(t->name) ||
             (t->flags & FLAG_COMPLEX)) {  // built-in or complex types
@@ -705,7 +723,7 @@ void write_tl(const tl_config &config, tl_outputer &out, const TL_writer &w) {
     for (std::size_t j = 0; j < additional_functions.size(); j++) {
       out.append(w.gen_additional_proxy_function_begin(additional_functions[j], NULL, w.gen_base_type_class_name(i), i,
                                                        false));
-      for (std::size_t type = 0; type < types_n; type++) {
+      for (std::size_t type = 0; type < config.get_type_count(); type++) {
         tl_type *t = config.get_type_by_num(type);
         if (t->constructors_num == 0 || w.is_built_in_simple_type(t->name) || w.is_built_in_complex_type(t->name) ||
             (t->flags & FLAG_COMPLEX)) {  // built-in or complex types
@@ -740,70 +758,92 @@ void write_tl(const tl_config &config, tl_outputer &out, const TL_writer &w) {
 
     out.append(w.gen_class_end());
   }
+}
 
-  {
-    out.append(w.gen_class_begin(w.gen_base_function_class_name(), w.gen_base_tl_class_name(), true, nullptr));
+static void write_base_function_class(const tl_config &config, tl_outputer &out,
+                                      const std::set<std::string> &request_types,
+                                      const std::set<std::string> &result_types, const TL_writer &w) {
+  out.append(w.gen_class_begin(w.gen_base_function_class_name(), w.gen_base_tl_class_name(), true, nullptr));
 
-    out.append(w.gen_get_id(w.gen_base_function_class_name(), 0, true));
+  out.append(w.gen_get_id(w.gen_base_function_class_name(), 0, true));
 
-    std::vector<std::string> parsers = w.get_parsers();
-    for (std::size_t j = 0; j < parsers.size(); j++) {
-      if (w.get_parser_mode(-1) == TL_writer::Client) {
-        continue;
-      }
-
-      out.append(w.gen_fetch_function_begin(parsers[j], w.gen_base_function_class_name(),
-                                            w.gen_base_function_class_name(), 0, -1, empty_vars, -1));
-      out.append(w.gen_fetch_switch_begin());
-      for (std::size_t function = 0; function < functions_n; function++) {
-        tl_combinator *t = config.get_function_by_num(function);
-
-        if (w.is_combinator_supported(t)) {
-          out.append(w.gen_fetch_switch_case(t, 0));
-        }
-      }
-      out.append(w.gen_fetch_switch_end());
-      out.append(w.gen_fetch_function_end(false, -1, empty_vars, -1));
+  std::vector<var_description> empty_vars;
+  std::vector<std::string> parsers = w.get_parsers();
+  for (std::size_t j = 0; j < parsers.size(); j++) {
+    if (w.get_parser_mode(-1) == TL_writer::Client) {
+      continue;
     }
 
-    std::vector<std::string> storers = w.get_storers();
-    for (std::size_t j = 0; j < storers.size(); j++) {
-      if (w.get_storer_mode(-1) == TL_writer::Server) {
-        continue;
+    out.append(w.gen_fetch_function_begin(parsers[j], w.gen_base_function_class_name(),
+                                          w.gen_base_function_class_name(), 0, -1, empty_vars, -1));
+    out.append(w.gen_fetch_switch_begin());
+    for (std::size_t function = 0; function < config.get_function_count(); function++) {
+      tl_combinator *t = config.get_function_by_num(function);
+
+      if (w.is_combinator_supported(t)) {
+        out.append(w.gen_fetch_switch_case(t, 0));
       }
-
-      out.append(w.gen_store_function_begin(storers[j], w.gen_base_function_class_name(), 0, empty_vars, -1));
-      out.append(w.gen_store_function_end(empty_vars, -1));
     }
-
-    for (std::size_t j = 0; j < parsers.size(); j++) {
-      if (w.get_parser_mode(-1) == TL_writer::Server) {
-        continue;
-      }
-
-      out.append(w.gen_fetch_function_result_any_begin(parsers[j], w.gen_base_function_class_name(), true));
-      out.append(w.gen_fetch_function_result_any_end(true));
-    }
-
-    std::vector<std::string> additional_functions = w.get_additional_functions();
-    for (std::size_t j = 0; j < additional_functions.size(); j++) {
-      out.append(w.gen_additional_proxy_function_begin(additional_functions[j], NULL, w.gen_base_function_class_name(),
-                                                       0, true));
-      for (std::size_t function = 0; function < functions_n; function++) {
-        tl_combinator *t = config.get_function_by_num(function);
-
-        if (w.is_combinator_supported(t)) {
-          out.append(w.gen_additional_proxy_function_case(additional_functions[j], NULL, t, 0, true));
-        }
-      }
-
-      out.append(w.gen_additional_proxy_function_end(additional_functions[j], NULL, true));
-    }
-
-    out.append(w.gen_class_end());
+    out.append(w.gen_fetch_switch_end());
+    out.append(w.gen_fetch_function_end(false, -1, empty_vars, -1));
   }
 
-  for (std::size_t type = 0; type < types_n; type++) {
+  std::vector<std::string> storers = w.get_storers();
+  for (std::size_t j = 0; j < storers.size(); j++) {
+    if (w.get_storer_mode(-1) == TL_writer::Server) {
+      continue;
+    }
+
+    out.append(w.gen_store_function_begin(storers[j], w.gen_base_function_class_name(), 0, empty_vars, -1));
+    out.append(w.gen_store_function_end(empty_vars, -1));
+  }
+
+  for (std::size_t j = 0; j < parsers.size(); j++) {
+    if (w.get_parser_mode(-1) == TL_writer::Server) {
+      continue;
+    }
+
+    out.append(w.gen_fetch_function_result_any_begin(parsers[j], w.gen_base_function_class_name(), true));
+    out.append(w.gen_fetch_function_result_any_end(true));
+  }
+
+  std::vector<std::string> additional_functions = w.get_additional_functions();
+  for (std::size_t j = 0; j < additional_functions.size(); j++) {
+    out.append(w.gen_additional_proxy_function_begin(additional_functions[j], NULL, w.gen_base_function_class_name(), 0,
+                                                     true));
+    for (std::size_t function = 0; function < config.get_function_count(); function++) {
+      tl_combinator *t = config.get_function_by_num(function);
+
+      if (w.is_combinator_supported(t)) {
+        out.append(w.gen_additional_proxy_function_case(additional_functions[j], NULL, t, 0, true));
+      }
+    }
+
+    out.append(w.gen_additional_proxy_function_end(additional_functions[j], NULL, true));
+  }
+
+  out.append(w.gen_class_end());
+}
+
+void write_tl(const tl_config &config, tl_outputer &out, const TL_writer &w) {
+  find_complex_types(config, w);
+
+  out.append(w.gen_output_begin(std::string()));
+  out.append(w.gen_output_begin_once());
+
+  std::set<std::string> request_types;
+  std::set<std::string> result_types;
+  for (std::size_t function = 0; function < config.get_function_count(); function++) {
+    const tl_combinator *t = config.get_function_by_num(function);
+    dfs_combinator(t, request_types, w);
+    dfs_tree(t->result, result_types, w);
+  }
+
+  write_base_object_classes(config, out, request_types, result_types, w);
+
+  write_base_function_class(config, out, request_types, result_types, w);
+
+  for (std::size_t type = 0; type < config.get_type_count(); type++) {
     tl_type *t = config.get_type_by_num(type);
     if (t->constructors_num == 0 || w.is_built_in_simple_type(t->name) ||
         w.is_built_in_complex_type(t->name)) {  // built-in dummy or complex types
@@ -818,7 +858,7 @@ void write_tl(const tl_config &config, tl_outputer &out, const TL_writer &w) {
     write_class(out, t, request_types, result_types, w);
   }
 
-  for (std::size_t function = 0; function < functions_n; function++) {
+  for (std::size_t function = 0; function < config.get_function_count(); function++) {
     tl_combinator *t = config.get_function_by_num(function);
     if (!w.is_combinator_supported(t)) {
       // std::fprintf(stderr, "Function %s is too hard to store\n", t->name.c_str());
@@ -829,7 +869,7 @@ void write_tl(const tl_config &config, tl_outputer &out, const TL_writer &w) {
   }
   out.append(w.gen_output_end());
 
-  for (std::size_t type = 0; type < types_n; type++) {
+  for (std::size_t type = 0; type < config.get_type_count(); type++) {
     tl_type *t = config.get_type_by_num(type);
     if (t->flags & FLAG_COMPLEX) {
       t->flags &= ~FLAG_COMPLEX;  // remove temporary flag
@@ -838,7 +878,7 @@ void write_tl(const tl_config &config, tl_outputer &out, const TL_writer &w) {
 }
 
 tl_config read_tl_config_from_file(const std::string &file_name) {
-  std::string config = get_file_contents(file_name, "rb");
+  std::string config = get_file_contents(file_name);
   if (config.empty()) {
     std::fprintf(stderr, "Config file %s is empty\n", file_name.c_str());
     std::abort();
@@ -856,18 +896,121 @@ tl_config read_tl_config_from_file(const std::string &file_name) {
 bool write_tl_to_file(const tl_config &config, const std::string &file_name, const TL_writer &w) {
   tl_string_outputer out;
   write_tl(config, out, w);
+  return put_file_contents(file_name, out.get_result(), w.is_documentation_generated());
+}
 
-  std::string old_file_contents = get_file_contents(file_name, "rb");
-  if (!w.is_documentation_generated()) {
-    old_file_contents = remove_documentation(old_file_contents);
+static std::string get_additional_imports(const std::map<std::string, bool> &types, const std::string base_class_name,
+                                          const std::string &file_name_prefix, const std::string &file_name_suffix,
+                                          const TL_writer &w) {
+  std::string result =
+      w.gen_import_declaration(file_name_prefix + "_" + base_class_name + w.gen_package_suffix(), false);
+  if (w.gen_package_suffix() != file_name_suffix) {
+    for (std::map<std::string, bool>::const_iterator it = types.begin(); it != types.end(); ++it) {
+      std::string package_name = file_name_prefix + "_" + it->first + w.gen_package_suffix();
+      result += w.gen_import_declaration(package_name, false);
+    }
+  }
+  result += "\n";
+  return result;
+}
+
+bool write_tl_to_multiple_files(const tl_config &config, const std::string &file_name_prefix,
+                                const std::string &file_name_suffix, const TL_writer &w) {
+  find_complex_types(config, w);
+
+  std::map<std::string, tl_string_outputer> outs;
+
+  tl_string_outputer *out = &outs["common"];
+  out->append(w.gen_output_begin(std::string()));
+  out->append(w.gen_output_begin_once());
+  out->append(w.gen_output_end());
+
+  std::set<std::string> request_types;
+  std::set<std::string> result_types;
+  for (std::size_t function = 0; function < config.get_function_count(); function++) {
+    const tl_combinator *t = config.get_function_by_num(function);
+    dfs_combinator(t, request_types, w);
+    dfs_tree(t->result, result_types, w);
   }
 
-  if (old_file_contents != out.get_result()) {
-    std::fprintf(stderr, "Write tl to file %s\n", file_name.c_str());
-    return put_file_contents(file_name, "wb", out.get_result());
+  std::map<std::string, bool> object_types;
+  for (std::size_t type = 0; type < config.get_type_count(); type++) {
+    tl_type *t = config.get_type_by_num(type);
+    if (t->constructors_num == 0 || w.is_built_in_simple_type(t->name) ||
+        w.is_built_in_complex_type(t->name)) {  // built-in dummy or complex types
+      continue;
+    }
+
+    if (t->flags & FLAG_COMPLEX) {
+      std::fprintf(stderr, "Can't generate class %s\n", t->name.c_str());
+      continue;
+    }
+
+    object_types[w.gen_main_class_name(t)] = (t->simple_constructors != 1);
+    out = &outs[w.gen_main_class_name(t)];
+    auto additional_imports =
+        get_additional_imports(get_children_types(t, w), "Object", file_name_prefix, file_name_suffix, w);
+    out->append(w.gen_output_begin(additional_imports));
+    write_class(*out, t, request_types, result_types, w);
+    out->append(w.gen_output_end());
   }
 
-  return true;
+  std::map<std::string, bool> function_types;
+  for (std::size_t function = 0; function < config.get_function_count(); function++) {
+    tl_combinator *t = config.get_function_by_num(function);
+    if (!w.is_combinator_supported(t)) {
+      // std::fprintf(stderr, "Function %s is too hard to store\n", t->name.c_str());
+      continue;
+    }
+
+    function_types[w.gen_class_name(t->name)] = false;
+    out = &outs[w.gen_class_name(t->name)];
+    auto additional_imports =
+        get_additional_imports(get_children_types(t, w), "Function", file_name_prefix, file_name_suffix, w);
+    out->append(w.gen_output_begin(additional_imports));
+    write_function(*out, t, request_types, result_types, w);
+    out->append(w.gen_output_end());
+  }
+
+  for (std::size_t type = 0; type < config.get_type_count(); type++) {
+    tl_type *t = config.get_type_by_num(type);
+    if (t->flags & FLAG_COMPLEX) {
+      t->flags &= ~FLAG_COMPLEX;  // remove temporary flag
+    }
+  }
+
+  out = &outs["Object"];
+  out->append(
+      w.gen_output_begin(get_additional_imports(object_types, "common", file_name_prefix, file_name_suffix, w)));
+  write_base_object_classes(config, *out, request_types, result_types, w);
+  out->append(w.gen_output_end());
+
+  out = &outs["Function"];
+  out->append(
+      w.gen_output_begin(get_additional_imports(function_types, "common", file_name_prefix, file_name_suffix, w)));
+  write_base_function_class(config, *out, request_types, result_types, w);
+  out->append(w.gen_output_end());
+
+  std::string additional_main_imports;
+  for (std::map<std::string, tl_string_outputer>::const_iterator it = outs.begin(); it != outs.end(); ++it) {
+    std::string file_name = file_name_prefix + "_" + it->first + file_name_suffix;
+    if (!put_file_contents(file_name, it->second.get_result(), w.is_documentation_generated())) {
+      return false;
+    }
+
+    if (file_name_suffix == w.gen_package_suffix()) {
+      additional_main_imports += w.gen_import_declaration(file_name, false);
+    }
+  }
+  if (!additional_main_imports.empty()) {
+    additional_main_imports += "\n";
+  }
+
+  tl_string_outputer main_out;
+  main_out.append(w.gen_output_begin(additional_main_imports));
+  main_out.append(w.gen_output_end());
+
+  return put_file_contents(file_name_prefix + file_name_suffix, main_out.get_result(), w.is_documentation_generated());
 }
 
 }  // namespace tl

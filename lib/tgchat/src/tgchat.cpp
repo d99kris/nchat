@@ -735,8 +735,9 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         {
           auto message_content = GetMessageText(sendMessageRequest->chatMessage.text);
           send_message->input_message_content_ = std::move(message_content);
-          send_message->reply_to_message_id_ =
-            StrUtil::NumFromHex<int64_t>(sendMessageRequest->chatMessage.quotedId);
+          send_message->reply_to_ =
+            td::td_api::make_object<td::td_api::messageReplyToMessage>(StrUtil::NumFromHex<int64_t>(sendMessageRequest->chatId),
+                                                                       StrUtil::NumFromHex<int64_t>(sendMessageRequest->chatMessage.quotedId));
         }
         else
         {
@@ -2179,8 +2180,13 @@ void TgChat::Impl::TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessag
   p_ChatMessage.senderId = StrUtil::NumToHex(senderId);
   p_ChatMessage.isOutgoing = p_TdMessage.is_outgoing_;
   p_ChatMessage.timeSent = (((int64_t)p_TdMessage.date_) * 1000) + (std::hash<std::string>{ }(p_ChatMessage.id) % 256);
-  p_ChatMessage.quotedId =
-    (p_TdMessage.reply_to_message_id_ != 0) ? StrUtil::NumToHex(p_TdMessage.reply_to_message_id_) : "";
+
+  if (p_TdMessage.reply_to_ && (p_TdMessage.reply_to_->get_id() == td::td_api::messageReplyToMessage::ID))
+  {
+    auto& reply_to_message = static_cast<const td::td_api::messageReplyToMessage&>(*p_TdMessage.reply_to_);
+    p_ChatMessage.quotedId = StrUtil::NumToHex(reply_to_message.message_id_);
+  }
+
   p_ChatMessage.hasMention = p_TdMessage.contains_unread_mention_;
 
   if (IsSelf(p_TdMessage.chat_id_))
@@ -2350,7 +2356,7 @@ void TgChat::Impl::GetSponsoredMessages(const std::string& p_ChatId)
   // sponsored messages from telegram
   const int64_t chatId = StrUtil::NumFromHex<int64_t>(p_ChatId);
   SendQuery(td::td_api::make_object<td::td_api::getChatSponsoredMessages>(chatId),
-            [this, p_ChatId](Object object)
+            [this, p_ChatId, chatId](Object object)
   {
     if (object->get_id() == td::td_api::error::ID) return;
 
@@ -2362,35 +2368,62 @@ void TgChat::Impl::GetSponsoredMessages(const std::string& p_ChatId)
       auto sponsoredMessage = td::move_tl_object_as<td::td_api::sponsoredMessage>(*it);
 
       const int64_t sponsoredMessageId = sponsoredMessage->message_id_;
+
       ChatMessage chatMessage;
-      TdMessageContentConvert(*sponsoredMessage->content_, sponsoredMessage->sponsor_chat_id_, chatMessage.text, chatMessage.fileInfo);
+      TdMessageContentConvert(*sponsoredMessage->content_, chatId, chatMessage.text, chatMessage.fileInfo);
 
       chatMessage.id = StrUtil::NumAddPrefix(StrUtil::NumToHex(sponsoredMessageId), m_SponsoredMessageMsgIdPrefix);
       chatMessage.timeSent = std::numeric_limits<int64_t>::max();
       chatMessage.isOutgoing = false;
-      chatMessage.senderId = StrUtil::NumToHex(sponsoredMessage->sponsor_chat_id_);
 
+      td::td_api::object_ptr<td::td_api::InternalLinkType> link;
       std::string url;
-      if (sponsoredMessage->link_)
+
+      if (sponsoredMessage->sponsor_->type_->get_id() == td::td_api::messageSponsorTypeBot::ID)
       {
-        if (sponsoredMessage->link_->get_id() == td::td_api::internalLinkTypeMessage::ID)
+        auto& messageSponsorTypeBot = static_cast<td::td_api::messageSponsorTypeBot&>(*sponsoredMessage->sponsor_->type_);
+        chatMessage.senderId = StrUtil::NumToHex(messageSponsorTypeBot.bot_user_id_);
+        link = td::move_tl_object_as<td::td_api::InternalLinkType>(messageSponsorTypeBot.link_);
+      }
+      else if (sponsoredMessage->sponsor_->type_->get_id() == td::td_api::messageSponsorTypePublicChannel::ID)
+      {
+        auto& messageSponsorTypePublicChannel = static_cast<td::td_api::messageSponsorTypePublicChannel&>(*sponsoredMessage->sponsor_->type_);
+        chatMessage.senderId = StrUtil::NumToHex(messageSponsorTypePublicChannel.chat_id_);
+        link = td::move_tl_object_as<td::td_api::InternalLinkType>(messageSponsorTypePublicChannel.link_);
+      }
+      else if (sponsoredMessage->sponsor_->type_->get_id() == td::td_api::messageSponsorTypePrivateChannel::ID)
+      {
+        auto& messageSponsorTypePrivateChannel = static_cast<const td::td_api::messageSponsorTypePrivateChannel&>(*sponsoredMessage->sponsor_->type_);
+        // @todo: chatMessage.senderId = StrUtil::NumToHex(messageSponsorTypePrivateChannel.bot_user_id_);
+        url = messageSponsorTypePrivateChannel.invite_link_;
+      }
+      else if (sponsoredMessage->sponsor_->type_->get_id() == td::td_api::messageSponsorTypeWebsite::ID)
+      {
+        auto& messageSponsorTypeWebsite = static_cast<const td::td_api::messageSponsorTypeWebsite&>(*sponsoredMessage->sponsor_->type_);
+        // @todo: chatMessage.senderId = StrUtil::NumToHex(messageSponsorTypeWebsite.bot_user_id_);
+        url = messageSponsorTypeWebsite.url_;
+      }
+
+      if (link)
+      {
+        if (link->get_id() == td::td_api::internalLinkTypeMessage::ID)
         {
-          auto internalLink = td::move_tl_object_as<td::td_api::internalLinkTypeMessage>(sponsoredMessage->link_);
+          auto internalLink = td::move_tl_object_as<td::td_api::internalLinkTypeMessage>(link);
           url = internalLink->url_;
         }
-        else if (sponsoredMessage->link_->get_id() == td::td_api::internalLinkTypeBotStart::ID)
+        else if (link->get_id() == td::td_api::internalLinkTypeBotStart::ID)
         {
-          auto internalLink = td::move_tl_object_as<td::td_api::internalLinkTypeBotStart>(sponsoredMessage->link_);
+          auto internalLink = td::move_tl_object_as<td::td_api::internalLinkTypeBotStart>(link);
           url = "https://t.me/" + internalLink->bot_username_ + "?start=" + internalLink->start_parameter_;
         }
         else
         {
-          LOG_WARNING("unknown internal link type: %lld", sponsoredMessage->link_->get_id());
+          LOG_WARNING("unknown internal link type: %lld", link->get_id());
         }
       }
       else
       {
-        url = "https://t.me/c/" + std::to_string(sponsoredMessage->sponsor_chat_id_).substr(4);
+        // @todo review if still needed: url = "https://t.me/c/" + std::to_string(sponsoredMessage->sponsor_chat_id_).substr(4);
       }
 
       if (!url.empty())

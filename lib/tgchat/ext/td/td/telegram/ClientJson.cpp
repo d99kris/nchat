@@ -40,9 +40,8 @@ static std::pair<td_api::object_ptr<td_api::Function>, string> to_request(Slice 
   }
 
   string extra;
-  if (has_json_object_field(json_value.get_object(), "@extra")) {
-    extra = json_encode<string>(
-        get_json_object_field(json_value.get_object(), "@extra", JsonValue::Type::Null).move_as_ok());
+  if (json_value.get_object().has_field("@extra")) {
+    extra = json_encode<string>(json_value.get_object().extract_field("@extra"));
   }
 
   td_api::object_ptr<td_api::Function> func;

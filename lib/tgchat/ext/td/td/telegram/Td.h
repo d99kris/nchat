@@ -37,6 +37,7 @@
 
 namespace td {
 
+class AccountManager;
 class AnimationsManager;
 class AttachMenuManager;
 class AudiosManager;
@@ -71,12 +72,15 @@ class PasswordManager;
 class PhoneNumberManager;
 class PollManager;
 class PrivacyManager;
+class ReactionManager;
 class SecureManager;
 class SecretChatsManager;
 class SponsoredMessageManager;
 class StateManager;
+class StatisticsManager;
 class StickersManager;
 class StorageManager;
+class StoryManager;
 class ThemeManager;
 class TopDialogManager;
 class TranslationManager;
@@ -120,7 +124,7 @@ class Td final : public Actor {
 
   void reload_promo_data();
 
-  void on_update(BufferSlice &&update, uint64 auth_key_id);
+  void on_update(telegram_api::object_ptr<telegram_api::Updates> updates, uint64 auth_key_id);
 
   void on_result(NetQueryPtr query);
 
@@ -146,6 +150,8 @@ class Td final : public Actor {
   unique_ptr<OptionManager> option_manager_;
   unique_ptr<VideosManager> videos_manager_;
 
+  unique_ptr<AccountManager> account_manager_;
+  ActorOwn<AccountManager> account_manager_actor_;
   unique_ptr<AnimationsManager> animations_manager_;
   ActorOwn<AnimationsManager> animations_manager_actor_;
   unique_ptr<AttachMenuManager> attach_menu_manager_;
@@ -188,10 +194,18 @@ class Td final : public Actor {
   ActorOwn<NotificationSettingsManager> notification_settings_manager_actor_;
   unique_ptr<PollManager> poll_manager_;
   ActorOwn<PollManager> poll_manager_actor_;
+  unique_ptr<PrivacyManager> privacy_manager_;
+  ActorOwn<PrivacyManager> privacy_manager_actor_;
+  unique_ptr<ReactionManager> reaction_manager_;
+  ActorOwn<ReactionManager> reaction_manager_actor_;
   unique_ptr<SponsoredMessageManager> sponsored_message_manager_;
   ActorOwn<SponsoredMessageManager> sponsored_message_manager_actor_;
+  unique_ptr<StatisticsManager> statistics_manager_;
+  ActorOwn<StatisticsManager> statistics_manager_actor_;
   unique_ptr<StickersManager> stickers_manager_;
   ActorOwn<StickersManager> stickers_manager_actor_;
+  unique_ptr<StoryManager> story_manager_;
+  ActorOwn<StoryManager> story_manager_actor_;
   unique_ptr<ThemeManager> theme_manager_;
   ActorOwn<ThemeManager> theme_manager_actor_;
   unique_ptr<TopDialogManager> top_dialog_manager_;
@@ -216,7 +230,6 @@ class Td final : public Actor {
   ActorOwn<LanguagePackManager> language_pack_manager_;
   ActorOwn<NetStatsManager> net_stats_manager_;
   ActorOwn<PasswordManager> password_manager_;
-  ActorOwn<PrivacyManager> privacy_manager_;
   ActorOwn<SecretChatsManager> secret_chats_manager_;
   ActorOwn<SecureManager> secure_manager_;
   ActorOwn<StateManager> state_manager_;
@@ -390,7 +403,7 @@ class Td final : public Actor {
 
   template <class T>
   Promise<T> create_request_promise(uint64 id) {
-    return PromiseCreator::lambda([id = id, actor_id = actor_id(this)](Result<T> r_state) {
+    return PromiseCreator::lambda([actor_id = actor_id(this), id](Result<T> r_state) {
       if (r_state.is_error()) {
         send_closure(actor_id, &Td::send_error, id, r_state.move_as_error());
       } else {
@@ -410,7 +423,7 @@ class Td final : public Actor {
   static bool is_preauthentication_request(int32 id);
 
   template <class T>
-  void on_request(uint64 id, const T &request) = delete;
+  void on_request(uint64 id, const T &) = delete;
 
   void on_request(uint64 id, const td_api::setTdlibParameters &request);
 
@@ -522,6 +535,8 @@ class Td final : public Actor {
 
   void on_request(uint64 id, const td_api::terminateAllOtherSessions &request);
 
+  void on_request(uint64 id, const td_api::confirmSession &request);
+
   void on_request(uint64 id, const td_api::toggleSessionCanAcceptCalls &request);
 
   void on_request(uint64 id, const td_api::toggleSessionCanAcceptSecretChats &request);
@@ -569,6 +584,8 @@ class Td final : public Actor {
   void on_request(uint64 id, const td_api::getMessages &request);
 
   void on_request(uint64 id, const td_api::getChatSponsoredMessages &request);
+
+  void on_request(uint64 id, const td_api::clickChatSponsoredMessage &request);
 
   void on_request(uint64 id, const td_api::getMessageLink &request);
 
@@ -631,6 +648,8 @@ class Td final : public Actor {
   void on_request(uint64 id, td_api::searchChatsOnServer &request);
 
   void on_request(uint64 id, const td_api::searchChatsNearby &request);
+
+  void on_request(uint64 id, td_api::searchRecentlyFoundChats &request);
 
   void on_request(uint64 id, const td_api::addRecentlyFoundChat &request);
 
@@ -778,6 +797,26 @@ class Td final : public Actor {
 
   void on_request(uint64 id, td_api::editMessageSchedulingState &request);
 
+  void on_request(uint64 id, const td_api::getStory &request);
+
+  void on_request(uint64 id, const td_api::getChatsToSendStories &request);
+
+  void on_request(uint64 id, const td_api::canSendStory &request);
+
+  void on_request(uint64 id, td_api::sendStory &request);
+
+  void on_request(uint64 id, td_api::editStory &request);
+
+  void on_request(uint64 id, td_api::setStoryPrivacySettings &request);
+
+  void on_request(uint64 id, const td_api::toggleStoryIsPinned &request);
+
+  void on_request(uint64 id, const td_api::deleteStory &request);
+
+  void on_request(uint64 id, const td_api::loadActiveStories &request);
+
+  void on_request(uint64 id, const td_api::setChatActiveStoriesList &request);
+
   void on_request(uint64 id, const td_api::getForumTopicDefaultIcons &request);
 
   void on_request(uint64 id, td_api::createForumTopic &request);
@@ -811,8 +850,6 @@ class Td final : public Actor {
   void on_request(uint64 id, const td_api::deleteChatReplyMarkup &request);
 
   void on_request(uint64 id, td_api::sendChatAction &request);
-
-  void on_request(uint64 id, td_api::sendChatScreenshotTakenNotification &request);
 
   void on_request(uint64 id, td_api::forwardMessages &request);
 
@@ -928,6 +965,8 @@ class Td final : public Actor {
 
   void on_request(uint64 id, const td_api::getChatFolderChatsToLeave &request);
 
+  void on_request(uint64 id, td_api::getChatFolderChatCount &request);
+
   void on_request(uint64 id, const td_api::reorderChatFolders &request);
 
   void on_request(uint64 id, const td_api::getChatsForChatFolderInviteLink &request);
@@ -947,6 +986,10 @@ class Td final : public Actor {
   void on_request(uint64 id, const td_api::getChatFolderNewChats &request);
 
   void on_request(uint64 id, const td_api::processChatFolderNewChats &request);
+
+  void on_request(uint64 id, const td_api::getArchiveChatListSettings &request);
+
+  void on_request(uint64 id, td_api::setArchiveChatListSettings &request);
 
   void on_request(uint64 id, td_api::setChatTitle &request);
 
@@ -970,13 +1013,47 @@ class Td final : public Actor {
 
   void on_request(uint64 id, const td_api::toggleChatIsMarkedAsUnread &request);
 
-  void on_request(uint64 id, const td_api::toggleMessageSenderIsBlocked &request);
+  void on_request(uint64 id, const td_api::setMessageSenderBlockList &request);
 
   void on_request(uint64 id, const td_api::toggleChatDefaultDisableNotification &request);
 
   void on_request(uint64 id, const td_api::setPinnedChats &request);
 
   void on_request(uint64 id, const td_api::readChatList &request);
+
+  void on_request(uint64 id, const td_api::getStoryNotificationSettingsExceptions &request);
+
+  void on_request(uint64 id, const td_api::getChatActiveStories &request);
+
+  void on_request(uint64 id, const td_api::getChatPinnedStories &request);
+
+  void on_request(uint64 id, const td_api::getChatArchivedStories &request);
+
+  void on_request(uint64 id, const td_api::openStory &request);
+
+  void on_request(uint64 id, const td_api::closeStory &request);
+
+  void on_request(uint64 id, const td_api::getStoryAvailableReactions &request);
+
+  void on_request(uint64 id, const td_api::setStoryReaction &request);
+
+  void on_request(uint64 id, td_api::getStoryViewers &request);
+
+  void on_request(uint64 id, td_api::reportStory &request);
+
+  void on_request(uint64 id, const td_api::activateStoryStealthMode &request);
+
+  void on_request(uint64 id, const td_api::getChatBoostStatus &request);
+
+  void on_request(uint64 id, const td_api::canBoostChat &request);
+
+  void on_request(uint64 id, const td_api::boostChat &request);
+
+  void on_request(uint64 id, const td_api::getChatBoostLink &request);
+
+  void on_request(uint64 id, td_api::getChatBoostLinkInfo &request);
+
+  void on_request(uint64 id, td_api::getChatBoosts &request);
 
   void on_request(uint64 id, const td_api::getAttachmentMenuBot &request);
 
@@ -1118,6 +1195,10 @@ class Td final : public Actor {
 
   void on_request(uint64 id, const td_api::clearImportedContacts &request);
 
+  void on_request(uint64 id, const td_api::getCloseFriends &request);
+
+  void on_request(uint64 id, const td_api::setCloseFriends &request);
+
   void on_request(uint64 id, td_api::setUserPersonalProfilePhoto &request);
 
   void on_request(uint64 id, td_api::suggestUserProfilePhoto &request);
@@ -1162,6 +1243,12 @@ class Td final : public Actor {
 
   void on_request(uint64 id, const td_api::setDefaultChannelAdministratorRights &request);
 
+  void on_request(uint64 id, const td_api::canBotSendMessages &request);
+
+  void on_request(uint64 id, const td_api::allowBotToSendMessages &request);
+
+  void on_request(uint64 id, td_api::sendWebAppCustomRequest &request);
+
   void on_request(uint64 id, td_api::setBotName &request);
 
   void on_request(uint64 id, const td_api::getBotName &request);
@@ -1170,7 +1257,7 @@ class Td final : public Actor {
 
   void on_request(uint64 id, td_api::toggleBotUsernameIsActive &request);
 
-  void on_request(uint64 id, td_api::reorderActiveBotUsernames &request);
+  void on_request(uint64 id, td_api::reorderBotActiveUsernames &request);
 
   void on_request(uint64 id, td_api::setBotInfoDescription &request);
 
@@ -1223,6 +1310,8 @@ class Td final : public Actor {
   void on_request(uint64 id, td_api::closeSecretChat &request);
 
   void on_request(uint64 id, td_api::getStickers &request);
+
+  void on_request(uint64 id, td_api::getAllStickerEmojis &request);
 
   void on_request(uint64 id, td_api::searchStickers &request);
 
@@ -1562,6 +1651,8 @@ class Td final : public Actor {
 
   void on_request(uint64 id, const td_api::getMarkdownText &request);
 
+  void on_request(uint64 id, const td_api::searchStringsByPrefix &request);
+
   void on_request(uint64 id, const td_api::getFileMimeType &request);
 
   void on_request(uint64 id, const td_api::getFileExtension &request);
@@ -1622,6 +1713,7 @@ class Td final : public Actor {
   static td_api::object_ptr<td_api::Object> do_static_request(td_api::parseTextEntities &request);
   static td_api::object_ptr<td_api::Object> do_static_request(td_api::parseMarkdown &request);
   static td_api::object_ptr<td_api::Object> do_static_request(td_api::getMarkdownText &request);
+  static td_api::object_ptr<td_api::Object> do_static_request(td_api::searchStringsByPrefix &request);
   static td_api::object_ptr<td_api::Object> do_static_request(const td_api::getFileMimeType &request);
   static td_api::object_ptr<td_api::Object> do_static_request(const td_api::getFileExtension &request);
   static td_api::object_ptr<td_api::Object> do_static_request(const td_api::cleanFileName &request);
@@ -1643,8 +1735,6 @@ class Td final : public Actor {
   static td_api::object_ptr<td_api::Object> do_static_request(td_api::testReturnError &request);
 
   static DbKey as_db_key(string key);
-
-  static int32 get_database_scheduler_id();
 
   struct Parameters {
     int32 api_id_ = 0;

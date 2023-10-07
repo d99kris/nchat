@@ -10,7 +10,7 @@
 
 namespace td {
 
-constexpr int32 MTPROTO_LAYER = 158;
+constexpr int32 MTPROTO_LAYER = 164;
 
 enum class Version : int32 {
   Initial,  // 0
@@ -61,15 +61,16 @@ enum class Version : int32 {
   AddMessageMediaSpoiler,  // 45
   MakeParticipantFlags64Bit,
   AddDocumentFlags,
+  AddUserFlags2,
   Next
 };
 
 enum class DbVersion : int32 {
-  DialogDbCreated = 3,
-  MessageDbMediaIndex,
-  MessageDb30MediaIndex,
-  MessageDbFts,
-  MessagesCallIndex,
+  CreateDialogDb = 3,
+  AddMessageDbMediaIndex,
+  AddMessageDb30MediaIndex,
+  AddMessageDbFts,
+  AddMessagesCallIndex,
   FixFileRemoteLocationKeyBug,
   AddNotificationsSupport,
   AddFolders,

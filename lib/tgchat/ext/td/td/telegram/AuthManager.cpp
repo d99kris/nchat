@@ -13,6 +13,7 @@
 #include "td/telegram/DialogFilterManager.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/logevent/LogEvent.h"
+#include "td/telegram/logevent/LogEventHelper.h"
 #include "td/telegram/MessagesManager.h"
 #include "td/telegram/misc.h"
 #include "td/telegram/net/DcId.h"
@@ -21,24 +22,262 @@
 #include "td/telegram/NotificationManager.h"
 #include "td/telegram/OptionManager.h"
 #include "td/telegram/PasswordManager.h"
+#include "td/telegram/ReactionManager.h"
+#include "td/telegram/SendCodeHelper.hpp"
 #include "td/telegram/StateManager.h"
 #include "td/telegram/StickersManager.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/TdDb.h"
+#include "td/telegram/telegram_api.h"
 #include "td/telegram/ThemeManager.h"
 #include "td/telegram/TopDialogManager.h"
 #include "td/telegram/UpdatesManager.h"
+#include "td/telegram/Version.h"
 
 #include "td/utils/base64.h"
 #include "td/utils/format.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/Promise.h"
-#include "td/utils/ScopeGuard.h"
 #include "td/utils/Slice.h"
+#include "td/utils/SliceBuilder.h"
 #include "td/utils/Time.h"
+#include "td/utils/tl_helpers.h"
 
 namespace td {
+
+struct AuthManager::DbState {
+  State state_;
+  int32 api_id_;
+  string api_hash_;
+  double expires_at_;
+
+  // WaitEmailAddress and WaitEmailCode
+  bool allow_apple_id_ = false;
+  bool allow_google_id_ = false;
+
+  // WaitEmailCode
+  string email_address_;
+  SentEmailCode email_code_info_;
+  int32 reset_available_period_ = -1;
+  int32 reset_pending_date_ = -1;
+
+  // WaitEmailAddress, WaitEmailCode, WaitCode and WaitRegistration
+  SendCodeHelper send_code_helper_;
+
+  // WaitQrCodeConfirmation
+  vector<UserId> other_user_ids_;
+  string login_token_;
+  double login_token_expires_at_ = 0;
+
+  // WaitPassword
+  WaitPasswordState wait_password_state_;
+
+  // WaitRegistration
+  TermsOfService terms_of_service_;
+
+  DbState() = default;
+
+  static DbState wait_email_address(int32 api_id, string api_hash, bool allow_apple_id, bool allow_google_id,
+                                    SendCodeHelper send_code_helper) {
+    DbState state(State::WaitEmailAddress, api_id, std::move(api_hash));
+    state.send_code_helper_ = std::move(send_code_helper);
+    state.allow_apple_id_ = allow_apple_id;
+    state.allow_google_id_ = allow_google_id;
+    return state;
+  }
+
+  static DbState wait_email_code(int32 api_id, string api_hash, bool allow_apple_id, bool allow_google_id,
+                                 string email_address, SentEmailCode email_code_info, int32 reset_available_period,
+                                 int32 reset_pending_date, SendCodeHelper send_code_helper) {
+    DbState state(State::WaitEmailCode, api_id, std::move(api_hash));
+    state.send_code_helper_ = std::move(send_code_helper);
+    state.allow_apple_id_ = allow_apple_id;
+    state.allow_google_id_ = allow_google_id;
+    state.email_address_ = std::move(email_address);
+    state.email_code_info_ = std::move(email_code_info);
+    state.reset_available_period_ = reset_available_period;
+    state.reset_pending_date_ = reset_pending_date;
+    return state;
+  }
+
+  static DbState wait_code(int32 api_id, string api_hash, SendCodeHelper send_code_helper) {
+    DbState state(State::WaitCode, api_id, std::move(api_hash));
+    state.send_code_helper_ = std::move(send_code_helper);
+    return state;
+  }
+
+  static DbState wait_qr_code_confirmation(int32 api_id, string api_hash, vector<UserId> other_user_ids,
+                                           string login_token, double login_token_expires_at) {
+    DbState state(State::WaitQrCodeConfirmation, api_id, std::move(api_hash));
+    state.other_user_ids_ = std::move(other_user_ids);
+    state.login_token_ = std::move(login_token);
+    state.login_token_expires_at_ = login_token_expires_at;
+    return state;
+  }
+
+  static DbState wait_password(int32 api_id, string api_hash, WaitPasswordState wait_password_state) {
+    DbState state(State::WaitPassword, api_id, std::move(api_hash));
+    state.wait_password_state_ = std::move(wait_password_state);
+    return state;
+  }
+
+  static DbState wait_registration(int32 api_id, string api_hash, SendCodeHelper send_code_helper,
+                                   TermsOfService terms_of_service) {
+    DbState state(State::WaitRegistration, api_id, std::move(api_hash));
+    state.send_code_helper_ = std::move(send_code_helper);
+    state.terms_of_service_ = std::move(terms_of_service);
+    return state;
+  }
+
+  template <class StorerT>
+  void store(StorerT &storer) const;
+  template <class ParserT>
+  void parse(ParserT &parser);
+
+ private:
+  DbState(State state, int32 api_id, string &&api_hash)
+      : state_(state), api_id_(api_id), api_hash_(std::move(api_hash)) {
+    auto state_timeout = [state] {
+      switch (state) {
+        case State::WaitPassword:
+        case State::WaitRegistration:
+          return 86400;
+        case State::WaitEmailAddress:
+        case State::WaitEmailCode:
+        case State::WaitCode:
+        case State::WaitQrCodeConfirmation:
+          return 5 * 60;
+        default:
+          UNREACHABLE();
+          return 0;
+      }
+    }();
+    expires_at_ = Time::now() + state_timeout;
+  }
+};
+
+template <class StorerT>
+void AuthManager::DbState::store(StorerT &storer) const {
+  using td::store;
+  bool has_terms_of_service = !terms_of_service_.get_id().empty();
+  bool is_pbkdf2_supported = true;
+  bool is_srp_supported = true;
+  bool is_wait_registration_supported = true;
+  bool is_wait_registration_stores_phone_number = true;
+  bool is_wait_qr_code_confirmation_supported = true;
+  bool is_time_store_supported = true;
+  bool is_reset_email_address_supported = true;
+  BEGIN_STORE_FLAGS();
+  STORE_FLAG(has_terms_of_service);
+  STORE_FLAG(is_pbkdf2_supported);
+  STORE_FLAG(is_srp_supported);
+  STORE_FLAG(is_wait_registration_supported);
+  STORE_FLAG(is_wait_registration_stores_phone_number);
+  STORE_FLAG(is_wait_qr_code_confirmation_supported);
+  STORE_FLAG(allow_apple_id_);
+  STORE_FLAG(allow_google_id_);
+  STORE_FLAG(is_time_store_supported);
+  STORE_FLAG(is_reset_email_address_supported);
+  END_STORE_FLAGS();
+  store(state_, storer);
+  store(api_id_, storer);
+  store(api_hash_, storer);
+  store_time(expires_at_, storer);
+
+  if (has_terms_of_service) {
+    store(terms_of_service_, storer);
+  }
+
+  if (state_ == State::WaitEmailAddress) {
+    store(send_code_helper_, storer);
+  } else if (state_ == State::WaitEmailCode) {
+    store(send_code_helper_, storer);
+    store(email_address_, storer);
+    store(email_code_info_, storer);
+    store(reset_available_period_, storer);
+    store(reset_pending_date_, storer);
+  } else if (state_ == State::WaitCode) {
+    store(send_code_helper_, storer);
+  } else if (state_ == State::WaitQrCodeConfirmation) {
+    store(other_user_ids_, storer);
+    store(login_token_, storer);
+    store_time(login_token_expires_at_, storer);
+  } else if (state_ == State::WaitPassword) {
+    store(wait_password_state_, storer);
+  } else if (state_ == State::WaitRegistration) {
+    store(send_code_helper_, storer);
+  } else {
+    UNREACHABLE();
+  }
+}
+
+template <class ParserT>
+void AuthManager::DbState::parse(ParserT &parser) {
+  using td::parse;
+  bool has_terms_of_service = false;
+  bool is_pbkdf2_supported = false;
+  bool is_srp_supported = false;
+  bool is_wait_registration_supported = false;
+  bool is_wait_registration_stores_phone_number = false;
+  bool is_wait_qr_code_confirmation_supported = false;
+  bool is_time_store_supported = false;
+  bool is_reset_email_address_supported = false;
+  if (parser.version() >= static_cast<int32>(Version::AddTermsOfService)) {
+    BEGIN_PARSE_FLAGS();
+    PARSE_FLAG(has_terms_of_service);
+    PARSE_FLAG(is_pbkdf2_supported);
+    PARSE_FLAG(is_srp_supported);
+    PARSE_FLAG(is_wait_registration_supported);
+    PARSE_FLAG(is_wait_registration_stores_phone_number);
+    PARSE_FLAG(is_wait_qr_code_confirmation_supported);
+    PARSE_FLAG(allow_apple_id_);
+    PARSE_FLAG(allow_google_id_);
+    PARSE_FLAG(is_time_store_supported);
+    PARSE_FLAG(is_reset_email_address_supported);
+    END_PARSE_FLAGS();
+  }
+  if (!is_reset_email_address_supported) {
+    return parser.set_error("Have no reset email address support");
+  }
+  CHECK(is_pbkdf2_supported);
+  CHECK(is_srp_supported);
+  CHECK(is_wait_registration_supported);
+  CHECK(is_wait_registration_stores_phone_number);
+  CHECK(is_wait_qr_code_confirmation_supported);
+  CHECK(is_time_store_supported);
+
+  parse(state_, parser);
+  parse(api_id_, parser);
+  parse(api_hash_, parser);
+  parse_time(expires_at_, parser);
+
+  if (has_terms_of_service) {
+    parse(terms_of_service_, parser);
+  }
+
+  if (state_ == State::WaitEmailAddress) {
+    parse(send_code_helper_, parser);
+  } else if (state_ == State::WaitEmailCode) {
+    parse(send_code_helper_, parser);
+    parse(email_address_, parser);
+    parse(email_code_info_, parser);
+    parse(reset_available_period_, parser);
+    parse(reset_pending_date_, parser);
+  } else if (state_ == State::WaitCode) {
+    parse(send_code_helper_, parser);
+  } else if (state_ == State::WaitQrCodeConfirmation) {
+    parse(other_user_ids_, parser);
+    parse(login_token_, parser);
+    parse_time(login_token_expires_at_, parser);
+  } else if (state_ == State::WaitPassword) {
+    parse(wait_password_state_, parser);
+  } else if (state_ == State::WaitRegistration) {
+    parse(send_code_helper_, parser);
+  } else {
+    parser.set_error(PSTRING() << "Unexpected " << tag("state", static_cast<int32>(state_)));
+  }
+}
 
 AuthManager::AuthManager(int32 api_id, const string &api_hash, ActorShared<> parent)
     : parent_(std::move(parent)), api_id_(api_id), api_hash_(api_hash) {
@@ -410,7 +649,7 @@ void AuthManager::register_user(uint64 query_id, string first_name, string last_
   on_new_query(query_id);
   first_name = clean_name(first_name, MAX_NAME_LENGTH);
   if (first_name.empty()) {
-    return on_query_error(Status::Error(400, "First name must be non-empty"));
+    return on_current_query_error(Status::Error(400, "First name must be non-empty"));
   }
 
   last_name = clean_name(last_name, MAX_NAME_LENGTH);
@@ -488,7 +727,7 @@ void AuthManager::log_out(uint64 query_id) {
     // TODO: send auth.cancelCode if state_ == State::WaitCode
     LOG(WARNING) << "Destroying auth keys by user request";
     destroy_auth_keys();
-    on_query_ok();
+    on_current_query_ok();
   } else {
     LOG(WARNING) << "Logging out by user request";
     G()->td_db()->get_binlog_pmc()->set("auth", "logout");
@@ -548,7 +787,7 @@ void AuthManager::on_closing(bool destroy_flag) {
 
 void AuthManager::on_new_query(uint64 query_id) {
   if (query_id_ != 0) {
-    on_query_error(Status::Error(400, "Another authorization query has started"));
+    on_current_query_error(Status::Error(400, "Another authorization query has started"));
   }
   checking_password_ = false;
   net_query_id_ = 0;
@@ -557,8 +796,10 @@ void AuthManager::on_new_query(uint64 query_id) {
   // TODO: cancel older net_query
 }
 
-void AuthManager::on_query_error(Status status) {
-  CHECK(query_id_ != 0);
+void AuthManager::on_current_query_error(Status status) {
+  if (query_id_ == 0) {
+    return;
+  }
   auto id = query_id_;
   query_id_ = 0;
   net_query_id_ = 0;
@@ -571,8 +812,10 @@ void AuthManager::on_query_error(uint64 query_id, Status status) {
   send_closure(G()->td(), &Td::send_error, query_id, std::move(status));
 }
 
-void AuthManager::on_query_ok() {
-  CHECK(query_id_ != 0);
+void AuthManager::on_current_query_ok() {
+  if (query_id_ == 0) {
+    return;
+  }
   auto id = query_id_;
   net_query_id_ = 0;
   net_query_type_ = NetQueryType::None;
@@ -632,21 +875,21 @@ void AuthManager::on_sent_code(telegram_api::object_ptr<telegram_api::auth_SentC
     send_code_helper_.on_sent_code(std::move(sent_code));
     update_state(State::WaitCode, true);
   }
-  on_query_ok();
+  on_current_query_ok();
 }
 
-void AuthManager::on_send_code_result(NetQueryPtr &result) {
-  auto r_sent_code = fetch_result<telegram_api::auth_sendCode>(result->ok());
+void AuthManager::on_send_code_result(NetQueryPtr &&net_query) {
+  auto r_sent_code = fetch_result<telegram_api::auth_sendCode>(std::move(net_query));
   if (r_sent_code.is_error()) {
-    return on_query_error(r_sent_code.move_as_error());
+    return on_current_query_error(r_sent_code.move_as_error());
   }
   on_sent_code(r_sent_code.move_as_ok());
 }
 
-void AuthManager::on_send_email_code_result(NetQueryPtr &result) {
-  auto r_sent_code = fetch_result<telegram_api::account_sendVerifyEmailCode>(result->ok());
+void AuthManager::on_send_email_code_result(NetQueryPtr &&net_query) {
+  auto r_sent_code = fetch_result<telegram_api::account_sendVerifyEmailCode>(std::move(net_query));
   if (r_sent_code.is_error()) {
-    return on_query_error(r_sent_code.move_as_error());
+    return on_current_query_error(r_sent_code.move_as_error());
   }
   auto sent_code = r_sent_code.move_as_ok();
 
@@ -654,23 +897,23 @@ void AuthManager::on_send_email_code_result(NetQueryPtr &result) {
 
   email_code_info_ = SentEmailCode(std::move(sent_code));
   if (email_code_info_.is_empty()) {
-    return on_query_error(Status::Error(500, "Receive invalid response"));
+    return on_current_query_error(Status::Error(500, "Receive invalid response"));
   }
 
   update_state(State::WaitEmailCode, true);
-  on_query_ok();
+  on_current_query_ok();
 }
 
-void AuthManager::on_verify_email_address_result(NetQueryPtr &result) {
-  auto r_email_verified = fetch_result<telegram_api::account_verifyEmail>(result->ok());
+void AuthManager::on_verify_email_address_result(NetQueryPtr &&net_query) {
+  auto r_email_verified = fetch_result<telegram_api::account_verifyEmail>(std::move(net_query));
   if (r_email_verified.is_error()) {
-    return on_query_error(r_email_verified.move_as_error());
+    return on_current_query_error(r_email_verified.move_as_error());
   }
   auto email_verified = r_email_verified.move_as_ok();
 
   LOG(INFO) << "Receive " << to_string(email_verified);
   if (email_verified->get_id() != telegram_api::account_emailVerifiedLogin::ID) {
-    return on_query_error(Status::Error(500, "Receive invalid response"));
+    return on_current_query_error(Status::Error(500, "Receive invalid response"));
   }
   reset_available_period_ = -1;
   reset_pending_date_ = -1;
@@ -679,8 +922,8 @@ void AuthManager::on_verify_email_address_result(NetQueryPtr &result) {
   on_sent_code(std::move(verified_login->sent_code_));
 }
 
-void AuthManager::on_reset_email_address_result(NetQueryPtr &result) {
-  auto r_sent_code = fetch_result<telegram_api::auth_resetLoginEmail>(result->ok());
+void AuthManager::on_reset_email_address_result(NetQueryPtr &&net_query) {
+  auto r_sent_code = fetch_result<telegram_api::auth_resetLoginEmail>(std::move(net_query));
   if (r_sent_code.is_error()) {
     if (reset_available_period_ > 0 && reset_pending_date_ == -1 &&
         r_sent_code.error().message() == "TASK_ALREADY_EXISTS") {
@@ -688,40 +931,33 @@ void AuthManager::on_reset_email_address_result(NetQueryPtr &result) {
       reset_available_period_ = -1;
       update_state(State::WaitEmailCode, true);
     }
-    return on_query_error(r_sent_code.move_as_error());
+    return on_current_query_error(r_sent_code.move_as_error());
   }
   on_sent_code(r_sent_code.move_as_ok());
 }
 
-void AuthManager::on_request_qr_code_result(NetQueryPtr &result, bool is_import) {
-  Status status;
-  if (result->is_ok()) {
-    auto r_login_token = fetch_result<telegram_api::auth_exportLoginToken>(result->ok());
-    if (r_login_token.is_ok()) {
-      auto login_token = r_login_token.move_as_ok();
+void AuthManager::on_request_qr_code_result(NetQueryPtr &&net_query, bool is_import) {
+  auto r_login_token = fetch_result<telegram_api::auth_exportLoginToken>(std::move(net_query));
+  if (r_login_token.is_ok()) {
+    auto login_token = r_login_token.move_as_ok();
 
-      if (is_import) {
-        CHECK(DcId::is_valid(imported_dc_id_));
-        G()->net_query_dispatcher().set_main_dc_id(imported_dc_id_);
-        imported_dc_id_ = -1;
-      }
-
-      on_get_login_token(std::move(login_token));
-      return;
+    if (is_import) {
+      CHECK(DcId::is_valid(imported_dc_id_));
+      G()->net_query_dispatcher().set_main_dc_id(imported_dc_id_);
+      imported_dc_id_ = -1;
     }
 
-    status = r_login_token.move_as_error();
-  } else {
-    status = std::move(result->error());
+    on_get_login_token(std::move(login_token));
+    return;
   }
-  CHECK(status.is_error());
+  auto status = r_login_token.move_as_error();
 
   LOG(INFO) << "Receive " << status << " for login token " << (is_import ? "import" : "export");
   if (is_import) {
     imported_dc_id_ = -1;
   }
   if (query_id_ != 0) {
-    on_query_error(std::move(status));
+    on_current_query_error(std::move(status));
   } else {
     login_code_retry_delay_ = clamp(2 * login_code_retry_delay_, 1, 60);
     set_login_token_expires_at(Time::now() + login_code_retry_delay_);
@@ -740,9 +976,7 @@ void AuthManager::on_get_login_token(tl_object_ptr<telegram_api::auth_LoginToken
       login_token_ = token->token_.as_slice().str();
       set_login_token_expires_at(Time::now() + td::max(token->expires_ - G()->server_time(), 1.0));
       update_state(State::WaitQrCodeConfirmation, true);
-      if (query_id_ != 0) {
-        on_query_ok();
-      }
+      on_current_query_ok();
       break;
     }
     case telegram_api::auth_loginTokenMigrateTo::ID: {
@@ -751,9 +985,7 @@ void AuthManager::on_get_login_token(tl_object_ptr<telegram_api::auth_LoginToken
         LOG(ERROR) << "Receive wrong DC " << token->dc_id_;
         return;
       }
-      if (query_id_ != 0) {
-        on_query_ok();
-      }
+      on_current_query_ok();
 
       imported_dc_id_ = token->dc_id_;
       start_net_query(NetQueryType::ImportQrCode, G()->net_query_creator().create_unauth(
@@ -771,15 +1003,10 @@ void AuthManager::on_get_login_token(tl_object_ptr<telegram_api::auth_LoginToken
   }
 }
 
-void AuthManager::on_get_password_result(NetQueryPtr &result) {
-  Result<telegram_api::object_ptr<telegram_api::account_password>> r_password;
-  if (result->is_error()) {
-    r_password = std::move(result->error());
-  } else {
-    r_password = fetch_result<telegram_api::account_getPassword>(result->ok());
-  }
+void AuthManager::on_get_password_result(NetQueryPtr &&net_query) {
+  auto r_password = fetch_result<telegram_api::account_getPassword>(std::move(net_query));
   if (r_password.is_error() && query_id_ != 0) {
-    return on_query_error(r_password.move_as_error());
+    return on_current_query_error(r_password.move_as_error());
   }
   auto password = r_password.is_ok() ? r_password.move_as_ok() : nullptr;
   LOG(INFO) << "Receive password info: " << to_string(password);
@@ -789,7 +1016,7 @@ void AuthManager::on_get_password_result(NetQueryPtr &result) {
   if (password != nullptr && password->current_algo_ != nullptr) {
     switch (password->current_algo_->get_id()) {
       case telegram_api::passwordKdfAlgoUnknown::ID:
-        return on_query_error(Status::Error(400, "Application update is needed to log in"));
+        return on_current_query_error(Status::Error(400, "Application update is needed to log in"));
       case telegram_api::passwordKdfAlgoSHA256SHA256PBKDF2HMACSHA512iter100000SHA256ModPow::ID: {
         auto algo = move_tl_object_as<telegram_api::passwordKdfAlgoSHA256SHA256PBKDF2HMACSHA512iter100000SHA256ModPow>(
             password->current_algo_);
@@ -828,13 +1055,13 @@ void AuthManager::on_get_password_result(NetQueryPtr &result) {
   if (state_ == State::WaitPassword && checking_password_) {
     if (!new_password_.empty()) {
       if (r_new_password_state.is_error()) {
-        return on_query_error(r_new_password_state.move_as_error());
+        return on_current_query_error(r_new_password_state.move_as_error());
       }
 
       auto r_new_settings = PasswordManager::get_password_input_settings(std::move(new_password_), std::move(new_hint_),
                                                                          r_new_password_state.ok());
       if (r_new_settings.is_error()) {
-        return on_query_error(r_new_settings.move_as_error());
+        return on_current_query_error(r_new_settings.move_as_error());
       }
 
       int32 flags = telegram_api::auth_recoverPassword::NEW_SETTINGS_MASK;
@@ -853,77 +1080,76 @@ void AuthManager::on_get_password_result(NetQueryPtr &result) {
                     G()->net_query_creator().create_unauth(telegram_api::auth_checkPassword(std::move(hash))));
   } else {
     update_state(State::WaitPassword);
-    if (query_id_ != 0) {
-      on_query_ok();
-    }
+    on_current_query_ok();
   }
 }
 
-void AuthManager::on_request_password_recovery_result(NetQueryPtr &result) {
-  auto r_email_address_pattern = fetch_result<telegram_api::auth_requestPasswordRecovery>(result->ok());
+void AuthManager::on_request_password_recovery_result(NetQueryPtr &&net_query) {
+  auto r_email_address_pattern = fetch_result<telegram_api::auth_requestPasswordRecovery>(std::move(net_query));
   if (r_email_address_pattern.is_error()) {
-    return on_query_error(r_email_address_pattern.move_as_error());
+    return on_current_query_error(r_email_address_pattern.move_as_error());
   }
   auto email_address_pattern = r_email_address_pattern.move_as_ok();
-  CHECK(email_address_pattern->get_id() == telegram_api::auth_passwordRecovery::ID);
   wait_password_state_.email_address_pattern_ = std::move(email_address_pattern->email_pattern_);
   update_state(State::WaitPassword, true);
-  on_query_ok();
+  on_current_query_ok();
 }
 
-void AuthManager::on_check_password_recovery_code_result(NetQueryPtr &result) {
-  auto r_success = fetch_result<telegram_api::auth_checkRecoveryPassword>(result->ok());
+void AuthManager::on_check_password_recovery_code_result(NetQueryPtr &&net_query) {
+  auto r_success = fetch_result<telegram_api::auth_checkRecoveryPassword>(std::move(net_query));
   if (r_success.is_error()) {
-    return on_query_error(r_success.move_as_error());
+    return on_current_query_error(r_success.move_as_error());
   }
   if (!r_success.ok()) {
-    return on_query_error(Status::Error(400, "Invalid recovery code"));
+    return on_current_query_error(Status::Error(400, "Invalid recovery code"));
   }
-  on_query_ok();
+  on_current_query_ok();
 }
 
-void AuthManager::on_request_firebase_sms_result(NetQueryPtr &result) {
-  auto r_bool = fetch_result<telegram_api::auth_requestFirebaseSms>(result->ok());
+void AuthManager::on_request_firebase_sms_result(NetQueryPtr &&net_query) {
+  auto r_bool = fetch_result<telegram_api::auth_requestFirebaseSms>(std::move(net_query));
   if (r_bool.is_error()) {
-    return on_query_error(r_bool.move_as_error());
+    return on_current_query_error(r_bool.move_as_error());
   }
-  on_query_ok();
+  on_current_query_ok();
 }
 
-void AuthManager::on_authentication_result(NetQueryPtr &result, bool is_from_current_query) {
-  auto r_sign_in = fetch_result<telegram_api::auth_signIn>(result->ok());
+void AuthManager::on_authentication_result(NetQueryPtr &&net_query, bool is_from_current_query) {
+  auto r_sign_in = fetch_result<telegram_api::auth_signIn>(std::move(net_query));
   if (r_sign_in.is_error()) {
-    if (is_from_current_query && query_id_ != 0) {
-      return on_query_error(r_sign_in.move_as_error());
+    if (is_from_current_query) {
+      return on_current_query_error(r_sign_in.move_as_error());
     }
     return;
   }
   on_get_authorization(r_sign_in.move_as_ok());
 }
 
-void AuthManager::on_log_out_result(NetQueryPtr &result) {
-  Status status;
-  if (result->is_ok()) {
-    auto r_log_out = fetch_result<telegram_api::auth_logOut>(result->ok());
-    if (r_log_out.is_ok()) {
-      auto logged_out = r_log_out.move_as_ok();
-      if (!logged_out->future_auth_token_.empty()) {
-        td_->option_manager_->set_option_string("authentication_token",
-                                                base64url_encode(logged_out->future_auth_token_.as_slice()));
-      }
-    } else {
-      status = r_log_out.move_as_error();
+void AuthManager::on_log_out_result(NetQueryPtr &&net_query) {
+  auto r_log_out = fetch_result<telegram_api::auth_logOut>(std::move(net_query));
+  if (r_log_out.is_ok()) {
+    auto logged_out = r_log_out.move_as_ok();
+    if (!logged_out->future_auth_token_.empty()) {
+      td_->option_manager_->set_option_string("authentication_token",
+                                              base64url_encode(logged_out->future_auth_token_.as_slice()));
     }
-  } else {
-    status = std::move(result->error());
+  } else if (r_log_out.error().code() != 401) {
+    LOG(ERROR) << "Receive error for auth.logOut: " << r_log_out.error();
   }
-  LOG_IF(ERROR, status.is_error() && status.code() != 401) << "Receive error for auth.logOut: " << status;
   // state_ will stay LoggingOut, so no queries will work.
   destroy_auth_keys();
-  if (query_id_ != 0) {
-    on_query_ok();
-  }
+  on_current_query_ok();
 }
+
+void AuthManager::on_account_banned() const {
+  if (is_bot()) {
+    return;
+  }
+  LOG(ERROR) << "Your account was banned for suspicious activity. If you think that this is a mistake, please try to "
+                "log in from an official mobile app and send a email to recover the account by following instructions "
+                "provided by the app";
+}
+
 void AuthManager::on_authorization_lost(string source) {
   if (state_ == State::LoggingOut && net_query_type_ == NetQueryType::LogOut) {
     LOG(INFO) << "Ignore authorization loss because of " << source << ", while logging out";
@@ -934,6 +1160,9 @@ void AuthManager::on_authorization_lost(string source) {
     return;
   }
   LOG(WARNING) << "Lost authorization because of " << source;
+  if (source == "USER_DEACTIVATED_BAN") {
+    on_account_banned();
+  }
   destroy_auth_keys();
 }
 
@@ -955,51 +1184,36 @@ void AuthManager::destroy_auth_keys() {
   G()->td_db()->get_binlog_pmc()->force_sync(std::move(promise));
 }
 
-void AuthManager::on_delete_account_result(NetQueryPtr &result) {
-  Status status;
-  if (result->is_ok()) {
-    auto r_delete_account = fetch_result<telegram_api::account_deleteAccount>(result->ok());
-    if (r_delete_account.is_ok()) {
-      if (!r_delete_account.ok()) {
-        // status = Status::Error(500, "Receive false as result of the request");
-      }
-    } else {
-      status = r_delete_account.move_as_error();
+void AuthManager::on_delete_account_result(NetQueryPtr &&net_query) {
+  auto r_delete_account = fetch_result<telegram_api::account_deleteAccount>(std::move(net_query));
+  if (r_delete_account.is_ok()) {
+    if (!r_delete_account.ok()) {
+      // status = Status::Error(500, "Receive false as result of the request");
     }
   } else {
-    status = std::move(result->error());
-  }
-  if (status.is_error() && status.message() != "USER_DEACTIVATED") {
-    LOG(WARNING) << "Request account.deleteAccount failed: " << status;
-    // TODO handle some errors
-    if (query_id_ != 0) {
-      on_query_error(std::move(status));
-    }
-  } else {
-    destroy_auth_keys();
-    if (query_id_ != 0) {
-      on_query_ok();
+    auto status = r_delete_account.move_as_error();
+    if (status.message() != "USER_DEACTIVATED") {
+      LOG(WARNING) << "Request account.deleteAccount failed: " << status;
+      // TODO handle some errors
+      return on_current_query_error(std::move(status));
     }
   }
+
+  destroy_auth_keys();
+  on_current_query_ok();
 }
 
 void AuthManager::on_get_authorization(tl_object_ptr<telegram_api::auth_Authorization> auth_ptr) {
   if (state_ == State::Ok) {
     LOG(WARNING) << "Ignore duplicate auth.Authorization";
-    if (query_id_ != 0) {
-      on_query_ok();
-    }
-    return;
+    return on_current_query_ok();
   }
   CHECK(auth_ptr != nullptr);
   if (auth_ptr->get_id() == telegram_api::auth_authorizationSignUpRequired::ID) {
     auto sign_up_required = telegram_api::move_object_as<telegram_api::auth_authorizationSignUpRequired>(auth_ptr);
     terms_of_service_ = TermsOfService(std::move(sign_up_required->terms_of_service_));
     update_state(State::WaitRegistration);
-    if (query_id_ != 0) {
-      on_query_ok();
-    }
-    return;
+    return on_current_query_ok();
   }
   auto auth = telegram_api::move_object_as<telegram_api::auth_authorization>(auth_ptr);
 
@@ -1015,13 +1229,20 @@ void AuthManager::on_get_authorization(tl_object_ptr<telegram_api::auth_Authoriz
   new_password_.clear();
   new_hint_.clear();
   state_ = State::Ok;
-  td_->contacts_manager_->on_get_user(std::move(auth->user_), "on_get_authorization", true);
+  if (auth->user_->get_id() == telegram_api::user::ID) {
+    auto *user = static_cast<telegram_api::user *>(auth->user_.get());
+    int32 mask = 1 << 10;
+    if ((user->flags_ & mask) == 0) {
+      LOG(ERROR) << "Receive invalid authorization for " << to_string(auth->user_);
+      user->flags_ |= mask;
+      user->self_ = true;
+    }
+  }
+  td_->contacts_manager_->on_get_user(std::move(auth->user_), "on_get_authorization");
   update_state(State::Ok, true);
   if (!td_->contacts_manager_->get_my_id().is_valid()) {
-    LOG(ERROR) << "Server doesn't send proper authorization";
-    if (query_id_ != 0) {
-      on_query_error(Status::Error(500, "Server doesn't send proper authorization"));
-    }
+    LOG(ERROR) << "Server didsn't send proper authorization";
+    on_current_query_error(Status::Error(500, "Server didn't send proper authorization"));
     log_out(0);
     return;
   }
@@ -1040,6 +1261,7 @@ void AuthManager::on_get_authorization(tl_object_ptr<telegram_api::auth_Authoriz
   td_->dialog_filter_manager_->on_authorization_success();  // must be after MessagesManager::on_authorization_success()
                                                             // to have folders created
   td_->notification_manager_->init();
+  td_->reaction_manager_->init();
   td_->stickers_manager_->init();
   td_->theme_manager_->init();
   td_->top_dialog_manager_->init();
@@ -1053,40 +1275,34 @@ void AuthManager::on_get_authorization(tl_object_ptr<telegram_api::auth_Authoriz
     td_->set_is_bot_online(true);
   }
   send_closure(G()->config_manager(), &ConfigManager::request_config, false);
-  if (query_id_ != 0) {
-    on_query_ok();
-  }
+  on_current_query_ok();
 }
 
-void AuthManager::on_result(NetQueryPtr result) {
-  SCOPE_EXIT {
-    result->clear();
-  };
+void AuthManager::on_result(NetQueryPtr net_query) {
   NetQueryType type = NetQueryType::None;
-  LOG(INFO) << "Receive result of query " << result->id() << ", expecting " << net_query_id_ << " with type "
+  LOG(INFO) << "Receive result of query " << net_query->id() << ", expecting " << net_query_id_ << " with type "
             << static_cast<int32>(net_query_type_);
-  if (result->id() == net_query_id_) {
+  if (net_query->id() == net_query_id_) {
     net_query_id_ = 0;
     type = net_query_type_;
     net_query_type_ = NetQueryType::None;
-    if (result->is_error()) {
+    if (net_query->is_error()) {
       if ((type == NetQueryType::SendCode || type == NetQueryType::SendEmailCode ||
            type == NetQueryType::VerifyEmailAddress || type == NetQueryType::SignIn ||
            type == NetQueryType::RequestQrCode || type == NetQueryType::ImportQrCode) &&
-          result->error().code() == 401 && result->error().message() == CSlice("SESSION_PASSWORD_NEEDED")) {
+          net_query->error().code() == 401 && net_query->error().message() == CSlice("SESSION_PASSWORD_NEEDED")) {
         auto dc_id = DcId::main();
         if (type == NetQueryType::ImportQrCode) {
           CHECK(DcId::is_valid(imported_dc_id_));
           dc_id = DcId::internal(imported_dc_id_);
         }
+        net_query->clear();
         start_net_query(NetQueryType::GetPassword,
                         G()->net_query_creator().create_unauth(telegram_api::account_getPassword(), dc_id));
         return;
       }
-      if (result->error().message() == CSlice("PHONE_NUMBER_BANNED")) {
-        LOG(PLAIN)
-            << "Your phone number was banned for suspicious activity. If you think that this is a mistake, please "
-               "write to recover@telegram.org your phone number and other details to recover the account.";
+      if (net_query->error().message() == CSlice("PHONE_NUMBER_BANNED")) {
+        on_account_banned();
       }
       if (type != NetQueryType::LogOut && type != NetQueryType::DeleteAccount) {
         if (query_id_ != 0) {
@@ -1097,69 +1313,71 @@ void AuthManager::on_result(NetQueryPtr result) {
             was_qr_code_request_ = false;
             was_check_bot_token_ = false;
           }
-          on_query_error(std::move(result->error()));
+          on_current_query_error(net_query->move_as_error());
           return;
         }
         if (type != NetQueryType::RequestQrCode && type != NetQueryType::ImportQrCode &&
             type != NetQueryType::GetPassword) {
-          LOG(INFO) << "Ignore error for net query of type " << static_cast<int32>(net_query_type_);
-          return;
+          LOG(INFO) << "Ignore error for net query of type " << static_cast<int32>(type);
+          type = NetQueryType::None;
         }
       }
     }
-  } else if (result->is_ok() && result->ok_tl_constructor() == telegram_api::auth_authorization::ID) {
+  } else if (net_query->is_ok() && net_query->ok_tl_constructor() == telegram_api::auth_authorization::ID) {
     type = NetQueryType::Authentication;
   }
   switch (type) {
     case NetQueryType::None:
-      result->ignore();
+      net_query->clear();
       break;
     case NetQueryType::SignIn:
     case NetQueryType::SignUp:
     case NetQueryType::BotAuthentication:
     case NetQueryType::CheckPassword:
     case NetQueryType::RecoverPassword:
-      on_authentication_result(result, true);
+      on_authentication_result(std::move(net_query), true);
       break;
     case NetQueryType::Authentication:
-      on_authentication_result(result, false);
+      on_authentication_result(std::move(net_query), false);
       break;
     case NetQueryType::SendCode:
-      on_send_code_result(result);
+      on_send_code_result(std::move(net_query));
       break;
     case NetQueryType::SendEmailCode:
-      on_send_email_code_result(result);
+      on_send_email_code_result(std::move(net_query));
       break;
     case NetQueryType::VerifyEmailAddress:
-      on_verify_email_address_result(result);
+      on_verify_email_address_result(std::move(net_query));
       break;
     case NetQueryType::ResetEmailAddress:
-      on_reset_email_address_result(result);
+      on_reset_email_address_result(std::move(net_query));
       break;
     case NetQueryType::RequestQrCode:
-      on_request_qr_code_result(result, false);
+      on_request_qr_code_result(std::move(net_query), false);
       break;
     case NetQueryType::ImportQrCode:
-      on_request_qr_code_result(result, true);
+      on_request_qr_code_result(std::move(net_query), true);
       break;
     case NetQueryType::GetPassword:
-      on_get_password_result(result);
+      on_get_password_result(std::move(net_query));
       break;
     case NetQueryType::RequestPasswordRecovery:
-      on_request_password_recovery_result(result);
+      on_request_password_recovery_result(std::move(net_query));
       break;
     case NetQueryType::CheckPasswordRecoveryCode:
-      on_check_password_recovery_code_result(result);
+      on_check_password_recovery_code_result(std::move(net_query));
       break;
     case NetQueryType::RequestFirebaseSms:
-      on_request_firebase_sms_result(result);
+      on_request_firebase_sms_result(std::move(net_query));
       break;
     case NetQueryType::LogOut:
-      on_log_out_result(result);
+      on_log_out_result(std::move(net_query));
       break;
     case NetQueryType::DeleteAccount:
-      on_delete_account_result(result);
+      on_delete_account_result(std::move(net_query));
       break;
+    default:
+      UNREACHABLE();
   }
 }
 

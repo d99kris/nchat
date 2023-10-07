@@ -14,10 +14,12 @@
 #include "td/telegram/ContactsManager.h"
 #include "td/telegram/FileReferenceManager.h"
 #include "td/telegram/files/FileSourceId.h"
-#include "td/telegram/FullMessageId.h"
+#include "td/telegram/MessageFullId.h"
 #include "td/telegram/MessagesManager.h"
 #include "td/telegram/NotificationSettingsManager.h"
 #include "td/telegram/StickersManager.h"
+#include "td/telegram/StoryFullId.h"
+#include "td/telegram/StoryManager.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/UserId.h"
 #include "td/telegram/WebPagesManager.h"
@@ -34,7 +36,7 @@ void FileReferenceManager::store_file_source(FileSourceId file_source_id, Storer
   CHECK(index < file_sources_.size());
   auto &source = file_sources_[index];
   td::store(source.get_offset(), storer);
-  source.visit(overloaded([&](const FileSourceMessage &source) { td::store(source.full_message_id, storer); },
+  source.visit(overloaded([&](const FileSourceMessage &source) { td::store(source.message_full_id, storer); },
                           [&](const FileSourceUserPhoto &source) {
                             td::store(source.user_id, storer);
                             td::store(source.photo_id, storer);
@@ -58,7 +60,8 @@ void FileReferenceManager::store_file_source(FileSourceId file_source_id, Storer
                           [&](const FileSourceWebApp &source) {
                             td::store(source.user_id, storer);
                             td::store(source.short_name, storer);
-                          }));
+                          },
+                          [&](const FileSourceStory &source) { td::store(source.story_full_id, storer); }));
 }
 
 template <class ParserT>
@@ -66,9 +69,9 @@ FileSourceId FileReferenceManager::parse_file_source(Td *td, ParserT &parser) {
   auto type = parser.fetch_int();
   switch (type) {
     case 0: {
-      FullMessageId full_message_id;
-      td::parse(full_message_id, parser);
-      return td->messages_manager_->get_message_file_source_id(full_message_id);
+      MessageFullId message_full_id;
+      td::parse(message_full_id, parser);
+      return td->messages_manager_->get_message_file_source_id(message_full_id);
     }
     case 1: {
       UserId user_id;
@@ -140,6 +143,11 @@ FileSourceId FileReferenceManager::parse_file_source(Td *td, ParserT &parser) {
       td::parse(user_id, parser);
       td::parse(short_name, parser);
       return td->attach_menu_manager_->get_web_app_file_source_id(user_id, short_name);
+    }
+    case 17: {
+      StoryFullId story_full_id;
+      td::parse(story_full_id, parser);
+      return td->story_manager_->get_story_file_source_id(story_full_id);
     }
     default:
       parser.set_error("Invalid type in FileSource");

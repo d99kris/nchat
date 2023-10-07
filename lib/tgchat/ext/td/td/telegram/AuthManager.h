@@ -21,7 +21,6 @@
 
 #include "td/utils/common.h"
 #include "td/utils/Status.h"
-#include "td/utils/Time.h"
 
 namespace td {
 
@@ -78,6 +77,7 @@ class AuthManager final : public NetActor {
     DestroyingKeys,
     Closing
   } state_ = State::None;
+
   enum class NetQueryType : int32 {
     None,
     SignIn,
@@ -118,116 +118,7 @@ class AuthManager final : public NetActor {
     void parse(ParserT &parser);
   };
 
-  struct DbState {
-    State state_;
-    int32 api_id_;
-    string api_hash_;
-    double expires_at_;
-
-    // WaitEmailAddress and WaitEmailCode
-    bool allow_apple_id_ = false;
-    bool allow_google_id_ = false;
-
-    // WaitEmailCode
-    string email_address_;
-    SentEmailCode email_code_info_;
-    int32 reset_available_period_ = -1;
-    int32 reset_pending_date_ = -1;
-
-    // WaitEmailAddress, WaitEmailCode, WaitCode and WaitRegistration
-    SendCodeHelper send_code_helper_;
-
-    // WaitQrCodeConfirmation
-    vector<UserId> other_user_ids_;
-    string login_token_;
-    double login_token_expires_at_ = 0;
-
-    // WaitPassword
-    WaitPasswordState wait_password_state_;
-
-    // WaitRegistration
-    TermsOfService terms_of_service_;
-
-    DbState() = default;
-
-    static DbState wait_email_address(int32 api_id, string api_hash, bool allow_apple_id, bool allow_google_id,
-                                      SendCodeHelper send_code_helper) {
-      DbState state(State::WaitEmailAddress, api_id, std::move(api_hash));
-      state.send_code_helper_ = std::move(send_code_helper);
-      state.allow_apple_id_ = allow_apple_id;
-      state.allow_google_id_ = allow_google_id;
-      return state;
-    }
-
-    static DbState wait_email_code(int32 api_id, string api_hash, bool allow_apple_id, bool allow_google_id,
-                                   string email_address, SentEmailCode email_code_info, int32 reset_available_period,
-                                   int32 reset_pending_date, SendCodeHelper send_code_helper) {
-      DbState state(State::WaitEmailCode, api_id, std::move(api_hash));
-      state.send_code_helper_ = std::move(send_code_helper);
-      state.allow_apple_id_ = allow_apple_id;
-      state.allow_google_id_ = allow_google_id;
-      state.email_address_ = std::move(email_address);
-      state.email_code_info_ = std::move(email_code_info);
-      state.reset_available_period_ = reset_available_period;
-      state.reset_pending_date_ = reset_pending_date;
-      return state;
-    }
-
-    static DbState wait_code(int32 api_id, string api_hash, SendCodeHelper send_code_helper) {
-      DbState state(State::WaitCode, api_id, std::move(api_hash));
-      state.send_code_helper_ = std::move(send_code_helper);
-      return state;
-    }
-
-    static DbState wait_qr_code_confirmation(int32 api_id, string api_hash, vector<UserId> other_user_ids,
-                                             string login_token, double login_token_expires_at) {
-      DbState state(State::WaitQrCodeConfirmation, api_id, std::move(api_hash));
-      state.other_user_ids_ = std::move(other_user_ids);
-      state.login_token_ = std::move(login_token);
-      state.login_token_expires_at_ = login_token_expires_at;
-      return state;
-    }
-
-    static DbState wait_password(int32 api_id, string api_hash, WaitPasswordState wait_password_state) {
-      DbState state(State::WaitPassword, api_id, std::move(api_hash));
-      state.wait_password_state_ = std::move(wait_password_state);
-      return state;
-    }
-
-    static DbState wait_registration(int32 api_id, string api_hash, SendCodeHelper send_code_helper,
-                                     TermsOfService terms_of_service) {
-      DbState state(State::WaitRegistration, api_id, std::move(api_hash));
-      state.send_code_helper_ = std::move(send_code_helper);
-      state.terms_of_service_ = std::move(terms_of_service);
-      return state;
-    }
-
-    template <class StorerT>
-    void store(StorerT &storer) const;
-    template <class ParserT>
-    void parse(ParserT &parser);
-
-   private:
-    DbState(State state, int32 api_id, string &&api_hash)
-        : state_(state), api_id_(api_id), api_hash_(std::move(api_hash)) {
-      auto state_timeout = [state] {
-        switch (state) {
-          case State::WaitPassword:
-          case State::WaitRegistration:
-            return 86400;
-          case State::WaitEmailAddress:
-          case State::WaitEmailCode:
-          case State::WaitCode:
-          case State::WaitQrCodeConfirmation:
-            return 5 * 60;
-          default:
-            UNREACHABLE();
-            return 0;
-        }
-      }();
-      expires_at_ = Time::now() + state_timeout;
-    }
-  };
+  struct DbState;
 
   bool load_state();
   void save_state();
@@ -290,8 +181,8 @@ class AuthManager final : public NetActor {
   vector<uint64> pending_get_authorization_state_requests_;
 
   void on_new_query(uint64 query_id);
-  void on_query_error(Status status);
-  void on_query_ok();
+  void on_current_query_error(Status status);
+  void on_current_query_ok();
   void start_net_query(NetQueryType net_query_type, NetQueryPtr net_query);
 
   static void on_update_login_token_static(void *td);
@@ -305,24 +196,26 @@ class AuthManager final : public NetActor {
   void send_log_out_query();
   void destroy_auth_keys();
 
+  void on_account_banned() const;
+
   void on_sent_code(telegram_api::object_ptr<telegram_api::auth_SentCode> &&sent_code_ptr);
 
-  void on_send_code_result(NetQueryPtr &result);
-  void on_send_email_code_result(NetQueryPtr &result);
-  void on_verify_email_address_result(NetQueryPtr &result);
-  void on_reset_email_address_result(NetQueryPtr &result);
-  void on_request_qr_code_result(NetQueryPtr &result, bool is_import);
-  void on_get_password_result(NetQueryPtr &result);
-  void on_request_password_recovery_result(NetQueryPtr &result);
-  void on_check_password_recovery_code_result(NetQueryPtr &result);
-  void on_request_firebase_sms_result(NetQueryPtr &result);
-  void on_authentication_result(NetQueryPtr &result, bool is_from_current_query);
-  void on_log_out_result(NetQueryPtr &result);
-  void on_delete_account_result(NetQueryPtr &result);
+  void on_send_code_result(NetQueryPtr &&net_query);
+  void on_send_email_code_result(NetQueryPtr &&net_query);
+  void on_verify_email_address_result(NetQueryPtr &&net_query);
+  void on_reset_email_address_result(NetQueryPtr &&net_query);
+  void on_request_qr_code_result(NetQueryPtr &&net_query, bool is_import);
+  void on_get_password_result(NetQueryPtr &&net_query);
+  void on_request_password_recovery_result(NetQueryPtr &&net_query);
+  void on_check_password_recovery_code_result(NetQueryPtr &&net_query);
+  void on_request_firebase_sms_result(NetQueryPtr &&net_query);
+  void on_authentication_result(NetQueryPtr &&net_query, bool is_from_current_query);
+  void on_log_out_result(NetQueryPtr &&net_query);
+  void on_delete_account_result(NetQueryPtr &&net_query);
   void on_get_login_token(tl_object_ptr<telegram_api::auth_LoginToken> login_token);
   void on_get_authorization(tl_object_ptr<telegram_api::auth_Authorization> auth_ptr);
 
-  void on_result(NetQueryPtr result) final;
+  void on_result(NetQueryPtr net_query) final;
 
   void update_state(State new_state, bool force = false, bool should_save_state = true);
   tl_object_ptr<td_api::AuthorizationState> get_authorization_state_object(State authorization_state) const;

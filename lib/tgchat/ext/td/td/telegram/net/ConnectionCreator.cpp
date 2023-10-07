@@ -110,20 +110,20 @@ ConnectionCreator::ClientInfo::ClientInfo() {
   mtproto_error_flood_control.add_limit(8, 3);
 }
 
-int64 ConnectionCreator::ClientInfo::extract_session_id() {
+uint64 ConnectionCreator::ClientInfo::extract_session_id() {
   if (!session_ids_.empty()) {
     auto res = *session_ids_.begin();
     session_ids_.erase(session_ids_.begin());
     return res;
   }
-  int64 res = 0;
+  uint64 res = 0;
   while (res == 0) {
-    res = Random::secure_int64();
+    res = Random::secure_uint64();
   }
   return res;
 }
 
-void ConnectionCreator::ClientInfo::add_session_id(int64 session_id) {
+void ConnectionCreator::ClientInfo::add_session_id(uint64 session_id) {
   if (session_id != 0) {
     session_ids_.insert(session_id);
   }
@@ -132,9 +132,9 @@ void ConnectionCreator::ClientInfo::add_session_id(int64 session_id) {
 ConnectionCreator::ConnectionCreator(ActorShared<> parent) : parent_(std::move(parent)) {
 }
 
-ConnectionCreator::ConnectionCreator(ConnectionCreator &&other) = default;
+ConnectionCreator::ConnectionCreator(ConnectionCreator &&) = default;
 
-ConnectionCreator &ConnectionCreator::operator=(ConnectionCreator &&other) = default;
+ConnectionCreator &ConnectionCreator::operator=(ConnectionCreator &&) = default;
 
 ConnectionCreator::~ConnectionCreator() = default;
 
@@ -343,7 +343,7 @@ void ConnectionCreator::ping_proxy_resolved(int32 proxy_id, IPAddress ip_address
   auto socket_fd = r_socket_fd.move_as_ok();
 
   auto connection_promise = PromiseCreator::lambda(
-      [ip_address, promise = std::move(promise), actor_id = actor_id(this), transport_type = extra.transport_type,
+      [actor_id = actor_id(this), ip_address, promise = std::move(promise), transport_type = extra.transport_type,
        debug_str = extra.debug_str](Result<ConnectionData> r_connection_data) mutable {
         if (r_connection_data.is_error()) {
           return promise.set_error(Status::Error(400, r_connection_data.error().public_message()));
@@ -619,7 +619,7 @@ void ConnectionCreator::request_raw_connection_by_ip(IPAddress ip_address, mtpro
   }
   auto socket_fd = r_socket_fd.move_as_ok();
 
-  auto connection_promise = PromiseCreator::lambda([promise = std::move(promise), actor_id = actor_id(this),
+  auto connection_promise = PromiseCreator::lambda([actor_id = actor_id(this), promise = std::move(promise),
                                                     transport_type, network_generation = network_generation_,
                                                     ip_address](Result<ConnectionData> r_connection_data) mutable {
     if (r_connection_data.is_error()) {
@@ -892,6 +892,7 @@ void ConnectionCreator::client_loop(ClientInfo &client) {
     flood_control.add_event(Time::now());
 
     auto socket_fd = r_socket_fd.move_as_ok();
+#if !TD_DARWIN_WATCH_OS
     IPAddress debug_ip;
     auto debug_ip_status = debug_ip.init_socket_address(socket_fd);
     if (debug_ip_status.is_ok()) {
@@ -899,6 +900,7 @@ void ConnectionCreator::client_loop(ClientInfo &client) {
     } else {
       LOG(ERROR) << debug_ip_status;
     }
+#endif
 
     client.pending_connections++;
     if (check_mode) {
@@ -934,7 +936,7 @@ void ConnectionCreator::client_create_raw_connection(Result<ConnectionData> r_co
                                                      string debug_str, uint32 network_generation) {
   unique_ptr<mtproto::AuthData> auth_data;
   uint64 auth_data_generation{0};
-  int64 session_id{0};
+  uint64 session_id{0};
   if (check_mode) {
     auto it = clients_.find(hash);
     CHECK(it != clients_.end());
@@ -992,7 +994,7 @@ void ConnectionCreator::client_set_timeout_at(ClientInfo &client, double wakeup_
 }
 
 void ConnectionCreator::client_add_connection(uint32 hash, Result<unique_ptr<mtproto::RawConnection>> r_raw_connection,
-                                              bool check_flag, uint64 auth_data_generation, int64 session_id) {
+                                              bool check_flag, uint64 auth_data_generation, uint64 session_id) {
   auto &client = clients_[hash];
   client.add_session_id(session_id);
   CHECK(client.pending_connections > 0);

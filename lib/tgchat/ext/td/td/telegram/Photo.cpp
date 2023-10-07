@@ -11,10 +11,12 @@
 #include "td/telegram/files/FileLocation.h"
 #include "td/telegram/files/FileManager.h"
 #include "td/telegram/files/FileType.h"
+#include "td/telegram/Global.h"
 #include "td/telegram/net/DcId.h"
 #include "td/telegram/PhotoFormat.h"
 #include "td/telegram/PhotoSizeSource.h"
 #include "td/telegram/Td.h"
+#include "td/telegram/telegram_api.h"
 
 #include "td/utils/algorithm.h"
 #include "td/utils/common.h"
@@ -296,15 +298,15 @@ Photo get_encrypted_file_photo(FileManager *file_manager, unique_ptr<EncryptedFi
   return res;
 }
 
-Photo get_photo(Td *td, tl_object_ptr<telegram_api::Photo> &&photo, DialogId owner_dialog_id) {
+Photo get_photo(Td *td, tl_object_ptr<telegram_api::Photo> &&photo, DialogId owner_dialog_id, FileType file_type) {
   if (photo == nullptr || photo->get_id() == telegram_api::photoEmpty::ID) {
     return Photo();
   }
   CHECK(photo->get_id() == telegram_api::photo::ID);
-  return get_photo(td, move_tl_object_as<telegram_api::photo>(photo), owner_dialog_id);
+  return get_photo(td, move_tl_object_as<telegram_api::photo>(photo), owner_dialog_id, file_type);
 }
 
-Photo get_photo(Td *td, tl_object_ptr<telegram_api::photo> &&photo, DialogId owner_dialog_id) {
+Photo get_photo(Td *td, tl_object_ptr<telegram_api::photo> &&photo, DialogId owner_dialog_id, FileType file_type) {
   CHECK(photo != nullptr);
   Photo res;
 
@@ -319,8 +321,8 @@ Photo get_photo(Td *td, tl_object_ptr<telegram_api::photo> &&photo, DialogId own
 
   DcId dc_id = DcId::create(photo->dc_id_);
   for (auto &size_ptr : photo->sizes_) {
-    auto photo_size = get_photo_size(td->file_manager_.get(), PhotoSizeSource::thumbnail(FileType::Photo, 0),
-                                     photo->id_, photo->access_hash_, photo->file_reference_.as_slice().str(), dc_id,
+    auto photo_size = get_photo_size(td->file_manager_.get(), PhotoSizeSource::thumbnail(file_type, 0), photo->id_,
+                                     photo->access_hash_, photo->file_reference_.as_slice().str(), dc_id,
                                      owner_dialog_id, std::move(size_ptr), PhotoFormat::Jpeg);
     if (photo_size.get_offset() == 0) {
       PhotoSize &size = photo_size.get<0>();
@@ -337,7 +339,7 @@ Photo get_photo(Td *td, tl_object_ptr<telegram_api::photo> &&photo, DialogId own
 
   for (auto &size_ptr : photo->video_sizes_) {
     auto animation =
-        process_video_size(td, PhotoSizeSource::thumbnail(FileType::Photo, 0), photo->id_, photo->access_hash_,
+        process_video_size(td, PhotoSizeSource::thumbnail(file_type, 0), photo->id_, photo->access_hash_,
                            photo->file_reference_.as_slice().str(), dc_id, owner_dialog_id, std::move(size_ptr));
     if (animation.empty()) {
       continue;
@@ -365,6 +367,28 @@ Photo get_web_document_photo(FileManager *file_manager, tl_object_ptr<telegram_a
     photo.photos.push_back(s);
   }
   return photo;
+}
+
+Result<Photo> create_photo(FileManager *file_manager, FileId file_id, PhotoSize &&thumbnail, int32 width, int32 height,
+                           vector<FileId> &&sticker_file_ids) {
+  TRY_RESULT(input_photo_size, get_input_photo_size(file_manager, file_id, width, height));
+
+  Photo photo;
+  auto file_view = file_manager->get_file_view(file_id);
+  if (file_view.has_remote_location() && !file_view.remote_location().is_web()) {
+    photo.id = file_view.remote_location().get_id();
+  }
+  if (photo.is_empty()) {
+    photo.id = 0;
+  }
+  photo.date = G()->unix_time();
+  if (thumbnail.file_id.is_valid()) {
+    photo.photos.push_back(std::move(thumbnail));
+  }
+  photo.photos.push_back(std::move(input_photo_size));
+  photo.has_stickers = !sticker_file_ids.empty();
+  photo.sticker_file_ids = std::move(sticker_file_ids);
+  return std::move(photo);
 }
 
 tl_object_ptr<td_api::photo> get_photo_object(FileManager *file_manager, const Photo &photo) {
@@ -400,6 +424,87 @@ tl_object_ptr<td_api::chatPhoto> get_chat_photo_object(FileManager *file_manager
       photo.id.get(), photo.date, get_minithumbnail_object(photo.minithumbnail),
       get_photo_sizes_object(file_manager, photo.photos), get_animated_chat_photo_object(file_manager, big_animation),
       get_animated_chat_photo_object(file_manager, small_animation), std::move(chat_photo_sticker));
+}
+
+void merge_photos(Td *td, const Photo *old_photo, Photo *new_photo, DialogId dialog_id, bool need_merge_files,
+                  bool &is_content_changed, bool &need_update) {
+  if (old_photo->date != new_photo->date) {
+    LOG(DEBUG) << "Photo date has changed from " << old_photo->date << " to " << new_photo->date;
+    is_content_changed = true;
+  }
+  if (old_photo->id.get() != new_photo->id.get() || old_photo->minithumbnail != new_photo->minithumbnail) {
+    need_update = true;
+  }
+  if (old_photo->photos != new_photo->photos) {
+    LOG(DEBUG) << "Merge photos " << old_photo->photos << " and " << new_photo->photos
+               << ", need_merge_files = " << need_merge_files;
+    auto new_photos_size = new_photo->photos.size();
+    auto old_photos_size = old_photo->photos.size();
+
+    bool need_merge = false;
+    if (need_merge_files && (old_photos_size == 1 || (old_photos_size == 2 && old_photo->photos[0].type == 't')) &&
+        old_photo->photos.back().type == 'i') {
+      // first time get info about sent photo
+      if (!new_photo->photos.empty() && new_photo->photos.back().type == 'i') {
+        // remove previous 'i' size for the photo if any
+        new_photo->photos.pop_back();
+      }
+      if (!new_photo->photos.empty() && new_photo->photos.back().type == 't') {
+        // remove previous 't' size for the photo if any
+        new_photo->photos.pop_back();
+      }
+
+      // add back 't' and 'i' sizes
+      if (old_photos_size == 2) {
+        new_photo->photos.push_back(old_photo->photos[0]);
+      }
+      new_photo->photos.push_back(old_photo->photos.back());
+      need_merge = true;
+      need_update = true;
+    } else {
+      // get sent photo again
+      if (old_photos_size == 2 + new_photos_size && old_photo->photos[new_photos_size].type == 't') {
+        new_photo->photos.push_back(old_photo->photos[new_photos_size]);
+      }
+      if (old_photos_size == 1 + new_photo->photos.size() && old_photo->photos.back().type == 'i') {
+        new_photo->photos.push_back(old_photo->photos.back());
+        need_merge = true;
+      }
+      if (old_photo->photos != new_photo->photos) {
+        new_photo->photos.resize(new_photos_size);  // return previous size, because we shouldn't add local photo sizes
+        need_merge = false;
+        need_update = true;
+      }
+    }
+
+    LOG(DEBUG) << "Merge photos " << old_photo->photos << " and " << new_photo->photos
+               << " with new photos size = " << new_photos_size << ", need_merge = " << need_merge
+               << ", need_update = " << need_update;
+    if (need_merge && new_photos_size != 0) {
+      FileId old_file_id = get_photo_upload_file_id(*old_photo);
+      FileView old_file_view = td->file_manager_->get_file_view(old_file_id);
+      FileId new_file_id = new_photo->photos[0].file_id;
+      FileView new_file_view = td->file_manager_->get_file_view(new_file_id);
+      CHECK(new_file_view.has_remote_location());
+
+      LOG(DEBUG) << "Trying to merge old file " << old_file_id << " and new file " << new_file_id;
+      if (new_file_view.remote_location().is_web()) {
+        LOG(ERROR) << "Have remote web photo location";
+      } else if (!old_file_view.has_remote_location() ||
+                 old_file_view.main_remote_location().get_file_reference() !=
+                     new_file_view.remote_location().get_file_reference() ||
+                 old_file_view.main_remote_location().get_access_hash() !=
+                     new_file_view.remote_location().get_access_hash()) {
+        FileId file_id = td->file_manager_->register_remote(
+            FullRemoteFileLocation(PhotoSizeSource::thumbnail(new_file_view.get_type(), 'i'),
+                                   new_file_view.remote_location().get_id(),
+                                   new_file_view.remote_location().get_access_hash(), DcId::invalid(),
+                                   new_file_view.remote_location().get_file_reference().str()),
+            FileLocationSource::FromServer, dialog_id, old_photo->photos.back().size, 0, "");
+        LOG_STATUS(td->file_manager_->merge(file_id, old_file_id));
+      }
+    }
+  }
 }
 
 void photo_delete_thumbnail(Photo &photo) {

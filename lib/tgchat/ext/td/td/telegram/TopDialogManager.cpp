@@ -19,6 +19,7 @@
 #include "td/telegram/StateManager.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/TdDb.h"
+#include "td/telegram/telegram_api.h"
 
 #include "td/actor/PromiseFuture.h"
 
@@ -276,11 +277,8 @@ void TopDialogManager::get_top_dialogs(TopDialogCategory category, int32 limit,
   if (limit <= 0) {
     return promise.set_error(Status::Error(400, "Limit must be positive"));
   }
-  if (!is_active_) {
-    return promise.set_error(Status::Error(400, "Not supported without chat info database"));
-  }
   if (!is_enabled_) {
-    return promise.set_error(Status::Error(400, "Top chats computation is disabled"));
+    return promise.set_error(Status::Error(400, "Top chat computation is disabled"));
   }
 
   GetTopDialogsQuery query;
@@ -289,6 +287,29 @@ void TopDialogManager::get_top_dialogs(TopDialogCategory category, int32 limit,
   query.promise = std::move(promise);
   pending_get_top_dialogs_.push_back(std::move(query));
   loop();
+}
+
+int TopDialogManager::is_top_dialog(TopDialogCategory category, size_t limit, DialogId dialog_id) const {
+  CHECK(category != TopDialogCategory::Size);
+  CHECK(category != TopDialogCategory::ForwardUsers);
+  CHECK(limit > 0);
+  if (!is_active_) {
+    return -1;
+  }
+  if (!is_enabled_) {
+    return 0;
+  }
+
+  vector<DialogId> dialog_ids;
+  auto pos = static_cast<size_t>(category);
+  CHECK(pos < by_category_.size());
+  const auto &dialogs = by_category_[pos].dialogs;
+  for (size_t i = 0; i < limit && i < dialogs.size(); i++) {
+    if (dialogs[i].dialog_id == dialog_id) {
+      return 1;
+    }
+  }
+  return is_synchronized_ ? 0 : -1;
 }
 
 void TopDialogManager::update_rating_e_decay() {
@@ -418,19 +439,19 @@ void TopDialogManager::on_load_dialogs(GetTopDialogsQuery &&query, vector<Dialog
 }
 
 void TopDialogManager::do_get_top_peers() {
-  std::vector<uint64> ids;
+  std::vector<uint64> peer_ids;
   for (auto &category : by_category_) {
     for (auto &top_dialog : category.dialogs) {
       auto dialog_id = top_dialog.dialog_id;
       switch (dialog_id.get_type()) {
         case DialogType::User:
-          ids.push_back(dialog_id.get_user_id().get());
+          peer_ids.push_back(dialog_id.get_user_id().get());
           break;
         case DialogType::Chat:
-          ids.push_back(dialog_id.get_chat_id().get());
+          peer_ids.push_back(dialog_id.get_chat_id().get());
           break;
         case DialogType::Channel:
-          ids.push_back(dialog_id.get_channel_id().get());
+          peer_ids.push_back(dialog_id.get_channel_id().get());
           break;
         default:
           break;
@@ -441,7 +462,7 @@ void TopDialogManager::do_get_top_peers() {
       [actor_id = actor_id(this)](Result<telegram_api::object_ptr<telegram_api::contacts_TopPeers>> result) {
         send_closure(actor_id, &TopDialogManager::on_get_top_peers, std::move(result));
       });
-  td_->create_handler<GetTopPeersQuery>(std::move(promise))->send(get_vector_hash(ids));
+  td_->create_handler<GetTopPeersQuery>(std::move(promise))->send(get_vector_hash(peer_ids));
 }
 
 void TopDialogManager::on_get_top_peers(Result<telegram_api::object_ptr<telegram_api::contacts_TopPeers>> result) {
@@ -455,6 +476,7 @@ void TopDialogManager::on_get_top_peers(Result<telegram_api::object_ptr<telegram
 
   last_server_sync_ = Timestamp::now();
   server_sync_state_ = SyncState::Ok;
+  is_synchronized_ = true;
 
   auto top_peers_parent = result.move_as_ok();
   LOG(DEBUG) << "Receive contacts_getTopPeers result: " << to_string(top_peers_parent);
@@ -502,16 +524,17 @@ void TopDialogManager::on_get_top_peers(Result<telegram_api::object_ptr<telegram
 void TopDialogManager::do_save_top_dialogs() {
   LOG(INFO) << "Save top chats";
   for (size_t top_dialog_category_i = 0; top_dialog_category_i < by_category_.size(); top_dialog_category_i++) {
-    auto top_dialog_category = TopDialogCategory(top_dialog_category_i);
-    auto key = PSTRING() << "top_dialogs#" << get_top_dialog_category_name(top_dialog_category);
-
     auto &top_dialogs = by_category_[top_dialog_category_i];
     if (!top_dialogs.is_dirty) {
       continue;
     }
     top_dialogs.is_dirty = false;
 
-    G()->td_db()->get_binlog_pmc()->set(key, log_event_store(top_dialogs).as_slice().str());
+    if (G()->use_chat_info_database()) {
+      auto top_dialog_category = TopDialogCategory(top_dialog_category_i);
+      auto key = PSTRING() << "top_dialogs#" << get_top_dialog_category_name(top_dialog_category);
+      G()->td_db()->get_binlog_pmc()->set(key, log_event_store(top_dialogs).as_slice().str());
+    }
   }
   db_sync_state_ = SyncState::Ok;
   first_unsync_change_ = Timestamp();
@@ -530,7 +553,7 @@ void TopDialogManager::init() {
     return;
   }
 
-  is_active_ = G()->use_chat_info_database() && !td_->auth_manager_->is_bot();
+  is_active_ = !td_->auth_manager_->is_bot();
   is_enabled_ = !G()->get_option_boolean("disable_top_chats");
   update_rating_e_decay();
 
@@ -562,9 +585,10 @@ void TopDialogManager::try_start() {
     if (last_server_sync_.is_in_past()) {
       server_sync_state_ = SyncState::Ok;
     }
+    is_synchronized_ = G()->use_chat_info_database();
   }
 
-  if (is_enabled_) {
+  if (is_enabled_ && G()->use_chat_info_database()) {
     for (size_t top_dialog_category_i = 0; top_dialog_category_i < by_category_.size(); top_dialog_category_i++) {
       auto top_dialog_category = TopDialogCategory(top_dialog_category_i);
       auto key = PSTRING() << "top_dialogs#" << get_top_dialog_category_name(top_dialog_category);
@@ -581,9 +605,7 @@ void TopDialogManager::try_start() {
   } else {
     G()->td_db()->get_binlog_pmc()->erase_by_prefix("top_dialogs#");
     for (auto &top_dialogs : by_category_) {
-      top_dialogs.is_dirty = false;
-      top_dialogs.rating_timestamp = 0;
-      top_dialogs.dialogs.clear();
+      top_dialogs = {};
     }
   }
   db_sync_state_ = SyncState::Ok;
@@ -606,7 +628,7 @@ void TopDialogManager::loop() {
     return;
   }
 
-  if (!pending_get_top_dialogs_.empty()) {
+  if (!pending_get_top_dialogs_.empty() && (is_synchronized_ || !is_enabled_)) {
     for (auto &query : pending_get_top_dialogs_) {
       do_get_top_dialogs(std::move(query));
     }
@@ -616,7 +638,8 @@ void TopDialogManager::loop() {
   // server sync
   Timestamp server_sync_timeout;
   if (server_sync_state_ == SyncState::Ok) {
-    server_sync_timeout = Timestamp::at(last_server_sync_.at() + SERVER_SYNC_DELAY);
+    server_sync_timeout = pending_get_top_dialogs_.empty() ? Timestamp::at(last_server_sync_.at() + SERVER_SYNC_DELAY)
+                                                           : Timestamp::now_cached();
     if (server_sync_timeout.is_in_past()) {
       server_sync_state_ = SyncState::None;
     }
@@ -625,7 +648,7 @@ void TopDialogManager::loop() {
   Timestamp wakeup_timeout;
   if (server_sync_state_ == SyncState::Ok) {
     wakeup_timeout.relax(server_sync_timeout);
-  } else if (server_sync_state_ == SyncState::None && was_first_sync_) {
+  } else if (server_sync_state_ == SyncState::None && (was_first_sync_ || !pending_get_top_dialogs_.empty())) {
     server_sync_state_ = SyncState::Pending;
     do_get_top_peers();
   }

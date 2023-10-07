@@ -24,6 +24,7 @@
 #include "td/telegram/Photo.hpp"
 #include "td/telegram/PhotoFormat.h"
 #include "td/telegram/Td.h"
+#include "td/telegram/telegram_api.h"
 #include "td/telegram/Version.h"
 #include "td/telegram/VideosManager.h"
 #include "td/telegram/VideosManager.hpp"
@@ -2059,7 +2060,6 @@ unique_ptr<WebPageBlock> get_web_page_block(Td *td, tl_object_ptr<telegram_api::
       bool is_looped = page_block->loop_;
       auto animations_it = animations.find(page_block->video_id_);
       if (animations_it != animations.end()) {
-        LOG_IF(ERROR, !is_looped) << "Receive non-looped animation";
         return make_unique<WebPageBlockAnimation>(
             animations_it->second, get_page_block_caption(std::move(page_block->caption_), documents), need_autoplay);
       }
@@ -2137,7 +2137,7 @@ unique_ptr<WebPageBlock> get_web_page_block(Td *td, tl_object_ptr<telegram_api::
           return nullptr;
         }
 
-        if (td->contacts_manager_->have_channel_force(channel_id)) {
+        if (td->contacts_manager_->have_channel_force(channel_id, "pageBlockChannel")) {
           td->contacts_manager_->on_get_chat(std::move(page_block->channel_), "pageBlockChannel");
           LOG(INFO) << "Receive known min " << channel_id;
           return td::make_unique<WebPageBlockChatLink>(td->contacts_manager_->get_channel_title(channel_id),
@@ -2243,7 +2243,7 @@ unique_ptr<WebPageBlock> get_web_page_block(Td *td, tl_object_ptr<telegram_api::
     }
     case telegram_api::pageBlockMap::ID: {
       auto page_block = move_tl_object_as<telegram_api::pageBlockMap>(page_block_ptr);
-      Location location(page_block->geo_);
+      Location location(td, page_block->geo_);
       auto zoom = page_block->zoom_;
       Dimensions dimensions = get_dimensions(page_block->w_, page_block->h_, "pageBlockMap");
       if (location.empty()) {

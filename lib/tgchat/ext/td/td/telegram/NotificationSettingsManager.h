@@ -10,7 +10,7 @@
 #include "td/telegram/DialogNotificationSettings.h"
 #include "td/telegram/files/FileId.h"
 #include "td/telegram/files/FileSourceId.h"
-#include "td/telegram/FullMessageId.h"
+#include "td/telegram/MessageFullId.h"
 #include "td/telegram/MessageId.h"
 #include "td/telegram/NotificationSettingsScope.h"
 #include "td/telegram/ScopeNotificationSettings.h"
@@ -26,6 +26,7 @@
 #include "td/utils/Status.h"
 
 #include <memory>
+#include <utility>
 
 namespace td {
 
@@ -46,9 +47,15 @@ class NotificationSettingsManager final : public Actor {
 
   int32 get_scope_mute_until(NotificationSettingsScope scope) const;
 
+  std::pair<bool, bool> get_scope_mute_stories(NotificationSettingsScope scope) const;
+
   const unique_ptr<NotificationSound> &get_scope_notification_sound(NotificationSettingsScope scope) const;
 
+  const unique_ptr<NotificationSound> &get_scope_story_notification_sound(NotificationSettingsScope scope) const;
+
   bool get_scope_show_preview(NotificationSettingsScope scope) const;
+
+  bool get_scope_hide_story_sender(NotificationSettingsScope scope) const;
 
   bool get_scope_disable_pinned_message_notifications(NotificationSettingsScope scope) const;
 
@@ -101,6 +108,8 @@ class NotificationSettingsManager final : public Actor {
 
   void get_notify_settings_exceptions(NotificationSettingsScope scope, bool filter_scope, bool compare_sound,
                                       Promise<Unit> &&promise);
+
+  void get_story_notification_settings_exceptions(Promise<td_api::object_ptr<td_api::chats>> &&promise);
 
   void init();
 
@@ -216,7 +225,7 @@ class NotificationSettingsManager final : public Actor {
   vector<Promise<Unit>> reload_saved_ringtones_queries_;
   vector<Promise<Unit>> repair_saved_ringtones_queries_;
 
-  FlatHashMap<FullMessageId, vector<Promise<Unit>>, FullMessageIdHash> get_dialog_notification_settings_queries_;
+  FlatHashMap<MessageFullId, vector<Promise<Unit>>, MessageFullIdHash> get_dialog_notification_settings_queries_;
 };
 
 }  // namespace td

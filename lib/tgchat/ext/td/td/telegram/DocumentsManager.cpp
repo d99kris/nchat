@@ -45,6 +45,7 @@
 #include "td/utils/StringBuilder.h"
 #include "td/utils/utf8.h"
 
+#include <cmath>
 #include <limits>
 
 namespace td {
@@ -72,8 +73,7 @@ tl_object_ptr<td_api::document> DocumentsManager::get_document_object(FileId fil
 
 Document DocumentsManager::on_get_document(RemoteDocument remote_document, DialogId owner_dialog_id,
                                            MultiPromiseActor *load_data_multipromise_ptr,
-                                           Document::Type default_document_type, bool is_background, bool is_pattern,
-                                           bool is_ringtone) {
+                                           Document::Type default_document_type, Subtype document_subtype) {
   tl_object_ptr<telegram_api::documentAttributeAnimated> animated;
   tl_object_ptr<telegram_api::documentAttributeVideo> video;
   tl_object_ptr<telegram_api::documentAttributeAudio> audio;
@@ -121,10 +121,18 @@ Document DocumentsManager::on_get_document(RemoteDocument remote_document, Dialo
         UNREACHABLE();
     }
   }
+  bool video_is_animation = false;
+  double video_precise_duration = 0.0;
   int32 video_duration = 0;
+  int32 video_preload_prefix_size = 0;
   string video_waveform;
   if (video != nullptr) {
-    video_duration = video->duration_;
+    video_precise_duration = video->duration_;
+    video_duration = static_cast<int32>(std::ceil(video->duration_));
+    if (document_subtype == Subtype::Story) {
+      video_preload_prefix_size = video->preload_prefix_size_;
+    }
+    video_is_animation = video->nosound_;
     auto video_dimensions = get_dimensions(video->w_, video->h_, "documentAttributeVideo");
     if (dimensions.width == 0 || (video_dimensions.width != 0 && video_dimensions != dimensions)) {
       if (dimensions.width != 0) {
@@ -235,27 +243,42 @@ Document DocumentsManager::on_get_document(RemoteDocument remote_document, Dialo
                  << ", has_stickers = " << has_stickers;
   }
 
-  if (is_background) {
-    if (document_type != Document::Type::General) {
-      LOG(ERROR) << "Receive background of type " << document_type;
-      document_type = Document::Type::General;
-    }
-    file_type = FileType::Background;
-    if (is_pattern) {
+  switch (document_subtype) {
+    case Subtype::Background:
+      if (document_type != Document::Type::General) {
+        LOG(ERROR) << "Receive background of type " << document_type;
+        document_type = Document::Type::General;
+      }
+      file_type = FileType::Background;
+      default_extension = Slice("jpg");
+      break;
+    case Subtype::Pattern:
+      if (document_type != Document::Type::General) {
+        LOG(ERROR) << "Receive background of type " << document_type;
+        document_type = Document::Type::General;
+      }
+      file_type = FileType::Background;
       default_extension = Slice("png");
       thumbnail_format = PhotoFormat::Png;
-    } else {
-      default_extension = Slice("jpg");
-    }
-  }
-
-  if (is_ringtone) {
-    if (document_type != Document::Type::Audio) {
-      LOG(ERROR) << "Receive notification tone of type " << document_type;
-      document_type = Document::Type::Audio;
-    }
-    file_type = FileType::Ringtone;
-    default_extension = Slice("mp3");
+      break;
+    case Subtype::Ringtone:
+      if (document_type != Document::Type::Audio) {
+        LOG(ERROR) << "Receive notification tone of type " << document_type;
+        document_type = Document::Type::Audio;
+      }
+      file_type = FileType::Ringtone;
+      default_extension = Slice("mp3");
+      break;
+    case Subtype::Story:
+      if (document_type != Document::Type::Video) {
+        LOG(ERROR) << "Receive story of type " << document_type;
+        document_type = Document::Type::Video;
+      }
+      file_type = FileType::VideoStory;
+      default_extension = Slice("mp4");
+      break;
+    default:
+      break;
   }
 
   int64 id;
@@ -298,7 +321,7 @@ Document DocumentsManager::on_get_document(RemoteDocument remote_document, Dialo
     access_hash = document->access_hash_;
     dc_id = document->dc_id_;
     size = document->size_;
-    if (is_ringtone) {
+    if (document_subtype == Subtype::Ringtone) {
       date = document->date_;
     }
     mime_type = std::move(document->mime_type_);
@@ -517,10 +540,10 @@ Document DocumentsManager::on_get_document(RemoteDocument remote_document, Dialo
                                              std::move(custom_emoji), sticker_format, load_data_multipromise_ptr);
       break;
     case Document::Type::Video:
-      td_->videos_manager_->create_video(file_id, std::move(minithumbnail), std::move(thumbnail),
-                                         std::move(animated_thumbnail), has_stickers, vector<FileId>(),
-                                         std::move(file_name), std::move(mime_type), video_duration, dimensions,
-                                         supports_streaming, !is_web);
+      td_->videos_manager_->create_video(
+          file_id, std::move(minithumbnail), std::move(thumbnail), std::move(animated_thumbnail), has_stickers,
+          vector<FileId>(), std::move(file_name), std::move(mime_type), video_duration, video_precise_duration,
+          dimensions, supports_streaming, video_is_animation, video_preload_prefix_size, !is_web);
       break;
     case Document::Type::VideoNote:
       td_->video_notes_manager_->create_video_note(file_id, std::move(minithumbnail), std::move(thumbnail),

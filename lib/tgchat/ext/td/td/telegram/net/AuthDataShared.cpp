@@ -7,6 +7,7 @@
 #include "td/telegram/net/AuthDataShared.h"
 
 #include "td/telegram/Global.h"
+#include "td/telegram/net/AuthKeyState.h"
 #include "td/telegram/TdDb.h"
 
 #include "td/utils/algorithm.h"
@@ -43,10 +44,6 @@ class AuthDataSharedImpl final : public AuthDataShared {
     return res;
   }
 
-  AuthKeyState get_auth_key_state() final {
-    return AuthDataShared::get_auth_key_state(get_auth_key());
-  }
-
   void set_auth_key(const mtproto::AuthKey &auth_key) final {
     G()->td_db()->get_binlog_pmc()->set(auth_key_key(), serialize(auth_key));
     log_auth_key(auth_key);
@@ -55,8 +52,8 @@ class AuthDataSharedImpl final : public AuthDataShared {
   }
 
   // TODO: extract it from G()
-  void update_server_time_difference(double diff) final {
-    G()->update_server_time_difference(diff);
+  void update_server_time_difference(double diff, bool force) final {
+    G()->update_server_time_difference(diff, force);
   }
 
   double get_server_time_difference() final {
@@ -112,8 +109,7 @@ class AuthDataSharedImpl final : public AuthDataShared {
     if (!salts.empty()) {
       last_used = static_cast<int64>(salts[0].valid_until);
     }
-    LOG(WARNING) << dc_id_ << " " << tag("auth_key_id", auth_key.id())
-                 << tag("state", AuthDataShared::get_auth_key_state(auth_key))
+    LOG(WARNING) << dc_id_ << " " << tag("auth_key_id", auth_key.id()) << tag("state", get_auth_key_state(auth_key))
                  << tag("created_at", static_cast<int64>(auth_key.created_at())) << tag("last_used", last_used);
   }
 };

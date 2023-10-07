@@ -14,6 +14,7 @@
 #include "td/utils/Status.h"
 #include "td/utils/StringBuilder.h"
 
+#include <functional>
 #include <new>
 #include <type_traits>
 #include <utility>
@@ -222,11 +223,11 @@ class JsonScope {
     jb_->scope_ = this;
     CHECK(is_active());
   }
-  JsonScope(const JsonScope &other) = delete;
+  JsonScope(const JsonScope &) = delete;
+  JsonScope &operator=(const JsonScope &) = delete;
   JsonScope(JsonScope &&other) noexcept : sb_(other.sb_), jb_(other.jb_), save_scope_(other.save_scope_) {
     other.jb_ = nullptr;
   }
-  JsonScope &operator=(const JsonScope &) = delete;
   JsonScope &operator=(JsonScope &&) = delete;
   ~JsonScope() {
     if (jb_) {
@@ -342,7 +343,10 @@ class JsonArrayScope final : public JsonScope {
     jb->inc_offset();
     *sb_ << "[";
   }
-  JsonArrayScope(JsonArrayScope &&other) = default;
+  JsonArrayScope(const JsonArrayScope &) = delete;
+  JsonArrayScope &operator=(const JsonArrayScope &) = delete;
+  JsonArrayScope(JsonArrayScope &&) = default;
+  JsonArrayScope &operator=(JsonArrayScope &&) = delete;
   ~JsonArrayScope() {
     if (jb_) {
       leave();
@@ -383,7 +387,10 @@ class JsonObjectScope final : public JsonScope {
     jb->inc_offset();
     *sb_ << "{";
   }
-  JsonObjectScope(JsonObjectScope &&other) = default;
+  JsonObjectScope(const JsonObjectScope &) = delete;
+  JsonObjectScope &operator=(const JsonObjectScope &) = delete;
+  JsonObjectScope(JsonObjectScope &&) = default;
+  JsonObjectScope &operator=(JsonObjectScope &&) = delete;
   ~JsonObjectScope() {
     if (jb_) {
       leave();
@@ -395,7 +402,7 @@ class JsonObjectScope final : public JsonScope {
     *sb_ << "}";
   }
   template <class T>
-  JsonObjectScope &operator()(Slice key, T &&value) {
+  JsonObjectScope &operator()(Slice field, T &&value) {
     CHECK(is_active());
     if (is_first_) {
       *sb_ << ",";
@@ -403,7 +410,7 @@ class JsonObjectScope final : public JsonScope {
       is_first_ = true;
     }
     jb_->print_offset();
-    jb_->enter_value() << key;
+    jb_->enter_value() << field;
     if (jb_->is_pretty()) {
       *sb_ << " : ";
     } else {
@@ -412,10 +419,10 @@ class JsonObjectScope final : public JsonScope {
     jb_->enter_value() << value;
     return *this;
   }
-  JsonObjectScope &operator<<(const JsonRaw &key_value) {
+  JsonObjectScope &operator<<(const JsonRaw &field_value) {
     CHECK(is_active());
     is_first_ = true;
-    jb_->enter_value() << key_value;
+    jb_->enter_value() << field_value;
     return *this;
   }
 
@@ -445,12 +452,65 @@ inline JsonArrayScope JsonBuilder::enter_array() {
 
 class JsonValue;
 
-using JsonObject = vector<std::pair<MutableSlice, JsonValue>>;
+enum class JsonValueType { Null, Number, Boolean, String, Array, Object };
+
 using JsonArray = vector<JsonValue>;
+
+class JsonObject {
+  const JsonValue *get_field(Slice name) const;
+
+ public:
+  vector<std::pair<Slice, JsonValue>> field_values_;
+
+  JsonObject() = default;
+
+  explicit JsonObject(vector<std::pair<Slice, JsonValue>> &&field_values) : field_values_(std::move(field_values)) {
+  }
+
+  JsonObject(const JsonObject &) = delete;
+  JsonObject &operator=(const JsonObject &) = delete;
+  JsonObject(JsonObject &&) noexcept = default;
+  JsonObject &operator=(JsonObject &&) noexcept = default;
+  ~JsonObject() = default;
+
+  size_t field_count() const {
+    return field_values_.size();
+  }
+
+  JsonValue extract_field(Slice name);
+
+  Result<JsonValue> extract_optional_field(Slice name, JsonValueType type);
+
+  Result<JsonValue> extract_required_field(Slice name, JsonValueType type);
+
+  bool has_field(Slice name) const;
+
+  Result<bool> get_optional_bool_field(Slice name, bool default_value = false) const;
+
+  Result<bool> get_required_bool_field(Slice name) const;
+
+  Result<int32> get_optional_int_field(Slice name, int32 default_value = 0) const;
+
+  Result<int32> get_required_int_field(Slice name) const;
+
+  Result<int64> get_optional_long_field(Slice name, int64 default_value = 0) const;
+
+  Result<int64> get_required_long_field(Slice name) const;
+
+  Result<double> get_optional_double_field(Slice name, double default_value = 0.0) const;
+
+  Result<double> get_required_double_field(Slice name) const;
+
+  Result<string> get_optional_string_field(Slice name, string default_value = string()) const;
+
+  Result<string> get_required_string_field(Slice name) const;
+
+  void foreach(const std::function<void(Slice name, const JsonValue &value)> &callback) const;
+};
 
 class JsonValue final : private Jsonable {
  public:
-  enum class Type { Null, Number, Boolean, String, Array, Object };
+  using Type = JsonValueType;
 
   static Slice get_type_name(Type type);
 
@@ -470,8 +530,8 @@ class JsonValue final : private Jsonable {
     init(std::move(other));
     return *this;
   }
-  JsonValue(const JsonValue &other) = delete;
-  JsonValue &operator=(const JsonValue &other) = delete;
+  JsonValue(const JsonValue &) = delete;
+  JsonValue &operator=(const JsonValue &) = delete;
 
   Type type() const {
     return type_;
@@ -578,8 +638,8 @@ class JsonValue final : private Jsonable {
       }
       case Type::Object: {
         auto object = scope->enter_object();
-        for (auto &key_value : get_object()) {
-          object(key_value.first, key_value.second);
+        for (auto &field_value : get_object().field_values_) {
+          object(field_value.first, field_value.second);
         }
         break;
       }
@@ -658,7 +718,7 @@ class JsonValue final : private Jsonable {
         array_.~vector<JsonValue>();
         break;
       case Type::Object:
-        object_.~vector<std::pair<MutableSlice, JsonValue>>();
+        object_.~JsonObject();
         break;
     }
     type_ = Type::Null;
@@ -834,27 +894,5 @@ auto json_array(const A &a, F &&f) {
     }
   });
 }
-
-bool has_json_object_field(const JsonObject &object, Slice name);
-
-JsonValue get_json_object_field_force(JsonObject &object, Slice name) TD_WARN_UNUSED_RESULT;
-
-Result<JsonValue> get_json_object_field(JsonObject &object, Slice name, JsonValue::Type type,
-                                        bool is_optional = true) TD_WARN_UNUSED_RESULT;
-
-Result<bool> get_json_object_bool_field(JsonObject &object, Slice name, bool is_optional = true,
-                                        bool default_value = false) TD_WARN_UNUSED_RESULT;
-
-Result<int32> get_json_object_int_field(JsonObject &object, Slice name, bool is_optional = true,
-                                        int32 default_value = 0) TD_WARN_UNUSED_RESULT;
-
-Result<int64> get_json_object_long_field(JsonObject &object, Slice name, bool is_optional = true,
-                                         int64 default_value = 0) TD_WARN_UNUSED_RESULT;
-
-Result<double> get_json_object_double_field(JsonObject &object, Slice name, bool is_optional = true,
-                                            double default_value = 0.0) TD_WARN_UNUSED_RESULT;
-
-Result<string> get_json_object_string_field(JsonObject &object, Slice name, bool is_optional = true,
-                                            string default_value = "") TD_WARN_UNUSED_RESULT;
 
 }  // namespace td

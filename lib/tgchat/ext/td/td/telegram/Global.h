@@ -30,6 +30,7 @@
 
 namespace td {
 
+class AccountManager;
 class AnimationsManager;
 class AttachMenuManager;
 class AuthManager;
@@ -54,11 +55,13 @@ class NotificationManager;
 class NotificationSettingsManager;
 class OptionManager;
 class PasswordManager;
+class ReactionManager;
 class SecretChatsManager;
 class SponsoredMessageManager;
 class StateManager;
 class StickersManager;
 class StorageManager;
+class StoryManager;
 class Td;
 class TdDb;
 class TempAuthKeyWatchdog;
@@ -73,8 +76,8 @@ class Global final : public ActorContext {
   ~Global() final;
   Global(const Global &) = delete;
   Global &operator=(const Global &) = delete;
-  Global(Global &&other) = delete;
-  Global &operator=(Global &&other) = delete;
+  Global(Global &&) = delete;
+  Global &operator=(Global &&) = delete;
 
   static constexpr int32 ID = -572104940;
   int32 get_id() const final {
@@ -141,7 +144,7 @@ class Global final : public ActorContext {
   string get_option_string(Slice name, string default_value = "") const;
 
   bool is_server_time_reliable() const {
-    return server_time_difference_was_updated_;
+    return server_time_difference_was_updated_.load(std::memory_order_relaxed);
   }
   double to_server_time(double now) const {
     return now + get_server_time_difference();
@@ -159,7 +162,7 @@ class Global final : public ActorContext {
     return to_unix_time(server_time_cached());
   }
 
-  void update_server_time_difference(double diff);
+  void update_server_time_difference(double diff, bool force);
 
   void save_server_time();
 
@@ -180,6 +183,13 @@ class Global final : public ActorContext {
 
   ActorId<Td> td() const {
     return td_;
+  }
+
+  ActorId<AccountManager> account_manager() const {
+    return account_manager_;
+  }
+  void set_account_manager(ActorId<AccountManager> account_manager) {
+    account_manager_ = account_manager;
   }
 
   ActorId<AnimationsManager> animations_manager() const {
@@ -330,6 +340,13 @@ class Global final : public ActorContext {
     password_manager_ = password_manager;
   }
 
+  ActorId<ReactionManager> reaction_manager() const {
+    return reaction_manager_;
+  }
+  void set_reaction_manager(ActorId<ReactionManager> reaction_manager) {
+    reaction_manager_ = reaction_manager;
+  }
+
   ActorId<SecretChatsManager> secret_chats_manager() const {
     return secret_chats_manager_;
   }
@@ -356,6 +373,13 @@ class Global final : public ActorContext {
   }
   void set_storage_manager(ActorId<StorageManager> storage_manager) {
     storage_manager_ = storage_manager;
+  }
+
+  ActorId<StoryManager> story_manager() const {
+    return story_manager_;
+  }
+  void set_story_manager(ActorId<StoryManager> story_manager) {
+    story_manager_ = story_manager;
   }
 
   ActorId<ThemeManager> theme_manager() const {
@@ -408,6 +432,10 @@ class Global final : public ActorContext {
 
   bool keep_media_order() const {
     return use_file_database();
+  }
+
+  int32 get_database_scheduler_id() {
+    return database_scheduler_id_;
   }
 
   int32 get_gc_scheduler_id() const {
@@ -497,6 +525,7 @@ class Global final : public ActorContext {
   unique_ptr<TdDb> td_db_;
 
   ActorId<Td> td_;
+  ActorId<AccountManager> account_manager_;
   ActorId<AnimationsManager> animations_manager_;
   ActorId<AttachMenuManager> attach_menu_manager_;
   ActorId<AuthManager> auth_manager_;
@@ -518,10 +547,12 @@ class Global final : public ActorContext {
   ActorId<NotificationManager> notification_manager_;
   ActorId<NotificationSettingsManager> notification_settings_manager_;
   ActorId<PasswordManager> password_manager_;
+  ActorId<ReactionManager> reaction_manager_;
   ActorId<SecretChatsManager> secret_chats_manager_;
   ActorId<SponsoredMessageManager> sponsored_message_manager_;
   ActorId<StickersManager> stickers_manager_;
   ActorId<StorageManager> storage_manager_;
+  ActorId<StoryManager> story_manager_;
   ActorId<ThemeManager> theme_manager_;
   ActorId<TopDialogManager> top_dialog_manager_;
   ActorId<UpdatesManager> updates_manager_;
@@ -533,6 +564,7 @@ class Global final : public ActorContext {
 
   OptionManager *option_manager_ = nullptr;
 
+  int32 database_scheduler_id_ = 0;
   int32 gc_scheduler_id_ = 0;
   int32 slow_net_scheduler_id_ = 0;
 

@@ -11,6 +11,14 @@
 
 namespace td {
 
+std::string TD_TL_writer_jni_cpp::gen_output_begin_once() const {
+  return TD_TL_writer_cpp::gen_output_begin_once() +
+         "\nconst char *&get_package_name_ref() {\n"
+         "  static const char *package_name = \"Package name must be initialized first\";\n"
+         "  return package_name;\n"
+         "}\n";
+}
+
 bool TD_TL_writer_jni_cpp::is_built_in_simple_type(const std::string &name) const {
   return name == "Bool" || name == "Int32" || name == "Int53" || name == "Int64" || name == "Double" ||
          name == "String" || name == "Bytes";
@@ -391,11 +399,19 @@ std::string TD_TL_writer_jni_cpp::gen_fetch_function_begin(const std::string &pa
 
   assert(parser_type != 0);
 
-  return "\n" + returned_type + class_name + "::fetch(" + parser_name + " &p) {\n" +
-         (parser_type == -1 ? ""
-                            : "  if (p == nullptr) return nullptr;\n"
-                              "  " +
-                                  fetched_type + "res = make_object<" + class_name + ">();\n");
+  std::string result = "\n" + returned_type + class_name + "::fetch(" + parser_name + " &p) {\n";
+  if (parser_type != -1) {
+    result += "  if (p == nullptr) return nullptr;\n";
+    if (field_count == 0 && vars.empty()) {
+      result += "  return make_object<" + class_name + ">();\n";
+    } else {
+      result +=
+          "  init_jni_vars(env);\n"
+          "  " +
+          fetched_type + "res = make_object<" + class_name + ">();\n";
+    }
+  }
+  return result;
 }
 
 std::string TD_TL_writer_jni_cpp::gen_fetch_function_end(bool has_parent, int field_count,
@@ -407,7 +423,7 @@ std::string TD_TL_writer_jni_cpp::gen_fetch_function_end(bool has_parent, int fi
 
   assert(parser_type != 0);
 
-  if (parser_type == -1) {
+  if (parser_type == -1 || field_count == 0) {
     return "}\n";
   }
 
@@ -421,7 +437,7 @@ std::string TD_TL_writer_jni_cpp::gen_fetch_function_result_begin(const std::str
                                                                   const tl::tl_tree *result) const {
   return "\n" + class_name + "::ReturnType " + class_name + "::fetch_result(" + parser_name +
          " &p) {\n"
-         "  if (p == nullptr) return ReturnType();\n" +
+         "  if (p == nullptr) return ReturnType();\n"
          "  return ";
 }
 
@@ -457,7 +473,8 @@ std::string TD_TL_writer_jni_cpp::gen_store_function_begin(const std::string &st
          "void " +
          class_name + "::store(" + storer_name + " &s" +
          std::string(storer_type <= 0 ? "" : ", const char *field_name") + ") const {\n" +
-         (storer_type <= 0 ? "  s = env->AllocObject(Class);\n"
+         (storer_type <= 0 ? "  init_jni_vars(env);\n"
+                             "  s = env->AllocObject(Class);\n"
                              "  if (!s) { return; }\n"
                            : "  if (!LOG_IS_STRIPPED(ERROR)) {\n"
                              "    s.store_class_begin(field_name, \"" +
@@ -521,7 +538,7 @@ std::string TD_TL_writer_jni_cpp::gen_basic_java_class_name(std::string name) co
 }
 
 std::string TD_TL_writer_jni_cpp::gen_java_class_name(std::string name) const {
-  return "(PSLICE() << package_name << \"/TdApi$" + gen_basic_java_class_name(name) + "\").c_str()";
+  return "(PSLICE() << get_package_name_ref() << \"/TdApi$" + gen_basic_java_class_name(name) + "\").c_str()";
 }
 
 std::string TD_TL_writer_jni_cpp::gen_type_signature(const tl::tl_tree_type *tree_type) const {
@@ -561,8 +578,9 @@ std::string TD_TL_writer_jni_cpp::gen_additional_function(const std::string &fun
       "\n"
       "void " +
       class_name + "::" + function_name +
-      "(JNIEnv *env, const char *package_name) {\n"
-      "  " +
+      "(JNIEnv *env) {\n"
+      "  static bool is_inited = [&] {\n"
+      "    " +
       class_name_class + " = jni::get_jclass(env, " + gen_java_class_name(gen_class_name(t->name)) + ");\n";
 
   if (!t->args.empty()) {
@@ -582,7 +600,7 @@ std::string TD_TL_writer_jni_cpp::gen_additional_function(const std::string &fun
         std::string new_type_signature = "(PSLICE()";
         std::size_t pos = type_signature.find("%PACKAGE_NAME%");
         while (pos != std::string::npos) {
-          new_type_signature += " << \"" + type_signature.substr(0, pos) + "\" << package_name";
+          new_type_signature += " << \"" + type_signature.substr(0, pos) + "\" << get_package_name_ref()";
           type_signature = type_signature.substr(pos + 14);
           pos = type_signature.find("%PACKAGE_NAME%");
         }
@@ -591,11 +609,15 @@ std::string TD_TL_writer_jni_cpp::gen_additional_function(const std::string &fun
         }
         type_signature = new_type_signature + ").c_str()";
       }
-      res += "  " + field_name + "fieldID = jni::get_field_id(env, " + class_name_class + ", \"" + java_field_name +
+      res += "    " + field_name + "fieldID = jni::get_field_id(env, " + class_name_class + ", \"" + java_field_name +
              "\", " + type_signature + ");\n";
     }
   }
-  res += "}\n";
+  res +=
+      "    return true;\n"
+      "  }();\n"
+      "  (void)is_inited;\n"
+      "}\n";
   return res;
 }
 
@@ -608,9 +630,14 @@ std::string TD_TL_writer_jni_cpp::gen_additional_proxy_function_begin(const std:
   return "\n"
          "void " +
          class_name + "::" + function_name +
-         "(JNIEnv *env, const char *package_name) {\n"
-         "  Class = jni::get_jclass(env, " +
-         gen_java_class_name(class_name) + ");\n";
+         "(JNIEnv *env) {\n"
+         "  static bool is_inited = [&] {\n"
+         "    Class = jni::get_jclass(env, " +
+         gen_java_class_name(class_name) +
+         ");\n"
+         "    return true;\n"
+         "  }();\n"
+         "  (void)is_inited;\n";
 }
 
 std::string TD_TL_writer_jni_cpp::gen_additional_proxy_function_case(const std::string &function_name,
@@ -618,7 +645,7 @@ std::string TD_TL_writer_jni_cpp::gen_additional_proxy_function_case(const std::
                                                                      const std::string &class_name, int arity) const {
   assert(function_name == "init_jni_vars");
   assert(arity == 0);
-  return "  " + class_name + "::" + function_name + "(env, package_name);\n";
+  return "";
 }
 
 std::string TD_TL_writer_jni_cpp::gen_additional_proxy_function_case(const std::string &function_name,
@@ -627,7 +654,7 @@ std::string TD_TL_writer_jni_cpp::gen_additional_proxy_function_case(const std::
                                                                      bool is_function) const {
   assert(function_name == "init_jni_vars");
   assert(arity == 0);
-  return "  " + gen_class_name(t->name) + "::" + function_name + "(env, package_name);\n";
+  return "";
 }
 
 std::string TD_TL_writer_jni_cpp::gen_additional_proxy_function_end(const std::string &function_name,

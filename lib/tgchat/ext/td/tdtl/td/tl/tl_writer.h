@@ -83,8 +83,12 @@ class TL_writer {
 
   virtual std::string gen_int_const(const tl_tree *tree_c, const std::vector<var_description> &vars) const = 0;
 
-  virtual std::string gen_output_begin() const = 0;
+  virtual std::string gen_output_begin(const std::string &additional_imports) const = 0;
+  virtual std::string gen_output_begin_once() const = 0;
   virtual std::string gen_output_end() const = 0;
+
+  virtual std::string gen_import_declaration(const std::string &name, bool is_system) const = 0;
+  virtual std::string gen_package_suffix() const = 0;
 
   virtual std::string gen_forward_class_declaration(const std::string &class_name, bool is_proxy) const = 0;
 

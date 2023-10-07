@@ -18,12 +18,14 @@ namespace td {
 namespace tl {
 
 class TlWriterDotNet final : public TL_writer {
- public:
   bool is_header_;
   std::string prefix_;
-  TlWriterDotNet(const std::string &name, bool is_header, const std::string &prefix = "")
+
+ public:
+  TlWriterDotNet(const std::string &name, bool is_header, const std::string &prefix)
       : TL_writer(name), is_header_(is_header), prefix_(prefix) {
   }
+
   int get_max_arity(void) const final {
     return 0;
   }
@@ -178,17 +180,34 @@ class TlWriterDotNet final : public TL_writer {
 
     return gen_main_class_name(t) + "^";
   }
-  std::string gen_output_begin(void) const final {
-    return prefix_ +
-           "#include \"td/tl/tl_dotnet_object.h\"\n\n"
+
+  std::string gen_output_begin(const std::string &additional_imports) const final {
+    return prefix_ + "#include \"td/tl/tl_dotnet_object.h\"\n\n" + additional_imports +
            "namespace Telegram {\n"
            "namespace Td {\n"
            "namespace Api {\n";
   }
+
+  std::string gen_output_begin_once(void) const final {
+    return std::string();
+  }
+
   std::string gen_output_end() const final {
     return "}\n"
            "}\n"
            "}\n";
+  }
+
+  std::string gen_import_declaration(const std::string &name, bool is_system) const final {
+    if (is_system) {
+      return "#include <" + name + ">\n";
+    } else {
+      return "#include \"" + name + "\"\n";
+    }
+  }
+
+  std::string gen_package_suffix() const final {
+    return ".h";
   }
 
   std::string gen_forward_class_declaration(const std::string &class_name, bool is_proxy) const final {

@@ -32,7 +32,6 @@
 #include <cstring>
 #include <limits>
 #include <tuple>
-#include <unordered_set>
 
 namespace td {
 
@@ -1015,7 +1014,7 @@ bool is_email_address(Slice str) {
 }
 
 static bool is_common_tld(Slice str) {
-  static const std::unordered_set<Slice, SliceHash> tlds(
+  static const FlatHashSet<Slice, SliceHash> tlds(
       {"aaa", "aarp", "abarth", "abb", "abbott", "abbvie", "abc", "able", "abogado", "abudhabi", "ac", "academy",
        "accenture", "accountant", "accountants", "aco", "active", "actor", "ad", "adac", "ads", "adult", "ae", "aeg",
        "aero", "aetna", "af", "afamilycompany", "afl", "africa", "ag", "agakhan", "agency", "ai", "aig", "aigo",
@@ -1310,13 +1309,7 @@ static Slice fix_url(Slice str) {
 }
 
 const FlatHashSet<Slice, SliceHash> &get_valid_short_usernames() {
-  static const FlatHashSet<Slice, SliceHash> valid_usernames = [] {
-    FlatHashSet<Slice, SliceHash> result;
-    for (auto username : {"gif", "wiki", "vid", "bing", "pic", "bold", "imdb", "coub", "like", "vote"}) {
-      result.insert(Slice(username));
-    }
-    return result;
-  }();
+  static const FlatHashSet<Slice, SliceHash> valid_usernames{"gif", "vid", "pic"};
   return valid_usernames;
 }
 
@@ -2453,15 +2446,15 @@ static FormattedText parse_text_url_entities_v3(Slice text, const vector<Message
 }
 
 static vector<MessageEntity> find_splittable_entities_v3(Slice text, const vector<MessageEntity> &entities) {
-  std::unordered_set<int32, Hash<int32>> unallowed_boundaries;
+  FlatHashSet<int32, Hash<int32>> unallowed_boundaries;
   for (auto &entity : entities) {
-    unallowed_boundaries.insert(entity.offset);
-    unallowed_boundaries.insert(entity.offset + entity.length);
+    unallowed_boundaries.insert(entity.offset + 1);
+    unallowed_boundaries.insert(entity.offset + entity.length + 1);
     if (entity.type == MessageEntity::Type::Mention || entity.type == MessageEntity::Type::Hashtag ||
         entity.type == MessageEntity::Type::BotCommand || entity.type == MessageEntity::Type::Cashtag ||
         entity.type == MessageEntity::Type::PhoneNumber || entity.type == MessageEntity::Type::BankCardNumber) {
       for (int32 i = 1; i < entity.length; i++) {
-        unallowed_boundaries.insert(entity.offset + i);
+        unallowed_boundaries.insert(entity.offset + i + 1);
       }
     }
   }
@@ -2472,7 +2465,7 @@ static vector<MessageEntity> find_splittable_entities_v3(Slice text, const vecto
   });
   for (auto &entity : found_entities) {
     for (int32 i = 0; i <= entity.length; i++) {
-      unallowed_boundaries.insert(entity.offset + i);
+      unallowed_boundaries.insert(entity.offset + i + 1);
     }
   }
 
@@ -2485,10 +2478,10 @@ static vector<MessageEntity> find_splittable_entities_v3(Slice text, const vecto
       utf16_offset += 1 + (c >= 0xf0);  // >= 4 bytes in symbol => surrogate pair
     }
     if ((c == '_' || c == '*' || c == '~' || c == '|') && text[i] == text[i + 1] &&
-        unallowed_boundaries.count(utf16_offset) == 0) {
+        unallowed_boundaries.count(utf16_offset + 1) == 0) {
       auto j = i + 2;
       while (j != text.size() && text[j] == text[i] &&
-             unallowed_boundaries.count(utf16_offset + static_cast<int32>(j - i - 1)) == 0) {
+             unallowed_boundaries.count(utf16_offset + static_cast<int32>(j - i)) == 0) {
         j++;
       }
       if (j == i + 2) {
@@ -4341,7 +4334,9 @@ Result<FormattedText> get_formatted_text(const Td *td, DialogId dialog_id,
   TRY_RESULT(entities, get_message_entities(td->contacts_manager_.get(), std::move(text->entities_)));
   auto need_skip_bot_commands = need_always_skip_bot_commands(td->contacts_manager_.get(), dialog_id, is_bot);
   bool parse_markdown = td->option_manager_->get_option_boolean("always_parse_markdown");
-  TRY_STATUS(fix_formatted_text(text->text_, entities, allow_empty, parse_markdown, need_skip_bot_commands,
+  bool skip_new_entities = is_bot && td->option_manager_->get_option_integer("session_count") > 1;
+  TRY_STATUS(fix_formatted_text(text->text_, entities, allow_empty, skip_new_entities || parse_markdown,
+                                skip_new_entities || need_skip_bot_commands,
                                 is_bot || skip_media_timestamps || parse_markdown, skip_trim));
 
   FormattedText result{std::move(text->text_), std::move(entities)};

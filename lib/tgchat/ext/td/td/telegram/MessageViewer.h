@@ -26,8 +26,15 @@ class MessageViewer {
  public:
   explicit MessageViewer(telegram_api::object_ptr<telegram_api::readParticipantDate> &&read_date);
 
+  MessageViewer(UserId user_id, int32 date) : user_id_(user_id), date_(td::max(date, static_cast<int32>(0))) {
+  }
+
   UserId get_user_id() const {
     return user_id_;
+  }
+
+  bool is_empty() const {
+    return user_id_ == UserId() && date_ == 0;
   }
 
   td_api::object_ptr<td_api::messageViewer> get_message_viewer_object(ContactsManager *contacts_manager) const;
@@ -35,10 +42,17 @@ class MessageViewer {
 
 StringBuilder &operator<<(StringBuilder &string_builder, const MessageViewer &viewer);
 
-struct MessageViewers {
+class MessageViewers {
   vector<MessageViewer> message_viewers_;
 
+  friend StringBuilder &operator<<(StringBuilder &string_builder, const MessageViewers &viewers);
+
+ public:
+  MessageViewers() = default;
+
   explicit MessageViewers(vector<telegram_api::object_ptr<telegram_api::readParticipantDate>> &&read_dates);
+
+  vector<UserId> get_user_ids() const;
 
   td_api::object_ptr<td_api::messageViewers> get_message_viewers_object(ContactsManager *contacts_manager) const;
 };
