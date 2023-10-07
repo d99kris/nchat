@@ -330,6 +330,14 @@ func JidToStr(jid types.JID) string {
 	return jid.User + "@" + jid.Server
 }
 
+func GetChatId(chatJid types.JID, senderJid types.JID) string {
+  if chatJid.Server != "broadcast" {
+		return JidToStr(chatJid)
+	} else {
+		return JidToStr(senderJid)
+	}
+}
+
 func ParseWebMessageInfo(selfJid types.JID, chatJid types.JID, webMsg *waProto.WebMessageInfo) *types.MessageInfo {
 	info := types.MessageInfo{
 		MessageSource: types.MessageSource{
@@ -825,7 +833,7 @@ func (handler *WmEventHandler) HandleTextMessage(messageInfo types.MessageInfo, 
 	LOG_TRACE(fmt.Sprintf("TextMessage"))
 
 	connId := handler.connId
-	chatId := JidToStr(messageInfo.Chat)
+	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
 	msgId := messageInfo.ID
 	text := ""
 
@@ -892,7 +900,7 @@ func (handler *WmEventHandler) HandleImageMessage(messageInfo types.MessageInfo,
 	fileId := DownloadableMessageToFileId(client, img, filePath)
 	fileStatus := FileStatusNotDownloaded
 
-	chatId := JidToStr(messageInfo.Chat)
+	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
 	senderId := JidToStr(messageInfo.Sender)
@@ -943,7 +951,7 @@ func (handler *WmEventHandler) HandleVideoMessage(messageInfo types.MessageInfo,
 	fileId := DownloadableMessageToFileId(client, vid, filePath)
 	fileStatus := FileStatusNotDownloaded
 
-	chatId := JidToStr(messageInfo.Chat)
+	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
 	senderId := JidToStr(messageInfo.Sender)
@@ -994,7 +1002,7 @@ func (handler *WmEventHandler) HandleAudioMessage(messageInfo types.MessageInfo,
 	fileId := DownloadableMessageToFileId(client, aud, filePath)
 	fileStatus := FileStatusNotDownloaded
 
-	chatId := JidToStr(messageInfo.Chat)
+	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
 	senderId := JidToStr(messageInfo.Sender)
@@ -1038,7 +1046,7 @@ func (handler *WmEventHandler) HandleDocumentMessage(messageInfo types.MessageIn
 	fileId := DownloadableMessageToFileId(client, doc, filePath)
 	fileStatus := FileStatusNotDownloaded
 
-	chatId := JidToStr(messageInfo.Chat)
+	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
 	senderId := JidToStr(messageInfo.Sender)
@@ -1089,7 +1097,7 @@ func (handler *WmEventHandler) HandleStickerMessage(messageInfo types.MessageInf
 	fileId := DownloadableMessageToFileId(client, sticker, filePath)
 	fileStatus := FileStatusNotDownloaded
 
-	chatId := JidToStr(messageInfo.Chat)
+	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
 	senderId := JidToStr(messageInfo.Sender)
@@ -1178,7 +1186,7 @@ func (handler *WmEventHandler) HandleTemplateMessage(messageInfo types.MessageIn
 		quotedId = ci.GetStanzaId()
 	}
 
-	chatId := JidToStr(messageInfo.Chat)
+	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
 	senderId := JidToStr(messageInfo.Sender)
@@ -1373,7 +1381,7 @@ func (handler *WmEventHandler) HandleUnsupportedMessage(messageInfo types.Messag
 	}
 
 	connId := handler.connId
-	chatId := JidToStr(messageInfo.Chat)
+	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
 	msgId := messageInfo.ID
 	text := "[" + msgType + "]"
 
