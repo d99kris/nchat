@@ -2068,13 +2068,17 @@ std::string UiModel::GetContactPhone(const std::string& p_ProfileId, const std::
 
 bool UiModel::GetChatIsUnread(const std::string& p_ProfileId, const std::string& p_ChatId)
 {
-  const ChatInfo& chatInfo = m_ChatInfos.at(p_ProfileId).at(p_ChatId);
+  const ChatInfo& chatInfo = m_ChatInfos[p_ProfileId][p_ChatId];
   return chatInfo.isUnread; // @todo: handle isUnreadMention, isMuted
 }
 
 std::string UiModel::GetChatStatus(const std::string& p_ProfileId, const std::string& p_ChatId)
 {
+  std::string chatStatus;
   const std::set<std::string>& usersTyping = m_UsersTyping[p_ProfileId][p_ChatId];
+  const ContactInfo& contactInfo = m_ContactInfos[p_ProfileId][p_ChatId];
+  const ChatInfo& chatInfo = m_ChatInfos[p_ProfileId][p_ChatId];
+
   if (!usersTyping.empty())
   {
     if (usersTyping.size() > 1)
@@ -2087,29 +2091,27 @@ std::string UiModel::GetChatStatus(const std::string& p_ProfileId, const std::st
       }
 
       std::string userNamesJoined = StrUtil::Join(userNames, ", ");
-      return " (" + userNamesJoined + " are typing)";
+      chatStatus = userNamesJoined + " are typing";
     }
     else
     {
       std::string userId = *usersTyping.begin();
       if (userId == p_ChatId)
       {
-        return " (typing)";
+        chatStatus = "typing";
       }
       else
       {
         std::string userName = GetContactName(p_ProfileId, userId);
-        return " (" + userName + " is typing)";
+        chatStatus = userName + " is typing";
       }
     }
   }
-
-  const ContactInfo& contactInfo = m_ContactInfos[p_ProfileId][p_ChatId];
-  if (m_UserOnline[p_ProfileId].count(p_ChatId) && !contactInfo.isSelf)
+  else if (m_UserOnline[p_ProfileId].count(p_ChatId) && !contactInfo.isSelf)
   {
     if (m_UserOnline[p_ProfileId][p_ChatId])
     {
-      return " (online)";
+      chatStatus = "online";
     }
     else
     {
@@ -2117,21 +2119,48 @@ std::string UiModel::GetChatStatus(const std::string& p_ProfileId, const std::st
       switch (timeSeen)
       {
         case TimeSeenNone:
-          return " (away)";
+          chatStatus = "away";
+          break;
 
         case TimeSeenLastMonth:
-          return " (seen last month)";
+          chatStatus = "seen last month";
+          break;
 
         case TimeSeenLastWeek:
-          return " (seen last week)";
+          chatStatus = "seen last week";
+          break;
 
         default:
-          return " (seen " + TimeUtil::GetTimeString(timeSeen, true /* p_Short */) + ")";
+          chatStatus = "seen " + TimeUtil::GetTimeString(timeSeen, true /* p_Short */);
+          break;
       }
     }
   }
+  else
+  {
+    chatStatus = "";
+  }
 
-  return "";
+  if (chatInfo.isMuted)
+  {
+    if (chatStatus.empty())
+    {
+      chatStatus = "muted";
+    }
+    else
+    {
+      chatStatus = chatStatus + ", muted";
+    }
+  }
+
+  if (chatStatus.empty())
+  {
+    return "";
+  }
+  else
+  {
+    return " (" + chatStatus + ")";
+  }
 }
 
 void UiModel::OnCurrentChatChanged()
