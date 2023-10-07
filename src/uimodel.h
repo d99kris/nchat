@@ -145,6 +145,7 @@ private:
   void CallExternalEdit(const std::string& p_EditorCmd);
   const std::pair<std::string, std::string>& GetNextChat();
   void ExternalCall();
+  void HandleChatInfoMutedUpdate(const std::string& p_ProfileId, const std::string& p_ChatId);
 
 private:
   bool m_Running = true;

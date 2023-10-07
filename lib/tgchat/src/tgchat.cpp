@@ -1436,6 +1436,27 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
       }
     }
   },
+  [this](td::td_api::updateChatNotificationSettings& update_chat_notification_settings)
+  {
+    LOG_TRACE("update chat notification settings");
+
+    auto notification_settings_ =
+      td::move_tl_object_as<td::td_api::chatNotificationSettings>(update_chat_notification_settings.notification_settings_);
+    if (notification_settings_)
+    {
+      std::string chatId = StrUtil::NumToHex(update_chat_notification_settings.chat_id_);
+      bool isMuted = (notification_settings_->mute_for_ > 0);
+
+      LOG_TRACE("update mute notify %s %d", chatId.c_str(), isMuted);
+
+      std::shared_ptr<UpdateMuteNotify> updateMuteNotify =
+        std::make_shared<UpdateMuteNotify>(m_ProfileId);
+      updateMuteNotify->success = true;
+      updateMuteNotify->chatId = chatId;
+      updateMuteNotify->isMuted = isMuted;
+      CallMessageHandler(updateMuteNotify);
+    }
+  },
   [](td::td_api::updateRecentStickers&)
   {
     LOG_TRACE("update recent stickers");

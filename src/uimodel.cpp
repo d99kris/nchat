@@ -1522,14 +1522,7 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
           for (auto& chatInfo : newChatsNotify->chatInfos)
           {
             m_ChatInfos[profileId][chatInfo.id] = chatInfo;
-
-            static const bool mutedPositionByTimestamp = UiConfig::GetBool("muted_position_by_timestamp");
-            if (!mutedPositionByTimestamp && m_ChatInfos[profileId][chatInfo.id].isMuted)
-            {
-              // deterministic fake time near epoch
-              int64_t chatIdHash = std::hash<std::string>{ }(chatInfo.id) % 1000;
-              m_ChatInfos[profileId][chatInfo.id].lastMessageTime = chatIdHash;
-            }
+            HandleChatInfoMutedUpdate(profileId, chatInfo.id);
 
             if (m_ChatSet[profileId].insert(chatInfo.id).second)
             {
@@ -1875,6 +1868,22 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
             OnCurrentChatChanged();
           }
         }
+      }
+      break;
+
+    case UpdateMuteNotifyType:
+      {
+        std::shared_ptr<UpdateMuteNotify> updateMuteNotify = std::static_pointer_cast<UpdateMuteNotify>(
+          p_ServiceMessage);
+        bool isMuted = updateMuteNotify->isMuted;
+        std::string chatId = updateMuteNotify->chatId;
+        LOG_TRACE("mute notify %s is %s", chatId.c_str(), (isMuted ? "muted" : "unmuted"));
+        m_ChatInfos[profileId][chatId].isMuted = isMuted;
+        HandleChatInfoMutedUpdate(profileId, chatId);
+        UpdateChatInfoLastMessageTime(profileId, chatId);
+        SortChats();
+        UpdateList();
+        UpdateStatus();
       }
       break;
 
@@ -3039,4 +3048,15 @@ void UiModel::ExternalCall()
   StrUtil::ReplaceString(cmd, "%1", phone);
 
   RunCommand(cmd);
+}
+
+void UiModel::HandleChatInfoMutedUpdate(const std::string& p_ProfileId, const std::string& p_ChatId)
+{
+  static const bool mutedPositionByTimestamp = UiConfig::GetBool("muted_position_by_timestamp");
+  if (!mutedPositionByTimestamp && m_ChatInfos[p_ProfileId][p_ChatId].isMuted)
+  {
+    // deterministic fake time near epoch
+    int64_t chatIdHash = std::hash<std::string>{ }(p_ChatId) % 1000;
+    m_ChatInfos[p_ProfileId][p_ChatId].lastMessageTime = chatIdHash;
+  }
 }
