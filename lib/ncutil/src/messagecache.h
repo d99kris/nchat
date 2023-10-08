@@ -82,6 +82,7 @@ private:
   public:
     virtual RequestType GetRequestType() const { return FetchChatsRequestType; }
     std::string profileId;
+    std::unordered_set<std::string> chatIds; // optionally fetch only specified chats
   };
 
   class FetchContactsRequest : public Request
@@ -168,7 +169,7 @@ public:
                           const std::vector<ChatMessage>& p_ChatMessages);
   static void AddChats(const std::string& p_ProfileId, const std::vector<ChatInfo>& p_ChatInfos);
   static void AddContacts(const std::string& p_ProfileId, const std::vector<ContactInfo>& p_ContactInfos);
-  static bool FetchChats(const std::string& p_ProfileId);
+  static bool FetchChats(const std::string& p_ProfileId, const std::unordered_set<std::string>& p_ChatIds);
   static bool FetchContacts(const std::string& p_ProfileId);
   static bool FetchMessagesFrom(const std::string& p_ProfileId, const std::string& p_ChatId,
                                 const std::string& p_FromMsgId,

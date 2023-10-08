@@ -293,7 +293,7 @@ void MessageCache::AddContacts(const std::string& p_ProfileId,
   EnqueueRequest(addContactsRequest);
 }
 
-bool MessageCache::FetchChats(const std::string& p_ProfileId)
+bool MessageCache::FetchChats(const std::string& p_ProfileId, const std::unordered_set<std::string>& p_ChatIds)
 {
   if (!m_CacheEnabled) return false;
 
@@ -304,6 +304,7 @@ bool MessageCache::FetchChats(const std::string& p_ProfileId)
 
   std::shared_ptr<FetchChatsRequest> fetchChatsRequest = std::make_shared<FetchChatsRequest>();
   fetchChatsRequest->profileId = p_ProfileId;
+  fetchChatsRequest->chatIds = p_ChatIds;
 
   LOG_DEBUG("cache sync fetch chats");
   PerformRequest(fetchChatsRequest);
@@ -844,13 +845,13 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         const std::string& profileId = fetchChatsRequest->profileId;
         if (!m_Dbs[profileId]) return;
 
+        const bool noFilter = fetchChatsRequest->chatIds.empty();
         std::vector<ChatInfo> chatInfos;
         try
         {
           // *INDENT-OFF*
           std::map<std::string, int32_t> chatIdMuted;
-          *m_Dbs[profileId] << "SELECT id, isMuted FROM " + s_TableChats + ";"
-                            >>
+          *m_Dbs[profileId] << "SELECT id, isMuted FROM " + s_TableChats + ";" >>
             [&](const std::string& chatId, int32_t isMuted)
             {
               chatIdMuted[chatId] = isMuted;
@@ -860,12 +861,15 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
             "GROUP BY chatId;" >>
             [&](const std::string& chatId, int64_t timeSent, int32_t isOutgoing, int32_t isRead)
             {
-              ChatInfo chatInfo;
-              chatInfo.id = chatId;
-              chatInfo.isUnread = !isOutgoing && !isRead;
-              chatInfo.lastMessageTime = timeSent;
-              chatInfo.isMuted = chatIdMuted[chatId];
-              chatInfos.push_back(chatInfo);
+              if (noFilter || fetchChatsRequest->chatIds.count(chatId))
+              {
+                ChatInfo chatInfo;
+                chatInfo.id = chatId;
+                chatInfo.isUnread = !isOutgoing && !isRead;
+                chatInfo.lastMessageTime = timeSent;
+                chatInfo.isMuted = chatIdMuted[chatId];
+                chatInfos.push_back(chatInfo);
+              }
             };
           // *INDENT-ON*
         }

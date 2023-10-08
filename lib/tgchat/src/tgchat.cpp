@@ -451,10 +451,12 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
       {
         LOG_DEBUG("Get chats");
         Status::Set(Status::FlagFetching);
+        std::shared_ptr<GetChatsRequest> getChatsRequest =
+          std::static_pointer_cast<GetChatsRequest>(p_RequestMessage);
         int32_t limit = std::numeric_limits<int32_t>::max(); // no limit
 
         SendQuery(td::td_api::make_object<td::td_api::getChats>(nullptr, limit),
-                  [this](Object object)
+                  [this, getChatsRequest](Object object)
         {
           Status::Clear(Status::FlagFetching);
 
@@ -463,12 +465,16 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
           auto chats = td::move_tl_object_as<td::td_api::chats>(object);
           if (chats->chat_ids_.size() == 0) return;
 
+          const bool noFilter = getChatsRequest->chatIds.empty();
           std::vector<std::string> chatIds;
           std::vector<ChatInfo> chatInfos;
           for (auto chatId : chats->chat_ids_)
           {
             std::string chatIdStr = StrUtil::NumToHex(chatId);
-            chatIds.push_back(chatIdStr);
+            if (noFilter || getChatsRequest->chatIds.count(chatIdStr))
+            {
+              chatIds.push_back(chatIdStr);
+            }
           }
 
           std::shared_ptr<DeferGetChatDetailsRequest> deferGetChatDetailsRequest =

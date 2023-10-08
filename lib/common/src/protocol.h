@@ -10,6 +10,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 class RequestMessage;
@@ -169,6 +170,7 @@ class GetChatsRequest : public RequestMessage
 {
 public:
   virtual MessageType GetMessageType() const { return GetChatsRequestType; }
+  std::unordered_set<std::string> chatIds; // optionally fetch only specified chats
 };
 
 class GetStatusRequest : public RequestMessage

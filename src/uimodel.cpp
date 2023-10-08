@@ -1518,7 +1518,7 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
         std::shared_ptr<NewChatsNotify> newChatsNotify = std::static_pointer_cast<NewChatsNotify>(p_ServiceMessage);
         if (newChatsNotify->success)
         {
-          LOG_TRACE("new chats");
+          LOG_TRACE("new chats %d", newChatsNotify->chatInfos.size());
           for (auto& chatInfo : newChatsNotify->chatInfos)
           {
             m_ChatInfos[profileId][chatInfo.id] = chatInfo;
@@ -1639,6 +1639,15 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
             {
               RequestMessagesNextChat();
             }
+          }
+
+          std::unordered_map<std::string, ChatInfo>& chatInfos = m_ChatInfos[profileId];
+          if (!chatInfos.count(chatId))
+          {
+            LOG_TRACE("new message in unknown chat, get chat %s", chatId.c_str());
+            std::shared_ptr<GetChatsRequest> getChatsRequest = std::make_shared<GetChatsRequest>();
+            getChatsRequest->chatIds.insert(chatId);
+            m_Protocols[profileId]->SendRequest(getChatsRequest);
           }
 
           UpdateChatInfoLastMessageTime(profileId, chatId);
@@ -1845,6 +1854,7 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
           {
             if ((it->first == profileId) && (it->second == chatId))
             {
+              m_ChatSet[profileId].erase(it->second);
               it = m_ChatVec.erase(it);
             }
             else

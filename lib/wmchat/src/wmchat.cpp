@@ -235,7 +235,7 @@ void WmChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
         LOG_DEBUG("get chats");
         std::shared_ptr<GetChatsRequest> getChatsRequest =
           std::static_pointer_cast<GetChatsRequest>(p_RequestMessage);
-        MessageCache::FetchChats(m_ProfileId);
+        MessageCache::FetchChats(m_ProfileId, getChatsRequest->chatIds);
       }
       break;
 
