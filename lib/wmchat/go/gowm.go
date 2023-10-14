@@ -331,10 +331,14 @@ func JidToStr(jid types.JID) string {
 }
 
 func GetChatId(chatJid types.JID, senderJid types.JID) string {
-  if chatJid.Server != "broadcast" {
-		return JidToStr(chatJid)
+  if (chatJid.Server == "broadcast") {
+		if (chatJid.User == "status") {
+			return JidToStr(chatJid) // status updates
+		} else {
+			return JidToStr(senderJid) // broadcast messages
+		}
 	} else {
-		return JidToStr(senderJid)
+		return JidToStr(chatJid) // regular messages
 	}
 }
 
@@ -812,6 +816,14 @@ func (handler *WmEventHandler) GetContacts() {
 	LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", whatsappId, whatsappName))
 	CWmNewContactsNotify(connId, whatsappId, whatsappName, whatsappPhone, BoolToInt(false))
 	AddContactName(connId, whatsappId, whatsappName)
+
+	// special handling for status updates
+	statusId := "status@broadcast"
+	statusName := "Status Updates"
+	statusPhone := ""
+	LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", statusId, statusName))
+	CWmNewContactsNotify(connId, statusId, statusName, statusPhone, BoolToInt(false))
+	AddContactName(connId, statusId, statusName)
 
 	// groups
 	groups, groupErr := client.GetJoinedGroups()
