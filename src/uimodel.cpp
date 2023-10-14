@@ -308,7 +308,7 @@ void UiModel::SendMessage()
     SetSelectMessageActive(false);
   }
 
-  m_Protocols[profileId]->SendRequest(sendMessageRequest);
+  SendProtocolRequest(profileId, sendMessageRequest);
 
   entryStr.clear();
   entryPos = 0;
@@ -573,7 +573,7 @@ void UiModel::SetTyping(const std::string& p_ProfileId, const std::string& p_Cha
     std::shared_ptr<SendTypingRequest> sendTypingRequest = std::make_shared<SendTypingRequest>();
     sendTypingRequest->chatId = lastChatId;
     sendTypingRequest->isTyping = false;
-    m_Protocols[lastProfileId]->SendRequest(sendTypingRequest);
+    SendProtocolRequest(lastProfileId, sendTypingRequest);
 
     lastProfileId = "";
     lastChatId = "";
@@ -585,14 +585,14 @@ void UiModel::SetTyping(const std::string& p_ProfileId, const std::string& p_Cha
   {
     if ((p_ProfileId == lastProfileId) && (p_ChatId == lastChatId) && (p_IsTyping == lastIsTyping))
     {
-      if (m_Protocols[p_ProfileId]->HasFeature(FeatureTypingTimeout) && ((nowTime - lastSendTime) > 2500))
+      if (HasProtocolFeature(p_ProfileId, FeatureTypingTimeout) && ((nowTime - lastSendTime) > 2500))
       {
         LOG_TRACE("send typing %s refresh", p_ChatId.c_str());
 
         std::shared_ptr<SendTypingRequest> sendTypingRequest = std::make_shared<SendTypingRequest>();
         sendTypingRequest->chatId = p_ChatId;
         sendTypingRequest->isTyping = true;
-        m_Protocols[p_ProfileId]->SendRequest(sendTypingRequest);
+        SendProtocolRequest(p_ProfileId, sendTypingRequest);
         lastSendTime = nowTime;
       }
       else
@@ -609,7 +609,7 @@ void UiModel::SetTyping(const std::string& p_ProfileId, const std::string& p_Cha
         std::shared_ptr<SendTypingRequest> sendTypingRequest = std::make_shared<SendTypingRequest>();
         sendTypingRequest->chatId = lastChatId;
         sendTypingRequest->isTyping = false;
-        m_Protocols[lastProfileId]->SendRequest(sendTypingRequest);
+        SendProtocolRequest(lastProfileId, sendTypingRequest);
       }
 
       LOG_TRACE("send typing %s", p_ChatId.c_str());
@@ -617,7 +617,7 @@ void UiModel::SetTyping(const std::string& p_ProfileId, const std::string& p_Cha
       std::shared_ptr<SendTypingRequest> sendTypingRequest = std::make_shared<SendTypingRequest>();
       sendTypingRequest->chatId = p_ChatId;
       sendTypingRequest->isTyping = true;
-      m_Protocols[p_ProfileId]->SendRequest(sendTypingRequest);
+      SendProtocolRequest(p_ProfileId, sendTypingRequest);
       lastSendTime = nowTime;
 
       lastProfileId = p_ProfileId;
@@ -812,7 +812,7 @@ void UiModel::Home()
     getMessagesRequest->fromMsgId = fromId;
     getMessagesRequest->limit = limit;
     LOG_TRACE("request messages from %s limit %d", fromId.c_str(), limit);
-    m_Protocols[m_CurrentChat.first]->SendRequest(getMessagesRequest);
+    SendProtocolRequest(m_CurrentChat.first, getMessagesRequest);
     TimeUtil::Sleep(0.2); // @todo: wait for request completion, with timeout
     lock.lock();
     fetchedAllCache = true;
@@ -919,7 +919,7 @@ void UiModel::MarkRead(const std::string& p_ProfileId, const std::string& p_Chat
   std::shared_ptr<MarkMessageReadRequest> markMessageReadRequest = std::make_shared<MarkMessageReadRequest>();
   markMessageReadRequest->chatId = p_ChatId;
   markMessageReadRequest->msgId = p_MsgId;
-  m_Protocols[p_ProfileId]->SendRequest(markMessageReadRequest);
+  SendProtocolRequest(p_ProfileId, markMessageReadRequest);
 
   m_Messages[p_ProfileId][p_ChatId][p_MsgId].isRead = true;
 
@@ -939,7 +939,7 @@ void UiModel::DownloadAttachment(const std::string& p_ProfileId, const std::stri
   downloadFileRequest->fileId = p_FileId;
   downloadFileRequest->downloadFileAction = p_DownloadFileAction;
 
-  m_Protocols[p_ProfileId]->SendRequest(downloadFileRequest);
+  SendProtocolRequest(p_ProfileId, downloadFileRequest);
 
   std::unordered_map<std::string, ChatMessage>& messages = m_Messages[p_ProfileId][p_ChatId];
   auto mit = messages.find(p_MsgId);
@@ -987,7 +987,7 @@ void UiModel::DeleteMessage()
   std::shared_ptr<DeleteMessageRequest> deleteMessageRequest = std::make_shared<DeleteMessageRequest>();
   deleteMessageRequest->chatId = chatId;
   deleteMessageRequest->msgId = msgId;
-  m_Protocols[profileId]->SendRequest(deleteMessageRequest);
+  SendProtocolRequest(profileId, deleteMessageRequest);
 }
 
 void UiModel::DeleteChat()
@@ -1010,7 +1010,7 @@ void UiModel::DeleteChat()
 
   std::shared_ptr<DeleteChatRequest> deleteChatRequest = std::make_shared<DeleteChatRequest>();
   deleteChatRequest->chatId = chatId;
-  m_Protocols[profileId]->SendRequest(deleteChatRequest);
+  SendProtocolRequest(profileId, deleteChatRequest);
 }
 
 void UiModel::OpenMessage()
@@ -1239,7 +1239,7 @@ void UiModel::OpenMessageLink()
     LOG_DEBUG("create chat %s", linkChatId.c_str());
     std::shared_ptr<CreateChatRequest> createChatRequest = std::make_shared<CreateChatRequest>();
     createChatRequest->userId = linkChatId;
-    m_Protocols[profileId]->SendRequest(createChatRequest);
+    SendProtocolRequest(profileId, createChatRequest);
     SetSelectMessageActive(false);
   }
   else if (!msgUrls.empty())
@@ -1366,7 +1366,7 @@ void UiModel::TransferFile()
       sendMessageRequest->chatId = chatId;
       sendMessageRequest->chatMessage.fileInfo = ProtocolUtil::FileInfoToHex(fileInfo);
 
-      m_Protocols[profileId]->SendRequest(sendMessageRequest);
+      SendProtocolRequest(profileId, sendMessageRequest);
     }
   }
 
@@ -1440,7 +1440,7 @@ void UiModel::SearchContact()
       LOG_TRACE("create chat %s", userId.c_str());
       std::shared_ptr<CreateChatRequest> createChatRequest = std::make_shared<CreateChatRequest>();
       createChatRequest->userId = userId;
-      m_Protocols[profileId]->SendRequest(createChatRequest);
+      SendProtocolRequest(profileId, createChatRequest);
     }
   }
 
@@ -1464,7 +1464,7 @@ void UiModel::FetchCachedMessage(const std::string& p_ProfileId, const std::stri
     getMessageRequest->msgId = p_MsgId;
     getMessageRequest->cached = true;
     LOG_TRACE("request message %s in %s", p_MsgId.c_str(), p_ChatId.c_str());
-    m_Protocols[m_CurrentChat.first]->SendRequest(getMessageRequest);
+    SendProtocolRequest(m_CurrentChat.first, getMessageRequest);
 
     msgIdFetchedCache.insert(p_MsgId);
   }
@@ -1482,11 +1482,11 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
         if (connectNotify->success)
         {
           LOG_TRACE("connected");
-          if (!m_Protocols[profileId]->HasFeature(FeatureAutoGetChatsOnLogin))
+          if (!HasProtocolFeature(profileId, FeatureAutoGetChatsOnLogin))
           {
             std::shared_ptr<GetChatsRequest> getChatsRequest = std::make_shared<GetChatsRequest>();
             LOG_TRACE("get chats");
-            m_Protocols[profileId]->SendRequest(getChatsRequest);
+            SendProtocolRequest(profileId, getChatsRequest);
           }
 
           SetStatusOnline(profileId, true);
@@ -1647,7 +1647,7 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
             LOG_TRACE("new message in unknown chat, get chat %s", chatId.c_str());
             std::shared_ptr<GetChatsRequest> getChatsRequest = std::make_shared<GetChatsRequest>();
             getChatsRequest->chatIds.insert(chatId);
-            m_Protocols[profileId]->SendRequest(getChatsRequest);
+            SendProtocolRequest(profileId, getChatsRequest);
           }
 
           UpdateChatInfoLastMessageTime(profileId, chatId);
@@ -1906,7 +1906,8 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
 
 void UiModel::AddProtocol(std::shared_ptr<Protocol> p_Protocol)
 {
-  m_Protocols[p_Protocol->GetProfileId()] = p_Protocol;
+  const std::string profileId = p_Protocol->GetProfileId();
+  m_Protocols[profileId] = p_Protocol;
 }
 
 std::unordered_map<std::string, std::shared_ptr<Protocol>>& UiModel::GetProtocols()
@@ -2200,6 +2201,8 @@ void UiModel::OnCurrentChatChanged()
 
 void UiModel::RequestMessagesCurrentChat()
 {
+  if (m_CurrentChat == s_ChatNone) return;
+
   const std::string& profileId = m_CurrentChat.first;
   const std::string& chatId = m_CurrentChat.second;
   RequestMessages(profileId, chatId);
@@ -2263,11 +2266,13 @@ void UiModel::RequestMessages(const std::string& p_ProfileId, const std::string&
   getMessagesRequest->fromMsgId = fromId;
   getMessagesRequest->limit = std::max(limit, minLimit);
   LOG_TRACE("request messages in %s from %s limit %d", p_ChatId.c_str(), fromId.c_str(), getMessagesRequest->limit);
-  m_Protocols[m_CurrentChat.first]->SendRequest(getMessagesRequest);
+  SendProtocolRequest(m_CurrentChat.first, getMessagesRequest);
 }
 
 void UiModel::RequestUserStatusCurrentChat()
 {
+  if (m_CurrentChat == s_ChatNone) return;
+
   RequestUserStatus(m_CurrentChat);
 }
 
@@ -2292,7 +2297,7 @@ void UiModel::RequestUserStatus(const std::pair<std::string, std::string>& p_Cha
   std::shared_ptr<GetStatusRequest> getStatusRequest = std::make_shared<GetStatusRequest>();
   getStatusRequest->userId = chatId;
   LOG_TRACE("get status %s", chatId.c_str());
-  m_Protocols[profileId]->SendRequest(getStatusRequest);
+  SendProtocolRequest(profileId, getStatusRequest);
 }
 
 void UiModel::ProtocolSetCurrentChat()
@@ -2307,7 +2312,7 @@ void UiModel::ProtocolSetCurrentChat()
     std::shared_ptr<SetCurrentChatRequest> setCurrentChatRequest = std::make_shared<SetCurrentChatRequest>();
     setCurrentChatRequest->chatId = chatId;
     LOG_TRACE("notify current chat %s", chatId.c_str());
-    m_Protocols[profileId]->SendRequest(setCurrentChatRequest);
+    SendProtocolRequest(profileId, setCurrentChatRequest);
   }
 }
 
@@ -2319,7 +2324,7 @@ void UiModel::SetStatusOnline(const std::string& p_ProfileId, bool p_IsOnline)
   std::shared_ptr<SetStatusRequest> setStatusRequest = std::make_shared<SetStatusRequest>();
   setStatusRequest->isOnline = p_IsOnline;
   LOG_TRACE("set status %s online %d", p_ProfileId.c_str(), (int)p_IsOnline);
-  m_Protocols[p_ProfileId]->SendRequest(setStatusRequest);
+  SendProtocolRequest(p_ProfileId, setStatusRequest);
 }
 
 int UiModel::GetHistoryLines()
@@ -2803,8 +2808,8 @@ void UiModel::EditMessage()
     if (!GetSelectMessageActive() || GetEditMessageActive()) return;
 
     std::string profileId = m_CurrentChat.first;
-    if (!m_Protocols[profileId]->HasFeature(FeatureEditMessagesWithinTwoDays) &&
-        !m_Protocols[profileId]->HasFeature(FeatureEditMessagesWithinFifteenMins))
+    if (!HasProtocolFeature(profileId, FeatureEditMessagesWithinTwoDays) &&
+        !HasProtocolFeature(profileId, FeatureEditMessagesWithinFifteenMins))
     {
       MessageDialog("Warning", "Protocol does not support editing.", 0.7, 5);
       return;
@@ -2831,13 +2836,13 @@ void UiModel::EditMessage()
     static const time_t twoDaysSec = 48 * 3600;
     static const time_t fifteenMinsSec = 15 * 60;
 
-    if (m_Protocols[profileId]->HasFeature(FeatureEditMessagesWithinTwoDays) &&
+    if (HasProtocolFeature(profileId, FeatureEditMessagesWithinTwoDays) &&
         (messageAgeSec >= twoDaysSec))
     {
       MessageDialog("Warning", "Messages older than 48 hours cannot be edited.", 0.8, 5);
       return;
     }
-    else if (m_Protocols[profileId]->HasFeature(FeatureEditMessagesWithinFifteenMins) &&
+    else if (HasProtocolFeature(profileId, FeatureEditMessagesWithinFifteenMins) &&
              (messageAgeSec >= fifteenMinsSec))
 
     {
@@ -2875,7 +2880,7 @@ void UiModel::SaveEditMessage()
     editMessageRequest->msgId = m_EditMessageId;
     editMessageRequest->chatMessage.text = EntryStrToSendStr(entryStr);
     editMessageRequest->chatMessage.timeSent = chatMessage.timeSent;
-    m_Protocols[profileId]->SendRequest(editMessageRequest);
+    SendProtocolRequest(profileId, editMessageRequest);
 
     SetEditMessageActive(false);
   }
@@ -3069,4 +3074,26 @@ void UiModel::HandleChatInfoMutedUpdate(const std::string& p_ProfileId, const st
     int64_t chatIdHash = std::hash<std::string>{ }(p_ChatId) % 1000;
     m_ChatInfos[p_ProfileId][p_ChatId].lastMessageTime = chatIdHash;
   }
+}
+
+void UiModel::SendProtocolRequest(const std::string& p_ProfileId, std::shared_ptr<RequestMessage> p_Request)
+{
+  if (!m_Protocols.count(p_ProfileId))
+  {
+    LOG_WARNING("no profile \"%s\"", p_ProfileId.c_str());
+    return;
+  }
+
+  m_Protocols[p_ProfileId]->SendRequest(p_Request);
+}
+
+bool UiModel::HasProtocolFeature(const std::string& p_ProfileId, ProtocolFeature p_ProtocolFeature)
+{
+  if (!m_Protocols.count(p_ProfileId))
+  {
+    LOG_WARNING("no profile \"%s\"", p_ProfileId.c_str());
+    return false;
+  }
+
+  return m_Protocols[p_ProfileId]->HasFeature(p_ProtocolFeature);
 }
