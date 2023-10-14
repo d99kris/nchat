@@ -291,11 +291,7 @@ void UiHistoryView::Draw()
     std::wstring wtime;
     if (msg.timeSent != std::numeric_limits<int64_t>::max())
     {
-      wtime = L" (" + StrUtil::ToWString(TimeUtil::GetTimeString(msg.timeSent, true /* p_Short */)) + L") ";
-    }
-    else
-    {
-      wtime = L" ";
+      wtime = L" (" + StrUtil::ToWString(TimeUtil::GetTimeString(msg.timeSent, true /* p_Short */)) + L")";
     }
 
     if (!msg.isOutgoing && !msg.isRead)
@@ -303,7 +299,7 @@ void UiHistoryView::Draw()
       m_Model->MarkRead(currentChat.first, currentChat.second, *it);
     }
 
-    static const std::string readIndicator = UiConfig::GetStr("read_indicator");
+    static const std::string readIndicator = " " + UiConfig::GetStr("read_indicator");
     std::wstring wreceipt = StrUtil::ToWString(msg.isRead ? readIndicator : "");
     std::wstring wheader = wsender + wtime + wreceipt;
 
@@ -311,8 +307,8 @@ void UiHistoryView::Draw()
     if (developerMode)
     {
       wheader = wheader +
-        L" " + StrUtil::ToWString(msg.id) +
-        L" from " + StrUtil::ToWString(msg.senderId);
+        L" msg " + StrUtil::ToWString(msg.id) +
+        L" user " + StrUtil::ToWString(msg.senderId);
     }
 
     std::wstring wdisp = StrUtil::TrimPadWString(wheader, m_PaddedW);

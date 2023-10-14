@@ -146,6 +146,10 @@ int main(int argc, char* argv[])
     }
     else if ((*it == "-m") || (*it == "--devmode"))
     {
+      AppUtil::SetDeveloperMode(true);
+    }
+    else if ((*it == "-mm") || (*it == "--extra-devmode"))
+    {
       std::cout << "dev mode starting in 5 sec\n";
       sleep(5);
       AppUtil::SetDeveloperMode(true);

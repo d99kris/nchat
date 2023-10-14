@@ -67,8 +67,7 @@ void UiStatusView::Draw()
   static const bool developerMode = AppUtil::GetDeveloperMode();
   if (developerMode)
   {
-    std::string phone = m_Model->GetContactPhone(currentChat.first, currentChat.second);
-    wstatus = wstatus + L" " + StrUtil::ToWString(currentChat.second) + L" " + StrUtil::ToWString(phone);
+    wstatus = wstatus + L" " + StrUtil::ToWString(currentChat.second);
   }
 
   wstatus = StrUtil::TrimPadWString(wstatus, m_W);
