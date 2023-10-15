@@ -126,7 +126,7 @@ struct FileInfo
   FileStatus fileStatus = FileStatusNone;
   std::string fileId;
   std::string filePath;
-  std::string fileType; // wmchat send only
+  std::string fileType;
 };
 
 struct ChatMessage

@@ -32,8 +32,8 @@ import (
 )
 
 //export CWmInit
-func CWmInit(path *C.char, proxy *C.char) int {
-	return WmInit(C.GoString(path), C.GoString(proxy))
+func CWmInit(path *C.char, proxy *C.char, sendType int) int {
+	return WmInit(C.GoString(path), C.GoString(proxy), sendType)
 }
 
 //export CWmLogin

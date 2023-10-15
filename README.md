@@ -365,12 +365,19 @@ used to configure nchat.
 This configuration file holds general application settings. Default content:
 
     attachment_prefetch=1
+    attachment_send_type=1
     cache_enabled=1
     downloads_dir=
     proxy_host=
     proxy_pass=
     proxy_port=
     proxy_user=
+
+### attachment_send_type
+
+Specifies whether to detect file type (audio, video, image, document) and send
+attachments as those types, instead of sending all attachments as document
+type (which typically leaves original file content intact).
 
 ### attachment_prefetch
 

@@ -747,12 +747,34 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         }
         else
         {
+          static const bool attachmentSendType = AppConfig::GetBool("attachment_send_type");
           FileInfo fileInfo =
             ProtocolUtil::FileInfoFromHex(sendMessageRequest->chatMessage.fileInfo);
-          auto message_content = td::td_api::make_object<td::td_api::inputMessageDocument>();
-          message_content->document_ = td::td_api::make_object<td::td_api::inputFileLocal>(
-            fileInfo.filePath);
-          send_message->input_message_content_ = std::move(message_content);
+          std::string mimeType = StrUtil::Split(fileInfo.fileType, '/').at(0);
+          if (attachmentSendType && (mimeType == "audio"))
+          {
+            auto message_content = td::td_api::make_object<td::td_api::inputMessageAudio>();
+            message_content->audio_ = td::td_api::make_object<td::td_api::inputFileLocal>(fileInfo.filePath);
+            send_message->input_message_content_ = std::move(message_content);
+          }
+          else if (attachmentSendType && (mimeType == "video"))
+          {
+            auto message_content = td::td_api::make_object<td::td_api::inputMessageVideo>();
+            message_content->video_ = td::td_api::make_object<td::td_api::inputFileLocal>(fileInfo.filePath);
+            send_message->input_message_content_ = std::move(message_content);
+          }
+          else if (attachmentSendType && (mimeType == "image"))
+          {
+            auto message_content = td::td_api::make_object<td::td_api::inputMessagePhoto>();
+            message_content->photo_ = td::td_api::make_object<td::td_api::inputFileLocal>(fileInfo.filePath);
+            send_message->input_message_content_ = std::move(message_content);
+          }
+          else
+          {
+            auto message_content = td::td_api::make_object<td::td_api::inputMessageDocument>();
+            message_content->document_ = td::td_api::make_object<td::td_api::inputFileLocal>(fileInfo.filePath);
+            send_message->input_message_content_ = std::move(message_content);
+          }
         }
 
         SendQuery(std::move(send_message),

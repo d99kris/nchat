@@ -67,6 +67,7 @@ var (
 	states     map[int]State             = make(map[int]State)
 	timeUnread map[intString]int         = make(map[intString]int)
 	handlers   map[int]*WmEventHandler   = make(map[int]*WmEventHandler)
+	sendTypes  map[int]int               = make(map[int]int)
 )
 
 // keep in sync with enum FileStatus in protocol.h
@@ -86,7 +87,7 @@ var FlagUpdating = (1 << 4)
 var FlagSyncing = (1 << 5)
 var FlagMax = FlagSyncing
 
-func AddConn(conn *whatsmeow.Client, path string) int {
+func AddConn(conn *whatsmeow.Client, path string, sendType int) int {
 	mx.Lock()
 	var connId int = len(clients)
 	clients[connId] = conn
@@ -94,6 +95,7 @@ func AddConn(conn *whatsmeow.Client, path string) int {
 	contacts[connId] = make(map[string]string)
 	states[connId] = None
 	handlers[connId] = &WmEventHandler{connId}
+	sendTypes[connId] = sendType
 	mx.Unlock()
 	return connId
 }
@@ -127,6 +129,13 @@ func GetPath(connId int) string {
 	var path string = paths[connId]
 	mx.Unlock()
 	return path
+}
+
+func GetSendType(connId int) int {
+	mx.Lock()
+	var sendType int = sendTypes[connId]
+	mx.Unlock()
+	return sendType
 }
 
 func GetState(connId int) State {
@@ -1463,7 +1472,7 @@ func UpdateTypingStatus(connId int, chatId string, userId string, fromMe bool, i
 	CWmNewStatusNotify(connId, chatId, userId, BoolToInt(isOnline), BoolToInt(isTyping), -1)
 }
 
-func WmInit(path string, proxy string) int {
+func WmInit(path string, proxy string, sendType int) int {
 
 	LOG_DEBUG("init " + filepath.Base(path))
 
@@ -1518,7 +1527,7 @@ func WmInit(path string, proxy string) int {
 	}
 
 	// store connection and get id
-	var connId int = AddConn(client, path)
+	var connId int = AddConn(client, path, sendType)
 
 	LOG_DEBUG("connId " + strconv.Itoa(connId))
 
@@ -1701,9 +1710,67 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 		isSend = true
 	} else {
 
-		mimeType := strings.Split(fileType, "/")[0] // image, text, application, etc.
-		if mimeType == "image" {
+		var isSendType bool = IntToBool(GetSendType(connId))
 
+		mimeType := strings.Split(fileType, "/")[0] // image, text, application, etc.
+		if isSendType && (mimeType == "audio") {
+			LOG_TRACE("send audio " + fileType)
+
+			data, err := os.ReadFile(filePath)
+			if err != nil {
+				LOG_WARNING(fmt.Sprintf("read file %s err %#v", filePath, err))
+				return -1
+			}
+
+			uploaded, upErr := client.Upload(context.Background(), data, whatsmeow.MediaAudio)
+			if upErr != nil {
+				LOG_WARNING(fmt.Sprintf("upload error %#v", upErr))
+				return -1
+			}
+
+			audioMessage := waProto.AudioMessage{
+				Url:           proto.String(uploaded.URL),
+				DirectPath:    proto.String(uploaded.DirectPath),
+				MediaKey:      uploaded.MediaKey,
+				Mimetype:      proto.String(fileType),
+				FileEncSha256: uploaded.FileEncSHA256,
+				FileSha256:    uploaded.FileSHA256,
+				FileLength:    proto.Uint64(uint64(len(data))),
+			}
+
+			message.AudioMessage = &audioMessage
+
+			isSend = true
+		} else if isSendType && (mimeType == "video") {
+			LOG_TRACE("send video " + fileType)
+
+			data, err := os.ReadFile(filePath)
+			if err != nil {
+				LOG_WARNING(fmt.Sprintf("read file %s err %#v", filePath, err))
+				return -1
+			}
+
+			uploaded, upErr := client.Upload(context.Background(), data, whatsmeow.MediaVideo)
+			if upErr != nil {
+				LOG_WARNING(fmt.Sprintf("upload error %#v", upErr))
+				return -1
+			}
+
+			videoMessage := waProto.VideoMessage{
+				Caption:       proto.String(text),
+				Url:           proto.String(uploaded.URL),
+				DirectPath:    proto.String(uploaded.DirectPath),
+				MediaKey:      uploaded.MediaKey,
+				Mimetype:      proto.String(fileType),
+				FileEncSha256: uploaded.FileEncSHA256,
+				FileSha256:    uploaded.FileSHA256,
+				FileLength:    proto.Uint64(uint64(len(data))),
+			}
+
+			message.VideoMessage = &videoMessage
+
+			isSend = true
+		} else if isSendType && (mimeType == "image") {
 			LOG_TRACE("send image " + fileType)
 
 			data, err := os.ReadFile(filePath)
@@ -1733,7 +1800,6 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 			isSend = true
 		} else {
-
 			LOG_TRACE("send document " + fileType)
 
 			data, err := os.ReadFile(filePath)
