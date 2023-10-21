@@ -104,6 +104,8 @@ EOT
 ${SEDCMD} -E -i -e "s/virtual void store\(TlStorerUnsafe \&s\)/virtual void store\(TlStorerUnsafe \&\)/g" lib/tgchat/ext/td/td/tl/TlObject.h
 ${SEDCMD} -E -i -e "s/virtual void store\(TlStorerCalcLength \&s\)/virtual void store\(TlStorerCalcLength \&\)/g" lib/tgchat/ext/td/td/tl/TlObject.h
 ${SEDCMD} -E -i -e "s/^static const int s_TdlibDate.*$/static const int s_TdlibDate = ${NEWDATE};/g" lib/tgchat/src/tgchat.cpp
+${SEDCMD} -E -i -e "s/^cmake_minimum_required\(VERSION 3\.0.*$/cmake_minimum_required\(VERSION 3.16 FATAL_ERROR\)/g" lib/tgchat/ext/td/CMakeLists.txt
+${SEDCMD} -E -i -e "s/^cmake_minimum_required\(VERSION 3\.0.*$/cmake_minimum_required\(VERSION 3.16 FATAL_ERROR\)/g" lib/tgchat/ext/td/td/generate/tl-parser/CMakeLists.txt
 
 # Complete
 echo "Done"
