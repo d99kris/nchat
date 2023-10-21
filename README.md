@@ -849,7 +849,7 @@ Protocol-Specific Configuration
 The following configuration files (listed with current default values) can be
 used to configure nchat.
 
-~/.nchat/profiles/Telegram_+nnn/telegram.conf
+~/.nchat/profiles/Telegram_+nnnnn/telegram.conf
 ---------------------------------------------
 This configuration file holds protocol-specific settings for Telegram. Default
 content:
@@ -875,10 +875,11 @@ Specifies which Telegram Markdown version to use (default 1).
 ### profile_display_name
 
 Specifies an optional short/display name in the status bar when using nchat
-with multi-protocols. The default profile name is `Telegram_+nnnnnnnnnnn` if
-this setting is not specified.
+with multiple profiles. The default profile name is `Telegram` or
+`Telegram_+nnnnn` (when more than one Telegram profile is set up) if this
+setting is not specified.
 
-~/.nchat/profiles/WhatsAppMd_+nnn/whatsappmd.conf
+~/.nchat/profiles/WhatsAppMd_+nnnnn/whatsappmd.conf
 -------------------------------------------------
 This configuration file holds protocol-specific settings for WhatsApp. Default
 content:
@@ -888,8 +889,9 @@ content:
 ### profile_display_name
 
 Specifies an optional short/display name in the status bar when using nchat
-with multi-protocols. The default profile name is `WhatsAppMd_+nnnnnnnnnnn` if
-this setting is not specified.
+with multiple profiles. The default profile name is `WhatsAppMd` or
+`WhatsAppMd_+nnnnn` (when more than one WhatsAppMd profile is set up) if this
+setting is not specified.
 
 
 Technical Details
