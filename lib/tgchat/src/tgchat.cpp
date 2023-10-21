@@ -90,6 +90,7 @@ public:
   }
 
   std::string GetProfileId() const;
+  std::string GetProfileDisplayName() const;
   bool HasFeature(ProtocolFeature p_ProtocolFeature) const;
 
   bool SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId);
@@ -209,6 +210,11 @@ std::string TgChat::GetProfileId() const
   return m_Impl->GetProfileId();
 }
 
+std::string TgChat::GetProfileDisplayName() const
+{
+  return m_Impl->GetProfileDisplayName();
+}
+
 bool TgChat::HasFeature(ProtocolFeature p_ProtocolFeature) const
 {
   return m_Impl->HasFeature(p_ProtocolFeature);
@@ -258,6 +264,12 @@ void TgChat::SetMessageHandler(const std::function<void(std::shared_ptr<ServiceM
 std::string TgChat::Impl::GetProfileId() const
 {
   return m_ProfileId;
+}
+
+std::string TgChat::Impl::GetProfileDisplayName() const
+{
+  std::string profileDisplayName = m_Config.Get("profile_display_name");
+  return profileDisplayName;
 }
 
 bool TgChat::Impl::HasFeature(ProtocolFeature p_ProtocolFeature) const
@@ -1133,6 +1145,7 @@ void TgChat::Impl::Init()
 {
   const std::map<std::string, std::string> defaultConfig =
   {
+    { "profile_display_name", "" },
     { "local_key", "" },
     { "markdown_enabled", "1" },
     { "markdown_version", "1" },
@@ -1140,11 +1153,17 @@ void TgChat::Impl::Init()
   const std::string configPath(m_ProfileDir + std::string("/telegram.conf"));
   m_Config = Config(configPath, defaultConfig);
 
-  td::Log::set_verbosity_level(Log::GetDebugEnabled() ? 5 : 1);
-  const std::string logPath(m_ProfileDir + std::string("/td.log"));
-  td::Log::set_file_path(logPath);
-  td::Log::set_max_file_size(1024 * 1024);
-  m_Client = std::make_unique<td::Client>();
+  {
+    static std::mutex ctorMutex;
+    std::unique_lock<std::mutex> lock(ctorMutex);
+
+    td::Log::set_verbosity_level(Log::GetDebugEnabled() ? 5 : 1);
+    const std::string logPath(m_ProfileDir + std::string("/td.log"));
+    td::Log::set_file_path(logPath);
+    td::Log::set_max_file_size(1024 * 1024);
+    m_Client = std::make_unique<td::Client>();
+  }
+
   InitProxy();
 }
 

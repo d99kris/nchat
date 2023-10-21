@@ -109,6 +109,10 @@ public:
 
   bool GetEmojiEnabled();
   void SetTerminalActive(bool p_TerminalActive);
+
+  bool IsMultipleProfiles();
+  std::string GetProfileDisplayName(const std::string& p_ProfileId);
+
   static bool IsAttachmentDownloaded(const FileInfo& p_FileInfo);
   static bool IsAttachmentDownloadable(const FileInfo& p_FileInfo);
 

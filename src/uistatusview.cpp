@@ -42,9 +42,14 @@ void UiStatusView::Draw()
   wbkgd(m_Win, attribute | colorPair | ' ');
   wattron(m_Win, attribute | colorPair);
 
+  static bool isMultipleProfiles = m_Model->IsMultipleProfiles();
+  std::string profileDisplayName = isMultipleProfiles ? " @ " + m_Model->GetProfileDisplayName(currentChat.first) : "";
+
   std::string chatStatus = m_Model->GetChatStatus(currentChat.first, currentChat.second);
   std::wstring wstatus = std::wstring(statusVPad, ' ') +
-    StrUtil::ToWString(name).substr(0, m_W / 2) + StrUtil::ToWString(chatStatus);
+    StrUtil::ToWString(name).substr(0, m_W / 2) +
+    StrUtil::ToWString(profileDisplayName) +
+    StrUtil::ToWString(chatStatus);
 
   static const std::string phoneNumberIndicator = UiConfig::GetStr("phone_number_indicator");
   if (!phoneNumberIndicator.empty())

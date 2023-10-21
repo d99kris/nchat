@@ -37,6 +37,7 @@
 #include "wmchat.h"
 #endif
 
+static void RemoveProfile();
 static std::shared_ptr<Protocol> SetupProfile();
 static void ShowHelp();
 static void ShowVersion();
@@ -117,6 +118,7 @@ int main(int argc, char* argv[])
 
   // Argument handling
   std::string exportDir;
+  bool isRemove = false;
   bool isSetup = false;
   std::vector<std::string> args(argv + 1, argv + argc);
   for (auto it = args.begin(); it != args.end(); ++it)
@@ -153,6 +155,10 @@ int main(int argc, char* argv[])
       std::cout << "dev mode starting in 5 sec\n";
       sleep(5);
       AppUtil::SetDeveloperMode(true);
+    }
+    else if ((*it == "-r") || (*it == "--remove"))
+    {
+      isRemove = true;
     }
     else if ((*it == "-s") || (*it == "--setup"))
     {
@@ -207,6 +213,13 @@ int main(int argc, char* argv[])
         return 1;
       }
     }
+  }
+
+  // Remove profile
+  if (isRemove)
+  {
+    RemoveProfile();
+    return 0;
   }
 
   // Init profiles dir
@@ -351,6 +364,60 @@ int main(int argc, char* argv[])
   return rv;
 }
 
+void RemoveProfile()
+{
+  // Show profiles
+  std::string profilesDir = FileUtil::GetApplicationDir() + "/profiles";
+  const std::vector<apathy::Path>& profilePaths = apathy::Path::listdir(profilesDir);
+  int id = 0;
+  std::map<int, std::string> idPath;
+  std::cout << "Remove profile:\n";
+  for (auto& profilePath : profilePaths)
+  {
+    std::string profileId = profilePath.filename();
+    if (profileId == "version") continue;
+
+    std::stringstream ss(profileId);
+    std::string protocolName;
+    if ((profileId.find("_") == std::string::npos) || !std::getline(ss, protocolName, '_'))
+    {
+      LOG_WARNING("invalid profile name, skipping %s", profileId.c_str());
+      continue;
+    }
+
+    std::cout << id << ". " << profileId << "\n";
+    idPath[id++] = profilePath.string();
+  }
+
+  std::cout << id << ". Cancel removal\n";
+
+  size_t selectid = id;
+  std::cout << "Remove profile (" << selectid << "): ";
+  std::string line;
+  std::getline(std::cin, line);
+
+  if (!line.empty())
+  {
+    try
+    {
+      selectid = stoi(line);
+    }
+    catch (...)
+    {
+    }
+  }
+
+  if (!idPath.count(selectid))
+  {
+    std::cout << "Removal aborted, exiting." << std::endl;
+    return;
+  }
+
+  std::string profilePath = idPath.at(selectid);
+  LOG_TRACE("deleting %s", profilePath.c_str());
+  FileUtil::RmDir(profilePath);
+}
+
 std::shared_ptr<Protocol> SetupProfile()
 {
   std::shared_ptr<Protocol> rv;
@@ -426,6 +493,7 @@ void ShowHelp()
     "    -h, --help             display this help and exit\n"
     "    -k, --keydump          key code dump mode\n"
     "    -m, --devmode          developer mode\n"
+    "    -r, --remove           remove chat protocol account\n"
     "    -s, --setup            set up chat protocol account\n"
     "    -v, --version          output version information and exit\n"
     "    -x, --export <DIR>     export message cache to specified dir\n"

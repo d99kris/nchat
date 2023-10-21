@@ -41,6 +41,12 @@ bool DuChat::HasFeature(ProtocolFeature p_ProtocolFeature) const
   return (p_ProtocolFeature & customFeatures);
 }
 
+std::string DuChat::GetProfileDisplayName() const
+{
+  static std::string profileDisplayName = "";
+  return profileDisplayName;
+}
+
 bool DuChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId)
 {
   std::cout << "Enter phone number: ";

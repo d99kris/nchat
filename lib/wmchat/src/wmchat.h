@@ -12,6 +12,7 @@
 #include <map>
 #include <thread>
 
+#include "config.h"
 #include "protocol.h"
 
 class WmChat : public Protocol
@@ -23,6 +24,7 @@ public:
   static std::string GetLibName() { return "libwmchat"; }
   static std::string GetCreateFunc() { return "CreateWmChat"; }
   std::string GetProfileId() const;
+  std::string GetProfileDisplayName() const;
   bool HasFeature(ProtocolFeature p_ProtocolFeature) const;
 
   bool SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId);
@@ -43,6 +45,8 @@ public:
   static WmChat* GetInstance(int p_ConnId);
 
 private:
+  void Init();
+  void Cleanup();
   void CallMessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage);
   void PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage);
   std::string GetProxyUrl() const;
@@ -61,6 +65,7 @@ private:
   static std::map<int, WmChat*> s_ConnIdMap;
   int m_ConnId = -1;
   std::string m_ProfileDir;
+  Config m_Config;
   int m_WhatsmeowDate = 0;
   int m_ProfileDirVersion = 0;
   bool m_WasOnline = false;

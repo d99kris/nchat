@@ -90,6 +90,12 @@ std::string StrUtil::GetPass()
   return pass;
 }
 
+std::string StrUtil::GetProtocolName(const std::string& p_ProfileId)
+{
+  std::vector<std::string> parts = StrUtil::Split(p_ProfileId, '_');
+  return parts.empty() ? p_ProfileId : parts.at(0);
+}
+
 bool StrUtil::GetQuotePrefix(const std::wstring& p_String, std::wstring& p_Prefix, std::wstring& p_Line)
 {
   std::wsmatch sm;

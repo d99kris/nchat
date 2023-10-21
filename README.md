@@ -57,6 +57,7 @@ Command-line Options:
     -h, --help             display this help and exit
     -k, --keydump          key code dump mode
     -m, --devmode          developer mode
+    -r, --remove           remove chat protocol account
     -s, --setup            set up chat protocol account
     -v, --version          output version information and exit
     -x, --export <DIR>     export message cache to specified dir
@@ -840,6 +841,55 @@ General
 -------
 Deleting a configuration entry line (while nchat is not running) and starting
 nchat will populate the configuration file with the default entry.
+
+
+Protocol-Specific Configuration
+===============================
+
+The following configuration files (listed with current default values) can be
+used to configure nchat.
+
+~/.nchat/profiles/Telegram_+nnn/telegram.conf
+---------------------------------------------
+This configuration file holds protocol-specific settings for Telegram. Default
+content:
+
+    local_key=
+    markdown_enabled=1
+    markdown_version=1
+    profile_display_name=
+
+### local_key
+
+For internal use by nchat only.
+
+### markdown_enabled
+
+Specifies whether to enable Markdown <-> text conversion for text messages
+(default enabled).
+
+### markdown_version
+
+Specifies which Telegram Markdown version to use (default 1).
+
+### profile_display_name
+
+Specifies an optional short/display name in the status bar when using nchat
+with multi-protocols. The default profile name is `Telegram_+nnnnnnnnnnn` if
+this setting is not specified.
+
+~/.nchat/profiles/WhatsAppMd_+nnn/whatsappmd.conf
+-------------------------------------------------
+This configuration file holds protocol-specific settings for WhatsApp. Default
+content:
+
+    profile_display_name=
+
+### profile_display_name
+
+Specifies an optional short/display name in the status bar when using nchat
+with multi-protocols. The default profile name is `WhatsAppMd_+nnnnnnnnnnn` if
+this setting is not specified.
 
 
 Technical Details

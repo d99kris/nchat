@@ -46,9 +46,13 @@ message(STATUS "Telegram: ${HAS_TELEGRAM}")
 option(HAS_WHATSAPP "WhatsApp" ON)
 message(STATUS "WhatsApp: ${HAS_WHATSAPP}")
 
-# Features
+# Feature - Dynamic library load
 option(HAS_DYNAMICLOAD "Dynamic Load" ON)
 message(STATUS "Dynamic Load: ${HAS_DYNAMICLOAD}")
+
+# Feature - Multi protocol
+option(HAS_MULTIPROTOCOL "Multi Protocol" ON)
+message(STATUS "Multi Protocol: ${HAS_MULTIPROTOCOL}")
 
 # Check Go version
 if(HAS_WHATSAPP)

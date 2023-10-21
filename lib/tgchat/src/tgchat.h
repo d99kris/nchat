@@ -28,6 +28,7 @@ public:
   static std::string GetLibName() { return "libtgchat"; }
   static std::string GetCreateFunc() { return "CreateTgChat"; }
   std::string GetProfileId() const;
+  std::string GetProfileDisplayName() const;
   bool HasFeature(ProtocolFeature p_ProtocolFeature) const;
 
   bool SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId);

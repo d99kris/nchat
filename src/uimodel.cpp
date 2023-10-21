@@ -1473,7 +1473,7 @@ void UiModel::FetchCachedMessage(const std::string& p_ProfileId, const std::stri
     getMessageRequest->msgId = p_MsgId;
     getMessageRequest->cached = true;
     LOG_TRACE("request message %s in %s", p_MsgId.c_str(), p_ChatId.c_str());
-    SendProtocolRequest(m_CurrentChat.first, getMessageRequest);
+    SendProtocolRequest(p_ProfileId, getMessageRequest);
 
     msgIdFetchedCache.insert(p_MsgId);
   }
@@ -2275,7 +2275,7 @@ void UiModel::RequestMessages(const std::string& p_ProfileId, const std::string&
   getMessagesRequest->fromMsgId = fromId;
   getMessagesRequest->limit = std::max(limit, minLimit);
   LOG_TRACE("request messages in %s from %s limit %d", p_ChatId.c_str(), fromId.c_str(), getMessagesRequest->limit);
-  SendProtocolRequest(m_CurrentChat.first, getMessagesRequest);
+  SendProtocolRequest(p_ProfileId, getMessagesRequest);
 }
 
 void UiModel::RequestUserStatusCurrentChat()
@@ -3105,4 +3105,48 @@ bool UiModel::HasProtocolFeature(const std::string& p_ProfileId, ProtocolFeature
   }
 
   return m_Protocols[p_ProfileId]->HasFeature(p_ProtocolFeature);
+}
+
+bool UiModel::IsMultipleProfiles()
+{
+  static bool isMultipleProfiles = (m_Protocols.size() > 1);
+  return isMultipleProfiles;
+}
+
+std::string UiModel::GetProfileDisplayName(const std::string& p_ProfileId)
+{
+  static std::map<std::string, std::string> s_DisplayNames = [&]()
+  {
+    std::map<std::string, int> protocolCount;
+    for (const auto& protocol : m_Protocols)
+    {
+      protocolCount[StrUtil::GetProtocolName(protocol.first)]++;
+    }
+
+    std::map<std::string, std::string> displayNames;
+    for (const auto& protocol : m_Protocols)
+    {
+      std::string displayName = protocol.second->GetProfileDisplayName();
+      if (displayName.empty())
+      {
+        std::string protocolName = StrUtil::GetProtocolName(protocol.first);
+        if (protocolCount[protocolName] > 1)
+        {
+          // use full profile name
+          displayName = protocol.first;
+        }
+        else
+        {
+          // use only protocol name
+          displayName = protocolName;
+        }
+      }
+
+      displayNames[protocol.first] = displayName;
+    }
+
+    return displayNames;
+  }();
+
+  return s_DisplayNames[p_ProfileId];
 }
