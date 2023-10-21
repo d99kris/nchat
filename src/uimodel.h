@@ -24,6 +24,9 @@ public:
   UiModel();
   virtual ~UiModel();
 
+  void Init();
+  void Cleanup();
+
   void KeyHandler(wint_t p_Key);
   void SendMessage();
   void EntryKeyHandler(wint_t p_Key);

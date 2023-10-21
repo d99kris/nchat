@@ -51,6 +51,11 @@ func CWmCleanup(connId int) int {
 	return WmCleanup(connId)
 }
 
+//export CWmGetVersion
+func CWmGetVersion() int {
+	return WmGetVersion()
+}
+
 //export CWmGetMessages
 func CWmGetMessages(connId int, chatId *C.char, limit int, fromMsgId *C.char, owner int) int {
 	return WmGetMessages(connId, C.GoString(chatId), limit, C.GoString(fromMsgId), owner)

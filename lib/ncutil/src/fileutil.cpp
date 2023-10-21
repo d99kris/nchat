@@ -1,6 +1,6 @@
 // fileutil.cpp
 //
-// Copyright (c) 2020-2021 Kristofer Berggren
+// Copyright (c) 2020-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -300,6 +300,12 @@ void FileUtil::RmFile(const std::string& p_Path)
 void FileUtil::SetApplicationDir(const std::string& p_Path)
 {
   m_ApplicationDir = p_Path;
+}
+
+void FileUtil::SetDirVersion(const std::string& p_Dir, int p_Version)
+{
+  std::string versionPath = p_Dir + "/version";
+  FileUtil::WriteFile(versionPath, StrUtil::StrToHex(std::to_string(p_Version)));
 }
 
 void FileUtil::SetDownloadsDir(const std::string& p_DownloadsDir)

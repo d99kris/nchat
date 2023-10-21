@@ -1,6 +1,6 @@
 // devui.cpp
 //
-// Copyright (c) 2019-2022 Kristofer Berggren
+// Copyright (c) 2019-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -21,6 +21,14 @@ Ui::Ui()
 }
 
 Ui::~Ui()
+{
+}
+
+void Ui::Init()
+{
+}
+
+void Ui::Cleanup()
 {
 }
 

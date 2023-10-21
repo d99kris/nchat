@@ -41,6 +41,15 @@ UiModel::~UiModel()
 {
 }
 
+void UiModel::Init()
+{
+  m_View->Init();
+}
+
+void UiModel::Cleanup()
+{
+}
+
 void UiModel::KeyHandler(wint_t p_Key)
 {
   if (m_HomeFetchAll)

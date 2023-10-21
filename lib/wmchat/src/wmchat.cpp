@@ -12,6 +12,7 @@
 #include <sys/stat.h>
 
 #include "appconfig.h"
+#include "fileutil.h"
 #include "libcgowm.h"
 #include "log.h"
 #include "messagecache.h"
@@ -30,6 +31,7 @@ extern "C" WmChat* CreateWmChat()
 WmChat::WmChat()
 {
   m_ProfileId = GetName();
+  m_WhatsmeowDate = CWmGetVersion();
 }
 
 WmChat::~WmChat()
@@ -103,11 +105,32 @@ bool WmChat::LoadProfile(const std::string& p_ProfilesDir, const std::string& p_
   AddInstance(m_ConnId, this);
   MessageCache::AddProfile(m_ProfileId, false, s_CacheDirVersion, false);
 
+  m_ProfileDirVersion = FileUtil::GetDirVersion(m_ProfileDir);
+  if (m_WhatsmeowDate < m_ProfileDirVersion)
+  {
+    std::string versionWarning =
+      "downgrading nchat without clean setup is not supported.\n"
+      "consider performing one if issues are encountered:\n"
+      "nchat --setup";
+    LOG_WARNING("whatsmeow downgrade from %d:\n%s", m_ProfileDirVersion, versionWarning.c_str());
+    std::cerr << "warning: " << versionWarning << "\n";
+  }
+  else if (m_WhatsmeowDate > m_ProfileDirVersion)
+  {
+    LOG_INFO("whatsmeow upgrade from %d", m_ProfileDirVersion);
+  }
+
   return true;
 }
 
 bool WmChat::CloseProfile()
 {
+  if ((m_WhatsmeowDate != m_ProfileDirVersion) && m_WasOnline)
+  {
+    LOG_INFO("update profile to %d", m_WhatsmeowDate);
+    FileUtil::SetDirVersion(m_ProfileDir, m_WhatsmeowDate);
+  }
+
   int rv = CWmCleanup(m_ConnId);
   RemoveInstance(m_ConnId);
   m_ConnId = -1;
@@ -130,6 +153,7 @@ bool WmChat::Login()
     {
       std::shared_ptr<ConnectNotify> connectNotify = std::make_shared<ConnectNotify>(m_ProfileId);
       connectNotify->success = (rv == 0);
+      m_WasOnline = connectNotify->success;
 
       std::shared_ptr<DeferNotifyRequest> deferNotifyRequest = std::make_shared<DeferNotifyRequest>();
       deferNotifyRequest->serviceMessage = connectNotify;

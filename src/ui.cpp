@@ -1,6 +1,6 @@
 // ui.cpp
 //
-// Copyright (c) 2019-2022 Kristofer Berggren
+// Copyright (c) 2019-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -26,6 +26,20 @@ Ui::Ui()
 {
   UiConfig::Init();
 
+  m_Controller = std::make_shared<UiController>();
+  m_Model = std::make_shared<UiModel>();
+}
+
+Ui::~Ui()
+{
+  m_Model.reset();
+  m_Controller.reset();
+
+  UiConfig::Cleanup();
+}
+
+void Ui::Init()
+{
   m_TerminalTitle = UiConfig::GetStr("terminal_title");
   if (!m_TerminalTitle.empty())
   {
@@ -45,20 +59,18 @@ Ui::Ui()
   EmojiList::Init();
   UiKeyConfig::Init();
   UiColorConfig::Init();
-
-  m_Controller = std::make_shared<UiController>();
-  m_Model = std::make_shared<UiModel>();
+  m_Model->Init();
+  m_Controller->Init();
 }
 
-Ui::~Ui()
+void Ui::Cleanup()
 {
-  m_Model.reset();
-  m_Controller.reset();
-
+  m_Controller->Cleanup();
+  m_Model->Cleanup();
   UiColorConfig::Cleanup();
   UiKeyConfig::Cleanup();
   EmojiList::Cleanup();
-  UiConfig::Cleanup();
+
   wclear(stdscr);
   endwin();
 

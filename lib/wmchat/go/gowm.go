@@ -40,7 +40,7 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
-var whatsmeowDate = "20230929"
+var whatsmeowDate int = 20230929
 
 type JSONMessage []json.RawMessage
 type JSONMessageType string
@@ -1536,7 +1536,7 @@ func WmInit(path string, proxy string, sendType int) int {
 
 func WmLogin(connId int) int {
 
-	LOG_DEBUG("login " + strconv.Itoa(connId) + " whatsmeow " + whatsmeowDate)
+	LOG_DEBUG("login " + strconv.Itoa(connId) + " whatsmeow " + strconv.Itoa(whatsmeowDate))
 
 	// sanity check arg
 	if connId == -1 {
@@ -1638,6 +1638,10 @@ func WmCleanup(connId int) int {
 	LOG_DEBUG("cleanup " + strconv.Itoa(connId))
 	RemoveConn(connId)
 	return 0
+}
+
+func WmGetVersion() int {
+	return whatsmeowDate
 }
 
 func WmGetMessages(connId int, chatId string, limit int, fromMsgId string, owner int) int {

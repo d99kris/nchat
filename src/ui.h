@@ -1,6 +1,6 @@
 // ui.h
 //
-// Copyright (c) 2019-2021 Kristofer Berggren
+// Copyright (c) 2019-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -21,6 +21,9 @@ class Ui
 public:
   Ui();
   virtual ~Ui();
+
+  void Init();
+  void Cleanup();
 
   void Run();
   void AddProtocol(std::shared_ptr<Protocol> p_Protocol);

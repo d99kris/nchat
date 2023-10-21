@@ -61,6 +61,9 @@ private:
   static std::map<int, WmChat*> s_ConnIdMap;
   int m_ConnId = -1;
   std::string m_ProfileDir;
+  int m_WhatsmeowDate = 0;
+  int m_ProfileDirVersion = 0;
+  bool m_WasOnline = false;
   static const int s_CacheDirVersion = 0;
 };
 

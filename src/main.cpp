@@ -300,6 +300,7 @@ int main(int argc, char* argv[])
   }
 
   // Start protocol(s) and ui
+  ui->Init();
   std::unordered_map<std::string, std::shared_ptr<Protocol>>& protocols = ui->GetProtocols();
   bool hasProtocols = !protocols.empty();
   if (hasProtocols && exportDir.empty())
@@ -323,6 +324,7 @@ int main(int argc, char* argv[])
   }
 
   // Cleanup ui
+  ui->Cleanup();
   ui.reset();
 
   // Perform export if requested

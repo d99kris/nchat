@@ -29,7 +29,6 @@ UiView::UiView(UiModel* p_UiModel)
   m_TopEnabled = UiConfig::GetBool("top_enabled");
   m_ListWidth = UiConfig::GetNum("list_width");
   m_EntryHeight = std::max(1, UiConfig::GetNum("entry_height"));
-  Init();
 }
 
 UiView::~UiView()

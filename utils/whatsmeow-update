@@ -101,7 +101,7 @@ type DownloadableMessageWithURL interface {
 EOT
 
 [[ "$(uname)" == "Linux" ]] && SEDCMD="sed" || SEDCMD="gsed"
-${SEDCMD} -E -i -e "s/^var whatsmeowDate.*$/var whatsmeowDate = \"${NEWVERSION}\"/g" lib/wmchat/go/gowm.go
+${SEDCMD} -E -i -e "s/^var whatsmeowDate int.*$/var whatsmeowDate int = ${NEWVERSION}/g" lib/wmchat/go/gowm.go
 
 # Complete
 echo "Done"

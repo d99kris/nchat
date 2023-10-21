@@ -29,6 +29,7 @@
 #include "appconfig.h"
 #include "apputil.h"
 #include "config.h"
+#include "fileutil.h"
 #include "log.h"
 #include "messagecache.h"
 #include "path.hpp"
@@ -38,6 +39,8 @@
 #include "timeutil.h"
 
 // #define SIMULATED_SPONSORED_MESSAGES
+
+static const int s_TdlibDate = 20230922;
 
 namespace detail
 {
@@ -181,6 +184,8 @@ private:
   int64_t m_CurrentChat = 0;
   const char m_SponsoredMessageMsgIdPrefix = '+';
   std::map<std::string, std::set<std::string>> m_SponsoredMessageIds;
+  int m_ProfileDirVersion = 0;
+  bool m_WasOnline = false;
   static const int s_CacheDirVersion = 2;
 };
 
@@ -302,13 +307,36 @@ bool TgChat::Impl::LoadProfile(const std::string& p_ProfilesDir, const std::stri
   m_ProfileDir = p_ProfilesDir + "/" + p_ProfileId;
   m_ProfileId = p_ProfileId;
   MessageCache::AddProfile(m_ProfileId, true, s_CacheDirVersion, false);
+
+  m_ProfileDirVersion = FileUtil::GetDirVersion(m_ProfileDir);
+  if (s_TdlibDate < m_ProfileDirVersion)
+  {
+    std::string versionWarning =
+      "downgrading nchat without clean setup is not supported.\n"
+      "consider performing one if issues are encountered:\n"
+      "nchat --setup";
+    LOG_WARNING("tdlib downgrade from %d:\n%s", m_ProfileDirVersion, versionWarning.c_str());
+    std::cerr << "warning: " << versionWarning << "\n";
+  }
+  else if (s_TdlibDate > m_ProfileDirVersion)
+  {
+    LOG_INFO("tdlib upgrade from %d", m_ProfileDirVersion);
+  }
+
   return true;
 }
 
 bool TgChat::Impl::CloseProfile()
 {
+  if ((s_TdlibDate != m_ProfileDirVersion) && m_WasOnline)
+  {
+    LOG_INFO("update profile to %d", s_TdlibDate);
+    FileUtil::SetDirVersion(m_ProfileDir, s_TdlibDate);
+  }
+
   m_ProfileDir = "";
   m_ProfileId = "";
+
   return true;
 }
 
@@ -1399,7 +1427,7 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
       CallMessageHandler(deleteMessageNotify);
     }
   },
-  [](td::td_api::updateConnectionState& connection_state)
+  [this](td::td_api::updateConnectionState& connection_state)
   {
     LOG_TRACE("update connection state");
 
@@ -1407,6 +1435,7 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
 
     if (connection_state.state_->get_id() == td::td_api::connectionStateReady::ID)
     {
+      m_WasOnline = true;
       Status::Set(Status::FlagOnline);
       Status::Clear(Status::FlagOffline);
     }

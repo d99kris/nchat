@@ -57,12 +57,14 @@ if [[ "${1}" != "" ]]; then
   git checkout ${COMMIT} || exiterr "git checkout ${COMMIT} failed"
   NEWVERSION="$(git show -s | tail -1 | awk -F'Update version to ' '{print $2}' | sed 's/\.$//')"
   SYNCCOMMIT="$(git show -s | head -1 | cut -d' ' -f2 | cut -c1-7)"
+  NEWDATE="$(git show -s --date=format:'%Y%m%d' --format=%cd)"
   popd > /dev/null || exiterr "popd failed"
 else
   echo "Get date"
   pushd "${SYNCDIR}" > /dev/null || exiterr "pushd failed"
   NEWVERSION="$(git show -s | tail -1 | awk -F'Update version to ' '{print $2}' | sed 's/\.$//')"
   SYNCCOMMIT="$(git show -s | head -1 | cut -d' ' -f2 | cut -c1-7)"
+  NEWDATE="$(git show -s --date=format:'%Y%m%d' --format=%cd)"
   popd > /dev/null || exiterr "popd failed"
 fi
 
@@ -101,6 +103,7 @@ EOT
 [[ "$(uname)" == "Linux" ]] && SEDCMD="sed" || SEDCMD="gsed"
 ${SEDCMD} -E -i -e "s/virtual void store\(TlStorerUnsafe \&s\)/virtual void store\(TlStorerUnsafe \&\)/g" lib/tgchat/ext/td/td/tl/TlObject.h
 ${SEDCMD} -E -i -e "s/virtual void store\(TlStorerCalcLength \&s\)/virtual void store\(TlStorerCalcLength \&\)/g" lib/tgchat/ext/td/td/tl/TlObject.h
+${SEDCMD} -E -i -e "s/^static const int s_TdlibDate.*$/static const int s_TdlibDate = ${NEWDATE};/g" lib/tgchat/src/tgchat.cpp
 
 # Complete
 echo "Done"
