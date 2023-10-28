@@ -102,6 +102,8 @@ if [[ "${DEPS}" == "1" ]]; then
       sudo emerge -n dev-util/cmake dev-util/gperf sys-apps/help2man sys-libs/readline dev-libs/openssl sys-libs/ncurses sys-libs/zlib dev-db/sqlite sys-apps/file dev-lang/go || exiterr "deps failed (gentoo), exiting."
     elif [[ "${NAME}" == "Fedora Linux" ]]; then
       sudo dnf -y install git cmake clang golang ccache file-devel file-libs gperf readline-devel openssl-devel ncurses-devel sqlite-devel zlib-devel
+    elif [[ "${NAME}" == "Arch Linux" ]]; then
+      sudo pacman -S ccache cmake file go gperf help2man ncurses openssl readline sqlite zlib base-devel
     else
       exiterr "deps failed (unsupported linux distro ${NAME}), exiting."
     fi
