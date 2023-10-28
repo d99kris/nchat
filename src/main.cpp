@@ -72,6 +72,13 @@ public:
     if (handle == nullptr)
     {
       LOG_ERROR("failed dlopen %s", libPath.c_str());
+      const char* dlerr = dlerror();
+      if (dlerr != nullptr)
+      {
+        LOG_ERROR("dlerror %s", dlerr);
+      }
+
+      std::cout << "Failed to load " << libPath << ", skipping profile.\n";
       return protocol;
     }
 
@@ -299,9 +306,12 @@ int main(int argc, char* argv[])
         {
           LOG_DEBUG("loading existing profile %s", profileId.c_str());
           std::shared_ptr<Protocol> protocol = protocolFactory->Create();
-          protocol->LoadProfile(profilesDir, profileId);
-          ui->AddProtocol(protocol);
-          found = true;
+          if (protocol)
+          {
+            protocol->LoadProfile(profilesDir, profileId);
+            ui->AddProtocol(protocol);
+            found = true;
+          }
         }
       }
 
@@ -355,7 +365,7 @@ int main(int argc, char* argv[])
   int rv = 0;
   if (!hasProtocols)
   {
-    std::cout << "no profiles setup, exiting.\n";
+    std::cout << "No profiles setup, exiting.\n";
     rv = 1;
   }
 
