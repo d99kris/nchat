@@ -63,7 +63,7 @@ case "${1%/}" in
     ;;
 
   *)
-    echo "usage: make.sh <deps|build|tests|doc|install|all>"
+    echo "usage: make.sh <deps|build|tests|doc|install|all> [-y]"
     echo "  deps      - install project dependencies"
     echo "  build     - perform build"
     echo "  debug     - perform debug build"
@@ -72,9 +72,11 @@ case "${1%/}" in
     echo "  install   - perform build and install"
     echo "  all       - perform deps, build, tests, doc and install"
     echo "  src       - perform source code reformatting"
+    echo "  -y        - non-interactive mode, assume "
     exit 1
     ;;
 esac
+[[ "${2}" == "-y" ]] && YES="-y" || YES=""
 
 # helper functions
 function version_ge() {
@@ -88,22 +90,24 @@ if [[ "${DEPS}" == "1" ]]; then
     unset NAME
     eval $(grep "^NAME=" /etc/os-release 2> /dev/null)
     if [[ "${NAME}" == "Ubuntu" ]]; then
-      sudo apt update && sudo apt -y install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev || exiterr "deps failed (ubuntu), exiting."
+      sudo apt update && sudo apt ${YES} install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev || exiterr "deps failed (ubuntu), exiting."
       unset VERSION_ID
       eval $(grep "^VERSION_ID=" /etc/os-release 2> /dev/null)
       if version_ge "${VERSION_ID}" "22.04"; then
-        sudo apt -y install golang || exiterr "deps failed (apt golang), exiting."
+        sudo apt ${YES} install golang || exiterr "deps failed (apt golang), exiting."
       else
         sudo snap install go --classic || exiterr "deps failed (snap go), exiting."
       fi
     elif [[ "${NAME}" == "Raspbian GNU/Linux" ]]; then
-      sudo apt update && sudo apt -y install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev golang || exiterr "deps failed (raspbian gnu/linux), exiting."
+      sudo apt update && sudo apt ${YES} install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev golang || exiterr "deps failed (raspbian gnu/linux), exiting."
     elif [[ "${NAME}" == "Gentoo" ]]; then
       sudo emerge -n dev-util/cmake dev-util/gperf sys-apps/help2man sys-libs/readline dev-libs/openssl sys-libs/ncurses sys-libs/zlib dev-db/sqlite sys-apps/file dev-lang/go || exiterr "deps failed (gentoo), exiting."
     elif [[ "${NAME}" == "Fedora Linux" ]]; then
-      sudo dnf -y install git cmake clang golang ccache file-devel file-libs gperf readline-devel openssl-devel ncurses-devel sqlite-devel zlib-devel
+      sudo dnf ${YES} install git cmake clang golang ccache file-devel file-libs gperf readline-devel openssl-devel ncurses-devel sqlite-devel zlib-devel
     elif [[ "${NAME}" == "Arch Linux" ]]; then
       sudo pacman -S ccache cmake file go gperf help2man ncurses openssl readline sqlite zlib base-devel
+    elif [[ "${NAME}" == "Void" ]]; then
+      sudo xbps-install ${YES} base-devel go ccache cmake gperf help2man libmagick-devel readline-devel sqlite-devel file-devel openssl-devel
     else
       exiterr "deps failed (unsupported linux distro ${NAME}), exiting."
     fi

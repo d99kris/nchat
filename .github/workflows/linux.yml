@@ -15,4 +15,4 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v1
     - name: Build Linux
-      run: ./make.sh all
+      run: ./make.sh all -y

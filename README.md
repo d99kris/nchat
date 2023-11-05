@@ -117,89 +117,79 @@ Supported Platforms
 nchat is developed and tested on Linux and macOS. Current version has been
 tested on:
 
-- macOS Big Sur 11.5
-- Ubuntu 20.04 LTS
+- macOS Sonoma 14.0
+- Ubuntu 22.04 LTS
 
-
-Build / Install
-===============
-Nchat consists of a large code-base (mainly the Telegram client library), so be
-prepared for a relatively long first build time.
-
-Ubuntu
-------
-**Dependencies**
-
-    sudo apt install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev golang
-
-**Source**
-
-    git clone https://github.com/d99kris/nchat && cd nchat
-
-**Build**
-
-    mkdir -p build && cd build && cmake .. && make -s
-
-**Install**
-
-    sudo make install
+Install using Package Manager
+=============================
 
 macOS
 -----
+**Build / Install Stable Release**
 
-There are two methods to install nchat on macOS: through Homebrew or building from source.
+    brew install d99kris/d99kris/nchat
 
-### Using Homebrew
+Arch Linux
+----------
+**Build / Install Latest Git**
 
-**Add tap**
+    git clone https://aur.archlinux.org/nchat-git.git && cd nchat-git
+    makepkg -s && makepkg -i
 
-    brew tap d99kris/nchat
+**Build / Install Stable Release**
 
-**Install**
+    git clone https://aur.archlinux.org/nchat.git && cd nchat
+    makepkg -s && makepkg -i
 
-    brew install nchat
+Build from Source
+=================
+nchat consists of a large code-base (mainly the Telegram library tdlib), so be
+prepared for a relatively long first build time.
 
-### Building from Source
+**Get Source**
+
+    git clone https://github.com/d99kris/nchat && cd nchat
+
+Using make.sh script
+--------------------
+If using macOS, Arch, Fedora, Gentoo, Raspbian, Ubuntu or Void, one can use
+the `make.sh` script provided.
 
 **Dependencies**
+
+    ./make.sh deps
+
+**Build / Install**
+
+    ./make.sh build && ./make.sh install
+
+Manually
+--------
+**Dependencies**
+
+macOS
 
     brew install gperf cmake openssl ncurses ccache readline help2man sqlite libmagic go
 
-**Source**
+Arch
 
-    git clone https://github.com/d99kris/nchat && cd nchat
+    sudo pacman -S ccache cmake file go gperf help2man ncurses openssl readline sqlite zlib base-devel
 
-**Build**
+Debian-based (Ubuntu, Raspbian, etc)
 
-    mkdir -p build && cd build && cmake .. && make -s
-
-**Install**
-
-    make install
-
-Arch Linux
-----------
-**Source**
-
-    git clone https://aur.archlinux.org/nchat-git.git && cd nchat-git
-
-**Build**
-
-    makepkg -s
-
-**Install**
-
-    makepkg -i
+    sudo apt install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev golang
 
 Fedora
-------
-**Dependencies**
 
     sudo dnf install git cmake clang golang ccache file-devel file-libs gperf readline-devel openssl-devel ncurses-devel sqlite-devel zlib-devel
 
-**Source**
+Gentoo
 
-    git clone https://github.com/d99kris/nchat && cd nchat
+    sudo emerge -n dev-util/cmake dev-util/gperf sys-apps/help2man sys-libs/readline dev-libs/openssl sys-libs/ncurses sys-libs/zlib dev-db/sqlite sys-apps/file dev-lang/go
+
+Void
+
+    sudo xbps-install base-devel go ccache cmake gperf help2man libmagick-devel readline-devel sqlite-devel file-devel openssl-devel
 
 **Build**
 
@@ -209,101 +199,15 @@ Fedora
 
     sudo make install
 
-Enabling / Disabling Protocol Support
--------------------------------------
-The protocols supported by nchat is controlled by the following cmake flags:
+Advanced Build Options
+----------------------
+By default nchat requires ~3.5GB RAM to build using G++ and ~1.5GB RAM with
+clang++, but it is possible to reduce the memory needed,
+see [Building on Low Memory Systems](LOWMEMORY.md).
 
-    HAS_DUMMY=ON
-    HAS_TELEGRAM=ON
-    HAS_WHATSAPP=ON
+All nchat features are enabled by default, but it's possible to control
+inclusion of some features using cmake flags, see [Feature Flags](FLAGS.md).
 
-It is possible to enable / disable protocols by passing one or multiple flags
-to cmake:
-
-    mkdir -p build && cd build
-    cmake -DHAS_WHATSAPP=OFF .. && make -s
-
-Low Memory / RAM Systems
-------------------------
-The Telegram client library subcomponent requires relatively large amount of
-RAM to build by default (3.5GB using g++, and 1.5 GB for clang++). It is
-possible to adjust the Telegram client library source code so that it requires
-less RAM (but takes longer time). Doing so reduces the memory requirement to
-around 1GB under g++ and 0.5GB for clang++.
-
-Steps to build nchat on a low memory system:
-
-**Extra Dependencies (Linux)**
-
-    sudo apt install php-cli clang
-
-**Source**
-
-    git clone https://github.com/d99kris/nchat && cd nchat
-
-**Setup**
-
-    mkdir -p build && cd build
-    CC=/usr/bin/clang CXX=/usr/bin/clang++ cmake ..
-
-**Split source (optional)**
-
-    cmake --build . --target prepare_cross_compiling
-    cd ../lib/tgchat/ext/td ; php SplitSource.php ; cd -
-
-**Build**
-
-    make -s
-
-**Install**
-
-    sudo make install
-
-**Revert Source Code Split (Optional)**
-
-    cd ../lib/tgchat/ext/td ; php SplitSource.php --undo ; cd -
-
-Arch Linux
-----------
-**Source**
-
-    git clone https://aur.archlinux.org/nchat-git.git && cd nchat-git
-
-**Prepare**
-
-    Open PKGBUILD in your favourite editor.
-    Add `php` and `clang` on depends array.
-    Change the `_install_mode` to `slow`.
-
-**Build**
-
-    makepkg -s
-
-**Install**
-
-    makepkg -i
-
-Fedora
-------
-**Extra Dependencies**
-
-    sudo dnf install php-cli
-
-**Source**
-
-    git clone https://github.com/d99kris/nchat && cd nchat
-
-**Build**
-
-    mkdir -p build && cd build
-    CC=/usr/bin/clang CXX=/usr/bin/clang++ cmake ..
-    cmake --build . --target prepare_cross_compiling
-    cd ../lib/tgchat/ext/td ; php SplitSource.php ; cd -
-    make -s
-
-**Install**
-
-    sudo make install
 
 Getting Started
 ===============
