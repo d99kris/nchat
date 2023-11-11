@@ -229,6 +229,7 @@ class DeleteMessageRequest : public RequestMessage
 public:
   virtual MessageType GetMessageType() const { return DeleteMessageRequestType; }
   std::string chatId;
+  std::string senderId; // only needed for wmchat
   std::string msgId;
 };
 

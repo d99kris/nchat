@@ -77,8 +77,8 @@ func CWmMarkMessageRead(connId int, chatId *C.char, msgId *C.char) int {
 }
 
 //export CWmDeleteMessage
-func CWmDeleteMessage(connId int, chatId *C.char, msgId *C.char) int {
-	return WmDeleteMessage(connId, C.GoString(chatId), C.GoString(msgId))
+func CWmDeleteMessage(connId int, chatId *C.char, senderId *C.char, msgId *C.char) int {
+	return WmDeleteMessage(connId, C.GoString(chatId), C.GoString(senderId), C.GoString(msgId))
 }
 
 //export CWmDeleteChat

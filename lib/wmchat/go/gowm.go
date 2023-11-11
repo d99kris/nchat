@@ -1946,7 +1946,7 @@ func WmMarkMessageRead(connId int, chatId string, msgId string) int {
 	return 0
 }
 
-func WmDeleteMessage(connId int, chatId string, msgId string) int {
+func WmDeleteMessage(connId int, chatId string, senderId string, msgId string) int {
 
 	LOG_TRACE("delete message " + strconv.Itoa(connId) + ", " + chatId + ", " + msgId)
 
@@ -1961,7 +1961,8 @@ func WmDeleteMessage(connId int, chatId string, msgId string) int {
 
 	// delete message
 	chatJid, _ := types.ParseJID(chatId)
-	_, err := client.RevokeMessage(chatJid, msgId)
+	senderJid, _ := types.ParseJID(senderId)
+	_, err := client.SendMessage(context.Background(), chatJid, client.BuildRevoke(chatJid, senderJid, msgId))
 
 	// log any error
 	if err != nil {

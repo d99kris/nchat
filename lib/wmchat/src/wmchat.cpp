@@ -427,9 +427,11 @@ void WmChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
         std::shared_ptr<DeleteMessageRequest> deleteMessageRequest =
           std::static_pointer_cast<DeleteMessageRequest>(p_RequestMessage);
         std::string chatId = deleteMessageRequest->chatId;
+        std::string senderId = deleteMessageRequest->senderId;
         std::string msgId = deleteMessageRequest->msgId;
 
         int rv = CWmDeleteMessage(m_ConnId, const_cast<char*>(chatId.c_str()),
+                                  const_cast<char*>(senderId.c_str()),
                                   const_cast<char*>(msgId.c_str()));
         Status::Clear(Status::FlagUpdating);
 

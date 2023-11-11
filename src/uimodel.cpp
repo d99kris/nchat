@@ -992,9 +992,22 @@ void UiModel::DeleteMessage()
     return;
   }
 
-  std::string msgId = *it;
+  std::string senderId;
+  const std::string msgId = *it;
+  const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
+  auto mit = messages.find(msgId);
+  if (mit != messages.end())
+  {
+    senderId = mit->second.senderId;
+  }
+  else
+  {
+    LOG_WARNING("error finding message");
+  }
+
   std::shared_ptr<DeleteMessageRequest> deleteMessageRequest = std::make_shared<DeleteMessageRequest>();
   deleteMessageRequest->chatId = chatId;
+  deleteMessageRequest->senderId = senderId;
   deleteMessageRequest->msgId = msgId;
   SendProtocolRequest(profileId, deleteMessageRequest);
 }
