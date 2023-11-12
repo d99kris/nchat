@@ -7,6 +7,7 @@
 
 #include "fileutil.h"
 
+#include <climits>
 #include <fstream>
 
 #include <wordexp.h>

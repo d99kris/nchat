@@ -1,6 +1,6 @@
 // uikeydump.cpp
 //
-// Copyright (c) 2022 Kristofer Berggren
+// Copyright (c) 2022-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -9,6 +9,8 @@
 
 #include <locale.h>
 #include <unistd.h>
+
+#include <sys/select.h>
 
 #include <ncurses.h>
 
