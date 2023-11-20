@@ -127,7 +127,8 @@ macOS
 -----
 **Build / Install Stable Release**
 
-    brew install d99kris/d99kris/nchat
+    brew tap d99kris/nchat
+    brew install nchat
 
 Arch Linux
 ----------
