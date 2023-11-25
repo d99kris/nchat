@@ -20,6 +20,7 @@ void UiConfig::Init()
   {
     { "attachment_indicator", "\xF0\x9F\x93\x8E" },
     { "attachment_open_command", "" },
+    { "away_status_indication", "0" },
     { "call_command", "" },
     { "confirm_deletion", "1" },
     { "desktop_notify_active", "0" },

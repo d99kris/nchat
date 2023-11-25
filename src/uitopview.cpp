@@ -55,7 +55,11 @@ void UiTopView::Draw()
     return std::string("");
   }();
 
-  const std::string statusStr = Status::ToString() + statusSuffixStr;
+  static const bool awayStatusIndication = UiConfig::GetBool("away_status_indication");
+  static const uint32_t fullMask = ~static_cast<uint32_t>(0);
+  static const uint32_t statusMask = fullMask & (awayStatusIndication ? fullMask : ~Status::FlagAway);
+
+  const std::string statusStr = Status::ToString(statusMask) + statusSuffixStr;
   static const std::string appNameVersion = AppUtil::GetAppNameVersion();
   std::wstring topWStrLeft = StrUtil::ToWString(std::string(topPadLeft, ' ') + appNameVersion);
   std::wstring topWStrRight = StrUtil::ToWString(statusStr + std::string(topPadRight, ' '));

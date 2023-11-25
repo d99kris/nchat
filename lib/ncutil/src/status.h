@@ -23,13 +23,13 @@ public:
     FlagSending = (1 << 3),
     FlagUpdating = (1 << 4),
     FlagSyncing = (1 << 5),
-    FlagMax = FlagSyncing,
+    FlagAway = (1 << 6),
   };
 
   static uint32_t Get();
   static void Set(uint32_t p_Flags);
   static void Clear(uint32_t p_Flags);
-  static std::string ToString();
+  static std::string ToString(uint32_t p_Mask);
 
 private:
   static uint32_t m_Flags;

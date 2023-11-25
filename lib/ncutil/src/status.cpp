@@ -27,15 +27,17 @@ void Status::Clear(uint32_t p_Flags)
   m_Flags &= ~p_Flags;
 }
 
-std::string Status::ToString()
+std::string Status::ToString(uint32_t p_Mask)
 {
   std::unique_lock<std::mutex> lock(m_Mutex);
+  const uint32_t maskedFlags = m_Flags & p_Mask;
 
-  if (m_Flags & FlagSyncing) return "Syncing";
-  if (m_Flags & FlagFetching) return "Fetching";
-  if (m_Flags & FlagSending) return "Sending";
-  if (m_Flags & FlagUpdating) return "Updating";
-  if (m_Flags & FlagOnline) return "Online";
+  if (maskedFlags & FlagSyncing) return "Syncing";
+  if (maskedFlags & FlagFetching) return "Fetching";
+  if (maskedFlags & FlagSending) return "Sending";
+  if (maskedFlags & FlagUpdating) return "Updating";
+  if (maskedFlags & FlagAway) return "Away";
+  if (maskedFlags & FlagOnline) return "Online";
 
   return "Offline";
 }

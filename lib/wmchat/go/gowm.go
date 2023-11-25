@@ -85,7 +85,7 @@ var FlagFetching = (1 << 2)
 var FlagSending = (1 << 3)
 var FlagUpdating = (1 << 4)
 var FlagSyncing = (1 << 5)
-var FlagMax = FlagSyncing
+var FlagAway = (1 << 6)
 
 func AddConn(conn *whatsmeow.Client, path string, sendType int) int {
 	mx.Lock()
@@ -2081,6 +2081,11 @@ func WmSendStatus(connId int, isOnline int) int {
 		LOG_WARNING("Failed to send presence")
 	} else {
 		LOG_TRACE("Sent presence ok")
+		if isOnline == 1 {
+			CWmClearStatus(FlagAway)
+		} else {
+			CWmSetStatus(FlagAway)
+		}
 	}
 
 	return 0

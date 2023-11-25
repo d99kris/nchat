@@ -1010,7 +1010,7 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         auto set_option =
           td::td_api::make_object<td::td_api::setOption>("online", std::move(option_value));
         SendQuery(std::move(set_option),
-                  [this, setStatusRequest](Object object)
+                  [this, setStatusRequest, isOnline](Object object)
         {
           if (object->get_id() == td::td_api::error::ID) return;
 
@@ -1019,6 +1019,15 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
           setStatusNotify->success = true;
           setStatusNotify->isOnline = setStatusRequest->isOnline;
           CallMessageHandler(setStatusNotify);
+
+          if (isOnline)
+          {
+            Status::Clear(Status::FlagAway);
+          }
+          else
+          {
+            Status::Set(Status::FlagAway);
+          }
         });
       }
       break;

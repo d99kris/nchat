@@ -317,6 +317,7 @@ This configuration file holds general user interface settings. Default content:
 
     attachment_indicator=📎
     attachment_open_command=
+    away_status_indication=0
     call_command=
     confirm_deletion=1
     desktop_notify_active=0
@@ -366,6 +367,13 @@ macOS: `open '%1' &`
 
 Note: Omit the trailing `&` for commands taking over the terminal, for
 example `w3m -o confirm_qq=false '%1'` and `see '%1'`.
+
+### away_status_indication
+
+Specifies whether to indicate away status in the top bar while sharing away
+status with other users. I.e. the status will read `Away` instead of `Online`
+when the terminal is inactive (assuming `online_status_share=1` and
+`online_status_dynamic=1`).
 
 ### call_command
 
