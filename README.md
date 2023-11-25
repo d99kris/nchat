@@ -334,6 +334,7 @@ This configuration file holds general user interface settings. Default content:
     list_enabled=1
     list_width=14
     mark_read_on_view=1
+    mark_read_when_inactive=0
     message_open_command=
     muted_indicate_unread=1
     muted_notify_unread=0
@@ -474,6 +475,11 @@ Specifies width of chat list.
 Specifies whether nchat should send message read receipts upon viewing. If
 false nchat will only mark the messages read upon `next_page` (page down),
 `end` (end) or upon sending a message/file in the chat.
+
+### mark_read_when_inactive
+
+Controls whether nchat marks messages in the current chat as read while the
+terminal is inactive.
 
 ### message_open_command
 

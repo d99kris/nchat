@@ -37,6 +37,7 @@ void UiConfig::Init()
     { "list_enabled", "1" },
     { "list_width", "14" },
     { "mark_read_on_view", "1" },
+    { "mark_read_when_inactive", "0" },
     { "message_open_command", "" },
     { "muted_indicate_unread", "1" },
     { "muted_notify_unread", "0" },

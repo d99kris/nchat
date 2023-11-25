@@ -925,6 +925,9 @@ void UiModel::MarkRead(const std::string& p_ProfileId, const std::string& p_Chat
   static const bool markReadOnView = UiConfig::GetBool("mark_read_on_view");
   if (!markReadOnView && !m_HistoryInteraction) return;
 
+  static const bool markReadWhenInactive = UiConfig::GetBool("mark_read_when_inactive");
+  if (!(m_TerminalActive || markReadWhenInactive)) return;
+
   std::shared_ptr<MarkMessageReadRequest> markMessageReadRequest = std::make_shared<MarkMessageReadRequest>();
   markMessageReadRequest->chatId = p_ChatId;
   markMessageReadRequest->msgId = p_MsgId;
@@ -2549,6 +2552,11 @@ void UiModel::SetTerminalActive(bool p_TerminalActive)
         const std::string& profileId = protocol.first;
         SetStatusOnline(profileId, m_TerminalActive);
       }
+    }
+
+    if (m_TerminalActive)
+    {
+      UpdateHistory(); // refresh history as we may need to mark messages as read
     }
   }
 }

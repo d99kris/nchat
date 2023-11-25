@@ -22,7 +22,7 @@ UiTopView::UiTopView(const UiViewParams& p_Params)
 void UiTopView::Draw()
 {
   static uint32_t lastStatus = 0;
-  uint32_t status = Status::Get();
+  uint32_t status = Status::Get(); // @todo: get masked flags
   m_Dirty |= (status != lastStatus);
   lastStatus = status;
 
