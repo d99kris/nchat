@@ -41,7 +41,7 @@ void UiConfig::Init()
     { "muted_notify_unread", "0" },
     { "muted_position_by_timestamp", "1" },
     { "online_status_share", "1" },
-    { "online_status_dynamic", "0" },
+    { "online_status_dynamic", "1" },
     { "phone_number_indicator", "" },
     { "proxy_indicator", "\xF0\x9F\x94\x92" },
     { "read_indicator", "\xe2\x9c\x93" },
