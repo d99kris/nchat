@@ -51,6 +51,7 @@
 #include "td/telegram/Td.h"
 #include "td/telegram/TdDb.h"
 #include "td/telegram/telegram_api.h"
+#include "td/telegram/ThemeManager.h"
 #include "td/telegram/UpdatesManager.h"
 #include "td/telegram/Version.h"
 
@@ -772,6 +773,42 @@ class DeleteProfilePhotoQuery final : public Td::ResultHandler {
   }
 };
 
+class UpdateColorQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+  AccentColorId accent_color_id_;
+  CustomEmojiId background_custom_emoji_id_;
+
+ public:
+  explicit UpdateColorQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(AccentColorId accent_color_id, CustomEmojiId background_custom_emoji_id) {
+    accent_color_id_ = accent_color_id;
+    background_custom_emoji_id_ = background_custom_emoji_id;
+    int32 flags = 0;
+    if (background_custom_emoji_id.is_valid()) {
+      flags |= telegram_api::account_updateColor::BACKGROUND_EMOJI_ID_MASK;
+    }
+    send_query(G()->net_query_creator().create(
+        telegram_api::account_updateColor(flags, accent_color_id.get(), background_custom_emoji_id.get()), {{"me"}}));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::account_updateColor>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    LOG(DEBUG) << "Receive result for UpdateColorQuery: " << result_ptr.ok();
+    td_->contacts_manager_->on_update_accent_color_success(accent_color_id_, background_custom_emoji_id_);
+    promise_.set_value(Unit());
+  }
+
+  void on_error(Status status) final {
+    promise_.set_error(std::move(status));
+  }
+};
+
 class UpdateProfileQuery final : public Td::ResultHandler {
   Promise<Unit> promise_;
   int32 flags_;
@@ -1273,6 +1310,52 @@ class ReorderChannelUsernamesQuery final : public Td::ResultHandler {
       return;
     } else {
       td_->contacts_manager_->on_get_channel_error(channel_id_, status, "ReorderChannelUsernamesQuery");
+    }
+    promise_.set_error(std::move(status));
+  }
+};
+
+class UpdateChannelColorQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+  ChannelId channel_id_;
+
+ public:
+  explicit UpdateChannelColorQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(ChannelId channel_id, AccentColorId accent_color_id, CustomEmojiId background_custom_emoji_id) {
+    channel_id_ = channel_id;
+    auto input_channel = td_->contacts_manager_->get_input_channel(channel_id);
+    CHECK(input_channel != nullptr);
+    int32 flags = 0;
+    if (background_custom_emoji_id.is_valid()) {
+      flags |= telegram_api::channels_updateColor::BACKGROUND_EMOJI_ID_MASK;
+    }
+    send_query(G()->net_query_creator().create(
+        telegram_api::channels_updateColor(flags, std::move(input_channel), accent_color_id.get(),
+                                           background_custom_emoji_id.get()),
+        {{channel_id}}));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::channels_updateColor>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    auto ptr = result_ptr.move_as_ok();
+    LOG(INFO) << "Receive result for UpdateChannelColorQuery: " << to_string(ptr);
+    td_->updates_manager_->on_get_updates(std::move(ptr), std::move(promise_));
+  }
+
+  void on_error(Status status) final {
+    if (status.message() == "CHAT_NOT_MODIFIED") {
+      if (!td_->auth_manager_->is_bot()) {
+        promise_.set_value(Unit());
+        return;
+      }
+    } else {
+      td_->contacts_manager_->on_get_channel_error(channel_id_, status, "UpdateChannelColorQuery");
     }
     promise_.set_error(std::move(status));
   }
@@ -3868,8 +3951,9 @@ ContactsManager::ContactsManager(Td *td, ActorShared<> parent) : td_(td), parent
 
   was_online_local_ = to_integer<int32>(G()->td_db()->get_binlog_pmc()->get("my_was_online_local"));
   was_online_remote_ = to_integer<int32>(G()->td_db()->get_binlog_pmc()->get("my_was_online_remote"));
-  if (was_online_local_ >= G()->unix_time_cached() && !td_->is_online()) {
-    was_online_local_ = G()->unix_time_cached() - 1;
+  auto unix_time = G()->unix_time();
+  if (was_online_local_ >= unix_time && !td_->is_online()) {
+    was_online_local_ = unix_time - 1;
   }
 
   location_visibility_expire_date_ =
@@ -3998,7 +4082,8 @@ void ContactsManager::on_user_online_timeout(UserId user_id) {
 
   LOG(INFO) << "Update " << user_id << " online status to offline";
   send_closure(G()->td(), &Td::send_update,
-               td_api::make_object<td_api::updateUserStatus>(user_id.get(), get_user_status_object(user_id, u)));
+               td_api::make_object<td_api::updateUserStatus>(user_id.get(),
+                                                             get_user_status_object(user_id, u, G()->unix_time())));
 
   update_user_online_member_count(u);
 }
@@ -4182,6 +4267,8 @@ void ContactsManager::User::store(StorerT &storer) const {
   bool has_max_active_story_id = max_active_story_id.is_valid();
   bool has_max_read_story_id = max_read_story_id.is_valid();
   bool has_max_active_story_id_next_reload_time = max_active_story_id_next_reload_time > Time::now();
+  bool has_accent_color_id = accent_color_id.is_valid();
+  bool has_background_custom_emoji_id = background_custom_emoji_id.is_valid();
   BEGIN_STORE_FLAGS();
   STORE_FLAG(is_received);
   STORE_FLAG(is_verified);
@@ -4222,6 +4309,8 @@ void ContactsManager::User::store(StorerT &storer) const {
     STORE_FLAG(has_max_active_story_id);
     STORE_FLAG(has_max_read_story_id);
     STORE_FLAG(has_max_active_story_id_next_reload_time);
+    STORE_FLAG(has_accent_color_id);
+    STORE_FLAG(has_background_custom_emoji_id);
     END_STORE_FLAGS();
   }
   store(first_name, storer);
@@ -4266,6 +4355,12 @@ void ContactsManager::User::store(StorerT &storer) const {
   if (has_max_active_story_id_next_reload_time) {
     store_time(max_active_story_id_next_reload_time, storer);
   }
+  if (has_accent_color_id) {
+    store(accent_color_id, storer);
+  }
+  if (has_background_custom_emoji_id) {
+    store(background_custom_emoji_id, storer);
+  }
 }
 
 template <class ParserT>
@@ -4287,6 +4382,8 @@ void ContactsManager::User::parse(ParserT &parser) {
   bool has_max_active_story_id = false;
   bool has_max_read_story_id = false;
   bool has_max_active_story_id_next_reload_time = false;
+  bool has_accent_color_id = false;
+  bool has_background_custom_emoji_id = false;
   BEGIN_PARSE_FLAGS();
   PARSE_FLAG(is_received);
   PARSE_FLAG(is_verified);
@@ -4327,6 +4424,8 @@ void ContactsManager::User::parse(ParserT &parser) {
     PARSE_FLAG(has_max_active_story_id);
     PARSE_FLAG(has_max_read_story_id);
     PARSE_FLAG(has_max_active_story_id_next_reload_time);
+    PARSE_FLAG(has_accent_color_id);
+    PARSE_FLAG(has_background_custom_emoji_id);
     END_PARSE_FLAGS();
   }
   parse(first_name, parser);
@@ -4398,6 +4497,12 @@ void ContactsManager::User::parse(ParserT &parser) {
   }
   if (has_max_active_story_id_next_reload_time) {
     parse_time(max_active_story_id_next_reload_time, parser);
+  }
+  if (has_accent_color_id) {
+    parse(accent_color_id, parser);
+  }
+  if (has_background_custom_emoji_id) {
+    parse(background_custom_emoji_id, parser);
   }
 
   if (!check_utf8(first_name)) {
@@ -4697,9 +4802,9 @@ void ContactsManager::Chat::parse(ParserT &parser) {
     } else {
       status = DialogParticipantStatus::Member();
     }
-    default_permissions =
-        RestrictedRights(true, true, true, true, true, true, true, true, true, true, true, true, true,
-                         everyone_is_administrator, everyone_is_administrator, everyone_is_administrator, false);
+    default_permissions = RestrictedRights(true, true, true, true, true, true, true, true, true, true, true, true, true,
+                                           everyone_is_administrator, everyone_is_administrator,
+                                           everyone_is_administrator, false, ChannelType::Unknown);
   }
   if (has_default_permissions_version) {
     parse(default_permissions_version, parser);
@@ -4808,6 +4913,8 @@ void ContactsManager::Channel::store(StorerT &storer) const {
   bool has_max_active_story_id = max_active_story_id.is_valid();
   bool has_max_read_story_id = max_read_story_id.is_valid();
   bool has_max_active_story_id_next_reload_time = max_active_story_id_next_reload_time > Time::now();
+  bool has_accent_color_id = accent_color_id.is_valid();
+  bool has_background_custom_emoji_id = background_custom_emoji_id.is_valid();
   BEGIN_STORE_FLAGS();
   STORE_FLAG(false);
   STORE_FLAG(false);
@@ -4847,6 +4954,8 @@ void ContactsManager::Channel::store(StorerT &storer) const {
     STORE_FLAG(has_max_read_story_id);
     STORE_FLAG(has_max_active_story_id_next_reload_time);
     STORE_FLAG(stories_hidden);
+    STORE_FLAG(has_accent_color_id);
+    STORE_FLAG(has_background_custom_emoji_id);
     END_STORE_FLAGS();
   }
 
@@ -4881,6 +4990,12 @@ void ContactsManager::Channel::store(StorerT &storer) const {
   if (has_max_active_story_id_next_reload_time) {
     store_time(max_active_story_id_next_reload_time, storer);
   }
+  if (has_accent_color_id) {
+    store(accent_color_id, storer);
+  }
+  if (has_background_custom_emoji_id) {
+    store(background_custom_emoji_id, storer);
+  }
 }
 
 template <class ParserT>
@@ -4906,6 +5021,8 @@ void ContactsManager::Channel::parse(ParserT &parser) {
   bool has_max_active_story_id = false;
   bool has_max_read_story_id = false;
   bool has_max_active_story_id_next_reload_time = false;
+  bool has_accent_color_id = false;
+  bool has_background_custom_emoji_id = false;
   BEGIN_PARSE_FLAGS();
   PARSE_FLAG(left);
   PARSE_FLAG(kicked);
@@ -4945,6 +5062,8 @@ void ContactsManager::Channel::parse(ParserT &parser) {
     PARSE_FLAG(has_max_read_story_id);
     PARSE_FLAG(has_max_active_story_id_next_reload_time);
     PARSE_FLAG(stories_hidden);
+    PARSE_FLAG(has_accent_color_id);
+    PARSE_FLAG(has_background_custom_emoji_id);
     END_PARSE_FLAGS();
   }
 
@@ -4990,7 +5109,7 @@ void ContactsManager::Channel::parse(ParserT &parser) {
       parse(default_permissions, parser);
     } else {
       default_permissions = RestrictedRights(true, true, true, true, true, true, true, true, true, true, true, true,
-                                             true, false, anyone_can_invite, false, false);
+                                             true, false, anyone_can_invite, false, false, ChannelType::Megagroup);
     }
   }
   if (has_cache_version) {
@@ -5009,6 +5128,12 @@ void ContactsManager::Channel::parse(ParserT &parser) {
   if (has_max_active_story_id_next_reload_time) {
     parse_time(max_active_story_id_next_reload_time, parser);
   }
+  if (has_accent_color_id) {
+    parse(accent_color_id, parser);
+  }
+  if (has_background_custom_emoji_id) {
+    parse(background_custom_emoji_id, parser);
+  }
 
   if (!check_utf8(title)) {
     LOG(ERROR) << "Have invalid title \"" << title << '"';
@@ -5017,6 +5142,13 @@ void ContactsManager::Channel::parse(ParserT &parser) {
   }
   if (legacy_has_active_group_call) {
     cache_version = 0;
+  }
+  if (!is_megagroup && status.is_restricted()) {
+    if (status.is_member()) {
+      status = DialogParticipantStatus::Member();
+    } else {
+      status = DialogParticipantStatus::Left();
+    }
   }
 }
 
@@ -5642,6 +5774,78 @@ const DialogPhoto *ContactsManager::get_secret_chat_dialog_photo(SecretChatId se
   return get_user_dialog_photo(c->user_id);
 }
 
+int32 ContactsManager::get_user_accent_color_id_object(UserId user_id) const {
+  auto u = get_user(user_id);
+  if (u == nullptr || !u->accent_color_id.is_valid()) {
+    return td_->theme_manager_->get_accent_color_id_object(AccentColorId(user_id));
+  }
+
+  return td_->theme_manager_->get_accent_color_id_object(u->accent_color_id, AccentColorId(user_id));
+}
+
+int32 ContactsManager::get_chat_accent_color_id_object(ChatId chat_id) const {
+  return td_->theme_manager_->get_accent_color_id_object(AccentColorId(chat_id));
+}
+
+AccentColorId ContactsManager::get_channel_accent_color_id(ChannelId channel_id) const {
+  auto c = get_channel(channel_id);
+  if (c == nullptr) {
+    auto min_channel = get_min_channel(channel_id);
+    if (min_channel != nullptr && min_channel->accent_color_id_.is_valid()) {
+      return min_channel->accent_color_id_;
+    }
+    return AccentColorId(channel_id);
+  }
+  if (!c->accent_color_id.is_valid()) {
+    return AccentColorId(channel_id);
+  }
+
+  return c->accent_color_id;
+}
+
+int32 ContactsManager::get_channel_accent_color_id_object(ChannelId channel_id) const {
+  return td_->theme_manager_->get_accent_color_id_object(get_channel_accent_color_id(channel_id),
+                                                         AccentColorId(channel_id));
+}
+
+int32 ContactsManager::get_secret_chat_accent_color_id_object(SecretChatId secret_chat_id) const {
+  auto c = get_secret_chat(secret_chat_id);
+  if (c == nullptr) {
+    return 5;
+  }
+  return get_user_accent_color_id_object(c->user_id);
+}
+
+CustomEmojiId ContactsManager::get_user_background_custom_emoji_id(UserId user_id) const {
+  auto u = get_user(user_id);
+  if (u == nullptr) {
+    return CustomEmojiId();
+  }
+
+  return u->background_custom_emoji_id;
+}
+
+CustomEmojiId ContactsManager::get_chat_background_custom_emoji_id(ChatId chat_id) const {
+  return CustomEmojiId();
+}
+
+CustomEmojiId ContactsManager::get_channel_background_custom_emoji_id(ChannelId channel_id) const {
+  auto c = get_channel(channel_id);
+  if (c == nullptr) {
+    return CustomEmojiId();
+  }
+
+  return c->background_custom_emoji_id;
+}
+
+CustomEmojiId ContactsManager::get_secret_chat_background_custom_emoji_id(SecretChatId secret_chat_id) const {
+  auto c = get_secret_chat(secret_chat_id);
+  if (c == nullptr) {
+    return CustomEmojiId();
+  }
+  return get_user_background_custom_emoji_id(c->user_id);
+}
+
 string ContactsManager::get_user_title(UserId user_id) const {
   auto u = get_user(user_id);
   if (u == nullptr) {
@@ -5688,17 +5892,17 @@ RestrictedRights ContactsManager::get_user_default_permissions(UserId user_id) c
   auto u = get_user(user_id);
   if (u == nullptr || user_id == get_replies_bot_user_id()) {
     return RestrictedRights(false, false, false, false, false, false, false, false, false, false, false, false, false,
-                            false, false, u != nullptr, false);
+                            false, false, u != nullptr, false, ChannelType::Unknown);
   }
   return RestrictedRights(true, true, true, true, true, true, true, true, true, true, true, true, true, false, false,
-                          true, false);
+                          true, false, ChannelType::Unknown);
 }
 
 RestrictedRights ContactsManager::get_chat_default_permissions(ChatId chat_id) const {
   auto c = get_chat(chat_id);
   if (c == nullptr) {
     return RestrictedRights(false, false, false, false, false, false, false, false, false, false, false, false, false,
-                            false, false, false, false);
+                            false, false, false, false, ChannelType::Unknown);
   }
   return c->default_permissions;
 }
@@ -5707,7 +5911,7 @@ RestrictedRights ContactsManager::get_channel_default_permissions(ChannelId chan
   auto c = get_channel(channel_id);
   if (c == nullptr) {
     return RestrictedRights(false, false, false, false, false, false, false, false, false, false, false, false, false,
-                            false, false, false, false);
+                            false, false, false, false, ChannelType::Unknown);
   }
   return c->default_permissions;
 }
@@ -5716,10 +5920,10 @@ RestrictedRights ContactsManager::get_secret_chat_default_permissions(SecretChat
   auto c = get_secret_chat(secret_chat_id);
   if (c == nullptr) {
     return RestrictedRights(false, false, false, false, false, false, false, false, false, false, false, false, false,
-                            false, false, false, false);
+                            false, false, false, false, ChannelType::Unknown);
   }
   return RestrictedRights(true, true, true, true, true, true, true, true, true, true, true, true, true, false, false,
-                          false, false);
+                          false, false, ChannelType::Unknown);
 }
 
 bool ContactsManager::get_chat_has_protected_content(ChatId chat_id) const {
@@ -5929,6 +6133,17 @@ FolderId ContactsManager::get_secret_chat_initial_folder_id(SecretChatId secret_
   return c->initial_folder_id;
 }
 
+bool ContactsManager::can_use_premium_custom_emoji() const {
+  if (td_->option_manager_->get_option_boolean("is_premium")) {
+    return true;
+  }
+  if (!td_->auth_manager_->is_bot()) {
+    return false;
+  }
+  const User *u = get_user(get_my_id());
+  return u == nullptr || u->usernames.get_active_usernames().size() > (u->usernames.has_editable_username() ? 1u : 0u);
+}
+
 UserId ContactsManager::get_my_id() const {
   LOG_IF(ERROR, !my_id_.is_valid()) << "Wrong or unknown my ID returned";
   return my_id_;
@@ -5960,14 +6175,14 @@ void ContactsManager::set_my_online_status(bool is_online, bool send_update, boo
   User *u = get_user_force(my_id, "set_my_online_status");
   if (u != nullptr) {
     int32 new_online;
-    int32 now = G()->unix_time();
+    int32 unix_time = G()->unix_time();
     if (is_online) {
-      new_online = now + 300;
+      new_online = unix_time + 300;
     } else {
-      new_online = now - 1;
+      new_online = unix_time - 1;
     }
 
-    auto old_was_online = get_user_was_online(u, my_id);
+    auto old_was_online = get_user_was_online(u, my_id, unix_time);
     if (is_local) {
       LOG(INFO) << "Update my local online from " << my_was_online_local_ << " to " << new_online;
       if (!is_online) {
@@ -5984,7 +6199,7 @@ void ContactsManager::set_my_online_status(bool is_online, bool send_update, boo
         u->need_save_to_database = true;
       }
     }
-    if (old_was_online != get_user_was_online(u, my_id)) {
+    if (old_was_online != get_user_was_online(u, my_id, unix_time)) {
       u->is_status_changed = true;
       u->is_online_status_changed = true;
     }
@@ -6004,7 +6219,7 @@ void ContactsManager::set_my_online_status(bool is_online, bool send_update, boo
 ContactsManager::MyOnlineStatusInfo ContactsManager::get_my_online_status() const {
   MyOnlineStatusInfo status_info;
   status_info.is_online_local = td_->is_online();
-  status_info.is_online_remote = was_online_remote_ > G()->unix_time_cached();
+  status_info.is_online_remote = was_online_remote_ > G()->unix_time();
   status_info.was_online_local = was_online_local_;
   status_info.was_online_remote = was_online_remote_;
 
@@ -6184,7 +6399,7 @@ bool ContactsManager::is_allowed_username(const string &username) {
   return true;
 }
 
-int32 ContactsManager::get_user_was_online(const User *u, UserId user_id) const {
+int32 ContactsManager::get_user_was_online(const User *u, UserId user_id, int32 unix_time) const {
   if (u == nullptr || u->is_deleted) {
     return 0;
   }
@@ -6195,7 +6410,7 @@ int32 ContactsManager::get_user_was_online(const User *u, UserId user_id) const 
       was_online = my_was_online_local_;
     }
   } else {
-    if (u->local_was_online > 0 && u->local_was_online > was_online && u->local_was_online > G()->unix_time_cached()) {
+    if (u->local_was_online > 0 && u->local_was_online > was_online && u->local_was_online > unix_time) {
       was_online = u->local_was_online;
     }
   }
@@ -7461,6 +7676,15 @@ void ContactsManager::delete_profile_photo(int64 profile_photo_id, bool is_recur
   td_->create_handler<DeleteProfilePhotoQuery>(std::move(promise))->send(profile_photo_id);
 }
 
+void ContactsManager::set_accent_color(AccentColorId accent_color_id, CustomEmojiId background_custom_emoji_id,
+                                       Promise<Unit> &&promise) {
+  if (!accent_color_id.is_valid()) {
+    return promise.set_error(Status::Error(400, "Invalid accent color identifier specified"));
+  }
+
+  td_->create_handler<UpdateColorQuery>(std::move(promise))->send(accent_color_id, background_custom_emoji_id);
+}
+
 void ContactsManager::set_name(const string &first_name, const string &last_name, Promise<Unit> &&promise) {
   auto new_first_name = clean_name(first_name, MAX_NAME_LENGTH);
   auto new_last_name = clean_name(last_name, MAX_NAME_LENGTH);
@@ -7506,6 +7730,18 @@ void ContactsManager::set_bio(const string &bio, Promise<Unit> &&promise) {
   }
 
   td_->create_handler<UpdateProfileQuery>(std::move(promise))->send(flags, "", "", new_bio);
+}
+
+void ContactsManager::on_update_accent_color_success(AccentColorId accent_color_id,
+                                                     CustomEmojiId background_custom_emoji_id) {
+  auto user_id = get_my_id();
+  User *u = get_user_force(user_id, "on_update_accent_color_success");
+  if (u == nullptr) {
+    return;
+  }
+  on_update_user_accent_color_id(u, user_id, accent_color_id);
+  on_update_user_background_custom_emoji_id(u, user_id, background_custom_emoji_id);
+  update_user(u, user_id);
 }
 
 void ContactsManager::on_update_profile_success(int32 flags, const string &first_name, const string &last_name,
@@ -7770,6 +8006,27 @@ void ContactsManager::on_update_channel_active_usernames_order(ChannelId channel
   on_update_channel_usernames(c, channel_id, c->usernames.reorder_to(std::move(usernames)));
   update_channel(c, channel_id);
   promise.set_value(Unit());
+}
+
+void ContactsManager::set_channel_accent_color(ChannelId channel_id, AccentColorId accent_color_id,
+                                               CustomEmojiId background_custom_emoji_id, Promise<Unit> &&promise) {
+  if (!accent_color_id.is_valid()) {
+    return promise.set_error(Status::Error(400, "Invalid accent color identifier specified"));
+  }
+
+  const auto *c = get_channel(channel_id);
+  if (c == nullptr) {
+    return promise.set_error(Status::Error(400, "Chat not found"));
+  }
+  if (c->is_megagroup) {
+    return promise.set_error(Status::Error(400, "Accent color can be changed only in channel chats"));
+  }
+  if (!get_channel_status(c).can_change_info_and_settings()) {
+    return promise.set_error(Status::Error(400, "Not enough rights in the channel"));
+  }
+
+  td_->create_handler<UpdateChannelColorQuery>(std::move(promise))
+      ->send(channel_id, accent_color_id, background_custom_emoji_id);
 }
 
 void ContactsManager::set_channel_sticker_set(ChannelId channel_id, StickerSetId sticker_set_id,
@@ -8220,7 +8477,7 @@ bool ContactsManager::can_get_channel_message_statistics(DialogId dialog_id) con
     return channel_full->stats_dc_id.is_exact();
   }
 
-  return c->status.is_administrator();
+  return c->status.can_post_messages();
 }
 
 void ContactsManager::report_channel_spam(ChannelId channel_id, const vector<MessageId> &message_ids,
@@ -9309,8 +9566,7 @@ void ContactsManager::get_created_public_dialogs(PublicDialogType type,
         }
         return channel_id;
       });
-      if (std::any_of(r_channel_ids.begin(), r_channel_ids.end(),
-                      [](auto &r_channel_id) { return r_channel_id.is_error(); })) {
+      if (any_of(r_channel_ids, [](const auto &r_channel_id) { return r_channel_id.is_error(); })) {
         LOG(ERROR) << "Can't parse " << str;
         G()->td_db()->get_binlog_pmc()->erase(pmc_key);
       } else {
@@ -9531,6 +9787,7 @@ void ContactsManager::remove_inactive_channel(ChannelId channel_id) {
 }
 
 void ContactsManager::register_message_users(MessageFullId message_full_id, vector<UserId> user_ids) {
+  CHECK(message_full_id.get_dialog_id().is_valid());
   for (auto user_id : user_ids) {
     CHECK(user_id.is_valid());
     const User *u = get_user(user_id);
@@ -10059,6 +10316,9 @@ void ContactsManager::on_get_user(tl_object_ptr<telegram_api::User> &&user_ptr, 
     on_update_user_usernames(u, user_id, Usernames{std::move(user->username_), std::move(user->usernames_)});
   }
   on_update_user_emoji_status(u, user_id, EmojiStatus(std::move(user->emoji_status_)));
+  on_update_user_accent_color_id(
+      u, user_id, ((flags2 & telegram_api::user::COLOR_MASK) != 0 ? AccentColorId(user->color_) : AccentColorId()));
+  on_update_user_background_custom_emoji_id(u, user_id, CustomEmojiId(user->background_emoji_id_));
 
   bool is_verified = (flags & USER_FLAG_IS_VERIFIED) != 0;
   bool is_premium = (flags & USER_FLAG_IS_PREMIUM) != 0;
@@ -10510,7 +10770,7 @@ ContactsManager::User *ContactsManager::get_user_force(UserId user_id, const cha
         false /*ignored*/, false /*ignored*/, false /*ignored*/, 0, false /*ignored*/, false /*ignored*/,
         false /*ignored*/, false /*ignored*/, user_id.get(), 1, first_name, string(), username, phone_number,
         std::move(profile_photo), nullptr, bot_info_version, Auto(), string(), string(), nullptr,
-        vector<telegram_api::object_ptr<telegram_api::username>>(), 0);
+        vector<telegram_api::object_ptr<telegram_api::username>>(), 0, 0, 0);
     on_get_user(std::move(user), "get_user_force");
     u = get_user(user_id);
     CHECK(u != nullptr && u->is_received);
@@ -11731,14 +11991,31 @@ void ContactsManager::update_user(User *u, UserId user_id, bool from_binlog, boo
     });
     u->is_photo_changed = false;
   }
+  if (u->is_accent_color_id_changed) {
+    auto messages_manager = td_->messages_manager_.get();
+    messages_manager->on_dialog_accent_color_id_updated(DialogId(user_id));
+    for_each_secret_chat_with_user(user_id, [messages_manager](SecretChatId secret_chat_id) {
+      messages_manager->on_dialog_accent_color_id_updated(DialogId(secret_chat_id));
+    });
+    u->is_accent_color_id_changed = false;
+  }
+  if (u->is_background_custom_emoji_id_changed) {
+    auto messages_manager = td_->messages_manager_.get();
+    messages_manager->on_dialog_background_custom_emoji_id_updated(DialogId(user_id));
+    for_each_secret_chat_with_user(user_id, [messages_manager](SecretChatId secret_chat_id) {
+      messages_manager->on_dialog_background_custom_emoji_id_updated(DialogId(secret_chat_id));
+    });
+    u->is_background_custom_emoji_id_changed = false;
+  }
   if (u->is_phone_number_changed) {
     if (!u->phone_number.empty() && !td_->auth_manager_->is_bot()) {
       resolved_phone_numbers_[u->phone_number] = user_id;
     }
     u->is_phone_number_changed = false;
   }
+  auto unix_time = G()->unix_time();
   if (u->is_status_changed && user_id != get_my_id()) {
-    auto left_time = get_user_was_online(u, user_id) - G()->server_time_cached();
+    auto left_time = get_user_was_online(u, user_id, unix_time) - G()->server_time();
     if (left_time >= 0 && left_time < 30 * 86400) {
       left_time += 2.0;  // to guarantee expiration
       LOG(DEBUG) << "Set online timeout for " << user_id << " in " << left_time << " seconds";
@@ -11761,7 +12038,6 @@ void ContactsManager::update_user(User *u, UserId user_id, bool from_binlog, boo
     }
   }
 
-  auto unix_time = G()->unix_time();
   auto effective_emoji_status = u->emoji_status.get_effective_emoji_status(u->is_premium, unix_time);
   if (effective_emoji_status != u->last_sent_emoji_status) {
     u->last_sent_emoji_status = effective_emoji_status;
@@ -11811,8 +12087,9 @@ void ContactsManager::update_user(User *u, UserId user_id, bool from_binlog, boo
       u->is_status_saved = false;
     }
     CHECK(u->is_update_user_sent);
-    send_closure(G()->td(), &Td::send_update,
-                 make_tl_object<td_api::updateUserStatus>(user_id.get(), get_user_status_object(user_id, u)));
+    send_closure(
+        G()->td(), &Td::send_update,
+        make_tl_object<td_api::updateUserStatus>(user_id.get(), get_user_status_object(user_id, u, unix_time)));
     u->is_status_changed = false;
   }
   if (u->is_online_status_changed) {
@@ -11970,6 +12247,14 @@ void ContactsManager::update_channel(Channel *c, ChannelId channel_id, bool from
       }
     }
   }
+  if (c->is_accent_color_id_changed) {
+    td_->messages_manager_->on_dialog_accent_color_id_updated(DialogId(channel_id));
+    c->is_accent_color_id_changed = false;
+  }
+  if (c->is_background_custom_emoji_id_changed) {
+    td_->messages_manager_->on_dialog_background_custom_emoji_id_updated(DialogId(channel_id));
+    c->is_background_custom_emoji_id_changed = false;
+  }
   if (c->is_title_changed) {
     td_->messages_manager_->on_dialog_title_updated(DialogId(channel_id));
     c->is_title_changed = false;
@@ -11979,7 +12264,7 @@ void ContactsManager::update_channel(Channel *c, ChannelId channel_id, bool from
     auto until_date = c->status.get_until_date();
     int32 left_time = 0;
     if (until_date > 0) {
-      left_time = until_date - G()->unix_time_cached() + 1;
+      left_time = until_date - G()->unix_time() + 1;
       CHECK(left_time > 0);
     }
     if (left_time > 0 && left_time < 366 * 86400) {
@@ -12016,7 +12301,8 @@ void ContactsManager::update_channel(Channel *c, ChannelId channel_id, bool from
   if (c->is_default_permissions_changed) {
     td_->messages_manager_->on_dialog_default_permissions_updated(DialogId(channel_id));
     if (c->default_permissions != RestrictedRights(false, false, false, false, false, false, false, false, false, false,
-                                                   false, false, false, false, false, false, false)) {
+                                                   false, false, false, false, false, false, false,
+                                                   ChannelType::Unknown)) {
       remove_dialog_suggested_action(SuggestedAction{SuggestedAction::Type::ConvertToGigagroup, DialogId(channel_id)});
     }
     c->is_default_permissions_changed = false;
@@ -13080,9 +13366,10 @@ void ContactsManager::on_get_chat_full(tl_object_ptr<telegram_api::ChatFull> &&c
           SuggestedAction suggested_action(action_str, DialogId(channel_id));
           if (!suggested_action.is_empty()) {
             if (suggested_action == SuggestedAction{SuggestedAction::Type::ConvertToGigagroup, DialogId(channel_id)} &&
-                (c->is_gigagroup || c->default_permissions != RestrictedRights(false, false, false, false, false, false,
-                                                                               false, false, false, false, false, false,
-                                                                               false, false, false, false, false))) {
+                (c->is_gigagroup ||
+                 c->default_permissions != RestrictedRights(false, false, false, false, false, false, false, false,
+                                                            false, false, false, false, false, false, false, false,
+                                                            false, ChannelType::Unknown))) {
               LOG(INFO) << "Skip ConvertToGigagroup suggested action";
             } else {
               suggested_actions.push_back(suggested_action);
@@ -13327,6 +13614,26 @@ void ContactsManager::register_user_photo(User *u, UserId user_id, const Photo &
   }
 }
 
+void ContactsManager::on_update_user_accent_color_id(User *u, UserId user_id, AccentColorId accent_color_id) {
+  if (accent_color_id == AccentColorId(user_id) || !accent_color_id.is_valid()) {
+    accent_color_id = AccentColorId();
+  }
+  if (u->accent_color_id != accent_color_id) {
+    u->accent_color_id = accent_color_id;
+    u->is_accent_color_id_changed = true;
+    u->is_changed = true;
+  }
+}
+
+void ContactsManager::on_update_user_background_custom_emoji_id(User *u, UserId user_id,
+                                                                CustomEmojiId background_custom_emoji_id) {
+  if (u->background_custom_emoji_id != background_custom_emoji_id) {
+    u->background_custom_emoji_id = background_custom_emoji_id;
+    u->is_background_custom_emoji_id_changed = true;
+    u->is_changed = true;
+  }
+}
+
 void ContactsManager::on_update_user_emoji_status(UserId user_id,
                                                   tl_object_ptr<telegram_api::EmojiStatus> &&emoji_status) {
   if (!user_id.is_valid()) {
@@ -13412,7 +13719,7 @@ void ContactsManager::on_update_user_story_ids_impl(User *u, UserId user_id, Sto
     u->need_save_to_database = true;
   }
   if (has_unread_stories != get_user_has_unread_stories(u)) {
-    LOG(DEBUG) << "Change has_unread_stories of " << user_id;
+    LOG(DEBUG) << "Change has_unread_stories of " << user_id << " to " << !has_unread_stories;
     u->is_changed = true;
   }
 }
@@ -13440,7 +13747,7 @@ void ContactsManager::on_update_user_max_read_story_id(User *u, UserId user_id, 
     u->need_save_to_database = true;
   }
   if (has_unread_stories != get_user_has_unread_stories(u)) {
-    LOG(DEBUG) << "Change has_unread_stories of " << user_id;
+    LOG(DEBUG) << "Change has_unread_stories of " << user_id << " to " << !has_unread_stories;
     u->is_changed = true;
   }
 }
@@ -13580,8 +13887,9 @@ void ContactsManager::on_update_user_online(User *u, UserId user_id, tl_object_p
 
   if (new_online != u->was_online) {
     LOG(DEBUG) << "Update " << user_id << " online from " << u->was_online << " to " << new_online;
-    bool old_is_online = u->was_online > G()->unix_time_cached();
-    bool new_is_online = new_online > G()->unix_time_cached();
+    auto unix_time = G()->unix_time();
+    bool old_is_online = u->was_online > unix_time;
+    bool new_is_online = new_online > unix_time;
     u->was_online = new_online;
     u->is_status_changed = true;
     if (u->was_online > 0) {
@@ -13622,20 +13930,21 @@ void ContactsManager::on_update_user_local_was_online(User *u, UserId user_id, i
   if (u->is_deleted || u->is_bot || u->is_support || user_id == get_my_id()) {
     return;
   }
-  if (u->was_online > G()->unix_time_cached()) {
+  int32 unix_time = G()->unix_time();
+  if (u->was_online > unix_time) {
     // if user is currently online, ignore local online
     return;
   }
 
   // bring users online for 30 seconds
   local_was_online += 30;
-  if (local_was_online < G()->unix_time_cached() + 2 || local_was_online <= u->local_was_online ||
+  if (local_was_online < unix_time + 2 || local_was_online <= u->local_was_online ||
       local_was_online <= u->was_online) {
     return;
   }
 
   LOG(DEBUG) << "Update " << user_id << " local online from " << u->local_was_online << " to " << local_was_online;
-  bool old_is_online = u->local_was_online > G()->unix_time_cached();
+  bool old_is_online = u->local_was_online > unix_time;
   u->local_was_online = local_was_online;
   u->is_status_changed = true;
 
@@ -14096,7 +14405,7 @@ void ContactsManager::update_user_online_member_count(User *u) {
     return;
   }
 
-  auto now = G()->unix_time_cached();
+  auto now = G()->unix_time();
   vector<DialogId> expired_dialog_ids;
   for (const auto &it : u->online_member_dialogs) {
     auto dialog_id = it.first;
@@ -14159,7 +14468,7 @@ void ContactsManager::update_dialog_online_member_count(const vector<DialogParti
   CHECK(dialog_id.is_valid());
 
   int32 online_member_count = 0;
-  int32 time = G()->unix_time();
+  int32 unix_time = G()->unix_time();
   for (const auto &participant : participants) {
     if (participant.dialog_id_.get_type() != DialogType::User) {
       continue;
@@ -14167,11 +14476,11 @@ void ContactsManager::update_dialog_online_member_count(const vector<DialogParti
     auto user_id = participant.dialog_id_.get_user_id();
     auto u = get_user(user_id);
     if (u != nullptr && !u->is_deleted && !u->is_bot) {
-      if (get_user_was_online(u, user_id) > time) {
+      if (get_user_was_online(u, user_id, unix_time) > unix_time) {
         online_member_count++;
       }
       if (is_from_server) {
-        u->online_member_dialogs[dialog_id] = time;
+        u->online_member_dialogs[dialog_id] = unix_time;
       }
     }
   }
@@ -14284,17 +14593,17 @@ const DialogParticipant *ContactsManager::get_chat_full_participant(const ChatFu
   return nullptr;
 }
 
-tl_object_ptr<td_api::chatMember> ContactsManager::get_chat_member_object(
-    const DialogParticipant &dialog_participant) const {
+tl_object_ptr<td_api::chatMember> ContactsManager::get_chat_member_object(const DialogParticipant &dialog_participant,
+                                                                          const char *source) const {
   DialogId dialog_id = dialog_participant.dialog_id_;
   UserId participant_user_id;
   if (dialog_id.get_type() == DialogType::User) {
     participant_user_id = dialog_id.get_user_id();
   } else {
-    td_->messages_manager_->force_create_dialog(dialog_id, "get_chat_member_object", true);
+    td_->messages_manager_->force_create_dialog(dialog_id, source, true);
   }
   return td_api::make_object<td_api::chatMember>(
-      get_message_sender_object_const(td_, dialog_id, "get_chat_member_object"),
+      get_message_sender_object_const(td_, dialog_id, source),
       get_user_id_object(dialog_participant.inviter_user_id_, "chatMember.inviter_user_id"),
       dialog_participant.joined_date_, dialog_participant.status_.get_chat_member_status_object());
 }
@@ -15242,6 +15551,7 @@ void ContactsManager::on_get_dialog_invite_link_info(const string &invite_link,
       invite_link_info->dialog_id = DialogId();
       invite_link_info->title = chat_invite->title_;
       invite_link_info->photo = get_photo(td_, std::move(chat_invite->photo_), DialogId());
+      invite_link_info->accent_color_id = AccentColorId(chat_invite->color_);
       invite_link_info->description = std::move(chat_invite->about_);
       invite_link_info->participant_count = chat_invite->participants_count_;
       invite_link_info->participant_user_ids = std::move(participant_user_ids);
@@ -15991,6 +16301,27 @@ void ContactsManager::on_update_channel_photo(Channel *c, ChannelId channel_id, 
   }
 }
 
+void ContactsManager::on_update_channel_accent_color_id(Channel *c, ChannelId channel_id,
+                                                        AccentColorId accent_color_id) {
+  if (accent_color_id == AccentColorId(channel_id) || !accent_color_id.is_valid()) {
+    accent_color_id = AccentColorId();
+  }
+  if (c->accent_color_id != accent_color_id) {
+    c->accent_color_id = accent_color_id;
+    c->is_accent_color_id_changed = true;
+    c->need_save_to_database = true;
+  }
+}
+
+void ContactsManager::on_update_channel_background_custom_emoji_id(Channel *c, ChannelId channel_id,
+                                                                   CustomEmojiId background_custom_emoji_id) {
+  if (c->background_custom_emoji_id != background_custom_emoji_id) {
+    c->background_custom_emoji_id = background_custom_emoji_id;
+    c->is_background_custom_emoji_id_changed = true;
+    c->need_save_to_database = true;
+  }
+}
+
 void ContactsManager::on_update_channel_title(Channel *c, ChannelId channel_id, string &&title) {
   if (c->title != title) {
     c->title = std::move(title);
@@ -16078,7 +16409,7 @@ void ContactsManager::on_channel_status_changed(Channel *c, ChannelId channel_id
 
 void ContactsManager::on_update_channel_default_permissions(Channel *c, ChannelId channel_id,
                                                             RestrictedRights default_permissions) {
-  if (c->default_permissions != default_permissions) {
+  if (c->is_megagroup && c->default_permissions != default_permissions) {
     LOG(INFO) << "Update " << channel_id << " default permissions from " << c->default_permissions << " to "
               << default_permissions;
     c->default_permissions = default_permissions;
@@ -16165,7 +16496,7 @@ void ContactsManager::on_update_channel_story_ids_impl(Channel *c, ChannelId cha
     c->need_save_to_database = true;
   }
   if (has_unread_stories != get_channel_has_unread_stories(c)) {
-    LOG(DEBUG) << "Change has_unread_stories of " << channel_id;
+    LOG(DEBUG) << "Change has_unread_stories of " << channel_id << " to " << !has_unread_stories;
     c->is_changed = true;
   }
 }
@@ -16193,7 +16524,7 @@ void ContactsManager::on_update_channel_max_read_story_id(Channel *c, ChannelId 
     c->need_save_to_database = true;
   }
   if (has_unread_stories != get_channel_has_unread_stories(c)) {
-    LOG(DEBUG) << "Change has_unread_stories of " << channel_id;
+    LOG(DEBUG) << "Change has_unread_stories of " << channel_id << " to " << !has_unread_stories;
     c->is_changed = true;
   }
 }
@@ -16482,7 +16813,8 @@ void ContactsManager::send_update_chat_member(DialogId dialog_id, UserId agent_u
                    td_->messages_manager_->get_chat_id_object(dialog_id, "updateChatMember"),
                    get_user_id_object(agent_user_id, "send_update_chat_member"), date,
                    invite_link.get_chat_invite_link_object(this), via_dialog_filter_invite_link,
-                   get_chat_member_object(old_dialog_participant), get_chat_member_object(new_dialog_participant)));
+                   get_chat_member_object(old_dialog_participant, "send_update_chat_member old"),
+                   get_chat_member_object(new_dialog_participant, "send_update_chat_member new")));
 }
 
 void ContactsManager::on_update_bot_stopped(UserId user_id, int32 date, bool is_stopped) {
@@ -16736,8 +17068,9 @@ Result<ContactsManager::BotData> ContactsManager::get_bot_data(UserId user_id) c
 }
 
 bool ContactsManager::is_user_online(UserId user_id, int32 tolerance) const {
-  int32 was_online = get_user_was_online(get_user(user_id), user_id);
-  return was_online > G()->unix_time() - tolerance;
+  auto unix_time = G()->unix_time();
+  int32 was_online = get_user_was_online(get_user(user_id), user_id, unix_time);
+  return was_online > unix_time - tolerance;
 }
 
 bool ContactsManager::is_user_status_exact(UserId user_id) const {
@@ -17464,10 +17797,6 @@ DialogParticipantStatus ContactsManager::get_channel_permissions(ChannelId chann
 
 DialogParticipantStatus ContactsManager::get_channel_permissions(const Channel *c) const {
   c->status.update_restrictions();
-  if (!c->is_megagroup) {
-    // there is no restrictions in broadcast channels
-    return c->status;
-  }
   return c->status.apply_restrictions(c->default_permissions, td_->auth_manager_->is_bot());
 }
 
@@ -17857,6 +18186,7 @@ std::pair<int32, vector<DialogId>> ContactsManager::search_among_dialogs(const v
                                                                          const string &query, int32 limit) const {
   Hints hints;  // TODO cache Hints
 
+  auto unix_time = G()->unix_time();
   for (auto dialog_id : dialog_ids) {
     int64 rating = 0;
     if (dialog_id.get_type() == DialogType::User) {
@@ -17870,7 +18200,7 @@ std::pair<int32, vector<DialogId>> ContactsManager::search_among_dialogs(const v
       } else {
         hints.add(dialog_id.get(), get_user_search_text(u));
       }
-      rating = -get_user_was_online(u, user_id);
+      rating = -get_user_was_online(u, user_id, unix_time);
     } else {
       if (!td_->messages_manager_->have_dialog_info(dialog_id)) {
         continue;
@@ -18040,7 +18370,7 @@ void ContactsManager::finish_get_dialog_participant(DialogParticipant &&dialog_p
     return promise.set_error(Status::Error(400, "Member not found"));
   }
 
-  promise.set_value(get_chat_member_object(dialog_participant));
+  promise.set_value(get_chat_member_object(dialog_participant, "finish_get_dialog_participant"));
 }
 
 void ContactsManager::do_get_dialog_participant(DialogId dialog_id, DialogId participant_dialog_id,
@@ -18601,7 +18931,8 @@ void ContactsManager::on_get_chat(telegram_api::chat &chat, const char *source) 
     c->need_save_to_database = true;
   }
   on_update_chat_status(c, chat_id, std::move(status));
-  on_update_chat_default_permissions(c, chat_id, RestrictedRights(chat.default_banned_rights_), chat.version_);
+  on_update_chat_default_permissions(c, chat_id, RestrictedRights(chat.default_banned_rights_, ChannelType::Unknown),
+                                     chat.version_);
   on_update_chat_photo(c, chat_id, std::move(chat.photo_));
   on_update_chat_active(c, chat_id, is_active);
   on_update_chat_noforwards(c, chat_id, chat.noforwards_);
@@ -18730,7 +19061,8 @@ void ContactsManager::on_get_channel(telegram_api::channel &channel, const char 
       return DialogParticipantStatus(false, std::move(channel.admin_rights_), string(),
                                      is_megagroup ? ChannelType::Megagroup : ChannelType::Broadcast);
     } else if (channel.banned_rights_ != nullptr) {
-      return DialogParticipantStatus(!has_left, std::move(channel.banned_rights_));
+      return DialogParticipantStatus(!has_left, std::move(channel.banned_rights_),
+                                     is_megagroup ? ChannelType::Megagroup : ChannelType::Broadcast);
     } else if (has_left) {
       return DialogParticipantStatus::Left();
     } else {
@@ -18751,7 +19083,8 @@ void ContactsManager::on_get_channel(telegram_api::channel &channel, const char 
       if (!c->status.is_banned()) {
         on_update_channel_photo(c, channel_id, std::move(channel.photo_));
       }
-      on_update_channel_default_permissions(c, channel_id, RestrictedRights(channel.default_banned_rights_));
+      on_update_channel_default_permissions(c, channel_id,
+                                            RestrictedRights(channel.default_banned_rights_, ChannelType::Megagroup));
       on_update_channel_has_location(c, channel_id, channel.has_geo_);
       on_update_channel_noforwards(c, channel_id, channel.noforwards_);
 
@@ -18794,6 +19127,9 @@ void ContactsManager::on_get_channel(telegram_api::channel &channel, const char 
       if (td_->auth_manager_->is_bot()) {
         min_channel->photo_.minithumbnail.clear();
       }
+      if ((channel.flags2_ & telegram_api::channel::COLOR_MASK) != 0) {
+        min_channel->accent_color_id_ = AccentColorId(channel.color_);
+      }
       min_channel->title_ = std::move(channel.title_);
       min_channel->is_megagroup_ = is_megagroup;
 
@@ -18824,12 +19160,17 @@ void ContactsManager::on_get_channel(telegram_api::channel &channel, const char 
     c->is_changed = true;
   }
   on_update_channel_photo(c, channel_id, std::move(channel.photo_));
+  on_update_channel_accent_color_id(
+      c, channel_id,
+      ((channel.flags2_ & telegram_api::channel::COLOR_MASK) != 0 ? AccentColorId(channel.color_) : AccentColorId()));
+  on_update_channel_background_custom_emoji_id(c, channel_id, CustomEmojiId(channel.background_emoji_id_));
   on_update_channel_status(c, channel_id, std::move(status));
   on_update_channel_usernames(
       c, channel_id,
       Usernames(std::move(channel.username_),
                 std::move(channel.usernames_)));  // uses status, must be called after on_update_channel_status
-  on_update_channel_default_permissions(c, channel_id, RestrictedRights(channel.default_banned_rights_));
+  on_update_channel_default_permissions(c, channel_id,
+                                        RestrictedRights(channel.default_banned_rights_, ChannelType::Megagroup));
   on_update_channel_has_location(c, channel_id, channel.has_geo_);
   on_update_channel_noforwards(c, channel_id, channel.noforwards_);
   if (!td_->auth_manager_->is_bot() && !channel.stories_hidden_min_) {
@@ -18939,7 +19280,7 @@ void ContactsManager::on_get_channel_forbidden(telegram_api::channelForbidden &c
   on_update_channel_status(c, channel_id, DialogParticipantStatus::Banned(channel.until_date_));
   // on_update_channel_usernames(c, channel_id, Usernames());  // don't know if channel usernames are empty, so don't update it
   tl_object_ptr<telegram_api::chatBannedRights> banned_rights;  // == nullptr
-  on_update_channel_default_permissions(c, channel_id, RestrictedRights(banned_rights));
+  on_update_channel_default_permissions(c, channel_id, RestrictedRights(banned_rights, ChannelType::Megagroup));
   // on_update_channel_has_location(c, channel_id, false);
   on_update_channel_noforwards(c, channel_id, false);
   td_->messages_manager_->on_update_dialog_group_call(DialogId(channel_id), false, false, "on_get_channel_forbidden");
@@ -19084,12 +19425,13 @@ void ContactsManager::on_upload_profile_photo_error(FileId file_id, Status statu
   promise.set_error(std::move(status));  // TODO check that status has valid error code
 }
 
-td_api::object_ptr<td_api::UserStatus> ContactsManager::get_user_status_object(UserId user_id, const User *u) const {
+td_api::object_ptr<td_api::UserStatus> ContactsManager::get_user_status_object(UserId user_id, const User *u,
+                                                                               int32 unix_time) const {
   if (u->is_bot) {
     return make_tl_object<td_api::userStatusOnline>(std::numeric_limits<int32>::max());
   }
 
-  int32 was_online = get_user_was_online(u, user_id);
+  int32 was_online = get_user_was_online(u, user_id, unix_time);
   switch (was_online) {
     case -3:
       return make_tl_object<td_api::userStatusLastMonth>();
@@ -19125,9 +19467,10 @@ td_api::object_ptr<td_api::updateUser> ContactsManager::get_update_user_object(U
 td_api::object_ptr<td_api::updateUser> ContactsManager::get_update_unknown_user_object(UserId user_id) const {
   auto have_access = user_id == get_my_id() || user_messages_.count(user_id) != 0;
   return td_api::make_object<td_api::updateUser>(td_api::make_object<td_api::user>(
-      user_id.get(), "", "", nullptr, "", td_api::make_object<td_api::userStatusEmpty>(), nullptr, nullptr, false,
-      false, false, false, false, false, "", false, false, false, false, have_access,
-      td_api::make_object<td_api::userTypeUnknown>(), "", false));
+      user_id.get(), "", "", nullptr, "", td_api::make_object<td_api::userStatusEmpty>(), nullptr,
+      td_->theme_manager_->get_accent_color_id_object(AccentColorId(user_id)), 0, nullptr, false, false, false, false,
+      false, false, "", false, false, false, false, have_access, td_api::make_object<td_api::userTypeUnknown>(), "",
+      false));
 }
 
 int64 ContactsManager::get_user_id_object(UserId user_id, const char *source) const {
@@ -19161,11 +19504,15 @@ tl_object_ptr<td_api::user> ContactsManager::get_user_object(UserId user_id, con
   auto emoji_status =
       !u->last_sent_emoji_status.is_empty() ? u->last_sent_emoji_status.get_emoji_status_object() : nullptr;
   auto have_access = user_id == get_my_id() || have_input_peer_user(u, user_id, AccessRights::Know);
+  auto accent_color_id = u->accent_color_id.is_valid() ? u->accent_color_id : AccentColorId(user_id);
   return td_api::make_object<td_api::user>(
       user_id.get(), u->first_name, u->last_name, u->usernames.get_usernames_object(), u->phone_number,
-      get_user_status_object(user_id, u), get_profile_photo_object(td_->file_manager_.get(), u->photo),
-      std::move(emoji_status), u->is_contact, u->is_mutual_contact, u->is_close_friend, u->is_verified, u->is_premium,
-      u->is_support, get_restriction_reason_description(u->restriction_reasons), u->is_scam, u->is_fake,
+      get_user_status_object(user_id, u, G()->unix_time()),
+      get_profile_photo_object(td_->file_manager_.get(), u->photo),
+      td_->theme_manager_->get_accent_color_id_object(accent_color_id, AccentColorId(user_id)),
+      u->background_custom_emoji_id.get(), std::move(emoji_status), u->is_contact, u->is_mutual_contact,
+      u->is_close_friend, u->is_verified, u->is_premium, u->is_support,
+      get_restriction_reason_description(u->restriction_reasons), u->is_scam, u->is_fake,
       u->max_active_story_id.is_valid(), get_user_has_unread_stories(u), have_access, std::move(type), u->language_code,
       u->attach_menu_enabled);
 }
@@ -19305,7 +19652,7 @@ tl_object_ptr<td_api::basicGroupFullInfo> ContactsManager::get_basic_group_full_
     return commands.get_bot_commands_object(td);
   });
   auto members = transform(chat_full->participants, [this](const DialogParticipant &dialog_participant) {
-    return get_chat_member_object(dialog_participant);
+    return get_chat_member_object(dialog_participant, "get_basic_group_full_info_object");
   });
   return make_tl_object<td_api::basicGroupFullInfo>(
       get_chat_photo_object(td_->file_manager_.get(), chat_full->photo), chat_full->description,
@@ -19476,6 +19823,7 @@ tl_object_ptr<td_api::chatInviteLinkInfo> ContactsManager::get_chat_invite_link_
   string title;
   const DialogPhoto *photo = nullptr;
   DialogPhoto invite_link_photo;
+  int32 accent_color_id_object;
   string description;
   int32 participant_count = 0;
   vector<int64> member_user_ids;
@@ -19501,6 +19849,7 @@ tl_object_ptr<td_api::chatInviteLinkInfo> ContactsManager::get_chat_invite_link_
         } else {
           LOG(ERROR) << "Have no information about " << chat_id;
         }
+        accent_color_id_object = get_chat_accent_color_id_object(chat_id);
         break;
       }
       case DialogType::Channel: {
@@ -19520,6 +19869,7 @@ tl_object_ptr<td_api::chatInviteLinkInfo> ContactsManager::get_chat_invite_link_
         } else {
           LOG(ERROR) << "Have no information about " << channel_id;
         }
+        accent_color_id_object = get_channel_accent_color_id_object(channel_id);
         break;
       }
       default:
@@ -19532,6 +19882,7 @@ tl_object_ptr<td_api::chatInviteLinkInfo> ContactsManager::get_chat_invite_link_
     title = invite_link_info->title;
     invite_link_photo = as_fake_dialog_photo(invite_link_info->photo, dialog_id, false);
     photo = &invite_link_photo;
+    accent_color_id_object = td_->theme_manager_->get_accent_color_id_object(invite_link_info->accent_color_id);
     description = invite_link_info->description;
     participant_count = invite_link_info->participant_count;
     member_user_ids = get_user_ids_object(invite_link_info->participant_user_ids, "get_chat_invite_link_info_object");
@@ -19564,8 +19915,8 @@ tl_object_ptr<td_api::chatInviteLinkInfo> ContactsManager::get_chat_invite_link_
 
   return td_api::make_object<td_api::chatInviteLinkInfo>(
       td_->messages_manager_->get_chat_id_object(dialog_id, "chatInviteLinkInfo"), accessible_for, std::move(chat_type),
-      title, get_chat_photo_info_object(td_->file_manager_.get(), photo), description, participant_count,
-      std::move(member_user_ids), creates_join_request, is_public, is_verified, is_scam, is_fake);
+      title, get_chat_photo_info_object(td_->file_manager_.get(), photo), accent_color_id_object, description,
+      participant_count, std::move(member_user_ids), creates_join_request, is_public, is_verified, is_scam, is_fake);
 }
 
 void ContactsManager::get_support_user(Promise<td_api::object_ptr<td_api::user>> &&promise) {

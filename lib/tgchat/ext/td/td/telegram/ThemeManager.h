@@ -6,6 +6,7 @@
 //
 #pragma once
 
+#include "td/telegram/AccentColorId.h"
 #include "td/telegram/BackgroundInfo.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
@@ -13,6 +14,7 @@
 #include "td/actor/actor.h"
 
 #include "td/utils/common.h"
+#include "td/utils/FlatHashMap.h"
 #include "td/utils/Promise.h"
 #include "td/utils/Status.h"
 
@@ -28,8 +30,15 @@ class ThemeManager final : public Actor {
 
   void on_update_theme(telegram_api::object_ptr<telegram_api::theme> &&theme, Promise<Unit> &&promise);
 
+  void on_update_accent_colors(FlatHashMap<AccentColorId, vector<int32>, AccentColorIdHash> light_colors,
+                               FlatHashMap<AccentColorId, vector<int32>, AccentColorIdHash> dark_colors,
+                               vector<AccentColorId> accent_color_ids);
+
   static string get_theme_parameters_json_string(const td_api::object_ptr<td_api::themeParameters> &theme,
                                                  bool for_web_view);
+
+  int32 get_accent_color_id_object(AccentColorId accent_color_id,
+                                   AccentColorId fallback_accent_color_id = AccentColorId()) const;
 
   void get_current_state(vector<td_api::object_ptr<td_api::Update>> &updates) const;
 
@@ -83,11 +92,25 @@ class ThemeManager final : public Actor {
     void parse(ParserT &parser);
   };
 
-  void start_up() final;
+  struct AccentColors {
+    FlatHashMap<AccentColorId, vector<int32>, AccentColorIdHash> light_colors_;
+    FlatHashMap<AccentColorId, vector<int32>, AccentColorIdHash> dark_colors_;
+    vector<AccentColorId> accent_color_ids_;
+
+    td_api::object_ptr<td_api::updateAccentColors> get_update_accent_colors_object() const;
+
+    template <class StorerT>
+    void store(StorerT &storer) const;
+
+    template <class ParserT>
+    void parse(ParserT &parser);
+  };
 
   void loop() final;
 
   void tear_down() final;
+
+  void do_init();
 
   static bool is_dark_base_theme(BaseTheme base_theme);
 
@@ -101,7 +124,11 @@ class ThemeManager final : public Actor {
 
   static string get_chat_themes_database_key();
 
+  string get_accent_colors_database_key();
+
   void save_chat_themes();
+
+  void save_accent_colors();
 
   void send_update_chat_themes() const;
 
@@ -109,7 +136,13 @@ class ThemeManager final : public Actor {
 
   ThemeSettings get_chat_theme_settings(telegram_api::object_ptr<telegram_api::themeSettings> settings);
 
+  td_api::object_ptr<td_api::updateAccentColors> get_update_accent_colors_object() const;
+
+  void send_update_accent_colors() const;
+
   ChatThemes chat_themes_;
+
+  AccentColors accent_colors_;
 
   Td *td_;
   ActorShared<> parent_;

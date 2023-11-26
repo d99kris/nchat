@@ -43,12 +43,12 @@ class AttachMenuManager final : public Actor {
                             string &&platform, bool allow_write_access, Promise<string> &&promise);
 
   void request_web_view(DialogId dialog_id, UserId bot_user_id, MessageId top_thread_message_id,
-                        td_api::object_ptr<td_api::MessageReplyTo> &&reply_to, string &&url,
+                        td_api::object_ptr<td_api::InputMessageReplyTo> &&reply_to, string &&url,
                         td_api::object_ptr<td_api::themeParameters> &&theme, string &&platform,
                         Promise<td_api::object_ptr<td_api::webAppInfo>> &&promise);
 
   void open_web_view(int64 query_id, DialogId dialog_id, UserId bot_user_id, MessageId top_thread_message_id,
-                     MessageInputReplyTo input_reply_to, DialogId as_dialog_id);
+                     MessageInputReplyTo &&input_reply_to, DialogId as_dialog_id);
 
   void close_web_view(int64 query_id, Promise<Unit> &&promise);
 
@@ -104,7 +104,6 @@ class AttachMenuManager final : public Actor {
     bool supports_bot_dialogs_ = false;
     bool supports_group_dialogs_ = false;
     bool supports_broadcast_dialogs_ = false;
-    bool supports_settings_ = false;
     bool request_write_access_ = false;
     bool show_in_attach_menu_ = false;
     bool show_in_side_menu_ = false;

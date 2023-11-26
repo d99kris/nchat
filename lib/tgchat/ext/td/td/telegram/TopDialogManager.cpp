@@ -197,7 +197,8 @@ void TopDialogManager::on_toggle_top_peers(bool is_enabled, Result<Unit> &&resul
 }
 
 void TopDialogManager::on_dialog_used(TopDialogCategory category, DialogId dialog_id, int32 date) {
-  if (!is_active_ || !is_enabled_) {
+  CHECK(!td_->auth_manager_->is_bot());
+  if (!is_enabled_) {
     return;
   }
   auto pos = static_cast<size_t>(category);
@@ -240,7 +241,8 @@ void TopDialogManager::remove_dialog(TopDialogCategory category, DialogId dialog
   if (!td_->messages_manager_->have_dialog_force(dialog_id, "remove_dialog")) {
     return promise.set_error(Status::Error(400, "Chat not found"));
   }
-  if (!is_active_ || !is_enabled_) {
+  CHECK(!td_->auth_manager_->is_bot());
+  if (!is_enabled_) {
     return promise.set_value(Unit());
   }
 
@@ -293,9 +295,7 @@ int TopDialogManager::is_top_dialog(TopDialogCategory category, size_t limit, Di
   CHECK(category != TopDialogCategory::Size);
   CHECK(category != TopDialogCategory::ForwardUsers);
   CHECK(limit > 0);
-  if (!is_active_) {
-    return -1;
-  }
+  CHECK(!td_->auth_manager_->is_bot());
   if (!is_enabled_) {
     return 0;
   }
@@ -313,7 +313,7 @@ int TopDialogManager::is_top_dialog(TopDialogCategory category, size_t limit, Di
 }
 
 void TopDialogManager::update_rating_e_decay() {
-  if (!is_active_) {
+  if (td_->auth_manager_->is_bot()) {
     return;
   }
   rating_e_decay_ = narrow_cast<int32>(G()->get_option_integer("rating_e_decay", rating_e_decay_));
@@ -351,14 +351,15 @@ double TopDialogManager::rating_add(double now, double rating_timestamp) const {
   return std::exp((now - rating_timestamp) / rating_e_decay_);
 }
 
-double TopDialogManager::current_rating_add(double rating_timestamp) const {
-  return rating_add(G()->server_time_cached(), rating_timestamp);
+double TopDialogManager::current_rating_add(double server_time, double rating_timestamp) const {
+  return rating_add(server_time, rating_timestamp);
 }
 
 void TopDialogManager::normalize_rating() {
+  auto server_time = G()->server_time();
   for (auto &top_dialogs : by_category_) {
-    auto div_by = current_rating_add(top_dialogs.rating_timestamp);
-    top_dialogs.rating_timestamp = G()->server_time_cached();
+    auto div_by = current_rating_add(server_time, top_dialogs.rating_timestamp);
+    top_dialogs.rating_timestamp = server_time;
     for (auto &dialog : top_dialogs.dialogs) {
       dialog.rating /= div_by;
     }
@@ -553,7 +554,6 @@ void TopDialogManager::init() {
     return;
   }
 
-  is_active_ = !td_->auth_manager_->is_bot();
   is_enabled_ = !G()->get_option_boolean("disable_top_chats");
   update_rating_e_decay();
 
@@ -571,13 +571,12 @@ void TopDialogManager::try_start() {
   first_unsync_change_ = Timestamp();
   server_sync_state_ = SyncState::None;
   last_server_sync_ = Timestamp();
-  CHECK(pending_get_top_dialogs_.empty());
 
-  LOG(DEBUG) << "Init is enabled: " << is_enabled_;
-  if (!is_active_) {
-    G()->td_db()->get_binlog_pmc()->erase_by_prefix("top_dialogs");
+  if (td_->auth_manager_->is_bot()) {
     return;
   }
+
+  LOG(DEBUG) << "Init is enabled: " << is_enabled_;
 
   auto di_top_dialogs_ts = G()->td_db()->get_binlog_pmc()->get("top_dialogs_ts");
   if (!di_top_dialogs_ts.empty()) {
@@ -616,15 +615,11 @@ void TopDialogManager::try_start() {
 
 void TopDialogManager::on_first_sync() {
   was_first_sync_ = true;
-  if (!G()->close_flag() && td_->auth_manager_->is_bot()) {
-    is_active_ = false;
-    try_start();
-  }
   loop();
 }
 
 void TopDialogManager::loop() {
-  if (!is_active_ || G()->close_flag()) {
+  if (td_->auth_manager_->is_bot() || G()->close_flag()) {
     return;
   }
 

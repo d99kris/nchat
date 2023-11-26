@@ -138,14 +138,54 @@ void ThemeManager::ChatThemes::parse(ParserT &parser) {
   td::parse(themes, parser);
 }
 
+template <class StorerT>
+void ThemeManager::AccentColors::store(StorerT &storer) const {
+  BEGIN_STORE_FLAGS();
+  END_STORE_FLAGS();
+  td::store(static_cast<int32>(light_colors_.size()), storer);
+  for (auto &it : light_colors_) {
+    td::store(it.first, storer);
+    td::store(it.second, storer);
+  }
+  td::store(static_cast<int32>(dark_colors_.size()), storer);
+  for (auto &it : dark_colors_) {
+    td::store(it.first, storer);
+    td::store(it.second, storer);
+  }
+  td::store(accent_color_ids_, storer);
+}
+
+template <class ParserT>
+void ThemeManager::AccentColors::parse(ParserT &parser) {
+  BEGIN_PARSE_FLAGS();
+  END_PARSE_FLAGS();
+  int32 size;
+  td::parse(size, parser);
+  for (int32 i = 0; i < size; i++) {
+    AccentColorId accent_color_id;
+    vector<int32> colors;
+    td::parse(accent_color_id, parser);
+    td::parse(colors, parser);
+    CHECK(accent_color_id.is_valid());
+    light_colors_.emplace(accent_color_id, std::move(colors));
+  }
+  td::parse(size, parser);
+  for (int32 i = 0; i < size; i++) {
+    AccentColorId accent_color_id;
+    vector<int32> colors;
+    td::parse(accent_color_id, parser);
+    td::parse(colors, parser);
+    CHECK(accent_color_id.is_valid());
+    dark_colors_.emplace(accent_color_id, std::move(colors));
+  }
+  td::parse(accent_color_ids_, parser);
+}
+
 ThemeManager::ThemeManager(Td *td, ActorShared<> parent) : td_(td), parent_(std::move(parent)) {
+  do_init();
 }
 
-void ThemeManager::start_up() {
-  init();
-}
-
-void ThemeManager::init() {
+void ThemeManager::do_init() {
   if (!td_->auth_manager_->is_authorized() || td_->auth_manager_->is_bot()) {
     return;
   }
@@ -161,6 +201,21 @@ void ThemeManager::init() {
     }
   }
   chat_themes_.next_reload_time = Time::now();
+
+  log_event_string = G()->td_db()->get_binlog_pmc()->get(get_accent_colors_database_key());
+  if (!log_event_string.empty()) {
+    auto status = log_event_parse(accent_colors_, log_event_string);
+    if (status.is_ok()) {
+      send_update_accent_colors();
+    } else {
+      LOG(ERROR) << "Failed to parse accent colors from binlog: " << status;
+      accent_colors_ = AccentColors();
+    }
+  }
+}
+
+void ThemeManager::init() {
+  do_init();
   loop();
 }
 
@@ -239,6 +294,35 @@ void ThemeManager::on_update_theme(telegram_api::object_ptr<telegram_api::theme>
   promise.set_value(Unit());
 }
 
+void ThemeManager::on_update_accent_colors(FlatHashMap<AccentColorId, vector<int32>, AccentColorIdHash> light_colors,
+                                           FlatHashMap<AccentColorId, vector<int32>, AccentColorIdHash> dark_colors,
+                                           vector<AccentColorId> accent_color_ids) {
+  auto are_equal = [](const FlatHashMap<AccentColorId, vector<int32>, AccentColorIdHash> &lhs,
+                      const FlatHashMap<AccentColorId, vector<int32>, AccentColorIdHash> &rhs) {
+    for (auto &lhs_it : lhs) {
+      auto rhs_it = rhs.find(lhs_it.first);
+      if (rhs_it == rhs.end() || rhs_it->second != lhs_it.second) {
+        return false;
+      }
+    }
+    return true;
+  };
+  if (accent_color_ids == accent_colors_.accent_color_ids_ && are_equal(light_colors, accent_colors_.light_colors_) &&
+      are_equal(dark_colors, accent_colors_.dark_colors_)) {
+    return;
+  }
+  for (auto &it : light_colors) {
+    accent_colors_.light_colors_[it.first] = std::move(it.second);
+  }
+  for (auto &it : dark_colors) {
+    accent_colors_.dark_colors_[it.first] = std::move(it.second);
+  }
+  accent_colors_.accent_color_ids_ = std::move(accent_color_ids);
+
+  save_accent_colors();
+  send_update_accent_colors();
+}
+
 namespace {
 template <bool for_web_view>
 static auto get_color_json(int32 color);
@@ -274,6 +358,12 @@ string get_theme_parameters_json_string_impl(const td_api::object_ptr<td_api::th
     o("link_color", get_color(theme->link_color_));
     o("button_color", get_color(theme->button_color_));
     o("button_text_color", get_color(theme->button_text_color_));
+    o("header_bg_color", get_color(theme->header_background_color_));
+    o("section_bg_color", get_color(theme->section_background_color_));
+    o("accent_text_color", get_color(theme->accent_text_color_));
+    o("section_header_text_color", get_color(theme->section_header_text_color_));
+    o("subtitle_text_color", get_color(theme->subtitle_text_color_));
+    o("destructive_text_color", get_color(theme->destructive_text_color_));
   }));
 }
 }  // namespace
@@ -285,6 +375,19 @@ string ThemeManager::get_theme_parameters_json_string(const td_api::object_ptr<t
   } else {
     return get_theme_parameters_json_string_impl<false>(theme);
   }
+}
+
+int32 ThemeManager::get_accent_color_id_object(AccentColorId accent_color_id,
+                                               AccentColorId fallback_accent_color_id) const {
+  CHECK(accent_color_id.is_valid());
+  if (accent_color_id.is_built_in() || accent_colors_.light_colors_.count(accent_color_id) != 0) {
+    return accent_color_id.get();
+  }
+  if (!fallback_accent_color_id.is_valid()) {
+    return 5;  // blue
+  }
+  CHECK(fallback_accent_color_id.is_built_in());
+  return fallback_accent_color_id.get();
 }
 
 td_api::object_ptr<td_api::themeSettings> ThemeManager::get_theme_settings_object(const ThemeSettings &settings) const {
@@ -315,16 +418,66 @@ td_api::object_ptr<td_api::updateChatThemes> ThemeManager::get_update_chat_theme
       transform(chat_themes_.themes, [this](const ChatTheme &theme) { return get_chat_theme_object(theme); }));
 }
 
+td_api::object_ptr<td_api::updateAccentColors> ThemeManager::get_update_accent_colors_object() const {
+  return accent_colors_.get_update_accent_colors_object();
+}
+
+td_api::object_ptr<td_api::updateAccentColors> ThemeManager::AccentColors::get_update_accent_colors_object() const {
+  vector<td_api::object_ptr<td_api::accentColor>> colors;
+  int32 base_colors[] = {0xDF2020, 0xDFA520, 0xA040A0, 0x208020, 0x20DFDF, 0x2044DF, 0xDF1493};
+  auto get_distance = [](int32 lhs_color, int32 rhs_color) {
+    auto get_color_distance = [](int32 lhs, int32 rhs) {
+      auto diff = max(lhs & 255, 0) - max(rhs & 255, 0);
+      return diff * diff;
+    };
+    return get_color_distance(lhs_color, rhs_color) + get_color_distance(lhs_color >> 8, rhs_color >> 8) +
+           get_color_distance(lhs_color >> 16, rhs_color >> 16);
+  };
+  for (auto &it : light_colors_) {
+    auto light_colors = it.second;
+    auto dark_it = dark_colors_.find(it.first);
+    auto dark_colors = dark_it != dark_colors_.end() ? dark_it->second : light_colors;
+    auto first_color = light_colors[0];
+    int best_index = 0;
+    int32 best_distance = get_distance(base_colors[0], first_color);
+    for (int i = 1; i < 7; i++) {
+      auto cur_distance = get_distance(base_colors[i], first_color);
+      if (cur_distance < best_distance) {
+        best_distance = cur_distance;
+        best_index = i;
+      }
+    }
+    colors.push_back(td_api::make_object<td_api::accentColor>(it.first.get(), best_index, std::move(light_colors),
+                                                              std::move(dark_colors)));
+  }
+  auto available_accent_color_ids =
+      transform(accent_color_ids_, [](AccentColorId accent_color_id) { return accent_color_id.get(); });
+  return td_api::make_object<td_api::updateAccentColors>(std::move(colors), std::move(available_accent_color_ids));
+}
+
 string ThemeManager::get_chat_themes_database_key() {
   return "chat_themes";
+}
+
+string ThemeManager::get_accent_colors_database_key() {
+  return "accent_colors";
 }
 
 void ThemeManager::save_chat_themes() {
   G()->td_db()->get_binlog_pmc()->set(get_chat_themes_database_key(), log_event_store(chat_themes_).as_slice().str());
 }
 
+void ThemeManager::save_accent_colors() {
+  G()->td_db()->get_binlog_pmc()->set(get_accent_colors_database_key(),
+                                      log_event_store(accent_colors_).as_slice().str());
+}
+
 void ThemeManager::send_update_chat_themes() const {
   send_closure(G()->td(), &Td::send_update, get_update_chat_themes_object());
+}
+
+void ThemeManager::send_update_accent_colors() const {
+  send_closure(G()->td(), &Td::send_update, get_update_accent_colors_object());
 }
 
 void ThemeManager::on_get_chat_themes(Result<telegram_api::object_ptr<telegram_api::account_Themes>> result) {
@@ -423,11 +576,16 @@ ThemeManager::ThemeSettings ThemeManager::get_chat_theme_settings(
 }
 
 void ThemeManager::get_current_state(vector<td_api::object_ptr<td_api::Update>> &updates) const {
-  if (!td_->auth_manager_->is_authorized() || td_->auth_manager_->is_bot() || chat_themes_.themes.empty()) {
+  if (!td_->auth_manager_->is_authorized() || td_->auth_manager_->is_bot()) {
     return;
   }
 
-  updates.push_back(get_update_chat_themes_object());
+  if (!chat_themes_.themes.empty()) {
+    updates.push_back(get_update_chat_themes_object());
+  }
+  if (!accent_colors_.accent_color_ids_.empty()) {
+    updates.push_back(get_update_accent_colors_object());
+  }
 }
 
 }  // namespace td

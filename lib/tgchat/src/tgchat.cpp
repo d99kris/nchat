@@ -40,7 +40,7 @@
 
 // #define SIMULATED_SPONSORED_MESSAGES
 
-static const int s_TdlibDate = 20230922;
+static const int s_TdlibDate = 20231106;
 
 namespace detail
 {
@@ -161,6 +161,7 @@ private:
   bool IsSelf(int64_t p_UserId);
   std::string GetContactName(int64_t p_UserId);
   void GetChatHistory(int64_t p_ChatId, int64_t p_FromMsgId, int32_t p_Offset, int32_t p_Limit, bool p_Sequence);
+  td::td_api::object_ptr<td::td_api::formattedText> GetFormattedText(const std::string& p_Text);
   td::td_api::object_ptr<td::td_api::inputMessageText> GetMessageText(const std::string& p_Text);
   std::string ConvertMarkdownV2ToV1(const std::string& p_Str);
 
@@ -782,8 +783,9 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
           auto message_content = GetMessageText(sendMessageRequest->chatMessage.text);
           send_message->input_message_content_ = std::move(message_content);
           send_message->reply_to_ =
-            td::td_api::make_object<td::td_api::messageReplyToMessage>(StrUtil::NumFromHex<int64_t>(sendMessageRequest->chatId),
-                                                                       StrUtil::NumFromHex<int64_t>(sendMessageRequest->chatMessage.quotedId));
+            td::td_api::make_object<td::td_api::inputMessageReplyToMessage>(StrUtil::NumFromHex<int64_t>(sendMessageRequest->chatId),
+                                                                            StrUtil::NumFromHex<int64_t>(sendMessageRequest->chatMessage.quotedId),
+                                                                            GetFormattedText(sendMessageRequest->chatMessage.quotedText));
         }
         else
         {
@@ -2639,9 +2641,9 @@ void TgChat::Impl::GetChatHistory(int64_t p_ChatId, int64_t p_FromMsgId, int32_t
   // *INDENT-ON*
 }
 
-td::td_api::object_ptr<td::td_api::inputMessageText> TgChat::Impl::GetMessageText(const std::string& p_Text)
+td::td_api::object_ptr<td::td_api::formattedText> TgChat::Impl::GetFormattedText(const std::string& p_Text)
 {
-  auto message_content = td::td_api::make_object<td::td_api::inputMessageText>();
+  td::td_api::object_ptr<td::td_api::formattedText> formatted_text;
 
   static const bool markdownEnabled = (m_Config.Get("markdown_enabled") == "1");
   static const int32_t markdownVersion = (m_Config.Get("markdown_version") == "1") ? 1 : 2;
@@ -2656,18 +2658,24 @@ td::td_api::object_ptr<td::td_api::inputMessageText> TgChat::Impl::GetMessageTex
     auto parseResponse = td::Client::execute(std::move(parseRequest));
     if (parseResponse.object->get_id() == td::td_api::formattedText::ID)
     {
-      auto formattedText =
+      formatted_text =
         td::td_api::move_object_as<td::td_api::formattedText>(parseResponse.object);
-      message_content->text_ = std::move(formattedText);
     }
   }
 
-  if (!message_content->text_)
+  if (!formatted_text)
   {
-    message_content->text_ = td::td_api::make_object<td::td_api::formattedText>();
-    message_content->text_->text_ = p_Text;
+    formatted_text = td::td_api::make_object<td::td_api::formattedText>();
+    formatted_text->text_ = p_Text;
   }
 
+  return formatted_text;
+}
+
+td::td_api::object_ptr<td::td_api::inputMessageText> TgChat::Impl::GetMessageText(const std::string& p_Text)
+{
+  auto message_content = td::td_api::make_object<td::td_api::inputMessageText>();
+  message_content->text_ = GetFormattedText(p_Text);
   return message_content;
 }
 

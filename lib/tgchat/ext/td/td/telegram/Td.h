@@ -44,6 +44,7 @@ class AudiosManager;
 class AuthManager;
 class AutosaveManager;
 class BackgroundManager;
+class BoostManager;
 class BotInfoManager;
 class CallManager;
 class CallbackQueriesManager;
@@ -162,6 +163,8 @@ class Td final : public Actor {
   ActorOwn<AutosaveManager> autosave_manager_actor_;
   unique_ptr<BackgroundManager> background_manager_;
   ActorOwn<BackgroundManager> background_manager_actor_;
+  unique_ptr<BoostManager> boost_manager_;
+  ActorOwn<BoostManager> boost_manager_actor_;
   unique_ptr<BotInfoManager> bot_info_manager_;
   ActorOwn<BotInfoManager> bot_info_manager_actor_;
   unique_ptr<ContactsManager> contacts_manager_;
@@ -853,7 +856,7 @@ class Td final : public Actor {
 
   void on_request(uint64 id, td_api::forwardMessages &request);
 
-  void on_request(uint64 id, const td_api::resendMessages &request);
+  void on_request(uint64 id, td_api::resendMessages &request);
 
   void on_request(uint64 id, td_api::getWebPagePreview &request);
 
@@ -995,6 +998,8 @@ class Td final : public Actor {
 
   void on_request(uint64 id, const td_api::setChatPhoto &request);
 
+  void on_request(uint64 id, const td_api::setChatAccentColor &request);
+
   void on_request(uint64 id, const td_api::setChatMessageAutoDeleteTime &request);
 
   void on_request(uint64 id, const td_api::setChatPermissions &request);
@@ -1043,9 +1048,9 @@ class Td final : public Actor {
 
   void on_request(uint64 id, const td_api::activateStoryStealthMode &request);
 
-  void on_request(uint64 id, const td_api::getChatBoostStatus &request);
+  void on_request(uint64 id, const td_api::getAvailableChatBoostSlots &request);
 
-  void on_request(uint64 id, const td_api::canBoostChat &request);
+  void on_request(uint64 id, const td_api::getChatBoostStatus &request);
 
   void on_request(uint64 id, const td_api::boostChat &request);
 
@@ -1054,6 +1059,8 @@ class Td final : public Actor {
   void on_request(uint64 id, td_api::getChatBoostLinkInfo &request);
 
   void on_request(uint64 id, td_api::getChatBoosts &request);
+
+  void on_request(uint64 id, const td_api::getUserChatBoosts &request);
 
   void on_request(uint64 id, const td_api::getAttachmentMenuBot &request);
 
@@ -1275,6 +1282,8 @@ class Td final : public Actor {
 
   void on_request(uint64 id, const td_api::getUserProfilePhotos &request);
 
+  void on_request(uint64 id, const td_api::setAccentColor &request);
+
   void on_request(uint64 id, td_api::setSupergroupUsername &request);
 
   void on_request(uint64 id, td_api::toggleSupergroupUsernameIsActive &request);
@@ -1396,6 +1405,8 @@ class Td final : public Actor {
   void on_request(uint64 id, const td_api::getDefaultChatPhotoCustomEmojiStickers &request);
 
   void on_request(uint64 id, const td_api::getDefaultProfilePhotoCustomEmojiStickers &request);
+
+  void on_request(uint64 id, const td_api::getDefaultBackgroundCustomEmojiStickers &request);
 
   void on_request(uint64 id, const td_api::getFavoriteStickers &request);
 
@@ -1597,6 +1608,16 @@ class Td final : public Actor {
 
   void on_request(uint64 id, const td_api::getPremiumState &request);
 
+  void on_request(uint64 id, const td_api::getPremiumGiftCodePaymentOptions &request);
+
+  void on_request(uint64 id, td_api::checkPremiumGiftCode &request);
+
+  void on_request(uint64 id, td_api::applyPremiumGiftCode &request);
+
+  void on_request(uint64 id, td_api::launchPrepaidPremiumGiveaway &request);
+
+  void on_request(uint64 id, const td_api::getPremiumGiveawayInfo &request);
+
   void on_request(uint64 id, td_api::canPurchasePremium &request);
 
   void on_request(uint64 id, td_api::assignAppStoreTransaction &request);
@@ -1642,6 +1663,8 @@ class Td final : public Actor {
   void on_request(uint64 id, td_api::setUserSupportInfo &request);
 
   void on_request(uint64 id, const td_api::getSupportName &request);
+
+  void on_request(uint64 id, const td_api::searchQuote &request);
 
   void on_request(uint64 id, const td_api::getTextEntities &request);
 
@@ -1709,6 +1732,7 @@ class Td final : public Actor {
     return td_api::make_object<td_api::error>(400, "The method can't be executed synchronously");
   }
   static td_api::object_ptr<td_api::Object> do_static_request(const td_api::getOption &request);
+  static td_api::object_ptr<td_api::Object> do_static_request(td_api::searchQuote &request);
   static td_api::object_ptr<td_api::Object> do_static_request(const td_api::getTextEntities &request);
   static td_api::object_ptr<td_api::Object> do_static_request(td_api::parseTextEntities &request);
   static td_api::object_ptr<td_api::Object> do_static_request(td_api::parseMarkdown &request);

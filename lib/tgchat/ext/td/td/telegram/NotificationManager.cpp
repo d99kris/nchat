@@ -843,6 +843,7 @@ int32 NotificationManager::get_notification_delay_ms(DialogId dialog_id, const P
     return MIN_NOTIFICATION_DELAY_MS;
   }
 
+  auto server_time = G()->server_time();
   auto delay_ms = [&] {
     auto online_info = td_->contacts_manager_->get_my_online_status();
     if (!online_info.is_online_local && online_info.is_online_remote) {
@@ -852,8 +853,8 @@ int32 NotificationManager::get_notification_delay_ms(DialogId dialog_id, const P
     }
 
     if (!online_info.is_online_local &&
-        online_info.was_online_remote > max(static_cast<double>(online_info.was_online_local),
-                                            G()->server_time_cached() - online_cloud_timeout_ms_ * 1e-3)) {
+        online_info.was_online_remote >
+            max(static_cast<double>(online_info.was_online_local), server_time - online_cloud_timeout_ms_ * 1e-3)) {
       // If we are offline, but was online from some other client in last 'online_cloud_timeout' seconds
       // after we had gone offline, then delay notification for 'notification_cloud_delay' seconds.
       return notification_cloud_delay_ms_;
@@ -868,8 +869,7 @@ int32 NotificationManager::get_notification_delay_ms(DialogId dialog_id, const P
     return 0;
   }();
 
-  auto passed_time_ms =
-      static_cast<int32>(clamp(G()->server_time_cached() - notification.date - 1, 0.0, 1000000.0) * 1000);
+  auto passed_time_ms = static_cast<int32>(clamp(server_time - notification.date - 1, 0.0, 1000000.0) * 1000);
   return max(max(min_delay_ms, delay_ms) - passed_time_ms, MIN_NOTIFICATION_DELAY_MS);
 }
 
@@ -2887,6 +2887,12 @@ string NotificationManager::convert_loc_key(const string &loc_key) {
       if (loc_key == "MESSAGE_GIF") {
         return "MESSAGE_ANIMATION";
       }
+      if (loc_key == "MESSAGE_GIFTCODE") {
+        return "MESSAGE_GIFTCODE";
+      }
+      if (loc_key == "MESSAGE_GIVEAWAY") {
+        return "MESSAGE_GIVEAWAY";
+      }
       break;
     case 'H':
       if (loc_key == "PINNED_PHOTO") {
@@ -2899,6 +2905,9 @@ string NotificationManager::convert_loc_key(const string &loc_key) {
       }
       if (loc_key == "PINNED_GIF") {
         return "PINNED_MESSAGE_ANIMATION";
+      }
+      if (loc_key == "PINNED_GIVEAWAY") {
+        return "PINNED_MESSAGE_GIVEAWAY";
       }
       if (loc_key == "MESSAGE_INVOICE") {
         return "MESSAGE_INVOICE";
@@ -3134,7 +3143,7 @@ Status NotificationManager::process_push_notification_payload(string payload, bo
     date = now;
 
     auto update = telegram_api::make_object<telegram_api::updateServiceNotification>(
-        telegram_api::updateServiceNotification::INBOX_DATE_MASK, false, G()->unix_time(), string(),
+        telegram_api::updateServiceNotification::INBOX_DATE_MASK, false, false, G()->unix_time(), string(),
         announcement_message_text, nullptr, vector<telegram_api::object_ptr<telegram_api::MessageEntity>>());
     send_closure(G()->messages_manager(), &MessagesManager::on_update_service_notification, std::move(update), false,
                  std::move(promise));
@@ -3418,6 +3427,21 @@ Status NotificationManager::process_push_notification_payload(string payload, bo
     arg = PSTRING() << loc_args[1] << ' ' << loc_args[0];
     loc_args.clear();
   }
+  if (loc_key == "MESSAGE_GIVEAWAY") {
+    if (loc_args.size() != 2) {
+      return Status::Error("Expected 2 arguments for MESSAGE_GIVEAWAY");
+    }
+    TRY_RESULT(user_count, to_integer_safe<int32>(loc_args[0]));
+    if (user_count <= 0) {
+      return Status::Error("Expected user count to be non-negative");
+    }
+    TRY_RESULT(month_count, to_integer_safe<int32>(loc_args[1]));
+    if (month_count <= 0) {
+      return Status::Error("Expected month count to be non-negative");
+    }
+    arg = PSTRING() << user_count << ' ' << month_count;
+    loc_args.clear();
+  }
   if (loc_args.size() > 1) {
     return Status::Error("Receive too many arguments");
   }
@@ -3456,7 +3480,7 @@ Status NotificationManager::process_push_notification_payload(string payload, bo
         false /*ignored*/, false /*ignored*/, false /*ignored*/, 0, false /*ignored*/, false /*ignored*/,
         false /*ignored*/, false /*ignored*/, sender_user_id.get(), sender_access_hash, user_name, string(), string(),
         string(), std::move(sender_photo), nullptr, 0, Auto(), string(), string(), nullptr,
-        vector<telegram_api::object_ptr<telegram_api::username>>(), 0);
+        vector<telegram_api::object_ptr<telegram_api::username>>(), 0, 0, 0);
     td_->contacts_manager_->on_get_user(std::move(user), "process_push_notification_payload");
   }
 
@@ -3815,7 +3839,8 @@ void NotificationManager::add_message_push_notification(DialogId dialog_id, Mess
         false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/,
         false /*ignored*/, false /*ignored*/, false /*ignored*/, 0, false /*ignored*/, false /*ignored*/,
         false /*ignored*/, false /*ignored*/, sender_user_id.get(), 0, user_name, string(), string(), string(), nullptr,
-        nullptr, 0, Auto(), string(), string(), nullptr, vector<telegram_api::object_ptr<telegram_api::username>>(), 0);
+        nullptr, 0, Auto(), string(), string(), nullptr, vector<telegram_api::object_ptr<telegram_api::username>>(), 0,
+        0, 0);
     td_->contacts_manager_->on_get_user(std::move(user), "add_message_push_notification");
   }
 

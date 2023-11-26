@@ -291,6 +291,10 @@ static auto premium_features(const td::string &referrer) {
   return td::td_api::make_object<td::td_api::internalLinkTypePremiumFeatures>(referrer);
 }
 
+static auto premium_gift_code(const td::string &code) {
+  return td::td_api::make_object<td::td_api::internalLinkTypePremiumGiftCode>(code);
+}
+
 static auto privacy_and_security_settings() {
   return td::td_api::make_object<td::td_api::internalLinkTypePrivacyAndSecuritySettings>();
 }
@@ -399,6 +403,14 @@ TEST(Link, parse_internal_link_part1) {
   parse_internal_link("t.me/c/12345?boost", chat_boost("tg://boost?channel=12345"));
   parse_internal_link("t.me/c/123456789012?boost", chat_boost("tg://boost?channel=123456789012"));
   parse_internal_link("t.me/c/123456789012?boost=12312&domain=123", chat_boost("tg://boost?channel=123456789012"));
+
+  parse_internal_link("t.me/boost/s/12345", story("boost", 12345));
+  parse_internal_link("t.me/boost/s", chat_boost("tg://boost?domain=s"));
+  parse_internal_link("t.me/boost/12", message("tg://resolve?domain=boost&post=12"));
+  parse_internal_link("t.me/boost?cc=1#c=1", public_chat("boost"));
+  parse_internal_link("t.me/boost?c=-1", public_chat("boost"));
+  parse_internal_link("t.me/boost?c=12telegram", chat_boost("tg://boost?channel=12"));
+  parse_internal_link("t.me/bOoSt?c=12telegram", chat_boost("tg://boost?channel=12"));
 
   parse_internal_link("tg:boost?domain=username/12345&single", chat_boost("tg://boost?domain=username%2F12345"));
   parse_internal_link("tg:boost?domain=username&channel=12345", chat_boost("tg://boost?domain=username"));
@@ -631,6 +643,24 @@ TEST(Link, parse_internal_link_part2) {
   parse_internal_link("tg:invoice?slug=abcdef", invoice("abcdef"));
   parse_internal_link("tg:invoice?slug=abc%30ef", invoice("abc0ef"));
   parse_internal_link("tg://invoice?slug=", unknown_deep_link("tg://invoice?slug="));
+
+  parse_internal_link("t.me/giftcode?slug=abcdef", nullptr);
+  parse_internal_link("t.me/giftcode", nullptr);
+  parse_internal_link("t.me/giftcode/", nullptr);
+  parse_internal_link("t.me/giftcode//abcdef", nullptr);
+  parse_internal_link("t.me/giftcode?/abcdef", nullptr);
+  parse_internal_link("t.me/giftcode/?abcdef", nullptr);
+  parse_internal_link("t.me/giftcode/#abcdef", nullptr);
+  parse_internal_link("t.me/giftcode/abacaba", premium_gift_code("abacaba"));
+  parse_internal_link("t.me/giftcode/aba%20aba", premium_gift_code("aba aba"));
+  parse_internal_link("t.me/giftcode/123456a", premium_gift_code("123456a"));
+  parse_internal_link("t.me/giftcode/12345678901", premium_gift_code("12345678901"));
+  parse_internal_link("t.me/giftcode/123456", premium_gift_code("123456"));
+  parse_internal_link("t.me/giftcode/123456/123123/12/31/a/s//21w/?asdas#test", premium_gift_code("123456"));
+
+  parse_internal_link("tg:giftcode?slug=abcdef", premium_gift_code("abcdef"));
+  parse_internal_link("tg:giftcode?slug=abc%30ef", premium_gift_code("abc0ef"));
+  parse_internal_link("tg://giftcode?slug=", unknown_deep_link("tg://giftcode?slug="));
 
   parse_internal_link("tg:share?url=google.com&text=text#asdasd", message_draft("google.com\ntext", true));
   parse_internal_link("tg:share?url=google.com&text=", message_draft("google.com", false));
@@ -1240,12 +1270,20 @@ TEST(Link, parse_internal_link_part4) {
   parse_internal_link("aaa_.t.me/12345?single", nullptr);
   parse_internal_link("0aaa.t.me/12345?single", nullptr);
   parse_internal_link("_aaa.t.me/12345?single", nullptr);
+  parse_internal_link("a.t.me", nullptr);
+  parse_internal_link("b.t.me", nullptr);
+  parse_internal_link("k.t.me", nullptr);
+  parse_internal_link("z.t.me", nullptr);
+  parse_internal_link("web.t.me", nullptr);
   parse_internal_link("addemoji.t.me", nullptr);
   parse_internal_link("addlist.t.me", nullptr);
   parse_internal_link("addstickers.t.me", nullptr);
   parse_internal_link("addtheme.t.me", nullptr);
   parse_internal_link("auth.t.me", nullptr);
+  parse_internal_link("boost.t.me", nullptr);
   parse_internal_link("confirmphone.t.me", nullptr);
+  parse_internal_link("contact.t.me", nullptr);
+  parse_internal_link("giftcode.t.me", nullptr);
   parse_internal_link("invoice.t.me", nullptr);
   parse_internal_link("joinchat.t.me", nullptr);
   parse_internal_link("login.t.me", nullptr);

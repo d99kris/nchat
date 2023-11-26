@@ -24,6 +24,9 @@ if (ZLIB_FOUND)
   endif()
 endif()
 
+if (NOT CRC32C_FOUND)
+  find_package(Crc32c QUIET)
+endif()
 if (CRC32C_FOUND)
   set(TD_HAVE_CRC32C 1)
 endif()
@@ -406,7 +409,7 @@ if (CMAKE_SYSTEM_NAME MATCHES "NetBSD")
   target_link_libraries(tdutils PUBLIC atomic)
 endif()
 
-install(TARGETS tdutils EXPORT TdTargets
+install(TARGETS tdutils EXPORT TdStaticTargets
   LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 )

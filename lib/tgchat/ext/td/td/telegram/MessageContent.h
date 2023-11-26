@@ -7,6 +7,7 @@
 #pragma once
 
 #include "td/telegram/BackgroundInfo.h"
+#include "td/telegram/ChannelId.h"
 #include "td/telegram/DialogId.h"
 #include "td/telegram/EncryptedFile.h"
 #include "td/telegram/files/FileId.h"
@@ -43,10 +44,11 @@ class DialogAction;
 class Game;
 class MultiPromiseActor;
 struct Photo;
+class RepliedMessageInfo;
 class Td;
 class Venue;
 
-// Do not forget to update merge_message_contents when one of the inheritors of this class changes
+// Do not forget to update merge_message_contents and compare_message_contents when one of the inheritors of this class changes
 class MessageContent {
  public:
   MessageContent() = default;
@@ -62,15 +64,17 @@ class MessageContent {
 struct InputMessageContent {
   unique_ptr<MessageContent> content;
   bool disable_web_page_preview = false;
+  bool invert_media = false;
   bool clear_draft = false;
   int32 ttl = 0;
   UserId via_bot_user_id;
   string emoji;
 
-  InputMessageContent(unique_ptr<MessageContent> &&content, bool disable_web_page_preview, bool clear_draft, int32 ttl,
-                      UserId via_bot_user_id, string emoji)
+  InputMessageContent(unique_ptr<MessageContent> &&content, bool disable_web_page_preview, bool invert_media,
+                      bool clear_draft, int32 ttl, UserId via_bot_user_id, string emoji)
       : content(std::move(content))
       , disable_web_page_preview(disable_web_page_preview)
+      , invert_media(invert_media)
       , clear_draft(clear_draft)
       , ttl(ttl)
       , via_bot_user_id(via_bot_user_id)
@@ -82,6 +86,7 @@ struct InlineMessageContent {
   unique_ptr<MessageContent> message_content;
   unique_ptr<ReplyMarkup> message_reply_markup;
   bool disable_web_page_preview;
+  bool invert_media;
 };
 
 void store_message_content(const MessageContent *content, LogEventStorerCalcLength &storer);
@@ -95,7 +100,9 @@ InlineMessageContent create_inline_message_content(Td *td, FileId file_id,
                                                    int32 allowed_media_content_id, Photo *photo, Game *game);
 
 unique_ptr<MessageContent> create_text_message_content(string text, vector<MessageEntity> entities,
-                                                       WebPageId web_page_id);
+                                                       WebPageId web_page_id, bool force_small_media,
+                                                       bool force_large_media, bool skip_confitmation,
+                                                       string &&web_page_url);
 
 unique_ptr<MessageContent> create_contact_registered_message_content();
 
@@ -124,6 +131,9 @@ tl_object_ptr<telegram_api::InputMedia> get_input_media(const MessageContent *co
 tl_object_ptr<telegram_api::InputMedia> get_fake_input_media(Td *td, tl_object_ptr<telegram_api::InputFile> input_file,
                                                              FileId file_id);
 
+tl_object_ptr<telegram_api::InputMedia> get_message_content_input_media_web_page(const Td *td,
+                                                                                 const MessageContent *content);
+
 void delete_message_content_thumbnail(MessageContent *content, Td *td);
 
 Status can_send_message_content(DialogId dialog_id, const MessageContent *content, bool is_forward, const Td *td);
@@ -147,6 +157,8 @@ MessageFullId get_message_content_replied_message_id(DialogId dialog_id, const M
 std::pair<InputGroupCallId, bool> get_message_content_group_call_info(const MessageContent *content);
 
 vector<UserId> get_message_content_min_user_ids(const Td *td, const MessageContent *message_content);
+
+vector<ChannelId> get_message_content_min_channel_ids(const Td *td, const MessageContent *message_content);
 
 vector<UserId> get_message_content_added_user_ids(const MessageContent *content);
 
@@ -182,6 +194,9 @@ void merge_message_contents(Td *td, const MessageContent *old_content, MessageCo
 
 bool merge_message_content_file_id(Td *td, MessageContent *message_content, FileId new_file_id);
 
+void compare_message_contents(Td *td, const MessageContent *lhs_content, const MessageContent *rhs_content,
+                              bool &is_content_changed, bool &need_update);
+
 void register_message_content(Td *td, const MessageContent *content, MessageFullId message_full_id, const char *source);
 
 void reregister_message_content(Td *td, const MessageContent *old_content, const MessageContent *new_content,
@@ -189,6 +204,10 @@ void reregister_message_content(Td *td, const MessageContent *old_content, const
 
 void unregister_message_content(Td *td, const MessageContent *content, MessageFullId message_full_id,
                                 const char *source);
+
+void register_reply_message_content(Td *td, const MessageContent *content);
+
+void unregister_reply_message_content(Td *td, const MessageContent *content);
 
 unique_ptr<MessageContent> get_secret_message_content(
     Td *td, string message_text, unique_ptr<EncryptedFile> file,
@@ -201,19 +220,26 @@ unique_ptr<MessageContent> get_message_content(Td *td, FormattedText message_tex
                                                DialogId owner_dialog_id, bool is_content_read, UserId via_bot_user_id,
                                                int32 *ttl, bool *disable_web_page_preview, const char *source);
 
-enum class MessageContentDupType : int32 { Send, SendViaBot, Forward, Copy, ServerCopy };
+enum class MessageContentDupType : int32 {
+  Send,        // normal message sending
+  SendViaBot,  // message sending via bot
+  Forward,     // server-side message forward
+  Copy,        // local message copy
+  ServerCopy   // server-side message copy
+};
 
 unique_ptr<MessageContent> dup_message_content(Td *td, DialogId dialog_id, const MessageContent *content,
                                                MessageContentDupType type, MessageCopyOptions &&copy_options);
 
 unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<telegram_api::MessageAction> &&action_ptr,
-                                                      DialogId owner_dialog_id, DialogId reply_in_dialog_id,
-                                                      MessageId reply_to_message_id);
+                                                      DialogId owner_dialog_id,
+                                                      const RepliedMessageInfo &replied_message_info);
 
 tl_object_ptr<td_api::MessageContent> get_message_content_object(const MessageContent *content, Td *td,
                                                                  DialogId dialog_id, int32 message_date,
                                                                  bool is_content_secret, bool skip_bot_commands,
-                                                                 int32 max_media_timestamp);
+                                                                 int32 max_media_timestamp, bool invert_media,
+                                                                 bool disable_web_page_preview);
 
 FormattedText *get_message_content_text_mutable(MessageContent *content);
 

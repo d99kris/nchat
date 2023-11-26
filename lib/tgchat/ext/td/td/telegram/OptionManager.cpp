@@ -80,6 +80,9 @@ OptionManager::OptionManager(Td *td)
   if (!have_option("message_caption_length_max")) {
     set_option_integer("message_caption_length_max", 1024);
   }
+  if (!have_option("message_reply_quote_length_max")) {
+    set_option_integer("message_reply_quote_length_max", 1024);
+  }
   if (!have_option("story_caption_length_max")) {
     set_option_integer("story_caption_length_max", 200);
   }
@@ -127,6 +130,24 @@ OptionManager::OptionManager(Td *td)
   }
   if (!have_option("story_stealth_mode_cooldown_period")) {
     set_option_integer("story_stealth_mode_cooldown_period", 3600);
+  }
+  if (!have_option("giveaway_additional_chat_count_max")) {
+    set_option_integer("giveaway_additional_chat_count_max", G()->is_test_dc() ? 3 : 10);
+  }
+  if (!have_option("giveaway_country_count_max")) {
+    set_option_integer("giveaway_country_count_max", G()->is_test_dc() ? 3 : 10);
+  }
+  if (!have_option("giveaway_boost_count_per_premium")) {
+    set_option_integer("giveaway_boost_count_per_premium", 4);
+  }
+  if (!have_option("giveaway_duration_max")) {
+    set_option_integer("giveaway_duration_max", 7 * 86400);
+  }
+  if (!have_option("channel_custom_accent_color_boost_level_min")) {
+    set_option_integer("channel_custom_accent_color_boost_level_min", 5);
+  }
+  if (!have_option("premium_gift_boost_count")) {
+    set_option_integer("premium_gift_boost_count", 3);
   }
 
   set_option_empty("archive_and_mute_new_chats_from_unknown_users");
@@ -569,7 +590,7 @@ td_api::object_ptr<td_api::OptionValue> OptionManager::get_option_synchronously(
       break;
     case 'v':
       if (name == "version") {
-        return td_api::make_object<td_api::optionValueString>("1.8.19");
+        return td_api::make_object<td_api::optionValueString>("1.8.21");
       }
       break;
   }

@@ -6,7 +6,7 @@ if (POLICY CMP0065)
   cmake_policy(SET CMP0065 NEW)
 endif()
 
-project(TDLib VERSION 1.8.19 LANGUAGES CXX C)
+project(TDLib VERSION 1.8.21 LANGUAGES CXX C)
 
 if (NOT DEFINED CMAKE_MODULE_PATH)
   set(CMAKE_MODULE_PATH "")
@@ -96,9 +96,9 @@ if (EMSCRIPTEN)
   set(ZLIB_INCLUDE_DIR)
 
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -s ALLOW_MEMORY_GROWTH=1 -s MEMFS_APPEND_TO_TYPED_ARRAYS=1 -s USE_ZLIB=1 -s MODULARIZE=1 \
-    -s EXPORT_NAME=\"'createTdwebModule'\" -s WEBSOCKET_URL=\"'wss:#'\" -s EXTRA_EXPORTED_RUNTIME_METHODS=\"['FS','cwrap']\" -lidbfs.js -lworkerfs.js")
+    -s EXPORT_NAME=\"'createTdwebModule'\" -s WEBSOCKET_URL=\"'wss:#'\" -s EXPORTED_RUNTIME_METHODS=\"['FS','cwrap']\" -lidbfs.js -lworkerfs.js")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -s ALLOW_MEMORY_GROWTH=1 -s MEMFS_APPEND_TO_TYPED_ARRAYS=1 -s USE_ZLIB=1 -s MODULARIZE=1 \
-    -s EXPORT_NAME=\"'createTdwebModule'\" -s WEBSOCKET_URL=\"'wss:#'\" -s EXTRA_EXPORTED_RUNTIME_METHODS=\"['FS','cwrap']\" -lidbfs.js -lworkerfs.js")
+    -s EXPORT_NAME=\"'createTdwebModule'\" -s WEBSOCKET_URL=\"'wss:#'\" -s EXPORTED_RUNTIME_METHODS=\"['FS','cwrap']\" -lidbfs.js -lworkerfs.js")
   set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -s DEMANGLE_SUPPORT=1 -s ASSERTIONS=1")
   set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -s DEMANGLE_SUPPORT=1 -s ASSERTIONS=1")
 
@@ -296,6 +296,7 @@ set(TDLIB_SOURCE
   td/telegram/BackgroundInfo.cpp
   td/telegram/BackgroundManager.cpp
   td/telegram/BackgroundType.cpp
+  td/telegram/BoostManager.cpp
   td/telegram/BotCommand.cpp
   td/telegram/BotCommandScope.cpp
   td/telegram/BotInfoManager.cpp
@@ -368,6 +369,7 @@ set(TDLIB_SOURCE
   td/telegram/ForumTopicManager.cpp
   td/telegram/Game.cpp
   td/telegram/GameManager.cpp
+  td/telegram/GiveawayParameters.cpp
   td/telegram/Global.cpp
   td/telegram/GlobalPrivacySettings.cpp
   td/telegram/GroupCallManager.cpp
@@ -395,6 +397,7 @@ set(TDLIB_SOURCE
   td/telegram/MessageExtendedMedia.cpp
   td/telegram/MessageId.cpp
   td/telegram/MessageInputReplyTo.cpp
+  td/telegram/MessageOrigin.cpp
   td/telegram/MessageReaction.cpp
   td/telegram/MessageReplyHeader.cpp
   td/telegram/MessageReplyInfo.cpp
@@ -451,6 +454,7 @@ set(TDLIB_SOURCE
   td/telegram/ReactionManager.cpp
   td/telegram/ReactionType.cpp
   td/telegram/RecentDialogList.cpp
+  td/telegram/RepliedMessageInfo.cpp
   td/telegram/ReplyMarkup.cpp
   td/telegram/ReportReason.cpp
   td/telegram/RequestedDialogType.cpp
@@ -471,6 +475,7 @@ set(TDLIB_SOURCE
   td/telegram/StateManager.cpp
   td/telegram/StatisticsManager.cpp
   td/telegram/StickerFormat.cpp
+  td/telegram/StickerListType.cpp
   td/telegram/StickerMaskPosition.cpp
   td/telegram/StickerPhotoSize.cpp
   td/telegram/StickerSetId.cpp
@@ -536,6 +541,7 @@ set(TDLIB_SOURCE
   td/mtproto/TransportType.h
   td/mtproto/utils.h
 
+  td/telegram/AccentColorId.h
   td/telegram/AccessRights.h
   td/telegram/AccountManager.h
   td/telegram/AffectedHistory.h
@@ -551,6 +557,7 @@ set(TDLIB_SOURCE
   td/telegram/BackgroundManager.h
   td/telegram/BackgroundType.h
   td/telegram/BlockListId.h
+  td/telegram/BoostManager.h
   td/telegram/BotCommand.h
   td/telegram/BotCommandScope.h
   td/telegram/BotInfoManager.h
@@ -645,6 +652,7 @@ set(TDLIB_SOURCE
   td/telegram/Game.h
   td/telegram/GameManager.h
   td/telegram/GitCommitHash.h
+  td/telegram/GiveawayParameters.h
   td/telegram/Global.h
   td/telegram/GlobalPrivacySettings.h
   td/telegram/GroupCallId.h
@@ -679,6 +687,7 @@ set(TDLIB_SOURCE
   td/telegram/MessageId.h
   td/telegram/MessageInputReplyTo.h
   td/telegram/MessageLinkInfo.h
+  td/telegram/MessageOrigin.h
   td/telegram/MessageReaction.h
   td/telegram/MessageReplyHeader.h
   td/telegram/MessageReplyInfo.h
@@ -755,6 +764,7 @@ set(TDLIB_SOURCE
   td/telegram/ReactionManager.h
   td/telegram/ReactionType.h
   td/telegram/RecentDialogList.h
+  td/telegram/RepliedMessageInfo.h
   td/telegram/ReplyMarkup.h
   td/telegram/ReportReason.h
   td/telegram/RequestActor.h
@@ -781,6 +791,7 @@ set(TDLIB_SOURCE
   td/telegram/StateManager.h
   td/telegram/StatisticsManager.h
   td/telegram/StickerFormat.h
+  td/telegram/StickerListType.h
   td/telegram/StickerMaskPosition.h
   td/telegram/StickerPhotoSize.h
   td/telegram/StickerSetId.h
@@ -849,12 +860,15 @@ set(TDLIB_SOURCE
   td/telegram/ForumTopicIcon.hpp
   td/telegram/ForumTopicInfo.hpp
   td/telegram/Game.hpp
+  td/telegram/GiveawayParameters.hpp
   td/telegram/InputInvoice.hpp
   td/telegram/InputMessageText.hpp
   td/telegram/MediaArea.hpp
   td/telegram/MediaAreaCoordinates.hpp
   td/telegram/MessageEntity.hpp
   td/telegram/MessageExtendedMedia.hpp
+  td/telegram/MessageInputReplyTo.hpp
+  td/telegram/MessageOrigin.hpp
   td/telegram/MessageReaction.hpp
   td/telegram/MessageReplyInfo.hpp
   td/telegram/MinChannel.hpp
@@ -868,6 +882,7 @@ set(TDLIB_SOURCE
   td/telegram/PremiumGiftOption.hpp
   td/telegram/ReactionManager.hpp
   td/telegram/ReactionType.hpp
+  td/telegram/RepliedMessageInfo.hpp
   td/telegram/ReplyMarkup.hpp
   td/telegram/RequestedDialogType.hpp
   td/telegram/ScopeNotificationSettings.hpp
@@ -1048,11 +1063,9 @@ if (NOT CMAKE_CROSSCOMPILING)
   add_executable(tg_cli td/telegram/cli.cpp ${TL_TD_JSON_SOURCE})
 
   if (NOT READLINE_FOUND)
-    find_package(Readline)
+    find_package(Readline QUIET)
   endif()
-  if (NOT READLINE_FOUND)
-    message(STATUS "Could NOT find Readline (this is NOT an error)")
-  else()
+  if (READLINE_FOUND)
     message(STATUS "Found Readline: ${READLINE_INCLUDE_DIR} ${READLINE_LIBRARY}")
     if (NOT USABLE_READLINE_FOUND)
       set(CMAKE_REQUIRED_INCLUDES "${READLINE_INCLUDE_DIR}")
@@ -1090,10 +1103,24 @@ add_library(Td::TdStatic ALIAS TdStatic)
 add_library(Td::TdJson ALIAS TdJson)
 add_library(Td::TdJsonStatic ALIAS TdJsonStatic)
 
-install(TARGETS tdjson TdJson tdjson_static TdJsonStatic tdjson_private tdclient tdcore tdapi TdStatic EXPORT TdTargets
+set(INSTALL_TARGETS tdjson TdJson)
+set(INSTALL_STATIC_TARGETS tdjson_static TdJsonStatic tdjson_private tdcore)
+if (BUILD_SHARED_LIBS)
+  set(INSTALL_TARGETS ${INSTALL_TARGETS} tdclient TdStatic tdapi)
+else()
+  set(INSTALL_STATIC_TARGETS ${INSTALL_STATIC_TARGETS} tdclient TdStatic tdapi)
+endif()
+
+install(TARGETS ${INSTALL_TARGETS} EXPORT TdTargets
   LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+  INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+)
+
+install(TARGETS ${INSTALL_STATIC_TARGETS} EXPORT TdStaticTargets
+  LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
 )
 
@@ -1121,6 +1148,11 @@ generate_pkgconfig(tdjson_static "Telegram Library - JSON interface (static)")
 
 install(EXPORT TdTargets
   FILE TdTargets.cmake
+  NAMESPACE Td::
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Td"
+)
+install(EXPORT TdStaticTargets
+  FILE TdStaticTargets.cmake
   NAMESPACE Td::
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Td"
 )

@@ -71,7 +71,10 @@ enum class MessageContentType : int32 {
   WebViewWriteAccessAllowed,
   SetBackground,
   Story,
-  WriteAccessAllowedByRequest
+  WriteAccessAllowedByRequest,
+  GiftCode,
+  Giveaway,
+  GiveawayLaunch
 };
 // increase MessageUnsupported::CURRENT_VERSION each time a new message content type is added
 

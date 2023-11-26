@@ -263,7 +263,7 @@ class UpdatesManager final : public Actor {
   bool are_sessions_inited_ = false;
 
   bool running_get_difference_ = false;
-  bool finished_first_get_difference_ = false;
+  int32 skipped_postponed_updates_after_start_ = 50000;
   int32 last_confirmed_pts_ = 0;
   int32 last_confirmed_qts_ = 0;
   int32 min_postponed_update_pts_ = 0;
@@ -310,8 +310,12 @@ class UpdatesManager final : public Actor {
   void on_qts_ack(PtsManager::PtsId ack_token);
   void save_qts(int32 qts);
 
-  bool can_postpone_updates() const {
-    return finished_first_get_difference_;
+  bool can_postpone_updates() {
+    if (skipped_postponed_updates_after_start_ == 0) {
+      return true;
+    }
+    skipped_postponed_updates_after_start_--;
+    return false;
   }
 
   void set_date(int32 date, bool from_update, string date_source);
@@ -457,9 +461,13 @@ class UpdatesManager final : public Actor {
   bool is_acceptable_message_forward_header(
       const telegram_api::object_ptr<telegram_api::messageFwdHeader> &header) const;
 
+  bool is_acceptable_message_media(const telegram_api::object_ptr<telegram_api::MessageMedia> &media_ptr) const;
+
   bool is_acceptable_message(const telegram_api::Message *message_ptr) const;
 
   bool is_acceptable_update(const telegram_api::Update *update) const;
+
+  static int32 fix_short_message_flags(int32 flags);
 
   void on_update(tl_object_ptr<telegram_api::updateNewMessage> update, Promise<Unit> &&promise);
   void on_update(tl_object_ptr<telegram_api::updateMessageID> update, Promise<Unit> &&promise);
@@ -607,6 +615,7 @@ class UpdatesManager final : public Actor {
   void on_update(tl_object_ptr<telegram_api::updateChatParticipant> update, Promise<Unit> &&promise);
   void on_update(tl_object_ptr<telegram_api::updateChannelParticipant> update, Promise<Unit> &&promise);
   void on_update(tl_object_ptr<telegram_api::updateBotChatInviteRequester> update, Promise<Unit> &&promise);
+  void on_update(tl_object_ptr<telegram_api::updateBotChatBoost> update, Promise<Unit> &&promise);
 
   void on_update(tl_object_ptr<telegram_api::updateTheme> update, Promise<Unit> &&promise);
 

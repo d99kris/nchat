@@ -10,7 +10,7 @@
 
 namespace td {
 
-constexpr int32 MTPROTO_LAYER = 164;
+constexpr int32 MTPROTO_LAYER = 166;
 
 enum class Version : int32 {
   Initial,  // 0
@@ -62,6 +62,9 @@ enum class Version : int32 {
   MakeParticipantFlags64Bit,
   AddDocumentFlags,
   AddUserFlags2,
+  AddMessageTextFlags,
+  AddPageBlockChatLinkFlags,  // 50
+  SupportRepliesInOtherChats,
   Next
 };
 

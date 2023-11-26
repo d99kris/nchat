@@ -135,7 +135,7 @@ class RequestWebViewQuery final : public Td::ResultHandler {
     dialog_id_ = dialog_id;
     bot_user_id_ = bot_user_id;
     top_thread_message_id_ = top_thread_message_id;
-    input_reply_to_ = input_reply_to;
+    input_reply_to_ = std::move(input_reply_to);
     as_dialog_id_ = as_dialog_id;
 
     int32 flags = 0;
@@ -198,7 +198,7 @@ class RequestWebViewQuery final : public Td::ResultHandler {
 
     auto ptr = result_ptr.move_as_ok();
     td_->attach_menu_manager_->open_web_view(ptr->query_id_, dialog_id_, bot_user_id_, top_thread_message_id_,
-                                             input_reply_to_, as_dialog_id_);
+                                             std::move(input_reply_to_), as_dialog_id_);
     promise_.set_value(td_api::make_object<td_api::webAppInfo>(ptr->query_id_, ptr->url_));
   }
 
@@ -217,7 +217,7 @@ class ProlongWebViewQuery final : public Td::ResultHandler {
 
  public:
   void send(DialogId dialog_id, UserId bot_user_id, int64 query_id, MessageId top_thread_message_id,
-            MessageInputReplyTo input_reply_to, bool silent, DialogId as_dialog_id) {
+            const MessageInputReplyTo &input_reply_to, bool silent, DialogId as_dialog_id) {
     dialog_id_ = dialog_id;
 
     auto input_peer = td_->messages_manager_->get_input_peer(dialog_id, AccessRights::Write);
@@ -414,7 +414,7 @@ bool operator==(const AttachMenuManager::AttachMenuBot &lhs, const AttachMenuMan
          lhs.supports_bot_dialogs_ == rhs.supports_bot_dialogs_ &&
          lhs.supports_group_dialogs_ == rhs.supports_group_dialogs_ &&
          lhs.supports_broadcast_dialogs_ == rhs.supports_broadcast_dialogs_ &&
-         lhs.supports_settings_ == rhs.supports_settings_ && lhs.request_write_access_ == rhs.request_write_access_ &&
+         lhs.request_write_access_ == rhs.request_write_access_ &&
          lhs.show_in_attach_menu_ == rhs.show_in_attach_menu_ && lhs.show_in_side_menu_ == rhs.show_in_side_menu_ &&
          lhs.side_menu_disclaimer_needed_ == rhs.side_menu_disclaimer_needed_ && lhs.name_ == rhs.name_ &&
          lhs.default_icon_file_id_ == rhs.default_icon_file_id_ &&
@@ -460,7 +460,7 @@ void AttachMenuManager::AttachMenuBot::store(StorerT &storer) const {
   STORE_FLAG(supports_bot_dialogs_);
   STORE_FLAG(supports_group_dialogs_);
   STORE_FLAG(supports_broadcast_dialogs_);
-  STORE_FLAG(supports_settings_);
+  STORE_FLAG(false);
   STORE_FLAG(has_placeholder_file_id);
   STORE_FLAG(has_cache_version);
   STORE_FLAG(request_write_access_);
@@ -523,6 +523,7 @@ void AttachMenuManager::AttachMenuBot::parse(ParserT &parser) {
   bool has_android_side_menu_icon_file_id;
   bool has_ios_side_menu_icon_file_id;
   bool has_macos_side_menu_icon_file_id;
+  bool legacy_supports_settings;
   BEGIN_PARSE_FLAGS();
   PARSE_FLAG(has_ios_static_icon_file_id);
   PARSE_FLAG(has_ios_animated_icon_file_id);
@@ -537,7 +538,7 @@ void AttachMenuManager::AttachMenuBot::parse(ParserT &parser) {
   PARSE_FLAG(supports_bot_dialogs_);
   PARSE_FLAG(supports_group_dialogs_);
   PARSE_FLAG(supports_broadcast_dialogs_);
-  PARSE_FLAG(supports_settings_);
+  PARSE_FLAG(legacy_supports_settings);
   PARSE_FLAG(has_placeholder_file_id);
   PARSE_FLAG(has_cache_version);
   PARSE_FLAG(request_write_access_);
@@ -801,7 +802,7 @@ void AttachMenuManager::on_get_web_app(UserId bot_user_id, string web_app_short_
       td_->file_manager_->add_file_source(file_id, file_source_id);
     }
   }
-  promise.set_value(td_api::make_object<td_api::foundWebApp>(web_app.get_web_app_object(td_), bot_app->has_settings_,
+  promise.set_value(td_api::make_object<td_api::foundWebApp>(web_app.get_web_app_object(td_),
                                                              bot_app->request_write_access_, !bot_app->inactive_));
 }
 
@@ -834,7 +835,7 @@ void AttachMenuManager::request_app_web_view(DialogId dialog_id, UserId bot_user
 }
 
 void AttachMenuManager::request_web_view(DialogId dialog_id, UserId bot_user_id, MessageId top_thread_message_id,
-                                         td_api::object_ptr<td_api::MessageReplyTo> &&reply_to, string &&url,
+                                         td_api::object_ptr<td_api::InputMessageReplyTo> &&reply_to, string &&url,
                                          td_api::object_ptr<td_api::themeParameters> &&theme, string &&platform,
                                          Promise<td_api::object_ptr<td_api::webAppInfo>> &&promise) {
   TRY_STATUS_PROMISE(promise, td_->contacts_manager_->get_bot_data(bot_user_id));
@@ -875,11 +876,11 @@ void AttachMenuManager::request_web_view(DialogId dialog_id, UserId bot_user_id,
 
   td_->create_handler<RequestWebViewQuery>(std::move(promise))
       ->send(dialog_id, bot_user_id, std::move(input_user), std::move(url), std::move(theme), std::move(platform),
-             top_thread_message_id, input_reply_to, silent, as_dialog_id);
+             top_thread_message_id, std::move(input_reply_to), silent, as_dialog_id);
 }
 
 void AttachMenuManager::open_web_view(int64 query_id, DialogId dialog_id, UserId bot_user_id,
-                                      MessageId top_thread_message_id, MessageInputReplyTo input_reply_to,
+                                      MessageId top_thread_message_id, MessageInputReplyTo &&input_reply_to,
                                       DialogId as_dialog_id) {
   if (query_id == 0) {
     LOG(ERROR) << "Receive Web App query identifier == 0";
@@ -1051,7 +1052,6 @@ Result<AttachMenuManager::AttachMenuBot> AttachMenuManager::get_attach_menu_bot(
         break;
     }
   }
-  attach_menu_bot.supports_settings_ = bot->has_settings_;
   attach_menu_bot.request_write_access_ = bot->request_write_access_;
   attach_menu_bot.show_in_attach_menu_ = bot->show_in_attach_menu_;
   attach_menu_bot.show_in_side_menu_ = bot->show_in_side_menu_;
@@ -1305,8 +1305,8 @@ td_api::object_ptr<td_api::attachmentMenuBot> AttachMenuManager::get_attachment_
   return td_api::make_object<td_api::attachmentMenuBot>(
       td_->contacts_manager_->get_user_id_object(bot.user_id_, "get_attachment_menu_bot_object"),
       bot.supports_self_dialog_, bot.supports_user_dialogs_, bot.supports_bot_dialogs_, bot.supports_group_dialogs_,
-      bot.supports_broadcast_dialogs_, bot.supports_settings_, bot.request_write_access_, bot.is_added_,
-      bot.show_in_attach_menu_, bot.show_in_side_menu_, bot.side_menu_disclaimer_needed_, bot.name_,
+      bot.supports_broadcast_dialogs_, bot.request_write_access_, bot.is_added_, bot.show_in_attach_menu_,
+      bot.show_in_side_menu_, bot.side_menu_disclaimer_needed_, bot.name_,
       get_attach_menu_bot_color_object(bot.name_color_), get_file(bot.default_icon_file_id_),
       get_file(bot.ios_static_icon_file_id_), get_file(bot.ios_animated_icon_file_id_),
       get_file(bot.ios_side_menu_icon_file_id_), get_file(bot.android_icon_file_id_),

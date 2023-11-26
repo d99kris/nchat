@@ -183,7 +183,13 @@ vector<std::pair<Slice, int32>> find_media_timestamps(Slice str);  // slice + me
 
 void remove_empty_entities(vector<MessageEntity> &entities);
 
-string get_first_url(const FormattedText &text);
+void remove_unallowed_quote_entities(FormattedText &text);
+
+int32 search_quote(FormattedText &&text, FormattedText &&quote, int32 quote_position);
+
+Slice get_first_url(const FormattedText &text);
+
+bool is_visible_url(const FormattedText &text, const string &url);
 
 Result<vector<MessageEntity>> parse_markdown(string &text);
 
@@ -229,6 +235,8 @@ FormattedText get_message_text(const ContactsManager *contacts_manager, string m
                                vector<tl_object_ptr<telegram_api::MessageEntity>> &&server_entities,
                                bool skip_new_entities, bool skip_media_timestamps, int32 send_date, bool from_album,
                                const char *source);
+
+void truncate_formatted_text(FormattedText &text, size_t length);
 
 td_api::object_ptr<td_api::formattedText> extract_input_caption(
     tl_object_ptr<td_api::InputMessageContent> &input_message_content);

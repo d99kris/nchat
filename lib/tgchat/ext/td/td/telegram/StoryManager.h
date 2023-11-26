@@ -7,7 +7,6 @@
 #pragma once
 
 #include "td/telegram/ChannelId.h"
-#include "td/telegram/DialogBoostLinkInfo.h"
 #include "td/telegram/DialogDate.h"
 #include "td/telegram/DialogId.h"
 #include "td/telegram/files/FileId.h"
@@ -36,7 +35,6 @@
 #include "td/utils/FlatHashMap.h"
 #include "td/utils/FlatHashSet.h"
 #include "td/utils/Promise.h"
-#include "td/utils/Slice.h"
 #include "td/utils/Status.h"
 #include "td/utils/WaitFreeHashMap.h"
 #include "td/utils/WaitFreeHashSet.h"
@@ -269,26 +267,6 @@ class StoryManager final : public Actor {
 
   void activate_stealth_mode(Promise<Unit> &&promise);
 
-  void get_dialog_boost_status(DialogId dialog_id, Promise<td_api::object_ptr<td_api::chatBoostStatus>> &&promise);
-
-  void can_boost_dialog(DialogId dialog_id, Promise<td_api::object_ptr<td_api::CanBoostChatResult>> &&promise);
-
-  td_api::object_ptr<td_api::CanBoostChatResult> get_can_boost_chat_result_object(
-      telegram_api::object_ptr<telegram_api::stories_CanApplyBoostResult> &&result) const;
-
-  td_api::object_ptr<td_api::CanBoostChatResult> get_can_boost_chat_result_object(const Status &error) const;
-
-  void boost_dialog(DialogId dialog_id, Promise<Unit> &&promise);
-
-  Result<std::pair<string, bool>> get_dialog_boost_link(DialogId dialog_id);
-
-  void get_dialog_boost_link_info(Slice url, Promise<DialogBoostLinkInfo> &&promise);
-
-  td_api::object_ptr<td_api::chatBoostLinkInfo> get_chat_boost_link_info_object(const DialogBoostLinkInfo &info) const;
-
-  void get_dialog_boosts(DialogId dialog_id, const string &offset, int32 limit,
-                         Promise<td_api::object_ptr<td_api::foundChatBoosts>> &&promise);
-
   void remove_story_notifications_by_story_ids(DialogId dialog_id, const vector<StoryId> &story_ids);
 
   StoryId on_get_story(DialogId owner_dialog_id, telegram_api::object_ptr<telegram_api::StoryItem> &&story_item_ptr);
@@ -313,7 +291,9 @@ class StoryManager final : public Actor {
 
   void on_dialog_active_stories_order_updated(DialogId owner_dialog_id, const char *source);
 
-  Status can_get_story_viewers(StoryFullId story_full_id, const Story *story, bool ignore_premium) const;
+  Status can_get_story_viewers(StoryFullId story_full_id, const Story *story, int32 unix_time) const;
+
+  bool has_unexpired_viewers(StoryFullId story_full_id, const Story *story) const;
 
   void on_get_story_views(DialogId owner_dialog_id, const vector<StoryId> &story_ids,
                           telegram_api::object_ptr<telegram_api::stories_storyViews> &&story_views);
@@ -435,6 +415,10 @@ class StoryManager final : public Actor {
   ActiveStories *on_get_active_stories_from_database(StoryListId story_list_id, DialogId owner_dialog_id,
                                                      const BufferSlice &value, const char *source);
 
+  void set_story_expire_timeout(const Story *story);
+
+  void set_story_can_get_viewers_timeout(const Story *story);
+
   void on_story_changed(StoryFullId story_full_id, const Story *story, bool is_changed, bool need_save_to_database,
                         bool from_database = false);
 
@@ -505,9 +489,9 @@ class StoryManager final : public Actor {
   td_api::object_ptr<td_api::updateStoryListChatCount> get_update_story_list_chat_count_object(
       StoryListId story_list_id, const StoryList &story_list) const;
 
-  void update_story_list_sent_total_count(StoryListId story_list_id);
+  void update_story_list_sent_total_count(StoryListId story_list_id, const char *source);
 
-  void update_story_list_sent_total_count(StoryListId story_list_id, StoryList &story_list);
+  void update_story_list_sent_total_count(StoryListId story_list_id, StoryList &story_list, const char *source);
 
   vector<FileId> get_story_file_ids(const Story *story) const;
 
@@ -550,6 +534,8 @@ class StoryManager final : public Actor {
   void on_update_dialog_max_read_story_id(DialogId owner_dialog_id, StoryId max_read_story_id);
 
   void on_update_dialog_has_pinned_stories(DialogId owner_dialog_id, bool has_pinned_stories);
+
+  void update_active_stories(DialogId owner_dialog_id);
 
   void on_update_active_stories(DialogId owner_dialog_id, StoryId max_read_story_id, vector<StoryId> &&story_ids,
                                 Promise<Unit> &&promise, const char *source, bool from_database = false);
@@ -675,6 +661,7 @@ class StoryManager final : public Actor {
   bool channels_to_send_stories_inited_ = false;
   vector<ChannelId> channels_to_send_stories_;
   vector<Promise<td_api::object_ptr<td_api::chats>>> get_dialogs_to_send_stories_queries_;
+  double next_reload_channels_to_send_stories_time_ = 0.0;
 
   FlatHashMap<StoryFullId, int32, StoryFullIdHash> being_set_story_reactions_;
 

@@ -22,7 +22,7 @@ SessionMultiProxy::~SessionMultiProxy() = default;
 
 SessionMultiProxy::SessionMultiProxy(int32 session_count, std::shared_ptr<AuthDataShared> shared_auth_data,
                                      bool is_primary, bool is_main, bool use_pfs, bool allow_media_only, bool is_media,
-                                     bool is_cdn, bool need_destroy_auth_key)
+                                     bool is_cdn)
     : session_count_(session_count)
     , auth_data_(std::move(shared_auth_data))
     , is_primary_(is_primary)
@@ -30,8 +30,7 @@ SessionMultiProxy::SessionMultiProxy(int32 session_count, std::shared_ptr<AuthDa
     , use_pfs_(use_pfs)
     , allow_media_only_(allow_media_only)
     , is_media_(is_media)
-    , is_cdn_(is_cdn)
-    , need_destroy_auth_key_(need_destroy_auth_key) {
+    , is_cdn_(is_cdn) {
   if (allow_media_only_) {
     CHECK(is_media_);
   }
@@ -54,27 +53,31 @@ void SessionMultiProxy::send(NetQueryPtr query) {
 }
 
 void SessionMultiProxy::update_main_flag(bool is_main) {
-  LOG(INFO) << "Update " << get_name() << " is_main to " << is_main;
+  LOG(INFO) << "Update is_main to " << is_main;
   is_main_ = is_main;
   for (auto &session : sessions_) {
     send_closure(session.proxy, &SessionProxy::update_main_flag, is_main);
   }
 }
 
-void SessionMultiProxy::update_destroy_auth_key(bool need_destroy_auth_key) {
-  need_destroy_auth_key_ = need_destroy_auth_key;
-  send_closure(sessions_[0].proxy, &SessionProxy::update_destroy, need_destroy_auth_key_);
+void SessionMultiProxy::destroy_auth_key() {
+  update_options(1, false, true);
 }
 
 void SessionMultiProxy::update_session_count(int32 session_count) {
-  update_options(session_count, use_pfs_);
+  update_options(session_count, use_pfs_, need_destroy_auth_key_);
 }
 
 void SessionMultiProxy::update_use_pfs(bool use_pfs) {
-  update_options(session_count_, use_pfs);
+  update_options(session_count_, use_pfs, need_destroy_auth_key_);
 }
 
-void SessionMultiProxy::update_options(int32 session_count, bool use_pfs) {
+void SessionMultiProxy::update_options(int32 session_count, bool use_pfs, bool need_destroy_auth_key) {
+  if (need_destroy_auth_key_) {
+    LOG(INFO) << "Ignore session option changes while destroying auth key";
+    return;
+  }
+
   bool changed = false;
 
   if (session_count != session_count_) {
@@ -85,7 +88,7 @@ void SessionMultiProxy::update_options(int32 session_count, bool use_pfs) {
     if (session_count_ > 100) {
       session_count_ = 100;
     }
-    LOG(INFO) << "Update " << get_name() << " session_count to " << session_count_;
+    LOG(INFO) << "Update session_count to " << session_count_;
     changed = true;
   }
 
@@ -93,10 +96,16 @@ void SessionMultiProxy::update_options(int32 session_count, bool use_pfs) {
     bool old_pfs_flag = get_pfs_flag();
     use_pfs_ = use_pfs;
     if (old_pfs_flag != get_pfs_flag()) {
-      LOG(INFO) << "Update " << get_name() << " use_pfs to " << use_pfs_;
+      LOG(INFO) << "Update use_pfs to " << use_pfs_;
       changed = true;
     }
   }
+
+  if (need_destroy_auth_key) {
+    need_destroy_auth_key_ = need_destroy_auth_key;
+    LOG(WARNING) << "Destroy auth key";
+  }
+
   if (changed) {
     init();
   }

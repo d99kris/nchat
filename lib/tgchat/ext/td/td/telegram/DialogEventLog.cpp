@@ -6,6 +6,7 @@
 //
 #include "td/telegram/DialogEventLog.h"
 
+#include "td/telegram/AccentColorId.h"
 #include "td/telegram/ChannelId.h"
 #include "td/telegram/ChatReactions.h"
 #include "td/telegram/ContactsManager.h"
@@ -24,6 +25,7 @@
 #include "td/telegram/StickersManager.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/telegram_api.h"
+#include "td/telegram/ThemeManager.h"
 
 #include "td/utils/buffer.h"
 #include "td/utils/logging.h"
@@ -145,8 +147,9 @@ static td_api::object_ptr<td_api::ChatEventAction> get_chat_event_action_object(
     }
     case telegram_api::channelAdminLogEventActionDefaultBannedRights::ID: {
       auto action = move_tl_object_as<telegram_api::channelAdminLogEventActionDefaultBannedRights>(action_ptr);
-      auto old_permissions = RestrictedRights(action->prev_banned_rights_);
-      auto new_permissions = RestrictedRights(action->new_banned_rights_);
+      auto channel_type = td->contacts_manager_->get_channel_type(channel_id);
+      auto old_permissions = RestrictedRights(action->prev_banned_rights_, channel_type);
+      auto new_permissions = RestrictedRights(action->new_banned_rights_, channel_type);
       return td_api::make_object<td_api::chatEventPermissionsChanged>(old_permissions.get_chat_permissions_object(),
                                                                       new_permissions.get_chat_permissions_object());
     }
@@ -425,6 +428,19 @@ static td_api::object_ptr<td_api::ChatEventAction> get_chat_event_action_object(
     case telegram_api::channelAdminLogEventActionToggleAntiSpam::ID: {
       auto action = move_tl_object_as<telegram_api::channelAdminLogEventActionToggleAntiSpam>(action_ptr);
       return td_api::make_object<td_api::chatEventHasAggressiveAntiSpamEnabledToggled>(action->new_value_);
+    }
+    case telegram_api::channelAdminLogEventActionChangeColor::ID: {
+      auto action = move_tl_object_as<telegram_api::channelAdminLogEventActionChangeColor>(action_ptr);
+      auto old_accent_color_id = AccentColorId(action->prev_value_);
+      auto new_accent_color_id = AccentColorId(action->new_value_);
+      return td_api::make_object<td_api::chatEventAccentColorChanged>(
+          td->theme_manager_->get_accent_color_id_object(old_accent_color_id, AccentColorId(channel_id)),
+          td->theme_manager_->get_accent_color_id_object(new_accent_color_id, AccentColorId(channel_id)));
+    }
+    case telegram_api::channelAdminLogEventActionChangeBackgroundEmoji::ID: {
+      auto action = move_tl_object_as<telegram_api::channelAdminLogEventActionChangeBackgroundEmoji>(action_ptr);
+      return td_api::make_object<td_api::chatEventBackgroundCustomEmojiChanged>(action->prev_value_,
+                                                                                action->new_value_);
     }
     default:
       UNREACHABLE();

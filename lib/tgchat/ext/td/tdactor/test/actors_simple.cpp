@@ -166,7 +166,7 @@ TEST(Actors, simple_pass_event_arguments) {
 
   // Var-->LvalueRef
   // Var-->LvalueRef (Delayed)
-  // CE or stange behaviour
+  // CE or strange behaviour
 
   // Var-->Value
   sb.clear();
@@ -292,7 +292,6 @@ class OpenClose final : public td::Actor {
       cnt_--;
       yield();
     } else {
-      td::unlink(file_name).ignore();
       td::Scheduler::instance()->finish();
     }
   }
@@ -310,6 +309,7 @@ TEST(Actors, open_close) {
   while (scheduler.run_main(10)) {
   }
   scheduler.finish();
+  td::unlink("server").ignore();
 }
 
 class MsgActor : public td::Actor {
