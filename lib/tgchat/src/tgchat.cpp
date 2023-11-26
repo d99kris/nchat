@@ -2252,6 +2252,22 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
   {
     p_Text = "[Created]";
   }
+  else if (p_TdMessageContent.get_id() == td::td_api::messageChatSetTheme::ID)
+  {
+    p_Text = "[ChatSetTheme]";
+  }
+  else if (p_TdMessageContent.get_id() == td::td_api::messagePinMessage::ID)
+  {
+    p_Text = "[PinMessage]";
+  }
+  else if (p_TdMessageContent.get_id() == td::td_api::messageChatSetMessageAutoDeleteTime::ID)
+  {
+    p_Text = "[ChatSetMessageAutoDeleteTime]";
+  }
+  else if (p_TdMessageContent.get_id() == td::td_api::messageUnsupported::ID)
+  {
+    p_Text = "[UnsupportedByCurrentTdlibVersion]";
+  }
   else
   {
     p_Text = "[UnknownMessage " + std::to_string(p_TdMessageContent.get_id()) + "]";
