@@ -1,5 +1,5 @@
-nchat - ncurses chat
-====================
+nchat
+=====
 
 | **Linux** | **Mac** |
 |-----------|---------|
@@ -21,26 +21,7 @@ Features
 - Searchable list dialogs for selecting files, emojis, contacts
 - Show user status (online, away, typing)
 - Toggle to view textized emojis vs. graphical
-- Toggle to view UI elements (top bar, status bar, help bar, contact list)
 - View / save media files (documents, photos, videos)
-- Customizable color schemes and key bindings
-
-Limitations
------------
-There are no plans to support the following features:
-- Facebook Messenger
-- Signal
-- Telegram secret chats
-- Voice / video calls
-
-Roadmap
--------
-There is currently no concrete roadmap for further feature development of
-nchat. It is not intended to be a full-featured client on par with official
-Telegram / WhatsApp clients, but rather a light-weight client providing
-essential functionality suitable for the terminal. However, feel free to
-submit feature requests if there's something missing, and if it's useful
-and low effort it can probably be added.
 
 
 Usage
@@ -862,6 +843,27 @@ Code Formatting
 Uncrustify is used to maintain consistent source code formatting, example:
 
     ./make.sh src
+
+
+Project Scope
+=============
+
+Limitations
+-----------
+There are no plans to support the following features:
+- Facebook Messenger
+- Signal
+- Telegram secret chats
+- Voice / video calls
+
+Roadmap
+-------
+There is currently no concrete roadmap for further feature development of
+nchat. It is not intended to be a full-featured client on par with official
+Telegram / WhatsApp clients, but rather a light-weight client providing
+essential functionality suitable for the terminal. However, feel free to
+submit feature requests if there's something missing, and if it's useful
+and low effort it can probably be added.
 
 
 License
