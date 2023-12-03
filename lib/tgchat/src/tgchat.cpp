@@ -326,7 +326,7 @@ bool TgChat::Impl::LoadProfile(const std::string& p_ProfilesDir, const std::stri
   {
     std::string versionWarning =
       "downgrading nchat without clean setup is not supported.\n"
-      "consider performing one if issues are encountered:\n"
+      "consider performing a clean setup if issues are encountered:\n"
       "nchat --setup";
     LOG_WARNING("tdlib downgrade from %d:\n%s", m_ProfileDirVersion, versionWarning.c_str());
     std::cerr << "warning: " << versionWarning << "\n";

@@ -122,7 +122,7 @@ bool WmChat::LoadProfile(const std::string& p_ProfilesDir, const std::string& p_
   {
     std::string versionWarning =
       "downgrading nchat without clean setup is not supported.\n"
-      "consider performing one if issues are encountered:\n"
+      "consider performing a clean setup if issues are encountered:\n"
       "nchat --setup";
     LOG_WARNING("whatsmeow downgrade from %d:\n%s", m_ProfileDirVersion, versionWarning.c_str());
     std::cerr << "warning: " << versionWarning << "\n";
@@ -430,9 +430,9 @@ void WmChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
         std::string senderId = deleteMessageRequest->senderId;
         std::string msgId = deleteMessageRequest->msgId;
 
-        int rv = CWmDeleteMessage(m_ConnId, const_cast<char*>(chatId.c_str()),
-                                  const_cast<char*>(senderId.c_str()),
-                                  const_cast<char*>(msgId.c_str()));
+        CWmDeleteMessage(m_ConnId, const_cast<char*>(chatId.c_str()),
+                         const_cast<char*>(senderId.c_str()),
+                         const_cast<char*>(msgId.c_str()));
         Status::Clear(Status::FlagUpdating);
 
         std::shared_ptr<DeleteMessageNotify> deleteMessageNotify = std::make_shared<DeleteMessageNotify>(m_ProfileId);
