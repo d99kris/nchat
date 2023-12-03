@@ -2176,7 +2176,7 @@ std::string UiModel::GetChatStatus(const std::string& p_ProfileId, const std::st
           break;
 
         default:
-          chatStatus = "seen " + TimeUtil::GetTimeString(timeSeen, true /* p_Short */);
+          chatStatus = "seen " + TimeUtil::GetTimeString(timeSeen, false /* p_IsExport */);
           break;
       }
     }

@@ -259,6 +259,7 @@ This configuration file holds general application settings. Default content:
     proxy_pass=
     proxy_port=
     proxy_user=
+    timestamp_iso=0
 
 ### attachment_send_type
 
@@ -291,6 +292,18 @@ SOCKS server). Note: In order to use a proxy while setting up nchat the first
 time, it is recommended to first run nchat without arguments (`nchat`) for its
 config dir to be created, and then edit proxy settings in `~/.nchat/app.conf`
 as needed, before running `nchat -s` to setup an account.
+
+### timestamp_iso
+
+Specifies whether to use ISO-style timestamps (`YYYY-MM-DD HH:MM`) in the UI
+and at export of chat history. By default nchat uses a dynamic "human-friendly"
+format:
+
+- `HH:MM` for timestamps on same date as today, e.g. `19:00`
+- `DAY HH:MM` for timestamps in the last week, e.g. `Mon 19:00`
+- `DD MMM HH:MM` for timestamps in the current year, e.g. `14 Nov 19:00`
+- `DD MMM YYYY HH:MM` for timestamps in non-current year, e.g. `14 Nov 2022 19:00`
+- `DD MMM YYYY HH:MM` for timestamps during export, e.g. `14 Nov 2022 19:00`
 
 ~/.nchat/ui.conf
 ----------------

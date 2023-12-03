@@ -26,6 +26,7 @@ void AppConfig::Init()
     { "proxy_pass", "" },
     { "proxy_port", "" },
     { "proxy_user", "" },
+    { "timestamp_iso", "0" },
   };
 
   const std::string configPath(FileUtil::GetApplicationDir() + std::string("/app.conf"));

@@ -13,6 +13,8 @@
 
 #include <sys/time.h>
 
+#include "appconfig.h"
+
 int64_t TimeUtil::GetCurrentTimeMSec()
 {
   struct timeval now;
@@ -20,7 +22,7 @@ int64_t TimeUtil::GetCurrentTimeMSec()
   return static_cast<int64_t>((now.tv_sec * 1000) + (now.tv_usec / 1000));
 }
 
-std::string TimeUtil::GetTimeString(int64_t p_TimeSent, bool p_Short)
+std::string TimeUtil::GetTimeString(int64_t p_TimeSent, bool p_IsExport)
 {
   time_t timeSent = (time_t)(p_TimeSent / 1000);
   struct tm tmSent;
@@ -30,8 +32,18 @@ std::string TimeUtil::GetTimeString(int64_t p_TimeSent, bool p_Short)
   localtime_r(&timeNow, &tmNow);
   char tmpstr[32] = { 0 };
   static int64_t useWeekdayMaxAge = (6 * 24 * 3600);
+  static bool isTimestampIso = AppConfig::GetBool("timestamp_iso");
 
-  if (p_Short)
+  if (isTimestampIso)
+  {
+    strftime(tmpstr, sizeof(tmpstr), "%Y-%m-%d %H:%M", &tmSent);
+  }
+  else if (p_IsExport)
+  {
+    int dlen = snprintf(tmpstr, sizeof(tmpstr), "%d ", tmSent.tm_mday);
+    strftime(tmpstr + dlen, sizeof(tmpstr) - dlen, "%b %Y %H:%M", &tmSent);
+  }
+  else
   {
     if ((tmSent.tm_year == tmNow.tm_year) && (tmSent.tm_mon == tmNow.tm_mon) && (tmSent.tm_mday == tmNow.tm_mday))
     {
@@ -51,11 +63,6 @@ std::string TimeUtil::GetTimeString(int64_t p_TimeSent, bool p_Short)
       int dlen = snprintf(tmpstr, sizeof(tmpstr), "%d ", tmSent.tm_mday);
       strftime(tmpstr + dlen, sizeof(tmpstr) - dlen, "%b %Y %H:%M", &tmSent);
     }
-  }
-  else
-  {
-    int dlen = snprintf(tmpstr, sizeof(tmpstr), "%d ", tmSent.tm_mday);
-    strftime(tmpstr + dlen, sizeof(tmpstr) - dlen, "%b %Y %H:%M", &tmSent);
   }
 
   return std::string(tmpstr);

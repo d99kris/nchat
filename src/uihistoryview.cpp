@@ -1,6 +1,6 @@
 // uihistoryview.cpp
 //
-// Copyright (c) 2019-2021 Kristofer Berggren
+// Copyright (c) 2019-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -291,7 +291,7 @@ void UiHistoryView::Draw()
     std::wstring wtime;
     if (msg.timeSent != std::numeric_limits<int64_t>::max())
     {
-      wtime = L" (" + StrUtil::ToWString(TimeUtil::GetTimeString(msg.timeSent, true /* p_Short */)) + L")";
+      wtime = L" (" + StrUtil::ToWString(TimeUtil::GetTimeString(msg.timeSent, false /* p_IsExport */)) + L")";
     }
 
     if (!msg.isOutgoing && !msg.isRead)
