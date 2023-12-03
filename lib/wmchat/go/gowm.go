@@ -1962,7 +1962,8 @@ func WmDeleteMessage(connId int, chatId string, senderId string, msgId string) i
 	// delete message
 	chatJid, _ := types.ParseJID(chatId)
 	senderJid, _ := types.ParseJID(senderId)
-	_, err := client.SendMessage(context.Background(), chatJid, client.BuildRevoke(chatJid, senderJid, msgId))
+	_, err := client.SendMessage(context.Background(), chatJid, client.BuildRevoke(chatJid, senderJid, msgId),
+		whatsmeow.SendRequestExtra{Peer: false, Timeout: 3 * time.Second})
 
 	// log any error
 	if err != nil {

@@ -436,7 +436,7 @@ void WmChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
         Status::Clear(Status::FlagUpdating);
 
         std::shared_ptr<DeleteMessageNotify> deleteMessageNotify = std::make_shared<DeleteMessageNotify>(m_ProfileId);
-        deleteMessageNotify->success = (rv == 0);
+        deleteMessageNotify->success = true; // ignore actual result, as message may have been deleted on server already
         deleteMessageNotify->chatId = deleteMessageRequest->chatId;
         deleteMessageNotify->msgId = deleteMessageRequest->msgId;
         CallMessageHandler(deleteMessageNotify);
