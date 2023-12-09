@@ -129,6 +129,11 @@ std::string FileUtil::GetDownloadsDir()
   if (!m_DownloadsDir.empty())
   {
     std::string downloadsDir = FileUtil::ExpandPath(m_DownloadsDir);
+    if (!FileUtil::IsDir(downloadsDir))
+    {
+      FileUtil::MkDir(downloadsDir);
+    }
+
     if (FileUtil::IsDir(downloadsDir))
     {
       return downloadsDir;
