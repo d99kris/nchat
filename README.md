@@ -809,6 +809,16 @@ with multiple profiles. The default profile name is `WhatsAppMd` or
 setting is not specified.
 
 
+FAQ
+===
+
+### Custom colors are not shown when running nchat under tmux?
+
+Please try to run nchat specifying the actual terminal, e.g:
+
+    TERM=xterm-256color nchat
+
+
 Technical Details
 =================
 
