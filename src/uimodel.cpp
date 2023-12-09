@@ -27,6 +27,7 @@
 #include "uiemojilistdialog.h"
 #include "uifilelistdialog.h"
 #include "uikeyconfig.h"
+#include "uikeyinput.h"
 #include "uimessagedialog.h"
 #include "uiview.h"
 
@@ -100,6 +101,8 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keyExtCall = UiKeyConfig::GetKey("ext_call");
 
   static wint_t keyOtherCommandsHelp = UiKeyConfig::GetKey("other_commands_help");
+  static wint_t keyTerminalFocusIn = UiKeyConfig::GetKey("terminal_focus_in");
+  static wint_t keyTerminalFocusOut = UiKeyConfig::GetKey("terminal_focus_out");
 
   if (p_Key == KEY_RESIZE)
   {
@@ -107,12 +110,12 @@ void UiModel::KeyHandler(wint_t p_Key)
     ReinitView();
     return;
   }
-  else if (p_Key == KEY_FOCUS_IN)
+  else if (p_Key == keyTerminalFocusIn)
   {
     SetTerminalActive(true);
     return;
   }
-  else if (p_Key == KEY_FOCUS_OUT)
+  else if (p_Key == keyTerminalFocusOut)
   {
     SetTerminalActive(false);
     return;
@@ -1085,7 +1088,7 @@ void UiModel::OpenMessage()
   FileUtil::RmFile(tempPath);
   refresh();
   wint_t key = 0;
-  while (get_wch(&key) != ERR)
+  while (UiKeyInput::GetWch(&key) != ERR)
   {
     // Discard any remaining input
   }
@@ -1223,7 +1226,7 @@ void UiModel::RunCommand(const std::string& p_Cmd)
   {
     refresh();
     wint_t key = 0;
-    while (get_wch(&key) != ERR)
+    while (UiKeyInput::GetWch(&key) != ERR)
     {
       // Discard any remaining input
     }
@@ -1346,7 +1349,7 @@ std::vector<std::string> UiModel::SelectFile()
 
     refresh();
     wint_t key = 0;
-    while (get_wch(&key) != ERR)
+    while (UiKeyInput::GetWch(&key) != ERR)
     {
       // Discard any remaining input
     }
@@ -3042,7 +3045,7 @@ void UiModel::CallExternalEdit(const std::string& p_EditorCmd)
   FileUtil::RmFile(tempPath);
   refresh();
   wint_t key = 0;
-  while (get_wch(&key) != ERR)
+  while (UiKeyInput::GetWch(&key) != ERR)
   {
     // Discard any remaining input
   }

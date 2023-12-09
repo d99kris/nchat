@@ -10,6 +10,8 @@
 #include <unistd.h>
 #include <sys/select.h>
 
+#include "uikeyinput.h"
+
 UiController::UiController()
 {
 }
@@ -20,8 +22,6 @@ UiController::~UiController()
 
 void UiController::Init()
 {
-  define_key("\033[I", KEY_FOCUS_IN);
-  define_key("\033[O", KEY_FOCUS_OUT);
 }
 
 void UiController::Cleanup()
@@ -39,7 +39,7 @@ wint_t UiController::GetKey(int p_TimeOutMs)
   select(maxfd + 1, &fds, NULL, NULL, &tv); // ignore select() rv to get resize events
   if (FD_ISSET(STDIN_FILENO, &fds))
   {
-    get_wch(&key);
+    UiKeyInput::GetWch(&key);
   }
 
   return key;

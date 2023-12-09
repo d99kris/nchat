@@ -71,6 +71,8 @@ void UiListDialog::KeyHandler(wint_t p_Key)
   static wint_t keyHome = UiKeyConfig::GetKey("home");
   static wint_t keyBackspace = UiKeyConfig::GetKey("backspace");
   static wint_t keyBackspaceAlt = UiKeyConfig::GetKey("backspace_alt");
+  static wint_t keyTerminalFocusIn = UiKeyConfig::GetKey("terminal_focus_in");
+  static wint_t keyTerminalFocusOut = UiKeyConfig::GetKey("terminal_focus_out");
 
   bool isDirty = true;
   if (p_Key == KEY_RESIZE)
@@ -83,11 +85,11 @@ void UiListDialog::KeyHandler(wint_t p_Key)
     Init();
     UpdateList();
   }
-  else if (p_Key == KEY_FOCUS_IN)
+  else if (p_Key == keyTerminalFocusIn)
   {
     m_Model->SetTerminalActive(true);
   }
-  else if (p_Key == KEY_FOCUS_OUT)
+  else if (p_Key == keyTerminalFocusOut)
   {
     m_Model->SetTerminalActive(false);
   }

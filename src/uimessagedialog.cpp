@@ -50,6 +50,8 @@ void UiMessageDialog::KeyHandler(wint_t p_Key)
   static wint_t keyQuit = UiKeyConfig::GetKey("quit");
   static wint_t keyOtherCommandsHelp = UiKeyConfig::GetKey("other_commands_help");
   static wint_t keyReturn = UiKeyConfig::GetKey("return");
+  static wint_t keyTerminalFocusIn = UiKeyConfig::GetKey("terminal_focus_in");
+  static wint_t keyTerminalFocusOut = UiKeyConfig::GetKey("terminal_focus_out");
 
   bool isDirty = true;
   if (p_Key == KEY_RESIZE)
@@ -61,11 +63,11 @@ void UiMessageDialog::KeyHandler(wint_t p_Key)
     curs_set(0);
     Init();
   }
-  else if (p_Key == KEY_FOCUS_IN)
+  else if (p_Key == keyTerminalFocusIn)
   {
     m_Model->SetTerminalActive(true);
   }
-  else if (p_Key == KEY_FOCUS_OUT)
+  else if (p_Key == keyTerminalFocusOut)
   {
     m_Model->SetTerminalActive(false);
   }

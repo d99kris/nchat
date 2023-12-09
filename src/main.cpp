@@ -125,6 +125,7 @@ int main(int argc, char* argv[])
 
   // Argument handling
   std::string exportDir;
+  bool isKeyDump = false;
   bool isRemove = false;
   bool isSetup = false;
   std::vector<std::string> args(argv + 1, argv + argc);
@@ -150,8 +151,7 @@ int main(int argc, char* argv[])
     }
     else if ((*it == "-k") || (*it == "--keydump"))
     {
-      Ui::RunKeyDump();
-      return 0;
+      isKeyDump = true;
     }
     else if ((*it == "-m") || (*it == "--devmode"))
     {
@@ -237,6 +237,13 @@ int main(int argc, char* argv[])
   Log::Init(logPath);
   std::string appNameVersion = AppUtil::GetAppNameVersion();
   LOG_INFO("starting %s", appNameVersion.c_str());
+
+  // Run keydump if required
+  if (isKeyDump)
+  {
+    Ui::RunKeyDump();
+    return 0;
+  }
 
   // Init app config
   AppConfig::Init();

@@ -9,9 +9,6 @@
 
 #include <ncurses.h>
 
-#define KEY_FOCUS_IN 1001
-#define KEY_FOCUS_OUT 1002
-
 class UiController
 {
 public:

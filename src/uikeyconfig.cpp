@@ -15,8 +15,12 @@
 #include "log.h"
 #include "strutil.h"
 
-static std::map<std::string, int> s_KeyCodes =
+Config UiKeyConfig::m_Config;
+std::map<std::string, int> UiKeyConfig::m_KeyCodes;
+
+void UiKeyConfig::InitKeyCodes()
 {
+  m_KeyCodes = std::map<std::string, int>({
   // additional keys
   { "KEY_TAB", KEY_TAB },
   { "KEY_RETURN", KEY_RETURN },
@@ -159,7 +163,10 @@ static std::map<std::string, int> s_KeyCodes =
   { "KEY_UNDO", KEY_UNDO },
   { "KEY_MOUSE", KEY_MOUSE },
   { "KEY_RESIZE", KEY_RESIZE },
-};
+  { "KEY_FOCUS_IN", GetVirtualKeyCodeFromOct("\\033\\133\\111") }, // 033[I
+  { "KEY_FOCUS_OUT", GetVirtualKeyCodeFromOct("\\033\\133\\117") }, // 033[O
+  });
+}
 
 void UiKeyConfig::Init()
 {
@@ -221,10 +228,14 @@ void UiKeyConfig::Init()
     { "other_commands_help", "KEY_CTRLO" },
     { "decrease_list_width", "\\33\\54" }, // alt/opt-,
     { "increase_list_width", "\\33\\56" }, // alt/opt-.
+    { "terminal_focus_in", "KEY_FOCUS_IN" },
+    { "terminal_focus_out", "KEY_FOCUS_OUT" },
   };
 
   const std::string configPath(FileUtil::GetApplicationDir() + std::string("/key.conf"));
   m_Config = Config(configPath, defaultConfig);
+
+  InitKeyCodes();
 }
 
 void UiKeyConfig::Cleanup()
@@ -242,9 +253,9 @@ std::string UiKeyConfig::GetKeyName(int p_KeyCode)
   static const std::map<int, std::string> s_KeyNames = []()
   {
     std::map<int, std::string> keyNames;
-    for (auto& nameCodePair : s_KeyCodes)
+    for (auto& nameCodePair : m_KeyCodes)
     {
-      keyNames[nameCodePair.second] = nameCodePair.first;
+      keyNames[GetOffsettedKeyCode(nameCodePair.second)] = nameCodePair.first;
     }
 
     return keyNames;
@@ -260,14 +271,30 @@ std::string UiKeyConfig::GetKeyName(int p_KeyCode)
   return keyName;
 }
 
+std::map<std::string, std::string> UiKeyConfig::GetMap()
+{
+  return m_Config.GetMap();
+}
+
+int UiKeyConfig::GetOffsettedKeyCode(int p_KeyCode, bool p_IsFunctionKey)
+{
+  static const int functionKeyOffset = UiKeyConfig::GetFunctionKeyOffset();
+  return p_KeyCode | (p_IsFunctionKey ? functionKeyOffset : 0x0);
+}
+
+int UiKeyConfig::GetOffsettedKeyCode(int p_KeyCode)
+{
+  static const int functionKeyOffset = UiKeyConfig::GetFunctionKeyOffset();
+  return p_KeyCode | ((p_KeyCode > 0xff) ? functionKeyOffset : 0x0);
+}
+
 int UiKeyConfig::GetKeyCode(const std::string& p_KeyName)
 {
-
   int keyCode = -1;
-  std::map<std::string, int>::iterator it = s_KeyCodes.find(p_KeyName);
-  if (it != s_KeyCodes.end())
+  std::map<std::string, int>::iterator it = m_KeyCodes.find(p_KeyName);
+  if (it != m_KeyCodes.end())
   {
-    keyCode = it->second;
+    keyCode = GetOffsettedKeyCode(it->second);
     LOG_TRACE("map '%s' to code 0x%x", p_KeyName.c_str(), keyCode);
   }
   else if ((p_KeyName.size() > 2) && (p_KeyName.substr(0, 2) == "0x"))
@@ -284,9 +311,7 @@ int UiKeyConfig::GetKeyCode(const std::string& p_KeyName)
   {
     if (std::count(p_KeyName.begin(), p_KeyName.end(), '\\') > 1)
     {
-      keyCode = ReserveVirtualKeyCode();
-      std::string keyStr = StrUtil::StrFromOct(p_KeyName);
-      define_key(keyStr.c_str(), keyCode);
+      keyCode = GetOffsettedKeyCode(GetVirtualKeyCodeFromOct(p_KeyName));
     }
     else
     {
@@ -304,6 +329,14 @@ int UiKeyConfig::GetKeyCode(const std::string& p_KeyName)
   return keyCode;
 }
 
+int UiKeyConfig::GetVirtualKeyCodeFromOct(const std::string& p_KeyOct)
+{
+  int keyCode = ReserveVirtualKeyCode();
+  std::string keyStr = StrUtil::StrFromOct(p_KeyOct);
+  define_key(keyStr.c_str(), keyCode);
+  return keyCode;
+}
+
 int UiKeyConfig::ReserveVirtualKeyCode()
 {
   // Using Unicode's first Private Use Area (U+E000–U+F8FF) and starting at a
@@ -314,4 +347,8 @@ int UiKeyConfig::ReserveVirtualKeyCode()
   return keyCode++;
 }
 
-Config UiKeyConfig::m_Config;
+int UiKeyConfig::GetFunctionKeyOffset()
+{
+  // Using Unicode's supplementary Private Use Area B (U+100000..U+10FFFD).
+  return 0x100000;
+}

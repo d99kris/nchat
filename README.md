@@ -597,6 +597,8 @@ This configuration file holds user interface key bindings. Default content:
     select_contact=KEY_CTRLN
     select_emoji=KEY_CTRLS
     send_msg=KEY_CTRLX
+    terminal_focus_in=KEY_FOCUS_IN
+    terminal_focus_out=KEY_FOCUS_OUT
     toggle_emoji=KEY_CTRLY
     toggle_help=KEY_CTRLG
     toggle_list=KEY_CTRLL

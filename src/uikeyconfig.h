@@ -1,6 +1,6 @@
 // uikeyconfig.h
 //
-// Copyright (c) 2019-2022 Kristofer Berggren
+// Copyright (c) 2019-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -23,11 +23,18 @@ public:
   static void Cleanup();
   static int GetKey(const std::string& p_Param);
   static std::string GetKeyName(int p_KeyCode);
+  static int GetOffsettedKeyCode(int p_KeyCode, bool p_IsFunctionKey);
+  static std::map<std::string, std::string> GetMap();
 
 private:
+  static void InitKeyCodes();
+  static int GetOffsettedKeyCode(int p_KeyCode);
   static int GetKeyCode(const std::string& p_KeyName);
+  static int GetVirtualKeyCodeFromOct(const std::string& p_KeyOct);
   static int ReserveVirtualKeyCode();
+  static int GetFunctionKeyOffset();
 
 private:
   static Config m_Config;
+  static std::map<std::string, int> m_KeyCodes;
 };

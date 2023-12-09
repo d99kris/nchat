@@ -14,10 +14,13 @@
 
 #include <ncurses.h>
 
+#include "uicontroller.h"
 #include "uikeyconfig.h"
+#include "uikeyinput.h"
 
 void UiKeyDump::Run()
 {
+  printf("\033[?1004h");
   setlocale(LC_ALL, "");
   initscr();
   noecho();
@@ -29,6 +32,19 @@ void UiKeyDump::Run()
 
   printw("key code dump mode - press ctrl-c or 'q' to exit\n");
   refresh();
+
+  UiKeyConfig::Init();
+  UiController uiController;
+  uiController.Init();
+
+  std::map<std::string, std::string> keyParams = UiKeyConfig::GetMap();
+  std::map<wint_t, std::string> codeConfig;
+  for (auto& keyParam : keyParams)
+  {
+    std::string param = keyParam.first;
+    wint_t key = UiKeyConfig::GetKey(param);
+    codeConfig[key] = param;
+  }
 
   bool running = true;
   while (running)
@@ -56,7 +72,7 @@ void UiKeyDump::Run()
       int count = 0;
       wint_t key = 0;
       wint_t keyOk = 0;
-      while (get_wch(&key) != ERR)
+      while (UiKeyInput::GetWch(&key) != ERR)
       {
         keyOk = key;
         ++count;
@@ -76,6 +92,12 @@ void UiKeyDump::Run()
         {
           printw(" %s", keyName.c_str());
         }
+
+        std::string keyParam = codeConfig[keyOk];
+        if (!keyParam.empty())
+        {
+          printw(" %s", keyParam.c_str());
+        }
       }
 
       printw("\n");
@@ -83,6 +105,10 @@ void UiKeyDump::Run()
     }
   }
 
+  uiController.Cleanup();
+  UiKeyConfig::Cleanup();
+
   wclear(stdscr);
   endwin();
+  printf("\033[?1004l");
 }

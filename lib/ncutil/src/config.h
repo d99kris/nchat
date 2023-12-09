@@ -1,6 +1,6 @@
 // config.h
 //
-// Copyright (c) 2020-2021 Kristofer Berggren
+// Copyright (c) 2020-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -24,6 +24,7 @@ public:
   void Set(const std::string& p_Param, const std::string& p_Value);
   void Delete(const std::string& p_Param);
   bool Exist(const std::string& p_Param);
+  std::map<std::string, std::string> GetMap() const;
 
 private:
   std::map<std::string, std::string> m_Map;

@@ -94,6 +94,8 @@ add_executable(nchat
   src/uikeyconfig.h
   src/uikeydump.cpp
   src/uikeydump.h
+  src/uikeyinput.cpp
+  src/uikeyinput.h
   src/uilistborderview.cpp
   src/uilistborderview.h
   src/uilistdialog.cpp
