@@ -1,6 +1,6 @@
 // uihelpview.cpp
 //
-// Copyright (c) 2019-2021 Kristofer Berggren
+// Copyright (c) 2019-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -44,7 +44,6 @@ void UiHelpView::Draw()
   static std::vector<std::wstring> messageDialogHelpItems = []()
   {
     std::vector<std::wstring> helpItems;
-    AppendHelpItem(UiKeyConfig::GetKey("cancel"), "Cancel", helpItems);
     AppendHelpItem(UiKeyConfig::GetKey("return"), "OK", helpItems);
     return helpItems;
   }();
