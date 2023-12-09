@@ -1,6 +1,6 @@
 // strutil.cpp
 //
-// Copyright (c) 2020-2022 Kristofer Berggren
+// Copyright (c) 2020-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -59,11 +59,20 @@ std::vector<std::string> StrUtil::ExtractUrlsFromStr(const std::string& p_Str)
 {
   std::string str = p_Str;
   std::vector<std::string> rv;
-  std::regex rg("(http|https):\\/\\/([^\\s]+)");
+  std::regex rg("\\(?(http|https):\\/\\/([^\\s]+)");
   std::smatch sm;
   while (regex_search(str, sm, rg))
   {
-    rv.push_back(sm.str());
+    std::string url = sm.str();
+    if ((url.size() >= 2) && (url.front() == '('))
+    {
+      size_t closeParenthesis = url.find(')');
+      if (closeParenthesis != std::string::npos)
+      {
+        url = url.substr(1, closeParenthesis - 1);
+      }
+    }
+    rv.push_back(url);
     str = sm.suffix();
   }
 
