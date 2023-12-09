@@ -1190,7 +1190,7 @@ void TgChat::Impl::InitProxy()
     auto proxies = td::move_tl_object_as<td::td_api::proxies>(proxiesObject);
     if (!proxies) return;
 
-    for (const td::td_api::object_ptr<td::td_api::proxy> &proxy : proxies->proxies_)
+    for (const td::td_api::object_ptr<td::td_api::proxy>& proxy : proxies->proxies_)
     {
       if (proxy)
       {
@@ -2490,19 +2490,22 @@ void TgChat::Impl::GetSponsoredMessages(const std::string& p_ChatId)
       }
       else if (sponsoredMessage->sponsor_->type_->get_id() == td::td_api::messageSponsorTypePublicChannel::ID)
       {
-        auto& messageSponsorTypePublicChannel = static_cast<td::td_api::messageSponsorTypePublicChannel&>(*sponsoredMessage->sponsor_->type_);
+        auto& messageSponsorTypePublicChannel =
+          static_cast<td::td_api::messageSponsorTypePublicChannel&>(*sponsoredMessage->sponsor_->type_);
         chatMessage.senderId = StrUtil::NumToHex(messageSponsorTypePublicChannel.chat_id_);
         link = td::move_tl_object_as<td::td_api::InternalLinkType>(messageSponsorTypePublicChannel.link_);
       }
       else if (sponsoredMessage->sponsor_->type_->get_id() == td::td_api::messageSponsorTypePrivateChannel::ID)
       {
-        auto& messageSponsorTypePrivateChannel = static_cast<const td::td_api::messageSponsorTypePrivateChannel&>(*sponsoredMessage->sponsor_->type_);
+        auto& messageSponsorTypePrivateChannel =
+          static_cast<const td::td_api::messageSponsorTypePrivateChannel&>(*sponsoredMessage->sponsor_->type_);
         // @todo: chatMessage.senderId = StrUtil::NumToHex(messageSponsorTypePrivateChannel.bot_user_id_);
         url = messageSponsorTypePrivateChannel.invite_link_;
       }
       else if (sponsoredMessage->sponsor_->type_->get_id() == td::td_api::messageSponsorTypeWebsite::ID)
       {
-        auto& messageSponsorTypeWebsite = static_cast<const td::td_api::messageSponsorTypeWebsite&>(*sponsoredMessage->sponsor_->type_);
+        auto& messageSponsorTypeWebsite =
+          static_cast<const td::td_api::messageSponsorTypeWebsite&>(*sponsoredMessage->sponsor_->type_);
         // @todo: chatMessage.senderId = StrUtil::NumToHex(messageSponsorTypeWebsite.bot_user_id_);
         url = messageSponsorTypeWebsite.url_;
       }
@@ -2622,7 +2625,8 @@ std::string TgChat::Impl::GetContactName(int64_t p_UserId)
   }
 }
 
-void TgChat::Impl::GetChatHistory(int64_t p_ChatId, int64_t p_FromMsgId, int32_t p_Offset, int32_t p_Limit, bool p_Sequence)
+void TgChat::Impl::GetChatHistory(int64_t p_ChatId, int64_t p_FromMsgId, int32_t p_Offset, int32_t p_Limit,
+                                  bool p_Sequence)
 {
   // *INDENT-OFF*
   Status::Set(Status::FlagFetching);

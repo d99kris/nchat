@@ -97,7 +97,8 @@ void UiContactListDialog::UpdateList()
         (StrUtil::ToLower(name).find(StrUtil::ToLower(StrUtil::ToString(m_FilterStr))) != std::string::npos))
     {
       static const bool isMultipleProfiles = m_Model->IsMultipleProfiles();
-      std::string displayName = name + (isMultipleProfiles ? " @ " + m_Model->GetProfileDisplayName(contactInfo.first) : "");
+      std::string displayName = name +
+        (isMultipleProfiles ? " @ " + m_Model->GetProfileDisplayName(contactInfo.first) : "");
       m_Items.push_back(StrUtil::TrimPadWString(StrUtil::ToWString(displayName), m_W));
       m_ContactInfosVec.push_back(std::make_pair(contactInfo.first, contactInfo.second));
     }

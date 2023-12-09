@@ -340,8 +340,8 @@ func JidToStr(jid types.JID) string {
 }
 
 func GetChatId(chatJid types.JID, senderJid types.JID) string {
-  if (chatJid.Server == "broadcast") {
-		if (chatJid.User == "status") {
+	if chatJid.Server == "broadcast" {
+		if chatJid.User == "status" {
 			return JidToStr(chatJid) // status updates
 		} else {
 			return JidToStr(senderJid) // broadcast messages
@@ -615,7 +615,7 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 			hasMessages = true
 		}
 
-		if (hasMessages) {
+		if hasMessages {
 			isMuted := false
 			settings, setErr := client.Store.ChatSettings.GetChatSettings(chatJid)
 			if setErr != nil {
@@ -648,7 +648,7 @@ func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 	quotedId := ""
 	selfJid := *client.Store.ID
 	senderJidStr := ""
-	if ((groupInfo.Sender != nil) && (JidToStr(*groupInfo.Sender) != JidToStr(groupInfo.JID))) {
+	if (groupInfo.Sender != nil) && (JidToStr(*groupInfo.Sender) != JidToStr(groupInfo.JID)) {
 		senderJidStr = JidToStr(*groupInfo.Sender)
 	}
 
@@ -657,21 +657,21 @@ func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 	fileStatus := FileStatusNone
 
 	text := ""
-	if (groupInfo.Name != nil) {
+	if groupInfo.Name != nil {
 		// Group name change
-		if (senderJidStr == "") {
+		if senderJidStr == "" {
 			senderJidStr = JidToStr(groupInfo.JID)
 		}
 
 		groupName := *groupInfo.Name
 		text = "[Changed group name to " + groupName.Name + "]"
-	} else if (len(groupInfo.Join) > 0) {
+	} else if len(groupInfo.Join) > 0 {
 		// Group member joined
-		if ((len(groupInfo.Join) == 1) && ((senderJidStr == "") || (senderJidStr == JidToStr(groupInfo.Join[0])))) {
+		if (len(groupInfo.Join) == 1) && ((senderJidStr == "") || (senderJidStr == JidToStr(groupInfo.Join[0]))) {
 			senderJidStr = JidToStr(groupInfo.Join[0])
 			text = "[Joined]"
 		} else {
-			if (senderJidStr == "") {
+			if senderJidStr == "" {
 				senderJidStr = JidToStr(groupInfo.JID)
 			}
 
@@ -686,13 +686,13 @@ func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 
 			text = "[Added " + joined + "]"
 		}
-	} else if (len(groupInfo.Leave) > 0) {
+	} else if len(groupInfo.Leave) > 0 {
 		// Group member left
-		if ((len(groupInfo.Leave) == 1) && ((senderJidStr == "") || (senderJidStr == JidToStr(groupInfo.Leave[0])))) {
+		if (len(groupInfo.Leave) == 1) && ((senderJidStr == "") || (senderJidStr == JidToStr(groupInfo.Leave[0]))) {
 			senderJidStr = JidToStr(groupInfo.Leave[0])
 			text = "[Left]"
 		} else {
-			if (senderJidStr == "") {
+			if senderJidStr == "" {
 				senderJidStr = JidToStr(groupInfo.JID)
 			}
 
@@ -735,7 +735,7 @@ func (handler *WmEventHandler) HandleDeleteChat(deleteChat *events.DeleteChat) {
 	chatId := deleteChat.JID.ToNonAD().String()
 
 	LOG_TRACE(fmt.Sprintf("Call CWmDeleteChatNotify %s", chatId))
-	CWmDeleteChatNotify(connId, chatId);
+	CWmDeleteChatNotify(connId, chatId)
 }
 
 func (handler *WmEventHandler) HandleMute(mute *events.Mute) {
@@ -750,7 +750,7 @@ func (handler *WmEventHandler) HandleMute(mute *events.Mute) {
 	isMuted := *muteAction.Muted
 
 	LOG_TRACE(fmt.Sprintf("Call CWmUpdateMuteNotify %s %s", chatId, strconv.FormatBool(isMuted)))
-	CWmUpdateMuteNotify(connId, chatId, BoolToInt(isMuted));
+	CWmUpdateMuteNotify(connId, chatId, BoolToInt(isMuted))
 }
 
 func GetNameFromContactInfo(contactInfo types.ContactInfo) string {

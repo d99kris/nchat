@@ -2877,7 +2877,6 @@ void UiModel::EditMessage()
     }
     else if (HasProtocolFeature(profileId, FeatureEditMessagesWithinFifteenMins) &&
              (messageAgeSec >= fifteenMinsSec))
-
     {
       MessageDialog("Warning", "Messages older than 15 minutes cannot be edited.", 0.8, 5);
       return;
