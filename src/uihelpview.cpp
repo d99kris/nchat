@@ -215,35 +215,44 @@ void UiHelpView::AppendHelpItem(const int p_Key, const std::string& p_Desc, std:
 
 std::string UiHelpView::GetKeyDisplay(int p_Key)
 {
-  if (p_Key == '\n')
+  static int keyBackspace = UiKeyConfig::GetKeyCode("KEY_BACKSPACE");
+  static int keyBackTab = UiKeyConfig::GetKeyCode("KEY_BTAB");
+  static int keyDown = UiKeyConfig::GetKeyCode("KEY_DOWN");
+  static int keyLeft = UiKeyConfig::GetKeyCode("KEY_LEFT");
+  static int keyReturn = UiKeyConfig::GetKeyCode("KEY_RETURN");
+  static int keyRight = UiKeyConfig::GetKeyCode("KEY_RIGHT");
+  static int keyTab = UiKeyConfig::GetKeyCode("KEY_TAB");
+  static int keyUp = UiKeyConfig::GetKeyCode("KEY_UP");
+
+  if (p_Key == keyReturn)
   {
     return "\xe2\x8f\x8e";
   }
-  else if (p_Key == KEY_TAB)
+  else if (p_Key == keyTab)
   {
     return "Tab";
   }
-  else if (p_Key == KEY_BTAB)
+  else if (p_Key == keyBackTab)
   {
     return "STab";
   }
-  else if (p_Key == KEY_UP)
+  else if (p_Key == keyUp)
   {
     return "\xe2\x86\x91";
   }
-  else if (p_Key == KEY_DOWN)
+  else if (p_Key == keyDown)
   {
     return "\xe2\x86\x93";
   }
-  else if (p_Key == KEY_LEFT)
+  else if (p_Key == keyLeft)
   {
     return "\xe2\x86\x90";
   }
-  else if (p_Key == KEY_RIGHT)
+  else if (p_Key == keyRight)
   {
     return "\xe2\x86\x92";
   }
-  else if (p_Key == KEY_BACKSPACE)
+  else if (p_Key == keyBackspace)
   {
     return "\xe2\x8c\xab";
   }

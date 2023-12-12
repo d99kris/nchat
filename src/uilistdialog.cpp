@@ -73,9 +73,10 @@ void UiListDialog::KeyHandler(wint_t p_Key)
   static wint_t keyBackspaceAlt = UiKeyConfig::GetKey("backspace_alt");
   static wint_t keyTerminalFocusIn = UiKeyConfig::GetKey("terminal_focus_in");
   static wint_t keyTerminalFocusOut = UiKeyConfig::GetKey("terminal_focus_out");
+  static wint_t keyTerminalResize = UiKeyConfig::GetKey("terminal_resize");
 
   bool isDirty = true;
-  if (p_Key == KEY_RESIZE)
+  if (p_Key == keyTerminalResize)
   {
     Cleanup();
     m_Model->SetHelpOffset(0);

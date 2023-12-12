@@ -103,8 +103,9 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keyOtherCommandsHelp = UiKeyConfig::GetKey("other_commands_help");
   static wint_t keyTerminalFocusIn = UiKeyConfig::GetKey("terminal_focus_in");
   static wint_t keyTerminalFocusOut = UiKeyConfig::GetKey("terminal_focus_out");
+  static wint_t keyTerminalResize = UiKeyConfig::GetKey("terminal_resize");
 
-  if (p_Key == KEY_RESIZE)
+  if (p_Key == keyTerminalResize)
   {
     SetHelpOffset(0);
     ReinitView();

@@ -22,6 +22,7 @@ public:
   static void Init();
   static void Cleanup();
   static int GetKey(const std::string& p_Param);
+  static int GetKeyCode(const std::string& p_KeyName);
   static std::string GetKeyName(int p_KeyCode);
   static int GetOffsettedKeyCode(int p_KeyCode, bool p_IsFunctionKey);
   static std::map<std::string, std::string> GetMap();
@@ -29,7 +30,6 @@ public:
 private:
   static void InitKeyCodes();
   static int GetOffsettedKeyCode(int p_KeyCode);
-  static int GetKeyCode(const std::string& p_KeyName);
   static int GetVirtualKeyCodeFromOct(const std::string& p_KeyOct);
   static int ReserveVirtualKeyCode();
   static int GetFunctionKeyOffset();

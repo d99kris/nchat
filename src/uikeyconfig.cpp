@@ -230,6 +230,7 @@ void UiKeyConfig::Init()
     { "increase_list_width", "\\33\\56" }, // alt/opt-.
     { "terminal_focus_in", "KEY_FOCUS_IN" },
     { "terminal_focus_out", "KEY_FOCUS_OUT" },
+    { "terminal_resize", "KEY_RESIZE" },
   };
 
   const std::string configPath(FileUtil::GetApplicationDir() + std::string("/key.conf"));
