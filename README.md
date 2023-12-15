@@ -812,9 +812,9 @@ setting is not specified.
 FAQ
 ===
 
-### Custom colors are not shown when running nchat under tmux?
+### Custom colors are not shown when running nchat?
 
-Please try to run nchat specifying the actual terminal, e.g:
+Please try to run nchat with a TERM supporting custom colors, e.g:
 
     TERM=xterm-256color nchat
 
