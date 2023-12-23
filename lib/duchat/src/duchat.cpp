@@ -1,6 +1,6 @@
 // duchat.cpp
 //
-// Copyright (c) 2020-2022 Kristofer Berggren
+// Copyright (c) 2020-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -15,6 +15,7 @@
 
 #include "log.h"
 #include "status.h"
+#include "strutil.h"
 
 extern "C" DuChat* CreateDuChat()
 {
@@ -49,9 +50,7 @@ std::string DuChat::GetProfileDisplayName() const
 
 bool DuChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId)
 {
-  std::cout << "Enter phone number: ";
-  std::string phoneNumber;
-  std::getline(std::cin, phoneNumber);
+  std::string phoneNumber = StrUtil::GetPhoneNumber();
 
   m_ProfileId = m_ProfileId + "_" + phoneNumber;
   std::string profileDir = p_ProfilesDir + "/" + m_ProfileId;

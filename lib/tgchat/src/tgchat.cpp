@@ -281,8 +281,7 @@ bool TgChat::Impl::HasFeature(ProtocolFeature p_ProtocolFeature) const
 
 bool TgChat::Impl::SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId)
 {
-  std::cout << "Enter phone number (ex. +6511111111): ";
-  std::getline(std::cin, m_SetupPhoneNumber);
+  m_SetupPhoneNumber = StrUtil::GetPhoneNumber();
 
   m_ProfileId = m_ProfileId + "_" + m_SetupPhoneNumber;
   m_ProfileDir = p_ProfilesDir + "/" + m_ProfileId;

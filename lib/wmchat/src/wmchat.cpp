@@ -18,6 +18,7 @@
 #include "messagecache.h"
 #include "protocolutil.h"
 #include "status.h"
+#include "strutil.h"
 #include "timeutil.h"
 
 std::mutex WmChat::s_ConnIdMapMutex;
@@ -65,9 +66,7 @@ bool WmChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_Profi
   std::cout << "Use at your own risk. You may abort this setup wizard by pressing CTRL-C.\n";
   std::cout << "\n";
 
-  std::cout << "Enter phone number (ex. +6511111111): ";
-  std::string phoneNumber;
-  std::getline(std::cin, phoneNumber);
+  std::string phoneNumber = StrUtil::GetPhoneNumber();
 
   std::cout << "\n";
   std::cout << "Open WhatsApp on your phone, click the menu bar and select \"Linked deviced\".\n";

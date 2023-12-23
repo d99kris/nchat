@@ -1,6 +1,6 @@
 // strutil.h
 //
-// Copyright (c) 2020-2022 Kristofer Berggren
+// Copyright (c) 2020-2023 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -21,6 +21,7 @@ public:
   static std::string Emojize(const std::string& p_Str, bool p_Pad = false);
   static std::vector<std::string> ExtractUrlsFromStr(const std::string& p_Str);
   static std::string GetPass();
+  static std::string GetPhoneNumber();
   static std::string GetProtocolName(const std::string& p_ProfileId);
   static bool GetQuotePrefix(const std::wstring& p_String, std::wstring& p_Prefix, std::wstring& p_Line);
   static bool IsInteger(const std::string& p_Str);

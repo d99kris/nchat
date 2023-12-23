@@ -99,6 +99,17 @@ std::string StrUtil::GetPass()
   return pass;
 }
 
+std::string StrUtil::GetPhoneNumber()
+{
+  std::string str;
+  std::cout << "Enter phone number (ex. +6511111111): ";
+  std::getline(std::cin, str);
+  str.erase(std::remove_if(str.begin(), str.end(),
+                           [](const char& ch) { return !std::isdigit(ch) && (ch != '+'); }),
+            str.end());
+  return str;
+}
+
 std::string StrUtil::GetProtocolName(const std::string& p_ProfileId)
 {
   std::vector<std::string> parts = StrUtil::Split(p_ProfileId, '_');
