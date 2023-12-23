@@ -34,8 +34,8 @@ void UiHelpView::Draw()
   static std::vector<std::wstring> listDialogHelpItems = []()
   {
     std::vector<std::wstring> helpItems;
-    AppendHelpItem(UiKeyConfig::GetKey("cancel"), "Cancel", helpItems);
     AppendHelpItem(UiKeyConfig::GetKey("return"), "Select", helpItems);
+    AppendHelpItem(UiKeyConfig::GetKey("cancel"), "Cancel", helpItems);
     AppendHelpItem('a', "AddFiltr", helpItems);
     AppendHelpItem(UiKeyConfig::GetKey("backspace"), "DelFiltr", helpItems);
     return helpItems;
@@ -45,14 +45,15 @@ void UiHelpView::Draw()
   {
     std::vector<std::wstring> helpItems;
     AppendHelpItem(UiKeyConfig::GetKey("return"), "OK", helpItems);
+    AppendHelpItem(UiKeyConfig::GetKey("cancel"), "Cancel", helpItems);
     return helpItems;
   }();
 
   static std::vector<std::wstring> editMessageHelpItems = []()
   {
     std::vector<std::wstring> helpItems;
-    AppendHelpItem(UiKeyConfig::GetKey("cancel"), "Cancel", helpItems);
     AppendHelpItem(UiKeyConfig::GetKey("send_msg"), "Save", helpItems);
+    AppendHelpItem(UiKeyConfig::GetKey("cancel"), "Cancel", helpItems);
     return helpItems;
   }();
 
