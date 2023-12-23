@@ -155,6 +155,7 @@ private:
   void HandleChatInfoMutedUpdate(const std::string& p_ProfileId, const std::string& p_ChatId);
   void SendProtocolRequest(const std::string& p_ProfileId, std::shared_ptr<RequestMessage> p_Request);
   bool HasProtocolFeature(const std::string& p_ProfileId, ProtocolFeature p_ProtocolFeature);
+  void Quit();
 
 private:
   bool m_Running = true;

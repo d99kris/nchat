@@ -580,9 +580,13 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 	var client *whatsmeow.Client = GetClient(handler.connId)
 	selfJid := *client.Store.ID
 
-	LOG_TRACE(fmt.Sprintf("HandleHistorySync SyncType %#v", *historySync.Data.SyncType))
+	LOG_TRACE(fmt.Sprintf("HandleHistorySync SyncType %s Progress %d",
+		(*historySync.Data.SyncType).String(), historySync.Data.GetProgress()))
 
-	CWmSetStatus(FlagSyncing)
+	if (historySync.Data.GetProgress() < 98) {
+		LOG_TRACE("Set Syncing")
+		CWmSetStatus(FlagSyncing)
+	}
 
 	pushnames := historySync.Data.GetPushnames()
 	for _, pushname := range pushnames {
@@ -637,7 +641,11 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 
 	}
 
-	CWmClearStatus(FlagSyncing)
+	if (historySync.Data.GetProgress() == 100) &&
+		(historySync.Data.GetSyncType() == waProto.HistorySync_FULL) {
+		LOG_TRACE("Clear Syncing")
+		CWmClearStatus(FlagSyncing)
+	}
 }
 
 func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {

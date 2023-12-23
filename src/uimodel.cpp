@@ -18,6 +18,7 @@
 #include "numutil.h"
 #include "protocolutil.h"
 #include "sethelp.h"
+#include "status.h"
 #include "strutil.h"
 #include "timeutil.h"
 #include "uidialog.h"
@@ -177,7 +178,7 @@ void UiModel::KeyHandler(wint_t p_Key)
   }
   else if (p_Key == keyQuit)
   {
-    m_Running = false;
+    Quit();
   }
   else if (p_Key == keySendMsg)
   {
@@ -3173,4 +3174,17 @@ std::string UiModel::GetProfileDisplayName(const std::string& p_ProfileId)
   }();
 
   return s_DisplayNames[p_ProfileId];
+}
+
+void UiModel::Quit()
+{
+  if (Status::Get() & Status::FlagSyncing)
+  {
+    if (!MessageDialog("Confirmation", "Syncing in progress, confirm exit?", 0.75, 5))
+    {
+      return;
+    }
+  }
+
+  m_Running = false;
 }
