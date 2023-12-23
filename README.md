@@ -818,6 +818,17 @@ Please try to run nchat with a TERM supporting custom colors, e.g:
 
     TERM=xterm-256color nchat
 
+### No QR code is shown in the terminal when setting up WhatsApp in WSL?
+
+If the environment variable `$DISPLAY` is set, nchat uses the default image
+viewer via `xdg-open` to display the QR code. If running Linux without X,
+but still have `$DISPLAY` set (some Windows Subsystem for Linux / WSL / WSL2
+setups seems to do this), one needs to unset it before performing WhatsApp
+setup, e.g.:
+
+    unset DISPLAY
+    nchat -s
+
 
 Technical Details
 =================
