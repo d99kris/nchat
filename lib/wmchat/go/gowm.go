@@ -914,10 +914,14 @@ func (handler *WmEventHandler) HandleTextMessage(messageInfo types.MessageInfo, 
 	filePath := ""
 	fileStatus := FileStatusNone
 
+	var client *whatsmeow.Client = GetClient(handler.connId)
+	selfId := JidToStr(*client.Store.ID)
+	isSelfChat := (chatId == selfId)
+
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isSeen := isSync
 	isOld := (timeSent <= timeUnread[intString{i: connId, s: chatId}])
-	isRead := (fromMe && isSeen) || (!fromMe && isOld)
+	isRead := (fromMe && isSeen) || (!fromMe && isOld) || isSelfChat
 
 	UpdateTypingStatus(connId, chatId, senderId, fromMe, isOld)
 
