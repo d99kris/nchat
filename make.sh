@@ -7,11 +7,36 @@
 #
 # See LICENSE for redistribution information.
 
-# exiterr
+# helper functions
 exiterr()
 {
   >&2 echo "${1}"
   exit 1
+}
+
+show_usage()
+{
+  echo "usage: make.sh [OPTIONS] ACTION"
+  echo ""
+  echo "Options:"
+  echo "  --no-telegram   - build without telegram support"
+  echo "  --no-whatsapp   - build without whatsapp support"
+  echo "  --yes,-y        - non-interactive mode, assume yes"
+  echo ""
+  echo "Action:"
+  echo "  deps            - install project dependencies"
+  echo "  build           - perform build"
+  echo "  debug           - perform debug build"
+  echo "  tests           - perform build and run tests"
+  echo "  doc             - perform build and generate documentation"
+  echo "  install         - perform build and install"
+  echo "  all             - perform deps, build, tests, doc and install"
+  echo "  src             - perform source code reformatting"
+  echo ""
+}
+
+function version_ge() {
+  test "$(printf '%s\n' "$@" | sort -V | head -n 1)" == "$2";
 }
 
 # process arguments
@@ -22,66 +47,78 @@ TESTS="0"
 DOC="0"
 INSTALL="0"
 SRC="0"
-case "${1%/}" in
-  deps)
-    DEPS="1"
-    ;;
+YES=""
+CMAKEARGS=""
 
-  build)
-    BUILD="1"
-    ;;
+if [[ "${#}" == "0" ]]; then
+  show_usage
+  exit 1
+fi
 
-  debug)
-    DEBUG="1"
-    ;;
+while [[ ${#} -gt 0 ]]; do
+  case "${1%/}" in
+    deps)
+      DEPS="1"
+      ;;
 
-  test*)
-    BUILD="1"
-    TESTS="1"
-    ;;
+    build)
+      BUILD="1"
+      ;;
 
-  doc)
-    BUILD="1"
-    DOC="1"
-    ;;
+    debug)
+      DEBUG="1"
+      ;;
 
-  install)
-    BUILD="1"
-    INSTALL="1"
-    ;;
+    test*)
+      BUILD="1"
+      TESTS="1"
+      ;;
 
-  src)
-    SRC="1"
-    ;;
+    doc)
+      BUILD="1"
+      DOC="1"
+      ;;
 
-  all)
-    DEPS="1"
-    BUILD="1"
-    TESTS="1"
-    DOC="1"
-    INSTALL="1"
-    ;;
+    install)
+      BUILD="1"
+      INSTALL="1"
+      ;;
 
-  *)
-    echo "usage: make.sh <deps|build|tests|doc|install|all> [-y]"
-    echo "  deps      - install project dependencies"
-    echo "  build     - perform build"
-    echo "  debug     - perform debug build"
-    echo "  tests     - perform build and run tests"
-    echo "  doc       - perform build and generate documentation"
-    echo "  install   - perform build and install"
-    echo "  all       - perform deps, build, tests, doc and install"
-    echo "  src       - perform source code reformatting"
-    echo "  -y        - non-interactive mode, assume "
-    exit 1
-    ;;
-esac
-[[ "${2}" == "-y" ]] && YES="-y" || YES=""
+    src)
+      SRC="1"
+      ;;
 
-# helper functions
-function version_ge() {
-  test "$(printf '%s\n' "$@" | sort -V | head -n 1)" == "$2";
-}
+    all)
+      DEPS="1"
+      BUILD="1"
+      TESTS="1"
+      DOC="1"
+      INSTALL="1"
+      ;;
+
+    --no-telegram)
+      CMAKEARGS="${CMAKEARGS} -DHAS_TELEGRAM=OFF"
+      ;;
+
+    --no-whatsapp)
+      CMAKEARGS="${CMAKEARGS} -DHAS_WHATSAPP=OFF"
+      ;;
+
+    -y)
+      YES="-y"
+      ;;
+
+    --yes)
+      YES="-y"
+      ;;
+
+    *)
+      show_usage
+      exit 1
+      ;;
+  esac
+  shift
+done
 
 # deps
 if [[ "${DEPS}" == "1" ]]; then
@@ -161,8 +198,6 @@ if [[ "${BUILD}" == "1" ]]; then
   MAKEARGS="-j${MAX_THREADS}"
   echo "-- Using ${MAKEARGS} (${CPU_MAX_THREADS} cores, ${MEM} MB phys mem, ${MEM_NEEDED_PER_CORE} MB mem per core needed)"
 
-  CMAKEARGS=""
-
   mkdir -p build && cd build && cmake ${CMAKEARGS} .. && make -s ${MAKEARGS} && cd .. || exiterr "build failed, exiting."
 fi
 
@@ -199,8 +234,6 @@ if [[ "${DEBUG}" == "1" ]]; then
 
   MAKEARGS="-j${MAX_THREADS}"
   echo "-- Using ${MAKEARGS} (${CPU_MAX_THREADS} cores, ${MEM} MB phys mem, ${MEM_NEEDED_PER_CORE} MB mem per core needed)"
-
-  CMAKEARGS=""
 
   mkdir -p dbgbuild && cd dbgbuild && cmake -DCMAKE_BUILD_TYPE=Debug ${CMAKEARGS} .. && make -s ${MAKEARGS} && cd .. || exiterr "debug build failed, exiting."
 fi

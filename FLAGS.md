@@ -15,3 +15,11 @@ to cmake:
     mkdir -p build && cd build
     cmake -DHAS_WHATSAPP=OFF .. && make -s
 
+Similarly the `make.sh` script provides options, example:
+
+    ./make.sh --no-telegram build
+
+and
+
+    ./make.sh --no-whatsapp build
+
