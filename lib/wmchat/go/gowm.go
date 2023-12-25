@@ -544,7 +544,7 @@ func (handler *WmEventHandler) HandleReceipt(receipt *events.Receipt) {
 	if receipt.Type == events.ReceiptTypeRead || receipt.Type == events.ReceiptTypeReadSelf {
 		LOG_TRACE(fmt.Sprintf("%#v was read by %s at %s", receipt.MessageIDs, receipt.SourceString(), receipt.Timestamp))
 		connId := handler.connId
-		chatId := receipt.SourceString()
+		chatId := receipt.MessageSource.Chat.ToNonAD().String()
 		isRead := true
 		for _, msgId := range receipt.MessageIDs {
 			LOG_TRACE(fmt.Sprintf("Call CWmNewMessageStatusNotify"))
