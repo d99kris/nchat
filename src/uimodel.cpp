@@ -299,7 +299,7 @@ void UiModel::SendMessage()
   {
     const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
     const int messageOffset = m_MessageOffset[profileId][chatId];
-    std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
+    const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
 
     auto it = std::next(messageVec.begin(), messageOffset);
     if (it == messageVec.end())
@@ -832,7 +832,7 @@ void UiModel::Home()
     fetchedAllCache = true;
   }
 
-  int messageCount = m_Messages[profileId][chatId].size();
+  const int messageCount = m_Messages[profileId][chatId].size();
   int& messageOffset = m_MessageOffset[profileId][chatId];
   std::stack<int>& messageOffsetStack = m_MessageOffsetStack[profileId][chatId];
 
@@ -861,7 +861,7 @@ void UiModel::HomeFetchNext(const std::string& p_ProfileId, const std::string& p
     {
       if (p_MsgCount > 0)
       {
-        int messageCount = m_Messages[p_ProfileId][p_ChatId].size();
+        const int messageCount = m_Messages[p_ProfileId][p_ChatId].size();
         int& messageOffset = m_MessageOffset[p_ProfileId][p_ChatId];
         std::stack<int>& messageOffsetStack = m_MessageOffsetStack[p_ProfileId][p_ChatId];
 
@@ -938,7 +938,12 @@ void UiModel::MarkRead(const std::string& p_ProfileId, const std::string& p_Chat
   markMessageReadRequest->msgId = p_MsgId;
   SendProtocolRequest(p_ProfileId, markMessageReadRequest);
 
-  m_Messages[p_ProfileId][p_ChatId][p_MsgId].isRead = true;
+  std::unordered_map<std::string, ChatMessage>& messages = m_Messages[p_ProfileId][p_ChatId];
+  auto mit = messages.find(p_MsgId);
+  if (mit != messages.end())
+  {
+    mit->second.isRead = true;
+  }
 
   UpdateChatInfoIsUnread(p_ProfileId, p_ChatId);
 
@@ -1106,7 +1111,7 @@ bool UiModel::GetMessageAttachmentPath(std::string& p_FilePath, DownloadFileActi
   std::string chatId = m_CurrentChat.second;
   const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
   const int messageOffset = m_MessageOffset[profileId][chatId];
-  std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
+  const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
 
   auto it = std::next(messageVec.begin(), messageOffset);
   if (it == messageVec.end())
@@ -1245,7 +1250,7 @@ void UiModel::OpenMessageLink()
   std::string chatId = m_CurrentChat.second;
   const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
   const int messageOffset = m_MessageOffset[profileId][chatId];
-  std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
+  const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
 
   auto it = std::next(messageVec.begin(), messageOffset);
   if (it == messageVec.end())
@@ -1769,7 +1774,12 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
         std::string msgId = newMessageStatusNotify->msgId;
         bool isRead = newMessageStatusNotify->isRead;
         LOG_TRACE("new read status %s is %s", msgId.c_str(), (isRead ? "read" : "unread"));
-        m_Messages[profileId][chatId][msgId].isRead = isRead;
+        std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
+        auto mit = messages.find(msgId);
+        if (mit != messages.end())
+        {
+          mit->second.isRead = isRead;
+        }
 
         UpdateChatInfoIsUnread(profileId, chatId);
         UpdateHistory();
@@ -1786,7 +1796,12 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
         std::string fileInfoStr = newMessageFileNotify->fileInfo;
         DownloadFileAction downloadFileAction = newMessageFileNotify->downloadFileAction;
         LOG_TRACE("new file info for %s is %s", msgId.c_str(), fileInfoStr.c_str());
-        m_Messages[profileId][chatId][msgId].fileInfo = fileInfoStr;
+        std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
+        auto mit = messages.find(msgId);
+        if (mit != messages.end())
+        {
+          mit->second.fileInfo = fileInfoStr;
+        }
 
         if (downloadFileAction == DownloadFileActionOpen)
         {
@@ -2730,7 +2745,7 @@ std::string UiModel::GetSelectedMessageText()
   std::string chatId = m_CurrentChat.second;
   const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
   const int messageOffset = m_MessageOffset[profileId][chatId];
-  std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
+  const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
 
   auto it = std::next(messageVec.begin(), messageOffset);
   if (it == messageVec.end())
