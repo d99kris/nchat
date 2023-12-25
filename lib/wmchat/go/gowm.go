@@ -1967,9 +1967,20 @@ func WmDeleteMessage(connId int, chatId string, senderId string, msgId string) i
 	// get client
 	client := GetClient(connId)
 
-	// delete message
 	chatJid, _ := types.ParseJID(chatId)
 	senderJid, _ := types.ParseJID(senderId)
+
+	// skip deleting messages sent by others in private chat
+	selfId := JidToStr(*client.Store.ID)
+	isGroup := (chatJid.Server == types.GroupServer)
+	isFromSelf := (senderId == selfId)
+	if !isFromSelf && !isGroup {
+		LOG_TRACE(fmt.Sprintf("delete message isGroup %t isFromSelf %t skip %#v",
+			isGroup, isFromSelf, msgId))
+		return -1
+	}
+
+	// delete message
 	_, err := client.SendMessage(context.Background(), chatJid, client.BuildRevoke(chatJid, senderJid, msgId),
 		whatsmeow.SendRequestExtra{Peer: false, Timeout: 3 * time.Second})
 
