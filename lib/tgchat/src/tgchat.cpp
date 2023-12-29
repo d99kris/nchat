@@ -1958,6 +1958,8 @@ std::int64_t TgChat::Impl::GetSenderId(const td::td_api::message& p_TdMessage)
 
 std::string TgChat::Impl::GetText(td::td_api::object_ptr<td::td_api::formattedText>&& p_FormattedText)
 {
+  if (!p_FormattedText) return "";
+
   std::string text = p_FormattedText->text_;
   static const bool markdownEnabled = (m_Config.Get("markdown_enabled") == "1");
   static const int32_t markdownVersion = (m_Config.Get("markdown_version") == "1") ? 1 : 2;
@@ -2275,6 +2277,8 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
 
 void TgChat::Impl::TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessage& p_ChatMessage)
 {
+  if (!p_TdMessage.content_) return;
+
   const int64_t senderId = GetSenderId(p_TdMessage);
   TdMessageContentConvert(*p_TdMessage.content_, senderId, p_ChatMessage.text, p_ChatMessage.fileInfo);
 
