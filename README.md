@@ -220,11 +220,7 @@ Once the setup process is completed, the main UI of nchat will be loaded.
 
 Troubleshooting
 ===============
-If any issues are observed, try running nchat with verbose logging
-
-    nchat --verbose
-
-and provide a copy of `~/.nchat/log.txt` when reporting a bug.
+Refer to [Debugging](DEBUGGING.md) for details.
 
 
 Telegram Group
