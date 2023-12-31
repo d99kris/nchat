@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+# sign
+#
+# Copyright (c) 2023 Kristofer Berggren
+# All rights reserved.
+#
+# nchat is distributed under the MIT license.
+
+if [[ "${1}" == "" ]] || [[ "${2}" == "" ]]; then
+  >&2 echo "usage: ./utils/sign <entitlements> <program>"
+  exit 1
+fi
+
+if [[ ! -f "${1}" ]]; then
+  >&2 echo "sign error: specified entitlements (${1}) does not exist."
+  exit 1
+fi
+
+if [[ ! -f "${2}" ]]; then
+  >&2 echo "sign error: specified program (${2}) does not exist."
+  exit 1
+fi
+
+OUTPUT=$(codesign -s - -f --entitlements ${1} ${2} 2>&1)
+RV=${?}
+if [[ "${RV}" != "0" ]]; then
+  >&2 echo "sign error: codesign failed (${OUTPUT})."
+fi
+
+exit ${RV}

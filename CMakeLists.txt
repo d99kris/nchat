@@ -54,6 +54,10 @@ message(STATUS "Dynamic Load: ${HAS_DYNAMICLOAD}")
 option(HAS_MULTIPROTOCOL "Multi Protocol" ON)
 message(STATUS "Multi Protocol: ${HAS_MULTIPROTOCOL}")
 
+# Feature - Core dump
+option(HAS_COREDUMP "Core Dump" ON)
+message(STATUS "Core Dump: ${HAS_COREDUMP}")
+
 # Check Go version
 if(HAS_WHATSAPP)
   # Check Golang version - whatsmeow requires >= v1.18
@@ -190,6 +194,17 @@ endif()
 
 if(HAS_DYNAMICLOAD)
   target_compile_definitions(nchat PRIVATE HAS_DYNAMICLOAD="${HAS_DYNAMICLOAD}")
+endif()
+
+if(HAS_COREDUMP)
+  if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    # Core dump entitlements
+    set(SIGNSCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/utils/sign")
+    set(ENTITLEMENTS "${CMAKE_CURRENT_SOURCE_DIR}/src/nchat.entitlements")
+    install(CODE "execute_process(COMMAND
+      \"${SIGNSCRIPT}\" \"${ENTITLEMENTS}\" \"${CMAKE_INSTALL_PREFIX}/bin/nchat\"
+      )" COMPONENT Runtime)
+  endif()
 endif()
 
 # Manual install dir
