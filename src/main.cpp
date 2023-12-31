@@ -249,6 +249,17 @@ int main(int argc, char* argv[])
   AppConfig::Init();
   FileUtil::SetDownloadsDir(AppConfig::GetStr("downloads_dir"));
 
+  // Init core dump
+  static const bool isCoredumpEnabled = AppConfig::GetBool("coredump_enabled");
+  if (isCoredumpEnabled)
+  {
+#ifndef HAS_COREDUMP
+    LOG_WARNING("core dump not supported");
+#else
+    AppUtil::InitCoredump();
+#endif
+  }
+
   // Init message cache
   MessageCache::Init();
 

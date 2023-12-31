@@ -254,6 +254,7 @@ This configuration file holds general application settings. Default content:
     attachment_prefetch=1
     attachment_send_type=1
     cache_enabled=1
+    coredump_enabled=0
     downloads_dir=
     proxy_host=
     proxy_pass=
@@ -278,6 +279,10 @@ Specifies level of attachment prefetching:
 ### cache_enabled
 
 Specifies whether to enable (experimental) cache functionality.
+
+### coredump_enabled
+
+Specifies whether to enable core dumps on application crash.
 
 ### downloads_dir
 

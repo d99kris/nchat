@@ -197,6 +197,7 @@ if(HAS_DYNAMICLOAD)
 endif()
 
 if(HAS_COREDUMP)
+  target_compile_definitions(nchat PRIVATE HAS_COREDUMP="${HAS_COREDUMP}")
   if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     # Core dump entitlements
     set(SIGNSCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/utils/sign")
