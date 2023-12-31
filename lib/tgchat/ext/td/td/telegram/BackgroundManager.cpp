@@ -105,15 +105,18 @@ class SetChatWallPaperQuery final : public Td::ResultHandler {
   Promise<Unit> promise_;
   DialogId dialog_id_;
   bool is_remove_ = false;
+  bool is_revert_ = false;
 
  public:
   explicit SetChatWallPaperQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
   }
 
   void send(DialogId dialog_id, telegram_api::object_ptr<telegram_api::InputWallPaper> input_wallpaper,
-            telegram_api::object_ptr<telegram_api::wallPaperSettings> settings, MessageId old_message_id) {
+            telegram_api::object_ptr<telegram_api::wallPaperSettings> settings, MessageId old_message_id, bool for_both,
+            bool revert) {
     dialog_id_ = dialog_id;
-    is_remove_ = input_wallpaper == nullptr && settings == nullptr;
+    is_revert_ = revert;
+    is_remove_ = input_wallpaper == nullptr && settings == nullptr && !revert;
     if (is_remove_) {
       td_->messages_manager_->on_update_dialog_background(dialog_id_, nullptr);
     }
@@ -132,9 +135,15 @@ class SetChatWallPaperQuery final : public Td::ResultHandler {
     if (old_message_id.is_valid()) {
       flags |= telegram_api::messages_setChatWallPaper::ID_MASK;
     }
-    send_query(G()->net_query_creator().create(
-        telegram_api::messages_setChatWallPaper(flags, std::move(input_peer), std::move(input_wallpaper),
-                                                std::move(settings), old_message_id.get_server_message_id().get())));
+    if (for_both) {
+      flags |= telegram_api::messages_setChatWallPaper::FOR_BOTH_MASK;
+    }
+    if (revert) {
+      flags |= telegram_api::messages_setChatWallPaper::REVERT_MASK;
+    }
+    send_query(G()->net_query_creator().create(telegram_api::messages_setChatWallPaper(
+        flags, false /*ignored*/, false /*ignored*/, std::move(input_peer), std::move(input_wallpaper),
+        std::move(settings), old_message_id.get_server_message_id().get())));
   }
 
   void on_result(BufferSlice packet) final {
@@ -154,7 +163,10 @@ class SetChatWallPaperQuery final : public Td::ResultHandler {
   void on_error(Status status) final {
     if (is_remove_) {
       td_->messages_manager_->reload_dialog_info_full(dialog_id_, "SetChatWallPaperQuery");
+    } else if (is_revert_ && status.message() == "WALLPAPER_NOT_FOUND") {
+      return td_->background_manager_->delete_dialog_background(dialog_id_, false, std::move(promise_));
     }
+    td_->messages_manager_->on_get_dialog_error(dialog_id_, status, "SetChatWallPaperQuery");
     promise_.set_error(std::move(status));
   }
 };
@@ -468,7 +480,7 @@ void BackgroundManager::start_up() {
       }
     }
 
-    send_update_selected_background(for_dark_theme);
+    send_update_default_background(for_dark_theme);
   }
 }
 
@@ -491,8 +503,8 @@ void BackgroundManager::store_background(BackgroundId background_id, LogEventSto
 void BackgroundManager::parse_background(BackgroundId &background_id, LogEventParser &parser) {
   Background background;
   parse(background, parser);
-  CHECK(background.has_new_local_id);
-  if (background.file_id.is_valid() != background.type.has_file() || !background.id.is_valid()) {
+  if (!background.has_new_local_id || background.file_id.is_valid() != background.type.has_file() ||
+      !background.id.is_valid()) {
     parser.set_error(PSTRING() << "Failed to load " << background.id);
     background_id = BackgroundId();
     return;
@@ -616,15 +628,15 @@ void BackgroundManager::on_load_background_from_database(string name, string val
   set_promises(promises);
 }
 
-td_api::object_ptr<td_api::updateSelectedBackground> BackgroundManager::get_update_selected_background_object(
+td_api::object_ptr<td_api::updateDefaultBackground> BackgroundManager::get_update_default_background_object(
     bool for_dark_theme) const {
-  return td_api::make_object<td_api::updateSelectedBackground>(
+  return td_api::make_object<td_api::updateDefaultBackground>(
       for_dark_theme,
       get_background_object(set_background_id_[for_dark_theme], for_dark_theme, &set_background_type_[for_dark_theme]));
 }
 
-void BackgroundManager::send_update_selected_background(bool for_dark_theme) const {
-  send_closure(G()->td(), &Td::send_update, get_update_selected_background_object(for_dark_theme));
+void BackgroundManager::send_update_default_background(bool for_dark_theme) const {
+  send_closure(G()->td(), &Td::send_update, get_update_default_background_object(for_dark_theme));
 }
 
 Result<FileId> BackgroundManager::prepare_input_file(const tl_object_ptr<td_api::InputFile> &input_file) {
@@ -671,12 +683,11 @@ void BackgroundManager::set_background(const td_api::InputBackground *input_back
   TRY_RESULT_PROMISE(promise, type, BackgroundType::get_background_type(background_type, 0));
 
   if (input_background == nullptr) {
-    if (background_type == nullptr) {
-      set_background_id(BackgroundId(), BackgroundType(), for_dark_theme);
-      return promise.set_value(nullptr);
-    }
-    if (type.has_file()) {
+    if (type.has_file() || background_type == nullptr) {
       return promise.set_error(Status::Error(400, "Input background must be non-empty for the background type"));
+    }
+    if (background_type->get_id() == td_api::backgroundTypeChatTheme::ID) {
+      return promise.set_error(Status::Error(400, "Background type isn't supported"));
     }
 
     auto background_id = add_local_background(type);
@@ -720,48 +731,54 @@ void BackgroundManager::set_background(const td_api::InputBackground *input_back
   }
 }
 
-void BackgroundManager::set_dialog_background(DialogId dialog_id, const td_api::InputBackground *input_background,
-                                              const td_api::BackgroundType *background_type, int32 dark_theme_dimming,
-                                              Promise<Unit> &&promise) {
+void BackgroundManager::delete_background(bool for_dark_theme, Promise<Unit> &&promise) {
+  set_background_id(BackgroundId(), BackgroundType(), for_dark_theme);
+  promise.set_value(Unit());
+}
+
+Result<DialogId> BackgroundManager::get_background_dialog(DialogId dialog_id) {
   if (!td_->messages_manager_->have_dialog_force(dialog_id, "set_dialog_background")) {
-    return promise.set_error(Status::Error(400, "Chat not found"));
+    return Status::Error(400, "Chat not found");
   }
   if (!td_->messages_manager_->have_input_peer(dialog_id, AccessRights::Write)) {
-    return promise.set_error(Status::Error(400, "Can't access the chat"));
+    return Status::Error(400, "Can't access the chat");
   }
 
   switch (dialog_id.get_type()) {
     case DialogType::User:
-      break;
+      return dialog_id;
     case DialogType::Chat:
+      return Status::Error(400, "Can't change background in the chat");
     case DialogType::Channel:
-      return promise.set_error(Status::Error(400, "Can't change background in the chat"));
+      return dialog_id;
     case DialogType::SecretChat: {
       auto user_id = td_->contacts_manager_->get_secret_chat_user_id(dialog_id.get_secret_chat_id());
       if (!user_id.is_valid()) {
-        return promise.set_error(Status::Error(400, "Can't access the user"));
+        return Status::Error(400, "Can't access the user");
       }
-      dialog_id = DialogId(user_id);
-      break;
+      return DialogId(user_id);
     }
     case DialogType::None:
     default:
       UNREACHABLE();
+      return DialogId();
   }
+}
+
+void BackgroundManager::set_dialog_background(DialogId dialog_id, const td_api::InputBackground *input_background,
+                                              const td_api::BackgroundType *background_type, int32 dark_theme_dimming,
+                                              bool for_both, Promise<Unit> &&promise) {
+  TRY_RESULT_PROMISE_ASSIGN(promise, dialog_id, get_background_dialog(dialog_id));
 
   TRY_RESULT_PROMISE(promise, type, BackgroundType::get_background_type(background_type, dark_theme_dimming));
 
   if (input_background == nullptr) {
-    if (type.has_file()) {
+    if (type.has_file() || background_type == nullptr) {
       return promise.set_error(Status::Error(400, "Input background must be non-empty for the background type"));
     }
-    if (background_type == nullptr) {
-      return send_set_dialog_background_query(dialog_id, nullptr, nullptr, MessageId(), std::move(promise));
-    } else {
-      return send_set_dialog_background_query(dialog_id,
-                                              telegram_api::make_object<telegram_api::inputWallPaperNoFile>(0),
-                                              type.get_input_wallpaper_settings(), MessageId(), std::move(promise));
-    }
+    return send_set_dialog_background_query(dialog_id, telegram_api::make_object<telegram_api::inputWallPaperNoFile>(0),
+                                            type.get_input_wallpaper_settings(), MessageId(), for_both,
+                                            std::move(promise));
   }
 
   switch (input_background->get_id()) {
@@ -778,17 +795,17 @@ void BackgroundManager::set_dialog_background(DialogId dialog_id, const td_api::
 
       auto it = file_id_to_background_id_.find(file_id);
       if (it != file_id_to_background_id_.end()) {
-        return do_set_dialog_background(dialog_id, it->second, type, std::move(promise));
+        return do_set_dialog_background(dialog_id, it->second, type, for_both, std::move(promise));
       }
 
       auto upload_promise =
-          PromiseCreator::lambda([actor_id = actor_id(this), dialog_id, type, promise = std::move(promise)](
+          PromiseCreator::lambda([actor_id = actor_id(this), dialog_id, type, for_both, promise = std::move(promise)](
                                      Result<td_api::object_ptr<td_api::background>> &&result) mutable {
             if (result.is_error()) {
               return promise.set_error(result.move_as_error());
             }
             send_closure(actor_id, &BackgroundManager::do_set_dialog_background, dialog_id,
-                         BackgroundId(result.ok()->id_), std::move(type), std::move(promise));
+                         BackgroundId(result.ok()->id_), std::move(type), for_both, std::move(promise));
           });
       upload_background_file(file_id, type, dialog_id, false, std::move(upload_promise));
       break;
@@ -796,7 +813,7 @@ void BackgroundManager::set_dialog_background(DialogId dialog_id, const td_api::
     case td_api::inputBackgroundRemote::ID: {
       auto background_remote = static_cast<const td_api::inputBackgroundRemote *>(input_background);
       return do_set_dialog_background(dialog_id, BackgroundId(background_remote->background_id_), std::move(type),
-                                      std::move(promise));
+                                      for_both, std::move(promise));
     }
     case td_api::inputBackgroundPrevious::ID: {
       auto background_previous = static_cast<const td_api::inputBackgroundPrevious *>(input_background);
@@ -806,15 +823,21 @@ void BackgroundManager::set_dialog_background(DialogId dialog_id, const td_api::
       }
       return send_set_dialog_background_query(
           dialog_id, nullptr, background_type == nullptr ? nullptr : type.get_input_wallpaper_settings(), message_id,
-          std::move(promise));
+          for_both, std::move(promise));
     }
     default:
       UNREACHABLE();
   }
 }
 
+void BackgroundManager::delete_dialog_background(DialogId dialog_id, bool restore_previous, Promise<Unit> &&promise) {
+  TRY_RESULT_PROMISE_ASSIGN(promise, dialog_id, get_background_dialog(dialog_id));
+  td_->create_handler<SetChatWallPaperQuery>(std::move(promise))
+      ->send(dialog_id, nullptr, nullptr, MessageId(), false, restore_previous);
+}
+
 void BackgroundManager::do_set_dialog_background(DialogId dialog_id, BackgroundId background_id, BackgroundType type,
-                                                 Promise<Unit> &&promise) {
+                                                 bool for_both, Promise<Unit> &&promise) {
   TRY_STATUS_PROMISE(promise, G()->close_status());
   const auto *background = get_background(background_id);
   if (background == nullptr) {
@@ -828,15 +851,15 @@ void BackgroundManager::do_set_dialog_background(DialogId dialog_id, BackgroundI
 
   send_set_dialog_background_query(
       dialog_id, telegram_api::make_object<telegram_api::inputWallPaper>(background_id.get(), background->access_hash),
-      type.get_input_wallpaper_settings(), MessageId(), std::move(promise));
+      type.get_input_wallpaper_settings(), MessageId(), for_both, std::move(promise));
 }
 
 void BackgroundManager::send_set_dialog_background_query(
     DialogId dialog_id, telegram_api::object_ptr<telegram_api::InputWallPaper> input_wallpaper,
-    telegram_api::object_ptr<telegram_api::wallPaperSettings> settings, MessageId old_message_id,
+    telegram_api::object_ptr<telegram_api::wallPaperSettings> settings, MessageId old_message_id, bool for_both,
     Promise<Unit> &&promise) {
   td_->create_handler<SetChatWallPaperQuery>(std::move(promise))
-      ->send(dialog_id, std::move(input_wallpaper), std::move(settings), old_message_id);
+      ->send(dialog_id, std::move(input_wallpaper), std::move(settings), old_message_id, for_both, false);
 }
 
 void BackgroundManager::set_background(BackgroundId background_id, BackgroundType type, bool for_dark_theme,
@@ -923,7 +946,7 @@ void BackgroundManager::set_background_id(BackgroundId background_id, const Back
   set_background_type_[for_dark_theme] = type;
 
   save_background_id(for_dark_theme);
-  send_update_selected_background(for_dark_theme);
+  send_update_default_background(for_dark_theme);
 }
 
 void BackgroundManager::save_local_backgrounds(bool for_dark_theme) {
@@ -1446,8 +1469,8 @@ void BackgroundManager::get_current_state(vector<td_api::object_ptr<td_api::Upda
     return;
   }
 
-  updates.push_back(get_update_selected_background_object(false));
-  updates.push_back(get_update_selected_background_object(true));
+  updates.push_back(get_update_default_background_object(false));
+  updates.push_back(get_update_default_background_object(true));
 }
 
 }  // namespace td

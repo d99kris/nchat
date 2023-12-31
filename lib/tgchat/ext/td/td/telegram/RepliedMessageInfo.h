@@ -37,6 +37,7 @@ class RepliedMessageInfo {
   MessageOrigin origin_;                // for replies in other chats
   unique_ptr<MessageContent> content_;  // for replies in other chats
   FormattedText quote_;
+  int32 quote_position_ = 0;
   bool is_quote_manual_ = false;
 
   friend bool operator==(const RepliedMessageInfo &lhs, const RepliedMessageInfo &rhs);
@@ -98,9 +99,9 @@ class RepliedMessageInfo {
     message_id_ = new_message_id;
   }
 
-  MessageId get_same_chat_reply_to_message_id() const;
+  MessageId get_same_chat_reply_to_message_id(bool ignore_external) const;
 
-  MessageFullId get_reply_message_full_id(DialogId owner_dialog_id) const;
+  MessageFullId get_reply_message_full_id(DialogId owner_dialog_id, bool ignore_external) const;
 
   void register_content(Td *td) const;
 

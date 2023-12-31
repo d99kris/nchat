@@ -30,9 +30,11 @@ class ThemeManager final : public Actor {
 
   void on_update_theme(telegram_api::object_ptr<telegram_api::theme> &&theme, Promise<Unit> &&promise);
 
-  void on_update_accent_colors(FlatHashMap<AccentColorId, vector<int32>, AccentColorIdHash> light_colors,
-                               FlatHashMap<AccentColorId, vector<int32>, AccentColorIdHash> dark_colors,
-                               vector<AccentColorId> accent_color_ids);
+  void reload_chat_themes();
+
+  void reload_accent_colors();
+
+  void reload_profile_accent_colors();
 
   static string get_theme_parameters_json_string(const td_api::object_ptr<td_api::themeParameters> &theme,
                                                  bool for_web_view);
@@ -40,13 +42,21 @@ class ThemeManager final : public Actor {
   int32 get_accent_color_id_object(AccentColorId accent_color_id,
                                    AccentColorId fallback_accent_color_id = AccentColorId()) const;
 
+  int32 get_profile_accent_color_id_object(AccentColorId accent_color_id) const;
+
+  struct DialogBoostAvailableCounts {
+    int32 title_color_count_ = 0;
+    int32 accent_color_count_ = 0;
+    int32 profile_accent_color_count_ = 0;
+    int32 chat_theme_count_ = 0;
+  };
+  DialogBoostAvailableCounts get_dialog_boost_available_count(int32 level);
+
   void get_current_state(vector<td_api::object_ptr<td_api::Update>> &updates) const;
 
  private:
   // apeend-only
   enum class BaseTheme : int32 { Classic, Day, Night, Tinted, Arctic };
-
-  static constexpr int32 THEME_CACHE_TIME = 3600;
 
   struct ThemeSettings {
     int32 accent_color = 0;
@@ -82,7 +92,6 @@ class ThemeManager final : public Actor {
 
   struct ChatThemes {
     int64 hash = 0;
-    double next_reload_time = 0;
     vector<ChatTheme> themes;
 
     template <class StorerT>
@@ -96,6 +105,8 @@ class ThemeManager final : public Actor {
     FlatHashMap<AccentColorId, vector<int32>, AccentColorIdHash> light_colors_;
     FlatHashMap<AccentColorId, vector<int32>, AccentColorIdHash> dark_colors_;
     vector<AccentColorId> accent_color_ids_;
+    vector<int32> min_boost_levels_;
+    int32 hash_ = 0;
 
     td_api::object_ptr<td_api::updateAccentColors> get_update_accent_colors_object() const;
 
@@ -106,15 +117,70 @@ class ThemeManager final : public Actor {
     void parse(ParserT &parser);
   };
 
-  void loop() final;
+  struct ProfileAccentColor {
+    vector<int32> palette_colors_;
+    vector<int32> background_colors_;
+    vector<int32> story_colors_;
+
+    bool is_valid() const;
+
+    td_api::object_ptr<td_api::profileAccentColors> get_profile_accent_colors_object() const;
+
+    template <class StorerT>
+    void store(StorerT &storer) const;
+
+    template <class ParserT>
+    void parse(ParserT &parser);
+  };
+
+  friend bool operator==(const ProfileAccentColor &lhs, const ProfileAccentColor &rhs);
+
+  friend bool operator!=(const ProfileAccentColor &lhs, const ProfileAccentColor &rhs);
+
+  struct ProfileAccentColors {
+    FlatHashMap<AccentColorId, ProfileAccentColor, AccentColorIdHash> light_colors_;
+    FlatHashMap<AccentColorId, ProfileAccentColor, AccentColorIdHash> dark_colors_;
+    vector<AccentColorId> accent_color_ids_;
+    vector<int32> min_boost_levels_;
+    int32 hash_ = 0;
+
+    td_api::object_ptr<td_api::updateProfileAccentColors> get_update_profile_accent_colors_object() const;
+
+    template <class StorerT>
+    void store(StorerT &storer) const;
+
+    template <class ParserT>
+    void parse(ParserT &parser);
+  };
+
+  void start_up() final;
 
   void tear_down() final;
 
-  void do_init();
+  void load_chat_themes();
+
+  void load_accent_colors();
+
+  void load_profile_accent_colors();
 
   static bool is_dark_base_theme(BaseTheme base_theme);
 
   void on_get_chat_themes(Result<telegram_api::object_ptr<telegram_api::account_Themes>> result);
+
+  bool on_update_accent_colors(FlatHashMap<AccentColorId, vector<int32>, AccentColorIdHash> light_colors,
+                               FlatHashMap<AccentColorId, vector<int32>, AccentColorIdHash> dark_colors,
+                               vector<AccentColorId> accent_color_ids, vector<int32> min_boost_levels);
+
+  void on_get_accent_colors(Result<telegram_api::object_ptr<telegram_api::help_PeerColors>> result);
+
+  bool on_update_profile_accent_colors(FlatHashMap<AccentColorId, ProfileAccentColor, AccentColorIdHash> light_colors,
+                                       FlatHashMap<AccentColorId, ProfileAccentColor, AccentColorIdHash> dark_colors,
+                                       vector<AccentColorId> accent_color_ids, vector<int32> min_boost_levels);
+
+  ProfileAccentColor get_profile_accent_color(
+      telegram_api::object_ptr<telegram_api::help_PeerColorSet> &&color_set) const;
+
+  void on_get_profile_accent_colors(Result<telegram_api::object_ptr<telegram_api::help_PeerColors>> result);
 
   td_api::object_ptr<td_api::themeSettings> get_theme_settings_object(const ThemeSettings &settings) const;
 
@@ -126,9 +192,13 @@ class ThemeManager final : public Actor {
 
   string get_accent_colors_database_key();
 
+  string get_profile_accent_colors_database_key();
+
   void save_chat_themes();
 
   void save_accent_colors();
+
+  void save_profile_accent_colors();
 
   void send_update_chat_themes() const;
 
@@ -138,11 +208,17 @@ class ThemeManager final : public Actor {
 
   td_api::object_ptr<td_api::updateAccentColors> get_update_accent_colors_object() const;
 
+  td_api::object_ptr<td_api::updateProfileAccentColors> get_update_profile_accent_colors_object() const;
+
   void send_update_accent_colors() const;
+
+  void send_update_profile_accent_colors() const;
 
   ChatThemes chat_themes_;
 
   AccentColors accent_colors_;
+
+  ProfileAccentColors profile_accent_colors_;
 
   Td *td_;
   ActorShared<> parent_;

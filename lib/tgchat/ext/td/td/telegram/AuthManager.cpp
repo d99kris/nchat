@@ -327,13 +327,6 @@ void AuthManager::tear_down() {
   parent_.reset();
 }
 
-bool AuthManager::is_bot() const {
-  if (net_query_id_ != 0 && net_query_type_ == NetQueryType::BotAuthentication) {
-    return true;
-  }
-  return is_bot_ && was_authorized();
-}
-
 bool AuthManager::was_authorized() const {
   return state_ == State::Ok || state_ == State::LoggingOut || state_ == State::DestroyingKeys ||
          state_ == State::Closing;
@@ -1135,7 +1128,6 @@ void AuthManager::on_log_out_result(NetQueryPtr &&net_query) {
   } else if (r_log_out.error().code() != 401) {
     LOG(ERROR) << "Receive error for auth.logOut: " << r_log_out.error();
   }
-  // state_ will stay LoggingOut, so no queries will work.
   destroy_auth_keys();
   on_current_query_ok();
 }
@@ -1265,8 +1257,8 @@ void AuthManager::on_get_authorization(tl_object_ptr<telegram_api::auth_Authoriz
   td_->theme_manager_->init();
   td_->top_dialog_manager_->init();
   td_->updates_manager_->get_difference("on_get_authorization");
-  td_->on_online_updated(false, true);
   if (!is_bot()) {
+    td_->on_online_updated(false, true);
     td_->schedule_get_terms_of_service(0);
     td_->reload_promo_data();
     G()->td_db()->get_binlog_pmc()->set("fetched_marks_as_unread", "1");

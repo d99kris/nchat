@@ -130,6 +130,9 @@ class StickersManager final : public Actor {
 
   bool is_default_emoji_status(CustomEmojiId custom_emoji_id);
 
+  void get_default_channel_emoji_statuses(bool is_recursive,
+                                          Promise<td_api::object_ptr<td_api::emojiStatuses>> &&promise);
+
   void get_default_topic_icons(bool is_recursive, Promise<td_api::object_ptr<td_api::stickers>> &&promise);
 
   void get_custom_emoji_stickers(vector<CustomEmojiId> custom_emoji_ids, bool use_database,
@@ -137,6 +140,9 @@ class StickersManager final : public Actor {
 
   void get_default_custom_emoji_stickers(StickerListType sticker_list_type, bool force_reload,
                                          Promise<td_api::object_ptr<td_api::stickers>> &&promise);
+
+  void get_sticker_list_emoji_statuses(StickerListType sticker_list_type, bool force_reload,
+                                       Promise<td_api::object_ptr<td_api::emojiStatuses>> &&promise);
 
   void get_premium_gift_option_sticker(int32 month_count, bool is_recursive,
                                        Promise<td_api::object_ptr<td_api::sticker>> &&promise);
@@ -189,7 +195,7 @@ class StickersManager final : public Actor {
   std::pair<int32, vector<StickerSetId>> search_installed_sticker_sets(StickerType sticker_type, const string &query,
                                                                        int32 limit, Promise<Unit> &&promise);
 
-  vector<StickerSetId> search_sticker_sets(const string &query, Promise<Unit> &&promise);
+  vector<StickerSetId> search_sticker_sets(StickerType sticker_type, const string &query, Promise<Unit> &&promise);
 
   void change_sticker_set(StickerSetId set_id, bool is_installed, bool is_archived, Promise<Unit> &&promise);
 
@@ -413,10 +419,10 @@ class StickersManager final : public Actor {
 
   void on_find_custom_emojis_fail(const string &emoji, Status &&error);
 
-  void on_find_sticker_sets_success(const string &query,
+  void on_find_sticker_sets_success(StickerType sticker_type, const string &query,
                                     tl_object_ptr<telegram_api::messages_FoundStickerSets> &&sticker_sets);
 
-  void on_find_sticker_sets_fail(const string &query, Status &&error);
+  void on_find_sticker_sets_fail(StickerType sticker_type, const string &query, Status &&error);
 
   void send_get_attached_stickers_query(FileId file_id, Promise<Unit> &&promise);
 
@@ -465,8 +471,9 @@ class StickersManager final : public Actor {
     bool is_inited_ = false;  // basic information about the set
     bool was_loaded_ = false;
     bool is_loaded_ = false;
-    bool are_keywords_loaded_ = false;               // stored in telegram_api::messages_stickerSet
-    bool is_sticker_has_text_color_loaded_ = false;  // stored in telegram_api::messages_stickerSet
+    bool are_keywords_loaded_ = false;  // stored in telegram_api::messages_stickerSet
+    bool is_sticker_has_text_color_loaded_ = false;
+    bool is_sticker_channel_emoji_status_loaded_ = false;
 
     StickerSetId id_;
     int64 access_hash_ = 0;
@@ -493,6 +500,7 @@ class StickersManager final : public Actor {
     bool is_archived_ = false;
     bool is_official_ = false;
     bool has_text_color_ = false;
+    bool channel_emoji_status_ = false;
     bool is_viewed_ = true;
     bool is_thumbnail_reloaded_ = false;                   // stored in telegram_api::stickerSet
     bool are_legacy_sticker_thumbnails_reloaded_ = false;  // stored in telegram_api::stickerSet
@@ -618,6 +626,8 @@ class StickersManager final : public Actor {
   void load_custom_emoji_sticker_from_database(CustomEmojiId custom_emoji_id, Promise<Unit> &&promise);
 
   void on_load_custom_emoji_from_database(CustomEmojiId custom_emoji_id, string value);
+
+  void load_default_custom_emoji_ids(StickerListType sticker_list_type, bool force_reload);
 
   void on_load_default_custom_emoji_ids_from_database(StickerListType sticker_list_type, bool force_reload,
                                                       string value);
@@ -888,6 +898,8 @@ class StickersManager final : public Actor {
 
   void reload_special_sticker_set(SpecialStickerSet &sticker_set, int32 hash);
 
+  int is_custom_emoji_from_sticker_set(CustomEmojiId custom_emoji_id, StickerSetId sticker_set_id) const;
+
   static void add_sticker_thumbnail(Sticker *s, PhotoSize thumbnail);
 
   td_api::object_ptr<td_api::stickers> get_custom_emoji_stickers_object(const vector<CustomEmojiId> &custom_emoji_ids);
@@ -1028,8 +1040,8 @@ class StickersManager final : public Actor {
   FlatHashMap<string, vector<std::pair<int32, Promise<td_api::object_ptr<td_api::stickers>>>>>
       search_stickers_queries_[MAX_STICKER_TYPE];
 
-  std::unordered_map<string, vector<StickerSetId>, Hash<string>> found_sticker_sets_;
-  std::unordered_map<string, vector<Promise<Unit>>, Hash<string>> search_sticker_sets_queries_;
+  std::unordered_map<string, vector<StickerSetId>, Hash<string>> found_sticker_sets_[MAX_STICKER_TYPE];
+  std::unordered_map<string, vector<Promise<Unit>>, Hash<string>> search_sticker_sets_queries_[MAX_STICKER_TYPE];
 
   FlatHashSet<StickerSetId, StickerSetIdHash> pending_viewed_featured_sticker_set_ids_;
   Timeout pending_featured_sticker_set_views_timeout_;
@@ -1060,6 +1072,7 @@ class StickersManager final : public Actor {
   vector<Promise<Unit>> pending_get_premium_gift_option_sticker_queries_;
   vector<Promise<Unit>> pending_get_generic_animations_queries_;
   vector<Promise<Unit>> pending_get_default_statuses_queries_;
+  vector<Promise<Unit>> pending_get_default_channel_statuses_queries_;
   vector<Promise<Unit>> pending_get_default_topic_icons_queries_;
 
   double next_click_animated_emoji_message_time_ = 0;
@@ -1124,10 +1137,12 @@ class StickersManager final : public Actor {
   vector<Promise<td_api::object_ptr<td_api::emojiCategories>>> emoji_group_load_queries_[MAX_EMOJI_GROUP_TYPE];
 
   vector<CustomEmojiId> default_custom_emoji_ids_[MAX_STICKER_LIST_TYPE];
-  int64 default_custom_emoji_ids_hash_[MAX_STICKER_LIST_TYPE] = {0, 0, 0};
+  int64 default_custom_emoji_ids_hash_[MAX_STICKER_LIST_TYPE] = {0, 0, 0, 0};
   vector<Promise<td_api::object_ptr<td_api::stickers>>> default_custom_emoji_ids_load_queries_[MAX_STICKER_LIST_TYPE];
-  bool are_default_custom_emoji_ids_loaded_[MAX_STICKER_LIST_TYPE] = {false, false, false};
-  bool are_default_custom_emoji_ids_being_loaded_[MAX_STICKER_LIST_TYPE] = {false, false, false};
+  vector<Promise<td_api::object_ptr<td_api::emojiStatuses>>>
+      default_emoji_statuses_load_queries_[MAX_STICKER_LIST_TYPE];
+  bool are_default_custom_emoji_ids_loaded_[MAX_STICKER_LIST_TYPE] = {false, false, false, false};
+  bool are_default_custom_emoji_ids_being_loaded_[MAX_STICKER_LIST_TYPE] = {false, false, false, false};
 
   WaitFreeHashMap<CustomEmojiId, FileId, CustomEmojiIdHash> custom_emoji_to_sticker_id_;
 

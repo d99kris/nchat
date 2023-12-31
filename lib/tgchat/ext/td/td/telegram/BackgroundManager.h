@@ -44,13 +44,17 @@ class BackgroundManager final : public Actor {
   void set_background(const td_api::InputBackground *input_background, const td_api::BackgroundType *background_type,
                       bool for_dark_theme, Promise<td_api::object_ptr<td_api::background>> &&promise);
 
+  void delete_background(bool for_dark_theme, Promise<Unit> &&promise);
+
   void remove_background(BackgroundId background_id, Promise<Unit> &&promise);
 
   void reset_backgrounds(Promise<Unit> &&promise);
 
   void set_dialog_background(DialogId dialog_id, const td_api::InputBackground *input_background,
-                             const td_api::BackgroundType *background_type, int32 dark_theme_dimming,
+                             const td_api::BackgroundType *background_type, int32 dark_theme_dimming, bool for_both,
                              Promise<Unit> &&promise);
+
+  void delete_dialog_background(DialogId dialog_id, bool restore_previous, Promise<Unit> &&promise);
 
   td_api::object_ptr<td_api::background> get_background_object(BackgroundId background_id, bool for_dark_theme,
                                                                const BackgroundType *type) const;
@@ -114,11 +118,11 @@ class BackgroundManager final : public Actor {
                                      telegram_api::object_ptr<telegram_api::InputWallPaper> &&input_wallpaper,
                                      Promise<Unit> &&promise) const;
 
-  td_api::object_ptr<td_api::updateSelectedBackground> get_update_selected_background_object(bool for_dark_theme) const;
+  td_api::object_ptr<td_api::updateDefaultBackground> get_update_default_background_object(bool for_dark_theme) const;
 
   td_api::object_ptr<td_api::backgrounds> get_backgrounds_object(bool for_dark_theme) const;
 
-  void send_update_selected_background(bool for_dark_theme) const;
+  void send_update_default_background(bool for_dark_theme) const;
 
   void set_max_local_background_id(BackgroundId background_id);
 
@@ -140,13 +144,15 @@ class BackgroundManager final : public Actor {
 
   Result<FileId> prepare_input_file(const tl_object_ptr<td_api::InputFile> &input_file);
 
-  void do_set_dialog_background(DialogId dialog_id, BackgroundId background_id, BackgroundType type,
+  Result<DialogId> get_background_dialog(DialogId dialog_id);
+
+  void do_set_dialog_background(DialogId dialog_id, BackgroundId background_id, BackgroundType type, bool for_both,
                                 Promise<Unit> &&promise);
 
   void send_set_dialog_background_query(DialogId dialog_id,
                                         telegram_api::object_ptr<telegram_api::InputWallPaper> input_wallpaper,
                                         telegram_api::object_ptr<telegram_api::wallPaperSettings> settings,
-                                        MessageId old_message_id, Promise<Unit> &&promise);
+                                        MessageId old_message_id, bool for_both, Promise<Unit> &&promise);
 
   void set_background(BackgroundId background_id, BackgroundType type, bool for_dark_theme,
                       Promise<td_api::object_ptr<td_api::background>> &&promise);

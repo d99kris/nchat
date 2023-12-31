@@ -6,7 +6,14 @@
 //
 #include "td/telegram/MediaArea.h"
 
+#include "td/telegram/ChannelId.h"
+#include "td/telegram/ContactsManager.h"
+#include "td/telegram/Dependencies.h"
+#include "td/telegram/DialogId.h"
 #include "td/telegram/InlineQueriesManager.h"
+#include "td/telegram/MessageId.h"
+#include "td/telegram/MessagesManager.h"
+#include "td/telegram/ServerMessageId.h"
 #include "td/telegram/Td.h"
 
 #include "td/utils/logging.h"
@@ -52,7 +59,23 @@ MediaArea::MediaArea(Td *td, telegram_api::object_ptr<telegram_api::MediaArea> &
       }
       break;
     }
+    case telegram_api::mediaAreaChannelPost::ID: {
+      auto area = telegram_api::move_object_as<telegram_api::mediaAreaChannelPost>(media_area_ptr);
+      coordinates_ = MediaAreaCoordinates(area->coordinates_);
+      auto channel_id = ChannelId(area->channel_id_);
+      auto server_message_id = ServerMessageId(area->msg_id_);
+      if (coordinates_.is_valid() && channel_id.is_valid() && server_message_id.is_valid()) {
+        type_ = Type::Message;
+        message_full_id_ = MessageFullId(DialogId(channel_id), MessageId(server_message_id));
+      } else {
+        LOG(ERROR) << "Receive " << to_string(area);
+      }
+      break;
+    }
     case telegram_api::inputMediaAreaVenue::ID:
+      LOG(ERROR) << "Receive " << to_string(media_area_ptr);
+      break;
+    case telegram_api::inputMediaAreaChannelPost::ID:
       LOG(ERROR) << "Receive " << to_string(media_area_ptr);
       break;
     default:
@@ -119,6 +142,30 @@ MediaArea::MediaArea(Td *td, td_api::object_ptr<td_api::inputStoryArea> &&input_
       }
       break;
     }
+    case td_api::inputStoryAreaTypeMessage::ID: {
+      auto type = td_api::move_object_as<td_api::inputStoryAreaTypeMessage>(input_story_area->type_);
+      auto dialog_id = DialogId(type->chat_id_);
+      auto message_id = MessageId(type->message_id_);
+      auto message_full_id = MessageFullId(dialog_id, message_id);
+      for (auto &old_media_area : old_media_areas) {
+        if (old_media_area.type_ == Type::Message && old_media_area.message_full_id_ == message_full_id) {
+          message_full_id_ = message_full_id;
+          is_old_message_ = true;
+          type_ = Type::Message;
+          break;
+        }
+      }
+      if (!is_old_message_) {
+        if (dialog_id.get_type() != DialogType::Channel ||
+            !td->messages_manager_->have_message_force(message_full_id, "inputStoryAreaTypeMessage") ||
+            !message_id.is_valid() || !message_id.is_server()) {
+          break;
+        }
+        message_full_id_ = message_full_id;
+        type_ = Type::Message;
+      }
+      break;
+    }
     default:
       UNREACHABLE();
   }
@@ -129,7 +176,7 @@ bool MediaArea::has_reaction_type(const ReactionType &reaction_type) const {
 }
 
 td_api::object_ptr<td_api::storyArea> MediaArea::get_story_area_object(
-    const vector<std::pair<ReactionType, int32>> &reaction_counts) const {
+    Td *td, const vector<std::pair<ReactionType, int32>> &reaction_counts) const {
   CHECK(is_valid());
   td_api::object_ptr<td_api::StoryAreaType> type;
   switch (type_) {
@@ -150,13 +197,18 @@ td_api::object_ptr<td_api::storyArea> MediaArea::get_story_area_object(
                                                                          total_count, is_dark_, is_flipped_);
       break;
     }
+    case Type::Message:
+      type = td_api::make_object<td_api::storyAreaTypeMessage>(
+          td->messages_manager_->get_chat_id_object(message_full_id_.get_dialog_id(), "storyAreaTypeMessage"),
+          message_full_id_.get_message_id().get());
+      break;
     default:
       UNREACHABLE();
   }
   return td_api::make_object<td_api::storyArea>(coordinates_.get_story_area_position_object(), std::move(type));
 }
 
-telegram_api::object_ptr<telegram_api::MediaArea> MediaArea::get_input_media_area() const {
+telegram_api::object_ptr<telegram_api::MediaArea> MediaArea::get_input_media_area(const Td *td) const {
   CHECK(is_valid());
   switch (type_) {
     case Type::Location:
@@ -180,17 +232,49 @@ telegram_api::object_ptr<telegram_api::MediaArea> MediaArea::get_input_media_are
           flags, false /*ignored*/, false /*ignored*/, coordinates_.get_input_media_area_coordinates(),
           reaction_type_.get_input_reaction());
     }
+    case Type::Message:
+      if (!is_old_message_) {
+        auto input_channel =
+            td->contacts_manager_->get_input_channel(message_full_id_.get_dialog_id().get_channel_id());
+        if (input_channel == nullptr) {
+          return nullptr;
+        }
+        return telegram_api::make_object<telegram_api::inputMediaAreaChannelPost>(
+            coordinates_.get_input_media_area_coordinates(), std::move(input_channel),
+            message_full_id_.get_message_id().get_server_message_id().get());
+      }
+      return telegram_api::make_object<telegram_api::mediaAreaChannelPost>(
+          coordinates_.get_input_media_area_coordinates(),
+          message_full_id_.get_message_id().get_server_message_id().get(),
+          message_full_id_.get_message_id().get_server_message_id().get());
     default:
       UNREACHABLE();
       return nullptr;
   }
 }
 
+vector<telegram_api::object_ptr<telegram_api::MediaArea>> MediaArea::get_input_media_areas(
+    const Td *td, const vector<MediaArea> &media_areas) {
+  vector<telegram_api::object_ptr<telegram_api::MediaArea>> input_media_areas;
+  for (const auto &media_area : media_areas) {
+    auto input_media_area = media_area.get_input_media_area(td);
+    if (input_media_area != nullptr) {
+      input_media_areas.push_back(std::move(input_media_area));
+    }
+  }
+  return input_media_areas;
+}
+
+void MediaArea::add_dependencies(Dependencies &dependencies) const {
+  dependencies.add_dialog_and_dependencies(message_full_id_.get_dialog_id());
+}
+
 bool operator==(const MediaArea &lhs, const MediaArea &rhs) {
   return lhs.type_ == rhs.type_ && lhs.coordinates_ == rhs.coordinates_ && lhs.location_ == rhs.location_ &&
-         lhs.venue_ == rhs.venue_ && lhs.input_query_id_ == rhs.input_query_id_ &&
-         lhs.input_result_id_ == rhs.input_result_id_ && lhs.reaction_type_ == rhs.reaction_type_ &&
-         lhs.is_dark_ == rhs.is_dark_ && lhs.is_flipped_ == rhs.is_flipped_;
+         lhs.venue_ == rhs.venue_ && lhs.message_full_id_ == rhs.message_full_id_ &&
+         lhs.input_query_id_ == rhs.input_query_id_ && lhs.input_result_id_ == rhs.input_result_id_ &&
+         lhs.reaction_type_ == rhs.reaction_type_ && lhs.is_dark_ == rhs.is_dark_ &&
+         lhs.is_flipped_ == rhs.is_flipped_ && lhs.is_old_message_ == rhs.is_old_message_;
 }
 
 bool operator!=(const MediaArea &lhs, const MediaArea &rhs) {
@@ -199,7 +283,8 @@ bool operator!=(const MediaArea &lhs, const MediaArea &rhs) {
 
 StringBuilder &operator<<(StringBuilder &string_builder, const MediaArea &media_area) {
   return string_builder << "StoryArea[" << media_area.coordinates_ << ": " << media_area.location_ << '/'
-                        << media_area.venue_ << '/' << media_area.reaction_type_ << ']';
+                        << media_area.venue_ << '/' << media_area.reaction_type_ << '/' << media_area.message_full_id_
+                        << ']';
 }
 
 }  // namespace td

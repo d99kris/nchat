@@ -82,13 +82,7 @@ class GetPollResultsQuery final : public Td::ResultHandler {
   }
 
   void on_error(Status status) final {
-    if (status.message() == "MESSAGE_ID_INVALID") {
-      // likely, the message has already been deleted
-      if (dialog_id_.get_type() == DialogType::Channel) {
-        td_->messages_manager_->get_message_from_server({dialog_id_, message_id_}, Promise<Unit>(),
-                                                        "GetPollResultsQuery");
-      }
-    } else if (!td_->messages_manager_->on_get_dialog_error(dialog_id_, status, "GetPollResultsQuery")) {
+    if (!td_->messages_manager_->on_get_message_error(dialog_id_, message_id_, status, "GetPollResultsQuery")) {
       LOG(ERROR) << "Receive " << status << ", while trying to get results of " << poll_id_;
     }
     promise_.set_error(std::move(status));
@@ -1899,9 +1893,7 @@ void PollManager::on_get_poll_vote(PollId poll_id, DialogId dialog_id, vector<Bu
     LOG(ERROR) << "Receive updateMessagePollVote from invalid " << dialog_id;
     return;
   }
-  if (!td_->auth_manager_->is_bot()) {
-    return;
-  }
+  CHECK(td_->auth_manager_->is_bot());
 
   vector<int32> option_ids;
   for (auto &option : options) {

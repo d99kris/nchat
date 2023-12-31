@@ -68,6 +68,7 @@ class TdDb;
 class TempAuthKeyWatchdog;
 class ThemeManager;
 class TopDialogManager;
+class TranscriptionManager;
 class UpdatesManager;
 class WebPagesManager;
 
@@ -330,6 +331,7 @@ class Global final : public ActorContext {
   void set_option_manager(OptionManager *option_manager) {
     option_manager_ = option_manager;
   }
+  OptionManager *get_option_manager();
 
   ActorId<PasswordManager> password_manager() const {
     return password_manager_;
@@ -392,6 +394,13 @@ class Global final : public ActorContext {
   }
   void set_top_dialog_manager(ActorId<TopDialogManager> top_dialog_manager) {
     top_dialog_manager_ = top_dialog_manager;
+  }
+
+  ActorId<TranscriptionManager> transcription_manager() const {
+    return transcription_manager_;
+  }
+  void set_transcription_manager(ActorId<TranscriptionManager> transcription_manager) {
+    transcription_manager_ = transcription_manager;
   }
 
   ActorId<UpdatesManager> updates_manager() const {
@@ -502,6 +511,10 @@ class Global final : public ActorContext {
 
   static int32 get_retry_after(int32 error_code, Slice error_message);
 
+  static int32 get_retry_after(const Status &error) {
+    return get_retry_after(error.code(), error.message());
+  }
+
   const std::vector<std::shared_ptr<NetStatsCallback>> &get_net_stats_file_callbacks() {
     return net_stats_file_callbacks_;
   }
@@ -554,6 +567,7 @@ class Global final : public ActorContext {
   ActorId<StoryManager> story_manager_;
   ActorId<ThemeManager> theme_manager_;
   ActorId<TopDialogManager> top_dialog_manager_;
+  ActorId<TranscriptionManager> transcription_manager_;
   ActorId<UpdatesManager> updates_manager_;
   ActorId<WebPagesManager> web_pages_manager_;
   ActorOwn<ConnectionCreator> connection_creator_;
@@ -596,8 +610,6 @@ class Global final : public ActorContext {
   int32 to_unix_time(double server_time) const;
 
   const OptionManager *get_option_manager() const;
-
-  OptionManager *get_option_manager();
 
   void do_save_server_time_difference();
 

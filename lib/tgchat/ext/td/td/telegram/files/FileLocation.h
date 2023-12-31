@@ -524,25 +524,17 @@ class FullRemoteFileLocation {
   }
 
   bool operator<(const FullRemoteFileLocation &other) const {
-    auto lhs_key_type = key_type();
-    auto rhs_key_type = other.key_type();
-    if (lhs_key_type != rhs_key_type) {
-      return lhs_key_type < rhs_key_type;
+    if (!(variant_ == other.variant_)) {
+      return variant_ < other.variant_;
     }
-    if (dc_id_ != other.dc_id_) {
-      return dc_id_ < other.dc_id_;
+    if (file_type_ != other.file_type_) {
+      return file_type_ < other.file_type_;
     }
-    return variant_ < other.variant_;
+    return dc_id_ < other.dc_id_;
   }
 
   bool operator==(const FullRemoteFileLocation &other) const {
-    if (key_type() != other.key_type()) {
-      return false;
-    }
-    if (dc_id_ != other.dc_id_) {
-      return false;
-    }
-    return variant_ == other.variant_;
+    return variant_ == other.variant_ && file_type_ == other.file_type_ && dc_id_ == other.dc_id_;
   }
 
   static const int32 KEY_MAGIC = 0x64374632;
@@ -550,7 +542,7 @@ class FullRemoteFileLocation {
 
 inline StringBuilder &operator<<(StringBuilder &string_builder,
                                  const FullRemoteFileLocation &full_remote_file_location) {
-  string_builder << "[" << full_remote_file_location.file_type_;
+  string_builder << '[' << full_remote_file_location.file_type_;
   if (!full_remote_file_location.is_web()) {
     string_builder << ", " << full_remote_file_location.get_dc_id();
   }
@@ -567,7 +559,7 @@ inline StringBuilder &operator<<(StringBuilder &string_builder,
     string_builder << full_remote_file_location.common();
   }
 
-  return string_builder << "]";
+  return string_builder << ']';
 }
 
 class RemoteFileLocation {
@@ -717,11 +709,11 @@ struct FullLocalFileLocation {
 };
 
 inline bool operator<(const FullLocalFileLocation &lhs, const FullLocalFileLocation &rhs) {
-  return std::tie(lhs.file_type_, lhs.mtime_nsec_, lhs.path_) < std::tie(rhs.file_type_, rhs.mtime_nsec_, rhs.path_);
+  return std::tie(lhs.mtime_nsec_, lhs.file_type_, lhs.path_) < std::tie(rhs.mtime_nsec_, rhs.file_type_, rhs.path_);
 }
 
 inline bool operator==(const FullLocalFileLocation &lhs, const FullLocalFileLocation &rhs) {
-  return std::tie(lhs.file_type_, lhs.mtime_nsec_, lhs.path_) == std::tie(rhs.file_type_, rhs.mtime_nsec_, rhs.path_);
+  return std::tie(lhs.mtime_nsec_, lhs.file_type_, lhs.path_) == std::tie(rhs.mtime_nsec_, rhs.file_type_, rhs.path_);
 }
 
 inline bool operator!=(const FullLocalFileLocation &lhs, const FullLocalFileLocation &rhs) {

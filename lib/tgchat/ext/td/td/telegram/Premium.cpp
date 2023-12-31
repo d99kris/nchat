@@ -91,8 +91,11 @@ static td_api::object_ptr<td_api::PremiumFeature> get_premium_feature_object(Sli
   if (premium_feature == "channel_boost") {
     return td_api::make_object<td_api::premiumFeatureChatBoost>();
   }
-  if (premium_feature == "name_color") {
+  if (premium_feature == "peer_colors") {
     return td_api::make_object<td_api::premiumFeatureAccentColor>();
+  }
+  if (premium_feature == "wallpapers") {
+    return td_api::make_object<td_api::premiumFeatureBackgroundForBoth>();
   }
   return nullptr;
 }
@@ -321,15 +324,22 @@ class CheckGiftCodeQuery final : public Td::ResultHandler {
     td_->contacts_manager_->on_get_users(std::move(result->users_), "CheckGiftCodeQuery");
     td_->contacts_manager_->on_get_chats(std::move(result->chats_), "CheckGiftCodeQuery");
 
-    DialogId creator_dialog_id(result->from_id_);
-    if (!creator_dialog_id.is_valid() ||
-        !td_->messages_manager_->have_dialog_info_force(creator_dialog_id, "CheckGiftCodeQuery") ||
-        result->date_ <= 0 || result->months_ <= 0 || result->used_date_ < 0) {
+    if (result->date_ <= 0 || result->months_ <= 0 || result->used_date_ < 0) {
       LOG(ERROR) << "Receive " << to_string(result);
       return on_error(Status::Error(500, "Receive invalid response"));
     }
-    if (creator_dialog_id.get_type() != DialogType::User) {
-      td_->messages_manager_->force_create_dialog(creator_dialog_id, "CheckGiftCodeQuery", true);
+
+    DialogId creator_dialog_id;
+    if (result->from_id_ != nullptr) {
+      creator_dialog_id = DialogId(result->from_id_);
+      if (!creator_dialog_id.is_valid() ||
+          !td_->messages_manager_->have_dialog_info_force(creator_dialog_id, "CheckGiftCodeQuery")) {
+        LOG(ERROR) << "Receive " << to_string(result);
+        return on_error(Status::Error(500, "Receive invalid response"));
+      }
+      if (creator_dialog_id.get_type() != DialogType::User) {
+        td_->messages_manager_->force_create_dialog(creator_dialog_id, "CheckGiftCodeQuery", true);
+      }
     }
     UserId user_id(result->to_id_);
     if (!user_id.is_valid() && user_id != UserId()) {
@@ -341,10 +351,15 @@ class CheckGiftCodeQuery final : public Td::ResultHandler {
       LOG(ERROR) << "Receive " << to_string(result);
       message_id = MessageId();
     }
+    if (message_id != MessageId() && creator_dialog_id.get_type() != DialogType::Channel) {
+      LOG(ERROR) << "Receive " << to_string(result);
+      message_id = MessageId();
+    }
     promise_.set_value(td_api::make_object<td_api::premiumGiftCodeInfo>(
-        get_message_sender_object(td_, creator_dialog_id, "premiumGiftCodeInfo"), result->date_, result->via_giveaway_,
-        message_id.get(), result->months_, td_->contacts_manager_->get_user_id_object(user_id, "premiumGiftCodeInfo"),
-        result->used_date_));
+        creator_dialog_id == DialogId() ? nullptr
+                                        : get_message_sender_object(td_, creator_dialog_id, "premiumGiftCodeInfo"),
+        result->date_, result->via_giveaway_, message_id.get(), result->months_,
+        td_->contacts_manager_->get_user_id_object(user_id, "premiumGiftCodeInfo"), result->used_date_));
   }
 
   void on_error(Status status) final {
@@ -627,7 +642,8 @@ const vector<Slice> &get_premium_limit_keys() {
                                         "story_caption_length",
                                         "stories_sent_weekly",
                                         "stories_sent_monthly",
-                                        "stories_suggested_reactions"};
+                                        "stories_suggested_reactions",
+                                        "recommended_channels"};
   return limit_keys;
 }
 
@@ -668,6 +684,8 @@ static Slice get_limit_type_key(const td_api::PremiumLimitType *limit_type) {
       return Slice("stories_sent_monthly");
     case td_api::premiumLimitTypeStorySuggestedReactionAreaCount::ID:
       return Slice("stories_suggested_reactions");
+    case td_api::premiumLimitTypeSimilarChatCount::ID:
+      return Slice("recommended_channels");
     default:
       UNREACHABLE();
       return Slice();
@@ -723,7 +741,9 @@ static string get_premium_source(const td_api::PremiumFeature *feature) {
     case td_api::premiumFeatureChatBoost::ID:
       return "channel_boost";
     case td_api::premiumFeatureAccentColor::ID:
-      return "name_color";
+      return "peer_colors";
+    case td_api::premiumFeatureBackgroundForBoth::ID:
+      return "wallpapers";
     default:
       UNREACHABLE();
   }
@@ -843,6 +863,9 @@ static td_api::object_ptr<td_api::premiumLimit> get_premium_limit_object(Slice k
     }
     if (key == "stories_suggested_reactions") {
       return td_api::make_object<td_api::premiumLimitTypeStorySuggestedReactionAreaCount>();
+    }
+    if (key == "recommended_channels") {
+      return td_api::make_object<td_api::premiumLimitTypeSimilarChatCount>();
     }
     UNREACHABLE();
     return nullptr;

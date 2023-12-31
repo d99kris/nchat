@@ -6,7 +6,10 @@
 //
 #pragma once
 
+#include "td/telegram/DialogId.h"
+#include "td/telegram/MessageFullId.h"
 #include "td/telegram/ReactionType.h"
+#include "td/telegram/StoryId.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/UserId.h"
@@ -16,37 +19,46 @@
 
 namespace td {
 
-class ContactsManager;
+class Td;
 
 class StoryViewer {
-  UserId user_id_;
+  enum class Type : int32 { None, View, Forward, Repost };
+  Type type_ = Type::None;
+
+  DialogId actor_dialog_id_;
   int32 date_ = 0;
   bool is_blocked_ = false;
   bool is_blocked_for_stories_ = false;
-  ReactionType reaction_type_;
+
+  ReactionType reaction_type_;     // for View
+  MessageFullId message_full_id_;  // for Forward
+  StoryId story_id_;               // for Repost
 
   friend StringBuilder &operator<<(StringBuilder &string_builder, const StoryViewer &viewer);
 
  public:
-  StoryViewer(telegram_api::object_ptr<telegram_api::storyView> &&story_view)
-      : user_id_(story_view->user_id_)
-      , date_(td::max(story_view->date_, static_cast<int32>(0)))
-      , is_blocked_(story_view->blocked_)
-      , is_blocked_for_stories_(story_view->blocked_my_stories_from_)
-      , reaction_type_(story_view->reaction_) {
+  StoryViewer(Td *td, telegram_api::object_ptr<telegram_api::StoryView> &&story_view_ptr);
+
+  StoryViewer(Td *td, telegram_api::object_ptr<telegram_api::StoryReaction> &&story_reaction_ptr);
+
+  UserId get_viewer_user_id() const {
+    return type_ == Type::View ? actor_dialog_id_.get_user_id() : UserId();
   }
 
-  UserId get_user_id() const {
-    return user_id_;
+  DialogId get_actor_dialog_id() const {
+    return actor_dialog_id_;
   }
 
-  td_api::object_ptr<td_api::storyViewer> get_story_viewer_object(ContactsManager *contacts_manager) const;
+  bool is_valid() const;
+
+  td_api::object_ptr<td_api::storyInteraction> get_story_interaction_object(Td *td) const;
 };
 
 StringBuilder &operator<<(StringBuilder &string_builder, const StoryViewer &viewer);
 
 class StoryViewers {
   int32 total_count_ = 0;
+  int32 total_forward_count_ = 0;
   int32 total_reaction_count_ = 0;
   vector<StoryViewer> story_viewers_;
   string next_offset_;
@@ -54,12 +66,17 @@ class StoryViewers {
   friend StringBuilder &operator<<(StringBuilder &string_builder, const StoryViewers &viewers);
 
  public:
-  StoryViewers(int32 total_count, int32 total_reaction_count,
-               vector<telegram_api::object_ptr<telegram_api::storyView>> &&story_views, string &&next_offset);
+  StoryViewers(Td *td, int32 total_count, int32 total_forward_count, int32 total_reaction_count,
+               vector<telegram_api::object_ptr<telegram_api::StoryView>> &&story_views, string &&next_offset);
 
-  vector<UserId> get_user_ids() const;
+  StoryViewers(Td *td, int32 total_count,
+               vector<telegram_api::object_ptr<telegram_api::StoryReaction>> &&story_reactions, string &&next_offset);
 
-  td_api::object_ptr<td_api::storyViewers> get_story_viewers_object(ContactsManager *contacts_manager) const;
+  vector<UserId> get_viewer_user_ids() const;
+
+  vector<DialogId> get_actor_dialog_ids() const;
+
+  td_api::object_ptr<td_api::storyInteractions> get_story_interactions_object(Td *td) const;
 };
 
 StringBuilder &operator<<(StringBuilder &string_builder, const StoryViewers &viewers);

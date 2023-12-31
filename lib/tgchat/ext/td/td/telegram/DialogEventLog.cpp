@@ -7,12 +7,14 @@
 #include "td/telegram/DialogEventLog.h"
 
 #include "td/telegram/AccentColorId.h"
+#include "td/telegram/BackgroundInfo.h"
 #include "td/telegram/ChannelId.h"
 #include "td/telegram/ChatReactions.h"
 #include "td/telegram/ContactsManager.h"
 #include "td/telegram/DialogInviteLink.h"
 #include "td/telegram/DialogLocation.h"
 #include "td/telegram/DialogParticipant.h"
+#include "td/telegram/EmojiStatus.h"
 #include "td/telegram/ForumTopicInfo.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/GroupCallManager.h"
@@ -21,6 +23,7 @@
 #include "td/telegram/MessageSender.h"
 #include "td/telegram/MessagesManager.h"
 #include "td/telegram/MessageTtl.h"
+#include "td/telegram/PeerColor.h"
 #include "td/telegram/Photo.h"
 #include "td/telegram/StickersManager.h"
 #include "td/telegram/Td.h"
@@ -429,18 +432,39 @@ static td_api::object_ptr<td_api::ChatEventAction> get_chat_event_action_object(
       auto action = move_tl_object_as<telegram_api::channelAdminLogEventActionToggleAntiSpam>(action_ptr);
       return td_api::make_object<td_api::chatEventHasAggressiveAntiSpamEnabledToggled>(action->new_value_);
     }
-    case telegram_api::channelAdminLogEventActionChangeColor::ID: {
-      auto action = move_tl_object_as<telegram_api::channelAdminLogEventActionChangeColor>(action_ptr);
-      auto old_accent_color_id = AccentColorId(action->prev_value_);
-      auto new_accent_color_id = AccentColorId(action->new_value_);
+    case telegram_api::channelAdminLogEventActionChangePeerColor::ID: {
+      auto action = move_tl_object_as<telegram_api::channelAdminLogEventActionChangePeerColor>(action_ptr);
+      auto old_peer_color = PeerColor(action->prev_value_);
+      auto new_peer_color = PeerColor(action->new_value_);
       return td_api::make_object<td_api::chatEventAccentColorChanged>(
-          td->theme_manager_->get_accent_color_id_object(old_accent_color_id, AccentColorId(channel_id)),
-          td->theme_manager_->get_accent_color_id_object(new_accent_color_id, AccentColorId(channel_id)));
+          td->theme_manager_->get_accent_color_id_object(old_peer_color.accent_color_id_, AccentColorId(channel_id)),
+          old_peer_color.background_custom_emoji_id_.get(),
+          td->theme_manager_->get_accent_color_id_object(new_peer_color.accent_color_id_, AccentColorId(channel_id)),
+          new_peer_color.background_custom_emoji_id_.get());
     }
-    case telegram_api::channelAdminLogEventActionChangeBackgroundEmoji::ID: {
-      auto action = move_tl_object_as<telegram_api::channelAdminLogEventActionChangeBackgroundEmoji>(action_ptr);
-      return td_api::make_object<td_api::chatEventBackgroundCustomEmojiChanged>(action->prev_value_,
-                                                                                action->new_value_);
+    case telegram_api::channelAdminLogEventActionChangeProfilePeerColor::ID: {
+      auto action = move_tl_object_as<telegram_api::channelAdminLogEventActionChangeProfilePeerColor>(action_ptr);
+      auto old_peer_color = PeerColor(action->prev_value_);
+      auto new_peer_color = PeerColor(action->new_value_);
+      return td_api::make_object<td_api::chatEventProfileAccentColorChanged>(
+          td->theme_manager_->get_profile_accent_color_id_object(old_peer_color.accent_color_id_),
+          old_peer_color.background_custom_emoji_id_.get(),
+          td->theme_manager_->get_profile_accent_color_id_object(new_peer_color.accent_color_id_),
+          new_peer_color.background_custom_emoji_id_.get());
+    }
+    case telegram_api::channelAdminLogEventActionChangeWallpaper::ID: {
+      auto action = move_tl_object_as<telegram_api::channelAdminLogEventActionChangeWallpaper>(action_ptr);
+      auto old_background_info = BackgroundInfo(td, std::move(action->prev_value_));
+      auto new_background_info = BackgroundInfo(td, std::move(action->new_value_));
+      return td_api::make_object<td_api::chatEventBackgroundChanged>(
+          old_background_info.get_chat_background_object(td), new_background_info.get_chat_background_object(td));
+    }
+    case telegram_api::channelAdminLogEventActionChangeEmojiStatus::ID: {
+      auto action = move_tl_object_as<telegram_api::channelAdminLogEventActionChangeEmojiStatus>(action_ptr);
+      auto old_emoji_status = EmojiStatus(std::move(action->prev_value_));
+      auto new_emoji_status = EmojiStatus(std::move(action->new_value_));
+      return td_api::make_object<td_api::chatEventEmojiStatusChanged>(old_emoji_status.get_emoji_status_object(),
+                                                                      new_emoji_status.get_emoji_status_object());
     }
     default:
       UNREACHABLE();

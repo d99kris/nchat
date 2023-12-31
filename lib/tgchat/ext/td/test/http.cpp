@@ -71,13 +71,13 @@ static td::string gen_http_content() {
   return td::rand_string(std::numeric_limits<char>::min(), std::numeric_limits<char>::max(), len);
 }
 
-static td::string make_http_query(td::string content, bool is_json, bool is_chunked, bool is_gzip, double gzip_k = 5,
-                                  td::string zip_override = td::string()) {
+static td::string make_http_query(td::string content, td::string content_type, bool is_chunked, bool is_gzip,
+                                  double gzip_k = 5, td::string zip_override = td::string()) {
   td::HttpHeaderCreator hc;
   hc.init_post("/");
   hc.add_header("jfkdlsahhjk", td::rand_string('a', 'z', td::Random::fast(1, 2000)));
-  if (is_json) {
-    hc.add_header("content-type", "application/json");
+  if (!content_type.empty()) {
+    hc.add_header("content-type", content_type);
   }
   if (is_gzip) {
     td::BufferSlice zip;
@@ -105,7 +105,7 @@ static td::string make_http_query(td::string content, bool is_json, bool is_chun
 static td::string rand_http_query(td::string content) {
   bool is_chunked = td::Random::fast_bool();
   bool is_gzip = td::Random::fast_bool();
-  return make_http_query(std::move(content), false, is_chunked, is_gzip);
+  return make_http_query(std::move(content), td::string(), is_chunked, is_gzip);
 }
 
 static td::string join(const td::vector<td::string> &v) {
@@ -220,7 +220,7 @@ TEST(Http, gzip_bomb) {
           .as_slice()
           .str();
 
-  auto query = make_http_query("", false, false, true, 0.01, gzip_bomb_str);
+  auto query = make_http_query(td::string(), td::string(), false, true, 0.01, gzip_bomb_str);
   auto parts = td::rand_split(query);
   td::ChainBufferWriter input_writer;
   auto input = input_writer.extract_reader();
@@ -248,7 +248,7 @@ TEST(Http, gzip) {
   td::HttpReader reader;
   reader.init(&input, 0, 0);
 
-  auto query = make_http_query("", true, false, true, 0.01, gzip_str);
+  auto query = make_http_query(td::string(), "application/json", false, true, 0.01, gzip_str);
   input_writer.append(query);
   input.sync_with_writer();
 
@@ -442,7 +442,7 @@ TEST(Http, gzip_bomb_with_limit) {
     gzip_bomb_str = sink.result()->move_as_buffer_slice().as_slice().str();
   }
 
-  auto query = make_http_query("", false, false, true, 0.01, gzip_bomb_str);
+  auto query = make_http_query(td::string(), td::string(), false, true, 0.01, gzip_bomb_str);
   auto parts = td::rand_split(query);
   td::ChainBufferWriter input_writer;
   auto input = input_writer.extract_reader();
@@ -462,6 +462,67 @@ TEST(Http, gzip_bomb_with_limit) {
     }
   }
   ASSERT_TRUE(ok);
+}
+
+TEST(Http, partial_form_data) {
+  td::ChainBufferWriter input_writer;
+  auto input = input_writer.extract_reader();
+
+  td::HttpReader reader;
+  reader.init(&input, 0, 0);
+
+  auto query =
+      make_http_query("------abcd\r\nCo", "Content-Type: multipart/form-data; boundary=----abcd", false, false);
+  input_writer.append(query);
+  input.sync_with_writer();
+
+  td::HttpQuery q;
+  auto r_state = reader.read_next(&q);
+  ASSERT_TRUE(r_state.is_error());
+  ASSERT_EQ(400, r_state.error().code());
+}
+
+TEST(Http, form_data) {
+  td::ChainBufferWriter input_writer;
+  auto input = input_writer.extract_reader();
+
+  td::HttpReader reader;
+  reader.init(&input, 0, 1);
+
+  auto query = make_http_query(
+      "------abcd\r\n"
+      "Content-Disposition: form-data; name=\"text\"\r\n"
+      "\r\n"
+      "some text\r\n"
+      "------abcd\r\n"
+      "Content-Disposition: form-data; name=\"text2\"\r\n"
+      "\r\n"
+      "some text\r\n"
+      "more text\r\n"
+      "------abcd\r\n"
+      "Content-Disposition: form-data; name=\"file\"; filename=\"file.txt\"\r\n"
+      "Content-Type: text/plain\r\n"
+      "\r\n"
+      "File content\r\n"
+      "------abcd--",
+      "Content-Type: multipart/form-data; boundary=----abcd", false, false);
+  input_writer.append(query);
+  input.sync_with_writer();
+
+  td::HttpQuery q;
+  auto r_state = reader.read_next(&q);
+  ASSERT_TRUE(r_state.is_ok());
+  ASSERT_EQ(2u, q.args_.size());
+  ASSERT_EQ("text", q.args_[0].first);
+  ASSERT_EQ("some text", q.args_[0].second);
+  ASSERT_EQ("text2", q.args_[1].first);
+  ASSERT_EQ("some text\r\nmore text", q.args_[1].second);
+  ASSERT_EQ(1u, q.files_.size());
+  ASSERT_EQ("file.txt", q.files_[0].name);
+  ASSERT_EQ("file", q.files_[0].field_name);
+  ASSERT_EQ("text/plain", q.files_[0].content_type);
+  ASSERT_EQ(12, q.files_[0].size);
+  ASSERT_TRUE(!q.files_[0].temp_file_name.empty());
 }
 
 #if TD_DARWIN_WATCH_OS

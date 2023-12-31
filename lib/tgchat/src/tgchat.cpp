@@ -40,7 +40,7 @@
 
 // #define SIMULATED_SPONSORED_MESSAGES
 
-static const int s_TdlibDate = 20231106;
+static const int s_TdlibDate = 20231228;
 
 namespace detail
 {
@@ -1563,10 +1563,6 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
   [](td::td_api::updateOption&)
   {
     LOG_TRACE("update option");
-  },
-  [](td::td_api::updateSelectedBackground&)
-  {
-    LOG_TRACE("update selected background");
   },
   [](td::td_api::updateScopeNotificationSettings&)
   {

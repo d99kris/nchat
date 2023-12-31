@@ -740,7 +740,7 @@ function onOptionsChanged() {
     pre_text.push('Note that for Node.js &ge; 17 you must build TDLib with OpenSSL 3.0.*, for Node.js &ge; 10 with OpenSSL 1.1.*, and for Node.js &lt; 10 with OpenSSL 1.0.*, so you may need to modify the following commands to install a proper OpenSSL version.');
   }
   if (os_freebsd) {
-    pre_text.push('Note that the following instruction is for FreeBSD 11.');
+    pre_text.push('Note that the following instruction is for FreeBSD 13.');
     pre_text.push('Note that the following calls to <code>pkg</code> needs to be run as <code>root</code>.');
   }
   if (os_openbsd) {
@@ -896,9 +896,9 @@ function onOptionsChanged() {
     }
   } else if (os_freebsd) {
     commands.push(sudo + 'pkg upgrade');
-    var packages = 'git gperf php72 cmake';
+    var packages = 'git gperf php83 cmake';
     if (target === 'JNI') {
-      packages += ' openjdk';
+      packages += ' openjdk21';
     }
     commands.push(sudo + 'pkg install ' + packages);
   } else if (os_openbsd) {
@@ -934,7 +934,7 @@ function onOptionsChanged() {
   if (use_vcpkg) {
     commands.push('git clone https://github.com/Microsoft/vcpkg.git');
     commands.push('cd vcpkg');
-    commands.push('git checkout 1b1ae50e1a69f7c659bd7d731e80b358d21c86ad');
+    commands.push('git checkout cd5e746ec203c8c3c61647e0886a8df8c1e78e41');
     commands.push(local + 'bootstrap-vcpkg.bat');
     if (target === 'C++/CX') {
       commands.push(local + 'vcpkg.exe install gperf:x86-windows openssl:arm-uwp openssl:arm64-uwp openssl:x64-uwp openssl:x86-uwp zlib:arm-uwp zlib:arm64-uwp zlib:x64-uwp zlib:x86-uwp');

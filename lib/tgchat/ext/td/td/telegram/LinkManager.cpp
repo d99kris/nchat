@@ -561,6 +561,18 @@ class LinkManager::InternalLinkPremiumFeatures final : public InternalLink {
   }
 };
 
+class LinkManager::InternalLinkPremiumGift final : public InternalLink {
+  string referrer_;
+
+  td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
+    return td_api::make_object<td_api::internalLinkTypePremiumGift>(referrer_);
+  }
+
+ public:
+  explicit InternalLinkPremiumGift(string referrer) : referrer_(std::move(referrer)) {
+  }
+};
+
 class LinkManager::InternalLinkPremiumGiftCode final : public InternalLink {
   string code_;
 
@@ -1344,6 +1356,9 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_tg_link_query(Slice que
   } else if (path.size() == 1 && path[0] == "premium_offer") {
     // premium_offer?ref=<referrer>
     return td::make_unique<InternalLinkPremiumFeatures>(get_arg("ref"));
+  } else if (path.size() == 1 && path[0] == "premium_multigift") {
+    // premium_multigift?ref=<referrer>
+    return td::make_unique<InternalLinkPremiumGift>(get_arg("ref"));
   } else if (!path.empty() && path[0] == "settings") {
     if (path.size() == 2 && path[1] == "auto_delete") {
       // settings/auto_delete
@@ -2031,6 +2046,11 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
       }
       return get_dialog_filter_invite_link(slug, is_internal);
     }
+    case td_api::internalLinkTypeChatFolderSettings::ID:
+      if (!is_internal) {
+        return Status::Error("HTTP link is unavailable for the link type");
+      }
+      return "tg://settings/folders";
     case td_api::internalLinkTypeChatInvite::ID: {
       auto link = static_cast<const td_api::internalLinkTypeChatInvite *>(type_ptr);
       auto invite_hash = get_dialog_invite_link_hash(link->invite_link_);
@@ -2044,38 +2064,11 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
         return Status::Error("HTTP link is unavailable for the link type");
       }
       return "tg://settings/auto_delete";
-    case td_api::internalLinkTypeSideMenuBot::ID: {
-      auto link = static_cast<const td_api::internalLinkTypeSideMenuBot *>(type_ptr);
-      if (!is_valid_username(link->bot_username_)) {
-        return Status::Error(400, "Invalid bot username specified");
-      }
-      string start_parameter;
-      if (!link->url_.empty()) {
-        if (!begins_with(link->url_, "start://")) {
-          return Status::Error(400, "Unsupported link URL specified");
-        }
-        auto start_parameter_slice = Slice(link->url_).substr(8);
-        if (start_parameter_slice.empty() || !is_valid_start_parameter(start_parameter_slice)) {
-          return Status::Error(400, "Invalid start parameter specified");
-        }
-        start_parameter = PSTRING() << '=' << start_parameter_slice;
-      }
-      if (is_internal) {
-        return PSTRING() << "tg://resolve?domain=" << link->bot_username_ << "&startapp" << start_parameter;
-      } else {
-        return PSTRING() << get_t_me_url() << link->bot_username_ << "?startapp" << start_parameter;
-      }
-    }
     case td_api::internalLinkTypeEditProfileSettings::ID:
       if (!is_internal) {
         return Status::Error("HTTP link is unavailable for the link type");
       }
       return "tg://settings/edit_profile";
-    case td_api::internalLinkTypeChatFolderSettings::ID:
-      if (!is_internal) {
-        return Status::Error("HTTP link is unavailable for the link type");
-      }
-      return "tg://settings/folders";
     case td_api::internalLinkTypeGame::ID: {
       auto link = static_cast<const td_api::internalLinkTypeGame *>(type_ptr);
       if (!is_valid_username(link->bot_username_)) {
@@ -2202,6 +2195,13 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
       }
       return PSTRING() << "tg://premium_offer?ref=" << url_encode(link->referrer_);
     }
+    case td_api::internalLinkTypePremiumGift::ID: {
+      auto link = static_cast<const td_api::internalLinkTypePremiumGift *>(type_ptr);
+      if (!is_internal) {
+        return Status::Error("HTTP link is unavailable for the link type");
+      }
+      return PSTRING() << "tg://premium_multigift?ref=" << url_encode(link->referrer_);
+    }
     case td_api::internalLinkTypePremiumGiftCode::ID: {
       auto link = static_cast<const td_api::internalLinkTypePremiumGiftCode *>(type_ptr);
       if (is_internal) {
@@ -2239,6 +2239,28 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
         return Status::Error("HTTP link is unavailable for the link type");
       }
       return "tg://settings";
+    case td_api::internalLinkTypeSideMenuBot::ID: {
+      auto link = static_cast<const td_api::internalLinkTypeSideMenuBot *>(type_ptr);
+      if (!is_valid_username(link->bot_username_)) {
+        return Status::Error(400, "Invalid bot username specified");
+      }
+      string start_parameter;
+      if (!link->url_.empty()) {
+        if (!begins_with(link->url_, "start://")) {
+          return Status::Error(400, "Unsupported link URL specified");
+        }
+        auto start_parameter_slice = Slice(link->url_).substr(8);
+        if (start_parameter_slice.empty() || !is_valid_start_parameter(start_parameter_slice)) {
+          return Status::Error(400, "Invalid start parameter specified");
+        }
+        start_parameter = PSTRING() << '=' << start_parameter_slice;
+      }
+      if (is_internal) {
+        return PSTRING() << "tg://resolve?domain=" << link->bot_username_ << "&startapp" << start_parameter;
+      } else {
+        return PSTRING() << get_t_me_url() << link->bot_username_ << "?startapp" << start_parameter;
+      }
+    }
     case td_api::internalLinkTypeStickerSet::ID: {
       auto link = static_cast<const td_api::internalLinkTypeStickerSet *>(type_ptr);
       if (link->sticker_set_name_.empty()) {
@@ -2497,6 +2519,9 @@ Result<string> LinkManager::get_background_url(const string &name,
                                                td_api::object_ptr<td_api::BackgroundType> background_type) {
   if (background_type == nullptr) {
     return Status::Error(400, "Type must be non-empty");
+  }
+  if (background_type->get_id() == td_api::backgroundTypeChatTheme::ID) {
+    return Status::Error(400, "Background has no link");
   }
   TRY_RESULT(type, BackgroundType::get_background_type(background_type.get(), 0));
   auto url = PSTRING() << get_t_me_url() << "bg/";

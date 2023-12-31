@@ -143,14 +143,35 @@ OptionManager::OptionManager(Td *td)
   if (!have_option("giveaway_duration_max")) {
     set_option_integer("giveaway_duration_max", 7 * 86400);
   }
-  if (!have_option("channel_custom_accent_color_boost_level_min")) {
-    set_option_integer("channel_custom_accent_color_boost_level_min", 5);
-  }
   if (!have_option("premium_gift_boost_count")) {
     set_option_integer("premium_gift_boost_count", 3);
   }
+  if (!have_option("chat_boost_level_max")) {
+    set_option_integer("chat_boost_level_max", G()->is_test_dc() ? 10 : 100);
+  }
+  if (!have_option("chat_available_reaction_count_max")) {
+    set_option_integer("chat_available_reaction_count_max", 100);
+  }
+  if (!have_option("channel_bg_icon_level_min")) {
+    set_option_integer("channel_bg_icon_level_min", G()->is_test_dc() ? 1 : 4);
+  }
+  if (!have_option("channel_custom_wallpaper_level_min")) {
+    set_option_integer("channel_custom_wallpaper_level_min", G()->is_test_dc() ? 4 : 10);
+  }
+  if (!have_option("channel_emoji_status_level_min")) {
+    set_option_integer("channel_emoji_status_level_min", G()->is_test_dc() ? 2 : 8);
+  }
+  if (!have_option("channel_profile_bg_icon_level_min")) {
+    set_option_integer("channel_profile_bg_icon_level_min", G()->is_test_dc() ? 1 : 7);
+  }
+  if (!have_option("channel_wallpaper_level_min")) {
+    set_option_integer("channel_wallpaper_level_min", G()->is_test_dc() ? 3 : 9);
+  }
+
+  update_premium_options();
 
   set_option_empty("archive_and_mute_new_chats_from_unknown_users");
+  set_option_empty("channel_custom_accent_color_boost_level_min");
   set_option_empty("chat_filter_count_max");
   set_option_empty("chat_filter_chosen_chat_count_max");
   set_option_empty("forum_member_count_min");
@@ -159,6 +180,49 @@ OptionManager::OptionManager(Td *td)
 }
 
 OptionManager::~OptionManager() = default;
+
+void OptionManager::update_premium_options() {
+  bool is_premium = get_option_boolean("is_premium");
+  if (is_premium) {
+    set_option_integer("saved_animations_limit", get_option_integer("saved_gifs_limit_premium", 400));
+    set_option_integer("favorite_stickers_limit", get_option_integer("stickers_faved_limit_premium", 10));
+    set_option_integer("chat_folder_count_max", get_option_integer("dialog_filters_limit_premium", 20));
+    set_option_integer("chat_folder_chosen_chat_count_max",
+                       get_option_integer("dialog_filters_chats_limit_premium", 200));
+    set_option_integer("pinned_chat_count_max", get_option_integer("dialogs_pinned_limit_premium", 200));
+    set_option_integer("pinned_archived_chat_count_max",
+                       get_option_integer("dialogs_folder_pinned_limit_premium", 200));
+    set_option_integer("bio_length_max", get_option_integer("about_length_limit_premium", 140));
+    set_option_integer("chat_folder_invite_link_count_max", get_option_integer("chatlist_invites_limit_premium", 20));
+    set_option_integer("added_shareable_chat_folder_count_max",
+                       get_option_integer("chatlists_joined_limit_premium", 20));
+    set_option_integer("active_story_count_max", get_option_integer("story_expiring_limit_premium", 100));
+    set_option_integer("story_caption_length_max", get_option_integer("story_caption_length_limit_premium", 2048));
+    set_option_integer("weekly_sent_story_count_max", get_option_integer("stories_sent_weekly_limit_premium", 700));
+    set_option_integer("monthly_sent_story_count_max", get_option_integer("stories_sent_monthly_limit_premium", 3000));
+    set_option_integer("story_suggested_reaction_area_count_max",
+                       get_option_integer("stories_suggested_reactions_limit_premium", 5));
+  } else {
+    set_option_integer("saved_animations_limit", get_option_integer("saved_gifs_limit_default", 200));
+    set_option_integer("favorite_stickers_limit", get_option_integer("stickers_faved_limit_default", 5));
+    set_option_integer("chat_folder_count_max", get_option_integer("dialog_filters_limit_default", 10));
+    set_option_integer("chat_folder_chosen_chat_count_max",
+                       get_option_integer("dialog_filters_chats_limit_default", 100));
+    set_option_integer("pinned_chat_count_max", get_option_integer("dialogs_pinned_limit_default", 100));
+    set_option_integer("pinned_archived_chat_count_max",
+                       get_option_integer("dialogs_folder_pinned_limit_default", 100));
+    set_option_integer("bio_length_max", get_option_integer("about_length_limit_default", 70));
+    set_option_integer("chat_folder_invite_link_count_max", get_option_integer("chatlist_invites_limit_default", 3));
+    set_option_integer("added_shareable_chat_folder_count_max",
+                       get_option_integer("chatlists_joined_limit_default", 2));
+    set_option_integer("active_story_count_max", get_option_integer("story_expiring_limit_default", 3));
+    set_option_integer("story_caption_length_max", get_option_integer("story_caption_length_limit_default", 200));
+    set_option_integer("weekly_sent_story_count_max", get_option_integer("stories_sent_weekly_limit_default", 7));
+    set_option_integer("monthly_sent_story_count_max", get_option_integer("stories_sent_monthly_limit_default", 30));
+    set_option_integer("story_suggested_reaction_area_count_max",
+                       get_option_integer("stories_suggested_reactions_limit_default", 1));
+  }
+}
 
 void OptionManager::on_td_inited() {
   is_td_inited_ = true;
@@ -292,12 +356,14 @@ bool OptionManager::is_internal_option(Slice name) {
     case 'c':
       return name == "call_receive_timeout_ms" || name == "call_ring_timeout_ms" ||
              name == "caption_length_limit_default" || name == "caption_length_limit_premium" ||
-             name == "channels_limit_default" || name == "channels_limit_premium" ||
-             name == "channels_public_limit_default" || name == "channels_public_limit_premium" ||
-             name == "channels_read_media_period" || name == "chat_read_mark_expire_period" ||
-             name == "chat_read_mark_size_threshold" || name == "chatlist_invites_limit_default" ||
-             name == "chatlist_invites_limit_premium" || name == "chatlists_joined_limit_default" ||
-             name == "chatlists_joined_limit_premium";
+             name == "channel_bg_icon_level_min" || name == "channel_custom_wallpaper_level_min" ||
+             name == "channel_emoji_status_level_min" || name == "channel_profile_bg_icon_level_min" ||
+             name == "channel_wallpaper_level_min" || name == "channels_limit_default" ||
+             name == "channels_limit_premium" || name == "channels_public_limit_default" ||
+             name == "channels_public_limit_premium" || name == "channels_read_media_period" ||
+             name == "chat_read_mark_expire_period" || name == "chat_read_mark_size_threshold" ||
+             name == "chatlist_invites_limit_default" || name == "chatlist_invites_limit_premium" ||
+             name == "chatlists_joined_limit_default" || name == "chatlists_joined_limit_premium";
     case 'd':
       return name == "dc_txt_domain_name" || name == "default_reaction" || name == "default_reaction_needs_sync" ||
              name == "dialog_filters_chats_limit_default" || name == "dialog_filters_chats_limit_premium" ||
@@ -327,6 +393,7 @@ bool OptionManager::is_internal_option(Slice name) {
     case 'r':
       return name == "rating_e_decay" || name == "reactions_uniq_max" || name == "reactions_user_max_default" ||
              name == "reactions_user_max_premium" || name == "recent_stickers_limit" ||
+             name == "recommended_channels_limit_default" || name == "recommended_channels_limit_premium" ||
              name == "restriction_add_platforms" || name == "revoke_pm_inbox" || name == "revoke_time_limit" ||
              name == "revoke_pm_time_limit";
     case 's':
@@ -590,7 +657,7 @@ td_api::object_ptr<td_api::OptionValue> OptionManager::get_option_synchronously(
       break;
     case 'v':
       if (name == "version") {
-        return td_api::make_object<td_api::optionValueString>("1.8.21");
+        return td_api::make_object<td_api::optionValueString>("1.8.23");
       }
       break;
   }

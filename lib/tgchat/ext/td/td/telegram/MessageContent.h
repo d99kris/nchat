@@ -136,7 +136,8 @@ tl_object_ptr<telegram_api::InputMedia> get_message_content_input_media_web_page
 
 void delete_message_content_thumbnail(MessageContent *content, Td *td);
 
-Status can_send_message_content(DialogId dialog_id, const MessageContent *content, bool is_forward, const Td *td);
+Status can_send_message_content(DialogId dialog_id, const MessageContent *content, bool is_forward,
+                                bool check_permissions, const Td *td);
 
 bool can_forward_message_content(const MessageContent *content);
 
@@ -148,7 +149,7 @@ StickerType get_message_content_sticker_type(const Td *td, const MessageContent 
 
 MessageId get_message_content_pinned_message_id(const MessageContent *content);
 
-BackgroundInfo get_message_content_background_info(const MessageContent *content);
+BackgroundInfo get_message_content_my_background_info(const MessageContent *content, bool is_outgoing);
 
 string get_message_content_theme_name(const MessageContent *content);
 
@@ -217,8 +218,9 @@ unique_ptr<MessageContent> get_secret_message_content(
 
 unique_ptr<MessageContent> get_message_content(Td *td, FormattedText message_text,
                                                tl_object_ptr<telegram_api::MessageMedia> &&media_ptr,
-                                               DialogId owner_dialog_id, bool is_content_read, UserId via_bot_user_id,
-                                               int32 *ttl, bool *disable_web_page_preview, const char *source);
+                                               DialogId owner_dialog_id, int32 message_date, bool is_content_read,
+                                               UserId via_bot_user_id, int32 *ttl, bool *disable_web_page_preview,
+                                               const char *source);
 
 enum class MessageContentDupType : int32 {
   Send,        // normal message sending
@@ -232,7 +234,7 @@ unique_ptr<MessageContent> dup_message_content(Td *td, DialogId dialog_id, const
                                                MessageContentDupType type, MessageCopyOptions &&copy_options);
 
 unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<telegram_api::MessageAction> &&action_ptr,
-                                                      DialogId owner_dialog_id,
+                                                      DialogId owner_dialog_id, int32 message_date,
                                                       const RepliedMessageInfo &replied_message_info);
 
 tl_object_ptr<td_api::MessageContent> get_message_content_object(const MessageContent *content, Td *td,
@@ -307,11 +309,5 @@ void init_stickers_manager(Td *td);
 void on_dialog_used(TopDialogCategory category, DialogId dialog_id, int32 date);
 
 void update_used_hashtags(Td *td, const MessageContent *content);
-
-void recognize_message_content_speech(Td *td, const MessageContent *content, MessageFullId message_full_id,
-                                      Promise<Unit> &&promise);
-
-void rate_message_content_speech_recognition(Td *td, const MessageContent *content, MessageFullId message_full_id,
-                                             bool is_good, Promise<Unit> &&promise);
 
 }  // namespace td
