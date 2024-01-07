@@ -2,13 +2,11 @@
 
 # sign
 #
-# Copyright (c) 2023 Kristofer Berggren
+# Copyright (c) 2023-2024 Kristofer Berggren
 # All rights reserved.
-#
-# nchat is distributed under the MIT license.
 
 if [[ "${1}" == "" ]] || [[ "${2}" == "" ]]; then
-  >&2 echo "usage: ./utils/sign <entitlements> <program>"
+  >&2 echo "usage: sign <entitlements> <program>"
   exit 1
 fi
 
