@@ -1,6 +1,6 @@
 // apputil.h
 //
-// Copyright (c) 2020-2023 Kristofer Berggren
+// Copyright (c) 2020-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -17,6 +17,8 @@ public:
   static void SetDeveloperMode(bool p_DeveloperMode);
   static bool GetDeveloperMode();
   static void InitCoredump();
+  static void InitSignalHandler();
+  static void SignalHandler(int p_Signal);
 
 private:
   static bool m_DeveloperMode;

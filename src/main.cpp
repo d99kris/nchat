@@ -238,6 +238,9 @@ int main(int argc, char* argv[])
   std::string appNameVersion = AppUtil::GetAppNameVersion();
   LOG_INFO("starting %s", appNameVersion.c_str());
 
+  // Init signal handler
+  AppUtil::InitSignalHandler();
+
   // Run keydump if required
   if (isKeyDump)
   {
@@ -388,6 +391,8 @@ int main(int argc, char* argv[])
   }
 
   LOG_INFO("exiting nchat");
+
+  Log::Cleanup();
 
   return rv;
 }

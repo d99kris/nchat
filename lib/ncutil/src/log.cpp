@@ -1,18 +1,23 @@
 // log.cpp
 //
-// Copyright (c) 2020-2023 Kristofer Berggren
+// Copyright (c) 2020-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
 
 #include "log.h"
 
+#include <execinfo.h>
+#include <fcntl.h>
 #include <stdarg.h>
+#include <unistd.h>
+
 #include <sys/time.h>
 
 std::string Log::m_Path;
 int Log::m_VerboseLevel = 0;
 std::mutex Log::m_Mutex;
+int Log::m_LogFd = -1;
 
 void Log::Init(const std::string& p_Path)
 {
@@ -20,6 +25,16 @@ void Log::Init(const std::string& p_Path)
   const std::string archivePath = m_Path + ".1";
   remove(archivePath.c_str());
   rename(m_Path.c_str(), archivePath.c_str());
+  Dump("");
+  m_LogFd = open(m_Path.c_str(), O_WRONLY | O_APPEND);
+}
+
+void Log::Cleanup()
+{
+  if (m_LogFd != -1)
+  {
+    close(m_LogFd);
+  }
 }
 
 void Log::SetVerboseLevel(int p_Level)
@@ -86,7 +101,17 @@ void Log::Dump(const char* p_Str)
   }
 }
 
-void Log::Write(const char* p_Filename, int p_LineNo, const char* p_Level, const char* p_Format, va_list p_VaList)
+void Log::Callstack(void* const* p_Callstack, int p_Size, const char* p_LogMsg)
+{
+  if (m_LogFd != -1)
+  {
+    write(m_LogFd, p_LogMsg, strlen(p_LogMsg));
+    backtrace_symbols_fd(p_Callstack, p_Size, m_LogFd);
+  }
+}
+
+void Log::Write(const char* p_Filename, int p_LineNo, const char* p_Level,
+                const char* p_Format, va_list p_VaList)
 {
   std::unique_lock<std::mutex> lock(m_Mutex);
   if (m_Path.empty()) return;

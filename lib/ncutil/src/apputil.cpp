@@ -1,12 +1,16 @@
 // apputil.cpp
 //
-// Copyright (c) 2020-2023 Kristofer Berggren
+// Copyright (c) 2020-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
 
 #include "apputil.h"
 
+#include <set>
+
+#include <execinfo.h>
+#include <signal.h>
 #include <unistd.h>
 
 #include <sys/resource.h>
@@ -68,4 +72,41 @@ void AppUtil::InitCoredump()
     LOG_WARNING("/cores is not writable");
   }
 #endif
+}
+
+void AppUtil::InitSignalHandler()
+{
+  static const std::set<int> signals =
+  {
+    SIGABRT,
+    SIGBUS,
+    SIGFPE,
+    SIGILL,
+    SIGQUIT,
+    SIGSEGV,
+    SIGSYS,
+    SIGTRAP,
+  };
+
+  for (const auto sig : signals)
+  {
+    signal(sig, SignalHandler);
+  }
+}
+
+void AppUtil::SignalHandler(int p_Signal)
+{
+  char logMsg[64];
+  snprintf(logMsg, sizeof(logMsg), "Unexpected termination %d\nCallstack:\n", p_Signal);
+  void* callstack[64] = { 0 };
+  const int size = backtrace(callstack, sizeof(callstack));
+  Log::Callstack(callstack, size, logMsg);
+
+  // non-signal safe code section
+  system("reset");
+  write(STDERR_FILENO, logMsg, strlen(logMsg));
+  backtrace_symbols_fd(callstack, size, STDERR_FILENO);
+
+  signal(p_Signal, SIG_DFL);
+  kill(getpid(), p_Signal);
 }
