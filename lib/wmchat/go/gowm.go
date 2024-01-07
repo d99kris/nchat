@@ -1,6 +1,6 @@
 // gowm.go
 //
-// Copyright (c) 2021-2023 Kristofer Berggren
+// Copyright (c) 2021-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -40,7 +40,7 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
-var whatsmeowDate int = 20231120
+var whatsmeowDate int = 20240106
 
 type JSONMessage []json.RawMessage
 type JSONMessageType string
@@ -1514,8 +1514,13 @@ func WmInit(path string, proxy string, sendType int) int {
 		return -1
 	}
 
-	requireFullSync := true
-	store.DeviceProps.RequireFullSync = &requireFullSync
+	store.DeviceProps.RequireFullSync = proto.Bool(true)
+	store.DeviceProps.HistorySyncConfig = &waProto.DeviceProps_HistorySyncConfig{
+		FullSyncDaysLimit:   proto.Uint32(3650),
+		FullSyncSizeMbLimit: proto.Uint32(102400),
+		StorageQuotaMb:      proto.Uint32(102400),
+	}
+
 	store.DeviceProps.PlatformType = waProto.DeviceProps_FIREFOX.Enum()
 	switch runtime.GOOS {
 	case "linux":
