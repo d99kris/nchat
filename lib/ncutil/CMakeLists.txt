@@ -53,6 +53,8 @@ add_library(ncutil SHARED
   src/status.h
   src/strutil.cpp
   src/strutil.h
+  src/sysutil.cpp
+  src/sysutil.h
   src/timeutil.cpp
   src/timeutil.h
 )

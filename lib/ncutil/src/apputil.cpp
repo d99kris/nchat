@@ -16,6 +16,7 @@
 #include <sys/resource.h>
 
 #include "log.h"
+#include "sysutil.h"
 #include "version.h"
 
 bool AppUtil::m_DeveloperMode = false;
@@ -103,8 +104,8 @@ void AppUtil::SignalHandler(int p_Signal)
   Log::Callstack(callstack, size, logMsg);
 
   // non-signal safe code section
-  system("reset");
-  write(STDERR_FILENO, logMsg, strlen(logMsg));
+  UNUSED(system("reset"));
+  UNUSED(write(STDERR_FILENO, logMsg, strlen(logMsg)));
   backtrace_symbols_fd(callstack, size, STDERR_FILENO);
 
   signal(p_Signal, SIG_DFL);

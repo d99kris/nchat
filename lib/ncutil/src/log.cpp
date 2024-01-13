@@ -14,6 +14,8 @@
 
 #include <sys/time.h>
 
+#include "sysutil.h"
+
 std::string Log::m_Path;
 int Log::m_VerboseLevel = 0;
 std::mutex Log::m_Mutex;
@@ -105,7 +107,7 @@ void Log::Callstack(void* const* p_Callstack, int p_Size, const char* p_LogMsg)
 {
   if (m_LogFd != -1)
   {
-    write(m_LogFd, p_LogMsg, strlen(p_LogMsg));
+    UNUSED(write(m_LogFd, p_LogMsg, strlen(p_LogMsg)));
     backtrace_symbols_fd(p_Callstack, p_Size, m_LogFd);
   }
 }
