@@ -94,6 +94,7 @@ filename and path using:
     cat /proc/sys/kernel/core_pattern
 
 Common values are `|/usr/share/apport/apport ...` (for Ubuntu) and `core`.
+For `coredumpctl` the value may be `|/lib/systemd/systemd-coredump ...`.
 
 ### core
 
