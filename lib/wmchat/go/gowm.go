@@ -1704,11 +1704,6 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 				Conversation: &quotedText,
 			}
 
-			selfId := JidToStr(*client.Store.ID)
-			if quotedSender == selfId {
-				quotedSender = chatId
-			}
-
 			quotedSender = strings.Replace(quotedSender, "@c.us", "@s.whatsapp.net", 1)
 
 			LOG_TRACE("send quoted " + quotedId + ", " + quotedText + ", " + quotedSender)
