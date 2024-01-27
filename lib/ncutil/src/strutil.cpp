@@ -1,6 +1,6 @@
 // strutil.cpp
 //
-// Copyright (c) 2020-2023 Kristofer Berggren
+// Copyright (c) 2020-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -53,6 +53,36 @@ void StrUtil::DeleteToPrevMatch(std::wstring& p_Str, int& p_Pos, int p_Offs, std
 std::string StrUtil::Emojize(const std::string& p_Str, bool p_Pad /*= false*/)
 {
   return EmojiUtil::Emojize(p_Str, p_Pad);
+}
+
+std::string StrUtil::EscapeRawUrls(const std::string& p_Str)
+{
+  std::string str = p_Str;
+  std::string rv;
+  std::regex rg("\\(?\\[?(http|https):\\/\\/([^\\s]+)");
+  std::smatch sm;
+  while (regex_search(str, sm, rg))
+  {
+    rv += sm.prefix().str();
+
+    std::string url = sm.str();
+    if (url.size() >= 2)
+    {
+      if ((url.front() == '(') || (url.front() == '['))
+      {
+        rv += url;
+      }
+      else
+      {
+        rv += "[" + url + "]";
+      }
+    }
+    str = sm.suffix();
+  }
+
+  rv += str;
+
+  return rv;
 }
 
 std::vector<std::string> StrUtil::ExtractUrlsFromStr(const std::string& p_Str)

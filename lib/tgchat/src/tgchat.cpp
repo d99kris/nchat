@@ -1,6 +1,6 @@
 // tgchat.cpp
 //
-// Copyright (c) 2020-2023 Kristofer Berggren
+// Copyright (c) 2020-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -2668,10 +2668,12 @@ td::td_api::object_ptr<td::td_api::formattedText> TgChat::Impl::GetFormattedText
   static const int32_t markdownVersion = (m_Config.Get("markdown_version") == "1") ? 1 : 2;
   if (markdownEnabled)
   {
+    const std::string text = StrUtil::EscapeRawUrls(p_Text);
+
     auto textParseMarkdown =
       td::td_api::make_object<td::td_api::textParseModeMarkdown>(markdownVersion);
     auto parseTextEntities =
-      td::td_api::make_object<td::td_api::parseTextEntities>(p_Text,
+      td::td_api::make_object<td::td_api::parseTextEntities>(text,
                                                              std::move(textParseMarkdown));
     td::Client::Request parseRequest{ 1, std::move(parseTextEntities) };
     auto parseResponse = td::Client::execute(std::move(parseRequest));
