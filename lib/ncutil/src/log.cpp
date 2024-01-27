@@ -7,7 +7,9 @@
 
 #include "log.h"
 
+#ifdef HAVE_EXECINFO_H
 #include <execinfo.h>
+#endif
 #include <fcntl.h>
 #include <stdarg.h>
 #include <unistd.h>
@@ -108,7 +110,9 @@ void Log::Callstack(void* const* p_Callstack, int p_Size, const char* p_LogMsg)
   if (m_LogFd != -1)
   {
     UNUSED(write(m_LogFd, p_LogMsg, strlen(p_LogMsg)));
+#ifdef HAVE_EXECINFO_H
     backtrace_symbols_fd(p_Callstack, p_Size, m_LogFd);
+#endif
   }
 }
 

@@ -1,7 +1,8 @@
 # Project
 cmake_minimum_required(VERSION 3.16 FATAL_ERROR)
-project(libncutil LANGUAGES CXX)
+project(libncutil LANGUAGES CXX C)
 set(CMAKE_CXX_STANDARD 14)
+include(CheckIncludeFile)
 
 # Ccache
 find_program(CCACHE_PROGRAM ccache)
@@ -59,6 +60,11 @@ add_library(ncutil SHARED
   src/timeutil.h
 )
 install(TARGETS ncutil DESTINATION lib)
+
+CHECK_INCLUDE_FILE(execinfo.h FOUND_EXECINFO)
+if(FOUND_EXECINFO)
+  target_compile_definitions(ncutil PRIVATE HAVE_EXECINFO_H=1)
+endif()
 
 # Headers
 target_include_directories(ncutil PRIVATE "../ncutil/src" ${MAGIC_INCLUDE_DIR})

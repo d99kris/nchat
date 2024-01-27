@@ -9,7 +9,9 @@
 
 #include <set>
 
+#ifdef HAVE_EXECINFO_H
 #include <execinfo.h>
+#endif
 #include <signal.h>
 #include <unistd.h>
 
@@ -100,13 +102,19 @@ void AppUtil::SignalHandler(int p_Signal)
   char logMsg[64];
   snprintf(logMsg, sizeof(logMsg), "Unexpected termination %d\nCallstack:\n", p_Signal);
   void* callstack[64] = { 0 };
+#ifdef HAVE_EXECINFO_H
   const int size = backtrace(callstack, sizeof(callstack));
+#else
+  const int size = 0;
+#endif
   Log::Callstack(callstack, size, logMsg);
 
   // non-signal safe code section
   UNUSED(system("reset"));
   UNUSED(write(STDERR_FILENO, logMsg, strlen(logMsg)));
+#ifdef HAVE_EXECINFO_H
   backtrace_symbols_fd(callstack, size, STDERR_FILENO);
+#endif
 
   signal(p_Signal, SIG_DFL);
   kill(getpid(), p_Signal);
