@@ -1167,7 +1167,7 @@ func (handler *WmEventHandler) HandleDocumentMessage(messageInfo types.MessageIn
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
 	senderId := JidToStr(messageInfo.Sender)
-	text := ""
+	text := doc.GetCaption()
 
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isSeen := isSync
