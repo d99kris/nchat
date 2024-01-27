@@ -1,6 +1,6 @@
 // uimodel.cpp
 //
-// Copyright (c) 2019-2023 Kristofer Berggren
+// Copyright (c) 2019-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -143,6 +143,7 @@ void UiModel::KeyHandler(wint_t p_Key)
   else if (p_Key == keyToggleEmoji)
   {
     m_View->SetEmojiEnabled(!m_View->GetEmojiEnabled());
+    EntryConvertEmojiEnabled();
     UpdateList();
     UpdateStatus();
     UpdateHistory();
@@ -3202,4 +3203,29 @@ void UiModel::Quit()
   }
 
   m_Running = false;
+}
+
+void UiModel::EntryConvertEmojiEnabled()
+{
+  const bool emojiEnabled = GetEmojiEnabled();
+  std::string profileId = m_CurrentChat.first;
+  std::string chatId = m_CurrentChat.second;
+  int& entryPos = m_EntryPos[profileId][chatId];
+  std::wstring& entryStr = m_EntryStr[profileId][chatId];
+
+  if (!entryStr.empty())
+  {
+    if (!emojiEnabled)
+    {
+      std::wstring wstr = entryStr;
+      wstr.erase(std::remove(wstr.begin(), wstr.end(), EMOJI_PAD), wstr.end());
+      entryStr = StrUtil::ToWString(StrUtil::Textize(StrUtil::ToString(wstr)));
+    }
+    else
+    {
+      entryStr = StrUtil::ToWString(StrUtil::Emojize(StrUtil::ToString(entryStr), true));
+    }
+
+    entryPos = entryStr.size();
+  }
 }

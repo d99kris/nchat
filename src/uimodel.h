@@ -1,6 +1,6 @@
 // uimodel.h
 //
-// Copyright (c) 2019-2023 Kristofer Berggren
+// Copyright (c) 2019-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -156,6 +156,7 @@ private:
   void SendProtocolRequest(const std::string& p_ProfileId, std::shared_ptr<RequestMessage> p_Request);
   bool HasProtocolFeature(const std::string& p_ProfileId, ProtocolFeature p_ProtocolFeature);
   void Quit();
+  void EntryConvertEmojiEnabled();
 
 private:
   bool m_Running = true;
