@@ -1,6 +1,6 @@
 // uiemojilistdialog.cpp
 //
-// Copyright (c) 2019-2021 Kristofer Berggren
+// Copyright (c) 2019-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -12,7 +12,7 @@
 #include "uimodel.h"
 
 UiEmojiListDialog::UiEmojiListDialog(const UiDialogParams& p_Params)
-  : UiListDialog(p_Params)
+  : UiListDialog(p_Params, true /*p_ShadeHidden*/)
 {
   UpdateList();
 }

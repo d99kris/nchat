@@ -1,6 +1,6 @@
 // uilistdialog.h
 //
-// Copyright (c) 2019-2021 Kristofer Berggren
+// Copyright (c) 2019-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -15,7 +15,7 @@
 class UiListDialog : public UiDialog
 {
 public:
-  UiListDialog(const UiDialogParams& p_Params);
+  UiListDialog(const UiDialogParams& p_Params, bool p_ShadeHidden);
   virtual ~UiListDialog();
 
   bool Run();
@@ -31,6 +31,7 @@ private:
   void Draw();
 
 protected:
+  bool m_ShadeHidden = false;
   bool m_Running = true;
   bool m_Result = false;
   std::wstring m_FilterStr;

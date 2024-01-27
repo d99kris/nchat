@@ -1,6 +1,6 @@
 // uifilelistdialog.cpp
 //
-// Copyright (c) 2019-2021 Kristofer Berggren
+// Copyright (c) 2019-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -11,7 +11,7 @@
 #include "strutil.h"
 
 UiFileListDialog::UiFileListDialog(const UiDialogParams& p_Params)
-  : UiListDialog(p_Params)
+  : UiListDialog(p_Params, true /*p_ShadeHidden*/)
 {
   m_CurrentDir = FileUtil::GetCurrentWorkingDir();
   m_DirEntrys = FileUtil::ListPaths(m_CurrentDir);

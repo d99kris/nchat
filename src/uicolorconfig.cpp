@@ -1,6 +1,6 @@
 // uicolorconfig.cpp
 //
-// Copyright (c) 2019-2023 Kristofer Berggren
+// Copyright (c) 2019-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -28,6 +28,7 @@ void UiColorConfig::Init()
   }
 
   const std::string defaultSentColor = (COLORS > 8) ? "gray" : "";
+  const std::string defaultShadedColor = (COLORS > 8) ? "gray" : "";
   const std::string defaultQuotedColor = (COLORS > 8) ? "gray" : "";
   const std::string defaultAttachmentColor = (COLORS > 8) ? "gray" : "";
   const std::map<std::string, std::string> defaultConfig =
@@ -78,6 +79,8 @@ void UiColorConfig::Init()
     { "dialog_attr_selected", "reverse" },
     { "dialog_color_bg", "" },
     { "dialog_color_fg", "" },
+    { "dialog_shaded_color_bg", "" },
+    { "dialog_shaded_color_fg", defaultShadedColor },
 
     { "default_color_bg", "" },
     { "default_color_fg", "" },

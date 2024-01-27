@@ -1,6 +1,6 @@
 // fileutil.h
 //
-// Copyright (c) 2020-2023 Kristofer Berggren
+// Copyright (c) 2020-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -42,13 +42,13 @@ struct DirEntryCompare
 {
   bool operator()(const DirEntry& p_Lhs, const DirEntry& p_Rhs) const
   {
-    if (p_Lhs.IsDir() != p_Rhs.IsDir())
-    {
-      return p_Lhs.IsDir() > p_Rhs.IsDir();
-    }
-    else if (p_Lhs.IsHidden() != p_Rhs.IsHidden())
+    if (p_Lhs.IsHidden() != p_Rhs.IsHidden())
     {
       return p_Lhs.IsHidden() < p_Rhs.IsHidden();
+    }
+    else if (p_Lhs.IsDir() != p_Rhs.IsDir())
+    {
+      return p_Lhs.IsDir() > p_Rhs.IsDir();
     }
     else
     {

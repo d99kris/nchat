@@ -1,6 +1,6 @@
 // uilistdialog.cpp
 //
-// Copyright (c) 2019-2023 Kristofer Berggren
+// Copyright (c) 2019-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -16,8 +16,9 @@
 #include "uimodel.h"
 #include "uiview.h"
 
-UiListDialog::UiListDialog(const UiDialogParams& p_Params)
+UiListDialog::UiListDialog(const UiDialogParams& p_Params, bool p_ShadeHidden)
   : UiDialog(p_Params)
+  , m_ShadeHidden(p_ShadeHidden)
 {
   m_Model->SetListDialogActive(true);
   m_View->Draw();
@@ -171,8 +172,10 @@ void UiListDialog::KeyHandler(wint_t p_Key)
 void UiListDialog::Draw()
 {
   static int colorPair = UiColorConfig::GetColorPair("dialog_color");
+  static int shadedColorPair = UiColorConfig::GetColorPair("dialog_shaded_color");
   static int attribute = UiColorConfig::GetAttribute("dialog_attr");
   static int attributeSelected = UiColorConfig::GetAttribute("dialog_attr_selected");
+  static std::wstring hiddenIndicator = L".";
 
   werase(m_Win);
   wbkgd(m_Win, colorPair | ' ');
@@ -181,19 +184,33 @@ void UiListDialog::Draw()
   int offset = NumUtil::Bound(0, (m_Index - (m_H / 2)), std::max(0, ((int)m_Items.size() - m_H)));
   for (int i = offset; i < std::min((offset + m_H), (int)m_Items.size()); ++i)
   {
+    const std::wstring& wdisp = m_Items.at(i);
+    const bool isShaded = m_ShadeHidden && (wdisp.rfind(hiddenIndicator, 0) == 0);
+
+    if (isShaded)
+    {
+      wattroff(m_Win, colorPair);
+      wattron(m_Win, shadedColorPair);
+    }
+
     if (i == m_Index)
     {
       wattroff(m_Win, attribute);
       wattron(m_Win, attributeSelected);
     }
 
-    const std::wstring& wdisp = m_Items.at(i);
     mvwaddnwstr(m_Win, (i - offset), 0, wdisp.c_str(), std::min((int)wdisp.size(), m_W));
 
     if (i == m_Index)
     {
       wattroff(m_Win, attributeSelected);
       wattron(m_Win, attribute);
+    }
+
+    if (isShaded)
+    {
+      wattroff(m_Win, shadedColorPair);
+      wattron(m_Win, colorPair);
     }
   }
 
