@@ -73,9 +73,10 @@ Interactive Commands for Selected Message:
     Ctrl-r      download attached file
     Ctrl-v      open/view attached file
     Ctrl-w      open link
-    Ctrl-x      reply to selected message
+    Ctrl-x      send reply to selected message
     Ctrl-z      edit selected message
     Alt-w       external message viewer
+    Alt-c       copy selected message to clipboard
 
 Interactive Commands for Text Input:
 
@@ -88,9 +89,9 @@ Interactive Commands for Text Input:
     Alt-Right   move cursor forward one word
     Alt-Backsp  delete previous word
     Alt-Delete  delete next word
-    Alt-c       copy
-    Alt-v       paste
-    Alt-x       cut
+    Alt-c       copy input buffer to clipboard (if no message selected)
+    Alt-v       paste into input buffer from clipboard
+    Alt-x       cut input buffer to clipboard
 
 
 Supported Platforms
@@ -829,6 +830,16 @@ setup, e.g.:
 
     unset DISPLAY
     nchat -s
+
+### Alt/Opt-keyboard shortcuts are not working
+
+For Linux please ensure the terminal is configured with
+[meta to send escape](https://askubuntu.com/questions/442644/how-to-make-xterm-to-send-the-alt-key-to-emacs-as-meta).
+For macOS Terminal ensure that the Terminal profile keyboard setting
+"Use Option as Meta key" is enabled.
+
+If issues are still encountered, please use `nchat -k` (keydump mode) to
+determine the key codes and modify `~/.nchat/key.conf` accordingly.
 
 
 Technical Details

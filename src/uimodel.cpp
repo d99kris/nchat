@@ -2770,12 +2770,6 @@ void UiModel::Cut()
 {
   std::unique_lock<std::mutex> lock(m_ModelMutex);
 
-  if (GetSelectMessageActive())
-  {
-    std::string text = UiModel::GetSelectedMessageText();
-    Clipboard::SetText(text);
-  }
-  else
   {
     std::string profileId = m_CurrentChat.first;
     std::string chatId = m_CurrentChat.second;
