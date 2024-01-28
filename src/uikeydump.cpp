@@ -1,6 +1,6 @@
 // uikeydump.cpp
 //
-// Copyright (c) 2022-2023 Kristofer Berggren
+// Copyright (c) 2022-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -17,6 +17,8 @@
 #include "uicontroller.h"
 #include "uikeyconfig.h"
 #include "uikeyinput.h"
+
+//#define USE_KEY_CONFIG 1
 
 void UiKeyDump::Run()
 {
@@ -37,6 +39,7 @@ void UiKeyDump::Run()
   UiController uiController;
   uiController.Init();
 
+#ifdef USE_KEY_CONFIG
   std::map<std::string, std::string> keyParams = UiKeyConfig::GetMap();
   std::map<wint_t, std::string> codeConfig;
   for (auto& keyParam : keyParams)
@@ -45,6 +48,7 @@ void UiKeyDump::Run()
     wint_t key = UiKeyConfig::GetKey(param);
     codeConfig[key] = param;
   }
+#endif
 
   bool running = true;
   while (running)
@@ -93,11 +97,13 @@ void UiKeyDump::Run()
           printw(" %s", keyName.c_str());
         }
 
+#ifdef USE_KEY_CONFIG
         std::string keyParam = codeConfig[keyOk];
         if (!keyParam.empty())
         {
           printw(" %s", keyParam.c_str());
         }
+#endif
       }
 
       printw("\n");
