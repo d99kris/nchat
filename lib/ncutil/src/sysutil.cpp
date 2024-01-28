@@ -6,4 +6,3 @@
 // nchat is distributed under the MIT license, see LICENSE for details.
 
 #include "sysutil.h"
-

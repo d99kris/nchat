@@ -18,7 +18,7 @@
 #include "uikeyconfig.h"
 #include "uikeyinput.h"
 
-//#define USE_KEY_CONFIG 1
+// #define USE_KEY_CONFIG 1
 
 void UiKeyDump::Run()
 {

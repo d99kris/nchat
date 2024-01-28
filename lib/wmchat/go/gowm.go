@@ -322,16 +322,15 @@ func HasGUI() bool {
 		}
 
 		defer os.Remove(file.Name())
-		content :=
-		"#!/usr/bin/env bash\n\n" +
-		"if command -v timeout &> /dev/null; then\n" +
-		"  CMD=\"timeout 1s xset q\"\n" +
-		"else\n" +
-		"  CMD=\"xset q\"\n" +
-		"fi\n" +
-		"echo \"${CMD}\"\n" +
-		"${CMD} > /dev/null\n" +
-		"exit ${?}\n"
+		content := "#!/usr/bin/env bash\n\n" +
+			"if command -v timeout &> /dev/null; then\n" +
+			"  CMD=\"timeout 1s xset q\"\n" +
+			"else\n" +
+			"  CMD=\"xset q\"\n" +
+			"fi\n" +
+			"echo \"${CMD}\"\n" +
+			"${CMD} > /dev/null\n" +
+			"exit ${?}\n"
 
 		_, err = io.WriteString(file, content)
 		if err != nil {
@@ -636,7 +635,7 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 	LOG_TRACE(fmt.Sprintf("HandleHistorySync SyncType %s Progress %d",
 		(*historySync.Data.SyncType).String(), historySync.Data.GetProgress()))
 
-	if (historySync.Data.GetProgress() < 98) {
+	if historySync.Data.GetProgress() < 98 {
 		LOG_TRACE("Set Syncing")
 		CWmSetStatus(FlagSyncing)
 	}
