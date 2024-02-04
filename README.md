@@ -841,6 +841,14 @@ For macOS Terminal ensure that the Terminal profile keyboard setting
 If issues are still encountered, please use `nchat -k` (keydump mode) to
 determine the key codes and modify `~/.nchat/key.conf` accordingly.
 
+### Sent messages are not visible
+
+For terminals with eight colors (or more) the default color theme displays
+sent messages in gray (shaded). Some terminals may wrongly report supporting
+more colors than two, or the terminal may be set up with gray mapped to black.
+In this case sent / own messages may appear invisible. To avoid nchat using
+gray one can edit `~/.nchat/color.conf` and remove occurances of `gray`.
+
 
 Technical Details
 =================
