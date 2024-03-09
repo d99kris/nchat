@@ -112,6 +112,9 @@ void Log::Callstack(void* const* p_Callstack, int p_Size, const char* p_LogMsg)
     UNUSED(write(m_LogFd, p_LogMsg, strlen(p_LogMsg)));
 #ifdef HAVE_EXECINFO_H
     backtrace_symbols_fd(p_Callstack, p_Size, m_LogFd);
+#else
+    (void)p_Callstack;
+    (void)p_Size;
 #endif
   }
 }

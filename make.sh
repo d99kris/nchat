@@ -145,6 +145,8 @@ if [[ "${DEPS}" == "1" ]]; then
       sudo pacman -S ccache cmake file go gperf help2man ncurses openssl readline sqlite zlib base-devel || exiterr "deps failed (${NAME}), exiting."
     elif [[ "${NAME}" == "Void" ]]; then
       sudo xbps-install ${YES} base-devel go ccache cmake gperf help2man libmagick-devel readline-devel sqlite-devel file-devel openssl-devel || exiterr "deps failed (${NAME}), exiting."
+    elif [[ "${NAME}" == "Alpine Linux" ]]; then
+      sudo apk add git build-base cmake ncurses-dev openssl-dev sqlite-dev file-dev go linux-headers zlib-dev ccache gperf readline || exiterr "deps failed (${NAME}), exiting."
     else
       exiterr "deps failed (unsupported linux distro ${NAME}), exiting."
     fi

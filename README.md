@@ -135,8 +135,8 @@ prepared for a relatively long first build time.
 
 Using make.sh script
 --------------------
-If using macOS, Arch, Fedora, Gentoo, Raspbian, Ubuntu or Void, one can use
-the `make.sh` script provided.
+If using macOS, Alpine, Arch, Fedora, Gentoo, Raspbian, Ubuntu or Void, one
+can use the `make.sh` script provided.
 
 **Dependencies**
 
