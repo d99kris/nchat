@@ -107,7 +107,7 @@ Install using Package Manager
 
 macOS
 -----
-**Build / Install Stable Release**
+**Build / Install Stable Release using Brew**
 
     brew tap d99kris/nchat
     brew install nchat
@@ -116,13 +116,11 @@ Arch Linux
 ----------
 **Build / Install Latest Git**
 
-    git clone https://aur.archlinux.org/nchat-git.git && cd nchat-git
-    makepkg -s && makepkg -i
+    yay -S nchat-git
 
 **Build / Install Stable Release**
 
-    git clone https://aur.archlinux.org/nchat.git && cd nchat
-    makepkg -s && makepkg -i
+    yay -S nchat
 
 Build from Source
 =================
