@@ -196,7 +196,9 @@ int UiColorConfig::GetAttribute(const std::string& p_Param)
     { "underline", A_UNDERLINE },
     { "reverse", A_REVERSE },
     { "bold", A_BOLD },
+#ifdef A_ITALIC
     { "italic", A_ITALIC },
+#endif
   };
 
   auto attribute = attributes.find(m_Config.Get(p_Param));
