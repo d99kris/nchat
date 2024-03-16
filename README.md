@@ -330,6 +330,7 @@ This configuration file holds general user interface settings. Default content:
     mark_read_on_view=1
     mark_read_when_inactive=0
     message_open_command=
+    mute_status_broadcast=1
     muted_indicate_unread=1
     muted_notify_unread=0
     muted_position_by_timestamp=1
@@ -480,6 +481,11 @@ terminal is inactive.
 Specifies a custom command to use for opening/viewing message text part. If
 not specified, nchat will use `PAGER` environment variable if set, or
 otherwise use `less`.
+
+### mute_status_broadcast
+
+Specifies whether (WhatsApp) status broadcast chat should be treated as
+muted.
 
 ### muted_indicate_unread
 

@@ -39,6 +39,7 @@ void UiConfig::Init()
     { "mark_read_on_view", "1" },
     { "mark_read_when_inactive", "0" },
     { "message_open_command", "" },
+    { "mute_status_broadcast", "1" },
     { "muted_indicate_unread", "1" },
     { "muted_notify_unread", "0" },
     { "muted_position_by_timestamp", "1" },

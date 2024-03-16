@@ -1537,7 +1537,7 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
         const std::vector<ContactInfo>& contactInfos = newContactsNotify->contactInfos;
         for (auto& contactInfo : contactInfos)
         {
-          LOG_TRACE("NewContacts");
+          LOG_TRACE("NewContacts %s", contactInfo.id.c_str());
           m_ContactInfos[profileId][contactInfo.id] = contactInfo;
         }
 
@@ -1557,6 +1557,13 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
           LOG_TRACE("new chats %d", newChatsNotify->chatInfos.size());
           for (auto& chatInfo : newChatsNotify->chatInfos)
           {
+            LOG_TRACE("new chats %s", chatInfo.id.c_str());
+            static const bool muteStatusBroadcast = UiConfig::GetBool("mute_status_broadcast");
+            if (muteStatusBroadcast && (chatInfo.id == "status@broadcast"))
+            {
+              chatInfo.isMuted = true;
+            }
+
             m_ChatInfos[profileId][chatInfo.id] = chatInfo;
             HandleChatInfoMutedUpdate(profileId, chatInfo.id);
 
