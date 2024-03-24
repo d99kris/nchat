@@ -202,13 +202,13 @@ void UiKeyConfig::Init(bool p_MapKeys)
     { "begin_line", "KEY_CTRLA" },
     { "end_line", "KEY_CTRLE" },
 #if defined(__APPLE__)
-    { "backward_word", "\\033\\142" }, // opt-left
-    { "forward_word", "\\033\\146" }, // opt-right
-    { "kill_word", "\\033\\010" }, // opt-delete
+    { "backward_word", "\\33\\142" }, // opt-left
+    { "forward_word", "\\33\\146" }, // opt-right
+    { "kill_word", "\\33\\50" }, // opt-delete
 #else // defined(__linux__)
-    { "backward_word", "\\1040" }, // alt-left
-    { "forward_word", "\\1057" }, // alt-right
-    { "kill_word", "\\1006" }, // alt-delete
+    { "backward_word", "\\4001040" }, // alt-left
+    { "forward_word", "\\4001057" }, // alt-right
+    { "kill_word", "\\4001006" }, // alt-delete
 #endif
     { "edit_msg", "KEY_CTRLZ" },
     { "backward_kill_word", "\\033\\177" }, // alt/opt-backspace
