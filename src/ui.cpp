@@ -57,7 +57,7 @@ void Ui::Init()
   curs_set(0);
   timeout(0);
   EmojiList::Init();
-  UiKeyConfig::Init();
+  UiKeyConfig::Init(true);
   UiColorConfig::Init();
   m_Model->Init();
   m_Controller->Init();

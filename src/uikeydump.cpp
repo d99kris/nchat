@@ -35,7 +35,7 @@ void UiKeyDump::Run()
   printw("key code dump mode - press ctrl-c or 'q' to exit\n");
   refresh();
 
-  UiKeyConfig::Init();
+  UiKeyConfig::Init(false);
   UiController uiController;
   uiController.Init();
 

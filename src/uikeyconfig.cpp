@@ -18,7 +18,7 @@
 Config UiKeyConfig::m_Config;
 std::map<std::string, int> UiKeyConfig::m_KeyCodes;
 
-void UiKeyConfig::InitKeyCodes()
+void UiKeyConfig::InitKeyCodes(bool p_MapKeys)
 {
   m_KeyCodes = std::map<std::string, int>({
     // additional keys
@@ -166,9 +166,19 @@ void UiKeyConfig::InitKeyCodes()
     { "KEY_FOCUS_IN", GetVirtualKeyCodeFromOct("\\033\\133\\111") }, // 033[I
     { "KEY_FOCUS_OUT", GetVirtualKeyCodeFromOct("\\033\\133\\117") }, // 033[O
   });
+
+  if (p_MapKeys)
+  {
+    std::map<std::string, std::string> keyMaps = m_Config.GetMap();
+    for (auto& keyMap : keyMaps)
+    {
+      wint_t keyCode = UiKeyConfig::GetKey(keyMap.first);
+      LOG_TRACE("cfg '%s' to use code 0x%x", keyMap.first.c_str(), keyCode);
+    }
+  }
 }
 
-void UiKeyConfig::Init()
+void UiKeyConfig::Init(bool p_MapKeys)
 {
   const std::map<std::string, std::string> defaultConfig =
   {
@@ -236,7 +246,7 @@ void UiKeyConfig::Init()
   const std::string configPath(FileUtil::GetApplicationDir() + std::string("/key.conf"));
   m_Config = Config(configPath, defaultConfig);
 
-  InitKeyCodes();
+  InitKeyCodes(p_MapKeys);
 }
 
 void UiKeyConfig::Cleanup()
@@ -343,6 +353,7 @@ int UiKeyConfig::GetVirtualKeyCodeFromOct(const std::string& p_KeyOct)
     int keyCode = ReserveVirtualKeyCode();
     std::string keyStr = StrUtil::StrFromOct(p_KeyOct);
     define_key(keyStr.c_str(), keyCode);
+    LOG_TRACE("define '%s' code 0x%x", p_KeyOct.c_str(), keyCode);
     reservedVirtualKeyCodes[p_KeyOct] = keyCode;
     return keyCode;
   }
