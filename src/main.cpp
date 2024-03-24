@@ -49,6 +49,7 @@ public:
   ProtocolBaseFactory() { }
   virtual ~ProtocolBaseFactory() { }
   virtual std::string GetName() const = 0;
+  virtual std::string GetSetupMessage() const = 0;
   virtual std::shared_ptr<Protocol> Create() const = 0;
 };
 
@@ -59,6 +60,11 @@ public:
   virtual std::string GetName() const
   {
     return T::GetName();
+  }
+
+  virtual std::string GetSetupMessage() const
+  {
+    return T::GetSetupMessage();
   }
 
   virtual std::shared_ptr<Protocol> Create() const
@@ -494,6 +500,14 @@ std::shared_ptr<Protocol> SetupProfile()
   FileUtil::MkDir(profilesDir);
   Profiles::Init();
 #endif
+
+  std::string setupMessage = protocolFactorys.at(selectidx)->GetSetupMessage();
+  if (!setupMessage.empty())
+  {
+    LOG_WARNING("%s", setupMessage.c_str());
+    std::cout << setupMessage;
+    sleep(3);
+  }
 
   std::shared_ptr<Protocol> protocol = protocolFactorys.at(selectidx)->Create();
   bool setupResult = protocol && protocol->SetupProfile(profilesDir, profileId);

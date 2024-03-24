@@ -1,6 +1,6 @@
 // wmchat.h
 //
-// Copyright (c) 2020-2023 Kristofer Berggren
+// Copyright (c) 2020-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -23,6 +23,16 @@ public:
   static std::string GetName() { return "WhatsAppMd"; }
   static std::string GetLibName() { return "libwmchat"; }
   static std::string GetCreateFunc() { return "CreateWmChat"; }
+  static std::string GetSetupMessage()
+  {
+#if defined(__APPLE__) || defined(__GLIBC__)
+    return "";
+#else
+    return "\nUNSUPPORTED PLATFORM:\nThe WhatsApp protocol implementation officially only supports glibc on Linux.\n"
+           "For details, refer to https://github.com/d99kris/nchat/issues/204\n";
+#endif
+  }
+
   std::string GetProfileId() const;
   std::string GetProfileDisplayName() const;
   bool HasFeature(ProtocolFeature p_ProtocolFeature) const;

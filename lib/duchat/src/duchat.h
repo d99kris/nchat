@@ -1,6 +1,6 @@
 // duchat.h
 //
-// Copyright (c) 2020-2022 Kristofer Berggren
+// Copyright (c) 2020-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -21,6 +21,7 @@ public:
   static std::string GetName() { return "Dummy"; }
   static std::string GetLibName() { return "libduchat"; }
   static std::string GetCreateFunc() { return "CreateDuChat"; }
+  static std::string GetSetupMessage() { return ""; }
   std::string GetProfileId() const;
   std::string GetProfileDisplayName() const;
   bool HasFeature(ProtocolFeature p_ProtocolFeature) const;
