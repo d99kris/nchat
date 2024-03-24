@@ -1,6 +1,6 @@
 // uikeyconfig.cpp
 //
-// Copyright (c) 2019-2023 Kristofer Berggren
+// Copyright (c) 2019-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -332,10 +332,20 @@ int UiKeyConfig::GetKeyCode(const std::string& p_KeyName)
 
 int UiKeyConfig::GetVirtualKeyCodeFromOct(const std::string& p_KeyOct)
 {
-  int keyCode = ReserveVirtualKeyCode();
-  std::string keyStr = StrUtil::StrFromOct(p_KeyOct);
-  define_key(keyStr.c_str(), keyCode);
-  return keyCode;
+  static std::map<std::string, int> reservedVirtualKeyCodes;
+  auto it = reservedVirtualKeyCodes.find(p_KeyOct);
+  if (it != reservedVirtualKeyCodes.end())
+  {
+    return it->second;
+  }
+  else
+  {
+    int keyCode = ReserveVirtualKeyCode();
+    std::string keyStr = StrUtil::StrFromOct(p_KeyOct);
+    define_key(keyStr.c_str(), keyCode);
+    reservedVirtualKeyCodes[p_KeyOct] = keyCode;
+    return keyCode;
+  }
 }
 
 int UiKeyConfig::ReserveVirtualKeyCode()
