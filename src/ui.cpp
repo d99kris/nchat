@@ -1,6 +1,6 @@
 // ui.cpp
 //
-// Copyright (c) 2019-2023 Kristofer Berggren
+// Copyright (c) 2019-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -52,7 +52,6 @@ void Ui::Init()
   initscr();
   noecho();
   cbreak();
-  raw();
   keypad(stdscr, TRUE);
   curs_set(0);
   timeout(0);
@@ -94,6 +93,7 @@ void Ui::Run()
 
   LOG_INFO("entering ui loop");
 
+  raw();
   curs_set(1);
   while (m_Model->Process())
   {
