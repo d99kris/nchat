@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -112,4 +112,8 @@ TEST(StringCleaning, strip_empty_characters) {
   check_strip_empty_characters(
       "\xe2\x80\xa7\xe2\x80\xa8\xe2\x80\xa9\xe2\x80\xaa\xe2\x80\xab\xe2\x80\xac\xe2\x80\xad\xe2\x80\xae", 3,
       "\xe2\x80\xa7\xe2\x80\xa8\xe2\x80\xa9");
+  check_strip_empty_characters(
+      "\xF3\x9F\xBF\xBF\xF3\xA0\x80\x80\xF3\xA0\x80\x81\xF3\xA0\x80\xBF\xF3\xA0\x81\x80\xF3\xA0\x81\x81\xF3\xA0\x81\xBF"
+      "\xF3\xA0\x82\x80",
+      9, "\xF3\x9F\xBF\xBF      \xF3\xA0\x82\x80");
 }

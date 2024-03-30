@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -36,6 +36,8 @@ class CountryInfoManager final : public Actor {
 
   static td_api::object_ptr<td_api::phoneNumberInfo> get_phone_number_info_sync(const string &language_code,
                                                                                 string phone_number_prefix);
+
+  static string get_country_flag_emoji(const string &country_code);
 
   void on_update_fragment_prefixes();
 

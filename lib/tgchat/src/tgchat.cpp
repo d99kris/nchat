@@ -40,7 +40,7 @@
 
 // #define SIMULATED_SPONSORED_MESSAGES
 
-static const int s_TdlibDate = 20231228;
+static const int s_TdlibDate = 20240308;
 
 namespace detail
 {
@@ -1614,7 +1614,7 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
   },
   [](auto& anyupdate)
   {
-    LOG_TRACE("other update %d", anyupdate.get_id());
+    LOG_TRACE("other update %d", anyupdate.ID);
   }
   ));
   // *INDENT-ON*
@@ -1767,7 +1767,8 @@ void TgChat::Impl::OnAuthStateUpdate()
       std::getline(std::cin, first_name);
       std::cout << "Enter your last name: ";
       std::getline(std::cin, last_name);
-      SendQuery(td::td_api::make_object<td::td_api::registerUser>(first_name, last_name),
+      bool disable_notification = false;
+      SendQuery(td::td_api::make_object<td::td_api::registerUser>(first_name, last_name, disable_notification),
                 CreateAuthQueryHandler());
     }
     else
@@ -1848,7 +1849,6 @@ void TgChat::Impl::OnAuthStateUpdate()
 #endif
     static std::string appVersion = AppUtil::GetAppVersion();
     set_parameters->application_version_ = appVersion.c_str();
-    set_parameters->enable_storage_optimizer_ = true;
     SendQuery(std::move(set_parameters), CreateAuthQueryHandler());
   },
   [](td::td_api::authorizationStateWaitOtherDeviceConfirmation& state)
@@ -1857,7 +1857,7 @@ void TgChat::Impl::OnAuthStateUpdate()
   },
   [this](auto& anystate)
   {
-    LOG_DEBUG("unexpected authorization state %d", anystate.get_id());
+    LOG_DEBUG("unexpected authorization state %d", anystate.ID);
     m_Running = false;
   }
   ));

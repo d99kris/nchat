@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,6 +11,7 @@
 #include "td/telegram/AuthManager.h"
 #include "td/telegram/ContactsManager.h"
 #include "td/telegram/Dependencies.h"
+#include "td/telegram/DialogManager.h"
 #include "td/telegram/Dimensions.h"
 #include "td/telegram/Document.h"
 #include "td/telegram/Document.hpp"
@@ -586,7 +587,7 @@ WebPageId WebPagesManager::on_get_web_page(tl_object_ptr<telegram_api::WebPage> 
                 LOG(ERROR) << "Receive " << actual_story_id << " instead of " << story_id;
               }
             }
-            td_->messages_manager_->force_create_dialog(dialog_id, "webPageAttributeStory");
+            td_->dialog_manager_->force_create_dialog(dialog_id, "webPageAttributeStory");
             page->story_full_ids_.push_back(story_full_id);
             break;
           }
@@ -1418,7 +1419,7 @@ tl_object_ptr<td_api::webPage> WebPagesManager::get_web_page_object(WebPageId we
       web_page->document_.type == Document::Type::VoiceNote
           ? td_->voice_notes_manager_->get_voice_note_object(web_page->document_.file_id)
           : nullptr,
-      td_->messages_manager_->get_chat_id_object(story_sender_dialog_id, "webPage"), story_id.get(),
+      td_->dialog_manager_->get_chat_id_object(story_sender_dialog_id, "webPage"), story_id.get(),
       instant_view_version);
 }
 

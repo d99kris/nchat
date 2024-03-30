@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -96,8 +96,9 @@ DcAuthManager::DcInfo *DcAuthManager::find_dc(int32 dc_id) {
 void DcAuthManager::update_auth_key_state() {
   auto dc_id = narrow_cast<int32>(get_link_token());
   auto &dc = get_dc(dc_id);
+  auto old_auth_key_state = dc.auth_key_state;
   dc.auth_key_state = get_auth_key_state(dc.shared_auth_data->get_auth_key());
-  VLOG(dc) << "Update " << dc_id << " auth key state from " << dc.auth_key_state << " to " << dc.auth_key_state;
+  VLOG(dc) << "Update DcId{" << dc_id << "} auth key state from " << old_auth_key_state << " to " << dc.auth_key_state;
 
   loop();
 }
@@ -197,17 +198,18 @@ void DcAuthManager::destroy_loop() {
   if (!need_destroy_auth_key_) {
     return;
   }
-  bool is_ready{true};
+  bool is_ready = true;
   for (auto &dc : dcs_) {
-    is_ready &= dc.auth_key_state == AuthKeyState::Empty;
+    if (dc.auth_key_state != AuthKeyState::Empty) {
+      is_ready = false;
+      VLOG(dc) << "Auth key in " << dc.dc_id << " in state " << dc.auth_key_state << " must be destroyed";
+    }
   }
 
   if (is_ready) {
-    VLOG(dc) << "Destroy auth keys loop is ready, all keys are destroyed";
+    VLOG(dc) << "All keys were destroyed";
     destroy_promise_.set_value(Unit());
     need_destroy_auth_key_ = false;
-  } else {
-    VLOG(dc) << "DC is not ready for destroying auth key";
   }
 }
 

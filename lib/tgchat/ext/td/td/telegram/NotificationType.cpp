@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -18,6 +18,7 @@
 #include "td/telegram/VideosManager.h"
 #include "td/telegram/VoiceNotesManager.h"
 
+#include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/Slice.h"
 
@@ -362,7 +363,8 @@ class NotificationTypePushMessage final : public NotificationType {
       default:
         break;
     }
-    UNREACHABLE();
+    LOG(FATAL) << "Have unsupported push notification key " << key;
+    return nullptr;
   }
 
   td_api::object_ptr<td_api::NotificationType> get_notification_type_object(Td *td, DialogId) const final {

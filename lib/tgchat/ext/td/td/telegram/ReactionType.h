@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -54,6 +54,8 @@ class ReactionType {
   td_api::object_ptr<td_api::ReactionType> get_reaction_type_object() const;
 
   td_api::object_ptr<td_api::updateDefaultReactionType> get_update_default_reaction_type() const;
+
+  uint64 get_hash() const;
 
   bool is_custom_reaction() const;
 

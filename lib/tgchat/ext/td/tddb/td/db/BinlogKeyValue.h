@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -26,6 +26,7 @@
 #include "td/utils/tl_parsers.h"
 #include "td/utils/tl_storers.h"
 
+#include <functional>
 #include <memory>
 #include <unordered_map>
 #include <utility>
@@ -212,12 +213,19 @@ class BinlogKeyValue final : public KeyValueSyncInterface {
     return it->second.first;
   }
 
-  void force_sync(Promise<> &&promise) final {
-    binlog_->force_sync(std::move(promise));
+  void force_sync(Promise<> &&promise, const char *source) final {
+    binlog_->force_sync(std::move(promise), source);
   }
 
   void lazy_sync(Promise<> &&promise) {
     binlog_->lazy_sync(std::move(promise));
+  }
+
+  void for_each(std::function<void(Slice, Slice)> func) final {
+    auto lock = rw_mutex_.lock_write().move_as_ok();
+    for (const auto &kv : map_) {
+      func(kv.first, kv.second.first);
+    }
   }
 
   std::unordered_map<string, string, Hash<string>> prefix_get(Slice prefix) final {
@@ -280,14 +288,14 @@ inline void BinlogKeyValue<Binlog>::add_event(uint64 seq_no, BufferSlice &&event
 }
 
 template <>
-inline void BinlogKeyValue<Binlog>::force_sync(Promise<> &&promise) {
-  binlog_->sync();
+inline void BinlogKeyValue<Binlog>::force_sync(Promise<> &&promise, const char *source) {
+  binlog_->sync(source);
   promise.set_value(Unit());
 }
 
 template <>
 inline void BinlogKeyValue<Binlog>::lazy_sync(Promise<> &&promise) {
-  force_sync(std::move(promise));
+  force_sync(std::move(promise), "lazy_sync");
 }
 
 }  // namespace td

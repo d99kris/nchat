@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -13,6 +13,7 @@
 #include "td/telegram/ConfigManager.h"
 #include "td/telegram/ContactsManager.h"
 #include "td/telegram/DialogId.h"
+#include "td/telegram/DialogManager.h"
 #include "td/telegram/DialogParticipant.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/MessageEntity.h"
@@ -330,7 +331,7 @@ class LinkManager::InternalLinkBotStart final : public InternalLink {
         autostart = true;
       } else {
         const Td *td = G()->td().get_actor_unsafe();
-        auto dialog_id = td->messages_manager_->resolve_dialog_username(bot_username_);
+        auto dialog_id = td->dialog_manager_->get_resolved_dialog_by_username(bot_username_);
         if (dialog_id.is_valid() && dialog_id.get_type() == DialogType::User &&
             td->messages_manager_->get_dialog_has_last_message(dialog_id) &&
             !td->messages_manager_->is_dialog_blocked(dialog_id)) {
@@ -854,7 +855,7 @@ class RequestUrlAuthQuery final : public Td::ResultHandler {
     tl_object_ptr<telegram_api::InputPeer> input_peer;
     if (message_full_id.get_dialog_id().is_valid()) {
       dialog_id_ = message_full_id.get_dialog_id();
-      input_peer = td_->messages_manager_->get_input_peer(dialog_id_, AccessRights::Read);
+      input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Read);
       CHECK(input_peer != nullptr);
       flags |= telegram_api::messages_requestUrlAuth::PEER_MASK;
     } else {
@@ -899,7 +900,7 @@ class RequestUrlAuthQuery final : public Td::ResultHandler {
 
   void on_error(Status status) final {
     if (!dialog_id_.is_valid() ||
-        !td_->messages_manager_->on_get_dialog_error(dialog_id_, status, "RequestUrlAuthQuery")) {
+        !td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "RequestUrlAuthQuery")) {
       LOG(INFO) << "Receive error for RequestUrlAuthQuery: " << status;
     }
     promise_.set_value(td_api::make_object<td_api::loginUrlInfoOpen>(url_, false));
@@ -921,7 +922,7 @@ class AcceptUrlAuthQuery final : public Td::ResultHandler {
     tl_object_ptr<telegram_api::InputPeer> input_peer;
     if (message_full_id.get_dialog_id().is_valid()) {
       dialog_id_ = message_full_id.get_dialog_id();
-      input_peer = td_->messages_manager_->get_input_peer(dialog_id_, AccessRights::Read);
+      input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Read);
       CHECK(input_peer != nullptr);
       flags |= telegram_api::messages_acceptUrlAuth::PEER_MASK;
     } else {
@@ -960,7 +961,7 @@ class AcceptUrlAuthQuery final : public Td::ResultHandler {
 
   void on_error(Status status) final {
     if (!dialog_id_.is_valid() ||
-        !td_->messages_manager_->on_get_dialog_error(dialog_id_, status, "AcceptUrlAuthQuery")) {
+        !td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "AcceptUrlAuthQuery")) {
       LOG(INFO) << "Receive error for AcceptUrlAuthQuery: " << status;
     }
     promise_.set_error(std::move(status));
@@ -1258,7 +1259,7 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_tg_link_query(Slice que
           // resolve?domain=<username>&videochat
           // resolve?domain=<username>&videochat=<invite_hash>
           if (Scheduler::context() != nullptr) {
-            send_closure(G()->messages_manager(), &MessagesManager::reload_voice_chat_on_search, username);
+            send_closure(G()->dialog_manager(), &DialogManager::reload_voice_chat_on_search, username);
           }
           return td::make_unique<InternalLinkVoiceChat>(std::move(username), arg.second, arg.first == "livestream");
         }
@@ -1707,7 +1708,7 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_t_me_link_query(Slice q
         // /<username>?videochat
         // /<username>?videochat=<invite_hash>
         if (Scheduler::context() != nullptr) {
-          send_closure(G()->messages_manager(), &MessagesManager::reload_voice_chat_on_search, username);
+          send_closure(G()->dialog_manager(), &DialogManager::reload_voice_chat_on_search, username);
         }
         return td::make_unique<InternalLinkVoiceChat>(std::move(username), arg.second, arg.first == "livestream");
       }

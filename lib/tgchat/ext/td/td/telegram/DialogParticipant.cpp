@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -64,9 +64,6 @@ AdministratorRights::AdministratorRights(bool is_anonymous, bool can_manage_dial
     case ChannelType::Megagroup:
       can_post_messages = false;
       can_edit_messages = false;
-      can_post_stories = false;
-      can_edit_stories = false;
-      can_delete_stories = false;
       break;
     case ChannelType::Unknown:
       break;
@@ -246,7 +243,7 @@ RestrictedRights::RestrictedRights(const td_api::object_ptr<td_api::chatPermissi
                            rights->can_send_other_messages_, rights->can_send_other_messages_,
                            rights->can_send_other_messages_, rights->can_add_web_page_previews_,
                            rights->can_send_polls_, rights->can_change_info_, rights->can_invite_users_,
-                           rights->can_pin_messages_, rights->can_manage_topics_, channel_type);
+                           rights->can_pin_messages_, rights->can_create_topics_, channel_type);
 }
 
 RestrictedRights::RestrictedRights(bool can_send_messages, bool can_send_audios, bool can_send_documents,
@@ -553,7 +550,7 @@ tl_object_ptr<telegram_api::chatBannedRights> DialogParticipantStatus::get_chat_
 }
 
 DialogParticipantStatus DialogParticipantStatus::apply_restrictions(RestrictedRights default_restrictions,
-                                                                    bool is_bot) const {
+                                                                    bool is_booster, bool is_bot) const {
   auto flags = flags_;
   switch (type_) {
     case Type::Creator:
@@ -569,9 +566,12 @@ DialogParticipantStatus DialogParticipantStatus::apply_restrictions(RestrictedRi
     case Type::Member:
     case Type::Restricted:
     case Type::Left:
-      // members and restricted are affected by default restrictions
-      flags &= (~RestrictedRights::ALL_RESTRICTED_RIGHTS) | default_restrictions.flags_;
+      if (!is_booster) {
+        // members and restricted are affected by default restrictions unless they are supergroup boosters
+        flags &= (~RestrictedRights::ALL_RESTRICTED_RIGHTS) | default_restrictions.flags_;
+      }
       if (is_bot) {
+        // bots must be explicitly granted administrator rights to use them
         flags &= ~RestrictedRights::ALL_ADMIN_PERMISSION_RIGHTS;
       }
       break;

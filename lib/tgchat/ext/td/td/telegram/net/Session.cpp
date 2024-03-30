@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -1047,6 +1047,8 @@ void Session::on_message_info(mtproto::MessageId message_id, int32 state, mtprot
       return;
     }
   }
+  LOG(INFO) << "Receive info about " << message_id << " with state = " << state << " and answer " << answer_message_id
+            << " from " << source;
   if (message_id != mtproto::MessageId()) {
     if (it == sent_queries_.end()) {
       return;

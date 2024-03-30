@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -9,8 +9,8 @@
 #include "td/telegram/ChannelId.h"
 #include "td/telegram/ContactsManager.h"
 #include "td/telegram/Dependencies.h"
+#include "td/telegram/DialogManager.h"
 #include "td/telegram/Global.h"
-#include "td/telegram/MessagesManager.h"
 #include "td/telegram/ServerMessageId.h"
 #include "td/telegram/Td.h"
 
@@ -70,7 +70,7 @@ Result<MessageOrigin> MessageOrigin::get_message_origin(
       LOG(ERROR) << "Receive forward from " << (td->contacts_manager_->have_min_channel(channel_id) ? "min" : "unknown")
                  << ' ' << channel_id;
     }
-    td->messages_manager_->force_create_dialog(sender_dialog_id, "get_message_origin", true);
+    td->dialog_manager_->force_create_dialog(sender_dialog_id, "get_message_origin", true);
     CHECK(!sender_user_id.is_valid());
   }
 
@@ -85,12 +85,12 @@ td_api::object_ptr<td_api::MessageOrigin> MessageOrigin::get_message_origin_obje
   }
   if (message_id_.is_valid()) {
     return td_api::make_object<td_api::messageOriginChannel>(
-        td->messages_manager_->get_chat_id_object(sender_dialog_id_, "messageOriginChannel"), message_id_.get(),
+        td->dialog_manager_->get_chat_id_object(sender_dialog_id_, "messageOriginChannel"), message_id_.get(),
         author_signature_);
   }
   if (sender_dialog_id_.is_valid()) {
     return td_api::make_object<td_api::messageOriginChat>(
-        td->messages_manager_->get_chat_id_object(sender_dialog_id_, "messageOriginChat"),
+        td->dialog_manager_->get_chat_id_object(sender_dialog_id_, "messageOriginChat"),
         sender_name_.empty() ? author_signature_ : sender_name_);
   }
   return td_api::make_object<td_api::messageOriginUser>(

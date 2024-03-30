@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -29,9 +29,10 @@ class BoostManager final : public Actor {
  public:
   BoostManager(Td *td, ActorShared<> parent);
 
-  td_api::object_ptr<td_api::chatBoostLevelFeatures> get_chat_boost_level_features_object(int32 level) const;
+  td_api::object_ptr<td_api::chatBoostLevelFeatures> get_chat_boost_level_features_object(bool for_megagroup,
+                                                                                          int32 level) const;
 
-  td_api::object_ptr<td_api::chatBoostFeatures> get_chat_boost_features_object() const;
+  td_api::object_ptr<td_api::chatBoostFeatures> get_chat_boost_features_object(bool for_megagroup) const;
 
   void get_boost_slots(Promise<td_api::object_ptr<td_api::chatBoostSlots>> &&promise);
 

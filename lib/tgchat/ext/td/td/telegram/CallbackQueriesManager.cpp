@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -9,6 +9,7 @@
 #include "td/telegram/AccessRights.h"
 #include "td/telegram/AuthManager.h"
 #include "td/telegram/ContactsManager.h"
+#include "td/telegram/DialogManager.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/InlineQueriesManager.h"
 #include "td/telegram/MessagesManager.h"
@@ -40,7 +41,7 @@ class GetBotCallbackAnswerQuery final : public Td::ResultHandler {
     dialog_id_ = dialog_id;
     message_id_ = message_id;
 
-    auto input_peer = td_->messages_manager_->get_input_peer(dialog_id, AccessRights::Read);
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Read);
     CHECK(input_peer != nullptr);
 
     int32 flags = 0;
@@ -189,12 +190,12 @@ void CallbackQueriesManager::on_new_query(int32 flags, int64 callback_query_id, 
     return;
   }
 
-  td_->messages_manager_->force_create_dialog(dialog_id, "on_new_callback_query", true);
+  td_->dialog_manager_->force_create_dialog(dialog_id, "on_new_callback_query", true);
   send_closure(
       G()->td(), &Td::send_update,
       td_api::make_object<td_api::updateNewCallbackQuery>(
           callback_query_id, td_->contacts_manager_->get_user_id_object(sender_user_id, "updateNewCallbackQuery"),
-          td_->messages_manager_->get_chat_id_object(dialog_id, "updateNewCallbackQuery"), message_id.get(),
+          td_->dialog_manager_->get_chat_id_object(dialog_id, "updateNewCallbackQuery"), message_id.get(),
           chat_instance, std::move(payload)));
 }
 
@@ -237,8 +238,8 @@ void CallbackQueriesManager::send_callback_query(MessageFullId message_full_id,
   }
 
   auto dialog_id = message_full_id.get_dialog_id();
-  td_->messages_manager_->have_dialog_force(dialog_id, "send_callback_query");
-  if (!td_->messages_manager_->have_input_peer(dialog_id, AccessRights::Read)) {
+  td_->dialog_manager_->have_dialog_force(dialog_id, "send_callback_query");
+  if (!td_->dialog_manager_->have_input_peer(dialog_id, AccessRights::Read)) {
     return promise.set_error(Status::Error(400, "Can't access the chat"));
   }
 
@@ -278,7 +279,7 @@ void CallbackQueriesManager::send_get_callback_answer_query(
   TRY_STATUS_PROMISE(promise, G()->close_status());
 
   auto dialog_id = message_full_id.get_dialog_id();
-  if (!td_->messages_manager_->have_input_peer(dialog_id, AccessRights::Read)) {
+  if (!td_->dialog_manager_->have_input_peer(dialog_id, AccessRights::Read)) {
     return promise.set_error(Status::Error(400, "Can't access the chat"));
   }
   if (!td_->messages_manager_->have_message_force(message_full_id, "send_callback_query")) {

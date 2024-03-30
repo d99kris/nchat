@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -177,6 +177,11 @@ DialogId DialogId::get_message_dialog_id(const tl_object_ptr<telegram_api::Messa
 
 vector<DialogId> DialogId::get_dialog_ids(const vector<int64> &chat_ids) {
   return transform(chat_ids, [](int64 chat_id) { return DialogId(chat_id); });
+}
+
+vector<DialogId> DialogId::remove_secret_chat_dialog_ids(vector<DialogId> dialog_ids) {
+  td::remove_if(dialog_ids, [](DialogId dialog_id) { return dialog_id.get_type() == DialogType::SecretChat; });
+  return dialog_ids;
 }
 
 }  // namespace td

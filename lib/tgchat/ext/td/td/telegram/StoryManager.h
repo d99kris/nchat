@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -55,6 +55,7 @@ class Td;
 
 class StoryManager final : public Actor {
   struct Story {
+    DialogId sender_dialog_id_;
     int32 date_ = 0;
     int32 expire_date_ = 0;
     int32 receive_date_ = 0;
@@ -226,8 +227,8 @@ class StoryManager final : public Actor {
                   td_api::object_ptr<td_api::inputStoryAreas> &&input_areas,
                   td_api::object_ptr<td_api::formattedText> &&input_caption, Promise<Unit> &&promise);
 
-  void set_story_privacy_settings(DialogId owner_dialog_id, StoryId story_id,
-                                  td_api::object_ptr<td_api::StoryPrivacySettings> &&settings, Promise<Unit> &&promise);
+  void set_story_privacy_settings(StoryId story_id, td_api::object_ptr<td_api::StoryPrivacySettings> &&settings,
+                                  Promise<Unit> &&promise);
 
   void toggle_story_is_pinned(DialogId owner_dialog_id, StoryId story_id, bool is_pinned, Promise<Unit> &&promise);
 
@@ -313,6 +314,10 @@ class StoryManager final : public Actor {
 
   void on_get_story_views(DialogId owner_dialog_id, const vector<StoryId> &story_ids,
                           telegram_api::object_ptr<telegram_api::stories_storyViews> &&story_views);
+
+  void on_view_dialog_active_stories(vector<DialogId> dialog_ids);
+
+  void on_get_dialog_max_active_story_ids(const vector<DialogId> &dialog_ids, const vector<int32> &max_story_ids);
 
   bool have_story(StoryFullId story_full_id) const;
 
@@ -684,6 +689,8 @@ class StoryManager final : public Actor {
   FlatHashMap<int64, vector<Promise<Unit>>> delete_yet_unsent_story_queries_;
 
   FlatHashMap<uint32, unique_ptr<ReadyToSendStory>> ready_to_send_stories_;
+
+  FlatHashSet<DialogId, DialogIdHash> being_reloaded_active_stories_dialog_ids_;
 
   bool channels_to_send_stories_inited_ = false;
   vector<ChannelId> channels_to_send_stories_;

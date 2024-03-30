@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -89,7 +89,7 @@ class LambdaEvent final : public CustomEvent {
     f_();
   }
   template <class FromLambdaT, std::enable_if_t<!std::is_same<std::decay_t<FromLambdaT>, LambdaEvent>::value, int> = 0>
-  explicit LambdaEvent(FromLambdaT &&lambda) : f_(std::forward<FromLambdaT>(lambda)) {
+  explicit LambdaEvent(FromLambdaT &&func) : f_(std::forward<FromLambdaT>(func)) {
   }
 
  private:
@@ -149,8 +149,8 @@ class Event {
   }
 
   template <class FromLambdaT>
-  static Event lambda(FromLambdaT &&lambda) {
-    return custom(new LambdaEvent<std::decay_t<FromLambdaT>>(std::forward<FromLambdaT>(lambda)));
+  static Event from_lambda(FromLambdaT &&func) {
+    return custom(new LambdaEvent<std::decay_t<FromLambdaT>>(std::forward<FromLambdaT>(func)));
   }
 
   Event() : Event(Type::NoType) {

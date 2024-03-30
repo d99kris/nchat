@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -10,7 +10,7 @@
 #include "td/telegram/ChatId.h"
 #include "td/telegram/ContactsManager.h"
 #include "td/telegram/Dependencies.h"
-#include "td/telegram/MessagesManager.h"
+#include "td/telegram/DialogManager.h"
 #include "td/telegram/Td.h"
 
 #include "td/utils/algorithm.h"
@@ -24,7 +24,7 @@ void UserPrivacySettingRule::set_dialog_ids(Td *td, const vector<int64> &chat_id
   dialog_ids_.clear();
   for (auto chat_id : chat_ids) {
     DialogId dialog_id(chat_id);
-    if (!td->messages_manager_->have_dialog_force(dialog_id, "UserPrivacySettingRule::set_dialog_ids")) {
+    if (!td->dialog_manager_->have_dialog_force(dialog_id, "UserPrivacySettingRule::set_dialog_ids")) {
       LOG(INFO) << "Ignore not found " << dialog_id;
       continue;
     }
@@ -146,7 +146,7 @@ void UserPrivacySettingRule::set_dialog_ids_from_server(Td *td, const vector<int
         continue;
       }
     }
-    td->messages_manager_->force_create_dialog(dialog_id, "set_dialog_ids_from_server");
+    td->dialog_manager_->force_create_dialog(dialog_id, "set_dialog_ids_from_server");
     dialog_ids_.push_back(dialog_id);
   }
 }
@@ -166,7 +166,7 @@ td_api::object_ptr<td_api::UserPrivacySettingRule> UserPrivacySettingRule::get_u
           td->contacts_manager_->get_user_ids_object(user_ids_, "userPrivacySettingRuleAllowUsers"));
     case Type::AllowChatParticipants:
       return make_tl_object<td_api::userPrivacySettingRuleAllowChatMembers>(
-          td->messages_manager_->get_chat_ids_object(dialog_ids_, "UserPrivacySettingRule"));
+          td->dialog_manager_->get_chat_ids_object(dialog_ids_, "UserPrivacySettingRule"));
     case Type::RestrictContacts:
       return make_tl_object<td_api::userPrivacySettingRuleRestrictContacts>();
     case Type::RestrictAll:
@@ -176,7 +176,7 @@ td_api::object_ptr<td_api::UserPrivacySettingRule> UserPrivacySettingRule::get_u
           td->contacts_manager_->get_user_ids_object(user_ids_, "userPrivacySettingRuleRestrictUsers"));
     case Type::RestrictChatParticipants:
       return make_tl_object<td_api::userPrivacySettingRuleRestrictChatMembers>(
-          td->messages_manager_->get_chat_ids_object(dialog_ids_, "UserPrivacySettingRule"));
+          td->dialog_manager_->get_chat_ids_object(dialog_ids_, "UserPrivacySettingRule"));
     default:
       UNREACHABLE();
       return nullptr;

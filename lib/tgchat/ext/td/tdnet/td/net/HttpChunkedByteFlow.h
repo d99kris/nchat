@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -17,7 +17,6 @@ class HttpChunkedByteFlow final : public ByteFlowBase {
   bool loop() final;
 
  private:
-  static constexpr size_t MAX_CHUNK_SIZE = 15 << 20;                      // some reasonable limit
   static constexpr size_t MAX_SIZE = std::numeric_limits<uint32>::max();  // some reasonable limit
   static constexpr size_t MIN_UPDATE_SIZE = 1 << 14;
   enum class State { ReadChunkLength, ReadChunkContent, OK };
@@ -25,7 +24,6 @@ class HttpChunkedByteFlow final : public ByteFlowBase {
   size_t len_ = 0;
   size_t save_len_ = 0;
   size_t total_size_ = 0;
-  size_t uncommitted_size_ = 0;
 };
 
 }  // namespace td

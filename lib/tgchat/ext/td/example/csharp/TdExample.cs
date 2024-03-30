@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -76,7 +76,6 @@ namespace TdExample
                 request.SystemLanguageCode = "en";
                 request.DeviceModel = "Desktop";
                 request.ApplicationVersion = "1.0";
-                request.EnableStorageOptimizer = true;
 
                 _client.Send(request, new AuthorizationRequestHandler());
             }
@@ -108,7 +107,7 @@ namespace TdExample
             {
                 string firstName = ReadLine("Please enter your first name: ");
                 string lastName = ReadLine("Please enter your last name: ");
-                _client.Send(new TdApi.RegisterUser(firstName, lastName), new AuthorizationRequestHandler());
+                _client.Send(new TdApi.RegisterUser(firstName, lastName, false), new AuthorizationRequestHandler());
             }
             else if (_authorizationState is TdApi.AuthorizationStateWaitPassword)
             {

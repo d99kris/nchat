@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -12,6 +12,7 @@
 #include "td/telegram/AuthManager.h"
 #include "td/telegram/Contact.h"
 #include "td/telegram/ContactsManager.h"
+#include "td/telegram/DialogManager.h"
 #include "td/telegram/Document.h"
 #include "td/telegram/DocumentsManager.h"
 #include "td/telegram/files/FileManager.h"
@@ -25,7 +26,6 @@
 #include "td/telegram/MessageContent.h"
 #include "td/telegram/MessageContentType.h"
 #include "td/telegram/MessageEntity.h"
-#include "td/telegram/MessagesManager.h"
 #include "td/telegram/misc.h"
 #include "td/telegram/net/DcId.h"
 #include "td/telegram/Photo.h"
@@ -376,7 +376,7 @@ Result<tl_object_ptr<telegram_api::InputBotInlineMessage>> InlineQueriesManager:
 
   auto constructor_id = input_message_content->get_id();
   if (constructor_id == td_api::inputMessageText::ID) {
-    TRY_RESULT(input_message_text, process_input_message_text(td_, DialogId(td_->contacts_manager_->get_my_id()),
+    TRY_RESULT(input_message_text, process_input_message_text(td_, td_->dialog_manager_->get_my_dialog_id(),
                                                               std::move(input_message_content), true));
     auto entities = get_input_message_entities(td_->contacts_manager_.get(), input_message_text.text.entities,
                                                "get_inline_message");
@@ -452,7 +452,7 @@ Result<tl_object_ptr<telegram_api::InputBotInlineMessage>> InlineQueriesManager:
     return venue.get_input_bot_inline_message_media_venue(std::move(input_reply_markup));
   }
   if (constructor_id == allowed_media_content_id) {
-    TRY_RESULT(caption, get_formatted_text(td_, DialogId(td_->contacts_manager_->get_my_id()),
+    TRY_RESULT(caption, get_formatted_text(td_, td_->dialog_manager_->get_my_dialog_id(),
                                            extract_input_caption(input_message_content), true, true, true, false));
     int32 flags = 0;
     if (input_reply_markup != nullptr) {
@@ -1032,7 +1032,7 @@ uint64 InlineQueriesManager::send_inline_query(UserId bot_user_id, DialogId dial
     return 0;
   }
 
-  auto input_peer = td_->messages_manager_->get_input_peer(dialog_id, AccessRights::Read);
+  auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Read);
   if (input_peer == nullptr) {
     input_peer = make_tl_object<telegram_api::inputPeerEmpty>();
   }
@@ -1097,7 +1097,6 @@ uint64 InlineQueriesManager::send_inline_query(UserId bot_user_id, DialogId dial
 }
 
 void InlineQueriesManager::loop() {
-  LOG(INFO) << "Inline query loop";
   if (pending_inline_query_ == nullptr) {
     return;
   }
@@ -2115,8 +2114,8 @@ bool InlineQueriesManager::load_recently_used_bots(Promise<Unit> &promise) {
     auto lock = resolve_recent_inline_bots_multipromise_.get_promise();
     if (!G()->use_chat_info_database()) {
       for (auto &bot_username : bot_usernames) {
-        td_->messages_manager_->search_public_dialog(bot_username, false,
-                                                     resolve_recent_inline_bots_multipromise_.get_promise());
+        td_->dialog_manager_->search_public_dialog(bot_username, false,
+                                                   resolve_recent_inline_bots_multipromise_.get_promise());
       }
     } else {
       for (auto &bot_id : bot_ids) {

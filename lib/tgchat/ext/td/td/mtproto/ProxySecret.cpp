@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -16,6 +16,9 @@ Result<ProxySecret> ProxySecret::from_link(Slice encoded_secret, bool truncate_i
   auto r_decoded = hex_decode(encoded_secret);
   if (r_decoded.is_error()) {
     r_decoded = base64url_decode(encoded_secret);
+  }
+  if (r_decoded.is_error()) {
+    r_decoded = base64_decode(encoded_secret);
   }
   if (r_decoded.is_error()) {
     return Status::Error(400, "Wrong proxy secret");

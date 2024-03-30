@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -8,6 +8,7 @@
 
 #include "td/utils/algorithm.h"
 #include "td/utils/common.h"
+#include "td/utils/crypto.h"
 #include "td/utils/Hints.h"
 #include "td/utils/misc.h"
 #include "td/utils/Slice.h"
@@ -168,6 +169,7 @@ string strip_empty_characters(string str, size_t max_length, bool strip_rtlo) {
       CHECK(std::strlen(space_ch) == 3);
       can_be_first[static_cast<unsigned char>(space_ch[0])] = true;
     }
+    can_be_first[0xF3] = true;
     return true;
   }();
   CHECK(can_be_first_inited);
@@ -180,20 +182,29 @@ string strip_empty_characters(string str, size_t max_length, bool strip_rtlo) {
   size_t new_len = i;
   while (i < str.size()) {
     if (can_be_first[static_cast<unsigned char>(str[i])] && i + 3 <= str.size()) {
-      bool found = false;
-      for (auto space_ch : space_characters) {
-        if (space_ch[0] == str[i] && space_ch[1] == str[i + 1] && space_ch[2] == str[i + 2]) {
-          if (static_cast<unsigned char>(str[i + 2]) != 0xAE || static_cast<unsigned char>(str[i + 1]) != 0x80 ||
-              static_cast<unsigned char>(str[i]) != 0xE2 || strip_rtlo) {
-            found = true;
-          }
-          break;
+      if (static_cast<unsigned char>(str[i]) == 0xF3) {
+        if (static_cast<unsigned char>(str[i + 1]) == 0xA0 && (static_cast<unsigned char>(str[i + 2]) & 0xFE) == 0x80 &&
+            i + 4 <= str.size()) {
+          str[new_len++] = ' ';
+          i += 4;
+          continue;
         }
-      }
-      if (found) {
-        str[new_len++] = ' ';
-        i += 3;
-        continue;
+      } else {
+        bool found = false;
+        for (auto space_ch : space_characters) {
+          if (space_ch[0] == str[i] && space_ch[1] == str[i + 1] && space_ch[2] == str[i + 2]) {
+            if (static_cast<unsigned char>(str[i + 2]) != 0xAE || static_cast<unsigned char>(str[i + 1]) != 0x80 ||
+                static_cast<unsigned char>(str[i]) != 0xE2 || strip_rtlo) {
+              found = true;
+            }
+            break;
+          }
+        }
+        if (found) {
+          str[new_len++] = ' ';
+          i += 3;
+          continue;
+        }
       }
     }
     str[new_len++] = str[i++];
@@ -266,6 +277,33 @@ bool is_valid_username(Slice username) {
   }
 
   return true;
+}
+
+bool is_allowed_username(Slice username) {
+  if (!is_valid_username(username)) {
+    return false;
+  }
+  if (username.size() < 5) {
+    return false;
+  }
+  auto username_lowered = to_lower(username);
+  if (username_lowered.find("admin") == 0 || username_lowered.find("telegram") == 0 ||
+      username_lowered.find("support") == 0 || username_lowered.find("security") == 0 ||
+      username_lowered.find("settings") == 0 || username_lowered.find("contacts") == 0 ||
+      username_lowered.find("service") == 0 || username_lowered.find("telegraph") == 0) {
+    return false;
+  }
+  return true;
+}
+
+uint64 get_md5_string_hash(const string &str) {
+  unsigned char hash[16];
+  md5(str, {hash, sizeof(hash)});
+  uint64 result = 0;
+  for (int i = 0; i <= 7; i++) {
+    result += static_cast<uint64>(hash[i]) << (56 - 8 * i);
+  }
+  return result;
 }
 
 int64 get_vector_hash(const vector<uint64> &numbers) {

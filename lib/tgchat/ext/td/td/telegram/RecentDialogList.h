@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,7 +11,6 @@
 #include "td/actor/actor.h"
 
 #include "td/utils/common.h"
-#include "td/utils/FlatHashSet.h"
 #include "td/utils/Promise.h"
 
 #include <utility>
@@ -38,7 +37,7 @@ class RecentDialogList final : public Actor {
   const char *name_;
   size_t max_size_;
   vector<DialogId> dialog_ids_;
-  FlatHashSet<DialogId, DialogIdHash> removed_dialog_ids_;
+  vector<DialogId> removed_dialog_ids_;
 
   bool is_loaded_ = false;
   vector<Promise<Unit>> load_list_queries_;

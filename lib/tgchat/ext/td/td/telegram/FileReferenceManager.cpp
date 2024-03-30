@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,10 +11,12 @@
 #include "td/telegram/BackgroundManager.h"
 #include "td/telegram/ConfigManager.h"
 #include "td/telegram/ContactsManager.h"
+#include "td/telegram/DialogManager.h"
 #include "td/telegram/files/FileManager.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/MessagesManager.h"
 #include "td/telegram/NotificationSettingsManager.h"
+#include "td/telegram/QuickReplyManager.h"
 #include "td/telegram/StickerSetId.h"
 #include "td/telegram/StickersManager.h"
 #include "td/telegram/StoryManager.h"
@@ -79,6 +81,7 @@ fileSourceUserFull = FileSource;                                         // repa
 fileSourceAttachmentMenuBot user_id:int53 = FileSource;                  // repaired with messages.getAttachMenuBot
 fileSourceWebApp user_id:int53 short_name:string = FileSource;           // repaired with messages.getAttachMenuBot
 fileSourceStory chat_id:int53 story_id:int32 = FileSource;               // repaired with stories.getStoriesByID
+fileSourceQuickReplyMessage shortcut_id:int32 message_id:int53 = FileSource; // repaired with messages.getQuickReplyMessages
 */
 
 FileSourceId FileReferenceManager::get_current_file_source_id() const {
@@ -166,6 +169,11 @@ FileSourceId FileReferenceManager::create_web_app_file_source(UserId user_id, co
 FileSourceId FileReferenceManager::create_story_file_source(StoryFullId story_full_id) {
   FileSourceStory source{story_full_id};
   return add_file_source_id(source, PSLICE() << story_full_id);
+}
+
+FileSourceId FileReferenceManager::create_quick_reply_message_file_source(QuickReplyMessageFullId message_full_id) {
+  FileSourceQuickReplyMessage source{message_full_id};
+  return add_file_source_id(source, PSLICE() << "quick reply " << message_full_id);
 }
 
 FileReferenceManager::Node &FileReferenceManager::add_node(NodeId node_id) {
@@ -382,6 +390,11 @@ void FileReferenceManager::send_query(Destination dest, FileSourceId file_source
       [&](const FileSourceStory &source) {
         send_closure_later(G()->story_manager(), &StoryManager::reload_story, source.story_full_id, std::move(promise),
                            "FileSourceStory");
+      },
+      [&](const FileSourceQuickReplyMessage &source) {
+        send_closure_later(G()->quick_reply_manager(), &QuickReplyManager::reload_quick_reply_message,
+                           source.message_full_id.get_quick_reply_shortcut_id(),
+                           source.message_full_id.get_message_id(), std::move(promise));
       }));
 }
 
@@ -449,7 +462,7 @@ void FileReferenceManager::reload_photo(PhotoSizeSource source, Promise<Unit> pr
     case PhotoSizeSource::Type::DialogPhotoSmall:
     case PhotoSizeSource::Type::DialogPhotoBigLegacy:
     case PhotoSizeSource::Type::DialogPhotoSmallLegacy:
-      send_closure(G()->contacts_manager(), &ContactsManager::reload_dialog_info, source.dialog_photo().dialog_id,
+      send_closure(G()->dialog_manager(), &DialogManager::reload_dialog_info, source.dialog_photo().dialog_id,
                    std::move(promise));
       break;
     case PhotoSizeSource::Type::StickerSetThumbnail:

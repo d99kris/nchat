@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -21,6 +21,7 @@
 #include "td/utils/emoji.h"
 #include "td/utils/JsonBuilder.h"
 #include "td/utils/logging.h"
+#include "td/utils/Slice.h"
 #include "td/utils/tl_helpers.h"
 
 namespace td {
@@ -213,10 +214,12 @@ void ThemeManager::ChatThemes::parse(ParserT &parser) {
 template <class StorerT>
 void ThemeManager::AccentColors::store(StorerT &storer) const {
   bool has_hash = hash_ != 0;
-  bool has_min_boost_levels = !min_boost_levels_.empty();
+  bool has_min_broadcast_boost_levels = !min_broadcast_boost_levels_.empty();
+  bool has_min_megagroup_boost_levels = !min_megagroup_boost_levels_.empty();
   BEGIN_STORE_FLAGS();
   STORE_FLAG(has_hash);
-  STORE_FLAG(has_min_boost_levels);
+  STORE_FLAG(has_min_broadcast_boost_levels);
+  STORE_FLAG(has_min_megagroup_boost_levels);
   END_STORE_FLAGS();
   td::store(static_cast<int32>(light_colors_.size()), storer);
   for (auto &it : light_colors_) {
@@ -232,18 +235,23 @@ void ThemeManager::AccentColors::store(StorerT &storer) const {
   if (has_hash) {
     td::store(hash_, storer);
   }
-  if (has_min_boost_levels) {
-    td::store(min_boost_levels_, storer);
+  if (has_min_broadcast_boost_levels) {
+    td::store(min_broadcast_boost_levels_, storer);
+  }
+  if (has_min_megagroup_boost_levels) {
+    td::store(min_megagroup_boost_levels_, storer);
   }
 }
 
 template <class ParserT>
 void ThemeManager::AccentColors::parse(ParserT &parser) {
   bool has_hash;
-  bool has_min_boost_levels;
+  bool has_min_broadcast_boost_levels;
+  bool has_min_megagroup_boost_levels;
   BEGIN_PARSE_FLAGS();
   PARSE_FLAG(has_hash);
-  PARSE_FLAG(has_min_boost_levels);
+  PARSE_FLAG(has_min_broadcast_boost_levels);
+  PARSE_FLAG(has_min_megagroup_boost_levels);
   END_PARSE_FLAGS();
   int32 size;
   td::parse(size, parser);
@@ -268,10 +276,13 @@ void ThemeManager::AccentColors::parse(ParserT &parser) {
   if (has_hash) {
     td::parse(hash_, parser);
   }
-  if (has_min_boost_levels) {
-    td::parse(min_boost_levels_, parser);
+  if (has_min_broadcast_boost_levels) {
+    td::parse(min_broadcast_boost_levels_, parser);
   } else {
     hash_ = 0;
+  }
+  if (has_min_megagroup_boost_levels) {
+    td::parse(min_megagroup_boost_levels_, parser);
   }
 }
 
@@ -292,10 +303,12 @@ void ThemeManager::ProfileAccentColor::parse(ParserT &parser) {
 template <class StorerT>
 void ThemeManager::ProfileAccentColors::store(StorerT &storer) const {
   bool has_hash = hash_ != 0;
-  bool has_min_boost_levels = !min_boost_levels_.empty();
+  bool has_min_broadcast_boost_levels = !min_broadcast_boost_levels_.empty();
+  bool has_min_megagroup_boost_levels = !min_megagroup_boost_levels_.empty();
   BEGIN_STORE_FLAGS();
   STORE_FLAG(has_hash);
-  STORE_FLAG(has_min_boost_levels);
+  STORE_FLAG(has_min_broadcast_boost_levels);
+  STORE_FLAG(has_min_megagroup_boost_levels);
   END_STORE_FLAGS();
   td::store(static_cast<int32>(light_colors_.size()), storer);
   for (auto &it : light_colors_) {
@@ -311,18 +324,23 @@ void ThemeManager::ProfileAccentColors::store(StorerT &storer) const {
   if (has_hash) {
     td::store(hash_, storer);
   }
-  if (has_min_boost_levels) {
-    td::store(min_boost_levels_, storer);
+  if (has_min_broadcast_boost_levels) {
+    td::store(min_broadcast_boost_levels_, storer);
+  }
+  if (has_min_megagroup_boost_levels) {
+    td::store(min_megagroup_boost_levels_, storer);
   }
 }
 
 template <class ParserT>
 void ThemeManager::ProfileAccentColors::parse(ParserT &parser) {
   bool has_hash;
-  bool has_min_boost_levels;
+  bool has_min_broadcast_boost_levels;
+  bool has_min_megagroup_boost_levels;
   BEGIN_PARSE_FLAGS();
   PARSE_FLAG(has_hash);
-  PARSE_FLAG(has_min_boost_levels);
+  PARSE_FLAG(has_min_broadcast_boost_levels);
+  PARSE_FLAG(has_min_megagroup_boost_levels);
   END_PARSE_FLAGS();
   int32 size;
   td::parse(size, parser);
@@ -347,8 +365,13 @@ void ThemeManager::ProfileAccentColors::parse(ParserT &parser) {
   if (has_hash) {
     td::parse(hash_, parser);
   }
-  if (has_min_boost_levels) {
-    td::parse(min_boost_levels_, parser);
+  if (has_min_broadcast_boost_levels) {
+    td::parse(min_broadcast_boost_levels_, parser);
+  } else {
+    hash_ = 0;
+  }
+  if (has_min_megagroup_boost_levels) {
+    td::parse(min_megagroup_boost_levels_, parser);
   } else {
     hash_ = 0;
   }
@@ -433,30 +456,40 @@ void ThemeManager::tear_down() {
   parent_.reset();
 }
 
-ThemeManager::DialogBoostAvailableCounts ThemeManager::get_dialog_boost_available_count(int32 level) {
+ThemeManager::DialogBoostAvailableCounts ThemeManager::get_dialog_boost_available_count(int32 level,
+                                                                                        bool for_megagroup) {
   DialogBoostAvailableCounts result;
-  if (level >= td_->option_manager_->get_option_integer("channel_wallpaper_level_min")) {
+  if (level >= td_->option_manager_->get_option_integer(for_megagroup ? Slice("group_wallpaper_level_min")
+                                                                      : Slice("channel_wallpaper_level_min"))) {
     result.chat_theme_count_ = static_cast<int32>(chat_themes_.themes.size());
   }
-  for (size_t i = 0; i < accent_colors_.min_boost_levels_.size(); i++) {
-    if (level >= accent_colors_.min_boost_levels_[i]) {
-      result.accent_color_count_++;
+  {
+    auto &min_boost_levels =
+        for_megagroup ? accent_colors_.min_megagroup_boost_levels_ : accent_colors_.min_broadcast_boost_levels_;
+    for (size_t i = 0; i < min_boost_levels.size(); i++) {
+      if (level >= min_boost_levels[i] && min_boost_levels[i] != 0) {
+        result.accent_color_count_++;
 
-      if (accent_colors_.accent_color_ids_[i].is_built_in()) {
-        result.title_color_count_++;
-        continue;
-      }
+        if (accent_colors_.accent_color_ids_[i].is_built_in()) {
+          result.title_color_count_++;
+          continue;
+        }
 
-      auto it = accent_colors_.light_colors_.find(accent_colors_.accent_color_ids_[i]);
-      CHECK(it != accent_colors_.light_colors_.end());
-      if (it->second.size() == 1) {
-        result.title_color_count_++;
+        auto it = accent_colors_.light_colors_.find(accent_colors_.accent_color_ids_[i]);
+        CHECK(it != accent_colors_.light_colors_.end());
+        if (it->second.size() == 1) {
+          result.title_color_count_++;
+        }
       }
     }
   }
-  for (size_t i = 0; i < profile_accent_colors_.min_boost_levels_.size(); i++) {
-    if (level >= profile_accent_colors_.min_boost_levels_[i]) {
-      result.profile_accent_color_count_++;
+  {
+    auto &min_profile_boost_levels = for_megagroup ? profile_accent_colors_.min_megagroup_boost_levels_
+                                                   : profile_accent_colors_.min_broadcast_boost_levels_;
+    for (size_t i = 0; i < min_profile_boost_levels.size(); i++) {
+      if (level >= min_profile_boost_levels[i] && min_profile_boost_levels[i] != 0) {
+        result.profile_accent_color_count_++;
+      }
     }
   }
   return result;
@@ -518,7 +551,9 @@ void ThemeManager::on_update_theme(telegram_api::object_ptr<telegram_api::theme>
 
 bool ThemeManager::on_update_accent_colors(FlatHashMap<AccentColorId, vector<int32>, AccentColorIdHash> light_colors,
                                            FlatHashMap<AccentColorId, vector<int32>, AccentColorIdHash> dark_colors,
-                                           vector<AccentColorId> accent_color_ids, vector<int32> min_boost_levels) {
+                                           vector<AccentColorId> accent_color_ids,
+                                           vector<int32> min_broadcast_boost_levels,
+                                           vector<int32> min_megagroup_boost_levels) {
   auto are_equal = [](const FlatHashMap<AccentColorId, vector<int32>, AccentColorIdHash> &lhs,
                       const FlatHashMap<AccentColorId, vector<int32>, AccentColorIdHash> &rhs) {
     for (auto &lhs_it : lhs) {
@@ -529,7 +564,9 @@ bool ThemeManager::on_update_accent_colors(FlatHashMap<AccentColorId, vector<int
     }
     return true;
   };
-  if (accent_color_ids == accent_colors_.accent_color_ids_ && min_boost_levels == accent_colors_.min_boost_levels_ &&
+  if (accent_color_ids == accent_colors_.accent_color_ids_ &&
+      min_broadcast_boost_levels == accent_colors_.min_broadcast_boost_levels_ &&
+      min_megagroup_boost_levels == accent_colors_.min_megagroup_boost_levels_ &&
       are_equal(light_colors, accent_colors_.light_colors_) && are_equal(dark_colors, accent_colors_.dark_colors_)) {
     return false;
   }
@@ -540,7 +577,8 @@ bool ThemeManager::on_update_accent_colors(FlatHashMap<AccentColorId, vector<int
     accent_colors_.dark_colors_[it.first] = std::move(it.second);
   }
   accent_colors_.accent_color_ids_ = std::move(accent_color_ids);
-  accent_colors_.min_boost_levels_ = std::move(min_boost_levels);
+  accent_colors_.min_broadcast_boost_levels_ = std::move(min_broadcast_boost_levels);
+  accent_colors_.min_megagroup_boost_levels_ = std::move(min_megagroup_boost_levels);
 
   save_accent_colors();
   send_update_accent_colors();
@@ -550,7 +588,8 @@ bool ThemeManager::on_update_accent_colors(FlatHashMap<AccentColorId, vector<int
 bool ThemeManager::on_update_profile_accent_colors(
     FlatHashMap<AccentColorId, ProfileAccentColor, AccentColorIdHash> light_colors,
     FlatHashMap<AccentColorId, ProfileAccentColor, AccentColorIdHash> dark_colors,
-    vector<AccentColorId> accent_color_ids, vector<int32> min_boost_levels) {
+    vector<AccentColorId> accent_color_ids, vector<int32> min_broadcast_boost_levels,
+    vector<int32> min_megagroup_boost_levels) {
   auto are_equal = [](const FlatHashMap<AccentColorId, ProfileAccentColor, AccentColorIdHash> &lhs,
                       const FlatHashMap<AccentColorId, ProfileAccentColor, AccentColorIdHash> &rhs) {
     for (auto &lhs_it : lhs) {
@@ -562,7 +601,8 @@ bool ThemeManager::on_update_profile_accent_colors(
     return true;
   };
   if (accent_color_ids == profile_accent_colors_.accent_color_ids_ &&
-      min_boost_levels == profile_accent_colors_.min_boost_levels_ &&
+      min_broadcast_boost_levels == profile_accent_colors_.min_broadcast_boost_levels_ &&
+      min_megagroup_boost_levels == profile_accent_colors_.min_megagroup_boost_levels_ &&
       are_equal(light_colors, profile_accent_colors_.light_colors_) &&
       are_equal(dark_colors, profile_accent_colors_.dark_colors_)) {
     return false;
@@ -574,7 +614,8 @@ bool ThemeManager::on_update_profile_accent_colors(
     profile_accent_colors_.dark_colors_[it.first] = std::move(it.second);
   }
   profile_accent_colors_.accent_color_ids_ = std::move(accent_color_ids);
-  profile_accent_colors_.min_boost_levels_ = std::move(min_boost_levels);
+  profile_accent_colors_.min_broadcast_boost_levels_ = std::move(min_broadcast_boost_levels);
+  profile_accent_colors_.min_megagroup_boost_levels_ = std::move(min_megagroup_boost_levels);
 
   save_profile_accent_colors();
   send_update_profile_accent_colors();
@@ -702,10 +743,10 @@ td_api::object_ptr<td_api::updateAccentColors> ThemeManager::AccentColors::get_u
     return get_color_distance(lhs_color, rhs_color) + get_color_distance(lhs_color >> 8, rhs_color >> 8) +
            get_color_distance(lhs_color >> 16, rhs_color >> 16);
   };
-  FlatHashMap<AccentColorId, int32, AccentColorIdHash> min_boost_levels;
-  for (size_t i = 0; i < min_boost_levels_.size(); i++) {
+  FlatHashMap<AccentColorId, int32, AccentColorIdHash> min_broadcast_boost_levels;
+  for (size_t i = 0; i < min_broadcast_boost_levels_.size(); i++) {
     CHECK(i < accent_color_ids_.size());
-    min_boost_levels[accent_color_ids_[i]] = min_boost_levels_[i];
+    min_broadcast_boost_levels[accent_color_ids_[i]] = min_broadcast_boost_levels_[i];
   }
   for (auto &it : light_colors_) {
     auto light_colors = it.second;
@@ -724,7 +765,8 @@ td_api::object_ptr<td_api::updateAccentColors> ThemeManager::AccentColors::get_u
       }
     }
     colors.push_back(td_api::make_object<td_api::accentColor>(it.first.get(), best_index, std::move(light_colors),
-                                                              std::move(dark_colors), min_boost_levels[it.first]));
+                                                              std::move(dark_colors),
+                                                              min_broadcast_boost_levels[it.first]));
   }
   auto available_accent_color_ids =
       transform(accent_color_ids_, [](AccentColorId accent_color_id) { return accent_color_id.get(); });
@@ -748,10 +790,15 @@ td_api::object_ptr<td_api::profileAccentColors> ThemeManager::ProfileAccentColor
 
 td_api::object_ptr<td_api::updateProfileAccentColors>
 ThemeManager::ProfileAccentColors::get_update_profile_accent_colors_object() const {
-  FlatHashMap<AccentColorId, int32, AccentColorIdHash> min_boost_levels;
-  for (size_t i = 0; i < min_boost_levels_.size(); i++) {
+  FlatHashMap<AccentColorId, int32, AccentColorIdHash> min_broadcast_boost_levels;
+  for (size_t i = 0; i < min_broadcast_boost_levels_.size(); i++) {
     CHECK(i < accent_color_ids_.size());
-    min_boost_levels[accent_color_ids_[i]] = min_boost_levels_[i];
+    min_broadcast_boost_levels[accent_color_ids_[i]] = min_broadcast_boost_levels_[i];
+  }
+  FlatHashMap<AccentColorId, int32, AccentColorIdHash> min_megagroup_boost_levels;
+  for (size_t i = 0; i < min_megagroup_boost_levels_.size(); i++) {
+    CHECK(i < accent_color_ids_.size());
+    min_megagroup_boost_levels[accent_color_ids_[i]] = min_megagroup_boost_levels_[i];
   }
   vector<td_api::object_ptr<td_api::profileAccentColor>> colors;
   for (auto &it : light_colors_) {
@@ -760,7 +807,8 @@ ThemeManager::ProfileAccentColors::get_update_profile_accent_colors_object() con
     auto dark_colors = dark_it != dark_colors_.end() ? dark_it->second.get_profile_accent_colors_object()
                                                      : it.second.get_profile_accent_colors_object();
     colors.push_back(td_api::make_object<td_api::profileAccentColor>(
-        it.first.get(), std::move(light_colors), std::move(dark_colors), min_boost_levels[it.first]));
+        it.first.get(), std::move(light_colors), std::move(dark_colors), min_megagroup_boost_levels[it.first],
+        min_broadcast_boost_levels[it.first]));
   }
   auto available_accent_color_ids =
       transform(accent_color_ids_, [](AccentColorId accent_color_id) { return accent_color_id.get(); });
@@ -895,7 +943,8 @@ void ThemeManager::on_get_accent_colors(Result<telegram_api::object_ptr<telegram
   FlatHashMap<AccentColorId, vector<int32>, AccentColorIdHash> light_colors;
   FlatHashMap<AccentColorId, vector<int32>, AccentColorIdHash> dark_colors;
   vector<AccentColorId> accent_color_ids;
-  vector<int32> min_boost_levels;
+  vector<int32> min_broadcast_boost_levels;
+  vector<int32> min_megagroup_boost_levels;
   for (auto &option : peer_colors->colors_) {
     if ((option->colors_ != nullptr && option->colors_->get_id() != telegram_api::help_peerColorSet::ID) ||
         (option->dark_colors_ != nullptr && option->dark_colors_->get_id() != telegram_api::help_peerColorSet::ID)) {
@@ -932,7 +981,8 @@ void ThemeManager::on_get_accent_colors(Result<telegram_api::object_ptr<telegram
     }
     if (!option->hidden_) {
       accent_color_ids.push_back(accent_color_id);
-      min_boost_levels.push_back(max(0, option->channel_min_level_));
+      min_broadcast_boost_levels.push_back(max(0, option->channel_min_level_));
+      min_megagroup_boost_levels.push_back(max(0, option->group_min_level_));
     }
     if (!current_light_colors.empty()) {
       light_colors[accent_color_id] = std::move(current_light_colors);
@@ -948,7 +998,7 @@ void ThemeManager::on_get_accent_colors(Result<telegram_api::object_ptr<telegram
     is_changed = true;
   }
   if (!on_update_accent_colors(std::move(light_colors), std::move(dark_colors), std::move(accent_color_ids),
-                               std::move(min_boost_levels)) &&
+                               std::move(min_broadcast_boost_levels), std::move(min_megagroup_boost_levels)) &&
       is_changed) {
     save_accent_colors();
   }
@@ -991,7 +1041,8 @@ void ThemeManager::on_get_profile_accent_colors(
   FlatHashMap<AccentColorId, ProfileAccentColor, AccentColorIdHash> light_colors;
   FlatHashMap<AccentColorId, ProfileAccentColor, AccentColorIdHash> dark_colors;
   vector<AccentColorId> accent_color_ids;
-  vector<int32> min_boost_levels;
+  vector<int32> min_broadcast_boost_levels;
+  vector<int32> min_megagroup_boost_levels;
   for (auto &option : peer_colors->colors_) {
     AccentColorId accent_color_id(option->color_id_);
     if (option->colors_ == nullptr || option->colors_->get_id() != telegram_api::help_peerColorProfileSet::ID ||
@@ -1009,7 +1060,8 @@ void ThemeManager::on_get_profile_accent_colors(
     }
     if (!option->hidden_) {
       accent_color_ids.push_back(accent_color_id);
-      min_boost_levels.push_back(max(0, option->channel_min_level_));
+      min_broadcast_boost_levels.push_back(max(0, option->channel_min_level_));
+      min_megagroup_boost_levels.push_back(max(0, option->group_min_level_));
     }
     light_colors[accent_color_id] = std::move(current_light_color);
     dark_colors[accent_color_id] = std::move(current_dark_color);
@@ -1021,7 +1073,7 @@ void ThemeManager::on_get_profile_accent_colors(
     is_changed = true;
   }
   if (!on_update_profile_accent_colors(std::move(light_colors), std::move(dark_colors), std::move(accent_color_ids),
-                                       std::move(min_boost_levels)) &&
+                                       std::move(min_broadcast_boost_levels), std::move(min_megagroup_boost_levels)) &&
       is_changed) {
     save_profile_accent_colors();
   }
@@ -1054,7 +1106,7 @@ ThemeManager::ThemeSettings ThemeManager::get_chat_theme_settings(
     result.accent_color = settings->accent_color_;
     bool has_outbox_accent_color = (settings->flags_ & telegram_api::themeSettings::OUTBOX_ACCENT_COLOR_MASK) != 0;
     result.message_accent_color = (has_outbox_accent_color ? settings->outbox_accent_color_ : result.accent_color);
-    result.background_info = BackgroundInfo(td_, std::move(settings->wallpaper_));
+    result.background_info = BackgroundInfo(td_, std::move(settings->wallpaper_), true);
     result.base_theme = get_base_theme(settings->base_theme_);
     result.message_colors = std::move(settings->message_colors_);
     result.animate_message_colors = settings->message_colors_animated_;

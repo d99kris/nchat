@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -291,7 +291,7 @@ class TdExample {
                                 std::cin >> first_name;
                                 std::cout << "Enter your last name: " << std::flush;
                                 std::cin >> last_name;
-                                send_query(td_api::make_object<td_api::registerUser>(first_name, last_name),
+                                send_query(td_api::make_object<td_api::registerUser>(first_name, last_name, false),
                                            create_authentication_query_handler());
                               },
                               [this](td_api::authorizationStateWaitPassword &) {
@@ -314,7 +314,6 @@ class TdExample {
                                 request->system_language_code_ = "en";
                                 request->device_model_ = "Desktop";
                                 request->application_version_ = "1.0";
-                                request->enable_storage_optimizer_ = true;
                                 send_query(std::move(request), create_authentication_query_handler());
                               }));
   }

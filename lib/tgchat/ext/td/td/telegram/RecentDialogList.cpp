@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -9,6 +9,7 @@
 #include "td/telegram/AccessRights.h"
 #include "td/telegram/ContactsManager.h"
 #include "td/telegram/DialogListId.h"
+#include "td/telegram/DialogManager.h"
 #include "td/telegram/FolderId.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/MessagesManager.h"
@@ -98,7 +99,7 @@ void RecentDialogList::load_dialogs(Promise<Unit> &&promise) {
   vector<DialogId> dialog_ids;
   for (auto &found_dialog : found_dialogs) {
     if (found_dialog[0] == '@') {
-      td_->messages_manager_->search_public_dialog(found_dialog, false, mpas.get_promise());
+      td_->dialog_manager_->search_public_dialog(found_dialog, false, mpas.get_promise());
     } else {
       dialog_ids.push_back(DialogId(to_integer<int64>(found_dialog)));
     }
@@ -136,14 +137,14 @@ void RecentDialogList::on_load_dialogs(vector<string> &&found_dialogs) {
   for (auto it = found_dialogs.rbegin(); it != found_dialogs.rend(); ++it) {
     DialogId dialog_id;
     if ((*it)[0] == '@') {
-      dialog_id = td_->messages_manager_->resolve_dialog_username(it->substr(1));
+      dialog_id = td_->dialog_manager_->get_resolved_dialog_by_username(it->substr(1));
     } else {
       dialog_id = DialogId(to_integer<int64>(*it));
     }
-    if (dialog_id.is_valid() && removed_dialog_ids_.count(dialog_id) == 0 &&
-        td_->messages_manager_->have_dialog_info(dialog_id) &&
-        td_->messages_manager_->have_input_peer(dialog_id, AccessRights::Read)) {
-      td_->messages_manager_->force_create_dialog(dialog_id, "recent dialog");
+    if (dialog_id.is_valid() && td::contains(removed_dialog_ids_, dialog_id) == 0 &&
+        td_->dialog_manager_->have_dialog_info(dialog_id) &&
+        td_->dialog_manager_->have_input_peer(dialog_id, AccessRights::Read)) {
+      td_->dialog_manager_->force_create_dialog(dialog_id, "recent dialog");
       do_add_dialog(dialog_id);
     }
   }
@@ -175,7 +176,7 @@ bool RecentDialogList::do_add_dialog(DialogId dialog_id) {
 
   add_to_top(dialog_ids_, max_size_, dialog_id);
 
-  removed_dialog_ids_.erase(dialog_id);
+  td::remove(removed_dialog_ids_, dialog_id);
   return true;
 }
 
@@ -188,8 +189,8 @@ void RecentDialogList::remove_dialog(DialogId dialog_id) {
   }
   if (td::remove(dialog_ids_, dialog_id)) {
     save_dialogs();
-  } else if (!is_loaded_) {
-    removed_dialog_ids_.insert(dialog_id);
+  } else if (!is_loaded_ && !td::contains(removed_dialog_ids_, dialog_id)) {
+    removed_dialog_ids_.push_back(dialog_id);
   }
 }
 

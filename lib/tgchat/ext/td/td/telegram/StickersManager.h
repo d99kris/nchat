@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -373,8 +373,11 @@ class StickersManager final : public Actor {
 
   vector<string> get_sticker_emojis(const tl_object_ptr<td_api::InputFile> &input_file, Promise<Unit> &&promise);
 
-  vector<string> search_emojis(const string &text, bool exact_match, const vector<string> &input_language_codes,
-                               bool force, Promise<Unit> &&promise);
+  vector<std::pair<string, string>> search_emojis(const string &text, const vector<string> &input_language_codes,
+                                                  bool force, Promise<Unit> &&promise);
+
+  vector<string> get_keyword_emojis(const string &text, const vector<string> &input_language_codes, bool force,
+                                    Promise<Unit> &&promise);
 
   int64 get_emoji_suggestions_url(const string &language_code, Promise<Unit> &&promise);
 
@@ -933,6 +936,13 @@ class StickersManager final : public Actor {
 
   string get_used_language_codes_string() const;
 
+  struct SearchEmojiQuery {
+    string text_;
+    vector<string> language_codes_;
+  };
+  bool prepare_search_emoji_query(const string &text, const vector<string> &input_language_codes, bool force,
+                                  Promise<Unit> &promise, SearchEmojiQuery &query);
+
   vector<string> get_emoji_language_codes(const vector<string> &input_language_codes, Slice text,
                                           Promise<Unit> &promise);
 
@@ -940,7 +950,9 @@ class StickersManager final : public Actor {
 
   void on_get_language_codes(const string &key, Result<vector<string>> &&result);
 
-  static vector<string> search_language_emojis(const string &language_code, const string &text, bool exact_match);
+  static vector<std::pair<string, string>> search_language_emojis(const string &language_code, const string &text);
+
+  static vector<string> get_keyword_language_emojis(const string &language_code, const string &text);
 
   void load_emoji_keywords(const string &language_code, Promise<Unit> &&promise);
 
@@ -1146,7 +1158,7 @@ class StickersManager final : public Actor {
 
   WaitFreeHashMap<CustomEmojiId, FileId, CustomEmojiIdHash> custom_emoji_to_sticker_id_;
 
-  double animated_emoji_zoom_ = 0.0;
+  double animated_emoji_zoom_ = 0.625;
 
   bool disable_animated_emojis_ = false;
 };

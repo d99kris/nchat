@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -418,7 +418,6 @@ void AnimationsManager::on_update_animation_search_emojis() {
     return;
   }
   if (td_->auth_manager_->is_bot()) {
-    td_->option_manager_->set_option_empty("animation_search_emojis");
     return;
   }
 
@@ -437,7 +436,6 @@ void AnimationsManager::on_update_animation_search_provider() {
     return;
   }
   if (td_->auth_manager_->is_bot()) {
-    td_->option_manager_->set_option_empty("animation_search_provider");
     return;
   }
 
@@ -453,6 +451,9 @@ void AnimationsManager::on_update_animation_search_provider() {
 
 void AnimationsManager::on_update_saved_animations_limit() {
   if (G()->close_flag()) {
+    return;
+  }
+  if (td_->auth_manager_->is_bot()) {
     return;
   }
   auto saved_animations_limit =

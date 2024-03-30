@@ -1,14 +1,14 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/telegram/ConfigManager.h"
-#include "td/telegram/net/DcId.h"
-#include "td/telegram/net/PublicRsaKeyShared.h"
+#include "td/telegram/net/PublicRsaKeySharedMain.h"
 #include "td/telegram/net/Session.h"
 #include "td/telegram/NotificationManager.h"
+#include "td/telegram/telegram_api.h"
 
 #include "td/mtproto/AuthData.h"
 #include "td/mtproto/DhCallback.h"
@@ -45,6 +45,8 @@
 #include "td/utils/Status.h"
 #include "td/utils/tests.h"
 #include "td/utils/Time.h"
+
+#include <memory>
 
 TEST(Mtproto, GetHostByNameActor) {
   int threads_n = 1;
@@ -194,7 +196,7 @@ TEST(Mtproto, encrypted_config) {
       "FnWWdEV+BPJeOTk+ARHcNkuJBt0CqnfcVCoDOpKqGyq0U31s2MOpQvHgAG+Tlpg02syuH0E4dCGRw5CbJPARiynteb9y5fT5x/"
       "kmdp6BMR5tWQSQF0liH16zLh8BDSIdiMsikdcwnAvBwdNhRqQBqGx9MTh62MDmlebjtczE9Gz0z5cscUO2yhzGdphgIy6SP+"
       "bwaqLWYF0XdPGjKLMUEJW+rou6fbL1t/EUXPtU0XmQAnO0Fh86h+AqDMOe30N4qKrPQ==   ";
-  auto config = td::decode_config(data).move_as_ok();
+  td::telegram_api::object_ptr<td::telegram_api::help_configSimple> config = td::decode_config(data).move_as_ok();
 }
 
 class TestPingActor final : public td::Actor {
@@ -300,11 +302,11 @@ class HandshakeContext final : public td::mtproto::AuthKeyHandshakeContext {
     return nullptr;
   }
   td::mtproto::PublicRsaKeyInterface *get_public_rsa_key_interface() final {
-    return &public_rsa_key;
+    return public_rsa_key_.get();
   }
 
  private:
-  td::PublicRsaKeyShared public_rsa_key{td::DcId::empty(), true};
+  std::shared_ptr<td::mtproto::PublicRsaKeyInterface> public_rsa_key_ = td::PublicRsaKeySharedMain::create(true);
 };
 
 class HandshakeTestActor final : public td::Actor {

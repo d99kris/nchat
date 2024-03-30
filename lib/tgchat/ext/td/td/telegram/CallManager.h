@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -25,9 +25,10 @@ namespace td {
 
 class CallManager final : public Actor {
  public:
-  using Update = telegram_api::object_ptr<telegram_api::updatePhoneCall>;
   explicit CallManager(ActorShared<> parent);
-  void update_call(Update call);
+
+  void update_call(telegram_api::object_ptr<telegram_api::updatePhoneCall> call);
+
   void update_call_signaling_data(int64 call_id, string data);
 
   void create_call(UserId user_id, tl_object_ptr<telegram_api::InputUser> &&input_user, CallProtocol &&protocol,
@@ -53,7 +54,7 @@ class CallManager final : public Actor {
 
   struct CallInfo {
     CallId call_id{0};
-    std::vector<Update> updates;
+    vector<telegram_api::object_ptr<telegram_api::updatePhoneCall>> updates;
   };
   std::map<int64, CallInfo> call_info_;
   int32 next_call_id_{1};

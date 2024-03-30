@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -8,6 +8,7 @@
 
 #include "td/telegram/AccessRights.h"
 #include "td/telegram/ContactsManager.h"
+#include "td/telegram/DialogManager.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/MessageId.h"
 #include "td/telegram/MessagesManager.h"
@@ -330,7 +331,7 @@ class GetStoryStatsQuery final : public Td::ResultHandler {
   void send(ChannelId channel_id, StoryId story_id, bool is_dark, DcId dc_id) {
     channel_id_ = channel_id;
 
-    auto input_peer = td_->messages_manager_->get_input_peer(DialogId(channel_id), AccessRights::Read);
+    auto input_peer = td_->dialog_manager_->get_input_peer(DialogId(channel_id), AccessRights::Read);
     if (input_peer == nullptr) {
       return promise_.set_error(Status::Error(400, "Chat not found"));
     }
@@ -421,7 +422,7 @@ class GetMessagePublicForwardsQuery final : public Td::ResultHandler {
   }
 
   void on_error(Status status) final {
-    td_->messages_manager_->on_get_dialog_error(dialog_id_, status, "GetMessagePublicForwardsQuery");
+    td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "GetMessagePublicForwardsQuery");
     promise_.set_error(std::move(status));
   }
 };
@@ -438,7 +439,7 @@ class GetStoryPublicForwardsQuery final : public Td::ResultHandler {
   void send(DcId dc_id, StoryFullId story_full_id, const string &offset, int32 limit) {
     dialog_id_ = story_full_id.get_dialog_id();
 
-    auto input_peer = td_->messages_manager_->get_input_peer(dialog_id_, AccessRights::Read);
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Read);
     if (input_peer == nullptr) {
       return on_error(Status::Error(400, "Can't get story statistics"));
     }
@@ -460,7 +461,7 @@ class GetStoryPublicForwardsQuery final : public Td::ResultHandler {
   }
 
   void on_error(Status status) final {
-    td_->messages_manager_->on_get_dialog_error(dialog_id_, status, "GetStoryPublicForwardsQuery");
+    td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "GetStoryPublicForwardsQuery");
     promise_.set_error(std::move(status));
   }
 };
@@ -620,7 +621,7 @@ void StatisticsManager::get_story_public_forwards(StoryFullId story_full_id, str
   }
   auto dialog_id = story_full_id.get_dialog_id();
   if (dialog_id.get_type() == DialogType::User) {
-    if (dialog_id != DialogId(td_->contacts_manager_->get_my_id())) {
+    if (dialog_id != td_->dialog_manager_->get_my_dialog_id()) {
       return promise.set_error(Status::Error(400, "Have no access to story statistics"));
     }
     return send_get_story_public_forwards_query(DcId::main(), story_full_id, std::move(offset), limit,
@@ -645,7 +646,7 @@ void StatisticsManager::send_get_story_public_forwards_query(
     return promise.set_error(Status::Error(400, "Story not found"));
   }
   if (!td_->story_manager_->can_get_story_statistics(story_full_id) &&
-      story_full_id.get_dialog_id() != DialogId(td_->contacts_manager_->get_my_id())) {
+      story_full_id.get_dialog_id() != td_->dialog_manager_->get_my_dialog_id()) {
     return promise.set_error(Status::Error(400, "Story forwards are inaccessible"));
   }
 

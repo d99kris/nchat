@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,6 +11,7 @@
 #include "td/telegram/ChatId.h"
 #include "td/telegram/ContactsManager.h"
 #include "td/telegram/DeviceTokenManager.h"
+#include "td/telegram/DialogManager.h"
 #include "td/telegram/Document.h"
 #include "td/telegram/Document.hpp"
 #include "td/telegram/DocumentsManager.h"
@@ -165,7 +166,7 @@ void NotificationManager::on_flush_pending_updates_timeout_callback(void *notifi
 }
 
 bool NotificationManager::is_disabled() const {
-  return !td_->auth_manager_->is_authorized() || td_->auth_manager_->is_bot() || G()->close_flag();
+  return G()->close_flag() || !td_->auth_manager_->is_authorized() || td_->auth_manager_->is_bot();
 }
 
 StringBuilder &operator<<(StringBuilder &string_builder, const NotificationManager::ActiveNotificationsUpdate &update) {
@@ -356,7 +357,7 @@ td_api::object_ptr<td_api::updateActiveNotifications> NotificationManager::get_u
       std::reverse(notifications.begin(), notifications.end());
       groups.push_back(td_api::make_object<td_api::notificationGroup>(
           group.first.group_id.get(), get_notification_group_type_object(group.second.type),
-          td_->messages_manager_->get_chat_id_object(group.first.dialog_id, "updateActiveNotifications"),
+          td_->dialog_manager_->get_chat_id_object(group.first.dialog_id, "updateActiveNotifications"),
           group.second.total_count, std::move(notifications)));
     }
   }
@@ -732,7 +733,7 @@ void NotificationManager::add_notifications_to_group_begin(NotificationGroups::i
     if (!added_notifications.empty()) {
       add_update_notification_group(td_api::make_object<td_api::updateNotificationGroup>(
           group_key.group_id.get(), get_notification_group_type_object(group.type),
-          td_->messages_manager_->get_chat_id_object(group_key.dialog_id, "updateNotificationGroup"), 0, 0,
+          td_->dialog_manager_->get_chat_id_object(group_key.dialog_id, "updateNotificationGroup"), 0, 0,
           group.total_count, std::move(added_notifications), vector<int32>()));
     }
   }
@@ -921,7 +922,7 @@ void NotificationManager::add_notification(NotificationGroupId group_id, Notific
     return;
   }
   if (notification_settings_dialog_id != dialog_id) {
-    td_->messages_manager_->force_create_dialog(notification_settings_dialog_id, "add_notification", true);
+    td_->dialog_manager_->force_create_dialog(notification_settings_dialog_id, "add_notification", true);
   }
 
   PendingNotification notification;
@@ -1460,9 +1461,9 @@ bool NotificationManager::do_flush_pending_notifications(NotificationGroupKey &g
   if (!added_notifications.empty()) {
     add_update_notification_group(td_api::make_object<td_api::updateNotificationGroup>(
         group_key.group_id.get(), get_notification_group_type_object(group.type),
-        td_->messages_manager_->get_chat_id_object(group_key.dialog_id, "updateNotificationGroup 2"),
-        td_->messages_manager_->get_chat_id_object(pending_notifications[0].settings_dialog_id,
-                                                   "updateNotificationGroup 3"),
+        td_->dialog_manager_->get_chat_id_object(group_key.dialog_id, "updateNotificationGroup 2"),
+        td_->dialog_manager_->get_chat_id_object(pending_notifications[0].settings_dialog_id,
+                                                 "updateNotificationGroup 3"),
         pending_notifications[0].ringtone_id, group.total_count, std::move(added_notifications),
         std::move(removed_notification_ids)));
   } else {
@@ -1488,9 +1489,9 @@ td_api::object_ptr<td_api::updateNotificationGroup> NotificationManager::get_rem
   }
   return td_api::make_object<td_api::updateNotificationGroup>(
       group_key.group_id.get(), get_notification_group_type_object(group.type),
-      td_->messages_manager_->get_chat_id_object(group_key.dialog_id, "updateNotificationGroup 4"),
-      td_->messages_manager_->get_chat_id_object(group_key.dialog_id, "updateNotificationGroup 10"), 0,
-      group.total_count, vector<td_api::object_ptr<td_api::notification>>(), std::move(removed_notification_ids));
+      td_->dialog_manager_->get_chat_id_object(group_key.dialog_id, "updateNotificationGroup 4"),
+      td_->dialog_manager_->get_chat_id_object(group_key.dialog_id, "updateNotificationGroup 10"), 0, group.total_count,
+      vector<td_api::object_ptr<td_api::notification>>(), std::move(removed_notification_ids));
 }
 
 void NotificationManager::send_remove_group_update(const NotificationGroupKey &group_key,
@@ -1520,7 +1521,7 @@ void NotificationManager::send_add_group_update(const NotificationGroupKey &grou
   if (!added_notifications.empty()) {
     add_update_notification_group(td_api::make_object<td_api::updateNotificationGroup>(
         group_key.group_id.get(), get_notification_group_type_object(group.type),
-        td_->messages_manager_->get_chat_id_object(group_key.dialog_id, "updateNotificationGroup 5"), 0, 0,
+        td_->dialog_manager_->get_chat_id_object(group_key.dialog_id, "updateNotificationGroup 5"), 0, 0,
         group.total_count, std::move(added_notifications), vector<int32>()));
   }
 }
@@ -1776,7 +1777,7 @@ void NotificationManager::on_notifications_removed(
       // send update about empty invisible group anyway
       add_update_notification_group(td_api::make_object<td_api::updateNotificationGroup>(
           group_key.group_id.get(), get_notification_group_type_object(group.type),
-          td_->messages_manager_->get_chat_id_object(group_key.dialog_id, "updateNotificationGroup 6"), 0, 0, 0,
+          td_->dialog_manager_->get_chat_id_object(group_key.dialog_id, "updateNotificationGroup 6"), 0, 0, 0,
           vector<td_api::object_ptr<td_api::notification>>(), vector<int32>()));
     } else {
       VLOG(notifications) << "There is no need to send updateNotificationGroup about " << group_key.group_id;
@@ -1786,7 +1787,7 @@ void NotificationManager::on_notifications_removed(
       // group is still visible
       add_update_notification_group(td_api::make_object<td_api::updateNotificationGroup>(
           group_key.group_id.get(), get_notification_group_type_object(group.type),
-          td_->messages_manager_->get_chat_id_object(group_key.dialog_id, "updateNotificationGroup 7"), 0, 0,
+          td_->dialog_manager_->get_chat_id_object(group_key.dialog_id, "updateNotificationGroup 7"), 0, 0,
           group.total_count, std::move(added_notifications), std::move(removed_notification_ids)));
     } else {
       // group needs to be removed
@@ -2397,7 +2398,7 @@ void NotificationManager::add_call_notification(DialogId dialog_id, CallId call_
     return;
   }
 
-  td_->messages_manager_->force_create_dialog(dialog_id, "add_call_notification");
+  td_->dialog_manager_->force_create_dialog(dialog_id, "add_call_notification");
 
   auto &active_notifications = active_call_notifications_[dialog_id];
   if (active_notifications.size() >= MAX_CALL_NOTIFICATIONS) {
@@ -2601,8 +2602,8 @@ void NotificationManager::on_notification_group_size_max_changed() {
       if (!is_destroyed_) {
         auto update = td_api::make_object<td_api::updateNotificationGroup>(
             group_key.group_id.get(), get_notification_group_type_object(group.type),
-            td_->messages_manager_->get_chat_id_object(group_key.dialog_id, "updateNotificationGroup 8"),
-            td_->messages_manager_->get_chat_id_object(group_key.dialog_id, "updateNotificationGroup 9"), 0,
+            td_->dialog_manager_->get_chat_id_object(group_key.dialog_id, "updateNotificationGroup 8"),
+            td_->dialog_manager_->get_chat_id_object(group_key.dialog_id, "updateNotificationGroup 9"), 0,
             group.total_count, std::move(added_notifications), std::move(removed_notification_ids));
         VLOG(notifications) << "Send " << as_notification_update(update.get());
         send_closure(G()->td(), &Td::send_update, std::move(update));
@@ -3063,6 +3064,127 @@ string NotificationManager::convert_loc_key(const string &loc_key) {
   return string();
 }
 
+void NotificationManager::add_push_notification_user(
+    UserId sender_user_id, int64 sender_access_hash, const string &sender_name,
+    telegram_api::object_ptr<telegram_api::UserProfilePhoto> &&sender_photo) {
+  int32 flags = USER_FLAG_IS_INACCESSIBLE;
+  if (sender_access_hash != -1) {
+    // set phone number flag to show that this is a full access hash
+    flags |= USER_FLAG_HAS_ACCESS_HASH | USER_FLAG_HAS_PHONE_NUMBER;
+  } else {
+    sender_access_hash = 0;
+  }
+  auto user_name = sender_user_id.get() == 136817688 ? "Channel" : sender_name;
+  auto user = telegram_api::make_object<telegram_api::user>(
+      flags, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/,
+      false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/,
+      false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/,
+      false /*ignored*/, 0, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/,
+      false /*ignored*/, sender_user_id.get(), sender_access_hash, user_name, string(), string(), string(),
+      std::move(sender_photo), nullptr, 0, Auto(), string(), string(), nullptr,
+      vector<telegram_api::object_ptr<telegram_api::username>>(), 0, nullptr, nullptr);
+  td_->contacts_manager_->on_get_user(std::move(user), "add_push_notification_user");
+}
+
+Status NotificationManager::parse_push_notification_attach(DialogId dialog_id, string &loc_key, JsonObject &custom,
+                                                           Photo &attached_photo, Document &attached_document) {
+  if (!custom.has_field("attachb64")) {
+    return Status::OK();
+  }
+  TRY_RESULT(attachb64, custom.get_required_string_field("attachb64"));
+  TRY_RESULT(attach, base64url_decode(attachb64));
+
+  TlParser gzip_parser(attach);
+  int32 id = gzip_parser.fetch_int();
+  if (gzip_parser.get_error()) {
+    return Status::Error(PSLICE() << "Failed to parse attach: " << gzip_parser.get_error());
+  }
+  BufferSlice buffer;
+  if (id == mtproto_api::gzip_packed::ID) {
+    mtproto_api::gzip_packed gzip(gzip_parser);
+    gzip_parser.fetch_end();
+    if (gzip_parser.get_error()) {
+      return Status::Error(PSLICE() << "Failed to parse mtproto_api::gzip_packed in attach: "
+                                    << gzip_parser.get_error());
+    }
+    buffer = gzdecode(gzip.packed_data_);
+    if (buffer.empty()) {
+      return Status::Error("Failed to uncompress attach");
+    }
+  } else {
+    buffer = BufferSlice(attach);
+  }
+
+  TlBufferParser parser(&buffer);
+  auto result = telegram_api::Object::fetch(parser);
+  parser.fetch_end();
+  const char *error = parser.get_error();
+  if (error != nullptr) {
+    LOG(ERROR) << "Can't parse attach: " << Slice(error) << " at " << parser.get_error_pos() << ": "
+               << format::as_hex_dump<4>(Slice(attach));
+    return Status::OK();
+  }
+  switch (result->get_id()) {
+    case telegram_api::photo::ID:
+      if (ends_with(loc_key, "MESSAGE_PHOTO") || ends_with(loc_key, "MESSAGE_TEXT")) {
+        VLOG(notifications) << "Have attached photo";
+        loc_key.resize(loc_key.rfind('_') + 1);
+        loc_key += "PHOTO";
+        attached_photo = get_photo(td_, telegram_api::move_object_as<telegram_api::photo>(result), dialog_id);
+      } else {
+        LOG(ERROR) << "Receive attached photo for " << loc_key;
+      }
+      break;
+    case telegram_api::document::ID: {
+      if (ends_with(loc_key, "MESSAGE_ANIMATION") || ends_with(loc_key, "MESSAGE_AUDIO") ||
+          ends_with(loc_key, "MESSAGE_DOCUMENT") || ends_with(loc_key, "MESSAGE_STICKER") ||
+          ends_with(loc_key, "MESSAGE_VIDEO") || ends_with(loc_key, "MESSAGE_VIDEO_NOTE") ||
+          ends_with(loc_key, "MESSAGE_VOICE_NOTE") || ends_with(loc_key, "MESSAGE_TEXT")) {
+        VLOG(notifications) << "Have attached document";
+        attached_document = td_->documents_manager_->on_get_document(
+            telegram_api::move_object_as<telegram_api::document>(result), dialog_id);
+        if (!attached_document.empty()) {
+          if (ends_with(loc_key, "_NOTE")) {
+            loc_key.resize(loc_key.rfind('_'));
+          }
+          loc_key.resize(loc_key.rfind('_') + 1);
+
+          auto type = [attached_document] {
+            switch (attached_document.type) {
+              case Document::Type::Animation:
+                return "ANIMATION";
+              case Document::Type::Audio:
+                return "AUDIO";
+              case Document::Type::General:
+                return "DOCUMENT";
+              case Document::Type::Sticker:
+                return "STICKER";
+              case Document::Type::Video:
+                return "VIDEO";
+              case Document::Type::VideoNote:
+                return "VIDEO_NOTE";
+              case Document::Type::VoiceNote:
+                return "VOICE_NOTE";
+              case Document::Type::Unknown:
+              default:
+                UNREACHABLE();
+                return "UNREACHABLE";
+            }
+          }();
+
+          loc_key += type;
+        }
+      } else {
+        LOG(ERROR) << "Receive attached document for " << loc_key;
+      }
+      break;
+    }
+    default:
+      LOG(ERROR) << "Receive unexpected attached " << to_string(result);
+  }
+  return Status::OK();
+}
+
 Status NotificationManager::process_push_notification_payload(string payload, bool was_encrypted,
                                                               Promise<Unit> &promise) {
   VLOG(notifications) << "Process push notification payload " << payload;
@@ -3467,118 +3589,13 @@ Status NotificationManager::process_push_notification_payload(string payload, bo
       }
     }
 
-    int32 flags = USER_FLAG_IS_INACCESSIBLE;
-    if (sender_access_hash != -1) {
-      // set phone number flag to show that this is a full access hash
-      flags |= USER_FLAG_HAS_ACCESS_HASH | USER_FLAG_HAS_PHONE_NUMBER;
-    }
-    auto user_name = sender_user_id.get() == 136817688 ? "Channel" : sender_name;
-    auto user = telegram_api::make_object<telegram_api::user>(
-        flags, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/,
-        false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/,
-        false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/,
-        false /*ignored*/, false /*ignored*/, false /*ignored*/, 0, false /*ignored*/, false /*ignored*/,
-        false /*ignored*/, false /*ignored*/, sender_user_id.get(), sender_access_hash, user_name, string(), string(),
-        string(), std::move(sender_photo), nullptr, 0, Auto(), string(), string(), nullptr,
-        vector<telegram_api::object_ptr<telegram_api::username>>(), 0, nullptr, nullptr);
-    td_->contacts_manager_->on_get_user(std::move(user), "process_push_notification_payload");
+    add_push_notification_user(sender_user_id, sender_access_hash, sender_name, std::move(sender_photo));
   }
 
   Photo attached_photo;
   Document attached_document;
-  if (custom.has_field("attachb64")) {
-    TRY_RESULT(attachb64, custom.get_required_string_field("attachb64"));
-    TRY_RESULT(attach, base64url_decode(attachb64));
+  TRY_STATUS(parse_push_notification_attach(dialog_id, loc_key, custom, attached_photo, attached_document));
 
-    TlParser gzip_parser(attach);
-    int32 id = gzip_parser.fetch_int();
-    if (gzip_parser.get_error()) {
-      return Status::Error(PSLICE() << "Failed to parse attach: " << gzip_parser.get_error());
-    }
-    BufferSlice buffer;
-    if (id == mtproto_api::gzip_packed::ID) {
-      mtproto_api::gzip_packed gzip(gzip_parser);
-      gzip_parser.fetch_end();
-      if (gzip_parser.get_error()) {
-        return Status::Error(PSLICE() << "Failed to parse mtproto_api::gzip_packed in attach: "
-                                      << gzip_parser.get_error());
-      }
-      buffer = gzdecode(gzip.packed_data_);
-      if (buffer.empty()) {
-        return Status::Error("Failed to uncompress attach");
-      }
-    } else {
-      buffer = BufferSlice(attach);
-    }
-
-    TlBufferParser parser(&buffer);
-    auto result = telegram_api::Object::fetch(parser);
-    parser.fetch_end();
-    const char *error = parser.get_error();
-    if (error != nullptr) {
-      LOG(ERROR) << "Can't parse attach: " << Slice(error) << " at " << parser.get_error_pos() << ": "
-                 << format::as_hex_dump<4>(Slice(attach));
-    } else {
-      switch (result->get_id()) {
-        case telegram_api::photo::ID:
-          if (ends_with(loc_key, "MESSAGE_PHOTO") || ends_with(loc_key, "MESSAGE_TEXT")) {
-            VLOG(notifications) << "Have attached photo";
-            loc_key.resize(loc_key.rfind('_') + 1);
-            loc_key += "PHOTO";
-            attached_photo = get_photo(td_, telegram_api::move_object_as<telegram_api::photo>(result), dialog_id);
-          } else {
-            LOG(ERROR) << "Receive attached photo for " << loc_key;
-          }
-          break;
-        case telegram_api::document::ID: {
-          if (ends_with(loc_key, "MESSAGE_ANIMATION") || ends_with(loc_key, "MESSAGE_AUDIO") ||
-              ends_with(loc_key, "MESSAGE_DOCUMENT") || ends_with(loc_key, "MESSAGE_STICKER") ||
-              ends_with(loc_key, "MESSAGE_VIDEO") || ends_with(loc_key, "MESSAGE_VIDEO_NOTE") ||
-              ends_with(loc_key, "MESSAGE_VOICE_NOTE") || ends_with(loc_key, "MESSAGE_TEXT")) {
-            VLOG(notifications) << "Have attached document";
-            attached_document = td_->documents_manager_->on_get_document(
-                telegram_api::move_object_as<telegram_api::document>(result), dialog_id);
-            if (!attached_document.empty()) {
-              if (ends_with(loc_key, "_NOTE")) {
-                loc_key.resize(loc_key.rfind('_'));
-              }
-              loc_key.resize(loc_key.rfind('_') + 1);
-
-              auto type = [attached_document] {
-                switch (attached_document.type) {
-                  case Document::Type::Animation:
-                    return "ANIMATION";
-                  case Document::Type::Audio:
-                    return "AUDIO";
-                  case Document::Type::General:
-                    return "DOCUMENT";
-                  case Document::Type::Sticker:
-                    return "STICKER";
-                  case Document::Type::Video:
-                    return "VIDEO";
-                  case Document::Type::VideoNote:
-                    return "VIDEO_NOTE";
-                  case Document::Type::VoiceNote:
-                    return "VOICE_NOTE";
-                  case Document::Type::Unknown:
-                  default:
-                    UNREACHABLE();
-                    return "UNREACHABLE";
-                }
-              }();
-
-              loc_key += type;
-            }
-          } else {
-            LOG(ERROR) << "Receive attached document for " << loc_key;
-          }
-          break;
-        }
-        default:
-          LOG(ERROR) << "Receive unexpected attached " << to_string(result);
-      }
-    }
-  }
   if (!arg.empty()) {
     uint32 emoji = [&] {
       if (ends_with(loc_key, "PHOTO")) {
@@ -3831,17 +3848,7 @@ void NotificationManager::add_message_push_notification(DialogId dialog_id, Mess
 
   if (sender_user_id.is_valid() &&
       !td_->contacts_manager_->have_user_force(sender_user_id, "add_message_push_notification")) {
-    int32 flags = USER_FLAG_IS_INACCESSIBLE;
-    auto user_name = sender_user_id.get() == 136817688 ? "Channel" : sender_name;
-    auto user = telegram_api::make_object<telegram_api::user>(
-        flags, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/,
-        false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/,
-        false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/,
-        false /*ignored*/, false /*ignored*/, false /*ignored*/, 0, false /*ignored*/, false /*ignored*/,
-        false /*ignored*/, false /*ignored*/, sender_user_id.get(), 0, user_name, string(), string(), string(), nullptr,
-        nullptr, 0, Auto(), string(), string(), nullptr, vector<telegram_api::object_ptr<telegram_api::username>>(), 0,
-        nullptr, nullptr);
-    td_->contacts_manager_->on_get_user(std::move(user), "add_message_push_notification");
+    add_push_notification_user(sender_user_id, -1, sender_name, nullptr);
   }
 
   if (log_event_id == 0 && G()->use_message_database()) {

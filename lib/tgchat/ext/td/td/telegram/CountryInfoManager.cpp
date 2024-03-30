@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -23,6 +23,7 @@
 #include "td/utils/Random.h"
 #include "td/utils/Time.h"
 #include "td/utils/tl_parsers.h"
+#include "td/utils/utf8.h"
 
 namespace td {
 
@@ -575,6 +576,32 @@ const CountryInfoManager::CountryList *CountryInfoManager::get_country_list(Coun
   }
 
   return country;
+}
+
+string CountryInfoManager::get_country_flag_emoji(const string &country_code) {
+  if (country_code.size() != 2 || !is_alpha(country_code[0]) || !is_alpha(country_code[1])) {
+    return string();
+  }
+  char first = to_upper(country_code[0]);
+  char second = to_upper(country_code[1]);
+  if (first == 'Y' && second == 'L') {
+    return string();
+  }
+  if (first == 'F' && second == 'T') {
+    return "\xF0\x9F\x8F\xB4\xE2\x80\x8D\xE2\x98\xA0\xEF\xB8\x8F";  // pirate flag
+  }
+  if (first == 'X' && second == 'G') {
+    return "\xF0\x9F\x9B\xB0";  // satellite
+  }
+  if (first == 'X' && second == 'V') {
+    return "\xF0\x9F\x8C\x8D";  // globe showing Europe-Africa
+  }
+  string result;
+  result.reserve(8);
+  append_utf8_character(result, 0x1F1A5 + first);
+  append_utf8_character(result, 0x1F1A5 + second);
+  CHECK(result.size() == 8);
+  return result;
 }
 
 int32 CountryInfoManager::manager_count_ = 0;

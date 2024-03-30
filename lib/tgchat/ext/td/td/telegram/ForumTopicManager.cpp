@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,6 +11,7 @@
 #include "td/telegram/ChannelId.h"
 #include "td/telegram/ContactsManager.h"
 #include "td/telegram/CustomEmojiId.h"
+#include "td/telegram/DialogManager.h"
 #include "td/telegram/ForumTopic.h"
 #include "td/telegram/ForumTopic.hpp"
 #include "td/telegram/ForumTopicIcon.h"
@@ -52,7 +53,7 @@ class CreateForumTopicQuery final : public Td::ResultHandler {
   void send(ChannelId channel_id, const string &title, int32 icon_color, CustomEmojiId icon_custom_emoji_id,
             DialogId as_dialog_id) {
     channel_id_ = channel_id;
-    creator_dialog_id_ = DialogId(td_->contacts_manager_->get_my_id());
+    creator_dialog_id_ = td_->dialog_manager_->get_my_dialog_id();
 
     int32 flags = 0;
     if (icon_color != -1) {
@@ -63,7 +64,7 @@ class CreateForumTopicQuery final : public Td::ResultHandler {
     }
     tl_object_ptr<telegram_api::InputPeer> as_input_peer;
     if (as_dialog_id.is_valid()) {
-      as_input_peer = td_->messages_manager_->get_input_peer(as_dialog_id, AccessRights::Write);
+      as_input_peer = td_->dialog_manager_->get_input_peer(as_dialog_id, AccessRights::Write);
       if (as_input_peer != nullptr) {
         flags |= telegram_api::channels_createForumTopic::SEND_AS_MASK;
         creator_dialog_id_ = as_dialog_id;
@@ -422,7 +423,7 @@ class ReadForumTopicQuery final : public Td::ResultHandler {
  public:
   void send(DialogId dialog_id, MessageId top_thread_message_id, MessageId max_message_id) {
     dialog_id_ = dialog_id;
-    auto input_peer = td_->messages_manager_->get_input_peer(dialog_id, AccessRights::Read);
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Read);
     if (input_peer == nullptr) {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
@@ -441,7 +442,7 @@ class ReadForumTopicQuery final : public Td::ResultHandler {
   }
 
   void on_error(Status status) final {
-    td_->messages_manager_->on_get_dialog_error(dialog_id_, status, "ReadForumTopicQuery");
+    td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "ReadForumTopicQuery");
   }
 };
 
@@ -651,7 +652,7 @@ void ForumTopicManager::on_update_forum_topic_notify_settings(
 
 void ForumTopicManager::on_update_forum_topic_is_pinned(DialogId dialog_id, MessageId top_thread_message_id,
                                                         bool is_pinned) {
-  if (!td_->messages_manager_->have_dialog_force(dialog_id, "on_update_forum_topic_is_pinned")) {
+  if (!td_->dialog_manager_->have_dialog_force(dialog_id, "on_update_forum_topic_is_pinned")) {
     return;
   }
   if (!can_be_forum(dialog_id)) {
@@ -674,7 +675,7 @@ void ForumTopicManager::on_update_forum_topic_is_pinned(DialogId dialog_id, Mess
 }
 
 void ForumTopicManager::on_update_pinned_forum_topics(DialogId dialog_id, vector<MessageId> top_thread_message_ids) {
-  if (!td_->messages_manager_->have_dialog_force(dialog_id, "on_update_pinned_forum_topics")) {
+  if (!td_->dialog_manager_->have_dialog_force(dialog_id, "on_update_pinned_forum_topics")) {
     return;
   }
   if (!can_be_forum(dialog_id)) {
@@ -1065,7 +1066,7 @@ td_api::object_ptr<td_api::forumTopic> ForumTopicManager::get_forum_topic_object
 }
 
 Status ForumTopicManager::is_forum(DialogId dialog_id) {
-  if (!td_->messages_manager_->have_dialog_force(dialog_id, "ForumTopicManager::is_forum")) {
+  if (!td_->dialog_manager_->have_dialog_force(dialog_id, "ForumTopicManager::is_forum")) {
     return Status::Error(400, "Chat not found");
   }
   if (dialog_id.get_type() != DialogType::Channel ||
@@ -1166,7 +1167,7 @@ void ForumTopicManager::set_topic_info(DialogId dialog_id, Topic *topic, unique_
 td_api::object_ptr<td_api::updateForumTopicInfo> ForumTopicManager::get_update_forum_topic_info(
     DialogId dialog_id, const ForumTopicInfo *topic_info) const {
   return td_api::make_object<td_api::updateForumTopicInfo>(
-      td_->messages_manager_->get_chat_id_object(dialog_id, "updateForumTopicInfo"),
+      td_->dialog_manager_->get_chat_id_object(dialog_id, "updateForumTopicInfo"),
       topic_info->get_forum_topic_info_object(td_));
 }
 

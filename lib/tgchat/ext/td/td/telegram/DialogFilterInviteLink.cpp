@@ -1,13 +1,13 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/telegram/DialogFilterInviteLink.h"
 
+#include "td/telegram/DialogManager.h"
 #include "td/telegram/LinkManager.h"
-#include "td/telegram/MessagesManager.h"
 #include "td/telegram/Td.h"
 
 #include "td/utils/logging.h"
@@ -23,7 +23,7 @@ DialogFilterInviteLink::DialogFilterInviteLink(
   for (const auto &peer : exported_invite->peers_) {
     DialogId dialog_id(peer);
     if (dialog_id.is_valid()) {
-      td->messages_manager_->force_create_dialog(dialog_id, "DialogFilterInviteLink");
+      td->dialog_manager_->force_create_dialog(dialog_id, "DialogFilterInviteLink");
       dialog_ids_.push_back(dialog_id);
     }
   }
@@ -32,7 +32,7 @@ DialogFilterInviteLink::DialogFilterInviteLink(
 td_api::object_ptr<td_api::chatFolderInviteLink> DialogFilterInviteLink::get_chat_folder_invite_link_object(
     const Td *td) const {
   return td_api::make_object<td_api::chatFolderInviteLink>(
-      invite_link_, title_, td->messages_manager_->get_chat_ids_object(dialog_ids_, "chatFolderInviteLink"));
+      invite_link_, title_, td->dialog_manager_->get_chat_ids_object(dialog_ids_, "chatFolderInviteLink"));
 }
 
 bool DialogFilterInviteLink::is_valid_invite_link(Slice invite_link) {

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -1039,7 +1039,7 @@ TEST(Link, parse_internal_link_part3) {
       "stories+delete_stories+anonymous",
       bot_start_in_group("username", "",
                          chat_administrator_rights(true, true, false, false, true, true, true, true, true, true, true,
-                                                   false, false, false, true)));
+                                                   true, true, true, true)));
 
   parse_internal_link("tg:resolve?domain=username&startchannel", public_chat("username"));
   parse_internal_link("tg:resolve?domain=username&startchannel&admin=", public_chat("username"));
@@ -1077,7 +1077,7 @@ TEST(Link, parse_internal_link_part3) {
       "stories+anonymous",
       bot_start_in_group("username", "",
                          chat_administrator_rights(true, true, false, false, true, true, true, true, true, true, true,
-                                                   false, false, false, true)));
+                                                   true, true, true, true)));
 
   parse_internal_link("t.me/username?startchannel", public_chat("username"));
   parse_internal_link("t.me/username?startchannel&admin=", public_chat("username"));

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -206,7 +206,7 @@ class ConnectionCreator final : public NetQueryCallback {
   void loop() final;
 
   void init_proxies();
-  void save_dc_options();
+  void add_dc_options(DcOptions &&new_dc_options);
   Result<SocketFd> do_request_connection(DcId dc_id, bool allow_media_only);
   Result<std::pair<unique_ptr<mtproto::RawConnection>, bool>> do_request_raw_connection(DcId dc_id,
                                                                                         bool allow_media_only,

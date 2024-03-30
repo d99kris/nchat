@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -18,6 +18,7 @@
 #include "td/telegram/MessageEntity.h"
 #include "td/telegram/MessageFullId.h"
 #include "td/telegram/MessageId.h"
+#include "td/telegram/MessageSelfDestructType.h"
 #include "td/telegram/Photo.h"
 #include "td/telegram/ReplyMarkup.h"
 #include "td/telegram/secret_api.h"
@@ -40,7 +41,6 @@
 namespace td {
 
 class Dependencies;
-class DialogAction;
 class Game;
 class MultiPromiseActor;
 struct Photo;
@@ -66,12 +66,12 @@ struct InputMessageContent {
   bool disable_web_page_preview = false;
   bool invert_media = false;
   bool clear_draft = false;
-  int32 ttl = 0;
+  MessageSelfDestructType ttl;
   UserId via_bot_user_id;
   string emoji;
 
   InputMessageContent(unique_ptr<MessageContent> &&content, bool disable_web_page_preview, bool invert_media,
-                      bool clear_draft, int32 ttl, UserId via_bot_user_id, string emoji)
+                      bool clear_draft, MessageSelfDestructType ttl, UserId via_bot_user_id, string emoji)
       : content(std::move(content))
       , disable_web_page_preview(disable_web_page_preview)
       , invert_media(invert_media)
@@ -122,11 +122,11 @@ SecretInputMedia get_secret_input_media(const MessageContent *content, Td *td,
 tl_object_ptr<telegram_api::InputMedia> get_input_media(const MessageContent *content, Td *td,
                                                         tl_object_ptr<telegram_api::InputFile> input_file,
                                                         tl_object_ptr<telegram_api::InputFile> input_thumbnail,
-                                                        FileId file_id, FileId thumbnail_file_id, int32 ttl,
-                                                        const string &emoji, bool force);
+                                                        FileId file_id, FileId thumbnail_file_id,
+                                                        MessageSelfDestructType ttl, const string &emoji, bool force);
 
-tl_object_ptr<telegram_api::InputMedia> get_input_media(const MessageContent *content, Td *td, int32 ttl,
-                                                        const string &emoji, bool force);
+tl_object_ptr<telegram_api::InputMedia> get_input_media(const MessageContent *content, Td *td,
+                                                        MessageSelfDestructType ttl, const string &emoji, bool force);
 
 tl_object_ptr<telegram_api::InputMedia> get_fake_input_media(Td *td, tl_object_ptr<telegram_api::InputFile> input_file,
                                                              FileId file_id);
@@ -219,8 +219,8 @@ unique_ptr<MessageContent> get_secret_message_content(
 unique_ptr<MessageContent> get_message_content(Td *td, FormattedText message_text,
                                                tl_object_ptr<telegram_api::MessageMedia> &&media_ptr,
                                                DialogId owner_dialog_id, int32 message_date, bool is_content_read,
-                                               UserId via_bot_user_id, int32 *ttl, bool *disable_web_page_preview,
-                                               const char *source);
+                                               UserId via_bot_user_id, MessageSelfDestructType *ttl,
+                                               bool *disable_web_page_preview, const char *source);
 
 enum class MessageContentDupType : int32 {
   Send,        // normal message sending
@@ -301,10 +301,6 @@ void update_forum_topic_info_by_service_message_content(Td *td, const MessageCon
 void on_sent_message_content(Td *td, const MessageContent *content);
 
 void move_message_content_sticker_set_to_top(Td *td, const MessageContent *content);
-
-bool is_unsent_animated_emoji_click(Td *td, DialogId dialog_id, const DialogAction &action);
-
-void init_stickers_manager(Td *td);
 
 void on_dialog_used(TopDialogCategory category, DialogId dialog_id, int32 date);
 

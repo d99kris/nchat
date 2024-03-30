@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,6 +11,7 @@
 #include "td/telegram/ConfigManager.h"
 #include "td/telegram/ContactsManager.h"
 #include "td/telegram/Dependencies.h"
+#include "td/telegram/DialogManager.h"
 #include "td/telegram/FileReferenceManager.h"
 #include "td/telegram/files/FileManager.h"
 #include "td/telegram/Global.h"
@@ -18,6 +19,7 @@
 #include "td/telegram/logevent/LogEventHelper.h"
 #include "td/telegram/MediaArea.hpp"
 #include "td/telegram/MessageEntity.h"
+#include "td/telegram/MessageSender.h"
 #include "td/telegram/MessagesManager.h"
 #include "td/telegram/NotificationId.h"
 #include "td/telegram/NotificationManager.h"
@@ -147,7 +149,7 @@ class ToggleStoriesHiddenQuery final : public Td::ResultHandler {
   void send(DialogId dialog_id, bool are_hidden) {
     dialog_id_ = dialog_id;
     are_hidden_ = are_hidden;
-    auto input_peer = td_->messages_manager_->get_input_peer(dialog_id_, AccessRights::Read);
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Read);
     if (input_peer == nullptr) {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
@@ -170,7 +172,7 @@ class ToggleStoriesHiddenQuery final : public Td::ResultHandler {
   }
 
   void on_error(Status status) final {
-    td_->messages_manager_->on_get_dialog_error(dialog_id_, status, "ToggleStoriesHiddenQuery");
+    td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "ToggleStoriesHiddenQuery");
     promise_.set_error(std::move(status));
   }
 };
@@ -235,7 +237,7 @@ class IncrementStoryViewsQuery final : public Td::ResultHandler {
 
   void send(DialogId dialog_id, const vector<StoryId> &story_ids) {
     dialog_id_ = dialog_id;
-    auto input_peer = td_->messages_manager_->get_input_peer(dialog_id_, AccessRights::Read);
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Read);
     if (input_peer == nullptr) {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
@@ -254,7 +256,7 @@ class IncrementStoryViewsQuery final : public Td::ResultHandler {
   }
 
   void on_error(Status status) final {
-    td_->messages_manager_->on_get_dialog_error(dialog_id_, status, "IncrementStoryViewsQuery");
+    td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "IncrementStoryViewsQuery");
     promise_.set_error(std::move(status));
   }
 };
@@ -269,7 +271,7 @@ class ReadStoriesQuery final : public Td::ResultHandler {
 
   void send(DialogId dialog_id, StoryId max_read_story_id) {
     dialog_id_ = dialog_id;
-    auto input_peer = td_->messages_manager_->get_input_peer(dialog_id_, AccessRights::Read);
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Read);
     if (input_peer == nullptr) {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
@@ -287,7 +289,7 @@ class ReadStoriesQuery final : public Td::ResultHandler {
   }
 
   void on_error(Status status) final {
-    td_->messages_manager_->on_get_dialog_error(dialog_id_, status, "ReadStoriesQuery");
+    td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "ReadStoriesQuery");
     promise_.set_error(std::move(status));
   }
 };
@@ -303,7 +305,7 @@ class SendStoryReactionQuery final : public Td::ResultHandler {
   void send(StoryFullId story_full_id, const ReactionType &reaction_type, bool add_to_recent) {
     dialog_id_ = story_full_id.get_dialog_id();
 
-    auto input_peer = td_->messages_manager_->get_input_peer(dialog_id_, AccessRights::Read);
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Read);
     if (input_peer == nullptr) {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
@@ -334,7 +336,7 @@ class SendStoryReactionQuery final : public Td::ResultHandler {
     if (status.message() == "STORY_NOT_MODIFIED") {
       return promise_.set_value(Unit());
     }
-    td_->messages_manager_->on_get_dialog_error(dialog_id_, status, "SendStoryReactionQuery");
+    td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "SendStoryReactionQuery");
     promise_.set_error(std::move(status));
   }
 };
@@ -351,7 +353,7 @@ class GetStoryViewsListQuery final : public Td::ResultHandler {
   void send(DialogId dialog_id, StoryId story_id, const string &query, bool only_contacts, bool prefer_forwards,
             bool prefer_with_reaction, const string &offset, int32 limit) {
     dialog_id_ = dialog_id;
-    auto input_peer = td_->messages_manager_->get_input_peer(dialog_id_, AccessRights::Write);
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Write);
     if (input_peer == nullptr) {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
@@ -386,7 +388,7 @@ class GetStoryViewsListQuery final : public Td::ResultHandler {
   }
 
   void on_error(Status status) final {
-    td_->messages_manager_->on_get_dialog_error(dialog_id_, status, "GetStoryViewsListQuery");
+    td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "GetStoryViewsListQuery");
     promise_.set_error(std::move(status));
   }
 };
@@ -404,7 +406,7 @@ class GetStoryReactionsListQuery final : public Td::ResultHandler {
   void send(StoryFullId story_full_id, const ReactionType &reaction_type, bool prefer_forwards, const string &offset,
             int32 limit) {
     dialog_id_ = story_full_id.get_dialog_id();
-    auto input_peer = td_->messages_manager_->get_input_peer(dialog_id_, AccessRights::Write);
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Write);
     if (input_peer == nullptr) {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
@@ -436,7 +438,7 @@ class GetStoryReactionsListQuery final : public Td::ResultHandler {
   }
 
   void on_error(Status status) final {
-    td_->messages_manager_->on_get_dialog_error(dialog_id_, status, "GetStoryReactionsListQuery");
+    td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "GetStoryReactionsListQuery");
     promise_.set_error(std::move(status));
   }
 };
@@ -453,7 +455,7 @@ class GetStoriesByIDQuery final : public Td::ResultHandler {
   void send(DialogId dialog_id, vector<StoryId> story_ids) {
     dialog_id_ = dialog_id;
     story_ids_ = std::move(story_ids);
-    auto input_peer = td_->messages_manager_->get_input_peer(dialog_id_, AccessRights::Read);
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Read);
     if (input_peer == nullptr) {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
@@ -474,7 +476,7 @@ class GetStoriesByIDQuery final : public Td::ResultHandler {
   }
 
   void on_error(Status status) final {
-    td_->messages_manager_->on_get_dialog_error(dialog_id_, status, "GetStoriesByIDQuery");
+    td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "GetStoriesByIDQuery");
     promise_.set_error(std::move(status));
   }
 };
@@ -490,7 +492,7 @@ class GetPinnedStoriesQuery final : public Td::ResultHandler {
 
   void send(DialogId dialog_id, StoryId offset_story_id, int32 limit) {
     dialog_id_ = dialog_id;
-    auto input_peer = td_->messages_manager_->get_input_peer(dialog_id_, AccessRights::Read);
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Read);
     if (input_peer == nullptr) {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
@@ -510,7 +512,7 @@ class GetPinnedStoriesQuery final : public Td::ResultHandler {
   }
 
   void on_error(Status status) final {
-    td_->messages_manager_->on_get_dialog_error(dialog_id_, status, "GetPinnedStoriesQuery");
+    td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "GetPinnedStoriesQuery");
     promise_.set_error(std::move(status));
   }
 };
@@ -526,7 +528,7 @@ class GetStoriesArchiveQuery final : public Td::ResultHandler {
 
   void send(DialogId dialog_id, StoryId offset_story_id, int32 limit) {
     dialog_id_ = dialog_id;
-    auto input_peer = td_->messages_manager_->get_input_peer(dialog_id_, AccessRights::Write);
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Write);
     if (input_peer == nullptr) {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
@@ -546,7 +548,7 @@ class GetStoriesArchiveQuery final : public Td::ResultHandler {
   }
 
   void on_error(Status status) final {
-    td_->messages_manager_->on_get_dialog_error(dialog_id_, status, "GetStoriesArchiveQuery");
+    td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "GetStoriesArchiveQuery");
     promise_.set_error(std::move(status));
   }
 };
@@ -562,7 +564,7 @@ class GetPeerStoriesQuery final : public Td::ResultHandler {
 
   void send(DialogId dialog_id) {
     dialog_id_ = dialog_id;
-    auto input_peer = td_->messages_manager_->get_input_peer(dialog_id_, AccessRights::Read);
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Read);
     if (input_peer == nullptr) {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
@@ -582,7 +584,7 @@ class GetPeerStoriesQuery final : public Td::ResultHandler {
   }
 
   void on_error(Status status) final {
-    td_->messages_manager_->on_get_dialog_error(dialog_id_, status, "GetPeerStoriesQuery");
+    td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "GetPeerStoriesQuery");
     promise_.set_error(std::move(status));
   }
 };
@@ -597,7 +599,7 @@ class EditStoryPrivacyQuery final : public Td::ResultHandler {
 
   void send(DialogId dialog_id, StoryId story_id, UserPrivacySettingRules &&privacy_rules) {
     dialog_id_ = dialog_id;
-    auto input_peer = td_->messages_manager_->get_input_peer(dialog_id_, AccessRights::Write);
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Write);
     if (input_peer == nullptr) {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
@@ -626,7 +628,7 @@ class EditStoryPrivacyQuery final : public Td::ResultHandler {
     if (!td_->auth_manager_->is_bot() && status.message() == "STORY_NOT_MODIFIED") {
       return promise_.set_value(Unit());
     }
-    td_->messages_manager_->on_get_dialog_error(dialog_id_, status, "EditStoryPrivacyQuery");
+    td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "EditStoryPrivacyQuery");
     promise_.set_error(std::move(status));
   }
 };
@@ -641,7 +643,7 @@ class ToggleStoryPinnedQuery final : public Td::ResultHandler {
 
   void send(DialogId dialog_id, StoryId story_id, bool is_pinned) {
     dialog_id_ = dialog_id;
-    auto input_peer = td_->messages_manager_->get_input_peer(dialog_id_, AccessRights::Write);
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Write);
     if (input_peer == nullptr) {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
@@ -662,7 +664,7 @@ class ToggleStoryPinnedQuery final : public Td::ResultHandler {
   }
 
   void on_error(Status status) final {
-    td_->messages_manager_->on_get_dialog_error(dialog_id_, status, "ToggleStoryPinnedQuery");
+    td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "ToggleStoryPinnedQuery");
     promise_.set_error(std::move(status));
   }
 };
@@ -677,7 +679,7 @@ class DeleteStoriesQuery final : public Td::ResultHandler {
 
   void send(DialogId dialog_id, const vector<StoryId> &story_ids) {
     dialog_id_ = dialog_id;
-    auto input_peer = td_->messages_manager_->get_input_peer(dialog_id_, AccessRights::Write);
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Write);
     if (input_peer == nullptr) {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
@@ -697,7 +699,7 @@ class DeleteStoriesQuery final : public Td::ResultHandler {
   }
 
   void on_error(Status status) final {
-    td_->messages_manager_->on_get_dialog_error(dialog_id_, status, "DeleteStoriesQuery");
+    td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "DeleteStoriesQuery");
     promise_.set_error(std::move(status));
   }
 };
@@ -710,7 +712,7 @@ class GetStoriesViewsQuery final : public Td::ResultHandler {
   void send(DialogId dialog_id, vector<StoryId> story_ids) {
     dialog_id_ = dialog_id;
     story_ids_ = std::move(story_ids);
-    auto input_peer = td_->messages_manager_->get_input_peer(dialog_id_, AccessRights::Read);
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Read);
     if (input_peer == nullptr) {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
@@ -731,7 +733,7 @@ class GetStoriesViewsQuery final : public Td::ResultHandler {
 
   void on_error(Status status) final {
     LOG(INFO) << "Receive error for GetStoriesViewsQuery for " << story_ids_ << ": " << status;
-    td_->messages_manager_->on_get_dialog_error(dialog_id_, status, "GetStoriesViewsQuery");
+    td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "GetStoriesViewsQuery");
   }
 };
 
@@ -745,7 +747,7 @@ class ReportStoryQuery final : public Td::ResultHandler {
 
   void send(StoryFullId story_full_id, ReportReason &&report_reason) {
     dialog_id_ = story_full_id.get_dialog_id();
-    auto input_peer = td_->messages_manager_->get_input_peer(dialog_id_, AccessRights::Read);
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Read);
     if (input_peer == nullptr) {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
@@ -765,8 +767,31 @@ class ReportStoryQuery final : public Td::ResultHandler {
   }
 
   void on_error(Status status) final {
-    td_->messages_manager_->on_get_dialog_error(dialog_id_, status, "ReportStoryQuery");
+    td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "ReportStoryQuery");
     promise_.set_error(std::move(status));
+  }
+};
+
+class GetStoriesMaxIdsQuery final : public Td::ResultHandler {
+  vector<DialogId> dialog_ids_;
+
+ public:
+  void send(vector<DialogId> dialog_ids, vector<telegram_api::object_ptr<telegram_api::InputPeer>> &&input_peers) {
+    dialog_ids_ = std::move(dialog_ids);
+    send_query(G()->net_query_creator().create(telegram_api::stories_getPeerMaxIDs(std::move(input_peers))));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::stories_getPeerMaxIDs>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    td_->story_manager_->on_get_dialog_max_active_story_ids(dialog_ids_, result_ptr.move_as_ok());
+  }
+
+  void on_error(Status status) final {
+    td_->story_manager_->on_get_dialog_max_active_story_ids(dialog_ids_, Auto());
   }
 };
 
@@ -855,7 +880,7 @@ class CanSendStoryQuery final : public Td::ResultHandler {
 
   void send(DialogId dialog_id) {
     dialog_id_ = dialog_id;
-    auto input_peer = td_->messages_manager_->get_input_peer(dialog_id_, AccessRights::Write);
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Write);
     if (input_peer == nullptr) {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
@@ -876,7 +901,7 @@ class CanSendStoryQuery final : public Td::ResultHandler {
     if (result != nullptr) {
       return promise_.set_value(std::move(result));
     }
-    td_->messages_manager_->on_get_dialog_error(dialog_id_, status, "CanSendStoryQuery");
+    td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "CanSendStoryQuery");
     promise_.set_error(std::move(status));
   }
 };
@@ -900,15 +925,15 @@ class StoryManager::SendStoryQuery final : public Td::ResultHandler {
     auto input_media = get_story_content_input_media(td_, content, std::move(input_file));
     CHECK(input_media != nullptr);
 
-    auto input_peer = td_->messages_manager_->get_input_peer(dialog_id_, AccessRights::Write);
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Write);
     if (input_peer == nullptr) {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
     telegram_api::object_ptr<telegram_api::InputPeer> fwd_input_peer;
     int32 fwd_story_id = 0;
     if (story->forward_info_ != nullptr) {
-      fwd_input_peer = td_->messages_manager_->get_input_peer(
-          pending_story_->forward_from_story_full_id_.get_dialog_id(), AccessRights::Read);
+      fwd_input_peer = td_->dialog_manager_->get_input_peer(pending_story_->forward_from_story_full_id_.get_dialog_id(),
+                                                            AccessRights::Read);
       if (fwd_input_peer == nullptr) {
         return on_error(Status::Error(400, "Can't access the story to repost"));
       }
@@ -985,7 +1010,7 @@ class StoryManager::SendStoryQuery final : public Td::ResultHandler {
       return;
     }
 
-    td_->messages_manager_->on_get_dialog_error(dialog_id_, status, "SendStoryQuery");
+    td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "SendStoryQuery");
     td_->story_manager_->delete_pending_story(file_id_, std::move(pending_story_), std::move(status));
   }
 };
@@ -1003,7 +1028,7 @@ class StoryManager::EditStoryQuery final : public Td::ResultHandler {
     CHECK(pending_story_ != nullptr);
     dialog_id_ = pending_story_->dialog_id_;
 
-    auto input_peer = td_->messages_manager_->get_input_peer(dialog_id_, AccessRights::Write);
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Write);
     if (input_peer == nullptr) {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
@@ -1076,7 +1101,7 @@ class StoryManager::EditStoryQuery final : public Td::ResultHandler {
       return;
     }
 
-    td_->messages_manager_->on_get_dialog_error(dialog_id_, status, "EditStoryQuery");
+    td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "EditStoryQuery");
     td_->story_manager_->delete_pending_story(file_id_, std::move(pending_story_), std::move(status));
   }
 };
@@ -1124,6 +1149,7 @@ void StoryManager::Story::store(StorerT &storer) const {
   bool has_areas = !areas_.empty();
   bool has_chosen_reaction_type = !chosen_reaction_type_.is_empty();
   bool has_forward_info = forward_info_ != nullptr;
+  bool has_sender_dialog_id = sender_dialog_id_ != DialogId();
   BEGIN_STORE_FLAGS();
   STORE_FLAG(is_edited_);
   STORE_FLAG(is_pinned_);
@@ -1141,6 +1167,7 @@ void StoryManager::Story::store(StorerT &storer) const {
   STORE_FLAG(has_chosen_reaction_type);
   STORE_FLAG(is_outgoing_);
   STORE_FLAG(has_forward_info);
+  STORE_FLAG(has_sender_dialog_id);
   END_STORE_FLAGS();
   store(date_, storer);
   store(expire_date_, storer);
@@ -1168,6 +1195,9 @@ void StoryManager::Story::store(StorerT &storer) const {
   if (has_forward_info) {
     store(forward_info_, storer);
   }
+  if (has_sender_dialog_id) {
+    store(sender_dialog_id_, storer);
+  }
 }
 
 template <class ParserT>
@@ -1181,6 +1211,7 @@ void StoryManager::Story::parse(ParserT &parser) {
   bool has_areas;
   bool has_chosen_reaction_type;
   bool has_forward_info;
+  bool has_sender_dialog_id;
   BEGIN_PARSE_FLAGS();
   PARSE_FLAG(is_edited_);
   PARSE_FLAG(is_pinned_);
@@ -1198,6 +1229,7 @@ void StoryManager::Story::parse(ParserT &parser) {
   PARSE_FLAG(has_chosen_reaction_type);
   PARSE_FLAG(is_outgoing_);
   PARSE_FLAG(has_forward_info);
+  PARSE_FLAG(has_sender_dialog_id);
   END_PARSE_FLAGS();
   parse(date_, parser);
   parse(expire_date_, parser);
@@ -1224,6 +1256,9 @@ void StoryManager::Story::parse(ParserT &parser) {
   }
   if (has_forward_info) {
     parse(forward_info_, parser);
+  }
+  if (has_sender_dialog_id) {
+    parse(sender_dialog_id_, parser);
   }
 }
 
@@ -1580,7 +1615,7 @@ void StoryManager::on_load_expired_database_stories(vector<StoryDbStory> stories
 }
 
 bool StoryManager::is_my_story(DialogId owner_dialog_id) const {
-  return owner_dialog_id == DialogId(td_->contacts_manager_->get_my_id());
+  return owner_dialog_id == td_->dialog_manager_->get_my_dialog_id();
 }
 
 bool StoryManager::can_access_expired_story(DialogId owner_dialog_id, const Story *story) const {
@@ -1894,6 +1929,7 @@ void StoryManager::add_story_dependencies(Dependencies &dependencies, const Stor
     story->forward_info_->add_dependencies(dependencies);
   }
   story->interaction_info_.add_dependencies(dependencies);
+  dependencies.add_message_sender_dependencies(story->sender_dialog_id_);
   story->privacy_rules_.add_dependencies(dependencies);
   if (story->content_ != nullptr) {
     add_story_content_dependencies(dependencies, story->content_.get());
@@ -2262,10 +2298,10 @@ void StoryManager::on_synchronized_archive_all_stories(bool set_archive_all_stor
 
 void StoryManager::toggle_dialog_stories_hidden(DialogId dialog_id, StoryListId story_list_id,
                                                 Promise<Unit> &&promise) {
-  if (!td_->messages_manager_->have_dialog_force(dialog_id, "toggle_dialog_stories_hidden")) {
+  if (!td_->dialog_manager_->have_dialog_force(dialog_id, "toggle_dialog_stories_hidden")) {
     return promise.set_error(Status::Error(400, "Story sender not found"));
   }
-  if (!td_->messages_manager_->have_input_peer(dialog_id, AccessRights::Read)) {
+  if (!td_->dialog_manager_->have_input_peer(dialog_id, AccessRights::Read)) {
     return promise.set_error(Status::Error(400, "Can't access the story sender"));
   }
   if (story_list_id == get_dialog_story_list_id(dialog_id)) {
@@ -2285,10 +2321,10 @@ void StoryManager::get_dialog_pinned_stories(DialogId owner_dialog_id, StoryId f
     return promise.set_error(Status::Error(400, "Parameter limit must be positive"));
   }
 
-  if (!td_->messages_manager_->have_dialog_force(owner_dialog_id, "get_dialog_pinned_stories")) {
+  if (!td_->dialog_manager_->have_dialog_force(owner_dialog_id, "get_dialog_pinned_stories")) {
     return promise.set_error(Status::Error(400, "Story sender not found"));
   }
-  if (!td_->messages_manager_->have_input_peer(owner_dialog_id, AccessRights::Read)) {
+  if (!td_->dialog_manager_->have_input_peer(owner_dialog_id, AccessRights::Read)) {
     return promise.set_error(Status::Error(400, "Can't access the story sender"));
   }
 
@@ -2327,7 +2363,7 @@ void StoryManager::get_story_archive(DialogId owner_dialog_id, StoryId from_stor
   if (from_story_id != StoryId() && !from_story_id.is_server()) {
     return promise.set_error(Status::Error(400, "Invalid value of parameter from_story_id specified"));
   }
-  if (!td_->messages_manager_->have_dialog_force(owner_dialog_id, "get_story_archive")) {
+  if (!td_->dialog_manager_->have_dialog_force(owner_dialog_id, "get_story_archive")) {
     return promise.set_error(Status::Error(400, "Chat not found"));
   }
   if (!can_edit_stories(owner_dialog_id)) {
@@ -2359,10 +2395,10 @@ void StoryManager::on_get_story_archive(DialogId owner_dialog_id,
 void StoryManager::get_dialog_expiring_stories(DialogId owner_dialog_id,
                                                Promise<td_api::object_ptr<td_api::chatActiveStories>> &&promise) {
   TRY_STATUS_PROMISE(promise, G()->close_status());
-  if (!td_->messages_manager_->have_dialog_force(owner_dialog_id, "get_dialog_expiring_stories")) {
+  if (!td_->dialog_manager_->have_dialog_force(owner_dialog_id, "get_dialog_expiring_stories")) {
     return promise.set_error(Status::Error(400, "Story sender not found"));
   }
-  if (!td_->messages_manager_->have_input_peer(owner_dialog_id, AccessRights::Read)) {
+  if (!td_->dialog_manager_->have_input_peer(owner_dialog_id, AccessRights::Read)) {
     return promise.set_error(Status::Error(400, "Can't access the story sender"));
   }
 
@@ -2392,10 +2428,10 @@ void StoryManager::get_dialog_expiring_stories(DialogId owner_dialog_id,
 }
 
 void StoryManager::reload_dialog_expiring_stories(DialogId dialog_id) {
-  if (!td_->messages_manager_->have_input_peer(dialog_id, AccessRights::Read)) {
+  if (!td_->dialog_manager_->have_input_peer(dialog_id, AccessRights::Read)) {
     return;
   }
-  td_->messages_manager_->force_create_dialog(dialog_id, "reload_dialog_expiring_stories");
+  td_->dialog_manager_->force_create_dialog(dialog_id, "reload_dialog_expiring_stories");
   load_dialog_expiring_stories(dialog_id, 0, "reload_dialog_expiring_stories");
 }
 
@@ -2479,10 +2515,10 @@ void StoryManager::on_get_dialog_expiring_stories(DialogId owner_dialog_id,
 }
 
 void StoryManager::open_story(DialogId owner_dialog_id, StoryId story_id, Promise<Unit> &&promise) {
-  if (!td_->messages_manager_->have_dialog_force(owner_dialog_id, "open_story")) {
+  if (!td_->dialog_manager_->have_dialog_force(owner_dialog_id, "open_story")) {
     return promise.set_error(Status::Error(400, "Story sender not found"));
   }
-  if (!td_->messages_manager_->have_input_peer(owner_dialog_id, AccessRights::Read)) {
+  if (!td_->dialog_manager_->have_input_peer(owner_dialog_id, AccessRights::Read)) {
     return promise.set_error(Status::Error(400, "Can't access the story sender"));
   }
   if (!story_id.is_valid()) {
@@ -2542,10 +2578,10 @@ void StoryManager::open_story(DialogId owner_dialog_id, StoryId story_id, Promis
 }
 
 void StoryManager::close_story(DialogId owner_dialog_id, StoryId story_id, Promise<Unit> &&promise) {
-  if (!td_->messages_manager_->have_dialog_force(owner_dialog_id, "close_story")) {
+  if (!td_->dialog_manager_->have_dialog_force(owner_dialog_id, "close_story")) {
     return promise.set_error(Status::Error(400, "Story sender not found"));
   }
-  if (!td_->messages_manager_->have_input_peer(owner_dialog_id, AccessRights::Read)) {
+  if (!td_->dialog_manager_->have_input_peer(owner_dialog_id, AccessRights::Read)) {
     return promise.set_error(Status::Error(400, "Can't access the story sender"));
   }
   if (!story_id.is_valid()) {
@@ -2654,10 +2690,10 @@ void StoryManager::on_story_chosen_reaction_changed(StoryFullId story_full_id, S
 void StoryManager::set_story_reaction(StoryFullId story_full_id, ReactionType reaction_type, bool add_to_recent,
                                       Promise<Unit> &&promise) {
   auto owner_dialog_id = story_full_id.get_dialog_id();
-  if (!td_->messages_manager_->have_dialog_force(owner_dialog_id, "set_story_reaction")) {
+  if (!td_->dialog_manager_->have_dialog_force(owner_dialog_id, "set_story_reaction")) {
     return promise.set_error(Status::Error(400, "Story sender not found"));
   }
-  if (!td_->messages_manager_->have_input_peer(owner_dialog_id, AccessRights::Read)) {
+  if (!td_->dialog_manager_->have_input_peer(owner_dialog_id, AccessRights::Read)) {
     return promise.set_error(Status::Error(400, "Can't access the story sender"));
   }
   if (!story_full_id.get_story_id().is_valid()) {
@@ -2752,7 +2788,9 @@ void StoryManager::update_interaction_info() {
     auto story_full_id = it.first;
     auto &story_ids = split_story_ids[story_full_id.get_dialog_id()];
     if (story_ids.size() < 100) {
-      story_ids.push_back(story_full_id.get_story_id());
+      auto story_id = story_full_id.get_story_id();
+      CHECK(story_id.is_server());
+      story_ids.push_back(story_id);
     }
   }
   for (auto &story_ids : split_story_ids) {
@@ -2766,8 +2804,10 @@ void StoryManager::increment_story_views(DialogId owner_dialog_id, PendingStoryV
   const size_t MAX_VIEWED_STORIES = 200;  // server-side limit
   while (!story_views.story_ids_.empty() && viewed_story_ids.size() < MAX_VIEWED_STORIES) {
     auto story_id_it = story_views.story_ids_.begin();
-    viewed_story_ids.push_back(*story_id_it);
+    auto story_id = *story_id_it;
     story_views.story_ids_.erase(story_id_it);
+    CHECK(story_id.is_server());
+    viewed_story_ids.push_back(story_id);
   }
   CHECK(!viewed_story_ids.empty());
   story_views.has_query_ = true;
@@ -2879,7 +2919,7 @@ void StoryManager::get_story_interactions(StoryId story_id, const string &query,
                                           bool prefer_forwards, bool prefer_with_reaction, const string &offset,
                                           int32 limit,
                                           Promise<td_api::object_ptr<td_api::storyInteractions>> &&promise) {
-  DialogId owner_dialog_id(td_->contacts_manager_->get_my_id());
+  auto owner_dialog_id = td_->dialog_manager_->get_my_dialog_id();
   StoryFullId story_full_id{owner_dialog_id, story_id};
   const Story *story = get_story(story_full_id);
   if (story == nullptr) {
@@ -2887,6 +2927,9 @@ void StoryManager::get_story_interactions(StoryId story_id, const string &query,
   }
   if (limit <= 0) {
     return promise.set_error(Status::Error(400, "Parameter limit must be positive"));
+  }
+  if (!story_id.is_server()) {
+    return promise.set_value(td_api::make_object<td_api::storyInteractions>());
   }
 
   bool is_full = query.empty() && !only_contacts;
@@ -2912,7 +2955,7 @@ void StoryManager::on_get_story_interactions(
   }
   auto view_list = r_view_list.move_as_ok();
 
-  DialogId owner_dialog_id(td_->contacts_manager_->get_my_id());
+  auto owner_dialog_id = td_->dialog_manager_->get_my_dialog_id();
   CHECK(story_id.is_server());
   StoryFullId story_full_id{owner_dialog_id, story_id};
   Story *story = get_story_editable(story_full_id);
@@ -2948,7 +2991,7 @@ void StoryManager::on_get_story_interactions(
     }
   }
 
-  td_->contacts_manager_->on_view_dialog_active_stories(story_viewers.get_actor_dialog_ids());
+  on_view_dialog_active_stories(story_viewers.get_actor_dialog_ids());
   promise.set_value(story_viewers.get_story_interactions_object(td_));
 }
 
@@ -2989,6 +3032,9 @@ void StoryManager::get_dialog_story_interactions(StoryFullId story_full_id, Reac
   if (limit <= 0) {
     return promise.set_error(Status::Error(400, "Parameter limit must be positive"));
   }
+  if (!story_full_id.get_story_id().is_server()) {
+    return promise.set_value(td_api::make_object<td_api::storyInteractions>());
+  }
 
   auto query_promise = PromiseCreator::lambda(
       [actor_id = actor_id(this), story_full_id, promise = std::move(promise)](
@@ -3025,7 +3071,7 @@ void StoryManager::on_get_dialog_story_interactions(
 
   StoryViewers story_viewers(td_, total_count, std::move(reaction_list->reactions_),
                              std::move(reaction_list->next_offset_));
-  td_->contacts_manager_->on_view_dialog_active_stories(story_viewers.get_actor_dialog_ids());
+  on_view_dialog_active_stories(story_viewers.get_actor_dialog_ids());
   promise.set_value(story_viewers.get_story_interactions_object(td_));
 }
 
@@ -3207,10 +3253,13 @@ td_api::object_ptr<td_api::story> StoryManager::get_story_object(StoryFullId sto
   story->is_update_sent_ = true;
 
   return td_api::make_object<td_api::story>(
-      story_id.get(), td_->messages_manager_->get_chat_id_object(owner_dialog_id, "get_story_object"), story->date_,
-      is_being_sent, is_being_edited, is_edited, story->is_pinned_, is_visible_only_for_self, can_be_deleted,
-      can_be_edited, can_be_forwarded, can_be_replied, can_toggle_is_pinned, can_get_statistics, can_get_interactions,
-      has_expired_viewers, std::move(repost_info), std::move(interaction_info),
+      story_id.get(), td_->dialog_manager_->get_chat_id_object(owner_dialog_id, "get_story_object"),
+      story->sender_dialog_id_ == DialogId()
+          ? nullptr
+          : get_message_sender_object(td_, story->sender_dialog_id_, "get_story_object 2"),
+      story->date_, is_being_sent, is_being_edited, is_edited, story->is_pinned_, is_visible_only_for_self,
+      can_be_deleted, can_be_edited, can_be_forwarded, can_be_replied, can_toggle_is_pinned, can_get_statistics,
+      can_get_interactions, has_expired_viewers, std::move(repost_info), std::move(interaction_info),
       story->chosen_reaction_type_.get_reaction_type_object(), std::move(privacy_settings),
       get_story_content_object(td_, content), std::move(story_areas),
       get_formatted_text_object(*caption, true, get_story_content_duration(td_, content)));
@@ -3260,7 +3309,7 @@ td_api::object_ptr<td_api::chatActiveStories> StoryManager::get_chat_active_stor
     }
   }
   return td_api::make_object<td_api::chatActiveStories>(
-      td_->messages_manager_->get_chat_id_object(owner_dialog_id, "updateChatActiveStories"),
+      td_->dialog_manager_->get_chat_id_object(owner_dialog_id, "updateChatActiveStories"),
       story_list_id.get_story_list_object(), order, max_read_story_id.get(), std::move(stories));
 }
 
@@ -3335,7 +3384,7 @@ StoryId StoryManager::on_get_new_story(DialogId owner_dialog_id,
     return StoryId();
   }
 
-  td_->messages_manager_->force_create_dialog(owner_dialog_id, "on_get_new_story");
+  td_->dialog_manager_->force_create_dialog(owner_dialog_id, "on_get_new_story");
 
   StoryId old_story_id;
   auto updates_story_ids_it = update_story_ids_.find(story_full_id);
@@ -3442,6 +3491,11 @@ StoryId StoryManager::on_get_new_story(DialogId owner_dialog_id,
     story->forward_info_ = std::move(forward_info);
     is_changed = true;
   }
+  auto sender_dialog_id = story_item->from_id_ != nullptr ? DialogId(story_item->from_id_) : DialogId();
+  if (sender_dialog_id != story->sender_dialog_id_) {
+    story->sender_dialog_id_ = sender_dialog_id;
+    is_changed = true;
+  }
   if (!story_item->min_) {
     auto privacy_rules = UserPrivacySettingRules::get_user_privacy_setting_rules(td_, std::move(story_item->privacy_));
     auto interaction_info = StoryInteractionInfo(td_, std::move(story_item->views_));
@@ -3498,7 +3552,7 @@ StoryId StoryManager::on_get_new_story(DialogId owner_dialog_id,
   Dependencies dependencies;
   add_story_dependencies(dependencies, story);
   for (auto dependent_dialog_id : dependencies.get_dialog_ids()) {
-    td_->messages_manager_->force_create_dialog(dependent_dialog_id, "on_get_new_story", true);
+    td_->dialog_manager_->force_create_dialog(dependent_dialog_id, "on_get_new_story", true);
   }
 
   on_story_changed(story_full_id, story, is_changed, need_save_to_database);
@@ -3566,7 +3620,7 @@ StoryId StoryManager::on_get_story_info(DialogId owner_dialog_id, StoryInfo &&st
     return StoryId();
   }
 
-  td_->messages_manager_->force_create_dialog(owner_dialog_id, "on_get_skipped_story");
+  td_->dialog_manager_->force_create_dialog(owner_dialog_id, "on_get_story_info");
 
   StoryFullId story_full_id{owner_dialog_id, story_id};
   Story *story = get_story_editable(story_full_id);
@@ -3629,7 +3683,7 @@ void StoryManager::on_delete_story(StoryFullId story_full_id) {
       send_closure(
           G()->td(), &Td::send_update,
           td_api::make_object<td_api::updateStoryDeleted>(
-              td_->messages_manager_->get_chat_id_object(owner_dialog_id, "updateStoryDeleted"), story_id.get()));
+              td_->dialog_manager_->get_chat_id_object(owner_dialog_id, "updateStoryDeleted"), story_id.get()));
     }
     delete_story_files(story);
     unregister_story_global_id(story);
@@ -4032,7 +4086,7 @@ bool StoryManager::update_active_stories_order(DialogId owner_dialog_id, ActiveS
   if (active_stories->max_read_story_id_.get() < last_story_id.get()) {
     new_private_order += static_cast<int64>(1) << 35;
   }
-  if (owner_dialog_id == DialogId(td_->contacts_manager_->get_my_id())) {
+  if (owner_dialog_id == td_->dialog_manager_->get_my_dialog_id()) {
     new_private_order += static_cast<int64>(1) << 36;
   }
   CHECK(new_private_order != 0);
@@ -4193,7 +4247,7 @@ void StoryManager::on_update_story_id(int64 random_id, StoryId new_story_id, con
 }
 
 bool StoryManager::on_update_read_stories(DialogId owner_dialog_id, StoryId max_read_story_id) {
-  if (!td_->messages_manager_->have_dialog_info_force(owner_dialog_id, "on_update_read_stories")) {
+  if (!td_->dialog_manager_->have_dialog_info_force(owner_dialog_id, "on_update_read_stories")) {
     LOG(INFO) << "Can't read stories in unknown " << owner_dialog_id;
     return false;
   }
@@ -4245,7 +4299,7 @@ void StoryManager::on_update_story_chosen_reaction_type(DialogId owner_dialog_id
     LOG(ERROR) << "Receive chosen reaction in " << story_id << " in " << owner_dialog_id;
     return;
   }
-  if (!td_->messages_manager_->have_dialog_info_force(owner_dialog_id, "on_update_story_chosen_reaction_type")) {
+  if (!td_->dialog_manager_->have_dialog_info_force(owner_dialog_id, "on_update_story_chosen_reaction_type")) {
     return;
   }
   StoryFullId story_full_id{owner_dialog_id, story_id};
@@ -4406,6 +4460,84 @@ void StoryManager::on_get_story_views(DialogId owner_dialog_id, const vector<Sto
   }
 }
 
+void StoryManager::on_view_dialog_active_stories(vector<DialogId> dialog_ids) {
+  if (dialog_ids.empty() || td_->auth_manager_->is_bot()) {
+    return;
+  }
+  LOG(DEBUG) << "View active stories of " << dialog_ids;
+
+  const size_t MAX_SLICE_SIZE = 100;  // server side limit
+  vector<DialogId> input_dialog_ids;
+  vector<telegram_api::object_ptr<telegram_api::InputPeer>> input_peers;
+  for (auto &dialog_id : dialog_ids) {
+    if (td::contains(input_dialog_ids, dialog_id)) {
+      continue;
+    }
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Read);
+    if (input_peer == nullptr) {
+      continue;
+    }
+
+    bool need_poll = [&] {
+      switch (dialog_id.get_type()) {
+        case DialogType::User:
+          return td_->contacts_manager_->can_poll_user_active_stories(dialog_id.get_user_id());
+        case DialogType::Channel:
+          return td_->contacts_manager_->can_poll_channel_active_stories(dialog_id.get_channel_id());
+        case DialogType::Chat:
+        case DialogType::SecretChat:
+        case DialogType::None:
+        default:
+          return false;
+      }
+    }();
+    if (!need_poll) {
+      continue;
+    }
+    if (!being_reloaded_active_stories_dialog_ids_.insert(dialog_id).second) {
+      continue;
+    }
+
+    input_dialog_ids.push_back(dialog_id);
+    input_peers.push_back(std::move(input_peer));
+    if (input_peers.size() == MAX_SLICE_SIZE) {
+      td_->create_handler<GetStoriesMaxIdsQuery>()->send(std::move(input_dialog_ids), std::move(input_peers));
+      input_dialog_ids.clear();
+      input_peers.clear();
+    }
+  }
+  if (!input_peers.empty()) {
+    td_->create_handler<GetStoriesMaxIdsQuery>()->send(std::move(input_dialog_ids), std::move(input_peers));
+  }
+}
+
+void StoryManager::on_get_dialog_max_active_story_ids(const vector<DialogId> &dialog_ids,
+                                                      const vector<int32> &max_story_ids) {
+  for (auto &dialog_id : dialog_ids) {
+    auto is_deleted = being_reloaded_active_stories_dialog_ids_.erase(dialog_id) > 0;
+    CHECK(is_deleted);
+  }
+  if (dialog_ids.size() != max_story_ids.size()) {
+    if (!max_story_ids.empty()) {
+      LOG(ERROR) << "Receive " << max_story_ids.size() << " max active story identifiers for " << dialog_ids;
+    }
+    return;
+  }
+  for (size_t i = 0; i < dialog_ids.size(); i++) {
+    auto max_story_id = StoryId(max_story_ids[i]);
+    auto dialog_id = dialog_ids[i];
+    if (max_story_id == StoryId() || max_story_id.is_server()) {
+      if (dialog_id.get_type() == DialogType::User) {
+        td_->contacts_manager_->on_update_user_story_ids(dialog_id.get_user_id(), max_story_id, StoryId());
+      } else {
+        td_->contacts_manager_->on_update_channel_story_ids(dialog_id.get_channel_id(), max_story_id, StoryId());
+      }
+    } else {
+      LOG(ERROR) << "Receive " << max_story_id << " as maximum active story for " << dialog_id;
+    }
+  }
+}
+
 FileSourceId StoryManager::get_story_file_source_id(StoryFullId story_full_id) {
   if (td_->auth_manager_->is_bot()) {
     return FileSourceId();
@@ -4473,10 +4605,10 @@ void StoryManager::on_reload_story(StoryFullId story_full_id, Result<Unit> &&res
 
 void StoryManager::get_story(DialogId owner_dialog_id, StoryId story_id, bool only_local,
                              Promise<td_api::object_ptr<td_api::story>> &&promise) {
-  if (!td_->messages_manager_->have_dialog_force(owner_dialog_id, "get_story")) {
+  if (!td_->dialog_manager_->have_dialog_force(owner_dialog_id, "get_story")) {
     return promise.set_error(Status::Error(400, "Story sender not found"));
   }
-  if (!td_->messages_manager_->have_input_peer(owner_dialog_id, AccessRights::Read)) {
+  if (!td_->dialog_manager_->have_input_peer(owner_dialog_id, AccessRights::Read)) {
     return promise.set_error(Status::Error(400, "Can't access the story sender"));
   }
   if (!story_id.is_valid()) {
@@ -4613,6 +4745,7 @@ void StoryManager::finish_get_dialogs_to_send_stories(Result<Unit> &&result) {
 
 void StoryManager::update_dialogs_to_send_stories(ChannelId channel_id, bool can_send_stories) {
   if (channels_to_send_stories_inited_) {
+    CHECK(!td_->auth_manager_->is_bot());
     bool was_changed = false;
     if (!can_send_stories) {
       was_changed = td::remove(channels_to_send_stories_, channel_id);
@@ -4620,6 +4753,9 @@ void StoryManager::update_dialogs_to_send_stories(ChannelId channel_id, bool can
       if (!td::contains(channels_to_send_stories_, channel_id)) {
         channels_to_send_stories_.push_back(channel_id);
         was_changed = true;
+
+        next_reload_channels_to_send_stories_time_ = Time::now();
+        set_timeout_in(1.0);
       }
     }
     if (was_changed) {
@@ -4635,7 +4771,7 @@ void StoryManager::on_get_dialogs_to_send_stories(vector<tl_object_ptr<telegram_
   }
   channels_to_send_stories_.clear();
   for (auto channel_id : channel_ids) {
-    td_->messages_manager_->force_create_dialog(DialogId(channel_id), "on_get_dialogs_to_send_stories");
+    td_->dialog_manager_->force_create_dialog(DialogId(channel_id), "on_get_dialogs_to_send_stories");
     if (td_->contacts_manager_->get_channel_status(channel_id).can_post_stories()) {
       channels_to_send_stories_.push_back(channel_id);
     }
@@ -4657,7 +4793,7 @@ void StoryManager::save_channels_to_send_stories() {
 
 void StoryManager::can_send_story(DialogId dialog_id,
                                   Promise<td_api::object_ptr<td_api::CanSendStoryResult>> &&promise) {
-  if (!td_->messages_manager_->have_dialog_force(dialog_id, "can_send_story")) {
+  if (!td_->dialog_manager_->have_dialog_force(dialog_id, "can_send_story")) {
     return promise.set_error(Status::Error(400, "Chat not found"));
   }
   if (!can_post_stories(dialog_id)) {
@@ -4672,7 +4808,7 @@ void StoryManager::send_story(DialogId dialog_id, td_api::object_ptr<td_api::Inp
                               td_api::object_ptr<td_api::StoryPrivacySettings> &&settings, int32 active_period,
                               td_api::object_ptr<td_api::storyFullId> &&from_story_full_id, bool is_pinned,
                               bool protect_content, Promise<td_api::object_ptr<td_api::story>> &&promise) {
-  if (!td_->messages_manager_->have_dialog_force(dialog_id, "send_story")) {
+  if (!td_->dialog_manager_->have_dialog_force(dialog_id, "send_story")) {
     return promise.set_error(Status::Error(400, "Chat not found"));
   }
   if (!can_post_stories(dialog_id)) {
@@ -4683,6 +4819,9 @@ void StoryManager::send_story(DialogId dialog_id, td_api::object_ptr<td_api::Inp
   TRY_RESULT_PROMISE(promise, content, get_input_story_content(td_, std::move(input_story_content), dialog_id));
   TRY_RESULT_PROMISE(promise, caption,
                      get_formatted_text(td_, DialogId(), std::move(input_caption), is_bot, true, false, false));
+  if (dialog_id != td_->dialog_manager_->get_my_dialog_id()) {
+    settings = td_api::make_object<td_api::storyPrivacySettingsEveryone>();
+  }
   TRY_RESULT_PROMISE(promise, privacy_rules,
                      UserPrivacySettingRules::get_user_privacy_setting_rules(td_, std::move(settings)));
   unique_ptr<StoryForwardInfo> forward_info;
@@ -4691,7 +4830,7 @@ void StoryManager::send_story(DialogId dialog_id, td_api::object_ptr<td_api::Inp
     forward_from_story_full_id =
         StoryFullId(DialogId(from_story_full_id->sender_chat_id_), StoryId(from_story_full_id->story_id_));
     const Story *story = get_story(forward_from_story_full_id);
-    if (story == nullptr) {
+    if (story == nullptr || story->content_ == nullptr) {
       return promise.set_error(Status::Error(400, "Story to repost not found"));
     }
     if (story->noforwards_) {
@@ -4724,9 +4863,17 @@ void StoryManager::send_story(DialogId dialog_id, td_api::object_ptr<td_api::Inp
     caption.entities.clear();
   }
 
-  td_->messages_manager_->force_create_dialog(dialog_id, "send_story");
+  td_->dialog_manager_->force_create_dialog(dialog_id, "send_story");
 
   auto story = make_unique<Story>();
+  if (dialog_id.get_type() == DialogType::Channel &&
+      td_->contacts_manager_->is_megagroup_channel(dialog_id.get_channel_id())) {
+    story->sender_dialog_id_ = td_->messages_manager_->get_dialog_default_send_message_as_dialog_id(dialog_id);
+    if (story->sender_dialog_id_ == DialogId() &&
+        !td_->dialog_manager_->is_anonymous_administrator(dialog_id, nullptr)) {
+      story->sender_dialog_id_ = td_->dialog_manager_->get_my_dialog_id();
+    }
+  }
   story->date_ = G()->unix_time();
   story->expire_date_ = story->date_ + active_period;
   story->is_pinned_ = is_pinned;
@@ -4796,6 +4943,7 @@ void StoryManager::do_send_story(unique_ptr<PendingStory> &&pending_story, vecto
   if (bad_parts.empty()) {
     if (!pending_story->story_id_.is_server()) {
       auto story = make_unique<Story>();
+      story->sender_dialog_id_ = pending_story->story_->sender_dialog_id_;
       story->date_ = pending_story->story_->date_;
       story->expire_date_ = pending_story->story_->expire_date_;
       story->is_pinned_ = pending_story->story_->is_pinned_;
@@ -5230,9 +5378,10 @@ void StoryManager::delete_pending_story(FileId file_id, unique_ptr<PendingStory>
   }
 }
 
-void StoryManager::set_story_privacy_settings(DialogId owner_dialog_id, StoryId story_id,
+void StoryManager::set_story_privacy_settings(StoryId story_id,
                                               td_api::object_ptr<td_api::StoryPrivacySettings> &&settings,
                                               Promise<Unit> &&promise) {
+  DialogId owner_dialog_id(td_->dialog_manager_->get_my_dialog_id());
   StoryFullId story_full_id{owner_dialog_id, story_id};
   const Story *story = get_story(story_full_id);
   if (story == nullptr || story->content_ == nullptr) {
@@ -5353,7 +5502,7 @@ void StoryManager::delete_story_on_server(StoryFullId story_full_id, uint64 log_
 
 telegram_api::object_ptr<telegram_api::InputMedia> StoryManager::get_input_media(StoryFullId story_full_id) const {
   auto dialog_id = story_full_id.get_dialog_id();
-  auto input_peer = td_->messages_manager_->get_input_peer(dialog_id, AccessRights::Read);
+  auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Read);
   if (input_peer == nullptr) {
     return nullptr;
   }
@@ -5411,7 +5560,7 @@ void StoryManager::on_binlog_events(vector<BinlogEvent> &&events) {
         log_event_parse(log_event, event.get_data()).ensure();
 
         auto owner_dialog_id = log_event.story_full_id_.get_dialog_id();
-        td_->messages_manager_->have_dialog_force(owner_dialog_id, "DeleteStoryOnServerLogEvent");
+        td_->dialog_manager_->have_dialog_force(owner_dialog_id, "DeleteStoryOnServerLogEvent");
         delete_story_on_server(log_event.story_full_id_, event.id_, Auto());
         break;
       }
@@ -5420,7 +5569,7 @@ void StoryManager::on_binlog_events(vector<BinlogEvent> &&events) {
         log_event_parse(log_event, event.get_data()).ensure();
 
         auto owner_dialog_id = log_event.dialog_id_;
-        if (!td_->messages_manager_->have_dialog_force(owner_dialog_id, "ReadStoriesOnServerLogEvent")) {
+        if (!td_->dialog_manager_->have_dialog_force(owner_dialog_id, "ReadStoriesOnServerLogEvent")) {
           binlog_erase(G()->td_db()->get_binlog(), event.id_);
           break;
         }
@@ -5442,7 +5591,7 @@ void StoryManager::on_binlog_events(vector<BinlogEvent> &&events) {
         log_event_parse(log_event, event.get_data()).ensure();
 
         auto owner_dialog_id = log_event.dialog_id_;
-        if (!td_->messages_manager_->have_dialog_force(owner_dialog_id, "LoadDialogExpiringStoriesLogEvent")) {
+        if (!td_->dialog_manager_->have_dialog_force(owner_dialog_id, "LoadDialogExpiringStoriesLogEvent")) {
           binlog_erase(G()->td_db()->get_binlog(), event.id_);
           break;
         }

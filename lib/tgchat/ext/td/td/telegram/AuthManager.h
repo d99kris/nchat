@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -44,7 +44,7 @@ class AuthManager final : public NetActor {
   void check_email_code(uint64 query_id, EmailVerification &&code);
   void reset_email_address(uint64 query_id);
   void check_code(uint64 query_id, string code);
-  void register_user(uint64 query_id, string first_name, string last_name);
+  void register_user(uint64 query_id, string first_name, string last_name, bool disable_notification);
   void request_qr_code_authentication(uint64 query_id, vector<UserId> other_user_ids);
   void check_bot_token(uint64 query_id, string bot_token);
   void check_password(uint64 query_id, string password);

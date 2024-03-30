@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -20,7 +20,7 @@ namespace td {
 CallManager::CallManager(ActorShared<> parent) : parent_(std::move(parent)) {
 }
 
-void CallManager::update_call(Update call) {
+void CallManager::update_call(telegram_api::object_ptr<telegram_api::updatePhoneCall> call) {
   auto call_id = [phone_call = call->phone_call_.get()] {
     switch (phone_call->get_id()) {
       case telegram_api::phoneCallEmpty::ID:
@@ -49,7 +49,7 @@ void CallManager::update_call(Update call) {
   }
 
   if (!info.call_id.is_valid()) {
-    LOG(INFO) << "Call_id is not valid for " << call_id << ", postpone update " << to_string(call);
+    LOG(INFO) << "Call identifier is not valid for " << call_id << ", postpone update " << to_string(call);
     info.updates.push_back(std::move(call));
     return;
   }

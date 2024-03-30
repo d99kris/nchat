@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -62,11 +62,16 @@ void MessageReaction::parse(ParserT &parser) {
   }
   if (has_my_recent_chooser_dialog_id) {
     td::parse(my_recent_chooser_dialog_id_, parser);
-    CHECK(my_recent_chooser_dialog_id_.is_valid());
-    CHECK(td::contains(recent_chooser_dialog_ids_, my_recent_chooser_dialog_id_));
+    if (!my_recent_chooser_dialog_id_.is_valid() ||
+        !td::contains(recent_chooser_dialog_ids_, my_recent_chooser_dialog_id_)) {
+      return parser.set_error("Invalid recent reaction chooser");
+    }
   }
-  CHECK(!is_empty());
-  CHECK(!reaction_type_.is_empty());
+  fix_choose_count();
+
+  if (is_empty() || reaction_type_.is_empty()) {
+    parser.set_error("Invalid message reaction");
+  }
 }
 
 template <class StorerT>
@@ -85,7 +90,9 @@ void UnreadMessageReaction::parse(ParserT &parser) {
   END_PARSE_FLAGS();
   td::parse(reaction_type_, parser);
   td::parse(sender_dialog_id_, parser);
-  CHECK(!reaction_type_.is_empty());
+  if (reaction_type_.is_empty()) {
+    parser.set_error("Invalid unread message reaction");
+  }
 }
 
 template <class StorerT>
@@ -100,6 +107,7 @@ void MessageReactions::store(StorerT &storer) const {
   STORE_FLAG(has_unread_reactions);
   STORE_FLAG(has_reactions);
   STORE_FLAG(has_chosen_reaction_order);
+  STORE_FLAG(are_tags_);
   END_STORE_FLAGS();
   if (has_reactions) {
     td::store(reactions_, storer);
@@ -124,6 +132,7 @@ void MessageReactions::parse(ParserT &parser) {
   PARSE_FLAG(has_unread_reactions);
   PARSE_FLAG(has_reactions);
   PARSE_FLAG(has_chosen_reaction_order);
+  PARSE_FLAG(are_tags_);
   END_PARSE_FLAGS();
   if (has_reactions) {
     td::parse(reactions_, parser);

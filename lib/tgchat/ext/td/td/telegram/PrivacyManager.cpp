@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -208,7 +208,7 @@ void PrivacyManager::do_update_privacy(UserPrivacySetting user_privacy_setting, 
   info.is_synchronized_ = true;
 
   if (!(info.rules_ == privacy_rules)) {
-    if ((from_update || was_synchronized) && !G()->close_flag()) {
+    if (!G()->close_flag() && (from_update || was_synchronized)) {
       switch (user_privacy_setting.type()) {
         case UserPrivacySetting::Type::UserStatus: {
           send_closure_later(G()->contacts_manager(), &ContactsManager::on_update_online_status_privacy);

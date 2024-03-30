@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -132,6 +132,14 @@ td_api::object_ptr<td_api::updateDefaultReactionType> ReactionType::get_update_d
     return nullptr;
   }
   return td_api::make_object<td_api::updateDefaultReactionType>(get_reaction_type_object());
+}
+
+uint64 ReactionType::get_hash() const {
+  if (is_custom_reaction()) {
+    return static_cast<uint64>(get_custom_emoji_id(reaction_));
+  } else {
+    return get_md5_string_hash(remove_emoji_selectors(reaction_));
+  }
 }
 
 bool ReactionType::is_custom_reaction() const {

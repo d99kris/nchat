@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -7,8 +7,8 @@
 #include "td/telegram/MessageReplyInfo.h"
 
 #include "td/telegram/ContactsManager.h"
+#include "td/telegram/DialogManager.h"
 #include "td/telegram/MessageSender.h"
-#include "td/telegram/MessagesManager.h"
 #include "td/telegram/ServerMessageId.h"
 #include "td/telegram/Td.h"
 
@@ -55,7 +55,7 @@ MessageReplyInfo::MessageReplyInfo(Td *td, tl_object_ptr<telegram_api::messageRe
         LOG(ERROR) << "Receive duplicate " << dialog_id << " as a recent replier";
         continue;
       }
-      if (!td->messages_manager_->have_dialog_info(dialog_id)) {
+      if (!td->dialog_manager_->have_dialog_info(dialog_id)) {
         auto dialog_type = dialog_id.get_type();
         if (dialog_type == DialogType::User) {
           auto replier_user_id = dialog_id.get_user_id();
@@ -185,7 +185,7 @@ bool MessageReplyInfo::add_reply(DialogId replier_dialog_id, MessageId reply_mes
 
 bool MessageReplyInfo::need_reget(const Td *td) const {
   for (auto &dialog_id : recent_replier_dialog_ids_) {
-    if (dialog_id.get_type() != DialogType::User && !td->messages_manager_->have_dialog_info(dialog_id)) {
+    if (dialog_id.get_type() != DialogType::User && !td->dialog_manager_->have_dialog_info(dialog_id)) {
       if (dialog_id.get_type() == DialogType::Channel &&
           td->contacts_manager_->have_min_channel(dialog_id.get_channel_id())) {
         return false;

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -10,28 +10,28 @@
 #include "td/telegram/ContactsManager.h"
 #include "td/telegram/Dependencies.h"
 #include "td/telegram/DialogId.h"
+#include "td/telegram/DialogManager.h"
 #include "td/telegram/Global.h"
-#include "td/telegram/MessagesManager.h"
 #include "td/telegram/misc.h"
 #include "td/telegram/OptionManager.h"
 #include "td/telegram/Td.h"
+#include "td/telegram/telegram_api.h"
 
 #include "td/utils/Random.h"
 
 namespace td {
 
 Result<ChannelId> GiveawayParameters::get_boosted_channel_id(Td *td, DialogId dialog_id) {
-  if (!td->messages_manager_->have_dialog_force(dialog_id, "get_boosted_channel_id")) {
+  if (!td->dialog_manager_->have_dialog_force(dialog_id, "get_boosted_channel_id")) {
     return Status::Error(400, "Chat to boost not found");
   }
   if (dialog_id.get_type() != DialogType::Channel) {
     return Status::Error(400, "Can't boost the chat");
   }
   auto channel_id = dialog_id.get_channel_id();
-  if (!td->contacts_manager_->is_broadcast_channel(channel_id)) {
-    return Status::Error(400, "Can't boost the group");
-  }
-  if (!td->contacts_manager_->get_channel_status(channel_id).can_post_messages()) {
+  auto status = td->contacts_manager_->get_channel_status(channel_id);
+  if (td->contacts_manager_->is_broadcast_channel(channel_id) ? !status.can_post_messages()
+                                                              : !status.is_administrator()) {
     return Status::Error(400, "Not enough rights in the chat");
   }
   return channel_id;
@@ -93,12 +93,12 @@ GiveawayParameters::get_input_store_payment_premium_giveaway(Td *td, const strin
     random_id = Random::secure_int64();
   } while (random_id == 0);
 
-  auto boost_input_peer = td->messages_manager_->get_input_peer(DialogId(boosted_channel_id_), AccessRights::Write);
+  auto boost_input_peer = td->dialog_manager_->get_input_peer(DialogId(boosted_channel_id_), AccessRights::Write);
   CHECK(boost_input_peer != nullptr);
 
   vector<telegram_api::object_ptr<telegram_api::InputPeer>> additional_input_peers;
   for (auto additional_channel_id : additional_channel_ids_) {
-    auto input_peer = td->messages_manager_->get_input_peer(DialogId(additional_channel_id), AccessRights::Write);
+    auto input_peer = td->dialog_manager_->get_input_peer(DialogId(additional_channel_id), AccessRights::Write);
     CHECK(input_peer != nullptr);
     additional_input_peers.push_back(std::move(input_peer));
   }
@@ -130,13 +130,13 @@ td_api::object_ptr<td_api::premiumGiveawayParameters> GiveawayParameters::get_pr
   vector<int64> chat_ids;
   for (auto channel_id : additional_channel_ids_) {
     DialogId dialog_id(channel_id);
-    td->messages_manager_->force_create_dialog(dialog_id, "premiumGiveawayParameters", true);
-    chat_ids.push_back(td->messages_manager_->get_chat_id_object(dialog_id, "premiumGiveawayParameters"));
+    td->dialog_manager_->force_create_dialog(dialog_id, "premiumGiveawayParameters", true);
+    chat_ids.push_back(td->dialog_manager_->get_chat_id_object(dialog_id, "premiumGiveawayParameters"));
   }
   DialogId dialog_id(boosted_channel_id_);
-  td->messages_manager_->force_create_dialog(dialog_id, "premiumGiveawayParameters", true);
+  td->dialog_manager_->force_create_dialog(dialog_id, "premiumGiveawayParameters", true);
   return td_api::make_object<td_api::premiumGiveawayParameters>(
-      td->messages_manager_->get_chat_id_object(dialog_id, "premiumGiveawayParameters"), std::move(chat_ids), date_,
+      td->dialog_manager_->get_chat_id_object(dialog_id, "premiumGiveawayParameters"), std::move(chat_ids), date_,
       only_new_subscribers_, winners_are_visible_, vector<string>(country_codes_), prize_description_);
 }
 

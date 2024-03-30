@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -372,7 +372,7 @@ void DeviceTokenManager::save_info(int32 token_type) {
   }
   sync_cnt_++;
   G()->td_db()->get_binlog_pmc()->force_sync(
-      create_event_promise(self_closure(this, &DeviceTokenManager::dec_sync_cnt)));
+      create_event_promise(self_closure(this, &DeviceTokenManager::dec_sync_cnt)), "DeviceTokenManager::save_info");
 }
 
 void DeviceTokenManager::dec_sync_cnt() {
@@ -381,7 +381,7 @@ void DeviceTokenManager::dec_sync_cnt() {
 }
 
 void DeviceTokenManager::loop() {
-  if (sync_cnt_ != 0 || G()->close_flag()) {
+  if (G()->close_flag() || sync_cnt_ != 0) {
     return;
   }
   for (int32 token_type = 1; token_type < TokenType::Size; token_type++) {

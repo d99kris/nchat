@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -268,6 +268,7 @@ void TdDb::flush_all() {
   if (story_db_async_) {
     story_db_async_->force_flush();
   }
+  CHECK(binlog_ != nullptr);
   binlog_->force_flush();
 }
 
@@ -441,6 +442,7 @@ Status TdDb::init_sqlite(const Parameters &parameters, const DbKey &key, const D
     binlog_pmc.erase("fetched_marks_as_unread");
     binlog_pmc.erase_by_prefix("public_channels");
     binlog_pmc.erase("channels_to_send_stories");
+    binlog_pmc.erase_by_prefix("saved_messages_tags");
   }
   if (user_version == 0) {
     binlog_pmc.erase("next_contacts_sync_date");
@@ -449,7 +451,7 @@ Status TdDb::init_sqlite(const Parameters &parameters, const DbKey &key, const D
     binlog_pmc.erase("invalidate_old_featured_sticker_sets");
     binlog_pmc.erase(AttachMenuManager::get_attach_menu_bots_database_key());
   }
-  binlog_pmc.force_sync({});
+  binlog_pmc.force_sync(Auto(), "init_sqlite");
 
   TRY_STATUS(db.exec("COMMIT TRANSACTION"));
 
@@ -535,7 +537,9 @@ void TdDb::open_impl(Parameters parameters, Promise<OpenedDatabase> &&promise) {
       sqlite_key = string(32, ' ');
       Random::secure_bytes(sqlite_key);
       binlog_pmc->set("sqlite_key", sqlite_key);
-      binlog_pmc->force_sync(Auto());
+      if (parameters.use_file_database_) {
+        binlog_pmc->force_sync(Auto(), "TdDb::open_impl 1");
+      }
     }
     new_sqlite_key = DbKey::raw_key(std::move(sqlite_key));
   } else {
@@ -561,7 +565,7 @@ void TdDb::open_impl(Parameters parameters, Promise<OpenedDatabase> &&promise) {
   }
   if (drop_sqlite_key) {
     binlog_pmc->erase("sqlite_key");
-    binlog_pmc->force_sync(Auto());
+    binlog_pmc->force_sync(Auto(), "TdDb::open_impl 2");
   }
 
   VLOG(td_init) << "Create concurrent_binlog_pmc";
@@ -601,7 +605,10 @@ void TdDb::open_impl(Parameters parameters, Promise<OpenedDatabase> &&promise) {
 }
 
 TdDb::TdDb() = default;
-TdDb::~TdDb() = default;
+
+TdDb::~TdDb() {
+  LOG_IF(ERROR, binlog_ != nullptr) << "Failed to close the database";
+}
 
 Status TdDb::check_parameters(Parameters &parameters) {
   if (parameters.database_directory_.empty()) {
@@ -665,6 +672,7 @@ Status TdDb::destroy(const Parameters &parameters) {
 
 void TdDb::with_db_path(const std::function<void(CSlice)> &callback) {
   SqliteDb::with_db_path(get_sqlite_path(parameters_), callback);
+  CHECK(binlog_ != nullptr);
   callback(binlog_->get_path());
 }
 

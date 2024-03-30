@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -8,11 +8,13 @@
 
 #include "td/telegram/ChannelId.h"
 #include "td/telegram/ContactsManager.h"
+#include "td/telegram/DialogInviteLinkManager.h"
+#include "td/telegram/DialogManager.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/LinkManager.h"
 #include "td/telegram/MessageContent.h"
 #include "td/telegram/MessageEntity.h"
-#include "td/telegram/MessagesManager.h"
+#include "td/telegram/MessageSelfDestructType.h"
 #include "td/telegram/net/NetQueryCreator.h"
 #include "td/telegram/OptionManager.h"
 #include "td/telegram/Photo.h"
@@ -252,7 +254,7 @@ td_api::object_ptr<td_api::messageSponsor> SponsoredMessageManager::get_message_
                       << sponsored_message.server_message_id.get());
       }
       type = td_api::make_object<td_api::messageSponsorTypePublicChannel>(
-          td_->messages_manager_->get_chat_id_object(sponsored_message.sponsor_dialog_id, "sponsoredMessage"),
+          td_->dialog_manager_->get_chat_id_object(sponsored_message.sponsor_dialog_id, "sponsoredMessage"),
           std::move(link));
       if (sponsored_message.show_dialog_photo) {
         photo = get_chat_photo_info_object(td_->file_manager_.get(),
@@ -273,7 +275,7 @@ td_api::object_ptr<td_api::messageSponsor> SponsoredMessageManager::get_message_
         break;
       }
       auto invite_link = LinkManager::get_dialog_invite_link(sponsored_message.invite_hash, false);
-      auto chat_invite_link_info = td_->contacts_manager_->get_chat_invite_link_info_object(invite_link);
+      auto chat_invite_link_info = td_->dialog_invite_link_manager_->get_chat_invite_link_info_object(invite_link);
       if (chat_invite_link_info == nullptr) {
         LOG(ERROR) << "Failed to get invite link info for " << invite_link;
         return nullptr;
@@ -317,7 +319,7 @@ td_api::object_ptr<td_api::sponsoredMessages> SponsoredMessageManager::get_spons
 
 void SponsoredMessageManager::get_dialog_sponsored_messages(
     DialogId dialog_id, Promise<td_api::object_ptr<td_api::sponsoredMessages>> &&promise) {
-  if (!td_->messages_manager_->have_dialog_force(dialog_id, "get_dialog_sponsored_message")) {
+  if (!td_->dialog_manager_->have_dialog_force(dialog_id, "get_dialog_sponsored_message")) {
     return promise.set_error(Status::Error(400, "Chat not found"));
   }
   if (dialog_id.get_type() != DialogType::Channel) {
@@ -387,7 +389,7 @@ void SponsoredMessageManager::on_get_dialog_sponsored_messages(
         if (sponsored_message->from_id_ != nullptr) {
           sponsor_dialog_id = DialogId(sponsored_message->from_id_);
           if (!sponsor_dialog_id.is_valid() ||
-              !td_->messages_manager_->have_dialog_info_force(sponsor_dialog_id, "on_get_dialog_sponsored_messages")) {
+              !td_->dialog_manager_->have_dialog_info_force(sponsor_dialog_id, "on_get_dialog_sponsored_messages")) {
             LOG(ERROR) << "Receive unknown sponsor " << sponsor_dialog_id;
             continue;
           }
@@ -396,7 +398,7 @@ void SponsoredMessageManager::on_get_dialog_sponsored_messages(
             LOG(ERROR) << "Receive invalid channel post in " << to_string(sponsored_message);
             server_message_id = ServerMessageId();
           }
-          td_->messages_manager_->force_create_dialog(sponsor_dialog_id, "on_get_dialog_sponsored_messages");
+          td_->dialog_manager_->force_create_dialog(sponsor_dialog_id, "on_get_dialog_sponsored_messages");
         } else if (sponsored_message->chat_invite_ != nullptr && !sponsored_message->chat_invite_hash_.empty()) {
           auto invite_link = LinkManager::get_dialog_invite_link(sponsored_message->chat_invite_hash_, false);
           if (invite_link.empty()) {
@@ -404,9 +406,9 @@ void SponsoredMessageManager::on_get_dialog_sponsored_messages(
             continue;
           }
           auto chat_invite = to_string(sponsored_message->chat_invite_);
-          td_->contacts_manager_->on_get_dialog_invite_link_info(
+          td_->dialog_invite_link_manager_->on_get_dialog_invite_link_info(
               invite_link, std::move(sponsored_message->chat_invite_), Promise<Unit>());
-          auto chat_invite_link_info = td_->contacts_manager_->get_chat_invite_link_info_object(invite_link);
+          auto chat_invite_link_info = td_->dialog_invite_link_manager_->get_chat_invite_link_info_object(invite_link);
           if (chat_invite_link_info == nullptr) {
             LOG(ERROR) << "Failed to get invite link info from " << chat_invite << " for "
                        << to_string(sponsored_message);
@@ -428,16 +430,13 @@ void SponsoredMessageManager::on_get_dialog_sponsored_messages(
         auto message_text = get_message_text(td_->contacts_manager_.get(), std::move(sponsored_message->message_),
                                              std::move(sponsored_message->entities_), true, true, 0, false,
                                              "on_get_dialog_sponsored_messages");
-        int32 ttl = 0;
-        bool disable_web_page_preview = false;
-        auto content =
-            get_message_content(td_, std::move(message_text), nullptr, sponsor_dialog_id, G()->unix_time(), true,
-                                UserId(), &ttl, &disable_web_page_preview, "on_get_dialog_sponsored_messages");
-        if (ttl != 0) {
-          LOG(ERROR) << "Receive sponsored message with self-destruct time " << ttl;
+        MessageSelfDestructType ttl;
+        auto content = get_message_content(td_, std::move(message_text), nullptr, sponsor_dialog_id, G()->unix_time(),
+                                           true, UserId(), &ttl, nullptr, "on_get_dialog_sponsored_messages");
+        if (!ttl.is_empty()) {
+          LOG(ERROR) << "Receive sponsored message with " << ttl;
           continue;
         }
-        CHECK(disable_web_page_preview);
 
         current_sponsored_message_id_ = current_sponsored_message_id_.get_next_message_id(MessageType::Local);
         if (!current_sponsored_message_id_.is_valid_sponsored()) {

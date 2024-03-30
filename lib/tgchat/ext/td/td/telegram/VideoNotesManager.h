@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -44,7 +44,8 @@ class VideoNotesManager final : public Actor {
 
   tl_object_ptr<telegram_api::InputMedia> get_input_media(FileId file_id,
                                                           tl_object_ptr<telegram_api::InputFile> input_file,
-                                                          tl_object_ptr<telegram_api::InputFile> input_thumbnail) const;
+                                                          tl_object_ptr<telegram_api::InputFile> input_thumbnail,
+                                                          int32 ttl) const;
 
   SecretInputMedia get_secret_input_media(FileId video_note_file_id,
                                           tl_object_ptr<telegram_api::InputEncryptedFile> input_file,

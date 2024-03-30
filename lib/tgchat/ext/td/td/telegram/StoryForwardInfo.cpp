@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -7,7 +7,7 @@
 #include "td/telegram/StoryForwardInfo.h"
 
 #include "td/telegram/Dependencies.h"
-#include "td/telegram/MessagesManager.h"
+#include "td/telegram/DialogManager.h"
 #include "td/telegram/Td.h"
 
 #include "td/utils/logging.h"
@@ -25,7 +25,7 @@ StoryForwardInfo::StoryForwardInfo(Td *td, telegram_api::object_ptr<telegram_api
       dialog_id_ = {};
       story_id_ = {};
     } else {
-      td->messages_manager_->force_create_dialog(dialog_id_, "StoryForwardInfo", true);
+      td->dialog_manager_->force_create_dialog(dialog_id_, "StoryForwardInfo", true);
     }
   } else if ((fwd_header->flags_ & telegram_api::storyFwdHeader::FROM_NAME_MASK) != 0) {
     if (fwd_header->story_id_ != 0) {
@@ -50,7 +50,7 @@ td_api::object_ptr<td_api::storyRepostInfo> StoryForwardInfo::get_story_repost_i
   auto origin = [&]() -> td_api::object_ptr<td_api::StoryOrigin> {
     if (dialog_id_.is_valid() && story_id_.is_valid()) {
       return td_api::make_object<td_api::storyOriginPublicStory>(
-          td->messages_manager_->get_chat_id_object(dialog_id_, "storyOriginPublicStory"), story_id_.get());
+          td->dialog_manager_->get_chat_id_object(dialog_id_, "storyOriginPublicStory"), story_id_.get());
     }
     return td_api::make_object<td_api::storyOriginHiddenUser>(sender_name_);
   }();

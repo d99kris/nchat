@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -21,7 +21,7 @@
 #include "td/telegram/net/NetQuery.h"
 #include "td/telegram/net/NetQueryDispatcher.h"
 #include "td/telegram/net/NetType.h"
-#include "td/telegram/net/PublicRsaKeyShared.h"
+#include "td/telegram/net/PublicRsaKeySharedMain.h"
 #include "td/telegram/net/Session.h"
 #include "td/telegram/OptionManager.h"
 #include "td/telegram/Premium.h"
@@ -442,12 +442,13 @@ static ActorOwn<> get_full_config(DcOption option, Promise<tl_object_ptr<telegra
 
   class SimpleAuthData final : public AuthDataShared {
    public:
-    explicit SimpleAuthData(DcId dc_id) : dc_id_(dc_id) {
+    explicit SimpleAuthData(DcId dc_id)
+        : dc_id_(dc_id), public_rsa_key_(PublicRsaKeySharedMain::create(G()->is_test_dc())) {
     }
     DcId dc_id() const final {
       return dc_id_;
     }
-    const std::shared_ptr<PublicRsaKeyShared> &public_rsa_key() final {
+    const std::shared_ptr<mtproto::PublicRsaKeyInterface> &public_rsa_key() final {
       return public_rsa_key_;
     }
     mtproto::AuthKey get_auth_key() final {
@@ -492,10 +493,9 @@ static ActorOwn<> get_full_config(DcOption option, Promise<tl_object_ptr<telegra
 
    private:
     DcId dc_id_;
-    std::shared_ptr<PublicRsaKeyShared> public_rsa_key_ =
-        std::make_shared<PublicRsaKeyShared>(DcId::empty(), G()->is_test_dc());
+    std::shared_ptr<mtproto::PublicRsaKeyInterface> public_rsa_key_;
+    vector<unique_ptr<Listener>> auth_key_listeners_;
 
-    std::vector<unique_ptr<Listener>> auth_key_listeners_;
     void notify() {
       td::remove_if(auth_key_listeners_, [&](auto &listener) {
         CHECK(listener != nullptr);
@@ -506,6 +506,7 @@ static ActorOwn<> get_full_config(DcOption option, Promise<tl_object_ptr<telegra
     string auth_key_key() const {
       return PSTRING() << "config_recovery_auth" << dc_id().get_raw_id();
     }
+
     string future_salts_key() const {
       return PSTRING() << "config_recovery_salt" << dc_id().get_raw_id();
     }
@@ -866,8 +867,6 @@ class ConfigRecoverer final : public Actor {
     if (wakeup_timestamp) {
       VLOG(config_recoverer) << "Wakeup in " << format::as_time(wakeup_timestamp.in());
       set_timeout_at(wakeup_timestamp.at());
-    } else {
-      VLOG(config_recoverer) << "Wakeup never";
     }
   }
 
@@ -943,7 +942,8 @@ void ConfigManager::start_up() {
   send_closure(config_recoverer_, &ConfigRecoverer::on_dc_options_update, load_dc_options_update());
 
   auto expire_time = load_config_expire_time();
-  bool reload_config_on_restart = true;
+  auto auth_manager = G()->td().get_actor_unsafe()->auth_manager_.get();
+  bool reload_config_on_restart = auth_manager == nullptr || !auth_manager->is_bot();
   if (expire_time.is_in_past() || reload_config_on_restart) {
     request_config(false);
   } else {
@@ -1497,7 +1497,8 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
           key == "getfile_experimental_params" || key == "message_animated_emoji_max" ||
           key == "stickers_emoji_cache_time" || key == "stories_export_nopublic_link" || key == "test" ||
           key == "upload_max_fileparts_default" || key == "upload_max_fileparts_premium" ||
-          key == "wallet_blockchain_name" || key == "wallet_config" || key == "wallet_enabled" || key == "channel_color_level_min") {
+          key == "wallet_blockchain_name" || key == "wallet_config" || key == "wallet_enabled" ||
+          key == "channel_color_level_min") {
         continue;
       }
       if (key == "ignore_restriction_reasons") {
@@ -1972,8 +1973,21 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
       }
       if (key == "channel_bg_icon_level_min" || key == "channel_custom_wallpaper_level_min" ||
           key == "channel_emoji_status_level_min" || key == "channel_profile_bg_icon_level_min" ||
-          key == "channel_wallpaper_level_min") {
+          key == "channel_wallpaper_level_min" || key == "pm_read_date_expire_period" ||
+          key == "group_transcribe_level_min" || key == "group_emoji_stickers_level_min" ||
+          key == "group_profile_bg_icon_level_min" || key == "group_emoji_status_level_min" ||
+          key == "group_wallpaper_level_min" || key == "group_custom_wallpaper_level_min") {
         G()->set_option_integer(key, get_json_value_int(std::move(key_value->value_), key));
+        continue;
+      }
+      if (key == "quick_replies_limit") {
+        G()->set_option_integer("quick_reply_shortcut_count_max",
+                                get_json_value_int(std::move(key_value->value_), key));
+        continue;
+      }
+      if (key == "quick_reply_messages_limit") {
+        G()->set_option_integer("quick_reply_shortcut_message_count_max",
+                                get_json_value_int(std::move(key_value->value_), key));
         continue;
       }
 

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -8,6 +8,7 @@
 
 #include "td/telegram/AuthManager.h"
 #include "td/telegram/ContactsManager.h"
+#include "td/telegram/DialogManager.h"
 #include "td/telegram/MessagesManager.h"
 #include "td/telegram/Td.h"
 
@@ -21,7 +22,7 @@ td_api::object_ptr<td_api::MessageSender> get_message_sender_object_const(Td *td
                                                                           const char *source) {
   if (dialog_id.is_valid() && td->messages_manager_->have_dialog(dialog_id)) {
     return td_api::make_object<td_api::messageSenderChat>(
-        td->messages_manager_->get_chat_id_object(dialog_id, "get_message_sender_object_const"));
+        td->dialog_manager_->get_chat_id_object(dialog_id, "get_message_sender_object_const"));
   }
   if (!user_id.is_valid()) {
     // can happen only if the server sends a message with wrong sender
@@ -42,8 +43,7 @@ td_api::object_ptr<td_api::MessageSender> get_message_sender_object_const(Td *td
 td_api::object_ptr<td_api::MessageSender> get_message_sender_object(Td *td, UserId user_id, DialogId dialog_id,
                                                                     const char *source) {
   if (dialog_id.is_valid() && !td->messages_manager_->have_dialog(dialog_id)) {
-    LOG(ERROR) << "Failed to find " << dialog_id << " from " << source;
-    td->messages_manager_->force_create_dialog(dialog_id, source);
+    td->dialog_manager_->force_create_dialog(dialog_id, source, true);
   }
   if (!user_id.is_valid() && td->auth_manager_->is_bot()) {
     td->contacts_manager_->add_anonymous_bot_user();
@@ -70,14 +70,14 @@ td_api::object_ptr<td_api::MessageSender> get_min_message_sender_object(Td *td, 
     }
   } else {
     if (!td->messages_manager_->have_dialog(dialog_id) &&
-        (td->messages_manager_->have_dialog_info(dialog_id) ||
+        (td->dialog_manager_->have_dialog_info(dialog_id) ||
          (dialog_type == DialogType::Channel && td->contacts_manager_->have_min_channel(dialog_id.get_channel_id())))) {
       LOG(INFO) << "Force creation of " << dialog_id;
-      td->messages_manager_->force_create_dialog(dialog_id, source, true);
+      td->dialog_manager_->force_create_dialog(dialog_id, source, true);
     }
     if (td->messages_manager_->have_dialog(dialog_id)) {
       return td_api::make_object<td_api::messageSenderChat>(
-          td->messages_manager_->get_chat_id_object(dialog_id, "get_min_message_sender_object"));
+          td->dialog_manager_->get_chat_id_object(dialog_id, "get_min_message_sender_object"));
     }
   }
   LOG(ERROR) << "Can't return unknown " << dialog_id << " from " << source;
@@ -100,10 +100,10 @@ vector<DialogId> get_message_sender_dialog_ids(Td *td,
         continue;
       }
     } else {
-      if (!td->messages_manager_->have_dialog_info(dialog_id)) {
+      if (!td->dialog_manager_->have_dialog_info(dialog_id)) {
         continue;
       }
-      td->messages_manager_->force_create_dialog(dialog_id, "get_message_sender_dialog_ids");
+      td->dialog_manager_->force_create_dialog(dialog_id, "get_message_sender_dialog_ids");
       if (!td->messages_manager_->have_dialog(dialog_id)) {
         continue;
       }
@@ -157,7 +157,7 @@ Result<DialogId> get_message_sender_dialog_id(Td *td,
       bool know_dialog =
           dialog_id.get_type() == DialogType::User
               ? td->contacts_manager_->have_user_force(dialog_id.get_user_id(), "get_message_sender_dialog_id 2")
-              : td->messages_manager_->have_dialog_force(dialog_id, "get_message_sender_dialog_id");
+              : td->dialog_manager_->have_dialog_force(dialog_id, "get_message_sender_dialog_id");
       if (check_access && !know_dialog) {
         return Status::Error(400, "Unknown chat identifier specified");
       }

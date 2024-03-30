@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -20,6 +20,8 @@
 #include "td/utils/SliceBuilder.h"
 #include "td/utils/Status.h"
 #include "td/utils/utf8.h"
+
+#include <algorithm>
 
 namespace td {
 
@@ -136,6 +138,26 @@ td_api::object_ptr<td_api::botCommands> BotCommands::get_bot_commands_object(Td 
   auto commands = transform(commands_, [](const auto &command) { return command.get_bot_command_object(); });
   return td_api::make_object<td_api::botCommands>(
       td->contacts_manager_->get_user_id_object(bot_user_id_, "get_bot_commands_object"), std::move(commands));
+}
+
+bool BotCommands::update_all_bot_commands(vector<BotCommands> &all_bot_commands, BotCommands &&bot_commands) {
+  auto is_from_bot = [bot_user_id = bot_commands.bot_user_id_](const BotCommands &commands) {
+    return commands.bot_user_id_ == bot_user_id;
+  };
+
+  if (bot_commands.commands_.empty()) {
+    return td::remove_if(all_bot_commands, is_from_bot);
+  }
+  auto it = std::find_if(all_bot_commands.begin(), all_bot_commands.end(), is_from_bot);
+  if (it != all_bot_commands.end()) {
+    if (*it != bot_commands) {
+      *it = std::move(bot_commands);
+      return true;
+    }
+    return false;
+  }
+  all_bot_commands.push_back(std::move(bot_commands));
+  return true;
 }
 
 bool operator==(const BotCommands &lhs, const BotCommands &rhs) {

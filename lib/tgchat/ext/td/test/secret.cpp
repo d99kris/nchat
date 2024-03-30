@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -364,7 +364,7 @@ class FakeBinlog final
   FakeBinlog() {
     register_actor("FakeBinlog", this).release();
   }
-  void force_sync(Promise<> promise) final {
+  void force_sync(Promise<> promise, const char *source) final {
     if (pending_events_.empty()) {
       pending_events_.emplace_back();
     }
@@ -639,7 +639,7 @@ class Master final : public Actor {
       if (binlog_generation != binlog_generation_) {
         return promise.set_error(Status::Error("Binlog generation mismatch"));
       }
-      binlog_->force_sync(std::move(promise));
+      binlog_->force_sync(std::move(promise), "sync_binlog");
     }
     void on_closed() {
       LOG(INFO) << "CLOSED";

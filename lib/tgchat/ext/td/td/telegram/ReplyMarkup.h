@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -103,9 +103,12 @@ StringBuilder &operator<<(StringBuilder &string_builder, const ReplyMarkup &repl
 unique_ptr<ReplyMarkup> get_reply_markup(tl_object_ptr<telegram_api::ReplyMarkup> &&reply_markup_ptr, bool is_bot,
                                          bool only_inline_keyboard, bool message_contains_mention);
 
-Result<unique_ptr<ReplyMarkup>> get_reply_markup(tl_object_ptr<td_api::ReplyMarkup> &&reply_markup_ptr, bool is_bot,
-                                                 bool only_inline_keyboard, bool request_buttons_allowed,
-                                                 bool switch_inline_buttons_allowed) TD_WARN_UNUSED_RESULT;
+Result<unique_ptr<ReplyMarkup>> get_reply_markup(td_api::object_ptr<td_api::ReplyMarkup> &&reply_markup_ptr,
+                                                 bool is_bot, bool only_inline_keyboard, bool request_buttons_allowed,
+                                                 bool switch_inline_buttons_allowed);
+
+Result<unique_ptr<ReplyMarkup>> get_reply_markup(td_api::object_ptr<td_api::ReplyMarkup> &&reply_markup_ptr,
+                                                 DialogId dialog_id, bool is_bot, bool is_anonymous);
 
 unique_ptr<ReplyMarkup> dup_reply_markup(const unique_ptr<ReplyMarkup> &reply_markup);
 

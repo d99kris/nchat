@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -1033,6 +1033,10 @@ void ConnectionCreator::on_dc_options(DcOptions new_dc_options) {
   VLOG(connections) << "SAVE " << new_dc_options;
   G()->td_db()->get_binlog_pmc()->set("dc_options", serialize(new_dc_options));
   dc_options_set_.reset();
+  add_dc_options(std::move(new_dc_options));
+}
+
+void ConnectionCreator::add_dc_options(DcOptions &&new_dc_options) {
   dc_options_set_.add_dc_options(get_default_dc_options(G()->is_test_dc()));
 #if !TD_EMSCRIPTEN  // FIXME
   dc_options_set_.add_dc_options(std::move(new_dc_options));
@@ -1091,7 +1095,7 @@ void ConnectionCreator::start_up() {
   if (status.is_error()) {
     on_dc_options(DcOptions());
   } else {
-    on_dc_options(std::move(dc_options));
+    add_dc_options(std::move(dc_options));
   }
 
   if (G()->td_db()->get_binlog_pmc()->get("proxy_max_id") != "2" ||

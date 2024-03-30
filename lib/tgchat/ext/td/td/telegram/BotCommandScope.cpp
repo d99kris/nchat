@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -9,7 +9,7 @@
 #include "td/telegram/AccessRights.h"
 #include "td/telegram/AuthManager.h"
 #include "td/telegram/ContactsManager.h"
-#include "td/telegram/MessagesManager.h"
+#include "td/telegram/DialogManager.h"
 #include "td/telegram/Td.h"
 
 namespace td {
@@ -62,10 +62,10 @@ Result<BotCommandScope> BotCommandScope::get_bot_command_scope(Td *td,
       return BotCommandScope(Type::Default);
   }
 
-  if (!td->messages_manager_->have_dialog_force(dialog_id, "get_bot_command_scope")) {
+  if (!td->dialog_manager_->have_dialog_force(dialog_id, "get_bot_command_scope")) {
     return Status::Error(400, "Chat not found");
   }
-  if (!td->messages_manager_->have_input_peer(dialog_id, AccessRights::Read)) {
+  if (!td->dialog_manager_->have_input_peer(dialog_id, AccessRights::Read)) {
     return Status::Error(400, "Can't access the chat");
   }
   switch (dialog_id.get_type()) {
@@ -93,7 +93,7 @@ Result<BotCommandScope> BotCommandScope::get_bot_command_scope(Td *td,
 telegram_api::object_ptr<telegram_api::BotCommandScope> BotCommandScope::get_input_bot_command_scope(
     const Td *td) const {
   auto input_peer =
-      dialog_id_.is_valid() ? td->messages_manager_->get_input_peer(dialog_id_, AccessRights::Read) : nullptr;
+      dialog_id_.is_valid() ? td->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Read) : nullptr;
   auto r_input_user = td->contacts_manager_->get_input_user(user_id_);
   auto input_user = r_input_user.is_ok() ? r_input_user.move_as_ok() : nullptr;
   switch (type_) {
