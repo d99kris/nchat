@@ -46,7 +46,7 @@ void UiColorConfig::Init()
     { "status_color_bg", "" },
     { "status_color_fg", "" },
     { "list_attr", "" },
-    { "list_attr_selected", "bold" },
+    { "list_attr_selected", "reverse" },
     { "list_color_bg", "" },
     { "list_color_fg", "" },
     { "listborder_attr", "" },

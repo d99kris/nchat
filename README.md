@@ -661,7 +661,7 @@ This configuration file holds user interface color settings. Default content:
     history_text_sent_color_bg=
     history_text_sent_color_fg=gray
     list_attr=
-    list_attr_selected=bold
+    list_attr_selected=reverse
     list_color_bg=
     list_color_fg=
     listborder_attr=
