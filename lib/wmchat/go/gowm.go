@@ -549,8 +549,8 @@ func (handler *WmEventHandler) HandleEvent(rawEvt interface{}) {
 		LOG_TRACE(fmt.Sprintf("%#v - %#v / %#v", evt, evt.Index, evt.SyncActionValue))
 
 	case *events.LoggedOut:
-		// logged out, need re-init?
 		LOG_TRACE(fmt.Sprintf("%#v", evt))
+		handler.HandleLoggedOut()
 
 	case *events.QR:
 		// handled in WmLogin
@@ -811,6 +811,14 @@ func (handler *WmEventHandler) HandleMute(mute *events.Mute) {
 
 	LOG_TRACE(fmt.Sprintf("Call CWmUpdateMuteNotify %s %s", chatId, strconv.FormatBool(isMuted)))
 	CWmUpdateMuteNotify(connId, chatId, BoolToInt(isMuted))
+}
+
+func (handler *WmEventHandler) HandleLoggedOut() {
+	LOG_INFO("logged out by server, reinit")
+	connId := handler.connId
+
+	LOG_TRACE(fmt.Sprintf("Call CWmReinit"))
+	CWmReinit(connId)
 }
 
 func GetNameFromContactInfo(contactInfo types.ContactInfo) string {

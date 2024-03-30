@@ -1,6 +1,6 @@
 // wmchat.cpp
 //
-// Copyright (c) 2020-2023 Kristofer Berggren
+// Copyright (c) 2020-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -105,8 +105,11 @@ bool WmChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_Profi
 
 bool WmChat::LoadProfile(const std::string& p_ProfilesDir, const std::string& p_ProfileId)
 {
-  m_ProfileDir = p_ProfilesDir + "/" + p_ProfileId;
-  m_ProfileId = p_ProfileId;
+  if (!p_ProfilesDir.empty() && !p_ProfileId.empty())
+  {
+    m_ProfileDir = p_ProfilesDir + "/" + p_ProfileId;
+    m_ProfileId = p_ProfileId;
+  }
 
   std::string proxyUrl = GetProxyUrl();
   int32_t sendType = AppConfig::GetBool("attachment_send_type") ? 1 : 0;
@@ -147,8 +150,6 @@ bool WmChat::CloseProfile()
   int rv = CWmCleanup(m_ConnId);
   RemoveInstance(m_ConnId);
   m_ConnId = -1;
-  m_ProfileDir = "";
-  m_ProfileId = "";
 
   Cleanup();
 
@@ -814,6 +815,17 @@ void WmUpdateMuteNotify(int p_ConnId, char* p_ChatId, int p_IsMuted)
   }
 
   free(p_ChatId);
+}
+
+void WmReinit(int p_ConnId)
+{
+  WmChat* instance = WmChat::GetInstance(p_ConnId);
+  if (instance == nullptr) return;
+
+  instance->Logout();
+  instance->CloseProfile();
+  instance->LoadProfile("", "");
+  instance->Login();
 }
 
 void WmSetStatus(int p_Flags)

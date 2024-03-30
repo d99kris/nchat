@@ -1,6 +1,6 @@
 // cgowm.go
 //
-// Copyright (c) 2020-2023 Kristofer Berggren
+// Copyright (c) 2020-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -17,6 +17,7 @@ package main
 // extern void WmNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_FilePath, int p_FileStatus, int p_Action);
 // extern void WmDeleteChatNotify(int p_ConnId, char* p_ChatId);
 // extern void WmUpdateMuteNotify(int p_ConnId, char* p_ChatId, int p_IsMuted);
+// extern void WmReinit(int p_ConnId);
 // extern void WmSetStatus(int p_Flags);
 // extern void WmClearStatus(int p_Flags);
 // extern void WmLogTrace(char* p_Filename, int p_LineNo, char* p_Message);
@@ -131,6 +132,10 @@ func CWmDeleteChatNotify(connId int, chatId string) {
 
 func CWmUpdateMuteNotify(connId int, chatId string, isMuted int) {
 	C.WmUpdateMuteNotify(C.int(connId), C.CString(chatId), C.int(isMuted))
+}
+
+func CWmReinit(connId int) {
+	C.WmReinit(C.int(connId))
 }
 
 func CWmSetStatus(flags int) {
