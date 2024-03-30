@@ -72,7 +72,7 @@ public:
     std::shared_ptr<T> protocol;
 #ifdef HAS_DYNAMICLOAD
     std::string libPath =
-      FileUtil::DirName(FileUtil::GetSelfPath()) + "/../lib/" + T::GetLibName() + FileUtil::GetLibSuffix();
+      FileUtil::DirName(FileUtil::GetSelfPath()) + "/../" CMAKE_INSTALL_LIBDIR "/" + T::GetLibName() + FileUtil::GetLibSuffix();
     std::string createFunc = T::GetCreateFunc();
     void* handle = dlopen(libPath.c_str(), RTLD_LAZY);
     if (handle == nullptr)

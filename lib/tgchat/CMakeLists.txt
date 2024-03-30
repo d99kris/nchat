@@ -46,7 +46,7 @@ add_library(tgchat SHARED
   src/tgchat.cpp
   src/tgchat.h
 )
-install(TARGETS tgchat DESTINATION lib)
+install(TARGETS tgchat DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 # Headers
 target_include_directories(tgchat PRIVATE "../../ext/apathy")
@@ -58,7 +58,7 @@ target_include_directories(tgchat PRIVATE "ext/td")
 add_subdirectory(ext/td EXCLUDE_FROM_ALL)
 
 set(TDLIBNAME "libtdclientshared${CMAKE_SHARED_LIBRARY_SUFFIX}")
-install(FILES ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${TDLIBNAME} DESTINATION lib)
+install(FILES ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${TDLIBNAME} DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 # Linking
 target_link_libraries(tgchat PUBLIC ncutil tdclientshared)

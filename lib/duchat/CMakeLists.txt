@@ -14,7 +14,7 @@ add_library(duchat SHARED
   src/duchat.cpp
   src/duchat.h
 )
-install(TARGETS duchat DESTINATION lib)
+install(TARGETS duchat DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 # Headers
 target_include_directories(duchat PRIVATE "../common/src")

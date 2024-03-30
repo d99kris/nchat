@@ -14,7 +14,7 @@ add_library(wmchat SHARED
   src/wmchat.cpp
   src/wmchat.h
 )
-install(TARGETS wmchat DESTINATION lib)
+install(TARGETS wmchat DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 # Dependency libraries
 add_subdirectory(go)

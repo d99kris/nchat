@@ -59,7 +59,7 @@ add_library(ncutil SHARED
   src/timeutil.cpp
   src/timeutil.h
 )
-install(TARGETS ncutil DESTINATION lib)
+install(TARGETS ncutil DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 CHECK_INCLUDE_FILE(execinfo.h FOUND_EXECINFO)
 if(FOUND_EXECINFO)
