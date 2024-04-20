@@ -60,6 +60,7 @@ public:
 enum MessageType
 {
   UnknownType = 0,
+  // Request messages
   RequestMessageType,
   GetContactsRequestType,
   GetChatsRequestType,
@@ -84,6 +85,8 @@ enum MessageType
   GetAvailableReactionsRequestType,
   SendReactionRequestType,
   GetUnreadReactionsRequestType,
+  ReinitRequestType,
+  // Service messages
   ServiceMessageType,
   NewContactsNotifyType,
   NewChatsNotifyType,
@@ -382,6 +385,12 @@ class GetUnreadReactionsRequest : public RequestMessage
 public:
   virtual MessageType GetMessageType() const { return GetUnreadReactionsRequestType; }
   std::string chatId;
+};
+
+class ReinitRequest : public RequestMessage
+{
+public:
+  virtual MessageType GetMessageType() const { return ReinitRequestType; }
 };
 
 // Service messages

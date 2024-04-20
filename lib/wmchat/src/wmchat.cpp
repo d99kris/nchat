@@ -564,6 +564,17 @@ void WmChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
       }
       break;
 
+    case ReinitRequestType:
+      {
+        LOG_DEBUG("reinit");
+
+        CWmLogout(m_ConnId);
+        CloseProfile();
+        LoadProfile("", "");
+        CWmLogin(m_ConnId);
+      }
+      break;
+
     case DeferNotifyRequestType:
       {
         std::shared_ptr<DeferNotifyRequest> deferNotifyRequest =
@@ -916,10 +927,9 @@ void WmReinit(int p_ConnId)
   WmChat* instance = WmChat::GetInstance(p_ConnId);
   if (instance == nullptr) return;
 
-  instance->Logout();
-  instance->CloseProfile();
-  instance->LoadProfile("", "");
-  instance->Login();
+  std::shared_ptr<ReinitRequest> reinitRequest =
+    std::make_shared<ReinitRequest>();
+  instance->SendRequest(reinitRequest);
 }
 
 void WmSetProtocolUiControl(int p_ConnId, int p_IsTakeControl)
