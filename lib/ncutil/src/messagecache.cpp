@@ -1,6 +1,6 @@
 // messagecache.cpp
 //
-// Copyright (c) 2020-2023 Kristofer Berggren
+// Copyright (c) 2020-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -39,6 +39,7 @@ bool MessageCache::m_CacheEnabled = true;
 // @note: minor db schema updates can simply update table name to avoid losing other tables data
 static const std::string s_TableContacts = "contacts2";
 static const std::string s_TableChats = "chats2";
+static const std::string s_TableMessages = "messages";
 
 void MessageCache::Init()
 {
@@ -229,7 +230,7 @@ void MessageCache::AddProfile(const std::string& p_ProfileId, bool p_CheckSync, 
     *m_Dbs[p_ProfileId] << "PRAGMA journal_mode = MEMORY";
 
     // create table if not exists
-    *m_Dbs[p_ProfileId] << "CREATE TABLE IF NOT EXISTS messages ("
+    *m_Dbs[p_ProfileId] << "CREATE TABLE IF NOT EXISTS " + s_TableMessages + " ("
       "chatId TEXT,"
       "id TEXT,"
       "senderId TEXT,"
@@ -358,7 +359,7 @@ bool MessageCache::FetchMessagesFrom(const std::string& p_ProfileId, const std::
     if (!p_FromMsgId.empty())
     {
       // *INDENT-OFF*
-      *m_Dbs[p_ProfileId] << "SELECT timeSent FROM messages WHERE chatId = ? AND id = ?;"
+      *m_Dbs[p_ProfileId] << "SELECT timeSent FROM " + s_TableMessages + " WHERE chatId = ? AND id = ?;"
                           << p_ChatId << p_FromMsgId >>
         [&](const int64_t& timeSent)
         {
@@ -372,7 +373,7 @@ bool MessageCache::FetchMessagesFrom(const std::string& p_ProfileId, const std::
     }
 
     // *INDENT-OFF*
-    *m_Dbs[p_ProfileId] << "SELECT COUNT(*) FROM messages WHERE chatId = ? AND timeSent < ?;"
+    *m_Dbs[p_ProfileId] << "SELECT COUNT(*) FROM " + s_TableMessages + " WHERE chatId = ? AND timeSent < ?;"
                         << p_ChatId << fromMsgIdTimeSent >>
       [&](const int& countRes)
       {
@@ -434,7 +435,7 @@ bool MessageCache::FetchOneMessage(const std::string& p_ProfileId, const std::st
   try
   {
     // *INDENT-OFF*
-    *m_Dbs[p_ProfileId] << "SELECT COUNT(*) FROM messages WHERE chatId = ? AND id = ?;"
+    *m_Dbs[p_ProfileId] << "SELECT COUNT(*) FROM " + s_TableMessages + " WHERE chatId = ? AND id = ?;"
                         << p_ChatId << p_MsgId >>
       [&](const int& countRes)
       {
@@ -739,7 +740,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
             try
             {
               // *INDENT-OFF*
-              *m_Dbs[profileId] << "SELECT COUNT(*) FROM messages WHERE chatId = ? AND id IN (" +
+              *m_Dbs[profileId] << "SELECT COUNT(*) FROM " + s_TableMessages + " WHERE chatId = ? AND id IN (" +
                 msgIds + ");" << chatId >>
                 [&](const int& countRes)
                 {
@@ -769,7 +770,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
           *m_Dbs[profileId] << "BEGIN;";
           for (const auto& msg : addMessagesRequest->chatMessages)
           {
-            *m_Dbs[profileId] << "INSERT INTO messages "
+            *m_Dbs[profileId] << "INSERT INTO " + s_TableMessages + " "
               "(chatId, id, senderId, text, quotedId, quotedText, quotedSender, fileInfo, timeSent, isOutgoing, isRead) VALUES "
               "(?,?,?,?,?,?,?,?,?,?,?);" <<
               chatId << msg.id << msg.senderId << msg.text << msg.quotedId << msg.quotedText << msg.quotedSender <<
@@ -867,7 +868,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
               chatIdMuted[chatId] = isMuted;
             };
 
-          *m_Dbs[profileId] << "SELECT chatId, MAX(timeSent), isOutgoing, isRead FROM messages "
+          *m_Dbs[profileId] << "SELECT chatId, MAX(timeSent), isOutgoing, isRead FROM " + s_TableMessages + " "
             "GROUP BY chatId;" >>
             [&](const std::string& chatId, int64_t timeSent, int32_t isOutgoing, int32_t isRead)
             {
@@ -956,7 +957,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
           try
           {
             // *INDENT-OFF*
-            *m_Dbs[profileId] << "SELECT timeSent FROM messages WHERE chatId = ? AND id = ?;" <<
+            *m_Dbs[profileId] << "SELECT timeSent FROM " + s_TableMessages + " WHERE chatId = ? AND id = ?;" <<
               chatId << fromMsgId >>
               [&](const int64_t& timeSent)
               {
@@ -1032,7 +1033,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
 
         try
         {
-          *m_Dbs[profileId] << "DELETE FROM messages WHERE chatId = ? AND id = ?;" << chatId << msgId;
+          *m_Dbs[profileId] << "DELETE FROM " + s_TableMessages + " WHERE chatId = ? AND id = ?;" << chatId << msgId;
         }
         catch (const sqlite::sqlite_exception& ex)
         {
@@ -1055,7 +1056,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
 
         try
         {
-          *m_Dbs[profileId] << "DELETE FROM messages WHERE chatId = ?;" << chatId;
+          *m_Dbs[profileId] << "DELETE FROM " + s_TableMessages + " WHERE chatId = ?;" << chatId;
 
           *m_Dbs[profileId] << "DELETE FROM " + s_TableChats + " WHERE id = ?;" << chatId;
         }
@@ -1082,7 +1083,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
 
         try
         {
-          *m_Dbs[profileId] << "UPDATE messages SET isRead = ? WHERE chatId = ? AND id = ?;" << (int)isRead << chatId <<
+          *m_Dbs[profileId] << "UPDATE " + s_TableMessages + " SET isRead = ? WHERE chatId = ? AND id = ?;" << (int)isRead << chatId <<
             msgId;
         }
         catch (const sqlite::sqlite_exception& ex)
@@ -1108,7 +1109,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
 
         try
         {
-          *m_Dbs[profileId] << "UPDATE messages SET fileInfo = ? WHERE chatId = ? AND id = ?;"
+          *m_Dbs[profileId] << "UPDATE " + s_TableMessages + " SET fileInfo = ? WHERE chatId = ? AND id = ?;"
                             << fileInfo << chatId << msgId;
         }
         catch (const sqlite::sqlite_exception& ex)
@@ -1164,7 +1165,7 @@ void MessageCache::PerformFetchMessagesFrom(const std::string& p_ProfileId, cons
     // *INDENT-OFF*
     *m_Dbs[p_ProfileId] <<
       "SELECT id, senderId, text, quotedId, quotedText, quotedSender, fileInfo, timeSent, "
-      "isOutgoing, isRead FROM messages WHERE chatId = ? AND timeSent < ? "
+      "isOutgoing, isRead FROM " + s_TableMessages + " WHERE chatId = ? AND timeSent < ? "
       "ORDER BY timeSent DESC LIMIT ?;" << p_ChatId << p_FromMsgIdTimeSent << p_Limit >>
       [&](const std::string& id, const std::string& senderId, const std::string& text,
           const std::string& quotedId, const std::string& quotedText,
@@ -1202,7 +1203,7 @@ void MessageCache::PerformFetchOneMessage(const std::string& p_ProfileId, const 
     // *INDENT-OFF*
     *m_Dbs[p_ProfileId] <<
       "SELECT id, senderId, text, quotedId, quotedText, quotedSender, fileInfo, timeSent, "
-      "isOutgoing, isRead FROM messages WHERE chatId = ? AND id = ?;" << p_ChatId << p_MsgId >>
+      "isOutgoing, isRead FROM " + s_TableMessages + " WHERE chatId = ? AND id = ?;" << p_ChatId << p_MsgId >>
       [&](const std::string& id, const std::string& senderId, const std::string& text,
           const std::string& quotedId, const std::string& quotedText,
           const std::string& quotedSender, const std::string& fileInfo,
