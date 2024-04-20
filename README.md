@@ -18,7 +18,7 @@ Features
 - Message read receipt
 - Receive / send markdown formatted messages
 - Reply / delete / edit / send messages
-- Searchable list dialogs for selecting files, emojis, contacts
+- List dialogs for selecting files, emojis, contacts
 - Show user status (online, away, typing)
 - Toggle to view textized emojis vs. graphical
 - View / save media files (documents, photos, videos)
@@ -275,7 +275,7 @@ Specifies level of attachment prefetching:
 
 ### cache_enabled
 
-Specifies whether to enable (experimental) cache functionality.
+Specifies whether to enable cache functionality.
 
 ### coredump_enabled
 
