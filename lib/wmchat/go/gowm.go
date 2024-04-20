@@ -1644,10 +1644,10 @@ func WmLogin(connId int) int {
 		timeoutMs = 60000 // 60 sec timeout during setup / qr code scan
 		go func() {
 			hasGUI := HasGUI()
-			if !hasGUI {
-				LOG_TRACE(fmt.Sprintf("acquire console"))
-				CWmSetProtocolUiControl(connId, 1)
-			}
+
+			LOG_TRACE(fmt.Sprintf("acquire console"))
+			CWmSetProtocolUiControl(connId, 1)
+			fmt.Printf("Scan the Qr code to authenticate, or press CTRL-C to abort.\n")
 
 			for evt := range ch {
 				if evt.Event == "code" {
@@ -1663,10 +1663,8 @@ func WmLogin(connId int) int {
 				}
 			}
 
-			if !hasGUI {
-				LOG_TRACE(fmt.Sprintf("release console"))
-				CWmSetProtocolUiControl(connId, 0)
-			}
+			LOG_TRACE(fmt.Sprintf("release console"))
+			CWmSetProtocolUiControl(connId, 0)
 		}()
 	}
 
