@@ -1045,7 +1045,7 @@ void UiModel::DeleteChat()
 {
   std::unique_lock<std::mutex> lock(m_ModelMutex);
 
-  if (GetEditMessageActive()) return;
+  if (GetSelectMessageActive() || GetEditMessageActive()) return;
 
   static const bool confirmDeletion = UiConfig::GetBool("confirm_deletion");
   if (confirmDeletion)
