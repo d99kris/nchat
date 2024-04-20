@@ -874,6 +874,9 @@ includes the source code of the following third-party libraries:
 - [apathy](https://github.com/dlecocq/apathy) -
   Copyright 2013 Dan Lecocq - [MIT License](/ext/apathy/LICENSE)
 
+- [cereal](https://github.com/USCiLab/cereal) -
+  Copyright 2013 Randolph Voorhies, Shane Grant - [BSD-3 License](/ext/cereal/LICENSE)
+
 - [clip](https://github.com/dacap/clip) -
   Copyright 2015 David Capello - [MIT License](/ext/clip/LICENSE.txt)
 
