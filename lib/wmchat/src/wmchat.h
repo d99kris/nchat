@@ -14,6 +14,7 @@
 
 #include "config.h"
 #include "protocol.h"
+#include "sysutil.h"
 
 class WmChat : public Protocol
 {
@@ -25,12 +26,15 @@ public:
   static std::string GetCreateFunc() { return "CreateWmChat"; }
   static std::string GetSetupMessage()
   {
-#if defined(__APPLE__) || defined(__GLIBC__)
-    return "";
-#else
-    return "\nUNSUPPORTED PLATFORM:\nThe WhatsApp protocol implementation officially only supports glibc on Linux.\n"
-           "For details, refer to https://github.com/d99kris/nchat/issues/204\n";
-#endif
+    if (SysUtil::IsSupportedLibc())
+    {
+      return "";
+    }
+    else
+    {
+      return "\nUNSUPPORTED PLATFORM:\nThe WhatsApp protocol implementation officially only supports glibc on Linux.\n"
+             "For details, refer to https://github.com/d99kris/nchat/issues/204\n";
+    }
   }
 
   std::string GetProfileId() const;

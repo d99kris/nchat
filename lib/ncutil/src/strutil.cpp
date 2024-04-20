@@ -85,6 +85,19 @@ std::string StrUtil::EscapeRawUrls(const std::string& p_Str)
   return rv;
 }
 
+std::string StrUtil::ExtractString(const std::string& p_Str, const std::string& p_Prefix, const std::string& p_Suffix)
+{
+  std::size_t prefixPos = p_Str.find(p_Prefix);
+  if (prefixPos != std::string::npos)
+  {
+    std::size_t suffixPos = p_Str.find(p_Suffix, prefixPos + p_Prefix.size());
+    std::size_t len = (suffixPos != std::string::npos) ? (suffixPos - prefixPos - p_Prefix.size()) : std::string::npos;
+    return p_Str.substr(prefixPos + p_Prefix.size(), len);
+  }
+
+  return "";
+}
+
 std::vector<std::string> StrUtil::ExtractUrlsFromStr(const std::string& p_Str)
 {
   std::string str = p_Str;

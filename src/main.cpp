@@ -24,6 +24,7 @@
 #include "profiles.h"
 #include "scopeddirlock.h"
 #include "status.h"
+#include "sysutil.h"
 #include "ui.h"
 
 #ifdef HAS_DUMMY
@@ -38,6 +39,7 @@
 #include "wmchat.h"
 #endif
 
+static std::string GetFeatures();
 static void RemoveProfile();
 static std::shared_ptr<Protocol> SetupProfile();
 static void ShowHelp();
@@ -244,7 +246,13 @@ int main(int argc, char* argv[])
   const std::string& logPath = FileUtil::GetApplicationDir() + std::string("/log.txt");
   Log::Init(logPath);
   std::string appNameVersion = AppUtil::GetAppNameVersion();
-  LOG_INFO("starting %s", appNameVersion.c_str());
+  LOG_INFO("%s", appNameVersion.c_str());
+  std::string osArch = SysUtil::GetOsArch();
+  LOG_INFO("%s", osArch.c_str());
+  std::string compiler = SysUtil::GetCompiler();
+  LOG_INFO("%s", compiler.c_str());
+  std::string features = GetFeatures();
+  LOG_INFO("%s", features.c_str());
 
   // Init signal handler
   AppUtil::InitSignalHandler();
@@ -408,11 +416,30 @@ int main(int argc, char* argv[])
     rv = 1;
   }
 
-  LOG_INFO("exiting nchat");
+  LOG_INFO("exit");
 
   Log::Cleanup();
 
   return rv;
+}
+
+std::string GetFeatures()
+{
+  std::string features =
+#if defined(HAS_TELEGRAM)
+    "Telegram ON, "
+#else
+    "Telegram OFF, "
+#endif
+
+#if defined(HAS_WHATSAPP)
+    "WhatsApp ON"
+#else
+    "WhatsApp OFF"
+#endif
+  ;
+
+  return features;
 }
 
 void RemoveProfile()

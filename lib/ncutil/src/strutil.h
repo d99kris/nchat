@@ -20,6 +20,7 @@ public:
   static void DeleteToPrevMatch(std::wstring& p_Str, int& p_Pos, int p_Offs, std::wstring p_Chars);
   static std::string Emojize(const std::string& p_Str, bool p_Pad = false);
   static std::string EscapeRawUrls(const std::string& p_Str);
+  static std::string ExtractString(const std::string& p_Str, const std::string& p_Prefix, const std::string& p_Suffix);
   static std::vector<std::string> ExtractUrlsFromStr(const std::string& p_Str);
   static std::string GetPass();
   static std::string GetPhoneNumber();
