@@ -32,7 +32,7 @@ void UiKeyDump::Run()
   curs_set(0);
   timeout(0);
 
-  printw("key code dump mode - press ctrl-c or 'q' to exit\n");
+  printw("key code dump mode - press ctrl-c to exit\n");
   refresh();
 
   UiKeyConfig::Init(false);
@@ -82,7 +82,7 @@ void UiKeyDump::Run()
         ++count;
         printw("\\%o", key);
 
-        if ((key == 3) || (key == 'q'))
+        if (key == 3)
         {
           running = false;
           break;

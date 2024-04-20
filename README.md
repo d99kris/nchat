@@ -76,9 +76,10 @@ Interactive Commands for Selected Message:
     Ctrl-w      open link
     Ctrl-x      send reply to selected message
     Ctrl-z      edit selected message
-    Alt-w       external message viewer
     Alt-c       copy selected message to clipboard
+    Alt-q       jump to quoted/replied message
     Alt-s       add/remove reaction on selected message
+    Alt-w       external message viewer
 
 Interactive Commands for Text Input:
 

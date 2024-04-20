@@ -91,6 +91,8 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keyReact = UiKeyConfig::GetKey("react");
   static wint_t keySpell = UiKeyConfig::GetKey("spell");
 
+  static wint_t keyJumpQuoted = UiKeyConfig::GetKey("jump_quoted");
+
   static wint_t keyToggleList = UiKeyConfig::GetKey("toggle_list");
   static wint_t keyToggleTop = UiKeyConfig::GetKey("toggle_top");
   static wint_t keyToggleHelp = UiKeyConfig::GetKey("toggle_help");
@@ -279,6 +281,10 @@ void UiModel::KeyHandler(wint_t p_Key)
   else if (p_Key == keyExtCall)
   {
     ExternalCall();
+  }
+  else if (p_Key == keyJumpQuoted)
+  {
+    JumpQuoted();
   }
   else
   {
@@ -3474,4 +3480,42 @@ void UiModel::GetAvailableEmojis(std::set<std::string>& p_AvailableEmojis, bool&
   }
 
   LOG_DEBUG("get available reactions %d pending %d", p_AvailableEmojis.size(), p_Pending);
+}
+
+void UiModel::JumpQuoted()
+{
+  if (!GetSelectMessageActive() || GetEditMessageActive()) return;
+
+  std::unique_lock<std::mutex> lock(m_ModelMutex);
+
+  std::string quotedId;
+  const std::string profileId = m_CurrentChat.first;
+  const std::string chatId = m_CurrentChat.second;
+  const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
+  int& messageOffset = m_MessageOffset[profileId][chatId];
+  auto it = std::next(messageVec.begin(), messageOffset);
+  if (it == messageVec.end()) return;
+
+  std::string msgId = *it;
+  const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
+  auto mit = messages.find(msgId);
+  if (mit == messages.end())
+  {
+    LOG_WARNING("message %s not fetched by ui", msgId.c_str());
+    return;
+  }
+  else
+  {
+    quotedId = mit->second.quotedId;
+  }
+
+  for (auto mid = messageVec.begin(); mid != messageVec.end(); ++mid)
+  {
+    if (*mid == quotedId)
+    {
+      messageOffset = std::distance(messageVec.begin(), mid);
+      UpdateHistory();
+      break;
+    }
+  }
 }

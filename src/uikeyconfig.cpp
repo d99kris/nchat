@@ -219,6 +219,7 @@ void UiKeyConfig::Init(bool p_MapKeys)
     { "ext_edit", "\\33\\145" }, // alt/opt-e
     { "react", "\\33\\163" }, // alt/opt-s
     { "spell", "\\33\\44" }, // alt/opt-$
+    { "jump_quoted", "\\33\\161" }, // alt/opt-q
     { "toggle_emoji", "KEY_CTRLY" },
     { "toggle_help", "KEY_CTRLG" },
     { "toggle_list", "KEY_CTRLL" },

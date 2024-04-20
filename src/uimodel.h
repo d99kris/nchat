@@ -114,6 +114,7 @@ public:
   bool IsMultipleProfiles();
   std::string GetProfileDisplayName(const std::string& p_ProfileId);
   void GetAvailableEmojis(std::set<std::string>& p_AvailableEmojis, bool& p_Pending);
+  void JumpQuoted();
 
   static bool IsAttachmentDownloaded(const FileInfo& p_FileInfo);
   static bool IsAttachmentDownloadable(const FileInfo& p_FileInfo);
