@@ -1515,16 +1515,16 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
     case ConnectNotifyType:
       {
         std::shared_ptr<ConnectNotify> connectNotify = std::static_pointer_cast<ConnectNotify>(p_ServiceMessage);
+        LOG_TRACE("connect notify %d", connectNotify->success);
+        if (!HasProtocolFeature(profileId, FeatureAutoGetChatsOnLogin))
+        {
+          std::shared_ptr<GetChatsRequest> getChatsRequest = std::make_shared<GetChatsRequest>();
+          LOG_TRACE("get chats");
+          SendProtocolRequest(profileId, getChatsRequest);
+        }
+
         if (connectNotify->success)
         {
-          LOG_TRACE("connected");
-          if (!HasProtocolFeature(profileId, FeatureAutoGetChatsOnLogin))
-          {
-            std::shared_ptr<GetChatsRequest> getChatsRequest = std::make_shared<GetChatsRequest>();
-            LOG_TRACE("get chats");
-            SendProtocolRequest(profileId, getChatsRequest);
-          }
-
           SetStatusOnline(profileId, true);
         }
       }
