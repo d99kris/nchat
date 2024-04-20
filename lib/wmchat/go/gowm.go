@@ -949,6 +949,9 @@ func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg 
 	case msg.TemplateMessage != nil:
 		handler.HandleTemplateMessage(messageInfo, msg, isSync)
 
+	case msg.ReactionMessage != nil:
+		handler.HandleReactionMessage(messageInfo, msg, isSync)
+
 	default:
 		handler.HandleUnsupportedMessage(messageInfo, msg, isSync)
 	}
@@ -1331,6 +1334,31 @@ func (handler *WmEventHandler) HandleTemplateMessage(messageInfo types.MessageIn
 	UpdateTypingStatus(connId, chatId, senderId, fromMe, isOld)
 
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
+}
+
+func (handler *WmEventHandler) HandleReactionMessage(messageInfo types.MessageInfo, msg *waProto.Message, isSync bool) {
+	LOG_TRACE(fmt.Sprintf("ReactionMessage"))
+
+	connId := handler.connId
+
+	// get reaction part
+	reaction := msg.GetReactionMessage()
+	if reaction == nil {
+		LOG_WARNING(fmt.Sprintf("get reaction message failed"))
+		return
+	}
+
+	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
+	fromMe := messageInfo.IsFromMe
+	senderId := JidToStr(messageInfo.Sender)
+	text := reaction.GetText()
+	msgId := *reaction.Key.Id
+
+	CWmNewMessageReactionNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe))
+
+	// @todo: add auto-marking reactions of read, investigate why below does not work
+	//reMsgId := messageInfo.ID
+	//WmMarkMessageRead(connId, chatId, senderId, reMsgId)
 }
 
 func (handler *WmEventHandler) HandleUnsupportedMessage(messageInfo types.MessageInfo, msg *waProto.Message, isSync bool) {
@@ -2208,6 +2236,37 @@ func WmDownloadFile(connId int, chatId string, msgId string, fileId string, acti
 
 	// notify result
 	CWmNewMessageFileNotify(connId, chatId, msgId, filePath, fileStatus, action)
+
+	return 0
+}
+
+func WmSendReaction(connId int, chatId string, senderId string, msgId string, emoji string) int {
+
+	LOG_TRACE("send reaction " + strconv.Itoa(connId) + ", " + chatId + ", " + msgId + ", \"" + emoji + "\"")
+
+	// sanity check arg
+	if connId == -1 {
+		LOG_WARNING("invalid connId")
+		return -1
+	}
+
+	// get client
+	client := GetClient(connId)
+
+	// send reaction
+	chatJid, _ := types.ParseJID(chatId)
+	senderJid, _ := types.ParseJID(senderId)
+	_, sendErr :=
+		client.SendMessage(context.Background(), chatJid, client.BuildReaction(chatJid, senderJid, msgId, emoji))
+
+	if sendErr != nil {
+		LOG_WARNING(fmt.Sprintf("send reaction error %#v", sendErr))
+		return -1
+	} else {
+		LOG_TRACE(fmt.Sprintf("send reaction ok"))
+		fromMe := true //messageInfo.IsFromMe
+		CWmNewMessageReactionNotify(connId, chatId, msgId, senderId, emoji, BoolToInt(fromMe))
+	}
 
 	return 0
 }

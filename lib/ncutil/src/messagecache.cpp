@@ -16,9 +16,11 @@
 #include <sqlite_modern_cpp.h>
 
 #include "appconfig.h"
+#include "cacheutil.h"
 #include "log.h"
 #include "fileutil.h"
 #include "protocolutil.h"
+#include "serialization.h"
 #include "sqlitehelp.h"
 #include "strutil.h"
 #include "timeutil.h"
@@ -36,7 +38,6 @@ std::deque<std::shared_ptr<MessageCache::Request>> MessageCache::m_Queue;
 std::string MessageCache::m_HistoryDir;
 bool MessageCache::m_CacheEnabled = true;
 
-// @note: minor db schema updates can simply update table name to avoid losing other tables data
 static const std::string s_TableContacts = "contacts2";
 static const std::string s_TableChats = "chats2";
 static const std::string s_TableMessages = "messages";
@@ -171,6 +172,15 @@ void MessageCache::AddFromServiceMessage(const std::string& p_ProfileId,
       }
       break;
 
+    case NewMessageReactionsNotifyType:
+      {
+        std::shared_ptr<NewMessageReactionsNotify> newMessageReactionsNotify =
+          std::static_pointer_cast<NewMessageReactionsNotify>(p_ServiceMessage);
+        MessageCache::UpdateMessageReactions(p_ProfileId, newMessageReactionsNotify->chatId,
+                                             newMessageReactionsNotify->msgId, newMessageReactionsNotify->reactions);
+      }
+      break;
+
     case UpdateMuteNotifyType:
       {
         std::shared_ptr<UpdateMuteNotify> updateMuteNotify = std::static_pointer_cast<UpdateMuteNotify>(
@@ -229,39 +239,88 @@ void MessageCache::AddProfile(const std::string& p_ProfileId, bool p_CheckSync, 
     *m_Dbs[p_ProfileId] << "PRAGMA synchronous = OFF";
     *m_Dbs[p_ProfileId] << "PRAGMA journal_mode = MEMORY";
 
-    // create table if not exists
-    *m_Dbs[p_ProfileId] << "CREATE TABLE IF NOT EXISTS " + s_TableMessages + " ("
-      "chatId TEXT,"
-      "id TEXT,"
-      "senderId TEXT,"
-      "text TEXT,"
-      "quotedId TEXT,"
-      "quotedText TEXT,"
-      "quotedSender TEXT,"
-      "fileInfo TEXT,"
-      "fileStatus INT,"
-      "fileType TEXT,"
-      "timeSent INT,"
-      "isOutgoing INT,"
-      "isRead INT,"
-      "UNIQUE(chatId, id) ON CONFLICT REPLACE"
-      ");";
+    // note: use actual table names instead if variables during schema setup / update
 
-    *m_Dbs[p_ProfileId] << "CREATE TABLE IF NOT EXISTS " + s_TableContacts + " ("
-      "id TEXT,"
-      "name TEXT,"
-      "phone TEXT,"
-      "isSelf INT,"
-      "UNIQUE(id) ON CONFLICT REPLACE"
-      ");";
+    // fresh database will get version 0
+    // existing legacy database will get version 3 (as the three tables existed)
+    // existing modern database will have its stored version 4 or newer
+    *m_Dbs[p_ProfileId] << "CREATE TABLE IF NOT EXISTS version AS "
+      "SELECT COUNT(name) AS schema FROM sqlite_master WHERE TYPE='table' AND "
+      "(name='contacts2' OR name='chats2' OR name='messages');";
 
-    *m_Dbs[p_ProfileId] << "CREATE TABLE IF NOT EXISTS " + s_TableChats + " ("
-      "id TEXT,"
-      "isMuted INT,"
-      "UNIQUE(id) ON CONFLICT REPLACE"
-      ");";
+    // *INDENT-OFF*
+    int64_t schemaVersion = 0;
+    *m_Dbs[p_ProfileId] << "SELECT schema FROM version;" >>
+      [&](const int64_t& schema)
+      {
+        schemaVersion = schema;
+      };
+    // *INDENT-ON*
 
-    // @todo: create index (id, timeSent, chatId)
+    LOG_DEBUG("detected db schema %d", schemaVersion);
+
+    if (schemaVersion < 3)
+    {
+      LOG_INFO("create base db schema");
+
+      *m_Dbs[p_ProfileId] << "CREATE TABLE IF NOT EXISTS messages ("
+        "chatId TEXT,"
+        "id TEXT,"
+        "senderId TEXT,"
+        "text TEXT,"
+        "quotedId TEXT,"
+        "quotedText TEXT,"
+        "quotedSender TEXT,"
+        "fileInfo TEXT,"
+        "fileStatus INT,"
+        "fileType TEXT,"
+        "timeSent INT,"
+        "isOutgoing INT,"
+        "isRead INT,"
+        "UNIQUE(chatId, id) ON CONFLICT REPLACE"
+        ");";
+
+      *m_Dbs[p_ProfileId] << "CREATE TABLE IF NOT EXISTS contacts2 ("
+        "id TEXT,"
+        "name TEXT,"
+        "phone TEXT,"
+        "isSelf INT,"
+        "UNIQUE(id) ON CONFLICT REPLACE"
+        ");";
+
+      *m_Dbs[p_ProfileId] << "CREATE TABLE IF NOT EXISTS chats2 ("
+        "id TEXT,"
+        "isMuted INT,"
+        "UNIQUE(id) ON CONFLICT REPLACE"
+        ");";
+
+      schemaVersion = 3;
+      *m_Dbs[p_ProfileId] << "UPDATE version "
+        "SET schema=?;" << schemaVersion;
+    }
+
+    if (schemaVersion == 3)
+    {
+      LOG_INFO("update db schema 3 to 4");
+
+      *m_Dbs[p_ProfileId] << "ALTER TABLE messages ADD COLUMN "
+        "reactions BLOB;";
+
+      schemaVersion = 4;
+      *m_Dbs[p_ProfileId] << "UPDATE version "
+        "SET schema=?;" << schemaVersion;
+    }
+
+    static const int64_t s_SchemaVersion = 4;
+    if (schemaVersion > s_SchemaVersion)
+    {
+      LOG_WARNING("cache db schema %d from newer nchat version detected, if cache issues are encountered "
+                  "please delete ~/.nchat/history or perform a fresh nchat setup", schemaVersion);
+    }
+    else
+    {
+      LOG_TRACE("db schema ready");
+    }
   }
   catch (const sqlite::sqlite_exception& ex)
   {
@@ -528,6 +587,20 @@ void MessageCache::UpdateMessageFileInfo(const std::string& p_ProfileId, const s
   EnqueueRequest(updateMessageFileInfoRequest);
 }
 
+void MessageCache::UpdateMessageReactions(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                          const std::string& p_MsgId, const Reactions& p_Reactions)
+{
+  if (!m_CacheEnabled) return;
+
+  std::shared_ptr<UpdateMessageReactionsRequest> updateMessageReactionsRequest =
+    std::make_shared<UpdateMessageReactionsRequest>();
+  updateMessageReactionsRequest->profileId = p_ProfileId;
+  updateMessageReactionsRequest->chatId = p_ChatId;
+  updateMessageReactionsRequest->msgId = p_MsgId;
+  updateMessageReactionsRequest->reactions = p_Reactions;
+  EnqueueRequest(updateMessageReactionsRequest);
+}
+
 void MessageCache::UpdateMute(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_IsMuted)
 {
   if (!m_CacheEnabled) return;
@@ -765,23 +838,90 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
           }
         }
 
-        try
+        for (const auto& msg : addMessagesRequest->chatMessages)
         {
-          *m_Dbs[profileId] << "BEGIN;";
-          for (const auto& msg : addMessagesRequest->chatMessages)
+          // Fetch already cached message reactions
+          Reactions oldReactions;
+          try
           {
-            *m_Dbs[profileId] << "INSERT INTO " + s_TableMessages + " "
-              "(chatId, id, senderId, text, quotedId, quotedText, quotedSender, fileInfo, timeSent, isOutgoing, isRead) VALUES "
-              "(?,?,?,?,?,?,?,?,?,?,?);" <<
-              chatId << msg.id << msg.senderId << msg.text << msg.quotedId << msg.quotedText << msg.quotedSender <<
-              msg.fileInfo << msg.timeSent <<
-              msg.isOutgoing << msg.isRead;
+            // *INDENT-OFF*
+            *m_Dbs[profileId] << "SELECT reactions FROM " + s_TableMessages + " WHERE chatId = ? AND id = ?;" <<
+              chatId << msg.id >>
+              [&](const std::vector<char>& reactionsBytes)
+              {
+                if (!reactionsBytes.empty())
+                {
+                  oldReactions = Serialization::FromBytes<Reactions>(reactionsBytes);
+                }
+              };
+            // *INDENT-ON*
           }
-          *m_Dbs[profileId] << "COMMIT;";
-        }
-        catch (const sqlite::sqlite_exception& ex)
-        {
-          HANDLE_SQLITE_EXCEPTION(ex);
+          catch (const sqlite::sqlite_exception& ex)
+          {
+            HANDLE_SQLITE_EXCEPTION(ex);
+          }
+
+          Reactions reactions = msg.reactions;
+          if (CacheUtil::IsDefaultReactions(oldReactions))
+          {
+            // If not previously cached, or cached reactions are default, then overwrite.
+
+            LOG_DEBUG("insert reactions %s", msg.id.c_str());
+
+            std::vector<char> reactionsBytes;
+            if (!CacheUtil::IsDefaultReactions(reactions))
+            {
+              reactionsBytes = Serialization::ToBytes(reactions);
+            }
+
+            try
+            {
+              *m_Dbs[profileId] << "INSERT INTO " + s_TableMessages + " "
+                "(chatId, id, senderId, text, quotedId, quotedText, quotedSender, fileInfo, timeSent, isOutgoing, isRead, reactions) VALUES "
+                "(?,?,?,?,?,?,?,?,?,?,?,?);" <<
+                chatId << msg.id << msg.senderId << msg.text << msg.quotedId << msg.quotedText << msg.quotedSender <<
+                msg.fileInfo << msg.timeSent << msg.isOutgoing << msg.isRead << reactionsBytes;
+            }
+            catch (const sqlite::sqlite_exception& ex)
+            {
+              HANDLE_SQLITE_EXCEPTION(ex);
+            }
+          }
+          else
+          {
+            // If message already exists and has non-default reactions, then merge reactions.
+
+            LOG_DEBUG("merge reactions %s", msg.id.c_str());
+            CacheUtil::UpdateReactions(oldReactions, reactions);
+            std::vector<char> reactionsBytes;
+            if (!CacheUtil::IsDefaultReactions(reactions))
+            {
+              reactionsBytes = Serialization::ToBytes(reactions);
+            }
+
+            try
+            {
+              *m_Dbs[profileId] << "INSERT INTO " + s_TableMessages + " "
+                "(chatId, id, senderId, text, quotedId, quotedText, quotedSender, fileInfo, timeSent, isOutgoing, isRead, reactions) VALUES "
+                "(?,?,?,?,?,?,?,?,?,?,?,?);" <<
+                chatId << msg.id << msg.senderId << msg.text << msg.quotedId << msg.quotedText << msg.quotedSender <<
+                msg.fileInfo << msg.timeSent << msg.isOutgoing << msg.isRead << reactionsBytes;
+            }
+            catch (const sqlite::sqlite_exception& ex)
+            {
+              HANDLE_SQLITE_EXCEPTION(ex);
+            }
+
+            {
+              // Send consolidated info to ui
+              std::shared_ptr<NewMessageReactionsNotify> newMessageReactionsNotify =
+                std::make_shared<NewMessageReactionsNotify>(profileId);
+              newMessageReactionsNotify->chatId = chatId;
+              newMessageReactionsNotify->msgId = msg.id;
+              newMessageReactionsNotify->reactions = reactions;
+              CallMessageHandler(newMessageReactionsNotify);
+            }
+          }
         }
       }
       break;
@@ -1083,8 +1223,8 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
 
         try
         {
-          *m_Dbs[profileId] << "UPDATE " + s_TableMessages + " SET isRead = ? WHERE chatId = ? AND id = ?;" << (int)isRead << chatId <<
-            msgId;
+          *m_Dbs[profileId] << "UPDATE " + s_TableMessages + " SET isRead = ? WHERE chatId = ? AND id = ?;" <<
+            (int)isRead << chatId << msgId;
         }
         catch (const sqlite::sqlite_exception& ex)
         {
@@ -1118,6 +1258,73 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         }
 
         LOG_DEBUG("cache update fileInfo %s %s %s %d", chatId.c_str(), msgId.c_str(), fileInfo.c_str());
+      }
+      break;
+
+    case UpdateMessageReactionsRequestType:
+      {
+        std::unique_lock<std::mutex> lock(m_DbMutex);
+        std::shared_ptr<UpdateMessageReactionsRequest> updateMessageReactionsRequest =
+          std::static_pointer_cast<UpdateMessageReactionsRequest>(p_Request);
+        const std::string& profileId = updateMessageReactionsRequest->profileId;
+        if (!m_Dbs[profileId]) return;
+
+        if (CacheUtil::IsDefaultReactions(updateMessageReactionsRequest->reactions)) return;
+
+        Reactions oldReactions;
+        Reactions reactions = updateMessageReactionsRequest->reactions;
+        const std::string& chatId = updateMessageReactionsRequest->chatId;
+        const std::string& msgId = updateMessageReactionsRequest->msgId;
+
+        try
+        {
+          // *INDENT-OFF*
+          *m_Dbs[profileId] << "SELECT reactions FROM " + s_TableMessages + " WHERE chatId = ? AND id = ?;" <<
+            chatId << msgId >>
+            [&](const std::vector<char>& reactionsBytes)
+            {
+              if (!reactionsBytes.empty())
+              {
+                oldReactions = Serialization::FromBytes<Reactions>(reactionsBytes);
+              }
+            };
+          // *INDENT-ON*
+        }
+        catch (const sqlite::sqlite_exception& ex)
+        {
+          HANDLE_SQLITE_EXCEPTION(ex);
+        }
+
+        LOG_DEBUG("update reactions %s", msgId.c_str());
+        CacheUtil::UpdateReactions(oldReactions, reactions);
+
+        std::vector<char> reactionsBytes;
+        if (!CacheUtil::IsDefaultReactions(reactions))
+        {
+          reactionsBytes = Serialization::ToBytes(reactions);
+        }
+
+        try
+        {
+          *m_Dbs[profileId] << "UPDATE " + s_TableMessages + " SET reactions = ? WHERE chatId = ? AND id = ?;"
+                            << reactionsBytes << chatId << msgId;
+        }
+        catch (const sqlite::sqlite_exception& ex)
+        {
+          HANDLE_SQLITE_EXCEPTION(ex);
+        }
+
+        {
+          // Send consolidated info to ui
+          std::shared_ptr<NewMessageReactionsNotify> newMessageReactionsNotify =
+            std::make_shared<NewMessageReactionsNotify>(profileId);
+          newMessageReactionsNotify->chatId = chatId;
+          newMessageReactionsNotify->msgId = msgId;
+          newMessageReactionsNotify->reactions = reactions;
+          CallMessageHandler(newMessageReactionsNotify);
+        }
+
+        LOG_DEBUG("cache update reactions %s %s", chatId.c_str(), msgId.c_str());
       }
       break;
 
@@ -1164,12 +1371,13 @@ void MessageCache::PerformFetchMessagesFrom(const std::string& p_ProfileId, cons
   {
     // *INDENT-OFF*
     *m_Dbs[p_ProfileId] <<
-      "SELECT id, senderId, text, quotedId, quotedText, quotedSender, fileInfo, timeSent, "
+      "SELECT id, senderId, text, quotedId, quotedText, quotedSender, fileInfo, reactions, timeSent, "
       "isOutgoing, isRead FROM " + s_TableMessages + " WHERE chatId = ? AND timeSent < ? "
       "ORDER BY timeSent DESC LIMIT ?;" << p_ChatId << p_FromMsgIdTimeSent << p_Limit >>
       [&](const std::string& id, const std::string& senderId, const std::string& text,
           const std::string& quotedId, const std::string& quotedText,
           const std::string& quotedSender, const std::string& fileInfo,
+          std::vector<char> reactionsBytes,
           int64_t timeSent, int32_t isOutgoing, int32_t isRead)
       {
         ChatMessage chatMessage;
@@ -1183,6 +1391,11 @@ void MessageCache::PerformFetchMessagesFrom(const std::string& p_ProfileId, cons
         chatMessage.timeSent = timeSent;
         chatMessage.isOutgoing = isOutgoing;
         chatMessage.isRead = isRead;
+
+        if (!reactionsBytes.empty())
+        {
+          chatMessage.reactions = Serialization::FromBytes<Reactions>(reactionsBytes);
+        }
 
         p_ChatMessages.push_back(chatMessage);
       };
@@ -1202,11 +1415,12 @@ void MessageCache::PerformFetchOneMessage(const std::string& p_ProfileId, const 
   {
     // *INDENT-OFF*
     *m_Dbs[p_ProfileId] <<
-      "SELECT id, senderId, text, quotedId, quotedText, quotedSender, fileInfo, timeSent, "
+      "SELECT id, senderId, text, quotedId, quotedText, quotedSender, fileInfo, reactions, timeSent, "
       "isOutgoing, isRead FROM " + s_TableMessages + " WHERE chatId = ? AND id = ?;" << p_ChatId << p_MsgId >>
       [&](const std::string& id, const std::string& senderId, const std::string& text,
           const std::string& quotedId, const std::string& quotedText,
           const std::string& quotedSender, const std::string& fileInfo,
+          std::vector<char> reactionsBytes,
           int64_t timeSent, int32_t isOutgoing, int32_t isRead)
       {
         ChatMessage chatMessage;
@@ -1220,6 +1434,11 @@ void MessageCache::PerformFetchOneMessage(const std::string& p_ProfileId, const 
         chatMessage.timeSent = timeSent;
         chatMessage.isOutgoing = isOutgoing;
         chatMessage.isRead = isRead;
+
+        if (!reactionsBytes.empty())
+        {
+          chatMessage.reactions = Serialization::FromBytes<Reactions>(reactionsBytes);
+        }
 
         p_ChatMessages.push_back(chatMessage);
       };

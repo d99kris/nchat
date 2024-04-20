@@ -247,7 +247,7 @@ void DuChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
           { "Michael",
             "Pam, what you don't understand is that at my level you just don't "
             "look in the want-ads for a job. You are head-hunted." },
-          { "Jim", "You called any headhunters?" },
+          { "Jim", "You've called any headhunters?" },
           { "Michael", "Any good headhunter knows I am available." },
           { "Dwight",
             "Any really good headhunter would storm your village at sunset with "
@@ -315,6 +315,7 @@ void DuChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
           newContactsNotify->contactInfos.push_back(contactInfo);
 
           // From others
+          bool isFirst = true;
           for (auto& message : groupMessages)
           {
             std::string name = message.first;
@@ -327,6 +328,14 @@ void DuChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
             chatMessage.timeSent = (t * 1000);
             chatMessage.isOutgoing = (id == sid);
             chatMessage.isRead = true;
+
+            if (isFirst)
+            {
+              isFirst = false;
+              chatMessage.reactions.emojiCounts["😨"] = 4;
+              chatMessage.reactions.emojiCounts["🤣"] = 2;
+            }
+
             t = t - 100;
             s_Messages[gid].push_back(chatMessage);
           }

@@ -73,7 +73,8 @@ public:
     std::shared_ptr<T> protocol;
 #ifdef HAS_DYNAMICLOAD
     std::string libPath =
-      FileUtil::DirName(FileUtil::GetSelfPath()) + "/../" CMAKE_INSTALL_LIBDIR "/" + T::GetLibName() + FileUtil::GetLibSuffix();
+      FileUtil::DirName(FileUtil::GetSelfPath()) + "/../" CMAKE_INSTALL_LIBDIR "/" + T::GetLibName() +
+      FileUtil::GetLibSuffix();
     std::string createFunc = T::GetCreateFunc();
     void* handle = dlopen(libPath.c_str(), RTLD_LAZY);
     if (handle == nullptr)
@@ -572,10 +573,10 @@ void ShowHelp()
     "    Ctrl-x      send message\n"
     "    Ctrl-y      toggle show emojis\n"
     "    KeyUp       select message\n"
+    "    Alt-$       external spell check\n"
     "    Alt-,       decrease contact list width\n"
     "    Alt-.       increase contact list width\n"
     "    Alt-e       external editor compose\n"
-    "    Alt-s       external spell check\n"
     "    Alt-t       external telephone call\n"
     "\n"
     "Interactive Commands for Selected Message:\n"
@@ -587,6 +588,7 @@ void ShowHelp()
     "    Ctrl-z      edit selected message\n"
     "    Alt-w       external message viewer\n"
     "    Alt-c       copy selected message to clipboard\n"
+    "    Alt-s       add/remove reaction on selected message\n"
     "\n"
     "Interactive Commands for Text Input:\n"
     "    Ctrl-a      move cursor to start of line\n"

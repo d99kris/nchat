@@ -95,6 +95,8 @@ void WmNewStatusNotify(int p_ConnId, char* p_ChatId, char* p_UserId, int p_IsOnl
 void WmNewMessageStatusNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsRead);
 void WmNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_FilePath, int p_FileStatus,
                             int p_Action);
+void WmNewMessageReactionNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text,
+                                int p_FromMe);
 void WmDeleteChatNotify(int p_ConnId, char* p_ChatId);
 void WmUpdateMuteNotify(int p_ConnId, char* p_ChatId, int p_IsMuted);
 void WmReinit(int p_ConnId);

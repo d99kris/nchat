@@ -22,6 +22,7 @@ Features
 - Show user status (online, away, typing)
 - Toggle to view textized emojis vs. graphical
 - View / save media files (documents, photos, videos)
+- Send and display reactions
 
 
 Usage
@@ -60,11 +61,11 @@ Interactive Commands:
     Ctrl-x      send message
     Ctrl-y      toggle show emojis
     KeyUp       select message
+    Alt-$       external spell check
     Alt-,       decrease contact list width
     Alt-.       increase contact list width
     Alt-d       delete/leave current chat
     Alt-e       external editor compose
-    Alt-s       external spell check
     Alt-t       external telephone call
 
 Interactive Commands for Selected Message:
@@ -77,6 +78,7 @@ Interactive Commands for Selected Message:
     Ctrl-z      edit selected message
     Alt-w       external message viewer
     Alt-c       copy selected message to clipboard
+    Alt-s       add/remove reaction on selected message
 
 Interactive Commands for Text Input:
 
@@ -339,6 +341,7 @@ This configuration file holds general user interface settings. Default content:
     phone_number_indicator=
     proxy_indicator=🔒
     read_indicator=✓
+    reactions_enabled=1
     spell_check_command=
     syncing_indicator=⇄
     terminal_bell_active=0
@@ -527,6 +530,10 @@ Specifies top bar text to indicate proxy is enabled.
 
 Specifies text to indicate a message has been read by the receiver.
 
+### reactions_enabled
+
+Specifies whether to display reactions.
+
 ### spell_check_command
 
 Specifies a custom command to use for spell checking composed messages. If not
@@ -654,6 +661,8 @@ This configuration file holds user interface color settings. Default content:
     history_text_attr_selected=reverse
     history_text_quoted_color_bg=
     history_text_quoted_color_fg=gray
+    history_text_reaction_color_bg=
+    history_text_reaction_color_fg=gray
     history_text_recv_color_bg=
     history_text_recv_color_fg=
     history_text_recv_group_color_bg=

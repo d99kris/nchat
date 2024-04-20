@@ -544,6 +544,26 @@ void WmChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
       }
       break;
 
+    case SendReactionRequestType:
+      {
+        LOG_DEBUG("send reaction");
+
+        std::shared_ptr<SendReactionRequest> sendReactionRequest =
+          std::static_pointer_cast<SendReactionRequest>(p_RequestMessage);
+        std::string chatId = sendReactionRequest->chatId;
+        std::string senderId = sendReactionRequest->senderId;
+        std::string msgId = sendReactionRequest->msgId;
+        std::string emoji = sendReactionRequest->emoji;
+
+        CWmSendReaction(m_ConnId,
+                        const_cast<char*>(chatId.c_str()),
+                        const_cast<char*>(senderId.c_str()),
+                        const_cast<char*>(msgId.c_str()),
+                        const_cast<char*>(emoji.c_str())
+                        );
+      }
+      break;
+
     case DeferNotifyRequestType:
       {
         std::shared_ptr<DeferNotifyRequest> deferNotifyRequest =
@@ -816,6 +836,38 @@ void WmNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p
   free(p_ChatId);
   free(p_MsgId);
   free(p_FilePath);
+}
+
+void WmNewMessageReactionNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text,
+                                int p_FromMe)
+{
+  WmChat* instance = WmChat::GetInstance(p_ConnId);
+  if (instance == nullptr) return;
+
+  {
+    const std::string senderId = (p_FromMe == 1) ? s_ReactionsSelfId : std::string(p_SenderId);
+    Reactions reactions;
+    // go via message cache for consolidation and count before handled by ui
+    reactions.needConsolidationWithCache = true;
+    reactions.updateCountBasedOnSender = true;
+    reactions.replaceCount = false;
+    reactions.senderEmojis[senderId] = std::string(p_Text);
+
+    std::shared_ptr<NewMessageReactionsNotify> newMessageReactionsNotify =
+      std::make_shared<NewMessageReactionsNotify>(instance->GetProfileId());
+    newMessageReactionsNotify->chatId = std::string(p_ChatId);
+    newMessageReactionsNotify->msgId = std::string(p_MsgId);
+    newMessageReactionsNotify->reactions = reactions;
+
+    std::shared_ptr<DeferNotifyRequest> deferNotifyRequest = std::make_shared<DeferNotifyRequest>();
+    deferNotifyRequest->serviceMessage = newMessageReactionsNotify;
+    instance->SendRequest(deferNotifyRequest);
+  }
+
+  free(p_ChatId);
+  free(p_MsgId);
+  free(p_SenderId);
+  free(p_Text);
 }
 
 void WmDeleteChatNotify(int p_ConnId, char* p_ChatId)

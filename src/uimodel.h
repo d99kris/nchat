@@ -40,7 +40,8 @@ public:
   void Home();
   void HomeFetchNext(const std::string& p_ProfileId, const std::string& p_ChatId, int p_MsgCount);
   void End();
-  void MarkRead(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId);
+  void MarkRead(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId,
+                bool p_WasUnread);
   void DownloadAttachment(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId,
                           const std::string& p_FileId, DownloadFileAction p_DownloadFileAction);
   void DeleteMessage();
@@ -112,6 +113,7 @@ public:
 
   bool IsMultipleProfiles();
   std::string GetProfileDisplayName(const std::string& p_ProfileId);
+  void GetAvailableEmojis(std::set<std::string>& p_AvailableEmojis, bool& p_Pending);
 
   static bool IsAttachmentDownloaded(const FileInfo& p_FileInfo);
   static bool IsAttachmentDownloadable(const FileInfo& p_FileInfo);
@@ -159,6 +161,7 @@ private:
   void EntryConvertEmojiEnabled();
   void SetProtocolUiControl(const std::string& p_ProfileId, bool& p_IsTakeControl);
   void HandleProtocolUiControl(std::unique_lock<std::mutex>& p_Lock);
+  void React();
 
 private:
   bool m_Running = true;
@@ -198,6 +201,9 @@ private:
   std::unordered_map<std::string, std::unordered_map<std::string, std::set<std::string>>> m_UsersTyping;
   std::unordered_map<std::string, std::unordered_map<std::string, bool>> m_UserOnline;
   std::unordered_map<std::string, std::unordered_map<std::string, int64_t>> m_UserTimeSeen;
+
+  std::unordered_map<std::string, std::unordered_map<std::string, std::set<std::string>>> m_AvailableReactions;
+  std::unordered_map<std::string, std::unordered_map<std::string, bool>> m_AvailableReactionsPending;
 
   bool m_SelectMessageActive = false;
   bool m_ListDialogActive = false;

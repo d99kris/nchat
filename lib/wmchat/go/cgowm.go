@@ -15,6 +15,7 @@ package main
 // extern void WmNewStatusNotify(int p_ConnId, char* p_ChatId, char* p_UserId, int p_IsOnline, int p_IsTyping, int p_TimeSeen);
 // extern void WmNewMessageStatusNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsRead);
 // extern void WmNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_FilePath, int p_FileStatus, int p_Action);
+// extern void WmNewMessageReactionNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe);
 // extern void WmDeleteChatNotify(int p_ConnId, char* p_ChatId);
 // extern void WmUpdateMuteNotify(int p_ConnId, char* p_ChatId, int p_IsMuted);
 // extern void WmReinit(int p_ConnId);
@@ -103,6 +104,11 @@ func CWmDownloadFile(connId int, chatId *C.char, msgId *C.char, fileId *C.char, 
 	return WmDownloadFile(connId, C.GoString(chatId), C.GoString(msgId), C.GoString(fileId), action)
 }
 
+//export CWmSendReaction
+func CWmSendReaction(connId int, chatId *C.char, senderId *C.char, msgId *C.char, emoji *C.char) int {
+	return WmSendReaction(connId, C.GoString(chatId), C.GoString(senderId), C.GoString(msgId), C.GoString(emoji))
+}
+
 func CWmNewContactsNotify(connId int, chatId string, name string, phone string, isSelf int) {
 	C.WmNewContactsNotify(C.int(connId), C.CString(chatId), C.CString(name), C.CString(phone), C.int(isSelf))
 }
@@ -125,6 +131,10 @@ func CWmNewMessageStatusNotify(connId int, chatId string, msgId string, isRead i
 
 func CWmNewMessageFileNotify(connId int, chatId string, msgId string, filePath string, fileStatus int, action int) {
 	C.WmNewMessageFileNotify(C.int(connId), C.CString(chatId), C.CString(msgId), C.CString(filePath), C.int(fileStatus), C.int(action))
+}
+
+func CWmNewMessageReactionNotify(connId int, chatId string, msgId string, senderId string, text string, fromMe int) {
+	C.WmNewMessageReactionNotify(C.int(connId), C.CString(chatId), C.CString(msgId), C.CString(senderId), C.CString(text), C.int(fromMe))
 }
 
 func CWmDeleteChatNotify(connId int, chatId string) {

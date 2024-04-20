@@ -28,6 +28,7 @@
 
 #include "appconfig.h"
 #include "apputil.h"
+#include "cacheutil.h"
 #include "config.h"
 #include "fileutil.h"
 #include "log.h"
@@ -146,7 +147,7 @@ private:
   void CreateChat(Object p_Object);
   std::string GetRandomString(size_t p_Len);
   std::uint64_t GetNextQueryId();
-  std::int64_t GetSenderId(const td::td_api::message& p_TdMessage);
+  std::int64_t GetSenderId(td::td_api::object_ptr<td::td_api::MessageSender>&& p_TdMessageSender);
   std::string GetText(td::td_api::object_ptr<td::td_api::formattedText>&& p_FormattedText);
   void TdMessageContentConvert(td::td_api::MessageContent& p_TdMessageContent, int64_t p_SenderId,
                                std::string& p_Text, std::string& p_FileInfo);
@@ -166,6 +167,10 @@ private:
   std::string ConvertMarkdownV2ToV1(const std::string& p_Str);
   void SetProtocolUiControl(bool p_IsTakeControl);
   std::string GetProfilePhoneNumber();
+  void GetMsgReactions(td::td_api::object_ptr<td::td_api::messageInteractionInfo>& p_InteractionInfo,
+                       Reactions& p_Reactions);
+  void GetReactionsEmojis(td::td_api::object_ptr<td::td_api::availableReactions>& p_AvailableReactions,
+                          std::set<std::string>& p_Emojis);
 
 private:
   std::thread m_ServiceThread;
@@ -278,7 +283,8 @@ std::string TgChat::Impl::GetProfileDisplayName() const
 
 bool TgChat::Impl::HasFeature(ProtocolFeature p_ProtocolFeature) const
 {
-  static int customFeatures = FeatureTypingTimeout | FeatureEditMessagesWithinTwoDays;
+  static int customFeatures = FeatureTypingTimeout | FeatureEditMessagesWithinTwoDays | FeatureLimitedReactions |
+    FeatureMarkReadEveryView;
   return (p_ProtocolFeature & customFeatures);
 }
 
@@ -883,25 +889,42 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
           return;
         }
 
-        std::vector<std::int64_t> msgIds =
-          { StrUtil::NumFromHex<int64_t>(markMessageReadRequest->msgId) };
-        auto view_messages = td::td_api::make_object<td::td_api::viewMessages>();
-        view_messages->chat_id_ = chatId;
-        view_messages->message_ids_ = msgIds;
-        view_messages->force_read_ = true;
-
-        SendQuery(std::move(view_messages),
-                  [this, markMessageReadRequest](Object object)
+        if (!markMessageReadRequest->msgId.empty())
         {
-          if (object->get_id() == td::td_api::error::ID) return;
+          std::vector<std::int64_t> msgIds =
+            { StrUtil::NumFromHex<int64_t>(markMessageReadRequest->msgId) };
+          auto view_messages = td::td_api::make_object<td::td_api::viewMessages>();
+          view_messages->chat_id_ = chatId;
+          view_messages->message_ids_ = msgIds;
+          view_messages->force_read_ = true;
 
-          std::shared_ptr<MarkMessageReadNotify> markMessageReadNotify =
-            std::make_shared<MarkMessageReadNotify>(m_ProfileId);
-          markMessageReadNotify->success = true;
-          markMessageReadNotify->chatId = markMessageReadRequest->chatId;
-          markMessageReadNotify->msgId = markMessageReadRequest->msgId;
-          CallMessageHandler(markMessageReadNotify);
-        });
+          SendQuery(std::move(view_messages),
+                    [this, markMessageReadRequest](Object object)
+          {
+            if (object->get_id() == td::td_api::error::ID) return;
+
+            std::shared_ptr<MarkMessageReadNotify> markMessageReadNotify =
+              std::make_shared<MarkMessageReadNotify>(m_ProfileId);
+            markMessageReadNotify->success = true;
+            markMessageReadNotify->chatId = markMessageReadRequest->chatId;
+            markMessageReadNotify->msgId = markMessageReadRequest->msgId;
+            CallMessageHandler(markMessageReadNotify);
+          });
+        }
+
+        if (markMessageReadRequest->readAllReactions)
+        {
+          auto read_all_chat_reactions = td::td_api::make_object<td::td_api::readAllChatReactions>();
+          read_all_chat_reactions->chat_id_ = chatId;
+
+          SendQuery(std::move(read_all_chat_reactions),
+                    [](Object object)
+          {
+            if (object->get_id() == td::td_api::error::ID) return;
+
+            LOG_TRACE("Marked reactions read");
+          });
+        }
       }
       break;
 
@@ -1132,8 +1155,41 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         std::shared_ptr<SetCurrentChatRequest> setCurrentChatRequest =
           std::static_pointer_cast<SetCurrentChatRequest>(p_RequestMessage);
         int64_t chatId = StrUtil::NumFromHex<int64_t>(setCurrentChatRequest->chatId);
-        m_CurrentChat = chatId;
-        RequestSponsoredMessagesIfNeeded();
+        if (chatId != m_CurrentChat)
+        {
+          if (m_CurrentChat != 0)
+          {
+            LOG_DEBUG("close chat %lld", chatId);
+            auto close_chat = td::td_api::make_object<td::td_api::closeChat>();
+            close_chat->chat_id_ = m_CurrentChat;
+            SendQuery(std::move(close_chat), [](Object object)
+            {
+              if (object->get_id() == td::td_api::error::ID)
+              {
+                LOG_WARNING("close chat failed");
+                return;
+              }
+            });
+          }
+
+          if (chatId != 0)
+          {
+            LOG_DEBUG("open chat %lld", chatId);
+            auto open_chat = td::td_api::make_object<td::td_api::openChat>();
+            open_chat->chat_id_ = chatId;
+            SendQuery(std::move(open_chat), [](Object object)
+            {
+              if (object->get_id() == td::td_api::error::ID)
+              {
+                LOG_WARNING("open chat failed");
+                return;
+              }
+            });
+          }
+
+          m_CurrentChat = chatId;
+          RequestSponsoredMessagesIfNeeded();
+        }
       }
       break;
 
@@ -1143,6 +1199,156 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
           std::static_pointer_cast<DeferGetSponsoredMessagesRequest>(p_RequestMessage);
         std::string chatId = deferGetSponsoredMessagesRequest->chatId;
         GetSponsoredMessages(chatId);
+      }
+      break;
+
+    case GetAvailableReactionsRequestType:
+      {
+        LOG_DEBUG("Get available reactions");
+        std::shared_ptr<GetAvailableReactionsRequest> getAvailableReactionsRequest =
+          std::static_pointer_cast<GetAvailableReactionsRequest>(p_RequestMessage);
+
+        int64_t chatId = StrUtil::NumFromHex<int64_t>(getAvailableReactionsRequest->chatId);
+        int64_t msgId = StrUtil::NumFromHex<int64_t>(getAvailableReactionsRequest->msgId);
+
+        auto get_available_reactions = td::td_api::make_object<td::td_api::getMessageAvailableReactions>(chatId, msgId, 8 /*row_size_ 5-25*/);
+        SendQuery(std::move(get_available_reactions),
+                  [this, getAvailableReactionsRequest](Object object)
+        {
+          if (object->get_id() == td::td_api::error::ID) return;
+
+          if (object->get_id() == td::td_api::availableReactions::ID)
+          {
+            std::set<std::string> emojis;
+            auto available_reactions_ = td::move_tl_object_as<td::td_api::availableReactions>(object);
+            GetReactionsEmojis(available_reactions_, emojis);
+
+            std::shared_ptr<AvailableReactionsNotify> availableReactionsNotify =
+              std::make_shared<AvailableReactionsNotify>(m_ProfileId);
+            availableReactionsNotify->chatId = getAvailableReactionsRequest->chatId;
+            availableReactionsNotify->msgId = getAvailableReactionsRequest->msgId;
+            availableReactionsNotify->emojis = emojis;
+            CallMessageHandler(availableReactionsNotify);
+          }
+        });
+      }
+      break;
+
+    case SendReactionRequestType:
+      {
+        LOG_DEBUG("Send reaction");
+        std::shared_ptr<SendReactionRequest> sendReactionRequest =
+          std::static_pointer_cast<SendReactionRequest>(p_RequestMessage);
+
+        int64_t chatId = StrUtil::NumFromHex<int64_t>(sendReactionRequest->chatId);
+        int64_t msgId = StrUtil::NumFromHex<int64_t>(sendReactionRequest->msgId);
+        std::string emoji = sendReactionRequest->emoji;
+        std::string prevEmoji = sendReactionRequest->prevEmoji;
+
+        if (!emoji.empty())
+        {
+          auto reactionTypeEmoji = td::td_api::make_object<td::td_api::reactionTypeEmoji>(emoji);
+          bool is_big = false;
+          bool update_recent_reactions = true;
+          auto add_message_reaction = td::td_api::make_object<td::td_api::addMessageReaction>(chatId, msgId, std::move(reactionTypeEmoji),
+                                                                                              is_big, update_recent_reactions);
+          SendQuery(std::move(add_message_reaction),
+                    [this, sendReactionRequest, emoji](Object object)
+          {
+            if (object->get_id() == td::td_api::error::ID)
+            {
+              LOG_WARNING("add message reaction error");
+              return;
+            }
+
+            Reactions reactions;
+            reactions.needConsolidationWithCache = true;
+            reactions.replaceCount = false;
+            reactions.senderEmojis[s_ReactionsSelfId] = emoji;
+
+            std::shared_ptr<NewMessageReactionsNotify> newMessageReactionsNotify =
+              std::make_shared<NewMessageReactionsNotify>(m_ProfileId);
+            newMessageReactionsNotify->chatId = sendReactionRequest->chatId;
+            newMessageReactionsNotify->msgId = sendReactionRequest->msgId;
+            newMessageReactionsNotify->reactions = reactions;
+            CallMessageHandler(newMessageReactionsNotify);
+
+            LOG_TRACE("added reaction");
+          });
+        }
+        else
+        {
+          auto reactionTypeEmoji = td::td_api::make_object<td::td_api::reactionTypeEmoji>(prevEmoji);
+          auto remove_message_reaction = td::td_api::make_object<td::td_api::removeMessageReaction>(chatId, msgId, std::move(reactionTypeEmoji));
+          SendQuery(std::move(remove_message_reaction),
+                    [this, sendReactionRequest, emoji](Object object)
+          {
+            if (object->get_id() == td::td_api::error::ID)
+            {
+              LOG_WARNING("remove message reaction error");
+              return;
+            }
+
+            Reactions reactions;
+            reactions.needConsolidationWithCache = true;
+            reactions.replaceCount = false;
+            reactions.senderEmojis[s_ReactionsSelfId] = emoji;
+
+            std::shared_ptr<NewMessageReactionsNotify> newMessageReactionsNotify =
+              std::make_shared<NewMessageReactionsNotify>(m_ProfileId);
+            newMessageReactionsNotify->chatId = sendReactionRequest->chatId;
+            newMessageReactionsNotify->msgId = sendReactionRequest->msgId;
+            newMessageReactionsNotify->reactions = reactions;
+            CallMessageHandler(newMessageReactionsNotify);
+
+            LOG_TRACE("removed reaction");
+          });
+        }
+      }
+      break;
+
+    case GetUnreadReactionsRequestType:
+      {
+        LOG_DEBUG("Get unread reactions");
+        std::shared_ptr<GetUnreadReactionsRequest> getUnreadReactionsRequest =
+          std::static_pointer_cast<GetUnreadReactionsRequest>(p_RequestMessage);
+
+        int64_t chatId = StrUtil::NumFromHex<int64_t>(getUnreadReactionsRequest->chatId);
+
+        auto search_chat_messages = td::td_api::make_object<td::td_api::searchChatMessages>();
+        search_chat_messages->chat_id_ = chatId;
+        search_chat_messages->limit_ = 100;
+        search_chat_messages->filter_ = td::td_api::make_object<td::td_api::searchMessagesFilterUnreadReaction>();
+
+        SendQuery(std::move(search_chat_messages),
+                  [this, chatId](Object object)
+        {
+          if (object->get_id() == td::td_api::error::ID) return;
+
+          if (object->get_id() == td::td_api::foundChatMessages::ID)
+          {
+            auto found_chat_messages = td::move_tl_object_as<td::td_api::foundChatMessages>(object);
+            auto& messages = found_chat_messages->messages_;
+
+            std::vector<ChatMessage> chatMessages;
+            for (auto it = messages.begin(); it != messages.end(); ++it)
+            {
+              auto message = td::move_tl_object_as<td::td_api::message>(*it);
+              ChatMessage chatMessage;
+              TdMessageConvert(*message, chatMessage);
+              chatMessages.push_back(chatMessage);
+            }
+
+            std::shared_ptr<NewMessagesNotify> newMessagesNotify =
+              std::make_shared<NewMessagesNotify>(m_ProfileId);
+            newMessagesNotify->success = true;
+            newMessagesNotify->chatId = StrUtil::NumToHex(chatId);
+            newMessagesNotify->chatMessages = chatMessages;
+            newMessagesNotify->fromMsgId = "";
+            newMessagesNotify->sequence = false;
+            CallMessageHandler(newMessagesNotify);
+          }
+        });
       }
       break;
 
@@ -1556,6 +1762,49 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
       updateMuteNotify->isMuted = isMuted;
       CallMessageHandler(updateMuteNotify);
     }
+  },
+  [this](td::td_api::updateMessageInteractionInfo& update_message_interaction_info)
+  {
+    LOG_TRACE("update message interaction info");
+
+    std::string chatId = StrUtil::NumToHex(update_message_interaction_info.chat_id_);
+    std::string msgId = StrUtil::NumToHex(update_message_interaction_info.message_id_);
+
+    std::shared_ptr<NewMessageReactionsNotify> newMessageReactionsNotify =
+      std::make_shared<NewMessageReactionsNotify>(m_ProfileId);
+
+    newMessageReactionsNotify->chatId = chatId;
+    newMessageReactionsNotify->msgId = msgId;
+
+    auto interactionInfo = td::move_tl_object_as<td::td_api::messageInteractionInfo>(update_message_interaction_info.interaction_info_);
+    if (interactionInfo)
+    {
+      GetMsgReactions(interactionInfo, newMessageReactionsNotify->reactions);
+
+      std::shared_ptr<MarkMessageReadRequest> markMessageReadRequest =
+        std::make_shared<MarkMessageReadRequest>();
+      markMessageReadRequest->chatId = chatId;
+      markMessageReadRequest->readAllReactions = true;
+      SendRequest(markMessageReadRequest);
+    }
+
+    CallMessageHandler(newMessageReactionsNotify);
+  },
+  [this](td::td_api::updateChatUnreadReactionCount& update_chat_unread_reaction_count)
+  {
+    LOG_TRACE("update chat unread reaction count");
+
+    // @todo: consider only fetching for current chat, and/or when switching chat.
+    int64_t chatId = update_chat_unread_reaction_count.chat_id_;
+
+    std::shared_ptr<GetUnreadReactionsRequest> getUnreadReactionsRequest =
+      std::make_shared<GetUnreadReactionsRequest>();
+    getUnreadReactionsRequest->chatId = StrUtil::NumToHex(chatId);
+    SendRequest(getUnreadReactionsRequest);
+  },
+  [](td::td_api::updateMessageUnreadReactions&)
+  {
+    LOG_TRACE("update message unread reactions");
   },
   [](td::td_api::updateRecentStickers&)
   {
@@ -1997,20 +2246,23 @@ std::uint64_t TgChat::Impl::GetNextQueryId()
   return ++m_CurrentQueryId;
 }
 
-std::int64_t TgChat::Impl::GetSenderId(const td::td_api::message& p_TdMessage)
+std::int64_t TgChat::Impl::GetSenderId(td::td_api::object_ptr<td::td_api::MessageSender>&& p_TdMessageSender)
 {
   std::int64_t senderId = 0;
-  if (p_TdMessage.sender_id_->get_id() == td::td_api::messageSenderUser::ID)
+  if (p_TdMessageSender)
   {
-    auto& message_sender_user =
-      static_cast<const td::td_api::messageSenderUser&>(*p_TdMessage.sender_id_);
-    senderId = message_sender_user.user_id_;
-  }
-  else if (p_TdMessage.sender_id_->get_id() == td::td_api::messageSenderChat::ID)
-  {
-    auto& message_sender_chat =
-      static_cast<const td::td_api::messageSenderChat&>(*p_TdMessage.sender_id_);
-    senderId = message_sender_chat.chat_id_;
+    if (p_TdMessageSender->get_id() == td::td_api::messageSenderUser::ID)
+    {
+      auto& message_sender_user =
+        static_cast<const td::td_api::messageSenderUser&>(*p_TdMessageSender);
+      senderId = message_sender_user.user_id_;
+    }
+    else if (p_TdMessageSender->get_id() == td::td_api::messageSenderChat::ID)
+    {
+      auto& message_sender_chat =
+        static_cast<const td::td_api::messageSenderChat&>(*p_TdMessageSender);
+      senderId = message_sender_chat.chat_id_;
+    }
   }
 
   return senderId;
@@ -2339,7 +2591,7 @@ void TgChat::Impl::TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessag
 {
   if (!p_TdMessage.content_) return;
 
-  const int64_t senderId = GetSenderId(p_TdMessage);
+  const int64_t senderId = GetSenderId(td::move_tl_object_as<td::td_api::MessageSender>(p_TdMessage.sender_id_));
   TdMessageContentConvert(*p_TdMessage.content_, senderId, p_ChatMessage.text, p_ChatMessage.fileInfo);
 
   p_ChatMessage.id = StrUtil::NumToHex(p_TdMessage.id_);
@@ -2377,6 +2629,11 @@ void TgChat::Impl::TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessag
     {
       p_ChatMessage.isRead = !p_TdMessage.contains_unread_mention_;
     }
+  }
+
+  if (p_TdMessage.interaction_info_)
+  {
+    GetMsgReactions(p_TdMessage.interaction_info_, p_ChatMessage.reactions);
   }
 }
 
@@ -2812,11 +3069,76 @@ void TgChat::Impl::SetProtocolUiControl(bool p_IsTakeControl)
 
 std::string TgChat::Impl::GetProfilePhoneNumber()
 {
-  std::vector<std::string> profileInfo  = StrUtil::Split(m_ProfileId, '_');
+  std::vector<std::string> profileInfo = StrUtil::Split(m_ProfileId, '_');
   if (profileInfo.size() == 2)
   {
     return profileInfo.at(1);
   }
 
   return "";
+}
+
+void TgChat::Impl::GetMsgReactions(td::td_api::object_ptr<td::td_api::messageInteractionInfo>& p_InteractionInfo,
+                                   Reactions& p_Reactions)
+{
+  p_Reactions.needConsolidationWithCache = true;
+  p_Reactions.replaceCount = true;
+  auto messageReactions = td::move_tl_object_as<td::td_api::messageReactions>(p_InteractionInfo->reactions_);
+  if (messageReactions)
+  {
+    for (auto it = messageReactions->reactions_.begin(); it != messageReactions->reactions_.end(); ++it)
+    {
+      auto messageReaction = td::move_tl_object_as<td::td_api::messageReaction>(*it);
+      auto reactionTypeEmoji = td::move_tl_object_as<td::td_api::reactionTypeEmoji>(messageReaction->type_);
+      if (reactionTypeEmoji)
+      {
+        p_Reactions.emojiCounts[reactionTypeEmoji->emoji_] = messageReaction->total_count_;
+
+        const int64_t usedSenderId =
+          GetSenderId(td::move_tl_object_as<td::td_api::MessageSender>(messageReaction->used_sender_id_));
+        if (IsSelf(usedSenderId))
+        {
+          p_Reactions.senderEmojis[s_ReactionsSelfId] = reactionTypeEmoji->emoji_;
+        }
+        else
+        {
+          for (auto sit = messageReaction->recent_sender_ids_.begin();
+               sit != messageReaction->recent_sender_ids_.end(); ++sit)
+          {
+            const int64_t senderId = GetSenderId(td::move_tl_object_as<td::td_api::MessageSender>(*sit));
+            if (IsSelf(senderId))
+            {
+              p_Reactions.senderEmojis[s_ReactionsSelfId] = reactionTypeEmoji->emoji_;
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+void TgChat::Impl::GetReactionsEmojis(td::td_api::object_ptr<td::td_api::availableReactions>& p_AvailableReactions,
+                                      std::set<std::string>& p_Emojis)
+{
+  auto ReactionsArrayToEmojiSet =
+    [](td::td_api::array<td::td_api::object_ptr<td::td_api::availableReaction>>& p_ReactionsArray,
+       std::set<std::string>& p_EmojiSet)
+  {
+    for (auto it = p_ReactionsArray.begin(); it != p_ReactionsArray.end(); ++it)
+    {
+      if ((*it)->type_->get_id() != td::td_api::reactionTypeEmoji::ID) continue;
+
+      auto reactionTypeEmoji = td::move_tl_object_as<td::td_api::reactionTypeEmoji>((*it)->type_);
+      if (reactionTypeEmoji)
+      {
+        p_EmojiSet.insert(reactionTypeEmoji->emoji_);
+      }
+    }
+  };
+
+  p_Emojis.clear();
+  ReactionsArrayToEmojiSet(p_AvailableReactions->top_reactions_, p_Emojis);
+  ReactionsArrayToEmojiSet(p_AvailableReactions->recent_reactions_, p_Emojis);
+  ReactionsArrayToEmojiSet(p_AvailableReactions->popular_reactions_, p_Emojis);
 }
