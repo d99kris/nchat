@@ -119,13 +119,20 @@ bool WmChat::LoadProfile(const std::string& p_ProfilesDir, const std::string& p_
     m_ProfileId = p_ProfileId;
   }
 
+  bool isRemoved = false;
+  MessageCache::AddProfile(m_ProfileId, false, s_CacheDirVersion, false, &isRemoved);
+  if (isRemoved)
+  {
+    LOG_INFO("cache removed - remove profile to force reauth");
+    FileUtil::RmDir(m_ProfileDir);
+  }
+
   std::string proxyUrl = GetProxyUrl();
   int32_t sendType = AppConfig::GetBool("attachment_send_type") ? 1 : 0;
   m_ConnId = CWmInit(const_cast<char*>(m_ProfileDir.c_str()), const_cast<char*>(proxyUrl.c_str()), sendType);
   if (m_ConnId == -1) return false;
 
   AddInstance(m_ConnId, this);
-  MessageCache::AddProfile(m_ProfileId, false, s_CacheDirVersion, false);
 
   m_ProfileDirVersion = FileUtil::GetDirVersion(m_ProfileDir);
   if (m_WhatsmeowDate < m_ProfileDirVersion)

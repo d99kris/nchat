@@ -186,7 +186,8 @@ void MessageCache::AddFromServiceMessage(const std::string& p_ProfileId,
   }
 }
 
-void MessageCache::AddProfile(const std::string& p_ProfileId, bool p_CheckSync, int p_DirVersion, bool p_IsSetup)
+void MessageCache::AddProfile(const std::string& p_ProfileId, bool p_CheckSync, int p_DirVersion, bool p_IsSetup,
+                              bool* p_IsRemoved /*= nullptr*/)
 {
   if (!m_CacheEnabled) return;
 
@@ -210,6 +211,15 @@ void MessageCache::AddProfile(const std::string& p_ProfileId, bool p_CheckSync, 
   FileUtil::InitDirVersion(dbDir, p_DirVersion);
 
   const std::string& dbPath = dbDir + "/db.sqlite";
+
+  // If db file does not exist and we are not performing setup, it means db dir version has been bumped
+  // and directory cleared, or user has manually deleted the db dir/file. In this case indicate to
+  // protocol, as some need to perform reinit to fetch chats.
+  if (p_IsRemoved != nullptr)
+  {
+    *p_IsRemoved = (!FileUtil::Exists(dbPath) && !p_IsSetup);
+  }
+
   m_Dbs[p_ProfileId].reset(new sqlite::database(dbPath));
   if (!m_Dbs[p_ProfileId]) return;
 

@@ -82,7 +82,7 @@ private:
   int m_ProfileDirVersion = 0;
   bool m_WasOnline = false;
   bool m_IsSetup = false;
-  static const int s_CacheDirVersion = 0;
+  static const int s_CacheDirVersion = 0; // update MessageCache::AddProfile() once bumped to 1
 };
 
 extern "C" {
