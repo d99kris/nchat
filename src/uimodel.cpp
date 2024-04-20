@@ -2669,12 +2669,34 @@ void UiModel::DesktopNotifyUnread(const std::string& p_Name, const std::string& 
 #if defined(__APPLE__)
       desktopNotifyCommand = "osascript -e 'display notification \"%1: %2\" with title \"nchat\"'";
 #else
-      desktopNotifyCommand = "notify-send 'nchat' '%1: %2'";
+      const std::string& commandOutPath = FileUtil::MkTempFile();
+      const std::string& whichCommand =
+        std::string("which notify-send 2> /dev/null | head -1 > ") + commandOutPath;
+      if (system(whichCommand.c_str()) == 0)
+      {
+        std::string output = FileUtil::ReadFile(commandOutPath);
+        output.erase(std::remove(output.begin(), output.end(), '\n'), output.end());
+        if (!output.empty())
+        {
+          if (output.find("/notify-send") != std::string::npos)
+          {
+            desktopNotifyCommand = "notify-send 'nchat' '%1: %2'";
+          }
+        }
+      }
+
+      FileUtil::RmFile(commandOutPath);
+      if (desktopNotifyCommand.empty())
+      {
+        LOG_WARNING("command 'notify-send' not found");
+      }
 #endif
     }
 
     return desktopNotifyCommand;
   }();
+
+  if (cmdTemplate.empty()) return;
 
   // clean up sender name and text
   std::string name = p_Name;
