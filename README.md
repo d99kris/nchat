@@ -115,6 +115,12 @@ macOS
     brew tap d99kris/nchat
     brew install nchat
 
+Optionally one can disable protocols using `--without-whatsapp` and
+`--without-telegram`, for example:
+
+    brew install nchat --without-telegram
+
+
 Arch Linux
 ----------
 **Build / Install Latest Git**
