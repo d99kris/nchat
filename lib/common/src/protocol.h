@@ -223,6 +223,7 @@ class MarkMessageReadRequest : public RequestMessage
 public:
   virtual MessageType GetMessageType() const { return MarkMessageReadRequestType; }
   std::string chatId;
+  std::string senderId; // only required for wmchat
   std::string msgId;
 };
 

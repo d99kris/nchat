@@ -421,8 +421,10 @@ void WmChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
           std::static_pointer_cast<MarkMessageReadRequest>(p_RequestMessage);
         std::string chatId = markMessageReadRequest->chatId;
         std::string msgId = markMessageReadRequest->msgId;
+        std::string senderId = markMessageReadRequest->senderId;
 
         int rv = CWmMarkMessageRead(m_ConnId, const_cast<char*>(chatId.c_str()),
+                                    const_cast<char*>(senderId.c_str()),
                                     const_cast<char*>(msgId.c_str()));
 
         std::shared_ptr<MarkMessageReadNotify> markMessageReadNotify =

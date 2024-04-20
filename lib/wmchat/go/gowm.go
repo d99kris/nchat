@@ -2002,9 +2002,9 @@ func WmGetStatus(connId int, userId string) int {
 	return 0
 }
 
-func WmMarkMessageRead(connId int, chatId string, msgId string) int {
+func WmMarkMessageRead(connId int, chatId string, senderId string, msgId string) int {
 
-	LOG_TRACE("mark message read " + strconv.Itoa(connId) + ", " + chatId + ", " + msgId)
+	LOG_TRACE("mark message read " + strconv.Itoa(connId) + ", " + chatId + ", " + senderId + ", " + msgId)
 
 	// sanity check arg
 	if connId == -1 {
@@ -2020,9 +2020,9 @@ func WmMarkMessageRead(connId int, chatId string, msgId string) int {
 		msgId,
 	}
 	timeNow := time.Now()
-	selfJid := *client.Store.ID
 	chatJid, _ := types.ParseJID(chatId)
-	err := client.MarkRead(msgIds, timeNow, chatJid, selfJid)
+	senderJid, _ := types.ParseJID(senderId)
+	err := client.MarkRead(msgIds, timeNow, chatJid, senderJid)
 
 	// log any error
 	if err != nil {

@@ -934,17 +934,20 @@ void UiModel::MarkRead(const std::string& p_ProfileId, const std::string& p_Chat
   static const bool markReadWhenInactive = UiConfig::GetBool("mark_read_when_inactive");
   if (!(m_TerminalActive || markReadWhenInactive)) return;
 
-  std::shared_ptr<MarkMessageReadRequest> markMessageReadRequest = std::make_shared<MarkMessageReadRequest>();
-  markMessageReadRequest->chatId = p_ChatId;
-  markMessageReadRequest->msgId = p_MsgId;
-  SendProtocolRequest(p_ProfileId, markMessageReadRequest);
-
+  std::string senderId;
   std::unordered_map<std::string, ChatMessage>& messages = m_Messages[p_ProfileId][p_ChatId];
   auto mit = messages.find(p_MsgId);
   if (mit != messages.end())
   {
     mit->second.isRead = true;
+    senderId = mit->second.senderId;
   }
+
+  std::shared_ptr<MarkMessageReadRequest> markMessageReadRequest = std::make_shared<MarkMessageReadRequest>();
+  markMessageReadRequest->chatId = p_ChatId;
+  markMessageReadRequest->msgId = p_MsgId;
+  markMessageReadRequest->senderId = senderId;
+  SendProtocolRequest(p_ProfileId, markMessageReadRequest);
 
   UpdateChatInfoIsUnread(p_ProfileId, p_ChatId);
 

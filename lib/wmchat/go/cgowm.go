@@ -74,8 +74,8 @@ func CWmGetStatus(connId int, userId *C.char) int {
 }
 
 //export CWmMarkMessageRead
-func CWmMarkMessageRead(connId int, chatId *C.char, msgId *C.char) int {
-	return WmMarkMessageRead(connId, C.GoString(chatId), C.GoString(msgId))
+func CWmMarkMessageRead(connId int, chatId *C.char, senderId *C.char, msgId *C.char) int {
+	return WmMarkMessageRead(connId, C.GoString(chatId), C.GoString(senderId), C.GoString(msgId))
 }
 
 //export CWmDeleteMessage
