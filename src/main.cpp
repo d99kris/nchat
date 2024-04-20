@@ -23,6 +23,7 @@
 #include "messagecache.h"
 #include "profiles.h"
 #include "scopeddirlock.h"
+#include "status.h"
 #include "ui.h"
 
 #ifdef HAS_DUMMY
@@ -356,14 +357,24 @@ int main(int argc, char* argv[])
   if (hasProtocols && exportDir.empty())
   {
     // Login
-    for (auto& protocol : protocols)
+    Status::Set(Status::FlagConnecting);
+    std::thread loginThread([&]
     {
-      protocol.second->SetMessageHandler(messageHandler);
-      protocol.second->Login();
-    }
+      for (auto& protocol : protocols)
+      {
+        protocol.second->SetMessageHandler(messageHandler);
+        protocol.second->Login();
+      }
+    });
 
     // Ui main loop
     ui->Run();
+
+    // Cleanup login thread
+    if (loginThread.joinable())
+    {
+      loginThread.join();
+    }
 
     // Logout
     for (auto& protocol : protocols)

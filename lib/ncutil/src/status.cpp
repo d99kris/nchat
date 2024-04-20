@@ -1,6 +1,6 @@
 // status.cpp
 //
-// Copyright (c) 2020-2023 Kristofer Berggren
+// Copyright (c) 2020-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -38,6 +38,7 @@ std::string Status::ToString(uint32_t p_Mask)
   if (maskedFlags & FlagUpdating) return "Updating";
   if (maskedFlags & FlagAway) return "Away";
   if (maskedFlags & FlagOnline) return "Online";
+  if (maskedFlags & FlagConnecting) return "Connecting";
 
   return "Offline";
 }

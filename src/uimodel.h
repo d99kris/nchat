@@ -155,8 +155,10 @@ private:
   void HandleChatInfoMutedUpdate(const std::string& p_ProfileId, const std::string& p_ChatId);
   void SendProtocolRequest(const std::string& p_ProfileId, std::shared_ptr<RequestMessage> p_Request);
   bool HasProtocolFeature(const std::string& p_ProfileId, ProtocolFeature p_ProtocolFeature);
-  void Quit();
+  void Quit(bool p_Forced);
   void EntryConvertEmojiEnabled();
+  void SetProtocolUiControl(const std::string& p_ProfileId, bool& p_IsTakeControl);
+  void HandleProtocolUiControl(std::unique_lock<std::mutex>& p_Lock);
 
 private:
   bool m_Running = true;
@@ -176,6 +178,7 @@ private:
   static const std::pair<std::string, std::string> s_ChatNone;
 
   std::string m_EditMessageId;
+  std::string m_ProtocolUiControl;
 
   std::unordered_map<std::string, std::unordered_map<std::string, std::vector<std::string>>> m_MessageVec;
   std::unordered_map<std::string,

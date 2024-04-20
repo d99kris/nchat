@@ -1,6 +1,6 @@
 // protocol.h
 //
-// Copyright (c) 2020-2023 Kristofer Berggren
+// Copyright (c) 2020-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -94,6 +94,8 @@ enum MessageType
   NewMessageFileNotifyType,
   DeleteChatNotifyType,
   UpdateMuteNotifyType,
+  ProtocolUiControlNotifyType,
+  RequestAppExitNotifyType,
 };
 
 struct ContactInfo
@@ -508,4 +510,21 @@ public:
   bool success;
   std::string chatId;
   bool isMuted;
+};
+
+class ProtocolUiControlNotify : public ServiceMessage
+{
+public:
+  explicit ProtocolUiControlNotify(const std::string& p_ProfileId) :
+    ServiceMessage(p_ProfileId) { }
+  virtual MessageType GetMessageType() const { return ProtocolUiControlNotifyType; }
+  bool isTakeControl;
+};
+
+class RequestAppExitNotify : public ServiceMessage
+{
+public:
+  explicit RequestAppExitNotify(const std::string& p_ProfileId) :
+    ServiceMessage(p_ProfileId) { }
+  virtual MessageType GetMessageType() const { return RequestAppExitNotifyType; }
 };

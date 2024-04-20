@@ -164,6 +164,8 @@ private:
   td::td_api::object_ptr<td::td_api::formattedText> GetFormattedText(const std::string& p_Text);
   td::td_api::object_ptr<td::td_api::inputMessageText> GetMessageText(const std::string& p_Text);
   std::string ConvertMarkdownV2ToV1(const std::string& p_Str);
+  void SetProtocolUiControl(bool p_IsTakeControl);
+  std::string GetProfilePhoneNumber();
 
 private:
   std::thread m_ServiceThread;
@@ -173,6 +175,7 @@ private:
   std::map<std::uint64_t, std::function<void(Object)>> m_Handlers;
   td::td_api::object_ptr<td::td_api::AuthorizationState> m_AuthorizationState;
   bool m_IsSetup = false;
+  bool m_IsReinit = false;
   bool m_Authorized = false;
   bool m_WasAuthorized = false;
   std::int64_t m_SelfUserId = 0;
@@ -354,8 +357,6 @@ bool TgChat::Impl::CloseProfile()
 
 bool TgChat::Impl::Login()
 {
-  Status::Set(Status::FlagOnline);
-
   if (!m_Running)
   {
     m_Running = true;
@@ -371,6 +372,7 @@ bool TgChat::Impl::Login()
 bool TgChat::Impl::Logout()
 {
   Status::Clear(Status::FlagOnline);
+  Status::Clear(Status::FlagConnecting);
 
   if (m_Running)
   {
@@ -1458,20 +1460,31 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
   },
   [this](td::td_api::updateConnectionState& connection_state)
   {
-    LOG_TRACE("update connection state");
-
     if (!connection_state.state_) return;
 
-    if (connection_state.state_->get_id() == td::td_api::connectionStateReady::ID)
+    if (connection_state.state_->get_id() == td::td_api::connectionStateWaitingForNetwork::ID)
     {
-      m_WasOnline = true;
-      Status::Set(Status::FlagOnline);
-      Status::Clear(Status::FlagOffline);
+      LOG_TRACE("update connectionStateWaitingForNetwork");
     }
-    else
+    else if (connection_state.state_->get_id() == td::td_api::connectionStateConnectingToProxy::ID)
     {
-      Status::Set(Status::FlagOffline);
+      LOG_TRACE("update connectionStateConnectingToProxy");
+    }
+    else if (connection_state.state_->get_id() == td::td_api::connectionStateConnecting::ID)
+    {
+      LOG_TRACE("update connectionStateConnecting");
       Status::Clear(Status::FlagOnline);
+    }
+    else if (connection_state.state_->get_id() == td::td_api::connectionStateUpdating::ID)
+    {
+      LOG_TRACE("update connectionStateUpdating");
+    }
+    else if (connection_state.state_->get_id() == td::td_api::connectionStateReady::ID)
+    {
+      LOG_TRACE("update connectionStateReady");
+      m_WasOnline = true; // set flag indicating we have been online at some point
+      Status::Set(Status::FlagOnline);
+      Status::Clear(Status::FlagConnecting);
     }
   },
   [this](td::td_api::updateMessageContent& update_message_content)
@@ -1696,6 +1709,11 @@ void TgChat::Impl::OnAuthStateUpdate()
     }
     else
     {
+      if (m_IsReinit)
+      {
+        SetProtocolUiControl(false);
+      }
+
       SendQuery(td::td_api::make_object<td::td_api::getMe>(),
       [this](Object object)
       {
@@ -1740,26 +1758,50 @@ void TgChat::Impl::OnAuthStateUpdate()
     m_Authorized = false;
     m_Running = false;
     LOG_DEBUG("closed");
+
+    if (m_WasAuthorized)
+    {
+      LOG_WARNING("session closed by other device");
+      SetProtocolUiControl(true);
+      std::cout << "\n";
+      std::cout << "WARNING: Session terminated by other device.\n";
+      std::cout << "Please restart nchat to reauthenticate. Press ENTER to continue.\n";
+      std::string str;
+      std::getline(std::cin, str);
+      SetProtocolUiControl(false);
+
+      LOG_TRACE("request app exit");
+      std::shared_ptr<RequestAppExitNotify> requestAppExitNotify =
+        std::make_shared<RequestAppExitNotify>(m_ProfileId);
+      CallMessageHandler(requestAppExitNotify);
+    }
   },
   [this](td::td_api::authorizationStateWaitCode&)
   {
     if (m_IsSetup)
     {
-      std::cout << "Enter authentication code: ";
-      std::string code;
-      std::getline(std::cin, code);
-      SendQuery(td::td_api::make_object<td::td_api::checkAuthenticationCode>(code),
-                CreateAuthQueryHandler());
+      LOG_DEBUG("fresh code");
     }
     else
     {
-      LOG_DEBUG("unexpected state");
-      m_Running = false;
+      LOG_DEBUG("reinit code");
+      if (!m_IsReinit)
+      {
+        m_IsReinit = true;
+        SetProtocolUiControl(true);
+        std::cout << "Telegram reauthentication for " << GetProfilePhoneNumber() << " required\n\n";
+      }
     }
+
+    std::cout << "Enter authentication code: ";
+    std::string code;
+    std::getline(std::cin, code);
+    SendQuery(td::td_api::make_object<td::td_api::checkAuthenticationCode>(code),
+              CreateAuthQueryHandler());
   },
   [this](td::td_api::authorizationStateWaitRegistration&)
   {
-    if (m_IsSetup)
+    if (m_IsSetup || m_IsReinit)
     {
       std::string first_name;
       std::string last_name;
@@ -1779,7 +1821,7 @@ void TgChat::Impl::OnAuthStateUpdate()
   },
   [this](td::td_api::authorizationStateWaitPassword&)
   {
-    if (m_IsSetup)
+    if (m_IsSetup || m_IsReinit)
     {
       std::cout << "Enter authentication password: ";
       std::string password = StrUtil::GetPass();
@@ -1788,24 +1830,33 @@ void TgChat::Impl::OnAuthStateUpdate()
     }
     else
     {
-      LOG_DEBUG("Unexpected state");
+      LOG_DEBUG("unexpected state");
       m_Running = false;
     }
   },
   [this](td::td_api::authorizationStateWaitPhoneNumber&)
   {
+    std::string phone_number;
     if (m_IsSetup)
     {
-      std::string phone_number = m_SetupPhoneNumber;
-      SendQuery(td::td_api::make_object<td::td_api::setAuthenticationPhoneNumber>(phone_number,
-                                                                                  nullptr),
-                CreateAuthQueryHandler());
+      LOG_DEBUG("fresh number");
+      phone_number = m_SetupPhoneNumber;
     }
     else
     {
-      LOG_DEBUG("unexpected state");
-      m_Running = false;
+      LOG_DEBUG("reinit number");
+      phone_number = GetProfilePhoneNumber();
+      if (!m_IsReinit)
+      {
+        m_IsReinit = true;
+        SetProtocolUiControl(true);
+        std::cout << "Telegram reauthentication for " << phone_number << " required\n\n";
+      }
     }
+
+    SendQuery(td::td_api::make_object<td::td_api::setAuthenticationPhoneNumber>(phone_number,
+                                                                                nullptr),
+              CreateAuthQueryHandler());
   },
   [this](td::td_api::authorizationStateWaitTdlibParameters&)
   {
@@ -1881,14 +1932,27 @@ void TgChat::Impl::CheckAuthError(Object object)
   {
     auto error = td::move_tl_object_as<td::td_api::error>(object);
     LOG_WARNING("auth error \"%s\"", to_string(error).c_str());
-    if (m_IsSetup)
+    if (m_IsSetup || m_IsReinit)
     {
       std::cout << "Authentication error: " << error->message_ << "\n";
-      m_IsSetup = false;
-    }
+      if (m_IsReinit)
+      {
+        SetProtocolUiControl(false);
+      }
 
-    m_Running = false;
-    OnAuthStateUpdate();
+      m_IsSetup = false;
+      m_IsReinit = false;
+      m_Running = false;
+
+      LOG_TRACE("request app exit");
+      std::shared_ptr<RequestAppExitNotify> requestAppExitNotify =
+        std::make_shared<RequestAppExitNotify>(m_ProfileId);
+      CallMessageHandler(requestAppExitNotify);
+    }
+    else
+    {
+      OnAuthStateUpdate();
+    }
   }
 }
 
@@ -2724,4 +2788,35 @@ std::string TgChat::Impl::ConvertMarkdownV2ToV1(const std::string& p_Str)
 
   rv += ReplaceV2Markup(str); // text non-match
   return rv;
+}
+
+void TgChat::Impl::SetProtocolUiControl(bool p_IsTakeControl)
+{
+  LOG_TRACE("set protocol ui control %d", p_IsTakeControl);
+  std::shared_ptr<ProtocolUiControlNotify> protocolUiControlNotify =
+    std::make_shared<ProtocolUiControlNotify>(m_ProfileId);
+  protocolUiControlNotify->isTakeControl = p_IsTakeControl;
+  CallMessageHandler(protocolUiControlNotify);
+
+  // if attempting to take control, but failed to do so, keep retrying
+  while (p_IsTakeControl && !protocolUiControlNotify->isTakeControl)
+  {
+    TimeUtil::Sleep(0.500);
+    LOG_TRACE("set protocol ui control retry");
+    protocolUiControlNotify->isTakeControl = p_IsTakeControl;
+    CallMessageHandler(protocolUiControlNotify);
+  }
+
+  TimeUtil::Sleep(0.100); // wait more than GetKey timeout
+}
+
+std::string TgChat::Impl::GetProfilePhoneNumber()
+{
+  std::vector<std::string> profileInfo  = StrUtil::Split(m_ProfileId, '_');
+  if (profileInfo.size() == 2)
+  {
+    return profileInfo.at(1);
+  }
+
+  return "";
 }

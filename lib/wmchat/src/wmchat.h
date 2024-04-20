@@ -49,6 +49,8 @@ public:
   void SendRequest(std::shared_ptr<RequestMessage> p_RequestMessage);
   void SetMessageHandler(const std::function<void(std::shared_ptr<ServiceMessage>)>& p_MessageHandler);
 
+  void SetProtocolUiControl(bool p_IsTakeControl);
+
 public:
   static void AddInstance(int p_ConnId, WmChat* p_Instance);
   static void RemoveInstance(int p_ConnId);
@@ -79,6 +81,7 @@ private:
   int m_WhatsmeowDate = 0;
   int m_ProfileDirVersion = 0;
   bool m_WasOnline = false;
+  bool m_IsSetup = false;
   static const int s_CacheDirVersion = 0;
 };
 
@@ -95,6 +98,7 @@ void WmNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p
 void WmDeleteChatNotify(int p_ConnId, char* p_ChatId);
 void WmUpdateMuteNotify(int p_ConnId, char* p_ChatId, int p_IsMuted);
 void WmReinit(int p_ConnId);
+void WmSetProtocolUiControl(int p_ConnId, int p_IsTakeControl);
 void WmSetStatus(int p_Flags);
 void WmClearStatus(int p_Flags);
 void WmLogTrace(char* p_Filename, int p_LineNo, char* p_Message);

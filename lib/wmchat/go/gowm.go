@@ -82,12 +82,13 @@ var FileStatusDownloadFailed = 3
 // keep in sync with enum Flag in status.h
 var FlagNone = 0
 var FlagOffline = (1 << 0)
-var FlagOnline = (1 << 1)
-var FlagFetching = (1 << 2)
-var FlagSending = (1 << 3)
-var FlagUpdating = (1 << 4)
-var FlagSyncing = (1 << 5)
-var FlagAway = (1 << 6)
+var FlagConnecting = (1 << 1)
+var FlagOnline = (1 << 2)
+var FlagFetching = (1 << 3)
+var FlagSending = (1 << 4)
+var FlagUpdating = (1 << 5)
+var FlagSyncing = (1 << 6)
+var FlagAway = (1 << 7)
 
 func AddConn(conn *whatsmeow.Client, path string, sendType int) int {
 	mx.Lock()
@@ -307,6 +308,11 @@ func ShowImage(path string) {
 }
 
 func HasGUI() bool {
+	_, isForceQrTerminalSet := os.LookupEnv("FORCE_QR_TERMINAL")
+	if isForceQrTerminalSet {
+		return false
+	}
+
 	switch runtime.GOOS {
 	case "darwin":
 		LOG_INFO(fmt.Sprintf("has gui"))
@@ -512,12 +518,11 @@ func (handler *WmEventHandler) HandleEvent(rawEvt interface{}) {
 		handler.HandleConnected()
 		SetState(handler.connId, Connected)
 		CWmSetStatus(FlagOnline)
-		CWmClearStatus(FlagOffline)
+		CWmClearStatus(FlagConnecting)
 
 	case *events.Disconnected:
 		// disconnected
 		LOG_TRACE(fmt.Sprintf("%#v", evt))
-		CWmSetStatus(FlagOffline)
 		CWmClearStatus(FlagOnline)
 
 	case *events.StreamReplaced:
@@ -1638,9 +1643,15 @@ func WmLogin(connId int) int {
 	} else {
 		timeoutMs = 60000 // 60 sec timeout during setup / qr code scan
 		go func() {
+			hasGUI := HasGUI()
+			if !hasGUI {
+				LOG_TRACE(fmt.Sprintf("acquire console"))
+				CWmSetProtocolUiControl(connId, 1)
+			}
+
 			for evt := range ch {
 				if evt.Event == "code" {
-					if HasGUI() {
+					if hasGUI {
 						qrPath := path + "/tmp/qr.png"
 						qrcode.WriteFile(evt.Code, qrcode.Medium, 512, qrPath)
 						ShowImage(qrPath)
@@ -1651,6 +1662,11 @@ func WmLogin(connId int) int {
 					LOG_WARNING(fmt.Sprintf("qr channel result %#v", evt.Event))
 				}
 			}
+
+			if !hasGUI {
+				LOG_TRACE(fmt.Sprintf("release console"))
+				CWmSetProtocolUiControl(connId, 0)
+			}
 		}()
 	}
 
@@ -1659,6 +1675,7 @@ func WmLogin(connId int) int {
 	err = cli.Connect()
 	if err != nil {
 		LOG_WARNING(fmt.Sprintf("failed to connect %#v", err))
+		CWmClearStatus(FlagConnecting)
 		return -1
 	}
 

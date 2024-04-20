@@ -58,6 +58,8 @@ bool WmChat::HasFeature(ProtocolFeature p_ProtocolFeature) const
 
 bool WmChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId)
 {
+  m_IsSetup = true;
+
   std::cout << "\n";
   std::cout << "WARNING:\n";
   std::cout << "This functionality is in no way affiliated with, authorized, maintained,\n";
@@ -85,7 +87,11 @@ bool WmChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_Profi
   std::string proxyUrl = GetProxyUrl();
   int32_t sendType = AppConfig::GetBool("attachment_send_type") ? 1 : 0;
   int connId = CWmInit(const_cast<char*>(profileDir.c_str()), const_cast<char*>(proxyUrl.c_str()), sendType);
-  if (connId == -1) return false;
+  if (connId == -1)
+  {
+    m_IsSetup = false;
+    return false;
+  }
 
   m_ConnId = connId;
   AddInstance(m_ConnId, this);
@@ -97,9 +103,11 @@ bool WmChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_Profi
   if (!rv)
   {
     Cleanup();
+    m_IsSetup = false;
     return false;
   }
 
+  m_IsSetup = false;
   return true;
 }
 
@@ -180,7 +188,6 @@ bool WmChat::Login()
     m_Thread = std::thread(&WmChat::Process, this);
 
     rv = CWmLogin(m_ConnId);
-    Status::Set(Status::FlagOnline);
 
     {
       std::shared_ptr<ConnectNotify> connectNotify = std::make_shared<ConnectNotify>(m_ProfileId);
@@ -575,6 +582,32 @@ std::string WmChat::GetProxyUrl() const
   return "";
 }
 
+void WmChat::SetProtocolUiControl(bool p_IsTakeControl)
+{
+  if (m_IsSetup)
+  {
+    LOG_TRACE("set protocol ui control %d ignored during setup", p_IsTakeControl);
+    return;
+  }
+
+  LOG_TRACE("set protocol ui control %d", p_IsTakeControl);
+  std::shared_ptr<ProtocolUiControlNotify> protocolUiControlNotify =
+    std::make_shared<ProtocolUiControlNotify>(m_ProfileId);
+  protocolUiControlNotify->isTakeControl = p_IsTakeControl;
+  CallMessageHandler(protocolUiControlNotify);
+
+  // if attempting to take control, but failed to do so, keep retrying
+  while (p_IsTakeControl && !protocolUiControlNotify->isTakeControl)
+  {
+    TimeUtil::Sleep(0.500);
+    LOG_TRACE("set protocol ui control retry");
+    protocolUiControlNotify->isTakeControl = p_IsTakeControl;
+    CallMessageHandler(protocolUiControlNotify);
+  }
+
+  TimeUtil::Sleep(0.100); // wait more than GetKey timeout
+}
+
 void WmChat::AddInstance(int p_ConnId, WmChat* p_Instance)
 {
   std::unique_lock<std::mutex> lock(s_ConnIdMapMutex);
@@ -826,6 +859,14 @@ void WmReinit(int p_ConnId)
   instance->CloseProfile();
   instance->LoadProfile("", "");
   instance->Login();
+}
+
+void WmSetProtocolUiControl(int p_ConnId, int p_IsTakeControl)
+{
+  WmChat* instance = WmChat::GetInstance(p_ConnId);
+  if (instance == nullptr) return;
+
+  instance->SetProtocolUiControl(p_IsTakeControl);
 }
 
 void WmSetStatus(int p_Flags)

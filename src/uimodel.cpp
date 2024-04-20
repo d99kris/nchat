@@ -179,7 +179,7 @@ void UiModel::KeyHandler(wint_t p_Key)
   }
   else if (p_Key == keyQuit)
   {
-    Quit();
+    Quit(false /*p_Forced*/);
   }
   else if (p_Key == keySendMsg)
   {
@@ -1950,6 +1950,22 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
       }
       break;
 
+    case ProtocolUiControlNotifyType:
+      {
+        std::shared_ptr<ProtocolUiControlNotify> protocolUiControlNotify =
+          std::static_pointer_cast<ProtocolUiControlNotify>(p_ServiceMessage);
+        SetProtocolUiControl(profileId, protocolUiControlNotify->isTakeControl);
+      }
+      break;
+
+    case RequestAppExitNotifyType:
+      {
+        std::shared_ptr<RequestAppExitNotify> requestAppExitNotify =
+          std::static_pointer_cast<RequestAppExitNotify>(p_ServiceMessage);
+        Quit(true /*p_Forced*/);
+      }
+      break;
+
     default:
       LOG_DEBUG("unknown service message %d", p_ServiceMessage->GetMessageType());
       break;
@@ -1971,6 +1987,11 @@ std::unordered_map<std::string, std::shared_ptr<Protocol>>& UiModel::GetProtocol
 bool UiModel::Process()
 {
   std::unique_lock<std::mutex> lock(m_ModelMutex);
+  if (!m_ProtocolUiControl.empty())
+  {
+    HandleProtocolUiControl(lock);
+  }
+
   if (m_TriggerTerminalBell)
   {
     m_TriggerTerminalBell = false;
@@ -3193,9 +3214,9 @@ std::string UiModel::GetProfileDisplayName(const std::string& p_ProfileId)
   return s_DisplayNames[p_ProfileId];
 }
 
-void UiModel::Quit()
+void UiModel::Quit(bool p_Forced)
 {
-  if (Status::Get() & Status::FlagSyncing)
+  if (!p_Forced && (Status::Get() & Status::FlagSyncing))
   {
     if (!MessageDialog("Confirmation", "Syncing in progress, confirm exit?", 0.75, 5))
     {
@@ -3229,4 +3250,62 @@ void UiModel::EntryConvertEmojiEnabled()
 
     entryPos = entryStr.size();
   }
+}
+
+void UiModel::SetProtocolUiControl(const std::string& p_ProfileId, bool& p_IsTakeControl)
+{
+  if (p_IsTakeControl)
+  {
+    if (m_ProtocolUiControl.empty())
+    {
+      m_ProtocolUiControl = p_ProfileId;
+      LOG_TRACE("set protocol ui control ok \"%s\"", m_ProtocolUiControl.c_str());
+    }
+    else if (m_ProtocolUiControl == p_ProfileId)
+    {
+      LOG_TRACE("set protocol ui control ok duplicate \"%s\"", m_ProtocolUiControl.c_str());
+    }
+    else
+    {
+      p_IsTakeControl = false; // indicate failure to caller, as no point waiting under lock
+      LOG_TRACE("set protocol ui control failed, owned by \"%s\"", m_ProtocolUiControl.c_str());
+    }
+  }
+  else
+  {
+    if (m_ProtocolUiControl == p_ProfileId)
+    {
+      m_ProtocolUiControl.clear();
+      LOG_TRACE("set protocol ui control cleared ok");
+    }
+    else
+    {
+      LOG_WARNING("set protocol ui control invalid state \"%s\" != \"%s\"",
+                  m_ProtocolUiControl.c_str(), p_ProfileId.c_str());
+    }
+  }
+}
+
+void UiModel::HandleProtocolUiControl(std::unique_lock<std::mutex>& lock)
+{
+  LOG_TRACE("handle protocol ui control start");
+
+  endwin();
+
+  while (!m_ProtocolUiControl.empty())
+  {
+    lock.unlock();
+    TimeUtil::Sleep(0.050); // match GetKey timeout
+    lock.lock();
+  }
+
+  refresh();
+
+  wint_t key = 0;
+  while (UiKeyInput::GetWch(&key) != ERR)
+  {
+    // Discard any remaining input
+  }
+
+  LOG_TRACE("handle protocol ui control end");
 }
