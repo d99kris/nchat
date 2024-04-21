@@ -109,7 +109,7 @@ void AppUtil::SignalHandler(int p_Signal)
 
     // non-signal safe code section
     LOG_INFO("user abort");
-    UNUSED(system("tput reset 2> /dev/null || reset"));
+    UNUSED(system("reset"));
     UNUSED(write(STDERR_FILENO, logMsg, strlen(logMsg)));
   }
   else
@@ -124,7 +124,7 @@ void AppUtil::SignalHandler(int p_Signal)
     Log::Callstack(callstack, size, logMsg);
 
     // non-signal safe code section
-    UNUSED(system("tput reset 2> /dev/null || reset"));
+    UNUSED(system("reset"));
     UNUSED(write(STDERR_FILENO, logMsg, strlen(logMsg)));
 
 #ifdef HAVE_EXECINFO_H
