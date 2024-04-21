@@ -62,7 +62,9 @@ public:
 
 private:
   void Init();
+  void InitConfig();
   void Cleanup();
+  void CleanupConfig();
   void CallMessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage);
   void PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage);
   std::string GetProxyUrl() const;

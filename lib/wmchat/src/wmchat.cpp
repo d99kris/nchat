@@ -97,12 +97,14 @@ bool WmChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_Profi
   AddInstance(m_ConnId, this);
   MessageCache::AddProfile(m_ProfileId, false, s_CacheDirVersion, true);
 
+  InitConfig();
   Init();
 
   bool rv = Login();
   if (!rv)
   {
     Cleanup();
+    CleanupConfig();
     m_IsSetup = false;
     return false;
   }
@@ -149,6 +151,7 @@ bool WmChat::LoadProfile(const std::string& p_ProfilesDir, const std::string& p_
     LOG_INFO("whatsmeow upgrade from %d", m_ProfileDirVersion);
   }
 
+  InitConfig();
   Init();
 
   return true;
@@ -167,11 +170,16 @@ bool WmChat::CloseProfile()
   m_ConnId = -1;
 
   Cleanup();
+  CleanupConfig();
 
   return (rv == 0);
 }
 
 void WmChat::Init()
+{
+}
+
+void WmChat::InitConfig()
 {
   const std::map<std::string, std::string> defaultConfig =
   {
@@ -182,6 +190,10 @@ void WmChat::Init()
 }
 
 void WmChat::Cleanup()
+{
+}
+
+void WmChat::CleanupConfig()
 {
   m_Config.Save();
 }

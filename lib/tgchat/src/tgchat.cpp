@@ -134,7 +134,9 @@ private:
   using Object = td::td_api::object_ptr<td::td_api::Object>;
   void Init();
   void InitProxy();
+  void InitConfig();
   void Cleanup();
+  void CleanupConfig();
   void ProcessService();
   void ProcessResponse(td::Client::Response response);
   void ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> update);
@@ -304,11 +306,13 @@ bool TgChat::Impl::SetupProfile(const std::string& p_ProfilesDir, std::string& p
   m_IsSetup = true;
   m_Running = true;
 
+  InitConfig();
   Init();
 
   ProcessService();
 
   Cleanup();
+  CleanupConfig();
 
   bool rv = m_IsSetup;
   if (rv)
@@ -344,6 +348,8 @@ bool TgChat::Impl::LoadProfile(const std::string& p_ProfilesDir, const std::stri
     LOG_INFO("tdlib upgrade from %d", m_ProfileDirVersion);
   }
 
+  InitConfig();
+
   return true;
 }
 
@@ -354,6 +360,8 @@ bool TgChat::Impl::CloseProfile()
     LOG_INFO("update profile to %d", s_TdlibDate);
     FileUtil::SetDirVersion(m_ProfileDir, s_TdlibDate);
   }
+
+  CleanupConfig();
 
   m_ProfileDir = "";
   m_ProfileId = "";
@@ -1361,16 +1369,6 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
 
 void TgChat::Impl::Init()
 {
-  const std::map<std::string, std::string> defaultConfig =
-  {
-    { "profile_display_name", "" },
-    { "local_key", "" },
-    { "markdown_enabled", "1" },
-    { "markdown_version", "1" },
-  };
-  const std::string configPath(m_ProfileDir + std::string("/telegram.conf"));
-  m_Config = Config(configPath, defaultConfig);
-
   {
     static std::mutex ctorMutex;
     std::unique_lock<std::mutex> lock(ctorMutex);
@@ -1432,10 +1430,27 @@ void TgChat::Impl::InitProxy()
   });
 }
 
+void TgChat::Impl::InitConfig()
+{
+  const std::map<std::string, std::string> defaultConfig =
+  {
+    { "profile_display_name", "" },
+    { "local_key", "" },
+    { "markdown_enabled", "1" },
+    { "markdown_version", "1" },
+  };
+  const std::string configPath(m_ProfileDir + std::string("/telegram.conf"));
+  m_Config = Config(configPath, defaultConfig);
+}
+
 void TgChat::Impl::Cleanup()
 {
-  m_Config.Save();
   td::td_api::close();
+}
+
+void TgChat::Impl::CleanupConfig()
+{
+  m_Config.Save();
 }
 
 void TgChat::Impl::ProcessService()
