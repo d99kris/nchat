@@ -329,6 +329,8 @@ bool TgChat::Impl::SetupProfile(const std::string& p_ProfilesDir, std::string& p
 
 bool TgChat::Impl::LoadProfile(const std::string& p_ProfilesDir, const std::string& p_ProfileId)
 {
+  LOG_INFO("load telegram profile");
+
   m_ProfileDir = p_ProfilesDir + "/" + p_ProfileId;
   m_ProfileId = p_ProfileId;
   MessageCache::AddProfile(m_ProfileId, true, s_CacheDirVersion, false);

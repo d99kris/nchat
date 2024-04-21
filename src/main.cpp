@@ -365,11 +365,14 @@ int main(int argc, char* argv[])
   bool hasProtocols = !protocols.empty();
   if (hasProtocols && exportDir.empty())
   {
+    // Sort protocols
+    std::map<std::string, std::shared_ptr<Protocol>> protocolsSorted(protocols.begin(), protocols.end());
+
     // Login
     Status::Set(Status::FlagConnecting);
     std::thread loginThread([&]
     {
-      for (auto& protocol : protocols)
+      for (auto& protocol : protocolsSorted)
       {
         protocol.second->SetMessageHandler(messageHandler);
         protocol.second->Login();
@@ -386,7 +389,7 @@ int main(int argc, char* argv[])
     }
 
     // Logout
-    for (auto& protocol : protocols)
+    for (auto& protocol : protocolsSorted)
     {
       protocol.second->Logout();
       protocol.second->CloseProfile();

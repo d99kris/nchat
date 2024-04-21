@@ -115,6 +115,8 @@ bool WmChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_Profi
 
 bool WmChat::LoadProfile(const std::string& p_ProfilesDir, const std::string& p_ProfileId)
 {
+  LOG_INFO("load whatsapp profile");
+
   if (!p_ProfilesDir.empty() && !p_ProfileId.empty())
   {
     m_ProfileDir = p_ProfilesDir + "/" + p_ProfileId;

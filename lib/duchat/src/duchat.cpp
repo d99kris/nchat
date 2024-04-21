@@ -64,6 +64,7 @@ bool DuChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_Profi
 
 bool DuChat::LoadProfile(const std::string& p_ProfilesDir, const std::string& p_ProfileId)
 {
+  LOG_INFO("load dummy profile");
   (void)p_ProfilesDir;
   m_ProfileId = p_ProfileId;
   return true;
