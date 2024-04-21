@@ -376,14 +376,14 @@ int main(int argc, char* argv[])
       }
     });
 
-    // Ui main loop
-    ui->Run();
-
     // Cleanup login thread
     if (loginThread.joinable())
     {
       loginThread.join();
     }
+
+    // Ui main loop
+    ui->Run();
 
     // Logout
     for (auto& protocol : protocols)
