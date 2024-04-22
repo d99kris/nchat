@@ -15,6 +15,8 @@
 #include <dlfcn.h>
 
 #include <path.hpp>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include "appconfig.h"
 #include "apputil.h"
@@ -131,11 +133,26 @@ static std::vector<ProtocolBaseFactory*> GetProtocolFactorys()
 
 static std::string GetConfDir()
 {
-  char *confDir = getenv(EnvXdgConf);
-  if (confDir != NULL && confDir[0] != '\0') {
-    return std::string(confDir) + std::string("/nchat");
+  char *home = getenv("HOME");
+  if (home == NULL || home[0] == '\0')
+  {
+    return "";
   }
-  return std::string(getenv("HOME")) + "/" + DefaultXdgConfDir + "/" + std::string("nchat");
+
+  std::string legacyPath = std::string(home) + "/.nchat";
+  struct stat inf;
+
+  if (stat(legacyPath.c_str(), &inf) == 0 && (inf.st_mode & S_IFDIR))
+  {
+	return legacyPath;
+  }
+
+  char *confDir = getenv(EnvXdgConf);
+  if (confDir != NULL && confDir[0] != '\0')
+  {
+    return std::string(confDir) + "/nchat";
+  }
+  return std::string(home) + "/" + DefaultXdgConfDir + "/" + std::string("nchat");
 }
 
 int main(int argc, char* argv[])
