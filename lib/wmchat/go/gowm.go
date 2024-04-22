@@ -82,12 +82,13 @@ var FileStatusDownloadFailed = 3
 // keep in sync with enum Flag in status.h
 var FlagNone = 0
 var FlagOffline = (1 << 0)
-var FlagOnline = (1 << 1)
-var FlagFetching = (1 << 2)
-var FlagSending = (1 << 3)
-var FlagUpdating = (1 << 4)
-var FlagSyncing = (1 << 5)
-var FlagAway = (1 << 6)
+var FlagConnecting = (1 << 1)
+var FlagOnline = (1 << 2)
+var FlagFetching = (1 << 3)
+var FlagSending = (1 << 4)
+var FlagUpdating = (1 << 5)
+var FlagSyncing = (1 << 6)
+var FlagAway = (1 << 7)
 
 func AddConn(conn *whatsmeow.Client, path string, sendType int) int {
 	mx.Lock()
@@ -307,6 +308,11 @@ func ShowImage(path string) {
 }
 
 func HasGUI() bool {
+	_, isForceQrTerminalSet := os.LookupEnv("FORCE_QR_TERMINAL")
+	if isForceQrTerminalSet {
+		return false
+	}
+
 	switch runtime.GOOS {
 	case "darwin":
 		LOG_INFO(fmt.Sprintf("has gui"))
@@ -512,12 +518,11 @@ func (handler *WmEventHandler) HandleEvent(rawEvt interface{}) {
 		handler.HandleConnected()
 		SetState(handler.connId, Connected)
 		CWmSetStatus(FlagOnline)
-		CWmClearStatus(FlagOffline)
+		CWmClearStatus(FlagConnecting)
 
 	case *events.Disconnected:
 		// disconnected
 		LOG_TRACE(fmt.Sprintf("%#v", evt))
-		CWmSetStatus(FlagOffline)
 		CWmClearStatus(FlagOnline)
 
 	case *events.StreamReplaced:
@@ -944,6 +949,9 @@ func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg 
 	case msg.TemplateMessage != nil:
 		handler.HandleTemplateMessage(messageInfo, msg, isSync)
 
+	case msg.ReactionMessage != nil:
+		handler.HandleReactionMessage(messageInfo, msg, isSync)
+
 	default:
 		handler.HandleUnsupportedMessage(messageInfo, msg, isSync)
 	}
@@ -1328,6 +1336,31 @@ func (handler *WmEventHandler) HandleTemplateMessage(messageInfo types.MessageIn
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
 }
 
+func (handler *WmEventHandler) HandleReactionMessage(messageInfo types.MessageInfo, msg *waProto.Message, isSync bool) {
+	LOG_TRACE(fmt.Sprintf("ReactionMessage"))
+
+	connId := handler.connId
+
+	// get reaction part
+	reaction := msg.GetReactionMessage()
+	if reaction == nil {
+		LOG_WARNING(fmt.Sprintf("get reaction message failed"))
+		return
+	}
+
+	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
+	fromMe := messageInfo.IsFromMe
+	senderId := JidToStr(messageInfo.Sender)
+	text := reaction.GetText()
+	msgId := *reaction.Key.Id
+
+	CWmNewMessageReactionNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe))
+
+	// @todo: add auto-marking reactions of read, investigate why below does not work
+	//reMsgId := messageInfo.ID
+	//WmMarkMessageRead(connId, chatId, senderId, reMsgId)
+}
+
 func (handler *WmEventHandler) HandleUnsupportedMessage(messageInfo types.MessageInfo, msg *waProto.Message, isSync bool) {
 	// list from type Message struct in def.pb.go
 	msgType := "Unknown"
@@ -1638,9 +1671,15 @@ func WmLogin(connId int) int {
 	} else {
 		timeoutMs = 60000 // 60 sec timeout during setup / qr code scan
 		go func() {
+			hasGUI := HasGUI()
+
+			LOG_TRACE(fmt.Sprintf("acquire console"))
+			CWmSetProtocolUiControl(connId, 1)
+			fmt.Printf("Scan the Qr code to authenticate, or press CTRL-C to abort.\n")
+
 			for evt := range ch {
 				if evt.Event == "code" {
-					if HasGUI() {
+					if hasGUI {
 						qrPath := path + "/tmp/qr.png"
 						qrcode.WriteFile(evt.Code, qrcode.Medium, 512, qrPath)
 						ShowImage(qrPath)
@@ -1651,6 +1690,9 @@ func WmLogin(connId int) int {
 					LOG_WARNING(fmt.Sprintf("qr channel result %#v", evt.Event))
 				}
 			}
+
+			LOG_TRACE(fmt.Sprintf("release console"))
+			CWmSetProtocolUiControl(connId, 0)
 		}()
 	}
 
@@ -1659,6 +1701,7 @@ func WmLogin(connId int) int {
 	err = cli.Connect()
 	if err != nil {
 		LOG_WARNING(fmt.Sprintf("failed to connect %#v", err))
+		CWmClearStatus(FlagConnecting)
 		return -1
 	}
 
@@ -1985,9 +2028,9 @@ func WmGetStatus(connId int, userId string) int {
 	return 0
 }
 
-func WmMarkMessageRead(connId int, chatId string, msgId string) int {
+func WmMarkMessageRead(connId int, chatId string, senderId string, msgId string) int {
 
-	LOG_TRACE("mark message read " + strconv.Itoa(connId) + ", " + chatId + ", " + msgId)
+	LOG_TRACE("mark message read " + strconv.Itoa(connId) + ", " + chatId + ", " + senderId + ", " + msgId)
 
 	// sanity check arg
 	if connId == -1 {
@@ -2003,9 +2046,9 @@ func WmMarkMessageRead(connId int, chatId string, msgId string) int {
 		msgId,
 	}
 	timeNow := time.Now()
-	selfJid := *client.Store.ID
 	chatJid, _ := types.ParseJID(chatId)
-	err := client.MarkRead(msgIds, timeNow, chatJid, selfJid)
+	senderJid, _ := types.ParseJID(senderId)
+	err := client.MarkRead(msgIds, timeNow, chatJid, senderJid)
 
 	// log any error
 	if err != nil {
@@ -2193,6 +2236,37 @@ func WmDownloadFile(connId int, chatId string, msgId string, fileId string, acti
 
 	// notify result
 	CWmNewMessageFileNotify(connId, chatId, msgId, filePath, fileStatus, action)
+
+	return 0
+}
+
+func WmSendReaction(connId int, chatId string, senderId string, msgId string, emoji string) int {
+
+	LOG_TRACE("send reaction " + strconv.Itoa(connId) + ", " + chatId + ", " + msgId + ", \"" + emoji + "\"")
+
+	// sanity check arg
+	if connId == -1 {
+		LOG_WARNING("invalid connId")
+		return -1
+	}
+
+	// get client
+	client := GetClient(connId)
+
+	// send reaction
+	chatJid, _ := types.ParseJID(chatId)
+	senderJid, _ := types.ParseJID(senderId)
+	_, sendErr :=
+		client.SendMessage(context.Background(), chatJid, client.BuildReaction(chatJid, senderJid, msgId, emoji))
+
+	if sendErr != nil {
+		LOG_WARNING(fmt.Sprintf("send reaction error %#v", sendErr))
+		return -1
+	} else {
+		LOG_TRACE(fmt.Sprintf("send reaction ok"))
+		fromMe := true //messageInfo.IsFromMe
+		CWmNewMessageReactionNotify(connId, chatId, msgId, senderId, emoji, BoolToInt(fromMe))
+	}
 
 	return 0
 }

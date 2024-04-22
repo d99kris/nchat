@@ -27,6 +27,7 @@ void UiColorConfig::Init()
     start_color();
   }
 
+  const std::string defaultReactionColor = (COLORS > 8) ? "gray" : "";
   const std::string defaultSentColor = (COLORS > 8) ? "gray" : "";
   const std::string defaultShadedColor = (COLORS > 8) ? "gray" : "";
   const std::string defaultQuotedColor = (COLORS > 8) ? "gray" : "";
@@ -57,6 +58,8 @@ void UiColorConfig::Init()
     { "history_text_attr_selected", "reverse" },
     { "history_text_sent_color_bg", "" },
     { "history_text_sent_color_fg", defaultSentColor },
+    { "history_text_reaction_color_bg", "" },
+    { "history_text_reaction_color_fg", defaultReactionColor },
     { "history_text_recv_color_bg", "" },
     { "history_text_recv_color_fg", "" },
     { "history_text_quoted_color_bg", "" },

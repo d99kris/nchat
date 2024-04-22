@@ -138,10 +138,10 @@ if [[ "${DEPS}" == "1" ]]; then
     elif [[ "${NAME}" == "Raspbian GNU/Linux" ]] || [[ "${NAME}" == "Debian GNU/Linux" ]]; then
       sudo apt update && sudo apt ${YES} install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev golang || exiterr "deps failed (${NAME}), exiting."
     elif [[ "${NAME}" == "Gentoo" ]]; then
-      sudo emerge -n dev-util/cmake dev-util/gperf sys-apps/help2man sys-libs/readline dev-libs/openssl sys-libs/ncurses sys-libs/zlib dev-db/sqlite sys-apps/file dev-lang/go || exiterr "deps failed (${NAME}), exiting."
+      sudo emerge -n dev-util/cmake dev-util/ccache dev-util/gperf sys-apps/help2man sys-libs/readline dev-libs/openssl sys-libs/ncurses sys-libs/zlib dev-db/sqlite sys-apps/file dev-lang/go || exiterr "deps failed (${NAME}), exiting."
     elif [[ "${NAME}" == "Fedora Linux" ]]; then
       sudo dnf ${YES} install git cmake clang golang ccache file-devel file-libs gperf readline-devel openssl-devel ncurses-devel sqlite-devel zlib-devel || exiterr "deps failed (${NAME}), exiting."
-    elif [[ "${NAME}" == "Arch Linux" ]]; then
+    elif [[ "${NAME}" == "Arch Linux" ]] || [[ "${NAME}" == "EndeavourOS" ]]; then
       sudo pacman -S ccache cmake file go gperf help2man ncurses openssl readline sqlite zlib base-devel || exiterr "deps failed (${NAME}), exiting."
     elif [[ "${NAME}" == "Void" ]]; then
       sudo xbps-install ${YES} base-devel go ccache cmake gperf help2man libmagick-devel readline-devel sqlite-devel file-devel openssl-devel || exiterr "deps failed (${NAME}), exiting."
@@ -149,6 +149,10 @@ if [[ "${DEPS}" == "1" ]]; then
       sudo apk add git build-base cmake ncurses-dev openssl-dev sqlite-dev file-dev go linux-headers zlib-dev ccache gperf readline || exiterr "deps failed (${NAME}), exiting."
     elif [[ "${NAME}" == "openSUSE Tumbleweed" ]]; then
       sudo zypper install ${YES} -t pattern devel_C_C++ && sudo zypper install ${YES} go ccache cmake libopenssl-devel sqlite3-devel file-devel readline-devel || exiterr "deps failed (${NAME}), exiting."
+    elif [[ "${NAME}" == "Chimera" ]]; then
+      doas apk add git cmake clang go ccache gperf readline-devel openssl-devel ncurses-devel sqlite-devel zlib-devel file-devel || exiterr "deps failed (${NAME}), exiting."
+    elif [[ "${NAME}" == "Rocky Linux" ]]; then
+      sudo yum config-manager --set-enabled powertools && sudo yum ${YES} groupinstall "Development Tools" && sudo yum ${YES} install git go cmake gperf readline-devel openssl-devel ncurses-devel zlib-devel sqlite-devel file-devel || exiterr "deps failed (${NAME}), exiting."
     else
       exiterr "deps failed (unsupported linux distro ${NAME}), exiting."
     fi

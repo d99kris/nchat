@@ -58,6 +58,8 @@ bool WmChat::HasFeature(ProtocolFeature p_ProtocolFeature) const
 
 bool WmChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId)
 {
+  m_IsSetup = true;
+
   std::cout << "\n";
   std::cout << "WARNING:\n";
   std::cout << "This functionality is in no way affiliated with, authorized, maintained,\n";
@@ -69,7 +71,7 @@ bool WmChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_Profi
   std::string phoneNumber = StrUtil::GetPhoneNumber();
 
   std::cout << "\n";
-  std::cout << "Open WhatsApp on your phone, click the menu bar and select \"Linked deviced\".\n";
+  std::cout << "Open WhatsApp on your phone, click the menu bar and select \"Linked devices\".\n";
   std::cout << "Click on \"Link a device\", unlock the phone and aim its camera at the\n";
   std::cout << "Qr code displayed on the computer screen.\n";
   std::cout << "\n";
@@ -85,30 +87,48 @@ bool WmChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_Profi
   std::string proxyUrl = GetProxyUrl();
   int32_t sendType = AppConfig::GetBool("attachment_send_type") ? 1 : 0;
   int connId = CWmInit(const_cast<char*>(profileDir.c_str()), const_cast<char*>(proxyUrl.c_str()), sendType);
-  if (connId == -1) return false;
+  if (connId == -1)
+  {
+    m_IsSetup = false;
+    return false;
+  }
 
   m_ConnId = connId;
   AddInstance(m_ConnId, this);
   MessageCache::AddProfile(m_ProfileId, false, s_CacheDirVersion, true);
 
+  InitConfig();
   Init();
 
   bool rv = Login();
   if (!rv)
   {
     Cleanup();
+    CleanupConfig();
+    m_IsSetup = false;
     return false;
   }
 
+  m_IsSetup = false;
   return true;
 }
 
 bool WmChat::LoadProfile(const std::string& p_ProfilesDir, const std::string& p_ProfileId)
 {
+  LOG_INFO("load whatsapp profile");
+
   if (!p_ProfilesDir.empty() && !p_ProfileId.empty())
   {
     m_ProfileDir = p_ProfilesDir + "/" + p_ProfileId;
     m_ProfileId = p_ProfileId;
+  }
+
+  bool isRemoved = false;
+  MessageCache::AddProfile(m_ProfileId, false, s_CacheDirVersion, false, &isRemoved);
+  if (isRemoved)
+  {
+    LOG_INFO("cache removed - remove profile to force reauth");
+    FileUtil::RmDir(m_ProfileDir);
   }
 
   std::string proxyUrl = GetProxyUrl();
@@ -117,7 +137,6 @@ bool WmChat::LoadProfile(const std::string& p_ProfilesDir, const std::string& p_
   if (m_ConnId == -1) return false;
 
   AddInstance(m_ConnId, this);
-  MessageCache::AddProfile(m_ProfileId, false, s_CacheDirVersion, false);
 
   m_ProfileDirVersion = FileUtil::GetDirVersion(m_ProfileDir);
   if (m_WhatsmeowDate < m_ProfileDirVersion)
@@ -134,6 +153,7 @@ bool WmChat::LoadProfile(const std::string& p_ProfilesDir, const std::string& p_
     LOG_INFO("whatsmeow upgrade from %d", m_ProfileDirVersion);
   }
 
+  InitConfig();
   Init();
 
   return true;
@@ -152,11 +172,16 @@ bool WmChat::CloseProfile()
   m_ConnId = -1;
 
   Cleanup();
+  CleanupConfig();
 
   return (rv == 0);
 }
 
 void WmChat::Init()
+{
+}
+
+void WmChat::InitConfig()
 {
   const std::map<std::string, std::string> defaultConfig =
   {
@@ -167,6 +192,10 @@ void WmChat::Init()
 }
 
 void WmChat::Cleanup()
+{
+}
+
+void WmChat::CleanupConfig()
 {
   m_Config.Save();
 }
@@ -180,7 +209,6 @@ bool WmChat::Login()
     m_Thread = std::thread(&WmChat::Process, this);
 
     rv = CWmLogin(m_ConnId);
-    Status::Set(Status::FlagOnline);
 
     {
       std::shared_ptr<ConnectNotify> connectNotify = std::make_shared<ConnectNotify>(m_ProfileId);
@@ -407,8 +435,10 @@ void WmChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
           std::static_pointer_cast<MarkMessageReadRequest>(p_RequestMessage);
         std::string chatId = markMessageReadRequest->chatId;
         std::string msgId = markMessageReadRequest->msgId;
+        std::string senderId = markMessageReadRequest->senderId;
 
         int rv = CWmMarkMessageRead(m_ConnId, const_cast<char*>(chatId.c_str()),
+                                    const_cast<char*>(senderId.c_str()),
                                     const_cast<char*>(msgId.c_str()));
 
         std::shared_ptr<MarkMessageReadNotify> markMessageReadNotify =
@@ -528,6 +558,37 @@ void WmChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
       }
       break;
 
+    case SendReactionRequestType:
+      {
+        LOG_DEBUG("send reaction");
+
+        std::shared_ptr<SendReactionRequest> sendReactionRequest =
+          std::static_pointer_cast<SendReactionRequest>(p_RequestMessage);
+        std::string chatId = sendReactionRequest->chatId;
+        std::string senderId = sendReactionRequest->senderId;
+        std::string msgId = sendReactionRequest->msgId;
+        std::string emoji = sendReactionRequest->emoji;
+
+        CWmSendReaction(m_ConnId,
+                        const_cast<char*>(chatId.c_str()),
+                        const_cast<char*>(senderId.c_str()),
+                        const_cast<char*>(msgId.c_str()),
+                        const_cast<char*>(emoji.c_str())
+                        );
+      }
+      break;
+
+    case ReinitRequestType:
+      {
+        LOG_DEBUG("reinit");
+
+        CWmLogout(m_ConnId);
+        CloseProfile();
+        LoadProfile("", "");
+        CWmLogin(m_ConnId);
+      }
+      break;
+
     case DeferNotifyRequestType:
       {
         std::shared_ptr<DeferNotifyRequest> deferNotifyRequest =
@@ -573,6 +634,32 @@ std::string WmChat::GetProxyUrl() const
   }
 
   return "";
+}
+
+void WmChat::SetProtocolUiControl(bool p_IsTakeControl)
+{
+  if (m_IsSetup)
+  {
+    LOG_TRACE("set protocol ui control %d ignored during setup", p_IsTakeControl);
+    return;
+  }
+
+  LOG_TRACE("set protocol ui control %d", p_IsTakeControl);
+  std::shared_ptr<ProtocolUiControlNotify> protocolUiControlNotify =
+    std::make_shared<ProtocolUiControlNotify>(m_ProfileId);
+  protocolUiControlNotify->isTakeControl = p_IsTakeControl;
+  CallMessageHandler(protocolUiControlNotify);
+
+  // if attempting to take control, but failed to do so, keep retrying
+  while (p_IsTakeControl && !protocolUiControlNotify->isTakeControl)
+  {
+    TimeUtil::Sleep(0.500);
+    LOG_TRACE("set protocol ui control retry");
+    protocolUiControlNotify->isTakeControl = p_IsTakeControl;
+    CallMessageHandler(protocolUiControlNotify);
+  }
+
+  TimeUtil::Sleep(0.100); // wait more than GetKey timeout
 }
 
 void WmChat::AddInstance(int p_ConnId, WmChat* p_Instance)
@@ -776,6 +863,38 @@ void WmNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p
   free(p_FilePath);
 }
 
+void WmNewMessageReactionNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text,
+                                int p_FromMe)
+{
+  WmChat* instance = WmChat::GetInstance(p_ConnId);
+  if (instance == nullptr) return;
+
+  {
+    const std::string senderId = (p_FromMe == 1) ? s_ReactionsSelfId : std::string(p_SenderId);
+    Reactions reactions;
+    // go via message cache for consolidation and count before handled by ui
+    reactions.needConsolidationWithCache = true;
+    reactions.updateCountBasedOnSender = true;
+    reactions.replaceCount = false;
+    reactions.senderEmojis[senderId] = std::string(p_Text);
+
+    std::shared_ptr<NewMessageReactionsNotify> newMessageReactionsNotify =
+      std::make_shared<NewMessageReactionsNotify>(instance->GetProfileId());
+    newMessageReactionsNotify->chatId = std::string(p_ChatId);
+    newMessageReactionsNotify->msgId = std::string(p_MsgId);
+    newMessageReactionsNotify->reactions = reactions;
+
+    std::shared_ptr<DeferNotifyRequest> deferNotifyRequest = std::make_shared<DeferNotifyRequest>();
+    deferNotifyRequest->serviceMessage = newMessageReactionsNotify;
+    instance->SendRequest(deferNotifyRequest);
+  }
+
+  free(p_ChatId);
+  free(p_MsgId);
+  free(p_SenderId);
+  free(p_Text);
+}
+
 void WmDeleteChatNotify(int p_ConnId, char* p_ChatId)
 {
   WmChat* instance = WmChat::GetInstance(p_ConnId);
@@ -822,10 +941,17 @@ void WmReinit(int p_ConnId)
   WmChat* instance = WmChat::GetInstance(p_ConnId);
   if (instance == nullptr) return;
 
-  instance->Logout();
-  instance->CloseProfile();
-  instance->LoadProfile("", "");
-  instance->Login();
+  std::shared_ptr<ReinitRequest> reinitRequest =
+    std::make_shared<ReinitRequest>();
+  instance->SendRequest(reinitRequest);
+}
+
+void WmSetProtocolUiControl(int p_ConnId, int p_IsTakeControl)
+{
+  WmChat* instance = WmChat::GetInstance(p_ConnId);
+  if (instance == nullptr) return;
+
+  instance->SetProtocolUiControl(p_IsTakeControl);
 }
 
 void WmSetStatus(int p_Flags)

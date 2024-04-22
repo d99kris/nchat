@@ -1,6 +1,6 @@
 // uihistoryview.cpp
 //
-// Copyright (c) 2019-2023 Kristofer Berggren
+// Copyright (c) 2019-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -10,6 +10,7 @@
 #include "appconfig.h"
 #include "apputil.h"
 #include "fileutil.h"
+#include "log.h"
 #include "protocolutil.h"
 #include "strutil.h"
 #include "timeutil.h"
@@ -59,6 +60,7 @@ void UiHistoryView::Draw()
   static int colorPairTextSent = UiColorConfig::GetColorPair("history_text_sent_color");
   static int colorPairTextRecv = UiColorConfig::GetColorPair("history_text_recv_color");
   static int colorPairTextQuoted = UiColorConfig::GetColorPair("history_text_quoted_color");
+  static int colorPairTextReaction = UiColorConfig::GetColorPair("history_text_reaction_color");
   static int colorPairTextAttachment = UiColorConfig::GetColorPair("history_text_attachment_color");
   static int attributeTextNormal = UiColorConfig::GetAttribute("history_text_attr");
   static int attributeTextSelected = UiColorConfig::GetAttribute("history_text_attr_selected");
@@ -91,7 +93,6 @@ void UiHistoryView::Draw()
   for (auto it = std::next(messageVec.begin(), messageOffset); it != messageVec.end(); ++it)
   {
     bool isSelectedMessage = firstMessage && m_Model->GetSelectMessageActive();
-    firstMessage = false;
 
     ChatMessage& msg = messages[*it];
 
@@ -126,6 +127,7 @@ void UiHistoryView::Draw()
       wlines = StrUtil::WordWrap(StrUtil::ToWString(text), m_PaddedW, false, false, false, 2);
     }
 
+    // Quoted message
     if (!msg.quotedId.empty())
     {
       std::string quotedText;
@@ -162,6 +164,7 @@ void UiHistoryView::Draw()
       wlines.insert(wlines.begin(), quote);
     }
 
+    // File attachment
     if (!msg.fileInfo.empty())
     {
       FileInfo fileInfo = ProtocolUtil::FileInfoFromHex(msg.fileInfo);
@@ -214,19 +217,101 @@ void UiHistoryView::Draw()
       wlines.insert(wlines.begin(), fileStr);
     }
 
+    // Reactions
+    int reactionLines = 0;
+    static bool reactionsEnabled = UiConfig::GetBool("reactions_enabled");
+    if (reactionsEnabled)
+    {
+      std::string selfEmoji;
+      auto sit = msg.reactions.senderEmojis.find(s_ReactionsSelfId);
+      if (sit != msg.reactions.senderEmojis.end())
+      {
+        selfEmoji = sit->second;
+      }
+
+      // Allow also if we have self emoji, even if not yet consolidated into count
+      if (!msg.reactions.emojiCounts.empty() || !selfEmoji.empty())
+      {
+        bool foundSelf = false;
+        std::string reactionsText;
+        std::multimap<float, std::string> emojiCountsSorted;
+        for (const auto& emojiCount : msg.reactions.emojiCounts)
+        {
+          float count = emojiCount.second;
+          if (emojiCount.first == selfEmoji)
+          {
+            count += 0.1; // for equal count, prioritize own selected reaction
+            foundSelf = true;
+          }
+
+          emojiCountsSorted.insert(std::make_pair(count, emojiCount.first));
+        }
+
+        if (!foundSelf && !selfEmoji.empty())
+        {
+          LOG_DEBUG("insert missing reaction for self");
+          emojiCountsSorted.insert(std::make_pair(1.1, selfEmoji));
+        }
+
+        bool firstReaction = true;
+        for (auto emojiCount = emojiCountsSorted.rbegin(); emojiCount != emojiCountsSorted.rend(); ++emojiCount)
+        {
+          reactionsText += (firstReaction ? " " : "  ");
+          if (emojiCount->second == selfEmoji)
+          {
+            // Highlight own reaction emoji
+            reactionsText += "" + emojiCount->second + "*";
+          }
+          else
+          {
+            reactionsText += emojiCount->second;
+          }
+
+          if (emojiCount->first > 1.5)
+          {
+            reactionsText += " " + FileUtil::GetSuffixedCount(static_cast<ssize_t>(emojiCount->first));
+          }
+
+          firstReaction = false;
+        }
+
+        if (!reactionsText.empty())
+        {
+          if (!emojiEnabled)
+          {
+            reactionsText = StrUtil::Textize(reactionsText);
+          }
+
+          const int maxReactionsLen = m_PaddedW - 4;
+          std::wstring reactions = StrUtil::ToWString(reactionsText);
+          if (StrUtil::WStringWidth(reactions) > maxReactionsLen)
+          {
+            reactions = StrUtil::TrimPadWString(reactions, maxReactionsLen) + L"... ";
+          }
+          else
+          {
+            reactions += L" ";
+          }
+
+          wlines.insert(wlines.end(), reactions);
+          reactionLines = 1;
+        }
+      }
+    }
+
     const int maxMessageLines = (m_PaddedH - 1);
-    if ((int)wlines.size() > maxMessageLines)
+    if (firstMessage && ((int)wlines.size() > maxMessageLines))
     {
       wlines.resize(maxMessageLines - 1);
       wlines.push_back(L"[...]");
+      reactionLines = 0;
     }
 
     for (auto wline = wlines.rbegin(); wline != wlines.rend(); ++wline)
     {
-      std::wstring wdisp = StrUtil::TrimPadWString(*wline, m_PaddedW);
-
-      bool isAttachment = (wdisp.rfind(attachmentIndicator, 0) == 0);
-      bool isQuote = (wdisp.rfind(quoteIndicator, 0) == 0);
+      bool isAttachment = (wline->rfind(attachmentIndicator, 0) == 0);
+      bool isQuote = (wline->rfind(quoteIndicator, 0) == 0);
+      bool isReaction = (reactionLines == 1) && (std::distance(wline, wlines.rbegin()) == 0);
 
       if (isAttachment)
       {
@@ -236,11 +321,16 @@ void UiHistoryView::Draw()
       {
         wattron(m_PaddedWin, attributeText | colorPairTextQuoted);
       }
+      else if (isReaction)
+      {
+        wattron(m_PaddedWin, attributeTextNormal | colorPairTextReaction);
+      }
       else
       {
         wattron(m_PaddedWin, attributeText | colorPairText);
       }
 
+      const std::wstring wdisp = isReaction ? *wline : StrUtil::TrimPadWString(*wline, m_PaddedW);
       mvwaddnwstr(m_PaddedWin, y, 0, wdisp.c_str(), std::min((int)wdisp.size(), m_PaddedW));
 
       if (isAttachment)
@@ -250,6 +340,10 @@ void UiHistoryView::Draw()
       else if (isQuote)
       {
         wattroff(m_PaddedWin, attributeText | colorPairTextQuoted);
+      }
+      else if (isReaction)
+      {
+        wattroff(m_PaddedWin, attributeTextNormal | colorPairTextReaction);
       }
       else
       {
@@ -294,10 +388,7 @@ void UiHistoryView::Draw()
       wtime = L" (" + StrUtil::ToWString(TimeUtil::GetTimeString(msg.timeSent, false /* p_IsExport */)) + L")";
     }
 
-    if (!msg.isOutgoing && !msg.isRead)
-    {
-      m_Model->MarkRead(currentChat.first, currentChat.second, *it);
-    }
+    m_Model->MarkRead(currentChat.first, currentChat.second, *it, (!msg.isOutgoing && !msg.isRead));
 
     static const std::string readIndicator = " " + UiConfig::GetStr("read_indicator");
     std::wstring wreceipt = StrUtil::ToWString(msg.isRead ? readIndicator : "");
@@ -321,6 +412,8 @@ void UiHistoryView::Draw()
     if (--y < 0) break;
 
     if (--y < 0) break;
+
+    firstMessage = false;
   }
 
   wrefresh(m_PaddedWin);

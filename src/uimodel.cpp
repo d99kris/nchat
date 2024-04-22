@@ -88,7 +88,10 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keyCopy = UiKeyConfig::GetKey("copy");
   static wint_t keyPaste = UiKeyConfig::GetKey("paste");
 
+  static wint_t keyReact = UiKeyConfig::GetKey("react");
   static wint_t keySpell = UiKeyConfig::GetKey("spell");
+
+  static wint_t keyJumpQuoted = UiKeyConfig::GetKey("jump_quoted");
 
   static wint_t keyToggleList = UiKeyConfig::GetKey("toggle_list");
   static wint_t keyToggleTop = UiKeyConfig::GetKey("toggle_top");
@@ -179,7 +182,7 @@ void UiModel::KeyHandler(wint_t p_Key)
   }
   else if (p_Key == keyQuit)
   {
-    Quit();
+    Quit(false /*p_Forced*/);
   }
   else if (p_Key == keySendMsg)
   {
@@ -245,6 +248,10 @@ void UiModel::KeyHandler(wint_t p_Key)
   {
     Paste();
   }
+  else if (p_Key == keyReact)
+  {
+    React();
+  }
   else if (p_Key == keySpell)
   {
     ExternalSpell();
@@ -274,6 +281,10 @@ void UiModel::KeyHandler(wint_t p_Key)
   else if (p_Key == keyExtCall)
   {
     ExternalCall();
+  }
+  else if (p_Key == keyJumpQuoted)
+  {
+    JumpQuoted();
   }
   else
   {
@@ -926,25 +937,35 @@ void UiModel::ResetMessageOffset()
   UpdateHistory();
 }
 
-void UiModel::MarkRead(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId)
+void UiModel::MarkRead(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId,
+                       bool p_WasUnread)
 {
+  const bool markReadEveryView = HasProtocolFeature(p_ProfileId, FeatureMarkReadEveryView);
+  if (!markReadEveryView && !p_WasUnread) return;
+
   static const bool markReadOnView = UiConfig::GetBool("mark_read_on_view");
   if (!markReadOnView && !m_HistoryInteraction) return;
 
   static const bool markReadWhenInactive = UiConfig::GetBool("mark_read_when_inactive");
   if (!(m_TerminalActive || markReadWhenInactive)) return;
 
-  std::shared_ptr<MarkMessageReadRequest> markMessageReadRequest = std::make_shared<MarkMessageReadRequest>();
-  markMessageReadRequest->chatId = p_ChatId;
-  markMessageReadRequest->msgId = p_MsgId;
-  SendProtocolRequest(p_ProfileId, markMessageReadRequest);
-
+  std::string senderId;
   std::unordered_map<std::string, ChatMessage>& messages = m_Messages[p_ProfileId][p_ChatId];
   auto mit = messages.find(p_MsgId);
   if (mit != messages.end())
   {
-    mit->second.isRead = true;
+    if (p_WasUnread)
+    {
+      mit->second.isRead = true;
+    }
+    senderId = mit->second.senderId;
   }
+
+  std::shared_ptr<MarkMessageReadRequest> markMessageReadRequest = std::make_shared<MarkMessageReadRequest>();
+  markMessageReadRequest->chatId = p_ChatId;
+  markMessageReadRequest->msgId = p_MsgId;
+  markMessageReadRequest->senderId = senderId;
+  SendProtocolRequest(p_ProfileId, markMessageReadRequest);
 
   UpdateChatInfoIsUnread(p_ProfileId, p_ChatId);
 
@@ -1030,7 +1051,7 @@ void UiModel::DeleteChat()
 {
   std::unique_lock<std::mutex> lock(m_ModelMutex);
 
-  if (GetEditMessageActive()) return;
+  if (GetSelectMessageActive() || GetEditMessageActive()) return;
 
   static const bool confirmDeletion = UiConfig::GetBool("confirm_deletion");
   if (confirmDeletion)
@@ -1418,9 +1439,8 @@ void UiModel::InsertEmoji()
   UiEmojiListDialog dialog(params);
   if (dialog.Run())
   {
-    std::wstring emoji = dialog.GetSelectedEmoji();
-
     std::unique_lock<std::mutex> lock(m_ModelMutex);
+    std::wstring emoji = dialog.GetSelectedEmoji(GetEmojiEnabled());
 
     std::string profileId = m_CurrentChat.first;
     std::string chatId = m_CurrentChat.second;
@@ -1515,16 +1535,16 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
     case ConnectNotifyType:
       {
         std::shared_ptr<ConnectNotify> connectNotify = std::static_pointer_cast<ConnectNotify>(p_ServiceMessage);
+        LOG_TRACE("connect notify %d", connectNotify->success);
+        if (!HasProtocolFeature(profileId, FeatureAutoGetChatsOnLogin))
+        {
+          std::shared_ptr<GetChatsRequest> getChatsRequest = std::make_shared<GetChatsRequest>();
+          LOG_TRACE("get chats");
+          SendProtocolRequest(profileId, getChatsRequest);
+        }
+
         if (connectNotify->success)
         {
-          LOG_TRACE("connected");
-          if (!HasProtocolFeature(profileId, FeatureAutoGetChatsOnLogin))
-          {
-            std::shared_ptr<GetChatsRequest> getChatsRequest = std::make_shared<GetChatsRequest>();
-            LOG_TRACE("get chats");
-            SendProtocolRequest(profileId, getChatsRequest);
-          }
-
           SetStatusOnline(profileId, true);
         }
       }
@@ -1832,6 +1852,29 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
       }
       break;
 
+    case NewMessageReactionsNotifyType:
+      {
+        std::shared_ptr<NewMessageReactionsNotify> newMessageReactionsNotify =
+          std::static_pointer_cast<NewMessageReactionsNotify>(p_ServiceMessage);
+        if (!newMessageReactionsNotify->reactions.needConsolidationWithCache)
+        {
+          std::string chatId = newMessageReactionsNotify->chatId;
+          std::string msgId = newMessageReactionsNotify->msgId;
+
+          LOG_TRACE("new reactions for %s in %s count %d", msgId.c_str(), chatId.c_str(),
+                    newMessageReactionsNotify->reactions.emojiCounts.size());
+          std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
+          auto mit = messages.find(msgId);
+          if (mit != messages.end())
+          {
+            mit->second.reactions = newMessageReactionsNotify->reactions;
+          }
+
+          UpdateHistory();
+        }
+      }
+      break;
+
     case ReceiveTypingNotifyType:
       {
         std::shared_ptr<ReceiveTypingNotify> receiveTypingNotify = std::static_pointer_cast<ReceiveTypingNotify>(
@@ -1950,6 +1993,34 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
       }
       break;
 
+    case ProtocolUiControlNotifyType:
+      {
+        std::shared_ptr<ProtocolUiControlNotify> protocolUiControlNotify =
+          std::static_pointer_cast<ProtocolUiControlNotify>(p_ServiceMessage);
+        SetProtocolUiControl(profileId, protocolUiControlNotify->isTakeControl);
+      }
+      break;
+
+    case RequestAppExitNotifyType:
+      {
+        std::shared_ptr<RequestAppExitNotify> requestAppExitNotify =
+          std::static_pointer_cast<RequestAppExitNotify>(p_ServiceMessage);
+        Quit(true /*p_Forced*/);
+      }
+      break;
+
+    case AvailableReactionsNotifyType:
+      {
+        std::shared_ptr<AvailableReactionsNotify> availableReactionsNotify =
+          std::static_pointer_cast<AvailableReactionsNotify>(p_ServiceMessage);
+        std::string chatId = availableReactionsNotify->chatId;
+        // ignore msgId for now
+        m_AvailableReactions[profileId][chatId] = availableReactionsNotify->emojis;
+        m_AvailableReactionsPending[profileId][chatId] = false;
+        LOG_TRACE("available reactions notify %s count %d", chatId.c_str(), availableReactionsNotify->emojis.size());
+      }
+      break;
+
     default:
       LOG_DEBUG("unknown service message %d", p_ServiceMessage->GetMessageType());
       break;
@@ -1971,6 +2042,11 @@ std::unordered_map<std::string, std::shared_ptr<Protocol>>& UiModel::GetProtocol
 bool UiModel::Process()
 {
   std::unique_lock<std::mutex> lock(m_ModelMutex);
+  if (!m_ProtocolUiControl.empty())
+  {
+    HandleProtocolUiControl(lock);
+  }
+
   if (m_TriggerTerminalBell)
   {
     m_TriggerTerminalBell = false;
@@ -2599,12 +2675,34 @@ void UiModel::DesktopNotifyUnread(const std::string& p_Name, const std::string& 
 #if defined(__APPLE__)
       desktopNotifyCommand = "osascript -e 'display notification \"%1: %2\" with title \"nchat\"'";
 #else
-      desktopNotifyCommand = "notify-send 'nchat' '%1: %2'";
+      const std::string& commandOutPath = FileUtil::MkTempFile();
+      const std::string& whichCommand =
+        std::string("which notify-send 2> /dev/null | head -1 > ") + commandOutPath;
+      if (system(whichCommand.c_str()) == 0)
+      {
+        std::string output = FileUtil::ReadFile(commandOutPath);
+        output.erase(std::remove(output.begin(), output.end(), '\n'), output.end());
+        if (!output.empty())
+        {
+          if (output.find("/notify-send") != std::string::npos)
+          {
+            desktopNotifyCommand = "notify-send 'nchat' '%1: %2'";
+          }
+        }
+      }
+
+      FileUtil::RmFile(commandOutPath);
+      if (desktopNotifyCommand.empty())
+      {
+        LOG_WARNING("command 'notify-send' not found");
+      }
 #endif
     }
 
     return desktopNotifyCommand;
   }();
+
+  if (cmdTemplate.empty()) return;
 
   // clean up sender name and text
   std::string name = p_Name;
@@ -3193,9 +3291,9 @@ std::string UiModel::GetProfileDisplayName(const std::string& p_ProfileId)
   return s_DisplayNames[p_ProfileId];
 }
 
-void UiModel::Quit()
+void UiModel::Quit(bool p_Forced)
 {
-  if (Status::Get() & Status::FlagSyncing)
+  if (!p_Forced && (Status::Get() & Status::FlagSyncing))
   {
     if (!MessageDialog("Confirmation", "Syncing in progress, confirm exit?", 0.75, 5))
     {
@@ -3228,5 +3326,196 @@ void UiModel::EntryConvertEmojiEnabled()
     }
 
     entryPos = entryStr.size();
+  }
+}
+
+void UiModel::SetProtocolUiControl(const std::string& p_ProfileId, bool& p_IsTakeControl)
+{
+  if (p_IsTakeControl)
+  {
+    if (m_ProtocolUiControl.empty())
+    {
+      m_ProtocolUiControl = p_ProfileId;
+      LOG_TRACE("set protocol ui control ok \"%s\"", m_ProtocolUiControl.c_str());
+    }
+    else if (m_ProtocolUiControl == p_ProfileId)
+    {
+      LOG_TRACE("set protocol ui control ok duplicate \"%s\"", m_ProtocolUiControl.c_str());
+    }
+    else
+    {
+      p_IsTakeControl = false; // indicate failure to caller, as no point waiting under lock
+      LOG_TRACE("set protocol ui control failed, owned by \"%s\"", m_ProtocolUiControl.c_str());
+    }
+  }
+  else
+  {
+    if (m_ProtocolUiControl == p_ProfileId)
+    {
+      m_ProtocolUiControl.clear();
+      LOG_TRACE("set protocol ui control cleared ok");
+    }
+    else
+    {
+      LOG_WARNING("set protocol ui control invalid state \"%s\" != \"%s\"",
+                  m_ProtocolUiControl.c_str(), p_ProfileId.c_str());
+    }
+  }
+}
+
+void UiModel::HandleProtocolUiControl(std::unique_lock<std::mutex>& lock)
+{
+  LOG_TRACE("handle protocol ui control start");
+
+  endwin();
+
+  while (!m_ProtocolUiControl.empty())
+  {
+    lock.unlock();
+    TimeUtil::Sleep(0.050); // match GetKey timeout
+    lock.lock();
+  }
+
+  refresh();
+
+  wint_t key = 0;
+  while (UiKeyInput::GetWch(&key) != ERR)
+  {
+    // Discard any remaining input
+  }
+
+  LOG_TRACE("handle protocol ui control end");
+}
+
+void UiModel::React()
+{
+  if (!GetSelectMessageActive() || GetEditMessageActive()) return;
+
+  std::string profileId;
+  std::string chatId;
+  std::string senderId;
+  std::string msgId;
+  std::string selfEmoji;
+  bool hasLimitedReactions = false;
+
+  {
+    std::unique_lock<std::mutex> lock(m_ModelMutex);
+
+    profileId = m_CurrentChat.first;
+    chatId = m_CurrentChat.second;
+    const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
+    const int messageOffset = m_MessageOffset[profileId][chatId];
+    auto it = std::next(messageVec.begin(), messageOffset);
+    if (it == messageVec.end()) return;
+
+    msgId = *it;
+    const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
+    auto mit = messages.find(msgId);
+    if (mit == messages.end())
+    {
+      LOG_WARNING("message %s missing", msgId.c_str());
+      return;
+    }
+    else
+    {
+      senderId = mit->second.senderId;
+      auto sit = mit->second.reactions.senderEmojis.find(s_ReactionsSelfId);
+      if (sit != mit->second.reactions.senderEmojis.end())
+      {
+        selfEmoji = sit->second;
+      }
+    }
+
+    hasLimitedReactions = HasProtocolFeature(profileId, FeatureLimitedReactions);
+    if (hasLimitedReactions)
+    {
+      LOG_TRACE("request available reactions");
+      m_AvailableReactionsPending[profileId][chatId] = true;
+      std::shared_ptr<GetAvailableReactionsRequest> getAvailableReactionsRequest =
+        std::make_shared<GetAvailableReactionsRequest>();
+      getAvailableReactionsRequest->chatId = chatId;
+      getAvailableReactionsRequest->msgId = msgId;
+      SendProtocolRequest(profileId, getAvailableReactionsRequest);
+    }
+  }
+
+  UiDialogParams params(m_View.get(), this, "Set Reaction", 0.75, 0.65);
+  UiEmojiListDialog dialog(params, selfEmoji, true /*p_HasNone*/, hasLimitedReactions);
+  if (dialog.Run())
+  {
+    std::string emoji = StrUtil::ToString(dialog.GetSelectedEmoji(true /*p_EmojiEnabled*/));
+
+    std::unique_lock<std::mutex> lock(m_ModelMutex);
+
+    if (emoji != selfEmoji)
+    {
+      std::shared_ptr<SendReactionRequest> sendReactionRequest = std::make_shared<SendReactionRequest>();
+      sendReactionRequest->chatId = chatId;
+      sendReactionRequest->senderId = senderId;
+      sendReactionRequest->msgId = msgId;
+      sendReactionRequest->emoji = emoji;
+      sendReactionRequest->prevEmoji = selfEmoji;
+      SendProtocolRequest(profileId, sendReactionRequest);
+
+      UpdateHistory();
+    }
+  }
+
+  ReinitView();
+}
+
+void UiModel::GetAvailableEmojis(std::set<std::string>& p_AvailableEmojis, bool& p_Pending)
+{
+  std::unique_lock<std::mutex> lock(m_ModelMutex);
+
+  std::string profileId = m_CurrentChat.first;
+  std::string chatId = m_CurrentChat.second;
+
+  p_AvailableEmojis.clear();
+  p_Pending = m_AvailableReactionsPending[profileId][chatId];
+  auto it = m_AvailableReactions[profileId].find(chatId);
+  if (it != m_AvailableReactions[profileId].end())
+  {
+    p_AvailableEmojis = it->second;
+  }
+
+  LOG_DEBUG("get available reactions %d pending %d", p_AvailableEmojis.size(), p_Pending);
+}
+
+void UiModel::JumpQuoted()
+{
+  if (!GetSelectMessageActive() || GetEditMessageActive()) return;
+
+  std::unique_lock<std::mutex> lock(m_ModelMutex);
+
+  std::string quotedId;
+  const std::string profileId = m_CurrentChat.first;
+  const std::string chatId = m_CurrentChat.second;
+  const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
+  int& messageOffset = m_MessageOffset[profileId][chatId];
+  auto it = std::next(messageVec.begin(), messageOffset);
+  if (it == messageVec.end()) return;
+
+  std::string msgId = *it;
+  const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
+  auto mit = messages.find(msgId);
+  if (mit == messages.end())
+  {
+    LOG_WARNING("message %s not fetched by ui", msgId.c_str());
+    return;
+  }
+  else
+  {
+    quotedId = mit->second.quotedId;
+  }
+
+  for (auto mid = messageVec.begin(); mid != messageVec.end(); ++mid)
+  {
+    if (*mid == quotedId)
+    {
+      messageOffset = std::distance(messageVec.begin(), mid);
+      UpdateHistory();
+      break;
+    }
   }
 }

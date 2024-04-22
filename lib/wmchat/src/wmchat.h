@@ -14,6 +14,7 @@
 
 #include "config.h"
 #include "protocol.h"
+#include "sysutil.h"
 
 class WmChat : public Protocol
 {
@@ -25,12 +26,15 @@ public:
   static std::string GetCreateFunc() { return "CreateWmChat"; }
   static std::string GetSetupMessage()
   {
-#if defined(__APPLE__) || defined(__GLIBC__)
-    return "";
-#else
-    return "\nUNSUPPORTED PLATFORM:\nThe WhatsApp protocol implementation officially only supports glibc on Linux.\n"
-           "For details, refer to https://github.com/d99kris/nchat/issues/204\n";
-#endif
+    if (SysUtil::IsSupportedLibc())
+    {
+      return "";
+    }
+    else
+    {
+      return "\nUNSUPPORTED PLATFORM:\nThe WhatsApp protocol implementation officially only supports glibc on Linux.\n"
+             "For details, refer to https://github.com/d99kris/nchat/issues/204\n";
+    }
   }
 
   std::string GetProfileId() const;
@@ -49,6 +53,8 @@ public:
   void SendRequest(std::shared_ptr<RequestMessage> p_RequestMessage);
   void SetMessageHandler(const std::function<void(std::shared_ptr<ServiceMessage>)>& p_MessageHandler);
 
+  void SetProtocolUiControl(bool p_IsTakeControl);
+
 public:
   static void AddInstance(int p_ConnId, WmChat* p_Instance);
   static void RemoveInstance(int p_ConnId);
@@ -56,7 +62,9 @@ public:
 
 private:
   void Init();
+  void InitConfig();
   void Cleanup();
+  void CleanupConfig();
   void CallMessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage);
   void PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage);
   std::string GetProxyUrl() const;
@@ -79,7 +87,8 @@ private:
   int m_WhatsmeowDate = 0;
   int m_ProfileDirVersion = 0;
   bool m_WasOnline = false;
-  static const int s_CacheDirVersion = 0;
+  bool m_IsSetup = false;
+  static const int s_CacheDirVersion = 0; // update MessageCache::AddProfile() once bumped to 1
 };
 
 extern "C" {
@@ -92,9 +101,12 @@ void WmNewStatusNotify(int p_ConnId, char* p_ChatId, char* p_UserId, int p_IsOnl
 void WmNewMessageStatusNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsRead);
 void WmNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_FilePath, int p_FileStatus,
                             int p_Action);
+void WmNewMessageReactionNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text,
+                                int p_FromMe);
 void WmDeleteChatNotify(int p_ConnId, char* p_ChatId);
 void WmUpdateMuteNotify(int p_ConnId, char* p_ChatId, int p_IsMuted);
 void WmReinit(int p_ConnId);
+void WmSetProtocolUiControl(int p_ConnId, int p_IsTakeControl);
 void WmSetStatus(int p_Flags);
 void WmClearStatus(int p_Flags);
 void WmLogTrace(char* p_Filename, int p_LineNo, char* p_Message);

@@ -74,6 +74,7 @@ public:
   static std::string GetMimeType(const std::string& p_Path);
   static std::string GetSelfPath();
   static std::string GetLibSuffix();
+  static std::string GetSuffixedCount(ssize_t p_Size);
   static std::string GetSuffixedSize(ssize_t p_Size);
   static void InitDirVersion(const std::string& p_Dir, int p_Version);
   static bool IsDir(const std::string& p_Path);

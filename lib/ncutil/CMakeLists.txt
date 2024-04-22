@@ -24,6 +24,8 @@ add_library(ncutil SHARED
   src/appconfig.h
   src/apputil.cpp
   src/apputil.h
+  src/cacheutil.cpp
+  src/cacheutil.h
   src/clipboard.cpp
   src/clipboard.h
   src/config.cpp
@@ -48,6 +50,7 @@ add_library(ncutil SHARED
   src/protocolutil.h
   src/scopeddirlock.cpp
   src/scopeddirlock.h
+  src/serialization.h
   src/sqlitehelp.cpp
   src/sqlitehelp.h
   src/status.cpp
@@ -72,6 +75,7 @@ target_include_directories(ncutil PRIVATE "../common/src")
 target_include_directories(ncutil PRIVATE "../../ext/apathy")
 target_include_directories(ncutil PRIVATE "../../ext/sqlite_modern_cpp/hdr")
 target_include_directories(ncutil PRIVATE "../../ext/clip")
+target_include_directories(ncutil PRIVATE "../../ext/cereal/include")
 
 # Compiler flags
 set_target_properties(ncutil PROPERTIES COMPILE_FLAGS

@@ -23,6 +23,8 @@
 #include "messagecache.h"
 #include "profiles.h"
 #include "scopeddirlock.h"
+#include "status.h"
+#include "sysutil.h"
 #include "ui.h"
 
 #ifdef HAS_DUMMY
@@ -41,6 +43,7 @@ static const char *EnvXdgConf = "XDG_CONFIG_HOME";
 static const std::string DefaultXdgConfDir = ".config";
 
 
+static std::string GetFeatures();
 static void RemoveProfile();
 static std::shared_ptr<Protocol> SetupProfile();
 static void ShowHelp();
@@ -76,7 +79,8 @@ public:
     std::shared_ptr<T> protocol;
 #ifdef HAS_DYNAMICLOAD
     std::string libPath =
-      FileUtil::DirName(FileUtil::GetSelfPath()) + "/../" CMAKE_INSTALL_LIBDIR "/" + T::GetLibName() + FileUtil::GetLibSuffix();
+      FileUtil::DirName(FileUtil::GetSelfPath()) + "/../" CMAKE_INSTALL_LIBDIR "/" + T::GetLibName() +
+      FileUtil::GetLibSuffix();
     std::string createFunc = T::GetCreateFunc();
     void* handle = dlopen(libPath.c_str(), RTLD_LAZY);
     if (handle == nullptr)
@@ -254,7 +258,13 @@ int main(int argc, char* argv[])
   const std::string& logPath = FileUtil::GetApplicationDir() + std::string("/log.txt");
   Log::Init(logPath);
   std::string appNameVersion = AppUtil::GetAppNameVersion();
-  LOG_INFO("starting %s", appNameVersion.c_str());
+  LOG_INFO("%s", appNameVersion.c_str());
+  std::string osArch = SysUtil::GetOsArch();
+  LOG_INFO("%s", osArch.c_str());
+  std::string compiler = SysUtil::GetCompiler();
+  LOG_INFO("%s", compiler.c_str());
+  std::string features = GetFeatures();
+  LOG_INFO("%s", features.c_str());
 
   // Init signal handler
   AppUtil::InitSignalHandler();
@@ -367,18 +377,31 @@ int main(int argc, char* argv[])
   bool hasProtocols = !protocols.empty();
   if (hasProtocols && exportDir.empty())
   {
+    // Sort protocols
+    std::map<std::string, std::shared_ptr<Protocol>> protocolsSorted(protocols.begin(), protocols.end());
+
     // Login
-    for (auto& protocol : protocols)
+    Status::Set(Status::FlagConnecting);
+    std::thread loginThread([&]
     {
-      protocol.second->SetMessageHandler(messageHandler);
-      protocol.second->Login();
-    }
+      for (auto& protocol : protocolsSorted)
+      {
+        protocol.second->SetMessageHandler(messageHandler);
+        protocol.second->Login();
+      }
+    });
 
     // Ui main loop
     ui->Run();
 
+    // Cleanup login thread
+    if (loginThread.joinable())
+    {
+      loginThread.join();
+    }
+
     // Logout
-    for (auto& protocol : protocols)
+    for (auto& protocol : protocolsSorted)
     {
       protocol.second->Logout();
       protocol.second->CloseProfile();
@@ -408,11 +431,30 @@ int main(int argc, char* argv[])
     rv = 1;
   }
 
-  LOG_INFO("exiting nchat");
+  LOG_INFO("exit");
 
   Log::Cleanup();
 
   return rv;
+}
+
+std::string GetFeatures()
+{
+  std::string features =
+#if defined(HAS_TELEGRAM)
+    "Telegram ON, "
+#else
+    "Telegram OFF, "
+#endif
+
+#if defined(HAS_WHATSAPP)
+    "WhatsApp ON"
+#else
+    "WhatsApp OFF"
+#endif
+  ;
+
+  return features;
 }
 
 void RemoveProfile()
@@ -573,10 +615,10 @@ void ShowHelp()
     "    Ctrl-x      send message\n"
     "    Ctrl-y      toggle show emojis\n"
     "    KeyUp       select message\n"
+    "    Alt-$       external spell check\n"
     "    Alt-,       decrease contact list width\n"
     "    Alt-.       increase contact list width\n"
     "    Alt-e       external editor compose\n"
-    "    Alt-s       external spell check\n"
     "    Alt-t       external telephone call\n"
     "\n"
     "Interactive Commands for Selected Message:\n"
@@ -586,8 +628,10 @@ void ShowHelp()
     "    Ctrl-w      open link\n"
     "    Ctrl-x      send reply to selected message\n"
     "    Ctrl-z      edit selected message\n"
-    "    Alt-w       external message viewer\n"
     "    Alt-c       copy selected message to clipboard\n"
+    "    Alt-q       jump to quoted/replied message\n"
+    "    Alt-s       add/remove reaction on selected message\n"
+    "    Alt-w       external message viewer\n"
     "\n"
     "Interactive Commands for Text Input:\n"
     "    Ctrl-a      move cursor to start of line\n"

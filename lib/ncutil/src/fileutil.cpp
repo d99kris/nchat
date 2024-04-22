@@ -1,6 +1,6 @@
 // fileutil.cpp
 //
-// Copyright (c) 2020-2023 Kristofer Berggren
+// Copyright (c) 2020-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -206,6 +206,17 @@ std::string FileUtil::GetLibSuffix()
   return ".so";
 #endif
   return "";
+}
+
+std::string FileUtil::GetSuffixedCount(ssize_t p_Size)
+{
+  std::vector<std::string> suffixes({ "", "K", "M", "G", "T", "P" });
+  size_t i = 0;
+  for (i = 0; (i < suffixes.size()) && (p_Size >= 1024); i++, (p_Size /= 1024))
+  {
+  }
+
+  return std::to_string(p_Size) + suffixes.at(i);
 }
 
 std::string FileUtil::GetSuffixedSize(ssize_t p_Size)

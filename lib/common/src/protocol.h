@@ -1,6 +1,6 @@
 // protocol.h
 //
-// Copyright (c) 2020-2023 Kristofer Berggren
+// Copyright (c) 2020-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -8,7 +8,9 @@
 #pragma once
 
 #include <functional>
+#include <map>
 #include <memory>
+#include <set>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -24,6 +26,8 @@ enum ProtocolFeature
   FeatureTypingTimeout = (1 << 1),
   FeatureEditMessagesWithinTwoDays = (1 << 2),
   FeatureEditMessagesWithinFifteenMins = (1 << 3),
+  FeatureLimitedReactions = (1 << 4),
+  FeatureMarkReadEveryView = (1 << 5),
 };
 
 class Protocol
@@ -56,6 +60,7 @@ public:
 enum MessageType
 {
   UnknownType = 0,
+  // Request messages
   RequestMessageType,
   GetContactsRequestType,
   GetChatsRequestType,
@@ -77,6 +82,11 @@ enum MessageType
   CreateChatRequestType,
   SetCurrentChatRequestType,
   DeferGetSponsoredMessagesRequestType,
+  GetAvailableReactionsRequestType,
+  SendReactionRequestType,
+  GetUnreadReactionsRequestType,
+  ReinitRequestType,
+  // Service messages
   ServiceMessageType,
   NewContactsNotifyType,
   NewChatsNotifyType,
@@ -94,6 +104,10 @@ enum MessageType
   NewMessageFileNotifyType,
   DeleteChatNotifyType,
   UpdateMuteNotifyType,
+  ProtocolUiControlNotifyType,
+  RequestAppExitNotifyType,
+  NewMessageReactionsNotifyType,
+  AvailableReactionsNotifyType,
 };
 
 struct ContactInfo
@@ -108,7 +122,7 @@ struct ChatInfo
 {
   std::string id;
   bool isUnread = false;
-  bool isUnreadMention = false; // tgchat only
+  bool isUnreadMention = false; // only required for tgchat
   bool isMuted = false;
   int64_t lastMessageTime = -1;
 };
@@ -130,6 +144,31 @@ struct FileInfo
   std::string fileType;
 };
 
+// ensure CacheUtil and Serialization are up-to-date after modifying Reactions
+static const std::string s_ReactionsSelfId = "You";
+struct Reactions
+{
+  bool needConsolidationWithCache = false; // true = need consolidation with cache before usage
+  bool updateCountBasedOnSender = false; // true = need to update emojiCount based on senderEmoji
+  bool replaceCount = false; // true = replace emoji counts
+  std::map<std::string, std::string> senderEmojis;
+  std::map<std::string, size_t> emojiCounts;
+
+  bool operator==(const Reactions& p_Other) const
+  {
+    if (senderEmojis != p_Other.senderEmojis) return false;
+
+    if (emojiCounts != p_Other.emojiCounts) return false;
+
+    return true;
+  }
+
+  bool operator!=(const Reactions& p_Other) const
+  {
+    return (*this == p_Other);
+  }
+};
+
 struct ChatMessage
 {
   std::string id;
@@ -139,11 +178,12 @@ struct ChatMessage
   std::string quotedText;
   std::string quotedSender;
   std::string fileInfo;
-  std::string link; // tgchat sponsored msg only, not db cached
+  std::string link; // only required for tgchat, sponsored msg, not db cached
+  Reactions reactions;
   int64_t timeSent = -1;
   bool isOutgoing = true;
   bool isRead = false;
-  bool hasMention = false; // tgchat only, not db cached
+  bool hasMention = false; // only required for tgchat, not db cached
 };
 
 enum DownloadFileAction
@@ -221,7 +261,9 @@ class MarkMessageReadRequest : public RequestMessage
 public:
   virtual MessageType GetMessageType() const { return MarkMessageReadRequestType; }
   std::string chatId;
+  std::string senderId; // only required for wmchat
   std::string msgId;
+  bool readAllReactions = false;
 };
 
 class DeleteMessageRequest : public RequestMessage
@@ -229,7 +271,7 @@ class DeleteMessageRequest : public RequestMessage
 public:
   virtual MessageType GetMessageType() const { return DeleteMessageRequestType; }
   std::string chatId;
-  std::string senderId; // only needed for wmchat
+  std::string senderId; // only required for wmchat
   std::string msgId;
 };
 
@@ -317,6 +359,38 @@ class DeferGetSponsoredMessagesRequest : public RequestMessage
 public:
   virtual MessageType GetMessageType() const { return DeferGetSponsoredMessagesRequestType; }
   std::string chatId;
+};
+
+class GetAvailableReactionsRequest : public RequestMessage
+{
+public:
+  virtual MessageType GetMessageType() const { return GetAvailableReactionsRequestType; }
+  std::string chatId;
+  std::string msgId;
+};
+
+class SendReactionRequest : public RequestMessage
+{
+public:
+  virtual MessageType GetMessageType() const { return SendReactionRequestType; }
+  std::string chatId;
+  std::string senderId; // only required for wmchat
+  std::string msgId;
+  std::string emoji;
+  std::string prevEmoji; // only required for tgchat, to clear reaction
+};
+
+class GetUnreadReactionsRequest : public RequestMessage
+{
+public:
+  virtual MessageType GetMessageType() const { return GetUnreadReactionsRequestType; }
+  std::string chatId;
+};
+
+class ReinitRequest : public RequestMessage
+{
+public:
+  virtual MessageType GetMessageType() const { return ReinitRequestType; }
 };
 
 // Service messages
@@ -508,4 +582,43 @@ public:
   bool success;
   std::string chatId;
   bool isMuted;
+};
+
+class ProtocolUiControlNotify : public ServiceMessage
+{
+public:
+  explicit ProtocolUiControlNotify(const std::string& p_ProfileId) :
+    ServiceMessage(p_ProfileId) { }
+  virtual MessageType GetMessageType() const { return ProtocolUiControlNotifyType; }
+  bool isTakeControl;
+};
+
+class RequestAppExitNotify : public ServiceMessage
+{
+public:
+  explicit RequestAppExitNotify(const std::string& p_ProfileId) :
+    ServiceMessage(p_ProfileId) { }
+  virtual MessageType GetMessageType() const { return RequestAppExitNotifyType; }
+};
+
+class NewMessageReactionsNotify : public ServiceMessage
+{
+public:
+  explicit NewMessageReactionsNotify(const std::string& p_ProfileId) :
+    ServiceMessage(p_ProfileId) { }
+  virtual MessageType GetMessageType() const { return NewMessageReactionsNotifyType; }
+  std::string chatId;
+  std::string msgId;
+  Reactions reactions;
+};
+
+class AvailableReactionsNotify : public ServiceMessage
+{
+public:
+  explicit AvailableReactionsNotify(const std::string& p_ProfileId) :
+    ServiceMessage(p_ProfileId) { }
+  virtual MessageType GetMessageType() const { return AvailableReactionsNotifyType; }
+  std::string chatId;
+  std::string msgId;
+  std::set<std::string> emojis;
 };

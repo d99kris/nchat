@@ -18,10 +18,11 @@ Features
 - Message read receipt
 - Receive / send markdown formatted messages
 - Reply / delete / edit / send messages
-- Searchable list dialogs for selecting files, emojis, contacts
+- List dialogs for selecting files, emojis, contacts
 - Show user status (online, away, typing)
 - Toggle to view textized emojis vs. graphical
 - View / save media files (documents, photos, videos)
+- Send and display reactions
 
 
 Usage
@@ -60,11 +61,11 @@ Interactive Commands:
     Ctrl-x      send message
     Ctrl-y      toggle show emojis
     KeyUp       select message
+    Alt-$       external spell check
     Alt-,       decrease contact list width
     Alt-.       increase contact list width
     Alt-d       delete/leave current chat
     Alt-e       external editor compose
-    Alt-s       external spell check
     Alt-t       external telephone call
 
 Interactive Commands for Selected Message:
@@ -75,8 +76,10 @@ Interactive Commands for Selected Message:
     Ctrl-w      open link
     Ctrl-x      send reply to selected message
     Ctrl-z      edit selected message
-    Alt-w       external message viewer
     Alt-c       copy selected message to clipboard
+    Alt-q       jump to quoted/replied message
+    Alt-s       add/remove reaction on selected message
+    Alt-w       external message viewer
 
 Interactive Commands for Text Input:
 
@@ -111,6 +114,12 @@ macOS
 
     brew tap d99kris/nchat
     brew install nchat
+
+Optionally one can disable protocols using `--without-whatsapp` and
+`--without-telegram`, for example:
+
+    brew install nchat --without-telegram
+
 
 Arch Linux
 ----------
@@ -166,7 +175,7 @@ Fedora
 
 Gentoo
 
-    sudo emerge -n dev-util/cmake dev-util/gperf sys-apps/help2man sys-libs/readline dev-libs/openssl sys-libs/ncurses sys-libs/zlib dev-db/sqlite sys-apps/file dev-lang/go
+    sudo emerge -n dev-util/cmake dev-util/ccache dev-util/gperf sys-apps/help2man sys-libs/readline dev-libs/openssl sys-libs/ncurses sys-libs/zlib dev-db/sqlite sys-apps/file dev-lang/go
 
 Void
 
@@ -273,7 +282,7 @@ Specifies level of attachment prefetching:
 
 ### cache_enabled
 
-Specifies whether to enable (experimental) cache functionality.
+Specifies whether to enable cache functionality.
 
 ### coredump_enabled
 
@@ -339,6 +348,7 @@ This configuration file holds general user interface settings. Default content:
     phone_number_indicator=
     proxy_indicator=🔒
     read_indicator=✓
+    reactions_enabled=1
     spell_check_command=
     syncing_indicator=⇄
     terminal_bell_active=0
@@ -527,6 +537,10 @@ Specifies top bar text to indicate proxy is enabled.
 
 Specifies text to indicate a message has been read by the receiver.
 
+### reactions_enabled
+
+Specifies whether to display reactions.
+
 ### spell_check_command
 
 Specifies a custom command to use for spell checking composed messages. If not
@@ -654,6 +668,8 @@ This configuration file holds user interface color settings. Default content:
     history_text_attr_selected=reverse
     history_text_quoted_color_bg=
     history_text_quoted_color_fg=gray
+    history_text_reaction_color_bg=
+    history_text_reaction_color_fg=gray
     history_text_recv_color_bg=
     history_text_recv_color_fg=
     history_text_recv_group_color_bg=
@@ -873,6 +889,9 @@ includes the source code of the following third-party libraries:
 
 - [apathy](https://github.com/dlecocq/apathy) -
   Copyright 2013 Dan Lecocq - [MIT License](/ext/apathy/LICENSE)
+
+- [cereal](https://github.com/USCiLab/cereal) -
+  Copyright 2013 Randolph Voorhies, Shane Grant - [BSD-3 License](/ext/cereal/LICENSE)
 
 - [clip](https://github.com/dacap/clip) -
   Copyright 2015 David Capello - [MIT License](/ext/clip/LICENSE.txt)

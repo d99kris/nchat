@@ -1,6 +1,6 @@
 // status.h
 //
-// Copyright (c) 2020-2023 Kristofer Berggren
+// Copyright (c) 2020-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -14,16 +14,18 @@
 class Status
 {
 public:
+  // keep in sync with constants in gowm.go
   enum Flag
   {
     FlagNone = 0,
     FlagOffline = (1 << 0),
-    FlagOnline = (1 << 1),
-    FlagFetching = (1 << 2),
-    FlagSending = (1 << 3),
-    FlagUpdating = (1 << 4),
-    FlagSyncing = (1 << 5),
-    FlagAway = (1 << 6),
+    FlagConnecting = (1 << 1),
+    FlagOnline = (1 << 2),
+    FlagFetching = (1 << 3),
+    FlagSending = (1 << 4),
+    FlagUpdating = (1 << 5),
+    FlagSyncing = (1 << 6),
+    FlagAway = (1 << 7),
   };
 
   static uint32_t Get();

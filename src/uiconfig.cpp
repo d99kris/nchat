@@ -1,6 +1,6 @@
 // uiconfig.cpp
 //
-// Copyright (c) 2019-2023 Kristofer Berggren
+// Copyright (c) 2019-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -48,6 +48,7 @@ void UiConfig::Init()
     { "phone_number_indicator", "" },
     { "proxy_indicator", "\xF0\x9F\x94\x92" },
     { "read_indicator", "\xe2\x9c\x93" },
+    { "reactions_enabled", "1" },
     { "spell_check_command", "" },
     { "syncing_indicator", "\xe2\x87\x84" },
     { "terminal_bell_active", "0" },

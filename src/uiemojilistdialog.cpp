@@ -8,36 +8,61 @@
 #include "uiemojilistdialog.h"
 
 #include "emojilist.h"
+#include "log.h"
 #include "strutil.h"
 #include "uimodel.h"
 
-UiEmojiListDialog::UiEmojiListDialog(const UiDialogParams& p_Params)
+static std::pair<std::string, std::string> s_NoneOptionTextEmoji("[none]", "");
+
+UiEmojiListDialog::UiEmojiListDialog(const UiDialogParams& p_Params, const std::string& p_DefaultOption /*= ""*/,
+                                     bool p_HasNoneOption /*= false*/, bool p_HasLimitedEmojis /*= false*/)
   : UiListDialog(p_Params, true /*p_ShadeHidden*/)
+  , m_DefaultOption(p_DefaultOption)
+  , m_HasNoneOption(p_HasNoneOption)
+  , m_HasLimitedEmojis(p_HasLimitedEmojis)
+  , m_HasAvailableEmojisPending(p_HasLimitedEmojis)
 {
+  if (m_HasLimitedEmojis)
+  {
+    m_Model->GetAvailableEmojis(m_AvailableEmojis, m_HasAvailableEmojisPending);
+  }
+
   UpdateList();
+  SetSelectedEmoji(m_DefaultOption);
 }
 
 UiEmojiListDialog::~UiEmojiListDialog()
 {
 }
 
-std::wstring UiEmojiListDialog::GetSelectedEmoji()
+std::wstring UiEmojiListDialog::GetSelectedEmoji(bool p_EmojiEnabled)
 {
-  return m_SelectedEmoji;
+  return StrUtil::ToWString(p_EmojiEnabled ? m_SelectedTextEmoji.second : m_SelectedTextEmoji.first);
+}
+
+void UiEmojiListDialog::SetSelectedEmoji(const std::string& p_Emoji)
+{
+  if (p_Emoji.empty()) return;
+
+  for (auto it = m_TextEmojis.begin(); it != m_TextEmojis.end(); ++it)
+  {
+    if (it->second == p_Emoji)
+    {
+      m_Index = std::distance(m_TextEmojis.begin(), it);
+      break;
+    }
+  }
 }
 
 void UiEmojiListDialog::OnSelect()
 {
   if (m_TextEmojis.empty()) return;
 
-  EmojiList::AddUsage(std::next(m_TextEmojis.begin(), m_Index)->first);
-  if (m_Model->GetEmojiEnabled())
+  m_SelectedTextEmoji = *std::next(m_TextEmojis.begin(), m_Index); // ex: (":thumbsup:", 0xf0 0x9f 0x91 0x8d)
+
+  if (m_SelectedTextEmoji != s_NoneOptionTextEmoji)
   {
-    m_SelectedEmoji = StrUtil::ToWString(std::next(m_TextEmojis.begin(), m_Index)->second);
-  }
-  else
-  {
-    m_SelectedEmoji = StrUtil::ToWString(std::next(m_TextEmojis.begin(), m_Index)->first);
+    EmojiList::AddUsage(std::next(m_TextEmojis.begin(), m_Index)->first);
   }
 
   m_Result = true;
@@ -50,21 +75,54 @@ void UiEmojiListDialog::OnBack()
 
 bool UiEmojiListDialog::OnTimer()
 {
-  return false;
+  bool rv = false;
+  if (m_HasLimitedEmojis && m_HasAvailableEmojisPending)
+  {
+    m_Model->GetAvailableEmojis(m_AvailableEmojis, m_HasAvailableEmojisPending);
+    if (!m_HasAvailableEmojisPending)
+    {
+      UpdateList();
+      SetSelectedEmoji(m_DefaultOption);
+      rv = true;
+    }
+  }
+
+  return rv;
 }
 
 void UiEmojiListDialog::UpdateList()
 {
-  const bool emojiEnabled = m_Model->GetEmojiEnabled();
+  std::string selectedEmoji;
+  if (!m_TextEmojis.empty())
+  {
+    selectedEmoji = std::next(m_TextEmojis.begin(), m_Index)->second;
+  }
+
   m_Index = 0;
   m_Items.clear();
   m_TextEmojis.clear();
   std::vector<std::pair<std::string, std::string>> textEmojis = EmojiList::Get(StrUtil::ToString(m_FilterStr));
+
+  if (m_HasNoneOption)
+  {
+    textEmojis.insert(textEmojis.begin(), s_NoneOptionTextEmoji);
+    if (!m_FilterStr.empty())
+    {
+      m_Index = 1;
+    }
+  }
+
+  const bool emojiEnabled = m_Model->GetEmojiEnabled();
   for (auto& textEmoji : textEmojis)
   {
-    std::wstring desc = StrUtil::ToWString(textEmoji.first);
-    std::wstring item = StrUtil::ToWString(textEmoji.second);
-    if (StrUtil::WStringWidth(item) <= 0) continue; // mainly for mac
+    if (m_HasLimitedEmojis)
+    {
+      if (!m_AvailableEmojis.count(textEmoji.second) && !textEmoji.second.empty()) continue;
+    }
+
+    std::wstring desc = StrUtil::ToWString(textEmoji.first); // ex: :thumbsup:
+    std::wstring item = StrUtil::ToWString(textEmoji.second); // ex: 0xf0 0x9f 0x91 0x8d
+    if ((StrUtil::WStringWidth(item) <= 0) && (!item.empty())) continue; // mainly for mac
 
     if (emojiEnabled)
     {
@@ -83,4 +141,6 @@ void UiEmojiListDialog::UpdateList()
     m_Items.push_back(StrUtil::TrimPadWString(item, m_W));
     m_TextEmojis.push_back(textEmoji);
   }
+
+  SetSelectedEmoji(selectedEmoji);
 }

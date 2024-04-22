@@ -1,6 +1,6 @@
 // messagecache.h
 //
-// Copyright (c) 2020-2023 Kristofer Berggren
+// Copyright (c) 2020-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -41,6 +41,7 @@ private:
     DeleteOneChatRequestType,
     UpdateMessageIsReadRequestType,
     UpdateMessageFileInfoRequestType,
+    UpdateMessageReactionsRequestType,
     UpdateMuteRequestType,
   };
 
@@ -148,6 +149,16 @@ private:
     std::string fileInfo;
   };
 
+  class UpdateMessageReactionsRequest : public Request
+  {
+  public:
+    virtual RequestType GetRequestType() const { return UpdateMessageReactionsRequestType; }
+    std::string profileId;
+    std::string chatId;
+    std::string msgId;
+    Reactions reactions;
+  };
+
   class UpdateMuteRequest : public Request
   {
   public:
@@ -164,7 +175,8 @@ public:
 
   static void AddFromServiceMessage(const std::string& p_ProfileId, std::shared_ptr<ServiceMessage> p_ServiceMessage);
 
-  static void AddProfile(const std::string& p_ProfileId, bool p_CheckSync, int p_DirVersion, bool p_IsSetup);
+  static void AddProfile(const std::string& p_ProfileId, bool p_CheckSync, int p_DirVersion, bool p_IsSetup,
+                         bool* p_IsRemoved = nullptr);
   static void AddMessages(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_FromMsgId,
                           const std::vector<ChatMessage>& p_ChatMessages);
   static void AddChats(const std::string& p_ProfileId, const std::vector<ChatInfo>& p_ChatInfos);
@@ -183,7 +195,8 @@ public:
                                   bool p_IsRead);
   static void UpdateMessageFileInfo(const std::string& p_ProfileId, const std::string& p_ChatId,
                                     const std::string& p_MsgId, const std::string& p_FileInfo);
-
+  static void UpdateMessageReactions(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                     const std::string& p_MsgId, const Reactions& p_Reactions);
   static void UpdateMute(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_IsMuted);
   static void Export(const std::string& p_ExportDir);
 

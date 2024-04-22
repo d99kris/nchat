@@ -15,6 +15,7 @@
 #include "emojilist.h"
 #include "log.h"
 #include "messagecache.h"
+#include "timeutil.h"
 #include "uicolorconfig.h"
 #include "uiconfig.h"
 #include "uicontroller.h"
@@ -91,7 +92,7 @@ void Ui::Run()
     MessageCache::FetchContacts(protocol.first);
   }
 
-  LOG_INFO("entering ui loop");
+  LOG_INFO("ui loop start");
 
   raw();
   curs_set(1);
@@ -104,7 +105,7 @@ void Ui::Run()
     }
   }
 
-  LOG_INFO("exiting ui loop");
+  LOG_INFO("ui loop end");
 
   // set as offline before logging off
   for (auto& protocol : protocols)
@@ -112,7 +113,7 @@ void Ui::Run()
     m_Model->SetStatusOnline(protocol.first, false);
   }
 
-  usleep(100000);
+  TimeUtil::Sleep(0.100);
 }
 
 void Ui::AddProtocol(std::shared_ptr<Protocol> p_Protocol)
