@@ -3540,6 +3540,8 @@ void UiModel::JumpQuoted()
   std::string quotedId;
   const std::string profileId = m_CurrentChat.first;
   const std::string chatId = m_CurrentChat.second;
+  std::string& oldestMessageId = m_OldestMessageId[profileId][chatId];
+
   const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
   int& messageOffset = m_MessageOffset[profileId][chatId];
   auto it = std::next(messageVec.begin(), messageOffset);
@@ -3558,15 +3560,11 @@ void UiModel::JumpQuoted()
     quotedId = mit->second.quotedId;
   }
 
-  for (auto mid = messageVec.begin(); mid != messageVec.end(); ++mid)
-  {
-    if (*mid == quotedId)
-    {
-      messageOffset = std::distance(messageVec.begin(), mid);
-      UpdateHistory();
-      break;
-    }
-  }
+  std::shared_ptr<FindMessageRequest> findMessageRequest = std::make_shared<FindMessageRequest>();
+  findMessageRequest->chatId = chatId;
+  findMessageRequest->lastMsgId = oldestMessageId;
+  findMessageRequest->findMsgId = quotedId;
+  SendProtocolRequest(profileId, findMessageRequest);
 }
 
 void UiModel::Find()

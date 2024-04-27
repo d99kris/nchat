@@ -1188,6 +1188,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         const std::string& chatId = findCachedMessageRequest->chatId;
         const std::string& fromMsgId = findCachedMessageRequest->fromMsgId;
         const std::string& findText = findCachedMessageRequest->findText;
+        const std::string& findMsgId = findCachedMessageRequest->findMsgId;
 
         int64_t findFromMsgIdTimeSent = 0;
         if (!fromMsgId.empty())
@@ -1215,22 +1216,48 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
 
         std::string foundMsgId;
         int64_t foundMsgIdTimeSent = 0;
-        try
+        if (!findText.empty())
         {
-          // *INDENT-OFF*
-          *m_Dbs[profileId] <<
-            "SELECT id, timeSent FROM " + s_TableMessages + " WHERE chatId = ? AND timeSent < ? AND instr(lower(text), lower(?)) > 0 "
-            "ORDER BY timeSent DESC LIMIT 1;" << chatId << findFromMsgIdTimeSent << findText >>
-            [&](const std::string& id, const int64_t& timeSent)
-            {
-              foundMsgId = id;
-              foundMsgIdTimeSent = timeSent;
-            };
-          // *INDENT-ON*
+          try
+          {
+            // *INDENT-OFF*
+            *m_Dbs[profileId] <<
+              "SELECT id, timeSent FROM " + s_TableMessages + " WHERE chatId = ? AND timeSent < ? AND instr(lower(text), lower(?)) > 0 "
+              "ORDER BY timeSent DESC LIMIT 1;" << chatId << findFromMsgIdTimeSent << findText >>
+              [&](const std::string& id, const int64_t& timeSent)
+              {
+                foundMsgId = id;
+                foundMsgIdTimeSent = timeSent;
+              };
+            // *INDENT-ON*
+          }
+          catch (const sqlite::sqlite_exception& ex)
+          {
+            HANDLE_SQLITE_EXCEPTION(ex);
+          }
         }
-        catch (const sqlite::sqlite_exception& ex)
+        else if (!findMsgId.empty())
         {
-          HANDLE_SQLITE_EXCEPTION(ex);
+          try
+          {
+            // *INDENT-OFF*
+            *m_Dbs[profileId] <<
+              "SELECT id, timeSent FROM " + s_TableMessages + " WHERE chatId = ? AND id = ?;" << chatId << findMsgId >>
+              [&](const std::string& id, const int64_t& timeSent)
+              {
+                foundMsgId = id;
+                foundMsgIdTimeSent = timeSent;
+              };
+            // *INDENT-ON*
+          }
+          catch (const sqlite::sqlite_exception& ex)
+          {
+            HANDLE_SQLITE_EXCEPTION(ex);
+          }
+        }
+        else
+        {
+          LOG_WARNING("neither text nor msg id specified");
         }
 
         if (!foundMsgId.empty())
