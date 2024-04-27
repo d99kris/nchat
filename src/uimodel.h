@@ -163,6 +163,10 @@ private:
   void SetProtocolUiControl(const std::string& p_ProfileId, bool& p_IsTakeControl);
   void HandleProtocolUiControl(std::unique_lock<std::mutex>& p_Lock);
   void React();
+  void Find();
+  void FindNext();
+  void PerformFindNext();
+  void ClearFind();
 
 private:
   bool m_Running = true;
@@ -183,6 +187,7 @@ private:
 
   std::string m_EditMessageId;
   std::string m_ProtocolUiControl;
+  std::string m_FindText;
 
   std::unordered_map<std::string, std::unordered_map<std::string, std::vector<std::string>>> m_MessageVec;
   std::unordered_map<std::string,

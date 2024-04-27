@@ -1362,6 +1362,21 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
       }
       break;
 
+    case FindMessageRequestType:
+      {
+        LOG_DEBUG("Find message");
+        std::shared_ptr<FindMessageRequest> findMessageRequest =
+          std::static_pointer_cast<FindMessageRequest>(p_RequestMessage);
+
+        MessageCache::FindMessage(m_ProfileId,
+                                  findMessageRequest->chatId,
+                                  findMessageRequest->fromMsgId,
+                                  findMessageRequest->lastMsgId,
+                                  findMessageRequest->findText,
+                                  findMessageRequest->findMsgId);
+      }
+      break;
+
     default:
       LOG_DEBUG("unknown request message %d", p_RequestMessage->GetMessageType());
       break;

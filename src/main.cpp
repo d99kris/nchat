@@ -607,6 +607,8 @@ void ShowHelp()
     "    Alt-,       decrease contact list width\n"
     "    Alt-.       increase contact list width\n"
     "    Alt-e       external editor compose\n"
+    "    Alt-f       find in chat\n"
+    "    Alt-F       find next in chat\n"
     "    Alt-t       external telephone call\n"
     "\n"
     "Interactive Commands for Selected Message:\n"

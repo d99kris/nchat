@@ -37,6 +37,7 @@ private:
     FetchContactsRequestType,
     FetchMessagesFromRequestType,
     FetchOneMessageRequestType,
+    FindCachedMessageRequestType,
     DeleteOneMessageRequestType,
     DeleteOneChatRequestType,
     UpdateMessageIsReadRequestType,
@@ -110,6 +111,18 @@ private:
     std::string profileId;
     std::string chatId;
     std::string msgId;
+  };
+
+  class FindCachedMessageRequest : public Request
+  {
+  public:
+    virtual RequestType GetRequestType() const { return FindCachedMessageRequestType; }
+    std::string profileId;
+    std::string chatId;
+    std::string fromMsgId;
+    std::string lastMsgId;
+    std::string findText;
+    std::string findMsgId;
   };
 
   class DeleteOneMessageRequest : public Request
@@ -188,6 +201,9 @@ public:
                                 const int p_Limit, const bool p_Sync);
   static bool FetchOneMessage(const std::string& p_ProfileId, const std::string& p_ChatId,
                               const std::string& p_MsgId, const bool p_Sync);
+  static void FindMessage(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_FromMsgId,
+                          const std::string& p_LastMsgId, const std::string& p_FindText,
+                          const std::string& p_FindMsgId);
   static void DeleteOneMessage(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId);
   static void DeleteChat(const std::string& p_ProfileId, const std::string& p_ChatId);
   static void UpdateMessageIsRead(const std::string& p_ProfileId, const std::string& p_ChatId,

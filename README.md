@@ -66,6 +66,8 @@ Interactive Commands:
     Alt-.       increase contact list width
     Alt-d       delete/leave current chat
     Alt-e       external editor compose
+    Alt-f       find in chat
+    Alt-F       find next in chat
     Alt-t       external telephone call
 
 Interactive Commands for Selected Message:

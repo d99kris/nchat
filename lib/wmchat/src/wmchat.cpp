@@ -604,6 +604,21 @@ void WmChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
       }
       break;
 
+    case FindMessageRequestType:
+      {
+        LOG_DEBUG("Find message");
+        std::shared_ptr<FindMessageRequest> findMessageRequest =
+          std::static_pointer_cast<FindMessageRequest>(p_RequestMessage);
+
+        MessageCache::FindMessage(m_ProfileId,
+                                  findMessageRequest->chatId,
+                                  findMessageRequest->fromMsgId,
+                                  findMessageRequest->lastMsgId,
+                                  findMessageRequest->findText,
+                                  findMessageRequest->findMsgId);
+      }
+      break;
+
     default:
       LOG_DEBUG("unknown request %d", p_RequestMessage->GetMessageType());
       break;

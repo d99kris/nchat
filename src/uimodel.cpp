@@ -30,6 +30,7 @@
 #include "uikeyconfig.h"
 #include "uikeyinput.h"
 #include "uimessagedialog.h"
+#include "uitextinputdialog.h"
 #include "uiview.h"
 
 const std::pair<std::string, std::string> UiModel::s_ChatNone;
@@ -92,6 +93,8 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keySpell = UiKeyConfig::GetKey("spell");
 
   static wint_t keyJumpQuoted = UiKeyConfig::GetKey("jump_quoted");
+  static wint_t keyFind = UiKeyConfig::GetKey("find");
+  static wint_t keyFindNext = UiKeyConfig::GetKey("find_next");
 
   static wint_t keyToggleList = UiKeyConfig::GetKey("toggle_list");
   static wint_t keyToggleTop = UiKeyConfig::GetKey("toggle_top");
@@ -285,6 +288,14 @@ void UiModel::KeyHandler(wint_t p_Key)
   else if (p_Key == keyJumpQuoted)
   {
     JumpQuoted();
+  }
+  else if (p_Key == keyFind)
+  {
+    Find();
+  }
+  else if (p_Key == keyFindNext)
+  {
+    FindNext();
   }
   else
   {
@@ -2021,6 +2032,43 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
       }
       break;
 
+    case FindMessageNotifyType:
+      {
+        std::shared_ptr<FindMessageNotify> findMessageNotify =
+          std::static_pointer_cast<FindMessageNotify>(p_ServiceMessage);
+        bool success = findMessageNotify->success;
+        std::string chatId = findMessageNotify->chatId;
+        std::string msgId = findMessageNotify->msgId;
+        LOG_TRACE("find message notify %s %s", (success ? "found" : "not found"), msgId.c_str());
+        if (success && !msgId.empty())
+        {
+          const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
+          int& messageOffset = m_MessageOffset[profileId][chatId];
+          std::stack<int>& messageOffsetStack = m_MessageOffsetStack[profileId][chatId];
+
+          auto it = std::find(messageVec.begin(), messageVec.end(), msgId);
+          if (it != messageVec.end())
+          {
+            int newMessageOffset = std::distance(messageVec.begin(), it);
+            int addOffset = newMessageOffset - messageOffset;
+            if (addOffset > 0)
+            {
+              messageOffsetStack.push(addOffset);
+            }
+
+            SetSelectMessageActive(true);
+            messageOffset = newMessageOffset;
+            RequestMessagesCurrentChat();
+            UpdateHistory();
+          }
+        }
+        else
+        {
+          m_TriggerTerminalBell = true;
+        }
+      }
+      break;
+
     default:
       LOG_DEBUG("unknown service message %d", p_ServiceMessage->GetMessageType());
       break;
@@ -2316,6 +2364,7 @@ void UiModel::OnCurrentChatChanged()
 {
   LOG_TRACE("current chat %s %s", m_CurrentChat.first.c_str(), m_CurrentChat.second.c_str());
   SetHistoryInteraction(false);
+  ClearFind();
   UpdateList();
   UpdateStatus();
   UpdateHistory();
@@ -3518,4 +3567,74 @@ void UiModel::JumpQuoted()
       break;
     }
   }
+}
+
+void UiModel::Find()
+{
+  if (GetEditMessageActive()) return;
+
+  m_FindText = "";
+  UiDialogParams params(m_View.get(), this, "Find", 0.5, 5);
+  UiTextInputDialog textInputDialog(params, "Text: ", m_FindText);
+  if (textInputDialog.Run())
+  {
+    m_FindText = textInputDialog.GetInput();
+    if (!m_FindText.empty())
+    {
+      PerformFindNext();
+    }
+  }
+  else
+  {
+    m_FindText = "";
+  }
+
+  ReinitView();
+}
+
+void UiModel::FindNext()
+{
+  if (GetEditMessageActive()) return;
+
+  if (m_FindText.empty())
+  {
+    Find();
+  }
+  else
+  {
+    PerformFindNext();
+  }
+}
+
+void UiModel::PerformFindNext()
+{
+  std::unique_lock<std::mutex> lock(m_ModelMutex);
+
+  const std::string profileId = m_CurrentChat.first;
+  const std::string chatId = m_CurrentChat.second;
+  std::string& oldestMessageId = m_OldestMessageId[profileId][chatId];
+
+  std::string fromMsgId;
+  if (GetSelectMessageActive())
+  {
+    const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
+    const int messageOffset = m_MessageOffset[profileId][chatId];
+    auto it = std::next(messageVec.begin(), messageOffset);
+    if (it != messageVec.end())
+    {
+      fromMsgId = *it;
+    }
+  }
+
+  std::shared_ptr<FindMessageRequest> findMessageRequest = std::make_shared<FindMessageRequest>();
+  findMessageRequest->chatId = chatId;
+  findMessageRequest->fromMsgId = fromMsgId;
+  findMessageRequest->lastMsgId = oldestMessageId;
+  findMessageRequest->findText = m_FindText;
+  SendProtocolRequest(profileId, findMessageRequest);
+}
+
+void UiModel::ClearFind()
+{
+  m_FindText = "";
 }

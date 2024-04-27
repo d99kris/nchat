@@ -86,6 +86,7 @@ enum MessageType
   SendReactionRequestType,
   GetUnreadReactionsRequestType,
   ReinitRequestType,
+  FindMessageRequestType,
   // Service messages
   ServiceMessageType,
   NewContactsNotifyType,
@@ -108,6 +109,7 @@ enum MessageType
   RequestAppExitNotifyType,
   NewMessageReactionsNotifyType,
   AvailableReactionsNotifyType,
+  FindMessageNotifyType,
 };
 
 struct ContactInfo
@@ -393,6 +395,17 @@ public:
   virtual MessageType GetMessageType() const { return ReinitRequestType; }
 };
 
+class FindMessageRequest : public RequestMessage
+{
+public:
+  virtual MessageType GetMessageType() const { return FindMessageRequestType; }
+  std::string chatId;
+  std::string fromMsgId;
+  std::string lastMsgId;
+  std::string findText;
+  std::string findMsgId;
+};
+
 // Service messages
 class ServiceMessage
 {
@@ -621,4 +634,15 @@ public:
   std::string chatId;
   std::string msgId;
   std::set<std::string> emojis;
+};
+
+class FindMessageNotify : public ServiceMessage
+{
+public:
+  explicit FindMessageNotify(const std::string& p_ProfileId) :
+    ServiceMessage(p_ProfileId) { }
+  virtual MessageType GetMessageType() const { return FindMessageNotifyType; }
+  bool success;
+  std::string chatId;
+  std::string msgId;
 };

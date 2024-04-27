@@ -117,6 +117,8 @@ add_executable(nchat
   src/uiscreen.h
   src/uistatusview.cpp
   src/uistatusview.h
+  src/uitextinputdialog.cpp
+  src/uitextinputdialog.h
   src/uitopview.cpp
   src/uitopview.h
   src/uiview.cpp
