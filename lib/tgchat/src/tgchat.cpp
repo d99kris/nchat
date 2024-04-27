@@ -3106,6 +3106,8 @@ void TgChat::Impl::GetMsgReactions(td::td_api::object_ptr<td::td_api::messageInt
     for (auto it = messageReactions->reactions_.begin(); it != messageReactions->reactions_.end(); ++it)
     {
       auto messageReaction = td::move_tl_object_as<td::td_api::messageReaction>(*it);
+      if (messageReaction->type_->get_id() != td::td_api::reactionTypeEmoji::ID) continue;
+
       auto reactionTypeEmoji = td::move_tl_object_as<td::td_api::reactionTypeEmoji>(messageReaction->type_);
       if (reactionTypeEmoji)
       {
