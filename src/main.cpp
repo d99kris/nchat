@@ -15,6 +15,8 @@
 #include <dlfcn.h>
 
 #include <path.hpp>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include "appconfig.h"
 #include "apputil.h"
@@ -38,6 +40,10 @@
 #ifdef HAS_WHATSAPP
 #include "wmchat.h"
 #endif
+
+static const char *EnvXdgConf = "XDG_CONFIG_HOME";
+static const std::string DefaultXdgConfDir = ".config";
+
 
 static std::string GetFeatures();
 static void RemoveProfile();
@@ -125,12 +131,35 @@ static std::vector<ProtocolBaseFactory*> GetProtocolFactorys()
   return protocolFactorys;
 }
 
+static std::string GetConfDir()
+{
+  char *home = getenv("HOME");
+  if (home == NULL || home[0] == '\0')
+  {
+    return "";
+  }
+
+  std::string legacyPath = std::string(home) + "/.nchat";
+  struct stat inf;
+
+  if (stat(legacyPath.c_str(), &inf) == 0 && (inf.st_mode & S_IFDIR))
+  {
+	return legacyPath;
+  }
+
+  char *confDir = getenv(EnvXdgConf);
+  if (confDir != NULL && confDir[0] != '\0')
+  {
+    return std::string(confDir) + "/nchat";
+  }
+  return std::string(home) + "/" + DefaultXdgConfDir + "/" + std::string("nchat");
+}
 
 int main(int argc, char* argv[])
 {
   // Defaults
   umask(S_IRWXG | S_IRWXO);
-  FileUtil::SetApplicationDir(std::string(getenv("HOME")) + std::string("/.nchat"));
+  FileUtil::SetApplicationDir(GetConfDir());
   Log::SetVerboseLevel(Log::INFO_LEVEL);
 
   // Argument handling
@@ -576,7 +605,7 @@ void ShowHelp()
     "Usage: nchat [OPTION]\n"
     "\n"
     "Command-line Options:\n"
-    "    -d, --confdir <DIR>    use a different directory than ~/.nchat\n"
+    "    -d, --confdir <DIR>    use a different directory than ~/.config/nchat\n"
     "    -e, --verbose          enable verbose logging\n"
     "    -ee, --extra-verbose   enable extra verbose logging\n"
     "    -h, --help             display this help and exit\n"
