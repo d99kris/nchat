@@ -10,7 +10,7 @@
 * If you're unable to find an open issue addressing the problem, open
   a new one. Be sure to include a **title and clear description**, and
   as much relevant information as possible, for example a copy of the
-  log-file (`~/.nchat/log.txt`).
+  log-file (`~/.config/nchat/log.txt`).
 
 #### **Did you write a patch that fixes a bug?**
 

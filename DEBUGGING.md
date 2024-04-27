@@ -4,7 +4,7 @@ If any issues are observed, try running nchat with verbose logging
 
     nchat --verbose
 
-and provide a copy of `~/.nchat/log.txt` when reporting a bug.
+and provide a copy of `~/.config/nchat/log.txt` when reporting a bug.
 
 If nchat **crashes** it's very useful to obtain a core dump and extract
 information from it (such as the callstacks). See details below.
@@ -25,8 +25,8 @@ writable for all users by running:
 
     sudo chmod og+w /cores
 
-Then enable core dumps only for nchat by editing `~/.nchat/app.conf` and
-setting:
+Then enable core dumps only for nchat by editing `~/.config/nchat/app.conf`
+and setting:
 
     coredump_enabled=1
 
@@ -59,7 +59,8 @@ substantial amount of disk space:
 
 Core Dumps - Linux
 ==================
-Enable core dumps only for nchat by editing `~/.nchat/app.conf` and setting:
+Enable core dumps only for nchat by editing `~/.config/nchat/app.conf` and
+setting:
 
     coredump_enabled=1
 

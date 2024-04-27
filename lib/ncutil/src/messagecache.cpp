@@ -315,7 +315,7 @@ void MessageCache::AddProfile(const std::string& p_ProfileId, bool p_CheckSync, 
     if (schemaVersion > s_SchemaVersion)
     {
       LOG_WARNING("cache db schema %d from newer nchat version detected, if cache issues are encountered "
-                  "please delete ~/.nchat/history or perform a fresh nchat setup", schemaVersion);
+                  "please delete %s or perform a fresh nchat setup", schemaVersion, dbDir.c_str());
     }
     else
     {

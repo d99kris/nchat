@@ -19,6 +19,6 @@ List generated themes:
 
 Steps to use one theme, in this example `zenwritten_dark`:
 
-    cp nchat-color/zenwritten_dark.conf ~/.nchat/color.conf
-    cp nchat-usercolor/zenwritten_dark.conf ~/.nchat/usercolor.conf
+    cp nchat-color/zenwritten_dark.conf ~/.config/nchat/color.conf
+    cp nchat-usercolor/zenwritten_dark.conf ~/.config/nchat/usercolor.conf
 

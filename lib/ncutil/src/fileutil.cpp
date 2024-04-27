@@ -12,6 +12,9 @@
 
 #include <wordexp.h>
 
+#include <sys/types.h>
+#include <sys/stat.h>
+
 #ifdef __APPLE__
 #include <libproc.h>
 #endif
@@ -95,6 +98,28 @@ std::string FileUtil::GetApplicationDir()
 std::string FileUtil::GetCurrentWorkingDir()
 {
   return apathy::Path::cwd().absolute().sanitize().string();
+}
+
+std::string FileUtil::GetDefaultApplicationDir()
+{
+  char* homeEnv = getenv("HOME");
+  static const std::string homeDir = std::string((homeEnv != nullptr) ? homeEnv : "");
+
+  // Use old ~/.nchat if present, for backward compatibility
+  static const std::string legacyApplicationDir = homeDir + "/.nchat";
+  if (IsDir(legacyApplicationDir))
+  {
+    return legacyApplicationDir;
+  }
+
+  // Common value: export XDG_CONFIG_HOME="$HOME/.config"
+  char* xdgConfigHomeEnv = getenv("XDG_CONFIG_HOME");
+  static const std::string xdgConfigHomeDir = std::string((xdgConfigHomeEnv != nullptr) ? xdgConfigHomeEnv : "");
+  static const std::string configHomeDir = (!xdgConfigHomeDir.empty() ? xdgConfigHomeDir : (homeDir + "/.config"));
+
+  // Typically: ~/.config/nchat
+  static const std::string applicationDir = configHomeDir + "/nchat";
+  return applicationDir;
 }
 
 int FileUtil::GetDirVersion(const std::string& p_Dir)

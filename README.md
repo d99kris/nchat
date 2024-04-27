@@ -33,7 +33,7 @@ Usage:
 
 Command-line Options:
 
-    -d, --confdir <DIR>    use a different directory than ~/.nchat
+    -d, --confdir <DIR>    use a different directory than ~/.config/nchat
     -e, --verbose          enable verbose logging
     -ee, --extra-verbose   enable extra verbose logging
     -h, --help             display this help and exit
@@ -241,11 +241,11 @@ available for users to discuss nchat usage and related topics.
 
 Security
 ========
-User data is stored locally in `~/.nchat`. Default file permissions
+User data is stored locally in `~/.config/nchat`. Default file permissions
 only allow user access, but anyone who can gain access to a user's private
 files can also access the user's personal Telegram data. To protect against
 the most simple attack vectors it may be suitable to use disk encryption and
-to ensure `~/.nchat` is not backed up unencrypted.
+to ensure `~/.config/nchat` is not backed up unencrypted.
 
 
 Configuration
@@ -253,8 +253,8 @@ Configuration
 The following configuration files (listed with current default values) can be
 used to configure nchat.
 
-~/.nchat/app.conf
------------------
+~/.config/nchat/app.conf
+------------------------
 This configuration file holds general application settings. Default content:
 
     attachment_prefetch=1
@@ -301,8 +301,9 @@ SOCKS5 proxy server details. To enable proxy usage the parameters `host` and
 `port` are required, while `user` and `pass` are optional (depending on the
 SOCKS server). Note: In order to use a proxy while setting up nchat the first
 time, it is recommended to first run nchat without arguments (`nchat`) for its
-config dir to be created, and then edit proxy settings in `~/.nchat/app.conf`
-as needed, before running `nchat -s` to setup an account.
+config dir to be created, and then edit proxy settings in
+`~/.config/nchat/app.conf` as needed, before running `nchat -s` to setup an
+account.
 
 ### timestamp_iso
 
@@ -316,8 +317,8 @@ format:
 - `DD MMM YYYY HH:MM` for timestamps in non-current year, e.g. `14 Nov 2022 19:00`
 - `DD MMM YYYY HH:MM` for timestamps during export, e.g. `14 Nov 2022 19:00`
 
-~/.nchat/ui.conf
-----------------
+~/.config/nchat/ui.conf
+-----------------------
 This configuration file holds general user interface settings. Default content:
 
     attachment_indicator=📎
@@ -577,8 +578,8 @@ Specifies whether to display top bar. Controlled by Ctrl-p in run-time.
 Specifies whether to share typing status with other user(s) in the
 conversation.
 
-~/.nchat/key.conf
------------------
+~/.config/nchat/key.conf
+------------------------
 This configuration file holds user interface key bindings. Default content:
 
     backspace=KEY_BACKSPACE
@@ -640,8 +641,8 @@ To determine the key code sequence for a key, one can run nchat in key code
 dump mode `nchat -k` which will output the octal code, and ncurses macro name
 (if present).
 
-~/.nchat/color.conf
--------------------
+~/.config/nchat/color.conf
+--------------------------
 This configuration file holds user interface color settings. Default content:
 
     default_color_bg=
@@ -725,28 +726,28 @@ Custom colors may be specified using hex RGB code, for example `0xff8937`.
 The `history_name_recv_group_color` and `history_text_recv_group_color`
 parameters also supports the special value `usercolor`. When set, nchat will
 determine which color to use for a user, based on a hash of their user id
-used to pick a color from the list in `~/.nchat/usercolor.conf`.
+used to pick a color from the list in `~/.config/nchat/usercolor.conf`.
 
 Themes
 ------
 Example color config files are provided in `$(dirname $(which nchat))/../share/nchat/themes`
-and can be used by copying to `~/.nchat/`.
+and can be used by copying to `~/.config/nchat/`.
 
 ### Default Theme
 
-    cp $(dirname $(which nchat))/../share/nchat/themes/default/* ~/.nchat/
+    cp $(dirname $(which nchat))/../share/nchat/themes/default/* ~/.config/nchat/
 
 ![screenshot nchat](/doc/screenshot-nchat.png)
 
 ### Basic Color Theme
 
-    cp $(dirname $(which nchat))/../share/nchat/themes/basic-color/* ~/.nchat/
+    cp $(dirname $(which nchat))/../share/nchat/themes/basic-color/* ~/.config/nchat/
 
 ![screenshot nchat](/doc/screenshot-nchat-basic-color.png)
 
 ### Dracula Theme
 
-    cp $(dirname $(which nchat))/../share/nchat/themes/dracula/* ~/.nchat/
+    cp $(dirname $(which nchat))/../share/nchat/themes/dracula/* ~/.config/nchat/
 
 ![screenshot nchat](/doc/screenshot-nchat-dracula.png)
 
@@ -757,21 +758,21 @@ be used to generate themes for nchat. The following themes generated using
 iTerm2 Color Schemes are available in `$(dirname $(which nchat))/../share/nchat/themes`:
 
 - Catppuccin Mocha:
-  `cp $(dirname $(which nchat))/../share/nchat/themes/catppuccin-mocha/* ~/.nchat/`
+  `cp $(dirname $(which nchat))/../share/nchat/themes/catppuccin-mocha/* ~/.config/nchat/`
 - Espresso:
-  `cp $(dirname $(which nchat))/../share/nchat/themes/espresso/* ~/.nchat/`
+  `cp $(dirname $(which nchat))/../share/nchat/themes/espresso/* ~/.config/nchat/`
 - Gruvbox Dark:
-  `cp $(dirname $(which nchat))/../share/nchat/themes/gruvbox-dark/* ~/.nchat/`
+  `cp $(dirname $(which nchat))/../share/nchat/themes/gruvbox-dark/* ~/.config/nchat/`
 - Solarized Dark Higher Contrast:
-  `cp $(dirname $(which nchat))/../share/nchat/themes/solarized-dark-higher-contrast/* ~/.nchat/`
+  `cp $(dirname $(which nchat))/../share/nchat/themes/solarized-dark-higher-contrast/* ~/.config/nchat/`
 - Tokyo Night:
-  `cp $(dirname $(which nchat))/../share/nchat/themes/tokyo-night/* ~/.nchat/`
+  `cp $(dirname $(which nchat))/../share/nchat/themes/tokyo-night/* ~/.config/nchat/`
 - Tomorrow Night:
-  `cp $(dirname $(which nchat))/../share/nchat/themes/tomorrow-night/* ~/.nchat/`
+  `cp $(dirname $(which nchat))/../share/nchat/themes/tomorrow-night/* ~/.config/nchat/`
 - Zenbones Dark:
-  `cp $(dirname $(which nchat))/../share/nchat/themes/zenbones-dark/* ~/.nchat/`
+  `cp $(dirname $(which nchat))/../share/nchat/themes/zenbones-dark/* ~/.config/nchat/`
 - Zenburned:
-  `cp $(dirname $(which nchat))/../share/nchat/themes/zenburned/* ~/.nchat/`
+  `cp $(dirname $(which nchat))/../share/nchat/themes/zenburned/* ~/.config/nchat/`
 
 To generate additional nchat themes and install for use with `nchat`, refer to
 [Generating nchat themes from iTerm2 Color Schemes](/themes/templates/iterm2-color-schemes/README.md).
@@ -788,8 +789,8 @@ Protocol-Specific Configuration
 The following configuration files (listed with current default values) can be
 used to configure nchat.
 
-~/.nchat/profiles/Telegram_+nnnnn/telegram.conf
----------------------------------------------
+~/.config/nchat/profiles/Telegram_+nnnnn/telegram.conf
+------------------------------------------------------
 This configuration file holds protocol-specific settings for Telegram. Default
 content:
 
@@ -818,8 +819,8 @@ with multiple profiles. The default profile name is `Telegram` or
 `Telegram_+nnnnn` (when more than one Telegram profile is set up) if this
 setting is not specified.
 
-~/.nchat/profiles/WhatsAppMd_+nnnnn/whatsappmd.conf
--------------------------------------------------
+~/.config/nchat/profiles/WhatsAppMd_+nnnnn/whatsappmd.conf
+----------------------------------------------------------
 This configuration file holds protocol-specific settings for WhatsApp. Default
 content:
 
@@ -861,7 +862,7 @@ For macOS Terminal ensure that the Terminal profile keyboard setting
 "Use Option as Meta key" is enabled.
 
 If issues are still encountered, please use `nchat -k` (keydump mode) to
-determine the key codes and modify `~/.nchat/key.conf` accordingly.
+determine the key codes and modify `~/.config/nchat/key.conf` accordingly.
 
 ### Sent messages are not visible
 
@@ -869,7 +870,7 @@ For terminals with eight colors (or more) the default color theme displays
 sent messages in gray (shaded). Some terminals may wrongly report supporting
 more colors than two, or the terminal may be set up with gray mapped to black.
 In this case sent / own messages may appear invisible. To avoid nchat using
-gray one can edit `~/.nchat/color.conf` and remove occurances of `gray`.
+gray one can edit `~/.config/nchat/color.conf` and remove occurances of `gray`.
 
 
 Technical Details

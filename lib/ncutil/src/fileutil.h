@@ -68,6 +68,7 @@ public:
   static std::string ExpandPath(const std::string& p_Path);
   static std::string GetApplicationDir();
   static std::string GetCurrentWorkingDir();
+  static std::string GetDefaultApplicationDir();
   static int GetDirVersion(const std::string& p_Dir);
   static std::string GetDownloadsDir();
   static std::string GetFileExt(const std::string& p_Path);
