@@ -1341,6 +1341,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
           std::shared_ptr<FindMessageNotify> findMessageNotify = std::make_shared<FindMessageNotify>(profileId);
           findMessageNotify->success = false;
           findMessageNotify->chatId = chatId;
+          findMessageNotify->msgId = findMsgId;
           CallMessageHandler(findMessageNotify);
         }
       }

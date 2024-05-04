@@ -2040,7 +2040,7 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
         std::string chatId = findMessageNotify->chatId;
         std::string msgId = findMessageNotify->msgId;
         LOG_TRACE("find message notify %s %s", (success ? "found" : "not found"), msgId.c_str());
-        if (success && !msgId.empty())
+        if (!msgId.empty())
         {
           const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
           int& messageOffset = m_MessageOffset[profileId][chatId];
@@ -2060,6 +2060,10 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
             messageOffset = newMessageOffset;
             RequestMessagesCurrentChat();
             UpdateHistory();
+          }
+          else
+          {
+            LOG_WARNING("message %s not available in ui", msgId.c_str());
           }
         }
         else
@@ -3558,6 +3562,12 @@ void UiModel::JumpQuoted()
   else
   {
     quotedId = mit->second.quotedId;
+  }
+
+  if (quotedId.empty())
+  {
+    LOG_WARNING("message %s has no quoted message", msgId.c_str());
+    return;
   }
 
   std::shared_ptr<FindMessageRequest> findMessageRequest = std::make_shared<FindMessageRequest>();
