@@ -1374,8 +1374,8 @@ func (handler *WmEventHandler) HandleProtocolMessage(messageInfo types.MessageIn
 		return
 	}
 
-	// handle message edit
 	if protocol.GetType() == waProto.ProtocolMessage_MESSAGE_EDIT {
+		// handle message edit
 		editedMsg := protocol.GetEditedMessage()
 		if editedMsg != nil {
 			newMessageInfo := messageInfo
@@ -1384,6 +1384,13 @@ func (handler *WmEventHandler) HandleProtocolMessage(messageInfo types.MessageIn
 		} else {
 			LOG_WARNING(fmt.Sprintf("get edited message failed"))
 		}
+	} else if protocol.GetType() == waProto.ProtocolMessage_REVOKE {
+		// handle message revoke
+		connId := handler.connId
+		chatId := messageInfo.Chat.String()
+		msgId := protocol.GetKey().GetId()
+		LOG_TRACE(fmt.Sprintf("Call CWmDeleteMessageNotify %s %s", chatId, msgId))
+		CWmDeleteMessageNotify(connId, chatId, msgId)
 	} else {
 		LOG_TRACE(fmt.Sprintf("ProtocolMessage %#v ignore", protocol.GetType()))
 	}
