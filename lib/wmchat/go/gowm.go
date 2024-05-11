@@ -952,6 +952,9 @@ func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg 
 	case msg.ReactionMessage != nil:
 		handler.HandleReactionMessage(messageInfo, msg, isSync)
 
+	case msg.ProtocolMessage != nil:
+		handler.HandleProtocolMessage(messageInfo, msg, isSync)
+
 	default:
 		handler.HandleUnsupportedMessage(messageInfo, msg, isSync)
 	}
@@ -1361,6 +1364,31 @@ func (handler *WmEventHandler) HandleReactionMessage(messageInfo types.MessageIn
 	//WmMarkMessageRead(connId, chatId, senderId, reMsgId)
 }
 
+func (handler *WmEventHandler) HandleProtocolMessage(messageInfo types.MessageInfo, msg *waProto.Message, isSync bool) {
+	LOG_TRACE(fmt.Sprintf("ProtocolMessage"))
+
+	// get protocol part
+	protocol := msg.GetProtocolMessage()
+	if protocol == nil {
+		LOG_WARNING(fmt.Sprintf("get protocol message failed"))
+		return
+	}
+
+	// handle message edit
+	if protocol.GetType() == waProto.ProtocolMessage_MESSAGE_EDIT {
+		editedMsg := protocol.GetEditedMessage()
+		if editedMsg != nil {
+			newMessageInfo := messageInfo
+			newMessageInfo.ID = protocol.GetKey().GetId()
+			handler.HandleMessage(newMessageInfo, editedMsg, isSync)
+		} else {
+			LOG_WARNING(fmt.Sprintf("get edited message failed"))
+		}
+	} else {
+		LOG_TRACE(fmt.Sprintf("ProtocolMessage %#v ignore", protocol.GetType()))
+	}
+}
+
 func (handler *WmEventHandler) HandleUnsupportedMessage(messageInfo types.MessageInfo, msg *waProto.Message, isSync bool) {
 	// list from type Message struct in def.pb.go
 	msgType := "Unknown"
@@ -1401,9 +1429,6 @@ func (handler *WmEventHandler) HandleUnsupportedMessage(messageInfo types.Messag
 
 	case msg.Chat != nil:
 		msgType = "Chat"
-
-	case msg.ProtocolMessage != nil:
-		msgType = "ProtocolMessage"
 
 	case msg.ContactsArrayMessage != nil:
 		msgType = "ContactsArrayMessage"
