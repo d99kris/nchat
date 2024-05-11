@@ -158,11 +158,7 @@ if [[ "${DEPS}" == "1" ]]; then
     fi
   elif [ "${OS}" == "Darwin" ]; then
     if command -v brew &> /dev/null; then
-      GOPKG="go"
-      if [[ "${GITHUB_ACTIONS}" == "true" ]]; then
-        GOPKG="" # skip go in github actions
-      fi
-      HOMEBREW_NO_AUTO_UPDATE=1 brew install ${GOPKG} gperf cmake openssl ncurses ccache readline sqlite libmagic || exiterr "deps failed (${OS} brew), exiting."
+      HOMEBREW_NO_INSTALL_UPGRADE=1 HOMEBREW_NO_AUTO_UPDATE=1 brew install go gperf cmake openssl ncurses ccache readline sqlite libmagic || exiterr "deps failed (${OS} brew), exiting."
     elif command -v port &> /dev/null; then
       sudo port -N install go gperf cmake openssl ncurses ccache readline sqlite3 libmagic || exiterr "deps failed (${OS} port), exiting."
     else
