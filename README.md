@@ -341,6 +341,7 @@ This configuration file holds general user interface settings. Default content:
     list_width=14
     mark_read_on_view=1
     mark_read_when_inactive=0
+    message_edit_command=
     message_open_command=
     mute_status_broadcast=1
     muted_indicate_unread=1
@@ -488,6 +489,12 @@ false nchat will only mark the messages read upon `next_page` (page down),
 
 Controls whether nchat marks messages in the current chat as read while the
 terminal is inactive.
+
+### message_edit_command
+
+Specifies a custom command to use for external editor compose. If not
+specified, nchat will use `EDITOR` environment variable if set, or
+otherwise use `nano`.
 
 ### message_open_command
 

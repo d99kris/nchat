@@ -3172,7 +3172,17 @@ void UiModel::ExternalSpell()
 
 void UiModel::ExternalEdit()
 {
-  const std::string editorCmd = std::string(getenv("EDITOR") ? getenv("EDITOR") : "nano");
+  static const std::string editorCmd = []()
+  {
+    std::string messageEditCommand = UiConfig::GetStr("message_edit_command");
+    if (messageEditCommand.empty())
+    {
+      messageEditCommand = std::string(getenv("EDITOR") ? getenv("EDITOR") : "nano");
+    }
+
+    return messageEditCommand;
+  }();
+
   CallExternalEdit(editorCmd);
 }
 
