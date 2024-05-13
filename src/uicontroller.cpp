@@ -9,6 +9,7 @@
 
 #include <unistd.h>
 #include <sys/select.h>
+#include <cwchar>
 
 #include "uikeyinput.h"
 
