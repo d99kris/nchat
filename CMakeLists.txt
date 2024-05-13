@@ -165,7 +165,7 @@ include_directories(${CURSES_INCLUDE_DIR})
 target_compile_options(nchat PUBLIC ${NCURSES_CFLAGS})
 
 # Linking
-target_link_libraries(nchat PUBLIC ncutil pthread ${CURSES_LIBRARIES} dl)
+target_link_libraries(nchat PUBLIC ncutil pthread ${CURSES_LIBRARIES} ${CMAKE_DL_LIBS})
 
 # Optionals
 if(HAS_DUMMY)
