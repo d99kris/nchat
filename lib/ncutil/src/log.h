@@ -8,6 +8,7 @@
 #pragma once
 
 #include <cstring>
+#include <cstdarg>
 #include <mutex>
 #include <string>
 
