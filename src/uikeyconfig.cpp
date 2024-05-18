@@ -211,7 +211,7 @@ void UiKeyConfig::Init(bool p_MapKeys)
     { "kill_word", "\\4001006" }, // alt-delete
 #endif
     { "edit_msg", "KEY_CTRLZ" },
-    { "backward_kill_word", "\\033\\177" }, // alt/opt-backspace
+    { "backward_kill_word", "\\33\\177" }, // alt/opt-backspace
     { "cut", "\\33\\170" }, // alt/opt-x
     { "copy", "\\33\\143" }, // alt/opt-c
     { "paste", "\\33\\166" }, // alt/opt-v
@@ -220,8 +220,8 @@ void UiKeyConfig::Init(bool p_MapKeys)
     { "react", "\\33\\163" }, // alt/opt-s
     { "spell", "\\33\\44" }, // alt/opt-$
     { "jump_quoted", "\\33\\161" }, // alt/opt-q
-    { "find", "\\33\\146" }, // alt/opt-f
-    { "find_next", "\\33\\106" }, // alt/opt-F
+    { "find", "\\33\\57" }, // alt/opt-/
+    { "find_next", "\\33\\77" }, // alt/opt-?
     { "toggle_emoji", "KEY_CTRLY" },
     { "toggle_help", "KEY_CTRLG" },
     { "toggle_list", "KEY_CTRLL" },

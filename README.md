@@ -66,8 +66,8 @@ Interactive Commands:
     Alt-.       increase contact list width
     Alt-d       delete/leave current chat
     Alt-e       external editor compose
-    Alt-f       find in chat
-    Alt-F       find next in chat
+    Alt-/       find in chat
+    Alt-?       find next in chat
     Alt-t       external telephone call
 
 Interactive Commands for Selected Message:
@@ -591,44 +591,54 @@ This configuration file holds user interface key bindings. Default content:
 
     backspace=KEY_BACKSPACE
     backspace_alt=KEY_ALT_BACKSPACE
-    backward_kill_word=
+    backward_kill_word=\33\177
     backward_word=
     begin_line=KEY_CTRLA
     cancel=KEY_CTRLC
     clear=KEY_CTRLC
-    copy=
-    cut=
+    copy=\33\143
+    cut=\33\170
+    decrease_list_width=\33\54
     delete=KEY_DC
+    delete_chat=\33\144
     delete_line_after_cursor=KEY_CTRLK
     delete_line_before_cursor=KEY_CTRLU
-    delete_chat=
     delete_msg=KEY_CTRLD
     down=KEY_DOWN
     edit_msg=KEY_CTRLZ
     end=KEY_END
     end_line=KEY_CTRLE
+    ext_call=\33\164
+    ext_edit=\33\145
+    find=\33\57
+    find_next=\33\77
     forward_word=
     home=KEY_HOME
+    increase_list_width=\33\56
+    jump_quoted=\33\161
     kill_word=
     left=KEY_LEFT
     next_chat=KEY_TAB
     next_page=KEY_NPAGE
     open=KEY_CTRLV
     open_link=KEY_CTRLW
-    open_msg=
+    open_msg=\33\167
     other_commands_help=KEY_CTRLO
-    paste=
+    paste=\33\166
     prev_chat=KEY_BTAB
     prev_page=KEY_PPAGE
     quit=KEY_CTRLQ
+    react=\33\163
     return=KEY_RETURN
     right=KEY_RIGHT
     save=KEY_CTRLR
     select_contact=KEY_CTRLN
     select_emoji=KEY_CTRLS
     send_msg=KEY_CTRLX
+    spell=\33\44
     terminal_focus_in=KEY_FOCUS_IN
     terminal_focus_out=KEY_FOCUS_OUT
+    terminal_resize=KEY_RESIZE
     toggle_emoji=KEY_CTRLY
     toggle_help=KEY_CTRLG
     toggle_list=KEY_CTRLL
