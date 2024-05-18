@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <cstdarg>
 #include <cstring>
 #include <mutex>
 #include <string>
