@@ -41,6 +41,11 @@ std::string SysUtil::GetCompiler()
   return compiler + (!libc.empty() ? " " + libc : "");
 }
 
+std::string SysUtil::GetGo(const std::string& p_GoVersion)
+{
+  return "Go " + (p_GoVersion.empty() ? "N/A" : p_GoVersion);
+}
+
 std::string SysUtil::GetOsArch()
 {
   static const std::string os = []()

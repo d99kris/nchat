@@ -251,6 +251,8 @@ int main(int argc, char* argv[])
   LOG_INFO("%s", osArch.c_str());
   std::string compiler = SysUtil::GetCompiler();
   LOG_INFO("%s", compiler.c_str());
+  std::string go = SysUtil::GetGo(GO_VERSION);
+  LOG_INFO("%s", go.c_str());
   std::string features = GetFeatures();
   LOG_INFO("%s", features.c_str());
 

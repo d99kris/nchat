@@ -15,6 +15,7 @@ class SysUtil
 {
 public:
   static std::string GetCompiler();
+  static std::string GetGo(const std::string& p_GoVersion);
   static std::string GetOsArch();
   static bool IsSupportedLibc();
 
