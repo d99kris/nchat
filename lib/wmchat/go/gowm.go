@@ -59,6 +59,7 @@ const (
 	Connecting
 	Connected
 	Disconnected
+	Outdated
 )
 
 var (
@@ -583,6 +584,10 @@ func (handler *WmEventHandler) HandleEvent(rawEvt interface{}) {
 		LOG_TRACE(fmt.Sprintf("%#v", evt))
 		handler.HandleMute(evt)
 
+	case *events.ClientOutdated:
+		LOG_TRACE(fmt.Sprintf("%#v", evt))
+		handler.HandleClientOutdated()
+
 	default:
 		LOG_TRACE(fmt.Sprintf("Event type not handled: %#v", rawEvt))
 	}
@@ -816,6 +821,12 @@ func (handler *WmEventHandler) HandleMute(mute *events.Mute) {
 
 	LOG_TRACE(fmt.Sprintf("Call CWmUpdateMuteNotify %s %s", chatId, strconv.FormatBool(isMuted)))
 	CWmUpdateMuteNotify(connId, chatId, BoolToInt(isMuted))
+}
+
+func (handler *WmEventHandler) HandleClientOutdated() {
+	connId := handler.connId
+	LOG_WARNING(fmt.Sprintf("Client Outdated"))
+	SetState(connId, Outdated)
 }
 
 func (handler *WmEventHandler) HandleLoggedOut() {
@@ -1696,9 +1707,11 @@ func WmLogin(connId int) int {
 
 	ch, err := cli.GetQRChannel(context.Background())
 	if err != nil {
-		// This error means that we're already logged in, so ignore it.
-		if !errors.Is(err, whatsmeow.ErrQRStoreContainsID) {
+		if errors.Is(err, whatsmeow.ErrQRStoreContainsID) {
+			// This error means that we're already logged in, so ignore it.
+		} else {
 			LOG_WARNING(fmt.Sprintf("failed to get qr channel %#v", err))
+			SetState(connId, Disconnected)
 		}
 	} else {
 		timeoutMs = 60000 // 60 sec timeout during setup / qr code scan
@@ -1710,7 +1723,7 @@ func WmLogin(connId int) int {
 			fmt.Printf("Scan the Qr code to authenticate, or press CTRL-C to abort.\n")
 
 			for evt := range ch {
-				if evt.Event == "code" {
+				if evt.Event == whatsmeow.QRChannelEventCode {
 					if hasGUI {
 						qrPath := path + "/tmp/qr.png"
 						qrcode.WriteFile(evt.Code, qrcode.Medium, 512, qrPath)
@@ -1718,8 +1731,14 @@ func WmLogin(connId int) int {
 					} else {
 						qrterminal.GenerateHalfBlock(evt.Code, qrterminal.L, os.Stdout)
 					}
+				} else if evt == whatsmeow.QRChannelSuccess {
+					LOG_DEBUG("qr channel event success")
+				} else if evt == whatsmeow.QRChannelClientOutdated {
+					LOG_WARNING(fmt.Sprintf("qr channel result %#v", evt.Event))
+					SetState(connId, Outdated)
 				} else {
 					LOG_WARNING(fmt.Sprintf("qr channel result %#v", evt.Event))
+					SetState(connId, Disconnected)
 				}
 			}
 
@@ -1751,14 +1770,33 @@ func WmLogin(connId int) int {
 	// delete temporary image file
 	_ = os.Remove(path + "/tmp/qr.png")
 
+	// log error on stdout
 	if GetState(connId) != Connected {
 		LOG_WARNING(fmt.Sprintf("state not connected %#v", GetState(connId)))
+
+		LOG_TRACE(fmt.Sprintf("acquire console"))
+		CWmSetProtocolUiControl(connId, 1)
+
+		fmt.Printf("\n")
+		if GetState(connId) == Outdated {
+			fmt.Printf("ERROR:\n")
+			fmt.Printf("WhatsApp client is outdated, please update nchat to a newer version. See:\n")
+			fmt.Printf("https://github.com/d99kris/nchat/blob/master/WMOUTDATED.md\n")
+		} else {
+			fmt.Printf("ERROR:\n")
+			fmt.Printf("Please see the log for details.\n")
+		}
+		fmt.Printf("\n")
+
+		LOG_TRACE(fmt.Sprintf("release console"))
+		CWmSetProtocolUiControl(connId, 0)
+
+		CWmClearStatus(FlagConnecting)
 		return -1
 	}
 
 	LOG_DEBUG("login ok")
 	return 0
-
 }
 
 func WmLogout(connId int) int {
