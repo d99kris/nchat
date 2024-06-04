@@ -475,6 +475,10 @@ example `w3m -o confirm_qq=false '%1'` and `see '%1'`.
 
 Specifies whether to display chat list. Controlled by Ctrl-l in run-time.
 
+### list_muted_last
+
+Specifies whether to put muted messages at the end of chat list.
+
 ### list_width
 
 Specifies width of chat list.

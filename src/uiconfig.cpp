@@ -35,6 +35,7 @@ void UiConfig::Init()
     { "home_fetch_all", "0" },
     { "link_open_command", "" },
     { "list_enabled", "1" },
+    { "list_muted_last", "0" },
     { "list_width", "14" },
     { "mark_read_on_view", "1" },
     { "mark_read_when_inactive", "0" },

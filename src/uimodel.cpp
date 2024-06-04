@@ -2112,10 +2112,31 @@ bool UiModel::Process()
 
 void UiModel::SortChats()
 {
+  static const bool listMutedLast = UiConfig::GetBool("list_muted_last");
   std::sort(m_ChatVec.begin(), m_ChatVec.end(),
             [&](const std::pair<std::string, std::string>& lhs, const std::pair<std::string, std::string>& rhs) -> bool
   {
-    return m_ChatInfos[lhs.first][lhs.second].lastMessageTime > m_ChatInfos[rhs.first][rhs.second].lastMessageTime;
+    if (listMutedLast)
+    {
+      bool lhsMuted = m_ChatInfos[lhs.first][lhs.second].isMuted;
+      bool rhsMuted = m_ChatInfos[rhs.first][rhs.second].isMuted;
+      if (lhsMuted && !rhsMuted)
+      {
+        return false;
+      }
+      else if (!lhsMuted && rhsMuted)
+      {
+        return true;
+      }
+      else
+      {
+        return m_ChatInfos[lhs.first][lhs.second].lastMessageTime > m_ChatInfos[rhs.first][rhs.second].lastMessageTime;
+      }
+    }
+    else
+    {
+      return m_ChatInfos[lhs.first][lhs.second].lastMessageTime > m_ChatInfos[rhs.first][rhs.second].lastMessageTime;
+    }
   });
 
   if (!m_ChatVec.empty())
