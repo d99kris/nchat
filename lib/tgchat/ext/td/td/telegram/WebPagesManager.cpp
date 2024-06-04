@@ -9,7 +9,7 @@
 #include "td/telegram/AnimationsManager.h"
 #include "td/telegram/AudiosManager.h"
 #include "td/telegram/AuthManager.h"
-#include "td/telegram/ContactsManager.h"
+#include "td/telegram/ChatManager.h"
 #include "td/telegram/Dependencies.h"
 #include "td/telegram/DialogManager.h"
 #include "td/telegram/Dimensions.h"
@@ -26,13 +26,16 @@
 #include "td/telegram/MessagesManager.h"
 #include "td/telegram/Photo.h"
 #include "td/telegram/PhotoFormat.h"
+#include "td/telegram/StickerFormat.h"
 #include "td/telegram/StickersManager.h"
+#include "td/telegram/StickersManager.hpp"
 #include "td/telegram/StoryFullId.h"
 #include "td/telegram/StoryId.h"
 #include "td/telegram/StoryManager.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/TdDb.h"
 #include "td/telegram/telegram_api.h"
+#include "td/telegram/UserManager.h"
 #include "td/telegram/VideoNotesManager.h"
 #include "td/telegram/VideosManager.h"
 #include "td/telegram/VoiceNotesManager.h"
@@ -125,8 +128,8 @@ class GetWebPageQuery final : public Td::ResultHandler {
 
     auto ptr = result_ptr.move_as_ok();
     LOG(INFO) << "Receive result for GetWebPageQuery: " << to_string(ptr);
-    td_->contacts_manager_->on_get_users(std::move(ptr->users_), "GetWebPageQuery");
-    td_->contacts_manager_->on_get_chats(std::move(ptr->chats_), "GetWebPageQuery");
+    td_->user_manager_->on_get_users(std::move(ptr->users_), "GetWebPageQuery");
+    td_->chat_manager_->on_get_chats(std::move(ptr->chats_), "GetWebPageQuery");
     auto page = std::move(ptr->webpage_);
     if (page->get_id() == telegram_api::webPageNotModified::ID) {
       if (web_page_id_.is_valid()) {
@@ -242,6 +245,7 @@ class WebPagesManager::WebPage {
   Document document_;
   vector<Document> documents_;
   vector<StoryFullId> story_full_ids_;
+  vector<FileId> sticker_ids_;
   WebPageInstantView instant_view_;
 
   FileSourceId file_source_id_;
@@ -266,6 +270,7 @@ class WebPagesManager::WebPage {
     bool has_no_hash = true;
     bool has_documents = !documents_.empty();
     bool has_story_full_ids = !story_full_ids_.empty();
+    bool has_sticker_ids = !sticker_ids_.empty();
     BEGIN_STORE_FLAGS();
     STORE_FLAG(has_type);
     STORE_FLAG(has_site_name);
@@ -283,6 +288,7 @@ class WebPagesManager::WebPage {
     STORE_FLAG(has_documents);
     STORE_FLAG(has_story_full_ids);
     STORE_FLAG(has_large_media_);
+    STORE_FLAG(has_sticker_ids);
     END_STORE_FLAGS();
 
     store(url_, storer);
@@ -324,6 +330,13 @@ class WebPagesManager::WebPage {
     if (has_story_full_ids) {
       store(story_full_ids_, storer);
     }
+    if (has_sticker_ids) {
+      Td *td = storer.context()->td().get_actor_unsafe();
+      store(static_cast<uint32>(sticker_ids_.size()), storer);
+      for (auto &sticker_id : sticker_ids_) {
+        td->stickers_manager_->store_sticker(sticker_id, false, storer, "WebPage");
+      }
+    }
   }
 
   template <class ParserT>
@@ -344,6 +357,7 @@ class WebPagesManager::WebPage {
     bool has_no_hash;
     bool has_documents;
     bool has_story_full_ids;
+    bool has_sticker_ids;
     BEGIN_PARSE_FLAGS();
     PARSE_FLAG(has_type);
     PARSE_FLAG(has_site_name);
@@ -361,6 +375,7 @@ class WebPagesManager::WebPage {
     PARSE_FLAG(has_documents);
     PARSE_FLAG(has_story_full_ids);
     PARSE_FLAG(has_large_media_);
+    PARSE_FLAG(has_sticker_ids);
     END_PARSE_FLAGS();
 
     parse(url_, parser);
@@ -407,6 +422,17 @@ class WebPagesManager::WebPage {
       parse(story_full_ids_, parser);
       td::remove_if(story_full_ids_, [](StoryFullId story_full_id) { return !story_full_id.is_server(); });
     }
+    if (has_sticker_ids) {
+      Td *td = parser.context()->td().get_actor_unsafe();
+      uint32 sticker_count;
+      parse(sticker_count, parser);
+      for (size_t i = 0; i < sticker_count; i++) {
+        auto sticker_id = td->stickers_manager_->parse_sticker(false, parser);
+        if (sticker_id.is_valid()) {
+          sticker_ids_.push_back(sticker_id);
+        }
+      }
+    }
 
     if (has_instant_view) {
       instant_view_.is_empty_ = false;
@@ -424,7 +450,7 @@ class WebPagesManager::WebPage {
            lhs.duration_ == rhs.duration_ && lhs.author_ == rhs.author_ &&
            lhs.has_large_media_ == rhs.has_large_media_ && lhs.document_ == rhs.document_ &&
            lhs.documents_ == rhs.documents_ && lhs.story_full_ids_ == rhs.story_full_ids_ &&
-           lhs.instant_view_.is_empty_ == rhs.instant_view_.is_empty_ &&
+           lhs.sticker_ids_ == rhs.sticker_ids_ && lhs.instant_view_.is_empty_ == rhs.instant_view_.is_empty_ &&
            lhs.instant_view_.is_v2_ == rhs.instant_view_.is_v2_;
   }
 };
@@ -591,6 +617,22 @@ WebPageId WebPagesManager::on_get_web_page(tl_object_ptr<telegram_api::WebPage> 
             page->story_full_ids_.push_back(story_full_id);
             break;
           }
+          case telegram_api::webPageAttributeStickerSet::ID: {
+            auto attribute = telegram_api::move_object_as<telegram_api::webPageAttributeStickerSet>(attribute_ptr);
+            if (!page->sticker_ids_.empty()) {
+              LOG(ERROR) << "Receive duplicate webPageAttributeStickerSet";
+            }
+            for (auto &sticker : attribute->stickers_) {
+              auto sticker_id =
+                  td_->stickers_manager_->on_get_sticker_document(std::move(sticker), StickerFormat::Unknown).second;
+              if (sticker_id.is_valid() && page->sticker_ids_.size() < 4) {
+                page->sticker_ids_.push_back(sticker_id);
+              }
+            }
+            break;
+          }
+          default:
+            UNREACHABLE();
         }
       }
       if (web_page->cached_page_ != nullptr) {
@@ -837,6 +879,8 @@ void WebPagesManager::unregister_web_page(WebPageId web_page_id, MessageFullId m
     web_page_messages_.erase(web_page_id);
     if (pending_get_web_pages_.count(web_page_id) == 0) {
       pending_web_pages_timeout_.cancel_timeout(web_page_id.get());
+    } else {
+      LOG(INFO) << "Still waiting for " << web_page_id;
     }
   }
 }
@@ -920,7 +964,7 @@ void WebPagesManager::get_web_page_preview(td_api::object_ptr<td_api::formattedT
   options->link_preview_options_ = std::move(link_preview_options);
   td_->create_handler<GetWebPagePreviewQuery>(std::move(promise))
       ->send(formatted_text.text,
-             get_input_message_entities(td_->contacts_manager_.get(), formatted_text.entities, "get_web_page_preview"),
+             get_input_message_entities(td_->user_manager_.get(), formatted_text.entities, "get_web_page_preview"),
              std::move(options));
 }
 
@@ -1392,7 +1436,9 @@ tl_object_ptr<td_api::webPage> WebPagesManager::get_web_page_object(WebPageId we
     }
     return false;
   }();
-  return make_tl_object<td_api::webPage>(
+  auto stickers = transform(web_page->sticker_ids_,
+                            [&](FileId sticker_id) { return td_->stickers_manager_->get_sticker_object(sticker_id); });
+  return td_api::make_object<td_api::webPage>(
       web_page->url_, web_page->display_url_, web_page->type_, web_page->site_name_, web_page->title_,
       get_formatted_text_object(description, true, duration == 0 ? std::numeric_limits<int32>::max() : duration),
       get_photo_object(td_->file_manager_.get(), web_page->photo_), web_page->embed_url_, web_page->embed_type_,
@@ -1419,7 +1465,7 @@ tl_object_ptr<td_api::webPage> WebPagesManager::get_web_page_object(WebPageId we
       web_page->document_.type == Document::Type::VoiceNote
           ? td_->voice_notes_manager_->get_voice_note_object(web_page->document_.file_id)
           : nullptr,
-      td_->dialog_manager_->get_chat_id_object(story_sender_dialog_id, "webPage"), story_id.get(),
+      td_->dialog_manager_->get_chat_id_object(story_sender_dialog_id, "webPage"), story_id.get(), std::move(stickers),
       instant_view_version);
 }
 
@@ -1462,7 +1508,7 @@ void WebPagesManager::on_web_page_changed(WebPageId web_page_id, bool have_web_p
       if (!have_web_page) {
         td_->messages_manager_->delete_pending_message_web_page(message_full_id);
       } else {
-        td_->messages_manager_->on_external_update_message_content(message_full_id);
+        td_->messages_manager_->on_external_update_message_content(message_full_id, "on_web_page_changed");
       }
     }
 
@@ -1529,6 +1575,7 @@ void WebPagesManager::on_pending_web_page_timeout(WebPageId web_page_id) {
     return;
   }
 
+  LOG(INFO) << "Process timeout for " << web_page_id;
   int32 count = 0;
   auto it = web_page_messages_.find(web_page_id);
   if (it != web_page_messages_.end()) {
@@ -1554,7 +1601,7 @@ void WebPagesManager::on_pending_web_page_timeout(WebPageId web_page_id) {
     }
   }
   if (count == 0) {
-    LOG(WARNING) << "Have no messages and requests waiting for " << web_page_id;
+    LOG(INFO) << "Have no messages and requests waiting for " << web_page_id;
   }
 }
 
@@ -1620,7 +1667,7 @@ void WebPagesManager::on_get_web_page_instant_view(WebPage *web_page, tl_object_
       if (document_id != 0) {
         get_map(document.type)->emplace(document_id, document.file_id);
       } else {
-        LOG(ERROR) << document.type << " has zero ID";
+        LOG(ERROR) << document.type << " has zero identifier";
       }
     } else {
       LOG(ERROR) << document.type << " has no remote location";
@@ -1629,8 +1676,11 @@ void WebPagesManager::on_get_web_page_instant_view(WebPage *web_page, tl_object_
   if (!web_page->document_.empty()) {
     add_document(web_page->document_);
   }
-  for (auto &document : web_page->documents_) {
+  for (const auto &document : web_page->documents_) {
     add_document(document);
+  }
+  for (auto sticker_id : web_page->sticker_ids_) {
+    add_document({Document::Type::Sticker, sticker_id});
   }
 
   LOG(INFO) << "Receive a web page instant view with " << page->blocks_.size() << " blocks, " << animations.size()
@@ -1951,6 +2001,7 @@ vector<FileId> WebPagesManager::get_web_page_file_ids(const WebPage *web_page) c
   for (auto &document : web_page->documents_) {
     document.append_file_ids(td_, result);
   }
+  append(result, web_page->sticker_ids_);
   if (!web_page->instant_view_.is_empty_) {
     for (auto &page_block : web_page->instant_view_.page_blocks_) {
       page_block->append_file_ids(td_, result);

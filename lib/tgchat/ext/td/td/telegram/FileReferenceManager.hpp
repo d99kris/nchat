@@ -11,7 +11,7 @@
 #include "td/telegram/BackgroundManager.h"
 #include "td/telegram/ChannelId.h"
 #include "td/telegram/ChatId.h"
-#include "td/telegram/ContactsManager.h"
+#include "td/telegram/ChatManager.h"
 #include "td/telegram/FileReferenceManager.h"
 #include "td/telegram/files/FileSourceId.h"
 #include "td/telegram/MessageFullId.h"
@@ -24,6 +24,7 @@
 #include "td/telegram/StoryManager.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/UserId.h"
+#include "td/telegram/UserManager.h"
 #include "td/telegram/WebPagesManager.h"
 
 #include "td/utils/common.h"
@@ -82,7 +83,7 @@ FileSourceId FileReferenceManager::parse_file_source(Td *td, ParserT &parser) {
       int64 photo_id;
       td::parse(user_id, parser);
       td::parse(photo_id, parser);
-      return td->contacts_manager_->get_user_profile_photo_file_source_id(user_id, photo_id);
+      return td->user_manager_->get_user_profile_photo_file_source_id(user_id, photo_id);
     }
     case 2: {
       ChatId chat_id;
@@ -120,12 +121,12 @@ FileSourceId FileReferenceManager::parse_file_source(Td *td, ParserT &parser) {
     case 10: {
       ChatId chat_id;
       td::parse(chat_id, parser);
-      return td->contacts_manager_->get_chat_full_file_source_id(chat_id);
+      return td->chat_manager_->get_chat_full_file_source_id(chat_id);
     }
     case 11: {
       ChannelId channel_id;
       td::parse(channel_id, parser);
-      return td->contacts_manager_->get_channel_full_file_source_id(channel_id);
+      return td->chat_manager_->get_channel_full_file_source_id(channel_id);
     }
     case 12:
       return td->stickers_manager_->get_app_config_file_source_id();
@@ -134,7 +135,7 @@ FileSourceId FileReferenceManager::parse_file_source(Td *td, ParserT &parser) {
     case 14: {
       UserId user_id;
       td::parse(user_id, parser);
-      return td->contacts_manager_->get_user_full_file_source_id(user_id);
+      return td->user_manager_->get_user_full_file_source_id(user_id);
     }
     case 15: {
       UserId user_id;

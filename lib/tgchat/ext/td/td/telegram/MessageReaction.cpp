@@ -7,7 +7,7 @@
 #include "td/telegram/MessageReaction.h"
 
 #include "td/telegram/AccessRights.h"
-#include "td/telegram/ContactsManager.h"
+#include "td/telegram/ChatManager.h"
 #include "td/telegram/Dependencies.h"
 #include "td/telegram/DialogManager.h"
 #include "td/telegram/Global.h"
@@ -17,6 +17,7 @@
 #include "td/telegram/Td.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/UpdatesManager.h"
+#include "td/telegram/UserManager.h"
 
 #include "td/actor/actor.h"
 #include "td/actor/SleepActor.h"
@@ -198,8 +199,8 @@ class GetMessageReactionsListQuery final : public Td::ResultHandler {
     auto ptr = result_ptr.move_as_ok();
     LOG(INFO) << "Receive result for GetMessageReactionsListQuery: " << to_string(ptr);
 
-    td_->contacts_manager_->on_get_users(std::move(ptr->users_), "GetMessageReactionsListQuery");
-    td_->contacts_manager_->on_get_chats(std::move(ptr->chats_), "GetMessageReactionsListQuery");
+    td_->user_manager_->on_get_users(std::move(ptr->users_), "GetMessageReactionsListQuery");
+    td_->chat_manager_->on_get_chats(std::move(ptr->chats_), "GetMessageReactionsListQuery");
 
     int32 total_count = ptr->count_;
     auto received_reaction_count = static_cast<int32>(ptr->reactions_.size());
@@ -516,13 +517,13 @@ unique_ptr<MessageReactions> MessageReactions::get_message_reactions(
           auto dialog_type = dialog_id.get_type();
           if (dialog_type == DialogType::User) {
             auto user_id = dialog_id.get_user_id();
-            if (!td->contacts_manager_->have_min_user(user_id)) {
+            if (!td->user_manager_->have_min_user(user_id)) {
               LOG(ERROR) << "Receive unknown " << user_id;
               continue;
             }
           } else if (dialog_type == DialogType::Channel) {
             auto channel_id = dialog_id.get_channel_id();
-            auto min_channel = td->contacts_manager_->get_min_channel(channel_id);
+            auto min_channel = td->chat_manager_->get_min_channel(channel_id);
             if (min_channel == nullptr) {
               LOG(ERROR) << "Receive unknown reacted " << channel_id;
               continue;
@@ -814,7 +815,7 @@ void MessageReactions::add_min_channels(Td *td) const {
   for (const auto &reaction : reactions_) {
     for (const auto &recent_chooser_min_channel : reaction.get_recent_chooser_min_channels()) {
       LOG(INFO) << "Add min reacted " << recent_chooser_min_channel.first;
-      td->contacts_manager_->add_min_channel(recent_chooser_min_channel.first, recent_chooser_min_channel.second);
+      td->chat_manager_->add_min_channel(recent_chooser_min_channel.first, recent_chooser_min_channel.second);
     }
   }
 }
@@ -872,8 +873,7 @@ StringBuilder &operator<<(StringBuilder &string_builder, const unique_ptr<Messag
 }
 
 void reload_message_reactions(Td *td, DialogId dialog_id, vector<MessageId> &&message_ids) {
-  if (!td->dialog_manager_->have_input_peer(dialog_id, AccessRights::Read) ||
-      dialog_id.get_type() == DialogType::SecretChat || message_ids.empty()) {
+  if (!td->dialog_manager_->have_input_peer(dialog_id, false, AccessRights::Read) || message_ids.empty()) {
     create_actor<SleepActor>(
         "RetryReloadMessageReactionsActor", 0.2,
         PromiseCreator::lambda([actor_id = G()->messages_manager(), dialog_id](Result<Unit> result) mutable {
@@ -937,17 +937,10 @@ void get_message_added_reactions(Td *td, MessageFullId message_full_id, Reaction
 void report_message_reactions(Td *td, MessageFullId message_full_id, DialogId chooser_dialog_id,
                               Promise<Unit> &&promise) {
   auto dialog_id = message_full_id.get_dialog_id();
-  if (!td->dialog_manager_->have_dialog_force(dialog_id, "send_callback_query")) {
-    return promise.set_error(Status::Error(400, "Chat not found"));
-  }
-  if (!td->dialog_manager_->have_input_peer(dialog_id, AccessRights::Read)) {
-    return promise.set_error(Status::Error(400, "Can't access the chat"));
-  }
-  if (dialog_id.get_type() == DialogType::SecretChat) {
-    return promise.set_error(Status::Error(400, "Reactions can't be reported in the chat"));
-  }
+  TRY_STATUS_PROMISE(promise, td->dialog_manager_->check_dialog_access(dialog_id, false, AccessRights::Read,
+                                                                       "report_message_reactions"));
 
-  if (!td->messages_manager_->have_message_force(message_full_id, "report_user_reactions")) {
+  if (!td->messages_manager_->have_message_force(message_full_id, "report_message_reactions")) {
     return promise.set_error(Status::Error(400, "Message not found"));
   }
   auto message_id = message_full_id.get_message_id();
@@ -958,7 +951,7 @@ void report_message_reactions(Td *td, MessageFullId message_full_id, DialogId ch
     return promise.set_error(Status::Error(400, "Message reactions can't be reported"));
   }
 
-  if (!td->dialog_manager_->have_input_peer(chooser_dialog_id, AccessRights::Know)) {
+  if (!td->dialog_manager_->have_input_peer(chooser_dialog_id, false, AccessRights::Know)) {
     return promise.set_error(Status::Error(400, "Reaction sender not found"));
   }
 

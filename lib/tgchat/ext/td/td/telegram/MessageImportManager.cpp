@@ -7,7 +7,7 @@
 #include "td/telegram/MessageImportManager.h"
 
 #include "td/telegram/AccessRights.h"
-#include "td/telegram/ContactsManager.h"
+#include "td/telegram/ChatManager.h"
 #include "td/telegram/DialogManager.h"
 #include "td/telegram/FileReferenceManager.h"
 #include "td/telegram/files/FileManager.h"
@@ -16,6 +16,7 @@
 #include "td/telegram/MessageContent.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/telegram_api.h"
+#include "td/telegram/UserManager.h"
 
 #include "td/utils/buffer.h"
 #include "td/utils/logging.h"
@@ -286,16 +287,11 @@ void MessageImportManager::get_message_file_type(const string &message_file_head
 }
 
 Status MessageImportManager::can_import_messages(DialogId dialog_id) {
-  if (!td_->dialog_manager_->have_dialog_force(dialog_id, "can_import_messages")) {
-    return Status::Error(400, "Chat not found");
-  }
-  if (!td_->dialog_manager_->have_input_peer(dialog_id, AccessRights::Write)) {
-    return Status::Error(400, "Have no write access to the chat");
-  }
+  TRY_STATUS(td_->dialog_manager_->check_dialog_access(dialog_id, false, AccessRights::Write, "can_import_messages"));
 
   switch (dialog_id.get_type()) {
     case DialogType::User:
-      if (!td_->contacts_manager_->is_user_contact(dialog_id.get_user_id(), true)) {
+      if (!td_->user_manager_->is_user_contact(dialog_id.get_user_id(), true)) {
         return Status::Error(400, "User must be a mutual contact");
       }
       break;
@@ -305,12 +301,11 @@ Status MessageImportManager::can_import_messages(DialogId dialog_id) {
       if (td_->dialog_manager_->is_broadcast_channel(dialog_id)) {
         return Status::Error(400, "Can't import messages to channels");
       }
-      if (!td_->contacts_manager_->get_channel_permissions(dialog_id.get_channel_id()).can_change_info_and_settings()) {
+      if (!td_->chat_manager_->get_channel_permissions(dialog_id.get_channel_id()).can_change_info_and_settings()) {
         return Status::Error(400, "Not enough rights to import messages");
       }
       break;
     case DialogType::SecretChat:
-      return Status::Error(400, "Can't import messages to secret chats");
     case DialogType::None:
     default:
       UNREACHABLE();
@@ -385,9 +380,8 @@ void MessageImportManager::on_upload_imported_messages(FileId file_id,
 
   being_uploaded_imported_messages_.erase(it);
 
-  if (!td_->dialog_manager_->have_input_peer(dialog_id, AccessRights::Write)) {
-    return promise.set_error(Status::Error(400, "Have no write access to the chat"));
-  }
+  TRY_STATUS_PROMISE(promise,
+                     td_->dialog_manager_->check_dialog_access_in_memory(dialog_id, false, AccessRights::Write));
 
   FileView file_view = td_->file_manager_->get_file_view(file_id);
   CHECK(!file_view.is_encrypted());
@@ -437,9 +431,8 @@ void MessageImportManager::on_upload_imported_messages_error(FileId file_id, Sta
 void MessageImportManager::start_import_messages(DialogId dialog_id, int64 import_id,
                                                  vector<FileId> &&attached_file_ids, Promise<Unit> &&promise) {
   TRY_STATUS_PROMISE(promise, G()->close_status());
-  if (!td_->dialog_manager_->have_input_peer(dialog_id, AccessRights::Write)) {
-    return promise.set_error(Status::Error(400, "Have no write access to the chat"));
-  }
+  TRY_STATUS_PROMISE(promise,
+                     td_->dialog_manager_->check_dialog_access_in_memory(dialog_id, false, AccessRights::Write));
 
   auto pending_message_import = make_unique<PendingMessageImport>();
   pending_message_import->dialog_id = dialog_id;
@@ -572,9 +565,8 @@ void MessageImportManager::on_imported_message_attachments_uploaded(int64 random
   auto promise = std::move(pending_message_import->promise);
   auto dialog_id = pending_message_import->dialog_id;
 
-  if (!td_->dialog_manager_->have_input_peer(dialog_id, AccessRights::Write)) {
-    return promise.set_error(Status::Error(400, "Have no write access to the chat"));
-  }
+  TRY_STATUS_PROMISE(promise,
+                     td_->dialog_manager_->check_dialog_access_in_memory(dialog_id, false, AccessRights::Write));
 
   td_->create_handler<StartImportHistoryQuery>(std::move(promise))->send(dialog_id, pending_message_import->import_id);
 }

@@ -1903,6 +1903,31 @@ Status FileManager::merge(FileId x_file_id, FileId y_file_id, bool no_sync) {
   return Status::OK();
 }
 
+void FileManager::try_merge_documents(FileId old_file_id, FileId new_file_id) {
+  if (!old_file_id.is_valid() || !new_file_id.is_valid()) {
+    return;
+  }
+  FileView old_file_view = get_file_view(old_file_id);
+  FileView new_file_view = get_file_view(new_file_id);
+  // if file type has changed, but file size remains the same, we are trying to update local location of the new
+  // file with the old local location
+  if (old_file_view.has_local_location() && !new_file_view.has_local_location() && old_file_view.size() != 0 &&
+      old_file_view.size() == new_file_view.size()) {
+    auto old_file_type = old_file_view.get_type();
+    auto new_file_type = new_file_view.get_type();
+
+    if (is_document_file_type(old_file_type) && is_document_file_type(new_file_type)) {
+      auto &old_location = old_file_view.local_location();
+      auto r_file_id =
+          register_local(FullLocalFileLocation(new_file_type, old_location.path_, old_location.mtime_nsec_), DialogId(),
+                         old_file_view.size());
+      if (r_file_id.is_ok()) {
+        LOG_STATUS(merge(new_file_id, r_file_id.ok()));
+      }
+    }
+  }
+}
+
 void FileManager::add_file_source(FileId file_id, FileSourceId file_source_id) {
   auto node = get_sync_file_node(file_id);  // synchronously load the file to preload known file sources
   if (!node) {
@@ -2750,7 +2775,11 @@ void FileManager::resume_upload(FileId file_id, vector<int> bad_parts, std::shar
         .release();
     return;
   }
-  LOG(INFO) << "Resume upload of file " << file_id << " with priority " << new_priority << " and force = " << force;
+  if (new_priority == 0) {
+    LOG(INFO) << "Cancel upload of file " << file_id;
+  } else {
+    LOG(INFO) << "Resume upload of file " << file_id << " with priority " << new_priority << " and force = " << force;
+  }
 
   if (force) {
     node->remote_.is_full_alive = false;
@@ -2766,7 +2795,7 @@ void FileManager::resume_upload(FileId file_id, vector<int> bad_parts, std::shar
   };
   FileView file_view(node);
   if (file_view.has_active_upload_remote_location() && can_reuse_remote_file(file_view.get_type())) {
-    LOG(INFO) << "File " << file_id << " is already uploaded";
+    LOG(INFO) << "Upload of file " << file_id << " has already been completed";
     if (callback) {
       callback->on_upload_ok(file_id, nullptr);
     }
@@ -2855,6 +2884,14 @@ bool FileManager::delete_partial_remote_location(FileId file_id) {
 
   run_upload(node, vector<int>());
   return true;
+}
+
+void FileManager::delete_partial_remote_location_if_needed(FileId file_id, const Status &error) {
+  if (error.code() != 429 && error.code() < 500 && !G()->close_flag()) {
+    delete_partial_remote_location(file_id);
+  } else {
+    cancel_upload(file_id);
+  }
 }
 
 void FileManager::delete_file_reference(FileId file_id, Slice file_reference) {
@@ -3399,7 +3436,8 @@ Result<FileId> FileManager::get_input_file_id(FileType type, const tl_object_ptr
               auto file_id = file_hash_to_file_id_.get(hash);
               LOG(INFO) << "Found file " << file_id << " by hash " << hex_encode(hash);
               if (file_id.is_valid()) {
-                auto file_view = get_file_view(file_id);
+                auto file_node = get_file_node(file_id);
+                auto file_view = FileView(file_node);
                 if (!file_view.empty()) {
                   if (force_reuse) {
                     return file_id;
@@ -3408,8 +3446,13 @@ Result<FileId> FileManager::get_input_file_id(FileType type, const tl_object_ptr
                     return file_id;
                   }
                   if (file_view.is_uploading()) {
+                    CHECK(file_node);
+                    LOG(DEBUG) << "File " << file_id << " is still uploading: " << file_node->upload_priority_ << ' '
+                               << file_node->generate_upload_priority_ << ' ' << file_node->upload_pause_;
                     hash.clear();
                   }
+                } else {
+                  LOG(DEBUG) << "File " << file_id << " isn't found";
                 }
               }
             }

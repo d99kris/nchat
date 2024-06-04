@@ -472,6 +472,8 @@ class FileManager final : public FileLoadManager::Callback {
 
   Status merge(FileId x_file_id, FileId y_file_id, bool no_sync = false);
 
+  void try_merge_documents(FileId old_file_id, FileId new_file_id);
+
   void add_file_source(FileId file_id, FileSourceId file_source_id);
 
   void remove_file_source(FileId file_id, FileSourceId file_source_id);
@@ -495,6 +497,7 @@ class FileManager final : public FileLoadManager::Callback {
                      int32 new_priority, uint64 upload_order, bool force = false, bool prefer_small = false);
   void cancel_upload(FileId file_id);
   bool delete_partial_remote_location(FileId file_id);
+  void delete_partial_remote_location_if_needed(FileId file_id, const Status &error);
   void delete_file_reference(FileId file_id, Slice file_reference);
   void get_content(FileId file_id, Promise<BufferSlice> promise);
 

@@ -144,8 +144,21 @@ StringBuilder &operator<<(StringBuilder &string_builder, MessageContentType cont
       return string_builder << "ExpiredVoiceNote";
     case MessageContentType::BoostApply:
       return string_builder << "BoostApply";
+    case MessageContentType::DialogShared:
+      return string_builder << "ChatShared";
     default:
       return string_builder << "Invalid type " << static_cast<int32>(content_type);
+  }
+}
+
+bool is_allowed_invert_caption_message_content(MessageContentType content_type) {
+  switch (content_type) {
+    case MessageContentType::Animation:
+    case MessageContentType::Photo:
+    case MessageContentType::Video:
+      return true;
+    default:
+     return false;
   }
 }
 
@@ -218,6 +231,7 @@ bool is_allowed_media_group_content(MessageContentType content_type) {
     case MessageContentType::ExpiredVideoNote:
     case MessageContentType::ExpiredVoiceNote:
     case MessageContentType::BoostApply:
+    case MessageContentType::DialogShared:
       return false;
     default:
       UNREACHABLE();
@@ -298,6 +312,7 @@ bool can_be_secret_message_content(MessageContentType content_type) {
     case MessageContentType::ExpiredVideoNote:
     case MessageContentType::ExpiredVoiceNote:
     case MessageContentType::BoostApply:
+    case MessageContentType::DialogShared:
       return false;
     default:
       UNREACHABLE();
@@ -374,6 +389,7 @@ bool is_service_message_content(MessageContentType content_type) {
     case MessageContentType::GiveawayLaunch:
     case MessageContentType::GiveawayResults:
     case MessageContentType::BoostApply:
+    case MessageContentType::DialogShared:
       return true;
     default:
       UNREACHABLE();
@@ -450,6 +466,7 @@ bool is_editable_message_content(MessageContentType content_type) {
     case MessageContentType::ExpiredVideoNote:
     case MessageContentType::ExpiredVoiceNote:
     case MessageContentType::BoostApply:
+    case MessageContentType::DialogShared:
       return false;
     default:
       UNREACHABLE();
@@ -574,6 +591,7 @@ bool can_have_message_content_caption(MessageContentType content_type) {
     case MessageContentType::ExpiredVideoNote:
     case MessageContentType::ExpiredVoiceNote:
     case MessageContentType::BoostApply:
+    case MessageContentType::DialogShared:
       return false;
     default:
       UNREACHABLE();

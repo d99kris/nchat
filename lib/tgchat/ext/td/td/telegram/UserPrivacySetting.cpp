@@ -48,6 +48,9 @@ UserPrivacySetting::UserPrivacySetting(const telegram_api::PrivacyKey &key) {
     case telegram_api::privacyKeyAbout::ID:
       type_ = Type::UserBio;
       break;
+    case telegram_api::privacyKeyBirthday::ID:
+      type_ = Type::UserBirthdate;
+      break;
     default:
       UNREACHABLE();
       type_ = Type::UserStatus;
@@ -76,6 +79,8 @@ td_api::object_ptr<td_api::UserPrivacySetting> UserPrivacySetting::get_user_priv
       return make_tl_object<td_api::userPrivacySettingAllowPrivateVoiceAndVideoNoteMessages>();
     case Type::UserBio:
       return make_tl_object<td_api::userPrivacySettingShowBio>();
+    case Type::UserBirthdate:
+      return make_tl_object<td_api::userPrivacySettingShowBirthdate>();
     default:
       UNREACHABLE();
       return nullptr;
@@ -103,6 +108,8 @@ telegram_api::object_ptr<telegram_api::InputPrivacyKey> UserPrivacySetting::get_
       return make_tl_object<telegram_api::inputPrivacyKeyVoiceMessages>();
     case Type::UserBio:
       return make_tl_object<telegram_api::inputPrivacyKeyAbout>();
+    case Type::UserBirthdate:
+      return make_tl_object<telegram_api::inputPrivacyKeyBirthday>();
     default:
       UNREACHABLE();
       return nullptr;
@@ -140,6 +147,9 @@ UserPrivacySetting::UserPrivacySetting(const td_api::UserPrivacySetting &key) {
       break;
     case td_api::userPrivacySettingShowBio::ID:
       type_ = Type::UserBio;
+      break;
+    case td_api::userPrivacySettingShowBirthdate::ID:
+      type_ = Type::UserBirthdate;
       break;
     default:
       UNREACHABLE();

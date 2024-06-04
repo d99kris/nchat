@@ -1160,7 +1160,9 @@ TEST(MessageEntities, fix_formatted_text) {
 
       if (keep_url && ((1 << static_cast<td::int32>(entity.type)) & splittable_mask) == 0 &&
           !(end <= url_offset || url_end <= offset)) {
-        keep_url = (entity.type == td::MessageEntity::Type::BlockQuote && offset <= url_offset && url_end <= end);
+        keep_url = ((entity.type == td::MessageEntity::Type::BlockQuote ||
+                     entity.type == td::MessageEntity::Type::ExpandableBlockQuote) &&
+                    offset <= url_offset && url_end <= end);
       }
     }
     ASSERT_EQ(keep_url, std::count(entities.begin(), entities.end(), url_entity) == 1);
@@ -1183,7 +1185,8 @@ TEST(MessageEntities, fix_formatted_text) {
           // pre can't contain other entities
           ASSERT_TRUE((type_mask & pre_mask) == 0);
 
-          if ((type_mask & splittable_mask) == 0 && entities[i].type != td::MessageEntity::Type::BlockQuote) {
+          if ((type_mask & splittable_mask) == 0 && entities[i].type != td::MessageEntity::Type::BlockQuote &&
+              entities[i].type != td::MessageEntity::Type::ExpandableBlockQuote) {
             // continuous entities can contain only splittable entities
             ASSERT_TRUE(((1 << static_cast<td::int32>(entities[j].type)) & splittable_mask) != 0);
           }
@@ -1243,8 +1246,7 @@ TEST(MessageEntities, parse_html) {
   check_parse_html("🏟 🏟&lt;<abac aba>", "Unsupported start tag \"abac\" at byte offset 13");
   check_parse_html("🏟 🏟&lt;<abac>", "Unsupported start tag \"abac\" at byte offset 13");
   check_parse_html("🏟 🏟&lt;<i   =aba>", "Empty attribute name in the tag \"i\" at byte offset 13");
-  check_parse_html("🏟 🏟&lt;<i    aba>",
-                   "Expected equal sign in declaration of an attribute of the tag \"i\" at byte offset 13");
+  check_parse_html("🏟 🏟&lt;<i    aba>", "Can't find end tag corresponding to start tag \"i\"");
   check_parse_html("🏟 🏟&lt;<i    aba  =  ", "Unclosed start tag \"i\" at byte offset 13");
   check_parse_html("🏟 🏟&lt;<i    aba  =  190azAz-.,", "Unexpected end of name token at byte offset 27");
   check_parse_html("🏟 🏟&lt;<i    aba  =  \"&lt;&gt;&quot;>", "Unclosed start tag at byte offset 13");
@@ -1352,8 +1354,14 @@ TEST(MessageEntities, parse_html) {
   check_parse_html("🏟 🏟<b aba   =   caba><tg-emoji emoji-id=\"1\">🏟</tg-emoji>1</b>", "🏟 🏟🏟1",
                    {{td::MessageEntity::Type::Bold, 5, 3},
                     {td::MessageEntity::Type::CustomEmoji, 5, 2, td::CustomEmojiId(static_cast<td::int64>(1))}});
-  check_parse_html("<blockquote   cite=\"\">a&lt;<pre  >b;</></>", "a<b;",
+  check_parse_html("<blockquote   cite=\"\" askdlbas nasjdbaj nj12b3>a&lt;<pre  >b;</></>", "a<b;",
                    {{td::MessageEntity::Type::BlockQuote, 0, 4}, {td::MessageEntity::Type::Pre, 2, 2}});
+  check_parse_html("<blockquote   expandable>a&lt;<pre  >b;</></>", "a<b;",
+                   {{td::MessageEntity::Type::ExpandableBlockQuote, 0, 4}, {td::MessageEntity::Type::Pre, 2, 2}});
+  check_parse_html("<blockquote   expandable   asd>a&lt;<pre  >b;</></>", "a<b;",
+                   {{td::MessageEntity::Type::ExpandableBlockQuote, 0, 4}, {td::MessageEntity::Type::Pre, 2, 2}});
+  check_parse_html("<blockquote   expandable=false>a&lt;<pre  >b;</></>", "a<b;",
+                   {{td::MessageEntity::Type::ExpandableBlockQuote, 0, 4}, {td::MessageEntity::Type::Pre, 2, 2}});
 }
 
 static void check_parse_markdown(td::string text, const td::string &result,
@@ -1425,6 +1433,10 @@ TEST(MessageEntities, parse_markdown) {
   check_parse_markdown("🏟 🏟![👍](tg://emoji?test=1231&id=025)", "Invalid custom emoji identifier specified");
   check_parse_markdown(">*b\n>ld \n>bo\nld*\nasd\ndef", "Can't find end of Bold entity at byte offset 1");
   check_parse_markdown(">\n*a*>2", "Character '>' is reserved and must be escaped with the preceding '\\'");
+  check_parse_markdown(">asd\n>q||e||w||\n||asdad", "Can't find end of Spoiler entity at byte offset 16");
+  check_parse_markdown(">asd\n>q||ew\n||asdad", "Can't find end of Spoiler entity at byte offset 7");
+  check_parse_markdown(">asd\n>q||e||w__\n||asdad", "Can't find end of Underline entity at byte offset 13");
+  check_parse_markdown(">asd\n>q||e||w||a\n||asdad", "Can't find end of Spoiler entity at byte offset 13");
 
   check_parse_markdown("", "", {});
   check_parse_markdown("\\\\", "\\", {});
@@ -1520,6 +1532,7 @@ TEST(MessageEntities, parse_markdown) {
                        {{td::MessageEntity::Type::BlockQuote, 0, 1}, {td::MessageEntity::Type::BlockQuote, 2, 1}});
   check_parse_markdown(">\n**>2", "\n2",
                        {{td::MessageEntity::Type::BlockQuote, 0, 1}, {td::MessageEntity::Type::BlockQuote, 1, 1}});
+  check_parse_markdown(">**\n>2", "\n2", {{td::MessageEntity::Type::BlockQuote, 0, 2}});
   // check_parse_markdown("*>abcd*", "abcd",
   //                      {{td::MessageEntity::Type::BlockQuote, 0, 4}, {td::MessageEntity::Type::Bold, 0, 4}});
   check_parse_markdown(">*abcd*", "abcd",
@@ -1532,6 +1545,27 @@ TEST(MessageEntities, parse_markdown) {
                        {{td::MessageEntity::Type::BlockQuote, 0, 5}, {td::MessageEntity::Type::Bold, 0, 5}});
   check_parse_markdown("abc\n>def\n>def\n\r>ghi2\njkl", "abc\ndef\ndef\n\rghi2\njkl",
                        {{td::MessageEntity::Type::BlockQuote, 4, 8}, {td::MessageEntity::Type::BlockQuote, 13, 5}});
+  check_parse_markdown(
+      ">asd\n>q||e||w||\nasdad", "asd\nqew\nasdad",
+      {{td::MessageEntity::Type::ExpandableBlockQuote, 0, 8}, {td::MessageEntity::Type::Spoiler, 5, 1}});
+  check_parse_markdown(">asd\n>q||ew||\nasdad", "asd\nqew\nasdad",
+                       {{td::MessageEntity::Type::BlockQuote, 0, 8}, {td::MessageEntity::Type::Spoiler, 5, 2}});
+  check_parse_markdown(
+      ">asd\r\n>q||e||w||\r\nasdad", "asd\r\nqew\r\nasdad",
+      {{td::MessageEntity::Type::ExpandableBlockQuote, 0, 10}, {td::MessageEntity::Type::Spoiler, 6, 1}});
+  check_parse_markdown(">asd\r\n>q||ew||\r\nasdad", "asd\r\nqew\r\nasdad",
+                       {{td::MessageEntity::Type::BlockQuote, 0, 10}, {td::MessageEntity::Type::Spoiler, 6, 2}});
+  check_parse_markdown(
+      ">asd\r\n>q||e||w||\r\n", "asd\r\nqew\r\n",
+      {{td::MessageEntity::Type::ExpandableBlockQuote, 0, 10}, {td::MessageEntity::Type::Spoiler, 6, 1}});
+  check_parse_markdown(">asd\r\n>q||ew||\r\n", "asd\r\nqew\r\n",
+                       {{td::MessageEntity::Type::BlockQuote, 0, 10}, {td::MessageEntity::Type::Spoiler, 6, 2}});
+  check_parse_markdown(
+      ">asd\r\n>q||e||w||", "asd\r\nqew",
+      {{td::MessageEntity::Type::ExpandableBlockQuote, 0, 8}, {td::MessageEntity::Type::Spoiler, 6, 1}});
+  check_parse_markdown(">asd\r\n>q||ew||", "asd\r\nqew",
+                       {{td::MessageEntity::Type::BlockQuote, 0, 8}, {td::MessageEntity::Type::Spoiler, 6, 2}});
+  check_parse_markdown(">||", "", {});
 }
 
 static void check_parse_markdown_v3(td::string text, td::vector<td::MessageEntity> entities,

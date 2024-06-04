@@ -253,6 +253,8 @@ class StoryManager final : public Actor {
 
   void reload_dialog_expiring_stories(DialogId dialog_id);
 
+  void set_pinned_stories(DialogId owner_dialog_id, vector<StoryId> story_ids, Promise<Unit> &&promise);
+
   void open_story(DialogId owner_dialog_id, StoryId story_id, Promise<Unit> &&promise);
 
   void close_story(DialogId owner_dialog_id, StoryId story_id, Promise<Unit> &&promise);
@@ -337,8 +339,8 @@ class StoryManager final : public Actor {
 
   td_api::object_ptr<td_api::story> get_story_object(StoryFullId story_full_id) const;
 
-  td_api::object_ptr<td_api::stories> get_stories_object(int32 total_count,
-                                                         const vector<StoryFullId> &story_full_ids) const;
+  td_api::object_ptr<td_api::stories> get_stories_object(int32 total_count, const vector<StoryFullId> &story_full_ids,
+                                                         const vector<StoryId> &pinned_story_ids) const;
 
   FileSourceId get_story_file_source_id(StoryFullId story_full_id);
 

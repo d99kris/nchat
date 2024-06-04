@@ -41,7 +41,7 @@
 
 // #define SIMULATED_SPONSORED_MESSAGES
 
-static const int s_TdlibDate = 20240308;
+static const int s_TdlibDate = 20240528;
 
 namespace detail
 {
@@ -173,6 +173,7 @@ private:
                        Reactions& p_Reactions);
   void GetReactionsEmojis(td::td_api::object_ptr<td::td_api::availableReactions>& p_AvailableReactions,
                           std::set<std::string>& p_Emojis);
+  int64_t GetDummyUserId(const std::string& p_Name);
 
 private:
   std::thread m_ServiceThread;
@@ -2831,76 +2832,35 @@ void TgChat::Impl::GetSponsoredMessages(const std::string& p_ChatId)
       chatMessage.timeSent = std::numeric_limits<int64_t>::max();
       chatMessage.isOutgoing = false;
 
+      const std::string contactName = sponsoredMessage->title_;
+      const int64_t contactId = GetDummyUserId(contactName);
+      chatMessage.senderId = StrUtil::NumToHex(contactId);
+
       td::td_api::object_ptr<td::td_api::InternalLinkType> link;
-      std::string url;
-
-      if (sponsoredMessage->sponsor_->type_->get_id() == td::td_api::messageSponsorTypeBot::ID)
-      {
-        auto& messageSponsorTypeBot = static_cast<td::td_api::messageSponsorTypeBot&>(*sponsoredMessage->sponsor_->type_);
-        chatMessage.senderId = StrUtil::NumToHex(messageSponsorTypeBot.bot_user_id_);
-        link = td::move_tl_object_as<td::td_api::InternalLinkType>(messageSponsorTypeBot.link_);
-      }
-      else if (sponsoredMessage->sponsor_->type_->get_id() == td::td_api::messageSponsorTypePublicChannel::ID)
-      {
-        auto& messageSponsorTypePublicChannel =
-          static_cast<td::td_api::messageSponsorTypePublicChannel&>(*sponsoredMessage->sponsor_->type_);
-        chatMessage.senderId = StrUtil::NumToHex(messageSponsorTypePublicChannel.chat_id_);
-        link = td::move_tl_object_as<td::td_api::InternalLinkType>(messageSponsorTypePublicChannel.link_);
-      }
-      else if (sponsoredMessage->sponsor_->type_->get_id() == td::td_api::messageSponsorTypePrivateChannel::ID)
-      {
-        auto& messageSponsorTypePrivateChannel =
-          static_cast<const td::td_api::messageSponsorTypePrivateChannel&>(*sponsoredMessage->sponsor_->type_);
-        // @todo: chatMessage.senderId = StrUtil::NumToHex(messageSponsorTypePrivateChannel.bot_user_id_);
-        url = messageSponsorTypePrivateChannel.invite_link_;
-      }
-      else if (sponsoredMessage->sponsor_->type_->get_id() == td::td_api::messageSponsorTypeWebsite::ID)
-      {
-        auto& messageSponsorTypeWebsite =
-          static_cast<const td::td_api::messageSponsorTypeWebsite&>(*sponsoredMessage->sponsor_->type_);
-        // @todo: chatMessage.senderId = StrUtil::NumToHex(messageSponsorTypeWebsite.bot_user_id_);
-        url = messageSponsorTypeWebsite.url_;
-      }
-
-      if (link)
-      {
-        if (link->get_id() == td::td_api::internalLinkTypeMessage::ID)
-        {
-          auto internalLink = td::move_tl_object_as<td::td_api::internalLinkTypeMessage>(link);
-          url = internalLink->url_;
-        }
-        else if (link->get_id() == td::td_api::internalLinkTypeBotStart::ID)
-        {
-          auto internalLink = td::move_tl_object_as<td::td_api::internalLinkTypeBotStart>(link);
-          url = "https://t.me/" + internalLink->bot_username_ + "?start=" + internalLink->start_parameter_;
-        }
-        else
-        {
-          LOG_WARNING("unknown internal link type: %lld", link->get_id());
-        }
-      }
-      else
-      {
-        // @todo review if still needed: url = "https://t.me/c/" + std::to_string(sponsoredMessage->sponsor_chat_id_).substr(4);
-      }
-
+      std::string url = sponsoredMessage->sponsor_->url_;
       if (!url.empty())
       {
-        chatMessage.text += "\n[" + url + "]";
+        chatMessage.text += "\n" + url + "";
       }
 
-      chatMessage.link = chatMessage.senderId;
       chatMessages.push_back(chatMessage);
       m_SponsoredMessageIds[p_ChatId].insert(chatMessage.id);
       LOG_DEBUG("new sponsored message %s (%lld)", chatMessage.id.c_str(), sponsoredMessageId);
 
-      // request chat type for senders
-      const std::vector<std::string> chatIds = { chatMessage.senderId };
-      std::shared_ptr<DeferGetChatDetailsRequest> deferGetChatDetailsRequest =
-        std::make_shared<DeferGetChatDetailsRequest>();
-      deferGetChatDetailsRequest->isGetTypeOnly = true;
-      deferGetChatDetailsRequest->chatIds = chatIds;
-      SendRequest(deferGetChatDetailsRequest);
+      // provide info for sender
+      ContactInfo contactInfo;
+      contactInfo.id = StrUtil::NumToHex(contactId);
+      contactInfo.name = contactName;
+      contactInfo.isSelf = IsSelf(contactId);
+      m_ContactInfos[contactId] = contactInfo;
+
+      std::vector<ContactInfo> contactInfos;
+      contactInfos.push_back(contactInfo);
+
+      std::shared_ptr<NewContactsNotify> newContactsNotify =
+        std::make_shared<NewContactsNotify>(m_ProfileId);
+      newContactsNotify->contactInfos = contactInfos;
+      CallMessageHandler(newContactsNotify);
     }
 
     std::shared_ptr<NewMessagesNotify> newMessagesNotify = std::make_shared<NewMessagesNotify>(m_ProfileId);
@@ -3175,4 +3135,11 @@ void TgChat::Impl::GetReactionsEmojis(td::td_api::object_ptr<td::td_api::availab
   ReactionsArrayToEmojiSet(p_AvailableReactions->top_reactions_, p_Emojis);
   ReactionsArrayToEmojiSet(p_AvailableReactions->recent_reactions_, p_Emojis);
   ReactionsArrayToEmojiSet(p_AvailableReactions->popular_reactions_, p_Emojis);
+}
+
+int64_t TgChat::Impl::GetDummyUserId(const std::string& p_Name)
+{
+  uint64_t id = static_cast<uint64_t>(std::hash<std::string>{ }(p_Name)) & 0x00ffffffffffffff;
+  id |= (1ll << 60); // tdlib userid use int53, set bit to ensure no clash
+  return id;
 }

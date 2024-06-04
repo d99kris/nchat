@@ -9,8 +9,8 @@
 #include "td/telegram/AnimationsManager.h"
 #include "td/telegram/AttachMenuManager.h"
 #include "td/telegram/BackgroundManager.h"
+#include "td/telegram/ChatManager.h"
 #include "td/telegram/ConfigManager.h"
-#include "td/telegram/ContactsManager.h"
 #include "td/telegram/DialogManager.h"
 #include "td/telegram/files/FileManager.h"
 #include "td/telegram/Global.h"
@@ -21,6 +21,7 @@
 #include "td/telegram/StickersManager.h"
 #include "td/telegram/StoryManager.h"
 #include "td/telegram/Td.h"
+#include "td/telegram/UserManager.h"
 #include "td/telegram/WebPageId.h"
 #include "td/telegram/WebPagesManager.h"
 
@@ -324,16 +325,16 @@ void FileReferenceManager::send_query(Destination dest, FileSourceId file_source
                            std::move(promise), "FileSourceMessage", nullptr);
       },
       [&](const FileSourceUserPhoto &source) {
-        send_closure_later(G()->contacts_manager(), &ContactsManager::reload_user_profile_photo, source.user_id,
+        send_closure_later(G()->user_manager(), &UserManager::reload_user_profile_photo, source.user_id,
                            source.photo_id, std::move(promise));
       },
       [&](const FileSourceChatPhoto &source) {
-        send_closure_later(G()->contacts_manager(), &ContactsManager::reload_chat, source.chat_id, std::move(promise),
+        send_closure_later(G()->chat_manager(), &ChatManager::reload_chat, source.chat_id, std::move(promise),
                            "FileSourceChatPhoto");
       },
       [&](const FileSourceChannelPhoto &source) {
-        send_closure_later(G()->contacts_manager(), &ContactsManager::reload_channel, source.channel_id,
-                           std::move(promise), "FileSourceChannelPhoto");
+        send_closure_later(G()->chat_manager(), &ChatManager::reload_channel, source.channel_id, std::move(promise),
+                           "FileSourceChannelPhoto");
       },
       [&](const FileSourceWallpapers &source) { promise.set_error(Status::Error("Can't repair old wallpapers")); },
       [&](const FileSourceWebPage &source) {
@@ -361,11 +362,11 @@ void FileReferenceManager::send_query(Destination dest, FileSourceId file_source
                            source.access_hash, std::move(promise));
       },
       [&](const FileSourceChatFull &source) {
-        send_closure_later(G()->contacts_manager(), &ContactsManager::reload_chat_full, source.chat_id,
-                           std::move(promise), "FileSourceChatFull");
+        send_closure_later(G()->chat_manager(), &ChatManager::reload_chat_full, source.chat_id, std::move(promise),
+                           "FileSourceChatFull");
       },
       [&](const FileSourceChannelFull &source) {
-        send_closure_later(G()->contacts_manager(), &ContactsManager::reload_channel_full, source.channel_id,
+        send_closure_later(G()->chat_manager(), &ChatManager::reload_channel_full, source.channel_id,
                            std::move(promise), "FileSourceChannelFull");
       },
       [&](const FileSourceAppConfig &source) {
@@ -376,8 +377,8 @@ void FileReferenceManager::send_query(Destination dest, FileSourceId file_source
                            std::move(promise));
       },
       [&](const FileSourceUserFull &source) {
-        send_closure_later(G()->contacts_manager(), &ContactsManager::reload_user_full, source.user_id,
-                           std::move(promise), "FileSourceUserFull");
+        send_closure_later(G()->user_manager(), &UserManager::reload_user_full, source.user_id, std::move(promise),
+                           "FileSourceUserFull");
       },
       [&](const FileSourceAttachMenuBot &source) {
         send_closure_later(G()->attach_menu_manager(), &AttachMenuManager::reload_attach_menu_bot, source.user_id,

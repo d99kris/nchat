@@ -10,7 +10,7 @@
 
 namespace td {
 
-constexpr int32 MTPROTO_LAYER = 176;
+constexpr int32 MTPROTO_LAYER = 181;
 
 enum class Version : int32 {
   Initial,  // 0
@@ -66,6 +66,7 @@ enum class Version : int32 {
   AddPageBlockChatLinkFlags,  // 50
   SupportRepliesInOtherChats,
   SupportMultipleSharedUsers,
+  SupportMoreEmojiGroups,
   Next
 };
 

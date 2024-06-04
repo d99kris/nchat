@@ -8,10 +8,11 @@
 
 #include "td/telegram/ChannelId.h"
 #include "td/telegram/ChatId.h"
-#include "td/telegram/ContactsManager.h"
+#include "td/telegram/ChatManager.h"
 #include "td/telegram/Dependencies.h"
 #include "td/telegram/DialogManager.h"
 #include "td/telegram/Td.h"
+#include "td/telegram/UserManager.h"
 
 #include "td/utils/algorithm.h"
 #include "td/utils/logging.h"
@@ -35,7 +36,7 @@ void UserPrivacySettingRule::set_dialog_ids(Td *td, const vector<int64> &chat_id
         break;
       case DialogType::Channel: {
         auto channel_id = dialog_id.get_channel_id();
-        if (!td->contacts_manager_->is_megagroup_channel(channel_id)) {
+        if (!td->chat_manager_->is_megagroup_channel(channel_id)) {
           LOG(INFO) << "Ignore broadcast " << channel_id;
           break;
         }
@@ -52,6 +53,9 @@ UserPrivacySettingRule::UserPrivacySettingRule(Td *td, const td_api::UserPrivacy
   switch (rule.get_id()) {
     case td_api::userPrivacySettingRuleAllowContacts::ID:
       type_ = Type::AllowContacts;
+      break;
+    case td_api::userPrivacySettingRuleAllowPremiumUsers::ID:
+      type_ = Type::AllowPremium;
       break;
     case td_api::userPrivacySettingRuleAllowAll::ID:
       type_ = Type::AllowAll;
@@ -91,6 +95,9 @@ UserPrivacySettingRule::UserPrivacySettingRule(Td *td,
     case telegram_api::privacyValueAllowContacts::ID:
       type_ = Type::AllowContacts;
       break;
+    case telegram_api::privacyValueAllowPremium::ID:
+      type_ = Type::AllowPremium;
+      break;
     case telegram_api::privacyValueAllowCloseFriends::ID:
       type_ = Type::AllowCloseFriends;
       break;
@@ -125,7 +132,7 @@ UserPrivacySettingRule::UserPrivacySettingRule(Td *td,
       UNREACHABLE();
   }
   td::remove_if(user_ids_, [td](UserId user_id) {
-    if (!td->contacts_manager_->have_user(user_id)) {
+    if (!td->user_manager_->have_user(user_id)) {
       LOG(ERROR) << "Receive unknown " << user_id;
       return true;
     }
@@ -138,10 +145,10 @@ void UserPrivacySettingRule::set_dialog_ids_from_server(Td *td, const vector<int
   for (auto server_chat_id : server_chat_ids) {
     ChatId chat_id(server_chat_id);
     DialogId dialog_id(chat_id);
-    if (!td->contacts_manager_->have_chat(chat_id)) {
+    if (!td->chat_manager_->have_chat(chat_id)) {
       ChannelId channel_id(server_chat_id);
       dialog_id = DialogId(channel_id);
-      if (!td->contacts_manager_->have_channel(channel_id)) {
+      if (!td->chat_manager_->have_channel(channel_id)) {
         LOG(ERROR) << "Receive unknown group " << server_chat_id << " from the server";
         continue;
       }
@@ -156,6 +163,8 @@ td_api::object_ptr<td_api::UserPrivacySettingRule> UserPrivacySettingRule::get_u
   switch (type_) {
     case Type::AllowContacts:
       return make_tl_object<td_api::userPrivacySettingRuleAllowContacts>();
+    case Type::AllowPremium:
+      return make_tl_object<td_api::userPrivacySettingRuleAllowPremiumUsers>();
     case Type::AllowCloseFriends:
       LOG(ERROR) << "Have AllowCloseFriends rule";
       return make_tl_object<td_api::userPrivacySettingRuleAllowUsers>();
@@ -163,7 +172,7 @@ td_api::object_ptr<td_api::UserPrivacySettingRule> UserPrivacySettingRule::get_u
       return make_tl_object<td_api::userPrivacySettingRuleAllowAll>();
     case Type::AllowUsers:
       return make_tl_object<td_api::userPrivacySettingRuleAllowUsers>(
-          td->contacts_manager_->get_user_ids_object(user_ids_, "userPrivacySettingRuleAllowUsers"));
+          td->user_manager_->get_user_ids_object(user_ids_, "userPrivacySettingRuleAllowUsers"));
     case Type::AllowChatParticipants:
       return make_tl_object<td_api::userPrivacySettingRuleAllowChatMembers>(
           td->dialog_manager_->get_chat_ids_object(dialog_ids_, "UserPrivacySettingRule"));
@@ -173,7 +182,7 @@ td_api::object_ptr<td_api::UserPrivacySettingRule> UserPrivacySettingRule::get_u
       return make_tl_object<td_api::userPrivacySettingRuleRestrictAll>();
     case Type::RestrictUsers:
       return make_tl_object<td_api::userPrivacySettingRuleRestrictUsers>(
-          td->contacts_manager_->get_user_ids_object(user_ids_, "userPrivacySettingRuleRestrictUsers"));
+          td->user_manager_->get_user_ids_object(user_ids_, "userPrivacySettingRuleRestrictUsers"));
     case Type::RestrictChatParticipants:
       return make_tl_object<td_api::userPrivacySettingRuleRestrictChatMembers>(
           td->dialog_manager_->get_chat_ids_object(dialog_ids_, "UserPrivacySettingRule"));
@@ -187,6 +196,8 @@ telegram_api::object_ptr<telegram_api::InputPrivacyRule> UserPrivacySettingRule:
   switch (type_) {
     case Type::AllowContacts:
       return make_tl_object<telegram_api::inputPrivacyValueAllowContacts>();
+    case Type::AllowPremium:
+      return make_tl_object<telegram_api::inputPrivacyValueAllowPremium>();
     case Type::AllowCloseFriends:
       return make_tl_object<telegram_api::inputPrivacyValueAllowCloseFriends>();
     case Type::AllowAll:
@@ -211,7 +222,7 @@ telegram_api::object_ptr<telegram_api::InputPrivacyRule> UserPrivacySettingRule:
 vector<telegram_api::object_ptr<telegram_api::InputUser>> UserPrivacySettingRule::get_input_users(Td *td) const {
   vector<telegram_api::object_ptr<telegram_api::InputUser>> result;
   for (auto user_id : user_ids_) {
-    auto r_input_user = td->contacts_manager_->get_input_user(user_id);
+    auto r_input_user = td->user_manager_->get_input_user(user_id);
     if (r_input_user.is_ok()) {
       result.push_back(r_input_user.move_as_ok());
     } else {
@@ -256,8 +267,8 @@ void UserPrivacySettingRule::add_dependencies(Dependencies &dependencies) const 
 
 UserPrivacySettingRules UserPrivacySettingRules::get_user_privacy_setting_rules(
     Td *td, telegram_api::object_ptr<telegram_api::account_privacyRules> rules) {
-  td->contacts_manager_->on_get_users(std::move(rules->users_), "on get privacy rules");
-  td->contacts_manager_->on_get_chats(std::move(rules->chats_), "on get privacy rules");
+  td->user_manager_->on_get_users(std::move(rules->users_), "on get privacy rules");
+  td->chat_manager_->on_get_chats(std::move(rules->chats_), "on get privacy rules");
   return get_user_privacy_setting_rules(td, std::move(rules->rules_));
 }
 
@@ -345,7 +356,7 @@ td_api::object_ptr<td_api::StoryPrivacySettings> UserPrivacySettingRules::get_st
   if (rules_.size() == 2u && rules_[0].type_ == UserPrivacySettingRule::Type::RestrictUsers &&
       rules_[1].type_ == UserPrivacySettingRule::Type::AllowAll) {
     return td_api::make_object<td_api::storyPrivacySettingsEveryone>(
-        td->contacts_manager_->get_user_ids_object(rules_[0].user_ids_, "storyPrivacySettingsEveryone"));
+        td->user_manager_->get_user_ids_object(rules_[0].user_ids_, "storyPrivacySettingsEveryone"));
   }
   if (rules_.size() == 1u && rules_[0].type_ == UserPrivacySettingRule::Type::AllowContacts) {
     return td_api::make_object<td_api::storyPrivacySettingsContacts>();
@@ -353,14 +364,14 @@ td_api::object_ptr<td_api::StoryPrivacySettings> UserPrivacySettingRules::get_st
   if (rules_.size() == 2u && rules_[0].type_ == UserPrivacySettingRule::Type::RestrictUsers &&
       rules_[1].type_ == UserPrivacySettingRule::Type::AllowContacts) {
     return td_api::make_object<td_api::storyPrivacySettingsContacts>(
-        td->contacts_manager_->get_user_ids_object(rules_[0].user_ids_, "storyPrivacySettingsContacts"));
+        td->user_manager_->get_user_ids_object(rules_[0].user_ids_, "storyPrivacySettingsContacts"));
   }
   if (rules_.size() == 1u && rules_[0].type_ == UserPrivacySettingRule::Type::AllowCloseFriends) {
     return td_api::make_object<td_api::storyPrivacySettingsCloseFriends>();
   }
   if (rules_.size() == 1u && rules_[0].type_ == UserPrivacySettingRule::Type::AllowUsers) {
     return td_api::make_object<td_api::storyPrivacySettingsSelectedUsers>(
-        td->contacts_manager_->get_user_ids_object(rules_[0].user_ids_, "storyPrivacySettingsSelectedUsers"));
+        td->user_manager_->get_user_ids_object(rules_[0].user_ids_, "storyPrivacySettingsSelectedUsers"));
   }
   return td_api::make_object<td_api::storyPrivacySettingsSelectedUsers>();
 }

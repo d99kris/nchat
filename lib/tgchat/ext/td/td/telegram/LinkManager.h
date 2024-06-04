@@ -98,7 +98,7 @@ class LinkManager final : public Actor {
 
   static string get_instant_view_link(Slice url, Slice rhash);
 
-  static string get_public_dialog_link(Slice username, bool is_internal);
+  static string get_public_dialog_link(Slice username, Slice draft_text, bool is_internal);
 
   static Result<string> get_proxy_link(const Proxy &proxy, bool is_internal);
 
@@ -124,6 +124,7 @@ class LinkManager final : public Actor {
   class InternalLinkBotAddToChannel;
   class InternalLinkBotStart;
   class InternalLinkBotStartInGroup;
+  class InternalLinkBusinessChat;
   class InternalLinkChangePhoneNumber;
   class InternalLinkConfirmPhone;
   class InternalLinkDefaultMessageAutoDeleteTimerSettings;

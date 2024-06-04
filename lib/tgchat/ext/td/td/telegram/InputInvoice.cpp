@@ -240,9 +240,8 @@ Result<InputInvoice> InputInvoice::process_input_message_invoice(
 tl_object_ptr<td_api::messageInvoice> InputInvoice::get_message_invoice_object(Td *td, bool skip_bot_commands,
                                                                                int32 max_media_timestamp) const {
   return make_tl_object<td_api::messageInvoice>(
-      title_, get_product_description_object(description_), get_photo_object(td->file_manager_.get(), photo_),
-      invoice_.currency_, total_amount_, start_parameter_, invoice_.is_test_, invoice_.need_shipping_address_,
-      receipt_message_id_.get(),
+      get_product_info_object(td, title_, description_, photo_), invoice_.currency_, total_amount_, start_parameter_,
+      invoice_.is_test_, invoice_.need_shipping_address_, receipt_message_id_.get(),
       extended_media_.get_message_extended_media_object(td, skip_bot_commands, max_media_timestamp));
 }
 
@@ -338,6 +337,9 @@ tl_object_ptr<telegram_api::inputMediaInvoice> InputInvoice::get_input_media_inv
       return nullptr;
     }
   }
+  if (!provider_token_.empty()) {
+    flags |= telegram_api::inputMediaInvoice::PROVIDER_MASK;
+  }
 
   return make_tl_object<telegram_api::inputMediaInvoice>(
       flags, title_, description_, std::move(input_web_document), invoice_.get_input_invoice(), BufferSlice(payload_),
@@ -418,11 +420,13 @@ bool InputInvoice::need_poll_extended_media() const {
   return extended_media_.need_poll();
 }
 
-tl_object_ptr<td_api::formattedText> get_product_description_object(const string &description) {
-  FormattedText result;
-  result.text = description;
-  result.entities = find_entities(result.text, true, true);
-  return get_formatted_text_object(result, true, 0);
+td_api::object_ptr<td_api::productInfo> get_product_info_object(Td *td, const string &title, const string &description,
+                                                                const Photo &photo) {
+  FormattedText formatted_description;
+  formatted_description.text = description;
+  formatted_description.entities = find_entities(formatted_description.text, true, true);
+  return td_api::make_object<td_api::productInfo>(title, get_formatted_text_object(formatted_description, true, 0),
+                                                  get_photo_object(td->file_manager_.get(), photo));
 }
 
 }  // namespace td

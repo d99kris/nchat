@@ -6,7 +6,6 @@
 //
 #include "td/telegram/CallActor.h"
 
-#include "td/telegram/ContactsManager.h"
 #include "td/telegram/DhCache.h"
 #include "td/telegram/DialogId.h"
 #include "td/telegram/files/FileManager.h"
@@ -19,6 +18,7 @@
 #include "td/telegram/Td.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/UpdatesManager.h"
+#include "td/telegram/UserManager.h"
 
 #include "td/utils/algorithm.h"
 #include "td/utils/as.h"
@@ -124,7 +124,8 @@ tl_object_ptr<td_api::CallState> CallState::get_call_state_object() const {
     case Type::Ready: {
       auto call_connections = transform(connections, [](auto &c) { return c.get_call_server_object(); });
       return make_tl_object<td_api::callStateReady>(protocol.get_call_protocol_object(), std::move(call_connections),
-                                                    config, key, vector<string>(emojis_fingerprint), allow_p2p);
+                                                    config, key, vector<string>(emojis_fingerprint), allow_p2p,
+                                                    custom_parameters);
     }
     case Type::HangingUp:
       return make_tl_object<td_api::callStateHangingUp>();
@@ -504,7 +505,7 @@ void CallActor::update_call(tl_object_ptr<telegram_api::PhoneCall> call) {
 
 void CallActor::update_call_inner(tl_object_ptr<telegram_api::phone_phoneCall> call) {
   LOG(INFO) << "Update call with " << to_string(call);
-  send_closure(G()->contacts_manager(), &ContactsManager::on_get_users, std::move(call->users_), "UpdatePhoneCall");
+  send_closure(G()->user_manager(), &UserManager::on_get_users, std::move(call->users_), "UpdatePhoneCall");
   update_call(std::move(call->phone_call_));
 }
 
@@ -634,6 +635,9 @@ Status CallActor::do_update_call(const telegram_api::phoneCall &call) {
   }
   call_state_.protocol = CallProtocol(*call.protocol_);
   call_state_.allow_p2p = call.p2p_allowed_;
+  if (call.custom_parameters_ != nullptr) {
+    call_state_.custom_parameters = std::move(call.custom_parameters_->data_);
+  }
   call_state_.type = CallState::Type::Ready;
   call_state_need_flush_ = true;
 
@@ -920,12 +924,16 @@ void CallActor::flush_call_state() {
     }
     call_state_need_flush_ = false;
 
-    // TODO can't call const function
-    // send_closure(G()->contacts_manager(), &ContactsManager::get_user_id_object, user_id_, "flush_call_state");
-    send_closure(G()->td(), &Td::send_update,
-                 make_tl_object<td_api::updateCall>(make_tl_object<td_api::call>(
-                     local_call_id_.get(), is_outgoing_ ? user_id_.get() : call_admin_user_id_.get(), is_outgoing_,
-                     is_video_, call_state_.get_call_state_object())));
+    auto peer_id = is_outgoing_ ? user_id_ : call_admin_user_id_;
+    auto update = td_api::make_object<td_api::updateCall>(td_api::make_object<td_api::call>(
+        local_call_id_.get(), 0, is_outgoing_, is_video_, call_state_.get_call_state_object()));
+    send_closure(G()->user_manager(), &UserManager::get_user_id_object_async, peer_id,
+                 [td_actor = G()->td(), update = std::move(update)](Result<int64> r_user_id) mutable {
+                   if (r_user_id.is_ok()) {
+                     update->call_->user_id_ = r_user_id.ok();
+                     send_closure(td_actor, &Td::send_update, std::move(update));
+                   }
+                 });
   }
 }
 
