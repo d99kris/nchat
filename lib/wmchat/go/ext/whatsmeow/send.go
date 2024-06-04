@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rs/zerolog"
 	"go.mau.fi/libsignal/groups"
 	"go.mau.fi/libsignal/keys/prekey"
 	"go.mau.fi/libsignal/protocol"
@@ -38,6 +39,9 @@ import (
 //	msgID := cli.GenerateMessageID()
 //	cli.SendMessage(context.Background(), targetJID, &waProto.Message{...}, whatsmeow.SendRequestExtra{ID: msgID})
 func (cli *Client) GenerateMessageID() types.MessageID {
+	if cli.MessengerConfig != nil {
+		return types.MessageID(strconv.FormatInt(GenerateFacebookMessageID(), 10))
+	}
 	data := make([]byte, 8, 8+20+16)
 	binary.BigEndian.PutUint64(data, uint64(time.Now().Unix()))
 	ownID := cli.getOwnID()
@@ -48,6 +52,11 @@ func (cli *Client) GenerateMessageID() types.MessageID {
 	data = append(data, random.Bytes(16)...)
 	hash := sha256.Sum256(data)
 	return "3EB0" + strings.ToUpper(hex.EncodeToString(hash[:9]))
+}
+
+func GenerateFacebookMessageID() int64 {
+	const randomMask = (1 << 22) - 1
+	return (time.Now().UnixMilli() << 22) | (int64(binary.BigEndian.Uint32(random.Bytes(4))) & randomMask)
 }
 
 // GenerateMessageID generates a random string that can be used as a message ID on WhatsApp.
@@ -72,6 +81,24 @@ type MessageDebugTimings struct {
 	Send  time.Duration
 	Resp  time.Duration
 	Retry time.Duration
+}
+
+func (mdt MessageDebugTimings) MarshalZerologObject(evt *zerolog.Event) {
+	evt.Dur("queue", mdt.Queue)
+	evt.Dur("marshal", mdt.Marshal)
+	if mdt.GetParticipants != 0 {
+		evt.Dur("get_participants", mdt.GetParticipants)
+	}
+	evt.Dur("get_devices", mdt.GetDevices)
+	if mdt.GroupEncrypt != 0 {
+		evt.Dur("group_encrypt", mdt.GroupEncrypt)
+	}
+	evt.Dur("peer_encrypt", mdt.PeerEncrypt)
+	evt.Dur("send", mdt.Send)
+	evt.Dur("resp", mdt.Resp)
+	if mdt.Retry != 0 {
+		evt.Dur("retry", mdt.Retry)
+	}
 }
 
 type SendResponse struct {
@@ -179,7 +206,7 @@ func (cli *Client) SendMessage(ctx context.Context, to types.JID, message *waPro
 	respChan := cli.waitResponse(req.ID)
 	// Peer message retries aren't implemented yet
 	if !req.Peer {
-		cli.addRecentMessage(to, req.ID, message)
+		cli.addRecentMessage(to, req.ID, message, nil)
 	}
 	if message.GetMessageContextInfo().GetMessageSecret() != nil {
 		err = cli.Store.MsgSecrets.PutMessageSecret(to, ownID, req.ID, message.GetMessageContextInfo().GetMessageSecret())
@@ -274,7 +301,7 @@ func (cli *Client) BuildMessageKey(chat, sender types.JID, id types.MessageID) *
 	}
 	if !sender.IsEmpty() && sender.User != cli.getOwnID().User {
 		key.FromMe = proto.Bool(false)
-		if chat.Server != types.DefaultUserServer {
+		if chat.Server != types.DefaultUserServer && chat.Server != types.MessengerServer {
 			key.Participant = proto.String(sender.ToNonAD().String())
 		}
 	}
@@ -783,7 +810,7 @@ func (cli *Client) preparePeerMessageNode(to types.JID, id types.MessageID, mess
 		return nil, fmt.Errorf("failed to encrypt peer message for %s: %v", to, err)
 	}
 	content := []waBinary.Node{*encrypted}
-	if isPreKey {
+	if isPreKey && cli.MessengerConfig == nil {
 		content = append(content, cli.makeDeviceIdentityNode())
 	}
 	return &waBinary.Node{
@@ -1004,9 +1031,10 @@ func (cli *Client) encryptMessageForDevice(plaintext []byte, to types.JID, bundl
 	}
 	copyAttrs(extraAttrs, encAttrs)
 
+	includeDeviceIdentity := encAttrs["type"] == "pkmsg" && cli.MessengerConfig == nil
 	return &waBinary.Node{
 		Tag:     "enc",
 		Attrs:   encAttrs,
 		Content: ciphertext.Serialize(),
-	}, encAttrs["type"] == "pkmsg", nil
+	}, includeDeviceIdentity, nil
 }

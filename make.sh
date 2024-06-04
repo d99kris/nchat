@@ -130,10 +130,11 @@ if [[ "${DEPS}" == "1" ]]; then
       sudo apt update && sudo apt ${YES} install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev || exiterr "deps failed (${NAME}), exiting."
       unset VERSION_ID
       eval $(grep "^VERSION_ID=" /etc/os-release 2> /dev/null)
-      if version_ge "${VERSION_ID}" "22.04"; then
+      if version_ge "${VERSION_ID}" "24.04"; then
         sudo apt ${YES} install golang || exiterr "deps failed (${NAME} apt golang), exiting."
       else
-        sudo snap install go --classic || exiterr "deps failed (${NAME} snap go), exiting."
+        sudo apt ${YES} install golang-1.21 || exiterr "deps failed (${NAME} apt golang-1.21), exiting."
+        sudo update-alternatives --install /usr/bin/go go /usr/lib/go-1.21/bin/go 121 || exiterr "deps failed (${NAME} select golang), exiting."
       fi
     elif [[ "${NAME}" == "Raspbian GNU/Linux" ]] || [[ "${NAME}" == "Debian GNU/Linux" ]] || [[ "${NAME}" == "Pop!_OS" ]]; then
       sudo apt update && sudo apt ${YES} install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev golang || exiterr "deps failed (${NAME}), exiting."

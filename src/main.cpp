@@ -356,7 +356,15 @@ int main(int argc, char* argv[])
 
       if (!found)
       {
-        LOG_WARNING("protocol %s not supported", protocolName.c_str());
+        std::string msg = "Protocol " + protocolName + " not supported";
+        if (protocolName == "WhatsAppMd")
+        {
+          // Special logging for WhatsApp which may be auto-disabled from build if go dependency not met
+          msg += " (requires Go >= " + std::string(GO_VERSION_MIN) + ")";
+        }
+
+        LOG_WARNING("%s", msg.c_str());
+        std::cout << msg << "\n";
       }
     }
   }

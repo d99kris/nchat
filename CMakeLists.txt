@@ -61,10 +61,11 @@ message(STATUS "Multi Protocol: ${HAS_MULTIPROTOCOL}")
 option(HAS_COREDUMP "Core Dump" ON)
 message(STATUS "Core Dump: ${HAS_COREDUMP}")
 
-# Check Golang version - whatsmeow requires >= v1.18
+# Check Golang version for whatsmeow minimum requirement
+set(GO_VERSION_MIN 1.21)
 execute_process(COMMAND bash "-c" "go version 2> /dev/null | cut -c14- | cut -d' ' -f1 | tr -d '\n'" OUTPUT_VARIABLE GO_VERSION)
-if(HAS_WHATSAPP AND (NOT GO_VERSION VERSION_GREATER_EQUAL 1.18.0))
-  message(WARNING "Go version ${GO_VERSION} (need v1.18 to build WhatsApp).")
+if(HAS_WHATSAPP AND (NOT GO_VERSION VERSION_GREATER_EQUAL GO_VERSION_MIN))
+  message(WARNING "Go version ${GO_VERSION} (need >= ${GO_VERSION_MIN} to build WhatsApp).")
   SET(HAS_WHATSAPP OFF)
 endif()
 
@@ -212,7 +213,7 @@ endif()
 
 # Common
 target_compile_definitions(nchat PRIVATE CMAKE_INSTALL_LIBDIR="${CMAKE_INSTALL_LIBDIR}"
-                           GO_VERSION="${GO_VERSION}")
+                           GO_VERSION="${GO_VERSION}" GO_VERSION_MIN="${GO_VERSION_MIN}")
 
 # Manual install dir
 if(NOT CMAKE_INSTALL_MANDIR)
@@ -323,6 +324,6 @@ if(CMAKE_BUILD_TYPE MATCHES "Debug")
 
   # Common
   target_compile_definitions(devnchat PRIVATE CMAKE_INSTALL_LIBDIR="${CMAKE_INSTALL_LIBDIR}"
-                             GO_VERSION="${GO_VERSION}")
+                             GO_VERSION="${GO_VERSION}" GO_VERSION_MIN="${GO_VERSION_MIN}")
 
 endif()
