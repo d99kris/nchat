@@ -174,6 +174,8 @@ private:
   void GetReactionsEmojis(td::td_api::object_ptr<td::td_api::availableReactions>& p_AvailableReactions,
                           std::set<std::string>& p_Emojis);
   int64_t GetDummyUserId(const std::string& p_Name);
+  void UpdateLastReadOutboxMessage(int64_t p_ChatId, int64_t p_LastReadMsgId);
+  void UpdateLastReadInboxMessage(int64_t p_ChatId, int64_t p_LastReadMsgId);
 
 private:
   std::thread m_ServiceThread;
@@ -191,6 +193,7 @@ private:
   std::uint64_t m_CurrentQueryId = 0;
   std::map<int64_t, int64_t> m_LastReadInboxMessage;
   std::map<int64_t, int64_t> m_LastReadOutboxMessage;
+  std::map<int64_t, std::set<int64_t>> m_UnreadInboxMessages;
   std::map<int64_t, std::set<int64_t>> m_UnreadOutboxMessages;
   std::map<int64_t, ContactInfo> m_ContactInfos;
   std::map<int64_t, ChatType> m_ChatTypes;
@@ -658,31 +661,8 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
             newChatsNotify->chatInfos = chatInfos;
             CallMessageHandler(newChatsNotify);
 
-            m_LastReadInboxMessage[tchat->id_] = tchat->last_read_inbox_message_id_;
-            m_LastReadOutboxMessage[tchat->id_] = tchat->last_read_outbox_message_id_;
-
-            std::set<int64_t>& unreadMessages = m_UnreadOutboxMessages[tchat->id_];
-            if (!unreadMessages.empty())
-            {
-              for (auto it = unreadMessages.begin(); it != unreadMessages.end(); /* inc in loop */)
-              {
-                if (*it <= tchat->last_read_outbox_message_id_)
-                {
-                  std::shared_ptr<NewMessageStatusNotify> newMessageStatusNotify =
-                    std::make_shared<NewMessageStatusNotify>(m_ProfileId);
-                  newMessageStatusNotify->chatId = StrUtil::NumToHex(tchat->id_);
-                  newMessageStatusNotify->msgId = StrUtil::NumToHex(*it);
-                  newMessageStatusNotify->isRead = true;
-                  CallMessageHandler(newMessageStatusNotify);
-
-                  it = unreadMessages.erase(it);
-                }
-                else
-                {
-                  it = std::next(it);
-                }
-              }
-            }
+            UpdateLastReadOutboxMessage(tchat->id_, tchat->last_read_outbox_message_id_);
+            UpdateLastReadInboxMessage(tchat->id_, tchat->last_read_inbox_message_id_);
           });
         }
       }
@@ -1648,36 +1628,13 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
   {
     LOG_TRACE("chat read outbox update");
 
-    m_LastReadOutboxMessage[chat_read_outbox.chat_id_] =
-      chat_read_outbox.last_read_outbox_message_id_;
-
-    std::set<int64_t>& unreadMessages = m_UnreadOutboxMessages[chat_read_outbox.chat_id_];
-    if (!unreadMessages.empty())
-    {
-      for (auto it = unreadMessages.begin(); it != unreadMessages.end(); /* increment in loop */)
-      {
-        if (*it <= chat_read_outbox.last_read_outbox_message_id_)
-        {
-          std::shared_ptr<NewMessageStatusNotify> newMessageStatusNotify =
-            std::make_shared<NewMessageStatusNotify>(m_ProfileId);
-          newMessageStatusNotify->chatId = StrUtil::NumToHex(chat_read_outbox.chat_id_);
-          newMessageStatusNotify->msgId = StrUtil::NumToHex(*it);
-          newMessageStatusNotify->isRead = true;
-          CallMessageHandler(newMessageStatusNotify);
-
-          it = unreadMessages.erase(it);
-        }
-        else
-        {
-          it = std::next(it);
-        }
-      }
-    }
+    UpdateLastReadOutboxMessage(chat_read_outbox.chat_id_, chat_read_outbox.last_read_outbox_message_id_);
   },
   [this](td::td_api::updateChatReadInbox& chat_read_inbox)
   {
     LOG_TRACE("chat read inbox update");
-    m_LastReadInboxMessage[chat_read_inbox.chat_id_] = chat_read_inbox.last_read_inbox_message_id_;
+
+    UpdateLastReadInboxMessage(chat_read_inbox.chat_id_, chat_read_inbox.last_read_inbox_message_id_);
   },
   [this](td::td_api::updateDeleteMessages& delete_messages)
   {
@@ -2662,6 +2619,11 @@ void TgChat::Impl::TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessag
     {
       p_ChatMessage.isRead = !p_TdMessage.contains_unread_mention_;
     }
+
+    if (!p_ChatMessage.isRead)
+    {
+      m_UnreadInboxMessages[p_TdMessage.chat_id_].insert(p_TdMessage.id_);
+    }
   }
 
   if (p_TdMessage.interaction_info_)
@@ -3142,4 +3104,60 @@ int64_t TgChat::Impl::GetDummyUserId(const std::string& p_Name)
   uint64_t id = static_cast<uint64_t>(std::hash<std::string>{ }(p_Name)) & 0x00ffffffffffffff;
   id |= (1ll << 60); // tdlib userid use int53, set bit to ensure no clash
   return id;
+}
+
+void TgChat::Impl::UpdateLastReadOutboxMessage(int64_t p_ChatId, int64_t p_LastReadMsgId)
+{
+  m_LastReadOutboxMessage[p_ChatId] = p_LastReadMsgId;
+
+  std::set<int64_t>& unreadMessages = m_UnreadOutboxMessages[p_ChatId];
+  if (!unreadMessages.empty())
+  {
+    for (auto it = unreadMessages.begin(); it != unreadMessages.end(); /* inc in loop */)
+    {
+      if (*it <= p_LastReadMsgId)
+      {
+        std::shared_ptr<NewMessageStatusNotify> newMessageStatusNotify =
+          std::make_shared<NewMessageStatusNotify>(m_ProfileId);
+        newMessageStatusNotify->chatId = StrUtil::NumToHex(p_ChatId);
+        newMessageStatusNotify->msgId = StrUtil::NumToHex(*it);
+        newMessageStatusNotify->isRead = true;
+        CallMessageHandler(newMessageStatusNotify);
+
+        it = unreadMessages.erase(it);
+      }
+      else
+      {
+        it = std::next(it);
+      }
+    }
+  }
+}
+
+void TgChat::Impl::UpdateLastReadInboxMessage(int64_t p_ChatId, int64_t p_LastReadMsgId)
+{
+  m_LastReadInboxMessage[p_ChatId] = p_LastReadMsgId;
+
+  std::set<int64_t>& unreadMessages = m_UnreadInboxMessages[p_ChatId];
+  if (!unreadMessages.empty())
+  {
+    for (auto it = unreadMessages.begin(); it != unreadMessages.end(); /* inc in loop */)
+    {
+      if (*it <= p_LastReadMsgId)
+      {
+        std::shared_ptr<NewMessageStatusNotify> newMessageStatusNotify =
+          std::make_shared<NewMessageStatusNotify>(m_ProfileId);
+        newMessageStatusNotify->chatId = StrUtil::NumToHex(p_ChatId);
+        newMessageStatusNotify->msgId = StrUtil::NumToHex(*it);
+        newMessageStatusNotify->isRead = true;
+        CallMessageHandler(newMessageStatusNotify);
+
+        it = unreadMessages.erase(it);
+      }
+      else
+      {
+        it = std::next(it);
+      }
+    }
+  }
 }
