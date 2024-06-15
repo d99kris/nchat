@@ -409,9 +409,9 @@ terminal window is active.
 ### desktop_notify_command
 
 Specifies a custom command to use for desktop notifications. The command may
-include `%1` (will be replaced by sender name) and `%2` (will be replaced
-by message text) enclosed in single quotes (to prevent shell injection).
-Default command used, if not specified:
+include `%1` (will be replaced by `sender name` or `group name - sender name`)
+and `%2` (will be replaced by `message text`) enclosed in single quotes (to
+prevent shell injection). Default command used, if not specified:
 
 Linux: `notify-send 'nchat' '%1: %2'`
 

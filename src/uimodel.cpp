@@ -2212,7 +2212,10 @@ void UiModel::UpdateChatInfoIsUnread(const std::string& p_ProfileId, const std::
         bool desktopNotify = m_TerminalActive ? desktopNotifyActive : desktopNotifyInactive;
         if (desktopNotify)
         {
-          DesktopNotifyUnread(GetContactName(p_ProfileId, chatMessage.senderId), chatMessage.text);
+          const std::string name = (chatMessage.senderId == p_ChatId)
+            ? GetContactName(p_ProfileId, chatMessage.senderId)
+            : GetContactName(p_ProfileId, p_ChatId) + " - " + GetContactName(p_ProfileId, chatMessage.senderId);
+          DesktopNotifyUnread(name, chatMessage.text);
         }
       }
     }
