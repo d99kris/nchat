@@ -63,7 +63,7 @@ void UiListDialog::KeyHandler(wint_t p_Key)
 
   static wint_t keyLeft = UiKeyConfig::GetKey("left");
   static wint_t keyRight = UiKeyConfig::GetKey("right");
-  static wint_t keyReturn = UiKeyConfig::GetKey("return");
+  static wint_t keyOk = UiKeyConfig::GetKey("ok");
   static wint_t keyPrevPage = UiKeyConfig::GetKey("prev_page");
   static wint_t keyNextPage = UiKeyConfig::GetKey("next_page");
   static wint_t keyDown = UiKeyConfig::GetKey("down");
@@ -105,7 +105,7 @@ void UiListDialog::KeyHandler(wint_t p_Key)
     m_Result = false;
     m_Running = false;
   }
-  else if ((p_Key == keyRight) || (p_Key == keyReturn))
+  else if ((p_Key == keyRight) || (p_Key == keyOk))
   {
     OnSelect();
   }

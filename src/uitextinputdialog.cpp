@@ -51,7 +51,7 @@ void UiTextInputDialog::KeyHandler(wint_t p_Key)
   static wint_t keyCancel = UiKeyConfig::GetKey("cancel");
   static wint_t keyQuit = UiKeyConfig::GetKey("quit");
   static wint_t keyOtherCommandsHelp = UiKeyConfig::GetKey("other_commands_help");
-  static wint_t keyReturn = UiKeyConfig::GetKey("return");
+  static wint_t keyOk = UiKeyConfig::GetKey("ok");
   static wint_t keyTerminalFocusIn = UiKeyConfig::GetKey("terminal_focus_in");
   static wint_t keyTerminalFocusOut = UiKeyConfig::GetKey("terminal_focus_out");
   static wint_t keyTerminalResize = UiKeyConfig::GetKey("terminal_resize");
@@ -83,7 +83,7 @@ void UiTextInputDialog::KeyHandler(wint_t p_Key)
     m_Result = false;
     m_Running = false;
   }
-  else if (p_Key == keyReturn)
+  else if (p_Key == keyOk)
   {
     m_Result = true;
     m_Running = false;

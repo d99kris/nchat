@@ -184,7 +184,7 @@ bool StrUtil::IsInteger(const std::string& p_Str)
 
 bool StrUtil::IsValidTextKey(int p_Key)
 {
-  return ((p_Key >= 0x20) || (p_Key == 0xA));
+  return (p_Key >= 0x20);
 }
 
 std::string StrUtil::Join(const std::vector<std::string>& p_Lines, const std::string& p_Delim)

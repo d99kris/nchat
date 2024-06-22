@@ -53,6 +53,7 @@ void Ui::Init()
   initscr();
   noecho();
   cbreak();
+  UiConfig::GetBool("linefeed_on_enter") ? nl() : nonl();
   keypad(stdscr, TRUE);
   curs_set(0);
   timeout(0);

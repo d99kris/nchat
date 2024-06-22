@@ -33,6 +33,7 @@ void UiConfig::Init()
     { "file_picker_command", "" },
     { "help_enabled", "1" },
     { "home_fetch_all", "0" },
+    { "linefeed_on_enter", "1" },
     { "link_open_command", "" },
     { "list_enabled", "1" },
     { "list_width", "14" },

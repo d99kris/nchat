@@ -336,6 +336,7 @@ This configuration file holds general user interface settings. Default content:
     file_picker_command=
     help_enabled=1
     home_fetch_all=0
+    linefeed_on_enter=1
     link_open_command=
     list_enabled=1
     list_width=14
@@ -457,6 +458,13 @@ Specifies whether to display help bar. Controlled by Ctrl-g in run-time.
 ### home_fetch_all
 
 Specifies whether `home` button shall repeatedly fetch all chat history.
+
+### linefeed_on_enter
+
+Specifies if enter key press should be read as linefeed (LF `\12`).
+Otherwise read as carriage return (CR `\15`). This setting is only
+relevant if `key.conf` uses numerical key value for enter (LF `\12`,
+CR `\15`). The key name `KEY_RETURN` always maps to the one in use.
 
 ### link_open_command
 
@@ -618,8 +626,10 @@ This configuration file holds user interface key bindings. Default content:
     jump_quoted=\33\161
     kill_word=
     left=KEY_LEFT
+    linebreak=KEY_RETURN
     next_chat=KEY_TAB
     next_page=KEY_NPAGE
+    ok=KEY_RETURN
     open=KEY_CTRLV
     open_link=KEY_CTRLW
     open_msg=\33\167
@@ -629,7 +639,6 @@ This configuration file holds user interface key bindings. Default content:
     prev_page=KEY_PPAGE
     quit=KEY_CTRLQ
     react=\33\163
-    return=KEY_RETURN
     right=KEY_RIGHT
     save=KEY_CTRLR
     select_contact=KEY_CTRLN
@@ -854,24 +863,7 @@ setting is not specified.
 FAQ
 ===
 
-### Custom colors are not shown when running nchat?
-
-Please try to run nchat with a TERM supporting custom colors, e.g:
-
-    TERM=xterm-256color nchat
-
-### No QR code is shown in the terminal when setting up WhatsApp in WSL?
-
-If the environment variable `$DISPLAY` is set, nchat uses the default image
-viewer via `xdg-open` to display the QR code. If running Linux without X,
-but still have `$DISPLAY` set (some Windows Subsystem for Linux / WSL / WSL2
-setups seems to do this), one needs to unset it before performing WhatsApp
-setup, e.g.:
-
-    unset DISPLAY
-    nchat -s
-
-### Alt/Opt-keyboard shortcuts are not working
+### 1. Alt/Opt-keyboard shortcuts are not working?
 
 For Linux please ensure the terminal is configured with
 [meta to send escape](https://askubuntu.com/questions/442644/how-to-make-xterm-to-send-the-alt-key-to-emacs-as-meta).
@@ -881,7 +873,22 @@ For macOS Terminal ensure that the Terminal profile keyboard setting
 If issues are still encountered, please use `nchat -k` (keydump mode) to
 determine the key codes and modify `~/.config/nchat/key.conf` accordingly.
 
-### Sent messages are not visible
+### 2. Send messages with Enter key?
+
+To simply send on enter key press and skip message compose with linebreaks,
+one can just set `send_msg=KEY_RETURN` in `~/.config/nchat/key.conf`.
+
+To also be able to compose messages with linebreaks using Alt/Opt-Enter, edit
+`~/.config/nchat/ui.conf` and set `linefeed_on_enter=0`. And in
+`~/.config/nchat/key.conf` set `linebreak=\33\15`.
+
+### 3. Custom colors are not shown when running nchat in tmux?
+
+Please try to run nchat with a TERM supporting custom colors, e.g:
+
+    TERM=xterm-256color nchat
+
+### 4. Sent messages are not visible?
 
 For terminals with eight colors (or more) the default color theme displays
 sent messages in gray (shaded). Some terminals may wrongly report supporting

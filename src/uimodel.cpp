@@ -375,6 +375,7 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
   static wint_t keyBackwardKillWord = UiKeyConfig::GetKey("backward_kill_word");
   static wint_t keyKillWord = UiKeyConfig::GetKey("kill_word");
   static wint_t keyClear = UiKeyConfig::GetKey("clear");
+  static wint_t keyLinebreak = UiKeyConfig::GetKey("linebreak");
 
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
@@ -563,6 +564,12 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
   {
     entryStr.clear();
     entryPos = 0;
+    SetTyping(profileId, chatId, true);
+  }
+  else if (p_Key == keyLinebreak)
+  {
+    wint_t keyLF = 0xA;
+    entryStr.insert(entryPos++, 1, keyLF);
     SetTyping(profileId, chatId, true);
   }
   else if (StrUtil::IsValidTextKey(p_Key))

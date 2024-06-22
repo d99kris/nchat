@@ -14,6 +14,7 @@
 
 #include <ncurses.h>
 
+#include "uiconfig.h"
 #include "uicontroller.h"
 #include "uikeyconfig.h"
 #include "uikeyinput.h"
@@ -22,11 +23,13 @@
 
 void UiKeyDump::Run()
 {
+  UiConfig::Init();
   printf("\033[?1004h");
   setlocale(LC_ALL, "");
   initscr();
   noecho();
   cbreak();
+  UiConfig::GetBool("linefeed_on_enter") ? nl() : nonl();
   raw();
   keypad(stdscr, TRUE);
   curs_set(0);

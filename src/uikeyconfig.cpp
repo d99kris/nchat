@@ -14,17 +14,22 @@
 #include "fileutil.h"
 #include "log.h"
 #include "strutil.h"
+#include "uiconfig.h"
 
 Config UiKeyConfig::m_Config;
 std::map<std::string, int> UiKeyConfig::m_KeyCodes;
 
 void UiKeyConfig::InitKeyCodes(bool p_MapKeys)
 {
+  int keyCodeTab = 9;
+  int keyCodeSpace = 32;
+  int keyCodeReturn = UiConfig::GetBool("linefeed_on_enter") ? 10 : 13;
+
   m_KeyCodes = std::map<std::string, int>({
     // additional keys
-    { "KEY_TAB", KEY_TAB },
-    { "KEY_RETURN", KEY_RETURN },
-    { "KEY_SPACE", KEY_SPACE },
+    { "KEY_TAB", keyCodeTab },
+    { "KEY_SPACE", keyCodeSpace },
+    { "KEY_RETURN", keyCodeReturn },
     { "KEY_NONE", -1 },
 
     // ctrl keys
@@ -187,7 +192,8 @@ void UiKeyConfig::Init(bool p_MapKeys)
     { "quit", "KEY_CTRLQ" },
     { "left", "KEY_LEFT" },
     { "right", "KEY_RIGHT" },
-    { "return", "KEY_RETURN" },
+    { "ok", "KEY_RETURN" },
+    { "linebreak", "KEY_RETURN" },
     { "prev_page", "KEY_PPAGE" },
     { "next_page", "KEY_NPAGE" },
     { "down", "KEY_DOWN" },

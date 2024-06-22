@@ -1,6 +1,6 @@
 // uihelpview.cpp
 //
-// Copyright (c) 2019-2023 Kristofer Berggren
+// Copyright (c) 2019-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -34,7 +34,7 @@ void UiHelpView::Draw()
   static std::vector<std::wstring> listDialogHelpItems = []()
   {
     std::vector<std::wstring> helpItems;
-    AppendHelpItem(UiKeyConfig::GetKey("return"), "Select", helpItems);
+    AppendHelpItem(UiKeyConfig::GetKey("ok"), "Select", helpItems);
     AppendHelpItem(UiKeyConfig::GetKey("cancel"), "Cancel", helpItems);
     AppendHelpItem('a', "AddFiltr", helpItems);
     AppendHelpItem(UiKeyConfig::GetKey("backspace"), "DelFiltr", helpItems);
@@ -44,7 +44,7 @@ void UiHelpView::Draw()
   static std::vector<std::wstring> messageDialogHelpItems = []()
   {
     std::vector<std::wstring> helpItems;
-    AppendHelpItem(UiKeyConfig::GetKey("return"), "OK", helpItems);
+    AppendHelpItem(UiKeyConfig::GetKey("ok"), "OK", helpItems);
     AppendHelpItem(UiKeyConfig::GetKey("cancel"), "Cancel", helpItems);
     return helpItems;
   }();
