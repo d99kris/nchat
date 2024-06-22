@@ -42,7 +42,7 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
-var whatsmeowDate int = 20240520
+var whatsmeowDate int = 20240603
 
 type JSONMessage []json.RawMessage
 type JSONMessageType string
@@ -196,8 +196,8 @@ func DownloadableMessageToFileId(client *whatsmeow.Client, msg whatsmeow.Downloa
 	info.TargetPath = targetPath
 	info.MediaKey = msg.GetMediaKey()
 	info.Size = whatsmeow.GetDownloadSize(msg)
-	info.FileEncSha256 = msg.GetFileEncSha256()
-	info.FileSha256 = msg.GetFileSha256()
+	info.FileEncSha256 = msg.GetFileEncSHA256()
+	info.FileSha256 = msg.GetFileSHA256()
 
 	info.MediaType = whatsmeow.GetMediaType(msg)
 	if len(info.MediaType) == 0 {
@@ -648,13 +648,6 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 	if historySync.Data.GetProgress() < 98 {
 		LOG_TRACE("Set Syncing")
 		CWmSetStatus(FlagSyncing)
-	}
-
-	pushnames := historySync.Data.GetPushnames()
-	for _, pushname := range pushnames {
-		if pushname.Id != nil && pushname.Pushname != nil {
-			LOG_TRACE(fmt.Sprintf("HandleHistorySync Pushname %s %s", *pushname.Id, *pushname.Pushname))
-		}
 	}
 
 	conversations := historySync.Data.GetConversations()
@@ -1309,8 +1302,6 @@ func (handler *WmEventHandler) HandleTemplateMessage(messageInfo types.MessageIn
 		switch hydbutton := button.GetHydratedButton().(type) {
 		case *waProto.HydratedTemplateButton_QuickReplyButton:
 			texts = append(texts, fmt.Sprintf("%s", hydbutton.QuickReplyButton.GetDisplayText()))
-		case *waProto.HydratedTemplateButton_UrlButton:
-			texts = append(texts, fmt.Sprintf("%s: %s", hydbutton.UrlButton.GetDisplayText(), hydbutton.UrlButton.GetUrl()))
 		case *waProto.HydratedTemplateButton_CallButton:
 			texts = append(texts, fmt.Sprintf("%s: %s", hydbutton.CallButton.GetDisplayText(), hydbutton.CallButton.GetPhoneNumber()))
 		}
@@ -1366,7 +1357,7 @@ func (handler *WmEventHandler) HandleReactionMessage(messageInfo types.MessageIn
 	fromMe := messageInfo.IsFromMe
 	senderId := JidToStr(messageInfo.Sender)
 	text := reaction.GetText()
-	msgId := *reaction.Key.Id
+	msgId := *reaction.Key.ID
 
 	CWmNewMessageReactionNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe))
 
@@ -1882,7 +1873,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 			LOG_TRACE("send quoted " + quotedId + ", " + quotedText + ", " + quotedSender)
 			contextInfo = waProto.ContextInfo{
 				QuotedMessage: &quotedMessage,
-				StanzaId:      &quotedId,
+				StanzaID:      &quotedId,
 				Participant:   &quotedSender,
 			}
 
@@ -1918,12 +1909,12 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 			}
 
 			audioMessage := waProto.AudioMessage{
-				Url:           proto.String(uploaded.URL),
+				URL:           proto.String(uploaded.URL),
 				DirectPath:    proto.String(uploaded.DirectPath),
 				MediaKey:      uploaded.MediaKey,
 				Mimetype:      proto.String(fileType),
-				FileEncSha256: uploaded.FileEncSHA256,
-				FileSha256:    uploaded.FileSHA256,
+				FileEncSHA256: uploaded.FileEncSHA256,
+				FileSHA256:    uploaded.FileSHA256,
 				FileLength:    proto.Uint64(uint64(len(data))),
 			}
 
@@ -1947,12 +1938,12 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 			videoMessage := waProto.VideoMessage{
 				Caption:       proto.String(text),
-				Url:           proto.String(uploaded.URL),
+				URL:           proto.String(uploaded.URL),
 				DirectPath:    proto.String(uploaded.DirectPath),
 				MediaKey:      uploaded.MediaKey,
 				Mimetype:      proto.String(fileType),
-				FileEncSha256: uploaded.FileEncSHA256,
-				FileSha256:    uploaded.FileSHA256,
+				FileEncSHA256: uploaded.FileEncSHA256,
+				FileSHA256:    uploaded.FileSHA256,
 				FileLength:    proto.Uint64(uint64(len(data))),
 			}
 
@@ -1976,12 +1967,12 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 			imageMessage := waProto.ImageMessage{
 				Caption:       proto.String(text),
-				Url:           proto.String(uploaded.URL),
+				URL:           proto.String(uploaded.URL),
 				DirectPath:    proto.String(uploaded.DirectPath),
 				MediaKey:      uploaded.MediaKey,
 				Mimetype:      proto.String(fileType),
-				FileEncSha256: uploaded.FileEncSHA256,
-				FileSha256:    uploaded.FileSHA256,
+				FileEncSHA256: uploaded.FileEncSHA256,
+				FileSHA256:    uploaded.FileSHA256,
 				FileLength:    proto.Uint64(uint64(len(data))),
 			}
 
@@ -2006,12 +1997,12 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 			fileName := filepath.Base(filePath)
 
 			documentMessage := waProto.DocumentMessage{
-				Url:           proto.String(uploaded.URL),
+				URL:           proto.String(uploaded.URL),
 				DirectPath:    proto.String(uploaded.DirectPath),
 				MediaKey:      uploaded.MediaKey,
 				Mimetype:      proto.String(fileType),
-				FileEncSha256: uploaded.FileEncSHA256,
-				FileSha256:    uploaded.FileSHA256,
+				FileEncSHA256: uploaded.FileEncSHA256,
+				FileSHA256:    uploaded.FileSHA256,
 				FileLength:    proto.Uint64(uint64(len(data))),
 				FileName:      proto.String(fileName),
 			}
