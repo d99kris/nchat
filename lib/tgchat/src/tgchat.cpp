@@ -2971,6 +2971,12 @@ td::td_api::object_ptr<td::td_api::formattedText> TgChat::Impl::GetFormattedText
 td::td_api::object_ptr<td::td_api::inputMessageText> TgChat::Impl::GetMessageText(const std::string& p_Text)
 {
   auto message_content = td::td_api::make_object<td::td_api::inputMessageText>();
+
+  static const bool linkSendPreview = AppConfig::GetBool("link_send_preview");
+  auto link_preview_options = td::td_api::make_object<td::td_api::linkPreviewOptions>();
+  link_preview_options->is_disabled_ = !linkSendPreview;
+  message_content->link_preview_options_ = std::move(link_preview_options);
+
   message_content->text_ = GetFormattedText(p_Text);
   return message_content;
 }

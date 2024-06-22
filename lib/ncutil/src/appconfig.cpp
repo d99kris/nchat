@@ -1,6 +1,6 @@
 // appconfig.cpp
 //
-// Copyright (c) 2021-2023 Kristofer Berggren
+// Copyright (c) 2021-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -23,6 +23,7 @@ void AppConfig::Init()
     { "cache_enabled", "1" },
     { "coredump_enabled", "0" },
     { "downloads_dir", "" },
+    { "link_send_preview", "1" },
     { "proxy_host", "" },
     { "proxy_pass", "" },
     { "proxy_port", "" },

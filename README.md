@@ -262,6 +262,7 @@ This configuration file holds general application settings. Default content:
     cache_enabled=1
     coredump_enabled=0
     downloads_dir=
+    link_send_preview=1
     proxy_host=
     proxy_pass=
     proxy_port=
@@ -294,6 +295,10 @@ Specifies whether to enable core dumps on application crash.
 
 Specifies a custom downloads directory path to save attachments to. If not
 specified, the default dir is `~/Downloads` if exists, otherwise `~`.
+
+### link_send_preview
+
+Specifies whether to enable preview for links in messages sent (Telegram only).
 
 ### proxy_
 
