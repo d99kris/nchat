@@ -264,6 +264,11 @@ void UiKeyConfig::Cleanup()
   m_Config.Save();
 }
 
+std::string UiKeyConfig::GetStr(const std::string& p_Param)
+{
+  return m_Config.Get(p_Param);
+}
+
 int UiKeyConfig::GetKey(const std::string& p_Param)
 {
   return GetKeyCode(m_Config.Get(p_Param));

@@ -61,14 +61,14 @@ Interactive Commands:
     Ctrl-x      send message
     Ctrl-y      toggle show emojis
     KeyUp       select message
+    Alt-d       delete/leave current chat
+    Alt-e       external editor compose
+    Alt-t       external telephone call
+    Alt-/       find in chat
+    Alt-?       find next in chat
     Alt-$       external spell check
     Alt-,       decrease contact list width
     Alt-.       increase contact list width
-    Alt-d       delete/leave current chat
-    Alt-e       external editor compose
-    Alt-/       find in chat
-    Alt-?       find next in chat
-    Alt-t       external telephone call
 
 Interactive Commands for Selected Message:
 

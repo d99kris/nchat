@@ -16,6 +16,7 @@ class UiKeyConfig
 public:
   static void Init(bool p_MapKeys);
   static void Cleanup();
+  static std::string GetStr(const std::string& p_Param);
   static int GetKey(const std::string& p_Param);
   static int GetKeyCode(const std::string& p_KeyName);
   static std::string GetKeyName(int p_KeyCode);

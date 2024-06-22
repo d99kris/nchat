@@ -7,6 +7,8 @@
 
 #include "uihelpview.h"
 
+#include <algorithm>
+
 #include "strutil.h"
 #include "uicolorconfig.h"
 #include "uikeyconfig.h"
@@ -27,82 +29,105 @@ void UiHelpView::Draw()
   static std::wstring otherHelpItem = []()
   {
     std::vector<std::wstring> helpItems;
-    AppendHelpItem(UiKeyConfig::GetKey("other_commands_help"), "OtherCmd", helpItems);
+    AppendHelpItem("other_commands_help", "OtherCmd", helpItems);
     return !helpItems.empty() ? L" | " + helpItems.at(0) : std::wstring();
   }();
 
   static std::vector<std::wstring> listDialogHelpItems = []()
   {
     std::vector<std::wstring> helpItems;
-    AppendHelpItem(UiKeyConfig::GetKey("ok"), "Select", helpItems);
-    AppendHelpItem(UiKeyConfig::GetKey("cancel"), "Cancel", helpItems);
-    AppendHelpItem('a', "AddFiltr", helpItems);
-    AppendHelpItem(UiKeyConfig::GetKey("backspace"), "DelFiltr", helpItems);
+    AppendHelpItem("ok", "Select", helpItems);
+    AppendHelpItem("cancel", "Cancel", helpItems);
+    AppendHelpItem("abc", "AddFiltr", helpItems);
+    AppendHelpItem("backspace", "DelFiltr", helpItems);
     return helpItems;
   }();
 
   static std::vector<std::wstring> messageDialogHelpItems = []()
   {
     std::vector<std::wstring> helpItems;
-    AppendHelpItem(UiKeyConfig::GetKey("ok"), "OK", helpItems);
-    AppendHelpItem(UiKeyConfig::GetKey("cancel"), "Cancel", helpItems);
+    AppendHelpItem("ok", "OK", helpItems);
+    AppendHelpItem("cancel", "Cancel", helpItems);
     return helpItems;
   }();
 
   static std::vector<std::wstring> editMessageHelpItems = []()
   {
     std::vector<std::wstring> helpItems;
-    AppendHelpItem(UiKeyConfig::GetKey("send_msg"), "Save", helpItems);
-    AppendHelpItem(UiKeyConfig::GetKey("cancel"), "Cancel", helpItems);
+    AppendHelpItem("send_msg", "Save", helpItems);
+    AppendHelpItem("cancel", "Cancel", helpItems);
     return helpItems;
   }();
 
-  static std::vector<std::wstring> selectHelpItems = []()
+  static std::vector<std::wstring> mainPreHelpItems = []()
   {
     std::vector<std::wstring> helpItems;
-    AppendHelpItem(UiKeyConfig::GetKey("send_msg"), "ReplyMsg", helpItems);
-    AppendHelpItem(UiKeyConfig::GetKey("next_chat"), "NextChat", helpItems);
-    AppendHelpItem(UiKeyConfig::GetKey("unread_chat"), "JumpUnrd", helpItems);
+    AppendHelpItem("send_msg", "SendMsg", helpItems);
+    AppendHelpItem("next_chat", "NextChat", helpItems);
+    AppendHelpItem("unread_chat", "JumpUnrd", helpItems);
 
-    AppendHelpItem(UiKeyConfig::GetKey("quit"), "Quit", helpItems);
-    AppendHelpItem(UiKeyConfig::GetKey("select_emoji"), "AddEmoji", helpItems);
-    AppendHelpItem(UiKeyConfig::GetKey("select_contact"), "AddrBook", helpItems);
-    AppendHelpItem(UiKeyConfig::GetKey("transfer"), "SendFile", helpItems);
+    AppendHelpItem("quit", "Quit", helpItems);
+    AppendHelpItem("select_emoji", "AddEmoji", helpItems);
+    AppendHelpItem("select_contact", "AddrBook", helpItems);
+    AppendHelpItem("transfer", "SendFile", helpItems);
 
-    AppendHelpItem(UiKeyConfig::GetKey("up"), "PrevMsg", helpItems);
-    AppendHelpItem(UiKeyConfig::GetKey("down"), "NextMsg", helpItems);
-
-    AppendHelpItem(UiKeyConfig::GetKey("delete_msg"), "DelMsg", helpItems);
-    AppendHelpItem(UiKeyConfig::GetKey("edit_msg"), "EditMsg", helpItems);
-    AppendHelpItem(UiKeyConfig::GetKey("open"), "OpenFile", helpItems);
-    AppendHelpItem(UiKeyConfig::GetKey("save"), "SaveFile", helpItems);
-    AppendHelpItem(UiKeyConfig::GetKey("open_link"), "OpenLink", helpItems);
-
-    AppendHelpItem(UiKeyConfig::GetKey("toggle_emoji"), "TgEmoji", helpItems);
-    AppendHelpItem(UiKeyConfig::GetKey("toggle_list"), "TgList", helpItems);
-    AppendHelpItem(UiKeyConfig::GetKey("toggle_top"), "TgTop", helpItems);
-    AppendHelpItem(UiKeyConfig::GetKey("toggle_help"), "TgHelp", helpItems);
     return helpItems;
   }();
 
-  static std::vector<std::wstring> defaultHelpItems = []()
+  static std::vector<std::wstring> mainPostHelpItems = []()
   {
     std::vector<std::wstring> helpItems;
-    AppendHelpItem(UiKeyConfig::GetKey("send_msg"), "SendMsg", helpItems);
-    AppendHelpItem(UiKeyConfig::GetKey("next_chat"), "NextChat", helpItems);
-    AppendHelpItem(UiKeyConfig::GetKey("unread_chat"), "JumpUnrd", helpItems);
+    AppendHelpItem("ext_edit", "ExtEdit", helpItems);
+    AppendHelpItem("ext_call", "ExtCall", helpItems);
+    AppendHelpItem("find", "Find", helpItems);
+    AppendHelpItem("find_next", "FindNext", helpItems);
+    AppendHelpItem("spell", "ExtSpell", helpItems);
+    AppendHelpItem("decrease_list_width", "DecListW", helpItems);
+    AppendHelpItem("increase_list_width", "IncListW", helpItems);
 
-    AppendHelpItem(UiKeyConfig::GetKey("quit"), "Quit", helpItems);
-    AppendHelpItem(UiKeyConfig::GetKey("select_emoji"), "AddEmoji", helpItems);
-    AppendHelpItem(UiKeyConfig::GetKey("select_contact"), "AddrBook", helpItems);
-    AppendHelpItem(UiKeyConfig::GetKey("transfer"), "SendFile", helpItems);
+    AppendHelpItem("cut", "Cut", helpItems);
+    AppendHelpItem("copy", "Copy", helpItems);
+    AppendHelpItem("paste", "Paste", helpItems);
 
-    AppendHelpItem(UiKeyConfig::GetKey("up"), "SelectMsg", helpItems);
+    AppendHelpItem("toggle_emoji", "TgEmoji", helpItems);
+    AppendHelpItem("toggle_list", "TgList", helpItems);
+    AppendHelpItem("toggle_top", "TgTop", helpItems);
+    AppendHelpItem("toggle_help", "TgHelp", helpItems);
 
-    AppendHelpItem(UiKeyConfig::GetKey("toggle_emoji"), "TgEmoji", helpItems);
-    AppendHelpItem(UiKeyConfig::GetKey("toggle_list"), "TgList", helpItems);
-    AppendHelpItem(UiKeyConfig::GetKey("toggle_top"), "TgTop", helpItems);
-    AppendHelpItem(UiKeyConfig::GetKey("toggle_help"), "TgHelp", helpItems);
+    return helpItems;
+  }();
+
+  static std::vector<std::wstring> mainSelectHelpItems = []()
+  {
+    std::vector<std::wstring> helpItems;
+    helpItems.insert(std::end(helpItems), std::begin(mainPreHelpItems), std::end(mainPreHelpItems));
+
+    AppendHelpItem("up", "PrevMsg", helpItems);
+    AppendHelpItem("down", "NextMsg", helpItems);
+
+    AppendHelpItem("delete_msg", "DelMsg", helpItems);
+    AppendHelpItem("edit_msg", "EditMsg", helpItems);
+    AppendHelpItem("open", "OpenFile", helpItems);
+    AppendHelpItem("save", "SaveFile", helpItems);
+    AppendHelpItem("open_link", "OpenLink", helpItems);
+
+    AppendHelpItem("jump_quoted", "JumpQuoted", helpItems);
+    AppendHelpItem("react", "AddReact", helpItems);
+    AppendHelpItem("open_msg", "ExtView", helpItems);
+
+    helpItems.insert(std::end(helpItems), std::begin(mainPostHelpItems), std::end(mainPostHelpItems));
+    return helpItems;
+  }();
+
+  static std::vector<std::wstring> mainDefaultHelpItems = []()
+  {
+    std::vector<std::wstring> helpItems;
+    helpItems.insert(std::end(helpItems), std::begin(mainPreHelpItems), std::end(mainPreHelpItems));
+
+    AppendHelpItem("up", "SelectMsg", helpItems);
+    AppendHelpItem("delete_chat", "DelChat", helpItems);
+
+    helpItems.insert(std::end(helpItems), std::begin(mainPostHelpItems), std::end(mainPostHelpItems));
     return helpItems;
   }();
 
@@ -121,8 +146,8 @@ void UiHelpView::Draw()
     listDialogHelpViews = GetHelpViews(maxW, listDialogHelpItems, otherHelpItem);
     messageDialogHelpViews = GetHelpViews(maxW, messageDialogHelpItems, otherHelpItem);
     editMessageHelpViews = GetHelpViews(maxW, editMessageHelpItems, otherHelpItem);
-    selectHelpViews = GetHelpViews(maxW, selectHelpItems, otherHelpItem);
-    defaultHelpViews = GetHelpViews(maxW, defaultHelpItems, otherHelpItem);
+    selectHelpViews = GetHelpViews(maxW, mainSelectHelpItems, otherHelpItem);
+    defaultHelpViews = GetHelpViews(maxW, mainDefaultHelpItems, otherHelpItem);
   }
 
   static int colorPair = UiColorConfig::GetColorPair("help_color");
@@ -204,9 +229,9 @@ std::vector<std::wstring> UiHelpView::GetHelpViews(const int p_MaxW, const std::
   return helpViews;
 }
 
-void UiHelpView::AppendHelpItem(const int p_Key, const std::string& p_Desc, std::vector<std::wstring>& p_HelpItems)
+void UiHelpView::AppendHelpItem(const std::string& p_Func, const std::string& p_Desc, std::vector<std::wstring>& p_HelpItems)
 {
-  const std::string keyDisplay = GetKeyDisplay(p_Key);
+  const std::string keyDisplay = GetKeyDisplay(p_Func);
   if (!keyDisplay.empty())
   {
     const std::string helpItem = keyDisplay + " " + p_Desc;
@@ -214,56 +239,54 @@ void UiHelpView::AppendHelpItem(const int p_Key, const std::string& p_Desc, std:
   }
 }
 
-std::string UiHelpView::GetKeyDisplay(int p_Key)
+std::string UiHelpView::GetKeyDisplay(const std::string& p_Func)
 {
-  static int keyBackspace = UiKeyConfig::GetKeyCode("KEY_BACKSPACE");
-  static int keyBackTab = UiKeyConfig::GetKeyCode("KEY_BTAB");
-  static int keyDown = UiKeyConfig::GetKeyCode("KEY_DOWN");
-  static int keyLeft = UiKeyConfig::GetKeyCode("KEY_LEFT");
-  static int keyReturn = UiKeyConfig::GetKeyCode("KEY_RETURN");
-  static int keyRight = UiKeyConfig::GetKeyCode("KEY_RIGHT");
-  static int keyTab = UiKeyConfig::GetKeyCode("KEY_TAB");
-  static int keyUp = UiKeyConfig::GetKeyCode("KEY_UP");
+  if (p_Func == "abc") return "abc";
 
-  if (p_Key == keyReturn)
+  const std::string keyName = UiKeyConfig::GetStr(p_Func);
+  if ((keyName.size() == 9) && (keyName >= "KEY_CTRLA") && (keyName <= "KEY_CTRLZ"))
+  {
+    return "^" + keyName.substr(8, 1);
+  }
+  else if (std::count(keyName.begin(), keyName.end(), '\\') == 2)
+  {
+    const std::string keyStr = StrUtil::StrFromOct(keyName);
+    if ((keyStr.size() == 2) && (keyStr.at(0) == '\33') && StrUtil::IsValidTextKey(keyStr.at(1)))
+    {
+      return "M-" + keyStr.substr(1);
+    }
+  }
+  else if (keyName == "KEY_RETURN")
   {
     return "\xe2\x8f\x8e";
   }
-  else if (p_Key == keyTab)
+  else if (keyName == "KEY_TAB")
   {
     return "Tab";
   }
-  else if (p_Key == keyBackTab)
+  else if (keyName == "KEY_BTAB")
   {
     return "STab";
   }
-  else if (p_Key == keyUp)
+  else if (keyName == "KEY_UP")
   {
     return "\xe2\x86\x91";
   }
-  else if (p_Key == keyDown)
+  else if (keyName == "KEY_DOWN")
   {
     return "\xe2\x86\x93";
   }
-  else if (p_Key == keyLeft)
+  else if (keyName == "KEY_LEFT")
   {
     return "\xe2\x86\x90";
   }
-  else if (p_Key == keyRight)
+  else if (keyName == "KEY_RIGHT")
   {
     return "\xe2\x86\x92";
   }
-  else if (p_Key == keyBackspace)
+  else if (keyName == "KEY_BACKSPACE")
   {
     return "\xe2\x8c\xab";
-  }
-  else if (p_Key == 'a')
-  {
-    return "abc";
-  }
-  else if ((p_Key >= 0x0) && (p_Key <= 0x1F))
-  {
-    return "^" + std::string(1, (char)p_Key + 0x40);
   }
 
   return "";
