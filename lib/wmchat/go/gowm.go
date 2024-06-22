@@ -1772,7 +1772,7 @@ func WmLogin(connId int) int {
 		if GetState(connId) == Outdated {
 			fmt.Printf("ERROR:\n")
 			fmt.Printf("WhatsApp client is outdated, please update nchat to a newer version. See:\n")
-			fmt.Printf("https://github.com/d99kris/nchat/blob/master/WMOUTDATED.md\n")
+			fmt.Printf("https://github.com/d99kris/nchat/blob/master/doc/WMOUTDATED.md\n")
 		} else {
 			fmt.Printf("ERROR:\n")
 			fmt.Printf("Please see the log for details.\n")

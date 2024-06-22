@@ -195,10 +195,10 @@ Advanced Build Options
 ----------------------
 By default nchat requires ~3.5GB RAM to build using G++ and ~1.5GB RAM with
 clang++, but it is possible to reduce the memory needed,
-see [Building on Low Memory Systems](LOWMEMORY.md).
+see [Building on Low Memory Systems](/doc/LOWMEMORY.md).
 
 All nchat features are enabled by default, but it's possible to control
-inclusion of some features using cmake flags, see [Feature Flags](FLAGS.md).
+inclusion of some features using cmake flags, see [Feature Flags](/doc/FLAGS.md).
 
 
 Getting Started
@@ -230,7 +230,7 @@ Once the setup process is completed, the main UI of nchat will be loaded.
 
 Troubleshooting
 ===============
-Refer to [Debugging](DEBUGGING.md) for details.
+Refer to [Debugging](/doc/DEBUGGING.md) for details.
 
 
 Telegram Group
@@ -979,8 +979,8 @@ nchat is distributed under the MIT license. See LICENSE file.
 
 Contributions
 =============
-Please refer to [Contributing Guidelines](CONTRIBUTING.md) and
-[Design Notes](DESIGN.md).
+Please refer to [Contributing Guidelines](/doc/CONTRIBUTING.md) and
+[Design Notes](/doc/DESIGN.md).
 
 
 Alternatives
