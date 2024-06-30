@@ -365,6 +365,7 @@ This configuration file holds general user interface settings. Default content:
     terminal_bell_inactive=1
     terminal_title=
     top_enabled=1
+    top_show_version=0
     typing_status_share=1
 
 ### attachment_indicator
@@ -592,6 +593,10 @@ Specifies custom terminal title, ex: `terminal_title=nchat - telegram`.
 ### top_enabled
 
 Specifies whether to display top bar. Controlled by Ctrl-p in run-time.
+
+### top_show_version
+
+Specifies whether to display nchat version in top bar.
 
 ### typing_status_share
 

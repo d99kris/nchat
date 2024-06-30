@@ -32,6 +32,7 @@ show_usage()
   echo "  install         - perform build and install"
   echo "  all             - perform deps, build, tests, doc and install"
   echo "  src             - perform source code reformatting"
+  echo "  bump            - perform version bump"
   echo ""
 }
 
@@ -47,6 +48,7 @@ TESTS="0"
 DOC="0"
 INSTALL="0"
 SRC="0"
+BUMP="0"
 YES=""
 CMAKEARGS=""
 
@@ -86,6 +88,10 @@ while [[ ${#} -gt 0 ]]; do
 
     src)
       SRC="1"
+      ;;
+
+    bump)
+      BUMP="1"
       ;;
 
     all)
@@ -177,6 +183,37 @@ if [[ "${SRC}" == "1" ]]; then
   uncrustify --update-config-with-doc -c etc/uncrustify.cfg -o etc/uncrustify.cfg && \
   uncrustify -c etc/uncrustify.cfg --replace --no-backup src/*.{cpp,h} lib/common/src/*.h lib/duchat/src/*.{cpp,h} lib/ncutil/src/*.{cpp,h} lib/tgchat/src/*.{cpp,h} lib/wmchat/src/*.{cpp,h} || \
     exiterr "unrustify failed, exiting."
+fi
+
+# bump
+if [[ "${BUMP}" == "1" ]]; then
+  CURRENT_VERSION=$(grep NCHAT_VERSION lib/common/src/version.h | head -1 | awk -F'"' '{print $2}') # ex: 5.1.1
+  CURRENT_MAJMIN="$(echo ${CURRENT_VERSION} | cut -d'.' -f1,2)" # ex: 5.1
+  URL="https://github.com/d99kris/nchat.git"
+  LATEST_TAG=$(git -c 'versionsort.suffix=-' ls-remote --tags --sort='v:refname' ${URL} | tail -n1 | cut -d'/' -f3)
+  LATEST_VERSION=$(echo "${LATEST_TAG}" | cut -c2-) # ex: 5.1.3
+  LATEST_MAJMIN="$(echo ${LATEST_VERSION} | cut -d'.' -f1,2)" # ex: 5.1
+  SED="sed"
+  if [[ "$(uname)" == "Darwin" ]]; then
+    SED="gsed"
+  fi
+  if [[ "${CURRENT_MAJMIN}" == "${LATEST_MAJMIN}" ]]; then
+    NEW_MAJ="$(echo ${CURRENT_VERSION} | cut -d'.' -f1)" # ex: 5
+    let NEW_MIN=$(echo ${CURRENT_VERSION} | cut -d'.' -f2)+1
+    NEW_PATCH="1" # use 1-based build/snapshot number
+    NEW_VERSION="${NEW_MAJ}.${NEW_MIN}.${NEW_PATCH}"
+    echo "Current:      ${CURRENT_MAJMIN} == ${LATEST_MAJMIN} Latest"
+    echo "Bump release: ${NEW_VERSION}"
+    ${SED} -i "s/^#define NCHAT_VERSION .*/#define NCHAT_VERSION \"${NEW_VERSION}\"/g" lib/common/src/version.h
+  else
+    NEW_MAJ="$(echo ${CURRENT_VERSION} | cut -d'.' -f1)" # ex: 5
+    NEW_MIN="$(echo ${CURRENT_VERSION} | cut -d'.' -f2)" # ex: 1
+    let NEW_PATCH=$(echo ${CURRENT_VERSION} | cut -d'.' -f3)+1
+    NEW_VERSION="${NEW_MAJ}.${NEW_MIN}.${NEW_PATCH}"
+    echo "Current:      ${CURRENT_MAJMIN} != ${LATEST_MAJMIN} Latest"
+    echo "Bump build:   ${NEW_VERSION}"
+    ${SED} -i "s/^#define NCHAT_VERSION .*/#define NCHAT_VERSION \"${NEW_VERSION}\"/g" lib/common/src/version.h
+  fi
 fi
 
 # build

@@ -245,7 +245,7 @@ int main(int argc, char* argv[])
   // Init logging
   const std::string& logPath = FileUtil::GetApplicationDir() + std::string("/log.txt");
   Log::Init(logPath);
-  std::string appNameVersion = AppUtil::GetAppNameVersion();
+  std::string appNameVersion = AppUtil::GetAppName(true /*p_WithVersion*/);
   LOG_INFO("%s", appNameVersion.c_str());
   std::string osArch = SysUtil::GetOsArch();
   LOG_INFO("%s", osArch.c_str());
@@ -655,7 +655,7 @@ void ShowHelp()
 void ShowVersion()
 {
   std::cout <<
-    "nchat v" << AppUtil::GetAppVersion() << "\n"
+    AppUtil::GetAppName(true /*p_WithVersion*/) << "\n"
     "\n"
     "Copyright (c) 2019-2024 Kristofer Berggren\n"
     "\n"

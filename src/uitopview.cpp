@@ -1,6 +1,6 @@
 // uitopview.cpp
 //
-// Copyright (c) 2019-2023 Kristofer Berggren
+// Copyright (c) 2019-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -59,8 +59,9 @@ void UiTopView::Draw()
   static const uint32_t fullMask = ~static_cast<uint32_t>(0);
   static const uint32_t statusMask = fullMask & (awayStatusIndication ? fullMask : ~Status::FlagAway);
 
+  static const bool topShowVersion = UiConfig::GetBool("top_show_version");
+  static const std::string appNameVersion = AppUtil::GetAppName(topShowVersion);
   const std::string statusStr = Status::ToString(statusMask) + statusSuffixStr;
-  static const std::string appNameVersion = AppUtil::GetAppNameVersion();
   std::wstring topWStrLeft = StrUtil::ToWString(std::string(topPadLeft, ' ') + appNameVersion);
   std::wstring topWStrRight = StrUtil::ToWString(statusStr + std::string(topPadRight, ' '));
   int topStrLeftWidth = StrUtil::WStringWidth(topWStrLeft);

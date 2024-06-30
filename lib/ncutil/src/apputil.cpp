@@ -23,10 +23,9 @@
 
 bool AppUtil::m_DeveloperMode = false;
 
-std::string AppUtil::GetAppNameVersion()
+std::string AppUtil::GetAppName(bool p_WithVersion)
 {
-  static std::string nameVersion = "nchat v" + GetAppVersion();
-  return nameVersion;
+  return std::string("nchat") + (p_WithVersion ? (" " + GetAppVersion()) : "");
 }
 
 std::string AppUtil::GetAppVersion()
