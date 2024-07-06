@@ -26,7 +26,9 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	waProto "go.mau.fi/whatsmeow/binary/proto"
+	"go.mau.fi/whatsmeow/proto/waCompanionReg"
+	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/proto/waWeb"
 	"go.mau.fi/whatsmeow/store"
 
 	"github.com/mdp/qrterminal"
@@ -42,7 +44,7 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
-var whatsmeowDate int = 20240603
+var whatsmeowDate int = 20240625
 
 type JSONMessage []json.RawMessage
 type JSONMessageType string
@@ -410,7 +412,7 @@ func GetChatId(chatJid types.JID, senderJid types.JID) string {
 	}
 }
 
-func ParseWebMessageInfo(selfJid types.JID, chatJid types.JID, webMsg *waProto.WebMessageInfo) *types.MessageInfo {
+func ParseWebMessageInfo(selfJid types.JID, chatJid types.JID, webMsg *waWeb.WebMessageInfo) *types.MessageInfo {
 	info := types.MessageInfo{
 		MessageSource: types.MessageSource{
 			Chat:     chatJid,
@@ -696,8 +698,7 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 
 	}
 
-	if (historySync.Data.GetProgress() == 100) &&
-		(historySync.Data.GetSyncType() == waProto.HistorySync_FULL) {
+	if (historySync.Data.GetProgress() == 100) {
 		LOG_TRACE("Clear Syncing")
 		CWmClearStatus(FlagSyncing)
 	}
@@ -930,7 +931,7 @@ func (handler *WmEventHandler) GetContacts() {
 	CWmClearStatus(FlagFetching)
 }
 
-func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg *waProto.Message, isSync bool) {
+func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSync bool) {
 	switch {
 	case msg.Conversation != nil || msg.ExtendedTextMessage != nil:
 		handler.HandleTextMessage(messageInfo, msg, isSync)
@@ -964,7 +965,7 @@ func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg 
 	}
 }
 
-func (handler *WmEventHandler) HandleTextMessage(messageInfo types.MessageInfo, msg *waProto.Message, isSync bool) {
+func (handler *WmEventHandler) HandleTextMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSync bool) {
 	LOG_TRACE(fmt.Sprintf("TextMessage"))
 
 	connId := handler.connId
@@ -1004,7 +1005,7 @@ func (handler *WmEventHandler) HandleTextMessage(messageInfo types.MessageInfo, 
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
 }
 
-func (handler *WmEventHandler) HandleImageMessage(messageInfo types.MessageInfo, msg *waProto.Message, isSync bool) {
+func (handler *WmEventHandler) HandleImageMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSync bool) {
 	LOG_TRACE(fmt.Sprintf("ImageMessage"))
 
 	connId := handler.connId
@@ -1055,7 +1056,7 @@ func (handler *WmEventHandler) HandleImageMessage(messageInfo types.MessageInfo,
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
 }
 
-func (handler *WmEventHandler) HandleVideoMessage(messageInfo types.MessageInfo, msg *waProto.Message, isSync bool) {
+func (handler *WmEventHandler) HandleVideoMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSync bool) {
 	LOG_TRACE(fmt.Sprintf("VideoMessage"))
 
 	connId := handler.connId
@@ -1106,7 +1107,7 @@ func (handler *WmEventHandler) HandleVideoMessage(messageInfo types.MessageInfo,
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
 }
 
-func (handler *WmEventHandler) HandleAudioMessage(messageInfo types.MessageInfo, msg *waProto.Message, isSync bool) {
+func (handler *WmEventHandler) HandleAudioMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSync bool) {
 	LOG_TRACE(fmt.Sprintf("AudioMessage"))
 
 	connId := handler.connId
@@ -1157,7 +1158,7 @@ func (handler *WmEventHandler) HandleAudioMessage(messageInfo types.MessageInfo,
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
 }
 
-func (handler *WmEventHandler) HandleDocumentMessage(messageInfo types.MessageInfo, msg *waProto.Message, isSync bool) {
+func (handler *WmEventHandler) HandleDocumentMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSync bool) {
 	LOG_TRACE(fmt.Sprintf("DocumentMessage"))
 
 	connId := handler.connId
@@ -1201,7 +1202,7 @@ func (handler *WmEventHandler) HandleDocumentMessage(messageInfo types.MessageIn
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
 }
 
-func (handler *WmEventHandler) HandleStickerMessage(messageInfo types.MessageInfo, msg *waProto.Message, isSync bool) {
+func (handler *WmEventHandler) HandleStickerMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSync bool) {
 	LOG_TRACE(fmt.Sprintf("StickerMessage"))
 
 	connId := handler.connId
@@ -1252,7 +1253,7 @@ func (handler *WmEventHandler) HandleStickerMessage(messageInfo types.MessageInf
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
 }
 
-func (handler *WmEventHandler) HandleTemplateMessage(messageInfo types.MessageInfo, msg *waProto.Message, isSync bool) {
+func (handler *WmEventHandler) HandleTemplateMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSync bool) {
 	LOG_TRACE(fmt.Sprintf("TemplateMessage"))
 
 	connId := handler.connId
@@ -1276,15 +1277,15 @@ func (handler *WmEventHandler) HandleTemplateMessage(messageInfo types.MessageIn
 
 	// title
 	switch hydtitle := hydtpl.GetTitle().(type) {
-	case *waProto.TemplateMessage_HydratedFourRowTemplate_DocumentMessage:
+	case *waE2E.TemplateMessage_HydratedFourRowTemplate_DocumentMessage:
 		texts = append(texts, "[Document]")
-	case *waProto.TemplateMessage_HydratedFourRowTemplate_ImageMessage:
+	case *waE2E.TemplateMessage_HydratedFourRowTemplate_ImageMessage:
 		texts = append(texts, "[Image]")
-	case *waProto.TemplateMessage_HydratedFourRowTemplate_VideoMessage:
+	case *waE2E.TemplateMessage_HydratedFourRowTemplate_VideoMessage:
 		texts = append(texts, "[Video]")
-	case *waProto.TemplateMessage_HydratedFourRowTemplate_LocationMessage:
+	case *waE2E.TemplateMessage_HydratedFourRowTemplate_LocationMessage:
 		texts = append(texts, "[Location]")
-	case *waProto.TemplateMessage_HydratedFourRowTemplate_HydratedTitleText:
+	case *waE2E.TemplateMessage_HydratedFourRowTemplate_HydratedTitleText:
 		if hydtitle.HydratedTitleText != "" {
 			texts = append(texts, hydtitle.HydratedTitleText)
 		}
@@ -1300,9 +1301,9 @@ func (handler *WmEventHandler) HandleTemplateMessage(messageInfo types.MessageIn
 	buttons := hydtpl.GetHydratedButtons()
 	for _, button := range buttons {
 		switch hydbutton := button.GetHydratedButton().(type) {
-		case *waProto.HydratedTemplateButton_QuickReplyButton:
+		case *waE2E.HydratedTemplateButton_QuickReplyButton:
 			texts = append(texts, fmt.Sprintf("%s", hydbutton.QuickReplyButton.GetDisplayText()))
-		case *waProto.HydratedTemplateButton_CallButton:
+		case *waE2E.HydratedTemplateButton_CallButton:
 			texts = append(texts, fmt.Sprintf("%s: %s", hydbutton.CallButton.GetDisplayText(), hydbutton.CallButton.GetPhoneNumber()))
 		}
 	}
@@ -1341,7 +1342,7 @@ func (handler *WmEventHandler) HandleTemplateMessage(messageInfo types.MessageIn
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
 }
 
-func (handler *WmEventHandler) HandleReactionMessage(messageInfo types.MessageInfo, msg *waProto.Message, isSync bool) {
+func (handler *WmEventHandler) HandleReactionMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSync bool) {
 	LOG_TRACE(fmt.Sprintf("ReactionMessage"))
 
 	connId := handler.connId
@@ -1366,7 +1367,7 @@ func (handler *WmEventHandler) HandleReactionMessage(messageInfo types.MessageIn
 	//WmMarkMessageRead(connId, chatId, senderId, reMsgId)
 }
 
-func (handler *WmEventHandler) HandleProtocolMessage(messageInfo types.MessageInfo, msg *waProto.Message, isSync bool) {
+func (handler *WmEventHandler) HandleProtocolMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSync bool) {
 	LOG_TRACE(fmt.Sprintf("ProtocolMessage"))
 
 	// get protocol part
@@ -1376,7 +1377,7 @@ func (handler *WmEventHandler) HandleProtocolMessage(messageInfo types.MessageIn
 		return
 	}
 
-	if protocol.GetType() == waProto.ProtocolMessage_MESSAGE_EDIT {
+	if protocol.GetType() == waE2E.ProtocolMessage_MESSAGE_EDIT {
 		// handle message edit
 		editedMsg := protocol.GetEditedMessage()
 		if editedMsg != nil {
@@ -1386,7 +1387,7 @@ func (handler *WmEventHandler) HandleProtocolMessage(messageInfo types.MessageIn
 		} else {
 			LOG_WARNING(fmt.Sprintf("get edited message failed"))
 		}
-	} else if protocol.GetType() == waProto.ProtocolMessage_REVOKE {
+	} else if protocol.GetType() == waE2E.ProtocolMessage_REVOKE {
 		// handle message revoke
 		connId := handler.connId
 		chatId := messageInfo.Chat.String()
@@ -1398,7 +1399,7 @@ func (handler *WmEventHandler) HandleProtocolMessage(messageInfo types.MessageIn
 	}
 }
 
-func (handler *WmEventHandler) HandleUnsupportedMessage(messageInfo types.MessageInfo, msg *waProto.Message, isSync bool) {
+func (handler *WmEventHandler) HandleUnsupportedMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSync bool) {
 	// list from type Message struct in def.pb.go
 	msgType := "Unknown"
 	msgNotify := false
@@ -1642,13 +1643,13 @@ func WmInit(path string, proxy string, sendType int) int {
 	}
 
 	store.DeviceProps.RequireFullSync = proto.Bool(true)
-	store.DeviceProps.HistorySyncConfig = &waProto.DeviceProps_HistorySyncConfig{
+	store.DeviceProps.HistorySyncConfig = &waCompanionReg.DeviceProps_HistorySyncConfig{
 		FullSyncDaysLimit:   proto.Uint32(3650),
 		FullSyncSizeMbLimit: proto.Uint32(102400),
 		StorageQuotaMb:      proto.Uint32(102400),
 	}
 
-	store.DeviceProps.PlatformType = waProto.DeviceProps_FIREFOX.Enum()
+	store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_FIREFOX.Enum()
 	switch runtime.GOOS {
 	case "linux":
 		store.DeviceProps.Os = proto.String("Linux")
@@ -1845,7 +1846,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 	// local vars
 	var sendErr error
-	var message waProto.Message
+	var message waE2E.Message
 	var sendResponse whatsmeow.SendResponse
 
 	// recipient
@@ -1863,21 +1864,21 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 		// text message
 
 		if len(quotedId) > 0 {
-			contextInfo := waProto.ContextInfo{}
-			quotedMessage := waProto.Message{
+			contextInfo := waE2E.ContextInfo{}
+			quotedMessage := waE2E.Message{
 				Conversation: &quotedText,
 			}
 
 			quotedSender = strings.Replace(quotedSender, "@c.us", "@s.whatsapp.net", 1)
 
 			LOG_TRACE("send quoted " + quotedId + ", " + quotedText + ", " + quotedSender)
-			contextInfo = waProto.ContextInfo{
+			contextInfo = waE2E.ContextInfo{
 				QuotedMessage: &quotedMessage,
 				StanzaID:      &quotedId,
 				Participant:   &quotedSender,
 			}
 
-			extendedTextMessage := waProto.ExtendedTextMessage{
+			extendedTextMessage := waE2E.ExtendedTextMessage{
 				Text:        &text,
 				ContextInfo: &contextInfo,
 			}
@@ -1908,7 +1909,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 				return -1
 			}
 
-			audioMessage := waProto.AudioMessage{
+			audioMessage := waE2E.AudioMessage{
 				URL:           proto.String(uploaded.URL),
 				DirectPath:    proto.String(uploaded.DirectPath),
 				MediaKey:      uploaded.MediaKey,
@@ -1936,7 +1937,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 				return -1
 			}
 
-			videoMessage := waProto.VideoMessage{
+			videoMessage := waE2E.VideoMessage{
 				Caption:       proto.String(text),
 				URL:           proto.String(uploaded.URL),
 				DirectPath:    proto.String(uploaded.DirectPath),
@@ -1965,7 +1966,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 				return -1
 			}
 
-			imageMessage := waProto.ImageMessage{
+			imageMessage := waE2E.ImageMessage{
 				Caption:       proto.String(text),
 				URL:           proto.String(uploaded.URL),
 				DirectPath:    proto.String(uploaded.DirectPath),
@@ -1996,7 +1997,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 			fileName := filepath.Base(filePath)
 
-			documentMessage := waProto.DocumentMessage{
+			documentMessage := waE2E.DocumentMessage{
 				URL:           proto.String(uploaded.URL),
 				DirectPath:    proto.String(uploaded.DirectPath),
 				MediaKey:      uploaded.MediaKey,
