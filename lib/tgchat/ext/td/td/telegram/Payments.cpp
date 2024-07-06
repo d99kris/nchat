@@ -20,6 +20,7 @@
 #include "td/telegram/Photo.h"
 #include "td/telegram/Premium.h"
 #include "td/telegram/ServerMessageId.h"
+#include "td/telegram/StarManager.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/ThemeManager.h"
@@ -508,7 +509,8 @@ class GetPaymentFormQuery final : public Td::ResultHandler {
           return on_error(Status::Error(500, "Receive invalid price"));
         }
         auto photo = get_web_document_photo(td_->file_manager_.get(), std::move(payment_form->photo_), dialog_id_);
-        auto type = td_api::make_object<td_api::paymentFormTypeStars>(payment_form->invoice_->prices_[0]->amount_);
+        auto type = td_api::make_object<td_api::paymentFormTypeStars>(
+            StarManager::get_star_count(payment_form->invoice_->prices_[0]->amount_));
         promise_.set_value(td_api::make_object<td_api::paymentForm>(
             payment_form->form_id_, std::move(type),
             td_->user_manager_->get_user_id_object(seller_bot_user_id, "paymentForm seller"),
@@ -663,16 +665,16 @@ class SendStarPaymentFormQuery final : public Td::ResultHandler {
 
     switch (payment_result->get_id()) {
       case telegram_api::payments_paymentResult::ID: {
-        auto result = move_tl_object_as<telegram_api::payments_paymentResult>(payment_result);
+        auto result = telegram_api::move_object_as<telegram_api::payments_paymentResult>(payment_result);
         td_->updates_manager_->on_get_updates(
             std::move(result->updates_), PromiseCreator::lambda([promise = std::move(promise_)](Unit) mutable {
-              promise.set_value(make_tl_object<td_api::paymentResult>(true, string()));
+              promise.set_value(td_api::make_object<td_api::paymentResult>(true, string()));
             }));
         return;
       }
       case telegram_api::payments_paymentVerificationNeeded::ID: {
-        auto result = move_tl_object_as<telegram_api::payments_paymentVerificationNeeded>(payment_result);
-        promise_.set_value(make_tl_object<td_api::paymentResult>(false, std::move(result->url_)));
+        auto result = telegram_api::move_object_as<telegram_api::payments_paymentVerificationNeeded>(payment_result);
+        promise_.set_value(td_api::make_object<td_api::paymentResult>(false, std::move(result->url_)));
         return;
       }
       default:
@@ -729,13 +731,12 @@ class GetPaymentReceiptQuery final : public Td::ResultHandler {
           LOG(ERROR) << "Receive invalid prices " << to_string(payment_receipt->invoice_->prices_);
           return on_error(Status::Error(500, "Receive invalid price"));
         }
-        auto type = td_api::make_object<td_api::paymentFormTypeStars>();
-
         promise_.set_value(make_tl_object<td_api::paymentReceipt>(
             get_product_info_object(td_, payment_receipt->title_, payment_receipt->description_, photo),
             payment_receipt->date_, td_->user_manager_->get_user_id_object(seller_bot_user_id, "paymentReceipt seller"),
-            td_api::make_object<td_api::paymentReceiptTypeStars>(payment_receipt->invoice_->prices_[0]->amount_,
-                                                                 payment_receipt->transaction_id_)));
+            td_api::make_object<td_api::paymentReceiptTypeStars>(
+                StarManager::get_star_count(payment_receipt->invoice_->prices_[0]->amount_),
+                payment_receipt->transaction_id_)));
         break;
       }
       case telegram_api::payments_paymentReceipt::ID: {
@@ -861,34 +862,6 @@ class ExportInvoiceQuery final : public Td::ResultHandler {
 
     auto link = result_ptr.move_as_ok();
     promise_.set_value(std::move(link->url_));
-  }
-
-  void on_error(Status status) final {
-    promise_.set_error(std::move(status));
-  }
-};
-
-class RefundStarsChargeQuery final : public Td::ResultHandler {
-  Promise<Unit> promise_;
-
- public:
-  explicit RefundStarsChargeQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
-  }
-
-  void send(telegram_api::object_ptr<telegram_api::InputUser> &&input_user, const string &telegram_payment_charge_id) {
-    send_query(G()->net_query_creator().create(
-        telegram_api::payments_refundStarsCharge(std::move(input_user), telegram_payment_charge_id)));
-  }
-
-  void on_result(BufferSlice packet) final {
-    auto result_ptr = fetch_result<telegram_api::payments_refundStarsCharge>(packet);
-    if (result_ptr.is_error()) {
-      return on_error(result_ptr.move_as_error());
-    }
-
-    auto ptr = result_ptr.move_as_ok();
-    LOG(DEBUG) << "Receive result for RefundStarsChargeQuery: " << to_string(ptr);
-    td_->updates_manager_->on_get_updates(std::move(ptr), std::move(promise_));
   }
 
   void on_error(Status status) final {
@@ -1156,12 +1129,6 @@ void export_invoice(Td *td, td_api::object_ptr<td_api::InputMessageContent> &&in
   auto input_media = input_invoice.get_input_media_invoice(td, nullptr, nullptr);
   CHECK(input_media != nullptr);
   td->create_handler<ExportInvoiceQuery>(std::move(promise))->send(std::move(input_media));
-}
-
-void refund_star_payment(Td *td, UserId user_id, const string &telegram_payment_charge_id, Promise<Unit> &&promise) {
-  TRY_RESULT_PROMISE(promise, input_user, td->user_manager_->get_input_user(user_id));
-  td->create_handler<RefundStarsChargeQuery>(std::move(promise))
-      ->send(std::move(input_user), telegram_payment_charge_id);
 }
 
 void get_bank_card_info(Td *td, const string &bank_card_number,

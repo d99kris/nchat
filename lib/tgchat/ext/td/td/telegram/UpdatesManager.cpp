@@ -66,6 +66,7 @@
 #include "td/telegram/SecretChatsManager.h"
 #include "td/telegram/ServerMessageId.h"
 #include "td/telegram/SpecialStickerSetType.h"
+#include "td/telegram/StarManager.h"
 #include "td/telegram/StateManager.h"
 #include "td/telegram/StatisticsManager.h"
 #include "td/telegram/StickerListType.h"
@@ -4148,6 +4149,14 @@ void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateInlineBotCallba
   promise.set_value(Unit());
 }
 
+void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateBusinessBotCallbackQuery> update,
+                               Promise<Unit> &&promise) {
+  td_->callback_queries_manager_->on_new_business_query(
+      update->query_id_, UserId(update->user_id_), std::move(update->connection_id_), std::move(update->message_),
+      std::move(update->reply_to_message_), std::move(update->data_), update->chat_instance_);
+  promise.set_value(Unit());
+}
+
 void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateFavedStickers> update, Promise<Unit> &&promise) {
   td_->stickers_manager_->reload_favorite_stickers(true);
   promise.set_value(Unit());
@@ -4561,11 +4570,13 @@ void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateBroadcastRevenu
 }
 
 void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateStarsBalance> update, Promise<Unit> &&promise) {
-  if (update->balance_ < 0) {
-    LOG(ERROR) << "Receive " << update->balance_ << " stars";
-    update->balance_ = 0;
-  }
-  send_closure(G()->td(), &Td::send_update, td_api::make_object<td_api::updateOwnedStarCount>(update->balance_));
+  send_closure(G()->td(), &Td::send_update,
+               td_api::make_object<td_api::updateOwnedStarCount>(StarManager::get_star_count(update->balance_, true)));
+  promise.set_value(Unit());
+}
+
+void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateStarsRevenueStatus> update, Promise<Unit> &&promise) {
+  td_->star_manager_->on_update_stars_revenue_status(std::move(update));
   promise.set_value(Unit());
 }
 

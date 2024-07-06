@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -52,6 +52,11 @@ class QuickReplyManager final : public Actor {
   void reorder_quick_reply_shortcuts(const vector<QuickReplyShortcutId> &shortcut_ids, Promise<Unit> &&promise);
 
   void update_quick_reply_message(telegram_api::object_ptr<telegram_api::Message> &&message_ptr);
+
+  void delete_pending_message_web_page(QuickReplyMessageFullId message_full_id);
+
+  void on_external_update_message_content(QuickReplyMessageFullId message_full_id, const char *source,
+                                          bool expect_no_message = false);
 
   void delete_quick_reply_messages_from_updates(QuickReplyShortcutId shortcut_id, const vector<MessageId> &message_ids);
 
@@ -276,9 +281,13 @@ class QuickReplyManager final : public Actor {
 
   vector<unique_ptr<QuickReplyMessage>>::iterator get_message_it(Shortcut *s, MessageId message_id);
 
-  QuickReplyMessage *get_message(QuickReplyMessageFullId message_full_id);
+  const QuickReplyMessage *get_message(QuickReplyMessageFullId message_full_id) const;
 
-  QuickReplyMessage *get_message(Shortcut *s, MessageId message_id);
+  const QuickReplyMessage *get_message(const Shortcut *s, MessageId message_id) const;
+
+  QuickReplyMessage *get_message_editable(QuickReplyMessageFullId message_full_id);
+
+  QuickReplyMessage *get_message_editable(Shortcut *s, MessageId message_id);
 
   Result<Shortcut *> create_new_local_shortcut(const string &name, int32 new_message_count);
 
@@ -373,7 +382,7 @@ class QuickReplyManager final : public Actor {
 
   void on_upload_media(FileId file_id, telegram_api::object_ptr<telegram_api::InputFile> input_file);
 
-  void do_send_media(QuickReplyMessage *m, FileId file_id, FileId thumbnail_file_id,
+  void do_send_media(const QuickReplyMessage *m, FileId file_id, FileId thumbnail_file_id,
                      telegram_api::object_ptr<telegram_api::InputFile> input_file,
                      telegram_api::object_ptr<telegram_api::InputFile> input_thumbnail);
 
@@ -420,6 +429,10 @@ class QuickReplyManager final : public Actor {
 
   void change_message_files(QuickReplyMessageFullId message_full_id, const QuickReplyMessage *m,
                             const vector<FileId> &old_file_ids);
+
+  void register_message_content(const QuickReplyMessage *m, const char *source) const;
+
+  void unregister_message_content(const QuickReplyMessage *m, const char *source) const;
 
   Shortcuts shortcuts_;
 

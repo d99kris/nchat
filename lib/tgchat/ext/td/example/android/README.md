@@ -19,10 +19,14 @@ If you want to update TDLib to a newer version, you need to run only the script 
 
 You can specify different OpenSSL version as the fourth parameter to the script `./build-openssl.sh`. By default OpenSSL 1.1.1 is used because of much smaller binary footprint and better performance than newer OpenSSL versions.
 
+You can build shared OpenSSL libraries instead of static ones by passing any non-empty string as the fifth parameter to the script `./build-openssl.sh`. This can reduce total application size if you have a lot of other code that uses OpenSSL and want it to use the same shared library.
+
 You can build TDLib against shared standard C++ library by specifying "c++_shared" as the fourth parameter to the script `./build-tdlib.sh`. This can reduce total application size if you have a lot of other C++ code and want it to use the same shared library.
 
-You can build TDLib with [JSON interface](https://github.com/tdlib/td#using-json) instead of [Java](https://github.com/tdlib/td#using-java) interface by passing "JSON" as the fifth parameter to the script `./build-tdlib.sh`.
+You can also build TDLib with [JSON interface](https://github.com/tdlib/td#using-json) instead of [Java](https://github.com/tdlib/td#using-java) interface by passing "JSON" as the fifth parameter to the script `./build-tdlib.sh`.
+
+You can also build TDLib with [JSON interface](https://github.com/tdlib/td#using-json) that can be called from Java by passing "JSONJava" as the fifth parameter to the script `./build-tdlib.sh`.
 
 You can pass an empty string instead of any script parameter to use its default value. For example, you can use the command `./build-tdlib.sh '' '' '' '' 'JSON'` to build TDLib with [JSON interface](https://github.com/tdlib/td#using-json) using default values for other parameters.
 
-Alternatively, you can use Docker to build TDLib for Android. Use `docker build --output tdlib .` to build the latest TDLib commit from Github, or `docker build --build-arg COMMIT_HASH=<commit-hash> --output tdlib .` to build specific commit. The output archives will be placed in the directory "tdlib" as specified. Additionally, you can specify build arguments "TDLIB_INTERFACE", "ANDROID_NDK_VERSION", "OPENSSL_VERSION", and "ANDROID_STL" to the provided Dockerfile. For example, use `docker build --build-arg TDLIB_INTERFACE=JSON --output tdlib .` to build the latest TDLib with JSON interface.
+Alternatively, you can use Docker to build TDLib for Android. Use `docker build --output tdlib .` to build the latest TDLib commit from Github, or `docker build --build-arg COMMIT_HASH=<commit-hash> --output tdlib .` to build specific commit. The output archives will be placed in the directory "tdlib" as specified. Additionally, you can specify build arguments "TDLIB_INTERFACE", "ANDROID_NDK_VERSION", "OPENSSL_VERSION", "BUILD_SHARED_OPENSSL_LIBS", and "ANDROID_STL" to the provided Dockerfile. For example, use `docker build --build-arg TDLIB_INTERFACE=JSON --output tdlib .` to build the latest TDLib with JSON interface.

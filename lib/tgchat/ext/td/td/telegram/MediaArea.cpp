@@ -14,6 +14,7 @@
 #include "td/telegram/InlineQueriesManager.h"
 #include "td/telegram/MessageId.h"
 #include "td/telegram/MessagesManager.h"
+#include "td/telegram/misc.h"
 #include "td/telegram/ServerMessageId.h"
 #include "td/telegram/Td.h"
 
@@ -28,6 +29,12 @@ MediaArea::MediaArea(Td *td, telegram_api::object_ptr<telegram_api::MediaArea> &
       auto area = telegram_api::move_object_as<telegram_api::mediaAreaGeoPoint>(media_area_ptr);
       coordinates_ = MediaAreaCoordinates(area->coordinates_);
       location_ = Location(td, area->geo_);
+      if (area->address_ != nullptr) {
+        address_.country_iso2_ = area->address_->country_iso2_;
+        address_.state_ = area->address_->state_;
+        address_.city_ = area->address_->city_;
+        address_.street_ = area->address_->street_;
+      }
       if (coordinates_.is_valid() && !location_.empty()) {
         type_ = Type::Location;
       } else {
@@ -73,6 +80,17 @@ MediaArea::MediaArea(Td *td, telegram_api::object_ptr<telegram_api::MediaArea> &
       }
       break;
     }
+    case telegram_api::mediaAreaUrl::ID: {
+      auto area = telegram_api::move_object_as<telegram_api::mediaAreaUrl>(media_area_ptr);
+      coordinates_ = MediaAreaCoordinates(area->coordinates_);
+      if (coordinates_.is_valid()) {
+        type_ = Type::Url;
+        url_ = std::move(area->url_);
+      } else {
+        LOG(ERROR) << "Receive " << to_string(area);
+      }
+      break;
+    }
     case telegram_api::inputMediaAreaVenue::ID:
       LOG(ERROR) << "Receive " << to_string(media_area_ptr);
       break;
@@ -97,6 +115,16 @@ MediaArea::MediaArea(Td *td, td_api::object_ptr<td_api::inputStoryArea> &&input_
     case td_api::inputStoryAreaTypeLocation::ID: {
       auto type = td_api::move_object_as<td_api::inputStoryAreaTypeLocation>(input_story_area->type_);
       location_ = Location(type->location_);
+      if (type->address_ != nullptr) {
+        address_.country_iso2_ = std::move(type->address_->country_code_);
+        address_.state_ = std::move(type->address_->state_);
+        address_.city_ = std::move(type->address_->city_);
+        address_.street_ = std::move(type->address_->street_);
+        if (!clean_input_string(address_.country_iso2_) || !clean_input_string(address_.state_) ||
+            !clean_input_string(address_.city_) || !clean_input_string(address_.street_)) {
+          break;
+        }
+      }
       if (!location_.empty()) {
         type_ = Type::Location;
       }
@@ -167,6 +195,15 @@ MediaArea::MediaArea(Td *td, td_api::object_ptr<td_api::inputStoryArea> &&input_
       }
       break;
     }
+    case td_api::inputStoryAreaTypeLink::ID: {
+      auto type = td_api::move_object_as<td_api::inputStoryAreaTypeLink>(input_story_area->type_);
+      if (!clean_input_string(type->url_)) {
+        break;
+      }
+      url_ = std::move(type->url_);
+      type_ = Type::Url;
+      break;
+    }
     default:
       UNREACHABLE();
   }
@@ -182,7 +219,11 @@ td_api::object_ptr<td_api::storyArea> MediaArea::get_story_area_object(
   td_api::object_ptr<td_api::StoryAreaType> type;
   switch (type_) {
     case Type::Location:
-      type = td_api::make_object<td_api::storyAreaTypeLocation>(location_.get_location_object());
+      type = td_api::make_object<td_api::storyAreaTypeLocation>(
+          location_.get_location_object(),
+          address_.is_empty() ? nullptr
+                              : td_api::make_object<td_api::locationAddress>(address_.country_iso2_, address_.state_,
+                                                                             address_.city_, address_.street_));
       break;
     case Type::Venue:
       type = td_api::make_object<td_api::storyAreaTypeVenue>(venue_.get_venue_object());
@@ -203,6 +244,9 @@ td_api::object_ptr<td_api::storyArea> MediaArea::get_story_area_object(
           td->dialog_manager_->get_chat_id_object(message_full_id_.get_dialog_id(), "storyAreaTypeMessage"),
           message_full_id_.get_message_id().get());
       break;
+    case Type::Url:
+      type = td_api::make_object<td_api::storyAreaTypeLink>(url_);
+      break;
     default:
       UNREACHABLE();
   }
@@ -212,9 +256,28 @@ td_api::object_ptr<td_api::storyArea> MediaArea::get_story_area_object(
 telegram_api::object_ptr<telegram_api::MediaArea> MediaArea::get_input_media_area(const Td *td) const {
   CHECK(is_valid());
   switch (type_) {
-    case Type::Location:
-      return telegram_api::make_object<telegram_api::mediaAreaGeoPoint>(coordinates_.get_input_media_area_coordinates(),
-                                                                        location_.get_fake_geo_point());
+    case Type::Location: {
+      int32 flags = 0;
+      telegram_api::object_ptr<telegram_api::geoPointAddress> address;
+      if (!address_.is_empty()) {
+        int32 address_flags = 0;
+        if (!address_.state_.empty()) {
+          address_flags |= telegram_api::geoPointAddress::STATE_MASK;
+        }
+        if (!address_.city_.empty()) {
+          address_flags |= telegram_api::geoPointAddress::CITY_MASK;
+        }
+        if (!address_.street_.empty()) {
+          address_flags |= telegram_api::geoPointAddress::STREET_MASK;
+        }
+        address = telegram_api::make_object<telegram_api::geoPointAddress>(
+            address_flags, address_.country_iso2_, address_.state_, address_.city_, address_.street_);
+        flags |= telegram_api::mediaAreaGeoPoint::ADDRESS_MASK;
+      }
+
+      return telegram_api::make_object<telegram_api::mediaAreaGeoPoint>(
+          flags, coordinates_.get_input_media_area_coordinates(), location_.get_fake_geo_point(), std::move(address));
+    }
     case Type::Venue:
       if (input_query_id_ != 0) {
         return telegram_api::make_object<telegram_api::inputMediaAreaVenue>(
@@ -233,20 +296,23 @@ telegram_api::object_ptr<telegram_api::MediaArea> MediaArea::get_input_media_are
           flags, false /*ignored*/, false /*ignored*/, coordinates_.get_input_media_area_coordinates(),
           reaction_type_.get_input_reaction());
     }
-    case Type::Message:
+    case Type::Message: {
+      auto channel_id = message_full_id_.get_dialog_id().get_channel_id();
+      auto server_message_id = message_full_id_.get_message_id().get_server_message_id();
       if (!is_old_message_) {
-        auto input_channel = td->chat_manager_->get_input_channel(message_full_id_.get_dialog_id().get_channel_id());
+        auto input_channel = td->chat_manager_->get_input_channel(channel_id);
         if (input_channel == nullptr) {
           return nullptr;
         }
         return telegram_api::make_object<telegram_api::inputMediaAreaChannelPost>(
-            coordinates_.get_input_media_area_coordinates(), std::move(input_channel),
-            message_full_id_.get_message_id().get_server_message_id().get());
+            coordinates_.get_input_media_area_coordinates(), std::move(input_channel), server_message_id.get());
       }
       return telegram_api::make_object<telegram_api::mediaAreaChannelPost>(
-          coordinates_.get_input_media_area_coordinates(),
-          message_full_id_.get_message_id().get_server_message_id().get(),
-          message_full_id_.get_message_id().get_server_message_id().get());
+          coordinates_.get_input_media_area_coordinates(), channel_id.get(), server_message_id.get());
+    }
+    case Type::Url:
+      return telegram_api::make_object<telegram_api::mediaAreaUrl>(coordinates_.get_input_media_area_coordinates(),
+                                                                   url_);
     default:
       UNREACHABLE();
       return nullptr;

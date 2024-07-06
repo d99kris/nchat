@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2023
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -9,6 +9,8 @@
 #include "td/telegram/BusinessConnectionId.h"
 #include "td/telegram/DialogId.h"
 #include "td/telegram/files/FileId.h"
+#include "td/telegram/MessageEffectId.h"
+#include "td/telegram/MessageId.h"
 #include "td/telegram/MessageInputReplyTo.h"
 #include "td/telegram/net/DcId.h"
 #include "td/telegram/td_api.h"
@@ -61,15 +63,45 @@ class BusinessConnectionManager final : public Actor {
 
   void send_message(BusinessConnectionId business_connection_id, DialogId dialog_id,
                     td_api::object_ptr<td_api::InputMessageReplyTo> &&reply_to, bool disable_notification,
-                    bool protect_content, int64 effect_id, td_api::object_ptr<td_api::ReplyMarkup> &&reply_markup,
+                    bool protect_content, MessageEffectId effect_id,
+                    td_api::object_ptr<td_api::ReplyMarkup> &&reply_markup,
                     td_api::object_ptr<td_api::InputMessageContent> &&input_message_content,
                     Promise<td_api::object_ptr<td_api::businessMessage>> &&promise);
 
   void send_message_album(BusinessConnectionId business_connection_id, DialogId dialog_id,
                           td_api::object_ptr<td_api::InputMessageReplyTo> &&reply_to, bool disable_notification,
-                          bool protect_content, int64 effect_id,
+                          bool protect_content, MessageEffectId effect_id,
                           vector<td_api::object_ptr<td_api::InputMessageContent>> &&input_message_contents,
                           Promise<td_api::object_ptr<td_api::businessMessages>> &&promise);
+
+  void edit_business_message_text(BusinessConnectionId business_connection_id, DialogId dialog_id, MessageId message_id,
+                                  td_api::object_ptr<td_api::ReplyMarkup> &&reply_markup,
+                                  td_api::object_ptr<td_api::InputMessageContent> &&input_message_content,
+                                  Promise<td_api::object_ptr<td_api::businessMessage>> &&promise);
+
+  void edit_business_message_live_location(BusinessConnectionId business_connection_id, DialogId dialog_id,
+                                           MessageId message_id, td_api::object_ptr<td_api::ReplyMarkup> &&reply_markup,
+                                           td_api::object_ptr<td_api::location> &&input_location, int32 live_period,
+                                           int32 heading, int32 proximity_alert_radius,
+                                           Promise<td_api::object_ptr<td_api::businessMessage>> &&promise);
+
+  void edit_business_message_media(BusinessConnectionId business_connection_id, DialogId dialog_id,
+                                   MessageId message_id, td_api::object_ptr<td_api::ReplyMarkup> &&reply_markup,
+                                   td_api::object_ptr<td_api::InputMessageContent> &&input_message_content,
+                                   Promise<td_api::object_ptr<td_api::businessMessage>> &&promise);
+
+  void edit_business_message_caption(BusinessConnectionId business_connection_id, DialogId dialog_id,
+                                     MessageId message_id, td_api::object_ptr<td_api::ReplyMarkup> &&reply_markup,
+                                     td_api::object_ptr<td_api::formattedText> &&input_caption, bool invert_media,
+                                     Promise<td_api::object_ptr<td_api::businessMessage>> &&promise);
+
+  void edit_business_message_reply_markup(BusinessConnectionId business_connection_id, DialogId dialog_id,
+                                          MessageId message_id, td_api::object_ptr<td_api::ReplyMarkup> &&reply_markup,
+                                          Promise<td_api::object_ptr<td_api::businessMessage>> &&promise);
+
+  void stop_poll(BusinessConnectionId business_connection_id, DialogId dialog_id, MessageId message_id,
+                 td_api::object_ptr<td_api::ReplyMarkup> &&reply_markup,
+                 Promise<td_api::object_ptr<td_api::businessMessage>> &&promise);
 
   void get_current_state(vector<td_api::object_ptr<td_api::Update>> &updates) const;
 
@@ -82,6 +114,8 @@ class BusinessConnectionManager final : public Actor {
   class UploadBusinessMediaQuery;
   class UploadMediaCallback;
   class UploadThumbnailCallback;
+  class EditBusinessMessageQuery;
+  class StopBusinessPollQuery;
 
   struct UploadMediaResult {
     unique_ptr<PendingMessage> message_;
@@ -102,6 +136,8 @@ class BusinessConnectionManager final : public Actor {
 
   void tear_down() final;
 
+  Status check_business_message_id(MessageId message_id) const;
+
   void on_get_business_connection(const BusinessConnectionId &connection_id,
                                   Result<telegram_api::object_ptr<telegram_api::Updates>> r_updates);
 
@@ -114,7 +150,8 @@ class BusinessConnectionManager final : public Actor {
   unique_ptr<PendingMessage> create_business_message_to_send(BusinessConnectionId business_connection_id,
                                                              DialogId dialog_id, MessageInputReplyTo &&input_reply_to,
                                                              bool disable_notification, bool protect_content,
-                                                             int64 effect_id, unique_ptr<ReplyMarkup> &&reply_markup,
+                                                             MessageEffectId effect_id,
+                                                             unique_ptr<ReplyMarkup> &&reply_markup,
                                                              InputMessageContent &&input_content) const;
 
   void do_send_message(unique_ptr<PendingMessage> &&message,
@@ -154,6 +191,9 @@ class BusinessConnectionManager final : public Actor {
 
   void process_sent_business_message_album(telegram_api::object_ptr<telegram_api::Updates> &&updates_ptr,
                                            Promise<td_api::object_ptr<td_api::businessMessages>> &&promise);
+
+  void do_edit_business_message_media(Result<UploadMediaResult> &&result,
+                                      Promise<td_api::object_ptr<td_api::businessMessage>> &&promise);
 
   td_api::object_ptr<td_api::updateBusinessConnection> get_update_business_connection(
       const BusinessConnection *connection) const;

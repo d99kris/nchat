@@ -15,6 +15,7 @@
 #include "td/telegram/FileReferenceManager.h"
 #include "td/telegram/files/FileManager.h"
 #include "td/telegram/Global.h"
+#include "td/telegram/HashtagHints.h"
 #include "td/telegram/logevent/LogEvent.h"
 #include "td/telegram/logevent/LogEventHelper.h"
 #include "td/telegram/MediaArea.hpp"
@@ -24,6 +25,7 @@
 #include "td/telegram/NotificationId.h"
 #include "td/telegram/NotificationManager.h"
 #include "td/telegram/OptionManager.h"
+#include "td/telegram/QuickReplyManager.h"
 #include "td/telegram/ReactionManager.h"
 #include "td/telegram/ReactionType.hpp"
 #include "td/telegram/ReportReason.h"
@@ -699,6 +701,95 @@ class DeleteStoriesQuery final : public Td::ResultHandler {
 
   void on_error(Status status) final {
     td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "DeleteStoriesQuery");
+    promise_.set_error(std::move(status));
+  }
+};
+
+class SearchStoriesQuery final : public Td::ResultHandler {
+  Promise<td_api::object_ptr<td_api::foundStories>> promise_;
+
+ public:
+  explicit SearchStoriesQuery(Promise<td_api::object_ptr<td_api::foundStories>> &&promise)
+      : promise_(std::move(promise)) {
+  }
+
+  void send(string hashtag, const string &offset, int32 limit) {
+    int32 flags = telegram_api::stories_searchPosts::HASHTAG_MASK;
+    send_query(
+        G()->net_query_creator().create(telegram_api::stories_searchPosts(flags, hashtag, nullptr, offset, limit)));
+  }
+
+  void send(td_api::object_ptr<td_api::locationAddress> &&address, const string &offset, int32 limit) {
+    int32 flags = telegram_api::stories_searchPosts::AREA_MASK;
+
+    int32 address_flags = 0;
+    if (!address->state_.empty()) {
+      address_flags |= telegram_api::geoPointAddress::STATE_MASK;
+    }
+    if (!address->city_.empty()) {
+      address_flags |= telegram_api::geoPointAddress::CITY_MASK;
+    }
+    if (!address->street_.empty()) {
+      address_flags |= telegram_api::geoPointAddress::STREET_MASK;
+    }
+
+    auto area = telegram_api::make_object<telegram_api::mediaAreaGeoPoint>(
+        telegram_api::mediaAreaGeoPoint::ADDRESS_MASK,
+        telegram_api::make_object<telegram_api::mediaAreaCoordinates>(0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+        telegram_api::make_object<telegram_api::geoPoint>(0, 0.0, 0.0, 0, 0),
+        telegram_api::make_object<telegram_api::geoPointAddress>(address_flags, address->country_code_, address->state_,
+                                                                 address->city_, address->street_));
+    send_query(G()->net_query_creator().create(
+        telegram_api::stories_searchPosts(flags, string(), std::move(area), offset, limit)));
+  }
+
+  void send(const string &venue_provider, const string &venue_id, const string &offset, int32 limit) {
+    int32 flags = telegram_api::stories_searchPosts::AREA_MASK;
+    auto area = telegram_api::make_object<telegram_api::mediaAreaVenue>(
+        telegram_api::make_object<telegram_api::mediaAreaCoordinates>(0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+        telegram_api::make_object<telegram_api::geoPoint>(0, 0.0, 0.0, 0, 0), string(), string(), venue_provider,
+        venue_id, string());
+    send_query(G()->net_query_creator().create(
+        telegram_api::stories_searchPosts(flags, string(), std::move(area), offset, limit)));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::stories_searchPosts>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    auto ptr = result_ptr.move_as_ok();
+    LOG(DEBUG) << "Receive result for SearchStoriesQuery: " << to_string(ptr);
+    td_->user_manager_->on_get_users(std::move(ptr->users_), "SearchStoriesQuery");
+    td_->chat_manager_->on_get_chats(std::move(ptr->chats_), "SearchStoriesQuery");
+
+    auto total_count = ptr->count_;
+    if (total_count < static_cast<int32>(ptr->stories_.size())) {
+      LOG(ERROR) << "Receive total count = " << total_count << " and " << ptr->stories_.size() << " stories";
+      total_count = static_cast<int32>(ptr->stories_.size());
+    }
+    vector<td_api::object_ptr<td_api::story>> stories;
+    for (auto &found_story : ptr->stories_) {
+      DialogId owner_dialog_id(found_story->peer_);
+      auto story_id = td_->story_manager_->on_get_story(owner_dialog_id, std::move(found_story->story_));
+      if (story_id.is_valid()) {
+        auto story_object = td_->story_manager_->get_story_object({owner_dialog_id, story_id});
+        if (story_object == nullptr) {
+          LOG(ERROR) << "Receive deleted " << story_id << " from " << owner_dialog_id;
+        } else {
+          stories.push_back(std::move(story_object));
+        }
+      }
+    }
+
+    promise_.set_value(td_api::make_object<td_api::foundStories>(total_count, std::move(stories), ptr->next_offset_));
+  }
+
+  void on_error(Status status) final {
+    if (status.message() == "SEARCH_QUERY_EMPTY") {
+      return promise_.set_value(td_api::make_object<td_api::foundStories>());
+    }
     promise_.set_error(std::move(status));
   }
 };
@@ -1439,10 +1530,11 @@ StoryManager::StoryManager(Td *td, ActorShared<> parent) : td_(td), parent_(std:
 }
 
 StoryManager::~StoryManager() {
-  Scheduler::instance()->destroy_on_scheduler(
-      G()->get_gc_scheduler_id(), story_full_id_to_file_source_id_, stories_, stories_by_global_id_,
-      inaccessible_story_full_ids_, deleted_story_full_ids_, failed_to_load_story_full_ids_, story_messages_,
-      active_stories_, updated_active_stories_, max_read_story_ids_, failed_to_load_active_stories_);
+  Scheduler::instance()->destroy_on_scheduler(G()->get_gc_scheduler_id(), story_full_id_to_file_source_id_, stories_,
+                                              stories_by_global_id_, inaccessible_story_full_ids_,
+                                              deleted_story_full_ids_, failed_to_load_story_full_ids_, story_messages_,
+                                              story_quick_reply_messages_, active_stories_, updated_active_stories_,
+                                              max_read_story_ids_, failed_to_load_active_stories_);
 }
 
 void StoryManager::start_up() {
@@ -2539,6 +2631,54 @@ void StoryManager::on_get_dialog_expiring_stories(DialogId owner_dialog_id,
   }
 }
 
+void StoryManager::search_hashtag_posts(string hashtag, string offset, int32 limit,
+                                        Promise<td_api::object_ptr<td_api::foundStories>> &&promise) {
+  if (limit <= 0) {
+    return promise.set_error(Status::Error(400, "Parameter limit must be positive"));
+  }
+  if (limit > MAX_SEARCH_STORIES) {
+    limit = MAX_SEARCH_STORIES;
+  }
+
+  bool is_cashtag = false;
+  if (hashtag[0] == '#' || hashtag[0] == '$') {
+    is_cashtag = (hashtag[0] == '$');
+    hashtag = hashtag.substr(1);
+  }
+  if (hashtag.empty()) {
+    return promise.set_value(td_api::make_object<td_api::foundStories>());
+  }
+  send_closure(is_cashtag ? td_->cashtag_search_hints_ : td_->hashtag_search_hints_, &HashtagHints::hashtag_used,
+               hashtag);
+
+  td_->create_handler<SearchStoriesQuery>(std::move(promise))
+      ->send(PSTRING() << (is_cashtag ? '$' : '#') << hashtag, offset, limit);
+}
+
+void StoryManager::search_location_posts(td_api::object_ptr<td_api::locationAddress> &&address, string offset,
+                                         int32 limit, Promise<td_api::object_ptr<td_api::foundStories>> &&promise) {
+  if (limit <= 0) {
+    return promise.set_error(Status::Error(400, "Parameter limit must be positive"));
+  }
+  if (limit > MAX_SEARCH_STORIES) {
+    limit = MAX_SEARCH_STORIES;
+  }
+
+  td_->create_handler<SearchStoriesQuery>(std::move(promise))->send(std::move(address), offset, limit);
+}
+
+void StoryManager::search_venue_posts(string venue_provider, string venue_id, string offset, int32 limit,
+                                      Promise<td_api::object_ptr<td_api::foundStories>> &&promise) {
+  if (limit <= 0) {
+    return promise.set_error(Status::Error(400, "Parameter limit must be positive"));
+  }
+  if (limit > MAX_SEARCH_STORIES) {
+    limit = MAX_SEARCH_STORIES;
+  }
+
+  td_->create_handler<SearchStoriesQuery>(std::move(promise))->send(venue_provider, venue_id, offset, limit);
+}
+
 void StoryManager::set_pinned_stories(DialogId owner_dialog_id, vector<StoryId> story_ids, Promise<Unit> &&promise) {
   TRY_STATUS_PROMISE(promise, td_->dialog_manager_->check_dialog_access(owner_dialog_id, false, AccessRights::Write,
                                                                         "set_pinned_stories"));
@@ -3157,27 +3297,45 @@ int32 StoryManager::get_story_duration(StoryFullId story_full_id) const {
   return get_story_content_duration(td_, content);
 }
 
-void StoryManager::register_story(StoryFullId story_full_id, MessageFullId message_full_id, const char *source) {
+void StoryManager::register_story(StoryFullId story_full_id, MessageFullId message_full_id,
+                                  QuickReplyMessageFullId quick_reply_message_full_id, const char *source) {
   if (td_->auth_manager_->is_bot()) {
     return;
   }
   CHECK(story_full_id.is_server());
 
-  LOG(INFO) << "Register " << story_full_id << " from " << message_full_id << " from " << source;
-  story_messages_[story_full_id].insert(message_full_id);
+  LOG(INFO) << "Register " << story_full_id << " from " << message_full_id << '/' << quick_reply_message_full_id
+            << " from " << source;
+  if (quick_reply_message_full_id.is_valid()) {
+    story_quick_reply_messages_[story_full_id].insert(quick_reply_message_full_id);
+  } else {
+    CHECK(message_full_id.get_dialog_id().is_valid());
+    story_messages_[story_full_id].insert(message_full_id);
+  }
 }
 
-void StoryManager::unregister_story(StoryFullId story_full_id, MessageFullId message_full_id, const char *source) {
+void StoryManager::unregister_story(StoryFullId story_full_id, MessageFullId message_full_id,
+                                    QuickReplyMessageFullId quick_reply_message_full_id, const char *source) {
   if (td_->auth_manager_->is_bot()) {
     return;
   }
   CHECK(story_full_id.is_server());
-  LOG(INFO) << "Unregister " << story_full_id << " from " << message_full_id << " from " << source;
-  auto &message_ids = story_messages_[story_full_id];
-  auto is_deleted = message_ids.erase(message_full_id) > 0;
-  LOG_CHECK(is_deleted) << source << ' ' << story_full_id << ' ' << message_full_id;
-  if (message_ids.empty()) {
-    story_messages_.erase(story_full_id);
+  LOG(INFO) << "Unregister " << story_full_id << " from " << message_full_id << '/' << quick_reply_message_full_id
+            << " from " << source;
+  if (quick_reply_message_full_id.is_valid()) {
+    auto &message_ids = story_quick_reply_messages_[story_full_id];
+    auto is_deleted = message_ids.erase(quick_reply_message_full_id) > 0;
+    LOG_CHECK(is_deleted) << source << ' ' << story_full_id << ' ' << quick_reply_message_full_id;
+    if (message_ids.empty()) {
+      story_quick_reply_messages_.erase(story_full_id);
+    }
+  } else {
+    auto &message_ids = story_messages_[story_full_id];
+    auto is_deleted = message_ids.erase(message_full_id) > 0;
+    LOG_CHECK(is_deleted) << source << ' ' << story_full_id << ' ' << message_full_id;
+    if (message_ids.empty()) {
+      story_messages_.erase(story_full_id);
+    }
   }
 }
 
@@ -3810,7 +3968,20 @@ void StoryManager::on_story_changed(StoryFullId story_full_id, const Story *stor
       CHECK(!message_full_ids.empty());
       for (const auto &message_full_id : message_full_ids) {
         send_closure_later(G()->messages_manager(), &MessagesManager::on_external_update_message_content,
-                           message_full_id, "on_story_changed");
+                           message_full_id, "on_story_changed", true);
+      }
+    }
+
+    if (story_quick_reply_messages_.count(story_full_id) != 0) {
+      vector<QuickReplyMessageFullId> message_full_ids;
+      story_quick_reply_messages_[story_full_id].foreach(
+          [&message_full_ids](const QuickReplyMessageFullId &message_full_id) {
+            message_full_ids.push_back(message_full_id);
+          });
+      CHECK(!message_full_ids.empty());
+      for (const auto &message_full_id : message_full_ids) {
+        send_closure_later(G()->quick_reply_manager(), &QuickReplyManager::on_external_update_message_content,
+                           message_full_id, "on_story_changed", true);
       }
     }
   }

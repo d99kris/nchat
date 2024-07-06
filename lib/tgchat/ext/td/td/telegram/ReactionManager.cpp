@@ -874,31 +874,32 @@ void ReactionManager::on_get_available_reactions(
     reaction.title_ = std::move(available_reaction->title_);
     reaction.static_icon_ =
         td_->stickers_manager_
-            ->on_get_sticker_document(std::move(available_reaction->static_icon_), StickerFormat::Webp)
+            ->on_get_sticker_document(std::move(available_reaction->static_icon_), StickerFormat::Webp, "static_icon")
             .second;
-    reaction.appear_animation_ =
-        td_->stickers_manager_
-            ->on_get_sticker_document(std::move(available_reaction->appear_animation_), StickerFormat::Tgs)
-            .second;
-    reaction.select_animation_ =
-        td_->stickers_manager_
-            ->on_get_sticker_document(std::move(available_reaction->select_animation_), StickerFormat::Tgs)
-            .second;
-    reaction.activate_animation_ =
-        td_->stickers_manager_
-            ->on_get_sticker_document(std::move(available_reaction->activate_animation_), StickerFormat::Tgs)
-            .second;
-    reaction.effect_animation_ =
-        td_->stickers_manager_
-            ->on_get_sticker_document(std::move(available_reaction->effect_animation_), StickerFormat::Tgs)
-            .second;
-    reaction.around_animation_ =
-        td_->stickers_manager_
-            ->on_get_sticker_document(std::move(available_reaction->around_animation_), StickerFormat::Tgs)
-            .second;
-    reaction.center_animation_ =
-        td_->stickers_manager_->on_get_sticker_document(std::move(available_reaction->center_icon_), StickerFormat::Tgs)
-            .second;
+    reaction.appear_animation_ = td_->stickers_manager_
+                                     ->on_get_sticker_document(std::move(available_reaction->appear_animation_),
+                                                               StickerFormat::Tgs, "appear_animation")
+                                     .second;
+    reaction.select_animation_ = td_->stickers_manager_
+                                     ->on_get_sticker_document(std::move(available_reaction->select_animation_),
+                                                               StickerFormat::Tgs, "select_animation")
+                                     .second;
+    reaction.activate_animation_ = td_->stickers_manager_
+                                       ->on_get_sticker_document(std::move(available_reaction->activate_animation_),
+                                                                 StickerFormat::Tgs, "activate_animation")
+                                       .second;
+    reaction.effect_animation_ = td_->stickers_manager_
+                                     ->on_get_sticker_document(std::move(available_reaction->effect_animation_),
+                                                               StickerFormat::Tgs, "effect_animation")
+                                     .second;
+    reaction.around_animation_ = td_->stickers_manager_
+                                     ->on_get_sticker_document(std::move(available_reaction->around_animation_),
+                                                               StickerFormat::Tgs, "around_animation")
+                                     .second;
+    reaction.center_animation_ = td_->stickers_manager_
+                                     ->on_get_sticker_document(std::move(available_reaction->center_icon_),
+                                                               StickerFormat::Tgs, "center_animation")
+                                     .second;
 
     if (!reaction.is_valid()) {
       LOG(ERROR) << "Receive invalid " << reaction.reaction_type_;
@@ -1210,12 +1211,12 @@ td_api::object_ptr<td_api::messageEffect> ReactionManager::get_message_effect_ob
         td_->stickers_manager_->get_sticker_object(effect.effect_sticker_id_),
         td_->stickers_manager_->get_sticker_object(effect.effect_animation_id_));
   }();
-  return td_api::make_object<td_api::messageEffect>(effect.id_,
+  return td_api::make_object<td_api::messageEffect>(effect.id_.get(),
                                                     td_->stickers_manager_->get_sticker_object(effect.static_icon_id_),
                                                     effect.emoji_, effect.is_premium_, std::move(type));
 }
 
-td_api::object_ptr<td_api::messageEffect> ReactionManager::get_message_effect_object(int64 effect_id) const {
+td_api::object_ptr<td_api::messageEffect> ReactionManager::get_message_effect_object(MessageEffectId effect_id) const {
   for (auto &effect : message_effects_.effects_) {
     if (effect.id_ == effect_id) {
       return get_message_effect_object(effect);
@@ -1226,9 +1227,12 @@ td_api::object_ptr<td_api::messageEffect> ReactionManager::get_message_effect_ob
 
 td_api::object_ptr<td_api::updateAvailableMessageEffects> ReactionManager::get_update_available_message_effects_object()
     const {
+  auto get_raw_effect_ids = [](const vector<MessageEffectId> &message_effect_ids) {
+    return transform(message_effect_ids, [](MessageEffectId effect_id) { return effect_id.get(); });
+  };
   return td_api::make_object<td_api::updateAvailableMessageEffects>(
-      vector<int64>(active_message_effects_.reaction_effects_),
-      vector<int64>(active_message_effects_.sticker_effects_));
+      get_raw_effect_ids(active_message_effects_.reaction_effects_),
+      get_raw_effect_ids(active_message_effects_.sticker_effects_));
 }
 
 void ReactionManager::reload_message_effects() {
@@ -1310,7 +1314,8 @@ void ReactionManager::on_get_message_effects(
       auto effects = telegram_api::move_object_as<telegram_api::messages_availableEffects>(message_effects);
       FlatHashMap<int64, FileId> stickers;
       for (auto &document : effects->documents_) {
-        auto sticker = td_->stickers_manager_->on_get_sticker_document(std::move(document), StickerFormat::Unknown);
+        auto sticker = td_->stickers_manager_->on_get_sticker_document(std::move(document), StickerFormat::Unknown,
+                                                                       "on_get_message_effects");
         if (sticker.first != 0 && sticker.second.is_valid()) {
           stickers.emplace(sticker.first, sticker.second);
         } else {
@@ -1322,7 +1327,7 @@ void ReactionManager::on_get_message_effects(
       bool have_invalid_order = false;
       for (const auto &available_effect : effects->effects_) {
         Effect effect;
-        effect.id_ = available_effect->id_;
+        effect.id_ = MessageEffectId(available_effect->id_);
         effect.emoji_ = std::move(available_effect->emoticon_);
         effect.is_premium_ = available_effect->premium_required_;
         if (available_effect->static_icon_id_ != 0) {
@@ -1439,7 +1444,7 @@ void ReactionManager::update_active_message_effects() {
   send_closure(G()->td(), &Td::send_update, get_update_available_message_effects_object());
 }
 
-void ReactionManager::get_message_effect(int64 effect_id,
+void ReactionManager::get_message_effect(MessageEffectId effect_id,
                                          Promise<td_api::object_ptr<td_api::messageEffect>> &&promise) {
   load_message_effects();
   if (message_effects_.effects_.empty() && message_effects_.are_being_reloaded_) {

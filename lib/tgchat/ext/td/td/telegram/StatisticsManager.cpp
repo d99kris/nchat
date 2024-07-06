@@ -325,7 +325,7 @@ class GetBroadcastRevenueStatsQuery final : public Td::ResultHandler {
   }
 
   void on_error(Status status) final {
-    td_->chat_manager_->on_get_channel_error(channel_id_, status, "GetBroadcastStatsQuery");
+    td_->chat_manager_->on_get_channel_error(channel_id_, status, "GetBroadcastRevenueStatsQuery");
     promise_.set_error(std::move(status));
   }
 };
@@ -415,18 +415,18 @@ class GetBroadcastRevenueTransactionsQuery final : public Td::ResultHandler {
             auto transaction =
                 telegram_api::move_object_as<telegram_api::broadcastRevenueTransactionWithdrawal>(transaction_ptr);
             amount = get_amount(transaction->amount_, true);
-            auto state = [&]() -> td_api::object_ptr<td_api::ChatRevenueWithdrawalState> {
+            auto state = [&]() -> td_api::object_ptr<td_api::RevenueWithdrawalState> {
               if (transaction->transaction_date_ > 0) {
-                return td_api::make_object<td_api::chatRevenueWithdrawalStateCompleted>(transaction->transaction_date_,
-                                                                                        transaction->transaction_url_);
+                return td_api::make_object<td_api::revenueWithdrawalStateSucceeded>(transaction->transaction_date_,
+                                                                                    transaction->transaction_url_);
               }
               if (transaction->pending_) {
-                return td_api::make_object<td_api::chatRevenueWithdrawalStatePending>();
+                return td_api::make_object<td_api::revenueWithdrawalStatePending>();
               }
               if (!transaction->failed_) {
                 LOG(ERROR) << "Transaction has unknown state";
               }
-              return td_api::make_object<td_api::chatRevenueWithdrawalStateFailed>();
+              return td_api::make_object<td_api::revenueWithdrawalStateFailed>();
             }();
             return td_api::make_object<td_api::chatRevenueTransactionTypeWithdrawal>(
                 transaction->date_, transaction->provider_, std::move(state));
@@ -997,6 +997,11 @@ void StatisticsManager::get_channel_differences_if_needed(
         }
       }),
       source);
+}
+
+td_api::object_ptr<td_api::StatisticalGraph> StatisticsManager::convert_stats_graph(
+    telegram_api::object_ptr<telegram_api::StatsGraph> obj) {
+  return ::td::convert_stats_graph(std::move(obj));
 }
 
 }  // namespace td

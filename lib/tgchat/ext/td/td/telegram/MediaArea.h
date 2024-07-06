@@ -25,15 +25,34 @@ class Dependencies;
 class Td;
 
 class MediaArea {
-  enum class Type : int32 { None, Location, Venue, Reaction, Message };
+  struct GeoPointAddress {
+    string country_iso2_;
+    string state_;
+    string city_;
+    string street_;
+
+    bool is_empty() const {
+      return country_iso2_.empty();
+    }
+
+    template <class StorerT>
+    void store(StorerT &storer) const;
+
+    template <class ParserT>
+    void parse(ParserT &parser);
+  };
+
+  enum class Type : int32 { None, Location, Venue, Reaction, Message, Url };
   Type type_ = Type::None;
   MediaAreaCoordinates coordinates_;
   Location location_;
+  GeoPointAddress address_;
   Venue venue_;
   MessageFullId message_full_id_;
   int64 input_query_id_ = 0;
   string input_result_id_;
   ReactionType reaction_type_;
+  string url_;
   bool is_dark_ = false;
   bool is_flipped_ = false;
   bool is_old_message_ = false;

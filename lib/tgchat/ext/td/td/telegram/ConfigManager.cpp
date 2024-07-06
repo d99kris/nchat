@@ -2002,8 +2002,15 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
         continue;
       }
       if (key == "factcheck_length_limit") {
-        G()->set_option_integer("fact_check_length_max",
-                                get_json_value_int(std::move(key_value->value_), key));
+        G()->set_option_integer("fact_check_length_max", get_json_value_int(std::move(key_value->value_), key));
+        continue;
+      }
+      if (key == "stars_revenue_withdrawal_min") {
+        G()->set_option_integer("star_withdrawal_count_min", get_json_value_int(std::move(key_value->value_), key));
+        continue;
+      }
+      if (key == "stories_area_url_max") {
+        G()->set_option_integer("story_link_area_count_max", get_json_value_int(std::move(key_value->value_), key));
         continue;
       }
 

@@ -63,6 +63,9 @@ class StatisticsManager final : public Actor {
                                          Promise<td_api::object_ptr<td_api::publicForwards>> promise,
                                          const char *source);
 
+  static td_api::object_ptr<td_api::StatisticalGraph> convert_stats_graph(
+      telegram_api::object_ptr<telegram_api::StatsGraph> obj);
+
  private:
   void tear_down() final;
 

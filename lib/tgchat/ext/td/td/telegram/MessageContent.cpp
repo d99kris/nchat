@@ -4456,6 +4456,10 @@ static void merge_location_access_hash(const Location &first, const Location &se
 }
 
 static bool need_message_text_changed_warning(const MessageText *old_content, const MessageText *new_content) {
+  const int32 MAX_CUSTOM_ENTITIES_COUNT = 100;  // server-side limit
+  if (old_content->text.entities.size() > MAX_CUSTOM_ENTITIES_COUNT) {
+    return false;
+  }
   if (new_content->text.text == "Unsupported characters" ||
       new_content->text.text == "This channel is blocked because it was used to spread pornographic content." ||
       begins_with(new_content->text.text,
@@ -4539,9 +4543,7 @@ void merge_message_contents(Td *td, const MessageContent *old_content, MessageCo
         }
       }
       if (old_->text.entities != new_->text.entities) {
-        const int32 MAX_CUSTOM_ENTITIES_COUNT = 100;  // server-side limit
         if (need_message_changed_warning && need_message_text_changed_warning(old_, new_) &&
-            old_->text.entities.size() <= MAX_CUSTOM_ENTITIES_COUNT &&
             need_message_entities_changed_warning(old_->text.entities, new_->text.entities) &&
             td->option_manager_->get_option_integer("session_count") <= 1) {
           LOG(WARNING) << "Entities have changed for a message in " << dialog_id << " from "
@@ -5430,7 +5432,7 @@ void register_message_content(Td *td, const MessageContent *content, MessageFull
       if (text->web_page_id.is_valid()) {
         td->web_pages_manager_->register_web_page(text->web_page_id, message_full_id, source);
       } else if (can_be_animated_emoji(text->text)) {
-        td->stickers_manager_->register_emoji(text->text.text, get_custom_emoji_id(text->text), message_full_id,
+        td->stickers_manager_->register_emoji(text->text.text, get_custom_emoji_id(text->text), message_full_id, {},
                                               source);
       }
       return;
@@ -5446,7 +5448,7 @@ void register_message_content(Td *td, const MessageContent *content, MessageFull
                                               source);
     case MessageContentType::Dice: {
       auto dice = static_cast<const MessageDice *>(content);
-      return td->stickers_manager_->register_dice(dice->emoji, dice->dice_value, message_full_id, source);
+      return td->stickers_manager_->register_dice(dice->emoji, dice->dice_value, message_full_id, {}, source);
     }
     case MessageContentType::GiftPremium:
       return td->stickers_manager_->register_premium_gift(static_cast<const MessageGiftPremium *>(content)->months,
@@ -5462,7 +5464,7 @@ void register_message_content(Td *td, const MessageContent *content, MessageFull
           static_cast<const MessageSuggestProfilePhoto *>(content)->photo);
     case MessageContentType::Story:
       return td->story_manager_->register_story(static_cast<const MessageStory *>(content)->story_full_id,
-                                                message_full_id, source);
+                                                message_full_id, {}, source);
     default:
       return;
   }
@@ -5557,7 +5559,7 @@ void unregister_message_content(Td *td, const MessageContent *content, MessageFu
       if (text->web_page_id.is_valid()) {
         td->web_pages_manager_->unregister_web_page(text->web_page_id, message_full_id, source);
       } else if (can_be_animated_emoji(text->text)) {
-        td->stickers_manager_->unregister_emoji(text->text.text, get_custom_emoji_id(text->text), message_full_id,
+        td->stickers_manager_->unregister_emoji(text->text.text, get_custom_emoji_id(text->text), message_full_id, {},
                                                 source);
       }
       return;
@@ -5573,7 +5575,7 @@ void unregister_message_content(Td *td, const MessageContent *content, MessageFu
                                                 source);
     case MessageContentType::Dice: {
       auto dice = static_cast<const MessageDice *>(content);
-      return td->stickers_manager_->unregister_dice(dice->emoji, dice->dice_value, message_full_id, source);
+      return td->stickers_manager_->unregister_dice(dice->emoji, dice->dice_value, message_full_id, {}, source);
     }
     case MessageContentType::GiftPremium:
       return td->stickers_manager_->unregister_premium_gift(static_cast<const MessageGiftPremium *>(content)->months,
@@ -5586,7 +5588,7 @@ void unregister_message_content(Td *td, const MessageContent *content, MessageFu
                                                             message_full_id, source);
     case MessageContentType::Story:
       return td->story_manager_->unregister_story(static_cast<const MessageStory *>(content)->story_full_id,
-                                                  message_full_id, source);
+                                                  message_full_id, {}, source);
     default:
       return;
   }
@@ -5605,6 +5607,56 @@ void unregister_reply_message_content(Td *td, const MessageContent *content) {
   switch (content->get_type()) {
     case MessageContentType::Poll:
       return td->poll_manager_->unregister_reply_poll(static_cast<const MessagePoll *>(content)->poll_id);
+    default:
+      return;
+  }
+}
+
+void register_quick_reply_message_content(Td *td, const MessageContent *content,
+                                          QuickReplyMessageFullId message_full_id, const char *source) {
+  switch (content->get_type()) {
+    case MessageContentType::Text: {
+      auto text = static_cast<const MessageText *>(content);
+      if (text->web_page_id.is_valid()) {
+        td->web_pages_manager_->register_quick_reply_web_page(text->web_page_id, message_full_id, source);
+      } else if (can_be_animated_emoji(text->text)) {
+        td->stickers_manager_->register_emoji(text->text.text, get_custom_emoji_id(text->text), {}, message_full_id,
+                                              source);
+      }
+      return;
+    }
+    case MessageContentType::Dice: {
+      auto dice = static_cast<const MessageDice *>(content);
+      return td->stickers_manager_->register_dice(dice->emoji, dice->dice_value, {}, message_full_id, source);
+    }
+    case MessageContentType::Story:
+      return td->story_manager_->register_story(static_cast<const MessageStory *>(content)->story_full_id, {},
+                                                message_full_id, source);
+    default:
+      return;
+  }
+}
+
+void unregister_quick_reply_message_content(Td *td, const MessageContent *content,
+                                            QuickReplyMessageFullId message_full_id, const char *source) {
+  switch (content->get_type()) {
+    case MessageContentType::Text: {
+      auto text = static_cast<const MessageText *>(content);
+      if (text->web_page_id.is_valid()) {
+        td->web_pages_manager_->unregister_quick_reply_web_page(text->web_page_id, message_full_id, source);
+      } else if (can_be_animated_emoji(text->text)) {
+        td->stickers_manager_->unregister_emoji(text->text.text, get_custom_emoji_id(text->text), {}, message_full_id,
+                                                source);
+      }
+      return;
+    }
+    case MessageContentType::Dice: {
+      auto dice = static_cast<const MessageDice *>(content);
+      return td->stickers_manager_->unregister_dice(dice->emoji, dice->dice_value, {}, message_full_id, source);
+    }
+    case MessageContentType::Story:
+      return td->story_manager_->unregister_story(static_cast<const MessageStory *>(content)->story_full_id, {},
+                                                  message_full_id, source);
     default:
       return;
   }
