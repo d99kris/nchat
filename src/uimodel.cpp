@@ -1603,7 +1603,6 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
             }
 
             m_ChatInfos[profileId][chatInfo.id] = chatInfo;
-            HandleChatInfoMutedUpdate(profileId, chatInfo.id);
 
             if (m_ChatSet[profileId].insert(chatInfo.id).second)
             {
@@ -2003,7 +2002,6 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
         std::string chatId = updateMuteNotify->chatId;
         LOG_TRACE("mute notify %s is %s", chatId.c_str(), (isMuted ? "muted" : "unmuted"));
         m_ChatInfos[profileId][chatId].isMuted = isMuted;
-        HandleChatInfoMutedUpdate(profileId, chatId);
         UpdateChatInfoLastMessageTime(profileId, chatId);
         SortChats();
         UpdateList();
@@ -2119,10 +2117,25 @@ bool UiModel::Process()
 
 void UiModel::SortChats()
 {
+  static const bool mutedPositionByTimestamp = UiConfig::GetBool("muted_position_by_timestamp");
   std::sort(m_ChatVec.begin(), m_ChatVec.end(),
             [&](const std::pair<std::string, std::string>& lhs, const std::pair<std::string, std::string>& rhs) -> bool
   {
-    return m_ChatInfos[lhs.first][lhs.second].lastMessageTime > m_ChatInfos[rhs.first][rhs.second].lastMessageTime;
+    const ChatInfo& lhsChatInfo = m_ChatInfos[lhs.first][lhs.second];
+    const ChatInfo& rhsChatInfo = m_ChatInfos[rhs.first][rhs.second];
+
+    if (!mutedPositionByTimestamp)
+    {
+      // non-muted are listed first
+      if (lhsChatInfo.isMuted < rhsChatInfo.isMuted) return true;
+      if (lhsChatInfo.isMuted > rhsChatInfo.isMuted) return false;
+    }
+
+    // greater (=newer) message time are listed first
+    if (lhsChatInfo.lastMessageTime > rhsChatInfo.lastMessageTime) return true;
+    if (lhsChatInfo.lastMessageTime < rhsChatInfo.lastMessageTime) return false;
+
+    return false;
   });
 
   if (!m_ChatVec.empty())
@@ -2178,11 +2191,7 @@ void UiModel::UpdateChatInfoLastMessageTime(const std::string& p_ProfileId, cons
   std::unordered_map<std::string, ChatInfo>& profileChatInfos = m_ChatInfos[p_ProfileId];
   if (profileChatInfos.count(p_ChatId))
   {
-    static const bool mutedPositionByTimestamp = UiConfig::GetBool("muted_position_by_timestamp");
-    if (mutedPositionByTimestamp || !profileChatInfos[p_ChatId].isMuted)
-    {
-      profileChatInfos[p_ChatId].lastMessageTime = lastMessageTimeSent;
-    }
+    profileChatInfos[p_ChatId].lastMessageTime = lastMessageTimeSent;
   }
 }
 
@@ -3285,17 +3294,6 @@ void UiModel::ExternalCall()
   StrUtil::ReplaceString(cmd, "%1", phone);
 
   RunCommand(cmd);
-}
-
-void UiModel::HandleChatInfoMutedUpdate(const std::string& p_ProfileId, const std::string& p_ChatId)
-{
-  static const bool mutedPositionByTimestamp = UiConfig::GetBool("muted_position_by_timestamp");
-  if (!mutedPositionByTimestamp && m_ChatInfos[p_ProfileId][p_ChatId].isMuted)
-  {
-    // deterministic fake time near epoch
-    int64_t chatIdHash = std::hash<std::string>{ }(p_ChatId) % 1000;
-    m_ChatInfos[p_ProfileId][p_ChatId].lastMessageTime = chatIdHash;
-  }
 }
 
 void UiModel::SendProtocolRequest(const std::string& p_ProfileId, std::shared_ptr<RequestMessage> p_Request)

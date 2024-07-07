@@ -155,7 +155,6 @@ private:
   void CallExternalEdit(const std::string& p_EditorCmd);
   const std::pair<std::string, std::string>& GetNextChat();
   void ExternalCall();
-  void HandleChatInfoMutedUpdate(const std::string& p_ProfileId, const std::string& p_ChatId);
   void SendProtocolRequest(const std::string& p_ProfileId, std::shared_ptr<RequestMessage> p_Request);
   bool HasProtocolFeature(const std::string& p_ProfileId, ProtocolFeature p_ProtocolFeature);
   void Quit(bool p_Forced);
