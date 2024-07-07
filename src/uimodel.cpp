@@ -3090,8 +3090,8 @@ void UiModel::SaveEditMessage()
       std::make_shared<EditMessageRequest>();
     editMessageRequest->chatId = chatId;
     editMessageRequest->msgId = m_EditMessageId;
-    editMessageRequest->chatMessage.text = EntryStrToSendStr(entryStr);
-    editMessageRequest->chatMessage.timeSent = chatMessage.timeSent;
+    editMessageRequest->chatMessage = chatMessage; // copy original message (time sent, quote id, etc)
+    editMessageRequest->chatMessage.text = EntryStrToSendStr(entryStr); // update text content
     SendProtocolRequest(profileId, editMessageRequest);
 
     SetEditMessageActive(false);

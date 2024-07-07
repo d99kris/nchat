@@ -1833,7 +1833,7 @@ func WmGetMessages(connId int, chatId string, limit int, fromMsgId string, owner
 
 func WmSendMessage(connId int, chatId string, text string, quotedId string, quotedText string, quotedSender string, filePath string, fileType string, editMsgId string, editMsgSent int) int {
 
-	LOG_TRACE("send message " + strconv.Itoa(connId) + ", " + chatId + ", " + text)
+	LOG_TRACE("send message " + strconv.Itoa(connId) + ", " + chatId + ", " + text + ", " + quotedId + ", " + filePath + ", " + editMsgId)
 
 	// sanity check arg
 	if connId == -1 {
