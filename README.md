@@ -149,7 +149,7 @@ can use the `make.sh` script provided.
 
 **Dependencies**
 
-    ./make.sh deps
+    chmod +x ./make.sh && ./make.sh deps
 
 **Build / Install**
 
