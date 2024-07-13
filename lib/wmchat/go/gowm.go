@@ -65,14 +65,14 @@ const (
 )
 
 var (
-	mx         sync.Mutex
-	clients    map[int]*whatsmeow.Client     = make(map[int]*whatsmeow.Client)
-	paths      map[int]string                = make(map[int]string)
-	contacts   map[int]map[string]string     = make(map[int]map[string]string)
-	states     map[int]State                 = make(map[int]State)
-	timeReads  map[int]map[string]time.Time  = make(map[int]map[string]time.Time)
-	handlers   map[int]*WmEventHandler       = make(map[int]*WmEventHandler)
-	sendTypes  map[int]int                   = make(map[int]int)
+	mx        sync.Mutex
+	clients   map[int]*whatsmeow.Client    = make(map[int]*whatsmeow.Client)
+	paths     map[int]string               = make(map[int]string)
+	contacts  map[int]map[string]string    = make(map[int]map[string]string)
+	states    map[int]State                = make(map[int]State)
+	timeReads map[int]map[string]time.Time = make(map[int]map[string]time.Time)
+	handlers  map[int]*WmEventHandler      = make(map[int]*WmEventHandler)
+	sendTypes map[int]int                  = make(map[int]int)
 )
 
 // keep in sync with enum FileStatus in protocol.h
@@ -728,7 +728,7 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 
 	}
 
-	if (historySync.Data.GetProgress() == 100) {
+	if historySync.Data.GetProgress() == 100 {
 		LOG_TRACE("Clear Syncing")
 		CWmClearStatus(FlagSyncing)
 	}

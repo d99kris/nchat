@@ -229,7 +229,8 @@ std::vector<std::wstring> UiHelpView::GetHelpViews(const int p_MaxW, const std::
   return helpViews;
 }
 
-void UiHelpView::AppendHelpItem(const std::string& p_Func, const std::string& p_Desc, std::vector<std::wstring>& p_HelpItems)
+void UiHelpView::AppendHelpItem(const std::string& p_Func, const std::string& p_Desc,
+                                std::vector<std::wstring>& p_HelpItems)
 {
   const std::string keyDisplay = GetKeyDisplay(p_Func);
   if (!keyDisplay.empty())
