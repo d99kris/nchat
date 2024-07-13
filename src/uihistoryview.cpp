@@ -94,7 +94,14 @@ void UiHistoryView::Draw()
   {
     bool isSelectedMessage = firstMessage && m_Model->GetSelectMessageActive();
 
-    ChatMessage& msg = messages[*it];
+    auto msgIt = messages.find(*it);
+    if (msgIt == messages.end())
+    {
+      LOG_WARNING("message %s missing", it->c_str());
+      continue;
+    }
+
+    ChatMessage& msg = msgIt->second;
 
     int attributeText = isSelectedMessage ? attributeTextSelected : attributeTextNormal;
     int colorPairText = [&]()
