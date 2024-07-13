@@ -30,16 +30,16 @@ UiContactListDialog::~UiContactListDialog()
 {
 }
 
-std::pair<std::string, ContactInfo> UiContactListDialog::GetSelectedContact()
+UiContactListItem UiContactListDialog::GetSelectedContactItem()
 {
-  return m_SelectedContact;
+  return m_SelectedContactItem;
 }
 
 void UiContactListDialog::OnSelect()
 {
-  if (m_ContactInfosVec.empty()) return;
+  if (m_ContactListItemVec.empty()) return;
 
-  m_SelectedContact = m_ContactInfosVec[m_Index];
+  m_SelectedContactItem = m_ContactListItemVec[m_Index];
   m_Result = true;
   m_Running = false;
 }
@@ -71,36 +71,47 @@ void UiContactListDialog::UpdateList()
 
   m_Index = 0;
   m_Items.clear();
-  m_ContactInfosVec.clear();
+  m_ContactListItemVec.clear();
 
-  std::vector<std::pair<std::string, ContactInfo>> contactInfosVec;
+  // Use a local vector which is sorted before populating dialog members, which need to be in sync
+  std::vector<UiContactListItem> localContactListItemVec;
+
   for (const auto& profileContactInfos : m_DialogContactInfos)
   {
-    for (const auto& contactInfo : profileContactInfos.second)
+    for (const auto& idContactInfo : profileContactInfos.second)
     {
-      contactInfosVec.push_back(std::make_pair(profileContactInfos.first, contactInfo.second));
+      const std::string& profileId = profileContactInfos.first;
+      const std::string& contactId = idContactInfo.first;
+      const std::string& name = m_Model->GetContactListName(profileId, contactId, false /*p_AllowId*/);;
+
+      if (name.empty()) continue;
+
+      if (m_FilterStr.empty() ||
+          (StrUtil::ToLower(name).find(StrUtil::ToLower(StrUtil::ToString(m_FilterStr))) != std::string::npos))
+      {
+        static const bool isMultipleProfiles = m_Model->IsMultipleProfiles();
+        const std::string displayName = name +
+          (isMultipleProfiles ? " @ " + m_Model->GetProfileDisplayName(profileId) : "");
+
+        UiContactListItem contactListItem;
+        contactListItem.profileId = profileId;
+        contactListItem.contactId = contactId;
+        contactListItem.name = displayName;
+
+        localContactListItemVec.push_back(contactListItem);
+      }
     }
   }
 
-  std::sort(contactInfosVec.begin(), contactInfosVec.end(),
-            [&](const std::pair<std::string, ContactInfo>& lhs, const std::pair<std::string, ContactInfo>& rhs) -> bool
+  std::sort(localContactListItemVec.begin(), localContactListItemVec.end(),
+            [&](const UiContactListItem& lhs, const UiContactListItem& rhs) -> bool
   {
-    return lhs.second.name < rhs.second.name;
+    return lhs.name < rhs.name;
   });
 
-  for (const auto& contactInfo : contactInfosVec)
+  for (const auto& contactListItem : localContactListItemVec)
   {
-    std::string name = contactInfo.second.name;
-    if (name.empty()) continue;
-
-    if (m_FilterStr.empty() ||
-        (StrUtil::ToLower(name).find(StrUtil::ToLower(StrUtil::ToString(m_FilterStr))) != std::string::npos))
-    {
-      static const bool isMultipleProfiles = m_Model->IsMultipleProfiles();
-      std::string displayName = name +
-        (isMultipleProfiles ? " @ " + m_Model->GetProfileDisplayName(contactInfo.first) : "");
-      m_Items.push_back(StrUtil::TrimPadWString(StrUtil::ToWString(displayName), m_W));
-      m_ContactInfosVec.push_back(std::make_pair(contactInfo.first, contactInfo.second));
-    }
+    m_Items.push_back(StrUtil::TrimPadWString(StrUtil::ToWString(contactListItem.name), m_W));
+    m_ContactListItemVec.push_back(contactListItem);
   }
 }

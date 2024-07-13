@@ -1,6 +1,6 @@
 // uistatusview.cpp
 //
-// Copyright (c) 2019-2021 Kristofer Berggren
+// Copyright (c) 2019-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -28,7 +28,7 @@ void UiStatusView::Draw()
   curs_set(0);
 
   std::pair<std::string, std::string>& currentChat = m_Model->GetCurrentChat();
-  std::string name = m_Model->GetContactListName(currentChat.first, currentChat.second);
+  std::string name = m_Model->GetContactListName(currentChat.first, currentChat.second, true /*p_AllowId*/);
   if (!m_Model->GetEmojiEnabled())
   {
     name = StrUtil::Textize(name);

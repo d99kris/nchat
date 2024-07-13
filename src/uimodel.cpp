@@ -1492,11 +1492,11 @@ void UiModel::SearchContact()
   UiContactListDialog dialog(params);
   if (dialog.Run())
   {
-    std::pair<std::string, ContactInfo> selectedContact = dialog.GetSelectedContact();
-    std::string profileId = selectedContact.first;
-    std::string userId = selectedContact.second.id;
+    UiContactListItem selectedContact = dialog.GetSelectedContactItem();
+    std::string profileId = selectedContact.profileId;
+    std::string userId = selectedContact.contactId;
 
-    LOG_INFO("selected %s contact %s", profileId.c_str(), userId.c_str());
+    LOG_TRACE("selected %s contact %s", profileId.c_str(), userId.c_str());
 
     std::unique_lock<std::mutex> lock(m_ModelMutex);
     std::unordered_map<std::string, ChatInfo>& profileChatInfos = m_ChatInfos[profileId];
@@ -2264,7 +2264,7 @@ std::string UiModel::GetContactName(const std::string& p_ProfileId, const std::s
   return chatName;
 }
 
-std::string UiModel::GetContactListName(const std::string& p_ProfileId, const std::string& p_ChatId)
+std::string UiModel::GetContactListName(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_AllowId)
 {
   const ContactInfo& contactInfo = m_ContactInfos[p_ProfileId][p_ChatId];
   const std::string& chatName = contactInfo.name;
@@ -2272,7 +2272,7 @@ std::string UiModel::GetContactListName(const std::string& p_ProfileId, const st
   {
     return "Saved Messages";
   }
-  else if (chatName.empty())
+  else if (p_AllowId && chatName.empty())
   {
     return p_ChatId;
   }
@@ -2307,7 +2307,7 @@ std::string UiModel::GetChatStatus(const std::string& p_ProfileId, const std::st
       std::vector<std::string> userNames;
       for (auto& userId : userIds)
       {
-        userNames.push_back(GetContactListName(p_ProfileId, userId));
+        userNames.push_back(GetContactName(p_ProfileId, userId));
       }
 
       std::string userNamesJoined = StrUtil::Join(userNames, ", ");

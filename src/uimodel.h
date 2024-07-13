@@ -70,7 +70,7 @@ public:
   void UpdateChatInfoLastMessageTime(const std::string& p_ProfileId, const std::string& p_ChatId);
   void UpdateChatInfoIsUnread(const std::string& p_ProfileId, const std::string& p_ChatId);
   std::string GetContactName(const std::string& p_ProfileId, const std::string& p_ChatId);
-  std::string GetContactListName(const std::string& p_ProfileId, const std::string& p_ChatId);
+  std::string GetContactListName(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_AllowId);
   std::string GetContactPhone(const std::string& p_ProfileId, const std::string& p_ChatId);
   bool GetChatIsUnread(const std::string& p_ProfileId, const std::string& p_ChatId);
   std::string GetChatStatus(const std::string& p_ProfileId, const std::string& p_ChatId);

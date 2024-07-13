@@ -1,6 +1,6 @@
 // uicontactlistdialog.h
 //
-// Copyright (c) 2019-2021 Kristofer Berggren
+// Copyright (c) 2019-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -14,13 +14,20 @@
 #include "protocol.h"
 #include "uilistdialog.h"
 
+struct UiContactListItem
+{
+  std::string profileId;
+  std::string contactId;
+  std::string name;
+};
+
 class UiContactListDialog : public UiListDialog
 {
 public:
   UiContactListDialog(const UiDialogParams& p_Params);
   virtual ~UiContactListDialog();
 
-  std::pair<std::string, ContactInfo> GetSelectedContact();
+  UiContactListItem GetSelectedContactItem();
 
 protected:
   virtual void OnSelect();
@@ -32,6 +39,6 @@ protected:
 private:
   std::unordered_map<std::string, std::unordered_map<std::string, ContactInfo>> m_DialogContactInfos;
   int64_t m_DialogContactInfosUpdateTime = 0;
-  std::vector<std::pair<std::string, ContactInfo>> m_ContactInfosVec;
-  std::pair<std::string, ContactInfo> m_SelectedContact;
+  std::vector<UiContactListItem> m_ContactListItemVec;
+  UiContactListItem m_SelectedContactItem;
 };

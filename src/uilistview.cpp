@@ -1,6 +1,6 @@
 // uilistview.cpp
 //
-// Copyright (c) 2019-2021 Kristofer Berggren
+// Copyright (c) 2019-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -61,7 +61,7 @@ void UiListView::Draw()
   std::vector<bool> unreads;
   for (auto& chatPair : p_ChatVec)
   {
-    const std::string& name = m_Model->GetContactListName(chatPair.first, chatPair.second);
+    const std::string& name = m_Model->GetContactListName(chatPair.first, chatPair.second, true /*p_AllowId*/);
     bool isUnread = m_Model->GetChatIsUnread(chatPair.first, chatPair.second);
     names.push_back(name);
     unreads.push_back(isUnread);
