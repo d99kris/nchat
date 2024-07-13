@@ -389,6 +389,22 @@ std::wstring StrUtil::ToWString(const std::string& p_Str)
   }
 }
 
+void StrUtil::Trim(std::string& p_Str)
+{
+  static const std::string space = " ";
+  const auto strBegin = p_Str.find_first_not_of(space);
+  if (strBegin != std::string::npos)
+  {
+    const auto strEnd = p_Str.find_last_not_of(space);
+    const auto strRange = strEnd - strBegin + 1;
+    p_Str = p_Str.substr(strBegin, strRange);
+  }
+  else
+  {
+    p_Str.clear();
+  }
+}
+
 std::wstring StrUtil::TrimPadWString(const std::wstring& p_Str, int p_Len)
 {
   p_Len = std::max(p_Len, 0);

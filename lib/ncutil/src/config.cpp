@@ -1,6 +1,6 @@
 // config.cpp
 //
-// Copyright (c) 2020-2023 Kristofer Berggren
+// Copyright (c) 2020-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -13,6 +13,9 @@
 #include <sstream>
 
 #include <sys/stat.h>
+
+#include "log.h"
+#include "strutil.h"
 
 Config::Config()
 {
@@ -52,10 +55,17 @@ void Config::Load(const std::string& p_Path)
     std::istringstream linestream(line);
     if (!std::getline(linestream, param, '=')) continue;
 
-    if (m_Map.count(param) == 0) continue; // drop params not present in default map
+    StrUtil::Trim(param);
+    if (m_Map.count(param) == 0)
+    {
+      // drop params not present in default map
+      LOG_WARNING("unknown param \"%s\"", param.c_str());
+      continue;
+    }
 
     std::string value;
     std::getline(linestream, value);
+    StrUtil::Trim(value);
 
     m_Map[param] = value;
   }
