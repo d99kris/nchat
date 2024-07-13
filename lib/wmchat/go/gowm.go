@@ -66,13 +66,13 @@ const (
 
 var (
 	mx         sync.Mutex
-	clients    map[int]*whatsmeow.Client = make(map[int]*whatsmeow.Client)
-	paths      map[int]string            = make(map[int]string)
-	contacts   map[int]map[string]string = make(map[int]map[string]string)
-	states     map[int]State             = make(map[int]State)
-	timeUnread map[intString]int         = make(map[intString]int)
-	handlers   map[int]*WmEventHandler   = make(map[int]*WmEventHandler)
-	sendTypes  map[int]int               = make(map[int]int)
+	clients    map[int]*whatsmeow.Client     = make(map[int]*whatsmeow.Client)
+	paths      map[int]string                = make(map[int]string)
+	contacts   map[int]map[string]string     = make(map[int]map[string]string)
+	states     map[int]State                 = make(map[int]State)
+	timeReads  map[int]map[string]time.Time  = make(map[int]map[string]time.Time)
+	handlers   map[int]*WmEventHandler       = make(map[int]*WmEventHandler)
+	sendTypes  map[int]int                   = make(map[int]int)
 )
 
 // keep in sync with enum FileStatus in protocol.h
@@ -100,6 +100,7 @@ func AddConn(conn *whatsmeow.Client, path string, sendType int) int {
 	paths[connId] = path
 	contacts[connId] = make(map[string]string)
 	states[connId] = None
+	timeReads[connId] = make(map[string]time.Time)
 	handlers[connId] = &WmEventHandler{connId}
 	sendTypes[connId] = sendType
 	mx.Unlock()
@@ -112,7 +113,9 @@ func RemoveConn(connId int) {
 	delete(paths, connId)
 	delete(contacts, connId)
 	delete(states, connId)
+	delete(timeReads, connId)
 	delete(handlers, connId)
+	delete(sendTypes, connId)
 	mx.Unlock()
 }
 
@@ -173,6 +176,24 @@ func GetContactName(connId int, id string) string {
 		name = id
 	}
 	return name
+}
+
+func GetTimeRead(connId int, chatId string) time.Time {
+	var timeRead time.Time
+	var ok bool
+	mx.Lock()
+	timeRead, ok = timeReads[connId][chatId]
+	mx.Unlock()
+	if !ok {
+		timeRead = time.Time{}
+	}
+	return timeRead
+}
+
+func SetTimeRead(connId int, chatId string, timeRead time.Time) {
+	mx.Lock()
+	timeReads[connId][chatId] = timeRead
+	mx.Unlock()
 }
 
 // download info
@@ -412,6 +433,14 @@ func GetChatId(chatJid types.JID, senderJid types.JID) string {
 	}
 }
 
+func IsRead(isSyncRead bool, isSelfChat bool, fromMe bool, timeSent time.Time, timeRead time.Time) bool {
+	// consider message read:
+	// - during initial sync for chats with no unread messages
+	// - in self chat / saved messages
+	// - from others and timeSent <= timeRead i.e.. !timeSent.After(timeRead)
+	return isSyncRead || isSelfChat || (!fromMe && !timeSent.After(timeRead))
+}
+
 func ParseWebMessageInfo(selfJid types.JID, chatJid types.JID, webMsg *waWeb.WebMessageInfo) *types.MessageInfo {
 	info := types.MessageInfo{
 		MessageSource: types.MessageSource{
@@ -534,7 +563,7 @@ func (handler *WmEventHandler) HandleEvent(rawEvt interface{}) {
 
 	case *events.Message:
 		LOG_TRACE(fmt.Sprintf("%#v", evt))
-		handler.HandleMessage(evt.Info, evt.Message, false)
+		handler.HandleMessage(evt.Info, evt.Message, false /*isSyncRead*/)
 
 	case *events.Receipt:
 		LOG_TRACE(fmt.Sprintf("%#v", evt))
@@ -661,6 +690,7 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 		isUnread := 0
 		lastMessageTime := 0
 
+		isSyncRead := (conversation.GetUnreadCount() == 0)
 		hasMessages := false
 		syncMessages := conversation.GetMessages()
 		for _, syncMessage := range syncMessages {
@@ -672,7 +702,7 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 				continue
 			}
 
-			handler.HandleMessage(*messageInfo, message, true)
+			handler.HandleMessage(*messageInfo, message, isSyncRead)
 			hasMessages = true
 		}
 
@@ -709,17 +739,13 @@ func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 	client := GetClient(connId)
 	chatId := JidToStr(groupInfo.JID)
 
-	quotedId := ""
 	selfJid := *client.Store.ID
 	senderJidStr := ""
 	if (groupInfo.Sender != nil) && (JidToStr(*groupInfo.Sender) != JidToStr(groupInfo.JID)) {
 		senderJidStr = JidToStr(*groupInfo.Sender)
 	}
 
-	fileId := ""
-	filePath := ""
-	fileStatus := FileStatusNone
-
+	// text
 	text := ""
 	if groupInfo.Name != nil {
 		// Group name change
@@ -780,15 +806,26 @@ func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 		LOG_TRACE(fmt.Sprintf("HandleGroupInfo notify"))
 	}
 
+	// context
+	quotedId := ""
+
+	// file id, path and status
+	fileId := ""
+	filePath := ""
+	fileStatus := FileStatusNone
+
+	// general
+	timeSent := int(groupInfo.Timestamp.Unix())
+	msgId := strconv.Itoa(timeSent) // group info updates do not have msg id
 	fromMe := (senderJidStr == JidToStr(selfJid))
 	senderId := senderJidStr
+	selfId := JidToStr(*client.Store.ID)
+	isSelfChat := (chatId == selfId)
+	isSyncRead := false
+	isRead := IsRead(isSyncRead, isSelfChat, fromMe, groupInfo.Timestamp, GetTimeRead(connId, chatId))
 
-	timeSent := int(groupInfo.Timestamp.Unix())
-	isSeen := false
-	isOld := (timeSent <= timeUnread[intString{i: connId, s: chatId}])
-	isRead := (fromMe && isSeen) || (!fromMe && isOld)
-
-	msgId := strconv.Itoa(timeSent) // group info updates do not have msg id
+	// reset typing if needed
+	UpdateTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: %s", chatId, text))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
@@ -931,48 +968,48 @@ func (handler *WmEventHandler) GetContacts() {
 	CWmClearStatus(FlagFetching)
 }
 
-func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSync bool) {
+func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool) {
 	switch {
 	case msg.Conversation != nil || msg.ExtendedTextMessage != nil:
-		handler.HandleTextMessage(messageInfo, msg, isSync)
+		handler.HandleTextMessage(messageInfo, msg, isSyncRead)
 
 	case msg.ImageMessage != nil:
-		handler.HandleImageMessage(messageInfo, msg, isSync)
+		handler.HandleImageMessage(messageInfo, msg, isSyncRead)
 
 	case msg.VideoMessage != nil:
-		handler.HandleVideoMessage(messageInfo, msg, isSync)
+		handler.HandleVideoMessage(messageInfo, msg, isSyncRead)
 
 	case msg.AudioMessage != nil:
-		handler.HandleAudioMessage(messageInfo, msg, isSync)
+		handler.HandleAudioMessage(messageInfo, msg, isSyncRead)
 
 	case msg.DocumentMessage != nil:
-		handler.HandleDocumentMessage(messageInfo, msg, isSync)
+		handler.HandleDocumentMessage(messageInfo, msg, isSyncRead)
 
 	case msg.StickerMessage != nil:
-		handler.HandleStickerMessage(messageInfo, msg, isSync)
+		handler.HandleStickerMessage(messageInfo, msg, isSyncRead)
 
 	case msg.TemplateMessage != nil:
-		handler.HandleTemplateMessage(messageInfo, msg, isSync)
+		handler.HandleTemplateMessage(messageInfo, msg, isSyncRead)
 
 	case msg.ReactionMessage != nil:
-		handler.HandleReactionMessage(messageInfo, msg, isSync)
+		handler.HandleReactionMessage(messageInfo, msg, isSyncRead)
 
 	case msg.ProtocolMessage != nil:
-		handler.HandleProtocolMessage(messageInfo, msg, isSync)
+		handler.HandleProtocolMessage(messageInfo, msg, isSyncRead)
 
 	default:
-		handler.HandleUnsupportedMessage(messageInfo, msg, isSync)
+		handler.HandleUnsupportedMessage(messageInfo, msg, isSyncRead)
 	}
 }
 
-func (handler *WmEventHandler) HandleTextMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSync bool) {
+func (handler *WmEventHandler) HandleTextMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool) {
 	LOG_TRACE(fmt.Sprintf("TextMessage"))
 
 	connId := handler.connId
-	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
-	msgId := messageInfo.ID
+	var client *whatsmeow.Client = GetClient(handler.connId)
 	text := ""
 
+	// text
 	quotedId := ""
 	if msg.GetExtendedTextMessage() == nil {
 		text = msg.GetConversation()
@@ -984,28 +1021,29 @@ func (handler *WmEventHandler) HandleTextMessage(messageInfo types.MessageInfo, 
 		}
 	}
 
-	fromMe := messageInfo.IsFromMe
-	senderId := JidToStr(messageInfo.Sender)
+	// file id, path and status
 	fileId := ""
 	filePath := ""
 	fileStatus := FileStatusNone
 
-	var client *whatsmeow.Client = GetClient(handler.connId)
+	// general
+	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
+	msgId := messageInfo.ID
+	fromMe := messageInfo.IsFromMe
+	senderId := JidToStr(messageInfo.Sender)
 	selfId := JidToStr(*client.Store.ID)
 	isSelfChat := (chatId == selfId)
-
 	timeSent := int(messageInfo.Timestamp.Unix())
-	isSeen := isSync
-	isOld := (timeSent <= timeUnread[intString{i: connId, s: chatId}])
-	isRead := (fromMe && isSeen) || (!fromMe && isOld) || isSelfChat
+	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 
-	UpdateTypingStatus(connId, chatId, senderId, fromMe, isOld)
+	// reset typing if needed
+	UpdateTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: %s", chatId, text))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
 }
 
-func (handler *WmEventHandler) HandleImageMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSync bool) {
+func (handler *WmEventHandler) HandleImageMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool) {
 	LOG_TRACE(fmt.Sprintf("ImageMessage"))
 
 	connId := handler.connId
@@ -1025,6 +1063,9 @@ func (handler *WmEventHandler) HandleImageMessage(messageInfo types.MessageInfo,
 		ext = exts[0]
 	}
 
+	// text
+	text := img.GetCaption()
+
 	// context
 	quotedId := ""
 	ci := img.GetContextInfo()
@@ -1032,31 +1073,30 @@ func (handler *WmEventHandler) HandleImageMessage(messageInfo types.MessageInfo,
 		quotedId = ci.GetStanzaId()
 	}
 
-	// get temp file path
+	// file id, path and status
 	var tmpPath string = GetPath(connId) + "/tmp"
 	filePath := fmt.Sprintf("%s/%s.%s", tmpPath, messageInfo.ID, ext)
-
-	// file id and status
 	fileId := DownloadableMessageToFileId(client, img, filePath)
 	fileStatus := FileStatusNotDownloaded
 
+	// general
 	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
 	senderId := JidToStr(messageInfo.Sender)
-	text := img.GetCaption()
-
+	selfId := JidToStr(*client.Store.ID)
+	isSelfChat := (chatId == selfId)
 	timeSent := int(messageInfo.Timestamp.Unix())
-	isSeen := isSync
-	isOld := (timeSent <= timeUnread[intString{i: connId, s: chatId}])
-	isRead := (fromMe && isSeen) || (!fromMe && isOld)
+	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 
-	UpdateTypingStatus(connId, chatId, senderId, fromMe, isOld)
+	// reset typing if needed
+	UpdateTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
 
+	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: image", chatId))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
 }
 
-func (handler *WmEventHandler) HandleVideoMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSync bool) {
+func (handler *WmEventHandler) HandleVideoMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool) {
 	LOG_TRACE(fmt.Sprintf("VideoMessage"))
 
 	connId := handler.connId
@@ -1076,6 +1116,9 @@ func (handler *WmEventHandler) HandleVideoMessage(messageInfo types.MessageInfo,
 		ext = exts[0]
 	}
 
+	// text
+	text := vid.GetCaption()
+
 	// context
 	quotedId := ""
 	ci := vid.GetContextInfo()
@@ -1083,31 +1126,30 @@ func (handler *WmEventHandler) HandleVideoMessage(messageInfo types.MessageInfo,
 		quotedId = ci.GetStanzaId()
 	}
 
-	// get temp file path
+	// file id, path and status
 	var tmpPath string = GetPath(connId) + "/tmp"
 	filePath := fmt.Sprintf("%s/%s.%s", tmpPath, messageInfo.ID, ext)
-
-	// file id and status
 	fileId := DownloadableMessageToFileId(client, vid, filePath)
 	fileStatus := FileStatusNotDownloaded
 
+	// general
 	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
 	senderId := JidToStr(messageInfo.Sender)
-	text := vid.GetCaption()
-
+	selfId := JidToStr(*client.Store.ID)
+	isSelfChat := (chatId == selfId)
 	timeSent := int(messageInfo.Timestamp.Unix())
-	isSeen := isSync
-	isOld := (timeSent <= timeUnread[intString{i: connId, s: chatId}])
-	isRead := (fromMe && isSeen) || (!fromMe && isOld)
+	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 
-	UpdateTypingStatus(connId, chatId, senderId, fromMe, isOld)
+	// reset typing if needed
+	UpdateTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
 
+	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: video", chatId))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
 }
 
-func (handler *WmEventHandler) HandleAudioMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSync bool) {
+func (handler *WmEventHandler) HandleAudioMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool) {
 	LOG_TRACE(fmt.Sprintf("AudioMessage"))
 
 	connId := handler.connId
@@ -1127,6 +1169,9 @@ func (handler *WmEventHandler) HandleAudioMessage(messageInfo types.MessageInfo,
 		ext = exts[0]
 	}
 
+	// text
+	text := ""
+
 	// context
 	quotedId := ""
 	ci := aud.GetContextInfo()
@@ -1134,31 +1179,30 @@ func (handler *WmEventHandler) HandleAudioMessage(messageInfo types.MessageInfo,
 		quotedId = ci.GetStanzaId()
 	}
 
-	// get temp file path
+	// file id, path and status
 	var tmpPath string = GetPath(connId) + "/tmp"
 	filePath := fmt.Sprintf("%s/%s.%s", tmpPath, messageInfo.ID, ext)
-
-	// file id and status
 	fileId := DownloadableMessageToFileId(client, aud, filePath)
 	fileStatus := FileStatusNotDownloaded
 
+	// general
 	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
 	senderId := JidToStr(messageInfo.Sender)
-	text := ""
-
+	selfId := JidToStr(*client.Store.ID)
+	isSelfChat := (chatId == selfId)
 	timeSent := int(messageInfo.Timestamp.Unix())
-	isSeen := isSync
-	isOld := (timeSent <= timeUnread[intString{i: connId, s: chatId}])
-	isRead := (fromMe && isSeen) || (!fromMe && isOld)
+	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 
-	UpdateTypingStatus(connId, chatId, senderId, fromMe, isOld)
+	// reset typing if needed
+	UpdateTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
 
+	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: audio", chatId))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
 }
 
-func (handler *WmEventHandler) HandleDocumentMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSync bool) {
+func (handler *WmEventHandler) HandleDocumentMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool) {
 	LOG_TRACE(fmt.Sprintf("DocumentMessage"))
 
 	connId := handler.connId
@@ -1171,6 +1215,9 @@ func (handler *WmEventHandler) HandleDocumentMessage(messageInfo types.MessageIn
 		return
 	}
 
+	// text
+	text := doc.GetCaption()
+
 	// context
 	quotedId := ""
 	ci := doc.GetContextInfo()
@@ -1178,31 +1225,30 @@ func (handler *WmEventHandler) HandleDocumentMessage(messageInfo types.MessageIn
 		quotedId = ci.GetStanzaId()
 	}
 
-	// get temp file path
+	// file id, path and status
 	var tmpPath string = GetPath(connId) + "/tmp"
 	filePath := fmt.Sprintf("%s/%s-%s", tmpPath, messageInfo.ID, *doc.FileName)
-
-	// file id and status
 	fileId := DownloadableMessageToFileId(client, doc, filePath)
 	fileStatus := FileStatusNotDownloaded
 
+	// general
 	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
 	senderId := JidToStr(messageInfo.Sender)
-	text := doc.GetCaption()
-
+	selfId := JidToStr(*client.Store.ID)
+	isSelfChat := (chatId == selfId)
 	timeSent := int(messageInfo.Timestamp.Unix())
-	isSeen := isSync
-	isOld := (timeSent <= timeUnread[intString{i: connId, s: chatId}])
-	isRead := (fromMe && isSeen) || (!fromMe && isOld)
+	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 
-	UpdateTypingStatus(connId, chatId, senderId, fromMe, isOld)
+	// reset typing if needed
+	UpdateTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
 
+	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: document", chatId))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
 }
 
-func (handler *WmEventHandler) HandleStickerMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSync bool) {
+func (handler *WmEventHandler) HandleStickerMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool) {
 	LOG_TRACE(fmt.Sprintf("StickerMessage"))
 
 	connId := handler.connId
@@ -1222,6 +1268,9 @@ func (handler *WmEventHandler) HandleStickerMessage(messageInfo types.MessageInf
 		ext = exts[0]
 	}
 
+	// text
+	text := "[Sticker]"
+
 	// context
 	quotedId := ""
 	ci := sticker.GetContextInfo()
@@ -1229,34 +1278,34 @@ func (handler *WmEventHandler) HandleStickerMessage(messageInfo types.MessageInf
 		quotedId = ci.GetStanzaId()
 	}
 
-	// get temp file path
+	// file id, path and status
 	var tmpPath string = GetPath(connId) + "/tmp"
 	filePath := fmt.Sprintf("%s/%s.%s", tmpPath, messageInfo.ID, ext)
-
-	// file id and status
 	fileId := DownloadableMessageToFileId(client, sticker, filePath)
 	fileStatus := FileStatusNotDownloaded
 
+	// general
 	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
 	senderId := JidToStr(messageInfo.Sender)
-	text := "[Sticker]"
-
+	selfId := JidToStr(*client.Store.ID)
+	isSelfChat := (chatId == selfId)
 	timeSent := int(messageInfo.Timestamp.Unix())
-	isSeen := isSync
-	isOld := (timeSent <= timeUnread[intString{i: connId, s: chatId}])
-	isRead := (fromMe && isSeen) || (!fromMe && isOld)
+	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 
-	UpdateTypingStatus(connId, chatId, senderId, fromMe, isOld)
+	// reset typing if needed
+	UpdateTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
 
+	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: sticker", chatId))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
 }
 
-func (handler *WmEventHandler) HandleTemplateMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSync bool) {
+func (handler *WmEventHandler) HandleTemplateMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool) {
 	LOG_TRACE(fmt.Sprintf("TemplateMessage"))
 
 	connId := handler.connId
+	var client *whatsmeow.Client = GetClient(handler.connId)
 
 	// get template part
 	tpl := msg.GetTemplateMessage()
@@ -1314,7 +1363,7 @@ func (handler *WmEventHandler) HandleTemplateMessage(messageInfo types.MessageIn
 		texts = append(texts, footer)
 	}
 
-	// combined text
+	// text
 	text := strings.Join(texts, "\n")
 
 	// context
@@ -1324,25 +1373,29 @@ func (handler *WmEventHandler) HandleTemplateMessage(messageInfo types.MessageIn
 		quotedId = ci.GetStanzaId()
 	}
 
-	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
-	msgId := messageInfo.ID
-	fromMe := messageInfo.IsFromMe
-	senderId := JidToStr(messageInfo.Sender)
+	// file id, path and status
 	fileId := ""
 	filePath := ""
 	fileStatus := FileStatusNone
 
+	// general
+	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
+	msgId := messageInfo.ID
+	fromMe := messageInfo.IsFromMe
+	senderId := JidToStr(messageInfo.Sender)
+	selfId := JidToStr(*client.Store.ID)
+	isSelfChat := (chatId == selfId)
 	timeSent := int(messageInfo.Timestamp.Unix())
-	isSeen := isSync
-	isOld := (timeSent <= timeUnread[intString{i: connId, s: chatId}])
-	isRead := (fromMe && isSeen) || (!fromMe && isOld)
+	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 
-	UpdateTypingStatus(connId, chatId, senderId, fromMe, isOld)
+	// reset typing if needed
+	UpdateTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
 
+	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: template", chatId))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
 }
 
-func (handler *WmEventHandler) HandleReactionMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSync bool) {
+func (handler *WmEventHandler) HandleReactionMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool) {
 	LOG_TRACE(fmt.Sprintf("ReactionMessage"))
 
 	connId := handler.connId
@@ -1354,6 +1407,7 @@ func (handler *WmEventHandler) HandleReactionMessage(messageInfo types.MessageIn
 		return
 	}
 
+	// general
 	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
 	fromMe := messageInfo.IsFromMe
 	senderId := JidToStr(messageInfo.Sender)
@@ -1367,7 +1421,7 @@ func (handler *WmEventHandler) HandleReactionMessage(messageInfo types.MessageIn
 	//WmMarkMessageRead(connId, chatId, senderId, reMsgId)
 }
 
-func (handler *WmEventHandler) HandleProtocolMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSync bool) {
+func (handler *WmEventHandler) HandleProtocolMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool) {
 	LOG_TRACE(fmt.Sprintf("ProtocolMessage"))
 
 	// get protocol part
@@ -1383,7 +1437,7 @@ func (handler *WmEventHandler) HandleProtocolMessage(messageInfo types.MessageIn
 		if editedMsg != nil {
 			newMessageInfo := messageInfo
 			newMessageInfo.ID = protocol.GetKey().GetId()
-			handler.HandleMessage(newMessageInfo, editedMsg, isSync)
+			handler.HandleMessage(newMessageInfo, editedMsg, isSyncRead)
 		} else {
 			LOG_WARNING(fmt.Sprintf("get edited message failed"))
 		}
@@ -1399,7 +1453,7 @@ func (handler *WmEventHandler) HandleProtocolMessage(messageInfo types.MessageIn
 	}
 }
 
-func (handler *WmEventHandler) HandleUnsupportedMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSync bool) {
+func (handler *WmEventHandler) HandleUnsupportedMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool) {
 	// list from type Message struct in def.pb.go
 	msgType := "Unknown"
 	msgNotify := false
@@ -1573,32 +1627,40 @@ func (handler *WmEventHandler) HandleUnsupportedMessage(messageInfo types.Messag
 	}
 
 	connId := handler.connId
-	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
-	msgId := messageInfo.ID
+	var client *whatsmeow.Client = GetClient(handler.connId)
+
+	// text
 	text := "[" + msgType + "]"
 
+	// context
 	quotedId := ""
-	fromMe := messageInfo.IsFromMe
-	senderId := JidToStr(messageInfo.Sender)
+
+	// file id, path and status
 	fileId := ""
 	filePath := ""
 	fileStatus := FileStatusNone
 
+	// general
+	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
+	msgId := messageInfo.ID
+	fromMe := messageInfo.IsFromMe
+	senderId := JidToStr(messageInfo.Sender)
+	selfId := JidToStr(*client.Store.ID)
+	isSelfChat := (chatId == selfId)
 	timeSent := int(messageInfo.Timestamp.Unix())
-	isSeen := isSync
-	isOld := (timeSent <= timeUnread[intString{i: connId, s: chatId}])
-	isRead := (fromMe && isSeen) || (!fromMe && isOld)
+	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 
-	UpdateTypingStatus(connId, chatId, senderId, fromMe, isOld)
+	// reset typing if needed
+	UpdateTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: %s", chatId, text))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
 }
 
-func UpdateTypingStatus(connId int, chatId string, userId string, fromMe bool, isOld bool) {
+func UpdateTypingStatus(connId int, chatId string, userId string, fromMe bool, isSyncRead bool) {
 
-	// only handle new messages from others
-	if fromMe || isOld {
+	// ignore new messages from self and during initial sync
+	if fromMe || isSyncRead {
 		return
 	}
 
@@ -2049,8 +2111,9 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 			messageInfo.Timestamp = sendResponse.Timestamp
 		}
 
+		isSyncRead := false
 		handler := GetHandler(connId)
-		handler.HandleMessage(messageInfo, &message, false)
+		handler.HandleMessage(messageInfo, &message, isSyncRead)
 	}
 
 	return 0
@@ -2107,10 +2170,13 @@ func WmMarkMessageRead(connId int, chatId string, senderId string, msgId string)
 	msgIds := []types.MessageID{
 		msgId,
 	}
-	timeNow := time.Now()
+	timeRead := time.Now()
 	chatJid, _ := types.ParseJID(chatId)
 	senderJid, _ := types.ParseJID(senderId)
-	err := client.MarkRead(msgIds, timeNow, chatJid, senderJid)
+	err := client.MarkRead(msgIds, timeRead, chatJid, senderJid)
+
+	// store time
+	SetTimeRead(connId, chatId, timeRead)
 
 	// log any error
 	if err != nil {
