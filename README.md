@@ -18,7 +18,7 @@ Features
 - Message read receipt
 - Receive / send markdown formatted messages
 - Reply / delete / edit / forward / send messages
-- List dialogs for selecting files, emojis, contacts
+- List dialogs for selecting chats, contacts, emojis, files
 - Show user status (online, away, typing)
 - Toggle to view textized emojis vs. graphical
 - View / save media files (documents, photos, videos)
@@ -105,7 +105,7 @@ Supported Platforms
 nchat is developed and tested on Linux and macOS. Current version has been
 tested on:
 
-- macOS Sonoma 14.0
+- macOS Sonoma 14.5
 - Ubuntu 22.04 LTS
 
 Install using Package Manager
@@ -213,20 +213,25 @@ code. Example:
 
     $ nchat --setup
     Protocols:
-    0. Telegram
-    1. Exit setup
-    Select protocol (1): 0
+    0. Dummy
+    1. Telegram
+    2. WhatsAppMd
+    3. Exit setup
+    Select protocol (3): 1
     Enter phone number (ex. +6511111111): +6511111111
     Enter authentication code: xxxxx
     Succesfully set up profile Telegram_+6511111111
 
-If you are not sure what phone number to enter, open Telegram on your phone
+If unsure of what phone number to enter, open the Telegram app on the phone
 and press the menu button and use the number displayed there (omitting spaces,
 so for the below screenshot the number to enter is +6511111111).
 
 ![screenshot telegram phone](/doc/screenshot-phone.png)
 
 Once the setup process is completed, the main UI of nchat will be loaded.
+
+In order to set up multiple protocols/profiles, exit nchat and perform the
+setup step again.
 
 
 Troubleshooting
@@ -992,8 +997,8 @@ There is currently no concrete roadmap for further feature development of
 nchat. It is not intended to be a full-featured client on par with official
 Telegram / WhatsApp clients, but rather a light-weight client providing
 essential functionality suitable for the terminal. However, feel free to
-submit feature requests if there's something missing, and if it's useful
-and low effort it can probably be added.
+submit feature requests if there's something missing, or help upvote
+[existing feature requests](https://github.com/d99kris/nchat/discussions/categories/ideas?discussions_q=is%3Aopen+category%3AIdeas), and if it's useful and low effort it can probably be added.
 
 
 License
