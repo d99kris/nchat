@@ -1412,7 +1412,7 @@ std::vector<std::string> UiModel::SelectFile()
   }
   else
   {
-    UiDialogParams params(m_View.get(), this, "Select File", 0.75, 0.65);
+    UiDialogParams params(m_View.get(), this, "Send File", 0.75, 0.65);
     UiFileListDialog dialog(params);
     if (dialog.Run())
     {
@@ -1517,7 +1517,7 @@ void UiModel::SearchContact()
     if (GetEditMessageActive()) return;
   }
 
-  UiDialogParams params(m_View.get(), this, "Select Contact", 0.75, 0.65);
+  UiDialogParams params(m_View.get(), this, "Open Chat", 0.75, 0.65);
   UiContactListDialog dialog(params);
   if (dialog.Run())
   {
@@ -3740,7 +3740,7 @@ void UiModel::ForwardMessage()
     message = msg->second;
   }
 
-  UiDialogParams params(m_View.get(), this, "Select Chat", 0.75, 0.65);
+  UiDialogParams params(m_View.get(), this, "Forward to Chat", 0.75, 0.65);
   UiChatListDialog dialog(params);
 
   if (dialog.Run())

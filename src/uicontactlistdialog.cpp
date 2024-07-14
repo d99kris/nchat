@@ -14,7 +14,7 @@
 #include "strutil.h"
 
 UiContactListDialog::UiContactListDialog(const UiDialogParams& p_Params)
-  : UiListDialog(p_Params, true /*p_ShadeHidden*/)
+  : UiListDialog(p_Params, false /*p_ShadeHidden*/)
 {
   static bool s_ContactsRequested = false;
   if (!s_ContactsRequested)

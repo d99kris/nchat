@@ -16,7 +16,7 @@ static std::pair<std::string, std::string> s_NoneOptionTextEmoji("[none]", "");
 
 UiEmojiListDialog::UiEmojiListDialog(const UiDialogParams& p_Params, const std::string& p_DefaultOption /*= ""*/,
                                      bool p_HasNoneOption /*= false*/, bool p_HasLimitedEmojis /*= false*/)
-  : UiListDialog(p_Params, true /*p_ShadeHidden*/)
+  : UiListDialog(p_Params, false /*p_ShadeHidden*/)
   , m_DefaultOption(p_DefaultOption)
   , m_HasNoneOption(p_HasNoneOption)
   , m_HasLimitedEmojis(p_HasLimitedEmojis)
