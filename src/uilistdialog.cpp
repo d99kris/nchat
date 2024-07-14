@@ -11,6 +11,7 @@
 #include "strutil.h"
 #include "timeutil.h"
 #include "uicolorconfig.h"
+#include "uiconfig.h"
 #include "uicontroller.h"
 #include "uikeyconfig.h"
 #include "uimodel.h"
@@ -22,7 +23,8 @@ UiListDialog::UiListDialog(const UiDialogParams& p_Params, bool p_ShadeHidden)
 {
   m_Model->SetListDialogActive(true);
   m_View->Draw();
-  curs_set(0);
+  curs_set(0); // needed as UiView::Draw() sets curs_set(1)
+  UpdateFooter();
 }
 
 UiListDialog::~UiListDialog()
@@ -149,12 +151,14 @@ void UiListDialog::KeyHandler(wint_t p_Key)
     {
       m_FilterStr.pop_back();
       UpdateList();
+      UpdateFooter();
     }
   }
   else if (StrUtil::IsValidTextKey(p_Key))
   {
     m_FilterStr += p_Key;
     UpdateList();
+    UpdateFooter();
   }
   else
   {
@@ -216,4 +220,13 @@ void UiListDialog::Draw()
 
   wattroff(m_Win, attribute | colorPair);
   wrefresh(m_Win);
+}
+
+void UiListDialog::UpdateFooter()
+{
+  static const bool listdialogShowFilter = UiConfig::GetBool("listdialog_show_filter");
+  if (listdialogShowFilter)
+  {
+    SetFooter("Filter: " + StrUtil::ToString(m_FilterStr));
+  }
 }

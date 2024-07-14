@@ -40,6 +40,7 @@ void UiFileListDialog::OnSelect()
       m_DirEntrys = FileUtil::ListPaths(m_CurrentDir);
       m_FilterStr.clear();
       UpdateList();
+      UpdateFooter();
     }
     else
     {
@@ -56,6 +57,7 @@ void UiFileListDialog::OnBack()
   m_DirEntrys = FileUtil::ListPaths(m_CurrentDir);
   m_FilterStr.clear();
   UpdateList();
+  UpdateFooter();
 }
 
 bool UiFileListDialog::OnTimer()

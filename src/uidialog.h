@@ -43,18 +43,28 @@ public:
   void Init();
   void Cleanup();
 
+  void SetFooter(const std::string& p_Footer);
+
+private:
+  void DrawBorder();
+
 protected:
   UiView* m_View = nullptr;
   UiModel* m_Model = nullptr;
-  std::string m_Title;
-  float m_WReq = 0;
-  float m_HReq = 0;
 
   int m_X = 0;
   int m_Y = 0;
   int m_W = 0;
   int m_H = 0;
 
-  WINDOW* m_BorderWin = nullptr;
   WINDOW* m_Win = nullptr;
+
+private:
+  std::string m_Title;
+  float m_WReq = 0;
+  float m_HReq = 0;
+
+  std::string m_Footer;
+
+  WINDOW* m_BorderWin = nullptr;
 };

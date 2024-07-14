@@ -27,6 +27,8 @@ protected:
   virtual bool OnTimer() = 0;
   virtual void UpdateList() = 0;
 
+  void UpdateFooter();
+
 private:
   void Draw();
 

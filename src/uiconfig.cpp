@@ -38,6 +38,7 @@ void UiConfig::Init()
     { "link_open_command", "" },
     { "list_enabled", "1" },
     { "list_width", "14" },
+    { "listdialog_show_filter", "1" },
     { "mark_read_on_view", "1" },
     { "mark_read_when_inactive", "0" },
     { "message_edit_command", "" },
