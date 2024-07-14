@@ -366,6 +366,7 @@ This configuration file holds general user interface settings. Default content:
     terminal_title=
     top_enabled=1
     top_show_version=0
+    transfer_send_caption=1
     typing_status_share=1
 
 ### attachment_indicator
@@ -597,6 +598,10 @@ Specifies whether to display top bar. Controlled by Ctrl-p in run-time.
 ### top_show_version
 
 Specifies whether to display nchat version in top bar.
+
+### transfer_send_caption
+
+Specified if entered text should be sent as caption when transferring a file.
 
 ### typing_status_share
 

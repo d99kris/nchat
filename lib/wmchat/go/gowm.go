@@ -2060,6 +2060,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 			fileName := filepath.Base(filePath)
 
 			documentMessage := waE2E.DocumentMessage{
+				Caption:       proto.String(text),
 				URL:           proto.String(uploaded.URL),
 				DirectPath:    proto.String(uploaded.DirectPath),
 				MediaKey:      uploaded.MediaKey,

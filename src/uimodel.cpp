@@ -1384,7 +1384,9 @@ std::vector<std::string> UiModel::SelectFile()
       if (!filesStr.empty())
       {
         filePaths = StrUtil::Split(filesStr, '\n');
-        filePaths = ToVector(ToSet(filePaths)); // hack to handle nnn's duplicate results
+        std::set<std::string> filePathsSet = ToSet(filePaths); // hack to handle nnn's duplicate results
+        filePathsSet.erase(""); // remove empty element
+        filePaths = ToVector(filePathsSet);
       }
     }
     else
@@ -1430,8 +1432,10 @@ void UiModel::TransferFile()
     std::string profileId = m_CurrentChat.first;
     std::string chatId = m_CurrentChat.second;
 
-    for (const auto& filePath : filePaths)
+    for (auto it = filePaths.begin(); it != filePaths.end(); ++it)
     {
+      const std::string& filePath = *it;
+
       FileInfo fileInfo;
       fileInfo.filePath = filePath;
       fileInfo.fileType = FileUtil::GetMimeType(filePath);
@@ -1440,6 +1444,24 @@ void UiModel::TransferFile()
         std::make_shared<SendMessageRequest>();
       sendMessageRequest->chatId = chatId;
       sendMessageRequest->chatMessage.fileInfo = ProtocolUtil::FileInfoToHex(fileInfo);
+
+      static const bool transferSendCaption = UiConfig::GetBool("transfer_send_caption");
+      if (transferSendCaption)
+      {
+        // add caption to first file
+        if (it == filePaths.begin())
+        {
+          std::wstring& entryStr = m_EntryStr[profileId][chatId];
+          int& entryPos = m_EntryPos[profileId][chatId];
+
+          sendMessageRequest->chatMessage.text = EntryStrToSendStr(entryStr);
+
+          entryStr.clear();
+          entryPos = 0;
+
+          UpdateEntry();
+        }
+      }
 
       SendProtocolRequest(profileId, sendMessageRequest);
     }
