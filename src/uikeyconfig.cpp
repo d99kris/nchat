@@ -245,6 +245,7 @@ void UiKeyConfig::Init(bool p_MapKeys)
     { "transfer", "KEY_CTRLT" },
     { "select_emoji", "KEY_CTRLS" },
     { "select_contact", "KEY_CTRLN" },
+    { "forward_msg", "\\33\\146" }, // alt/opt-f
     { "other_commands_help", "KEY_CTRLO" },
     { "decrease_list_width", "\\33\\54" }, // alt/opt-,
     { "increase_list_width", "\\33\\56" }, // alt/opt-.

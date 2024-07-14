@@ -22,6 +22,7 @@ void UiConfig::Init()
     { "attachment_open_command", "" },
     { "away_status_indication", "0" },
     { "call_command", "" },
+    { "chat_picker_sorted_alphabetically", "0" },
     { "confirm_deletion", "1" },
     { "desktop_notify_active", "0" },
     { "desktop_notify_inactive", "0" },

@@ -75,6 +75,8 @@ add_executable(nchat
   src/main.cpp
   src/ui.cpp
   src/ui.h
+  src/uichatlistdialog.cpp
+  src/uichatlistdialog.h
   src/uicolorconfig.cpp
   src/uicolorconfig.h
   src/uiconfig.cpp

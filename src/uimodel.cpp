@@ -22,6 +22,7 @@
 #include "strutil.h"
 #include "timeutil.h"
 #include "uidialog.h"
+#include "uichatlistdialog.h"
 #include "uiconfig.h"
 #include "uicontactlistdialog.h"
 #include "uicontroller.h"
@@ -95,6 +96,8 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keyJumpQuoted = UiKeyConfig::GetKey("jump_quoted");
   static wint_t keyFind = UiKeyConfig::GetKey("find");
   static wint_t keyFindNext = UiKeyConfig::GetKey("find_next");
+
+  static wint_t keyForwardMsg = UiKeyConfig::GetKey("forward_msg");
 
   static wint_t keyToggleList = UiKeyConfig::GetKey("toggle_list");
   static wint_t keyToggleTop = UiKeyConfig::GetKey("toggle_top");
@@ -296,6 +299,10 @@ void UiModel::KeyHandler(wint_t p_Key)
   else if (p_Key == keyFindNext)
   {
     FindNext();
+  }
+  else if (p_Key == keyForwardMsg)
+  {
+    ForwardMessage();
   }
   else
   {
@@ -2302,6 +2309,12 @@ std::string UiModel::GetContactListName(const std::string& p_ProfileId, const st
   return chatName;
 }
 
+std::string UiModel::GetContactListNameLock(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_AllowId)
+{
+  std::unique_lock<std::mutex> lock(m_ModelMutex);
+  return GetContactListName(p_ProfileId, p_ChatId, p_AllowId);
+}
+
 std::string UiModel::GetContactPhone(const std::string& p_ProfileId, const std::string& p_ChatId)
 {
   const ContactInfo& contactInfo = m_ContactInfos[p_ProfileId][p_ChatId];
@@ -2617,6 +2630,12 @@ int& UiModel::GetEntryPos()
 std::vector<std::pair<std::string, std::string>>& UiModel::GetChatVec()
 {
   return m_ChatVec;
+}
+
+std::vector<std::pair<std::string, std::string>>& UiModel::GetChatVecLock()
+{
+  std::unique_lock<std::mutex> lock(m_ModelMutex);
+  return GetChatVec();
 }
 
 std::unordered_map<std::string, std::unordered_map<std::string, ContactInfo>> UiModel::GetContactInfos()
@@ -3685,4 +3704,91 @@ void UiModel::PerformFindNext()
 void UiModel::ClearFind()
 {
   m_FindText = "";
+}
+
+void UiModel::ForwardMessage()
+{
+  ChatMessage message;
+  std::string profileId;
+  std::string chatId;
+
+  {
+    std::unique_lock<std::mutex> lock(m_ModelMutex);
+    if (!GetSelectMessageActive() || GetEditMessageActive()) return;
+
+    profileId = m_CurrentChat.first;
+    chatId = m_CurrentChat.second;
+    const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
+    const int messageOffset = m_MessageOffset[profileId][chatId];
+    const std::unordered_map<std::string, ChatMessage>& messages =
+      m_Messages[profileId][chatId];
+
+    auto it = std::next(messageVec.begin(), messageOffset);
+    if (it == messageVec.end())
+    {
+      LOG_WARNING("error finding selected message id");
+      return;
+    }
+
+    auto msg = messages.find(*it);
+    if (msg == messages.end())
+    {
+      LOG_WARNING("error finding selected message content");
+      return;
+    }
+
+    message = msg->second;
+  }
+
+  UiDialogParams params(m_View.get(), this, "Select Chat", 0.75, 0.65);
+  UiChatListDialog dialog(params);
+
+  if (dialog.Run())
+  {
+    UiChatListItem selectedChatListItem = dialog.GetSelectedChatItem();
+
+    std::unique_lock<std::mutex> lock(m_ModelMutex);
+
+    // switch current chat to recipient
+    bool found = false;
+    std::pair<std::string, std::string> newCurrentChat =
+      std::make_pair(selectedChatListItem.profileId, selectedChatListItem.chatId);
+    for (size_t i = 0; i < m_ChatVec.size(); ++i)
+    {
+      if (m_ChatVec.at(i) == newCurrentChat)
+      {
+        m_CurrentChatIndex = i;
+        m_CurrentChat = m_ChatVec.at(m_CurrentChatIndex);
+        found = true;
+        break;
+      }
+    }
+
+    if (found)
+    {
+      // fetch recipient messages before send, to avoid fetching outgoing message with temporary id
+      OnCurrentChatChanged();
+    }
+    else
+    {
+      LOG_WARNING("recipient %s %s not found",
+                  selectedChatListItem.profileId.c_str(),
+                  selectedChatListItem.chatId.c_str());
+    }
+
+    // send copy of selected message
+    std::shared_ptr<SendMessageRequest> sendMessageRequest =
+      std::make_shared<SendMessageRequest>();
+    sendMessageRequest->chatId = selectedChatListItem.chatId;
+    sendMessageRequest->chatMessage.text = message.text;
+    sendMessageRequest->chatMessage.fileInfo = message.fileInfo;
+
+    SendProtocolRequest(selectedChatListItem.profileId, sendMessageRequest);
+
+    // reset message offset and selection mode
+    m_MessageOffset[profileId][chatId] = 0;
+    SetSelectMessageActive(false);
+  }
+
+  ReinitView();
 }

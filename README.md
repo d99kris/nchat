@@ -17,7 +17,7 @@ Features
 - Message history cache with support for text export
 - Message read receipt
 - Receive / send markdown formatted messages
-- Reply / delete / edit / send messages
+- Reply / delete / edit / forward / send messages
 - List dialogs for selecting files, emojis, contacts
 - Show user status (online, away, typing)
 - Toggle to view textized emojis vs. graphical
@@ -79,6 +79,7 @@ Interactive Commands for Selected Message:
     Ctrl-x      send reply to selected message
     Ctrl-z      edit selected message
     Alt-c       copy selected message to clipboard
+    Alt-f       forward selected message
     Alt-q       jump to quoted/replied message
     Alt-s       add/remove reaction on selected message
     Alt-w       external message viewer
@@ -330,6 +331,7 @@ This configuration file holds general user interface settings. Default content:
     attachment_open_command=
     away_status_indication=0
     call_command=
+    chat_picker_sorted_alphabetically=0
     confirm_deletion=1
     desktop_notify_active=0
     desktop_notify_command=
@@ -403,6 +405,12 @@ are used:
 Linux: `xdg-open >/dev/null 2>&1 'tel://%1' &`
 
 macOS: `open 'tel://%1' &`
+
+### chat_picker_sorted_alphabetically
+
+Specifies whether the chat selection dialog (used when forwarding message)
+should be sorted alphabetically. If not, its order follows the main chat
+list order.
 
 ### confirm_deletion
 
@@ -601,7 +609,7 @@ Specifies whether to display nchat version in top bar.
 
 ### transfer_send_caption
 
-Specified if entered text should be sent as caption when transferring a file.
+Specifies if entered text should be sent as caption when transferring a file.
 
 ### typing_status_share
 
@@ -635,6 +643,7 @@ This configuration file holds user interface key bindings. Default content:
     ext_edit=\33\145
     find=\33\57
     find_next=\33\77
+    forward_msg=\33\146
     forward_word=
     home=KEY_HOME
     increase_list_width=\33\56

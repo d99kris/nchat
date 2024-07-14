@@ -630,6 +630,7 @@ void ShowHelp()
     "    Ctrl-x      send reply to selected message\n"
     "    Ctrl-z      edit selected message\n"
     "    Alt-c       copy selected message to clipboard\n"
+    "    Alt-f       forward selected message\n"
     "    Alt-q       jump to quoted/replied message\n"
     "    Alt-s       add/remove reaction on selected message\n"
     "    Alt-w       external message viewer\n"

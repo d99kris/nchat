@@ -82,7 +82,7 @@ void UiContactListDialog::UpdateList()
     {
       const std::string& profileId = profileContactInfos.first;
       const std::string& contactId = idContactInfo.first;
-      const std::string& name = m_Model->GetContactListName(profileId, contactId, false /*p_AllowId*/);;
+      const std::string& name = m_Model->GetContactListNameLock(profileId, contactId, false /*p_AllowId*/);;
 
       if (name.empty()) continue;
 
