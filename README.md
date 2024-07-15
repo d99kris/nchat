@@ -79,8 +79,8 @@ Interactive Commands for Selected Message:
     Ctrl-x      send reply to selected message
     Ctrl-z      edit selected message
     Alt-c       copy selected message to clipboard
-    Alt-f       forward selected message
     Alt-q       jump to quoted/replied message
+    Alt-r       forward selected message
     Alt-s       add/remove reaction on selected message
     Alt-w       external message viewer
 
@@ -653,7 +653,7 @@ This configuration file holds user interface key bindings. Default content:
     ext_edit=\33\145
     find=\33\57
     find_next=\33\77
-    forward_msg=\33\146
+    forward_msg=\33\162
     forward_word=
     home=KEY_HOME
     increase_list_width=\33\56
