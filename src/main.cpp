@@ -269,6 +269,7 @@ int main(int argc, char* argv[])
   // Init app config
   AppConfig::Init();
   FileUtil::SetDownloadsDir(AppConfig::GetStr("downloads_dir"));
+  static const bool isLogdumpEnabled = AppConfig::GetBool("logdump_enabled");
 
   // Init core dump
   static const bool isCoredumpEnabled = AppConfig::GetBool("coredump_enabled");
@@ -431,7 +432,7 @@ int main(int argc, char* argv[])
 
   LOG_INFO("exit");
 
-  Log::Cleanup();
+  Log::Cleanup(isLogdumpEnabled);
 
   return rv;
 }

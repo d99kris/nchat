@@ -269,6 +269,7 @@ This configuration file holds general application settings. Default content:
     coredump_enabled=0
     downloads_dir=
     link_send_preview=1
+    logdump_enabled=0
     proxy_host=
     proxy_pass=
     proxy_port=
@@ -305,6 +306,10 @@ specified, the default dir is `~/Downloads` if exists, otherwise `~`.
 ### link_send_preview
 
 Specifies whether to enable preview for links in messages sent (Telegram only).
+
+### logdump_enabled
+
+Specifies whether to dump warning and error log messages to stdout upon exit.
 
 ### proxy_
 

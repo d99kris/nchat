@@ -24,6 +24,7 @@ void AppConfig::Init()
     { "coredump_enabled", "0" },
     { "downloads_dir", "" },
     { "link_send_preview", "1" },
+    { "logdump_enabled", "0" },
     { "proxy_host", "" },
     { "proxy_pass", "" },
     { "proxy_port", "" },
