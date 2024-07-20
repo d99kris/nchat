@@ -106,7 +106,7 @@ ${SEDCMD} -E -i -e "s/^var whatsmeowDate int.*$/var whatsmeowDate int = ${NEWVER
 # Complete
 echo "Done"
 echo "Proceed to bump project version and build:"
-echo "nano lib/common/src/version.h"
+echo "./make.sh bump"
 echo "./make.sh doc"
 echo ""
 echo "If succesful proceed to commit the changes:"
