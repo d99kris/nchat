@@ -732,8 +732,8 @@ void UiModel::UnreadChat()
   for (size_t i = 0; i < m_ChatVec.size(); ++i)
   {
     const std::pair<std::string, std::string>& chat = m_ChatVec.at(i);
-    const ChatInfo& chatInfo = m_ChatInfos[chat.first][chat.second];
-    if (chatInfo.isUnread)
+    const bool isUnread = GetChatIsUnread(chat.first, chat.second);
+    if (isUnread)
     {
       unreadVec.push_back(i);
       if (m_CurrentChatIndex == (int)i)
@@ -2265,15 +2265,7 @@ void UiModel::UpdateChatInfoIsUnread(const std::string& p_ProfileId, const std::
       }
     }
 
-    static const bool mutedIndicateUnread = UiConfig::GetBool("muted_indicate_unread");
-    if (mutedIndicateUnread || !profileChatInfos[p_ChatId].isMuted || hasMention)
-    {
-      profileChatInfos[p_ChatId].isUnread = isUnread;
-    }
-    else
-    {
-      profileChatInfos[p_ChatId].isUnread = false;
-    }
+    profileChatInfos[p_ChatId].isUnread = isUnread;
   }
 }
 
@@ -2324,7 +2316,9 @@ std::string UiModel::GetContactPhone(const std::string& p_ProfileId, const std::
 bool UiModel::GetChatIsUnread(const std::string& p_ProfileId, const std::string& p_ChatId)
 {
   const ChatInfo& chatInfo = m_ChatInfos[p_ProfileId][p_ChatId];
-  return chatInfo.isUnread; // @todo: handle isUnreadMention, isMuted
+  static const bool mutedIndicateUnread = UiConfig::GetBool("muted_indicate_unread");
+  const bool indicateUnread = chatInfo.isUnread && (mutedIndicateUnread || !chatInfo.isMuted);
+  return indicateUnread; // @todo: handle isUnreadMention
 }
 
 std::string UiModel::GetChatStatus(const std::string& p_ProfileId, const std::string& p_ChatId)
