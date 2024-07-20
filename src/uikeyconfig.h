@@ -29,6 +29,7 @@ private:
   static int GetVirtualKeyCodeFromOct(const std::string& p_KeyOct);
   static int ReserveVirtualKeyCode();
   static int GetFunctionKeyOffset();
+  static void DetectConflicts();
 
 private:
   static Config m_Config;

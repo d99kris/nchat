@@ -257,6 +257,7 @@ void UiKeyConfig::Init(bool p_MapKeys)
   const std::string configPath(FileUtil::GetApplicationDir() + std::string("/key.conf"));
   m_Config = Config(configPath, defaultConfig);
 
+  DetectConflicts();
   InitKeyCodes(p_MapKeys);
 }
 
@@ -350,7 +351,7 @@ int UiKeyConfig::GetKeyCode(const std::string& p_KeyName)
   }
   else
   {
-    LOG_WARNING("warning: unknown key \"%s\"", p_KeyName.c_str());
+    LOG_WARNING("unknown key \"%s\"", p_KeyName.c_str());
   }
 
   return keyCode;
@@ -389,4 +390,34 @@ int UiKeyConfig::GetFunctionKeyOffset()
 {
   // Using Unicode's supplementary Private Use Area B (U+100000..U+10FFFD).
   return 0x100000;
+}
+
+void UiKeyConfig::DetectConflicts()
+{
+  std::set<std::string> ignoreKeyFunctions = { "ok", "cancel" };
+  std::set<std::string> dupeMappings;
+  std::map<std::string, std::vector<std::string>> keyMappings;
+  std::map<std::string, std::string> keyMap = m_Config.GetMap();
+  for (auto it = keyMap.begin(); it != keyMap.end(); ++it)
+  {
+    const std::string& keyFunction = it->first;
+    const std::string& keyCode = it->second;
+
+    if (ignoreKeyFunctions.count(keyFunction)) continue;
+
+    std::vector<std::string>& keyMapping = keyMappings[keyCode];
+    keyMapping.push_back(keyFunction);
+    if (keyMapping.size() > 1)
+    {
+      dupeMappings.insert(keyCode);
+    }
+  }
+
+  for (auto it = dupeMappings.begin(); it != dupeMappings.end(); ++it)
+  {
+    const std::string& keyCode = *it;
+    const std::vector<std::string>& keyMapping = keyMappings[keyCode];
+    const std::string keyFunctions = StrUtil::Join(keyMapping, ", ");
+    LOG_WARNING("key \"%s\" has duplicate mappings: %s", keyCode.c_str(), keyFunctions.c_str());
+  }
 }
