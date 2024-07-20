@@ -229,7 +229,8 @@ SendCodeHelper::AuthenticationCodeInfo SendCodeHelper::get_sent_authentication_c
       }
       if ((code_type->flags_ & telegram_api::auth_sentCodeTypeFirebaseSms::PLAY_INTEGRITY_NONCE_MASK) != 0) {
         return AuthenticationCodeInfo{AuthenticationCodeInfo::Type::FirebaseAndroidPlayIntegrity, code_type->length_,
-                                      code_type->play_integrity_nonce_.as_slice().str()};
+                                      code_type->play_integrity_nonce_.as_slice().str(), 0,
+                                      code_type->play_integrity_project_id_};
       }
 #elif TD_DARWIN
       if ((code_type->flags_ & telegram_api::auth_sentCodeTypeFirebaseSms::RECEIPT_MASK) != 0) {
@@ -279,11 +280,14 @@ td_api::object_ptr<td_api::AuthenticationCodeType> SendCodeHelper::get_authentic
       return td_api::make_object<td_api::authenticationCodeTypeFragment>(authentication_code_info.pattern,
                                                                          authentication_code_info.length);
     case AuthenticationCodeInfo::Type::FirebaseAndroidSafetyNet:
-      return td_api::make_object<td_api::authenticationCodeTypeFirebaseAndroid>(false, authentication_code_info.pattern,
-                                                                                authentication_code_info.length);
+      return td_api::make_object<td_api::authenticationCodeTypeFirebaseAndroid>(
+          td_api::make_object<td_api::firebaseDeviceVerificationParametersSafetyNet>(authentication_code_info.pattern),
+          authentication_code_info.length);
     case AuthenticationCodeInfo::Type::FirebaseAndroidPlayIntegrity:
-      return td_api::make_object<td_api::authenticationCodeTypeFirebaseAndroid>(true, authentication_code_info.pattern,
-                                                                                authentication_code_info.length);
+      return td_api::make_object<td_api::authenticationCodeTypeFirebaseAndroid>(
+          td_api::make_object<td_api::firebaseDeviceVerificationParametersPlayIntegrity>(
+              base64url_encode(authentication_code_info.pattern), authentication_code_info.cloud_project_number),
+          authentication_code_info.length);
     case AuthenticationCodeInfo::Type::FirebaseIos:
       return td_api::make_object<td_api::authenticationCodeTypeFirebaseIos>(
           authentication_code_info.pattern, authentication_code_info.push_timeout, authentication_code_info.length);

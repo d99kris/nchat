@@ -6,7 +6,7 @@ if (POLICY CMP0065)
   cmake_policy(SET CMP0065 NEW)
 endif()
 
-project(TDLib VERSION 1.8.31 LANGUAGES CXX C)
+project(TDLib VERSION 1.8.33 LANGUAGES CXX C)
 
 if (NOT DEFINED CMAKE_MODULE_PATH)
   set(CMAKE_MODULE_PATH "")
@@ -330,6 +330,7 @@ set(TDLIB_SOURCE_PART1
   td/telegram/BackgroundInfo.cpp
   td/telegram/BackgroundManager.cpp
   td/telegram/BackgroundType.cpp
+  td/telegram/BaseTheme.cpp
   td/telegram/Birthdate.cpp
   td/telegram/BoostManager.cpp
   td/telegram/BotCommand.cpp
@@ -572,6 +573,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/TdDb.cpp
   td/telegram/TermsOfService.cpp
   td/telegram/ThemeManager.cpp
+  td/telegram/ThemeSettings.cpp
   td/telegram/TimeZoneManager.cpp
   td/telegram/TopDialogCategory.cpp
   td/telegram/TopDialogManager.cpp
@@ -606,6 +608,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/BackgroundInfo.h
   td/telegram/BackgroundManager.h
   td/telegram/BackgroundType.h
+  td/telegram/BaseTheme.h
   td/telegram/Birthdate.h
   td/telegram/BlockListId.h
   td/telegram/BoostManager.h
@@ -912,6 +915,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/TdDb.h
   td/telegram/TermsOfService.h
   td/telegram/ThemeManager.h
+  td/telegram/ThemeSettings.h
   td/telegram/TimeZoneManager.h
   td/telegram/TopDialogCategory.h
   td/telegram/TopDialogManager.h
@@ -1009,6 +1013,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/StoryInteractionInfo.hpp
   td/telegram/StoryStealthMode.hpp
   td/telegram/SuggestedAction.hpp
+  td/telegram/ThemeSettings.hpp
   td/telegram/TranscriptionInfo.hpp
   td/telegram/VideoNotesManager.hpp
   td/telegram/VideosManager.hpp

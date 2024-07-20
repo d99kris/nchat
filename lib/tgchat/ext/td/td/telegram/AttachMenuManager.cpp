@@ -84,7 +84,7 @@ class RequestAppWebViewQuery final : public Td::ResultHandler {
       flags |= telegram_api::messages_requestAppWebView::THEME_PARAMS_MASK;
 
       theme_parameters = make_tl_object<telegram_api::dataJSON>(string());
-      theme_parameters->data_ = ThemeManager::get_theme_parameters_json_string(theme, false);
+      theme_parameters->data_ = ThemeManager::get_theme_parameters_json_string(theme);
     }
     if (allow_write_access) {
       flags |= telegram_api::messages_requestAppWebView::WRITE_ALLOWED_MASK;
@@ -97,7 +97,7 @@ class RequestAppWebViewQuery final : public Td::ResultHandler {
     auto input_bot_app =
         telegram_api::make_object<telegram_api::inputBotAppShortName>(std::move(input_user), web_app_short_name);
     send_query(G()->net_query_creator().create(telegram_api::messages_requestAppWebView(
-        flags, false /*ignored*/, std::move(input_peer), std::move(input_bot_app), start_parameter,
+        flags, false /*ignored*/, false /*ignored*/, std::move(input_peer), std::move(input_bot_app), start_parameter,
         std::move(theme_parameters), platform)));
   }
 
@@ -109,6 +109,7 @@ class RequestAppWebViewQuery final : public Td::ResultHandler {
 
     auto ptr = result_ptr.move_as_ok();
     LOG(INFO) << "Receive result for RequestAppWebViewQuery: " << to_string(ptr);
+    LOG_IF(ERROR, ptr->query_id_ != 0) << "Receive " << to_string(ptr);
     promise_.set_value(std::move(ptr->url_));
   }
 
@@ -165,7 +166,7 @@ class RequestWebViewQuery final : public Td::ResultHandler {
     tl_object_ptr<telegram_api::dataJSON> theme_parameters;
     if (theme != nullptr) {
       theme_parameters = make_tl_object<telegram_api::dataJSON>(string());
-      theme_parameters->data_ = ThemeManager::get_theme_parameters_json_string(theme, false);
+      theme_parameters->data_ = ThemeManager::get_theme_parameters_json_string(theme);
 
       flags |= telegram_api::messages_requestWebView::THEME_PARAMS_MASK;
     }
@@ -188,8 +189,8 @@ class RequestWebViewQuery final : public Td::ResultHandler {
     }
 
     send_query(G()->net_query_creator().create(telegram_api::messages_requestWebView(
-        flags, false /*ignored*/, false /*ignored*/, std::move(input_peer), std::move(input_user), url, start_parameter,
-        std::move(theme_parameters), platform, std::move(reply_to), std::move(as_input_peer))));
+        flags, false /*ignored*/, false /*ignored*/, false /*ignored*/, std::move(input_peer), std::move(input_user),
+        url, start_parameter, std::move(theme_parameters), platform, std::move(reply_to), std::move(as_input_peer))));
   }
 
   void on_result(BufferSlice packet) final {
@@ -199,6 +200,7 @@ class RequestWebViewQuery final : public Td::ResultHandler {
     }
 
     auto ptr = result_ptr.move_as_ok();
+    LOG_IF(ERROR, (ptr->flags_ & telegram_api::webViewResultUrl::QUERY_ID_MASK) == 0) << "Receive " << to_string(ptr);
     td_->attach_menu_manager_->open_web_view(ptr->query_id_, dialog_id_, bot_user_id_, top_thread_message_id_,
                                              std::move(input_reply_to_), as_dialog_id_);
     promise_.set_value(td_api::make_object<td_api::webAppInfo>(ptr->query_id_, ptr->url_));

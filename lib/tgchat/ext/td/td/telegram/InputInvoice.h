@@ -9,6 +9,7 @@
 #include "td/telegram/DialogId.h"
 #include "td/telegram/files/FileId.h"
 #include "td/telegram/LabeledPricePart.h"
+#include "td/telegram/MessageEntity.h"
 #include "td/telegram/MessageExtendedMedia.h"
 #include "td/telegram/MessageId.h"
 #include "td/telegram/Photo.h"
@@ -63,6 +64,7 @@ class InputInvoice {
   string provider_token_;
   string provider_data_;
   MessageExtendedMedia extended_media_;
+  FormattedText extended_media_caption_;
 
   int64 total_amount_ = 0;
   MessageId receipt_message_id_;
@@ -79,11 +81,10 @@ class InputInvoice {
                DialogId owner_dialog_id);
 
   static Result<InputInvoice> process_input_message_invoice(
-      td_api::object_ptr<td_api::InputMessageContent> &&input_message_content, Td *td, DialogId owner_dialog_id,
-      bool is_premium);
+      td_api::object_ptr<td_api::InputMessageContent> &&input_message_content, Td *td, DialogId owner_dialog_id);
 
-  tl_object_ptr<td_api::messageInvoice> get_message_invoice_object(Td *td, bool skip_bot_commands,
-                                                                   int32 max_media_timestamp) const;
+  td_api::object_ptr<td_api::messageInvoice> get_message_invoice_object(Td *td, bool skip_bot_commands,
+                                                                        int32 max_media_timestamp) const;
 
   tl_object_ptr<telegram_api::inputMediaInvoice> get_input_media_invoice(
       Td *td, tl_object_ptr<telegram_api::InputFile> input_file,

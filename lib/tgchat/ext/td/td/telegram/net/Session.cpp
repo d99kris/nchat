@@ -565,8 +565,7 @@ void Session::on_connected() {
   }
 }
 
-Status Session::on_pong(double ping_time, double pong_time) {
-  constexpr int MAX_QUERY_TIMEOUT = 60;
+Status Session::on_pong(double ping_time, double pong_time, double current_time) {
   constexpr int MIN_CONNECTION_ACTIVE = 60;
   if (current_info_ == &main_connection_ &&
       Timestamp::at(current_info_->created_at_ + MIN_CONNECTION_ACTIVE).is_in_past()) {
@@ -575,17 +574,20 @@ Status Session::on_pong(double ping_time, double pong_time) {
       status = Status::Error(PSLICE() << "No state info for " << unknown_queries_.size() << " queries from auth key "
                                       << auth_data_.get_auth_key().id() << " for "
                                       << format::as_time(Time::now() - current_info_->created_at_)
-                                      << " after ping sent at " << ping_time << " and answered at " << pong_time);
+                                      << " after ping sent at " << ping_time << " and answered at " << pong_time
+                                      << " with the current server time " << current_time);
     }
     if (!sent_queries_list_.empty()) {
+      double query_timeout = 60 + (current_time - ping_time);
       for (auto it = sent_queries_list_.prev; it != &sent_queries_list_; it = it->prev) {
         auto query = Query::from_list_node(it);
-        if (Timestamp::at(query->sent_at_ + MAX_QUERY_TIMEOUT).is_in_past()) {
+        if (Timestamp::at(query->sent_at_ + query_timeout).is_in_past()) {
           if (status.is_ok()) {
             status =
                 Status::Error(PSLICE() << "No answer from auth key " << auth_data_.get_auth_key().id() << " for "
                                        << query->net_query_ << " for " << format::as_time(Time::now() - query->sent_at_)
-                                       << " after ping sent at " << ping_time << " and answered at " << pong_time);
+                                       << " after ping sent at " << ping_time << " and answered at " << pong_time
+                                       << " with the current server time " << current_time);
           }
           query->is_acknowledged_ = false;
         } else {
@@ -648,9 +650,15 @@ void Session::on_closed(Status status) {
         auth_data_.set_use_pfs(true);
       } else if (need_check_main_key_) {
         LOG(WARNING) << "Invalidate main key";
+        bool can_drop_main_auth_key_without_logging_out =
+            !is_main_ && G()->net_query_dispatcher().get_main_dc_id().get_raw_id() != raw_dc_id_;
         auth_data_.drop_main_auth_key();
         on_auth_key_updated();
-        G()->log_out("Main PFS authorization key is invalid");
+        if (can_drop_main_auth_key_without_logging_out) {
+          on_session_failed(status.clone());
+        } else {
+          G()->log_out("Main PFS authorization key is invalid");
+        }
       } else {
         LOG(WARNING) << "Session connection was closed: " << status << ' ' << current_info_->connection_->get_name();
       }

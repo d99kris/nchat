@@ -7,6 +7,7 @@
 #pragma once
 
 #include "td/telegram/DialogId.h"
+#include "td/telegram/files/FileSourceId.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/UserId.h"
@@ -14,6 +15,7 @@
 #include "td/actor/actor.h"
 
 #include "td/utils/common.h"
+#include "td/utils/FlatHashMap.h"
 #include "td/utils/Promise.h"
 #include "td/utils/Status.h"
 
@@ -39,7 +41,14 @@ class StarManager final : public Actor {
   void get_star_withdrawal_url(const td_api::object_ptr<td_api::MessageSender> &owner_id, int64 star_count,
                                const string &password, Promise<string> &&promise);
 
+  void get_star_ad_account_url(const td_api::object_ptr<td_api::MessageSender> &owner_id, Promise<string> &&promise);
+
+  void reload_star_transaction(DialogId dialog_id, const string &transaction_id, bool is_refund,
+                               Promise<Unit> &&promise);
+
   void on_update_stars_revenue_status(telegram_api::object_ptr<telegram_api::updateStarsRevenueStatus> &&update);
+
+  FileSourceId get_star_transaction_file_source_id(DialogId dialog_id, const string &transaction_id, bool is_refund);
 
   static int64 get_star_count(int64 amount, bool allow_negative = false);
 
@@ -54,6 +63,8 @@ class StarManager final : public Actor {
 
   Td *td_;
   ActorShared<> parent_;
+
+  FlatHashMap<DialogId, FlatHashMap<string, FileSourceId>, DialogIdHash> star_transaction_file_source_ids_[2];
 };
 
 }  // namespace td

@@ -1013,7 +1013,7 @@ class Td final : public Actor {
 
   void on_request(uint64 id, td_api::resendMessages &request);
 
-  void on_request(uint64 id, td_api::getWebPagePreview &request);
+  void on_request(uint64 id, td_api::getLinkPreview &request);
 
   void on_request(uint64 id, td_api::getWebPageInstantView &request);
 
@@ -1700,6 +1700,8 @@ class Td final : public Actor {
   void on_request(uint64 id, const td_api::getStarRevenueStatistics &request);
 
   void on_request(uint64 id, const td_api::getStarWithdrawalUrl &request);
+
+  void on_request(uint64 id, const td_api::getStarAdAccountUrl &request);
 
   void on_request(uint64 id, const td_api::getMessageStatistics &request);
 

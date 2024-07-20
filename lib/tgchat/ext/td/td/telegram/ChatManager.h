@@ -584,11 +584,13 @@ class ChatManager final : public Actor {
     bool can_view_statistics = false;
     bool is_can_view_statistics_inited = false;
     bool can_view_revenue = false;
+    bool can_view_star_revenue = false;
     bool is_all_history_available = true;
     bool can_have_sponsored_messages = true;
     bool has_aggressive_anti_spam_enabled = false;
     bool can_be_deleted = false;
     bool has_pinned_stories = false;
+    bool has_paid_media_allowed = false;
 
     bool is_slow_mode_next_send_date_changed = true;
     bool is_being_updated = false;

@@ -153,6 +153,7 @@ OptionManager::OptionManager(Td *td)
   set_default_integer_option("fact_check_length_max", 1024);
   set_default_integer_option("star_withdrawal_count_min", is_test_dc ? 10 : 1000);
   set_default_integer_option("story_link_area_count_max", 3);
+  set_default_integer_option("paid_media_message_star_count_max", 10000);
 
   if (options.isset("my_phone_number") || !options.isset("my_id")) {
     update_premium_options();
@@ -704,7 +705,7 @@ td_api::object_ptr<td_api::OptionValue> OptionManager::get_option_synchronously(
       break;
     case 'v':
       if (name == "version") {
-        return td_api::make_object<td_api::optionValueString>("1.8.31");
+        return td_api::make_object<td_api::optionValueString>("1.8.33");
       }
       break;
   }

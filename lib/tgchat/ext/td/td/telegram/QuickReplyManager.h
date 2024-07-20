@@ -266,7 +266,7 @@ class QuickReplyManager final : public Actor {
 
   void on_get_quick_reply_message(Shortcut *s, unique_ptr<QuickReplyMessage> message);
 
-  void update_quick_reply_message(QuickReplyShortcutId shortcut_id, unique_ptr<QuickReplyMessage> &old_message,
+  void update_quick_reply_message(unique_ptr<QuickReplyMessage> &old_message,
                                   unique_ptr<QuickReplyMessage> &&new_message);
 
   void delete_quick_reply_messages(Shortcut *s, const vector<MessageId> &message_ids, const char *source);
@@ -369,10 +369,12 @@ class QuickReplyManager final : public Actor {
 
   void on_failed_send_quick_reply_messages(QuickReplyShortcutId shortcut_id, vector<int64> random_ids, Status error);
 
-  void update_message_content(const QuickReplyMessage *old_message, QuickReplyMessage *new_message, bool is_edit);
+  void update_sent_message_content_from_temporary_message(const QuickReplyMessage *old_message,
+                                                          QuickReplyMessage *new_message, bool is_edit);
 
-  void update_message_content(const unique_ptr<MessageContent> &old_content, unique_ptr<MessageContent> &new_content,
-                              bool need_merge_files);
+  void update_sent_message_content_from_temporary_message(const unique_ptr<MessageContent> &old_content,
+                                                          unique_ptr<MessageContent> &new_content,
+                                                          bool need_merge_files);
 
   void do_send_message(const QuickReplyMessage *m, vector<int> bad_parts = {});
 
@@ -425,10 +427,11 @@ class QuickReplyManager final : public Actor {
 
   vector<FileId> get_message_file_ids(const QuickReplyMessage *m) const;
 
-  void delete_message_files(QuickReplyShortcutId shortcut_id, const QuickReplyMessage *m) const;
+  void delete_message_files(const QuickReplyMessage *m) const;
 
-  void change_message_files(QuickReplyMessageFullId message_full_id, const QuickReplyMessage *m,
-                            const vector<FileId> &old_file_ids);
+  void change_message_files(const QuickReplyMessage *m, const vector<FileId> &old_file_ids);
+
+  void register_new_message(const QuickReplyMessage *m, const char *source);
 
   void register_message_content(const QuickReplyMessage *m, const char *source) const;
 

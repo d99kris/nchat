@@ -779,8 +779,12 @@ Result<InputMessageContent> BusinessConnectionManager::process_input_message_con
   if (input_message_content == nullptr) {
     return Status::Error(400, "Can't send message without content");
   }
-  if (input_message_content->get_id() == td_api::inputMessageForwarded::ID) {
+  auto message_content_id = input_message_content->get_id();
+  if (message_content_id == td_api::inputMessageForwarded::ID) {
     return Status::Error(400, "Can't forward messages as business");
+  }
+  if (message_content_id == td_api::inputMessagePaidMedia::ID) {
+    return Status::Error(400, "Can't send paid media as business");
   }
   return get_input_message_content(DialogId(), std::move(input_message_content), td_, true);
 }
@@ -844,7 +848,8 @@ void BusinessConnectionManager::do_send_message(unique_ptr<PendingMessage> &&mes
     return;
   }
 
-  auto input_media = get_input_media(content, td_, message->ttl_, message->send_emoji_, td_->auth_manager_->is_bot());
+  auto input_media =
+      get_message_content_input_media(content, td_, message->ttl_, message->send_emoji_, td_->auth_manager_->is_bot());
   if (input_media != nullptr) {
     td_->create_handler<SendBusinessMediaQuery>(std::move(promise))->send(std::move(message), std::move(input_media));
     return;
@@ -1001,54 +1006,33 @@ void BusinessConnectionManager::do_upload_media(BeingUploadedMedia &&being_uploa
             << ", have_input_file = " << have_input_file << ", have_input_thumbnail = " << have_input_thumbnail;
 
   const auto *message = being_uploaded_media.message_.get();
-  auto input_media = get_input_media(message->content_.get(), td_, std::move(input_file), std::move(input_thumbnail),
-                                     file_id, thumbnail_file_id, message->ttl_, message->send_emoji_, true);
+  auto input_media = get_message_content_input_media(message->content_.get(), -1, td_, std::move(input_file),
+                                                     std::move(input_thumbnail), file_id, thumbnail_file_id,
+                                                     message->ttl_, message->send_emoji_, true);
   CHECK(input_media != nullptr);
-  auto input_media_id = input_media->get_id();
-  if (input_media_id == telegram_api::inputMediaDocument::ID || input_media_id == telegram_api::inputMediaPhoto::ID) {
-    // can use input media directly
+  if (is_uploaded_input_media(input_media)) {
     UploadMediaResult result;
     result.message_ = std::move(being_uploaded_media.message_);
     result.input_media_ = std::move(input_media);
     return being_uploaded_media.promise_.set_value(std::move(result));
-  }
-
-  switch (input_media->get_id()) {
-    case telegram_api::inputMediaUploadedDocument::ID:
-      if (message->content_->get_type() != MessageContentType::Animation) {
-        static_cast<telegram_api::inputMediaUploadedDocument *>(input_media.get())->flags_ |=
-            telegram_api::inputMediaUploadedDocument::NOSOUND_VIDEO_MASK;
-      }
-    // fallthrough
-    case telegram_api::inputMediaUploadedPhoto::ID:
-    case telegram_api::inputMediaDocumentExternal::ID:
-    case telegram_api::inputMediaPhotoExternal::ID:
-      td_->create_handler<UploadBusinessMediaQuery>(std::move(being_uploaded_media.promise_))
-          ->send(std::move(being_uploaded_media.message_), std::move(input_media));
-      break;
-    default:
-      LOG(ERROR) << "Have wrong input media " << to_string(input_media);
-      being_uploaded_media.promise_.set_error(Status::Error(400, "Invalid input media"));
+  } else {
+    td_->create_handler<UploadBusinessMediaQuery>(std::move(being_uploaded_media.promise_))
+        ->send(std::move(being_uploaded_media.message_), std::move(input_media));
   }
 }
 
 void BusinessConnectionManager::complete_upload_media(unique_ptr<PendingMessage> &&message,
                                                       telegram_api::object_ptr<telegram_api::MessageMedia> &&media,
                                                       Promise<UploadMediaResult> &&promise) {
-  auto *content = message->content_.get();
-  auto *caption = get_message_content_caption(content);
-  auto has_spoiler = get_message_content_has_spoiler(content);
-  auto new_content = get_message_content(td_, caption == nullptr ? FormattedText() : *caption, std::move(media),
-                                         td_->dialog_manager_->get_my_dialog_id(), G()->unix_time(), false, UserId(),
-                                         nullptr, nullptr, "complete_upload_media");
-  set_message_content_has_spoiler(new_content.get(), has_spoiler);
-
+  auto new_content =
+      get_uploaded_message_content(td_, message->content_.get(), -1, std::move(media),
+                                   td_->dialog_manager_->get_my_dialog_id(), G()->unix_time(), "complete_upload_media");
   bool is_content_changed = false;
   bool need_update = false;
 
   unique_ptr<MessageContent> &old_content = message->content_;
-  MessageContentType old_content_type = old_content->get_type();
-  MessageContentType new_content_type = new_content->get_type();
+  auto old_content_type = old_content->get_type();
+  auto new_content_type = new_content->get_type();
 
   auto old_file_id = get_message_file_id(message);
   if (old_content_type != new_content_type) {
@@ -1069,7 +1053,8 @@ void BusinessConnectionManager::complete_upload_media(unique_ptr<PendingMessage>
     update_message_content_file_id_remote(old_content.get(), get_message_content_any_file_id(new_content.get()));
   }
 
-  auto input_media = get_input_media(message->content_.get(), td_, message->ttl_, message->send_emoji_, true);
+  auto input_media =
+      get_message_content_input_media(message->content_.get(), td_, message->ttl_, message->send_emoji_, true);
   if (input_media == nullptr) {
     return promise.set_error(Status::Error(400, "Failed to upload file"));
   }
@@ -1105,8 +1090,8 @@ void BusinessConnectionManager::send_message_album(
     auto message =
         create_business_message_to_send(business_connection_id, dialog_id, input_reply_to.clone(), disable_notification,
                                         protect_content, effect_id, nullptr, std::move(message_content));
-    auto input_media = get_input_media(message->content_.get(), td_, message->ttl_, message->send_emoji_,
-                                       td_->auth_manager_->is_bot());
+    auto input_media = get_message_content_input_media(message->content_.get(), td_, message->ttl_,
+                                                       message->send_emoji_, td_->auth_manager_->is_bot());
     if (input_media != nullptr) {
       auto file_id = get_message_file_id(message);
       CHECK(file_id.is_valid());
@@ -1299,7 +1284,8 @@ void BusinessConnectionManager::edit_business_message_media(
   TRY_RESULT_PROMISE(promise, new_reply_markup,
                      get_reply_markup(std::move(reply_markup), td_->auth_manager_->is_bot(), true, false, true));
 
-  auto input_media = get_input_media(content.content.get(), td_, MessageSelfDestructType(), string(), true);
+  auto input_media =
+      get_message_content_input_media(content.content.get(), td_, MessageSelfDestructType(), string(), true);
   if (input_media != nullptr) {
     auto file_id = get_message_content_any_file_id(content.content.get());
     CHECK(file_id.is_valid());

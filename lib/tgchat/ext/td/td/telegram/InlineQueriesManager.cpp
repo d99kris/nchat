@@ -181,7 +181,7 @@ class RequestSimpleWebViewQuery final : public Td::ResultHandler {
       flags |= telegram_api::messages_requestSimpleWebView::THEME_PARAMS_MASK;
 
       theme_parameters = make_tl_object<telegram_api::dataJSON>(string());
-      theme_parameters->data_ = ThemeManager::get_theme_parameters_json_string(theme, false);
+      theme_parameters->data_ = ThemeManager::get_theme_parameters_json_string(theme);
     }
     string start_parameter;
     if (ends_with(url, "#kb")) {
@@ -204,9 +204,9 @@ class RequestSimpleWebViewQuery final : public Td::ResultHandler {
     } else {
       return on_error(Status::Error(400, "Invalid URL specified"));
     }
-    send_query(G()->net_query_creator().create(
-        telegram_api::messages_requestSimpleWebView(flags, false /*ignored*/, false /*ignored*/, std::move(input_user),
-                                                    url, start_parameter, std::move(theme_parameters), platform)));
+    send_query(G()->net_query_creator().create(telegram_api::messages_requestSimpleWebView(
+        flags, false /*ignored*/, false /*ignored*/, false /*ignored*/, std::move(input_user), url, start_parameter,
+        std::move(theme_parameters), platform)));
   }
 
   void on_result(BufferSlice packet) final {
@@ -217,6 +217,7 @@ class RequestSimpleWebViewQuery final : public Td::ResultHandler {
 
     auto ptr = result_ptr.move_as_ok();
     LOG(INFO) << "Receive result for RequestSimpleWebViewQuery: " << to_string(ptr);
+    LOG_IF(ERROR, ptr->query_id_ != 0) << "Receive " << to_string(ptr);
     promise_.set_value(std::move(ptr->url_));
   }
 
@@ -391,7 +392,7 @@ Result<tl_object_ptr<telegram_api::InputBotInlineMessage>> InlineQueriesManager:
   }
   if (constructor_id == td_api::inputMessageInvoice::ID) {
     TRY_RESULT(input_invoice,
-               InputInvoice::process_input_message_invoice(std::move(input_message_content), td_, DialogId(), false));
+               InputInvoice::process_input_message_invoice(std::move(input_message_content), td_, DialogId()));
     return input_invoice.get_input_bot_inline_message_media_invoice(std::move(input_reply_markup), td_);
   }
   if (constructor_id == td_api::inputMessageLocation::ID) {

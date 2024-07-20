@@ -2268,6 +2268,8 @@ void ChatManager::ChannelFull::store(StorerT &storer) const {
     STORE_FLAG(can_have_sponsored_messages);
     STORE_FLAG(can_view_revenue);
     STORE_FLAG(has_can_have_sponsored_messages);
+    STORE_FLAG(has_paid_media_allowed);
+    STORE_FLAG(can_view_star_revenue);
     END_STORE_FLAGS();
   }
   if (has_description) {
@@ -2399,6 +2401,8 @@ void ChatManager::ChannelFull::parse(ParserT &parser) {
     PARSE_FLAG(can_have_sponsored_messages);
     PARSE_FLAG(can_view_revenue);
     PARSE_FLAG(has_can_have_sponsored_messages);
+    PARSE_FLAG(has_paid_media_allowed);
+    PARSE_FLAG(can_view_star_revenue);
     END_PARSE_FLAGS();
   }
   if (has_description) {
@@ -5366,9 +5370,11 @@ void ChatManager::on_get_chat_full(tl_object_ptr<telegram_api::ChatFull> &&chat_
     auto has_aggressive_anti_spam_enabled = channel->antispam_;
     auto can_view_statistics = channel->can_view_stats_;
     auto can_view_revenue = channel->can_view_revenue_;
-    bool has_pinned_stories = channel->stories_pinned_available_;
+    auto has_pinned_stories = channel->stories_pinned_available_;
     auto boost_count = channel->boosts_applied_;
     auto unrestrict_boost_count = channel->boosts_unrestrict_;
+    auto has_paid_media_allowed = channel->paid_media_allowed_;
+    auto can_view_star_revenue = channel->can_view_stars_revenue_;
     StickerSetId sticker_set_id;
     if (channel->stickerset_ != nullptr) {
       sticker_set_id =
@@ -5404,7 +5410,9 @@ void ChatManager::on_get_chat_full(tl_object_ptr<telegram_api::ChatFull> &&chat_
         channel_full->has_hidden_participants != has_hidden_participants ||
         channel_full->has_pinned_stories != has_pinned_stories || channel_full->boost_count != boost_count ||
         channel_full->unrestrict_boost_count != unrestrict_boost_count ||
-        channel_full->can_view_revenue != can_view_revenue) {
+        channel_full->can_view_revenue != can_view_revenue ||
+        channel_full->has_paid_media_allowed != has_paid_media_allowed ||
+        channel_full->can_view_star_revenue != can_view_star_revenue) {
       channel_full->participant_count = participant_count;
       channel_full->administrator_count = administrator_count;
       channel_full->restricted_count = restricted_count;
@@ -5424,6 +5432,8 @@ void ChatManager::on_get_chat_full(tl_object_ptr<telegram_api::ChatFull> &&chat_
       channel_full->boost_count = boost_count;
       channel_full->unrestrict_boost_count = unrestrict_boost_count;
       channel_full->can_view_revenue = can_view_revenue;
+      channel_full->has_paid_media_allowed = has_paid_media_allowed;
+      channel_full->can_view_star_revenue = can_view_star_revenue;
 
       channel_full->is_changed = true;
     }
@@ -8882,8 +8892,9 @@ tl_object_ptr<td_api::supergroupFullInfo> ChatManager::get_supergroup_full_info_
       slow_mode_delay_expires_in, channel_full->can_get_participants, has_hidden_participants,
       can_hide_channel_participants(channel_id, channel_full).is_ok(), channel_full->can_set_sticker_set,
       channel_full->can_set_location, channel_full->can_view_statistics, channel_full->can_view_revenue,
-      can_toggle_channel_aggressive_anti_spam(channel_id, channel_full).is_ok(), channel_full->is_all_history_available,
-      channel_full->can_have_sponsored_messages, channel_full->has_aggressive_anti_spam_enabled,
+      channel_full->can_view_star_revenue, can_toggle_channel_aggressive_anti_spam(channel_id, channel_full).is_ok(),
+      channel_full->is_all_history_available, channel_full->can_have_sponsored_messages,
+      channel_full->has_aggressive_anti_spam_enabled, channel_full->has_paid_media_allowed,
       channel_full->has_pinned_stories, channel_full->boost_count, channel_full->unrestrict_boost_count,
       channel_full->sticker_set_id.get(), channel_full->emoji_sticker_set_id.get(),
       channel_full->location.get_chat_location_object(),

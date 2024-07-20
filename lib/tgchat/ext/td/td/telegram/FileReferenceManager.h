@@ -9,6 +9,7 @@
 #include "td/telegram/BackgroundId.h"
 #include "td/telegram/ChannelId.h"
 #include "td/telegram/ChatId.h"
+#include "td/telegram/DialogId.h"
 #include "td/telegram/files/FileId.h"
 #include "td/telegram/files/FileSourceId.h"
 #include "td/telegram/MessageFullId.h"
@@ -68,6 +69,7 @@ class FileReferenceManager final : public Actor {
   FileSourceId create_web_app_file_source(UserId user_id, const string &short_name);
   FileSourceId create_story_file_source(StoryFullId story_full_id);
   FileSourceId create_quick_reply_message_file_source(QuickReplyMessageFullId message_full_id);
+  FileSourceId create_star_transaction_file_source(DialogId dialog_id, const string &transaction_id, bool is_refund);
 
   using NodeId = FileId;
   void repair_file_reference(NodeId node_id, Promise<> promise);
@@ -179,6 +181,11 @@ class FileReferenceManager final : public Actor {
   struct FileSourceQuickReplyMessage {
     QuickReplyMessageFullId message_full_id;
   };
+  struct FileSourceStarTransaction {
+    DialogId dialog_id;
+    string transaction_id;
+    bool is_refund;
+  };
 
   // append only
   using FileSource =
@@ -186,7 +193,7 @@ class FileReferenceManager final : public Actor {
               FileSourceWebPage, FileSourceSavedAnimations, FileSourceRecentStickers, FileSourceFavoriteStickers,
               FileSourceBackground, FileSourceChatFull, FileSourceChannelFull, FileSourceAppConfig,
               FileSourceSavedRingtones, FileSourceUserFull, FileSourceAttachMenuBot, FileSourceWebApp, FileSourceStory,
-              FileSourceQuickReplyMessage>;
+              FileSourceQuickReplyMessage, FileSourceStarTransaction>;
   WaitFreeVector<FileSource> file_sources_;
 
   int64 query_generation_{0};

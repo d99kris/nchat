@@ -2309,7 +2309,7 @@ class CliClient final : public Actor {
 
   static td_api::object_ptr<td_api::themeParameters> as_theme_parameters() {
     return td_api::make_object<td_api::themeParameters>(0, 1, -1, 256, 65536, 123456789, 65535, 5, 55, 555, 5555, 55555,
-                                                        555555);
+                                                        555555, 123);
   }
 
   static td_api::object_ptr<td_api::BackgroundFill> as_background_fill(int32 color) {
@@ -4967,6 +4967,25 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::addLocalMessage>(
           chat_id, as_message_sender(sender_id), get_input_message_reply_to(), false,
           td_api::make_object<td_api::inputMessageText>(as_formatted_text(message), get_link_preview_options(), true)));
+    } else if (op == "spmp") {
+      ChatId chat_id;
+      get_args(args, chat_id, args);
+      auto paid_media = transform(full_split(args), [this](const string &photo) {
+        return td_api::make_object<td_api::inputPaidMedia>(td_api::make_object<td_api::inputPaidMediaTypePhoto>(),
+                                                           as_input_file(photo), nullptr, vector<int32>(), 0, 0);
+      });
+      send_message(chat_id, td_api::make_object<td_api::inputMessagePaidMedia>(11, std::move(paid_media),
+                                                                               as_caption("12_3_ __4__"), rand_bool()));
+    } else if (op == "spmv") {
+      ChatId chat_id;
+      get_args(args, chat_id, args);
+      auto paid_media = transform(full_split(args), [this](const string &video) {
+        return td_api::make_object<td_api::inputPaidMedia>(
+            td_api::make_object<td_api::inputPaidMediaTypeVideo>(10, true), as_input_file(video), nullptr,
+            vector<int32>(), 0, 0);
+      });
+      send_message(chat_id, td_api::make_object<td_api::inputMessagePaidMedia>(12, std::move(paid_media),
+                                                                               as_caption("12_3_ __4__"), rand_bool()));
     } else if (op == "smap") {
       ChatId chat_id;
       get_args(args, chat_id, args);
@@ -6473,8 +6492,8 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::clearRecentlyFoundChats>());
     } else if (op == "groc") {
       send_request(td_api::make_object<td_api::getRecentlyOpenedChats>(as_limit(args)));
-    } else if (op == "gwpp") {
-      send_request(td_api::make_object<td_api::getWebPagePreview>(as_formatted_text(args), get_link_preview_options()));
+    } else if (op == "glp") {
+      send_request(td_api::make_object<td_api::getLinkPreview>(as_formatted_text(args), get_link_preview_options()));
     } else if (op == "gwpiv") {
       string url;
       bool force_full;
@@ -6792,6 +6811,10 @@ class CliClient final : public Actor {
       get_args(args, owner_id, star_count, password);
       send_request(
           td_api::make_object<td_api::getStarWithdrawalUrl>(as_message_sender(owner_id), star_count, password));
+    } else if (op == "gsaau") {
+      string owner_id;
+      get_args(args, owner_id);
+      send_request(td_api::make_object<td_api::getStarAdAccountUrl>(as_message_sender(owner_id)));
     } else {
       op_not_found_count++;
     }

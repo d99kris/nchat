@@ -59,10 +59,9 @@ authenticationCodeTypeMissedCall phone_number_prefix:string length:int32 = Authe
 authenticationCodeTypeFragment url:string length:int32 = AuthenticationCodeType;
 
 //@description A digit-only authentication code is delivered via Firebase Authentication to the official Android application
-//@use_play_integrity True, if Play Integrity API must be used for device verification. Otherwise, SafetyNet Attestation API must be used
-//@nonce Nonce to pass to the Play Integrity API or the SafetyNet Attestation API
+//@device_verification_parameters Parameters to be used for device verification
 //@length Length of the code
-authenticationCodeTypeFirebaseAndroid use_play_integrity:Bool nonce:bytes length:int32 = AuthenticationCodeType;
+authenticationCodeTypeFirebaseAndroid device_verification_parameters:FirebaseDeviceVerificationParameters length:int32 = AuthenticationCodeType;
 
 //@description A digit-only authentication code is delivered via Firebase Authentication to the official iOS application
 //@receipt Receipt of successful application token validation to compare with receipt from push notification
@@ -171,6 +170,17 @@ authorizationStateClosing = AuthorizationState;
 //@description TDLib client is in its final state. All databases are closed and all resources are released. No other updates will be received after this. All queries will be responded to
 //-with error code 500. To continue working, one must create a new instance of the TDLib client
 authorizationStateClosed = AuthorizationState;
+
+
+//@class FirebaseDeviceVerificationParameters @description Describes parameters to be used for device verification
+
+//@description Device verification must be performed with the SafetyNet Attestation API @nonce Nonce to pass to the SafetyNet Attestation API
+firebaseDeviceVerificationParametersSafetyNet nonce:bytes = FirebaseDeviceVerificationParameters;
+
+//@description Device verification must be performed with the classic Play Integrity verification (https://developer.android.com/google/play/integrity/classic)
+//@nonce Base64url-encoded nonce to pass to the Play Integrity API
+//@cloud_project_number Cloud project number to pass to the Play Integrity API
+firebaseDeviceVerificationParametersPlayIntegrity nonce:string cloud_project_number:int64 = FirebaseDeviceVerificationParameters;
 
 
 //@description Represents the current state of 2-step verification
@@ -578,7 +588,9 @@ botCommand command:string description:string = BotCommand;
 //@description Contains a list of bot commands @bot_user_id Bot's user identifier @commands List of bot commands
 botCommands bot_user_id:int53 commands:vector<botCommand> = BotCommands;
 
-//@description Describes a button to be shown instead of bot commands menu button @text Text of the button @url URL to be passed to openWebApp
+//@description Describes a button to be shown instead of bot commands menu button
+//@text Text of the button
+//@url URL of a Web App to open when the button is pressed. If the link is of the type internalLinkTypeWebApp, then it must be processed accordingly. Otherwise, the link must be passed to openWebApp
 botMenuButton text:string url:string = BotMenuButton;
 
 
@@ -758,12 +770,12 @@ inputChatPhotoSticker sticker:chatPhotoSticker = InputChatPhoto;
 //@can_send_voice_notes True, if the user can send voice notes
 //@can_send_polls True, if the user can send polls
 //@can_send_other_messages True, if the user can send animations, games, stickers, and dice and use inline bots
-//@can_add_web_page_previews True, if the user may add a web page preview to their messages
+//@can_add_link_previews True, if the user may add a link preview to their messages
 //@can_change_info True, if the user can change the chat title, photo, and other settings
 //@can_invite_users True, if the user can invite new users to the chat
 //@can_pin_messages True, if the user can pin messages
 //@can_create_topics True, if the user can create topics
-chatPermissions can_send_basic_messages:Bool can_send_audios:Bool can_send_documents:Bool can_send_photos:Bool can_send_videos:Bool can_send_video_notes:Bool can_send_voice_notes:Bool can_send_polls:Bool can_send_other_messages:Bool can_add_web_page_previews:Bool can_change_info:Bool can_invite_users:Bool can_pin_messages:Bool can_create_topics:Bool = ChatPermissions;
+chatPermissions can_send_basic_messages:Bool can_send_audios:Bool can_send_documents:Bool can_send_photos:Bool can_send_videos:Bool can_send_video_notes:Bool can_send_voice_notes:Bool can_send_polls:Bool can_send_other_messages:Bool can_add_link_previews:Bool can_change_info:Bool can_invite_users:Bool can_pin_messages:Bool can_create_topics:Bool = ChatPermissions;
 
 //@description Describes rights of the administrator
 //@can_manage_chat True, if the administrator can access the chat event log, get boost list, see hidden supergroup and channel members, report supergroup spam messages and ignore slow mode. Implied by any other privilege; applicable to supergroups and channels only
@@ -807,7 +819,7 @@ premiumPaymentOption currency:string amount:int53 discount_percentage:int32 mont
 //@last_transaction_id Identifier of the last in-store transaction for the currently used option
 premiumStatePaymentOption payment_option:premiumPaymentOption is_current:Bool is_upgrade:Bool last_transaction_id:string = PremiumStatePaymentOption;
 
-//@description Describes an option for creating Telegram Premium gift codes
+//@description Describes an option for creating Telegram Premium gift codes. Use telegramPaymentPurposePremiumGiftCodes for out-of-store payments
 //@currency ISO 4217 currency code for Telegram Premium gift code payment
 //@amount The amount to pay, in the smallest units of the currency
 //@user_count Number of users which will be able to activate the gift codes
@@ -829,7 +841,7 @@ premiumGiftCodePaymentOptions options:vector<premiumGiftCodePaymentOption> = Pre
 //@use_date Point in time (Unix timestamp) when the code was activated; 0 if none
 premiumGiftCodeInfo creator_id:MessageSender creation_date:int32 is_from_giveaway:Bool giveaway_message_id:int53 month_count:int32 user_id:int53 use_date:int32 = PremiumGiftCodeInfo;
 
-//@description Describes an option for buying Telegram stars
+//@description Describes an option for buying Telegram stars. Use telegramPaymentPurposeStars for out-of-store payments
 //@currency ISO 4217 currency code for the payment
 //@amount The amount to pay, in the smallest units of the currency
 //@star_count Number of Telegram stars that will be purchased
@@ -864,11 +876,20 @@ starTransactionPartnerGooglePlay = StarTransactionPartner;
 //@description The transaction is a transaction with Fragment @withdrawal_state State of the withdrawal; may be null for refunds from Fragment
 starTransactionPartnerFragment withdrawal_state:RevenueWithdrawalState = StarTransactionPartner;
 
-//@description The transaction is a transaction with another user @user_id Identifier of the user @product_info Information about the bought product; may be null if none
-starTransactionPartnerUser user_id:int53 product_info:productInfo = StarTransactionPartner;
+//@description The transaction is a transaction with Telegram Ad platform
+starTransactionPartnerTelegramAds = StarTransactionPartner;
 
-//@description The transaction is a transaction with a channel chat @chat_id Identifier of the chat
-starTransactionPartnerChannel chat_id:int53 = StarTransactionPartner;
+//@description The transaction is a transaction with a bot
+//@bot_user_id Identifier of the bot
+//@product_info Information about the bought product; may be null if not applicable
+//@invoice_payload Invoice payload; for bots only
+starTransactionPartnerBot bot_user_id:int53 product_info:productInfo invoice_payload:bytes = StarTransactionPartner;
+
+//@description The transaction is a transaction with a channel chat
+//@chat_id Identifier of the chat
+//@paid_media_message_id Identifier of the corresponding message with paid media; can be an identifier of a deleted message
+//@media Information about the bought media
+starTransactionPartnerChannel chat_id:int53 paid_media_message_id:int53 media:vector<PaidMedia> = StarTransactionPartner;
 
 //@description The transaction is a transaction with unknown partner
 starTransactionPartnerUnsupported = StarTransactionPartner;
@@ -1286,11 +1307,13 @@ supergroup id:int53 usernames:usernames date:int32 status:ChatMemberStatus membe
 //@can_set_location True, if the supergroup location can be changed
 //@can_get_statistics True, if the supergroup or channel statistics are available
 //@can_get_revenue_statistics True, if the supergroup or channel revenue statistics are available
+//@can_get_star_revenue_statistics True, if the supergroup or channel Telegram Star revenue statistics are available
 //@can_toggle_aggressive_anti_spam True, if aggressive anti-spam checks can be enabled or disabled in the supergroup
 //@is_all_history_available True, if new chat members will have access to old messages. In public, discussion, of forum groups and all channels, old messages are always available,
 //-so this option affects only private non-forum supergroups without a linked chat. The value of this field is only available to chat administrators
 //@can_have_sponsored_messages True, if the chat can have sponsored messages. The value of this field is only available to the owner of the chat
 //@has_aggressive_anti_spam_enabled True, if aggressive anti-spam checks are enabled in the supergroup. The value of this field is only available to chat administrators
+//@has_paid_media_allowed True, if paid media can be sent and forwarded to the channel chat; for channels only
 //@has_pinned_stories True, if the supergroup or channel has pinned stories
 //@my_boost_count Number of times the current user boosted the supergroup or channel
 //@unrestrict_boost_count Number of times the supergroup must be boosted by a user to ignore slow mode and chat permission restrictions; 0 if unspecified
@@ -1301,7 +1324,7 @@ supergroup id:int53 usernames:usernames date:int32 status:ChatMemberStatus membe
 //@bot_commands List of commands of bots in the group
 //@upgraded_from_basic_group_id Identifier of the basic group from which supergroup was upgraded; 0 if none
 //@upgraded_from_max_message_id Identifier of the last message in the basic group from which supergroup was upgraded; 0 if none
-supergroupFullInfo photo:chatPhoto description:string member_count:int32 administrator_count:int32 restricted_count:int32 banned_count:int32 linked_chat_id:int53 slow_mode_delay:int32 slow_mode_delay_expires_in:double can_get_members:Bool has_hidden_members:Bool can_hide_members:Bool can_set_sticker_set:Bool can_set_location:Bool can_get_statistics:Bool can_get_revenue_statistics:Bool can_toggle_aggressive_anti_spam:Bool is_all_history_available:Bool can_have_sponsored_messages:Bool has_aggressive_anti_spam_enabled:Bool has_pinned_stories:Bool my_boost_count:int32 unrestrict_boost_count:int32 sticker_set_id:int64 custom_emoji_sticker_set_id:int64 location:chatLocation invite_link:chatInviteLink bot_commands:vector<botCommands> upgraded_from_basic_group_id:int53 upgraded_from_max_message_id:int53 = SupergroupFullInfo;
+supergroupFullInfo photo:chatPhoto description:string member_count:int32 administrator_count:int32 restricted_count:int32 banned_count:int32 linked_chat_id:int53 slow_mode_delay:int32 slow_mode_delay_expires_in:double can_get_members:Bool has_hidden_members:Bool can_hide_members:Bool can_set_sticker_set:Bool can_set_location:Bool can_get_statistics:Bool can_get_revenue_statistics:Bool can_get_star_revenue_statistics:Bool can_toggle_aggressive_anti_spam:Bool is_all_history_available:Bool can_have_sponsored_messages:Bool has_aggressive_anti_spam_enabled:Bool has_paid_media_allowed:Bool has_pinned_stories:Bool my_boost_count:int32 unrestrict_boost_count:int32 sticker_set_id:int64 custom_emoji_sticker_set_id:int64 location:chatLocation invite_link:chatInviteLink bot_commands:vector<botCommands> upgraded_from_basic_group_id:int53 upgraded_from_max_message_id:int53 = SupergroupFullInfo;
 
 
 //@class SecretChatState @description Describes the current secret chat state
@@ -1513,8 +1536,8 @@ inputTextQuote text:formattedText position:int32 = InputTextQuote;
 //@origin_send_date Point in time (Unix timestamp) when the message was sent if the message was from another chat or topic; 0 for messages from the same chat
 //@content Media content of the message if the message was from another chat or topic; may be null for messages from the same chat and messages without media.
 //-Can be only one of the following types: messageAnimation, messageAudio, messageContact, messageDice, messageDocument, messageGame, messageInvoice, messageLocation,
-//-messagePhoto, messagePoll, messagePremiumGiveaway, messagePremiumGiveawayWinners, messageSticker, messageStory, messageText (for link preview), messageVenue,
-//-messageVideo, messageVideoNote, or messageVoiceNote
+//-messagePaidMedia, messagePhoto, messagePoll, messagePremiumGiveaway, messagePremiumGiveawayWinners, messageSticker, messageStory, messageText (for link preview),
+//-messageVenue, messageVideo, messageVideoNote, or messageVoiceNote
 messageReplyToMessage chat_id:int53 message_id:int53 quote:textQuote origin:MessageOrigin origin_send_date:int32 content:MessageContent = MessageReplyTo;
 
 //@description Describes a story replied by a given message @story_sender_chat_id The identifier of the sender of the story @story_id The identifier of the story
@@ -1566,7 +1589,7 @@ factCheck text:formattedText country_code:string = FactCheck;
 //@can_get_message_thread True, if information about the message thread is available through getMessageThread and getMessageThreadHistory
 //@can_get_read_date True, if read date of the message can be received through getMessageReadDate
 //@can_get_viewers True, if chat members already viewed the message can be received through getMessageViewers
-//@can_get_media_timestamp_links True, if media timestamp links can be generated for media timestamp entities in the message text, caption or web page description through getMessageLink
+//@can_get_media_timestamp_links True, if media timestamp links can be generated for media timestamp entities in the message text, caption or link preview description through getMessageLink
 //@can_report_reactions True, if reactions on the message can be reported through reportMessageReactions
 //@has_timestamped_media True, if media timestamp entities refers to a media in this message as opposed to a media in the replied message
 //@is_channel_post True, if the message is a channel post. All messages to channels are channel posts, all other messages are not channel posts
@@ -2096,7 +2119,7 @@ keyboardButton text:string type:KeyboardButtonType = KeyboardButton;
 
 //@class InlineKeyboardButtonType @description Describes the type of inline keyboard button
 
-//@description A button that opens a specified URL @url HTTP or tg:// URL to open
+//@description A button that opens a specified URL @url HTTP or tg:// URL to open. If the link is of the type internalLinkTypeWebApp, then the button must be marked as a Web App button
 inlineKeyboardButtonTypeUrl url:string = InlineKeyboardButtonType;
 
 //@description A button that opens a specified URL and automatically authorize the current user by calling getLoginUrlInfo @url An HTTP URL to pass to getLoginUrlInfo @id Unique button identifier @forward_text If non-empty, new text of the button in forwarded messages
@@ -2270,7 +2293,16 @@ sharedUser user_id:int53 first_name:string last_name:string username:string phot
 sharedChat chat_id:int53 title:string username:string photo:photo = SharedChat;
 
 
-//@class RichText @description Describes a text object inside an instant-view web page
+//@description Describes theme settings
+//@accent_color Theme accent color in ARGB format
+//@background The background to be used in chats; may be null
+//@outgoing_message_fill The fill to be used as a background for outgoing messages
+//@animate_outgoing_message_fill If true, the freeform gradient fill needs to be animated on every sent message
+//@outgoing_message_accent_color Accent color of outgoing messages in ARGB format
+themeSettings accent_color:int32 background:background outgoing_message_fill:BackgroundFill animate_outgoing_message_fill:Bool outgoing_message_accent_color:int32 = ThemeSettings;
+
+
+//@class RichText @description Describes a formatted text object
 
 //@description A plain text @text Text
 richTextPlain text:string = RichText;
@@ -2314,20 +2346,20 @@ richTextPhoneNumber text:RichText phone_number:string = RichText;
 //@height Height of a bounding box in which the image must be shown; 0 if unknown
 richTextIcon document:document width:int32 height:int32 = RichText;
 
-//@description A reference to a richTexts object on the same web page @text The text @anchor_name The name of a richTextAnchor object, which is the first element of the target richTexts object @url An HTTP URL, opening the reference
+//@description A reference to a richTexts object on the same page @text The text @anchor_name The name of a richTextAnchor object, which is the first element of the target richTexts object @url An HTTP URL, opening the reference
 richTextReference text:RichText anchor_name:string url:string = RichText;
 
 //@description An anchor @name Anchor name
 richTextAnchor name:string = RichText;
 
-//@description A link to an anchor on the same web page @text The link text @anchor_name The anchor name. If the name is empty, the link must bring back to top @url An HTTP URL, opening the anchor
+//@description A link to an anchor on the same page @text The link text @anchor_name The anchor name. If the name is empty, the link must bring back to top @url An HTTP URL, opening the anchor
 richTextAnchorLink text:RichText anchor_name:string url:string = RichText;
 
 //@description A concatenation of rich texts @texts Texts
 richTexts texts:vector<RichText> = RichText;
 
 
-//@description Contains a caption of an instant view web page block, consisting of a text and a trailing credit @text Content of the caption @credit Block credit (like HTML tag <cite>)
+//@description Contains a caption of another block @text Content of the caption @credit Block credit (like HTML tag <cite>)
 pageBlockCaption text:RichText credit:RichText = PageBlockCaption;
 
 //@description Describes an item of a list page block @label Item label @page_blocks Item blocks
@@ -2374,7 +2406,7 @@ pageBlockTableCell text:RichText is_header:Bool colspan:int32 rowspan:int32 alig
 pageBlockRelatedArticle url:string title:string description:string photo:photo author:string publish_date:int32 = PageBlockRelatedArticle;
 
 
-//@class PageBlock @description Describes a block of an instant view web page
+//@class PageBlock @description Describes a block of an instant view for a web page
 
 //@description The title of a page @title Title
 pageBlockTitle title:RichText = PageBlock;
@@ -2456,7 +2488,7 @@ pageBlockVoiceNote voice_note:voiceNote caption:pageBlockCaption = PageBlock;
 pageBlockCover cover:PageBlock = PageBlock;
 
 //@description An embedded web page
-//@url Web page URL, if available
+//@url URL of the embedded page, if available
 //@html HTML-markup of the embedded page
 //@poster_photo Poster photo, if available; may be null
 //@width Block width; 0 if unknown
@@ -2467,7 +2499,7 @@ pageBlockCover cover:PageBlock = PageBlock;
 pageBlockEmbedded url:string html:string poster_photo:photo width:int32 height:int32 caption:pageBlockCaption is_full_width:Bool allow_scrolling:Bool = PageBlock;
 
 //@description An embedded post
-//@url Web page URL
+//@url URL of the embedded post
 //@author Post author
 //@author_photo Post author photo; may be null
 //@date Point in time (Unix timestamp) when the post was created; 0 if unknown
@@ -2520,45 +2552,149 @@ pageBlockMap location:location zoom:int32 width:int32 height:int32 caption:pageB
 
 
 //@description Describes an instant view page for a web page
-//@page_blocks Content of the web page
+//@page_blocks Content of the instant view page
 //@view_count Number of the instant view views; 0 if unknown
 //@version Version of the instant view; currently, can be 1 or 2
 //@is_rtl True, if the instant view must be shown from right to left
-//@is_full True, if the instant view contains the full page. A network request might be needed to get the full web page instant view
+//@is_full True, if the instant view contains the full page. A network request might be needed to get the full instant view
 //@feedback_link An internal link to be opened to leave feedback about the instant view
 webPageInstantView page_blocks:vector<PageBlock> view_count:int32 version:int32 is_rtl:Bool is_full:Bool feedback_link:InternalLinkType = WebPageInstantView;
+
+
+//@class LinkPreviewAlbumMedia @description Describes a media from a link preview album
+
+//@description The media is a photo @photo Photo description
+linkPreviewAlbumMediaPhoto photo:photo = LinkPreviewAlbumMedia;
+
+//@description The media is a video @video Video description
+linkPreviewAlbumMediaVideo video:video = LinkPreviewAlbumMedia;
+
+
+//@class LinkPreviewType @description Describes type of link preview
+
+//@description The link is a link to a media album consisting of photos and videos @media The list of album media @caption Album caption
+linkPreviewTypeAlbum media:vector<LinkPreviewAlbumMedia> caption:string = LinkPreviewType;
+
+//@description The link is a link to an animation @animation The animation @author Author of the animation
+linkPreviewTypeAnimation animation:animation author:string = LinkPreviewType;
+
+//@description The link is a link to an app at App Store or Google Play @photo Photo for the app @author Author of the app
+linkPreviewTypeApp photo:photo author:string = LinkPreviewType;
+
+//@description The link is a link to a web site @photo Article's main photo; may be null @author Author of the article
+linkPreviewTypeArticle photo:photo author:string = LinkPreviewType;
+
+//@description The link is a link to an audio
+//@url URL of the audio; may be empty if none
+//@mime_type MIME type of the audio file
+//@audio The audio description; may be null if unknown
+//@duration Duration of the audio, in seconds; 0 if unknown
+//@author Author of the audio
+linkPreviewTypeAudio url:string mime_type:string audio:audio duration:int32 author:string = LinkPreviewType;
+
+//@description The link is a link to a background. Link preview title and description are available only for filled backgrounds @document Document with the background; may be null for filled backgrounds
+linkPreviewTypeBackground document:document = LinkPreviewType;
+
+//@description The link is a link to boost a channel chat @photo Photo of the chat; may be null
+linkPreviewTypeChannelBoost photo:chatPhoto = LinkPreviewType;
+
+//@description The link is a link to a chat
+//@type Type of the chat
+//@photo Photo of the chat; may be null
+//@creates_join_request True, if the link only creates join request
+linkPreviewTypeChat type:InviteLinkChatType photo:chatPhoto creates_join_request:Bool = LinkPreviewType;
+
+//@description The link is a link to a general file @document The document description @author Author of the document
+linkPreviewTypeDocument document:document author:string = LinkPreviewType;
+
+//@description The link is a link to an audio player
+//@url URL of the external audio player
+//@duration Duration of the audio, in seconds
+//@author Author of the audio
+linkPreviewTypeEmbeddedAudioPlayer url:string duration:int32 author:string = LinkPreviewType;
+
+//@description The link is a link to a video player
+//@url URL of the external video player
+//@duration Duration of the video, in seconds
+//@author Author of the video
+//@width Expected width of the preview
+//@height Expected height of the preview
+linkPreviewTypeEmbeddedVideoPlayer url:string duration:int32 author:string width:int32 height:int32 = LinkPreviewType;
+
+//@description The link is a link to an invoice
+linkPreviewTypeInvoice = LinkPreviewType;
+
+//@description The link is a link to a text or a poll Telegram message
+linkPreviewTypeMessage = LinkPreviewType;
+
+//@description The link is a link to a photo @photo The photo @author Author of the photo
+linkPreviewTypePhoto photo:photo author:string = LinkPreviewType;
+
+//@description The link is a link to a Telegram Premium gift code
+linkPreviewTypePremiumGiftCode = LinkPreviewType;
+
+//@description The link is a link to a shareable chat folder
+linkPreviewTypeShareableChatFolder = LinkPreviewType;
+
+//@description The link is a link to a sticker message @sticker The sticker
+linkPreviewTypeSticker sticker:sticker = LinkPreviewType;
+
+//@description The link is a link to a sticker set @stickers Up to 4 stickers from the sticker set
+linkPreviewTypeStickerSet stickers:vector<sticker> = LinkPreviewType;
+
+//@description The link is a link to a story. Link preview description is unavailable @story_sender_chat_id The identifier of the chat that posted the story @story_id Story identifier
+linkPreviewTypeStory story_sender_chat_id:int53 story_id:int32 = LinkPreviewType;
+
+//@description The link is a link to boost a supergroup chat @photo Photo of the chat; may be null
+linkPreviewTypeSupergroupBoost photo:chatPhoto = LinkPreviewType;
+
+//@description The link is a link to a cloud theme. TDLib has no theme support yet @documents The list of files with theme description @settings Settings for the cloud theme
+linkPreviewTypeTheme documents:vector<document> settings:themeSettings = LinkPreviewType;
+
+//@description The link preview type is unsupported yet
+linkPreviewTypeUnsupported = LinkPreviewType;
+
+//@description The link is a link to a user @photo Photo of the user; may be null if none @is_bot True, if the user is a bot
+linkPreviewTypeUser photo:chatPhoto is_bot:Bool = LinkPreviewType;
+
+//@description The link is a link to a video
+//@url URL of the video; may be empty if none
+//@mime_type MIME type of the video file
+//@video The video description; may be null if unknown
+//@width Expected width of the preview
+//@height Expected height of the preview
+//@duration Duration of the video, in seconds; 0 if unknown
+//@author Author of the video
+linkPreviewTypeVideo url:string mime_type:string video:video width:int32 height:int32 duration:int32 author:string = LinkPreviewType;
+
+//@description The link is a link to a video chat
+//@photo Photo of the chat with the video chat; may be null if none
+//@is_live_stream True, if the video chat is expected to be a live stream in a channel or a broadcast group
+linkPreviewTypeVideoChat photo:chatPhoto is_live_stream:Bool = LinkPreviewType;
+
+//@description The link is a link to a video note message @video_note The video note
+linkPreviewTypeVideoNote video_note:videoNote = LinkPreviewType;
+
+//@description The link is a link to a voice note message @voice_note The voice note
+linkPreviewTypeVoiceNote voice_note:voiceNote = LinkPreviewType;
+
+//@description The link is a link to a Web App @photo Web App photo
+linkPreviewTypeWebApp photo:photo = LinkPreviewType;
 
 
 //@description Describes a link preview
 //@url Original URL of the link
 //@display_url URL to display
-//@type Type of the web page. Can be: article, photo, audio, video, document, profile, app, or something else
 //@site_name Short name of the site (e.g., Google Docs, App Store)
 //@title Title of the content
 //@param_description Description of the content
-//@photo Image representing the content; may be null
-//@embed_url URL to show in the embedded preview
-//@embed_type MIME type of the embedded preview, (e.g., text/html or video/mp4)
-//@embed_width Width of the embedded preview
-//@embed_height Height of the embedded preview
-//@duration Duration of the content, in seconds
-//@author Author of the content
+//@type Type of the link preview
 //@has_large_media True, if size of media in the preview can be changed
 //@show_large_media True, if large media preview must be shown; otherwise, the media preview must be shown small and only the first frame must be shown for videos
 //@skip_confirmation True, if there is no need to show an ordinary open URL confirmation, when opening the URL from the preview, because the URL is shown in the message text in clear
 //@show_above_text True, if the link preview must be shown above message text; otherwise, the link preview must be shown below the message text
-//@animation Preview of the content as an animation, if available; may be null
-//@audio Preview of the content as an audio file, if available; may be null
-//@document Preview of the content as a document, if available; may be null
-//@sticker Preview of the content as a sticker for small WEBP files, if available; may be null
-//@video Preview of the content as a video, if available; may be null
-//@video_note Preview of the content as a video note, if available; may be null
-//@voice_note Preview of the content as a voice note, if available; may be null
-//@story_sender_chat_id The identifier of the sender of the previewed story; 0 if none
-//@story_id The identifier of the previewed story; 0 if none
-//@stickers Up to 4 stickers from the sticker set available via the link
-//@instant_view_version Version of web page instant view (currently, can be 1 or 2); 0 if none
-webPage url:string display_url:string type:string site_name:string title:string description:formattedText photo:photo embed_url:string embed_type:string embed_width:int32 embed_height:int32 duration:int32 author:string has_large_media:Bool show_large_media:Bool skip_confirmation:Bool show_above_text:Bool animation:animation audio:audio document:document sticker:sticker video:video video_note:videoNote voice_note:voiceNote story_sender_chat_id:int53 story_id:int32 stickers:vector<sticker> instant_view_version:int32 = WebPage;
+//@instant_view_version Version of instant view (currently, can be 1 or 2) for the web page; 0 if none
+linkPreview url:string display_url:string site_name:string title:string description:formattedText type:LinkPreviewType has_large_media:Bool show_large_media:Bool skip_confirmation:Bool show_above_text:Bool instant_view_version:int32 = LinkPreview;
 
 
 //@description Contains information about a country
@@ -2628,6 +2764,7 @@ locationAddress country_code:string state:string city:string street:string = Loc
 //@secondary_background_color A secondary color for the background in the RGB24 format
 //@header_background_color A color of the header background in the RGB24 format
 //@section_background_color A color of the section background in the RGB24 format
+//@section_separator_color A color of the section separator in the RGB24 format
 //@text_color A color of text in the RGB24 format
 //@accent_text_color An accent color of the text in the RGB24 format
 //@section_header_text_color A color of text on the section headers in the RGB24 format
@@ -2637,7 +2774,7 @@ locationAddress country_code:string state:string city:string street:string = Loc
 //@link_color A color of links in the RGB24 format
 //@button_color A color of the buttons in the RGB24 format
 //@button_text_color A color of text on the buttons in the RGB24 format
-themeParameters background_color:int32 secondary_background_color:int32 header_background_color:int32 section_background_color:int32 text_color:int32 accent_text_color:int32 section_header_text_color:int32 subtitle_text_color:int32 destructive_text_color:int32 hint_color:int32 link_color:int32 button_color:int32 button_text_color:int32 = ThemeParameters;
+themeParameters background_color:int32 secondary_background_color:int32 header_background_color:int32 section_background_color:int32 section_separator_color:int32 text_color:int32 accent_text_color:int32 section_header_text_color:int32 subtitle_text_color:int32 destructive_text_color:int32 hint_color:int32 link_color:int32 button_color:int32 button_text_color:int32 = ThemeParameters;
 
 
 //@description Portion of the price of a product (e.g., "delivery cost", "tax amount") @label Label for this portion of the product price @amount Currency amount in the smallest units of the currency
@@ -2770,7 +2907,7 @@ paymentReceipt product_info:productInfo date:int32 seller_bot_user_id:int53 type
 
 //@class InputInvoice @description Describes an invoice to process
 
-//@description An invoice from a message of the type messageInvoice @chat_id Chat identifier of the message @message_id Message identifier
+//@description An invoice from a message of the type messageInvoice or paid media purchase from messagePaidMedia @chat_id Chat identifier of the message @message_id Message identifier
 inputInvoiceMessage chat_id:int53 message_id:int53 = InputInvoice;
 
 //@description An invoice from a link of the type internalLinkTypeInvoice @name Name of the invoice
@@ -2780,24 +2917,23 @@ inputInvoiceName name:string = InputInvoice;
 inputInvoiceTelegram purpose:TelegramPaymentPurpose = InputInvoice;
 
 
-//@class MessageExtendedMedia @description Describes a media, which is attached to an invoice
+//@class PaidMedia @description Describes a paid media
 
 //@description The media is hidden until the invoice is paid
 //@width Media width; 0 if unknown
 //@height Media height; 0 if unknown
 //@duration Media duration, in seconds; 0 if unknown
 //@minithumbnail Media minithumbnail; may be null
-//@caption Media caption
-messageExtendedMediaPreview width:int32 height:int32 duration:int32 minithumbnail:minithumbnail caption:formattedText = MessageExtendedMedia;
+paidMediaPreview width:int32 height:int32 duration:int32 minithumbnail:minithumbnail = PaidMedia;
 
-//@description The media is a photo @photo The photo @caption Photo caption
-messageExtendedMediaPhoto photo:photo caption:formattedText = MessageExtendedMedia;
+//@description The media is a photo @photo The photo
+paidMediaPhoto photo:photo = PaidMedia;
 
-//@description The media is a video @video The video @caption Photo caption
-messageExtendedMediaVideo video:video caption:formattedText = MessageExtendedMedia;
+//@description The media is a video @video The video
+paidMediaVideo video:video = PaidMedia;
 
-//@description The media is unsupported @caption Media caption
-messageExtendedMediaUnsupported caption:formattedText = MessageExtendedMedia;
+//@description The media is unsupported
+paidMediaUnsupported = PaidMedia;
 
 
 //@description Describes parameters of a Telegram Premium giveaway
@@ -3097,14 +3233,14 @@ inputPassportElementError type:PassportElementType message:string source:InputPa
 
 //@description A text message
 //@text Text of the message
-//@web_page A link preview attached to the message; may be null
+//@link_preview A link preview attached to the message; may be null
 //@link_preview_options Options which were used for generation of the link preview; may be null if default options were used
-messageText text:formattedText web_page:webPage link_preview_options:linkPreviewOptions = MessageContent;
+messageText text:formattedText link_preview:linkPreview link_preview_options:linkPreviewOptions = MessageContent;
 
 //@description An animation message (GIF-style).
 //@animation The animation description
 //@caption Animation caption
-//@show_caption_above_media True, if caption must be shown above the animation; otherwise, caption must be shown below the animation
+//@show_caption_above_media True, if the caption must be shown above the animation; otherwise, the caption must be shown below the animation
 //@has_spoiler True, if the animation preview must be covered by a spoiler animation
 //@is_secret True, if the animation thumbnail must be blurred and the animation must be shown only while tapped
 messageAnimation animation:animation caption:formattedText show_caption_above_media:Bool has_spoiler:Bool is_secret:Bool = MessageContent;
@@ -3115,10 +3251,17 @@ messageAudio audio:audio caption:formattedText = MessageContent;
 //@description A document message (general file) @document The document description @caption Document caption
 messageDocument document:document caption:formattedText = MessageContent;
 
+//@description A message with paid media
+//@star_count Number of stars needed to buy access to the media in the message
+//@media Information about the media
+//@caption Media caption
+//@show_caption_above_media True, if the caption must be shown above the media; otherwise, the caption must be shown below the media
+messagePaidMedia star_count:int53 media:vector<PaidMedia> caption:formattedText show_caption_above_media:Bool = MessageContent;
+
 //@description A photo message
 //@photo The photo
 //@caption Photo caption
-//@show_caption_above_media True, if caption must be shown above the photo; otherwise, caption must be shown below the photo
+//@show_caption_above_media True, if the caption must be shown above the photo; otherwise, the caption must be shown below the photo
 //@has_spoiler True, if the photo preview must be covered by a spoiler animation
 //@is_secret True, if the photo must be blurred and must be shown only while tapped
 messagePhoto photo:photo caption:formattedText show_caption_above_media:Bool has_spoiler:Bool is_secret:Bool = MessageContent;
@@ -3129,7 +3272,7 @@ messageSticker sticker:sticker is_premium:Bool = MessageContent;
 //@description A video message
 //@video The video description
 //@caption Video caption
-//@show_caption_above_media True, if caption must be shown above the video; otherwise, caption must be shown below the video
+//@show_caption_above_media True, if the caption must be shown above the video; otherwise, the caption must be shown below the video
 //@has_spoiler True, if the video preview must be covered by a spoiler animation
 //@is_secret True, if the video thumbnail must be blurred and the video must be shown only while tapped
 messageVideo video:video caption:formattedText show_caption_above_media:Bool has_spoiler:Bool is_secret:Bool = MessageContent;
@@ -3197,8 +3340,9 @@ messageStory story_sender_chat_id:int53 story_id:int32 via_mention:Bool = Messag
 //@is_test True, if the invoice is a test invoice
 //@need_shipping_address True, if the shipping address must be specified
 //@receipt_message_id The identifier of the message with the receipt, after the product has been purchased
-//@extended_media Extended media attached to the invoice; may be null
-messageInvoice product_info:productInfo currency:string total_amount:int53 start_parameter:string is_test:Bool need_shipping_address:Bool receipt_message_id:int53 extended_media:MessageExtendedMedia = MessageContent;
+//@paid_media Extended media attached to the invoice; may be null if none
+//@paid_media_caption Extended media caption; may be null if none
+messageInvoice product_info:productInfo currency:string total_amount:int53 start_parameter:string is_test:Bool need_shipping_address:Bool receipt_message_id:int53 paid_media:PaidMedia paid_media_caption:formattedText = MessageContent;
 
 //@description A message with information about an ended call @is_video True, if the call was a video call @discard_reason Reason why the call was discarded @duration Call duration, in seconds
 messageCall is_video:Bool discard_reason:CallDiscardReason duration:int32 = MessageContent;
@@ -3315,6 +3459,15 @@ messagePaymentSuccessful invoice_chat_id:int53 invoice_message_id:int53 currency
 //@provider_payment_charge_id Provider payment identifier
 messagePaymentSuccessfulBot currency:string total_amount:int53 is_recurring:Bool is_first_recurring:Bool invoice_payload:bytes shipping_option_id:string order_info:orderInfo telegram_payment_charge_id:string provider_payment_charge_id:string = MessageContent;
 
+//@description A payment has been refunded
+//@owner_id Identifier of the previous owner of the Telegram stars that refunds them
+//@currency Currency for the price of the product
+//@total_amount Total price for the product, in the smallest units of the currency
+//@invoice_payload Invoice payload; only for bots
+//@telegram_payment_charge_id Telegram payment identifier
+//@provider_payment_charge_id Provider payment identifier
+messagePaymentRefunded owner_id:MessageSender currency:string total_amount:int53 invoice_payload:bytes telegram_payment_charge_id:string provider_payment_charge_id:string = MessageContent;
+
 //@description Telegram Premium was gifted to the user
 //@gifter_user_id The identifier of a user that gifted Telegram Premium; 0 if the gift was anonymous
 //@currency Currency for the paid amount
@@ -3338,7 +3491,7 @@ messageGiftedPremium gifter_user_id:int53 currency:string amount:int53 cryptocur
 //@code The gift code
 messagePremiumGiftCode creator_id:MessageSender is_from_giveaway:Bool is_unclaimed:Bool currency:string amount:int53 cryptocurrency:string cryptocurrency_amount:int64 month_count:int32 sticker:sticker code:string = MessageContent;
 
-//@description A Telegram Premium giveaway was created for the chat
+//@description A Telegram Premium giveaway was created for the chat. Use telegramPaymentPurposePremiumGiveaway or storePaymentPurposePremiumGiveaway to create a giveaway
 messagePremiumGiveawayCreated = MessageContent;
 
 //@description A Telegram Premium giveaway
@@ -3464,7 +3617,7 @@ textEntityTypeMentionName user_id:int53 = TextEntityType;
 //@description A custom emoji. The text behind a custom emoji must be an emoji. Only premium users can use premium custom emoji @custom_emoji_id Unique identifier of the custom emoji
 textEntityTypeCustomEmoji custom_emoji_id:int64 = TextEntityType;
 
-//@description A media timestamp @media_timestamp Timestamp from which a video/audio/video note/voice note/story playing must start, in seconds. The media can be in the content or the web page preview of the current message, or in the same places in the replied message
+//@description A media timestamp @media_timestamp Timestamp from which a video/audio/video note/voice note/story playing must start, in seconds. The media can be in the content or the link preview of the current message, or in the same places in the replied message
 textEntityTypeMediaTimestamp media_timestamp:int32 = TextEntityType;
 
 
@@ -3473,6 +3626,27 @@ textEntityTypeMediaTimestamp media_timestamp:int32 = TextEntityType;
 //@width Thumbnail width, usually shouldn't exceed 320. Use 0 if unknown
 //@height Thumbnail height, usually shouldn't exceed 320. Use 0 if unknown
 inputThumbnail thumbnail:InputFile width:int32 height:int32 = InputThumbnail;
+
+
+//@class InputPaidMediaType @description Describes type of paid media to sent
+
+//@description The media is a photo. The photo must be at most 10 MB in size. The photo's width and height must not exceed 10000 in total. Width and height ratio must be at most 20
+inputPaidMediaTypePhoto = InputPaidMediaType;
+
+//@description The media is a video
+//@duration Duration of the video, in seconds
+//@supports_streaming True, if the video is supposed to be streamed
+inputPaidMediaTypeVideo duration:int32 supports_streaming:Bool = InputPaidMediaType;
+
+
+//@description Describes a paid media to be sent
+//@type Type of the media
+//@media Photo or video to be sent
+//@thumbnail Media thumbnail; pass null to skip thumbnail uploading
+//@added_sticker_file_ids File identifiers of the stickers added to the media, if applicable
+//@width Media width
+//@height Media height
+inputPaidMedia type:InputPaidMediaType media:InputFile thumbnail:inputThumbnail added_sticker_file_ids:vector<int32> width:int32 height:int32 = InputPaidMedia;
 
 
 //@class MessageSchedulingState @description Contains information about the time when a scheduled message will be sent
@@ -3504,7 +3678,7 @@ messageSelfDestructTypeImmediately = MessageSelfDestructType;
 //@only_preview Pass true to get a fake message instead of actually sending them
 messageSendOptions disable_notification:Bool from_background:Bool protect_content:Bool update_order_of_installed_sticker_sets:Bool scheduling_state:MessageSchedulingState effect_id:int64 sending_id:int32 only_preview:Bool = MessageSendOptions;
 
-//@description Options to be used when a message content is copied without reference to the original sender. Service messages, messages with messageInvoice, messagePremiumGiveaway, or messagePremiumGiveawayWinners content can't be copied
+//@description Options to be used when a message content is copied without reference to the original sender. Service messages, messages with messageInvoice, messagePaidMedia, messagePremiumGiveaway, or messagePremiumGiveawayWinners content can't be copied
 //@send_copy True, if content of the message needs to be copied without reference to the original sender. Always true if the message is forwarded to a secret chat or is local
 //@replace_caption True, if media caption of the message copy needs to be replaced. Ignored if send_copy is false
 //@new_caption New message caption; pass null to copy message without caption. Ignored if replace_caption is false
@@ -3529,7 +3703,7 @@ inputMessageText text:formattedText link_preview_options:linkPreviewOptions clea
 //@width Width of the animation; may be replaced by the server
 //@height Height of the animation; may be replaced by the server
 //@caption Animation caption; pass null to use an empty caption; 0-getOption("message_caption_length_max") characters
-//@show_caption_above_media True, if caption must be shown above the animation; otherwise, caption must be shown below the animation; not supported in secret chats
+//@show_caption_above_media True, if the caption must be shown above the animation; otherwise, the caption must be shown below the animation; not supported in secret chats
 //@has_spoiler True, if the animation preview must be covered by a spoiler animation; not supported in secret chats
 inputMessageAnimation animation:InputFile thumbnail:inputThumbnail added_sticker_file_ids:vector<int32> duration:int32 width:int32 height:int32 caption:formattedText show_caption_above_media:Bool has_spoiler:Bool = InputMessageContent;
 
@@ -3549,6 +3723,13 @@ inputMessageAudio audio:InputFile album_cover_thumbnail:inputThumbnail duration:
 //@caption Document caption; pass null to use an empty caption; 0-getOption("message_caption_length_max") characters
 inputMessageDocument document:InputFile thumbnail:inputThumbnail disable_content_type_detection:Bool caption:formattedText = InputMessageContent;
 
+//@description A message with paid media; can be used only in channel chats with supergroupFullInfo.has_paid_media_allowed
+//@star_count The number of stars that must be paid to see the media; 1-getOption("paid_media_message_star_count_max")
+//@paid_media The content of the paid media
+//@caption Message caption; pass null to use an empty caption; 0-getOption("message_caption_length_max") characters
+//@show_caption_above_media True, if the caption must be shown above the video; otherwise, the caption must be shown below the video; not supported in secret chats
+inputMessagePaidMedia star_count:int53 paid_media:vector<inputPaidMedia> caption:formattedText show_caption_above_media:Bool = InputMessageContent;
+
 //@description A photo message
 //@photo Photo to send. The photo must be at most 10 MB in size. The photo's width and height must not exceed 10000 in total. Width and height ratio must be at most 20
 //@thumbnail Photo thumbnail to be sent; pass null to skip thumbnail uploading. The thumbnail is sent to the other party only in secret chats
@@ -3556,7 +3737,7 @@ inputMessageDocument document:InputFile thumbnail:inputThumbnail disable_content
 //@width Photo width
 //@height Photo height
 //@caption Photo caption; pass null to use an empty caption; 0-getOption("message_caption_length_max") characters
-//@show_caption_above_media True, if caption must be shown above the photo; otherwise, caption must be shown below the photo; not supported in secret chats
+//@show_caption_above_media True, if the caption must be shown above the photo; otherwise, the caption must be shown below the photo; not supported in secret chats
 //@self_destruct_type Photo self-destruct type; pass null if none; private chats only
 //@has_spoiler True, if the photo preview must be covered by a spoiler animation; not supported in secret chats
 inputMessagePhoto photo:InputFile thumbnail:inputThumbnail added_sticker_file_ids:vector<int32> width:int32 height:int32 caption:formattedText show_caption_above_media:Bool self_destruct_type:MessageSelfDestructType has_spoiler:Bool = InputMessageContent;
@@ -3578,7 +3759,7 @@ inputMessageSticker sticker:InputFile thumbnail:inputThumbnail width:int32 heigh
 //@height Video height
 //@supports_streaming True, if the video is supposed to be streamed
 //@caption Video caption; pass null to use an empty caption; 0-getOption("message_caption_length_max") characters
-//@show_caption_above_media True, if caption must be shown above the video; otherwise, caption must be shown below the video; not supported in secret chats
+//@show_caption_above_media True, if the caption must be shown above the video; otherwise, the caption must be shown below the video; not supported in secret chats
 //@self_destruct_type Video self-destruct type; pass null if none; private chats only
 //@has_spoiler True, if the video preview must be covered by a spoiler animation; not supported in secret chats
 inputMessageVideo video:InputFile thumbnail:inputThumbnail added_sticker_file_ids:vector<int32> duration:int32 width:int32 height:int32 supports_streaming:Bool caption:formattedText show_caption_above_media:Bool self_destruct_type:MessageSelfDestructType has_spoiler:Bool = InputMessageContent;
@@ -3630,8 +3811,9 @@ inputMessageGame bot_user_id:int53 game_short_name:string = InputMessageContent;
 //@provider_token Payment provider token; may be empty for payments in Telegram Stars
 //@provider_data JSON-encoded data about the invoice, which will be shared with the payment provider
 //@start_parameter Unique invoice bot deep link parameter for the generation of this invoice. If empty, it would be possible to pay directly from forwards of the invoice message
-//@extended_media_content The content of extended media attached to the invoice. The content of the message to be sent. Must be one of the following types: inputMessagePhoto, inputMessageVideo
-inputMessageInvoice invoice:invoice title:string description:string photo_url:string photo_size:int32 photo_width:int32 photo_height:int32 payload:bytes provider_token:string provider_data:string start_parameter:string extended_media_content:InputMessageContent = InputMessageContent;
+//@paid_media The content of paid media attached to the invoice; pass null if none
+//@paid_media_caption Paid media caption; pass null to use an empty caption; 0-getOption("message_caption_length_max") characters
+inputMessageInvoice invoice:invoice title:string description:string photo_url:string photo_size:int32 photo_width:int32 photo_height:int32 payload:bytes provider_token:string provider_data:string start_parameter:string paid_media:inputPaidMedia paid_media_caption:formattedText = InputMessageContent;
 
 //@description A message with a poll. Polls can't be sent to secret chats. Polls can be sent only to a private chat with a bot
 //@question Poll question; 1-255 characters (up to 300 characters for bots). Only custom emoji entities are allowed to be added and only by Premium users
@@ -4242,7 +4424,7 @@ chatBoostSlots slots:vector<chatBoostSlot> = ChatBoostSlots;
 resendCodeReasonUserRequest = ResendCodeReason;
 
 //@description The code is re-sent, because device verification has failed
-//@error_message Cause of the verification failure, for example, PLAY_SERVICES_NOT_AVAILABLE, APNS_RECEIVE_TIMEOUT, APNS_INIT_FAILED, etc.
+//@error_message Cause of the verification failure, for example, PLAY_SERVICES_NOT_AVAILABLE, APNS_RECEIVE_TIMEOUT, or APNS_INIT_FAILED
 resendCodeReasonVerificationFailed error_message:string = ResendCodeReason;
 
 
@@ -5246,6 +5428,9 @@ premiumFeatureLastSeenTimes = PremiumFeature;
 //@description The ability to use Business features
 premiumFeatureBusiness = PremiumFeature;
 
+//@description The ability to use all available message effects
+premiumFeatureMessageEffects = PremiumFeature;
+
 
 //@class BusinessFeature @description Describes a feature available to Business user accounts
 
@@ -5479,7 +5664,7 @@ backgroundTypeWallpaper is_blurred:Bool is_moving:Bool = BackgroundType;
 
 //@description A PNG or TGV (gzipped subset of SVG with MIME type "application/x-tgwallpattern") pattern to be combined with the background fill chosen by the user
 //@fill Fill of the background
-//@intensity Intensity of the pattern when it is shown above the filled background; 0-100.
+//@intensity Intensity of the pattern when it is shown above the filled background; 0-100
 //@is_inverted True, if the background fill must be applied only to the pattern itself. All other pixels are black in this case. For dark themes only
 //@is_moving True, if the background needs to be slightly moved when device is tilted
 backgroundTypePattern fill:BackgroundFill intensity:int32 is_inverted:Bool is_moving:Bool = BackgroundType;
@@ -5502,15 +5687,6 @@ inputBackgroundRemote background_id:int64 = InputBackground;
 
 //@description A background previously set in the chat; for chat backgrounds only @message_id Identifier of the message with the background
 inputBackgroundPrevious message_id:int53 = InputBackground;
-
-
-//@description Describes theme settings
-//@accent_color Theme accent color in ARGB format
-//@background The background to be used in chats; may be null
-//@outgoing_message_fill The fill to be used as a background for outgoing messages
-//@animate_outgoing_message_fill If true, the freeform gradient fill needs to be animated on every sent message
-//@outgoing_message_accent_color Accent color of outgoing messages in ARGB format
-themeSettings accent_color:int32 background:background outgoing_message_fill:BackgroundFill animate_outgoing_message_fill:Bool outgoing_message_accent_color:int32 = ThemeSettings;
 
 
 //@description Describes a chat theme
@@ -5658,6 +5834,11 @@ pushMessageContentInvoice price:string is_pinned:Bool = PushMessageContent;
 
 //@description A message with a location @is_live True, if the location is live @is_pinned True, if the message is a pinned message with the specified content
 pushMessageContentLocation is_live:Bool is_pinned:Bool = PushMessageContent;
+
+//@description A message with paid media
+//@star_count Number of stars needed to buy access to the media in the message; 0 for pinned message
+//@is_pinned True, if the message is a pinned message with the specified content
+pushMessageContentPaidMedia star_count:int53 is_pinned:Bool = PushMessageContent;
 
 //@description A photo message
 //@photo Message content; may be null
@@ -5948,7 +6129,7 @@ userPrivacySettingAllowPrivateVoiceAndVideoNoteMessages = UserPrivacySetting;
 
 
 //@description Contains privacy settings for message read date in private chats. Read dates are always shown to the users that can see online status of the current user regardless of this setting
-//@show_read_date True, if message read date is shown to other users in private chats. If false and the current user isn't a Telegram Premium user, then they will not be able to see other's message read date.
+//@show_read_date True, if message read date is shown to other users in private chats. If false and the current user isn't a Telegram Premium user, then they will not be able to see other's message read date
 readDatePrivacySettings show_read_date:Bool = ReadDatePrivacySettings;
 
 //@description Contains privacy settings for new chats with non-contacts
@@ -6169,7 +6350,7 @@ internalLinkTypeBotStart bot_username:string start_parameter:string autostart:Bo
 //-If administrator rights are provided by the link, call getChatMember to receive the current bot rights in the chat and if the bot already is an administrator,
 //-check that the current user can edit its administrator rights, combine received rights with the requested administrator rights, show confirmation box to the user,
 //-and call setChatMemberStatus with the chosen chat and confirmed administrator rights. Before call to setChatMemberStatus it may be required to upgrade the chosen basic group chat to a supergroup chat.
-//-Then, if start_parameter isn't empty, call sendBotStartMessage with the given start parameter and the chosen chat; otherwise, just send /start message with bot's username added to the chat.
+//-Then, if start_parameter isn't empty, call sendBotStartMessage with the given start parameter and the chosen chat; otherwise, just send /start message with bot's username added to the chat
 //@bot_username Username of the bot
 //@start_parameter The parameter to be passed to sendBotStartMessage
 //@administrator_rights Expected administrator rights for the bot; may be null
@@ -6300,7 +6481,8 @@ internalLinkTypeSettings = InternalLinkType;
 //-If the bot is added to side menu, then use getWebAppUrl with the given URL and open the returned URL as a Web App
 //@bot_username Username of the bot
 //@url URL to be passed to getWebAppUrl
-internalLinkTypeSideMenuBot bot_username:string url:string = InternalLinkType;
+//@is_compact True, if the Web App must be opened in a compact mode instead of a full-size mode
+internalLinkTypeSideMenuBot bot_username:string url:string is_compact:Bool = InternalLinkType;
 
 //@description The link is a link to a sticker set. Call searchStickerSet with the given sticker set name to process the link and show the sticker set.
 //-If the sticker set is found and the user wants to add it, then call changeStickerSet
@@ -6313,7 +6495,7 @@ internalLinkTypeStickerSet sticker_set_name:string expect_custom_emoji:Bool = In
 //@story_id Story identifier
 internalLinkTypeStory story_sender_username:string story_id:int32 = InternalLinkType;
 
-//@description The link is a link to a theme. TDLib has no theme support yet @theme_name Name of the theme
+//@description The link is a link to a cloud theme. TDLib has no theme support yet @theme_name Name of the theme
 internalLinkTypeTheme theme_name:string = InternalLinkType;
 
 //@description The link is a link to the theme section of the app settings
@@ -6349,7 +6531,8 @@ internalLinkTypeVideoChat chat_username:string invite_hash:string is_live_stream
 //@bot_username Username of the bot that owns the Web App
 //@web_app_short_name Short name of the Web App
 //@start_parameter Start parameter to be passed to getWebAppLinkUrl
-internalLinkTypeWebApp bot_username:string web_app_short_name:string start_parameter:string = InternalLinkType;
+//@is_compact True, if the Web App must be opened in a compact mode instead of a full-size mode
+internalLinkTypeWebApp bot_username:string web_app_short_name:string start_parameter:string is_compact:Bool = InternalLinkType;
 
 
 //@description Contains an HTTPS link to a message in a supergroup or channel, or a forum topic @link The link @is_public True, if the link will work for non-members of the chat
@@ -6360,7 +6543,7 @@ messageLink link:string is_public:Bool = MessageLink;
 //@chat_id If found, identifier of the chat to which the link points, 0 otherwise
 //@message_thread_id If found, identifier of the message thread in which to open the message, or a forum topic to open if the message is missing
 //@message If found, the linked message; may be null
-//@media_timestamp Timestamp from which the video/audio/video note/voice note/story playing must start, in seconds; 0 if not specified. The media can be in the message content or in its web page preview
+//@media_timestamp Timestamp from which the video/audio/video note/voice note/story playing must start, in seconds; 0 if not specified. The media can be in the message content or in its link preview
 //@for_album True, if the whole media album to which the message belongs is linked
 messageLinkInfo is_public:Bool chat_id:int53 message_thread_id:int53 message:message media_timestamp:int32 for_album:Bool = MessageLinkInfo;
 
@@ -7298,9 +7481,10 @@ updateFileRemovedFromDownloads file_id:int32 counts:downloadedFileCounts = Updat
 //@description A request can't be completed unless application verification is performed; for official mobile applications only.
 //-The method setApplicationVerificationToken must be called once the verification is completed or failed
 //@verification_id Unique identifier for the verification process
-//@nonce Unique nonce for the classic Play Integrity verification (https://developer.android.com/google/play/integrity/classic) for Android,
+//@nonce Unique base64url-encoded nonce for the classic Play Integrity verification (https://developer.android.com/google/play/integrity/classic) for Android,
 //-or a unique string to compare with verify_nonce field from a push notification for iOS
-updateApplicationVerificationRequired verification_id:int53 nonce:string = Update;
+//@cloud_project_number Cloud project number to pass to the Play Integrity API on Android
+updateApplicationVerificationRequired verification_id:int53 nonce:string cloud_project_number:int64 = Update;
 
 //@description New call was created or information about a call was updated @call New data about a call
 updateCall call:call = Update;
@@ -8228,7 +8412,7 @@ removeNotificationGroup notification_group_id:int32 max_notification_id:int32 = 
 //@description Returns an HTTPS link to a message in a chat. Available only for already sent messages in supergroups and channels, or if message.can_get_media_timestamp_links and a media timestamp link is generated. This is an offline request
 //@chat_id Identifier of the chat to which the message belongs
 //@message_id Identifier of the message
-//@media_timestamp If not 0, timestamp from which the video/audio/video note/voice note/story playing must start, in seconds. The media can be in the message content or in its web page preview
+//@media_timestamp If not 0, timestamp from which the video/audio/video note/voice note/story playing must start, in seconds. The media can be in the message content or in its link preview
 //@for_album Pass true to create a link for the whole media album
 //@in_message_thread Pass true to create a link to the message as a channel post comment, in a message thread, or a forum topic
 getMessageLink chat_id:int53 message_id:int53 media_timestamp:int32 for_album:Bool in_message_thread:Bool = MessageLink;
@@ -8392,7 +8576,7 @@ editMessageMedia chat_id:int53 message_id:int53 reply_markup:ReplyMarkup input_m
 //@message_id Identifier of the message
 //@reply_markup The new message reply markup; pass null if none; for bots only
 //@caption New message content caption; 0-getOption("message_caption_length_max") characters; pass null to remove caption
-//@show_caption_above_media Pass true to show the caption above the media; otherwise, caption will be shown below the media. Can be true only for animation, photo, and video messages
+//@show_caption_above_media Pass true to show the caption above the media; otherwise, the caption will be shown below the media. Can be true only for animation, photo, and video messages
 editMessageCaption chat_id:int53 message_id:int53 reply_markup:ReplyMarkup caption:formattedText show_caption_above_media:Bool = Message;
 
 //@description Edits the message reply markup; for bots only. Returns the edited message after the edit is completed on the server side.
@@ -8428,7 +8612,7 @@ editInlineMessageMedia inline_message_id:string reply_markup:ReplyMarkup input_m
 //@inline_message_id Inline message identifier
 //@reply_markup The new message reply markup; pass null if none
 //@caption New message content caption; pass null to remove caption; 0-getOption("message_caption_length_max") characters
-//@show_caption_above_media Pass true to show the caption above the media; otherwise, caption will be shown below the media. Can be true only for animation, photo, and video messages
+//@show_caption_above_media Pass true to show the caption above the media; otherwise, the caption will be shown below the media. Can be true only for animation, photo, and video messages
 editInlineMessageCaption inline_message_id:string reply_markup:ReplyMarkup caption:formattedText show_caption_above_media:Bool = Ok;
 
 //@description Edits the reply markup of an inline message sent via a bot; for bots only
@@ -8505,7 +8689,7 @@ editBusinessMessageMedia business_connection_id:string chat_id:int53 message_id:
 //@message_id Identifier of the message
 //@reply_markup The new message reply markup; pass null if none
 //@caption New message content caption; pass null to remove caption; 0-getOption("message_caption_length_max") characters
-//@show_caption_above_media Pass true to show the caption above the media; otherwise, caption will be shown below the media. Can be true only for animation, photo, and video messages
+//@show_caption_above_media Pass true to show the caption above the media; otherwise, the caption will be shown below the media. Can be true only for animation, photo, and video messages
 editBusinessMessageCaption business_connection_id:string chat_id:int53 message_id:int53 reply_markup:ReplyMarkup caption:formattedText show_caption_above_media:Bool = BusinessMessage;
 
 //@description Edits the reply markup of a message sent on behalf of a business account; for bots only
@@ -8978,7 +9162,7 @@ getInternalLink type:InternalLinkType is_http:Bool = HttpUrl;
 //@description Returns information about the type of internal link. Returns a 404 error if the link is not internal. Can be called before authorization @link The link
 getInternalLinkType link:string = InternalLinkType;
 
-//@description Returns information about an action to be done when the current user clicks an external link. Don't use this method for links from secret chats if web page preview is disabled in secret chats @link The link
+//@description Returns information about an action to be done when the current user clicks an external link. Don't use this method for links from secret chats if link preview is disabled in secret chats @link The link
 getExternalLinkInfo link:string = LoginUrlInfo;
 
 //@description Returns an HTTP URL which can be used to automatically authorize the current user on a website after clicking an HTTP link. Use the method getExternalLinkInfo to find whether a prior user confirmation is needed
@@ -10151,7 +10335,7 @@ removeRecentHashtag hashtag:string = Ok;
 //@description Returns a link preview by the text of a message. Do not call this function too often. Returns a 404 error if the text has no link preview
 //@text Message text with formatting
 //@link_preview_options Options to be used for generation of the link preview; pass null to use default link preview options
-getWebPagePreview text:formattedText link_preview_options:linkPreviewOptions = WebPage;
+getLinkPreview text:formattedText link_preview_options:linkPreviewOptions = LinkPreview;
 
 //@description Returns an instant view version of a web page if available. Returns a 404 error if the web page has no instant view page @url The web page URL @force_full Pass true to get full instant view for the web page
 getWebPageInstantView url:string force_full:Bool = WebPageInstantView;
@@ -10515,7 +10699,7 @@ getChatEventLog chat_id:int53 query:string from_event_id:int64 limit:int32 filte
 getTimeZones = TimeZones;
 
 
-//@description Returns an invoice payment form. This method must be called when the user presses inline button of the type inlineKeyboardButtonTypeBuy
+//@description Returns an invoice payment form. This method must be called when the user presses inline button of the type inlineKeyboardButtonTypeBuy, or wants to buy access to media in a messagePaidMedia message
 //@input_invoice The invoice
 //@theme Preferred payment form theme; pass null to use the default theme
 getPaymentForm input_invoice:InputInvoice theme:themeParameters = PaymentForm;
@@ -10719,7 +10903,7 @@ reportMessageReactions chat_id:int53 message_id:int53 sender_id:MessageSender = 
 //@description Returns detailed revenue statistics about a chat. Currently, this method can be used only for channels if supergroupFullInfo.can_get_revenue_statistics == true @chat_id Chat identifier @is_dark Pass true if a dark theme is used by the application
 getChatRevenueStatistics chat_id:int53 is_dark:Bool = ChatRevenueStatistics;
 
-//@description Returns URL for chat revenue withdrawal; requires owner privileges in the chat. Currently, this method can be used only for channels if supergroupFullInfo.can_get_revenue_statistics == true and getOption("can_withdraw_chat_revenue")
+//@description Returns a URL for chat revenue withdrawal; requires owner privileges in the chat. Currently, this method can be used only for channels if supergroupFullInfo.can_get_revenue_statistics == true and getOption("can_withdraw_chat_revenue")
 //@chat_id Chat identifier
 //@password The 2-step verification password of the current user
 getChatRevenueWithdrawalUrl chat_id:int53 password:string = HttpUrl;
@@ -10732,15 +10916,19 @@ getChatRevenueTransactions chat_id:int53 offset:int32 limit:int32 = ChatRevenueT
 
 
 //@description Returns detailed Telegram star revenue statistics
-//@owner_id Identifier of the owner of the Telegram stars; can be identifier of an owned bot, or identifier of a channel chat with supergroupFullInfo.can_get_revenue_statistics == true
+//@owner_id Identifier of the owner of the Telegram stars; can be identifier of an owned bot, or identifier of a channel chat with supergroupFullInfo.can_get_star_revenue_statistics == true
 //@is_dark Pass true if a dark theme is used by the application
 getStarRevenueStatistics owner_id:MessageSender is_dark:Bool = StarRevenueStatistics;
 
-//@description Returns URL for Telegram star withdrawal
-//@owner_id Identifier of the owner of the Telegram stars; can be identifier of an owned bot, or identifier of a channel chat with supergroupFullInfo.can_get_revenue_statistics == true
+//@description Returns a URL for Telegram star withdrawal
+//@owner_id Identifier of the owner of the Telegram stars; can be identifier of an owned bot, or identifier of an owned channel chat
 //@star_count The number of Telegram stars to withdraw. Must be at least getOption("star_withdrawal_count_min")
 //@password The 2-step verification password of the current user
 getStarWithdrawalUrl owner_id:MessageSender star_count:int53 password:string = HttpUrl;
+
+//@description Returns a URL for a Telegram Ad platform account that can be used to set up advertisements for the chat paid in the owned Telegram stars
+//@owner_id Identifier of the owner of the Telegram stars; can be identifier of an owned bot, or identifier of an owned channel chat
+getStarAdAccountUrl owner_id:MessageSender = HttpUrl;
 
 
 //@description Returns detailed statistics about a chat. Currently, this method can be used only for supergroups and channels. Can be used only if supergroupFullInfo.can_get_statistics == true @chat_id Chat identifier @is_dark Pass true if a dark theme is used by the application
@@ -11011,7 +11199,7 @@ getStarPaymentOptions = StarPaymentOptions;
 
 //@description Returns the list of Telegram star transactions for the specified owner
 //@owner_id Identifier of the owner of the Telegram stars; can be the identifier of the current user, identifier of an owned bot,
-//-or identifier of a channel chat with supergroupFullInfo.can_get_revenue_statistics == true
+//-or identifier of a channel chat with supergroupFullInfo.can_get_star_revenue_statistics == true
 //@direction Direction of the transactions to receive; pass null to get all transactions
 //@offset Offset of the first transaction to return as received from the previous request; use empty string to get the first chunk of results
 //@limit The maximum number of transactions to return
