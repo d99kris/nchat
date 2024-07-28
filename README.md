@@ -935,6 +935,26 @@ more colors than two, or the terminal may be set up with gray mapped to black.
 In this case sent / own messages may appear invisible. To avoid nchat using
 gray one can edit `~/.config/nchat/color.conf` and remove occurances of `gray`.
 
+### 5. How to use Telegram and WhatsApp concurrently?
+
+The **recommended** method is to set up nchat with one config directory per
+protocol/phone number, and run each instance in separate terminal windows/tabs.
+To simplify such usage one can set up aliases, for example:
+
+    alias telegram='nchat -d ~/.config/nchat-telegram'
+    alias whatsapp='nchat -d ~/.config/nchat-whatsapp'
+
+Then use regular setup for them (separately), for example:
+
+    telegram -s
+    whatsapp -s
+
+The **alternative** method is to set up multiple protocol accounts in a single
+nchat config directory. For each protocol/phone nubmer, run setup mode and exit
+after initial sync:
+
+    nchat -s
+
 
 Technical Details
 =================
