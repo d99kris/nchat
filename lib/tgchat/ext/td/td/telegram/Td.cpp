@@ -2332,37 +2332,6 @@ class RemoveSavedNotificationSoundRequest final : public RequestOnceActor {
   }
 };
 
-class GetInlineQueryResultsRequest final : public RequestOnceActor {
-  UserId bot_user_id_;
-  DialogId dialog_id_;
-  Location user_location_;
-  string query_;
-  string offset_;
-
-  uint64 query_hash_;
-
-  void do_run(Promise<Unit> &&promise) final {
-    query_hash_ = td_->inline_queries_manager_->send_inline_query(bot_user_id_, dialog_id_, user_location_, query_,
-                                                                  offset_, std::move(promise));
-  }
-
-  void do_send_result() final {
-    send_result(td_->inline_queries_manager_->get_inline_query_results_object(query_hash_));
-  }
-
- public:
-  GetInlineQueryResultsRequest(ActorShared<Td> td, uint64 request_id, int64 bot_user_id, int64 dialog_id,
-                               const tl_object_ptr<td_api::location> &user_location, string query, string offset)
-      : RequestOnceActor(std::move(td), request_id)
-      , bot_user_id_(bot_user_id)
-      , dialog_id_(dialog_id)
-      , user_location_(user_location)
-      , query_(std::move(query))
-      , offset_(std::move(offset))
-      , query_hash_(0) {
-  }
-};
-
 class SearchBackgroundRequest final : public RequestActor<> {
   string name_;
 
@@ -3744,6 +3713,7 @@ void Td::init_managers() {
   G()->set_boost_manager(boost_manager_actor_.get());
   bot_info_manager_ = make_unique<BotInfoManager>(this, create_reference());
   bot_info_manager_actor_ = register_actor("BotInfoManager", bot_info_manager_.get());
+  G()->set_bot_info_manager(bot_info_manager_actor_.get());
   business_connection_manager_ = make_unique<BusinessConnectionManager>(this, create_reference());
   business_connection_manager_actor_ = register_actor("BusinessConnectionManager", business_connection_manager_.get());
   G()->set_business_connection_manager(business_connection_manager_actor_.get());
@@ -4254,7 +4224,7 @@ void Td::on_request(uint64 id, const td_api::getCurrentState &request) {
   send_result(id, td_api::make_object<td_api::updates>(std::move(updates)));
 }
 
-void Td::on_request(uint64 id, td_api::getPasswordState &request) {
+void Td::on_request(uint64 id, const td_api::getPasswordState &request) {
   CHECK_IS_USER();
   CREATE_REQUEST_PROMISE();
   send_closure(password_manager_, &PasswordManager::get_state, std::move(promise));
@@ -4650,6 +4620,12 @@ void Td::on_request(uint64 id, const td_api::getMessages &request) {
   CREATE_REQUEST(GetMessagesRequest, request.chat_id_, request.message_ids_);
 }
 
+void Td::on_request(uint64 id, const td_api::getMessageProperties &request) {
+  CREATE_REQUEST_PROMISE();
+  messages_manager_->get_message_properties(DialogId(request.chat_id_), MessageId(request.message_id_),
+                                            std::move(promise));
+}
+
 void Td::on_request(uint64 id, const td_api::getChatSponsoredMessages &request) {
   CHECK_IS_USER();
   CREATE_REQUEST_PROMISE();
@@ -4786,7 +4762,7 @@ void Td::on_request(uint64 id, td_api::getStorageStatisticsFast &request) {
   });
   send_closure(storage_manager_, &StorageManager::get_storage_stats_fast, std::move(query_promise));
 }
-void Td::on_request(uint64 id, td_api::getDatabaseStatistics &request) {
+void Td::on_request(uint64 id, const td_api::getDatabaseStatistics &request) {
   CREATE_REQUEST_PROMISE();
   auto query_promise = PromiseCreator::lambda([promise = std::move(promise)](Result<DatabaseStats> result) mutable {
     if (result.is_error()) {
@@ -5863,6 +5839,14 @@ void Td::on_request(uint64 id, td_api::stopBusinessPoll &request) {
                                           std::move(request.reply_markup_), std::move(promise));
 }
 
+void Td::on_request(uint64 id, td_api::setBusinessMessageIsPinned &request) {
+  CHECK_IS_BOT();
+  CREATE_OK_REQUEST_PROMISE();
+  messages_manager_->pin_dialog_message(BusinessConnectionId(std::move(request.business_connection_id_)),
+                                        DialogId(request.chat_id_), MessageId(request.message_id_), true, false,
+                                        !request.is_pinned_, std::move(promise));
+}
+
 void Td::on_request(uint64 id, const td_api::loadQuickReplyShortcuts &request) {
   CHECK_IS_USER();
   CREATE_OK_REQUEST_PROMISE();
@@ -5960,6 +5944,12 @@ void Td::on_request(uint64 id, td_api::editQuickReplyMessage &request) {
                                                  std::move(request.input_message_content_), std::move(promise));
 }
 
+void Td::on_request(uint64 id, const td_api::getCurrentWeather &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST_PROMISE();
+  inline_queries_manager_->get_weather(Location(request.location_), std::move(promise));
+}
+
 void Td::on_request(uint64 id, const td_api::getStory &request) {
   CHECK_IS_USER();
   CREATE_REQUEST_PROMISE();
@@ -5994,6 +5984,13 @@ void Td::on_request(uint64 id, td_api::editStory &request) {
   story_manager_->edit_story(DialogId(request.story_sender_chat_id_), StoryId(request.story_id_),
                              std::move(request.content_), std::move(request.areas_), std::move(request.caption_),
                              std::move(promise));
+}
+
+void Td::on_request(uint64 id, const td_api::editStoryCover &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  story_manager_->edit_story_cover(DialogId(request.story_sender_chat_id_), StoryId(request.story_id_),
+                                   request.cover_frame_timestamp_, std::move(promise));
 }
 
 void Td::on_request(uint64 id, td_api::setStoryPrivacySettings &request) {
@@ -7035,7 +7032,7 @@ void Td::on_request(uint64 id, const td_api::getChatBoostStatus &request) {
   boost_manager_->get_dialog_boost_status(DialogId(request.chat_id_), std::move(promise));
 }
 
-void Td::on_request(uint64 id, const td_api::boostChat &request) {
+void Td::on_request(uint64 id, td_api::boostChat &request) {
   CHECK_IS_USER();
   CREATE_REQUEST_PROMISE();
   boost_manager_->boost_dialog(DialogId(request.chat_id_), std::move(request.slot_ids_), std::move(promise));
@@ -7122,15 +7119,15 @@ void Td::on_request(uint64 id, const td_api::setChatSlowModeDelay &request) {
 
 void Td::on_request(uint64 id, const td_api::pinChatMessage &request) {
   CREATE_OK_REQUEST_PROMISE();
-  messages_manager_->pin_dialog_message(DialogId(request.chat_id_), MessageId(request.message_id_),
-                                        request.disable_notification_, request.only_for_self_, false,
-                                        std::move(promise));
+  messages_manager_->pin_dialog_message(BusinessConnectionId(), DialogId(request.chat_id_),
+                                        MessageId(request.message_id_), request.disable_notification_,
+                                        request.only_for_self_, false, std::move(promise));
 }
 
 void Td::on_request(uint64 id, const td_api::unpinChatMessage &request) {
   CREATE_OK_REQUEST_PROMISE();
-  messages_manager_->pin_dialog_message(DialogId(request.chat_id_), MessageId(request.message_id_), false, false, true,
-                                        std::move(promise));
+  messages_manager_->pin_dialog_message(BusinessConnectionId(), DialogId(request.chat_id_),
+                                        MessageId(request.message_id_), false, false, true, std::move(promise));
 }
 
 void Td::on_request(uint64 id, const td_api::unpinAllChatMessages &request) {
@@ -7491,7 +7488,7 @@ void Td::on_request(uint64 id, const td_api::getSuggestedFileName &request) {
   send_closure(actor_id(this), &Td::send_result, id, td_api::make_object<td_api::text>(r_file_name.ok()));
 }
 
-void Td::on_request(uint64 id, td_api::preliminaryUploadFile &request) {
+void Td::on_request(uint64 id, const td_api::preliminaryUploadFile &request) {
   auto priority = request.priority_;
   if (!(1 <= priority && priority <= 32)) {
     return send_error_raw(id, 400, "Upload priority must be between 1 and 32");
@@ -7912,6 +7909,48 @@ void Td::on_request(uint64 id, td_api::sendWebAppCustomRequest &request) {
   CREATE_REQUEST_PROMISE();
   attach_menu_manager_->invoke_web_view_custom_method(UserId(request.bot_user_id_), request.method_,
                                                       request.parameters_, std::move(promise));
+}
+
+void Td::on_request(uint64 id, const td_api::getBotMediaPreviews &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST_PROMISE();
+  bot_info_manager_->get_bot_media_previews(UserId(request.bot_user_id_), std::move(promise));
+}
+
+void Td::on_request(uint64 id, const td_api::getBotMediaPreviewInfo &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST_PROMISE();
+  bot_info_manager_->get_bot_media_preview_info(UserId(request.bot_user_id_), request.language_code_,
+                                                std::move(promise));
+}
+
+void Td::on_request(uint64 id, td_api::addBotMediaPreview &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST_PROMISE();
+  bot_info_manager_->add_bot_media_preview(UserId(request.bot_user_id_), request.language_code_,
+                                           std::move(request.content_), std::move(promise));
+}
+
+void Td::on_request(uint64 id, td_api::editBotMediaPreview &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST_PROMISE();
+  bot_info_manager_->edit_bot_media_preview(UserId(request.bot_user_id_), request.language_code_,
+                                            FileId(request.file_id_, 0), std::move(request.content_),
+                                            std::move(promise));
+}
+
+void Td::on_request(uint64 id, const td_api::reorderBotMediaPreviews &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  bot_info_manager_->reorder_bot_media_previews(UserId(request.bot_user_id_), request.language_code_, request.file_ids_,
+                                                std::move(promise));
+}
+
+void Td::on_request(uint64 id, const td_api::deleteBotMediaPreviews &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  bot_info_manager_->delete_bot_media_previews(UserId(request.bot_user_id_), request.language_code_, request.file_ids_,
+                                               std::move(promise));
 }
 
 void Td::on_request(uint64 id, td_api::setBotName &request) {
@@ -8999,8 +9038,10 @@ void Td::on_request(uint64 id, td_api::getInlineQueryResults &request) {
   CHECK_IS_USER();
   CLEAN_INPUT_STRING(request.query_);
   CLEAN_INPUT_STRING(request.offset_);
-  CREATE_REQUEST(GetInlineQueryResultsRequest, request.bot_user_id_, request.chat_id_, request.user_location_,
-                 std::move(request.query_), std::move(request.offset_));
+  CREATE_REQUEST_PROMISE();
+  inline_queries_manager_->send_inline_query(UserId(request.bot_user_id_), DialogId(request.chat_id_),
+                                             Location(request.user_location_), request.query_, request.offset_,
+                                             std::move(promise));
 }
 
 void Td::on_request(uint64 id, td_api::answerInlineQuery &request) {
@@ -9010,6 +9051,13 @@ void Td::on_request(uint64 id, td_api::answerInlineQuery &request) {
   inline_queries_manager_->answer_inline_query(request.inline_query_id_, request.is_personal_,
                                                std::move(request.button_), std::move(request.results_),
                                                request.cache_time_, request.next_offset_, std::move(promise));
+}
+
+void Td::on_request(uint64 id, td_api::getPopularWebAppBots &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.offset_);
+  CREATE_REQUEST_PROMISE();
+  attach_menu_manager_->get_popular_app_bots(request.offset_, request.limit_, std::move(promise));
 }
 
 void Td::on_request(uint64 id, td_api::searchWebApp &request) {
@@ -9036,6 +9084,16 @@ void Td::on_request(uint64 id, td_api::getWebAppLinkUrl &request) {
       DialogId(request.chat_id_), UserId(request.bot_user_id_), std::move(request.web_app_short_name_),
       std::move(request.start_parameter_), std::move(request.theme_), std::move(request.application_name_),
       request.allow_write_access_, std::move(query_promise));
+}
+
+void Td::on_request(uint64 id, td_api::getMainWebApp &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.start_parameter_);
+  CLEAN_INPUT_STRING(request.application_name_);
+  CREATE_REQUEST_PROMISE();
+  attach_menu_manager_->request_main_web_view(DialogId(request.chat_id_), UserId(request.bot_user_id_),
+                                              std::move(request.start_parameter_), std::move(request.theme_),
+                                              std::move(request.application_name_), std::move(promise));
 }
 
 void Td::on_request(uint64 id, td_api::getWebAppUrl &request) {
@@ -9517,6 +9575,12 @@ void Td::on_request(uint64 id, const td_api::getStarPaymentOptions &request) {
   star_manager_->get_star_payment_options(std::move(promise));
 }
 
+void Td::on_request(uint64 id, const td_api::getStarGiftPaymentOptions &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST_PROMISE();
+  star_manager_->get_star_gift_payment_options(UserId(request.user_id_), std::move(promise));
+}
+
 void Td::on_request(uint64 id, td_api::getStarTransactions &request) {
   CLEAN_INPUT_STRING(request.offset_);
   CREATE_REQUEST_PROMISE();
@@ -9847,7 +9911,7 @@ td_api::object_ptr<td_api::Object> Td::do_static_request(const td_api::getTextEn
   }
   auto text_entities = find_entities(request.text_, false, false);
   return make_tl_object<td_api::textEntities>(
-      get_text_entities_object(text_entities, false, std::numeric_limits<int32>::max()));
+      get_text_entities_object(nullptr, text_entities, false, std::numeric_limits<int32>::max()));
 }
 
 td_api::object_ptr<td_api::Object> Td::do_static_request(td_api::parseTextEntities &request) {
@@ -9885,7 +9949,7 @@ td_api::object_ptr<td_api::Object> Td::do_static_request(td_api::parseTextEntiti
   }
 
   return make_tl_object<td_api::formattedText>(std::move(request.text_),
-                                               get_text_entities_object(r_entities.ok(), false, -1));
+                                               get_text_entities_object(nullptr, r_entities.ok(), false, -1));
 }
 
 td_api::object_ptr<td_api::Object> Td::do_static_request(td_api::parseMarkdown &request) {
@@ -9905,7 +9969,7 @@ td_api::object_ptr<td_api::Object> Td::do_static_request(td_api::parseMarkdown &
 
   auto parsed_text = parse_markdown_v3({std::move(request.text_->text_), std::move(entities)});
   fix_formatted_text(parsed_text.text, parsed_text.entities, true, true, true, true, true).ensure();
-  return get_formatted_text_object(parsed_text, false, std::numeric_limits<int32>::max());
+  return get_formatted_text_object(nullptr, parsed_text, false, std::numeric_limits<int32>::max());
 }
 
 td_api::object_ptr<td_api::Object> Td::do_static_request(const td_api::getOption &request) {
@@ -9930,8 +9994,8 @@ td_api::object_ptr<td_api::Object> Td::do_static_request(td_api::getMarkdownText
     return make_error(400, status.message());
   }
 
-  return get_formatted_text_object(get_markdown_v3({std::move(request.text_->text_), std::move(entities)}), false,
-                                   std::numeric_limits<int32>::max());
+  return get_formatted_text_object(nullptr, get_markdown_v3({std::move(request.text_->text_), std::move(entities)}),
+                                   false, std::numeric_limits<int32>::max());
 }
 
 td_api::object_ptr<td_api::Object> Td::do_static_request(td_api::searchStringsByPrefix &request) {

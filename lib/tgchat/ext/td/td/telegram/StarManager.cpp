@@ -23,6 +23,7 @@
 #include "td/telegram/Photo.h"
 #include "td/telegram/ServerMessageId.h"
 #include "td/telegram/StatisticsManager.h"
+#include "td/telegram/StickersManager.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/UpdatesManager.h"
@@ -52,6 +53,45 @@ class GetStarsTopupOptionsQuery final : public Td::ResultHandler {
 
   void on_result(BufferSlice packet) final {
     auto result_ptr = fetch_result<telegram_api::payments_getStarsTopupOptions>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    auto results = result_ptr.move_as_ok();
+    vector<td_api::object_ptr<td_api::starPaymentOption>> options;
+    for (auto &result : results) {
+      options.push_back(td_api::make_object<td_api::starPaymentOption>(result->currency_, result->amount_,
+                                                                       StarManager::get_star_count(result->stars_),
+                                                                       result->store_product_, result->extended_));
+    }
+
+    promise_.set_value(td_api::make_object<td_api::starPaymentOptions>(std::move(options)));
+  }
+
+  void on_error(Status status) final {
+    promise_.set_error(std::move(status));
+  }
+};
+
+class GetStarsGiftOptionsQuery final : public Td::ResultHandler {
+  Promise<td_api::object_ptr<td_api::starPaymentOptions>> promise_;
+
+ public:
+  explicit GetStarsGiftOptionsQuery(Promise<td_api::object_ptr<td_api::starPaymentOptions>> &&promise)
+      : promise_(std::move(promise)) {
+  }
+
+  void send(telegram_api::object_ptr<telegram_api::InputUser> input_user) {
+    int32 flags = 0;
+    if (input_user != nullptr) {
+      flags |= telegram_api::payments_getStarsGiftOptions::USER_ID_MASK;
+    }
+    send_query(
+        G()->net_query_creator().create(telegram_api::payments_getStarsGiftOptions(flags, std::move(input_user))));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::payments_getStarsGiftOptions>(packet);
     if (result_ptr.is_error()) {
       return on_error(result_ptr.move_as_error());
     }
@@ -140,6 +180,10 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
     td_->user_manager_->on_get_users(std::move(result->users_), "GetStarsTransactionsQuery");
     td_->chat_manager_->on_get_chats(std::move(result->chats_), "GetStarsTransactionsQuery");
 
+    auto star_count = StarManager::get_star_count(result->balance_, true);
+    bool for_bot =
+        (dialog_id_.get_type() == DialogType::User && td_->user_manager_->is_user_bot(dialog_id_.get_user_id())) ||
+        td_->auth_manager_->is_bot();
     vector<td_api::object_ptr<td_api::starTransaction>> transactions;
     for (auto &transaction : result->history_) {
       vector<FileId> file_ids;
@@ -153,8 +197,7 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
       if (!transaction->bot_payload_.empty()) {
         if (td_->auth_manager_->is_bot()) {
           bot_payload = transaction->bot_payload_.as_slice().str();
-        } else if (dialog_id_.get_type() != DialogType::User ||
-                   !td_->user_manager_->is_user_bot(dialog_id_.get_user_id())) {
+        } else if (!for_bot) {
           LOG(ERROR) << "Receive Star transaction with bot payload";
         }
       }
@@ -169,6 +212,12 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
           case telegram_api::starsTransactionPeerPlayMarket::ID:
             return td_api::make_object<td_api::starTransactionPartnerGooglePlay>();
           case telegram_api::starsTransactionPeerFragment::ID: {
+            if (transaction->gift_) {
+              transaction->gift_ = false;
+              return td_api::make_object<td_api::starTransactionPartnerUser>(
+                  0, td_->stickers_manager_->get_premium_gift_sticker_object(
+                         StarManager::get_months_by_star_count(star_count)));
+            }
             auto state = [&]() -> td_api::object_ptr<td_api::RevenueWithdrawalState> {
               if (transaction->transaction_date_ > 0) {
                 SCOPE_EXIT {
@@ -202,8 +251,17 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
                 static_cast<const telegram_api::starsTransactionPeer *>(transaction->peer_.get())->peer_);
             if (dialog_id.get_type() == DialogType::User) {
               auto user_id = dialog_id.get_user_id();
-              if (td_->auth_manager_->is_bot() == td_->user_manager_->is_user_bot(user_id)) {
-                LOG(ERROR) << "Receive star transaction with " << user_id;
+              if (for_bot == td_->user_manager_->is_user_bot(user_id)) {
+                if (transaction->gift_ && !for_bot) {
+                  transaction->gift_ = false;
+                  return td_api::make_object<td_api::starTransactionPartnerUser>(
+                      user_id == UserManager::get_service_notifications_user_id()
+                          ? 0
+                          : td_->user_manager_->get_user_id_object(user_id, "starTransactionPartnerUser"),
+                      td_->stickers_manager_->get_premium_gift_sticker_object(
+                          StarManager::get_months_by_star_count(star_count)));
+                }
+                LOG(ERROR) << "Receive Telegram Star transaction with " << user_id;
                 return td_api::make_object<td_api::starTransactionPartnerUnsupported>();
               }
               SCOPE_EXIT {
@@ -230,7 +288,7 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
               for (auto &media : extended_media) {
                 media.append_file_ids(td_, file_ids);
               }
-              auto extended_media_objects = transform(std::move(extended_media), [td = td_, dialog_id](auto &&media) {
+              auto extended_media_objects = transform(std::move(extended_media), [td = td_](auto &&media) {
                 return media.get_message_extended_media_object(td);
               });
               td_->dialog_manager_->force_create_dialog(dialog_id, "starsTransactionPeer", true);
@@ -238,7 +296,7 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
                   td_->dialog_manager_->get_chat_id_object(dialog_id, "starTransactionPartnerChannel"),
                   message_id.get(), std::move(extended_media_objects));
             }
-            LOG(ERROR) << "Receive star transaction with " << dialog_id;
+            LOG(ERROR) << "Receive Telegram Star transaction with " << dialog_id;
             return td_api::make_object<td_api::starTransactionPartnerUnsupported>();
           }
           case telegram_api::starsTransactionPeerAds::ID:
@@ -264,6 +322,9 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
         if (transaction->msg_id_ != 0) {
           LOG(ERROR) << "Receive message identifier with " << to_string(star_transaction);
         }
+        if (transaction->gift_) {
+          LOG(ERROR) << "Receive gift with " << to_string(star_transaction);
+        }
       }
       if (!file_ids.empty()) {
         auto file_source_id =
@@ -275,8 +336,8 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
       transactions.push_back(std::move(star_transaction));
     }
 
-    promise_.set_value(td_api::make_object<td_api::starTransactions>(
-        StarManager::get_star_count(result->balance_, true), std::move(transactions), result->next_offset_));
+    promise_.set_value(
+        td_api::make_object<td_api::starTransactions>(star_count, std::move(transactions), result->next_offset_));
   }
 
   void on_error(Status status) final {
@@ -481,6 +542,16 @@ void StarManager::get_star_payment_options(Promise<td_api::object_ptr<td_api::st
   td_->create_handler<GetStarsTopupOptionsQuery>(std::move(promise))->send();
 }
 
+void StarManager::get_star_gift_payment_options(UserId user_id,
+                                                Promise<td_api::object_ptr<td_api::starPaymentOptions>> &&promise) {
+  if (user_id == UserId()) {
+    td_->create_handler<GetStarsGiftOptionsQuery>(std::move(promise))->send(nullptr);
+    return;
+  }
+  TRY_RESULT_PROMISE(promise, input_user, td_->user_manager_->get_input_user(user_id));
+  td_->create_handler<GetStarsGiftOptionsQuery>(std::move(promise))->send(std::move(input_user));
+}
+
 void StarManager::get_star_transactions(td_api::object_ptr<td_api::MessageSender> owner_id, const string &offset,
                                         int32 limit, td_api::object_ptr<td_api::StarTransactionDirection> &&direction,
                                         Promise<td_api::object_ptr<td_api::starTransactions>> &&promise) {
@@ -489,6 +560,24 @@ void StarManager::get_star_transactions(td_api::object_ptr<td_api::MessageSender
   if (limit < 0) {
     return promise.set_error(Status::Error(400, "Limit must be non-negative"));
   }
+  td_->stickers_manager_->load_premium_gift_sticker_set(
+      PromiseCreator::lambda([actor_id = actor_id(this), dialog_id, offset, limit, direction = std::move(direction),
+                              promise = std::move(promise)](Result<Unit> &&result) mutable {
+        if (result.is_error()) {
+          promise.set_error(result.move_as_error());
+        } else {
+          send_closure(actor_id, &StarManager::do_get_star_transactions, dialog_id, offset, limit, std::move(direction),
+                       std::move(promise));
+        }
+      }));
+}
+
+void StarManager::do_get_star_transactions(DialogId dialog_id, const string &offset, int32 limit,
+                                           td_api::object_ptr<td_api::StarTransactionDirection> &&direction,
+                                           Promise<td_api::object_ptr<td_api::starTransactions>> &&promise) {
+  TRY_STATUS_PROMISE(promise, G()->close_status());
+  TRY_STATUS_PROMISE(promise, can_manage_stars(dialog_id, true));
+
   td_->create_handler<GetStarsTransactionsQuery>(std::move(promise))
       ->send(dialog_id, offset, limit, std::move(direction));
 }
@@ -588,19 +677,23 @@ int64 StarManager::get_star_count(int64 amount, bool allow_negative) {
   auto max_amount = static_cast<int64>(1) << 51;
   if (amount < 0) {
     if (!allow_negative) {
-      LOG(ERROR) << "Receive star amount = " << amount;
+      LOG(ERROR) << "Receive Telegram Star amount = " << amount;
       return 0;
     }
     if (amount < -max_amount) {
-      LOG(ERROR) << "Receive star amount = " << amount;
+      LOG(ERROR) << "Receive Telegram Star amount = " << amount;
       return -max_amount;
     }
   }
   if (amount > max_amount) {
-    LOG(ERROR) << "Receive star amount = " << amount;
+    LOG(ERROR) << "Receive Telegram Star amount = " << amount;
     return max_amount;
   }
   return amount;
+}
+
+int32 StarManager::get_months_by_star_count(int64 star_count) {
+  return star_count <= 1000 ? 3 : (star_count < 2500 ? 6 : 12);
 }
 
 }  // namespace td

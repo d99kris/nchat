@@ -1410,60 +1410,87 @@ td_api::object_ptr<td_api::LinkPreviewType> WebPagesManager::get_link_preview_ty
     }
     if (type == "background") {
       LOG_IF(ERROR, !web_page->photo_.is_empty()) << "Receive photo for " << web_page->url_;
+      LOG_IF(ERROR,
+             web_page->document_.type != Document::Type::Unknown && web_page->document_.type != Document::Type::General)
+          << "Receive wrong document for " << web_page->url_;
       return td_api::make_object<td_api::linkPreviewTypeBackground>(
           web_page->document_.type == Document::Type::General
               ? td_->documents_manager_->get_document_object(web_page->document_.file_id, PhotoFormat::Png)
               : nullptr);
     }
     if (type == "bot") {
+      LOG_IF(ERROR, web_page->document_.type != Document::Type::Unknown)
+          << "Receive wrong document for " << web_page->url_;
       return td_api::make_object<td_api::linkPreviewTypeUser>(
           get_chat_photo_object(td_->file_manager_.get(), web_page->photo_), true);
     }
     if (type == "botapp") {
+      LOG_IF(ERROR, web_page->document_.type != Document::Type::Unknown)
+          << "Receive wrong document for " << web_page->url_;
       return td_api::make_object<td_api::linkPreviewTypeWebApp>(
           get_photo_object(td_->file_manager_.get(), web_page->photo_));
     }
     if (type == "channel" || type == "channel_request") {
+      LOG_IF(ERROR, web_page->document_.type != Document::Type::Unknown)
+          << "Receive wrong document for " << web_page->url_;
       return td_api::make_object<td_api::linkPreviewTypeChat>(
           td_api::make_object<td_api::inviteLinkChatTypeChannel>(),
           get_chat_photo_object(td_->file_manager_.get(), web_page->photo_), type.size() > 10);
     }
     if (type == "channel_boost") {
+      LOG_IF(ERROR, web_page->document_.type != Document::Type::Unknown)
+          << "Receive wrong document for " << web_page->url_;
       return td_api::make_object<td_api::linkPreviewTypeChannelBoost>(
           get_chat_photo_object(td_->file_manager_.get(), web_page->photo_));
     }
     if (type == "chat" || type == "chat_request") {
+      LOG_IF(ERROR, web_page->document_.type != Document::Type::Unknown)
+          << "Receive wrong document for " << web_page->url_;
       return td_api::make_object<td_api::linkPreviewTypeChat>(
           td_api::make_object<td_api::inviteLinkChatTypeBasicGroup>(),
           get_chat_photo_object(td_->file_manager_.get(), web_page->photo_), type.size() > 10);
     }
     if (type == "chatlist") {
       LOG_IF(ERROR, !web_page->photo_.is_empty()) << "Receive photo for " << web_page->url_;
+      LOG_IF(ERROR, web_page->document_.type != Document::Type::Unknown)
+          << "Receive wrong document for " << web_page->url_;
       return td_api::make_object<td_api::linkPreviewTypeShareableChatFolder>();
     }
     if (type == "giftcode") {
       LOG_IF(ERROR, !web_page->photo_.is_empty()) << "Receive photo for " << web_page->url_;
+      LOG_IF(ERROR, web_page->document_.type != Document::Type::Unknown)
+          << "Receive wrong document for " << web_page->url_;
       return td_api::make_object<td_api::linkPreviewTypePremiumGiftCode>();
     }
     if (type == "group_boost") {
+      LOG_IF(ERROR, web_page->document_.type != Document::Type::Unknown)
+          << "Receive wrong document for " << web_page->url_;
       return td_api::make_object<td_api::linkPreviewTypeSupergroupBoost>(
           get_chat_photo_object(td_->file_manager_.get(), web_page->photo_));
     }
     if (type == "invoice") {
       LOG_IF(ERROR, !web_page->photo_.is_empty()) << "Receive photo for " << web_page->url_;
+      LOG_IF(ERROR, web_page->document_.type != Document::Type::Unknown)
+          << "Receive wrong document for " << web_page->url_;
       return td_api::make_object<td_api::linkPreviewTypeInvoice>();
     }
     if (type == "livestream") {
+      LOG_IF(ERROR, web_page->document_.type != Document::Type::Unknown)
+          << "Receive wrong document for " << web_page->url_;
       return td_api::make_object<td_api::linkPreviewTypeVideoChat>(
           get_chat_photo_object(td_->file_manager_.get(), web_page->photo_), true);
     }
     if (type == "megagroup" || type == "megagroup_request") {
+      LOG_IF(ERROR, web_page->document_.type != Document::Type::Unknown)
+          << "Receive wrong document for " << web_page->url_;
       return td_api::make_object<td_api::linkPreviewTypeChat>(
           td_api::make_object<td_api::inviteLinkChatTypeSupergroup>(),
           get_chat_photo_object(td_->file_manager_.get(), web_page->photo_), type.size() > 10);
     }
     if (type == "message") {
       LOG_IF(ERROR, !web_page->photo_.is_empty()) << "Receive photo for " << web_page->url_;
+      LOG_IF(ERROR, web_page->document_.type != Document::Type::Unknown)
+          << "Receive wrong document for " << web_page->url_;
       return td_api::make_object<td_api::linkPreviewTypeMessage>();
     }
     if (type == "stickerset") {
@@ -1499,10 +1526,14 @@ td_api::object_ptr<td_api::LinkPreviewType> WebPagesManager::get_link_preview_ty
       return td_api::make_object<td_api::linkPreviewTypeTheme>(std::move(documents), std::move(theme_settings));
     }
     if (type == "user") {
+      LOG_IF(ERROR, web_page->document_.type != Document::Type::Unknown)
+          << "Receive wrong document for " << web_page->url_;
       return td_api::make_object<td_api::linkPreviewTypeUser>(
           get_chat_photo_object(td_->file_manager_.get(), web_page->photo_), false);
     }
     if (type == "videochat") {
+      LOG_IF(ERROR, web_page->document_.type != Document::Type::Unknown)
+          << "Receive wrong document for " << web_page->url_;
       return td_api::make_object<td_api::linkPreviewTypeVideoChat>(
           get_chat_photo_object(td_->file_manager_.get(), web_page->photo_), false);
     }
@@ -1510,17 +1541,26 @@ td_api::object_ptr<td_api::LinkPreviewType> WebPagesManager::get_link_preview_ty
   if (!web_page->embed_type_.empty() || !web_page->embed_url_.empty()) {
     if (web_page->embed_type_ == "iframe") {
       if (web_page->type_ == "audio") {
-        return td_api::make_object<td_api::linkPreviewTypeEmbeddedAudioPlayer>(web_page->embed_url_,
-                                                                               web_page->duration_, web_page->author_);
+        return td_api::make_object<td_api::linkPreviewTypeEmbeddedAudioPlayer>(
+            web_page->embed_url_, get_photo_object(td_->file_manager_.get(), web_page->photo_), web_page->duration_,
+            web_page->author_, web_page->embed_dimensions_.width, web_page->embed_dimensions_.height);
+      }
+      if (web_page->type_ == "gif") {
+        return td_api::make_object<td_api::linkPreviewTypeEmbeddedAnimationPlayer>(
+            web_page->embed_url_, get_photo_object(td_->file_manager_.get(), web_page->photo_), web_page->duration_,
+            web_page->author_, web_page->embed_dimensions_.width, web_page->embed_dimensions_.height);
       }
       if (web_page->type_ == "video") {
         return td_api::make_object<td_api::linkPreviewTypeEmbeddedVideoPlayer>(
-            web_page->embed_url_, web_page->duration_, web_page->author_, web_page->embed_dimensions_.width,
-            web_page->embed_dimensions_.height);
+            web_page->embed_url_, get_photo_object(td_->file_manager_.get(), web_page->photo_), web_page->duration_,
+            web_page->author_, web_page->embed_dimensions_.width, web_page->embed_dimensions_.height);
       }
     } else {
-      // ordinary audio/video
+      // ordinary animation/audio/video
       if (web_page->type_ == "audio") {
+        LOG_IF(ERROR,
+               web_page->document_.type != Document::Type::Unknown && web_page->document_.type != Document::Type::Audio)
+            << "Receive wrong document for " << web_page->url_;
         auto audio = web_page->document_.type == Document::Type::Audio
                          ? td_->audios_manager_->get_audio_object(web_page->document_.file_id)
                          : nullptr;
@@ -1535,7 +1575,27 @@ td_api::object_ptr<td_api::LinkPreviewType> WebPagesManager::get_link_preview_ty
           return td_api::make_object<td_api::linkPreviewTypeUnsupported>();
         }
       }
+      if (web_page->type_ == "gif") {
+        LOG_IF(ERROR, web_page->document_.type != Document::Type::Unknown &&
+                          web_page->document_.type != Document::Type::Animation)
+            << "Receive wrong document for " << web_page->url_;
+        auto animation = web_page->document_.type == Document::Type::Animation
+                             ? td_->animations_manager_->get_animation_object(web_page->document_.file_id)
+                             : nullptr;
+        if (animation != nullptr) {
+          return td_api::make_object<td_api::linkPreviewTypeAnimation>(std::move(animation), web_page->author_);
+        } else {
+          if (!web_page->photo_.is_empty()) {
+            return td_api::make_object<td_api::linkPreviewTypePhoto>(
+                get_photo_object(td_->file_manager_.get(), web_page->photo_), web_page->author_);
+          }
+          return td_api::make_object<td_api::linkPreviewTypeUnsupported>();
+        }
+      }
       if (web_page->type_ == "video") {
+        LOG_IF(ERROR,
+               web_page->document_.type != Document::Type::Unknown && web_page->document_.type != Document::Type::Video)
+            << "Receive wrong document for " << web_page->url_;
         auto video = web_page->document_.type == Document::Type::Video
                          ? td_->videos_manager_->get_video_object(web_page->document_.file_id)
                          : nullptr;
@@ -1555,16 +1615,14 @@ td_api::object_ptr<td_api::LinkPreviewType> WebPagesManager::get_link_preview_ty
     LOG(ERROR) << "Have type = " << web_page->type_ << " for embedded " << web_page->url_;
     return td_api::make_object<td_api::linkPreviewTypeUnsupported>();
   }
+  bool is_generic = web_page->type_ == "document" || web_page->type_ == "article";
   if (web_page->type_ == "app") {
+    LOG_IF(ERROR, web_page->document_.type != Document::Type::Unknown)
+        << "Receive wrong document for " << web_page->url_;
     return td_api::make_object<td_api::linkPreviewTypeApp>(get_photo_object(td_->file_manager_.get(), web_page->photo_),
                                                            web_page->author_);
   }
-  if (web_page->type_ == "article") {
-    return td_api::make_object<td_api::linkPreviewTypeArticle>(
-        get_photo_object(td_->file_manager_.get(), web_page->photo_), web_page->author_);
-  }
-  if (web_page->type_ == "audio" ||
-      (web_page->document_.type == Document::Type::Audio && web_page->type_ == "document")) {
+  if (web_page->type_ == "audio" || (web_page->document_.type == Document::Type::Audio && is_generic)) {
     LOG_IF(ERROR, !web_page->photo_.is_empty()) << "Receive photo for " << web_page->url_;
     auto audio = web_page->document_.type == Document::Type::Audio
                      ? td_->audios_manager_->get_audio_object(web_page->document_.file_id)
@@ -1578,27 +1636,30 @@ td_api::object_ptr<td_api::LinkPreviewType> WebPagesManager::get_link_preview_ty
       return td_api::make_object<td_api::linkPreviewTypeUnsupported>();
     }
   }
-  if (web_page->document_.type == Document::Type::General && web_page->type_ == "document") {
+  if (web_page->document_.type == Document::Type::General && is_generic) {
     LOG_IF(ERROR, !web_page->photo_.is_empty()) << "Receive photo for " << web_page->url_;
     auto document = td_->documents_manager_->get_document_object(web_page->document_.file_id, PhotoFormat::Jpeg);
     return td_api::make_object<td_api::linkPreviewTypeDocument>(std::move(document), web_page->author_);
   }
-  if (web_page->type_ == "gif" ||
-      (web_page->document_.type == Document::Type::Animation && web_page->type_ == "document")) {
-    LOG_IF(ERROR, !web_page->photo_.is_empty()) << "Receive photo for " << web_page->url_;
+  if (web_page->type_ == "gif" || (web_page->document_.type == Document::Type::Animation && is_generic)) {
     auto animation = web_page->document_.type == Document::Type::Animation
                          ? td_->animations_manager_->get_animation_object(web_page->document_.file_id)
                          : nullptr;
     if (animation != nullptr) {
       return td_api::make_object<td_api::linkPreviewTypeAnimation>(std::move(animation), web_page->author_);
     } else {
+      if (!web_page->photo_.is_empty()) {
+        return td_api::make_object<td_api::linkPreviewTypePhoto>(
+            get_photo_object(td_->file_manager_.get(), web_page->photo_), web_page->author_);
+      }
       LOG(ERROR) << "Receive animation without animation for " << web_page->url_;
       return td_api::make_object<td_api::linkPreviewTypeUnsupported>();
     }
   }
   if (web_page->type_ == "photo" ||
-      (web_page->type_ == "document" && web_page->document_.type == Document::Type::Unknown &&
-       !web_page->photo_.is_empty())) {
+      (is_generic && web_page->document_.type == Document::Type::Unknown && !web_page->photo_.is_empty())) {
+    LOG_IF(ERROR, web_page->document_.type != Document::Type::Unknown)
+        << "Receive wrong document for " << web_page->url_;
     auto photo = get_photo_object(td_->file_manager_.get(), web_page->photo_);
     if (photo != nullptr) {
       return td_api::make_object<td_api::linkPreviewTypePhoto>(std::move(photo), web_page->author_);
@@ -1607,18 +1668,15 @@ td_api::object_ptr<td_api::LinkPreviewType> WebPagesManager::get_link_preview_ty
       return td_api::make_object<td_api::linkPreviewTypeUnsupported>();
     }
   }
-  if (web_page->document_.type == Document::Type::Sticker && web_page->type_ == "document") {
-    LOG_IF(ERROR, !web_page->photo_.is_empty()) << "Receive photo for " << web_page->url_;
+  if (web_page->document_.type == Document::Type::Sticker && is_generic) {
     auto sticker = td_->stickers_manager_->get_sticker_object(web_page->document_.file_id);
     return td_api::make_object<td_api::linkPreviewTypeSticker>(std::move(sticker));
   }
-  if (web_page->type_ == "video" ||
-      (web_page->document_.type == Document::Type::Video && web_page->type_ == "document")) {
+  if (web_page->type_ == "video" || (web_page->document_.type == Document::Type::Video && is_generic)) {
     auto video = web_page->document_.type == Document::Type::Video
                      ? td_->videos_manager_->get_video_object(web_page->document_.file_id)
                      : nullptr;
     if (video != nullptr) {
-      LOG_IF(ERROR, !web_page->photo_.is_empty()) << "Receive photo for " << web_page->url_;
       auto width = video->width_;
       auto height = video->height_;
       auto duration = video->duration_;
@@ -1633,15 +1691,19 @@ td_api::object_ptr<td_api::LinkPreviewType> WebPagesManager::get_link_preview_ty
                                                                web_page->duration_, web_page->author_);
     }
   }
-  if (web_page->document_.type == Document::Type::VideoNote && web_page->type_ == "document") {
+  if (web_page->document_.type == Document::Type::VideoNote && is_generic) {
     LOG_IF(ERROR, !web_page->photo_.is_empty()) << "Receive photo for " << web_page->url_;
     auto video_note = td_->video_notes_manager_->get_video_note_object(web_page->document_.file_id);
     return td_api::make_object<td_api::linkPreviewTypeVideoNote>(std::move(video_note));
   }
-  if (web_page->document_.type == Document::Type::VoiceNote && web_page->type_ == "document") {
+  if (web_page->document_.type == Document::Type::VoiceNote && is_generic) {
     LOG_IF(ERROR, !web_page->photo_.is_empty()) << "Receive photo for " << web_page->url_;
     auto voice_note = td_->voice_notes_manager_->get_voice_note_object(web_page->document_.file_id);
     return td_api::make_object<td_api::linkPreviewTypeVoiceNote>(std::move(voice_note));
+  }
+  if (web_page->type_ == "article") {
+    return td_api::make_object<td_api::linkPreviewTypeArticle>(
+        get_photo_object(td_->file_manager_.get(), web_page->photo_), web_page->author_);
   }
 
   LOG(ERROR) << "Receive link preview of unsupported type " << web_page->type_;
@@ -1779,11 +1841,27 @@ td_api::object_ptr<td_api::linkPreview> WebPagesManager::get_link_preview_object
     }
     return false;
   }();
+  auto link_preview_type = get_link_preview_type_object(web_page);
+  bool show_media_above_description = false;
+  if (show_large_media) {
+    auto type_id = link_preview_type->get_id();
+    if (!web_page->embed_url_.empty() || type_id == td_api::linkPreviewTypeStory::ID) {
+      show_media_above_description = true;
+    } else if (type_id == td_api::linkPreviewTypeAlbum::ID ||
+               (type_id == td_api::linkPreviewTypePhoto::ID && instant_view_version > 0)) {
+      for (auto &photo_size : web_page->photo_.photos) {
+        if (photo_size.dimensions.width >= 256) {
+          show_media_above_description = true;
+        }
+      }
+    }
+  }
   return td_api::make_object<td_api::linkPreview>(
       web_page->url_, web_page->display_url_, web_page->site_name_, web_page->title_,
-      get_formatted_text_object(description, true, duration == 0 ? std::numeric_limits<int32>::max() : duration),
-      get_link_preview_type_object(web_page), web_page->has_large_media_, show_large_media, skip_confirmation,
-      invert_media, instant_view_version);
+      get_formatted_text_object(td_->user_manager_.get(), description, true,
+                                duration == 0 ? std::numeric_limits<int32>::max() : duration),
+      std::move(link_preview_type), web_page->has_large_media_, show_large_media, show_media_above_description,
+      skip_confirmation, invert_media, instant_view_version);
 }
 
 td_api::object_ptr<td_api::webPageInstantView> WebPagesManager::get_web_page_instant_view_object(

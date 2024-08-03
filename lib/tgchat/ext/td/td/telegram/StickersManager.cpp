@@ -1941,6 +1941,10 @@ void StickersManager::on_load_special_sticker_set(const SpecialStickerSetType &t
   if (result.is_error()) {
     LOG(INFO) << "Failed to load special sticker set " << type.type_ << ": " << result.error();
 
+    if (type == SpecialStickerSetType::premium_gifts()) {
+      set_promises(pending_get_premium_gift_option_sticker_queries_);
+    }
+
     // failed to load the special sticker set; repeat after some time
     create_actor<SleepActor>("RetryLoadSpecialStickerSetActor", Random::fast(300, 600),
                              PromiseCreator::lambda([actor_id = actor_id(this), type](Result<Unit> result) mutable {
@@ -2729,6 +2733,13 @@ FileId StickersManager::get_premium_gift_option_sticker_id(const StickerSet *sti
 
 FileId StickersManager::get_premium_gift_option_sticker_id(int32 month_count) {
   return get_premium_gift_option_sticker_id(get_premium_gift_sticker_set(), month_count);
+}
+
+void StickersManager::load_premium_gift_sticker_set(Promise<Unit> &&promise) {
+  if (td_->auth_manager_->is_bot() || get_premium_gift_sticker_set() != nullptr) {
+    return promise.set_value(Unit());
+  }
+  pending_get_premium_gift_option_sticker_queries_.push_back(std::move(promise));
 }
 
 const StickersManager::StickerSet *StickersManager::get_animated_emoji_sticker_set() {
@@ -6657,33 +6668,6 @@ void StickersManager::on_get_default_custom_emoji_ids_success(StickerListType st
   for (auto &promise : status_promises) {
     promise.set_value(get_emoji_statuses_object(default_custom_emoji_ids_[index]));
   }
-}
-
-void StickersManager::get_premium_gift_option_sticker(int32 month_count, bool is_recursive,
-                                                      Promise<td_api::object_ptr<td_api::sticker>> &&promise) {
-  TRY_STATUS_PROMISE(promise, G()->close_status());
-
-  auto &special_sticker_set = add_special_sticker_set(SpecialStickerSetType::premium_gifts());
-  auto sticker_set = get_sticker_set(special_sticker_set.id_);
-  if (sticker_set == nullptr || !sticker_set->was_loaded_) {
-    if (is_recursive) {
-      return promise.set_value(nullptr);
-    }
-
-    pending_get_premium_gift_option_sticker_queries_.push_back(PromiseCreator::lambda(
-        [actor_id = actor_id(this), month_count, promise = std::move(promise)](Result<Unit> &&result) mutable {
-          if (result.is_error()) {
-            promise.set_error(result.move_as_error());
-          } else {
-            send_closure(actor_id, &StickersManager::get_premium_gift_option_sticker, month_count, true,
-                         std::move(promise));
-          }
-        }));
-    load_special_sticker_set(special_sticker_set);
-    return;
-  }
-
-  promise.set_value(get_sticker_object(get_premium_gift_option_sticker_id(sticker_set, month_count)));
 }
 
 void StickersManager::get_animated_emoji_click_sticker(const string &message_text, MessageFullId message_full_id,

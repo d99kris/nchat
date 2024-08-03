@@ -21,6 +21,8 @@
 #include "td/utils/misc.h"
 #include "td/utils/Status.h"
 
+#include <cmath>
+
 namespace td {
 
 VideosManager::VideosManager(Td *td) : td_(td) {
@@ -65,7 +67,7 @@ td_api::object_ptr<td_api::storyVideo> VideosManager::get_story_video_object(Fil
   return td_api::make_object<td_api::storyVideo>(
       video->precise_duration, video->dimensions.width, video->dimensions.height, video->has_stickers,
       video->is_animation, get_minithumbnail_object(video->minithumbnail), std::move(thumbnail),
-      video->preload_prefix_size, td_->file_manager_->get_file_object(file_id));
+      video->preload_prefix_size, video->start_ts, td_->file_manager_->get_file_object(file_id));
 }
 
 FileId VideosManager::on_get_video(unique_ptr<Video> new_video, bool replace) {
@@ -83,7 +85,8 @@ FileId VideosManager::on_get_video(unique_ptr<Video> new_video, bool replace) {
     }
     if (v->duration != new_video->duration || v->precise_duration != new_video->precise_duration ||
         v->dimensions != new_video->dimensions || v->supports_streaming != new_video->supports_streaming ||
-        v->is_animation != new_video->is_animation || v->preload_prefix_size != new_video->preload_prefix_size) {
+        v->is_animation != new_video->is_animation || v->preload_prefix_size != new_video->preload_prefix_size ||
+        std::fabs(v->start_ts - new_video->start_ts) > 1e-3) {
       LOG(DEBUG) << "Video " << file_id << " info has changed";
       v->duration = new_video->duration;
       v->precise_duration = new_video->precise_duration;
@@ -91,6 +94,7 @@ FileId VideosManager::on_get_video(unique_ptr<Video> new_video, bool replace) {
       v->supports_streaming = new_video->supports_streaming;
       v->is_animation = new_video->is_animation;
       v->preload_prefix_size = new_video->preload_prefix_size;
+      v->start_ts = new_video->start_ts;
     }
     if (v->file_name != new_video->file_name) {
       LOG(DEBUG) << "Video " << file_id << " file name has changed";
@@ -190,7 +194,7 @@ void VideosManager::create_video(FileId file_id, string minithumbnail, PhotoSize
                                  AnimationSize animated_thumbnail, bool has_stickers, vector<FileId> &&sticker_file_ids,
                                  string file_name, string mime_type, int32 duration, double precise_duration,
                                  Dimensions dimensions, bool supports_streaming, bool is_animation,
-                                 int32 preload_prefix_size, bool replace) {
+                                 int32 preload_prefix_size, double start_ts, bool replace) {
   auto v = make_unique<Video>();
   v->file_id = file_id;
   v->file_name = std::move(file_name);
@@ -206,6 +210,7 @@ void VideosManager::create_video(FileId file_id, string minithumbnail, PhotoSize
   v->supports_streaming = supports_streaming;
   v->is_animation = is_animation;
   v->preload_prefix_size = preload_prefix_size;
+  v->start_ts = start_ts;
   v->has_stickers = has_stickers;
   v->sticker_file_ids = std::move(sticker_file_ids);
   on_get_video(std::move(v), replace);
@@ -290,9 +295,12 @@ tl_object_ptr<telegram_api::InputMedia> VideosManager::get_input_media(
       if (video->is_animation) {
         attribute_flags |= telegram_api::documentAttributeVideo::NOSOUND_MASK;
       }
+      if (video->start_ts > 0.0) {
+        attribute_flags |= telegram_api::documentAttributeVideo::VIDEO_START_TS_MASK;
+      }
       attributes.push_back(make_tl_object<telegram_api::documentAttributeVideo>(
           attribute_flags, false /*ignored*/, false /*ignored*/, false /*ignored*/, video->precise_duration,
-          video->dimensions.width, video->dimensions.height, 0));
+          video->dimensions.width, video->dimensions.height, 0, video->start_ts));
     }
     if (!video->file_name.empty()) {
       attributes.push_back(make_tl_object<telegram_api::documentAttributeFilename>(video->file_name));
@@ -324,6 +332,52 @@ tl_object_ptr<telegram_api::InputMedia> VideosManager::get_input_media(
   }
 
   return nullptr;
+}
+
+telegram_api::object_ptr<telegram_api::InputMedia> VideosManager::get_story_document_input_media(
+    FileId file_id, double main_frame_timestamp) const {
+  auto file_view = td_->file_manager_->get_file_view(file_id);
+  if (file_view.is_encrypted() || !file_view.has_remote_location() || file_view.main_remote_location().is_web()) {
+    return nullptr;
+  }
+
+  const Video *video = get_video(file_id);
+  CHECK(video != nullptr);
+
+  vector<telegram_api::object_ptr<telegram_api::DocumentAttribute>> attributes;
+  {
+    int32 attribute_flags = 0;
+    if (video->supports_streaming) {
+      attribute_flags |= telegram_api::documentAttributeVideo::SUPPORTS_STREAMING_MASK;
+    }
+    if (video->is_animation) {
+      attribute_flags |= telegram_api::documentAttributeVideo::NOSOUND_MASK;
+    }
+    if (main_frame_timestamp > 0.0) {
+      attribute_flags |= telegram_api::documentAttributeVideo::VIDEO_START_TS_MASK;
+    }
+    attributes.push_back(telegram_api::make_object<telegram_api::documentAttributeVideo>(
+        attribute_flags, false /*ignored*/, false /*ignored*/, false /*ignored*/, video->precise_duration,
+        video->dimensions.width, video->dimensions.height, 0, main_frame_timestamp));
+  }
+  if (!video->file_name.empty()) {
+    attributes.push_back(make_tl_object<telegram_api::documentAttributeFilename>(video->file_name));
+  }
+  int32 flags = telegram_api::inputMediaUploadedDocument::NOSOUND_VIDEO_MASK;
+  vector<telegram_api::object_ptr<telegram_api::InputDocument>> added_stickers;
+  if (video->has_stickers) {
+    flags |= telegram_api::inputMediaUploadedDocument::STICKERS_MASK;
+    added_stickers = td_->file_manager_->get_input_documents(video->sticker_file_ids);
+  }
+  string mime_type = video->mime_type;
+  if (!begins_with(mime_type, "video/")) {
+    mime_type = "video/mp4";
+  }
+  return telegram_api::make_object<telegram_api::inputMediaUploadedDocument>(
+      flags, false /*ignored*/, false /*ignored*/, false /*ignored*/,
+      telegram_api::make_object<telegram_api::inputFileStoryDocument>(
+          file_view.main_remote_location().as_input_document()),
+      nullptr, mime_type, std::move(attributes), std::move(added_stickers), 0);
 }
 
 string VideosManager::get_video_search_text(FileId file_id) const {

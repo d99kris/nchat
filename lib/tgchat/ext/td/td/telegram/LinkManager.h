@@ -98,7 +98,7 @@ class LinkManager final : public Actor {
 
   static string get_instant_view_link(Slice url, Slice rhash);
 
-  static string get_public_dialog_link(Slice username, Slice draft_text, bool is_internal);
+  static string get_public_dialog_link(Slice username, Slice draft_text, bool open_profile, bool is_internal);
 
   static Result<string> get_proxy_link(const Proxy &proxy, bool is_internal);
 
@@ -138,6 +138,7 @@ class LinkManager final : public Actor {
   class InternalLinkInvoice;
   class InternalLinkLanguage;
   class InternalLinkLanguageSettings;
+  class InternalLinkMainWebApp;
   class InternalLinkMessage;
   class InternalLinkMessageDraft;
   class InternalLinkPassportDataRequest;
@@ -150,7 +151,6 @@ class LinkManager final : public Actor {
   class InternalLinkQrCodeAuthentication;
   class InternalLinkRestorePurchases;
   class InternalLinkSettings;
-  class InternalLinkSideMenuBot;
   class InternalLinkStickerSet;
   class InternalLinkStory;
   class InternalLinkTheme;

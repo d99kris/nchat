@@ -1361,6 +1361,7 @@ void UserManager::User::store(StorerT &storer) const {
   bool has_background_custom_emoji_id = background_custom_emoji_id.is_valid();
   bool has_profile_accent_color_id = profile_accent_color_id.is_valid();
   bool has_profile_background_custom_emoji_id = profile_background_custom_emoji_id.is_valid();
+  bool has_bot_active_users = bot_active_users != 0;
   BEGIN_STORE_FLAGS();
   STORE_FLAG(is_received);
   STORE_FLAG(is_verified);
@@ -1407,6 +1408,8 @@ void UserManager::User::store(StorerT &storer) const {
     STORE_FLAG(has_profile_background_custom_emoji_id);
     STORE_FLAG(contact_require_premium);
     STORE_FLAG(is_business_bot);
+    STORE_FLAG(has_bot_active_users);
+    STORE_FLAG(has_main_app);
     END_STORE_FLAGS();
   }
   store(first_name, storer);
@@ -1463,6 +1466,9 @@ void UserManager::User::store(StorerT &storer) const {
   if (has_profile_background_custom_emoji_id) {
     store(profile_background_custom_emoji_id, storer);
   }
+  if (has_bot_active_users) {
+    store(bot_active_users, storer);
+  }
 }
 
 template <class ParserT>
@@ -1488,6 +1494,7 @@ void UserManager::User::parse(ParserT &parser) {
   bool has_background_custom_emoji_id = false;
   bool has_profile_accent_color_id = false;
   bool has_profile_background_custom_emoji_id = false;
+  bool has_bot_active_users = false;
   BEGIN_PARSE_FLAGS();
   PARSE_FLAG(is_received);
   PARSE_FLAG(is_verified);
@@ -1534,6 +1541,8 @@ void UserManager::User::parse(ParserT &parser) {
     PARSE_FLAG(has_profile_background_custom_emoji_id);
     PARSE_FLAG(contact_require_premium);
     PARSE_FLAG(is_business_bot);
+    PARSE_FLAG(has_bot_active_users);
+    PARSE_FLAG(has_main_app);
     END_PARSE_FLAGS();
   }
   parse(first_name, parser);
@@ -1618,6 +1627,9 @@ void UserManager::User::parse(ParserT &parser) {
   if (has_profile_background_custom_emoji_id) {
     parse(profile_background_custom_emoji_id, parser);
   }
+  if (has_bot_active_users) {
+    parse(bot_active_users, parser);
+  }
 
   if (!check_utf8(first_name)) {
     LOG(ERROR) << "Have invalid first name \"" << first_name << '"';
@@ -1700,6 +1712,7 @@ void UserManager::UserFull::store(StorerT &storer) const {
   END_STORE_FLAGS();
   if (has_flags2) {
     BEGIN_STORE_FLAGS();
+    STORE_FLAG(has_preview_medias);
     END_STORE_FLAGS();
   }
   if (has_about) {
@@ -1809,6 +1822,7 @@ void UserManager::UserFull::parse(ParserT &parser) {
   END_PARSE_FLAGS();
   if (has_flags2) {
     BEGIN_PARSE_FLAGS();
+    PARSE_FLAG(has_preview_medias);
     END_PARSE_FLAGS();
   }
   if (has_about) {
@@ -2352,12 +2366,14 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
   bool can_join_groups = (flags & USER_FLAG_IS_PRIVATE_BOT) == 0;
   bool can_read_all_group_messages = (flags & USER_FLAG_IS_BOT_WITH_PRIVACY_DISABLED) != 0;
   bool can_be_added_to_attach_menu = (flags & USER_FLAG_IS_ATTACH_MENU_BOT) != 0;
+  bool has_main_app = user->bot_has_main_app_;
   bool attach_menu_enabled = (flags & USER_FLAG_ATTACH_MENU_ENABLED) != 0;
   bool is_scam = (flags & USER_FLAG_IS_SCAM) != 0;
   bool can_be_edited_bot = (flags2 & USER_FLAG_CAN_BE_EDITED_BOT) != 0;
   bool is_inline_bot = (flags & USER_FLAG_IS_INLINE_BOT) != 0;
   bool is_business_bot = user->bot_business_;
   string inline_query_placeholder = std::move(user->bot_inline_placeholder_);
+  int32 bot_active_users = user->bot_active_users_;
   bool need_location_bot = (flags & USER_FLAG_NEED_LOCATION_BOT) != 0;
   bool has_bot_info_version = (flags & USER_FLAG_HAS_BOT_INFO_VERSION) != 0;
   bool need_apply_min_photo = (flags & USER_FLAG_NEED_APPLY_MIN_PHOTO) != 0;
@@ -2368,12 +2384,13 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
   bool contact_require_premium = user->contact_require_premium_;
 
   if (!is_bot && (!can_join_groups || can_read_all_group_messages || can_be_added_to_attach_menu || can_be_edited_bot ||
-                  is_inline_bot || is_business_bot)) {
+                  has_main_app || is_inline_bot || is_business_bot)) {
     LOG(ERROR) << "Receive not bot " << user_id << " with bot properties from " << source;
     can_join_groups = true;
     can_read_all_group_messages = false;
     can_be_added_to_attach_menu = false;
     can_be_edited_bot = false;
+    has_main_app = false;
     is_inline_bot = false;
     is_business_bot = false;
   }
@@ -2392,9 +2409,11 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
     can_read_all_group_messages = false;
     can_be_added_to_attach_menu = false;
     can_be_edited_bot = false;
+    has_main_app = false;
     is_inline_bot = false;
     is_business_bot = false;
     inline_query_placeholder = string();
+    bot_active_users = 0;
     need_location_bot = false;
     has_bot_info_version = false;
     need_apply_min_photo = false;
@@ -2408,7 +2427,8 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
       can_join_groups != u->can_join_groups || can_read_all_group_messages != u->can_read_all_group_messages ||
       is_scam != u->is_scam || is_fake != u->is_fake || is_inline_bot != u->is_inline_bot ||
       is_business_bot != u->is_business_bot || inline_query_placeholder != u->inline_query_placeholder ||
-      need_location_bot != u->need_location_bot || can_be_added_to_attach_menu != u->can_be_added_to_attach_menu) {
+      need_location_bot != u->need_location_bot || can_be_added_to_attach_menu != u->can_be_added_to_attach_menu ||
+      bot_active_users != u->bot_active_users || has_main_app != u->has_main_app) {
     if (is_bot != u->is_bot) {
       LOG_IF(ERROR, !is_deleted && !u->is_deleted && u->is_received)
           << "User.is_bot has changed for " << user_id << "/" << u->usernames << " from " << source << " from "
@@ -2427,6 +2447,8 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
     u->inline_query_placeholder = std::move(inline_query_placeholder);
     u->need_location_bot = need_location_bot;
     u->can_be_added_to_attach_menu = can_be_added_to_attach_menu;
+    u->bot_active_users = bot_active_users;
+    u->has_main_app = has_main_app;
 
     LOG(DEBUG) << "Info has changed for " << user_id;
     u->is_changed = true;
@@ -3483,6 +3505,33 @@ void UserManager::on_update_user_full_menu_button(
   }
 }
 
+void UserManager::on_update_bot_has_preview_medias(UserId bot_user_id, bool has_preview_medias) {
+  if (!bot_user_id.is_valid()) {
+    LOG(ERROR) << "Receive updateBotHasPreviewMedias about invalid " << bot_user_id;
+    return;
+  }
+  if (!have_user_force(bot_user_id, "on_update_bot_has_preview_medias") || !is_user_bot(bot_user_id)) {
+    return;
+  }
+  if (td_->auth_manager_->is_bot()) {
+    return;
+  }
+
+  auto user_full = get_user_full_force(bot_user_id, "on_update_bot_has_preview_medias");
+  if (user_full != nullptr) {
+    on_update_user_full_has_preview_medias(user_full, bot_user_id, has_preview_medias);
+    update_user_full(user_full, bot_user_id, "on_update_bot_has_preview_medias");
+  }
+}
+
+void UserManager::on_update_user_full_has_preview_medias(UserFull *user_full, UserId user_id, bool has_preview_medias) {
+  CHECK(user_full != nullptr);
+  if (user_full->has_preview_medias != has_preview_medias) {
+    user_full->has_preview_medias = has_preview_medias;
+    user_full->is_changed = true;
+  }
+}
+
 void UserManager::on_update_secret_chat(SecretChatId secret_chat_id, int64 access_hash, UserId user_id,
                                         SecretChatState state, bool is_outbound, int32 ttl, int32 date, string key_hash,
                                         int32 layer, FolderId initial_folder_id) {
@@ -3837,9 +3886,10 @@ UserManager::User *UserManager::get_user_force(UserId user_id, const char *sourc
         false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/,
         false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/,
         false /*ignored*/, false /*ignored*/, false /*ignored*/, 0, false /*ignored*/, false /*ignored*/,
-        false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, user_id.get(), 1, first_name,
-        string(), username, phone_number, std::move(profile_photo), nullptr, bot_info_version, Auto(), string(),
-        string(), nullptr, vector<telegram_api::object_ptr<telegram_api::username>>(), 0, nullptr, nullptr);
+        false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, user_id.get(), 1,
+        first_name, string(), username, phone_number, std::move(profile_photo), nullptr, bot_info_version, Auto(),
+        string(), string(), nullptr, vector<telegram_api::object_ptr<telegram_api::username>>(), 0, nullptr, nullptr,
+        0);
     on_get_user(std::move(user), "get_user_force");
     u = get_user(user_id);
     CHECK(u != nullptr && u->is_received);
@@ -4119,6 +4169,7 @@ Result<UserManager::BotData> UserManager::get_bot_data(UserId user_id) const {
   bot_data.can_be_edited = u->can_be_edited_bot;
   bot_data.can_join_groups = u->can_join_groups;
   bot_data.can_read_all_group_messages = u->can_read_all_group_messages;
+  bot_data.has_main_app = u->has_main_app;
   bot_data.is_inline = u->is_inline_bot;
   bot_data.is_business = u->is_business_bot;
   bot_data.need_location = u->need_location_bot;
@@ -6912,6 +6963,7 @@ void UserManager::on_get_user_full(telegram_api::object_ptr<telegram_api::userFu
 
     on_update_user_full_commands(user_full, user_id, std::move(user->bot_info_->commands_));
     on_update_user_full_menu_button(user_full, user_id, std::move(user->bot_info_->menu_button_));
+    on_update_user_full_has_preview_medias(user_full, user_id, std::move(user->bot_info_->has_preview_medias_));
   }
   if (user_full->description != description) {
     user_full->description = std::move(description);
@@ -7189,6 +7241,7 @@ void UserManager::drop_user_full(UserId user_id) {
   user_full->contact_require_premium = false;
   user_full->birthdate = {};
   user_full->sponsored_enabled = false;
+  user_full->has_preview_medias = false;
   user_full->is_changed = true;
 
   update_user_full(user_full, user_id, "drop_user_full");
@@ -7865,8 +7918,9 @@ td_api::object_ptr<td_api::user> UserManager::get_user_object(UserId user_id, co
     type = td_api::make_object<td_api::userTypeDeleted>();
   } else if (u->is_bot) {
     type = td_api::make_object<td_api::userTypeBot>(
-        u->can_be_edited_bot, u->can_join_groups, u->can_read_all_group_messages, u->is_inline_bot,
-        u->inline_query_placeholder, u->need_location_bot, u->is_business_bot, u->can_be_added_to_attach_menu);
+        u->can_be_edited_bot, u->can_join_groups, u->can_read_all_group_messages, u->has_main_app, u->is_inline_bot,
+        u->inline_query_placeholder, u->need_location_bot, u->is_business_bot, u->can_be_added_to_attach_menu,
+        u->bot_active_users);
   } else {
     type = td_api::make_object<td_api::userTypeRegular>();
   }
@@ -7927,7 +7981,7 @@ td_api::object_ptr<td_api::userFullInfo> UserManager::get_user_full_info_object(
         user_full->broadcast_administrator_rights == AdministratorRights()
             ? nullptr
             : user_full->broadcast_administrator_rights.get_chat_administrator_rights_object(),
-        nullptr, nullptr, nullptr, nullptr);
+        user_full->has_preview_medias, nullptr, nullptr, nullptr, nullptr);
     if (u != nullptr && u->can_be_edited_bot && u->usernames.has_editable_username()) {
       auto bot_username = u->usernames.get_editable_username();
       bot_info->edit_commands_link_ = td_api::make_object<td_api::internalLinkTypeBotStart>(
@@ -7955,7 +8009,7 @@ td_api::object_ptr<td_api::userFullInfo> UserManager::get_user_full_info_object(
         return false;
       });
     }
-    bio_object = get_formatted_text_object(bio, true, 0);
+    bio_object = get_formatted_text_object(this, bio, true, 0);
   }
   auto voice_messages_forbidden = is_premium ? user_full->voice_messages_forbidden : false;
   auto block_list_id = BlockListId(user_full->is_blocked, user_full->is_blocked_for_stories);

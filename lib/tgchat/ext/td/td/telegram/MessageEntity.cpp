@@ -134,7 +134,8 @@ StringBuilder &operator<<(StringBuilder &string_builder, const MessageEntity &me
   return string_builder;
 }
 
-tl_object_ptr<td_api::TextEntityType> MessageEntity::get_text_entity_type_object() const {
+tl_object_ptr<td_api::TextEntityType> MessageEntity::get_text_entity_type_object(
+    const UserManager *user_manager) const {
   switch (type) {
     case MessageEntity::Type::Mention:
       return make_tl_object<td_api::textEntityTypeMention>();
@@ -165,8 +166,9 @@ tl_object_ptr<td_api::TextEntityType> MessageEntity::get_text_entity_type_object
     case MessageEntity::Type::TextUrl:
       return make_tl_object<td_api::textEntityTypeTextUrl>(argument);
     case MessageEntity::Type::MentionName:
-      // can't use user_manager, because can be called from a static request
-      return make_tl_object<td_api::textEntityTypeMentionName>(user_id.get());
+      return make_tl_object<td_api::textEntityTypeMentionName>(
+          user_manager == nullptr ? user_id.get()
+                                  : user_manager->get_user_id_object(user_id, "textEntityTypeMentionName"));
     case MessageEntity::Type::Cashtag:
       return make_tl_object<td_api::textEntityTypeCashtag>();
     case MessageEntity::Type::PhoneNumber:
@@ -187,11 +189,12 @@ tl_object_ptr<td_api::TextEntityType> MessageEntity::get_text_entity_type_object
   }
 }
 
-tl_object_ptr<td_api::textEntity> MessageEntity::get_text_entity_object() const {
-  return make_tl_object<td_api::textEntity>(offset, length, get_text_entity_type_object());
+tl_object_ptr<td_api::textEntity> MessageEntity::get_text_entity_object(const UserManager *user_manager) const {
+  return make_tl_object<td_api::textEntity>(offset, length, get_text_entity_type_object(user_manager));
 }
 
-vector<tl_object_ptr<td_api::textEntity>> get_text_entities_object(const vector<MessageEntity> &entities,
+vector<tl_object_ptr<td_api::textEntity>> get_text_entities_object(const UserManager *user_manager,
+                                                                   const vector<MessageEntity> &entities,
                                                                    bool skip_bot_commands, int32 max_media_timestamp) {
   vector<tl_object_ptr<td_api::textEntity>> result;
   result.reserve(entities.size());
@@ -203,7 +206,7 @@ vector<tl_object_ptr<td_api::textEntity>> get_text_entities_object(const vector<
     if (entity.type == MessageEntity::Type::MediaTimestamp && max_media_timestamp < entity.media_timestamp) {
       continue;
     }
-    auto entity_object = entity.get_text_entity_object();
+    auto entity_object = entity.get_text_entity_object(user_manager);
     if (entity_object->type_ != nullptr) {
       result.push_back(std::move(entity_object));
     }
@@ -216,10 +219,11 @@ StringBuilder &operator<<(StringBuilder &string_builder, const FormattedText &te
   return string_builder << '"' << text.text << "\" with entities " << text.entities;
 }
 
-td_api::object_ptr<td_api::formattedText> get_formatted_text_object(const FormattedText &text, bool skip_bot_commands,
+td_api::object_ptr<td_api::formattedText> get_formatted_text_object(const UserManager *user_manager,
+                                                                    const FormattedText &text, bool skip_bot_commands,
                                                                     int32 max_media_timestamp) {
   return td_api::make_object<td_api::formattedText>(
-      text.text, get_text_entities_object(text.entities, skip_bot_commands, max_media_timestamp));
+      text.text, get_text_entities_object(user_manager, text.entities, skip_bot_commands, max_media_timestamp));
 }
 
 static bool is_word_character(uint32 code) {
@@ -628,7 +632,7 @@ static vector<Slice> match_tg_urls(Slice str) {
   const unsigned char *end = str.uend();
   const unsigned char *ptr = begin;
 
-  // '(tg|ton)://[a-z0-9_-]{1,253}([/?#][^\s\x{2000}-\x{200b}\x{200e}-\x{200f}\x{2016}-\x{206f}<>«»"]*)?'
+  // '(tg|ton|tonsite)://[a-z0-9_-]{1,253}([/?#][^\s\x{2000}-\x{200b}\x{200e}-\x{200f}\x{2016}-\x{206f}<>«»"]*)?'
 
   Slice bad_path_end_chars(".:;,('?!`");
 
@@ -643,6 +647,10 @@ static vector<Slice> match_tg_urls(Slice str) {
       if (ptr - begin >= 2 && to_lower(ptr[-2]) == 't' && to_lower(ptr[-1]) == 'g') {
         url_begin = ptr - 2;
       } else if (ptr - begin >= 3 && to_lower(ptr[-3]) == 't' && to_lower(ptr[-2]) == 'o' && to_lower(ptr[-1]) == 'n') {
+        url_begin = ptr - 3;
+      } else if (ptr - begin >= 7 && to_lower(ptr[-7]) == 't' && to_lower(ptr[-6]) == 'o' && to_lower(ptr[-5]) == 'n' &&
+                 to_lower(ptr[-5]) == 's' && to_lower(ptr[-5]) == 'i' && to_lower(ptr[-5]) == 't' &&
+                 to_lower(ptr[-5]) == 'e') {
         url_begin = ptr - 3;
       }
     }
@@ -863,6 +871,8 @@ static vector<Slice> match_urls(Slice str) {
           url_begin_ptr = url_begin_ptr - 8;
         } else if (ends_with(protocol, "ftp") && protocol != "tftp" && protocol != "sftp") {
           url_begin_ptr = url_begin_ptr - 6;
+        } else if (ends_with(protocol, "tonsite")) {
+          url_begin_ptr = url_begin_ptr - 10;
         } else {
           is_bad = true;
         }
@@ -1090,11 +1100,11 @@ static bool is_common_tld(Slice str) {
        "news", "next", "nextdirect", "nexus", "nf", "nfl", "ng", "ngo", "nhk", "ni", "nico", "nike", "nikon", "ninja",
        "nissan", "nissay", "nl", "no", "nokia", "norton", "now", "nowruz", "nowtv", "np", "nr", "nra", "nrw", "ntt",
        "nu", "nyc", "nz", "obi", "observer", "office", "okinawa", "olayan", "olayangroup", "ollo", "om", "omega", "one",
-       "ong", "onl", "online", "ooo", "open", "oracle", "orange", "org", "organic", "origins", "osaka", "otsuka", "ott",
-       "ovh", "pa", "page", "panasonic", "paris", "pars", "partners", "parts", "party", "pay", "pccw", "pe", "pet",
-       "pf", "pfizer", "pg", "ph", "pharmacy", "phd", "philips", "phone", "photo", "photography", "photos", "physio",
-       "pics", "pictet", "pictures", "pid", "pin", "ping", "pink", "pioneer", "pizza", "pk", "pl", "place", "play",
-       "playstation", "plumbing", "plus", "pm", "pn", "pnc", "pohl", "poker", "politie", "porn", "post", "pr",
+       "ong", "onion", "onl", "online", "ooo", "open", "oracle", "orange", "org", "organic", "origins", "osaka",
+       "otsuka", "ott", "ovh", "pa", "page", "panasonic", "paris", "pars", "partners", "parts", "party", "pay", "pccw",
+       "pe", "pet", "pf", "pfizer", "pg", "ph", "pharmacy", "phd", "philips", "phone", "photo", "photography", "photos",
+       "physio", "pics", "pictet", "pictures", "pid", "pin", "ping", "pink", "pioneer", "pizza", "pk", "pl", "place",
+       "play", "playstation", "plumbing", "plus", "pm", "pn", "pnc", "pohl", "poker", "politie", "porn", "post", "pr",
        "pramerica", "praxi", "press", "prime", "pro", "prod", "productions", "prof", "progressive", "promo",
        "properties", "property", "protection", "pru", "prudential", "ps", "pt", "pub", "pw", "pwc", "py", "qa", "qpon",
        "quebec", "quest", "racing", "radio", "re", "read", "realestate", "realtor", "realty", "recipes", "red",
@@ -1105,39 +1115,39 @@ static bool is_common_tld(Slice str) {
        "sandvikcoromant", "sanofi", "sap", "sarl", "sas", "save", "saxo", "sb", "sbi", "sbs", "sc", "scb", "schaeffler",
        "schmidt", "scholarships", "school", "schule", "schwarz", "science", "scot", "sd", "se", "search", "seat",
        "secure", "security", "seek", "select", "sener", "services", "seven", "sew", "sex", "sexy", "sfr", "sg", "sh",
-       "shangrila", "sharp", "shaw", "shell", "shia", "shiksha", "shoes", "shop", "shopping", "shouji", "show", "si",
-       "silk", "sina", "singles", "site", "sj", "sk", "ski", "skin", "sky", "skype", "sl", "sling", "sm", "smart",
-       "smile", "sn", "sncf", "so", "soccer", "social", "softbank", "software", "sohu", "solar", "solutions", "song",
-       "sony", "soy", "spa", "space", "sport", "spot", "sr", "srl", "ss", "st", "stada", "staples", "star", "statebank",
+       "shangrila", "sharp", "shell", "shia", "shiksha", "shoes", "shop", "shopping", "shouji", "show", "si", "silk",
+       "sina", "singles", "site", "sj", "sk", "ski", "skin", "sky", "skype", "sl", "sling", "sm", "smart", "smile",
+       "sn", "sncf", "so", "soccer", "social", "softbank", "software", "sohu", "solar", "solutions", "song", "sony",
+       "soy", "spa", "space", "sport", "spot", "sr", "srl", "ss", "st", "stada", "staples", "star", "statebank",
        "statefarm", "stc", "stcgroup", "stockholm", "storage", "store", "stream", "studio", "study", "style", "su",
        "sucks", "supplies", "supply", "support", "surf", "surgery", "suzuki", "sv", "swatch", "swiss", "sx", "sy",
        "sydney", "systems", "sz", "tab", "taipei", "talk", "taobao", "target", "tatamotors", "tatar", "tattoo", "tax",
        "taxi", "tc", "tci", "td", "tdk", "team", "tech", "technology", "tel", "temasek", "tennis", "teva", "tf", "tg",
        "th", "thd", "theater", "theatre", "tiaa", "tickets", "tienda", "tips", "tires", "tirol", "tj", "tjmaxx", "tjx",
-       "tk", "tkmaxx", "tl", "tm", "tmall", "tn", "to", "today", "tokyo", "tools", "top", "toray", "toshiba", "total",
-       "tours", "town", "toyota", "toys", "tr", "trade", "trading", "training", "travel", "travelers",
+       "tk", "tkmaxx", "tl", "tm", "tmall", "tn", "to", "today", "tokyo", "ton", "tools", "top", "toray", "toshiba",
+       "total", "tours", "town", "toyota", "toys", "tr", "trade", "trading", "training", "travel", "travelers",
        "travelersinsurance", "trust", "trv", "tt", "tube", "tui", "tunes", "tushu", "tv", "tvs", "tw", "tz", "ua",
        "ubank", "ubs", "ug", "uk", "unicom", "university", "uno", "uol", "ups", "us", "uy", "uz", "va", "vacations",
-       "vana", "vanguard", "vc", "ve", "vegas", "ventures", "verisign", "versicherung", "vet", "vg", "vi", "viajes",
-       "video", "vig", "viking", "villas", "vin", "vip", "virgin", "visa", "vision", "viva", "vivo", "vlaanderen", "vn",
-       "vodka", "volvo", "vote", "voting", "voto", "voyage", "vu", "wales", "walmart", "walter", "wang", "wanggou",
-       "watch", "watches", "weather", "weatherchannel", "webcam", "weber", "website", "wed", "wedding", "weibo", "weir",
-       "wf", "whoswho", "wien", "wiki", "williamhill", "win", "windows", "wine", "winners", "wme", "wolterskluwer",
-       "woodside", "work", "works", "world", "wow", "ws", "wtc", "wtf", "xbox", "xerox", "xihuan", "xin", "कॉम",
-       "セール", "佛山", "ಭಾರತ", "慈善", "集团", "在线", "한국", "ଭାରତ", "点看", "คอม", "ভাৰত", "ভারত", "八卦", "ישראל",
-       "موقع", "বাংলা", "公益", "公司", "香格里拉", "网站", "移动", "我爱你", "москва", "қаз", "католик", "онлайн",
-       "сайт", "联通", "срб", "бг", "бел", "קום", "时尚", "微博", "淡马锡", "ファッション", "орг", "नेट", "ストア",
-       "アマゾン", "삼성", "சிங்கப்பூர்", "商标", "商店", "商城", "дети", "мкд", "ею", "ポイント", "新闻", "家電", "كوم",
-       "中文网", "中信", "中国", "中國", "娱乐", "谷歌", "భారత్", "ලංකා", "電訊盈科", "购物", "クラウド", "ભારત", "通販",
-       "भारतम्", "भारत", "भारोत", "网店", "संगठन", "餐厅", "网络", "ком", "укр", "香港", "亚马逊", "食品", "飞利浦",
-       "台湾", "台灣", "手机", "мон", "الجزائر", "عمان", "ارامكو", "ایران", "العليان", "امارات", "بازار", "موريتانيا",
-       "پاکستان", "الاردن", "بارت", "بھارت", "المغرب", "ابوظبي", "البحرين", "السعودية", "ڀارت", "كاثوليك", "سودان",
-       "همراه", "عراق", "مليسيا", "澳門", "닷컴", "政府", "شبكة", "بيتك", "عرب", "გე", "机构", "组织机构", "健康",
-       "ไทย", "سورية", "招聘", "рус", "рф", "تونس", "大拿", "ລາວ", "みんな", "グーグル", "ευ", "ελ", "世界", "書籍",
-       "ഭാരതം", "ਭਾਰਤ", "网址", "닷넷", "コム", "天主教", "游戏", "vermögensberater", "vermögensberatung", "企业",
-       "信息", "嘉里大酒店", "嘉里", "مصر", "قطر", "广东", "இலங்கை", "இந்தியா", "հայ", "新加坡", "فلسطين", "政务", "xxx",
-       "xyz", "yachts", "yahoo", "yamaxun", "yandex", "ye", "yodobashi", "yoga", "yokohama", "you", "youtube", "yt",
-       "yun", "za", "zappos", "zara", "zero", "zip", "zm", "zone", "zuerich",
+       "vana", "vanguard", "vc", "ve", "vegas", "ventures", "verisign", "vermögensberater", "vermögensberatung",
+       "versicherung", "vet", "vg", "vi", "viajes", "video", "vig", "viking", "villas", "vin", "vip", "virgin", "visa",
+       "vision", "viva", "vivo", "vlaanderen", "vn", "vodka", "volvo", "vote", "voting", "voto", "voyage", "vu",
+       "wales", "walmart", "walter", "wang", "wanggou", "watch", "watches", "weather", "weatherchannel", "webcam",
+       "weber", "website", "wed", "wedding", "weibo", "weir", "wf", "whoswho", "wien", "wiki", "williamhill", "win",
+       "windows", "wine", "winners", "wme", "wolterskluwer", "woodside", "work", "works", "world", "wow", "ws", "wtc",
+       "wtf", "xbox", "xerox", "xihuan", "xin", "ελ", "ευ", "бг", "бел", "дети", "ею", "католик", "ком", "мкд", "мон",
+       "москва", "онлайн", "орг", "рус", "рф", "сайт", "срб", "укр", "қаз", "հայ", "ישראל", "קום", "ابوظبي", "ارامكو",
+       "الاردن", "البحرين", "الجزائر", "السعودية", "العليان", "المغرب", "امارات", "ایران", "بارت", "بازار", "بيتك",
+       "بھارت", "تونس", "سودان", "سورية", "شبكة", "عراق", "عرب", "عمان", "فلسطين", "قطر", "كاثوليك", "كوم", "مصر",
+       "مليسيا", "موريتانيا", "موقع", "همراه", "پاکستان", "ڀارت", "कॉम", "नेट", "भारत", "भारतम्", "भारोत", "संगठन",
+       "বাংলা", "ভারত", "ভাৰত", "ਭਾਰਤ", "ભારત", "ଭାରତ", "இந்தியா", "இலங்கை", "சிங்கப்பூர்", "భారత్", "ಭಾರತ", "ഭാരതം", "ලංකා",
+       "คอม", "ไทย", "ລາວ", "გე", "みんな", "アマゾン", "クラウド", "グーグル", "コム", "ストア", "セール",
+       "ファッション", "ポイント", "世界", "中信", "中国", "中國", "中文网", "亚马逊", "企业", "佛山", "信息", "健康",
+       "八卦", "公司", "公益", "台湾", "台灣", "商城", "商店", "商标", "嘉里", "嘉里大酒店", "在线", "大拿", "天主教",
+       "娱乐", "家電", "广东", "微博", "慈善", "我爱你", "手机", "招聘", "政务", "政府", "新加坡", "新闻", "时尚",
+       "書籍", "机构", "淡马锡", "游戏", "澳門", "点看", "移动", "组织机构", "网址", "网店", "网站", "网络", "联通",
+       "谷歌", "购物", "通販", "集团", "電訊盈科", "飞利浦", "食品", "餐厅", "香格里拉", "香港", "닷넷", "닷컴", "삼성",
+       "한국", "xxx", "xyz", "yachts", "yahoo", "yamaxun", "yandex", "ye", "yodobashi", "yoga", "yokohama", "you",
+       "youtube", "yt", "yun", "za", "zappos", "zara", "zero", "zip", "zm", "zone", "zuerich",
        // comment for clang-format to prevent it from placing all strings on separate lines
        "zw"});
   bool is_lower = true;
@@ -1162,8 +1172,9 @@ static Slice fix_url(Slice str) {
   auto full_url = str;
 
   bool has_protocol = false;
-  auto str_begin = to_lower(str.substr(0, 8));
-  if (begins_with(str_begin, "http://") || begins_with(str_begin, "https://") || begins_with(str_begin, "ftp://")) {
+  auto str_begin = to_lower(str.substr(0, 10));
+  if (begins_with(str_begin, "http://") || begins_with(str_begin, "https://") || begins_with(str_begin, "ftp://") ||
+      begins_with(str_begin, "tonsite://")) {
     auto pos = str.find(':');
     str = str.substr(pos + 3);
     has_protocol = true;
@@ -1784,8 +1795,9 @@ Slice get_first_url(const FormattedText &text) {
           continue;
         }
         auto url = utf8_utf16_substr(text.text, entity.offset, entity.length);
-        string scheme = to_lower(url.substr(0, 4));
-        if (scheme == "ton:" || begins_with(scheme, "tg:") || scheme == "ftp:" || is_plain_domain(url)) {
+        string scheme = to_lower(url.substr(0, 8));
+        if (scheme == "ton:" || begins_with(scheme, "tg:") || scheme == "ftp:" || scheme == "tonsite:" ||
+            is_plain_domain(url)) {
           continue;
         }
         return url;
@@ -1810,8 +1822,8 @@ Slice get_first_url(const FormattedText &text) {
         break;
       case MessageEntity::Type::TextUrl: {
         Slice url = entity.argument;
-        string scheme = to_lower(url.substr(0, 4));
-        if (scheme == "ton:" || begins_with(scheme, "tg:") || scheme == "ftp:") {
+        string scheme = to_lower(url.substr(0, 8));
+        if (scheme == "ton:" || begins_with(scheme, "tg:") || scheme == "ftp:" || scheme == "tonsite:") {
           continue;
         }
         return url;

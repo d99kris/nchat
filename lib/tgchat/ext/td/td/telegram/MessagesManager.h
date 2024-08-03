@@ -9,6 +9,7 @@
 #include "td/telegram/AccessRights.h"
 #include "td/telegram/AffectedHistory.h"
 #include "td/telegram/BackgroundInfo.h"
+#include "td/telegram/BusinessConnectionId.h"
 #include "td/telegram/ChannelId.h"
 #include "td/telegram/ChatReactions.h"
 #include "td/telegram/DialogDate.h"
@@ -518,8 +519,8 @@ class MessagesManager final : public Actor {
 
   void set_dialog_theme(DialogId dialog_id, const string &theme_name, Promise<Unit> &&promise);
 
-  void pin_dialog_message(DialogId dialog_id, MessageId message_id, bool disable_notification, bool only_for_self,
-                          bool is_unpin, Promise<Unit> &&promise);
+  void pin_dialog_message(BusinessConnectionId business_connection_id, DialogId dialog_id, MessageId message_id,
+                          bool disable_notification, bool only_for_self, bool is_unpin, Promise<Unit> &&promise);
 
   void unpin_all_dialog_messages(DialogId dialog_id, MessageId top_thread_message_id, Promise<Unit> &&promise);
 
@@ -560,6 +561,10 @@ class MessagesManager final : public Actor {
                               vector<tl_object_ptr<telegram_api::peerBlocked>> &&blocked_peers,
                               Promise<td_api::object_ptr<td_api::messageSenders>> &&promise);
 
+  static Status can_report_message(MessageId message_id);
+
+  bool can_share_message_in_story(MessageFullId message_full_id);
+
   bool can_get_message_statistics(MessageFullId message_full_id);
 
   DialogId get_dialog_message_sender(MessageFullId message_full_id);
@@ -582,6 +587,9 @@ class MessagesManager final : public Actor {
 
   void get_messages_from_server(vector<MessageFullId> &&message_ids, Promise<Unit> &&promise, const char *source,
                                 tl_object_ptr<telegram_api::InputMessage> input_message = nullptr);
+
+  void get_message_properties(DialogId dialog_id, MessageId message_id,
+                              Promise<td_api::object_ptr<td_api::messageProperties>> &&promise);
 
   void get_message_thread(DialogId dialog_id, MessageId message_id, Promise<MessageThreadInfo> &&promise);
 
@@ -1727,9 +1735,15 @@ class MessagesManager final : public Actor {
 
   bool can_edit_message(DialogId dialog_id, const Message *m, bool is_editing, bool only_reply_markup = false) const;
 
+  Status can_pin_message(DialogId dialog_id, const Message *m) const TD_WARN_UNUSED_RESULT;
+
   static Status can_get_media_timestamp_link(DialogId dialog_id, const Message *m);
 
   bool can_report_message_reactions(DialogId dialog_id, const Message *m) const;
+
+  bool can_recognize_message_speech(DialogId dialog_id, const Message *m) const;
+
+  bool can_set_message_fact_check(DialogId dialog_id, const Message *m) const;
 
   Status can_get_message_read_date(DialogId dialog_id, const Message *m) const TD_WARN_UNUSED_RESULT;
 
@@ -1912,7 +1926,11 @@ class MessagesManager final : public Actor {
 
   bool can_save_message(DialogId dialog_id, const Message *m) const;
 
+  bool can_share_message_in_story(DialogId dialog_id, const Message *m) const;
+
   bool can_get_message_statistics(DialogId dialog_id, const Message *m) const;
+
+  Status can_get_message_embedding_code(DialogId dialog_id, const Message *m) const;
 
   struct CanDeleteDialog {
     bool for_self_;

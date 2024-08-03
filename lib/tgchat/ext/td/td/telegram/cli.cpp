@@ -3435,6 +3435,10 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::getPremiumGiveawayInfo>(chat_id, message_id));
     } else if (op == "gspo") {
       send_request(td_api::make_object<td_api::getStarPaymentOptions>());
+    } else if (op == "gsgpo") {
+      UserId user_id;
+      get_args(args, user_id);
+      send_request(td_api::make_object<td_api::getStarGiftPaymentOptions>(user_id));
     } else if (op == "gsta" || op == "gsti" || op == "gsto") {
       string owner_id;
       string offset;
@@ -3479,6 +3483,14 @@ class CliClient final : public Actor {
       get_args(args, currency, amount, star_count);
       send_request(td_api::make_object<td_api::canPurchaseFromStore>(
           td_api::make_object<td_api::storePaymentPurposeStars>(currency, amount, star_count)));
+    } else if (op == "cpfsgs") {
+      UserId user_id;
+      string currency;
+      int64 amount;
+      int64 star_count;
+      get_args(args, user_id, currency, amount, star_count);
+      send_request(td_api::make_object<td_api::canPurchaseFromStore>(
+          td_api::make_object<td_api::storePaymentPurposeGiftedStars>(user_id, currency, amount, star_count)));
     } else if (op == "gbf") {
       send_request(td_api::make_object<td_api::getBusinessFeatures>(nullptr));
     } else if (op == "atos") {
@@ -3868,6 +3880,11 @@ class CliClient final : public Actor {
       string message_ids;
       get_args(args, chat_id, message_ids);
       send_request(td_api::make_object<td_api::getMessages>(chat_id, as_message_ids(message_ids)));
+    } else if (op == "gmp") {
+      ChatId chat_id;
+      MessageId message_id;
+      get_args(args, chat_id, message_id);
+      send_request(td_api::make_object<td_api::getMessageProperties>(chat_id, message_id));
     } else if (op == "gcspm") {
       ChatId chat_id;
       get_args(args, chat_id);
@@ -4588,6 +4605,11 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::setPinnedChats>(as_chat_list(op), as_chat_ids(args)));
     } else if (op == "rcl" || op == "rcla" || begins_with(op, "rcl-")) {
       send_request(td_api::make_object<td_api::readChatList>(as_chat_list(op)));
+    } else if (op == "gcwe") {
+      string latitude;
+      string longitude;
+      get_args(args, latitude, longitude);
+      send_request(td_api::make_object<td_api::getCurrentWeather>(as_location(latitude, longitude, "0.0")));
     } else if (op == "gst" || op == "gstl") {
       ChatId story_sender_chat_id;
       StoryId story_id;
@@ -4630,8 +4652,8 @@ class CliClient final : public Actor {
       get_args(args, chat_id, video, caption, rules, areas, active_period, duration, sticker_file_ids, protect_content);
       send_request(td_api::make_object<td_api::sendStory>(
           chat_id,
-          td_api::make_object<td_api::inputStoryContentVideo>(as_input_file(video),
-                                                              to_integers<int32>(sticker_file_ids), duration, true),
+          td_api::make_object<td_api::inputStoryContentVideo>(
+              as_input_file(video), to_integers<int32>(sticker_file_ids), duration, 0.5, true),
           areas, as_caption(caption), rules, active_period ? active_period : 86400, get_reposted_story_full_id(),
           op == "ssvp", protect_content));
     } else if (op == "esc") {
@@ -4666,9 +4688,15 @@ class CliClient final : public Actor {
       get_args(args, story_sender_chat_id, story_id, video, caption, duration, sticker_file_ids);
       send_request(td_api::make_object<td_api::editStory>(
           story_sender_chat_id, story_id,
-          td_api::make_object<td_api::inputStoryContentVideo>(as_input_file(video),
-                                                              to_integers<int32>(sticker_file_ids), duration, false),
+          td_api::make_object<td_api::inputStoryContentVideo>(
+              as_input_file(video), to_integers<int32>(sticker_file_ids), duration, 0.0, false),
           areas, as_caption(caption)));
+    } else if (op == "esco") {
+      ChatId story_sender_chat_id;
+      StoryId story_id;
+      double cover_frame_timetamp;
+      get_args(args, story_sender_chat_id, story_id, cover_frame_timetamp);
+      send_request(td_api::make_object<td_api::editStoryCover>(story_sender_chat_id, story_id, cover_frame_timetamp));
     } else if (op == "ssps") {
       StoryId story_id;
       StoryPrivacySettings rules;
@@ -4829,6 +4857,11 @@ class CliClient final : public Actor {
       get_args(args, user_id, is_added, allow_write_access);
       send_request(
           td_api::make_object<td_api::toggleBotIsAddedToAttachmentMenu>(user_id, is_added, allow_write_access));
+    } else if (op == "gpwab") {
+      string offset;
+      string limit;
+      get_args(args, offset, limit);
+      send_request(td_api::make_object<td_api::getPopularWebAppBots>(offset, as_limit(limit)));
     } else if (op == "swa") {
       UserId bot_user_id;
       string short_name;
@@ -4842,6 +4875,13 @@ class CliClient final : public Actor {
       get_args(args, chat_id, bot_user_id, short_name, start_parameter);
       send_request(td_api::make_object<td_api::getWebAppLinkUrl>(chat_id, bot_user_id, short_name, start_parameter,
                                                                  as_theme_parameters(), "android", true));
+    } else if (op == "gmwa") {
+      ChatId chat_id;
+      UserId bot_user_id;
+      string start_parameter;
+      get_args(args, chat_id, bot_user_id, start_parameter);
+      send_request(td_api::make_object<td_api::getMainWebApp>(chat_id, bot_user_id, start_parameter,
+                                                              as_theme_parameters(), "android"));
     } else if (op == "gwau") {
       UserId bot_user_id;
       string url;
@@ -4970,7 +5010,7 @@ class CliClient final : public Actor {
     } else if (op == "spmp") {
       ChatId chat_id;
       get_args(args, chat_id, args);
-      auto paid_media = transform(full_split(args), [this](const string &photo) {
+      auto paid_media = transform(full_split(args), [](const string &photo) {
         return td_api::make_object<td_api::inputPaidMedia>(td_api::make_object<td_api::inputPaidMediaTypePhoto>(),
                                                            as_input_file(photo), nullptr, vector<int32>(), 0, 0);
       });
@@ -4979,7 +5019,7 @@ class CliClient final : public Actor {
     } else if (op == "spmv") {
       ChatId chat_id;
       get_args(args, chat_id, args);
-      auto paid_media = transform(full_split(args), [this](const string &video) {
+      auto paid_media = transform(full_split(args), [](const string &video) {
         return td_api::make_object<td_api::inputPaidMedia>(
             td_api::make_object<td_api::inputPaidMediaTypeVideo>(10, true), as_input_file(video), nullptr,
             vector<int32>(), 0, 0);
@@ -6317,12 +6357,22 @@ class CliClient final : public Actor {
       ChatId chat_id;
       MessageId message_id;
       get_args(args, chat_id, message_id);
-      send_request(td_api::make_object<td_api::pinChatMessage>(chat_id, message_id, op == "pcms", op == "pcmo"));
+      if (!business_connection_id_.empty()) {
+        send_request(td_api::make_object<td_api::setBusinessMessageIsPinned>(business_connection_id_, chat_id,
+                                                                             message_id, true));
+      } else {
+        send_request(td_api::make_object<td_api::pinChatMessage>(chat_id, message_id, op == "pcms", op == "pcmo"));
+      }
     } else if (op == "upcm") {
       ChatId chat_id;
       MessageId message_id;
       get_args(args, chat_id, message_id);
-      send_request(td_api::make_object<td_api::unpinChatMessage>(chat_id, message_id));
+      if (!business_connection_id_.empty()) {
+        send_request(td_api::make_object<td_api::setBusinessMessageIsPinned>(business_connection_id_, chat_id,
+                                                                             message_id, false));
+      } else {
+        send_request(td_api::make_object<td_api::unpinChatMessage>(chat_id, message_id));
+      }
     } else if (op == "uacm") {
       ChatId chat_id;
       get_args(args, chat_id);
@@ -6531,6 +6581,63 @@ class CliClient final : public Actor {
       string parameters;
       get_args(args, bot_user_id, method, parameters);
       send_request(td_api::make_object<td_api::sendWebAppCustomRequest>(bot_user_id, method, parameters));
+    } else if (op == "gbmp") {
+      UserId bot_user_id;
+      get_args(args, bot_user_id);
+      send_request(td_api::make_object<td_api::getBotMediaPreviews>(bot_user_id));
+    } else if (op == "gbmpi") {
+      UserId bot_user_id;
+      string language_code;
+      get_args(args, bot_user_id, language_code);
+      send_request(td_api::make_object<td_api::getBotMediaPreviewInfo>(bot_user_id, language_code));
+    } else if (op == "abmpp") {
+      UserId bot_user_id;
+      string language_code;
+      string photo;
+      get_args(args, bot_user_id, language_code, photo);
+      send_request(td_api::make_object<td_api::addBotMediaPreview>(
+          bot_user_id, language_code,
+          td_api::make_object<td_api::inputStoryContentPhoto>(as_input_file(photo), Auto())));
+    } else if (op == "abmpv") {
+      UserId bot_user_id;
+      string language_code;
+      string video;
+      get_args(args, bot_user_id, language_code, video);
+      send_request(td_api::make_object<td_api::addBotMediaPreview>(
+          bot_user_id, language_code,
+          td_api::make_object<td_api::inputStoryContentVideo>(as_input_file(video), Auto(), 0.0, 1.5, true)));
+    } else if (op == "ebmpp") {
+      UserId bot_user_id;
+      string language_code;
+      FileId file_id;
+      string photo;
+      get_args(args, bot_user_id, language_code, file_id, photo);
+      send_request(td_api::make_object<td_api::editBotMediaPreview>(
+          bot_user_id, language_code, file_id,
+          td_api::make_object<td_api::inputStoryContentPhoto>(as_input_file(photo), Auto())));
+    } else if (op == "ebmpv") {
+      UserId bot_user_id;
+      string language_code;
+      FileId file_id;
+      string video;
+      get_args(args, bot_user_id, language_code, file_id, video);
+      send_request(td_api::make_object<td_api::editBotMediaPreview>(
+          bot_user_id, language_code, file_id,
+          td_api::make_object<td_api::inputStoryContentVideo>(as_input_file(video), Auto(), 0.0, 1.5, true)));
+    } else if (op == "rbmp") {
+      UserId bot_user_id;
+      string language_code;
+      string file_ids;
+      get_args(args, bot_user_id, language_code, file_ids);
+      send_request(td_api::make_object<td_api::reorderBotMediaPreviews>(bot_user_id, language_code,
+                                                                        to_integers<int32>(file_ids)));
+    } else if (op == "dbmp") {
+      UserId bot_user_id;
+      string language_code;
+      string file_ids;
+      get_args(args, bot_user_id, language_code, file_ids);
+      send_request(td_api::make_object<td_api::deleteBotMediaPreviews>(bot_user_id, language_code,
+                                                                       to_integers<int32>(file_ids)));
     } else if (op == "gbi") {
       UserId bot_user_id;
       string language_code;

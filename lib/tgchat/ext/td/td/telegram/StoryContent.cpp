@@ -282,18 +282,22 @@ Result<unique_ptr<StoryContent>> get_input_story_content(
       auto input_story = static_cast<const td_api::inputStoryContentVideo *>(input_story_content.get());
       TRY_RESULT(file_id, td->file_manager_->get_input_file_id(FileType::Video, input_story->video_, owner_dialog_id,
                                                                false, false));
-      file_id =
-          td->file_manager_->copy_file_id(file_id, FileType::VideoStory, owner_dialog_id, "get_input_story_content");
       if (input_story->duration_ < 0 || input_story->duration_ > 60.0) {
         return Status::Error(400, "Invalid video duration specified");
       }
+      if (input_story->cover_frame_timestamp_ < 0.0) {
+        return Status::Error(400, "Wrong cover timestamp specified");
+      }
+      file_id =
+          td->file_manager_->copy_file_id(file_id, FileType::VideoStory, owner_dialog_id, "get_input_story_content");
       auto sticker_file_ids =
           td->stickers_manager_->get_attached_sticker_file_ids(input_story->added_sticker_file_ids_);
       bool has_stickers = !sticker_file_ids.empty();
       td->videos_manager_->create_video(file_id, string(), PhotoSize(), AnimationSize(), has_stickers,
                                         std::move(sticker_file_ids), "story.mp4", "video/mp4",
                                         static_cast<int32>(std::ceil(input_story->duration_)), input_story->duration_,
-                                        get_dimensions(720, 1280, nullptr), true, input_story->is_animation_, 0, false);
+                                        get_dimensions(720, 1280, nullptr), true, input_story->is_animation_, 0,
+                                        input_story->cover_frame_timestamp_, false);
 
       return make_unique<StoryContentVideo>(file_id, FileId());
     }
@@ -314,6 +318,22 @@ telegram_api::object_ptr<telegram_api::InputMedia> get_story_content_input_media
       const auto *story_content = static_cast<const StoryContentVideo *>(content);
       return td->videos_manager_->get_input_media(story_content->file_id_, std::move(input_file), nullptr, 0, false);
     }
+    case StoryContentType::Unsupported:
+    default:
+      UNREACHABLE();
+      return nullptr;
+  }
+}
+
+telegram_api::object_ptr<telegram_api::InputMedia> get_story_content_document_input_media(Td *td,
+                                                                                          const StoryContent *content,
+                                                                                          double main_frame_timestamp) {
+  switch (content->get_type()) {
+    case StoryContentType::Video: {
+      const auto *story_content = static_cast<const StoryContentVideo *>(content);
+      return td->videos_manager_->get_story_document_input_media(story_content->file_id_, main_frame_timestamp);
+    }
+    case StoryContentType::Photo:
     case StoryContentType::Unsupported:
     default:
       UNREACHABLE();

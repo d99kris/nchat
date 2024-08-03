@@ -525,7 +525,7 @@ class Td final : public Actor {
 
   void on_request(uint64 id, const td_api::getCurrentState &request);
 
-  void on_request(uint64 id, td_api::getPasswordState &request);
+  void on_request(uint64 id, const td_api::getPasswordState &request);
 
   void on_request(uint64 id, td_api::setPassword &request);
 
@@ -647,6 +647,8 @@ class Td final : public Actor {
 
   void on_request(uint64 id, const td_api::getMessages &request);
 
+  void on_request(uint64 id, const td_api::getMessageProperties &request);
+
   void on_request(uint64 id, const td_api::getChatSponsoredMessages &request);
 
   void on_request(uint64 id, const td_api::clickChatSponsoredMessage &request);
@@ -675,7 +677,7 @@ class Td final : public Actor {
 
   void on_request(uint64 id, td_api::getStorageStatisticsFast &request);
 
-  void on_request(uint64 id, td_api::getDatabaseStatistics &request);
+  void on_request(uint64 id, const td_api::getDatabaseStatistics &request);
 
   void on_request(uint64 id, td_api::optimizeStorage &request);
 
@@ -931,6 +933,8 @@ class Td final : public Actor {
 
   void on_request(uint64 id, td_api::stopBusinessPoll &request);
 
+  void on_request(uint64 id, td_api::setBusinessMessageIsPinned &request);
+
   void on_request(uint64 id, const td_api::loadQuickReplyShortcuts &request);
 
   void on_request(uint64 id, const td_api::setQuickReplyShortcutName &request);
@@ -953,6 +957,8 @@ class Td final : public Actor {
 
   void on_request(uint64 id, td_api::editQuickReplyMessage &request);
 
+  void on_request(uint64 id, const td_api::getCurrentWeather &request);
+
   void on_request(uint64 id, const td_api::getStory &request);
 
   void on_request(uint64 id, const td_api::getChatsToSendStories &request);
@@ -962,6 +968,8 @@ class Td final : public Actor {
   void on_request(uint64 id, td_api::sendStory &request);
 
   void on_request(uint64 id, td_api::editStory &request);
+
+  void on_request(uint64 id, const td_api::editStoryCover &request);
 
   void on_request(uint64 id, td_api::setStoryPrivacySettings &request);
 
@@ -1235,7 +1243,7 @@ class Td final : public Actor {
 
   void on_request(uint64 id, const td_api::getChatBoostStatus &request);
 
-  void on_request(uint64 id, const td_api::boostChat &request);
+  void on_request(uint64 id, td_api::boostChat &request);
 
   void on_request(uint64 id, const td_api::getChatBoostLink &request);
 
@@ -1335,7 +1343,7 @@ class Td final : public Actor {
 
   void on_request(uint64 id, const td_api::getSuggestedFileName &request);
 
-  void on_request(uint64 id, td_api::preliminaryUploadFile &request);
+  void on_request(uint64 id, const td_api::preliminaryUploadFile &request);
 
   void on_request(uint64 id, const td_api::cancelPreliminaryUploadFile &request);
 
@@ -1452,6 +1460,18 @@ class Td final : public Actor {
   void on_request(uint64 id, const td_api::allowBotToSendMessages &request);
 
   void on_request(uint64 id, td_api::sendWebAppCustomRequest &request);
+
+  void on_request(uint64 id, const td_api::getBotMediaPreviews &request);
+
+  void on_request(uint64 id, const td_api::getBotMediaPreviewInfo &request);
+
+  void on_request(uint64 id, td_api::addBotMediaPreview &request);
+
+  void on_request(uint64 id, td_api::editBotMediaPreview &request);
+
+  void on_request(uint64 id, const td_api::reorderBotMediaPreviews &request);
+
+  void on_request(uint64 id, const td_api::deleteBotMediaPreviews &request);
 
   void on_request(uint64 id, td_api::setBotName &request);
 
@@ -1757,9 +1777,13 @@ class Td final : public Actor {
 
   void on_request(uint64 id, td_api::answerInlineQuery &request);
 
+  void on_request(uint64 id, td_api::getPopularWebAppBots &request);
+
   void on_request(uint64 id, td_api::searchWebApp &request);
 
   void on_request(uint64 id, td_api::getWebAppLinkUrl &request);
+
+  void on_request(uint64 id, td_api::getMainWebApp &request);
 
   void on_request(uint64 id, td_api::getWebAppUrl &request);
 
@@ -1876,6 +1900,8 @@ class Td final : public Actor {
   void on_request(uint64 id, const td_api::getPremiumGiveawayInfo &request);
 
   void on_request(uint64 id, const td_api::getStarPaymentOptions &request);
+
+  void on_request(uint64 id, const td_api::getStarGiftPaymentOptions &request);
 
   void on_request(uint64 id, td_api::getStarTransactions &request);
 

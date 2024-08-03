@@ -33,6 +33,9 @@ class AttachMenuManager final : public Actor {
 
   void init();
 
+  void get_popular_app_bots(const string &offset, int32 limit,
+                            Promise<td_api::object_ptr<td_api::foundUsers>> &&promise);
+
   void get_web_app(UserId bot_user_id, const string &web_app_short_name,
                    Promise<td_api::object_ptr<td_api::foundWebApp>> &&promise);
 
@@ -41,6 +44,10 @@ class AttachMenuManager final : public Actor {
   void request_app_web_view(DialogId dialog_id, UserId bot_user_id, string &&web_app_short_name,
                             string &&start_parameter, const td_api::object_ptr<td_api::themeParameters> &theme,
                             string &&platform, bool allow_write_access, Promise<string> &&promise);
+
+  void request_main_web_view(DialogId dialog_id, UserId bot_user_id, string &&start_parameter,
+                             const td_api::object_ptr<td_api::themeParameters> &theme, string &&platform,
+                             Promise<td_api::object_ptr<td_api::mainWebApp>> &&promise);
 
   void request_web_view(DialogId dialog_id, UserId bot_user_id, MessageId top_thread_message_id,
                         td_api::object_ptr<td_api::InputMessageReplyTo> &&reply_to, string &&url,

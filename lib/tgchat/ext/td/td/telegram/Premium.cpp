@@ -253,8 +253,21 @@ static Result<tl_object_ptr<telegram_api::InputStorePaymentPurpose>> get_input_s
       if (!clean_input_string(p->currency_)) {
         return Status::Error(400, "Strings must be encoded in UTF-8");
       }
-      return telegram_api::make_object<telegram_api::inputStorePaymentStars>(0, p->star_count_, p->currency_,
-                                                                             p->amount_);
+      return telegram_api::make_object<telegram_api::inputStorePaymentStarsTopup>(p->star_count_, p->currency_,
+                                                                                  p->amount_);
+    }
+    case td_api::storePaymentPurposeGiftedStars::ID: {
+      auto p = static_cast<td_api::storePaymentPurposeGiftedStars *>(purpose.get());
+      UserId user_id(p->user_id_);
+      TRY_RESULT(input_user, td->user_manager_->get_input_user(user_id));
+      if (p->amount_ <= 0 || !check_currency_amount(p->amount_)) {
+        return Status::Error(400, "Invalid amount of the currency specified");
+      }
+      if (!clean_input_string(p->currency_)) {
+        return Status::Error(400, "Strings must be encoded in UTF-8");
+      }
+      return telegram_api::make_object<telegram_api::inputStorePaymentStarsGift>(std::move(input_user), p->star_count_,
+                                                                                 p->currency_, p->amount_);
     }
     default:
       UNREACHABLE();
@@ -333,9 +346,10 @@ class GetPremiumPromoQuery final : public Td::ResultHandler {
     }
 
     auto period_options = get_premium_gift_options(std::move(promo->period_options_));
-    promise_.set_value(td_api::make_object<td_api::premiumState>(
-        get_formatted_text_object(state, true, 0), get_premium_state_payment_options_object(period_options),
-        std::move(animations), std::move(business_animations)));
+    promise_.set_value(
+        td_api::make_object<td_api::premiumState>(get_formatted_text_object(td_->user_manager_.get(), state, true, 0),
+                                                  get_premium_state_payment_options_object(period_options),
+                                                  std::move(animations), std::move(business_animations)));
   }
 
   void on_error(Status status) final {

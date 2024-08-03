@@ -29,6 +29,8 @@ class StarManager final : public Actor {
 
   void get_star_payment_options(Promise<td_api::object_ptr<td_api::starPaymentOptions>> &&promise);
 
+  void get_star_gift_payment_options(UserId user_id, Promise<td_api::object_ptr<td_api::starPaymentOptions>> &&promise);
+
   void get_star_transactions(td_api::object_ptr<td_api::MessageSender> owner_id, const string &offset, int32 limit,
                              td_api::object_ptr<td_api::StarTransactionDirection> &&direction,
                              Promise<td_api::object_ptr<td_api::starTransactions>> &&promise);
@@ -52,10 +54,16 @@ class StarManager final : public Actor {
 
   static int64 get_star_count(int64 amount, bool allow_negative = false);
 
+  static int32 get_months_by_star_count(int64 star_count);
+
  private:
   void tear_down() final;
 
   Status can_manage_stars(DialogId dialog_id, bool allow_self = false) const;
+
+  void do_get_star_transactions(DialogId dialog_id, const string &offset, int32 limit,
+                                td_api::object_ptr<td_api::StarTransactionDirection> &&direction,
+                                Promise<td_api::object_ptr<td_api::starTransactions>> &&promise);
 
   void send_get_star_withdrawal_url_query(
       DialogId dialog_id, int64 star_count,

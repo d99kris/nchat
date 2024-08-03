@@ -291,7 +291,7 @@ td_api::object_ptr<td_api::messageReplyToMessage> RepliedMessageInfo::get_messag
 
   td_api::object_ptr<td_api::MessageContent> content;
   if (content_ != nullptr) {
-    content = get_message_content_object(content_.get(), td, dialog_id, 0, false, true, -1, false, false);
+    content = get_message_content_object(content_.get(), td, dialog_id, false, 0, false, true, -1, false, false);
     switch (content->get_id()) {
       case td_api::messageUnsupported::ID:
         content = nullptr;
@@ -309,7 +309,8 @@ td_api::object_ptr<td_api::messageReplyToMessage> RepliedMessageInfo::get_messag
     }
   }
 
-  return td_api::make_object<td_api::messageReplyToMessage>(chat_id, message_id_.get(), quote_.get_text_quote_object(),
+  return td_api::make_object<td_api::messageReplyToMessage>(chat_id, message_id_.get(),
+                                                            quote_.get_text_quote_object(td->user_manager_.get()),
                                                             std::move(origin), origin_date_, std::move(content));
 }
 

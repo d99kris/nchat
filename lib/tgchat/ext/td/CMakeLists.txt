@@ -6,7 +6,7 @@ if (POLICY CMP0065)
   cmake_policy(SET CMP0065 NEW)
 endif()
 
-project(TDLib VERSION 1.8.33 LANGUAGES CXX C)
+project(TDLib VERSION 1.8.34 LANGUAGES CXX C)
 
 if (NOT DEFINED CMAKE_MODULE_PATH)
   set(CMAKE_MODULE_PATH "")
@@ -401,13 +401,13 @@ set(TDLIB_SOURCE_PART1
   td/telegram/files/FileBitmask.cpp
   td/telegram/files/FileDb.cpp
   td/telegram/files/FileDownloader.cpp
+  td/telegram/files/FileDownloadManager.cpp
   td/telegram/files/FileEncryptionKey.cpp
   td/telegram/files/FileFromBytes.cpp
   td/telegram/files/FileGcParameters.cpp
   td/telegram/files/FileGcWorker.cpp
   td/telegram/files/FileGenerateManager.cpp
   td/telegram/files/FileHashUploader.cpp
-  td/telegram/files/FileLoader.cpp
   td/telegram/files/FileLoaderUtils.cpp
   td/telegram/files/FileLoadManager.cpp
   td/telegram/files/FileManager.cpp
@@ -415,6 +415,7 @@ set(TDLIB_SOURCE_PART1
   td/telegram/files/FileStatsWorker.cpp
   td/telegram/files/FileType.cpp
   td/telegram/files/FileUploader.cpp
+  td/telegram/files/FileUploadManager.cpp
   td/telegram/files/PartsManager.cpp
   td/telegram/files/ResourceManager.cpp
   td/telegram/ForumTopic.cpp
@@ -630,10 +631,10 @@ set(TDLIB_SOURCE_PART2
   td/telegram/BusinessRecipients.h
   td/telegram/BusinessWorkHours.h
   td/telegram/CallActor.h
+  td/telegram/CallbackQueriesManager.h
   td/telegram/CallDiscardReason.h
   td/telegram/CallId.h
   td/telegram/CallManager.h
-  td/telegram/CallbackQueriesManager.h
   td/telegram/ChainId.h
   td/telegram/ChannelId.h
   td/telegram/ChannelParticipantFilter.h
@@ -667,9 +668,9 @@ set(TDLIB_SOURCE_PART2
   td/telegram/DialogFilterId.h
   td/telegram/DialogFilterInviteLink.h
   td/telegram/DialogFilterManager.h
-  td/telegram/DialogInviteLinkManager.h
   td/telegram/DialogId.h
   td/telegram/DialogInviteLink.h
+  td/telegram/DialogInviteLinkManager.h
   td/telegram/DialogListId.h
   td/telegram/DialogLocation.h
   td/telegram/DialogManager.h
@@ -696,6 +697,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/files/FileDb.h
   td/telegram/files/FileDbId.h
   td/telegram/files/FileDownloader.h
+  td/telegram/files/FileDownloadManager.h
   td/telegram/files/FileEncryptionKey.h
   td/telegram/files/FileFromBytes.h
   td/telegram/files/FileGcParameters.h
@@ -704,7 +706,6 @@ set(TDLIB_SOURCE_PART2
   td/telegram/files/FileHashUploader.h
   td/telegram/files/FileId.h
   td/telegram/files/FileLoaderActor.h
-  td/telegram/files/FileLoader.h
   td/telegram/files/FileLoaderUtils.h
   td/telegram/files/FileLoadManager.h
   td/telegram/files/FileLocation.h
@@ -714,6 +715,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/files/FileStatsWorker.h
   td/telegram/files/FileType.h
   td/telegram/files/FileUploader.h
+  td/telegram/files/FileUploadManager.h
   td/telegram/files/PartsManager.h
   td/telegram/files/ResourceManager.h
   td/telegram/files/ResourceState.h
@@ -808,8 +810,8 @@ set(TDLIB_SOURCE_PART2
   td/telegram/net/PublicRsaKeySharedMain.h
   td/telegram/net/PublicRsaKeyWatchdog.h
   td/telegram/net/Session.h
-  td/telegram/net/SessionProxy.h
   td/telegram/net/SessionMultiProxy.h
+  td/telegram/net/SessionProxy.h
   td/telegram/net/TempAuthKeyWatchdog.h
   td/telegram/NewPasswordState.h
   td/telegram/Notification.h
@@ -822,8 +824,8 @@ set(TDLIB_SOURCE_PART2
   td/telegram/NotificationManager.h
   td/telegram/NotificationObjectFullId.h
   td/telegram/NotificationObjectId.h
-  td/telegram/NotificationSettingsScope.h
   td/telegram/NotificationSettingsManager.h
+  td/telegram/NotificationSettingsScope.h
   td/telegram/NotificationSound.h
   td/telegram/NotificationSoundType.h
   td/telegram/NotificationType.h
@@ -869,8 +871,8 @@ set(TDLIB_SOURCE_PART2
   td/telegram/ScheduledServerMessageId.h
   td/telegram/ScopeNotificationSettings.h
   td/telegram/SecretChatActor.h
-  td/telegram/SecretChatId.h
   td/telegram/SecretChatDb.h
+  td/telegram/SecretChatId.h
   td/telegram/SecretChatLayer.h
   td/telegram/SecretChatsManager.h
   td/telegram/SecretInputMedia.h
@@ -899,9 +901,9 @@ set(TDLIB_SOURCE_PART2
   td/telegram/StoryContent.h
   td/telegram/StoryContentType.h
   td/telegram/StoryDb.h
+  td/telegram/StoryForwardInfo.h
   td/telegram/StoryFullId.h
   td/telegram/StoryId.h
-  td/telegram/StoryForwardInfo.h
   td/telegram/StoryInteractionInfo.h
   td/telegram/StoryListId.h
   td/telegram/StoryManager.h
@@ -954,8 +956,9 @@ set(TDLIB_SOURCE_PART2
   td/telegram/BusinessRecipients.hpp
   td/telegram/BusinessWorkHours.hpp
   td/telegram/ChatReactions.hpp
-  td/telegram/DialogNotificationSettings.hpp
   td/telegram/DialogFilter.hpp
+  td/telegram/DialogInviteLink.hpp
+  td/telegram/DialogNotificationSettings.hpp
   td/telegram/Dimensions.hpp
   td/telegram/Document.hpp
   td/telegram/DocumentsManager.hpp

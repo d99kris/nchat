@@ -154,6 +154,7 @@ OptionManager::OptionManager(Td *td)
   set_default_integer_option("star_withdrawal_count_min", is_test_dc ? 10 : 1000);
   set_default_integer_option("story_link_area_count_max", 3);
   set_default_integer_option("paid_media_message_star_count_max", 10000);
+  set_default_integer_option("bot_media_preview_count_max", 12);
 
   if (options.isset("my_phone_number") || !options.isset("my_id")) {
     update_premium_options();
@@ -358,6 +359,7 @@ bool OptionManager::is_internal_option(Slice name) {
                                                               "business_features",
                                                               "call_receive_timeout_ms",
                                                               "call_ring_timeout_ms",
+                                                              "can_edit_fact_check",
                                                               "caption_length_limit_default",
                                                               "caption_length_limit_premium",
                                                               "channel_bg_icon_level_min",
@@ -450,8 +452,10 @@ bool OptionManager::is_internal_option(Slice name) {
                                                               "story_caption_length_limit_premium",
                                                               "story_expiring_limit_default",
                                                               "story_expiring_limit_premium",
+                                                              "ton_proxy_address",
                                                               "upload_premium_speedup_notify_period",
                                                               "video_note_size_max",
+                                                              "weather_bot_username",
                                                               "webfile_dc_id"};
   return internal_options.count(name) > 0;
 }
@@ -705,7 +709,7 @@ td_api::object_ptr<td_api::OptionValue> OptionManager::get_option_synchronously(
       break;
     case 'v':
       if (name == "version") {
-        return td_api::make_object<td_api::optionValueString>("1.8.33");
+        return td_api::make_object<td_api::optionValueString>("1.8.34");
       }
       break;
   }

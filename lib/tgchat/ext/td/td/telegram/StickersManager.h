@@ -107,6 +107,8 @@ class StickersManager final : public Actor {
 
   tl_object_ptr<telegram_api::InputStickerSet> get_input_sticker_set(StickerSetId sticker_set_id) const;
 
+  void load_premium_gift_sticker_set(Promise<Unit> &&promise);
+
   void register_premium_gift(int32 months, MessageFullId message_full_id, const char *source);
 
   void unregister_premium_gift(int32 months, MessageFullId message_full_id, const char *source);
@@ -148,9 +150,6 @@ class StickersManager final : public Actor {
 
   void get_sticker_list_emoji_statuses(StickerListType sticker_list_type, bool force_reload,
                                        Promise<td_api::object_ptr<td_api::emojiStatuses>> &&promise);
-
-  void get_premium_gift_option_sticker(int32 month_count, bool is_recursive,
-                                       Promise<td_api::object_ptr<td_api::sticker>> &&promise);
 
   void get_animated_emoji_click_sticker(const string &message_text, MessageFullId message_full_id,
                                         Promise<td_api::object_ptr<td_api::sticker>> &&promise);
