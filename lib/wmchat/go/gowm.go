@@ -716,7 +716,7 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 					mutedUntil := settings.MutedUntil.Unix()
 					isMuted = (mutedUntil == -1) || (mutedUntil > time.Now().Unix())
 				} else {
-					LOG_WARNING(fmt.Sprintf("Chat settings not found"))
+					LOG_DEBUG(fmt.Sprintf("Chat settings not found %s", JidToStr(chatJid)))
 				}
 			}
 
