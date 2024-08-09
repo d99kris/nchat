@@ -67,6 +67,7 @@ public:
   bool Process();
 
   std::string GetLastMessageId(const std::string& p_ProfileId, const std::string& p_ChatId);
+  ChatInfo* GetChatInfo(const std::string& p_ProfileId, const std::string& p_ContactId);
   void UpdateChatInfoLastMessageTime(const std::string& p_ProfileId, const std::string& p_ChatId);
   void UpdateChatInfoIsUnread(const std::string& p_ProfileId, const std::string& p_ChatId);
   std::string GetContactName(const std::string& p_ProfileId, const std::string& p_ChatId);
@@ -120,6 +121,8 @@ public:
 
   static bool IsAttachmentDownloaded(const FileInfo& p_FileInfo);
   static bool IsAttachmentDownloadable(const FileInfo& p_FileInfo);
+
+  bool CompareChats(const ChatInfo& lhsChatInfo, const ChatInfo& rhsChatInfo);
 
 private:
   void SortChats();

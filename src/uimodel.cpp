@@ -2144,27 +2144,33 @@ bool UiModel::Process()
   return m_Running;
 }
 
+bool UiModel::CompareChats(const ChatInfo& lhsChatInfo, const ChatInfo& rhsChatInfo)
+{
+  static const bool mutedPositionByTimestamp =
+    UiConfig::GetBool("muted_position_by_timestamp");
+  if (!mutedPositionByTimestamp)
+  {
+    // non-muted are listed first
+    if (lhsChatInfo.isMuted < rhsChatInfo.isMuted) return true;
+    if (lhsChatInfo.isMuted > rhsChatInfo.isMuted) return false;
+  }
+
+  // greater (=newer) message time are listed first
+  if (lhsChatInfo.lastMessageTime > rhsChatInfo.lastMessageTime) return true;
+  if (lhsChatInfo.lastMessageTime < rhsChatInfo.lastMessageTime) return false;
+
+  return false;
+}
+
 void UiModel::SortChats()
 {
-  static const bool mutedPositionByTimestamp = UiConfig::GetBool("muted_position_by_timestamp");
   std::sort(m_ChatVec.begin(), m_ChatVec.end(),
             [&](const std::pair<std::string, std::string>& lhs, const std::pair<std::string, std::string>& rhs) -> bool
   {
     const ChatInfo& lhsChatInfo = m_ChatInfos[lhs.first][lhs.second];
     const ChatInfo& rhsChatInfo = m_ChatInfos[rhs.first][rhs.second];
 
-    if (!mutedPositionByTimestamp)
-    {
-      // non-muted are listed first
-      if (lhsChatInfo.isMuted < rhsChatInfo.isMuted) return true;
-      if (lhsChatInfo.isMuted > rhsChatInfo.isMuted) return false;
-    }
-
-    // greater (=newer) message time are listed first
-    if (lhsChatInfo.lastMessageTime > rhsChatInfo.lastMessageTime) return true;
-    if (lhsChatInfo.lastMessageTime < rhsChatInfo.lastMessageTime) return false;
-
-    return false;
+    return CompareChats(lhsChatInfo, rhsChatInfo);
   });
 
   if (!m_ChatVec.empty())
@@ -2208,6 +2214,21 @@ std::string UiModel::GetLastMessageId(const std::string& p_ProfileId, const std:
   }
 
   return lastMessageId;
+}
+
+ChatInfo* UiModel::GetChatInfo(const std::string& p_ProfileId, const std::string& p_ContactId)
+{
+  std::unique_lock<std::mutex> lock(m_ModelMutex);
+
+  std::unordered_map<std::string, ChatInfo>& profileChatInfos = m_ChatInfos[p_ProfileId];
+  if (profileChatInfos.count(p_ContactId))
+  {
+    return &profileChatInfos[p_ContactId];
+  }
+  else
+  {
+    return nullptr;
+  }
 }
 
 void UiModel::UpdateChatInfoLastMessageTime(const std::string& p_ProfileId, const std::string& p_ChatId)

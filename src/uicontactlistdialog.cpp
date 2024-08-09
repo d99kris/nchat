@@ -11,6 +11,7 @@
 
 #include "log.h"
 #include "uimodel.h"
+#include "uiconfig.h"
 #include "strutil.h"
 
 UiContactListDialog::UiContactListDialog(const UiDialogParams& p_Params)
@@ -106,7 +107,32 @@ void UiContactListDialog::UpdateList()
   std::sort(localContactListItemVec.begin(), localContactListItemVec.end(),
             [&](const UiContactListItem& lhs, const UiContactListItem& rhs) -> bool
   {
-    return lhs.name < rhs.name;
+    if (UiConfig::GetBool("chat_picker_sorted_alphabetically"))
+    {
+      return lhs.name < rhs.name;
+    }
+    else
+    {
+      ChatInfo* lhsChatInfo = m_Model->GetChatInfo(lhs.profileId, lhs.contactId);
+      ChatInfo* rhsChatInfo = m_Model->GetChatInfo(rhs.profileId, rhs.contactId);
+
+      bool bothContactsWithoutChatInfo = (rhsChatInfo == nullptr) && (lhsChatInfo == nullptr);
+
+      if (bothContactsWithoutChatInfo)
+      {
+        return lhs.name < rhs.name;
+      }
+      else
+      {
+        // contacts with chat info first
+        if (rhsChatInfo == nullptr) return true;
+        if (lhsChatInfo == nullptr) return false;
+
+        // when both contacts have chat info
+        // use same criteria as in the chat list
+        return m_Model->CompareChats(*lhsChatInfo, *rhsChatInfo);
+      }
+    }
   });
 
   for (const auto& contactListItem : localContactListItemVec)
