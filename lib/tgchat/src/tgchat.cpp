@@ -1949,6 +1949,7 @@ void TgChat::Impl::OnAuthStateUpdate()
   td::td_api::downcast_call(*m_AuthorizationState, overloaded(
   [this](td::td_api::authorizationStateReady&)
   {
+    LOG_DEBUG("auth ready");
     m_Authorized = true;
     m_WasAuthorized = true;
     if (m_IsSetup)
@@ -1994,18 +1995,18 @@ void TgChat::Impl::OnAuthStateUpdate()
   },
   [this](td::td_api::authorizationStateLoggingOut&)
   {
+    LOG_DEBUG("auth logging out");
     m_Authorized = false;
-    LOG_DEBUG("logging out");
   },
   [](td::td_api::authorizationStateClosing&)
   {
-    LOG_DEBUG("closing");
+    LOG_DEBUG("auth closing");
   },
   [this](td::td_api::authorizationStateClosed&)
   {
+    LOG_DEBUG("auth closed");
     m_Authorized = false;
     m_Running = false;
-    LOG_DEBUG("closed");
 
     if (m_WasAuthorized)
     {
@@ -2026,6 +2027,7 @@ void TgChat::Impl::OnAuthStateUpdate()
   },
   [this](td::td_api::authorizationStateWaitCode&)
   {
+    LOG_DEBUG("auth wait code");
     if (m_IsSetup)
     {
       LOG_DEBUG("fresh code");
@@ -2049,6 +2051,7 @@ void TgChat::Impl::OnAuthStateUpdate()
   },
   [this](td::td_api::authorizationStateWaitRegistration&)
   {
+    LOG_DEBUG("auth wait registration");
     if (m_IsSetup || m_IsReinit)
     {
       std::string first_name;
@@ -2069,6 +2072,7 @@ void TgChat::Impl::OnAuthStateUpdate()
   },
   [this](td::td_api::authorizationStateWaitPassword&)
   {
+    LOG_DEBUG("auth wait password");
     if (m_IsSetup || m_IsReinit)
     {
       std::cout << "Enter authentication password: ";
@@ -2084,6 +2088,7 @@ void TgChat::Impl::OnAuthStateUpdate()
   },
   [this](td::td_api::authorizationStateWaitPhoneNumber&)
   {
+    LOG_DEBUG("auth wait phone number");
     std::string phone_number;
     if (m_IsSetup)
     {
@@ -2108,6 +2113,7 @@ void TgChat::Impl::OnAuthStateUpdate()
   },
   [this](td::td_api::authorizationStateWaitTdlibParameters&)
   {
+    LOG_DEBUG("auth wait tdlib parameters");
     std::string key;
     if (m_IsSetup)
     {
@@ -2152,11 +2158,12 @@ void TgChat::Impl::OnAuthStateUpdate()
   },
   [](td::td_api::authorizationStateWaitOtherDeviceConfirmation& state)
   {
+    LOG_DEBUG("auth wait other device link");
     std::cout << "Confirm this login link on another device:\n" << state.link_ << "\n";
   },
   [this](auto& anystate)
   {
-    LOG_DEBUG("unexpected authorization state %d", anystate.ID);
+    LOG_DEBUG("auth other state %d", anystate.ID);
     m_Running = false;
   }
   ));
