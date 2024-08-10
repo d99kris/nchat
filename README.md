@@ -362,7 +362,6 @@ This configuration file holds general user interface settings. Default content:
     mark_read_when_inactive=0
     message_edit_command=
     message_open_command=
-    mute_status_broadcast=1
     muted_indicate_unread=1
     muted_notify_unread=0
     muted_position_by_timestamp=1
@@ -373,6 +372,7 @@ This configuration file holds general user interface settings. Default content:
     read_indicator=✓
     reactions_enabled=1
     spell_check_command=
+    status_broadcast=1
     syncing_indicator=⇄
     terminal_bell_active=0
     terminal_bell_inactive=1
@@ -540,11 +540,6 @@ Specifies a custom command to use for opening/viewing message text part. If
 not specified, nchat will use `PAGER` environment variable if set, or
 otherwise use `less`.
 
-### mute_status_broadcast
-
-Specifies whether (WhatsApp) status broadcast chat should be treated as
-muted.
-
 ### muted_indicate_unread
 
 Specifies whether chat list should indicate unread status `*` for muted chats.
@@ -594,6 +589,14 @@ Specifies whether to display reactions.
 Specifies a custom command to use for spell checking composed messages. If not
 specified, nchat checks if `aspell` or `ispell` is available on the system (in
 that order), and uses the first found.
+
+### status_broadcast
+
+Specifies (WhatsApp) Status Updates chat level of visibility:
+
+    0 = hidden
+    1 = visible and muted  <- default
+    2 = visible
 
 ### syncing_indicator
 

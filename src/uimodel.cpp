@@ -1625,8 +1625,9 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
           for (auto& chatInfo : newChatsNotify->chatInfos)
           {
             LOG_TRACE("new chats %s", chatInfo.id.c_str());
-            static const bool muteStatusBroadcast = UiConfig::GetBool("mute_status_broadcast");
-            if (muteStatusBroadcast && (chatInfo.id == "status@broadcast"))
+            if (IsChatForceHidden(chatInfo.id)) continue;
+
+            if (IsChatForceMuted(chatInfo.id))
             {
               chatInfo.isMuted = true;
             }
@@ -1657,6 +1658,8 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
         {
           bool hasNewMessage = false;
           const std::string& chatId = newMessagesNotify->chatId;
+          if (IsChatForceHidden(chatId)) return;
+
           std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
           std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
           const std::vector<ChatMessage>& chatMessages = newMessagesNotify->chatMessages;
@@ -3785,4 +3788,16 @@ void UiModel::ForwardMessage()
   }
 
   ReinitView();
+}
+
+bool UiModel::IsChatForceHidden(const std::string& p_ChatId)
+{
+  static const bool statusBroadcastHidden = (UiConfig::GetNum("status_broadcast") == 0);
+  return statusBroadcastHidden && (p_ChatId == "status@broadcast");
+}
+
+bool UiModel::IsChatForceMuted(const std::string& p_ChatId)
+{
+  static const bool statusBroadcastMuted = (UiConfig::GetNum("status_broadcast") == 1);
+  return statusBroadcastMuted && (p_ChatId == "status@broadcast");
 }

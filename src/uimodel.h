@@ -169,6 +169,8 @@ private:
   void PerformFindNext();
   void ClearFind();
   void ForwardMessage();
+  bool IsChatForceHidden(const std::string& p_ChatId);
+  bool IsChatForceMuted(const std::string& p_ChatId);
 
 private:
   bool m_Running = true;
