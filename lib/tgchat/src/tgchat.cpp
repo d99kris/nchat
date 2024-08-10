@@ -776,13 +776,17 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         auto send_message = td::td_api::make_object<td::td_api::sendMessage>();
         send_message->chat_id_ = StrUtil::NumFromHex<int64_t>(sendMessageRequest->chatId);
 
+        if (!sendMessageRequest->chatMessage.quotedId.empty())
+        {
+          send_message->reply_to_ =
+            td::td_api::make_object<td::td_api::inputMessageReplyToMessage>(StrUtil::NumFromHex<int64_t>(sendMessageRequest->chatMessage.quotedId),
+                                                                            nullptr);
+        }
+
         if (sendMessageRequest->chatMessage.fileInfo.empty())
         {
           auto message_content = GetMessageText(sendMessageRequest->chatMessage.text);
           send_message->input_message_content_ = std::move(message_content);
-          send_message->reply_to_ =
-            td::td_api::make_object<td::td_api::inputMessageReplyToMessage>(StrUtil::NumFromHex<int64_t>(sendMessageRequest->chatMessage.quotedId),
-                                                                            nullptr);
         }
         else
         {

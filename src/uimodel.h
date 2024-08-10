@@ -172,6 +172,7 @@ private:
   bool IsChatForceHidden(const std::string& p_ChatId);
   bool IsChatForceMuted(const std::string& p_ChatId);
   void GotoChat();
+  void AddQuoteFromSelectedMessage(ChatMessage& p_ChatMessage);
 
 private:
   bool m_Running = true;

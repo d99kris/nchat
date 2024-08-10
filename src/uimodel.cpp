@@ -332,28 +332,7 @@ void UiModel::SendMessage()
 
   if (GetSelectMessageActive())
   {
-    const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
-    const int messageOffset = m_MessageOffset[profileId][chatId];
-    const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
-
-    auto it = std::next(messageVec.begin(), messageOffset);
-    if (it == messageVec.end())
-    {
-      LOG_WARNING("error finding selected message id");
-      return;
-    }
-
-    auto msg = messages.find(*it);
-    if (msg == messages.end())
-    {
-      LOG_WARNING("error finding selected message content");
-      return;
-    }
-
-    sendMessageRequest->chatMessage.quotedId = msg->second.id;
-    sendMessageRequest->chatMessage.quotedText = msg->second.text;
-    sendMessageRequest->chatMessage.quotedSender = msg->second.senderId;
-
+    AddQuoteFromSelectedMessage(sendMessageRequest->chatMessage);
     SetSelectMessageActive(false);
   }
 
@@ -1480,6 +1459,16 @@ void UiModel::TransferFile()
           entryPos = 0;
 
           UpdateEntry();
+        }
+      }
+
+      if (GetSelectMessageActive())
+      {
+        // add quote for first file
+        if (it == filePaths.begin())
+        {
+          AddQuoteFromSelectedMessage(sendMessageRequest->chatMessage);
+          SetSelectMessageActive(false);
         }
       }
 
@@ -3858,4 +3847,32 @@ void UiModel::GotoChat()
   }
 
   ReinitView();
+}
+
+void UiModel::AddQuoteFromSelectedMessage(ChatMessage& p_ChatMessage)
+{
+  // must be called with lock held
+  const std::string profileId = m_CurrentChat.first;
+  const std::string chatId = m_CurrentChat.second;
+  const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
+  const int messageOffset = m_MessageOffset[profileId][chatId];
+  const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
+
+  auto it = std::next(messageVec.begin(), messageOffset);
+  if (it == messageVec.end())
+  {
+    LOG_WARNING("error finding selected message id");
+    return;
+  }
+
+  auto msg = messages.find(*it);
+  if (msg == messages.end())
+  {
+    LOG_WARNING("error finding selected message content");
+    return;
+  }
+
+  p_ChatMessage.quotedId = msg->second.id;
+  p_ChatMessage.quotedText = msg->second.text;
+  p_ChatMessage.quotedSender = msg->second.senderId;
 }

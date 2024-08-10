@@ -464,7 +464,7 @@ void Ui::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
         }
       }
       break;
-      
+
     default:
       std::cout << "Unknown ServiceMessage type " << p_ServiceMessage->GetMessageType() << "\n";
       break;

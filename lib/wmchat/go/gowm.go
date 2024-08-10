@@ -1920,35 +1920,33 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 	isSend := false
 
+	// quote context
+	contextInfo := waE2E.ContextInfo{}
+	if len(quotedId) > 0 {
+		quotedMessage := waE2E.Message{
+			Conversation: &quotedText,
+		}
+
+		quotedSender = strings.Replace(quotedSender, "@c.us", "@s.whatsapp.net", 1)
+
+		LOG_TRACE("send quoted " + quotedId + ", " + quotedText + ", " + quotedSender)
+		contextInfo = waE2E.ContextInfo{
+			QuotedMessage: &quotedMessage,
+			StanzaID:      &quotedId,
+			Participant:   &quotedSender,
+		}
+	}
+
 	// check message type
 	if len(filePath) == 0 {
 
 		// text message
-
-		if len(quotedId) > 0 {
-			contextInfo := waE2E.ContextInfo{}
-			quotedMessage := waE2E.Message{
-				Conversation: &quotedText,
-			}
-
-			quotedSender = strings.Replace(quotedSender, "@c.us", "@s.whatsapp.net", 1)
-
-			LOG_TRACE("send quoted " + quotedId + ", " + quotedText + ", " + quotedSender)
-			contextInfo = waE2E.ContextInfo{
-				QuotedMessage: &quotedMessage,
-				StanzaID:      &quotedId,
-				Participant:   &quotedSender,
-			}
-
-			extendedTextMessage := waE2E.ExtendedTextMessage{
-				Text:        &text,
-				ContextInfo: &contextInfo,
-			}
-
-			message.ExtendedTextMessage = &extendedTextMessage
-		} else {
-			message.Conversation = &text
+		extendedTextMessage := waE2E.ExtendedTextMessage{
+			Text:        &text,
+			ContextInfo: &contextInfo,
 		}
+
+		message.ExtendedTextMessage = &extendedTextMessage
 
 		isSend = true
 	} else {
@@ -1979,6 +1977,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 				FileEncSHA256: uploaded.FileEncSHA256,
 				FileSHA256:    uploaded.FileSHA256,
 				FileLength:    proto.Uint64(uint64(len(data))),
+				ContextInfo:   &contextInfo,
 			}
 
 			message.AudioMessage = &audioMessage
@@ -2008,6 +2007,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 				FileEncSHA256: uploaded.FileEncSHA256,
 				FileSHA256:    uploaded.FileSHA256,
 				FileLength:    proto.Uint64(uint64(len(data))),
+				ContextInfo:   &contextInfo,
 			}
 
 			message.VideoMessage = &videoMessage
@@ -2037,6 +2037,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 				FileEncSHA256: uploaded.FileEncSHA256,
 				FileSHA256:    uploaded.FileSHA256,
 				FileLength:    proto.Uint64(uint64(len(data))),
+				ContextInfo:   &contextInfo,
 			}
 
 			message.ImageMessage = &imageMessage
@@ -2069,6 +2070,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 				FileSHA256:    uploaded.FileSHA256,
 				FileLength:    proto.Uint64(uint64(len(data))),
 				FileName:      proto.String(fileName),
+				ContextInfo:   &contextInfo,
 			}
 
 			message.DocumentMessage = &documentMessage
