@@ -2125,6 +2125,10 @@ void TgChat::Impl::OnAuthStateUpdate()
     {
       // use saved local encryption key
       key = m_Config.Get("local_key");
+      if (key.empty())
+      {
+        LOG_WARNING("local_key is not set");
+      }
     }
 
     const std::string dbPath(m_ProfileDir + std::string("/tdlib"));
@@ -2197,17 +2201,15 @@ void TgChat::Impl::CheckAuthError(Object object)
 
       m_IsSetup = false;
       m_IsReinit = false;
-      m_Running = false;
 
       LOG_TRACE("request app exit");
       std::shared_ptr<RequestAppExitNotify> requestAppExitNotify =
         std::make_shared<RequestAppExitNotify>(m_ProfileId);
       CallMessageHandler(requestAppExitNotify);
     }
-    else
-    {
-      OnAuthStateUpdate();
-    }
+
+    m_Running = false;
+    Status::Clear(Status::FlagConnecting);
   }
 }
 
