@@ -10,16 +10,21 @@
 #include "fileutil.h"
 #include "strutil.h"
 
-UiFileListDialog::UiFileListDialog(const UiDialogParams& p_Params)
+UiFileListDialog::UiFileListDialog(const UiDialogParams& p_Params, const std::string& p_CurrentDir)
   : UiListDialog(p_Params, true /*p_ShadeHidden*/)
+  , m_CurrentDir(p_CurrentDir)
 {
-  m_CurrentDir = FileUtil::GetCurrentWorkingDir();
   m_DirEntrys = FileUtil::ListPaths(m_CurrentDir);
   UpdateList();
 }
 
 UiFileListDialog::~UiFileListDialog()
 {
+}
+
+std::string UiFileListDialog::GetCurrentDir()
+{
+  return m_CurrentDir;
 }
 
 std::string UiFileListDialog::GetSelectedPath()

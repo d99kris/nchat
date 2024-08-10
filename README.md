@@ -351,6 +351,7 @@ This configuration file holds general user interface settings. Default content:
     entry_height=4
     failed_indicator=✗
     file_picker_command=
+    file_picker_persist_dir=1
     help_enabled=1
     home_fetch_all=0
     linefeed_on_enter=1
@@ -476,6 +477,11 @@ temporary file path) which the command should write its result to. Examples:
 nnn: `nnn -p '%1'`
 
 ranger: `ranger --choosefiles='%1'`
+
+### file_picker_persist_dir
+
+Specifies whether the file selection dialog shall persist the directory of
+last selected file.
 
 ### help_enabled
 

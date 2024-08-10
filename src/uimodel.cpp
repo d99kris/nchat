@@ -1412,12 +1412,20 @@ std::vector<std::string> UiModel::SelectFile()
   }
   else
   {
+    static std::string currentDir;
+    static const bool filePickerPersistDir = UiConfig::GetBool("file_picker_persist_dir");
+    if (!filePickerPersistDir || currentDir.empty())
+    {
+      currentDir = FileUtil::GetCurrentWorkingDir();
+    }
+
     UiDialogParams params(m_View.get(), this, "Send File", 0.75, 0.65);
-    UiFileListDialog dialog(params);
+    UiFileListDialog dialog(params, currentDir);
     if (dialog.Run())
     {
       std::string filePath = dialog.GetSelectedPath();
       filePaths = std::vector<std::string>({ filePath });
+      currentDir = dialog.GetCurrentDir();
     }
   }
 
