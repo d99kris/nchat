@@ -81,6 +81,7 @@ void UiHelpView::Draw()
     AppendHelpItem("ext_call", "ExtCall", helpItems);
     AppendHelpItem("find", "Find", helpItems);
     AppendHelpItem("find_next", "FindNext", helpItems);
+    AppendHelpItem("goto_chat", "GotoChat", helpItems);
     AppendHelpItem("spell", "ExtSpell", helpItems);
     AppendHelpItem("decrease_list_width", "DecListW", helpItems);
     AppendHelpItem("increase_list_width", "IncListW", helpItems);

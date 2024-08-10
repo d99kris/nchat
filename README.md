@@ -63,6 +63,7 @@ Interactive Commands:
     KeyUp       select message
     Alt-d       delete/leave current chat
     Alt-e       external editor compose
+    Alt-n       goto chat
     Alt-t       external telephone call
     Alt-/       find in chat
     Alt-?       find next in chat
@@ -669,6 +670,7 @@ This configuration file holds user interface key bindings. Default content:
     find_next=\33\77
     forward_msg=\33\162
     forward_word=
+    goto_chat=\33\156
     home=KEY_HOME
     increase_list_width=\33\56
     jump_quoted=\33\161

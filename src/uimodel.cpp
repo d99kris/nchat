@@ -98,6 +98,7 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keyFindNext = UiKeyConfig::GetKey("find_next");
 
   static wint_t keyForwardMsg = UiKeyConfig::GetKey("forward_msg");
+  static wint_t keyGotoChat = UiKeyConfig::GetKey("goto_chat");
 
   static wint_t keyToggleList = UiKeyConfig::GetKey("toggle_list");
   static wint_t keyToggleTop = UiKeyConfig::GetKey("toggle_top");
@@ -303,6 +304,10 @@ void UiModel::KeyHandler(wint_t p_Key)
   else if (p_Key == keyForwardMsg)
   {
     ForwardMessage();
+  }
+  else if (p_Key == keyGotoChat)
+  {
+    GotoChat();
   }
   else
   {
@@ -3808,4 +3813,49 @@ bool UiModel::IsChatForceMuted(const std::string& p_ChatId)
 {
   static const bool statusBroadcastMuted = (UiConfig::GetNum("status_broadcast") == 1);
   return statusBroadcastMuted && (p_ChatId == "status@broadcast");
+}
+
+void UiModel::GotoChat()
+{
+  {
+    std::unique_lock<std::mutex> lock(m_ModelMutex);
+    if (GetEditMessageActive()) return;
+  }
+
+  UiDialogParams params(m_View.get(), this, "Go to Chat", 0.75, 0.65);
+  UiChatListDialog dialog(params);
+  if (dialog.Run())
+  {
+    UiChatListItem selectedChatListItem = dialog.GetSelectedChatItem();
+
+    std::unique_lock<std::mutex> lock(m_ModelMutex);
+
+    // switch current chat
+    bool found = false;
+    std::pair<std::string, std::string> newCurrentChat =
+      std::make_pair(selectedChatListItem.profileId, selectedChatListItem.chatId);
+    for (size_t i = 0; i < m_ChatVec.size(); ++i)
+    {
+      if (m_ChatVec.at(i) == newCurrentChat)
+      {
+        m_CurrentChatIndex = i;
+        m_CurrentChat = m_ChatVec.at(m_CurrentChatIndex);
+        found = true;
+        break;
+      }
+    }
+
+    if (found)
+    {
+      OnCurrentChatChanged();
+    }
+    else
+    {
+      LOG_WARNING("chat %s %s not found",
+                  selectedChatListItem.profileId.c_str(),
+                  selectedChatListItem.chatId.c_str());
+    }
+  }
+
+  ReinitView();
 }

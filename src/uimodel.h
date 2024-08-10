@@ -171,6 +171,7 @@ private:
   void ForwardMessage();
   bool IsChatForceHidden(const std::string& p_ChatId);
   bool IsChatForceMuted(const std::string& p_ChatId);
+  void GotoChat();
 
 private:
   bool m_Running = true;

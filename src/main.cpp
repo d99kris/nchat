@@ -616,6 +616,7 @@ void ShowHelp()
     "    KeyUp       select message\n"
     "    Alt-d       delete/leave current chat\n"
     "    Alt-e       external editor compose\n"
+    "    Alt-n       goto chat\n"
     "    Alt-t       external telephone call\n"
     "    Alt-/       find in chat\n"
     "    Alt-?       find next in chat\n"
