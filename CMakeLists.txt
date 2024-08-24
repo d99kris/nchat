@@ -35,6 +35,8 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     set(CMAKE_PREFIX_PATH /opt/local)
     message(STATUS "Ncurses cmake prefix '${CMAKE_PREFIX_PATH}' (default).")
   endif()
+elseif (${CMAKE_SYSTEM_NAME} MATCHES "Android")
+  add_compile_definitions(_XOPEN_SOURCE_EXTENDED)
 endif()
 
 # Optional component - Dummy Protocol

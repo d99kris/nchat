@@ -18,8 +18,13 @@ find_path(MAGIC_INCLUDE_DIR magic.h
 )
 find_package(SQLite3 REQUIRED)
 
+# Platform specifics
+if (${CMAKE_SYSTEM_NAME} MATCHES "Android")
+  find_library(WORDEXP_LIBRARY android-wordexp)
+endif()
+
 # Library
-add_library(ncutil SHARED 
+add_library(ncutil SHARED
   src/appconfig.cpp
   src/appconfig.h
   src/apputil.cpp
@@ -85,4 +90,4 @@ set_target_properties(ncutil PROPERTIES COMPILE_FLAGS
                        -Wcast-align")
 
 # Linking
-target_link_libraries(ncutil PUBLIC ${MAGIC_LIBRARY} SQLite::SQLite3 clip)
+target_link_libraries(ncutil PUBLIC ${MAGIC_LIBRARY} SQLite::SQLite3 clip ${WORDEXP_LIBRARY})
