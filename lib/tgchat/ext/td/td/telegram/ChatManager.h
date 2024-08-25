@@ -243,7 +243,8 @@ class ChatManager final : public Actor {
 
   void set_channel_unrestrict_boost_count(ChannelId channel_id, int32 unrestrict_boost_count, Promise<Unit> &&promise);
 
-  void toggle_channel_sign_messages(ChannelId channel_id, bool sign_messages, Promise<Unit> &&promise);
+  void toggle_channel_sign_messages(ChannelId channel_id, bool sign_messages, bool show_message_sender,
+                                    Promise<Unit> &&promise);
 
   void toggle_channel_join_to_send(ChannelId channel_id, bool joint_to_send, Promise<Unit> &&promise);
 
@@ -351,6 +352,7 @@ class ChatManager final : public Actor {
   bool get_channel_is_fake(ChannelId channel_id) const;
   int32 get_channel_participant_count(ChannelId channel_id) const;
   bool get_channel_sign_messages(ChannelId channel_id) const;
+  bool get_channel_show_message_sender(ChannelId channel_id) const;
   bool get_channel_has_linked_channel(ChannelId channel_id) const;
   bool get_channel_join_request(ChannelId channel_id) const;
   bool get_channel_can_be_deleted(ChannelId channel_id) const;
@@ -491,6 +493,7 @@ class ChatManager final : public Actor {
     bool has_linked_channel = false;
     bool has_location = false;
     bool sign_messages = false;
+    bool show_message_sender = false;
     bool is_slow_mode_enabled = false;
     bool noforwards = false;
     bool can_be_deleted = false;
@@ -702,6 +705,7 @@ class ChatManager final : public Actor {
   static DialogParticipantStatus get_channel_status(const Channel *c);
   DialogParticipantStatus get_channel_permissions(ChannelId channel_id, const Channel *c) const;
   static bool get_channel_sign_messages(const Channel *c);
+  static bool get_channel_show_message_sender(const Channel *c);
   static bool get_channel_has_linked_channel(const Channel *c);
   static bool get_channel_can_be_deleted(const Channel *c);
   static bool get_channel_join_to_send(const Channel *c);

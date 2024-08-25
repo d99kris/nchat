@@ -19,7 +19,7 @@
 #include "td/telegram/logevent/LogEvent.h"
 #include "td/telegram/logevent/LogEventHelper.h"
 #include "td/telegram/MediaArea.hpp"
-#include "td/telegram/MessageEntity.h"
+#include "td/telegram/MessageEntity.hpp"
 #include "td/telegram/MessageSender.h"
 #include "td/telegram/MessagesManager.h"
 #include "td/telegram/NotificationId.h"
@@ -310,6 +310,7 @@ class SendStoryReactionQuery final : public Td::ResultHandler {
     if (input_peer == nullptr) {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
+    CHECK(!reaction_type.is_paid_reaction());
 
     int32 flags = 0;
     if (!reaction_type.is_empty() && add_to_recent) {
@@ -411,6 +412,7 @@ class GetStoryReactionsListQuery final : public Td::ResultHandler {
     if (input_peer == nullptr) {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
+    CHECK(!reaction_type.is_paid_reaction());
 
     int32 flags = 0;
     if (!reaction_type.is_empty()) {
@@ -1238,10 +1240,6 @@ class StoryManager::EditStoryQuery final : public Td::ResultHandler {
     vector<telegram_api::object_ptr<telegram_api::MediaArea>> input_media_areas;
     if (edited_story->edit_media_areas_) {
       input_media_areas = MediaArea::get_input_media_areas(td_, edited_story->areas_);
-    } else if (content != nullptr) {
-      input_media_areas = MediaArea::get_input_media_areas(td_, story->areas_);
-    }
-    if (!input_media_areas.empty()) {
       flags |= telegram_api::stories_editStory::MEDIA_AREAS_MASK;
     }
     vector<telegram_api::object_ptr<telegram_api::MessageEntity>> entities;
@@ -2894,7 +2892,7 @@ void StoryManager::on_story_replied(StoryFullId story_full_id, UserId replier_us
 }
 
 bool StoryManager::has_suggested_reaction(const Story *story, const ReactionType &reaction_type) {
-  if (reaction_type.is_empty()) {
+  if (reaction_type.is_empty() || reaction_type.is_paid_reaction()) {
     return false;
   }
   CHECK(story != nullptr);
@@ -2912,6 +2910,9 @@ bool StoryManager::can_use_story_reaction(const Story *story, const ReactionType
     if (has_suggested_reaction(story, reaction_type)) {
       return true;
     }
+    return false;
+  }
+  if (reaction_type.is_paid_reaction()) {
     return false;
   }
   return td_->reaction_manager_->is_active_reaction(reaction_type);
@@ -3278,6 +3279,9 @@ void StoryManager::get_dialog_story_interactions(StoryFullId story_full_id, Reac
   }
   if (!story_full_id.get_story_id().is_server()) {
     return promise.set_value(td_api::make_object<td_api::storyInteractions>());
+  }
+  if (reaction_type.is_paid_reaction()) {
+    return promise.set_error(Status::Error(400, "Stories can't have paid reactions"));
   }
 
   auto query_promise = PromiseCreator::lambda(
@@ -4579,6 +4583,10 @@ void StoryManager::on_update_story_chosen_reaction_type(DialogId owner_dialog_id
   if (!td_->dialog_manager_->have_dialog_info_force(owner_dialog_id, "on_update_story_chosen_reaction_type")) {
     return;
   }
+  if (chosen_reaction_type.is_paid_reaction()) {
+    LOG(ERROR) << "Receive paid reaction for " << story_id << " in " << owner_dialog_id;
+    return;
+  }
   StoryFullId story_full_id{owner_dialog_id, story_id};
   auto pending_reaction_it = being_set_story_reactions_.find(story_full_id);
   if (pending_reaction_it != being_set_story_reactions_.end()) {
@@ -5249,7 +5257,7 @@ void StoryManager::do_send_story(unique_ptr<PendingStory> &&pending_story, vecto
   auto content = pending_story->story_->content_.get();
   auto upload_order = pending_story->send_story_num_;
 
-  FileId file_id = get_story_content_any_file_id(td_, content);
+  FileId file_id = get_story_content_any_file_id(content);
   CHECK(file_id.is_valid());
 
   LOG(INFO) << "Ask to upload file " << file_id << " with bad parts " << bad_parts;
@@ -5598,7 +5606,7 @@ void StoryManager::edit_story_cover(DialogId owner_dialog_id, StoryId story_id, 
   }
 
   td_->create_handler<EditStoryCoverQuery>(std::move(promise))
-      ->send(owner_dialog_id, story_id, main_frame_timestamp, get_story_content_any_file_id(td_, story->content_.get()),
+      ->send(owner_dialog_id, story_id, main_frame_timestamp, get_story_content_any_file_id(story->content_.get()),
              std::move(input_media));
 }
 

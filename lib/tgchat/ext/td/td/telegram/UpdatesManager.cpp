@@ -48,6 +48,7 @@
 #include "td/telegram/NotificationManager.h"
 #include "td/telegram/NotificationSettingsManager.h"
 #include "td/telegram/NotificationSettingsScope.h"
+#include "td/telegram/OnlineManager.h"
 #include "td/telegram/OptionManager.h"
 #include "td/telegram/OrderInfo.h"
 #include "td/telegram/PeopleNearbyManager.h"
@@ -2240,7 +2241,7 @@ void UpdatesManager::try_reload_data_static(void *td) {
 
 void UpdatesManager::try_reload_data() {
   if (!td_->auth_manager_->is_authorized() || td_->auth_manager_->is_bot() || running_get_difference_ ||
-      !td_->is_online()) {
+      !td_->online_manager_->is_online()) {
     return;
   }
 
@@ -3011,7 +3012,7 @@ void UpdatesManager::process_qts_update(tl_object_ptr<telegram_api::Update> &&up
             update->invite_ != nullptr && update->invite_->get_id() == telegram_api::chatInvitePublicJoinRequests::ID;
         td_->dialog_participant_manager_->on_update_chat_participant(
             ChatId(update->chat_id_), UserId(update->actor_id_), update->date_,
-            DialogInviteLink(std::move(update->invite_), true, "updateChatParticipant"), via_join_request,
+            DialogInviteLink(std::move(update->invite_), true, true, "updateChatParticipant"), via_join_request,
             std::move(update->prev_participant_), std::move(update->new_participant_));
         break;
       }
@@ -3021,7 +3022,7 @@ void UpdatesManager::process_qts_update(tl_object_ptr<telegram_api::Update> &&up
             update->invite_ != nullptr && update->invite_->get_id() == telegram_api::chatInvitePublicJoinRequests::ID;
         td_->dialog_participant_manager_->on_update_channel_participant(
             ChannelId(update->channel_id_), UserId(update->actor_id_), update->date_,
-            DialogInviteLink(std::move(update->invite_), true, "updateChannelParticipant"), via_join_request,
+            DialogInviteLink(std::move(update->invite_), true, true, "updateChannelParticipant"), via_join_request,
             update->via_chatlist_, std::move(update->prev_participant_), std::move(update->new_participant_));
         break;
       }
@@ -3029,7 +3030,7 @@ void UpdatesManager::process_qts_update(tl_object_ptr<telegram_api::Update> &&up
         auto update = move_tl_object_as<telegram_api::updateBotChatInviteRequester>(update_ptr);
         td_->dialog_participant_manager_->on_update_chat_invite_requester(
             DialogId(update->peer_), UserId(update->user_id_), std::move(update->about_), update->date_,
-            DialogInviteLink(std::move(update->invite_), true, "updateBotChatInviteRequester"));
+            DialogInviteLink(std::move(update->invite_), true, true, "updateBotChatInviteRequester"));
         break;
       }
       case telegram_api::updateBotChatBoost::ID: {
@@ -3058,8 +3059,8 @@ void UpdatesManager::process_qts_update(tl_object_ptr<telegram_api::Update> &&up
                      td_api::make_object<td_api::updateMessageReaction>(
                          td_->dialog_manager_->get_chat_id_object(dialog_id, "updateMessageReaction"), message_id.get(),
                          get_message_sender_object(td_, actor_dialog_id, "updateMessageReaction"), date,
-                         ReactionType::get_reaction_types_object(old_reaction_types),
-                         ReactionType::get_reaction_types_object(new_reaction_types)));
+                         ReactionType::get_reaction_types_object(old_reaction_types, false),
+                         ReactionType::get_reaction_types_object(new_reaction_types, false)));
         break;
       }
       case telegram_api::updateBotMessageReactions::ID: {
@@ -4582,8 +4583,7 @@ void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateBroadcastRevenu
 }
 
 void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateStarsBalance> update, Promise<Unit> &&promise) {
-  send_closure(G()->td(), &Td::send_update,
-               td_api::make_object<td_api::updateOwnedStarCount>(StarManager::get_star_count(update->balance_, true)));
+  td_->star_manager_->on_update_owned_star_count(StarManager::get_star_count(update->balance_, true));
   promise.set_value(Unit());
 }
 

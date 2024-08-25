@@ -2759,6 +2759,14 @@ unique_ptr<MessageContent> create_text_message_content(string text, vector<Messa
                                       force_small_media, force_large_media, skip_confirmation, std::move(web_page_url));
 }
 
+unique_ptr<MessageContent> create_photo_message_content(Photo photo) {
+  return make_unique<MessagePhoto>(std::move(photo), FormattedText(), false);
+}
+
+unique_ptr<MessageContent> create_video_message_content(FileId file_id) {
+  return make_unique<MessageVideo>(file_id, FormattedText(), false);
+}
+
 unique_ptr<MessageContent> create_contact_registered_message_content() {
   return make_unique<MessageContactRegistered>();
 }
@@ -4044,8 +4052,8 @@ Status can_send_message_content(DialogId dialog_id, const MessageContent *conten
           return Status::Error(400, "Paid media can't be sent to secret chats");
         }
       } else {
-        if (dialog_type != DialogType::Channel ||
-            !td->chat_manager_->is_broadcast_channel(dialog_id.get_channel_id())) {
+        if (!td->auth_manager_->is_bot() && (dialog_type != DialogType::Channel ||
+                                             !td->chat_manager_->is_broadcast_channel(dialog_id.get_channel_id()))) {
           return Status::Error(400, "Paid media can be sent only in channel chats");
         }
       }
@@ -4331,6 +4339,12 @@ static int32 get_message_content_media_index_mask(const MessageContent *content,
 
 int32 get_message_content_index_mask(const MessageContent *content, const Td *td, bool is_outgoing) {
   return get_message_content_text_index_mask(content) | get_message_content_media_index_mask(content, td, is_outgoing);
+}
+
+vector<unique_ptr<MessageContent>> get_individual_message_contents(const MessageContent *content) {
+  CHECK(content->get_type() == MessageContentType::PaidMedia);
+  const auto *m = static_cast<const MessagePaidMedia *>(content);
+  return transform(m->media, [](const MessageExtendedMedia &media) { return media.get_message_content(); });
 }
 
 StickerType get_message_content_sticker_type(const Td *td, const MessageContent *content) {
@@ -6839,7 +6853,7 @@ unique_ptr<MessageContent> dup_message_content(Td *td, DialogId dialog_id, const
       }
       if (type != MessageContentDupType::Forward) {
         for (auto &media : result->media) {
-          media = media.dup_to_send(td, result->media.size() > 1u);
+          media = media.dup_to_send(td, true);
           CHECK(!media.is_empty());
         }
       }
@@ -8058,6 +8072,11 @@ unique_ptr<MessageContent> get_uploaded_message_content(
                                      owner_dialog_id, message_date, false, UserId(), nullptr, nullptr, source);
   set_message_content_has_spoiler(content.get(), has_spoiler);
   return content;
+}
+
+int64 get_message_content_star_count(const MessageContent *content) {
+  CHECK(content->get_type() == MessageContentType::PaidMedia);
+  return static_cast<const MessagePaidMedia *>(content)->star_count;
 }
 
 int32 get_message_content_duration(const MessageContent *content, const Td *td) {

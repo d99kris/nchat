@@ -569,12 +569,20 @@ class ToggleChannelSignaturesQuery final : public Td::ResultHandler {
   explicit ToggleChannelSignaturesQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
   }
 
-  void send(ChannelId channel_id, bool sign_messages) {
+  void send(ChannelId channel_id, bool sign_messages, bool show_message_sender) {
     channel_id_ = channel_id;
     auto input_channel = td_->chat_manager_->get_input_channel(channel_id);
     CHECK(input_channel != nullptr);
+    int32 flags = 0;
+    if (sign_messages) {
+      flags |= telegram_api::channels_toggleSignatures::SIGNATURES_ENABLED_MASK;
+    }
+    if (show_message_sender) {
+      flags |= telegram_api::channels_toggleSignatures::PROFILES_ENABLED_MASK;
+    }
     send_query(G()->net_query_creator().create(
-        telegram_api::channels_toggleSignatures(std::move(input_channel), sign_messages), {{channel_id}}));
+        telegram_api::channels_toggleSignatures(flags, false /*ignored*/, false /*ignored*/, std::move(input_channel)),
+        {{channel_id}}));
   }
 
   void on_result(BufferSlice packet) final {
@@ -1806,7 +1814,7 @@ void ChatManager::Chat::parse(ParserT &parser) {
     } else if (is_administrator && !everyone_is_administrator) {
       status = DialogParticipantStatus::GroupAdministrator(false);
     } else {
-      status = DialogParticipantStatus::Member();
+      status = DialogParticipantStatus::Member(0);
     }
     default_permissions = RestrictedRights(true, true, true, true, true, true, true, true, true, true, true, true, true,
                                            everyone_is_administrator, everyone_is_administrator,
@@ -1970,6 +1978,7 @@ void ChatManager::Channel::store(StorerT &storer) const {
     STORE_FLAG(has_profile_background_custom_emoji_id);
     STORE_FLAG(has_boost_level);
     STORE_FLAG(has_emoji_status);
+    STORE_FLAG(show_message_sender);
     END_STORE_FLAGS();
   }
 
@@ -2098,6 +2107,7 @@ void ChatManager::Channel::parse(ParserT &parser) {
     PARSE_FLAG(has_profile_background_custom_emoji_id);
     PARSE_FLAG(has_boost_level);
     PARSE_FLAG(has_emoji_status);
+    PARSE_FLAG(show_message_sender);
     END_PARSE_FLAGS();
   }
 
@@ -2113,7 +2123,7 @@ void ChatManager::Channel::parse(ParserT &parser) {
     } else if (can_edit || can_moderate) {
       status = DialogParticipantStatus::ChannelAdministrator(false, is_megagroup);
     } else {
-      status = DialogParticipantStatus::Member();
+      status = DialogParticipantStatus::Member(0);
     }
   }
   parse(access_hash, parser);
@@ -2192,11 +2202,15 @@ void ChatManager::Channel::parse(ParserT &parser) {
   if (legacy_has_active_group_call) {
     cache_version = 0;
   }
-  if (!is_megagroup && status.is_restricted()) {
-    if (status.is_member()) {
-      status = DialogParticipantStatus::Member();
-    } else {
-      status = DialogParticipantStatus::Left();
+  if (is_megagroup) {
+    show_message_sender = true;
+  } else {
+    if (status.is_restricted()) {
+      if (status.is_member()) {
+        status = DialogParticipantStatus::Member(0);
+      } else {
+        status = DialogParticipantStatus::Left();
+      }
     }
   }
 }
@@ -3096,7 +3110,8 @@ void ChatManager::set_channel_unrestrict_boost_count(ChannelId channel_id, int32
       ->send(channel_id, unrestrict_boost_count);
 }
 
-void ChatManager::toggle_channel_sign_messages(ChannelId channel_id, bool sign_messages, Promise<Unit> &&promise) {
+void ChatManager::toggle_channel_sign_messages(ChannelId channel_id, bool sign_messages, bool show_message_sender,
+                                               Promise<Unit> &&promise) {
   auto c = get_channel(channel_id);
   if (c == nullptr) {
     return promise.set_error(Status::Error(400, "Supergroup not found"));
@@ -3108,7 +3123,8 @@ void ChatManager::toggle_channel_sign_messages(ChannelId channel_id, bool sign_m
     return promise.set_error(Status::Error(400, "Not enough rights to toggle channel sign messages"));
   }
 
-  td_->create_handler<ToggleChannelSignaturesQuery>(std::move(promise))->send(channel_id, sign_messages);
+  td_->create_handler<ToggleChannelSignaturesQuery>(std::move(promise))
+      ->send(channel_id, sign_messages, show_message_sender);
 }
 
 void ChatManager::toggle_channel_join_to_send(ChannelId channel_id, bool join_to_send, Promise<Unit> &&promise) {
@@ -5260,7 +5276,7 @@ void ChatManager::on_get_chat_full(tl_object_ptr<telegram_api::ChatFull> &&chat_
                                                              "on_get_chat_full");
 
     td_->messages_manager_->on_update_dialog_available_reactions(
-        DialogId(chat_id), std::move(chat->available_reactions_), chat->reactions_limit_);
+        DialogId(chat_id), std::move(chat->available_reactions_), chat->reactions_limit_, false);
 
     td_->messages_manager_->on_update_dialog_theme_name(DialogId(chat_id), std::move(chat->theme_emoticon_));
 
@@ -5317,7 +5333,8 @@ void ChatManager::on_get_chat_full(tl_object_ptr<telegram_api::ChatFull> &&chat_
     td_->messages_manager_->on_update_dialog_background(DialogId(channel_id), std::move(channel->wallpaper_));
 
     td_->messages_manager_->on_update_dialog_available_reactions(
-        DialogId(channel_id), std::move(channel->available_reactions_), channel->reactions_limit_);
+        DialogId(channel_id), std::move(channel->available_reactions_), channel->reactions_limit_,
+        channel->paid_reactions_available_);
 
     td_->messages_manager_->on_update_dialog_theme_name(DialogId(channel_id), std::move(channel->theme_emoticon_));
 
@@ -6054,7 +6071,7 @@ void ChatManager::on_update_chat_full_invite_link(ChatFull *chat_full,
                                                   tl_object_ptr<telegram_api::ExportedChatInvite> &&invite_link) {
   CHECK(chat_full != nullptr);
   if (update_permanent_invite_link(chat_full->invite_link,
-                                   DialogInviteLink(std::move(invite_link), false, "ChatFull"))) {
+                                   DialogInviteLink(std::move(invite_link), false, false, "ChatFull"))) {
     chat_full->is_changed = true;
   }
 }
@@ -6063,7 +6080,7 @@ void ChatManager::on_update_channel_full_invite_link(ChannelFull *channel_full,
                                                      tl_object_ptr<telegram_api::ExportedChatInvite> &&invite_link) {
   CHECK(channel_full != nullptr);
   if (update_permanent_invite_link(channel_full->invite_link,
-                                   DialogInviteLink(std::move(invite_link), false, "ChannelFull"))) {
+                                   DialogInviteLink(std::move(invite_link), false, false, "ChannelFull"))) {
     channel_full->is_changed = true;
   }
 }
@@ -6318,7 +6335,7 @@ void ChatManager::on_update_chat_add_user(ChatId chat_id, UserId inviter_user_id
     chat_full->participants.push_back(DialogParticipant{DialogId(user_id), inviter_user_id, date,
                                                         user_id == chat_full->creator_user_id
                                                             ? DialogParticipantStatus::Creator(true, false, string())
-                                                            : DialogParticipantStatus::Member()});
+                                                            : DialogParticipantStatus::Member(0)});
     update_chat_online_member_count(chat_full, chat_id, false);
     chat_full->is_changed = true;
     update_chat_full(chat_full, chat_id, "on_update_chat_add_user");
@@ -6367,7 +6384,7 @@ void ChatManager::on_update_chat_edit_administrator(ChatId chat_id, UserId user_
   CHECK(c->version >= 0);
 
   auto status = is_administrator ? DialogParticipantStatus::GroupAdministrator(c->status.is_creator())
-                                 : DialogParticipantStatus::Member();
+                                 : DialogParticipantStatus::Member(0);
   if (version > c->version) {
     if (version != c->version + 1) {
       LOG(INFO) << "Administrators of " << chat_id << " with version " << c->version
@@ -7838,6 +7855,18 @@ bool ChatManager::get_channel_sign_messages(const Channel *c) {
   return c->sign_messages;
 }
 
+bool ChatManager::get_channel_show_message_sender(ChannelId channel_id) const {
+  auto c = get_channel(channel_id);
+  if (c == nullptr) {
+    return false;
+  }
+  return get_channel_show_message_sender(c);
+}
+
+bool ChatManager::get_channel_show_message_sender(const Channel *c) {
+  return c->show_message_sender;
+}
+
 bool ChatManager::get_channel_has_linked_channel(ChannelId channel_id) const {
   auto c = get_channel(channel_id);
   if (c == nullptr) {
@@ -8217,7 +8246,7 @@ void ChatManager::on_get_chat(telegram_api::chat &chat, const char *source) {
     } else if (has_left) {
       return DialogParticipantStatus::Left();
     } else {
-      return DialogParticipantStatus::Member();
+      return DialogParticipantStatus::Member(0);
     }
   }();
 
@@ -8362,6 +8391,7 @@ void ChatManager::on_get_channel(telegram_api::channel &channel, const char *sou
   int32 participant_count = have_participant_count ? channel.participants_count_ : 0;
   bool stories_available = channel.stories_max_id_ > 0;
   bool stories_unavailable = channel.stories_unavailable_;
+  bool show_message_sender = channel.signature_profiles_;
   auto boost_level = channel.level_;
 
   if (have_participant_count) {
@@ -8381,8 +8411,10 @@ void ChatManager::on_get_channel(telegram_api::channel &channel, const char *sou
   if (is_megagroup) {
     LOG_IF(ERROR, sign_messages) << "Need to sign messages in the supergroup " << channel_id << " from " << source;
     sign_messages = true;
+    show_message_sender = true;
   } else {
-    LOG_IF(ERROR, is_slow_mode_enabled) << "Slow mode enabled in the " << channel_id << " from " << source;
+    LOG_IF(ERROR, is_slow_mode_enabled && channel_id.get() >= 8000000000)
+        << "Slow mode enabled in the " << channel_id << " from " << source;
     LOG_IF(ERROR, is_gigagroup) << "Receive broadcast group as " << channel_id << " from " << source;
     LOG_IF(ERROR, is_forum) << "Receive broadcast forum as " << channel_id << " from " << source;
     is_slow_mode_enabled = false;
@@ -8393,27 +8425,6 @@ void ChatManager::on_get_channel(telegram_api::channel &channel, const char *sou
     td_->dialog_manager_->remove_dialog_suggested_action(
         SuggestedAction{SuggestedAction::Type::ConvertToGigagroup, DialogId(channel_id)});
   }
-
-  DialogParticipantStatus status = [&] {
-    bool has_left = (channel.flags_ & CHANNEL_FLAG_USER_HAS_LEFT) != 0;
-    bool is_creator = (channel.flags_ & CHANNEL_FLAG_USER_IS_CREATOR) != 0;
-
-    if (is_creator) {
-      bool is_anonymous = channel.admin_rights_ != nullptr &&
-                          (channel.admin_rights_->flags_ & telegram_api::chatAdminRights::ANONYMOUS_MASK) != 0;
-      return DialogParticipantStatus::Creator(!has_left, is_anonymous, string());
-    } else if (channel.admin_rights_ != nullptr) {
-      return DialogParticipantStatus(false, std::move(channel.admin_rights_), string(),
-                                     is_megagroup ? ChannelType::Megagroup : ChannelType::Broadcast);
-    } else if (channel.banned_rights_ != nullptr) {
-      return DialogParticipantStatus(!has_left, std::move(channel.banned_rights_),
-                                     is_megagroup ? ChannelType::Megagroup : ChannelType::Broadcast);
-    } else if (has_left) {
-      return DialogParticipantStatus::Left();
-    } else {
-      return DialogParticipantStatus::Member();
-    }
-  }();
 
   if (is_min) {
     Channel *c = get_channel_force(channel_id, source);
@@ -8500,6 +8511,26 @@ void ChatManager::on_get_channel(telegram_api::channel &channel, const char *sou
     return;
   }
 
+  DialogParticipantStatus status = [&] {
+    bool has_left = (channel.flags_ & CHANNEL_FLAG_USER_HAS_LEFT) != 0;
+    bool is_creator = (channel.flags_ & CHANNEL_FLAG_USER_IS_CREATOR) != 0;
+
+    if (is_creator) {
+      bool is_anonymous = channel.admin_rights_ != nullptr &&
+                          (channel.admin_rights_->flags_ & telegram_api::chatAdminRights::ANONYMOUS_MASK) != 0;
+      return DialogParticipantStatus::Creator(!has_left, is_anonymous, string());
+    } else if (channel.admin_rights_ != nullptr) {
+      return DialogParticipantStatus(false, std::move(channel.admin_rights_), string(),
+                                     is_megagroup ? ChannelType::Megagroup : ChannelType::Broadcast);
+    } else if (channel.banned_rights_ != nullptr) {
+      return DialogParticipantStatus(!has_left, std::move(channel.banned_rights_),
+                                     is_megagroup ? ChannelType::Megagroup : ChannelType::Broadcast);
+    } else if (has_left) {
+      return DialogParticipantStatus::Left();
+    } else {
+      return DialogParticipantStatus::Member(channel.subscription_until_date_);
+    }
+  }();
   if (status.is_creator()) {
     // to correctly calculate is_ownership_transferred in on_update_channel_status
     get_channel_force(channel_id, source);
@@ -8556,9 +8587,11 @@ void ChatManager::on_get_channel(telegram_api::channel &channel, const char *sou
 
     c->need_save_to_database = true;
   }
-  if (c->is_verified != is_verified || c->sign_messages != sign_messages) {
+  if (c->is_verified != is_verified || c->sign_messages != sign_messages ||
+      c->show_message_sender != show_message_sender) {
     c->is_verified = is_verified;
     c->sign_messages = sign_messages;
+    c->show_message_sender = show_message_sender;
 
     c->is_changed = true;
   }
@@ -8649,6 +8682,7 @@ void ChatManager::on_get_channel_forbidden(telegram_api::channelForbidden &chann
   }
 
   bool sign_messages = false;
+  bool show_message_sender = false;
   bool join_to_send = false;
   bool join_request = false;
   bool is_slow_mode_enabled = false;
@@ -8666,6 +8700,7 @@ void ChatManager::on_get_channel_forbidden(telegram_api::channelForbidden &chann
 
   if (is_megagroup) {
     sign_messages = true;
+    show_message_sender = true;
   }
 
   bool need_invalidate_channel_full = false;
@@ -8690,9 +8725,11 @@ void ChatManager::on_get_channel_forbidden(telegram_api::channelForbidden &chann
 
     c->need_save_to_database = true;
   }
-  if (c->sign_messages != sign_messages || c->is_verified != is_verified) {
-    c->sign_messages = sign_messages;
+  if (c->is_verified != is_verified || c->sign_messages != sign_messages ||
+      c->show_message_sender != show_message_sender) {
     c->is_verified = is_verified;
+    c->sign_messages = sign_messages;
+    c->show_message_sender = show_message_sender;
 
     c->is_changed = true;
   }
@@ -8814,8 +8851,8 @@ td_api::object_ptr<td_api::updateSupergroup> ChatManager::get_update_unknown_sup
   bool is_megagroup = min_channel == nullptr ? false : min_channel->is_megagroup_;
   return td_api::make_object<td_api::updateSupergroup>(td_api::make_object<td_api::supergroup>(
       channel_id.get(), nullptr, 0, DialogParticipantStatus::Banned(0).get_chat_member_status_object(), 0, 0, false,
-      false, false, !is_megagroup, false, false, !is_megagroup, false, false, false, string(), false, false, false,
-      false));
+      false, false, false, !is_megagroup, false, false, !is_megagroup, false, false, false, false, string(), false,
+      false, false, false));
 }
 
 int64 ChatManager::get_supergroup_id_object(ChannelId channel_id, const char *source) const {
@@ -8852,9 +8889,10 @@ tl_object_ptr<td_api::supergroup> ChatManager::get_supergroup_object(ChannelId c
   return td_api::make_object<td_api::supergroup>(
       channel_id.get(), c->usernames.get_usernames_object(), c->date,
       get_channel_status(c).get_chat_member_status_object(), c->participant_count, c->boost_level,
-      c->has_linked_channel, c->has_location, c->sign_messages, get_channel_join_to_send(c),
+      c->has_linked_channel, c->has_location, c->sign_messages, c->show_message_sender, get_channel_join_to_send(c),
       get_channel_join_request(c), c->is_slow_mode_enabled, !c->is_megagroup, c->is_gigagroup, c->is_forum,
-      c->is_verified, get_restriction_reason_description(c->restriction_reasons), c->is_scam, c->is_fake,
+      c->is_verified, get_restriction_reason_has_sensitive_content(c->restriction_reasons),
+      get_restriction_reason_description(c->restriction_reasons), c->is_scam, c->is_fake,
       c->max_active_story_id.is_valid(), get_channel_has_unread_stories(c));
 }
 
@@ -8878,15 +8916,15 @@ tl_object_ptr<td_api::supergroupFullInfo> ChatManager::get_supergroup_full_info_
       get_chat_photo_object(td_->file_manager_.get(), channel_full->photo), channel_full->description,
       channel_full->participant_count, channel_full->administrator_count, channel_full->restricted_count,
       channel_full->banned_count, DialogId(channel_full->linked_channel_id).get(), channel_full->slow_mode_delay,
-      slow_mode_delay_expires_in, channel_full->can_get_participants, has_hidden_participants,
-      can_hide_channel_participants(channel_id, channel_full).is_ok(), channel_full->can_set_sticker_set,
-      channel_full->can_set_location, channel_full->can_view_statistics, channel_full->can_view_revenue,
-      channel_full->can_view_star_revenue, can_toggle_channel_aggressive_anti_spam(channel_id, channel_full).is_ok(),
-      channel_full->is_all_history_available, channel_full->can_have_sponsored_messages,
-      channel_full->has_aggressive_anti_spam_enabled, channel_full->has_paid_media_allowed,
-      channel_full->has_pinned_stories, channel_full->boost_count, channel_full->unrestrict_boost_count,
-      channel_full->sticker_set_id.get(), channel_full->emoji_sticker_set_id.get(),
-      channel_full->location.get_chat_location_object(),
+      slow_mode_delay_expires_in, channel_full->has_paid_media_allowed, channel_full->can_get_participants,
+      has_hidden_participants, can_hide_channel_participants(channel_id, channel_full).is_ok(),
+      channel_full->can_set_sticker_set, channel_full->can_set_location, channel_full->can_view_statistics,
+      channel_full->can_view_revenue, channel_full->can_view_star_revenue,
+      can_toggle_channel_aggressive_anti_spam(channel_id, channel_full).is_ok(), channel_full->is_all_history_available,
+      channel_full->can_have_sponsored_messages, channel_full->has_aggressive_anti_spam_enabled,
+      channel_full->has_paid_media_allowed, channel_full->has_pinned_stories, channel_full->boost_count,
+      channel_full->unrestrict_boost_count, channel_full->sticker_set_id.get(),
+      channel_full->emoji_sticker_set_id.get(), channel_full->location.get_chat_location_object(),
       channel_full->invite_link.get_chat_invite_link_object(td_->user_manager_.get()), std::move(bot_commands),
       get_basic_group_id_object(channel_full->migrated_from_chat_id, "get_supergroup_full_info_object"),
       channel_full->migrated_from_max_message_id.get());

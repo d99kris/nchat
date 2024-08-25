@@ -27,13 +27,25 @@ class StarManager final : public Actor {
  public:
   StarManager(Td *td, ActorShared<> parent);
 
+  void on_update_owned_star_count(int64 star_count);
+
+  void add_owned_star_count(int64 star_count);
+
   void get_star_payment_options(Promise<td_api::object_ptr<td_api::starPaymentOptions>> &&promise);
 
   void get_star_gift_payment_options(UserId user_id, Promise<td_api::object_ptr<td_api::starPaymentOptions>> &&promise);
 
-  void get_star_transactions(td_api::object_ptr<td_api::MessageSender> owner_id, const string &offset, int32 limit,
+  void get_star_transactions(td_api::object_ptr<td_api::MessageSender> owner_id, const string &subscription_id,
+                             const string &offset, int32 limit,
                              td_api::object_ptr<td_api::StarTransactionDirection> &&direction,
                              Promise<td_api::object_ptr<td_api::starTransactions>> &&promise);
+
+  void get_star_subscriptions(bool only_expiring, const string &offset,
+                              Promise<td_api::object_ptr<td_api::starSubscriptions>> &&promise);
+
+  void edit_star_subscriptions(const string &subscription_id, bool is_canceled, Promise<Unit> &&promise);
+
+  void reuse_star_subscriptions(const string &subscription_id, Promise<Unit> &&promise);
 
   void refund_star_payment(UserId user_id, const string &telegram_payment_charge_id, Promise<Unit> &&promise);
 
@@ -56,12 +68,14 @@ class StarManager final : public Actor {
 
   static int32 get_months_by_star_count(int64 star_count);
 
+  void get_current_state(vector<td_api::object_ptr<td_api::Update>> &updates) const;
+
  private:
   void tear_down() final;
 
   Status can_manage_stars(DialogId dialog_id, bool allow_self = false) const;
 
-  void do_get_star_transactions(DialogId dialog_id, const string &offset, int32 limit,
+  void do_get_star_transactions(DialogId dialog_id, const string &subscription_id, const string &offset, int32 limit,
                                 td_api::object_ptr<td_api::StarTransactionDirection> &&direction,
                                 Promise<td_api::object_ptr<td_api::starTransactions>> &&promise);
 
@@ -69,8 +83,13 @@ class StarManager final : public Actor {
       DialogId dialog_id, int64 star_count,
       telegram_api::object_ptr<telegram_api::InputCheckPasswordSRP> input_check_password, Promise<string> &&promise);
 
+  td_api::object_ptr<td_api::updateOwnedStarCount> get_update_owned_star_count_object() const;
+
   Td *td_;
   ActorShared<> parent_;
+
+  bool is_owned_star_count_inited_ = false;
+  int64 owned_star_count_ = 0;
 
   FlatHashMap<DialogId, FlatHashMap<string, FileSourceId>, DialogIdHash> star_transaction_file_source_ids_[2];
 };

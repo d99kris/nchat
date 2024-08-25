@@ -9,6 +9,7 @@
 #include "td/telegram/AccentColorId.h"
 #include "td/telegram/DialogId.h"
 #include "td/telegram/Photo.h"
+#include "td/telegram/StarSubscriptionPricing.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/UserId.h"
@@ -55,11 +56,12 @@ class DialogInviteLinkManager final : public Actor {
   void remove_dialog_access_by_invite_link(DialogId dialog_id);
 
   void export_dialog_invite_link(DialogId dialog_id, string title, int32 expire_date, int32 usage_limit,
-                                 bool creates_join_request, bool is_permanent,
+                                 bool creates_join_request, StarSubscriptionPricing subscription_pricing,
+                                 bool is_subscription, bool is_permanent,
                                  Promise<td_api::object_ptr<td_api::chatInviteLink>> &&promise);
 
   void edit_dialog_invite_link(DialogId dialog_id, const string &link, string title, int32 expire_date,
-                               int32 usage_limit, bool creates_join_request,
+                               int32 usage_limit, bool creates_join_request, bool is_subscription,
                                Promise<td_api::object_ptr<td_api::chatInviteLink>> &&promise);
 
   void get_dialog_invite_link(DialogId dialog_id, const string &invite_link,
@@ -72,7 +74,7 @@ class DialogInviteLinkManager final : public Actor {
                                const string &offset_invite_link, int32 limit,
                                Promise<td_api::object_ptr<td_api::chatInviteLinks>> &&promise);
 
-  void get_dialog_invite_link_users(DialogId dialog_id, const string &invite_link,
+  void get_dialog_invite_link_users(DialogId dialog_id, const string &invite_link, bool subscription_expired,
                                     td_api::object_ptr<td_api::chatInviteLinkMember> offset_member, int32 limit,
                                     Promise<td_api::object_ptr<td_api::chatInviteLinkMembers>> &&promise);
 
@@ -97,8 +99,8 @@ class DialogInviteLinkManager final : public Actor {
   int32 get_dialog_accessible_by_invite_link_before_date(DialogId dialog_id) const;
 
   void export_dialog_invite_link_impl(DialogId dialog_id, string title, int32 expire_date, int32 usage_limit,
-                                      bool creates_join_request, bool is_permanent,
-                                      Promise<td_api::object_ptr<td_api::chatInviteLink>> &&promise);
+                                      bool creates_join_request, StarSubscriptionPricing subscription_pricing,
+                                      bool is_permanent, Promise<td_api::object_ptr<td_api::chatInviteLink>> &&promise);
 
   Status can_manage_dialog_invite_links(DialogId dialog_id, bool creator_only = false);
 
@@ -113,7 +115,10 @@ class DialogInviteLinkManager final : public Actor {
     int32 participant_count = 0;
     vector<UserId> participant_user_ids;
     string description;
+    StarSubscriptionPricing subscription_pricing;
+    int64 subscription_form_id;
     bool creates_join_request = false;
+    bool can_refulfill_subscription = false;
     bool is_chat = false;
     bool is_channel = false;
     bool is_public = false;

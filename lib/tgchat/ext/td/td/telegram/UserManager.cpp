@@ -43,6 +43,7 @@
 #include "td/telegram/misc.h"
 #include "td/telegram/net/NetQuery.h"
 #include "td/telegram/NotificationManager.h"
+#include "td/telegram/OnlineManager.h"
 #include "td/telegram/OptionManager.h"
 #include "td/telegram/PeerColor.h"
 #include "td/telegram/PeopleNearbyManager.h"
@@ -1077,12 +1078,14 @@ class UpdateBirthdayQuery final : public Td::ResultHandler {
 
 class UpdatePersonalChannelQuery final : public Td::ResultHandler {
   Promise<Unit> promise_;
+  ChannelId channel_id_;
 
  public:
   explicit UpdatePersonalChannelQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
   }
 
   void send(ChannelId channel_id) {
+    channel_id_ = channel_id;
     telegram_api::object_ptr<telegram_api::InputChannel> input_channel;
     if (channel_id == ChannelId()) {
       input_channel = telegram_api::make_object<telegram_api::inputChannelEmpty>();
@@ -1109,6 +1112,9 @@ class UpdatePersonalChannelQuery final : public Td::ResultHandler {
   }
 
   void on_error(Status status) final {
+    if (channel_id_.is_valid()) {
+      td_->chat_manager_->on_get_channel_error(channel_id_, status, "UpdatePersonalChannelQuery");
+    }
     promise_.set_error(std::move(status));
   }
 };
@@ -1678,6 +1684,7 @@ void UserManager::UserFull::store(StorerT &storer) const {
   bool has_birthdate = !birthdate.is_empty();
   bool has_personal_channel_id = personal_channel_id.is_valid();
   bool has_flags2 = true;
+  bool has_privacy_policy_url = !privacy_policy_url.empty();
   BEGIN_STORE_FLAGS();
   STORE_FLAG(has_about);
   STORE_FLAG(is_blocked);
@@ -1713,6 +1720,7 @@ void UserManager::UserFull::store(StorerT &storer) const {
   if (has_flags2) {
     BEGIN_STORE_FLAGS();
     STORE_FLAG(has_preview_medias);
+    STORE_FLAG(has_privacy_policy_url);
     END_STORE_FLAGS();
   }
   if (has_about) {
@@ -1766,6 +1774,9 @@ void UserManager::UserFull::store(StorerT &storer) const {
   if (has_personal_channel_id) {
     store(personal_channel_id, storer);
   }
+  if (has_privacy_policy_url) {
+    store(privacy_policy_url, storer);
+  }
 }
 
 template <class ParserT>
@@ -1788,6 +1799,7 @@ void UserManager::UserFull::parse(ParserT &parser) {
   bool has_birthdate;
   bool has_personal_channel_id;
   bool has_flags2;
+  bool has_privacy_policy_url = false;
   BEGIN_PARSE_FLAGS();
   PARSE_FLAG(has_about);
   PARSE_FLAG(is_blocked);
@@ -1823,6 +1835,7 @@ void UserManager::UserFull::parse(ParserT &parser) {
   if (has_flags2) {
     BEGIN_PARSE_FLAGS();
     PARSE_FLAG(has_preview_medias);
+    PARSE_FLAG(has_privacy_policy_url);
     END_PARSE_FLAGS();
   }
   if (has_about) {
@@ -1875,6 +1888,9 @@ void UserManager::UserFull::parse(ParserT &parser) {
   }
   if (has_personal_channel_id) {
     parse(personal_channel_id, parser);
+  }
+  if (has_privacy_policy_url) {
+    parse(privacy_policy_url, parser);
   }
 }
 
@@ -2026,7 +2042,7 @@ UserManager::UserManager(Td *td, ActorShared<> parent) : td_(td), parent_(std::m
     was_online_local_ = to_integer<int32>(G()->td_db()->get_binlog_pmc()->get("my_was_online_local"));
     was_online_remote_ = to_integer<int32>(G()->td_db()->get_binlog_pmc()->get("my_was_online_remote"));
     auto unix_time = G()->unix_time();
-    if (was_online_local_ >= unix_time && !td_->is_online()) {
+    if (was_online_local_ >= unix_time && !td_->online_manager_->is_online()) {
       was_online_local_ = unix_time - 1;
     }
   }
@@ -2220,7 +2236,7 @@ UserId UserManager::add_channel_bot_user() {
 
 UserManager::MyOnlineStatusInfo UserManager::get_my_online_status() const {
   MyOnlineStatusInfo status_info;
-  status_info.is_online_local = td_->is_online();
+  status_info.is_online_local = td_->online_manager_->is_online();
   status_info.is_online_remote = was_online_remote_ > G()->unix_time();
   status_info.was_online_local = was_online_local_;
   status_info.was_online_remote = was_online_remote_;
@@ -3147,7 +3163,7 @@ void UserManager::on_update_user_online(User *u, UserId user_id,
         u->is_online_status_changed = true;
       }
       if (is_offline) {
-        td_->on_online_updated(false, false);
+        td_->online_manager_->on_online_updated(false, false);
       }
     } else if (old_is_online != new_is_online) {
       u->is_online_status_changed = true;
@@ -3271,13 +3287,8 @@ void UserManager::on_update_user_full_common_chat_count(UserFull *user_full, Use
   }
 }
 
-void UserManager::on_update_user_location(UserId user_id, DialogLocation &&location) {
-  LOG(INFO) << "Receive " << location << " for " << user_id;
-  if (!user_id.is_valid()) {
-    LOG(ERROR) << "Receive invalid " << user_id;
-    return;
-  }
-
+void UserManager::on_update_my_user_location(DialogLocation &&location) {
+  auto user_id = get_my_id();
   UserFull *user_full = get_user_full_force(user_id, "on_update_user_location");
   if (user_full == nullptr) {
     return;
@@ -3293,13 +3304,8 @@ void UserManager::on_update_user_full_location(UserFull *user_full, UserId user_
   }
 }
 
-void UserManager::on_update_user_work_hours(UserId user_id, BusinessWorkHours &&work_hours) {
-  LOG(INFO) << "Receive " << work_hours << " for " << user_id;
-  if (!user_id.is_valid()) {
-    LOG(ERROR) << "Receive invalid " << user_id;
-    return;
-  }
-
+void UserManager::on_update_my_user_work_hours(BusinessWorkHours &&work_hours) {
+  auto user_id = get_my_id();
   UserFull *user_full = get_user_full_force(user_id, "on_update_user_work_hours");
   if (user_full == nullptr) {
     return;
@@ -3315,13 +3321,8 @@ void UserManager::on_update_user_full_work_hours(UserFull *user_full, UserId use
   }
 }
 
-void UserManager::on_update_user_away_message(UserId user_id, BusinessAwayMessage &&away_message) {
-  LOG(INFO) << "Receive " << away_message << " for " << user_id;
-  if (!user_id.is_valid()) {
-    LOG(ERROR) << "Receive invalid " << user_id;
-    return;
-  }
-
+void UserManager::on_update_my_user_away_message(BusinessAwayMessage &&away_message) {
+  auto user_id = get_my_id();
   UserFull *user_full = get_user_full_force(user_id, "on_update_user_away_message");
   if (user_full == nullptr) {
     return;
@@ -3342,13 +3343,8 @@ void UserManager::on_update_user_full_away_message(UserFull *user_full, UserId u
   }
 }
 
-void UserManager::on_update_user_greeting_message(UserId user_id, BusinessGreetingMessage &&greeting_message) {
-  LOG(INFO) << "Receive " << greeting_message << " for " << user_id;
-  if (!user_id.is_valid()) {
-    LOG(ERROR) << "Receive invalid " << user_id;
-    return;
-  }
-
+void UserManager::on_update_my_user_greeting_message(BusinessGreetingMessage &&greeting_message) {
+  auto user_id = get_my_id();
   UserFull *user_full = get_user_full_force(user_id, "on_update_user_greeting_message");
   if (user_full == nullptr) {
     return;
@@ -3369,13 +3365,8 @@ void UserManager::on_update_user_full_greeting_message(UserFull *user_full, User
   }
 }
 
-void UserManager::on_update_user_intro(UserId user_id, BusinessIntro &&intro) {
-  LOG(INFO) << "Receive " << intro << " for " << user_id;
-  if (!user_id.is_valid()) {
-    LOG(ERROR) << "Receive invalid " << user_id;
-    return;
-  }
-
+void UserManager::on_update_my_user_intro(BusinessIntro &&intro) {
+  auto user_id = get_my_id();
   UserFull *user_full = get_user_full_force(user_id, "on_update_user_intro");
   if (user_full == nullptr) {
     return;
@@ -5254,6 +5245,7 @@ void UserManager::set_personal_channel(DialogId dialog_id, Promise<Unit> &&promi
     if (!td_->dialog_manager_->is_broadcast_channel(dialog_id)) {
       return promise.set_error(Status::Error(400, "Chat can't be set as a personal chat"));
     }
+    channel_id = dialog_id.get_channel_id();
   }
   auto query_promise = PromiseCreator::lambda(
       [actor_id = actor_id(this), channel_id, promise = std::move(promise)](Result<Unit> result) mutable {
@@ -6964,6 +6956,11 @@ void UserManager::on_get_user_full(telegram_api::object_ptr<telegram_api::userFu
     on_update_user_full_commands(user_full, user_id, std::move(user->bot_info_->commands_));
     on_update_user_full_menu_button(user_full, user_id, std::move(user->bot_info_->menu_button_));
     on_update_user_full_has_preview_medias(user_full, user_id, std::move(user->bot_info_->has_preview_medias_));
+
+    if (user_full->privacy_policy_url != user->bot_info_->privacy_policy_url_) {
+      user_full->privacy_policy_url = std::move(user->bot_info_->privacy_policy_url_);
+      user_full->is_changed = true;
+    }
   }
   if (user_full->description != description) {
     user_full->description = std::move(description);
@@ -7242,6 +7239,7 @@ void UserManager::drop_user_full(UserId user_id) {
   user_full->birthdate = {};
   user_full->sponsored_enabled = false;
   user_full->has_preview_medias = false;
+  user_full->privacy_policy_url = string();
   user_full->is_changed = true;
 
   update_user_full(user_full, user_id, "drop_user_full");
@@ -7974,7 +7972,7 @@ td_api::object_ptr<td_api::userFullInfo> UserManager::get_user_full_info_object(
         user_full->about, user_full->description,
         get_photo_object(td_->file_manager_.get(), user_full->description_photo),
         td_->animations_manager_->get_animation_object(user_full->description_animation_file_id),
-        std::move(menu_button), std::move(commands),
+        std::move(menu_button), std::move(commands), user_full->privacy_policy_url,
         user_full->group_administrator_rights == AdministratorRights()
             ? nullptr
             : user_full->group_administrator_rights.get_chat_administrator_rights_object(),

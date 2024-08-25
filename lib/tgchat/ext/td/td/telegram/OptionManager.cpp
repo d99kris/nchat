@@ -21,6 +21,7 @@
 #include "td/telegram/net/MtprotoHeader.h"
 #include "td/telegram/net/NetQueryDispatcher.h"
 #include "td/telegram/NotificationManager.h"
+#include "td/telegram/OnlineManager.h"
 #include "td/telegram/PeopleNearbyManager.h"
 #include "td/telegram/ReactionType.h"
 #include "td/telegram/StateManager.h"
@@ -155,6 +156,10 @@ OptionManager::OptionManager(Td *td)
   set_default_integer_option("story_link_area_count_max", 3);
   set_default_integer_option("paid_media_message_star_count_max", 10000);
   set_default_integer_option("bot_media_preview_count_max", 12);
+  set_default_integer_option("paid_reaction_star_count_max", 2500);
+  set_default_integer_option("subscription_star_count_max", 2500);
+  set_default_integer_option("usd_to_1000_star_rate", 1410);
+  set_default_integer_option("1000_star_to_usd_rate", 1200);
 
   if (options.isset("my_phone_number") || !options.isset("my_id")) {
     update_premium_options();
@@ -687,7 +692,7 @@ void OptionManager::get_option(const string &name, Promise<td_api::object_ptr<td
       break;
     case 'o':
       if (name == "online") {
-        return promise.set_value(td_api::make_object<td_api::optionValueBoolean>(td_->is_online()));
+        return promise.set_value(td_api::make_object<td_api::optionValueBoolean>(td_->online_manager_->is_online()));
       }
       break;
     case 'u':
@@ -709,7 +714,7 @@ td_api::object_ptr<td_api::OptionValue> OptionManager::get_option_synchronously(
       break;
     case 'v':
       if (name == "version") {
-        return td_api::make_object<td_api::optionValueString>("1.8.34");
+        return td_api::make_object<td_api::optionValueString>("1.8.35");
       }
       break;
   }
@@ -924,7 +929,7 @@ void OptionManager::set_option(const string &name, td_api::object_ptr<td_api::Op
         }
         bool is_online = value_constructor_id == td_api::optionValueEmpty::ID ||
                          static_cast<const td_api::optionValueBoolean *>(value.get())->value_;
-        td_->set_is_online(is_online);
+        td_->online_manager_->set_is_online(is_online);
         if (!is_bot) {
           send_closure(td_->state_manager_, &StateManager::on_online, is_online);
         }
@@ -1046,7 +1051,7 @@ void OptionManager::get_current_state(vector<td_api::object_ptr<td_api::Update>>
   get_common_state(updates);
 
   updates.push_back(td_api::make_object<td_api::updateOption>(
-      "online", td_api::make_object<td_api::optionValueBoolean>(td_->is_online())));
+      "online", td_api::make_object<td_api::optionValueBoolean>(td_->online_manager_->is_online())));
 
   updates.push_back(td_api::make_object<td_api::updateOption>("unix_time", get_unix_time_option_value_object()));
 

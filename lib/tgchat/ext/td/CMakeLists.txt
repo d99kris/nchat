@@ -6,7 +6,7 @@ if (POLICY CMP0065)
   cmake_policy(SET CMP0065 NEW)
 endif()
 
-project(TDLib VERSION 1.8.34 LANGUAGES CXX C)
+project(TDLib VERSION 1.8.35 LANGUAGES CXX C)
 
 if (NOT DEFINED CMAKE_MODULE_PATH)
   set(CMAKE_MODULE_PATH "")
@@ -72,7 +72,7 @@ if (POLICY CMP0069)
   endif()
 endif()
 
-# Configure CCache if available
+# Configure Ccache if available
 find_program(CCACHE_FOUND ccache)
 #set(CCACHE_FOUND 0)
 if (CCACHE_FOUND)
@@ -221,7 +221,7 @@ if (HAS_PARENT)
 endif()
 
 
-#SOURCE SETS
+# SOURCE SETS
 
 set_source_files_properties(${TL_TD_API_AUTO_SOURCE} PROPERTIES GENERATED TRUE)
 if (TD_ENABLE_JNI OR ANDROID)
@@ -361,6 +361,7 @@ set(TDLIB_SOURCE_PART1
   td/telegram/CommonDialogManager.cpp
   td/telegram/ConfigManager.cpp
   td/telegram/ConnectionState.cpp
+  td/telegram/ConnectionStateManager.cpp
   td/telegram/Contact.cpp
   td/telegram/CountryInfoManager.cpp
   td/telegram/DelayDispatcher.cpp
@@ -460,6 +461,7 @@ set(TDLIB_SOURCE_PART1
   td/telegram/MessageOrigin.cpp
   td/telegram/MessageQuote.cpp
   td/telegram/MessageReaction.cpp
+  td/telegram/MessageReactor.cpp
   td/telegram/MessageReplyHeader.cpp
   td/telegram/MessageReplyInfo.cpp
   td/telegram/MessageSearchFilter.cpp
@@ -504,6 +506,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/NotificationSettingsScope.cpp
   td/telegram/NotificationSound.cpp
   td/telegram/NotificationType.cpp
+  td/telegram/OnlineManager.cpp
   td/telegram/OptionManager.cpp
   td/telegram/OrderedMessage.cpp
   td/telegram/OrderInfo.cpp
@@ -519,6 +522,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/Premium.cpp
   td/telegram/PremiumGiftOption.cpp
   td/telegram/PrivacyManager.cpp
+  td/telegram/PromoDataManager.cpp
   td/telegram/QueryCombiner.cpp
   td/telegram/QueryMerger.cpp
   td/telegram/QuickReplyManager.cpp
@@ -550,6 +554,8 @@ set(TDLIB_SOURCE_PART2
   td/telegram/SpecialStickerSetType.cpp
   td/telegram/SponsoredMessageManager.cpp
   td/telegram/StarManager.cpp
+  td/telegram/StarSubscription.cpp
+  td/telegram/StarSubscriptionPricing.cpp
   td/telegram/StateManager.cpp
   td/telegram/StatisticsManager.cpp
   td/telegram/StickerFormat.cpp
@@ -570,9 +576,11 @@ set(TDLIB_SOURCE_PART2
   td/telegram/StoryViewer.cpp
   td/telegram/SuggestedAction.cpp
   td/telegram/Support.cpp
+  td/telegram/SynchronousRequests.cpp
   td/telegram/Td.cpp
   td/telegram/TdDb.cpp
   td/telegram/TermsOfService.cpp
+  td/telegram/TermsOfServiceManager.cpp
   td/telegram/ThemeManager.cpp
   td/telegram/ThemeSettings.cpp
   td/telegram/TimeZoneManager.cpp
@@ -647,6 +655,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/CommonDialogManager.h
   td/telegram/ConfigManager.h
   td/telegram/ConnectionState.h
+  td/telegram/ConnectionStateManager.h
   td/telegram/Contact.h
   td/telegram/CountryInfoManager.h
   td/telegram/CustomEmojiId.h
@@ -771,6 +780,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/MessageOrigin.h
   td/telegram/MessageQuote.h
   td/telegram/MessageReaction.h
+  td/telegram/MessageReactor.h
   td/telegram/MessageReplyHeader.h
   td/telegram/MessageReplyInfo.h
   td/telegram/MessageSearchFilter.h
@@ -829,6 +839,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/NotificationSound.h
   td/telegram/NotificationSoundType.h
   td/telegram/NotificationType.h
+  td/telegram/OnlineManager.h
   td/telegram/OptionManager.h
   td/telegram/OrderedMessage.h
   td/telegram/OrderInfo.h
@@ -846,6 +857,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/Premium.h
   td/telegram/PremiumGiftOption.h
   td/telegram/PrivacyManager.h
+  td/telegram/PromoDataManager.h
   td/telegram/PtsManager.h
   td/telegram/PublicDialogType.h
   td/telegram/QueryCombiner.h
@@ -888,6 +900,8 @@ set(TDLIB_SOURCE_PART2
   td/telegram/SpecialStickerSetType.h
   td/telegram/SponsoredMessageManager.h
   td/telegram/StarManager.h
+  td/telegram/StarSubscription.h
+  td/telegram/StarSubscriptionPricing.h
   td/telegram/StateManager.h
   td/telegram/StatisticsManager.h
   td/telegram/StickerFormat.h
@@ -912,10 +926,12 @@ set(TDLIB_SOURCE_PART2
   td/telegram/StoryViewer.h
   td/telegram/SuggestedAction.h
   td/telegram/Support.h
+  td/telegram/SynchronousRequests.h
   td/telegram/Td.h
   td/telegram/TdCallback.h
   td/telegram/TdDb.h
   td/telegram/TermsOfService.h
+  td/telegram/TermsOfServiceManager.h
   td/telegram/ThemeManager.h
   td/telegram/ThemeSettings.h
   td/telegram/TimeZoneManager.h
@@ -988,6 +1004,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/MessageOrigin.hpp
   td/telegram/MessageQuote.hpp
   td/telegram/MessageReaction.hpp
+  td/telegram/MessageReactor.hpp
   td/telegram/MessageReplyInfo.hpp
   td/telegram/MinChannel.hpp
   td/telegram/NotificationGroupInfo.hpp
@@ -1009,6 +1026,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/SecureValue.hpp
   td/telegram/SendCodeHelper.hpp
   td/telegram/SharedDialog.hpp
+  td/telegram/StarSubscriptionPricing.hpp
   td/telegram/StickerMaskPosition.hpp
   td/telegram/StickerPhotoSize.hpp
   td/telegram/StickersManager.hpp
@@ -1016,6 +1034,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/StoryInteractionInfo.hpp
   td/telegram/StoryStealthMode.hpp
   td/telegram/SuggestedAction.hpp
+  td/telegram/TermsOfService.hpp
   td/telegram/ThemeSettings.hpp
   td/telegram/TranscriptionInfo.hpp
   td/telegram/VideoNotesManager.hpp
@@ -1046,7 +1065,7 @@ set(MEMPROF_STAT_SOURCE
   memprof/memprof_stat.h
 )
 
-#LIBRARIES
+# LIBRARIES
 
 # memprof - simple library for memory usage profiling
 add_library(memprof STATIC ${MEMPROF_SOURCE})
@@ -1100,7 +1119,7 @@ if (NOT CMAKE_CROSSCOMPILING)
   add_dependencies(tdmtproto tl_generate_mtproto)
 endif()
 
-# tdcore - mostly internal TDLib interface. One should use tdactor for interactions with it.
+# tdcore - internal TDLib interface
 if (MSVC AND TD_ENABLE_LTO)
   add_library(tdcore_part1 STATIC ${TDLIB_SOURCE_PART1})
   target_include_directories(tdcore_part1 PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}> $<BUILD_INTERFACE:${TL_TD_AUTO_INCLUDE_DIR}>)
@@ -1163,7 +1182,7 @@ if (TD_ENABLE_DOTNET)
   endif()
 endif()
 
-# tdc - TDLib interface in pure c.
+# tdc - TDLib interface in pure C
 add_library(tdc STATIC EXCLUDE_FROM_ALL ${TL_C_SCHEME_SOURCE} td/telegram/td_c_client.cpp td/telegram/td_c_client.h)
 target_include_directories(tdc PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
@@ -1207,6 +1226,7 @@ target_include_directories(tdjson_static PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
 
+# EXECUTABLES
 if (EMSCRIPTEN)
   set(TD_EMSCRIPTEN_SRC td/telegram/td_emscripten.cpp)
   add_executable(${TD_EMSCRIPTEN} ${TD_EMSCRIPTEN_SRC})
@@ -1214,7 +1234,6 @@ if (EMSCRIPTEN)
   target_link_libraries(${TD_EMSCRIPTEN} PRIVATE tdjson_static tdactor)
 endif()
 
-#EXECUTABLES
 if (NOT CMAKE_CROSSCOMPILING)
   add_executable(tg_cli td/telegram/cli.cpp ${TL_TD_JSON_SOURCE})
 
@@ -1245,7 +1264,7 @@ if (NOT CMAKE_CROSSCOMPILING)
   add_dependencies(tg_cli tl_generate_json)
 endif()
 
-#Exported libraries
+# Exported libraries
 add_library(TdStatic INTERFACE)
 target_link_libraries(TdStatic INTERFACE tdclient)
 
@@ -1338,9 +1357,7 @@ install(FILES "TdConfig.cmake" "${CMAKE_CURRENT_BINARY_DIR}/TdConfigVersion.cmak
 )
 
 # Add SOVERSION to shared libraries
-set_property(TARGET tdclient PROPERTY SOVERSION "${TDLib_VERSION}")
-set_property(TARGET tdapi PROPERTY SOVERSION "${TDLib_VERSION}")
-set_property(TARGET tdjson PROPERTY SOVERSION "${TDLib_VERSION}")
+set_property(TARGET tdapi tdclient tdjson PROPERTY SOVERSION "${TDLib_VERSION}")
 
 # nchat additions start
 add_library(tdclientshared SHARED td/telegram/Client.cpp td/telegram/Client.h td/telegram/Log.cpp td/telegram/Log.h)

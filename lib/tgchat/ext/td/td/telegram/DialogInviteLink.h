@@ -6,6 +6,7 @@
 //
 #pragma once
 
+#include "td/telegram/StarSubscriptionPricing.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/UserId.h"
@@ -22,11 +23,13 @@ class DialogInviteLink {
   string invite_link_;
   string title_;
   UserId creator_user_id_;
+  StarSubscriptionPricing pricing_;
   int32 date_ = 0;
   int32 edit_date_ = 0;
   int32 expire_date_ = 0;
   int32 usage_limit_ = 0;
   int32 usage_count_ = 0;
+  int32 expired_usage_count_ = 0;
   int32 request_count_ = 0;
   bool creates_join_request_ = false;
   bool is_revoked_ = false;
@@ -39,8 +42,8 @@ class DialogInviteLink {
  public:
   DialogInviteLink() = default;
 
-  DialogInviteLink(tl_object_ptr<telegram_api::ExportedChatInvite> exported_invite_ptr, bool allow_truncated,
-                   const char *source);
+  DialogInviteLink(telegram_api::object_ptr<telegram_api::ExportedChatInvite> exported_invite_ptr, bool allow_truncated,
+                   bool expect_join_request, const char *source);
 
   static bool is_valid_invite_link(Slice invite_link, bool allow_truncated = false);
 

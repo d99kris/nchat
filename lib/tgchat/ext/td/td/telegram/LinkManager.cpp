@@ -397,6 +397,20 @@ class LinkManager::InternalLinkBusinessChat final : public InternalLink {
   }
 };
 
+class LinkManager::InternalLinkBuyStars final : public InternalLink {
+  int64 star_count_;
+  string purpose_;
+
+  td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
+    return td_api::make_object<td_api::internalLinkTypeBuyStars>(star_count_, purpose_);
+  }
+
+ public:
+  explicit InternalLinkBuyStars(int64 star_count, const string &purpose)
+      : star_count_(clamp(star_count, static_cast<int64>(1), static_cast<int64>(1000000000000))), purpose_(purpose) {
+  }
+};
+
 class LinkManager::InternalLinkChangePhoneNumber final : public InternalLink {
   td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
     return td_api::make_object<td_api::internalLinkTypeChangePhoneNumber>();
@@ -1545,6 +1559,12 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_tg_link_query(Slice que
     // msg_url?url=<url>
     // msg_url?url=<url>&text=<text>
     return get_internal_link_message_draft(get_arg("url"), get_arg("text"));
+  } else if (path.size() == 1 && path[0] == "stars_topup") {
+    // stars_topup?balance=<star_count>&purpose=<purpose>
+    if (has_arg("balance")) {
+      return td::make_unique<InternalLinkBuyStars>(to_integer<int64>(url_query.get_arg("balance")),
+                                                   url_query.get_arg("purpose").str());
+    }
   }
   if (!path.empty() && !path[0].empty()) {
     return td::make_unique<InternalLinkUnknownDeepLink>(PSTRING() << "tg://" << query);
@@ -2094,6 +2114,16 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
       } else {
         return PSTRING() << get_t_me_url() << "m/" << url_encode(link->link_name_);
       }
+    }
+    case td_api::internalLinkTypeBuyStars::ID: {
+      auto link = static_cast<const td_api::internalLinkTypeBuyStars *>(type_ptr);
+      if (!is_internal) {
+        return Status::Error("HTTP link is unavailable for the link type");
+      }
+      if (link->star_count_ <= 0) {
+        return Status::Error(400, "Invalid Telegram Star number provided");
+      }
+      return PSTRING() << "tg://stars_topup?balance=" << link->star_count_ << "&purpose=" << url_encode(link->purpose_);
     }
     case td_api::internalLinkTypeChangePhoneNumber::ID:
       if (!is_internal) {
@@ -2652,6 +2682,30 @@ Result<string> LinkManager::get_background_url(const string &name,
     url += link;
   }
   return url;
+}
+
+td_api::object_ptr<td_api::BackgroundType> LinkManager::get_background_type_object(const string &link,
+                                                                                   bool is_pattern) {
+  auto parsed_link = parse_internal_link(link);
+  if (parsed_link == nullptr) {
+    return nullptr;
+  }
+  auto parsed_object = parsed_link->get_internal_link_type_object();
+  if (parsed_object->get_id() != td_api::internalLinkTypeBackground::ID) {
+    return nullptr;
+  }
+  auto background_name =
+      std::move(static_cast<td_api::internalLinkTypeBackground *>(parsed_object.get())->background_name_);
+  if (!BackgroundType::is_background_name_local(background_name)) {
+    BackgroundType type(false, is_pattern, nullptr);
+    type.apply_parameters_from_link(background_name);
+    return type.get_background_type_object();
+  }
+  auto r_background_type = BackgroundType::get_local_background_type(background_name);
+  if (r_background_type.is_error()) {
+    return nullptr;
+  }
+  return r_background_type.ok().get_background_type_object();
 }
 
 string LinkManager::get_dialog_filter_invite_link_slug(Slice invite_link) {
