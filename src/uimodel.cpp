@@ -3775,12 +3775,20 @@ void UiModel::ForwardMessage()
                   selectedChatListItem.chatId.c_str());
     }
 
-    // send copy of selected message
     std::shared_ptr<SendMessageRequest> sendMessageRequest =
       std::make_shared<SendMessageRequest>();
-    sendMessageRequest->chatId = selectedChatListItem.chatId;
+
+    // prepare a new FileInfo struct if original message has a file
+    if (!message.fileInfo.empty())
+    {
+      FileInfo fileInfo = ProtocolUtil::FileInfoFromHex(message.fileInfo);
+      fileInfo.fileType = FileUtil::GetMimeType(fileInfo.filePath);
+      sendMessageRequest->chatMessage.fileInfo = ProtocolUtil::FileInfoToHex(fileInfo);
+    }
+
+    // copy text and use selected chat
     sendMessageRequest->chatMessage.text = message.text;
-    sendMessageRequest->chatMessage.fileInfo = message.fileInfo;
+    sendMessageRequest->chatId = selectedChatListItem.chatId;
 
     SendProtocolRequest(selectedChatListItem.profileId, sendMessageRequest);
 
