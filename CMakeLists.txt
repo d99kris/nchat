@@ -67,8 +67,7 @@ message(STATUS "Core Dump: ${HAS_COREDUMP}")
 set(GO_VERSION_MIN 1.21)
 execute_process(COMMAND bash "-c" "go version 2> /dev/null | cut -c14- | cut -d' ' -f1 | tr -d '\n'" OUTPUT_VARIABLE GO_VERSION)
 if(HAS_WHATSAPP AND (NOT GO_VERSION VERSION_GREATER_EQUAL GO_VERSION_MIN))
-  message(WARNING "Go version ${GO_VERSION} (need >= ${GO_VERSION_MIN} to build WhatsApp).")
-  SET(HAS_WHATSAPP OFF)
+  message(FATAL_ERROR "Go version ${GO_VERSION} (need >= ${GO_VERSION_MIN} to build WhatsApp).")
 endif()
 
 # Application
