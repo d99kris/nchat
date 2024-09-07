@@ -72,7 +72,9 @@ void UiStatusView::Draw()
   static const bool developerMode = AppUtil::GetDeveloperMode();
   if (developerMode)
   {
-    wstatus = wstatus + L" " + StrUtil::ToWString(currentChat.second);
+    wstatus = wstatus + L" chat " + StrUtil::ToWString(currentChat.second);
+    int64_t lastMessageTime = m_Model->GetLastMessageTime(currentChat.first, currentChat.second);
+    wstatus = wstatus + L" time " + StrUtil::ToWString(std::to_string(lastMessageTime));
   }
 
   wstatus = StrUtil::TrimPadWString(wstatus, m_W);

@@ -650,7 +650,25 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
               (tchat->last_message_ != nullptr) ? tchat->last_message_->date_ : 0;
             int64_t lastMessageHash =
               (tchat->last_message_ != nullptr) ? (std::hash<std::string>{ } (StrUtil::NumToHex(tchat->last_message_->id_)) % 256) : 0;
-            chatInfo.lastMessageTime = (lastMessageTimeSec * 1000) + lastMessageHash;
+
+            bool isPinned = false;
+            int64_t lastMessageTime = (lastMessageTimeSec * 1000) + lastMessageHash;
+            for (auto& position : tchat->positions_)
+            {
+              auto chatList = td::move_tl_object_as<td::td_api::ChatList>(position->list_);
+              if (chatList && (chatList->get_id() == td::td_api::chatListMain::ID))
+              {
+                isPinned = position->is_pinned_;
+                if (isPinned)
+                {
+                  lastMessageTime = position->order_;
+                }
+                break;
+              }
+            }
+
+            chatInfo.isPinned = isPinned;
+            chatInfo.lastMessageTime = lastMessageTime;
 
             std::vector<ChatInfo> chatInfos;
             chatInfos.push_back(chatInfo);
@@ -1729,19 +1747,36 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
     LOG_TRACE("update chat position");
 
     auto position = td::move_tl_object_as<td::td_api::chatPosition>(update_chat_position.position_);
-    if (position && (position->order_ == 0)) // position 0 indicates removal
+    if (position)
     {
       auto chatList = td::move_tl_object_as<td::td_api::ChatList>(position->list_);
-      if (chatList && (chatList->get_id() == td::td_api::chatListMain::ID)) // removed from main chat list
+      if (chatList && (chatList->get_id() == td::td_api::chatListMain::ID))
       {
         std::string chatId = StrUtil::NumToHex(update_chat_position.chat_id_);
-        LOG_TRACE("delete chat notify %s", chatId.c_str());
+        if (position->order_ == 0)
+        {
+          // position 0 indicates removal
+          LOG_TRACE("delete chat notify %s", chatId.c_str());
 
-        std::shared_ptr<DeleteChatNotify> deleteChatNotify =
-          std::make_shared<DeleteChatNotify>(m_ProfileId);
-        deleteChatNotify->success = true;
-        deleteChatNotify->chatId = chatId;
-        CallMessageHandler(deleteChatNotify);
+          std::shared_ptr<DeleteChatNotify> deleteChatNotify =
+            std::make_shared<DeleteChatNotify>(m_ProfileId);
+          deleteChatNotify->success = true;
+          deleteChatNotify->chatId = chatId;
+          CallMessageHandler(deleteChatNotify);
+        }
+        else
+        {
+          bool isPinned = position->is_pinned_;
+          LOG_TRACE("update pin notify %s %d", chatId.c_str(), isPinned);
+
+          std::shared_ptr<UpdatePinNotify> updatePinNotify =
+            std::make_shared<UpdatePinNotify>(m_ProfileId);
+          updatePinNotify->success = true;
+          updatePinNotify->chatId = chatId;
+          updatePinNotify->isPinned = isPinned;
+          updatePinNotify->timePinned = position->order_;
+          CallMessageHandler(updatePinNotify);
+        }
       }
     }
   },

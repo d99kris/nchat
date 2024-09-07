@@ -2043,6 +2043,26 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
       }
       break;
 
+    case UpdatePinNotifyType:
+      {
+        std::shared_ptr<UpdatePinNotify> updatePinNotify = std::static_pointer_cast<UpdatePinNotify>(
+          p_ServiceMessage);
+        std::string chatId = updatePinNotify->chatId;
+        bool isPinned = updatePinNotify->isPinned;
+        int64_t lastMessageTime = updatePinNotify->timePinned;
+        LOG_TRACE("pin notify %s is %s", chatId.c_str(), (isPinned ? "pinned" : "unpinned"));
+        m_ChatInfos[profileId][chatId].isPinned = isPinned;
+        if (isPinned)
+        {
+          m_ChatInfos[profileId][chatId].lastMessageTime = lastMessageTime;
+        }
+        UpdateChatInfoLastMessageTime(profileId, chatId);
+        SortChats();
+        UpdateList();
+        UpdateStatus();
+      }
+      break;
+
     case ProtocolUiControlNotifyType:
       {
         std::shared_ptr<ProtocolUiControlNotify> protocolUiControlNotify =
@@ -2158,6 +2178,10 @@ void UiModel::SortChats()
     const ChatInfo& lhsChatInfo = m_ChatInfos[lhs.first][lhs.second];
     const ChatInfo& rhsChatInfo = m_ChatInfos[rhs.first][rhs.second];
 
+    // pinned are listed first
+    if (lhsChatInfo.isPinned > rhsChatInfo.isPinned) return true;
+    if (lhsChatInfo.isPinned < rhsChatInfo.isPinned) return false;
+
     if (!mutedPositionByTimestamp)
     {
       // non-muted are listed first
@@ -2225,7 +2249,10 @@ void UiModel::UpdateChatInfoLastMessageTime(const std::string& p_ProfileId, cons
   std::unordered_map<std::string, ChatInfo>& profileChatInfos = m_ChatInfos[p_ProfileId];
   if (profileChatInfos.count(p_ChatId))
   {
-    profileChatInfos[p_ChatId].lastMessageTime = lastMessageTimeSent;
+    if (!profileChatInfos[p_ChatId].isPinned)
+    {
+      profileChatInfos[p_ChatId].lastMessageTime = lastMessageTimeSent;
+    }
   }
 }
 
@@ -2318,6 +2345,12 @@ std::string UiModel::GetContactPhone(const std::string& p_ProfileId, const std::
   return contactInfo.phone.empty() ? "" : "+" + contactInfo.phone;
 }
 
+int64_t UiModel::GetLastMessageTime(const std::string& p_ProfileId, const std::string& p_ChatId)
+{
+  const ChatInfo& chatInfo = m_ChatInfos[p_ProfileId][p_ChatId];
+  return chatInfo.lastMessageTime;
+}
+
 bool UiModel::GetChatIsUnread(const std::string& p_ProfileId, const std::string& p_ChatId)
 {
   const ChatInfo& chatInfo = m_ChatInfos[p_ProfileId][p_ChatId];
@@ -2404,6 +2437,18 @@ std::string UiModel::GetChatStatus(const std::string& p_ProfileId, const std::st
     else
     {
       chatStatus = chatStatus + ", muted";
+    }
+  }
+
+  if (chatInfo.isPinned)
+  {
+    if (chatStatus.empty())
+    {
+      chatStatus = "pinned";
+    }
+    else
+    {
+      chatStatus = chatStatus + ", pinned";
     }
   }
 

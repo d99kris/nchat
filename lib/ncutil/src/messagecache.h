@@ -44,6 +44,7 @@ private:
     UpdateMessageFileInfoRequestType,
     UpdateMessageReactionsRequestType,
     UpdateMuteRequestType,
+    UpdatePinRequestType,
   };
 
   class Request
@@ -178,7 +179,17 @@ private:
     virtual RequestType GetRequestType() const { return UpdateMuteRequestType; }
     std::string profileId;
     std::string chatId;
-    bool isMuted;
+    bool isMuted = false;
+  };
+
+  class UpdatePinRequest : public Request
+  {
+  public:
+    virtual RequestType GetRequestType() const { return UpdatePinRequestType; }
+    std::string profileId;
+    std::string chatId;
+    bool isPinned = false;
+    int64_t timePinned = -1;
   };
 
 public:
@@ -214,6 +225,8 @@ public:
   static void UpdateMessageReactions(const std::string& p_ProfileId, const std::string& p_ChatId,
                                      const std::string& p_MsgId, const Reactions& p_Reactions);
   static void UpdateMute(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_IsMuted);
+  static void UpdatePin(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_IsPinned,
+                        int64_t p_TimePinned);
   static void Export(const std::string& p_ExportDir);
 
 private:

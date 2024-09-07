@@ -93,7 +93,7 @@ private:
 
 extern "C" {
 void WmNewContactsNotify(int p_ConnId, char* p_ChatId, char* p_Name, char* p_Phone, int p_IsSelf);
-void WmNewChatsNotify(int p_ConnId, char* p_ChatId, int p_IsUnread, int p_IsMuted, int p_LastMessageTime);
+  void WmNewChatsNotify(int p_ConnId, char* p_ChatId, int p_IsUnread, int p_IsMuted, int p_IsPinned, int p_LastMessageTime);
 void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe,
                          char* p_ReplyId, char* p_FileId, char* p_FilePath, int p_FileStatus, int p_TimeSent,
                          int p_IsRead);
@@ -106,6 +106,7 @@ void WmNewMessageReactionNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, cha
 void WmDeleteChatNotify(int p_ConnId, char* p_ChatId);
 void WmDeleteMessageNotify(int p_ConnId, char* p_ChatId, char* p_MsgId);
 void WmUpdateMuteNotify(int p_ConnId, char* p_ChatId, int p_IsMuted);
+void WmUpdatePinNotify(int p_ConnId, char* p_ChatId, int p_IsPinned, int p_TimePinned);
 void WmReinit(int p_ConnId);
 void WmSetProtocolUiControl(int p_ConnId, int p_IsTakeControl);
 void WmSetStatus(int p_Flags);

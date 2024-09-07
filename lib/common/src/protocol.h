@@ -110,6 +110,7 @@ enum MessageType
   NewMessageReactionsNotifyType,
   AvailableReactionsNotifyType,
   FindMessageNotifyType,
+  UpdatePinNotifyType,
 };
 
 struct ContactInfo
@@ -126,6 +127,7 @@ struct ChatInfo
   bool isUnread = false;
   bool isUnreadMention = false; // only required for tgchat
   bool isMuted = false;
+  bool isPinned = false;
   int64_t lastMessageTime = -1;
 };
 
@@ -645,4 +647,16 @@ public:
   bool success;
   std::string chatId;
   std::string msgId;
+};
+
+class UpdatePinNotify : public ServiceMessage
+{
+public:
+  explicit UpdatePinNotify(const std::string& p_ProfileId) :
+    ServiceMessage(p_ProfileId) { }
+  virtual MessageType GetMessageType() const { return UpdatePinNotifyType; }
+  bool success;
+  std::string chatId;
+  bool isPinned;
+  int64_t timePinned = -1;
 };

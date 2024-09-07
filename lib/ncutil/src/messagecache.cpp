@@ -192,6 +192,18 @@ void MessageCache::AddFromServiceMessage(const std::string& p_ProfileId,
       }
       break;
 
+    case UpdatePinNotifyType:
+      {
+        std::shared_ptr<UpdatePinNotify> updatePinNotify = std::static_pointer_cast<UpdatePinNotify>(
+          p_ServiceMessage);
+        if (updatePinNotify->success)
+        {
+          MessageCache::UpdatePin(p_ProfileId, updatePinNotify->chatId, updatePinNotify->isPinned,
+                                  updatePinNotify->timePinned);
+        }
+      }
+      break;
+
     default:
       break;
   }
@@ -311,7 +323,19 @@ void MessageCache::AddProfile(const std::string& p_ProfileId, bool p_CheckSync, 
         "SET schema=?;" << schemaVersion;
     }
 
-    static const int64_t s_SchemaVersion = 4;
+    if (schemaVersion == 4)
+    {
+      LOG_INFO("update db schema 4 to 5");
+
+      *m_Dbs[p_ProfileId] << "ALTER TABLE chats2 ADD COLUMN isPinned INT;";
+      *m_Dbs[p_ProfileId] << "ALTER TABLE chats2 ADD COLUMN lastMessageTime INT;";
+
+      schemaVersion = 5;
+      *m_Dbs[p_ProfileId] << "UPDATE version "
+        "SET schema=?;" << schemaVersion;
+    }
+
+    static const int64_t s_SchemaVersion = 5;
     if (schemaVersion > s_SchemaVersion)
     {
       LOG_WARNING("cache db schema %d from newer nchat version detected, if cache issues are encountered "
@@ -628,6 +652,20 @@ void MessageCache::UpdateMute(const std::string& p_ProfileId, const std::string&
   updateMuteRequest->chatId = p_ChatId;
   updateMuteRequest->isMuted = p_IsMuted;
   EnqueueRequest(updateMuteRequest);
+}
+
+void MessageCache::UpdatePin(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_IsPinned,
+                             int64_t p_TimePinned)
+{
+  if (!m_CacheEnabled) return;
+
+  std::shared_ptr<UpdatePinRequest> updatePinRequest =
+    std::make_shared<UpdatePinRequest>();
+  updatePinRequest->profileId = p_ProfileId;
+  updatePinRequest->chatId = p_ChatId;
+  updatePinRequest->isPinned = p_IsPinned;
+  updatePinRequest->timePinned = p_TimePinned;
+  EnqueueRequest(updatePinRequest);
 }
 
 void MessageCache::Export(const std::string& p_ExportDir)
@@ -961,9 +999,10 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
           for (const auto& chatInfo : addChatsRequest->chatInfos)
           {
             *m_Dbs[profileId] << "INSERT INTO " + s_TableChats + " "
-              "(id, isMuted) VALUES "
-              "(?, ?);" <<
-              chatInfo.id << chatInfo.isMuted;
+              "(id, isMuted, isPinned, lastMessageTime) VALUES "
+              "(?, ?, ?, ?);" <<
+              chatInfo.id << chatInfo.isMuted << chatInfo.isPinned <<
+              chatInfo.lastMessageTime;
           }
           *m_Dbs[profileId] << "COMMIT;";
         }
@@ -1019,10 +1058,14 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         {
           // *INDENT-OFF*
           std::map<std::string, int32_t> chatIdMuted;
-          *m_Dbs[profileId] << "SELECT id, isMuted FROM " + s_TableChats + ";" >>
-            [&](const std::string& chatId, int32_t isMuted)
+          std::map<std::string, int32_t> chatIdPinned;
+          std::map<std::string, int64_t> chatIdLastMessageTime;
+          *m_Dbs[profileId] << "SELECT id, isMuted, isPinned, lastMessageTime FROM " + s_TableChats + ";" >>
+            [&](const std::string& chatId, int32_t isMuted, int32_t isPinned, int64_t lastMessageTime)
             {
               chatIdMuted[chatId] = isMuted;
+              chatIdPinned[chatId] = isPinned;
+              chatIdLastMessageTime[chatId] = lastMessageTime;
             };
 
           *m_Dbs[profileId] << "SELECT chatId, MAX(timeSent), isOutgoing, isRead FROM " + s_TableMessages + " "
@@ -1034,8 +1077,9 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
                 ChatInfo chatInfo;
                 chatInfo.id = chatId;
                 chatInfo.isUnread = !isOutgoing && !isRead;
-                chatInfo.lastMessageTime = timeSent;
                 chatInfo.isMuted = chatIdMuted[chatId];
+                chatInfo.isPinned = chatIdPinned[chatId];
+                chatInfo.lastMessageTime = chatInfo.isPinned ? chatIdLastMessageTime[chatId] : timeSent;
                 chatInfos.push_back(chatInfo);
               }
             };
@@ -1530,8 +1574,8 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         {
           *m_Dbs[profileId] << "INSERT INTO " + s_TableChats + " "
             "(id, isMuted) VALUES "
-            "(?, ?);" <<
-            chatId << isMuted;
+            "(?, ?) ON CONFLICT(id) DO UPDATE SET isMuted=?;" <<
+            chatId << isMuted << isMuted;
         }
         catch (const sqlite::sqlite_exception& ex)
         {
@@ -1539,6 +1583,34 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         }
 
         LOG_DEBUG("cache update muted %s %d", chatId.c_str(), isMuted);
+      }
+      break;
+
+    case UpdatePinRequestType:
+      {
+        std::unique_lock<std::mutex> lock(m_DbMutex);
+        std::shared_ptr<UpdatePinRequest> updatePinRequest =
+          std::static_pointer_cast<UpdatePinRequest>(p_Request);
+        const std::string& profileId = updatePinRequest->profileId;
+        if (!m_Dbs[profileId]) return;
+
+        const std::string& chatId = updatePinRequest->chatId;
+        bool isPinned = updatePinRequest->isPinned;
+        int64_t timePinned = updatePinRequest->timePinned;
+
+        try
+        {
+          *m_Dbs[profileId] << "INSERT INTO " + s_TableChats + " "
+            "(id, isPinned, lastMessageTime) VALUES "
+            "(?, ?, ?) ON CONFLICT(id) DO UPDATE SET isPinned=?, lastMessageTime=?;" <<
+            chatId << isPinned << timePinned << isPinned << timePinned;
+        }
+        catch (const sqlite::sqlite_exception& ex)
+        {
+          HANDLE_SQLITE_EXCEPTION(ex);
+        }
+
+        LOG_DEBUG("cache update pinned %s %d", chatId.c_str(), isPinned);
       }
       break;
 

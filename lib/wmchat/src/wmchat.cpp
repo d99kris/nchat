@@ -718,7 +718,7 @@ void WmNewContactsNotify(int p_ConnId, char* p_ChatId, char* p_Name, char* p_Pho
   free(p_Name);
 }
 
-void WmNewChatsNotify(int p_ConnId, char* p_ChatId, int p_IsUnread, int p_IsMuted, int p_LastMessageTime)
+void WmNewChatsNotify(int p_ConnId, char* p_ChatId, int p_IsUnread, int p_IsMuted, int p_IsPinned, int p_LastMessageTime)
 {
   WmChat* instance = WmChat::GetInstance(p_ConnId);
   if (instance == nullptr) return;
@@ -728,6 +728,7 @@ void WmNewChatsNotify(int p_ConnId, char* p_ChatId, int p_IsUnread, int p_IsMute
   chatInfo.isUnread = (p_IsUnread == 1);
   chatInfo.isUnreadMention = false; // not supported in wa
   chatInfo.isMuted = (p_IsMuted == 1);
+  chatInfo.isPinned = (p_IsPinned == 1);
   chatInfo.lastMessageTime = ((int64_t)p_LastMessageTime) * 1000;
 
   std::shared_ptr<NewChatsNotify> newChatsNotify = std::make_shared<NewChatsNotify>(instance->GetProfileId());
@@ -967,6 +968,28 @@ void WmUpdateMuteNotify(int p_ConnId, char* p_ChatId, int p_IsMuted)
     std::shared_ptr<DeferNotifyRequest> deferNotifyRequest =
       std::make_shared<DeferNotifyRequest>();
     deferNotifyRequest->serviceMessage = updateMuteNotify;
+    instance->SendRequest(deferNotifyRequest);
+  }
+
+  free(p_ChatId);
+}
+
+void WmUpdatePinNotify(int p_ConnId, char* p_ChatId, int p_IsPinned, int p_TimePinned)
+{
+  WmChat* instance = WmChat::GetInstance(p_ConnId);
+  if (instance == nullptr) return;
+
+  {
+    std::shared_ptr<UpdatePinNotify> updatePinNotify =
+      std::make_shared<UpdatePinNotify>(instance->GetProfileId());
+    updatePinNotify->success = true;
+    updatePinNotify->chatId = std::string(p_ChatId);
+    updatePinNotify->isPinned = p_IsPinned;
+    updatePinNotify->timePinned = ((int64_t)p_TimePinned) * 1000;
+
+    std::shared_ptr<DeferNotifyRequest> deferNotifyRequest =
+      std::make_shared<DeferNotifyRequest>();
+    deferNotifyRequest->serviceMessage = updatePinNotify;
     instance->SendRequest(deferNotifyRequest);
   }
 

@@ -615,6 +615,10 @@ func (handler *WmEventHandler) HandleEvent(rawEvt interface{}) {
 		LOG_TRACE(fmt.Sprintf("%#v", evt))
 		handler.HandleMute(evt)
 
+	case *events.Pin:
+		LOG_TRACE(fmt.Sprintf("%#v", evt))
+		handler.HandlePin(evt)
+
 	case *events.ClientOutdated:
 		LOG_TRACE(fmt.Sprintf("%#v", evt))
 		handler.HandleClientOutdated()
@@ -704,10 +708,16 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 
 			handler.HandleMessage(*messageInfo, message, isSyncRead)
 			hasMessages = true
+
+			messageTime := int(messageInfo.Timestamp.Unix())
+			if messageTime > lastMessageTime {
+				lastMessageTime = messageTime
+			}
 		}
 
 		if hasMessages {
 			isMuted := false
+			isPinned := false
 			settings, setErr := client.Store.ChatSettings.GetChatSettings(chatJid)
 			if setErr != nil {
 				LOG_WARNING(fmt.Sprintf("Get chat settings failed %#v", setErr))
@@ -715,13 +725,14 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 				if settings.Found {
 					mutedUntil := settings.MutedUntil.Unix()
 					isMuted = (mutedUntil == -1) || (mutedUntil > time.Now().Unix())
+					isPinned = settings.Pinned
 				} else {
 					LOG_DEBUG(fmt.Sprintf("Chat settings not found %s", JidToStr(chatJid)))
 				}
 			}
 
-			LOG_TRACE(fmt.Sprintf("Call CWmNewChatsNotify %s %d %t", JidToStr(chatJid), len(syncMessages), isMuted))
-			CWmNewChatsNotify(handler.connId, JidToStr(chatJid), isUnread, BoolToInt(isMuted), lastMessageTime)
+			LOG_TRACE(fmt.Sprintf("Call CWmNewChatsNotify %s %d %t %t", JidToStr(chatJid), len(syncMessages), isMuted, isPinned))
+			CWmNewChatsNotify(handler.connId, JidToStr(chatJid), isUnread, BoolToInt(isMuted), BoolToInt(isPinned), lastMessageTime)
 		} else {
 			LOG_TRACE(fmt.Sprintf("Skip CWmNewChatsNotify %s %d", JidToStr(chatJid), len(syncMessages)))
 		}
@@ -852,6 +863,22 @@ func (handler *WmEventHandler) HandleMute(mute *events.Mute) {
 
 	LOG_TRACE(fmt.Sprintf("Call CWmUpdateMuteNotify %s %s", chatId, strconv.FormatBool(isMuted)))
 	CWmUpdateMuteNotify(connId, chatId, BoolToInt(isMuted))
+}
+
+func (handler *WmEventHandler) HandlePin(pin *events.Pin) {
+	connId := handler.connId
+	chatId := pin.JID.ToNonAD().String()
+	pinAction := pin.Action
+	if pinAction == nil {
+		LOG_WARNING(fmt.Sprintf("pin event missing pin action"))
+		return
+	}
+
+	isPinned := *pinAction.Pinned
+	timePinned := int(pin.Timestamp.Unix())
+
+	LOG_TRACE(fmt.Sprintf("Call CWmUpdatePinNotify %s %s %d", chatId, strconv.FormatBool(isPinned), timePinned))
+	CWmUpdatePinNotify(connId, chatId, BoolToInt(isPinned), timePinned)
 }
 
 func (handler *WmEventHandler) HandleClientOutdated() {
