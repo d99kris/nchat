@@ -623,7 +623,8 @@ const DocumentsManager::GeneralDocument *DocumentsManager::get_document(FileId f
 bool DocumentsManager::has_input_media(FileId file_id, FileId thumbnail_file_id, bool is_secret) const {
   auto file_view = td_->file_manager_->get_file_view(file_id);
   if (is_secret) {
-    if (!file_view.is_encrypted_secret() || file_view.encryption_key().empty() || !file_view.has_remote_location()) {
+    if (!file_view.is_encrypted_secret() || file_view.encryption_key().empty() ||
+        !file_view.has_full_remote_location()) {
       return false;
     }
 
@@ -632,13 +633,13 @@ bool DocumentsManager::has_input_media(FileId file_id, FileId thumbnail_file_id,
     if (file_view.is_encrypted()) {
       return false;
     }
-    if (td_->auth_manager_->is_bot() && file_view.has_remote_location()) {
+    if (td_->auth_manager_->is_bot() && file_view.has_full_remote_location()) {
       return true;
     }
     // having remote location is not enough to have InputMedia, because the file may not have valid file_reference
     // also file_id needs to be duped, because upload can be called to repair the file_reference and every upload
     // request must have unique file_id
-    return /* file_view.has_remote_location() || */ file_view.has_url();
+    return /* file_view.has_full_remote_location() || */ file_view.has_url();
   }
 }
 
@@ -652,8 +653,9 @@ SecretInputMedia DocumentsManager::get_secret_input_media(FileId document_file_i
   if (!file_view.is_encrypted_secret() || file_view.encryption_key().empty()) {
     return SecretInputMedia{};
   }
-  if (file_view.has_remote_location()) {
-    input_file = file_view.main_remote_location().as_input_encrypted_file();
+  const auto *main_remote_location = file_view.get_main_remote_location();
+  if (main_remote_location != nullptr) {
+    input_file = main_remote_location->as_input_encrypted_file();
   }
   if (!input_file) {
     return SecretInputMedia{};
@@ -682,12 +684,14 @@ tl_object_ptr<telegram_api::InputMedia> DocumentsManager::get_input_media(
   if (file_view.is_encrypted()) {
     return nullptr;
   }
-  if (file_view.has_remote_location() && !file_view.main_remote_location().is_web() && input_file == nullptr) {
-    return make_tl_object<telegram_api::inputMediaDocument>(
-        0, false /*ignored*/, file_view.main_remote_location().as_input_document(), 0, string());
+  const auto *main_remote_location = file_view.get_main_remote_location();
+  if (main_remote_location != nullptr && !main_remote_location->is_web() && input_file == nullptr) {
+    return make_tl_object<telegram_api::inputMediaDocument>(0, false /*ignored*/,
+                                                            main_remote_location->as_input_document(), 0, string());
   }
-  if (file_view.has_url()) {
-    return make_tl_object<telegram_api::inputMediaDocumentExternal>(0, false /*ignored*/, file_view.url(), 0);
+  const auto *url = file_view.get_url();
+  if (url != nullptr) {
+    return make_tl_object<telegram_api::inputMediaDocumentExternal>(0, false /*ignored*/, *url, 0);
   }
 
   if (input_file != nullptr) {
@@ -711,7 +715,7 @@ tl_object_ptr<telegram_api::InputMedia> DocumentsManager::get_input_media(
         std::move(input_thumbnail), document->mime_type, std::move(attributes),
         vector<tl_object_ptr<telegram_api::InputDocument>>(), 0);
   } else {
-    CHECK(!file_view.has_remote_location());
+    CHECK(main_remote_location == nullptr);
   }
 
   return nullptr;

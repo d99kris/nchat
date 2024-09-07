@@ -6,7 +6,7 @@ if (POLICY CMP0065)
   cmake_policy(SET CMP0065 NEW)
 endif()
 
-project(TDLib VERSION 1.8.35 LANGUAGES CXX C)
+project(TDLib VERSION 1.8.36 LANGUAGES CXX C)
 
 if (NOT DEFINED CMAKE_MODULE_PATH)
   set(CMAKE_MODULE_PATH "")
@@ -41,6 +41,9 @@ prevent_in_source_build()
 
 option(TD_ENABLE_JNI "Use \"ON\" to enable JNI-compatible TDLib API.")
 option(TD_ENABLE_DOTNET "Use \"ON\" to enable generation of C++/CLI or C++/CX TDLib API bindings.")
+if (NOT CMAKE_CROSSCOMPILING)
+  option(TD_GENERATE_SOURCE_FILES "Use \"ON\" to just generate TDLib source files.")
+endif()
 
 if (TD_ENABLE_DOTNET AND (CMAKE_VERSION VERSION_LESS "3.1.0"))
   message(FATAL_ERROR "CMake 3.1.0 or higher is required. You are running version ${CMAKE_VERSION}.")
@@ -114,11 +117,13 @@ if (EMSCRIPTEN)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --post-js ${CMAKE_CURRENT_SOURCE_DIR}/post.js")
 endif()
 
-if (NOT OPENSSL_FOUND)
-  find_package(OpenSSL)
-endif()
-if (OPENSSL_FOUND)
-  message(STATUS "Found OpenSSL: ${OPENSSL_INCLUDE_DIR} ${OPENSSL_LIBRARIES}")
+if (NOT TD_GENERATE_SOURCE_FILES)
+  if (NOT OPENSSL_FOUND)
+    find_package(OpenSSL)
+  endif()
+  if (OPENSSL_FOUND)
+    message(STATUS "Found OpenSSL: ${OPENSSL_INCLUDE_DIR} ${OPENSSL_LIBRARIES}")
+  endif()
 endif()
 
 set(CMAKE_THREAD_PREFER_PTHREAD ON)
@@ -137,6 +142,11 @@ if (MSVC)
 
   if (TD_ENABLE_MULTI_PROCESSOR_COMPILATION)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
+  endif()
+
+  if (TD_ENABLE_JNI)
+    # https://github.com/tdlib/td/issues/2912
+    add_definitions(-D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
   endif()
 endif()
 
@@ -163,12 +173,20 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/td/telegram/GitCommitHash.cpp.in" "$
 
 add_subdirectory(tdtl)
 
+if (TD_GENERATE_SOURCE_FILES)
+  set(TDUTILS_MIME_TYPE ON CACHE BOOL "")
+  set(TDUTILS_USE_EXTERNAL_DEPENDENCIES OFF CACHE BOOL "")
+endif()
 add_subdirectory(tdutils)
 
 add_subdirectory(td/generate)
 
 if (NOT CMAKE_CROSSCOMPILING)
-  add_custom_target(prepare_cross_compiling DEPENDS tl_generate_mtproto tl_generate_common tdmime_auto tl_generate_json)
+  set(TD_ALWAYS_GENERATE_SOURCE "")
+  if (TD_GENERATE_SOURCE_FILES)
+    set(TD_ALWAYS_GENERATE_SOURCE "ALL")
+  endif()
+  add_custom_target(prepare_cross_compiling ${TD_ALWAYS_GENERATE_SOURCE} DEPENDS tl_generate_mtproto tl_generate_common tdmime_auto tl_generate_json)
   if (TD_ENABLE_DOTNET)
     add_custom_target(remove_cpp_documentation
       WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -182,7 +200,9 @@ if (NOT CMAKE_CROSSCOMPILING)
 endif()
 
 if (NOT OPENSSL_FOUND)
-  message(WARNING "Can't find OpenSSL: stop TDLib building")
+  if (NOT TD_GENERATE_SOURCE_FILES)
+    message(WARNING "Can't find OpenSSL: stop TDLib building")
+  endif()
   return()
 endif()
 
@@ -194,8 +214,8 @@ if (NOT ZLIB_FOUND)
   return()
 endif()
 
-if (NOT TDUTILS_MIME_TYPE)
-  message(WARNING "Option TDUTILS_MIME_TYPE must not be disabled: stop TDLib building")
+if (NOT TDUTILS_MIME_TYPE OR NOT TDUTILS_USE_EXTERNAL_DEPENDENCIES)
+  message(WARNING "Option TDUTILS_MIME_TYPE and TDUTILS_USE_EXTERNAL_DEPENDENCIES must not be disabled: stop TDLib building")
   return()
 endif()
 
@@ -320,6 +340,7 @@ set(TD_MTPROTO_SOURCE
 
 set(TDLIB_SOURCE_PART1
   td/telegram/AccountManager.cpp
+  td/telegram/AlarmManager.cpp
   td/telegram/AnimationsManager.cpp
   td/telegram/Application.cpp
   td/telegram/AttachMenuManager.cpp
@@ -337,6 +358,7 @@ set(TDLIB_SOURCE_PART1
   td/telegram/BotCommandScope.cpp
   td/telegram/BotInfoManager.cpp
   td/telegram/BotMenuButton.cpp
+  td/telegram/BotQueries.cpp
   td/telegram/BusinessAwayMessage.cpp
   td/telegram/BusinessAwayMessageSchedule.cpp
   td/telegram/BusinessBotManageBar.cpp
@@ -536,6 +558,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/ReplyMarkup.cpp
   td/telegram/ReportReason.cpp
   td/telegram/RequestedDialogType.cpp
+  td/telegram/Requests.cpp
   td/telegram/RestrictionReason.cpp
   td/telegram/SavedMessagesManager.cpp
   td/telegram/SavedMessagesTopicId.cpp
@@ -606,6 +629,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/AccessRights.h
   td/telegram/AccountManager.h
   td/telegram/AffectedHistory.h
+  td/telegram/AlarmManager.h
   td/telegram/AnimationsManager.h
   td/telegram/Application.h
   td/telegram/AttachMenuManager.h
@@ -625,6 +649,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/BotCommandScope.h
   td/telegram/BotInfoManager.h
   td/telegram/BotMenuButton.h
+  td/telegram/BotQueries.h
   td/telegram/BusinessAwayMessage.h
   td/telegram/BusinessAwayMessageSchedule.h
   td/telegram/BusinessBotManageBar.h
@@ -877,6 +902,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/ReportReason.h
   td/telegram/RequestActor.h
   td/telegram/RequestedDialogType.h
+  td/telegram/Requests.h
   td/telegram/RestrictionReason.h
   td/telegram/SavedMessagesManager.h
   td/telegram/SavedMessagesTopicId.h

@@ -181,8 +181,9 @@ DialogPhoto as_dialog_photo(FileManager *file_manager, DialogId dialog_id, int64
 
   auto reregister_photo = [&](bool is_big, FileId file_id) {
     auto file_view = file_manager->get_file_view(file_id);
-    CHECK(file_view.has_remote_location());
-    auto remote = file_view.remote_location();
+    const auto *full_remote_location = file_view.get_full_remote_location();
+    CHECK(full_remote_location != nullptr);
+    auto remote = *full_remote_location;
     CHECK(remote.is_photo());
     CHECK(!remote.is_web());
     remote.set_source(PhotoSizeSource::dialog_photo(dialog_id, dialog_access_hash, is_big));
@@ -375,8 +376,9 @@ Result<Photo> create_photo(FileManager *file_manager, FileId file_id, PhotoSize 
 
   Photo photo;
   auto file_view = file_manager->get_file_view(file_id);
-  if (file_view.has_remote_location() && !file_view.remote_location().is_web()) {
-    photo.id = file_view.remote_location().get_id();
+  const auto *full_remote_location = file_view.get_full_remote_location();
+  if (full_remote_location != nullptr && !full_remote_location->is_web()) {
+    photo.id = full_remote_location->get_id();
   }
   if (photo.is_empty()) {
     photo.id = 0;
@@ -533,23 +535,23 @@ void merge_photos(Td *td, const Photo *old_photo, Photo *new_photo, DialogId dia
     if (need_merge && new_photos_size != 0) {
       FileId old_file_id = get_photo_upload_file_id(*old_photo);
       FileView old_file_view = td->file_manager_->get_file_view(old_file_id);
+      const auto *old_main_remote_location = old_file_view.get_main_remote_location();
       FileId new_file_id = new_photo->photos[0].file_id;
       FileView new_file_view = td->file_manager_->get_file_view(new_file_id);
-      CHECK(new_file_view.has_remote_location());
+      const auto *new_full_remote_location = new_file_view.get_full_remote_location();
+      CHECK(new_full_remote_location != nullptr);
 
       LOG(DEBUG) << "Trying to merge old file " << old_file_id << " and new file " << new_file_id;
-      if (new_file_view.remote_location().is_web()) {
+
+      if (new_full_remote_location->is_web()) {
         LOG(ERROR) << "Have remote web photo location";
-      } else if (!old_file_view.has_remote_location() ||
-                 old_file_view.main_remote_location().get_file_reference() !=
-                     new_file_view.remote_location().get_file_reference() ||
-                 old_file_view.main_remote_location().get_access_hash() !=
-                     new_file_view.remote_location().get_access_hash()) {
+      } else if (old_main_remote_location == nullptr ||
+                 old_main_remote_location->get_file_reference() != new_full_remote_location->get_file_reference() ||
+                 old_main_remote_location->get_access_hash() != new_full_remote_location->get_access_hash()) {
         FileId file_id = td->file_manager_->register_remote(
             FullRemoteFileLocation(PhotoSizeSource::thumbnail(new_file_view.get_type(), 'i'),
-                                   new_file_view.remote_location().get_id(),
-                                   new_file_view.remote_location().get_access_hash(), DcId::invalid(),
-                                   new_file_view.remote_location().get_file_reference().str()),
+                                   new_full_remote_location->get_id(), new_full_remote_location->get_access_hash(),
+                                   DcId::invalid(), new_full_remote_location->get_file_reference().str()),
             FileLocationSource::FromServer, dialog_id, old_photo->photos.back().size, 0, "");
         LOG_STATUS(td->file_manager_->merge(file_id, old_file_id));
       }
@@ -574,7 +576,7 @@ bool photo_has_input_media(FileManager *file_manager, const Photo &photo, bool i
   auto file_id = photo.photos.back().file_id;
   auto file_view = file_manager->get_file_view(file_id);
   if (is_secret) {
-    if (!file_view.is_encrypted_secret() || !file_view.has_remote_location()) {
+    if (!file_view.is_encrypted_secret() || !file_view.has_full_remote_location()) {
       return false;
     }
 
@@ -589,10 +591,10 @@ bool photo_has_input_media(FileManager *file_manager, const Photo &photo, bool i
     if (file_view.is_encrypted()) {
       return false;
     }
-    if (is_bot && file_view.has_remote_location()) {
+    if (is_bot && file_view.has_full_remote_location()) {
       return true;
     }
-    return /* file_view.has_remote_location() || */ file_view.has_url();
+    return /* file_view.has_full_remote_location() || */ file_view.has_url();
   }
 }
 
@@ -605,7 +607,8 @@ tl_object_ptr<telegram_api::InputMedia> photo_get_input_media(FileManager *file_
     if (file_view.is_encrypted()) {
       return nullptr;
     }
-    if (file_view.has_remote_location() && !file_view.main_remote_location().is_web() && input_file == nullptr) {
+    const auto *main_remote_location = file_view.get_main_remote_location();
+    if (main_remote_location != nullptr && !main_remote_location->is_web() && input_file == nullptr) {
       int32 flags = 0;
       if (ttl != 0) {
         flags |= telegram_api::inputMediaPhoto::TTL_SECONDS_MASK;
@@ -614,9 +617,10 @@ tl_object_ptr<telegram_api::InputMedia> photo_get_input_media(FileManager *file_
         flags |= telegram_api::inputMediaPhoto::SPOILER_MASK;
       }
       return make_tl_object<telegram_api::inputMediaPhoto>(flags, false /*ignored*/,
-                                                           file_view.main_remote_location().as_input_photo(), ttl);
+                                                           main_remote_location->as_input_photo(), ttl);
     }
-    if (file_view.has_url()) {
+    const auto *url = file_view.get_url();
+    if (url != nullptr) {
       int32 flags = 0;
       if (ttl != 0) {
         flags |= telegram_api::inputMediaPhotoExternal::TTL_SECONDS_MASK;
@@ -624,11 +628,11 @@ tl_object_ptr<telegram_api::InputMedia> photo_get_input_media(FileManager *file_
       if (has_spoiler) {
         flags |= telegram_api::inputMediaPhotoExternal::SPOILER_MASK;
       }
-      LOG(INFO) << "Create inputMediaPhotoExternal with a URL " << file_view.url() << " and self-destruct time " << ttl;
-      return make_tl_object<telegram_api::inputMediaPhotoExternal>(flags, false /*ignored*/, file_view.url(), ttl);
+      LOG(INFO) << "Create inputMediaPhotoExternal with a URL " << *url << " and self-destruct time " << ttl;
+      return make_tl_object<telegram_api::inputMediaPhotoExternal>(flags, false /*ignored*/, *url, ttl);
     }
     if (input_file == nullptr) {
-      CHECK(!file_view.has_remote_location());
+      CHECK(main_remote_location == nullptr);
     }
   }
   if (input_file != nullptr) {
@@ -684,9 +688,10 @@ SecretInputMedia photo_get_secret_input_media(FileManager *file_manager, const P
   if (!file_view.is_encrypted_secret() || encryption_key.empty()) {
     return {};
   }
-  if (file_view.has_remote_location()) {
+  const auto *main_remote_location = file_view.get_main_remote_location();
+  if (main_remote_location != nullptr) {
     LOG(INFO) << "Photo has remote location";
-    input_file = file_view.main_remote_location().as_input_encrypted_file();
+    input_file = main_remote_location->as_input_encrypted_file();
   }
   if (input_file == nullptr) {
     return {};

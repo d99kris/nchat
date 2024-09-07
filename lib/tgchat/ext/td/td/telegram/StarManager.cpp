@@ -26,6 +26,7 @@
 #include "td/telegram/StatisticsManager.h"
 #include "td/telegram/StickersManager.h"
 #include "td/telegram/Td.h"
+#include "td/telegram/TdDb.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/UpdatesManager.h"
 #include "td/telegram/UserManager.h"
@@ -106,6 +107,45 @@ class GetStarsGiftOptionsQuery final : public Td::ResultHandler {
     }
 
     promise_.set_value(td_api::make_object<td_api::starPaymentOptions>(std::move(options)));
+  }
+
+  void on_error(Status status) final {
+    promise_.set_error(std::move(status));
+  }
+};
+
+class GetStarsGiveawayOptionsQuery final : public Td::ResultHandler {
+  Promise<td_api::object_ptr<td_api::starGiveawayPaymentOptions>> promise_;
+
+ public:
+  explicit GetStarsGiveawayOptionsQuery(Promise<td_api::object_ptr<td_api::starGiveawayPaymentOptions>> &&promise)
+      : promise_(std::move(promise)) {
+  }
+
+  void send() {
+    send_query(G()->net_query_creator().create(telegram_api::payments_getStarsGiveawayOptions()));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::payments_getStarsGiveawayOptions>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    auto results = result_ptr.move_as_ok();
+    vector<td_api::object_ptr<td_api::starGiveawayPaymentOption>> options;
+    for (auto &result : results) {
+      vector<td_api::object_ptr<td_api::starGiveawayWinnerOption>> winner_options;
+      for (auto &winner : result->winners_) {
+        winner_options.push_back(td_api::make_object<td_api::starGiveawayWinnerOption>(
+            winner->users_, StarManager::get_star_count(winner->per_user_stars_), winner->default_));
+      }
+      options.push_back(td_api::make_object<td_api::starGiveawayPaymentOption>(
+          result->currency_, result->amount_, StarManager::get_star_count(result->stars_), result->store_product_,
+          result->yearly_boosts_, std::move(winner_options), result->default_, result->extended_));
+    }
+
+    promise_.set_value(td_api::make_object<td_api::starGiveawayPaymentOptions>(std::move(options)));
   }
 
   void on_error(Status status) final {
@@ -213,9 +253,8 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
         for (auto &media : extended_media) {
           media.append_file_ids(td_, file_ids);
         }
-        auto extended_media_objects = transform(std::move(extended_media), [td = td_](auto &&media) {
-          return media.get_message_extended_media_object(td);
-        });
+        auto extended_media_objects =
+            transform(std::move(extended_media), [td = td_](auto &&media) { return media.get_paid_media_object(td); });
         transaction->extended_media_.clear();
         return extended_media_objects;
       };
@@ -233,8 +272,7 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
             if (transaction->gift_) {
               transaction->gift_ = false;
               return td_api::make_object<td_api::starTransactionPartnerUser>(
-                  0, td_->stickers_manager_->get_premium_gift_sticker_object(
-                         StarManager::get_months_by_star_count(star_count)));
+                  0, td_->stickers_manager_->get_premium_gift_sticker_object(0, star_count));
             }
             auto state = [&]() -> td_api::object_ptr<td_api::RevenueWithdrawalState> {
               if (transaction->transaction_date_ > 0) {
@@ -276,8 +314,7 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
                       user_id == UserManager::get_service_notifications_user_id()
                           ? 0
                           : td_->user_manager_->get_user_id_object(user_id, "starTransactionPartnerUser"),
-                      td_->stickers_manager_->get_premium_gift_sticker_object(
-                          StarManager::get_months_by_star_count(star_count)));
+                      td_->stickers_manager_->get_premium_gift_sticker_object(0, star_count));
                 }
                 if (!transaction->extended_media_.empty()) {  // TODO
                   return td_api::make_object<td_api::starTransactionPartnerBusiness>(
@@ -287,22 +324,29 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
                 LOG(ERROR) << "Receive Telegram Star transaction with " << user_id;
                 return td_api::make_object<td_api::starTransactionPartnerUnsupported>();
               }
-              if ((product_info == nullptr && bot_payload.empty()) || !transaction->extended_media_.empty()) {
-                if (G()->is_test_dc()) {
-                  bot_payload.clear();
-                }
-                return td_api::make_object<td_api::starTransactionPartnerBot>(
-                    td_->user_manager_->get_user_id_object(user_id, "starTransactionPartnerBot"),
-                    td_api::make_object<td_api::botTransactionPurposePaidMedia>(
-                        get_paid_media_object(DialogId(user_id))));
-              }
               SCOPE_EXIT {
                 bot_payload.clear();
               };
+              if (product_info == nullptr || !transaction->extended_media_.empty()) {
+                return td_api::make_object<td_api::starTransactionPartnerBot>(
+                    td_->user_manager_->get_user_id_object(user_id, "starTransactionPartnerBot"),
+                    td_api::make_object<td_api::botTransactionPurposePaidMedia>(
+                        get_paid_media_object(DialogId(user_id)), bot_payload));
+              }
               return td_api::make_object<td_api::starTransactionPartnerBot>(
                   td_->user_manager_->get_user_id_object(user_id, "starTransactionPartnerBot"),
                   td_api::make_object<td_api::botTransactionPurposeInvoicePayment>(std::move(product_info),
                                                                                    bot_payload));
+            }
+            if (dialog_id.get_type() == DialogType::Channel && transaction->giveaway_post_id_ > 0) {
+              SCOPE_EXIT {
+                transaction->giveaway_post_id_ = 0;
+              };
+              td_->dialog_manager_->force_create_dialog(dialog_id, "starsTransactionPeer", true);
+              return td_api::make_object<td_api::starTransactionPartnerChat>(
+                  td_->dialog_manager_->get_chat_id_object(dialog_id, "starTransactionPartnerChat"),
+                  td_api::make_object<td_api::chatTransactionPurposeGiveaway>(
+                      MessageId(ServerMessageId(transaction->giveaway_post_id_)).get()));
             }
             if (td_->dialog_manager_->is_broadcast_channel(dialog_id)) {
               if (transaction->subscription_period_ > 0) {
@@ -310,9 +354,9 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
                   transaction->subscription_period_ = 0;
                 };
                 td_->dialog_manager_->force_create_dialog(dialog_id, "starsTransactionPeer", true);
-                return td_api::make_object<td_api::starTransactionPartnerChannel>(
-                    td_->dialog_manager_->get_chat_id_object(dialog_id, "starTransactionPartnerChannel"),
-                    td_api::make_object<td_api::channelTransactionPurposeJoin>(transaction->subscription_period_));
+                return td_api::make_object<td_api::starTransactionPartnerChat>(
+                    td_->dialog_manager_->get_chat_id_object(dialog_id, "starTransactionPartnerChat"),
+                    td_api::make_object<td_api::chatTransactionPurposeJoin>(transaction->subscription_period_));
               }
               if (transaction->reaction_) {
                 SCOPE_EXIT {
@@ -325,9 +369,9 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
                   message_id = MessageId();
                 }
                 td_->dialog_manager_->force_create_dialog(dialog_id, "starsTransactionPeer", true);
-                return td_api::make_object<td_api::starTransactionPartnerChannel>(
-                    td_->dialog_manager_->get_chat_id_object(dialog_id, "starTransactionPartnerChannel"),
-                    td_api::make_object<td_api::channelTransactionPurposeReaction>(message_id.get()));
+                return td_api::make_object<td_api::starTransactionPartnerChat>(
+                    td_->dialog_manager_->get_chat_id_object(dialog_id, "starTransactionPartnerChat"),
+                    td_api::make_object<td_api::chatTransactionPurposeReaction>(message_id.get()));
               }
 
               SCOPE_EXIT {
@@ -339,10 +383,10 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
                 message_id = MessageId();
               }
               td_->dialog_manager_->force_create_dialog(dialog_id, "starsTransactionPeer", true);
-              return td_api::make_object<td_api::starTransactionPartnerChannel>(
-                  td_->dialog_manager_->get_chat_id_object(dialog_id, "starTransactionPartnerChannel"),
-                  td_api::make_object<td_api::channelTransactionPurposePaidMedia>(message_id.get(),
-                                                                                  get_paid_media_object(dialog_id)));
+              return td_api::make_object<td_api::starTransactionPartnerChat>(
+                  td_->dialog_manager_->get_chat_id_object(dialog_id, "starTransactionPartnerChat"),
+                  td_api::make_object<td_api::chatTransactionPurposePaidMedia>(message_id.get(),
+                                                                               get_paid_media_object(dialog_id)));
             }
             LOG(ERROR) << "Receive Telegram Star transaction with " << dialog_id;
             return td_api::make_object<td_api::starTransactionPartnerUnsupported>();
@@ -382,6 +426,9 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
         if (!transaction->extended_media_.empty()) {
           LOG(ERROR) << "Receive paid media with " << to_string(star_transaction);
         }
+        if (transaction->giveaway_post_id_ != 0) {
+          LOG(ERROR) << "Receive giveaway message with " << to_string(star_transaction);
+        }
       }
       if (!file_ids.empty()) {
         auto file_source_id =
@@ -392,7 +439,7 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
       }
       transactions.push_back(std::move(star_transaction));
     }
-    if (!td_->auth_manager_->is_bot() && dialog_id_ == td_->dialog_manager_->get_my_dialog_id()) {
+    if (dialog_id_ == td_->dialog_manager_->get_my_dialog_id()) {
       td_->star_manager_->on_update_owned_star_count(star_count);
     }
 
@@ -445,9 +492,7 @@ class GetStarsSubscriptionsQuery final : public Td::ResultHandler {
       }
     }
     auto star_count = StarManager::get_star_count(result->balance_, true);
-    if (!td_->auth_manager_->is_bot()) {
-      td_->star_manager_->on_update_owned_star_count(star_count);
-    }
+    td_->star_manager_->on_update_owned_star_count(star_count);
     promise_.set_value(td_api::make_object<td_api::starSubscriptions>(
         star_count, std::move(subscriptions), StarManager::get_star_count(result->subscriptions_missing_balance_),
         result->subscriptions_next_offset_));
@@ -670,28 +715,66 @@ class GetStarsRevenueAdsAccountUrlQuery final : public Td::ResultHandler {
 StarManager::StarManager(Td *td, ActorShared<> parent) : td_(td), parent_(std::move(parent)) {
 }
 
+void StarManager::start_up() {
+  if (td_->auth_manager_->is_bot() || !td_->auth_manager_->is_authorized()) {
+    return;
+  }
+  auto owned_star_count = G()->td_db()->get_binlog_pmc()->get("owned_star_count");
+  if (!owned_star_count.empty()) {
+    is_owned_star_count_inited_ = true;
+    owned_star_count_ = to_integer<int64>(owned_star_count);
+    sent_star_count_ = owned_star_count_;
+    send_closure(G()->td(), &Td::send_update, get_update_owned_star_count_object());
+  }
+}
+
 void StarManager::tear_down() {
   parent_.reset();
 }
 
 td_api::object_ptr<td_api::updateOwnedStarCount> StarManager::get_update_owned_star_count_object() const {
   CHECK(is_owned_star_count_inited_);
-  return td_api::make_object<td_api::updateOwnedStarCount>(owned_star_count_);
+  // sent_star_count_ can be negative as well as owned_star_count_
+  return td_api::make_object<td_api::updateOwnedStarCount>(sent_star_count_);
 }
 
 void StarManager::on_update_owned_star_count(int64 star_count) {
+  if (td_->auth_manager_->is_bot()) {
+    return;
+  }
   if (is_owned_star_count_inited_ && star_count == owned_star_count_) {
     return;
   }
   is_owned_star_count_inited_ = true;
   owned_star_count_ = star_count;
-  send_closure(G()->td(), &Td::send_update, get_update_owned_star_count_object());
+  if (owned_star_count_ + pending_owned_star_count_ != sent_star_count_) {
+    sent_star_count_ = owned_star_count_ + pending_owned_star_count_;
+    send_closure(G()->td(), &Td::send_update, get_update_owned_star_count_object());
+  }
+  G()->td_db()->get_binlog_pmc()->set("owned_star_count", to_string(owned_star_count_));
 }
 
-void StarManager::add_owned_star_count(int64 star_count) {
-  if (is_owned_star_count_inited_) {
-    on_update_owned_star_count(star_count + owned_star_count_);
+void StarManager::add_pending_owned_star_count(int64 star_count, bool move_to_owned) {
+  if (star_count == 0) {
+    return;
   }
+  pending_owned_star_count_ += star_count;
+  if (is_owned_star_count_inited_) {
+    if (move_to_owned) {
+      owned_star_count_ -= star_count;
+      G()->td_db()->get_binlog_pmc()->set("owned_star_count", to_string(owned_star_count_));
+    } else {
+      sent_star_count_ += star_count;
+      send_closure(G()->td(), &Td::send_update, get_update_owned_star_count_object());
+    }
+  }
+}
+
+bool StarManager::has_owned_star_count(int64 star_count) const {
+  if (star_count <= 0 || !is_owned_star_count_inited_) {
+    return true;
+  }
+  return sent_star_count_ >= star_count;
 }
 
 Status StarManager::can_manage_stars(DialogId dialog_id, bool allow_self) const {
@@ -735,6 +818,11 @@ void StarManager::get_star_gift_payment_options(UserId user_id,
   }
   TRY_RESULT_PROMISE(promise, input_user, td_->user_manager_->get_input_user(user_id));
   td_->create_handler<GetStarsGiftOptionsQuery>(std::move(promise))->send(std::move(input_user));
+}
+
+void StarManager::get_star_giveaway_payment_options(
+    Promise<td_api::object_ptr<td_api::starGiveawayPaymentOptions>> &&promise) {
+  td_->create_handler<GetStarsGiveawayOptionsQuery>(std::move(promise))->send();
 }
 
 void StarManager::get_star_transactions(td_api::object_ptr<td_api::MessageSender> owner_id,
@@ -843,6 +931,10 @@ void StarManager::reload_star_transaction(DialogId dialog_id, const string &tran
         }
       });
   td_->create_handler<GetStarsTransactionsQuery>(std::move(query_promise))->send(dialog_id, transaction_id, is_refund);
+}
+
+void StarManager::reload_owned_star_count() {
+  do_get_star_transactions(td_->dialog_manager_->get_my_dialog_id(), string(), string(), 1, nullptr, Auto());
 }
 
 void StarManager::on_update_stars_revenue_status(

@@ -630,6 +630,9 @@ class CliClient final : public Actor {
     if (str == "me") {
       return my_id_;
     }
+    if (str == ".") {
+      return opened_chat_id_;
+    }
     if (str[0] == '@') {
       str.remove_prefix(1);
     }
@@ -650,9 +653,12 @@ class CliClient final : public Actor {
     return transform(autosplit(user_ids), [this](Slice str) { return as_user_id(str); });
   }
 
-  static int64 as_basic_group_id(Slice str) {
+  int64 as_basic_group_id(Slice str) const {
     str = trim(str);
     auto result = to_integer<int64>(str);
+    if (str == ".") {
+      result = opened_chat_id_;
+    }
     if (result < 0) {
       return -result;
     }
@@ -672,6 +678,9 @@ class CliClient final : public Actor {
       return it->second;
     }
     auto result = to_integer<int64>(str);
+    if (str == ".") {
+      result = opened_chat_id_;
+    }
     auto shift = static_cast<int64>(-1000000000000ll);
     if (result <= shift) {
       return shift - result;
@@ -679,9 +688,12 @@ class CliClient final : public Actor {
     return result;
   }
 
-  static int32 as_secret_chat_id(Slice str) {
+  int32 as_secret_chat_id(Slice str) const {
     str = trim(str);
     auto result = to_integer<int64>(str);
+    if (str == ".") {
+      result = opened_chat_id_;
+    }
     auto shift = static_cast<int64>(-2000000000000ll);
     if (result <= shift + std::numeric_limits<int32>::max()) {
       return static_cast<int32>(result - shift);
@@ -1046,23 +1058,23 @@ class CliClient final : public Actor {
     }
   }
 
-  struct PremiumGiveawayParameters {
+  struct GiveawayParameters {
     int64 chat_id = 0;
     vector<int64> additional_chat_ids;
     int32 date;
     vector<string> country_codes;
 
-    operator td_api::object_ptr<td_api::premiumGiveawayParameters>() const {
+    operator td_api::object_ptr<td_api::giveawayParameters>() const {
       if (chat_id == 0) {
         return nullptr;
       }
-      return td_api::make_object<td_api::premiumGiveawayParameters>(chat_id, vector<int64>(additional_chat_ids), date,
-                                                                    rand_bool(), rand_bool(),
-                                                                    vector<string>(country_codes), "prize");
+      return td_api::make_object<td_api::giveawayParameters>(chat_id, vector<int64>(additional_chat_ids), date,
+                                                             rand_bool(), rand_bool(), vector<string>(country_codes),
+                                                             "prize");
     }
   };
 
-  void get_args(string &args, PremiumGiveawayParameters &arg) const {
+  void get_args(string &args, GiveawayParameters &arg) const {
     auto parts = autosplit(args);
     if (args.size() < 3) {
       return;
@@ -2323,8 +2335,8 @@ class CliClient final : public Actor {
   }
 
   static td_api::object_ptr<td_api::themeParameters> as_theme_parameters() {
-    return td_api::make_object<td_api::themeParameters>(0, 1, -1, 256, 65536, 123456789, 65535, 5, 55, 555, 5555, 55555,
-                                                        555555, 123);
+    return td_api::make_object<td_api::themeParameters>(0, 1, -1, 123, 256, 65536, 123456789, 65535, 5, 55, 555, 5555,
+                                                        55555, 555555, 123);
   }
 
   static td_api::object_ptr<td_api::BackgroundFill> as_background_fill(int32 color) {
@@ -2970,12 +2982,18 @@ class CliClient final : public Actor {
       auto reaction_types = transform(autosplit_str(reactions), as_reaction_type);
       send_request(td_api::make_object<td_api::setMessageReactions>(chat_id, message_id, std::move(reaction_types),
                                                                     op == "reactbotbig"));
-    } else if (op == "apmr" || op == "apmra") {
+    } else if (op == "appmr" || op == "appmra" || op == "appmrd") {
       ChatId chat_id;
       MessageId message_id;
       int64 star_count;
       get_args(args, chat_id, message_id, star_count);
-      send_request(td_api::make_object<td_api::addPaidMessageReaction>(chat_id, message_id, star_count, op == "apmra"));
+      send_request(td_api::make_object<td_api::addPendingPaidMessageReaction>(chat_id, message_id, star_count,
+                                                                              op == "appmrd", op == "appmra"));
+    } else if (op == "cppmr") {
+      ChatId chat_id;
+      MessageId message_id;
+      get_args(args, chat_id, message_id);
+      send_request(td_api::make_object<td_api::commitPendingPaidMessageReactions>(chat_id, message_id));
     } else if (op == "rppmr") {
       ChatId chat_id;
       MessageId message_id;
@@ -3452,22 +3470,26 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::checkPremiumGiftCode>(args));
     } else if (op == "apgc") {
       send_request(td_api::make_object<td_api::applyPremiumGiftCode>(args));
-    } else if (op == "lppg") {
+    } else if (op == "lpg") {
       int64 giveaway_id;
-      PremiumGiveawayParameters parameters;
-      get_args(args, giveaway_id, parameters);
-      send_request(td_api::make_object<td_api::launchPrepaidPremiumGiveaway>(giveaway_id, parameters));
-    } else if (op == "gpgi") {
+      int32 user_count;
+      int64 star_count;
+      GiveawayParameters parameters;
+      get_args(args, giveaway_id, user_count, star_count, parameters);
+      send_request(td_api::make_object<td_api::launchPrepaidGiveaway>(giveaway_id, parameters, user_count, star_count));
+    } else if (op == "ggi") {
       ChatId chat_id;
       MessageId message_id;
       get_args(args, chat_id, message_id);
-      send_request(td_api::make_object<td_api::getPremiumGiveawayInfo>(chat_id, message_id));
+      send_request(td_api::make_object<td_api::getGiveawayInfo>(chat_id, message_id));
     } else if (op == "gspo") {
       send_request(td_api::make_object<td_api::getStarPaymentOptions>());
     } else if (op == "gsgpo") {
       UserId user_id;
       get_args(args, user_id);
       send_request(td_api::make_object<td_api::getStarGiftPaymentOptions>(user_id));
+    } else if (op == "gsgapo") {
+      send_request(td_api::make_object<td_api::getStarGiveawayPaymentOptions>());
     } else if (op == "gsta" || op == "gsti" || op == "gsto") {
       string owner_id;
       string subscription_id;
@@ -3514,12 +3536,22 @@ class CliClient final : public Actor {
                                                                              vector<int64>{user_id})));
       }
     } else if (op == "cpfsg") {
-      PremiumGiveawayParameters parameters;
+      GiveawayParameters parameters;
       string currency;
       int64 amount;
       get_args(args, parameters, currency, amount);
       send_request(td_api::make_object<td_api::canPurchaseFromStore>(
           td_api::make_object<td_api::storePaymentPurposePremiumGiveaway>(parameters, currency, amount)));
+    } else if (op == "cpfssg") {
+      GiveawayParameters parameters;
+      string currency;
+      int64 amount;
+      int32 user_count;
+      int64 star_count;
+      get_args(args, parameters, currency, amount, user_count, star_count);
+      send_request(td_api::make_object<td_api::canPurchaseFromStore>(
+          td_api::make_object<td_api::storePaymentPurposeStarGiveaway>(parameters, currency, amount, user_count,
+                                                                       star_count)));
     } else if (op == "cpfss") {
       string currency;
       int64 amount;
@@ -3581,6 +3613,10 @@ class CliClient final : public Actor {
       int64 sticker_set_id;
       get_args(args, sticker_set_id);
       send_request(td_api::make_object<td_api::getStickerSet>(sticker_set_id));
+    } else if (op == "gssn") {
+      int64 sticker_set_id;
+      get_args(args, sticker_set_id);
+      send_request(td_api::make_object<td_api::getStickerSetName>(sticker_set_id));
     } else if (op == "giss" || op == "gissm" || op == "gisse") {
       send_request(td_api::make_object<td_api::getInstalledStickerSets>(as_sticker_type(op)));
     } else if (op == "gass" || op == "gassm" || op == "gasse") {
@@ -4913,11 +4949,11 @@ class CliClient final : public Actor {
       get_args(args, user_id, is_added, allow_write_access);
       send_request(
           td_api::make_object<td_api::toggleBotIsAddedToAttachmentMenu>(user_id, is_added, allow_write_access));
-    } else if (op == "gpwab") {
+    } else if (op == "ggwab") {
       string offset;
       string limit;
       get_args(args, offset, limit);
-      send_request(td_api::make_object<td_api::getPopularWebAppBots>(offset, as_limit(limit)));
+      send_request(td_api::make_object<td_api::getGrossingWebAppBots>(offset, as_limit(limit)));
     } else if (op == "swa") {
       UserId bot_user_id;
       string short_name;
@@ -5070,8 +5106,8 @@ class CliClient final : public Actor {
         return td_api::make_object<td_api::inputPaidMedia>(td_api::make_object<td_api::inputPaidMediaTypePhoto>(),
                                                            as_input_file(photo), nullptr, vector<int32>(), 0, 0);
       });
-      send_message(chat_id, td_api::make_object<td_api::inputMessagePaidMedia>(11, std::move(paid_media),
-                                                                               as_caption("12_3_ __4__"), rand_bool()));
+      send_message(chat_id, td_api::make_object<td_api::inputMessagePaidMedia>(
+                                11, std::move(paid_media), as_caption("12_3_ __4__"), rand_bool(), "photo"));
     } else if (op == "spmv") {
       ChatId chat_id;
       get_args(args, chat_id, args);
@@ -5080,8 +5116,8 @@ class CliClient final : public Actor {
             td_api::make_object<td_api::inputPaidMediaTypeVideo>(10, true), as_input_file(video), nullptr,
             vector<int32>(), 0, 0);
       });
-      send_message(chat_id, td_api::make_object<td_api::inputMessagePaidMedia>(12, std::move(paid_media),
-                                                                               as_caption("12_3_ __4__"), rand_bool()));
+      send_message(chat_id, td_api::make_object<td_api::inputMessagePaidMedia>(
+                                12, std::move(paid_media), as_caption("12_3_ __4__"), rand_bool(), "video"));
     } else if (op == "smap") {
       ChatId chat_id;
       get_args(args, chat_id, args);

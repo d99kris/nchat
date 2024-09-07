@@ -845,16 +845,16 @@ premiumPaymentOption currency:string amount:int53 discount_percentage:int32 mont
 //@last_transaction_id Identifier of the last in-store transaction for the currently used option
 premiumStatePaymentOption payment_option:premiumPaymentOption is_current:Bool is_upgrade:Bool last_transaction_id:string = PremiumStatePaymentOption;
 
-//@description Describes an option for creating Telegram Premium gift codes. Use telegramPaymentPurposePremiumGiftCodes for out-of-store payments
+//@description Describes an option for creating Telegram Premium gift codes or Telegram Premium giveaway. Use telegramPaymentPurposePremiumGiftCodes or telegramPaymentPurposePremiumGiveaway for out-of-store payments
 //@currency ISO 4217 currency code for Telegram Premium gift code payment
 //@amount The amount to pay, in the smallest units of the currency
-//@user_count Number of users which will be able to activate the gift codes
+//@winner_count Number of users which will be able to activate the gift codes
 //@month_count Number of months the Telegram Premium subscription will be active
 //@store_product_id Identifier of the store product associated with the option; may be empty if none
 //@store_product_quantity Number of times the store product must be paid
-premiumGiftCodePaymentOption currency:string amount:int53 user_count:int32 month_count:int32 store_product_id:string store_product_quantity:int32 = PremiumGiftCodePaymentOption;
+premiumGiftCodePaymentOption currency:string amount:int53 winner_count:int32 month_count:int32 store_product_id:string store_product_quantity:int32 = PremiumGiftCodePaymentOption;
 
-//@description Contains a list of options for creating Telegram Premium gift codes @options The list of options
+//@description Contains a list of options for creating Telegram Premium gift codes or Telegram Premium giveaway @options The list of options
 premiumGiftCodePaymentOptions options:vector<premiumGiftCodePaymentOption> = PremiumGiftCodePaymentOptions;
 
 //@description Contains information about a Telegram Premium gift code
@@ -878,6 +878,26 @@ starPaymentOption currency:string amount:int53 star_count:int53 store_product_id
 //@description Contains a list of options for buying Telegram Stars @options The list of options
 starPaymentOptions options:vector<starPaymentOption> = StarPaymentOptions;
 
+//@description Describes an option for the number of winners of a Telegram Star giveaway
+//@winner_count The number of users that will be chosen as winners
+//@won_star_count The number of Telegram Stars that will be won by the winners of the giveaway
+//@is_default True, if the option must be chosen by default
+starGiveawayWinnerOption winner_count:int32 won_star_count:int53 is_default:Bool = StarGiveawayWinnerOption;
+
+//@description Describes an option for creating Telegram Star giveaway. Use telegramPaymentPurposeStarGiveaway for out-of-store payments
+//@currency ISO 4217 currency code for the payment
+//@amount The amount to pay, in the smallest units of the currency
+//@star_count Number of Telegram Stars that will be distributed among winners
+//@store_product_id Identifier of the store product associated with the option; may be empty if none
+//@yearly_boost_count Number of times the chat will be boosted for one year if the option is chosen
+//@winner_options Allowed options for the number of giveaway winners
+//@is_default True, if the option must be chosen by default
+//@is_additional True, if the option must be shown only in the full list of payment options
+starGiveawayPaymentOption currency:string amount:int53 star_count:int53 store_product_id:string yearly_boost_count:int32 winner_options:vector<starGiveawayWinnerOption> is_default:Bool is_additional:Bool = StarGiveawayPaymentOption;
+
+//@description Contains a list of options for creating Telegram Star giveaway @options The list of options
+starGiveawayPaymentOptions options:vector<starGiveawayPaymentOption> = StarGiveawayPaymentOptions;
+
 
 //@class StarTransactionDirection @description Describes direction of a transaction with Telegram Stars
 
@@ -890,8 +910,8 @@ starTransactionDirectionOutgoing = StarTransactionDirection;
 
 //@class BotTransactionPurpose @description Describes purpose of a transaction with a bot
 
-//@description Paid media were bought @media The bought media if the trancastion wasn't refunded
-botTransactionPurposePaidMedia media:vector<PaidMedia> = BotTransactionPurpose;
+//@description Paid media were bought @media The bought media if the trancastion wasn't refunded @payload Bot-provided payload; for bots only
+botTransactionPurposePaidMedia media:vector<PaidMedia> payload:string = BotTransactionPurpose;
 
 //@description User bought a product from the bot
 //@product_info Information about the bought product; may be null if not applicable
@@ -899,20 +919,23 @@ botTransactionPurposePaidMedia media:vector<PaidMedia> = BotTransactionPurpose;
 botTransactionPurposeInvoicePayment product_info:productInfo invoice_payload:bytes = BotTransactionPurpose;
 
 
-//@class ChannelTransactionPurpose @description Describes purpose of a transaction with a channel
+//@class ChatTransactionPurpose @description Describes purpose of a transaction with a supergroup or a channel
 
 //@description Paid media were bought
-//@message_id Identifier of the corresponding message with paid media; can be an identifier of a deleted message
+//@message_id Identifier of the corresponding message with paid media; can be 0 or an identifier of a deleted message
 //@media The bought media if the trancastion wasn't refunded
-channelTransactionPurposePaidMedia message_id:int53 media:vector<PaidMedia> = ChannelTransactionPurpose;
+chatTransactionPurposePaidMedia message_id:int53 media:vector<PaidMedia> = ChatTransactionPurpose;
 
 //@description User joined the channel and subscribed to regular payments in Telegram Stars
 //@period The number of seconds between consecutive Telegram Star debiting
-channelTransactionPurposeJoin period:int32 = ChannelTransactionPurpose;
+chatTransactionPurposeJoin period:int32 = ChatTransactionPurpose;
 
 //@description User paid for a reaction
-//@message_id Identifier of the reacted message; can be an identifier of a deleted message
-channelTransactionPurposeReaction message_id:int53 = ChannelTransactionPurpose;
+//@message_id Identifier of the reacted message; can be 0 or an identifier of a deleted message
+chatTransactionPurposeReaction message_id:int53 = ChatTransactionPurpose;
+
+//@description User received Telegram Stars from a giveaway @giveaway_message_id Identifier of the message with giveaway; can be 0 or an identifier of a deleted message
+chatTransactionPurposeGiveaway giveaway_message_id:int53 = ChatTransactionPurpose;
 
 
 //@class StarTransactionPartner @description Describes source or recipient of a transaction with Telegram Stars
@@ -938,8 +961,8 @@ starTransactionPartnerBot user_id:int53 purpose:BotTransactionPurpose = StarTran
 //@description The transaction is a transaction with a business account @user_id Identifier of the business account user @media The bought media if the trancastion wasn't refunded
 starTransactionPartnerBusiness user_id:int53 media:vector<PaidMedia> = StarTransactionPartner;
 
-//@description The transaction is a transaction with a channel chat @chat_id Identifier of the chat @purpose Purpose of the transaction
-starTransactionPartnerChannel chat_id:int53 purpose:ChannelTransactionPurpose = StarTransactionPartner;
+//@description The transaction is a transaction with a supergroup or a channel chat @chat_id Identifier of the chat @purpose Purpose of the transaction
+starTransactionPartnerChat chat_id:int53 purpose:ChatTransactionPurpose = StarTransactionPartner;
 
 //@description The transaction is a gift of Telegram Stars from another user
 //@user_id Identifier of the user; 0 if the gift was anonymous
@@ -965,41 +988,52 @@ starTransaction id:string star_count:int53 is_refund:Bool date:int32 partner:Sta
 starTransactions star_count:int53 transactions:vector<starTransaction> next_offset:string = StarTransactions;
 
 
-//@class PremiumGiveawayParticipantStatus @description Contains information about status of a user in a Telegram Premium giveaway
+//@class GiveawayParticipantStatus @description Contains information about status of a user in a giveaway
 
 //@description The user is eligible for the giveaway
-premiumGiveawayParticipantStatusEligible = PremiumGiveawayParticipantStatus;
+giveawayParticipantStatusEligible = GiveawayParticipantStatus;
 
 //@description The user participates in the giveaway
-premiumGiveawayParticipantStatusParticipating = PremiumGiveawayParticipantStatus;
+giveawayParticipantStatusParticipating = GiveawayParticipantStatus;
 
 //@description The user can't participate in the giveaway, because they have already been member of the chat
 //@joined_chat_date Point in time (Unix timestamp) when the user joined the chat
-premiumGiveawayParticipantStatusAlreadyWasMember joined_chat_date:int32 = PremiumGiveawayParticipantStatus;
+giveawayParticipantStatusAlreadyWasMember joined_chat_date:int32 = GiveawayParticipantStatus;
 
 //@description The user can't participate in the giveaway, because they are an administrator in one of the chats that created the giveaway @chat_id Identifier of the chat administered by the user
-premiumGiveawayParticipantStatusAdministrator chat_id:int53 = PremiumGiveawayParticipantStatus;
+giveawayParticipantStatusAdministrator chat_id:int53 = GiveawayParticipantStatus;
 
 //@description The user can't participate in the giveaway, because they phone number is from a disallowed country @user_country_code A two-letter ISO 3166-1 alpha-2 country code of the user's country
-premiumGiveawayParticipantStatusDisallowedCountry user_country_code:string = PremiumGiveawayParticipantStatus;
+giveawayParticipantStatusDisallowedCountry user_country_code:string = GiveawayParticipantStatus;
 
 
-//@class PremiumGiveawayInfo @description Contains information about Telegram Premium giveaway
+//@class GiveawayInfo @description Contains information about a giveaway
 
 //@description Describes an ongoing giveaway
 //@creation_date Point in time (Unix timestamp) when the giveaway was created
 //@status Status of the current user in the giveaway
 //@is_ended True, if the giveaway has ended and results are being prepared
-premiumGiveawayInfoOngoing creation_date:int32 status:PremiumGiveawayParticipantStatus is_ended:Bool = PremiumGiveawayInfo;
+giveawayInfoOngoing creation_date:int32 status:GiveawayParticipantStatus is_ended:Bool = GiveawayInfo;
 
 //@description Describes a completed giveaway
 //@creation_date Point in time (Unix timestamp) when the giveaway was created
 //@actual_winners_selection_date Point in time (Unix timestamp) when the winners were selected. May be bigger than winners selection date specified in parameters of the giveaway
 //@was_refunded True, if the giveaway was canceled and was fully refunded
+//@is_winner True, if the cuurent user is a winner of the giveaway
 //@winner_count Number of winners in the giveaway
-//@activation_count Number of winners, which activated their gift codes
-//@gift_code Telegram Premium gift code that was received by the current user; empty if the user isn't a winner in the giveaway
-premiumGiveawayInfoCompleted creation_date:int32 actual_winners_selection_date:int32 was_refunded:Bool winner_count:int32 activation_count:int32 gift_code:string = PremiumGiveawayInfo;
+//@activation_count Number of winners, which activated their gift codes; for Telegram Premium giveaways only
+//@gift_code Telegram Premium gift code that was received by the current user; empty if the user isn't a winner in the giveaway or the giveaway isn't a Telegram Premium giveaway
+//@won_star_count The amount of Telegram Stars won by the current user; 0 if the user isn't a winner in the giveaway or the giveaway isn't a Telegram Star giveaway
+giveawayInfoCompleted creation_date:int32 actual_winners_selection_date:int32 was_refunded:Bool is_winner:Bool winner_count:int32 activation_count:int32 gift_code:string won_star_count:int53 = GiveawayInfo;
+
+
+//@class GiveawayPrize @description Contains information about a giveaway prize
+
+//@description The giveaway sends Telegram Premium subscriptions to the winners @month_count Number of months the Telegram Premium subscription will be active after code activation
+giveawayPrizePremium month_count:int32 = GiveawayPrize;
+
+//@description The giveaway sends Telegram Stars to the winners @star_count Number of Telegram Stars that will be shared by all winners
+giveawayPrizeStars star_count:int53 = GiveawayPrize;
 
 
 //@description Contains information about supported accent color for user/chat name, background of empty chat photo, replies to messages and link previews
@@ -1622,9 +1656,9 @@ inputTextQuote text:formattedText position:int32 = InputTextQuote;
 //@origin Information about origin of the message if the message was from another chat or topic; may be null for messages from the same chat
 //@origin_send_date Point in time (Unix timestamp) when the message was sent if the message was from another chat or topic; 0 for messages from the same chat
 //@content Media content of the message if the message was from another chat or topic; may be null for messages from the same chat and messages without media.
-//-Can be only one of the following types: messageAnimation, messageAudio, messageContact, messageDice, messageDocument, messageGame, messageInvoice, messageLocation,
-//-messagePaidMedia, messagePhoto, messagePoll, messagePremiumGiveaway, messagePremiumGiveawayWinners, messageSticker, messageStory, messageText (for link preview),
-//-messageVenue, messageVideo, messageVideoNote, or messageVoiceNote
+//-Can be only one of the following types: messageAnimation, messageAudio, messageContact, messageDice, messageDocument, messageGame, messageGiveaway, messageGiveawayWinners,
+//-messageInvoice, messageLocation, messagePaidMedia, messagePhoto, messagePoll, messageSticker, messageStory, messageText (for link preview), messageVenue, messageVideo,
+//-messageVideoNote, or messageVoiceNote
 messageReplyToMessage chat_id:int53 message_id:int53 quote:textQuote origin:MessageOrigin origin_send_date:int32 content:MessageContent = MessageReplyTo;
 
 //@description Describes a story replied by a given message @story_sender_chat_id The identifier of the sender of the story @story_id The identifier of the story
@@ -2656,22 +2690,17 @@ linkPreviewAlbumMediaVideo video:video = LinkPreviewAlbumMedia;
 //@description The link is a link to a media album consisting of photos and videos @media The list of album media @caption Album caption
 linkPreviewTypeAlbum media:vector<LinkPreviewAlbumMedia> caption:string = LinkPreviewType;
 
-//@description The link is a link to an animation @animation The animation @author Author of the animation
-linkPreviewTypeAnimation animation:animation author:string = LinkPreviewType;
+//@description The link is a link to an animation @animation The animation
+linkPreviewTypeAnimation animation:animation = LinkPreviewType;
 
-//@description The link is a link to an app at App Store or Google Play @photo Photo for the app @author Author of the app
-linkPreviewTypeApp photo:photo author:string = LinkPreviewType;
+//@description The link is a link to an app at App Store or Google Play @photo Photo for the app
+linkPreviewTypeApp photo:photo = LinkPreviewType;
 
-//@description The link is a link to a web site @photo Article's main photo; may be null @author Author of the article
-linkPreviewTypeArticle photo:photo author:string = LinkPreviewType;
+//@description The link is a link to a web site @photo Article's main photo; may be null
+linkPreviewTypeArticle photo:photo = LinkPreviewType;
 
-//@description The link is a link to an audio
-//@url URL of the audio; may be empty if none
-//@mime_type MIME type of the audio file
-//@audio The audio description; may be null if unknown
-//@duration Duration of the audio, in seconds; 0 if unknown
-//@author Author of the audio
-linkPreviewTypeAudio url:string mime_type:string audio:audio duration:int32 author:string = LinkPreviewType;
+//@description The link is a link to an audio @audio The audio description
+linkPreviewTypeAudio audio:audio = LinkPreviewType;
 
 //@description The link is a link to a background. Link preview title and description are available only for filled backgrounds
 //@document Document with the background; may be null for filled backgrounds
@@ -2687,35 +2716,46 @@ linkPreviewTypeChannelBoost photo:chatPhoto = LinkPreviewType;
 //@creates_join_request True, if the link only creates join request
 linkPreviewTypeChat type:InviteLinkChatType photo:chatPhoto creates_join_request:Bool = LinkPreviewType;
 
-//@description The link is a link to a general file @document The document description @author Author of the document
-linkPreviewTypeDocument document:document author:string = LinkPreviewType;
+//@description The link is a link to a general file @document The document description
+linkPreviewTypeDocument document:document = LinkPreviewType;
 
 //@description The link is a link to an animation player
 //@url URL of the external animation player
 //@thumbnail Thumbnail of the animation; may be null if unknown
 //@duration Duration of the animation, in seconds
-//@author Author of the animation
 //@width Expected width of the embedded player
 //@height Expected height of the embedded player
-linkPreviewTypeEmbeddedAnimationPlayer url:string thumbnail:photo duration:int32 author:string width:int32 height:int32 = LinkPreviewType;
+linkPreviewTypeEmbeddedAnimationPlayer url:string thumbnail:photo duration:int32 width:int32 height:int32 = LinkPreviewType;
 
 //@description The link is a link to an audio player
 //@url URL of the external audio player
 //@thumbnail Thumbnail of the audio; may be null if unknown
 //@duration Duration of the audio, in seconds
-//@author Author of the audio
 //@width Expected width of the embedded player
 //@height Expected height of the embedded player
-linkPreviewTypeEmbeddedAudioPlayer url:string thumbnail:photo duration:int32 author:string width:int32 height:int32 = LinkPreviewType;
+linkPreviewTypeEmbeddedAudioPlayer url:string thumbnail:photo duration:int32 width:int32 height:int32 = LinkPreviewType;
 
 //@description The link is a link to a video player
 //@url URL of the external video player
 //@thumbnail Thumbnail of the video; may be null if unknown
 //@duration Duration of the video, in seconds
-//@author Author of the video
 //@width Expected width of the embedded player
 //@height Expected height of the embedded player
-linkPreviewTypeEmbeddedVideoPlayer url:string thumbnail:photo duration:int32 author:string width:int32 height:int32 = LinkPreviewType;
+linkPreviewTypeEmbeddedVideoPlayer url:string thumbnail:photo duration:int32 width:int32 height:int32 = LinkPreviewType;
+
+//@description The link is a link to an audio file
+//@url URL of the audio file
+//@mime_type MIME type of the audio file
+//@duration Duration of the audio, in seconds; 0 if unknown
+linkPreviewTypeExternalAudio url:string mime_type:string duration:int32 = LinkPreviewType;
+
+//@description The link is a link to a video file
+//@url URL of the video file
+//@mime_type MIME type of the video file
+//@width Expected width of the video preview; 0 if unknown
+//@height Expected height of the video preview; 0 if unknown
+//@duration Duration of the video, in seconds; 0 if unknown
+linkPreviewTypeExternalVideo url:string mime_type:string width:int32 height:int32 duration:int32 = LinkPreviewType;
 
 //@description The link is a link to an invoice
 linkPreviewTypeInvoice = LinkPreviewType;
@@ -2723,8 +2763,8 @@ linkPreviewTypeInvoice = LinkPreviewType;
 //@description The link is a link to a text or a poll Telegram message
 linkPreviewTypeMessage = LinkPreviewType;
 
-//@description The link is a link to a photo @photo The photo @author Author of the photo
-linkPreviewTypePhoto photo:photo author:string = LinkPreviewType;
+//@description The link is a link to a photo @photo The photo
+linkPreviewTypePhoto photo:photo = LinkPreviewType;
 
 //@description The link is a link to a Telegram Premium gift code
 linkPreviewTypePremiumGiftCode = LinkPreviewType;
@@ -2753,15 +2793,8 @@ linkPreviewTypeUnsupported = LinkPreviewType;
 //@description The link is a link to a user @photo Photo of the user; may be null if none @is_bot True, if the user is a bot
 linkPreviewTypeUser photo:chatPhoto is_bot:Bool = LinkPreviewType;
 
-//@description The link is a link to a video
-//@url URL of the video; may be empty if none
-//@mime_type MIME type of the video file
-//@video The video description; may be null if unknown
-//@width Expected width of the preview
-//@height Expected height of the preview
-//@duration Duration of the video, in seconds; 0 if unknown
-//@author Author of the video
-linkPreviewTypeVideo url:string mime_type:string video:video width:int32 height:int32 duration:int32 author:string = LinkPreviewType;
+//@description The link is a link to a video @video The video description
+linkPreviewTypeVideo video:video = LinkPreviewType;
 
 //@description The link is a link to a video chat
 //@photo Photo of the chat with the video chat; may be null if none
@@ -2784,6 +2817,7 @@ linkPreviewTypeWebApp photo:photo = LinkPreviewType;
 //@site_name Short name of the site (e.g., Google Docs, App Store)
 //@title Title of the content
 //@param_description Description of the content
+//@author Author of the content
 //@type Type of the link preview
 //@has_large_media True, if size of media in the preview can be changed
 //@show_large_media True, if large media preview must be shown; otherwise, the media preview must be shown small and only the first frame must be shown for videos
@@ -2791,7 +2825,7 @@ linkPreviewTypeWebApp photo:photo = LinkPreviewType;
 //@skip_confirmation True, if there is no need to show an ordinary open URL confirmation, when opening the URL from the preview, because the URL is shown in the message text in clear
 //@show_above_text True, if the link preview must be shown above message text; otherwise, the link preview must be shown below the message text
 //@instant_view_version Version of instant view (currently, can be 1 or 2) for the web page; 0 if none
-linkPreview url:string display_url:string site_name:string title:string description:formattedText type:LinkPreviewType has_large_media:Bool show_large_media:Bool show_media_above_description:Bool skip_confirmation:Bool show_above_text:Bool instant_view_version:int32 = LinkPreview;
+linkPreview url:string display_url:string site_name:string title:string description:formattedText author:string type:LinkPreviewType has_large_media:Bool show_large_media:Bool show_media_above_description:Bool skip_confirmation:Bool show_above_text:Bool instant_view_version:int32 = LinkPreview;
 
 
 //@description Contains information about a country
@@ -2860,6 +2894,7 @@ locationAddress country_code:string state:string city:string street:string = Loc
 //@background_color A color of the background in the RGB24 format
 //@secondary_background_color A secondary color for the background in the RGB24 format
 //@header_background_color A color of the header background in the RGB24 format
+//@bottom_bar_background_color A color of the bottom bar background in the RGB24 format
 //@section_background_color A color of the section background in the RGB24 format
 //@section_separator_color A color of the section separator in the RGB24 format
 //@text_color A color of text in the RGB24 format
@@ -2871,7 +2906,7 @@ locationAddress country_code:string state:string city:string street:string = Loc
 //@link_color A color of links in the RGB24 format
 //@button_color A color of the buttons in the RGB24 format
 //@button_text_color A color of text on the buttons in the RGB24 format
-themeParameters background_color:int32 secondary_background_color:int32 header_background_color:int32 section_background_color:int32 section_separator_color:int32 text_color:int32 accent_text_color:int32 section_header_text_color:int32 subtitle_text_color:int32 destructive_text_color:int32 hint_color:int32 link_color:int32 button_color:int32 button_text_color:int32 = ThemeParameters;
+themeParameters background_color:int32 secondary_background_color:int32 header_background_color:int32 bottom_bar_background_color:int32 section_background_color:int32 section_separator_color:int32 text_color:int32 accent_text_color:int32 section_header_text_color:int32 subtitle_text_color:int32 destructive_text_color:int32 hint_color:int32 link_color:int32 button_color:int32 button_text_color:int32 = ThemeParameters;
 
 
 //@description Portion of the price of a product (e.g., "delivery cost", "tax amount") @label Label for this portion of the product price @amount Currency amount in the smallest units of the currency
@@ -3035,9 +3070,9 @@ paidMediaVideo video:video = PaidMedia;
 paidMediaUnsupported = PaidMedia;
 
 
-//@description Describes parameters of a Telegram Premium giveaway
-//@boosted_chat_id Identifier of the supergroup or channel chat, which will be automatically boosted by the winners of the giveaway for duration of the Premium subscription.
-//-If the chat is a channel, then can_post_messages right is required in the channel, otherwise, the user must be an administrator in the supergroup
+//@description Describes parameters of a giveaway
+//@boosted_chat_id Identifier of the supergroup or channel chat, which will be automatically boosted by the winners of the giveaway for duration of the Telegram Premium subscription,
+//-or for the specified time. If the chat is a channel, then can_post_messages right is required in the channel, otherwise, the user must be an administrator in the supergroup
 //@additional_chat_ids Identifiers of other supergroup or channel chats that must be subscribed by the users to be eligible for the giveaway. There can be up to getOption("giveaway_additional_chat_count_max") additional chats
 //@winners_selection_date Point in time (Unix timestamp) when the giveaway is expected to be performed; must be 60-getOption("giveaway_duration_max") seconds in the future in scheduled giveaways
 //@only_new_members True, if only new members of the chats will be eligible for the giveaway
@@ -3045,7 +3080,7 @@ paidMediaUnsupported = PaidMedia;
 //@country_codes The list of two-letter ISO 3166-1 alpha-2 codes of countries, users from which will be eligible for the giveaway. If empty, then all users can participate in the giveaway.
 //-There can be up to getOption("giveaway_country_count_max") chosen countries. Users with phone number that was bought at https://fragment.com can participate in any giveaway and the country code "FT" must not be specified in the list
 //@prize_description Additional description of the giveaway prize; 0-128 characters
-premiumGiveawayParameters boosted_chat_id:int53 additional_chat_ids:vector<int53> winners_selection_date:int32 only_new_members:Bool has_public_winners:Bool country_codes:vector<string> prize_description:string = PremiumGiveawayParameters;
+giveawayParameters boosted_chat_id:int53 additional_chat_ids:vector<int53> winners_selection_date:int32 only_new_members:Bool has_public_winners:Bool country_codes:vector<string> prize_description:string = GiveawayParameters;
 
 
 //@description File with the date it was uploaded @file The file @date Point in time (Unix timestamp) when the file was uploaded
@@ -3591,35 +3626,37 @@ messageGiftedPremium gifter_user_id:int53 receiver_user_id:int53 currency:string
 //@code The gift code
 messagePremiumGiftCode creator_id:MessageSender is_from_giveaway:Bool is_unclaimed:Bool currency:string amount:int53 cryptocurrency:string cryptocurrency_amount:int64 month_count:int32 sticker:sticker code:string = MessageContent;
 
-//@description A Telegram Premium giveaway was created for the chat. Use telegramPaymentPurposePremiumGiveaway or storePaymentPurposePremiumGiveaway to create a giveaway
-messagePremiumGiveawayCreated = MessageContent;
+//@description A giveaway was created for the chat. Use telegramPaymentPurposePremiumGiveaway, storePaymentPurposePremiumGiveaway, telegramPaymentPurposeStarGiveaway, or storePaymentPurposeStarGiveaway to create a giveaway
+//@star_count Number of Telegram Stars that will be shared by winners of the giveaway; 0 for Telegram Premium giveaways
+messageGiveawayCreated star_count:int53 = MessageContent;
 
-//@description A Telegram Premium giveaway
+//@description A giveaway
 //@parameters Giveaway parameters
 //@winner_count Number of users which will receive Telegram Premium subscription gift codes
-//@month_count Number of months the Telegram Premium subscription will be active after code activation
+//@prize Prize of the giveaway
 //@sticker A sticker to be shown in the message; may be null if unknown
-messagePremiumGiveaway parameters:premiumGiveawayParameters winner_count:int32 month_count:int32 sticker:sticker = MessageContent;
+messageGiveaway parameters:giveawayParameters winner_count:int32 prize:GiveawayPrize sticker:sticker = MessageContent;
 
-//@description A Telegram Premium giveaway without public winners has been completed for the chat
+//@description A giveaway without public winners has been completed for the chat
 //@giveaway_message_id Identifier of the message with the giveaway; can be 0 if the message was deleted
 //@winner_count Number of winners in the giveaway
-//@unclaimed_prize_count Number of undistributed prizes
-messagePremiumGiveawayCompleted giveaway_message_id:int53 winner_count:int32 unclaimed_prize_count:int32 = MessageContent;
+//@is_star_giveaway True, if the giveaway is a Telegram Star giveaway
+//@unclaimed_prize_count Number of undistributed prizes; for Telegram Premium giveaways only
+messageGiveawayCompleted giveaway_message_id:int53 winner_count:int32 is_star_giveaway:Bool unclaimed_prize_count:int32 = MessageContent;
 
-//@description A Telegram Premium giveaway with public winners has been completed for the chat
-//@boosted_chat_id Identifier of the channel chat, which was automatically boosted by the winners of the giveaway for duration of the Premium subscription
+//@description A giveaway with public winners has been completed for the chat
+//@boosted_chat_id Identifier of the supergroup or channel chat, which was automatically boosted by the winners of the giveaway
 //@giveaway_message_id Identifier of the message with the giveaway in the boosted chat
 //@additional_chat_count Number of other chats that participated in the giveaway
 //@actual_winners_selection_date Point in time (Unix timestamp) when the winners were selected. May be bigger than winners selection date specified in parameters of the giveaway
 //@only_new_members True, if only new members of the chats were eligible for the giveaway
 //@was_refunded True, if the giveaway was canceled and was fully refunded
-//@month_count Number of months the Telegram Premium subscription will be active after code activation
+//@prize Prize of the giveaway
 //@prize_description Additional description of the giveaway prize
 //@winner_count Total number of winners in the giveaway
 //@winner_user_ids Up to 100 user identifiers of the winners of the giveaway
-//@unclaimed_prize_count Number of undistributed prizes
-messagePremiumGiveawayWinners boosted_chat_id:int53 giveaway_message_id:int53 additional_chat_count:int32 actual_winners_selection_date:int32 only_new_members:Bool was_refunded:Bool month_count:int32 prize_description:string winner_count:int32 winner_user_ids:vector<int53> unclaimed_prize_count:int32 = MessageContent;
+//@unclaimed_prize_count Number of undistributed prizes; for Telegram Premium giveaways only
+messageGiveawayWinners boosted_chat_id:int53 giveaway_message_id:int53 additional_chat_count:int32 actual_winners_selection_date:int32 only_new_members:Bool was_refunded:Bool prize:GiveawayPrize prize_description:string winner_count:int32 winner_user_ids:vector<int53> unclaimed_prize_count:int32 = MessageContent;
 
 //@description Telegram Stars were gifted to a user
 //@gifter_user_id The identifier of a user that gifted Telegram Stars; 0 if the gift was anonymous or is outgoing
@@ -3632,6 +3669,15 @@ messagePremiumGiveawayWinners boosted_chat_id:int53 giveaway_message_id:int53 ad
 //@transaction_id Identifier of the transaction for Telegram Stars purchase; for receiver only
 //@sticker A sticker to be shown in the message; may be null if unknown
 messageGiftedStars gifter_user_id:int53 receiver_user_id:int53 currency:string amount:int53 cryptocurrency:string cryptocurrency_amount:int64 star_count:int53 transaction_id:string sticker:sticker = MessageContent;
+
+//@description A Telegram Stars were received by the cuurent user from a giveaway
+//@star_count Number of Telegram Stars that were received
+//@transaction_id Identifier of the transaction for Telegram Stars credit
+//@boosted_chat_id Identifier of the supergroup or channel chat, which was automatically boosted by the winners of the giveaway
+//@giveaway_message_id Identifier of the message with the giveaway in the boosted chat; can be 0 if the message was deleted
+//@is_unclaimed True, if the corresponding winner wasn't chosen and the Telegram Stars were received by the owner of the boosted chat
+//@sticker A sticker to be shown in the message; may be null if unknown
+messageGiveawayPrizeStars star_count:int53 transaction_id:string boosted_chat_id:int53 giveaway_message_id:int53 is_unclaimed:Bool sticker:sticker = MessageContent;
 
 //@description A contact has registered with Telegram
 messageContactRegistered = MessageContent;
@@ -3790,7 +3836,7 @@ messageSelfDestructTypeImmediately = MessageSelfDestructType;
 //@only_preview Pass true to get a fake message instead of actually sending them
 messageSendOptions disable_notification:Bool from_background:Bool protect_content:Bool update_order_of_installed_sticker_sets:Bool scheduling_state:MessageSchedulingState effect_id:int64 sending_id:int32 only_preview:Bool = MessageSendOptions;
 
-//@description Options to be used when a message content is copied without reference to the original sender. Service messages, messages with messageInvoice, messagePaidMedia, messagePremiumGiveaway, or messagePremiumGiveawayWinners content can't be copied
+//@description Options to be used when a message content is copied without reference to the original sender. Service messages, messages with messageInvoice, messagePaidMedia, messageGiveaway, or messageGiveawayWinners content can't be copied
 //@send_copy True, if content of the message needs to be copied without reference to the original sender. Always true if the message is forwarded to a secret chat or is local
 //@replace_caption True, if media caption of the message copy needs to be replaced. Ignored if send_copy is false
 //@new_caption New message caption; pass null to copy message without caption. Ignored if replace_caption is false
@@ -3840,7 +3886,8 @@ inputMessageDocument document:InputFile thumbnail:inputThumbnail disable_content
 //@paid_media The content of the paid media
 //@caption Message caption; pass null to use an empty caption; 0-getOption("message_caption_length_max") characters
 //@show_caption_above_media True, if the caption must be shown above the video; otherwise, the caption must be shown below the video; not supported in secret chats
-inputMessagePaidMedia star_count:int53 paid_media:vector<inputPaidMedia> caption:formattedText show_caption_above_media:Bool = InputMessageContent;
+//@payload Bot-provided data for the paid media; bots only
+inputMessagePaidMedia star_count:int53 paid_media:vector<inputPaidMedia> caption:formattedText show_caption_above_media:Bool payload:string = InputMessageContent;
 
 //@description A photo message
 //@photo Photo to send. The photo must be at most 10 MB in size. The photo's width and height must not exceed 10000 in total. Width and height ratio must be at most 20
@@ -3951,6 +3998,7 @@ inputMessageForwarded from_chat_id:int53 message_id:int53 in_game_share:Bool cop
 
 
 //@description Contains properties of a message and describes actions that can be done with the message right now
+//@can_be_copied_to_secret_chat True, if content of the message can be copied to a secret chat using inputMessageForwarded or forwardMessages with copy options
 //@can_be_deleted_only_for_self True, if the message can be deleted only for the current user while other users will continue to see it using the method deleteMessages with revoke == false
 //@can_be_deleted_for_all_users True, if the message can be deleted for all users using the method deleteMessages with revoke == true
 //@can_be_edited True, if the message can be edited using the methods editMessageText, editMessageMedia, editMessageCaption, or editMessageReplyMarkup.
@@ -3976,7 +4024,7 @@ inputMessageForwarded from_chat_id:int53 message_id:int53 in_game_share:Bool cop
 //@can_report_supergroup_spam True, if the message can be reported using reportSupergroupSpam
 //@can_set_fact_check True, if fact check for the message can be changed through setMessageFactCheck
 //@need_show_statistics True, if message statistics must be available from context menu of the message
-messageProperties can_be_deleted_only_for_self:Bool can_be_deleted_for_all_users:Bool can_be_edited:Bool can_be_forwarded:Bool can_be_paid:Bool can_be_pinned:Bool can_be_replied:Bool can_be_replied_in_another_chat:Bool can_be_saved:Bool can_be_shared_in_story:Bool can_edit_scheduling_state:Bool can_get_embedding_code:Bool can_get_link:Bool can_get_media_timestamp_links:Bool can_get_message_thread:Bool can_get_read_date:Bool can_get_statistics:Bool can_get_viewers:Bool can_recognize_speech:Bool can_report_chat:Bool can_report_reactions:Bool can_report_supergroup_spam:Bool can_set_fact_check:Bool need_show_statistics:Bool = MessageProperties;
+messageProperties can_be_copied_to_secret_chat:Bool can_be_deleted_only_for_self:Bool can_be_deleted_for_all_users:Bool can_be_edited:Bool can_be_forwarded:Bool can_be_paid:Bool can_be_pinned:Bool can_be_replied:Bool can_be_replied_in_another_chat:Bool can_be_saved:Bool can_be_shared_in_story:Bool can_edit_scheduling_state:Bool can_get_embedding_code:Bool can_get_link:Bool can_get_media_timestamp_links:Bool can_get_message_thread:Bool can_get_read_date:Bool can_get_statistics:Bool can_get_viewers:Bool can_recognize_speech:Bool can_report_chat:Bool can_report_reactions:Bool can_report_supergroup_spam:Bool can_set_fact_check:Bool need_show_statistics:Bool = MessageProperties;
 
 
 //@class SearchMessagesFilter @description Represents a filter for message search results
@@ -4536,24 +4584,26 @@ chatBoostFeatures features:vector<chatBoostLevelFeatures> min_profile_background
 //@gift_code The created Telegram Premium gift code, which is known only if this is a gift code for the current user, or it has already been claimed
 chatBoostSourceGiftCode user_id:int53 gift_code:string = ChatBoostSource;
 
-//@description The chat created a Telegram Premium giveaway
+//@description The chat created a giveaway
 //@user_id Identifier of a user that won in the giveaway; 0 if none
-//@gift_code The created Telegram Premium gift code if it was used by the user or can be claimed by the current user; an empty string otherwise
+//@gift_code The created Telegram Premium gift code if it was used by the user or can be claimed by the current user; an empty string otherwise; for Telegram Premium giveways only
+//@star_count Number of Telegram Stars distributed among winners of the giveaway
 //@giveaway_message_id Identifier of the corresponding giveaway message; can be an identifier of a deleted message
-//@is_unclaimed True, if the winner for the corresponding Telegram Premium subscription wasn't chosen, because there were not enough participants
-chatBoostSourceGiveaway user_id:int53 gift_code:string giveaway_message_id:int53 is_unclaimed:Bool = ChatBoostSource;
+//@is_unclaimed True, if the winner for the corresponding giveaway prize wasn't chosen, because there were not enough participants
+chatBoostSourceGiveaway user_id:int53 gift_code:string star_count:int53 giveaway_message_id:int53 is_unclaimed:Bool = ChatBoostSource;
 
 //@description A user with Telegram Premium subscription or gifted Telegram Premium boosted the chat
 //@user_id Identifier of the user
 chatBoostSourcePremium user_id:int53 = ChatBoostSource;
 
 
-//@description Describes a prepaid Telegram Premium giveaway
+//@description Describes a prepaid giveaway
 //@id Unique identifier of the prepaid giveaway
-//@winner_count Number of users which will receive Telegram Premium subscription gift codes
-//@month_count Number of months the Telegram Premium subscription will be active after code activation
+//@winner_count Number of users which will receive giveaway prize
+//@prize Prize of the giveaway
+//@boost_count The number of boosts received by the chat from the giveaway; for Telegram Star giveaways only
 //@payment_date Point in time (Unix timestamp) when the giveaway was paid
-prepaidPremiumGiveaway id:int64 winner_count:int32 month_count:int32 payment_date:int32 = PrepaidPremiumGiveaway;
+prepaidGiveaway id:int64 winner_count:int32 prize:GiveawayPrize boost_count:int32 payment_date:int32 = PrepaidGiveaway;
 
 //@description Describes current boost status of a chat
 //@boost_url An HTTP URL, which can be used to boost the chat
@@ -4566,7 +4616,7 @@ prepaidPremiumGiveaway id:int64 winner_count:int32 month_count:int32 payment_dat
 //@premium_member_count Approximate number of Telegram Premium subscribers joined the chat; always 0 if the current user isn't an administrator in the chat
 //@premium_member_percentage A percentage of Telegram Premium subscribers joined the chat; always 0 if the current user isn't an administrator in the chat
 //@prepaid_giveaways The list of prepaid giveaways available for the chat; only for chat administrators
-chatBoostStatus boost_url:string applied_slot_ids:vector<int32> level:int32 gift_code_boost_count:int32 boost_count:int32 current_level_boost_count:int32 next_level_boost_count:int32 premium_member_count:int32 premium_member_percentage:double prepaid_giveaways:vector<prepaidPremiumGiveaway> = ChatBoostStatus;
+chatBoostStatus boost_url:string applied_slot_ids:vector<int32> level:int32 gift_code_boost_count:int32 boost_count:int32 current_level_boost_count:int32 next_level_boost_count:int32 premium_member_count:int32 premium_member_percentage:double prepaid_giveaways:vector<prepaidGiveaway> = ChatBoostStatus;
 
 //@description Describes a boost applied to a chat
 //@id Unique identifier of the boost
@@ -5282,6 +5332,9 @@ chatEventMemberPromoted user_id:int53 old_status:ChatMemberStatus new_status:Cha
 //@description A chat member was restricted/unrestricted or banned/unbanned, or the list of their restrictions has changed @member_id Affected chat member identifier @old_status Previous status of the chat member @new_status New status of the chat member
 chatEventMemberRestricted member_id:MessageSender old_status:ChatMemberStatus new_status:ChatMemberStatus = ChatEventAction;
 
+//@description A chat member extended their subscription to the chat @user_id Affected chat member user identifier @old_status Previous status of the chat member @new_status New status of the chat member
+chatEventMemberSubscriptionExtended user_id:int53 old_status:ChatMemberStatus new_status:ChatMemberStatus = ChatEventAction;
+
 //@description The chat available reactions were changed @old_available_reactions Previous chat available reactions @new_available_reactions New chat available reactions
 chatEventAvailableReactionsChanged old_available_reactions:ChatAvailableReactions new_available_reactions:ChatAvailableReactions = ChatEventAction;
 
@@ -5428,7 +5481,8 @@ chatEvents events:vector<chatEvent> = ChatEvents;
 //@invite_link_changes True, if changes to invite links need to be returned
 //@video_chat_changes True, if video chat actions need to be returned
 //@forum_changes True, if forum-related actions need to be returned
-chatEventLogFilters message_edits:Bool message_deletions:Bool message_pins:Bool member_joins:Bool member_leaves:Bool member_invites:Bool member_promotions:Bool member_restrictions:Bool info_changes:Bool setting_changes:Bool invite_link_changes:Bool video_chat_changes:Bool forum_changes:Bool = ChatEventLogFilters;
+//@subscription_extensions True, if subscription extensions need to be returned
+chatEventLogFilters message_edits:Bool message_deletions:Bool message_pins:Bool member_joins:Bool member_leaves:Bool member_invites:Bool member_promotions:Bool member_restrictions:Bool info_changes:Bool setting_changes:Bool invite_link_changes:Bool video_chat_changes:Bool forum_changes:Bool subscription_extensions:Bool = ChatEventLogFilters;
 
 
 //@class LanguagePackStringValue @description Represents the value of a string in a language pack
@@ -5741,7 +5795,15 @@ storePaymentPurposePremiumGiftCodes boosted_chat_id:int53 currency:string amount
 //@parameters Giveaway parameters
 //@currency ISO 4217 currency code of the payment currency
 //@amount Paid amount, in the smallest units of the currency
-storePaymentPurposePremiumGiveaway parameters:premiumGiveawayParameters currency:string amount:int53 = StorePaymentPurpose;
+storePaymentPurposePremiumGiveaway parameters:giveawayParameters currency:string amount:int53 = StorePaymentPurpose;
+
+//@description The user creating a Telegram Star giveaway
+//@parameters Giveaway parameters
+//@currency ISO 4217 currency code of the payment currency
+//@amount Paid amount, in the smallest units of the currency
+//@winner_count The number of users to receive Telegram Stars
+//@star_count The number of Telegram Stars to be distributed through the giveaway
+storePaymentPurposeStarGiveaway parameters:giveawayParameters currency:string amount:int53 winner_count:int32 star_count:int53 = StorePaymentPurpose;
 
 //@description The user buying Telegram Stars
 //@currency ISO 4217 currency code of the payment currency
@@ -5773,7 +5835,7 @@ telegramPaymentPurposePremiumGiftCodes boosted_chat_id:int53 currency:string amo
 //@amount Paid amount, in the smallest units of the currency
 //@winner_count Number of users which will be able to activate the gift codes
 //@month_count Number of months the Telegram Premium subscription will be active for the users
-telegramPaymentPurposePremiumGiveaway parameters:premiumGiveawayParameters currency:string amount:int53 winner_count:int32 month_count:int32 = TelegramPaymentPurpose;
+telegramPaymentPurposePremiumGiveaway parameters:giveawayParameters currency:string amount:int53 winner_count:int32 month_count:int32 = TelegramPaymentPurpose;
 
 //@description The user buying Telegram Stars
 //@currency ISO 4217 currency code of the payment currency
@@ -5787,6 +5849,14 @@ telegramPaymentPurposeStars currency:string amount:int53 star_count:int53 = Tele
 //@amount Paid amount, in the smallest units of the currency
 //@star_count Number of bought Telegram Stars
 telegramPaymentPurposeGiftedStars user_id:int53 currency:string amount:int53 star_count:int53 = TelegramPaymentPurpose;
+
+//@description The user creating a Telegram Star giveaway
+//@parameters Giveaway parameters
+//@currency ISO 4217 currency code of the payment currency
+//@amount Paid amount, in the smallest units of the currency
+//@winner_count The number of users to receive Telegram Stars
+//@star_count The number of Telegram Stars to be distributed through the giveaway
+telegramPaymentPurposeStarGiveaway parameters:giveawayParameters currency:string amount:int53 winner_count:int32 star_count:int53 = TelegramPaymentPurpose;
 
 //@description The user joins a chat and subscribes to regular payments in Telegram Stars @invite_link Invite link to use
 telegramPaymentPurposeJoinChat invite_link:string = TelegramPaymentPurpose;
@@ -6055,11 +6125,11 @@ pushMessageContentPoll question:string is_regular:Bool is_pinned:Bool = PushMess
 //@description A message with a Telegram Premium gift code created for the user @month_count Number of months the Telegram Premium subscription will be active after code activation
 pushMessageContentPremiumGiftCode month_count:int32 = PushMessageContent;
 
-//@description A message with a Telegram Premium giveaway
-//@winner_count Number of users which will receive Telegram Premium subscription gift codes; 0 for pinned message
-//@month_count Number of months the Telegram Premium subscription will be active after code activation; 0 for pinned message
+//@description A message with a giveaway
+//@winner_count Number of users which will receive giveaway prizes; 0 for pinned message
+//@prize Prize of the giveaway; may be null for pinned message
 //@is_pinned True, if the message is a pinned message with the specified content
-pushMessageContentPremiumGiveaway winner_count:int32 month_count:int32 is_pinned:Bool = PushMessageContent;
+pushMessageContentGiveaway winner_count:int32 prize:GiveawayPrize is_pinned:Bool = PushMessageContent;
 
 //@description A screenshot of a message in the chat has been taken
 pushMessageContentScreenshotTaken = PushMessageContent;
@@ -6348,7 +6418,7 @@ canSendMessageToUserResultUserIsDeleted = CanSendMessageToUserResult;
 canSendMessageToUserResultUserRestrictsNewChats = CanSendMessageToUserResult;
 
 
-//@description Contains information about the period of inactivity after which the current user's account will automatically be deleted @days Number of days of inactivity before the account will be flagged for deletion; 30-366 days
+//@description Contains information about the period of inactivity after which the current user's account will automatically be deleted @days Number of days of inactivity before the account will be flagged for deletion; 30-730 days
 accountTtl days:int32 = AccountTtl;
 
 
@@ -7246,7 +7316,8 @@ chatStatisticsChannel period:dateRange member_count:statisticalValue mean_messag
 //@total_amount Total amount of the cryptocurrency earned, in the smallest units of the cryptocurrency
 //@balance_amount Amount of the cryptocurrency that isn't withdrawn yet, in the smallest units of the cryptocurrency
 //@available_amount Amount of the cryptocurrency available for withdrawal, in the smallest units of the cryptocurrency
-chatRevenueAmount cryptocurrency:string total_amount:int64 balance_amount:int64 available_amount:int64 = ChatRevenueAmount;
+//@withdrawal_enabled True, if Telegram Stars can be withdrawn now or later
+chatRevenueAmount cryptocurrency:string total_amount:int64 balance_amount:int64 available_amount:int64 withdrawal_enabled:Bool = ChatRevenueAmount;
 
 //@description A detailed statistics about revenue earned from sponsored messages in a chat
 //@revenue_by_hour_graph A graph containing amount of revenue in a given hour
@@ -8016,6 +8087,11 @@ updateMessageReaction chat_id:int53 message_id:int53 actor_id:MessageSender date
 //@reactions The list of reactions added to the message
 updateMessageReactions chat_id:int53 message_id:int53 date:int32 reactions:vector<messageReaction> = Update;
 
+//@description Paid media were purchased by a user; for bots only
+//@user_id User identifier
+//@payload Bot-specified payload for the paid media
+updatePaidMediaPurchased user_id:int53 payload:string = Update;
+
 
 //@description Contains a list of updates @updates List of updates
 updates updates:vector<Update> = Updates;
@@ -8268,7 +8344,7 @@ getMessageLocally chat_id:int53 message_id:int53 = Message;
 
 //@description Returns information about a non-bundled message that is replied by a given message. Also, returns the pinned message, the game message, the invoice message,
 //-the message with a previously set same background, the giveaway message, and the topic creation message for messages of the types
-//-messagePinMessage, messageGameScore, messagePaymentSuccessful, messageChatSetBackground, messagePremiumGiveawayCompleted and topic messages without non-bundled replied message respectively
+//-messagePinMessage, messageGameScore, messagePaymentSuccessful, messageChatSetBackground, messageGiveawayCompleted and topic messages without non-bundled replied message respectively
 //@chat_id Identifier of the chat the message belongs to
 //@message_id Identifier of the reply message
 getRepliedMessage chat_id:int53 message_id:int53 = Message;
@@ -8935,7 +9011,7 @@ setBusinessMessageIsPinned business_connection_id:string chat_id:int53 message_i
 //@description Checks validness of a name for a quick reply shortcut. Can be called synchronously @name The name of the shortcut; 1-32 characters
 checkQuickReplyShortcutName name:string = Ok;
 
-//@description Loads quick reply shortcuts created by the current user. The loaded topics will be sent through updateQuickReplyShortcuts
+//@description Loads quick reply shortcuts created by the current user. The loaded data will be sent through updateQuickReplyShortcut and updateQuickReplyShortcuts
 loadQuickReplyShortcuts = Ok;
 
 //@description Changes name of a quick reply shortcut @shortcut_id Unique identifier of the quick reply shortcut @name New name for the shortcut. Use checkQuickReplyShortcutName to check its validness
@@ -9075,7 +9151,7 @@ clearRecentReactions = Ok;
 //@description Adds a reaction or a tag to a message. Use getMessageAvailableReactions to receive the list of available reactions for the message
 //@chat_id Identifier of the chat to which the message belongs
 //@message_id Identifier of the message
-//@reaction_type Type of the reaction to add. Use addPaidMessageReaction instead to add the paid reaction
+//@reaction_type Type of the reaction to add. Use addPendingPaidMessageReaction instead to add the paid reaction
 //@is_big Pass true if the reaction is added with a big animation
 //@update_recent_reactions Pass true if the reaction needs to be added to recent reactions; tags are never added to the list of recent reactions
 addMessageReaction chat_id:int53 message_id:int53 reaction_type:ReactionType is_big:Bool update_recent_reactions:Bool = Ok;
@@ -9086,16 +9162,18 @@ addMessageReaction chat_id:int53 message_id:int53 reaction_type:ReactionType is_
 //@reaction_type Type of the reaction to remove. The paid reaction can't be removed
 removeMessageReaction chat_id:int53 message_id:int53 reaction_type:ReactionType = Ok;
 
-//@description Adds the paid message reaction to a message. Use getMessageAvailableReactions to receive the list of available reactions for the message
+//@description Adds the paid message reaction to a message. Use getMessageAvailableReactions to check whether the reaction is available for the message
 //@chat_id Identifier of the chat to which the message belongs
 //@message_id Identifier of the message
-//@star_count Number of Telegram Stars to be used for the reaction; 1-getOption("paid_reaction_star_count_max")
-//@is_anonymous Pass true to make paid reaction of the user on the message anonymous; pass false to make the user's profile visible among top reactors
-addPaidMessageReaction chat_id:int53 message_id:int53 star_count:int53 is_anonymous:Bool = Ok;
+//@star_count Number of Telegram Stars to be used for the reaction. The total number of pending paid reactions must not exceed getOption("paid_reaction_star_count_max")
+//@use_default_is_anonymous Pass true if the user didn't choose anonymity explicitly, for example, the reaction is set from the message bubble
+//@is_anonymous Pass true to make paid reaction of the user on the message anonymous; pass false to make the user's profile visible among top reactors. Ignored if use_default_is_anonymous == true
+addPendingPaidMessageReaction chat_id:int53 message_id:int53 star_count:int53 use_default_is_anonymous:Bool is_anonymous:Bool = Ok;
 
-//@description Removes all pending paid reactions on a message. Can be called within 5 seconds after the last addPaidMessageReaction call
-//@chat_id Identifier of the chat to which the message belongs
-//@message_id Identifier of the message
+//@description Applies all pending paid reactions on a message @chat_id Identifier of the chat to which the message belongs @message_id Identifier of the message
+commitPendingPaidMessageReactions chat_id:int53 message_id:int53 = Ok;
+
+//@description Removes all pending paid reactions on a message @chat_id Identifier of the chat to which the message belongs @message_id Identifier of the message
 removePendingPaidMessageReactions chat_id:int53 message_id:int53 = Ok;
 
 //@description Changes whether the paid message reaction of the user to a message is anonymous. The message must have paid reaction added by the user
@@ -9268,10 +9346,10 @@ getInlineQueryResults bot_user_id:int53 chat_id:int53 user_location:location que
 answerInlineQuery inline_query_id:int64 is_personal:Bool button:inlineQueryResultsButton results:vector<InputInlineQueryResult> cache_time:int32 next_offset:string = Ok;
 
 
-//@description Returns popular Web App bots
+//@description Returns the most grossing Web App bots
 //@offset Offset of the first entry to return as received from the previous request; use empty string to get the first chunk of results
 //@limit The maximum number of bots to be returned; up to 100
-getPopularWebAppBots offset:string limit:int32 = FoundUsers;
+getGrossingWebAppBots offset:string limit:int32 = FoundUsers;
 
 //@description Returns information about a Web App by its short name. Returns a 404 error if the Web App is not found
 //@bot_user_id Identifier of the target bot
@@ -10509,6 +10587,9 @@ getAttachedStickerSets file_id:int32 = StickerSets;
 //@description Returns information about a sticker set by its identifier @set_id Identifier of the sticker set
 getStickerSet set_id:int64 = StickerSet;
 
+//@description Returns name of a sticker set by its identifier @set_id Identifier of the sticker set
+getStickerSetName set_id:int64 = Text;
+
 //@description Searches for a sticker set by its name @name Name of the sticker set
 searchStickerSet name:string = StickerSet;
 
@@ -11497,7 +11578,7 @@ clickPremiumSubscriptionButton = Ok;
 //@description Returns state of Telegram Premium subscription and promotion videos for Premium features
 getPremiumState = PremiumState;
 
-//@description Returns available options for Telegram Premium gift code or giveaway creation
+//@description Returns available options for Telegram Premium gift code or Telegram Premium giveaway creation
 //@boosted_chat_id Identifier of the supergroup or channel chat, which will be automatically boosted by receivers of the gift codes and which is administered by the user; 0 if none
 getPremiumGiftCodePaymentOptions boosted_chat_id:int53 = PremiumGiftCodePaymentOptions;
 
@@ -11507,21 +11588,26 @@ checkPremiumGiftCode code:string = PremiumGiftCodeInfo;
 //@description Applies a Telegram Premium gift code @code The code to apply
 applyPremiumGiftCode code:string = Ok;
 
-//@description Launches a prepaid Telegram Premium giveaway
+//@description Launches a prepaid giveaway
 //@giveaway_id Unique identifier of the prepaid giveaway
 //@parameters Giveaway parameters
-launchPrepaidPremiumGiveaway giveaway_id:int64 parameters:premiumGiveawayParameters = Ok;
+//@winner_count The number of users to receive giveaway prize
+//@star_count The number of Telegram Stars to be distributed through the giveaway; pass 0 for Telegram Premium giveaways
+launchPrepaidGiveaway giveaway_id:int64 parameters:giveawayParameters winner_count:int32 star_count:int53 = Ok;
 
-//@description Returns information about a Telegram Premium giveaway
+//@description Returns information about a giveaway
 //@chat_id Identifier of the channel chat which started the giveaway
 //@message_id Identifier of the giveaway or a giveaway winners message in the chat
-getPremiumGiveawayInfo chat_id:int53 message_id:int53 = PremiumGiveawayInfo;
+getGiveawayInfo chat_id:int53 message_id:int53 = GiveawayInfo;
 
 //@description Returns available options for Telegram Stars purchase
 getStarPaymentOptions = StarPaymentOptions;
 
 //@description Returns available options for Telegram Stars gifting @user_id Identifier of the user that will receive Telegram Stars; pass 0 to get options for an unspecified user
 getStarGiftPaymentOptions user_id:int53 = StarPaymentOptions;
+
+//@description Returns available options for Telegram Star giveaway creation
+getStarGiveawayPaymentOptions = StarGiveawayPaymentOptions;
 
 //@description Returns the list of Telegram Star transactions for the specified owner
 //@owner_id Identifier of the owner of the Telegram Stars; can be the identifier of the current user, identifier of an owned bot,

@@ -437,8 +437,9 @@ Result<PhotoSize> get_input_photo_size(FileManager *file_manager, FileId file_id
   }
 
   int32 type = 'i';
-  if (file_view.has_remote_location() && !file_view.remote_location().is_web()) {
-    auto photo_size_source = file_view.remote_location().get_source();
+  const auto *full_remote_location = file_view.get_full_remote_location();
+  if (full_remote_location != nullptr && !full_remote_location->is_web()) {
+    auto photo_size_source = full_remote_location->get_source();
     if (photo_size_source.get_type("get_input_photo_size") == PhotoSizeSource::Type::Thumbnail) {
       auto old_type = photo_size_source.thumbnail().thumbnail_type;
       if (old_type != 't') {
@@ -470,7 +471,7 @@ PhotoSize get_input_thumbnail_photo_size(FileManager *file_manager, const td_api
       CHECK(thumbnail.file_id.is_valid());
 
       FileView thumbnail_file_view = file_manager->get_file_view(thumbnail.file_id);
-      if (thumbnail_file_view.has_remote_location()) {
+      if (thumbnail_file_view.has_full_remote_location()) {
         // TODO file_manager->delete_remote_location(thumbnail.file_id);
       }
     }

@@ -24,6 +24,7 @@
 #include "td/telegram/misc.h"
 #include "td/telegram/PremiumGiftOption.h"
 #include "td/telegram/ServerMessageId.h"
+#include "td/telegram/StarManager.h"
 #include "td/telegram/SuggestedAction.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/telegram_api.h"
@@ -244,6 +245,21 @@ static Result<tl_object_ptr<telegram_api::InputStorePaymentPurpose>> get_input_s
       }
       TRY_RESULT(parameters, GiveawayParameters::get_giveaway_parameters(td, p->parameters_.get()));
       return parameters.get_input_store_payment_premium_giveaway(td, p->currency_, p->amount_);
+    }
+    case td_api::storePaymentPurposeStarGiveaway::ID: {
+      auto p = static_cast<td_api::storePaymentPurposeStarGiveaway *>(purpose.get());
+      if (p->amount_ <= 0 || !check_currency_amount(p->amount_)) {
+        return Status::Error(400, "Invalid amount of the currency specified");
+      }
+      if (!clean_input_string(p->currency_)) {
+        return Status::Error(400, "Strings must be encoded in UTF-8");
+      }
+      if (p->winner_count_ <= 0 || p->star_count_ <= 0) {
+        return Status::Error(400, "Invalid giveaway parameters specified");
+      }
+      TRY_RESULT(parameters, GiveawayParameters::get_giveaway_parameters(td, p->parameters_.get()));
+      return parameters.get_input_store_payment_stars_giveaway(td, p->currency_, p->amount_, p->winner_count_,
+                                                               p->star_count_);
     }
     case td_api::storePaymentPurposeStars::ID: {
       auto p = static_cast<td_api::storePaymentPurposeStars *>(purpose.get());
@@ -510,12 +526,18 @@ class LaunchPrepaidGiveawayQuery final : public Td::ResultHandler {
   explicit LaunchPrepaidGiveawayQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
   }
 
-  void send(int64 giveaway_id, const GiveawayParameters &parameters) {
+  void send(int64 giveaway_id, const GiveawayParameters &parameters, int32 user_count, int64 star_count) {
     auto dialog_id = parameters.get_boosted_dialog_id();
     auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Write);
     CHECK(input_peer != nullptr);
-    send_query(G()->net_query_creator().create(telegram_api::payments_launchPrepaidGiveaway(
-        std::move(input_peer), giveaway_id, parameters.get_input_store_payment_premium_giveaway(td_, string(), 0))));
+    telegram_api::object_ptr<telegram_api::InputStorePaymentPurpose> purpose;
+    if (star_count == 0) {
+      purpose = parameters.get_input_store_payment_premium_giveaway(td_, string(), 0);
+    } else {
+      purpose = parameters.get_input_store_payment_stars_giveaway(td_, string(), 12345, user_count, star_count);
+    }
+    send_query(G()->net_query_creator().create(
+        telegram_api::payments_launchPrepaidGiveaway(std::move(input_peer), giveaway_id, std::move(purpose))));
   }
 
   void on_result(BufferSlice packet) final {
@@ -535,11 +557,11 @@ class LaunchPrepaidGiveawayQuery final : public Td::ResultHandler {
 };
 
 class GetGiveawayInfoQuery final : public Td::ResultHandler {
-  Promise<td_api::object_ptr<td_api::PremiumGiveawayInfo>> promise_;
+  Promise<td_api::object_ptr<td_api::GiveawayInfo>> promise_;
   DialogId dialog_id_;
 
  public:
-  explicit GetGiveawayInfoQuery(Promise<td_api::object_ptr<td_api::PremiumGiveawayInfo>> &&promise)
+  explicit GetGiveawayInfoQuery(Promise<td_api::object_ptr<td_api::GiveawayInfo>> &&promise)
       : promise_(std::move(promise)) {
   }
 
@@ -564,10 +586,9 @@ class GetGiveawayInfoQuery final : public Td::ResultHandler {
     switch (ptr->get_id()) {
       case telegram_api::payments_giveawayInfo::ID: {
         auto info = telegram_api::move_object_as<telegram_api::payments_giveawayInfo>(ptr);
-        auto status = [&]() -> td_api::object_ptr<td_api::PremiumGiveawayParticipantStatus> {
+        auto status = [&]() -> td_api::object_ptr<td_api::GiveawayParticipantStatus> {
           if (info->joined_too_early_date_ > 0) {
-            return td_api::make_object<td_api::premiumGiveawayParticipantStatusAlreadyWasMember>(
-                info->joined_too_early_date_);
+            return td_api::make_object<td_api::giveawayParticipantStatusAlreadyWasMember>(info->joined_too_early_date_);
           }
           if (info->admin_disallowed_chat_id_ > 0) {
             ChannelId channel_id(info->admin_disallowed_chat_id_);
@@ -576,20 +597,19 @@ class GetGiveawayInfoQuery final : public Td::ResultHandler {
             } else {
               DialogId dialog_id(channel_id);
               td_->dialog_manager_->force_create_dialog(dialog_id, "GetGiveawayInfoQuery");
-              return td_api::make_object<td_api::premiumGiveawayParticipantStatusAdministrator>(
-                  td_->dialog_manager_->get_chat_id_object(dialog_id, "premiumGiveawayParticipantStatusAdministrator"));
+              return td_api::make_object<td_api::giveawayParticipantStatusAdministrator>(
+                  td_->dialog_manager_->get_chat_id_object(dialog_id, "giveawayParticipantStatusAdministrator"));
             }
           }
           if (!info->disallowed_country_.empty()) {
-            return td_api::make_object<td_api::premiumGiveawayParticipantStatusDisallowedCountry>(
-                info->disallowed_country_);
+            return td_api::make_object<td_api::giveawayParticipantStatusDisallowedCountry>(info->disallowed_country_);
           }
           if (info->participating_) {
-            return td_api::make_object<td_api::premiumGiveawayParticipantStatusParticipating>();
+            return td_api::make_object<td_api::giveawayParticipantStatusParticipating>();
           }
-          return td_api::make_object<td_api::premiumGiveawayParticipantStatusEligible>();
+          return td_api::make_object<td_api::giveawayParticipantStatusEligible>();
         }();
-        promise_.set_value(td_api::make_object<td_api::premiumGiveawayInfoOngoing>(
+        promise_.set_value(td_api::make_object<td_api::giveawayInfoOngoing>(
             max(0, info->start_date_), std::move(status), info->preparing_results_));
         break;
       }
@@ -609,9 +629,9 @@ class GetGiveawayInfoQuery final : public Td::ResultHandler {
             activated_count = winner_count;
           }
         }
-        promise_.set_value(td_api::make_object<td_api::premiumGiveawayInfoCompleted>(
-            max(0, info->start_date_), max(0, info->finish_date_), info->refunded_, winner_count, activated_count,
-            info->gift_code_slug_));
+        promise_.set_value(td_api::make_object<td_api::giveawayInfoCompleted>(
+            max(0, info->start_date_), max(0, info->finish_date_), info->refunded_, info->winner_, winner_count,
+            activated_count, info->gift_code_slug_, StarManager::get_star_count(info->stars_prize_)));
         break;
       }
       default:
@@ -1166,14 +1186,15 @@ void apply_premium_gift_code(Td *td, const string &code, Promise<Unit> &&promise
 }
 
 void launch_prepaid_premium_giveaway(Td *td, int64 giveaway_id,
-                                     td_api::object_ptr<td_api::premiumGiveawayParameters> &&parameters,
-                                     Promise<Unit> &&promise) {
+                                     td_api::object_ptr<td_api::giveawayParameters> &&parameters, int32 user_count,
+                                     int64 star_count, Promise<Unit> &&promise) {
   TRY_RESULT_PROMISE(promise, giveaway_parameters, GiveawayParameters::get_giveaway_parameters(td, parameters.get()));
-  td->create_handler<LaunchPrepaidGiveawayQuery>(std::move(promise))->send(giveaway_id, giveaway_parameters);
+  td->create_handler<LaunchPrepaidGiveawayQuery>(std::move(promise))
+      ->send(giveaway_id, giveaway_parameters, user_count, star_count);
 }
 
 void get_premium_giveaway_info(Td *td, MessageFullId message_full_id,
-                               Promise<td_api::object_ptr<td_api::PremiumGiveawayInfo>> &&promise) {
+                               Promise<td_api::object_ptr<td_api::GiveawayInfo>> &&promise) {
   TRY_RESULT_PROMISE(promise, server_message_id, td->messages_manager_->get_giveaway_message_id(message_full_id));
   td->create_handler<GetGiveawayInfoQuery>(std::move(promise))
       ->send(message_full_id.get_dialog_id(), server_message_id);

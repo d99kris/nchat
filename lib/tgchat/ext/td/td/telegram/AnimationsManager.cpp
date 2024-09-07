@@ -312,20 +312,22 @@ tl_object_ptr<telegram_api::InputMedia> AnimationsManager::get_input_media(
   if (file_view.is_encrypted()) {
     return nullptr;
   }
-  if (file_view.has_remote_location() && !file_view.main_remote_location().is_web() && input_file == nullptr) {
+  const auto *main_remote_location = file_view.get_main_remote_location();
+  if (main_remote_location != nullptr && !main_remote_location->is_web() && input_file == nullptr) {
     int32 flags = 0;
     if (has_spoiler) {
       flags |= telegram_api::inputMediaDocument::SPOILER_MASK;
     }
-    return make_tl_object<telegram_api::inputMediaDocument>(
-        flags, false /*ignored*/, file_view.main_remote_location().as_input_document(), 0, string());
+    return make_tl_object<telegram_api::inputMediaDocument>(flags, false /*ignored*/,
+                                                            main_remote_location->as_input_document(), 0, string());
   }
-  if (file_view.has_url()) {
+  const auto *url = file_view.get_url();
+  if (url != nullptr) {
     int32 flags = 0;
     if (has_spoiler) {
       flags |= telegram_api::inputMediaDocumentExternal::SPOILER_MASK;
     }
-    return make_tl_object<telegram_api::inputMediaDocumentExternal>(flags, false /*ignored*/, file_view.url(), 0);
+    return make_tl_object<telegram_api::inputMediaDocumentExternal>(flags, false /*ignored*/, *url, 0);
   }
 
   if (input_file != nullptr) {
@@ -364,7 +366,7 @@ tl_object_ptr<telegram_api::InputMedia> AnimationsManager::get_input_media(
         flags, false /*ignored*/, false /*ignored*/, false /*ignored*/, std::move(input_file),
         std::move(input_thumbnail), mime_type, std::move(attributes), std::move(added_stickers), 0);
   } else {
-    CHECK(!file_view.has_remote_location());
+    CHECK(main_remote_location == nullptr);
   }
 
   return nullptr;
@@ -380,8 +382,9 @@ SecretInputMedia AnimationsManager::get_secret_input_media(FileId animation_file
   if (!file_view.is_encrypted_secret() || file_view.encryption_key().empty()) {
     return SecretInputMedia{};
   }
-  if (file_view.has_remote_location()) {
-    input_file = file_view.main_remote_location().as_input_encrypted_file();
+  const auto *main_remote_location = file_view.get_main_remote_location();
+  if (main_remote_location != nullptr) {
+    input_file = main_remote_location->as_input_encrypted_file();
   }
   if (!input_file) {
     return SecretInputMedia{};
@@ -656,12 +659,13 @@ int64 AnimationsManager::get_saved_animations_hash(const char *source) const {
     auto animation = get_animation(animation_id);
     CHECK(animation != nullptr);
     auto file_view = td_->file_manager_->get_file_view(animation_id);
-    CHECK(file_view.has_remote_location());
-    if (!file_view.remote_location().is_document()) {
-      LOG(ERROR) << "Saved animation remote location is not document: " << source << " " << file_view.remote_location();
+    const auto *full_remote_location = file_view.get_full_remote_location();
+    CHECK(full_remote_location != nullptr);
+    if (!full_remote_location->is_document()) {
+      LOG(ERROR) << "Saved animation remote location is not a document: " << source << ' ' << *full_remote_location;
       continue;
     }
-    numbers.push_back(file_view.remote_location().get_id());
+    numbers.push_back(full_remote_location->get_id());
   }
   return get_vector_hash(numbers);
 }
@@ -684,11 +688,12 @@ void AnimationsManager::send_save_gif_query(FileId animation_id, bool unsave, Pr
 
   // TODO invokeAfter and log event
   auto file_view = td_->file_manager_->get_file_view(animation_id);
-  CHECK(file_view.has_remote_location());
-  LOG_CHECK(file_view.remote_location().is_document()) << file_view.remote_location();
-  CHECK(!file_view.remote_location().is_web());
+  const auto *full_remote_location = file_view.get_full_remote_location();
+  CHECK(full_remote_location != nullptr);
+  CHECK(full_remote_location->is_document());
+  CHECK(!full_remote_location->is_web());
   td_->create_handler<SaveGifQuery>(std::move(promise))
-      ->send(animation_id, file_view.remote_location().as_input_document(), unsave);
+      ->send(animation_id, full_remote_location->as_input_document(), unsave);
 }
 
 void AnimationsManager::add_saved_animation_by_id(FileId animation_id) {
@@ -747,13 +752,14 @@ void AnimationsManager::add_saved_animation_impl(FileId animation_id, bool add_o
     return promise.set_error(Status::Error(400, "Only MPEG4 animations can be saved"));
   }
 
-  if (!file_view.has_remote_location()) {
+  const auto *full_remote_location = file_view.get_full_remote_location();
+  if (full_remote_location == nullptr) {
     return promise.set_error(Status::Error(400, "Can save only sent animations"));
   }
-  if (file_view.remote_location().is_web()) {
+  if (full_remote_location->is_web()) {
     return promise.set_error(Status::Error(400, "Can't save web animations"));
   }
-  if (!file_view.remote_location().is_document()) {
+  if (!full_remote_location->is_document()) {
     return promise.set_error(Status::Error(400, "Can't save encrypted animations"));
   }
 

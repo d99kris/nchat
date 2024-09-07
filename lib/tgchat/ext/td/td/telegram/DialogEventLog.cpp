@@ -476,6 +476,27 @@ static td_api::object_ptr<td_api::ChatEventAction> get_chat_event_action_object(
       return td_api::make_object<td_api::chatEventEmojiStatusChanged>(old_emoji_status.get_emoji_status_object(),
                                                                       new_emoji_status.get_emoji_status_object());
     }
+    case telegram_api::channelAdminLogEventActionParticipantSubExtend::ID: {
+      auto action = move_tl_object_as<telegram_api::channelAdminLogEventActionParticipantSubExtend>(action_ptr);
+      auto channel_type = td->chat_manager_->get_channel_type(channel_id);
+      DialogParticipant old_dialog_participant(std::move(action->prev_participant_), channel_type);
+      DialogParticipant new_dialog_participant(std::move(action->new_participant_), channel_type);
+      if (old_dialog_participant.dialog_id_ != new_dialog_participant.dialog_id_) {
+        LOG(ERROR) << old_dialog_participant.dialog_id_ << " VS " << new_dialog_participant.dialog_id_;
+        return nullptr;
+      }
+      if (!old_dialog_participant.is_valid() || !new_dialog_participant.is_valid() ||
+          old_dialog_participant.dialog_id_.get_type() != DialogType::User ||
+          !old_dialog_participant.status_.is_member() || !new_dialog_participant.status_.is_member()) {
+        LOG(ERROR) << "Wrong subscription: " << old_dialog_participant << " -> " << new_dialog_participant;
+        return nullptr;
+      }
+      return td_api::make_object<td_api::chatEventMemberSubscriptionExtended>(
+          td->user_manager_->get_user_id_object(old_dialog_participant.dialog_id_.get_user_id(),
+                                                "chatEventMemberSubscriptionExtended"),
+          old_dialog_participant.status_.get_chat_member_status_object(),
+          new_dialog_participant.status_.get_chat_member_status_object());
+    }
     default:
       UNREACHABLE();
       return nullptr;
@@ -617,12 +638,15 @@ static telegram_api::object_ptr<telegram_api::channelAdminLogEventsFilter> get_i
   if (filters->forum_changes_) {
     flags |= telegram_api::channelAdminLogEventsFilter::FORUMS_MASK;
   }
+  if (filters->subscription_extensions_) {
+    flags |= telegram_api::channelAdminLogEventsFilter::SUB_EXTEND_MASK;
+  }
 
   return telegram_api::make_object<telegram_api::channelAdminLogEventsFilter>(
       flags, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/,
       false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/,
       false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/,
-      false /*ignored*/);
+      false /*ignored*/, false /*ignored*/);
 }
 
 void get_dialog_event_log(Td *td, DialogId dialog_id, const string &query, int64 from_event_id, int32 limit,

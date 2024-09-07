@@ -82,6 +82,7 @@
 #include "td/telegram/SavedMessagesManager.h"
 #include "td/telegram/SecretChatsManager.h"
 #include "td/telegram/SponsoredMessageManager.h"
+#include "td/telegram/StarManager.h"
 #include "td/telegram/StickerType.h"
 #include "td/telegram/StoryId.h"
 #include "td/telegram/StoryManager.h"
@@ -4267,6 +4268,7 @@ void MessagesManager::Message::store(StorerT &storer) const {
   bool has_via_business_bot_user_id = via_business_bot_user_id.is_valid();
   bool has_effect_id = effect_id.is_valid();
   bool has_fact_check = fact_check != nullptr;
+  bool has_initial_sender_dialog_id = !message_id.is_any_server() && initial_sender_dialog_id.is_valid();
   BEGIN_STORE_FLAGS();
   STORE_FLAG(is_channel_post);
   STORE_FLAG(is_outgoing);
@@ -4355,6 +4357,7 @@ void MessagesManager::Message::store(StorerT &storer) const {
     STORE_FLAG(is_from_offline);
     STORE_FLAG(has_effect_id);
     STORE_FLAG(has_fact_check);
+    STORE_FLAG(has_initial_sender_dialog_id);
     END_STORE_FLAGS();
   }
 
@@ -4487,6 +4490,9 @@ void MessagesManager::Message::store(StorerT &storer) const {
   if (has_fact_check) {
     store(fact_check, storer);
   }
+  if (has_initial_sender_dialog_id) {
+    store(initial_sender_dialog_id, storer);
+  }
 }
 
 // do not forget to resolve message dependencies
@@ -4546,6 +4552,7 @@ void MessagesManager::Message::parse(ParserT &parser) {
   bool has_via_business_bot_user_id = false;
   bool has_effect_id = false;
   bool has_fact_check = false;
+  bool has_initial_sender_dialog_id = false;
   BEGIN_PARSE_FLAGS();
   PARSE_FLAG(is_channel_post);
   PARSE_FLAG(is_outgoing);
@@ -4634,6 +4641,7 @@ void MessagesManager::Message::parse(ParserT &parser) {
     PARSE_FLAG(is_from_offline);
     PARSE_FLAG(has_effect_id);
     PARSE_FLAG(has_fact_check);
+    PARSE_FLAG(has_initial_sender_dialog_id);
     END_PARSE_FLAGS();
   }
 
@@ -4829,6 +4837,9 @@ void MessagesManager::Message::parse(ParserT &parser) {
   }
   if (has_fact_check) {
     parse(fact_check, parser);
+  }
+  if (has_initial_sender_dialog_id) {
+    parse(initial_sender_dialog_id, parser);
   }
 
   CHECK(content != nullptr);
@@ -5558,9 +5569,6 @@ MessagesManager::MessagesManager(Td *td, ActorShared<> parent)
 
   send_update_chat_read_inbox_timeout_.set_callback(on_send_update_chat_read_inbox_timeout_callback);
   send_update_chat_read_inbox_timeout_.set_callback_data(static_cast<void *>(this));
-
-  send_paid_reactions_timeout_.set_callback(on_send_paid_reactions_timeout_callback);
-  send_paid_reactions_timeout_.set_callback_data(static_cast<void *>(this));
 }
 
 MessagesManager::~MessagesManager() {
@@ -5702,16 +5710,6 @@ void MessagesManager::on_send_update_chat_read_inbox_timeout_callback(void *mess
   auto messages_manager = static_cast<MessagesManager *>(messages_manager_ptr);
   send_closure_later(messages_manager->actor_id(messages_manager),
                      &MessagesManager::on_send_update_chat_read_inbox_timeout, DialogId(dialog_id_int));
-}
-
-void MessagesManager::on_send_paid_reactions_timeout_callback(void *messages_manager_ptr, int64 task_id) {
-  if (G()->close_flag()) {
-    return;
-  }
-
-  auto messages_manager = static_cast<MessagesManager *>(messages_manager_ptr);
-  send_closure_later(messages_manager->actor_id(messages_manager), &MessagesManager::on_send_paid_reactions_timeout,
-                     task_id);
 }
 
 void MessagesManager::on_live_location_expire_timeout_callback(void *messages_manager_ptr) {
@@ -6115,9 +6113,9 @@ void MessagesManager::on_update_service_notification(tl_object_ptr<telegram_api:
   if (update->popup_) {
     send_closure(G()->td(), &Td::send_update,
                  td_api::make_object<td_api::updateServiceNotification>(
-                     update->type_,
-                     get_message_content_object(content.get(), td_, owner_dialog_id, false, date, is_content_secret,
-                                                true, -1, update->invert_media_, disable_web_page_preview)));
+                     update->type_, get_message_content_object(content.get(), td_, owner_dialog_id, true, false, date,
+                                                               is_content_secret, true, -1, update->invert_media_,
+                                                               disable_web_page_preview)));
   }
   if (has_date && is_user) {
     Dialog *d = get_service_notifications_dialog();
@@ -7680,6 +7678,9 @@ void MessagesManager::set_dialog_available_reactions(Dialog *d, ChatReactions &&
     default:
       UNREACHABLE();
       break;
+  }
+  if (td_->dialog_manager_->is_broadcast_channel(d->dialog_id)) {
+    available_reactions.fix_broadcast_reactions(active_reaction_types_);
   }
   if (d->available_reactions == available_reactions) {
     if (!d->is_available_reactions_inited) {
@@ -12121,42 +12122,6 @@ void MessagesManager::on_send_update_chat_read_inbox_timeout(DialogId dialog_id)
   if (postponed_chat_read_inbox_updates_.erase(dialog_id) > 0) {
     send_update_chat_read_inbox(get_dialog(dialog_id), true, "on_send_update_chat_read_inbox_timeout");
   }
-}
-
-void MessagesManager::on_send_paid_reactions_timeout(int64 task_id) {
-  if (G()->close_flag()) {
-    return;
-  }
-  auto it = paid_reaction_tasks_.find(task_id);
-  if (it == paid_reaction_tasks_.end()) {
-    return;
-  }
-  auto message_full_id = it->second;
-  paid_reaction_tasks_.erase(it);
-  bool is_erased = paid_reaction_task_ids_.erase(message_full_id) > 0;
-  CHECK(is_erased);
-
-  Dialog *d = get_dialog_force(message_full_id.get_dialog_id(), "on_send_paid_reactions_timeout");
-  CHECK(d != nullptr);
-  auto *m = get_message_force(d, message_full_id.get_message_id(), "on_send_paid_reactions_timeout");
-  if (m == nullptr || m->reactions == nullptr) {
-    return;
-  }
-  if (!get_message_available_reactions(d, m, true, nullptr).is_allowed_reaction_type(ReactionType::paid())) {
-    if (m->reactions->drop_pending_paid_reactions(td_)) {
-      send_update_message_interaction_info(d->dialog_id, m);
-      on_message_changed(d, m, true, "on_send_paid_reactions_timeout");
-    }
-    return;
-  }
-
-  pending_reactions_[message_full_id].query_count++;
-
-  int64 random_id = (static_cast<int64>(G()->unix_time()) << 32) | static_cast<int64>(Random::secure_uint32());
-  auto promise = PromiseCreator::lambda([actor_id = actor_id(this), message_full_id](Result<Unit> &&result) {
-    send_closure(actor_id, &MessagesManager::on_set_message_reactions, message_full_id, std::move(result), Auto());
-  });
-  m->reactions->send_paid_message_reaction(td_, message_full_id, random_id, std::move(promise));
 }
 
 int32 MessagesManager::get_message_date(const tl_object_ptr<telegram_api::Message> &message_ptr) {
@@ -17466,6 +17431,8 @@ void MessagesManager::get_message_properties(DialogId dialog_id, MessageId messa
   auto can_be_saved = can_save_message(dialog_id, m);
   auto can_be_edited = can_edit_message(dialog_id, m, false, is_bot);
   auto can_be_forwarded = can_be_saved && can_forward_message(dialog_id, m);
+  auto can_be_copied_to_secret_chat =
+      can_be_forwarded && can_send_message_content_to_secret_chat(m->content->get_type());
   auto can_be_paid = get_invoice_message_info({dialog_id, m->message_id}).is_ok();
   auto can_be_pinned = can_pin_message(dialog_id, m).is_ok();
   auto can_be_replied =
@@ -17495,11 +17462,11 @@ void MessagesManager::get_message_properties(DialogId dialog_id, MessageId messa
   auto can_set_fact_check = can_set_message_fact_check(dialog_id, m);
   auto need_show_statistics = can_get_statistics && (m->view_count >= 100 || m->forward_count > 0);
   promise.set_value(td_api::make_object<td_api::messageProperties>(
-      can_delete_for_self, can_delete_for_all_users, can_be_edited, can_be_forwarded, can_be_paid, can_be_pinned,
-      can_be_replied, can_be_replied_in_another_chat, can_be_saved, can_be_shared_in_story, can_edit_scheduling_state,
-      can_get_embedding_code, can_get_link, can_get_media_timestamp_links, can_get_message_thread, can_get_read_date,
-      can_get_statistics, can_get_viewers, can_recognize_speech, can_report_chat, can_report_reactions,
-      can_report_supergroup_spam, can_set_fact_check, need_show_statistics));
+      can_be_copied_to_secret_chat, can_delete_for_self, can_delete_for_all_users, can_be_edited, can_be_forwarded,
+      can_be_paid, can_be_pinned, can_be_replied, can_be_replied_in_another_chat, can_be_saved, can_be_shared_in_story,
+      can_edit_scheduling_state, can_get_embedding_code, can_get_link, can_get_media_timestamp_links,
+      can_get_message_thread, can_get_read_date, can_get_statistics, can_get_viewers, can_recognize_speech,
+      can_report_chat, can_report_reactions, can_report_supergroup_spam, can_set_fact_check, need_show_statistics));
 }
 
 bool MessagesManager::is_message_edited_recently(MessageFullId message_full_id, int32 seconds) {
@@ -22790,7 +22757,8 @@ void MessagesManager::remove_message_reaction(MessageFullId message_full_id, Rea
   }
 }
 
-void MessagesManager::add_paid_message_reaction(MessageFullId message_full_id, int64 star_count, bool is_anonymous,
+void MessagesManager::add_paid_message_reaction(MessageFullId message_full_id, int64 star_count,
+                                                bool use_default_is_anonymous, bool is_anonymous,
                                                 Promise<Unit> &&promise) {
   auto dialog_id = message_full_id.get_dialog_id();
   Dialog *d = get_dialog_force(dialog_id, "add_paid_message_reaction");
@@ -22806,7 +22774,10 @@ void MessagesManager::add_paid_message_reaction(MessageFullId message_full_id, i
     return promise.set_error(Status::Error(400, "The reaction isn't available for the message"));
   }
   if (star_count <= 0 || star_count > td_->option_manager_->get_option_integer("paid_reaction_star_count_max")) {
-    return promise.set_error(Status::Error(400, "Invalid Telegram Star count specified"));
+    return promise.set_error(Status::Error(400, "Invalid number of Telegram Stars specified"));
+  }
+  if (!td_->star_manager_->has_owned_star_count(star_count)) {
+    return promise.set_error(Status::Error(400, "Have not enough Telegram Stars"));
   }
 
   if (m->reactions == nullptr) {
@@ -22815,40 +22786,53 @@ void MessagesManager::add_paid_message_reaction(MessageFullId message_full_id, i
   }
 
   LOG(INFO) << "Have message with " << *m->reactions;
-  m->reactions->add_my_paid_reaction(td_, narrow_cast<int32>(star_count), is_anonymous);
+  m->reactions->add_my_paid_reaction(td_, narrow_cast<int32>(star_count), use_default_is_anonymous, is_anonymous);
   m->reactions->sort_reactions(active_reaction_pos_);
   LOG(INFO) << "Update message reactions to " << *m->reactions;
 
   send_update_message_interaction_info(d->dialog_id, m);
   on_message_changed(d, m, true, "add_paid_message_reaction");
 
-  auto &task_id = paid_reaction_task_ids_[message_full_id];
-  if (task_id == 0) {
-    task_id = ++paid_reaction_task_id_;
-    paid_reaction_tasks_[task_id] = message_full_id;
-  }
-  send_paid_reactions_timeout_.set_timeout_in(task_id, 6.0);
   promise.set_value(Unit());
 }
 
-void MessagesManager::remove_paid_message_reactions(MessageFullId message_full_id, Promise<Unit> &&promise) {
-  auto it = paid_reaction_task_ids_.find(message_full_id);
-  if (it == paid_reaction_task_ids_.end()) {
+void MessagesManager::drop_message_pending_paid_reactions(const Dialog *d, Message *m) {
+  m->reactions->drop_pending_paid_reactions(td_);
+  send_update_message_interaction_info(d->dialog_id, m);
+  on_message_changed(d, m, true, "drop_message_pending_paid_reactions");
+}
+
+void MessagesManager::commit_paid_message_reactions(MessageFullId message_full_id, Promise<Unit> &&promise) {
+  TRY_RESULT_PROMISE(
+      promise, d,
+      check_dialog_access(message_full_id.get_dialog_id(), false, AccessRights::Read, "commit_paid_message_reactions"));
+  auto *m = get_message_force(d, message_full_id.get_message_id(), "commit_paid_message_reactions");
+  if (m == nullptr || m->reactions == nullptr || !m->reactions->has_pending_paid_reactions()) {
     return promise.set_value(Unit());
   }
-  auto task_id = it->second;
-  paid_reaction_task_ids_.erase(it);
-  bool is_erased = paid_reaction_tasks_.erase(task_id) > 0;
-  CHECK(is_erased);
+  if (!get_message_available_reactions(d, m, true, nullptr).is_allowed_reaction_type(ReactionType::paid())) {
+    drop_message_pending_paid_reactions(d, m);
+    return promise.set_value(Unit());
+  }
 
-  send_paid_reactions_timeout_.cancel_timeout(task_id);
+  pending_reactions_[message_full_id].query_count++;
 
-  Dialog *d = get_dialog_force(message_full_id.get_dialog_id(), "remove_paid_message_reaction");
-  CHECK(d != nullptr);
-  auto *m = get_message_force(d, message_full_id.get_message_id(), "on_send_paid_reactions_timeout");
-  if (m != nullptr && m->reactions != nullptr && m->reactions->drop_pending_paid_reactions(td_)) {
-    send_update_message_interaction_info(d->dialog_id, m);
-    on_message_changed(d, m, true, "on_send_paid_reactions_timeout");
+  int64 random_id = (static_cast<int64>(G()->unix_time()) << 32) | static_cast<int64>(Random::secure_uint32());
+  auto query_promise = PromiseCreator::lambda(
+      [actor_id = actor_id(this), message_full_id, promise = std::move(promise)](Result<Unit> &&result) mutable {
+        send_closure(actor_id, &MessagesManager::on_set_message_reactions, message_full_id, std::move(result),
+                     std::move(promise));
+      });
+  m->reactions->send_paid_message_reaction(td_, message_full_id, random_id, std::move(query_promise));
+}
+
+void MessagesManager::remove_paid_message_reactions(MessageFullId message_full_id, Promise<Unit> &&promise) {
+  TRY_RESULT_PROMISE(
+      promise, d,
+      check_dialog_access(message_full_id.get_dialog_id(), false, AccessRights::Read, "remove_paid_message_reactions"));
+  auto *m = get_message_force(d, message_full_id.get_message_id(), "remove_paid_message_reactions");
+  if (m != nullptr && m->reactions != nullptr && m->reactions->has_pending_paid_reactions()) {
+    drop_message_pending_paid_reactions(d, m);
   }
   promise.set_value(Unit());
 }
@@ -23001,9 +22985,10 @@ tl_object_ptr<td_api::MessageSchedulingState> MessagesManager::get_message_sched
 td_api::object_ptr<td_api::MessageContent> MessagesManager::get_message_message_content_object(DialogId dialog_id,
                                                                                                const Message *m) const {
   auto live_location_date = m->is_failed_to_send ? 0 : m->date;
-  return get_message_content_object(m->content.get(), td_, dialog_id, m->is_outgoing, live_location_date,
-                                    m->is_content_secret, need_skip_bot_commands(dialog_id, m),
-                                    get_message_max_media_timestamp(m), m->invert_media, m->disable_web_page_preview);
+  return get_message_content_object(
+      m->content.get(), td_, dialog_id, m->message_id.is_any_server() && dialog_id.get_type() != DialogType::SecretChat,
+      m->is_outgoing, live_location_date, m->is_content_secret, need_skip_bot_commands(dialog_id, m),
+      get_message_max_media_timestamp(m), m->invert_media, m->disable_web_page_preview);
 }
 
 td_api::object_ptr<td_api::message> MessagesManager::get_dialog_event_log_message_object(
@@ -23030,7 +23015,7 @@ td_api::object_ptr<td_api::message> MessagesManager::get_dialog_event_log_messag
   auto edit_date = m->hide_edit_date ? 0 : m->edit_date;
   auto reply_markup = get_reply_markup_object(td_->user_manager_.get(), m->reply_markup);
   auto content =
-      get_message_content_object(m->content.get(), td_, dialog_id, m->is_outgoing, 0, false, true,
+      get_message_content_object(m->content.get(), td_, dialog_id, true, m->is_outgoing, 0, false, true,
                                  get_message_own_max_media_timestamp(m), m->invert_media, m->disable_web_page_preview);
   return td_api::make_object<td_api::message>(
       m->message_id.get(), std::move(sender), get_chat_id_object(dialog_id, "get_dialog_event_log_message_object"),
@@ -23087,7 +23072,7 @@ td_api::object_ptr<td_api::message> MessagesManager::get_business_message_messag
       m->via_business_bot_user_id, "get_business_message_message_object via_business_bot_user_id");
   auto reply_to = [&]() -> td_api::object_ptr<td_api::MessageReplyTo> {
     if (!m->replied_message_info.is_empty()) {
-      return m->replied_message_info.get_message_reply_to_message_object(td_, dialog_id);
+      return m->replied_message_info.get_message_reply_to_message_object(td_, dialog_id, true);
     }
     if (m->reply_to_story_full_id.is_valid()) {
       return td_api::make_object<td_api::messageReplyToStory>(
@@ -23173,7 +23158,7 @@ td_api::object_ptr<td_api::message> MessagesManager::get_message_object(DialogId
           m->replied_message_info.get_same_chat_reply_to_message_id(false) == m->top_thread_message_id) {
         return nullptr;
       }
-      return m->replied_message_info.get_message_reply_to_message_object(td_, dialog_id);
+      return m->replied_message_info.get_message_reply_to_message_object(td_, dialog_id, m->message_id.is_any_server());
     }
     if (m->reply_to_story_full_id.is_valid()) {
       return td_api::make_object<td_api::messageReplyToStory>(
@@ -23320,11 +23305,13 @@ unique_ptr<MessagesManager::Message> MessagesManager::create_message_to_send(
   if (!is_channel_post ||
       (!is_scheduled && td_->chat_manager_->get_channel_sign_messages(dialog_id.get_channel_id()))) {
     if (send_as_dialog_id.is_valid()) {
+      // for resend_messages
       if (send_as_dialog_id.get_type() == DialogType::User) {
         m->sender_user_id = send_as_dialog_id.get_user_id();
       } else {
         m->sender_dialog_id = send_as_dialog_id;
       }
+      m->has_explicit_sender = true;
     } else if (d->default_send_message_as_dialog_id.is_valid()) {
       if (d->default_send_message_as_dialog_id.get_type() == DialogType::User) {
         m->sender_user_id = my_id;
@@ -23345,12 +23332,12 @@ unique_ptr<MessagesManager::Message> MessagesManager::create_message_to_send(
   if (is_channel_post && !is_scheduled && td_->chat_manager_->get_channel_sign_messages(dialog_id.get_channel_id())) {
     auto show_message_sender = td_->chat_manager_->get_channel_show_message_sender(dialog_id.get_channel_id());
     if (m->sender_dialog_id != dialog_id || !m->has_explicit_sender) {
-      m->author_signature = m->sender_dialog_id == dialog_id || m->sender_dialog_id == DialogId() ||
-                                    (m->has_explicit_sender && !show_message_sender)
+      m->author_signature = m->sender_dialog_id == dialog_id || m->sender_dialog_id == DialogId()
                                 ? td_->user_manager_->get_user_title(my_id)
                                 : td_->dialog_manager_->get_dialog_title(m->sender_dialog_id);
     }
     if (!show_message_sender) {
+      m->initial_sender_dialog_id = get_message_sender(m);
       m->sender_user_id = UserId();
       m->sender_dialog_id = dialog_id;
     }
@@ -23810,6 +23797,10 @@ void MessagesManager::get_dialog_send_message_as_dialog_ids(
   }
   // checked in on_update_dialog_default_send_message_as_dialog_id
   CHECK(dialog_id.get_type() == DialogType::Channel);
+  auto is_broadcast = td_->dialog_manager_->is_broadcast_channel(dialog_id);
+  if (is_broadcast && !td_->chat_manager_->get_channel_sign_messages(dialog_id.get_channel_id())) {
+    return promise.set_value(td_api::make_object<td_api::chatMessageSenders>());
+  }
 
   if (td_->chat_manager_->are_created_public_broadcasts_inited()) {
     auto senders = td_api::make_object<td_api::chatMessageSenders>();
@@ -23819,11 +23810,7 @@ void MessagesManager::get_dialog_send_message_as_dialog_ids(
         auto sender = get_message_sender_object(td, dialog_id, "add_sender");
         senders->senders_.push_back(td_api::make_object<td_api::chatMessageSender>(std::move(sender), needs_premium));
       };
-      auto is_broadcast = td_->dialog_manager_->is_broadcast_channel(dialog_id);
       if (is_broadcast) {
-        if (!td_->chat_manager_->get_channel_sign_messages(dialog_id.get_channel_id())) {
-          return promise.set_value(td_api::make_object<td_api::chatMessageSenders>());
-        }
         add_sender(td_->dialog_manager_->get_my_dialog_id(), false);
       }
       if (td_->dialog_manager_->is_anonymous_administrator(dialog_id, nullptr)) {
@@ -24395,7 +24382,8 @@ void MessagesManager::do_send_message(DialogId dialog_id, const Message *m, int3
           thumbnail_file_id = FileId();
         }
 
-        if (content_type == MessageContentType::PaidMedia && !file_view.has_remote_location() && file_view.has_url()) {
+        if (content_type == MessageContentType::PaidMedia && !file_view.has_full_remote_location() &&
+            file_view.has_url()) {
           do_send_media(dialog_id, m, static_cast<int32>(i), file_id, FileId(), nullptr, nullptr);
           continue;
         }
@@ -24839,8 +24827,9 @@ void MessagesManager::do_send_message_group(int64 media_album_id) {
       // TODO return CHECK
       auto file_id = get_message_content_any_file_id(m->content.get());
       auto file_view = td_->file_manager_->get_file_view(file_id);
-      bool has_remote = file_view.has_remote_location();
-      bool is_web = has_remote ? file_view.remote_location().is_web() : false;
+      const auto *full_remote_location = file_view.get_full_remote_location();
+      bool has_remote = full_remote_location != nullptr;
+      bool is_web = has_remote ? full_remote_location->is_web() : false;
       LOG(FATAL) << request.dialog_id << " " << request.finished_count << " " << i << " " << request.message_ids << " "
                  << request.is_finished << " " << request.results << " " << m->ttl << " " << has_remote << " "
                  << file_view.has_alive_remote_location() << " " << file_view.has_active_upload_remote_location() << " "
@@ -26328,7 +26317,8 @@ tl_object_ptr<telegram_api::InputPeer> MessagesManager::get_send_message_as_inpu
   if (!m->has_explicit_sender) {
     return nullptr;
   }
-  return td_->dialog_manager_->get_input_peer(get_message_sender(m), AccessRights::Write);
+  auto dialog_id = m->initial_sender_dialog_id != DialogId() ? m->initial_sender_dialog_id : get_message_sender(m);
+  return td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Write);
 }
 
 bool MessagesManager::can_set_game_score(MessageFullId message_full_id) const {
@@ -36047,6 +36037,9 @@ unique_ptr<MessagesManager::Dialog> MessagesManager::parse_dialog(DialogId dialo
     case DialogType::Channel:
       if (get_active_reactions(d->available_reactions).empty() != ((d->available_reactions_generation & 1) == 1)) {
         set_dialog_next_available_reactions_generation(d, d->available_reactions_generation);
+      }
+      if (td_->dialog_manager_->is_broadcast_channel(dialog_id)) {
+        d->available_reactions.fix_broadcast_reactions(active_reaction_types_);
       }
       break;
     case DialogType::User:

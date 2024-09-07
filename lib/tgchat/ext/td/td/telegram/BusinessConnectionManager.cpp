@@ -865,7 +865,7 @@ void BusinessConnectionManager::do_send_message(unique_ptr<PendingMessage> &&mes
         auto file_id = get_message_file_id(fake_message);
         CHECK(file_id.is_valid());
         FileView file_view = td_->file_manager_->get_file_view(file_id);
-        if (file_view.has_remote_location()) {
+        if (file_view.has_full_remote_location()) {
           UploadMediaResult result;
           result.message_ = std::move(fake_message);
           result.input_media_ = std::move(input_media);
@@ -950,7 +950,8 @@ void BusinessConnectionManager::upload_media(unique_ptr<PendingMessage> &&messag
   if (file_view.is_encrypted()) {
     return promise.set_error(Status::Error(400, "Can't use encrypted file"));
   }
-  if (file_view.has_remote_location() && file_view.main_remote_location().is_web()) {
+  const auto *main_remote_location = file_view.get_main_remote_location();
+  if (main_remote_location != nullptr && main_remote_location->is_web()) {
     return promise.set_error(Status::Error(400, "Can't use a web file"));
   }
 
@@ -958,7 +959,7 @@ void BusinessConnectionManager::upload_media(unique_ptr<PendingMessage> &&messag
   media.message_ = std::move(message);
   media.promise_ = std::move(promise);
 
-  if (!file_view.has_remote_location() && file_view.has_url()) {
+  if (!file_view.has_full_remote_location() && file_view.has_url()) {
     return do_upload_media(std::move(media), nullptr);
   }
 
@@ -1130,7 +1131,7 @@ void BusinessConnectionManager::send_message_album(
       auto file_id = get_message_file_id(message);
       CHECK(file_id.is_valid());
       FileView file_view = td_->file_manager_->get_file_view(file_id);
-      if (file_view.has_remote_location()) {
+      if (file_view.has_full_remote_location()) {
         UploadMediaResult result;
         result.message_ = std::move(message);
         result.input_media_ = std::move(input_media);
@@ -1249,8 +1250,13 @@ void BusinessConnectionManager::on_upload_message_paid_media(int64 request_id, s
     auto upload_result = r_upload_result.move_as_ok();
     input_media.push_back(std::move(upload_result.input_media_));
   }
+  auto payload = get_message_content_payload(message->content_.get());
+  int32 flags = 0;
+  if (!payload.empty()) {
+    flags |= telegram_api::inputMediaPaidMedia::PAYLOAD_MASK;
+  }
   auto input_media_paid_media = telegram_api::make_object<telegram_api::inputMediaPaidMedia>(
-      get_message_content_star_count(message->content_.get()), std::move(input_media));
+      flags, get_message_content_star_count(message->content_.get()), std::move(input_media), payload);
   td_->create_handler<SendBusinessMediaQuery>(std::move(promise))
       ->send(std::move(message), std::move(input_media_paid_media));
 }
@@ -1362,7 +1368,7 @@ void BusinessConnectionManager::edit_business_message_media(
     auto file_id = get_message_content_any_file_id(content.content.get());
     CHECK(file_id.is_valid());
     FileView file_view = td_->file_manager_->get_file_view(file_id);
-    if (file_view.has_remote_location()) {
+    if (file_view.has_full_remote_location()) {
       const FormattedText *caption = get_message_content_caption(content.content.get());
       td_->create_handler<EditBusinessMessageQuery>(std::move(promise))
           ->send(1 << 11, business_connection_id, dialog_id, message_id, caption == nullptr ? "" : caption->text,

@@ -152,6 +152,8 @@ StringBuilder &operator<<(StringBuilder &string_builder, MessageContentType cont
       return string_builder << "PaymentRefunded";
     case MessageContentType::GiftStars:
       return string_builder << "GiftStars";
+    case MessageContentType::PrizeStars:
+      return string_builder << "PrizeStars";
     default:
       return string_builder << "Invalid type " << static_cast<int32>(content_type);
   }
@@ -242,6 +244,7 @@ bool is_allowed_media_group_content(MessageContentType content_type) {
     case MessageContentType::PaidMedia:
     case MessageContentType::PaymentRefunded:
     case MessageContentType::GiftStars:
+    case MessageContentType::PrizeStars:
       return false;
     default:
       UNREACHABLE();
@@ -326,6 +329,7 @@ bool can_be_secret_message_content(MessageContentType content_type) {
     case MessageContentType::PaidMedia:
     case MessageContentType::PaymentRefunded:
     case MessageContentType::GiftStars:
+    case MessageContentType::PrizeStars:
       return false;
     default:
       UNREACHABLE();
@@ -406,6 +410,7 @@ bool can_be_local_message_content(MessageContentType content_type) {
     case MessageContentType::PaidMedia:
     case MessageContentType::PaymentRefunded:
     case MessageContentType::GiftStars:
+    case MessageContentType::PrizeStars:
       return false;
     default:
       UNREACHABLE();
@@ -486,6 +491,7 @@ bool is_service_message_content(MessageContentType content_type) {
     case MessageContentType::DialogShared:
     case MessageContentType::PaymentRefunded:
     case MessageContentType::GiftStars:
+    case MessageContentType::PrizeStars:
       return true;
     default:
       UNREACHABLE();
@@ -566,6 +572,7 @@ bool is_editable_message_content(MessageContentType content_type) {
     case MessageContentType::DialogShared:
     case MessageContentType::PaymentRefunded:
     case MessageContentType::GiftStars:
+    case MessageContentType::PrizeStars:
       return false;
     default:
       UNREACHABLE();
@@ -710,7 +717,90 @@ bool can_have_message_content_caption(MessageContentType content_type) {
     case MessageContentType::DialogShared:
     case MessageContentType::PaymentRefunded:
     case MessageContentType::GiftStars:
+    case MessageContentType::PrizeStars:
       return false;
+    default:
+      UNREACHABLE();
+      return false;
+  }
+}
+
+bool can_send_message_content_to_secret_chat(MessageContentType content_type) {
+  switch (content_type) {
+    case MessageContentType::Animation:
+    case MessageContentType::Audio:
+    case MessageContentType::Contact:
+    case MessageContentType::Document:
+    case MessageContentType::LiveLocation:
+    case MessageContentType::Location:
+    case MessageContentType::Photo:
+    case MessageContentType::Sticker:
+    case MessageContentType::Text:
+    case MessageContentType::Venue:
+    case MessageContentType::Video:
+    case MessageContentType::VideoNote:
+    case MessageContentType::VoiceNote:
+      return true;
+    case MessageContentType::Dice:
+    case MessageContentType::Game:
+    case MessageContentType::Giveaway:
+    case MessageContentType::GiveawayWinners:
+    case MessageContentType::Invoice:
+    case MessageContentType::PaidMedia:
+    case MessageContentType::Poll:
+    case MessageContentType::Story:
+      return false;
+    case MessageContentType::None:
+    case MessageContentType::ChatCreate:
+    case MessageContentType::ChatChangeTitle:
+    case MessageContentType::ChatChangePhoto:
+    case MessageContentType::ChatDeletePhoto:
+    case MessageContentType::ChatDeleteHistory:
+    case MessageContentType::ChatAddUsers:
+    case MessageContentType::ChatJoinedByLink:
+    case MessageContentType::ChatDeleteUser:
+    case MessageContentType::ChatMigrateTo:
+    case MessageContentType::ChannelCreate:
+    case MessageContentType::ChannelMigrateFrom:
+    case MessageContentType::PinMessage:
+    case MessageContentType::GameScore:
+    case MessageContentType::ScreenshotTaken:
+    case MessageContentType::ChatSetTtl:
+    case MessageContentType::Unsupported:
+    case MessageContentType::Call:
+    case MessageContentType::PaymentSuccessful:
+    case MessageContentType::ContactRegistered:
+    case MessageContentType::ExpiredPhoto:
+    case MessageContentType::ExpiredVideo:
+    case MessageContentType::CustomServiceAction:
+    case MessageContentType::WebsiteConnected:
+    case MessageContentType::PassportDataSent:
+    case MessageContentType::PassportDataReceived:
+    case MessageContentType::ProximityAlertTriggered:
+    case MessageContentType::GroupCall:
+    case MessageContentType::InviteToGroupCall:
+    case MessageContentType::ChatSetTheme:
+    case MessageContentType::WebViewDataSent:
+    case MessageContentType::WebViewDataReceived:
+    case MessageContentType::GiftPremium:
+    case MessageContentType::TopicCreate:
+    case MessageContentType::TopicEdit:
+    case MessageContentType::SuggestProfilePhoto:
+    case MessageContentType::WriteAccessAllowed:
+    case MessageContentType::RequestedDialog:
+    case MessageContentType::WebViewWriteAccessAllowed:
+    case MessageContentType::SetBackground:
+    case MessageContentType::WriteAccessAllowedByRequest:
+    case MessageContentType::GiftCode:
+    case MessageContentType::GiveawayLaunch:
+    case MessageContentType::GiveawayResults:
+    case MessageContentType::ExpiredVideoNote:
+    case MessageContentType::ExpiredVoiceNote:
+    case MessageContentType::BoostApply:
+    case MessageContentType::DialogShared:
+    case MessageContentType::PaymentRefunded:
+    case MessageContentType::GiftStars:
+    case MessageContentType::PrizeStars:
     default:
       UNREACHABLE();
       return false;

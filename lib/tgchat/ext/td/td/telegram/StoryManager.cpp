@@ -64,43 +64,6 @@
 
 namespace td {
 
-static td_api::object_ptr<td_api::CanSendStoryResult> get_can_send_story_result_object(const Status &error,
-                                                                                       bool force = false) {
-  CHECK(error.is_error());
-  if (error.message() == "PREMIUM_ACCOUNT_REQUIRED") {
-    return td_api::make_object<td_api::canSendStoryResultPremiumNeeded>();
-  }
-  if (error.message() == "BOOSTS_REQUIRED") {
-    return td_api::make_object<td_api::canSendStoryResultBoostNeeded>();
-  }
-  if (error.message() == "STORIES_TOO_MUCH") {
-    return td_api::make_object<td_api::canSendStoryResultActiveStoryLimitExceeded>();
-  }
-  if (begins_with(error.message(), "STORY_SEND_FLOOD_WEEKLY_")) {
-    auto r_next_date = to_integer_safe<int32>(error.message().substr(Slice("STORY_SEND_FLOOD_WEEKLY_").size()));
-    if (r_next_date.is_ok() && r_next_date.ok() > 0) {
-      auto retry_after = r_next_date.ok() - G()->unix_time();
-      if (retry_after > 0 || force) {
-        return td_api::make_object<td_api::canSendStoryResultWeeklyLimitExceeded>(max(retry_after, 0));
-      } else {
-        return td_api::make_object<td_api::canSendStoryResultOk>();
-      }
-    }
-  }
-  if (begins_with(error.message(), "STORY_SEND_FLOOD_MONTHLY_")) {
-    auto r_next_date = to_integer_safe<int32>(error.message().substr(Slice("STORY_SEND_FLOOD_MONTHLY_").size()));
-    if (r_next_date.is_ok() && r_next_date.ok() > 0) {
-      auto retry_after = r_next_date.ok() - G()->unix_time();
-      if (retry_after > 0 || force) {
-        return td_api::make_object<td_api::canSendStoryResultMonthlyLimitExceeded>(max(retry_after, 0));
-      } else {
-        return td_api::make_object<td_api::canSendStoryResultOk>();
-      }
-    }
-  }
-  return nullptr;
-}
-
 class GetAllStoriesQuery final : public Td::ResultHandler {
   Promise<telegram_api::object_ptr<telegram_api::stories_AllStories>> promise_;
 
@@ -1091,7 +1054,7 @@ class CanSendStoryQuery final : public Td::ResultHandler {
   }
 
   void on_error(Status status) final {
-    auto result = get_can_send_story_result_object(status);
+    auto result = StoryManager::get_can_send_story_result_object(status);
     if (result != nullptr) {
       return promise_.set_value(std::move(result));
     }
@@ -3581,6 +3544,43 @@ td_api::object_ptr<td_api::chatActiveStories> StoryManager::get_chat_active_stor
       story_list_id.get_story_list_object(), order, max_read_story_id.get(), std::move(stories));
 }
 
+td_api::object_ptr<td_api::CanSendStoryResult> StoryManager::get_can_send_story_result_object(const Status &error,
+                                                                                              bool force) {
+  CHECK(error.is_error());
+  if (error.message() == "PREMIUM_ACCOUNT_REQUIRED") {
+    return td_api::make_object<td_api::canSendStoryResultPremiumNeeded>();
+  }
+  if (error.message() == "BOOSTS_REQUIRED") {
+    return td_api::make_object<td_api::canSendStoryResultBoostNeeded>();
+  }
+  if (error.message() == "STORIES_TOO_MUCH") {
+    return td_api::make_object<td_api::canSendStoryResultActiveStoryLimitExceeded>();
+  }
+  if (begins_with(error.message(), "STORY_SEND_FLOOD_WEEKLY_")) {
+    auto r_next_date = to_integer_safe<int32>(error.message().substr(Slice("STORY_SEND_FLOOD_WEEKLY_").size()));
+    if (r_next_date.is_ok() && r_next_date.ok() > 0) {
+      auto retry_after = r_next_date.ok() - G()->unix_time();
+      if (retry_after > 0 || force) {
+        return td_api::make_object<td_api::canSendStoryResultWeeklyLimitExceeded>(max(retry_after, 0));
+      } else {
+        return td_api::make_object<td_api::canSendStoryResultOk>();
+      }
+    }
+  }
+  if (begins_with(error.message(), "STORY_SEND_FLOOD_MONTHLY_")) {
+    auto r_next_date = to_integer_safe<int32>(error.message().substr(Slice("STORY_SEND_FLOOD_MONTHLY_").size()));
+    if (r_next_date.is_ok() && r_next_date.ok() > 0) {
+      auto retry_after = r_next_date.ok() - G()->unix_time();
+      if (retry_after > 0 || force) {
+        return td_api::make_object<td_api::canSendStoryResultMonthlyLimitExceeded>(max(retry_after, 0));
+      } else {
+        return td_api::make_object<td_api::canSendStoryResultOk>();
+      }
+    }
+  }
+  return nullptr;
+}
+
 vector<FileId> StoryManager::get_story_file_ids(const Story *story) const {
   if (story == nullptr || story->content_ == nullptr) {
     return {};
@@ -5301,8 +5301,9 @@ void StoryManager::on_upload_story(FileId file_id, telegram_api::object_ptr<tele
 
   FileView file_view = td_->file_manager_->get_file_view(file_id);
   CHECK(!file_view.is_encrypted());
-  if (input_file == nullptr && file_view.has_remote_location()) {
-    if (file_view.main_remote_location().is_web()) {
+  const auto *main_remote_location = file_view.get_main_remote_location();
+  if (input_file == nullptr && main_remote_location != nullptr) {
+    if (main_remote_location->is_web()) {
       delete_pending_story(file_id, std::move(pending_story), Status::Error(400, "Can't use web photo as a story"));
       return;
     }
@@ -5313,7 +5314,7 @@ void StoryManager::on_upload_story(FileId file_id, telegram_api::object_ptr<tele
     pending_story->was_reuploaded_ = true;
 
     // delete file reference and forcely reupload the file
-    td_->file_manager_->delete_file_reference(file_id, file_view.main_remote_location().get_file_reference());
+    td_->file_manager_->delete_file_reference(file_id, main_remote_location->get_file_reference());
     do_send_story(std::move(pending_story), {-1});
     return;
   }

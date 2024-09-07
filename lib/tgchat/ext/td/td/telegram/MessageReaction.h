@@ -158,6 +158,7 @@ struct MessageReactions {
   vector<ReactionType> chosen_reaction_order_;
   vector<MessageReactor> top_reactors_;
   int32 pending_paid_reactions_ = 0;
+  bool pending_use_default_is_anonymous_ = false;
   bool pending_is_anonymous_ = false;
   bool is_min_ = false;
   bool need_polling_ = true;
@@ -182,9 +183,11 @@ struct MessageReactions {
 
   bool remove_my_reaction(const ReactionType &reaction_type, DialogId my_dialog_id);
 
-  void add_my_paid_reaction(Td *td, int32 star_count, bool is_anonymous);
+  void add_my_paid_reaction(Td *td, int32 star_count, bool use_default_is_anonymous, bool is_anonymous);
 
-  bool drop_pending_paid_reactions(Td *td);
+  bool has_pending_paid_reactions() const;
+
+  void drop_pending_paid_reactions(Td *td);
 
   void sort_reactions(const FlatHashMap<ReactionType, size_t, ReactionTypeHash> &active_reaction_pos);
 
@@ -241,6 +244,8 @@ void send_message_reaction(Td *td, MessageFullId message_full_id, vector<Reactio
 
 void set_message_reactions(Td *td, MessageFullId message_full_id, vector<ReactionType> reaction_types, bool is_big,
                            Promise<Unit> &&promise);
+
+void reload_paid_reaction_privacy(Td *td);
 
 void get_message_added_reactions(Td *td, MessageFullId message_full_id, ReactionType reaction_type, string offset,
                                  int32 limit, Promise<td_api::object_ptr<td_api::addedReactions>> &&promise);

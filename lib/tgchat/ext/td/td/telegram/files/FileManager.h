@@ -87,6 +87,7 @@ class FileNode {
       , main_file_id_(main_file_id)
       , main_file_id_priority_(main_file_id_priority) {
     init_ready_size();
+    file_ids_.push_back(main_file_id);
   }
   void drop_local_location();
   void set_local_location(const LocalFileLocation &local, int64 ready_size, int64 prefix_offset,
@@ -290,21 +291,31 @@ class FileView {
 
   bool empty() const;
 
-  bool has_local_location() const;
-  const FullLocalFileLocation &local_location() const;
-  bool has_remote_location() const;
-  bool has_alive_remote_location() const;
-  bool has_active_upload_remote_location() const;
-  bool has_active_download_remote_location() const;
-  const FullRemoteFileLocation &remote_location() const;
-  const FullRemoteFileLocation &main_remote_location() const;
+  bool has_full_local_location() const;
+
+  const FullLocalFileLocation *get_full_local_location() const;
+
   bool has_generate_location() const;
-  const FullGenerateFileLocation &generate_location() const;
+
+  const FullGenerateFileLocation *get_generate_location() const;
+
+  bool has_full_remote_location() const;
+
+  bool has_alive_remote_location() const;
+
+  bool has_active_upload_remote_location() const;
+
+  bool has_active_download_remote_location() const;
+
+  const FullRemoteFileLocation *get_full_remote_location() const;
+
+  const FullRemoteFileLocation *get_main_remote_location() const;
 
   bool has_url() const;
-  const string &url() const;
 
-  const string &remote_name() const;
+  const string *get_url() const;
+
+  string remote_name() const;
 
   string suggested_path() const;
 
@@ -356,13 +367,14 @@ class FileView {
   }
 
   bool may_reload_photo() const {
-    if (!has_remote_location()) {
+    const auto *full_remote_location = get_full_remote_location();
+    if (full_remote_location == nullptr) {
       return false;
     }
-    if (!remote_location().is_photo()) {
+    if (!full_remote_location->is_photo()) {
       return false;
     }
-    auto type = remote_location().get_source().get_type("may_reload_photo");
+    auto type = full_remote_location->get_source().get_type("may_reload_photo");
     return type != PhotoSizeSource::Type::Legacy && type != PhotoSizeSource::Type::FullLegacy &&
            type != PhotoSizeSource::Type::Thumbnail;
   }
@@ -462,15 +474,17 @@ class FileManager final : public Actor {
   void on_file_unlink(const FullLocalFileLocation &location);
 
   FileId register_empty(FileType type);
+
   Result<FileId> register_local(FullLocalFileLocation location, DialogId owner_dialog_id, int64 size,
-                                bool get_by_hash = false, bool force = false, bool skip_file_size_checks = false,
+                                bool get_by_hash = false, bool skip_file_size_checks = false,
                                 FileId merge_file_id = FileId()) TD_WARN_UNUSED_RESULT;
+
   FileId register_remote(FullRemoteFileLocation location, FileLocationSource file_location_source,
                          DialogId owner_dialog_id, int64 size, int64 expected_size,
                          string remote_name) TD_WARN_UNUSED_RESULT;
-  Result<FileId> register_generate(FileType file_type, FileLocationSource file_location_source, string original_path,
-                                   string conversion, DialogId owner_dialog_id,
-                                   int64 expected_size) TD_WARN_UNUSED_RESULT;
+
+  FileId register_generate(FileType file_type, string original_path, string conversion, DialogId owner_dialog_id,
+                           int64 expected_size) TD_WARN_UNUSED_RESULT;
 
   Status merge(FileId x_file_id, FileId y_file_id, bool no_sync = false);
 
@@ -502,6 +516,9 @@ class FileManager final : public Actor {
   void delete_partial_remote_location_if_needed(FileId file_id, const Status &error);
   void delete_file_reference(FileId file_id, Slice file_reference);
   void get_content(FileId file_id, Promise<BufferSlice> promise);
+
+  void preliminary_upload_file(const td_api::object_ptr<td_api::InputFile> &input_file, FileType file_type,
+                               int32 priority, Promise<td_api::object_ptr<td_api::file>> &&promise);
 
   Result<string> get_suggested_file_name(FileId file_id, const string &directory);
 
@@ -618,13 +635,17 @@ class FileManager final : public Actor {
     }
   };
 
+  class PreliminaryUploadFileCallback;
+
   Result<FileId> check_input_file_id(FileType type, Result<FileId> result, bool is_encrypted, bool allow_zero,
                                      bool is_secure) TD_WARN_UNUSED_RESULT;
 
-  FileId register_url(string url, FileType file_type, FileLocationSource file_location_source,
-                      DialogId owner_dialog_id);
-  Result<FileId> register_file(FileData &&data, FileLocationSource file_location_source, FileId merge_file_id,
-                               const char *source, bool force, bool skip_file_size_checks = false);
+  FileId do_register_generate(unique_ptr<FullGenerateFileLocation> generate, DialogId owner_dialog_id,
+                              int64 expected_size, string url) TD_WARN_UNUSED_RESULT;
+
+  FileId register_url(string url, FileType file_type, DialogId owner_dialog_id);
+
+  Result<FileId> register_file(FileData &&data, FileLocationSource file_location_source, const char *source);
 
   static constexpr int8 FROM_BYTES_PRIORITY = 10;
 
@@ -721,7 +742,7 @@ class FileManager final : public Actor {
   FileNodeId next_file_node_id();
   int32 next_pmc_file_id();
   FileId create_file_id(int32 file_node_id, FileNode *file_node);
-  void try_forget_file_id(FileId file_id);
+  bool try_forget_file_id(FileId file_id);
 
   void load_from_pmc(FileId file_id, FullLocalFileLocation full_local);
   void load_from_pmc(FileId file_id, const FullRemoteFileLocation &full_remote);

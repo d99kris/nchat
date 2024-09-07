@@ -81,8 +81,9 @@ td_api::object_ptr<td_api::notificationSound> AudiosManager::get_notification_so
   auto file_view = td_->file_manager_->get_file_view(file_id);
   CHECK(!file_view.empty());
   CHECK(file_view.get_type() == FileType::Ringtone);
-  CHECK(file_view.has_remote_location());
-  auto document_id = file_view.remote_location().get_id();
+  auto full_remote_location = file_view.get_full_remote_location();
+  CHECK(full_remote_location != nullptr);
+  auto document_id = full_remote_location->get_id();
   auto title = audio->title;
   if (title.empty() && !audio->file_name.empty()) {
     title = PathView(audio->file_name).file_name_without_extension().str();
@@ -237,8 +238,9 @@ SecretInputMedia AudiosManager::get_secret_input_media(FileId audio_file_id,
   if (!file_view.is_encrypted_secret() || file_view.encryption_key().empty()) {
     return SecretInputMedia{};
   }
-  if (file_view.has_remote_location()) {
-    input_file = file_view.main_remote_location().as_input_encrypted_file();
+  const auto *main_remote_location = file_view.get_main_remote_location();
+  if (main_remote_location != nullptr) {
+    input_file = main_remote_location->as_input_encrypted_file();
   }
   if (!input_file) {
     return SecretInputMedia{};
@@ -271,12 +273,14 @@ tl_object_ptr<telegram_api::InputMedia> AudiosManager::get_input_media(
   if (file_view.is_encrypted()) {
     return nullptr;
   }
-  if (file_view.has_remote_location() && !file_view.main_remote_location().is_web() && input_file == nullptr) {
-    return make_tl_object<telegram_api::inputMediaDocument>(
-        0, false /*ignored*/, file_view.main_remote_location().as_input_document(), 0, string());
+  const auto *main_remote_location = file_view.get_main_remote_location();
+  if (main_remote_location != nullptr && !main_remote_location->is_web() && input_file == nullptr) {
+    return make_tl_object<telegram_api::inputMediaDocument>(0, false /*ignored*/,
+                                                            main_remote_location->as_input_document(), 0, string());
   }
-  if (file_view.has_url()) {
-    return make_tl_object<telegram_api::inputMediaDocumentExternal>(0, false /*ignored*/, file_view.url(), 0);
+  const auto *url = file_view.get_url();
+  if (url != nullptr) {
+    return make_tl_object<telegram_api::inputMediaDocumentExternal>(0, false /*ignored*/, *url, 0);
   }
 
   if (input_file != nullptr) {
@@ -303,7 +307,7 @@ tl_object_ptr<telegram_api::InputMedia> AudiosManager::get_input_media(
         std::move(input_thumbnail), mime_type, std::move(attributes),
         vector<tl_object_ptr<telegram_api::InputDocument>>(), 0);
   } else {
-    CHECK(!file_view.has_remote_location());
+    CHECK(main_remote_location == nullptr);
   }
 
   return nullptr;
