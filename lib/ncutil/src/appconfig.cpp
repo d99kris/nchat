@@ -23,6 +23,7 @@ void AppConfig::Init()
     { "cache_enabled", "1" },
     { "coredump_enabled", "0" },
     { "downloads_dir", "" },
+    { "emoji_list_all", "0" },
     { "link_send_preview", "1" },
     { "logdump_enabled", "0" },
     { "proxy_host", "" },

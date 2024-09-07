@@ -1,6 +1,6 @@
 // emojilist.cpp
 //
-// Copyright (c) 2020-2022 Kristofer Berggren
+// Copyright (c) 2020-2024 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -12,6 +12,7 @@
 
 #include <sqlite_modern_cpp.h>
 
+#include "appconfig.h"
 #include "log.h"
 #include "emojiutil.h"
 #include "fileutil.h"
@@ -27,7 +28,10 @@ void EmojiList::Init()
   const std::string& emojisDir = FileUtil::GetApplicationDir() + "/emojis";
   FileUtil::InitDirVersion(emojisDir, dirVersion);
 
-  const std::string& dbPath = emojisDir + "/db.sqlite";
+  const bool emojiListAll = AppConfig::GetBool("emoji_list_all");
+
+  const std::string dbName = (emojiListAll ? "dball.sqlite" : "db.sqlite");
+  const std::string dbPath = emojisDir + "/" + dbName;
   m_Db.reset(new sqlite::database(dbPath));
 
   if (!m_Db) return;
@@ -49,7 +53,7 @@ void EmojiList::Init()
     const std::map<std::string, std::string>& emojiMap = EmojiUtil::GetMap();
     for (const auto& emoji : emojiMap)
     {
-      if (emojiView.count(emoji.first))
+      if (emojiListAll || emojiView.count(emoji.first))
       {
         *m_Db << "INSERT INTO emojis (name, emoji, usages) VALUES (?,?,0);" << emoji.first << emoji.second;
       }

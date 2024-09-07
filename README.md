@@ -269,6 +269,7 @@ This configuration file holds general application settings. Default content:
     cache_enabled=1
     coredump_enabled=0
     downloads_dir=
+    emoji_list_all=0
     link_send_preview=1
     logdump_enabled=0
     proxy_host=
@@ -303,6 +304,11 @@ Specifies whether to enable core dumps on application crash.
 
 Specifies a custom downloads directory path to save attachments to. If not
 specified, the default dir is `~/Downloads` if exists, otherwise `~`.
+
+### emoji_list_all
+
+Specifies whether the emoji dialog should list all emojis, it is otherwise
+restricted to listing emojis that renders properly in common terminals.
 
 ### link_send_preview
 
