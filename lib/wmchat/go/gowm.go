@@ -327,7 +327,7 @@ func ShowImage(path string) {
 		LOG_DEBUG("open " + path)
 		exec.Command("open", path).Start()
 	default:
-		LOG_WARNING("unsupported os")
+		LOG_WARNING(fmt.Sprintf("unsupported os \"%s\"", runtime.GOOS))
 	}
 }
 
@@ -392,9 +392,9 @@ func HasGUI() bool {
 		}
 
 	default:
-		LOG_INFO(fmt.Sprintf("has gui"))
-		LOG_DEBUG(fmt.Sprintf("gui check: [other default true]"))
-		return true
+		LOG_INFO(fmt.Sprintf("no gui"))
+		LOG_DEBUG(fmt.Sprintf("gui check: [other \"%s\" default false]", runtime.GOOS))
+		return false
 	}
 }
 
@@ -1745,6 +1745,7 @@ func WmInit(path string, proxy string, sendType int) int {
 	case "darwin":
 		store.DeviceProps.Os = proto.String("Mac OS")
 	default:
+		store.DeviceProps.Os = proto.String("Linux")
 	}
 
 	// create new whatsapp connection

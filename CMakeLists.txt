@@ -63,6 +63,10 @@ message(STATUS "Multi Protocol: ${HAS_MULTIPROTOCOL}")
 option(HAS_COREDUMP "Core Dump" ON)
 message(STATUS "Core Dump: ${HAS_COREDUMP}")
 
+# Feature - Static Go library
+option(HAS_STATICGOLIB "Static Go" ON)
+message(STATUS "Static Go: ${HAS_STATICGOLIB}")
+
 # Check Golang version for whatsmeow minimum requirement
 set(GO_VERSION_MIN 1.21)
 execute_process(COMMAND bash "-c" "go version 2> /dev/null | cut -c14- | cut -d' ' -f1 | tr -d '\n'" OUTPUT_VARIABLE GO_VERSION)
