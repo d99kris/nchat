@@ -9,6 +9,7 @@
 
 #include <algorithm>
 
+#include "apputil.h"
 #include "log.h"
 #include "uimodel.h"
 #include "strutil.h"
@@ -90,8 +91,14 @@ void UiContactListDialog::UpdateList()
           (StrUtil::ToLower(name).find(StrUtil::ToLower(StrUtil::ToString(m_FilterStr))) != std::string::npos))
       {
         static const bool isMultipleProfiles = m_Model->IsMultipleProfiles();
-        const std::string displayName = name +
+        std::string displayName = name +
           (isMultipleProfiles ? " @ " + m_Model->GetProfileDisplayName(profileId) : "");
+
+        static const bool developerMode = AppUtil::GetDeveloperMode();
+        if (developerMode)
+        {
+          displayName += " [" + contactId + "]";
+        }
 
         UiContactListItem contactListItem;
         contactListItem.profileId = profileId;

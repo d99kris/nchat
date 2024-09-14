@@ -42,42 +42,50 @@ void UiStatusView::Draw()
   wbkgd(m_Win, attribute | colorPair | ' ');
   wattron(m_Win, attribute | colorPair);
 
-  static bool isMultipleProfiles = m_Model->IsMultipleProfiles();
-  std::string profileDisplayName = isMultipleProfiles ? " @ " + m_Model->GetProfileDisplayName(currentChat.first) : "";
-
-  std::string chatStatus = m_Model->GetChatStatus(currentChat.first, currentChat.second);
-  std::wstring wstatus = std::wstring(statusVPad, ' ') +
-    StrUtil::ToWString(name).substr(0, m_W / 2) +
-    StrUtil::ToWString(profileDisplayName) +
-    StrUtil::ToWString(chatStatus);
-
-  static const std::string phoneNumberIndicator = UiConfig::GetStr("phone_number_indicator");
-  if (!phoneNumberIndicator.empty())
+  std::wstring wstatus;
+  if (currentChat.first.empty() && currentChat.second.empty())
   {
-    static std::string placeholder = "%1";
-    static const bool isDynamicIndicator = (phoneNumberIndicator.find(placeholder) != std::string::npos);
-    if (isDynamicIndicator)
-    {
-      std::string dynamicIndicator = phoneNumberIndicator;
-      std::string phone = m_Model->GetContactPhone(currentChat.first, currentChat.second);
-      StrUtil::ReplaceString(dynamicIndicator, placeholder, phone);
-      wstatus += L" " + StrUtil::ToWString(dynamicIndicator);
-    }
-    else
-    {
-      wstatus += L" " + StrUtil::ToWString(phoneNumberIndicator);
-    }
+    // Empty status bar until current chat is set
   }
-
-  static const bool developerMode = AppUtil::GetDeveloperMode();
-  if (developerMode)
+  else
   {
-    wstatus = wstatus + L" chat " + StrUtil::ToWString(currentChat.second);
-    int64_t lastMessageTime = m_Model->GetLastMessageTime(currentChat.first, currentChat.second);
-    wstatus = wstatus + L" time " + StrUtil::ToWString(std::to_string(lastMessageTime));
-  }
+    static bool isMultipleProfiles = m_Model->IsMultipleProfiles();
+    std::string profileDisplayName = isMultipleProfiles ? " @ " + m_Model->GetProfileDisplayName(currentChat.first) : "";
 
-  wstatus = StrUtil::TrimPadWString(wstatus, m_W);
+    std::string chatStatus = m_Model->GetChatStatus(currentChat.first, currentChat.second);
+    wstatus = std::wstring(statusVPad, ' ') +
+      StrUtil::ToWString(name).substr(0, m_W / 2) +
+      StrUtil::ToWString(profileDisplayName) +
+      StrUtil::ToWString(chatStatus);
+
+    static const std::string phoneNumberIndicator = UiConfig::GetStr("phone_number_indicator");
+    if (!phoneNumberIndicator.empty())
+    {
+      static std::string placeholder = "%1";
+      static const bool isDynamicIndicator = (phoneNumberIndicator.find(placeholder) != std::string::npos);
+      if (isDynamicIndicator)
+      {
+        std::string dynamicIndicator = phoneNumberIndicator;
+        std::string phone = m_Model->GetContactPhone(currentChat.first, currentChat.second);
+        StrUtil::ReplaceString(dynamicIndicator, placeholder, phone);
+        wstatus += L" " + StrUtil::ToWString(dynamicIndicator);
+      }
+      else
+      {
+        wstatus += L" " + StrUtil::ToWString(phoneNumberIndicator);
+      }
+    }
+
+    static const bool developerMode = AppUtil::GetDeveloperMode();
+    if (developerMode)
+    {
+      wstatus = wstatus + L" chat " + StrUtil::ToWString(currentChat.second);
+      int64_t lastMessageTime = m_Model->GetLastMessageTime(currentChat.first, currentChat.second);
+      wstatus = wstatus + L" time " + StrUtil::ToWString(std::to_string(lastMessageTime));
+    }
+
+    wstatus = StrUtil::TrimPadWString(wstatus, m_W);
+  }
 
   mvwaddnwstr(m_Win, 0, 0, wstatus.c_str(), wstatus.size());
 
