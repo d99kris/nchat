@@ -952,7 +952,7 @@ more colors than two, or the terminal may be set up with gray mapped to black.
 In this case sent / own messages may appear invisible. To avoid nchat using
 gray one can edit `~/.config/nchat/color.conf` and remove occurances of `gray`.
 
-### 5. How to use Telegram and WhatsApp concurrently?
+### 5. How to use Telegram and WhatsApp concurrently or switch between them?
 
 The **recommended** method is to set up nchat with one config directory per
 protocol/phone number, and run each instance in separate terminal windows/tabs.
