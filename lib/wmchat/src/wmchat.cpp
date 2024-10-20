@@ -718,7 +718,8 @@ void WmNewContactsNotify(int p_ConnId, char* p_ChatId, char* p_Name, char* p_Pho
   free(p_Name);
 }
 
-void WmNewChatsNotify(int p_ConnId, char* p_ChatId, int p_IsUnread, int p_IsMuted, int p_IsPinned, int p_LastMessageTime)
+void WmNewChatsNotify(int p_ConnId, char* p_ChatId, int p_IsUnread, int p_IsMuted, int p_IsPinned,
+                      int p_LastMessageTime)
 {
   WmChat* instance = WmChat::GetInstance(p_ConnId);
   if (instance == nullptr) return;
