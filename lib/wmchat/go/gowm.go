@@ -47,7 +47,7 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
-var whatsmeowDate int = 20240927
+var whatsmeowDate int = 20241015
 
 type JSONMessage []json.RawMessage
 type JSONMessageType string
@@ -227,7 +227,7 @@ func DownloadableMessageToFileId(client *whatsmeow.Client, msg whatsmeow.Downloa
 
 	info.MediaType = whatsmeow.GetMediaType(msg)
 	if len(info.MediaType) == 0 {
-		LOG_WARNING(fmt.Sprintf("unknown mediatype '%s'", string(msg.ProtoReflect().Descriptor().Name())))
+		LOG_WARNING(fmt.Sprintf("unknown mediatype in msg %+v", msg))
 		return ""
 	}
 
