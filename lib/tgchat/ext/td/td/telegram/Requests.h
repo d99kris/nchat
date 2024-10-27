@@ -6,20 +6,16 @@
 //
 #pragma once
 
-#include "td/telegram/files/FileId.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/td_api.h"
 
 #include "td/actor/actor.h"
 
 #include "td/utils/common.h"
-#include "td/utils/FlatHashMap.h"
 #include "td/utils/MovableValue.h"
 #include "td/utils/Promise.h"
 #include "td/utils/Slice.h"
 #include "td/utils/Status.h"
-
-#include <memory>
 
 namespace td {
 
@@ -29,8 +25,6 @@ class Requests {
 
   void run_request(uint64 id, td_api::object_ptr<td_api::Function> &&function);
 
-  void on_file_download_finished(FileId file_id);
-
  private:
   Td *td_ = nullptr;
   ActorId<Td> td_actor_;
@@ -38,17 +32,6 @@ class Requests {
   void send_error_raw(uint64 id, int32 code, CSlice error);
 
   void answer_ok_query(uint64 id, Status status);
-
-  struct DownloadInfo {
-    int64 offset = -1;
-    int64 limit = -1;
-    vector<uint64> request_ids;
-  };
-  FlatHashMap<FileId, DownloadInfo, FileIdHash> pending_file_downloads_;
-
-  class DownloadFileCallback;
-
-  std::shared_ptr<DownloadFileCallback> download_file_callback_;
 
   class RequestPromiseBase {
     enum class State : int32 { Empty, Ready, Complete };
@@ -1468,6 +1451,16 @@ class Requests {
 
   void on_request(uint64 id, const td_api::deleteSavedCredentials &request);
 
+  void on_request(uint64 id, const td_api::getAvailableGifts &request);
+
+  void on_request(uint64 id, td_api::sendGift &request);
+
+  void on_request(uint64 id, const td_api::sellGift &request);
+
+  void on_request(uint64 id, const td_api::toggleGiftIsSaved &request);
+
+  void on_request(uint64 id, td_api::getUserGifts &request);
+
   void on_request(uint64 id, td_api::createInvoiceLink &request);
 
   void on_request(uint64 id, td_api::refundStarPayment &request);
@@ -1531,6 +1524,8 @@ class Requests {
   void on_request(uint64 id, const td_api::getPremiumFeatures &request);
 
   void on_request(uint64 id, const td_api::getPremiumStickerExamples &request);
+
+  void on_request(uint64 id, const td_api::getPremiumInfoSticker &request);
 
   void on_request(uint64 id, const td_api::viewPremiumFeature &request);
 

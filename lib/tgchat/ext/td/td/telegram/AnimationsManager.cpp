@@ -251,12 +251,11 @@ FileId AnimationsManager::dup_animation(FileId new_id, FileId old_id) {
   const Animation *old_animation = get_animation(old_id);
   CHECK(old_animation != nullptr);
   auto &new_animation = animations_[new_id];
-  CHECK(new_animation == nullptr);
+  if (new_animation != nullptr) {
+    return new_id;
+  }
   new_animation = make_unique<Animation>(*old_animation);
   new_animation->file_id = new_id;
-  new_animation->thumbnail.file_id = td_->file_manager_->dup_file_id(new_animation->thumbnail.file_id, "dup_animation");
-  new_animation->animated_thumbnail.file_id =
-      td_->file_manager_->dup_file_id(new_animation->animated_thumbnail.file_id, "dup_animation");
   return new_id;
 }
 
@@ -273,9 +272,6 @@ void AnimationsManager::merge_animations(FileId new_id, FileId old_id) {
   if (new_ == nullptr) {
     dup_animation(new_id, old_id);
   } else {
-    if (old_->thumbnail != new_->thumbnail) {
-      //    LOG_STATUS(td_->file_manager_->merge(new_->thumbnail.file_id, old_->thumbnail.file_id));
-    }
     if (new_->file_name.size() == old_->file_name.size() + 4 && new_->file_name == old_->file_name + ".mp4") {
       need_merge = false;
     }
@@ -306,8 +302,8 @@ void AnimationsManager::create_animation(FileId file_id, string minithumbnail, P
 }
 
 tl_object_ptr<telegram_api::InputMedia> AnimationsManager::get_input_media(
-    FileId file_id, tl_object_ptr<telegram_api::InputFile> input_file,
-    tl_object_ptr<telegram_api::InputFile> input_thumbnail, bool has_spoiler) const {
+    FileId file_id, telegram_api::object_ptr<telegram_api::InputFile> input_file,
+    telegram_api::object_ptr<telegram_api::InputFile> input_thumbnail, bool has_spoiler) const {
   auto file_view = td_->file_manager_->get_file_view(file_id);
   if (file_view.is_encrypted()) {
     return nullptr;
@@ -342,7 +338,7 @@ tl_object_ptr<telegram_api::InputMedia> AnimationsManager::get_input_media(
     if (mime_type == "video/mp4") {
       attributes.push_back(make_tl_object<telegram_api::documentAttributeVideo>(
           0, false /*ignored*/, false /*ignored*/, false /*ignored*/, animation->duration, animation->dimensions.width,
-          animation->dimensions.height, 0, 0.0));
+          animation->dimensions.height, 0, 0.0, string()));
     } else if (animation->dimensions.width != 0 && animation->dimensions.height != 0) {
       if (!begins_with(mime_type, "image/")) {
         mime_type = "image/gif";
@@ -372,10 +368,9 @@ tl_object_ptr<telegram_api::InputMedia> AnimationsManager::get_input_media(
   return nullptr;
 }
 
-SecretInputMedia AnimationsManager::get_secret_input_media(FileId animation_file_id,
-                                                           tl_object_ptr<telegram_api::InputEncryptedFile> input_file,
-                                                           const string &caption, BufferSlice thumbnail,
-                                                           int32 layer) const {
+SecretInputMedia AnimationsManager::get_secret_input_media(
+    FileId animation_file_id, telegram_api::object_ptr<telegram_api::InputEncryptedFile> input_file,
+    const string &caption, BufferSlice thumbnail, int32 layer) const {
   auto *animation = get_animation(animation_file_id);
   CHECK(animation != nullptr);
   auto file_view = td_->file_manager_->get_file_view(animation_file_id);
@@ -841,7 +836,7 @@ void AnimationsManager::send_update_saved_animations(bool from_database) {
     std::sort(new_saved_animation_file_ids.begin(), new_saved_animation_file_ids.end());
     if (new_saved_animation_file_ids != saved_animation_file_ids_) {
       td_->file_manager_->change_files_source(get_saved_animations_file_source_id(), saved_animation_file_ids_,
-                                              new_saved_animation_file_ids);
+                                              new_saved_animation_file_ids, "send_update_saved_animations");
       saved_animation_file_ids_ = std::move(new_saved_animation_file_ids);
     }
 

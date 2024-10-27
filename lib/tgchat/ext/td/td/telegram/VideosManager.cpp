@@ -7,6 +7,7 @@
 #include "td/telegram/VideosManager.h"
 
 #include "td/telegram/AuthManager.h"
+#include "td/telegram/DocumentsManager.h"
 #include "td/telegram/files/FileManager.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/PhotoFormat.h"
@@ -19,6 +20,7 @@
 
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
+#include "td/utils/SliceBuilder.h"
 #include "td/utils/Status.h"
 
 #include <cmath>
@@ -70,6 +72,25 @@ td_api::object_ptr<td_api::storyVideo> VideosManager::get_story_video_object(Fil
       video->preload_prefix_size, video->start_ts, td_->file_manager_->get_file_object(file_id));
 }
 
+td_api::object_ptr<td_api::alternativeVideo> VideosManager::get_alternative_video_object(
+    FileId file_id, const vector<FileId> &hls_file_ids) const {
+  auto video = get_video(file_id);
+  CHECK(video != nullptr);
+  auto file_view = td_->file_manager_->get_file_view(file_id);
+  const auto *full_remote_location = file_view.get_full_remote_location();
+  CHECK(full_remote_location != nullptr);
+  CHECK(full_remote_location->is_document());
+  auto name = PSTRING() << "mtproto:" << full_remote_location->get_id();
+  for (const auto &hls_file_id : hls_file_ids) {
+    if (td_->documents_manager_->get_document_file_name(hls_file_id) == name) {
+      return td_api::make_object<td_api::alternativeVideo>(
+          video->dimensions.width, video->dimensions.height, video->codec,
+          td_->file_manager_->get_file_object(hls_file_id), td_->file_manager_->get_file_object(file_id));
+    }
+  }
+  return nullptr;
+}
+
 FileId VideosManager::on_get_video(unique_ptr<Video> new_video, bool replace) {
   auto file_id = new_video->file_id;
   CHECK(file_id.is_valid());
@@ -86,7 +107,7 @@ FileId VideosManager::on_get_video(unique_ptr<Video> new_video, bool replace) {
     if (v->duration != new_video->duration || v->precise_duration != new_video->precise_duration ||
         v->dimensions != new_video->dimensions || v->supports_streaming != new_video->supports_streaming ||
         v->is_animation != new_video->is_animation || v->preload_prefix_size != new_video->preload_prefix_size ||
-        std::fabs(v->start_ts - new_video->start_ts) > 1e-3) {
+        std::fabs(v->start_ts - new_video->start_ts) > 1e-3 || v->codec != new_video->codec) {
       LOG(DEBUG) << "Video " << file_id << " info has changed";
       v->duration = new_video->duration;
       v->precise_duration = new_video->precise_duration;
@@ -95,6 +116,7 @@ FileId VideosManager::on_get_video(unique_ptr<Video> new_video, bool replace) {
       v->is_animation = new_video->is_animation;
       v->preload_prefix_size = new_video->preload_prefix_size;
       v->start_ts = new_video->start_ts;
+      v->codec = std::move(new_video->codec);
     }
     if (v->file_name != new_video->file_name) {
       LOG(DEBUG) << "Video " << file_id << " file name has changed";
@@ -158,12 +180,11 @@ FileId VideosManager::dup_video(FileId new_id, FileId old_id) {
   const Video *old_video = get_video(old_id);
   CHECK(old_video != nullptr);
   auto &new_video = videos_[new_id];
-  CHECK(new_video == nullptr);
+  if (new_video != nullptr) {
+    return new_id;
+  }
   new_video = make_unique<Video>(*old_video);
   new_video->file_id = new_id;
-  new_video->thumbnail.file_id = td_->file_manager_->dup_file_id(new_video->thumbnail.file_id, "dup_video");
-  new_video->animated_thumbnail.file_id =
-      td_->file_manager_->dup_file_id(new_video->animated_thumbnail.file_id, "dup_video");
   return new_id;
 }
 
@@ -178,14 +199,8 @@ void VideosManager::merge_videos(FileId new_id, FileId old_id) {
   const auto *new_ = get_video(new_id);
   if (new_ == nullptr) {
     dup_video(new_id, old_id);
-  } else {
-    if (!old_->mime_type.empty() && old_->mime_type != new_->mime_type) {
-      LOG(INFO) << "Video has changed: mime_type = (" << old_->mime_type << ", " << new_->mime_type << ")";
-    }
-
-    if (old_->thumbnail != new_->thumbnail) {
-      //    LOG_STATUS(td_->file_manager_->merge(new_->thumbnail.file_id, old_->thumbnail.file_id));
-    }
+  } else if (!old_->mime_type.empty() && old_->mime_type != new_->mime_type) {
+    LOG(INFO) << "Video has changed: mime_type = (" << old_->mime_type << ", " << new_->mime_type << ")";
   }
   LOG_STATUS(td_->file_manager_->merge(new_id, old_id));
 }
@@ -194,7 +209,7 @@ void VideosManager::create_video(FileId file_id, string minithumbnail, PhotoSize
                                  AnimationSize animated_thumbnail, bool has_stickers, vector<FileId> &&sticker_file_ids,
                                  string file_name, string mime_type, int32 duration, double precise_duration,
                                  Dimensions dimensions, bool supports_streaming, bool is_animation,
-                                 int32 preload_prefix_size, double start_ts, bool replace) {
+                                 int32 preload_prefix_size, double start_ts, string &&codec, bool replace) {
   auto v = make_unique<Video>();
   v->file_id = file_id;
   v->file_name = std::move(file_name);
@@ -213,13 +228,13 @@ void VideosManager::create_video(FileId file_id, string minithumbnail, PhotoSize
   v->start_ts = start_ts;
   v->has_stickers = has_stickers;
   v->sticker_file_ids = std::move(sticker_file_ids);
+  v->codec = std::move(codec);
   on_get_video(std::move(v), replace);
 }
 
-SecretInputMedia VideosManager::get_secret_input_media(FileId video_file_id,
-                                                       tl_object_ptr<telegram_api::InputEncryptedFile> input_file,
-                                                       const string &caption, BufferSlice thumbnail,
-                                                       int32 layer) const {
+SecretInputMedia VideosManager::get_secret_input_media(
+    FileId video_file_id, telegram_api::object_ptr<telegram_api::InputEncryptedFile> input_file, const string &caption,
+    BufferSlice thumbnail, int32 layer) const {
   const Video *video = get_video(video_file_id);
   CHECK(video != nullptr);
   auto file_view = td_->file_manager_->get_file_view(video_file_id);
@@ -251,8 +266,8 @@ SecretInputMedia VideosManager::get_secret_input_media(FileId video_file_id,
 }
 
 tl_object_ptr<telegram_api::InputMedia> VideosManager::get_input_media(
-    FileId file_id, tl_object_ptr<telegram_api::InputFile> input_file,
-    tl_object_ptr<telegram_api::InputFile> input_thumbnail, int32 ttl, bool has_spoiler) const {
+    FileId file_id, telegram_api::object_ptr<telegram_api::InputFile> input_file,
+    telegram_api::object_ptr<telegram_api::InputFile> input_thumbnail, int32 ttl, bool has_spoiler) const {
   if (!file_id.is_valid()) {
     LOG_IF(ERROR, ttl == 0) << "Video has invalid file_id";
     return nullptr;
@@ -303,7 +318,7 @@ tl_object_ptr<telegram_api::InputMedia> VideosManager::get_input_media(
       }
       attributes.push_back(make_tl_object<telegram_api::documentAttributeVideo>(
           attribute_flags, false /*ignored*/, false /*ignored*/, false /*ignored*/, video->precise_duration,
-          video->dimensions.width, video->dimensions.height, 0, video->start_ts));
+          video->dimensions.width, video->dimensions.height, 0, video->start_ts, string()));
     }
     if (!video->file_name.empty()) {
       attributes.push_back(make_tl_object<telegram_api::documentAttributeFilename>(video->file_name));
@@ -365,7 +380,7 @@ telegram_api::object_ptr<telegram_api::InputMedia> VideosManager::get_story_docu
     }
     attributes.push_back(telegram_api::make_object<telegram_api::documentAttributeVideo>(
         attribute_flags, false /*ignored*/, false /*ignored*/, false /*ignored*/, video->precise_duration,
-        video->dimensions.width, video->dimensions.height, 0, main_frame_timestamp));
+        video->dimensions.width, video->dimensions.height, 0, main_frame_timestamp, string()));
   }
   if (!video->file_name.empty()) {
     attributes.push_back(make_tl_object<telegram_api::documentAttributeFilename>(video->file_name));

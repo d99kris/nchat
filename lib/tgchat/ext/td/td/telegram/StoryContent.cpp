@@ -230,8 +230,8 @@ unique_ptr<StoryContent> get_story_content(Td *td, tl_object_ptr<telegram_api::M
       CHECK(parsed_document.file_id.is_valid());
 
       FileId alt_file_id;
-      if (media->alt_document_ != nullptr) {
-        auto alt_document_ptr = std::move(media->alt_document_);
+      if (media->alt_documents_.size() == 1u) {
+        auto alt_document_ptr = std::move(media->alt_documents_[0]);
         int32 alt_document_id = alt_document_ptr->get_id();
         if (alt_document_id == telegram_api::documentEmpty::ID) {
           LOG(ERROR) << "Receive alternative " << to_string(alt_document_ptr);
@@ -241,7 +241,7 @@ unique_ptr<StoryContent> get_story_content(Td *td, tl_object_ptr<telegram_api::M
               move_tl_object_as<telegram_api::document>(alt_document_ptr), owner_dialog_id, nullptr,
               Document::Type::Video, DocumentsManager::Subtype::Story);
           if (parsed_alt_document.empty() || parsed_alt_document.type != Document::Type::Video) {
-            LOG(ERROR) << "Receive alternative " << to_string(alt_document_ptr);
+            LOG(ERROR) << "Receive invalid alternative document " << parsed_alt_document;
           } else {
             alt_file_id = parsed_alt_document.file_id;
           }
@@ -297,7 +297,7 @@ Result<unique_ptr<StoryContent>> get_input_story_content(
                                         std::move(sticker_file_ids), "story.mp4", "video/mp4",
                                         static_cast<int32>(std::ceil(input_story->duration_)), input_story->duration_,
                                         get_dimensions(720, 1280, nullptr), true, input_story->is_animation_, 0,
-                                        input_story->cover_frame_timestamp_, false);
+                                        input_story->cover_frame_timestamp_, string(), false);
 
       return make_unique<StoryContentVideo>(file_id, FileId());
     }
@@ -431,38 +431,6 @@ unique_ptr<StoryContent> copy_story_content(const StoryContent *content) {
       const auto *story_content = static_cast<const StoryContentUnsupported *>(content);
       return make_unique<StoryContentUnsupported>(story_content->version_);
     }
-    default:
-      UNREACHABLE();
-      return nullptr;
-  }
-}
-
-unique_ptr<StoryContent> dup_story_content(Td *td, const StoryContent *content) {
-  if (content == nullptr) {
-    return nullptr;
-  }
-
-  auto fix_file_id = [file_manager = td->file_manager_.get()](FileId file_id) {
-    return file_manager->dup_file_id(file_id, "dup_story_content");
-  };
-
-  switch (content->get_type()) {
-    case StoryContentType::Photo: {
-      const auto *old_content = static_cast<const StoryContentPhoto *>(content);
-      auto photo = dup_photo(old_content->photo_);
-      photo.photos.back().file_id = fix_file_id(photo.photos.back().file_id);
-      if (photo.photos.size() > 1) {
-        photo.photos[0].file_id = fix_file_id(photo.photos[0].file_id);
-      }
-      return make_unique<StoryContentPhoto>(std::move(photo));
-    }
-    case StoryContentType::Video: {
-      const auto *old_content = static_cast<const StoryContentVideo *>(content);
-      return make_unique<StoryContentVideo>(
-          td->videos_manager_->dup_video(fix_file_id(old_content->file_id_), old_content->file_id_), FileId());
-    }
-    case StoryContentType::Unsupported:
-      return nullptr;
     default:
       UNREACHABLE();
       return nullptr;

@@ -11,6 +11,7 @@
 #include "td/telegram/DialogId.h"
 #include "td/telegram/files/FileId.h"
 #include "td/telegram/files/FileSourceId.h"
+#include "td/telegram/files/FileUploadId.h"
 #include "td/telegram/MediaArea.h"
 #include "td/telegram/MessageEntity.h"
 #include "td/telegram/MessageFullId.h"
@@ -48,7 +49,6 @@ namespace td {
 
 struct BinlogEvent;
 class Dependencies;
-class ReportReason;
 class StoryContent;
 class StoryForwardInfo;
 struct StoryDbStory;
@@ -112,6 +112,7 @@ class StoryManager final : public Actor {
     DialogId dialog_id_;
     StoryId story_id_;
     StoryFullId forward_from_story_full_id_;
+    FileUploadId file_upload_id_;
     uint64 log_event_id_ = 0;
     uint32 send_story_num_ = 0;
     int64 random_id_ = 0;
@@ -131,11 +132,10 @@ class StoryManager final : public Actor {
   };
 
   struct ReadyToSendStory {
-    FileId file_id_;
     unique_ptr<PendingStory> pending_story_;
     telegram_api::object_ptr<telegram_api::InputFile> input_file_;
 
-    ReadyToSendStory(FileId file_id, unique_ptr<PendingStory> &&pending_story,
+    ReadyToSendStory(unique_ptr<PendingStory> &&pending_story,
                      telegram_api::object_ptr<telegram_api::InputFile> &&input_file);
   };
 
@@ -295,7 +295,8 @@ class StoryManager final : public Actor {
       telegram_api::object_ptr<telegram_api::stories_storyReactionsList> &&story_reactions,
       Promise<telegram_api::object_ptr<telegram_api::stories_storyReactionsList>> promise);
 
-  void report_story(StoryFullId story_full_id, ReportReason &&reason, Promise<Unit> &&promise);
+  void report_story(StoryFullId story_full_id, const string &option_id, const string &text,
+                    Promise<td_api::object_ptr<td_api::ReportStoryResult>> &&promise);
 
   void activate_stealth_mode(Promise<Unit> &&promise);
 
@@ -561,19 +562,19 @@ class StoryManager final : public Actor {
 
   int64 save_send_story_log_event(const PendingStory *pending_story);
 
-  void delete_pending_story(FileId file_id, unique_ptr<PendingStory> &&pending_story, Status status);
+  void delete_pending_story(unique_ptr<PendingStory> &&pending_story, Status status);
 
   Result<StoryId> get_next_yet_unsent_story_id(DialogId dialog_id);
 
   void do_send_story(unique_ptr<PendingStory> &&pending_story, vector<int> bad_parts);
 
-  void on_upload_story(FileId file_id, telegram_api::object_ptr<telegram_api::InputFile> input_file);
+  void on_upload_story(FileUploadId file_upload_id, telegram_api::object_ptr<telegram_api::InputFile> input_file);
 
-  void on_upload_story_error(FileId file_id, Status status);
+  void on_upload_story_error(FileUploadId file_upload_id, Status status);
 
   void try_send_story(DialogId dialog_id);
 
-  void do_edit_story(FileId file_id, unique_ptr<PendingStory> &&pending_story,
+  void do_edit_story(unique_ptr<PendingStory> &&pending_story,
                      telegram_api::object_ptr<telegram_api::InputFile> input_file);
 
   void on_toggle_story_is_pinned(StoryFullId story_full_id, bool is_pinned, Promise<Unit> &&promise);
@@ -697,7 +698,7 @@ class StoryManager final : public Actor {
 
   FlatHashMap<StoryFullId, vector<Promise<Unit>>, StoryFullIdHash> reload_story_queries_;
 
-  FlatHashMap<FileId, unique_ptr<PendingStory>, FileIdHash> being_uploaded_files_;
+  FlatHashMap<FileUploadId, unique_ptr<PendingStory>, FileUploadIdHash> being_uploaded_files_;
 
   FlatHashMap<DialogId, std::set<uint32>, DialogIdHash> yet_unsent_stories_;
 
@@ -707,7 +708,7 @@ class StoryManager final : public Actor {
 
   FlatHashMap<StoryFullId, int64, StoryFullIdHash> being_sent_story_random_ids_;
 
-  FlatHashMap<StoryFullId, FileId, StoryFullIdHash> being_uploaded_file_ids_;
+  FlatHashMap<StoryFullId, FileUploadId, StoryFullIdHash> being_uploaded_file_upload_ids_;
 
   FlatHashMap<StoryFullId, StoryId, StoryFullIdHash> update_story_ids_;
 

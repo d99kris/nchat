@@ -8,7 +8,7 @@
 
 #include "td/telegram/BusinessConnectionId.h"
 #include "td/telegram/DialogId.h"
-#include "td/telegram/files/FileId.h"
+#include "td/telegram/files/FileUploadId.h"
 #include "td/telegram/MessageEffectId.h"
 #include "td/telegram/MessageId.h"
 #include "td/telegram/MessageInputReplyTo.h"
@@ -162,10 +162,6 @@ class BusinessConnectionManager final : public Actor {
   void process_sent_business_message(telegram_api::object_ptr<telegram_api::Updates> &&updates_ptr,
                                      Promise<td_api::object_ptr<td_api::businessMessage>> &&promise);
 
-  static FileId get_message_file_id(const unique_ptr<PendingMessage> &message);
-
-  FileId get_message_thumbnail_file_id(const unique_ptr<PendingMessage> &message, FileId file_id) const;
-
   void upload_media(unique_ptr<PendingMessage> &&message, Promise<UploadMediaResult> &&promise,
                     vector<int> bad_parts = {});
 
@@ -173,11 +169,11 @@ class BusinessConnectionManager final : public Actor {
                            telegram_api::object_ptr<telegram_api::InputMedia> &&input_media,
                            Promise<td_api::object_ptr<td_api::businessMessage>> &&promise);
 
-  void on_upload_media(FileId file_id, telegram_api::object_ptr<telegram_api::InputFile> input_file);
+  void on_upload_media(FileUploadId file_upload_id, telegram_api::object_ptr<telegram_api::InputFile> input_file);
 
-  void on_upload_media_error(FileId file_id, Status status);
+  void on_upload_media_error(FileUploadId file_upload_id, Status status);
 
-  void on_upload_thumbnail(FileId thumbnail_file_id,
+  void on_upload_thumbnail(FileUploadId thumbnail_file_upload_id,
                            telegram_api::object_ptr<telegram_api::InputFile> thumbnail_input_file);
 
   void do_upload_media(BeingUploadedMedia &&being_uploaded_media,
@@ -195,6 +191,8 @@ class BusinessConnectionManager final : public Actor {
                                            Promise<td_api::object_ptr<td_api::businessMessages>> &&promise);
 
   void on_upload_message_paid_media(int64 request_id, size_t media_pos, Result<UploadMediaResult> &&result);
+
+  void on_fail_send_message(unique_ptr<PendingMessage> &&message, const Status &error);
 
   void do_edit_business_message_media(Result<UploadMediaResult> &&result,
                                       Promise<td_api::object_ptr<td_api::businessMessage>> &&promise);
@@ -214,8 +212,8 @@ class BusinessConnectionManager final : public Actor {
   std::shared_ptr<UploadMediaCallback> upload_media_callback_;
   std::shared_ptr<UploadThumbnailCallback> upload_thumbnail_callback_;
 
-  FlatHashMap<FileId, BeingUploadedMedia, FileIdHash> being_uploaded_files_;
-  FlatHashMap<FileId, BeingUploadedMedia, FileIdHash> being_uploaded_thumbnails_;
+  FlatHashMap<FileUploadId, BeingUploadedMedia, FileUploadIdHash> being_uploaded_files_;
+  FlatHashMap<FileUploadId, BeingUploadedMedia, FileUploadIdHash> being_uploaded_thumbnails_;
 
   Td *td_;
   ActorShared<> parent_;

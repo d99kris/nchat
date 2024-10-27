@@ -459,7 +459,7 @@ class ResetContactsQuery final : public Td::ResultHandler {
 class UploadProfilePhotoQuery final : public Td::ResultHandler {
   Promise<Unit> promise_;
   UserId user_id_;
-  FileId file_id_;
+  FileUploadId file_upload_id_;
   bool is_fallback_;
   bool only_suggest_;
 
@@ -467,13 +467,13 @@ class UploadProfilePhotoQuery final : public Td::ResultHandler {
   explicit UploadProfilePhotoQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
   }
 
-  void send(UserId user_id, FileId file_id, telegram_api::object_ptr<telegram_api::InputFile> &&input_file,
+  void send(UserId user_id, FileUploadId file_upload_id, telegram_api::object_ptr<telegram_api::InputFile> &&input_file,
             bool is_fallback, bool only_suggest, bool is_animation, double main_frame_timestamp) {
     CHECK(input_file != nullptr);
-    CHECK(file_id.is_valid());
+    CHECK(file_upload_id.is_valid());
 
     user_id_ = user_id;
-    file_id_ = file_id;
+    file_upload_id_ = file_upload_id;
     is_fallback_ = is_fallback;
     only_suggest_ = only_suggest;
 
@@ -541,7 +541,7 @@ class UploadProfilePhotoQuery final : public Td::ResultHandler {
   void send(UserId user_id, unique_ptr<StickerPhotoSize> sticker_photo_size, bool is_fallback, bool only_suggest) {
     CHECK(sticker_photo_size != nullptr);
     user_id_ = user_id;
-    file_id_ = FileId();
+    file_upload_id_ = FileUploadId();
     is_fallback_ = is_fallback;
     only_suggest_ = only_suggest;
 
@@ -599,14 +599,14 @@ class UploadProfilePhotoQuery final : public Td::ResultHandler {
       promise_.set_value(Unit());
     }
 
-    if (file_id_.is_valid()) {
-      td_->file_manager_->delete_partial_remote_location(file_id_);
+    if (file_upload_id_.is_valid()) {
+      td_->file_manager_->delete_partial_remote_location(file_upload_id_);
     }
   }
 
   void on_error(Status status) final {
-    if (file_id_.is_valid()) {
-      td_->file_manager_->delete_partial_remote_location(file_id_);
+    if (file_upload_id_.is_valid()) {
+      td_->file_manager_->delete_partial_remote_location(file_upload_id_);
     }
     promise_.set_error(std::move(status));
   }
@@ -1684,6 +1684,7 @@ void UserManager::UserFull::store(StorerT &storer) const {
   bool has_personal_channel_id = personal_channel_id.is_valid();
   bool has_flags2 = true;
   bool has_privacy_policy_url = !privacy_policy_url.empty();
+  bool has_gift_count = gift_count != 0;
   BEGIN_STORE_FLAGS();
   STORE_FLAG(has_about);
   STORE_FLAG(is_blocked);
@@ -1720,6 +1721,7 @@ void UserManager::UserFull::store(StorerT &storer) const {
     BEGIN_STORE_FLAGS();
     STORE_FLAG(has_preview_medias);
     STORE_FLAG(has_privacy_policy_url);
+    STORE_FLAG(has_gift_count);
     END_STORE_FLAGS();
   }
   if (has_about) {
@@ -1776,6 +1778,9 @@ void UserManager::UserFull::store(StorerT &storer) const {
   if (has_privacy_policy_url) {
     store(privacy_policy_url, storer);
   }
+  if (has_gift_count) {
+    store(gift_count, storer);
+  }
 }
 
 template <class ParserT>
@@ -1799,6 +1804,7 @@ void UserManager::UserFull::parse(ParserT &parser) {
   bool has_personal_channel_id;
   bool has_flags2;
   bool has_privacy_policy_url = false;
+  bool has_gift_count = false;
   BEGIN_PARSE_FLAGS();
   PARSE_FLAG(has_about);
   PARSE_FLAG(is_blocked);
@@ -1835,6 +1841,7 @@ void UserManager::UserFull::parse(ParserT &parser) {
     BEGIN_PARSE_FLAGS();
     PARSE_FLAG(has_preview_medias);
     PARSE_FLAG(has_privacy_policy_url);
+    PARSE_FLAG(has_gift_count);
     END_PARSE_FLAGS();
   }
   if (has_about) {
@@ -1890,6 +1897,9 @@ void UserManager::UserFull::parse(ParserT &parser) {
   }
   if (has_privacy_policy_url) {
     parse(privacy_policy_url, parser);
+  }
+  if (has_gift_count) {
+    parse(gift_count, parser);
   }
 }
 
@@ -1999,18 +2009,14 @@ class UserManager::SecretChatLogEvent {
 
 class UserManager::UploadProfilePhotoCallback final : public FileManager::UploadCallback {
  public:
-  void on_upload_ok(FileId file_id, telegram_api::object_ptr<telegram_api::InputFile> input_file) final {
-    send_closure_later(G()->user_manager(), &UserManager::on_upload_profile_photo, file_id, std::move(input_file));
+  void on_upload_ok(FileUploadId file_upload_id, telegram_api::object_ptr<telegram_api::InputFile> input_file) final {
+    send_closure_later(G()->user_manager(), &UserManager::on_upload_profile_photo, file_upload_id,
+                       std::move(input_file));
   }
-  void on_upload_encrypted_ok(FileId file_id,
-                              telegram_api::object_ptr<telegram_api::InputEncryptedFile> input_file) final {
-    UNREACHABLE();
-  }
-  void on_upload_secure_ok(FileId file_id, telegram_api::object_ptr<telegram_api::InputSecureFile> input_file) final {
-    UNREACHABLE();
-  }
-  void on_upload_error(FileId file_id, Status error) final {
-    send_closure_later(G()->user_manager(), &UserManager::on_upload_profile_photo_error, file_id, std::move(error));
+
+  void on_upload_error(FileUploadId file_upload_id, Status error) final {
+    send_closure_later(G()->user_manager(), &UserManager::on_upload_profile_photo_error, file_upload_id,
+                       std::move(error));
   }
 };
 
@@ -2203,6 +2209,10 @@ UserId UserManager::add_service_notifications_user() {
 
 UserId UserManager::get_replies_bot_user_id() {
   return UserId(static_cast<int64>(G()->is_test_dc() ? 708513 : 1271266957));
+}
+
+UserId UserManager::get_verification_codes_bot_user_id() {
+  return UserId(static_cast<int64>(489000));
 }
 
 UserId UserManager::get_anonymous_bot_user_id() {
@@ -2845,7 +2855,7 @@ void UserManager::register_user_photo(User *u, UserId user_id, const Photo &phot
       file_source_id = td_->file_reference_manager_->create_user_photo_file_source(user_id, photo_id);
     }
     for (auto &file_id : photo_file_ids) {
-      td_->file_manager_->add_file_source(file_id, file_source_id);
+      td_->file_manager_->add_file_source(file_id, file_source_id, "register_user_photo");
     }
   }
 }
@@ -3282,6 +3292,43 @@ void UserManager::on_update_user_full_common_chat_count(UserFull *user_full, Use
   if (user_full->common_chat_count != common_chat_count) {
     user_full->common_chat_count = common_chat_count;
     user_full->is_common_chat_count_changed = true;
+    user_full->is_changed = true;
+  }
+}
+
+void UserManager::on_update_user_gift_count(UserId user_id, int32 gift_count) {
+  LOG(INFO) << "Receive " << gift_count << " gifts for " << user_id;
+  if (!user_id.is_valid()) {
+    LOG(ERROR) << "Receive invalid " << user_id;
+    return;
+  }
+
+  UserFull *user_full = get_user_full_force(user_id, "on_update_user_gift_count");
+  if (user_full == nullptr) {
+    return;
+  }
+  on_update_user_full_gift_count(user_full, user_id, gift_count);
+  update_user_full(user_full, user_id, "on_update_user_gift_count");
+}
+
+void UserManager::on_update_my_gift_count(int32 added_gift_count) {
+  auto user_id = get_my_id();
+  UserFull *user_full = get_user_full_force(user_id, "on_update_my_gift_count");
+  if (user_full == nullptr || user_full->gift_count + added_gift_count < 0) {
+    return;
+  }
+  on_update_user_full_gift_count(user_full, user_id, user_full->gift_count + added_gift_count);
+  update_user_full(user_full, user_id, "on_update_my_gift_count");
+}
+
+void UserManager::on_update_user_full_gift_count(UserFull *user_full, UserId user_id, int32 gift_count) {
+  CHECK(user_full != nullptr);
+  if (gift_count < 0) {
+    LOG(ERROR) << "Receive " << gift_count << " as gift count with " << user_id;
+    gift_count = 0;
+  }
+  if (user_full->gift_count != gift_count) {
+    user_full->gift_count = gift_count;
     user_full->is_changed = true;
   }
 }
@@ -3806,8 +3853,8 @@ UserManager::User *UserManager::get_user_force(UserId user_id, const char *sourc
   auto u = get_user_force_impl(user_id, source);
   if ((u == nullptr || !u->is_received) &&
       (user_id == get_service_notifications_user_id() || user_id == get_replies_bot_user_id() ||
-       user_id == get_anonymous_bot_user_id() || user_id == get_channel_bot_user_id() ||
-       user_id == get_anti_spam_bot_user_id())) {
+       user_id == get_verification_codes_bot_user_id() || user_id == get_anonymous_bot_user_id() ||
+       user_id == get_channel_bot_user_id() || user_id == get_anti_spam_bot_user_id())) {
     int32 flags = USER_FLAG_HAS_ACCESS_HASH | USER_FLAG_HAS_FIRST_NAME | USER_FLAG_NEED_APPLY_MIN_PHOTO;
     int64 profile_photo_id = 0;
     int32 profile_photo_dc_id = 1;
@@ -3834,6 +3881,11 @@ UserManager::User *UserManager::get_user_force(UserId user_id, const char *sourc
       first_name = "Replies";
       username = "replies";
       bot_info_version = G()->is_test_dc() ? 1 : 3;
+    } else if (user_id == get_verification_codes_bot_user_id()) {
+      flags |= USER_FLAG_HAS_USERNAME | USER_FLAG_IS_BOT | USER_FLAG_IS_PRIVATE_BOT | USER_FLAG_IS_VERIFIED;
+      first_name = "Verification Codes";
+      username = "VerificationCodes";
+      bot_info_version = G()->is_test_dc() ? 4 : 2;
     } else if (user_id == get_anonymous_bot_user_id()) {
       flags |= USER_FLAG_HAS_USERNAME | USER_FLAG_IS_BOT;
       if (!G()->is_test_dc()) {
@@ -3934,8 +3986,8 @@ bool UserManager::get_user(UserId user_id, int left_tries, Promise<Unit> &&promi
   }
 
   if (user_id == get_service_notifications_user_id() || user_id == get_replies_bot_user_id() ||
-      user_id == get_anonymous_bot_user_id() || user_id == get_channel_bot_user_id() ||
-      user_id == get_anti_spam_bot_user_id()) {
+      user_id == get_verification_codes_bot_user_id() || user_id == get_anonymous_bot_user_id() ||
+      user_id == get_channel_bot_user_id() || user_id == get_anti_spam_bot_user_id()) {
     get_user_force(user_id, "get_user");
   }
 
@@ -4326,7 +4378,7 @@ string UserManager::get_secret_chat_title(SecretChatId secret_chat_id) const {
 
 RestrictedRights UserManager::get_user_default_permissions(UserId user_id) const {
   auto u = get_user(user_id);
-  if (u == nullptr || user_id == get_replies_bot_user_id()) {
+  if (u == nullptr || user_id == get_replies_bot_user_id() || user_id == get_verification_codes_bot_user_id()) {
     return RestrictedRights(false, false, false, false, false, false, false, false, false, false, false, false, false,
                             false, false, u != nullptr, false, ChannelType::Unknown);
   }
@@ -4687,9 +4739,7 @@ void UserManager::set_profile_photo_impl(UserId user_id, const td_api::object_pt
       if (!file_id.is_valid()) {
         return promise.set_error(Status::Error(400, "Unknown profile photo ID specified"));
       }
-      return send_update_profile_photo_query(user_id,
-                                             td_->file_manager_->dup_file_id(file_id, "set_profile_photo_impl"),
-                                             photo_id, is_fallback, std::move(promise));
+      return send_update_profile_photo_query(user_id, file_id, photo_id, is_fallback, std::move(promise));
     }
     case td_api::inputChatPhotoStatic::ID: {
       auto photo = static_cast<const td_api::inputChatPhotoStatic *>(input_photo.get());
@@ -4724,10 +4774,9 @@ void UserManager::set_profile_photo_impl(UserId user_id, const td_api::object_pt
   auto file_type = is_animation ? FileType::Animation : FileType::Photo;
   TRY_RESULT_PROMISE(promise, file_id,
                      td_->file_manager_->get_input_file_id(file_type, *input_file, DialogId(user_id), false, false));
-  CHECK(file_id.is_valid());
 
-  upload_profile_photo(user_id, td_->file_manager_->dup_file_id(file_id, "set_profile_photo_impl"), is_fallback,
-                       only_suggest, is_animation, main_frame_timestamp, std::move(promise));
+  upload_profile_photo(user_id, {file_id, FileManager::get_internal_upload_id()}, is_fallback, only_suggest,
+                       is_animation, main_frame_timestamp, std::move(promise));
 }
 
 void UserManager::set_user_profile_photo(UserId user_id, const td_api::object_ptr<td_api::InputChatPhoto> &input_photo,
@@ -4760,27 +4809,26 @@ void UserManager::send_update_profile_photo_query(UserId user_id, FileId file_id
       ->send(user_id, file_id, old_photo_id, is_fallback, main_remote_location->as_input_photo());
 }
 
-void UserManager::upload_profile_photo(UserId user_id, FileId file_id, bool is_fallback, bool only_suggest,
+void UserManager::upload_profile_photo(UserId user_id, FileUploadId file_upload_id, bool is_fallback, bool only_suggest,
                                        bool is_animation, double main_frame_timestamp, Promise<Unit> &&promise,
                                        int reupload_count, vector<int> bad_parts) {
-  CHECK(file_id.is_valid());
+  CHECK(file_upload_id.is_valid());
   bool is_inserted =
-      uploaded_profile_photos_
-          .emplace(file_id, UploadedProfilePhoto{user_id, is_fallback, only_suggest, main_frame_timestamp, is_animation,
-                                                 reupload_count, std::move(promise)})
+      being_uploaded_profile_photos_
+          .emplace(file_upload_id, UploadedProfilePhoto{user_id, is_fallback, only_suggest, main_frame_timestamp,
+                                                        is_animation, reupload_count, std::move(promise)})
           .second;
   CHECK(is_inserted);
-  LOG(INFO) << "Ask to upload " << (is_animation ? "animated" : "static") << " profile photo " << file_id
+  LOG(INFO) << "Ask to upload " << (is_animation ? "animated" : "static") << " profile photo " << file_upload_id
             << " for user " << user_id << " with bad parts " << bad_parts;
   // TODO use force_reupload if reupload_count >= 1, replace reupload_count with is_reupload
-  td_->file_manager_->resume_upload(file_id, std::move(bad_parts), upload_profile_photo_callback_, 32, 0);
+  td_->file_manager_->resume_upload(file_upload_id, std::move(bad_parts), upload_profile_photo_callback_, 32, 0);
 }
 
-void UserManager::on_upload_profile_photo(FileId file_id,
+void UserManager::on_upload_profile_photo(FileUploadId file_upload_id,
                                           telegram_api::object_ptr<telegram_api::InputFile> input_file) {
-  auto it = uploaded_profile_photos_.find(file_id);
-  CHECK(it != uploaded_profile_photos_.end());
-
+  auto it = being_uploaded_profile_photos_.find(file_upload_id);
+  CHECK(it != being_uploaded_profile_photos_.end());
   UserId user_id = it->second.user_id;
   bool is_fallback = it->second.is_fallback;
   bool only_suggest = it->second.only_suggest;
@@ -4788,12 +4836,11 @@ void UserManager::on_upload_profile_photo(FileId file_id,
   bool is_animation = it->second.is_animation;
   int32 reupload_count = it->second.reupload_count;
   auto promise = std::move(it->second.promise);
+  being_uploaded_profile_photos_.erase(it);
 
-  uploaded_profile_photos_.erase(it);
-
-  LOG(INFO) << "Uploaded " << (is_animation ? "animated" : "static") << " profile photo " << file_id << " for "
+  LOG(INFO) << "Uploaded " << (is_animation ? "animated" : "static") << " profile photo " << file_upload_id << " for "
             << user_id << " with reupload_count = " << reupload_count;
-  FileView file_view = td_->file_manager_->get_file_view(file_id);
+  FileView file_view = td_->file_manager_->get_file_view(file_upload_id.get_file_id());
   const auto *main_remote_location = file_view.get_main_remote_location();
   if (main_remote_location != nullptr && input_file == nullptr) {
     if (main_remote_location->is_web()) {
@@ -4813,27 +4860,26 @@ void UserManager::on_upload_profile_photo(FileId file_id,
     }
     auto file_reference = is_animation ? FileManager::extract_file_reference(main_remote_location->as_input_document())
                                        : FileManager::extract_file_reference(main_remote_location->as_input_photo());
-    td_->file_manager_->delete_file_reference(file_id, file_reference);
-    upload_profile_photo(user_id, file_id, is_fallback, only_suggest, is_animation, main_frame_timestamp,
+    td_->file_manager_->delete_file_reference(file_upload_id.get_file_id(), file_reference);
+    upload_profile_photo(user_id, file_upload_id, is_fallback, only_suggest, is_animation, main_frame_timestamp,
                          std::move(promise), reupload_count + 1, {-1});
     return;
   }
   CHECK(input_file != nullptr);
 
   td_->create_handler<UploadProfilePhotoQuery>(std::move(promise))
-      ->send(user_id, file_id, std::move(input_file), is_fallback, only_suggest, is_animation, main_frame_timestamp);
+      ->send(user_id, file_upload_id, std::move(input_file), is_fallback, only_suggest, is_animation,
+             main_frame_timestamp);
 }
 
-void UserManager::on_upload_profile_photo_error(FileId file_id, Status status) {
-  LOG(INFO) << "File " << file_id << " has upload error " << status;
+void UserManager::on_upload_profile_photo_error(FileUploadId file_upload_id, Status status) {
+  LOG(INFO) << "Profile photo " << file_upload_id << " has upload error " << status;
   CHECK(status.is_error());
 
-  auto it = uploaded_profile_photos_.find(file_id);
-  CHECK(it != uploaded_profile_photos_.end());
-
+  auto it = being_uploaded_profile_photos_.find(file_upload_id);
+  CHECK(it != being_uploaded_profile_photos_.end());
   auto promise = std::move(it->second.promise);
-
-  uploaded_profile_photos_.erase(it);
+  being_uploaded_profile_photos_.erase(it);
 
   promise.set_error(std::move(status));  // TODO check that status has valid error code
 }
@@ -6863,6 +6909,7 @@ void UserManager::on_get_user_full(telegram_api::object_ptr<telegram_api::userFu
   user_full->expires_at = Time::now() + USER_FULL_EXPIRE_TIME;
 
   on_update_user_full_is_blocked(user_full, user_id, user->blocked_, user->blocked_my_stories_from_);
+  on_update_user_full_gift_count(user_full, user_id, user->stargifts_count_);
   on_update_user_full_common_chat_count(user_full, user_id, user->common_chats_count_);
   on_update_user_full_location(user_full, user_id, DialogLocation(td_, std::move(user->business_location_)));
   on_update_user_full_work_hours(user_full, user_id, BusinessWorkHours(std::move(user->business_work_hours_)));
@@ -7226,6 +7273,7 @@ void UserManager::drop_user_full(UserId user_id) {
   user_full->description_animation_file_id = FileId();
   user_full->menu_button = nullptr;
   user_full->commands.clear();
+  user_full->gift_count = 0;
   user_full->common_chat_count = 0;
   user_full->personal_channel_id = ChannelId();
   user_full->business_info = nullptr;
@@ -7803,7 +7851,8 @@ void UserManager::update_user_full(UserFull *user_full, UserId user_id, const ch
         }
       }
 
-      td_->file_manager_->change_files_source(file_source_id, user_full->registered_file_ids, file_ids);
+      td_->file_manager_->change_files_source(file_source_id, user_full->registered_file_ids, file_ids,
+                                              "update_user_full");
       user_full->registered_file_ids = std::move(file_ids);
     }
   }
@@ -8029,8 +8078,8 @@ td_api::object_ptr<td_api::userFullInfo> UserManager::get_user_full_info_object(
       !user_full->private_forward_name.empty(), voice_messages_forbidden, user_full->has_pinned_stories,
       user_full->sponsored_enabled, user_full->need_phone_number_privacy_exception, user_full->wallpaper_overridden,
       std::move(bio_object), user_full->birthdate.get_birthdate_object(), personal_chat_id,
-      get_premium_payment_options_object(user_full->premium_gift_options), user_full->common_chat_count,
-      std::move(business_info), std::move(bot_info));
+      get_premium_payment_options_object(user_full->premium_gift_options), user_full->gift_count,
+      user_full->common_chat_count, std::move(business_info), std::move(bot_info));
 }
 
 td_api::object_ptr<td_api::updateContactCloseBirthdays> UserManager::get_update_contact_close_birthdays() const {

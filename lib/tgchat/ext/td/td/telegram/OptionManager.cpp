@@ -102,6 +102,8 @@ OptionManager::OptionManager(Td *td)
   set_default_integer_option("telegram_service_notifications_chat_id",
                              DialogId(UserManager::get_service_notifications_user_id()).get());
   set_default_integer_option("replies_bot_chat_id", DialogId(UserManager::get_replies_bot_user_id()).get());
+  set_default_integer_option("verification_codes_bot_chat_id",
+                             DialogId(UserManager::get_verification_codes_bot_user_id()).get());
   set_default_integer_option("group_anonymous_bot_user_id", UserManager::get_anonymous_bot_user_id().get());
   set_default_integer_option("channel_bot_user_id", UserManager::get_channel_bot_user_id().get());
   set_default_integer_option("anti_spam_bot_user_id", UserManager::get_anti_spam_bot_user_id().get());
@@ -160,6 +162,7 @@ OptionManager::OptionManager(Td *td)
   set_default_integer_option("subscription_star_count_max", 2500);
   set_default_integer_option("usd_to_thousand_star_rate", 1410);
   set_default_integer_option("thousand_star_to_usd_rate", 1300);
+  set_default_integer_option("gift_text_length_max", 255);
 
   if (options.isset("my_phone_number") || !options.isset("my_id")) {
     update_premium_options();
@@ -716,7 +719,7 @@ td_api::object_ptr<td_api::OptionValue> OptionManager::get_option_synchronously(
       break;
     case 'v':
       if (name == "version") {
-        return td_api::make_object<td_api::optionValueString>("1.8.36");
+        return td_api::make_object<td_api::optionValueString>("1.8.37");
       }
       break;
   }

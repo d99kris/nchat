@@ -370,70 +370,57 @@ void CallActor::send_call_log(td_api::object_ptr<td_api::InputFile> log_file, Pr
     return promise.set_error(Status::Error(400, "Need local or generate location to upload call log"));
   }
 
-  upload_log_file(file_id, std::move(promise));
+  upload_log_file({file_id, FileManager::get_internal_upload_id()}, std::move(promise));
 }
 
-void CallActor::upload_log_file(FileId file_id, Promise<Unit> &&promise) {
-  auto *file_manager = G()->td().get_actor_unsafe()->file_manager_.get();
-  auto upload_file_id = file_manager->dup_file_id(file_id, "upload_log_file");
-  LOG(INFO) << "Ask to upload call log file " << upload_file_id;
+void CallActor::upload_log_file(FileUploadId file_upload_id, Promise<Unit> &&promise) {
+  LOG(INFO) << "Ask to upload call log " << file_upload_id;
 
   class UploadLogFileCallback final : public FileManager::UploadCallback {
     ActorId<CallActor> actor_id_;
-    FileId file_id_;
     Promise<Unit> promise_;
 
    public:
-    UploadLogFileCallback(ActorId<CallActor> actor_id, FileId file_id, Promise<Unit> &&promise)
-        : actor_id_(actor_id), file_id_(file_id), promise_(std::move(promise)) {
+    UploadLogFileCallback(ActorId<CallActor> actor_id, Promise<Unit> &&promise)
+        : actor_id_(actor_id), promise_(std::move(promise)) {
     }
 
-    void on_upload_ok(FileId file_id, tl_object_ptr<telegram_api::InputFile> input_file) final {
-      CHECK(file_id == file_id_);
-      send_closure_later(actor_id_, &CallActor::on_upload_log_file, file_id, std::move(promise_),
+    void on_upload_ok(FileUploadId file_upload_id, telegram_api::object_ptr<telegram_api::InputFile> input_file) final {
+      send_closure_later(actor_id_, &CallActor::on_upload_log_file, file_upload_id, std::move(promise_),
                          std::move(input_file));
     }
 
-    void on_upload_encrypted_ok(FileId file_id, tl_object_ptr<telegram_api::InputEncryptedFile> input_file) final {
-      UNREACHABLE();
-    }
-
-    void on_upload_secure_ok(FileId file_id, tl_object_ptr<telegram_api::InputSecureFile> input_file) final {
-      UNREACHABLE();
-    }
-
-    void on_upload_error(FileId file_id, Status error) final {
-      CHECK(file_id == file_id_);
-      send_closure_later(actor_id_, &CallActor::on_upload_log_file_error, file_id, std::move(promise_),
+    void on_upload_error(FileUploadId file_upload_id, Status error) final {
+      send_closure_later(actor_id_, &CallActor::on_upload_log_file_error, file_upload_id, std::move(promise_),
                          std::move(error));
     }
   };
 
-  file_manager->upload(upload_file_id,
-                       std::make_shared<UploadLogFileCallback>(actor_id(this), upload_file_id, std::move(promise)), 1,
-                       0);
+  send_closure(G()->file_manager(), &FileManager::upload, file_upload_id,
+               std::make_shared<UploadLogFileCallback>(actor_id(this), std::move(promise)), 1, 0);
 }
 
-void CallActor::on_upload_log_file(FileId file_id, Promise<Unit> &&promise,
-                                   tl_object_ptr<telegram_api::InputFile> input_file) {
+void CallActor::on_upload_log_file(FileUploadId file_upload_id, Promise<Unit> &&promise,
+                                   telegram_api::object_ptr<telegram_api::InputFile> input_file) {
   TRY_STATUS_PROMISE(promise, G()->close_status());
 
-  LOG(INFO) << "Log file " << file_id << " has been uploaded";
+  LOG(INFO) << "Log " << file_upload_id << " has been uploaded";
 
-  do_upload_log_file(file_id, std::move(input_file), std::move(promise));
+  do_upload_log_file(file_upload_id, std::move(input_file), std::move(promise));
 }
 
-void CallActor::on_upload_log_file_error(FileId file_id, Promise<Unit> &&promise, Status status) {
+void CallActor::on_upload_log_file_error(FileUploadId file_upload_id, Promise<Unit> &&promise, Status status) {
   TRY_STATUS_PROMISE(promise, G()->close_status());
 
-  LOG(WARNING) << "Log file " << file_id << " has upload error " << status;
+  LOG(WARNING) << "Log " << file_upload_id << " has upload error " << status;
   CHECK(status.is_error());
 
   promise.set_error(Status::Error(status.code() > 0 ? status.code() : 500,
                                   status.message()));  // TODO CHECK that status has always a code
 }
 
-void CallActor::do_upload_log_file(FileId file_id, tl_object_ptr<telegram_api::InputFile> &&input_file,
+void CallActor::do_upload_log_file(FileUploadId file_upload_id,
+                                   telegram_api::object_ptr<telegram_api::InputFile> &&input_file,
                                    Promise<Unit> &&promise) {
   if (input_file == nullptr) {
     return promise.set_error(Status::Error(500, "Failed to reupload call log"));
@@ -441,27 +428,26 @@ void CallActor::do_upload_log_file(FileId file_id, tl_object_ptr<telegram_api::I
 
   auto tl_query = telegram_api::phone_saveCallLog(get_input_phone_call("do_upload_log_file"), std::move(input_file));
   send_with_promise(G()->net_query_creator().create(tl_query),
-                    PromiseCreator::lambda([actor_id = actor_id(this), file_id,
+                    PromiseCreator::lambda([actor_id = actor_id(this), file_upload_id,
                                             promise = std::move(promise)](Result<NetQueryPtr> r_net_query) mutable {
-                      send_closure(actor_id, &CallActor::on_save_log_query_result, file_id, std::move(promise),
+                      send_closure(actor_id, &CallActor::on_save_log_query_result, file_upload_id, std::move(promise),
                                    std::move(r_net_query));
                     }));
   loop();
 }
 
-void CallActor::on_save_log_query_result(FileId file_id, Promise<Unit> promise, Result<NetQueryPtr> r_net_query) {
+void CallActor::on_save_log_query_result(FileUploadId file_upload_id, Promise<Unit> promise,
+                                         Result<NetQueryPtr> r_net_query) {
   TRY_STATUS_PROMISE(promise, G()->close_status());
 
-  auto *file_manager = G()->td().get_actor_unsafe()->file_manager_.get();
-  file_manager->delete_partial_remote_location(file_id);
-  file_manager->cancel_upload(file_id);
+  send_closure(G()->file_manager(), &FileManager::delete_partial_remote_location, file_upload_id);
 
   auto res = fetch_result<telegram_api::phone_saveCallLog>(std::move(r_net_query));
   if (res.is_error()) {
     auto error = res.move_as_error();
     auto bad_parts = FileManager::get_missing_file_parts(error);
     if (!bad_parts.empty()) {
-      // TODO on_upload_log_file_parts_missing(file_id, std::move(bad_parts));
+      // TODO on_upload_log_file_parts_missing(file_upload_id, std::move(bad_parts));
       // return;
     }
     return promise.set_error(std::move(error));

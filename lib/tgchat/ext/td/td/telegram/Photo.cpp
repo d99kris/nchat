@@ -15,6 +15,7 @@
 #include "td/telegram/net/DcId.h"
 #include "td/telegram/PhotoFormat.h"
 #include "td/telegram/PhotoSizeSource.h"
+#include "td/telegram/PhotoSizeType.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/telegram_api.h"
 
@@ -236,8 +237,8 @@ static tl_object_ptr<td_api::photoSize> get_photo_size_object(FileManager *file_
   }
 
   return td_api::make_object<td_api::photoSize>(
-      photo_size->type ? std::string(1, static_cast<char>(photo_size->type))
-                       : std::string(),  // TODO replace string type with integer type
+      photo_size->type.type ? std::string(1, static_cast<char>(photo_size->type.type))
+                            : std::string(),  // TODO replace string type with integer type
       file_manager->get_file_object(photo_size->file_id), photo_size->dimensions.width, photo_size->dimensions.height,
       vector<int32>(photo_size->progressive_sizes));
 }
@@ -255,7 +256,8 @@ static vector<td_api::object_ptr<td_api::photoSize>> get_photo_sizes_object(File
            static_cast<uint32>(rhs->width_) * static_cast<uint32>(rhs->height_);
   });
   td::remove_if(sizes, [](const auto &size) {
-    return !size->photo_->local_->can_be_downloaded_ && !size->photo_->local_->is_downloading_completed_;
+    return !size->photo_->local_->can_be_downloaded_ && !size->photo_->local_->is_downloading_active_ &&
+           !size->photo_->local_->is_downloading_completed_;
   });
   return sizes;
 }
@@ -290,7 +292,7 @@ Photo get_encrypted_file_photo(FileManager *file_manager, unique_ptr<EncryptedFi
   }
 
   PhotoSize s;
-  s.type = 'i';
+  s.type = PhotoSizeType('i');
   s.dimensions = get_dimensions(photo->w_, photo->h_, nullptr);
   s.size = photo->size_;
   s.file_id = file_id;
@@ -434,10 +436,10 @@ Photo dup_photo(Photo photo) {
   result.sticker_file_ids = std::move(photo.sticker_file_ids);
 
   if (thumbnail.type != 0) {
-    thumbnail.type = 't';
+    thumbnail.type = PhotoSizeType('t');
     result.photos.push_back(std::move(thumbnail));
   }
-  input_size.type = 'i';
+  input_size.type = PhotoSizeType('i');
   result.photos.push_back(std::move(input_size));
 
   return result;
@@ -533,7 +535,9 @@ void merge_photos(Td *td, const Photo *old_photo, Photo *new_photo, DialogId dia
                << " with new photos size = " << new_photos_size << ", need_merge = " << need_merge
                << ", need_update = " << need_update;
     if (need_merge && new_photos_size != 0) {
-      FileId old_file_id = get_photo_upload_file_id(*old_photo);
+      CHECK(!old_photo->photos.empty());
+      CHECK(old_photo->photos.back().type == 'i');
+      FileId old_file_id = old_photo->photos.back().file_id;
       FileView old_file_view = td->file_manager_->get_file_view(old_file_id);
       const auto *old_main_remote_location = old_file_view.get_main_remote_location();
       FileId new_file_id = new_photo->photos[0].file_id;
@@ -568,39 +572,9 @@ void photo_delete_thumbnail(Photo &photo) {
   }
 }
 
-bool photo_has_input_media(FileManager *file_manager, const Photo &photo, bool is_secret, bool is_bot) {
-  if (photo.photos.empty() || photo.photos.back().type != 'i') {
-    LOG(ERROR) << "Wrong photo: " << photo;
-    return false;
-  }
-  auto file_id = photo.photos.back().file_id;
-  auto file_view = file_manager->get_file_view(file_id);
-  if (is_secret) {
-    if (!file_view.is_encrypted_secret() || !file_view.has_full_remote_location()) {
-      return false;
-    }
-
-    for (const auto &size : photo.photos) {
-      if (size.type == 't' && size.file_id.is_valid()) {
-        return false;
-      }
-    }
-
-    return true;
-  } else {
-    if (file_view.is_encrypted()) {
-      return false;
-    }
-    if (is_bot && file_view.has_full_remote_location()) {
-      return true;
-    }
-    return /* file_view.has_full_remote_location() || */ file_view.has_url();
-  }
-}
-
-tl_object_ptr<telegram_api::InputMedia> photo_get_input_media(FileManager *file_manager, const Photo &photo,
-                                                              tl_object_ptr<telegram_api::InputFile> input_file,
-                                                              int32 ttl, bool has_spoiler) {
+tl_object_ptr<telegram_api::InputMedia> photo_get_input_media(
+    FileManager *file_manager, const Photo &photo, telegram_api::object_ptr<telegram_api::InputFile> input_file,
+    int32 ttl, bool has_spoiler) {
   if (!photo.photos.empty()) {
     auto file_id = photo.photos.back().file_id;
     auto file_view = file_manager->get_file_view(file_id);
@@ -658,7 +632,7 @@ tl_object_ptr<telegram_api::InputMedia> photo_get_input_media(FileManager *file_
 }
 
 SecretInputMedia photo_get_secret_input_media(FileManager *file_manager, const Photo &photo,
-                                              tl_object_ptr<telegram_api::InputEncryptedFile> input_file,
+                                              telegram_api::object_ptr<telegram_api::InputEncryptedFile> input_file,
                                               const string &caption, BufferSlice thumbnail) {
   FileId file_id;
   int32 width = 0;
@@ -718,15 +692,6 @@ vector<FileId> photo_get_file_ids(const Photo &photo) {
     append(result, transform(photo.animations, [](auto &size) { return size.file_id; }));
   }
   return result;
-}
-
-FileId get_photo_upload_file_id(const Photo &photo) {
-  for (auto &size : photo.photos) {
-    if (size.type == 'i') {
-      return size.file_id;
-    }
-  }
-  return FileId();
 }
 
 FileId get_photo_any_file_id(const Photo &photo) {

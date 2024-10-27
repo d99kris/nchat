@@ -188,6 +188,7 @@ Document DocumentsManager::on_get_document(RemoteDocument remote_document, Dialo
   FileType file_type = FileType::Document;
   Slice default_extension;
   bool supports_streaming = false;
+  string video_codec;
   StickerFormat sticker_format = StickerFormat::Unknown;
   PhotoFormat thumbnail_format = PhotoFormat::Jpeg;
   if (type_attributes == 1 || default_document_type != Document::Type::General) {  // not a general document
@@ -225,6 +226,7 @@ Document DocumentsManager::on_get_document(RemoteDocument remote_document, Dialo
         is_video_note = (video->flags_ & telegram_api::documentAttributeVideo::ROUND_MESSAGE_MASK) != 0;
         if (!is_video_note) {
           supports_streaming = (video->flags_ & telegram_api::documentAttributeVideo::SUPPORTS_STREAMING_MASK) != 0;
+          video_codec = std::move(video->video_codec_);
         }
       }
       if (is_video_note) {
@@ -542,10 +544,11 @@ Document DocumentsManager::on_get_document(RemoteDocument remote_document, Dialo
                                              std::move(custom_emoji), sticker_format, load_data_multipromise_ptr);
       break;
     case Document::Type::Video:
-      td_->videos_manager_->create_video(
-          file_id, std::move(minithumbnail), std::move(thumbnail), std::move(animated_thumbnail), has_stickers,
-          vector<FileId>(), std::move(file_name), std::move(mime_type), video_duration, video_precise_duration,
-          dimensions, supports_streaming, video_is_animation, video_preload_prefix_size, video_start_ts, !is_web);
+      td_->videos_manager_->create_video(file_id, std::move(minithumbnail), std::move(thumbnail),
+                                         std::move(animated_thumbnail), has_stickers, vector<FileId>(),
+                                         std::move(file_name), std::move(mime_type), video_duration,
+                                         video_precise_duration, dimensions, supports_streaming, video_is_animation,
+                                         video_preload_prefix_size, video_start_ts, std::move(video_codec), !is_web);
       break;
     case Document::Type::VideoNote:
       td_->video_notes_manager_->create_video_note(file_id, std::move(minithumbnail), std::move(thumbnail),
@@ -620,33 +623,9 @@ const DocumentsManager::GeneralDocument *DocumentsManager::get_document(FileId f
   return documents_.get_pointer(file_id);
 }
 
-bool DocumentsManager::has_input_media(FileId file_id, FileId thumbnail_file_id, bool is_secret) const {
-  auto file_view = td_->file_manager_->get_file_view(file_id);
-  if (is_secret) {
-    if (!file_view.is_encrypted_secret() || file_view.encryption_key().empty() ||
-        !file_view.has_full_remote_location()) {
-      return false;
-    }
-
-    return !thumbnail_file_id.is_valid();
-  } else {
-    if (file_view.is_encrypted()) {
-      return false;
-    }
-    if (td_->auth_manager_->is_bot() && file_view.has_full_remote_location()) {
-      return true;
-    }
-    // having remote location is not enough to have InputMedia, because the file may not have valid file_reference
-    // also file_id needs to be duped, because upload can be called to repair the file_reference and every upload
-    // request must have unique file_id
-    return /* file_view.has_full_remote_location() || */ file_view.has_url();
-  }
-}
-
-SecretInputMedia DocumentsManager::get_secret_input_media(FileId document_file_id,
-                                                          tl_object_ptr<telegram_api::InputEncryptedFile> input_file,
-                                                          const string &caption, BufferSlice thumbnail,
-                                                          int32 layer) const {
+SecretInputMedia DocumentsManager::get_secret_input_media(
+    FileId document_file_id, telegram_api::object_ptr<telegram_api::InputEncryptedFile> input_file,
+    const string &caption, BufferSlice thumbnail, int32 layer) const {
   const GeneralDocument *document = get_document(document_file_id);
   CHECK(document != nullptr);
   auto file_view = td_->file_manager_->get_file_view(document_file_id);
@@ -678,8 +657,8 @@ SecretInputMedia DocumentsManager::get_secret_input_media(FileId document_file_i
 }
 
 tl_object_ptr<telegram_api::InputMedia> DocumentsManager::get_input_media(
-    FileId file_id, tl_object_ptr<telegram_api::InputFile> input_file,
-    tl_object_ptr<telegram_api::InputFile> input_thumbnail) const {
+    FileId file_id, telegram_api::object_ptr<telegram_api::InputFile> input_file,
+    telegram_api::object_ptr<telegram_api::InputFile> input_thumbnail) const {
   auto file_view = td_->file_manager_->get_file_view(file_id);
   if (file_view.is_encrypted()) {
     return nullptr;
@@ -733,6 +712,12 @@ void DocumentsManager::delete_document_thumbnail(FileId file_id) {
   document->thumbnail = PhotoSize();
 }
 
+Slice DocumentsManager::get_document_file_name(FileId file_id) const {
+  auto document = get_document(file_id);
+  CHECK(document != nullptr);
+  return document->file_name;
+}
+
 Slice DocumentsManager::get_document_mime_type(FileId file_id) const {
   auto document = get_document(file_id);
   CHECK(document != nullptr);
@@ -743,10 +728,11 @@ FileId DocumentsManager::dup_document(FileId new_id, FileId old_id) {
   const GeneralDocument *old_document = get_document(old_id);
   CHECK(old_document != nullptr);
   auto &new_document = documents_[new_id];
-  CHECK(new_document == nullptr);
+  if (new_document != nullptr) {
+    return new_id;
+  }
   new_document = make_unique<GeneralDocument>(*old_document);
   new_document->file_id = new_id;
-  new_document->thumbnail.file_id = td_->file_manager_->dup_file_id(new_document->thumbnail.file_id, "dup_document");
   return new_id;
 }
 
@@ -761,10 +747,6 @@ void DocumentsManager::merge_documents(FileId new_id, FileId old_id) {
   const auto *new_ = get_document(new_id);
   if (new_ == nullptr) {
     dup_document(new_id, old_id);
-  } else {
-    if (old_->thumbnail != new_->thumbnail) {
-      // LOG_STATUS(td_->file_manager_->merge(new_->thumbnail.file_id, old_->thumbnail.file_id));
-    }
   }
   LOG_STATUS(td_->file_manager_->merge(new_id, old_id));
 }

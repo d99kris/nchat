@@ -44,26 +44,23 @@ void DownloadManagerCallback::update_file_removed(FileId file_id, DownloadManage
                    file_id.get(), counters.get_downloaded_file_counts_object()));
 }
 
-void DownloadManagerCallback::start_file(FileId file_id, int8 priority, ActorShared<DownloadManager> download_manager) {
-  send_closure_later(td_->file_manager_actor_, &FileManager::download, file_id,
-                     make_download_file_callback(td_, std::move(download_manager)), priority,
-                     FileManager::KEEP_DOWNLOAD_OFFSET, FileManager::IGNORE_DOWNLOAD_LIMIT,
-                     Promise<td_api::object_ptr<td_api::file>>());
+int64 DownloadManagerCallback::get_internal_download_id() {
+  return FileManager::get_internal_download_id();
 }
 
-void DownloadManagerCallback::pause_file(FileId file_id) {
-  send_closure_later(td_->file_manager_actor_, &FileManager::download, file_id, nullptr, 0,
-                     FileManager::KEEP_DOWNLOAD_OFFSET, FileManager::KEEP_DOWNLOAD_LIMIT,
-                     Promise<td_api::object_ptr<td_api::file>>());
+void DownloadManagerCallback::start_file(FileId file_id, int64 internal_download_id, int8 priority,
+                                         ActorShared<DownloadManager> download_manager) {
+  send_closure_later(td_->file_manager_actor_, &FileManager::download, file_id, internal_download_id,
+                     make_download_file_callback(td_, std::move(download_manager)), priority, -1, -1);
+}
+
+void DownloadManagerCallback::pause_file(FileId file_id, int64 internal_download_id) {
+  send_closure_later(td_->file_manager_actor_, &FileManager::cancel_download, file_id, internal_download_id, false);
 }
 
 void DownloadManagerCallback::delete_file(FileId file_id) {
   send_closure_later(td_->file_manager_actor_, &FileManager::delete_file, file_id, Promise<Unit>(),
                      "download manager callback");
-}
-
-FileId DownloadManagerCallback::dup_file_id(FileId file_id) {
-  return td_->file_manager_->dup_file_id(file_id, "DownloadManagerCallback");
 }
 
 void DownloadManagerCallback::get_file_search_text(FileId file_id, FileSourceId file_source_id,

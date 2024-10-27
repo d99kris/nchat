@@ -133,6 +133,7 @@
 #include "td/telegram/SecureValue.h"
 #include "td/telegram/SentEmailCode.h"
 #include "td/telegram/SponsoredMessageManager.h"
+#include "td/telegram/StarGiftManager.h"
 #include "td/telegram/StarManager.h"
 #include "td/telegram/StarSubscriptionPricing.h"
 #include "td/telegram/StateManager.h"
@@ -167,7 +168,6 @@
 #include "td/utils/Slice.h"
 #include "td/utils/Status.h"
 
-#include <limits>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -1747,25 +1747,6 @@ class GetKeywordEmojisRequest final : public RequestActor<> {
   }
 };
 
-class GetEmojiSuggestionsUrlRequest final : public RequestOnceActor {
-  string language_code_;
-
-  int64 random_id_;
-
-  void do_run(Promise<Unit> &&promise) final {
-    random_id_ = td_->stickers_manager_->get_emoji_suggestions_url(language_code_, std::move(promise));
-  }
-
-  void do_send_result() final {
-    send_result(td_->stickers_manager_->get_emoji_suggestions_url_result(random_id_));
-  }
-
- public:
-  GetEmojiSuggestionsUrlRequest(ActorShared<Td> td, uint64 request_id, string &&language_code)
-      : RequestOnceActor(std::move(td), request_id), language_code_(std::move(language_code)), random_id_(0) {
-  }
-};
-
 class GetSavedAnimationsRequest final : public RequestActor<> {
   vector<FileId> animation_ids_;
 
@@ -1883,19 +1864,7 @@ class SearchBackgroundRequest final : public RequestActor<> {
   }
 };
 
-class Requests::DownloadFileCallback final : public FileManager::DownloadCallback {
- public:
-  void on_download_ok(FileId file_id) final {
-    send_closure(G()->td(), &Td::on_file_download_finished, file_id);
-  }
-
-  void on_download_error(FileId file_id, Status error) final {
-    send_closure(G()->td(), &Td::on_file_download_finished, file_id);
-  }
-};
-
-Requests::Requests(Td *td)
-    : td_(td), td_actor_(td->actor_id(td)), download_file_callback_(std::make_shared<DownloadFileCallback>()) {
+Requests::Requests(Td *td) : td_(td), td_actor_(td->actor_id(td)) {
 }
 
 void Requests::run_request(uint64 id, td_api::object_ptr<td_api::Function> &&function) {
@@ -2576,6 +2545,7 @@ void Requests::on_request(uint64 id, const td_api::clickChatSponsoredMessage &re
   CHECK_IS_USER();
   CREATE_OK_REQUEST_PROMISE();
   td_->sponsored_message_manager_->click_sponsored_message(DialogId(request.chat_id_), MessageId(request.message_id_),
+                                                           request.is_media_click_, request.from_fullscreen_,
                                                            std::move(promise));
 }
 
@@ -4952,13 +4922,10 @@ void Requests::on_request(uint64 id, td_api::getChatStoryInteractions &request) 
 
 void Requests::on_request(uint64 id, td_api::reportStory &request) {
   CHECK_IS_USER();
-  auto r_report_reason = ReportReason::get_report_reason(std::move(request.reason_), std::move(request.text_));
-  if (r_report_reason.is_error()) {
-    return send_error_raw(id, r_report_reason.error().code(), r_report_reason.error().message());
-  }
-  CREATE_OK_REQUEST_PROMISE();
+  CLEAN_INPUT_STRING(request.text_);
+  CREATE_REQUEST_PROMISE();
   td_->story_manager_->report_story({DialogId(request.story_sender_chat_id_), StoryId(request.story_id_)},
-                                    r_report_reason.move_as_ok(), std::move(promise));
+                                    request.option_id_, request.text_, std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::activateStoryStealthMode &request) {
@@ -5363,78 +5330,9 @@ void Requests::on_request(uint64 id, const td_api::clearAllDraftMessages &reques
 }
 
 void Requests::on_request(uint64 id, const td_api::downloadFile &request) {
-  auto priority = request.priority_;
-  if (!(1 <= priority && priority <= 32)) {
-    return send_error_raw(id, 400, "Download priority must be between 1 and 32");
-  }
-  auto offset = request.offset_;
-  if (offset < 0) {
-    return send_error_raw(id, 400, "Download offset must be non-negative");
-  }
-  auto limit = request.limit_;
-  if (limit < 0) {
-    return send_error_raw(id, 400, "Download limit must be non-negative");
-  }
-
-  FileId file_id(request.file_id_, 0);
-  auto file_view = td_->file_manager_->get_file_view(file_id);
-  if (file_view.empty()) {
-    return send_error_raw(id, 400, "Invalid file identifier");
-  }
-
-  auto info_it = pending_file_downloads_.find(file_id);
-  DownloadInfo *info = info_it == pending_file_downloads_.end() ? nullptr : &info_it->second;
-  if (info != nullptr && (offset != info->offset || limit != info->limit)) {
-    // we can't have two pending requests with different offset and limit, so cancel all previous requests
-    auto request_ids = std::move(info->request_ids);
-    info->request_ids.clear();
-    for (auto request_id : request_ids) {
-      send_closure(td_actor_, &Td::send_error, request_id,
-                   Status::Error(200, "Canceled by another downloadFile request"));
-    }
-  }
-  if (request.synchronous_) {
-    if (info == nullptr) {
-      info = &pending_file_downloads_[file_id];
-    }
-    info->offset = offset;
-    info->limit = limit;
-    info->request_ids.push_back(id);
-  }
-  Promise<td_api::object_ptr<td_api::file>> download_promise;
-  if (!request.synchronous_) {
-    CREATE_REQUEST_PROMISE();
-    download_promise = std::move(promise);
-  }
-  td_->file_manager_->download(file_id, download_file_callback_, priority, offset, limit, std::move(download_promise));
-}
-
-void Requests::on_file_download_finished(FileId file_id) {
-  auto it = pending_file_downloads_.find(file_id);
-  if (it == pending_file_downloads_.end()) {
-    return;
-  }
-  for (auto id : it->second.request_ids) {
-    // there was send_closure to call td_ function
-    auto file_object = td_->file_manager_->get_file_object(file_id, false);
-    CHECK(file_object != nullptr);
-    auto download_offset = file_object->local_->download_offset_;
-    auto downloaded_size = file_object->local_->downloaded_prefix_size_;
-    auto file_size = file_object->size_;
-    auto limit = it->second.limit;
-    if (limit == 0) {
-      limit = std::numeric_limits<int64>::max();
-    }
-    if (file_object->local_->is_downloading_completed_ ||
-        (download_offset <= it->second.offset && download_offset + downloaded_size >= it->second.offset &&
-         ((file_size != 0 && download_offset + downloaded_size == file_size) ||
-          download_offset + downloaded_size - it->second.offset >= limit))) {
-      td_->send_result(id, std::move(file_object));
-    } else {
-      td_->send_error_impl(id, td_api::make_object<td_api::error>(400, "File download has failed or was canceled"));
-    }
-  }
-  pending_file_downloads_.erase(it);
+  CREATE_REQUEST_PROMISE();
+  td_->file_manager_->download_file(FileId(request.file_id_, 0), request.priority_, request.offset_, request.limit_,
+                                    request.synchronous_, std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::getFileDownloadedPrefixSize &request) {
@@ -5450,9 +5348,7 @@ void Requests::on_request(uint64 id, const td_api::getFileDownloadedPrefixSize &
 }
 
 void Requests::on_request(uint64 id, const td_api::cancelDownloadFile &request) {
-  td_->file_manager_->download(FileId(request.file_id_, 0), nullptr, request.only_if_pending_ ? -1 : 0,
-                               FileManager::KEEP_DOWNLOAD_OFFSET, FileManager::KEEP_DOWNLOAD_LIMIT,
-                               Promise<td_api::object_ptr<td_api::file>>());
+  td_->file_manager_->cancel_download(FileId(request.file_id_, 0), 0, request.only_if_pending_);
   send_closure(td_actor_, &Td::send_result, id, td_api::make_object<td_api::ok>());
 }
 
@@ -5472,7 +5368,7 @@ void Requests::on_request(uint64 id, const td_api::preliminaryUploadFile &reques
 }
 
 void Requests::on_request(uint64 id, const td_api::cancelPreliminaryUploadFile &request) {
-  td_->file_manager_->cancel_upload(FileId(request.file_id_, 0));
+  td_->file_manager_->cancel_upload({FileId(request.file_id_, 0), 0});
 
   send_closure(td_actor_, &Td::send_result, id, td_api::make_object<td_api::ok>());
 }
@@ -5513,9 +5409,6 @@ void Requests::on_request(uint64 id, const td_api::deleteFile &request) {
 }
 
 void Requests::on_request(uint64 id, const td_api::addFileToDownloads &request) {
-  if (!(1 <= request.priority_ && request.priority_ <= 32)) {
-    return send_error_raw(id, 400, "Download priority must be between 1 and 32");
-  }
   CREATE_REQUEST_PROMISE();
   td_->messages_manager_->add_message_file_to_downloads(
       MessageFullId(DialogId(request.chat_id_), MessageId(request.message_id_)), FileId(request.file_id_, 0),
@@ -6554,7 +6447,8 @@ void Requests::on_request(uint64 id, td_api::getAnimatedEmoji &request) {
 void Requests::on_request(uint64 id, td_api::getEmojiSuggestionsUrl &request) {
   CHECK_IS_USER();
   CLEAN_INPUT_STRING(request.language_code_);
-  CREATE_REQUEST(GetEmojiSuggestionsUrlRequest, std::move(request.language_code_));
+  CREATE_HTTP_URL_REQUEST_PROMISE();
+  td_->stickers_manager_->get_emoji_suggestions_url(request.language_code_, std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::getCustomEmojiStickers &request) {
@@ -6652,13 +6546,11 @@ void Requests::on_request(uint64 id, const td_api::removeChatActionBar &request)
 
 void Requests::on_request(uint64 id, td_api::reportChat &request) {
   CHECK_IS_USER();
-  auto r_report_reason = ReportReason::get_report_reason(std::move(request.reason_), std::move(request.text_));
-  if (r_report_reason.is_error()) {
-    return send_error_raw(id, r_report_reason.error().code(), r_report_reason.error().message());
-  }
-  CREATE_OK_REQUEST_PROMISE();
-  td_->dialog_manager_->report_dialog(DialogId(request.chat_id_), MessageId::get_message_ids(request.message_ids_),
-                                      r_report_reason.move_as_ok(), std::move(promise));
+  CLEAN_INPUT_STRING(request.text_);
+  CREATE_REQUEST_PROMISE();
+  td_->dialog_manager_->report_dialog(DialogId(request.chat_id_), request.option_id_,
+                                      MessageId::get_message_ids(request.message_ids_), request.text_,
+                                      std::move(promise));
 }
 
 void Requests::on_request(uint64 id, td_api::reportChatPhoto &request) {
@@ -7137,6 +7029,41 @@ void Requests::on_request(uint64 id, const td_api::deleteSavedCredentials &reque
   delete_saved_credentials(td_, std::move(promise));
 }
 
+void Requests::on_request(uint64 id, const td_api::getAvailableGifts &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST_PROMISE();
+  td_->star_gift_manager_->get_gift_payment_options(std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::sendGift &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->star_gift_manager_->send_gift(request.gift_id_, UserId(request.user_id_), std::move(request.text_),
+                                     request.is_private_, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::sellGift &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->star_gift_manager_->convert_gift(UserId(request.sender_user_id_), MessageId(request.message_id_),
+                                        std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::toggleGiftIsSaved &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->star_gift_manager_->save_gift(UserId(request.sender_user_id_), MessageId(request.message_id_), request.is_saved_,
+                                     std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::getUserGifts &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.offset_);
+  CREATE_REQUEST_PROMISE();
+  td_->star_gift_manager_->get_user_gifts(UserId(request.user_id_), request.offset_, request.limit_,
+                                          std::move(promise));
+}
+
 void Requests::on_request(uint64 id, td_api::createInvoiceLink &request) {
   CHECK_IS_BOT();
   CREATE_HTTP_URL_REQUEST_PROMISE();
@@ -7414,6 +7341,12 @@ void Requests::on_request(uint64 id, const td_api::getPremiumStickerExamples &re
   CHECK_IS_USER();
   CREATE_REQUEST_PROMISE();
   td_->stickers_manager_->search_stickers(StickerType::Regular, "⭐️⭐️", 100, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::getPremiumInfoSticker &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST_PROMISE();
+  td_->stickers_manager_->load_premium_gift_sticker(request.month_count_, 0, std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::viewPremiumFeature &request) {

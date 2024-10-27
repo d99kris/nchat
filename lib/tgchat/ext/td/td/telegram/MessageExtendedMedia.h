@@ -98,19 +98,15 @@ class MessageExtendedMedia {
 
   int32 get_duration(const Td *td) const;
 
-  FileId get_upload_file_id() const;
-
   FileId get_any_file_id() const;
 
   FileId get_thumbnail_file_id(const Td *td) const;
 
   void update_file_id_remote(FileId file_id);
 
-  MessageExtendedMedia dup_to_send(Td *td, bool always_dup_files) const;
-
   telegram_api::object_ptr<telegram_api::InputMedia> get_input_media(
-      Td *td, tl_object_ptr<telegram_api::InputFile> input_file,
-      tl_object_ptr<telegram_api::InputFile> input_thumbnail) const;
+      Td *td, telegram_api::object_ptr<telegram_api::InputFile> input_file,
+      telegram_api::object_ptr<telegram_api::InputFile> input_thumbnail) const;
 
   void merge_files(Td *td, MessageExtendedMedia &other, DialogId dialog_id, bool need_merge_files,
                    bool &is_content_changed, bool &need_update) const;

@@ -59,6 +59,7 @@ class FileDownloadGenerateActor final : public FileGenerateActor {
  private:
   FileType file_type_;
   FileId file_id_;
+  int64 internal_download_id_ = 0;
   unique_ptr<FileGenerateCallback> callback_;
   ActorShared<> parent_;
 
@@ -82,13 +83,12 @@ class FileDownloadGenerateActor final : public FileGenerateActor {
       ActorId<FileDownloadGenerateActor> parent_;
     };
 
-    send_closure(G()->file_manager(), &FileManager::download, file_id_, std::make_shared<Callback>(actor_id(this)), 1,
-                 FileManager::KEEP_DOWNLOAD_OFFSET, FileManager::KEEP_DOWNLOAD_LIMIT,
-                 Promise<td_api::object_ptr<td_api::file>>());
+    internal_download_id_ = FileManager::get_internal_download_id();
+    send_closure(G()->file_manager(), &FileManager::download, file_id_, internal_download_id_,
+                 std::make_shared<Callback>(actor_id(this)), 1, -1, -1);
   }
   void hangup() final {
-    send_closure(G()->file_manager(), &FileManager::download, file_id_, nullptr, 0, FileManager::KEEP_DOWNLOAD_OFFSET,
-                 FileManager::KEEP_DOWNLOAD_LIMIT, Promise<td_api::object_ptr<td_api::file>>());
+    send_closure(G()->file_manager(), &FileManager::cancel_download, file_id_, internal_download_id_, false);
     stop();
   }
 
@@ -352,7 +352,7 @@ class FileExternalGenerateActor final : public FileGenerateActor {
       return Status::Error(400, "Invalid local prefix size");
     }
     callback_->on_partial_generate(PartialLocalFileLocation{generate_location_.file_type_, local_prefix_size, path_, "",
-                                                            Bitmask(Bitmask::Ones{}, 1).encode()},
+                                                            Bitmask(Bitmask::Ones{}, 1).encode(), local_prefix_size},
                                    expected_size);
     return Status::OK();
   }

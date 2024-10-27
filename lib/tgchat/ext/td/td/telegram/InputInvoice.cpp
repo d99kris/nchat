@@ -12,6 +12,7 @@
 #include "td/telegram/files/FileType.h"
 #include "td/telegram/misc.h"
 #include "td/telegram/PhotoSize.h"
+#include "td/telegram/PhotoSizeType.h"
 #include "td/telegram/ServerMessageId.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/telegram_api.h"
@@ -159,7 +160,7 @@ Result<InputInvoice> InputInvoice::process_input_message_invoice(
       auto invoice_file_id = r_invoice_file_id.move_as_ok();
 
       PhotoSize s;
-      s.type = 'n';
+      s.type = PhotoSizeType('n');
       s.dimensions = get_dimensions(input_invoice->photo_width_, input_invoice->photo_height_, nullptr);
       s.size = input_invoice->photo_size_;  // TODO use invoice_file_id size
       s.file_id = invoice_file_id;
@@ -337,8 +338,8 @@ static telegram_api::object_ptr<telegram_api::inputWebDocument> get_input_web_do
 }
 
 tl_object_ptr<telegram_api::inputMediaInvoice> InputInvoice::get_input_media_invoice(
-    Td *td, tl_object_ptr<telegram_api::InputFile> input_file,
-    tl_object_ptr<telegram_api::InputFile> input_thumbnail) const {
+    Td *td, telegram_api::object_ptr<telegram_api::InputFile> input_file,
+    telegram_api::object_ptr<telegram_api::InputFile> input_thumbnail) const {
   int32 flags = 0;
   if (!start_parameter_.empty()) {
     flags |= telegram_api::inputMediaInvoice::START_PARAM_MASK;
@@ -411,10 +412,6 @@ const FormattedText *InputInvoice::get_caption() const {
 
 int32 InputInvoice::get_duration(const Td *td) const {
   return extended_media_.get_duration(td);
-}
-
-FileId InputInvoice::get_upload_file_id() const {
-  return extended_media_.get_upload_file_id();
 }
 
 FileId InputInvoice::get_any_file_id() const {

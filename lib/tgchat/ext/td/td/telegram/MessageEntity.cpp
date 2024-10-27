@@ -4016,7 +4016,9 @@ FormattedText get_formatted_text(const UserManager *user_manager, string &&text,
 FormattedText get_formatted_text(const UserManager *user_manager,
                                  telegram_api::object_ptr<telegram_api::textWithEntities> text_with_entities,
                                  bool skip_media_timestamps, bool skip_trim, const char *source) {
-  CHECK(text_with_entities != nullptr);
+  if (text_with_entities == nullptr) {
+    return FormattedText();
+  }
   return get_formatted_text(user_manager, std::move(text_with_entities->text_),
                             std::move(text_with_entities->entities_), skip_media_timestamps, skip_trim, source);
 }
@@ -4616,7 +4618,8 @@ bool need_always_skip_bot_commands(const UserManager *user_manager, DialogId dia
   switch (dialog_id.get_type()) {
     case DialogType::User: {
       auto user_id = dialog_id.get_user_id();
-      return user_id == UserManager::get_replies_bot_user_id() || !user_manager->is_user_bot(user_id);
+      return user_id == UserManager::get_replies_bot_user_id() ||
+             user_id == UserManager::get_verification_codes_bot_user_id() || !user_manager->is_user_bot(user_id);
     }
     case DialogType::SecretChat: {
       auto user_id = user_manager->get_secret_chat_user_id(dialog_id.get_secret_chat_id());

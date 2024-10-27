@@ -1584,6 +1584,12 @@ class CliClient final : public Actor {
         }
         break;
       }
+      case td_api::updateNewPreCheckoutQuery::ID:
+        if (use_test_dc_) {
+          const auto *update = static_cast<const td_api::updateNewPreCheckoutQuery *>(result.get());
+          send_request(td_api::make_object<td_api::answerPreCheckoutQuery>(update->id_, string()));
+        }
+        break;
       case td_api::file::ID:
         on_get_file(*static_cast<const td_api::file *>(result.get()));
         break;
@@ -2789,6 +2795,31 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::deleteSavedOrderInfo>());
     } else if (op == "dsc") {
       send_request(td_api::make_object<td_api::deleteSavedCredentials>());
+    } else if (op == "gag") {
+      send_request(td_api::make_object<td_api::getAvailableGifts>());
+    } else if (op == "sendg" || op == "sendgp") {
+      int64 gift_id;
+      UserId user_id;
+      string text;
+      get_args(args, gift_id, user_id, text);
+      send_request(td_api::make_object<td_api::sendGift>(gift_id, user_id, as_formatted_text(text), op == "sendgp"));
+    } else if (op == "sellg") {
+      UserId user_id;
+      MessageId message_id;
+      get_args(args, user_id, message_id);
+      send_request(td_api::make_object<td_api::sellGift>(user_id, message_id));
+    } else if (op == "saveg") {
+      UserId user_id;
+      MessageId message_id;
+      bool is_saved;
+      get_args(args, user_id, message_id, is_saved);
+      send_request(td_api::make_object<td_api::toggleGiftIsSaved>(user_id, message_id, is_saved));
+    } else if (op == "gug") {
+      UserId user_id;
+      string offset;
+      int32 limit;
+      get_args(args, user_id, offset, limit);
+      send_request(td_api::make_object<td_api::getUserGifts>(user_id, offset, limit));
     } else if (op == "rsp") {
       UserId user_id;
       string telegram_payment_charge_id;
@@ -3455,6 +3486,10 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::getPremiumFeatures>(std::move(source)));
     } else if (op == "gprse") {
       send_request(td_api::make_object<td_api::getPremiumStickerExamples>());
+    } else if (op == "gpis") {
+      int32 month_count;
+      get_args(args, month_count);
+      send_request(td_api::make_object<td_api::getPremiumInfoSticker>(month_count));
     } else if (op == "vprf") {
       auto feature = td_api::make_object<td_api::premiumFeatureProfileBadge>();
       send_request(td_api::make_object<td_api::viewPremiumFeature>(std::move(feature)));
@@ -3973,7 +4008,8 @@ class CliClient final : public Actor {
       ChatId chat_id;
       MessageId message_id;
       get_args(args, chat_id, message_id);
-      send_request(td_api::make_object<td_api::clickChatSponsoredMessage>(chat_id, message_id));
+      send_request(
+          td_api::make_object<td_api::clickChatSponsoredMessage>(chat_id, message_id, rand_bool(), rand_bool()));
     } else if (op == "rcspm") {
       ChatId chat_id;
       MessageId message_id;
@@ -4890,10 +4926,10 @@ class CliClient final : public Actor {
     } else if (op == "rst") {
       ChatId story_sender_chat_id;
       StoryId story_id;
-      ReportReason reason;
+      string option_id;
       string text;
-      get_args(args, story_sender_chat_id, story_id, reason, text);
-      send_request(td_api::make_object<td_api::reportStory>(story_sender_chat_id, story_id, reason, text));
+      get_args(args, story_sender_chat_id, story_id, option_id, text);
+      send_request(td_api::make_object<td_api::reportStory>(story_sender_chat_id, story_id, option_id, text));
     } else if (op == "assm") {
       send_request(td_api::make_object<td_api::activateStoryStealthMode>());
     } else if (op == "gcblf") {
@@ -6956,11 +6992,11 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::removeChatActionBar>(chat_id));
     } else if (op == "rc") {
       ChatId chat_id;
+      string option_id;
       string message_ids;
-      ReportReason reason;
       string text;
-      get_args(args, chat_id, message_ids, reason, text);
-      send_request(td_api::make_object<td_api::reportChat>(chat_id, as_message_ids(message_ids), reason, text));
+      get_args(args, chat_id, option_id, message_ids, text);
+      send_request(td_api::make_object<td_api::reportChat>(chat_id, option_id, as_message_ids(message_ids), text));
     } else if (op == "rcp") {
       ChatId chat_id;
       FileId file_id;

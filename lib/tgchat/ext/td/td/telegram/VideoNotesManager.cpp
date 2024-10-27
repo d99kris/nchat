@@ -125,7 +125,9 @@ FileId VideoNotesManager::dup_video_note(FileId new_id, FileId old_id) {
   const VideoNote *old_video_note = get_video_note(old_id);
   CHECK(old_video_note != nullptr);
   auto &new_video_note = video_notes_[new_id];
-  CHECK(new_video_note == nullptr);
+  if (new_video_note != nullptr) {
+    return new_id;
+  }
   new_video_note = make_unique<VideoNote>();
   new_video_note->file_id = new_id;
   new_video_note->duration = old_video_note->duration;
@@ -133,8 +135,6 @@ FileId VideoNotesManager::dup_video_note(FileId new_id, FileId old_id) {
   new_video_note->waveform = old_video_note->waveform;
   new_video_note->minithumbnail = old_video_note->minithumbnail;
   new_video_note->thumbnail = old_video_note->thumbnail;
-  new_video_note->thumbnail.file_id =
-      td_->file_manager_->dup_file_id(new_video_note->thumbnail.file_id, "dup_video_note");
   new_video_note->transcription_info = TranscriptionInfo::copy_if_transcribed(old_video_note->transcription_info);
   return new_id;
 }
@@ -150,10 +150,6 @@ void VideoNotesManager::merge_video_notes(FileId new_id, FileId old_id) {
   const auto *new_ = get_video_note(new_id);
   if (new_ == nullptr) {
     dup_video_note(new_id, old_id);
-  } else {
-    if (old_->thumbnail != new_->thumbnail) {
-      //    LOG_STATUS(td_->file_manager_->merge(new_->thumbnail.file_id, old_->thumbnail.file_id));
-    }
   }
   LOG_STATUS(td_->file_manager_->merge(new_id, old_id));
 }
@@ -176,9 +172,9 @@ void VideoNotesManager::create_video_note(FileId file_id, string minithumbnail, 
   on_get_video_note(std::move(v), replace);
 }
 
-SecretInputMedia VideoNotesManager::get_secret_input_media(FileId video_note_file_id,
-                                                           tl_object_ptr<telegram_api::InputEncryptedFile> input_file,
-                                                           BufferSlice thumbnail, int32 layer) const {
+SecretInputMedia VideoNotesManager::get_secret_input_media(
+    FileId video_note_file_id, telegram_api::object_ptr<telegram_api::InputEncryptedFile> input_file,
+    BufferSlice thumbnail, int32 layer) const {
   const VideoNote *video_note = get_video_note(video_note_file_id);
   CHECK(video_note != nullptr);
   auto file_view = td_->file_manager_->get_file_view(video_note_file_id);
@@ -211,8 +207,8 @@ SecretInputMedia VideoNotesManager::get_secret_input_media(FileId video_note_fil
 }
 
 tl_object_ptr<telegram_api::InputMedia> VideoNotesManager::get_input_media(
-    FileId file_id, tl_object_ptr<telegram_api::InputFile> input_file,
-    tl_object_ptr<telegram_api::InputFile> input_thumbnail, int32 ttl) const {
+    FileId file_id, telegram_api::object_ptr<telegram_api::InputFile> input_file,
+    telegram_api::object_ptr<telegram_api::InputFile> input_thumbnail, int32 ttl) const {
   auto file_view = td_->file_manager_->get_file_view(file_id);
   if (file_view.is_encrypted()) {
     return nullptr;
@@ -246,7 +242,7 @@ tl_object_ptr<telegram_api::InputMedia> VideoNotesManager::get_input_media(
         telegram_api::documentAttributeVideo::ROUND_MESSAGE_MASK, false /*ignored*/, false /*ignored*/,
         false /*ignored*/, video_note->duration,
         video_note->dimensions.width ? video_note->dimensions.width : suggested_video_note_length,
-        video_note->dimensions.height ? video_note->dimensions.height : suggested_video_note_length, 0, 0.0));
+        video_note->dimensions.height ? video_note->dimensions.height : suggested_video_note_length, 0, 0.0, string()));
     int32 flags = telegram_api::inputMediaUploadedDocument::NOSOUND_VIDEO_MASK;
     if (ttl != 0) {
       flags |= telegram_api::inputMediaUploadedDocument::TTL_SECONDS_MASK;

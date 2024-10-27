@@ -22,6 +22,7 @@
 #include "td/telegram/PasswordManager.h"
 #include "td/telegram/Photo.h"
 #include "td/telegram/ServerMessageId.h"
+#include "td/telegram/StarGift.h"
 #include "td/telegram/StarSubscription.h"
 #include "td/telegram/StatisticsManager.h"
 #include "td/telegram/StickersManager.h"
@@ -225,7 +226,6 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
     td_->user_manager_->on_get_users(std::move(result->users_), "GetStarsTransactionsQuery");
     td_->chat_manager_->on_get_chats(std::move(result->chats_), "GetStarsTransactionsQuery");
 
-    auto star_count = StarManager::get_star_count(result->balance_, true);
     bool for_bot =
         (dialog_id_.get_type() == DialogType::User && td_->user_manager_->is_user_bot(dialog_id_.get_user_id())) ||
         td_->auth_manager_->is_bot();
@@ -258,6 +258,7 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
         transaction->extended_media_.clear();
         return extended_media_objects;
       };
+      auto transaction_star_count = StarManager::get_star_count(transaction->stars_, true);
       auto partner = [&]() -> td_api::object_ptr<td_api::StarTransactionPartner> {
         switch (transaction->peer_->get_id()) {
           case telegram_api::starsTransactionPeerUnsupported::ID:
@@ -272,7 +273,8 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
             if (transaction->gift_) {
               transaction->gift_ = false;
               return td_api::make_object<td_api::starTransactionPartnerUser>(
-                  0, td_->stickers_manager_->get_premium_gift_sticker_object(0, star_count));
+                  0, td_api::make_object<td_api::userTransactionPurposeGiftedStars>(
+                         td_->stickers_manager_->get_premium_gift_sticker_object(0, transaction_star_count)));
             }
             auto state = [&]() -> td_api::object_ptr<td_api::RevenueWithdrawalState> {
               if (transaction->transaction_date_ > 0) {
@@ -308,13 +310,32 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
             if (dialog_id.get_type() == DialogType::User) {
               auto user_id = dialog_id.get_user_id();
               if (for_bot == td_->user_manager_->is_user_bot(user_id)) {
+                if (transaction->stargift_ != nullptr) {
+                  auto gift = StarGift(td_, std::move(transaction->stargift_));
+                  transaction->stargift_ = nullptr;
+                  if (!gift.is_valid()) {
+                    return td_api::make_object<td_api::starTransactionPartnerUnsupported>();
+                  }
+                  auto gift_object = gift.get_gift_object(td_);
+                  auto result = td_api::make_object<td_api::starTransactionPartnerUser>(
+                      td_->user_manager_->get_user_id_object(user_id, "starTransactionPartnerUser"), nullptr);
+                  if ((transaction_star_count > 0) == transaction->refund_) {
+                    result->purpose_ =
+                        td_api::make_object<td_api::userTransactionPurposeGiftSend>(std::move(gift_object));
+                  } else {
+                    result->purpose_ =
+                        td_api::make_object<td_api::userTransactionPurposeGiftSell>(std::move(gift_object));
+                  }
+                  return std::move(result);
+                }
                 if (transaction->gift_ && !for_bot) {
                   transaction->gift_ = false;
                   return td_api::make_object<td_api::starTransactionPartnerUser>(
                       user_id == UserManager::get_service_notifications_user_id()
                           ? 0
                           : td_->user_manager_->get_user_id_object(user_id, "starTransactionPartnerUser"),
-                      td_->stickers_manager_->get_premium_gift_sticker_object(0, star_count));
+                      td_api::make_object<td_api::userTransactionPurposeGiftedStars>(
+                          td_->stickers_manager_->get_premium_gift_sticker_object(0, transaction_star_count)));
                 }
                 if (!transaction->extended_media_.empty()) {  // TODO
                   return td_api::make_object<td_api::starTransactionPartnerBusiness>(
@@ -398,8 +419,7 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
         }
       }();
       auto star_transaction = td_api::make_object<td_api::starTransaction>(
-          transaction->id_, StarManager::get_star_count(transaction->stars_, true), transaction->refund_,
-          transaction->date_, std::move(partner));
+          transaction->id_, transaction_star_count, transaction->refund_, transaction->date_, std::move(partner));
       if (star_transaction->partner_->get_id() != td_api::starTransactionPartnerUnsupported::ID) {
         if (product_info != nullptr) {
           LOG(ERROR) << "Receive product info with " << to_string(star_transaction);
@@ -429,20 +449,24 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
         if (transaction->giveaway_post_id_ != 0) {
           LOG(ERROR) << "Receive giveaway message with " << to_string(star_transaction);
         }
+        if (transaction->stargift_ != nullptr) {
+          LOG(ERROR) << "Receive gift with " << to_string(star_transaction);
+        }
       }
       if (!file_ids.empty()) {
         auto file_source_id =
             td_->star_manager_->get_star_transaction_file_source_id(dialog_id_, transaction->id_, transaction->refund_);
         for (auto file_id : file_ids) {
-          td_->file_manager_->add_file_source(file_id, file_source_id);
+          td_->file_manager_->add_file_source(file_id, file_source_id, "GetStarsTransactionsQuery");
         }
       }
       transactions.push_back(std::move(star_transaction));
     }
+
+    auto star_count = StarManager::get_star_count(result->balance_, true);
     if (dialog_id_ == td_->dialog_manager_->get_my_dialog_id()) {
       td_->star_manager_->on_update_owned_star_count(star_count);
     }
-
     promise_.set_value(
         td_api::make_object<td_api::starTransactions>(star_count, std::move(transactions), result->next_offset_));
   }

@@ -6,7 +6,7 @@ if (POLICY CMP0065)
   cmake_policy(SET CMP0065 NEW)
 endif()
 
-project(TDLib VERSION 1.8.36 LANGUAGES CXX C)
+project(TDLib VERSION 1.8.37 LANGUAGES CXX C)
 
 if (NOT DEFINED CMAKE_MODULE_PATH)
   set(CMAKE_MODULE_PATH "")
@@ -576,6 +576,8 @@ set(TDLIB_SOURCE_PART2
   td/telegram/SharedDialog.cpp
   td/telegram/SpecialStickerSetType.cpp
   td/telegram/SponsoredMessageManager.cpp
+  td/telegram/StarGift.cpp
+  td/telegram/StarGiftManager.cpp
   td/telegram/StarManager.cpp
   td/telegram/StarSubscription.cpp
   td/telegram/StarSubscriptionPricing.cpp
@@ -749,6 +751,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/files/FileStatsWorker.h
   td/telegram/files/FileType.h
   td/telegram/files/FileUploader.h
+  td/telegram/files/FileUploadId.h
   td/telegram/files/FileUploadManager.h
   td/telegram/files/PartsManager.h
   td/telegram/files/ResourceManager.h
@@ -877,6 +880,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/PhotoFormat.h
   td/telegram/PhotoSize.h
   td/telegram/PhotoSizeSource.h
+  td/telegram/PhotoSizeType.h
   td/telegram/PollId.h
   td/telegram/PollManager.h
   td/telegram/Premium.h
@@ -925,6 +929,8 @@ set(TDLIB_SOURCE_PART2
   td/telegram/SharedDialog.h
   td/telegram/SpecialStickerSetType.h
   td/telegram/SponsoredMessageManager.h
+  td/telegram/StarGift.h
+  td/telegram/StarGiftManager.h
   td/telegram/StarManager.h
   td/telegram/StarSubscription.h
   td/telegram/StarSubscriptionPricing.h
@@ -1038,6 +1044,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/Photo.hpp
   td/telegram/PhotoSize.hpp
   td/telegram/PhotoSizeSource.hpp
+  td/telegram/PhotoSizeType.hpp
   td/telegram/PollId.hpp
   td/telegram/PollManager.hpp
   td/telegram/PremiumGiftOption.hpp
@@ -1052,6 +1059,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/SecureValue.hpp
   td/telegram/SendCodeHelper.hpp
   td/telegram/SharedDialog.hpp
+  td/telegram/StarGift.hpp
   td/telegram/StarSubscriptionPricing.hpp
   td/telegram/StickerMaskPosition.hpp
   td/telegram/StickerPhotoSize.hpp
