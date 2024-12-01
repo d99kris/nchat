@@ -30,7 +30,6 @@
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/Random.h"
-#include "td/utils/SliceBuilder.h"
 
 #include <tuple>
 
@@ -501,7 +500,7 @@ Status CallActor::do_update_call(const telegram_api::phoneCallEmpty &call) {
 
 Status CallActor::do_update_call(const telegram_api::phoneCallWaiting &call) {
   if (state_ != State::WaitRequestResult && state_ != State::WaitAcceptResult) {
-    return Status::Error(500, PSLICE() << "Drop unexpected " << to_string(call));
+    return Status::OK();
   }
 
   if (state_ == State::WaitAcceptResult) {
@@ -510,8 +509,10 @@ Status CallActor::do_update_call(const telegram_api::phoneCallWaiting &call) {
   } else {
     LOG(DEBUG) << "Do update call to Waiting";
     if ((call.flags_ & telegram_api::phoneCallWaiting::RECEIVE_DATE_MASK) != 0) {
-      call_state_.is_received = true;
-      call_state_need_flush_ = true;
+      if (!call_state_.is_received) {
+        call_state_.is_received = true;
+        call_state_need_flush_ = true;
+      }
       int64 call_ring_timeout_ms = G()->get_option_integer("call_ring_timeout_ms", 90000);
       set_timeout_in(static_cast<double>(call_ring_timeout_ms) * 0.001);
     }
@@ -520,11 +521,13 @@ Status CallActor::do_update_call(const telegram_api::phoneCallWaiting &call) {
   call_id_ = call.id_;
   call_access_hash_ = call.access_hash_;
   is_call_id_inited_ = true;
-  is_video_ |= call.video_;
   call_admin_user_id_ = UserId(call.admin_id_);
-  // call_participant_user_id_ = UserId(call.participant_id_);
   on_get_call_id();
 
+  if (call.video_ && !is_video_) {
+    is_video_ = true;
+    call_state_need_flush_ = true;
+  }
   if (!call_state_.is_created) {
     call_state_.is_created = true;
     call_state_need_flush_ = true;
@@ -535,7 +538,7 @@ Status CallActor::do_update_call(const telegram_api::phoneCallWaiting &call) {
 
 Status CallActor::do_update_call(const telegram_api::phoneCallRequested &call) {
   if (state_ != State::Empty) {
-    return Status::Error(500, PSLICE() << "Drop unexpected " << to_string(call));
+    return Status::OK();
   }
   LOG(DEBUG) << "Do update call to Requested";
   call_id_ = call.id_;
@@ -543,7 +546,6 @@ Status CallActor::do_update_call(const telegram_api::phoneCallRequested &call) {
   is_call_id_inited_ = true;
   is_video_ |= call.video_;
   call_admin_user_id_ = UserId(call.admin_id_);
-  // call_participant_user_id_ = UserId(call.participant_id_);
   on_get_call_id();
 
   dh_handshake_.set_g_a_hash(call.g_a_hash_.as_slice());
@@ -565,7 +567,7 @@ tl_object_ptr<telegram_api::inputPhoneCall> CallActor::get_input_phone_call(cons
 
 Status CallActor::do_update_call(const telegram_api::phoneCallAccepted &call) {
   if (state_ != State::WaitRequestResult) {
-    return Status::Error(500, PSLICE() << "Drop unexpected " << to_string(call));
+    return Status::OK();
   }
 
   LOG(DEBUG) << "Do update call to Accepted";
@@ -574,7 +576,6 @@ Status CallActor::do_update_call(const telegram_api::phoneCallAccepted &call) {
     call_access_hash_ = call.access_hash_;
     is_call_id_inited_ = true;
     call_admin_user_id_ = UserId(call.admin_id_);
-    // call_participant_user_id_ = UserId(call.participant_id_);
     on_get_call_id();
   }
   is_video_ |= call.video_;
@@ -597,11 +598,9 @@ void CallActor::on_begin_exchanging_key() {
 
 Status CallActor::do_update_call(const telegram_api::phoneCall &call) {
   if (state_ != State::WaitAcceptResult && state_ != State::WaitConfirmResult) {
-    return Status::Error(500, PSLICE() << "Drop unexpected " << to_string(call));
+    return Status::OK();
   }
   cancel_timeout();
-
-  is_video_ |= call.video_;
 
   LOG(DEBUG) << "Do update call to Ready from state " << static_cast<int32>(state_);
   if (state_ == State::WaitAcceptResult) {
@@ -613,6 +612,8 @@ Status CallActor::do_update_call(const telegram_api::phoneCall &call) {
     return Status::Error(400, "Key fingerprints mismatch");
   }
 
+  state_ = State::Ready;
+  is_video_ |= call.video_;
   call_state_.emojis_fingerprint =
       get_emojis_fingerprint(call_state_.key, is_outgoing_ ? dh_handshake_.get_g_b() : dh_handshake_.get_g_a());
 
@@ -645,17 +646,26 @@ void CallActor::on_get_call_id() {
 }
 
 void CallActor::on_call_discarded(CallDiscardReason reason, bool need_rating, bool need_debug, bool is_video) {
-  state_ = State::Discarded;
-  is_video_ |= is_video;
-
-  if (call_state_.discard_reason == CallDiscardReason::Empty || reason != CallDiscardReason::Empty) {
+  if (state_ != State::Discarded) {
+    state_ = State::Discarded;
+    call_state_need_flush_ = true;
+  }
+  if (is_video && !is_video_) {
+    is_video_ = true;
+    call_state_need_flush_ = true;
+  }
+  if (call_state_.discard_reason != reason && reason != CallDiscardReason::Empty) {
     call_state_.discard_reason = reason;
+    call_state_need_flush_ = true;
   }
   if (call_state_.type != CallState::Type::Error) {
-    call_state_.need_rating = need_rating;
-    call_state_.need_debug_information = need_debug;
-    call_state_.type = CallState::Type::Discarded;
-    call_state_need_flush_ = true;
+    if (call_state_.need_rating != need_rating || call_state_.need_debug_information != need_debug ||
+        call_state_.type != CallState::Type::Discarded) {
+      call_state_.need_rating = need_rating;
+      call_state_.need_debug_information = need_debug;
+      call_state_.type = CallState::Type::Discarded;
+      call_state_need_flush_ = true;
+    }
   }
 }
 

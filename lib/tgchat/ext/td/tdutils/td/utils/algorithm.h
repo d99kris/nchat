@@ -46,6 +46,32 @@ auto transform(V &&v, const Func &f) {
   return detail::transform_helper<std::decay_t<V>>().transform(std::forward<V>(v), f);
 }
 
+template <class T>
+vector<vector<T>> vector_split(vector<T> &&v, std::size_t size) {
+  CHECK(size != 0);
+  vector<vector<T>> result((v.size() + size - 1) / size);
+  if (result.size() <= 1) {
+    if (!result.empty()) {
+      result[0] = std::move(v);
+    }
+    return result;
+  }
+  for (size_t i = 0; i + 1 < result.size(); i++) {
+    auto &slice = result[i];
+    slice.reserve(size);
+    for (size_t j = 0; j < size; j++) {
+      slice.push_back(std::move(v[i * size + j]));
+    }
+  }
+  auto &slice = result.back();
+  auto offset = (result.size() - 1) * size;
+  slice.reserve(v.size() - offset);
+  for (size_t j = offset; j < v.size(); j++) {
+    slice.push_back(std::move(v[j]));
+  }
+  return result;
+}
+
 template <class V, class Func>
 bool remove_if(V &v, const Func &f) {
   size_t i = 0;

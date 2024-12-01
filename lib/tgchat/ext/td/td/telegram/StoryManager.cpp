@@ -740,16 +740,24 @@ class DeleteStoriesQuery final : public Td::ResultHandler {
 
 class SearchStoriesQuery final : public Td::ResultHandler {
   Promise<td_api::object_ptr<td_api::foundStories>> promise_;
+  DialogId dialog_id_;
 
  public:
   explicit SearchStoriesQuery(Promise<td_api::object_ptr<td_api::foundStories>> &&promise)
       : promise_(std::move(promise)) {
   }
 
-  void send(string hashtag, const string &offset, int32 limit) {
+  void send(DialogId dialog_id, string hashtag, const string &offset, int32 limit) {
+    dialog_id_ = dialog_id;
     int32 flags = telegram_api::stories_searchPosts::HASHTAG_MASK;
-    send_query(
-        G()->net_query_creator().create(telegram_api::stories_searchPosts(flags, hashtag, nullptr, offset, limit)));
+    telegram_api::object_ptr<telegram_api::InputPeer> input_peer;
+    if (dialog_id != DialogId()) {
+      flags |= telegram_api::stories_searchPosts::PEER_MASK;
+      input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Read);
+      CHECK(input_peer != nullptr);
+    }
+    send_query(G()->net_query_creator().create(
+        telegram_api::stories_searchPosts(flags, hashtag, nullptr, std::move(input_peer), offset, limit)));
   }
 
   void send(td_api::object_ptr<td_api::locationAddress> &&address, const string &offset, int32 limit) {
@@ -773,7 +781,7 @@ class SearchStoriesQuery final : public Td::ResultHandler {
         telegram_api::make_object<telegram_api::geoPointAddress>(address_flags, address->country_code_, address->state_,
                                                                  address->city_, address->street_));
     send_query(G()->net_query_creator().create(
-        telegram_api::stories_searchPosts(flags, string(), std::move(area), offset, limit)));
+        telegram_api::stories_searchPosts(flags, string(), std::move(area), nullptr, offset, limit)));
   }
 
   void send(const string &venue_provider, const string &venue_id, const string &offset, int32 limit) {
@@ -783,7 +791,7 @@ class SearchStoriesQuery final : public Td::ResultHandler {
         telegram_api::make_object<telegram_api::geoPoint>(0, 0.0, 0.0, 0, 0), string(), string(), venue_provider,
         venue_id, string());
     send_query(G()->net_query_creator().create(
-        telegram_api::stories_searchPosts(flags, string(), std::move(area), offset, limit)));
+        telegram_api::stories_searchPosts(flags, string(), std::move(area), nullptr, offset, limit)));
   }
 
   void on_result(BufferSlice packet) final {
@@ -822,6 +830,9 @@ class SearchStoriesQuery final : public Td::ResultHandler {
   void on_error(Status status) final {
     if (status.message() == "SEARCH_QUERY_EMPTY") {
       return promise_.set_value(td_api::make_object<td_api::foundStories>());
+    }
+    if (dialog_id_ != DialogId()) {
+      td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "SearchStoriesQuery");
     }
     promise_.set_error(std::move(status));
   }
@@ -2680,13 +2691,17 @@ void StoryManager::on_get_dialog_expiring_stories(DialogId owner_dialog_id,
   }
 }
 
-void StoryManager::search_hashtag_posts(string hashtag, string offset, int32 limit,
+void StoryManager::search_hashtag_posts(DialogId dialog_id, string hashtag, string offset, int32 limit,
                                         Promise<td_api::object_ptr<td_api::foundStories>> &&promise) {
   if (limit <= 0) {
     return promise.set_error(Status::Error(400, "Parameter limit must be positive"));
   }
   if (limit > MAX_SEARCH_STORIES) {
     limit = MAX_SEARCH_STORIES;
+  }
+  if (dialog_id != DialogId()) {
+    TRY_STATUS_PROMISE(promise, td_->dialog_manager_->check_dialog_access(dialog_id, false, AccessRights::Read,
+                                                                          "search_hashtag_posts"));
   }
 
   bool is_cashtag = false;
@@ -2701,7 +2716,7 @@ void StoryManager::search_hashtag_posts(string hashtag, string offset, int32 lim
                hashtag);
 
   td_->create_handler<SearchStoriesQuery>(std::move(promise))
-      ->send(PSTRING() << (is_cashtag ? '$' : '#') << hashtag, offset, limit);
+      ->send(dialog_id, PSTRING() << (is_cashtag ? '$' : '#') << hashtag, offset, limit);
 }
 
 void StoryManager::search_location_posts(td_api::object_ptr<td_api::locationAddress> &&address, string offset,
@@ -4586,6 +4601,9 @@ td_api::object_ptr<td_api::updateStoryStealthMode> StoryManager::get_update_stor
 }
 
 void StoryManager::send_update_story_stealth_mode() const {
+  if (td_->auth_manager_->is_bot()) {
+    return;
+  }
   send_closure(G()->td(), &Td::send_update, get_update_story_stealth_mode());
 }
 

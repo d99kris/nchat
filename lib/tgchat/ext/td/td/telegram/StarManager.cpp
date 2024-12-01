@@ -297,9 +297,6 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
                 };
                 return td_api::make_object<td_api::revenueWithdrawalStateFailed>();
               }
-              if (!transaction->refund_) {
-                LOG(ERROR) << "Receive " << to_string(transaction);
-              }
               return nullptr;
             }();
             return td_api::make_object<td_api::starTransactionPartnerFragment>(std::move(state));
@@ -309,25 +306,35 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
                 static_cast<const telegram_api::starsTransactionPeer *>(transaction->peer_.get())->peer_);
             if (dialog_id.get_type() == DialogType::User) {
               auto user_id = dialog_id.get_user_id();
-              if (for_bot == td_->user_manager_->is_user_bot(user_id)) {
-                if (transaction->stargift_ != nullptr) {
-                  auto gift = StarGift(td_, std::move(transaction->stargift_));
-                  transaction->stargift_ = nullptr;
-                  if (!gift.is_valid()) {
-                    return td_api::make_object<td_api::starTransactionPartnerUnsupported>();
-                  }
-                  auto gift_object = gift.get_gift_object(td_);
-                  auto result = td_api::make_object<td_api::starTransactionPartnerUser>(
-                      td_->user_manager_->get_user_id_object(user_id, "starTransactionPartnerUser"), nullptr);
-                  if ((transaction_star_count > 0) == transaction->refund_) {
-                    result->purpose_ =
-                        td_api::make_object<td_api::userTransactionPurposeGiftSend>(std::move(gift_object));
-                  } else {
-                    result->purpose_ =
-                        td_api::make_object<td_api::userTransactionPurposeGiftSell>(std::move(gift_object));
-                  }
-                  return std::move(result);
+              if (transaction->stargift_ != nullptr) {
+                auto gift = StarGift(td_, std::move(transaction->stargift_));
+                transaction->stargift_ = nullptr;
+                if (!gift.is_valid()) {
+                  return td_api::make_object<td_api::starTransactionPartnerUnsupported>();
                 }
+                auto gift_object = gift.get_gift_object(td_);
+                auto result = td_api::make_object<td_api::starTransactionPartnerUser>(
+                    td_->user_manager_->get_user_id_object(user_id, "starTransactionPartnerUser"), nullptr);
+                if ((transaction_star_count > 0) == transaction->refund_) {
+                  result->purpose_ =
+                      td_api::make_object<td_api::userTransactionPurposeGiftSend>(std::move(gift_object));
+                } else {
+                  result->purpose_ =
+                      td_api::make_object<td_api::userTransactionPurposeGiftSell>(std::move(gift_object));
+                }
+                return std::move(result);
+              }
+              if (transaction->subscription_period_ > 0) {
+                SCOPE_EXIT {
+                  transaction->subscription_period_ = 0;
+                  bot_payload.clear();
+                };
+                return td_api::make_object<td_api::starTransactionPartnerBot>(
+                    td_->user_manager_->get_user_id_object(user_id, "starTransactionPartnerBot"),
+                    td_api::make_object<td_api::botTransactionPurposeSubscription>(
+                        transaction->subscription_period_, std::move(product_info), bot_payload));
+              }
+              if (for_bot == td_->user_manager_->is_user_bot(user_id)) {
                 if (transaction->gift_ && !for_bot) {
                   transaction->gift_ = false;
                   return td_api::make_object<td_api::starTransactionPartnerUser>(
@@ -414,6 +421,12 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
           }
           case telegram_api::starsTransactionPeerAds::ID:
             return td_api::make_object<td_api::starTransactionPartnerTelegramAds>();
+          case telegram_api::starsTransactionPeerAPI::ID: {
+            SCOPE_EXIT {
+              transaction->floodskip_number_ = 0;
+            };
+            return td_api::make_object<td_api::starTransactionPartnerTelegramApi>(transaction->floodskip_number_);
+          }
           default:
             UNREACHABLE();
         }
@@ -451,6 +464,9 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
         }
         if (transaction->stargift_ != nullptr) {
           LOG(ERROR) << "Receive gift with " << to_string(star_transaction);
+        }
+        if (transaction->floodskip_number_ != 0) {
+          LOG(ERROR) << "Receive API payment with " << to_string(star_transaction);
         }
       }
       if (!file_ids.empty()) {
@@ -508,7 +524,7 @@ class GetStarsSubscriptionsQuery final : public Td::ResultHandler {
 
     vector<td_api::object_ptr<td_api::starSubscription>> subscriptions;
     for (auto &subscription : result->subscriptions_) {
-      StarSubscription star_subscription(std::move(subscription));
+      StarSubscription star_subscription(td_, std::move(subscription));
       if (!star_subscription.is_valid()) {
         LOG(ERROR) << "Receive invalid subscription " << star_subscription;
       } else {
@@ -542,6 +558,37 @@ class ChangeStarsSubscriptionQuery final : public Td::ResultHandler {
 
   void on_result(BufferSlice packet) final {
     auto result_ptr = fetch_result<telegram_api::payments_changeStarsSubscription>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    promise_.set_value(Unit());
+  }
+
+  void on_error(Status status) final {
+    promise_.set_error(std::move(status));
+  }
+};
+
+class BotCancelStarsSubscriptionQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+
+ public:
+  explicit BotCancelStarsSubscriptionQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(telegram_api::object_ptr<telegram_api::InputUser> &&input_user, const string &telegram_payment_charge_id,
+            bool is_canceled) {
+    int32 flags = 0;
+    if (!is_canceled) {
+      flags |= telegram_api::payments_botCancelStarsSubscription::RESTORE_MASK;
+    }
+    send_query(G()->net_query_creator().create(telegram_api::payments_botCancelStarsSubscription(
+        flags, false /*ignored*/, std::move(input_user), telegram_payment_charge_id)));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::payments_botCancelStarsSubscription>(packet);
     if (result_ptr.is_error()) {
       return on_error(result_ptr.move_as_error());
     }
@@ -886,11 +933,18 @@ void StarManager::get_star_subscriptions(bool only_expiring, const string &offse
   td_->create_handler<GetStarsSubscriptionsQuery>(std::move(promise))->send(only_expiring, offset);
 }
 
-void StarManager::edit_star_subscriptions(const string &subscription_id, bool is_canceled, Promise<Unit> &&promise) {
+void StarManager::edit_star_subscription(const string &subscription_id, bool is_canceled, Promise<Unit> &&promise) {
   td_->create_handler<ChangeStarsSubscriptionQuery>(std::move(promise))->send(subscription_id, is_canceled);
 }
 
-void StarManager::reuse_star_subscriptions(const string &subscription_id, Promise<Unit> &&promise) {
+void StarManager::edit_user_star_subscription(UserId user_id, const string &telegram_payment_charge_id,
+                                              bool is_canceled, Promise<Unit> &&promise) {
+  TRY_RESULT_PROMISE(promise, input_user, td_->user_manager_->get_input_user(user_id));
+  td_->create_handler<BotCancelStarsSubscriptionQuery>(std::move(promise))
+      ->send(std::move(input_user), telegram_payment_charge_id, is_canceled);
+}
+
+void StarManager::reuse_star_subscription(const string &subscription_id, Promise<Unit> &&promise) {
   td_->create_handler<FulfillStarsSubscriptionQuery>(std::move(promise))->send(subscription_id);
 }
 

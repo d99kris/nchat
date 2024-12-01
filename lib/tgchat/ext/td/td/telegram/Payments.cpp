@@ -7,6 +7,7 @@
 #include "td/telegram/Payments.h"
 
 #include "td/telegram/AccessRights.h"
+#include "td/telegram/BusinessConnectionManager.h"
 #include "td/telegram/DialogId.h"
 #include "td/telegram/DialogInviteLink.h"
 #include "td/telegram/DialogManager.h"
@@ -16,6 +17,7 @@
 #include "td/telegram/LinkManager.h"
 #include "td/telegram/MessageEntity.h"
 #include "td/telegram/MessageId.h"
+#include "td/telegram/MessageQuote.h"
 #include "td/telegram/MessagesManager.h"
 #include "td/telegram/misc.h"
 #include "td/telegram/PasswordManager.h"
@@ -99,14 +101,24 @@ Result<InputInvoiceInfo> get_input_invoice_info(Td *td, td_api::object_ptr<td_ap
           }
           DialogId boosted_dialog_id(p->boosted_chat_id_);
           TRY_RESULT(boost_input_peer, get_boost_input_peer(td, boosted_dialog_id));
+          TRY_RESULT(message, get_formatted_text(td, td->dialog_manager_->get_my_dialog_id(), std::move(p->text_),
+                                                 false, true, true, false));
+          MessageQuote::remove_unallowed_quote_entities(message);
+
           int32 flags = 0;
           if (boost_input_peer != nullptr) {
             flags |= telegram_api::inputStorePaymentPremiumGiftCode::BOOST_PEER_MASK;
           }
+          telegram_api::object_ptr<telegram_api::textWithEntities> text;
+          if (!message.text.empty()) {
+            flags |= telegram_api::inputStorePaymentPremiumGiftCode::MESSAGE_MASK;
+            text = get_input_text_with_entities(td->user_manager_.get(), message,
+                                                "telegramPaymentPurposePremiumGiftCodes");
+          }
           auto option = telegram_api::make_object<telegram_api::premiumGiftCodeOption>(
               0, static_cast<int32>(input_users.size()), p->month_count_, string(), 0, p->currency_, p->amount_);
           auto purpose = telegram_api::make_object<telegram_api::inputStorePaymentPremiumGiftCode>(
-              flags, std::move(input_users), std::move(boost_input_peer), p->currency_, p->amount_);
+              flags, std::move(input_users), std::move(boost_input_peer), p->currency_, p->amount_, std::move(text));
 
           result.dialog_id_ = boosted_dialog_id;
           result.input_invoice_ = telegram_api::make_object<telegram_api::inputInvoicePremiumGiftCode>(
@@ -321,11 +333,11 @@ static tl_object_ptr<td_api::invoice> convert_invoice(tl_object_ptr<telegram_api
   } else {
     terms_url = std::move(invoice->terms_url_);
   }
-  return make_tl_object<td_api::invoice>(std::move(invoice->currency_), std::move(labeled_prices),
-                                         invoice->max_tip_amount_, std::move(invoice->suggested_tip_amounts_),
-                                         recurring_terms_url, terms_url, is_test, need_name, need_phone_number,
-                                         need_email_address, need_shipping_address, send_phone_number_to_provider,
-                                         send_email_address_to_provider, is_flexible);
+  return td_api::make_object<td_api::invoice>(
+      std::move(invoice->currency_), std::move(labeled_prices), max(invoice->subscription_period_, 0),
+      invoice->max_tip_amount_, std::move(invoice->suggested_tip_amounts_), recurring_terms_url, terms_url, is_test,
+      need_name, need_phone_number, need_email_address, need_shipping_address, send_phone_number_to_provider,
+      send_email_address_to_provider, is_flexible);
 }
 
 static tl_object_ptr<td_api::PaymentProvider> convert_payment_provider(
@@ -557,8 +569,15 @@ class GetPaymentFormQuery final : public Td::ResultHandler {
           return on_error(Status::Error(500, "Receive invalid price"));
         }
         auto photo = get_web_document_photo(td_->file_manager_.get(), std::move(payment_form->photo_), dialog_id_);
-        auto type = td_api::make_object<td_api::paymentFormTypeStars>(
-            StarManager::get_star_count(payment_form->invoice_->prices_[0]->amount_));
+        auto star_count = StarManager::get_star_count(payment_form->invoice_->prices_[0]->amount_);
+        td_api::object_ptr<td_api::PaymentFormType> type;
+        if (payment_form->invoice_->subscription_period_ > 0) {
+          type = td_api::make_object<td_api::paymentFormTypeStarSubscription>(
+              td_api::make_object<td_api::starSubscriptionPricing>(payment_form->invoice_->subscription_period_,
+                                                                   star_count));
+        } else {
+          type = td_api::make_object<td_api::paymentFormTypeStars>(star_count);
+        }
         promise_.set_value(td_api::make_object<td_api::paymentForm>(
             payment_form->form_id_, std::move(type),
             td_->user_manager_->get_user_id_object(seller_bot_user_id, "paymentForm seller"),
@@ -788,7 +807,7 @@ class GetPaymentReceiptQuery final : public Td::ResultHandler {
           LOG(ERROR) << "Receive invalid prices " << to_string(payment_receipt->invoice_->prices_);
           return on_error(Status::Error(500, "Receive invalid price"));
         }
-        promise_.set_value(make_tl_object<td_api::paymentReceipt>(
+        promise_.set_value(td_api::make_object<td_api::paymentReceipt>(
             get_product_info_object(td_, payment_receipt->title_, payment_receipt->description_, photo),
             payment_receipt->date_, td_->user_manager_->get_user_id_object(seller_bot_user_id, "paymentReceipt seller"),
             td_api::make_object<td_api::paymentReceiptTypeStars>(
@@ -817,7 +836,7 @@ class GetPaymentReceiptQuery final : public Td::ResultHandler {
           payment_receipt->tip_amount_ = 0;
         }
 
-        promise_.set_value(make_tl_object<td_api::paymentReceipt>(
+        promise_.set_value(td_api::make_object<td_api::paymentReceipt>(
             get_product_info_object(td_, payment_receipt->title_, payment_receipt->description_, photo),
             payment_receipt->date_, td_->user_manager_->get_user_id_object(seller_bot_user_id, "paymentReceipt seller"),
             td_api::make_object<td_api::paymentReceiptTypeRegular>(
@@ -907,8 +926,12 @@ class ExportInvoiceQuery final : public Td::ResultHandler {
   explicit ExportInvoiceQuery(Promise<string> &&promise) : promise_(std::move(promise)) {
   }
 
-  void send(tl_object_ptr<telegram_api::inputMediaInvoice> &&input_media_invoice) {
-    send_query(G()->net_query_creator().create(telegram_api::payments_exportInvoice(std::move(input_media_invoice))));
+  void send(BusinessConnectionId business_connection_id,
+            telegram_api::object_ptr<telegram_api::inputMediaInvoice> &&input_media_invoice) {
+    send_query(G()->net_query_creator().create_with_prefix(
+        business_connection_id.get_invoke_prefix(),
+        telegram_api::payments_exportInvoice(std::move(input_media_invoice)),
+        td_->business_connection_manager_->get_business_connection_dc_id(business_connection_id)));
   }
 
   void on_result(BufferSlice packet) final {
@@ -1180,15 +1203,22 @@ void delete_saved_credentials(Td *td, Promise<Unit> &&promise) {
   td->create_handler<ClearSavedInfoQuery>(std::move(promise))->send(true, false);
 }
 
-void export_invoice(Td *td, td_api::object_ptr<td_api::InputMessageContent> &&invoice, Promise<string> &&promise) {
+void export_invoice(Td *td, BusinessConnectionId business_connection_id,
+                    td_api::object_ptr<td_api::InputMessageContent> &&invoice, Promise<string> &&promise) {
   if (invoice == nullptr) {
     return promise.set_error(Status::Error(400, "Invoice must be non-empty"));
   }
   TRY_RESULT_PROMISE(promise, input_invoice,
                      InputInvoice::process_input_message_invoice(std::move(invoice), td, DialogId()));
+  if (business_connection_id.is_valid()) {
+    TRY_STATUS_PROMISE(promise, td->business_connection_manager_->check_business_connection(
+                                    business_connection_id, td->dialog_manager_->get_my_dialog_id()));
+  }
+
   auto input_media = input_invoice.get_input_media_invoice(td, nullptr, nullptr);
   CHECK(input_media != nullptr);
-  td->create_handler<ExportInvoiceQuery>(std::move(promise))->send(std::move(input_media));
+  td->create_handler<ExportInvoiceQuery>(std::move(promise))
+      ->send(std::move(business_connection_id), std::move(input_media));
 }
 
 void get_bank_card_info(Td *td, const string &bank_card_number,

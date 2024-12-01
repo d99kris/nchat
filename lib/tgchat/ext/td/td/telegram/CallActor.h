@@ -131,6 +131,7 @@ class CallActor final : public NetQueryCallback {
     WaitAcceptResult,
     SendConfirmQuery,
     WaitConfirmResult,
+    Ready,
     SendDiscardQuery,
     WaitDiscardResult,
     Discarded
@@ -148,7 +149,6 @@ class CallActor final : public NetQueryCallback {
   bool has_notification_{false};
   int64 call_access_hash_{0};
   UserId call_admin_user_id_;
-  // UserId call_participant_user_id_;
 
   CallState call_state_;
   bool call_state_need_flush_{false};

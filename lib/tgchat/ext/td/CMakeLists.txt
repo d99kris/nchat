@@ -6,7 +6,7 @@ if (POLICY CMP0065)
   cmake_policy(SET CMP0065 NEW)
 endif()
 
-project(TDLib VERSION 1.8.37 LANGUAGES CXX C)
+project(TDLib VERSION 1.8.40 LANGUAGES CXX C)
 
 if (NOT DEFINED CMAKE_MODULE_PATH)
   set(CMAKE_MODULE_PATH "")
@@ -39,6 +39,8 @@ endif()
 include(PreventInSourceBuild)
 prevent_in_source_build()
 
+option(TD_INSTALL_STATIC_LIBRARIES "Enable installation of static libraries." ON)
+option(TD_INSTALL_SHARED_LIBRARIES "Enable installation of shared libraries." ON)
 option(TD_ENABLE_JNI "Use \"ON\" to enable JNI-compatible TDLib API.")
 option(TD_ENABLE_DOTNET "Use \"ON\" to enable generation of C++/CLI or C++/CX TDLib API bindings.")
 if (NOT CMAKE_CROSSCOMPILING)
@@ -49,7 +51,7 @@ if (TD_ENABLE_DOTNET AND (CMAKE_VERSION VERSION_LESS "3.1.0"))
   message(FATAL_ERROR "CMake 3.1.0 or higher is required. You are running version ${CMAKE_VERSION}.")
 endif()
 
-enable_testing()
+include(CTest)
 
 if (POLICY CMP0069)
   option(TD_ENABLE_LTO "Use \"ON\" to enable Link Time Optimization.")
@@ -105,16 +107,9 @@ if (EMSCRIPTEN)
   set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -s DEMANGLE_SUPPORT=1 -s ASSERTIONS=1")
   set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -s DEMANGLE_SUPPORT=1 -s ASSERTIONS=1")
 
-  if (ASMJS)
-    set(TD_EMSCRIPTEN td_asmjs)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -s WASM=0 -Wno-almost-asm")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -s WASM=0 -Wno-almost-asm")
-  else()
-    set(TD_EMSCRIPTEN td_wasm)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -s WASM=1")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -s WASM=1")
-  endif()
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --post-js ${CMAKE_CURRENT_SOURCE_DIR}/post.js")
+  set(TD_EMSCRIPTEN td_wasm)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -s WASM=1 --post-js ${CMAKE_CURRENT_SOURCE_DIR}/post.js")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -s WASM=1")
 endif()
 
 if (NOT TD_GENERATE_SOURCE_FILES)
@@ -174,9 +169,10 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/td/telegram/GitCommitHash.cpp.in" "$
 add_subdirectory(tdtl)
 
 if (TD_GENERATE_SOURCE_FILES)
-  set(TDUTILS_MIME_TYPE ON CACHE BOOL "")
-  set(TDUTILS_USE_EXTERNAL_DEPENDENCIES OFF CACHE BOOL "")
+  set(TDUTILS_MIME_TYPE ON CACHE BOOL "" FORCE)
+  set(TDUTILS_USE_EXTERNAL_DEPENDENCIES OFF CACHE BOOL "" FORCE)
 endif()
+set(TDUTILS_ENABLE_INSTALL ${TD_INSTALL_STATIC_LIBRARIES} CACHE BOOL "" FORCE)
 add_subdirectory(tdutils)
 
 add_subdirectory(td/generate)
@@ -219,15 +215,21 @@ if (NOT TDUTILS_MIME_TYPE OR NOT TDUTILS_USE_EXTERNAL_DEPENDENCIES)
   return()
 endif()
 
+set(TDACTOR_ENABLE_INSTALL ${TD_INSTALL_STATIC_LIBRARIES} CACHE BOOL "" FORCE)
 add_subdirectory(tdactor)
 
+set(TDNET_ENABLE_INSTALL ${TD_INSTALL_STATIC_LIBRARIES} CACHE BOOL "" FORCE)
 add_subdirectory(tdnet)
 
+set(TDSQLITE_ENABLE_INSTALL ${TD_INSTALL_STATIC_LIBRARIES} CACHE BOOL "" FORCE)
 add_subdirectory(sqlite)
 
+set(TDDB_ENABLE_INSTALL ${TD_INSTALL_STATIC_LIBRARIES} CACHE BOOL "" FORCE)
 add_subdirectory(tddb)
 
-add_subdirectory(test)
+if (BUILD_TESTING)
+  add_subdirectory(test)
+endif()
 
 if (NOT CMAKE_CROSSCOMPILING)
   add_subdirectory(benchmark)
@@ -532,6 +534,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/OptionManager.cpp
   td/telegram/OrderedMessage.cpp
   td/telegram/OrderInfo.cpp
+  td/telegram/Outline.cpp
   td/telegram/PasswordManager.cpp
   td/telegram/Payments.cpp
   td/telegram/PeerColor.cpp
@@ -602,6 +605,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/SuggestedAction.cpp
   td/telegram/Support.cpp
   td/telegram/SynchronousRequests.cpp
+  td/telegram/TargetDialogTypes.cpp
   td/telegram/Td.cpp
   td/telegram/TdDb.cpp
   td/telegram/TermsOfService.cpp
@@ -624,6 +628,8 @@ set(TDLIB_SOURCE_PART2
   td/telegram/VideosManager.cpp
   td/telegram/VoiceNotesManager.cpp
   td/telegram/WebApp.cpp
+  td/telegram/WebAppManager.cpp
+  td/telegram/WebAppOpenParameters.cpp
   td/telegram/WebPageBlock.cpp
   td/telegram/WebPagesManager.cpp
 
@@ -871,6 +877,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/OptionManager.h
   td/telegram/OrderedMessage.h
   td/telegram/OrderInfo.h
+  td/telegram/Outline.h
   td/telegram/PasswordManager.h
   td/telegram/Payments.h
   td/telegram/PeerColor.h
@@ -959,6 +966,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/SuggestedAction.h
   td/telegram/Support.h
   td/telegram/SynchronousRequests.h
+  td/telegram/TargetDialogTypes.h
   td/telegram/Td.h
   td/telegram/TdCallback.h
   td/telegram/TdDb.h
@@ -985,6 +993,8 @@ set(TDLIB_SOURCE_PART2
   td/telegram/VideosManager.h
   td/telegram/VoiceNotesManager.h
   td/telegram/WebApp.h
+  td/telegram/WebAppManager.h
+  td/telegram/WebAppOpenParameters.h
   td/telegram/WebPageBlock.h
   td/telegram/WebPageId.h
   td/telegram/WebPagesManager.h
@@ -1121,7 +1131,7 @@ target_include_directories(memprof_stat PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT
 target_link_libraries(memprof_stat PRIVATE tdutils)
 
 
-add_library(tdapi ${TL_TD_API_SOURCE})
+add_library(tdapi STATIC ${TL_TD_API_SOURCE})
 target_include_directories(tdapi PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}> INTERFACE $<BUILD_INTERFACE:${TL_TD_AUTO_INCLUDE_DIR}>)
 target_link_libraries(tdapi PRIVATE tdutils)
 
@@ -1185,7 +1195,7 @@ if (NOT CMAKE_CROSSCOMPILING)
   endif()
 endif()
 
-add_library(tdclient td/telegram/Client.cpp td/telegram/Client.h td/telegram/Log.cpp td/telegram/Log.h)
+add_library(tdclient STATIC td/telegram/Client.cpp td/telegram/Client.h td/telegram/Log.cpp td/telegram/Log.h)
 target_include_directories(tdclient PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
@@ -1313,67 +1323,79 @@ add_library(Td::TdJson ALIAS TdJson)
 add_library(Td::TdJsonStatic ALIAS TdJsonStatic)
 
 set(INSTALL_TARGETS tdjson TdJson)
-set(INSTALL_STATIC_TARGETS tdjson_static TdJsonStatic tdjson_private "${TD_CORE_PART_TARGETS}" tdcore tdmtproto)
-if (BUILD_SHARED_LIBS)
-  set(INSTALL_TARGETS ${INSTALL_TARGETS} tdclient TdStatic tdapi)
-else()
-  set(INSTALL_STATIC_TARGETS ${INSTALL_STATIC_TARGETS} tdclient TdStatic tdapi)
+set(INSTALL_STATIC_TARGETS tdjson_static TdJsonStatic tdjson_private "${TD_CORE_PART_TARGETS}" tdcore tdmtproto tdclient TdStatic tdapi)
+
+if (TD_INSTALL_SHARED_LIBRARIES)
+  install(TARGETS ${INSTALL_TARGETS} EXPORT TdTargets
+    LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+    ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+  )
 endif()
 
-install(TARGETS ${INSTALL_TARGETS} EXPORT TdTargets
-  LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-  RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
-  INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
-)
-
-install(TARGETS ${INSTALL_STATIC_TARGETS} EXPORT TdStaticTargets
-  LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-  INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
-)
+if (TD_INSTALL_STATIC_LIBRARIES)
+  install(TARGETS ${INSTALL_STATIC_TARGETS} EXPORT TdStaticTargets
+    LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+    ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+    INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+  )
+endif()
 
 # generate pkg-config files
 include(GeneratePkgConfig)
 
-generate_pkgconfig(tdutils "Telegram Library - Utils")
-generate_pkgconfig(tdactor "Telegram Library - Actor")
-generate_pkgconfig(tdnet "Telegram Library - Net")
-generate_pkgconfig(tdsqlite "Telegram Library - SQLite")
-generate_pkgconfig(tddb "Telegram Library - Database")
-if (MEMPROF)
-  # generate_pkgconfig(memprof "memprof - simple library for memory usage profiling")
+if (TD_INSTALL_STATIC_LIBRARIES)
+  generate_pkgconfig(tdutils "Telegram Library - Utils")
+  generate_pkgconfig(tdactor "Telegram Library - Actor")
+  generate_pkgconfig(tdnet "Telegram Library - Net")
+  generate_pkgconfig(tdsqlite "Telegram Library - SQLite")
+  generate_pkgconfig(tddb "Telegram Library - Database")
+  if (MEMPROF)
+    # generate_pkgconfig(memprof "memprof - simple library for memory usage profiling")
+  endif()
+  generate_pkgconfig(tdmtproto "Telegram Library - MTProto implementation")
+  generate_pkgconfig(tdcore "Telegram Library - Core")
+  generate_pkgconfig(tdclient "Telegram Library - C++ Interface")
+  if (TD_ENABLE_DOTNET)
+    # generate_pkgconfig(tddotnet "Telegram Library - C# Interface")
+  endif()
+  # generate_pkgconfig(tdc "Telegram Library - C interface")
+  generate_pkgconfig(tdapi "Telegram Library - API")
+  generate_pkgconfig(tdjson_private "Telegram Library - JSON interface (private)")
+  generate_pkgconfig(tdjson_static "Telegram Library - JSON interface (static)")
 endif()
-generate_pkgconfig(tdmtproto "Telegram Library - MTProto implementation")
-generate_pkgconfig(tdcore "Telegram Library - Core")
-generate_pkgconfig(tdclient "Telegram Library - C++ Interface")
-if (TD_ENABLE_DOTNET)
-  # generate_pkgconfig(tddotnet "Telegram Library - C# Interface")
+if (TD_INSTALL_SHARED_LIBRARIES)
+  generate_pkgconfig(tdjson "Telegram Library - JSON interface (shared)")
 endif()
-# generate_pkgconfig(tdc "Telegram Library - C interface")
-generate_pkgconfig(tdapi "Telegram Library - API")
-generate_pkgconfig(tdjson_private "Telegram Library - JSON interface (private)")
-generate_pkgconfig(tdjson "Telegram Library - JSON interface (shared)")
-generate_pkgconfig(tdjson_static "Telegram Library - JSON interface (static)")
 
-install(EXPORT TdTargets
-  FILE TdTargets.cmake
-  NAMESPACE Td::
-  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Td"
-)
-install(EXPORT TdStaticTargets
-  FILE TdStaticTargets.cmake
-  NAMESPACE Td::
-  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Td"
-)
+if (TD_INSTALL_SHARED_LIBRARIES)
+  install(EXPORT TdTargets
+    FILE TdTargets.cmake
+    NAMESPACE Td::
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Td"
+  )
+endif()
 
-# Install tdjson/tdjson_static:
-install(FILES ${TD_JSON_HEADERS} "${CMAKE_CURRENT_BINARY_DIR}/td/telegram/tdjson_export.h" DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/td/telegram")
-# Install tdclient:
-install(FILES td/telegram/Client.h td/telegram/Log.h DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/td/telegram")
-# Install tdapi:
-install(FILES td/tl/TlObject.h DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/td/tl")
-install(FILES "${TL_TD_AUTO_INCLUDE_DIR}/td/telegram/td_api.h" "${TL_TD_AUTO_INCLUDE_DIR}/td/telegram/td_api.hpp" DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/td/telegram")
+if (TD_INSTALL_STATIC_LIBRARIES)
+  install(EXPORT TdStaticTargets
+    FILE TdStaticTargets.cmake
+    NAMESPACE Td::
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Td"
+  )
+endif()
+
+if (TD_INSTALL_SHARED_LIBRARIES OR TD_INSTALL_STATIC_LIBRARIES)
+  # Install tdjson/tdjson_static:
+  install(FILES ${TD_JSON_HEADERS} "${CMAKE_CURRENT_BINARY_DIR}/td/telegram/tdjson_export.h" DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/td/telegram")
+endif()
+if (TD_INSTALL_STATIC_LIBRARIES)
+  # Install tdclient:
+  install(FILES td/telegram/Client.h td/telegram/Log.h DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/td/telegram")
+  # Install tdapi:
+  install(FILES td/tl/TlObject.h DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/td/tl")
+  install(FILES "${TL_TD_AUTO_INCLUDE_DIR}/td/telegram/td_api.h" "${TL_TD_AUTO_INCLUDE_DIR}/td/telegram/td_api.hpp" DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/td/telegram")
+endif()
 if (TD_ENABLE_JNI)
   install(FILES td/tl/tl_jni_object.h DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/td/tl")
 endif()
@@ -1391,7 +1413,7 @@ install(FILES "TdConfig.cmake" "${CMAKE_CURRENT_BINARY_DIR}/TdConfigVersion.cmak
 )
 
 # Add SOVERSION to shared libraries
-set_property(TARGET tdapi tdclient tdjson PROPERTY SOVERSION "${TDLib_VERSION}")
+set_property(TARGET tdjson PROPERTY SOVERSION "${TDLib_VERSION}")
 
 # nchat additions start
 add_library(tdclientshared SHARED td/telegram/Client.cpp td/telegram/Client.h td/telegram/Log.cpp td/telegram/Log.h)

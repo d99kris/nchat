@@ -193,7 +193,7 @@ td_api::object_ptr<td_api::ChatActionBar> DialogActionBar::get_chat_action_bar_o
     CHECK(dialog_type == DialogType::Channel);
     CHECK(!can_share_phone_number_ && !can_block_user_ && !can_add_contact_ && !can_report_spam_ &&
           !can_invite_members_);
-    return td_api::make_object<td_api::chatActionBarReportUnrelatedLocation>();
+    return nullptr;
   }
   if (can_invite_members_) {
     CHECK(!can_share_phone_number_ && !can_block_user_ && !can_add_contact_ && !can_report_spam_);
@@ -214,7 +214,7 @@ td_api::object_ptr<td_api::ChatActionBar> DialogActionBar::get_chat_action_bar_o
   if (can_block_user_) {
     CHECK(dialog_type == DialogType::User);
     CHECK(can_report_spam_ && can_add_contact_);
-    return td_api::make_object<td_api::chatActionBarReportAddBlock>(can_unarchive_, distance_);
+    return td_api::make_object<td_api::chatActionBarReportAddBlock>(can_unarchive_);
   }
   if (can_add_contact_) {
     CHECK(dialog_type == DialogType::User);

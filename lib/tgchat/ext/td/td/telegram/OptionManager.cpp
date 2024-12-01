@@ -22,7 +22,6 @@
 #include "td/telegram/net/NetQueryDispatcher.h"
 #include "td/telegram/NotificationManager.h"
 #include "td/telegram/OnlineManager.h"
-#include "td/telegram/PeopleNearbyManager.h"
 #include "td/telegram/ReactionType.h"
 #include "td/telegram/StateManager.h"
 #include "td/telegram/StickersManager.h"
@@ -163,6 +162,7 @@ OptionManager::OptionManager(Td *td)
   set_default_integer_option("usd_to_thousand_star_rate", 1410);
   set_default_integer_option("thousand_star_to_usd_rate", 1300);
   set_default_integer_option("gift_text_length_max", 255);
+  set_default_integer_option("gift_sell_period", is_test_dc ? 300 : 90 * 86400);
 
   if (options.isset("my_phone_number") || !options.isset("my_id")) {
     update_premium_options();
@@ -179,6 +179,7 @@ OptionManager::OptionManager(Td *td)
   set_option_empty("themed_premium_statuses_sticker_set_id");
   set_option_empty("usd_to_1000_star_rate");
   set_option_empty("1000_star_to_usd_rate");
+  set_option_empty("is_location_visible");
 }
 
 OptionManager::~OptionManager() = default;
@@ -685,15 +686,6 @@ void OptionManager::get_option(const string &name, Promise<td_api::object_ptr<td
       if (!is_bot && name == "ignore_sensitive_content_restrictions") {
         return send_closure_later(td_->config_manager_, &ConfigManager::get_content_settings, wrap_promise());
       }
-      if (!is_bot && name == "is_location_visible") {
-        if (is_td_inited_) {
-          send_closure_later(td_->people_nearby_manager_actor_, &PeopleNearbyManager::get_is_location_visible,
-                             wrap_promise());
-        } else {
-          pending_get_options_.emplace_back(name, std::move(promise));
-        }
-        return;
-      }
       break;
     case 'o':
       if (name == "online") {
@@ -719,7 +711,7 @@ td_api::object_ptr<td_api::OptionValue> OptionManager::get_option_synchronously(
       break;
     case 'v':
       if (name == "version") {
-        return td_api::make_object<td_api::optionValueString>("1.8.37");
+        return td_api::make_object<td_api::optionValueString>("1.8.40");
       }
       break;
   }
@@ -891,10 +883,6 @@ void OptionManager::set_option(const string &name, td_api::object_ptr<td_api::Op
                                                      static_cast<td_api::optionValueBoolean *>(value.get())->value_;
         send_closure_later(td_->config_manager_, &ConfigManager::set_content_settings,
                            ignore_sensitive_content_restrictions, std::move(promise));
-        return;
-      }
-      if (!is_bot && set_boolean_option("is_location_visible")) {
-        PeopleNearbyManager::set_location_visibility(td_);
         return;
       }
       break;

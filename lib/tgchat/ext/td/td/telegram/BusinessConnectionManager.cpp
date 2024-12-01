@@ -124,6 +124,9 @@ struct BusinessConnectionManager::PendingMessage {
 
   void init_file_upload_ids(Td *td) {
     CHECK(file_upload_id_ == FileUploadId());
+    if (content_->get_type() == MessageContentType::PaidMedia) {
+      return;
+    }
     auto file_id =
         get_message_content_any_file_id(content_.get());  // any_file_id, because it could be a photo sent by ID
     if (!file_id.is_valid()) {
@@ -190,11 +193,12 @@ class BusinessConnectionManager::SendBusinessMessageQuery final : public Td::Res
 
     send_query(G()->net_query_creator().create_with_prefix(
         message_->business_connection_id_.get_invoke_prefix(),
-        telegram_api::messages_sendMessage(
-            flags, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/,
-            false /*ignored*/, false /*ignored*/, std::move(input_peer), std::move(reply_to), message_text->text,
-            message_->random_id_, get_input_reply_markup(td_->user_manager_.get(), message_->reply_markup_),
-            std::move(entities), 0, nullptr, nullptr, message_->effect_id_.get()),
+        telegram_api::messages_sendMessage(flags, false /*ignored*/, false /*ignored*/, false /*ignored*/,
+                                           false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/,
+                                           false /*ignored*/, std::move(input_peer), std::move(reply_to),
+                                           message_text->text, message_->random_id_,
+                                           get_input_reply_markup(td_->user_manager_.get(), message_->reply_markup_),
+                                           std::move(entities), 0, nullptr, nullptr, message_->effect_id_.get()),
         td_->business_connection_manager_->get_business_connection_dc_id(message_->business_connection_id_),
         {{message_->dialog_id_}}));
   }
@@ -265,8 +269,8 @@ class BusinessConnectionManager::SendBusinessMediaQuery final : public Td::Resul
     send_query(G()->net_query_creator().create_with_prefix(
         message_->business_connection_id_.get_invoke_prefix(),
         telegram_api::messages_sendMedia(flags, false /*ignored*/, false /*ignored*/, false /*ignored*/,
-                                         false /*ignored*/, false /*ignored*/, false /*ignored*/, std::move(input_peer),
-                                         std::move(reply_to), std::move(input_media),
+                                         false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/,
+                                         std::move(input_peer), std::move(reply_to), std::move(input_media),
                                          message_text == nullptr ? string() : message_text->text, message_->random_id_,
                                          get_input_reply_markup(td_->user_manager_.get(), message_->reply_markup_),
                                          std::move(entities), 0, nullptr, nullptr, message_->effect_id_.get()),
@@ -330,10 +334,10 @@ class BusinessConnectionManager::SendBusinessMultiMediaQuery final : public Td::
 
     send_query(G()->net_query_creator().create_with_prefix(
         messages_[0]->business_connection_id_.get_invoke_prefix(),
-        telegram_api::messages_sendMultiMedia(flags, false /*ignored*/, false /*ignored*/, false /*ignored*/,
-                                              false /*ignored*/, false /*ignored*/, false /*ignored*/,
-                                              std::move(input_peer), std::move(reply_to), std::move(input_single_media),
-                                              0, nullptr, nullptr, messages_[0]->effect_id_.get()),
+        telegram_api::messages_sendMultiMedia(
+            flags, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/,
+            false /*ignored*/, false /*ignored*/, std::move(input_peer), std::move(reply_to),
+            std::move(input_single_media), 0, nullptr, nullptr, messages_[0]->effect_id_.get()),
         td_->business_connection_manager_->get_business_connection_dc_id(messages_[0]->business_connection_id_),
         {{messages_[0]->dialog_id_}}));
   }

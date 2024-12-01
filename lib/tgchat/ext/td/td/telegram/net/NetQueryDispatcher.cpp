@@ -37,7 +37,7 @@ namespace td {
 void NetQueryDispatcher::complete_net_query(NetQueryPtr net_query) {
   auto callback = net_query->move_callback();
   if (callback.empty()) {
-    net_query->debug("sent to td (no callback)");
+    net_query->debug("sent to handler");
     send_closure_later(G()->td(), &Td::on_result, std::move(net_query));
   } else {
     net_query->debug("sent to callback", true);
@@ -58,7 +58,7 @@ void NetQueryDispatcher::dispatch(NetQueryPtr net_query) {
   if (check_stop_flag(net_query)) {
     return;
   }
-  if (G()->get_option_boolean("test_flood_wait")) {
+  if (false && G()->get_option_boolean("test_flood_wait")) {
     net_query->set_error(Status::Error(429, "Too Many Requests: retry after 10"));
     return complete_net_query(std::move(net_query));
     //    if (net_query->is_ok() && net_query->tl_constructor() == telegram_api::messages_sendMessage::ID) {

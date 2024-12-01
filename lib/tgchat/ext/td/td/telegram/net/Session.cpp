@@ -212,23 +212,19 @@ TD_THREAD_LOCAL Semaphore *GenAuthKeyActor::semaphore_{};
 
 }  // namespace detail
 
-void Session::PriorityQueue::push(NetQueryPtr query) {
-  auto priority = query->priority();
-  queries_[priority].push(std::move(query));
+void Session::PendingQueries::push(NetQueryPtr query) {
+  auto &queue = query->is_high_priority() ? high_priority_queries_ : regular_queries_;
+  queue.push(std::move(query));
 }
 
-NetQueryPtr Session::PriorityQueue::pop() {
-  CHECK(!empty());
-  auto it = queries_.begin();
-  auto res = it->second.pop();
-  if (it->second.empty()) {
-    queries_.erase(it);
-  }
-  return res;
+NetQueryPtr Session::PendingQueries::pop() {
+  auto &queue = high_priority_queries_.empty() ? regular_queries_ : high_priority_queries_;
+  CHECK(!queue.empty());
+  return queue.pop();
 }
 
-bool Session::PriorityQueue::empty() const {
-  return queries_.empty();
+bool Session::PendingQueries::empty() const {
+  return regular_queries_.empty() && high_priority_queries_.empty();
 }
 
 Session::Session(unique_ptr<Callback> callback, std::shared_ptr<AuthDataShared> shared_auth_data, int32 raw_dc_id,
@@ -540,8 +536,8 @@ void Session::raw_event(const Event::Raw &event) {
     return;
   }
 
-  dec_container(it->first, &it->second);
-  mark_as_known(it->first, &it->second);
+  dec_container(it->first, it->second);
+  mark_as_known(it->first, it->second);
 
   auto query = std::move(it->second.net_query_);
   LOG(DEBUG) << "Drop answer for " << query;
@@ -677,13 +673,10 @@ void Session::on_closed(Status status) {
   // resend all queries without ack
   for (auto it = sent_queries_.begin(); it != sent_queries_.end();) {
     if (!it->second.is_acknowledged_ && it->second.connection_id_ == current_info_->connection_id_) {
-      // container vector leak otherwise
-      cleanup_container(it->first, &it->second);
-
+      cleanup_container(it->first, it->second);
       // mark query as unknown
       if (status.is_error() && status.code() == 500) {
-        cleanup_container(it->first, &it->second);
-        mark_as_known(it->first, &it->second);
+        mark_as_known(it->first, it->second);
 
         auto &query = it->second.net_query_;
         VLOG(net_query) << "Resend query (on_disconnected, no ack) " << query;
@@ -693,7 +686,7 @@ void Session::on_closed(Status status) {
         return_query(std::move(query));
         it = sent_queries_.erase(it);
       } else {
-        mark_as_unknown(it->first, &it->second);
+        mark_as_unknown(it->first, it->second);
         ++it;
       }
     } else {
@@ -725,12 +718,12 @@ void Session::on_new_session_created(uint64 unique_id, mtproto::MessageId first_
     LOG(INFO) << "Failed to find sent " << first_message_id << " from the new session";
   }
   for (auto it = sent_queries_.begin(); it != sent_queries_.end();) {
-    Query *query_ptr = &it->second;
-    if (query_ptr->container_message_id_ < first_message_id) {
+    Query &query = it->second;
+    if (query.container_message_id_ < first_message_id) {
       // container vector leak otherwise
-      cleanup_container(it->first, query_ptr);
-      mark_as_known(it->first, query_ptr);
-      resend_query(std::move(query_ptr->net_query_));
+      cleanup_container(it->first, query);
+      mark_as_known(it->first, query);
+      resend_query(std::move(query.net_query_));
       it = sent_queries_.erase(it);
     } else {
       ++it;
@@ -799,17 +792,17 @@ void Session::on_message_ack_impl_inner(mtproto::MessageId message_id, int32 typ
   }
   it->second.net_query_->quick_ack_promise_.set_value(Unit());
   if (!in_container) {
-    cleanup_container(message_id, &it->second);
+    cleanup_container(message_id, it->second);
   }
-  mark_as_known(it->first, &it->second);
+  mark_as_known(it->first, it->second);
 }
 
-void Session::dec_container(mtproto::MessageId container_message_id, Query *query) {
-  if (query->container_message_id_ == container_message_id) {
+void Session::dec_container(mtproto::MessageId container_message_id, const Query &query) {
+  if (query.container_message_id_ == container_message_id) {
     // message was sent without any container
     return;
   }
-  auto it = sent_containers_.find(query->container_message_id_);
+  auto it = sent_containers_.find(query.container_message_id_);
   if (it == sent_containers_.end()) {
     return;
   }
@@ -820,43 +813,43 @@ void Session::dec_container(mtproto::MessageId container_message_id, Query *quer
   }
 }
 
-void Session::cleanup_container(mtproto::MessageId container_message_id, Query *query) {
-  if (query->container_message_id_ == container_message_id) {
+void Session::cleanup_container(mtproto::MessageId container_message_id, const Query &query) {
+  if (query.container_message_id_ == container_message_id) {
     // message was sent without any container
     return;
   }
 
   // we can forget container now, since we have an answer for its part.
   // TODO: we can do it only for one element per container
-  sent_containers_.erase(query->container_message_id_);
+  sent_containers_.erase(query.container_message_id_);
 }
 
-void Session::mark_as_known(mtproto::MessageId message_id, Query *query) {
+void Session::mark_as_known(mtproto::MessageId message_id, Query &query) {
   {
-    auto lock = query->net_query_->lock();
-    query->net_query_->get_data_unsafe().unknown_state_ = false;
+    auto lock = query.net_query_->lock();
+    query.net_query_->get_data_unsafe().unknown_state_ = false;
   }
-  if (!query->is_unknown_) {
+  if (!query.is_unknown_) {
     return;
   }
-  VLOG(net_query) << "Mark as known " << query->net_query_;
-  query->is_unknown_ = false;
+  VLOG(net_query) << "Mark as known " << query.net_query_;
+  query.is_unknown_ = false;
   unknown_queries_.erase(message_id);
   if (unknown_queries_.empty()) {
     flush_pending_invoke_after_queries();
   }
 }
 
-void Session::mark_as_unknown(mtproto::MessageId message_id, Query *query) {
+void Session::mark_as_unknown(mtproto::MessageId message_id, Query &query) {
   {
-    auto lock = query->net_query_->lock();
-    query->net_query_->get_data_unsafe().unknown_state_ = true;
+    auto lock = query.net_query_->lock();
+    query.net_query_->get_data_unsafe().unknown_state_ = true;
   }
-  if (query->is_unknown_) {
+  if (query.is_unknown_) {
     return;
   }
-  VLOG(net_query) << "Mark as unknown " << query->net_query_;
-  query->is_unknown_ = true;
+  VLOG(net_query) << "Mark as unknown " << query.net_query_;
+  query.is_unknown_ = true;
   CHECK(message_id != mtproto::MessageId());
   unknown_queries_.insert(message_id);
 }
@@ -898,8 +891,8 @@ Status Session::on_message_result_ok(mtproto::MessageId message_id, BufferSlice 
   }
 
   auth_data_.on_api_response();
-  Query *query_ptr = &it->second;
-  VLOG(net_query) << "Return query result " << query_ptr->net_query_;
+  Query &query = it->second;
+  VLOG(net_query) << "Return query result " << query.net_query_;
 
   if (!parser.get_error()) {
     // Steal authorization information.
@@ -907,7 +900,7 @@ Status Session::on_message_result_ok(mtproto::MessageId message_id, BufferSlice 
     if (response_tl_id == telegram_api::auth_authorization::ID ||
         response_tl_id == telegram_api::auth_loginTokenSuccess::ID ||
         response_tl_id == telegram_api::auth_sentCodeSuccess::ID) {
-      if (query_ptr->net_query_->tl_constructor() != telegram_api::auth_importAuthorization::ID) {
+      if (query.net_query_->tl_constructor() != telegram_api::auth_importAuthorization::ID) {
         G()->net_query_dispatcher().set_main_dc_id(raw_dc_id_);
       }
       auth_data_.set_auth_flag(true);
@@ -915,12 +908,12 @@ Status Session::on_message_result_ok(mtproto::MessageId message_id, BufferSlice 
     }
   }
 
-  cleanup_container(message_id, query_ptr);
-  mark_as_known(message_id, query_ptr);
-  query_ptr->net_query_->on_net_read(original_size);
-  query_ptr->net_query_->set_ok(std::move(packet));
-  query_ptr->net_query_->set_message_id(0);
-  return_query(std::move(query_ptr->net_query_));
+  cleanup_container(message_id, query);
+  mark_as_known(message_id, query);
+  query.net_query_->on_net_read(original_size);
+  query.net_query_->set_ok(std::move(packet));
+  query.net_query_->set_message_id(0);
+  return_query(std::move(query.net_query_));
 
   sent_queries_.erase(it);
   return Status::OK();
@@ -994,14 +987,14 @@ void Session::on_message_result_error(mtproto::MessageId message_id, int error_c
     return;
   }
 
-  Query *query_ptr = &it->second;
-  VLOG(net_query) << "Return query error " << query_ptr->net_query_;
+  Query &query = it->second;
+  VLOG(net_query) << "Return query error " << query.net_query_;
 
-  cleanup_container(message_id, query_ptr);
-  mark_as_known(message_id, query_ptr);
-  query_ptr->net_query_->set_error(Status::Error(error_code, message), current_info_->connection_->get_name().str());
-  query_ptr->net_query_->set_message_id(0);
-  return_query(std::move(query_ptr->net_query_));
+  cleanup_container(message_id, query);
+  mark_as_known(message_id, query);
+  query.net_query_->set_error(Status::Error(error_code, message), current_info_->connection_->get_name().str());
+  query.net_query_->set_message_id(0);
+  return_query(std::move(query.net_query_));
 
   sent_queries_.erase(it);
 }
@@ -1013,14 +1006,14 @@ void Session::on_message_failed_inner(mtproto::MessageId message_id, bool in_con
     return;
   }
 
-  Query *query_ptr = &it->second;
+  Query &query = it->second;
   if (!in_container) {
-    cleanup_container(message_id, query_ptr);
+    cleanup_container(message_id, query);
   }
-  mark_as_known(message_id, query_ptr);
+  mark_as_known(message_id, query);
 
-  query_ptr->net_query_->debug_send_failed();
-  resend_query(std::move(query_ptr->net_query_));
+  query.net_query_->debug_send_failed();
+  resend_query(std::move(query.net_query_));
   sent_queries_.erase(it);
 }
 
@@ -1047,8 +1040,8 @@ void Session::on_message_info(mtproto::MessageId message_id, int32 state, mtprot
   auto it = sent_queries_.find(message_id);
   if (it != sent_queries_.end()) {
     if (it->second.net_query_->update_is_ready()) {
-      dec_container(it->first, &it->second);
-      mark_as_known(it->first, &it->second);
+      dec_container(it->first, it->second);
+      mark_as_known(it->first, it->second);
 
       auto query = std::move(it->second.net_query_);
       query->set_message_id(0);
@@ -1152,19 +1145,14 @@ void Session::connection_send_query(ConnectionInfo *info, NetQueryPtr &&net_quer
   }
 
   auto now = Time::now();
-  bool immediately_fail_query = false;
+  const bool immediately_fail_query = false;
   if (!immediately_fail_query) {
-    net_query->debug(PSTRING() << get_name() << ": send to an MTProto connection");
-    auto r_message_id = info->connection_->send_query(
+    net_query->debug(PSTRING() << get_name() << ": send to " << info->connection_->get_debug_str());
+    message_id = info->connection_->send_query(
         net_query->query().clone(), net_query->gzip_flag() == NetQuery::GzipFlag::On, message_id,
         invoke_after_message_ids, static_cast<bool>(net_query->quick_ack_promise_));
 
     net_query->on_net_write(net_query->query().size());
-
-    if (r_message_id.is_error()) {
-      LOG(FATAL) << "Failed to send query: " << r_message_id.error();
-    }
-    message_id = r_message_id.ok();
   } else {
     if (message_id == mtproto::MessageId()) {
       message_id = auth_data_.next_message_id(now);
@@ -1185,9 +1173,6 @@ void Session::connection_send_query(ConnectionInfo *info, NetQueryPtr &&net_quer
       sent_queries_.emplace(message_id, Query{message_id, std::move(net_query), main_connection_.connection_id_, now});
   LOG_CHECK(status.second) << message_id;
   sent_queries_list_.put(status.first->second.get_list_node());
-  if (!status.second) {
-    LOG(FATAL) << "Duplicate " << message_id;
-  }
   if (immediately_fail_query) {
     on_message_result_error(message_id, 401, "TEST_ERROR");
   }

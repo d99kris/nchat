@@ -68,18 +68,26 @@ class SessionConnection final
   unique_ptr<RawConnection> move_as_raw_connection();
 
   // Interface
-  Result<MessageId> TD_WARN_UNUSED_RESULT send_query(BufferSlice buffer, bool gzip_flag, MessageId message_id = {},
-                                                     vector<MessageId> invoke_after_message_ids = {},
-                                                     bool use_quick_ack = false);
+  MessageId send_query(BufferSlice buffer, bool gzip_flag, MessageId message_id,
+                       vector<MessageId> invoke_after_message_ids, bool use_quick_ack);
+
   std::pair<MessageId, BufferSlice> encrypted_bind(int64 perm_key, int64 nonce, int32 expires_at);
 
   void get_state_info(MessageId message_id);
+
   void resend_answer(MessageId message_id);
+
   void cancel_answer(MessageId message_id);
+
   void destroy_key();
 
   void set_online(bool online_flag, bool is_main);
+
   void force_ack();
+
+  Slice get_debug_str() const {
+    return raw_connection_ == nullptr ? Slice() : raw_connection_->extra().debug_str;
+  }
 
   class Callback {
    public:

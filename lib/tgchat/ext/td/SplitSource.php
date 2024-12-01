@@ -413,7 +413,7 @@ function split_file($file, $chunks, $undo) {
             'SentEmailCode' => 'SentEmailCode',
             'SharedDialog' => 'SharedDialog',
             'sponsored_message_manager[_(-](?![.]get[(][)])|SponsoredMessageManager' => 'SponsoredMessageManager',
-            'StarGift[^M]' => 'StarGift'
+            'StarGift[^M]' => 'StarGift',
             'star_gift_manager[_(-](?![.]get[(][)])|StarGiftManager' => 'StarGiftManager',
             'star_manager[_(-](?![.]get[(][)])|StarManager' => 'StarManager',
             'StarSubscription[^P]' => 'StarSubscription',
@@ -428,6 +428,7 @@ function split_file($file, $chunks, $undo) {
             'story_manager[_(-](?![.]get[(][)])|StoryManager' => 'StoryManager',
             'SuggestedAction|[a-z_]*_suggested_action' => 'SuggestedAction',
             'SynchronousRequests' => 'SynchronousRequests',
+            'TargetDialogTypes' => 'TargetDialogTypes',
             'td_api' => 'td_api',
             'td_db[(][)]|TdDb[^A-Za-z]' => 'TdDb',
             'telegram_api' => 'telegram_api',
@@ -445,6 +446,8 @@ function split_file($file, $chunks, $undo) {
             'video_notes_manager[_(-](?![.]get[(][)])|VideoNotesManager' => 'VideoNotesManager',
             'videos_manager[_(-](?![.]get[(][)])|VideosManager' => 'VideosManager',
             'voice_notes_manager[_(-](?![.]get[(][)])|VoiceNotesManager' => 'VoiceNotesManager',
+            'web_app_manager[_(-](?![.]get[(][)])|WebAppManager' => 'WebAppManager',
+            'WebAppOpenParameters' => 'WebAppOpenParameters',
             'WebPageId(Hash)?' => 'WebPageId',
             'web_pages_manager[_(-](?![.]get[(][)])|WebPagesManager' => 'WebPagesManager');
 

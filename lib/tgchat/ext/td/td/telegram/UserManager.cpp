@@ -44,11 +44,12 @@
 #include "td/telegram/NotificationManager.h"
 #include "td/telegram/OnlineManager.h"
 #include "td/telegram/OptionManager.h"
+#include "td/telegram/Outline.h"
 #include "td/telegram/PeerColor.h"
-#include "td/telegram/PeopleNearbyManager.h"
 #include "td/telegram/Photo.h"
 #include "td/telegram/Photo.hpp"
 #include "td/telegram/PhotoSize.h"
+#include "td/telegram/PremiumGiftOption.h"
 #include "td/telegram/PremiumGiftOption.hpp"
 #include "td/telegram/ReactionListType.h"
 #include "td/telegram/ReactionManager.h"
@@ -841,6 +842,76 @@ class UpdateProfileQuery final : public Td::ResultHandler {
   }
 
   void on_error(Status status) final {
+    promise_.set_error(std::move(status));
+  }
+};
+
+class ToggleUserEmojiStatusPermissionQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+  UserId user_id_;
+  bool can_manage_emoji_status_;
+
+ public:
+  explicit ToggleUserEmojiStatusPermissionQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(UserId user_id, telegram_api::object_ptr<telegram_api::InputUser> &&input_user,
+            bool can_manage_emoji_status) {
+    user_id_ = user_id;
+    can_manage_emoji_status_ = can_manage_emoji_status;
+    send_query(G()->net_query_creator().create(
+        telegram_api::bots_toggleUserEmojiStatusPermission(std::move(input_user), can_manage_emoji_status),
+        {{DialogId(user_id)}}));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::bots_toggleUserEmojiStatusPermission>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    if (result_ptr.ok()) {
+      td_->user_manager_->on_update_bot_can_manage_emoji_status(user_id_, can_manage_emoji_status_);
+    }
+    promise_.set_value(Unit());
+  }
+
+  void on_error(Status status) final {
+    promise_.set_error(std::move(status));
+  }
+};
+
+class UpdateUserEmojiStatusQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+  UserId user_id_;
+  EmojiStatus emoji_status_;
+
+ public:
+  explicit UpdateUserEmojiStatusQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(UserId user_id, telegram_api::object_ptr<telegram_api::InputUser> &&input_user,
+            const EmojiStatus &emoji_status) {
+    user_id_ = user_id;
+    emoji_status_ = emoji_status;
+    send_query(G()->net_query_creator().create(
+        telegram_api::bots_updateUserEmojiStatus(std::move(input_user), emoji_status.get_input_emoji_status()),
+        {{DialogId(user_id)}}));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::bots_updateUserEmojiStatus>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    promise_.set_value(Unit());
+  }
+
+  void on_error(Status status) final {
+    if (status.message() == "USER_PERMISSION_DENIED") {
+      return promise_.set_error(Status::Error(403, "Not enough rights to change the user's emoji status"));
+    }
     promise_.set_error(std::move(status));
   }
 };
@@ -1668,23 +1739,29 @@ void UserManager::UserFull::store(StorerT &storer) const {
   using td::store;
   bool has_about = !about.empty();
   bool has_photo = !photo.is_empty();
-  bool has_description = !description.empty();
-  bool has_commands = !commands.empty();
+  bool has_description = bot_info != nullptr && !bot_info->description.empty();
+  bool has_commands = bot_info != nullptr && !bot_info->commands.empty();
   bool has_private_forward_name = !private_forward_name.empty();
-  bool has_group_administrator_rights = group_administrator_rights != AdministratorRights();
-  bool has_broadcast_administrator_rights = broadcast_administrator_rights != AdministratorRights();
-  bool has_menu_button = menu_button != nullptr;
-  bool has_description_photo = !description_photo.is_empty();
-  bool has_description_animation = description_animation_file_id.is_valid();
-  bool has_premium_gift_options = !premium_gift_options.empty();
+  bool has_group_administrator_rights =
+      bot_info != nullptr && bot_info->group_administrator_rights != AdministratorRights();
+  bool has_broadcast_administrator_rights =
+      bot_info != nullptr && bot_info->broadcast_administrator_rights != AdministratorRights();
+  bool has_menu_button = bot_info != nullptr && bot_info->menu_button != nullptr;
+  bool has_description_photo = bot_info != nullptr && !bot_info->description_photo.is_empty();
+  bool has_description_animation = bot_info != nullptr && bot_info->description_animation_file_id.is_valid();
   bool has_personal_photo = !personal_photo.is_empty();
   bool has_fallback_photo = !fallback_photo.is_empty();
   bool has_business_info = business_info != nullptr && !business_info->is_empty();
   bool has_birthdate = !birthdate.is_empty();
   bool has_personal_channel_id = personal_channel_id.is_valid();
   bool has_flags2 = true;
-  bool has_privacy_policy_url = !privacy_policy_url.empty();
+  bool has_privacy_policy_url = bot_info != nullptr && !bot_info->privacy_policy_url.empty();
   bool has_gift_count = gift_count != 0;
+  bool has_placeholder_path = bot_info != nullptr && !bot_info->placeholder_path.empty();
+  bool has_background_color = bot_info != nullptr && bot_info->background_color != -1;
+  bool has_background_dark_color = bot_info != nullptr && bot_info->background_dark_color != -1;
+  bool has_header_color = bot_info != nullptr && bot_info->header_color != -1;
+  bool has_header_dark_color = bot_info != nullptr && bot_info->header_dark_color != -1;
   BEGIN_STORE_FLAGS();
   STORE_FLAG(has_about);
   STORE_FLAG(is_blocked);
@@ -1702,7 +1779,7 @@ void UserManager::UserFull::store(StorerT &storer) const {
   STORE_FLAG(has_menu_button);
   STORE_FLAG(has_description_photo);
   STORE_FLAG(has_description_animation);
-  STORE_FLAG(has_premium_gift_options);
+  STORE_FLAG(false);  // has_premium_gift_options
   STORE_FLAG(voice_messages_forbidden);
   STORE_FLAG(has_personal_photo);
   STORE_FLAG(has_fallback_photo);
@@ -1722,6 +1799,13 @@ void UserManager::UserFull::store(StorerT &storer) const {
     STORE_FLAG(has_preview_medias);
     STORE_FLAG(has_privacy_policy_url);
     STORE_FLAG(has_gift_count);
+    STORE_FLAG(can_view_revenue);
+    STORE_FLAG(can_manage_emoji_status);
+    STORE_FLAG(has_placeholder_path);
+    STORE_FLAG(has_background_color);
+    STORE_FLAG(has_background_dark_color);
+    STORE_FLAG(has_header_color);
+    STORE_FLAG(has_header_dark_color);
     END_STORE_FLAGS();
   }
   if (has_about) {
@@ -1733,32 +1817,29 @@ void UserManager::UserFull::store(StorerT &storer) const {
     store(photo, storer);
   }
   if (has_description) {
-    store(description, storer);
+    store(bot_info->description, storer);
   }
   if (has_commands) {
-    store(commands, storer);
+    store(bot_info->commands, storer);
   }
   if (has_private_forward_name) {
     store(private_forward_name, storer);
   }
   if (has_group_administrator_rights) {
-    store(group_administrator_rights, storer);
+    store(bot_info->group_administrator_rights, storer);
   }
   if (has_broadcast_administrator_rights) {
-    store(broadcast_administrator_rights, storer);
+    store(bot_info->broadcast_administrator_rights, storer);
   }
   if (has_menu_button) {
-    store(menu_button, storer);
+    store(bot_info->menu_button, storer);
   }
   if (has_description_photo) {
-    store(description_photo, storer);
+    store(bot_info->description_photo, storer);
   }
   if (has_description_animation) {
-    storer.context()->td().get_actor_unsafe()->animations_manager_->store_animation(description_animation_file_id,
-                                                                                    storer);
-  }
-  if (has_premium_gift_options) {
-    store(premium_gift_options, storer);
+    storer.context()->td().get_actor_unsafe()->animations_manager_->store_animation(
+        bot_info->description_animation_file_id, storer);
   }
   if (has_personal_photo) {
     store(personal_photo, storer);
@@ -1776,10 +1857,25 @@ void UserManager::UserFull::store(StorerT &storer) const {
     store(personal_channel_id, storer);
   }
   if (has_privacy_policy_url) {
-    store(privacy_policy_url, storer);
+    store(bot_info->privacy_policy_url, storer);
   }
   if (has_gift_count) {
     store(gift_count, storer);
+  }
+  if (has_placeholder_path) {
+    store(bot_info->placeholder_path, storer);
+  }
+  if (has_background_color) {
+    store(bot_info->background_color, storer);
+  }
+  if (has_background_dark_color) {
+    store(bot_info->background_dark_color, storer);
+  }
+  if (has_header_color) {
+    store(bot_info->header_color, storer);
+  }
+  if (has_header_dark_color) {
+    store(bot_info->header_dark_color, storer);
   }
 }
 
@@ -1796,7 +1892,7 @@ void UserManager::UserFull::parse(ParserT &parser) {
   bool has_menu_button;
   bool has_description_photo;
   bool has_description_animation;
-  bool has_premium_gift_options;
+  bool legacy_has_premium_gift_options;
   bool has_personal_photo;
   bool has_fallback_photo;
   bool has_business_info;
@@ -1805,6 +1901,11 @@ void UserManager::UserFull::parse(ParserT &parser) {
   bool has_flags2;
   bool has_privacy_policy_url = false;
   bool has_gift_count = false;
+  bool has_placeholder_path = false;
+  bool has_background_color = false;
+  bool has_background_dark_color = false;
+  bool has_header_color = false;
+  bool has_header_dark_color = false;
   BEGIN_PARSE_FLAGS();
   PARSE_FLAG(has_about);
   PARSE_FLAG(is_blocked);
@@ -1822,7 +1923,7 @@ void UserManager::UserFull::parse(ParserT &parser) {
   PARSE_FLAG(has_menu_button);
   PARSE_FLAG(has_description_photo);
   PARSE_FLAG(has_description_animation);
-  PARSE_FLAG(has_premium_gift_options);
+  PARSE_FLAG(legacy_has_premium_gift_options);
   PARSE_FLAG(voice_messages_forbidden);
   PARSE_FLAG(has_personal_photo);
   PARSE_FLAG(has_fallback_photo);
@@ -1842,6 +1943,13 @@ void UserManager::UserFull::parse(ParserT &parser) {
     PARSE_FLAG(has_preview_medias);
     PARSE_FLAG(has_privacy_policy_url);
     PARSE_FLAG(has_gift_count);
+    PARSE_FLAG(can_view_revenue);
+    PARSE_FLAG(can_manage_emoji_status);
+    PARSE_FLAG(has_placeholder_path);
+    PARSE_FLAG(has_background_color);
+    PARSE_FLAG(has_background_dark_color);
+    PARSE_FLAG(has_header_color);
+    PARSE_FLAG(has_header_dark_color);
     END_PARSE_FLAGS();
   }
   if (has_about) {
@@ -1853,31 +1961,32 @@ void UserManager::UserFull::parse(ParserT &parser) {
     parse(photo, parser);
   }
   if (has_description) {
-    parse(description, parser);
+    parse(add_bot_info()->description, parser);
   }
   if (has_commands) {
-    parse(commands, parser);
+    parse(add_bot_info()->commands, parser);
   }
   if (has_private_forward_name) {
     parse(private_forward_name, parser);
   }
   if (has_group_administrator_rights) {
-    parse(group_administrator_rights, parser);
+    parse(add_bot_info()->group_administrator_rights, parser);
   }
   if (has_broadcast_administrator_rights) {
-    parse(broadcast_administrator_rights, parser);
+    parse(add_bot_info()->broadcast_administrator_rights, parser);
   }
   if (has_menu_button) {
-    parse(menu_button, parser);
+    parse(add_bot_info()->menu_button, parser);
   }
   if (has_description_photo) {
-    parse(description_photo, parser);
+    parse(add_bot_info()->description_photo, parser);
   }
   if (has_description_animation) {
-    description_animation_file_id =
+    add_bot_info()->description_animation_file_id =
         parser.context()->td().get_actor_unsafe()->animations_manager_->parse_animation(parser);
   }
-  if (has_premium_gift_options) {
+  if (legacy_has_premium_gift_options) {
+    vector<PremiumGiftOption> premium_gift_options;
     parse(premium_gift_options, parser);
   }
   if (has_personal_photo) {
@@ -1896,10 +2005,25 @@ void UserManager::UserFull::parse(ParserT &parser) {
     parse(personal_channel_id, parser);
   }
   if (has_privacy_policy_url) {
-    parse(privacy_policy_url, parser);
+    parse(add_bot_info()->privacy_policy_url, parser);
   }
   if (has_gift_count) {
     parse(gift_count, parser);
+  }
+  if (has_placeholder_path) {
+    parse(add_bot_info()->placeholder_path, parser);
+  }
+  if (has_background_color) {
+    parse(add_bot_info()->background_color, parser);
+  }
+  if (has_background_dark_color) {
+    parse(add_bot_info()->background_dark_color, parser);
+  }
+  if (has_header_color) {
+    parse(add_bot_info()->header_color, parser);
+  }
+  if (has_header_dark_color) {
+    parse(add_bot_info()->header_dark_color, parser);
   }
 }
 
@@ -2370,6 +2494,9 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
       u = add_user(user_id);
     }
     CHECK(u != nullptr);
+    if (unknown_users_.erase(user_id) != 0) {
+      u->is_photo_inited = true;
+    }
   }
 
   if (have_access_hash) {  // access_hash must be updated before photo
@@ -2789,10 +2916,10 @@ void UserManager::do_update_user_photo(User *u, UserId user_id, ProfilePhoto &&n
   if (need_update_profile_photo(u->photo, new_photo)) {
     LOG_IF(ERROR, u->access_hash == -1 && new_photo.small_file_id.is_valid())
         << "Update profile photo of " << user_id << " without access hash from " << source;
-    u->photo = new_photo;
-    u->is_photo_changed = true;
-    LOG(DEBUG) << "Photo has changed for " << user_id << " to " << u->photo
+    LOG(DEBUG) << "Update photo of " << user_id << " from " << u->photo << " to " << new_photo
                << ", invalidate_photo_cache = " << invalidate_photo_cache << " from " << source;
+    u->photo = std::move(new_photo);
+    u->is_photo_changed = true;
     u->is_changed = true;
 
     if (invalidate_photo_cache) {
@@ -3444,8 +3571,12 @@ void UserManager::on_update_user_full_commands(
       transform(std::move(bot_commands), [](telegram_api::object_ptr<telegram_api::botCommand> &&bot_command) {
         return BotCommand(std::move(bot_command));
       });
-  if (user_full->commands != commands) {
-    user_full->commands = std::move(commands);
+  if (user_full->bot_info == nullptr && commands.empty()) {
+    return;
+  }
+  auto bot_info = user_full->add_bot_info();
+  if (bot_info->commands != commands) {
+    bot_info->commands = std::move(commands);
     user_full->is_changed = true;
   }
 }
@@ -3530,14 +3661,18 @@ void UserManager::on_update_user_full_menu_button(
     UserFull *user_full, UserId user_id, telegram_api::object_ptr<telegram_api::BotMenuButton> &&bot_menu_button) {
   CHECK(user_full != nullptr);
   auto new_button = get_bot_menu_button(std::move(bot_menu_button));
+  if (user_full->bot_info == nullptr && new_button == nullptr) {
+    return;
+  }
+  auto bot_info = user_full->add_bot_info();
   bool is_changed;
-  if (user_full->menu_button == nullptr) {
+  if (bot_info->menu_button == nullptr) {
     is_changed = (new_button != nullptr);
   } else {
-    is_changed = (new_button == nullptr || *user_full->menu_button != *new_button);
+    is_changed = (new_button == nullptr || *bot_info->menu_button != *new_button);
   }
   if (is_changed) {
-    user_full->menu_button = std::move(new_button);
+    bot_info->menu_button = std::move(new_button);
     user_full->is_changed = true;
   }
 }
@@ -3565,6 +3700,31 @@ void UserManager::on_update_user_full_has_preview_medias(UserFull *user_full, Us
   CHECK(user_full != nullptr);
   if (user_full->has_preview_medias != has_preview_medias) {
     user_full->has_preview_medias = has_preview_medias;
+    user_full->is_changed = true;
+  }
+}
+
+void UserManager::on_update_bot_can_manage_emoji_status(UserId bot_user_id, bool can_manage_emoji_status) {
+  CHECK(bot_user_id.is_valid());
+  if (!have_user_force(bot_user_id, "on_update_bot_can_manage_emoji_status") || !is_user_bot(bot_user_id)) {
+    return;
+  }
+  if (td_->auth_manager_->is_bot()) {
+    return;
+  }
+
+  auto user_full = get_user_full_force(bot_user_id, "on_update_bot_can_manage_emoji_status");
+  if (user_full != nullptr) {
+    on_update_user_full_can_manage_emoji_status(user_full, bot_user_id, can_manage_emoji_status);
+    update_user_full(user_full, bot_user_id, "on_update_bot_can_manage_emoji_status");
+  }
+}
+
+void UserManager::on_update_user_full_can_manage_emoji_status(UserFull *user_full, UserId user_id,
+                                                              bool can_manage_emoji_status) {
+  CHECK(user_full != nullptr);
+  if (user_full->can_manage_emoji_status != can_manage_emoji_status) {
+    user_full->can_manage_emoji_status = can_manage_emoji_status;
     user_full->is_changed = true;
   }
 }
@@ -3628,6 +3788,7 @@ void UserManager::on_update_online_status_privacy() {
 }
 
 void UserManager::on_update_phone_number_privacy() {
+  CHECK(!td_->auth_manager_->is_bot());
   // all UserFull.need_phone_number_privacy_exception can be outdated now,
   // so mark all of them as expired
   users_full_.foreach([&](const UserId &user_id, unique_ptr<UserFull> &user_full) { user_full->expires_at = 0.0; });
@@ -3904,7 +4065,7 @@ UserManager::User *UserManager::get_user_force(UserId user_id, const char *sourc
       username = G()->is_test_dc() ? "channelsbot" : "Channel_Bot";
       bot_info_version = G()->is_test_dc() ? 1 : 4;
       profile_photo_id = 587627495930570665;
-    } else if (user_id == get_service_notifications_user_id()) {
+    } else if (user_id == get_anti_spam_bot_user_id()) {
       flags |= USER_FLAG_HAS_USERNAME | USER_FLAG_IS_BOT;
       if (G()->is_test_dc()) {
         first_name = "antispambot";
@@ -4264,8 +4425,7 @@ bool UserManager::is_user_received_from_server(UserId user_id) const {
 
 bool UserManager::can_report_user(UserId user_id) const {
   auto u = get_user(user_id);
-  return u != nullptr && !u->is_deleted && !u->is_support &&
-         (u->is_bot || td_->people_nearby_manager_->is_user_nearby(user_id));
+  return u != nullptr && !u->is_deleted && !u->is_support && u->is_bot;
 }
 
 const DialogPhoto *UserManager::get_user_dialog_photo(UserId user_id) {
@@ -4274,7 +4434,7 @@ const DialogPhoto *UserManager::get_user_dialog_photo(UserId user_id) {
     return nullptr;
   }
 
-  apply_pending_user_photo(u, user_id);
+  apply_pending_user_photo(u, user_id, "get_user_dialog_photo");
   return &u->photo;
 }
 
@@ -4464,6 +4624,18 @@ bool UserManager::get_user_voice_messages_forbidden(UserId user_id) const {
     return user_full->voice_messages_forbidden;
   }
   return false;
+}
+
+bool UserManager::get_my_sponsored_enabled() const {
+  auto user_id = get_my_id();
+  if (!is_user_premium(user_id)) {
+    return true;
+  }
+  auto user_full = get_user_full(user_id);
+  if (user_full != nullptr) {
+    return user_full->sponsored_enabled;
+  }
+  return true;
 }
 
 bool UserManager::get_user_read_dates_private(UserId user_id) {
@@ -5118,6 +5290,31 @@ void UserManager::on_delete_profile_photo(int64 profile_photo_id, Promise<Unit> 
   promise.set_value(Unit());
 }
 
+void UserManager::toggle_user_can_manage_emoji_status(UserId user_id, bool can_manage_emoji_status,
+                                                      Promise<Unit> &&promise) {
+  TRY_RESULT_PROMISE(promise, input_user, get_input_user(user_id));
+  if (!is_user_bot(user_id)) {
+    return promise.set_error(Status::Error(400, "The user must be a bot"));
+  }
+  td_->create_handler<ToggleUserEmojiStatusPermissionQuery>(std::move(promise))
+      ->send(user_id, std::move(input_user), can_manage_emoji_status);
+}
+
+void UserManager::set_user_emoji_status(UserId user_id, const EmojiStatus &emoji_status, Promise<Unit> &&promise) {
+  TRY_RESULT_PROMISE(promise, input_user, get_input_user(user_id));
+  td_->create_handler<UpdateUserEmojiStatusQuery>(std::move(promise))
+      ->send(user_id, std::move(input_user), emoji_status);
+}
+
+void UserManager::on_set_user_emoji_status(UserId user_id, EmojiStatus emoji_status, Promise<Unit> &&promise) {
+  User *u = get_user(user_id);
+  if (u != nullptr) {
+    on_update_user_emoji_status(u, user_id, emoji_status);
+    update_user(u, user_id);
+  }
+  promise.set_value(Unit());
+}
+
 void UserManager::set_username(const string &username, Promise<Unit> &&promise) {
   if (!username.empty() && !is_allowed_username(username)) {
     return promise.set_error(Status::Error(400, "Username is invalid"));
@@ -5415,7 +5612,7 @@ void UserManager::get_user_profile_photos(UserId user_id, int32 offset, int32 li
     return promise.set_error(Status::Error(400, "User not found"));
   }
 
-  apply_pending_user_photo(u, user_id);
+  apply_pending_user_photo(u, user_id, "get_user_profile_photos");
 
   auto user_photos = add_user_photos(user_id);
   if (user_photos->count != -1) {  // know photo count
@@ -5672,13 +5869,13 @@ void UserManager::on_get_user_photos(UserId user_id, int32 offset, int32 limit, 
   }
 }
 
-void UserManager::apply_pending_user_photo(User *u, UserId user_id) {
+void UserManager::apply_pending_user_photo(User *u, UserId user_id, const char *source) {
   if (u == nullptr || u->is_photo_inited) {
     return;
   }
 
   if (pending_user_photos_.count(user_id) > 0) {
-    do_update_user_photo(u, user_id, std::move(pending_user_photos_[user_id]), "apply_pending_user_photo");
+    do_update_user_photo(u, user_id, std::move(pending_user_photos_[user_id]), source);
     pending_user_photos_.erase(user_id);
     update_user(u, user_id);
   }
@@ -6879,7 +7076,9 @@ void UserManager::on_get_user_full(telegram_api::object_ptr<telegram_api::userFu
     return;
   }
 
-  apply_pending_user_photo(u, user_id);
+  auto is_bot = is_user_bot(u);
+
+  apply_pending_user_photo(u, user_id, "on_get_user_full");
 
   td_->messages_manager_->on_update_dialog_notify_settings(DialogId(user_id), std::move(user->notify_settings_),
                                                            "on_get_user_full");
@@ -6926,31 +7125,24 @@ void UserManager::on_get_user_full(telegram_api::object_ptr<telegram_api::userFu
   bool supports_video_calls = user->video_calls_available_ && !user->phone_calls_private_;
   bool has_private_calls = user->phone_calls_private_;
   bool voice_messages_forbidden = u->is_premium ? user->voice_messages_forbidden_ : false;
-  auto premium_gift_options = get_premium_gift_options(std::move(user->premium_gifts_));
-  AdministratorRights group_administrator_rights(user->bot_group_admin_rights_, ChannelType::Megagroup);
-  AdministratorRights broadcast_administrator_rights(user->bot_broadcast_admin_rights_, ChannelType::Broadcast);
   bool has_pinned_stories = user->stories_pinned_available_;
   auto birthdate = Birthdate(std::move(user->birthday_));
   auto personal_channel_id = ChannelId(user->personal_channel_id_);
   auto sponsored_enabled = user->sponsored_enabled_;
+  auto can_view_revenue = user->can_view_revenue_;
   if (user_full->can_be_called != can_be_called || user_full->supports_video_calls != supports_video_calls ||
       user_full->has_private_calls != has_private_calls ||
-      user_full->group_administrator_rights != group_administrator_rights ||
-      user_full->broadcast_administrator_rights != broadcast_administrator_rights ||
-      user_full->premium_gift_options != premium_gift_options ||
       user_full->voice_messages_forbidden != voice_messages_forbidden ||
       user_full->can_pin_messages != can_pin_messages || user_full->has_pinned_stories != has_pinned_stories ||
-      user_full->sponsored_enabled != sponsored_enabled) {
+      user_full->sponsored_enabled != sponsored_enabled || user_full->can_view_revenue != can_view_revenue) {
     user_full->can_be_called = can_be_called;
     user_full->supports_video_calls = supports_video_calls;
     user_full->has_private_calls = has_private_calls;
-    user_full->group_administrator_rights = group_administrator_rights;
-    user_full->broadcast_administrator_rights = broadcast_administrator_rights;
-    user_full->premium_gift_options = std::move(premium_gift_options);
     user_full->voice_messages_forbidden = voice_messages_forbidden;
     user_full->can_pin_messages = can_pin_messages;
     user_full->has_pinned_stories = has_pinned_stories;
     user_full->sponsored_enabled = sponsored_enabled;
+    user_full->can_view_revenue = can_view_revenue;
 
     user_full->is_changed = true;
   }
@@ -6981,45 +7173,93 @@ void UserManager::on_get_user_full(telegram_api::object_ptr<telegram_api::userFu
     user_full->is_changed = true;
     td_->group_call_manager_->on_update_dialog_about(DialogId(user_id), user_full->about, true);
   }
-  string description;
-  Photo description_photo;
-  FileId description_animation_file_id;
-  if (user->bot_info_ != nullptr && !td_->auth_manager_->is_bot()) {
-    description = std::move(user->bot_info_->description_);
-    description_photo = get_photo(td_, std::move(user->bot_info_->description_photo_), DialogId(user_id));
-    auto document = std::move(user->bot_info_->description_document_);
-    if (document != nullptr) {
-      int32 document_id = document->get_id();
-      if (document_id == telegram_api::document::ID) {
-        auto parsed_document = td_->documents_manager_->on_get_document(
-            move_tl_object_as<telegram_api::document>(document), DialogId(user_id));
-        if (parsed_document.type == Document::Type::Animation) {
-          description_animation_file_id = parsed_document.file_id;
-        } else {
-          LOG(ERROR) << "Receive non-animation document in bot description";
+  if (is_bot && !td_->auth_manager_->is_bot()) {
+    auto *bot_info = user_full->add_bot_info();
+    AdministratorRights group_administrator_rights(user->bot_group_admin_rights_, ChannelType::Megagroup);
+    AdministratorRights broadcast_administrator_rights(user->bot_broadcast_admin_rights_, ChannelType::Broadcast);
+    if (bot_info->group_administrator_rights != group_administrator_rights ||
+        bot_info->broadcast_administrator_rights != broadcast_administrator_rights) {
+      bot_info->group_administrator_rights = group_administrator_rights;
+      bot_info->broadcast_administrator_rights = broadcast_administrator_rights;
+
+      user_full->is_changed = true;
+    }
+
+    string description;
+    Photo description_photo;
+    FileId description_animation_file_id;
+    string placeholder_path;
+    int32 background_color = -1;
+    int32 background_dark_color = -1;
+    int32 header_color = -1;
+    int32 header_dark_color = -1;
+    if (user->bot_info_ != nullptr) {
+      description = std::move(user->bot_info_->description_);
+      description_photo = get_photo(td_, std::move(user->bot_info_->description_photo_), DialogId(user_id));
+      auto document = std::move(user->bot_info_->description_document_);
+      if (document != nullptr) {
+        int32 document_id = document->get_id();
+        if (document_id == telegram_api::document::ID) {
+          auto parsed_document = td_->documents_manager_->on_get_document(
+              move_tl_object_as<telegram_api::document>(document), DialogId(user_id));
+          if (parsed_document.type == Document::Type::Animation) {
+            description_animation_file_id = parsed_document.file_id;
+          } else {
+            LOG(ERROR) << "Receive non-animation document in bot description";
+          }
+        }
+      }
+
+      on_update_user_full_commands(user_full, user_id, std::move(user->bot_info_->commands_));
+      on_update_user_full_menu_button(user_full, user_id, std::move(user->bot_info_->menu_button_));
+      on_update_user_full_has_preview_medias(user_full, user_id, user->bot_info_->has_preview_medias_);
+
+      if (bot_info->privacy_policy_url != user->bot_info_->privacy_policy_url_) {
+        bot_info->privacy_policy_url = std::move(user->bot_info_->privacy_policy_url_);
+        user_full->is_changed = true;
+      }
+      if (user->bot_info_->app_settings_ != nullptr) {
+        auto *app_settings = user->bot_info_->app_settings_.get();
+        placeholder_path = app_settings->placeholder_path_.as_slice().str();
+        if ((app_settings->flags_ & telegram_api::botAppSettings::BACKGROUND_COLOR_MASK) != 0) {
+          background_color = app_settings->background_color_;
+        }
+        if ((app_settings->flags_ & telegram_api::botAppSettings::BACKGROUND_DARK_COLOR_MASK) != 0) {
+          background_dark_color = app_settings->background_dark_color_;
+        }
+        if ((app_settings->flags_ & telegram_api::botAppSettings::HEADER_COLOR_MASK) != 0) {
+          header_color = app_settings->header_color_;
+        }
+        if ((app_settings->flags_ & telegram_api::botAppSettings::HEADER_DARK_COLOR_MASK) != 0) {
+          header_dark_color = app_settings->header_dark_color_;
         }
       }
     }
-
-    on_update_user_full_commands(user_full, user_id, std::move(user->bot_info_->commands_));
-    on_update_user_full_menu_button(user_full, user_id, std::move(user->bot_info_->menu_button_));
-    on_update_user_full_has_preview_medias(user_full, user_id, std::move(user->bot_info_->has_preview_medias_));
-
-    if (user_full->privacy_policy_url != user->bot_info_->privacy_policy_url_) {
-      user_full->privacy_policy_url = std::move(user->bot_info_->privacy_policy_url_);
+    if (bot_info->description != description) {
+      bot_info->description = std::move(description);
       user_full->is_changed = true;
     }
+    if (bot_info->description_photo != description_photo ||
+        bot_info->description_animation_file_id != description_animation_file_id) {
+      bot_info->description_photo = std::move(description_photo);
+      bot_info->description_animation_file_id = description_animation_file_id;
+      user_full->is_changed = true;
+    }
+    if (bot_info->background_color != background_color || bot_info->background_dark_color != background_dark_color ||
+        bot_info->header_color != header_color || bot_info->header_dark_color != header_dark_color) {
+      bot_info->background_color = background_color;
+      bot_info->background_dark_color = background_dark_color;
+      bot_info->header_color = header_color;
+      bot_info->header_dark_color = header_dark_color;
+      user_full->is_changed = true;
+    }
+    if (bot_info->placeholder_path != placeholder_path) {
+      bot_info->placeholder_path = std::move(placeholder_path);
+      user_full->need_save_to_database = true;
+    }
   }
-  if (user_full->description != description) {
-    user_full->description = std::move(description);
-    user_full->is_changed = true;
-  }
-  if (user_full->description_photo != description_photo ||
-      user_full->description_animation_file_id != description_animation_file_id) {
-    user_full->description_photo = std::move(description_photo);
-    user_full->description_animation_file_id = description_animation_file_id;
-    user_full->is_changed = true;
-  }
+
+  on_update_user_full_can_manage_emoji_status(user_full, user_id, user->bot_can_manage_emoji_status_);
   if (personal_channel_id != ChannelId() &&
       td_->chat_manager_->get_channel_type(personal_channel_id) != ChannelType::Broadcast) {
     LOG(ERROR) << "Receive personal " << personal_channel_id << " of the type "
@@ -7187,6 +7427,14 @@ void UserManager::on_load_user_full_from_database(UserId user_id, string value) 
   }
 }
 
+void UserManager::get_web_app_placeholder(UserId user_id, Promise<td_api::object_ptr<td_api::outline>> &&promise) {
+  auto user_full = get_user_full_force(user_id, "get_web_app_placeholder");
+  if (user_full == nullptr || user_full->bot_info == nullptr) {
+    return promise.set_value(nullptr);
+  }
+  promise.set_value(get_outline_object(user_full->bot_info->placeholder_path, 1.0, PSLICE() << "Web App " << user_id));
+}
+
 int64 UserManager::get_user_full_profile_photo_id(const UserFull *user_full) {
   if (!user_full->personal_photo.is_empty()) {
     return user_full->personal_photo.id.get();
@@ -7268,19 +7516,12 @@ void UserManager::drop_user_full(UserId user_id) {
   user_full->need_phone_number_privacy_exception = false;
   user_full->wallpaper_overridden = false;
   user_full->about = string();
-  user_full->description = string();
-  user_full->description_photo = Photo();
-  user_full->description_animation_file_id = FileId();
-  user_full->menu_button = nullptr;
-  user_full->commands.clear();
+  user_full->bot_info = nullptr;
   user_full->gift_count = 0;
   user_full->common_chat_count = 0;
   user_full->personal_channel_id = ChannelId();
   user_full->business_info = nullptr;
   user_full->private_forward_name.clear();
-  user_full->group_administrator_rights = {};
-  user_full->broadcast_administrator_rights = {};
-  user_full->premium_gift_options.clear();
   user_full->voice_messages_forbidden = false;
   user_full->has_pinned_stories = false;
   user_full->read_dates_private = false;
@@ -7288,7 +7529,8 @@ void UserManager::drop_user_full(UserId user_id) {
   user_full->birthdate = {};
   user_full->sponsored_enabled = false;
   user_full->has_preview_medias = false;
-  user_full->privacy_policy_url = string();
+  user_full->can_view_revenue = false;
+  user_full->can_manage_emoji_status = false;
   user_full->is_changed = true;
 
   update_user_full(user_full, user_id, "drop_user_full");
@@ -7829,11 +8071,13 @@ void UserManager::update_user_full(UserFull *user_full, UserId user_id, const ch
     if (!user_full->fallback_photo.is_empty()) {
       append(file_ids, photo_get_file_ids(user_full->fallback_photo));
     }
-    if (!user_full->description_photo.is_empty()) {
-      append(file_ids, photo_get_file_ids(user_full->description_photo));
-    }
-    if (user_full->description_animation_file_id.is_valid()) {
-      file_ids.push_back(user_full->description_animation_file_id);
+    if (user_full->bot_info != nullptr) {
+      if (!user_full->bot_info->description_photo.is_empty()) {
+        append(file_ids, photo_get_file_ids(user_full->bot_info->description_photo));
+      }
+      if (user_full->bot_info->description_animation_file_id.is_valid()) {
+        file_ids.push_back(user_full->bot_info->description_animation_file_id);
+      }
     }
     if (user_full->business_info != nullptr) {
       append(file_ids, user_full->business_info->get_file_ids(td_));
@@ -7942,7 +8186,9 @@ td_api::object_ptr<td_api::updateUser> UserManager::get_update_unknown_user_obje
 
 int64 UserManager::get_user_id_object(UserId user_id, const char *source) const {
   if (user_id.is_valid() && get_user(user_id) == nullptr && unknown_users_.count(user_id) == 0) {
-    LOG(ERROR) << "Have no information about " << user_id << " from " << source;
+    if (source != nullptr) {
+      LOG(ERROR) << "Have no information about " << user_id << " from " << source;
+    }
     unknown_users_.insert(user_id);
     send_closure(G()->td(), &Td::send_update, get_update_unknown_user_object(user_id));
   }
@@ -8015,21 +8261,31 @@ td_api::object_ptr<td_api::userFullInfo> UserManager::get_user_full_info_object(
   bool is_premium = is_user_premium(u);
   td_api::object_ptr<td_api::formattedText> bio_object;
   if (is_bot) {
-    auto menu_button = get_bot_menu_button_object(td_, user_full->menu_button.get());
-    auto commands =
-        transform(user_full->commands, [](const auto &command) { return command.get_bot_command_object(); });
-    bot_info = td_api::make_object<td_api::botInfo>(
-        user_full->about, user_full->description,
-        get_photo_object(td_->file_manager_.get(), user_full->description_photo),
-        td_->animations_manager_->get_animation_object(user_full->description_animation_file_id),
-        std::move(menu_button), std::move(commands), user_full->privacy_policy_url,
-        user_full->group_administrator_rights == AdministratorRights()
-            ? nullptr
-            : user_full->group_administrator_rights.get_chat_administrator_rights_object(),
-        user_full->broadcast_administrator_rights == AdministratorRights()
-            ? nullptr
-            : user_full->broadcast_administrator_rights.get_chat_administrator_rights_object(),
-        user_full->has_preview_medias, nullptr, nullptr, nullptr, nullptr);
+    if (user_full->bot_info == nullptr) {
+      bot_info = td_api::make_object<td_api::botInfo>(
+          user_full->about, string(), nullptr, nullptr, nullptr, Auto(), string(), nullptr, nullptr, -1, -1, -1, -1,
+          user_full->can_view_revenue, user_full->can_manage_emoji_status, user_full->has_preview_medias, nullptr,
+          nullptr, nullptr, nullptr);
+    } else {
+      const auto *user_bot_info = user_full->bot_info.get();
+      auto menu_button = get_bot_menu_button_object(td_, user_bot_info->menu_button.get());
+      auto commands =
+          transform(user_bot_info->commands, [](const auto &command) { return command.get_bot_command_object(); });
+      bot_info = td_api::make_object<td_api::botInfo>(
+          user_full->about, user_bot_info->description,
+          get_photo_object(td_->file_manager_.get(), user_bot_info->description_photo),
+          td_->animations_manager_->get_animation_object(user_bot_info->description_animation_file_id),
+          std::move(menu_button), std::move(commands), user_bot_info->privacy_policy_url,
+          user_bot_info->group_administrator_rights == AdministratorRights()
+              ? nullptr
+              : user_bot_info->group_administrator_rights.get_chat_administrator_rights_object(),
+          user_bot_info->broadcast_administrator_rights == AdministratorRights()
+              ? nullptr
+              : user_bot_info->broadcast_administrator_rights.get_chat_administrator_rights_object(),
+          user_bot_info->background_color, user_bot_info->background_dark_color, user_bot_info->header_color,
+          user_bot_info->header_dark_color, user_full->can_view_revenue, user_full->can_manage_emoji_status,
+          user_full->has_preview_medias, nullptr, nullptr, nullptr, nullptr);
+    }
     if (u != nullptr && u->can_be_edited_bot && u->usernames.has_editable_username()) {
       auto bot_username = u->usernames.get_editable_username();
       bot_info->edit_commands_link_ = td_api::make_object<td_api::internalLinkTypeBotStart>(
@@ -8077,8 +8333,7 @@ td_api::object_ptr<td_api::userFullInfo> UserManager::get_user_full_info_object(
       user_full->can_be_called, user_full->supports_video_calls, user_full->has_private_calls,
       !user_full->private_forward_name.empty(), voice_messages_forbidden, user_full->has_pinned_stories,
       user_full->sponsored_enabled, user_full->need_phone_number_privacy_exception, user_full->wallpaper_overridden,
-      std::move(bio_object), user_full->birthdate.get_birthdate_object(), personal_chat_id,
-      get_premium_payment_options_object(user_full->premium_gift_options), user_full->gift_count,
+      std::move(bio_object), user_full->birthdate.get_birthdate_object(), personal_chat_id, user_full->gift_count,
       user_full->common_chat_count, std::move(business_info), std::move(bot_info));
 }
 

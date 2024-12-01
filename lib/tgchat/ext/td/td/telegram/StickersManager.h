@@ -81,6 +81,9 @@ class StickersManager final : public Actor {
 
   bool have_custom_emoji(CustomEmojiId custom_emoji_id);
 
+  td_api::object_ptr<td_api::outline> get_sticker_outline_object(FileId file_id, bool for_animated_emoji,
+                                                                 bool for_clicked_animated_emoji) const;
+
   tl_object_ptr<td_api::sticker> get_sticker_object(FileId file_id, bool for_animated_emoji = false,
                                                     bool for_clicked_animated_emoji = false) const;
 
@@ -199,7 +202,7 @@ class StickersManager final : public Actor {
 
   void get_sticker_set_name(StickerSetId set_id, Promise<string> &&promise);
 
-  StickerSetId search_sticker_set(const string &short_name_to_search, Promise<Unit> &&promise);
+  StickerSetId search_sticker_set(const string &short_name_to_search, bool ignore_cache, Promise<Unit> &&promise);
 
   std::pair<int32, vector<StickerSetId>> search_installed_sticker_sets(StickerType sticker_type, const string &query,
                                                                        int32 limit, Promise<Unit> &&promise);
@@ -601,10 +604,6 @@ class StickersManager final : public Actor {
 
   CustomEmojiId get_custom_emoji_id(FileId sticker_id) const;
 
-  static vector<td_api::object_ptr<td_api::closedVectorPath>> get_sticker_minithumbnail(CSlice path,
-                                                                                        StickerSetId sticker_set_id,
-                                                                                        int64 document_id, double zoom);
-
   PhotoFormat get_sticker_set_thumbnail_format(const StickerSet *sticker_set) const;
 
   double get_sticker_set_minithumbnail_zoom(const StickerSet *sticker_set) const;
@@ -847,7 +846,7 @@ class StickersManager final : public Actor {
                                                  Promise<Unit> &&promise);
 
   struct StickerInputDocument {
-    string sticker_set_short_name_;
+    string sticker_set_unique_name_;
     telegram_api::object_ptr<telegram_api::inputDocument> input_document_;
   };
   Result<StickerInputDocument> get_sticker_input_document(const tl_object_ptr<td_api::InputFile> &sticker) const;

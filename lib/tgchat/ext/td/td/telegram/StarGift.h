@@ -24,6 +24,9 @@ class StarGift {
   int64 default_sell_star_count_ = 0;
   int32 availability_remains_ = 0;
   int32 availability_total_ = 0;
+  int32 first_sale_date_ = 0;
+  int32 last_sale_date_ = 0;
+  bool is_for_birthday_ = false;
 
   friend bool operator==(const StarGift &lhs, const StarGift &rhs);
 

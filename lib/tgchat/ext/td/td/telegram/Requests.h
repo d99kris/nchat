@@ -357,8 +357,6 @@ class Requests {
 
   void on_request(uint64 id, td_api::searchChatsOnServer &request);
 
-  void on_request(uint64 id, const td_api::searchChatsNearby &request);
-
   void on_request(uint64 id, td_api::searchRecentlyFoundChats &request);
 
   void on_request(uint64 id, const td_api::addRecentlyFoundChat &request);
@@ -1031,9 +1029,13 @@ class Requests {
 
   void on_request(uint64 id, const td_api::setCloseFriends &request);
 
-  void on_request(uint64 id, td_api::setUserPersonalProfilePhoto &request);
+  void on_request(uint64 id, const td_api::setUserPersonalProfilePhoto &request);
 
-  void on_request(uint64 id, td_api::suggestUserProfilePhoto &request);
+  void on_request(uint64 id, const td_api::suggestUserProfilePhoto &request);
+
+  void on_request(uint64 id, const td_api::toggleBotCanManageEmojiStatus &request);
+
+  void on_request(uint64 id, const td_api::setUserEmojiStatus &request);
 
   void on_request(uint64 id, td_api::searchUserByPhoneNumber &request);
 
@@ -1121,8 +1123,6 @@ class Requests {
 
   void on_request(uint64 id, const td_api::getBotInfoShortDescription &request);
 
-  void on_request(uint64 id, const td_api::setLocation &request);
-
   void on_request(uint64 id, td_api::setBusinessLocation &request);
 
   void on_request(uint64 id, td_api::setBusinessOpeningHours &request);
@@ -1202,6 +1202,8 @@ class Requests {
   void on_request(uint64 id, td_api::getSupergroupMembers &request);
 
   void on_request(uint64 id, td_api::closeSecretChat &request);
+
+  void on_request(uint64 id, const td_api::getStickerOutline &request);
 
   void on_request(uint64 id, td_api::getStickers &request);
 
@@ -1409,9 +1411,15 @@ class Requests {
 
   void on_request(uint64 id, td_api::answerInlineQuery &request);
 
+  void on_request(uint64 id, td_api::savePreparedInlineMessage &request);
+
+  void on_request(uint64 id, td_api::getPreparedInlineMessage &request);
+
   void on_request(uint64 id, td_api::getGrossingWebAppBots &request);
 
   void on_request(uint64 id, td_api::searchWebApp &request);
+
+  void on_request(uint64 id, const td_api::getWebAppPlaceholder &request);
 
   void on_request(uint64 id, td_api::getWebAppLinkUrl &request);
 
@@ -1426,6 +1434,8 @@ class Requests {
   void on_request(uint64 id, const td_api::closeWebApp &request);
 
   void on_request(uint64 id, td_api::answerWebAppQuery &request);
+
+  void on_request(uint64 id, td_api::checkWebAppFileDownload &request);
 
   void on_request(uint64 id, td_api::getCallbackQueryAnswer &request);
 
@@ -1554,6 +1564,8 @@ class Requests {
   void on_request(uint64 id, td_api::getStarSubscriptions &request);
 
   void on_request(uint64 id, td_api::editStarSubscription &request);
+
+  void on_request(uint64 id, td_api::editUserStarSubscription &request);
 
   void on_request(uint64 id, td_api::reuseStarSubscription &request);
 

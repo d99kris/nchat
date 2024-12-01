@@ -264,8 +264,9 @@ class QuickReplyManager::SendQuickReplyMessageQuery final : public Td::ResultHan
     send_query(G()->net_query_creator().create(
         telegram_api::messages_sendMessage(
             flags, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/,
-            false /*ignored*/, false /*ignored*/, telegram_api::make_object<telegram_api::inputPeerSelf>(),
-            std::move(reply_to), message_text->text, m->random_id, nullptr, std::move(entities), 0, nullptr,
+            false /*ignored*/, false /*ignored*/, false /*ignored*/,
+            telegram_api::make_object<telegram_api::inputPeerSelf>(), std::move(reply_to), message_text->text,
+            m->random_id, nullptr, std::move(entities), 0, nullptr,
             td_->quick_reply_manager_->get_input_quick_reply_shortcut(m->shortcut_id), 0),
         {{"me"}}));
   }
@@ -383,10 +384,10 @@ class QuickReplyManager::SendQuickReplyMediaQuery final : public Td::ResultHandl
     send_query(G()->net_query_creator().create(
         telegram_api::messages_sendMedia(
             flags, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/,
-            false /*ignored*/, telegram_api::make_object<telegram_api::inputPeerSelf>(), std::move(reply_to),
-            std::move(input_media), message_text == nullptr ? string() : message_text->text, m->random_id, nullptr,
-            std::move(entities), 0, nullptr, td_->quick_reply_manager_->get_input_quick_reply_shortcut(m->shortcut_id),
-            0),
+            false /*ignored*/, false /*ignored*/, telegram_api::make_object<telegram_api::inputPeerSelf>(),
+            std::move(reply_to), std::move(input_media), message_text == nullptr ? string() : message_text->text,
+            m->random_id, nullptr, std::move(entities), 0, nullptr,
+            td_->quick_reply_manager_->get_input_quick_reply_shortcut(m->shortcut_id), 0),
         {{"me"}}));
   }
 
@@ -550,8 +551,8 @@ class QuickReplyManager::SendQuickReplyMultiMediaQuery final : public Td::Result
     send_query(G()->net_query_creator().create(
         telegram_api::messages_sendMultiMedia(
             flags, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/,
-            false /*ignored*/, telegram_api::make_object<telegram_api::inputPeerSelf>(), std::move(reply_to),
-            std::move(input_single_media), 0, nullptr,
+            false /*ignored*/, false /*ignored*/, telegram_api::make_object<telegram_api::inputPeerSelf>(),
+            std::move(reply_to), std::move(input_single_media), 0, nullptr,
             td_->quick_reply_manager_->get_input_quick_reply_shortcut(shortcut_id_), 0),
         {{"me"}}));
   }
@@ -2730,10 +2731,6 @@ void QuickReplyManager::edit_quick_reply_message(
   auto old_message_content_type = m->content->get_type();
   switch (old_message_content_type) {
     case MessageContentType::Text:
-      if (new_message_content_type != MessageContentType::Text) {
-        return promise.set_error(Status::Error(400, "Text messages can be edited only to text messages"));
-      }
-      break;
     case MessageContentType::Animation:
     case MessageContentType::Audio:
     case MessageContentType::Document:
@@ -2743,8 +2740,10 @@ void QuickReplyManager::edit_quick_reply_message(
           new_message_content_type != MessageContentType::Audio &&
           new_message_content_type != MessageContentType::Document &&
           new_message_content_type != MessageContentType::Photo &&
-          new_message_content_type != MessageContentType::Video) {
-        return promise.set_error(Status::Error(400, "Media messages can be edited only to media messages"));
+          new_message_content_type != MessageContentType::Video &&
+          (new_message_content_type != MessageContentType::Text ||
+           old_message_content_type != MessageContentType::Text)) {
+        return promise.set_error(Status::Error(400, "Message can't be edited to the specified message type"));
       }
       if (m->media_album_id != 0) {
         if (old_message_content_type != new_message_content_type) {
