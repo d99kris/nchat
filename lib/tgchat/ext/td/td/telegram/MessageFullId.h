@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -45,6 +45,10 @@ struct MessageFullId {
   }
 
   static MessageFullId get_message_full_id(const tl_object_ptr<telegram_api::Message> &message_ptr, bool is_scheduled) {
+    return get_message_full_id(message_ptr.get(), is_scheduled);
+  }
+
+  static MessageFullId get_message_full_id(const telegram_api::Message *message_ptr, bool is_scheduled) {
     return {DialogId::get_message_dialog_id(message_ptr), MessageId::get_message_id(message_ptr, is_scheduled)};
   }
 

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -8,6 +8,7 @@
 
 #include "td/telegram/DialogId.h"
 #include "td/telegram/files/FileSourceId.h"
+#include "td/telegram/StarAmount.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/UserId.h"
@@ -27,7 +28,7 @@ class StarManager final : public Actor {
  public:
   StarManager(Td *td, ActorShared<> parent);
 
-  void on_update_owned_star_count(int64 star_count);
+  void on_update_owned_star_amount(StarAmount star_amount);
 
   void add_pending_owned_star_count(int64 star_count, bool move_to_owned);
 
@@ -75,6 +76,8 @@ class StarManager final : public Actor {
 
   static int64 get_star_count(int64 amount, bool allow_negative = false);
 
+  static int32 get_nanostar_count(int64 &star_count, int32 nanostar_count);
+
   static int32 get_months_by_star_count(int64 star_count);
 
   void get_current_state(vector<td_api::object_ptr<td_api::Update>> &updates) const;
@@ -101,8 +104,10 @@ class StarManager final : public Actor {
 
   bool is_owned_star_count_inited_ = false;
   int64 owned_star_count_ = 0;
+  int32 owned_nanostar_count_ = 0;
   int64 pending_owned_star_count_ = 0;
   int64 sent_star_count_ = 0;
+  int32 sent_nanostar_count_ = 0;
 
   FlatHashMap<DialogId, FlatHashMap<string, FileSourceId>, DialogIdHash> star_transaction_file_source_ids_[2];
 };

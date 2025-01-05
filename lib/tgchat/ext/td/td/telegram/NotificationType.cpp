@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -346,6 +346,12 @@ class NotificationTypePushMessage final : public NotificationType {
         if (key == "MESSAGE_STARGIFT") {
           auto star_count = to_integer<int64>(arg);
           return td_api::make_object<td_api::pushMessageContentGift>(star_count);
+        }
+        if (key == "MESSAGE_STARGIFT_TRANSFER") {
+          return td_api::make_object<td_api::pushMessageContentUpgradedGift>(false);
+        }
+        if (key == "MESSAGE_STARGIFT_UPGRADE") {
+          return td_api::make_object<td_api::pushMessageContentUpgradedGift>(true);
         }
         if (key == "MESSAGE_STICKER") {
           return td_api::make_object<td_api::pushMessageContentSticker>(

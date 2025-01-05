@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -300,9 +300,6 @@ td_api::object_ptr<td_api::Object> SynchronousRequests::do_request(
     const td_api::getChatFolderDefaultIconName &request) {
   if (request.folder_ == nullptr) {
     return make_error(400, "Chat folder must be non-empty");
-  }
-  if (!check_utf8(request.folder_->title_)) {
-    return make_error(400, "Chat folder title must be encoded in UTF-8");
   }
   if (request.folder_->icon_ != nullptr && !check_utf8(request.folder_->icon_->name_)) {
     return make_error(400, "Chat folder icon name must be encoded in UTF-8");

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -270,8 +270,8 @@ class ReactionManager final : public Actor {
 
   SavedReactionTags *get_saved_reaction_tags(SavedMessagesTopicId saved_messages_topic_id);
 
-  void reget_saved_messages_tags(SavedMessagesTopicId saved_messages_topic_id,
-                                 Promise<td_api::object_ptr<td_api::savedMessagesTags>> &&promise);
+  void reload_saved_messages_tags(SavedMessagesTopicId saved_messages_topic_id,
+                                  Promise<td_api::object_ptr<td_api::savedMessagesTags>> &&promise);
 
   void on_get_saved_messages_tags(SavedMessagesTopicId saved_messages_topic_id,
                                   Result<telegram_api::object_ptr<telegram_api::messages_SavedReactionTags>> &&r_tags);

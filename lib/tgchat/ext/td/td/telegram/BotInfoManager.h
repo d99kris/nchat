@@ -1,11 +1,12 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #pragma once
 
+#include "td/telegram/DialogId.h"
 #include "td/telegram/DialogParticipant.h"
 #include "td/telegram/files/FileId.h"
 #include "td/telegram/files/FileSourceId.h"
@@ -38,6 +39,8 @@ class BotInfoManager final : public Actor {
   BotInfoManager(BotInfoManager &&) = delete;
   BotInfoManager &operator=(BotInfoManager &&) = delete;
   ~BotInfoManager() final;
+
+  void get_owned_bots(Promise<td_api::object_ptr<td_api::users>> &&promise);
 
   void set_default_group_administrator_rights(AdministratorRights administrator_rights, Promise<Unit> &&promise);
 
@@ -87,6 +90,9 @@ class BotInfoManager final : public Actor {
                           Promise<Unit> &&promise);
 
   void get_bot_info_about(UserId bot_user_id, const string &language_code, Promise<string> &&promise);
+
+  void set_custom_bot_verification(UserId bot_user_id, DialogId dialog_id, bool is_verified,
+                                   const string &custom_description, Promise<Unit> &&promise);
 
  private:
   static constexpr double MAX_QUERY_DELAY = 0.01;

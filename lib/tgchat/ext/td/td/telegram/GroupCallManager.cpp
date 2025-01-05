@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -452,7 +452,7 @@ class JoinGroupCallQuery final : public Td::ResultHandler {
     }
     auto query = G()->net_query_creator().create(telegram_api::phone_joinGroupCall(
         flags, false /*ignored*/, false /*ignored*/, input_group_call_id.get_input_group_call(),
-        std::move(join_as_input_peer), invite_hash, make_tl_object<telegram_api::dataJSON>(payload)));
+        std::move(join_as_input_peer), invite_hash, 0, telegram_api::make_object<telegram_api::dataJSON>(payload)));
     auto join_query_ref = query.get_weak();
     send_query(std::move(query));
     return join_query_ref;
@@ -3728,10 +3728,9 @@ void GroupCallManager::set_group_call_participant_is_speaking(GroupCallId group_
     on_user_speaking_in_group_call(group_call_id, dialog_id, date, false, is_recursive);
   }
 
-  if (group_call->audio_source == audio_source && group_call->dialog_id.is_valid() &&
-      group_call->is_speaking != is_speaking) {
+  if (group_call->audio_source == audio_source && group_call->is_speaking != is_speaking) {
     group_call->is_speaking = is_speaking;
-    if (is_speaking) {
+    if (is_speaking && group_call->dialog_id.is_valid()) {
       pending_send_speaking_action_timeout_.add_timeout_in(group_call_id.get(), 0.0);
     }
   }
@@ -4376,7 +4375,7 @@ InputGroupCallId GroupCallManager::update_group_call(const tl_object_ptr<telegra
     if (!group_call->is_active) {
       // never update ended calls
     } else if (!call.is_active) {
-      // always update to an ended call, droping also is_joined, is_speaking and other local flags
+      // always update to an ended call, dropping also is_joined, is_speaking and other local flags
       fail_promises(group_call->after_join, Status::Error(400, "Group call ended"));
       *group_call = std::move(call);
       need_update = true;

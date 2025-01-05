@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -63,10 +63,6 @@ int32 PartsManager::set_streaming_offset(int64 offset, int64 limit) {
   }
 
   return finish();
-}
-
-int32 PartsManager::get_pending_count() const {
-  return pending_count_;
 }
 
 void PartsManager::set_streaming_limit(int64 limit) {
@@ -235,10 +231,6 @@ bool PartsManager::is_part_in_streaming_limit(int part_id) const {
   auto offset_begin = static_cast<int64>(part_id) * static_cast<int64>(get_part_size());
   auto offset_end = offset_begin + static_cast<int64>(get_part(part_id).size);
 
-  if (offset_begin >= get_expected_size()) {
-    return false;
-  }
-
   if (streaming_limit_ == 0) {
     return true;
   }
@@ -266,14 +258,17 @@ bool PartsManager::is_streaming_limit_reached() {
   update_first_not_ready_part();
   auto part_id = first_streaming_not_ready_part_;
 
+  //LOG(ERROR) << unknown_size_flag_ << ' ' << part_id << ' ' << part_count_ << ' ' << first_not_ready_part_ << ' '
+  //           << get_estimated_extra() << ' ' << (part_id == part_count_ ? true : is_part_in_streaming_limit(part_id));
+
   // wrap
   if (!unknown_size_flag_ && part_id == part_count_) {
     part_id = first_not_ready_part_;
   }
-  if (part_id == part_count_) {
-    return false;
+  if (part_id == part_count_ || !is_part_in_streaming_limit(part_id)) {
+    return get_estimated_extra() == 0;
   }
-  return !is_part_in_streaming_limit(part_id);
+  return false;
 }
 
 Result<Part> PartsManager::start_part() {
@@ -302,9 +297,11 @@ Result<Part> PartsManager::start_part() {
     }
   }
 
-  if (!is_part_in_streaming_limit(part_id)) {
+  if (!is_part_in_streaming_limit(part_id) ||
+      static_cast<int64>(part_id) * static_cast<int64>(get_part_size()) >= (unknown_size_flag_ ? max_size_ : size_)) {
     return get_empty_part();
   }
+
   CHECK(part_status_[part_id] == PartStatus::Empty);
   on_part_start(part_id);
   return get_part(part_id);
@@ -326,6 +323,9 @@ Status PartsManager::set_known_prefix(int64 size, bool is_ready) {
     size_ = size;
     unknown_size_flag_ = false;
     known_prefix_flag_ = false;
+    if (streaming_limit_ != 0) {
+      set_streaming_limit(streaming_limit_);
+    }
   } else {
     part_count_ = static_cast<int>(size / static_cast<int64>(part_size_));
   }
@@ -356,15 +356,17 @@ Status PartsManager::on_part_ok(int part_id, size_t part_size, size_t actual_siz
     streaming_ready_size_ += narrow_cast<int64>(actual_size);
   }
 
-  VLOG(file_loader) << "Transferred part " << part_id << " of size " << part_size
+  VLOG(file_loader) << "Transferred part " << part_id << " of size " << part_size << " with actual size " << actual_size
                     << ", total ready size = " << ready_size_;
 
   int64 offset = narrow_cast<int64>(part_size_) * part_id;
   int64 end_offset = offset + narrow_cast<int64>(actual_size);
   if (unknown_size_flag_) {
     CHECK(part_size == part_size_);
-    if (actual_size < part_size_) {
-      max_size_ = min(max_size_, end_offset);
+    bool is_size_changed = false;
+    if (actual_size < part_size_ && end_offset < max_size_) {
+      max_size_ = end_offset;
+      is_size_changed = true;
     }
     if (actual_size) {
       min_size_ = max(min_size_, end_offset);
@@ -377,6 +379,11 @@ Status PartsManager::on_part_ok(int part_id, size_t part_size, size_t actual_siz
     } else if (min_size_ == max_size_) {
       unknown_size_flag_ = false;
       size_ = min_size_;
+      is_size_changed = true;
+    }
+
+    if (is_size_changed && streaming_limit_ != 0) {
+      set_streaming_limit(streaming_limit_);
     }
   } else {
     if ((actual_size < part_size && offset < size_) || (offset >= size_ && actual_size > 0)) {
@@ -418,27 +425,26 @@ int64 PartsManager::get_size_or_zero() const {
 int64 PartsManager::get_estimated_extra() const {
   auto total_estimated_extra = get_expected_size() - get_ready_size();
   if (streaming_limit_ != 0) {
-    int64 expected_size = get_expected_size();
-    int64 streaming_begin = streaming_offset_ / get_part_size() * get_part_size();
-    int64 streaming_end =
-        (streaming_offset_ + streaming_limit_ + get_part_size() - 1) / get_part_size() * get_part_size();
-    int64 streaming_size = streaming_end - streaming_begin;
+    int64 part_size = get_part_size();
+    auto round_up = [part_size](int64 size) {
+      return (size + part_size - 1) / part_size * part_size;
+    };
+    int64 streaming_begin = streaming_offset_ / part_size * part_size;
+    int64 streaming_size = 0;
     if (unknown_size_flag_) {
-      if (streaming_begin < expected_size) {
-        streaming_size = min(expected_size - streaming_begin, streaming_size);
-      } else {
-        streaming_size = 0;
-      }
+      streaming_begin = min(streaming_begin, max_size_);
+      int64 streaming_end = min(round_up(streaming_offset_ + streaming_limit_), max_size_);
+      streaming_size = streaming_end - streaming_begin;
     } else {
-      if (streaming_end > expected_size) {
-        int64 total = streaming_limit_;
-        int64 suffix = 0;
-        if (streaming_offset_ < expected_size_) {
-          suffix = expected_size_ - streaming_begin;
-          total -= expected_size_ - streaming_offset_;
+      if (streaming_offset_ + streaming_limit_ <= size_) {
+        int64 streaming_end = min(round_up(streaming_offset_ + streaming_limit_), size_);
+        streaming_size = streaming_end - streaming_begin;
+      } else {
+        if (streaming_offset_ < size_) {
+          int64 prefix = min(round_up(streaming_offset_ + streaming_limit_ - size_), size_);
+          int64 suffix = size_ - streaming_begin;
+          streaming_size = min(size_, prefix + suffix);
         }
-        int64 prefix = (total + get_part_size() - 1) / get_part_size() * get_part_size();
-        streaming_size = min(expected_size, prefix + suffix);
       }
     }
     int64 res = streaming_size;
@@ -465,7 +471,7 @@ int64 PartsManager::get_ready_size() const {
 
 int64 PartsManager::get_expected_size() const {
   if (unknown_size_flag_) {
-    return max(static_cast<int64>(512 * (1 << 10)), get_ready_size() * 2);
+    return min(max(min_size_ + static_cast<int64>(512 << 10), get_ready_size() * 2), max_size_);
   }
   return get_size();
 }

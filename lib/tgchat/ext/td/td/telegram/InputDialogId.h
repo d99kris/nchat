@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -24,8 +24,6 @@ class InputDialogId {
 
   explicit constexpr InputDialogId(DialogId dialog_id) : dialog_id(dialog_id) {
   }
-
-  explicit InputDialogId(const telegram_api::object_ptr<telegram_api::InputUser> &input_user);
 
   explicit InputDialogId(const tl_object_ptr<telegram_api::InputPeer> &input_peer);
 

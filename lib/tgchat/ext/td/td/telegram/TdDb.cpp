@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -92,6 +92,14 @@ Status init_binlog(Binlog &binlog, string path, BinlogKeyValue<Binlog> &binlog_p
       case LogEvent::HandlerType::StopPoll:
         events.to_poll_manager.push_back(event.clone());
         break;
+      case LogEvent::HandlerType::ToggleDialogIsBlockedOnServer:
+      case LogEvent::HandlerType::ToggleDialogIsMarkedAsUnreadOnServer:
+      case LogEvent::HandlerType::ToggleDialogIsPinnedOnServer:
+      case LogEvent::HandlerType::ToggleDialogIsTranslatableOnServer:
+      case LogEvent::HandlerType::ToggleDialogReportSpamStateOnServer:
+      case LogEvent::HandlerType::ToggleDialogViewAsMessagesOnServer:
+        events.to_dialog_manager.push_back(event.clone());
+        break;
       case LogEvent::HandlerType::SendMessage:
       case LogEvent::HandlerType::DeleteMessage:
       case LogEvent::HandlerType::DeleteMessagesOnServer:
@@ -104,19 +112,14 @@ Status init_binlog(Binlog &binlog, string path, BinlogKeyValue<Binlog> &binlog_p
       case LogEvent::HandlerType::DeleteDialogHistoryOnServer:
       case LogEvent::HandlerType::ReadAllDialogMentionsOnServer:
       case LogEvent::HandlerType::DeleteAllChannelMessagesFromSenderOnServer:
-      case LogEvent::HandlerType::ToggleDialogIsPinnedOnServer:
       case LogEvent::HandlerType::ReorderPinnedDialogsOnServer:
       case LogEvent::HandlerType::SaveDialogDraftMessageOnServer:
       case LogEvent::HandlerType::UpdateDialogNotificationSettingsOnServer:
-      case LogEvent::HandlerType::ResetAllNotificationSettingsOnServer:
-      case LogEvent::HandlerType::ToggleDialogReportSpamStateOnServer:
       case LogEvent::HandlerType::RegetDialog:
       case LogEvent::HandlerType::GetChannelDifference:
       case LogEvent::HandlerType::ReadHistoryInSecretChat:
-      case LogEvent::HandlerType::ToggleDialogIsMarkedAsUnreadOnServer:
       case LogEvent::HandlerType::SetDialogFolderIdOnServer:
       case LogEvent::HandlerType::DeleteScheduledMessagesOnServer:
-      case LogEvent::HandlerType::ToggleDialogIsBlockedOnServer:
       case LogEvent::HandlerType::ReadMessageThreadHistoryOnServer:
       case LogEvent::HandlerType::BlockMessageSenderFromRepliesOnServer:
       case LogEvent::HandlerType::UnpinAllDialogMessagesOnServer:
@@ -124,8 +127,6 @@ Status init_binlog(Binlog &binlog, string path, BinlogKeyValue<Binlog> &binlog_p
       case LogEvent::HandlerType::DeleteDialogMessagesByDateOnServer:
       case LogEvent::HandlerType::ReadAllDialogReactionsOnServer:
       case LogEvent::HandlerType::DeleteTopicHistoryOnServer:
-      case LogEvent::HandlerType::ToggleDialogIsTranslatableOnServer:
-      case LogEvent::HandlerType::ToggleDialogViewAsMessagesOnServer:
       case LogEvent::HandlerType::SendQuickReplyShortcutMessages:
         events.to_messages_manager.push_back(event.clone());
         break;
@@ -136,6 +137,7 @@ Status init_binlog(Binlog &binlog, string path, BinlogKeyValue<Binlog> &binlog_p
       case LogEvent::HandlerType::EditStory:
         events.to_story_manager.push_back(event.clone());
         break;
+      case LogEvent::HandlerType::ResetAllNotificationSettingsOnServer:
       case LogEvent::HandlerType::UpdateScopeNotificationSettingsOnServer:
       case LogEvent::HandlerType::UpdateReactionNotificationSettingsOnServer:
         events.to_notification_settings_manager.push_back(event.clone());

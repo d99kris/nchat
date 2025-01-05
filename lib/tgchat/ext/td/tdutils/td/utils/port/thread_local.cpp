@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -23,7 +23,7 @@ void add_thread_local_destructor(unique_ptr<Destructor> destructor) {
 }  // namespace detail
 
 void clear_thread_locals() {
-  // ensure that no destructors were added during destructors invokation
+  // ensure that no destructors were added during destructors invocation
   auto to_delete = detail::thread_local_destructors;
   detail::thread_local_destructors = nullptr;
   delete to_delete;

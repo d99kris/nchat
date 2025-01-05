@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -7,6 +7,7 @@
 #pragma once
 
 #include "td/telegram/AccentColorId.h"
+#include "td/telegram/CustomEmojiId.h"
 #include "td/telegram/DialogId.h"
 #include "td/telegram/Photo.h"
 #include "td/telegram/StarSubscriptionPricing.h"
@@ -117,6 +118,7 @@ class DialogInviteLinkManager final : public Actor {
     string description;
     StarSubscriptionPricing subscription_pricing;
     int64 subscription_form_id;
+    CustomEmojiId bot_verification_icon;
     bool creates_join_request = false;
     bool can_refulfill_subscription = false;
     bool is_chat = false;

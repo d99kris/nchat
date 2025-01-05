@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -474,8 +474,8 @@ Result<AttachMenuManager::AttachMenuBot> AttachMenuManager::get_attach_menu_bot(
     }
 
     auto expected_document_type = ends_with(name, "_static") ? Document::Type::General : Document::Type::Sticker;
-    auto parsed_document =
-        td_->documents_manager_->on_get_document(move_tl_object_as<telegram_api::document>(icon->icon_), DialogId());
+    auto parsed_document = td_->documents_manager_->on_get_document(
+        move_tl_object_as<telegram_api::document>(icon->icon_), DialogId(), false);
     if (parsed_document.type != expected_document_type) {
       LOG(ERROR) << "Receive wrong attachment menu bot icon \"" << name << "\" for " << user_id;
       continue;

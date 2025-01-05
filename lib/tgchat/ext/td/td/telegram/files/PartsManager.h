@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -43,7 +43,6 @@ class PartsManager {
   int64 get_unchecked_ready_prefix_size();
   int64 get_size() const;
   int64 get_size_or_zero() const;
-  int64 get_expected_size() const;
   int64 get_estimated_extra() const;
   int64 get_ready_size() const;
   size_t get_part_size() const;
@@ -52,7 +51,6 @@ class PartsManager {
   int32 get_ready_prefix_count();
   int64 get_streaming_offset() const;
   string get_bitmask();
-  int32 get_pending_count() const;
 
  private:
   static constexpr int MAX_PART_COUNT = 4000;
@@ -102,7 +100,10 @@ class PartsManager {
   void update_first_empty_part();
   void update_first_not_ready_part();
 
+  int64 get_expected_size() const;
+
   bool is_streaming_limit_reached();
+
   bool is_part_in_streaming_limit(int part_id) const;
 
   friend StringBuilder &operator<<(StringBuilder &string_builder, const PartsManager &parts_manager);

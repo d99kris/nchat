@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -10,6 +10,7 @@
 #include "td/telegram/td_api.h"
 
 #include "td/utils/common.h"
+#include "td/utils/HashTableUtils.h"
 #include "td/utils/Promise.h"
 #include "td/utils/Slice.h"
 
@@ -30,7 +31,8 @@ struct SuggestedAction {
     GiftPremiumForChristmas,
     BirthdaySetup,
     PremiumGrace,
-    StarsSubscriptionLowBalance
+    StarsSubscriptionLowBalance,
+    UserpicSetup
   };
   Type type_ = Type::Empty;
   DialogId dialog_id_;
@@ -65,9 +67,14 @@ struct SuggestedAction {
   void parse(ParserT &parser);
 };
 
+struct SuggestedActionHash {
+  uint32 operator()(SuggestedAction suggested_action) const {
+    return combine_hashes(DialogIdHash()(suggested_action.dialog_id_), static_cast<int32>(suggested_action.type_));
+  }
+};
+
 inline bool operator==(const SuggestedAction &lhs, const SuggestedAction &rhs) {
-  CHECK(lhs.dialog_id_ == rhs.dialog_id_);
-  return lhs.type_ == rhs.type_;
+  return lhs.type_ == rhs.type_ && lhs.dialog_id_ == rhs.dialog_id_;
 }
 
 inline bool operator!=(const SuggestedAction &lhs, const SuggestedAction &rhs) {
@@ -75,7 +82,9 @@ inline bool operator!=(const SuggestedAction &lhs, const SuggestedAction &rhs) {
 }
 
 inline bool operator<(const SuggestedAction &lhs, const SuggestedAction &rhs) {
-  CHECK(lhs.dialog_id_ == rhs.dialog_id_);
+  if (lhs.dialog_id_ != rhs.dialog_id_) {
+    return lhs.dialog_id_.get() < rhs.dialog_id_.get();
+  }
   return static_cast<int32>(lhs.type_) < static_cast<int32>(rhs.type_);
 }
 

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -297,9 +297,12 @@ class DownloadManagerImpl final : public DownloadManager {
       file_info.expected_size = expected_size;
       file_info.downloaded_size = downloaded_size;
       if (is_paused && file_info.is_paused != is_paused) {
-        file_info.is_paused = is_paused;
+        file_info.is_paused = true;
         file_info.need_save_to_database = true;
         need_update = true;
+
+        // keep the state consistent
+        callback_->pause_file(file_info.file_id, file_info.internal_download_id);
       }
     });
     if (is_search_inited_ && need_update) {

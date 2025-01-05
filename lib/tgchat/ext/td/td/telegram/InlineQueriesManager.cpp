@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -364,6 +364,10 @@ class SendWebViewResultMessageQuery final : public Td::ResultHandler {
 InlineQueriesManager::InlineQueriesManager(Td *td, ActorShared<> parent) : td_(td), parent_(std::move(parent)) {
   drop_inline_query_result_timeout_.set_callback(on_drop_inline_query_result_timeout_callback);
   drop_inline_query_result_timeout_.set_callback_data(static_cast<void *>(this));
+
+  drop_inline_query_message_timeout_.set_callback(on_drop_inline_query_message_timeout_callback);
+  drop_inline_query_message_timeout_.set_callback_data(static_cast<void *>(this));
+
   next_inline_query_time_ = Time::now();
 }
 
@@ -393,11 +397,32 @@ void InlineQueriesManager::on_drop_inline_query_result_timeout(int64 query_hash)
   if (it->second.pending_request_count == 0) {
     if (it->second.results != nullptr) {
       auto query_id = it->second.results->inline_query_id_;
-      inline_message_contents_.erase(query_id);
-      query_id_to_bot_user_id_.erase(query_id);
+      if (query_id) {
+        drop_inline_query_message_timeout_.set_timeout_in(query_id, 3600);
+      }
     }
     inline_query_results_.erase(it);
   }
+}
+
+void InlineQueriesManager::on_drop_inline_query_message_timeout_callback(void *inline_queries_manager_ptr,
+                                                                         int64 query_id) {
+  if (G()->close_flag()) {
+    return;
+  }
+
+  auto inline_queries_manager = static_cast<InlineQueriesManager *>(inline_queries_manager_ptr);
+  send_closure_later(inline_queries_manager->actor_id(inline_queries_manager),
+                     &InlineQueriesManager::on_drop_inline_query_message_timeout, query_id);
+}
+
+void InlineQueriesManager::on_drop_inline_query_message_timeout(int64 query_id) {
+  if (G()->close_flag()) {
+    return;
+  }
+
+  inline_message_contents_.erase(query_id);
+  query_id_to_bot_user_id_.erase(query_id);
 }
 
 void InlineQueriesManager::after_get_difference() {
@@ -766,13 +791,7 @@ Result<tl_object_ptr<telegram_api::InputBotInlineResult>> InlineQueriesManager::
       auto article = move_tl_object_as<td_api::inputInlineQueryResultArticle>(result);
       type = "article";
       id = std::move(article->id_);
-      if (!article->url_.empty()) {
-        content_url = std::move(article->url_);
-        content_type = "text/html";
-        if (!article->hide_url_) {
-          url = content_url;
-        }
-      }
+      url = std::move(article->url_);
       title = std::move(article->title_);
       description = std::move(article->description_);
       thumbnail_url = std::move(article->thumbnail_url_);
@@ -1528,8 +1547,8 @@ tl_object_ptr<td_api::inlineQueryResultsButton> copy(const td_api::inlineQueryRe
 
 template <>
 tl_object_ptr<td_api::inlineQueryResultArticle> copy(const td_api::inlineQueryResultArticle &obj) {
-  return td_api::make_object<td_api::inlineQueryResultArticle>(obj.id_, obj.url_, obj.hide_url_, obj.title_,
-                                                               obj.description_, copy(obj.thumbnail_));
+  return td_api::make_object<td_api::inlineQueryResultArticle>(obj.id_, obj.url_, obj.title_, obj.description_,
+                                                               copy(obj.thumbnail_));
 }
 
 template <>
@@ -1744,7 +1763,7 @@ td_api::object_ptr<td_api::InlineQueryResult> InlineQueriesManager::get_inline_q
         CHECK(document_id == telegram_api::document::ID);
 
         auto parsed_document = td_->documents_manager_->on_get_document(
-            telegram_api::move_object_as<telegram_api::document>(document_ptr), DialogId());
+            telegram_api::move_object_as<telegram_api::document>(document_ptr), DialogId(), false);
         switch (parsed_document.type) {
           case Document::Type::Animation: {
             LOG_IF(WARNING, result->type_ != "gif") << "Wrong result type " << result->type_;
@@ -1877,14 +1896,7 @@ td_api::object_ptr<td_api::InlineQueryResult> InlineQueriesManager::get_inline_q
       if (result->type_ == "article") {
         auto article = td_api::make_object<td_api::inlineQueryResultArticle>();
         article->id_ = std::move(result->id_);
-        article->url_ = get_web_document_url(result->content_);
-        if (result->url_.empty()) {
-          article->hide_url_ = true;
-        } else {
-          LOG_IF(ERROR, result->url_ != article->url_)
-              << "URL has changed from " << article->url_ << " to " << result->url_;
-          article->hide_url_ = false;
-        }
+        article->url_ = std::move(result->url_);
         article->title_ = std::move(result->title_);
         article->description_ = std::move(result->description_);
         article->thumbnail_ = register_thumbnail(std::move(result->thumb_));
@@ -2041,7 +2053,7 @@ td_api::object_ptr<td_api::InlineQueryResult> InlineQueriesManager::get_inline_q
            get_web_document_photo_size(td_->file_manager_.get(), FileType::Thumbnail, DialogId(),
                                        std::move(result->thumb_)),
            std::move(attributes)},
-          DialogId(), nullptr, default_document_type);
+          DialogId(), false, nullptr, default_document_type);
       auto file_id = parsed_document.file_id;
       if (!file_id.is_valid()) {
         break;

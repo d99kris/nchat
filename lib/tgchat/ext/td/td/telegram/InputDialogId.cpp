@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -14,25 +14,6 @@
 #include "td/utils/logging.h"
 
 namespace td {
-
-InputDialogId::InputDialogId(const telegram_api::object_ptr<telegram_api::InputUser> &input_user) {
-  CHECK(input_user != nullptr);
-  switch (input_user->get_id()) {
-    case telegram_api::inputUser::ID: {
-      auto user = static_cast<const telegram_api::inputUser *>(input_user.get());
-      UserId user_id(user->user_id_);
-      if (user_id.is_valid()) {
-        dialog_id = DialogId(user_id);
-        access_hash = user->access_hash_;
-        return;
-      }
-      break;
-    }
-    default:
-      break;
-  }
-  LOG(ERROR) << "Receive " << to_string(input_user);
-}
 
 InputDialogId::InputDialogId(const tl_object_ptr<telegram_api::InputPeer> &input_peer) {
   CHECK(input_peer != nullptr);

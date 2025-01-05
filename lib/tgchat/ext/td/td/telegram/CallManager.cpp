@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -17,7 +17,11 @@
 
 namespace td {
 
-CallManager::CallManager(ActorShared<> parent) : parent_(std::move(parent)) {
+CallManager::CallManager(Td *td, ActorShared<> parent) : td_(td), parent_(std::move(parent)) {
+}
+
+void CallManager::tear_down() {
+  parent_.reset();
 }
 
 void CallManager::update_call(telegram_api::object_ptr<telegram_api::updatePhoneCall> call) {
@@ -77,14 +81,15 @@ void CallManager::update_call_signaling_data(int64 call_id, string data) {
 }
 
 void CallManager::create_call(UserId user_id, tl_object_ptr<telegram_api::InputUser> &&input_user,
-                              CallProtocol &&protocol, bool is_video, Promise<CallId> promise) {
+                              CallProtocol &&protocol, bool is_video, GroupCallId group_call_id,
+                              Promise<CallId> promise) {
   LOG(INFO) << "Create call with " << user_id;
   auto call_id = create_call_actor();
   auto actor = get_call_actor(call_id);
   CHECK(!actor.empty());
   auto safe_promise = SafePromise<CallId>(std::move(promise), Status::Error(400, "Call not found"));
   send_closure(actor, &CallActor::create_call, user_id, std::move(input_user), std::move(protocol), is_video,
-               std::move(safe_promise));
+               group_call_id, std::move(safe_promise));
 }
 
 void CallManager::accept_call(CallId call_id, CallProtocol &&protocol, Promise<Unit> promise) {
@@ -144,6 +149,15 @@ void CallManager::send_call_log(CallId call_id, td_api::object_ptr<td_api::Input
   send_closure(actor, &CallActor::send_call_log, std::move(log_file), std::move(safe_promise));
 }
 
+void CallManager::create_conference_call(CallId call_id, Promise<Unit> promise) {
+  auto actor = get_call_actor(call_id);
+  if (actor.empty()) {
+    return promise.set_error(Status::Error(400, "Call not found"));
+  }
+  auto safe_promise = SafePromise<Unit>(std::move(promise), Status::Error(400, "Call not found"));
+  send_closure(actor, &CallActor::create_conference_call, std::move(safe_promise));
+}
+
 CallId CallManager::create_call_actor() {
   if (next_call_id_ == std::numeric_limits<int32>::max()) {
     next_call_id_ = 1;
@@ -156,8 +170,8 @@ CallId CallManager::create_call_actor() {
   auto main_promise = PromiseCreator::lambda([actor_id = actor_id(this), id](Result<int64> call_id) {
     send_closure(actor_id, &CallManager::set_call_id, id, std::move(call_id));
   });
-  it_flag.first->second = create_actor<CallActor>(PSLICE() << "Call " << id.get(), id, actor_shared(this, id.get()),
-                                                  std::move(main_promise));
+  it_flag.first->second = create_actor<CallActor>(PSLICE() << "Call " << id.get(), td_, id,
+                                                  actor_shared(this, id.get()), std::move(main_promise));
   return id;
 }
 

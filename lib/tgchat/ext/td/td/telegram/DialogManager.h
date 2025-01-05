@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -21,7 +21,6 @@
 #include "td/telegram/MessageId.h"
 #include "td/telegram/NotificationSettingsScope.h"
 #include "td/telegram/Photo.h"
-#include "td/telegram/SuggestedAction.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/UserId.h"
@@ -40,6 +39,7 @@
 
 namespace td {
 
+struct BinlogEvent;
 class ReportReason;
 class Td;
 class Usernames;
@@ -223,11 +223,30 @@ class DialogManager final : public Actor {
 
   void reload_voice_chat_on_search(const string &username);
 
-  void set_dialog_pending_suggestions(DialogId dialog_id, vector<string> &&pending_suggestions);
+  void reget_peer_settings(DialogId dialog_id);
 
-  void dismiss_dialog_suggested_action(SuggestedAction action, Promise<Unit> &&promise);
+  void toggle_dialog_report_spam_state_on_server(DialogId dialog_id, bool is_spam_dialog, uint64 log_event_id,
+                                                 Promise<Unit> &&promise);
 
-  void remove_dialog_suggested_action(SuggestedAction action);
+  void get_blocked_dialogs(const td_api::object_ptr<td_api::BlockList> &block_list, int32 offset, int32 limit,
+                           Promise<td_api::object_ptr<td_api::messageSenders>> &&promise);
+
+  void on_get_blocked_dialogs(int32 offset, int32 limit, int32 total_count,
+                              vector<telegram_api::object_ptr<telegram_api::peerBlocked>> &&blocked_peers,
+                              Promise<td_api::object_ptr<td_api::messageSenders>> &&promise);
+
+  void toggle_dialog_is_blocked_on_server(DialogId dialog_id, bool is_blocked, bool is_blocked_for_stories,
+                                          uint64 log_event_id);
+
+  void toggle_dialog_is_marked_as_unread_on_server(DialogId dialog_id, bool is_marked_as_unread, uint64 log_event_id);
+
+  void toggle_dialog_is_pinned_on_server(DialogId dialog_id, bool is_pinned, uint64 log_event_id);
+
+  void toggle_dialog_is_translatable_on_server(DialogId dialog_id, bool is_translatable, uint64 log_event_id);
+
+  void toggle_dialog_view_as_messages_on_server(DialogId dialog_id, bool view_as_messages, uint64 log_event_id);
+
+  void on_binlog_events(vector<BinlogEvent> &&events);
 
  private:
   static constexpr size_t MAX_TITLE_LENGTH = 128;  // server side limit for chat title
@@ -255,7 +274,23 @@ class DialogManager final : public Actor {
 
   void on_resolve_dialog(const string &username, ChannelId channel_id, Promise<DialogId> &&promise);
 
-  void on_dismiss_suggested_action(SuggestedAction action, Result<Unit> &&result);
+  static uint64 save_toggle_dialog_is_blocked_on_server_log_event(DialogId dialog_id, bool is_blocked,
+                                                                  bool is_blocked_for_stories);
+
+  static uint64 save_toggle_dialog_is_marked_as_unread_on_server_log_event(DialogId dialog_id,
+                                                                           bool is_marked_as_unread);
+
+  static uint64 save_toggle_dialog_is_pinned_on_server_log_event(DialogId dialog_id, bool is_pinned);
+
+  static uint64 save_toggle_dialog_is_translatable_on_server_log_event(DialogId dialog_id, bool is_translatable);
+
+  static uint64 save_toggle_dialog_report_spam_state_on_server_log_event(DialogId dialog_id, bool is_spam_dialog);
+
+  static uint64 save_toggle_dialog_view_as_messages_on_server_log_event(DialogId dialog_id, bool view_as_messages);
+
+  class ToggleDialogIsBlockedOnServerLogEvent;
+  class ToggleDialogPropertyOnServerLogEvent;
+  class ToggleDialogReportSpamStateOnServerLogEvent;
 
   class UploadDialogPhotoCallback;
   std::shared_ptr<UploadDialogPhotoCallback> upload_dialog_photo_callback_;
@@ -291,9 +326,6 @@ class DialogManager final : public Actor {
   FlatHashSet<string> reload_voice_chat_on_search_usernames_;
 
   FlatHashMap<string, vector<Promise<Unit>>> resolve_dialog_username_queries_;
-
-  FlatHashMap<DialogId, vector<SuggestedAction>, DialogIdHash> dialog_suggested_actions_;
-  FlatHashMap<DialogId, vector<Promise<Unit>>, DialogIdHash> dismiss_suggested_action_queries_;
 
   Td *td_;
   ActorShared<> parent_;

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -683,6 +683,8 @@ class Requests {
 
   void on_request(uint64 id, td_api::createVideoChat &request);
 
+  void on_request(uint64 id, const td_api::createGroupCall &request);
+
   void on_request(uint64 id, const td_api::getVideoChatRtmpUrl &request);
 
   void on_request(uint64 id, const td_api::replaceVideoChatRtmpUrl &request);
@@ -1043,6 +1045,8 @@ class Requests {
 
   void on_request(uint64 id, const td_api::getRecentInlineBots &request);
 
+  void on_request(uint64 id, const td_api::getOwnedBots &request);
+
   void on_request(uint64 id, td_api::setName &request);
 
   void on_request(uint64 id, td_api::setBio &request);
@@ -1122,6 +1126,10 @@ class Requests {
   void on_request(uint64 id, td_api::setBotInfoShortDescription &request);
 
   void on_request(uint64 id, const td_api::getBotInfoShortDescription &request);
+
+  void on_request(uint64 id, td_api::setMessageSenderBotVerification &request);
+
+  void on_request(uint64 id, const td_api::removeMessageSenderBotVerification &request);
 
   void on_request(uint64 id, td_api::setBusinessLocation &request);
 
@@ -1469,7 +1477,15 @@ class Requests {
 
   void on_request(uint64 id, const td_api::toggleGiftIsSaved &request);
 
+  void on_request(uint64 id, const td_api::getGiftUpgradePreview &request);
+
+  void on_request(uint64 id, const td_api::upgradeGift &request);
+
+  void on_request(uint64 id, const td_api::transferGift &request);
+
   void on_request(uint64 id, td_api::getUserGifts &request);
+
+  void on_request(uint64 id, const td_api::getUserGift &request);
 
   void on_request(uint64 id, td_api::createInvoiceLink &request);
 
@@ -1568,6 +1584,20 @@ class Requests {
   void on_request(uint64 id, td_api::editUserStarSubscription &request);
 
   void on_request(uint64 id, td_api::reuseStarSubscription &request);
+
+  void on_request(uint64 id, const td_api::setChatAffiliateProgram &request);
+
+  void on_request(uint64 id, td_api::searchChatAffiliateProgram &request);
+
+  void on_request(uint64 id, td_api::searchAffiliatePrograms &request);
+
+  void on_request(uint64 id, const td_api::connectAffiliateProgram &request);
+
+  void on_request(uint64 id, td_api::disconnectAffiliateProgram &request);
+
+  void on_request(uint64 id, const td_api::getConnectedAffiliateProgram &request);
+
+  void on_request(uint64 id, td_api::getConnectedAffiliatePrograms &request);
 
   void on_request(uint64 id, td_api::canPurchaseFromStore &request);
 

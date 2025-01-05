@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -89,7 +89,6 @@ class NetQueryDispatcher {
   Status wait_dc_init(DcId dc_id, bool force);
   bool is_dc_inited(int32 raw_dc_id);
 
-  static int32 get_main_session_scheduler_id();
   static int32 get_session_count();
   static bool get_use_pfs();
 

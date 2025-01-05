@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -242,6 +242,10 @@ static auto buy_stars(td::int64 star_count, const td::string &purpose) {
 
 static auto change_phone_number() {
   return td::td_api::make_object<td::td_api::internalLinkTypeChangePhoneNumber>();
+}
+
+static auto chat_affiliate_program(const td::string &username, const td::string &referral) {
+  return td::td_api::make_object<td::td_api::internalLinkTypeChatAffiliateProgram>(username, referral);
 }
 
 static auto chat_boost(const td::string &url) {
@@ -1084,6 +1088,22 @@ TEST(Link, parse_internal_link_part3) {
   parse_internal_link("t.me/username#start=asdas", public_chat("username"));
   parse_internal_link("t.me//username?start=", nullptr);
   parse_internal_link("https://telegram.dog/tele%63ram?start=t%63st", bot_start("telecram", "tcst"));
+
+  parse_internal_link("tg:resolve?domain=username&start=_tgr_", bot_start("username", "_tgr_"));
+  parse_internal_link("tg:resolve?domain=username&start=_tgr_aSd", chat_affiliate_program("username", "aSd"));
+  parse_internal_link("tg:resolve?domain=username&start=_tgr_a%30Sd", chat_affiliate_program("username", "a0Sd"));
+
+  parse_internal_link("t.me/username/0/a//s/as?start=_tgr_", bot_start("username", "_tgr_"));
+  parse_internal_link("t.me/username/0/a//s/as?start=_tgr_aSd", chat_affiliate_program("username", "aSd"));
+  parse_internal_link("t.me/username/0/a//s/as?start=_tgr_a%30Sd", chat_affiliate_program("username", "a0Sd"));
+
+  parse_internal_link("tg:resolve?domain=username&ref=", public_chat("username"));
+  parse_internal_link("tg:resolve?domain=username&ref=aSd", chat_affiliate_program("username", "aSd"));
+  parse_internal_link("tg:resolve?domain=username&ref=a%30Sd", chat_affiliate_program("username", "a0Sd"));
+
+  parse_internal_link("t.me/username/0/a//s/as?ref=", public_chat("username"));
+  parse_internal_link("t.me/username/0/a//s/as?ref=aSd", chat_affiliate_program("username", "aSd"));
+  parse_internal_link("t.me/username/0/a//s/as?ref=a%30Sd", chat_affiliate_program("username", "a0Sd"));
 
   parse_internal_link("tg:resolve?domain=username&startgroup=aasdasd",
                       bot_start_in_group("username", "aasdasd", nullptr));

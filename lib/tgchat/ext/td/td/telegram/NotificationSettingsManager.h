@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -110,9 +110,7 @@ class NotificationSettingsManager final : public Actor {
 
   Status set_reaction_notification_settings(ReactionNotificationSettings &&notification_settings) TD_WARN_UNUSED_RESULT;
 
-  void reset_scope_notification_settings();
-
-  void reset_notify_settings(Promise<Unit> &&promise);
+  void reset_all_notification_settings();
 
   void get_notify_settings_exceptions(NotificationSettingsScope scope, bool filter_scope, bool compare_sound,
                                       Promise<Unit> &&promise);
@@ -126,6 +124,7 @@ class NotificationSettingsManager final : public Actor {
   void get_current_state(vector<td_api::object_ptr<td_api::Update>> &updates) const;
 
  private:
+  class ResetAllNotificationSettingsOnServerLogEvent;
   class UpdateScopeNotificationSettingsOnServerLogEvent;
   class UpdateReactionNotificationSettingsOnServerLogEvent;
 
@@ -211,6 +210,12 @@ class NotificationSettingsManager final : public Actor {
   uint64 save_update_reaction_notification_settings_on_server_log_event();
 
   void update_reaction_notification_settings_on_server(uint64 log_event_id);
+
+  void reset_scope_notification_settings();
+
+  void reset_all_notification_settings_on_server(uint64 log_event_id);
+
+  static uint64 save_reset_all_notification_settings_on_server_log_event();
 
   Td *td_;
   ActorShared<> parent_;

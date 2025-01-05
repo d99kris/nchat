@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -167,6 +167,8 @@ vector<tl_object_ptr<td_api::textEntity>> get_text_entities_object(const UserMan
 td_api::object_ptr<td_api::formattedText> get_formatted_text_object(const UserManager *user_manager,
                                                                     const FormattedText &text, bool skip_bot_commands,
                                                                     int32 max_media_timestamp);
+
+void keep_only_custom_emoji(FormattedText &text);
 
 void remove_premium_custom_emoji_entities(const Td *td, vector<MessageEntity> &entities, bool remove_unknown);
 

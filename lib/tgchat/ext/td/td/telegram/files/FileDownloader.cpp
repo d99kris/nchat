@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -103,7 +103,7 @@ Result<bool> FileDownloader::should_restart_part(Part part, const NetQueryPtr &n
     case QueryType::ReuploadCDN: {
       TRY_RESULT(file_hashes, fetch_result<telegram_api::upload_reuploadCdnFile>(net_query->ok()));
       add_hash_info(file_hashes);
-      LOG(DEBUG) << "Part " << part.id << " was reuplaoded to CDN";
+      LOG(DEBUG) << "Part " << part.id << " was reuploaded to CDN";
       return true;
     }
     case QueryType::CDN: {
@@ -111,7 +111,7 @@ Result<bool> FileDownloader::should_restart_part(Part part, const NetQueryPtr &n
         TRY_RESULT(file_base, fetch_result<telegram_api::upload_getCdnFile>(net_query->ok()));
         CHECK(file_base->get_id() == telegram_api::upload_cdnFileReuploadNeeded::ID);
         auto file = move_tl_object_as<telegram_api::upload_cdnFileReuploadNeeded>(file_base);
-        LOG(DEBUG) << "Part " << part.id << " must be reuplaoded to " << oneline(to_string(file));
+        LOG(DEBUG) << "Part " << part.id << " must be reuploaded to " << oneline(to_string(file));
         cdn_part_reupload_token_[part.id] = file->request_token_.as_slice().str();
         return true;
       }
@@ -544,7 +544,9 @@ void FileDownloader::start_up() {
   if (!is_small_ &&
       (file_type == FileType::VideoNote || file_type == FileType::Document || file_type == FileType::VoiceNote ||
        file_type == FileType::Audio || file_type == FileType::Video || file_type == FileType::Animation ||
-       file_type == FileType::VideoStory || (file_type == FileType::Encrypted && size_ > (1 << 20)))) {
+       file_type == FileType::VideoStory || file_type == FileType::SelfDestructingVideo ||
+       file_type == FileType::SelfDestructingVideoNote || file_type == FileType::SelfDestructingVoiceNote ||
+       (file_type == FileType::Encrypted && size_ > (1 << 20)))) {
     delay_dispatcher_ = create_actor<DelayDispatcher>("DelayDispatcher", 0.003, actor_shared(this, 1));
     next_delay_ = 0.05;
   }

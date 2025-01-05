@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -8,6 +8,7 @@
 
 #include "td/telegram/CallActor.h"
 #include "td/telegram/CallId.h"
+#include "td/telegram/GroupCallId.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/UserId.h"
@@ -23,16 +24,18 @@
 
 namespace td {
 
+class Td;
+
 class CallManager final : public Actor {
  public:
-  explicit CallManager(ActorShared<> parent);
+  CallManager(Td *td, ActorShared<> parent);
 
   void update_call(telegram_api::object_ptr<telegram_api::updatePhoneCall> call);
 
   void update_call_signaling_data(int64 call_id, string data);
 
   void create_call(UserId user_id, tl_object_ptr<telegram_api::InputUser> &&input_user, CallProtocol &&protocol,
-                   bool is_video, Promise<CallId> promise);
+                   bool is_video, GroupCallId group_call_id, Promise<CallId> promise);
 
   void accept_call(CallId call_id, CallProtocol &&protocol, Promise<Unit> promise);
 
@@ -48,8 +51,12 @@ class CallManager final : public Actor {
 
   void send_call_log(CallId call_id, td_api::object_ptr<td_api::InputFile> log_file, Promise<Unit> promise);
 
+  void create_conference_call(CallId call_id, Promise<Unit> promise);
+
  private:
   bool close_flag_ = false;
+
+  Td *td_;
   ActorShared<> parent_;
 
   struct CallInfo {
@@ -66,5 +73,6 @@ class CallManager final : public Actor {
 
   void hangup() final;
   void hangup_shared() final;
+  void tear_down() final;
 };
 }  // namespace td

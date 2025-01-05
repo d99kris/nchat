@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,6 +11,9 @@
 #include "td/telegram/Birthdate.hpp"
 #include "td/telegram/BlockListId.h"
 #include "td/telegram/BotMenuButton.h"
+#include "td/telegram/BotVerification.h"
+#include "td/telegram/BotVerification.hpp"
+#include "td/telegram/BotVerifierSettings.hpp"
 #include "td/telegram/BusinessAwayMessage.h"
 #include "td/telegram/BusinessGreetingMessage.h"
 #include "td/telegram/BusinessInfo.h"
@@ -53,6 +56,7 @@
 #include "td/telegram/PremiumGiftOption.hpp"
 #include "td/telegram/ReactionListType.h"
 #include "td/telegram/ReactionManager.h"
+#include "td/telegram/ReferralProgramInfo.hpp"
 #include "td/telegram/SecretChatLayer.h"
 #include "td/telegram/SecretChatsManager.h"
 #include "td/telegram/ServerMessageId.h"
@@ -64,6 +68,7 @@
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/ThemeManager.h"
 #include "td/telegram/UpdatesManager.h"
+#include "td/telegram/VerificationStatus.h"
 #include "td/telegram/Version.h"
 
 #include "td/db/binlog/BinlogEvent.h"
@@ -1438,6 +1443,7 @@ void UserManager::User::store(StorerT &storer) const {
   bool has_profile_accent_color_id = profile_accent_color_id.is_valid();
   bool has_profile_background_custom_emoji_id = profile_background_custom_emoji_id.is_valid();
   bool has_bot_active_users = bot_active_users != 0;
+  bool has_bot_verification_icon = bot_verification_icon.is_valid();
   BEGIN_STORE_FLAGS();
   STORE_FLAG(is_received);
   STORE_FLAG(is_verified);
@@ -1486,6 +1492,7 @@ void UserManager::User::store(StorerT &storer) const {
     STORE_FLAG(is_business_bot);
     STORE_FLAG(has_bot_active_users);
     STORE_FLAG(has_main_app);
+    STORE_FLAG(has_bot_verification_icon);
     END_STORE_FLAGS();
   }
   store(first_name, storer);
@@ -1545,6 +1552,9 @@ void UserManager::User::store(StorerT &storer) const {
   if (has_bot_active_users) {
     store(bot_active_users, storer);
   }
+  if (has_bot_verification_icon) {
+    store(bot_verification_icon, storer);
+  }
 }
 
 template <class ParserT>
@@ -1571,6 +1581,7 @@ void UserManager::User::parse(ParserT &parser) {
   bool has_profile_accent_color_id = false;
   bool has_profile_background_custom_emoji_id = false;
   bool has_bot_active_users = false;
+  bool has_bot_verification_icon = false;
   BEGIN_PARSE_FLAGS();
   PARSE_FLAG(is_received);
   PARSE_FLAG(is_verified);
@@ -1619,6 +1630,7 @@ void UserManager::User::parse(ParserT &parser) {
     PARSE_FLAG(is_business_bot);
     PARSE_FLAG(has_bot_active_users);
     PARSE_FLAG(has_main_app);
+    PARSE_FLAG(has_bot_verification_icon);
     END_PARSE_FLAGS();
   }
   parse(first_name, parser);
@@ -1706,6 +1718,9 @@ void UserManager::User::parse(ParserT &parser) {
   if (has_bot_active_users) {
     parse(bot_active_users, parser);
   }
+  if (has_bot_verification_icon) {
+    parse(bot_verification_icon, parser);
+  }
 
   if (!check_utf8(first_name)) {
     LOG(ERROR) << "Have invalid first name \"" << first_name << '"';
@@ -1762,6 +1777,9 @@ void UserManager::UserFull::store(StorerT &storer) const {
   bool has_background_dark_color = bot_info != nullptr && bot_info->background_dark_color != -1;
   bool has_header_color = bot_info != nullptr && bot_info->header_color != -1;
   bool has_header_dark_color = bot_info != nullptr && bot_info->header_dark_color != -1;
+  bool has_referral_program_info = bot_info != nullptr && bot_info->referral_program_info.is_valid();
+  bool has_verifier_settings = bot_info != nullptr && bot_info->verifier_settings != nullptr;
+  bool has_bot_verification = bot_verification != nullptr;
   BEGIN_STORE_FLAGS();
   STORE_FLAG(has_about);
   STORE_FLAG(is_blocked);
@@ -1806,6 +1824,9 @@ void UserManager::UserFull::store(StorerT &storer) const {
     STORE_FLAG(has_background_dark_color);
     STORE_FLAG(has_header_color);
     STORE_FLAG(has_header_dark_color);
+    STORE_FLAG(has_referral_program_info);
+    STORE_FLAG(has_verifier_settings);
+    STORE_FLAG(has_bot_verification);
     END_STORE_FLAGS();
   }
   if (has_about) {
@@ -1877,6 +1898,15 @@ void UserManager::UserFull::store(StorerT &storer) const {
   if (has_header_dark_color) {
     store(bot_info->header_dark_color, storer);
   }
+  if (has_referral_program_info) {
+    store(bot_info->referral_program_info, storer);
+  }
+  if (has_verifier_settings) {
+    store(bot_info->verifier_settings, storer);
+  }
+  if (has_bot_verification) {
+    store(bot_verification, storer);
+  }
 }
 
 template <class ParserT>
@@ -1906,6 +1936,9 @@ void UserManager::UserFull::parse(ParserT &parser) {
   bool has_background_dark_color = false;
   bool has_header_color = false;
   bool has_header_dark_color = false;
+  bool has_referral_program_info = false;
+  bool has_verifier_settings = false;
+  bool has_bot_verification = false;
   BEGIN_PARSE_FLAGS();
   PARSE_FLAG(has_about);
   PARSE_FLAG(is_blocked);
@@ -1950,6 +1983,9 @@ void UserManager::UserFull::parse(ParserT &parser) {
     PARSE_FLAG(has_background_dark_color);
     PARSE_FLAG(has_header_color);
     PARSE_FLAG(has_header_dark_color);
+    PARSE_FLAG(has_referral_program_info);
+    PARSE_FLAG(has_verifier_settings);
+    PARSE_FLAG(has_bot_verification);
     END_PARSE_FLAGS();
   }
   if (has_about) {
@@ -2024,6 +2060,15 @@ void UserManager::UserFull::parse(ParserT &parser) {
   }
   if (has_header_dark_color) {
     parse(add_bot_info()->header_dark_color, parser);
+  }
+  if (has_referral_program_info) {
+    parse(add_bot_info()->referral_program_info, parser);
+  }
+  if (has_verifier_settings) {
+    parse(add_bot_info()->verifier_settings, parser);
+  }
+  if (has_bot_verification) {
+    parse(bot_verification, parser);
   }
 }
 
@@ -2704,6 +2749,7 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
       u->restriction_reasons = std::move(restriction_reasons);
       u->is_changed = true;
     }
+    on_update_user_bot_verification_icon(u, user_id, CustomEmojiId(user->bot_verification_icon_));
   }
 
   if (u->cache_version != User::CACHE_VERSION && u->is_received) {
@@ -3173,6 +3219,13 @@ void UserManager::on_update_user_stories_hidden(User *u, UserId user_id, bool st
   }
 }
 
+void UserManager::on_update_user_bot_verification_icon(User *u, UserId user_id, CustomEmojiId bot_verification_icon) {
+  if (u->bot_verification_icon != bot_verification_icon) {
+    u->bot_verification_icon = bot_verification_icon;
+    u->is_changed = true;
+  }
+}
+
 void UserManager::on_update_user_is_contact(User *u, UserId user_id, bool is_contact, bool is_mutual_contact,
                                             bool is_close_friend) {
   if (td_->auth_manager_->is_bot()) {
@@ -3577,6 +3630,49 @@ void UserManager::on_update_user_full_commands(
   auto bot_info = user_full->add_bot_info();
   if (bot_info->commands != commands) {
     bot_info->commands = std::move(commands);
+    user_full->is_changed = true;
+  }
+}
+
+void UserManager::on_update_user_referral_program_info(UserId user_id, ReferralProgramInfo &&referral_program_info) {
+  UserFull *user_full = get_user_full_force(user_id, "on_update_user_referral_program_info");
+  if (user_full != nullptr) {
+    on_update_user_full_referral_program_info(user_full, user_id, std::move(referral_program_info));
+    update_user_full(user_full, user_id, "on_update_user_referral_program_info");
+  }
+}
+
+void UserManager::on_update_user_full_referral_program_info(UserFull *user_full, UserId user_id,
+                                                            ReferralProgramInfo &&referral_program_info) {
+  CHECK(user_full != nullptr);
+  if (user_full->bot_info == nullptr && !referral_program_info.is_valid()) {
+    return;
+  }
+  auto bot_info = user_full->add_bot_info();
+  if (bot_info->referral_program_info != referral_program_info) {
+    bot_info->referral_program_info = std::move(referral_program_info);
+    user_full->is_changed = true;
+  }
+}
+
+void UserManager::on_update_user_verifier_settings(UserId user_id,
+                                                   unique_ptr<BotVerifierSettings> &&verifier_settings) {
+  UserFull *user_full = get_user_full_force(user_id, "on_update_user_verifier_settings");
+  if (user_full != nullptr) {
+    on_update_user_full_verifier_settings(user_full, user_id, std::move(verifier_settings));
+    update_user_full(user_full, user_id, "on_update_user_verifier_settings");
+  }
+}
+
+void UserManager::on_update_user_full_verifier_settings(UserFull *user_full, UserId user_id,
+                                                        unique_ptr<BotVerifierSettings> &&verifier_settings) {
+  CHECK(user_full != nullptr);
+  if (user_full->bot_info == nullptr && verifier_settings == nullptr) {
+    return;
+  }
+  auto bot_info = user_full->add_bot_info();
+  if (bot_info->verifier_settings != verifier_settings) {
+    bot_info->verifier_settings = std::move(verifier_settings);
     user_full->is_changed = true;
   }
 }
@@ -4091,7 +4187,7 @@ UserManager::User *UserManager::get_user_force(UserId user_id, const char *sourc
         false /*ignored*/, false /*ignored*/, false /*ignored*/, 0, false /*ignored*/, false /*ignored*/,
         false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, user_id.get(), 1,
         first_name, string(), username, phone_number, std::move(profile_photo), nullptr, bot_info_version, Auto(),
-        string(), string(), nullptr, vector<telegram_api::object_ptr<telegram_api::username>>(), 0, nullptr, nullptr,
+        string(), string(), nullptr, vector<telegram_api::object_ptr<telegram_api::username>>(), 0, nullptr, nullptr, 0,
         0);
     on_get_user(std::move(user), "get_user_force");
     u = get_user(user_id);
@@ -4882,6 +4978,7 @@ void UserManager::set_bot_profile_photo(UserId bot_user_id,
 
 void UserManager::set_profile_photo(const td_api::object_ptr<td_api::InputChatPhoto> &input_photo, bool is_fallback,
                                     Promise<Unit> &&promise) {
+  dismiss_suggested_action(SuggestedAction{SuggestedAction::Type::UserpicSetup}, Promise<Unit>());
   set_profile_photo_impl(get_my_id(), input_photo, is_fallback, false, std::move(promise));
 }
 
@@ -7130,11 +7227,13 @@ void UserManager::on_get_user_full(telegram_api::object_ptr<telegram_api::userFu
   auto personal_channel_id = ChannelId(user->personal_channel_id_);
   auto sponsored_enabled = user->sponsored_enabled_;
   auto can_view_revenue = user->can_view_revenue_;
+  auto bot_verification = BotVerification::get_bot_verification(std::move(user->bot_verification_));
   if (user_full->can_be_called != can_be_called || user_full->supports_video_calls != supports_video_calls ||
       user_full->has_private_calls != has_private_calls ||
       user_full->voice_messages_forbidden != voice_messages_forbidden ||
       user_full->can_pin_messages != can_pin_messages || user_full->has_pinned_stories != has_pinned_stories ||
-      user_full->sponsored_enabled != sponsored_enabled || user_full->can_view_revenue != can_view_revenue) {
+      user_full->sponsored_enabled != sponsored_enabled || user_full->can_view_revenue != can_view_revenue ||
+      user_full->bot_verification != bot_verification) {
     user_full->can_be_called = can_be_called;
     user_full->supports_video_calls = supports_video_calls;
     user_full->has_private_calls = has_private_calls;
@@ -7143,6 +7242,7 @@ void UserManager::on_get_user_full(telegram_api::object_ptr<telegram_api::userFu
     user_full->has_pinned_stories = has_pinned_stories;
     user_full->sponsored_enabled = sponsored_enabled;
     user_full->can_view_revenue = can_view_revenue;
+    user_full->bot_verification = std::move(bot_verification);
 
     user_full->is_changed = true;
   }
@@ -7177,10 +7277,21 @@ void UserManager::on_get_user_full(telegram_api::object_ptr<telegram_api::userFu
     auto *bot_info = user_full->add_bot_info();
     AdministratorRights group_administrator_rights(user->bot_group_admin_rights_, ChannelType::Megagroup);
     AdministratorRights broadcast_administrator_rights(user->bot_broadcast_admin_rights_, ChannelType::Broadcast);
+    ReferralProgramInfo referral_program_info;
+    if (user->starref_program_ != nullptr) {
+      auto bot_user_id = UserId(user->starref_program_->bot_id_);
+      if (user_id == bot_user_id) {
+        referral_program_info = ReferralProgramInfo(std::move(user->starref_program_));
+      } else {
+        LOG(ERROR) << "Receive affiliate program for " << bot_user_id << " instead of " << user_id;
+      }
+    }
     if (bot_info->group_administrator_rights != group_administrator_rights ||
-        bot_info->broadcast_administrator_rights != broadcast_administrator_rights) {
-      bot_info->group_administrator_rights = group_administrator_rights;
-      bot_info->broadcast_administrator_rights = broadcast_administrator_rights;
+        bot_info->broadcast_administrator_rights != broadcast_administrator_rights ||
+        bot_info->referral_program_info != referral_program_info) {
+      bot_info->group_administrator_rights = std::move(group_administrator_rights);
+      bot_info->broadcast_administrator_rights = std::move(broadcast_administrator_rights);
+      bot_info->referral_program_info = std::move(referral_program_info);
 
       user_full->is_changed = true;
     }
@@ -7193,6 +7304,7 @@ void UserManager::on_get_user_full(telegram_api::object_ptr<telegram_api::userFu
     int32 background_dark_color = -1;
     int32 header_color = -1;
     int32 header_dark_color = -1;
+    BotVerifierSettings verifier_settings;
     if (user->bot_info_ != nullptr) {
       description = std::move(user->bot_info_->description_);
       description_photo = get_photo(td_, std::move(user->bot_info_->description_photo_), DialogId(user_id));
@@ -7201,7 +7313,7 @@ void UserManager::on_get_user_full(telegram_api::object_ptr<telegram_api::userFu
         int32 document_id = document->get_id();
         if (document_id == telegram_api::document::ID) {
           auto parsed_document = td_->documents_manager_->on_get_document(
-              move_tl_object_as<telegram_api::document>(document), DialogId(user_id));
+              move_tl_object_as<telegram_api::document>(document), DialogId(user_id), false);
           if (parsed_document.type == Document::Type::Animation) {
             description_animation_file_id = parsed_document.file_id;
           } else {
@@ -7213,6 +7325,9 @@ void UserManager::on_get_user_full(telegram_api::object_ptr<telegram_api::userFu
       on_update_user_full_commands(user_full, user_id, std::move(user->bot_info_->commands_));
       on_update_user_full_menu_button(user_full, user_id, std::move(user->bot_info_->menu_button_));
       on_update_user_full_has_preview_medias(user_full, user_id, user->bot_info_->has_preview_medias_);
+      on_update_user_full_verifier_settings(
+          user_full, user_id,
+          BotVerifierSettings::get_bot_verifier_settings(std::move(user->bot_info_->verifier_settings_)));
 
       if (bot_info->privacy_policy_url != user->bot_info_->privacy_policy_url_) {
         bot_info->privacy_policy_url = std::move(user->bot_info_->privacy_policy_url_);
@@ -7394,6 +7509,9 @@ void UserManager::on_load_user_full_from_database(UserId user_id, string value) 
   if (user_full->business_info != nullptr) {
     user_full->business_info->add_dependencies(dependencies);
   }
+  if (user_full->bot_verification != nullptr) {
+    user_full->bot_verification->add_dependencies(dependencies);
+  }
   dependencies.add(user_full->personal_channel_id);
   if (!dependencies.resolve_force(td_, "on_load_user_full_from_database")) {
     users_full_.erase(user_id);
@@ -7521,6 +7639,7 @@ void UserManager::drop_user_full(UserId user_id) {
   user_full->common_chat_count = 0;
   user_full->personal_channel_id = ChannelId();
   user_full->business_info = nullptr;
+  user_full->bot_verification = nullptr;
   user_full->private_forward_name.clear();
   user_full->voice_messages_forbidden = false;
   user_full->has_pinned_stories = false;
@@ -8180,8 +8299,8 @@ td_api::object_ptr<td_api::updateUser> UserManager::get_update_unknown_user_obje
   return td_api::make_object<td_api::updateUser>(td_api::make_object<td_api::user>(
       user_id.get(), "", "", nullptr, "", td_api::make_object<td_api::userStatusEmpty>(), nullptr,
       td_->theme_manager_->get_accent_color_id_object(AccentColorId(user_id)), 0, -1, 0, nullptr, false, false, false,
-      false, false, false, "", false, false, false, false, false, have_access,
-      td_api::make_object<td_api::userTypeUnknown>(), "", false));
+      nullptr, false, false, "", false, false, false, have_access, td_api::make_object<td_api::userTypeUnknown>(), "",
+      false));
 }
 
 int64 UserManager::get_user_id_object(UserId user_id, const char *source) const {
@@ -8220,6 +8339,8 @@ td_api::object_ptr<td_api::user> UserManager::get_user_object(UserId user_id, co
   }
 
   auto emoji_status = u->last_sent_emoji_status.get_emoji_status_object();
+  auto verification_status =
+      get_verification_status_object(td_, u->is_verified, u->is_scam, u->is_fake, u->bot_verification_icon);
   auto have_access = user_id == get_my_id() || have_input_peer_user(u, user_id, AccessRights::Know);
   auto restricts_new_chats = u->contact_require_premium && !u->is_mutual_contact;
   return td_api::make_object<td_api::user>(
@@ -8230,10 +8351,10 @@ td_api::object_ptr<td_api::user> UserManager::get_user_object(UserId user_id, co
       u->background_custom_emoji_id.get(),
       td_->theme_manager_->get_profile_accent_color_id_object(u->profile_accent_color_id),
       u->profile_background_custom_emoji_id.get(), std::move(emoji_status), u->is_contact, u->is_mutual_contact,
-      u->is_close_friend, u->is_verified, u->is_premium, u->is_support,
-      get_restriction_reason_description(u->restriction_reasons), u->is_scam, u->is_fake,
-      u->max_active_story_id.is_valid(), get_user_has_unread_stories(u), restricts_new_chats, have_access,
-      std::move(type), u->language_code, u->attach_menu_enabled);
+      u->is_close_friend, std::move(verification_status), u->is_premium, u->is_support,
+      get_restriction_reason_description(u->restriction_reasons), u->max_active_story_id.is_valid(),
+      get_user_has_unread_stories(u), restricts_new_chats, have_access, std::move(type), u->language_code,
+      u->attach_menu_enabled);
 }
 
 vector<int64> UserManager::get_user_ids_object(const vector<UserId> &user_ids, const char *source) const {
@@ -8263,9 +8384,9 @@ td_api::object_ptr<td_api::userFullInfo> UserManager::get_user_full_info_object(
   if (is_bot) {
     if (user_full->bot_info == nullptr) {
       bot_info = td_api::make_object<td_api::botInfo>(
-          user_full->about, string(), nullptr, nullptr, nullptr, Auto(), string(), nullptr, nullptr, -1, -1, -1, -1,
-          user_full->can_view_revenue, user_full->can_manage_emoji_status, user_full->has_preview_medias, nullptr,
-          nullptr, nullptr, nullptr);
+          user_full->about, string(), nullptr, nullptr, nullptr, Auto(), string(), nullptr, nullptr, nullptr, -1, -1,
+          -1, -1, nullptr, user_full->can_view_revenue, user_full->can_manage_emoji_status,
+          user_full->has_preview_medias, nullptr, nullptr, nullptr, nullptr);
     } else {
       const auto *user_bot_info = user_full->bot_info.get();
       auto menu_button = get_bot_menu_button_object(td_, user_bot_info->menu_button.get());
@@ -8282,9 +8403,13 @@ td_api::object_ptr<td_api::userFullInfo> UserManager::get_user_full_info_object(
           user_bot_info->broadcast_administrator_rights == AdministratorRights()
               ? nullptr
               : user_bot_info->broadcast_administrator_rights.get_chat_administrator_rights_object(),
-          user_bot_info->background_color, user_bot_info->background_dark_color, user_bot_info->header_color,
-          user_bot_info->header_dark_color, user_full->can_view_revenue, user_full->can_manage_emoji_status,
-          user_full->has_preview_medias, nullptr, nullptr, nullptr, nullptr);
+          user_bot_info->referral_program_info.get_affiliate_program_info_object(), user_bot_info->background_color,
+          user_bot_info->background_dark_color, user_bot_info->header_color, user_bot_info->header_dark_color,
+          user_bot_info->verifier_settings == nullptr
+              ? nullptr
+              : user_bot_info->verifier_settings->get_bot_verification_parameters_object(td_),
+          user_full->can_view_revenue, user_full->can_manage_emoji_status, user_full->has_preview_medias, nullptr,
+          nullptr, nullptr, nullptr);
     }
     if (u != nullptr && u->can_be_edited_bot && u->usernames.has_editable_username()) {
       auto bot_username = u->usernames.get_editable_username();
@@ -8326,6 +8451,8 @@ td_api::object_ptr<td_api::userFullInfo> UserManager::get_user_full_info_object(
     td_->dialog_manager_->force_create_dialog(dialog_id, "get_user_full_info_object", true);
     personal_chat_id = td_->dialog_manager_->get_chat_id_object(dialog_id, "get_user_full_info_object");
   }
+  auto bot_verification =
+      user_full->bot_verification == nullptr ? nullptr : user_full->bot_verification->get_bot_verification_object(td_);
   return td_api::make_object<td_api::userFullInfo>(
       get_chat_photo_object(td_->file_manager_.get(), user_full->personal_photo),
       get_chat_photo_object(td_->file_manager_.get(), user_full->photo),
@@ -8334,7 +8461,7 @@ td_api::object_ptr<td_api::userFullInfo> UserManager::get_user_full_info_object(
       !user_full->private_forward_name.empty(), voice_messages_forbidden, user_full->has_pinned_stories,
       user_full->sponsored_enabled, user_full->need_phone_number_privacy_exception, user_full->wallpaper_overridden,
       std::move(bio_object), user_full->birthdate.get_birthdate_object(), personal_chat_id, user_full->gift_count,
-      user_full->common_chat_count, std::move(business_info), std::move(bot_info));
+      user_full->common_chat_count, std::move(bot_verification), std::move(business_info), std::move(bot_info));
 }
 
 td_api::object_ptr<td_api::updateContactCloseBirthdays> UserManager::get_update_contact_close_birthdays() const {

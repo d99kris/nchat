@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -78,7 +78,7 @@ class HazardPointers {
     }
   }
 
-  // old inteface
+  // old interface
   T *protect(size_t thread_id, size_t pos, std::atomic<T *> &ptr) {
     return do_protect(get_hazard_ptr(thread_id, pos), ptr);
   }

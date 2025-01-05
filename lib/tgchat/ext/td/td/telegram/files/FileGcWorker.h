@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -12,6 +12,7 @@
 #include "td/actor/actor.h"
 
 #include "td/utils/CancellationToken.h"
+#include "td/utils/common.h"
 #include "td/utils/logging.h"
 #include "td/utils/Promise.h"
 
@@ -28,7 +29,9 @@ class FileGcWorker final : public Actor {
  public:
   FileGcWorker(ActorShared<> parent, CancellationToken token) : parent_(std::move(parent)), token_(std::move(token)) {
   }
-  void run_gc(const FileGcParameters &parameters, std::vector<FullFileInfo> files, Promise<FileGcResult> promise);
+
+  void run_gc(const FileGcParameters &parameters, vector<FullFileInfo> files, bool send_updates,
+              Promise<FileGcResult> promise);
 
  private:
   ActorShared<> parent_;

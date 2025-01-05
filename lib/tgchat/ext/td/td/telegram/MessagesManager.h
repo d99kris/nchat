@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -120,7 +120,6 @@ struct InputMessageContent;
 class MessageContent;
 class MessageForwardInfo;
 struct MessageReactions;
-struct MessageSearchOffset;
 class MissingInvitees;
 class Td;
 class Usernames;
@@ -205,25 +204,8 @@ class MessagesManager final : public Actor {
   void on_get_dialog_message_count(DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id,
                                    MessageSearchFilter filter, int32 total_count, Promise<int32> &&promise);
 
-  void on_get_messages_search_result(const string &query, int32 offset_date, DialogId offset_dialog_id,
-                                     MessageId offset_message_id, int32 limit, MessageSearchFilter filter,
-                                     int32 min_date, int32 max_date, int32 total_count,
-                                     vector<tl_object_ptr<telegram_api::Message>> &&messages, int32 next_rate,
-                                     Promise<td_api::object_ptr<td_api::foundMessages>> &&promise);
-
-  void on_get_hashtag_search_result(const string &hashtag, const MessageSearchOffset &old_offset, int32 limit,
-                                    int32 total_count, vector<tl_object_ptr<telegram_api::Message>> &&messages,
-                                    int32 next_rate, Promise<td_api::object_ptr<td_api::foundMessages>> &&promise);
-
-  void on_get_outgoing_document_messages(vector<tl_object_ptr<telegram_api::Message>> &&messages,
-                                         Promise<td_api::object_ptr<td_api::foundMessages>> &&promise);
-
   void on_get_scheduled_server_messages(DialogId dialog_id, uint32 generation,
                                         vector<tl_object_ptr<telegram_api::Message>> &&messages, bool is_not_modified);
-
-  void on_get_recent_locations(DialogId dialog_id, int32 limit, int32 total_count,
-                               vector<tl_object_ptr<telegram_api::Message>> &&messages,
-                               Promise<td_api::object_ptr<td_api::messages>> &&promise);
 
   MessageFullId on_get_message(tl_object_ptr<telegram_api::Message> message_ptr, bool from_update,
                                bool is_channel_message, bool is_scheduled, const char *source);
@@ -366,8 +348,6 @@ class MessagesManager final : public Actor {
   void on_read_channel_inbox(ChannelId channel_id, MessageId max_message_id, int32 server_unread_count, int32 pts,
                              const char *source);
 
-  void on_read_channel_outbox(ChannelId channel_id, MessageId max_message_id);
-
   void on_update_channel_max_unavailable_message_id(ChannelId channel_id, MessageId max_unavailable_message_id,
                                                     const char *source);
 
@@ -378,6 +358,8 @@ class MessagesManager final : public Actor {
   void on_message_animated_emoji_clicked(MessageFullId message_full_id, string &&emoji, string &&data);
 
   void read_history_inbox(DialogId dialog_id, MessageId max_message_id, int32 unread_count, const char *source);
+
+  void read_history_outbox(DialogId dialog_id, MessageId max_message_id, int32 read_date = -1);
 
   void delete_messages(DialogId dialog_id, const vector<MessageId> &message_ids, bool revoke, Promise<Unit> &&promise);
 
@@ -562,13 +544,6 @@ class MessagesManager final : public Actor {
 
   bool is_dialog_blocked(DialogId dialog_id) const;
 
-  void get_blocked_dialogs(const td_api::object_ptr<td_api::BlockList> &block_list, int32 offset, int32 limit,
-                           Promise<td_api::object_ptr<td_api::messageSenders>> &&promise);
-
-  void on_get_blocked_dialogs(int32 offset, int32 limit, int32 total_count,
-                              vector<tl_object_ptr<telegram_api::peerBlocked>> &&blocked_peers,
-                              Promise<td_api::object_ptr<td_api::messageSenders>> &&promise);
-
   static Status can_report_message(MessageId message_id);
 
   bool can_share_message_in_story(MessageFullId message_full_id);
@@ -695,7 +670,7 @@ class MessagesManager final : public Actor {
                                           tl_object_ptr<td_api::chatNotificationSettings> &&notification_settings)
       TD_WARN_UNUSED_RESULT;
 
-  void reset_all_notification_settings();
+  void reset_all_dialog_notification_settings();
 
   void update_story_max_reply_media_timestamp_in_replied_messages(StoryFullId story_full_id);
 
@@ -747,21 +722,8 @@ class MessagesManager final : public Actor {
                                MessageSearchFilter filter,
                                Promise<td_api::object_ptr<td_api::foundMessages>> &&promise);
 
-  void search_messages(DialogListId dialog_list_id, bool ignore_folder_id, bool broadcasts_only, const string &query,
-                       const string &offset_str, int32 limit, MessageSearchFilter filter, int32 min_date,
-                       int32 max_date, Promise<td_api::object_ptr<td_api::foundMessages>> &&promise);
-
   void search_call_messages(const string &offset, int32 limit, bool only_missed,
                             Promise<td_api::object_ptr<td_api::foundMessages>> &&promise);
-
-  void search_outgoing_document_messages(const string &query, int32 limit,
-                                         Promise<td_api::object_ptr<td_api::foundMessages>> &&promise);
-
-  void search_hashtag_posts(string hashtag, string offset_str, int32 limit,
-                            Promise<td_api::object_ptr<td_api::foundMessages>> &&promise);
-
-  void search_dialog_recent_location_messages(DialogId dialog_id, int32 limit,
-                                              Promise<td_api::object_ptr<td_api::messages>> &&promise);
 
   void load_active_live_location_messages(Promise<Unit> &&promise);
 
@@ -929,11 +891,7 @@ class MessagesManager final : public Actor {
 
   void on_get_dialog_query_finished(DialogId dialog_id, Status &&status);
 
-  void remove_sponsored_dialog();
-
-  void on_get_sponsored_dialog(tl_object_ptr<telegram_api::Peer> peer, DialogSource source,
-                               vector<tl_object_ptr<telegram_api::User>> users,
-                               vector<tl_object_ptr<telegram_api::Chat>> chats);
+  void set_sponsored_dialog(DialogId dialog_id, DialogSource source);
 
   FileSourceId get_message_file_source_id(MessageFullId message_full_id, bool force = false);
 
@@ -977,6 +935,11 @@ class MessagesManager final : public Actor {
 
   void stop_poll(MessageFullId message_full_id, td_api::object_ptr<td_api::ReplyMarkup> &&reply_markup,
                  Promise<Unit> &&promise);
+
+  int64 get_message_gift_upgrade_star_count(MessageFullId message_full_id);
+
+  void finish_gift_upgrade(MessageFullId message_full_id,
+                           Promise<td_api::object_ptr<td_api::upgradeGiftResult>> &&promise);
 
   Result<string> get_login_button_url(MessageFullId message_full_id, int64 button_id);
 
@@ -1038,6 +1001,7 @@ class MessagesManager final : public Actor {
     string author_signature;
     int64 media_album_id = 0;
     MessageEffectId effect_id;
+    int32 report_delivery_until_date = 0;
     bool is_outgoing = false;
     bool is_silent = false;
     bool is_channel_post = false;
@@ -1051,6 +1015,7 @@ class MessagesManager final : public Actor {
     bool has_unread_content = false;
     bool invert_media = false;
     bool video_processing_pending = false;
+    bool reactions_are_possible = false;
 
     unique_ptr<MessageContent> content;
     tl_object_ptr<telegram_api::ReplyMarkup> reply_markup;
@@ -1114,6 +1079,7 @@ class MessagesManager final : public Actor {
     bool invert_media = false;
     bool disable_web_page_preview = false;
     bool video_processing_pending = false;
+    bool reactions_are_possible = false;
 
     bool has_explicit_sender = false;       // for send_message
     bool is_copy = false;                   // for send_message
@@ -1610,7 +1576,6 @@ class MessagesManager final : public Actor {
   class ReadMessageThreadHistoryOnServerLogEvent;
   class RegetDialogLogEvent;
   class ReorderPinnedDialogsOnServerLogEvent;
-  class ResetAllNotificationSettingsOnServerLogEvent;
   class SaveDialogDraftMessageOnServerLogEvent;
   class SendBotStartMessageLogEvent;
   class SendInlineQueryResultMessageLogEvent;
@@ -1618,12 +1583,6 @@ class MessagesManager final : public Actor {
   class SendQuickReplyShortcutMessagesLogEvent;
   class SendScreenshotTakenNotificationMessageLogEvent;
   class SetDialogFolderIdOnServerLogEvent;
-  class ToggleDialogIsBlockedOnServerLogEvent;
-  class ToggleDialogViewAsMessagesOnServerLogEvent;
-  class ToggleDialogIsMarkedAsUnreadOnServerLogEvent;
-  class ToggleDialogIsTranslatableOnServerLogEvent;
-  class ToggleDialogIsPinnedOnServerLogEvent;
-  class ToggleDialogReportSpamStateOnServerLogEvent;
   class UnpinAllDialogMessagesOnServerLogEvent;
   class UpdateDialogNotificationSettingsOnServerLogEvent;
 
@@ -1665,7 +1624,7 @@ class MessagesManager final : public Actor {
   static constexpr int32 AUTH_NOTIFICATION_ID_CACHE_TIME = 7 * 86400;
   static constexpr size_t MAX_SAVED_AUTH_NOTIFICATION_IDS = 100;
 
-  static constexpr int32 MAX_RESEND_DELAY = 86400;  // seconds, some resonable limit
+  static constexpr int32 MAX_RESEND_DELAY = 86400;  // seconds, some reasonable limit
 
   static constexpr int32 SCHEDULE_WHEN_ONLINE_DATE = 2147483646;
 
@@ -2141,8 +2100,6 @@ class MessagesManager final : public Actor {
 
   void repair_dialog_unread_mention_count(Dialog *d, const char *source);
 
-  void read_history_outbox(DialogId dialog_id, MessageId max_message_id, int32 read_date = -1);
-
   void read_history_on_server(Dialog *d, MessageId max_message_id);
 
   void do_read_history_on_server(DialogId dialog_id);
@@ -2605,17 +2562,6 @@ class MessagesManager final : public Actor {
 
   void do_set_dialog_folder_id(Dialog *d, FolderId folder_id);
 
-  void toggle_dialog_is_pinned_on_server(DialogId dialog_id, bool is_pinned, uint64 log_event_id);
-
-  void toggle_dialog_view_as_messages_on_server(DialogId dialog_id, bool view_as_messages, uint64 log_event_id);
-
-  void toggle_dialog_is_marked_as_unread_on_server(DialogId dialog_id, bool is_marked_as_unread, uint64 log_event_id);
-
-  void toggle_dialog_is_translatable_on_server(DialogId dialog_id, bool is_translatable, uint64 log_event_id);
-
-  void toggle_dialog_is_blocked_on_server(DialogId dialog_id, bool is_blocked, bool is_blocked_for_stories,
-                                          uint64 log_event_id);
-
   void reorder_pinned_dialogs_on_server(FolderId folder_id, const vector<DialogId> &dialog_ids, uint64 log_event_id);
 
   void set_dialog_reply_markup(Dialog *d, MessageId message_id);
@@ -3018,11 +2964,6 @@ class MessagesManager final : public Actor {
 
   void on_updated_dialog_notification_settings(DialogId dialog_id, uint64 generation);
 
-  void reset_all_notification_settings_on_server(uint64 log_event_id);
-
-  void toggle_dialog_report_spam_state_on_server(DialogId dialog_id, bool is_spam_dialog, uint64 log_event_id,
-                                                 Promise<Unit> &&promise);
-
   void set_dialog_folder_id_on_server(DialogId dialog_id, bool from_binlog);
 
   void on_updated_dialog_folder_id(DialogId dialog_id, uint64 generation);
@@ -3142,8 +3083,6 @@ class MessagesManager final : public Actor {
 
   void save_sponsored_dialog();
 
-  void set_sponsored_dialog(DialogId dialog_id, DialogSource source);
-
   Dialog *get_service_notifications_dialog();
 
   static void extract_authentication_codes(DialogId dialog_id, const Message *m, vector<string> &authentication_codes);
@@ -3190,8 +3129,6 @@ class MessagesManager final : public Actor {
 
   static void save_send_message_log_event(DialogId dialog_id, const Message *m);
 
-  static uint64 save_toggle_dialog_report_spam_state_on_server_log_event(DialogId dialog_id, bool is_spam_dialog);
-
   static uint64 save_delete_messages_on_server_log_event(DialogId dialog_id, const vector<MessageId> &message_ids,
                                                          bool revoke);
 
@@ -3220,24 +3157,10 @@ class MessagesManager final : public Actor {
 
   static uint64 save_read_all_dialog_reactions_on_server_log_event(DialogId dialog_id);
 
-  static uint64 save_toggle_dialog_is_pinned_on_server_log_event(DialogId dialog_id, bool is_pinned);
-
   static uint64 save_reorder_pinned_dialogs_on_server_log_event(FolderId folder_id, const vector<DialogId> &dialog_ids);
-
-  static uint64 save_toggle_dialog_view_as_messages_on_server_log_event(DialogId dialog_id, bool view_as_messages);
-
-  static uint64 save_toggle_dialog_is_marked_as_unread_on_server_log_event(DialogId dialog_id,
-                                                                           bool is_marked_as_unread);
-
-  static uint64 save_toggle_dialog_is_translatable_on_server_log_event(DialogId dialog_id, bool is_translatable);
-
-  static uint64 save_toggle_dialog_is_blocked_on_server_log_event(DialogId dialog_id, bool is_blocked,
-                                                                  bool is_blocked_for_stories);
 
   static uint64 save_read_message_contents_on_server_log_event(DialogId dialog_id,
                                                                const vector<MessageId> &message_ids);
-
-  static uint64 save_reset_all_notification_settings_on_server_log_event();
 
   static uint64 save_reget_dialog_log_event(DialogId dialog_id);
 

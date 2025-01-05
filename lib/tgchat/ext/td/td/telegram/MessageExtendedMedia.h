@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -79,6 +79,10 @@ class MessageExtendedMedia {
   void append_file_ids(const Td *td, vector<FileId> &file_ids) const;
 
   void delete_thumbnail(Td *td);
+
+  bool is_unsupported() const {
+    return type_ == Type::Unsupported;
+  }
 
   bool need_reget() const {
     return type_ == Type::Unsupported && unsupported_version_ < CURRENT_VERSION;

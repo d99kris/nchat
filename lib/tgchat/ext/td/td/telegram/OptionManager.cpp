@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -163,6 +163,9 @@ OptionManager::OptionManager(Td *td)
   set_default_integer_option("thousand_star_to_usd_rate", 1300);
   set_default_integer_option("gift_text_length_max", 255);
   set_default_integer_option("gift_sell_period", is_test_dc ? 300 : 90 * 86400);
+  set_default_integer_option("affiliate_program_commission_per_mille_min", 1);
+  set_default_integer_option("affiliate_program_commission_per_mille_max", 900);
+  set_default_integer_option("bot_verification_custom_description_length_max", 70);
 
   if (options.isset("my_phone_number") || !options.isset("my_id")) {
     update_premium_options();
@@ -448,6 +451,7 @@ bool OptionManager::is_internal_option(Slice name) {
                                                               "saved_gifs_limit_premium",
                                                               "session_count",
                                                               "since_last_open",
+                                                              "starref_start_param_prefixes",
                                                               "stickers_faved_limit_default",
                                                               "stickers_faved_limit_premium",
                                                               "stickers_normal_by_emoji_per_premium_num",
@@ -465,6 +469,7 @@ bool OptionManager::is_internal_option(Slice name) {
                                                               "story_expiring_limit_premium",
                                                               "ton_proxy_address",
                                                               "upload_premium_speedup_notify_period",
+                                                              "video_ignore_alt_documents",
                                                               "video_note_size_max",
                                                               "weather_bot_username",
                                                               "webfile_dc_id"};
@@ -711,7 +716,7 @@ td_api::object_ptr<td_api::OptionValue> OptionManager::get_option_synchronously(
       break;
     case 'v':
       if (name == "version") {
-        return td_api::make_object<td_api::optionValueString>("1.8.40");
+        return td_api::make_object<td_api::optionValueString>("1.8.42");
       }
       break;
   }

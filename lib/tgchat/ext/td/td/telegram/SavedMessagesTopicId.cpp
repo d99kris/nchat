@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -12,6 +12,7 @@
 #include "td/telegram/MessageForwardInfo.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/telegram_api.h"
+#include "td/telegram/UserManager.h"
 
 namespace td {
 
@@ -55,6 +56,7 @@ td_api::object_ptr<td_api::SavedMessagesTopicType> SavedMessagesTopicId::get_sav
     return td_api::make_object<td_api::savedMessagesTopicTypeMyNotes>();
   }
   if (is_author_hidden()) {
+    td->user_manager_->get_user_id_object(HIDDEN_AUTHOR_DIALOG_ID.get_user_id(), "savedMessagesTopicTypeAuthorHidden");
     return td_api::make_object<td_api::savedMessagesTopicTypeAuthorHidden>();
   }
   return td_api::make_object<td_api::savedMessagesTopicTypeSavedFromChat>(

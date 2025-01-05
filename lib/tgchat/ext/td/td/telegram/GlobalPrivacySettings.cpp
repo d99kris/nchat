@@ -1,15 +1,15 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/telegram/GlobalPrivacySettings.h"
 
-#include "td/telegram/ConfigManager.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/net/NetQueryCreator.h"
 #include "td/telegram/SuggestedAction.h"
+#include "td/telegram/SuggestedActionManager.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/telegram_api.h"
 
@@ -169,7 +169,7 @@ void GlobalPrivacySettings::set_global_privacy_settings(Td *td, GlobalPrivacySet
                                                         Promise<Unit> &&promise) {
   CHECK(settings.set_type_ != SetType::None);
   if (settings.archive_and_mute_new_noncontact_peers_) {
-    send_closure(td->config_manager_, &ConfigManager::hide_suggested_action,
+    send_closure(td->suggested_action_manager_actor_, &SuggestedActionManager::hide_suggested_action,
                  SuggestedAction{SuggestedAction::Type::EnableArchiveAndMuteNewChats});
   }
 

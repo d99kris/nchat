@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -1336,7 +1336,7 @@ std::pair<BackgroundId, BackgroundType> BackgroundManager::on_get_background(
   bool is_pattern = wallpaper->pattern_;
 
   Document document = td_->documents_manager_->on_get_document(
-      telegram_api::move_object_as<telegram_api::document>(wallpaper->document_), DialogId(), nullptr,
+      telegram_api::move_object_as<telegram_api::document>(wallpaper->document_), DialogId(), false, nullptr,
       Document::Type::General, is_pattern ? DocumentsManager::Subtype::Pattern : DocumentsManager::Subtype::Background);
   if (!document.file_id.is_valid()) {
     LOG(ERROR) << "Receive wrong document in " << to_string(wallpaper);

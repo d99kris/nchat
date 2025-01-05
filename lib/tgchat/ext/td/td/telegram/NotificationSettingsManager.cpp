@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -1325,8 +1325,8 @@ Result<FileId> NotificationSettingsManager::get_ringtone(
   CHECK(document_id == telegram_api::document::ID);
 
   auto parsed_document =
-      td_->documents_manager_->on_get_document(move_tl_object_as<telegram_api::document>(ringtone), DialogId(), nullptr,
-                                               Document::Type::Audio, DocumentsManager::Subtype::Ringtone);
+      td_->documents_manager_->on_get_document(move_tl_object_as<telegram_api::document>(ringtone), DialogId(), false,
+                                               nullptr, Document::Type::Audio, DocumentsManager::Subtype::Ringtone);
   if (parsed_document.type != Document::Type::Audio) {
     return Status::Error("Receive ringtone of a wrong type");
   }
@@ -1358,7 +1358,7 @@ void NotificationSettingsManager::load_saved_ringtones(Promise<Unit> &&promise) 
       on_saved_ringtones_updated(true);
     }
 
-    // the promis must not be set synchronously
+    // the promise must not be set synchronously
     send_closure_later(actor_id(this), &NotificationSettingsManager::on_load_saved_ringtones, std::move(promise));
     reload_saved_ringtones(Auto());
   } else {
@@ -1632,10 +1632,6 @@ void NotificationSettingsManager::update_scope_notification_settings_on_server(N
       ->send(scope, *get_scope_notification_settings(scope));
 }
 
-void NotificationSettingsManager::reset_notify_settings(Promise<Unit> &&promise) {
-  td_->create_handler<ResetNotifySettingsQuery>(std::move(promise))->send();
-}
-
 Status NotificationSettingsManager::set_reaction_notification_settings(
     ReactionNotificationSettings &&notification_settings) {
   CHECK(!td_->auth_manager_->is_bot());
@@ -1701,6 +1697,43 @@ void NotificationSettingsManager::get_story_notification_settings_exceptions(
   td_->create_handler<GetStoryNotifySettingsExceptionsQuery>(std::move(promise))->send();
 }
 
+void NotificationSettingsManager::reset_all_notification_settings() {
+  CHECK(!td_->auth_manager_->is_bot());
+
+  td_->messages_manager_->reset_all_dialog_notification_settings();
+
+  reset_scope_notification_settings();
+
+  reset_all_notification_settings_on_server(0);
+}
+
+class NotificationSettingsManager::ResetAllNotificationSettingsOnServerLogEvent {
+ public:
+  template <class StorerT>
+  void store(StorerT &storer) const {
+  }
+
+  template <class ParserT>
+  void parse(ParserT &parser) {
+  }
+};
+
+uint64 NotificationSettingsManager::save_reset_all_notification_settings_on_server_log_event() {
+  ResetAllNotificationSettingsOnServerLogEvent log_event;
+  return binlog_add(G()->td_db()->get_binlog(), LogEvent::HandlerType::ResetAllNotificationSettingsOnServer,
+                    get_log_event_storer(log_event));
+}
+
+void NotificationSettingsManager::reset_all_notification_settings_on_server(uint64 log_event_id) {
+  CHECK(!td_->auth_manager_->is_bot());
+  if (log_event_id == 0) {
+    log_event_id = save_reset_all_notification_settings_on_server_log_event();
+  }
+
+  LOG(INFO) << "Reset all notification settings";
+  td_->create_handler<ResetNotifySettingsQuery>(get_erase_log_event_promise(log_event_id))->send();
+}
+
 void NotificationSettingsManager::on_binlog_events(vector<BinlogEvent> &&events) {
   if (G()->close_flag()) {
     return;
@@ -1708,6 +1741,13 @@ void NotificationSettingsManager::on_binlog_events(vector<BinlogEvent> &&events)
   for (auto &event : events) {
     CHECK(event.id_ != 0);
     switch (event.type_) {
+      case LogEvent::HandlerType::ResetAllNotificationSettingsOnServer: {
+        ResetAllNotificationSettingsOnServerLogEvent log_event;
+        log_event_parse(log_event, event.get_data()).ensure();
+
+        reset_all_notification_settings_on_server(event.id_);
+        break;
+      }
       case LogEvent::HandlerType::UpdateScopeNotificationSettingsOnServer: {
         UpdateScopeNotificationSettingsOnServerLogEvent log_event;
         log_event_parse(log_event, event.get_data()).ensure();

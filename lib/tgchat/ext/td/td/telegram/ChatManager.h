@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -54,6 +54,7 @@
 namespace td {
 
 struct BinlogEvent;
+class BotVerification;
 struct MinChannel;
 class Td;
 
@@ -348,8 +349,7 @@ class ChatManager final : public Actor {
   DialogParticipantStatus get_channel_status(ChannelId channel_id) const;
   DialogParticipantStatus get_channel_permissions(ChannelId channel_id) const;
   bool get_channel_is_verified(ChannelId channel_id) const;
-  bool get_channel_is_scam(ChannelId channel_id) const;
-  bool get_channel_is_fake(ChannelId channel_id) const;
+  td_api::object_ptr<td_api::verificationStatus> get_channel_verification_status_object(ChannelId channel_id) const;
   int32 get_channel_participant_count(ChannelId channel_id) const;
   bool get_channel_sign_messages(ChannelId channel_id) const;
   bool get_channel_show_message_sender(ChannelId channel_id) const;
@@ -374,7 +374,7 @@ class ChatManager final : public Actor {
 
   int64 get_supergroup_id_object(ChannelId channel_id, const char *source) const;
 
-  tl_object_ptr<td_api::supergroup> get_supergroup_object(ChannelId channel_id) const;
+  td_api::object_ptr<td_api::supergroup> get_supergroup_object(ChannelId channel_id) const;
 
   tl_object_ptr<td_api::supergroupFullInfo> get_supergroup_full_info_object(ChannelId channel_id) const;
 
@@ -482,6 +482,7 @@ class ChatManager final : public Actor {
     int32 date = 0;
     int32 participant_count = 0;
     int32 boost_level = 0;
+    CustomEmojiId bot_verification_icon;
 
     double max_active_story_id_next_reload_time = 0.0;
     StoryId max_active_story_id;
@@ -558,6 +559,7 @@ class ChatManager final : public Actor {
     DialogInviteLink invite_link;
 
     vector<BotCommands> bot_commands;
+    unique_ptr<BotVerification> bot_verification;
 
     uint32 speculative_version = 1;
     uint32 repair_request_version = 0;
@@ -704,6 +706,7 @@ class ChatManager final : public Actor {
   static ChannelType get_channel_type(const Channel *c);
   static DialogParticipantStatus get_channel_status(const Channel *c);
   DialogParticipantStatus get_channel_permissions(ChannelId channel_id, const Channel *c) const;
+  td_api::object_ptr<td_api::verificationStatus> get_channel_verification_status_object(const Channel *c) const;
   static bool get_channel_sign_messages(const Channel *c);
   static bool get_channel_show_message_sender(const Channel *c);
   static bool get_channel_has_linked_channel(const Channel *c);
@@ -752,6 +755,7 @@ class ChatManager final : public Actor {
   void on_update_channel_story_ids_impl(Channel *c, ChannelId channel_id, StoryId max_active_story_id,
                                         StoryId max_read_story_id);
   void on_update_channel_max_read_story_id(Channel *c, ChannelId channel_id, StoryId max_read_story_id);
+  void on_update_channel_bot_verification_icon(Channel *c, ChannelId channel_id, CustomEmojiId bot_verification_icon);
 
   void on_update_channel_full_photo(ChannelFull *channel_full, ChannelId channel_id, Photo photo);
   void on_update_channel_full_invite_link(ChannelFull *channel_full,
@@ -868,7 +872,7 @@ class ChatManager final : public Actor {
 
   td_api::object_ptr<td_api::updateSupergroup> get_update_unknown_supergroup_object(ChannelId channel_id) const;
 
-  static tl_object_ptr<td_api::supergroup> get_supergroup_object(ChannelId channel_id, const Channel *c);
+  td_api::object_ptr<td_api::supergroup> get_supergroup_object(ChannelId channel_id, const Channel *c) const;
 
   Status can_hide_chat_participants(ChatId chat_id) const;
 

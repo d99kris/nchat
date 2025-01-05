@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -2211,7 +2211,7 @@ void QuickReplyManager::do_send_message(const QuickReplyMessage *m, vector<int> 
       auto thumbnail_file_id = get_message_content_thumbnail_file_id(content, td_);
       if (thumbnail_file_id.is_valid()) {
         FileView file_view = td_->file_manager_->get_file_view(file_id);
-        if (get_main_file_type(file_view.get_type()) != FileType::Photo) {
+        if (get_file_type_class(file_view.get_type()) != FileTypeClass::Photo) {
           thumbnail_file_upload_id = FileUploadId{thumbnail_file_id, FileManager::get_internal_upload_id()};
         }
       }

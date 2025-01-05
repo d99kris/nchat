@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -274,6 +274,11 @@ td_api::object_ptr<td_api::MessageContent> get_message_content_object(const Mess
                                                                       bool is_content_secret, bool skip_bot_commands,
                                                                       int32 max_media_timestamp, bool invert_media,
                                                                       bool disable_web_page_preview);
+
+td_api::object_ptr<td_api::upgradeGiftResult> get_message_content_upgrade_gift_result_object(
+    const MessageContent *content, Td *td);
+
+int64 get_message_content_gift_upgrade_star_count(const MessageContent *content);
 
 FormattedText *get_message_content_text_mutable(MessageContent *content);
 

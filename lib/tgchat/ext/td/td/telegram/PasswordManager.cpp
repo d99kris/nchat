@@ -1,18 +1,18 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2024
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/telegram/PasswordManager.h"
 
-#include "td/telegram/ConfigManager.h"
 #include "td/telegram/DhCache.h"
 #include "td/telegram/DialogId.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/logevent/LogEvent.h"
 #include "td/telegram/net/NetQueryDispatcher.h"
 #include "td/telegram/SuggestedAction.h"
+#include "td/telegram/SuggestedActionManager.h"
 #include "td/telegram/TdDb.h"
 #include "td/telegram/telegram_api.h"
 
@@ -340,7 +340,7 @@ void PasswordManager::on_finish_create_temp_password(Result<TempPasswordState> r
 }
 
 void PasswordManager::get_full_state(string password, Promise<PasswordFullState> promise) {
-  send_closure(G()->config_manager(), &ConfigManager::hide_suggested_action,
+  send_closure(G()->suggested_action_manager(), &SuggestedActionManager::hide_suggested_action,
                SuggestedAction{SuggestedAction::Type::CheckPassword});
 
   do_get_state(PromiseCreator::lambda([actor_id = actor_id(this), password = std::move(password),
@@ -492,11 +492,11 @@ void PasswordManager::check_email_address_verification_code(string code, Promise
   auto verification_code = make_tl_object<telegram_api::emailVerificationCode>(std::move(code));
   auto query = G()->net_query_creator().create(telegram_api::account_verifyEmail(
       make_tl_object<telegram_api::emailVerifyPurposePassport>(), std::move(verification_code)));
-  send_with_promise(
-      std::move(query), PromiseCreator::lambda([promise = std::move(promise)](Result<NetQueryPtr> r_query) mutable {
-        TRY_STATUS_PROMISE(promise, fetch_result<telegram_api::account_verifyEmail>(std::move(r_query)));
-        promise.set_value(Unit());
-      }));
+  send_with_promise(std::move(query),
+                    PromiseCreator::lambda([promise = std::move(promise)](Result<NetQueryPtr> r_query) mutable {
+                      TRY_STATUS_PROMISE(promise, fetch_result<telegram_api::account_verifyEmail>(std::move(r_query)));
+                      promise.set_value(Unit());
+                    }));
 }
 
 void PasswordManager::request_password_recovery(Promise<SentEmailCode> promise) {
