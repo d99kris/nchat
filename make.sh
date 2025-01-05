@@ -2,7 +2,7 @@
 
 # make.sh
 #
-# Copyright (C) 2020-2024 Kristofer Berggren
+# Copyright (C) 2020-2025 Kristofer Berggren
 # All rights reserved.
 #
 # See LICENSE for redistribution information.
@@ -148,7 +148,7 @@ if [[ "${DEPS}" == "1" ]]; then
       sudo emerge -n dev-util/cmake dev-util/ccache dev-util/gperf sys-apps/help2man sys-libs/readline dev-libs/openssl sys-libs/ncurses sys-libs/zlib dev-db/sqlite sys-apps/file dev-lang/go || exiterr "deps failed (${NAME}), exiting."
     elif [[ "${NAME}" == "Fedora Linux" ]]; then
       sudo dnf ${YES} install git cmake clang golang ccache file-devel file-libs gperf readline-devel openssl-devel ncurses-devel sqlite-devel zlib-devel || exiterr "deps failed (${NAME}), exiting."
-    elif [[ "${NAME}" == "Arch Linux" ]] || [[ "${NAME}" == "EndeavourOS" ]]; then
+    elif [[ "${NAME}" == "Arch Linux" ]] || [[ "${NAME}" == "Arch Linux ARM" ]] || [[ "${NAME}" == "EndeavourOS" ]]; then
       sudo pacman -S ccache cmake file go gperf help2man ncurses openssl readline sqlite zlib base-devel || exiterr "deps failed (${NAME}), exiting."
     elif [[ "${NAME}" == "Void" ]]; then
       sudo xbps-install ${YES} base-devel go ccache cmake gperf help2man libmagick-devel readline-devel sqlite-devel file-devel openssl-devel || exiterr "deps failed (${NAME}), exiting."
