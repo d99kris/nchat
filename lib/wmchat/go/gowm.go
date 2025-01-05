@@ -1,6 +1,6 @@
 // gowm.go
 //
-// Copyright (c) 2021-2024 Kristofer Berggren
+// Copyright (c) 2021-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -47,7 +47,7 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
-var whatsmeowDate int = 20241121
+var whatsmeowDate int = 20250104
 
 type JSONMessage []json.RawMessage
 type JSONMessageType string
