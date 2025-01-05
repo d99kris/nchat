@@ -1,6 +1,6 @@
 // uikeyconfig.cpp
 //
-// Copyright (c) 2019-2024 Kristofer Berggren
+// Copyright (c) 2019-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -244,9 +244,9 @@ void UiKeyConfig::Init(bool p_MapKeys)
     { "save", "KEY_CTRLR" },
     { "transfer", "KEY_CTRLT" },
     { "select_emoji", "KEY_CTRLS" },
-    { "select_contact", "KEY_CTRLN" },
+    { "select_contact", "\\33\\156" }, // alt/opt-n
     { "forward_msg", "\\33\\162" }, // alt/opt-r
-    { "goto_chat", "\\33\\156" }, // alt/opt-n
+    { "goto_chat", "KEY_CTRLN" },
     { "other_commands_help", "KEY_CTRLO" },
     { "decrease_list_width", "\\33\\54" }, // alt/opt-,
     { "increase_list_width", "\\33\\56" }, // alt/opt-.

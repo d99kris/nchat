@@ -53,7 +53,7 @@ Interactive Commands:
     Ctrl-f      jump to unread chat
     Ctrl-g      toggle show help bar
     Ctrl-l      toggle show contact list
-    Ctrl-n      search contacts
+    Ctrl-n      goto chat
     Ctrl-p      toggle show top bar
     Ctrl-q      quit
     Ctrl-s      insert emoji
@@ -63,7 +63,7 @@ Interactive Commands:
     KeyUp       select message
     Alt-d       delete/leave current chat
     Alt-e       external editor compose
-    Alt-n       goto chat
+    Alt-n       search contacts
     Alt-t       external telephone call
     Alt-/       find in chat
     Alt-?       find next in chat
@@ -676,7 +676,7 @@ This configuration file holds user interface key bindings. Default content:
     find_next=\33\77
     forward_msg=\33\162
     forward_word=
-    goto_chat=\33\156
+    goto_chat=KEY_CTRLN
     home=KEY_HOME
     increase_list_width=\33\56
     jump_quoted=\33\161
@@ -697,7 +697,7 @@ This configuration file holds user interface key bindings. Default content:
     react=\33\163
     right=KEY_RIGHT
     save=KEY_CTRLR
-    select_contact=KEY_CTRLN
+    select_contact=\33\156
     select_emoji=KEY_CTRLS
     send_msg=KEY_CTRLX
     spell=\33\44

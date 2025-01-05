@@ -1,6 +1,6 @@
 // uihelpview.cpp
 //
-// Copyright (c) 2019-2024 Kristofer Berggren
+// Copyright (c) 2019-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -68,7 +68,7 @@ void UiHelpView::Draw()
 
     AppendHelpItem("quit", "Quit", helpItems);
     AppendHelpItem("select_emoji", "AddEmoji", helpItems);
-    AppendHelpItem("select_contact", "AddrBook", helpItems);
+    AppendHelpItem("goto_chat", "GotoChat", helpItems);
     AppendHelpItem("transfer", "SendFile", helpItems);
 
     return helpItems;
@@ -81,7 +81,7 @@ void UiHelpView::Draw()
     AppendHelpItem("ext_call", "ExtCall", helpItems);
     AppendHelpItem("find", "Find", helpItems);
     AppendHelpItem("find_next", "FindNext", helpItems);
-    AppendHelpItem("goto_chat", "GotoChat", helpItems);
+    AppendHelpItem("select_contact", "AddrBook", helpItems);
     AppendHelpItem("spell", "ExtSpell", helpItems);
     AppendHelpItem("decrease_list_width", "DecListW", helpItems);
     AppendHelpItem("increase_list_width", "IncListW", helpItems);
