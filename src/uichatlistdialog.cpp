@@ -1,6 +1,6 @@
 // uichatlistdialog.cpp
 //
-// Copyright (c) 2024 Kristofer Berggren
+// Copyright (c) 2024-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -51,6 +51,8 @@ bool UiChatListDialog::OnTimer()
 
 void UiChatListDialog::UpdateList()
 {
+  const bool emojiEnabled = m_Model->GetEmojiEnabled();
+
   m_Index = 0;
   m_Items.clear();
   m_ChatListItemVec.clear();
@@ -72,6 +74,11 @@ void UiChatListDialog::UpdateList()
       static const bool isMultipleProfiles = m_Model->IsMultipleProfiles();
       std::string displayName = name +
         (isMultipleProfiles ? " @ " + m_Model->GetProfileDisplayName(profileId) : "");
+
+      if (!emojiEnabled)
+      {
+        displayName = StrUtil::Textize(displayName);
+      }
 
       static const bool developerMode = AppUtil::GetDeveloperMode();
       if (developerMode)
