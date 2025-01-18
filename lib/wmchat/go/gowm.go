@@ -68,14 +68,15 @@ const (
 )
 
 var (
-	mx        sync.Mutex
-	clients   map[int]*whatsmeow.Client    = make(map[int]*whatsmeow.Client)
-	paths     map[int]string               = make(map[int]string)
-	contacts  map[int]map[string]string    = make(map[int]map[string]string)
-	states    map[int]State                = make(map[int]State)
-	timeReads map[int]map[string]time.Time = make(map[int]map[string]time.Time)
-	handlers  map[int]*WmEventHandler      = make(map[int]*WmEventHandler)
-	sendTypes map[int]int                  = make(map[int]int)
+	mx          sync.Mutex
+	clients     map[int]*whatsmeow.Client    = make(map[int]*whatsmeow.Client)
+	paths       map[int]string               = make(map[int]string)
+	contacts    map[int]map[string]string    = make(map[int]map[string]string)
+	states      map[int]State                = make(map[int]State)
+	timeReads   map[int]map[string]time.Time = make(map[int]map[string]time.Time)
+	expirations map[int]map[string]uint32    = make(map[int]map[string]uint32)
+	handlers    map[int]*WmEventHandler      = make(map[int]*WmEventHandler)
+	sendTypes   map[int]int                  = make(map[int]int)
 )
 
 // keep in sync with enum FileStatus in protocol.h
@@ -104,6 +105,7 @@ func AddConn(conn *whatsmeow.Client, path string, sendType int) int {
 	contacts[connId] = make(map[string]string)
 	states[connId] = None
 	timeReads[connId] = make(map[string]time.Time)
+	expirations[connId] = make(map[string]uint32)
 	handlers[connId] = &WmEventHandler{connId}
 	sendTypes[connId] = sendType
 	mx.Unlock()
@@ -117,6 +119,7 @@ func RemoveConn(connId int) {
 	delete(contacts, connId)
 	delete(states, connId)
 	delete(timeReads, connId)
+	delete(expirations, connId)
 	delete(handlers, connId)
 	delete(sendTypes, connId)
 	mx.Unlock()
@@ -196,6 +199,24 @@ func GetTimeRead(connId int, chatId string) time.Time {
 func SetTimeRead(connId int, chatId string, timeRead time.Time) {
 	mx.Lock()
 	timeReads[connId][chatId] = timeRead
+	mx.Unlock()
+}
+
+func GetExpiration(connId int, chatId string) uint32 {
+	var expiration uint32
+	var ok bool
+	mx.Lock()
+	expiration, ok = expirations[connId][chatId]
+	mx.Unlock()
+	if !ok {
+		expiration = 0
+	}
+	return expiration
+}
+
+func SetExpiration(connId int, chatId string, expiration uint32) {
+	mx.Lock()
+	expirations[connId][chatId] = expiration
 	mx.Unlock()
 }
 
@@ -1015,6 +1036,10 @@ func (handler *WmEventHandler) GetContacts() {
 			LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", groupId, groupName))
 			CWmNewContactsNotify(connId, groupId, groupName, groupPhone, BoolToInt(false))
 			AddContactName(connId, groupId, groupName)
+
+			if group.GroupEphemeral.IsEphemeral {
+				SetExpiration(connId, groupId, group.GroupEphemeral.DisappearingTimer)
+			}
 		}
 	}
 
@@ -1973,6 +1998,12 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 			StanzaID:      &quotedId,
 			Participant:   &quotedSender,
 		}
+	}
+
+	expiration := GetExpiration(connId, chatId)
+	if expiration != 0 {
+		LOG_TRACE("send expiration " + strconv.FormatUint(uint64(expiration), 10))
+		contextInfo.Expiration = &expiration
 	}
 
 	// check message type
