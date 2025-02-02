@@ -1038,6 +1038,11 @@ There are no plans to support the following features:
 - Telegram secret chats
 - Voice / video calls
 
+Additionally, WhatsApp is only supported on macOS and glibc-based Linux
+systems. Thus, it is not supported on musl-based operating systems, such
+as Alpine Linux. See [issue #204](https://github.com/d99kris/nchat/issues/204)
+for technical details on this limitation.
+
 Roadmap
 -------
 There is currently no concrete roadmap for further feature development of
