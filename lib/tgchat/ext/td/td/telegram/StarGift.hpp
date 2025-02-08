@@ -12,6 +12,7 @@
 #include "td/telegram/StickersManager.h"
 #include "td/telegram/StickersManager.hpp"
 #include "td/telegram/Td.h"
+#include "td/telegram/UserId.h"
 
 #include "td/utils/common.h"
 #include "td/utils/tl_helpers.h"
@@ -27,8 +28,11 @@ void StarGift::store(StorerT &storer) const {
   bool has_first_sale_date = first_sale_date_ != 0;
   bool has_last_sale_date = last_sale_date_ != 0;
   bool has_original_details = original_details_.is_valid();
-  bool has_owner_user_id = owner_user_id_.is_valid();
   bool has_upgrade_star_count = upgrade_star_count_ != 0;
+  bool has_owner_name = !owner_name_.empty();
+  bool has_slug = !slug_.empty();
+  bool has_owner_dialog_id = owner_dialog_id_.is_valid();
+  bool has_owner_address = !owner_address_.empty();
   BEGIN_STORE_FLAGS();
   STORE_FLAG(is_limited);
   STORE_FLAG(has_default_sell_star_count);
@@ -37,8 +41,12 @@ void StarGift::store(StorerT &storer) const {
   STORE_FLAG(is_for_birthday_);
   STORE_FLAG(is_unique_);
   STORE_FLAG(has_original_details);
-  STORE_FLAG(has_owner_user_id);
+  STORE_FLAG(false);  // has_owner_user_id
   STORE_FLAG(has_upgrade_star_count);
+  STORE_FLAG(has_owner_name);
+  STORE_FLAG(has_slug);
+  STORE_FLAG(has_owner_dialog_id);
+  STORE_FLAG(has_owner_address);
   END_STORE_FLAGS();
   td::store(id_, storer);
   if (!is_unique_) {
@@ -69,12 +77,21 @@ void StarGift::store(StorerT &storer) const {
       td::store(original_details_, storer);
     }
     td::store(title_, storer);
-    if (has_owner_user_id) {
-      td::store(owner_user_id_, storer);
+    if (has_owner_dialog_id) {
+      td::store(owner_dialog_id_, storer);
+    }
+    if (has_owner_name) {
+      td::store(owner_name_, storer);
     }
     td::store(num_, storer);
     td::store(unique_availability_issued_, storer);
     td::store(unique_availability_total_, storer);
+    if (has_slug) {
+      td::store(slug_, storer);
+    }
+    if (has_owner_address) {
+      td::store(owner_address_, storer);
+    }
   }
 }
 
@@ -88,6 +105,10 @@ void StarGift::parse(ParserT &parser) {
   bool has_original_details;
   bool has_owner_user_id;
   bool has_upgrade_star_count;
+  bool has_owner_name;
+  bool has_slug;
+  bool has_owner_dialog_id;
+  bool has_owner_address;
   BEGIN_PARSE_FLAGS();
   PARSE_FLAG(is_limited);
   PARSE_FLAG(has_default_sell_star_count);
@@ -98,6 +119,10 @@ void StarGift::parse(ParserT &parser) {
   PARSE_FLAG(has_original_details);
   PARSE_FLAG(has_owner_user_id);
   PARSE_FLAG(has_upgrade_star_count);
+  PARSE_FLAG(has_owner_name);
+  PARSE_FLAG(has_slug);
+  PARSE_FLAG(has_owner_dialog_id);
+  PARSE_FLAG(has_owner_address);
   END_PARSE_FLAGS();
   td::parse(id_, parser);
   if (!is_unique_) {
@@ -131,11 +156,25 @@ void StarGift::parse(ParserT &parser) {
     }
     td::parse(title_, parser);
     if (has_owner_user_id) {
-      td::parse(owner_user_id_, parser);
+      UserId owner_user_id;
+      td::parse(owner_user_id, parser);
+      owner_dialog_id_ = DialogId(owner_user_id);
+    }
+    if (has_owner_dialog_id) {
+      td::parse(owner_dialog_id_, parser);
+    }
+    if (has_owner_name) {
+      td::parse(owner_name_, parser);
     }
     td::parse(num_, parser);
     td::parse(unique_availability_issued_, parser);
     td::parse(unique_availability_total_, parser);
+    if (has_slug) {
+      td::parse(slug_, parser);
+    }
+    if (has_owner_address) {
+      td::parse(owner_address_, parser);
+    }
   }
 }
 

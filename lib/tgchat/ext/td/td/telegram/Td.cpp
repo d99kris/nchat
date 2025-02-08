@@ -17,6 +17,7 @@
 #include "td/telegram/BackgroundManager.h"
 #include "td/telegram/BoostManager.h"
 #include "td/telegram/BotInfoManager.h"
+#include "td/telegram/BotRecommendationManager.h"
 #include "td/telegram/BusinessConnectionManager.h"
 #include "td/telegram/BusinessManager.h"
 #include "td/telegram/CallbackQueriesManager.h"
@@ -507,6 +508,7 @@ void Td::dec_actor_refcnt() {
       reset_manager(background_manager_, "BackgroundManager");
       reset_manager(boost_manager_, "BoostManager");
       reset_manager(bot_info_manager_, "BotInfoManager");
+      reset_manager(bot_recommendation_manager_, "BotRecommendationManager");
       reset_manager(business_connection_manager_, "BusinessConnectionManager");
       reset_manager(business_manager_, "BusinessManager");
       reset_manager(call_manager_, "CallManager");
@@ -684,6 +686,7 @@ void Td::clear() {
   reset_actor(ActorOwn<Actor>(std::move(background_manager_actor_)));
   reset_actor(ActorOwn<Actor>(std::move(boost_manager_actor_)));
   reset_actor(ActorOwn<Actor>(std::move(bot_info_manager_actor_)));
+  reset_actor(ActorOwn<Actor>(std::move(bot_recommendation_manager_actor_)));
   reset_actor(ActorOwn<Actor>(std::move(business_connection_manager_actor_)));
   reset_actor(ActorOwn<Actor>(std::move(business_manager_actor_)));
   reset_actor(ActorOwn<Actor>(std::move(call_manager_actor_)));
@@ -992,6 +995,9 @@ void Td::process_binlog_events(TdDb::OpenedDatabase &&events) {
 
   send_closure_later(dialog_manager_actor_, &DialogManager::on_binlog_events, std::move(events.to_dialog_manager));
 
+  send_closure_later(message_query_manager_actor_, &MessageQueryManager::on_binlog_events,
+                     std::move(events.to_message_query_manager));
+
   send_closure_later(messages_manager_actor_, &MessagesManager::on_binlog_events,
                      std::move(events.to_messages_manager));
 
@@ -1144,6 +1150,8 @@ void Td::init_managers() {
   bot_info_manager_ = make_unique<BotInfoManager>(this, create_reference());
   bot_info_manager_actor_ = register_actor("BotInfoManager", bot_info_manager_.get());
   G()->set_bot_info_manager(bot_info_manager_actor_.get());
+  bot_recommendation_manager_ = make_unique<BotRecommendationManager>(this, create_reference());
+  bot_recommendation_manager_actor_ = register_actor("BotRecommendationManager", bot_recommendation_manager_.get());
   business_connection_manager_ = make_unique<BusinessConnectionManager>(this, create_reference());
   business_connection_manager_actor_ = register_actor("BusinessConnectionManager", business_connection_manager_.get());
   G()->set_business_connection_manager(business_connection_manager_actor_.get());

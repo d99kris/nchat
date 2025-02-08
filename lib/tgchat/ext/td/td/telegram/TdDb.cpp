@@ -92,6 +92,7 @@ Status init_binlog(Binlog &binlog, string path, BinlogKeyValue<Binlog> &binlog_p
       case LogEvent::HandlerType::StopPoll:
         events.to_poll_manager.push_back(event.clone());
         break;
+      case LogEvent::HandlerType::ReorderPinnedDialogsOnServer:
       case LogEvent::HandlerType::ToggleDialogIsBlockedOnServer:
       case LogEvent::HandlerType::ToggleDialogIsMarkedAsUnreadOnServer:
       case LogEvent::HandlerType::ToggleDialogIsPinnedOnServer:
@@ -100,33 +101,34 @@ Status init_binlog(Binlog &binlog, string path, BinlogKeyValue<Binlog> &binlog_p
       case LogEvent::HandlerType::ToggleDialogViewAsMessagesOnServer:
         events.to_dialog_manager.push_back(event.clone());
         break;
+      case LogEvent::HandlerType::BlockMessageSenderFromRepliesOnServer:
+      case LogEvent::HandlerType::DeleteAllCallMessagesOnServer:
+      case LogEvent::HandlerType::DeleteAllChannelMessagesFromSenderOnServer:
+      case LogEvent::HandlerType::DeleteDialogHistoryOnServer:
+      case LogEvent::HandlerType::DeleteDialogMessagesByDateOnServer:
+      case LogEvent::HandlerType::DeleteMessagesOnServer:
+      case LogEvent::HandlerType::DeleteScheduledMessagesOnServer:
+      case LogEvent::HandlerType::DeleteTopicHistoryOnServer:
+      case LogEvent::HandlerType::ReadAllDialogMentionsOnServer:
+      case LogEvent::HandlerType::ReadAllDialogReactionsOnServer:
+      case LogEvent::HandlerType::ReadMessageContentsOnServer:
+      case LogEvent::HandlerType::UnpinAllDialogMessagesOnServer:
+        events.to_message_query_manager.push_back(event.clone());
+        break;
       case LogEvent::HandlerType::SendMessage:
       case LogEvent::HandlerType::DeleteMessage:
-      case LogEvent::HandlerType::DeleteMessagesOnServer:
       case LogEvent::HandlerType::ReadHistoryOnServer:
-      case LogEvent::HandlerType::ReadMessageContentsOnServer:
       case LogEvent::HandlerType::ForwardMessages:
       case LogEvent::HandlerType::SendBotStartMessage:
       case LogEvent::HandlerType::SendScreenshotTakenNotificationMessage:
       case LogEvent::HandlerType::SendInlineQueryResultMessage:
-      case LogEvent::HandlerType::DeleteDialogHistoryOnServer:
-      case LogEvent::HandlerType::ReadAllDialogMentionsOnServer:
-      case LogEvent::HandlerType::DeleteAllChannelMessagesFromSenderOnServer:
-      case LogEvent::HandlerType::ReorderPinnedDialogsOnServer:
       case LogEvent::HandlerType::SaveDialogDraftMessageOnServer:
       case LogEvent::HandlerType::UpdateDialogNotificationSettingsOnServer:
       case LogEvent::HandlerType::RegetDialog:
       case LogEvent::HandlerType::GetChannelDifference:
       case LogEvent::HandlerType::ReadHistoryInSecretChat:
       case LogEvent::HandlerType::SetDialogFolderIdOnServer:
-      case LogEvent::HandlerType::DeleteScheduledMessagesOnServer:
       case LogEvent::HandlerType::ReadMessageThreadHistoryOnServer:
-      case LogEvent::HandlerType::BlockMessageSenderFromRepliesOnServer:
-      case LogEvent::HandlerType::UnpinAllDialogMessagesOnServer:
-      case LogEvent::HandlerType::DeleteAllCallMessagesOnServer:
-      case LogEvent::HandlerType::DeleteDialogMessagesByDateOnServer:
-      case LogEvent::HandlerType::ReadAllDialogReactionsOnServer:
-      case LogEvent::HandlerType::DeleteTopicHistoryOnServer:
       case LogEvent::HandlerType::SendQuickReplyShortcutMessages:
         events.to_messages_manager.push_back(event.clone());
         break;

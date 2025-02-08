@@ -36,11 +36,12 @@ class MessageExtendedMedia {
   Dimensions dimensions_;
   string minithumbnail_;
 
-  // for Photo
+  // for Photo and Video cover
   Photo photo_;
 
   // for Video
   FileId video_file_id_;
+  int32 start_timestamp_ = 0;
 
   friend bool operator==(const MessageExtendedMedia &lhs, const MessageExtendedMedia &rhs);
 
@@ -106,7 +107,11 @@ class MessageExtendedMedia {
 
   FileId get_thumbnail_file_id(const Td *td) const;
 
+  FileId get_cover_any_file_id() const;
+
   void update_file_id_remote(FileId file_id);
+
+  const Photo *get_video_cover() const;
 
   telegram_api::object_ptr<telegram_api::InputMedia> get_input_media(
       Td *td, telegram_api::object_ptr<telegram_api::InputFile> input_file,

@@ -381,6 +381,9 @@ class QuickReplyManager final : public Actor {
                                                           unique_ptr<MessageContent> &new_content,
                                                           bool need_merge_files);
 
+  void on_cover_upload(QuickReplyMessageFullId message_full_id, int64 edit_generation, vector<int> bad_parts,
+                       Result<Unit> result);
+
   void do_send_message(const QuickReplyMessage *m, vector<int> bad_parts = {});
 
   void on_send_message_file_parts_missing(QuickReplyShortcutId shortcut_id, int64 random_id, vector<int> &&bad_parts);
@@ -421,8 +424,8 @@ class QuickReplyManager final : public Actor {
 
   void fail_edit_quick_reply_message(QuickReplyShortcutId shortcut_id, MessageId message_id, int64 edit_generation,
                                      FileUploadId file_upload_id, FileUploadId thumbnail_file_upload_id,
-                                     string file_reference, bool was_uploaded, bool was_thumbnail_uploaded,
-                                     Status status);
+                                     FileId cover_file_id, string file_reference, string cover_file_reference,
+                                     bool was_uploaded, bool was_thumbnail_uploaded, Status status);
 
   string get_quick_reply_shortcuts_database_key();
 

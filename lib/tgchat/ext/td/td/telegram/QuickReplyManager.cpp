@@ -8,6 +8,7 @@
 
 #include "td/telegram/AccessRights.h"
 #include "td/telegram/AuthManager.h"
+#include "td/telegram/BusinessConnectionId.h"
 #include "td/telegram/ChatManager.h"
 #include "td/telegram/Dependencies.h"
 #include "td/telegram/DialogManager.h"
@@ -22,6 +23,7 @@
 #include "td/telegram/MessageContentType.h"
 #include "td/telegram/MessageCopyOptions.h"
 #include "td/telegram/MessageInputReplyTo.h"
+#include "td/telegram/MessageQueryManager.h"
 #include "td/telegram/MessageQuote.h"
 #include "td/telegram/MessageReplyHeader.h"
 #include "td/telegram/MessageSelfDestructType.h"
@@ -348,7 +350,9 @@ class QuickReplyManager::SendQuickReplyMediaQuery final : public Td::ResultHandl
   QuickReplyShortcutId shortcut_id_;
   FileUploadId file_upload_id_;
   FileUploadId thumbnail_file_upload_id_;
+  FileId cover_file_id_;
   string file_reference_;
+  string cover_file_reference_;
   bool was_uploaded_ = false;
   bool was_thumbnail_uploaded_ = false;
 
@@ -358,7 +362,9 @@ class QuickReplyManager::SendQuickReplyMediaQuery final : public Td::ResultHandl
     shortcut_id_ = m->shortcut_id;
     file_upload_id_ = m->file_upload_id;
     thumbnail_file_upload_id_ = m->thumbnail_file_upload_id;
+    cover_file_id_ = get_message_content_cover_any_file_id(m->content.get());
     file_reference_ = FileManager::extract_file_reference(input_media);
+    cover_file_reference_ = FileManager::extract_cover_file_reference(input_media);
     was_uploaded_ = FileManager::extract_was_uploaded(input_media);
     was_thumbnail_uploaded_ = FileManager::extract_was_thumbnail_uploaded(input_media);
 
@@ -415,6 +421,29 @@ class QuickReplyManager::SendQuickReplyMediaQuery final : public Td::ResultHandl
       return;
     }
     LOG(INFO) << "Receive error for SendQuickReplyMediaQuery: " << status;
+    if (FileReferenceManager::is_file_reference_error(status)) {
+      auto source = FileReferenceManager::get_file_reference_error_source(status);
+      if (source.is_cover_) {
+        if (cover_file_id_.is_valid() && source.pos_ <= 1) {
+          VLOG(file_references) << "Receive " << status << " for cover " << cover_file_id_;
+          td_->file_manager_->delete_file_reference(cover_file_id_, cover_file_reference_);
+          td_->quick_reply_manager_->on_send_message_file_reference_error(shortcut_id_, random_id_);
+          return;
+        } else {
+          LOG(ERROR) << "Receive file reference error, but cover_file_id = " << cover_file_id_;
+        }
+      } else {
+        if (file_upload_id_.is_valid() && !was_uploaded_) {
+          VLOG(file_references) << "Receive " << status << " for " << file_upload_id_;
+          td_->file_manager_->delete_file_reference(file_upload_id_.get_file_id(), file_reference_);
+          td_->quick_reply_manager_->on_send_message_file_reference_error(shortcut_id_, random_id_);
+          return;
+        } else {
+          LOG(ERROR) << "Receive file reference error, but file_id = " << file_upload_id_
+                     << ", was_uploaded = " << was_uploaded_;
+        }
+      }
+    }
     if (was_uploaded_) {
       if (was_thumbnail_uploaded_) {
         CHECK(thumbnail_file_upload_id_.is_valid());
@@ -430,16 +459,6 @@ class QuickReplyManager::SendQuickReplyMediaQuery final : public Td::ResultHandl
       } else {
         td_->file_manager_->delete_partial_remote_location_if_needed(file_upload_id_, status);
       }
-    } else if (FileReferenceManager::is_file_reference_error(status)) {
-      if (file_upload_id_.is_valid()) {
-        VLOG(file_references) << "Receive " << status << " for " << file_upload_id_;
-        td_->file_manager_->delete_file_reference(file_upload_id_.get_file_id(), file_reference_);
-        td_->quick_reply_manager_->on_send_message_file_reference_error(shortcut_id_, random_id_);
-        return;
-      } else {
-        LOG(ERROR) << "Receive file reference error, but file_id = " << file_upload_id_
-                   << ", was_uploaded = " << was_uploaded_;
-      }
     }
 
     td_->quick_reply_manager_->on_failed_send_quick_reply_messages(shortcut_id_, {random_id_}, std::move(status));
@@ -452,7 +471,9 @@ class QuickReplyManager::UploadQuickReplyMediaQuery final : public Td::ResultHan
   MessageId message_id_;
   FileUploadId file_upload_id_;
   FileUploadId thumbnail_file_upload_id_;
+  FileId cover_file_id_;
   string file_reference_;
+  string cover_file_reference_;
   bool was_uploaded_ = false;
   bool was_thumbnail_uploaded_ = false;
 
@@ -463,7 +484,9 @@ class QuickReplyManager::UploadQuickReplyMediaQuery final : public Td::ResultHan
     message_id_ = m->message_id;
     file_upload_id_ = m->file_upload_id;
     thumbnail_file_upload_id_ = m->thumbnail_file_upload_id;
+    cover_file_id_ = get_message_content_cover_any_file_id(m->content.get());
     file_reference_ = FileManager::extract_file_reference(input_media);
+    cover_file_reference_ = FileManager::extract_cover_file_reference(input_media);
     was_uploaded_ = FileManager::extract_was_uploaded(input_media);
     was_thumbnail_uploaded_ = FileManager::extract_was_thumbnail_uploaded(input_media);
 
@@ -496,6 +519,17 @@ class QuickReplyManager::UploadQuickReplyMediaQuery final : public Td::ResultHan
       return;
     }
     LOG(INFO) << "Receive error for UploadQuickReplyMediaQuery: " << status;
+    if (FileReferenceManager::is_file_reference_error(status)) {
+      auto source = FileReferenceManager::get_file_reference_error_source(status);
+      if (source.is_cover_ && source.pos_ <= 1 && cover_file_id_.is_valid()) {
+        VLOG(file_references) << "Receive " << status << " for cover " << cover_file_id_;
+        td_->file_manager_->delete_file_reference(cover_file_id_, cover_file_reference_);
+        td_->quick_reply_manager_->on_send_message_file_reference_error(shortcut_id_, random_id_);
+        return;
+      } else {
+        LOG(ERROR) << "Receive file reference error for UploadMediaQuery";
+      }
+    }
     if (was_uploaded_) {
       if (was_thumbnail_uploaded_) {
         CHECK(thumbnail_file_upload_id_.is_valid());
@@ -511,8 +545,6 @@ class QuickReplyManager::UploadQuickReplyMediaQuery final : public Td::ResultHan
       } else {
         td_->file_manager_->delete_partial_remote_location_if_needed(file_upload_id_, status);
       }
-    } else if (FileReferenceManager::is_file_reference_error(status)) {
-      LOG(ERROR) << "Receive file reference error for UploadMediaQuery";
     }
 
     td_->quick_reply_manager_->on_upload_message_media_fail(shortcut_id_, message_id_, std::move(status));
@@ -521,20 +553,24 @@ class QuickReplyManager::UploadQuickReplyMediaQuery final : public Td::ResultHan
 
 class QuickReplyManager::SendQuickReplyMultiMediaQuery final : public Td::ResultHandler {
   vector<FileId> file_ids_;
+  vector<FileId> cover_file_ids_;
   vector<string> file_references_;
+  vector<string> cover_file_references_;
   vector<int64> random_ids_;
   QuickReplyShortcutId shortcut_id_;
 
  public:
   void send(QuickReplyShortcutId shortcut_id, MessageId reply_to_message_id, bool invert_media,
-            vector<int64> &&random_ids, vector<FileId> &&file_ids,
+            vector<int64> &&random_ids, vector<FileId> &&file_ids, vector<FileId> &&cover_file_ids,
             vector<tl_object_ptr<telegram_api::inputSingleMedia>> &&input_single_media) {
     for (auto &single_media : input_single_media) {
       CHECK(FileManager::extract_was_uploaded(single_media->media_) == false);
       file_references_.push_back(FileManager::extract_file_reference(single_media->media_));
+      cover_file_references_.push_back(FileManager::extract_cover_file_reference(single_media->media_));
     }
     shortcut_id_ = shortcut_id;
     file_ids_ = std::move(file_ids);
+    cover_file_ids_ = std::move(cover_file_ids);
     random_ids_ = std::move(random_ids);
     CHECK(file_ids_.size() == random_ids_.size());
 
@@ -576,15 +612,28 @@ class QuickReplyManager::SendQuickReplyMultiMediaQuery final : public Td::Result
     }
     LOG(INFO) << "Receive error for SendQuickReplyMultiMediaQuery: " << status;
     if (FileReferenceManager::is_file_reference_error(status)) {
-      auto pos = FileReferenceManager::get_file_reference_error_pos(status);
-      if (1 <= pos && pos <= file_ids_.size() && file_ids_[pos - 1].is_valid()) {
-        VLOG(file_references) << "Receive " << status << " for " << file_ids_[pos - 1];
-        td_->file_manager_->delete_file_reference(file_ids_[pos - 1], file_references_[pos - 1]);
-        td_->quick_reply_manager_->on_send_media_group_file_reference_error(shortcut_id_, std::move(random_ids_));
-        return;
+      auto source = FileReferenceManager::get_file_reference_error_source(status);
+      auto pos = source.pos_;
+      if (source.is_cover_) {
+        if (1 <= pos && pos <= cover_file_ids_.size() && cover_file_ids_[pos - 1].is_valid()) {
+          VLOG(file_references) << "Receive " << status << " for cover " << cover_file_ids_[pos - 1];
+          td_->file_manager_->delete_file_reference(cover_file_ids_[pos - 1], cover_file_references_[pos - 1]);
+          td_->quick_reply_manager_->on_send_media_group_file_reference_error(shortcut_id_, std::move(random_ids_));
+          return;
+        } else {
+          LOG(ERROR) << "Receive file reference error " << status << ", but cover_file_ids = " << cover_file_ids_
+                     << ", message_count = " << cover_file_ids_.size();
+        }
       } else {
-        LOG(ERROR) << "Receive file reference error " << status << ", but file_ids = " << file_ids_
-                   << ", message_count = " << file_ids_.size();
+        if (1 <= pos && pos <= file_ids_.size() && file_ids_[pos - 1].is_valid()) {
+          VLOG(file_references) << "Receive " << status << " for " << file_ids_[pos - 1];
+          td_->file_manager_->delete_file_reference(file_ids_[pos - 1], file_references_[pos - 1]);
+          td_->quick_reply_manager_->on_send_media_group_file_reference_error(shortcut_id_, std::move(random_ids_));
+          return;
+        } else {
+          LOG(ERROR) << "Receive file reference error " << status << ", but file_ids = " << file_ids_
+                     << ", message_count = " << file_ids_.size();
+        }
       }
     }
     td_->quick_reply_manager_->on_failed_send_quick_reply_messages(shortcut_id_, std::move(random_ids_),
@@ -598,7 +647,9 @@ class QuickReplyManager::EditQuickReplyMessageQuery final : public Td::ResultHan
   int64 edit_generation_ = 0;
   FileUploadId file_upload_id_;
   FileUploadId thumbnail_file_upload_id_;
+  FileId cover_file_id_;
   string file_reference_;
+  string cover_file_reference_;
   bool was_uploaded_ = false;
   bool was_thumbnail_uploaded_ = false;
 
@@ -612,7 +663,9 @@ class QuickReplyManager::EditQuickReplyMessageQuery final : public Td::ResultHan
     edit_generation_ = m->edit_generation;
     file_upload_id_ = m->edited_file_upload_id;
     thumbnail_file_upload_id_ = m->edited_thumbnail_file_upload_id;
+    cover_file_id_ = get_message_content_cover_any_file_id(m->edited_content.get());
     file_reference_ = FileManager::extract_file_reference(input_media);
+    cover_file_reference_ = FileManager::extract_cover_file_reference(input_media);
     was_uploaded_ = FileManager::extract_was_uploaded(input_media);
     was_thumbnail_uploaded_ = FileManager::extract_was_thumbnail_uploaded(input_media);
 
@@ -679,9 +732,10 @@ class QuickReplyManager::EditQuickReplyMessageQuery final : public Td::ResultHan
       return td_->quick_reply_manager_->on_edit_quick_reply_message(shortcut_id_, message_id_, edit_generation_,
                                                                     file_upload_id_, was_uploaded_, nullptr);
     }
+    // checks for file reference and upload errors
     td_->quick_reply_manager_->fail_edit_quick_reply_message(
-        shortcut_id_, message_id_, edit_generation_, file_upload_id_, thumbnail_file_upload_id_, file_reference_,
-        was_uploaded_, was_thumbnail_uploaded_, std::move(status));
+        shortcut_id_, message_id_, edit_generation_, file_upload_id_, thumbnail_file_upload_id_, cover_file_id_,
+        file_reference_, cover_file_reference_, was_uploaded_, was_thumbnail_uploaded_, std::move(status));
   }
 };
 
@@ -1182,11 +1236,10 @@ td_api::object_ptr<td_api::MessageSendingState> QuickReplyManager::get_message_s
 td_api::object_ptr<td_api::MessageContent> QuickReplyManager::get_quick_reply_message_message_content_object(
     const QuickReplyMessage *m) const {
   if (m->edited_content != nullptr) {
-    return get_message_content_object(m->edited_content.get(), td_, DialogId(), false, false, 0, false, true, -1,
+    return get_message_content_object(m->edited_content.get(), td_, DialogId(), MessageId(), false, 0, false, true, -1,
                                       m->edited_invert_media, m->edited_disable_web_page_preview);
   }
-  return get_message_content_object(m->content.get(), td_, DialogId(),
-                                    m->message_id.is_valid() && m->message_id.is_server(), false, 0, false, true, -1,
+  return get_message_content_object(m->content.get(), td_, DialogId(), m->message_id, false, 0, false, true, -1,
                                     m->invert_media, m->disable_web_page_preview);
 }
 
@@ -2158,6 +2211,34 @@ Result<td_api::object_ptr<td_api::quickReplyMessages>> QuickReplyManager::send_m
   return td_api::make_object<td_api::quickReplyMessages>(std::move(messages));
 }
 
+void QuickReplyManager::on_cover_upload(QuickReplyMessageFullId message_full_id, int64 edit_generation,
+                                        vector<int> bad_parts, Result<Unit> result) {
+  if (G()->close_flag()) {
+    return;
+  }
+
+  const QuickReplyMessage *m = get_message(message_full_id);
+  if (m == nullptr) {
+    // message has already been deleted by the user, do not need to send or edit it
+    LOG(INFO) << "Quick reply message with a cover has already been deleted";
+    return;
+  }
+
+  if (result.is_error()) {
+    bool is_edit = m->message_id.is_any_server();
+    if (is_edit) {
+      if (edit_generation == m->edit_generation) {
+        fail_edit_quick_reply_message(m->shortcut_id, m->message_id, edit_generation, FileUploadId(), FileUploadId(),
+                                      FileId(), string(), string(), false, false, result.move_as_error());
+      }
+    } else {
+      on_failed_send_quick_reply_messages(m->shortcut_id, {m->random_id}, result.move_as_error());
+    }
+  } else {
+    do_send_message(m, std::move(bad_parts));
+  }
+}
+
 void QuickReplyManager::do_send_message(const QuickReplyMessage *m, vector<int> bad_parts) {
   CHECK(m != nullptr);
   bool is_edit = m->message_id.is_server();
@@ -2177,7 +2258,7 @@ void QuickReplyManager::do_send_message(const QuickReplyMessage *m, vector<int> 
   if (content_type == MessageContentType::Unsupported) {
     if (is_edit) {
       return fail_edit_quick_reply_message(m->shortcut_id, m->message_id, m->edit_generation, FileUploadId(),
-                                           FileUploadId(), string(), false, false,
+                                           FileUploadId(), FileId(), string(), string(), false, false,
                                            Status::Error(400, "Failed to upload file"));
     }
     return on_failed_send_quick_reply_messages(m->shortcut_id, {m->random_id},
@@ -2201,6 +2282,17 @@ void QuickReplyManager::do_send_message(const QuickReplyMessage *m, vector<int> 
       td_->create_handler<SendQuickReplyMediaQuery>()->send(m, std::move(input_media));
     }
     return;
+  }
+
+  auto covers = get_message_content_need_to_upload_covers(td_, content);
+  if (!covers.empty()) {
+    return td_->message_query_manager_->upload_message_covers(
+        BusinessConnectionId(), td_->dialog_manager_->get_my_dialog_id(), std::move(covers),
+        PromiseCreator::lambda([actor_id = actor_id(this), message_full_id, edit_generation = m->edit_generation,
+                                bad_parts = std::move(bad_parts)](Result<Unit> result) mutable {
+          send_closure(actor_id, &QuickReplyManager::on_cover_upload, message_full_id, edit_generation,
+                       std::move(bad_parts), std::move(result));
+        }));
   }
 
   if (bad_parts.empty()) {
@@ -2504,6 +2596,7 @@ void QuickReplyManager::do_send_message_group(QuickReplyShortcutId shortcut_id, 
   }
 
   vector<FileId> file_ids;
+  vector<FileId> cover_file_ids;
   vector<int64> random_ids;
   MessageId reply_to_message_id;
   bool invert_media = false;
@@ -2526,6 +2619,7 @@ void QuickReplyManager::do_send_message_group(QuickReplyShortcutId shortcut_id, 
     reply_to_message_id = m->reply_to_message_id;
     invert_media = m->invert_media;
     file_ids.push_back(m->file_upload_id.get_file_id());
+    cover_file_ids.push_back(get_message_content_cover_any_file_id(m->content.get()));
     random_ids.push_back(m->random_id);
 
     LOG(INFO) << "Have file " << file_ids.back() << " in " << m->message_id << " with result " << request.results[i]
@@ -2556,7 +2650,7 @@ void QuickReplyManager::do_send_message_group(QuickReplyShortcutId shortcut_id, 
   }
   td_->create_handler<SendQuickReplyMultiMediaQuery>()->send(shortcut_id, reply_to_message_id, invert_media,
                                                              std::move(random_ids), std::move(file_ids),
-                                                             std::move(input_single_media));
+                                                             std::move(cover_file_ids), std::move(input_single_media));
 }
 
 void QuickReplyManager::on_send_media_group_file_reference_error(QuickReplyShortcutId shortcut_id,
@@ -2875,7 +2969,8 @@ void QuickReplyManager::on_edit_quick_reply_message(QuickReplyShortcutId shortcu
 
 void QuickReplyManager::fail_edit_quick_reply_message(QuickReplyShortcutId shortcut_id, MessageId message_id,
                                                       int64 edit_generation, FileUploadId file_upload_id,
-                                                      FileUploadId thumbnail_file_upload_id, string file_reference,
+                                                      FileUploadId thumbnail_file_upload_id, FileId cover_file_id,
+                                                      string file_reference, string cover_file_reference,
                                                       bool was_uploaded, bool was_thumbnail_uploaded, Status status) {
   auto *m = get_message_editable({shortcut_id, message_id});
   if (m == nullptr || m->edit_generation != edit_generation) {
@@ -2886,6 +2981,29 @@ void QuickReplyManager::fail_edit_quick_reply_message(QuickReplyShortcutId short
       send_closure_later(G()->file_manager(), &FileManager::cancel_upload, thumbnail_file_upload_id);
     }
     return;
+  }
+  if (FileReferenceManager::is_file_reference_error(status)) {
+    auto source = FileReferenceManager::get_file_reference_error_source(status);
+    if (source.is_cover_) {
+      if (cover_file_id.is_valid()) {
+        VLOG(file_references) << "Receive " << status << " for cover " << cover_file_id;
+        td_->file_manager_->delete_file_reference(cover_file_id, cover_file_reference);
+        do_send_message(m, {-1});
+        return;
+      } else {
+        LOG(ERROR) << "Receive file reference error, but cover_file_id = " << cover_file_id;
+      }
+    } else {
+      if (file_upload_id.is_valid() && !was_uploaded) {
+        VLOG(file_references) << "Receive " << status << " for " << file_upload_id;
+        td_->file_manager_->delete_file_reference(file_upload_id.get_file_id(), file_reference);
+        do_send_message(m, {-1});
+        return;
+      } else {
+        LOG(ERROR) << "Receive file reference error, but file_id = " << file_upload_id
+                   << ", was_uploaded = " << was_uploaded;
+      }
+    }
   }
   if (was_uploaded) {
     if (was_thumbnail_uploaded) {
@@ -2901,16 +3019,6 @@ void QuickReplyManager::fail_edit_quick_reply_message(QuickReplyShortcutId short
       return;
     } else {
       td_->file_manager_->delete_partial_remote_location_if_needed(file_upload_id, status);
-    }
-  } else if (FileReferenceManager::is_file_reference_error(status)) {
-    if (file_upload_id.is_valid()) {
-      VLOG(file_references) << "Receive " << status << " for " << file_upload_id;
-      td_->file_manager_->delete_file_reference(file_upload_id.get_file_id(), file_reference);
-      do_send_message(m, {-1});
-      return;
-    } else {
-      LOG(ERROR) << "Receive file reference error, but file_id = " << file_upload_id
-                 << ", was_uploaded = " << was_uploaded;
     }
   }
 

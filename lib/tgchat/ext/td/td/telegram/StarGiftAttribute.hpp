@@ -10,6 +10,7 @@
 #include "td/telegram/StickersManager.h"
 #include "td/telegram/StickersManager.hpp"
 #include "td/telegram/Td.h"
+#include "td/telegram/UserId.h"
 
 #include "td/utils/common.h"
 #include "td/utils/tl_helpers.h"
@@ -65,16 +66,26 @@ void StarGiftAttributeBackdrop::parse(ParserT &parser) {
 template <class StorerT>
 void StarGiftAttributeOriginalDetails::store(StorerT &storer) const {
   CHECK(is_valid());
-  bool has_sender_user_id = sender_user_id_.is_valid();
+  bool has_sender_user_id = sender_dialog_id_.get_type() == DialogType::User;
   bool has_message = !message_.text.empty();
+  bool has_sender_dialog_id = sender_dialog_id_ != DialogId() && !has_sender_user_id;
+  bool has_receiver_dialog_id = receiver_dialog_id_.get_type() != DialogType::User;
   BEGIN_STORE_FLAGS();
   STORE_FLAG(has_sender_user_id);
   STORE_FLAG(has_message);
+  STORE_FLAG(has_sender_dialog_id);
+  STORE_FLAG(has_receiver_dialog_id);
   END_STORE_FLAGS();
   if (has_sender_user_id) {
-    td::store(sender_user_id_, storer);
+    td::store(sender_dialog_id_.get_user_id(), storer);
+  } else if (has_sender_dialog_id) {
+    td::store(sender_dialog_id_, storer);
   }
-  td::store(receiver_user_id_, storer);
+  if (has_receiver_dialog_id) {
+    td::store(receiver_dialog_id_, storer);
+  } else {
+    td::store(receiver_dialog_id_.get_user_id(), storer);
+  }
   td::store(date_, storer);
   if (has_message) {
     td::store(message_, storer);
@@ -85,14 +96,28 @@ template <class ParserT>
 void StarGiftAttributeOriginalDetails::parse(ParserT &parser) {
   bool has_sender_user_id;
   bool has_message;
+  bool has_sender_dialog_id;
+  bool has_receiver_dialog_id;
   BEGIN_PARSE_FLAGS();
   PARSE_FLAG(has_sender_user_id);
   PARSE_FLAG(has_message);
+  PARSE_FLAG(has_sender_dialog_id);
+  PARSE_FLAG(has_receiver_dialog_id);
   END_PARSE_FLAGS();
   if (has_sender_user_id) {
-    td::parse(sender_user_id_, parser);
+    UserId sender_user_id;
+    td::parse(sender_user_id, parser);
+    sender_dialog_id_ = DialogId(sender_user_id);
+  } else if (has_sender_dialog_id) {
+    td::parse(sender_dialog_id_, parser);
   }
-  td::parse(receiver_user_id_, parser);
+  if (has_receiver_dialog_id) {
+    td::parse(receiver_dialog_id_, parser);
+  } else {
+    UserId receiver_user_id;
+    td::parse(receiver_user_id, parser);
+    receiver_dialog_id_ = DialogId(receiver_user_id);
+  }
   td::parse(date_, parser);
   if (has_message) {
     td::parse(message_, parser);

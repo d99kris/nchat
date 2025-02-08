@@ -327,6 +327,12 @@ class Requests {
 
   void on_request(uint64 id, const td_api::openChatSimilarChat &request);
 
+  void on_request(uint64 id, const td_api::getBotSimilarBots &request);
+
+  void on_request(uint64 id, const td_api::getBotSimilarBotCount &request);
+
+  void on_request(uint64 id, const td_api::openBotSimilarBot &request);
+
   void on_request(uint64 id, const td_api::getTopChats &request);
 
   void on_request(uint64 id, const td_api::removeTopChat &request);
@@ -1075,6 +1081,8 @@ class Requests {
 
   void on_request(uint64 id, const td_api::getRecentEmojiStatuses &request);
 
+  void on_request(uint64 id, const td_api::getUpgradedGiftEmojiStatuses &request);
+
   void on_request(uint64 id, const td_api::clearRecentEmojiStatuses &request);
 
   void on_request(uint64 id, td_api::setCommands &request);
@@ -1477,15 +1485,21 @@ class Requests {
 
   void on_request(uint64 id, const td_api::toggleGiftIsSaved &request);
 
+  void on_request(uint64 id, const td_api::toggleChatGiftNotifications &request);
+
   void on_request(uint64 id, const td_api::getGiftUpgradePreview &request);
 
   void on_request(uint64 id, const td_api::upgradeGift &request);
 
   void on_request(uint64 id, const td_api::transferGift &request);
 
-  void on_request(uint64 id, td_api::getUserGifts &request);
+  void on_request(uint64 id, td_api::getReceivedGifts &request);
 
-  void on_request(uint64 id, const td_api::getUserGift &request);
+  void on_request(uint64 id, const td_api::getReceivedGift &request);
+
+  void on_request(uint64 id, td_api::getUpgradedGift &request);
+
+  void on_request(uint64 id, const td_api::getUpgradedGiftWithdrawalUrl &request);
 
   void on_request(uint64 id, td_api::createInvoiceLink &request);
 

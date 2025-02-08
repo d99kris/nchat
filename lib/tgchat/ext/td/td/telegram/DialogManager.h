@@ -14,9 +14,9 @@
 #include "td/telegram/DialogId.h"
 #include "td/telegram/DialogLocation.h"
 #include "td/telegram/DialogParticipant.h"
-#include "td/telegram/EmojiStatus.h"
 #include "td/telegram/files/FileId.h"
 #include "td/telegram/files/FileUploadId.h"
+#include "td/telegram/FolderId.h"
 #include "td/telegram/InputDialogId.h"
 #include "td/telegram/MessageId.h"
 #include "td/telegram/NotificationSettingsScope.h"
@@ -40,6 +40,8 @@
 namespace td {
 
 struct BinlogEvent;
+struct ChatReactions;
+class EmojiStatus;
 class ReportReason;
 class Td;
 class Usernames;
@@ -168,7 +170,8 @@ class DialogManager final : public Actor {
   void set_dialog_permissions(DialogId dialog_id, const td_api::object_ptr<td_api::chatPermissions> &permissions,
                               Promise<Unit> &&promise);
 
-  void set_dialog_emoji_status(DialogId dialog_id, const EmojiStatus &emoji_status, Promise<Unit> &&promise);
+  void set_dialog_emoji_status(DialogId dialog_id, const unique_ptr<EmojiStatus> &emoji_status,
+                               Promise<Unit> &&promise);
 
   void toggle_dialog_has_protected_content(DialogId dialog_id, bool has_protected_content, Promise<Unit> &&promise);
 
@@ -235,6 +238,19 @@ class DialogManager final : public Actor {
                               vector<telegram_api::object_ptr<telegram_api::peerBlocked>> &&blocked_peers,
                               Promise<td_api::object_ptr<td_api::messageSenders>> &&promise);
 
+  void reorder_pinned_dialogs_on_server(FolderId folder_id, const vector<DialogId> &dialog_ids, uint64 log_event_id);
+
+  void set_dialog_available_reactions_on_server(DialogId dialog_id, const ChatReactions &available_reactions,
+                                                Promise<Unit> &&promise);
+
+  void set_dialog_default_send_as_on_server(DialogId dialog_id, DialogId send_as_dialog_id, Promise<Unit> &&promise);
+
+  void set_dialog_folder_id_on_server(DialogId dialog_id, FolderId folder_id, Promise<Unit> &&promise);
+
+  void set_dialog_message_ttl_on_server(DialogId dialog_id, int32 ttl, Promise<Unit> &&promise);
+
+  void set_dialog_theme_on_server(DialogId dialog_id, const string &theme_name, Promise<Unit> &&promise);
+
   void toggle_dialog_is_blocked_on_server(DialogId dialog_id, bool is_blocked, bool is_blocked_for_stories,
                                           uint64 log_event_id);
 
@@ -274,6 +290,8 @@ class DialogManager final : public Actor {
 
   void on_resolve_dialog(const string &username, ChannelId channel_id, Promise<DialogId> &&promise);
 
+  static uint64 save_reorder_pinned_dialogs_on_server_log_event(FolderId folder_id, const vector<DialogId> &dialog_ids);
+
   static uint64 save_toggle_dialog_is_blocked_on_server_log_event(DialogId dialog_id, bool is_blocked,
                                                                   bool is_blocked_for_stories);
 
@@ -288,6 +306,7 @@ class DialogManager final : public Actor {
 
   static uint64 save_toggle_dialog_view_as_messages_on_server_log_event(DialogId dialog_id, bool view_as_messages);
 
+  class ReorderPinnedDialogsOnServerLogEvent;
   class ToggleDialogIsBlockedOnServerLogEvent;
   class ToggleDialogPropertyOnServerLogEvent;
   class ToggleDialogReportSpamStateOnServerLogEvent;

@@ -6,10 +6,11 @@
 //
 #include "td/telegram/StarGiftAttribute.h"
 
+#include "td/telegram/Dependencies.h"
+#include "td/telegram/MessageSender.h"
 #include "td/telegram/StickerFormat.h"
 #include "td/telegram/StickersManager.h"
 #include "td/telegram/Td.h"
-#include "td/telegram/UserManager.h"
 
 namespace td {
 
@@ -64,8 +65,10 @@ StarGiftAttributeBackdrop::StarGiftAttributeBackdrop(
 
 td_api::object_ptr<td_api::upgradedGiftBackdrop> StarGiftAttributeBackdrop::get_upgraded_gift_backdrop_object() const {
   CHECK(is_valid());
-  return td_api::make_object<td_api::upgradedGiftBackdrop>(name_, center_color_, edge_color_, pattern_color_,
-                                                           text_color_, rarity_permille_);
+  return td_api::make_object<td_api::upgradedGiftBackdrop>(
+      name_,
+      td_api::make_object<td_api::upgradedGiftBackdropColors>(center_color_, edge_color_, pattern_color_, text_color_),
+      rarity_permille_);
 }
 
 bool operator==(const StarGiftAttributeBackdrop &lhs, const StarGiftAttributeBackdrop &rhs) {
@@ -76,11 +79,13 @@ bool operator==(const StarGiftAttributeBackdrop &lhs, const StarGiftAttributeBac
 
 StarGiftAttributeOriginalDetails::StarGiftAttributeOriginalDetails(
     Td *td, telegram_api::object_ptr<telegram_api::starGiftAttributeOriginalDetails> &&attribute)
-    : sender_user_id_(attribute->sender_id_)
-    , receiver_user_id_(attribute->recipient_id_)
+    : receiver_dialog_id_(attribute->recipient_id_)
     , date_(attribute->date_)
     , message_(get_formatted_text(td->user_manager_.get(), std::move(attribute->message_), true, false,
                                   "starGiftAttributeBackdrop")) {
+  if (attribute->sender_id_ != nullptr) {
+    sender_dialog_id_ = DialogId(attribute->sender_id_);
+  }
 }
 
 td_api::object_ptr<td_api::upgradedGiftOriginalDetails>
@@ -89,13 +94,20 @@ StarGiftAttributeOriginalDetails::get_upgraded_gift_original_details_object(Td *
     return nullptr;
   }
   return td_api::make_object<td_api::upgradedGiftOriginalDetails>(
-      td->user_manager_->get_user_id_object(sender_user_id_, "upgradedGiftOriginalDetails sender"),
-      td->user_manager_->get_user_id_object(receiver_user_id_, "upgradedGiftOriginalDetails receiver"),
+      sender_dialog_id_ == DialogId()
+          ? nullptr
+          : get_message_sender_object(td, sender_dialog_id_, "upgradedGiftOriginalDetails sender"),
+      get_message_sender_object(td, receiver_dialog_id_, "upgradedGiftOriginalDetails sender"),
       get_formatted_text_object(td->user_manager_.get(), message_, true, -1), date_);
 }
 
+void StarGiftAttributeOriginalDetails::add_dependencies(Dependencies &dependencies) const {
+  dependencies.add_message_sender_dependencies(sender_dialog_id_);
+  dependencies.add_message_sender_dependencies(receiver_dialog_id_);
+}
+
 bool operator==(const StarGiftAttributeOriginalDetails &lhs, const StarGiftAttributeOriginalDetails &rhs) {
-  return lhs.sender_user_id_ == rhs.sender_user_id_ && lhs.receiver_user_id_ == rhs.receiver_user_id_ &&
+  return lhs.sender_dialog_id_ == rhs.sender_dialog_id_ && lhs.receiver_dialog_id_ == rhs.receiver_dialog_id_ &&
          lhs.date_ == rhs.date_ && lhs.message_ == rhs.message_;
 }
 

@@ -6,17 +6,18 @@
 //
 #pragma once
 
+#include "td/telegram/DialogId.h"
 #include "td/telegram/files/FileId.h"
 #include "td/telegram/MessageEntity.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
-#include "td/telegram/UserId.h"
 
 #include "td/utils/common.h"
 #include "td/utils/StringBuilder.h"
 
 namespace td {
 
+class Dependencies;
 class Td;
 
 class StarGiftAttributeSticker {
@@ -94,8 +95,8 @@ inline bool operator!=(const StarGiftAttributeBackdrop &lhs, const StarGiftAttri
 }
 
 class StarGiftAttributeOriginalDetails {
-  UserId sender_user_id_;
-  UserId receiver_user_id_;
+  DialogId sender_dialog_id_;
+  DialogId receiver_dialog_id_;
   int32 date_ = 0;
   FormattedText message_;
 
@@ -108,10 +109,13 @@ class StarGiftAttributeOriginalDetails {
       Td *td, telegram_api::object_ptr<telegram_api::starGiftAttributeOriginalDetails> &&attribute);
 
   bool is_valid() const {
-    return (sender_user_id_ == UserId() || sender_user_id_.is_valid()) && receiver_user_id_.is_valid() && date_ > 0;
+    return (sender_dialog_id_ == DialogId() || sender_dialog_id_.is_valid()) && receiver_dialog_id_.is_valid() &&
+           date_ > 0;
   }
 
   td_api::object_ptr<td_api::upgradedGiftOriginalDetails> get_upgraded_gift_original_details_object(Td *td) const;
+
+  void add_dependencies(Dependencies &dependencies) const;
 
   template <class StorerT>
   void store(StorerT &storer) const;

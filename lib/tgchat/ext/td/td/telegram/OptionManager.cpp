@@ -164,7 +164,7 @@ OptionManager::OptionManager(Td *td)
   set_default_integer_option("gift_text_length_max", 255);
   set_default_integer_option("gift_sell_period", is_test_dc ? 300 : 90 * 86400);
   set_default_integer_option("affiliate_program_commission_per_mille_min", 1);
-  set_default_integer_option("affiliate_program_commission_per_mille_max", 900);
+  set_default_integer_option("affiliate_program_commission_per_mille_max", 800);
   set_default_integer_option("bot_verification_custom_description_length_max", 70);
 
   if (options.isset("my_phone_number") || !options.isset("my_id")) {
@@ -716,7 +716,7 @@ td_api::object_ptr<td_api::OptionValue> OptionManager::get_option_synchronously(
       break;
     case 'v':
       if (name == "version") {
-        return td_api::make_object<td_api::optionValueString>("1.8.42");
+        return td_api::make_object<td_api::optionValueString>("1.8.44");
       }
       break;
   }

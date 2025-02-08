@@ -6,7 +6,7 @@ if (POLICY CMP0065)
   cmake_policy(SET CMP0065 NEW)
 endif()
 
-project(TDLib VERSION 1.8.42 LANGUAGES CXX C)
+project(TDLib VERSION 1.8.44 LANGUAGES CXX C)
 
 if (NOT DEFINED CMAKE_MODULE_PATH)
   set(CMAKE_MODULE_PATH "")
@@ -362,6 +362,7 @@ set(TDLIB_SOURCE_PART1
   td/telegram/BotInfoManager.cpp
   td/telegram/BotMenuButton.cpp
   td/telegram/BotQueries.cpp
+  td/telegram/BotRecommendationManager.cpp
   td/telegram/BotVerification.cpp
   td/telegram/BotVerifierSettings.cpp
   td/telegram/BusinessAwayMessage.cpp
@@ -591,6 +592,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/StarAmount.cpp
   td/telegram/StarGift.cpp
   td/telegram/StarGiftAttribute.cpp
+  td/telegram/StarGiftId.cpp
   td/telegram/StarGiftManager.cpp
   td/telegram/StarManager.cpp
   td/telegram/StarSubscription.cpp
@@ -675,6 +677,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/BotInfoManager.h
   td/telegram/BotMenuButton.h
   td/telegram/BotQueries.h
+  td/telegram/BotRecommendationManager.h
   td/telegram/BusinessAwayMessage.h
   td/telegram/BusinessAwayMessageSchedule.h
   td/telegram/BusinessBotManageBar.h
@@ -961,6 +964,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/StarAmount.h
   td/telegram/StarGift.h
   td/telegram/StarGiftAttribute.h
+  td/telegram/StarGiftId.h
   td/telegram/StarGiftManager.h
   td/telegram/StarManager.h
   td/telegram/StarSubscription.h
@@ -1103,6 +1107,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/StarAmount.hpp
   td/telegram/StarGift.hpp
   td/telegram/StarGiftAttribute.hpp
+  td/telegram/StarGiftId.hpp
   td/telegram/StarSubscriptionPricing.hpp
   td/telegram/StickerMaskPosition.hpp
   td/telegram/StickerPhotoSize.hpp

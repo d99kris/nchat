@@ -108,7 +108,7 @@ unique_ptr<MessageContent> create_text_message_content(string text, vector<Messa
 
 unique_ptr<MessageContent> create_photo_message_content(Photo photo);
 
-unique_ptr<MessageContent> create_video_message_content(FileId file_id);
+unique_ptr<MessageContent> create_video_message_content(FileId file_id, Photo cover, int32 start_timestamp);
 
 unique_ptr<MessageContent> create_contact_registered_message_content();
 
@@ -269,16 +269,14 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
                                                       bool is_business_message);
 
 td_api::object_ptr<td_api::MessageContent> get_message_content_object(const MessageContent *content, Td *td,
-                                                                      DialogId dialog_id, bool is_server,
+                                                                      DialogId dialog_id, MessageId message_id,
                                                                       bool is_outgoing, int32 message_date,
                                                                       bool is_content_secret, bool skip_bot_commands,
                                                                       int32 max_media_timestamp, bool invert_media,
                                                                       bool disable_web_page_preview);
 
 td_api::object_ptr<td_api::upgradeGiftResult> get_message_content_upgrade_gift_result_object(
-    const MessageContent *content, Td *td);
-
-int64 get_message_content_gift_upgrade_star_count(const MessageContent *content);
+    const MessageContent *content, Td *td, DialogId dialog_id, MessageId message_id);
 
 FormattedText *get_message_content_text_mutable(MessageContent *content);
 
@@ -294,11 +292,19 @@ int32 get_message_content_duration(const MessageContent *content, const Td *td);
 
 int32 get_message_content_media_duration(const MessageContent *content, const Td *td);
 
+const Photo *get_message_content_cover(const MessageContent *content);
+
+vector<const Photo *> get_message_content_need_to_upload_covers(Td *td, const MessageContent *content);
+
 const Photo *get_message_content_photo(const MessageContent *content);
 
 FileId get_message_content_any_file_id(const MessageContent *content);
 
 vector<FileId> get_message_content_any_file_ids(const MessageContent *content);
+
+FileId get_message_content_cover_any_file_id(const MessageContent *content);
+
+vector<FileId> get_message_content_cover_any_file_ids(const MessageContent *content);
 
 void update_message_content_file_id_remote(MessageContent *content, FileId file_id);
 
@@ -319,6 +325,8 @@ bool update_message_content_extended_media(
     DialogId owner_dialog_id, Td *td);
 
 bool need_poll_message_content_extended_media(const MessageContent *content);
+
+void set_message_content_video_start_timestamp(MessageContent *content, int32 start_timestamp);
 
 void get_message_content_animated_emoji_click_sticker(const MessageContent *content, MessageFullId message_full_id,
                                                       Td *td, Promise<td_api::object_ptr<td_api::sticker>> &&promise);

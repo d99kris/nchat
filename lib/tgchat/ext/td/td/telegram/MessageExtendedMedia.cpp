@@ -100,7 +100,12 @@ void MessageExtendedMedia::init_from_media(Td *td, telegram_api::object_ptr<tele
       }
       CHECK(parsed_document.file_id.is_valid());
       video_file_id_ = parsed_document.file_id;
+      start_timestamp_ = document->video_timestamp_;
       type_ = Type::Video;
+
+      if (document->video_cover_ != nullptr) {
+        photo_ = get_photo(td, std::move(document->video_cover_), owner_dialog_id);
+      }
       break;
     }
     default:
@@ -157,6 +162,15 @@ Result<MessageExtendedMedia> MessageExtendedMedia::get_message_extended_media(
     }
     case Type::Video: {
       auto type = static_cast<td_api::inputPaidMediaTypeVideo *>(paid_media->type_.get());
+
+      TRY_RESULT(cover_file_id, td->file_manager_->get_input_file_id(FileType::Photo, type->cover_, owner_dialog_id,
+                                                                     true, false, false));
+      Photo cover;
+      if (cover_file_id.is_valid()) {
+        TRY_RESULT_ASSIGN(cover, create_photo(td->file_manager_.get(), cover_file_id, PhotoSize(), paid_media->width_,
+                                              paid_media->height_, vector<FileId>()));
+      }
+
       FileView file_view = td->file_manager_->get_file_view(file_id);
       auto suggested_path = file_view.suggested_path();
       const PathView path_view(suggested_path);
@@ -170,6 +184,8 @@ Result<MessageExtendedMedia> MessageExtendedMedia::get_message_extended_media(
                                         get_dimensions(paid_media->width_, paid_media->height_, nullptr),
                                         type->supports_streaming_, false, 0, 0.0, string(), false);
       result.video_file_id_ = file_id;
+      result.photo_ = std::move(cover);
+      result.start_timestamp_ = max(0, type->start_timestamp_);
       break;
     }
     default:
@@ -215,7 +231,9 @@ td_api::object_ptr<td_api::PaidMedia> MessageExtendedMedia::get_paid_media_objec
       return td_api::make_object<td_api::paidMediaPhoto>(std::move(photo));
     }
     case Type::Video:
-      return td_api::make_object<td_api::paidMediaVideo>(td->videos_manager_->get_video_object(video_file_id_));
+      return td_api::make_object<td_api::paidMediaVideo>(td->videos_manager_->get_video_object(video_file_id_),
+                                                         get_photo_object(td->file_manager_.get(), photo_),
+                                                         max(0, start_timestamp_));
     default:
       UNREACHABLE();
       return nullptr;
@@ -233,6 +251,9 @@ void MessageExtendedMedia::append_file_ids(const Td *td, vector<FileId> &file_id
       break;
     case Type::Video:
       Document(Document::Type::Video, video_file_id_).append_file_ids(td, file_ids);
+      if (!photo_.is_empty()) {
+        append(file_ids, photo_get_file_ids(photo_));
+      }
       break;
     default:
       UNREACHABLE();
@@ -263,7 +284,7 @@ unique_ptr<MessageContent> MessageExtendedMedia::get_message_content() const {
     case Type::Photo:
       return create_photo_message_content(photo_);
     case Type::Video:
-      return create_video_message_content(video_file_id_);
+      return create_video_message_content(video_file_id_, photo_, start_timestamp_);
     case Type::Empty:
     case Type::Unsupported:
     case Type::Preview:
@@ -314,6 +335,22 @@ FileId MessageExtendedMedia::get_thumbnail_file_id(const Td *td) const {
   return FileId();
 }
 
+FileId MessageExtendedMedia::get_cover_any_file_id() const {
+  switch (type_) {
+    case Type::Empty:
+    case Type::Unsupported:
+    case Type::Preview:
+    case Type::Photo:
+      break;
+    case Type::Video:
+      return get_photo_any_file_id(photo_);
+    default:
+      UNREACHABLE();
+      break;
+  }
+  return FileId();
+}
+
 void MessageExtendedMedia::update_file_id_remote(FileId file_id) {
   if (file_id.get_remote() == 0 || type_ != Type::Video) {
     return;
@@ -321,6 +358,22 @@ void MessageExtendedMedia::update_file_id_remote(FileId file_id) {
   if (video_file_id_ == file_id && video_file_id_.get_remote() == 0) {
     video_file_id_ = file_id;
   }
+}
+
+const Photo *MessageExtendedMedia::get_video_cover() const {
+  switch (type_) {
+    case Type::Empty:
+    case Type::Unsupported:
+    case Type::Preview:
+    case Type::Photo:
+      break;
+    case Type::Video:
+      return &photo_;
+    default:
+      UNREACHABLE();
+      break;
+  }
+  return nullptr;
 }
 
 telegram_api::object_ptr<telegram_api::InputMedia> MessageExtendedMedia::get_input_media(
@@ -334,8 +387,8 @@ telegram_api::object_ptr<telegram_api::InputMedia> MessageExtendedMedia::get_inp
     case Type::Photo:
       return photo_get_input_media(td->file_manager_.get(), photo_, std::move(input_file), 0, false);
     case Type::Video:
-      return td->videos_manager_->get_input_media(video_file_id_, std::move(input_file), std::move(input_thumbnail), 0,
-                                                  false);
+      return td->videos_manager_->get_input_media(video_file_id_, std::move(input_file), std::move(input_thumbnail),
+                                                  photo_, start_timestamp_, 0, false);
     default:
       UNREACHABLE();
       break;
@@ -391,7 +444,8 @@ bool operator==(const MessageExtendedMedia &lhs, const MessageExtendedMedia &rhs
     case MessageExtendedMedia::Type::Photo:
       return lhs.photo_ == rhs.photo_;
     case MessageExtendedMedia::Type::Video:
-      return lhs.video_file_id_ == rhs.video_file_id_;
+      return lhs.video_file_id_ == rhs.video_file_id_ && lhs.photo_ == rhs.photo_ &&
+             lhs.start_timestamp_ == rhs.start_timestamp_;
     default:
       UNREACHABLE();
       return true;

@@ -75,6 +75,7 @@
 #include "td/telegram/SharedDialog.hpp"
 #include "td/telegram/StarGift.h"
 #include "td/telegram/StarGift.hpp"
+#include "td/telegram/StarGiftId.h"
 #include "td/telegram/StarGiftManager.h"
 #include "td/telegram/StarManager.h"
 #include "td/telegram/StickerFormat.h"
@@ -239,16 +240,20 @@ class MessageVideo final : public MessageContent {
   FileId file_id;
   vector<FileId> alternative_file_ids;
   vector<FileId> hls_file_ids;
+  Photo cover;
+  int32 start_timestamp;
 
   FormattedText caption;
   bool has_spoiler = false;
 
   MessageVideo() = default;
-  MessageVideo(FileId file_id, vector<FileId> &&alternative_file_ids, vector<FileId> &&hls_file_ids,
-               FormattedText &&caption, bool has_spoiler)
+  MessageVideo(FileId file_id, vector<FileId> &&alternative_file_ids, vector<FileId> &&hls_file_ids, Photo &&cover,
+               int32 start_timestamp, FormattedText &&caption, bool has_spoiler)
       : file_id(file_id)
       , alternative_file_ids(std::move(alternative_file_ids))
       , hls_file_ids(std::move(hls_file_ids))
+      , cover(std::move(cover))
+      , start_timestamp(start_timestamp)
       , caption(std::move(caption))
       , has_spoiler(has_spoiler) {
   }
@@ -1248,6 +1253,9 @@ class MessagePrizeStars final : public MessageContent {
 class MessageStarGift final : public MessageContent {
  public:
   StarGift star_gift;
+  DialogId sender_dialog_id;
+  DialogId owner_dialog_id;
+  int64 saved_id;
   FormattedText text;
   int64 convert_star_count = 0;
   int64 upgrade_star_count = 0;
@@ -1260,10 +1268,14 @@ class MessageStarGift final : public MessageContent {
   bool was_refunded = false;
 
   MessageStarGift() = default;
-  MessageStarGift(StarGift &&star_gift, FormattedText &&text, int64 convert_star_count, int64 upgrade_star_count,
+  MessageStarGift(StarGift &&star_gift, DialogId sender_dialog_id, DialogId owner_dialog_id, int64 saved_id,
+                  FormattedText &&text, int64 convert_star_count, int64 upgrade_star_count,
                   MessageId upgrade_message_id, bool name_hidden, bool is_saved, bool can_upgrade, bool was_converted,
                   bool was_upgraded, bool was_refunded)
       : star_gift(std::move(star_gift))
+      , sender_dialog_id(sender_dialog_id)
+      , owner_dialog_id(owner_dialog_id)
+      , saved_id(saved_id)
       , text(std::move(text))
       , convert_star_count(convert_star_count)
       , upgrade_star_count(upgrade_star_count)
@@ -1284,6 +1296,9 @@ class MessageStarGift final : public MessageContent {
 class MessageStarGiftUnique final : public MessageContent {
  public:
   StarGift star_gift;
+  DialogId sender_dialog_id;
+  DialogId owner_dialog_id;
+  int64 saved_id;
   int64 transfer_star_count = 0;
   int32 can_export_at = 0;
   bool is_saved = false;
@@ -1293,9 +1308,13 @@ class MessageStarGiftUnique final : public MessageContent {
   bool was_refunded = false;
 
   MessageStarGiftUnique() = default;
-  MessageStarGiftUnique(StarGift &&star_gift, int64 transfer_star_count, int32 can_export_at, bool is_saved,
-                        bool is_upgrade, bool can_transfer, bool was_transferred, bool was_refunded)
+  MessageStarGiftUnique(StarGift &&star_gift, DialogId sender_dialog_id, DialogId owner_dialog_id, int64 saved_id,
+                        int64 transfer_star_count, int32 can_export_at, bool is_saved, bool is_upgrade,
+                        bool can_transfer, bool was_transferred, bool was_refunded)
       : star_gift(std::move(star_gift))
+      , sender_dialog_id(sender_dialog_id)
+      , owner_dialog_id(owner_dialog_id)
+      , saved_id(saved_id)
       , transfer_star_count(transfer_star_count)
       , can_export_at(can_export_at)
       , is_saved(is_saved)
@@ -1423,10 +1442,14 @@ static void store(const MessageContent *content, StorerT &storer) {
       td->videos_manager_->store_video(m->file_id, storer);
       bool has_alternative_videos = !m->alternative_file_ids.empty();
       bool has_hls_files = !m->hls_file_ids.empty();
+      bool has_cover = !m->cover.is_empty();
+      bool has_start_timestamp = m->start_timestamp != 0;
       BEGIN_STORE_FLAGS();
       STORE_FLAG(m->has_spoiler);
       STORE_FLAG(has_alternative_videos);
       STORE_FLAG(has_hls_files);
+      STORE_FLAG(has_cover);
+      STORE_FLAG(has_start_timestamp);
       END_STORE_FLAGS();
       store(m->caption, storer);
       if (has_alternative_videos) {
@@ -1440,6 +1463,12 @@ static void store(const MessageContent *content, StorerT &storer) {
         for (auto file_id : m->hls_file_ids) {
           td->documents_manager_->store_document(file_id, storer);
         }
+      }
+      if (has_cover) {
+        store(m->cover, storer);
+      }
+      if (has_start_timestamp) {
+        store(m->start_timestamp, storer);
       }
       break;
     }
@@ -1995,6 +2024,9 @@ static void store(const MessageContent *content, StorerT &storer) {
       bool has_text = !m->text.text.empty();
       bool has_upgrade_star_count = m->upgrade_star_count != 0;
       bool has_upgrade_message_id = m->upgrade_message_id.is_valid();
+      bool has_owner_dialog_id = m->owner_dialog_id.is_valid();
+      bool has_saved_id = m->saved_id != 0;
+      bool has_sender_dialog_id = m->sender_dialog_id.is_valid();
       BEGIN_STORE_FLAGS();
       STORE_FLAG(m->name_hidden);
       STORE_FLAG(m->is_saved);
@@ -2005,6 +2037,9 @@ static void store(const MessageContent *content, StorerT &storer) {
       STORE_FLAG(has_upgrade_star_count);
       STORE_FLAG(m->was_refunded);
       STORE_FLAG(has_upgrade_message_id);
+      STORE_FLAG(has_owner_dialog_id);
+      STORE_FLAG(has_saved_id);
+      STORE_FLAG(has_sender_dialog_id);
       END_STORE_FLAGS();
       store(m->star_gift, storer);
       if (has_text) {
@@ -2017,12 +2052,24 @@ static void store(const MessageContent *content, StorerT &storer) {
       if (has_upgrade_message_id) {
         store(m->upgrade_message_id, storer);
       }
+      if (has_owner_dialog_id) {
+        store(m->owner_dialog_id, storer);
+      }
+      if (has_saved_id) {
+        store(m->saved_id, storer);
+      }
+      if (has_sender_dialog_id) {
+        store(m->sender_dialog_id, storer);
+      }
       break;
     }
     case MessageContentType::StarGiftUnique: {
       const auto *m = static_cast<const MessageStarGiftUnique *>(content);
       bool has_transfer_star_count = m->transfer_star_count != 0;
       bool has_can_export_at = m->can_export_at != 0;
+      bool has_owner_dialog_id = m->owner_dialog_id.is_valid();
+      bool has_saved_id = m->saved_id != 0;
+      bool has_sender_dialog_id = m->sender_dialog_id.is_valid();
       BEGIN_STORE_FLAGS();
       STORE_FLAG(has_transfer_star_count);
       STORE_FLAG(has_can_export_at);
@@ -2031,6 +2078,9 @@ static void store(const MessageContent *content, StorerT &storer) {
       STORE_FLAG(m->was_transferred);
       STORE_FLAG(m->can_transfer);
       STORE_FLAG(m->was_refunded);
+      STORE_FLAG(has_owner_dialog_id);
+      STORE_FLAG(has_saved_id);
+      STORE_FLAG(has_sender_dialog_id);
       END_STORE_FLAGS();
       store(m->star_gift, storer);
       if (has_transfer_star_count) {
@@ -2038,6 +2088,15 @@ static void store(const MessageContent *content, StorerT &storer) {
       }
       if (has_can_export_at) {
         store(m->can_export_at, storer);
+      }
+      if (has_owner_dialog_id) {
+        store(m->owner_dialog_id, storer);
+      }
+      if (has_saved_id) {
+        store(m->saved_id, storer);
+      }
+      if (has_sender_dialog_id) {
+        store(m->sender_dialog_id, storer);
       }
       break;
     }
@@ -2211,11 +2270,15 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
       m->file_id = td->videos_manager_->parse_video(parser);
       bool has_alternative_videos = false;
       bool has_hls_files = false;
+      bool has_cover = false;
+      bool has_start_timestamp = false;
       if (parser.version() >= static_cast<int32>(Version::AddMessageMediaSpoiler)) {
         BEGIN_PARSE_FLAGS();
         PARSE_FLAG(m->has_spoiler);
         PARSE_FLAG(has_alternative_videos);
         PARSE_FLAG(has_hls_files);
+        PARSE_FLAG(has_cover);
+        PARSE_FLAG(has_start_timestamp);
         END_PARSE_FLAGS();
       }
       parse_caption(m->caption, parser);
@@ -2242,6 +2305,12 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
             m->hls_file_ids.push_back(file_id);
           }
         }
+      }
+      if (has_cover) {
+        parse(m->cover, parser);
+      }
+      if (has_start_timestamp) {
+        parse(m->start_timestamp, parser);
       }
 
       if (!m->file_id.is_valid()) {
@@ -2938,6 +3007,9 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
       bool has_text;
       bool has_upgrade_star_count;
       bool has_upgrade_message_id;
+      bool has_owner_dialog_id;
+      bool has_saved_id;
+      bool has_sender_dialog_id;
       BEGIN_PARSE_FLAGS();
       PARSE_FLAG(m->name_hidden);
       PARSE_FLAG(m->is_saved);
@@ -2948,6 +3020,9 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
       PARSE_FLAG(has_upgrade_star_count);
       PARSE_FLAG(m->was_refunded);
       PARSE_FLAG(has_upgrade_message_id);
+      PARSE_FLAG(has_owner_dialog_id);
+      PARSE_FLAG(has_saved_id);
+      PARSE_FLAG(has_sender_dialog_id);
       END_PARSE_FLAGS();
       parse(m->star_gift, parser);
       if (has_text) {
@@ -2960,6 +3035,15 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
       if (has_upgrade_message_id) {
         parse(m->upgrade_message_id, parser);
       }
+      if (has_owner_dialog_id) {
+        parse(m->owner_dialog_id, parser);
+      }
+      if (has_saved_id) {
+        parse(m->saved_id, parser);
+      }
+      if (has_sender_dialog_id) {
+        parse(m->sender_dialog_id, parser);
+      }
       if (!m->star_gift.is_valid() || m->star_gift.is_unique()) {
         is_bad = true;
         break;
@@ -2971,6 +3055,9 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
       auto m = make_unique<MessageStarGiftUnique>();
       bool has_transfer_star_count;
       bool has_can_export_at;
+      bool has_owner_dialog_id;
+      bool has_saved_id;
+      bool has_sender_dialog_id;
       BEGIN_PARSE_FLAGS();
       PARSE_FLAG(has_transfer_star_count);
       PARSE_FLAG(has_can_export_at);
@@ -2979,6 +3066,9 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
       PARSE_FLAG(m->was_transferred);
       PARSE_FLAG(m->can_transfer);
       PARSE_FLAG(m->was_refunded);
+      PARSE_FLAG(has_owner_dialog_id);
+      PARSE_FLAG(has_saved_id);
+      PARSE_FLAG(has_sender_dialog_id);
       END_PARSE_FLAGS();
       parse(m->star_gift, parser);
       if (has_transfer_star_count) {
@@ -2986,6 +3076,15 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
       }
       if (has_can_export_at) {
         parse(m->can_export_at, parser);
+      }
+      if (has_owner_dialog_id) {
+        parse(m->owner_dialog_id, parser);
+      }
+      if (has_saved_id) {
+        parse(m->saved_id, parser);
+      }
+      if (has_sender_dialog_id) {
+        parse(m->sender_dialog_id, parser);
       }
       if (!m->star_gift.is_valid() || m->star_gift.is_unique() == m->was_refunded) {
         is_bad = true;
@@ -3119,8 +3218,8 @@ InlineMessageContent create_inline_message_content(Td *td, FileId file_id,
       } else if (allowed_media_content_id == td_api::inputMessageSticker::ID) {
         result.message_content = make_unique<MessageSticker>(file_id, false);
       } else if (allowed_media_content_id == td_api::inputMessageVideo::ID) {
-        result.message_content =
-            td::make_unique<MessageVideo>(file_id, vector<FileId>(), vector<FileId>(), std::move(caption), false);
+        result.message_content = td::make_unique<MessageVideo>(file_id, vector<FileId>(), vector<FileId>(), Photo(), 0,
+                                                               std::move(caption), false);
       } else if (allowed_media_content_id == td_api::inputMessageVoiceNote::ID) {
         result.message_content = make_unique<MessageVoiceNote>(file_id, std::move(caption), true);
       } else {
@@ -3150,8 +3249,9 @@ unique_ptr<MessageContent> create_photo_message_content(Photo photo) {
   return make_unique<MessagePhoto>(std::move(photo), FormattedText(), false);
 }
 
-unique_ptr<MessageContent> create_video_message_content(FileId file_id) {
-  return td::make_unique<MessageVideo>(file_id, vector<FileId>(), vector<FileId>(), FormattedText(), false);
+unique_ptr<MessageContent> create_video_message_content(FileId file_id, Photo cover, int32 start_timestamp) {
+  return td::make_unique<MessageVideo>(file_id, vector<FileId>(), vector<FileId>(), std::move(cover), start_timestamp,
+                                       FormattedText(), false);
 }
 
 unique_ptr<MessageContent> create_contact_registered_message_content() {
@@ -3382,6 +3482,16 @@ static Result<InputMessageContent> create_input_message_content(
       invert_media = input_video->show_caption_above_media_ && !is_secret;
       self_destruct_type = std::move(input_video->self_destruct_type_);
 
+      Photo cover;
+      if (!is_secret && self_destruct_type == nullptr) {
+        TRY_RESULT(cover_file_id, td->file_manager_->get_input_file_id(FileType::Photo, input_video->cover_, dialog_id,
+                                                                       true, is_secret, false));
+        if (cover_file_id.is_valid()) {
+          TRY_RESULT_ASSIGN(cover, create_photo(td->file_manager_.get(), cover_file_id, PhotoSize(),
+                                                input_video->width_, input_video->height_, Auto()));
+        }
+      }
+
       bool has_stickers = !sticker_file_ids.empty();
       td->videos_manager_->create_video(file_id, string(), std::move(thumbnail), AnimationSize(), has_stickers,
                                         std::move(sticker_file_ids), std::move(file_name), std::move(mime_type),
@@ -3389,7 +3499,8 @@ static Result<InputMessageContent> create_input_message_content(
                                         get_dimensions(input_video->width_, input_video->height_, nullptr),
                                         input_video->supports_streaming_, false, 0, 0.0, string(), false);
 
-      content = td::make_unique<MessageVideo>(file_id, vector<FileId>(), vector<FileId>(), std::move(caption),
+      content = td::make_unique<MessageVideo>(file_id, vector<FileId>(), vector<FileId>(), std::move(cover),
+                                              max(0, input_video->start_timestamp_), std::move(caption),
                                               input_video->has_spoiler_ && !is_secret);
       break;
     }
@@ -4022,7 +4133,7 @@ static telegram_api::object_ptr<telegram_api::InputMedia> get_message_content_in
     case MessageContentType::Video: {
       const auto *m = static_cast<const MessageVideo *>(content);
       return td->videos_manager_->get_input_media(m->file_id, std::move(input_file), std::move(input_thumbnail),
-                                                  ttl.get_input_ttl(), m->has_spoiler);
+                                                  m->cover, m->start_timestamp, ttl.get_input_ttl(), m->has_spoiler);
     }
     case MessageContentType::VideoNote: {
       const auto *m = static_cast<const MessageVideoNote *>(content);
@@ -4178,7 +4289,7 @@ telegram_api::object_ptr<telegram_api::InputMedia> get_message_content_fake_inpu
     }
     return telegram_api::make_object<telegram_api::inputMediaUploadedDocument>(
         flags, false /*ignored*/, false /*ignored*/, false /*ignored*/, std::move(input_file), nullptr, mime_type,
-        std::move(attributes), vector<telegram_api::object_ptr<telegram_api::InputDocument>>(), 0);
+        std::move(attributes), vector<telegram_api::object_ptr<telegram_api::InputDocument>>(), nullptr, 0, 0);
   } else {
     CHECK(file_type == FileType::Photo || file_type == FileType::PhotoStory ||
           file_type == FileType::SelfDestructingPhoto);
@@ -5013,6 +5124,7 @@ vector<UserId> get_message_content_min_user_ids(const Td *td, const MessageConte
     case MessageContentType::BoostApply:
       break;
     case MessageContentType::DialogShared:
+      // private chats only
       break;
     case MessageContentType::PaidMedia:
       break;
@@ -5022,10 +5134,13 @@ vector<UserId> get_message_content_min_user_ids(const Td *td, const MessageConte
     case MessageContentType::GiftStars:
       break;
     case MessageContentType::PrizeStars:
+      // private chats only
       break;
     case MessageContentType::StarGift:
+      // private chats only
       break;
     case MessageContentType::StarGiftUnique:
+      // private chats only
       break;
     default:
       UNREACHABLE();
@@ -5270,7 +5385,7 @@ void merge_message_contents(Td *td, const MessageContent *old_content, MessageCo
       const auto *old_ = static_cast<const MessageText *>(old_content);
       const auto *new_ = static_cast<const MessageText *>(new_content);
       auto get_content_object = [td, dialog_id](const MessageContent *content) {
-        return to_string(get_message_content_object(content, td, dialog_id, false, false, -1, false, false,
+        return to_string(get_message_content_object(content, td, dialog_id, MessageId(), false, -1, false, false,
                                                     std::numeric_limits<int32>::max(), false, false));
       };
       if (old_->text.text != new_->text.text) {
@@ -5757,7 +5872,8 @@ void compare_message_contents(Td *td, const MessageContent *old_content, const M
       const auto *lhs = static_cast<const MessageVideo *>(old_content);
       const auto *rhs = static_cast<const MessageVideo *>(new_content);
       if (lhs->file_id != rhs->file_id || lhs->alternative_file_ids != rhs->alternative_file_ids ||
-          lhs->hls_file_ids != rhs->hls_file_ids || lhs->caption != rhs->caption ||
+          lhs->hls_file_ids != rhs->hls_file_ids || lhs->cover != rhs->cover ||
+          lhs->start_timestamp != rhs->start_timestamp || lhs->caption != rhs->caption ||
           lhs->has_spoiler != rhs->has_spoiler) {
         need_update = true;
       }
@@ -6220,7 +6336,8 @@ void compare_message_contents(Td *td, const MessageContent *old_content, const M
     case MessageContentType::StarGift: {
       const auto *lhs = static_cast<const MessageStarGift *>(old_content);
       const auto *rhs = static_cast<const MessageStarGift *>(new_content);
-      if (lhs->star_gift != rhs->star_gift || lhs->text != rhs->text ||
+      if (lhs->star_gift != rhs->star_gift || lhs->sender_dialog_id != rhs->sender_dialog_id ||
+          lhs->owner_dialog_id != rhs->owner_dialog_id || lhs->saved_id != rhs->saved_id || lhs->text != rhs->text ||
           lhs->convert_star_count != rhs->convert_star_count || lhs->upgrade_star_count != rhs->upgrade_star_count ||
           lhs->upgrade_message_id != rhs->upgrade_message_id || lhs->name_hidden != rhs->name_hidden ||
           lhs->is_saved != rhs->is_saved || lhs->can_upgrade != rhs->can_upgrade ||
@@ -6233,10 +6350,12 @@ void compare_message_contents(Td *td, const MessageContent *old_content, const M
     case MessageContentType::StarGiftUnique: {
       const auto *lhs = static_cast<const MessageStarGiftUnique *>(old_content);
       const auto *rhs = static_cast<const MessageStarGiftUnique *>(new_content);
-      if (lhs->star_gift != rhs->star_gift || lhs->transfer_star_count != rhs->transfer_star_count ||
-          lhs->can_export_at != rhs->can_export_at || lhs->is_saved != rhs->is_saved ||
-          lhs->is_upgrade != rhs->is_upgrade || lhs->can_transfer != rhs->can_transfer ||
-          lhs->was_transferred != rhs->was_transferred || lhs->was_refunded != rhs->was_refunded) {
+      if (lhs->star_gift != rhs->star_gift || lhs->sender_dialog_id != rhs->sender_dialog_id ||
+          lhs->owner_dialog_id != rhs->owner_dialog_id || lhs->saved_id != rhs->saved_id ||
+          lhs->transfer_star_count != rhs->transfer_star_count || lhs->can_export_at != rhs->can_export_at ||
+          lhs->is_saved != rhs->is_saved || lhs->is_upgrade != rhs->is_upgrade ||
+          lhs->can_transfer != rhs->can_transfer || lhs->was_transferred != rhs->was_transferred ||
+          lhs->was_refunded != rhs->was_refunded) {
         need_update = true;
       }
       break;
@@ -6721,7 +6840,8 @@ static tl_object_ptr<ToT> secret_to_telegram(FromT &from) {
 static unique_ptr<MessageContent> get_document_message_content(Document &&parsed_document, FormattedText &&caption,
                                                                bool is_opened, bool is_premium, bool has_spoiler,
                                                                vector<FileId> &&alternative_file_ids,
-                                                               vector<FileId> &&hls_file_ids) {
+                                                               vector<FileId> &&hls_file_ids, Photo &&video_cover,
+                                                               int32 video_timestamp) {
   auto file_id = parsed_document.file_id;
   if (!parsed_document.empty()) {
     CHECK(file_id.is_valid());
@@ -6742,7 +6862,7 @@ static unique_ptr<MessageContent> get_document_message_content(Document &&parsed
       return make_unique<MessageUnsupported>();
     case Document::Type::Video:
       return td::make_unique<MessageVideo>(file_id, std::move(alternative_file_ids), std::move(hls_file_ids),
-                                           std::move(caption), has_spoiler);
+                                           std::move(video_cover), video_timestamp, std::move(caption), has_spoiler);
     case Document::Type::VideoNote:
       return make_unique<MessageVideoNote>(file_id, is_opened);
     case Document::Type::VoiceNote:
@@ -6757,12 +6877,14 @@ static unique_ptr<MessageContent> get_document_message_content(Td *td, tl_object
                                                                DialogId owner_dialog_id, bool is_self_destructing,
                                                                FormattedText &&caption, bool is_opened, bool is_premium,
                                                                bool has_spoiler, vector<FileId> &&alternative_file_ids,
-                                                               vector<FileId> &&hls_file_ids,
+                                                               vector<FileId> &&hls_file_ids, Photo &&video_cover,
+                                                               int32 start_timestamp,
                                                                MultiPromiseActor *load_data_multipromise_ptr) {
   return get_document_message_content(
       td->documents_manager_->on_get_document(std::move(document), owner_dialog_id, is_self_destructing,
                                               load_data_multipromise_ptr),
-      std::move(caption), is_opened, is_premium, has_spoiler, std::move(alternative_file_ids), std::move(hls_file_ids));
+      std::move(caption), is_opened, is_premium, has_spoiler, std::move(alternative_file_ids), std::move(hls_file_ids),
+      std::move(video_cover), start_timestamp);
 }
 
 unique_ptr<MessageContent> get_secret_message_content(
@@ -6929,7 +7051,7 @@ unique_ptr<MessageContent> get_secret_message_content(
       auto media = move_tl_object_as<secret_api::decryptedMessageMediaExternalDocument>(media_ptr);
       return get_document_message_content(td, secret_to_telegram_document(*media), owner_dialog_id, false,
                                           FormattedText{std::move(message_text), std::move(entities)}, false,
-                                          is_premium, false, {}, {}, &load_data_multipromise);
+                                          is_premium, false, {}, {}, Photo(), 0, &load_data_multipromise);
     }
     default:
       break;
@@ -6970,7 +7092,7 @@ unique_ptr<MessageContent> get_secret_message_content(
       auto document = td->documents_manager_->on_get_document(
           {std::move(file), std::move(media), std::move(attributes)}, owner_dialog_id, false);
       return get_document_message_content(std::move(document), {std::move(message_text), std::move(entities)}, false,
-                                          false, false, {}, {});
+                                          false, false, {}, {}, Photo(), 0);
     }
     default:
       LOG(ERROR) << "Unsupported: " << to_string(media_ptr);
@@ -7142,10 +7264,15 @@ unique_ptr<MessageContent> get_message_content(Td *td, FormattedText message,
           }
         }
       }
-      return get_document_message_content(td, move_tl_object_as<telegram_api::document>(document_ptr), owner_dialog_id,
-                                          is_self_destructing, std::move(message), is_content_read, !media->nopremium_,
-                                          media->spoiler_, std::move(alternative_file_ids), std::move(hls_file_ids),
-                                          nullptr);
+      Photo video_cover;
+      if (media->video_cover_ != nullptr) {
+        video_cover = get_photo(td, std::move(media->video_cover_), owner_dialog_id,
+                                is_self_destructing ? FileType::SelfDestructingPhoto : FileType::Photo);
+      }
+      return get_document_message_content(
+          td, telegram_api::move_object_as<telegram_api::document>(document_ptr), owner_dialog_id, is_self_destructing,
+          std::move(message), is_content_read, !media->nopremium_, media->spoiler_, std::move(alternative_file_ids),
+          std::move(hls_file_ids), std::move(video_cover), media->video_timestamp_, nullptr);
     }
     case telegram_api::messageMediaGame::ID: {
       auto media = move_tl_object_as<telegram_api::messageMediaGame>(media_ptr);
@@ -7564,11 +7691,11 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
       case telegram_api::messageActionSetChatWallPaper::ID:
       case telegram_api::messageActionGiftCode::ID:
       case telegram_api::messageActionRequestedPeerSentMe::ID:
+      case telegram_api::messageActionPaymentRefunded::ID:
       case telegram_api::messageActionGiftStars::ID:
       case telegram_api::messageActionPrizeStars::ID:
       case telegram_api::messageActionStarGift::ID:
       case telegram_api::messageActionStarGiftUnique::ID:
-      case telegram_api::messageActionPaymentRefunded::ID:
         // ok
         break;
       default:
@@ -8046,10 +8173,21 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
       }
       FormattedText text = get_formatted_text(td->user_manager_.get(), std::move(action->message_), true, false,
                                               "messageActionStarGift");
+      DialogId gift_sender_dialog_id;
+      DialogId gift_owner_dialog_id;
+      int64 saved_id = 0;
+      if (action->from_id_ != nullptr) {
+        gift_sender_dialog_id = DialogId(action->from_id_);
+      }
+      if (action->peer_ != nullptr) {
+        gift_owner_dialog_id = DialogId(action->peer_);
+        saved_id = action->saved_id_;
+      }
       return td::make_unique<MessageStarGift>(
-          std::move(star_gift), std::move(text), StarManager::get_star_count(action->convert_stars_),
-          StarManager::get_star_count(action->upgrade_stars_), upgrade_message_id, action->name_hidden_, action->saved_,
-          action->can_upgrade_, action->converted_, action->upgraded_, action->refunded_);
+          std::move(star_gift), gift_sender_dialog_id, gift_owner_dialog_id, saved_id, std::move(text),
+          StarManager::get_star_count(action->convert_stars_), StarManager::get_star_count(action->upgrade_stars_),
+          upgrade_message_id, action->name_hidden_, action->saved_, action->can_upgrade_, action->converted_,
+          action->upgraded_, action->refunded_);
     }
     case telegram_api::messageActionStarGiftUnique::ID: {
       auto action = move_tl_object_as<telegram_api::messageActionStarGiftUnique>(action_ptr);
@@ -8057,11 +8195,21 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
       if (!star_gift.is_valid() || star_gift.is_unique() == action->refunded_) {
         break;
       }
+      DialogId gift_sender_dialog_id;
+      DialogId gift_owner_dialog_id;
+      int64 saved_id = 0;
+      if (action->from_id_ != nullptr) {
+        gift_sender_dialog_id = DialogId(action->from_id_);
+      }
+      if (action->peer_ != nullptr) {
+        gift_owner_dialog_id = DialogId(action->peer_);
+        saved_id = action->saved_id_;
+      }
       return td::make_unique<MessageStarGiftUnique>(
-          std::move(star_gift), StarManager::get_star_count(action->transfer_stars_), max(0, action->can_export_at_),
-          action->saved_, action->upgrade_,
-          (action->flags_ & telegram_api::messageActionStarGiftUnique::TRANSFER_STARS_MASK) != 0, action->transferred_,
-          action->refunded_);
+          std::move(star_gift), gift_sender_dialog_id, gift_owner_dialog_id, saved_id,
+          StarManager::get_star_count(action->transfer_stars_), max(0, action->can_export_at_), action->saved_,
+          action->upgrade_, (action->flags_ & telegram_api::messageActionStarGiftUnique::TRANSFER_STARS_MASK) != 0,
+          action->transferred_, action->refunded_);
     }
     default:
       UNREACHABLE();
@@ -8071,12 +8219,14 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
 }
 
 td_api::object_ptr<td_api::MessageContent> get_message_content_object(const MessageContent *content, Td *td,
-                                                                      DialogId dialog_id, bool is_server,
+                                                                      DialogId dialog_id, MessageId message_id,
                                                                       bool is_outgoing, int32 message_date,
                                                                       bool is_content_secret, bool skip_bot_commands,
                                                                       int32 max_media_timestamp, bool invert_media,
                                                                       bool disable_web_page_preview) {
   CHECK(content != nullptr);
+  auto is_server =
+      message_id != MessageId() && message_id.is_any_server() && dialog_id.get_type() != DialogType::SecretChat;
   auto get_text_object = [&](const FormattedText &text) {
     return get_formatted_text_object(is_server ? td->user_manager_.get() : nullptr, text, skip_bot_commands,
                                      max_media_timestamp);
@@ -8188,9 +8338,10 @@ td_api::object_ptr<td_api::MessageContent> get_message_content_object(const Mess
           }
         }
       }
-      return make_tl_object<td_api::messageVideo>(td->videos_manager_->get_video_object(m->file_id),
-                                                  std::move(alternative_videos), get_text_object(m->caption),
-                                                  invert_media, m->has_spoiler, is_content_secret);
+      return make_tl_object<td_api::messageVideo>(
+          td->videos_manager_->get_video_object(m->file_id), std::move(alternative_videos),
+          get_photo_object(td->file_manager_.get(), m->cover), m->start_timestamp, get_text_object(m->caption),
+          invert_media, m->has_spoiler, is_content_secret);
     }
     case MessageContentType::VideoNote: {
       const auto *m = static_cast<const MessageVideoNote *>(content);
@@ -8549,20 +8700,65 @@ td_api::object_ptr<td_api::MessageContent> get_message_content_object(const Mess
     }
     case MessageContentType::StarGift: {
       const auto *m = static_cast<const MessageStarGift *>(content);
-      return td_api::make_object<td_api::messageGift>(m->star_gift.get_gift_object(td), get_text_object(m->text),
-                                                      m->convert_star_count, m->upgrade_star_count, m->name_hidden,
-                                                      m->is_saved, m->can_upgrade, m->was_converted, m->was_upgraded,
-                                                      m->was_refunded, m->upgrade_message_id.get());
+      StarGiftId star_gift_id;
+      if (m->owner_dialog_id != DialogId()) {
+        star_gift_id = StarGiftId(m->owner_dialog_id, m->saved_id);
+      } else if (dialog_id.get_type() == DialogType::User && !is_outgoing && is_server && message_id.is_server()) {
+        auto user_id = dialog_id.get_user_id();
+        if (user_id != UserManager::get_service_notifications_user_id()) {
+          star_gift_id = StarGiftId(message_id.get_server_message_id());
+        }
+      }
+      DialogId sender_dialog_id;
+      if (m->sender_dialog_id != DialogId()) {
+        sender_dialog_id = m->sender_dialog_id;
+      } else {
+        if (is_outgoing) {
+          sender_dialog_id = td->dialog_manager_->get_my_dialog_id();
+        } else {
+          sender_dialog_id = dialog_id;
+        }
+      }
+      return td_api::make_object<td_api::messageGift>(
+          m->star_gift.get_gift_object(td), get_message_sender_object(td, sender_dialog_id, "messageGift"),
+          star_gift_id.get_star_gift_id(), get_text_object(m->text), m->convert_star_count, m->upgrade_star_count,
+          m->name_hidden, m->is_saved, m->can_upgrade, m->was_converted, m->was_upgraded, m->was_refunded,
+          StarGiftId(m->upgrade_message_id.get_server_message_id()).get_star_gift_id());
     }
     case MessageContentType::StarGiftUnique: {
       const auto *m = static_cast<const MessageStarGiftUnique *>(content);
-      if (m->was_refunded) {
-        return td_api::make_object<td_api::messageRefundedUpgradedGift>(m->star_gift.get_gift_object(td),
-                                                                        m->is_upgrade);
+      DialogId sender_dialog_id;
+      if (m->sender_dialog_id != DialogId()) {
+        sender_dialog_id = m->sender_dialog_id;
+      } else {
+        if (is_outgoing) {
+          sender_dialog_id = td->dialog_manager_->get_my_dialog_id();
+        } else {
+          sender_dialog_id = dialog_id;
+        }
       }
-      return td_api::make_object<td_api::messageUpgradedGift>(m->star_gift.get_upgraded_gift_object(td), m->is_upgrade,
-                                                              m->is_saved, m->can_transfer, m->was_transferred,
-                                                              m->transfer_star_count, m->can_export_at);
+      if (m->was_refunded) {
+        return td_api::make_object<td_api::messageRefundedUpgradedGift>(
+            m->star_gift.get_gift_object(td),
+            get_message_sender_object(td, sender_dialog_id, "messageRefundedUpgradedGift"), m->is_upgrade);
+      }
+      StarGiftId star_gift_id;
+      if (m->owner_dialog_id != DialogId()) {
+        star_gift_id = StarGiftId(m->owner_dialog_id, m->saved_id);
+      } else if (dialog_id.get_type() == DialogType::User && m->is_upgrade == is_outgoing && is_server &&
+                 message_id.is_server()) {
+        auto user_id = dialog_id.get_user_id();
+        if (user_id != UserManager::get_service_notifications_user_id() || m->is_upgrade) {
+          star_gift_id = StarGiftId(message_id.get_server_message_id());
+        }
+      }
+      return td_api::make_object<td_api::messageUpgradedGift>(
+          m->star_gift.get_upgraded_gift_object(td),
+          sender_dialog_id == DialogId(UserManager::get_service_notifications_user_id())
+              ? nullptr
+              : get_message_sender_object(td, sender_dialog_id, "messageUpgradedGift"),
+          star_gift_id.get_star_gift_id(), m->is_upgrade, m->is_saved, m->can_transfer, m->was_transferred,
+          m->transfer_star_count, m->can_export_at);
     }
     default:
       UNREACHABLE();
@@ -8573,32 +8769,23 @@ td_api::object_ptr<td_api::MessageContent> get_message_content_object(const Mess
 }
 
 td_api::object_ptr<td_api::upgradeGiftResult> get_message_content_upgrade_gift_result_object(
-    const MessageContent *content, Td *td) {
+    const MessageContent *content, Td *td, DialogId dialog_id, MessageId message_id) {
   switch (content->get_type()) {
     case MessageContentType::StarGiftUnique: {
       const auto *m = static_cast<const MessageStarGiftUnique *>(content);
-      return td_api::make_object<td_api::upgradeGiftResult>(m->star_gift.get_upgraded_gift_object(td), m->is_saved,
+      StarGiftId star_gift_id;
+      if (m->owner_dialog_id != DialogId()) {
+        star_gift_id = StarGiftId(m->owner_dialog_id, m->saved_id);
+      } else if (dialog_id.get_type() == DialogType::User && message_id.is_valid() && message_id.is_server()) {
+        star_gift_id = StarGiftId(message_id.get_server_message_id());
+      }
+      return td_api::make_object<td_api::upgradeGiftResult>(m->star_gift.get_upgraded_gift_object(td),
+                                                            star_gift_id.get_star_gift_id(), m->is_saved,
                                                             m->can_transfer, m->transfer_star_count, m->can_export_at);
     }
     default:
       UNREACHABLE();
       return nullptr;
-  }
-}
-
-int64 get_message_content_gift_upgrade_star_count(const MessageContent *content) {
-  switch (content->get_type()) {
-    case MessageContentType::StarGift: {
-      const auto *m = static_cast<const MessageStarGift *>(content);
-      if (m->upgrade_star_count > 0) {
-        // upgrade was prepaid
-        return 0;
-      }
-      return m->star_gift.get_upgrade_star_count();
-    }
-    default:
-      UNREACHABLE();
-      return -1;
   }
 }
 
@@ -8792,6 +8979,48 @@ int32 get_message_content_media_duration(const MessageContent *content, const Td
   }
 }
 
+const Photo *get_message_content_cover(const MessageContent *content) {
+  switch (content->get_type()) {
+    case MessageContentType::Video: {
+      const auto *cover = &static_cast<const MessageVideo *>(content)->cover;
+      if (cover->is_empty()) {
+        return nullptr;
+      }
+      return cover;
+    }
+    default:
+      return nullptr;
+  }
+}
+
+vector<const Photo *> get_message_content_need_to_upload_covers(Td *td, const MessageContent *content) {
+  switch (content->get_type()) {
+    case MessageContentType::Video: {
+      const auto *cover = &static_cast<const MessageVideo *>(content)->cover;
+      if (cover->is_empty() ||
+          photo_get_cover_input_media(td->file_manager_.get(), *cover, td->auth_manager_->is_bot()) != nullptr) {
+        break;
+      }
+      return {cover};
+    }
+    case MessageContentType::PaidMedia: {
+      vector<const Photo *> result;
+      for (const auto &media : static_cast<const MessagePaidMedia *>(content)->media) {
+        const auto *cover = media.get_video_cover();
+        if (cover->is_empty() ||
+            photo_get_cover_input_media(td->file_manager_.get(), *cover, td->auth_manager_->is_bot()) != nullptr) {
+          continue;
+        }
+        result.push_back(cover);
+      }
+      return result;
+    }
+    default:
+      break;
+  }
+  return {};
+}
+
 const Photo *get_message_content_photo(const MessageContent *content) {
   switch (content->get_type()) {
     case MessageContentType::Photo:
@@ -8839,6 +9068,45 @@ vector<FileId> get_message_content_any_file_ids(const MessageContent *content) {
   auto file_id = get_message_content_any_file_id(content);
   if (file_id.is_valid()) {
     return {file_id};
+  }
+  return {};
+}
+
+FileId get_message_content_cover_any_file_id(const MessageContent *content) {
+  CHECK(content != nullptr);
+  switch (content->get_type()) {
+    case MessageContentType::Video: {
+      auto video = static_cast<const MessageVideo *>(content);
+      if (!video->cover.is_empty()) {
+        return get_photo_any_file_id(video->cover);
+      }
+      break;
+    }
+    case MessageContentType::PaidMedia:
+      UNREACHABLE();
+      break;
+    default:
+      break;
+  }
+  return {};
+}
+
+vector<FileId> get_message_content_cover_any_file_ids(const MessageContent *content) {
+  CHECK(content != nullptr);
+  switch (content->get_type()) {
+    case MessageContentType::Video: {
+      auto video = static_cast<const MessageVideo *>(content);
+      if (!video->cover.is_empty()) {
+        return {get_photo_any_file_id(video->cover)};
+      }
+      break;
+    }
+    case MessageContentType::PaidMedia:
+      return transform(static_cast<const MessagePaidMedia *>(content)->media,
+                       [](const MessageExtendedMedia &media) { return media.get_cover_any_file_id(); });
+      break;
+    default:
+      break;
   }
   return {};
 }
@@ -8977,6 +9245,9 @@ vector<FileId> get_message_content_file_ids(const MessageContent *content, const
       }
       for (auto file_id : video->hls_file_ids) {
         append(file_ids, Document(Document::Type::General, file_id).get_file_ids(td));
+      }
+      if (!video->cover.is_empty()) {
+        append(file_ids, photo_get_file_ids(video->cover));
       }
       return file_ids;
     }
@@ -9220,6 +9491,17 @@ bool need_poll_message_content_extended_media(const MessageContent *content) {
     }
     default:
       return false;
+  }
+}
+
+void set_message_content_video_start_timestamp(MessageContent *content, int32 start_timestamp) {
+  CHECK(content != nullptr);
+  switch (content->get_type()) {
+    case MessageContentType::Video:
+      static_cast<MessageVideo *>(content)->start_timestamp = start_timestamp;
+      return;
+    default:
+      return;
   }
 }
 
@@ -9568,10 +9850,20 @@ void add_message_content_dependencies(Dependencies &dependencies, const MessageC
       dependencies.add_dialog_and_dependencies(DialogId(content->boosted_dialog_id));
       break;
     }
-    case MessageContentType::StarGift:
+    case MessageContentType::StarGift: {
+      const auto *content = static_cast<const MessageStarGift *>(message_content);
+      content->star_gift.add_dependencies(dependencies);
+      dependencies.add_dialog_and_dependencies(content->sender_dialog_id);
+      dependencies.add_dialog_and_dependencies(content->owner_dialog_id);
       break;
-    case MessageContentType::StarGiftUnique:
+    }
+    case MessageContentType::StarGiftUnique: {
+      const auto *content = static_cast<const MessageStarGiftUnique *>(message_content);
+      content->star_gift.add_dependencies(dependencies);
+      dependencies.add_dialog_and_dependencies(content->sender_dialog_id);
+      dependencies.add_dialog_and_dependencies(content->owner_dialog_id);
       break;
+    }
     default:
       UNREACHABLE();
       break;

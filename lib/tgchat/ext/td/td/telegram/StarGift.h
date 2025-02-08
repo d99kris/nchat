@@ -6,17 +6,18 @@
 //
 #pragma once
 
+#include "td/telegram/DialogId.h"
 #include "td/telegram/files/FileId.h"
 #include "td/telegram/StarGiftAttribute.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
-#include "td/telegram/UserId.h"
 
 #include "td/utils/common.h"
 #include "td/utils/StringBuilder.h"
 
 namespace td {
 
+class Dependencies;
 class Td;
 
 class StarGift {
@@ -38,7 +39,10 @@ class StarGift {
   StarGiftAttributeBackdrop backdrop_;
   StarGiftAttributeOriginalDetails original_details_;
   string title_;
-  UserId owner_user_id_;
+  string slug_;
+  DialogId owner_dialog_id_;
+  string owner_address_;
+  string owner_name_;
   int32 num_ = 0;
   int32 unique_availability_issued_ = 0;
   int32 unique_availability_total_ = 0;
@@ -80,6 +84,8 @@ class StarGift {
   td_api::object_ptr<td_api::upgradedGift> get_upgraded_gift_object(Td *td) const;
 
   td_api::object_ptr<td_api::SentGift> get_sent_gift_object(Td *td) const;
+
+  void add_dependencies(Dependencies &dependencies) const;
 
   template <class StorerT>
   void store(StorerT &storer) const;

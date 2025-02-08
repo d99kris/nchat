@@ -51,16 +51,8 @@ class GetAdminedBotsQuery final : public Td::ResultHandler {
     }
 
     auto users = result_ptr.move_as_ok();
-    vector<UserId> user_ids;
-    for (const auto &user : users) {
-      auto user_id = UserManager::get_user_id(user);
-      if (user_id.is_valid()) {
-        user_ids.push_back(user_id);
-      }
-    }
-    td_->user_manager_->on_get_users(std::move(users), "GetAdminedBotsQuery");
-    promise_.set_value(td_api::make_object<td_api::users>(
-        static_cast<int32>(user_ids.size()), td_->user_manager_->get_user_ids_object(user_ids, "GetAdminedBotsQuery")));
+    auto user_ids = td_->user_manager_->get_user_ids(std::move(users), "GetAdminedBotsQuery");
+    promise_.set_value(td_->user_manager_->get_users_object(-1, user_ids));
   }
 
   void on_error(Status status) final {
@@ -977,7 +969,7 @@ telegram_api::object_ptr<telegram_api::InputMedia> BotInfoManager::get_fake_inpu
   switch (file_view.get_type()) {
     case FileType::VideoStory:
       return telegram_api::make_object<telegram_api::inputMediaDocument>(
-          0, false /*ignored*/, full_remote_location->as_input_document(), 0, string());
+          0, false /*ignored*/, full_remote_location->as_input_document(), nullptr, 0, 0, string());
     case FileType::PhotoStory:
       return telegram_api::make_object<telegram_api::inputMediaPhoto>(0, false /*ignored*/,
                                                                       full_remote_location->as_input_photo(), 0);
