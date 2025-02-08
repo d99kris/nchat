@@ -1064,13 +1064,6 @@ Please refer to [Contributing Guidelines](/doc/CONTRIBUTING.md) and
 [Design Notes](/doc/DESIGN.md).
 
 
-Alternatives
-============
-Other terminal-based Telegram clients:
-
-- [tg](https://github.com/paul-nameless/tg)
-
-
 Keywords
 ========
 command line, console-based, linux, macos, chat client, ncurses, telegram,
