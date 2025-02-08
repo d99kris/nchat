@@ -602,7 +602,7 @@ std::vector<std::wstring> StrUtil::WordWrap(std::wstring p_Text, unsigned p_Line
           unsigned char_width = std::max(wcwidth(wc), 1);
 
           // If the character is a space, mark it as a potential wrap point
-          if (iswspace(wc))
+          if (wc == L' ')
           {
             last_space = tmpline.size();
           }
@@ -635,7 +635,7 @@ std::vector<std::wstring> StrUtil::WordWrap(std::wstring p_Text, unsigned p_Line
           }
 
           // Add the character to the current line and update the width
-          if (!tmpline.empty() || !iswspace(wc))
+          if (!tmpline.empty() || (wc != L' '))
           {
             tmpline += wc;
             current_width += char_width;
@@ -643,10 +643,7 @@ std::vector<std::wstring> StrUtil::WordWrap(std::wstring p_Text, unsigned p_Line
         }
 
         // Add any remaining text
-        if (!tmpline.empty())
-        {
-          lines.push_back(tmpline);
-        }
+        lines.push_back(tmpline);
 
         break;
 #else
