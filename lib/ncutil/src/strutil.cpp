@@ -1,6 +1,6 @@
 // strutil.cpp
 //
-// Copyright (c) 2020-2024 Kristofer Berggren
+// Copyright (c) 2020-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -20,6 +20,8 @@
 
 #include "emojiutil.h"
 #include "log.h"
+
+#define HAS_WCSWIDTH_WORDWRAP
 
 void StrUtil::DeleteToNextMatch(std::wstring& p_Str, int& p_Pos, int p_Offs, std::wstring p_Chars)
 {
@@ -590,6 +592,64 @@ std::vector<std::wstring> StrUtil::WordWrap(std::wstring p_Text, unsigned p_Line
           linePart = quotePrefix + linePart;
         }
 
+#ifdef HAS_WCSWIDTH_WORDWRAP
+        unsigned current_width = 0;
+        std::wstring tmpline;
+        size_t last_space = std::wstring::npos;
+        for (size_t i = 0; i < linePart.size(); ++i)
+        {
+          wchar_t wc = linePart[i];
+          unsigned char_width = std::max(wcwidth(wc), 1);
+
+          // If the character is a space, mark it as a potential wrap point
+          if (iswspace(wc))
+          {
+            last_space = tmpline.size();
+          }
+
+          // Check if adding the character exceeds the width
+          if (current_width + char_width > wrapLineLength)
+          {
+            if (last_space != std::wstring::npos)
+            {
+              // Wrap at the last space
+              lines.push_back(tmpline.substr(0, last_space));
+
+              // Start the new line with the remainder after the space
+              tmpline = tmpline.substr(std::min(last_space + 1, tmpline.size()));
+              current_width = 0;
+              for (wchar_t c : tmpline)
+              {
+                current_width += std::max(wcwidth(c), 1);
+              }
+
+              last_space = std::wstring::npos;
+            }
+            else
+            {
+              // No space found, wrap at the current position
+              lines.push_back(tmpline);
+              tmpline.clear();
+              current_width = 0;
+            }
+          }
+
+          // Add the character to the current line and update the width
+          if (!tmpline.empty() || !iswspace(wc))
+          {
+            tmpline += wc;
+            current_width += char_width;
+          }
+        }
+
+        // Add any remaining text
+        if (!tmpline.empty())
+        {
+          lines.push_back(tmpline);
+        }
+
+        break;
+#else
         if (linePart.size() > wrapLineLength)
         {
           size_t spacePos = linePart.rfind(L' ', wrapLineLength);
@@ -624,6 +684,7 @@ std::vector<std::wstring> StrUtil::WordWrap(std::wstring p_Text, unsigned p_Line
           linePart.clear();
           break;
         }
+#endif
       }
     }
   }
