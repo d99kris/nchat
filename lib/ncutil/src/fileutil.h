@@ -10,9 +10,7 @@
 #include <set>
 #include <string>
 
-#ifdef __APPLE__
-#include <sys/types.h> // ssize_t
-#endif
+#include <sys/types.h>
 
 struct DirEntry
 {

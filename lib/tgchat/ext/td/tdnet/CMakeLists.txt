@@ -57,9 +57,7 @@ if (APPLE_WATCH)
     td/net/DarwinHttp.mm
     td/net/DarwinHttp.h
   )
-  if(CMAKE_C_COMPILER_ID MATCHES "Clang")
-    set_source_files_properties(td/net/DarwinHttp.mm PROPERTIES COMPILE_FLAGS -fobjc-arc)
-  endif()
+  set_source_files_properties(td/net/DarwinHttp.mm PROPERTIES COMPILE_FLAGS -fobjc-arc)
 endif()
 
 add_library(tdnet STATIC ${TDNET_SOURCE})
