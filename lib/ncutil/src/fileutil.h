@@ -10,6 +10,8 @@
 #include <set>
 #include <string>
 
+#include <sys/types.h>
+
 struct DirEntry
 {
   DirEntry()
