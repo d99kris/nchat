@@ -1,6 +1,6 @@
 // duchat.cpp
 //
-// Copyright (c) 2020-2023 Kristofer Berggren
+// Copyright (c) 2020-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -236,6 +236,20 @@ void DuChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
             "I went to Cornell. Ever heard of it? I graduated in four years, "
             "I never studied once, I was drunk the whole time, and I sang in "
             "the acapella group, 'Here Comes Treble'." },
+          { "Lorem",
+            "Lorem ipsum dolor sit amet, ea vel tale virtute qualisque. Ad "
+            "eam viris salutandi, per no lucilius corrumpit. Ea gubergren "
+            "inciderint cum. An melsaperet insolens dissentiunt. Diam vide "
+            "ne sed, elitr causae ea mea. Quo ut graece latine." },
+          { "Mixed",
+            "Hello 你好! This is a text with mixed English and 中文 characters. "
+            "Hello 你好! This is a text with mixed English and 中文 characters. " },
+          { "Chinese",
+            "一二三。一二三。一二三。一二三。一二三。一二三。一二三。一二三。一二三。一二三。"
+            "一二三。一二三。一二三。一二三。一二三。一二三。一二三。一二三。一二三。一二三。" },
+          { "Emoji",
+            "📃📃📃📃📃 📃📃📃📃📃. 📃📃📃📃📃 📃📃📃📃📃. 📃📃📃📃📃 📃📃📃📃📃. "
+            "📃📃📃📃📃 📃📃📃📃📃. 📃📃📃📃📃 📃📃📃📃📃." },
         };
 
         static std::vector<std::pair<std::string, std::string>> groupMessages =
@@ -269,7 +283,7 @@ void DuChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
 
           ChatInfo chatInfo;
           chatInfo.id = id;
-          chatInfo.lastMessageTime = t;
+          chatInfo.lastMessageTime = (t * 1000);
           newChatsNotify->chatInfos.push_back(chatInfo);
 
           ContactInfo contactInfo;
@@ -307,7 +321,7 @@ void DuChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
 
           ChatInfo chatInfo;
           chatInfo.id = gid;
-          chatInfo.lastMessageTime = t;
+          chatInfo.lastMessageTime = (t * 1000);
           newChatsNotify->chatInfos.push_back(chatInfo);
 
           ContactInfo contactInfo;
