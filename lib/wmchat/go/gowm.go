@@ -670,6 +670,10 @@ func (handler *WmEventHandler) HandleEvent(rawEvt interface{}) {
 		LOG_TRACE(fmt.Sprintf("%#v", evt))
 		handler.HandleClientOutdated()
 
+	case *events.DeleteForMe:
+		LOG_TRACE(fmt.Sprintf("%#v", evt))
+		handler.HandleDeleteForMe(evt)
+
 	default:
 		LOG_TRACE(fmt.Sprintf("Event type not handled: %#v", rawEvt))
 	}
@@ -932,6 +936,14 @@ func (handler *WmEventHandler) HandleClientOutdated() {
 	connId := handler.connId
 	LOG_WARNING(fmt.Sprintf("Client Outdated"))
 	SetState(connId, Outdated)
+}
+
+func (handler *WmEventHandler) HandleDeleteForMe(deleteForMe *events.DeleteForMe) {
+	connId := handler.connId
+	chatId := JidToStr(deleteForMe.ChatJID)
+	msgId := deleteForMe.MessageID
+	LOG_TRACE(fmt.Sprintf("Call CWmDeleteMessageNotify %s %s", chatId, msgId))
+	CWmDeleteMessageNotify(connId, chatId, msgId)
 }
 
 func (handler *WmEventHandler) HandleLoggedOut() {
