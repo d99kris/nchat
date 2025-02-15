@@ -1266,8 +1266,15 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
           {
             // *INDENT-OFF*
             *m_Dbs[profileId] <<
-              "SELECT id, timeSent FROM " + s_TableMessages + " WHERE chatId = ? AND timeSent < ? AND instr(lower(text), lower(?)) > 0 "
-              "ORDER BY timeSent DESC LIMIT 1;" << chatId << findFromMsgIdTimeSent << findText >>
+              "SELECT " + s_TableMessages + ".id, timeSent "
+              "FROM " + s_TableMessages + " "
+              "LEFT JOIN " + s_TableContacts + " "
+              "ON " + s_TableMessages + ".senderId = " + s_TableContacts + ".id "
+              "WHERE chatId = ? AND timeSent < ? "
+              "AND ((instr(lower(text), lower(?)) > 0) OR "
+              "     (instr(lower(CASE WHEN isSelf THEN 'You' ELSE name END), lower(?)) > 0)) "
+              "ORDER BY timeSent DESC LIMIT 1;"
+              << chatId << findFromMsgIdTimeSent << findText << findText >>
               [&](const std::string& id, const int64_t& timeSent)
               {
                 foundMsgId = id;
