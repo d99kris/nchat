@@ -8,9 +8,13 @@ around 1GB under g++ and 0.5GB for clang++.
 
 Steps to build nchat on a low memory system:
 
-**Extra Dependencies (Linux)**
+**Extra Dependencies (Debian, Ubuntu)**
 
     sudo apt install php-cli clang
+
+**Extra Dependencies (Fedora)**
+
+    sudo dnf install php-cli
 
 **Source**
 
@@ -37,46 +41,4 @@ Steps to build nchat on a low memory system:
 **Revert Source Code Split (Optional)**
 
     cd ../lib/tgchat/ext/td ; php SplitSource.php --undo ; cd -
-
-Arch Linux
-----------
-**Source**
-
-    git clone https://aur.archlinux.org/nchat-git.git && cd nchat-git
-
-**Prepare**
-
-    Open PKGBUILD in your favourite editor.
-    Add `php` and `clang` on depends array.
-    Change the `_install_mode` to `slow`.
-
-**Build**
-
-    makepkg -s
-
-**Install**
-
-    makepkg -i
-
-Fedora
-------
-**Extra Dependencies**
-
-    sudo dnf install php-cli
-
-**Source**
-
-    git clone https://github.com/d99kris/nchat && cd nchat
-
-**Build**
-
-    mkdir -p build && cd build
-    CC=/usr/bin/clang CXX=/usr/bin/clang++ cmake ..
-    cmake --build . --target prepare_cross_compiling
-    cd ../lib/tgchat/ext/td ; php SplitSource.php ; cd -
-    make -s
-
-**Install**
-
-    sudo make install
 
