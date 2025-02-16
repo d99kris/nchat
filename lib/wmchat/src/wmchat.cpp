@@ -1,6 +1,6 @@
 // wmchat.cpp
 //
-// Copyright (c) 2020-2024 Kristofer Berggren
+// Copyright (c) 2020-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -699,46 +699,49 @@ WmChat* WmChat::GetInstance(int p_ConnId)
 void WmNewContactsNotify(int p_ConnId, char* p_ChatId, char* p_Name, char* p_Phone, int p_IsSelf)
 {
   WmChat* instance = WmChat::GetInstance(p_ConnId);
-  if (instance == nullptr) return;
+  if (instance != nullptr)
+  {
+    ContactInfo contactInfo;
+    contactInfo.id = std::string(p_ChatId);
+    contactInfo.name = std::string(p_Name);
+    contactInfo.phone = std::string(p_Phone);
+    contactInfo.isSelf = (p_IsSelf == 1) ? true : false;
 
-  ContactInfo contactInfo;
-  contactInfo.id = std::string(p_ChatId);
-  contactInfo.name = std::string(p_Name);
-  contactInfo.phone = std::string(p_Phone);
-  contactInfo.isSelf = (p_IsSelf == 1) ? true : false;
+    std::shared_ptr<NewContactsNotify> newContactsNotify = std::make_shared<NewContactsNotify>(instance->GetProfileId());
+    newContactsNotify->contactInfos = std::vector<ContactInfo>({ contactInfo });
 
-  std::shared_ptr<NewContactsNotify> newContactsNotify = std::make_shared<NewContactsNotify>(instance->GetProfileId());
-  newContactsNotify->contactInfos = std::vector<ContactInfo>({ contactInfo });
-
-  std::shared_ptr<DeferNotifyRequest> deferNotifyRequest = std::make_shared<DeferNotifyRequest>();
-  deferNotifyRequest->serviceMessage = newContactsNotify;
-  instance->SendRequest(deferNotifyRequest);
+    std::shared_ptr<DeferNotifyRequest> deferNotifyRequest = std::make_shared<DeferNotifyRequest>();
+    deferNotifyRequest->serviceMessage = newContactsNotify;
+    instance->SendRequest(deferNotifyRequest);
+  }
 
   free(p_ChatId);
   free(p_Name);
+  free(p_Phone);
 }
 
 void WmNewChatsNotify(int p_ConnId, char* p_ChatId, int p_IsUnread, int p_IsMuted, int p_IsPinned,
                       int p_LastMessageTime)
 {
   WmChat* instance = WmChat::GetInstance(p_ConnId);
-  if (instance == nullptr) return;
+  if (instance != nullptr)
+  {
+    ChatInfo chatInfo;
+    chatInfo.id = std::string(p_ChatId);
+    chatInfo.isUnread = (p_IsUnread == 1);
+    chatInfo.isUnreadMention = false; // not supported in wa
+    chatInfo.isMuted = (p_IsMuted == 1);
+    chatInfo.isPinned = (p_IsPinned == 1);
+    chatInfo.lastMessageTime = ((int64_t)p_LastMessageTime) * 1000;
 
-  ChatInfo chatInfo;
-  chatInfo.id = std::string(p_ChatId);
-  chatInfo.isUnread = (p_IsUnread == 1);
-  chatInfo.isUnreadMention = false; // not supported in wa
-  chatInfo.isMuted = (p_IsMuted == 1);
-  chatInfo.isPinned = (p_IsPinned == 1);
-  chatInfo.lastMessageTime = ((int64_t)p_LastMessageTime) * 1000;
+    std::shared_ptr<NewChatsNotify> newChatsNotify = std::make_shared<NewChatsNotify>(instance->GetProfileId());
+    newChatsNotify->success = true;
+    newChatsNotify->chatInfos = std::vector<ChatInfo>({ chatInfo });
 
-  std::shared_ptr<NewChatsNotify> newChatsNotify = std::make_shared<NewChatsNotify>(instance->GetProfileId());
-  newChatsNotify->success = true;
-  newChatsNotify->chatInfos = std::vector<ChatInfo>({ chatInfo });
-
-  std::shared_ptr<DeferNotifyRequest> deferNotifyRequest = std::make_shared<DeferNotifyRequest>();
-  deferNotifyRequest->serviceMessage = newChatsNotify;
-  instance->SendRequest(deferNotifyRequest);
+    std::shared_ptr<DeferNotifyRequest> deferNotifyRequest = std::make_shared<DeferNotifyRequest>();
+    deferNotifyRequest->serviceMessage = newChatsNotify;
+    instance->SendRequest(deferNotifyRequest);
+  }
 
   free(p_ChatId);
 }
@@ -747,42 +750,41 @@ void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_Se
                          char* p_QuotedId, char* p_FileId, char* p_FilePath, int p_FileStatus, int p_TimeSent,
                          int p_IsRead)
 {
-  LOG_DEBUG("WaNewMessagesNotify");
-
   WmChat* instance = WmChat::GetInstance(p_ConnId);
-  if (instance == nullptr) return;
-
-  std::string fileInfoStr;
-  std::string fileId = std::string(p_FileId);
-  if (!fileId.empty())
+  if (instance != nullptr)
   {
-    FileInfo fileInfo;
-    fileInfo.fileStatus = (FileStatus)p_FileStatus;
-    fileInfo.fileId = fileId;
-    fileInfo.filePath = std::string(p_FilePath);
-    fileInfoStr = ProtocolUtil::FileInfoToHex(fileInfo);
+    std::string fileInfoStr;
+    std::string fileId = std::string(p_FileId);
+    if (!fileId.empty())
+    {
+      FileInfo fileInfo;
+      fileInfo.fileStatus = (FileStatus)p_FileStatus;
+      fileInfo.fileId = fileId;
+      fileInfo.filePath = std::string(p_FilePath);
+      fileInfoStr = ProtocolUtil::FileInfoToHex(fileInfo);
+    }
+
+    ChatMessage chatMessage;
+    chatMessage.id = std::string(p_MsgId);
+    chatMessage.senderId = std::string(p_SenderId);
+    chatMessage.text = std::string(p_Text);
+    chatMessage.isOutgoing = (p_FromMe == 1);
+    chatMessage.quotedId = std::string(p_QuotedId);
+    chatMessage.fileInfo = fileInfoStr;
+    chatMessage.timeSent = (((int64_t)p_TimeSent) * 1000) + (std::hash<std::string>{ }(chatMessage.id) % 256);
+    chatMessage.isRead = (p_IsRead == 1);
+
+    std::shared_ptr<NewMessagesNotify> newMessagesNotify = std::make_shared<NewMessagesNotify>(instance->GetProfileId());
+    newMessagesNotify->success = true;
+    newMessagesNotify->chatId = std::string(p_ChatId);
+    newMessagesNotify->chatMessages = std::vector<ChatMessage>({ chatMessage });
+    newMessagesNotify->cached = false;
+    newMessagesNotify->sequence = true;
+
+    std::shared_ptr<DeferNotifyRequest> deferNotifyRequest = std::make_shared<DeferNotifyRequest>();
+    deferNotifyRequest->serviceMessage = newMessagesNotify;
+    instance->SendRequest(deferNotifyRequest);
   }
-
-  ChatMessage chatMessage;
-  chatMessage.id = std::string(p_MsgId);
-  chatMessage.senderId = std::string(p_SenderId);
-  chatMessage.text = std::string(p_Text);
-  chatMessage.isOutgoing = (p_FromMe == 1);
-  chatMessage.quotedId = std::string(p_QuotedId);
-  chatMessage.fileInfo = fileInfoStr;
-  chatMessage.timeSent = (((int64_t)p_TimeSent) * 1000) + (std::hash<std::string>{ }(chatMessage.id) % 256);
-  chatMessage.isRead = (p_IsRead == 1);
-
-  std::shared_ptr<NewMessagesNotify> newMessagesNotify = std::make_shared<NewMessagesNotify>(instance->GetProfileId());
-  newMessagesNotify->success = true;
-  newMessagesNotify->chatId = std::string(p_ChatId);
-  newMessagesNotify->chatMessages = std::vector<ChatMessage>({ chatMessage });
-  newMessagesNotify->cached = false;
-  newMessagesNotify->sequence = true;
-
-  std::shared_ptr<DeferNotifyRequest> deferNotifyRequest = std::make_shared<DeferNotifyRequest>();
-  deferNotifyRequest->serviceMessage = newMessagesNotify;
-  instance->SendRequest(deferNotifyRequest);
 
   free(p_ChatId);
   free(p_MsgId);
@@ -790,41 +792,43 @@ void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_Se
   free(p_Text);
   free(p_QuotedId);
   free(p_FileId);
+  free(p_FilePath);
 }
 
 void WmNewStatusNotify(int p_ConnId, char* p_ChatId, char* p_UserId, int p_IsOnline, int p_IsTyping, int p_TimeSeen)
 {
   WmChat* instance = WmChat::GetInstance(p_ConnId);
-  if (instance == nullptr) return;
-
-  std::string chatId(p_ChatId);
-  std::string userId(p_UserId);
-
+  if (instance != nullptr)
   {
-    std::shared_ptr<ReceiveStatusNotify> receiveStatusNotify =
-      std::make_shared<ReceiveStatusNotify>(instance->GetProfileId());
-    receiveStatusNotify->userId = userId;
-    receiveStatusNotify->isOnline = (p_IsOnline == 1);
-    receiveStatusNotify->timeSeen = (p_TimeSeen > 0) ? (((int64_t)p_TimeSeen) * 1000) : -1;
+    std::string chatId(p_ChatId);
+    std::string userId(p_UserId);
 
-    std::shared_ptr<DeferNotifyRequest> deferNotifyRequest =
-      std::make_shared<DeferNotifyRequest>();
-    deferNotifyRequest->serviceMessage = receiveStatusNotify;
-    instance->SendRequest(deferNotifyRequest);
-  }
+    {
+      std::shared_ptr<ReceiveStatusNotify> receiveStatusNotify =
+        std::make_shared<ReceiveStatusNotify>(instance->GetProfileId());
+      receiveStatusNotify->userId = userId;
+      receiveStatusNotify->isOnline = (p_IsOnline == 1);
+      receiveStatusNotify->timeSeen = (p_TimeSeen > 0) ? (((int64_t)p_TimeSeen) * 1000) : -1;
 
-  if (!chatId.empty())
-  {
-    std::shared_ptr<ReceiveTypingNotify> receiveTypingNotify =
-      std::make_shared<ReceiveTypingNotify>(instance->GetProfileId());
-    receiveTypingNotify->chatId = chatId;
-    receiveTypingNotify->userId = userId;
-    receiveTypingNotify->isTyping = (p_IsTyping == 1);
+      std::shared_ptr<DeferNotifyRequest> deferNotifyRequest =
+        std::make_shared<DeferNotifyRequest>();
+      deferNotifyRequest->serviceMessage = receiveStatusNotify;
+      instance->SendRequest(deferNotifyRequest);
+    }
 
-    std::shared_ptr<DeferNotifyRequest> deferNotifyRequest =
-      std::make_shared<DeferNotifyRequest>();
-    deferNotifyRequest->serviceMessage = receiveTypingNotify;
-    instance->SendRequest(deferNotifyRequest);
+    if (!chatId.empty())
+    {
+      std::shared_ptr<ReceiveTypingNotify> receiveTypingNotify =
+        std::make_shared<ReceiveTypingNotify>(instance->GetProfileId());
+      receiveTypingNotify->chatId = chatId;
+      receiveTypingNotify->userId = userId;
+      receiveTypingNotify->isTyping = (p_IsTyping == 1);
+
+      std::shared_ptr<DeferNotifyRequest> deferNotifyRequest =
+        std::make_shared<DeferNotifyRequest>();
+      deferNotifyRequest->serviceMessage = receiveTypingNotify;
+      instance->SendRequest(deferNotifyRequest);
+    }
   }
 
   free(p_ChatId);
@@ -834,8 +838,7 @@ void WmNewStatusNotify(int p_ConnId, char* p_ChatId, char* p_UserId, int p_IsOnl
 void WmNewMessageStatusNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsRead)
 {
   WmChat* instance = WmChat::GetInstance(p_ConnId);
-  if (instance == nullptr) return;
-
+  if (instance != nullptr)
   {
     std::shared_ptr<NewMessageStatusNotify> newMessageStatusNotify =
       std::make_shared<NewMessageStatusNotify>(instance->GetProfileId());
@@ -856,8 +859,7 @@ void WmNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p
                             int p_Action)
 {
   WmChat* instance = WmChat::GetInstance(p_ConnId);
-  if (instance == nullptr) return;
-
+  if (instance != nullptr)
   {
     FileInfo fileInfo;
     fileInfo.fileStatus = static_cast<FileStatus>(p_FileStatus);
@@ -884,8 +886,7 @@ void WmNewMessageReactionNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, cha
                                 int p_FromMe)
 {
   WmChat* instance = WmChat::GetInstance(p_ConnId);
-  if (instance == nullptr) return;
-
+  if (instance != nullptr)
   {
     const std::string senderId = (p_FromMe == 1) ? s_ReactionsSelfId : std::string(p_SenderId);
     Reactions reactions;
@@ -915,8 +916,7 @@ void WmNewMessageReactionNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, cha
 void WmDeleteChatNotify(int p_ConnId, char* p_ChatId)
 {
   WmChat* instance = WmChat::GetInstance(p_ConnId);
-  if (instance == nullptr) return;
-
+  if (instance != nullptr)
   {
     std::shared_ptr<DeleteChatNotify> deleteChatNotify =
       std::make_shared<DeleteChatNotify>(instance->GetProfileId());
@@ -935,8 +935,7 @@ void WmDeleteChatNotify(int p_ConnId, char* p_ChatId)
 void WmDeleteMessageNotify(int p_ConnId, char* p_ChatId, char* p_MsgId)
 {
   WmChat* instance = WmChat::GetInstance(p_ConnId);
-  if (instance == nullptr) return;
-
+  if (instance != nullptr)
   {
     std::shared_ptr<DeleteMessageNotify> deleteMessageNotify =
       std::make_shared<DeleteMessageNotify>(instance->GetProfileId());
@@ -957,8 +956,7 @@ void WmDeleteMessageNotify(int p_ConnId, char* p_ChatId, char* p_MsgId)
 void WmUpdateMuteNotify(int p_ConnId, char* p_ChatId, int p_IsMuted)
 {
   WmChat* instance = WmChat::GetInstance(p_ConnId);
-  if (instance == nullptr) return;
-
+  if (instance != nullptr)
   {
     std::shared_ptr<UpdateMuteNotify> updateMuteNotify =
       std::make_shared<UpdateMuteNotify>(instance->GetProfileId());
@@ -978,8 +976,7 @@ void WmUpdateMuteNotify(int p_ConnId, char* p_ChatId, int p_IsMuted)
 void WmUpdatePinNotify(int p_ConnId, char* p_ChatId, int p_IsPinned, int p_TimePinned)
 {
   WmChat* instance = WmChat::GetInstance(p_ConnId);
-  if (instance == nullptr) return;
-
+  if (instance != nullptr)
   {
     std::shared_ptr<UpdatePinNotify> updatePinNotify =
       std::make_shared<UpdatePinNotify>(instance->GetProfileId());
@@ -1000,19 +997,21 @@ void WmUpdatePinNotify(int p_ConnId, char* p_ChatId, int p_IsPinned, int p_TimeP
 void WmReinit(int p_ConnId)
 {
   WmChat* instance = WmChat::GetInstance(p_ConnId);
-  if (instance == nullptr) return;
-
-  std::shared_ptr<ReinitRequest> reinitRequest =
-    std::make_shared<ReinitRequest>();
-  instance->SendRequest(reinitRequest);
+  if (instance != nullptr)
+  {
+    std::shared_ptr<ReinitRequest> reinitRequest =
+      std::make_shared<ReinitRequest>();
+    instance->SendRequest(reinitRequest);
+  }
 }
 
 void WmSetProtocolUiControl(int p_ConnId, int p_IsTakeControl)
 {
   WmChat* instance = WmChat::GetInstance(p_ConnId);
-  if (instance == nullptr) return;
-
-  instance->SetProtocolUiControl(p_IsTakeControl);
+  if (instance != nullptr)
+  {
+    instance->SetProtocolUiControl(p_IsTakeControl);
+  }
 }
 
 void WmSetStatus(int p_Flags)
@@ -1028,24 +1027,34 @@ void WmClearStatus(int p_Flags)
 void WmLogTrace(char* p_Filename, int p_LineNo, char* p_Message)
 {
   Log::Trace(p_Filename, p_LineNo, "%s", p_Message);
+  free(p_Filename);
+  free(p_Message);
 }
 
 void WmLogDebug(char* p_Filename, int p_LineNo, char* p_Message)
 {
   Log::Debug(p_Filename, p_LineNo, "%s", p_Message);
+  free(p_Filename);
+  free(p_Message);
 }
 
 void WmLogInfo(char* p_Filename, int p_LineNo, char* p_Message)
 {
   Log::Info(p_Filename, p_LineNo, "%s", p_Message);
+  free(p_Filename);
+  free(p_Message);
 }
 
 void WmLogWarning(char* p_Filename, int p_LineNo, char* p_Message)
 {
   Log::Warning(p_Filename, p_LineNo, "%s", p_Message);
+  free(p_Filename);
+  free(p_Message);
 }
 
 void WmLogError(char* p_Filename, int p_LineNo, char* p_Message)
 {
   Log::Error(p_Filename, p_LineNo, "%s", p_Message);
+  free(p_Filename);
+  free(p_Message);
 }
