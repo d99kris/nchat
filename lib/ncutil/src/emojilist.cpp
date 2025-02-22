@@ -1,6 +1,6 @@
 // emojilist.cpp
 //
-// Copyright (c) 2020-2024 Kristofer Berggren
+// Copyright (c) 2020-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -42,20 +42,47 @@ void EmojiList::Init()
   // create table if not exists
   *m_Db << "CREATE TABLE IF NOT EXISTS emojis (name TEXT PRIMARY KEY NOT NULL, emoji TEXT, usages INT);";
 
+  // get expected count
+  const std::set<std::string>& emojiView = EmojiUtil::GetView();
+  const std::map<std::string, std::string>& emojiMap = EmojiUtil::GetMap();
+  const int emojiViewCount = emojiListAll ? emojiMap.size() : emojiView.size();
+
   // populate table if empty
   int rowCount = 0;
   *m_Db << "SELECT COUNT(emoji) FROM emojis;" >> rowCount;
-  if (rowCount == 0)
+
+  // update map if needed
+  if (rowCount != emojiViewCount)
   {
-    LOG_DEBUG("populate emoji db");
+    LOG_INFO("update emoji db %d to %d", rowCount, emojiViewCount);
+
     *m_Db << "BEGIN;";
-    const std::set<std::string>& emojiView = EmojiUtil::GetView();
-    const std::map<std::string, std::string>& emojiMap = EmojiUtil::GetMap();
     for (const auto& emoji : emojiMap)
     {
       if (emojiListAll || emojiView.count(emoji.first))
       {
-        *m_Db << "INSERT INTO emojis (name, emoji, usages) VALUES (?,?,0);" << emoji.first << emoji.second;
+        LOG_TRACE("add emoji %s", emoji.first.c_str());
+        *m_Db << "INSERT INTO emojis (name, emoji, usages) "
+          "VALUES (?,?,0) ON CONFLICT DO NOTHING;" << emoji.first << emoji.second;
+      }
+    }
+    *m_Db << "COMMIT;";
+
+    std::vector<std::string> names;
+    *m_Db << "SELECT name FROM emojis;" >>
+      [&](const std::string& name)
+      {
+        names.push_back(name);
+      };
+
+    *m_Db << "BEGIN;";
+    for (const auto& name : names)
+    {
+      if ((emojiListAll && (emojiMap.count(name) == 0)) ||
+          (!emojiListAll && (emojiView.count(name) == 0)))
+      {
+        LOG_TRACE("remove emoji %s", name.c_str());
+        *m_Db << "DELETE FROM emojis WHERE name = ?;" << name;
       }
     }
     *m_Db << "COMMIT;";

@@ -1383,6 +1383,7 @@ static std::map<std::string, std::string> s_Map = {
   { ":pinched_fingers:", "🤌" },
   { ":pinching_hand:", "🤏" },
   { ":pineapple:", "🍍" },
+  { ":pink_heart:", "🩷" },
   { ":pirate_flag:", "🏴‍☠️" },
   { ":pisces:", "♓" },
   { ":pizza:", "🍕" },

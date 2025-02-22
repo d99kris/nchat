@@ -914,6 +914,7 @@ static std::set<std::string> s_View = {
   { ":pinched_fingers:" },
   { ":pinching_hand:" },
   { ":pineapple:" },
+  { ":pink_heart:" },
   { ":pisces:" },
   { ":pizza:" },
   { ":placard:" },
