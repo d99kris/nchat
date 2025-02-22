@@ -1,12 +1,13 @@
 // appconfig.h
 //
-// Copyright (c) 2021 Kristofer Berggren
+// Copyright (c) 2021-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
 
 #pragma once
 
+#include <memory>
 #include <string>
 
 #include "config.h"
@@ -29,5 +30,5 @@ public:
   static std::string GetStr(const std::string& p_Param);
 
 private:
-  static Config m_Config;
+  static std::shared_ptr<Config> m_Config;
 };

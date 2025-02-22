@@ -1,6 +1,6 @@
 // ui.cpp
 //
-// Copyright (c) 2019-2024 Kristofer Berggren
+// Copyright (c) 2019-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -33,8 +33,7 @@ Ui::Ui()
 
 Ui::~Ui()
 {
-  m_Model.reset();
-  m_Controller.reset();
+  Cleanup();
 
   UiConfig::Cleanup();
 }
@@ -50,7 +49,12 @@ void Ui::Init()
   printf("\033[?1004h"); // enable terminal focus in/out event
 
   setlocale(LC_ALL, "");
-  initscr();
+
+  m_TerminalInFile = fopen("/dev/tty", "r");
+  m_TerminalOutFile = fopen("/dev/tty", "w");
+  m_Screen = newterm(nullptr, m_TerminalOutFile, m_TerminalInFile);
+  m_OldScreen = set_term(m_Screen);
+
   noecho();
   cbreak();
   UiConfig::GetBool("linefeed_on_enter") ? nl() : nonl();
@@ -72,8 +76,16 @@ void Ui::Cleanup()
   UiKeyConfig::Cleanup();
   EmojiList::Cleanup();
 
+  m_Model.reset();
+  m_Controller.reset();
+
   wclear(stdscr);
   endwin();
+
+  set_term(m_OldScreen);
+  delscreen(m_Screen);
+  fclose(m_TerminalInFile);
+  fclose(m_TerminalOutFile);
 
   printf("\033[?1004l"); // disable terminal focus in/out event
 

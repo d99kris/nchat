@@ -92,6 +92,8 @@ public:
       return protocol;
     }
 
+    // intentionally leak 'handle' as dlclose may cause exit crash as go routines are not explicitly managed
+
     T* (* CreateFunc)() = (T * (*)())dlsym(handle, createFunc.c_str());
     if (CreateFunc == nullptr)
     {
@@ -107,18 +109,18 @@ public:
   }
 };
 
-static std::vector<ProtocolBaseFactory*> GetProtocolFactorys()
+static std::vector<std::shared_ptr<ProtocolBaseFactory>> GetProtocolFactorys()
 {
-  std::vector<ProtocolBaseFactory*> protocolFactorys =
+  std::vector<std::shared_ptr<ProtocolBaseFactory>> protocolFactorys =
   {
 #ifdef HAS_DUMMY
-    new ProtocolFactory<DuChat>(),
+    std::shared_ptr<ProtocolBaseFactory>(new ProtocolFactory<DuChat>()),
 #endif
 #ifdef HAS_TELEGRAM
-    new ProtocolFactory<TgChat>(),
+    std::shared_ptr<ProtocolBaseFactory>(new ProtocolFactory<TgChat>()),
 #endif
 #ifdef HAS_WHATSAPP
-    new ProtocolFactory<WmChat>(),
+    std::shared_ptr<ProtocolBaseFactory>(new ProtocolFactory<WmChat>()),
 #endif
   };
 
@@ -339,7 +341,7 @@ int main(int argc, char* argv[])
     else
     {
       bool found = false;
-      std::vector<ProtocolBaseFactory*> allProtocolFactorys = GetProtocolFactorys();
+      std::vector<std::shared_ptr<ProtocolBaseFactory>> allProtocolFactorys = GetProtocolFactorys();
       for (auto& protocolFactory : allProtocolFactorys)
       {
         if (protocolFactory->GetName() == protocolName)
@@ -408,7 +410,6 @@ int main(int argc, char* argv[])
   }
 
   // Cleanup ui
-  ui->Cleanup();
   ui.reset();
 
   // Perform export if requested
@@ -513,7 +514,7 @@ void RemoveProfile()
 std::shared_ptr<Protocol> SetupProfile()
 {
   std::shared_ptr<Protocol> rv;
-  std::vector<ProtocolBaseFactory*> protocolFactorys = GetProtocolFactorys();
+  std::vector<std::shared_ptr<ProtocolBaseFactory>> protocolFactorys = GetProtocolFactorys();
 
   std::cout << "Protocols:" << std::endl;
   size_t idx = 0;
