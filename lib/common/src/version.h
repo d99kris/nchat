@@ -7,4 +7,4 @@
 
 #pragma once
 
-#define NCHAT_VERSION "5.6.5"
+#define NCHAT_VERSION "5.6.6"
