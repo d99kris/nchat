@@ -8,12 +8,14 @@
 
 #include "td/telegram/AuthManager.h"
 #include "td/telegram/ConfigManager.h"
+#include "td/telegram/Dependencies.h"
 #include "td/telegram/DialogManager.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/logevent/LogEvent.h"
 #include "td/telegram/MessagesManager.h"
 #include "td/telegram/misc.h"
 #include "td/telegram/OptionManager.h"
+#include "td/telegram/PaidReactionType.hpp"
 #include "td/telegram/ReactionManager.hpp"
 #include "td/telegram/ReactionType.hpp"
 #include "td/telegram/SavedMessagesManager.h"
@@ -476,6 +478,7 @@ void ReactionManager::init() {
 
   load_active_reactions();
   load_active_message_effects();
+  load_default_paid_reaction_type();
 
   if (td_->option_manager_->get_option_boolean("default_reaction_needs_sync")) {
     send_set_default_reaction_query();
@@ -1467,6 +1470,54 @@ void ReactionManager::get_message_effect(MessageEffectId effect_id,
   promise.set_value(get_message_effect_object(effect_id));
 }
 
+void ReactionManager::send_update_default_paid_reaction_type() const {
+  send_closure(G()->td(), &Td::send_update, default_paid_reaction_type_.get_update_default_paid_reaction_type(td_));
+}
+
+void ReactionManager::on_update_default_paid_reaction_type(PaidReactionType type) {
+  if (type.is_valid() && type != default_paid_reaction_type_) {
+    default_paid_reaction_type_ = type;
+    save_default_paid_reaction_type();
+    send_update_default_paid_reaction_type();
+  }
+}
+
+void ReactionManager::load_default_paid_reaction_type() {
+  string type = G()->td_db()->get_binlog_pmc()->get("default_paid_reaction_type");
+  if (!type.empty()) {
+    auto status = log_event_parse(default_paid_reaction_type_, type);
+    if (status.is_error()) {
+      LOG(ERROR) << "Can't load default paid reaction type: " << status;
+      default_paid_reaction_type_ = {};
+      save_default_paid_reaction_type();
+    } else {
+      Dependencies dependencies;
+      default_paid_reaction_type_.add_dependencies(dependencies);
+      if (!default_paid_reaction_type_.is_valid() ||
+          !dependencies.resolve_force(td_, "load_default_paid_reaction_type")) {
+        default_paid_reaction_type_ = {};
+        save_default_paid_reaction_type();
+      }
+    }
+  } else if (td_->option_manager_->have_option("is_paid_reaction_anonymous")) {
+    auto is_anonymous = td_->option_manager_->get_option_boolean("is_paid_reaction_anonymous");
+    default_paid_reaction_type_ = PaidReactionType::legacy(is_anonymous);
+    save_default_paid_reaction_type();
+    td_->option_manager_->set_option_empty("is_paid_reaction_anonymous");
+  }
+  send_update_default_paid_reaction_type();
+}
+
+void ReactionManager::save_default_paid_reaction_type() const {
+  LOG(INFO) << "Save " << default_paid_reaction_type_;
+  G()->td_db()->get_binlog_pmc()->set("default_paid_reaction_type",
+                                      log_event_store(default_paid_reaction_type_).as_slice().str());
+}
+
+PaidReactionType ReactionManager::get_default_paid_reaction_type() const {
+  return default_paid_reaction_type_;
+}
+
 void ReactionManager::get_current_state(vector<td_api::object_ptr<td_api::Update>> &updates) const {
   if (td_->auth_manager_->is_bot()) {
     return;
@@ -1484,6 +1535,7 @@ void ReactionManager::get_current_state(vector<td_api::object_ptr<td_api::Update
   if (!active_message_effects_.is_empty()) {
     updates.push_back(get_update_available_message_effects_object());
   }
+  updates.push_back(default_paid_reaction_type_.get_update_default_paid_reaction_type(td_));
 }
 
 }  // namespace td

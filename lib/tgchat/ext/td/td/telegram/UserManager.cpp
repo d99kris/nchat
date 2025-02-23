@@ -4142,9 +4142,10 @@ UserManager::User *UserManager::get_user_force(UserId user_id, const char *sourc
       if (G()->is_test_dc()) {
         flags |= USER_FLAG_HAS_LAST_NAME;
         last_name = "Notifications";
+      } else {
+        profile_photo_id = 3337190045231036;
       }
       phone_number = "42777";
-      profile_photo_id = G()->is_test_dc() ? 3337190045231023 : 3337190045231028;
     } else if (user_id == get_replies_bot_user_id()) {
       flags |= USER_FLAG_HAS_USERNAME | USER_FLAG_IS_BOT;
       if (!G()->is_test_dc()) {
@@ -7969,7 +7970,7 @@ void UserManager::update_user(User *u, UserId user_id, bool from_binlog, bool fr
   if (u->is_is_contact_changed) {
     td_->messages_manager_->on_dialog_user_is_contact_updated(DialogId(user_id), u->is_contact);
     send_closure_later(td_->story_manager_actor_, &StoryManager::on_dialog_active_stories_order_updated,
-                       DialogId(user_id), "is_contact");
+                       DialogId(user_id), "update_user is_contact");
     if (is_user_contact(u, user_id, false)) {
       auto user_full = get_user_full(user_id);
       if (user_full != nullptr && user_full->need_phone_number_privacy_exception) {
@@ -7998,7 +7999,7 @@ void UserManager::update_user(User *u, UserId user_id, bool from_binlog, bool fr
   }
   if (u->is_is_premium_changed) {
     send_closure_later(td_->story_manager_actor_, &StoryManager::on_dialog_active_stories_order_updated,
-                       DialogId(user_id), "is_premium");
+                       DialogId(user_id), "update_user is_premium");
     u->is_is_premium_changed = false;
   }
   if (u->is_name_changed) {
@@ -8045,7 +8046,7 @@ void UserManager::update_user(User *u, UserId user_id, bool from_binlog, bool fr
   }
   if (u->is_stories_hidden_changed) {
     send_closure_later(td_->story_manager_actor_, &StoryManager::on_dialog_active_stories_order_updated,
-                       DialogId(user_id), "stories_hidden");
+                       DialogId(user_id), "update_user stories_hidden");
     u->is_stories_hidden_changed = false;
   }
   if (!td_->auth_manager_->is_bot()) {

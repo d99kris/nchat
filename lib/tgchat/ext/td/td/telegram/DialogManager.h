@@ -21,6 +21,7 @@
 #include "td/telegram/MessageId.h"
 #include "td/telegram/NotificationSettingsScope.h"
 #include "td/telegram/Photo.h"
+#include "td/telegram/RecentDialogList.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/UserId.h"
@@ -120,6 +121,21 @@ class DialogManager final : public Actor {
 
   void migrate_dialog_to_megagroup(DialogId dialog_id, Promise<td_api::object_ptr<td_api::chat>> &&promise);
 
+  void on_dialog_opened(DialogId dialog_id);
+
+  void on_dialog_deleted(DialogId dialog_id);
+
+  Status add_recently_found_dialog(DialogId dialog_id) TD_WARN_UNUSED_RESULT;
+
+  Status remove_recently_found_dialog(DialogId dialog_id) TD_WARN_UNUSED_RESULT;
+
+  void clear_recently_found_dialogs();
+
+  std::pair<int32, vector<DialogId>> search_recently_found_dialogs(const string &query, int32 limit,
+                                                                   Promise<Unit> &&promise);
+
+  std::pair<int32, vector<DialogId>> get_recently_opened_dialogs(int32 limit, Promise<Unit> &&promise);
+
   bool is_anonymous_administrator(DialogId dialog_id, string *author_signature) const;
 
   bool is_group_dialog(DialogId dialog_id) const;
@@ -179,6 +195,8 @@ class DialogManager final : public Actor {
 
   void set_dialog_location(DialogId dialog_id, const DialogLocation &location, Promise<Unit> &&promise);
 
+  void load_dialog_marks_as_unread();
+
   bool can_report_dialog(DialogId dialog_id) const;
 
   void report_dialog(DialogId dialog_id, const string &option_id, const vector<MessageId> &message_ids,
@@ -224,6 +242,16 @@ class DialogManager final : public Actor {
 
   DialogId search_public_dialog(const string &username_to_search, bool force, Promise<Unit> &&promise);
 
+  void on_get_public_dialogs_search_result(const string &query,
+                                           vector<telegram_api::object_ptr<telegram_api::Peer>> &&my_peers,
+                                           vector<telegram_api::object_ptr<telegram_api::Peer>> &&peers);
+
+  void on_failed_public_dialogs_search(const string &query, Status &&error);
+
+  vector<DialogId> search_public_dialogs(const string &query, Promise<Unit> &&promise);
+
+  vector<DialogId> search_dialogs_on_server(const string &query, int32 limit, Promise<Unit> &&promise);
+
   void reload_voice_chat_on_search(const string &username);
 
   void reget_peer_settings(DialogId dialog_id);
@@ -265,9 +293,14 @@ class DialogManager final : public Actor {
   void on_binlog_events(vector<BinlogEvent> &&events);
 
  private:
-  static constexpr size_t MAX_TITLE_LENGTH = 128;  // server side limit for chat title
+  static constexpr size_t MAX_TITLE_LENGTH = 128;                  // server-side limit for chat title
+  static constexpr int32 MIN_SEARCH_PUBLIC_DIALOG_PREFIX_LEN = 4;  // server-side limit
+  static constexpr int32 MAX_GET_DIALOGS = 100;                    // server-side limit
+  static constexpr int32 MAX_RECENT_DIALOGS = 50;                  // some reasonable value
 
   static constexpr int32 USERNAME_CACHE_EXPIRE_TIME = 86400;
+
+  void hangup() final;
 
   void tear_down() final;
 
@@ -289,6 +322,8 @@ class DialogManager final : public Actor {
   void drop_username(const string &username);
 
   void on_resolve_dialog(const string &username, ChannelId channel_id, Promise<DialogId> &&promise);
+
+  void send_search_public_dialogs_query(const string &query, Promise<Unit> &&promise);
 
   static uint64 save_reorder_pinned_dialogs_on_server_log_event(FolderId folder_id, const vector<DialogId> &dialog_ids);
 
@@ -345,6 +380,13 @@ class DialogManager final : public Actor {
   FlatHashSet<string> reload_voice_chat_on_search_usernames_;
 
   FlatHashMap<string, vector<Promise<Unit>>> resolve_dialog_username_queries_;
+
+  FlatHashMap<string, vector<Promise<Unit>>> search_public_dialogs_queries_;
+  FlatHashMap<string, vector<DialogId>> found_public_dialogs_;     // TODO time bound cache
+  FlatHashMap<string, vector<DialogId>> found_on_server_dialogs_;  // TODO time bound cache
+
+  RecentDialogList recently_found_dialogs_;
+  RecentDialogList recently_opened_dialogs_;
 
   Td *td_;
   ActorShared<> parent_;

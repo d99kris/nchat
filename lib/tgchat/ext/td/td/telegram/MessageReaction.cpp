@@ -11,18 +11,15 @@
 #include "td/telegram/Dependencies.h"
 #include "td/telegram/DialogManager.h"
 #include "td/telegram/Global.h"
+#include "td/telegram/MessageId.h"
 #include "td/telegram/MessageSender.h"
 #include "td/telegram/MessagesManager.h"
-#include "td/telegram/OptionManager.h"
-#include "td/telegram/ServerMessageId.h"
+#include "td/telegram/ReactionManager.h"
 #include "td/telegram/StarManager.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/UpdatesManager.h"
 #include "td/telegram/UserManager.h"
-
-#include "td/actor/actor.h"
-#include "td/actor/SleepActor.h"
 
 #include "td/utils/algorithm.h"
 #include "td/utils/buffer.h"
@@ -44,60 +41,6 @@ static size_t get_max_reaction_count() {
   return static_cast<size_t>(
       max(static_cast<int32>(1), static_cast<int32>(G()->get_option_integer(option_key, is_premium ? 3 : 1))));
 }
-
-class GetMessagesReactionsQuery final : public Td::ResultHandler {
-  DialogId dialog_id_;
-  vector<MessageId> message_ids_;
-
- public:
-  void send(DialogId dialog_id, vector<MessageId> &&message_ids) {
-    dialog_id_ = dialog_id;
-    message_ids_ = std::move(message_ids);
-
-    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Read);
-    CHECK(input_peer != nullptr);
-
-    send_query(
-        G()->net_query_creator().create(telegram_api::messages_getMessagesReactions(
-                                            std::move(input_peer), MessageId::get_server_message_ids(message_ids_)),
-                                        {{dialog_id_}}));
-  }
-
-  void on_result(BufferSlice packet) final {
-    auto result_ptr = fetch_result<telegram_api::messages_getMessagesReactions>(packet);
-    if (result_ptr.is_error()) {
-      return on_error(result_ptr.move_as_error());
-    }
-
-    auto ptr = result_ptr.move_as_ok();
-    LOG(INFO) << "Receive result for GetMessagesReactionsQuery: " << to_string(ptr);
-    if (ptr->get_id() == telegram_api::updates::ID) {
-      auto &updates = static_cast<telegram_api::updates *>(ptr.get())->updates_;
-      FlatHashSet<MessageId, MessageIdHash> skipped_message_ids;
-      for (auto message_id : message_ids_) {
-        skipped_message_ids.insert(message_id);
-      }
-      for (const auto &update : updates) {
-        if (update->get_id() == telegram_api::updateMessageReactions::ID) {
-          auto update_message_reactions = static_cast<const telegram_api::updateMessageReactions *>(update.get());
-          if (DialogId(update_message_reactions->peer_) == dialog_id_) {
-            skipped_message_ids.erase(MessageId(ServerMessageId(update_message_reactions->msg_id_)));
-          }
-        }
-      }
-      for (auto message_id : skipped_message_ids) {
-        td_->messages_manager_->update_message_reactions({dialog_id_, message_id}, nullptr);
-      }
-    }
-    td_->updates_manager_->on_get_updates(std::move(ptr), Promise<Unit>());
-    td_->messages_manager_->try_reload_message_reactions(dialog_id_, true);
-  }
-
-  void on_error(Status status) final {
-    td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "GetMessagesReactionsQuery");
-    td_->messages_manager_->try_reload_message_reactions(dialog_id_, true);
-  }
-};
 
 class SendReactionQuery final : public Td::ResultHandler {
   Promise<Unit> promise_;
@@ -164,8 +107,8 @@ class SendPaidReactionQuery final : public Td::ResultHandler {
   explicit SendPaidReactionQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
   }
 
-  void send(MessageFullId message_full_id, int32 star_count, bool use_default_is_anonymous, bool is_anonymous,
-            int64 random_id) {
+  void send(MessageFullId message_full_id, int32 star_count, bool use_default_paid_reaction_type,
+            PaidReactionType paid_reaction_type, int64 random_id) {
     dialog_id_ = message_full_id.get_dialog_id();
     star_count_ = star_count;
 
@@ -175,13 +118,16 @@ class SendPaidReactionQuery final : public Td::ResultHandler {
     }
 
     int32 flags = 0;
-    if (!use_default_is_anonymous) {
+    telegram_api::object_ptr<telegram_api::PaidReactionPrivacy> privacy;
+    if (!use_default_paid_reaction_type) {
       flags |= telegram_api::messages_sendPaidReaction::PRIVATE_MASK;
+      privacy = paid_reaction_type.get_input_paid_reaction_privacy(td_);
+      CHECK(privacy != nullptr);
     }
     send_query(G()->net_query_creator().create(
         telegram_api::messages_sendPaidReaction(flags, std::move(input_peer),
                                                 message_full_id.get_message_id().get_server_message_id().get(),
-                                                star_count, random_id, is_anonymous),
+                                                star_count, random_id, std::move(privacy)),
         {{dialog_id_}, {message_full_id}}));
   }
 
@@ -216,7 +162,7 @@ class TogglePaidReactionPrivacyQuery final : public Td::ResultHandler {
   explicit TogglePaidReactionPrivacyQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
   }
 
-  void send(MessageFullId message_full_id, bool is_anonymous) {
+  void send(MessageFullId message_full_id, PaidReactionType paid_reaction_type) {
     dialog_id_ = message_full_id.get_dialog_id();
 
     auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Read);
@@ -225,8 +171,9 @@ class TogglePaidReactionPrivacyQuery final : public Td::ResultHandler {
     }
 
     send_query(G()->net_query_creator().create(
-        telegram_api::messages_togglePaidReactionPrivacy(
-            std::move(input_peer), message_full_id.get_message_id().get_server_message_id().get(), is_anonymous),
+        telegram_api::messages_togglePaidReactionPrivacy(std::move(input_peer),
+                                                         message_full_id.get_message_id().get_server_message_id().get(),
+                                                         paid_reaction_type.get_input_paid_reaction_privacy(td_)),
         {{dialog_id_}, {message_full_id}}));
   }
 
@@ -778,8 +725,8 @@ void MessageReactions::update_from(const MessageReactions &old_reactions, Dialog
     }
   }
   pending_paid_reactions_ = old_reactions.pending_paid_reactions_;
-  pending_use_default_is_anonymous_ = old_reactions.pending_use_default_is_anonymous_;
-  pending_is_anonymous_ = old_reactions.pending_is_anonymous_;
+  pending_use_default_paid_reaction_type_ = old_reactions.pending_use_default_paid_reaction_type_;
+  pending_paid_reaction_type_ = old_reactions.pending_paid_reaction_type_;
 }
 
 bool MessageReactions::add_my_reaction(const ReactionType &reaction_type, bool is_big, DialogId my_dialog_id,
@@ -875,34 +822,36 @@ bool MessageReactions::do_remove_my_reaction(const ReactionType &reaction_type) 
   return false;
 }
 
-void MessageReactions::add_my_paid_reaction(Td *td, int32 star_count, bool use_default_is_anonymous,
-                                            bool is_anonymous) {
+void MessageReactions::add_my_paid_reaction(Td *td, int32 star_count,
+                                            const td_api::object_ptr<td_api::PaidReactionType> &type) {
   if (pending_paid_reactions_ > 1000000000 || star_count > 1000000000) {
     LOG(ERROR) << "Pending paid reactions overflown";
     return;
   }
+  bool use_default_paid_reaction_type = type == nullptr;
+  PaidReactionType paid_reaction_type(td, type);
   td->star_manager_->add_pending_owned_star_count(-star_count, false);
-  if (use_default_is_anonymous) {
+  if (use_default_paid_reaction_type) {
     if (pending_paid_reactions_ == 0) {
-      pending_use_default_is_anonymous_ = true;
+      pending_use_default_paid_reaction_type_ = true;
     }
-    if (pending_use_default_is_anonymous_) {
+    if (pending_use_default_paid_reaction_type_) {
       bool was_me = false;
       for (auto &reactor : top_reactors_) {
         if (reactor.is_me()) {
           was_me = true;
-          pending_is_anonymous_ = reactor.is_anonymous();
+          pending_paid_reaction_type_ = reactor.get_paid_reaction_type(td->dialog_manager_->get_my_dialog_id());
         }
       }
       if (!was_me) {
-        pending_is_anonymous_ = td->option_manager_->get_option_boolean("is_paid_reaction_anonymous");
+        pending_paid_reaction_type_ = td->reaction_manager_->get_default_paid_reaction_type();
       }
     }
   } else {
-    td->option_manager_->set_option_boolean("is_paid_reaction_anonymous", is_anonymous);
+    td->reaction_manager_->on_update_default_paid_reaction_type(paid_reaction_type);
 
-    pending_use_default_is_anonymous_ = false;
-    pending_is_anonymous_ = is_anonymous;
+    pending_use_default_paid_reaction_type_ = false;
+    pending_paid_reaction_type_ = paid_reaction_type;
   }
   pending_paid_reactions_ += star_count;
 }
@@ -915,8 +864,8 @@ void MessageReactions::drop_pending_paid_reactions(Td *td) {
   CHECK(has_pending_paid_reactions());
   td->star_manager_->add_pending_owned_star_count(pending_paid_reactions_, false);
   pending_paid_reactions_ = 0;
-  pending_use_default_is_anonymous_ = false;
-  pending_is_anonymous_ = false;
+  pending_use_default_paid_reaction_type_ = false;
+  pending_paid_reaction_type_ = {};
 }
 
 void MessageReactions::sort_reactions(const FlatHashMap<ReactionType, size_t, ReactionTypeHash> &active_reaction_pos) {
@@ -1024,15 +973,21 @@ bool MessageReactions::are_consistent_with_list(
 vector<MessageReactor> MessageReactions::apply_reactor_pending_paid_reactions(DialogId my_dialog_id) const {
   vector<MessageReactor> top_reactors;
   bool was_me = false;
+  auto reactor_dialog_id = pending_paid_reaction_type_.get_dialog_id(my_dialog_id);
   for (auto &reactor : top_reactors_) {
     top_reactors.push_back(reactor);
     if (reactor.is_me()) {
       was_me = true;
-      top_reactors.back().add_count(pending_paid_reactions_, pending_is_anonymous_);
+      top_reactors.back().add_count(pending_paid_reactions_, reactor_dialog_id, my_dialog_id);
     }
   }
   if (!was_me) {
-    top_reactors.emplace_back(my_dialog_id, pending_paid_reactions_, pending_is_anonymous_);
+    if (reactor_dialog_id == DialogId()) {
+      // anonymous reaction
+      top_reactors.emplace_back(my_dialog_id, pending_paid_reactions_, true);
+    } else {
+      top_reactors.emplace_back(reactor_dialog_id, pending_paid_reactions_, false);
+    }
   }
   MessageReactor::fix_message_reactors(top_reactors, false);
   return top_reactors;
@@ -1126,8 +1081,8 @@ void MessageReactions::send_paid_message_reaction(Td *td, MessageFullId message_
                                                   Promise<Unit> &&promise) {
   CHECK(has_pending_paid_reactions());
   auto star_count = pending_paid_reactions_;
-  auto use_default_is_anonymous = pending_use_default_is_anonymous_;
-  auto is_anonymous = pending_is_anonymous_;
+  auto use_default_paid_reaction_type = pending_use_default_paid_reaction_type_;
+  auto paid_reaction_type = pending_paid_reaction_type_;
   top_reactors_ = apply_reactor_pending_paid_reactions(td->dialog_manager_->get_my_dialog_id());
   if (reactions_.empty() || !reactions_[0].reaction_type_.is_paid_reaction()) {
     reactions_.insert(reactions_.begin(),
@@ -1136,27 +1091,32 @@ void MessageReactions::send_paid_message_reaction(Td *td, MessageFullId message_
     reactions_[0].add_paid_reaction(star_count);
   }
   pending_paid_reactions_ = 0;
-  pending_use_default_is_anonymous_ = false;
-  pending_is_anonymous_ = false;
+  pending_use_default_paid_reaction_type_ = false;
+  pending_paid_reaction_type_ = {};
 
   td->create_handler<SendPaidReactionQuery>(std::move(promise))
-      ->send(message_full_id, star_count, use_default_is_anonymous, is_anonymous, random_id);
+      ->send(message_full_id, star_count, use_default_paid_reaction_type, paid_reaction_type, random_id);
 }
 
-bool MessageReactions::toggle_paid_message_reaction_is_anonymous(Td *td, MessageFullId message_full_id,
-                                                                 bool is_anonymous, Promise<Unit> &&promise) {
+bool MessageReactions::set_paid_message_reaction_type(Td *td, MessageFullId message_full_id,
+                                                      const td_api::object_ptr<td_api::PaidReactionType> &type,
+                                                      Promise<Unit> &&promise) {
+  auto paid_reaction_type = PaidReactionType(td, type);
   if (pending_paid_reactions_ != 0) {
-    pending_use_default_is_anonymous_ = false;
-    pending_is_anonymous_ = is_anonymous;
+    pending_use_default_paid_reaction_type_ = false;
+    pending_paid_reaction_type_ = paid_reaction_type;
   }
   for (auto &top_reactor : top_reactors_) {
     if (top_reactor.is_me()) {
-      top_reactor.add_count(0, is_anonymous);
-      td->create_handler<TogglePaidReactionPrivacyQuery>(std::move(promise))->send(message_full_id, is_anonymous);
+      auto my_dialog_id = td->dialog_manager_->get_my_dialog_id();
+      top_reactor.add_count(0, paid_reaction_type.get_dialog_id(my_dialog_id), my_dialog_id);
+      td->reaction_manager_->on_update_default_paid_reaction_type(paid_reaction_type);
+      td->create_handler<TogglePaidReactionPrivacyQuery>(std::move(promise))->send(message_full_id, paid_reaction_type);
       return true;
     }
   }
   if (pending_paid_reactions_ != 0) {
+    td->reaction_manager_->on_update_default_paid_reaction_type(paid_reaction_type);
     promise.set_value(Unit());
     return true;
   }
@@ -1173,8 +1133,8 @@ StringBuilder &operator<<(StringBuilder &string_builder, const MessageReactions 
                         << reactions.chosen_reaction_order_
                         << " and can_get_added_reactions = " << reactions.can_get_added_reactions_
                         << " with paid reactions by " << reactions.top_reactors_ << " and "
-                        << reactions.pending_paid_reactions_ << (reactions.pending_is_anonymous_ ? "anonymous " : "")
-                        << " pending paid reactions}";
+                        << reactions.pending_paid_reactions_ << " pending " << reactions.pending_paid_reaction_type_
+                        << '}';
 }
 
 StringBuilder &operator<<(StringBuilder &string_builder, const unique_ptr<MessageReactions> &reactions) {
@@ -1182,24 +1142,6 @@ StringBuilder &operator<<(StringBuilder &string_builder, const unique_ptr<Messag
     return string_builder << "null";
   }
   return string_builder << *reactions;
-}
-
-void reload_message_reactions(Td *td, DialogId dialog_id, vector<MessageId> &&message_ids) {
-  if (!td->dialog_manager_->have_input_peer(dialog_id, false, AccessRights::Read) || message_ids.empty()) {
-    create_actor<SleepActor>("RetryReloadMessageReactionsActor", 0.2,
-                             PromiseCreator::lambda([actor_id = G()->messages_manager(), dialog_id](Unit) mutable {
-                               send_closure(actor_id, &MessagesManager::try_reload_message_reactions, dialog_id, true);
-                             }))
-        .release();
-    return;
-  }
-
-  for (const auto &message_id : message_ids) {
-    CHECK(message_id.is_valid());
-    CHECK(message_id.is_server());
-  }
-
-  td->create_handler<GetMessagesReactionsQuery>()->send(dialog_id, std::move(message_ids));
 }
 
 void send_message_reaction(Td *td, MessageFullId message_full_id, vector<ReactionType> reaction_types, bool is_big,

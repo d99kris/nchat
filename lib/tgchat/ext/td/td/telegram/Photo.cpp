@@ -685,8 +685,12 @@ SecretInputMedia photo_get_secret_input_media(FileManager *file_manager, const P
 }
 
 telegram_api::object_ptr<telegram_api::InputMedia> photo_get_cover_input_media(FileManager *file_manager,
-                                                                               const Photo &photo, bool force) {
+                                                                               const Photo &photo, bool force,
+                                                                               bool allow_external) {
   auto input_media = photo_get_input_media(file_manager, photo, nullptr, 0, false);
+  if (input_media == nullptr || (!allow_external && input_media->get_id() != telegram_api::inputMediaPhoto::ID)) {
+    return nullptr;
+  }
   auto file_reference = FileManager::extract_file_reference(input_media);
   if (file_reference == FileReferenceView::invalid_file_reference()) {
     if (!force) {

@@ -1082,11 +1082,12 @@ gifts gifts:vector<gift> = Gifts;
 //@owner_id Identifier of the user or the chat that owns the upgraded gift; may be null if none or unknown
 //@owner_address Address of the gift NFT owner in TON blockchain; may be empty if none
 //@owner_name Name of the owner for the case when owner identifier and address aren't known
+//@gift_address Address of the gift NFT in TON blockchain; may be empty if none
 //@model Model of the upgraded gift
 //@symbol Symbol of the upgraded gift
 //@backdrop Backdrop of the upgraded gift
 //@original_details Information about the originally sent gift; may be null if unknown
-upgradedGift id:int64 title:string name:string number:int32 total_upgraded_count:int32 max_upgraded_count:int32 owner_id:MessageSender owner_address:string owner_name:string model:upgradedGiftModel symbol:upgradedGiftSymbol backdrop:upgradedGiftBackdrop original_details:upgradedGiftOriginalDetails = UpgradedGift;
+upgradedGift id:int64 title:string name:string number:int32 total_upgraded_count:int32 max_upgraded_count:int32 owner_id:MessageSender owner_address:string owner_name:string gift_address:string model:upgradedGiftModel symbol:upgradedGiftSymbol backdrop:upgradedGiftBackdrop original_details:upgradedGiftOriginalDetails = UpgradedGift;
 
 //@description Contains result of gift upgrading
 //@gift The upgraded gift
@@ -1866,6 +1867,18 @@ reactionTypeCustomEmoji custom_emoji_id:int64 = ReactionType;
 
 //@description The paid reaction in a channel chat
 reactionTypePaid = ReactionType;
+
+
+//@class PaidReactionType @description Describes type of paid message reaction
+
+//@description A paid reaction on behalf of the current user
+paidReactionTypeRegular = PaidReactionType;
+
+//@description An anonymous paid reaction
+paidReactionTypeAnonymous = PaidReactionType;
+
+//@description A paid reaction on behalf of an owned chat @chat_id Identifier of the chat
+paidReactionTypeChat chat_id:int53 = PaidReactionType;
 
 
 //@description Contains information about a user that added paid reactions
@@ -3154,8 +3167,11 @@ linkPreviewTypeUpgradedGift gift:upgradedGift = LinkPreviewType;
 //@description The link is a link to a user @photo Photo of the user; may be null if none @is_bot True, if the user is a bot
 linkPreviewTypeUser photo:chatPhoto is_bot:Bool = LinkPreviewType;
 
-//@description The link is a link to a video @video The video description
-linkPreviewTypeVideo video:video = LinkPreviewType;
+//@description The link is a link to a video
+//@video The video description
+//@cover Cover of the video; may be null if none
+//@start_timestamp Timestamp from which the video playing must start, in seconds
+linkPreviewTypeVideo video:video cover:photo start_timestamp:int32 = LinkPreviewType;
 
 //@description The link is a link to a video chat
 //@photo Photo of the chat with the video chat; may be null if none
@@ -7291,9 +7307,10 @@ internalLinkTypeUserToken token:string = InternalLinkType;
 //@is_live_stream True, if the video chat is expected to be a live stream in a channel or a broadcast group
 internalLinkTypeVideoChat chat_username:string invite_hash:string is_live_stream:Bool = InternalLinkType;
 
-//@description The link is a link to a Web App. Call searchPublicChat with the given bot username, check that the user is a bot, then call searchWebApp with the received bot and the given web_app_short_name.
-//-Process received foundWebApp by showing a confirmation dialog if needed. If the bot can be added to attachment or side menu, but isn't added yet, then show a disclaimer about Mini Apps being third-party applications
-//-instead of the dialog and ask the user to accept their Terms of service. If the user accept the terms and confirms adding, then use toggleBotIsAddedToAttachmentMenu to add the bot.
+//@description The link is a link to a Web App. Call searchPublicChat with the given bot username, check that the user is a bot. If the bot is restricted for the current user, then show an error message.
+//-Otherwise, call searchWebApp with the received bot and the given web_app_short_name. Process received foundWebApp by showing a confirmation dialog if needed.
+//-If the bot can be added to attachment or side menu, but isn't added yet, then show a disclaimer about Mini Apps being third-party applications instead of the dialog
+//-and ask the user to accept their Terms of service. If the user accept the terms and confirms adding, then use toggleBotIsAddedToAttachmentMenu to add the bot.
 //-Then, call getWebAppLinkUrl and open the returned URL as a Web App
 //@bot_username Username of the bot that owns the Web App
 //@web_app_short_name Short name of the Web App
@@ -8286,6 +8303,13 @@ updateFileRemovedFromDownloads file_id:int32 counts:downloadedFileCounts = Updat
 //@cloud_project_number Cloud project number to pass to the Play Integrity API on Android
 updateApplicationVerificationRequired verification_id:int53 nonce:string cloud_project_number:int64 = Update;
 
+//@description A request can't be completed unless reCAPTCHA verification is performed; for official mobile applications only.
+//-The method setApplicationVerificationToken must be called once the verification is completed or failed
+//@verification_id Unique identifier for the verification process
+//@action The action for the check
+//@recaptcha_key_id Identifier of the reCAPTCHA key
+updateApplicationRecaptchaVerificationRequired verification_id:int53 action:string recaptcha_key_id:string = Update;
+
 //@description New call was created or information about a call was updated @call New data about a call
 updateCall call:call = Update;
 
@@ -8414,6 +8438,9 @@ updateAvailableMessageEffects reaction_effect_ids:vector<int64> sticker_effect_i
 
 //@description The type of default reaction has changed @reaction_type The new type of the default reaction
 updateDefaultReactionType reaction_type:ReactionType = Update;
+
+//@description The type of default paid reaction has changed @type The new type of the default paid reaction
+updateDefaultPaidReactionType type:PaidReactionType = Update;
 
 //@description Tags used in Saved Messages or a Saved Messages topic have changed
 //@saved_messages_topic_id Identifier of Saved Messages topic which tags were changed; 0 if tags for the whole chat has changed
@@ -9693,13 +9720,15 @@ addMessageReaction chat_id:int53 message_id:int53 reaction_type:ReactionType is_
 //@reaction_type Type of the reaction to remove. The paid reaction can't be removed
 removeMessageReaction chat_id:int53 message_id:int53 reaction_type:ReactionType = Ok;
 
+//@description Returns the list of message sender identifiers, which can be used to send a paid reaction in a chat @chat_id Chat identifier
+getChatAvailablePaidMessageReactionSenders chat_id:int53 = MessageSenders;
+
 //@description Adds the paid message reaction to a message. Use getMessageAvailableReactions to check whether the reaction is available for the message
 //@chat_id Identifier of the chat to which the message belongs
 //@message_id Identifier of the message
 //@star_count Number of Telegram Stars to be used for the reaction. The total number of pending paid reactions must not exceed getOption("paid_reaction_star_count_max")
-//@use_default_is_anonymous Pass true if the user didn't choose anonymity explicitly, for example, the reaction is set from the message bubble
-//@is_anonymous Pass true to make paid reaction of the user on the message anonymous; pass false to make the user's profile visible among top reactors. Ignored if use_default_is_anonymous == true
-addPendingPaidMessageReaction chat_id:int53 message_id:int53 star_count:int53 use_default_is_anonymous:Bool is_anonymous:Bool = Ok;
+//@type Type of the paid reaction; pass null if the user didn't choose reaction type explicitly, for example, the reaction is set from the message bubble
+addPendingPaidMessageReaction chat_id:int53 message_id:int53 star_count:int53 type:PaidReactionType = Ok;
 
 //@description Applies all pending paid reactions on a message @chat_id Identifier of the chat to which the message belongs @message_id Identifier of the message
 commitPendingPaidMessageReactions chat_id:int53 message_id:int53 = Ok;
@@ -9707,11 +9736,11 @@ commitPendingPaidMessageReactions chat_id:int53 message_id:int53 = Ok;
 //@description Removes all pending paid reactions on a message @chat_id Identifier of the chat to which the message belongs @message_id Identifier of the message
 removePendingPaidMessageReactions chat_id:int53 message_id:int53 = Ok;
 
-//@description Changes whether the paid message reaction of the user to a message is anonymous. The message must have paid reaction added by the user
+//@description Changes type of paid message reaction of the current user on a message. The message must have paid reaction added by the current user
 //@chat_id Identifier of the chat to which the message belongs
 //@message_id Identifier of the message
-//@is_anonymous Pass true to make paid reaction of the user on the message anonymous; pass false to make the user's profile visible among top reactors
-togglePaidMessageReactionIsAnonymous chat_id:int53 message_id:int53 is_anonymous:Bool = Ok;
+//@type New type of the paid reaction
+setPaidMessageReactionType chat_id:int53 message_id:int53 type:PaidReactionType = Ok;
 
 //@description Sets reactions on a message; for bots only
 //@chat_id Identifier of the chat to which the message belongs
@@ -9912,13 +9941,13 @@ getWebAppLinkUrl chat_id:int53 bot_user_id:int53 web_app_short_name:string start
 
 //@description Returns information needed to open the main Web App of a bot
 //@chat_id Identifier of the chat in which the Web App is opened; pass 0 if none
-//@bot_user_id Identifier of the target bot
+//@bot_user_id Identifier of the target bot. If the bot is restricted for the current user, then show an error instead of calling the method
 //@start_parameter Start parameter from internalLinkTypeMainWebApp
 //@parameters Parameters to use to open the Web App
 getMainWebApp chat_id:int53 bot_user_id:int53 start_parameter:string parameters:webAppOpenParameters = MainWebApp;
 
 //@description Returns an HTTPS URL of a Web App to open from the side menu, a keyboardButtonTypeWebApp button, or an inlineQueryResultsButtonTypeWebApp button
-//@bot_user_id Identifier of the target bot
+//@bot_user_id Identifier of the target bot. If the bot is restricted for the current user, then show an error instead of calling the method
 //@url The URL from a keyboardButtonTypeWebApp button, inlineQueryResultsButtonTypeWebApp button, or an empty string when the bot is opened from the side menu
 //@parameters Parameters to use to open the Web App
 getWebAppUrl bot_user_id:int53 url:string parameters:webAppOpenParameters = HttpUrl;
@@ -9932,7 +9961,7 @@ sendWebAppData bot_user_id:int53 button_text:string data:string = Ok;
 //@description Informs TDLib that a Web App is being opened from the attachment menu, a botMenuButton button, an internalLinkTypeAttachmentMenuBot link, or an inlineKeyboardButtonTypeWebApp button.
 //-For each bot, a confirmation alert about data sent to the bot must be shown once
 //@chat_id Identifier of the chat in which the Web App is opened. The Web App can't be opened in secret chats
-//@bot_user_id Identifier of the bot, providing the Web App
+//@bot_user_id Identifier of the bot, providing the Web App. If the bot is restricted for the current user, then show an error instead of calling the method
 //@url The URL from an inlineKeyboardButtonTypeWebApp button, a botMenuButton button, an internalLinkTypeAttachmentMenuBot link, or an empty string otherwise
 //@message_thread_id If not 0, the message thread identifier in which the message will be sent
 //@reply_to Information about the message or story to be replied in the message sent by the Web App; pass null if none
@@ -10728,9 +10757,9 @@ removeAllFilesFromDownloads only_active:Bool only_completed:Bool delete_from_cac
 searchFileDownloads query:string only_active:Bool only_completed:Bool offset:string limit:int32 = FoundFileDownloads;
 
 
-//@description Application verification has been completed. Can be called before authorization
-//@verification_id Unique identifier for the verification process as received from updateApplicationVerificationRequired
-//@token Play Integrity API token for the Android application, or secret from push notification for the iOS application;
+//@description Application or reCAPTCHA verification has been completed. Can be called before authorization
+//@verification_id Unique identifier for the verification process as received from updateApplicationVerificationRequired or updateApplicationRecaptchaVerificationRequired
+//@token Play Integrity API token for the Android application, or secret from push notification for the iOS application for application verification, or reCAPTCHA token for reCAPTCHA verifications;
 //-pass an empty string to abort verification and receive error VERIFICATION_FAILED for the request
 setApplicationVerificationToken verification_id:int53 token:string = Ok;
 
@@ -11763,11 +11792,11 @@ transferGift received_gift_id:string new_owner_id:MessageSender star_count:int53
 //@description Returns gifts received by the given user or chat
 //@owner_id Identifier of the gift receiver
 //@exclude_unsaved Pass true to exclude gifts that aren't saved to the chat's profile page. Always true for gifts received by other users and channel chats without can_post_messages administrator right
-//@exclude_saved Pass true to exclude gifts that are saved to the chat's profile page; for channel chats with can_post_messages administrator right only
-//@exclude_unlimited Pass true to exclude gifts that can be purchased unlimited number of times; for channel chats with can_post_messages administrator right only
-//@exclude_limited Pass true to exclude gifts that can be purchased limited number of times; for channel chats with can_post_messages administrator right only
-//@exclude_upgraded Pass true to exclude upgraded gifts; for channel chats with can_post_messages administrator right only
-//@sort_by_price Pass true to sort results by gift price instead of send date; for channel chats with can_post_messages administrator right only
+//@exclude_saved Pass true to exclude gifts that are saved to the chat's profile page. Always false for gifts received by other users and channel chats without can_post_messages administrator right
+//@exclude_unlimited Pass true to exclude gifts that can be purchased unlimited number of times
+//@exclude_limited Pass true to exclude gifts that can be purchased limited number of times
+//@exclude_upgraded Pass true to exclude upgraded gifts
+//@sort_by_price Pass true to sort results by gift price instead of send date
 //@offset Offset of the first entry to return as received from the previous request; use empty string to get the first chunk of results
 //@limit The maximum number of gifts to be returned; must be positive and can't be greater than 100. For optimal performance, the number of returned objects is chosen by TDLib and can be smaller than the specified limit
 getReceivedGifts owner_id:MessageSender exclude_unsaved:Bool exclude_saved:Bool exclude_unlimited:Bool exclude_limited:Bool exclude_upgraded:Bool sort_by_price:Bool offset:string limit:int32 = ReceivedGifts;

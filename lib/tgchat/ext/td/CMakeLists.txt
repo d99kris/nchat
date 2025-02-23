@@ -6,7 +6,7 @@ if (POLICY CMP0065)
   cmake_policy(SET CMP0065 NEW)
 endif()
 
-project(TDLib VERSION 1.8.44 LANGUAGES CXX C)
+project(TDLib VERSION 1.8.45 LANGUAGES CXX C)
 
 if (NOT DEFINED CMAKE_MODULE_PATH)
   set(CMAKE_MODULE_PATH "")
@@ -541,6 +541,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/OrderedMessage.cpp
   td/telegram/OrderInfo.cpp
   td/telegram/Outline.cpp
+  td/telegram/PaidReactionType.cpp
   td/telegram/PasswordManager.cpp
   td/telegram/Payments.cpp
   td/telegram/PeerColor.cpp
@@ -899,6 +900,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/OrderedMessage.h
   td/telegram/OrderInfo.h
   td/telegram/Outline.h
+  td/telegram/PaidReactionType.h
   td/telegram/PasswordManager.h
   td/telegram/Payments.h
   td/telegram/PeerColor.h
@@ -1084,6 +1086,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/MinChannel.hpp
   td/telegram/NotificationGroupInfo.hpp
   td/telegram/OrderInfo.hpp
+  td/telegram/PaidReactionType.hpp
   td/telegram/Photo.hpp
   td/telegram/PhotoSize.hpp
   td/telegram/PhotoSizeSource.hpp

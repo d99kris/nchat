@@ -9,6 +9,7 @@
 #include "td/telegram/ChatReactions.h"
 #include "td/telegram/files/FileId.h"
 #include "td/telegram/MessageEffectId.h"
+#include "td/telegram/PaidReactionType.h"
 #include "td/telegram/ReactionListType.h"
 #include "td/telegram/ReactionType.h"
 #include "td/telegram/ReactionUnavailabilityReason.h"
@@ -85,6 +86,10 @@ class ReactionManager final : public Actor {
   void reload_message_effects();
 
   void get_message_effect(MessageEffectId effect_id, Promise<td_api::object_ptr<td_api::messageEffect>> &&promise);
+
+  void on_update_default_paid_reaction_type(PaidReactionType type);
+
+  PaidReactionType get_default_paid_reaction_type() const;
 
   void get_current_state(vector<td_api::object_ptr<td_api::Update>> &updates) const;
 
@@ -306,6 +311,12 @@ class ReactionManager final : public Actor {
 
   void update_active_message_effects();
 
+  void send_update_default_paid_reaction_type() const;
+
+  void load_default_paid_reaction_type();
+
+  void save_default_paid_reaction_type() const;
+
   Td *td_;
   ActorShared<> parent_;
 
@@ -334,6 +345,8 @@ class ReactionManager final : public Actor {
 
   vector<std::pair<MessageEffectId, Promise<td_api::object_ptr<td_api::messageEffect>>>>
       pending_get_message_effect_queries_;
+
+  PaidReactionType default_paid_reaction_type_;
 };
 
 }  // namespace td

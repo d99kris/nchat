@@ -412,7 +412,7 @@ class SearchPublicChatsRequest final : public RequestActor<> {
   vector<DialogId> dialog_ids_;
 
   void do_run(Promise<Unit> &&promise) final {
-    dialog_ids_ = td_->messages_manager_->search_public_dialogs(query_, std::move(promise));
+    dialog_ids_ = td_->dialog_manager_->search_public_dialogs(query_, std::move(promise));
   }
 
   void do_send_result() final {
@@ -452,7 +452,7 @@ class SearchChatsOnServerRequest final : public RequestActor<> {
   vector<DialogId> dialog_ids_;
 
   void do_run(Promise<Unit> &&promise) final {
-    dialog_ids_ = td_->messages_manager_->search_dialogs_on_server(query_, limit_, std::move(promise));
+    dialog_ids_ = td_->dialog_manager_->search_dialogs_on_server(query_, limit_, std::move(promise));
   }
 
   void do_send_result() final {
@@ -526,7 +526,7 @@ class SearchRecentlyFoundChatsRequest final : public RequestActor<> {
   std::pair<int32, vector<DialogId>> dialog_ids_;
 
   void do_run(Promise<Unit> &&promise) final {
-    dialog_ids_ = td_->messages_manager_->search_recently_found_dialogs(query_, limit_, std::move(promise));
+    dialog_ids_ = td_->dialog_manager_->search_recently_found_dialogs(query_, limit_, std::move(promise));
   }
 
   void do_send_result() final {
@@ -545,7 +545,7 @@ class GetRecentlyOpenedChatsRequest final : public RequestActor<> {
   std::pair<int32, vector<DialogId>> dialog_ids_;
 
   void do_run(Promise<Unit> &&promise) final {
-    dialog_ids_ = td_->messages_manager_->get_recently_opened_dialogs(limit_, std::move(promise));
+    dialog_ids_ = td_->dialog_manager_->get_recently_opened_dialogs(limit_, std::move(promise));
   }
 
   void do_send_result() final {
@@ -3057,17 +3057,17 @@ void Requests::on_request(uint64 id, td_api::searchRecentlyFoundChats &request) 
 
 void Requests::on_request(uint64 id, const td_api::addRecentlyFoundChat &request) {
   CHECK_IS_USER();
-  answer_ok_query(id, td_->messages_manager_->add_recently_found_dialog(DialogId(request.chat_id_)));
+  answer_ok_query(id, td_->dialog_manager_->add_recently_found_dialog(DialogId(request.chat_id_)));
 }
 
 void Requests::on_request(uint64 id, const td_api::removeRecentlyFoundChat &request) {
   CHECK_IS_USER();
-  answer_ok_query(id, td_->messages_manager_->remove_recently_found_dialog(DialogId(request.chat_id_)));
+  answer_ok_query(id, td_->dialog_manager_->remove_recently_found_dialog(DialogId(request.chat_id_)));
 }
 
 void Requests::on_request(uint64 id, const td_api::clearRecentlyFoundChats &request) {
   CHECK_IS_USER();
-  td_->messages_manager_->clear_recently_found_dialogs();
+  td_->dialog_manager_->clear_recently_found_dialogs();
   send_closure(td_actor_, &Td::send_result, id, td_api::make_object<td_api::ok>());
 }
 
@@ -3403,12 +3403,17 @@ void Requests::on_request(uint64 id, const td_api::addMessageReaction &request) 
                                                request.update_recent_reactions_, std::move(promise));
 }
 
+void Requests::on_request(uint64 id, const td_api::getChatAvailablePaidMessageReactionSenders &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST_PROMISE();
+  td_->message_query_manager_->get_paid_message_reaction_senders(DialogId(request.chat_id_), std::move(promise));
+}
+
 void Requests::on_request(uint64 id, const td_api::addPendingPaidMessageReaction &request) {
   CHECK_IS_USER();
   CREATE_OK_REQUEST_PROMISE();
   td_->messages_manager_->add_paid_message_reaction({DialogId(request.chat_id_), MessageId(request.message_id_)},
-                                                    request.star_count_, request.use_default_is_anonymous_,
-                                                    request.is_anonymous_, std::move(promise));
+                                                    request.star_count_, request.type_, std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::commitPendingPaidMessageReactions &request) {
@@ -3425,11 +3430,11 @@ void Requests::on_request(uint64 id, const td_api::removePendingPaidMessageReact
                                                         std::move(promise));
 }
 
-void Requests::on_request(uint64 id, const td_api::togglePaidMessageReactionIsAnonymous &request) {
+void Requests::on_request(uint64 id, const td_api::setPaidMessageReactionType &request) {
   CHECK_IS_USER();
   CREATE_OK_REQUEST_PROMISE();
-  td_->messages_manager_->toggle_paid_message_reaction_is_anonymous(
-      {DialogId(request.chat_id_), MessageId(request.message_id_)}, request.is_anonymous_, std::move(promise));
+  td_->messages_manager_->set_paid_message_reaction_type({DialogId(request.chat_id_), MessageId(request.message_id_)},
+                                                         request.type_, std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::removeMessageReaction &request) {

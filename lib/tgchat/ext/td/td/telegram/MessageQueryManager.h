@@ -18,6 +18,7 @@
 #include "td/telegram/MessageThreadInfo.h"
 #include "td/telegram/MessageViewer.h"
 #include "td/telegram/Photo.h"
+#include "td/telegram/SavedMessagesTopicId.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 
@@ -25,6 +26,7 @@
 
 #include "td/utils/common.h"
 #include "td/utils/FlatHashMap.h"
+#include "td/utils/FlatHashSet.h"
 #include "td/utils/Promise.h"
 #include "td/utils/Status.h"
 
@@ -60,8 +62,11 @@ class MessageQueryManager final : public Actor {
 
   void report_message_delivery(MessageFullId message_full_id, int32 until_date, bool from_push);
 
-  void get_message_fact_checks(DialogId dialog_id, const vector<MessageId> &message_ids,
-                               Promise<vector<telegram_api::object_ptr<telegram_api::factCheck>>> &&promise);
+  void reload_message_extended_media(DialogId dialog_id, vector<MessageId> message_ids);
+
+  void finish_get_message_extended_media(DialogId dialog_id, const vector<MessageId> &message_ids);
+
+  void reload_message_fact_checks(DialogId dialog_id, vector<MessageId> message_ids);
 
   void set_message_fact_check(MessageFullId message_full_id, const FormattedText &fact_check_text,
                               Promise<Unit> &&promise);
@@ -98,8 +103,31 @@ class MessageQueryManager final : public Actor {
                                vector<telegram_api::object_ptr<telegram_api::Message>> &&messages,
                                Promise<td_api::object_ptr<td_api::messages>> &&promise);
 
+  void get_dialog_message_position_from_server(DialogId dialog_id, MessageId message_id, MessageSearchFilter filter,
+                                               MessageId top_thread_message_id,
+                                               SavedMessagesTopicId saved_messages_topic_id, Promise<int32> &&promise);
+
+  void get_message_read_date_from_server(MessageFullId message_full_id,
+                                         Promise<td_api::object_ptr<td_api::MessageReadDate>> &&promise);
+
   void get_message_viewers(MessageFullId message_full_id,
                            Promise<td_api::object_ptr<td_api::messageViewers>> &&promise);
+
+  void view_messages(DialogId dialog_id, const vector<MessageId> &message_ids, bool increment_view_counter);
+
+  void finish_get_message_views(DialogId dialog_id, const vector<MessageId> &message_ids);
+
+  void queue_message_reactions_reload(MessageFullId message_full_id);
+
+  void queue_message_reactions_reload(DialogId dialog_id, const vector<MessageId> &message_ids);
+
+  void try_reload_message_reactions(DialogId dialog_id, bool is_finished);
+
+  bool has_message_pending_read_reactions(MessageFullId message_full_id) const;
+
+  void get_paid_message_reaction_senders(DialogId dialog_id,
+                                         Promise<td_api::object_ptr<td_api::messageSenders>> &&promise,
+                                         bool is_recursive = false);
 
   void get_discussion_message(DialogId dialog_id, MessageId message_id, DialogId expected_dialog_id,
                               MessageId expected_message_id, Promise<MessageThreadInfo> &&promise);
@@ -145,6 +173,8 @@ class MessageQueryManager final : public Actor {
   void read_message_contents_on_server(DialogId dialog_id, vector<MessageId> message_ids, uint64 log_event_id,
                                        Promise<Unit> &&promise, bool skip_log_event = false);
 
+  void read_message_reactions_on_server(DialogId dialog_id, vector<MessageId> message_ids);
+
   void unpin_all_dialog_messages_on_server(DialogId dialog_id, uint64 log_event_id, Promise<Unit> &&promise);
 
   void unpin_all_topic_messages_on_server(DialogId dialog_id, MessageId top_thread_message_id, uint64 log_event_id,
@@ -189,8 +219,13 @@ class MessageQueryManager final : public Actor {
 
   void do_upload_cover(FileUploadId file_upload_id, BeingUploadedCover &&being_uploaded_cover);
 
+  void on_reload_message_fact_checks(DialogId dialog_id, const vector<MessageId> &message_ids,
+                                     Result<vector<telegram_api::object_ptr<telegram_api::factCheck>>> r_fact_checks);
+
   void on_get_message_viewers(DialogId dialog_id, MessageViewers message_viewers, bool is_recursive,
                               Promise<td_api::object_ptr<td_api::messageViewers>> &&promise);
+
+  void on_read_message_reactions(DialogId dialog_id, vector<MessageId> &&message_ids, Result<Unit> &&result);
 
   void process_discussion_message_impl(telegram_api::object_ptr<telegram_api::messages_discussionMessage> &&result,
                                        DialogId dialog_id, MessageId message_id, DialogId expected_dialog_id,
@@ -232,6 +267,21 @@ class MessageQueryManager final : public Actor {
   static uint64 save_unpin_all_dialog_messages_on_server_log_event(DialogId dialog_id);
 
   FlatHashMap<FileUploadId, BeingUploadedCover, FileUploadIdHash> being_uploaded_covers_;
+
+  FlatHashSet<MessageFullId, MessageFullIdHash> being_reloaded_extended_media_message_full_ids_;
+
+  FlatHashSet<MessageFullId, MessageFullIdHash> being_reloaded_fact_checks_;
+
+  FlatHashSet<MessageFullId, MessageFullIdHash> need_view_counter_increment_message_full_ids_;
+  FlatHashSet<MessageFullId, MessageFullIdHash> being_reloaded_views_message_full_ids_;
+
+  struct ReactionsToReload {
+    FlatHashSet<MessageId, MessageIdHash> message_ids;
+    bool is_request_sent = false;
+  };
+  FlatHashMap<DialogId, ReactionsToReload, DialogIdHash> being_reloaded_reactions_;
+
+  FlatHashMap<MessageFullId, int32, MessageFullIdHash> pending_read_reactions_;
 
   std::shared_ptr<UploadCoverCallback> upload_cover_callback_;
 

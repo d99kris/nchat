@@ -241,7 +241,7 @@ class MessageVideo final : public MessageContent {
   vector<FileId> alternative_file_ids;
   vector<FileId> hls_file_ids;
   Photo cover;
-  int32 start_timestamp;
+  int32 start_timestamp = 0;
 
   FormattedText caption;
   bool has_spoiler = false;
@@ -268,7 +268,7 @@ class MessageVoiceNote final : public MessageContent {
   FileId file_id;
 
   FormattedText caption;
-  bool is_listened;
+  bool is_listened = false;
 
   MessageVoiceNote() = default;
   MessageVoiceNote(FileId file_id, FormattedText &&caption, bool is_listened)
@@ -483,8 +483,8 @@ class MessageGame final : public MessageContent {
 class MessageGameScore final : public MessageContent {
  public:
   MessageId game_message_id;
-  int64 game_id;
-  int32 score;
+  int64 game_id = 0;
+  int32 score = 0;
 
   MessageGameScore() = default;
   MessageGameScore(MessageId game_message_id, int64 game_id, int32 score)
@@ -505,7 +505,7 @@ class MessageScreenshotTaken final : public MessageContent {
 
 class MessageChatSetTtl final : public MessageContent {
  public:
-  int32 ttl;
+  int32 ttl = 0;
   UserId from_user_id;
 
   MessageChatSetTtl() = default;
@@ -533,10 +533,10 @@ class MessageUnsupported final : public MessageContent {
 
 class MessageCall final : public MessageContent {
  public:
-  int64 call_id;
-  int32 duration;
+  int64 call_id = 0;
+  int32 duration = 0;
   CallDiscardReason discard_reason;
-  bool is_video;
+  bool is_video = false;
 
   MessageCall() = default;
   MessageCall(int64 call_id, int32 duration, CallDiscardReason discard_reason, bool is_video)
@@ -1255,7 +1255,7 @@ class MessageStarGift final : public MessageContent {
   StarGift star_gift;
   DialogId sender_dialog_id;
   DialogId owner_dialog_id;
-  int64 saved_id;
+  int64 saved_id = 0;
   FormattedText text;
   int64 convert_star_count = 0;
   int64 upgrade_star_count = 0;
@@ -1298,7 +1298,7 @@ class MessageStarGiftUnique final : public MessageContent {
   StarGift star_gift;
   DialogId sender_dialog_id;
   DialogId owner_dialog_id;
-  int64 saved_id;
+  int64 saved_id = 0;
   int64 transfer_star_count = 0;
   int32 can_export_at = 0;
   bool is_saved = false;
@@ -7501,7 +7501,7 @@ unique_ptr<MessageContent> dup_message_content(Td *td, DialogId dialog_id, const
       if (replace_caption) {
         result->caption = std::move(copy_options.new_caption);
       }
-      return result;
+      return std::move(result);
     }
     case MessageContentType::Photo: {
       auto result = make_unique<MessagePhoto>(*static_cast<const MessagePhoto *>(content));
@@ -8881,7 +8881,7 @@ unique_ptr<MessageContent> get_uploaded_message_content(
       bool need_update = false;
       content->media[media_pos].merge_files(td, media, owner_dialog_id, true, is_content_changed, need_update);
     }
-    return content;
+    return std::move(content);
   }
   auto caption = get_message_content_caption(old_content);
   auto has_spoiler = get_message_content_has_spoiler(old_content);
@@ -8998,7 +8998,7 @@ vector<const Photo *> get_message_content_need_to_upload_covers(Td *td, const Me
     case MessageContentType::Video: {
       const auto *cover = &static_cast<const MessageVideo *>(content)->cover;
       if (cover->is_empty() ||
-          photo_get_cover_input_media(td->file_manager_.get(), *cover, td->auth_manager_->is_bot()) != nullptr) {
+          photo_get_cover_input_media(td->file_manager_.get(), *cover, td->auth_manager_->is_bot(), false) != nullptr) {
         break;
       }
       return {cover};
@@ -9007,8 +9007,9 @@ vector<const Photo *> get_message_content_need_to_upload_covers(Td *td, const Me
       vector<const Photo *> result;
       for (const auto &media : static_cast<const MessagePaidMedia *>(content)->media) {
         const auto *cover = media.get_video_cover();
-        if (cover->is_empty() ||
-            photo_get_cover_input_media(td->file_manager_.get(), *cover, td->auth_manager_->is_bot()) != nullptr) {
+        if (cover == nullptr || cover->is_empty() ||
+            photo_get_cover_input_media(td->file_manager_.get(), *cover, td->auth_manager_->is_bot(), false) !=
+                nullptr) {
           continue;
         }
         result.push_back(cover);

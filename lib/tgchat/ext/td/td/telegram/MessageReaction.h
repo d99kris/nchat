@@ -9,9 +9,9 @@
 #include "td/telegram/ChannelId.h"
 #include "td/telegram/DialogId.h"
 #include "td/telegram/MessageFullId.h"
-#include "td/telegram/MessageId.h"
 #include "td/telegram/MessageReactor.h"
 #include "td/telegram/MinChannel.h"
+#include "td/telegram/PaidReactionType.h"
 #include "td/telegram/ReactionType.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
@@ -158,8 +158,8 @@ struct MessageReactions {
   vector<ReactionType> chosen_reaction_order_;
   vector<MessageReactor> top_reactors_;
   int32 pending_paid_reactions_ = 0;
-  bool pending_use_default_is_anonymous_ = false;
-  bool pending_is_anonymous_ = false;
+  PaidReactionType pending_paid_reaction_type_;
+  bool pending_use_default_paid_reaction_type_ = false;
   bool is_min_ = false;
   bool need_polling_ = true;
   bool can_get_added_reactions_ = false;
@@ -183,7 +183,7 @@ struct MessageReactions {
 
   bool remove_my_reaction(const ReactionType &reaction_type, DialogId my_dialog_id);
 
-  void add_my_paid_reaction(Td *td, int32 star_count, bool use_default_is_anonymous, bool is_anonymous);
+  void add_my_paid_reaction(Td *td, int32 star_count, const td_api::object_ptr<td_api::PaidReactionType> &type);
 
   bool has_pending_paid_reactions() const;
 
@@ -218,8 +218,9 @@ struct MessageReactions {
 
   void send_paid_message_reaction(Td *td, MessageFullId message_full_id, int64 random_id, Promise<Unit> &&promise);
 
-  bool toggle_paid_message_reaction_is_anonymous(Td *td, MessageFullId message_full_id, bool is_anonymous,
-                                                 Promise<Unit> &&promise);
+  bool set_paid_message_reaction_type(Td *td, MessageFullId message_full_id,
+                                      const td_api::object_ptr<td_api::PaidReactionType> &type,
+                                      Promise<Unit> &&promise);
 
   template <class StorerT>
   void store(StorerT &storer) const;
@@ -236,8 +237,6 @@ struct MessageReactions {
 StringBuilder &operator<<(StringBuilder &string_builder, const MessageReactions &reactions);
 
 StringBuilder &operator<<(StringBuilder &string_builder, const unique_ptr<MessageReactions> &reactions);
-
-void reload_message_reactions(Td *td, DialogId dialog_id, vector<MessageId> &&message_ids);
 
 void send_message_reaction(Td *td, MessageFullId message_full_id, vector<ReactionType> reaction_types, bool is_big,
                            bool add_to_recent, Promise<Unit> &&promise);
