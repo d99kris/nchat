@@ -2216,10 +2216,20 @@ func WmGetStatus(connId int, userId string) int {
 	// get client
 	client := GetClient(connId)
 
-	// get user
+	// ignore presence requests before connected
+	if GetState(connId) != Connected {
+		return -1
+	}
+
+	// ignore presence requests for groups
 	userJid, _ := types.ParseJID(userId)
 	if userJid.Server == types.GroupServer {
-		// ignore presence requests for groups
+		return -1
+	}
+
+	// ignore presence requests for self
+	selfId := JidToStr(*client.Store.ID)
+	if userId == selfId {
 		return -1
 	}
 
