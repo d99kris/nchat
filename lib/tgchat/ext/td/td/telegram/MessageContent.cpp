@@ -109,7 +109,6 @@
 
 #include "td/utils/algorithm.h"
 #include "td/utils/emoji.h"
-#include "td/utils/format.h"
 #include "td/utils/HttpUrl.h"
 #include "td/utils/logging.h"
 #include "td/utils/MimeType.h"
@@ -760,8 +759,6 @@ class MessageDice final : public MessageContent {
     return dice_value <= 1000;
   }
 };
-
-constexpr const char *MessageDice::DEFAULT_EMOJI;
 
 class MessageProximityAlertTriggered final : public MessageContent {
  public:
@@ -6929,7 +6926,7 @@ unique_ptr<MessageContent> get_secret_message_content(
   auto status = fix_formatted_text(message_text, entities, true, false, true, td->auth_manager_->is_bot(), false);
   if (status.is_error()) {
     LOG(WARNING) << "Receive error " << status << " while parsing secret message \"" << message_text
-                 << "\" with entities " << format::as_array(entities);
+                 << "\" with entities " << entities;
     if (!clean_input_string(message_text)) {
       message_text.clear();
     }
@@ -7036,7 +7033,7 @@ unique_ptr<MessageContent> get_secret_message_content(
 
       auto result = td::make_unique<MessageText>(FormattedText{std::move(message_text), std::move(entities)},
                                                  WebPageId(), false, false, false, url);
-      td->web_pages_manager_->get_web_page_by_url(
+      td->web_pages_manager_->fetch_web_page_by_url(
           url,
           PromiseCreator::lambda([&web_page_id = result->web_page_id, promise = load_data_multipromise.get_promise()](
                                      Result<WebPageId> r_web_page_id) mutable {

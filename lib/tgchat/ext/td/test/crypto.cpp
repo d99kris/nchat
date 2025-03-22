@@ -75,7 +75,7 @@ class Handshake {
   static td::Result<td::SecureString> calc_shared_secret(td::Slice private_key, td::Slice other_public_key) {
     auto pkey_private = EVP_PKEY_new_raw_private_key(EVP_PKEY_X25519, nullptr, private_key.ubegin(), 32);
     if (pkey_private == nullptr) {
-      return td::Status::Error("Invalid X25520 private key");
+      return td::Status::Error("Invalid X25519 private key");
     }
     SCOPE_EXIT {
       EVP_PKEY_free(pkey_private);
@@ -116,6 +116,29 @@ class Handshake {
     td::SecureString result(result_len, '\0');
     if (EVP_PKEY_derive(ctx, result.as_mutable_slice().ubegin(), &result_len) <= 0) {
       return td::Status::Error("Failed to compute shared secret");
+    }
+    return std::move(result);
+  }
+
+  static td::Result<td::SecureString> get_public_key(td::Slice private_key) {
+    auto pkey_private = EVP_PKEY_new_raw_private_key(EVP_PKEY_X25519, nullptr, private_key.ubegin(), 32);
+    if (pkey_private == nullptr) {
+      return td::Status::Error("Invalid X25519 private key");
+    }
+    SCOPE_EXIT {
+      EVP_PKEY_free(pkey_private);
+    };
+
+    auto func = &EVP_PKEY_get_raw_public_key;
+    size_t len = 0;
+    if (func(pkey_private, nullptr, &len) == 0) {
+      return td::Status::Error("Failed to get raw key length");
+    }
+    CHECK(len == 32);
+
+    td::SecureString result(len);
+    if (func(pkey_private, result.as_mutable_slice().ubegin(), &len) == 0) {
+      return td::Status::Error("Failed to get raw key");
     }
     return std::move(result);
   }
@@ -227,6 +250,8 @@ static HandshakeTest gen_test() {
 }
 
 static void run_test(const HandshakeTest &test) {
+  CHECK(Handshake::get_public_key(test.alice.private_key).move_as_ok() == test.alice.public_key);
+  CHECK(Handshake::get_public_key(test.bob.private_key).move_as_ok() == test.bob.public_key);
   auto alice_secret = Handshake::calc_shared_secret(test.alice.private_key, test.bob.public_key).move_as_ok();
   auto bob_secret = Handshake::calc_shared_secret(test.bob.private_key, test.alice.public_key).move_as_ok();
   auto key = Handshake::expand_secret(alice_secret);

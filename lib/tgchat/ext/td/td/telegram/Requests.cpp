@@ -1044,7 +1044,7 @@ class GetChatScheduledMessagesRequest final : public RequestActor<> {
 
 class GetWebPageInstantViewRequest final : public RequestActor<WebPageId> {
   string url_;
-  bool force_full_;
+  bool only_local_;
 
   WebPageId web_page_id_;
 
@@ -1053,7 +1053,7 @@ class GetWebPageInstantViewRequest final : public RequestActor<WebPageId> {
       promise.set_value(std::move(web_page_id_));
       return;
     }
-    td_->web_pages_manager_->get_web_page_instant_view(url_, force_full_, std::move(promise));
+    td_->web_pages_manager_->get_web_page_instant_view(url_, only_local_, std::move(promise));
   }
 
   void do_set_result(WebPageId &&result) final {
@@ -1065,8 +1065,8 @@ class GetWebPageInstantViewRequest final : public RequestActor<WebPageId> {
   }
 
  public:
-  GetWebPageInstantViewRequest(ActorShared<Td> td, uint64 request_id, string url, bool force_full)
-      : RequestActor(std::move(td), request_id), url_(std::move(url)), force_full_(force_full) {
+  GetWebPageInstantViewRequest(ActorShared<Td> td, uint64 request_id, string url, bool only_local)
+      : RequestActor(std::move(td), request_id), url_(std::move(url)), only_local_(only_local) {
   }
 };
 
@@ -2015,7 +2015,7 @@ void Requests::on_request(uint64 id, td_api::registerUser &request) {
                std::move(request.last_name_), request.disable_notification_);
 }
 
-void Requests::on_request(uint64 id, td_api::requestQrCodeAuthentication &request) {
+void Requests::on_request(uint64 id, const td_api::requestQrCodeAuthentication &request) {
   send_closure(td_->auth_manager_actor_, &AuthManager::request_qr_code_authentication, id,
                UserId::get_user_ids(request.other_user_ids_));
 }
@@ -2232,7 +2232,7 @@ void Requests::on_request(uint64 id, const td_api::cancelRecoveryEmailAddressVer
                std::move(promise));
 }
 
-void Requests::on_request(uint64 id, td_api::requestPasswordRecovery &request) {
+void Requests::on_request(uint64 id, const td_api::requestPasswordRecovery &request) {
   CHECK_IS_USER();
   CREATE_REQUEST_PROMISE();
   auto query_promise = PromiseCreator::lambda([promise = std::move(promise)](Result<SentEmailCode> result) mutable {
@@ -2275,7 +2275,7 @@ void Requests::on_request(uint64 id, const td_api::cancelPasswordReset &request)
   send_closure(td_->password_manager_, &PasswordManager::cancel_password_reset, std::move(promise));
 }
 
-void Requests::on_request(uint64 id, td_api::getTemporaryPasswordState &request) {
+void Requests::on_request(uint64 id, const td_api::getTemporaryPasswordState &request) {
   CHECK_IS_USER();
   CREATE_REQUEST_PROMISE();
   send_closure(td_->password_manager_, &PasswordManager::get_temp_password_state, std::move(promise));
@@ -2657,7 +2657,7 @@ void Requests::on_request(uint64 id, td_api::getRemoteFile &request) {
   }
 }
 
-void Requests::on_request(uint64 id, td_api::getStorageStatistics &request) {
+void Requests::on_request(uint64 id, const td_api::getStorageStatistics &request) {
   CREATE_REQUEST_PROMISE();
   auto query_promise = PromiseCreator::lambda([promise = std::move(promise)](Result<FileStats> result) mutable {
     if (result.is_error()) {
@@ -2670,7 +2670,7 @@ void Requests::on_request(uint64 id, td_api::getStorageStatistics &request) {
                std::move(query_promise));
 }
 
-void Requests::on_request(uint64 id, td_api::getStorageStatisticsFast &request) {
+void Requests::on_request(uint64 id, const td_api::getStorageStatisticsFast &request) {
   CHECK_IS_USER();
   CREATE_REQUEST_PROMISE();
   auto query_promise = PromiseCreator::lambda([promise = std::move(promise)](Result<FileStatsFast> result) mutable {
@@ -2720,7 +2720,7 @@ void Requests::on_request(uint64 id, td_api::optimizeStorage &request) {
                request.return_deleted_file_statistics_, std::move(query_promise));
 }
 
-void Requests::on_request(uint64 id, td_api::getNetworkStatistics &request) {
+void Requests::on_request(uint64 id, const td_api::getNetworkStatistics &request) {
   if (td_->net_stats_manager_.empty()) {
     return send_error_raw(id, 400, "Network statistics are disabled");
   }
@@ -2739,7 +2739,7 @@ void Requests::on_request(uint64 id, td_api::getNetworkStatistics &request) {
                std::move(query_promise));
 }
 
-void Requests::on_request(uint64 id, td_api::resetNetworkStatistics &request) {
+void Requests::on_request(uint64 id, const td_api::resetNetworkStatistics &request) {
   if (td_->net_stats_manager_.empty()) {
     return send_error_raw(id, 400, "Network statistics are disabled");
   }
@@ -3295,7 +3295,7 @@ void Requests::on_request(uint64 id, td_api::removeSearchedForTag &request) {
                &HashtagHints::remove_hashtag, std::move(request.tag_), std::move(promise));
 }
 
-void Requests::on_request(uint64 id, td_api::clearSearchedForTags &request) {
+void Requests::on_request(uint64 id, const td_api::clearSearchedForTags &request) {
   CHECK_IS_USER();
   CREATE_OK_REQUEST_PROMISE();
   send_closure(request.clear_cashtags_ ? td_->cashtag_search_hints_ : td_->hashtag_search_hints_, &HashtagHints::clear,
@@ -4074,7 +4074,7 @@ void Requests::on_request(uint64 id, const td_api::deleteForumTopic &request) {
                                                 std::move(promise));
 }
 
-void Requests::on_request(uint64 id, td_api::setGameScore &request) {
+void Requests::on_request(uint64 id, const td_api::setGameScore &request) {
   CHECK_IS_BOT();
   CREATE_REQUEST_PROMISE();
   td_->game_manager_->set_game_score({DialogId(request.chat_id_), MessageId(request.message_id_)},
@@ -4091,7 +4091,7 @@ void Requests::on_request(uint64 id, td_api::setInlineGameScore &request) {
                                                       std::move(promise));
 }
 
-void Requests::on_request(uint64 id, td_api::getGameHighScores &request) {
+void Requests::on_request(uint64 id, const td_api::getGameHighScores &request) {
   CHECK_IS_BOT();
   CREATE_REQUEST_PROMISE();
   td_->game_manager_->get_game_high_scores({DialogId(request.chat_id_), MessageId(request.message_id_)},
@@ -4147,8 +4147,9 @@ void Requests::on_request(uint64 id, const td_api::sendQuickReplyShortcutMessage
 
 void Requests::on_request(uint64 id, td_api::resendMessages &request) {
   DialogId dialog_id(request.chat_id_);
-  auto r_message_ids = td_->messages_manager_->resend_messages(
-      dialog_id, MessageId::get_message_ids(request.message_ids_), std::move(request.quote_));
+  auto r_message_ids =
+      td_->messages_manager_->resend_messages(dialog_id, MessageId::get_message_ids(request.message_ids_),
+                                              std::move(request.quote_), request.paid_message_star_count_);
   if (r_message_ids.is_error()) {
     return send_closure(td_actor_, &Td::send_error, id, r_message_ids.move_as_error());
   }
@@ -4167,7 +4168,7 @@ void Requests::on_request(uint64 id, td_api::getLinkPreview &request) {
 void Requests::on_request(uint64 id, td_api::getWebPageInstantView &request) {
   CHECK_IS_USER();
   CLEAN_INPUT_STRING(request.url_);
-  CREATE_REQUEST(GetWebPageInstantViewRequest, std::move(request.url_), request.force_full_);
+  CREATE_REQUEST(GetWebPageInstantViewRequest, std::move(request.url_), request.only_local_);
 }
 
 void Requests::on_request(uint64 id, const td_api::createPrivateChat &request) {
@@ -4354,7 +4355,8 @@ void Requests::on_request(uint64 id, td_api::joinGroupCall &request) {
                      get_message_sender_dialog_id(td_, request.participant_id_, true, true));
   td_->group_call_manager_->join_group_call(GroupCallId(request.group_call_id_), join_as_dialog_id,
                                             request.audio_source_id_, std::move(request.payload_), request.is_muted_,
-                                            request.is_my_video_enabled_, request.invite_hash_, std::move(promise));
+                                            request.is_my_video_enabled_, request.invite_hash_,
+                                            request.key_fingerprint_, std::move(promise));
 }
 
 void Requests::on_request(uint64 id, td_api::startGroupCallScreenSharing &request) {
@@ -4622,7 +4624,7 @@ void Requests::on_request(uint64 id, td_api::createChatFolderInviteLink &request
       std::move(promise));
 }
 
-void Requests::on_request(uint64 id, td_api::getChatFolderInviteLinks &request) {
+void Requests::on_request(uint64 id, const td_api::getChatFolderInviteLinks &request) {
   CHECK_IS_USER();
   CREATE_REQUEST_PROMISE();
   td_->dialog_filter_manager_->get_dialog_filter_invite_links(DialogFilterId(request.chat_folder_id_),
@@ -4738,6 +4740,25 @@ void Requests::on_request(uint64 id, td_api::setNewChatPrivacySettings &request)
                                                      std::move(promise));
 }
 
+void Requests::on_request(uint64 id, const td_api::getPaidMessageRevenue &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST_PROMISE();
+  td_->star_manager_->get_paid_message_revenue(UserId(request.user_id_), std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::allowUnpaidMessagesFromUser &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->privacy_manager_->allow_unpaid_messages(UserId(request.user_id_), request.refund_payments_, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::setChatPaidMessageStarCount &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->chat_manager_->set_channel_send_paid_messages_star_count(DialogId(request.chat_id_),
+                                                                request.paid_message_star_count_, std::move(promise));
+}
+
 void Requests::on_request(uint64 id, const td_api::canSendMessageToUser &request) {
   CHECK_IS_USER();
   CREATE_REQUEST_PROMISE();
@@ -4789,7 +4810,7 @@ void Requests::on_request(uint64 id, const td_api::setChatPermissions &request) 
   td_->dialog_manager_->set_dialog_permissions(DialogId(request.chat_id_), request.permissions_, std::move(promise));
 }
 
-void Requests::on_request(uint64 id, td_api::setChatBackground &request) {
+void Requests::on_request(uint64 id, const td_api::setChatBackground &request) {
   CHECK_IS_USER();
   CREATE_OK_REQUEST_PROMISE();
   td_->background_manager_->set_dialog_background(DialogId(request.chat_id_), request.background_.get(),
@@ -5555,7 +5576,7 @@ void Requests::on_request(uint64 id, td_api::searchContacts &request) {
   CREATE_REQUEST(SearchContactsRequest, request.query_, request.limit_);
 }
 
-void Requests::on_request(uint64 id, td_api::removeContacts &request) {
+void Requests::on_request(uint64 id, const td_api::removeContacts &request) {
   CHECK_IS_USER();
   CREATE_REQUEST(RemoveContactsRequest, UserId::get_user_ids(request.user_ids_));
 }
@@ -5869,7 +5890,7 @@ void Requests::on_request(uint64 id, const td_api::getBotName &request) {
   td_->bot_info_manager_->get_bot_name(UserId(request.bot_user_id_), request.language_code_, std::move(promise));
 }
 
-void Requests::on_request(uint64 id, td_api::setBotProfilePhoto &request) {
+void Requests::on_request(uint64 id, const td_api::setBotProfilePhoto &request) {
   CREATE_OK_REQUEST_PROMISE();
   td_->user_manager_->set_bot_profile_photo(UserId(request.bot_user_id_), request.photo_, std::move(promise));
 }
@@ -5965,7 +5986,7 @@ void Requests::on_request(uint64 id, td_api::setBusinessStartPage &request) {
   td_->business_manager_->set_business_intro(BusinessIntro(td_, std::move(request.start_page_)), std::move(promise));
 }
 
-void Requests::on_request(uint64 id, td_api::setProfilePhoto &request) {
+void Requests::on_request(uint64 id, const td_api::setProfilePhoto &request) {
   CHECK_IS_USER();
   CREATE_OK_REQUEST_PROMISE();
   td_->user_manager_->set_profile_photo(request.photo_, request.is_public_, std::move(promise));
@@ -6201,7 +6222,7 @@ void Requests::on_request(uint64 id, td_api::getSupergroupMembers &request) {
                                                              request.limit_, -1, std::move(query_promise));
 }
 
-void Requests::on_request(uint64 id, td_api::closeSecretChat &request) {
+void Requests::on_request(uint64 id, const td_api::closeSecretChat &request) {
   CREATE_OK_REQUEST_PROMISE();
   send_closure(td_->secret_chats_manager_, &SecretChatsManager::cancel_chat, SecretChatId(request.secret_chat_id_),
                false, std::move(promise));
@@ -6324,7 +6345,7 @@ void Requests::on_request(uint64 id, const td_api::viewTrendingStickerSets &requ
   send_closure(td_actor_, &Td::send_result, id, td_api::make_object<td_api::ok>());
 }
 
-void Requests::on_request(uint64 id, td_api::reorderInstalledStickerSets &request) {
+void Requests::on_request(uint64 id, const td_api::reorderInstalledStickerSets &request) {
   CHECK_IS_USER();
   CREATE_OK_REQUEST_PROMISE();
   td_->stickers_manager_->reorder_installed_sticker_sets(
@@ -6416,7 +6437,7 @@ void Requests::on_request(uint64 id, td_api::deleteStickerSet &request) {
   td_->stickers_manager_->delete_sticker_set(std::move(request.name_), std::move(promise));
 }
 
-void Requests::on_request(uint64 id, td_api::setStickerPositionInSet &request) {
+void Requests::on_request(uint64 id, const td_api::setStickerPositionInSet &request) {
   CREATE_OK_REQUEST_PROMISE();
   td_->stickers_manager_->set_sticker_position_in_set(request.sticker_, request.position_, std::move(promise));
 }
@@ -6468,7 +6489,7 @@ void Requests::on_request(uint64 id, td_api::removeRecentSticker &request) {
   CREATE_REQUEST(RemoveRecentStickerRequest, request.is_attached_, std::move(request.sticker_));
 }
 
-void Requests::on_request(uint64 id, td_api::clearRecentStickers &request) {
+void Requests::on_request(uint64 id, const td_api::clearRecentStickers &request) {
   CHECK_IS_USER();
   CREATE_REQUEST(ClearRecentStickersRequest, request.is_attached_);
 }
@@ -6860,7 +6881,7 @@ void Requests::on_request(uint64 id, td_api::setPollAnswer &request) {
                                           std::move(request.option_ids_), std::move(promise));
 }
 
-void Requests::on_request(uint64 id, td_api::getPollVoters &request) {
+void Requests::on_request(uint64 id, const td_api::getPollVoters &request) {
   CHECK_IS_USER();
   CREATE_REQUEST_PROMISE();
   td_->messages_manager_->get_poll_voters({DialogId(request.chat_id_), MessageId(request.message_id_)},
@@ -7159,6 +7180,17 @@ void Requests::on_request(uint64 id, const td_api::toggleGiftIsSaved &request) {
   td_->star_gift_manager_->save_gift(StarGiftId(request.received_gift_id_), request.is_saved_, std::move(promise));
 }
 
+void Requests::on_request(uint64 id, const td_api::setPinnedGifts &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  TRY_RESULT_PROMISE(promise, owner_dialog_id, get_message_sender_dialog_id(td_, request.owner_id_, true, false));
+  td_->star_gift_manager_->set_dialog_pinned_gifts(
+      owner_dialog_id,
+      transform(request.received_gift_ids_,
+                [](const string &received_gift_id) { return StarGiftId(received_gift_id); }),
+      std::move(promise));
+}
+
 void Requests::on_request(uint64 id, const td_api::toggleChatGiftNotifications &request) {
   CHECK_IS_USER();
   CREATE_OK_REQUEST_PROMISE();
@@ -7399,7 +7431,7 @@ void Requests::on_request(uint64 id, td_api::searchBackground &request) {
   CREATE_REQUEST(SearchBackgroundRequest, std::move(request.name_));
 }
 
-void Requests::on_request(uint64 id, td_api::setDefaultBackground &request) {
+void Requests::on_request(uint64 id, const td_api::setDefaultBackground &request) {
   CHECK_IS_USER();
   CREATE_REQUEST_PROMISE();
   td_->background_manager_->set_background(request.background_.get(), request.type_.get(), request.for_dark_theme_,
@@ -7524,10 +7556,16 @@ void Requests::on_request(uint64 id, const td_api::getPremiumState &request) {
   get_premium_state(td_, std::move(promise));
 }
 
-void Requests::on_request(uint64 id, const td_api::getPremiumGiftCodePaymentOptions &request) {
+void Requests::on_request(uint64 id, const td_api::getPremiumGiftPaymentOptions &request) {
   CHECK_IS_USER();
   CREATE_REQUEST_PROMISE();
-  get_premium_gift_code_options(td_, DialogId(request.boosted_chat_id_), std::move(promise));
+  get_premium_gift_payment_options(td_, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::getPremiumGiveawayPaymentOptions &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST_PROMISE();
+  get_premium_giveaway_options(td_, DialogId(request.boosted_chat_id_), std::move(promise));
 }
 
 void Requests::on_request(uint64 id, td_api::checkPremiumGiftCode &request) {

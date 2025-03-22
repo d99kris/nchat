@@ -281,6 +281,9 @@ class ChatManager final : public Actor {
 
   void report_channel_anti_spam_false_positive(ChannelId channel_id, MessageId message_id, Promise<Unit> &&promise);
 
+  void set_channel_send_paid_messages_star_count(DialogId dialog_id, int64 send_paid_messages_star_count,
+                                                 Promise<Unit> &&promise);
+
   void delete_chat(ChatId chat_id, Promise<Unit> &&promise);
 
   void delete_channel(ChannelId channel_id, Promise<Unit> &&promise);
@@ -484,6 +487,7 @@ class ChatManager final : public Actor {
     int32 date = 0;
     int32 participant_count = 0;
     int32 boost_level = 0;
+    int64 paid_message_star_count = 0;
     CustomEmojiId bot_verification_icon;
 
     double max_active_story_id_next_reload_time = 0.0;
@@ -598,8 +602,9 @@ class ChatManager final : public Actor {
     bool has_aggressive_anti_spam_enabled = false;
     bool can_be_deleted = false;
     bool has_pinned_stories = false;
-    bool has_paid_media_allowed = false;
+    bool has_paid_media_allowed = false;  // also used for paid reactions
     bool has_stargifts_available = false;
+    bool has_paid_messages_available = false;
 
     bool is_slow_mode_next_send_date_changed = true;
     bool is_being_updated = false;

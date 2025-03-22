@@ -44,6 +44,8 @@
 #include "td/utils/SliceBuilder.h"
 #include "td/utils/Status.h"
 
+#include <algorithm>
+
 namespace td {
 
 static td_api::object_ptr<td_api::PremiumFeature> get_premium_feature_object(Slice premium_feature) {
@@ -165,11 +167,17 @@ static td_api::object_ptr<td_api::BusinessFeature> get_business_feature_object(S
   return nullptr;
 }
 
-Result<telegram_api::object_ptr<telegram_api::InputPeer>> get_boost_input_peer(Td *td, DialogId dialog_id) {
-  if (dialog_id == DialogId()) {
-    return nullptr;
+Status check_payment_amount(string &currency, int64 amount) {
+  if (amount <= 0 || !check_currency_amount(amount)) {
+    return Status::Error(400, "Invalid amount of the currency specified");
   }
+  if (!clean_input_string(currency)) {
+    return Status::Error(400, "Strings must be encoded in UTF-8");
+  }
+  return Status::OK();
+}
 
+Result<telegram_api::object_ptr<telegram_api::InputPeer>> get_boost_input_peer(Td *td, DialogId dialog_id) {
   if (!td->dialog_manager_->have_dialog_force(dialog_id, "get_boost_input_peer")) {
     return Status::Error(400, "Chat to boost not found");
   }
@@ -182,6 +190,17 @@ Result<telegram_api::object_ptr<telegram_api::InputPeer>> get_boost_input_peer(T
   auto boost_input_peer = td->dialog_manager_->get_input_peer(dialog_id, AccessRights::Write);
   CHECK(boost_input_peer != nullptr);
   return std::move(boost_input_peer);
+}
+
+Result<telegram_api::object_ptr<telegram_api::textWithEntities>> get_premium_gift_text(
+    Td *td, td_api::object_ptr<td_api::formattedText> &&text) {
+  TRY_RESULT(message, get_formatted_text(td, td->dialog_manager_->get_my_dialog_id(), std::move(text), false, true,
+                                         true, false));
+  MessageQuote::remove_unallowed_quote_entities(message);
+  if (!message.text.empty()) {
+    return get_input_text_with_entities(td->user_manager_.get(), message, "get_premium_gift_text");
+  }
+  return nullptr;
 }
 
 static Result<tl_object_ptr<telegram_api::InputStorePaymentPurpose>> get_input_store_payment_purpose(
@@ -203,6 +222,21 @@ static Result<tl_object_ptr<telegram_api::InputStorePaymentPurpose>> get_input_s
       return make_tl_object<telegram_api::inputStorePaymentPremiumSubscription>(flags, false /*ignored*/,
                                                                                 false /*ignored*/);
     }
+    case td_api::storePaymentPurposePremiumGift::ID: {
+      auto p = static_cast<td_api::storePaymentPurposePremiumGift *>(purpose.get());
+      vector<telegram_api::object_ptr<telegram_api::InputUser>> input_users;
+      TRY_RESULT(input_user, td->user_manager_->get_input_user(UserId(p->user_id_)));
+      input_users.push_back(std::move(input_user));
+      TRY_STATUS(check_payment_amount(p->currency_, p->amount_));
+      TRY_RESULT(text, get_premium_gift_text(td, std::move(p->text_)));
+
+      int32 flags = 0;
+      if (text != nullptr) {
+        flags |= telegram_api::inputStorePaymentPremiumGiftCode::MESSAGE_MASK;
+      }
+      return telegram_api::make_object<telegram_api::inputStorePaymentPremiumGiftCode>(
+          flags, std::move(input_users), nullptr, p->currency_, p->amount_, std::move(text));
+    }
     case td_api::storePaymentPurposePremiumGiftCodes::ID: {
       auto p = static_cast<td_api::storePaymentPurposePremiumGiftCodes *>(purpose.get());
       vector<telegram_api::object_ptr<telegram_api::InputUser>> input_users;
@@ -210,49 +244,27 @@ static Result<tl_object_ptr<telegram_api::InputStorePaymentPurpose>> get_input_s
         TRY_RESULT(input_user, td->user_manager_->get_input_user(UserId(user_id)));
         input_users.push_back(std::move(input_user));
       }
-      if (p->amount_ <= 0 || !check_currency_amount(p->amount_)) {
-        return Status::Error(400, "Invalid amount of the currency specified");
-      }
-      if (!clean_input_string(p->currency_)) {
-        return Status::Error(400, "Strings must be encoded in UTF-8");
-      }
+      TRY_STATUS(check_payment_amount(p->currency_, p->amount_));
       DialogId boosted_dialog_id(p->boosted_chat_id_);
       TRY_RESULT(boost_input_peer, get_boost_input_peer(td, boosted_dialog_id));
-      TRY_RESULT(message, get_formatted_text(td, td->dialog_manager_->get_my_dialog_id(), std::move(p->text_), false,
-                                             true, true, false));
-      MessageQuote::remove_unallowed_quote_entities(message);
+      TRY_RESULT(text, get_premium_gift_text(td, std::move(p->text_)));
 
-      int32 flags = 0;
-      if (boost_input_peer != nullptr) {
-        flags |= telegram_api::inputStorePaymentPremiumGiftCode::BOOST_PEER_MASK;
-      }
-      telegram_api::object_ptr<telegram_api::textWithEntities> text;
-      if (!message.text.empty()) {
+      int32 flags = telegram_api::inputStorePaymentPremiumGiftCode::BOOST_PEER_MASK;
+      if (text != nullptr) {
         flags |= telegram_api::inputStorePaymentPremiumGiftCode::MESSAGE_MASK;
-        text = get_input_text_with_entities(td->user_manager_.get(), message, "storePaymentPurposePremiumGiftCodes");
       }
       return telegram_api::make_object<telegram_api::inputStorePaymentPremiumGiftCode>(
           flags, std::move(input_users), std::move(boost_input_peer), p->currency_, p->amount_, std::move(text));
     }
     case td_api::storePaymentPurposePremiumGiveaway::ID: {
       auto p = static_cast<td_api::storePaymentPurposePremiumGiveaway *>(purpose.get());
-      if (p->amount_ <= 0 || !check_currency_amount(p->amount_)) {
-        return Status::Error(400, "Invalid amount of the currency specified");
-      }
-      if (!clean_input_string(p->currency_)) {
-        return Status::Error(400, "Strings must be encoded in UTF-8");
-      }
+      TRY_STATUS(check_payment_amount(p->currency_, p->amount_));
       TRY_RESULT(parameters, GiveawayParameters::get_giveaway_parameters(td, p->parameters_.get()));
       return parameters.get_input_store_payment_premium_giveaway(td, p->currency_, p->amount_);
     }
     case td_api::storePaymentPurposeStarGiveaway::ID: {
       auto p = static_cast<td_api::storePaymentPurposeStarGiveaway *>(purpose.get());
-      if (p->amount_ <= 0 || !check_currency_amount(p->amount_)) {
-        return Status::Error(400, "Invalid amount of the currency specified");
-      }
-      if (!clean_input_string(p->currency_)) {
-        return Status::Error(400, "Strings must be encoded in UTF-8");
-      }
+      TRY_STATUS(check_payment_amount(p->currency_, p->amount_));
       if (p->winner_count_ <= 0 || p->star_count_ <= 0) {
         return Status::Error(400, "Invalid giveaway parameters specified");
       }
@@ -262,12 +274,7 @@ static Result<tl_object_ptr<telegram_api::InputStorePaymentPurpose>> get_input_s
     }
     case td_api::storePaymentPurposeStars::ID: {
       auto p = static_cast<td_api::storePaymentPurposeStars *>(purpose.get());
-      if (p->amount_ <= 0 || !check_currency_amount(p->amount_)) {
-        return Status::Error(400, "Invalid amount of the currency specified");
-      }
-      if (!clean_input_string(p->currency_)) {
-        return Status::Error(400, "Strings must be encoded in UTF-8");
-      }
+      TRY_STATUS(check_payment_amount(p->currency_, p->amount_));
       dismiss_suggested_action(SuggestedAction{SuggestedAction::Type::StarsSubscriptionLowBalance}, Promise<Unit>());
       return telegram_api::make_object<telegram_api::inputStorePaymentStarsTopup>(p->star_count_, p->currency_,
                                                                                   p->amount_);
@@ -276,12 +283,7 @@ static Result<tl_object_ptr<telegram_api::InputStorePaymentPurpose>> get_input_s
       auto p = static_cast<td_api::storePaymentPurposeGiftedStars *>(purpose.get());
       UserId user_id(p->user_id_);
       TRY_RESULT(input_user, td->user_manager_->get_input_user(user_id));
-      if (p->amount_ <= 0 || !check_currency_amount(p->amount_)) {
-        return Status::Error(400, "Invalid amount of the currency specified");
-      }
-      if (!clean_input_string(p->currency_)) {
-        return Status::Error(400, "Strings must be encoded in UTF-8");
-      }
+      TRY_STATUS(check_payment_amount(p->currency_, p->amount_));
       return telegram_api::make_object<telegram_api::inputStorePaymentStarsGift>(std::move(input_user), p->star_count_,
                                                                                  p->currency_, p->amount_);
     }
@@ -373,12 +375,75 @@ class GetPremiumPromoQuery final : public Td::ResultHandler {
   }
 };
 
-class GetPremiumGiftCodeOptionsQuery final : public Td::ResultHandler {
-  Promise<td_api::object_ptr<td_api::premiumGiftCodePaymentOptions>> promise_;
+class GetPremiumGiftOptionsQuery final : public Td::ResultHandler {
+  Promise<td_api::object_ptr<td_api::premiumGiftPaymentOptions>> promise_;
+
+ public:
+  explicit GetPremiumGiftOptionsQuery(Promise<td_api::object_ptr<td_api::premiumGiftPaymentOptions>> &&promise)
+      : promise_(std::move(promise)) {
+  }
+
+  void send() {
+    send_query(G()->net_query_creator().create(telegram_api::payments_getPremiumGiftCodeOptions(0, nullptr)));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::payments_getPremiumGiftCodeOptions>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    auto results = result_ptr.move_as_ok();
+    td::remove_if(results, [](const telegram_api::object_ptr<telegram_api::premiumGiftCodeOption> &payment_option) {
+      return payment_option->users_ != 1 || payment_option->months_ <= 0 || payment_option->amount_ <= 0 ||
+             payment_option->currency_.empty() || payment_option->store_quantity_ > 1;
+    });
+    auto get_monthly_price = [](const telegram_api::object_ptr<telegram_api::premiumGiftCodeOption> &payment_option) {
+      return static_cast<double>(payment_option->amount_) / static_cast<double>(payment_option->months_);
+    };
+    FlatHashMap<string, double> max_prices;
+    FlatHashMap<int32, int64> star_prices;
+    for (auto &result : results) {
+      if (result->currency_ == "XTR") {
+        if (!star_prices.emplace(result->months_, StarManager::get_star_count(result->amount_)).second) {
+          LOG(ERROR) << "Receive duplicate Telegram Star price for " << result->months_;
+        }
+        continue;
+      }
+      auto &max_price = max_prices[result->currency_];
+      auto price = get_monthly_price(result);
+      if (price > max_price) {
+        max_price = price;
+      }
+    }
+
+    vector<td_api::object_ptr<td_api::premiumGiftPaymentOption>> options;
+    for (auto &result : results) {
+      if (result->currency_ == "XTR") {
+        continue;
+      }
+      double relative_price = get_monthly_price(result) / max_prices[result->currency_];
+      options.push_back(td_api::make_object<td_api::premiumGiftPaymentOption>(
+          result->currency_, result->amount_, star_prices[result->months_],
+          static_cast<int32>(100 * (1.0 - relative_price)), result->months_, result->store_product_,
+          td_->stickers_manager_->get_premium_gift_sticker_object(result->months_, 0)));
+    }
+    std::sort(options.begin(), options.end(),
+              [](const auto &lhs, const auto &rhs) { return lhs->month_count_ < rhs->month_count_; });
+    promise_.set_value(td_api::make_object<td_api::premiumGiftPaymentOptions>(std::move(options)));
+  }
+
+  void on_error(Status status) final {
+    promise_.set_error(std::move(status));
+  }
+};
+
+class GetPremiumGiveawayOptionsQuery final : public Td::ResultHandler {
+  Promise<td_api::object_ptr<td_api::premiumGiveawayPaymentOptions>> promise_;
   DialogId boosted_dialog_id_;
 
  public:
-  explicit GetPremiumGiftCodeOptionsQuery(Promise<td_api::object_ptr<td_api::premiumGiftCodePaymentOptions>> &&promise)
+  explicit GetPremiumGiveawayOptionsQuery(Promise<td_api::object_ptr<td_api::premiumGiveawayPaymentOptions>> &&promise)
       : promise_(std::move(promise)) {
   }
 
@@ -389,10 +454,7 @@ class GetPremiumGiftCodeOptionsQuery final : public Td::ResultHandler {
     }
     auto boost_input_peer = r_boost_input_peer.move_as_ok();
 
-    int32 flags = 0;
-    if (boost_input_peer != nullptr) {
-      flags |= telegram_api::payments_getPremiumGiftCodeOptions::BOOST_PEER_MASK;
-    }
+    int32 flags = telegram_api::payments_getPremiumGiftCodeOptions::BOOST_PEER_MASK;
     send_query(G()->net_query_creator().create(
         telegram_api::payments_getPremiumGiftCodeOptions(flags, std::move(boost_input_peer))));
   }
@@ -405,39 +467,27 @@ class GetPremiumGiftCodeOptionsQuery final : public Td::ResultHandler {
 
     auto results = result_ptr.move_as_ok();
     td::remove_if(results, [](const telegram_api::object_ptr<telegram_api::premiumGiftCodeOption> &payment_option) {
-      return payment_option->users_ <= 0 || payment_option->months_ <= 0 || payment_option->amount_ <= 0;
+      return payment_option->users_ <= 0 || payment_option->months_ <= 0 || payment_option->amount_ <= 0 ||
+             payment_option->currency_.empty() || payment_option->currency_ == "XTR";
     });
-    auto get_monthly_price = [](const telegram_api::object_ptr<telegram_api::premiumGiftCodeOption> &payment_option) {
-      return static_cast<double>(payment_option->amount_) / static_cast<double>(payment_option->months_);
-    };
-    FlatHashMap<int32, double> max_prices;
-    for (auto &result : results) {
-      auto &max_price = max_prices[result->users_];
-      auto price = get_monthly_price(result);
-      if (price > max_price) {
-        max_price = price;
-      }
-    }
 
-    vector<td_api::object_ptr<td_api::premiumGiftCodePaymentOption>> options;
+    vector<td_api::object_ptr<td_api::premiumGiveawayPaymentOption>> options;
     for (auto &result : results) {
       if (result->store_product_.empty()) {
         result->store_quantity_ = 0;
       } else if (result->store_quantity_ <= 0) {
         result->store_quantity_ = 1;
       }
-      double relative_price = get_monthly_price(result) / max_prices[result->users_];
-      options.push_back(td_api::make_object<td_api::premiumGiftCodePaymentOption>(
-          result->currency_, result->amount_, static_cast<int32>(100 * (1.0 - relative_price)), result->users_,
-          result->months_, result->store_product_, result->store_quantity_,
-          td_->stickers_manager_->get_premium_gift_sticker_object(result->months_, 0)));
+      options.push_back(td_api::make_object<td_api::premiumGiveawayPaymentOption>(
+          result->currency_, result->amount_, result->users_, result->months_, result->store_product_,
+          result->store_quantity_));
     }
 
-    promise_.set_value(td_api::make_object<td_api::premiumGiftCodePaymentOptions>(std::move(options)));
+    promise_.set_value(td_api::make_object<td_api::premiumGiveawayPaymentOptions>(std::move(options)));
   }
 
   void on_error(Status status) final {
-    td_->dialog_manager_->on_get_dialog_error(boosted_dialog_id_, status, "GetPremiumGiftCodeOptionsQuery");
+    td_->dialog_manager_->on_get_dialog_error(boosted_dialog_id_, status, "GetPremiumGiveawayOptionsQuery");
     promise_.set_error(std::move(status));
   }
 };
@@ -1187,17 +1237,22 @@ void get_premium_state(Td *td, Promise<td_api::object_ptr<td_api::premiumState>>
   td->create_handler<GetPremiumPromoQuery>(std::move(promise))->send();
 }
 
-void get_premium_gift_code_options(Td *td, DialogId boosted_dialog_id,
-                                   Promise<td_api::object_ptr<td_api::premiumGiftCodePaymentOptions>> &&promise) {
+void get_premium_gift_payment_options(Td *td,
+                                      Promise<td_api::object_ptr<td_api::premiumGiftPaymentOptions>> &&promise) {
   td->stickers_manager_->load_premium_gift_sticker_set(
-      PromiseCreator::lambda([td, boosted_dialog_id, promise = std::move(promise)](Result<Unit> &&result) mutable {
+      PromiseCreator::lambda([td, promise = std::move(promise)](Result<Unit> &&result) mutable {
         if (result.is_error()) {
           promise.set_error(result.move_as_error());
         } else {
           TRY_STATUS_PROMISE(promise, G()->close_status());
-          td->create_handler<GetPremiumGiftCodeOptionsQuery>(std::move(promise))->send(boosted_dialog_id);
+          td->create_handler<GetPremiumGiftOptionsQuery>(std::move(promise))->send();
         }
       }));
+}
+
+void get_premium_giveaway_options(Td *td, DialogId boosted_dialog_id,
+                                  Promise<td_api::object_ptr<td_api::premiumGiveawayPaymentOptions>> &&promise) {
+  td->create_handler<GetPremiumGiveawayOptionsQuery>(std::move(promise))->send(boosted_dialog_id);
 }
 
 void check_premium_gift_code(Td *td, const string &code,

@@ -15,9 +15,7 @@
 #include "td/telegram/Global.h"
 #include "td/telegram/InputInvoice.h"
 #include "td/telegram/LinkManager.h"
-#include "td/telegram/MessageEntity.h"
 #include "td/telegram/MessageId.h"
-#include "td/telegram/MessageQuote.h"
 #include "td/telegram/MessagesManager.h"
 #include "td/telegram/misc.h"
 #include "td/telegram/PasswordManager.h"
@@ -86,6 +84,38 @@ Result<InputInvoiceInfo> get_input_invoice_info(Td *td, td_api::object_ptr<td_ap
         return Status::Error(400, "Purpose must be non-empty");
       }
       switch (invoice->purpose_->get_id()) {
+        case td_api::telegramPaymentPurposePremiumGift::ID: {
+          auto p = static_cast<td_api::telegramPaymentPurposePremiumGift *>(invoice->purpose_.get());
+          TRY_RESULT(input_user, td->user_manager_->get_input_user(UserId(p->user_id_)));
+          TRY_STATUS(check_payment_amount(p->currency_, p->amount_));
+          TRY_RESULT(text, get_premium_gift_text(td, std::move(p->text_)));
+
+          if (p->currency_ == "XTR") {
+            int32 flags = 0;
+            if (text != nullptr) {
+              flags |= telegram_api::inputInvoicePremiumGiftStars::MESSAGE_MASK;
+            }
+            result.star_count_ = max(p->amount_, static_cast<int64>(0));
+            result.input_invoice_ = telegram_api::make_object<telegram_api::inputInvoicePremiumGiftStars>(
+                flags, std::move(input_user), p->month_count_, std::move(text));
+            break;
+          }
+
+          int32 flags = 0;
+          if (text != nullptr) {
+            flags |= telegram_api::inputStorePaymentPremiumGiftCode::MESSAGE_MASK;
+          }
+          auto option = telegram_api::make_object<telegram_api::premiumGiftCodeOption>(0, 1, p->month_count_, string(),
+                                                                                       0, p->currency_, p->amount_);
+          vector<telegram_api::object_ptr<telegram_api::InputUser>> input_users;
+          input_users.push_back(std::move(input_user));
+          auto purpose = telegram_api::make_object<telegram_api::inputStorePaymentPremiumGiftCode>(
+              flags, std::move(input_users), nullptr, p->currency_, p->amount_, std::move(text));
+
+          result.input_invoice_ = telegram_api::make_object<telegram_api::inputInvoicePremiumGiftCode>(
+              std::move(purpose), std::move(option));
+          break;
+        }
         case td_api::telegramPaymentPurposePremiumGiftCodes::ID: {
           auto p = static_cast<td_api::telegramPaymentPurposePremiumGiftCodes *>(invoice->purpose_.get());
           vector<telegram_api::object_ptr<telegram_api::InputUser>> input_users;
@@ -93,27 +123,14 @@ Result<InputInvoiceInfo> get_input_invoice_info(Td *td, td_api::object_ptr<td_ap
             TRY_RESULT(input_user, td->user_manager_->get_input_user(UserId(user_id)));
             input_users.push_back(std::move(input_user));
           }
-          if (p->amount_ <= 0 || !check_currency_amount(p->amount_)) {
-            return Status::Error(400, "Invalid amount of the currency specified");
-          }
-          if (!clean_input_string(p->currency_)) {
-            return Status::Error(400, "Strings must be encoded in UTF-8");
-          }
+          TRY_STATUS(check_payment_amount(p->currency_, p->amount_));
           DialogId boosted_dialog_id(p->boosted_chat_id_);
           TRY_RESULT(boost_input_peer, get_boost_input_peer(td, boosted_dialog_id));
-          TRY_RESULT(message, get_formatted_text(td, td->dialog_manager_->get_my_dialog_id(), std::move(p->text_),
-                                                 false, true, true, false));
-          MessageQuote::remove_unallowed_quote_entities(message);
+          TRY_RESULT(text, get_premium_gift_text(td, std::move(p->text_)));
 
-          int32 flags = 0;
-          if (boost_input_peer != nullptr) {
-            flags |= telegram_api::inputStorePaymentPremiumGiftCode::BOOST_PEER_MASK;
-          }
-          telegram_api::object_ptr<telegram_api::textWithEntities> text;
-          if (!message.text.empty()) {
+          int32 flags = telegram_api::inputStorePaymentPremiumGiftCode::BOOST_PEER_MASK;
+          if (text != nullptr) {
             flags |= telegram_api::inputStorePaymentPremiumGiftCode::MESSAGE_MASK;
-            text = get_input_text_with_entities(td->user_manager_.get(), message,
-                                                "telegramPaymentPurposePremiumGiftCodes");
           }
           auto option = telegram_api::make_object<telegram_api::premiumGiftCodeOption>(
               0, static_cast<int32>(input_users.size()), p->month_count_, string(), 0, p->currency_, p->amount_);
@@ -127,12 +144,7 @@ Result<InputInvoiceInfo> get_input_invoice_info(Td *td, td_api::object_ptr<td_ap
         }
         case td_api::telegramPaymentPurposePremiumGiveaway::ID: {
           auto p = static_cast<td_api::telegramPaymentPurposePremiumGiveaway *>(invoice->purpose_.get());
-          if (p->amount_ <= 0 || !check_currency_amount(p->amount_)) {
-            return Status::Error(400, "Invalid amount of the currency specified");
-          }
-          if (!clean_input_string(p->currency_)) {
-            return Status::Error(400, "Strings must be encoded in UTF-8");
-          }
+          TRY_STATUS(check_payment_amount(p->currency_, p->amount_));
           TRY_RESULT(parameters, GiveawayParameters::get_giveaway_parameters(td, p->parameters_.get()));
           auto option = telegram_api::make_object<telegram_api::premiumGiftCodeOption>(
               0, p->winner_count_, p->month_count_, string(), 0, p->currency_, p->amount_);
@@ -142,12 +154,7 @@ Result<InputInvoiceInfo> get_input_invoice_info(Td *td, td_api::object_ptr<td_ap
         }
         case td_api::telegramPaymentPurposeStars::ID: {
           auto p = static_cast<td_api::telegramPaymentPurposeStars *>(invoice->purpose_.get());
-          if (p->amount_ <= 0 || !check_currency_amount(p->amount_)) {
-            return Status::Error(400, "Invalid amount of the currency specified");
-          }
-          if (!clean_input_string(p->currency_)) {
-            return Status::Error(400, "Strings must be encoded in UTF-8");
-          }
+          TRY_STATUS(check_payment_amount(p->currency_, p->amount_));
           dismiss_suggested_action(SuggestedAction{SuggestedAction::Type::StarsSubscriptionLowBalance},
                                    Promise<Unit>());
           auto purpose = telegram_api::make_object<telegram_api::inputStorePaymentStarsTopup>(p->star_count_,
@@ -159,12 +166,7 @@ Result<InputInvoiceInfo> get_input_invoice_info(Td *td, td_api::object_ptr<td_ap
           auto p = static_cast<td_api::telegramPaymentPurposeGiftedStars *>(invoice->purpose_.get());
           UserId user_id(p->user_id_);
           TRY_RESULT(input_user, td->user_manager_->get_input_user(user_id));
-          if (p->amount_ <= 0 || !check_currency_amount(p->amount_)) {
-            return Status::Error(400, "Invalid amount of the currency specified");
-          }
-          if (!clean_input_string(p->currency_)) {
-            return Status::Error(400, "Strings must be encoded in UTF-8");
-          }
+          TRY_STATUS(check_payment_amount(p->currency_, p->amount_));
           auto purpose = telegram_api::make_object<telegram_api::inputStorePaymentStarsGift>(
               std::move(input_user), p->star_count_, p->currency_, p->amount_);
           result.input_invoice_ = telegram_api::make_object<telegram_api::inputInvoiceStars>(std::move(purpose));
@@ -172,12 +174,7 @@ Result<InputInvoiceInfo> get_input_invoice_info(Td *td, td_api::object_ptr<td_ap
         }
         case td_api::telegramPaymentPurposeStarGiveaway::ID: {
           auto p = static_cast<td_api::telegramPaymentPurposeStarGiveaway *>(invoice->purpose_.get());
-          if (p->amount_ <= 0 || !check_currency_amount(p->amount_)) {
-            return Status::Error(400, "Invalid amount of the currency specified");
-          }
-          if (!clean_input_string(p->currency_)) {
-            return Status::Error(400, "Strings must be encoded in UTF-8");
-          }
+          TRY_STATUS(check_payment_amount(p->currency_, p->amount_));
           TRY_RESULT(parameters, GiveawayParameters::get_giveaway_parameters(td, p->parameters_.get()));
           auto purpose = parameters.get_input_store_payment_stars_giveaway(td, p->currency_, p->amount_,
                                                                            p->winner_count_, p->star_count_);

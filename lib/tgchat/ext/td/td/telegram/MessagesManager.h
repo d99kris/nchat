@@ -140,6 +140,7 @@ class MessagesManager final : public Actor {
   static constexpr int32 SEND_MESSAGE_FLAG_INVERT_MEDIA = 1 << 16;
   static constexpr int32 SEND_MESSAGE_FLAG_EFFECT = 1 << 18;
   static constexpr int32 SEND_MESSAGE_FLAG_ALLOW_PAID = 1 << 19;
+  static constexpr int32 SEND_MESSAGE_FLAG_ALLOW_PAID_STARS = 1 << 21;
 
   MessagesManager(Td *td, ActorShared<> parent);
   MessagesManager(const MessagesManager &) = delete;
@@ -152,6 +153,8 @@ class MessagesManager final : public Actor {
 
   static bool process_send_message_fail_error(int32 &error_code, string &error_message, DialogId dialog_id, bool is_bot,
                                               MessageContentType content_type);
+
+  static int64 get_required_paid_message_star_count(int32 error_code, CSlice error_message);
 
   static int32 get_message_date(const tl_object_ptr<telegram_api::Message> &message_ptr);
 
@@ -443,7 +446,8 @@ class MessagesManager final : public Actor {
       DialogId dialog_id, QuickReplyShortcutId shortcut_id, int32 sending_id) TD_WARN_UNUSED_RESULT;
 
   Result<vector<MessageId>> resend_messages(DialogId dialog_id, vector<MessageId> message_ids,
-                                            td_api::object_ptr<td_api::inputTextQuote> &&quote) TD_WARN_UNUSED_RESULT;
+                                            td_api::object_ptr<td_api::inputTextQuote> &&quote,
+                                            int64 paid_message_star_count) TD_WARN_UNUSED_RESULT;
 
   void set_dialog_message_ttl(DialogId dialog_id, int32 ttl, Promise<Unit> &&promise);
 
@@ -978,6 +982,7 @@ class MessagesManager final : public Actor {
     int64 media_album_id = 0;
     MessageEffectId effect_id;
     int32 report_delivery_until_date = 0;
+    int64 paid_message_star_count = 0;
     bool is_outgoing = false;
     bool is_silent = false;
     bool is_channel_post = false;
@@ -1008,6 +1013,7 @@ class MessagesManager final : public Actor {
     int32 send_date = 0;
     int32 sending_id = 0;  // for yet unsent messages
     int32 sender_boost_count = 0;
+    int64 paid_message_star_count = 0;
 
     int64 random_id = 0;
 
@@ -1475,11 +1481,12 @@ class MessagesManager final : public Actor {
     int32 schedule_date = 0;
     int32 sending_id = 0;
     MessageEffectId effect_id;
+    int64 paid_message_star_count = 0;
 
     MessageSendOptions() = default;
     MessageSendOptions(bool disable_notification, bool from_background, bool update_stickersets_order,
                        bool protect_content, bool allow_paid, bool only_preview, int32 schedule_date, int32 sending_id,
-                       MessageEffectId effect_id)
+                       MessageEffectId effect_id, int64 paid_message_star_count)
         : disable_notification(disable_notification)
         , from_background(from_background)
         , update_stickersets_order(update_stickersets_order)
@@ -1488,7 +1495,8 @@ class MessagesManager final : public Actor {
         , only_preview(only_preview)
         , schedule_date(schedule_date)
         , sending_id(sending_id)
-        , effect_id(effect_id) {
+        , effect_id(effect_id)
+        , paid_message_star_count(paid_message_star_count) {
     }
   };
 
@@ -1652,9 +1660,12 @@ class MessagesManager final : public Actor {
   Result<MessageCopyOptions> process_message_copy_options(DialogId dialog_id,
                                                           tl_object_ptr<td_api::messageCopyOptions> &&options) const;
 
+  Status check_paid_message_star_count(int64 &paid_message_star_count, int32 message_count) const;
+
   Result<MessageSendOptions> process_message_send_options(DialogId dialog_id,
                                                           tl_object_ptr<td_api::messageSendOptions> &&options,
-                                                          bool allow_update_stickersets_order, bool allow_effect) const;
+                                                          bool allow_update_stickersets_order, bool allow_effect,
+                                                          int32 message_count) const;
 
   static Status can_use_message_send_options(const MessageSendOptions &options,
                                              const unique_ptr<MessageContent> &content, MessageSelfDestructType ttl);
@@ -1772,7 +1783,8 @@ class MessagesManager final : public Actor {
   void send_forward_message_query(int32 flags, DialogId to_dialog_id, const MessageId top_thread_message_id,
                                   DialogId from_dialog_id, tl_object_ptr<telegram_api::InputPeer> as_input_peer,
                                   vector<MessageId> message_ids, vector<int64> random_ids, int32 schedule_date,
-                                  int32 new_video_start_timestamp, Promise<Unit> promise);
+                                  int32 new_video_start_timestamp, int64 paid_message_star_count,
+                                  Promise<Unit> promise);
 
   Result<td_api::object_ptr<td_api::message>> forward_message(DialogId to_dialog_id, MessageId top_thread_message_id,
                                                               DialogId from_dialog_id, MessageId message_id,

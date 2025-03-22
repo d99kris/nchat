@@ -86,6 +86,10 @@ OptionManager::OptionManager(Td *td)
   bool is_test_dc = G()->is_test_dc();
   auto set_default_integer_option = [&](string name, int64 value) {
     if (options.isset(name)) {
+      if (false && options.get(name) != (PSTRING() << 'I' << value)) {
+        LOG(ERROR) << "Option " << name << " has default value " << value << " instead of "
+                   << options.get(name).substr(1);
+      }
       return;
     }
     auto str_value = PSTRING() << 'I' << value;
@@ -118,15 +122,15 @@ OptionManager::OptionManager(Td *td)
   set_default_integer_option("notification_sound_count_max", is_test_dc ? 5 : 100);
   set_default_integer_option("chat_folder_count_max", is_test_dc ? 3 : 10);
   set_default_integer_option("chat_folder_chosen_chat_count_max", is_test_dc ? 5 : 100);
-  set_default_integer_option("aggressive_anti_spam_supergroup_member_count_min", is_test_dc ? 1 : 100);
+  set_default_integer_option("aggressive_anti_spam_supergroup_member_count_min", is_test_dc ? 1 : 200);
   set_default_integer_option("pinned_forum_topic_count_max", is_test_dc ? 3 : 5);
   set_default_integer_option("story_stealth_mode_past_period", 300);
   set_default_integer_option("story_stealth_mode_future_period", 1500);
-  set_default_integer_option("story_stealth_mode_cooldown_period", 3600);
+  set_default_integer_option("story_stealth_mode_cooldown_period", 3 * 3600);
   set_default_integer_option("giveaway_additional_chat_count_max", is_test_dc ? 3 : 10);
   set_default_integer_option("giveaway_country_count_max", is_test_dc ? 3 : 10);
   set_default_integer_option("giveaway_boost_count_per_premium", 4);
-  set_default_integer_option("giveaway_duration_max", 7 * 86400);
+  set_default_integer_option("giveaway_duration_max", 31 * 86400);
   set_default_integer_option("premium_gift_boost_count", 3);
   set_default_integer_option("chat_boost_level_max", is_test_dc ? 10 : 100);
   set_default_integer_option("chat_available_reaction_count_max", 100);
@@ -149,7 +153,7 @@ OptionManager::OptionManager(Td *td)
   set_default_integer_option("business_start_page_message_length_max", 70);
   set_default_integer_option("premium_download_speedup", 10);
   set_default_integer_option("premium_upload_speedup", 10);
-  set_default_integer_option("upload_premium_speedup_notify_period", 3600);
+  set_default_integer_option("upload_premium_speedup_notify_period", is_test_dc ? 30 : 3600);
   set_default_integer_option("business_chat_link_count_max", is_test_dc ? 5 : 100);
   set_default_integer_option("pinned_story_count_max", 3);
   set_default_integer_option("fact_check_length_max", 1024);
@@ -157,15 +161,18 @@ OptionManager::OptionManager(Td *td)
   set_default_integer_option("story_link_area_count_max", 3);
   set_default_integer_option("paid_media_message_star_count_max", 10000);
   set_default_integer_option("bot_media_preview_count_max", 12);
-  set_default_integer_option("paid_reaction_star_count_max", 2500);
-  set_default_integer_option("subscription_star_count_max", 2500);
+  set_default_integer_option("paid_reaction_star_count_max", 10000);
+  set_default_integer_option("subscription_star_count_max", 10000);
   set_default_integer_option("usd_to_thousand_star_rate", 1410);
   set_default_integer_option("thousand_star_to_usd_rate", 1300);
-  set_default_integer_option("gift_text_length_max", 255);
+  set_default_integer_option("gift_text_length_max", 128);
   set_default_integer_option("gift_sell_period", is_test_dc ? 300 : 90 * 86400);
   set_default_integer_option("affiliate_program_commission_per_mille_min", 1);
   set_default_integer_option("affiliate_program_commission_per_mille_max", 800);
   set_default_integer_option("bot_verification_custom_description_length_max", 70);
+  set_default_integer_option("paid_message_star_count_max", 10000);
+  set_default_integer_option("paid_message_earnings_per_mille", 850);
+  set_default_integer_option("pinned_gift_count_max", 6);
 
   if (options.isset("my_phone_number") || !options.isset("my_id")) {
     update_premium_options();
@@ -716,7 +723,7 @@ td_api::object_ptr<td_api::OptionValue> OptionManager::get_option_synchronously(
       break;
     case 'v':
       if (name == "version") {
-        return td_api::make_object<td_api::optionValueString>("1.8.45");
+        return td_api::make_object<td_api::optionValueString>("1.8.46");
       }
       break;
   }

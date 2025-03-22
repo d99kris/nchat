@@ -168,6 +168,8 @@ class UserManager final : public Actor {
 
   void on_update_user_need_phone_number_privacy_exception(UserId user_id, bool need_phone_number_privacy_exception);
 
+  void on_update_user_charge_paid_message_stars(UserId user_id, int64 charge_paid_message_stars);
+
   void on_update_user_wallpaper_overridden(UserId user_id, bool wallpaper_overridden);
 
   void on_update_bot_menu_button(UserId bot_user_id,
@@ -404,8 +406,9 @@ class UserManager final : public Actor {
   void can_send_message_to_user(UserId user_id, bool force,
                                 Promise<td_api::object_ptr<td_api::CanSendMessageToUserResult>> &&promise);
 
-  void on_get_is_premium_required_to_contact_users(vector<UserId> &&user_ids, vector<bool> &&is_premium_required,
-                                                   Promise<Unit> &&promise);
+  void on_get_is_premium_required_to_contact_users(
+      vector<UserId> &&user_ids, vector<telegram_api::object_ptr<telegram_api::RequirementToContact>> &&requirements,
+      Promise<Unit> &&promise);
 
   void allow_send_message_to_user(UserId user_id);
 
@@ -528,6 +531,8 @@ class UserManager final : public Actor {
     StoryId max_active_story_id;
     StoryId max_read_story_id;
 
+    int64 paid_message_star_count = 0;
+
     string language_code;
 
     FlatHashSet<int64> photo_ids;
@@ -638,6 +643,9 @@ class UserManager final : public Actor {
     unique_ptr<BotInfo> bot_info;
     unique_ptr<BusinessInfo> business_info;
     unique_ptr<BotVerification> bot_verification;
+
+    int64 charge_paid_message_stars = 0;
+    int64 send_paid_message_stars = 0;
 
     bool is_blocked = false;
     bool is_blocked_for_stories = false;
@@ -900,6 +908,12 @@ class UserManager final : public Actor {
 
   void on_update_user_full_need_phone_number_privacy_exception(UserFull *user_full, UserId user_id,
                                                                bool need_phone_number_privacy_exception) const;
+
+  void on_update_user_full_charge_paid_message_stars(UserFull *user_full, UserId user_id,
+                                                     int64 charge_paid_message_stars) const;
+
+  void on_update_user_full_send_paid_message_stars(UserFull *user_full, UserId user_id,
+                                                   int64 send_paid_message_stars) const;
 
   void on_update_user_full_wallpaper_overridden(UserFull *user_full, UserId user_id, bool wallpaper_overridden) const;
 
@@ -1168,7 +1182,7 @@ class UserManager final : public Actor {
   bool are_imported_contacts_changing_ = false;
   bool need_clear_imported_contacts_ = false;
 
-  FlatHashMap<UserId, bool, UserIdHash> user_full_contact_require_premium_;
+  FlatHashMap<UserId, int64, UserIdHash> user_full_contact_price_;  // -1 - premium required
 
   WaitFreeHashSet<UserId, UserIdHash> restricted_user_ids_;
 

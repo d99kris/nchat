@@ -11,6 +11,8 @@
 #include "td/utils/misc.h"
 #include "td/utils/ScopeGuard.h"
 
+#if TD_HAVE_OPENSSL
+
 #include <openssl/evp.h>
 #include <openssl/opensslv.h>
 #include <openssl/pem.h>
@@ -317,7 +319,7 @@ Result<SecureString> Ed25519::get_public_key(Slice private_key) {
 #if OPENSSL_VERSION_NUMBER >= 0x10101000L
   auto pkey_private = EVP_PKEY_new_raw_private_key(EVP_PKEY_X25519, nullptr, private_key.ubegin(), 32);
   if (pkey_private == nullptr) {
-    return Status::Error("Invalid X25520 private key");
+    return Status::Error("Invalid X25519 private key");
   }
   SCOPE_EXIT {
     EVP_PKEY_free(pkey_private);
@@ -341,3 +343,5 @@ Result<SecureString> Ed25519::get_public_key(Slice private_key) {
 }
 
 }  // namespace td
+
+#endif
