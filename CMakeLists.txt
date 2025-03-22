@@ -68,7 +68,7 @@ option(HAS_STATICGOLIB "Static Go" ON)
 message(STATUS "Static Go: ${HAS_STATICGOLIB}")
 
 # Check Golang version for whatsmeow minimum requirement
-set(GO_VERSION_MIN 1.22)
+set(GO_VERSION_MIN 1.23)
 execute_process(COMMAND bash "-c" "go version 2> /dev/null | cut -c14- | cut -d' ' -f1 | tr -d '\n'" OUTPUT_VARIABLE GO_VERSION)
 if(HAS_WHATSAPP AND (NOT GO_VERSION VERSION_GREATER_EQUAL GO_VERSION_MIN))
   message(FATAL_ERROR "Go version ${GO_VERSION} (need >= ${GO_VERSION_MIN} to build WhatsApp).")
