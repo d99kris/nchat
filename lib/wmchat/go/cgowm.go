@@ -1,6 +1,6 @@
 // cgowm.go
 //
-// Copyright (c) 2020-2024 Kristofer Berggren
+// Copyright (c) 2020-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -12,7 +12,8 @@ package main
 // extern void WmNewContactsNotify(int p_ConnId, char* p_ChatId, char* p_Name, char* p_Phone, int p_IsSelf);
 // extern void WmNewChatsNotify(int p_ConnId, char* p_ChatId, int p_IsUnread, int p_IsMuted, int p_IsPinned, int p_LastMessageTime);
 // extern void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe, char* p_QuotedId, char* p_FileId, char* p_FilePath, int p_FileStatus, int p_TimeSent, int p_IsRead);
-// extern void WmNewStatusNotify(int p_ConnId, char* p_ChatId, char* p_UserId, int p_IsOnline, int p_IsTyping, int p_TimeSeen);
+// extern void WmNewStatusNotify(int p_ConnId, char* p_UserId, int p_IsOnline, int p_TimeSeen);
+// extern void WmNewTypingNotify(int p_ConnId, char* p_ChatId, char* p_UserId, int p_IsTyping);
 // extern void WmNewMessageStatusNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsRead);
 // extern void WmNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_FilePath, int p_FileStatus, int p_Action);
 // extern void WmNewMessageReactionNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe);
@@ -123,8 +124,12 @@ func CWmNewMessagesNotify(connId int, chatId string, msgId string, senderId stri
 	C.WmNewMessagesNotify(C.int(connId), C.CString(chatId), C.CString(msgId), C.CString(senderId), C.CString(text), C.int(fromMe), C.CString(quotedId), C.CString(fileId), C.CString(filePath), C.int(fileStatus), C.int(timeSent), C.int(isRead))
 }
 
-func CWmNewStatusNotify(connId int, chatId string, userId string, isOnline int, isTyping int, timeSeen int) {
-	C.WmNewStatusNotify(C.int(connId), C.CString(chatId), C.CString(userId), C.int(isOnline), C.int(isTyping), C.int(timeSeen))
+func CWmNewStatusNotify(connId int, userId string, isOnline int, timeSeen int) {
+	C.WmNewStatusNotify(C.int(connId), C.CString(userId), C.int(isOnline), C.int(timeSeen))
+}
+
+func CWmNewTypingNotify(connId int, chatId string, userId string, isTyping int) {
+	C.WmNewTypingNotify(C.int(connId), C.CString(chatId), C.CString(userId), C.int(isTyping))
 }
 
 func CWmNewMessageStatusNotify(connId int, chatId string, msgId string, isRead int) {

@@ -704,13 +704,11 @@ func (handler *WmEventHandler) HandleReceipt(receipt *events.Receipt) {
 func (handler *WmEventHandler) HandlePresence(presence *events.Presence) {
 	if presence.From.Server != types.GroupServer {
 		connId := handler.connId
-		chatId := ""
 		userId := presence.From.ToNonAD().String()
 		isOnline := !presence.Unavailable
 		timeSeen := int(presence.LastSeen.Unix())
-		isTyping := false
 		LOG_TRACE(fmt.Sprintf("Call CWmNewStatusNotify"))
-		CWmNewStatusNotify(connId, chatId, userId, BoolToInt(isOnline), BoolToInt(isTyping), timeSeen)
+		CWmNewStatusNotify(connId, userId, BoolToInt(isOnline), timeSeen)
 	}
 }
 
@@ -718,10 +716,9 @@ func (handler *WmEventHandler) HandleChatPresence(chatPresence *events.ChatPrese
 	connId := handler.connId
 	chatId := chatPresence.MessageSource.Chat.ToNonAD().String()
 	userId := chatPresence.MessageSource.Sender.ToNonAD().String()
-	isOnline := true
 	isTyping := (chatPresence.State == types.ChatPresenceComposing)
-	LOG_TRACE(fmt.Sprintf("Call CWmNewStatusNotify"))
-	CWmNewStatusNotify(connId, chatId, userId, BoolToInt(isOnline), BoolToInt(isTyping), -1)
+	LOG_TRACE(fmt.Sprintf("Call CWmNewTypingNotify"))
+	CWmNewTypingNotify(connId, chatId, userId, BoolToInt(isTyping))
 }
 
 func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync) {
@@ -887,7 +884,7 @@ func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, groupInfo.Timestamp, GetTimeRead(connId, chatId))
 
 	// reset typing if needed
-	UpdateTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
+	ResetTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: %s", chatId, text))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
@@ -1127,7 +1124,7 @@ func (handler *WmEventHandler) HandleTextMessage(messageInfo types.MessageInfo, 
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 
 	// reset typing if needed
-	UpdateTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
+	ResetTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: %s", chatId, text))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
@@ -1176,7 +1173,7 @@ func (handler *WmEventHandler) HandleImageMessage(messageInfo types.MessageInfo,
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 
 	// reset typing if needed
-	UpdateTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
+	ResetTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: image", chatId))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
@@ -1225,7 +1222,7 @@ func (handler *WmEventHandler) HandleVideoMessage(messageInfo types.MessageInfo,
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 
 	// reset typing if needed
-	UpdateTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
+	ResetTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: video", chatId))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
@@ -1274,7 +1271,7 @@ func (handler *WmEventHandler) HandleAudioMessage(messageInfo types.MessageInfo,
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 
 	// reset typing if needed
-	UpdateTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
+	ResetTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: audio", chatId))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
@@ -1320,7 +1317,7 @@ func (handler *WmEventHandler) HandleDocumentMessage(messageInfo types.MessageIn
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 
 	// reset typing if needed
-	UpdateTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
+	ResetTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: document", chatId))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
@@ -1369,7 +1366,7 @@ func (handler *WmEventHandler) HandleStickerMessage(messageInfo types.MessageInf
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 
 	// reset typing if needed
-	UpdateTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
+	ResetTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: sticker", chatId))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
@@ -1463,7 +1460,7 @@ func (handler *WmEventHandler) HandleTemplateMessage(messageInfo types.MessageIn
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 
 	// reset typing if needed
-	UpdateTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
+	ResetTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: template", chatId))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
@@ -1725,27 +1722,26 @@ func (handler *WmEventHandler) HandleUnsupportedMessage(messageInfo types.Messag
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 
 	// reset typing if needed
-	UpdateTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
+	ResetTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: %s", chatId, text))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead))
 }
 
-func UpdateTypingStatus(connId int, chatId string, userId string, fromMe bool, isSyncRead bool) {
+func ResetTypingStatus(connId int, chatId string, userId string, fromMe bool, isSyncRead bool) {
 
 	// ignore new messages from self and during initial sync
 	if fromMe || isSyncRead {
 		return
 	}
 
-	LOG_TRACE("update typing status " + strconv.Itoa(connId) + ", " + chatId + ", " + userId)
+	LOG_TRACE("reset typing status " + strconv.Itoa(connId) + ", " + chatId + ", " + userId)
 
 	// update
-	isOnline := true
 	isTyping := false
 
-	LOG_TRACE(fmt.Sprintf("Call CWmNewStatusNotify"))
-	CWmNewStatusNotify(connId, chatId, userId, BoolToInt(isOnline), BoolToInt(isTyping), -1)
+	LOG_TRACE(fmt.Sprintf("Call CWmNewTypingNotify"))
+	CWmNewTypingNotify(connId, chatId, userId, BoolToInt(isTyping))
 }
 
 func WmInit(path string, proxy string, sendType int) int {
