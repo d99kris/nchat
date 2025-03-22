@@ -138,7 +138,7 @@ private:
   void Cleanup();
   void CleanupConfig();
   void ProcessService();
-  void ProcessResponse(td::Client::Response response);
+  void ProcessResponse(td::ClientManager::Response response);
   void ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> update);
   void ProcessStatusUpdate(int64_t p_UserId,
                            td::td_api::object_ptr<td::td_api::UserStatus> p_Status);
@@ -181,7 +181,8 @@ private:
   std::thread m_ServiceThread;
   std::string m_SetupPhoneNumber;
   Config m_Config;
-  std::unique_ptr<td::Client> m_Client;
+  std::unique_ptr<td::ClientManager> m_ClientManager;
+  std::int32_t m_ClientId = 0;
   std::map<std::uint64_t, std::function<void(Object)>> m_Handlers;
   td::td_api::object_ptr<td::td_api::AuthorizationState> m_AuthorizationState;
   bool m_IsSetup = false;
@@ -191,6 +192,7 @@ private:
   std::int64_t m_SelfUserId = 0;
   std::uint64_t m_AuthQueryId = 0;
   std::uint64_t m_CurrentQueryId = 0;
+  std::mutex m_CurrentQueryIdMutex;
   std::map<int64_t, int64_t> m_LastReadInboxMessage;
   std::map<int64_t, int64_t> m_LastReadOutboxMessage;
   std::map<int64_t, std::set<int64_t>> m_UnreadInboxMessages;
@@ -1406,7 +1408,8 @@ void TgChat::Impl::Init()
     const std::string logPath(m_ProfileDir + std::string("/td.log"));
     td::Log::set_file_path(logPath);
     td::Log::set_max_file_size(1024 * 1024);
-    m_Client = std::make_unique<td::Client>();
+    m_ClientManager = std::make_unique<td::ClientManager>();
+    m_ClientId = m_ClientManager->create_client_id();
   }
 
   InitProxy();
@@ -1474,7 +1477,8 @@ void TgChat::Impl::InitConfig()
 
 void TgChat::Impl::Cleanup()
 {
-  td::td_api::close();
+  SendQuery(td::td_api::make_object<td::td_api::close>(), {});
+  m_ClientManager.reset();
 }
 
 void TgChat::Impl::CleanupConfig()
@@ -1486,7 +1490,7 @@ void TgChat::Impl::ProcessService()
 {
   while (m_Running)
   {
-    auto response = m_Client->receive(0.1);
+    auto response = m_ClientManager->receive(0.1);
     if (response.object)
     {
       ProcessResponse(std::move(response));
@@ -1494,16 +1498,17 @@ void TgChat::Impl::ProcessService()
   }
 }
 
-void TgChat::Impl::ProcessResponse(td::Client::Response response)
+void TgChat::Impl::ProcessResponse(td::ClientManager::Response response)
 {
   if (!response.object) return;
 
-  if (response.id == 0) return ProcessUpdate(std::move(response.object));
+  if (response.request_id == 0) return ProcessUpdate(std::move(response.object));
 
-  auto it = m_Handlers.find(response.id);
+  auto it = m_Handlers.find(response.request_id);
   if (it != m_Handlers.end())
   {
     it->second(std::move(response.object));
+    m_Handlers.erase(it);
   }
 }
 
@@ -2221,7 +2226,7 @@ void TgChat::Impl::SendQuery(td::td_api::object_ptr<td::td_api::Function> f,
   {
     m_Handlers.emplace(query_id, std::move(handler));
   }
-  m_Client->send({ query_id, std::move(f) });
+  m_ClientManager->send(m_ClientId, query_id, std::move(f));
 }
 
 void TgChat::Impl::CheckAuthError(Object object)
@@ -2290,6 +2295,7 @@ std::string TgChat::Impl::GetRandomString(size_t p_Len)
 
 std::uint64_t TgChat::Impl::GetNextQueryId()
 {
+  std::unique_lock<std::mutex> lock(m_CurrentQueryIdMutex);
   return ++m_CurrentQueryId;
 }
 
