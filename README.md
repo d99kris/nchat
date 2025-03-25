@@ -1069,7 +1069,7 @@ Alternatives
 Other terminal-based Telegram/WhatsApp clients:
 
 - Telegram: [tgt](https://github.com/FedericoBruzzone/tgt)
-- WhatsApp: none currently maintained known
+- WhatsApp: [whatscli](https://github.com/normen/whatscli)
 
 
 Keywords
