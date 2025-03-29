@@ -1,6 +1,6 @@
 // uilistview.cpp
 //
-// Copyright (c) 2019-2024 Kristofer Berggren
+// Copyright (c) 2019-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -9,6 +9,7 @@
 
 #include "strutil.h"
 #include "uicolorconfig.h"
+#include "uiconfig.h"
 #include "uimodel.h"
 
 UiListView::UiListView(const UiViewParams& p_Params)
@@ -99,7 +100,9 @@ void UiListView::Draw()
 
       if (unreads[i])
       {
-        mvwprintw(m_PaddedWin, y, (m_PaddedW - 2), " *");
+        static const std::string unreadIndicator = " " + UiConfig::GetStr("unread_indicator");
+        static const std::wstring wunread = StrUtil::ToWString(unreadIndicator);
+        mvwaddnwstr(m_PaddedWin, y, (m_PaddedW - StrUtil::WStringWidth(wunread)), wunread.c_str(), wunread.size());
       }
 
       if (i == index)

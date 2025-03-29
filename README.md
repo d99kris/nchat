@@ -389,6 +389,7 @@ This configuration file holds general user interface settings. Default content:
     top_show_version=0
     transfer_send_caption=1
     typing_status_share=1
+    unread_indicator=*
 
 ### attachment_indicator
 
@@ -646,6 +647,10 @@ Specifies if entered text should be sent as caption when transferring a file.
 
 Specifies whether to share typing status with other user(s) in the
 conversation.
+
+### unread_indicator
+
+Specifies the character to suffix chats with unread messages in the chat list.
 
 ~/.config/nchat/key.conf
 ------------------------

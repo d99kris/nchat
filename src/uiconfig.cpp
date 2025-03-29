@@ -1,6 +1,6 @@
 // uiconfig.cpp
 //
-// Copyright (c) 2019-2024 Kristofer Berggren
+// Copyright (c) 2019-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -63,6 +63,7 @@ void UiConfig::Init()
     { "top_show_version", "0" },
     { "transfer_send_caption", "1" },
     { "typing_status_share", "1" },
+    { "unread_indicator", "*" },
   };
 
   const std::string configPath(FileUtil::GetApplicationDir() + std::string("/ui.conf"));
