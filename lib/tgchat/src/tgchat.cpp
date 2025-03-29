@@ -184,6 +184,7 @@ private:
   std::unique_ptr<td::ClientManager> m_ClientManager;
   std::int32_t m_ClientId = 0;
   std::map<std::uint64_t, std::function<void(Object)>> m_Handlers;
+  std::mutex m_HandlersMutex;
   td::td_api::object_ptr<td::td_api::AuthorizationState> m_AuthorizationState;
   bool m_IsSetup = false;
   bool m_IsReinit = false;
@@ -1504,6 +1505,7 @@ void TgChat::Impl::ProcessResponse(td::ClientManager::Response response)
 
   if (response.request_id == 0) return ProcessUpdate(std::move(response.object));
 
+  std::unique_lock<std::mutex> lock(m_HandlersMutex);
   auto it = m_Handlers.find(response.request_id);
   if (it != m_Handlers.end())
   {
@@ -2224,6 +2226,7 @@ void TgChat::Impl::SendQuery(td::td_api::object_ptr<td::td_api::Function> f,
   auto query_id = GetNextQueryId();
   if (handler)
   {
+    std::unique_lock<std::mutex> lock(m_HandlersMutex);
     m_Handlers.emplace(query_id, std::move(handler));
   }
   m_ClientManager->send(m_ClientId, query_id, std::move(f));
