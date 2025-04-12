@@ -3158,11 +3158,23 @@ void UiModel::EditMessage()
 
     m_EditMessageId = messageId;
     SetEditMessageActive(true);
-  }
 
-  Copy();
-  Clear();
-  Paste();
+    std::string text = UiModel::GetSelectedMessageText();
+    text = StrUtil::Textize(text);
+    if (m_View->GetEmojiEnabled())
+    {
+      text = StrUtil::Emojize(text, true /*p_Pad*/);
+    }
+
+    int& entryPos = m_EntryPos[profileId][chatId];
+    std::wstring& entryStr = m_EntryStr[profileId][chatId];
+
+    std::wstring wtext = StrUtil::ToWString(text);
+    entryStr = wtext;
+    entryPos = wtext.size();
+
+    UpdateEntry();
+  }
 }
 
 void UiModel::SaveEditMessage()
