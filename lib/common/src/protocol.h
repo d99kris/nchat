@@ -412,8 +412,8 @@ public:
 class ServiceMessage
 {
 public:
-  explicit ServiceMessage(const std::string& p_ProfileId) :
-    profileId(p_ProfileId) { }
+  explicit ServiceMessage(const std::string& p_ProfileId)
+    : profileId(p_ProfileId) { }
   virtual ~ServiceMessage() { }
   virtual MessageType GetMessageType() const { return ServiceMessageType; }
   std::string profileId;
@@ -422,8 +422,8 @@ public:
 class NewContactsNotify : public ServiceMessage
 {
 public:
-  explicit NewContactsNotify(const std::string& p_ProfileId) :
-    ServiceMessage(p_ProfileId) { }
+  explicit NewContactsNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return NewContactsNotifyType; }
   std::vector<ContactInfo> contactInfos;
 };
@@ -431,8 +431,8 @@ public:
 class NewChatsNotify : public ServiceMessage
 {
 public:
-  explicit NewChatsNotify(const std::string& p_ProfileId) :
-    ServiceMessage(p_ProfileId) { }
+  explicit NewChatsNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return NewChatsNotifyType; }
   bool success;
   std::vector<ChatInfo> chatInfos;
@@ -441,8 +441,8 @@ public:
 class NewMessagesNotify : public ServiceMessage
 {
 public:
-  explicit NewMessagesNotify(const std::string& p_ProfileId) :
-    ServiceMessage(p_ProfileId) { }
+  explicit NewMessagesNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return NewMessagesNotifyType; }
   bool success;
   std::string chatId;
@@ -455,8 +455,8 @@ public:
 class SendMessageNotify : public ServiceMessage
 {
 public:
-  explicit SendMessageNotify(const std::string& p_ProfileId) :
-    ServiceMessage(p_ProfileId) { }
+  explicit SendMessageNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return SendMessageNotifyType; }
   bool success;
   std::string chatId;
@@ -466,8 +466,8 @@ public:
 class ConnectNotify : public ServiceMessage
 {
 public:
-  explicit ConnectNotify(const std::string& p_ProfileId) :
-    ServiceMessage(p_ProfileId) { }
+  explicit ConnectNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return ConnectNotifyType; }
   bool success;
 };
@@ -475,8 +475,8 @@ public:
 class MarkMessageReadNotify : public ServiceMessage
 {
 public:
-  explicit MarkMessageReadNotify(const std::string& p_ProfileId) :
-    ServiceMessage(p_ProfileId) { }
+  explicit MarkMessageReadNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return MarkMessageReadNotifyType; }
   bool success;
   std::string chatId;
@@ -486,8 +486,8 @@ public:
 class DeleteMessageNotify : public ServiceMessage
 {
 public:
-  explicit DeleteMessageNotify(const std::string& p_ProfileId) :
-    ServiceMessage(p_ProfileId) { }
+  explicit DeleteMessageNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return DeleteMessageNotifyType; }
   bool success;
   std::string chatId;
@@ -497,8 +497,8 @@ public:
 class SendTypingNotify : public ServiceMessage
 {
 public:
-  explicit SendTypingNotify(const std::string& p_ProfileId) :
-    ServiceMessage(p_ProfileId) { }
+  explicit SendTypingNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return SendTypingNotifyType; }
   bool success;
   std::string chatId;
@@ -508,8 +508,8 @@ public:
 class SetStatusNotify : public ServiceMessage
 {
 public:
-  explicit SetStatusNotify(const std::string& p_ProfileId) :
-    ServiceMessage(p_ProfileId) { }
+  explicit SetStatusNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return SetStatusNotifyType; }
   bool success;
   bool isOnline;
@@ -518,8 +518,8 @@ public:
 class CreateChatNotify : public ServiceMessage
 {
 public:
-  explicit CreateChatNotify(const std::string& p_ProfileId) :
-    ServiceMessage(p_ProfileId) { }
+  explicit CreateChatNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return CreateChatNotifyType; }
   bool success;
   ChatInfo chatInfo;
@@ -528,8 +528,8 @@ public:
 class ReceiveTypingNotify : public ServiceMessage
 {
 public:
-  explicit ReceiveTypingNotify(const std::string& p_ProfileId) :
-    ServiceMessage(p_ProfileId) { }
+  explicit ReceiveTypingNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return ReceiveTypingNotifyType; }
   std::string chatId;
   std::string userId;
@@ -547,8 +547,8 @@ enum TimeSeen
 class ReceiveStatusNotify : public ServiceMessage
 {
 public:
-  explicit ReceiveStatusNotify(const std::string& p_ProfileId) :
-    ServiceMessage(p_ProfileId) { }
+  explicit ReceiveStatusNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return ReceiveStatusNotifyType; }
   std::string userId;
   bool isOnline;
@@ -558,8 +558,8 @@ public:
 class NewMessageStatusNotify : public ServiceMessage
 {
 public:
-  explicit NewMessageStatusNotify(const std::string& p_ProfileId) :
-    ServiceMessage(p_ProfileId) { }
+  explicit NewMessageStatusNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return NewMessageStatusNotifyType; }
   std::string chatId;
   std::string msgId;
@@ -569,8 +569,8 @@ public:
 class NewMessageFileNotify : public ServiceMessage
 {
 public:
-  explicit NewMessageFileNotify(const std::string& p_ProfileId) :
-    ServiceMessage(p_ProfileId) { }
+  explicit NewMessageFileNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return NewMessageFileNotifyType; }
   std::string chatId;
   std::string msgId;
@@ -581,8 +581,8 @@ public:
 class DeleteChatNotify : public ServiceMessage
 {
 public:
-  explicit DeleteChatNotify(const std::string& p_ProfileId) :
-    ServiceMessage(p_ProfileId) { }
+  explicit DeleteChatNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return DeleteChatNotifyType; }
   bool success;
   std::string chatId;
@@ -591,8 +591,8 @@ public:
 class UpdateMuteNotify : public ServiceMessage
 {
 public:
-  explicit UpdateMuteNotify(const std::string& p_ProfileId) :
-    ServiceMessage(p_ProfileId) { }
+  explicit UpdateMuteNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return UpdateMuteNotifyType; }
   bool success;
   std::string chatId;
@@ -602,8 +602,8 @@ public:
 class ProtocolUiControlNotify : public ServiceMessage
 {
 public:
-  explicit ProtocolUiControlNotify(const std::string& p_ProfileId) :
-    ServiceMessage(p_ProfileId) { }
+  explicit ProtocolUiControlNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return ProtocolUiControlNotifyType; }
   bool isTakeControl;
 };
@@ -611,16 +611,16 @@ public:
 class RequestAppExitNotify : public ServiceMessage
 {
 public:
-  explicit RequestAppExitNotify(const std::string& p_ProfileId) :
-    ServiceMessage(p_ProfileId) { }
+  explicit RequestAppExitNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return RequestAppExitNotifyType; }
 };
 
 class NewMessageReactionsNotify : public ServiceMessage
 {
 public:
-  explicit NewMessageReactionsNotify(const std::string& p_ProfileId) :
-    ServiceMessage(p_ProfileId) { }
+  explicit NewMessageReactionsNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return NewMessageReactionsNotifyType; }
   std::string chatId;
   std::string msgId;
@@ -630,8 +630,8 @@ public:
 class AvailableReactionsNotify : public ServiceMessage
 {
 public:
-  explicit AvailableReactionsNotify(const std::string& p_ProfileId) :
-    ServiceMessage(p_ProfileId) { }
+  explicit AvailableReactionsNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return AvailableReactionsNotifyType; }
   std::string chatId;
   std::string msgId;
@@ -641,8 +641,8 @@ public:
 class FindMessageNotify : public ServiceMessage
 {
 public:
-  explicit FindMessageNotify(const std::string& p_ProfileId) :
-    ServiceMessage(p_ProfileId) { }
+  explicit FindMessageNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return FindMessageNotifyType; }
   bool success;
   std::string chatId;
@@ -652,8 +652,8 @@ public:
 class UpdatePinNotify : public ServiceMessage
 {
 public:
-  explicit UpdatePinNotify(const std::string& p_ProfileId) :
-    ServiceMessage(p_ProfileId) { }
+  explicit UpdatePinNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return UpdatePinNotifyType; }
   bool success;
   std::string chatId;

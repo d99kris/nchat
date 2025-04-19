@@ -68,12 +68,14 @@ void EmojiList::Init()
     }
     *m_Db << "COMMIT;";
 
+    // *INDENT-OFF*
     std::vector<std::string> names;
     *m_Db << "SELECT name FROM emojis;" >>
       [&](const std::string& name)
       {
         names.push_back(name);
       };
+    // *INDENT-ON*
 
     *m_Db << "BEGIN;";
     for (const auto& name : names)

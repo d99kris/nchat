@@ -51,8 +51,8 @@ namespace detail
   template<class F>
   struct overload<F>: public F
   {
-    explicit overload(F f) :
-      F(f)
+    explicit overload(F f)
+      : F(f)
     {
     }
   };
@@ -61,8 +61,8 @@ namespace detail
   struct overload<F, Fs...>: public overload<F>
     , overload<Fs...>
   {
-    overload(F f, Fs... fs) :
-      overload<F>(f), overload<Fs...>(fs...)
+    overload(F f, Fs... fs)
+      : overload<F>(f), overload<Fs...>(fs...)
     {
     }
 
@@ -1478,7 +1478,7 @@ void TgChat::Impl::InitConfig()
 
 void TgChat::Impl::Cleanup()
 {
-  SendQuery(td::td_api::make_object<td::td_api::close>(), {});
+  SendQuery(td::td_api::make_object<td::td_api::close>(), { });
   m_ClientManager.reset();
 }
 

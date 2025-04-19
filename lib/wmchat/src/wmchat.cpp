@@ -707,7 +707,8 @@ void WmNewContactsNotify(int p_ConnId, char* p_ChatId, char* p_Name, char* p_Pho
     contactInfo.phone = std::string(p_Phone);
     contactInfo.isSelf = (p_IsSelf == 1) ? true : false;
 
-    std::shared_ptr<NewContactsNotify> newContactsNotify = std::make_shared<NewContactsNotify>(instance->GetProfileId());
+    std::shared_ptr<NewContactsNotify> newContactsNotify =
+      std::make_shared<NewContactsNotify>(instance->GetProfileId());
     newContactsNotify->contactInfos = std::vector<ContactInfo>({ contactInfo });
 
     std::shared_ptr<DeferNotifyRequest> deferNotifyRequest = std::make_shared<DeferNotifyRequest>();
@@ -774,7 +775,8 @@ void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_Se
     chatMessage.timeSent = (((int64_t)p_TimeSent) * 1000) + (std::hash<std::string>{ }(chatMessage.id) % 256);
     chatMessage.isRead = (p_IsRead == 1);
 
-    std::shared_ptr<NewMessagesNotify> newMessagesNotify = std::make_shared<NewMessagesNotify>(instance->GetProfileId());
+    std::shared_ptr<NewMessagesNotify> newMessagesNotify =
+      std::make_shared<NewMessagesNotify>(instance->GetProfileId());
     newMessagesNotify->success = true;
     newMessagesNotify->chatId = std::string(p_ChatId);
     newMessagesNotify->chatMessages = std::vector<ChatMessage>({ chatMessage });
