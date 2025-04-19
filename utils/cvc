@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-# cvc v0.20
+# cvc v0.21
 #
-# Copyright (c) 2018-2023 Kristofer Berggren
+# Copyright (c) 2018-2025 Kristofer Berggren
 # All rights reserved.
 #
 # cvc is distributed under the MIT license.
@@ -48,7 +48,26 @@
 #                           # commit all locally modified files without
 #                           # specifying them. It also allows ci without -m
 #                           # commit message and will default it to "(empty)".
-
+#
+# ALIASES
+# -------
+# For simplified usage one can set up aliases, example:
+# alias ad='cvc add'
+# alias ap='cvc ap'
+# alias ci='cvc ci'
+# alias cl='cvc cl'
+# alias co='cvc co'
+# alias del='cvc del'
+# alias dg='cvc dg'
+# alias di='cvc di'
+# alias lb='cvc lb'
+# alias lo='cvc log'
+# alias re='cvc re'
+# alias sb='cvc sb'
+# alias st='cvc st'
+# alias sy='cvc sy'
+# alias up='cvc up'
+# alias ur='cvc ur'
 
 git_add()
 {
@@ -84,8 +103,94 @@ git_apply()
     git am -3 "${PATCHFILE}"
   fi
 
-  # Propagate exit status
-  exit ${?}
+  if [[ "${?}" != "0" ]]; then
+    # With issues applying the patch, try to update affected repository files to base version
+    PATCHFILE="${2}"
+
+    ORIGBRANCH=$(git status | head -1 | awk -F 'On branch ' '{print $2}')
+    if [[ "${ORIGBRANCH}" == "" ]]; then
+      echo "aborting, not on a branch."
+      exit 1
+    fi
+
+    git status | grep -q "nothing to commit, working tree clean"
+    if [[ "${?}" != "0" ]]; then
+      echo "aborting, working tree has local changes."
+      exit 1
+    fi
+
+    BASEDIR=$(git rev-parse --show-toplevel)
+    if [[ "${BASEDIR}" == "" ]]; then
+      echo "aborting, repository root not found."
+      exit 1
+    fi
+    cd "${BASEDIR}" || exit 1
+
+    LASTCOMMIT=""
+    LASTTIME=0
+    while IFS='$\n' read -r LINE; do
+      SRCPATH="$(echo $LINE | cut -d' ' -f3 | cut -c3-)"
+      SRCHASH=$(echo $LINE | awk -F' index ' '{print $2}' | cut -d'.' -f1)
+      if [[ ! -f "${SRCPATH}" ]]; then
+        echo "skipping not found: ${SRCPATH}"
+        continue
+      fi
+
+      if [[ "${SRCHASH}" == "" ]]; then
+        echo "skipping empty hash: ${SRCPATH}"
+        continue
+      fi
+
+      SRCCOMMIT=$(git log -c --date=unix "${SRCPATH}" | grep -B64 "${SRCHASH}" | grep "^commit " | tail -1 | awk '{print $2}' | cut -c1-8)
+      if [[ "${SRCCOMMIT}" == "" ]]; then
+        echo "skipping commit not found: ${SRCPATH}"
+        continue
+      fi
+
+      SRCTIME=$(git log -c --date=unix "${SRCPATH}" | grep -B64 "${SRCHASH}" | grep "^Date: " | tail -1 | awk -F':' '{print $2}' | awk '{$1=$1;print}')
+      echo -n "."
+      if [ "${SRCTIME}" -gt "${LASTTIME}" ]; then
+        LASTTIME=${SRCTIME}
+        LASTCOMMIT="${SRCCOMMIT}"
+      fi
+    done < <(grep -B1 "^index " "${PATCHFILE}" | tr '\n' '\t' | sed -e 's/\tdiff/\ndiff/g' | cat - <(echo "--"))
+
+    if [[ "${LASTCOMMIT}" == "" ]]; then
+      echo "no matching commit found."
+      exit 1
+    fi
+
+    WORKBRANCH="cvc-patch-integration"
+
+    git checkout ${LASTCOMMIT} || exit 1
+    git switch -c ${WORKBRANCH} || exit 1
+
+    WORKDIR=$(mktemp -d)
+    git apply ${PATCHFILE} && \
+    git pull origin ${ORIGBRANCH} --rebase --autostash && \
+    git --no-pager diff ${WORKBRANCH} > ${WORKDIR}/cvc.patch && \
+    git restore --staged . && \
+    git checkout . && \
+    git switch ${ORIGBRANCH} && \
+    git branch -D ${WORKBRANCH} && \
+    git apply ${WORKDIR}/cvc.patch && \
+    echo "" && \
+    echo "Success. Review diff and git stash drop if needed."
+    RV="${?}"
+    rm -rf "${WORKDIR}"
+    if [[ "${RV}" != "0" ]]; then
+      echo ""
+      echo "Failed. Attempting cleanup."
+      git restore --staged .
+      git checkout .
+      git switch ${ORIGBRANCH}
+      git branch -D ${WORKBRANCH}
+    fi
+
+    exit ${RV}
+  fi
+
+  exit 0
 }
 
 
@@ -211,7 +316,7 @@ git_diffgrep()
   fi
 
   # Create temp dir
-  TMPDIR=$(mktemp -d)
+  WORKDIR=$(mktemp -d)
 
   # Iterate over added/modified files
   FILES=$(git status | grep "^	" | cut -d: -f2-)
@@ -221,17 +326,17 @@ git_diffgrep()
     FILENAME=$(basename ${FILE})
 
     # Create diff for each file (excluding removed lines, and without patch header)
-    git diff -U$(wc -l "${FILE}" | awk '{print $1}') "${FILE}" | tail -n +5 | grep -v "^-" | grep -v "^@@" > ${TMPDIR}/${FILENAME}
+    git diff -U$(wc -l "${FILE}" | awk '{print $1}') "${FILE}" | tail -n +5 | grep -v "^-" | grep -v "^@@" > ${WORKDIR}/${FILENAME}
 
   done
 
   # Search diffs
-  pushd ${TMPDIR} > /dev/null
+  pushd ${WORKDIR} > /dev/null
   grep -rsIn -E "^\+.*${2}" * | sed "s/:+/: /" | grep --color=auto "${2}"
   popd > /dev/null
 
   # Cleanup
-  rm -rf ${TMPDIR}
+  rm -rf ${WORKDIR}
 
   # Propagate exit status
   exit ${?}
@@ -251,10 +356,10 @@ git_init()
 git_listbranches()
 {
   # Create temp dir
-  TMPDIR=$(mktemp -d)
+  WORKDIR=$(mktemp -d)
 
   # Git list all branches
-  TMPALL=${TMPDIR}/all.txt
+  TMPALL=${WORKDIR}/all.txt
   git branch -a ${@:2} | sed -e "s/remotes\/origin\///g" | grep -v "HEAD ->" \
     | sort | uniq > ${TMPALL}
 
@@ -273,7 +378,7 @@ git_listbranches()
   echo "${CURRENTBRANCH}"
 
   # Cleanup
-  rm -rf ${TMPDIR}
+  rm -rf ${WORKDIR}
 
   # Propagate exit status
   exit ${?}
@@ -627,7 +732,7 @@ svn_diffgrep()
   fi
 
   # Create temp dir
-  TMPDIR=$(mktemp -d)
+  WORKDIR=$(mktemp -d)
 
   # Iterate over added/modified files
   FILES=$(svn stat | grep -e "^M" -e "^A" | cut -c9-)
@@ -637,17 +742,17 @@ svn_diffgrep()
     FILENAME=$(basename ${FILE})
 
     # Create diff for each file (excluding removed lines, and without patch header)
-    svn diff --diff-cmd /usr/bin/diff -x "-U -1" ${FILE} | grep -v "^-" | tail -n +5 > ${TMPDIR}/${FILENAME}
+    svn diff --diff-cmd /usr/bin/diff -x "-U -1" ${FILE} | grep -v "^-" | tail -n +5 > ${WORKDIR}/${FILENAME}
 
   done
 
   # Search diffs
-  pushd ${TMPDIR} > /dev/null
+  pushd ${WORKDIR} > /dev/null
   grep -rsIn -E "^\+.*${2}" * | sed "s/:+/: /" | grep --color=auto "${2}"
   popd > /dev/null
 
   # Cleanup
-  rm -rf ${TMPDIR}
+  rm -rf ${WORKDIR}
 
   # Propagate exit status
   exit ${?}
