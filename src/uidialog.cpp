@@ -1,6 +1,6 @@
 // uidialog.cpp
 //
-// Copyright (c) 2019-2023 Kristofer Berggren
+// Copyright (c) 2019-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -13,8 +13,7 @@
 #include "uiview.h"
 
 UiDialog::UiDialog(const UiDialogParams& p_Params)
-  : m_View(p_Params.view)
-  , m_Model(p_Params.model)
+  : m_Model(p_Params.model)
   , m_Title(p_Params.title)
   , m_WReq(p_Params.wReq)
   , m_HReq(p_Params.hReq)
@@ -31,8 +30,8 @@ UiDialog::~UiDialog()
 
 void UiDialog::Init()
 {
-  int screenW = m_View->GetScreenWidth();
-  int screenH = m_View->GetScreenHeight();
+  int screenW = m_Model->GetScreenWidth();
+  int screenH = m_Model->GetScreenHeight();
   int w = (m_WReq > 1.0f) ? m_WReq : (screenW * m_WReq);
   int h = (m_HReq > 1.0f) ? m_HReq : (screenH * m_HReq);
   int x = (screenW - w) / 2;

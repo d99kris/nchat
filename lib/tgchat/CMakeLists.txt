@@ -48,6 +48,9 @@ add_library(tgchat SHARED
 )
 install(TARGETS tgchat DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
+# Common
+target_common_config(tgchat)
+
 # Headers
 target_include_directories(tgchat PRIVATE "../../ext/apathy")
 target_include_directories(tgchat PRIVATE "../common/src")

@@ -1,6 +1,6 @@
 // uidialog.h
 //
-// Copyright (c) 2019-2023 Kristofer Berggren
+// Copyright (c) 2019-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -18,16 +18,14 @@ struct UiDialogParams
 {
   // Requested geometry (WReq/HReq) may be specified as 0.0-1.0 fraction of screen size, or as
   // integer number (> 1) of columns and rows.
-  UiDialogParams(UiView* p_View, UiModel* p_Model, std::string p_Title, float p_WReq, float p_HReq)
-    : view(p_View)
-    , model(p_Model)
+  UiDialogParams(UiModel* p_Model, std::string p_Title, float p_WReq, float p_HReq)
+    : model(p_Model)
     , title(p_Title)
     , wReq(p_WReq)
     , hReq(p_HReq)
   {
   }
 
-  UiView* view = nullptr;
   UiModel* model = nullptr;
   std::string title;
   float wReq = 0;
@@ -49,7 +47,6 @@ private:
   void DrawBorder();
 
 protected:
-  UiView* m_View = nullptr;
   UiModel* m_Model = nullptr;
 
   int m_X = 0;

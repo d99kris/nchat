@@ -28,7 +28,7 @@ public:
 
   void Run();
   void AddProtocol(std::shared_ptr<Protocol> p_Protocol);
-  std::unordered_map<std::string, std::shared_ptr<Protocol>>& GetProtocols();
+  std::unordered_map<std::string, std::shared_ptr<Protocol>> GetProtocols();
   void MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage);
 
   static void RunKeyDump();

@@ -1,6 +1,6 @@
 // uihistoryview.cpp
 //
-// Copyright (c) 2019-2024 Kristofer Berggren
+// Copyright (c) 2019-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -50,8 +50,6 @@ UiHistoryView::~UiHistoryView()
 
 void UiHistoryView::Draw()
 {
-  std::unique_lock<std::mutex> lock(m_ViewMutex);
-
   if (!m_Enabled || !m_Dirty) return;
   m_Dirty = false;
 
@@ -74,14 +72,14 @@ void UiHistoryView::Draw()
     StrUtil::ToWString(UiConfig::GetStr("attachment_indicator") + " ");
   static std::wstring quoteIndicator = L"> ";
 
-  std::pair<std::string, std::string>& currentChat = m_Model->GetCurrentChat();
-  const bool emojiEnabled = m_Model->GetEmojiEnabled();
+  std::pair<std::string, std::string>& currentChat = m_Model->GetCurrentChatLocked();
+  const bool emojiEnabled = m_Model->GetEmojiEnabledLocked();
 
   std::vector<std::string>& messageVec =
-    m_Model->GetMessageVec(currentChat.first, currentChat.second);
+    m_Model->GetMessageVecLocked(currentChat.first, currentChat.second);
   std::unordered_map<std::string, ChatMessage>& messages =
-    m_Model->GetMessages(currentChat.first, currentChat.second);
-  int& messageOffset = m_Model->GetMessageOffset(currentChat.first, currentChat.second);
+    m_Model->GetMessagesLocked(currentChat.first, currentChat.second);
+  int messageOffset = m_Model->GetMessageOffsetLocked(currentChat.first, currentChat.second);
 
   werase(m_PaddedWin);
   wbkgd(m_PaddedWin, attributeTextNormal | colorPairTextRecv | ' ');
@@ -92,7 +90,7 @@ void UiHistoryView::Draw()
   int y = m_PaddedH - 1;
   for (auto it = std::next(messageVec.begin(), messageOffset); it != messageVec.end(); ++it)
   {
-    bool isSelectedMessage = firstMessage && m_Model->GetSelectMessageActive();
+    bool isSelectedMessage = firstMessage && m_Model->GetSelectMessageActiveLocked();
 
     auto msgIt = messages.find(*it);
     if (msgIt == messages.end())
@@ -157,7 +155,7 @@ void UiHistoryView::Draw()
       }
       else
       {
-        m_Model->FetchCachedMessage(currentChat.first, currentChat.second, msg.quotedId);
+        m_Model->FetchCachedMessageLocked(currentChat.first, currentChat.second, msg.quotedId);
         quotedText = "";
       }
 
@@ -185,8 +183,8 @@ void UiHistoryView::Draw()
       {
         if (!UiModel::IsAttachmentDownloaded(fileInfo) && UiModel::IsAttachmentDownloadable(fileInfo))
         {
-          m_Model->DownloadAttachment(currentChat.first, currentChat.second, *it,
-                                      fileInfo.fileId, DownloadFileActionNone);
+          m_Model->DownloadAttachmentLocked(currentChat.first, currentChat.second, *it,
+                                            fileInfo.fileId, DownloadFileActionNone);
           fileInfo = ProtocolUtil::FileInfoFromHex(msg.fileInfo);
         }
       }
@@ -382,7 +380,7 @@ void UiHistoryView::Draw()
     }();
 
     wattron(m_PaddedWin, attributeName | colorPairName);
-    std::string name = m_Model->GetContactName(currentChat.first, msg.senderId);
+    std::string name = m_Model->GetContactNameLocked(currentChat.first, msg.senderId);
     if (!emojiEnabled)
     {
       name = StrUtil::Textize(name);
@@ -395,7 +393,7 @@ void UiHistoryView::Draw()
       wtime = L" (" + StrUtil::ToWString(TimeUtil::GetTimeString(msg.timeSent, false /* p_IsExport */)) + L")";
     }
 
-    m_Model->MarkRead(currentChat.first, currentChat.second, *it, (!msg.isOutgoing && !msg.isRead));
+    m_Model->MarkReadLocked(currentChat.first, currentChat.second, *it, (!msg.isOutgoing && !msg.isRead));
 
     static const std::string readIndicator = " " + UiConfig::GetStr("read_indicator");
     std::wstring wreceipt = StrUtil::ToWString(msg.isRead ? readIndicator : "");

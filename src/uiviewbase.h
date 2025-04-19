@@ -1,6 +1,6 @@
 // uiviewbase.h
 //
-// Copyright (c) 2019-2021 Kristofer Berggren
+// Copyright (c) 2019-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -55,6 +55,5 @@ protected:
   bool m_Enabled = false;
   UiModel* m_Model = nullptr;
   bool m_Dirty = true;
-  std::mutex m_ViewMutex;
   WINDOW* m_Win = nullptr;
 };

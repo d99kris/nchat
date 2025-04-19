@@ -16,6 +16,9 @@ add_library(duchat SHARED
 )
 install(TARGETS duchat DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
+# Common
+target_common_config(duchat)
+
 # Headers
 target_include_directories(duchat PRIVATE "../common/src")
 target_include_directories(duchat PRIVATE "../ncutil/src")

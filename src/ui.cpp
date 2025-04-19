@@ -97,7 +97,7 @@ void Ui::Cleanup()
 
 void Ui::Run()
 {
-  std::unordered_map<std::string, std::shared_ptr<Protocol>>& protocols = m_Model->GetProtocols();
+  std::unordered_map<std::string, std::shared_ptr<Protocol>> protocols = m_Model->GetProtocols();
 
   // retrieve cached contacts for use until receiving latest from chat service
   for (auto& protocol : protocols)
@@ -134,7 +134,7 @@ void Ui::AddProtocol(std::shared_ptr<Protocol> p_Protocol)
   m_Model->AddProtocol(p_Protocol);
 }
 
-std::unordered_map<std::string, std::shared_ptr<Protocol>>& Ui::GetProtocols()
+std::unordered_map<std::string, std::shared_ptr<Protocol>> Ui::GetProtocols()
 {
   return m_Model->GetProtocols();
 }

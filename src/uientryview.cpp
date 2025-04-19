@@ -1,6 +1,6 @@
 // uientryview.cpp
 //
-// Copyright (c) 2019-2021 Kristofer Berggren
+// Copyright (c) 2019-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -33,8 +33,8 @@ void UiEntryView::Draw()
 
   curs_set(0);
 
-  std::wstring input = m_Model->GetEntryStr();
-  const int inputPos = m_Model->GetEntryPos();
+  std::wstring input = m_Model->GetEntryStrLocked();
+  const int inputPos = m_Model->GetEntryPosLocked();
   std::wstring line;
   std::vector<std::wstring> lines;
   int cx = 0;

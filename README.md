@@ -264,6 +264,7 @@ used to configure nchat.
 ------------------------
 This configuration file holds general application settings. Default content:
 
+    assert_abort=0
     attachment_prefetch=1
     attachment_send_type=1
     cache_enabled=1
@@ -277,6 +278,11 @@ This configuration file holds general application settings. Default content:
     proxy_port=
     proxy_user=
     timestamp_iso=0
+
+### assert_abort
+
+Specifies whether to abort execution (crash) if assertions fail. Primarily
+intended for debugging.
 
 ### attachment_send_type
 

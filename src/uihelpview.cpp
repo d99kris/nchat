@@ -160,25 +160,25 @@ void UiHelpView::Draw()
   wattron(m_Win, attribute | colorPair);
 
   std::wstring wstr;
-  if (m_Model->GetListDialogActive())
+  if (m_Model->GetListDialogActiveLocked())
   {
-    wstr = listDialogHelpViews.at(m_Model->GetHelpOffset() % listDialogHelpViews.size());
+    wstr = listDialogHelpViews.at(m_Model->GetHelpOffsetLocked() % listDialogHelpViews.size());
   }
-  else if (m_Model->GetMessageDialogActive())
+  else if (m_Model->GetMessageDialogActiveLocked())
   {
-    wstr = messageDialogHelpViews.at(m_Model->GetHelpOffset() % messageDialogHelpViews.size());
+    wstr = messageDialogHelpViews.at(m_Model->GetHelpOffsetLocked() % messageDialogHelpViews.size());
   }
-  else if (m_Model->GetEditMessageActive())
+  else if (m_Model->GetEditMessageActiveLocked())
   {
-    wstr = editMessageHelpViews.at(m_Model->GetHelpOffset() % editMessageHelpViews.size());
+    wstr = editMessageHelpViews.at(m_Model->GetHelpOffsetLocked() % editMessageHelpViews.size());
   }
-  else if (m_Model->GetSelectMessageActive())
+  else if (m_Model->GetSelectMessageActiveLocked())
   {
-    wstr = selectHelpViews.at(m_Model->GetHelpOffset() % selectHelpViews.size());
+    wstr = selectHelpViews.at(m_Model->GetHelpOffsetLocked() % selectHelpViews.size());
   }
   else
   {
-    wstr = defaultHelpViews.at(m_Model->GetHelpOffset() % defaultHelpViews.size());
+    wstr = defaultHelpViews.at(m_Model->GetHelpOffsetLocked() % defaultHelpViews.size());
   }
 
   wstr = L" " + wstr + std::wstring(std::max(m_W - (int)wstr.size(), 0), L' ');

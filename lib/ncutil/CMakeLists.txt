@@ -49,6 +49,8 @@ add_library(ncutil SHARED
   src/messagecache.h
   src/numutil.cpp
   src/numutil.h
+  src/owned_mutex.cpp
+  src/owned_mutex.h
   src/profiles.cpp
   src/profiles.h
   src/protocolutil.cpp
@@ -73,6 +75,9 @@ CHECK_INCLUDE_FILE(execinfo.h FOUND_EXECINFO)
 if(FOUND_EXECINFO)
   target_compile_definitions(ncutil PRIVATE HAVE_EXECINFO_H=1)
 endif()
+
+# Common
+target_common_config(ncutil)
 
 # Headers
 target_include_directories(ncutil PRIVATE "../ncutil/src" ${MAGIC_INCLUDE_DIR})

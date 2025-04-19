@@ -1,6 +1,6 @@
 // uimodel.cpp
 //
-// Copyright (c) 2019-2024 Kristofer Berggren
+// Copyright (c) 2019-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -12,6 +12,7 @@
 #include <ncurses.h>
 
 #include "appconfig.h"
+#include "apputil.h"
 #include "clipboard.h"
 #include "fileutil.h"
 #include "log.h"
@@ -34,291 +35,109 @@
 #include "uitextinputdialog.h"
 #include "uiview.h"
 
-const std::pair<std::string, std::string> UiModel::s_ChatNone;
+// ---------------------------------------------------------------------
+// UiModel::Impl
+// ---------------------------------------------------------------------
 
-UiModel::UiModel()
+const std::pair<std::string, std::string> UiModel::Impl::s_ChatNone;
+
+UiModel::Impl::Impl(UiModel* p_UiModel)
 {
-  m_View = std::make_shared<UiView>(this);
+  m_View = std::make_shared<UiView>(p_UiModel);
 }
 
-UiModel::~UiModel()
+UiModel::Impl::~Impl()
 {
 }
 
-void UiModel::Init()
+void UiModel::Impl::Init()
 {
   m_View->Init();
 }
 
-void UiModel::Cleanup()
+void UiModel::Impl::Cleanup()
 {
 }
 
-void UiModel::KeyHandler(wint_t p_Key)
+void UiModel::Impl::AnyUserKeyInput()
 {
+  SetCurrentChatIndexIfNotSet(); // set current chat upon any user interaction
+
   if (m_HomeFetchAll)
   {
     LOG_TRACE("home fetch stopped");
     m_HomeFetchAll = false;
   }
+}
 
-  static wint_t keyPrevPage = UiKeyConfig::GetKey("prev_page");
-  static wint_t keyNextPage = UiKeyConfig::GetKey("next_page");
-  static wint_t keyEnd = UiKeyConfig::GetKey("end");
-  static wint_t keyHome = UiKeyConfig::GetKey("home");
+void UiModel::Impl::TerminalResize()
+{
+  SetHelpOffset(0);
+  ReinitView();
+}
 
-  static wint_t keySendMsg = UiKeyConfig::GetKey("send_msg");
-  static wint_t keyNextChat = UiKeyConfig::GetKey("next_chat");
-  static wint_t keyPrevChat = UiKeyConfig::GetKey("prev_chat");
-  static wint_t keyUnreadChat = UiKeyConfig::GetKey("unread_chat");
+void UiModel::Impl::OnKeyDecreaseListWidth()
+{
+  AnyUserKeyInput();
+  m_View->DecreaseListWidth();
+  ReinitView();
+}
 
-  static wint_t keyQuit = UiKeyConfig::GetKey("quit");
-  static wint_t keySelectEmoji = UiKeyConfig::GetKey("select_emoji");
-  static wint_t keySelectContact = UiKeyConfig::GetKey("select_contact");
-  static wint_t keyTransfer = UiKeyConfig::GetKey("transfer");
-  static wint_t keyDeleteMsg = UiKeyConfig::GetKey("delete_msg");
-  static wint_t keyDeleteChat = UiKeyConfig::GetKey("delete_chat");
-  static wint_t keyEditMsg = UiKeyConfig::GetKey("edit_msg");
-  static wint_t keyCancel = UiKeyConfig::GetKey("cancel");
+void UiModel::Impl::OnKeyIncreaseListWidth()
+{
+  AnyUserKeyInput();
+  m_View->IncreaseListWidth();
+  ReinitView();
+}
 
-  static wint_t keyOpen = UiKeyConfig::GetKey("open");
-  static wint_t keyOpenLink = UiKeyConfig::GetKey("open_link");
-  static wint_t keyOpenMsg = UiKeyConfig::GetKey("open_msg");
-  static wint_t keySave = UiKeyConfig::GetKey("save");
+void UiModel::Impl::OnKeyToggleHelp()
+{
+  AnyUserKeyInput();
+  m_View->SetHelpEnabled(!m_View->GetHelpEnabled());
+  ReinitView();
+}
 
-  static wint_t keyCut = UiKeyConfig::GetKey("cut");
-  static wint_t keyCopy = UiKeyConfig::GetKey("copy");
-  static wint_t keyPaste = UiKeyConfig::GetKey("paste");
+void UiModel::Impl::OnKeyToggleList()
+{
+  AnyUserKeyInput();
+  m_View->SetListEnabled(!m_View->GetListEnabled());
+  ReinitView();
+}
 
-  static wint_t keyReact = UiKeyConfig::GetKey("react");
-  static wint_t keySpell = UiKeyConfig::GetKey("spell");
+void UiModel::Impl::OnKeyToggleTop()
+{
+  AnyUserKeyInput();
+  m_View->SetTopEnabled(!m_View->GetTopEnabled());
+  ReinitView();
+}
 
-  static wint_t keyJumpQuoted = UiKeyConfig::GetKey("jump_quoted");
-  static wint_t keyFind = UiKeyConfig::GetKey("find");
-  static wint_t keyFindNext = UiKeyConfig::GetKey("find_next");
+void UiModel::Impl::OnKeyToggleEmoji()
+{
+  AnyUserKeyInput();
+  m_View->SetEmojiEnabled(!m_View->GetEmojiEnabled());
+  EntryConvertEmojiEnabled();
+  UpdateList();
+  UpdateStatus();
+  UpdateHistory();
+  UpdateEntry();
+}
 
-  static wint_t keyForwardMsg = UiKeyConfig::GetKey("forward_msg");
-  static wint_t keyGotoChat = UiKeyConfig::GetKey("goto_chat");
-
-  static wint_t keyToggleList = UiKeyConfig::GetKey("toggle_list");
-  static wint_t keyToggleTop = UiKeyConfig::GetKey("toggle_top");
-  static wint_t keyToggleHelp = UiKeyConfig::GetKey("toggle_help");
-  static wint_t keyToggleEmoji = UiKeyConfig::GetKey("toggle_emoji");
-
-  static wint_t keyDecreaseListWidth = UiKeyConfig::GetKey("decrease_list_width");
-  static wint_t keyIncreaseListWidth = UiKeyConfig::GetKey("increase_list_width");
-
-  static wint_t keyExtEdit = UiKeyConfig::GetKey("ext_edit");
-  static wint_t keyExtCall = UiKeyConfig::GetKey("ext_call");
-
-  static wint_t keyOtherCommandsHelp = UiKeyConfig::GetKey("other_commands_help");
-  static wint_t keyTerminalFocusIn = UiKeyConfig::GetKey("terminal_focus_in");
-  static wint_t keyTerminalFocusOut = UiKeyConfig::GetKey("terminal_focus_out");
-  static wint_t keyTerminalResize = UiKeyConfig::GetKey("terminal_resize");
-
-  if (p_Key == keyTerminalResize)
+void UiModel::Impl::OnKeySendMsg()
+{
+  AnyUserKeyInput();
+  bool editMessageActive = GetEditMessageActive();
+  if (editMessageActive)
   {
-    SetHelpOffset(0);
-    ReinitView();
-    return;
-  }
-  else if (p_Key == keyTerminalFocusIn)
-  {
-    SetTerminalActive(true);
-    return;
-  }
-  else if (p_Key == keyTerminalFocusOut)
-  {
-    SetTerminalActive(false);
-    return;
-  }
-
-  SetCurrentChatIndexIfNotSet(); // set current chat upon any user interaction
-
-  if (p_Key == keyToggleHelp)
-  {
-    m_View->SetHelpEnabled(!m_View->GetHelpEnabled());
-    ReinitView();
-  }
-  else if (p_Key == keyToggleList)
-  {
-    m_View->SetListEnabled(!m_View->GetListEnabled());
-    ReinitView();
-  }
-  else if (p_Key == keyToggleTop)
-  {
-    m_View->SetTopEnabled(!m_View->GetTopEnabled());
-    ReinitView();
-  }
-  else if (p_Key == keyToggleEmoji)
-  {
-    m_View->SetEmojiEnabled(!m_View->GetEmojiEnabled());
-    EntryConvertEmojiEnabled();
-    UpdateList();
-    UpdateStatus();
-    UpdateHistory();
-    UpdateEntry();
-  }
-  else if (p_Key == keyNextChat)
-  {
-    NextChat();
-  }
-  else if (p_Key == keyPrevChat)
-  {
-    PrevChat();
-  }
-  else if (p_Key == keyUnreadChat)
-  {
-    UnreadChat();
-  }
-  else if (p_Key == keyPrevPage)
-  {
-    PrevPage();
-  }
-  else if (p_Key == keyNextPage)
-  {
-    NextPage();
-  }
-  else if (p_Key == keyHome)
-  {
-    Home();
-  }
-  else if (p_Key == keyEnd)
-  {
-    End();
-  }
-  else if (p_Key == keyQuit)
-  {
-    Quit(false /*p_Forced*/);
-  }
-  else if (p_Key == keySendMsg)
-  {
-    if (GetEditMessageActive())
-    {
-      SaveEditMessage();
-    }
-    else
-    {
-      SendMessage();
-    }
-  }
-  else if (p_Key == keyExtEdit)
-  {
-    ExternalEdit();
-  }
-  else if (p_Key == keyDeleteMsg)
-  {
-    DeleteMessage();
-  }
-  else if (p_Key == keyDeleteChat)
-  {
-    DeleteChat();
-  }
-  else if (p_Key == keyOpen)
-  {
-    OpenMessageAttachment();
-  }
-  else if (p_Key == keyOpenLink)
-  {
-    OpenMessageLink();
-  }
-  else if (p_Key == keySave)
-  {
-    SaveMessageAttachment();
-  }
-  else if (p_Key == keyTransfer)
-  {
-    TransferFile();
-  }
-  else if (p_Key == keySelectEmoji)
-  {
-    InsertEmoji();
-  }
-  else if (p_Key == keySelectContact)
-  {
-    SearchContact();
-  }
-  else if (p_Key == keyOtherCommandsHelp)
-  {
-    SetHelpOffset(GetHelpOffset() + 1);
-    m_View->Draw();
-  }
-  else if (p_Key == keyCut)
-  {
-    Cut();
-  }
-  else if (p_Key == keyCopy)
-  {
-    Copy();
-  }
-  else if (p_Key == keyPaste)
-  {
-    Paste();
-  }
-  else if (p_Key == keyReact)
-  {
-    React();
-  }
-  else if (p_Key == keySpell)
-  {
-    ExternalSpell();
-  }
-  else if (p_Key == keyEditMsg)
-  {
-    EditMessage();
-  }
-  else if ((p_Key == keyCancel) && GetEditMessageActive())
-  {
-    CancelEditMessage();
-  }
-  else if (p_Key == keyDecreaseListWidth)
-  {
-    m_View->DecreaseListWidth();
-    ReinitView();
-  }
-  else if (p_Key == keyIncreaseListWidth)
-  {
-    m_View->IncreaseListWidth();
-    ReinitView();
-  }
-  else if (p_Key == keyOpenMsg)
-  {
-    OpenMessage();
-  }
-  else if (p_Key == keyExtCall)
-  {
-    ExternalCall();
-  }
-  else if (p_Key == keyJumpQuoted)
-  {
-    JumpQuoted();
-  }
-  else if (p_Key == keyFind)
-  {
-    Find();
-  }
-  else if (p_Key == keyFindNext)
-  {
-    FindNext();
-  }
-  else if (p_Key == keyForwardMsg)
-  {
-    ForwardMessage();
-  }
-  else if (p_Key == keyGotoChat)
-  {
-    GotoChat();
+    SaveEditMessage();
   }
   else
   {
-    EntryKeyHandler(p_Key);
+    SendMessage();
   }
 }
 
-void UiModel::SendMessage()
+void UiModel::Impl::SendMessage()
 {
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
-
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
   std::wstring& entryStr = m_EntryStr[profileId][chatId];
@@ -346,9 +165,16 @@ void UiModel::SendMessage()
   SetHistoryInteraction(true);
 }
 
-void UiModel::EntryKeyHandler(wint_t p_Key)
+void UiModel::Impl::OnKeyOtherCommandsHelp()
 {
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
+  AnyUserKeyInput();
+  SetHelpOffset(GetHelpOffset() + 1);
+  m_View->Draw();
+}
+
+void UiModel::Impl::EntryKeyHandler(wint_t p_Key)
+{
+  AnyUserKeyInput();
 
   static wint_t keyDown = UiKeyConfig::GetKey("down");
   static wint_t keyUp = UiKeyConfig::GetKey("up");
@@ -584,7 +410,7 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
   UpdateEntry();
 }
 
-void UiModel::SetTyping(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_IsTyping)
+void UiModel::Impl::SetTyping(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_IsTyping)
 {
   static const bool typingStatusShare = UiConfig::GetBool("typing_status_share");
   if (!typingStatusShare) return;
@@ -664,9 +490,9 @@ void UiModel::SetTyping(const std::string& p_ProfileId, const std::string& p_Cha
   }
 }
 
-void UiModel::NextChat()
+void UiModel::Impl::OnKeyNextChat()
 {
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
+  AnyUserKeyInput();
 
   if (GetEditMessageActive()) return;
 
@@ -683,9 +509,9 @@ void UiModel::NextChat()
   SetSelectMessageActive(false);
 }
 
-void UiModel::PrevChat()
+void UiModel::Impl::OnKeyPrevChat()
 {
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
+  AnyUserKeyInput();
 
   if (GetEditMessageActive()) return;
 
@@ -702,9 +528,9 @@ void UiModel::PrevChat()
   SetSelectMessageActive(false);
 }
 
-void UiModel::UnreadChat()
+void UiModel::Impl::OnKeyUnreadChat()
 {
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
+  AnyUserKeyInput();
 
   if (GetEditMessageActive()) return;
 
@@ -755,9 +581,9 @@ void UiModel::UnreadChat()
   }
 }
 
-void UiModel::PrevPage()
+void UiModel::Impl::OnKeyPrevPage()
 {
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
+  AnyUserKeyInput();
 
   if (GetEditMessageActive()) return;
 
@@ -782,9 +608,9 @@ void UiModel::PrevPage()
   SetSelectMessageActive(false);
 }
 
-void UiModel::NextPage()
+void UiModel::Impl::OnKeyNextPage()
 {
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
+  AnyUserKeyInput();
 
   if (GetEditMessageActive()) return;
 
@@ -818,11 +644,11 @@ void UiModel::NextPage()
   SetSelectMessageActive(false);
 }
 
-void UiModel::Home()
+bool UiModel::Impl::OnKeyHomeFetchCache()
 {
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
+  AnyUserKeyInput();
 
-  if (GetEditMessageActive()) return;
+  if (GetEditMessageActive()) return false;
 
   static const bool homeFetchAll = UiConfig::GetBool("home_fetch_all");
   if (homeFetchAll)
@@ -840,7 +666,6 @@ void UiModel::Home()
     fetchedAllCache = true;
     std::string fromId = GetLastMessageId(profileId, chatId);
     int limit = std::numeric_limits<int>::max();
-    lock.unlock();
     LOG_DEBUG("fetch all");
     std::shared_ptr<GetMessagesRequest> getMessagesRequest = std::make_shared<GetMessagesRequest>();
     getMessagesRequest->chatId = chatId;
@@ -848,10 +673,18 @@ void UiModel::Home()
     getMessagesRequest->limit = limit;
     LOG_TRACE("request messages from %s limit %d", fromId.c_str(), limit);
     SendProtocolRequest(m_CurrentChat.first, getMessagesRequest);
-    TimeUtil::Sleep(0.2); // @todo: wait for request completion, with timeout
-    lock.lock();
-    fetchedAllCache = true;
+    return true;
   }
+
+  return false;
+}
+
+void UiModel::Impl::OnKeyHomeFetchNext()
+{
+  if (GetEditMessageActive()) return;
+
+  std::string profileId = m_CurrentChat.first;
+  std::string chatId = m_CurrentChat.second;
 
   const int messageCount = m_Messages[profileId][chatId].size();
   int& messageOffset = m_MessageOffset[profileId][chatId];
@@ -874,7 +707,7 @@ void UiModel::Home()
   SetSelectMessageActive(false);
 }
 
-void UiModel::HomeFetchNext(const std::string& p_ProfileId, const std::string& p_ChatId, int p_MsgCount)
+void UiModel::Impl::HomeFetchNext(const std::string& p_ProfileId, const std::string& p_ChatId, int p_MsgCount)
 {
   if (m_HomeFetchAll)
   {
@@ -916,9 +749,9 @@ void UiModel::HomeFetchNext(const std::string& p_ProfileId, const std::string& p
   }
 }
 
-void UiModel::End()
+void UiModel::Impl::OnKeyEnd()
 {
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
+  AnyUserKeyInput();
 
   if (GetEditMessageActive()) return;
 
@@ -928,9 +761,8 @@ void UiModel::End()
   SetSelectMessageActive(false);
 }
 
-void UiModel::ResetMessageOffset()
+void UiModel::Impl::ResetMessageOffset()
 {
-  // must be called under lock
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
 
@@ -946,8 +778,8 @@ void UiModel::ResetMessageOffset()
   UpdateHistory();
 }
 
-void UiModel::MarkRead(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId,
-                       bool p_WasUnread)
+void UiModel::Impl::MarkRead(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId,
+                             bool p_WasUnread)
 {
   const bool markReadEveryView = HasProtocolFeature(p_ProfileId, FeatureMarkReadEveryView);
   if (!markReadEveryView && !p_WasUnread) return;
@@ -981,11 +813,10 @@ void UiModel::MarkRead(const std::string& p_ProfileId, const std::string& p_Chat
   UpdateList();
 }
 
-void UiModel::DownloadAttachment(const std::string& p_ProfileId, const std::string& p_ChatId,
-                                 const std::string& p_MsgId, const std::string& p_FileId,
-                                 DownloadFileAction p_DownloadFileAction)
+void UiModel::Impl::DownloadAttachment(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                       const std::string& p_MsgId, const std::string& p_FileId,
+                                       DownloadFileAction p_DownloadFileAction)
 {
-  // must be called with lock held
   std::shared_ptr<DownloadFileRequest> downloadFileRequest = std::make_shared<DownloadFileRequest>();
   downloadFileRequest->chatId = p_ChatId;
   downloadFileRequest->msgId = p_MsgId;
@@ -1009,20 +840,9 @@ void UiModel::DownloadAttachment(const std::string& p_ProfileId, const std::stri
   mit->second.fileInfo = ProtocolUtil::FileInfoToHex(fileInfo);
 }
 
-void UiModel::DeleteMessage()
+void UiModel::Impl::OnKeyDeleteMsg()
 {
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
-
-  if (!GetSelectMessageActive() || GetEditMessageActive()) return;
-
-  static const bool confirmDeletion = UiConfig::GetBool("confirm_deletion");
-  if (confirmDeletion)
-  {
-    if (!MessageDialog("Confirmation", "Confirm message deletion?", 0.5, 5))
-    {
-      return;
-    }
-  }
+  AnyUserKeyInput();
 
   const std::string& profileId = m_CurrentChat.first;
   const std::string& chatId = m_CurrentChat.second;
@@ -1056,20 +876,9 @@ void UiModel::DeleteMessage()
   SendProtocolRequest(profileId, deleteMessageRequest);
 }
 
-void UiModel::DeleteChat()
+void UiModel::Impl::OnKeyDeleteChat()
 {
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
-
-  if (GetSelectMessageActive() || GetEditMessageActive()) return;
-
-  static const bool confirmDeletion = UiConfig::GetBool("confirm_deletion");
-  if (confirmDeletion)
-  {
-    if (!MessageDialog("Confirmation", "Confirm chat deletion?", 0.5, 5))
-    {
-      return;
-    }
-  }
+  AnyUserKeyInput();
 
   const std::string& profileId = m_CurrentChat.first;
   const std::string& chatId = m_CurrentChat.second;
@@ -1079,9 +888,9 @@ void UiModel::DeleteChat()
   SendProtocolRequest(profileId, deleteChatRequest);
 }
 
-void UiModel::OpenMessage()
+void UiModel::Impl::OnKeyOpenMsg()
 {
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
+  AnyUserKeyInput();
 
   if (!GetSelectMessageActive() || GetEditMessageActive()) return;
 
@@ -1132,9 +941,8 @@ void UiModel::OpenMessage()
   }
 }
 
-bool UiModel::GetMessageAttachmentPath(std::string& p_FilePath, DownloadFileAction p_DownloadFileAction)
+bool UiModel::Impl::GetMessageAttachmentPath(std::string& p_FilePath, DownloadFileAction p_DownloadFileAction)
 {
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
 
   if (!GetSelectMessageActive()) return false;
 
@@ -1166,12 +974,12 @@ bool UiModel::GetMessageAttachmentPath(std::string& p_FilePath, DownloadFileActi
   }
 
   FileInfo fileInfo = ProtocolUtil::FileInfoFromHex(mit->second.fileInfo);
-  if (UiModel::IsAttachmentDownloaded(fileInfo))
+  if (UiModel::Impl::IsAttachmentDownloaded(fileInfo))
   {
     p_FilePath = fileInfo.filePath;
     return true;
   }
-  else if (UiModel::IsAttachmentDownloadable(fileInfo))
+  else if (UiModel::Impl::IsAttachmentDownloadable(fileInfo))
   {
     DownloadAttachment(profileId, chatId, msgId, fileInfo.fileId, p_DownloadFileAction);
     UpdateHistory();
@@ -1181,8 +989,9 @@ bool UiModel::GetMessageAttachmentPath(std::string& p_FilePath, DownloadFileActi
   return false;
 }
 
-void UiModel::OpenMessageAttachment(std::string p_FilePath /*= std::string()*/)
+void UiModel::Impl::OnKeyOpenAttachment(std::string p_FilePath /*= std::string()*/)
 {
+  AnyUserKeyInput();
   if (p_FilePath.empty())
   {
     // user-triggered call
@@ -1197,7 +1006,7 @@ void UiModel::OpenMessageAttachment(std::string p_FilePath /*= std::string()*/)
   OpenAttachment(p_FilePath);
 }
 
-void UiModel::OpenLink(const std::string& p_Url)
+void UiModel::Impl::OpenLink(const std::string& p_Url)
 {
   static const std::string cmdTemplate = []()
   {
@@ -1220,7 +1029,7 @@ void UiModel::OpenLink(const std::string& p_Url)
   RunCommand(cmd);
 }
 
-void UiModel::OpenAttachment(const std::string& p_Path)
+void UiModel::Impl::OpenAttachment(const std::string& p_Path)
 {
   static const std::string cmdTemplate = []()
   {
@@ -1243,7 +1052,7 @@ void UiModel::OpenAttachment(const std::string& p_Path)
   RunCommand(cmd);
 }
 
-void UiModel::RunCommand(const std::string& p_Cmd)
+void UiModel::Impl::RunCommand(const std::string& p_Cmd)
 {
   bool isBackground = (p_Cmd.back() == '&');
 
@@ -1271,9 +1080,9 @@ void UiModel::RunCommand(const std::string& p_Cmd)
   }
 }
 
-void UiModel::OpenMessageLink()
+void UiModel::Impl::OnKeyOpenLink()
 {
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
+  AnyUserKeyInput();
 
   if (!GetSelectMessageActive()) return;
 
@@ -1322,13 +1131,13 @@ void UiModel::OpenMessageLink()
   }
 }
 
-void UiModel::SaveMessageAttachment(std::string p_FilePath /*= std::string()*/)
+std::string UiModel::Impl::OnKeySaveAttachment(std::string p_FilePath /*= std::string()*/)
 {
-  bool userTriggered = p_FilePath.empty();
+  AnyUserKeyInput();
   if (p_FilePath.empty())
   {
     // user-triggered call
-    if (!GetMessageAttachmentPath(p_FilePath, DownloadFileActionSave)) return;
+    if (!GetMessageAttachmentPath(p_FilePath, DownloadFileActionSave)) return "";
   }
   else
   {
@@ -1348,90 +1157,17 @@ void UiModel::SaveMessageAttachment(std::string p_FilePath /*= std::string()*/)
 
   std::string dstFilePath = downloadsDir + "/" + dstFileName;
   FileUtil::CopyFile(p_FilePath, dstFilePath);
-
-  if (userTriggered)
-  {
-    MessageDialog("Notification", "File saved in\n" + dstFilePath, 0.8, 6);
-  }
+  return dstFilePath;
 }
 
-std::vector<std::string> UiModel::SelectFile()
+void UiModel::Impl::TransferFile(const std::vector<std::string>& p_FilePaths)
 {
-  std::vector<std::string> filePaths;
-  static const std::string filePickerCommand = UiConfig::GetStr("file_picker_command");
-  if (!filePickerCommand.empty())
+  if (!p_FilePaths.empty())
   {
-    endwin();
-    std::string outPath = FileUtil::MkTempFile();
-    std::string cmd = "2>&1 " + filePickerCommand;
-    StrUtil::ReplaceString(cmd, "%1", outPath);
-
-    // run command
-    LOG_TRACE("cmd \"%s\" start", cmd.c_str());
-    int rv = system(cmd.c_str());
-    if (rv == 0)
-    {
-      std::string filesStr = FileUtil::ReadFile(outPath);
-      if (!filesStr.empty())
-      {
-        filePaths = StrUtil::Split(filesStr, '\n');
-        std::set<std::string> filePathsSet = ToSet(filePaths); // hack to handle nnn's duplicate results
-        filePathsSet.erase(""); // remove empty element
-        filePaths = ToVector(filePathsSet);
-      }
-    }
-    else
-    {
-      LOG_WARNING("cmd \"%s\" failed (%d)", cmd.c_str(), rv);
-    }
-
-    FileUtil::RmFile(outPath);
-
-    refresh();
-    wint_t key = 0;
-    while (UiKeyInput::GetWch(&key) != ERR)
-    {
-      // Discard any remaining input
-    }
-  }
-  else
-  {
-    static std::string currentDir;
-    static const bool filePickerPersistDir = UiConfig::GetBool("file_picker_persist_dir");
-    if (!filePickerPersistDir || currentDir.empty())
-    {
-      currentDir = FileUtil::GetCurrentWorkingDir();
-    }
-
-    UiDialogParams params(m_View.get(), this, "Send File", 0.75, 0.65);
-    UiFileListDialog dialog(params, currentDir);
-    if (dialog.Run())
-    {
-      std::string filePath = dialog.GetSelectedPath();
-      filePaths = std::vector<std::string>({ filePath });
-      currentDir = dialog.GetCurrentDir();
-    }
-  }
-
-  return filePaths;
-}
-
-void UiModel::TransferFile()
-{
-  {
-    std::unique_lock<std::mutex> lock(m_ModelMutex);
-    if (GetEditMessageActive()) return;
-  }
-
-  std::vector<std::string> filePaths = SelectFile();
-  if (!filePaths.empty())
-  {
-    std::unique_lock<std::mutex> lock(m_ModelMutex);
-
     std::string profileId = m_CurrentChat.first;
     std::string chatId = m_CurrentChat.second;
 
-    for (auto it = filePaths.begin(); it != filePaths.end(); ++it)
+    for (auto it = p_FilePaths.begin(); it != p_FilePaths.end(); ++it)
     {
       const std::string& filePath = *it;
 
@@ -1448,7 +1184,7 @@ void UiModel::TransferFile()
       if (transferSendCaption)
       {
         // add caption to first file
-        if (it == filePaths.begin())
+        if (it == p_FilePaths.begin())
         {
           std::wstring& entryStr = m_EntryStr[profileId][chatId];
           int& entryPos = m_EntryPos[profileId][chatId];
@@ -1465,7 +1201,7 @@ void UiModel::TransferFile()
       if (GetSelectMessageActive())
       {
         // add quote for first file
-        if (it == filePaths.begin())
+        if (it == p_FilePaths.begin())
         {
           AddQuoteFromSelectedMessage(sendMessageRequest->chatMessage);
           SetSelectMessageActive(false);
@@ -1476,86 +1212,64 @@ void UiModel::TransferFile()
     }
   }
 
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
   ReinitView();
   ResetMessageOffset();
   SetHistoryInteraction(true);
 }
 
-void UiModel::InsertEmoji()
+void UiModel::Impl::InsertEmoji(const std::wstring& p_Emoji)
 {
-  UiDialogParams params(m_View.get(), this, "Insert Emoji", 0.75, 0.65);
-  UiEmojiListDialog dialog(params);
-  if (dialog.Run())
+  std::string profileId = m_CurrentChat.first;
+  std::string chatId = m_CurrentChat.second;
+  int& entryPos = m_EntryPos[profileId][chatId];
+  std::wstring& entryStr = m_EntryStr[profileId][chatId];
+
+  entryStr.insert(entryPos, p_Emoji);
+  entryPos += p_Emoji.size();
+
+  if (m_View->GetEmojiEnabled() && (StrUtil::WStringWidth(p_Emoji) > 1))
   {
-    std::unique_lock<std::mutex> lock(m_ModelMutex);
-    std::wstring emoji = dialog.GetSelectedEmoji(GetEmojiEnabled());
+    entryStr.insert(entryPos, std::wstring(1, (wchar_t)EMOJI_PAD));
+    entryPos += 1;
+  }
 
-    std::string profileId = m_CurrentChat.first;
-    std::string chatId = m_CurrentChat.second;
-    int& entryPos = m_EntryPos[profileId][chatId];
-    std::wstring& entryStr = m_EntryStr[profileId][chatId];
+  SetTyping(profileId, chatId, true);
+  UpdateEntry();
 
-    entryStr.insert(entryPos, emoji);
-    entryPos += emoji.size();
+  ReinitView();
+}
 
-    if (m_View->GetEmojiEnabled() && (StrUtil::WStringWidth(emoji) > 1))
-    {
-      entryStr.insert(entryPos, std::wstring(1, (wchar_t)EMOJI_PAD));
-      entryPos += 1;
-    }
+void UiModel::Impl::OpenCreateChat(const std::pair<std::string, std::string>& p_Chat)
+{
+  std::string profileId = p_Chat.first;
+  std::string userId = p_Chat.second;
 
-    SetTyping(profileId, chatId, true);
-    UpdateEntry();
+  LOG_TRACE("selected %s contact %s", profileId.c_str(), userId.c_str());
+
+  std::unordered_map<std::string, ChatInfo>& profileChatInfos = m_ChatInfos[profileId];
+  if (profileChatInfos.count(userId))
+  {
+    m_CurrentChatIndex = 0;
+    m_CurrentChat.first = profileId;
+    m_CurrentChat.second = userId;
+    SortChats();
+    OnCurrentChatChanged();
+    SetSelectMessageActive(false);
+  }
+  else
+  {
+    LOG_TRACE("create chat %s", userId.c_str());
+    std::shared_ptr<CreateChatRequest> createChatRequest = std::make_shared<CreateChatRequest>();
+    createChatRequest->userId = userId;
+    SendProtocolRequest(profileId, createChatRequest);
   }
 
   ReinitView();
 }
 
-void UiModel::SearchContact()
+void UiModel::Impl::FetchCachedMessage(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                       const std::string& p_MsgId)
 {
-  {
-    std::unique_lock<std::mutex> lock(m_ModelMutex);
-    if (GetEditMessageActive()) return;
-  }
-
-  UiDialogParams params(m_View.get(), this, "Open Chat", 0.75, 0.65);
-  UiContactListDialog dialog(params);
-  if (dialog.Run())
-  {
-    UiContactListItem selectedContact = dialog.GetSelectedContactItem();
-    std::string profileId = selectedContact.profileId;
-    std::string userId = selectedContact.contactId;
-
-    LOG_TRACE("selected %s contact %s", profileId.c_str(), userId.c_str());
-
-    std::unique_lock<std::mutex> lock(m_ModelMutex);
-    std::unordered_map<std::string, ChatInfo>& profileChatInfos = m_ChatInfos[profileId];
-    if (profileChatInfos.count(userId))
-    {
-      m_CurrentChatIndex = 0;
-      m_CurrentChat.first = profileId;
-      m_CurrentChat.second = userId;
-      SortChats();
-      OnCurrentChatChanged();
-      SetSelectMessageActive(false);
-    }
-    else
-    {
-      LOG_TRACE("create chat %s", userId.c_str());
-      std::shared_ptr<CreateChatRequest> createChatRequest = std::make_shared<CreateChatRequest>();
-      createChatRequest->userId = userId;
-      SendProtocolRequest(profileId, createChatRequest);
-    }
-  }
-
-  ReinitView();
-}
-
-void UiModel::FetchCachedMessage(const std::string& p_ProfileId, const std::string& p_ChatId,
-                                 const std::string& p_MsgId)
-{
-  // must be called with lock held
   static std::map<std::string, std::map<std::string, std::set<std::string>>> fetchedCache;
   std::set<std::string>& msgIdFetchedCache = fetchedCache[p_ProfileId][p_ChatId];
   if (msgIdFetchedCache.find(p_MsgId) != msgIdFetchedCache.end())
@@ -1575,9 +1289,8 @@ void UiModel::FetchCachedMessage(const std::string& p_ProfileId, const std::stri
   }
 }
 
-void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
+void UiModel::Impl::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
 {
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
   const std::string profileId = p_ServiceMessage->profileId;
   switch (p_ServiceMessage->GetMessageType())
   {
@@ -1887,7 +1600,7 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
           FileInfo fileInfo = ProtocolUtil::FileInfoFromHex(fileInfoStr);
           if (!fileInfo.filePath.empty())
           {
-            OpenMessageAttachment(fileInfo.filePath);
+            OnKeyOpenAttachment(fileInfo.filePath);
           }
         }
         else if (downloadFileAction == DownloadFileActionSave)
@@ -1895,7 +1608,7 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
           FileInfo fileInfo = ProtocolUtil::FileInfoFromHex(fileInfoStr);
           if (!fileInfo.filePath.empty())
           {
-            SaveMessageAttachment(fileInfo.filePath);
+            OnKeySaveAttachment(fileInfo.filePath);
           }
         }
 
@@ -2075,7 +1788,7 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
       {
         std::shared_ptr<RequestAppExitNotify> requestAppExitNotify =
           std::static_pointer_cast<RequestAppExitNotify>(p_ServiceMessage);
-        Quit(true /*p_Forced*/);
+        Quit();
       }
       break;
 
@@ -2138,26 +1851,19 @@ void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
   }
 }
 
-
-void UiModel::AddProtocol(std::shared_ptr<Protocol> p_Protocol)
+void UiModel::Impl::AddProtocol(std::shared_ptr<Protocol> p_Protocol)
 {
   const std::string profileId = p_Protocol->GetProfileId();
   m_Protocols[profileId] = p_Protocol;
 }
 
-std::unordered_map<std::string, std::shared_ptr<Protocol>>& UiModel::GetProtocols()
+std::unordered_map<std::string, std::shared_ptr<Protocol>> UiModel::Impl::GetProtocols()
 {
   return m_Protocols;
 }
 
-bool UiModel::Process()
+bool UiModel::Impl::Process()
 {
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
-  if (!m_ProtocolUiControl.empty())
-  {
-    HandleProtocolUiControl(lock);
-  }
-
   if (m_TriggerTerminalBell)
   {
     m_TriggerTerminalBell = false;
@@ -2169,7 +1875,7 @@ bool UiModel::Process()
   return m_Running;
 }
 
-void UiModel::SortChats()
+void UiModel::Impl::SortChats()
 {
   static const bool mutedPositionByTimestamp = UiConfig::GetBool("muted_position_by_timestamp");
   std::sort(m_ChatVec.begin(), m_ChatVec.end(),
@@ -2216,7 +1922,7 @@ void UiModel::SortChats()
   }
 }
 
-std::string UiModel::GetLastMessageId(const std::string& p_ProfileId, const std::string& p_ChatId)
+std::string UiModel::Impl::GetLastMessageId(const std::string& p_ProfileId, const std::string& p_ChatId)
 {
   const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[p_ProfileId][p_ChatId];
   const std::vector<std::string>& messageVec = m_MessageVec[p_ProfileId][p_ChatId];
@@ -2239,7 +1945,7 @@ std::string UiModel::GetLastMessageId(const std::string& p_ProfileId, const std:
   return lastMessageId;
 }
 
-void UiModel::UpdateChatInfoLastMessageTime(const std::string& p_ProfileId, const std::string& p_ChatId)
+void UiModel::Impl::UpdateChatInfoLastMessageTime(const std::string& p_ProfileId, const std::string& p_ChatId)
 {
   const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[p_ProfileId][p_ChatId];
   const std::string lastMessageId = GetLastMessageId(p_ProfileId, p_ChatId);
@@ -2256,7 +1962,7 @@ void UiModel::UpdateChatInfoLastMessageTime(const std::string& p_ProfileId, cons
   }
 }
 
-void UiModel::UpdateChatInfoIsUnread(const std::string& p_ProfileId, const std::string& p_ChatId)
+void UiModel::Impl::UpdateChatInfoIsUnread(const std::string& p_ProfileId, const std::string& p_ChatId)
 {
   const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[p_ProfileId][p_ChatId];
   const std::string lastMessageId = GetLastMessageId(p_ProfileId, p_ChatId);
@@ -2301,7 +2007,7 @@ void UiModel::UpdateChatInfoIsUnread(const std::string& p_ProfileId, const std::
   }
 }
 
-std::string UiModel::GetContactName(const std::string& p_ProfileId, const std::string& p_ChatId)
+std::string UiModel::Impl::GetContactName(const std::string& p_ProfileId, const std::string& p_ChatId)
 {
   const ContactInfo& contactInfo = m_ContactInfos[p_ProfileId][p_ChatId];
   const std::string& chatName = contactInfo.name;
@@ -2317,7 +2023,8 @@ std::string UiModel::GetContactName(const std::string& p_ProfileId, const std::s
   return chatName;
 }
 
-std::string UiModel::GetContactListName(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_AllowId)
+std::string UiModel::Impl::GetContactListName(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                              bool p_AllowId)
 {
   const ContactInfo& contactInfo = m_ContactInfos[p_ProfileId][p_ChatId];
   const std::string& chatName = contactInfo.name;
@@ -2333,25 +2040,25 @@ std::string UiModel::GetContactListName(const std::string& p_ProfileId, const st
   return chatName;
 }
 
-std::string UiModel::GetContactListNameLock(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_AllowId)
+std::string UiModel::Impl::GetContactListNameLock(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                                  bool p_AllowId)
 {
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
   return GetContactListName(p_ProfileId, p_ChatId, p_AllowId);
 }
 
-std::string UiModel::GetContactPhone(const std::string& p_ProfileId, const std::string& p_ChatId)
+std::string UiModel::Impl::GetContactPhone(const std::string& p_ProfileId, const std::string& p_ChatId)
 {
   const ContactInfo& contactInfo = m_ContactInfos[p_ProfileId][p_ChatId];
   return contactInfo.phone.empty() ? "" : "+" + contactInfo.phone;
 }
 
-int64_t UiModel::GetLastMessageTime(const std::string& p_ProfileId, const std::string& p_ChatId)
+int64_t UiModel::Impl::GetLastMessageTime(const std::string& p_ProfileId, const std::string& p_ChatId)
 {
   const ChatInfo& chatInfo = m_ChatInfos[p_ProfileId][p_ChatId];
   return chatInfo.lastMessageTime;
 }
 
-bool UiModel::GetChatIsUnread(const std::string& p_ProfileId, const std::string& p_ChatId)
+bool UiModel::Impl::GetChatIsUnread(const std::string& p_ProfileId, const std::string& p_ChatId)
 {
   const ChatInfo& chatInfo = m_ChatInfos[p_ProfileId][p_ChatId];
   static const bool mutedIndicateUnread = UiConfig::GetBool("muted_indicate_unread");
@@ -2359,7 +2066,7 @@ bool UiModel::GetChatIsUnread(const std::string& p_ProfileId, const std::string&
   return indicateUnread; // @todo: handle isUnreadMention
 }
 
-std::string UiModel::GetChatStatus(const std::string& p_ProfileId, const std::string& p_ChatId)
+std::string UiModel::Impl::GetChatStatus(const std::string& p_ProfileId, const std::string& p_ChatId)
 {
   std::string chatStatus;
   const std::set<std::string>& usersTyping = m_UsersTyping[p_ProfileId][p_ChatId];
@@ -2462,11 +2169,10 @@ std::string UiModel::GetChatStatus(const std::string& p_ProfileId, const std::st
   }
 }
 
-void UiModel::OnCurrentChatChanged()
+void UiModel::Impl::OnCurrentChatChanged()
 {
   LOG_TRACE("current chat %s %s", m_CurrentChat.first.c_str(), m_CurrentChat.second.c_str());
   SetHistoryInteraction(false);
-  ClearFind();
   UpdateList();
   UpdateStatus();
   UpdateHistory();
@@ -2479,7 +2185,7 @@ void UiModel::OnCurrentChatChanged()
   ProtocolSetCurrentChat();
 }
 
-void UiModel::RequestMessagesCurrentChat()
+void UiModel::Impl::RequestMessagesCurrentChat()
 {
   if (m_CurrentChat == s_ChatNone) return;
 
@@ -2488,7 +2194,7 @@ void UiModel::RequestMessagesCurrentChat()
   RequestMessages(profileId, chatId);
 }
 
-void UiModel::RequestMessagesNextChat()
+void UiModel::Impl::RequestMessagesNextChat()
 {
   const std::pair<std::string, std::string>& nextChat = GetNextChat();
   if (nextChat == s_ChatNone) return;
@@ -2498,7 +2204,7 @@ void UiModel::RequestMessagesNextChat()
   RequestMessages(profileId, chatId);
 }
 
-void UiModel::RequestMessages(const std::string& p_ProfileId, const std::string& p_ChatId)
+void UiModel::Impl::RequestMessages(const std::string& p_ProfileId, const std::string& p_ChatId)
 {
   std::unordered_set<std::string>& msgFromIdsRequested = m_MsgFromIdsRequested[p_ProfileId][p_ChatId];
   const std::string& oldestMessageId = m_OldestMessageId[p_ProfileId][p_ChatId];
@@ -2549,14 +2255,14 @@ void UiModel::RequestMessages(const std::string& p_ProfileId, const std::string&
   SendProtocolRequest(p_ProfileId, getMessagesRequest);
 }
 
-void UiModel::RequestUserStatusCurrentChat()
+void UiModel::Impl::RequestUserStatusCurrentChat()
 {
   if (m_CurrentChat == s_ChatNone) return;
 
   RequestUserStatus(m_CurrentChat);
 }
 
-void UiModel::RequestUserStatusNextChat()
+void UiModel::Impl::RequestUserStatusNextChat()
 {
   const std::pair<std::string, std::string>& nextChat = GetNextChat();
   if (nextChat == s_ChatNone) return;
@@ -2564,7 +2270,7 @@ void UiModel::RequestUserStatusNextChat()
   RequestUserStatus(nextChat);
 }
 
-void UiModel::RequestUserStatus(const std::pair<std::string, std::string>& p_Chat)
+void UiModel::Impl::RequestUserStatus(const std::pair<std::string, std::string>& p_Chat)
 {
   static std::set<std::pair<std::string, std::string>> requestedStatuses;
   if (requestedStatuses.count(p_Chat)) return;
@@ -2580,7 +2286,7 @@ void UiModel::RequestUserStatus(const std::pair<std::string, std::string>& p_Cha
   SendProtocolRequest(profileId, getStatusRequest);
 }
 
-void UiModel::ProtocolSetCurrentChat()
+void UiModel::Impl::ProtocolSetCurrentChat()
 {
   static std::pair<std::string, std::string> lastCurrentChat;
   if (lastCurrentChat != m_CurrentChat)
@@ -2596,7 +2302,7 @@ void UiModel::ProtocolSetCurrentChat()
   }
 }
 
-void UiModel::SetStatusOnline(const std::string& p_ProfileId, bool p_IsOnline)
+void UiModel::Impl::SetStatusOnline(const std::string& p_ProfileId, bool p_IsOnline)
 {
   static const bool onlineStatusShare = UiConfig::GetBool("online_status_share");
   if (!onlineStatusShare) return;
@@ -2607,12 +2313,12 @@ void UiModel::SetStatusOnline(const std::string& p_ProfileId, bool p_IsOnline)
   SendProtocolRequest(p_ProfileId, setStatusRequest);
 }
 
-int UiModel::GetHistoryLines()
+int UiModel::Impl::GetHistoryLines()
 {
   return m_View->GetHistoryLines();
 }
 
-void UiModel::RequestContacts()
+void UiModel::Impl::RequestContacts()
 {
   for (auto& protocol : m_Protocols)
   {
@@ -2622,146 +2328,153 @@ void UiModel::RequestContacts()
   }
 }
 
-void UiModel::SetRunning(bool p_Running)
+int UiModel::Impl::GetScreenWidth()
+{
+  return m_View->GetScreenWidth();
+}
+
+int UiModel::Impl::GetScreenHeight()
+{
+  return m_View->GetScreenHeight();
+}
+
+void UiModel::Impl::SetRunning(bool p_Running)
 {
   m_Running = p_Running;
 }
 
-void UiModel::ReinitView()
+void UiModel::Impl::ReinitView()
 {
   m_View->Init();
 }
 
-void UiModel::UpdateList()
+void UiModel::Impl::UpdateList()
 {
   m_View->SetListDirty(true);
   m_View->SetEntryDirty(true);
 }
 
-void UiModel::UpdateStatus()
+void UiModel::Impl::UpdateStatus()
 {
   m_View->SetStatusDirty(true);
   m_View->SetEntryDirty(true);
 }
 
-void UiModel::UpdateHistory()
+void UiModel::Impl::UpdateHistory()
 {
   m_View->SetHistoryDirty(true);
   m_View->SetEntryDirty(true);
 }
 
-void UiModel::UpdateHelp()
+void UiModel::Impl::UpdateHelp()
 {
   m_View->SetHelpDirty(true);
   m_View->SetEntryDirty(true);
 }
 
-void UiModel::UpdateEntry()
+void UiModel::Impl::UpdateEntry()
 {
   m_View->SetEntryDirty(true);
 }
 
-std::wstring& UiModel::GetEntryStr()
+std::wstring& UiModel::Impl::GetEntryStr()
 {
   return m_EntryStr[m_CurrentChat.first][m_CurrentChat.second];
 }
 
-int& UiModel::GetEntryPos()
+int& UiModel::Impl::GetEntryPos()
 {
   return m_EntryPos[m_CurrentChat.first][m_CurrentChat.second];
 }
 
-std::vector<std::pair<std::string, std::string>>& UiModel::GetChatVec()
+std::vector<std::pair<std::string, std::string>>& UiModel::Impl::GetChatVec()
 {
   return m_ChatVec;
 }
 
-std::vector<std::pair<std::string, std::string>>& UiModel::GetChatVecLock()
+std::vector<std::pair<std::string, std::string>>& UiModel::Impl::GetChatVecLock()
 {
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
   return GetChatVec();
 }
 
-std::unordered_map<std::string, std::unordered_map<std::string, ContactInfo>> UiModel::GetContactInfos()
+std::unordered_map<std::string, std::unordered_map<std::string, ContactInfo>> UiModel::Impl::GetContactInfos()
 {
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
   return m_ContactInfos;
 }
 
-int64_t UiModel::GetContactInfosUpdateTime()
+int64_t UiModel::Impl::GetContactInfosUpdateTime()
 {
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
   return m_ContactInfosUpdateTime;
 }
 
-std::pair<std::string, std::string>& UiModel::GetCurrentChat()
+std::pair<std::string, std::string>& UiModel::Impl::GetCurrentChat()
 {
   return m_CurrentChat;
 }
 
-int& UiModel::GetCurrentChatIndex()
+int& UiModel::Impl::GetCurrentChatIndex()
 {
   return m_CurrentChatIndex;
 }
 
-std::unordered_map<std::string, ChatMessage>& UiModel::GetMessages(const std::string& p_ProfileId,
-                                                                   const std::string& p_ChatId)
+std::unordered_map<std::string, ChatMessage>& UiModel::Impl::GetMessages(const std::string& p_ProfileId,
+                                                                         const std::string& p_ChatId)
 {
   return m_Messages[p_ProfileId][p_ChatId];
 }
 
-std::vector<std::string>& UiModel::GetMessageVec(const std::string& p_ProfileId, const std::string& p_ChatId)
+std::vector<std::string>& UiModel::Impl::GetMessageVec(const std::string& p_ProfileId, const std::string& p_ChatId)
 {
   return m_MessageVec[p_ProfileId][p_ChatId];
 }
 
-int& UiModel::GetMessageOffset(const std::string& p_ProfileId, const std::string& p_ChatId)
+int& UiModel::Impl::GetMessageOffset(const std::string& p_ProfileId, const std::string& p_ChatId)
 {
   return m_MessageOffset[p_ProfileId][p_ChatId];
 }
 
-bool UiModel::GetSelectMessageActive()
+bool UiModel::Impl::GetSelectMessageActive()
 {
   return m_SelectMessageActive;
 }
 
-void UiModel::SetSelectMessageActive(bool p_SelectMessageActive)
+void UiModel::Impl::SetSelectMessageActive(bool p_SelectMessageActive)
 {
   m_SelectMessageActive = p_SelectMessageActive;
   SetHelpOffset(0);
   UpdateHelp();
 }
 
-bool UiModel::GetListDialogActive()
+bool UiModel::Impl::GetListDialogActive()
 {
   return m_ListDialogActive;
 }
 
-void UiModel::SetListDialogActive(bool p_ListDialogActive)
+void UiModel::Impl::SetListDialogActive(bool p_ListDialogActive)
 {
   m_ListDialogActive = p_ListDialogActive;
   SetHelpOffset(0);
   UpdateHelp();
 }
 
-bool UiModel::GetMessageDialogActive()
+bool UiModel::Impl::GetMessageDialogActive()
 {
   return m_MessageDialogActive;
 }
 
-void UiModel::SetMessageDialogActive(bool p_MessageDialogActive)
+void UiModel::Impl::SetMessageDialogActive(bool p_MessageDialogActive)
 {
   m_MessageDialogActive = p_MessageDialogActive;
   SetHelpOffset(0);
   UpdateHelp();
 }
 
-bool UiModel::GetEditMessageActive()
+bool UiModel::Impl::GetEditMessageActive()
 {
   return m_EditMessageActive;
 }
 
-void UiModel::SetEditMessageActive(bool p_EditMessageActive)
+void UiModel::Impl::SetEditMessageActive(bool p_EditMessageActive)
 {
   m_EditMessageActive = p_EditMessageActive;
   if (!m_EditMessageActive)
@@ -2773,32 +2486,36 @@ void UiModel::SetEditMessageActive(bool p_EditMessageActive)
   UpdateHelp();
 }
 
-void UiModel::SetHelpOffset(int p_HelpOffset)
+void UiModel::Impl::SetHelpOffset(int p_HelpOffset)
 {
   m_HelpOffset = p_HelpOffset;
   UpdateHelp();
 }
 
-int UiModel::GetHelpOffset()
+int UiModel::Impl::GetHelpOffset()
 {
   return m_HelpOffset;
 }
 
-bool UiModel::GetEmojiEnabled()
+bool UiModel::Impl::GetEmojiEnabled()
 {
   return m_View->GetEmojiEnabled();
 }
 
-void UiModel::SetCurrentChatIndexIfNotSet()
+bool UiModel::Impl::GetEmojiEnabledLock()
+{
+  return GetEmojiEnabled();
+}
+
+void UiModel::Impl::SetCurrentChatIndexIfNotSet()
 {
   if ((m_CurrentChatIndex >= 0) || (m_ChatVec.empty())) return;
 
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
   m_CurrentChatIndex = 0;
   m_CurrentChat = m_ChatVec.at(m_CurrentChatIndex);
 }
 
-void UiModel::SetTerminalActive(bool p_TerminalActive)
+void UiModel::Impl::SetTerminalActive(bool p_TerminalActive)
 {
   if (p_TerminalActive != m_TerminalActive)
   {
@@ -2822,7 +2539,7 @@ void UiModel::SetTerminalActive(bool p_TerminalActive)
   }
 }
 
-void UiModel::DesktopNotifyUnread(const std::string& p_Name, const std::string& p_Text)
+void UiModel::Impl::DesktopNotifyUnread(const std::string& p_Name, const std::string& p_Text)
 {
   static const std::string cmdTemplate = []()
   {
@@ -2885,7 +2602,7 @@ void UiModel::DesktopNotifyUnread(const std::string& p_Name, const std::string& 
   }
 }
 
-void UiModel::SetHistoryInteraction(bool p_HistoryInteraction)
+void UiModel::Impl::SetHistoryInteraction(bool p_HistoryInteraction)
 {
   static const bool markReadOnView = UiConfig::GetBool("mark_read_on_view");
   if (!markReadOnView && !m_HistoryInteraction && p_HistoryInteraction)
@@ -2896,7 +2613,7 @@ void UiModel::SetHistoryInteraction(bool p_HistoryInteraction)
   m_HistoryInteraction = p_HistoryInteraction;
 }
 
-bool UiModel::IsAttachmentDownloaded(const FileInfo& p_FileInfo)
+bool UiModel::Impl::IsAttachmentDownloaded(const FileInfo& p_FileInfo)
 {
   if (p_FileInfo.fileStatus == FileStatusNone)
   {
@@ -2947,7 +2664,7 @@ bool UiModel::IsAttachmentDownloaded(const FileInfo& p_FileInfo)
   return false;
 }
 
-bool UiModel::IsAttachmentDownloadable(const FileInfo& p_FileInfo)
+bool UiModel::Impl::IsAttachmentDownloadable(const FileInfo& p_FileInfo)
 {
   const bool hasFileId = !p_FileInfo.fileId.empty();
 
@@ -3000,10 +2717,8 @@ bool UiModel::IsAttachmentDownloadable(const FileInfo& p_FileInfo)
   return false;
 }
 
-std::string UiModel::GetSelectedMessageText()
+std::string UiModel::Impl::GetSelectedMessageText()
 {
-  // must be called with m_ModelMutex held
-
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
   const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
@@ -3028,9 +2743,9 @@ std::string UiModel::GetSelectedMessageText()
   return mit->second.text;
 }
 
-void UiModel::Cut()
+void UiModel::Impl::OnKeyCut()
 {
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
+  AnyUserKeyInput();
 
   {
     std::string profileId = m_CurrentChat.first;
@@ -3049,13 +2764,13 @@ void UiModel::Cut()
   }
 }
 
-void UiModel::Copy()
+void UiModel::Impl::OnKeyCopy()
 {
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
+  AnyUserKeyInput();
 
   if (GetSelectMessageActive())
   {
-    std::string text = UiModel::GetSelectedMessageText();
+    std::string text = UiModel::Impl::GetSelectedMessageText();
     Clipboard::SetText(text);
   }
   else
@@ -3069,9 +2784,9 @@ void UiModel::Copy()
   }
 }
 
-void UiModel::Paste()
+void UiModel::Impl::OnKeyPaste()
 {
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
+  AnyUserKeyInput();
 
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
@@ -3093,9 +2808,8 @@ void UiModel::Paste()
   UpdateEntry();
 }
 
-void UiModel::Clear()
+void UiModel::Impl::Clear()
 {
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
 
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
@@ -3107,119 +2821,121 @@ void UiModel::Clear()
   UpdateEntry();
 }
 
-void UiModel::EditMessage()
+bool UiModel::Impl::PreEditMsg(std::string& p_ProfileId, std::string& p_ChatId, std::string& p_MsgId,
+                               std::string& p_MsgDialogText)
 {
+  p_ProfileId = m_CurrentChat.first;
+  if (!HasProtocolFeature(p_ProfileId, FeatureEditMessagesWithinTwoDays) &&
+      !HasProtocolFeature(p_ProfileId, FeatureEditMessagesWithinFifteenMins))
   {
-    std::unique_lock<std::mutex> lock(m_ModelMutex);
-
-    if (!GetSelectMessageActive() || GetEditMessageActive()) return;
-
-    std::string profileId = m_CurrentChat.first;
-    if (!HasProtocolFeature(profileId, FeatureEditMessagesWithinTwoDays) &&
-        !HasProtocolFeature(profileId, FeatureEditMessagesWithinFifteenMins))
-    {
-      MessageDialog("Warning", "Protocol does not support editing.", 0.7, 5);
-      return;
-    }
-
-    std::string chatId = m_CurrentChat.second;
-    const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
-    const int messageOffset = m_MessageOffset[profileId][chatId];
-    auto it = std::next(messageVec.begin(), messageOffset);
-    if (it == messageVec.end()) return;
-
-    const std::string messageId = *it;
-    const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
-    const ChatMessage& chatMessage = messages.at(messageId);
-    if (!chatMessage.isOutgoing)
-    {
-      MessageDialog("Warning", "Received messages cannot be edited.", 0.7, 5);
-      return;
-    }
-
-    const time_t timeNow = time(NULL);
-    const time_t timeSent = (time_t)(chatMessage.timeSent / 1000);
-    const time_t messageAgeSec = timeNow - timeSent;
-    static const time_t twoDaysSec = 48 * 3600;
-    static const time_t fifteenMinsSec = 15 * 60;
-
-    if (HasProtocolFeature(profileId, FeatureEditMessagesWithinTwoDays) &&
-        (messageAgeSec >= twoDaysSec))
-    {
-      MessageDialog("Warning", "Messages older than 48 hours cannot be edited.", 0.8, 5);
-      return;
-    }
-    else if (HasProtocolFeature(profileId, FeatureEditMessagesWithinFifteenMins) &&
-             (messageAgeSec >= fifteenMinsSec))
-    {
-      MessageDialog("Warning", "Messages older than 15 minutes cannot be edited.", 0.8, 5);
-      return;
-    }
-
-    m_EditMessageId = messageId;
-    SetEditMessageActive(true);
-
-    std::string text = UiModel::GetSelectedMessageText();
-    text = StrUtil::Textize(text);
-    if (m_View->GetEmojiEnabled())
-    {
-      text = StrUtil::Emojize(text, true /*p_Pad*/);
-    }
-
-    int& entryPos = m_EntryPos[profileId][chatId];
-    std::wstring& entryStr = m_EntryStr[profileId][chatId];
-
-    std::wstring wtext = StrUtil::ToWString(text);
-    entryStr = wtext;
-    entryPos = wtext.size();
-
-    UpdateEntry();
+    p_MsgDialogText = "Protocol does not support editing.";
+    return false;
   }
+
+  p_ChatId = m_CurrentChat.second;
+  const std::vector<std::string>& messageVec = m_MessageVec[p_ProfileId][p_ChatId];
+  const int messageOffset = m_MessageOffset[p_ProfileId][p_ChatId];
+  auto it = std::next(messageVec.begin(), messageOffset);
+  if (it == messageVec.end())
+  {
+    LOG_WARNING("error finding message id");
+    return false;
+  }
+
+  p_MsgId = *it;
+  const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[p_ProfileId][p_ChatId];
+  const ChatMessage& chatMessage = messages.at(p_MsgId);
+  if (!chatMessage.isOutgoing)
+  {
+    p_MsgDialogText = "Received messages cannot be edited.";
+    return false;
+  }
+
+  const time_t timeNow = time(NULL);
+  const time_t timeSent = (time_t)(chatMessage.timeSent / 1000);
+  const time_t messageAgeSec = timeNow - timeSent;
+  static const time_t twoDaysSec = 48 * 3600;
+  static const time_t fifteenMinsSec = 15 * 60;
+
+  if (HasProtocolFeature(p_ProfileId, FeatureEditMessagesWithinTwoDays) &&
+      (messageAgeSec >= twoDaysSec))
+  {
+    p_MsgDialogText = "Messages older than 48 hours cannot be edited.";
+    return false;
+  }
+  else if (HasProtocolFeature(p_ProfileId, FeatureEditMessagesWithinFifteenMins) &&
+           (messageAgeSec >= fifteenMinsSec))
+  {
+    p_MsgDialogText = "Messages older than 15 minutes cannot be edited.";
+    return false;
+  }
+
+  return true;
 }
 
-void UiModel::SaveEditMessage()
+void UiModel::Impl::StartEditMsg(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                 const std::string& p_MsgId)
 {
+  AnyUserKeyInput();
+
+  m_EditMessageId = p_MsgId;
+  SetEditMessageActive(true);
+
+  std::string text = GetSelectedMessageText();
+  text = StrUtil::Textize(text);
+  if (m_View->GetEmojiEnabled())
   {
-    std::unique_lock<std::mutex> lock(m_ModelMutex);
+    text = StrUtil::Emojize(text, true /*p_Pad*/);
+  }
 
-    if (!GetEditMessageActive()) return;
+  int& entryPos = m_EntryPos[p_ProfileId][p_ChatId];
+  std::wstring& entryStr = m_EntryStr[p_ProfileId][p_ChatId];
 
-    std::string profileId = m_CurrentChat.first;
-    std::string chatId = m_CurrentChat.second;
-    std::wstring& entryStr = m_EntryStr[profileId][chatId];
-    const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
-    const ChatMessage& chatMessage = messages.at(m_EditMessageId);
+  std::wstring wtext = StrUtil::ToWString(text);
+  entryStr = wtext;
+  entryPos = wtext.size();
 
-    if (entryStr.empty()) return;
+  UpdateEntry();
+}
 
-    std::shared_ptr<EditMessageRequest> editMessageRequest =
-      std::make_shared<EditMessageRequest>();
-    editMessageRequest->chatId = chatId;
-    editMessageRequest->msgId = m_EditMessageId;
-    editMessageRequest->chatMessage = chatMessage; // copy original message (time sent, quote id, etc)
-    editMessageRequest->chatMessage.text = EntryStrToSendStr(entryStr); // update text content
-    SendProtocolRequest(profileId, editMessageRequest);
+void UiModel::Impl::SaveEditMessage()
+{
+  if (!GetEditMessageActive()) return;
 
+  std::string profileId = m_CurrentChat.first;
+  std::string chatId = m_CurrentChat.second;
+  std::wstring& entryStr = m_EntryStr[profileId][chatId];
+  const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
+  const ChatMessage& chatMessage = messages.at(m_EditMessageId);
+
+  if (entryStr.empty()) return;
+
+  std::shared_ptr<EditMessageRequest> editMessageRequest =
+    std::make_shared<EditMessageRequest>();
+  editMessageRequest->chatId = chatId;
+  editMessageRequest->msgId = m_EditMessageId;
+  editMessageRequest->chatMessage = chatMessage; // copy original message (time sent, quote id, etc)
+  editMessageRequest->chatMessage.text = EntryStrToSendStr(entryStr); // update text content
+  SendProtocolRequest(profileId, editMessageRequest);
+
+  SetEditMessageActive(false);
+
+  Clear();
+}
+
+void UiModel::Impl::OnKeyCancel()
+{
+  AnyUserKeyInput();
+  bool editMessageActive = GetEditMessageActive();
+  if (editMessageActive)
+  {
     SetEditMessageActive(false);
   }
 
   Clear();
 }
 
-void UiModel::CancelEditMessage()
-{
-  {
-    std::unique_lock<std::mutex> lock(m_ModelMutex);
-
-    if (!GetEditMessageActive()) return;
-
-    SetEditMessageActive(false);
-  }
-
-  Clear();
-}
-
-std::string UiModel::EntryStrToSendStr(const std::wstring& p_EntryStr)
+std::string UiModel::Impl::EntryStrToSendStr(const std::wstring& p_EntryStr)
 {
   std::string str;
   if (m_View->GetEmojiEnabled())
@@ -3237,17 +2953,10 @@ std::string UiModel::EntryStrToSendStr(const std::wstring& p_EntryStr)
   return str;
 }
 
-bool UiModel::MessageDialog(const std::string& p_Title, const std::string& p_Text, float p_WReq, float p_HReq)
+void UiModel::Impl::OnKeySpell()
 {
-  UiDialogParams params(m_View.get(), this, p_Title, p_WReq, p_HReq);
-  UiMessageDialog messageDialog(params, p_Text);
-  bool rv = messageDialog.Run();
-  ReinitView();
-  return rv;
-}
+  AnyUserKeyInput();
 
-void UiModel::ExternalSpell()
-{
   static const std::string cmd = []()
   {
     std::string spellCheckCommand = UiConfig::GetStr("spell_check_command");
@@ -3286,8 +2995,9 @@ void UiModel::ExternalSpell()
   }
 }
 
-void UiModel::ExternalEdit()
+void UiModel::Impl::OnKeyExtEdit()
 {
+  AnyUserKeyInput();
   static const std::string editorCmd = []()
   {
     std::string messageEditCommand = UiConfig::GetStr("message_edit_command");
@@ -3302,9 +3012,8 @@ void UiModel::ExternalEdit()
   CallExternalEdit(editorCmd);
 }
 
-void UiModel::CallExternalEdit(const std::string& p_EditorCmd)
+void UiModel::Impl::CallExternalEdit(const std::string& p_EditorCmd)
 {
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
 
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
@@ -3348,7 +3057,7 @@ void UiModel::CallExternalEdit(const std::string& p_EditorCmd)
   UpdateEntry();
 }
 
-const std::pair<std::string, std::string>& UiModel::GetNextChat()
+const std::pair<std::string, std::string>& UiModel::Impl::GetNextChat()
 {
   if (m_ChatVec.empty()) return s_ChatNone;
 
@@ -3363,15 +3072,15 @@ const std::pair<std::string, std::string>& UiModel::GetNextChat()
   return nextChat;
 }
 
-void UiModel::ExternalCall()
+std::string UiModel::Impl::PreExtCall()
 {
+  AnyUserKeyInput();
   const std::string phone = GetContactPhone(m_CurrentChat.first, m_CurrentChat.second);
-  if (phone.empty())
-  {
-    MessageDialog("Warning", "Contact phone number unknown.", 0.7, 5);
-    return;
-  }
+  return phone;
+}
 
+void UiModel::Impl::StartExtCall(const std::string& p_Phone)
+{
   static const std::string cmdTemplate = []()
   {
     std::string callCommand = UiConfig::GetStr("call_command");
@@ -3388,12 +3097,12 @@ void UiModel::ExternalCall()
   }();
 
   std::string cmd = cmdTemplate;
-  StrUtil::ReplaceString(cmd, "%1", phone);
+  StrUtil::ReplaceString(cmd, "%1", p_Phone);
 
   RunCommand(cmd);
 }
 
-void UiModel::SendProtocolRequest(const std::string& p_ProfileId, std::shared_ptr<RequestMessage> p_Request)
+void UiModel::Impl::SendProtocolRequest(const std::string& p_ProfileId, std::shared_ptr<RequestMessage> p_Request)
 {
   if (!m_Protocols.count(p_ProfileId))
   {
@@ -3404,7 +3113,7 @@ void UiModel::SendProtocolRequest(const std::string& p_ProfileId, std::shared_pt
   m_Protocols[p_ProfileId]->SendRequest(p_Request);
 }
 
-bool UiModel::HasProtocolFeature(const std::string& p_ProfileId, ProtocolFeature p_ProtocolFeature)
+bool UiModel::Impl::HasProtocolFeature(const std::string& p_ProfileId, ProtocolFeature p_ProtocolFeature)
 {
   if (!m_Protocols.count(p_ProfileId))
   {
@@ -3415,13 +3124,13 @@ bool UiModel::HasProtocolFeature(const std::string& p_ProfileId, ProtocolFeature
   return m_Protocols[p_ProfileId]->HasFeature(p_ProtocolFeature);
 }
 
-bool UiModel::IsMultipleProfiles()
+bool UiModel::Impl::IsMultipleProfiles()
 {
   static bool isMultipleProfiles = (m_Protocols.size() > 1);
   return isMultipleProfiles;
 }
 
-std::string UiModel::GetProfileDisplayName(const std::string& p_ProfileId)
+std::string UiModel::Impl::GetProfileDisplayName(const std::string& p_ProfileId)
 {
   static std::map<std::string, std::string> s_DisplayNames = [&]()
   {
@@ -3459,20 +3168,18 @@ std::string UiModel::GetProfileDisplayName(const std::string& p_ProfileId)
   return s_DisplayNames[p_ProfileId];
 }
 
-void UiModel::Quit(bool p_Forced)
+void UiModel::Impl::OnKeyQuit()
 {
-  if (!p_Forced && (Status::Get() & Status::FlagSyncing))
-  {
-    if (!MessageDialog("Confirmation", "Syncing in progress, confirm exit?", 0.75, 5))
-    {
-      return;
-    }
-  }
+  AnyUserKeyInput();
+  Quit();
+}
 
+void UiModel::Impl::Quit()
+{
   m_Running = false;
 }
 
-void UiModel::EntryConvertEmojiEnabled()
+void UiModel::Impl::EntryConvertEmojiEnabled()
 {
   const bool emojiEnabled = GetEmojiEnabled();
   std::string profileId = m_CurrentChat.first;
@@ -3497,7 +3204,7 @@ void UiModel::EntryConvertEmojiEnabled()
   }
 }
 
-void UiModel::SetProtocolUiControl(const std::string& p_ProfileId, bool& p_IsTakeControl)
+void UiModel::Impl::SetProtocolUiControl(const std::string& p_ProfileId, bool& p_IsTakeControl)
 {
   if (p_IsTakeControl)
   {
@@ -3531,19 +3238,20 @@ void UiModel::SetProtocolUiControl(const std::string& p_ProfileId, bool& p_IsTak
   }
 }
 
-void UiModel::HandleProtocolUiControl(std::unique_lock<std::mutex>& lock)
+bool UiModel::Impl::IsProtocolUiControlActive()
+{
+  return !m_ProtocolUiControl.empty();
+}
+
+void UiModel::Impl::HandleProtocolUiControlStart()
 {
   LOG_TRACE("handle protocol ui control start");
-
   endwin();
+}
 
-  while (!m_ProtocolUiControl.empty())
-  {
-    lock.unlock();
-    TimeUtil::Sleep(0.050); // match GetKey timeout
-    lock.lock();
-  }
-
+void UiModel::Impl::HandleProtocolUiControlEnd()
+{
+  LOG_TRACE("handle protocol ui control end");
   refresh();
 
   wint_t key = 0;
@@ -3551,90 +3259,72 @@ void UiModel::HandleProtocolUiControl(std::unique_lock<std::mutex>& lock)
   {
     // Discard any remaining input
   }
-
-  LOG_TRACE("handle protocol ui control end");
 }
 
-void UiModel::React()
+bool UiModel::Impl::PreReact(std::string& p_ProfileId, std::string& p_ChatId, std::string& p_SenderId,
+                             std::string& p_MsgId, std::string& p_SelfEmoji, bool& p_HasLimitedReactions)
 {
-  if (!GetSelectMessageActive() || GetEditMessageActive()) return;
+  p_ProfileId = m_CurrentChat.first;
+  p_ChatId = m_CurrentChat.second;
+  const std::vector<std::string>& messageVec = m_MessageVec[p_ProfileId][p_ChatId];
+  const int messageOffset = m_MessageOffset[p_ProfileId][p_ChatId];
+  auto it = std::next(messageVec.begin(), messageOffset);
+  if (it == messageVec.end()) return false;
 
-  std::string profileId;
-  std::string chatId;
-  std::string senderId;
-  std::string msgId;
-  std::string selfEmoji;
-  bool hasLimitedReactions = false;
-
+  p_MsgId = *it;
+  const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[p_ProfileId][p_ChatId];
+  auto mit = messages.find(p_MsgId);
+  if (mit == messages.end())
   {
-    std::unique_lock<std::mutex> lock(m_ModelMutex);
-
-    profileId = m_CurrentChat.first;
-    chatId = m_CurrentChat.second;
-    const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
-    const int messageOffset = m_MessageOffset[profileId][chatId];
-    auto it = std::next(messageVec.begin(), messageOffset);
-    if (it == messageVec.end()) return;
-
-    msgId = *it;
-    const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
-    auto mit = messages.find(msgId);
-    if (mit == messages.end())
+    LOG_WARNING("message %s missing", p_MsgId.c_str());
+    return false;
+  }
+  else
+  {
+    p_SenderId = mit->second.senderId;
+    auto sit = mit->second.reactions.senderEmojis.find(s_ReactionsSelfId);
+    if (sit != mit->second.reactions.senderEmojis.end())
     {
-      LOG_WARNING("message %s missing", msgId.c_str());
-      return;
-    }
-    else
-    {
-      senderId = mit->second.senderId;
-      auto sit = mit->second.reactions.senderEmojis.find(s_ReactionsSelfId);
-      if (sit != mit->second.reactions.senderEmojis.end())
-      {
-        selfEmoji = sit->second;
-      }
-    }
-
-    hasLimitedReactions = HasProtocolFeature(profileId, FeatureLimitedReactions);
-    if (hasLimitedReactions)
-    {
-      LOG_TRACE("request available reactions");
-      m_AvailableReactionsPending[profileId][chatId] = true;
-      std::shared_ptr<GetAvailableReactionsRequest> getAvailableReactionsRequest =
-        std::make_shared<GetAvailableReactionsRequest>();
-      getAvailableReactionsRequest->chatId = chatId;
-      getAvailableReactionsRequest->msgId = msgId;
-      SendProtocolRequest(profileId, getAvailableReactionsRequest);
+      p_SelfEmoji = sit->second;
     }
   }
 
-  UiDialogParams params(m_View.get(), this, "Set Reaction", 0.75, 0.65);
-  UiEmojiListDialog dialog(params, selfEmoji, true /*p_HasNone*/, hasLimitedReactions);
-  if (dialog.Run())
+  p_HasLimitedReactions = HasProtocolFeature(p_ProfileId, FeatureLimitedReactions);
+  if (p_HasLimitedReactions)
   {
-    std::string emoji = StrUtil::ToString(dialog.GetSelectedEmoji(true /*p_EmojiEnabled*/));
+    LOG_TRACE("request available reactions");
+    m_AvailableReactionsPending[p_ProfileId][p_ChatId] = true;
+    std::shared_ptr<GetAvailableReactionsRequest> getAvailableReactionsRequest =
+      std::make_shared<GetAvailableReactionsRequest>();
+    getAvailableReactionsRequest->chatId = p_ChatId;
+    getAvailableReactionsRequest->msgId = p_MsgId;
+    SendProtocolRequest(p_ProfileId, getAvailableReactionsRequest);
+  }
 
-    std::unique_lock<std::mutex> lock(m_ModelMutex);
+  return true;
+}
 
-    if (emoji != selfEmoji)
-    {
-      std::shared_ptr<SendReactionRequest> sendReactionRequest = std::make_shared<SendReactionRequest>();
-      sendReactionRequest->chatId = chatId;
-      sendReactionRequest->senderId = senderId;
-      sendReactionRequest->msgId = msgId;
-      sendReactionRequest->emoji = emoji;
-      sendReactionRequest->prevEmoji = selfEmoji;
-      SendProtocolRequest(profileId, sendReactionRequest);
+void UiModel::Impl::SetReact(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_SenderId,
+                             const std::string& p_MsgId, const std::string& p_SelfEmoji, const std::string& p_Emoji)
+{
+  if (p_Emoji != p_SelfEmoji)
+  {
+    std::shared_ptr<SendReactionRequest> sendReactionRequest = std::make_shared<SendReactionRequest>();
+    sendReactionRequest->chatId = p_ChatId;
+    sendReactionRequest->senderId = p_SenderId;
+    sendReactionRequest->msgId = p_MsgId;
+    sendReactionRequest->emoji = p_Emoji;
+    sendReactionRequest->prevEmoji = p_SelfEmoji;
+    SendProtocolRequest(p_ProfileId, sendReactionRequest);
 
-      UpdateHistory();
-    }
+    UpdateHistory();
   }
 
   ReinitView();
 }
 
-void UiModel::GetAvailableEmojis(std::set<std::string>& p_AvailableEmojis, bool& p_Pending)
+void UiModel::Impl::GetAvailableEmojis(std::set<std::string>& p_AvailableEmojis, bool& p_Pending)
 {
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
 
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
@@ -3650,11 +3340,11 @@ void UiModel::GetAvailableEmojis(std::set<std::string>& p_AvailableEmojis, bool&
   LOG_DEBUG("get available reactions %d pending %d", p_AvailableEmojis.size(), p_Pending);
 }
 
-void UiModel::JumpQuoted()
+void UiModel::Impl::OnKeyJumpQuoted()
 {
-  if (!GetSelectMessageActive() || GetEditMessageActive()) return;
+  AnyUserKeyInput();
 
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
+  if (!GetSelectMessageActive() || GetEditMessageActive()) return;
 
   std::string quotedId;
   const std::string profileId = m_CurrentChat.first;
@@ -3692,47 +3382,18 @@ void UiModel::JumpQuoted()
   SendProtocolRequest(profileId, findMessageRequest);
 }
 
-void UiModel::Find()
+void UiModel::Impl::Find(const std::string& p_FindText)
 {
-  if (GetEditMessageActive()) return;
-
-  m_FindText = "";
-  UiDialogParams params(m_View.get(), this, "Find", 0.5, 5);
-  UiTextInputDialog textInputDialog(params, "Text: ", m_FindText);
-  if (textInputDialog.Run())
+  if (!p_FindText.empty())
   {
-    m_FindText = textInputDialog.GetInput();
-    if (!m_FindText.empty())
-    {
-      PerformFindNext();
-    }
-  }
-  else
-  {
-    m_FindText = "";
+    PerformFindNext(p_FindText);
   }
 
   ReinitView();
 }
 
-void UiModel::FindNext()
+void UiModel::Impl::PerformFindNext(const std::string& p_FindText)
 {
-  if (GetEditMessageActive()) return;
-
-  if (m_FindText.empty())
-  {
-    Find();
-  }
-  else
-  {
-    PerformFindNext();
-  }
-}
-
-void UiModel::PerformFindNext()
-{
-  std::unique_lock<std::mutex> lock(m_ModelMutex);
-
   const std::string profileId = m_CurrentChat.first;
   const std::string chatId = m_CurrentChat.second;
   std::string& oldestMessageId = m_OldestMessageId[profileId][chatId];
@@ -3753,25 +3414,23 @@ void UiModel::PerformFindNext()
   findMessageRequest->chatId = chatId;
   findMessageRequest->fromMsgId = fromMsgId;
   findMessageRequest->lastMsgId = oldestMessageId;
-  findMessageRequest->findText = m_FindText;
+  findMessageRequest->findText = p_FindText;
   SendProtocolRequest(profileId, findMessageRequest);
 }
 
-void UiModel::ClearFind()
+void UiModel::Impl::ForwardMessage(const std::pair<std::string, std::string>& p_Chat)
 {
-  m_FindText = "";
+  PerformForwardMessage(p_Chat);
+  ReinitView();
 }
 
-void UiModel::ForwardMessage()
+void UiModel::Impl::PerformForwardMessage(const std::pair<std::string, std::string>& p_Chat)
 {
   ChatMessage message;
   std::string profileId;
   std::string chatId;
 
   {
-    std::unique_lock<std::mutex> lock(m_ModelMutex);
-    if (!GetSelectMessageActive() || GetEditMessageActive()) return;
-
     profileId = m_CurrentChat.first;
     chatId = m_CurrentChat.second;
     const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
@@ -3796,127 +3455,93 @@ void UiModel::ForwardMessage()
     message = msg->second;
   }
 
-  UiDialogParams params(m_View.get(), this, "Forward to Chat", 0.75, 0.65);
-  UiChatListDialog dialog(params);
-
-  if (dialog.Run())
+  // switch current chat to recipient
+  bool found = false;
+  for (size_t i = 0; i < m_ChatVec.size(); ++i)
   {
-    UiChatListItem selectedChatListItem = dialog.GetSelectedChatItem();
-
-    std::unique_lock<std::mutex> lock(m_ModelMutex);
-
-    // switch current chat to recipient
-    bool found = false;
-    std::pair<std::string, std::string> newCurrentChat =
-      std::make_pair(selectedChatListItem.profileId, selectedChatListItem.chatId);
-    for (size_t i = 0; i < m_ChatVec.size(); ++i)
+    if (m_ChatVec.at(i) == p_Chat)
     {
-      if (m_ChatVec.at(i) == newCurrentChat)
-      {
-        m_CurrentChatIndex = i;
-        m_CurrentChat = m_ChatVec.at(m_CurrentChatIndex);
-        found = true;
-        break;
-      }
+      m_CurrentChatIndex = i;
+      m_CurrentChat = m_ChatVec.at(m_CurrentChatIndex);
+      found = true;
+      break;
     }
-
-    if (found)
-    {
-      // fetch recipient messages before send, to avoid fetching outgoing message with temporary id
-      OnCurrentChatChanged();
-    }
-    else
-    {
-      LOG_WARNING("recipient %s %s not found",
-                  selectedChatListItem.profileId.c_str(),
-                  selectedChatListItem.chatId.c_str());
-    }
-
-    std::shared_ptr<SendMessageRequest> sendMessageRequest =
-      std::make_shared<SendMessageRequest>();
-
-    // prepare a new FileInfo struct if original message has a file
-    if (!message.fileInfo.empty())
-    {
-      FileInfo fileInfo = ProtocolUtil::FileInfoFromHex(message.fileInfo);
-      fileInfo.fileType = FileUtil::GetMimeType(fileInfo.filePath);
-      sendMessageRequest->chatMessage.fileInfo = ProtocolUtil::FileInfoToHex(fileInfo);
-    }
-
-    // copy text and use selected chat
-    sendMessageRequest->chatMessage.text = message.text;
-    sendMessageRequest->chatId = selectedChatListItem.chatId;
-
-    SendProtocolRequest(selectedChatListItem.profileId, sendMessageRequest);
-
-    // reset message offset and selection mode
-    m_MessageOffset[profileId][chatId] = 0;
-    SetSelectMessageActive(false);
   }
 
-  ReinitView();
+  if (found)
+  {
+    // fetch recipient messages before send, to avoid fetching outgoing message with temporary id
+    OnCurrentChatChanged();
+  }
+  else
+  {
+    LOG_WARNING("recipient %s %s not found", p_Chat.first.c_str(), p_Chat.second.c_str());
+    return;
+  }
+
+  std::shared_ptr<SendMessageRequest> sendMessageRequest =
+    std::make_shared<SendMessageRequest>();
+
+  // prepare a new FileInfo struct if original message has a file
+  if (!message.fileInfo.empty())
+  {
+    FileInfo fileInfo = ProtocolUtil::FileInfoFromHex(message.fileInfo);
+    fileInfo.fileType = FileUtil::GetMimeType(fileInfo.filePath);
+    sendMessageRequest->chatMessage.fileInfo = ProtocolUtil::FileInfoToHex(fileInfo);
+  }
+
+  // copy text and use selected chat
+  sendMessageRequest->chatMessage.text = message.text;
+  sendMessageRequest->chatId = p_Chat.second;
+
+  SendProtocolRequest(p_Chat.first, sendMessageRequest);
+
+  // reset message offset and selection mode
+  m_MessageOffset[profileId][chatId] = 0;
+  SetSelectMessageActive(false);
 }
 
-bool UiModel::IsChatForceHidden(const std::string& p_ChatId)
+bool UiModel::Impl::IsChatForceHidden(const std::string& p_ChatId)
 {
   static const bool statusBroadcastHidden = (UiConfig::GetNum("status_broadcast") == 0);
   return statusBroadcastHidden && (p_ChatId == "status@broadcast");
 }
 
-bool UiModel::IsChatForceMuted(const std::string& p_ChatId)
+bool UiModel::Impl::IsChatForceMuted(const std::string& p_ChatId)
 {
   static const bool statusBroadcastMuted = (UiConfig::GetNum("status_broadcast") == 1);
   return statusBroadcastMuted && (p_ChatId == "status@broadcast");
 }
 
-void UiModel::GotoChat()
+void UiModel::Impl::GotoChat(const std::pair<std::string, std::string>& p_Chat)
 {
+  // switch current chat
+  bool found = false;
+  for (size_t i = 0; i < m_ChatVec.size(); ++i)
   {
-    std::unique_lock<std::mutex> lock(m_ModelMutex);
-    if (GetEditMessageActive()) return;
+    if (m_ChatVec.at(i) == p_Chat)
+    {
+      m_CurrentChatIndex = i;
+      m_CurrentChat = m_ChatVec.at(m_CurrentChatIndex);
+      found = true;
+      break;
+    }
   }
 
-  UiDialogParams params(m_View.get(), this, "Go to Chat", 0.75, 0.65);
-  UiChatListDialog dialog(params);
-  if (dialog.Run())
+  if (found)
   {
-    UiChatListItem selectedChatListItem = dialog.GetSelectedChatItem();
-
-    std::unique_lock<std::mutex> lock(m_ModelMutex);
-
-    // switch current chat
-    bool found = false;
-    std::pair<std::string, std::string> newCurrentChat =
-      std::make_pair(selectedChatListItem.profileId, selectedChatListItem.chatId);
-    for (size_t i = 0; i < m_ChatVec.size(); ++i)
-    {
-      if (m_ChatVec.at(i) == newCurrentChat)
-      {
-        m_CurrentChatIndex = i;
-        m_CurrentChat = m_ChatVec.at(m_CurrentChatIndex);
-        found = true;
-        break;
-      }
-    }
-
-    if (found)
-    {
-      OnCurrentChatChanged();
-    }
-    else
-    {
-      LOG_WARNING("chat %s %s not found",
-                  selectedChatListItem.profileId.c_str(),
-                  selectedChatListItem.chatId.c_str());
-    }
+    OnCurrentChatChanged();
+  }
+  else
+  {
+    LOG_WARNING("chat %s %s not found", p_Chat.first.c_str(), p_Chat.second.c_str());
   }
 
   ReinitView();
 }
 
-void UiModel::AddQuoteFromSelectedMessage(ChatMessage& p_ChatMessage)
+void UiModel::Impl::AddQuoteFromSelectedMessage(ChatMessage& p_ChatMessage)
 {
-  // must be called with lock held
   const std::string profileId = m_CurrentChat.first;
   const std::string chatId = m_CurrentChat.second;
   const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
@@ -3940,4 +3565,1007 @@ void UiModel::AddQuoteFromSelectedMessage(ChatMessage& p_ChatMessage)
   p_ChatMessage.quotedId = msg->second.id;
   p_ChatMessage.quotedText = msg->second.text;
   p_ChatMessage.quotedSender = msg->second.senderId;
+}
+
+void UiModel::Impl::Draw()
+{
+  m_View->Draw();
+}
+
+// ---------------------------------------------------------------------
+// UiModel
+// ---------------------------------------------------------------------
+
+UiModel::UiModel()
+  : m_Impl(this)
+{
+}
+
+UiModel::~UiModel()
+{
+}
+
+void UiModel::Init()
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  GetImpl().Init();
+}
+
+void UiModel::Cleanup()
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  GetImpl().Cleanup();
+}
+
+void UiModel::ReinitView()
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  GetImpl().ReinitView();
+}
+
+void UiModel::AddProtocol(std::shared_ptr<Protocol> p_Protocol)
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  GetImpl().AddProtocol(p_Protocol);
+}
+
+std::unordered_map<std::string, std::shared_ptr<Protocol>> UiModel::GetProtocols()
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  return GetImpl().GetProtocols();
+}
+
+bool UiModel::IsMultipleProfiles()
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  return GetImpl().IsMultipleProfiles();
+}
+
+void UiModel::Draw()
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  GetImpl().Draw();
+}
+
+void UiModel::KeyHandler(wint_t p_Key)
+{
+  static wint_t keyPrevPage = UiKeyConfig::GetKey("prev_page");
+  static wint_t keyNextPage = UiKeyConfig::GetKey("next_page");
+  static wint_t keyEnd = UiKeyConfig::GetKey("end");
+  static wint_t keyHome = UiKeyConfig::GetKey("home");
+
+  static wint_t keySendMsg = UiKeyConfig::GetKey("send_msg");
+  static wint_t keyNextChat = UiKeyConfig::GetKey("next_chat");
+  static wint_t keyPrevChat = UiKeyConfig::GetKey("prev_chat");
+  static wint_t keyUnreadChat = UiKeyConfig::GetKey("unread_chat");
+
+  static wint_t keyQuit = UiKeyConfig::GetKey("quit");
+  static wint_t keySelectEmoji = UiKeyConfig::GetKey("select_emoji");
+  static wint_t keySelectContact = UiKeyConfig::GetKey("select_contact");
+  static wint_t keyTransfer = UiKeyConfig::GetKey("transfer");
+  static wint_t keyDeleteMsg = UiKeyConfig::GetKey("delete_msg");
+  static wint_t keyDeleteChat = UiKeyConfig::GetKey("delete_chat");
+  static wint_t keyEditMsg = UiKeyConfig::GetKey("edit_msg");
+  static wint_t keyCancel = UiKeyConfig::GetKey("cancel");
+
+  static wint_t keyOpen = UiKeyConfig::GetKey("open");
+  static wint_t keyOpenLink = UiKeyConfig::GetKey("open_link");
+  static wint_t keyOpenMsg = UiKeyConfig::GetKey("open_msg");
+  static wint_t keySave = UiKeyConfig::GetKey("save");
+
+  static wint_t keyCut = UiKeyConfig::GetKey("cut");
+  static wint_t keyCopy = UiKeyConfig::GetKey("copy");
+  static wint_t keyPaste = UiKeyConfig::GetKey("paste");
+
+  static wint_t keyReact = UiKeyConfig::GetKey("react");
+  static wint_t keySpell = UiKeyConfig::GetKey("spell");
+
+  static wint_t keyJumpQuoted = UiKeyConfig::GetKey("jump_quoted");
+  static wint_t keyFind = UiKeyConfig::GetKey("find");
+  static wint_t keyFindNext = UiKeyConfig::GetKey("find_next");
+
+  static wint_t keyForwardMsg = UiKeyConfig::GetKey("forward_msg");
+  static wint_t keyGotoChat = UiKeyConfig::GetKey("goto_chat");
+
+  static wint_t keyToggleList = UiKeyConfig::GetKey("toggle_list");
+  static wint_t keyToggleTop = UiKeyConfig::GetKey("toggle_top");
+  static wint_t keyToggleHelp = UiKeyConfig::GetKey("toggle_help");
+  static wint_t keyToggleEmoji = UiKeyConfig::GetKey("toggle_emoji");
+
+  static wint_t keyDecreaseListWidth = UiKeyConfig::GetKey("decrease_list_width");
+  static wint_t keyIncreaseListWidth = UiKeyConfig::GetKey("increase_list_width");
+
+  static wint_t keyExtEdit = UiKeyConfig::GetKey("ext_edit");
+  static wint_t keyExtCall = UiKeyConfig::GetKey("ext_call");
+
+  static wint_t keyOtherCommandsHelp = UiKeyConfig::GetKey("other_commands_help");
+  static wint_t keyTerminalFocusIn = UiKeyConfig::GetKey("terminal_focus_in");
+  static wint_t keyTerminalFocusOut = UiKeyConfig::GetKey("terminal_focus_out");
+  static wint_t keyTerminalResize = UiKeyConfig::GetKey("terminal_resize");
+
+  if (p_Key == keyTerminalResize)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().TerminalResize();
+  }
+  else if (p_Key == keyTerminalFocusIn)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().SetTerminalActive(true);
+  }
+  else if (p_Key == keyTerminalFocusOut)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().SetTerminalActive(false);
+  }
+  else if (p_Key == keyToggleHelp)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeyToggleHelp();
+  }
+  else if (p_Key == keyToggleList)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeyToggleList();
+  }
+  else if (p_Key == keyToggleTop)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeyToggleTop();
+  }
+  else if (p_Key == keyToggleEmoji)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeyToggleEmoji();
+  }
+  else if (p_Key == keyNextChat)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeyNextChat();
+  }
+  else if (p_Key == keyPrevChat)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeyPrevChat();
+  }
+  else if (p_Key == keyUnreadChat)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeyUnreadChat();
+  }
+  else if (p_Key == keyPrevPage)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeyPrevPage();
+  }
+  else if (p_Key == keyNextPage)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeyNextPage();
+  }
+  else if (p_Key == keyHome)
+  {
+    bool performedFetchAllCache = false;
+    {
+      std::unique_lock<owned_mutex> lock(m_ModelMutex);
+      performedFetchAllCache = GetImpl().OnKeyHomeFetchCache();
+    }
+
+    if (performedFetchAllCache)
+    {
+      TimeUtil::Sleep(0.2); // @todo: wait for request completion, with timeout
+    }
+
+    {
+      std::unique_lock<owned_mutex> lock(m_ModelMutex);
+      GetImpl().OnKeyHomeFetchNext();
+    }
+  }
+  else if (p_Key == keyEnd)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeyEnd();
+  }
+  else if (p_Key == keyQuit)
+  {
+    OnKeyQuit();
+  }
+  else if (p_Key == keySendMsg)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeySendMsg();
+  }
+  else if (p_Key == keyExtEdit)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeyExtEdit();
+  }
+  else if (p_Key == keyDeleteMsg)
+  {
+    OnKeyDeleteMsg();
+  }
+  else if (p_Key == keyDeleteChat)
+  {
+    OnKeyDeleteChat();
+  }
+  else if (p_Key == keyOpen)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeyOpenAttachment();
+  }
+  else if (p_Key == keyOpenLink)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeyOpenLink();
+  }
+  else if (p_Key == keySave)
+  {
+    OnKeySaveAttachment();
+  }
+  else if (p_Key == keyTransfer)
+  {
+    OnKeyTransfer();
+  }
+  else if (p_Key == keySelectEmoji)
+  {
+    OnKeySelectEmoji();
+  }
+  else if (p_Key == keySelectContact)
+  {
+    OnKeySelectContact();
+  }
+  else if (p_Key == keyOtherCommandsHelp)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeyOtherCommandsHelp();
+  }
+  else if (p_Key == keyCut)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeyCut();
+  }
+  else if (p_Key == keyCopy)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeyCopy();
+  }
+  else if (p_Key == keyPaste)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeyPaste();
+  }
+  else if (p_Key == keyReact)
+  {
+    OnKeyReact();
+  }
+  else if (p_Key == keySpell)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeySpell();
+  }
+  else if (p_Key == keyEditMsg)
+  {
+    OnKeyEditMsg();
+  }
+  else if (p_Key == keyCancel)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeyCancel();
+  }
+  else if (p_Key == keyDecreaseListWidth)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeyDecreaseListWidth();
+  }
+  else if (p_Key == keyIncreaseListWidth)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeyIncreaseListWidth();
+  }
+  else if (p_Key == keyOpenMsg)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeyOpenMsg();
+  }
+  else if (p_Key == keyExtCall)
+  {
+    OnKeyExtCall();
+  }
+  else if (p_Key == keyJumpQuoted)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeyJumpQuoted();
+  }
+  else if (p_Key == keyFind)
+  {
+    OnKeyFind();
+  }
+  else if (p_Key == keyFindNext)
+  {
+    OnKeyFindNext();
+  }
+  else if (p_Key == keyForwardMsg)
+  {
+    OnKeyForwardMsg();
+  }
+  else if (p_Key == keyGotoChat)
+  {
+    OnKeyGotoChat();
+  }
+  else
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().EntryKeyHandler(p_Key);
+  }
+}
+
+void UiModel::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage)
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  GetImpl().MessageHandler(p_ServiceMessage);
+}
+
+bool UiModel::Process()
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  if (GetImpl().IsProtocolUiControlActive())
+  {
+    GetImpl().HandleProtocolUiControlStart();
+
+    while (GetImpl().IsProtocolUiControlActive())
+    {
+      lock.unlock();
+      TimeUtil::Sleep(0.050); // match GetKey timeout
+      lock.lock();
+    }
+
+    GetImpl().HandleProtocolUiControlEnd();
+  }
+
+  return GetImpl().Process();
+}
+
+void UiModel::RequestContacts()
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  return GetImpl().RequestContacts();
+}
+
+int UiModel::GetScreenWidth()
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  return GetImpl().GetScreenWidth();
+}
+
+int UiModel::GetScreenHeight()
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  return GetImpl().GetScreenHeight();
+}
+
+void UiModel::GetAvailableEmojis(std::set<std::string>& p_AvailableEmojis, bool& p_Pending)
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  GetImpl().GetAvailableEmojis(p_AvailableEmojis, p_Pending);
+}
+
+std::vector<std::pair<std::string, std::string>> UiModel::GetChatVec()
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  return GetImpl().GetChatVec();
+}
+
+std::string UiModel::GetContactListName(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_AllowId)
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  return GetImpl().GetContactListName(p_ProfileId, p_ChatId, p_AllowId);
+}
+
+std::unordered_map<std::string, std::unordered_map<std::string, ContactInfo>> UiModel::GetContactInfos()
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  return GetImpl().GetContactInfos();
+}
+
+std::string UiModel::GetProfileDisplayName(const std::string& p_ProfileId)
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  return GetImpl().GetProfileDisplayName(p_ProfileId);
+}
+
+int64_t UiModel::GetContactInfosUpdateTime()
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  return GetImpl().GetContactInfosUpdateTime();
+}
+
+bool UiModel::GetEmojiEnabled()
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  return GetImpl().GetEmojiEnabled();
+}
+
+int UiModel::GetHelpOffset()
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  return GetImpl().GetHelpOffset();
+}
+
+void UiModel::SetHelpOffset(int p_HelpOffset)
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  GetImpl().SetHelpOffset(p_HelpOffset);
+}
+
+void UiModel::SetMessageDialogActive(bool p_MessageDialogActive)
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  GetImpl().SetMessageDialogActive(p_MessageDialogActive);
+}
+
+void UiModel::SetListDialogActive(bool p_ListDialogActive)
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  GetImpl().SetListDialogActive(p_ListDialogActive);
+}
+
+void UiModel::SetStatusOnline(const std::string& p_ProfileId, bool p_IsOnline)
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  GetImpl().SetStatusOnline(p_ProfileId, p_IsOnline);
+}
+
+void UiModel::SetTerminalActive(bool p_TerminalActive)
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  GetImpl().SetTerminalActive(p_TerminalActive);
+}
+
+bool UiModel::GetChatIsUnreadLocked(const std::string& p_ProfileId, const std::string& p_ChatId)
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetChatIsUnread(p_ProfileId, p_ChatId);
+}
+
+std::string UiModel::GetChatStatusLocked(const std::string& p_ProfileId, const std::string& p_ChatId)
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetChatStatus(p_ProfileId, p_ChatId);
+}
+
+std::vector<std::pair<std::string, std::string>>& UiModel::GetChatVecLocked()
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetChatVec();
+}
+
+std::string UiModel::GetContactListNameLocked(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                              bool p_AllowId)
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetContactListName(p_ProfileId, p_ChatId, p_AllowId);
+}
+
+std::string UiModel::GetContactNameLocked(const std::string& p_ProfileId, const std::string& p_ChatId)
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetContactName(p_ProfileId, p_ChatId);
+}
+
+std::string UiModel::GetContactPhoneLocked(const std::string& p_ProfileId, const std::string& p_ChatId)
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetContactPhone(p_ProfileId, p_ChatId);
+}
+
+int UiModel::GetCurrentChatIndexLocked()
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetCurrentChatIndex();
+}
+
+std::pair<std::string, std::string>& UiModel::GetCurrentChatLocked()
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetCurrentChat();
+}
+
+bool UiModel::GetEditMessageActiveLocked()
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetEditMessageActive();
+}
+
+bool UiModel::GetEmojiEnabledLocked()
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetEmojiEnabled();
+}
+
+int UiModel::GetEntryPosLocked()
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetEntryPos();
+}
+
+std::wstring UiModel::GetEntryStrLocked()
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetEntryStr();
+}
+
+int UiModel::GetHelpOffsetLocked()
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetHelpOffset();
+}
+
+int64_t UiModel::GetLastMessageTimeLocked(const std::string& p_ProfileId, const std::string& p_ChatId)
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetLastMessageTime(p_ProfileId, p_ChatId);
+}
+
+bool UiModel::GetListDialogActiveLocked()
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetListDialogActive();
+}
+
+bool UiModel::GetMessageDialogActiveLocked()
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetMessageDialogActive();
+}
+
+int UiModel::GetMessageOffsetLocked(const std::string& p_ProfileId, const std::string& p_ChatId)
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetMessageOffset(p_ProfileId, p_ChatId);
+}
+
+std::unordered_map<std::string, ChatMessage>& UiModel::GetMessagesLocked(const std::string& p_ProfileId,
+                                                                         const std::string& p_ChatId)
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetMessages(p_ProfileId, p_ChatId);
+}
+
+std::vector<std::string>& UiModel::GetMessageVecLocked(const std::string& p_ProfileId, const std::string& p_ChatId)
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetMessageVec(p_ProfileId, p_ChatId);
+}
+
+std::string UiModel::GetProfileDisplayNameLocked(const std::string& p_ProfileId)
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetProfileDisplayName(p_ProfileId);
+}
+
+bool UiModel::GetSelectMessageActiveLocked()
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetSelectMessageActive();
+}
+
+void UiModel::DownloadAttachmentLocked(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                       const std::string& p_MsgId,
+                                       const std::string& p_FileId, DownloadFileAction p_DownloadFileAction)
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  GetImpl().DownloadAttachment(p_ProfileId, p_ChatId, p_MsgId, p_FileId, p_DownloadFileAction);
+}
+
+void UiModel::FetchCachedMessageLocked(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                       const std::string& p_MsgId)
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  GetImpl().FetchCachedMessage(p_ProfileId, p_ChatId, p_MsgId);
+}
+
+bool UiModel::IsMultipleProfilesLocked()
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().IsMultipleProfiles();
+}
+
+void UiModel::MarkReadLocked(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId,
+                             bool p_WasUnread)
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  GetImpl().MarkRead(p_ProfileId, p_ChatId, p_MsgId, p_WasUnread);
+}
+
+void UiModel::OnKeyGotoChat()
+{
+  // Pre-req
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    if (GetImpl().GetEditMessageActive()) return;
+  }
+
+  // Open modal dialog without model mutex held
+  UiDialogParams params(this, "Go to Chat", 0.75, 0.65);
+  UiChatListDialog dialog(params);
+  if (dialog.Run())
+  {
+    UiChatListItem selectedChatListItem = dialog.GetSelectedChatItem();
+    std::pair<std::string, std::string> newCurrentChat =
+      std::make_pair(selectedChatListItem.profileId, selectedChatListItem.chatId);
+
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().GotoChat(newCurrentChat);
+  }
+  else
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().ReinitView();
+  }
+}
+
+std::vector<std::string> UiModel::SelectFile()
+{
+  std::vector<std::string> filePaths;
+  static const std::string filePickerCommand = UiConfig::GetStr("file_picker_command");
+  if (!filePickerCommand.empty())
+  {
+    endwin();
+    std::string outPath = FileUtil::MkTempFile();
+    std::string cmd = "2>&1 " + filePickerCommand;
+    StrUtil::ReplaceString(cmd, "%1", outPath);
+
+    // run command
+    LOG_TRACE("cmd \"%s\" start", cmd.c_str());
+    int rv = system(cmd.c_str());
+    if (rv == 0)
+    {
+      std::string filesStr = FileUtil::ReadFile(outPath);
+      if (!filesStr.empty())
+      {
+        filePaths = StrUtil::Split(filesStr, '\n');
+        std::set<std::string> filePathsSet = ToSet(filePaths); // hack to handle nnn's duplicate results
+        filePathsSet.erase(""); // remove empty element
+        filePaths = ToVector(filePathsSet);
+      }
+    }
+    else
+    {
+      LOG_WARNING("cmd \"%s\" failed (%d)", cmd.c_str(), rv);
+    }
+
+    FileUtil::RmFile(outPath);
+
+    refresh();
+    wint_t key = 0;
+    while (UiKeyInput::GetWch(&key) != ERR)
+    {
+      // Discard any remaining input
+    }
+  }
+  else
+  {
+    static std::string currentDir;
+    static const bool filePickerPersistDir = UiConfig::GetBool("file_picker_persist_dir");
+    if (!filePickerPersistDir || currentDir.empty())
+    {
+      currentDir = FileUtil::GetCurrentWorkingDir();
+    }
+
+    UiDialogParams params(this, "Send File", 0.75, 0.65);
+    UiFileListDialog dialog(params, currentDir);
+    if (dialog.Run())
+    {
+      std::string filePath = dialog.GetSelectedPath();
+      filePaths = std::vector<std::string>({ filePath });
+      currentDir = dialog.GetCurrentDir();
+    }
+  }
+
+  return filePaths;
+}
+
+void UiModel::OnKeyTransfer()
+{
+  // Pre-req
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    if (GetImpl().GetEditMessageActive()) return;
+  }
+
+  // Open modal dialog without model mutex held
+  std::vector<std::string> filePaths = SelectFile();
+
+  // Perform transfer
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  GetImpl().TransferFile(filePaths);
+}
+
+void UiModel::OnKeySelectEmoji()
+{
+  // Open modal dialog without model mutex held
+  UiDialogParams params(this, "Insert Emoji", 0.75, 0.65);
+  UiEmojiListDialog dialog(params);
+  if (dialog.Run())
+  {
+    const std::wstring emoji = dialog.GetSelectedEmoji(GetEmojiEnabled());
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().InsertEmoji(emoji);
+  }
+  else
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().ReinitView();
+  }
+}
+
+void UiModel::OnKeySelectContact()
+{
+  // Pre-req
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    if (GetImpl().GetEditMessageActive()) return;
+  }
+
+  // Open modal dialog without model mutex held
+  UiDialogParams params(this, "Open Chat", 0.75, 0.65);
+  UiContactListDialog dialog(params);
+  if (dialog.Run())
+  {
+    UiContactListItem selectedContact = dialog.GetSelectedContactItem();
+    std::string profileId = selectedContact.profileId;
+    std::string userId = selectedContact.contactId;
+    std::pair<std::string, std::string> newChat = std::make_pair(profileId, userId);
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OpenCreateChat(newChat);
+  }
+  else
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().ReinitView();
+  }
+}
+
+void UiModel::OnKeyReact()
+{
+  // Pre-req
+  std::string profileId;
+  std::string chatId;
+  std::string senderId;
+  std::string msgId;
+  std::string selfEmoji;
+  bool hasLimitedReactions = false;
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    if (!GetImpl().GetSelectMessageActive() || GetImpl().GetEditMessageActive()) return;
+
+    bool messageExists = GetImpl().PreReact(profileId, chatId, senderId, msgId, selfEmoji, hasLimitedReactions);
+    if (!messageExists) return;
+  }
+
+  // Open modal dialog without model mutex held
+  UiDialogParams params(this, "Set Reaction", 0.75, 0.65);
+  UiEmojiListDialog dialog(params, selfEmoji, true /*p_HasNone*/, hasLimitedReactions);
+  if (dialog.Run())
+  {
+    std::string emoji = StrUtil::ToString(dialog.GetSelectedEmoji(true /*p_EmojiEnabled*/));
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().SetReact(profileId, chatId, senderId, msgId, selfEmoji, emoji);
+  }
+  else
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().ReinitView();
+  }
+}
+
+void UiModel::OnKeyFind()
+{
+  // Pre-req
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    if (GetImpl().GetEditMessageActive()) return;
+  }
+
+  // Open modal dialog without model mutex held
+  UiDialogParams params(this, "Find", 0.5, 5);
+  UiTextInputDialog textInputDialog(params, "Text: ", m_FindText);
+  if (textInputDialog.Run())
+  {
+    m_FindText = textInputDialog.GetInput();
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().Find(m_FindText);
+  }
+  else
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().ReinitView();
+  }
+}
+
+void UiModel::OnKeyFindNext()
+{
+  // Pre-req
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    if (GetImpl().GetEditMessageActive()) return;
+  }
+
+  if (m_FindText.empty())
+  {
+    OnKeyFind();
+  }
+  else
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().Find(m_FindText);
+  }
+}
+
+void UiModel::OnKeyForwardMsg()
+{
+  // Pre-req
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    if (!GetImpl().GetSelectMessageActive() || GetImpl().GetEditMessageActive()) return;
+  }
+
+  // Open modal dialog without model mutex held
+  UiDialogParams params(this, "Forward to Chat", 0.75, 0.65);
+  UiChatListDialog dialog(params);
+
+  if (dialog.Run())
+  {
+    UiChatListItem selectedChatListItem = dialog.GetSelectedChatItem();
+    std::pair<std::string, std::string> selectedChat =
+      std::make_pair(selectedChatListItem.profileId, selectedChatListItem.chatId);
+
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().ForwardMessage(selectedChat);
+  }
+  else
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().ReinitView();
+  }
+}
+
+bool UiModel::MessageDialog(const std::string& p_Title, const std::string& p_Text, float p_WReq, float p_HReq)
+{
+  UiDialogParams params(this, p_Title, p_WReq, p_HReq);
+  UiMessageDialog messageDialog(params, p_Text);
+  bool rv = messageDialog.Run();
+  ReinitView();
+  return rv;
+}
+
+void UiModel::OnKeyDeleteMsg()
+{
+  // Pre-req
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    if (!GetImpl().GetSelectMessageActive() || GetImpl().GetEditMessageActive()) return;
+  }
+
+  // Open modal dialog without model mutex held
+  static const bool confirmDeletion = UiConfig::GetBool("confirm_deletion");
+  if (confirmDeletion)
+  {
+    if (!MessageDialog("Confirmation", "Confirm message deletion?", 0.5, 5))
+    {
+      return;
+    }
+  }
+
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  GetImpl().OnKeyDeleteMsg();
+}
+
+void UiModel::OnKeyDeleteChat()
+{
+  // Pre-req
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    if (GetImpl().GetSelectMessageActive() || GetImpl().GetEditMessageActive()) return;
+  }
+
+  // Open modal dialog without model mutex held
+  static const bool confirmDeletion = UiConfig::GetBool("confirm_deletion");
+  if (confirmDeletion)
+  {
+    if (!MessageDialog("Confirmation", "Confirm chat deletion?", 0.5, 5))
+    {
+      return;
+    }
+  }
+
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  GetImpl().OnKeyDeleteChat();
+}
+
+void UiModel::OnKeySaveAttachment()
+{
+  std::string dstFilePath;
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    dstFilePath = GetImpl().OnKeySaveAttachment();
+  }
+
+  // Open modal dialog without model mutex held
+  if (!dstFilePath.empty())
+  {
+    MessageDialog("Notification", "File saved in\n" + dstFilePath, 0.8, 6);
+  }
+}
+
+void UiModel::OnKeyEditMsg()
+{
+  // Pre-req
+  bool isAllowed = false;
+  std::string profileId;
+  std::string chatId;
+  std::string msgId;
+  std::string msgDialogText;
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    if (!GetImpl().GetSelectMessageActive() || GetImpl().GetEditMessageActive()) return;
+
+    isAllowed = GetImpl().PreEditMsg(profileId, chatId, msgId, msgDialogText);
+  }
+
+  // Open modal dialog without model mutex held
+  if (!isAllowed)
+  {
+    if (!msgDialogText.empty())
+    {
+      float wReq = (msgDialogText.size() < 40) ? 0.7 : 0.8;
+      MessageDialog("Warning", msgDialogText, wReq, 5);
+    }
+    return;
+  }
+
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  GetImpl().StartEditMsg(profileId, chatId, msgId);
+}
+
+void UiModel::OnKeyQuit()
+{
+  if (Status::Get() & Status::FlagSyncing)
+  {
+    if (!MessageDialog("Confirmation", "Syncing in progress, confirm exit?", 0.75, 5))
+    {
+      return;
+    }
+  }
+
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  GetImpl().OnKeyQuit();
+}
+
+void UiModel::OnKeyExtCall()
+{
+  std::string phone;
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    phone = GetImpl().PreExtCall();
+  }
+
+  if (phone.empty())
+  {
+    MessageDialog("Warning", "Contact phone number unknown.", 0.7, 5);
+    return;
+  }
+
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  GetImpl().StartExtCall(phone);
+}
+
+bool UiModel::IsAttachmentDownloaded(const FileInfo& p_FileInfo)
+{
+  return UiModel::Impl::IsAttachmentDownloaded(p_FileInfo);
+}
+
+bool UiModel::IsAttachmentDownloadable(const FileInfo& p_FileInfo)
+{
+  return UiModel::Impl::IsAttachmentDownloadable(p_FileInfo);
 }

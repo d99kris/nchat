@@ -74,6 +74,17 @@ if(HAS_WHATSAPP AND (NOT GO_VERSION VERSION_GREATER_EQUAL GO_VERSION_MIN))
   message(FATAL_ERROR "Go version ${GO_VERSION} (need >= ${GO_VERSION_MIN} to build WhatsApp).")
 endif()
 
+# Helper function for applying common target properties
+function(target_common_config target)
+  if (CMAKE_BUILD_TYPE STREQUAL "Release")
+    target_compile_definitions(${target} PRIVATE NCHAT_BUILD_RELEASE=1)
+  elseif (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    target_compile_definitions(${target} PRIVATE NCHAT_BUILD_RELWITHDEBINFO=1)
+  elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_compile_definitions(${target} PRIVATE NCHAT_BUILD_DEBUG=1)
+  endif()
+endfunction()
+
 # Application
 add_executable(nchat
   ext/apathy/path.hpp
@@ -219,6 +230,7 @@ if(HAS_COREDUMP)
 endif()
 
 # Common
+target_common_config(nchat)
 target_compile_definitions(nchat PRIVATE CMAKE_INSTALL_LIBDIR="${CMAKE_INSTALL_LIBDIR}"
                            GO_VERSION="${GO_VERSION}" GO_VERSION_MIN="${GO_VERSION_MIN}")
 

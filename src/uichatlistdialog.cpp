@@ -18,7 +18,7 @@
 UiChatListDialog::UiChatListDialog(const UiDialogParams& p_Params)
   : UiListDialog(p_Params, false /*p_ShadeHidden*/)
 {
-  m_ChatVec = m_Model->GetChatVecLock();
+  m_ChatVec = m_Model->GetChatVec();
   UpdateList();
 }
 
@@ -64,7 +64,7 @@ void UiChatListDialog::UpdateList()
   {
     const std::string& profileId = profileChat.first;
     const std::string& chatId = profileChat.second;
-    const std::string& name = m_Model->GetContactListNameLock(profileId, chatId, true /*p_AllowId*/);;
+    const std::string& name = m_Model->GetContactListName(profileId, chatId, true /*p_AllowId*/);;
 
     if (name.empty()) continue;
 

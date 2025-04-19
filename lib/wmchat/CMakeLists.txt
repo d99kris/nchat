@@ -16,6 +16,9 @@ add_library(wmchat SHARED
 )
 install(TARGETS wmchat DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
+# Common
+target_common_config(wmchat)
+
 # Dependency libraries
 add_subdirectory(go)
 add_dependencies(wmchat ref-cgowm)

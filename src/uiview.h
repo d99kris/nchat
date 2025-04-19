@@ -1,6 +1,6 @@
 // uiview.h
 //
-// Copyright (c) 2019-2023 Kristofer Berggren
+// Copyright (c) 2019-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -25,8 +25,6 @@ public:
   UiView(UiModel* p_UiModel);
   virtual ~UiView();
 
-  void Init();
-  void Draw();
   void TerminalBell();
   void SetEmojiEnabled(bool p_Enabled);
   bool GetEmojiEnabled();
@@ -48,6 +46,10 @@ public:
   int GetScreenHeight();
   void DecreaseListWidth();
   void IncreaseListWidth();
+
+protected:
+  void Init();
+  void Draw();
 
 private:
   UiModel* m_UiModel = nullptr;
@@ -71,4 +73,6 @@ private:
   const bool m_HistoryEnabled = true;
   int m_ListWidth = 14;
   int m_EntryHeight = 4;
+
+  friend class UiModel;
 };

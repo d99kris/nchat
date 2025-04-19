@@ -18,6 +18,7 @@ void AppConfig::Init()
 {
   const std::map<std::string, std::string> defaultConfig =
   {
+    { "assert_abort", "0" },
     { "attachment_prefetch", "1" },
     { "attachment_send_type", "1" },
     { "cache_enabled", "1" },

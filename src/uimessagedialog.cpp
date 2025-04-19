@@ -1,6 +1,6 @@
 // uimessagedialog.cpp
 //
-// Copyright (c) 2019-2024 Kristofer Berggren
+// Copyright (c) 2019-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -21,7 +21,7 @@ UiMessageDialog::UiMessageDialog(const UiDialogParams& p_Params, const std::stri
   , m_Message(p_Message)
 {
   m_Model->SetMessageDialogActive(true);
-  m_View->Draw();
+  m_Model->Draw();
   curs_set(0);
 }
 
@@ -59,8 +59,8 @@ void UiMessageDialog::KeyHandler(wint_t p_Key)
   {
     Cleanup();
     m_Model->SetHelpOffset(0);
-    m_View->Init();
-    m_View->Draw();
+    m_Model->ReinitView();
+    m_Model->Draw();
     curs_set(0);
     Init();
   }
@@ -90,7 +90,7 @@ void UiMessageDialog::KeyHandler(wint_t p_Key)
   else if (p_Key == keyOtherCommandsHelp)
   {
     m_Model->SetHelpOffset(m_Model->GetHelpOffset() + 1);
-    m_View->Draw();
+    m_Model->Draw();
     curs_set(0);
   }
   else

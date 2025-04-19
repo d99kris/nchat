@@ -1,6 +1,6 @@
 // uitextinputdialog.cpp
 //
-// Copyright (c) 2024 Kristofer Berggren
+// Copyright (c) 2024-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -23,7 +23,7 @@ UiTextInputDialog::UiTextInputDialog(const UiDialogParams& p_Params, const std::
 {
   m_EntryPos = m_EntryStr.size();
   m_Model->SetMessageDialogActive(true);
-  m_View->Draw();
+  m_Model->Draw();
   curs_set(0);
 }
 
@@ -61,8 +61,8 @@ void UiTextInputDialog::KeyHandler(wint_t p_Key)
   {
     Cleanup();
     m_Model->SetHelpOffset(0);
-    m_View->Init();
-    m_View->Draw();
+    m_Model->ReinitView();
+    m_Model->Draw();
     Init();
   }
   else if (p_Key == keyTerminalFocusIn)
@@ -91,7 +91,7 @@ void UiTextInputDialog::KeyHandler(wint_t p_Key)
   else if (p_Key == keyOtherCommandsHelp)
   {
     m_Model->SetHelpOffset(m_Model->GetHelpOffset() + 1);
-    m_View->Draw();
+    m_Model->Draw();
   }
   else
   {

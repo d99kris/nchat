@@ -43,8 +43,6 @@ UiListView::~UiListView()
 
 void UiListView::Draw()
 {
-  std::unique_lock<std::mutex> lock(m_ViewMutex);
-
   if (!m_Enabled || !m_Dirty) return;
   m_Dirty = false;
 
@@ -54,16 +52,16 @@ void UiListView::Draw()
   static int attribute = UiColorConfig::GetAttribute("list_attr");
   static int attributeSelected = UiColorConfig::GetAttribute("list_attr_selected");
 
-  int index = std::max(0, m_Model->GetCurrentChatIndex());
-  const std::vector<std::pair<std::string, std::string>>& p_ChatVec = m_Model->GetChatVec();
+  int index = std::max(0, m_Model->GetCurrentChatIndexLocked());
+  const std::vector<std::pair<std::string, std::string>>& p_ChatVec = m_Model->GetChatVecLocked();
 
-  const bool emojiEnabled = m_Model->GetEmojiEnabled();
+  const bool emojiEnabled = m_Model->GetEmojiEnabledLocked();
   std::vector<std::string> names;
   std::vector<bool> unreads;
   for (auto& chatPair : p_ChatVec)
   {
-    const std::string& name = m_Model->GetContactListName(chatPair.first, chatPair.second, true /*p_AllowId*/);
-    bool isUnread = m_Model->GetChatIsUnread(chatPair.first, chatPair.second);
+    const std::string& name = m_Model->GetContactListNameLocked(chatPair.first, chatPair.second, true /*p_AllowId*/);
+    bool isUnread = m_Model->GetChatIsUnreadLocked(chatPair.first, chatPair.second);
     names.push_back(name);
     unreads.push_back(isUnread);
   }

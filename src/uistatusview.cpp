@@ -1,6 +1,6 @@
 // uistatusview.cpp
 //
-// Copyright (c) 2019-2024 Kristofer Berggren
+// Copyright (c) 2019-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -20,16 +20,14 @@ UiStatusView::UiStatusView(const UiViewParams& p_Params)
 
 void UiStatusView::Draw()
 {
-  std::unique_lock<std::mutex> lock(m_ViewMutex);
-
   if (!m_Enabled || !m_Dirty) return;
   m_Dirty = false;
 
   curs_set(0);
 
-  std::pair<std::string, std::string>& currentChat = m_Model->GetCurrentChat();
-  std::string name = m_Model->GetContactListName(currentChat.first, currentChat.second, true /*p_AllowId*/);
-  if (!m_Model->GetEmojiEnabled())
+  std::pair<std::string, std::string>& currentChat = m_Model->GetCurrentChatLocked();
+  std::string name = m_Model->GetContactListNameLocked(currentChat.first, currentChat.second, true /*p_AllowId*/);
+  if (!m_Model->GetEmojiEnabledLocked())
   {
     name = StrUtil::Textize(name);
   }
@@ -49,11 +47,11 @@ void UiStatusView::Draw()
   }
   else
   {
-    static bool isMultipleProfiles = m_Model->IsMultipleProfiles();
+    static bool isMultipleProfiles = m_Model->IsMultipleProfilesLocked();
     std::string profileDisplayName = isMultipleProfiles ? " @ " +
-      m_Model->GetProfileDisplayName(currentChat.first) : "";
+      m_Model->GetProfileDisplayNameLocked(currentChat.first) : "";
 
-    std::string chatStatus = m_Model->GetChatStatus(currentChat.first, currentChat.second);
+    std::string chatStatus = m_Model->GetChatStatusLocked(currentChat.first, currentChat.second);
     wstatus = std::wstring(statusVPad, ' ') +
       StrUtil::ToWString(name).substr(0, m_W / 2) +
       StrUtil::ToWString(profileDisplayName) +
@@ -67,7 +65,7 @@ void UiStatusView::Draw()
       if (isDynamicIndicator)
       {
         std::string dynamicIndicator = phoneNumberIndicator;
-        std::string phone = m_Model->GetContactPhone(currentChat.first, currentChat.second);
+        std::string phone = m_Model->GetContactPhoneLocked(currentChat.first, currentChat.second);
         StrUtil::ReplaceString(dynamicIndicator, placeholder, phone);
         wstatus += L" " + StrUtil::ToWString(dynamicIndicator);
       }
@@ -81,7 +79,7 @@ void UiStatusView::Draw()
     if (developerMode)
     {
       wstatus = wstatus + L" chat " + StrUtil::ToWString(currentChat.second);
-      int64_t lastMessageTime = m_Model->GetLastMessageTime(currentChat.first, currentChat.second);
+      int64_t lastMessageTime = m_Model->GetLastMessageTimeLocked(currentChat.first, currentChat.second);
       wstatus = wstatus + L" time " + StrUtil::ToWString(std::to_string(lastMessageTime));
     }
 

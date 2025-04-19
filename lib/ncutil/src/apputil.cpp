@@ -1,6 +1,6 @@
 // apputil.cpp
 //
-// Copyright (c) 2020-2024 Kristofer Berggren
+// Copyright (c) 2020-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -17,11 +17,33 @@
 
 #include <sys/resource.h>
 
+#include "appconfig.h"
 #include "log.h"
 #include "sysutil.h"
 #include "version.h"
 
 bool AppUtil::m_DeveloperMode = false;
+
+void AppUtil::AssertionFailed()
+{
+  static const bool assertAbort = AppConfig::GetBool("assert_abort");;
+  if (assertAbort)
+  {
+    abort();
+  }
+  else
+  {
+    char logMsg[64];
+    snprintf(logMsg, sizeof(logMsg), "callstack:\n");
+    void* callstack[64] = { 0 };
+#ifdef HAVE_EXECINFO_H
+    const int size = backtrace(callstack, sizeof(callstack));
+#else
+    const int size = 0;
+#endif
+    Log::Callstack(callstack, size, logMsg);
+  }
+}
 
 std::string AppUtil::GetAppName(bool p_WithVersion)
 {
