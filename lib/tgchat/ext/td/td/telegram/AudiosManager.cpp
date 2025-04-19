@@ -228,13 +228,13 @@ SecretInputMedia AudiosManager::get_secret_input_media(
   if (audio->thumbnail.file_id.is_valid() && thumbnail.empty()) {
     return SecretInputMedia{};
   }
-  vector<tl_object_ptr<secret_api::DocumentAttribute>> attributes;
+  vector<secret_api::object_ptr<secret_api::DocumentAttribute>> attributes;
   if (!audio->file_name.empty()) {
-    attributes.push_back(make_tl_object<secret_api::documentAttributeFilename>(audio->file_name));
+    attributes.push_back(secret_api::make_object<secret_api::documentAttributeFilename>(audio->file_name));
   }
-  attributes.push_back(make_tl_object<secret_api::documentAttributeAudio>(
-      secret_api::documentAttributeAudio::TITLE_MASK | secret_api::documentAttributeAudio::PERFORMER_MASK,
-      false /*ignored*/, audio->duration, audio->title, audio->performer, BufferSlice()));
+  attributes.push_back(secret_api::make_object<secret_api::documentAttributeAudio>(
+      secret_api::documentAttributeAudio::TITLE_MASK | secret_api::documentAttributeAudio::PERFORMER_MASK, false,
+      audio->duration, audio->title, audio->performer, BufferSlice()));
 
   return {std::move(input_file),
           std::move(thumbnail),
@@ -256,24 +256,23 @@ tl_object_ptr<telegram_api::InputMedia> AudiosManager::get_input_media(
   const auto *main_remote_location = file_view.get_main_remote_location();
   if (main_remote_location != nullptr && !main_remote_location->is_web() && input_file == nullptr) {
     return telegram_api::make_object<telegram_api::inputMediaDocument>(
-        0, false /*ignored*/, main_remote_location->as_input_document(), nullptr, 0, 0, string());
+        0, false, main_remote_location->as_input_document(), nullptr, 0, 0, string());
   }
   const auto *url = file_view.get_url();
   if (url != nullptr) {
-    return telegram_api::make_object<telegram_api::inputMediaDocumentExternal>(0, false /*ignored*/, *url, 0, nullptr,
-                                                                               0);
+    return telegram_api::make_object<telegram_api::inputMediaDocumentExternal>(0, false, *url, 0, nullptr, 0);
   }
 
   if (input_file != nullptr) {
     const Audio *audio = get_audio(file_id);
     CHECK(audio != nullptr);
 
-    vector<tl_object_ptr<telegram_api::DocumentAttribute>> attributes;
-    attributes.push_back(make_tl_object<telegram_api::documentAttributeAudio>(
-        telegram_api::documentAttributeAudio::TITLE_MASK | telegram_api::documentAttributeAudio::PERFORMER_MASK,
-        false /*ignored*/, audio->duration, audio->title, audio->performer, BufferSlice()));
+    vector<telegram_api::object_ptr<telegram_api::DocumentAttribute>> attributes;
+    attributes.push_back(telegram_api::make_object<telegram_api::documentAttributeAudio>(
+        telegram_api::documentAttributeAudio::TITLE_MASK | telegram_api::documentAttributeAudio::PERFORMER_MASK, false,
+        audio->duration, audio->title, audio->performer, BufferSlice()));
     if (!audio->file_name.empty()) {
-      attributes.push_back(make_tl_object<telegram_api::documentAttributeFilename>(audio->file_name));
+      attributes.push_back(telegram_api::make_object<telegram_api::documentAttributeFilename>(audio->file_name));
     }
     string mime_type = audio->mime_type;
     if (!begins_with(mime_type, "audio/")) {
@@ -284,8 +283,7 @@ tl_object_ptr<telegram_api::InputMedia> AudiosManager::get_input_media(
       flags |= telegram_api::inputMediaUploadedDocument::THUMB_MASK;
     }
     return telegram_api::make_object<telegram_api::inputMediaUploadedDocument>(
-        flags, false /*ignored*/, false /*ignored*/, false /*ignored*/, std::move(input_file),
-        std::move(input_thumbnail), mime_type, std::move(attributes),
+        flags, false, false, false, std::move(input_file), std::move(input_thumbnail), mime_type, std::move(attributes),
         vector<telegram_api::object_ptr<telegram_api::InputDocument>>(), nullptr, 0, 0);
   } else {
     CHECK(main_remote_location == nullptr);

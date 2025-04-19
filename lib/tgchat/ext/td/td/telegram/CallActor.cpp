@@ -44,16 +44,9 @@ CallProtocol::CallProtocol(const telegram_api::phoneCallProtocol &protocol)
     , library_versions(protocol.library_versions_) {
 }
 
-tl_object_ptr<telegram_api::phoneCallProtocol> CallProtocol::get_input_phone_call_protocol() const {
-  int32 flags = 0;
-  if (udp_p2p) {
-    flags |= telegram_api::phoneCallProtocol::UDP_P2P_MASK;
-  }
-  if (udp_reflector) {
-    flags |= telegram_api::phoneCallProtocol::UDP_REFLECTOR_MASK;
-  }
-  return make_tl_object<telegram_api::phoneCallProtocol>(flags, udp_p2p, udp_reflector, min_layer, max_layer,
-                                                         vector<string>(library_versions));
+telegram_api::object_ptr<telegram_api::phoneCallProtocol> CallProtocol::get_input_phone_call_protocol() const {
+  return telegram_api::make_object<telegram_api::phoneCallProtocol>(0, udp_p2p, udp_reflector, min_layer, max_layer,
+                                                                    vector<string>(library_versions));
 }
 
 CallProtocol::CallProtocol(const td_api::callProtocol &protocol)
@@ -95,9 +88,9 @@ CallConnection::CallConnection(const telegram_api::PhoneConnection &connection) 
   }
 }
 
-tl_object_ptr<td_api::callProtocol> CallProtocol::get_call_protocol_object() const {
-  return make_tl_object<td_api::callProtocol>(udp_p2p, udp_reflector, min_layer, max_layer,
-                                              vector<string>(library_versions));
+td_api::object_ptr<td_api::callProtocol> CallProtocol::get_call_protocol_object() const {
+  return td_api::make_object<td_api::callProtocol>(udp_p2p, udp_reflector, min_layer, max_layer,
+                                                   vector<string>(library_versions));
 }
 
 tl_object_ptr<td_api::callServer> CallConnection::get_call_server_object() const {
@@ -355,7 +348,8 @@ void CallActor::rate_call(int32 rating, string comment, vector<td_api::object_pt
     }
   }
 
-  auto tl_query = telegram_api::phone_setCallRating(0, false /*ignored*/, get_input_phone_call("rate_call"), rating,
+  bool user_initiative = false;
+  auto tl_query = telegram_api::phone_setCallRating(0, user_initiative, get_input_phone_call("rate_call"), rating,
                                                     std::move(comment));
   auto query = G()->net_query_creator().create(tl_query);
   send_with_promise(std::move(query),
@@ -892,16 +886,13 @@ void CallActor::try_send_request_query() {
     return on_error(r_input_user.move_as_error());
   }
   int32 flags = 0;
-  if (is_video_) {
-    flags |= telegram_api::phone_requestCall::VIDEO_MASK;
-  }
   telegram_api::object_ptr<telegram_api::inputGroupCall> input_group_call;
   if (input_group_call_id_.is_valid()) {
     flags |= telegram_api::phone_requestCall::CONFERENCE_CALL_MASK;
     input_group_call = input_group_call_id_.get_input_group_call();
   }
   auto tl_query = telegram_api::phone_requestCall(
-      flags, false /*ignored*/, r_input_user.move_as_ok(), std::move(input_group_call), Random::secure_int32(),
+      flags, is_video_, r_input_user.move_as_ok(), std::move(input_group_call), Random::secure_int32(),
       BufferSlice(dh_handshake_.get_g_b_hash()), call_state_.protocol.get_input_phone_call_protocol());
   auto query = G()->net_query_creator().create(tl_query);
   state_ = State::WaitRequestResult;
@@ -992,13 +983,9 @@ void CallActor::try_send_discard_query() {
     return;
   }
   LOG(INFO) << "Trying to send discard query";
-  int32 flags = 0;
-  if (is_video_) {
-    flags |= telegram_api::phone_discardCall::VIDEO_MASK;
-  }
-  auto tl_query = telegram_api::phone_discardCall(
-      flags, false /*ignored*/, get_input_phone_call("try_send_discard_query"), duration_,
-      get_input_phone_call_discard_reason(call_state_.discard_reason), connection_id_);
+  auto tl_query =
+      telegram_api::phone_discardCall(0, is_video_, get_input_phone_call("try_send_discard_query"), duration_,
+                                      get_input_phone_call_discard_reason(call_state_.discard_reason), connection_id_);
   auto query = G()->net_query_creator().create(tl_query);
   state_ = State::WaitDiscardResult;
   send_with_promise(std::move(query),

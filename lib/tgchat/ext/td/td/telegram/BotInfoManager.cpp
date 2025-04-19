@@ -598,14 +598,11 @@ class SetCustomVerificationQuery final : public Td::ResultHandler {
     if (input_user != nullptr) {
       flags |= telegram_api::bots_setCustomVerification::BOT_MASK;
     }
-    if (is_verified) {
-      flags |= telegram_api::bots_setCustomVerification::ENABLED_MASK;
-    }
     if (!custom_description.empty()) {
       flags |= telegram_api::bots_setCustomVerification::CUSTOM_DESCRIPTION_MASK;
     }
     send_query(G()->net_query_creator().create(
-        telegram_api::bots_setCustomVerification(flags, false /*ignored*/, std::move(input_user), std::move(input_peer),
+        telegram_api::bots_setCustomVerification(flags, is_verified, std::move(input_user), std::move(input_peer),
                                                  custom_description),
         {{dialog_id}}));
   }
@@ -969,10 +966,10 @@ telegram_api::object_ptr<telegram_api::InputMedia> BotInfoManager::get_fake_inpu
   switch (file_view.get_type()) {
     case FileType::VideoStory:
       return telegram_api::make_object<telegram_api::inputMediaDocument>(
-          0, false /*ignored*/, full_remote_location->as_input_document(), nullptr, 0, 0, string());
+          0, false, full_remote_location->as_input_document(), nullptr, 0, 0, string());
     case FileType::PhotoStory:
-      return telegram_api::make_object<telegram_api::inputMediaPhoto>(0, false /*ignored*/,
-                                                                      full_remote_location->as_input_photo(), 0);
+      return telegram_api::make_object<telegram_api::inputMediaPhoto>(0, false, full_remote_location->as_input_photo(),
+                                                                      0);
     default:
       return nullptr;
   }

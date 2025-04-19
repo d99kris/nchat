@@ -10,6 +10,7 @@
 #include "td/telegram/MessageFullId.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
+#include "td/telegram/UserId.h"
 
 #include "td/utils/common.h"
 #include "td/utils/Promise.h"
@@ -54,6 +55,9 @@ void check_premium_gift_code(Td *td, const string &code,
 
 void apply_premium_gift_code(Td *td, const string &code, Promise<Unit> &&promise);
 
+void gift_premium_with_stars(Td *td, UserId user_id, int64 star_count, int32 month_count,
+                             td_api::object_ptr<td_api::formattedText> &&text, Promise<Unit> &&promise);
+
 void launch_prepaid_premium_giveaway(Td *td, int64 giveaway_id,
                                      td_api::object_ptr<td_api::giveawayParameters> &&parameters, int32 user_count,
                                      int64 star_count, Promise<Unit> &&promise);
@@ -63,11 +67,7 @@ void get_premium_giveaway_info(Td *td, MessageFullId message_full_id,
 
 void can_purchase_premium(Td *td, td_api::object_ptr<td_api::StorePaymentPurpose> &&purpose, Promise<Unit> &&promise);
 
-void assign_app_store_transaction(Td *td, const string &receipt,
-                                  td_api::object_ptr<td_api::StorePaymentPurpose> &&purpose, Promise<Unit> &&promise);
-
-void assign_play_market_transaction(Td *td, const string &package_name, const string &store_product_id,
-                                    const string &purchase_token,
-                                    td_api::object_ptr<td_api::StorePaymentPurpose> &&purpose, Promise<Unit> &&promise);
+void assign_store_transaction(Td *td, td_api::object_ptr<td_api::StoreTransaction> &&transaction,
+                              td_api::object_ptr<td_api::StorePaymentPurpose> &&purpose, Promise<Unit> &&promise);
 
 }  // namespace td

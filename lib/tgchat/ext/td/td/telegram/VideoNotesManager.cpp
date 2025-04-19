@@ -182,10 +182,9 @@ SecretInputMedia VideoNotesManager::get_secret_input_media(
   if (video_note->thumbnail.file_id.is_valid() && thumbnail.empty()) {
     return SecretInputMedia{};
   }
-  vector<tl_object_ptr<secret_api::DocumentAttribute>> attributes;
-  attributes.push_back(make_tl_object<secret_api::documentAttributeVideo>(
-      secret_api::documentAttributeVideo::ROUND_MESSAGE_MASK, true, video_note->duration, video_note->dimensions.width,
-      video_note->dimensions.height));
+  vector<secret_api::object_ptr<secret_api::DocumentAttribute>> attributes;
+  attributes.push_back(secret_api::make_object<secret_api::documentAttributeVideo>(
+      0, true, video_note->duration, video_note->dimensions.width, video_note->dimensions.height));
 
   return {std::move(input_file),
           std::move(thumbnail),
@@ -211,7 +210,7 @@ tl_object_ptr<telegram_api::InputMedia> VideoNotesManager::get_input_media(
       flags |= telegram_api::inputMediaDocument::TTL_SECONDS_MASK;
     }
     return telegram_api::make_object<telegram_api::inputMediaDocument>(
-        flags, false /*ignored*/, main_remote_location->as_input_document(), nullptr, 0, ttl, string());
+        flags, false, main_remote_location->as_input_document(), nullptr, 0, ttl, string());
   }
   const auto *url = file_view.get_url();
   if (url != nullptr) {
@@ -219,23 +218,21 @@ tl_object_ptr<telegram_api::InputMedia> VideoNotesManager::get_input_media(
     if (ttl != 0) {
       flags |= telegram_api::inputMediaDocumentExternal::TTL_SECONDS_MASK;
     }
-    return telegram_api::make_object<telegram_api::inputMediaDocumentExternal>(flags, false /*ignored*/, *url, ttl,
-                                                                               nullptr, 0);
+    return telegram_api::make_object<telegram_api::inputMediaDocumentExternal>(flags, false, *url, ttl, nullptr, 0);
   }
 
   if (input_file != nullptr) {
     const VideoNote *video_note = get_video_note(file_id);
     CHECK(video_note != nullptr);
 
-    vector<tl_object_ptr<telegram_api::DocumentAttribute>> attributes;
+    vector<telegram_api::object_ptr<telegram_api::DocumentAttribute>> attributes;
     auto suggested_video_note_length =
         narrow_cast<int32>(td_->option_manager_->get_option_integer("suggested_video_note_length", 384));
-    attributes.push_back(make_tl_object<telegram_api::documentAttributeVideo>(
-        telegram_api::documentAttributeVideo::ROUND_MESSAGE_MASK, false /*ignored*/, false /*ignored*/,
-        false /*ignored*/, video_note->duration,
+    attributes.push_back(telegram_api::make_object<telegram_api::documentAttributeVideo>(
+        0, true, false, false, video_note->duration,
         video_note->dimensions.width ? video_note->dimensions.width : suggested_video_note_length,
         video_note->dimensions.height ? video_note->dimensions.height : suggested_video_note_length, 0, 0.0, string()));
-    int32 flags = telegram_api::inputMediaUploadedDocument::NOSOUND_VIDEO_MASK;
+    int32 flags = 0;
     if (ttl != 0) {
       flags |= telegram_api::inputMediaUploadedDocument::TTL_SECONDS_MASK;
     }
@@ -243,9 +240,8 @@ tl_object_ptr<telegram_api::InputMedia> VideoNotesManager::get_input_media(
       flags |= telegram_api::inputMediaUploadedDocument::THUMB_MASK;
     }
     return telegram_api::make_object<telegram_api::inputMediaUploadedDocument>(
-        flags, false /*ignored*/, false /*ignored*/, false /*ignored*/, std::move(input_file),
-        std::move(input_thumbnail), "video/mp4", std::move(attributes),
-        vector<telegram_api::object_ptr<telegram_api::InputDocument>>(), nullptr, 0, ttl);
+        flags, true, false, false, std::move(input_file), std::move(input_thumbnail), "video/mp4",
+        std::move(attributes), vector<telegram_api::object_ptr<telegram_api::InputDocument>>(), nullptr, 0, ttl);
   } else {
     CHECK(main_remote_location == nullptr);
   }

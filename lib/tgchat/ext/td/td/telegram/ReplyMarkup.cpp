@@ -24,12 +24,6 @@
 
 namespace td {
 
-static constexpr int32 REPLY_MARKUP_FLAG_NEED_RESIZE_KEYBOARD = 1 << 0;
-static constexpr int32 REPLY_MARKUP_FLAG_IS_ONE_TIME_KEYBOARD = 1 << 1;
-static constexpr int32 REPLY_MARKUP_FLAG_IS_PERSONAL = 1 << 2;
-static constexpr int32 REPLY_MARKUP_FLAG_HAS_PLACEHOLDER = 1 << 3;
-static constexpr int32 REPLY_MARKUP_FLAG_IS_PERSISTENT = 1 << 4;
-
 static bool operator==(const KeyboardButton &lhs, const KeyboardButton &rhs) {
   return lhs.type == rhs.type && lhs.text == rhs.text && lhs.url == rhs.url;
 }
@@ -395,10 +389,10 @@ unique_ptr<ReplyMarkup> get_reply_markup(tl_object_ptr<telegram_api::ReplyMarkup
     case telegram_api::replyKeyboardMarkup::ID: {
       auto keyboard_markup = move_tl_object_as<telegram_api::replyKeyboardMarkup>(reply_markup_ptr);
       reply_markup->type = ReplyMarkup::Type::ShowKeyboard;
-      reply_markup->is_persistent = (keyboard_markup->flags_ & REPLY_MARKUP_FLAG_IS_PERSISTENT) != 0;
-      reply_markup->need_resize_keyboard = (keyboard_markup->flags_ & REPLY_MARKUP_FLAG_NEED_RESIZE_KEYBOARD) != 0;
-      reply_markup->is_one_time_keyboard = (keyboard_markup->flags_ & REPLY_MARKUP_FLAG_IS_ONE_TIME_KEYBOARD) != 0;
-      reply_markup->is_personal = (keyboard_markup->flags_ & REPLY_MARKUP_FLAG_IS_PERSONAL) != 0;
+      reply_markup->is_persistent = keyboard_markup->persistent_;
+      reply_markup->need_resize_keyboard = keyboard_markup->resize_;
+      reply_markup->is_one_time_keyboard = keyboard_markup->single_use_;
+      reply_markup->is_personal = keyboard_markup->selective_;
       reply_markup->placeholder = std::move(keyboard_markup->placeholder_);
       reply_markup->keyboard.reserve(keyboard_markup->rows_.size());
       for (auto &row : keyboard_markup->rows_) {
@@ -422,13 +416,13 @@ unique_ptr<ReplyMarkup> get_reply_markup(tl_object_ptr<telegram_api::ReplyMarkup
     case telegram_api::replyKeyboardHide::ID: {
       auto hide_keyboard_markup = move_tl_object_as<telegram_api::replyKeyboardHide>(reply_markup_ptr);
       reply_markup->type = ReplyMarkup::Type::RemoveKeyboard;
-      reply_markup->is_personal = (hide_keyboard_markup->flags_ & REPLY_MARKUP_FLAG_IS_PERSONAL) != 0;
+      reply_markup->is_personal = hide_keyboard_markup->selective_;
       break;
     }
     case telegram_api::replyKeyboardForceReply::ID: {
       auto force_reply_markup = move_tl_object_as<telegram_api::replyKeyboardForceReply>(reply_markup_ptr);
       reply_markup->type = ReplyMarkup::Type::ForceReply;
-      reply_markup->is_personal = (force_reply_markup->flags_ & REPLY_MARKUP_FLAG_IS_PERSONAL) != 0;
+      reply_markup->is_personal = force_reply_markup->selective_;
       reply_markup->placeholder = std::move(force_reply_markup->placeholder_);
       break;
     }
@@ -906,15 +900,16 @@ static tl_object_ptr<telegram_api::KeyboardButton> get_input_keyboard_button(
     }
     case InlineKeyboardButton::Type::SwitchInlineCurrentDialog:
       return make_tl_object<telegram_api::keyboardButtonSwitchInline>(
-          telegram_api::keyboardButtonSwitchInline::SAME_PEER_MASK, true, keyboard_button.text, keyboard_button.data,
+          0, true, keyboard_button.text, keyboard_button.data,
           vector<telegram_api::object_ptr<telegram_api::InlineQueryPeerType>>());
     case InlineKeyboardButton::Type::Buy:
       return make_tl_object<telegram_api::keyboardButtonBuy>(keyboard_button.text);
     case InlineKeyboardButton::Type::UrlAuth: {
       int32 flags = 0;
+      bool request_write_access = false;
       int64 bot_user_id = keyboard_button.id;
       if (bot_user_id > 0) {
-        flags |= telegram_api::inputKeyboardButtonUrlAuth::REQUEST_WRITE_ACCESS_MASK;
+        request_write_access = true;
       } else {
         bot_user_id = -bot_user_id;
       }
@@ -926,7 +921,7 @@ static tl_object_ptr<telegram_api::KeyboardButton> get_input_keyboard_button(
         LOG(ERROR) << "Failed to get InputUser for " << bot_user_id << ": " << r_input_user.error();
         return make_tl_object<telegram_api::keyboardButtonUrl>(keyboard_button.text, keyboard_button.data);
       }
-      return make_tl_object<telegram_api::inputKeyboardButtonUrlAuth>(flags, false /*ignored*/, keyboard_button.text,
+      return make_tl_object<telegram_api::inputKeyboardButtonUrlAuth>(flags, request_write_access, keyboard_button.text,
                                                                       keyboard_button.forward_text,
                                                                       keyboard_button.data, r_input_user.move_as_ok());
     }
@@ -978,20 +973,23 @@ tl_object_ptr<telegram_api::ReplyMarkup> ReplyMarkup::get_input_reply_markup(Use
         }
         rows.push_back(make_tl_object<telegram_api::keyboardButtonRow>(std::move(buttons)));
       }
+      int32 flags = 0;
+      if (!placeholder.empty()) {
+        flags |= telegram_api::replyKeyboardMarkup::PLACEHOLDER_MASK;
+      }
       return make_tl_object<telegram_api::replyKeyboardMarkup>(
-          is_persistent * REPLY_MARKUP_FLAG_IS_PERSISTENT +
-              need_resize_keyboard * REPLY_MARKUP_FLAG_NEED_RESIZE_KEYBOARD +
-              is_one_time_keyboard * REPLY_MARKUP_FLAG_IS_ONE_TIME_KEYBOARD +
-              is_personal * REPLY_MARKUP_FLAG_IS_PERSONAL + (!placeholder.empty()) * REPLY_MARKUP_FLAG_HAS_PLACEHOLDER,
-          false /*ignored*/, false /*ignored*/, false /*ignored*/, false /*ignored*/, std::move(rows), placeholder);
+          flags, need_resize_keyboard, is_one_time_keyboard, is_personal, is_persistent, std::move(rows), placeholder);
     }
-    case ReplyMarkup::Type::ForceReply:
-      return make_tl_object<telegram_api::replyKeyboardForceReply>(
-          is_personal * REPLY_MARKUP_FLAG_IS_PERSONAL + (!placeholder.empty()) * REPLY_MARKUP_FLAG_HAS_PLACEHOLDER,
-          false /*ignored*/, false /*ignored*/, placeholder);
+    case ReplyMarkup::Type::ForceReply: {
+      int32 flags = 0;
+      if (!placeholder.empty()) {
+        flags |= telegram_api::replyKeyboardForceReply::PLACEHOLDER_MASK;
+      }
+      return make_tl_object<telegram_api::replyKeyboardForceReply>(flags, is_one_time_keyboard, is_personal,
+                                                                   placeholder);
+    }
     case ReplyMarkup::Type::RemoveKeyboard:
-      return make_tl_object<telegram_api::replyKeyboardHide>(is_personal * REPLY_MARKUP_FLAG_IS_PERSONAL,
-                                                             false /*ignored*/);
+      return make_tl_object<telegram_api::replyKeyboardHide>(0, is_personal);
     default:
       UNREACHABLE();
       return nullptr;

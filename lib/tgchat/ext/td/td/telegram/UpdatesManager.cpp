@@ -915,8 +915,8 @@ bool UpdatesManager::is_acceptable_message(const telegram_api::Message *message_
         return false;
       }
 
-      if ((message->flags_ & telegram_api::message::VIA_BOT_ID_MASK) &&
-          !is_acceptable_user(UserId(message->via_bot_id_))) {
+      UserId via_bot_user_id(message->via_bot_id_);
+      if (via_bot_user_id != UserId() && !is_acceptable_user(via_bot_user_id)) {
         return false;
       }
 
@@ -991,6 +991,8 @@ bool UpdatesManager::is_acceptable_message(const telegram_api::Message *message_
         case telegram_api::messageActionPrizeStars::ID:
         case telegram_api::messageActionStarGift::ID:
         case telegram_api::messageActionStarGiftUnique::ID:
+        case telegram_api::messageActionPaidMessagesRefunded::ID:
+        case telegram_api::messageActionPaidMessagesPrice::ID:
           break;
         case telegram_api::messageActionChatCreate::ID: {
           auto chat_create = static_cast<const telegram_api::messageActionChatCreate *>(action);
@@ -1128,26 +1130,12 @@ bool UpdatesManager::is_acceptable_update(const telegram_api::Update *update) co
   return true;
 }
 
-int32 UpdatesManager::fix_short_message_flags(int32 flags) {
-  static constexpr int32 MESSAGE_FLAG_HAS_REPLY_MARKUP = 1 << 6;
-  static constexpr int32 MESSAGE_FLAG_HAS_MEDIA = 1 << 9;
-  static constexpr int32 MESSAGE_FLAG_HAS_REACTIONS = 1 << 20;
-  static constexpr int32 MESSAGE_FLAG_HAS_REPLY_INFO = 1 << 23;
-  static constexpr int32 MESSAGE_FLAG_HAS_SAVED_PEER_ID = 1 << 28;
-  auto disallowed_flags = MESSAGE_FLAG_HAS_REPLY_MARKUP | MESSAGE_FLAG_HAS_MEDIA | MESSAGE_FLAG_HAS_REACTIONS |
-                          MESSAGE_FLAG_HAS_REPLY_INFO | MESSAGE_FLAG_HAS_SAVED_PEER_ID;
-  if ((flags & disallowed_flags) != 0) {
-    LOG(ERROR) << "Receive short message with flags " << flags;
-    flags = flags & ~disallowed_flags;
-  }
-  return flags;
-}
-
 void UpdatesManager::on_get_updates(tl_object_ptr<telegram_api::Updates> &&updates_ptr, Promise<Unit> &&promise) {
   send_closure_later(actor_id(this), &UpdatesManager::on_get_updates_impl, std::move(updates_ptr), std::move(promise));
 }
 
-void UpdatesManager::on_get_updates_impl(tl_object_ptr<telegram_api::Updates> updates_ptr, Promise<Unit> promise) {
+void UpdatesManager::on_get_updates_impl(telegram_api::object_ptr<telegram_api::Updates> updates_ptr,
+                                         Promise<Unit> promise) {
   CHECK(updates_ptr != nullptr);
   promise = PromiseCreator::lambda(
       [promise = std::move(promise), update_ids = get_update_ids(updates_ptr.get())](Result<Unit> result) mutable {
@@ -1167,6 +1155,11 @@ void UpdatesManager::on_get_updates_impl(tl_object_ptr<telegram_api::Updates> up
       auto update_id = update->get_id();
       if (update_id == telegram_api::updateLoginToken::ID) {
         td_->auth_manager_->on_update_login_token();
+        return promise.set_value(Unit());
+      }
+      if (update_id == telegram_api::updateSentPhoneCode::ID) {
+        td_->auth_manager_->on_update_sent_code(
+            std::move(static_cast<telegram_api::updateSentPhoneCode *>(update.get())->sent_code_));
         return promise.set_value(Unit());
       }
 
@@ -1193,37 +1186,38 @@ void UpdatesManager::on_get_updates_impl(tl_object_ptr<telegram_api::Updates> up
       promise.set_value(Unit());
       break;
     case telegram_api::updateShortMessage::ID: {
-      auto update = move_tl_object_as<telegram_api::updateShortMessage>(updates_ptr);
+      auto update = telegram_api::move_object_as<telegram_api::updateShortMessage>(updates_ptr);
       auto from_id = update->out_ ? td_->user_manager_->get_my_id().get() : update->user_id_;
-      auto message = make_tl_object<telegram_api::message>(
-          fix_short_message_flags(update->flags_), update->out_, update->mentioned_, update->media_unread_,
-          update->silent_, false, false, false, false, false, false, false, false, 0, false, update->id_,
-          make_tl_object<telegram_api::peerUser>(from_id), 0, make_tl_object<telegram_api::peerUser>(update->user_id_),
-          nullptr, std::move(update->fwd_from_), update->via_bot_id_, 0, std::move(update->reply_to_), update->date_,
-          update->message_, nullptr, nullptr, std::move(update->entities_), 0, 0, nullptr, 0, string(), 0, nullptr,
-          Auto(), update->ttl_period_, 0, 0, nullptr, 0, 0);
-      on_pending_update(
-          make_tl_object<telegram_api::updateNewMessage>(std::move(message), update->pts_, update->pts_count_), 0,
-          std::move(promise), "telegram_api::updateShortMessage");
-      break;
-    }
-    case telegram_api::updateShortChatMessage::ID: {
-      auto update = move_tl_object_as<telegram_api::updateShortChatMessage>(updates_ptr);
-      auto message = make_tl_object<telegram_api::message>(
-          fix_short_message_flags(update->flags_), update->out_, update->mentioned_, update->media_unread_,
-          update->silent_, false, false, false, false, false, false, false, false, 0, false, update->id_,
-          make_tl_object<telegram_api::peerUser>(update->from_id_), 0,
-          make_tl_object<telegram_api::peerChat>(update->chat_id_), nullptr, std::move(update->fwd_from_),
+      auto message = telegram_api::make_object<telegram_api::message>(
+          0 /*unused*/, update->out_, update->mentioned_, update->media_unread_, update->silent_, false, false, false,
+          false, false, false, false, false, 0, false, update->id_,
+          telegram_api::make_object<telegram_api::peerUser>(from_id), 0,
+          telegram_api::make_object<telegram_api::peerUser>(update->user_id_), nullptr, std::move(update->fwd_from_),
           update->via_bot_id_, 0, std::move(update->reply_to_), update->date_, update->message_, nullptr, nullptr,
           std::move(update->entities_), 0, 0, nullptr, 0, string(), 0, nullptr, Auto(), update->ttl_period_, 0, 0,
           nullptr, 0, 0);
-      on_pending_update(
-          make_tl_object<telegram_api::updateNewMessage>(std::move(message), update->pts_, update->pts_count_), 0,
-          std::move(promise), "telegram_api::updateShortChatMessage");
+      on_pending_update(telegram_api::make_object<telegram_api::updateNewMessage>(std::move(message), update->pts_,
+                                                                                  update->pts_count_),
+                        0, std::move(promise), "telegram_api::updateShortMessage");
+      break;
+    }
+    case telegram_api::updateShortChatMessage::ID: {
+      auto update = telegram_api::move_object_as<telegram_api::updateShortChatMessage>(updates_ptr);
+      auto message = telegram_api::make_object<telegram_api::message>(
+          0 /*unused*/, update->out_, update->mentioned_, update->media_unread_, update->silent_, false, false, false,
+          false, false, false, false, false, 0, false, update->id_,
+          telegram_api::make_object<telegram_api::peerUser>(update->from_id_), 0,
+          telegram_api::make_object<telegram_api::peerChat>(update->chat_id_), nullptr, std::move(update->fwd_from_),
+          update->via_bot_id_, 0, std::move(update->reply_to_), update->date_, update->message_, nullptr, nullptr,
+          std::move(update->entities_), 0, 0, nullptr, 0, string(), 0, nullptr, Auto(), update->ttl_period_, 0, 0,
+          nullptr, 0, 0);
+      on_pending_update(telegram_api::make_object<telegram_api::updateNewMessage>(std::move(message), update->pts_,
+                                                                                  update->pts_count_),
+                        0, std::move(promise), "telegram_api::updateShortChatMessage");
       break;
     }
     case telegram_api::updateShort::ID: {
-      auto update = move_tl_object_as<telegram_api::updateShort>(updates_ptr);
+      auto update = telegram_api::move_object_as<telegram_api::updateShort>(updates_ptr);
       LOG(DEBUG) << "Receive " << oneline(to_string(update));
       if (!is_acceptable_update(update->update_.get())) {
         LOG(ERROR) << "Receive unacceptable short update: " << oneline(to_string(update));
@@ -1236,7 +1230,7 @@ void UpdatesManager::on_get_updates_impl(tl_object_ptr<telegram_api::Updates> up
       break;
     }
     case telegram_api::updatesCombined::ID: {
-      auto updates = move_tl_object_as<telegram_api::updatesCombined>(updates_ptr);
+      auto updates = telegram_api::move_object_as<telegram_api::updatesCombined>(updates_ptr);
       td_->user_manager_->on_get_users(std::move(updates->users_), "updatesCombined");
       td_->chat_manager_->on_get_chats(std::move(updates->chats_), "updatesCombined");
       on_pending_updates(std::move(updates->updates_), updates->seq_start_, updates->seq_, updates->date_, Time::now(),
@@ -1244,7 +1238,7 @@ void UpdatesManager::on_get_updates_impl(tl_object_ptr<telegram_api::Updates> up
       break;
     }
     case telegram_api::updates::ID: {
-      auto updates = move_tl_object_as<telegram_api::updates>(updates_ptr);
+      auto updates = telegram_api::move_object_as<telegram_api::updates>(updates_ptr);
       string source_str;
       const char *source = "updates";
       if (updates->updates_.size() == 1 && updates->updates_[0] != nullptr) {
@@ -1521,6 +1515,25 @@ vector<InputGroupCallId> UpdatesManager::get_update_new_group_call_ids(const tel
   return input_group_call_ids;
 }
 
+void UpdatesManager::process_updates_users_and_chats(telegram_api::Updates *updates_ptr) {
+  switch (updates_ptr->get_id()) {
+    case telegram_api::updatesCombined::ID: {
+      auto updates = static_cast<telegram_api::updatesCombined *>(updates_ptr);
+      td_->user_manager_->on_get_users(std::move(updates->users_), "updatesCombined 2");
+      td_->chat_manager_->on_get_chats(std::move(updates->chats_), "updatesCombined 2");
+      break;
+    }
+    case telegram_api::updates::ID: {
+      auto updates = static_cast<telegram_api::updates *>(updates_ptr);
+      td_->user_manager_->on_get_users(std::move(updates->users_), "updates 2");
+      td_->chat_manager_->on_get_chats(std::move(updates->chats_), "updates 2");
+      break;
+    }
+    default:
+      break;
+  }
+}
+
 string UpdatesManager::extract_join_group_call_presentation_params(telegram_api::Updates *updates_ptr) {
   auto updates = get_updates(updates_ptr);
   for (auto it = updates->begin(); it != updates->end(); ++it) {
@@ -1533,6 +1546,24 @@ string UpdatesManager::extract_join_group_call_presentation_params(telegram_api:
     }
   }
   return string();
+}
+
+telegram_api::object_ptr<telegram_api::StoryItem> UpdatesManager::extract_story(telegram_api::Updates *updates_ptr,
+                                                                                DialogId owner_dialog_id) {
+  auto updates = get_updates(updates_ptr);
+  if (updates->size() != 1u) {
+    return nullptr;
+  }
+  for (auto it = updates->begin(); it != updates->end(); ++it) {
+    auto *update_ptr = it->get();
+    if (update_ptr->get_id() == telegram_api::updateStory::ID) {
+      auto update = static_cast<telegram_api::updateStory *>(update_ptr);
+      if (DialogId(update->peer_) == owner_dialog_id) {
+        return std::move(update->story_);
+      }
+    }
+  }
+  return nullptr;
 }
 
 vector<DialogId> UpdatesManager::get_update_notify_settings_dialog_ids(const telegram_api::Updates *updates_ptr) {
@@ -2347,6 +2378,7 @@ void UpdatesManager::on_pending_updates(vector<tl_object_ptr<telegram_api::Updat
         case telegram_api::updateChannelUserTyping::ID:
         case telegram_api::updateEncryptedChatTyping::ID:
         case telegram_api::updateLoginToken::ID:
+        case telegram_api::updateSentPhoneCode::ID:
         case telegram_api::updateDcOptions::ID:
         case telegram_api::updateConfig::ID:
         case telegram_api::updateServiceNotification::ID:
@@ -3633,7 +3665,7 @@ void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateReadChannelDisc
   td_->messages_manager_->on_update_read_message_comments(DialogId(ChannelId(update->channel_id_)),
                                                           MessageId(ServerMessageId(update->top_msg_id_)), MessageId(),
                                                           last_read_inbox_message_id, MessageId(), -1);
-  if ((update->flags_ & telegram_api::updateReadChannelDiscussionInbox::BROADCAST_ID_MASK) != 0) {
+  if (update->broadcast_id_ != 0) {
     td_->messages_manager_->on_update_read_message_comments(DialogId(ChannelId(update->broadcast_id_)),
                                                             MessageId(ServerMessageId(update->broadcast_post_)),
                                                             MessageId(), last_read_inbox_message_id, MessageId(), -1);
@@ -4021,8 +4053,9 @@ void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateUserStatus> upd
 
 void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateUserName> update, Promise<Unit> &&promise) {
   td_->user_manager_->on_update_user_name(UserId(update->user_id_), std::move(update->first_name_),
-                                          std::move(update->last_name_),
-                                          Usernames{string(), std::move(update->usernames_)});
+                                          std::move(update->last_name_));
+  td_->user_manager_->on_update_user_usernames(UserId(update->user_id_),
+                                               Usernames{string(), std::move(update->usernames_)});
   promise.set_value(Unit());
 }
 
@@ -4173,16 +4206,15 @@ void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateBotInlineSend> 
 }
 
 void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateBotCallbackQuery> update, Promise<Unit> &&promise) {
-  td_->callback_queries_manager_->on_new_query(update->flags_, update->query_id_, UserId(update->user_id_),
-                                               DialogId(update->peer_), MessageId(ServerMessageId(update->msg_id_)),
-                                               std::move(update->data_), update->chat_instance_,
-                                               std::move(update->game_short_name_));
+  td_->callback_queries_manager_->on_new_query(update->query_id_, UserId(update->user_id_), DialogId(update->peer_),
+                                               MessageId(ServerMessageId(update->msg_id_)), std::move(update->data_),
+                                               update->chat_instance_, std::move(update->game_short_name_));
   promise.set_value(Unit());
 }
 
 void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateInlineBotCallbackQuery> update,
                                Promise<Unit> &&promise) {
-  td_->callback_queries_manager_->on_new_inline_query(update->flags_, update->query_id_, UserId(update->user_id_),
+  td_->callback_queries_manager_->on_new_inline_query(update->query_id_, UserId(update->user_id_),
                                                       std::move(update->msg_id_), std::move(update->data_),
                                                       update->chat_instance_, std::move(update->game_short_name_));
   promise.set_value(Unit());
@@ -4440,6 +4472,11 @@ void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateDeleteScheduled
 
 void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateLoginToken> update, Promise<Unit> &&promise) {
   LOG(INFO) << "Ignore updateLoginToken after authorization";
+  promise.set_value(Unit());
+}
+
+void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateSentPhoneCode> update, Promise<Unit> &&promise) {
+  LOG(INFO) << "Ignore updateSentPhoneCode after authorization";
   promise.set_value(Unit());
 }
 

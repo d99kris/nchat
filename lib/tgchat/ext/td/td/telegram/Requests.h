@@ -105,6 +105,10 @@ class Requests {
 
   void on_request(uint64 id, td_api::setAuthenticationPhoneNumber &request);
 
+  void on_request(uint64 id, td_api::checkAuthenticationPremiumPurchase &request);
+
+  void on_request(uint64 id, td_api::setAuthenticationPremiumPurchaseTransaction &request);
+
   void on_request(uint64 id, td_api::sendAuthenticationFirebaseSms &request);
 
   void on_request(uint64 id, td_api::reportAuthenticationCodeMissing &request);
@@ -274,6 +278,14 @@ class Requests {
   void on_request(uint64 id, const td_api::clickChatSponsoredMessage &request);
 
   void on_request(uint64 id, const td_api::reportChatSponsoredMessage &request);
+
+  void on_request(uint64 id, td_api::getSearchSponsoredChats &request);
+
+  void on_request(uint64 id, const td_api::viewSponsoredChat &request);
+
+  void on_request(uint64 id, const td_api::openSponsoredChat &request);
+
+  void on_request(uint64 id, const td_api::reportSponsoredChat &request);
 
   void on_request(uint64 id, const td_api::getMessageLink &request);
 
@@ -566,6 +578,28 @@ class Requests {
   void on_request(uint64 id, td_api::stopBusinessPoll &request);
 
   void on_request(uint64 id, td_api::setBusinessMessageIsPinned &request);
+
+  void on_request(uint64 id, td_api::readBusinessMessage &request);
+
+  void on_request(uint64 id, td_api::deleteBusinessMessages &request);
+
+  void on_request(uint64 id, td_api::editBusinessStory &request);
+
+  void on_request(uint64 id, td_api::deleteBusinessStory &request);
+
+  void on_request(uint64 id, td_api::setBusinessAccountName &request);
+
+  void on_request(uint64 id, td_api::setBusinessAccountBio &request);
+
+  void on_request(uint64 id, td_api::setBusinessAccountProfilePhoto &request);
+
+  void on_request(uint64 id, td_api::setBusinessAccountUsername &request);
+
+  void on_request(uint64 id, td_api::setBusinessAccountGiftSettings &request);
+
+  void on_request(uint64 id, td_api::getBusinessAccountStarAmount &request);
+
+  void on_request(uint64 id, td_api::transferBusinessAccountStars &request);
 
   void on_request(uint64 id, const td_api::loadQuickReplyShortcuts &request);
 
@@ -1485,11 +1519,13 @@ class Requests {
 
   void on_request(uint64 id, const td_api::deleteSavedCredentials &request);
 
+  void on_request(uint64 id, td_api::setGiftSettings &request);
+
   void on_request(uint64 id, const td_api::getAvailableGifts &request);
 
   void on_request(uint64 id, td_api::sendGift &request);
 
-  void on_request(uint64 id, const td_api::sellGift &request);
+  void on_request(uint64 id, td_api::sellGift &request);
 
   void on_request(uint64 id, const td_api::toggleGiftIsSaved &request);
 
@@ -1499,9 +1535,9 @@ class Requests {
 
   void on_request(uint64 id, const td_api::getGiftUpgradePreview &request);
 
-  void on_request(uint64 id, const td_api::upgradeGift &request);
+  void on_request(uint64 id, td_api::upgradeGift &request);
 
-  void on_request(uint64 id, const td_api::transferGift &request);
+  void on_request(uint64 id, td_api::transferGift &request);
 
   void on_request(uint64 id, td_api::getReceivedGifts &request);
 
@@ -1591,6 +1627,8 @@ class Requests {
 
   void on_request(uint64 id, td_api::applyPremiumGiftCode &request);
 
+  void on_request(uint64 id, td_api::giftPremiumWithStars &request);
+
   void on_request(uint64 id, td_api::launchPrepaidGiveaway &request);
 
   void on_request(uint64 id, const td_api::getGiveawayInfo &request);
@@ -1627,9 +1665,7 @@ class Requests {
 
   void on_request(uint64 id, td_api::canPurchaseFromStore &request);
 
-  void on_request(uint64 id, td_api::assignAppStoreTransaction &request);
-
-  void on_request(uint64 id, td_api::assignGooglePlayTransaction &request);
+  void on_request(uint64 id, td_api::assignStoreTransaction &request);
 
   void on_request(uint64 id, const td_api::getBusinessFeatures &request);
 

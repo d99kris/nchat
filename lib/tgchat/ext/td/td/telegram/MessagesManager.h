@@ -533,6 +533,8 @@ class MessagesManager final : public Actor {
 
   vector<DialogId> sort_dialogs_by_order(const vector<DialogId> &dialog_ids, int32 limit) const;
 
+  int64 get_message_order(DialogId dialog_id, MessageId message_id) const;
+
   void block_message_sender_from_replies(MessageId message_id, bool need_delete_message, bool need_delete_all_messages,
                                          bool report_spam, Promise<Unit> &&promise);
 
@@ -1568,14 +1570,6 @@ class MessagesManager final : public Actor {
   static constexpr int32 MIN_PINNED_DIALOG_DATE = 2147000000;  // some big date
   static constexpr int64 MAX_ORDINARY_DIALOG_ORDER =
       9221294780217032704;  // == get_dialog_order(MessageId(), MIN_PINNED_DIALOG_DATE - 1)
-
-  static constexpr int32 CHANNEL_DIFFERENCE_FLAG_IS_FINAL = 1 << 0;
-  static constexpr int32 CHANNEL_DIFFERENCE_FLAG_HAS_TIMEOUT = 1 << 1;
-
-  static constexpr int32 DIALOG_FLAG_HAS_PTS = 1 << 0;
-  static constexpr int32 DIALOG_FLAG_HAS_DRAFT = 1 << 1;
-  static constexpr int32 DIALOG_FLAG_IS_PINNED = 1 << 2;
-  static constexpr int32 DIALOG_FLAG_HAS_FOLDER_ID = 1 << 4;
 
   static constexpr int32 MAX_MESSAGE_VIEW_DELAY = 1;  // seconds
   static constexpr int32 MIN_SAVE_DRAFT_DELAY = 1;    // seconds
@@ -2848,8 +2842,6 @@ class MessagesManager final : public Actor {
   static DialogScheduledMessages *add_dialog_scheduled_messages(Dialog *d);
 
   static NotificationInfo *add_dialog_notification_info(Dialog *d);
-
-  static int64 get_dialog_order(MessageId message_id, int32 message_date);
 
   bool is_dialog_sponsored(const Dialog *d) const;
 

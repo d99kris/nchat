@@ -12,6 +12,7 @@
 #include "td/telegram/BotCommand.h"
 #include "td/telegram/BotMenuButton.h"
 #include "td/telegram/BotVerifierSettings.h"
+#include "td/telegram/BusinessConnectionId.h"
 #include "td/telegram/ChannelId.h"
 #include "td/telegram/Contact.h"
 #include "td/telegram/CustomEmojiId.h"
@@ -29,6 +30,7 @@
 #include "td/telegram/ReferralProgramInfo.h"
 #include "td/telegram/RestrictionReason.h"
 #include "td/telegram/SecretChatId.h"
+#include "td/telegram/StarGiftSettings.h"
 #include "td/telegram/StoryId.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
@@ -120,7 +122,9 @@ class UserManager final : public Actor {
 
   void on_binlog_secret_chat_event(BinlogEvent &&event);
 
-  void on_update_user_name(UserId user_id, string &&first_name, string &&last_name, Usernames &&usernames);
+  void on_update_user_name(UserId user_id, string &&first_name, string &&last_name);
+
+  void on_update_user_usernames(UserId user_id, Usernames &&usernames);
 
   void on_update_user_phone_number(UserId user_id, string &&phone_number);
 
@@ -148,6 +152,8 @@ class UserManager final : public Actor {
   void on_update_user_gift_count(UserId user_id, int32 gift_count);
 
   void on_update_my_gift_count(int32 added_gift_count);
+
+  void on_update_my_user_gift_settings(StarGiftSettings &&gift_settings, Promise<Unit> &&promise);
 
   void on_update_my_user_location(DialogLocation &&location);
 
@@ -188,6 +194,8 @@ class UserManager final : public Actor {
   void on_update_phone_number_privacy();
 
   void on_ignored_restriction_reasons_changed();
+
+  void on_update_freeze_state(int32 freeze_since_date, int32 freeze_until_date, string freeze_appeal_url);
 
   void invalidate_user_full(UserId user_id);
 
@@ -333,6 +341,10 @@ class UserManager final : public Actor {
 
   void set_bot_profile_photo(UserId bot_user_id, const td_api::object_ptr<td_api::InputChatPhoto> &input_photo,
                              Promise<Unit> &&promise);
+
+  void set_business_profile_photo(BusinessConnectionId business_connection_id,
+                                  const td_api::object_ptr<td_api::InputChatPhoto> &input_photo, bool is_fallback,
+                                  Promise<Unit> &&promise);
 
   void set_profile_photo(const td_api::object_ptr<td_api::InputChatPhoto> &input_photo, bool is_fallback,
                          Promise<Unit> &&promise);
@@ -637,6 +649,7 @@ class UserManager final : public Actor {
     int32 gift_count = 0;
     int32 common_chat_count = 0;
     Birthdate birthdate;
+    StarGiftSettings gift_settings;
 
     ChannelId personal_channel_id;
 
@@ -743,40 +756,6 @@ class UserManager final : public Actor {
   static constexpr size_t MAX_NAME_LENGTH = 64;         // server side limit for first/last name
 
   static constexpr int32 MAX_ACTIVE_STORY_ID_RELOAD_TIME = 3600;  // some reasonable limit
-
-  // the True fields aren't set for manually created telegram_api::user objects, therefore the flags must be used
-  static constexpr int32 USER_FLAG_HAS_ACCESS_HASH = 1 << 0;
-  static constexpr int32 USER_FLAG_HAS_FIRST_NAME = 1 << 1;
-  static constexpr int32 USER_FLAG_HAS_LAST_NAME = 1 << 2;
-  static constexpr int32 USER_FLAG_HAS_USERNAME = 1 << 3;
-  static constexpr int32 USER_FLAG_HAS_PHONE_NUMBER = 1 << 4;
-  static constexpr int32 USER_FLAG_HAS_PHOTO = 1 << 5;
-  static constexpr int32 USER_FLAG_HAS_STATUS = 1 << 6;
-  static constexpr int32 USER_FLAG_HAS_BOT_INFO_VERSION = 1 << 14;
-  static constexpr int32 USER_FLAG_IS_ME = 1 << 10;
-  static constexpr int32 USER_FLAG_IS_CONTACT = 1 << 11;
-  static constexpr int32 USER_FLAG_IS_MUTUAL_CONTACT = 1 << 12;
-  static constexpr int32 USER_FLAG_IS_DELETED = 1 << 13;
-  static constexpr int32 USER_FLAG_IS_BOT = 1 << 14;
-  static constexpr int32 USER_FLAG_IS_BOT_WITH_PRIVACY_DISABLED = 1 << 15;
-  static constexpr int32 USER_FLAG_IS_PRIVATE_BOT = 1 << 16;
-  static constexpr int32 USER_FLAG_IS_VERIFIED = 1 << 17;
-  static constexpr int32 USER_FLAG_IS_RESTRICTED = 1 << 18;
-  static constexpr int32 USER_FLAG_IS_INLINE_BOT = 1 << 19;
-  static constexpr int32 USER_FLAG_IS_INACCESSIBLE = 1 << 20;
-  static constexpr int32 USER_FLAG_NEED_LOCATION_BOT = 1 << 21;
-  static constexpr int32 USER_FLAG_HAS_LANGUAGE_CODE = 1 << 22;
-  static constexpr int32 USER_FLAG_IS_SUPPORT = 1 << 23;
-  static constexpr int32 USER_FLAG_IS_SCAM = 1 << 24;
-  static constexpr int32 USER_FLAG_NEED_APPLY_MIN_PHOTO = 1 << 25;
-  static constexpr int32 USER_FLAG_IS_FAKE = 1 << 26;
-  static constexpr int32 USER_FLAG_IS_ATTACH_MENU_BOT = 1 << 27;
-  static constexpr int32 USER_FLAG_IS_PREMIUM = 1 << 28;
-  static constexpr int32 USER_FLAG_ATTACH_MENU_ENABLED = 1 << 29;
-  static constexpr int32 USER_FLAG_HAS_EMOJI_STATUS = 1 << 30;
-  static constexpr int32 USER_FLAG_HAS_USERNAMES = 1 << 0;
-  static constexpr int32 USER_FLAG_CAN_BE_EDITED_BOT = 1 << 1;
-  static constexpr int32 USER_FLAG_IS_CLOSE_FRIEND = 1 << 2;
 
   static constexpr int32 USER_FULL_EXPIRE_TIME = 60;
 
@@ -1089,6 +1068,8 @@ class UserManager final : public Actor {
   td_api::object_ptr<td_api::secretChat> get_secret_chat_object_const(SecretChatId secret_chat_id,
                                                                       const SecretChat *secret_chat) const;
 
+  td_api::object_ptr<td_api::updateFreezeState> get_update_freeze_state_object() const;
+
   Td *td_;
   ActorShared<> parent_;
   UserId my_id_;
@@ -1185,6 +1166,10 @@ class UserManager final : public Actor {
   FlatHashMap<UserId, int64, UserIdHash> user_full_contact_price_;  // -1 - premium required
 
   WaitFreeHashSet<UserId, UserIdHash> restricted_user_ids_;
+
+  int32 freeze_since_date_ = 0;
+  int32 freeze_until_date_ = 0;
+  string freeze_appeal_url_;
 
   struct ContactBirthdates {
     vector<std::pair<UserId, Birthdate>> users_;

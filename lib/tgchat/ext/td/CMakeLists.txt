@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 
-project(TDLib VERSION 1.8.46 LANGUAGES CXX C)
+project(TDLib VERSION 1.8.47 LANGUAGES CXX C)
 
 if (NOT DEFINED CMAKE_MODULE_PATH)
   set(CMAKE_MODULE_PATH "")
@@ -210,6 +210,9 @@ if (BUILD_TESTING)
   add_subdirectory(test)
 endif()
 
+set(TDE2E_ENABLE_INSTALL ${TD_INSTALL_STATIC_LIBRARIES} CACHE BOOL "" FORCE)
+add_subdirectory(tde2e)
+
 if (NOT CMAKE_CROSSCOMPILING)
   add_subdirectory(benchmark)
 endif()
@@ -347,6 +350,7 @@ set(TDLIB_SOURCE_PART1
   td/telegram/BusinessAwayMessage.cpp
   td/telegram/BusinessAwayMessageSchedule.cpp
   td/telegram/BusinessBotManageBar.cpp
+  td/telegram/BusinessBotRights.cpp
   td/telegram/BusinessChatLink.cpp
   td/telegram/BusinessConnectedBot.cpp
   td/telegram/BusinessConnectionManager.cpp
@@ -395,6 +399,7 @@ set(TDLIB_SOURCE_PART1
   td/telegram/DialogParticipantManager.cpp
   td/telegram/DialogSource.cpp
   td/telegram/Dimensions.cpp
+  td/telegram/DisallowedGiftsSettings.cpp
   td/telegram/Document.cpp
   td/telegram/DocumentsManager.cpp
   td/telegram/DownloadManager.cpp
@@ -574,6 +579,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/StarGiftAttribute.cpp
   td/telegram/StarGiftId.cpp
   td/telegram/StarGiftManager.cpp
+  td/telegram/StarGiftSettings.cpp
   td/telegram/StarManager.cpp
   td/telegram/StarSubscription.cpp
   td/telegram/StarSubscriptionPricing.cpp
@@ -661,6 +667,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/BusinessAwayMessage.h
   td/telegram/BusinessAwayMessageSchedule.h
   td/telegram/BusinessBotManageBar.h
+  td/telegram/BusinessBotRights.h
   td/telegram/BusinessChatLink.h
   td/telegram/BusinessConnectedBot.h
   td/telegram/BusinessConnectionId.h
@@ -722,6 +729,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/DialogParticipantManager.h
   td/telegram/DialogSource.h
   td/telegram/Dimensions.h
+  td/telegram/DisallowedGiftsSettings.h
   td/telegram/Document.h
   td/telegram/DocumentsManager.h
   td/telegram/DownloadManager.h
@@ -947,6 +955,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/StarGiftAttribute.h
   td/telegram/StarGiftId.h
   td/telegram/StarGiftManager.h
+  td/telegram/StarGiftSettings.h
   td/telegram/StarManager.h
   td/telegram/StarSubscription.h
   td/telegram/StarSubscriptionPricing.h
@@ -1021,6 +1030,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/BotVerifierSettings.hpp
   td/telegram/BusinessAwayMessage.hpp
   td/telegram/BusinessAwayMessageSchedule.hpp
+  td/telegram/BusinessBotRights.hpp
   td/telegram/BusinessConnectedBot.hpp
   td/telegram/BusinessGreetingMessage.hpp
   td/telegram/BusinessInfo.hpp
@@ -1032,6 +1042,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/DialogInviteLink.hpp
   td/telegram/DialogNotificationSettings.hpp
   td/telegram/Dimensions.hpp
+  td/telegram/DisallowedGiftsSettings.hpp
   td/telegram/Document.hpp
   td/telegram/DocumentsManager.hpp
   td/telegram/DraftMessage.hpp
@@ -1090,6 +1101,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/StarGift.hpp
   td/telegram/StarGiftAttribute.hpp
   td/telegram/StarGiftId.hpp
+  td/telegram/StarGiftSettings.hpp
   td/telegram/StarSubscriptionPricing.hpp
   td/telegram/StickerMaskPosition.hpp
   td/telegram/StickerPhotoSize.hpp
@@ -1187,11 +1199,11 @@ endif()
 if (MSVC AND TD_ENABLE_LTO)
   add_library(tdcore_part1 STATIC ${TDLIB_SOURCE_PART1})
   target_include_directories(tdcore_part1 PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}> $<BUILD_INTERFACE:${TL_TD_AUTO_INCLUDE_DIR}>)
-  target_link_libraries(tdcore_part1 PUBLIC tdapi tdnet tddb tdactor tdutils PRIVATE tdmtproto)
+  target_link_libraries(tdcore_part1 PUBLIC tdapi tdnet tddb tdactor tde2e tdutils PRIVATE tdmtproto)
 
   add_library(tdcore_part2 STATIC ${TDLIB_SOURCE_PART2})
   target_include_directories(tdcore_part2 PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}> $<BUILD_INTERFACE:${TL_TD_AUTO_INCLUDE_DIR}>)
-  target_link_libraries(tdcore_part2 PUBLIC tdapi tdnet tddb tdactor tdutils PRIVATE tdmtproto)
+  target_link_libraries(tdcore_part2 PUBLIC tdapi tdnet tddb tdactor tde2e tdutils PRIVATE tdmtproto)
 
   add_library(tdcore INTERFACE)
   target_link_libraries(tdcore INTERFACE tdcore_part1 tdcore_part2)
@@ -1200,7 +1212,7 @@ if (MSVC AND TD_ENABLE_LTO)
 else()
   add_library(tdcore STATIC ${TDLIB_SOURCE})
   target_include_directories(tdcore PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}> $<BUILD_INTERFACE:${TL_TD_AUTO_INCLUDE_DIR}>)
-  target_link_libraries(tdcore PUBLIC tdapi tdnet tddb tdactor tdutils PRIVATE tdmtproto)
+  target_link_libraries(tdcore PUBLIC tdapi tdnet tddb tdactor tde2e tdutils PRIVATE tdmtproto)
 
   set(TD_CORE_PART_TARGETS)
 endif()
@@ -1368,6 +1380,7 @@ include(GeneratePkgConfig)
 if (TD_INSTALL_STATIC_LIBRARIES)
   generate_pkgconfig(tdutils "Telegram Library - Utils")
   generate_pkgconfig(tdactor "Telegram Library - Actor")
+  generate_pkgconfig(tde2e "Telegram Library - E2E")
   generate_pkgconfig(tdnet "Telegram Library - Net")
   generate_pkgconfig(tdsqlite "Telegram Library - SQLite")
   generate_pkgconfig(tddb "Telegram Library - Database")

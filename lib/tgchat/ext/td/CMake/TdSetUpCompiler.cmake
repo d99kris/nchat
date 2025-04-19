@@ -154,7 +154,7 @@ function(td_set_up_compiler)
     # see http://www.open-std.org/jtc1/sc22/wg21/docs/cwg_defects.html#1579
     add_cxx_compiler_flag("-Wno-redundant-move")
   endif()
-  if (GCC AND NOT (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 12.0))
+  if (GCC)
     add_cxx_compiler_flag("-Wno-stringop-overflow")  # some false positives
   endif()
   if (CLANG AND (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 3.5))
@@ -164,6 +164,7 @@ function(td_set_up_compiler)
   if (GCC AND (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 13.0))
     # https://gcc.gnu.org/bugzilla/show_bug.cgi?id=104030
     add_cxx_compiler_flag("-Wbidi-chars=none")
+    add_cxx_compiler_flag("-Wno-bidirectional")
   endif()
 
   if (MINGW)

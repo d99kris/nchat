@@ -46,7 +46,7 @@ static td_api::object_ptr<td_api::chatBoost> get_chat_boost_object(
       }
       return td_api::make_object<td_api::chatBoostSourceGiveaway>(
           td->user_manager_->get_user_id_object(user_id, "chatBoostSourceGiveaway"), boost->used_gift_slug_,
-          boost->stars_, giveaway_message_id.get(), boost->unclaimed_);
+          StarManager::get_star_count(boost->stars_), giveaway_message_id.get(), boost->unclaimed_);
     }
     if (boost->gift_) {
       UserId user_id(boost->user_id_);
@@ -274,12 +274,8 @@ class GetBoostsListQuery final : public Td::ResultHandler {
     dialog_id_ = dialog_id;
     auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Read);
     CHECK(input_peer != nullptr);
-    int32 flags = 0;
-    if (only_gift_codes) {
-      flags |= telegram_api::premium_getBoostsList::GIFTS_MASK;
-    }
     send_query(G()->net_query_creator().create(
-        telegram_api::premium_getBoostsList(flags, false /*ignored*/, std::move(input_peer), offset, limit)));
+        telegram_api::premium_getBoostsList(0, only_gift_codes, std::move(input_peer), offset, limit)));
   }
 
   void on_result(BufferSlice packet) final {
