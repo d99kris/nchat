@@ -10,7 +10,7 @@ if(CCACHE_PROGRAM)
 endif()
 
 # Library
-add_library(duchat SHARED
+add_library(duchat ${LIBRARY_LINKING_TYPE}
   src/duchat.cpp
   src/duchat.h
 )

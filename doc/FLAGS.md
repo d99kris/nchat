@@ -1,3 +1,26 @@
+Config Flags
+============
+
+Component Loading
+-----------------
+The main components of nchat are split into separate libraries, which by
+default are built as shared libraries and dynamically loaded at run-time.
+The rationale is to minimize memory usage, startup time and also build
+time.
+
+Using build config flags one can change how the internal components are
+loaded.
+
+Link internal libraries dynamically:
+
+    HAS_DYNAMICLOAD=OFF
+
+
+Link internal libraries statically:
+
+    HAS_SHARED_LIBS=OFF
+
+
 Feature Flags
 =============
 
