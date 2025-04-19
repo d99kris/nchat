@@ -16,8 +16,6 @@ class ServiceMessage;
 class UiController;
 class UiModel;
 
-struct screen;
-
 class Ui
 {
 public:
@@ -25,6 +23,7 @@ public:
   virtual ~Ui();
 
   void Init();
+  void Cleanup();
 
   void Run();
   void AddProtocol(std::shared_ptr<Protocol> p_Protocol);
@@ -34,14 +33,7 @@ public:
   static void RunKeyDump();
 
 private:
-  void Cleanup();
-
-private:
   std::shared_ptr<UiModel> m_Model;
   std::shared_ptr<UiController> m_Controller;
   std::string m_TerminalTitle;
-  FILE* m_TerminalInFile = nullptr;
-  FILE* m_TerminalOutFile = nullptr;
-  struct screen* m_Screen = nullptr;
-  struct screen* m_OldScreen = nullptr;
 };

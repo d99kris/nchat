@@ -410,6 +410,7 @@ int main(int argc, char* argv[])
   }
 
   // Cleanup ui
+  ui->Cleanup();
   ui.reset();
 
   // Perform export if requested

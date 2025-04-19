@@ -33,7 +33,8 @@ Ui::Ui()
 
 Ui::~Ui()
 {
-  Cleanup();
+  m_Model.reset();
+  m_Controller.reset();
 
   UiConfig::Cleanup();
 }
@@ -49,12 +50,7 @@ void Ui::Init()
   printf("\033[?1004h"); // enable terminal focus in/out event
 
   setlocale(LC_ALL, "");
-
-  m_TerminalInFile = fopen("/dev/tty", "r");
-  m_TerminalOutFile = fopen("/dev/tty", "w");
-  m_Screen = newterm(nullptr, m_TerminalOutFile, m_TerminalInFile);
-  m_OldScreen = set_term(m_Screen);
-
+  initscr();
   noecho();
   cbreak();
   UiConfig::GetBool("linefeed_on_enter") ? nl() : nonl();
@@ -76,16 +72,8 @@ void Ui::Cleanup()
   UiKeyConfig::Cleanup();
   EmojiList::Cleanup();
 
-  m_Model.reset();
-  m_Controller.reset();
-
   wclear(stdscr);
   endwin();
-
-  set_term(m_OldScreen);
-  delscreen(m_Screen);
-  fclose(m_TerminalInFile);
-  fclose(m_TerminalOutFile);
 
   printf("\033[?1004l"); // disable terminal focus in/out event
 
