@@ -39,10 +39,6 @@ elseif (${CMAKE_SYSTEM_NAME} MATCHES "Android")
   add_compile_definitions(_XOPEN_SOURCE_EXTENDED)
 endif()
 
-# Config - Components built as shared libraries
-option(HAS_SHARED_LIBS "Shared Libs" ON)
-message(STATUS "Shared Libs: ${HAS_SHARED_LIBS}")
-
 # Optional component - Dummy Protocol
 option(HAS_DUMMY "Dummy" ON)
 message(STATUS "Dummy: ${HAS_DUMMY}")
@@ -57,12 +53,7 @@ message(STATUS "WhatsApp: ${HAS_WHATSAPP}")
 
 # Feature - Dynamic library load
 option(HAS_DYNAMICLOAD "Dynamic Load" ON)
-if(HAS_DYNAMICLOAD AND NOT HAS_SHARED_LIBS)
-  set(HAS_DYNAMICLOAD OFF)
-  message(STATUS "Dynamic Load: ${HAS_DYNAMICLOAD} (Forced)")
-else()
-  message(STATUS "Dynamic Load: ${HAS_DYNAMICLOAD}")
-endif()
+message(STATUS "Dynamic Load: ${HAS_DYNAMICLOAD}")
 
 # Feature - Multi protocol
 option(HAS_MULTIPROTOCOL "Multi Protocol" ON)
@@ -85,21 +76,14 @@ endif()
 
 # Helper function for applying common target properties
 function(target_common_config target)
-  if(CMAKE_BUILD_TYPE STREQUAL "Release")
+  if (CMAKE_BUILD_TYPE STREQUAL "Release")
     target_compile_definitions(${target} PRIVATE NCHAT_BUILD_RELEASE=1)
-  elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+  elseif (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
     target_compile_definitions(${target} PRIVATE NCHAT_BUILD_RELWITHDEBINFO=1)
   elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_compile_definitions(${target} PRIVATE NCHAT_BUILD_DEBUG=1)
   endif()
 endfunction()
-
-# Internal library linking type
-if(HAS_SHARED_LIBS)
-  set(LIBRARY_LINKING_TYPE SHARED)
-else()
-  set(LIBRARY_LINKING_TYPE STATIC)
-endif()
 
 # Application
 add_executable(nchat
@@ -287,24 +271,16 @@ add_theme("zenbones-dark")
 add_theme("zenburned")
 
 # Uninstall
-if(HAS_SHARED_LIBS)
-  add_custom_target(uninstall
-    COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/bin/nchat"
-    COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_MANDIR}/man1/nchat.1"
-    COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libncutil${CMAKE_SHARED_LIBRARY_SUFFIX}"
-    COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libtdclientshared${CMAKE_SHARED_LIBRARY_SUFFIX}"
-    COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libtgchat${CMAKE_SHARED_LIBRARY_SUFFIX}"
-    COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libduchat${CMAKE_SHARED_LIBRARY_SUFFIX}"
-    COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libwmchat${CMAKE_SHARED_LIBRARY_SUFFIX}"
-    COMMAND "${CMAKE_COMMAND}" -E remove_directory "${CMAKE_INSTALL_PREFIX}/share/nchat"
-  )
-else()
-  add_custom_target(uninstall
-    COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/bin/nchat"
-    COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_MANDIR}/man1/nchat.1"
-    COMMAND "${CMAKE_COMMAND}" -E remove_directory "${CMAKE_INSTALL_PREFIX}/share/nchat"
-  )
-endif()
+add_custom_target(uninstall
+  COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/bin/nchat"
+  COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_MANDIR}/man1/nchat.1"
+  COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libncutil${CMAKE_SHARED_LIBRARY_SUFFIX}"
+  COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libtdclientshared${CMAKE_SHARED_LIBRARY_SUFFIX}"
+  COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libtgchat${CMAKE_SHARED_LIBRARY_SUFFIX}"
+  COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libduchat${CMAKE_SHARED_LIBRARY_SUFFIX}"
+  COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libwmchat${CMAKE_SHARED_LIBRARY_SUFFIX}"
+  COMMAND "${CMAKE_COMMAND}" -E remove_directory "${CMAKE_INSTALL_PREFIX}/share/nchat"
+)
 
 # Dev Application
 if(CMAKE_BUILD_TYPE MATCHES "Debug")

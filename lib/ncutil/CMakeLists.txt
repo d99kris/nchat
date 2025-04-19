@@ -24,7 +24,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Android")
 endif()
 
 # Library
-add_library(ncutil ${LIBRARY_LINKING_TYPE}
+add_library(ncutil SHARED
   src/appconfig.cpp
   src/appconfig.h
   src/apputil.cpp

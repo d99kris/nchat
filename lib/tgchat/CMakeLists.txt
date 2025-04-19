@@ -42,7 +42,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 endif()
 
 # Library
-add_library(tgchat ${LIBRARY_LINKING_TYPE}
+add_library(tgchat SHARED
   src/tgchat.cpp
   src/tgchat.h
 )
@@ -60,16 +60,11 @@ target_include_directories(tgchat PRIVATE "ext/td")
 # Dependency tdlib
 add_subdirectory(ext/td EXCLUDE_FROM_ALL)
 
-if(LIBRARY_LINKING_TYPE STREQUAL "SHARED")
-  set(TDLIBNAME "tdclientshared")
-  set(TDLIBFILENAME "libtdclientshared${CMAKE_SHARED_LIBRARY_SUFFIX}")
-  install(FILES ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${TDLIBFILENAME} DESTINATION ${CMAKE_INSTALL_LIBDIR})
-else()
-  set(TDLIBNAME "tdclient")
-endif()
+set(TDLIBNAME "libtdclientshared${CMAKE_SHARED_LIBRARY_SUFFIX}")
+install(FILES ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${TDLIBNAME} DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 # Linking
-target_link_libraries(tgchat PUBLIC ncutil ${TDLIBNAME})
+target_link_libraries(tgchat PUBLIC ncutil tdclientshared)
 if (USE_LIBATOMIC)
   set_target_properties(tgchat PROPERTIES LINK_FLAGS "-latomic")
 endif()

@@ -10,7 +10,7 @@ if(CCACHE_PROGRAM)
 endif()
 
 # Library
-add_library(wmchat ${LIBRARY_LINKING_TYPE}
+add_library(wmchat SHARED
   src/wmchat.cpp
   src/wmchat.h
 )
