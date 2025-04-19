@@ -21,8 +21,12 @@ UiTopView::UiTopView(const UiViewParams& p_Params)
 
 void UiTopView::Draw()
 {
+  static const bool awayStatusIndication = UiConfig::GetBool("away_status_indication");
+  static const uint32_t fullMask = ~static_cast<uint32_t>(0);
+  static const uint32_t statusMask = fullMask & (awayStatusIndication ? fullMask : ~Status::FlagAway);
+
   static uint32_t lastStatus = 0;
-  uint32_t status = Status::Get(); // @todo: get masked flags
+  uint32_t status = Status::Get(statusMask);
   m_Dirty |= (status != lastStatus);
   lastStatus = status;
 
@@ -55,13 +59,9 @@ void UiTopView::Draw()
     return std::string("");
   }();
 
-  static const bool awayStatusIndication = UiConfig::GetBool("away_status_indication");
-  static const uint32_t fullMask = ~static_cast<uint32_t>(0);
-  static const uint32_t statusMask = fullMask & (awayStatusIndication ? fullMask : ~Status::FlagAway);
-
   static const bool topShowVersion = UiConfig::GetBool("top_show_version");
   static const std::string appNameVersion = AppUtil::GetAppName(topShowVersion);
-  const std::string statusStr = Status::ToString(statusMask) + statusSuffixStr;
+  const std::string statusStr = Status::ToString(status) + statusSuffixStr;
   std::wstring topWStrLeft = StrUtil::ToWString(std::string(topPadLeft, ' ') + appNameVersion);
   std::wstring topWStrRight = StrUtil::ToWString(statusStr + std::string(topPadRight, ' '));
   int topStrLeftWidth = StrUtil::WStringWidth(topWStrLeft);

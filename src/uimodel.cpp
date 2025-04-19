@@ -4530,7 +4530,7 @@ void UiModel::OnKeyEditMsg()
 
 void UiModel::OnKeyQuit()
 {
-  if (Status::Get() & Status::FlagSyncing)
+  if (Status::Get(Status::FlagSyncing) & Status::FlagSyncing)
   {
     if (!MessageDialog("Confirmation", "Syncing in progress, confirm exit?", 0.75, 5))
     {

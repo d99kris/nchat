@@ -1,6 +1,6 @@
 // status.h
 //
-// Copyright (c) 2020-2024 Kristofer Berggren
+// Copyright (c) 2020-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -28,7 +28,7 @@ public:
     FlagAway = (1 << 7),
   };
 
-  static uint32_t Get();
+  static uint32_t Get(uint32_t p_Mask);
   static void Set(uint32_t p_Flags);
   static void Clear(uint32_t p_Flags);
   static std::string ToString(uint32_t p_Mask);
