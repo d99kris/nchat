@@ -518,7 +518,7 @@ class MessageChatSetTtl final : public MessageContent {
 
 class MessageUnsupported final : public MessageContent {
  public:
-  static constexpr int32 CURRENT_VERSION = 41;
+  static constexpr int32 CURRENT_VERSION = 42;
   int32 version = CURRENT_VERSION;
 
   MessageUnsupported() = default;
@@ -1354,6 +1354,31 @@ class MessagePaidMessagesPrice final : public MessageContent {
   }
 };
 
+class MessageConferenceCall final : public MessageContent {
+ public:
+  int64 call_id = 0;
+  int32 duration = 0;
+  vector<DialogId> other_participant_dialog_ids;
+  bool is_active = false;
+  bool is_video = false;
+  bool was_missed = false;
+
+  MessageConferenceCall() = default;
+  MessageConferenceCall(int64 call_id, int32 duration, vector<DialogId> other_participant_dialog_ids, bool is_active,
+                        bool is_video, bool was_missed)
+      : call_id(call_id)
+      , duration(duration)
+      , other_participant_dialog_ids(std::move(other_participant_dialog_ids))
+      , is_active(is_active)
+      , is_video(is_video)
+      , was_missed(was_missed) {
+  }
+
+  MessageContentType get_type() const final {
+    return MessageContentType::ConferenceCall;
+  }
+};
+
 template <class StorerT>
 static void store(const MessageContent *content, StorerT &storer) {
   CHECK(content != nullptr);
@@ -2138,6 +2163,26 @@ static void store(const MessageContent *content, StorerT &storer) {
       BEGIN_STORE_FLAGS();
       END_STORE_FLAGS();
       store(m->star_count, storer);
+      break;
+    }
+    case MessageContentType::ConferenceCall: {
+      const auto *m = static_cast<const MessageConferenceCall *>(content);
+      bool has_duration = m->duration != 0;
+      bool has_other_participant_dialog_ids = !m->other_participant_dialog_ids.empty();
+      BEGIN_STORE_FLAGS();
+      STORE_FLAG(m->is_active);
+      STORE_FLAG(m->is_video);
+      STORE_FLAG(m->was_missed);
+      STORE_FLAG(has_duration);
+      STORE_FLAG(has_other_participant_dialog_ids);
+      END_STORE_FLAGS();
+      store(m->call_id, storer);
+      if (has_duration) {
+        store(m->duration, storer);
+      }
+      if (has_other_participant_dialog_ids) {
+        store(m->other_participant_dialog_ids, storer);
+      }
       break;
     }
     default:
@@ -3150,6 +3195,27 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
       content = std::move(m);
       break;
     }
+    case MessageContentType::ConferenceCall: {
+      auto m = make_unique<MessageConferenceCall>();
+      bool has_duration;
+      bool has_other_participant_dialog_ids;
+      BEGIN_PARSE_FLAGS();
+      PARSE_FLAG(m->is_active);
+      PARSE_FLAG(m->is_video);
+      PARSE_FLAG(m->was_missed);
+      PARSE_FLAG(has_duration);
+      PARSE_FLAG(has_other_participant_dialog_ids);
+      END_PARSE_FLAGS();
+      parse(m->call_id, parser);
+      if (has_duration) {
+        parse(m->duration, parser);
+      }
+      if (has_other_participant_dialog_ids) {
+        parse(m->other_participant_dialog_ids, parser);
+      }
+      content = std::move(m);
+      break;
+    }
 
     default:
       is_bad = true;
@@ -3183,9 +3249,7 @@ InlineMessageContent create_inline_message_content(Td *td, FileId file_id,
         file_id.is_valid());
 
   InlineMessageContent result;
-  tl_object_ptr<telegram_api::ReplyMarkup> reply_markup;
-  result.disable_web_page_preview = false;
-  result.invert_media = false;
+  telegram_api::object_ptr<telegram_api::ReplyMarkup> reply_markup;
   switch (bot_inline_message->get_id()) {
     case telegram_api::botInlineMessageText::ID: {
       auto inline_message = telegram_api::move_object_as<telegram_api::botInlineMessageText>(bot_inline_message);
@@ -3502,7 +3566,7 @@ static Result<InputMessageContent> create_input_message_content(
         }
         extended_media.push_back(std::move(media));
       }
-      static constexpr size_t MAX_PAID_MEDIA = 10;  // server side limit
+      static constexpr size_t MAX_PAID_MEDIA = 10;  // server-side limit
       if (extended_media.empty() || extended_media.size() > MAX_PAID_MEDIA) {
         return Status::Error(400, "Invalid number of paid media specified");
       }
@@ -3695,7 +3759,7 @@ static Result<InputMessageContent> create_input_message_content(
     }
     case td_api::inputMessageStory::ID: {
       auto input_story = static_cast<td_api::inputMessageStory *>(input_message_content.get());
-      DialogId story_sender_dialog_id(input_story->story_sender_chat_id_);
+      DialogId story_sender_dialog_id(input_story->story_poster_chat_id_);
       StoryId story_id(input_story->story_id_);
       StoryFullId story_full_id(story_sender_dialog_id, story_id);
       if (!td->story_manager_->have_story_force(story_full_id)) {
@@ -3830,7 +3894,7 @@ Result<InputMessageContent> get_input_message_content(
 }
 
 Status check_message_group_message_contents(const vector<InputMessageContent> &message_contents) {
-  static constexpr size_t MAX_GROUPED_MESSAGES = 10;  // server side limit
+  static constexpr size_t MAX_GROUPED_MESSAGES = 10;  // server-side limit
   if (message_contents.size() > MAX_GROUPED_MESSAGES) {
     return Status::Error(400, "Too many messages to send as an album");
   }
@@ -3937,6 +4001,7 @@ bool can_message_content_have_input_media(const Td *td, const MessageContent *co
     case MessageContentType::StarGiftUnique:
     case MessageContentType::PaidMessagesRefunded:
     case MessageContentType::PaidMessagesPrice:
+    case MessageContentType::ConferenceCall:
       return false;
     case MessageContentType::Animation:
     case MessageContentType::Audio:
@@ -4087,6 +4152,7 @@ SecretInputMedia get_message_content_secret_input_media(
     case MessageContentType::StarGiftUnique:
     case MessageContentType::PaidMessagesRefunded:
     case MessageContentType::PaidMessagesPrice:
+    case MessageContentType::ConferenceCall:
       break;
     default:
       UNREACHABLE();
@@ -4264,6 +4330,7 @@ static telegram_api::object_ptr<telegram_api::InputMedia> get_message_content_in
     case MessageContentType::StarGiftUnique:
     case MessageContentType::PaidMessagesRefunded:
     case MessageContentType::PaidMessagesPrice:
+    case MessageContentType::ConferenceCall:
       break;
     default:
       UNREACHABLE();
@@ -4508,6 +4575,7 @@ void delete_message_content_thumbnail(MessageContent *content, Td *td, int32 med
     case MessageContentType::StarGiftUnique:
     case MessageContentType::PaidMessagesRefunded:
     case MessageContentType::PaidMessagesPrice:
+    case MessageContentType::ConferenceCall:
       break;
     default:
       UNREACHABLE();
@@ -4732,6 +4800,7 @@ Status can_send_message_content(DialogId dialog_id, const MessageContent *conten
     case MessageContentType::StarGiftUnique:
     case MessageContentType::PaidMessagesRefunded:
     case MessageContentType::PaidMessagesPrice:
+    case MessageContentType::ConferenceCall:
       UNREACHABLE();
   }
   return Status::OK();
@@ -4818,6 +4887,14 @@ static int32 get_message_content_media_index_mask(const MessageContent *content,
       const auto *m = static_cast<const MessageCall *>(content);
       if (!is_outgoing && (m->discard_reason.type_ == CallDiscardReason::Type::Declined ||
                            m->discard_reason.type_ == CallDiscardReason::Type::Missed)) {
+        index_mask |= message_search_filter_index_mask(MessageSearchFilter::MissedCall);
+      }
+      return index_mask;
+    }
+    case MessageContentType::ConferenceCall: {
+      int32 index_mask = message_search_filter_index_mask(MessageSearchFilter::Call);
+      const auto *m = static_cast<const MessageConferenceCall *>(content);
+      if (!is_outgoing && m->was_missed) {
         index_mask |= message_search_filter_index_mask(MessageSearchFilter::MissedCall);
       }
       return index_mask;
@@ -5199,6 +5276,9 @@ vector<UserId> get_message_content_min_user_ids(const Td *td, const MessageConte
     case MessageContentType::PaidMessagesRefunded:
       break;
     case MessageContentType::PaidMessagesPrice:
+      break;
+    case MessageContentType::ConferenceCall:
+      // private chats only
       break;
     default:
       UNREACHABLE();
@@ -5633,6 +5713,7 @@ void merge_message_contents(Td *td, const MessageContent *old_content, MessageCo
     case MessageContentType::StarGiftUnique:
     case MessageContentType::PaidMessagesRefunded:
     case MessageContentType::PaidMessagesPrice:
+    case MessageContentType::ConferenceCall:
       break;
     default:
       UNREACHABLE();
@@ -5792,6 +5873,7 @@ bool merge_message_content_file_id(Td *td, MessageContent *message_content, File
     case MessageContentType::StarGiftUnique:
     case MessageContentType::PaidMessagesRefunded:
     case MessageContentType::PaidMessagesPrice:
+    case MessageContentType::ConferenceCall:
       LOG(ERROR) << "Receive new file " << new_file_id << " in a sent message of the type " << content_type;
       break;
     default:
@@ -6438,6 +6520,17 @@ void compare_message_contents(Td *td, const MessageContent *old_content, const M
       }
       break;
     }
+    case MessageContentType::ConferenceCall: {
+      const auto *lhs = static_cast<const MessageConferenceCall *>(old_content);
+      const auto *rhs = static_cast<const MessageConferenceCall *>(new_content);
+      if (lhs->duration != rhs->duration || lhs->other_participant_dialog_ids != rhs->other_participant_dialog_ids ||
+          lhs->is_active != rhs->is_active || lhs->is_video != rhs->is_video || lhs->was_missed != rhs->was_missed) {
+        need_update = true;
+      } else if (lhs->call_id != rhs->call_id) {
+        is_content_changed = true;
+      }
+      break;
+    }
     default:
       UNREACHABLE();
       break;
@@ -6532,6 +6625,8 @@ void register_message_content(Td *td, const MessageContent *content, MessageFull
       td->star_gift_manager_->on_get_star_gift(star_gift->star_gift, false);
       return td->star_gift_manager_->register_gift(message_full_id, source);
     }
+    case MessageContentType::ConferenceCall:
+      return td->group_call_manager_->register_group_call(message_full_id, source);
     default:
       return;
   }
@@ -6684,6 +6779,8 @@ void unregister_message_content(Td *td, const MessageContent *content, MessageFu
       return td->star_gift_manager_->unregister_gift(message_full_id, source);
     case MessageContentType::StarGiftUnique:
       return td->star_gift_manager_->unregister_gift(message_full_id, source);
+    case MessageContentType::ConferenceCall:
+      return td->group_call_manager_->unregister_group_call(message_full_id, source);
     default:
       return;
   }
@@ -7189,7 +7286,7 @@ unique_ptr<MessageContent> get_message_content(Td *td, FormattedText message,
     case telegram_api::messageMediaPhoto::ID: {
       auto media = telegram_api::move_object_as<telegram_api::messageMediaPhoto>(media_ptr);
       if (media->photo_ == nullptr) {
-        if ((media->flags_ & telegram_api::messageMediaPhoto::TTL_SECONDS_MASK) == 0) {
+        if (media->ttl_seconds_ == 0) {
           LOG(ERROR) << "Receive messageMediaPhoto without photo and self-destruct timer from " << source << ": "
                      << oneline(to_string(media));
           break;
@@ -7198,7 +7295,7 @@ unique_ptr<MessageContent> get_message_content(Td *td, FormattedText message,
         return make_unique<MessageExpiredPhoto>();
       }
 
-      bool is_self_destructing = (media->flags_ & telegram_api::messageMediaPhoto::TTL_SECONDS_MASK) != 0;
+      bool is_self_destructing = media->ttl_seconds_ != 0;
       auto photo = get_photo(td, std::move(media->photo_), owner_dialog_id,
                              is_self_destructing ? FileType::SelfDestructingPhoto : FileType::Photo);
       if (photo.is_empty()) {
@@ -7269,7 +7366,7 @@ unique_ptr<MessageContent> get_message_content(Td *td, FormattedText message,
     case telegram_api::messageMediaDocument::ID: {
       auto media = telegram_api::move_object_as<telegram_api::messageMediaDocument>(media_ptr);
       if (media->document_ == nullptr) {
-        if ((media->flags_ & telegram_api::messageMediaDocument::TTL_SECONDS_MASK) == 0) {
+        if (media->ttl_seconds_ == 0) {
           LOG(ERROR) << "Receive messageMediaDocument without document and self-destruct timer from " << source << ": "
                      << oneline(to_string(media));
           break;
@@ -7296,7 +7393,7 @@ unique_ptr<MessageContent> get_message_content(Td *td, FormattedText message,
       }
       CHECK(document_id == telegram_api::document::ID);
 
-      bool is_self_destructing = (media->flags_ & telegram_api::messageMediaDocument::TTL_SECONDS_MASK) != 0;
+      bool is_self_destructing = media->ttl_seconds_ != 0;
       if (ttl != nullptr && is_self_destructing) {
         *ttl = MessageSelfDestructType(media->ttl_seconds_, true);
       }
@@ -7343,6 +7440,7 @@ unique_ptr<MessageContent> get_message_content(Td *td, FormattedText message,
       auto m = make_unique<MessageGame>(
           Game(td, via_bot_user_id, std::move(media->game_), std::move(message), owner_dialog_id));
       if (m->game.is_empty()) {
+        message = m->game.get_text();
         break;
       }
       return std::move(m);
@@ -7697,6 +7795,7 @@ unique_ptr<MessageContent> dup_message_content(Td *td, DialogId dialog_id, const
     case MessageContentType::StarGiftUnique:
     case MessageContentType::PaidMessagesRefunded:
     case MessageContentType::PaidMessagesPrice:
+    case MessageContentType::ConferenceCall:
       return nullptr;
     default:
       UNREACHABLE();
@@ -7764,6 +7863,7 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
       case telegram_api::messageActionStarGift::ID:
       case telegram_api::messageActionStarGiftUnique::ID:
       case telegram_api::messageActionPaidMessagesRefunded::ID:
+      case telegram_api::messageActionConferenceCall::ID:
         // ok
         break;
       default:
@@ -8288,6 +8388,23 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
     case telegram_api::messageActionPaidMessagesPrice::ID: {
       auto action = move_tl_object_as<telegram_api::messageActionPaidMessagesPrice>(action_ptr);
       return td::make_unique<MessagePaidMessagesPrice>(StarManager::get_star_count(action->stars_));
+    }
+    case telegram_api::messageActionConferenceCall::ID: {
+      auto action = move_tl_object_as<telegram_api::messageActionConferenceCall>(action_ptr);
+      vector<DialogId> other_participant_dialog_ids;
+      for (const auto &peer : action->other_participants_) {
+        auto dialog_id = DialogId(peer);
+        if (!dialog_id.is_valid()) {
+          LOG(ERROR) << "Receive invalid " << dialog_id;
+          continue;
+        }
+        if (dialog_id.get_type() != DialogType::User) {
+          td->dialog_manager_->force_create_dialog(dialog_id, "messageActionConferenceCall", true);
+        }
+      }
+      return td::make_unique<MessageConferenceCall>(action->call_id_, max(0, action->duration_),
+                                                    std::move(other_participant_dialog_ids), action->active_,
+                                                    action->video_, action->missed_);
     }
     default:
       UNREACHABLE();
@@ -8829,6 +8946,15 @@ td_api::object_ptr<td_api::MessageContent> get_message_content_object(
     case MessageContentType::PaidMessagesPrice: {
       const auto *m = static_cast<const MessagePaidMessagesPrice *>(content);
       return td_api::make_object<td_api::messagePaidMessagePriceChanged>(m->star_count);
+    }
+    case MessageContentType::ConferenceCall: {
+      const auto *m = static_cast<const MessageConferenceCall *>(content);
+      vector<td_api::object_ptr<td_api::MessageSender>> other_participant_ids;
+      for (auto participant_dialog_id : m->other_participant_dialog_ids) {
+        other_participant_ids.push_back(get_message_sender_object(td, participant_dialog_id, "messageGroupCall"));
+      }
+      return td_api::make_object<td_api::messageGroupCall>(m->is_active, m->was_missed, m->is_video, m->duration,
+                                                           std::move(other_participant_ids));
     }
     default:
       UNREACHABLE();
@@ -9503,6 +9629,10 @@ string get_message_content_search_text(const Td *td, const MessageContent *conte
     case MessageContentType::PaymentRefunded:
     case MessageContentType::GiftStars:
     case MessageContentType::PrizeStars:
+    case MessageContentType::StarGiftUnique:
+    case MessageContentType::PaidMessagesRefunded:
+    case MessageContentType::PaidMessagesPrice:
+    case MessageContentType::ConferenceCall:
       return string();
     default:
       UNREACHABLE();
@@ -9563,6 +9693,13 @@ bool need_poll_message_content_extended_media(const MessageContent *content) {
     default:
       return false;
   }
+}
+
+bool need_poll_conference_call_message_content(const MessageContent *content) {
+  CHECK(content != nullptr);
+  CHECK(content->get_type() == MessageContentType::ConferenceCall);
+  const auto *call = static_cast<const MessageConferenceCall *>(content);
+  return call->duration == 0 && !call->is_active && !call->was_missed;
 }
 
 void set_message_content_video_start_timestamp(MessageContent *content, int32 start_timestamp) {
@@ -9939,6 +10076,13 @@ void add_message_content_dependencies(Dependencies &dependencies, const MessageC
       break;
     case MessageContentType::PaidMessagesPrice:
       break;
+    case MessageContentType::ConferenceCall: {
+      const auto *content = static_cast<const MessageConferenceCall *>(message_content);
+      for (auto dialog_id : content->other_participant_dialog_ids) {
+        dependencies.add_message_sender_dependencies(dialog_id);
+      }
+      break;
+    }
     default:
       UNREACHABLE();
       break;

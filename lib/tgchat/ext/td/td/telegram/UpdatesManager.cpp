@@ -1088,6 +1088,15 @@ bool UpdatesManager::is_acceptable_message(const telegram_api::Message *message_
           }
           break;
         }
+        case telegram_api::messageActionConferenceCall::ID: {
+          auto content = static_cast<const telegram_api::messageActionConferenceCall *>(action);
+          for (auto &participant : content->other_participants_) {
+            if (!is_acceptable_peer(participant)) {
+              return false;
+            }
+          }
+          break;
+        }
         default:
           UNREACHABLE();
           return false;
@@ -1493,8 +1502,8 @@ vector<std::pair<const telegram_api::Message *, bool>> UpdatesManager::get_new_m
   return messages;
 }
 
-vector<InputGroupCallId> UpdatesManager::get_update_new_group_call_ids(const telegram_api::Updates *updates_ptr) {
-  vector<InputGroupCallId> input_group_call_ids;
+InputGroupCallId UpdatesManager::get_update_new_group_call_id(const telegram_api::Updates *updates_ptr) {
+  InputGroupCallId result;
   auto updates = get_updates(updates_ptr);
   if (updates != nullptr) {
     for (auto &update : *updates) {
@@ -1508,11 +1517,19 @@ vector<InputGroupCallId> UpdatesManager::get_update_new_group_call_ids(const tel
       }
 
       if (input_group_call_id.is_valid()) {
-        input_group_call_ids.push_back(input_group_call_id);
+        if (!result.is_valid()) {
+          result = input_group_call_id;
+        } else if (result != input_group_call_id) {
+          result = {};
+          break;
+        }
       }
     }
   }
-  return input_group_call_ids;
+  if (!result.is_valid()) {
+    LOG(ERROR) << "Receive wrong response " << to_string(*updates_ptr);
+  }
+  return result;
 }
 
 void UpdatesManager::process_updates_users_and_chats(telegram_api::Updates *updates_ptr) {
@@ -2768,6 +2785,12 @@ void UpdatesManager::process_updates(vector<tl_object_ptr<telegram_api::Update>>
       // updateGroupCallConnection must be processed before updateGroupCall
       if (constructor_id == telegram_api::updateGroupCallConnection::ID) {
         on_update(move_tl_object_as<telegram_api::updateGroupCallConnection>(update), get_promise());
+        continue;
+      }
+
+      // updateGroupCallChainBlocks must be processed before updateGroupCall
+      if (constructor_id == telegram_api::updateGroupCallChainBlocks::ID) {
+        on_update(move_tl_object_as<telegram_api::updateGroupCallChainBlocks>(update), get_promise());
         continue;
       }
 
@@ -4389,6 +4412,15 @@ void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateGroupCallConnec
   promise.set_value(Unit());
 }
 
+void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateGroupCallChainBlocks> update,
+                               Promise<Unit> &&promise) {
+  send_closure(G()->group_call_manager(), &GroupCallManager::on_update_group_call_chain_blocks,
+               InputGroupCallId(update->call_), update->sub_chain_id_,
+               transform(update->blocks_, [](const BufferSlice &block) { return block.as_slice().str(); }),
+               update->next_offset_);
+  promise.set_value(Unit());
+}
+
 void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateGroupCall> update, Promise<Unit> &&promise) {
   DialogId dialog_id(ChatId(update->chat_id_));
   if (dialog_id != DialogId() && !td_->dialog_manager_->have_dialog_force(dialog_id, "updateGroupCall")) {
@@ -4463,8 +4495,15 @@ void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateDeleteScheduled
   td_->messages_manager_->on_update_delete_scheduled_messages(dialog_id, std::move(message_ids));
   if (!td_->auth_manager_->is_bot()) {
     for (auto message_id : update->sent_messages_) {
-      td_->messages_manager_->on_update_message_video_published(
-          {DialogId(dialog_id), MessageId(ServerMessageId(message_id))});
+      auto message_full_id = MessageFullId{DialogId(dialog_id), MessageId(ServerMessageId(message_id))};
+      td_->messages_manager_->wait_message_add(
+          message_full_id, PromiseCreator::lambda([message_full_id](Result<Unit> &&result) {
+            if (result.is_ok() && !G()->close_flag()) {
+              send_closure(G()->td(), &Td::send_update,
+                           td_api::make_object<td_api::updateVideoPublished>(message_full_id.get_dialog_id().get(),
+                                                                             message_full_id.get_message_id().get()));
+            }
+          }));
     }
   }
   promise.set_value(Unit());

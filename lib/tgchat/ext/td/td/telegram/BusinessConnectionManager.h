@@ -137,7 +137,7 @@ class BusinessConnectionManager final : public Actor {
   void get_current_state(vector<td_api::object_ptr<td_api::Update>> &updates) const;
 
  private:
-  static constexpr size_t MAX_NAME_LENGTH = 64;  // server side limit for first/last name
+  static constexpr size_t MAX_NAME_LENGTH = 64;  // server-side limit for first/last name
 
   struct BusinessConnection;
   struct PendingMessage;
@@ -222,8 +222,9 @@ class BusinessConnectionManager final : public Actor {
 
   void do_send_message_album(int64 request_id, BusinessConnectionId business_connection_id, DialogId dialog_id,
                              MessageInputReplyTo &&input_reply_to, bool disable_notification, bool protect_content,
-                             MessageEffectId effect_id, vector<InputMessageContent> &&message_contents,
-                             Promise<td_api::object_ptr<td_api::businessMessages>> &&promise);
+                             MessageEffectId effect_id, vector<InputMessageContent> &&message_contents);
+
+  void fail_send_message_album(int64 request_id, Status error);
 
   void on_upload_message_album_media(int64 request_id, size_t media_pos, Result<UploadMediaResult> &&result);
 

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 
-project(TDLib VERSION 1.8.47 LANGUAGES CXX C)
+project(TDLib VERSION 1.8.48 LANGUAGES CXX C)
 
 if (NOT DEFINED CMAKE_MODULE_PATH)
   set(CMAKE_MODULE_PATH "")
@@ -442,6 +442,7 @@ set(TDLIB_SOURCE_PART1
   td/telegram/GiveawayParameters.cpp
   td/telegram/Global.cpp
   td/telegram/GlobalPrivacySettings.cpp
+  td/telegram/GroupCallJoinParameters.cpp
   td/telegram/GroupCallManager.cpp
   td/telegram/GroupCallParticipant.cpp
   td/telegram/GroupCallParticipantOrder.cpp
@@ -451,6 +452,7 @@ set(TDLIB_SOURCE_PART1
   td/telegram/InlineQueriesManager.cpp
   td/telegram/InputBusinessChatLink.cpp
   td/telegram/InputDialogId.cpp
+  td/telegram/InputGroupCall.cpp
   td/telegram/InputGroupCallId.cpp
   td/telegram/InputInvoice.cpp
   td/telegram/InputMessageText.cpp
@@ -782,6 +784,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/GiveawayParameters.h
   td/telegram/Global.h
   td/telegram/GlobalPrivacySettings.h
+  td/telegram/GroupCallJoinParameters.h
   td/telegram/GroupCallId.h
   td/telegram/GroupCallManager.h
   td/telegram/GroupCallParticipant.h
@@ -792,6 +795,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/InlineQueriesManager.h
   td/telegram/InputBusinessChatLink.h
   td/telegram/InputDialogId.h
+  td/telegram/InputGroupCall.h
   td/telegram/InputGroupCallId.h
   td/telegram/InputInvoice.h
   td/telegram/InputMessageText.h

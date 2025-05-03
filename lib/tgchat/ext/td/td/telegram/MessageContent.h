@@ -87,8 +87,8 @@ struct InputMessageContent {
 struct InlineMessageContent {
   unique_ptr<MessageContent> message_content;
   unique_ptr<ReplyMarkup> message_reply_markup;
-  bool disable_web_page_preview;
-  bool invert_media;
+  bool disable_web_page_preview = false;
+  bool invert_media = false;
 };
 
 void store_message_content(const MessageContent *content, LogEventStorerCalcLength &storer);
@@ -325,6 +325,8 @@ bool update_message_content_extended_media(
     DialogId owner_dialog_id, Td *td);
 
 bool need_poll_message_content_extended_media(const MessageContent *content);
+
+bool need_poll_conference_call_message_content(const MessageContent *content);
 
 void set_message_content_video_start_timestamp(MessageContent *content, int32 start_timestamp);
 

@@ -5905,8 +5905,8 @@ bool ChatManager::on_get_channel_error(ChannelId channel_id, const Status &statu
     if (c->status.is_member()) {
       LOG(INFO) << "Emulate leaving " << channel_id;
       // TODO we also may try to write to a public channel
-      telegram_api::channelForbidden channel_forbidden(0 /*ignored*/, !c->is_megagroup, c->is_megagroup,
-                                                       channel_id.get(), c->access_hash, c->title, 0);
+      telegram_api::channelForbidden channel_forbidden(0, !c->is_megagroup, c->is_megagroup, channel_id.get(),
+                                                       c->access_hash, c->title, 0);
       on_get_channel_forbidden(channel_forbidden, "CHANNEL_PRIVATE");
     } else if (!c->status.is_banned()) {
       if (!c->usernames.is_empty()) {
@@ -8651,8 +8651,7 @@ void ChatManager::on_get_channel(telegram_api::channel &channel, const char *sou
 
   DialogParticipantStatus status = [&] {
     if (channel.creator_) {
-      bool is_anonymous = channel.admin_rights_ != nullptr &&
-                          (channel.admin_rights_->flags_ & telegram_api::chatAdminRights::ANONYMOUS_MASK) != 0;
+      bool is_anonymous = channel.admin_rights_ != nullptr && channel.admin_rights_->anonymous_;
       return DialogParticipantStatus::Creator(!channel.left_, is_anonymous, string());
     } else if (channel.admin_rights_ != nullptr) {
       return DialogParticipantStatus(false, std::move(channel.admin_rights_), string(),

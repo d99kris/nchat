@@ -126,14 +126,15 @@ class MessagesManager final : public Actor {
   static constexpr int32 SEND_MESSAGE_FLAG_DISABLE_WEB_PAGE_PREVIEW = 1 << 1;
   static constexpr int32 SEND_MESSAGE_FLAG_HAS_REPLY_MARKUP = 1 << 2;
   static constexpr int32 SEND_MESSAGE_FLAG_HAS_ENTITIES = 1 << 3;
-  //  static constexpr int32 SEND_MESSAGE_FLAG_IS_POST = 1 << 4;
   static constexpr int32 SEND_MESSAGE_FLAG_DISABLE_NOTIFICATION = 1 << 5;
   static constexpr int32 SEND_MESSAGE_FLAG_FROM_BACKGROUND = 1 << 6;
   static constexpr int32 SEND_MESSAGE_FLAG_CLEAR_DRAFT = 1 << 7;
   static constexpr int32 SEND_MESSAGE_FLAG_WITH_MY_SCORE = 1 << 8;
   static constexpr int32 SEND_MESSAGE_FLAG_IS_FROM_THREAD = 1 << 9;
   static constexpr int32 SEND_MESSAGE_FLAG_HAS_SCHEDULE_DATE = 1 << 10;
-  static constexpr int32 SEND_MESSAGE_FLAG_HAS_MESSAGE = 1 << 11;
+  static constexpr int32 SEND_MESSAGE_FLAG_HIDE_VIA = 1 << 11;
+  static constexpr int32 SEND_MESSAGE_FLAG_DROP_AUTHOR = 1 << 11;
+  static constexpr int32 SEND_MESSAGE_FLAG_DROP_MEDIA_CAPTIONS = 1 << 12;
   static constexpr int32 SEND_MESSAGE_FLAG_HAS_SEND_AS = 1 << 13;
   static constexpr int32 SEND_MESSAGE_FLAG_NOFORWARDS = 1 << 14;
   static constexpr int32 SEND_MESSAGE_FLAG_UPDATE_STICKER_SETS_ORDER = 1 << 15;
@@ -246,9 +247,9 @@ class MessagesManager final : public Actor {
                       int32 total_count, vector<tl_object_ptr<telegram_api::Message>> &&messages,
                       Promise<Unit> &&promise);
 
-  bool on_update_message_id(int64 random_id, MessageId new_message_id, const char *source);
+  void wait_message_add(MessageFullId message_full_id, Promise<Unit> &&promise);
 
-  void on_update_message_video_published(MessageFullId message_full_id);
+  bool on_update_message_id(int64 random_id, MessageId new_message_id, const char *source);
 
   void on_update_dialog_draft_message(DialogId dialog_id, MessageId top_thread_message_id,
                                       tl_object_ptr<telegram_api::DraftMessage> &&draft_message, bool force = false);
@@ -564,10 +565,10 @@ class MessagesManager final : public Actor {
   void get_messages(DialogId dialog_id, const vector<MessageId> &message_ids, Promise<Unit> &&promise);
 
   void get_message_from_server(MessageFullId message_full_id, Promise<Unit> &&promise, const char *source,
-                               tl_object_ptr<telegram_api::InputMessage> input_message = nullptr);
+                               telegram_api::object_ptr<telegram_api::InputMessage> input_message = nullptr);
 
   void get_messages_from_server(vector<MessageFullId> &&message_ids, Promise<Unit> &&promise, const char *source,
-                                tl_object_ptr<telegram_api::InputMessage> input_message = nullptr);
+                                telegram_api::object_ptr<telegram_api::InputMessage> input_message = nullptr);
 
   void get_message_properties(DialogId dialog_id, MessageId message_id,
                               Promise<td_api::object_ptr<td_api::messageProperties>> &&promise);
@@ -920,6 +921,8 @@ class MessagesManager final : public Actor {
 
   int64 get_message_random_id(MessageFullId message_full_id);
 
+  bool need_poll_group_call_message(MessageFullId message_full_id);
+
   void finish_gift_upgrade(MessageFullId message_full_id,
                            Promise<td_api::object_ptr<td_api::upgradeGiftResult>> &&promise);
 
@@ -930,6 +933,8 @@ class MessagesManager final : public Actor {
     int64 star_count_ = 0;
   };
   Result<InvoiceMessageInfo> get_invoice_message_info(MessageFullId message_full_id);
+
+  Result<ServerMessageId> get_group_call_message_id(MessageFullId message_full_id);
 
   Result<ServerMessageId> get_payment_successful_message_id(MessageFullId message_full_id);
 
@@ -1556,13 +1561,13 @@ class MessagesManager final : public Actor {
   class SetDialogFolderIdOnServerLogEvent;
   class UpdateDialogNotificationSettingsOnServerLogEvent;
 
-  static constexpr size_t MAX_GROUPED_MESSAGES = 10;  // server side limit
-  static constexpr int32 MAX_GET_DIALOGS = 100;       // server side limit
-  static constexpr int32 MAX_GET_HISTORY = 100;       // server side limit
-  static constexpr int32 MAX_SEARCH_MESSAGES = 100;   // server side limit
+  static constexpr size_t MAX_GROUPED_MESSAGES = 10;  // server-side limit
+  static constexpr int32 MAX_GET_DIALOGS = 100;       // server-side limit
+  static constexpr int32 MAX_GET_HISTORY = 100;       // server-side limit
+  static constexpr int32 MAX_SEARCH_MESSAGES = 100;   // server-side limit
   static constexpr int32 MIN_CHANNEL_DIFFERENCE = 1;
   static constexpr int32 MAX_CHANNEL_DIFFERENCE = 100;
-  static constexpr int32 MAX_BOT_CHANNEL_DIFFERENCE = 100000;  // server side limit
+  static constexpr int32 MAX_BOT_CHANNEL_DIFFERENCE = 100000;  // server-side limit
   static constexpr size_t MIN_DELETED_ASYNCHRONOUSLY_MESSAGES = 2;
   static constexpr size_t MAX_UNLOADED_MESSAGES = 5000;
 
@@ -1818,9 +1823,9 @@ class MessagesManager final : public Actor {
     bool drop_author = false;
     bool drop_media_captions = false;
 
-    Dialog *from_dialog;
+    Dialog *from_dialog = nullptr;
     MessageId top_thread_message_id;
-    Dialog *to_dialog;
+    Dialog *to_dialog = nullptr;
     MessageSendOptions message_send_options;
   };
 
@@ -2286,8 +2291,6 @@ class MessagesManager final : public Actor {
 
   void send_update_message_send_succeeded(Dialog *d, MessageId old_message_id, const Message *m,
                                           bool *need_update_dialog_pos);
-
-  void send_update_video_published(MessageFullId message_full_id);
 
   void send_update_message_content(const Dialog *d, Message *m, bool is_message_in_dialog, const char *source);
 
@@ -3122,7 +3125,7 @@ class MessagesManager final : public Actor {
       update_scheduled_message_ids_;                                              // new_message_id -> temporary_id
   FlatHashMap<MessageFullId, MessageId, MessageFullIdHash> messages_to_restore_;  // new_message_id -> temporary_id
 
-  FlatHashSet<MessageFullId, MessageFullIdHash> published_video_message_full_ids_;
+  FlatHashMap<MessageFullId, vector<Promise<Unit>>, MessageFullIdHash> awaited_message_full_ids_;
 
   const char *debug_add_message_to_dialog_fail_reason_ = "";
 
@@ -3255,9 +3258,9 @@ class MessagesManager final : public Actor {
 
   struct GetDialogsTask {
     DialogListId dialog_list_id;
-    int64 dialog_list_unique_id;
-    int32 limit;
-    int32 retry_count;
+    int64 dialog_list_unique_id = 0;
+    int32 limit = 0;
+    int32 retry_count = 5;
     DialogDate last_dialog_date = MIN_DIALOG_DATE;
     Promise<td_api::object_ptr<td_api::chats>> promise;
   };

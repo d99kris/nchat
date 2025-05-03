@@ -13,7 +13,6 @@
 #include "td/utils/common.h"
 #include "td/utils/format.h"
 #include "td/utils/logging.h"
-#include "td/utils/misc.h"
 #include "td/utils/Slice.h"
 #include "td/utils/Status.h"
 #include "td/utils/StorerBase.h"
@@ -229,8 +228,6 @@ BufferSlice log_event_store_impl(const T &data, const char *file, int line) {
 
   BufferSlice value_buffer{storer_calc_length.get_length()};
   auto ptr = value_buffer.as_mutable_slice().ubegin();
-  LOG_CHECK(is_aligned_pointer<4>(ptr)) << ptr;
-
   LogEventStorerUnsafe storer_unsafe(ptr);
   store(data, storer_unsafe);
 

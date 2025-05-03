@@ -10,8 +10,6 @@
 #include "td/telegram/CallId.h"
 #include "td/telegram/DhConfig.h"
 #include "td/telegram/files/FileUploadId.h"
-#include "td/telegram/GroupCallId.h"
-#include "td/telegram/InputGroupCallId.h"
 #include "td/telegram/net/NetQuery.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
@@ -92,6 +90,7 @@ struct CallState {
   vector<string> emojis_fingerprint;
   string custom_parameters;
   bool allow_p2p{false};
+  bool conference_supported{false};
 
   Status error;
 
@@ -102,8 +101,7 @@ class CallActor final : public NetQueryCallback {
  public:
   CallActor(Td *td, CallId call_id, ActorShared<> parent, Promise<int64> promise);
 
-  void create_call(UserId user_id, CallProtocol &&protocol, bool is_video, GroupCallId group_call_id,
-                   Promise<CallId> &&promise);
+  void create_call(UserId user_id, CallProtocol &&protocol, bool is_video, Promise<CallId> &&promise);
 
   void accept_call(CallProtocol &&protocol, Promise<Unit> promise);
 
@@ -111,7 +109,8 @@ class CallActor final : public NetQueryCallback {
 
   void send_call_signaling_data(string &&data, Promise<Unit> promise);
 
-  void discard_call(bool is_disconnected, int32 duration, bool is_video, int64 connection_id, Promise<Unit> promise);
+  void discard_call(bool is_disconnected, const string &invite_link, int32 duration, bool is_video, int64 connection_id,
+                    Promise<Unit> promise);
 
   void rate_call(int32 rating, string comment, vector<td_api::object_ptr<td_api::CallProblem>> &&problems,
                  Promise<Unit> promise);
@@ -119,8 +118,6 @@ class CallActor final : public NetQueryCallback {
   void send_call_debug_information(string data, Promise<Unit> promise);
 
   void send_call_log(td_api::object_ptr<td_api::InputFile> log_file, Promise<Unit> promise);
-
-  void create_conference_call(Promise<Unit> promise);
 
   void update_call(tl_object_ptr<telegram_api::PhoneCall> call);
 
@@ -155,7 +152,6 @@ class CallActor final : public NetQueryCallback {
   bool is_outgoing_{false};
   bool is_video_{false};
   UserId user_id_;
-  InputGroupCallId input_group_call_id_;
 
   CallId local_call_id_;
   int64 call_id_{0};
@@ -172,8 +168,6 @@ class CallActor final : public NetQueryCallback {
 
   void update_call_inner(tl_object_ptr<telegram_api::phone_phoneCall> call);
 
-  void update_conference_call(const telegram_api::object_ptr<telegram_api::inputGroupCall> &conference_call);
-
   tl_object_ptr<telegram_api::inputPhoneCall> get_input_phone_call(const char *source);
   bool load_dh_config();
   void on_dh_config(Result<std::shared_ptr<DhConfig>> r_dh_config, bool dummy);
@@ -183,7 +177,7 @@ class CallActor final : public NetQueryCallback {
   Status do_update_call(const telegram_api::phoneCallWaiting &call);
   Status do_update_call(const telegram_api::phoneCallRequested &call);
   Status do_update_call(const telegram_api::phoneCallAccepted &call);
-  Status do_update_call(const telegram_api::phoneCall &call);
+  Status do_update_call(telegram_api::phoneCall &call);
   Status do_update_call(const telegram_api::phoneCallDiscarded &call);
 
   void on_get_call_id();
@@ -222,8 +216,6 @@ class CallActor final : public NetQueryCallback {
                           Promise<Unit> &&promise);
 
   void on_save_log_query_result(FileUploadId file_upload_id, Promise<Unit> promise, Result<NetQueryPtr> r_net_query);
-
-  void on_create_conference_call_result(Promise<Unit> promise, Result<NetQueryPtr> r_net_query);
 
   void on_get_call_config_result(Result<NetQueryPtr> r_net_query);
 

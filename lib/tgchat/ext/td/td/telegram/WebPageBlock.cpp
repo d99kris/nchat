@@ -1211,8 +1211,8 @@ class WebPageBlockEmbedded final : public WebPageBlock {
   Photo poster_photo;
   Dimensions dimensions;
   WebPageBlockCaption caption;
-  bool is_full_width;
-  bool allow_scrolling;
+  bool is_full_width = false;
+  bool allow_scrolling = false;
 
  public:
   WebPageBlockEmbedded() = default;
@@ -1277,7 +1277,7 @@ class WebPageBlockEmbeddedPost final : public WebPageBlock {
   string url;
   string author;
   Photo author_photo;
-  int32 date;
+  int32 date = 0;
   vector<unique_ptr<WebPageBlock>> page_blocks;
   WebPageBlockCaption caption;
 
@@ -1651,7 +1651,7 @@ class WebPageBlockTable final : public WebPageBlock {
 class WebPageBlockDetails final : public WebPageBlock {
   RichText header;
   vector<unique_ptr<WebPageBlock>> page_blocks;
-  bool is_open;
+  bool is_open = false;
 
  public:
   WebPageBlockDetails() = default;
@@ -2146,16 +2146,12 @@ unique_ptr<WebPageBlock> get_web_page_block(Td *td, tl_object_ptr<telegram_api::
       auto page_block = move_tl_object_as<telegram_api::pageBlockEmbed>(page_block_ptr);
       bool is_full_width = page_block->full_width_;
       bool allow_scrolling = page_block->allow_scrolling_;
-      bool has_dimensions = (page_block->flags_ & telegram_api::pageBlockEmbed::W_MASK) != 0;
       Photo poster_photo;
       auto it = photos.find(page_block->poster_photo_id_);
       if (it != photos.end()) {
         poster_photo = *it->second;
       }
-      Dimensions dimensions;
-      if (has_dimensions) {
-        dimensions = get_dimensions(page_block->w_, page_block->h_, "pageBlockEmbed");
-      }
+      auto dimensions = get_dimensions(page_block->w_, page_block->h_, "pageBlockEmbed");
       return td::make_unique<WebPageBlockEmbedded>(
           std::move(page_block->url_), std::move(page_block->html_), std::move(poster_photo), dimensions,
           get_page_block_caption(std::move(page_block->caption_), documents), is_full_width, allow_scrolling);

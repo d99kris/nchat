@@ -87,7 +87,7 @@ class DialogInviteLinkManager final : public Actor {
   void delete_all_revoked_dialog_invite_links(DialogId dialog_id, UserId creator_user_id, Promise<Unit> &&promise);
 
  private:
-  static constexpr size_t MAX_INVITE_LINK_TITLE_LENGTH = 32;  // server side limit
+  static constexpr size_t MAX_INVITE_LINK_TITLE_LENGTH = 32;  // server-side limit
 
   void tear_down() final;
 
@@ -117,7 +117,7 @@ class DialogInviteLinkManager final : public Actor {
     vector<UserId> participant_user_ids;
     string description;
     StarSubscriptionPricing subscription_pricing;
-    int64 subscription_form_id;
+    int64 subscription_form_id = 0;
     CustomEmojiId bot_verification_icon;
     bool creates_join_request = false;
     bool can_refulfill_subscription = false;

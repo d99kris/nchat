@@ -11,7 +11,7 @@
 #include "td/telegram/files/FileManager.h"
 #include "td/telegram/files/FileType.h"
 #include "td/telegram/Global.h"
-#include "td/telegram/GroupCallManager.h"
+#include "td/telegram/LinkManager.h"
 #include "td/telegram/misc.h"
 #include "td/telegram/net/NetQueryCreator.h"
 #include "td/telegram/net/NetQueryDispatcher.h"
@@ -22,8 +22,6 @@
 #include "td/telegram/UserManager.h"
 
 #include "td/utils/algorithm.h"
-#include "td/utils/as.h"
-#include "td/utils/bits.h"
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
 #include "td/utils/crypto.h"
@@ -118,7 +116,7 @@ tl_object_ptr<td_api::CallState> CallState::get_call_state_object() const {
       auto call_connections = transform(connections, [](auto &c) { return c.get_call_server_object(); });
       return make_tl_object<td_api::callStateReady>(protocol.get_call_protocol_object(), std::move(call_connections),
                                                     config, key, vector<string>(emojis_fingerprint), allow_p2p,
-                                                    custom_parameters);
+                                                    conference_supported, custom_parameters);
     }
     case Type::HangingUp:
       return make_tl_object<td_api::callStateHangingUp>();
@@ -192,17 +190,12 @@ CallActor::CallActor(Td *td, CallId call_id, ActorShared<> parent, Promise<int64
     : td_(td), parent_(std::move(parent)), call_id_promise_(std::move(promise)), local_call_id_(call_id) {
 }
 
-void CallActor::create_call(UserId user_id, CallProtocol &&protocol, bool is_video, GroupCallId group_call_id,
-                            Promise<CallId> &&promise) {
+void CallActor::create_call(UserId user_id, CallProtocol &&protocol, bool is_video, Promise<CallId> &&promise) {
   CHECK(state_ == State::Empty);
   state_ = State::SendRequestQuery;
   is_outgoing_ = true;
   is_video_ = is_video;
   user_id_ = user_id;
-  auto r_input_group_call_id = td_->group_call_manager_->get_input_group_call_id(group_call_id);
-  if (r_input_group_call_id.is_ok()) {
-    input_group_call_id_ = r_input_group_call_id.ok();
-  }
   call_state_.protocol = std::move(protocol);
   call_state_.type = CallState::Type::Pending;
   call_state_.is_received = false;
@@ -222,7 +215,8 @@ void CallActor::accept_call(CallProtocol &&protocol, Promise<Unit> promise) {
 }
 
 void CallActor::update_call_signaling_data(string data) {
-  if (call_state_.type != CallState::Type::Ready) {
+  if (call_state_.type != CallState::Type::Ready &&
+      call_state_.discard_reason.type_ != CallDiscardReason::Type::UpgradeToGroupCall) {
     return;
   }
 
@@ -233,7 +227,8 @@ void CallActor::update_call_signaling_data(string data) {
 }
 
 void CallActor::send_call_signaling_data(string &&data, Promise<Unit> promise) {
-  if (call_state_.type != CallState::Type::Ready) {
+  if (call_state_.type != CallState::Type::Ready &&
+      call_state_.discard_reason.type_ != CallDiscardReason::Type::UpgradeToGroupCall) {
     return promise.set_error(Status::Error(400, "Call is not active"));
   }
 
@@ -250,17 +245,10 @@ void CallActor::send_call_signaling_data(string &&data, Promise<Unit> promise) {
                     }));
 }
 
-void CallActor::discard_call(bool is_disconnected, int32 duration, bool is_video, int64 connection_id,
-                             Promise<Unit> promise) {
-  promise.set_value(Unit());
+void CallActor::discard_call(bool is_disconnected, const string &invite_link, int32 duration, bool is_video,
+                             int64 connection_id, Promise<Unit> promise) {
   if (state_ == State::Discarded || state_ == State::WaitDiscardResult || state_ == State::SendDiscardQuery) {
-    return;
-  }
-  is_video_ |= is_video;
-
-  if (state_ == State::WaitRequestResult && !request_query_ref_.empty()) {
-    LOG(INFO) << "Cancel request call query";
-    cancel_query(request_query_ref_);
+    return promise.set_value(Unit());
   }
 
   switch (call_state_.type) {
@@ -277,8 +265,17 @@ void CallActor::discard_call(bool is_disconnected, int32 duration, bool is_video
           is_disconnected ? CallDiscardReason::Type::Disconnected : CallDiscardReason::Type::HungUp;
       break;
     case CallState::Type::Ready:
-      call_state_.discard_reason.type_ =
-          is_disconnected ? CallDiscardReason::Type::Disconnected : CallDiscardReason::Type::HungUp;
+      if (!invite_link.empty()) {
+        auto slug = LinkManager::get_group_call_invite_link_slug(invite_link);
+        if (slug.empty()) {
+          return promise.set_error(Status::Error(400, "Invalid invite link specified"));
+        }
+        call_state_.discard_reason.type_ = CallDiscardReason::Type::UpgradeToGroupCall;
+        call_state_.discard_reason.slug_ = std::move(slug);
+      } else {
+        call_state_.discard_reason.type_ =
+            is_disconnected ? CallDiscardReason::Type::Disconnected : CallDiscardReason::Type::HungUp;
+      }
       duration_ = duration;
       connection_id_ = connection_id;
       break;
@@ -290,10 +287,18 @@ void CallActor::discard_call(bool is_disconnected, int32 duration, bool is_video
       return;
   }
 
+  is_video_ |= is_video;
+
+  if (state_ == State::WaitRequestResult && !request_query_ref_.empty()) {
+    LOG(INFO) << "Cancel request call query";
+    cancel_query(request_query_ref_);
+  }
+
   call_state_.type = CallState::Type::HangingUp;
   call_state_need_flush_ = true;
 
   state_ = State::SendDiscardQuery;
+  promise.set_value(Unit());
   loop();
 }
 
@@ -512,33 +517,6 @@ void CallActor::on_save_log_query_result(FileUploadId file_upload_id, Promise<Un
   promise.set_value(Unit());
 }
 
-void CallActor::create_conference_call(Promise<Unit> promise) {
-  if (input_group_call_id_.is_valid()) {
-    return promise.set_value(Unit());
-  }
-  auto tl_query = telegram_api::phone_createConferenceCall(get_input_phone_call("create_conference_call"),
-                                                           call_state_.key_fingerprint);
-  auto query = G()->net_query_creator().create(tl_query);
-  send_with_promise(std::move(query), PromiseCreator::lambda([actor_id = actor_id(this), promise = std::move(promise)](
-                                                                 Result<NetQueryPtr> r_net_query) mutable {
-                      send_closure(actor_id, &CallActor::on_create_conference_call_result, std::move(promise),
-                                   std::move(r_net_query));
-                    }));
-  loop();
-}
-
-void CallActor::on_create_conference_call_result(Promise<Unit> promise, Result<NetQueryPtr> r_net_query) {
-  auto res = fetch_result<telegram_api::phone_createConferenceCall>(std::move(r_net_query));
-  if (res.is_error()) {
-    return promise.set_error(res.move_as_error());
-  }
-  update_call_inner(res.move_as_ok());
-  if (!input_group_call_id_.is_valid()) {
-    return promise.set_error(Status::Error(500, "Receive invalid response"));
-  }
-  promise.set_value(Unit());
-}
-
 void CallActor::update_call(tl_object_ptr<telegram_api::PhoneCall> call) {
   LOG(INFO) << "Receive " << to_string(call);
   auto status = [&] {
@@ -552,7 +530,7 @@ void CallActor::update_call(tl_object_ptr<telegram_api::PhoneCall> call) {
       case telegram_api::phoneCallAccepted::ID:
         return do_update_call(static_cast<const telegram_api::phoneCallAccepted &>(*call));
       case telegram_api::phoneCall::ID:
-        return do_update_call(static_cast<const telegram_api::phoneCall &>(*call));
+        return do_update_call(static_cast<telegram_api::phoneCall &>(*call));
       case telegram_api::phoneCallDiscarded::ID:
         return do_update_call(static_cast<const telegram_api::phoneCallDiscarded &>(*call));
       default:
@@ -601,7 +579,6 @@ Status CallActor::do_update_call(const telegram_api::phoneCallWaiting &call) {
   call_access_hash_ = call.access_hash_;
   is_call_id_inited_ = true;
   call_admin_user_id_ = UserId(call.admin_id_);
-  update_conference_call(call.conference_call_);
   on_get_call_id();
 
   if (call.video_ && !is_video_) {
@@ -624,7 +601,6 @@ Status CallActor::do_update_call(const telegram_api::phoneCallRequested &call) {
   call_id_ = call.id_;
   call_access_hash_ = call.access_hash_;
   is_call_id_inited_ = true;
-  update_conference_call(call.conference_call_);
   is_video_ |= call.video_;
   call_admin_user_id_ = UserId(call.admin_id_);
   on_get_call_id();
@@ -659,7 +635,6 @@ Status CallActor::do_update_call(const telegram_api::phoneCallAccepted &call) {
     call_admin_user_id_ = UserId(call.admin_id_);
     on_get_call_id();
   }
-  update_conference_call(call.conference_call_);
   is_video_ |= call.video_;
   dh_handshake_.set_g_a(call.g_b_.as_slice());
   TRY_STATUS(dh_handshake_.run_checks(true, DhCache::instance()));
@@ -678,22 +653,8 @@ void CallActor::on_begin_exchanging_key() {
   set_timeout_in(timeout);
 }
 
-void CallActor::update_conference_call(const telegram_api::object_ptr<telegram_api::inputGroupCall> &conference_call) {
-  InputGroupCallId input_group_call_id;
-  if (conference_call != nullptr) {
-    input_group_call_id = InputGroupCallId(conference_call);
-  }
-  if (input_group_call_id_ != input_group_call_id) {
-    input_group_call_id_ = input_group_call_id;
-    call_state_need_flush_ = true;
-  }
-}
-
-Status CallActor::do_update_call(const telegram_api::phoneCall &call) {
+Status CallActor::do_update_call(telegram_api::phoneCall &call) {
   if (state_ != State::WaitAcceptResult && state_ != State::WaitConfirmResult) {
-    if (state_ == State::Ready) {
-      update_conference_call(call.conference_call_);
-    }
     return Status::OK();
   }
   cancel_timeout();
@@ -718,10 +679,10 @@ Status CallActor::do_update_call(const telegram_api::phoneCall &call) {
   }
   call_state_.protocol = CallProtocol(*call.protocol_);
   call_state_.allow_p2p = call.p2p_allowed_;
+  call_state_.conference_supported = call.conference_supported_;
   if (call.custom_parameters_ != nullptr) {
     call_state_.custom_parameters = std::move(call.custom_parameters_->data_);
   }
-  update_conference_call(call.conference_call_);
   call_state_.type = CallState::Type::Ready;
   call_state_need_flush_ = true;
 
@@ -730,7 +691,6 @@ Status CallActor::do_update_call(const telegram_api::phoneCall &call) {
 
 Status CallActor::do_update_call(const telegram_api::phoneCallDiscarded &call) {
   LOG(DEBUG) << "Do update call to Discarded";
-  update_conference_call(call.conference_call_);
   on_call_discarded(get_call_discard_reason(call.reason_), call.need_rating_, call.need_debug_, call.video_);
   return Status::OK();
 }
@@ -885,15 +845,9 @@ void CallActor::try_send_request_query() {
   if (r_input_user.is_error()) {
     return on_error(r_input_user.move_as_error());
   }
-  int32 flags = 0;
-  telegram_api::object_ptr<telegram_api::inputGroupCall> input_group_call;
-  if (input_group_call_id_.is_valid()) {
-    flags |= telegram_api::phone_requestCall::CONFERENCE_CALL_MASK;
-    input_group_call = input_group_call_id_.get_input_group_call();
-  }
-  auto tl_query = telegram_api::phone_requestCall(
-      flags, is_video_, r_input_user.move_as_ok(), std::move(input_group_call), Random::secure_int32(),
-      BufferSlice(dh_handshake_.get_g_b_hash()), call_state_.protocol.get_input_phone_call_protocol());
+  auto tl_query = telegram_api::phone_requestCall(0, is_video_, r_input_user.move_as_ok(), Random::secure_int32(),
+                                                  BufferSlice(dh_handshake_.get_g_b_hash()),
+                                                  call_state_.protocol.get_input_phone_call_protocol());
   auto query = G()->net_query_creator().create(tl_query);
   state_ = State::WaitRequestResult;
   int64 call_receive_timeout_ms = G()->get_option_integer("call_receive_timeout_ms", 20000);
@@ -1029,9 +983,8 @@ void CallActor::flush_call_state() {
     call_state_need_flush_ = false;
 
     auto peer_id = is_outgoing_ ? user_id_ : call_admin_user_id_;
-    auto group_call_id = td_->group_call_manager_->get_group_call_id(input_group_call_id_, DialogId()).get();
     auto update = td_api::make_object<td_api::updateCall>(td_api::make_object<td_api::call>(
-        local_call_id_.get(), 0, is_outgoing_, is_video_, call_state_.get_call_state_object(), group_call_id));
+        local_call_id_.get(), 0, is_outgoing_, is_video_, call_state_.get_call_state_object()));
     send_closure(G()->user_manager(), &UserManager::get_user_id_object_async, peer_id,
                  [td_actor = G()->td(), update = std::move(update)](Result<int64> r_user_id) mutable {
                    if (r_user_id.is_ok()) {
@@ -1078,7 +1031,8 @@ void CallActor::loop() {
       break;
     case State::Discarded: {
       if (call_state_.type == CallState::Type::Discarded &&
-          (call_state_.need_rating || call_state_.need_debug_information || call_state_.need_log)) {
+          (call_state_.need_rating || call_state_.need_debug_information || call_state_.need_log ||
+           call_state_.discard_reason.type_ == CallDiscardReason::Type::UpgradeToGroupCall)) {
         break;
       }
       LOG(INFO) << "Close " << local_call_id_;
@@ -1118,14 +1072,7 @@ vector<string> CallActor::get_emojis_fingerprint(const string &key, const string
   string str = key + g_a;
   unsigned char sha256_buf[32];
   sha256(str, {sha256_buf, 32});
-
-  vector<string> result;
-  result.reserve(4);
-  for (int i = 0; i < 4; i++) {
-    uint64 num = big_endian_to_host64(as<uint64>(sha256_buf + 8 * i));
-    result.push_back(get_emoji_fingerprint(num));
-  }
-  return result;
+  return get_emoji_fingerprints(sha256_buf);
 }
 
 }  // namespace td

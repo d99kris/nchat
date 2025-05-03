@@ -1114,7 +1114,7 @@ void NotificationManager::flush_pending_updates(int32 group_id, const char *sour
   // all other additions and edits can be merged to the first addition/edit
   // i.e. in edit+delete+add chain we want to remove deletion and merge addition to the edit
 
-  auto group_key = group_keys_[NotificationGroupId(group_id)];
+  const auto &group_key = group_keys_[NotificationGroupId(group_id)];
   bool is_hidden = group_key.last_notification_date == 0 || get_last_updated_group_key() < group_key;
   bool is_changed = true;
   while (is_changed) {
@@ -3349,6 +3349,11 @@ Status NotificationManager::process_push_notification_payload(string payload, bo
   if (begins_with(loc_key, "PHONE_CALL_") || begins_with(loc_key, "VIDEO_CALL_")) {
     // TODO PHONE_CALL_REQUEST/PHONE_CALL_DECLINE/PHONE_CALL_MISSED/VIDEO_CALL_REQUEST/VIDEO_CALL_MISSED notifications
     return Status::Error(406, "Phone call notification is not supported");
+  }
+
+  if (begins_with(loc_key, "CONF_CALL_") || begins_with(loc_key, "CONF_VIDEOCALL_")) {
+    // TODO CONF_CALL_REQUEST/CONF_CALL_MISSED/CONF_VIDEOCALL_REQUEST/CONF_VIDEOCALL_MISSED notifications
+    return Status::Error(406, "Group call notification is not supported");
   }
 
   if (begins_with(loc_key, "REACT_") || loc_key == "READ_REACTION") {

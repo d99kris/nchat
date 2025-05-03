@@ -173,6 +173,7 @@ OptionManager::OptionManager(Td *td)
   set_default_integer_option("paid_message_star_count_max", 10000);
   set_default_integer_option("paid_message_earnings_per_mille", 850);
   set_default_integer_option("pinned_gift_count_max", 6);
+  set_default_integer_option("group_call_participant_count_max", is_test_dc ? 5 : 200);
 
   if (options.isset("my_phone_number") || !options.isset("my_id")) {
     update_premium_options();
@@ -723,7 +724,7 @@ td_api::object_ptr<td_api::OptionValue> OptionManager::get_option_synchronously(
       break;
     case 'v':
       if (name == "version") {
-        return td_api::make_object<td_api::optionValueString>("1.8.47");
+        return td_api::make_object<td_api::optionValueString>("1.8.48");
       }
       break;
   }

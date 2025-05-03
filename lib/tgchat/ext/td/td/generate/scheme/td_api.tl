@@ -698,7 +698,7 @@ businessGreetingMessageSettings shortcut_id:int32 recipients:businessRecipients 
 //@can_change_gift_settings True, if the bot can change gift receiving settings of the business account
 //@can_transfer_and_upgrade_gifts True, if the bot can transfer and upgrade gifts received by the business account
 //@can_transfer_stars True, if the bot can transfer Telegram Stars received by the business account to account of the bot, or use them to upgrade and transfer gifts
-//@can_manage_stories True, if the bot can send, edit and delete stories
+//@can_manage_stories True, if the bot can post, edit and delete stories
 businessBotRights can_reply:Bool can_read_messages:Bool can_delete_sent_messages:Bool can_delete_all_messages:Bool can_edit_name:Bool can_edit_bio:Bool can_edit_profile_photo:Bool can_edit_username:Bool can_view_gifts_and_stars:Bool can_sell_gifts:Bool can_change_gift_settings:Bool can_transfer_and_upgrade_gifts:Bool can_transfer_stars:Bool can_manage_stories:Bool = BusinessBotRights;
 
 //@description Describes a bot connected to a business account
@@ -1769,7 +1769,7 @@ basicGroupFullInfo photo:chatPhoto description:string creator_user_id:int53 memb
 //@date Point in time (Unix timestamp) when the current user joined, or the point in time when the supergroup or channel was created, in case the user is not a member
 //@status Status of the current user in the supergroup or channel; custom title will always be empty
 //@member_count Number of members in the supergroup or channel; 0 if unknown. Currently, it is guaranteed to be known only if the supergroup or channel was received through
-//-getChatSimilarChats, getChatsToSendStories, getCreatedPublicChats, getGroupsInCommon, getInactiveSupergroupChats, getRecommendedChats, getSuitableDiscussionChats,
+//-getChatSimilarChats, getChatsToPostStories, getCreatedPublicChats, getGroupsInCommon, getInactiveSupergroupChats, getRecommendedChats, getSuitableDiscussionChats,
 //-getUserPrivacySettingRules, getVideoChatAvailableParticipants, searchPublicChats, or in chatFolderInviteLinkInfo.missing_chat_ids, or in userFullInfo.personal_chat_id,
 //-or for chats with messages or stories from publicForwards and foundStories
 //@boost_level Approximate boost level for the chat
@@ -2073,8 +2073,8 @@ inputTextQuote text:formattedText position:int32 = InputTextQuote;
 //-messageVideoNote, or messageVoiceNote
 messageReplyToMessage chat_id:int53 message_id:int53 quote:textQuote origin:MessageOrigin origin_send_date:int32 content:MessageContent = MessageReplyTo;
 
-//@description Describes a story replied by a given message @story_sender_chat_id The identifier of the sender of the story @story_id The identifier of the story
-messageReplyToStory story_sender_chat_id:int53 story_id:int32 = MessageReplyTo;
+//@description Describes a story replied by a given message @story_poster_chat_id The identifier of the poster of the story @story_id The identifier of the story
+messageReplyToStory story_poster_chat_id:int53 story_id:int32 = MessageReplyTo;
 
 
 //@class InputMessageReplyTo @description Contains information about the message or the story to be replied
@@ -2091,9 +2091,9 @@ inputMessageReplyToMessage message_id:int53 quote:inputTextQuote = InputMessageR
 inputMessageReplyToExternalMessage chat_id:int53 message_id:int53 quote:inputTextQuote = InputMessageReplyTo;
 
 //@description Describes a story to be replied
-//@story_sender_chat_id The identifier of the sender of the story. Currently, stories can be replied only in the sender's chat and channel stories can't be replied
+//@story_poster_chat_id The identifier of the poster of the story. Currently, stories can be replied only in the chat that posted the story; channel stories can't be replied
 //@story_id The identifier of the story
-inputMessageReplyToStory story_sender_chat_id:int53 story_id:int32 = InputMessageReplyTo;
+inputMessageReplyToStory story_poster_chat_id:int53 story_id:int32 = InputMessageReplyTo;
 
 
 //@description Describes a fact-check added to the message by an independent checker
@@ -2304,13 +2304,13 @@ notificationSettingsScopeChannelChats = NotificationSettingsScope;
 //@mute_stories True, if story notifications are disabled for the chat
 //@use_default_story_sound If true, the value for the relevant type of chat is used instead of story_sound_id
 //@story_sound_id Identifier of the notification sound to be played for stories; 0 if sound is disabled
-//@use_default_show_story_sender If true, the value for the relevant type of chat is used instead of show_story_sender
-//@show_story_sender True, if the sender of stories must be displayed in notifications
+//@use_default_show_story_poster If true, the value for the relevant type of chat is used instead of show_story_poster
+//@show_story_poster True, if the chat that posted a story must be displayed in notifications
 //@use_default_disable_pinned_message_notifications If true, the value for the relevant type of chat or the forum chat is used instead of disable_pinned_message_notifications
 //@disable_pinned_message_notifications If true, notifications for incoming pinned messages will be created as for an ordinary unread message
 //@use_default_disable_mention_notifications If true, the value for the relevant type of chat or the forum chat is used instead of disable_mention_notifications
 //@disable_mention_notifications If true, notifications for messages with mentions will be created as for an ordinary unread message
-chatNotificationSettings use_default_mute_for:Bool mute_for:int32 use_default_sound:Bool sound_id:int64 use_default_show_preview:Bool show_preview:Bool use_default_mute_stories:Bool mute_stories:Bool use_default_story_sound:Bool story_sound_id:int64 use_default_show_story_sender:Bool show_story_sender:Bool use_default_disable_pinned_message_notifications:Bool disable_pinned_message_notifications:Bool use_default_disable_mention_notifications:Bool disable_mention_notifications:Bool = ChatNotificationSettings;
+chatNotificationSettings use_default_mute_for:Bool mute_for:int32 use_default_sound:Bool sound_id:int64 use_default_show_preview:Bool show_preview:Bool use_default_mute_stories:Bool mute_stories:Bool use_default_story_sound:Bool story_sound_id:int64 use_default_show_story_poster:Bool show_story_poster:Bool use_default_disable_pinned_message_notifications:Bool disable_pinned_message_notifications:Bool use_default_disable_mention_notifications:Bool disable_mention_notifications:Bool = ChatNotificationSettings;
 
 //@description Contains information about notification settings for several chats
 //@mute_for Time left before notifications will be unmuted, in seconds
@@ -2319,10 +2319,10 @@ chatNotificationSettings use_default_mute_for:Bool mute_for:int32 use_default_so
 //@use_default_mute_stories If true, story notifications are received only for the first 5 chats from topChatCategoryUsers regardless of the value of mute_stories
 //@mute_stories True, if story notifications are disabled
 //@story_sound_id Identifier of the notification sound to be played for stories; 0 if sound is disabled
-//@show_story_sender True, if the sender of stories must be displayed in notifications
+//@show_story_poster True, if the chat that posted a story must be displayed in notifications
 //@disable_pinned_message_notifications True, if notifications for incoming pinned messages will be created as for an ordinary unread message
 //@disable_mention_notifications True, if notifications for messages with mentions will be created as for an ordinary unread message
-scopeNotificationSettings mute_for:int32 sound_id:int64 show_preview:Bool use_default_mute_stories:Bool mute_stories:Bool story_sound_id:int64 show_story_sender:Bool disable_pinned_message_notifications:Bool disable_mention_notifications:Bool = ScopeNotificationSettings;
+scopeNotificationSettings mute_for:int32 sound_id:int64 show_preview:Bool use_default_mute_stories:Bool mute_stories:Bool story_sound_id:int64 show_story_poster:Bool disable_pinned_message_notifications:Bool disable_mention_notifications:Bool = ScopeNotificationSettings;
 
 
 //@class ReactionNotificationSource @description Describes sources of reactions for which notifications will be shown
@@ -2492,7 +2492,7 @@ savedMessagesTags tags:vector<savedMessagesTag> = SavedMessagesTags;
 businessBotManageBar bot_user_id:int53 manage_url:string is_bot_paused:Bool can_bot_reply:Bool = BusinessBotManageBar;
 
 
-//@description Describes a video chat
+//@description Describes a video chat, i.e. a group call bound to a chat
 //@group_call_id Group call identifier of an active video chat; 0 if none. Full information about the video chat can be received through the method getGroupCall
 //@has_participants True, if the video chat has participants
 //@default_participant_id Default group call participant identifier to join the video chat; may be null
@@ -3227,6 +3227,9 @@ linkPreviewTypeExternalAudio url:string mime_type:string duration:int32 = LinkPr
 //@duration Duration of the video, in seconds; 0 if unknown
 linkPreviewTypeExternalVideo url:string mime_type:string width:int32 height:int32 duration:int32 = LinkPreviewType;
 
+//@description The link is a link to a group call that isn't bound to a chat
+linkPreviewTypeGroupCall = LinkPreviewType;
+
 //@description The link is a link to an invoice
 linkPreviewTypeInvoice = LinkPreviewType;
 
@@ -3248,8 +3251,8 @@ linkPreviewTypeSticker sticker:sticker = LinkPreviewType;
 //@description The link is a link to a sticker set @stickers Up to 4 stickers from the sticker set
 linkPreviewTypeStickerSet stickers:vector<sticker> = LinkPreviewType;
 
-//@description The link is a link to a story. Link preview description is unavailable @story_sender_chat_id The identifier of the chat that posted the story @story_id Story identifier
-linkPreviewTypeStory story_sender_chat_id:int53 story_id:int32 = LinkPreviewType;
+//@description The link is a link to a story. Link preview description is unavailable @story_poster_chat_id The identifier of the chat that posted the story @story_id Story identifier
+linkPreviewTypeStory story_poster_chat_id:int53 story_id:int32 = LinkPreviewType;
 
 //@description The link is a link to boost a supergroup chat @photo Photo of the chat; may be null
 linkPreviewTypeSupergroupBoost photo:chatPhoto = LinkPreviewType;
@@ -3928,10 +3931,10 @@ messageGame game:game = MessageContent;
 messagePoll poll:poll = MessageContent;
 
 //@description A message with a forwarded story
-//@story_sender_chat_id Identifier of the chat that posted the story
+//@story_poster_chat_id Identifier of the chat that posted the story
 //@story_id Story identifier
 //@via_mention True, if the story was automatically forwarded because of a mention of the user
-messageStory story_sender_chat_id:int53 story_id:int32 via_mention:Bool = MessageContent;
+messageStory story_poster_chat_id:int53 story_id:int32 via_mention:Bool = MessageContent;
 
 //@description A message with an invoice from a bot. Use getInternalLink with internalLinkTypeBotStart to share the invoice
 //@product_info Information about the product
@@ -3947,6 +3950,16 @@ messageInvoice product_info:productInfo currency:string total_amount:int53 start
 
 //@description A message with information about an ended call @is_video True, if the call was a video call @discard_reason Reason why the call was discarded @duration Call duration, in seconds
 messageCall is_video:Bool discard_reason:CallDiscardReason duration:int32 = MessageContent;
+
+//@description A message with information about a group call not bound to a chat. If the message is incoming, the call isn't active, isn't missed, and has no duration,
+//-and getOption("can_accept_calls") is true, then incoming call screen must be shown to the user. Use joinGroupCall to accept the call or declineGroupCallInvitation to decline it.
+//-If the call become active or missed, then the call screen must be hidden
+//@is_active True, if the call is active, i.e. the called user joined the call
+//@was_missed True, if the called user missed or declined the call
+//@is_video True, if the call is a video call
+//@duration Call duration, in seconds; for left calls only
+//@other_participant_ids Identifiers of some other call participants
+messageGroupCall is_active:Bool was_missed:Bool is_video:Bool duration:int32 other_participant_ids:vector<MessageSender> = MessageContent;
 
 //@description A new video chat was scheduled @group_call_id Identifier of the video chat. The video chat can be received through the method getGroupCall @start_date Point in time (Unix timestamp) when the group call is expected to be started by an administrator
 messageVideoChatScheduled group_call_id:int32 start_date:int32 = MessageContent;
@@ -4506,10 +4519,10 @@ inputMessageInvoice invoice:invoice title:string description:string photo_url:st
 //@is_closed True, if the poll needs to be sent already closed; for bots only
 inputMessagePoll question:formattedText options:vector<formattedText> is_anonymous:Bool type:PollType open_period:int32 close_date:int32 is_closed:Bool = InputMessageContent;
 
-//@description A message with a forwarded story. Stories can't be sent to secret chats. A story can be forwarded only if story.can_be_forwarded
-//@story_sender_chat_id Identifier of the chat that posted the story
+//@description A message with a forwarded story. Stories can't be forwarded to secret chats. A story can be forwarded only if story.can_be_forwarded
+//@story_poster_chat_id Identifier of the chat that posted the story
 //@story_id Story identifier
-inputMessageStory story_sender_chat_id:int53 story_id:int32 = InputMessageContent;
+inputMessageStory story_poster_chat_id:int53 story_id:int32 = InputMessageContent;
 
 //@description A forwarded message
 //@from_chat_id Identifier for the chat this forwarded message came from
@@ -4884,7 +4897,7 @@ inputStoryArea position:storyAreaPosition type:InputStoryAreaType = InputStoryAr
 inputStoryAreas areas:vector<inputStoryArea> = InputStoryAreas;
 
 
-//@description Describes a video file sent in a story
+//@description Describes a video file posted as a story
 //@duration Duration of the video, in seconds
 //@width Video width
 //@height Video height
@@ -4910,7 +4923,7 @@ storyContentVideo video:storyVideo alternative_video:storyVideo = StoryContent;
 storyContentUnsupported = StoryContent;
 
 
-//@class InputStoryContent @description The content of a story to send
+//@class InputStoryContent @description The content of a story to post
 
 //@description A photo story
 //@photo Photo to send. The photo must be at most 10 MB in size. The photo size must be 1080x1920
@@ -4937,11 +4950,11 @@ storyListArchive = StoryList;
 
 //@class StoryOrigin @description Contains information about the origin of a story that was reposted
 
-//@description The original story was a public story with known sender @chat_id Identifier of the chat that posted original story @story_id Story identifier of the original story
+//@description The original story was a public story that was posted by a known chat @chat_id Identifier of the chat that posted original story @story_id Story identifier of the original story
 storyOriginPublicStory chat_id:int53 story_id:int32 = StoryOrigin;
 
-//@description The original story was sent by an unknown user @sender_name Name of the story sender
-storyOriginHiddenUser sender_name:string = StoryOrigin;
+//@description The original story was posted by an unknown user @poster_name Name of the user or the chat that posted the story
+storyOriginHiddenUser poster_name:string = StoryOrigin;
 
 
 //@description Contains information about original story that was reposted
@@ -4957,19 +4970,19 @@ storyRepostInfo origin:StoryOrigin is_content_modified:Bool = StoryRepostInfo;
 storyInteractionInfo view_count:int32 forward_count:int32 reaction_count:int32 recent_viewer_user_ids:vector<int53> = StoryInteractionInfo;
 
 //@description Represents a story
-//@id Unique story identifier among stories of the given sender
-//@sender_chat_id Identifier of the chat that posted the story
-//@sender_id Identifier of the sender of the story; may be null if the story is posted on behalf of the sender_chat_id
+//@id Unique story identifier among stories posted by the given chat
+//@poster_chat_id Identifier of the chat that posted the story
+//@poster_id Identifier of the user or chat that posted the story; may be null if the story is posted on behalf of the poster_chat_id
 //@date Point in time (Unix timestamp) when the story was published
-//@is_being_sent True, if the story is being sent by the current user
+//@is_being_posted True, if the story is being posted by the current user
 //@is_being_edited True, if the story is being edited by the current user
 //@is_edited True, if the story was edited
-//@is_posted_to_chat_page True, if the story is saved in the sender's profile and will be available there after expiration
+//@is_posted_to_chat_page True, if the story is saved in the profile of the chat that posted it and will be available there after expiration
 //@is_visible_only_for_self True, if the story is visible only for the current user
 //@can_be_deleted True, if the story can be deleted
 //@can_be_edited True, if the story can be edited
 //@can_be_forwarded True, if the story can be forwarded as a message. Otherwise, screenshots and saving of the story content must be also forbidden
-//@can_be_replied True, if the story can be replied in the chat with the story sender
+//@can_be_replied True, if the story can be replied in the chat with the user that posted the story
 //@can_toggle_is_posted_to_chat_page True, if the story's is_posted_to_chat_page value can be changed
 //@can_get_statistics True, if the story statistics are available through getStoryStatistics
 //@can_get_interactions True, if interactions with the story can be received through getStoryInteractions
@@ -4981,7 +4994,7 @@ storyInteractionInfo view_count:int32 forward_count:int32 reaction_count:int32 r
 //@content Content of the story
 //@areas Clickable areas to be shown on the story content
 //@caption Caption of the story
-story id:int32 sender_chat_id:int53 sender_id:MessageSender date:int32 is_being_sent:Bool is_being_edited:Bool is_edited:Bool is_posted_to_chat_page:Bool is_visible_only_for_self:Bool can_be_deleted:Bool can_be_edited:Bool can_be_forwarded:Bool can_be_replied:Bool can_toggle_is_posted_to_chat_page:Bool can_get_statistics:Bool can_get_interactions:Bool has_expired_viewers:Bool repost_info:storyRepostInfo interaction_info:storyInteractionInfo chosen_reaction_type:ReactionType privacy_settings:StoryPrivacySettings content:StoryContent areas:vector<storyArea> caption:formattedText = Story;
+story id:int32 poster_chat_id:int53 poster_id:MessageSender date:int32 is_being_posted:Bool is_being_edited:Bool is_edited:Bool is_posted_to_chat_page:Bool is_visible_only_for_self:Bool can_be_deleted:Bool can_be_edited:Bool can_be_forwarded:Bool can_be_replied:Bool can_toggle_is_posted_to_chat_page:Bool can_get_statistics:Bool can_get_interactions:Bool has_expired_viewers:Bool repost_info:storyRepostInfo interaction_info:storyInteractionInfo chosen_reaction_type:ReactionType privacy_settings:StoryPrivacySettings content:StoryContent areas:vector<storyArea> caption:formattedText = Story;
 
 //@description Represents a list of stories
 //@total_count Approximate total number of stories found
@@ -4992,13 +5005,13 @@ stories total_count:int32 stories:vector<story> pinned_story_ids:vector<int32> =
 //@description Contains a list of stories found by a search @total_count Approximate total number of stories found @stories List of stories @next_offset The offset for the next request. If empty, then there are no more results
 foundStories total_count:int32 stories:vector<story> next_offset:string = FoundStories;
 
-//@description Contains identifier of a story along with identifier of its sender
-//@sender_chat_id Identifier of the chat that posted the story
-//@story_id Unique story identifier among stories of the given sender
-storyFullId sender_chat_id:int53 story_id:int32 = StoryFullId;
+//@description Contains identifier of a story along with identifier of the chat that posted it
+//@poster_chat_id Identifier of the chat that posted the story
+//@story_id Unique story identifier among stories of the chat
+storyFullId poster_chat_id:int53 story_id:int32 = StoryFullId;
 
 //@description Contains basic information about a story
-//@story_id Unique story identifier among stories of the given sender
+//@story_id Unique story identifier among stories of the chat
 //@date Point in time (Unix timestamp) when the story was published
 //@is_for_close_friends True, if the story is available only to close friends
 storyInfo story_id:int32 date:int32 is_for_close_friends:Bool = StoryInfo;
@@ -5006,7 +5019,7 @@ storyInfo story_id:int32 date:int32 is_for_close_friends:Bool = StoryInfo;
 //@description Describes active stories posted by a chat
 //@chat_id Identifier of the chat that posted the stories
 //@list Identifier of the story list in which the stories are shown; may be null if the stories aren't shown in a story list
-//@order A parameter used to determine order of the stories in the story list; 0 if the stories doesn't need to be shown in the story list. Stories must be sorted by the pair (order, story_sender_chat_id) in descending order
+//@order A parameter used to determine order of the stories in the story list; 0 if the stories doesn't need to be shown in the story list. Stories must be sorted by the pair (order, story_poster_chat_id) in descending order
 //@max_read_story_id Identifier of the last read active story
 //@stories Basic information about the stories; use getStory to get full information about the stories. The stories are in chronological order (i.e., in order of increasing story identifiers)
 chatActiveStories chat_id:int53 list:StoryList order:int53 max_read_story_id:int32 stories:vector<storyInfo> = ChatActiveStories;
@@ -5216,9 +5229,8 @@ callDiscardReasonDisconnected = CallDiscardReason;
 //@description The call was ended because one of the parties hung up
 callDiscardReasonHungUp = CallDiscardReason;
 
-//@description The call was ended because it has been used successfully to transfer private encryption key for the associated group call
-//@encrypted_group_call_key Encrypted using the call private key encryption key for the associated group call
-callDiscardReasonAllowGroupCall encrypted_group_call_key:bytes = CallDiscardReason;
+//@description The call was ended because it has been upgraded to a group call @invite_link Invite link for the group call
+callDiscardReasonUpgradeToGroupCall invite_link:string = CallDiscardReason;
 
 
 //@description Specifies the supported call protocols
@@ -5274,8 +5286,9 @@ callStateExchangingKeys = CallState;
 //@encryption_key Call encryption key
 //@emojis Encryption key fingerprint represented as 4 emoji
 //@allow_p2p True, if peer-to-peer connection is allowed by users privacy settings
+//@is_group_call_supported True, if the other party supports upgrading of the call to a group call
 //@custom_parameters Custom JSON-encoded call parameters to be passed to tgcalls
-callStateReady protocol:callProtocol servers:vector<callServer> config:string encryption_key:bytes emojis:vector<string> allow_p2p:Bool custom_parameters:string = CallState;
+callStateReady protocol:callProtocol servers:vector<callServer> config:string encryption_key:bytes emojis:vector<string> allow_p2p:Bool is_group_call_supported:Bool custom_parameters:string = CallState;
 
 //@description The call is hanging up after discardCall has been called
 callStateHangingUp = CallState;
@@ -5291,6 +5304,14 @@ callStateDiscarded reason:CallDiscardReason need_rating:Bool need_debug_informat
 callStateError error:error = CallState;
 
 
+//@description Describes parameters used to join a group call
+//@audio_source_id Audio channel synchronization source identifier; received from tgcalls
+//@payload Group call join payload; received from tgcalls
+//@is_muted Pass true to join the call with muted microphone
+//@is_my_video_enabled Pass true if the user's video is enabled
+groupCallJoinParameters audio_source_id:int32 payload:string is_muted:Bool is_my_video_enabled:Bool = GroupCallJoinParameters;
+
+
 //@class GroupCallVideoQuality @description Describes the quality of a group call video
 
 //@description The worst available video quality
@@ -5303,14 +5324,14 @@ groupCallVideoQualityMedium = GroupCallVideoQuality;
 groupCallVideoQualityFull = GroupCallVideoQuality;
 
 
-//@description Describes an available stream in a group call
+//@description Describes an available stream in a video chat
 //@channel_id Identifier of an audio/video channel
 //@scale Scale of segment durations in the stream. The duration is 1000/(2**scale) milliseconds
 //@time_offset Point in time when the stream currently ends; Unix timestamp in milliseconds
-groupCallStream channel_id:int32 scale:int32 time_offset:int53 = GroupCallStream;
+videoChatStream channel_id:int32 scale:int32 time_offset:int53 = VideoChatStream;
 
-//@description Represents a list of group call streams @streams A list of group call streams
-groupCallStreams streams:vector<groupCallStream> = GroupCallStreams;
+//@description Represents a list of video chat streams @streams A list of video chat streams
+videoChatStreams streams:vector<videoChatStream> = VideoChatStreams;
 
 //@description Represents an RTMP URL @url The URL @stream_key Stream key
 rtmpUrl url:string stream_key:string = RtmpUrl;
@@ -5321,28 +5342,30 @@ groupCallRecentSpeaker participant_id:MessageSender is_speaking:Bool = GroupCall
 
 //@description Describes a group call
 //@id Group call identifier
-//@from_call_id Identifier of one-to-one call from which the group call was created; 0 if unknown
-//@title Group call title
-//@scheduled_start_date Point in time (Unix timestamp) when the group call is expected to be started by an administrator; 0 if it is already active or was ended
-//@enabled_start_notification True, if the group call is scheduled and the current user will receive a notification when the group call starts
+//@title Group call title; for video chats only
+//@invite_link Invite link for the group call; for group calls that aren't bound to a chat. For video chats call getVideoChatInviteLink to get the link
+//@scheduled_start_date Point in time (Unix timestamp) when the group call is expected to be started by an administrator; 0 if it is already active or was ended; for video chats only
+//@enabled_start_notification True, if the group call is scheduled and the current user will receive a notification when the group call starts; for video chats only
 //@is_active True, if the call is active
-//@is_rtmp_stream True, if the chat is an RTMP stream instead of an ordinary video chat
+//@is_video_chat True, if the call is bound to a chat
+//@is_rtmp_stream True, if the call is an RTMP stream instead of an ordinary video chat; for video chats only
 //@is_joined True, if the call is joined
 //@need_rejoin True, if user was kicked from the call because of network loss and the call needs to be rejoined
-//@can_be_managed True, if the current user can manage the group call
+//@is_owned True, if the user is the owner of the call and can end the call, change volume level of other users, or ban users there; for group calls that aren't bound to a chat
+//@can_be_managed True, if the current user can manage the group call; for video chats only
 //@participant_count Number of participants in the group call
-//@has_hidden_listeners True, if group call participants, which are muted, aren't returned in participant list
+//@has_hidden_listeners True, if group call participants, which are muted, aren't returned in participant list; for video chats only
 //@loaded_all_participants True, if all group call participants are loaded
 //@recent_speakers At most 3 recently speaking users in the group call
 //@is_my_video_enabled True, if the current user's video is enabled
 //@is_my_video_paused True, if the current user's video is paused
 //@can_enable_video True, if the current user can broadcast video or share screen
-//@mute_new_participants True, if only group call administrators can unmute new participants
-//@can_toggle_mute_new_participants True, if the current user can enable or disable mute_new_participants setting
+//@mute_new_participants True, if only group call administrators can unmute new participants; for video chats only
+//@can_toggle_mute_new_participants True, if the current user can enable or disable mute_new_participants setting; for video chats only
 //@record_duration Duration of the ongoing group call recording, in seconds; 0 if none. An updateGroupCall update is not triggered when value of this field changes, but the same recording goes on
 //@is_video_recorded True, if a video file is being recorded for the call
 //@duration Call duration, in seconds; for ended calls only
-groupCall id:int32 from_call_id:int32 title:string scheduled_start_date:int32 enabled_start_notification:Bool is_active:Bool is_rtmp_stream:Bool is_joined:Bool need_rejoin:Bool can_be_managed:Bool participant_count:int32 has_hidden_listeners:Bool loaded_all_participants:Bool recent_speakers:vector<groupCallRecentSpeaker> is_my_video_enabled:Bool is_my_video_paused:Bool can_enable_video:Bool mute_new_participants:Bool can_toggle_mute_new_participants:Bool record_duration:int32 is_video_recorded:Bool duration:int32 = GroupCall;
+groupCall id:int32 title:string invite_link:string scheduled_start_date:int32 enabled_start_notification:Bool is_active:Bool is_video_chat:Bool is_rtmp_stream:Bool is_joined:Bool need_rejoin:Bool is_owned:Bool can_be_managed:Bool participant_count:int32 has_hidden_listeners:Bool loaded_all_participants:Bool recent_speakers:vector<groupCallRecentSpeaker> is_my_video_enabled:Bool is_my_video_paused:Bool can_enable_video:Bool mute_new_participants:Bool can_toggle_mute_new_participants:Bool record_duration:int32 is_video_recorded:Bool duration:int32 = GroupCall;
 
 //@description Describes a group of video synchronization source identifiers @semantics The semantics of sources, one of "SIM" or "FID" @source_ids The list of synchronization source identifiers
 groupCallVideoSourceGroup semantics:string source_ids:vector<int32> = GroupCallVideoSourceGroup;
@@ -5373,6 +5396,49 @@ groupCallParticipantVideoInfo source_groups:vector<groupCallVideoSourceGroup> en
 //@volume_level Participant's volume level; 1-20000 in hundreds of percents
 //@order User's order in the group call participant list. Orders must be compared lexicographically. The bigger is order, the higher is user in the list. If order is empty, the user must be removed from the participant list
 groupCallParticipant participant_id:MessageSender audio_source_id:int32 screen_sharing_audio_source_id:int32 video_info:groupCallParticipantVideoInfo screen_sharing_video_info:groupCallParticipantVideoInfo bio:string is_current_user:Bool is_speaking:Bool is_hand_raised:Bool can_be_muted_for_all_users:Bool can_be_unmuted_for_all_users:Bool can_be_muted_for_current_user:Bool can_be_unmuted_for_current_user:Bool is_muted_for_all_users:Bool is_muted_for_current_user:Bool can_unmute_self:Bool volume_level:int32 order:string = GroupCallParticipant;
+
+//@description Contains identifiers of group call participants @total_count Total number of group call participants @participant_ids Identifiers of the participants
+groupCallParticipants total_count:int32 participant_ids:vector<MessageSender> = GroupCallParticipants;
+
+//@description Contains information about a just created or just joined group call @group_call_id Identifier of the group call @join_payload Join response payload for tgcalls; empty if the call isn't joined
+groupCallInfo group_call_id:int32 join_payload:string = GroupCallInfo;
+
+
+//@class InviteGroupCallParticipantResult @description Describes result of group call participant invitation
+
+//@description The user can't be invited due to their privacy settings
+inviteGroupCallParticipantResultUserPrivacyRestricted = InviteGroupCallParticipantResult;
+
+//@description The user can't be invited because they are already a participant of the call
+inviteGroupCallParticipantResultUserAlreadyParticipant = InviteGroupCallParticipantResult;
+
+//@description The user can't be invited because they were banned by the owner of the call and can be invited back only by the owner of the group call
+inviteGroupCallParticipantResultUserWasBanned = InviteGroupCallParticipantResult;
+
+//@description The user was invited and a service message of the type messageGroupCall was sent which can be used in declineGroupCallInvitation to cancel the invitation
+//@chat_id Identifier of the chat with the invitation message
+//@message_id Identifier of the message
+inviteGroupCallParticipantResultSuccess chat_id:int53 message_id:int53 = InviteGroupCallParticipantResult;
+
+
+//@class GroupCallDataChannel @description Describes data channel for a group call
+
+//@description The main data channel for audio and video data
+groupCallDataChannelMain = GroupCallDataChannel;
+
+//@description The data channel for screen sharing
+groupCallDataChannelScreenSharing = GroupCallDataChannel;
+
+
+//@class InputGroupCall @description Describes a non-joined group call that isn't bound to a chat
+
+//@description The group call is accessible through a link @link The link for the group call
+inputGroupCallLink link:string = InputGroupCall;
+
+//@description The group call is accessible through a message of the type messageGroupCall
+//@chat_id Identifier of the chat with the message
+//@message_id Identifier of the message of the type messageGroupCall
+inputGroupCallMessage chat_id:int53 message_id:int53 = InputGroupCall;
 
 
 //@class CallProblem @description Describes the exact type of problem with a call
@@ -5411,8 +5477,7 @@ callProblemPixelatedVideo = CallProblem;
 //@is_outgoing True, if the call is outgoing
 //@is_video True, if the call is a video call
 //@state Call state
-//@group_call_id Identifier of the group call associated with the call; 0 if the group call isn't created yet. The group call can be received through the method getGroupCall
-call id:int32 user_id:int53 is_outgoing:Bool is_video:Bool state:CallState group_call_id:int32 = Call;
+call id:int32 user_id:int53 is_outgoing:Bool is_video:Bool state:CallState = Call;
 
 
 //@class FirebaseAuthenticationSettings @description Contains settings for Firebase Authentication in the official applications
@@ -5431,7 +5496,7 @@ firebaseAuthenticationSettingsIos device_token:string is_app_sandbox:Bool = Fire
 //@has_unknown_phone_number Pass true if there is a SIM card in the current device, but it is not possible to check whether phone number matches
 //@allow_sms_retriever_api For official applications only. True, if the application can use Android SMS Retriever API (requires Google Play Services >= 10.2) to automatically receive the authentication code from the SMS. See https://developers.google.com/identity/sms-retriever/ for more details
 //@firebase_authentication_settings For official Android and iOS applications only; pass null otherwise. Settings for Firebase Authentication
-//@authentication_tokens List of up to 20 authentication tokens, recently received in updateOption("authentication_token") in previously logged out sessions
+//@authentication_tokens List of up to 20 authentication tokens, recently received in updateOption("authentication_token") in previously logged out sessions; for setAuthenticationPhoneNumber only
 phoneNumberAuthenticationSettings allow_flash_call:Bool allow_missed_call:Bool is_current_phone_number:Bool has_unknown_phone_number:Bool allow_sms_retriever_api:Bool firebase_authentication_settings:FirebaseAuthenticationSettings authentication_tokens:vector<string> = PhoneNumberAuthenticationSettings;
 
 
@@ -6154,13 +6219,13 @@ premiumLimitTypeShareableChatFolderCount = PremiumLimitType;
 //@description The maximum number of active stories
 premiumLimitTypeActiveStoryCount = PremiumLimitType;
 
-//@description The maximum number of stories sent per week
-premiumLimitTypeWeeklySentStoryCount = PremiumLimitType;
+//@description The maximum number of stories posted per week
+premiumLimitTypeWeeklyPostedStoryCount = PremiumLimitType;
 
-//@description The maximum number of stories sent per month
-premiumLimitTypeMonthlySentStoryCount = PremiumLimitType;
+//@description The maximum number of stories posted per month
+premiumLimitTypeMonthlyPostedStoryCount = PremiumLimitType;
 
-//@description The maximum length of captions of sent stories
+//@description The maximum length of captions of posted stories
 premiumLimitTypeStoryCaptionLength = PremiumLimitType;
 
 //@description The maximum number of suggested reaction areas on a story
@@ -6583,25 +6648,25 @@ timeZones time_zones:vector<timeZone> = TimeZones;
 hashtags hashtags:vector<string> = Hashtags;
 
 
-//@class CanSendStoryResult @description Represents result of checking whether the current user can send a story in the specific chat
+//@class CanPostStoryResult @description Represents result of checking whether the current user can post a story on behalf of the specific chat
 
 //@description A story can be sent
-canSendStoryResultOk = CanSendStoryResult;
+canPostStoryResultOk = CanPostStoryResult;
 
 //@description The user must subscribe to Telegram Premium to be able to post stories
-canSendStoryResultPremiumNeeded = CanSendStoryResult;
+canPostStoryResultPremiumNeeded = CanPostStoryResult;
 
 //@description The chat must be boosted first by Telegram Premium subscribers to post more stories. Call getChatBoostStatus to get current boost status of the chat
-canSendStoryResultBoostNeeded = CanSendStoryResult;
+canPostStoryResultBoostNeeded = CanPostStoryResult;
 
 //@description The limit for the number of active stories exceeded. The user can buy Telegram Premium, delete an active story, or wait for the oldest story to expire
-canSendStoryResultActiveStoryLimitExceeded = CanSendStoryResult;
+canPostStoryResultActiveStoryLimitExceeded = CanPostStoryResult;
 
-//@description The weekly limit for the number of posted stories exceeded. The user needs to buy Telegram Premium or wait specified time @retry_after Time left before the user can send the next story
-canSendStoryResultWeeklyLimitExceeded retry_after:int32 = CanSendStoryResult;
+//@description The weekly limit for the number of posted stories exceeded. The user needs to buy Telegram Premium or wait specified time @retry_after Time left before the user can post the next story
+canPostStoryResultWeeklyLimitExceeded retry_after:int32 = CanPostStoryResult;
 
-//@description The monthly limit for the number of posted stories exceeded. The user needs to buy Telegram Premium or wait specified time @retry_after Time left before the user can send the next story
-canSendStoryResultMonthlyLimitExceeded retry_after:int32 = CanSendStoryResult;
+//@description The monthly limit for the number of posted stories exceeded. The user needs to buy Telegram Premium or wait specified time @retry_after Time left before the user can post the next story
+canPostStoryResultMonthlyLimitExceeded retry_after:int32 = CanPostStoryResult;
 
 
 //@class CanTransferOwnershipResult @description Represents result of checking whether the current session can be used to transfer a chat ownership to another user
@@ -7328,6 +7393,9 @@ internalLinkTypeEditProfileSettings = InternalLinkType;
 //@game_short_name Short name of the game
 internalLinkTypeGame bot_username:string game_short_name:string = InternalLinkType;
 
+//@description The link is a link to a group call that isn't bound to a chat. Call joinGroupCall with the given invite_link @invite_link Internal representation of the invite link
+internalLinkTypeGroupCall invite_link:string = InternalLinkType;
+
 //@description The link must be opened in an Instant View. Call getWebPageInstantView with the given URL to process the link.
 //-If Instant View is found, then show it, otherwise, open the fallback URL in an external browser
 //@url URL to be passed to getWebPageInstantView
@@ -7426,10 +7494,10 @@ internalLinkTypeSettings = InternalLinkType;
 //@expect_custom_emoji True, if the sticker set is expected to contain custom emoji
 internalLinkTypeStickerSet sticker_set_name:string expect_custom_emoji:Bool = InternalLinkType;
 
-//@description The link is a link to a story. Call searchPublicChat with the given sender username, then call getStory with the received chat identifier and the given story identifier, then show the story if received
-//@story_sender_username Username of the sender of the story
+//@description The link is a link to a story. Call searchPublicChat with the given poster username, then call getStory with the received chat identifier and the given story identifier, then show the story if received
+//@story_poster_username Username of the poster of the story
 //@story_id Story identifier
-internalLinkTypeStory story_sender_username:string story_id:int32 = InternalLinkType;
+internalLinkTypeStory story_poster_username:string story_id:int32 = InternalLinkType;
 
 //@description The link is a link to a cloud theme. TDLib has no theme support yet @theme_name Name of the theme
 internalLinkTypeTheme theme_name:string = InternalLinkType;
@@ -7458,7 +7526,7 @@ internalLinkTypeUserPhoneNumber phone_number:string draft_text:string open_profi
 //@token The token
 internalLinkTypeUserToken token:string = InternalLinkType;
 
-//@description The link is a link to a video chat. Call searchPublicChat with the given chat username, and then joinGroupCall with the given invite hash to process the link
+//@description The link is a link to a video chat. Call searchPublicChat with the given chat username, and then joinVideoChat with the given invite hash to process the link
 //@chat_username Username of the chat with the video chat
 //@invite_hash If non-empty, invite hash to be used to join the video chat without being muted by administrators
 //@is_live_stream True, if the video chat is expected to be a live stream in a channel or a broadcast group
@@ -7505,10 +7573,6 @@ blockListMain = BlockList;
 
 //@description The block list that disallows viewing of stories of the current user
 blockListStories = BlockList;
-
-
-//@description Contains a part of a file @data File bytes
-filePart data:bytes = FilePart;
 
 
 //@class FileType @description Represents the type of file
@@ -7832,6 +7896,9 @@ count count:int32 = Count;
 //@description Contains some text @text Text
 text text:string = Text;
 
+//@description Contains some binary data @data Data
+data data:bytes = Data;
+
 //@description Contains a value representing a number of seconds @seconds Number of seconds
 seconds seconds:double = Seconds;
 
@@ -7916,11 +7983,11 @@ statisticalGraphError error_message:string = StatisticalGraph;
 //@description Describes a message sent in the chat @message_id Message identifier
 chatStatisticsObjectTypeMessage message_id:int53 = ChatStatisticsObjectType;
 
-//@description Describes a story sent by the chat @story_id Story identifier
+//@description Describes a story posted on behalf of the chat @story_id Story identifier
 chatStatisticsObjectTypeStory story_id:int32 = ChatStatisticsObjectType;
 
 
-//@description Contains statistics about interactions with a message sent in the chat or a story sent by the chat
+//@description Contains statistics about interactions with a message sent in the chat or a story posted on behalf of the chat
 //@object_type Type of the object
 //@view_count Number of times the object was viewed
 //@forward_count Number of times the object was forwarded
@@ -7973,9 +8040,9 @@ chatStatisticsSupergroup period:dateRange member_count:statisticalValue message_
 //@mean_message_view_count Mean number of times the recently sent messages were viewed
 //@mean_message_share_count Mean number of times the recently sent messages were shared
 //@mean_message_reaction_count Mean number of times reactions were added to the recently sent messages
-//@mean_story_view_count Mean number of times the recently sent stories were viewed
-//@mean_story_share_count Mean number of times the recently sent stories were shared
-//@mean_story_reaction_count Mean number of times reactions were added to the recently sent stories
+//@mean_story_view_count Mean number of times the recently posted stories were viewed
+//@mean_story_share_count Mean number of times the recently posted stories were shared
+//@mean_story_reaction_count Mean number of times reactions were added to the recently posted stories
 //@enabled_notifications_percentage A percentage of users with enabled notifications for the chat; 0-100
 //@member_count_graph A graph containing number of members in the chat
 //@join_graph A graph containing number of members joined and left the chat
@@ -7989,7 +8056,7 @@ chatStatisticsSupergroup period:dateRange member_count:statisticalValue message_
 //@story_interaction_graph A graph containing number of story views and shares
 //@story_reaction_graph A graph containing number of reactions on stories
 //@instant_view_interaction_graph A graph containing number of views of associated with the chat instant views
-//@recent_interactions Detailed statistics about number of views and shares of recently sent messages and stories
+//@recent_interactions Detailed statistics about number of views and shares of recently sent messages and posted stories
 chatStatisticsChannel period:dateRange member_count:statisticalValue mean_message_view_count:statisticalValue mean_message_share_count:statisticalValue mean_message_reaction_count:statisticalValue mean_story_view_count:statisticalValue mean_story_share_count:statisticalValue mean_story_reaction_count:statisticalValue enabled_notifications_percentage:double member_count_graph:StatisticalGraph join_graph:StatisticalGraph mute_graph:StatisticalGraph view_count_by_hour_graph:StatisticalGraph view_count_by_source_graph:StatisticalGraph join_by_source_graph:StatisticalGraph language_graph:StatisticalGraph message_interaction_graph:StatisticalGraph message_reaction_graph:StatisticalGraph story_interaction_graph:StatisticalGraph story_reaction_graph:StatisticalGraph instant_view_interaction_graph:StatisticalGraph recent_interactions:vector<chatStatisticsInteractionInfo> = ChatStatistics;
 
 
@@ -8354,9 +8421,10 @@ updateForumTopicInfo info:forumTopicInfo = Update;
 //@chat_id Chat identifier
 //@message_thread_id Message thread identifier of the topic
 //@is_pinned True, if the topic is pinned in the topic list
+//@last_read_inbox_message_id Identifier of the last read incoming message
 //@last_read_outbox_message_id Identifier of the last read outgoing message
 //@notification_settings Notification settings for the topic
-updateForumTopic chat_id:int53 message_thread_id:int53 is_pinned:Bool last_read_outbox_message_id:int53 notification_settings:chatNotificationSettings = Update;
+updateForumTopic chat_id:int53 message_thread_id:int53 is_pinned:Bool last_read_inbox_message_id:int53 last_read_outbox_message_id:int53 notification_settings:chatNotificationSettings = Update;
 
 //@description Notification settings for some type of chats were updated @scope Types of chats for which notification settings were updated @notification_settings The new notification settings
 updateScopeNotificationSettings scope:NotificationSettingsScope notification_settings:scopeNotificationSettings = Update;
@@ -8481,13 +8549,25 @@ updateApplicationRecaptchaVerificationRequired verification_id:int53 action:stri
 //@description New call was created or information about a call was updated @call New data about a call
 updateCall call:call = Update;
 
-//@description Information about a group call was updated @group_call New data about a group call
+//@description Information about a group call was updated @group_call New data about the group call
 updateGroupCall group_call:groupCall = Update;
 
 //@description Information about a group call participant was changed. The updates are sent only after the group call is received through getGroupCall and only if the call is joined or being joined
-//@group_call_id Identifier of group call
-//@participant New data about a participant
+//@group_call_id Identifier of the group call
+//@participant New data about the participant
 updateGroupCallParticipant group_call_id:int32 participant:groupCallParticipant = Update;
+
+//@description The list of group call participants that can send and receive encrypted call data has changed; for group calls not bound to a chat only
+//@group_call_id Identifier of the group call
+//@participant_user_ids New list of group call participant user identifiers. The identifiers may be invalid or the corresponding users may be unknown.
+//-The participants must be shown in the list of group call participants even there is no information about them
+updateGroupCallParticipants group_call_id:int32 participant_user_ids:vector<int64> = Update;
+
+//@description The verification state of an encrypted group call has changed; for group calls not bound to a chat only
+//@group_call_id Identifier of the group call
+//@generation The call state generation to which the emoji corresponds. If generation is different for two users, then their emoji may be also different
+//@emojis Group call state fingerprint represented as 4 emoji; may be empty if the state isn't verified yet
+updateGroupCallVerificationState group_call_id:int32 generation:int32 emojis:vector<string> = Update;
 
 //@description New call signaling data arrived @call_id The call identifier @data The data
 updateNewCallSignalingData call_id:int32 data:bytes = Update;
@@ -8513,17 +8593,17 @@ updateUnreadChatCount chat_list:ChatList total_count:int32 unread_count:int32 un
 //@description A story was changed @story The new information about the story
 updateStory story:story = Update;
 
-//@description A story became inaccessible @story_sender_chat_id Identifier of the chat that posted the story @story_id Story identifier
-updateStoryDeleted story_sender_chat_id:int53 story_id:int32 = Update;
+//@description A story became inaccessible @story_poster_chat_id Identifier of the chat that posted the story @story_id Story identifier
+updateStoryDeleted story_poster_chat_id:int53 story_id:int32 = Update;
 
-//@description A story has been successfully sent @story The sent story @old_story_id The previous temporary story identifier
-updateStorySendSucceeded story:story old_story_id:int32 = Update;
+//@description A story has been successfully posted @story The posted story @old_story_id The previous temporary story identifier
+updateStoryPostSucceeded story:story old_story_id:int32 = Update;
 
-//@description A story failed to send. If the story sending is canceled, then updateStoryDeleted will be received instead of this update
-//@story The failed to send story
-//@error The cause of the story sending failure
+//@description A story failed to post. If the story posting is canceled, then updateStoryDeleted will be received instead of this update
+//@story The failed to post story
+//@error The cause of the story posting failure
 //@error_type Type of the error; may be null if unknown
-updateStorySendFailed story:story error:error error_type:CanSendStoryResult = Update;
+updateStoryPostFailed story:story error:error error_type:CanPostStoryResult = Update;
 
 //@description The list of active stories posted by a specific chat has changed
 //@active_stories The new list of active stories
@@ -9334,7 +9414,7 @@ searchSecretMessages chat_id:int53 query:string offset:string limit:int32 filter
 //-For optimal performance, the number of returned messages is chosen by TDLib and can be smaller than the specified limit
 searchSavedMessages saved_messages_topic_id:int53 tag:ReactionType query:string from_message_id:int53 offset:int32 limit:int32 = FoundChatMessages;
 
-//@description Searches for call messages. Returns the results in reverse chronological order (i.e., in order of decreasing message_id). For optimal performance, the number of returned messages is chosen by TDLib
+//@description Searches for call and group call messages. Returns the results in reverse chronological order (i.e., in order of decreasing message_id). For optimal performance, the number of returned messages is chosen by TDLib
 //@offset Offset of the first entry to return as received from the previous request; use empty string to get the first chunk of results
 //@limit The maximum number of messages to be returned; up to 100. For optimal performance, the number of returned messages is chosen by TDLib and can be smaller than the specified limit
 //@only_missed Pass true to search only for messages with missed/declined calls
@@ -9352,11 +9432,11 @@ searchOutgoingDocumentMessages query:string limit:int32 = FoundMessages;
 searchPublicMessagesByTag tag:string offset:string limit:int32 = FoundMessages;
 
 //@description Searches for public stories containing the given hashtag or cashtag. For optimal performance, the number of returned stories is chosen by TDLib and can be smaller than the specified limit
-//@story_sender_chat_id Identifier of the chat that posted the stories to search for; pass 0 to search stories in all chats
+//@story_poster_chat_id Identifier of the chat that posted the stories to search for; pass 0 to search stories in all chats
 //@tag Hashtag or cashtag to search for
 //@offset Offset of the first entry to return as received from the previous request; use empty string to get the first chunk of results
 //@limit The maximum number of stories to be returned; up to 100. For optimal performance, the number of returned stories is chosen by TDLib and can be smaller than the specified limit
-searchPublicStoriesByTag story_sender_chat_id:int53 tag:string offset:string limit:int32 = FoundStories;
+searchPublicStoriesByTag story_poster_chat_id:int53 tag:string offset:string limit:int32 = FoundStories;
 
 //@description Searches for public stories by the given address location. For optimal performance, the number of returned stories is chosen by TDLib and can be smaller than the specified limit
 //@address Address of the location
@@ -9780,16 +9860,16 @@ readBusinessMessage business_connection_id:string chat_id:int53 message_id:int53
 //@message_ids Identifier of the messages
 deleteBusinessMessages business_connection_id:string message_ids:vector<int53> = Ok;
 
-//@description Changes a story sent by the bot on behalf of a business account; for bots only
-//@story_sender_chat_id Identifier of the chat that posted the story
+//@description Changes a story posted by the bot on behalf of a business account; for bots only
+//@story_poster_chat_id Identifier of the chat that posted the story
 //@story_id Identifier of the story to edit
 //@content New content of the story
 //@areas New clickable rectangle areas to be shown on the story media
 //@caption New story caption
 //@privacy_settings The new privacy settings for the story
-editBusinessStory story_sender_chat_id:int53 story_id:int32 content:InputStoryContent areas:inputStoryAreas caption:formattedText privacy_settings:StoryPrivacySettings = Story;
+editBusinessStory story_poster_chat_id:int53 story_id:int32 content:InputStoryContent areas:inputStoryAreas caption:formattedText privacy_settings:StoryPrivacySettings = Story;
 
-//@description Deletes a story sent by the bot on behalf of a business account; for bots only
+//@description Deletes a story posted by the bot on behalf of a business account; for bots only
 //@business_connection_id Unique identifier of business connection
 //@story_id Identifier of the story to delete
 deleteBusinessStory business_connection_id:string story_id:int32 = Ok;
@@ -10710,43 +10790,43 @@ getCurrentWeather location:location = CurrentWeather;
 
 
 //@description Returns a story
-//@story_sender_chat_id Identifier of the chat that posted the story
+//@story_poster_chat_id Identifier of the chat that posted the story
 //@story_id Story identifier
 //@only_local Pass true to get only locally available information without sending network requests
-getStory story_sender_chat_id:int53 story_id:int32 only_local:Bool = Story;
+getStory story_poster_chat_id:int53 story_id:int32 only_local:Bool = Story;
 
-//@description Returns supergroup and channel chats in which the current user has the right to post stories. The chats must be rechecked with canSendStory before actually trying to post a story there
-getChatsToSendStories = Chats;
+//@description Returns supergroup and channel chats in which the current user has the right to post stories. The chats must be rechecked with canPostStory before actually trying to post a story there
+getChatsToPostStories = Chats;
 
-//@description Checks whether the current user can send a story on behalf of a chat; requires can_post_stories right for supergroup and channel chats
+//@description Checks whether the current user can post a story on behalf of a chat; requires can_post_stories right for supergroup and channel chats
 //@chat_id Chat identifier. Pass Saved Messages chat identifier when posting a story on behalf of the current user
-canSendStory chat_id:int53 = CanSendStoryResult;
+canPostStory chat_id:int53 = CanPostStoryResult;
 
-//@description Sends a new story to a chat; requires can_post_stories right for supergroup and channel chats. Returns a temporary story
+//@description Posts a new story on behalf of a chat; requires can_post_stories right for supergroup and channel chats. Returns a temporary story
 //@chat_id Identifier of the chat that will post the story. Pass Saved Messages chat identifier when posting a story on behalf of the current user
 //@content Content of the story
 //@areas Clickable rectangle areas to be shown on the story media; pass null if none
 //@caption Story caption; pass null to use an empty caption; 0-getOption("story_caption_length_max") characters; can have entities only if getOption("can_use_text_entities_in_story_caption")
-//@privacy_settings The privacy settings for the story; ignored for stories sent to supergroup and channel chats
+//@privacy_settings The privacy settings for the story; ignored for stories posted on behalf of supergroup and channel chats
 //@active_period Period after which the story is moved to archive, in seconds; must be one of 6 * 3600, 12 * 3600, 86400, or 2 * 86400 for Telegram Premium users, and 86400 otherwise
 //@from_story_full_id Full identifier of the original story, which content was used to create the story; pass null if the story isn't repost of another story
 //@is_posted_to_chat_page Pass true to keep the story accessible after expiration
 //@protect_content Pass true if the content of the story must be protected from forwarding and screenshotting
-sendStory chat_id:int53 content:InputStoryContent areas:inputStoryAreas caption:formattedText privacy_settings:StoryPrivacySettings active_period:int32 from_story_full_id:storyFullId is_posted_to_chat_page:Bool protect_content:Bool = Story;
+postStory chat_id:int53 content:InputStoryContent areas:inputStoryAreas caption:formattedText privacy_settings:StoryPrivacySettings active_period:int32 from_story_full_id:storyFullId is_posted_to_chat_page:Bool protect_content:Bool = Story;
 
 //@description Changes content and caption of a story. Can be called only if story.can_be_edited == true
-//@story_sender_chat_id Identifier of the chat that posted the story
+//@story_poster_chat_id Identifier of the chat that posted the story
 //@story_id Identifier of the story to edit
 //@content New content of the story; pass null to keep the current content
 //@areas New clickable rectangle areas to be shown on the story media; pass null to keep the current areas. Areas can't be edited if story content isn't changed
 //@caption New story caption; pass null to keep the current caption
-editStory story_sender_chat_id:int53 story_id:int32 content:InputStoryContent areas:inputStoryAreas caption:formattedText = Ok;
+editStory story_poster_chat_id:int53 story_id:int32 content:InputStoryContent areas:inputStoryAreas caption:formattedText = Ok;
 
 //@description Changes cover of a video story. Can be called only if story.can_be_edited == true and the story isn't being edited now
-//@story_sender_chat_id Identifier of the chat that posted the story
+//@story_poster_chat_id Identifier of the chat that posted the story
 //@story_id Identifier of the story to edit
 //@cover_frame_timestamp New timestamp of the frame, which will be used as video thumbnail
-editStoryCover story_sender_chat_id:int53 story_id:int32 cover_frame_timestamp:double = Ok;
+editStoryCover story_poster_chat_id:int53 story_id:int32 cover_frame_timestamp:double = Ok;
 
 //@description Changes privacy settings of a story. The method can be called only for stories posted on behalf of the current user and if story.can_be_edited == true
 //@story_id Identifier of the story
@@ -10754,21 +10834,21 @@ editStoryCover story_sender_chat_id:int53 story_id:int32 cover_frame_timestamp:d
 setStoryPrivacySettings story_id:int32 privacy_settings:StoryPrivacySettings = Ok;
 
 //@description Toggles whether a story is accessible after expiration. Can be called only if story.can_toggle_is_posted_to_chat_page == true
-//@story_sender_chat_id Identifier of the chat that posted the story
+//@story_poster_chat_id Identifier of the chat that posted the story
 //@story_id Identifier of the story
 //@is_posted_to_chat_page Pass true to make the story accessible after expiration; pass false to make it private
-toggleStoryIsPostedToChatPage story_sender_chat_id:int53 story_id:int32 is_posted_to_chat_page:Bool = Ok;
+toggleStoryIsPostedToChatPage story_poster_chat_id:int53 story_id:int32 is_posted_to_chat_page:Bool = Ok;
 
-//@description Deletes a previously sent story. Can be called only if story.can_be_deleted == true
-//@story_sender_chat_id Identifier of the chat that posted the story
+//@description Deletes a previously posted story. Can be called only if story.can_be_deleted == true
+//@story_poster_chat_id Identifier of the chat that posted the story
 //@story_id Identifier of the story to delete
-deleteStory story_sender_chat_id:int53 story_id:int32 = Ok;
+deleteStory story_poster_chat_id:int53 story_id:int32 = Ok;
 
 //@description Returns the list of chats with non-default notification settings for stories
 getStoryNotificationSettingsExceptions = Chats;
 
 //@description Loads more active stories from a story list. The loaded stories will be sent through updates. Active stories are sorted by
-//-the pair (active_stories.order, active_stories.story_sender_chat_id) in descending order. Returns a 404 error if all active stories have been loaded
+//-the pair (active_stories.order, active_stories.story_poster_chat_id) in descending order. Returns a 404 error if all active stories have been loaded
 //@story_list The story list in which to load active stories
 loadActiveStories story_list:StoryList = Ok;
 
@@ -10800,24 +10880,24 @@ getChatArchivedStories chat_id:int53 from_story_id:int32 limit:int32 = Stories;
 setChatPinnedStories chat_id:int53 story_ids:vector<int32> = Ok;
 
 //@description Informs TDLib that a story is opened and is being viewed by the user
-//@story_sender_chat_id The identifier of the sender of the opened story
+//@story_poster_chat_id The identifier of the chat that posted the opened story
 //@story_id The identifier of the story
-openStory story_sender_chat_id:int53 story_id:int32 = Ok;
+openStory story_poster_chat_id:int53 story_id:int32 = Ok;
 
 //@description Informs TDLib that a story is closed by the user
-//@story_sender_chat_id The identifier of the sender of the story to close
+//@story_poster_chat_id The identifier of the poster of the story to close
 //@story_id The identifier of the story
-closeStory story_sender_chat_id:int53 story_id:int32 = Ok;
+closeStory story_poster_chat_id:int53 story_id:int32 = Ok;
 
 //@description Returns reactions, which can be chosen for a story @row_size Number of reaction per row, 5-25
 getStoryAvailableReactions row_size:int32 = AvailableReactions;
 
 //@description Changes chosen reaction on a story that has already been sent
-//@story_sender_chat_id The identifier of the sender of the story
+//@story_poster_chat_id The identifier of the poster of the story
 //@story_id The identifier of the story
 //@reaction_type Type of the reaction to set; pass null to remove the reaction. Custom emoji reactions can be used only by Telegram Premium users. Paid reactions can't be set
 //@update_recent_reactions Pass true if the reaction needs to be added to recent reactions
-setStoryReaction story_sender_chat_id:int53 story_id:int32 reaction_type:ReactionType update_recent_reactions:Bool = Ok;
+setStoryReaction story_poster_chat_id:int53 story_id:int32 reaction_type:ReactionType update_recent_reactions:Bool = Ok;
 
 //@description Returns interactions with a story. The method can be called only for stories posted on behalf of the current user
 //@story_id Story identifier
@@ -10830,20 +10910,20 @@ setStoryReaction story_sender_chat_id:int53 story_id:int32 reaction_type:Reactio
 getStoryInteractions story_id:int32 query:string only_contacts:Bool prefer_forwards:Bool prefer_with_reaction:Bool offset:string limit:int32 = StoryInteractions;
 
 //@description Returns interactions with a story posted in a chat. Can be used only if story is posted on behalf of a chat and the user is an administrator in the chat
-//@story_sender_chat_id The identifier of the sender of the story
+//@story_poster_chat_id The identifier of the poster of the story
 //@story_id Story identifier
 //@reaction_type Pass the default heart reaction or a suggested reaction type to receive only interactions with the specified reaction type; pass null to receive all interactions; reactionTypePaid isn't supported
 //@prefer_forwards Pass true to get forwards and reposts first, then reactions, then other views; pass false to get interactions sorted just by interaction date
 //@offset Offset of the first entry to return as received from the previous request; use empty string to get the first chunk of results
 //@limit The maximum number of story interactions to return
-getChatStoryInteractions story_sender_chat_id:int53 story_id:int32 reaction_type:ReactionType prefer_forwards:Bool offset:string limit:int32 = StoryInteractions;
+getChatStoryInteractions story_poster_chat_id:int53 story_id:int32 reaction_type:ReactionType prefer_forwards:Bool offset:string limit:int32 = StoryInteractions;
 
 //@description Reports a story to the Telegram moderators
-//@story_sender_chat_id The identifier of the sender of the story to report
+//@story_poster_chat_id The identifier of the poster of the story to report
 //@story_id The identifier of the story to report
 //@option_id Option identifier chosen by the user; leave empty for the initial request
 //@text Additional report details; 0-1024 characters; leave empty for the initial request
-reportStory story_sender_chat_id:int53 story_id:int32 option_id:bytes text:string = ReportStoryResult;
+reportStory story_poster_chat_id:int53 story_id:int32 option_id:bytes text:string = ReportStoryResult;
 
 //@description Activates stealth mode for stories, which hides all views of stories from the current user in the last "story_stealth_mode_past_period" seconds
 //-and for the next "story_stealth_mode_future_period" seconds; for Telegram Premium users only
@@ -10851,11 +10931,11 @@ activateStoryStealthMode = Ok;
 
 //@description Returns forwards of a story as a message to public chats and reposts by public channels. Can be used only if the story is posted on behalf of the current user or story.can_get_statistics == true.
 //-For optimal performance, the number of returned messages and stories is chosen by TDLib
-//@story_sender_chat_id The identifier of the sender of the story
+//@story_poster_chat_id The identifier of the poster of the story
 //@story_id The identifier of the story
 //@offset Offset of the first entry to return as received from the previous request; use empty string to get the first chunk of results
 //@limit The maximum number of messages and stories to be returned; must be positive and can't be greater than 100. For optimal performance, the number of returned objects is chosen by TDLib and can be smaller than the specified limit
-getStoryPublicForwards story_sender_chat_id:int53 story_id:int32 offset:string limit:int32 = PublicForwards;
+getStoryPublicForwards story_poster_chat_id:int53 story_id:int32 offset:string limit:int32 = PublicForwards;
 
 
 //@description Returns the list of features available on the specific chat boost level. This is an offline method
@@ -10982,7 +11062,7 @@ finishFileGeneration generation_id:int64 error:error = Ok;
 //@file_id Identifier of the file. The file must be located in the TDLib file cache
 //@offset The offset from which to read the file
 //@count Number of bytes to read. An error will be returned if there are not enough bytes available in the file from the specified position. Pass 0 to read all available data from the specified position
-readFilePart file_id:int32 offset:int53 count:int53 = FilePart;
+readFilePart file_id:int32 offset:int53 count:int53 = Data;
 
 //@description Deletes a file from the TDLib file cache @file_id Identifier of the file to delete
 deleteFile file_id:int32 = Ok;
@@ -11144,8 +11224,7 @@ processChatJoinRequests chat_id:int53 invite_link:string approve:Bool = Ok;
 //@user_id Identifier of the user to be called
 //@protocol The call protocols supported by the application
 //@is_video Pass true to create a video call
-//@group_call_id Identifier of the group call to which the user will be added after exchanging private key via the call; pass 0 if none
-createCall user_id:int53 protocol:callProtocol is_video:Bool group_call_id:int32 = CallId;
+createCall user_id:int53 protocol:callProtocol is_video:Bool = CallId;
 
 //@description Accepts an incoming call @call_id Call identifier @protocol The call protocols supported by the application
 acceptCall call_id:int32 protocol:callProtocol = Ok;
@@ -11156,10 +11235,11 @@ sendCallSignalingData call_id:int32 data:bytes = Ok;
 //@description Discards a call
 //@call_id Call identifier
 //@is_disconnected Pass true if the user was disconnected
+//@invite_link If the call was upgraded to a group call, pass invite link to the group call
 //@duration The call duration, in seconds
 //@is_video Pass true if the call was a video call
 //@connection_id Identifier of the connection used during the call
-discardCall call_id:int32 is_disconnected:Bool duration:int32 is_video:Bool connection_id:int64 = Ok;
+discardCall call_id:int32 is_disconnected:Bool invite_link:string duration:int32 is_video:Bool connection_id:int64 = Ok;
 
 //@description Sends a call rating
 //@call_id Call identifier
@@ -11188,36 +11268,35 @@ setVideoChatDefaultParticipant chat_id:int53 default_participant_id:MessageSende
 //@is_rtmp_stream Pass true to create an RTMP stream instead of an ordinary video chat
 createVideoChat chat_id:int53 title:string start_date:int32 is_rtmp_stream:Bool = GroupCallId;
 
-//@description Creates a group call from a one-to-one call @call_id Call identifier
-createGroupCall call_id:int32 = Ok;
+//@description Creates a new group call that isn't bound to a chat @join_parameters Parameters to join the call; pass null to only create call link without joining the call
+createGroupCall join_parameters:groupCallJoinParameters = GroupCallInfo;
 
-//@description Returns RTMP URL for streaming to the chat; requires can_manage_video_chats administrator right @chat_id Chat identifier
+//@description Returns RTMP URL for streaming to the video chat of a chat; requires can_manage_video_chats administrator right @chat_id Chat identifier
 getVideoChatRtmpUrl chat_id:int53 = RtmpUrl;
 
-//@description Replaces the current RTMP URL for streaming to the chat; requires owner privileges @chat_id Chat identifier
+//@description Replaces the current RTMP URL for streaming to the video chat of a chat; requires owner privileges in the chat @chat_id Chat identifier
 replaceVideoChatRtmpUrl chat_id:int53 = RtmpUrl;
 
 //@description Returns information about a group call @group_call_id Group call identifier
 getGroupCall group_call_id:int32 = GroupCall;
 
-//@description Starts a scheduled group call @group_call_id Group call identifier
-startScheduledGroupCall group_call_id:int32 = Ok;
+//@description Starts a scheduled video chat @group_call_id Group call identifier of the video chat
+startScheduledVideoChat group_call_id:int32 = Ok;
 
-//@description Toggles whether the current user will receive a notification when the group call starts; scheduled group calls only
+//@description Toggles whether the current user will receive a notification when the video chat starts; for scheduled video chats only
 //@group_call_id Group call identifier
 //@enabled_start_notification New value of the enabled_start_notification setting
-toggleGroupCallEnabledStartNotification group_call_id:int32 enabled_start_notification:Bool = Ok;
+toggleVideoChatEnabledStartNotification group_call_id:int32 enabled_start_notification:Bool = Ok;
 
-//@description Joins an active group call. Returns join response payload for tgcalls
+//@description Joins a group call that is not bound to a chat @input_group_call The group call to join @join_parameters Parameters to join the call
+joinGroupCall input_group_call:InputGroupCall join_parameters:groupCallJoinParameters = GroupCallInfo;
+
+//@description Joins an active video chat. Returns join response payload for tgcalls
 //@group_call_id Group call identifier
 //@participant_id Identifier of a group call participant, which will be used to join the call; pass null to join as self; video chats only
-//@audio_source_id Caller audio channel synchronization source identifier; received from tgcalls
-//@payload Group call join payload; received from tgcalls
-//@is_muted Pass true to join the call with muted microphone
-//@is_my_video_enabled Pass true if the user's video is enabled
-//@invite_hash If non-empty, invite hash to be used to join the group call without being muted by administrators
-//@key_fingerprint Fingerprint of the encryption key for E2E group calls not bound to a chat; pass 0 for voice chats
-joinGroupCall group_call_id:int32 participant_id:MessageSender audio_source_id:int32 payload:string is_muted:Bool is_my_video_enabled:Bool invite_hash:string key_fingerprint:int64 = Text;
+//@join_parameters Parameters to join the call
+//@invite_hash Invite hash as received from internalLinkTypeVideoChat
+joinVideoChat group_call_id:int32 participant_id:MessageSender join_parameters:groupCallJoinParameters invite_hash:string = Text;
 
 //@description Starts screen sharing in a joined group call. Returns join response payload for tgcalls
 //@group_call_id Group call identifier
@@ -11231,35 +11310,52 @@ toggleGroupCallScreenSharingIsPaused group_call_id:int32 is_paused:Bool = Ok;
 //@description Ends screen sharing in a joined group call @group_call_id Group call identifier
 endGroupCallScreenSharing group_call_id:int32 = Ok;
 
-//@description Sets group call title. Requires groupCall.can_be_managed group call flag @group_call_id Group call identifier @title New group call title; 1-64 characters
-setGroupCallTitle group_call_id:int32 title:string = Ok;
+//@description Sets title of a video chat; requires groupCall.can_be_managed right @group_call_id Group call identifier @title New group call title; 1-64 characters
+setVideoChatTitle group_call_id:int32 title:string = Ok;
 
-//@description Toggles whether new participants of a group call can be unmuted only by administrators of the group call. Requires groupCall.can_toggle_mute_new_participants group call flag
+//@description Toggles whether new participants of a video chat can be unmuted only by administrators of the video chat. Requires groupCall.can_toggle_mute_new_participants right
 //@group_call_id Group call identifier
 //@mute_new_participants New value of the mute_new_participants setting
-toggleGroupCallMuteNewParticipants group_call_id:int32 mute_new_participants:Bool = Ok;
+toggleVideoChatMuteNewParticipants group_call_id:int32 mute_new_participants:Bool = Ok;
 
-//@description Invites users to an active group call. Sends a service message of type messageInviteVideoChatParticipants for video chats
+//@description Invites a user to an active group call; for group calls not bound to a chat only. Sends a service message of the type messageGroupCall.
+//-The group call can have at most getOption("group_call_participant_count_max") participants
+//@group_call_id Group call identifier
+//@user_id User identifier
+//@is_video Pass true if the group call is a video call
+inviteGroupCallParticipant group_call_id:int32 user_id:int53 is_video:Bool = InviteGroupCallParticipantResult;
+
+//@description Declines an invitation to an active group call via messageGroupCall. Can be called both by the sender and the receiver of the invitation
+//@chat_id Identifier of the chat with the message
+//@message_id Identifier of the message of the type messageGroupCall
+declineGroupCallInvitation chat_id:int53 message_id:int53 = Ok;
+
+//@description Bans users from a group call not bound to a chat; requires groupCall.is_owned. Only the owner of the group call can invite the banned users back
+//@group_call_id Group call identifier
+//@user_ids Identifiers of group call participants to ban; identifiers of unknown users from the update updateGroupCallParticipants can be also passed to the method
+banGroupCallParticipants group_call_id:int32 user_ids:vector<int64> = Ok;
+
+//@description Invites users to an active video chat. Sends a service message of the type messageInviteVideoChatParticipants to the chat bound to the group call
 //@group_call_id Group call identifier
 //@user_ids User identifiers. At most 10 users can be invited simultaneously
-inviteGroupCallParticipants group_call_id:int32 user_ids:vector<int53> = Ok;
+inviteVideoChatParticipants group_call_id:int32 user_ids:vector<int53> = Ok;
 
 //@description Returns invite link to a video chat in a public chat
 //@group_call_id Group call identifier
-//@can_self_unmute Pass true if the invite link needs to contain an invite hash, passing which to joinGroupCall would allow the invited user to unmute themselves. Requires groupCall.can_be_managed group call flag
-getGroupCallInviteLink group_call_id:int32 can_self_unmute:Bool = HttpUrl;
+//@can_self_unmute Pass true if the invite link needs to contain an invite hash, passing which to joinVideoChat would allow the invited user to unmute themselves. Requires groupCall.can_be_managed right
+getVideoChatInviteLink group_call_id:int32 can_self_unmute:Bool = HttpUrl;
 
-//@description Revokes invite link for a group call. Requires groupCall.can_be_managed group call flag @group_call_id Group call identifier
+//@description Revokes invite link for a group call. Requires groupCall.can_be_managed right for video chats or groupCall.is_owned otherwise @group_call_id Group call identifier
 revokeGroupCallInviteLink group_call_id:int32 = Ok;
 
-//@description Starts recording of an active group call. Requires groupCall.can_be_managed group call flag
+//@description Starts recording of an active group call; for video chats only. Requires groupCall.can_be_managed right
 //@group_call_id Group call identifier
 //@title Group call recording title; 0-64 characters
 //@record_video Pass true to record a video file instead of an audio file
 //@use_portrait_orientation Pass true to use portrait orientation for video instead of landscape one
 startGroupCallRecording group_call_id:int32 title:string record_video:Bool use_portrait_orientation:Bool = Ok;
 
-//@description Ends recording of an active group call. Requires groupCall.can_be_managed group call flag @group_call_id Group call identifier
+//@description Ends recording of an active group call; for video chats only. Requires groupCall.can_be_managed right @group_call_id Group call identifier
 endGroupCallRecording group_call_id:int32 = Ok;
 
 //@description Toggles whether current user's video is paused @group_call_id Group call identifier @is_my_video_paused Pass true if the current user's video is paused
@@ -11268,7 +11364,7 @@ toggleGroupCallIsMyVideoPaused group_call_id:int32 is_my_video_paused:Bool = Ok;
 //@description Toggles whether current user's video is enabled @group_call_id Group call identifier @is_my_video_enabled Pass true if the current user's video is enabled
 toggleGroupCallIsMyVideoEnabled group_call_id:int32 is_my_video_enabled:Bool = Ok;
 
-//@description Informs TDLib that speaking state of a participant of an active group has changed
+//@description Informs TDLib that speaking state of a participant of an active group call has changed
 //@group_call_id Group call identifier
 //@audio_source Group call participant's synchronization audio source identifier, or 0 for the current user
 //@is_speaking Pass true if the user is speaking
@@ -11280,17 +11376,23 @@ setGroupCallParticipantIsSpeaking group_call_id:int32 audio_source:int32 is_spea
 //@is_muted Pass true to mute the user; pass false to unmute them
 toggleGroupCallParticipantIsMuted group_call_id:int32 participant_id:MessageSender is_muted:Bool = Ok;
 
-//@description Changes volume level of a participant of an active group call. If the current user can manage the group call, then the participant's volume level will be changed for all users with the default volume level
+//@description Changes volume level of a participant of an active group call. If the current user can manage the group call or is the owner of the group call,
+//-then the participant's volume level will be changed for all users with the default volume level
 //@group_call_id Group call identifier
 //@participant_id Participant identifier
 //@volume_level New participant's volume level; 1-20000 in hundreds of percents
 setGroupCallParticipantVolumeLevel group_call_id:int32 participant_id:MessageSender volume_level:int32 = Ok;
 
-//@description Toggles whether a group call participant hand is rased
+//@description Toggles whether a group call participant hand is rased; for video chats only
 //@group_call_id Group call identifier
 //@participant_id Participant identifier
-//@is_hand_raised Pass true if the user's hand needs to be raised. Only self hand can be raised. Requires groupCall.can_be_managed group call flag to lower other's hand
+//@is_hand_raised Pass true if the user's hand needs to be raised. Only self hand can be raised. Requires groupCall.can_be_managed right to lower other's hand
 toggleGroupCallParticipantIsHandRaised group_call_id:int32 participant_id:MessageSender is_hand_raised:Bool = Ok;
+
+//@description Returns information about participants of a non-joined group call that is not bound to a chat
+//@input_group_call The group call which participants will be returned
+//@limit The maximum number of participants to return; must be positive
+getGroupCallParticipants input_group_call:InputGroupCall limit:int32 = GroupCallParticipants;
 
 //@description Loads more participants of a group call. The loaded participants will be received through updates. Use the field groupCall.loaded_all_participants to check whether all participants have already been loaded
 //@group_call_id Group call identifier. The group call must be previously received through getGroupCall and must be joined or being joined
@@ -11300,19 +11402,33 @@ loadGroupCallParticipants group_call_id:int32 limit:int32 = Ok;
 //@description Leaves a group call @group_call_id Group call identifier
 leaveGroupCall group_call_id:int32 = Ok;
 
-//@description Ends a group call. Requires groupCall.can_be_managed @group_call_id Group call identifier
+//@description Ends a group call. Requires groupCall.can_be_managed right for video chats or groupCall.is_owned otherwise @group_call_id Group call identifier
 endGroupCall group_call_id:int32 = Ok;
 
-//@description Returns information about available group call streams @group_call_id Group call identifier
-getGroupCallStreams group_call_id:int32 = GroupCallStreams;
+//@description Returns information about available video chat streams @group_call_id Group call identifier
+getVideoChatStreams group_call_id:int32 = VideoChatStreams;
 
-//@description Returns a file with a segment of a group call stream in a modified OGG format for audio or MPEG-4 format for video
+//@description Returns a file with a segment of a video chat stream in a modified OGG format for audio or MPEG-4 format for video
 //@group_call_id Group call identifier
 //@time_offset Point in time when the stream segment begins; Unix timestamp in milliseconds
 //@scale Segment duration scale; 0-1. Segment's duration is 1000/(2**scale) milliseconds
 //@channel_id Identifier of an audio/video channel to get as received from tgcalls
 //@video_quality Video quality as received from tgcalls; pass null to get the worst available quality
-getGroupCallStreamSegment group_call_id:int32 time_offset:int53 scale:int32 channel_id:int32 video_quality:GroupCallVideoQuality = FilePart;
+getVideoChatStreamSegment group_call_id:int32 time_offset:int53 scale:int32 channel_id:int32 video_quality:GroupCallVideoQuality = Data;
+
+//@description Encrypts group call data before sending them over network using tgcalls
+//@group_call_id Group call identifier. The call must not be a video chat
+//@data_channel Data channel for which data is encrypted
+//@data Data to encrypt
+//@unencrypted_prefix_size Size of data prefix that must be kept unencrypted
+encryptGroupCallData group_call_id:int32 data_channel:GroupCallDataChannel data:bytes unencrypted_prefix_size:int32 = Data;
+
+//@description Decrypts group call data received by tgcalls
+//@group_call_id Group call identifier. The call must not be a video chat
+//@participant_id Identifier of the group call participant, which sent the data
+//@data_channel Data channel for which data was encrypted; pass null if unknown
+//@data Data to decrypt
+decryptGroupCallData group_call_id:int32 participant_id:MessageSender data_channel:GroupCallDataChannel data:bytes = Data;
 
 
 //@description Changes the block list of a message sender. Currently, only users and supergroup chats can be blocked

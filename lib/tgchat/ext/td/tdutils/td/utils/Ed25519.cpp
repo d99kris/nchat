@@ -7,7 +7,6 @@
 #include "td/utils/Ed25519.h"
 
 #include "td/utils/BigNum.h"
-#include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/ScopeGuard.h"
 
@@ -275,7 +274,11 @@ Result<SecureString> Ed25519::compute_shared_secret(const PublicKey &public_key,
 #if OPENSSL_VERSION_NUMBER >= 0x10101000L
   BigNum p = BigNum::from_hex("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffed").move_as_ok();
   auto public_y = public_key.as_octet_string();
-  public_y.as_mutable_slice()[31] = static_cast<char>(public_y[31] & 127);
+  MutableSlice pub_slc = public_y.as_mutable_slice();
+  if (pub_slc.size() != PublicKey::LENGTH) {
+    return Status::Error("Wrong public key");
+  }
+  pub_slc[31] = static_cast<char>(public_y[31] & 127);
   BigNum y = BigNum::from_le_binary(public_y);
   BigNum y2 = y.clone();
   y += 1;
@@ -292,8 +295,11 @@ Result<SecureString> Ed25519::compute_shared_secret(const PublicKey &public_key,
   BigNum::mod_mul(u, y, inverse_y_plus_1, p, context);
 
   auto pr_key = private_key.as_octet_string();
+  if (pr_key.size() != PrivateKey::LENGTH) {
+    return Status::Error("Wrong private key");
+  }
   unsigned char buf[64];
-  SHA512(Slice(pr_key).ubegin(), 32, buf);
+  SHA512(Slice(pr_key).ubegin(), pr_key.size(), buf);
   buf[0] &= 248;
   buf[31] &= 127;
   buf[31] |= 64;
@@ -305,9 +311,8 @@ Result<SecureString> Ed25519::compute_shared_secret(const PublicKey &public_key,
   SCOPE_EXIT {
     EVP_PKEY_free(pkey_private);
   };
-  // LOG(ERROR) << buffer_to_hex(Slice(buf, 32));
 
-  auto pub_key = u.to_le_binary(32);
+  auto pub_key = u.to_le_binary(PublicKey::LENGTH);
   auto pkey_public = EVP_PKEY_new_raw_public_key(EVP_PKEY_X25519, nullptr, Slice(pub_key).ubegin(), pub_key.size());
   if (pkey_public == nullptr) {
     return Status::Error("Can't import public key");
@@ -315,7 +320,6 @@ Result<SecureString> Ed25519::compute_shared_secret(const PublicKey &public_key,
   SCOPE_EXIT {
     EVP_PKEY_free(pkey_public);
   };
-  // LOG(ERROR) << buffer_to_hex(pub_key);
 
   EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new(pkey_private, nullptr);
   if (ctx == nullptr) {
@@ -352,7 +356,10 @@ Result<SecureString> Ed25519::compute_shared_secret(const PublicKey &public_key,
 
 Result<SecureString> Ed25519::get_public_key(Slice private_key) {
 #if OPENSSL_VERSION_NUMBER >= 0x10101000L
-  auto pkey_private = EVP_PKEY_new_raw_private_key(EVP_PKEY_X25519, nullptr, private_key.ubegin(), 32);
+  if (private_key.size() != PrivateKey::LENGTH) {
+    return Status::Error("Invalid X25519 private key");
+  }
+  auto pkey_private = EVP_PKEY_new_raw_private_key(EVP_PKEY_X25519, nullptr, private_key.ubegin(), private_key.size());
   if (pkey_private == nullptr) {
     return Status::Error("Invalid X25519 private key");
   }
@@ -360,15 +367,14 @@ Result<SecureString> Ed25519::get_public_key(Slice private_key) {
     EVP_PKEY_free(pkey_private);
   };
 
-  auto func = &EVP_PKEY_get_raw_public_key;
   size_t len = 0;
-  if (func(pkey_private, nullptr, &len) == 0) {
+  if (EVP_PKEY_get_raw_public_key(pkey_private, nullptr, &len) == 0) {
     return Status::Error("Failed to get raw key length");
   }
-  CHECK(len == 32);
+  CHECK(len == PublicKey::LENGTH);
 
   SecureString result(len);
-  if (func(pkey_private, result.as_mutable_slice().ubegin(), &len) == 0) {
+  if (EVP_PKEY_get_raw_public_key(pkey_private, result.as_mutable_slice().ubegin(), &len) == 0) {
     return Status::Error("Failed to get raw key");
   }
   return std::move(result);
