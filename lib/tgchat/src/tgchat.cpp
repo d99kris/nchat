@@ -1052,7 +1052,7 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
 
     case SetStatusRequestType:
       {
-        LOG_DEBUG("Set status");
+        LOG_TRACE("Set status");
         std::shared_ptr<SetStatusRequest> setStatusRequest =
           std::static_pointer_cast<SetStatusRequest>(p_RequestMessage);
         bool isOnline = setStatusRequest->isOnline;

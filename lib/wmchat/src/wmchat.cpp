@@ -511,7 +511,7 @@ void WmChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
 
     case SetStatusRequestType:
       {
-        LOG_DEBUG("set status");
+        LOG_TRACE("set status");
         std::shared_ptr<SetStatusRequest> setStatusRequest =
           std::static_pointer_cast<SetStatusRequest>(p_RequestMessage);
         int32_t isOnline = setStatusRequest->isOnline ? 1 : 0;

@@ -518,7 +518,7 @@ func ExtensionByType(mimeType string, defaultExt string) string {
 type ncLogger struct{}
 
 func (s *ncLogger) Debugf(msg string, args ...interface{}) {
-	LOG_DEBUG(fmt.Sprintf("whatsmeow %s", fmt.Sprintf(msg, args...)))
+	LOG_TRACE(fmt.Sprintf("whatsmeow %s", fmt.Sprintf(msg, args...)))
 }
 
 func (s *ncLogger) Infof(msg string, args ...interface{}) {
