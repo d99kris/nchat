@@ -237,7 +237,7 @@ std::string FileUtil::GetSuffixedCount(ssize_t p_Size)
 {
   std::vector<std::string> suffixes({ "", "K", "M", "G", "T", "P" });
   size_t i = 0;
-  for (i = 0; (i < suffixes.size()) && (p_Size >= 1024); i++, (p_Size /= 1024))
+  for (i = 0; (i < (suffixes.size() - 1)) && (p_Size >= 1024); i++, (p_Size /= 1024))
   {
   }
 
@@ -248,7 +248,7 @@ std::string FileUtil::GetSuffixedSize(ssize_t p_Size)
 {
   std::vector<std::string> suffixes({ "B", "KB", "MB", "GB", "TB", "PB" });
   size_t i = 0;
-  for (i = 0; (i < suffixes.size()) && (p_Size >= 1024); i++, (p_Size /= 1024))
+  for (i = 0; (i < (suffixes.size() - 1)) && (p_Size >= 1024); i++, (p_Size /= 1024))
   {
   }
 
