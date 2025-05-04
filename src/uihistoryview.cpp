@@ -74,6 +74,7 @@ void UiHistoryView::Draw()
 
   std::pair<std::string, std::string>& currentChat = m_Model->GetCurrentChatLocked();
   const bool emojiEnabled = m_Model->GetEmojiEnabledLocked();
+  static const bool developerMode = AppUtil::GetDeveloperMode();
 
   std::vector<std::string>& messageVec =
     m_Model->GetMessageVecLocked(currentChat.first, currentChat.second);
@@ -388,9 +389,16 @@ void UiHistoryView::Draw()
 
     std::wstring wsender = StrUtil::ToWString(name);
     std::wstring wtime;
-    if (msg.timeSent != std::numeric_limits<int64_t>::max())
+    if (developerMode)
     {
-      wtime = L" (" + StrUtil::ToWString(TimeUtil::GetTimeString(msg.timeSent, false /* p_IsExport */)) + L")";
+      wtime = L" (" + StrUtil::ToWString(std::to_string(msg.timeSent)) + L")";
+    }
+    else
+    {
+      if (msg.timeSent != std::numeric_limits<int64_t>::max())
+      {
+        wtime = L" (" + StrUtil::ToWString(TimeUtil::GetTimeString(msg.timeSent, false /* p_IsExport */)) + L")";
+      }
     }
 
     m_Model->MarkReadLocked(currentChat.first, currentChat.second, *it, (!msg.isOutgoing && !msg.isRead));
@@ -399,7 +407,6 @@ void UiHistoryView::Draw()
     std::wstring wreceipt = StrUtil::ToWString(msg.isRead ? readIndicator : "");
     std::wstring wheader = wsender + wtime + wreceipt;
 
-    static const bool developerMode = AppUtil::GetDeveloperMode();
     if (developerMode)
     {
       wheader = wheader +
