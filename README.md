@@ -983,6 +983,15 @@ after initial sync:
 
     nchat -s
 
+### 6. How to set up WhatsApp without scanning a QR code?
+
+By default setting up a WhatsApp account will display a QR code to be scanned
+using the WhatsApp mobile application on the primary device. As an alternative
+one can set an environment flag to have nchat display a pairing code, to be
+entered in WhatsApp on the primary device:
+
+    USE_PAIRING_CODE=1 nchat -s
+
 
 Technical Details
 =================

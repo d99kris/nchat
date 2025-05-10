@@ -69,14 +69,6 @@ bool WmChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_Profi
   std::cout << "\n";
 
   std::string phoneNumber = StrUtil::GetPhoneNumber();
-
-  std::cout << "\n";
-  std::cout << "Open WhatsApp on your phone, click the menu bar and select \"Linked devices\".\n";
-  std::cout << "Click on \"Link a device\", unlock the phone and aim its camera at the\n";
-  std::cout << "Qr code displayed on the computer screen.\n";
-  std::cout << "\n";
-
-
   m_ProfileId = m_ProfileId + "_" + phoneNumber;
   std::string profileDir = p_ProfilesDir + "/" + m_ProfileId;
 

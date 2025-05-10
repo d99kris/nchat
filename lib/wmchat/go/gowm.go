@@ -355,6 +355,30 @@ func ShowImage(path string) {
 	}
 }
 
+func GetOSName() string {
+	switch runtime.GOOS {
+	case "linux":
+		return "Linux"
+	case "darwin":
+		return "Mac OS"
+	default:
+		return "Linux"
+	}
+}
+
+func GetClientDisplayName() string {
+	return "Firefox (" + GetOSName() + ")"
+}
+
+func GetPhoneNumberFromPath(path string) string {
+	profileDirName := filepath.Base(filepath.Clean(path)) // e.g. "WhatsAppMd_+6511111111"
+	lastUnderscoreIndex := strings.LastIndex(profileDirName, "_")
+	if lastUnderscoreIndex != -1 && lastUnderscoreIndex+1 < len(profileDirName) {
+		return profileDirName[lastUnderscoreIndex+1:]
+	}
+	return ""
+}
+
 func HasGUI() bool {
 	_, isForceQrTerminalSet := os.LookupEnv("FORCE_QR_TERMINAL")
 	if isForceQrTerminalSet {
@@ -1782,14 +1806,7 @@ func WmInit(path string, proxy string, sendType int) int {
 	}
 
 	store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_FIREFOX.Enum()
-	switch runtime.GOOS {
-	case "linux":
-		store.DeviceProps.Os = proto.String("Linux")
-	case "darwin":
-		store.DeviceProps.Os = proto.String("Mac OS")
-	default:
-		store.DeviceProps.Os = proto.String("Linux")
-	}
+	store.DeviceProps.Os = proto.String(GetOSName())
 
 	// create new whatsapp connection
 	clientLog := NcLogger()
@@ -1842,19 +1859,47 @@ func WmLogin(connId int) int {
 		timeoutMs = 60000 // 60 sec timeout during setup / qr code scan
 		go func() {
 			hasGUI := HasGUI()
+			_, usePairingCode := os.LookupEnv("USE_PAIRING_CODE")
 
 			LOG_TRACE(fmt.Sprintf("acquire console"))
 			CWmSetProtocolUiControl(connId, 1)
-			fmt.Printf("Scan the Qr code to authenticate, or press CTRL-C to abort.\n")
+
+			if usePairingCode {
+				fmt.Printf("\n")
+				fmt.Printf("Open the WhatsApp notification \"Enter code to link new device\" on your phone,\n")
+				fmt.Printf("click \"Confirm\" and enter below pairing code on your phone, or press CTRL-C\n")
+				fmt.Printf("to abort.\n")
+				fmt.Printf("\n")
+			} else {
+				fmt.Printf("\n")
+				fmt.Printf("Open WhatsApp on your phone, click the menu bar and select \"Linked devices\".\n")
+				fmt.Printf("Click on \"Link a device\", unlock the phone and aim its camera at the\n")
+				fmt.Printf("Qr code displayed on the computer screen.\n")
+				fmt.Printf("\n")
+				fmt.Printf("Scan the Qr code to authenticate, or press CTRL-C to abort.\n")
+			}
 
 			for evt := range ch {
 				if evt.Event == whatsmeow.QRChannelEventCode {
-					if hasGUI {
-						qrPath := path + "/tmp/qr.png"
-						qrcode.WriteFile(evt.Code, qrcode.Medium, 512, qrPath)
-						ShowImage(qrPath)
+					if usePairingCode {
+						phoneNumber := GetPhoneNumberFromPath(path)
+						showPushNotification := true
+						pairCode, pairErr := cli.PairPhone(phoneNumber, showPushNotification, whatsmeow.PairClientFirefox, GetClientDisplayName())
+						if pairErr != nil {
+							LOG_WARNING(fmt.Sprintf("pair phone error %#v", pairErr))
+							SetState(connId, Disconnected)
+						} else {
+							fmt.Printf("Code: %s\n", pairCode)
+							fmt.Printf("\n")
+						}
 					} else {
-						qrterminal.GenerateHalfBlock(evt.Code, qrterminal.L, os.Stdout)
+						if hasGUI {
+							qrPath := path + "/tmp/qr.png"
+							qrcode.WriteFile(evt.Code, qrcode.Medium, 512, qrPath)
+							ShowImage(qrPath)
+						} else {
+							qrterminal.GenerateHalfBlock(evt.Code, qrterminal.L, os.Stdout)
+						}
 					}
 				} else if evt == whatsmeow.QRChannelSuccess {
 					LOG_DEBUG("qr channel event success")
