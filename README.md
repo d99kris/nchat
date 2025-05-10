@@ -278,6 +278,8 @@ This configuration file holds general application settings. Default content:
     proxy_port=
     proxy_user=
     timestamp_iso=0
+    use_pairing_code=0
+    use_qr_terminal=0
 
 ### assert_abort
 
@@ -345,6 +347,17 @@ format:
 - `DD MMM HH:MM` for timestamps in the current year, e.g. `14 Nov 19:00`
 - `DD MMM YYYY HH:MM` for timestamps in non-current year, e.g. `14 Nov 2022 19:00`
 - `DD MMM YYYY HH:MM` for timestamps during export, e.g. `14 Nov 2022 19:00`
+
+### use_pairing_code
+
+Stores the environment variable flag `USE_PAIRING_CODE` if set during setup.
+It specifies whether to use pairing code instead of QR code (WhatsApp only).
+
+### use_qr_terminal
+
+Stores the environment variable flag `USE_QR_TERMINAL` if set during setup.
+It specifies whether to display QR code in the terminal, disabling detection
+of GUI capability for displaying images (WhatsApp only).
 
 ~/.config/nchat/ui.conf
 -----------------------
@@ -991,6 +1004,16 @@ one can set an environment flag to have nchat display a pairing code, to be
 entered in WhatsApp on the primary device:
 
     USE_PAIRING_CODE=1 nchat -s
+
+### 7. No QR code is shown when setting up WhatsApp?
+
+By default nchat will attempt to detect if the system is capable of viewing
+images using a GUI image viewer, and if detected (indicated by "has gui" in
+the log) it displays the QR code using default image viewer. If that for some
+reason fails, one can use pairing code (see above), or force nchat to display
+the QR code in the terminal:
+
+    USE_QR_TERMINAL=1 nchat -s
 
 
 Technical Details

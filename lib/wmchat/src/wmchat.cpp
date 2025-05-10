@@ -1027,6 +1027,19 @@ void WmClearStatus(int p_Flags)
   Status::Clear(p_Flags);
 }
 
+int WmAppConfigGetNum(char* p_Param)
+{
+  int value = AppConfig::GetNum(std::string(p_Param));
+  free(p_Param);
+  return value;
+}
+
+void WmAppConfigSetNum(char* p_Param, int p_Value)
+{
+  AppConfig::SetNum(std::string(p_Param), p_Value);
+  free(p_Param);
+}
+
 void WmLogTrace(char* p_Filename, int p_LineNo, char* p_Message)
 {
   Log::Trace(p_Filename, p_LineNo, "%s", p_Message);

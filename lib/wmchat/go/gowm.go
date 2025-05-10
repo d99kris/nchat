@@ -379,9 +379,25 @@ func GetPhoneNumberFromPath(path string) string {
 	return ""
 }
 
+func GetConfigOrEnvFlag(envVarName string) bool {
+	configParamName := strings.ToLower(envVarName)
+	isConfigSet := CWmAppConfigGetNum(configParamName)
+	if IntToBool(isConfigSet) {
+		return true
+	}
+
+	_, isEnvSet := os.LookupEnv(envVarName)
+	if isEnvSet {
+		CWmAppConfigSetNum(configParamName, 1)
+		return true
+	}
+
+	return false
+}
+
 func HasGUI() bool {
-	_, isForceQrTerminalSet := os.LookupEnv("FORCE_QR_TERMINAL")
-	if isForceQrTerminalSet {
+	useQrTerminal := GetConfigOrEnvFlag("USE_QR_TERMINAL")
+	if useQrTerminal {
 		return false
 	}
 
@@ -1859,7 +1875,7 @@ func WmLogin(connId int) int {
 		timeoutMs = 60000 // 60 sec timeout during setup / qr code scan
 		go func() {
 			hasGUI := HasGUI()
-			_, usePairingCode := os.LookupEnv("USE_PAIRING_CODE")
+			usePairingCode := GetConfigOrEnvFlag("USE_PAIRING_CODE")
 
 			LOG_TRACE(fmt.Sprintf("acquire console"))
 			CWmSetProtocolUiControl(connId, 1)

@@ -25,6 +25,8 @@ package main
 // extern void WmSetProtocolUiControl(int p_ConnId, int p_IsTakeControl);
 // extern void WmSetStatus(int p_Flags);
 // extern void WmClearStatus(int p_Flags);
+// extern int WmAppConfigGetNum(char* p_Param);
+// extern void WmAppConfigSetNum(char* p_Param, int p_Value);
 // extern void WmLogTrace(char* p_Filename, int p_LineNo, char* p_Message);
 // extern void WmLogDebug(char* p_Filename, int p_LineNo, char* p_Message);
 // extern void WmLogInfo(char* p_Filename, int p_LineNo, char* p_Message);
@@ -174,6 +176,14 @@ func CWmSetStatus(flags int) {
 
 func CWmClearStatus(flags int) {
 	C.WmClearStatus(C.int(flags))
+}
+
+func CWmAppConfigGetNum(param string) int {
+	return int(C.WmAppConfigGetNum(C.CString(param)))
+}
+
+func CWmAppConfigSetNum(param string, value int) {
+	C.WmAppConfigSetNum(C.CString(param), C.int(value))
 }
 
 func LOG_TRACE(message string) {

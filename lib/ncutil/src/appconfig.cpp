@@ -32,6 +32,8 @@ void AppConfig::Init()
     { "proxy_port", "" },
     { "proxy_user", "" },
     { "timestamp_iso", "0" },
+    { "use_pairing_code", "0" },
+    { "use_qr_terminal", "0" },
   };
 
   const std::string configPath(FileUtil::GetApplicationDir() + std::string("/app.conf"));
@@ -60,6 +62,11 @@ int AppConfig::GetNum(const std::string& p_Param)
   if (!StrUtil::IsInteger(value)) return 0;
 
   return StrUtil::ToInteger(value);
+}
+
+void AppConfig::SetNum(const std::string& p_Param, const int& p_Value)
+{
+  m_Config->Set(p_Param, std::to_string(p_Value));
 }
 
 std::string AppConfig::GetStr(const std::string& p_Param)
