@@ -79,6 +79,10 @@ it, for example:
 
     coredumpctl debug 35919
 
+Optionally, enable logging (to ./gdb.txt by default)
+
+    logging enabled on
+
 Obtain callstacks from all threads and then exit:
 
     thread apply all bt
@@ -104,6 +108,10 @@ to open using:
 
     gdb $(which nchat) core
 
+Optionally, enable logging (to ./gdb.txt by default)
+
+    logging enabled on
+
 Obtain callstacks from all threads and then exit:
 
     thread apply all bt
@@ -123,4 +131,8 @@ Obtain callstacks from all threads and then exit:
 
     thread apply all bt
     quit
+
+Optionally, enable logging (to ./gdb.txt by default)
+
+    logging enabled on
 
