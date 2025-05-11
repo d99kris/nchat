@@ -124,6 +124,9 @@ private:
     bool GetEditMessageActive();
     void SetEditMessageActive(bool p_EditMessageActive);
 
+    bool GetFindMessageActive();
+    void SetFindMessageActive(bool p_FindMessageActive);
+
     void SetHelpOffset(int p_HelpOffset);
     int GetHelpOffset();
 
@@ -249,6 +252,7 @@ private:
     bool m_ListDialogActive = false;
     bool m_MessageDialogActive = false;
     bool m_EditMessageActive = false;
+    bool m_FindMessageActive = false;
 
     bool m_TriggerTerminalBell = false;
     bool m_HomeFetchAll = false;

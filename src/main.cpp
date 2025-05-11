@@ -409,6 +409,9 @@ int main(int argc, char* argv[])
     }
   }
 
+  // Clear cache message handler
+  MessageCache::SetMessageHandler(nullptr);
+
   // Cleanup ui
   ui->Cleanup();
   ui.reset();

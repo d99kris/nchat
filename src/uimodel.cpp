@@ -633,7 +633,7 @@ void UiModel::Impl::OnKeyNextPage()
 
   if (decOffset > 0)
   {
-    messageOffset -= decOffset;
+    messageOffset = std::max((messageOffset - decOffset), 0);
     UpdateHistory();
   }
   else
@@ -1806,6 +1806,7 @@ void UiModel::Impl::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMess
 
     case FindMessageNotifyType:
       {
+        SetFindMessageActive(false);
         std::shared_ptr<FindMessageNotify> findMessageNotify =
           std::static_pointer_cast<FindMessageNotify>(p_ServiceMessage);
         bool success = findMessageNotify->success;
@@ -2484,6 +2485,16 @@ void UiModel::Impl::SetEditMessageActive(bool p_EditMessageActive)
 
   SetHelpOffset(0);
   UpdateHelp();
+}
+
+bool UiModel::Impl::GetFindMessageActive()
+{
+  return m_FindMessageActive;
+}
+
+void UiModel::Impl::SetFindMessageActive(bool p_FindMessageActive)
+{
+  m_FindMessageActive = p_FindMessageActive;
 }
 
 void UiModel::Impl::SetHelpOffset(int p_HelpOffset)
@@ -4364,7 +4375,9 @@ void UiModel::OnKeyFind()
   // Pre-req
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
-    if (GetImpl().GetEditMessageActive()) return;
+    if (GetImpl().GetEditMessageActive() || GetImpl().GetFindMessageActive()) return;
+
+    GetImpl().SetFindMessageActive(true);
   }
 
   // Open modal dialog without model mutex held
@@ -4385,17 +4398,20 @@ void UiModel::OnKeyFind()
 
 void UiModel::OnKeyFindNext()
 {
-  // Pre-req
-  {
-    std::unique_lock<owned_mutex> lock(m_ModelMutex);
-    if (GetImpl().GetEditMessageActive()) return;
-  }
-
   if (m_FindText.empty())
   {
     OnKeyFind();
+    return;
   }
-  else
+
+  // Pre-req
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    if (GetImpl().GetEditMessageActive() || GetImpl().GetFindMessageActive()) return;
+
+    GetImpl().SetFindMessageActive(true);
+  }
+
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().Find(m_FindText);

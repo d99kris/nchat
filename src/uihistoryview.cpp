@@ -80,7 +80,7 @@ void UiHistoryView::Draw()
     m_Model->GetMessageVecLocked(currentChat.first, currentChat.second);
   std::unordered_map<std::string, ChatMessage>& messages =
     m_Model->GetMessagesLocked(currentChat.first, currentChat.second);
-  int messageOffset = m_Model->GetMessageOffsetLocked(currentChat.first, currentChat.second);
+  int messageOffset = std::max(m_Model->GetMessageOffsetLocked(currentChat.first, currentChat.second), 0);
 
   werase(m_PaddedWin);
   wbkgd(m_PaddedWin, attributeTextNormal | colorPairTextRecv | ' ');

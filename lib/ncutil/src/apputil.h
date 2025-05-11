@@ -12,7 +12,7 @@
 #include "log.h"
 
 #define nc_assert(cond) \
-        do { if (!cond) { LOG_ERROR("Assertion failed: %s", #cond); AppUtil::AssertionFailed(); } } while (0)
+        do { if (!(cond)) { LOG_ERROR("Assertion failed: %s", #cond); AppUtil::AssertionFailed(); } } while (0)
 
 class AppUtil
 {
