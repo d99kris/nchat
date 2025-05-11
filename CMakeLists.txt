@@ -43,6 +43,11 @@ endif()
 option(HAS_SHARED_LIBS "Shared Libs" ON)
 message(STATUS "Shared Libs: ${HAS_SHARED_LIBS}")
 
+# Config - Build with Address Sanitizer (ASAN)
+# To set ASAN log path: ASAN_OPTIONS=log_path=asan.log ./build/bin/nchat
+option(HAS_ASAN "ASAN" OFF)
+message(STATUS "ASAN: ${HAS_ASAN}")
+
 # Optional component - Dummy Protocol
 option(HAS_DUMMY "Dummy" ON)
 message(STATUS "Dummy: ${HAS_DUMMY}")
@@ -83,8 +88,15 @@ if(HAS_WHATSAPP AND (NOT GO_VERSION VERSION_GREATER_EQUAL GO_VERSION_MIN))
   message(FATAL_ERROR "Go version ${GO_VERSION} (need >= ${GO_VERSION_MIN} to build WhatsApp).")
 endif()
 
+# Common compiler and linking flags
+if(HAS_ASAN)
+  set(NCHAT_CFLAGS -fsanitize=address -fno-omit-frame-pointer)
+  set(NCHAT_LDFLAGS -fsanitize=address)
+endif()
+
 # Helper function for applying common target properties
 function(target_common_config target)
+  # Build type specifics
   if(CMAKE_BUILD_TYPE STREQUAL "Release")
     target_compile_definitions(${target} PRIVATE NCHAT_BUILD_RELEASE=1)
   elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
@@ -92,6 +104,12 @@ function(target_common_config target)
   elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_compile_definitions(${target} PRIVATE NCHAT_BUILD_DEBUG=1)
   endif()
+
+  # Compile options
+  target_compile_options(${target} PUBLIC ${NCHAT_CFLAGS})
+
+  # Linking
+  target_link_libraries(${target} PUBLIC ${NCHAT_LDFLAGS})
 endfunction()
 
 # Internal library linking type
