@@ -39,7 +39,7 @@ import (
 var pbSerializer = store.SignalProtobufSerializer
 
 func (cli *Client) handleEncryptedMessage(node *waBinary.Node) {
-	ctx := context.TODO()
+	ctx := cli.BackgroundEventCtx
 	info, err := cli.parseMessageInfo(node)
 	if err != nil {
 		cli.Log.Warnf("Failed to parse message: %v", err)
@@ -52,10 +52,10 @@ func (cli *Client) handleEncryptedMessage(node *waBinary.Node) {
 		if info.VerifiedName != nil && len(info.VerifiedName.Details.GetVerifiedName()) > 0 {
 			go cli.updateBusinessName(context.WithoutCancel(ctx), info.Sender, info, info.VerifiedName.Details.GetVerifiedName())
 		}
-		if len(info.PushName) > 0 && info.PushName != "-" {
+		if len(info.PushName) > 0 && info.PushName != "-" && (cli.MessengerConfig == nil || info.PushName != "username") {
 			go cli.updatePushName(context.WithoutCancel(ctx), info.Sender, info, info.PushName)
 		}
-		defer cli.maybeDeferredAck(node)()
+		defer cli.maybeDeferredAck(ctx, node)()
 		if info.Sender.Server == types.NewsletterServer {
 			cli.handlePlaintextMessage(ctx, info, node)
 		} else {
@@ -264,7 +264,11 @@ func (cli *Client) decryptMessages(ctx context.Context, info *types.MessageInfo,
 	if ok && len(node.GetChildrenByTag("enc")) == 0 {
 		uType := events.UnavailableType(unavailableNode.AttrGetter().String("type"))
 		cli.Log.Warnf("Unavailable message %s from %s (type: %q)", info.ID, info.SourceString(), uType)
-		go cli.delayedRequestMessageFromPhone(info)
+		if cli.SynchronousAck {
+			cli.immediateRequestMessageFromPhone(ctx, info)
+		} else {
+			go cli.delayedRequestMessageFromPhone(info)
+		}
 		cli.dispatchEvent(&events.UndecryptableMessage{Info: *info, IsUnavailable: true, UnavailableType: uType})
 		return
 	}
@@ -342,10 +346,17 @@ func (cli *Client) decryptMessages(ctx context.Context, info *types.MessageInfo,
 			cli.Log.Debugf("Ignoring message %s from %s: %v", info.ID, info.SourceString(), err)
 			return
 		} else if err != nil {
-			cli.Log.Warnf("Error decrypting message from %s: %v", info.SourceString(), err)
+			cli.Log.Warnf("Error decrypting message %s from %s: %v", info.ID, info.SourceString(), err)
+			if ctx.Err() != nil {
+				return
+			}
 			isUnavailable := encType == "skmsg" && !containsDirectMsg && errors.Is(err, signalerror.ErrNoSenderKeyForUser)
 			if encType != "msmsg" {
-				go cli.sendRetryReceipt(context.WithoutCancel(ctx), node, info, isUnavailable)
+				if cli.SynchronousAck {
+					cli.sendRetryReceipt(ctx, node, info, isUnavailable)
+				} else {
+					go cli.sendRetryReceipt(context.WithoutCancel(ctx), node, info, isUnavailable)
+				}
 			}
 			cli.dispatchEvent(&events.UndecryptableMessage{
 				Info:            *info,
@@ -383,6 +394,16 @@ func (cli *Client) decryptMessages(ctx context.Context, info *types.MessageInfo,
 				zerolog.Ctx(ctx).Debug().
 					Hex("ciphertext_hash", ciphertextHash[:]).
 					Msg("Deleted event plaintext from buffer")
+			}
+
+			if time.Since(cli.lastDecryptedBufferClear) > 12*time.Hour && ctx.Err() == nil {
+				cli.lastDecryptedBufferClear = time.Now()
+				go func() {
+					err := cli.Store.EventBuffer.DeleteOldBufferedHashes(context.WithoutCancel(ctx))
+					if err != nil {
+						zerolog.Ctx(ctx).Err(err).Msg("Failed to delete old buffered hashes")
+					}
+				}()
 			}
 		}
 	}
@@ -595,32 +616,46 @@ func (cli *Client) handleHistorySyncNotificationLoop() {
 			go cli.handleHistorySyncNotificationLoop()
 		}
 	}()
-	ctx := context.TODO()
+	ctx := cli.BackgroundEventCtx
 	for notif := range cli.historySyncNotifications {
-		cli.handleHistorySyncNotification(ctx, notif)
+		blob, err := cli.DownloadHistorySync(ctx, notif, false)
+		if err != nil {
+			cli.Log.Errorf("Failed to download history sync: %v", err)
+		} else {
+			cli.dispatchEvent(&events.HistorySync{Data: blob})
+		}
 	}
 }
 
-func (cli *Client) handleHistorySyncNotification(ctx context.Context, notif *waE2E.HistorySyncNotification) {
+// DownloadHistorySync will download and parse the history sync blob from the given history sync notification.
+//
+// You only need to call this manually if you set [Client.ManualHistorySyncDownload] to true.
+// By default, whatsmeow will call this automatically and dispatch an [events.HistorySync] with the parsed data.
+func (cli *Client) DownloadHistorySync(ctx context.Context, notif *waE2E.HistorySyncNotification, synchronousStorage bool) (*waHistorySync.HistorySync, error) {
 	var historySync waHistorySync.HistorySync
 	if data, err := cli.Download(ctx, notif); err != nil {
-		cli.Log.Errorf("Failed to download history sync data: %v", err)
+		return nil, fmt.Errorf("failed to download: %w", err)
 	} else if reader, err := zlib.NewReader(bytes.NewReader(data)); err != nil {
-		cli.Log.Errorf("Failed to create zlib reader for history sync data: %v", err)
+		return nil, fmt.Errorf("failed to prepare to decompress: %w", err)
 	} else if rawData, err := io.ReadAll(reader); err != nil {
-		cli.Log.Errorf("Failed to decompress history sync data: %v", err)
+		return nil, fmt.Errorf("failed to decompress: %w", err)
 	} else if err = proto.Unmarshal(rawData, &historySync); err != nil {
-		cli.Log.Errorf("Failed to unmarshal history sync data: %v", err)
+		return nil, fmt.Errorf("failed to unmarshal: %w", err)
 	} else {
 		cli.Log.Debugf("Received history sync (type %s, chunk %d)", historySync.GetSyncType(), historySync.GetChunkOrder())
-		if historySync.GetSyncType() == waHistorySync.HistorySync_PUSH_NAME {
-			go cli.handleHistoricalPushNames(context.WithoutCancel(ctx), historySync.GetPushnames())
-		} else if len(historySync.GetConversations()) > 0 {
-			go cli.storeHistoricalMessageSecrets(context.WithoutCancel(ctx), historySync.GetConversations())
+		doStorage := func(ctx context.Context) {
+			if historySync.GetSyncType() == waHistorySync.HistorySync_PUSH_NAME {
+				cli.handleHistoricalPushNames(ctx, historySync.GetPushnames())
+			} else if len(historySync.GetConversations()) > 0 {
+				cli.storeHistoricalMessageSecrets(ctx, historySync.GetConversations())
+			}
 		}
-		cli.dispatchEvent(&events.HistorySync{
-			Data: &historySync,
-		})
+		if synchronousStorage {
+			doStorage(ctx)
+		} else {
+			go doStorage(context.WithoutCancel(ctx))
+		}
+		return &historySync, nil
 	}
 }
 
@@ -683,9 +718,11 @@ func (cli *Client) handleProtocolMessage(ctx context.Context, info *types.Messag
 	protoMsg := msg.GetProtocolMessage()
 
 	if protoMsg.GetHistorySyncNotification() != nil && info.IsFromMe {
-		cli.historySyncNotifications <- protoMsg.HistorySyncNotification
-		if cli.historySyncHandlerStarted.CompareAndSwap(false, true) {
-			go cli.handleHistorySyncNotificationLoop()
+		if !cli.ManualHistorySyncDownload {
+			cli.historySyncNotifications <- protoMsg.HistorySyncNotification
+			if cli.historySyncHandlerStarted.CompareAndSwap(false, true) {
+				go cli.handleHistorySyncNotificationLoop()
+			}
 		}
 		go cli.sendProtocolMessageReceipt(info.ID, types.ReceiptTypeHistorySync)
 	}

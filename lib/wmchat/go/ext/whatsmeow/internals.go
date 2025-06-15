@@ -99,6 +99,14 @@ func (int *DangerousInternalClient) GetOwnLID() types.JID {
 	return int.c.getOwnLID()
 }
 
+func (int *DangerousInternalClient) Connect() error {
+	return int.c.connect()
+}
+
+func (int *DangerousInternalClient) UnlockedConnect() error {
+	return int.c.unlockedConnect()
+}
+
 func (int *DangerousInternalClient) OnDisconnect(ns *socket.NoiseSocket, remote bool) {
 	int.c.onDisconnect(ns, remote)
 }
@@ -307,10 +315,6 @@ func (int *DangerousInternalClient) HandleHistorySyncNotificationLoop() {
 	int.c.handleHistorySyncNotificationLoop()
 }
 
-func (int *DangerousInternalClient) HandleHistorySyncNotification(ctx context.Context, notif *waE2E.HistorySyncNotification) {
-	int.c.handleHistorySyncNotification(ctx, notif)
-}
-
 func (int *DangerousInternalClient) HandleAppStateSyncKeyShare(ctx context.Context, keys *waE2E.AppStateSyncKeyShare) {
 	int.c.handleAppStateSyncKeyShare(ctx, keys)
 }
@@ -491,8 +495,8 @@ func (int *DangerousInternalClient) ParseReceipt(node *waBinary.Node) (*events.R
 	return int.c.parseReceipt(node)
 }
 
-func (int *DangerousInternalClient) MaybeDeferredAck(node *waBinary.Node) func() {
-	return int.c.maybeDeferredAck(node)
+func (int *DangerousInternalClient) MaybeDeferredAck(ctx context.Context, node *waBinary.Node) func() {
+	return int.c.maybeDeferredAck(ctx, node)
 }
 
 func (int *DangerousInternalClient) SendAck(node *waBinary.Node) {
@@ -603,8 +607,8 @@ func (int *DangerousInternalClient) SendNewsletter(to types.JID, id types.Messag
 	return int.c.sendNewsletter(to, id, message, mediaID, timings)
 }
 
-func (int *DangerousInternalClient) SendGroup(ctx context.Context, to types.JID, participants []types.JID, id types.MessageID, message *waE2E.Message, timings *MessageDebugTimings, extraParams nodeExtraParams) (string, []byte, error) {
-	return int.c.sendGroup(ctx, to, participants, id, message, timings, extraParams)
+func (int *DangerousInternalClient) SendGroup(ctx context.Context, ownID, to types.JID, participants []types.JID, id types.MessageID, message *waE2E.Message, timings *MessageDebugTimings, extraParams nodeExtraParams) (string, []byte, error) {
+	return int.c.sendGroup(ctx, ownID, to, participants, id, message, timings, extraParams)
 }
 
 func (int *DangerousInternalClient) SendPeerMessage(ctx context.Context, to types.JID, id types.MessageID, message *waE2E.Message, timings *MessageDebugTimings) ([]byte, error) {
@@ -677,4 +681,12 @@ func (int *DangerousInternalClient) Usync(ctx context.Context, jids []types.JID,
 
 func (int *DangerousInternalClient) ParseBlocklist(node *waBinary.Node) *types.Blocklist {
 	return int.c.parseBlocklist(node)
+}
+
+func (int *DangerousInternalClient) ShouldIncludeReportingToken(message *waE2E.Message) bool {
+	return int.c.shouldIncludeReportingToken(message)
+}
+
+func (int *DangerousInternalClient) GetMessageReportingToken(msgProtobuf []byte, msg *waE2E.Message, senderJID, remoteJID types.JID, messageID types.MessageID) waBinary.Node {
+	return int.c.getMessageReportingToken(msgProtobuf, msg, senderJID, remoteJID, messageID)
 }

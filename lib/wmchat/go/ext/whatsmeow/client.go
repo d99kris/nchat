@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"go.mau.fi/util/exhttp"
+	"go.mau.fi/util/exsync"
 	"go.mau.fi/util/random"
 	"golang.org/x/net/proxy"
 
@@ -65,8 +67,9 @@ type Client struct {
 	wsDialer   *websocket.Dialer
 
 	isLoggedIn            atomic.Bool
-	expectedDisconnect    atomic.Bool
+	expectedDisconnect    *exsync.Event
 	EnableAutoReconnect   bool
+	InitialAutoReconnect  bool
 	LastSuccessfulConnect time.Time
 	AutoReconnectErrors   int
 	// AutoReconnectHook is called when auto-reconnection fails. If the function returns false,
@@ -75,6 +78,7 @@ type Client struct {
 	// If SynchronousAck is set, acks for messages will only be sent after all event handlers return.
 	SynchronousAck             bool
 	EnableDecryptedEventBuffer bool
+	lastDecryptedBufferClear   time.Time
 
 	DisableLoginAutoReconnect bool
 
@@ -93,6 +97,7 @@ type Client struct {
 
 	historySyncNotifications  chan *waE2E.HistorySyncNotification
 	historySyncHandlerStarted atomic.Bool
+	ManualHistorySyncDownload bool
 
 	uploadPreKeysLock sync.Mutex
 	lastPreKeyUpload  time.Time
@@ -156,6 +161,10 @@ type Client struct {
 	// Should SubscribePresence return an error if no privacy token is stored for the user?
 	ErrorOnSubscribePresenceWithoutToken bool
 
+	SendReportingTokens bool
+
+	BackgroundEventCtx context.Context
+
 	phoneLinkingCache *phoneLinkingCache
 
 	uniqueID  string
@@ -172,7 +181,7 @@ type Client struct {
 	// separate library for all the non-e2ee-related stuff like logging in.
 	// The library is currently embedded in mautrix-meta (https://github.com/mautrix/meta), but may be separated later.
 	MessengerConfig *MessengerConfig
-	RefreshCAT      func() error
+	RefreshCAT      func(context.Context) error
 }
 
 type groupMetaCache struct {
@@ -216,18 +225,19 @@ func NewClient(deviceStore *store.Device, log waLog.Logger) *Client {
 		http: &http.Client{
 			Transport: (http.DefaultTransport.(*http.Transport)).Clone(),
 		},
-		proxy:           http.ProxyFromEnvironment,
-		Store:           deviceStore,
-		Log:             log,
-		recvLog:         log.Sub("Recv"),
-		sendLog:         log.Sub("Send"),
-		uniqueID:        fmt.Sprintf("%d.%d-", uniqueIDPrefix[0], uniqueIDPrefix[1]),
-		responseWaiters: make(map[string]chan<- *waBinary.Node),
-		eventHandlers:   make([]wrappedEventHandler, 0, 1),
-		messageRetries:  make(map[string]int),
-		handlerQueue:    make(chan *waBinary.Node, handlerQueueSize),
-		appStateProc:    appstate.NewProcessor(deviceStore, log.Sub("AppState")),
-		socketWait:      make(chan struct{}),
+		proxy:              http.ProxyFromEnvironment,
+		Store:              deviceStore,
+		Log:                log,
+		recvLog:            log.Sub("Recv"),
+		sendLog:            log.Sub("Send"),
+		uniqueID:           fmt.Sprintf("%d.%d-", uniqueIDPrefix[0], uniqueIDPrefix[1]),
+		responseWaiters:    make(map[string]chan<- *waBinary.Node),
+		eventHandlers:      make([]wrappedEventHandler, 0, 1),
+		messageRetries:     make(map[string]int),
+		handlerQueue:       make(chan *waBinary.Node, handlerQueueSize),
+		appStateProc:       appstate.NewProcessor(deviceStore, log.Sub("AppState")),
+		socketWait:         make(chan struct{}),
+		expectedDisconnect: exsync.NewEvent(),
 
 		incomingRetryRequestCounter: make(map[incomingRetryKey]int),
 
@@ -245,6 +255,8 @@ func NewClient(deviceStore *store.Device, log waLog.Logger) *Client {
 
 		EnableAutoReconnect: true,
 		AutoTrustIdentity:   true,
+
+		BackgroundEventCtx: context.Background(),
 	}
 	cli.nodeHandlers = map[string]nodeHandler{
 		"message":      cli.handleEncryptedMessage,
@@ -408,6 +420,8 @@ func (cli *Client) WaitForConnection(timeout time.Duration) bool {
 		case <-ch:
 		case <-timeoutChan:
 			return false
+		case <-cli.expectedDisconnect.GetChan():
+			return false
 		}
 		cli.socketLock.RLock()
 	}
@@ -425,8 +439,28 @@ func (cli *Client) Connect() error {
 	if cli == nil {
 		return ErrClientIsNil
 	}
+
 	cli.socketLock.Lock()
 	defer cli.socketLock.Unlock()
+
+	err := cli.unlockedConnect()
+	if exhttp.IsNetworkError(err) && cli.InitialAutoReconnect && cli.EnableAutoReconnect {
+		cli.Log.Errorf("Initial connection failed but reconnecting in background (%v)", err)
+		go cli.dispatchEvent(&events.Disconnected{})
+		go cli.autoReconnect()
+		return nil
+	}
+	return err
+}
+
+func (cli *Client) connect() error {
+	cli.socketLock.Lock()
+	defer cli.socketLock.Unlock()
+
+	return cli.unlockedConnect()
+}
+
+func (cli *Client) unlockedConnect() error {
 	if cli.socket != nil {
 		if !cli.socket.IsConnected() {
 			cli.unlockedDisconnect()
@@ -500,15 +534,15 @@ func (cli *Client) onDisconnect(ns *socket.NoiseSocket, remote bool) {
 }
 
 func (cli *Client) expectDisconnect() {
-	cli.expectedDisconnect.Store(true)
+	cli.expectedDisconnect.Set()
 }
 
 func (cli *Client) resetExpectedDisconnect() {
-	cli.expectedDisconnect.Store(false)
+	cli.expectedDisconnect.Clear()
 }
 
 func (cli *Client) isExpectedDisconnect() bool {
-	return cli.expectedDisconnect.Load()
+	return cli.expectedDisconnect.IsSet()
 }
 
 func (cli *Client) autoReconnect() {
@@ -519,12 +553,17 @@ func (cli *Client) autoReconnect() {
 		autoReconnectDelay := time.Duration(cli.AutoReconnectErrors) * 2 * time.Second
 		cli.Log.Debugf("Automatically reconnecting after %v", autoReconnectDelay)
 		cli.AutoReconnectErrors++
-		time.Sleep(autoReconnectDelay)
-		err := cli.Connect()
+		if cli.expectedDisconnect.WaitTimeout(autoReconnectDelay) {
+			return
+		}
+		err := cli.connect()
 		if errors.Is(err, ErrAlreadyConnected) {
 			cli.Log.Debugf("Connect() said we're already connected after autoreconnect sleep")
 			return
 		} else if err != nil {
+			if cli.expectedDisconnect.IsSet() {
+				return
+			}
 			cli.Log.Errorf("Error reconnecting after autoreconnect sleep: %v", err)
 			if cli.AutoReconnectHook != nil && !cli.AutoReconnectHook(err) {
 				cli.Log.Debugf("AutoReconnectHook returned false, not reconnecting")
@@ -553,10 +592,11 @@ func (cli *Client) IsConnected() bool {
 // This will not emit any events, the Disconnected event is only used when the
 // connection is closed by the server or a network error.
 func (cli *Client) Disconnect() {
-	if cli == nil || cli.socket == nil {
+	if cli == nil {
 		return
 	}
 	cli.socketLock.Lock()
+	cli.expectDisconnect()
 	cli.unlockedDisconnect()
 	cli.socketLock.Unlock()
 	cli.clearDelayedMessageRequests()
