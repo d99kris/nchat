@@ -81,8 +81,8 @@ fi
 cat <<EOT >> lib/wmchat/go/ext/whatsmeow/download.go
 
 // nchat additions start
-func (cli *Client) DownloadMediaWithUrl(url string, mediaKey []byte, appInfo MediaType, fileLength int, fileEncSha256 []byte, fileSha256 []byte) (data []byte, err error) {
-	return cli.downloadAndDecrypt(url, mediaKey, appInfo, fileLength, fileEncSha256, fileSha256)
+func (cli *Client) DownloadMediaWithUrl(ctx context.Context, url string, mediaKey []byte, appInfo MediaType, fileLength int, fileEncSha256 []byte, fileSha256 []byte) (data []byte, err error) {
+	return cli.downloadAndDecrypt(ctx, url, mediaKey, appInfo, fileLength, fileEncSha256, fileSha256)
 }
 
 func GetDownloadSize(msg DownloadableMessage) int {

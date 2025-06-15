@@ -47,7 +47,7 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
-var whatsmeowDate int = 20250501
+var whatsmeowDate int = 20250514
 
 type JSONMessage []json.RawMessage
 type JSONMessageType string
@@ -328,13 +328,13 @@ func DownloadFromFileId(client *whatsmeow.Client, fileId string) (string, int) {
 }
 
 func DownloadFromFileInfo(client *whatsmeow.Client, info DownloadInfo) ([]byte, error) {
-
+	ctx := context.TODO()
 	if len(info.Url) > 0 {
 		LOG_TRACE(fmt.Sprintf("download url: %s", info.Url))
-		return client.DownloadMediaWithUrl(info.Url, info.MediaKey, info.MediaType, info.Size, info.FileEncSha256, info.FileSha256)
+		return client.DownloadMediaWithUrl(ctx, info.Url, info.MediaKey, info.MediaType, info.Size, info.FileEncSha256, info.FileSha256)
 	} else if len(info.DirectPath) > 0 {
 		LOG_TRACE(fmt.Sprintf("download directpath: %s", info.DirectPath))
-		return client.DownloadMediaWithPath(info.DirectPath, info.FileEncSha256, info.FileSha256, info.MediaKey, info.Size, info.MediaType, whatsmeow.GetMMSType(info.MediaType))
+		return client.DownloadMediaWithPath(ctx, info.DirectPath, info.FileEncSha256, info.FileSha256, info.MediaKey, info.Size, info.MediaType, whatsmeow.GetMMSType(info.MediaType))
 	} else {
 		LOG_WARNING(fmt.Sprintf("url and path not present"))
 		return nil, whatsmeow.ErrNoURLPresent
@@ -806,7 +806,8 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 		if hasMessages {
 			isMuted := false
 			isPinned := false
-			settings, setErr := client.Store.ChatSettings.GetChatSettings(chatJid)
+			ctx := context.TODO()
+			settings, setErr := client.Store.ChatSettings.GetChatSettings(ctx, chatJid)
 			if setErr != nil {
 				LOG_WARNING(fmt.Sprintf("Get chat settings failed %#v", setErr))
 			} else {
@@ -1029,7 +1030,8 @@ func (handler *WmEventHandler) GetContacts() {
 	CWmSetStatus(FlagFetching)
 
 	// contacts
-	contacts, contErr := client.Store.Contacts.GetAllContacts()
+	ctx := context.TODO()
+	contacts, contErr := client.Store.Contacts.GetAllContacts(ctx)
 	if contErr != nil {
 		LOG_WARNING(fmt.Sprintf("get all contacts failed %#v", contErr))
 	} else {
@@ -1799,16 +1801,17 @@ func WmInit(path string, proxy string, sendType int) int {
 	var ncLogger logger.Loggable = &ncSignalLogger{}
 	logger.Setup(&ncLogger)
 
+	ctx := context.TODO()
 	dbLog := NcLogger()
 	sessionPath := path + "/session.db"
 	sqlAddress := fmt.Sprintf("file:%s?_foreign_keys=on", sessionPath)
-	container, sqlErr := sqlstore.New("sqlite3", sqlAddress, dbLog)
+	container, sqlErr := sqlstore.New(ctx, "sqlite3", sqlAddress, dbLog)
 	if sqlErr != nil {
 		LOG_WARNING(fmt.Sprintf("sqlite error %#v", sqlErr))
 		return -1
 	}
 
-	deviceStore, devErr := container.GetFirstDevice()
+	deviceStore, devErr := container.GetFirstDevice(ctx)
 	if devErr != nil {
 		LOG_WARNING(fmt.Sprintf("dev store error %#v", devErr))
 		return -1
@@ -1898,9 +1901,10 @@ func WmLogin(connId int) int {
 			for evt := range ch {
 				if evt.Event == whatsmeow.QRChannelEventCode {
 					if usePairingCode {
+						ctx := context.TODO()
 						phoneNumber := GetPhoneNumberFromPath(path)
 						showPushNotification := true
-						pairCode, pairErr := cli.PairPhone(phoneNumber, showPushNotification, whatsmeow.PairClientFirefox, GetClientDisplayName())
+						pairCode, pairErr := cli.PairPhone(ctx, phoneNumber, showPushNotification, whatsmeow.PairClientFirefox, GetClientDisplayName())
 						if pairErr != nil {
 							LOG_WARNING(fmt.Sprintf("pair phone error %#v", pairErr))
 							SetState(connId, Disconnected)
