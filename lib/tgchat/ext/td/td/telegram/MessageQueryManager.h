@@ -16,6 +16,7 @@
 #include "td/telegram/MessageId.h"
 #include "td/telegram/MessageSearchFilter.h"
 #include "td/telegram/MessageThreadInfo.h"
+#include "td/telegram/MessageTopic.h"
 #include "td/telegram/MessageViewer.h"
 #include "td/telegram/Photo.h"
 #include "td/telegram/SavedMessagesTopicId.h"
@@ -103,9 +104,9 @@ class MessageQueryManager final : public Actor {
                                vector<telegram_api::object_ptr<telegram_api::Message>> &&messages,
                                Promise<td_api::object_ptr<td_api::messages>> &&promise);
 
-  void get_dialog_message_position_from_server(DialogId dialog_id, MessageId message_id, MessageSearchFilter filter,
-                                               MessageId top_thread_message_id,
-                                               SavedMessagesTopicId saved_messages_topic_id, Promise<int32> &&promise);
+  void get_dialog_message_position_from_server(DialogId dialog_id, MessageTopic message_topic,
+                                               MessageSearchFilter filter, MessageId message_id,
+                                               Promise<int32> &&promise);
 
   void get_message_read_date_from_server(MessageFullId message_full_id,
                                          Promise<td_api::object_ptr<td_api::MessageReadDate>> &&promise);
@@ -167,7 +168,8 @@ class MessageQueryManager final : public Actor {
   void read_all_topic_mentions_on_server(DialogId dialog_id, MessageId top_thread_message_id, uint64 log_event_id,
                                          Promise<Unit> &&promise);
 
-  void read_all_topic_reactions_on_server(DialogId dialog_id, MessageId top_thread_message_id, uint64 log_event_id,
+  void read_all_topic_reactions_on_server(DialogId dialog_id, MessageId top_thread_message_id,
+                                          SavedMessagesTopicId saved_messages_topic_id, uint64 log_event_id,
                                           Promise<Unit> &&promise);
 
   void read_message_contents_on_server(DialogId dialog_id, vector<MessageId> message_ids, uint64 log_event_id,
@@ -177,7 +179,8 @@ class MessageQueryManager final : public Actor {
 
   void unpin_all_dialog_messages_on_server(DialogId dialog_id, uint64 log_event_id, Promise<Unit> &&promise);
 
-  void unpin_all_topic_messages_on_server(DialogId dialog_id, MessageId top_thread_message_id, uint64 log_event_id,
+  void unpin_all_topic_messages_on_server(DialogId dialog_id, MessageId top_thread_message_id,
+                                          SavedMessagesTopicId saved_messages_topic_id, uint64 log_event_id,
                                           Promise<Unit> &&promise);
 
   void on_binlog_events(vector<BinlogEvent> &&events);

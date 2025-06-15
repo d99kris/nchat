@@ -14,6 +14,7 @@
 #include "td/telegram/ChatId.h"
 #include "td/telegram/ChatManager.h"
 #include "td/telegram/ChatReactions.h"
+#include "td/telegram/Dependencies.h"
 #include "td/telegram/FileReferenceManager.h"
 #include "td/telegram/files/FileManager.h"
 #include "td/telegram/files/FileType.h"
@@ -435,7 +436,7 @@ class ToggleNoForwardsQuery final : public Td::ResultHandler {
 class GetDialogUnreadMarksQuery final : public Td::ResultHandler {
  public:
   void send() {
-    send_query(G()->net_query_creator().create(telegram_api::messages_getDialogUnreadMarks()));
+    send_query(G()->net_query_creator().create(telegram_api::messages_getDialogUnreadMarks(0, nullptr)));
   }
 
   void on_result(BufferSlice packet) final {
@@ -1072,23 +1073,42 @@ class ToggleDialogIsBlockedQuery final : public Td::ResultHandler {
 class ToggleDialogUnreadMarkQuery final : public Td::ResultHandler {
   Promise<Unit> promise_;
   DialogId dialog_id_;
+  SavedMessagesTopicId saved_messages_topic_id_;
   bool is_marked_as_unread_;
 
  public:
   explicit ToggleDialogUnreadMarkQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
   }
 
-  void send(DialogId dialog_id, bool is_marked_as_unread) {
+  void send(DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id, bool is_marked_as_unread) {
     dialog_id_ = dialog_id;
+    saved_messages_topic_id_ = saved_messages_topic_id;
     is_marked_as_unread_ = is_marked_as_unread;
 
-    auto input_peer = td_->dialog_manager_->get_input_dialog_peer(dialog_id, AccessRights::Read);
-    if (input_peer == nullptr) {
-      return on_error(Status::Error(400, "Can't access the chat"));
+    int32 flags = 0;
+    telegram_api::object_ptr<telegram_api::InputPeer> parent_input_peer;
+    telegram_api::object_ptr<telegram_api::InputDialogPeer> input_peer;
+    if (saved_messages_topic_id.is_valid()) {
+      parent_input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Write);
+      if (parent_input_peer == nullptr) {
+        return on_error(Status::Error(400, "Can't access the chat"));
+      }
+      flags |= telegram_api::messages_markDialogUnread::PARENT_PEER_MASK;
+      input_peer = saved_messages_topic_id.get_input_dialog_peer(td_);
+      if (input_peer == nullptr) {
+        return on_error(Status::Error(400, "Can't access the topic"));
+      }
+    } else {
+      input_peer = td_->dialog_manager_->get_input_dialog_peer(dialog_id, AccessRights::Read);
+      if (input_peer == nullptr) {
+        return on_error(Status::Error(400, "Can't access the chat"));
+      }
     }
 
     send_query(G()->net_query_creator().create(
-        telegram_api::messages_markDialogUnread(0, is_marked_as_unread, std::move(input_peer)), {{dialog_id}}));
+        telegram_api::messages_markDialogUnread(flags, is_marked_as_unread, std::move(parent_input_peer),
+                                                std::move(input_peer)),
+        {{dialog_id}}));
   }
 
   void on_result(BufferSlice packet) final {
@@ -1106,7 +1126,8 @@ class ToggleDialogUnreadMarkQuery final : public Td::ResultHandler {
   }
 
   void on_error(Status status) final {
-    if (!td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "ToggleDialogUnreadMarkQuery")) {
+    if (saved_messages_topic_id_.is_valid() ||
+        !td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "ToggleDialogUnreadMarkQuery")) {
       LOG(ERROR) << "Receive error for ToggleDialogUnreadMarkQuery: " << status;
     }
     if (!G()->close_flag()) {
@@ -1822,6 +1843,21 @@ bool DialogManager::is_forum_channel(DialogId dialog_id) const {
          td_->chat_manager_->is_forum_channel(dialog_id.get_channel_id());
 }
 
+bool DialogManager::is_forum_tabs_channel(DialogId dialog_id) const {
+  return dialog_id.get_type() == DialogType::Channel &&
+         td_->chat_manager_->is_forum_tabs_channel(dialog_id.get_channel_id());
+}
+
+bool DialogManager::is_monoforum_channel(DialogId dialog_id) const {
+  return dialog_id.get_type() == DialogType::Channel &&
+         td_->chat_manager_->is_monoforum_channel(dialog_id.get_channel_id());
+}
+
+bool DialogManager::is_admined_monoforum_channel(DialogId dialog_id) const {
+  return dialog_id.get_type() == DialogType::Channel &&
+         td_->chat_manager_->is_admined_monoforum_channel(dialog_id.get_channel_id());
+}
+
 bool DialogManager::is_broadcast_channel(DialogId dialog_id) const {
   if (dialog_id.get_type() != DialogType::Channel) {
     return false;
@@ -1833,7 +1869,6 @@ bool DialogManager::is_broadcast_channel(DialogId dialog_id) const {
 bool DialogManager::on_get_dialog_error(DialogId dialog_id, const Status &status, const char *source) {
   auto message = status.message();
   if (message == CSlice("BOT_METHOD_INVALID")) {
-    LOG(ERROR) << "Receive BOT_METHOD_INVALID from " << source;
     return true;
   }
   if (G()->is_expected_error(status)) {
@@ -2648,6 +2683,9 @@ Status DialogManager::can_pin_messages(DialogId dialog_id) const {
     }
     case DialogType::Channel: {
       auto status = td_->chat_manager_->get_channel_permissions(dialog_id.get_channel_id());
+      if (is_monoforum_channel(dialog_id)) {
+        break;
+      }
       bool can_pin = is_broadcast_channel(dialog_id) ? status.can_edit_messages() : status.can_pin_messages();
       if (!can_pin) {
         return Status::Error(400, "Not enough rights to manage pinned messages in the chat");
@@ -3001,8 +3039,8 @@ DialogId DialogManager::search_public_dialog(const string &username_to_search, b
   }
 
   if (have_input_peer(dialog_id, false, AccessRights::Read)) {
-    if (!force && reload_voice_chat_on_search_usernames_.count(username)) {
-      reload_voice_chat_on_search_usernames_.erase(username);
+    if (!force && reload_video_chat_on_search_usernames_.count(username)) {
+      reload_video_chat_on_search_usernames_.erase(username);
       if (dialog_id.get_type() == DialogType::Channel) {
         td_->chat_manager_->reload_channel_full(dialog_id.get_channel_id(), std::move(promise), "search_public_dialog");
         return DialogId();
@@ -3023,14 +3061,14 @@ DialogId DialogManager::search_public_dialog(const string &username_to_search, b
   return DialogId();
 }
 
-void DialogManager::reload_voice_chat_on_search(const string &username) {
+void DialogManager::reload_video_chat_on_search(const string &username) {
   if (!td_->auth_manager_->is_authorized()) {
     return;
   }
 
   auto cleaned_username = clean_username(username);
   if (!cleaned_username.empty()) {
-    reload_voice_chat_on_search_usernames_.insert(cleaned_username);
+    reload_video_chat_on_search_usernames_.insert(cleaned_username);
   }
 }
 
@@ -3166,7 +3204,7 @@ void DialogManager::on_failed_public_dialogs_search(const string &query, Status 
 }
 
 void DialogManager::reget_peer_settings(DialogId dialog_id) {
-  if (!have_input_peer(dialog_id, false, AccessRights::Read)) {
+  if (!have_input_peer(dialog_id, false, AccessRights::Read) || is_monoforum_channel(dialog_id)) {
     return;
   }
 
@@ -3375,6 +3413,65 @@ void DialogManager::toggle_dialog_is_blocked_on_server(DialogId dialog_id, bool 
       ->send(dialog_id, is_blocked, is_blocked_for_stories);
 }
 
+class DialogManager::ToggleDialogTopicPropertyOnServerLogEvent {
+ public:
+  DialogId dialog_id_;
+  SavedMessagesTopicId saved_messages_topic_id_;
+  bool value_;
+
+  template <class StorerT>
+  void store(StorerT &storer) const {
+    auto has_saved_messages_topic_id = saved_messages_topic_id_ != SavedMessagesTopicId();
+    BEGIN_STORE_FLAGS();
+    STORE_FLAG(value_);
+    STORE_FLAG(has_saved_messages_topic_id);
+    END_STORE_FLAGS();
+
+    td::store(dialog_id_, storer);
+    if (has_saved_messages_topic_id) {
+      td::store(saved_messages_topic_id_, storer);
+    }
+  }
+
+  template <class ParserT>
+  void parse(ParserT &parser) {
+    bool has_saved_messages_topic_id;
+    BEGIN_PARSE_FLAGS();
+    PARSE_FLAG(value_);
+    PARSE_FLAG(has_saved_messages_topic_id);
+    END_PARSE_FLAGS();
+
+    td::parse(dialog_id_, parser);
+    if (has_saved_messages_topic_id) {
+      td::parse(saved_messages_topic_id_, parser);
+    }
+  }
+};
+
+uint64 DialogManager::save_toggle_dialog_is_marked_as_unread_on_server_log_event(
+    DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id, bool is_marked_as_unread) {
+  ToggleDialogTopicPropertyOnServerLogEvent log_event{dialog_id, saved_messages_topic_id, is_marked_as_unread};
+  return binlog_add(G()->td_db()->get_binlog(), LogEvent::HandlerType::ToggleDialogIsMarkedAsUnreadOnServer,
+                    get_log_event_storer(log_event));
+}
+
+void DialogManager::toggle_dialog_is_marked_as_unread_on_server(DialogId dialog_id,
+                                                                SavedMessagesTopicId saved_messages_topic_id,
+                                                                bool is_marked_as_unread, uint64 log_event_id) {
+  if (log_event_id == 0 && dialog_id.get_type() == DialogType::SecretChat) {
+    // don't even create new binlog events
+    return;
+  }
+
+  if (log_event_id == 0 && G()->use_message_database()) {
+    log_event_id = save_toggle_dialog_is_marked_as_unread_on_server_log_event(dialog_id, saved_messages_topic_id,
+                                                                              is_marked_as_unread);
+  }
+
+  td_->create_handler<ToggleDialogUnreadMarkQuery>(get_erase_log_event_promise(log_event_id))
+      ->send(dialog_id, saved_messages_topic_id, is_marked_as_unread);
+}
+
 class DialogManager::ToggleDialogPropertyOnServerLogEvent {
  public:
   DialogId dialog_id_;
@@ -3398,28 +3495,6 @@ class DialogManager::ToggleDialogPropertyOnServerLogEvent {
     td::parse(dialog_id_, parser);
   }
 };
-
-uint64 DialogManager::save_toggle_dialog_is_marked_as_unread_on_server_log_event(DialogId dialog_id,
-                                                                                 bool is_marked_as_unread) {
-  ToggleDialogPropertyOnServerLogEvent log_event{dialog_id, is_marked_as_unread};
-  return binlog_add(G()->td_db()->get_binlog(), LogEvent::HandlerType::ToggleDialogIsMarkedAsUnreadOnServer,
-                    get_log_event_storer(log_event));
-}
-
-void DialogManager::toggle_dialog_is_marked_as_unread_on_server(DialogId dialog_id, bool is_marked_as_unread,
-                                                                uint64 log_event_id) {
-  if (log_event_id == 0 && dialog_id.get_type() == DialogType::SecretChat) {
-    // don't even create new binlog events
-    return;
-  }
-
-  if (log_event_id == 0 && G()->use_message_database()) {
-    log_event_id = save_toggle_dialog_is_marked_as_unread_on_server_log_event(dialog_id, is_marked_as_unread);
-  }
-
-  td_->create_handler<ToggleDialogUnreadMarkQuery>(get_erase_log_event_promise(log_event_id))
-      ->send(dialog_id, is_marked_as_unread);
-}
 
 uint64 DialogManager::save_toggle_dialog_is_pinned_on_server_log_event(DialogId dialog_id, bool is_pinned) {
   ToggleDialogPropertyOnServerLogEvent log_event{dialog_id, is_pinned};
@@ -3538,17 +3613,20 @@ void DialogManager::on_binlog_events(vector<BinlogEvent> &&events) {
           break;
         }
 
-        ToggleDialogPropertyOnServerLogEvent log_event;
+        ToggleDialogTopicPropertyOnServerLogEvent log_event;
         log_event_parse(log_event, event.get_data()).ensure();
 
         auto dialog_id = log_event.dialog_id_;
-        if (!have_dialog_force(dialog_id, "ToggleDialogIsMarkedAsUnreadOnServer") ||
-            !have_input_peer(dialog_id, true, AccessRights::Read)) {
+        auto saved_messages_topic_id = log_event.saved_messages_topic_id_;
+        Dependencies dependencies;
+        saved_messages_topic_id.add_dependencies(dependencies);
+        dependencies.add_dialog_and_dependencies(dialog_id);
+        if (!dependencies.resolve_force(td_, "ToggleDialogIsMarkedAsUnreadOnServer")) {
           binlog_erase(G()->td_db()->get_binlog(), event.id_);
           break;
         }
 
-        toggle_dialog_is_marked_as_unread_on_server(dialog_id, log_event.value_, event.id_);
+        toggle_dialog_is_marked_as_unread_on_server(dialog_id, saved_messages_topic_id, log_event.value_, event.id_);
         break;
       }
       case LogEvent::HandlerType::ToggleDialogIsPinnedOnServer: {

@@ -152,6 +152,7 @@ class LinkManager final : public Actor {
   class InternalLinkMainWebApp;
   class InternalLinkMessage;
   class InternalLinkMessageDraft;
+  class InternalLinkMyStars;
   class InternalLinkPassportDataRequest;
   class InternalLinkPremiumFeatures;
   class InternalLinkPremiumGift;
@@ -171,7 +172,7 @@ class LinkManager final : public Actor {
   class InternalLinkUpgradedGift;
   class InternalLinkUserPhoneNumber;
   class InternalLinkUserToken;
-  class InternalLinkVoiceChat;
+  class InternalLinkVideoChat;
   class InternalLinkWebApp;
 
   enum class LinkType : int32 { External, TMe, Tg, Telegraph };

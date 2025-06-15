@@ -2133,9 +2133,9 @@ static int merge_choose_name(Slice x, Slice y) {
   return 2;
 }
 
-static int merge_choose_owner(DialogId x, DialogId y) {
-  if (x.is_valid() != y.is_valid()) {
-    return x.is_valid() < y.is_valid();
+static int merge_choose_owner(DialogId x_owner_dialog_id, DialogId y_owner_dialog_id) {
+  if (x_owner_dialog_id.is_valid() != y_owner_dialog_id.is_valid()) {
+    return x_owner_dialog_id.is_valid() < y_owner_dialog_id.is_valid();
   }
   return 2;
 }
@@ -3802,7 +3802,7 @@ void FileManager::run_upload(FileNodePtr node, vector<int> bad_parts) {
     auto generate_location = file_view.get_generate_location();
     if (generate_location != nullptr && generate_location->file_type_ == FileType::SecureEncrypted) {
       // Can't upload secure file before its size is known
-      LOG(INFO) << "Can't upload secure file " << node->main_file_id_ << " before it's size is known";
+      LOG(INFO) << "Can't upload secure file " << node->main_file_id_ << " before its size is known";
       return;
     }
   }

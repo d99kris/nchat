@@ -7,12 +7,14 @@
 #pragma once
 
 #include "td/telegram/DialogId.h"
+#include "td/telegram/InputDialogId.h"
 #include "td/telegram/InputMessageText.h"
 #include "td/telegram/logevent/LogEvent.h"
 #include "td/telegram/MessageContentType.h"
 #include "td/telegram/MessageEffectId.h"
 #include "td/telegram/MessageId.h"
 #include "td/telegram/MessageInputReplyTo.h"
+#include "td/telegram/SavedMessagesTopicId.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 
@@ -105,11 +107,14 @@ td_api::object_ptr<td_api::draftMessage> get_draft_message_object(Td *td,
 unique_ptr<DraftMessage> get_draft_message(Td *td,
                                            telegram_api::object_ptr<telegram_api::DraftMessage> &&draft_message_ptr);
 
-void save_draft_message(Td *td, DialogId dialog_id, const unique_ptr<DraftMessage> &draft_message,
-                        Promise<Unit> &&promise);
+void save_draft_message(Td *td, DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id,
+                        const unique_ptr<DraftMessage> &draft_message, Promise<Unit> &&promise);
 
 void load_all_draft_messages(Td *td);
 
 void clear_all_draft_messages(Td *td, Promise<Unit> &&promise);
+
+vector<InputDialogId> get_draft_message_reply_input_dialog_ids(
+    const telegram_api::object_ptr<telegram_api::DraftMessage> &draft_message);
 
 }  // namespace td

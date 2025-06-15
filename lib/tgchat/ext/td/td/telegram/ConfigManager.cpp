@@ -26,8 +26,6 @@
 #include "td/telegram/Premium.h"
 #include "td/telegram/ReactionType.h"
 #include "td/telegram/StateManager.h"
-#include "td/telegram/SuggestedAction.h"
-#include "td/telegram/SuggestedActionManager.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/TdDb.h"
 #include "td/telegram/telegram_api.h"
@@ -69,7 +67,6 @@
 #include "td/utils/tl_parsers.h"
 #include "td/utils/UInt.h"
 
-#include <algorithm>
 #include <functional>
 #include <memory>
 #include <utility>
@@ -1187,13 +1184,6 @@ void ConfigManager::process_config(tl_object_ptr<telegram_api::config> config) {
 
   // Do not save dc_options in config, because it will be interpreted and saved by ConnectionCreator.
   DcOptions dc_options(config->dc_options_);
-  std::stable_sort(dc_options.dc_options.begin(), dc_options.dc_options.end(),
-                   [](const DcOption &lhs, const DcOption &rhs) {
-                     if (lhs.get_dc_id() != rhs.get_dc_id()) {
-                       return lhs.get_dc_id() < rhs.get_dc_id();
-                     }
-                     return !lhs.is_ipv6() && rhs.is_ipv6();
-                   });
   send_closure(G()->connection_creator(), &ConnectionCreator::on_dc_options, std::move(dc_options));
 
   options.set_option_integer("recent_stickers_limit", config->stickers_recent_limit_);
@@ -1341,8 +1331,6 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
   vector<string> emoji_sounds;
   string animation_search_provider;
   string animation_search_emojis;
-  vector<SuggestedAction> suggested_actions;
-  vector<string> dismissed_suggestions;
   bool can_archive_and_mute_new_chats_from_unknown_users = false;
   int32 chat_read_mark_expire_period = 0;
   int32 chat_read_mark_size_threshold = 0;
@@ -1541,33 +1529,6 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
           }
         } else {
           LOG(ERROR) << "Receive unexpected gif_search_emojies " << to_string(*value);
-        }
-        continue;
-      }
-      if (key == "pending_suggestions" || key == "dismissed_suggestions") {
-        if (value->get_id() == telegram_api::jsonArray::ID) {
-          auto actions = std::move(static_cast<telegram_api::jsonArray *>(value)->value_);
-          auto otherwise_relogin_days = G()->get_option_integer("otherwise_relogin_days");
-          for (auto &action : actions) {
-            auto action_str = get_json_value_string(std::move(action), key);
-            if (key == "dismissed_suggestions") {
-              dismissed_suggestions.push_back(action_str);
-              continue;
-            }
-            SuggestedAction suggested_action(action_str);
-            if (!suggested_action.is_empty()) {
-              if (otherwise_relogin_days > 0 &&
-                  suggested_action == SuggestedAction{SuggestedAction::Type::SetPassword}) {
-                LOG(INFO) << "Skip SetPassword suggested action";
-              } else {
-                suggested_actions.push_back(suggested_action);
-              }
-            } else {
-              LOG(ERROR) << "Receive unsupported suggested action " << action_str;
-            }
-          }
-        } else {
-          LOG(ERROR) << "Receive unexpected pending_suggestions " << to_string(*value);
         }
         continue;
       }
@@ -1863,13 +1824,13 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
                                 get_json_value_int(std::move(key_value->value_), key));
         continue;
       }
-      if (key == "channel_bg_icon_level_min" || key == "channel_custom_wallpaper_level_min" ||
-          key == "channel_emoji_status_level_min" || key == "channel_profile_bg_icon_level_min" ||
-          key == "channel_restrict_sponsored_level_min" || key == "channel_wallpaper_level_min" ||
-          key == "pm_read_date_expire_period" || key == "group_transcribe_level_min" ||
-          key == "group_emoji_stickers_level_min" || key == "group_profile_bg_icon_level_min" ||
-          key == "group_emoji_status_level_min" || key == "group_wallpaper_level_min" ||
-          key == "group_custom_wallpaper_level_min") {
+      if (key == "channel_autotranslation_level_min" || key == "channel_bg_icon_level_min" ||
+          key == "channel_custom_wallpaper_level_min" || key == "channel_emoji_status_level_min" ||
+          key == "channel_profile_bg_icon_level_min" || key == "channel_restrict_sponsored_level_min" ||
+          key == "channel_wallpaper_level_min" || key == "pm_read_date_expire_period" ||
+          key == "group_transcribe_level_min" || key == "group_emoji_stickers_level_min" ||
+          key == "group_profile_bg_icon_level_min" || key == "group_emoji_status_level_min" ||
+          key == "group_wallpaper_level_min" || key == "group_custom_wallpaper_level_min") {
         G()->set_option_integer(key, get_json_value_int(std::move(key_value->value_), key));
         continue;
       }
@@ -2097,6 +2058,28 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
         can_accept_calls = !get_json_value_bool(std::move(key_value->value_), key);
         continue;
       }
+      if (key == "stars_stargift_resale_amount_min") {
+        G()->set_option_integer("gift_resale_star_count_min", get_json_value_int(std::move(key_value->value_), key));
+        continue;
+      }
+      if (key == "stars_stargift_resale_amount_max") {
+        G()->set_option_integer("gift_resale_star_count_max", get_json_value_int(std::move(key_value->value_), key));
+        continue;
+      }
+      if (key == "stars_stargift_resale_commission_permille") {
+        G()->set_option_integer("gift_resale_earnings_per_mille",
+                                get_json_value_int(std::move(key_value->value_), key));
+        continue;
+      }
+      if (key == "poll_answers_max") {
+        G()->set_option_integer("poll_answer_count_max", get_json_value_int(std::move(key_value->value_), key));
+        continue;
+      }
+      if (key == "stars_paid_messages_channel_amount_default") {
+        G()->set_option_integer("direct_channel_message_star_count_default",
+                                get_json_value_int(std::move(key_value->value_), key));
+        continue;
+      }
 
       new_values.push_back(std::move(key_value));
     }
@@ -2204,11 +2187,6 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
   if (dialog_filter_update_period > 0) {
     options.set_option_integer("chat_folder_new_chats_update_period", dialog_filter_update_period);
   }
-  if (td::contains(dismissed_suggestions, "BIRTHDAY_CONTACTS_TODAY")) {
-    options.set_option_boolean("dismiss_birthday_contact_today", true);
-  } else {
-    options.set_option_empty("dismiss_birthday_contact_today");
-  }
   options.set_option_boolean("can_accept_calls", can_accept_calls);
 
   if (!is_premium_available) {
@@ -2282,12 +2260,6 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
     G()->set_option_empty("premium_manage_subscription_url");
   } else {
     G()->set_option_string("premium_manage_subscription_url", premium_manage_subscription_url);
-  }
-
-  // do not update suggested actions while changing content settings
-  if (!is_set_content_settings_request_sent_) {
-    send_closure(G()->suggested_action_manager(), &SuggestedActionManager::update_suggested_actions,
-                 std::move(suggested_actions));
   }
 }
 

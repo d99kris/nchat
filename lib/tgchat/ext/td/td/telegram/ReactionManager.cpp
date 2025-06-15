@@ -9,6 +9,7 @@
 #include "td/telegram/AuthManager.h"
 #include "td/telegram/ConfigManager.h"
 #include "td/telegram/Dependencies.h"
+#include "td/telegram/DialogId.h"
 #include "td/telegram/DialogManager.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/logevent/LogEvent.h"
@@ -1105,7 +1106,10 @@ void ReactionManager::on_get_saved_messages_tags(
   switch (tags_ptr->get_id()) {
     case telegram_api::messages_savedReactionTagsNotModified::ID:
       if (!reaction_tags->is_inited_) {
-        LOG(ERROR) << "Receive messages.savedReactionTagsNotModified for non-inited tags";
+        // the list of tags is empty
+        CHECK(reaction_tags->tags_.empty());
+        reaction_tags->is_inited_ = true;
+        need_send_update = true;
       }
       break;
     case telegram_api::messages_savedReactionTags::ID: {
@@ -1152,7 +1156,7 @@ td_api::object_ptr<td_api::updateSavedMessagesTags> ReactionManager::get_update_
     SavedMessagesTopicId saved_messages_topic_id, const SavedReactionTags *tags) const {
   CHECK(tags != nullptr);
   return td_api::make_object<td_api::updateSavedMessagesTags>(
-      td_->saved_messages_manager_->get_saved_messages_topic_id_object(saved_messages_topic_id),
+      td_->saved_messages_manager_->get_saved_messages_topic_id_object(DialogId(), saved_messages_topic_id),
       tags->get_saved_messages_tags_object());
 }
 

@@ -764,7 +764,8 @@ void ForumTopicManager::on_get_forum_topic(ChannelId channel_id, MessageId expec
                                            Promise<td_api::object_ptr<td_api::forumTopic>> &&promise) {
   DialogId dialog_id(channel_id);
   TRY_STATUS_PROMISE(promise, is_forum(dialog_id));
-  td_->messages_manager_->on_get_messages(std::move(info.messages), true, false, Promise<Unit>(), "on_get_forum_topic");
+  td_->messages_manager_->on_get_messages(dialog_id, std::move(info.messages), true, false, Promise<Unit>(),
+                                          "on_get_forum_topic");
 
   auto top_thread_message_id = on_get_forum_topic_impl(dialog_id, std::move(topic));
   if (!top_thread_message_id.is_valid()) {
@@ -825,7 +826,7 @@ void ForumTopicManager::on_get_forum_topics(ChannelId channel_id, bool order_by_
                                             Promise<td_api::object_ptr<td_api::forumTopics>> &&promise) {
   DialogId dialog_id(channel_id);
   TRY_STATUS_PROMISE(promise, is_forum(dialog_id));
-  td_->messages_manager_->on_get_messages(std::move(info.messages), true, false, Promise<Unit>(),
+  td_->messages_manager_->on_get_messages(dialog_id, std::move(info.messages), true, false, Promise<Unit>(),
                                           "on_get_forum_topics");
   vector<td_api::object_ptr<td_api::forumTopic>> forum_topics;
   int32 next_offset_date = 0;
@@ -1249,6 +1250,50 @@ void ForumTopicManager::on_topic_message_count_changed(DialogId dialog_id, Messa
     // TODO keep topics in the topic list
     dialog_topics->topics_.erase(top_thread_message_id);
   }
+}
+
+void ForumTopicManager::on_topic_mention_count_changed(DialogId dialog_id, MessageId top_thread_message_id, int32 count,
+                                                       bool is_relative) {
+  LOG(INFO) << "Change " << (is_relative ? "by" : "to") << ' ' << count << " number of mentions in thread of "
+            << top_thread_message_id << " in " << dialog_id;
+  auto dialog_topics = get_dialog_topics(dialog_id);
+  if (dialog_topics == nullptr) {
+    return;
+  }
+  auto topic = get_topic(dialog_topics, top_thread_message_id);
+  if (topic == nullptr || topic->topic_ == nullptr) {
+    return;
+  }
+  if (topic->topic_->update_unread_mention_count(count, is_relative)) {
+    on_forum_topic_changed(dialog_id, topic);
+  }
+}
+
+void ForumTopicManager::on_topic_reaction_count_changed(DialogId dialog_id, MessageId top_thread_message_id,
+                                                        int32 count, bool is_relative) {
+  LOG(INFO) << "Change " << (is_relative ? "by" : "to") << ' ' << count << " number of reactions in thread of "
+            << top_thread_message_id << " in " << dialog_id;
+  auto dialog_topics = get_dialog_topics(dialog_id);
+  if (dialog_topics == nullptr) {
+    return;
+  }
+  auto topic = get_topic(dialog_topics, top_thread_message_id);
+  if (topic == nullptr || topic->topic_ == nullptr) {
+    return;
+  }
+  if (topic->topic_->update_unread_reaction_count(count, is_relative)) {
+    on_forum_topic_changed(dialog_id, topic);
+  }
+}
+
+void ForumTopicManager::repair_topic_unread_mention_count(DialogId dialog_id, MessageId top_thread_message_id) {
+  if (!td_->dialog_manager_->is_forum_channel(dialog_id) ||
+      can_be_message_thread_id(top_thread_message_id).is_error()) {
+    return;
+  }
+
+  td_->create_handler<GetForumTopicQuery>(Promise<td_api::object_ptr<td_api::forumTopic>>())
+      ->send(dialog_id.get_channel_id(), top_thread_message_id);
 }
 
 }  // namespace td

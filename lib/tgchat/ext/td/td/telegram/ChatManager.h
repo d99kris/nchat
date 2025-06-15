@@ -88,30 +88,31 @@ class ChatManager final : public Actor {
   bool is_channel_received_from_server(ChannelId channel_id) const;
 
   const DialogPhoto *get_chat_dialog_photo(ChatId chat_id) const;
-  const DialogPhoto *get_channel_dialog_photo(ChannelId channel_id) const;
+  const DialogPhoto *get_channel_dialog_photo(ChannelId channel_id, bool is_recursive = false) const;
 
-  AccentColorId get_channel_accent_color_id(ChannelId channel_id) const;
+  AccentColorId get_channel_accent_color_id(ChannelId channel_id, bool is_recursive = false) const;
 
   int32 get_chat_accent_color_id_object(ChatId chat_id) const;
   int32 get_channel_accent_color_id_object(ChannelId channel_id) const;
 
   CustomEmojiId get_chat_background_custom_emoji_id(ChatId chat_id) const;
-  CustomEmojiId get_channel_background_custom_emoji_id(ChannelId channel_id) const;
+  CustomEmojiId get_channel_background_custom_emoji_id(ChannelId channel_id, bool is_recursive = false) const;
 
   int32 get_chat_profile_accent_color_id_object(ChatId chat_id) const;
-  int32 get_channel_profile_accent_color_id_object(ChannelId channel_id) const;
+  int32 get_channel_profile_accent_color_id_object(ChannelId channel_id, bool is_recursive = false) const;
 
   CustomEmojiId get_chat_profile_background_custom_emoji_id(ChatId chat_id) const;
-  CustomEmojiId get_channel_profile_background_custom_emoji_id(ChannelId channel_id) const;
+  CustomEmojiId get_channel_profile_background_custom_emoji_id(ChannelId channel_id, bool is_recursive = false) const;
 
   string get_chat_title(ChatId chat_id) const;
-  string get_channel_title(ChannelId channel_id) const;
+  string get_channel_title(ChannelId channel_id, bool is_recursive = false) const;
 
   RestrictedRights get_chat_default_permissions(ChatId chat_id) const;
   RestrictedRights get_channel_default_permissions(ChannelId channel_id) const;
 
   td_api::object_ptr<td_api::emojiStatus> get_chat_emoji_status_object(ChatId chat_id) const;
-  td_api::object_ptr<td_api::emojiStatus> get_channel_emoji_status_object(ChannelId channel_id) const;
+  td_api::object_ptr<td_api::emojiStatus> get_channel_emoji_status_object(ChannelId channel_id,
+                                                                          bool is_recursive = false) const;
 
   string get_chat_about(ChatId chat_id);
   string get_channel_about(ChannelId channel_id);
@@ -120,6 +121,8 @@ class ChatManager final : public Actor {
   bool get_channel_has_protected_content(ChannelId channel_id) const;
 
   bool get_channel_stories_hidden(ChannelId channel_id) const;
+
+  bool get_channel_autotranslation(ChannelId channel_id) const;
 
   bool can_poll_channel_active_stories(ChannelId channel_id) const;
 
@@ -259,19 +262,25 @@ class ChatManager final : public Actor {
   void toggle_channel_can_have_sponsored_messages(ChannelId channel_id, bool can_have_sponsored_messages,
                                                   Promise<Unit> &&promise);
 
+  void toggle_channel_has_automatic_translation(ChannelId channel_id, bool has_automatic_translation,
+                                                Promise<Unit> &&promise);
+
   void toggle_channel_has_hidden_participants(ChannelId channel_id, bool has_hidden_participants,
                                               Promise<Unit> &&promise);
 
   void toggle_channel_has_aggressive_anti_spam_enabled(ChannelId channel_id, bool has_aggressive_anti_spam_enabled,
                                                        Promise<Unit> &&promise);
 
-  void toggle_channel_is_forum(ChannelId channel_id, bool is_forum, Promise<Unit> &&promise);
+  void toggle_channel_is_forum(ChannelId channel_id, bool is_forum, bool is_forum_tabs, Promise<Unit> &&promise);
 
   void convert_channel_to_gigagroup(ChannelId channel_id, Promise<Unit> &&promise);
 
   void set_channel_description(ChannelId channel_id, const string &description, Promise<Unit> &&promise);
 
   void set_channel_discussion_group(DialogId dialog_id, DialogId discussion_dialog_id, Promise<Unit> &&promise);
+
+  void set_channel_monoforum_group(DialogId dialog_id, bool is_enabled, int64 paid_message_star_count,
+                                   Promise<Unit> &&promise);
 
   void set_channel_location(ChannelId dialog_id, const DialogLocation &location, Promise<Unit> &&promise);
 
@@ -281,8 +290,8 @@ class ChatManager final : public Actor {
 
   void report_channel_anti_spam_false_positive(ChannelId channel_id, MessageId message_id, Promise<Unit> &&promise);
 
-  void set_channel_send_paid_messages_star_count(DialogId dialog_id, int64 send_paid_messages_star_count,
-                                                 Promise<Unit> &&promise);
+  void set_channel_send_paid_message_star_count(DialogId dialog_id, int64 send_paid_message_star_count,
+                                                Promise<Unit> &&promise);
 
   void delete_chat(ChatId chat_id, Promise<Unit> &&promise);
 
@@ -350,6 +359,10 @@ class ChatManager final : public Actor {
   bool is_broadcast_channel(ChannelId channel_id) const;
   bool is_megagroup_channel(ChannelId channel_id) const;
   bool is_forum_channel(ChannelId channel_id) const;
+  bool is_forum_tabs_channel(ChannelId channel_id) const;
+  bool is_monoforum_channel(ChannelId channel_id) const;
+  bool is_admined_monoforum_channel(ChannelId channel_id) const;
+  ChannelId get_monoforum_channel_id(ChannelId channel_id) const;
   int32 get_channel_date(ChannelId channel_id) const;
   DialogParticipantStatus get_channel_status(ChannelId channel_id) const;
   DialogParticipantStatus get_channel_permissions(ChannelId channel_id) const;
@@ -494,6 +507,8 @@ class ChatManager final : public Actor {
     StoryId max_active_story_id;
     StoryId max_read_story_id;
 
+    ChannelId monoforum_channel_id;
+
     static constexpr uint32 CACHE_VERSION = 10;
     uint32 cache_version = 0;
 
@@ -507,10 +522,15 @@ class ChatManager final : public Actor {
     bool join_to_send = false;
     bool join_request = false;
     bool stories_hidden = false;
+    bool autotranslation = false;
+    bool broadcast_messages_allowed = false;
 
     bool is_megagroup = false;
     bool is_gigagroup = false;
     bool is_forum = false;
+    bool is_forum_tabs = false;
+    bool is_monoforum = false;
+    bool is_admined_monoforum = false;
     bool is_verified = false;
     bool is_scam = false;
     bool is_fake = false;
@@ -525,7 +545,9 @@ class ChatManager final : public Actor {
     bool is_stories_hidden_changed = true;
     bool is_has_location_changed = true;
     bool is_noforwards_changed = true;
+    bool is_is_forum_changed = true;
     bool is_creator_changed = true;
+    bool is_admined_monoforum_changed = false;
     bool had_read_access = true;
     bool is_being_updated = false;
     bool is_changed = true;             // have new changes that need to be sent to the client and database
@@ -575,6 +597,7 @@ class ChatManager final : public Actor {
     StickerSetId emoji_sticker_set_id;
 
     ChannelId linked_channel_id;
+    ChannelId monoforum_channel_id;
 
     DialogLocation location;
 
@@ -656,7 +679,7 @@ class ChatManager final : public Actor {
 
   const Channel *get_channel(ChannelId channel_id) const;
   Channel *get_channel(ChannelId channel_id);
-  Channel *get_channel_force(ChannelId channel_id, const char *source);
+  Channel *get_channel_force(ChannelId channel_id, const char *source, bool is_recursive = false);
 
   Channel *add_channel(ChannelId channel_id, const char *source);
 
@@ -721,6 +744,7 @@ class ChatManager final : public Actor {
                                                     RestrictedRights default_permissions);
   static void on_update_channel_has_location(Channel *c, ChannelId channel_id, bool has_location);
   static void on_update_channel_noforwards(Channel *c, ChannelId channel_id, bool noforwards);
+  static void on_update_channel_is_forum(Channel *c, ChannelId channel_id, bool is_forum, bool is_forum_tabs);
   void on_update_channel_stories_hidden(Channel *c, ChannelId channel_id, bool stories_hidden);
   void on_update_channel_story_ids_impl(Channel *c, ChannelId channel_id, StoryId max_active_story_id,
                                         StoryId max_read_story_id);
@@ -732,6 +756,8 @@ class ChatManager final : public Actor {
                                           tl_object_ptr<telegram_api::ExportedChatInvite> &&invite_link);
   void on_update_channel_full_linked_channel_id(ChannelFull *channel_full, ChannelId channel_id,
                                                 ChannelId linked_channel_id);
+  void on_update_channel_full_monoforum_channel_id(ChannelFull *channel_full, ChannelId channel_id,
+                                                   ChannelId monoforum_channel_id);
   void on_update_channel_full_location(ChannelFull *channel_full, ChannelId channel_id, const DialogLocation &location);
   void on_update_channel_full_slow_mode_delay(ChannelFull *channel_full, ChannelId channel_id, int32 slow_mode_delay,
                                               int32 slow_mode_next_send_date);
@@ -746,6 +772,7 @@ class ChatManager final : public Actor {
                                     const Usernames &new_usernames);
 
   void remove_linked_channel_id(ChannelId channel_id);
+
   ChannelId get_linked_channel_id(ChannelId channel_id) const;
 
   static bool speculative_add_count(int32 &count, int32 delta_count, int32 min_count = 0);
@@ -781,8 +808,8 @@ class ChatManager final : public Actor {
   void save_channel_to_database_impl(Channel *c, ChannelId channel_id, string value);
   void on_save_channel_to_database(ChannelId channel_id, bool success);
   void load_channel_from_database(Channel *c, ChannelId channel_id, Promise<Unit> promise);
-  void load_channel_from_database_impl(ChannelId channel_id, Promise<Unit> promise);
-  void on_load_channel_from_database(ChannelId channel_id, string value, bool force);
+  void load_channel_from_database_impl(ChannelId channel_id, bool is_recursive, Promise<Unit> promise);
+  void on_load_channel_from_database(ChannelId channel_id, string value, bool force, bool is_recursive);
 
   static void save_chat_full(const ChatFull *chat_full, ChatId chat_id);
   static string get_chat_full_database_key(ChatId chat_id);
@@ -804,6 +831,10 @@ class ChatManager final : public Actor {
   bool is_chat_full_outdated(const ChatFull *chat_full, const Chat *c, ChatId chat_id, bool only_participants) const;
 
   static bool is_channel_public(const Channel *c);
+
+  static bool is_suitable_discussion_chat(const Chat *c);
+
+  static bool is_suitable_discussion_channel(const Channel *c);
 
   static bool is_suitable_created_public_channel(PublicDialogType type, const Channel *c);
 
@@ -918,6 +949,7 @@ class ChatManager final : public Actor {
   FlatHashMap<ChannelId, FlatHashSet<MessageFullId, MessageFullIdHash>, ChannelIdHash> channel_messages_;
 
   WaitFreeHashMap<ChannelId, ChannelId, ChannelIdHash> linked_channel_ids_;
+  WaitFreeHashMap<ChannelId, ChannelId, ChannelIdHash> monoforum_channel_ids_;
 
   WaitFreeHashSet<ChannelId, ChannelIdHash> restricted_channel_ids_;
 

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 
-project(TDLib VERSION 1.8.48 LANGUAGES CXX C)
+project(TDLib VERSION 1.8.50 LANGUAGES CXX C)
 
 if (NOT DEFINED CMAKE_MODULE_PATH)
   set(CMAKE_MODULE_PATH "")
@@ -32,6 +32,7 @@ option(TD_ENABLE_DOTNET "Use \"ON\" to enable generation of C++/CLI or C++/CX TD
 if (NOT CMAKE_CROSSCOMPILING)
   option(TD_GENERATE_SOURCE_FILES "Use \"ON\" to just generate TDLib source files.")
 endif()
+option(TD_E2E_ONLY "Use \"ON\" to build and install tde2e instead of TDLib.")
 
 include(CTest)
 
@@ -174,9 +175,9 @@ if (NOT CMAKE_CROSSCOMPILING)
   endif()
 endif()
 
-if (NOT OPENSSL_FOUND)
+if (NOT OPENSSL_FOUND OR TD_GENERATE_SOURCE_FILES)
   if (NOT TD_GENERATE_SOURCE_FILES)
-    message(WARNING "Can't find OpenSSL: stop TDLib building")
+    message(WARNING "Can't find OpenSSL: stop building")
   endif()
   return()
 endif()
@@ -185,7 +186,34 @@ if (NOT ZLIB_FOUND)
   find_package(ZLIB)
 endif()
 if (NOT ZLIB_FOUND)
-  message(WARNING "Can't find zlib: stop TDLib building")
+  message(WARNING "Can't find zlib: stop building")
+  return()
+endif()
+
+set(TDE2E_ENABLE_INSTALL ${TD_INSTALL_STATIC_LIBRARIES} CACHE BOOL "" FORCE)
+set(TDE2E_INSTALL_INCLUDES ${TD_E2E_ONLY} CACHE BOOL "" FORCE)
+add_subdirectory(tde2e)
+
+if (TD_E2E_ONLY)
+  if (TD_INSTALL_STATIC_LIBRARIES)
+    include(GeneratePkgConfig)
+    generate_pkgconfig(tdutils "Telegram Library - Utils")
+    generate_pkgconfig(tde2e "Telegram Library - E2E")
+    install(EXPORT TdStaticTargets
+      FILE tde2eStaticTargets.cmake
+      NAMESPACE tde2e::
+      DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/tde2e"
+    )
+  endif()
+  file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/tde2eConfig.cmake" "include(\"\${CMAKE_CURRENT_LIST_DIR}/tde2eStaticTargets.cmake\")\n")
+  include(CMakePackageConfigHelpers)
+  write_basic_package_version_file("tde2eConfigVersion.cmake"
+    VERSION "${TDLib_VERSION}"
+    COMPATIBILITY ExactVersion
+  )
+  install(FILES "${CMAKE_CURRENT_BINARY_DIR}/tde2eConfig.cmake" "${CMAKE_CURRENT_BINARY_DIR}/tde2eConfigVersion.cmake"
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/tde2e"
+  )
   return()
 endif()
 
@@ -209,9 +237,6 @@ add_subdirectory(tddb)
 if (BUILD_TESTING)
   add_subdirectory(test)
 endif()
-
-set(TDE2E_ENABLE_INSTALL ${TD_INSTALL_STATIC_LIBRARIES} CACHE BOOL "" FORCE)
-add_subdirectory(tde2e)
 
 if (NOT CMAKE_CROSSCOMPILING)
   add_subdirectory(benchmark)
@@ -488,6 +513,7 @@ set(TDLIB_SOURCE_PART1
   td/telegram/MessagesManager.cpp
   td/telegram/MessageSource.cpp
   td/telegram/MessageThreadDb.cpp
+  td/telegram/MessageTopic.cpp
   td/telegram/MessageTtl.cpp
   td/telegram/MessageViewer.cpp
   td/telegram/misc.cpp
@@ -579,6 +605,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/StarAmount.cpp
   td/telegram/StarGift.cpp
   td/telegram/StarGiftAttribute.cpp
+  td/telegram/StarGiftAttributeId.cpp
   td/telegram/StarGiftId.cpp
   td/telegram/StarGiftManager.cpp
   td/telegram/StarGiftSettings.cpp
@@ -839,6 +866,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/MessageSource.h
   td/telegram/MessageThreadDb.h
   td/telegram/MessageThreadInfo.h
+  td/telegram/MessageTopic.h
   td/telegram/MessageTtl.h
   td/telegram/MessageViewer.h
   td/telegram/MinChannel.h
@@ -957,6 +985,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/StarAmount.h
   td/telegram/StarGift.h
   td/telegram/StarGiftAttribute.h
+  td/telegram/StarGiftAttributeId.h
   td/telegram/StarGiftId.h
   td/telegram/StarGiftManager.h
   td/telegram/StarGiftSettings.h
@@ -1176,7 +1205,7 @@ if (TD_ENABLE_JNI AND NOT ANDROID) # jni is available by default on Android
     find_package(JNI REQUIRED COMPONENTS JVM)
   endif()
   message(STATUS "Found JNI: ${JNI_INCLUDE_DIRS} ${JNI_LIBRARIES}")
-  target_include_directories(tdapi PUBLIC ${JAVA_INCLUDE_PATH} ${JAVA_INCLUDE_PATH2})
+  target_include_directories(tdapi SYSTEM PUBLIC ${JAVA_INCLUDE_PATH} ${JAVA_INCLUDE_PATH2})
   target_link_libraries(tdapi PUBLIC ${JAVA_JVM_LIBRARY})
 endif()
 
@@ -1232,9 +1261,7 @@ if (NOT CMAKE_CROSSCOMPILING)
 endif()
 
 add_library(tdclient STATIC td/telegram/Client.cpp td/telegram/Client.h td/telegram/Log.cpp td/telegram/Log.h)
-target_include_directories(tdclient PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-)
+target_include_directories(tdclient PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
 target_link_libraries(tdclient PUBLIC tdapi PRIVATE tdcore)
 
 if (TD_ENABLE_DOTNET)
@@ -1245,9 +1272,7 @@ if (TD_ENABLE_DOTNET)
   )
   set_target_properties(tddotnet PROPERTIES OUTPUT_NAME Telegram.Td)
   target_link_libraries(tddotnet PRIVATE tdclient tdutils)
-  target_include_directories(tddotnet PUBLIC
-    $<BUILD_INTERFACE:${TL_TD_AUTO_INCLUDE_DIR}>
-  )
+  target_include_directories(tddotnet PUBLIC $<BUILD_INTERFACE:${TL_TD_AUTO_INCLUDE_DIR}>)
   if (NOT CMAKE_CROSSCOMPILING)
     add_dependencies(tddotnet generate_dotnet_api)
   endif()
@@ -1264,18 +1289,14 @@ endif()
 
 # tdc - TDLib interface in pure C
 add_library(tdc STATIC EXCLUDE_FROM_ALL ${TL_C_SCHEME_SOURCE} td/telegram/td_c_client.cpp td/telegram/td_c_client.h)
-target_include_directories(tdc PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-  $<BUILD_INTERFACE:${TL_TD_AUTO_INCLUDE_DIR}>)
+target_include_directories(tdc PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}> $<BUILD_INTERFACE:${TL_TD_AUTO_INCLUDE_DIR}>)
 target_link_libraries(tdc PRIVATE tdclient tdutils)
 if (NOT CMAKE_CROSSCOMPILING)
   add_dependencies(tdc tl_generate_c)
 endif()
 
 add_library(tdjson_private STATIC ${TL_TD_JSON_SOURCE} td/telegram/ClientJson.cpp td/telegram/ClientJson.h)
-target_include_directories(tdjson_private PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-  $<BUILD_INTERFACE:${TL_TD_AUTO_INCLUDE_DIR}>)
+target_include_directories(tdjson_private PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}> $<BUILD_INTERFACE:${TL_TD_AUTO_INCLUDE_DIR}>)
 target_link_libraries(tdjson_private PUBLIC tdclient tdutils)
 if (NOT CMAKE_CROSSCOMPILING)
   add_dependencies(tdjson_private tl_generate_common tl_generate_json)
@@ -1292,9 +1313,7 @@ include(GenerateExportHeader)
 add_library(tdjson SHARED ${TD_JSON_SOURCE} ${TD_JSON_HEADERS})
 target_link_libraries(tdjson PRIVATE tdjson_private)
 generate_export_header(tdjson EXPORT_FILE_NAME ${CMAKE_CURRENT_BINARY_DIR}/td/telegram/tdjson_export.h)
-target_include_directories(tdjson PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
+target_include_directories(tdjson PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}> $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
 if (APPLE)
   set_target_properties(tdjson PROPERTIES LINK_FLAGS "-Wl,-exported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/tdclientjson_export_list")
 endif()
@@ -1302,9 +1321,7 @@ endif()
 add_library(tdjson_static STATIC ${TD_JSON_SOURCE} ${TD_JSON_HEADERS})
 target_link_libraries(tdjson_static PRIVATE tdjson_private)
 target_compile_definitions(tdjson_static PUBLIC TDJSON_STATIC_DEFINE)
-target_include_directories(tdjson_static PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
+target_include_directories(tdjson_static PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}> $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
 
 # EXECUTABLES
 if (EMSCRIPTEN)

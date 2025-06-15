@@ -12,6 +12,7 @@
 #include "td/utils/BigNum.h"
 #include "td/utils/common.h"
 #include "td/utils/crypto.h"
+#include "td/utils/logging.h"
 #include "td/utils/Random.h"
 #include "td/utils/SliceBuilder.h"
 #include "td/utils/Span.h"
@@ -452,7 +453,12 @@ class TlsHelloStore {
     BigNum::mod_sub(numerator, numerator, one, mod, big_num_context);
     BigNum::mod_mul(numerator, numerator, numerator, mod, big_num_context);
 
-    BigNum::mod_inverse(denominator, denominator, mod, big_num_context);
+    auto r_inverse = BigNum::mod_inverse(denominator, mod, big_num_context);
+    if (r_inverse.is_error()) {
+      LOG(ERROR) << r_inverse.error();
+    } else {
+      denominator = r_inverse.move_as_ok();
+    }
     BigNum::mod_mul(numerator, numerator, denominator, mod, big_num_context);
     return numerator;
   }

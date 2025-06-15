@@ -369,7 +369,7 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
             }
             if (transaction->paid_messages_) {
               if (is_purchase) {
-                if (!td_->dialog_manager_->is_broadcast_channel(dialog_id) && for_user) {
+                if (for_user) {
                   SCOPE_EXIT {
                     product_info = nullptr;
                     transaction->paid_messages_ = 0;
@@ -381,7 +381,7 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
                                                                                          transaction->paid_messages_);
                 }
               } else {
-                if ((for_user || for_supergroup) && affiliate != nullptr) {
+                if ((for_user || for_supergroup || for_channel) && affiliate != nullptr) {
                   SCOPE_EXIT {
                     product_info = nullptr;
                     transaction->paid_messages_ = 0;
@@ -422,7 +422,13 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
                 td_->star_gift_manager_->on_get_star_gift(gift, true);
                 if (is_purchase) {
                   if (gift.is_unique()) {
-                    if (transaction->stargift_upgrade_) {
+                    if (transaction->stargift_resale_) {
+                      if (for_user) {
+                        transaction->stargift_resale_ = false;
+                        return td_api::make_object<td_api::starTransactionTypeUpgradedGiftPurchase>(
+                            user_id_object, gift.get_upgraded_gift_object(td_));
+                      }
+                    } else if (transaction->stargift_upgrade_) {
                       if (for_user) {
                         transaction->stargift_upgrade_ = false;
                         transaction->msg_id_ = 0;  // ignore
@@ -446,7 +452,15 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
                   }
                 } else {
                   if (gift.is_unique()) {
-                    LOG(ERROR) << "Receive sale of an upgraded gift";
+                    if (transaction->stargift_resale_) {
+                      if (for_user && affiliate != nullptr) {
+                        transaction->stargift_resale_ = false;
+                        return td_api::make_object<td_api::starTransactionTypeUpgradedGiftSale>(
+                            user_id_object, gift.get_upgraded_gift_object(td_), std::move(affiliate));
+                      }
+                    } else {
+                      LOG(ERROR) << "Receive sale of an upgraded gift";
+                    }
                   } else {
                     if (for_user || for_channel) {
                       product_info = nullptr;
@@ -702,6 +716,9 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
         }
         if (transaction->business_transfer_) {
           LOG(ERROR) << "Receive business bot transfer with " << to_string(star_transaction);
+        }
+        if (transaction->stargift_resale_) {
+          LOG(ERROR) << "Receive gift resale with " << to_string(star_transaction);
         }
       }
       if (!file_ids.empty()) {

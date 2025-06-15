@@ -22,6 +22,7 @@
 #include "td/telegram/NotificationSettingsScope.h"
 #include "td/telegram/Photo.h"
 #include "td/telegram/RecentDialogList.h"
+#include "td/telegram/SavedMessagesTopicId.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/UserId.h"
@@ -142,6 +143,12 @@ class DialogManager final : public Actor {
 
   bool is_forum_channel(DialogId dialog_id) const;
 
+  bool is_forum_tabs_channel(DialogId dialog_id) const;
+
+  bool is_monoforum_channel(DialogId dialog_id) const;
+
+  bool is_admined_monoforum_channel(DialogId dialog_id) const;
+
   bool is_broadcast_channel(DialogId dialog_id) const;
 
   bool on_get_dialog_error(DialogId dialog_id, const Status &status, const char *source);
@@ -252,7 +259,7 @@ class DialogManager final : public Actor {
 
   vector<DialogId> search_dialogs_on_server(const string &query, int32 limit, Promise<Unit> &&promise);
 
-  void reload_voice_chat_on_search(const string &username);
+  void reload_video_chat_on_search(const string &username);
 
   void reget_peer_settings(DialogId dialog_id);
 
@@ -282,7 +289,8 @@ class DialogManager final : public Actor {
   void toggle_dialog_is_blocked_on_server(DialogId dialog_id, bool is_blocked, bool is_blocked_for_stories,
                                           uint64 log_event_id);
 
-  void toggle_dialog_is_marked_as_unread_on_server(DialogId dialog_id, bool is_marked_as_unread, uint64 log_event_id);
+  void toggle_dialog_is_marked_as_unread_on_server(DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id,
+                                                   bool is_marked_as_unread, uint64 log_event_id);
 
   void toggle_dialog_is_pinned_on_server(DialogId dialog_id, bool is_pinned, uint64 log_event_id);
 
@@ -331,6 +339,7 @@ class DialogManager final : public Actor {
                                                                   bool is_blocked_for_stories);
 
   static uint64 save_toggle_dialog_is_marked_as_unread_on_server_log_event(DialogId dialog_id,
+                                                                           SavedMessagesTopicId saved_messages_topic_id,
                                                                            bool is_marked_as_unread);
 
   static uint64 save_toggle_dialog_is_pinned_on_server_log_event(DialogId dialog_id, bool is_pinned);
@@ -343,6 +352,7 @@ class DialogManager final : public Actor {
 
   class ReorderPinnedDialogsOnServerLogEvent;
   class ToggleDialogIsBlockedOnServerLogEvent;
+  class ToggleDialogTopicPropertyOnServerLogEvent;
   class ToggleDialogPropertyOnServerLogEvent;
   class ToggleDialogReportSpamStateOnServerLogEvent;
 
@@ -377,7 +387,7 @@ class DialogManager final : public Actor {
   };
   WaitFreeHashMap<string, ResolvedUsername> resolved_usernames_;
   WaitFreeHashMap<string, DialogId> inaccessible_resolved_usernames_;
-  FlatHashSet<string> reload_voice_chat_on_search_usernames_;
+  FlatHashSet<string> reload_video_chat_on_search_usernames_;
 
   FlatHashMap<string, vector<Promise<Unit>>> resolve_dialog_username_queries_;
 

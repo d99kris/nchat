@@ -631,6 +631,12 @@ class LinkManager::InternalLinkMessageDraft final : public InternalLink {
   }
 };
 
+class LinkManager::InternalLinkMyStars final : public InternalLink {
+  td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
+    return td_api::make_object<td_api::internalLinkTypeMyStars>();
+  }
+};
+
 class LinkManager::InternalLinkPassportDataRequest final : public InternalLink {
   UserId bot_user_id_;
   string scope_;
@@ -866,7 +872,7 @@ class LinkManager::InternalLinkUserToken final : public InternalLink {
   }
 };
 
-class LinkManager::InternalLinkVoiceChat final : public InternalLink {
+class LinkManager::InternalLinkVideoChat final : public InternalLink {
   string dialog_username_;
   string invite_hash_;
   bool is_live_stream_;
@@ -876,7 +882,7 @@ class LinkManager::InternalLinkVoiceChat final : public InternalLink {
   }
 
  public:
-  InternalLinkVoiceChat(string dialog_username, string invite_hash, bool is_live_stream)
+  InternalLinkVideoChat(string dialog_username, string invite_hash, bool is_live_stream)
       : dialog_username_(std::move(dialog_username))
       , invite_hash_(std::move(invite_hash))
       , is_live_stream_(is_live_stream) {
@@ -1462,9 +1468,9 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_tg_link_query(Slice que
           // resolve?domain=<username>&videochat
           // resolve?domain=<username>&videochat=<invite_hash>
           if (Scheduler::context() != nullptr) {
-            send_closure(G()->dialog_manager(), &DialogManager::reload_voice_chat_on_search, username);
+            send_closure(G()->dialog_manager(), &DialogManager::reload_video_chat_on_search, username);
           }
-          return td::make_unique<InternalLinkVoiceChat>(std::move(username), arg.second, arg.first == "livestream");
+          return td::make_unique<InternalLinkVideoChat>(std::move(username), arg.second, arg.first == "livestream");
         }
         if (arg.first == "ref" && is_valid_start_parameter(arg.second) && !arg.second.empty()) {
           // resolve?domain=<bot_username>&ref=<referrer>
@@ -1622,6 +1628,9 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_tg_link_query(Slice que
     }
     // settings
     return td::make_unique<InternalLinkSettings>();
+  } else if (!path.empty() && path[0] == "stars") {
+    // stars
+    return td::make_unique<InternalLinkMyStars>();
   } else if (path.size() == 1 && path[0] == "addlist") {
     auto slug = get_url_query_slug(true, url_query, "addlist");
     if (!slug.empty() && is_base64url_characters(slug)) {
@@ -1975,9 +1984,9 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_t_me_link_query(Slice q
         // /<username>?videochat
         // /<username>?videochat=<invite_hash>
         if (Scheduler::context() != nullptr) {
-          send_closure(G()->dialog_manager(), &DialogManager::reload_voice_chat_on_search, username);
+          send_closure(G()->dialog_manager(), &DialogManager::reload_video_chat_on_search, username);
         }
-        return td::make_unique<InternalLinkVoiceChat>(std::move(username), arg.second, arg.first == "livestream");
+        return td::make_unique<InternalLinkVideoChat>(std::move(username), arg.second, arg.first == "livestream");
       }
       if (arg.first == "boost") {
         // /<username>?boost
@@ -2536,6 +2545,11 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
         return PSTRING() << get_t_me_url() << "share?url=" << url_encode(url) << text;
       }
     }
+    case td_api::internalLinkTypeMyStars::ID:
+      if (!is_internal) {
+        return Status::Error("HTTP link is unavailable for the link type");
+      }
+      return "tg://stars";
     case td_api::internalLinkTypePassportDataRequest::ID: {
       auto link = static_cast<const td_api::internalLinkTypePassportDataRequest *>(type_ptr);
       if (!is_internal) {

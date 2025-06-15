@@ -518,7 +518,7 @@ class MessageChatSetTtl final : public MessageContent {
 
 class MessageUnsupported final : public MessageContent {
  public:
-  static constexpr int32 CURRENT_VERSION = 42;
+  static constexpr int32 CURRENT_VERSION = 43;
   int32 version = CURRENT_VERSION;
 
   MessageUnsupported() = default;
@@ -567,7 +567,7 @@ class MessagePaymentSuccessful final : public MessageContent {
   string currency;
   int64 total_amount = 0;
   string invoice_payload;  // or invoice_slug for users
-  int32 subscription_until_date = false;
+  int32 subscription_until_date = 0;
   bool is_recurring = false;
   bool is_first_recurring = false;
 
@@ -1296,7 +1296,10 @@ class MessageStarGiftUnique final : public MessageContent {
   DialogId sender_dialog_id;
   DialogId owner_dialog_id;
   int64 saved_id = 0;
+  int64 resale_star_count = 0;
   int64 transfer_star_count = 0;
+  int32 can_transfer_at = 0;
+  int32 can_resell_at = 0;
   int32 can_export_at = 0;
   bool is_saved = false;
   bool is_upgrade = false;
@@ -1306,13 +1309,17 @@ class MessageStarGiftUnique final : public MessageContent {
 
   MessageStarGiftUnique() = default;
   MessageStarGiftUnique(StarGift &&star_gift, DialogId sender_dialog_id, DialogId owner_dialog_id, int64 saved_id,
-                        int64 transfer_star_count, int32 can_export_at, bool is_saved, bool is_upgrade,
-                        bool can_transfer, bool was_transferred, bool was_refunded)
+                        int64 resale_star_count, int64 transfer_star_count, int32 can_transfer_at, int32 can_resell_at,
+                        int32 can_export_at, bool is_saved, bool is_upgrade, bool can_transfer, bool was_transferred,
+                        bool was_refunded)
       : star_gift(std::move(star_gift))
       , sender_dialog_id(sender_dialog_id)
       , owner_dialog_id(owner_dialog_id)
       , saved_id(saved_id)
+      , resale_star_count(resale_star_count)
       , transfer_star_count(transfer_star_count)
+      , can_transfer_at(can_transfer_at)
+      , can_resell_at(can_resell_at)
       , can_export_at(can_export_at)
       , is_saved(is_saved)
       , is_upgrade(is_upgrade)
@@ -1344,9 +1351,11 @@ class MessagePaidMessagesRefunded final : public MessageContent {
 class MessagePaidMessagesPrice final : public MessageContent {
  public:
   int64 star_count = 0;
+  bool broadcast_messages_allowed = false;
 
   MessagePaidMessagesPrice() = default;
-  explicit MessagePaidMessagesPrice(int64 star_count) : star_count(star_count) {
+  MessagePaidMessagesPrice(int64 star_count, bool broadcast_messages_allowed)
+      : star_count(star_count), broadcast_messages_allowed(broadcast_messages_allowed) {
   }
 
   MessageContentType get_type() const final {
@@ -2120,6 +2129,9 @@ static void store(const MessageContent *content, StorerT &storer) {
       bool has_owner_dialog_id = m->owner_dialog_id.is_valid();
       bool has_saved_id = m->saved_id != 0;
       bool has_sender_dialog_id = m->sender_dialog_id.is_valid();
+      bool has_can_transfer_at = m->can_transfer_at != 0;
+      bool has_can_resell_at = m->can_resell_at != 0;
+      bool has_resale_star_count = m->resale_star_count != 0;
       BEGIN_STORE_FLAGS();
       STORE_FLAG(has_transfer_star_count);
       STORE_FLAG(has_can_export_at);
@@ -2131,6 +2143,9 @@ static void store(const MessageContent *content, StorerT &storer) {
       STORE_FLAG(has_owner_dialog_id);
       STORE_FLAG(has_saved_id);
       STORE_FLAG(has_sender_dialog_id);
+      STORE_FLAG(has_can_transfer_at);
+      STORE_FLAG(has_can_resell_at);
+      STORE_FLAG(has_resale_star_count);
       END_STORE_FLAGS();
       store(m->star_gift, storer);
       if (has_transfer_star_count) {
@@ -2148,6 +2163,15 @@ static void store(const MessageContent *content, StorerT &storer) {
       if (has_sender_dialog_id) {
         store(m->sender_dialog_id, storer);
       }
+      if (has_can_transfer_at) {
+        store(m->can_transfer_at, storer);
+      }
+      if (has_can_resell_at) {
+        store(m->can_resell_at, storer);
+      }
+      if (has_resale_star_count) {
+        store(m->resale_star_count, storer);
+      }
       break;
     }
     case MessageContentType::PaidMessagesRefunded: {
@@ -2161,6 +2185,7 @@ static void store(const MessageContent *content, StorerT &storer) {
     case MessageContentType::PaidMessagesPrice: {
       const auto *m = static_cast<const MessagePaidMessagesPrice *>(content);
       BEGIN_STORE_FLAGS();
+      STORE_FLAG(m->broadcast_messages_allowed);
       END_STORE_FLAGS();
       store(m->star_count, storer);
       break;
@@ -3143,6 +3168,9 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
       bool has_owner_dialog_id;
       bool has_saved_id;
       bool has_sender_dialog_id;
+      bool has_can_transfer_at;
+      bool has_can_resell_at;
+      bool has_resale_star_count;
       BEGIN_PARSE_FLAGS();
       PARSE_FLAG(has_transfer_star_count);
       PARSE_FLAG(has_can_export_at);
@@ -3154,6 +3182,9 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
       PARSE_FLAG(has_owner_dialog_id);
       PARSE_FLAG(has_saved_id);
       PARSE_FLAG(has_sender_dialog_id);
+      PARSE_FLAG(has_can_transfer_at);
+      PARSE_FLAG(has_can_resell_at);
+      PARSE_FLAG(has_resale_star_count);
       END_PARSE_FLAGS();
       parse(m->star_gift, parser);
       if (has_transfer_star_count) {
@@ -3170,6 +3201,15 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
       }
       if (has_sender_dialog_id) {
         parse(m->sender_dialog_id, parser);
+      }
+      if (has_can_transfer_at) {
+        parse(m->can_transfer_at, parser);
+      }
+      if (has_can_resell_at) {
+        parse(m->can_resell_at, parser);
+      }
+      if (has_resale_star_count) {
+        parse(m->resale_star_count, parser);
       }
       if (!m->star_gift.is_valid() || m->star_gift.is_unique() == m->was_refunded) {
         is_bad = true;
@@ -3190,6 +3230,7 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
     case MessageContentType::PaidMessagesPrice: {
       auto m = make_unique<MessagePaidMessagesPrice>();
       BEGIN_PARSE_FLAGS();
+      PARSE_FLAG(m->broadcast_messages_allowed);
       END_PARSE_FLAGS();
       parse(m->star_count, parser);
       content = std::move(m);
@@ -3696,7 +3737,7 @@ static Result<InputMessageContent> create_input_message_content(
     case td_api::inputMessagePoll::ID: {
       const size_t MAX_POLL_QUESTION_LENGTH = is_bot ? 300 : 255;  // server-side limit
       constexpr size_t MAX_POLL_OPTION_LENGTH = 100;               // server-side limit
-      constexpr size_t MAX_POLL_OPTIONS = 10;                      // server-side limit
+      auto max_poll_options = td->option_manager_->get_option_integer("poll_answer_count_max");
       auto input_poll = static_cast<td_api::inputMessagePoll *>(input_message_content.get());
       TRY_RESULT(question,
                  get_formatted_text(td, dialog_id, std::move(input_poll->question_), is_bot, false, true, false));
@@ -3706,8 +3747,8 @@ static Result<InputMessageContent> create_input_message_content(
       if (input_poll->options_.size() <= 1) {
         return Status::Error(400, "Poll must have at least 2 option");
       }
-      if (input_poll->options_.size() > MAX_POLL_OPTIONS) {
-        return Status::Error(400, PSLICE() << "Poll can't have more than " << MAX_POLL_OPTIONS << " options");
+      if (static_cast<int64>(input_poll->options_.size()) > max_poll_options) {
+        return Status::Error(400, PSLICE() << "Poll can't have more than " << max_poll_options << " options");
       }
       vector<FormattedText> options;
       for (auto &input_option : input_poll->options_) {
@@ -4690,12 +4731,19 @@ Status can_send_message_content(DialogId dialog_id, const MessageContent *conten
       if (!permissions.can_send_polls()) {
         return Status::Error(400, "Not enough rights to send polls to the chat");
       }
-      if (dialog_type == DialogType::Channel && td->chat_manager_->is_broadcast_channel(dialog_id.get_channel_id()) &&
-          !td->poll_manager_->get_poll_is_anonymous(static_cast<const MessagePoll *>(content)->poll_id)) {
-        return Status::Error(400, "Non-anonymous polls can't be sent to channel chats");
+      if (dialog_type == DialogType::Channel) {
+        auto channel_id = dialog_id.get_channel_id();
+        if (td->chat_manager_->is_broadcast_channel(channel_id) &&
+            !td->poll_manager_->get_poll_is_anonymous(static_cast<const MessagePoll *>(content)->poll_id)) {
+          return Status::Error(400, "Non-anonymous polls can't be sent to channel chats");
+        }
+        if (td->chat_manager_->is_monoforum_channel(channel_id)) {
+          return Status::Error(400, "Polls can't be sent to channel direct messages chats");
+        }
       }
       if (dialog_type == DialogType::User && !is_forward && !td->auth_manager_->is_bot() &&
-          !td->user_manager_->is_user_bot(dialog_id.get_user_id())) {
+          !td->user_manager_->is_user_bot(dialog_id.get_user_id()) &&
+          dialog_id != td->dialog_manager_->get_my_dialog_id()) {
         return Status::Error(400, "Polls can't be sent to the private chat");
       }
       break;
@@ -5446,8 +5494,8 @@ static void merge_location_access_hash(const Location &first, const Location &se
 }
 
 static bool need_message_text_changed_warning(const MessageText *old_content, const MessageText *new_content) {
-  const int32 MAX_CUSTOM_ENTITIES_COUNT = 100;  // server-side limit
-  if (old_content->text.entities.size() > MAX_CUSTOM_ENTITIES_COUNT) {
+  const int32 MAX_CUSTOM_ENTITY_COUNT = 100;  // server-side limit
+  if (old_content->text.entities.size() > MAX_CUSTOM_ENTITY_COUNT) {
     return false;
   }
   if (new_content->text.text == "Unsupported characters" ||
@@ -6496,10 +6544,11 @@ void compare_message_contents(Td *td, const MessageContent *old_content, const M
       const auto *rhs = static_cast<const MessageStarGiftUnique *>(new_content);
       if (lhs->star_gift != rhs->star_gift || lhs->sender_dialog_id != rhs->sender_dialog_id ||
           lhs->owner_dialog_id != rhs->owner_dialog_id || lhs->saved_id != rhs->saved_id ||
-          lhs->transfer_star_count != rhs->transfer_star_count || lhs->can_export_at != rhs->can_export_at ||
-          lhs->is_saved != rhs->is_saved || lhs->is_upgrade != rhs->is_upgrade ||
-          lhs->can_transfer != rhs->can_transfer || lhs->was_transferred != rhs->was_transferred ||
-          lhs->was_refunded != rhs->was_refunded) {
+          lhs->resale_star_count != rhs->resale_star_count || lhs->transfer_star_count != rhs->transfer_star_count ||
+          lhs->can_transfer_at != rhs->can_transfer_at || lhs->can_resell_at != rhs->can_resell_at ||
+          lhs->can_export_at != rhs->can_export_at || lhs->is_saved != rhs->is_saved ||
+          lhs->is_upgrade != rhs->is_upgrade || lhs->can_transfer != rhs->can_transfer ||
+          lhs->was_transferred != rhs->was_transferred || lhs->was_refunded != rhs->was_refunded) {
         need_update = true;
       }
       break;
@@ -6515,7 +6564,7 @@ void compare_message_contents(Td *td, const MessageContent *old_content, const M
     case MessageContentType::PaidMessagesPrice: {
       const auto *lhs = static_cast<const MessagePaidMessagesPrice *>(old_content);
       const auto *rhs = static_cast<const MessagePaidMessagesPrice *>(new_content);
-      if (lhs->star_count != rhs->star_count) {
+      if (lhs->star_count != rhs->star_count || lhs->broadcast_messages_allowed != rhs->broadcast_messages_allowed) {
         need_update = true;
       }
       break;
@@ -8068,15 +8117,15 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
       return td::make_unique<MessageContactRegistered>();
     case telegram_api::messageActionGeoProximityReached::ID: {
       auto action = telegram_api::move_object_as<telegram_api::messageActionGeoProximityReached>(action_ptr);
-      DialogId traveler_id(action->from_id_);
-      DialogId watcher_id(action->to_id_);
+      DialogId traveler_dialog_id(action->from_id_);
+      DialogId watcher_dialog_id(action->to_id_);
       int32 distance = action->distance_;
-      if (!traveler_id.is_valid() || !watcher_id.is_valid() || distance < 0) {
+      if (!traveler_dialog_id.is_valid() || !watcher_dialog_id.is_valid() || distance < 0) {
         LOG(ERROR) << "Receive invalid " << oneline(to_string(action));
         break;
       }
 
-      return make_unique<MessageProximityAlertTriggered>(traveler_id, watcher_id, distance);
+      return make_unique<MessageProximityAlertTriggered>(traveler_dialog_id, watcher_dialog_id, distance);
     }
     case telegram_api::messageActionGroupCall::ID: {
       auto action = telegram_api::move_object_as<telegram_api::messageActionGroupCall>(action_ptr);
@@ -8376,9 +8425,11 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
       }
       return td::make_unique<MessageStarGiftUnique>(
           std::move(star_gift), gift_sender_dialog_id, gift_owner_dialog_id, saved_id,
-          StarManager::get_star_count(action->transfer_stars_), max(0, action->can_export_at_), action->saved_,
-          action->upgrade_, (action->flags_ & telegram_api::messageActionStarGiftUnique::TRANSFER_STARS_MASK) != 0,
-          action->transferred_, action->refunded_);
+          StarManager::get_star_count(action->resale_stars_), StarManager::get_star_count(action->transfer_stars_),
+          max(0, action->can_transfer_at_), max(0, action->can_resell_at_), max(0, action->can_export_at_),
+          action->saved_, action->upgrade_,
+          (action->flags_ & telegram_api::messageActionStarGiftUnique::TRANSFER_STARS_MASK) != 0, action->transferred_,
+          action->refunded_);
     }
     case telegram_api::messageActionPaidMessagesRefunded::ID: {
       auto action = move_tl_object_as<telegram_api::messageActionPaidMessagesRefunded>(action_ptr);
@@ -8387,7 +8438,8 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
     }
     case telegram_api::messageActionPaidMessagesPrice::ID: {
       auto action = move_tl_object_as<telegram_api::messageActionPaidMessagesPrice>(action_ptr);
-      return td::make_unique<MessagePaidMessagesPrice>(StarManager::get_star_count(action->stars_));
+      return td::make_unique<MessagePaidMessagesPrice>(StarManager::get_star_count(action->stars_),
+                                                       action->broadcast_messages_allowed_);
     }
     case telegram_api::messageActionConferenceCall::ID: {
       auto action = move_tl_object_as<telegram_api::messageActionConferenceCall>(action_ptr);
@@ -8894,21 +8946,27 @@ td_api::object_ptr<td_api::MessageContent> get_message_content_object(
     case MessageContentType::StarGift: {
       const auto *m = static_cast<const MessageStarGift *>(content);
       StarGiftId star_gift_id;
+      DialogId receiver_dialog_id;
       if (m->owner_dialog_id != DialogId()) {
         star_gift_id = StarGiftId(m->owner_dialog_id, m->saved_id);
-      } else if (dialog_id.get_type() == DialogType::User && !is_outgoing && is_server && message_id.is_server()) {
-        auto user_id = dialog_id.get_user_id();
-        if (user_id != UserManager::get_service_notifications_user_id()) {
-          star_gift_id = StarGiftId(message_id.get_server_message_id());
+        receiver_dialog_id = m->owner_dialog_id;
+      } else {
+        if (dialog_id.get_type() == DialogType::User && !is_outgoing && is_server && message_id.is_server()) {
+          auto user_id = dialog_id.get_user_id();
+          if (user_id != UserManager::get_service_notifications_user_id()) {
+            star_gift_id = StarGiftId(message_id.get_server_message_id());
+          }
         }
+        receiver_dialog_id = is_outgoing ? dialog_id : td->dialog_manager_->get_my_dialog_id();
       }
       if (m->sender_dialog_id != DialogId()) {
         sender_dialog_id = m->sender_dialog_id;
       }
       return td_api::make_object<td_api::messageGift>(
-          m->star_gift.get_gift_object(td), get_message_sender_object(td, sender_dialog_id, "messageGift"),
-          star_gift_id.get_star_gift_id(), get_text_object(m->text), m->convert_star_count, m->upgrade_star_count,
-          m->name_hidden, m->is_saved, m->can_upgrade, m->was_converted, m->was_upgraded, m->was_refunded,
+          m->star_gift.get_gift_object(td), get_message_sender_object(td, sender_dialog_id, "messageGift sender"),
+          get_message_sender_object(td, receiver_dialog_id, "messageGift receiver"), star_gift_id.get_star_gift_id(),
+          get_text_object(m->text), m->convert_star_count, m->upgrade_star_count, m->name_hidden, m->is_saved,
+          m->can_upgrade, m->was_converted, m->was_upgraded, m->was_refunded,
           StarGiftId(m->upgrade_message_id.get_server_message_id()).get_star_gift_id());
     }
     case MessageContentType::StarGiftUnique: {
@@ -8916,10 +8974,17 @@ td_api::object_ptr<td_api::MessageContent> get_message_content_object(
       if (m->sender_dialog_id != DialogId()) {
         sender_dialog_id = m->sender_dialog_id;
       }
+      DialogId receiver_dialog_id;
+      if (m->owner_dialog_id != DialogId()) {
+        receiver_dialog_id = m->owner_dialog_id;
+      } else {
+        receiver_dialog_id = m->is_upgrade != is_outgoing ? dialog_id : td->dialog_manager_->get_my_dialog_id();
+      }
       if (m->was_refunded) {
         return td_api::make_object<td_api::messageRefundedUpgradedGift>(
             m->star_gift.get_gift_object(td),
-            get_message_sender_object(td, sender_dialog_id, "messageRefundedUpgradedGift"), m->is_upgrade);
+            get_message_sender_object(td, sender_dialog_id, "messageRefundedUpgradedGift sender"),
+            get_message_sender_object(td, receiver_dialog_id, "messageRefundedUpgradedGift receiver"), m->is_upgrade);
       }
       StarGiftId star_gift_id;
       if (m->owner_dialog_id != DialogId()) {
@@ -8935,9 +9000,10 @@ td_api::object_ptr<td_api::MessageContent> get_message_content_object(
           m->star_gift.get_upgraded_gift_object(td),
           sender_dialog_id == DialogId(UserManager::get_service_notifications_user_id())
               ? nullptr
-              : get_message_sender_object(td, sender_dialog_id, "messageUpgradedGift"),
+              : get_message_sender_object(td, sender_dialog_id, "messageUpgradedGift sender"),
+          get_message_sender_object(td, receiver_dialog_id, "messageUpgradedGift receiver"),
           star_gift_id.get_star_gift_id(), m->is_upgrade, m->is_saved, m->can_transfer, m->was_transferred,
-          m->transfer_star_count, m->can_export_at);
+          m->resale_star_count, m->transfer_star_count, m->can_transfer_at, m->can_resell_at, m->can_export_at);
     }
     case MessageContentType::PaidMessagesRefunded: {
       const auto *m = static_cast<const MessagePaidMessagesRefunded *>(content);
@@ -8945,6 +9011,10 @@ td_api::object_ptr<td_api::MessageContent> get_message_content_object(
     }
     case MessageContentType::PaidMessagesPrice: {
       const auto *m = static_cast<const MessagePaidMessagesPrice *>(content);
+      if (td->dialog_manager_->is_broadcast_channel(dialog_id)) {
+        return td_api::make_object<td_api::messageDirectMessagePriceChanged>(
+            m->broadcast_messages_allowed, !m->broadcast_messages_allowed ? 0 : m->star_count);
+      }
       return td_api::make_object<td_api::messagePaidMessagePriceChanged>(m->star_count);
     }
     case MessageContentType::ConferenceCall: {
@@ -8975,9 +9045,9 @@ td_api::object_ptr<td_api::upgradeGiftResult> get_message_content_upgrade_gift_r
       } else if (dialog_id.get_type() == DialogType::User && message_id.is_valid() && message_id.is_server()) {
         star_gift_id = StarGiftId(message_id.get_server_message_id());
       }
-      return td_api::make_object<td_api::upgradeGiftResult>(m->star_gift.get_upgraded_gift_object(td),
-                                                            star_gift_id.get_star_gift_id(), m->is_saved,
-                                                            m->can_transfer, m->transfer_star_count, m->can_export_at);
+      return td_api::make_object<td_api::upgradeGiftResult>(
+          m->star_gift.get_upgraded_gift_object(td), star_gift_id.get_star_gift_id(), m->is_saved, m->can_transfer,
+          m->transfer_star_count, m->can_transfer_at, m->can_resell_at, m->can_export_at);
     }
     default:
       UNREACHABLE();

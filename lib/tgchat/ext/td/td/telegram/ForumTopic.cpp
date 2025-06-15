@@ -63,6 +63,32 @@ bool ForumTopic::update_last_read_inbox_message_id(MessageId last_read_inbox_mes
   return true;
 }
 
+bool ForumTopic::update_unread_mention_count(int32 count, bool is_relative) {
+  auto new_unread_mention_count = is_relative ? unread_mention_count_ + count : count;
+  if (new_unread_mention_count < 0) {
+    LOG(ERROR) << "Tried to change unread mention count to " << new_unread_mention_count;
+    new_unread_mention_count = 0;
+  }
+  if (unread_mention_count_ == new_unread_mention_count) {
+    return false;
+  }
+  unread_mention_count_ = new_unread_mention_count;
+  return true;
+}
+
+bool ForumTopic::update_unread_reaction_count(int32 count, bool is_relative) {
+  auto new_unread_reaction_count = is_relative ? unread_reaction_count_ + count : count;
+  if (new_unread_reaction_count < 0) {
+    LOG(ERROR) << "Tried to change unread reaction count to " << new_unread_reaction_count;
+    new_unread_reaction_count = 0;
+  }
+  if (unread_reaction_count_ == new_unread_reaction_count) {
+    return false;
+  }
+  unread_reaction_count_ = new_unread_reaction_count;
+  return true;
+}
+
 int64 ForumTopic::get_forum_topic_order(Td *td, DialogId dialog_id) const {
   int64 order = DEFAULT_ORDER;
   if (last_message_id_ != MessageId()) {
@@ -103,8 +129,8 @@ td_api::object_ptr<td_api::updateForumTopic> ForumTopic::get_update_forum_topic_
     Td *td, DialogId dialog_id, MessageId top_thread_message_id) const {
   return td_api::make_object<td_api::updateForumTopic>(
       td->dialog_manager_->get_chat_id_object(dialog_id, "updateForumTopic"), top_thread_message_id.get(), is_pinned_,
-      last_read_inbox_message_id_.get(), last_read_outbox_message_id_.get(),
-      get_chat_notification_settings_object(&notification_settings_));
+      last_read_inbox_message_id_.get(), last_read_outbox_message_id_.get(), unread_mention_count_,
+      unread_reaction_count_, get_chat_notification_settings_object(&notification_settings_));
 }
 
 }  // namespace td

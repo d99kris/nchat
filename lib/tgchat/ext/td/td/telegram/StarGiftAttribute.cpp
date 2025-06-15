@@ -48,6 +48,12 @@ td_api::object_ptr<td_api::upgradedGiftSymbol> StarGiftAttributeSticker::get_upg
       name_, td->stickers_manager_->get_sticker_object(sticker_file_id_), rarity_permille_);
 }
 
+StarGiftAttributeId StarGiftAttributeSticker::get_id(Td *td, bool is_model) const {
+  CHECK(is_valid());
+  auto sticker_id = td->stickers_manager_->get_sticker_id(sticker_file_id_);
+  return is_model ? StarGiftAttributeId::model(sticker_id) : StarGiftAttributeId::pattern(sticker_id);
+}
+
 bool operator==(const StarGiftAttributeSticker &lhs, const StarGiftAttributeSticker &rhs) {
   return lhs.name_ == rhs.name_ && lhs.sticker_file_id_ == rhs.sticker_file_id_ &&
          lhs.rarity_permille_ == rhs.rarity_permille_;
@@ -56,6 +62,7 @@ bool operator==(const StarGiftAttributeSticker &lhs, const StarGiftAttributeStic
 StarGiftAttributeBackdrop::StarGiftAttributeBackdrop(
     telegram_api::object_ptr<telegram_api::starGiftAttributeBackdrop> &&attribute)
     : name_(std::move(attribute->name_))
+    , id_(attribute->backdrop_id_)
     , center_color_(attribute->center_color_)
     , edge_color_(attribute->edge_color_)
     , pattern_color_(attribute->pattern_color_)
@@ -66,15 +73,20 @@ StarGiftAttributeBackdrop::StarGiftAttributeBackdrop(
 td_api::object_ptr<td_api::upgradedGiftBackdrop> StarGiftAttributeBackdrop::get_upgraded_gift_backdrop_object() const {
   CHECK(is_valid());
   return td_api::make_object<td_api::upgradedGiftBackdrop>(
-      name_,
+      id_, name_,
       td_api::make_object<td_api::upgradedGiftBackdropColors>(center_color_, edge_color_, pattern_color_, text_color_),
       rarity_permille_);
 }
 
+StarGiftAttributeId StarGiftAttributeBackdrop::get_id() const {
+  CHECK(is_valid());
+  return StarGiftAttributeId::backdrop(id_);
+}
+
 bool operator==(const StarGiftAttributeBackdrop &lhs, const StarGiftAttributeBackdrop &rhs) {
-  return lhs.name_ == rhs.name_ && lhs.center_color_ == rhs.center_color_ && lhs.edge_color_ == rhs.edge_color_ &&
-         lhs.pattern_color_ == rhs.pattern_color_ && lhs.text_color_ == rhs.text_color_ &&
-         lhs.rarity_permille_ == rhs.rarity_permille_;
+  return lhs.id_ == rhs.id_ && lhs.name_ == rhs.name_ && lhs.center_color_ == rhs.center_color_ &&
+         lhs.edge_color_ == rhs.edge_color_ && lhs.pattern_color_ == rhs.pattern_color_ &&
+         lhs.text_color_ == rhs.text_color_ && lhs.rarity_permille_ == rhs.rarity_permille_;
 }
 
 StarGiftAttributeOriginalDetails::StarGiftAttributeOriginalDetails(

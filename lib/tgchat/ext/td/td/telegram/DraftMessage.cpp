@@ -31,7 +31,8 @@ class SaveDraftMessageQuery final : public Td::ResultHandler {
   explicit SaveDraftMessageQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
   }
 
-  void send(DialogId dialog_id, const unique_ptr<DraftMessage> &draft_message) {
+  void send(DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id,
+            const unique_ptr<DraftMessage> &draft_message) {
     dialog_id_ = dialog_id;
 
     auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Write);
@@ -49,7 +50,8 @@ class SaveDraftMessageQuery final : public Td::ResultHandler {
     bool invert_media = false;
     if (draft_message != nullptr) {
       CHECK(!draft_message->is_local());
-      input_reply_to = draft_message->message_input_reply_to_.get_input_reply_to(td_, MessageId() /*TODO*/);
+      input_reply_to =
+          draft_message->message_input_reply_to_.get_input_reply_to(td_, MessageId() /*TODO*/, saved_messages_topic_id);
       if (input_reply_to != nullptr) {
         flags |= telegram_api::messages_saveDraft::REPLY_TO_MASK;
       }
@@ -549,9 +551,10 @@ unique_ptr<DraftMessage> get_draft_message(Td *td,
   }
 }
 
-void save_draft_message(Td *td, DialogId dialog_id, const unique_ptr<DraftMessage> &draft_message,
-                        Promise<Unit> &&promise) {
-  td->create_handler<SaveDraftMessageQuery>(std::move(promise))->send(dialog_id, draft_message);
+void save_draft_message(Td *td, DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id,
+                        const unique_ptr<DraftMessage> &draft_message, Promise<Unit> &&promise) {
+  td->create_handler<SaveDraftMessageQuery>(std::move(promise))
+      ->send(dialog_id, saved_messages_topic_id, draft_message);
 }
 
 void load_all_draft_messages(Td *td) {
@@ -560,6 +563,41 @@ void load_all_draft_messages(Td *td) {
 
 void clear_all_draft_messages(Td *td, Promise<Unit> &&promise) {
   td->create_handler<ClearAllDraftsQuery>(std::move(promise))->send();
+}
+
+vector<InputDialogId> get_draft_message_reply_input_dialog_ids(
+    const telegram_api::object_ptr<telegram_api::DraftMessage> &draft_message) {
+  if (draft_message == nullptr || draft_message->get_id() != telegram_api::draftMessage::ID) {
+    return {};
+  }
+  auto *input_reply_to = static_cast<const telegram_api::draftMessage *>(draft_message.get())->reply_to_.get();
+  if (input_reply_to == nullptr) {
+    return {};
+  }
+  switch (input_reply_to->get_id()) {
+    case telegram_api::inputReplyToStory::ID: {
+      auto reply_to = static_cast<const telegram_api::inputReplyToStory *>(input_reply_to);
+      return {InputDialogId(reply_to->peer_)};
+    }
+    case telegram_api::inputReplyToMessage::ID: {
+      auto reply_to = static_cast<const telegram_api::inputReplyToMessage *>(input_reply_to);
+      vector<InputDialogId> result;
+      if (reply_to->reply_to_peer_id_ != nullptr) {
+        result.emplace_back(reply_to->reply_to_peer_id_);
+      }
+      if (reply_to->monoforum_peer_id_ != nullptr) {
+        result.emplace_back(reply_to->monoforum_peer_id_);
+      }
+      return result;
+    }
+    case telegram_api::inputReplyToMonoForum::ID: {
+      auto reply_to = static_cast<const telegram_api::inputReplyToMonoForum *>(input_reply_to);
+      return {InputDialogId(reply_to->monoforum_peer_id_)};
+    }
+    default:
+      UNREACHABLE();
+  }
+  return {};
 }
 
 }  // namespace td

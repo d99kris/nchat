@@ -44,8 +44,6 @@ class SavedMessagesTopicId {
     return dialog_id_.is_valid();
   }
 
-  Status is_valid_status(Td *td) const;
-
   Status is_valid_in(Td *td, DialogId dialog_id) const;
 
   bool is_author_hidden() const;
@@ -55,6 +53,8 @@ class SavedMessagesTopicId {
   }
 
   td_api::object_ptr<td_api::SavedMessagesTopicType> get_saved_messages_topic_type_object(const Td *td) const;
+
+  td_api::object_ptr<td_api::MessageSender> get_monoforum_message_sender_object(Td *td) const;
 
   telegram_api::object_ptr<telegram_api::InputPeer> get_input_peer(const Td *td) const;
 
