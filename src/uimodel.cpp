@@ -4375,7 +4375,7 @@ void UiModel::OnKeyFind()
   // Pre-req
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
-    if (GetImpl().GetEditMessageActive() || GetImpl().GetFindMessageActive()) return;
+    if (GetImpl().GetEditMessageActive()) return;
 
     GetImpl().SetFindMessageActive(true);
   }
