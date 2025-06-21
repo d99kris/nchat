@@ -106,8 +106,8 @@ Supported Platforms
 nchat is developed and tested on Linux and macOS. Current version has been
 tested on:
 
-- macOS Sonoma 14.5
-- Ubuntu 22.04 LTS
+- macOS Sequoia 15.5
+- Ubuntu 24.04 LTS
 
 Install using Package Manager
 =============================
@@ -1113,7 +1113,8 @@ nchat. It is not intended to be a full-featured client on par with official
 Telegram / WhatsApp clients, but rather a light-weight client providing
 essential functionality suitable for the terminal. However, feel free to
 submit feature requests if there's something missing, or help upvote
-[existing feature requests](https://github.com/d99kris/nchat/discussions/categories/ideas?discussions_q=is%3Aopen+category%3AIdeas), and if it's useful and low effort it can probably be added.
+[existing feature requests](https://github.com/d99kris/nchat/discussions/categories/ideas?discussions_q=is%3Aopen+category%3AIdeas),
+if it's useful and low effort it will be considered.
 
 
 License
