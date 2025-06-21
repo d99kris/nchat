@@ -1015,6 +1015,26 @@ the QR code in the terminal:
 
     USE_QR_TERMINAL=1 nchat -s
 
+### 8. Build fails with `c++: fatal error: Killed signal terminated program cc1plus`?
+
+This often means that OOM killer has terminated the compilation due to the
+system running out of free RAM.
+
+If the system has **less than 4 GB RAM**, please refer to
+[Building on Low Memory Systems](/doc/LOWMEMORY.md).
+
+If the system has **4 GB RAM or more**, the problem can occur if parallelism
+is set too high, which is likely to be encountered when installing from the
+Arch Linux AUR package. A workaround for the AUR package is to manually
+restrict max number of parallel jobs to `available RAM in GB` divided by 4.
+For example a system with 8 GB would then need to use max 8 / 4 = 2 jobs:
+
+    CMAKE_BUILD_PARALLEL_LEVEL=2 yay -S nchat
+
+Alternatively one can [Build from Source](#build-from-source) using the
+`make.sh` script, which sets parallel job count based on the system
+capabilities.
+
 
 Technical Details
 =================
