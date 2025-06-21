@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# cvc v0.21
+# cvc v0.22
 #
 # Copyright (c) 2018-2025 Kristofer Berggren
 # All rights reserved.
@@ -68,6 +68,10 @@
 # alias sy='cvc sy'
 # alias up='cvc up'
 # alias ur='cvc ur'
+
+
+# GIT HELP FUNCTIONS
+# ------------------
 
 git_add()
 {
@@ -590,6 +594,9 @@ git_url()
 }
 
 
+# SVN HELP FUNCTIONS
+# ------------------
+
 svn_add()
 {
   # Check arguments
@@ -972,6 +979,9 @@ svn_url()
 }
 
 
+# COMMON FUNCTIONALITY
+# --------------------
+
 # Global config
 CVC_DEFAULT_VC="git"
 if [[ -f "${HOME}/.cvc" ]]; then
@@ -1008,26 +1018,14 @@ case "${1}" in
     ;;
 esac
 
-# Ensure git is installed
-if [[ "$(command -v git)" == "" ]]; then
-  echo "error: git is not installed on system."
-  exit 1
-fi
-
-# Ensure svn is installed
-if [[ "$(command -v svn)" == "" ]]; then
-  echo "error: svn is not installed on system."
-  exit 1
-fi
-
 # Current dir config
 TYPE=""
-git rev-parse --is-inside-work-tree &> /dev/null
+command -v git > /dev/null && git rev-parse --is-inside-work-tree &> /dev/null
 if [[ "${?}" == "0" ]]; then
   TYPE="git"
   CVCCONF="$(git rev-parse --show-toplevel)/.cvc"
 else
-  svn info &> /dev/null
+  command -v svn > /dev/null && svn info &> /dev/null
   if [[ "${?}" == "0" ]]; then
     TYPE="svn"
     CVCCONF="$(svn info . | grep -F "Working Copy Root Path:" | awk '{print $5}')/.cvc"
@@ -1035,6 +1033,14 @@ else
 fi
 
 if [[ "${TYPE}" == "" ]]; then
+  if [[ "$(command -v git)" == "" ]]; then
+    echo "warning: git is not installed on system."
+  fi
+
+  if [[ "$(command -v svn)" == "" ]]; then
+    echo "warning: svn is not installed on system."
+  fi
+
   echo "error: cvc must be called from a directory under git or svn control."
   exit 1
 fi
