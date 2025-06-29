@@ -136,7 +136,24 @@ if [[ "${DEPS}" == "1" ]]; then
       sudo apt update && sudo apt ${YES} install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev || exiterr "deps failed (${NAME}), exiting."
       sudo apt ${YES} install golang-1.23 || exiterr "deps failed (${NAME} apt golang), exiting."
       sudo update-alternatives --install /usr/bin/go go /usr/lib/go-1.23/bin/go 123 || exiterr "deps failed (${NAME} select golang), exiting."
-    elif [[ "${NAME}" == "Raspbian GNU/Linux" ]] || [[ "${NAME}" == "Debian GNU/Linux" ]] || [[ "${NAME}" == "Pop!_OS" ]]; then
+    elif [[ "${NAME}" == "Debian GNU/Linux" ]]; then
+      sudo apt update && sudo apt ${YES} install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev || exiterr "deps failed (${NAME}), exiting."
+      RELEASE=$(lsb_release -a | grep 'Codename:' | awk -F':' '{print $2}' | awk '{$1=$1;print}')
+      if [[ "${RELEASE}" == "bookworm" ]]; then
+        sudo apt install ${YES} -t bookworm-backports golang-1.23
+        if [[ "${?}" != "0" ]]; then
+          echo "Please ensure backports are enabled, see https://backports.debian.org/Instructions/#index2h2"
+          exiterr "deps failed (${NAME} ${RELEASE}), exiting."
+        fi
+        sudo update-alternatives --install /usr/bin/go go /usr/lib/go-1.23/bin/go 123 || exiterr "deps failed (${NAME} select golang), exiting."
+      elif [[ "${RELEASE}" == "unstable" ]]; then
+        sudo apt ${YES} install golang || exiterr "deps failed (${NAME} ${RELEASE}), exiting."
+      else
+        echo "Unsupported ${NAME} version ${RELEASE}. Install golang-1.23 or newer manually, for example by running:"
+        echo "wget https://go.dev/dl/go1.24.4.linux-amd64.tar.gz && sudo tar xf go.1.24.4.linux-amd64.tar.gz -C /usr/local"
+        exiterr "deps failed (${NAME} ${RELEASE}), exiting."
+      fi
+    elif [[ "${NAME}" == "Raspbian GNU/Linux" ]] || [[ "${NAME}" == "Pop!_OS" ]]; then
       sudo apt update && sudo apt ${YES} install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev golang || exiterr "deps failed (${NAME}), exiting."
     elif [[ "${NAME}" == "Gentoo" ]]; then
       sudo emerge -n dev-build/cmake dev-util/ccache dev-util/gperf sys-apps/help2man sys-libs/readline dev-libs/openssl sys-libs/ncurses sys-libs/zlib dev-db/sqlite sys-apps/file dev-lang/go || exiterr "deps failed (${NAME}), exiting."
