@@ -130,6 +130,8 @@ var mediaTypeToMMSType = map[MediaType]string{
 }
 
 // DownloadAny loops through the downloadable parts of the given message and downloads the first non-nil item.
+//
+// Deprecated: it's recommended to find the specific message type you want to download manually and use the Download method instead.
 func (cli *Client) DownloadAny(ctx context.Context, msg *waE2E.Message) (data []byte, err error) {
 	if msg == nil {
 		return nil, ErrNothingDownloadableFound
@@ -160,6 +162,10 @@ func getSize(msg DownloadableMessage) int {
 		return -1
 	}
 }
+
+// ReturnDownloadWarnings controls whether the Download function returns non-fatal validation warnings.
+// Currently, these include [ErrFileLengthMismatch] and [ErrInvalidMediaSHA256].
+var ReturnDownloadWarnings = true
 
 // DownloadThumbnail downloads a thumbnail from a message.
 //
@@ -293,10 +299,12 @@ func (cli *Client) downloadAndDecrypt(
 
 	} else if data, err = cbcutil.Decrypt(cipherKey, iv, ciphertext); err != nil {
 		err = fmt.Errorf("failed to decrypt file: %w", err)
-	} else if fileLength >= 0 && len(data) != fileLength {
-		err = fmt.Errorf("%w: expected %d, got %d", ErrFileLengthMismatch, fileLength, len(data))
-	} else if len(fileSHA256) == 32 && sha256.Sum256(data) != *(*[32]byte)(fileSHA256) {
-		err = ErrInvalidMediaSHA256
+	} else if ReturnDownloadWarnings {
+		if fileLength >= 0 && len(data) != fileLength {
+			err = fmt.Errorf("%w: expected %d, got %d", ErrFileLengthMismatch, fileLength, len(data))
+		} else if len(fileSHA256) == 32 && sha256.Sum256(data) != *(*[32]byte)(fileSHA256) {
+			err = ErrInvalidMediaSHA256
+		}
 	}
 	return
 }

@@ -22,9 +22,69 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type MiTransportAdminMessage_LimitSharingChanged_SharingType int32
+
+const (
+	MiTransportAdminMessage_LimitSharingChanged_UNSET    MiTransportAdminMessage_LimitSharingChanged_SharingType = 0
+	MiTransportAdminMessage_LimitSharingChanged_DISABLED MiTransportAdminMessage_LimitSharingChanged_SharingType = 1
+	MiTransportAdminMessage_LimitSharingChanged_ENABLED  MiTransportAdminMessage_LimitSharingChanged_SharingType = 2
+)
+
+// Enum value maps for MiTransportAdminMessage_LimitSharingChanged_SharingType.
+var (
+	MiTransportAdminMessage_LimitSharingChanged_SharingType_name = map[int32]string{
+		0: "UNSET",
+		1: "DISABLED",
+		2: "ENABLED",
+	}
+	MiTransportAdminMessage_LimitSharingChanged_SharingType_value = map[string]int32{
+		"UNSET":    0,
+		"DISABLED": 1,
+		"ENABLED":  2,
+	}
+)
+
+func (x MiTransportAdminMessage_LimitSharingChanged_SharingType) Enum() *MiTransportAdminMessage_LimitSharingChanged_SharingType {
+	p := new(MiTransportAdminMessage_LimitSharingChanged_SharingType)
+	*p = x
+	return p
+}
+
+func (x MiTransportAdminMessage_LimitSharingChanged_SharingType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (MiTransportAdminMessage_LimitSharingChanged_SharingType) Descriptor() protoreflect.EnumDescriptor {
+	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_enumTypes[0].Descriptor()
+}
+
+func (MiTransportAdminMessage_LimitSharingChanged_SharingType) Type() protoreflect.EnumType {
+	return &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_enumTypes[0]
+}
+
+func (x MiTransportAdminMessage_LimitSharingChanged_SharingType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Do not use.
+func (x *MiTransportAdminMessage_LimitSharingChanged_SharingType) UnmarshalJSON(b []byte) error {
+	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
+	if err != nil {
+		return err
+	}
+	*x = MiTransportAdminMessage_LimitSharingChanged_SharingType(num)
+	return nil
+}
+
+// Deprecated: Use MiTransportAdminMessage_LimitSharingChanged_SharingType.Descriptor instead.
+func (MiTransportAdminMessage_LimitSharingChanged_SharingType) EnumDescriptor() ([]byte, []int) {
+	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 0, 0}
+}
+
 type MiTransportAdminMessage_GroupImageChanged_Action int32
 
 const (
+	MiTransportAdminMessage_GroupImageChanged_UNSET   MiTransportAdminMessage_GroupImageChanged_Action = 0
 	MiTransportAdminMessage_GroupImageChanged_CHANGED MiTransportAdminMessage_GroupImageChanged_Action = 1
 	MiTransportAdminMessage_GroupImageChanged_REMOVED MiTransportAdminMessage_GroupImageChanged_Action = 2
 )
@@ -32,10 +92,12 @@ const (
 // Enum value maps for MiTransportAdminMessage_GroupImageChanged_Action.
 var (
 	MiTransportAdminMessage_GroupImageChanged_Action_name = map[int32]string{
+		0: "UNSET",
 		1: "CHANGED",
 		2: "REMOVED",
 	}
 	MiTransportAdminMessage_GroupImageChanged_Action_value = map[string]int32{
+		"UNSET":   0,
 		"CHANGED": 1,
 		"REMOVED": 2,
 	}
@@ -52,11 +114,11 @@ func (x MiTransportAdminMessage_GroupImageChanged_Action) String() string {
 }
 
 func (MiTransportAdminMessage_GroupImageChanged_Action) Descriptor() protoreflect.EnumDescriptor {
-	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_enumTypes[0].Descriptor()
+	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_enumTypes[1].Descriptor()
 }
 
 func (MiTransportAdminMessage_GroupImageChanged_Action) Type() protoreflect.EnumType {
-	return &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_enumTypes[0]
+	return &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_enumTypes[1]
 }
 
 func (x MiTransportAdminMessage_GroupImageChanged_Action) Number() protoreflect.EnumNumber {
@@ -75,12 +137,13 @@ func (x *MiTransportAdminMessage_GroupImageChanged_Action) UnmarshalJSON(b []byt
 
 // Deprecated: Use MiTransportAdminMessage_GroupImageChanged_Action.Descriptor instead.
 func (MiTransportAdminMessage_GroupImageChanged_Action) EnumDescriptor() ([]byte, []int) {
-	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 0, 0}
+	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 1, 0}
 }
 
 type MiTransportAdminMessage_MessagePinned_Action int32
 
 const (
+	MiTransportAdminMessage_MessagePinned_UNSET    MiTransportAdminMessage_MessagePinned_Action = 0
 	MiTransportAdminMessage_MessagePinned_PINNED   MiTransportAdminMessage_MessagePinned_Action = 1
 	MiTransportAdminMessage_MessagePinned_UNPINNED MiTransportAdminMessage_MessagePinned_Action = 2
 )
@@ -88,10 +151,12 @@ const (
 // Enum value maps for MiTransportAdminMessage_MessagePinned_Action.
 var (
 	MiTransportAdminMessage_MessagePinned_Action_name = map[int32]string{
+		0: "UNSET",
 		1: "PINNED",
 		2: "UNPINNED",
 	}
 	MiTransportAdminMessage_MessagePinned_Action_value = map[string]int32{
+		"UNSET":    0,
 		"PINNED":   1,
 		"UNPINNED": 2,
 	}
@@ -108,11 +173,11 @@ func (x MiTransportAdminMessage_MessagePinned_Action) String() string {
 }
 
 func (MiTransportAdminMessage_MessagePinned_Action) Descriptor() protoreflect.EnumDescriptor {
-	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_enumTypes[1].Descriptor()
+	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_enumTypes[2].Descriptor()
 }
 
 func (MiTransportAdminMessage_MessagePinned_Action) Type() protoreflect.EnumType {
-	return &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_enumTypes[1]
+	return &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_enumTypes[2]
 }
 
 func (x MiTransportAdminMessage_MessagePinned_Action) Number() protoreflect.EnumNumber {
@@ -131,12 +196,13 @@ func (x *MiTransportAdminMessage_MessagePinned_Action) UnmarshalJSON(b []byte) e
 
 // Deprecated: Use MiTransportAdminMessage_MessagePinned_Action.Descriptor instead.
 func (MiTransportAdminMessage_MessagePinned_Action) EnumDescriptor() ([]byte, []int) {
-	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 1, 0}
+	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 2, 0}
 }
 
 type MiTransportAdminMessage_GroupMembershipAddModeChanged_Mode int32
 
 const (
+	MiTransportAdminMessage_GroupMembershipAddModeChanged_UNSET       MiTransportAdminMessage_GroupMembershipAddModeChanged_Mode = 0
 	MiTransportAdminMessage_GroupMembershipAddModeChanged_ALL_MEMBERS MiTransportAdminMessage_GroupMembershipAddModeChanged_Mode = 1
 	MiTransportAdminMessage_GroupMembershipAddModeChanged_ADMINS_ONLY MiTransportAdminMessage_GroupMembershipAddModeChanged_Mode = 2
 )
@@ -144,10 +210,12 @@ const (
 // Enum value maps for MiTransportAdminMessage_GroupMembershipAddModeChanged_Mode.
 var (
 	MiTransportAdminMessage_GroupMembershipAddModeChanged_Mode_name = map[int32]string{
+		0: "UNSET",
 		1: "ALL_MEMBERS",
 		2: "ADMINS_ONLY",
 	}
 	MiTransportAdminMessage_GroupMembershipAddModeChanged_Mode_value = map[string]int32{
+		"UNSET":       0,
 		"ALL_MEMBERS": 1,
 		"ADMINS_ONLY": 2,
 	}
@@ -164,11 +232,11 @@ func (x MiTransportAdminMessage_GroupMembershipAddModeChanged_Mode) String() str
 }
 
 func (MiTransportAdminMessage_GroupMembershipAddModeChanged_Mode) Descriptor() protoreflect.EnumDescriptor {
-	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_enumTypes[2].Descriptor()
+	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_enumTypes[3].Descriptor()
 }
 
 func (MiTransportAdminMessage_GroupMembershipAddModeChanged_Mode) Type() protoreflect.EnumType {
-	return &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_enumTypes[2]
+	return &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_enumTypes[3]
 }
 
 func (x MiTransportAdminMessage_GroupMembershipAddModeChanged_Mode) Number() protoreflect.EnumNumber {
@@ -187,12 +255,13 @@ func (x *MiTransportAdminMessage_GroupMembershipAddModeChanged_Mode) UnmarshalJS
 
 // Deprecated: Use MiTransportAdminMessage_GroupMembershipAddModeChanged_Mode.Descriptor instead.
 func (MiTransportAdminMessage_GroupMembershipAddModeChanged_Mode) EnumDescriptor() ([]byte, []int) {
-	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 2, 0}
+	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 3, 0}
 }
 
 type MiTransportAdminMessage_GroupAdminChanged_Action int32
 
 const (
+	MiTransportAdminMessage_GroupAdminChanged_UNSET   MiTransportAdminMessage_GroupAdminChanged_Action = 0
 	MiTransportAdminMessage_GroupAdminChanged_ADDED   MiTransportAdminMessage_GroupAdminChanged_Action = 1
 	MiTransportAdminMessage_GroupAdminChanged_REMOVED MiTransportAdminMessage_GroupAdminChanged_Action = 2
 )
@@ -200,10 +269,12 @@ const (
 // Enum value maps for MiTransportAdminMessage_GroupAdminChanged_Action.
 var (
 	MiTransportAdminMessage_GroupAdminChanged_Action_name = map[int32]string{
+		0: "UNSET",
 		1: "ADDED",
 		2: "REMOVED",
 	}
 	MiTransportAdminMessage_GroupAdminChanged_Action_value = map[string]int32{
+		"UNSET":   0,
 		"ADDED":   1,
 		"REMOVED": 2,
 	}
@@ -220,11 +291,11 @@ func (x MiTransportAdminMessage_GroupAdminChanged_Action) String() string {
 }
 
 func (MiTransportAdminMessage_GroupAdminChanged_Action) Descriptor() protoreflect.EnumDescriptor {
-	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_enumTypes[3].Descriptor()
+	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_enumTypes[4].Descriptor()
 }
 
 func (MiTransportAdminMessage_GroupAdminChanged_Action) Type() protoreflect.EnumType {
-	return &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_enumTypes[3]
+	return &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_enumTypes[4]
 }
 
 func (x MiTransportAdminMessage_GroupAdminChanged_Action) Number() protoreflect.EnumNumber {
@@ -243,12 +314,13 @@ func (x *MiTransportAdminMessage_GroupAdminChanged_Action) UnmarshalJSON(b []byt
 
 // Deprecated: Use MiTransportAdminMessage_GroupAdminChanged_Action.Descriptor instead.
 func (MiTransportAdminMessage_GroupAdminChanged_Action) EnumDescriptor() ([]byte, []int) {
-	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 3, 0}
+	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 4, 0}
 }
 
 type MiTransportAdminMessage_GroupParticipantChanged_Action int32
 
 const (
+	MiTransportAdminMessage_GroupParticipantChanged_UNSET   MiTransportAdminMessage_GroupParticipantChanged_Action = 0
 	MiTransportAdminMessage_GroupParticipantChanged_ADDED   MiTransportAdminMessage_GroupParticipantChanged_Action = 1
 	MiTransportAdminMessage_GroupParticipantChanged_REMOVED MiTransportAdminMessage_GroupParticipantChanged_Action = 2
 )
@@ -256,10 +328,12 @@ const (
 // Enum value maps for MiTransportAdminMessage_GroupParticipantChanged_Action.
 var (
 	MiTransportAdminMessage_GroupParticipantChanged_Action_name = map[int32]string{
+		0: "UNSET",
 		1: "ADDED",
 		2: "REMOVED",
 	}
 	MiTransportAdminMessage_GroupParticipantChanged_Action_value = map[string]int32{
+		"UNSET":   0,
 		"ADDED":   1,
 		"REMOVED": 2,
 	}
@@ -276,11 +350,11 @@ func (x MiTransportAdminMessage_GroupParticipantChanged_Action) String() string 
 }
 
 func (MiTransportAdminMessage_GroupParticipantChanged_Action) Descriptor() protoreflect.EnumDescriptor {
-	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_enumTypes[4].Descriptor()
+	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_enumTypes[5].Descriptor()
 }
 
 func (MiTransportAdminMessage_GroupParticipantChanged_Action) Type() protoreflect.EnumType {
-	return &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_enumTypes[4]
+	return &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_enumTypes[5]
 }
 
 func (x MiTransportAdminMessage_GroupParticipantChanged_Action) Number() protoreflect.EnumNumber {
@@ -299,7 +373,7 @@ func (x *MiTransportAdminMessage_GroupParticipantChanged_Action) UnmarshalJSON(b
 
 // Deprecated: Use MiTransportAdminMessage_GroupParticipantChanged_Action.Descriptor instead.
 func (MiTransportAdminMessage_GroupParticipantChanged_Action) EnumDescriptor() ([]byte, []int) {
-	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 4, 0}
+	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 5, 0}
 }
 
 type MiTransportAdminMessage struct {
@@ -318,6 +392,7 @@ type MiTransportAdminMessage struct {
 	//	*MiTransportAdminMessage_LinkCta_
 	//	*MiTransportAdminMessage_IconChanged_
 	//	*MiTransportAdminMessage_DisappearingSettingChanged_
+	//	*MiTransportAdminMessage_LimitSharingChanged_
 	Content       isMiTransportAdminMessage_Content `protobuf_oneof:"content"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -468,6 +543,15 @@ func (x *MiTransportAdminMessage) GetDisappearingSettingChanged() *MiTransportAd
 	return nil
 }
 
+func (x *MiTransportAdminMessage) GetLimitSharingChanged() *MiTransportAdminMessage_LimitSharingChanged {
+	if x != nil {
+		if x, ok := x.Content.(*MiTransportAdminMessage_LimitSharingChanged_); ok {
+			return x.LimitSharingChanged
+		}
+	}
+	return nil
+}
+
 type isMiTransportAdminMessage_Content interface {
 	isMiTransportAdminMessage_Content()
 }
@@ -520,6 +604,10 @@ type MiTransportAdminMessage_DisappearingSettingChanged_ struct {
 	DisappearingSettingChanged *MiTransportAdminMessage_DisappearingSettingChanged `protobuf:"bytes,12,opt,name=disappearingSettingChanged,oneof"`
 }
 
+type MiTransportAdminMessage_LimitSharingChanged_ struct {
+	LimitSharingChanged *MiTransportAdminMessage_LimitSharingChanged `protobuf:"bytes,13,opt,name=limitSharingChanged,oneof"`
+}
+
 func (*MiTransportAdminMessage_ChatThemeChanged_) isMiTransportAdminMessage_Content() {}
 
 func (*MiTransportAdminMessage_NicknameChanged_) isMiTransportAdminMessage_Content() {}
@@ -544,6 +632,52 @@ func (*MiTransportAdminMessage_IconChanged_) isMiTransportAdminMessage_Content()
 
 func (*MiTransportAdminMessage_DisappearingSettingChanged_) isMiTransportAdminMessage_Content() {}
 
+func (*MiTransportAdminMessage_LimitSharingChanged_) isMiTransportAdminMessage_Content() {}
+
+type MiTransportAdminMessage_LimitSharingChanged struct {
+	state         protoimpl.MessageState                                   `protogen:"open.v1"`
+	SharingType   *MiTransportAdminMessage_LimitSharingChanged_SharingType `protobuf:"varint,1,opt,name=sharingType,enum=WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage_LimitSharingChanged_SharingType" json:"sharingType,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MiTransportAdminMessage_LimitSharingChanged) Reset() {
+	*x = MiTransportAdminMessage_LimitSharingChanged{}
+	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MiTransportAdminMessage_LimitSharingChanged) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MiTransportAdminMessage_LimitSharingChanged) ProtoMessage() {}
+
+func (x *MiTransportAdminMessage_LimitSharingChanged) ProtoReflect() protoreflect.Message {
+	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MiTransportAdminMessage_LimitSharingChanged.ProtoReflect.Descriptor instead.
+func (*MiTransportAdminMessage_LimitSharingChanged) Descriptor() ([]byte, []int) {
+	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 0}
+}
+
+func (x *MiTransportAdminMessage_LimitSharingChanged) GetSharingType() MiTransportAdminMessage_LimitSharingChanged_SharingType {
+	if x != nil && x.SharingType != nil {
+		return *x.SharingType
+	}
+	return MiTransportAdminMessage_LimitSharingChanged_UNSET
+}
+
 type MiTransportAdminMessage_GroupImageChanged struct {
 	state         protoimpl.MessageState                            `protogen:"open.v1"`
 	Action        *MiTransportAdminMessage_GroupImageChanged_Action `protobuf:"varint,1,opt,name=action,enum=WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage_GroupImageChanged_Action" json:"action,omitempty"`
@@ -553,7 +687,7 @@ type MiTransportAdminMessage_GroupImageChanged struct {
 
 func (x *MiTransportAdminMessage_GroupImageChanged) Reset() {
 	*x = MiTransportAdminMessage_GroupImageChanged{}
-	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[1]
+	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -565,7 +699,7 @@ func (x *MiTransportAdminMessage_GroupImageChanged) String() string {
 func (*MiTransportAdminMessage_GroupImageChanged) ProtoMessage() {}
 
 func (x *MiTransportAdminMessage_GroupImageChanged) ProtoReflect() protoreflect.Message {
-	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[1]
+	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -578,14 +712,14 @@ func (x *MiTransportAdminMessage_GroupImageChanged) ProtoReflect() protoreflect.
 
 // Deprecated: Use MiTransportAdminMessage_GroupImageChanged.ProtoReflect.Descriptor instead.
 func (*MiTransportAdminMessage_GroupImageChanged) Descriptor() ([]byte, []int) {
-	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 0}
+	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 1}
 }
 
 func (x *MiTransportAdminMessage_GroupImageChanged) GetAction() MiTransportAdminMessage_GroupImageChanged_Action {
 	if x != nil && x.Action != nil {
 		return *x.Action
 	}
-	return MiTransportAdminMessage_GroupImageChanged_CHANGED
+	return MiTransportAdminMessage_GroupImageChanged_UNSET
 }
 
 type MiTransportAdminMessage_MessagePinned struct {
@@ -597,7 +731,7 @@ type MiTransportAdminMessage_MessagePinned struct {
 
 func (x *MiTransportAdminMessage_MessagePinned) Reset() {
 	*x = MiTransportAdminMessage_MessagePinned{}
-	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[2]
+	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -609,7 +743,7 @@ func (x *MiTransportAdminMessage_MessagePinned) String() string {
 func (*MiTransportAdminMessage_MessagePinned) ProtoMessage() {}
 
 func (x *MiTransportAdminMessage_MessagePinned) ProtoReflect() protoreflect.Message {
-	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[2]
+	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -622,14 +756,14 @@ func (x *MiTransportAdminMessage_MessagePinned) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use MiTransportAdminMessage_MessagePinned.ProtoReflect.Descriptor instead.
 func (*MiTransportAdminMessage_MessagePinned) Descriptor() ([]byte, []int) {
-	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 1}
+	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 2}
 }
 
 func (x *MiTransportAdminMessage_MessagePinned) GetAction() MiTransportAdminMessage_MessagePinned_Action {
 	if x != nil && x.Action != nil {
 		return *x.Action
 	}
-	return MiTransportAdminMessage_MessagePinned_PINNED
+	return MiTransportAdminMessage_MessagePinned_UNSET
 }
 
 type MiTransportAdminMessage_GroupMembershipAddModeChanged struct {
@@ -641,7 +775,7 @@ type MiTransportAdminMessage_GroupMembershipAddModeChanged struct {
 
 func (x *MiTransportAdminMessage_GroupMembershipAddModeChanged) Reset() {
 	*x = MiTransportAdminMessage_GroupMembershipAddModeChanged{}
-	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[3]
+	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -653,7 +787,7 @@ func (x *MiTransportAdminMessage_GroupMembershipAddModeChanged) String() string 
 func (*MiTransportAdminMessage_GroupMembershipAddModeChanged) ProtoMessage() {}
 
 func (x *MiTransportAdminMessage_GroupMembershipAddModeChanged) ProtoReflect() protoreflect.Message {
-	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[3]
+	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -666,14 +800,14 @@ func (x *MiTransportAdminMessage_GroupMembershipAddModeChanged) ProtoReflect() p
 
 // Deprecated: Use MiTransportAdminMessage_GroupMembershipAddModeChanged.ProtoReflect.Descriptor instead.
 func (*MiTransportAdminMessage_GroupMembershipAddModeChanged) Descriptor() ([]byte, []int) {
-	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 2}
+	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 3}
 }
 
 func (x *MiTransportAdminMessage_GroupMembershipAddModeChanged) GetMode() MiTransportAdminMessage_GroupMembershipAddModeChanged_Mode {
 	if x != nil && x.Mode != nil {
 		return *x.Mode
 	}
-	return MiTransportAdminMessage_GroupMembershipAddModeChanged_ALL_MEMBERS
+	return MiTransportAdminMessage_GroupMembershipAddModeChanged_UNSET
 }
 
 type MiTransportAdminMessage_GroupAdminChanged struct {
@@ -686,7 +820,7 @@ type MiTransportAdminMessage_GroupAdminChanged struct {
 
 func (x *MiTransportAdminMessage_GroupAdminChanged) Reset() {
 	*x = MiTransportAdminMessage_GroupAdminChanged{}
-	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[4]
+	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -698,7 +832,7 @@ func (x *MiTransportAdminMessage_GroupAdminChanged) String() string {
 func (*MiTransportAdminMessage_GroupAdminChanged) ProtoMessage() {}
 
 func (x *MiTransportAdminMessage_GroupAdminChanged) ProtoReflect() protoreflect.Message {
-	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[4]
+	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -711,7 +845,7 @@ func (x *MiTransportAdminMessage_GroupAdminChanged) ProtoReflect() protoreflect.
 
 // Deprecated: Use MiTransportAdminMessage_GroupAdminChanged.ProtoReflect.Descriptor instead.
 func (*MiTransportAdminMessage_GroupAdminChanged) Descriptor() ([]byte, []int) {
-	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 3}
+	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 4}
 }
 
 func (x *MiTransportAdminMessage_GroupAdminChanged) GetTargetUserID() []string {
@@ -725,7 +859,7 @@ func (x *MiTransportAdminMessage_GroupAdminChanged) GetAction() MiTransportAdmin
 	if x != nil && x.Action != nil {
 		return *x.Action
 	}
-	return MiTransportAdminMessage_GroupAdminChanged_ADDED
+	return MiTransportAdminMessage_GroupAdminChanged_UNSET
 }
 
 type MiTransportAdminMessage_GroupParticipantChanged struct {
@@ -738,7 +872,7 @@ type MiTransportAdminMessage_GroupParticipantChanged struct {
 
 func (x *MiTransportAdminMessage_GroupParticipantChanged) Reset() {
 	*x = MiTransportAdminMessage_GroupParticipantChanged{}
-	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[5]
+	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -750,7 +884,7 @@ func (x *MiTransportAdminMessage_GroupParticipantChanged) String() string {
 func (*MiTransportAdminMessage_GroupParticipantChanged) ProtoMessage() {}
 
 func (x *MiTransportAdminMessage_GroupParticipantChanged) ProtoReflect() protoreflect.Message {
-	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[5]
+	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -763,7 +897,7 @@ func (x *MiTransportAdminMessage_GroupParticipantChanged) ProtoReflect() protore
 
 // Deprecated: Use MiTransportAdminMessage_GroupParticipantChanged.ProtoReflect.Descriptor instead.
 func (*MiTransportAdminMessage_GroupParticipantChanged) Descriptor() ([]byte, []int) {
-	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 4}
+	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 5}
 }
 
 func (x *MiTransportAdminMessage_GroupParticipantChanged) GetTargetUserID() []string {
@@ -777,7 +911,7 @@ func (x *MiTransportAdminMessage_GroupParticipantChanged) GetAction() MiTranspor
 	if x != nil && x.Action != nil {
 		return *x.Action
 	}
-	return MiTransportAdminMessage_GroupParticipantChanged_ADDED
+	return MiTransportAdminMessage_GroupParticipantChanged_UNSET
 }
 
 type MiTransportAdminMessage_DisappearingSettingChanged struct {
@@ -790,7 +924,7 @@ type MiTransportAdminMessage_DisappearingSettingChanged struct {
 
 func (x *MiTransportAdminMessage_DisappearingSettingChanged) Reset() {
 	*x = MiTransportAdminMessage_DisappearingSettingChanged{}
-	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[6]
+	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -802,7 +936,7 @@ func (x *MiTransportAdminMessage_DisappearingSettingChanged) String() string {
 func (*MiTransportAdminMessage_DisappearingSettingChanged) ProtoMessage() {}
 
 func (x *MiTransportAdminMessage_DisappearingSettingChanged) ProtoReflect() protoreflect.Message {
-	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[6]
+	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -815,7 +949,7 @@ func (x *MiTransportAdminMessage_DisappearingSettingChanged) ProtoReflect() prot
 
 // Deprecated: Use MiTransportAdminMessage_DisappearingSettingChanged.ProtoReflect.Descriptor instead.
 func (*MiTransportAdminMessage_DisappearingSettingChanged) Descriptor() ([]byte, []int) {
-	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 5}
+	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 6}
 }
 
 func (x *MiTransportAdminMessage_DisappearingSettingChanged) GetDisappearingSettingDurationSeconds() int32 {
@@ -841,7 +975,7 @@ type MiTransportAdminMessage_IconChanged struct {
 
 func (x *MiTransportAdminMessage_IconChanged) Reset() {
 	*x = MiTransportAdminMessage_IconChanged{}
-	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[7]
+	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -853,7 +987,7 @@ func (x *MiTransportAdminMessage_IconChanged) String() string {
 func (*MiTransportAdminMessage_IconChanged) ProtoMessage() {}
 
 func (x *MiTransportAdminMessage_IconChanged) ProtoReflect() protoreflect.Message {
-	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[7]
+	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -866,7 +1000,7 @@ func (x *MiTransportAdminMessage_IconChanged) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use MiTransportAdminMessage_IconChanged.ProtoReflect.Descriptor instead.
 func (*MiTransportAdminMessage_IconChanged) Descriptor() ([]byte, []int) {
-	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 6}
+	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 7}
 }
 
 func (x *MiTransportAdminMessage_IconChanged) GetThreadIcon() string {
@@ -888,7 +1022,7 @@ type MiTransportAdminMessage_LinkCta struct {
 
 func (x *MiTransportAdminMessage_LinkCta) Reset() {
 	*x = MiTransportAdminMessage_LinkCta{}
-	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[8]
+	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -900,7 +1034,7 @@ func (x *MiTransportAdminMessage_LinkCta) String() string {
 func (*MiTransportAdminMessage_LinkCta) ProtoMessage() {}
 
 func (x *MiTransportAdminMessage_LinkCta) ProtoReflect() protoreflect.Message {
-	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[8]
+	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -913,7 +1047,7 @@ func (x *MiTransportAdminMessage_LinkCta) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MiTransportAdminMessage_LinkCta.ProtoReflect.Descriptor instead.
 func (*MiTransportAdminMessage_LinkCta) Descriptor() ([]byte, []int) {
-	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 7}
+	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 8}
 }
 
 func (x *MiTransportAdminMessage_LinkCta) GetContent() isMiTransportAdminMessage_LinkCta_Content {
@@ -951,7 +1085,7 @@ type MiTransportAdminMessage_QuickReactionChanged struct {
 
 func (x *MiTransportAdminMessage_QuickReactionChanged) Reset() {
 	*x = MiTransportAdminMessage_QuickReactionChanged{}
-	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[9]
+	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -963,7 +1097,7 @@ func (x *MiTransportAdminMessage_QuickReactionChanged) String() string {
 func (*MiTransportAdminMessage_QuickReactionChanged) ProtoMessage() {}
 
 func (x *MiTransportAdminMessage_QuickReactionChanged) ProtoReflect() protoreflect.Message {
-	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[9]
+	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -976,7 +1110,7 @@ func (x *MiTransportAdminMessage_QuickReactionChanged) ProtoReflect() protorefle
 
 // Deprecated: Use MiTransportAdminMessage_QuickReactionChanged.ProtoReflect.Descriptor instead.
 func (*MiTransportAdminMessage_QuickReactionChanged) Descriptor() ([]byte, []int) {
-	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 8}
+	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 9}
 }
 
 func (x *MiTransportAdminMessage_QuickReactionChanged) GetEmojiName() string {
@@ -995,7 +1129,7 @@ type MiTransportAdminMessage_GroupNameChanged struct {
 
 func (x *MiTransportAdminMessage_GroupNameChanged) Reset() {
 	*x = MiTransportAdminMessage_GroupNameChanged{}
-	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[10]
+	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1007,7 +1141,7 @@ func (x *MiTransportAdminMessage_GroupNameChanged) String() string {
 func (*MiTransportAdminMessage_GroupNameChanged) ProtoMessage() {}
 
 func (x *MiTransportAdminMessage_GroupNameChanged) ProtoReflect() protoreflect.Message {
-	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[10]
+	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1020,7 +1154,7 @@ func (x *MiTransportAdminMessage_GroupNameChanged) ProtoReflect() protoreflect.M
 
 // Deprecated: Use MiTransportAdminMessage_GroupNameChanged.ProtoReflect.Descriptor instead.
 func (*MiTransportAdminMessage_GroupNameChanged) Descriptor() ([]byte, []int) {
-	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 9}
+	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 10}
 }
 
 func (x *MiTransportAdminMessage_GroupNameChanged) GetGroupName() string {
@@ -1040,7 +1174,7 @@ type MiTransportAdminMessage_NicknameChanged struct {
 
 func (x *MiTransportAdminMessage_NicknameChanged) Reset() {
 	*x = MiTransportAdminMessage_NicknameChanged{}
-	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[11]
+	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1052,7 +1186,7 @@ func (x *MiTransportAdminMessage_NicknameChanged) String() string {
 func (*MiTransportAdminMessage_NicknameChanged) ProtoMessage() {}
 
 func (x *MiTransportAdminMessage_NicknameChanged) ProtoReflect() protoreflect.Message {
-	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[11]
+	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1065,7 +1199,7 @@ func (x *MiTransportAdminMessage_NicknameChanged) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use MiTransportAdminMessage_NicknameChanged.ProtoReflect.Descriptor instead.
 func (*MiTransportAdminMessage_NicknameChanged) Descriptor() ([]byte, []int) {
-	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 10}
+	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 11}
 }
 
 func (x *MiTransportAdminMessage_NicknameChanged) GetTargetUserID() string {
@@ -1093,7 +1227,7 @@ type MiTransportAdminMessage_ChatThemeChanged struct {
 
 func (x *MiTransportAdminMessage_ChatThemeChanged) Reset() {
 	*x = MiTransportAdminMessage_ChatThemeChanged{}
-	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[12]
+	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1105,7 +1239,7 @@ func (x *MiTransportAdminMessage_ChatThemeChanged) String() string {
 func (*MiTransportAdminMessage_ChatThemeChanged) ProtoMessage() {}
 
 func (x *MiTransportAdminMessage_ChatThemeChanged) ProtoReflect() protoreflect.Message {
-	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[12]
+	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1118,7 +1252,7 @@ func (x *MiTransportAdminMessage_ChatThemeChanged) ProtoReflect() protoreflect.M
 
 // Deprecated: Use MiTransportAdminMessage_ChatThemeChanged.ProtoReflect.Descriptor instead.
 func (*MiTransportAdminMessage_ChatThemeChanged) Descriptor() ([]byte, []int) {
-	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 11}
+	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 12}
 }
 
 func (x *MiTransportAdminMessage_ChatThemeChanged) GetThemeName() string {
@@ -1151,7 +1285,7 @@ type MiTransportAdminMessage_LinkCta_UkOsaAdminText struct {
 
 func (x *MiTransportAdminMessage_LinkCta_UkOsaAdminText) Reset() {
 	*x = MiTransportAdminMessage_LinkCta_UkOsaAdminText{}
-	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[13]
+	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1163,7 +1297,7 @@ func (x *MiTransportAdminMessage_LinkCta_UkOsaAdminText) String() string {
 func (*MiTransportAdminMessage_LinkCta_UkOsaAdminText) ProtoMessage() {}
 
 func (x *MiTransportAdminMessage_LinkCta_UkOsaAdminText) ProtoReflect() protoreflect.Message {
-	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[13]
+	mi := &file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1176,7 +1310,7 @@ func (x *MiTransportAdminMessage_LinkCta_UkOsaAdminText) ProtoReflect() protoref
 
 // Deprecated: Use MiTransportAdminMessage_LinkCta_UkOsaAdminText.ProtoReflect.Descriptor instead.
 func (*MiTransportAdminMessage_LinkCta_UkOsaAdminText) Descriptor() ([]byte, []int) {
-	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 7, 0}
+	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescGZIP(), []int{0, 8, 0}
 }
 
 func (x *MiTransportAdminMessage_LinkCta_UkOsaAdminText) GetInitiatorUserID() string {
@@ -1190,7 +1324,7 @@ var File_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_p
 
 const file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDesc = "" +
 	"\n" +
-	"KwaArmadilloMiTransportAdminMessage/WAArmadilloMiTransportAdminMessage.proto\x12\"WAArmadilloMiTransportAdminMessage\"\xc6\x19\n" +
+	"KwaArmadilloMiTransportAdminMessage/WAArmadilloMiTransportAdminMessage.proto\x12\"WAArmadilloMiTransportAdminMessage\"\xcf\x1c\n" +
 	"\x17MiTransportAdminMessage\x12z\n" +
 	"\x10chatThemeChanged\x18\x01 \x01(\v2L.WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.ChatThemeChangedH\x00R\x10chatThemeChanged\x12w\n" +
 	"\x0fnicknameChanged\x18\x02 \x01(\v2K.WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.NicknameChangedH\x00R\x0fnicknameChanged\x12\x8f\x01\n" +
@@ -1204,33 +1338,45 @@ const file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage
 	"\alinkCta\x18\n" +
 	" \x01(\v2C.WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.LinkCtaH\x00R\alinkCta\x12k\n" +
 	"\viconChanged\x18\v \x01(\v2G.WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.IconChangedH\x00R\viconChanged\x12\x98\x01\n" +
-	"\x1adisappearingSettingChanged\x18\f \x01(\v2V.WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.DisappearingSettingChangedH\x00R\x1adisappearingSettingChanged\x1a\xa5\x01\n" +
+	"\x1adisappearingSettingChanged\x18\f \x01(\v2V.WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.DisappearingSettingChangedH\x00R\x1adisappearingSettingChanged\x12\x83\x01\n" +
+	"\x13limitSharingChanged\x18\r \x01(\v2O.WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.LimitSharingChangedH\x00R\x13limitSharingChanged\x1a\xc9\x01\n" +
+	"\x13LimitSharingChanged\x12}\n" +
+	"\vsharingType\x18\x01 \x01(\x0e2[.WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.LimitSharingChanged.SharingTypeR\vsharingType\"3\n" +
+	"\vSharingType\x12\t\n" +
+	"\x05UNSET\x10\x00\x12\f\n" +
+	"\bDISABLED\x10\x01\x12\v\n" +
+	"\aENABLED\x10\x02\x1a\xb0\x01\n" +
 	"\x11GroupImageChanged\x12l\n" +
-	"\x06action\x18\x01 \x01(\x0e2T.WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupImageChanged.ActionR\x06action\"\"\n" +
-	"\x06Action\x12\v\n" +
+	"\x06action\x18\x01 \x01(\x0e2T.WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupImageChanged.ActionR\x06action\"-\n" +
+	"\x06Action\x12\t\n" +
+	"\x05UNSET\x10\x00\x12\v\n" +
 	"\aCHANGED\x10\x01\x12\v\n" +
-	"\aREMOVED\x10\x02\x1a\x9d\x01\n" +
+	"\aREMOVED\x10\x02\x1a\xa8\x01\n" +
 	"\rMessagePinned\x12h\n" +
-	"\x06action\x18\x01 \x01(\x0e2P.WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.MessagePinned.ActionR\x06action\"\"\n" +
-	"\x06Action\x12\n" +
+	"\x06action\x18\x01 \x01(\x0e2P.WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.MessagePinned.ActionR\x06action\"-\n" +
+	"\x06Action\x12\t\n" +
+	"\x05UNSET\x10\x00\x12\n" +
 	"\n" +
 	"\x06PINNED\x10\x01\x12\f\n" +
-	"\bUNPINNED\x10\x02\x1a\xbd\x01\n" +
+	"\bUNPINNED\x10\x02\x1a\xc8\x01\n" +
 	"\x1dGroupMembershipAddModeChanged\x12r\n" +
-	"\x04mode\x18\x01 \x01(\x0e2^.WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupMembershipAddModeChanged.ModeR\x04mode\"(\n" +
-	"\x04Mode\x12\x0f\n" +
+	"\x04mode\x18\x01 \x01(\x0e2^.WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupMembershipAddModeChanged.ModeR\x04mode\"3\n" +
+	"\x04Mode\x12\t\n" +
+	"\x05UNSET\x10\x00\x12\x0f\n" +
 	"\vALL_MEMBERS\x10\x01\x12\x0f\n" +
-	"\vADMINS_ONLY\x10\x02\x1a\xc7\x01\n" +
+	"\vADMINS_ONLY\x10\x02\x1a\xd2\x01\n" +
 	"\x11GroupAdminChanged\x12\"\n" +
 	"\ftargetUserID\x18\x01 \x03(\tR\ftargetUserID\x12l\n" +
-	"\x06action\x18\x02 \x01(\x0e2T.WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupAdminChanged.ActionR\x06action\" \n" +
+	"\x06action\x18\x02 \x01(\x0e2T.WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupAdminChanged.ActionR\x06action\"+\n" +
 	"\x06Action\x12\t\n" +
+	"\x05UNSET\x10\x00\x12\t\n" +
 	"\x05ADDED\x10\x01\x12\v\n" +
-	"\aREMOVED\x10\x02\x1a\xd3\x01\n" +
+	"\aREMOVED\x10\x02\x1a\xde\x01\n" +
 	"\x17GroupParticipantChanged\x12\"\n" +
 	"\ftargetUserID\x18\x01 \x03(\tR\ftargetUserID\x12r\n" +
-	"\x06action\x18\x02 \x01(\x0e2Z.WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupParticipantChanged.ActionR\x06action\" \n" +
+	"\x06action\x18\x02 \x01(\x0e2Z.WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupParticipantChanged.ActionR\x06action\"+\n" +
 	"\x06Action\x12\t\n" +
+	"\x05UNSET\x10\x00\x12\t\n" +
 	"\x05ADDED\x10\x01\x12\v\n" +
 	"\aREMOVED\x10\x02\x1a\xc2\x01\n" +
 	"\x1aDisappearingSettingChanged\x12N\n" +
@@ -1272,53 +1418,57 @@ func file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_
 	return file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDescData
 }
 
-var file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
+var file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_goTypes = []any{
-	(MiTransportAdminMessage_GroupImageChanged_Action)(0),           // 0: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupImageChanged.Action
-	(MiTransportAdminMessage_MessagePinned_Action)(0),               // 1: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.MessagePinned.Action
-	(MiTransportAdminMessage_GroupMembershipAddModeChanged_Mode)(0), // 2: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupMembershipAddModeChanged.Mode
-	(MiTransportAdminMessage_GroupAdminChanged_Action)(0),           // 3: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupAdminChanged.Action
-	(MiTransportAdminMessage_GroupParticipantChanged_Action)(0),     // 4: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupParticipantChanged.Action
-	(*MiTransportAdminMessage)(nil),                                 // 5: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage
-	(*MiTransportAdminMessage_GroupImageChanged)(nil),               // 6: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupImageChanged
-	(*MiTransportAdminMessage_MessagePinned)(nil),                   // 7: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.MessagePinned
-	(*MiTransportAdminMessage_GroupMembershipAddModeChanged)(nil),   // 8: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupMembershipAddModeChanged
-	(*MiTransportAdminMessage_GroupAdminChanged)(nil),               // 9: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupAdminChanged
-	(*MiTransportAdminMessage_GroupParticipantChanged)(nil),         // 10: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupParticipantChanged
-	(*MiTransportAdminMessage_DisappearingSettingChanged)(nil),      // 11: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.DisappearingSettingChanged
-	(*MiTransportAdminMessage_IconChanged)(nil),                     // 12: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.IconChanged
-	(*MiTransportAdminMessage_LinkCta)(nil),                         // 13: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.LinkCta
-	(*MiTransportAdminMessage_QuickReactionChanged)(nil),            // 14: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.QuickReactionChanged
-	(*MiTransportAdminMessage_GroupNameChanged)(nil),                // 15: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupNameChanged
-	(*MiTransportAdminMessage_NicknameChanged)(nil),                 // 16: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.NicknameChanged
-	(*MiTransportAdminMessage_ChatThemeChanged)(nil),                // 17: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.ChatThemeChanged
-	(*MiTransportAdminMessage_LinkCta_UkOsaAdminText)(nil),          // 18: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.LinkCta.UkOsaAdminText
+	(MiTransportAdminMessage_LimitSharingChanged_SharingType)(0),    // 0: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.LimitSharingChanged.SharingType
+	(MiTransportAdminMessage_GroupImageChanged_Action)(0),           // 1: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupImageChanged.Action
+	(MiTransportAdminMessage_MessagePinned_Action)(0),               // 2: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.MessagePinned.Action
+	(MiTransportAdminMessage_GroupMembershipAddModeChanged_Mode)(0), // 3: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupMembershipAddModeChanged.Mode
+	(MiTransportAdminMessage_GroupAdminChanged_Action)(0),           // 4: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupAdminChanged.Action
+	(MiTransportAdminMessage_GroupParticipantChanged_Action)(0),     // 5: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupParticipantChanged.Action
+	(*MiTransportAdminMessage)(nil),                                 // 6: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage
+	(*MiTransportAdminMessage_LimitSharingChanged)(nil),             // 7: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.LimitSharingChanged
+	(*MiTransportAdminMessage_GroupImageChanged)(nil),               // 8: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupImageChanged
+	(*MiTransportAdminMessage_MessagePinned)(nil),                   // 9: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.MessagePinned
+	(*MiTransportAdminMessage_GroupMembershipAddModeChanged)(nil),   // 10: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupMembershipAddModeChanged
+	(*MiTransportAdminMessage_GroupAdminChanged)(nil),               // 11: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupAdminChanged
+	(*MiTransportAdminMessage_GroupParticipantChanged)(nil),         // 12: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupParticipantChanged
+	(*MiTransportAdminMessage_DisappearingSettingChanged)(nil),      // 13: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.DisappearingSettingChanged
+	(*MiTransportAdminMessage_IconChanged)(nil),                     // 14: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.IconChanged
+	(*MiTransportAdminMessage_LinkCta)(nil),                         // 15: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.LinkCta
+	(*MiTransportAdminMessage_QuickReactionChanged)(nil),            // 16: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.QuickReactionChanged
+	(*MiTransportAdminMessage_GroupNameChanged)(nil),                // 17: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupNameChanged
+	(*MiTransportAdminMessage_NicknameChanged)(nil),                 // 18: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.NicknameChanged
+	(*MiTransportAdminMessage_ChatThemeChanged)(nil),                // 19: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.ChatThemeChanged
+	(*MiTransportAdminMessage_LinkCta_UkOsaAdminText)(nil),          // 20: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.LinkCta.UkOsaAdminText
 }
 var file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_depIdxs = []int32{
-	17, // 0: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.chatThemeChanged:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.ChatThemeChanged
-	16, // 1: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.nicknameChanged:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.NicknameChanged
-	10, // 2: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.groupParticipantChanged:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupParticipantChanged
-	9,  // 3: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.groupAdminChanged:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupAdminChanged
-	15, // 4: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.groupNameChanged:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupNameChanged
-	8,  // 5: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.groupMembershipAddModeChanged:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupMembershipAddModeChanged
-	7,  // 6: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.messagePinned:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.MessagePinned
-	6,  // 7: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.groupImageChanged:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupImageChanged
-	14, // 8: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.quickReactionChanged:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.QuickReactionChanged
-	13, // 9: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.linkCta:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.LinkCta
-	12, // 10: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.iconChanged:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.IconChanged
-	11, // 11: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.disappearingSettingChanged:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.DisappearingSettingChanged
-	0,  // 12: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupImageChanged.action:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupImageChanged.Action
-	1,  // 13: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.MessagePinned.action:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.MessagePinned.Action
-	2,  // 14: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupMembershipAddModeChanged.mode:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupMembershipAddModeChanged.Mode
-	3,  // 15: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupAdminChanged.action:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupAdminChanged.Action
-	4,  // 16: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupParticipantChanged.action:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupParticipantChanged.Action
-	18, // 17: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.LinkCta.ukOsaAdminText:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.LinkCta.UkOsaAdminText
-	18, // [18:18] is the sub-list for method output_type
-	18, // [18:18] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	19, // 0: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.chatThemeChanged:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.ChatThemeChanged
+	18, // 1: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.nicknameChanged:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.NicknameChanged
+	12, // 2: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.groupParticipantChanged:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupParticipantChanged
+	11, // 3: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.groupAdminChanged:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupAdminChanged
+	17, // 4: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.groupNameChanged:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupNameChanged
+	10, // 5: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.groupMembershipAddModeChanged:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupMembershipAddModeChanged
+	9,  // 6: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.messagePinned:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.MessagePinned
+	8,  // 7: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.groupImageChanged:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupImageChanged
+	16, // 8: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.quickReactionChanged:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.QuickReactionChanged
+	15, // 9: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.linkCta:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.LinkCta
+	14, // 10: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.iconChanged:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.IconChanged
+	13, // 11: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.disappearingSettingChanged:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.DisappearingSettingChanged
+	7,  // 12: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.limitSharingChanged:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.LimitSharingChanged
+	0,  // 13: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.LimitSharingChanged.sharingType:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.LimitSharingChanged.SharingType
+	1,  // 14: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupImageChanged.action:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupImageChanged.Action
+	2,  // 15: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.MessagePinned.action:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.MessagePinned.Action
+	3,  // 16: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupMembershipAddModeChanged.mode:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupMembershipAddModeChanged.Mode
+	4,  // 17: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupAdminChanged.action:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupAdminChanged.Action
+	5,  // 18: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupParticipantChanged.action:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.GroupParticipantChanged.Action
+	20, // 19: WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.LinkCta.ukOsaAdminText:type_name -> WAArmadilloMiTransportAdminMessage.MiTransportAdminMessage.LinkCta.UkOsaAdminText
+	20, // [20:20] is the sub-list for method output_type
+	20, // [20:20] is the sub-list for method input_type
+	20, // [20:20] is the sub-list for extension type_name
+	20, // [20:20] is the sub-list for extension extendee
+	0,  // [0:20] is the sub-list for field type_name
 }
 
 func init() { file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_init() }
@@ -1339,8 +1489,9 @@ func file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_
 		(*MiTransportAdminMessage_LinkCta_)(nil),
 		(*MiTransportAdminMessage_IconChanged_)(nil),
 		(*MiTransportAdminMessage_DisappearingSettingChanged_)(nil),
+		(*MiTransportAdminMessage_LimitSharingChanged_)(nil),
 	}
-	file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[8].OneofWrappers = []any{
+	file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_msgTypes[9].OneofWrappers = []any{
 		(*MiTransportAdminMessage_LinkCta_UkOsaAdminText_)(nil),
 	}
 	type x struct{}
@@ -1348,8 +1499,8 @@ func file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDesc), len(file_waArmadilloMiTransportAdminMessage_WAArmadilloMiTransportAdminMessage_proto_rawDesc)),
-			NumEnums:      5,
-			NumMessages:   14,
+			NumEnums:      6,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
