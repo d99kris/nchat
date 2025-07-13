@@ -1128,6 +1128,14 @@ Please refer to [Contributing Guidelines](/doc/CONTRIBUTING.md) and
 [Design Notes](/doc/DESIGN.md).
 
 
+Alternatives
+============
+Other terminal-based Telegram/WhatsApp clients:
+
+- Telegram: [tgt](https://github.com/FedericoBruzzone/tgt)
+- WhatsApp: [whatscli](https://github.com/normen/whatscli)
+
+
 Keywords
 ========
 command line, console-based, linux, macos, chat client, ncurses, telegram,
