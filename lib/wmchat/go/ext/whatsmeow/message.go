@@ -351,7 +351,7 @@ func (cli *Client) decryptMessages(ctx context.Context, info *types.MessageInfo,
 			return
 		} else if err != nil {
 			cli.Log.Warnf("Error decrypting message %s from %s: %v", info.ID, info.SourceString(), err)
-			if ctx.Err() != nil {
+			if ctx.Err() != nil || errors.Is(err, context.Canceled) {
 				handlerFailed = true
 				return
 			}
@@ -388,7 +388,7 @@ func (cli *Client) decryptMessages(ctx context.Context, info *types.MessageInfo,
 		default:
 			cli.Log.Warnf("Unknown version %d in decrypted message from %s", ag.Int("v"), info.SourceString())
 		}
-		if ciphertextHash != nil && cli.EnableDecryptedEventBuffer {
+		if ciphertextHash != nil && cli.EnableDecryptedEventBuffer && !handlerFailed {
 			// Use the context passed to decryptMessages
 			err = cli.Store.EventBuffer.ClearBufferedEventPlaintext(ctx, *ciphertextHash)
 			if err != nil {
@@ -412,7 +412,7 @@ func (cli *Client) decryptMessages(ctx context.Context, info *types.MessageInfo,
 			}
 		}
 	}
-	if handled {
+	if handled && !handlerFailed {
 		go cli.sendMessageReceipt(info)
 	}
 	return
