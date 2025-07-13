@@ -1130,10 +1130,14 @@ Please refer to [Contributing Guidelines](/doc/CONTRIBUTING.md) and
 
 Alternatives
 ============
-Other terminal-based Telegram/WhatsApp clients:
+Terminal-based Telegram clients:
 
-- Telegram: [tgt](https://github.com/FedericoBruzzone/tgt)
-- WhatsApp: [whatscli](https://github.com/normen/whatscli)
+- [tg](https://github.com/paul-nameless/tg)
+- [tgt](https://github.com/FedericoBruzzone/tgt)
+
+Terminal-based WhatsApp clients:
+
+- [whatscli](https://github.com/normen/whatscli)
 
 
 Keywords
