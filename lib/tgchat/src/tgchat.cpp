@@ -205,6 +205,9 @@ private:
   std::map<std::string, std::set<std::string>> m_SponsoredMessageIds;
   int m_ProfileDirVersion = 0;
   bool m_WasOnline = false;
+  std::mutex m_Mutex;
+  size_t m_GetUserDetailsCurrent = 0;
+  size_t m_GetUserDetailsTotal = 0;
   static const int s_CacheDirVersion = 2;
 };
 
@@ -695,42 +698,69 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
 
         std::shared_ptr<DeferGetUserDetailsRequest> deferGetUserDetailsRequest =
           std::static_pointer_cast<DeferGetUserDetailsRequest>(p_RequestMessage);
-
         const std::vector<std::string>& userIds = deferGetUserDetailsRequest->userIds;
+
+        std::unique_lock<std::mutex> lock(m_Mutex);
+        m_GetUserDetailsCurrent = 0;
+        m_GetUserDetailsTotal = userIds.size();
+        lock.unlock();
+
+        Status::Set(Status::FlagFetching);
+
         for (auto& userId : userIds)
         {
-          Status::Set(Status::FlagFetching);
           std::int64_t userIdNum = StrUtil::NumFromHex<int64_t>(userId);
-
           auto get_user = td::td_api::make_object<td::td_api::getUser>();
           get_user->user_id_ = userIdNum;
           SendQuery(std::move(get_user),
                     [this](Object object)
           {
-            Status::Clear(Status::FlagFetching);
+            if (object->get_id() != td::td_api::error::ID)
+            {
+              auto tuser = td::move_tl_object_as<td::td_api::user>(object);
+              if (tuser)
+              {
+                const int64_t contactId = tuser->id_;
+                ContactInfo contactInfo;
+                contactInfo.id = StrUtil::NumToHex(contactId);
+                contactInfo.name =
+                  tuser->first_name_ + (tuser->last_name_.empty() ? "" : " " + tuser->last_name_);
+                contactInfo.phone = tuser->phone_number_;
+                contactInfo.isSelf = IsSelf(contactId);
 
-            if (object->get_id() == td::td_api::error::ID) return;
+                std::unique_lock<std::mutex> lock(m_Mutex);
+                m_ContactInfos[contactId] = contactInfo;
+                lock.unlock();
+              }
+            }
 
-            auto tuser = td::move_tl_object_as<td::td_api::user>(object);
-
-            if (!tuser) return;
-
-            const int64_t contactId = tuser->id_;
-            ContactInfo contactInfo;
-            contactInfo.id = StrUtil::NumToHex(contactId);
-            contactInfo.name =
-              tuser->first_name_ + (tuser->last_name_.empty() ? "" : " " + tuser->last_name_);
-            contactInfo.phone = tuser->phone_number_;
-            contactInfo.isSelf = IsSelf(contactId);
-            m_ContactInfos[contactId] = contactInfo;
-
+            std::unique_lock<std::mutex> lock(m_Mutex);
             std::vector<ContactInfo> contactInfos;
-            contactInfos.push_back(contactInfo);
+            ++m_GetUserDetailsCurrent;
+            if (m_GetUserDetailsCurrent == m_GetUserDetailsTotal)
+            {
+              // Last request, consolidate info
+              m_GetUserDetailsCurrent = 0;
+              m_GetUserDetailsTotal = 0;
 
-            std::shared_ptr<NewContactsNotify> newContactsNotify =
-              std::make_shared<NewContactsNotify>(m_ProfileId);
-            newContactsNotify->contactInfos = contactInfos;
-            CallMessageHandler(newContactsNotify);
+              for (const auto& contactInfo : m_ContactInfos)
+              {
+                contactInfos.push_back(contactInfo.second);
+              }
+
+              Status::Clear(Status::FlagFetching);
+            }
+
+            lock.unlock();
+
+            if (!contactInfos.empty())
+            {
+              std::shared_ptr<NewContactsNotify> newContactsNotify =
+                std::make_shared<NewContactsNotify>(m_ProfileId);
+              newContactsNotify->fullSync = true;
+              newContactsNotify->contactInfos = contactInfos;
+              CallMessageHandler(newContactsNotify);
+            }
           });
         }
       }

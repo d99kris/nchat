@@ -55,6 +55,10 @@ public:
 
   void SetProtocolUiControl(bool p_IsTakeControl);
 
+  void AddContactInfo(const ContactInfo& p_ContactInfo);
+  std::vector<ContactInfo> GetContactInfos();
+  void ClearContactInfos();
+
 public:
   static void AddInstance(int p_ConnId, WmChat* p_Instance);
   static void RemoveInstance(int p_ConnId);
@@ -79,8 +83,6 @@ private:
   std::mutex m_ProcessMutex;
   std::condition_variable m_ProcessCondVar;
 
-  static std::mutex s_ConnIdMapMutex;
-  static std::map<int, WmChat*> s_ConnIdMap;
   int m_ConnId = -1;
   std::string m_ProfileDir;
   Config m_Config;
@@ -88,11 +90,17 @@ private:
   int m_ProfileDirVersion = 0;
   bool m_WasOnline = false;
   bool m_IsSetup = false;
+
+  std::mutex m_Mutex;
+  std::vector<ContactInfo> m_ContactInfos;
+
+  static std::mutex s_ConnIdMapMutex;
+  static std::map<int, WmChat*> s_ConnIdMap;
   static const int s_CacheDirVersion = 0; // update MessageCache::AddProfile() once bumped to 1
 };
 
 extern "C" {
-void WmNewContactsNotify(int p_ConnId, char* p_ChatId, char* p_Name, char* p_Phone, int p_IsSelf);
+void WmNewContactsNotify(int p_ConnId, char* p_ChatId, char* p_Name, char* p_Phone, int p_IsSelf, int p_IsNotify);
 void WmNewChatsNotify(int p_ConnId, char* p_ChatId, int p_IsUnread, int p_IsMuted, int p_IsPinned,
                       int p_LastMessageTime);
 void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe,

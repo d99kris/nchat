@@ -1316,6 +1316,12 @@ void UiModel::Impl::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMess
       {
         std::shared_ptr<NewContactsNotify> newContactsNotify = std::static_pointer_cast<NewContactsNotify>(
           p_ServiceMessage);
+        const bool fullSync = newContactsNotify->fullSync;
+        if (fullSync)
+        {
+          m_ContactInfos[profileId].clear();
+        }
+
         const std::vector<ContactInfo>& contactInfos = newContactsNotify->contactInfos;
         for (auto& contactInfo : contactInfos)
         {

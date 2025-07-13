@@ -425,6 +425,7 @@ public:
   explicit NewContactsNotify(const std::string& p_ProfileId)
     : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return NewContactsNotifyType; }
+  bool fullSync = false;
   std::vector<ContactInfo> contactInfos;
 };
 
