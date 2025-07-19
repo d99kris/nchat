@@ -700,10 +700,11 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
           std::static_pointer_cast<DeferGetUserDetailsRequest>(p_RequestMessage);
         const std::vector<std::string>& userIds = deferGetUserDetailsRequest->userIds;
 
-        std::unique_lock<std::mutex> lock(m_Mutex);
-        m_GetUserDetailsCurrent = 0;
-        m_GetUserDetailsTotal = userIds.size();
-        lock.unlock();
+        {
+          std::unique_lock<std::mutex> lock(m_Mutex);
+          m_GetUserDetailsCurrent = 0;
+          m_GetUserDetailsTotal = userIds.size();
+        }
 
         Status::Set(Status::FlagFetching);
 
