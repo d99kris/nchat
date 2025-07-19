@@ -392,6 +392,7 @@ This configuration file holds general user interface settings. Default content:
     muted_indicate_unread=1
     muted_notify_unread=0
     muted_position_by_timestamp=1
+    notify_every_unread=1
     online_status_share=1
     online_status_dynamic=1
     phone_number_indicator=
@@ -586,6 +587,10 @@ Specifies whether to notify (terminal bell) new unread messages in muted chats.
 
 Specifies whether chat list position of muted chats should reflect the time of
 their last received/sent message. Otherwise muted chats are listed last.
+
+### notify_every_unread
+
+Specifies whether to notify upon receiving more messages in an unread chat.
 
 ### online_status_share
 

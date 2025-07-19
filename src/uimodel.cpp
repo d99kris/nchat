@@ -1989,7 +1989,8 @@ void UiModel::Impl::UpdateChatInfoIsUnread(const std::string& p_ProfileId, const
     static const bool mutedNotifyUnread = UiConfig::GetBool("muted_notify_unread");
     if (mutedNotifyUnread || !profileChatInfos[p_ChatId].isMuted || hasMention)
     {
-      if (!profileChatInfos[p_ChatId].isUnread && isUnread)
+      static const bool notifyEveryUnread = UiConfig::GetBool("notify_every_unread");
+      if (isUnread && (!profileChatInfos[p_ChatId].isUnread || notifyEveryUnread))
       {
         const bool receivedAfterConnect = (chatMessage.timeSent > m_ConnectTime[p_ProfileId]);
         if (receivedAfterConnect)

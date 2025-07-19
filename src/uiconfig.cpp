@@ -47,6 +47,7 @@ void UiConfig::Init()
     { "muted_indicate_unread", "1" },
     { "muted_notify_unread", "0" },
     { "muted_position_by_timestamp", "1" },
+    { "notify_every_unread", "1" },
     { "online_status_share", "1" },
     { "online_status_dynamic", "1" },
     { "phone_number_indicator", "" },
