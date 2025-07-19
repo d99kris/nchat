@@ -218,6 +218,7 @@ private:
     std::unordered_map<std::string, std::unordered_map<std::string, ChatInfo>> m_ChatInfos;
     std::unordered_map<std::string, std::unordered_map<std::string, ContactInfo>> m_ContactInfos;
     int64_t m_ContactInfosUpdateTime = 0;
+    std::unordered_map<std::string, int64_t> m_ConnectTime;
 
     std::pair<std::string, std::string> m_CurrentChat;
     int m_CurrentChatIndex = -1;

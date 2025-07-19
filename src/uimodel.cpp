@@ -1309,6 +1309,8 @@ void UiModel::Impl::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMess
         {
           SetStatusOnline(profileId, true);
         }
+
+        m_ConnectTime[profileId] = TimeUtil::GetCurrentTimeMSec();
       }
       break;
 
@@ -1989,23 +1991,27 @@ void UiModel::Impl::UpdateChatInfoIsUnread(const std::string& p_ProfileId, const
     {
       if (!profileChatInfos[p_ChatId].isUnread && isUnread)
       {
-        static const bool terminalBellActive = UiConfig::GetBool("terminal_bell_active");
-        static const bool terminalBellInactive = UiConfig::GetBool("terminal_bell_inactive");
-        bool terminalBell = m_TerminalActive ? terminalBellActive : terminalBellInactive;
-        if (terminalBell)
+        const bool receivedAfterConnect = (chatMessage.timeSent > m_ConnectTime[p_ProfileId]);
+        if (receivedAfterConnect)
         {
-          m_TriggerTerminalBell = true;
-        }
+          static const bool terminalBellActive = UiConfig::GetBool("terminal_bell_active");
+          static const bool terminalBellInactive = UiConfig::GetBool("terminal_bell_inactive");
+          bool terminalBell = m_TerminalActive ? terminalBellActive : terminalBellInactive;
+          if (terminalBell)
+          {
+            m_TriggerTerminalBell = true;
+          }
 
-        static const bool desktopNotifyActive = UiConfig::GetBool("desktop_notify_active");
-        static const bool desktopNotifyInactive = UiConfig::GetBool("desktop_notify_inactive");
-        bool desktopNotify = m_TerminalActive ? desktopNotifyActive : desktopNotifyInactive;
-        if (desktopNotify)
-        {
-          const std::string name = (chatMessage.senderId == p_ChatId)
-            ? GetContactName(p_ProfileId, chatMessage.senderId)
-            : GetContactName(p_ProfileId, p_ChatId) + " - " + GetContactName(p_ProfileId, chatMessage.senderId);
-          DesktopNotifyUnread(name, chatMessage.text);
+          static const bool desktopNotifyActive = UiConfig::GetBool("desktop_notify_active");
+          static const bool desktopNotifyInactive = UiConfig::GetBool("desktop_notify_inactive");
+          bool desktopNotify = m_TerminalActive ? desktopNotifyActive : desktopNotifyInactive;
+          if (desktopNotify)
+          {
+            const std::string name = (chatMessage.senderId == p_ChatId)
+              ? GetContactName(p_ProfileId, chatMessage.senderId)
+              : GetContactName(p_ProfileId, p_ChatId) + " - " + GetContactName(p_ProfileId, chatMessage.senderId);
+            DesktopNotifyUnread(name, chatMessage.text);
+          }
         }
       }
     }
