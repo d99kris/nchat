@@ -72,6 +72,13 @@ void UiContactListDialog::UpdateList()
 
   const bool emojiEnabled = m_Model->GetEmojiEnabled();
 
+  // Get current item based on index
+  UiContactListItem currentContactItem;
+  if (m_Index < (int)m_ContactListItemVec.size())
+  {
+    currentContactItem = m_ContactListItemVec[m_Index];
+  }
+
   m_Index = 0;
   m_Items.clear();
   m_ContactListItemVec.clear();
@@ -127,5 +134,19 @@ void UiContactListDialog::UpdateList()
   {
     m_Items.push_back(StrUtil::TrimPadWString(StrUtil::ToWString(contactListItem.name), m_W));
     m_ContactListItemVec.push_back(contactListItem);
+  }
+
+  // Set index based on current item
+  if (!currentContactItem.profileId.empty() && !currentContactItem.contactId.empty())
+  {
+    for (auto it = m_ContactListItemVec.begin(); it != m_ContactListItemVec.end(); ++it)
+    {
+      if ((it->contactId == currentContactItem.contactId) &&
+          (it->profileId == currentContactItem.profileId))
+      {
+        m_Index = std::distance(m_ContactListItemVec.begin(), it);
+        break;
+      }
+    }
   }
 }
