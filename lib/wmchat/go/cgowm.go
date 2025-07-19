@@ -74,6 +74,11 @@ func CWmSendMessage(connId int, chatId *C.char, text *C.char, quotedId *C.char, 
 	return WmSendMessage(connId, C.GoString(chatId), C.GoString(text), C.GoString(quotedId), C.GoString(quotedText), C.GoString(quotedSender), C.GoString(filePath), C.GoString(fileType), C.GoString(editMsgId), editMsgSent)
 }
 
+//export CWmGetContacts
+func CWmGetContacts(connId int) int {
+	return WmGetContacts(connId)
+}
+
 //export CWmGetStatus
 func CWmGetStatus(connId int, userId *C.char) int {
 	return WmGetStatus(connId, C.GoString(userId))

@@ -619,7 +619,7 @@ func (handler *WmEventHandler) HandleEvent(rawEvt interface{}) {
 			handler.HandleConnected()
 		} else if evt.Name == appstate.WAPatchRegular {
 			LOG_TRACE("AppStateSyncComplete WAPatchRegular")
-			handler.GetContacts()
+			handler.HandleSyncContacts()
 		}
 
 	case *events.PushNameSetting:
@@ -688,7 +688,7 @@ func (handler *WmEventHandler) HandleEvent(rawEvt interface{}) {
 
 	case *events.OfflineSyncCompleted:
 		LOG_TRACE(fmt.Sprintf("%#v", evt))
-		handler.GetContacts()
+		handler.HandleSyncContacts()
 
 	case *events.GroupInfo:
 		LOG_TRACE(fmt.Sprintf("%#v", evt))
@@ -1022,12 +1022,16 @@ func PhoneFromUserId(userId string) string {
 	return phone
 }
 
-func (handler *WmEventHandler) GetContacts() {
-	var client *whatsmeow.Client = GetClient(handler.connId)
-	connId := handler.connId
-	LOG_TRACE(fmt.Sprintf("GetContacts"))
+func (handler *WmEventHandler) HandleSyncContacts() {
+	LOG_TRACE(fmt.Sprintf("HandleSyncContacts"))
+	GetContacts(handler.connId)
+}
 
+func GetContacts(connId int) {
+	LOG_TRACE(fmt.Sprintf("GetContacts"))
 	CWmSetStatus(FlagFetching)
+
+	var client *whatsmeow.Client = GetClient(connId)
 
 	// contacts
 	isSelf := BoolToInt(false) // not self
@@ -2264,6 +2268,31 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 		handler := GetHandler(connId)
 		handler.HandleMessage(messageInfo, &message, isSyncRead)
 	}
+
+	return 0
+}
+
+func WmGetContacts(connId int) int {
+
+	LOG_TRACE("get contacts " + strconv.Itoa(connId))
+
+	// sanity check arg
+	if connId == -1 {
+		LOG_WARNING("invalid connId")
+		return -1
+	}
+
+	// get client
+	client := GetClient(connId)
+
+	// sync contacts
+	err := client.FetchAppState(context.TODO(), appstate.WAPatchCriticalUnblockLow, true, false)
+	if err != nil {
+		LOG_WARNING(fmt.Sprintf("fetch contacts app state failed %#v", err))
+	}
+
+	// get contacts
+	GetContacts(connId)
 
 	return 0
 }
