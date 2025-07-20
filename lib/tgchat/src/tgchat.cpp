@@ -907,20 +907,48 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         std::shared_ptr<EditMessageRequest> editMessageRequest =
           std::static_pointer_cast<EditMessageRequest>(p_RequestMessage);
 
-        auto edit_message = td::td_api::make_object<td::td_api::editMessageText>();
-        edit_message->chat_id_ = StrUtil::NumFromHex<int64_t>(editMessageRequest->chatId);
-        edit_message->message_id_ = StrUtil::NumFromHex<int64_t>(editMessageRequest->msgId);
-
-        auto message_content = GetMessageText(editMessageRequest->chatMessage.text);
-        edit_message->input_message_content_ = std::move(message_content);
-
-        SendQuery(std::move(edit_message),
-                  [](Object object)
+        if (editMessageRequest->chatMessage.fileInfo.empty())
         {
-          Status::Clear(Status::FlagSending);
+          auto edit_message = td::td_api::make_object<td::td_api::editMessageText>();
+          edit_message->chat_id_ = StrUtil::NumFromHex<int64_t>(editMessageRequest->chatId);
+          edit_message->message_id_ = StrUtil::NumFromHex<int64_t>(editMessageRequest->msgId);
 
-          if (object->get_id() == td::td_api::error::ID) return;
-        });
+          auto message_content = GetMessageText(editMessageRequest->chatMessage.text);
+          edit_message->input_message_content_ = std::move(message_content);
+
+          SendQuery(std::move(edit_message),
+                    [](Object object)
+          {
+            Status::Clear(Status::FlagSending);
+
+            if (object->get_id() == td::td_api::error::ID)
+            {
+              auto error = td::move_tl_object_as<td::td_api::error>(object);
+              LOG_WARNING("Edit message text error: %s", error->message_.c_str());
+            }
+          });
+        }
+        else
+        {
+          auto edit_message = td::td_api::make_object<td::td_api::editMessageCaption>();
+          edit_message->chat_id_ = StrUtil::NumFromHex<int64_t>(editMessageRequest->chatId);
+          edit_message->message_id_ = StrUtil::NumFromHex<int64_t>(editMessageRequest->msgId);
+
+          auto message_content = GetFormattedText(editMessageRequest->chatMessage.text);
+          edit_message->caption_ = std::move(message_content);
+
+          SendQuery(std::move(edit_message),
+                    [](Object object)
+          {
+            Status::Clear(Status::FlagSending);
+
+            if (object->get_id() == td::td_api::error::ID)
+            {
+              auto error = td::move_tl_object_as<td::td_api::error>(object);
+              LOG_WARNING("Edit message caption error: %s", error->message_.c_str());
+            }
+          });
+        }
       }
       break;
 
