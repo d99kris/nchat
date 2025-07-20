@@ -1969,6 +1969,12 @@ void UiModel::Impl::UpdateChatInfoLastMessageTime(const std::string& p_ProfileId
       profileChatInfos[p_ChatId].lastMessageTime = lastMessageTimeSent;
     }
   }
+
+  // If message is received after connection time, ensure current chat is set
+  if ((m_ConnectTime.count(p_ProfileId) > 0) && (lastMessageTimeSent > m_ConnectTime[p_ProfileId]))
+  {
+    SetCurrentChatIndexIfNotSet();
+  }
 }
 
 void UiModel::Impl::UpdateChatInfoIsUnread(const std::string& p_ProfileId, const std::string& p_ChatId)
@@ -1992,7 +1998,7 @@ void UiModel::Impl::UpdateChatInfoIsUnread(const std::string& p_ProfileId, const
       static const bool notifyEveryUnread = UiConfig::GetBool("notify_every_unread");
       if (isUnread && (!profileChatInfos[p_ChatId].isUnread || notifyEveryUnread))
       {
-        const bool receivedAfterConnect = (chatMessage.timeSent > m_ConnectTime[p_ProfileId]);
+        const bool receivedAfterConnect = (m_ConnectTime.count(p_ProfileId) > 0) && (chatMessage.timeSent > m_ConnectTime[p_ProfileId]);
         if (receivedAfterConnect)
         {
           static const bool terminalBellActive = UiConfig::GetBool("terminal_bell_active");
