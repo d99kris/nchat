@@ -1041,6 +1041,51 @@ Alternatively one can [Build from Source](#build-from-source) using the
 capabilities.
 
 
+Project Scope
+=============
+
+Limitations
+-----------
+There are no plans to support the following features:
+- Facebook Messenger
+- Signal
+- Telegram secret chats
+- Voice / video calls
+
+Additionally, WhatsApp is only supported on macOS and glibc-based Linux
+systems. Thus, it is not supported on musl-based operating systems, such
+as Alpine Linux. See [issue #204](https://github.com/d99kris/nchat/issues/204)
+for technical details on this limitation.
+
+Roadmap
+-------
+There is currently no concrete roadmap for further feature development of
+nchat. It is not intended to be a full-featured client on par with official
+Telegram / WhatsApp clients, but rather a light-weight client providing
+essential functionality suitable for the terminal. However, feel free to
+submit feature requests if there's something missing, or help upvote
+[existing feature requests](https://github.com/d99kris/nchat/discussions/categories/ideas?discussions_q=is%3Aopen+category%3AIdeas),
+if it's useful and low effort it will be considered.
+
+
+Contributions
+=============
+Please refer to [Contributing Guidelines](/doc/CONTRIBUTING.md) and
+[Design Notes](/doc/DESIGN.md).
+
+
+Alternatives
+============
+Terminal-based Telegram clients:
+
+- [tg](https://github.com/paul-nameless/tg)
+- [tgt](https://github.com/FedericoBruzzone/tgt)
+
+Terminal-based WhatsApp clients:
+
+- [whatscli](https://github.com/normen/whatscli)
+
+
 Technical Details
 =================
 
@@ -1095,54 +1140,9 @@ Uncrustify is used to maintain consistent source code formatting, example:
     ./make.sh src
 
 
-Project Scope
-=============
-
-Limitations
------------
-There are no plans to support the following features:
-- Facebook Messenger
-- Signal
-- Telegram secret chats
-- Voice / video calls
-
-Additionally, WhatsApp is only supported on macOS and glibc-based Linux
-systems. Thus, it is not supported on musl-based operating systems, such
-as Alpine Linux. See [issue #204](https://github.com/d99kris/nchat/issues/204)
-for technical details on this limitation.
-
-Roadmap
--------
-There is currently no concrete roadmap for further feature development of
-nchat. It is not intended to be a full-featured client on par with official
-Telegram / WhatsApp clients, but rather a light-weight client providing
-essential functionality suitable for the terminal. However, feel free to
-submit feature requests if there's something missing, or help upvote
-[existing feature requests](https://github.com/d99kris/nchat/discussions/categories/ideas?discussions_q=is%3Aopen+category%3AIdeas),
-if it's useful and low effort it will be considered.
-
-
 License
 =======
 nchat is distributed under the MIT license. See LICENSE file.
-
-
-Contributions
-=============
-Please refer to [Contributing Guidelines](/doc/CONTRIBUTING.md) and
-[Design Notes](/doc/DESIGN.md).
-
-
-Alternatives
-============
-Terminal-based Telegram clients:
-
-- [tg](https://github.com/paul-nameless/tg)
-- [tgt](https://github.com/FedericoBruzzone/tgt)
-
-Terminal-based WhatsApp clients:
-
-- [whatscli](https://github.com/normen/whatscli)
 
 
 Keywords
