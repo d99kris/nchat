@@ -2093,6 +2093,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 	}
 
 	isSend := false
+	isEditCaption := false
 
 	// quote context
 	contextInfo := waE2E.ContextInfo{}
@@ -2127,16 +2128,16 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 		}
 
 		message.ExtendedTextMessage = &extendedTextMessage
-
 		isSend = true
+
 	} else {
 
 		var isSendType bool = IntToBool(GetSendType(connId))
-
 		mimeType := strings.Split(fileType, "/")[0] // image, text, application, etc.
-		if isSendType && (mimeType == "audio") {
-			LOG_TRACE("send audio " + fileType)
 
+		if isSendType && (mimeType == "audio") {
+
+			LOG_TRACE("send audio " + fileType)
 			data, err := os.ReadFile(filePath)
 			if err != nil {
 				LOG_WARNING(fmt.Sprintf("read file %s err %#v", filePath, err))
@@ -2161,100 +2162,138 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 			}
 
 			message.AudioMessage = &audioMessage
-
 			isSend = true
+
 		} else if isSendType && (mimeType == "video") {
-			LOG_TRACE("send video " + fileType)
 
-			data, err := os.ReadFile(filePath)
-			if err != nil {
-				LOG_WARNING(fmt.Sprintf("read file %s err %#v", filePath, err))
-				return -1
-			}
+			videoMessage := waE2E.VideoMessage{}
 
-			uploaded, upErr := client.Upload(context.Background(), data, whatsmeow.MediaVideo)
-			if upErr != nil {
-				LOG_WARNING(fmt.Sprintf("upload error %#v", upErr))
-				return -1
-			}
+			if len(editMsgId) > 0 {
 
-			videoMessage := waE2E.VideoMessage{
-				Caption:       proto.String(text),
-				URL:           proto.String(uploaded.URL),
-				DirectPath:    proto.String(uploaded.DirectPath),
-				MediaKey:      uploaded.MediaKey,
-				Mimetype:      proto.String(fileType),
-				FileEncSHA256: uploaded.FileEncSHA256,
-				FileSHA256:    uploaded.FileSHA256,
-				FileLength:    proto.Uint64(uint64(len(data))),
-				ContextInfo:   &contextInfo,
+				LOG_TRACE("edit video caption " + fileType)
+				videoMessage = waE2E.VideoMessage{
+					Caption:       proto.String(text),
+				}
+				isEditCaption = true
+
+			} else {
+
+				LOG_TRACE("send video " + fileType)
+				data, err := os.ReadFile(filePath)
+				if err != nil {
+					LOG_WARNING(fmt.Sprintf("read file %s err %#v", filePath, err))
+					return -1
+				}
+
+				uploaded, upErr := client.Upload(context.Background(), data, whatsmeow.MediaVideo)
+				if upErr != nil {
+					LOG_WARNING(fmt.Sprintf("upload error %#v", upErr))
+					return -1
+				}
+
+				videoMessage = waE2E.VideoMessage{
+					Caption:       proto.String(text),
+					URL:           proto.String(uploaded.URL),
+					DirectPath:    proto.String(uploaded.DirectPath),
+					MediaKey:      uploaded.MediaKey,
+					Mimetype:      proto.String(fileType),
+					FileEncSHA256: uploaded.FileEncSHA256,
+					FileSHA256:    uploaded.FileSHA256,
+					FileLength:    proto.Uint64(uint64(len(data))),
+					ContextInfo:   &contextInfo,
+				}
 			}
 
 			message.VideoMessage = &videoMessage
-
 			isSend = true
+
 		} else if isSendType && (mimeType == "image") {
-			LOG_TRACE("send image " + fileType)
 
-			data, err := os.ReadFile(filePath)
-			if err != nil {
-				LOG_WARNING(fmt.Sprintf("read file %s err %#v", filePath, err))
-				return -1
-			}
+			imageMessage := waE2E.ImageMessage{}
 
-			uploaded, upErr := client.Upload(context.Background(), data, whatsmeow.MediaImage)
-			if upErr != nil {
-				LOG_WARNING(fmt.Sprintf("upload error %#v", upErr))
-				return -1
-			}
+			if len(editMsgId) > 0 {
 
-			imageMessage := waE2E.ImageMessage{
-				Caption:       proto.String(text),
-				URL:           proto.String(uploaded.URL),
-				DirectPath:    proto.String(uploaded.DirectPath),
-				MediaKey:      uploaded.MediaKey,
-				Mimetype:      proto.String(fileType),
-				FileEncSHA256: uploaded.FileEncSHA256,
-				FileSHA256:    uploaded.FileSHA256,
-				FileLength:    proto.Uint64(uint64(len(data))),
-				ContextInfo:   &contextInfo,
+				LOG_TRACE("edit image caption " + fileType)
+				imageMessage = waE2E.ImageMessage{
+					Caption:       proto.String(text),
+				}
+				isEditCaption = true
+
+			} else {
+
+				LOG_TRACE("send image " + fileType)
+				data, err := os.ReadFile(filePath)
+				if err != nil {
+					LOG_WARNING(fmt.Sprintf("read file %s err %#v", filePath, err))
+					return -1
+				}
+
+				uploaded, upErr := client.Upload(context.Background(), data, whatsmeow.MediaImage)
+				if upErr != nil {
+					LOG_WARNING(fmt.Sprintf("upload error %#v", upErr))
+					return -1
+				}
+
+				imageMessage = waE2E.ImageMessage{
+					Caption:       proto.String(text),
+					URL:           proto.String(uploaded.URL),
+					DirectPath:    proto.String(uploaded.DirectPath),
+					MediaKey:      uploaded.MediaKey,
+					Mimetype:      proto.String(fileType),
+					FileEncSHA256: uploaded.FileEncSHA256,
+					FileSHA256:    uploaded.FileSHA256,
+					FileLength:    proto.Uint64(uint64(len(data))),
+					ContextInfo:   &contextInfo,
+				}
 			}
 
 			message.ImageMessage = &imageMessage
-
 			isSend = true
+
 		} else {
-			LOG_TRACE("send document " + fileType)
 
-			data, err := os.ReadFile(filePath)
-			if err != nil {
-				LOG_WARNING(fmt.Sprintf("read file %s err %#v", filePath, err))
-				return -1
-			}
+			documentMessage := waE2E.DocumentMessage{}
 
-			uploaded, upErr := client.Upload(context.Background(), data, whatsmeow.MediaDocument)
-			if upErr != nil {
-				LOG_WARNING(fmt.Sprintf("upload error %#v", upErr))
-				return -1
-			}
+			if len(editMsgId) > 0 {
 
-			fileName := filepath.Base(filePath)
+				LOG_TRACE("edit document caption " + fileType)
+				documentMessage = waE2E.DocumentMessage{
+					Caption:       proto.String(text),
+				}
+				isEditCaption = true
 
-			documentMessage := waE2E.DocumentMessage{
-				Caption:       proto.String(text),
-				URL:           proto.String(uploaded.URL),
-				DirectPath:    proto.String(uploaded.DirectPath),
-				MediaKey:      uploaded.MediaKey,
-				Mimetype:      proto.String(fileType),
-				FileEncSHA256: uploaded.FileEncSHA256,
-				FileSHA256:    uploaded.FileSHA256,
-				FileLength:    proto.Uint64(uint64(len(data))),
-				FileName:      proto.String(fileName),
-				ContextInfo:   &contextInfo,
+			} else {
+
+				LOG_TRACE("send document " + fileType)
+				data, err := os.ReadFile(filePath)
+				if err != nil {
+					LOG_WARNING(fmt.Sprintf("read file %s err %#v", filePath, err))
+					return -1
+				}
+
+				uploaded, upErr := client.Upload(context.Background(), data, whatsmeow.MediaDocument)
+				if upErr != nil {
+					LOG_WARNING(fmt.Sprintf("upload error %#v", upErr))
+					return -1
+				}
+
+				fileName := filepath.Base(filePath)
+
+				documentMessage = waE2E.DocumentMessage{
+					Caption:       proto.String(text),
+					URL:           proto.String(uploaded.URL),
+					DirectPath:    proto.String(uploaded.DirectPath),
+					MediaKey:      uploaded.MediaKey,
+					Mimetype:      proto.String(fileType),
+					FileEncSHA256: uploaded.FileEncSHA256,
+					FileSHA256:    uploaded.FileSHA256,
+					FileLength:    proto.Uint64(uint64(len(data))),
+					FileName:      proto.String(fileName),
+					ContextInfo:   &contextInfo,
+				}
 			}
 
 			message.DocumentMessage = &documentMessage
-
 			isSend = true
 		}
 	}
@@ -2285,6 +2324,9 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 		messageInfo.Chat = chatJid
 		messageInfo.IsFromMe = true
 		messageInfo.Sender = *client.Store.ID
+		if isEditCaption {
+			messageInfo.Edit = "1"
+		}
 
 		if len(editMsgId) > 0 {
 			messageInfo.ID = editMsgId

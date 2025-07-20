@@ -2938,8 +2938,20 @@ void UiModel::Impl::SaveEditMessage()
     std::make_shared<EditMessageRequest>();
   editMessageRequest->chatId = chatId;
   editMessageRequest->msgId = m_EditMessageId;
-  editMessageRequest->chatMessage = chatMessage; // copy original message (time sent, quote id, etc)
-  editMessageRequest->chatMessage.text = EntryStrToSendStr(entryStr); // update text content
+
+  // copy original message (time sent, quote id, etc)
+  editMessageRequest->chatMessage = chatMessage;
+
+  // prepare a new FileInfo struct if original message has a file
+  if (!chatMessage.fileInfo.empty())
+  {
+    FileInfo fileInfo = ProtocolUtil::FileInfoFromHex(chatMessage.fileInfo);
+    fileInfo.fileType = FileUtil::GetMimeType(fileInfo.filePath);
+    editMessageRequest->chatMessage.fileInfo = ProtocolUtil::FileInfoToHex(fileInfo);
+  }
+
+  // update text content
+  editMessageRequest->chatMessage.text = EntryStrToSendStr(entryStr);
   SendProtocolRequest(profileId, editMessageRequest);
 
   SetEditMessageActive(false);
