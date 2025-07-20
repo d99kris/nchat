@@ -767,20 +767,31 @@ void WmNewChatsNotify(int p_ConnId, char* p_ChatId, int p_IsUnread, int p_IsMute
 
 void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe,
                          char* p_QuotedId, char* p_FileId, char* p_FilePath, int p_FileStatus, int p_TimeSent,
-                         int p_IsRead)
+                         int p_IsRead, int p_IsEditCaption)
 {
   WmChat* instance = WmChat::GetInstance(p_ConnId);
   if (instance != nullptr)
   {
     std::string fileInfoStr;
-    std::string fileId = std::string(p_FileId);
-    if (!fileId.empty())
+    if (p_IsEditCaption)
     {
-      FileInfo fileInfo;
-      fileInfo.fileStatus = (FileStatus)p_FileStatus;
-      fileInfo.fileId = fileId;
-      fileInfo.filePath = std::string(p_FilePath);
-      fileInfoStr = ProtocolUtil::FileInfoToHex(fileInfo);
+      std::vector<ChatMessage> chatMessages;
+      if (MessageCache::GetOneMessage(instance->GetProfileId(), std::string(p_ChatId), std::string(p_MsgId), chatMessages))
+      {
+        fileInfoStr = chatMessages.at(0).fileInfo;
+      }
+    }
+    else
+    {
+      std::string fileId = std::string(p_FileId);
+      if (!fileId.empty())
+      {
+        FileInfo fileInfo;
+        fileInfo.fileStatus = (FileStatus)p_FileStatus;
+        fileInfo.fileId = fileId;
+        fileInfo.filePath = std::string(p_FilePath);
+        fileInfoStr = ProtocolUtil::FileInfoToHex(fileInfo);
+      }
     }
 
     ChatMessage chatMessage;

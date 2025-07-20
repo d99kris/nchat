@@ -213,6 +213,8 @@ public:
                                 const int p_Limit, const bool p_Sync);
   static bool FetchOneMessage(const std::string& p_ProfileId, const std::string& p_ChatId,
                               const std::string& p_MsgId, const bool p_Sync);
+  static bool GetOneMessage(const std::string& p_ProfileId, const std::string& p_ChatId,
+                            const std::string& p_MsgId, std::vector<ChatMessage>& p_ChatMessages);
   static void FindMessage(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_FromMsgId,
                           const std::string& p_LastMsgId, const std::string& p_FindText,
                           const std::string& p_FindMsgId);

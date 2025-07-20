@@ -561,6 +561,18 @@ bool MessageCache::FetchOneMessage(const std::string& p_ProfileId, const std::st
   }
 }
 
+bool MessageCache::GetOneMessage(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                 const std::string& p_MsgId, std::vector<ChatMessage>& p_ChatMessages)
+{
+  if (!m_CacheEnabled) return false;
+
+  std::unique_lock<std::mutex> lock(m_DbMutex);
+  if (!m_Dbs[p_ProfileId]) return false;
+
+  PerformFetchOneMessage(p_ProfileId, p_ChatId, p_MsgId, p_ChatMessages);
+  return !p_ChatMessages.empty();
+}
+
 void MessageCache::FindMessage(const std::string& p_ProfileId, const std::string& p_ChatId,
                                const std::string& p_FromMsgId, const std::string& p_LastMsgId,
                                const std::string& p_FindText, const std::string& p_FindMsgId)
