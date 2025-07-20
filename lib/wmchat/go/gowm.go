@@ -1036,7 +1036,7 @@ func GetContacts(connId int) {
 	var client *whatsmeow.Client = GetClient(connId)
 
 	// contacts
-	isSelf := BoolToInt(false) // not self
+	isSelf := BoolToInt(false)   // not self
 	isNotify := BoolToInt(false) // defer notification
 	ctx := context.TODO()
 	contacts, contErr := client.Store.Contacts.GetAllContacts(ctx)
@@ -1098,7 +1098,7 @@ func GetContacts(connId int) {
 	selfId := JidToStr(*client.Store.ID)
 	selfName := "" // overridden by ui
 	selfPhone := PhoneFromUserId(selfId)
-	isSelf = BoolToInt(true) // self
+	isSelf = BoolToInt(true)   // self
 	isNotify = BoolToInt(true) // perform notification upon last contact
 	LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", selfId, selfName))
 	CWmNewContactsNotify(connId, selfId, selfName, selfPhone, isSelf, isNotify)
@@ -2172,7 +2172,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 				LOG_TRACE("edit video caption " + fileType)
 				videoMessage = waE2E.VideoMessage{
-					Caption:       proto.String(text),
+					Caption: proto.String(text),
 				}
 				isEditCaption = true
 
@@ -2215,7 +2215,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 				LOG_TRACE("edit image caption " + fileType)
 				imageMessage = waE2E.ImageMessage{
-					Caption:       proto.String(text),
+					Caption: proto.String(text),
 				}
 				isEditCaption = true
 
@@ -2258,7 +2258,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 				LOG_TRACE("edit document caption " + fileType)
 				documentMessage = waE2E.DocumentMessage{
-					Caption:       proto.String(text),
+					Caption: proto.String(text),
 				}
 				isEditCaption = true
 

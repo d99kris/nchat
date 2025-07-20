@@ -776,7 +776,8 @@ void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_Se
     if (p_IsEditCaption)
     {
       std::vector<ChatMessage> chatMessages;
-      if (MessageCache::GetOneMessage(instance->GetProfileId(), std::string(p_ChatId), std::string(p_MsgId), chatMessages))
+      if (MessageCache::GetOneMessage(instance->GetProfileId(), std::string(p_ChatId), std::string(p_MsgId),
+                                      chatMessages))
       {
         fileInfoStr = chatMessages.at(0).fileInfo;
       }
