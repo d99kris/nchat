@@ -66,7 +66,8 @@ private:
     void OnKeyOpenAttachment(std::string p_FilePath = std::string());
     void OpenLink(const std::string& p_Url);
     void OpenAttachment(const std::string& p_Path);
-    void RunCommand(const std::string& p_Cmd);
+    bool RunCommand(const std::string& p_Cmd, std::string* p_StdOut = nullptr);
+    void RunProgram(const std::string& p_Cmd);
     void OnKeyOpenLink();
     std::string OnKeySaveAttachment(std::string p_FilePath = std::string());
     void TransferFile(const std::vector<std::string>& p_FilePaths);

@@ -1026,7 +1026,7 @@ void UiModel::Impl::OpenLink(const std::string& p_Url)
   std::string cmd = cmdTemplate;
   StrUtil::ReplaceString(cmd, "%1", p_Url);
 
-  RunCommand(cmd);
+  RunProgram(cmd);
 }
 
 void UiModel::Impl::OpenAttachment(const std::string& p_Path)
@@ -1049,10 +1049,51 @@ void UiModel::Impl::OpenAttachment(const std::string& p_Path)
   std::string cmd = cmdTemplate;
   StrUtil::ReplaceString(cmd, "%1", p_Path);
 
-  RunCommand(cmd);
+  RunProgram(cmd);
 }
 
-void UiModel::Impl::RunCommand(const std::string& p_Cmd)
+// Used when taking over terminal is disallowed or when output needs to be captured
+bool UiModel::Impl::RunCommand(const std::string& p_Cmd, std::string* p_StdOut /*= nullptr*/)
+{
+  const bool logStdErr = Log::GetDebugEnabled();
+  const std::string stdoutFile = (p_StdOut != nullptr) ? FileUtil::MkTempFile() : "/dev/null";
+  const std::string stderrFile = logStdErr ? FileUtil::MkTempFile() : "/dev/null";
+  const std::string cmdPrefix = "2>'" + stderrFile + "' ";
+  const std::string cmdSuffix = " >'" + stdoutFile + "'";
+  const std::string cmd = cmdPrefix + p_Cmd + cmdSuffix;
+
+  // run command
+  LOG_TRACE("cmd \"%s\" start", cmd.c_str());
+  const int rv = system(cmd.c_str());
+  if (rv != 0)
+  {
+    LOG_WARNING("cmd \"%s\" failed (%d)", cmd.c_str(), rv);
+  }
+
+  // stdout
+  if ((p_StdOut != nullptr) && FileUtil::Exists(stdoutFile))
+  {
+    *p_StdOut = FileUtil::ReadFile(stdoutFile);
+    FileUtil::RmFile(stdoutFile);
+  }
+
+  // stderr
+  if (logStdErr && FileUtil::Exists(stderrFile))
+  {
+    const std::string stderrStr = FileUtil::ReadFile(stderrFile);
+    FileUtil::RmFile(stderrFile);
+    if (!stderrStr.empty())
+    {
+      LOG_DEBUG("cmd \"%s\" stderr:", cmd.c_str());
+      Log::Dump(stderrStr.c_str());
+    }
+  }
+
+  return (rv == 0);
+}
+
+// Used when taking over terminal is allowed
+void UiModel::Impl::RunProgram(const std::string& p_Cmd)
 {
   bool isBackground = (p_Cmd.back() == '&');
 
@@ -2624,12 +2665,7 @@ void UiModel::Impl::DesktopNotifyUnread(const std::string& p_Name, const std::st
   StrUtil::ReplaceString(cmd, "%2", text);
 
   // run command
-  LOG_TRACE("cmd \"%s\" start", cmd.c_str());
-  int rv = system(cmd.c_str());
-  if (rv != 0)
-  {
-    LOG_WARNING("cmd \"%s\" failed (%d)", cmd.c_str(), rv);
-  }
+  RunCommand(cmd);
 }
 
 void UiModel::Impl::SetHistoryInteraction(bool p_HistoryInteraction)
@@ -3141,7 +3177,7 @@ void UiModel::Impl::StartExtCall(const std::string& p_Phone)
   std::string cmd = cmdTemplate;
   StrUtil::ReplaceString(cmd, "%1", p_Phone);
 
-  RunCommand(cmd);
+  RunProgram(cmd);
 }
 
 void UiModel::Impl::SendProtocolRequest(const std::string& p_ProfileId, std::shared_ptr<RequestMessage> p_Request)
