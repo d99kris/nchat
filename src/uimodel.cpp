@@ -2612,36 +2612,37 @@ void UiModel::Impl::SetTerminalActive(bool p_TerminalActive)
 
 void UiModel::Impl::DesktopNotifyUnread(const std::string& p_Name, const std::string& p_Text)
 {
-  static const std::string cmdTemplate = []()
+  static const std::string cmdTemplate = [this]()
   {
     std::string desktopNotifyCommand = UiConfig::GetStr("desktop_notify_command");
     if (desktopNotifyCommand.empty())
     {
 #if defined(__APPLE__)
-      desktopNotifyCommand = "osascript -e 'display notification \"%1: %2\" with title \"nchat\"'";
+      const std::string command = "osascript";
 #else
-      const std::string& commandOutPath = FileUtil::MkTempFile();
-      const std::string& whichCommand =
-        std::string("which notify-send 2> /dev/null | head -1 > ") + commandOutPath;
-      if (system(whichCommand.c_str()) == 0)
+      const std::string command = "notify-send";
+#endif
+      std::string output;
+      if (RunCommand("which " + command + " | head -1", &output))
       {
-        std::string output = FileUtil::ReadFile(commandOutPath);
         output.erase(std::remove(output.begin(), output.end(), '\n'), output.end());
         if (!output.empty())
         {
-          if (output.find("/notify-send") != std::string::npos)
+          if (output.find("/osascript") != std::string::npos)
+          {
+            desktopNotifyCommand = "osascript -e 'display notification \"%1: %2\" with title \"nchat\"'";
+          }
+          else if (output.find("/notify-send") != std::string::npos)
           {
             desktopNotifyCommand = "notify-send 'nchat' '%1: %2'";
           }
         }
       }
 
-      FileUtil::RmFile(commandOutPath);
       if (desktopNotifyCommand.empty())
       {
-        LOG_WARNING("command 'notify-send' not found");
+        LOG_WARNING("command '%s' not found", command.c_str());
       }
-#endif
     }
 
     return desktopNotifyCommand;
@@ -3035,18 +3036,14 @@ void UiModel::Impl::OnKeySpell()
 {
   AnyUserKeyInput();
 
-  static const std::string cmd = []()
+  static const std::string cmd = [this]()
   {
     std::string spellCheckCommand = UiConfig::GetStr("spell_check_command");
     if (spellCheckCommand.empty())
     {
-      const std::string& commandOutPath = FileUtil::MkTempFile();
-      const std::string& whichCommand =
-        std::string("which aspell ispell 2> /dev/null | head -1 > ") + commandOutPath;
-
-      if (system(whichCommand.c_str()) == 0)
+      std::string output;
+      if (RunCommand("which aspell ispell | head -1", &output))
       {
-        std::string output = FileUtil::ReadFile(commandOutPath);
         output.erase(std::remove(output.begin(), output.end(), '\n'), output.end());
         if (!output.empty())
         {
@@ -3061,7 +3058,10 @@ void UiModel::Impl::OnKeySpell()
         }
       }
 
-      FileUtil::RmFile(commandOutPath);
+      if (spellCheckCommand.empty())
+      {
+        LOG_WARNING("command 'aspell' or 'ispell' not found");
+      }
     }
 
     return spellCheckCommand;
