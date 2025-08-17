@@ -25,6 +25,7 @@
 namespace td {
 
 class Dependencies;
+class SuggestedPost;
 class Td;
 
 enum class DraftMessageContentType : int32 { VideoNote, VoiceNote };
@@ -50,6 +51,7 @@ class DraftMessage {
   InputMessageText input_message_text_;
   unique_ptr<DraftMessageContent> local_content_;
   MessageEffectId message_effect_id_;
+  unique_ptr<SuggestedPost> suggested_post_;
 
   friend class SaveDraftMessageQuery;
 

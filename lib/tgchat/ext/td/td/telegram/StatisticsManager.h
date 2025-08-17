@@ -35,11 +35,11 @@ class StatisticsManager final : public Actor {
 
   void get_dialog_revenue_withdrawal_url(DialogId dialog_id, const string &password, Promise<string> &&promise);
 
-  void get_dialog_revenue_transactions(DialogId dialog_id, int32 offset, int32 limit,
+  void get_dialog_revenue_transactions(DialogId dialog_id, const string &offset, int32 limit,
                                        Promise<td_api::object_ptr<td_api::chatRevenueTransactions>> &&promise);
 
   void on_update_dialog_revenue_transactions(DialogId dialog_id,
-                                             telegram_api::object_ptr<telegram_api::broadcastRevenueBalances> balances);
+                                             telegram_api::object_ptr<telegram_api::starsRevenueStatus> &&status);
 
   void get_channel_message_statistics(MessageFullId message_full_id, bool is_dark,
                                       Promise<td_api::object_ptr<td_api::messageStatistics>> &&promise);

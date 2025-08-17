@@ -41,7 +41,7 @@
 
 // #define SIMULATED_SPONSORED_MESSAGES
 
-static const int s_TdlibDate = 20250610;
+static const int s_TdlibDate = 20250806;
 
 namespace detail
 {
@@ -832,7 +832,7 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         {
           send_message->reply_to_ =
             td::td_api::make_object<td::td_api::inputMessageReplyToMessage>(StrUtil::NumFromHex<int64_t>(sendMessageRequest->chatMessage.quotedId),
-                                                                            nullptr);
+                                                                            nullptr /*quote_*/, 0 /*checklist_task_id_*/);
         }
 
         if (sendMessageRequest->chatMessage.fileInfo.empty())

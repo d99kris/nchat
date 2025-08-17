@@ -7,6 +7,7 @@
 #pragma once
 
 #include "td/telegram/DialogId.h"
+#include "td/telegram/files/FileId.h"
 #include "td/telegram/files/FileUploadId.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
@@ -56,6 +57,9 @@ class MessageImportManager final : public Actor {
 
   void upload_imported_message_attachment(DialogId dialog_id, int64 import_id, FileUploadId file_upload_id,
                                           bool is_reupload, Promise<Unit> &&promise, vector<int> bad_parts = {});
+
+  telegram_api::object_ptr<telegram_api::InputMedia> get_fake_input_media(
+      telegram_api::object_ptr<telegram_api::InputFile> input_file, FileId file_id) const;
 
   void on_upload_imported_message_attachment(FileUploadId file_upload_id,
                                              telegram_api::object_ptr<telegram_api::InputFile> input_file);

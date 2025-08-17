@@ -13,16 +13,17 @@
 #include "td/telegram/files/FileManager.h"
 #include "td/telegram/files/FileType.h"
 #include "td/telegram/Global.h"
-#include "td/telegram/MessageContent.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/UserManager.h"
 
 #include "td/utils/buffer.h"
 #include "td/utils/logging.h"
+#include "td/utils/MimeType.h"
 #include "td/utils/misc.h"
 #include "td/utils/PathView.h"
 #include "td/utils/Random.h"
+#include "td/utils/Slice.h"
 
 namespace td {
 
@@ -378,10 +379,10 @@ void MessageImportManager::on_upload_imported_messages(FileUploadId file_upload_
   const auto *main_remote_location = file_view.get_main_remote_location();
   if (input_file == nullptr && main_remote_location != nullptr) {
     if (main_remote_location->is_web()) {
-      return promise.set_error(Status::Error(400, "Can't use web file"));
+      return promise.set_error(400, "Can't use web file");
     }
     if (is_reupload) {
-      return promise.set_error(Status::Error(400, "Failed to reupload the file"));
+      return promise.set_error(400, "Failed to reupload the file");
     }
 
     CHECK(file_view.get_type() == FileType::Document);
@@ -463,8 +464,40 @@ void MessageImportManager::upload_imported_message_attachment(DialogId dialog_id
                                     1, 0, false, true);
 }
 
+telegram_api::object_ptr<telegram_api::InputMedia> MessageImportManager::get_fake_input_media(
+    telegram_api::object_ptr<telegram_api::InputFile> input_file, FileId file_id) const {
+  FileView file_view = td_->file_manager_->get_file_view(file_id);
+  auto file_type = file_view.get_type();
+  if (is_document_file_type(file_type)) {
+    vector<telegram_api::object_ptr<telegram_api::DocumentAttribute>> attributes;
+    auto file_path = file_view.suggested_path();
+    const PathView path_view(file_path);
+    Slice file_name = path_view.file_name();
+    if (!file_name.empty()) {
+      attributes.push_back(telegram_api::make_object<telegram_api::documentAttributeFilename>(file_name.str()));
+    }
+    string mime_type = MimeType::from_extension(path_view.extension());
+    auto nosound_video = (file_type == FileType::Video || file_type == FileType::VideoStory ||
+                          file_type == FileType::SelfDestructingVideo);
+    auto force_file = (file_type == FileType::DocumentAsFile);
+    return telegram_api::make_object<telegram_api::inputMediaUploadedDocument>(
+        0, nosound_video, force_file, false, std::move(input_file), nullptr, mime_type, std::move(attributes),
+        vector<telegram_api::object_ptr<telegram_api::InputDocument>>(), nullptr, 0, 0);
+  } else {
+    CHECK(file_type == FileType::Photo || file_type == FileType::PhotoStory ||
+          file_type == FileType::SelfDestructingPhoto);
+    return telegram_api::make_object<telegram_api::inputMediaUploadedPhoto>(
+        0, false, std::move(input_file), vector<telegram_api::object_ptr<telegram_api::InputDocument>>(), 0);
+  }
+}
+
 void MessageImportManager::on_upload_imported_message_attachment(
     FileUploadId file_upload_id, telegram_api::object_ptr<telegram_api::InputFile> input_file) {
+  if (G()->close_flag()) {
+    // do not fail upload if closing
+    return;
+  }
+
   LOG(INFO) << "Imported message attachment " << file_upload_id << " has been uploaded";
 
   auto it = being_uploaded_imported_message_attachments_.find(file_upload_id);
@@ -481,10 +514,10 @@ void MessageImportManager::on_upload_imported_message_attachment(
   const auto *main_remote_location = file_view.get_main_remote_location();
   if (input_file == nullptr && main_remote_location != nullptr) {
     if (main_remote_location->is_web()) {
-      return promise.set_error(Status::Error(400, "Can't use web file"));
+      return promise.set_error(400, "Can't use web file");
     }
     if (is_reupload) {
-      return promise.set_error(Status::Error(400, "Failed to reupload the file"));
+      return promise.set_error(400, "Failed to reupload the file");
     }
 
     // delete file reference and forcely reupload the file
@@ -501,7 +534,7 @@ void MessageImportManager::on_upload_imported_message_attachment(
   const PathView path_view(suggested_path);
   td_->create_handler<UploadImportedMediaQuery>(std::move(promise))
       ->send(dialog_id, import_id, path_view.file_name().str(), file_upload_id,
-             get_message_content_fake_input_media(td_, std::move(input_file), file_upload_id.get_file_id()));
+             get_fake_input_media(std::move(input_file), file_upload_id.get_file_id()));
 }
 
 void MessageImportManager::on_upload_imported_message_attachment_error(FileUploadId file_upload_id, Status status) {

@@ -342,7 +342,7 @@ class GetChatRequest final : public RequestActor<> {
  public:
   GetChatRequest(ActorShared<Td> td, uint64 request_id, int64 dialog_id)
       : RequestActor(std::move(td), request_id), dialog_id_(dialog_id) {
-    set_tries(3);
+    set_tries(4);
   }
 };
 
@@ -823,6 +823,31 @@ class EditMessageLiveLocationRequest final : public RequestOnceActor {
       , live_period_(live_period)
       , heading_(heading)
       , proximity_alert_radius_(proximity_alert_radius) {
+  }
+};
+
+class EditMessageChecklistRequest final : public RequestOnceActor {
+  MessageFullId message_full_id_;
+  td_api::object_ptr<td_api::ReplyMarkup> reply_markup_;
+  td_api::object_ptr<td_api::inputChecklist> input_checklist_;
+
+  void do_run(Promise<Unit> &&promise) final {
+    td_->messages_manager_->edit_message_to_do_list(message_full_id_, std::move(reply_markup_),
+                                                    std::move(input_checklist_), std::move(promise));
+  }
+
+  void do_send_result() final {
+    send_result(td_->messages_manager_->get_message_object(message_full_id_, "EditMessageChecklistRequest"));
+  }
+
+ public:
+  EditMessageChecklistRequest(ActorShared<Td> td, uint64 request_id, int64 dialog_id, int64 message_id,
+                              td_api::object_ptr<td_api::ReplyMarkup> reply_markup,
+                              td_api::object_ptr<td_api::inputChecklist> input_checklist)
+      : RequestOnceActor(std::move(td), request_id)
+      , message_full_id_(DialogId(dialog_id), MessageId(message_id))
+      , reply_markup_(std::move(reply_markup))
+      , input_checklist_(std::move(input_checklist)) {
   }
 };
 
@@ -2633,6 +2658,32 @@ void Requests::on_request(uint64 id, const td_api::reportSponsoredChat &request)
                                                            std::move(promise));
 }
 
+void Requests::on_request(uint64 id, const td_api::getVideoMessageAdvertisements &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST_PROMISE();
+  td_->sponsored_message_manager_->get_video_sponsored_messages(
+      {DialogId(request.chat_id_), MessageId(request.message_id_)}, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::viewVideoMessageAdvertisement &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->sponsored_message_manager_->view_video_advertisement(request.advertisement_unique_id_, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::clickVideoMessageAdvertisement &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->sponsored_message_manager_->click_video_advertisement(request.advertisement_unique_id_, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::reportVideoMessageAdvertisement &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST_PROMISE();
+  td_->sponsored_message_manager_->report_video_advertisement(request.advertisement_unique_id_, request.option_id_,
+                                                              std::move(promise));
+}
+
 void Requests::on_request(uint64 id, const td_api::getMessageThread &request) {
   CHECK_IS_USER();
   CREATE_REQUEST(GetMessageThreadRequest, request.chat_id_, request.message_id_);
@@ -3079,6 +3130,23 @@ void Requests::on_request(uint64 id, const td_api::readAllDirectMessagesChatTopi
   DialogId dialog_id(request.chat_id_);
   td_->saved_messages_manager_->read_all_monoforum_topic_reactions(
       dialog_id, td_->saved_messages_manager_->get_topic_id(dialog_id, request.topic_id_), std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::getDirectMessagesChatTopicRevenue &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST_PROMISE();
+  DialogId dialog_id(request.chat_id_);
+  td_->saved_messages_manager_->get_monoforum_topic_revenue(
+      dialog_id, td_->saved_messages_manager_->get_topic_id(dialog_id, request.topic_id_), std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::toggleDirectMessagesChatTopicCanSendUnpaidMessages &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  DialogId dialog_id(request.chat_id_);
+  td_->saved_messages_manager_->toggle_monoforum_topic_nopaid_messages_exception(
+      dialog_id, td_->saved_messages_manager_->get_topic_id(dialog_id, request.topic_id_),
+      request.can_send_unpaid_messages_, request.refund_payments_, std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::loadSavedMessagesTopics &request) {
@@ -3811,6 +3879,11 @@ void Requests::on_request(uint64 id, td_api::editMessageLiveLocation &request) {
                  request.proximity_alert_radius_);
 }
 
+void Requests::on_request(uint64 id, td_api::editMessageChecklist &request) {
+  CREATE_REQUEST(EditMessageChecklistRequest, request.chat_id_, request.message_id_, std::move(request.reply_markup_),
+                 std::move(request.checklist_));
+}
+
 void Requests::on_request(uint64 id, td_api::editMessageMedia &request) {
   CREATE_REQUEST(EditMessageMediaRequest, request.chat_id_, request.message_id_, std::move(request.reply_markup_),
                  std::move(request.input_message_content_));
@@ -3919,6 +3992,15 @@ void Requests::on_request(uint64 id, td_api::editBusinessMessageLiveLocation &re
       BusinessConnectionId(std::move(request.business_connection_id_)), DialogId(request.chat_id_),
       MessageId(request.message_id_), std::move(request.reply_markup_), std::move(request.location_),
       request.live_period_, request.heading_, request.proximity_alert_radius_, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::editBusinessMessageChecklist &request) {
+  CHECK_IS_BOT();
+  CREATE_REQUEST_PROMISE();
+  td_->business_connection_manager_->edit_business_message_to_do_list(
+      BusinessConnectionId(std::move(request.business_connection_id_)), DialogId(request.chat_id_),
+      MessageId(request.message_id_), std::move(request.reply_markup_), std::move(request.checklist_),
+      std::move(promise));
 }
 
 void Requests::on_request(uint64 id, td_api::editBusinessMessageMedia &request) {
@@ -5596,6 +5678,28 @@ void Requests::on_request(uint64 id, td_api::processChatJoinRequests &request) {
                                                                  request.approve_, std::move(promise));
 }
 
+void Requests::on_request(uint64 id, const td_api::approveSuggestedPost &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->messages_manager_->process_suggested_post({DialogId(request.chat_id_), MessageId(request.message_id_)}, false,
+                                                 request.send_date_, string(), std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::declineSuggestedPost &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.comment_);
+  CREATE_OK_REQUEST_PROMISE();
+  td_->messages_manager_->process_suggested_post({DialogId(request.chat_id_), MessageId(request.message_id_)}, true, 0,
+                                                 request.comment_, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::addOffer &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST_PROMISE();
+  td_->messages_manager_->add_offer(DialogId(request.chat_id_), MessageId(request.message_id_),
+                                    std::move(request.options_), std::move(promise));
+}
+
 void Requests::on_request(uint64 id, td_api::revokeChatInviteLink &request) {
   CLEAN_INPUT_STRING(request.invite_link_);
   CREATE_REQUEST_PROMISE();
@@ -6971,11 +7075,20 @@ void Requests::on_request(uint64 id, const td_api::getChatRevenueWithdrawalUrl &
                                                               std::move(promise));
 }
 
-void Requests::on_request(uint64 id, const td_api::getChatRevenueTransactions &request) {
+void Requests::on_request(uint64 id, td_api::getChatRevenueTransactions &request) {
   CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.offset_);
   CREATE_REQUEST_PROMISE();
   td_->statistics_manager_->get_dialog_revenue_transactions(DialogId(request.chat_id_), request.offset_, request.limit_,
                                                             std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::getTonTransactions &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.offset_);
+  CREATE_REQUEST_PROMISE();
+  td_->star_manager_->get_ton_transactions(request.offset_, request.limit_, std::move(request.direction_),
+                                           std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::getStarRevenueStatistics &request) {
@@ -7170,6 +7283,21 @@ void Requests::on_request(uint64 id, td_api::stopPoll &request) {
   CREATE_OK_REQUEST_PROMISE();
   td_->messages_manager_->stop_poll({DialogId(request.chat_id_), MessageId(request.message_id_)},
                                     std::move(request.reply_markup_), std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::addChecklistTasks &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->message_query_manager_->add_to_do_list_tasks({DialogId(request.chat_id_), MessageId(request.message_id_)},
+                                                    std::move(request.tasks_), std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::markChecklistTasksAsDone &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->message_query_manager_->mark_to_do_list_tasks_as_done(
+      {DialogId(request.chat_id_), MessageId(request.message_id_)}, std::move(request.marked_as_done_task_ids_),
+      std::move(request.marked_as_not_done_task_ids_), std::move(promise));
 }
 
 void Requests::on_request(uint64 id, td_api::hideSuggestedAction &request) {

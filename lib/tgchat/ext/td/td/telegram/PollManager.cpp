@@ -108,7 +108,7 @@ class GetPollVotersQuery final : public Td::ResultHandler {
     auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Read);
     if (input_peer == nullptr) {
       LOG(INFO) << "Can't get poll, because have no read access to " << dialog_id_;
-      return promise_.set_error(Status::Error(400, "Chat is not accessible"));
+      return promise_.set_error(400, "Chat is not accessible");
     }
 
     CHECK(!option.empty());
@@ -741,7 +741,6 @@ void PollManager::unregister_poll(PollId poll_id, MessageFullId message_full_id,
 
 void PollManager::register_reply_poll(PollId poll_id) {
   CHECK(have_poll(poll_id));
-  CHECK(!is_local_poll_id(poll_id));
   LOG(INFO) << "Register replied " << poll_id;
   reply_poll_counts_[poll_id]++;
   if (!G()->close_flag()) {
@@ -751,11 +750,14 @@ void PollManager::register_reply_poll(PollId poll_id) {
 
 void PollManager::unregister_reply_poll(PollId poll_id) {
   CHECK(have_poll(poll_id));
-  CHECK(!is_local_poll_id(poll_id));
   LOG(INFO) << "Unregister replied " << poll_id;
   auto &count = reply_poll_counts_[poll_id];
   CHECK(count > 0);
   count--;
+  if (is_local_poll_id(poll_id)) {
+    CHECK(count == 0);
+    forget_local_poll(poll_id);
+  }
   if (count == 0) {
     reply_poll_counts_.erase(poll_id);
     schedule_poll_unload(poll_id);
@@ -819,22 +821,22 @@ void PollManager::set_poll_answer(PollId poll_id, MessageFullId message_full_id,
   td::unique(option_ids);
 
   if (is_local_poll_id(poll_id)) {
-    return promise.set_error(Status::Error(400, "Poll can't be answered"));
+    return promise.set_error(400, "Poll can't be answered");
   }
 
   auto poll = get_poll(poll_id);
   CHECK(poll != nullptr);
   if (poll->is_closed_) {
-    return promise.set_error(Status::Error(400, "Can't answer closed poll"));
+    return promise.set_error(400, "Can't answer closed poll");
   }
   if (!poll->allow_multiple_answers_ && option_ids.size() > 1) {
-    return promise.set_error(Status::Error(400, "Can't choose more than 1 option in the poll"));
+    return promise.set_error(400, "Can't choose more than 1 option in the poll");
   }
   if (poll->is_quiz_ && option_ids.empty()) {
-    return promise.set_error(Status::Error(400, "Can't retract vote in a quiz"));
+    return promise.set_error(400, "Can't retract vote in a quiz");
   }
   if (poll->is_quiz_ && pending_answers_.count(poll_id) != 0) {
-    return promise.set_error(Status::Error(400, "Can't revote in a quiz"));
+    return promise.set_error(400, "Can't revote in a quiz");
   }
 
   FlatHashMap<uint64, int> affected_option_ids;
@@ -842,7 +844,7 @@ void PollManager::set_poll_answer(PollId poll_id, MessageFullId message_full_id,
   for (auto &option_id : option_ids) {
     auto index = static_cast<size_t>(option_id);
     if (index >= poll->options_.size()) {
-      return promise.set_error(Status::Error(400, "Invalid option ID specified"));
+      return promise.set_error(400, "Invalid option ID specified");
     }
     options.push_back(poll->options_[index].data_);
 
@@ -851,7 +853,7 @@ void PollManager::set_poll_answer(PollId poll_id, MessageFullId message_full_id,
   for (size_t option_index = 0; option_index < poll->options_.size(); option_index++) {
     if (poll->options_[option_index].is_chosen_) {
       if (poll->is_quiz_) {
-        return promise.set_error(Status::Error(400, "Can't revote in a quiz"));
+        return promise.set_error(400, "Can't revote in a quiz");
       }
       affected_option_ids[option_index + 1]++;
     }
@@ -1104,13 +1106,13 @@ td_api::object_ptr<td_api::messageSenders> PollManager::get_poll_voters_object(
 void PollManager::get_poll_voters(PollId poll_id, MessageFullId message_full_id, int32 option_id, int32 offset,
                                   int32 limit, Promise<td_api::object_ptr<td_api::messageSenders>> &&promise) {
   if (is_local_poll_id(poll_id)) {
-    return promise.set_error(Status::Error(400, "Poll results can't be received"));
+    return promise.set_error(400, "Poll results can't be received");
   }
   if (offset < 0) {
-    return promise.set_error(Status::Error(400, "Invalid offset specified"));
+    return promise.set_error(400, "Invalid offset specified");
   }
   if (limit <= 0) {
-    return promise.set_error(Status::Error(400, "Parameter limit must be positive"));
+    return promise.set_error(400, "Parameter limit must be positive");
   }
   if (limit > MAX_GET_POLL_VOTERS) {
     limit = MAX_GET_POLL_VOTERS;
@@ -1119,10 +1121,10 @@ void PollManager::get_poll_voters(PollId poll_id, MessageFullId message_full_id,
   auto poll = get_poll(poll_id);
   CHECK(poll != nullptr);
   if (option_id < 0 || static_cast<size_t>(option_id) >= poll->options_.size()) {
-    return promise.set_error(Status::Error(400, "Invalid option ID specified"));
+    return promise.set_error(400, "Invalid option ID specified");
   }
   if (poll->is_anonymous_) {
-    return promise.set_error(Status::Error(400, "Poll is anonymous"));
+    return promise.set_error(400, "Poll is anonymous");
   }
 
   auto &voters = get_poll_option_voters(poll, poll_id, option_id);
@@ -1135,7 +1137,7 @@ void PollManager::get_poll_voters(PollId poll_id, MessageFullId message_full_id,
   auto cur_offset = narrow_cast<int32>(voters.voter_dialog_ids_.size());
 
   if (offset > cur_offset) {
-    return promise.set_error(Status::Error(400, "Too big offset specified; voters can be received only consequently"));
+    return promise.set_error(400, "Too big offset specified; voters can be received only consequently");
   }
   if (offset < cur_offset) {
     vector<DialogId> result;

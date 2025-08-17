@@ -687,10 +687,13 @@ static Result<InlineKeyboardButton> get_inline_keyboard_button(tl_object_ptr<td_
   return std::move(current_button);
 }
 
-Result<unique_ptr<ReplyMarkup>> get_reply_markup(td_api::object_ptr<td_api::ReplyMarkup> &&reply_markup_ptr,
-                                                 bool is_bot, bool only_inline_keyboard, bool request_buttons_allowed,
-                                                 bool switch_inline_buttons_allowed) {
-  CHECK(!only_inline_keyboard || !request_buttons_allowed);
+static Result<unique_ptr<ReplyMarkup>> get_reply_markup(td_api::object_ptr<td_api::ReplyMarkup> &&reply_markup_ptr,
+                                                        bool is_bot, bool only_inline_keyboard,
+                                                        bool request_buttons_allowed,
+                                                        bool switch_inline_buttons_allowed, bool allow_personal) {
+  if (only_inline_keyboard) {
+    CHECK(!request_buttons_allowed);
+  }
   if (reply_markup_ptr == nullptr || !is_bot) {
     return nullptr;
   }
@@ -708,7 +711,7 @@ Result<unique_ptr<ReplyMarkup>> get_reply_markup(td_api::object_ptr<td_api::Repl
       reply_markup->is_persistent = show_keyboard_markup->is_persistent_;
       reply_markup->need_resize_keyboard = show_keyboard_markup->resize_keyboard_;
       reply_markup->is_one_time_keyboard = show_keyboard_markup->one_time_;
-      reply_markup->is_personal = show_keyboard_markup->is_personal_;
+      reply_markup->is_personal = show_keyboard_markup->is_personal_ && allow_personal;
       reply_markup->placeholder = std::move(show_keyboard_markup->input_field_placeholder_);
 
       reply_markup->keyboard.reserve(show_keyboard_markup->rows_.size());
@@ -784,50 +787,36 @@ Result<unique_ptr<ReplyMarkup>> get_reply_markup(td_api::object_ptr<td_api::Repl
     case td_api::replyMarkupRemoveKeyboard::ID: {
       auto remove_keyboard_markup = move_tl_object_as<td_api::replyMarkupRemoveKeyboard>(reply_markup_ptr);
       reply_markup->type = ReplyMarkup::Type::RemoveKeyboard;
-      reply_markup->is_personal = remove_keyboard_markup->is_personal_;
+      reply_markup->is_personal = remove_keyboard_markup->is_personal_ && allow_personal;
       break;
     }
     case td_api::replyMarkupForceReply::ID: {
       auto force_reply_markup = move_tl_object_as<td_api::replyMarkupForceReply>(reply_markup_ptr);
       reply_markup->type = ReplyMarkup::Type::ForceReply;
-      reply_markup->is_personal = force_reply_markup->is_personal_;
+      reply_markup->is_personal = force_reply_markup->is_personal_ && allow_personal;
       reply_markup->placeholder = std::move(force_reply_markup->input_field_placeholder_);
       break;
     }
     default:
       UNREACHABLE();
   }
-
   return std::move(reply_markup);
 }
 
+Result<unique_ptr<ReplyMarkup>> get_inline_reply_markup(td_api::object_ptr<td_api::ReplyMarkup> &&reply_markup_ptr,
+                                                        bool is_bot, bool switch_inline_buttons_allowed) {
+  return get_reply_markup(std::move(reply_markup_ptr), is_bot, true, false, switch_inline_buttons_allowed, false);
+}
+
 Result<unique_ptr<ReplyMarkup>> get_reply_markup(td_api::object_ptr<td_api::ReplyMarkup> &&reply_markup_ptr,
-                                                 DialogType dialog_type, bool is_bot, bool is_anonymous) {
-  bool only_inline_keyboard = is_anonymous;
+                                                 DialogType dialog_type, bool is_admined_monoforum, bool is_bot,
+                                                 bool is_anonymous) {
+  bool only_inline_keyboard = is_anonymous && !is_admined_monoforum;
   bool request_buttons_allowed = dialog_type == DialogType::User;
   bool switch_inline_buttons_allowed = !is_anonymous;
-
-  TRY_RESULT(reply_markup, get_reply_markup(std::move(reply_markup_ptr), is_bot, only_inline_keyboard,
-                                            request_buttons_allowed, switch_inline_buttons_allowed));
-  if (reply_markup == nullptr) {
-    return nullptr;
-  }
-  switch (dialog_type) {
-    case DialogType::User:
-      if (reply_markup->type != ReplyMarkup::Type::InlineKeyboard) {
-        reply_markup->is_personal = false;
-      }
-      break;
-    case DialogType::Channel:
-    case DialogType::Chat:
-    case DialogType::SecretChat:
-    case DialogType::None:
-      // nothing special
-      break;
-    default:
-      UNREACHABLE();
-  }
-  return std::move(reply_markup);
+  bool allow_personal = dialog_type != DialogType::User;
+  return get_reply_markup(std::move(reply_markup_ptr), is_bot, only_inline_keyboard, request_buttons_allowed,
+                          switch_inline_buttons_allowed, allow_personal);
 }
 
 unique_ptr<ReplyMarkup> dup_reply_markup(const unique_ptr<ReplyMarkup> &reply_markup) {

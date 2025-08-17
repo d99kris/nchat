@@ -369,7 +369,8 @@ td::Result<std::string> CallEncryption::encrypt(td::int32 channel_id, td::Slice 
   using td::store;
   std::string header_a = lambda_serialize([&](auto &storer) {
     store(epochs_n, storer);
-    for (auto &[epoch_i, epoch] : epochs_) {
+    for (const auto &it : epochs_) {
+      const auto &epoch = it.second;
       store(epoch.epoch_hash_, storer);
     }
   });
@@ -380,7 +381,8 @@ td::Result<std::string> CallEncryption::encrypt(td::int32 channel_id, td::Slice 
                                                           decrypted_data, one_time_secret));
 
   std::vector<td::SecureString> encrypted_headers;
-  for (auto &[epoch_i, epoch] : epochs_) {
+  for (const auto &it : epochs_) {
+    const auto &epoch = it.second;
     TRY_RESULT(encrypted_header, MessageEncryption::encrypt_header(one_time_secret, encrypted_packet, epoch.secret_));
     encrypted_headers.emplace_back(std::move(encrypted_header));
   }
@@ -619,7 +621,7 @@ td::Result<Call> Call::create(td::int64 user_id, PrivateKey private_key, td::Sli
   TRY_RESULT(blockchain, ClientBlockchain::create_from_block(last_block, private_key.to_public_key()));
   auto call = Call(user_id, std::move(private_key), std::move(blockchain));
   TRY_STATUS(call.update_group_shared_key());
-  return call;
+  return std::move(call);
 }
 
 td::Result<std::string> Call::build_change_state(GroupStateRef new_group_state) const {
@@ -698,7 +700,7 @@ td::Result<td::SecureString> Call::decrypt_shared_key() {
       if (decrypted_shared_key.size() != 32) {
         return td::Status::Error("Invalid shared key (size != 32)");
       }
-      return decrypted_shared_key;
+      return std::move(decrypted_shared_key);
     }
   }
   return td::Status::Error("Could not find user_id in group_shared_key");
@@ -723,10 +725,10 @@ td::Status Call::update_group_shared_key() {
 
   TRY_RESULT_ASSIGN(group_shared_key_, decrypt_shared_key());
   if (group_state->version() >= 1) {
-    group_shared_key_ = td::SecureString(
-        MessageEncryption::hmac_sha512(group_shared_key_, blockchain_.get_last_block_hash().as_slice())
-            .as_slice()
-            .substr(0, 32));
+    group_shared_key_ =
+        td::SecureString(MessageEncryption::hmac_sha512(group_shared_key_, blockchain_.get_last_block_hash().as_slice())
+                             .as_slice()
+                             .substr(0, 32));
   }
 
   return call_encryption_.add_shared_key(td::narrow_cast<td::int32>(blockchain_.get_height()),

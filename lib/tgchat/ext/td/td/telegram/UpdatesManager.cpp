@@ -85,6 +85,7 @@
 #include "td/telegram/telegram_api.hpp"
 #include "td/telegram/ThemeManager.h"
 #include "td/telegram/TimeZoneManager.h"
+#include "td/telegram/TonAmount.h"
 #include "td/telegram/TranscriptionManager.h"
 #include "td/telegram/UserManager.h"
 #include "td/telegram/Usernames.h"
@@ -853,7 +854,7 @@ bool UpdatesManager::is_acceptable_message_media(
       /*
       // the users and chats are always min, so no need to check
       auto message_media_poll = static_cast<const telegram_api::messageMediaPoll *>(media_ptr.get());
-      for (auto recent_voter : message_media_poll->results_->recent_voters_) {
+      for (const auto &recent_voter : message_media_poll->results_->recent_voters_) {
         if (!is_acceptable_peer(recent_voter)) {
           return false;
         }
@@ -887,6 +888,18 @@ bool UpdatesManager::is_acceptable_message_media(
       }
       */
       return true;
+    case telegram_api::messageMediaToDo::ID: {
+      /*
+      // the users are always min, so no need to check
+      auto message_media_to_do = static_cast<const telegram_api::messageMediaToDo *>(media_ptr.get());
+      for (const auto &completion : message_media_to_do->completions_) {
+        if (!is_acceptable_user(UserId(completion->completed_by_))) {
+          return false;
+        }
+      }
+      */
+      return true;
+    }
     default:
       return true;
   }
@@ -994,6 +1007,12 @@ bool UpdatesManager::is_acceptable_message(const telegram_api::Message *message_
         case telegram_api::messageActionStarGiftUnique::ID:
         case telegram_api::messageActionPaidMessagesRefunded::ID:
         case telegram_api::messageActionPaidMessagesPrice::ID:
+        case telegram_api::messageActionTodoCompletions::ID:
+        case telegram_api::messageActionTodoAppendTasks::ID:
+        case telegram_api::messageActionSuggestedPostApproval::ID:
+        case telegram_api::messageActionSuggestedPostSuccess::ID:
+        case telegram_api::messageActionSuggestedPostRefund::ID:
+        case telegram_api::messageActionGiftTon::ID:
           break;
         case telegram_api::messageActionChatCreate::ID: {
           auto chat_create = static_cast<const telegram_api::messageActionChatCreate *>(action);
@@ -1200,12 +1219,12 @@ void UpdatesManager::on_get_updates_impl(telegram_api::object_ptr<telegram_api::
       auto from_id = update->out_ ? td_->user_manager_->get_my_id().get() : update->user_id_;
       auto message = telegram_api::make_object<telegram_api::message>(
           0 /*unused*/, update->out_, update->mentioned_, update->media_unread_, update->silent_, false, false, false,
-          false, false, false, false, false, 0, false, update->id_,
+          false, false, false, false, false, 0, false, false, false, update->id_,
           telegram_api::make_object<telegram_api::peerUser>(from_id), 0,
           telegram_api::make_object<telegram_api::peerUser>(update->user_id_), nullptr, std::move(update->fwd_from_),
           update->via_bot_id_, 0, std::move(update->reply_to_), update->date_, update->message_, nullptr, nullptr,
           std::move(update->entities_), 0, 0, nullptr, 0, string(), 0, nullptr, Auto(), update->ttl_period_, 0, 0,
-          nullptr, 0, 0);
+          nullptr, 0, 0, nullptr);
       on_pending_update(telegram_api::make_object<telegram_api::updateNewMessage>(std::move(message), update->pts_,
                                                                                   update->pts_count_),
                         0, std::move(promise), "telegram_api::updateShortMessage");
@@ -1215,12 +1234,12 @@ void UpdatesManager::on_get_updates_impl(telegram_api::object_ptr<telegram_api::
       auto update = telegram_api::move_object_as<telegram_api::updateShortChatMessage>(updates_ptr);
       auto message = telegram_api::make_object<telegram_api::message>(
           0 /*unused*/, update->out_, update->mentioned_, update->media_unread_, update->silent_, false, false, false,
-          false, false, false, false, false, 0, false, update->id_,
+          false, false, false, false, false, 0, false, false, false, update->id_,
           telegram_api::make_object<telegram_api::peerUser>(update->from_id_), 0,
           telegram_api::make_object<telegram_api::peerChat>(update->chat_id_), nullptr, std::move(update->fwd_from_),
           update->via_bot_id_, 0, std::move(update->reply_to_), update->date_, update->message_, nullptr, nullptr,
           std::move(update->entities_), 0, 0, nullptr, 0, string(), 0, nullptr, Auto(), update->ttl_period_, 0, 0,
-          nullptr, 0, 0);
+          nullptr, 0, 0, nullptr);
       on_pending_update(telegram_api::make_object<telegram_api::updateNewMessage>(std::move(message), update->pts_,
                                                                                   update->pts_count_),
                         0, std::move(promise), "telegram_api::updateShortChatMessage");
@@ -1914,7 +1933,9 @@ void UpdatesManager::process_get_difference_updates(
     */
   }
 
-  MessageId::is_message_id_order_ascending(new_messages);  // ignore errors
+  if (td_->option_manager_->get_option_integer("session_count") <= 1) {
+    MessageId::is_message_id_order_ascending(new_messages, "process_get_difference_updates");  // ignore errors
+  }
 
   for (auto &message : new_messages) {
     // channel messages must not be received in this vector
@@ -2327,6 +2348,7 @@ void UpdatesManager::try_reload_data() {
     td_->reaction_manager_->reload_reaction_list(reaction_list_type, "try_reload_data");
   }
   td_->star_manager_->reload_owned_star_count();
+  td_->star_manager_->reload_owned_ton_count();
   for (int32 type = 0; type < MAX_STICKER_TYPE; type++) {
     auto sticker_type = static_cast<StickerType>(type);
     td_->stickers_manager_->get_installed_sticker_sets(sticker_type, Auto());
@@ -2342,6 +2364,7 @@ void UpdatesManager::try_reload_data() {
   td_->stickers_manager_->reload_special_sticker_set_by_type(SpecialStickerSetType::default_statuses());
   td_->stickers_manager_->reload_special_sticker_set_by_type(SpecialStickerSetType::default_channel_statuses());
   td_->stickers_manager_->reload_special_sticker_set_by_type(SpecialStickerSetType::default_topic_icons());
+  td_->stickers_manager_->reload_special_sticker_set_by_type(SpecialStickerSetType::ton_gifts());
   td_->stickers_manager_->get_default_custom_emoji_stickers(StickerListType::DialogPhoto, true, Auto());
   td_->stickers_manager_->get_default_custom_emoji_stickers(StickerListType::UserProfilePhoto, true, Auto());
   td_->stickers_manager_->get_default_custom_emoji_stickers(StickerListType::Background, true, Auto());
@@ -3736,6 +3759,14 @@ void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateReadMonoForumOu
   promise.set_value(Unit());
 }
 
+void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateMonoForumNoPaidException> update,
+                               Promise<Unit> &&promise) {
+  td_->saved_messages_manager_->on_update_monoforum_nopaid_messages_exception(
+      DialogId(ChannelId(update->channel_id_)), SavedMessagesTopicId(DialogId(update->saved_peer_id_)),
+      update->exception_);
+  promise.set_value(Unit());
+}
+
 void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateChannelPinnedTopic> update, Promise<Unit> &&promise) {
   td_->forum_topic_manager_->on_update_forum_topic_is_pinned(
       DialogId(ChannelId(update->channel_id_)), MessageId(ServerMessageId(update->topic_id_)), update->pinned_);
@@ -4462,9 +4493,9 @@ void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateGroupCallChainB
 
 void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateGroupCall> update, Promise<Unit> &&promise) {
   DialogId dialog_id(ChatId(update->chat_id_));
-  if (dialog_id != DialogId() && !td_->dialog_manager_->have_dialog_force(dialog_id, "updateGroupCall")) {
+  if (dialog_id != DialogId() && !td_->dialog_manager_->have_dialog_force(dialog_id, "updateGroupCall chat")) {
     dialog_id = DialogId(ChannelId(update->chat_id_));
-    if (!td_->dialog_manager_->have_dialog_force(dialog_id, "updateGroupCall")) {
+    if (!td_->dialog_manager_->have_dialog_force(dialog_id, "updateGroupCall channel")) {
       dialog_id = DialogId();
     }
   }
@@ -4729,20 +4760,34 @@ void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateBotDeleteBusine
   add_pending_qts_update(std::move(update), qts, std::move(promise));
 }
 
-void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateBroadcastRevenueTransactions> update,
-                               Promise<Unit> &&promise) {
-  td_->statistics_manager_->on_update_dialog_revenue_transactions(DialogId(update->peer_),
-                                                                  std::move(update->balances_));
-  promise.set_value(Unit());
-}
-
 void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateStarsBalance> update, Promise<Unit> &&promise) {
-  td_->star_manager_->on_update_owned_star_amount(StarAmount(std::move(update->balance_), true));
+  switch (update->balance_->get_id()) {
+    case telegram_api::starsAmount::ID:
+      td_->star_manager_->on_update_owned_star_amount(
+          StarAmount(telegram_api::move_object_as<telegram_api::starsAmount>(update->balance_), true));
+      break;
+    case telegram_api::starsTonAmount::ID:
+      td_->star_manager_->on_update_owned_ton_amount(
+          TonAmount(telegram_api::move_object_as<telegram_api::starsTonAmount>(update->balance_), true));
+      break;
+    default:
+      UNREACHABLE();
+  }
   promise.set_value(Unit());
 }
 
 void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateStarsRevenueStatus> update, Promise<Unit> &&promise) {
-  td_->star_manager_->on_update_stars_revenue_status(std::move(update));
+  switch (update->status_->current_balance_->get_id()) {
+    case telegram_api::starsAmount::ID:
+      td_->star_manager_->on_update_stars_revenue_status(std::move(update));
+      break;
+    case telegram_api::starsTonAmount::ID:
+      td_->statistics_manager_->on_update_dialog_revenue_transactions(DialogId(update->peer_),
+                                                                      std::move(update->status_));
+      break;
+    default:
+      UNREACHABLE();
+  }
   promise.set_value(Unit());
 }
 

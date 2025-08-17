@@ -28,7 +28,7 @@ namespace td {
 
 class NotificationTypeMessage final : public NotificationType {
   bool can_be_delayed() const final {
-    return message_id_.is_valid() && message_id_.is_server();
+    return message_id_.is_server();
   }
 
   bool is_temporary() const final {
@@ -391,6 +391,15 @@ class NotificationTypePushMessage final : public NotificationType {
       case 'T':
         if (key == "MESSAGE_TEXT") {
           return td_api::make_object<td_api::pushMessageContentText>(arg, is_pinned);
+        }
+        if (key == "MESSAGE_TODO") {
+          return td_api::make_object<td_api::pushMessageContentChecklist>(arg, is_pinned);
+        }
+        if (key == "MESSAGE_TODO_APPEND") {
+          return td_api::make_object<td_api::pushMessageContentChecklistTasksAdded>(to_integer<int32>(arg));
+        }
+        if (key == "MESSAGE_TODO_DONE") {
+          return td_api::make_object<td_api::pushMessageContentChecklistTasksDone>(to_integer<int32>(arg));
         }
         break;
       case 'V':

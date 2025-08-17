@@ -80,9 +80,11 @@ class MessageId {
 
   static MessageId get_max_message_id(const vector<telegram_api::object_ptr<telegram_api::Message>> &messages);
 
-  static bool is_message_id_order_ascending(const vector<telegram_api::object_ptr<telegram_api::Message>> &messages);
+  static bool is_message_id_order_ascending(const vector<telegram_api::object_ptr<telegram_api::Message>> &messages,
+                                            const char *source);
 
-  static bool is_message_id_order_descending(const vector<telegram_api::object_ptr<telegram_api::Message>> &messages);
+  static bool is_message_id_order_descending(const vector<telegram_api::object_ptr<telegram_api::Message>> &messages,
+                                             const char *source);
 
   static vector<MessageId> get_message_ids(const vector<int64> &input_message_ids);
 
@@ -117,8 +119,8 @@ class MessageId {
   }
 
   bool is_server() const {
-    CHECK(is_valid());
-    return (id & FULL_TYPE_MASK) == 0;
+    // also checks validness
+    return (id & FULL_TYPE_MASK) == 0 && id > 0 && id <= max().get();
   }
 
   bool is_scheduled_server() const {

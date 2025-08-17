@@ -63,6 +63,9 @@ class MessageQueryManager final : public Actor {
 
   void report_message_delivery(MessageFullId message_full_id, int32 until_date, bool from_push);
 
+  void send_bot_requested_peer(MessageFullId message_full_id, int32 button_id, vector<DialogId> shared_dialog_ids,
+                               Promise<Unit> &&promise);
+
   void reload_message_extended_media(DialogId dialog_id, vector<MessageId> message_ids);
 
   void finish_get_message_extended_media(DialogId dialog_id, const vector<MessageId> &message_ids);
@@ -71,6 +74,9 @@ class MessageQueryManager final : public Actor {
 
   void set_message_fact_check(MessageFullId message_full_id, const FormattedText &fact_check_text,
                               Promise<Unit> &&promise);
+
+  void toggle_suggested_post_approval(MessageFullId message_full_id, bool is_rejected, int32 schedule_date,
+                                      const string &comment, Promise<Unit> &&promise);
 
   void search_messages(DialogListId dialog_list_id, bool ignore_folder_id, const string &query,
                        const string &offset_str, int32 limit, MessageSearchFilter filter,
@@ -129,6 +135,12 @@ class MessageQueryManager final : public Actor {
   void get_paid_message_reaction_senders(DialogId dialog_id,
                                          Promise<td_api::object_ptr<td_api::messageSenders>> &&promise,
                                          bool is_recursive = false);
+
+  void add_to_do_list_tasks(MessageFullId message_full_id,
+                            vector<td_api::object_ptr<td_api::inputChecklistTask>> &&tasks, Promise<Unit> &&promise);
+
+  void mark_to_do_list_tasks_as_done(MessageFullId message_full_id, vector<int32> done_task_ids,
+                                     vector<int32> not_done_task_ids, Promise<Unit> &&promise);
 
   void get_discussion_message(DialogId dialog_id, MessageId message_id, DialogId expected_dialog_id,
                               MessageId expected_message_id, Promise<MessageThreadInfo> &&promise);

@@ -989,7 +989,7 @@ void WebPagesManager::on_get_web_page_preview(unique_ptr<GetWebPagePreviewOption
     }
 
     LOG(ERROR) << "Receive " << to_string(message_media_ptr) << " instead of web page";
-    return promise.set_error(Status::Error(500, "Receive not web page in GetWebPagePreview"));
+    return promise.set_error(500, "Receive not web page in GetWebPagePreview");
   }
 
   auto message_media_web_page = move_tl_object_as<telegram_api::messageMediaWebPage>(message_media_ptr);
@@ -1560,7 +1560,8 @@ td_api::object_ptr<td_api::LinkPreviewType> WebPagesManager::get_link_preview_ty
       LOG_IF(ERROR, web_page->document_.type != Document::Type::Unknown)
           << "Receive wrong document for " << web_page->url_;
       return td_api::make_object<td_api::linkPreviewTypeVideoChat>(
-          get_chat_photo_object(td_->file_manager_.get(), web_page->photo_), true);
+          get_chat_photo_object(td_->file_manager_.get(), web_page->photo_), true,
+          LinkManager::has_video_chat_invite_hash(web_page->url_));
     }
     if (type == "megagroup" || type == "megagroup_request") {
       LOG_IF(ERROR, web_page->document_.type != Document::Type::Unknown)
@@ -1626,7 +1627,8 @@ td_api::object_ptr<td_api::LinkPreviewType> WebPagesManager::get_link_preview_ty
       LOG_IF(ERROR, web_page->document_.type != Document::Type::Unknown)
           << "Receive wrong document for " << web_page->url_;
       return td_api::make_object<td_api::linkPreviewTypeVideoChat>(
-          get_chat_photo_object(td_->file_manager_.get(), web_page->photo_), false);
+          get_chat_photo_object(td_->file_manager_.get(), web_page->photo_), false,
+          LinkManager::has_video_chat_invite_hash(web_page->url_));
     }
   }
   if (!web_page->embed_type_.empty() || !web_page->embed_url_.empty()) {
@@ -1759,6 +1761,9 @@ td_api::object_ptr<td_api::LinkPreviewType> WebPagesManager::get_link_preview_ty
     auto photo = get_photo_object(td_->file_manager_.get(), web_page->photo_);
     if (photo != nullptr) {
       return td_api::make_object<td_api::linkPreviewTypePhoto>(std::move(photo));
+    } else if (web_page->site_name_ == "Telegram") {
+      // unavailable photo
+      return td_api::make_object<td_api::linkPreviewTypeArticle>(nullptr);
     } else {
       LOG(ERROR) << "Receive photo without photo for " << web_page->url_;
       return td_api::make_object<td_api::linkPreviewTypeUnsupported>();
@@ -2129,7 +2134,7 @@ void WebPagesManager::on_pending_web_page_timeout(WebPageId web_page_id) {
       auto requests = std::move(it->second);
       pending_get_web_pages_.erase(it);
       for (auto &request : requests) {
-        request.second.set_error(Status::Error(500, "Request timeout exceeded"));
+        request.second.set_error(500, "Request timeout exceeded");
         count++;
       }
     }
