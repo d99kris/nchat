@@ -456,15 +456,15 @@ std::string GetFeatures()
 {
   std::string features =
 #if defined(HAS_TELEGRAM)
-    "Telegram ON, "
+    "telegram on, "
 #else
-    "Telegram OFF, "
+    "telegram off, "
 #endif
 
 #if defined(HAS_WHATSAPP)
-    "WhatsApp ON"
+    "whatsapp on"
 #else
-    "WhatsApp OFF"
+    "whatsapp off"
 #endif
   ;
 

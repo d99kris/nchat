@@ -1,6 +1,6 @@
 // sysutil.cpp
 //
-// Copyright (c) 2024 Kristofer Berggren
+// Copyright (c) 2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -18,12 +18,12 @@ std::string SysUtil::GetCompiler()
 {
 #if defined(__VERSION__)
 #if !defined(__clang__) && defined(__GNUC__)
-  std::string compiler = "GCC " __VERSION__;
+  std::string compiler = "gcc " __VERSION__;
 #else
   std::string compiler = __VERSION__;
 #endif
 #else
-  std::string compiler = "Unknown compiler";
+  std::string compiler = "unknown compiler";
 #endif
 
 #if defined(__linux__)
@@ -38,12 +38,12 @@ std::string SysUtil::GetCompiler()
   std::string libc;
 #endif
 
-  return compiler + (!libc.empty() ? " " + libc : "");
+  return StrUtil::ToLower(compiler + (!libc.empty() ? " " + libc : ""));
 }
 
 std::string SysUtil::GetGo(const std::string& p_GoVersion)
 {
-  return "Go " + (p_GoVersion.empty() ? "N/A" : p_GoVersion);
+  return StrUtil::ToLower("go " + (p_GoVersion.empty() ? "n/a" : p_GoVersion));
 }
 
 std::string SysUtil::GetOsArch()
@@ -80,7 +80,7 @@ std::string SysUtil::GetOsArch()
   }();
 
   static const std::string osArch = os + " " + arch;
-  return osArch;
+  return StrUtil::ToLower(osArch);
 }
 
 bool SysUtil::IsSupportedLibc()
