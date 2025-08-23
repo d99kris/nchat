@@ -280,6 +280,7 @@ This configuration file holds general application settings. Default content:
     timestamp_iso=0
     use_pairing_code=0
     use_qr_terminal=0
+    version_used=
 
 ### assert_abort
 
@@ -358,6 +359,11 @@ It specifies whether to use pairing code instead of QR code (WhatsApp only).
 Stores the environment variable flag `USE_QR_TERMINAL` if set during setup.
 It specifies whether to display QR code in the terminal, disabling detection
 of GUI capability for displaying images (WhatsApp only).
+
+### version_used
+
+For internal use only. Stores version used for last successful execution. May
+be used for debugging startup crash / hang regressions.
 
 ~/.config/nchat/ui.conf
 -----------------------

@@ -273,6 +273,13 @@ int main(int argc, char* argv[])
   FileUtil::SetDownloadsDir(AppConfig::GetStr("downloads_dir"));
   static const bool isLogdumpEnabled = AppConfig::GetBool("logdump_enabled");
 
+  // Log last version
+  const std::string versionUsed = AppConfig::GetStr("version_used");
+  if (!versionUsed.empty() && (versionUsed != AppUtil::GetAppVersion()))
+  {
+    LOG_INFO("last version %s", versionUsed.c_str());
+  }
+
   // Init core dump
   static const bool isCoredumpEnabled = AppConfig::GetBool("coredump_enabled");
   if (isCoredumpEnabled)
@@ -421,6 +428,9 @@ int main(int argc, char* argv[])
   {
     MessageCache::Export(exportDir);
   }
+
+  // Save last version
+  AppConfig::SetStr("version_used", AppUtil::GetAppVersion());
 
   // Cleanup
   MessageCache::Cleanup();
