@@ -1514,7 +1514,12 @@ void TgChat::Impl::InitProxy()
       SendQuery(td::td_api::make_object<td::td_api::addProxy>(proxyHost, proxyPort, proxyEnable, std::move(proxyType)),
                 [](Object object)
       {
-        if (object->get_id() == td::td_api::error::ID) return;
+        if (object->get_id() == td::td_api::error::ID)
+        {
+          auto error = td::move_tl_object_as<td::td_api::error>(object);
+          LOG_WARNING("add proxy error \"%s\"", to_string(error).c_str());
+          return;
+        }
 
         LOG_TRACE("added proxy");
       });
@@ -1565,11 +1570,12 @@ void TgChat::Impl::ProcessResponse(td::ClientManager::Response response)
   if (response.request_id == 0) return ProcessUpdate(std::move(response.object));
 
   std::unique_lock<std::mutex> lock(m_HandlersMutex);
-  auto it = m_Handlers.find(response.request_id);
-  if (it != m_Handlers.end())
+  auto handler = m_Handlers.extract(response.request_id);
+  lock.unlock();
+  if (!handler.empty())
   {
-    it->second(std::move(response.object));
-    m_Handlers.erase(it);
+    std::function<void(Object)> handlerFunction = std::move(handler.mapped());
+    handlerFunction(std::move(response.object));
   }
 }
 
@@ -2282,13 +2288,13 @@ void TgChat::Impl::OnAuthStateUpdate()
 void TgChat::Impl::SendQuery(td::td_api::object_ptr<td::td_api::Function> f,
                              std::function<void(Object)> handler)
 {
-  auto query_id = GetNextQueryId();
+  auto request_id = GetNextQueryId();
   if (handler)
   {
     std::unique_lock<std::mutex> lock(m_HandlersMutex);
-    m_Handlers.emplace(query_id, std::move(handler));
+    m_Handlers.emplace(request_id, std::move(handler));
   }
-  m_ClientManager->send(m_ClientId, query_id, std::move(f));
+  m_ClientManager->send(m_ClientId, request_id, std::move(f));
 }
 
 void TgChat::Impl::CheckAuthError(Object object)
