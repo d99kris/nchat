@@ -248,8 +248,8 @@ void MessageCache::AddProfile(const std::string& p_ProfileId, bool p_CheckSync, 
 
   try
   {
-    *m_Dbs[p_ProfileId] << "PRAGMA synchronous = OFF";
-    *m_Dbs[p_ProfileId] << "PRAGMA journal_mode = MEMORY";
+    *m_Dbs[p_ProfileId] << "PRAGMA synchronous = FULL";
+    *m_Dbs[p_ProfileId] << "PRAGMA journal_mode = DELETE";
 
     // note: use actual table names instead if variables during schema setup / update
 

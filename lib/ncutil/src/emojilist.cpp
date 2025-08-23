@@ -36,8 +36,8 @@ void EmojiList::Init()
 
   if (!m_Db) return;
 
-  *m_Db << "PRAGMA synchronous = OFF";
-  *m_Db << "PRAGMA journal_mode = MEMORY";
+  *m_Db << "PRAGMA synchronous = FULL";
+  *m_Db << "PRAGMA journal_mode = DELETE";
 
   // create table if not exists
   *m_Db << "CREATE TABLE IF NOT EXISTS emojis (name TEXT PRIMARY KEY NOT NULL, emoji TEXT, usages INT);";
