@@ -13,6 +13,7 @@
 #include "strutil.h"
 #include "uicolorconfig.h"
 #include "uiconfig.h"
+#include "uimodel.h"
 
 UiTopView::UiTopView(const UiViewParams& p_Params)
   : UiViewBase(p_Params)
@@ -30,8 +31,12 @@ void UiTopView::Draw()
   m_Dirty |= (status != lastStatus);
   lastStatus = status;
 
-  if (!m_Enabled || !m_Dirty) return;
+  if (!m_Dirty) return;
   m_Dirty = false;
+
+  m_Model->OnStatusUpdateLocked(status);
+
+  if (!m_Enabled) return;
 
   curs_set(0);
 

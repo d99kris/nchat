@@ -377,6 +377,7 @@ This configuration file holds general user interface settings. Default content:
     confirm_deletion=1
     desktop_notify_active=0
     desktop_notify_command=
+    desktop_notify_connectivity=0
     desktop_notify_inactive=0
     downloadable_indicator=+
     emoji_enabled=1
@@ -478,6 +479,11 @@ prevent shell injection). Default command used, if not specified:
 Linux: `notify-send 'nchat' '%1: %2'`
 
 macOS: `osascript -e 'display notification "%1: %2" with title "nchat"'`
+
+### desktop_notify_connectivity
+
+Specifies whether change of connectivity status (going offline or back online)
+shall trigger desktop notification.
 
 ### desktop_notify_inactive
 

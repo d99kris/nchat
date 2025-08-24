@@ -813,6 +813,36 @@ void UiModel::Impl::MarkRead(const std::string& p_ProfileId, const std::string& 
   UpdateList();
 }
 
+void UiModel::Impl::OnStatusUpdate(uint32_t p_Status)
+{
+  if (!m_Running) return;
+
+  static const bool desktopNotifyConnectivity = UiConfig::GetBool("desktop_notify_connectivity");
+  if (!desktopNotifyConnectivity) return;
+
+  const bool isOnline = (p_Status & Status::FlagOnline);
+
+  // Ignore first transition to online status
+  static bool wasEverOnline = false;
+  if (!wasEverOnline)
+  {
+    if (isOnline)
+    {
+      wasEverOnline = true;
+    }
+
+    return;
+  }
+
+  // Notify on online status change
+  static bool lastOnline = true;
+  if (isOnline != lastOnline)
+  {
+    DesktopNotify("Connection", isOnline ? "Online" : "Offline");
+    lastOnline = isOnline;
+  }
+}
+
 void UiModel::Impl::DownloadAttachment(const std::string& p_ProfileId, const std::string& p_ChatId,
                                        const std::string& p_MsgId, const std::string& p_FileId,
                                        DownloadFileAction p_DownloadFileAction)
@@ -2058,7 +2088,7 @@ void UiModel::Impl::UpdateChatInfoIsUnread(const std::string& p_ProfileId, const
             const std::string name = (chatMessage.senderId == p_ChatId)
               ? GetContactName(p_ProfileId, chatMessage.senderId)
               : GetContactName(p_ProfileId, p_ChatId) + " - " + GetContactName(p_ProfileId, chatMessage.senderId);
-            DesktopNotifyUnread(name, chatMessage.text);
+            DesktopNotify(name, chatMessage.text);
           }
         }
       }
@@ -2610,7 +2640,7 @@ void UiModel::Impl::SetTerminalActive(bool p_TerminalActive)
   }
 }
 
-void UiModel::Impl::DesktopNotifyUnread(const std::string& p_Name, const std::string& p_Text)
+void UiModel::Impl::DesktopNotify(const std::string& p_Name, const std::string& p_Text)
 {
   static const std::string cmdTemplate = [this]()
   {
@@ -4253,6 +4283,12 @@ void UiModel::MarkReadLocked(const std::string& p_ProfileId, const std::string& 
 {
   nc_assert(m_ModelMutex.owns_lock());
   GetImpl().MarkRead(p_ProfileId, p_ChatId, p_MsgId, p_WasUnread);
+}
+
+void UiModel::OnStatusUpdateLocked(uint32_t p_Status)
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  GetImpl().OnStatusUpdate(p_Status);
 }
 
 void UiModel::OnKeyGotoChat()

@@ -25,6 +25,7 @@ void UiConfig::Init()
     { "chat_picker_sorted_alphabetically", "0" },
     { "confirm_deletion", "1" },
     { "desktop_notify_active", "0" },
+    { "desktop_notify_connectivity", "0" },
     { "desktop_notify_inactive", "0" },
     { "desktop_notify_command", "" },
     { "downloadable_indicator", "+" },

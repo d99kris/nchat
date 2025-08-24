@@ -57,6 +57,7 @@ private:
     void HomeFetchNext(const std::string& p_ProfileId, const std::string& p_ChatId, int p_MsgCount);
     void MarkRead(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId,
                   bool p_WasUnread);
+    void OnStatusUpdate(uint32_t p_Status);
     void DownloadAttachment(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId,
                             const std::string& p_FileId, DownloadFileAction p_DownloadFileAction);
     void OnKeyDeleteMsg();
@@ -190,7 +191,7 @@ private:
     void UpdateEntry();
     void ResetMessageOffset();
     void SetCurrentChatIndexIfNotSet();
-    void DesktopNotifyUnread(const std::string& p_Name, const std::string& p_Text);
+    void DesktopNotify(const std::string& p_Name, const std::string& p_Text);
     void SetHistoryInteraction(bool p_HistoryInteraction);
     std::string GetSelectedMessageText();
     void Clear();
@@ -330,6 +331,7 @@ public:
   bool IsMultipleProfilesLocked();
   void MarkReadLocked(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId,
                       bool p_WasUnread);
+  void OnStatusUpdateLocked(uint32_t p_Status);
 
   // Static methods
   static bool IsAttachmentDownloaded(const FileInfo& p_FileInfo);
