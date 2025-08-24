@@ -61,7 +61,11 @@ void UiModel::Impl::Cleanup()
 
 void UiModel::Impl::AnyUserKeyInput()
 {
-  SetCurrentChatIndexIfNotSet(); // set current chat upon any user interaction
+  // set current chat upon any user interaction
+  if (SetCurrentChatIndexIfNotSet())
+  {
+    LOG_TRACE("set current chat on key input");
+  }
 
   if (m_HomeFetchAll)
   {
@@ -1382,6 +1386,7 @@ void UiModel::Impl::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMess
         }
 
         m_ConnectTime[profileId] = TimeUtil::GetCurrentTimeMSec();
+        LOG_TRACE("connect time %lld", m_ConnectTime[profileId]);
       }
       break;
 
@@ -2044,7 +2049,17 @@ void UiModel::Impl::UpdateChatInfoLastMessageTime(const std::string& p_ProfileId
   // If message is received after connection time, ensure current chat is set
   if ((m_ConnectTime.count(p_ProfileId) > 0) && (lastMessageTimeSent > m_ConnectTime[p_ProfileId]))
   {
-    SetCurrentChatIndexIfNotSet();
+    if (SetCurrentChatIndexIfNotSet())
+    {
+      LOG_TRACE("set current chat on new msg %lld", lastMessageTimeSent);
+    }
+  }
+  else
+  {
+    if (m_CurrentChatIndex < 0)
+    {
+      LOG_TRACE("dont set current chat on old msg %lld", lastMessageTimeSent);
+    }
   }
 }
 
@@ -2609,12 +2624,13 @@ bool UiModel::Impl::GetEmojiEnabledLock()
   return GetEmojiEnabled();
 }
 
-void UiModel::Impl::SetCurrentChatIndexIfNotSet()
+bool UiModel::Impl::SetCurrentChatIndexIfNotSet()
 {
-  if ((m_CurrentChatIndex >= 0) || (m_ChatVec.empty())) return;
+  if ((m_CurrentChatIndex >= 0) || (m_ChatVec.empty())) return false;
 
   m_CurrentChatIndex = 0;
   m_CurrentChat = m_ChatVec.at(m_CurrentChatIndex);
+  return true;
 }
 
 void UiModel::Impl::SetTerminalActive(bool p_TerminalActive)

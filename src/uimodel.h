@@ -190,7 +190,7 @@ private:
     void UpdateHistory();
     void UpdateEntry();
     void ResetMessageOffset();
-    void SetCurrentChatIndexIfNotSet();
+    bool SetCurrentChatIndexIfNotSet();
     void DesktopNotify(const std::string& p_Name, const std::string& p_Text);
     void SetHistoryInteraction(bool p_HistoryInteraction);
     std::string GetSelectedMessageText();
