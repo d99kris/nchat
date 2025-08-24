@@ -5,7 +5,7 @@ project(libcgowm)
 # Check Golang version
 execute_process(COMMAND bash "-c" "go version | cut -c14- | cut -d' ' -f1 | tr -d '\n'" OUTPUT_VARIABLE GO_VERSION)
 message(STATUS "Go version ${GO_VERSION}.")
-set(CUSTOM_GO_FLAGS -modcacherw)
+set(CUSTOM_GO_FLAGS -modcacherw -buildvcs=false)
 
 # Check Go package
 execute_process(COMMAND bash "-c" "go version | grep -v -q gccgo" RESULT_VARIABLE GO_GCC)
