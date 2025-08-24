@@ -23,8 +23,8 @@ package main
 // extern void WmUpdatePinNotify(int p_ConnId, char* p_ChatId, int p_IsPinned, int p_TimePinned);
 // extern void WmReinit(int p_ConnId);
 // extern void WmSetProtocolUiControl(int p_ConnId, int p_IsTakeControl);
-// extern void WmSetStatus(int p_Flags);
-// extern void WmClearStatus(int p_Flags);
+// extern void WmSetStatus(int p_ConnId, int p_Flags);
+// extern void WmClearStatus(int p_ConnId, int p_Flags);
 // extern int WmAppConfigGetNum(char* p_Param);
 // extern void WmAppConfigSetNum(char* p_Param, int p_Value);
 // extern void WmLogTrace(char* p_Filename, int p_LineNo, char* p_Message);
@@ -175,12 +175,12 @@ func CWmSetProtocolUiControl(connId int, isTakeControl int) {
 	C.WmSetProtocolUiControl(C.int(connId), C.int(isTakeControl))
 }
 
-func CWmSetStatus(flags int) {
-	C.WmSetStatus(C.int(flags))
+func CWmSetStatus(connId int, flags int) {
+	C.WmSetStatus(C.int(connId), C.int(flags))
 }
 
-func CWmClearStatus(flags int) {
-	C.WmClearStatus(C.int(flags))
+func CWmClearStatus(connId int, flags int) {
+	C.WmClearStatus(C.int(connId), C.int(flags))
 }
 
 func CWmAppConfigGetNum(param string) int {

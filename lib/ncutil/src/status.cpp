@@ -8,6 +8,7 @@
 #include "status.h"
 
 uint32_t Status::m_Flags = 0;
+std::map<std::string, uint32_t> Status::m_ProfileFlags;
 std::mutex Status::m_Mutex;
 
 uint32_t Status::Get(uint32_t p_Mask)
@@ -16,16 +17,18 @@ uint32_t Status::Get(uint32_t p_Mask)
   return m_Flags & p_Mask;
 }
 
-void Status::Set(uint32_t p_Flags)
+void Status::Set(const std::string& p_ProfileId, uint32_t p_Flags)
 {
   std::unique_lock<std::mutex> lock(m_Mutex);
-  m_Flags |= p_Flags;
+  m_ProfileFlags[p_ProfileId] |= p_Flags;
+  UpdateCombined();
 }
 
-void Status::Clear(uint32_t p_Flags)
+void Status::Clear(const std::string& p_ProfileId, uint32_t p_Flags)
 {
   std::unique_lock<std::mutex> lock(m_Mutex);
-  m_Flags &= ~p_Flags;
+  m_ProfileFlags[p_ProfileId] &= ~p_Flags;
+  UpdateCombined();
 }
 
 std::string Status::ToString(uint32_t p_Flags)
@@ -39,4 +42,16 @@ std::string Status::ToString(uint32_t p_Flags)
   if (p_Flags & FlagConnecting) return "Connecting";
 
   return "Offline";
+}
+
+void Status::UpdateCombined()
+{
+  m_Flags = m_ProfileFlags.begin()->second;
+  if (m_ProfileFlags.size() > 1)
+  {
+    for (auto it = std::next(m_ProfileFlags.begin()); it != m_ProfileFlags.end(); ++it)
+    {
+      m_Flags |= it->second;
+    }
+  }
 }

@@ -54,6 +54,8 @@ public:
   void SetMessageHandler(const std::function<void(std::shared_ptr<ServiceMessage>)>& p_MessageHandler);
 
   void SetProtocolUiControl(bool p_IsTakeControl);
+  void SetStatus(int p_Flags);
+  void ClearStatus(int p_Flags);
 
   void AddContactInfo(const ContactInfo& p_ContactInfo);
   std::vector<ContactInfo> GetContactInfos();
@@ -119,8 +121,8 @@ void WmUpdateMuteNotify(int p_ConnId, char* p_ChatId, int p_IsMuted);
 void WmUpdatePinNotify(int p_ConnId, char* p_ChatId, int p_IsPinned, int p_TimePinned);
 void WmReinit(int p_ConnId);
 void WmSetProtocolUiControl(int p_ConnId, int p_IsTakeControl);
-void WmSetStatus(int p_Flags);
-void WmClearStatus(int p_Flags);
+void WmSetStatus(int p_ConnId, int p_Flags);
+void WmClearStatus(int p_ConnId, int p_Flags);
 int WmAppConfigGetNum(char* p_Param);
 void WmAppConfigSetNum(char* p_Param, int p_Value);
 void WmLogTrace(char* p_Filename, int p_LineNo, char* p_Message);

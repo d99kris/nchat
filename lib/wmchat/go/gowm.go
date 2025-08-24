@@ -275,7 +275,7 @@ func DownloadableMessageToFileId(client *whatsmeow.Client, msg whatsmeow.Downloa
 	return str
 }
 
-func DownloadFromFileId(client *whatsmeow.Client, fileId string) (string, int) {
+func DownloadFromFileId(connId int, fileId string) (string, int) {
 	LOG_TRACE(fmt.Sprintf("fileId %s", fileId))
 	var info DownloadInfo
 	json.Unmarshal([]byte(fileId), &info)
@@ -286,6 +286,9 @@ func DownloadFromFileId(client *whatsmeow.Client, fileId string) (string, int) {
 
 	LOG_TRACE(fmt.Sprintf("fileInfo %#v", info))
 
+	// get client
+	client := GetClient(connId)
+
 	targetPath := info.TargetPath
 	filePath := ""
 	fileStatus := FileStatusNone
@@ -293,7 +296,7 @@ func DownloadFromFileId(client *whatsmeow.Client, fileId string) (string, int) {
 	// download if not yet present
 	if _, statErr := os.Stat(targetPath); os.IsNotExist(statErr) {
 		LOG_TRACE(fmt.Sprintf("download new %#v", targetPath))
-		CWmSetStatus(FlagFetching)
+		CWmSetStatus(connId, FlagFetching)
 
 		data, err := DownloadFromFileInfo(client, info)
 		if err != nil {
@@ -317,7 +320,7 @@ func DownloadFromFileId(client *whatsmeow.Client, fileId string) (string, int) {
 				}
 			}
 		}
-		CWmClearStatus(FlagFetching)
+		CWmClearStatus(connId, FlagFetching)
 	} else {
 		LOG_TRACE(fmt.Sprintf("download cached %#v", targetPath))
 		filePath = targetPath
@@ -636,13 +639,13 @@ func (handler *WmEventHandler) HandleEvent(rawEvt interface{}) {
 		LOG_TRACE(fmt.Sprintf("%#v", evt))
 		handler.HandleConnected()
 		SetState(handler.connId, Connected)
-		CWmSetStatus(FlagOnline)
-		CWmClearStatus(FlagConnecting)
+		CWmSetStatus(handler.connId, FlagOnline)
+		CWmClearStatus(handler.connId, FlagConnecting)
 
 	case *events.Disconnected:
 		// disconnected
 		LOG_TRACE(fmt.Sprintf("%#v", evt))
-		CWmClearStatus(FlagOnline)
+		CWmClearStatus(handler.connId, FlagOnline)
 
 	case *events.StreamReplaced:
 		// TODO: find out when exactly this happens and how to handle it
@@ -770,7 +773,7 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 
 	if historySync.Data.GetProgress() < 98 {
 		LOG_TRACE("Set Syncing")
-		CWmSetStatus(FlagSyncing)
+		CWmSetStatus(handler.connId, FlagSyncing)
 	}
 
 	conversations := historySync.Data.GetConversations()
@@ -830,7 +833,7 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 
 	if historySync.Data.GetProgress() == 100 {
 		LOG_TRACE("Clear Syncing")
-		CWmClearStatus(FlagSyncing)
+		CWmClearStatus(handler.connId, FlagSyncing)
 	}
 }
 
@@ -1031,7 +1034,7 @@ func (handler *WmEventHandler) HandleSyncContacts() {
 
 func GetContacts(connId int) {
 	LOG_TRACE(fmt.Sprintf("GetContacts"))
-	CWmSetStatus(FlagFetching)
+	CWmSetStatus(connId, FlagFetching)
 
 	var client *whatsmeow.Client = GetClient(connId)
 
@@ -1104,7 +1107,7 @@ func GetContacts(connId int) {
 	CWmNewContactsNotify(connId, selfId, selfName, selfPhone, isSelf, isNotify)
 	AddContactName(connId, selfId, selfName)
 
-	CWmClearStatus(FlagFetching)
+	CWmClearStatus(connId, FlagFetching)
 }
 
 func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool) {
@@ -1980,7 +1983,7 @@ func WmLogin(connId int) int {
 	err = cli.Connect()
 	if err != nil {
 		LOG_WARNING(fmt.Sprintf("failed to connect %#v", err))
-		CWmClearStatus(FlagConnecting)
+		CWmClearStatus(connId, FlagConnecting)
 		return -1
 	}
 
@@ -2019,7 +2022,7 @@ func WmLogin(connId int) int {
 		LOG_TRACE(fmt.Sprintf("release console"))
 		CWmSetProtocolUiControl(connId, 0)
 
-		CWmClearStatus(FlagConnecting)
+		CWmClearStatus(connId, FlagConnecting)
 		return -1
 	}
 
@@ -2597,9 +2600,9 @@ func WmSendStatus(connId int, isOnline int) int {
 	} else {
 		LOG_TRACE("Sent presence ok")
 		if isOnline == 1 {
-			CWmClearStatus(FlagAway)
+			CWmClearStatus(connId, FlagAway)
 		} else {
-			CWmSetStatus(FlagAway)
+			CWmSetStatus(connId, FlagAway)
 		}
 	}
 
@@ -2616,11 +2619,8 @@ func WmDownloadFile(connId int, chatId string, msgId string, fileId string, acti
 		return -1
 	}
 
-	// get client
-	client := GetClient(connId)
-
 	// download file
-	filePath, fileStatus := DownloadFromFileId(client, fileId)
+	filePath, fileStatus := DownloadFromFileId(connId, fileId)
 
 	// notify result
 	CWmNewMessageFileNotify(connId, chatId, msgId, filePath, fileStatus, action)

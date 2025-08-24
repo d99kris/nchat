@@ -388,8 +388,13 @@ int main(int argc, char* argv[])
     // Sort protocols
     std::map<std::string, std::shared_ptr<Protocol>> protocolsSorted(protocols.begin(), protocols.end());
 
+    // Connecting status
+    for (auto& protocol : protocolsSorted)
+    {
+      Status::Set(protocol.first, Status::FlagConnecting);
+    }
+
     // Login
-    Status::Set(Status::FlagConnecting);
     std::thread loginThread([&]
     {
       for (auto& protocol : protocolsSorted)

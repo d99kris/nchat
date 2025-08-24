@@ -78,7 +78,7 @@ bool DuChat::CloseProfile()
 
 bool DuChat::Login()
 {
-  Status::Set(Status::FlagOnline);
+  Status::Set(m_ProfileId, Status::FlagOnline);
 
   if (!m_Running)
   {
@@ -99,7 +99,7 @@ bool DuChat::Login()
 
 bool DuChat::Logout()
 {
-  Status::Clear(Status::FlagOnline);
+  Status::Clear(m_ProfileId, Status::FlagOnline);
 
   if (m_Running)
   {
