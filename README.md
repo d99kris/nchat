@@ -1052,6 +1052,11 @@ Alternatively one can [Build from Source](#build-from-source) using the
 `make.sh` script, which sets parallel job count based on the system
 capabilities.
 
+### 9. Terminal transparency is not working?
+
+If on Linux, try removing any custom default background set up, i.e. set
+`default_color_bg=` in `~/.config/nchat/color.conf`.
+
 
 Project Scope
 =============
