@@ -2069,7 +2069,8 @@ void UiModel::Impl::UpdateChatInfoIsUnread(const std::string& p_ProfileId, const
       static const bool notifyEveryUnread = UiConfig::GetBool("notify_every_unread");
       if (isUnread && (!profileChatInfos[p_ChatId].isUnread || notifyEveryUnread))
       {
-        const bool receivedAfterConnect = (m_ConnectTime.count(p_ProfileId) > 0) && (chatMessage.timeSent > m_ConnectTime[p_ProfileId]);
+        const bool receivedAfterConnect = (m_ConnectTime.count(p_ProfileId) > 0) &&
+          (chatMessage.timeSent > m_ConnectTime[p_ProfileId]);
         if (receivedAfterConnect)
         {
           static const bool terminalBellActive = UiConfig::GetBool("terminal_bell_active");
