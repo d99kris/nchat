@@ -90,9 +90,9 @@ void UiHistoryView::Draw()
   bool firstMessage = true;
   int y = m_PaddedH - 1;
   int minPadding = m_PaddedW / 4;
-  int padding = 0;
   for (auto it = std::next(messageVec.begin(), messageOffset); it != messageVec.end(); ++it)
   {
+    int padding = 0;
     bool isSelectedMessage = firstMessage && m_Model->GetSelectMessageActiveLocked();
 
     auto msgIt = messages.find(*it);
@@ -138,7 +138,7 @@ void UiHistoryView::Draw()
       }
       else
       {
-          padding = std::max(static_cast<size_t>(minPadding), m_PaddedW - text.length());
+          padding = std::max(static_cast<size_t>(minPadding), m_PaddedW - text.length() - 1);
       }
       if (msg.isOutgoing) {
           wlines = StrUtil::WordWrap(StrUtil::ToWString(text), m_PaddedW - padding, false, false, false, 2);
