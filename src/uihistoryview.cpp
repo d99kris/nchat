@@ -89,6 +89,8 @@ void UiHistoryView::Draw()
 
   bool firstMessage = true;
   int y = m_PaddedH - 1;
+  int minPadding = m_PaddedW / 4;
+  int padding = 0;
   for (auto it = std::next(messageVec.begin(), messageOffset); it != messageVec.end(); ++it)
   {
     bool isSelectedMessage = firstMessage && m_Model->GetSelectMessageActiveLocked();
@@ -130,7 +132,26 @@ void UiHistoryView::Draw()
         text = StrUtil::Textize(text);
       }
 
-      wlines = StrUtil::WordWrap(StrUtil::ToWString(text), m_PaddedW, false, false, false, 2);
+      if (text.length() >= static_cast<size_t>(m_PaddedW)) 
+      {
+          padding = minPadding;
+      }
+      else
+      {
+          padding = std::max(static_cast<size_t>(minPadding), m_PaddedW - text.length());
+      }
+      if (msg.isOutgoing) {
+          wlines = StrUtil::WordWrap(StrUtil::ToWString(text), m_PaddedW - padding, false, false, false, 2);
+          for (auto wline = wlines.rbegin(); wline != wlines.rend(); ++wline)
+          {
+              std::wstring leftPad = StrUtil::ToWString(std::string(padding, ' '));
+              wline->insert(0, leftPad);
+          }
+      }
+      else 
+      {
+          wlines = StrUtil::WordWrap(StrUtil::ToWString(text), m_PaddedW - padding, false, false, false, 2);
+      }
     }
 
     // Quoted message
@@ -414,6 +435,10 @@ void UiHistoryView::Draw()
         L" user " + StrUtil::ToWString(msg.senderId);
     }
 
+    if (msg.isOutgoing)
+    {
+        wheader.insert(0, StrUtil::ToWString(std::string(padding, ' ')));
+    }
     std::wstring wdisp = StrUtil::TrimPadWString(wheader, m_PaddedW);
     mvwaddnwstr(m_PaddedWin, y, 0, wdisp.c_str(), std::min((int)wdisp.size(), m_PaddedW));
 
