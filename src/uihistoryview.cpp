@@ -142,6 +142,17 @@ void UiHistoryView::Draw()
       }
       if (msg.isOutgoing) {
           wlines = StrUtil::WordWrap(StrUtil::ToWString(text), m_PaddedW - padding, false, false, false, 2);
+          padding = [&]()
+          {
+              size_t maxWidth = 0;
+              for (auto wline = wlines.rbegin(); wline != wlines.rend(); ++wline)
+              {
+                  maxWidth = wline->length() > maxWidth ? wline->length() : maxWidth;
+              }
+              int newPadding = std::max(padding, static_cast<int>(m_PaddedW - maxWidth));
+              // return static_cast<int>(maxWidth); // this is a safe cast because necessarily maxWidth < m_PaddedW
+              return newPadding;
+          }();
           for (auto wline = wlines.rbegin(); wline != wlines.rend(); ++wline)
           {
               std::wstring leftPad = StrUtil::ToWString(std::string(padding, ' '));
