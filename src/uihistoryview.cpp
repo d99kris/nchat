@@ -437,7 +437,8 @@ void UiHistoryView::Draw()
 
     if (msg.isOutgoing)
     {
-        wheader.insert(0, StrUtil::ToWString(std::string(padding, ' ')));
+        int headerPadding = std::min(static_cast<size_t>(padding), m_PaddedW - wheader.length() - 1);
+        wheader.insert(0, StrUtil::ToWString(std::string(headerPadding, ' ')));
     }
     std::wstring wdisp = StrUtil::TrimPadWString(wheader, m_PaddedW);
     mvwaddnwstr(m_PaddedWin, y, 0, wdisp.c_str(), std::min((int)wdisp.size(), m_PaddedW));
