@@ -47,7 +47,7 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
-var whatsmeowDate int = 20250816
+var whatsmeowDate int = 20250914
 
 type JSONMessage []json.RawMessage
 type JSONMessageType string
@@ -1078,7 +1078,7 @@ func GetContacts(connId int) {
 	AddContactName(connId, statusId, statusName)
 
 	// groups
-	groups, groupErr := client.GetJoinedGroups()
+	groups, groupErr := client.GetJoinedGroups(ctx)
 	if groupErr != nil {
 		LOG_WARNING(fmt.Sprintf("get joined groups failed %#v", groupErr))
 	} else {
