@@ -97,7 +97,7 @@ void UiListView::Draw()
 
       if (unreads[i])
       {
-          wattron(m_PaddedWin, colorPairUnread);
+        wattron(m_PaddedWin, colorPairUnread);
       }
 
       mvwaddnwstr(m_PaddedWin, y, 0, wname.c_str(), wname.size());
