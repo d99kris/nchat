@@ -51,6 +51,7 @@ void UiListView::Draw()
   static int colorPair = UiColorConfig::GetColorPair("list_color");
   static int attribute = UiColorConfig::GetAttribute("list_attr");
   static int attributeSelected = UiColorConfig::GetAttribute("list_attr_selected");
+  static int colorPairUnread = UiColorConfig::GetColorPair("list_color_unread");
 
   int index = std::max(0, m_Model->GetCurrentChatIndexLocked());
   const std::vector<std::pair<std::string, std::string>>& p_ChatVec = m_Model->GetChatVecLocked();
@@ -94,6 +95,11 @@ void UiListView::Draw()
       std::wstring wname = StrUtil::ToWString(name).substr(0, m_PaddedW);
       wname = StrUtil::TrimPadWString(wname, m_PaddedW);
 
+      if (unreads[i])
+      {
+        wattron(m_PaddedWin, colorPairUnread);
+      }
+
       mvwaddnwstr(m_PaddedWin, y, 0, wname.c_str(), wname.size());
 
       if (unreads[i])
@@ -101,6 +107,8 @@ void UiListView::Draw()
         static const std::string unreadIndicator = " " + UiConfig::GetStr("unread_indicator");
         static const std::wstring wunread = StrUtil::ToWString(unreadIndicator);
         mvwaddnwstr(m_PaddedWin, y, (m_PaddedW - StrUtil::WStringWidth(wunread)), wunread.c_str(), wunread.size());
+
+        wattron(m_PaddedWin, colorPair);
       }
 
       if (i == index)

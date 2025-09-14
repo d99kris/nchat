@@ -50,6 +50,8 @@ void UiColorConfig::Init()
     { "list_attr_selected", "reverse" },
     { "list_color_bg", "" },
     { "list_color_fg", "" },
+    { "list_color_unread_fg", "" },
+    { "list_color_unread_bg", "" },
     { "listborder_attr", "" },
     { "listborder_color_bg", "" },
     { "listborder_color_fg", "" },
