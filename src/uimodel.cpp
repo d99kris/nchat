@@ -1620,6 +1620,7 @@ void UiModel::Impl::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMess
           }
 
           UpdateChatInfoLastMessageTime(profileId, chatId);
+          UpdateChatInfoIsUnread(profileId, chatId);
           SortChats();
           UpdateList();
           UpdateHistory();
