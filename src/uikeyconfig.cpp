@@ -253,6 +253,7 @@ void UiKeyConfig::Init(bool p_MapKeys)
     { "terminal_focus_in", "KEY_FOCUS_IN" },
     { "terminal_focus_out", "KEY_FOCUS_OUT" },
     { "terminal_resize", "KEY_RESIZE" },
+    { "auto_compose", "\\33\\151" }, // alt/opt-i
   };
 
   const std::string configPath(FileUtil::GetApplicationDir() + std::string("/key.conf"));

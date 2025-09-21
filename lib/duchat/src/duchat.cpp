@@ -42,6 +42,11 @@ bool DuChat::HasFeature(ProtocolFeature p_ProtocolFeature) const
   return (p_ProtocolFeature & customFeatures);
 }
 
+std::string DuChat::GetSelfId() const
+{
+  return "Stanley_0";
+}
+
 std::string DuChat::GetProfileDisplayName() const
 {
   static std::string profileDisplayName = "";

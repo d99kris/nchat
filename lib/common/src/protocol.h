@@ -1,6 +1,6 @@
 // protocol.h
 //
-// Copyright (c) 2020-2024 Kristofer Berggren
+// Copyright (c) 2020-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -44,6 +44,7 @@ public:
   virtual std::string GetProfileId() const = 0;
   virtual std::string GetProfileDisplayName() const = 0;
   virtual bool HasFeature(ProtocolFeature p_ProtocolFeature) const = 0;
+  virtual std::string GetSelfId() const = 0;
 
   virtual bool SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId) = 0;
   virtual bool LoadProfile(const std::string& p_ProfilesDir, const std::string& p_ProfileId) = 0;

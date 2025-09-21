@@ -56,6 +56,12 @@ bool WmChat::HasFeature(ProtocolFeature p_ProtocolFeature) const
   return (p_ProtocolFeature & customFeatures);
 }
 
+std::string WmChat::GetSelfId() const
+{
+  std::unique_lock<std::mutex> lock(m_Mutex);
+  return m_SelfUserId;
+}
+
 bool WmChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId)
 {
   m_IsSetup = true;
@@ -683,6 +689,11 @@ void WmChat::AddContactInfo(const ContactInfo& p_ContactInfo)
 {
   std::unique_lock<std::mutex> lock(m_Mutex);
   m_ContactInfos.push_back(p_ContactInfo);
+
+  if (p_ContactInfo.isSelf)
+  {
+    m_SelfUserId = p_ContactInfo.id;
+  }
 }
 
 std::vector<ContactInfo> WmChat::GetContactInfos()

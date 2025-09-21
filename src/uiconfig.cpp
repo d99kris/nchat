@@ -20,6 +20,9 @@ void UiConfig::Init()
   {
     { "attachment_indicator", "\xF0\x9F\x93\x8E" },
     { "attachment_open_command", "" },
+    { "auto_compose_command", "" },
+    { "auto_compose_enabled", "0" },
+    { "auto_compose_history_count", "25" },
     { "away_status_indication", "0" },
     { "call_command", "" },
     { "chat_picker_sorted_alphabetically", "0" },

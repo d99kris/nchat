@@ -1089,7 +1089,7 @@ void UiModel::Impl::OpenAttachment(const std::string& p_Path)
 // Used when taking over terminal is disallowed or when output needs to be captured
 bool UiModel::Impl::RunCommand(const std::string& p_Cmd, std::string* p_StdOut /*= nullptr*/)
 {
-  const bool logStdErr = Log::GetDebugEnabled();
+  const bool logStdErr = true;
   const std::string stdoutFile = (p_StdOut != nullptr) ? FileUtil::MkTempFile() : "/dev/null";
   const std::string stderrFile = logStdErr ? FileUtil::MkTempFile() : "/dev/null";
   const std::string cmdPrefix = "2>'" + stderrFile + "' ";
@@ -1118,7 +1118,7 @@ bool UiModel::Impl::RunCommand(const std::string& p_Cmd, std::string* p_StdOut /
     FileUtil::RmFile(stderrFile);
     if (!stderrStr.empty())
     {
-      LOG_DEBUG("cmd \"%s\" stderr:", cmd.c_str());
+      LOG_WARNING("cmd \"%s\" stderr:", cmd.c_str());
       Log::Dump(stderrStr.c_str());
     }
   }
@@ -2130,6 +2130,25 @@ std::string UiModel::Impl::GetContactName(const std::string& p_ProfileId, const 
   return chatName;
 }
 
+std::string UiModel::Impl::GetContactNameIncludingSelf(const std::string& p_ProfileId, const std::string& p_ChatId)
+{
+  const ContactInfo& contactInfo = m_ContactInfos[p_ProfileId][p_ChatId];
+  const std::string& chatName = contactInfo.name;
+  if (chatName.empty())
+  {
+    if (contactInfo.isSelf)
+    {
+      return "You";
+    }
+    else
+    {
+      return p_ChatId;
+    }
+  }
+
+  return chatName;
+}
+
 std::string UiModel::Impl::GetContactListName(const std::string& p_ProfileId, const std::string& p_ChatId,
                                               bool p_AllowId)
 {
@@ -2145,12 +2164,6 @@ std::string UiModel::Impl::GetContactListName(const std::string& p_ProfileId, co
   }
 
   return chatName;
-}
-
-std::string UiModel::Impl::GetContactListNameLock(const std::string& p_ProfileId, const std::string& p_ChatId,
-                                                  bool p_AllowId)
-{
-  return GetContactListName(p_ProfileId, p_ChatId, p_AllowId);
 }
 
 std::string UiModel::Impl::GetContactPhone(const std::string& p_ProfileId, const std::string& p_ChatId)
@@ -3249,6 +3262,17 @@ bool UiModel::Impl::HasProtocolFeature(const std::string& p_ProfileId, ProtocolF
   return m_Protocols[p_ProfileId]->HasFeature(p_ProtocolFeature);
 }
 
+std::string UiModel::Impl::GetSelfId(const std::string& p_ProfileId)
+{
+  if (!m_Protocols.count(p_ProfileId))
+  {
+    LOG_WARNING("no profile \"%s\"", p_ProfileId.c_str());
+    return "";
+  }
+
+  return m_Protocols[p_ProfileId]->GetSelfId();
+}
+
 bool UiModel::Impl::IsMultipleProfiles()
 {
   static bool isMultipleProfiles = (m_Protocols.size() > 1);
@@ -3697,6 +3721,114 @@ void UiModel::Impl::Draw()
   m_View->Draw();
 }
 
+bool UiModel::Impl::AutoCompose()
+{
+  AnyUserKeyInput();
+
+  const std::string& profileId = m_CurrentChat.first;
+  const std::string& chatId = m_CurrentChat.second;
+  const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
+  const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
+
+  const int messageOffset = GetSelectMessageActive() ? m_MessageOffset[profileId][chatId] : 0;
+  const int editOffset = GetEditMessageActive() ? 1 : 0;
+  const int offset = messageOffset + editOffset;
+
+  auto it = std::next(messageVec.begin(), offset);
+  if (it == messageVec.end())
+  {
+    LOG_WARNING("end of message history");
+    return false;
+  }
+
+  std::string historyStr;
+  static const int autoComposeHistoryCount = UiConfig::GetNum("auto_compose_history_count");
+  for (int i = 0; (i < autoComposeHistoryCount) && (it != messageVec.end()); ++i, ++it)
+  {
+    auto msgIt = messages.find(*it);
+    if (msgIt == messages.end())
+    {
+      LOG_WARNING("error finding message");
+      continue;
+    }
+
+    const ChatMessage& msg = msgIt->second;
+    std::string text = msg.text;
+    StrUtil::ReplaceString(text, "\n", " ");
+    if (text.empty())
+    {
+      LOG_TRACE("skip empty msg text");
+      continue;
+    }
+
+    std::string name = GetContactNameIncludingSelf(profileId, msg.senderId);
+    StrUtil::ReplaceString(name, ":", "");
+    StrUtil::ReplaceString(name, "\n", " ");
+    if (name.empty())
+    {
+      LOG_TRACE("skip empty sender name");
+      continue;
+    }
+
+    std::string line = name + ": " + text + "\n";
+    historyStr = line + historyStr;
+  }
+
+  if (historyStr.empty())
+  {
+    LOG_WARNING("no message history extracted");
+    return false;
+  }
+
+  std::string selfName = GetContactNameIncludingSelf(profileId, GetSelfId(profileId));
+  StrUtil::ReplaceString(selfName, ":", "");
+  StrUtil::ReplaceString(selfName, "\n", " ");
+  historyStr += selfName + ":\n";
+
+  std::string tempPath = FileUtil::GetApplicationDir() + "/tmphistory.txt";
+  FileUtil::WriteFile(tempPath, historyStr);
+
+  static const std::string cmdTemplate = []()
+  {
+    std::string autoComposeCommand = UiConfig::GetStr("auto_compose_command");
+    if (autoComposeCommand.empty())
+    {
+      autoComposeCommand = FileUtil::DirName(FileUtil::GetSelfPath()) +
+        "/../" CMAKE_INSTALL_LIBEXECDIR "/nchat/compose -c '%1'";
+    }
+
+    return autoComposeCommand;
+  }();
+
+  std::string str;
+  std::string cmd = cmdTemplate;
+  StrUtil::ReplaceString(cmd, "%1", tempPath);
+  const bool rv = RunCommand(cmd, &str);
+  if (rv)
+  {
+    int& entryPos = m_EntryPos[profileId][chatId];
+    std::wstring& entryStr = m_EntryStr[profileId][chatId];
+
+    // trim trailing linebreak
+    if (!str.empty() && str.back() == '\n')
+    {
+      str = str.substr(0, str.length() - 1);
+    }
+
+    if (!m_View->GetEmojiEnabled())
+    {
+      str = StrUtil::Textize(str);
+    }
+
+    entryStr = StrUtil::ToWString(str);
+    entryPos = (int)entryStr.size();
+  }
+
+  FileUtil::RmFile(tempPath);
+  UpdateEntry();
+  return rv;
+}
+
 // ---------------------------------------------------------------------
 // UiModel
 // ---------------------------------------------------------------------
@@ -3807,6 +3939,8 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keyTerminalFocusIn = UiKeyConfig::GetKey("terminal_focus_in");
   static wint_t keyTerminalFocusOut = UiKeyConfig::GetKey("terminal_focus_out");
   static wint_t keyTerminalResize = UiKeyConfig::GetKey("terminal_resize");
+
+  static wint_t keyAutoCompose = UiKeyConfig::GetKey("auto_compose");
 
   if (p_Key == keyTerminalResize)
   {
@@ -4016,6 +4150,10 @@ void UiModel::KeyHandler(wint_t p_Key)
   else if (p_Key == keyGotoChat)
   {
     OnKeyGotoChat();
+  }
+  else if (p_Key == keyAutoCompose)
+  {
+    OnKeyAutoCompose();
   }
   else
   {
@@ -4694,6 +4832,32 @@ void UiModel::OnKeyExtCall()
 
   std::unique_lock<owned_mutex> lock(m_ModelMutex);
   GetImpl().StartExtCall(phone);
+}
+
+void UiModel::OnKeyAutoCompose()
+{
+  static const bool autoComposeEnabled = [&]()
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    return UiConfig::GetBool("auto_compose_enabled");
+  }();
+
+  if (!autoComposeEnabled)
+  {
+    MessageDialog("Warning", "Auto-compose not enabled.", 0.7, 5);
+    return;
+  }
+
+  bool rv = false;
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    rv = GetImpl().AutoCompose();
+  }
+
+  if (!rv)
+  {
+    MessageDialog("Warning", "Auto-compose failed.", 0.7, 5);
+  }
 }
 
 bool UiModel::IsAttachmentDownloaded(const FileInfo& p_FileInfo)

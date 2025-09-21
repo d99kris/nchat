@@ -40,6 +40,7 @@ public:
   std::string GetProfileId() const;
   std::string GetProfileDisplayName() const;
   bool HasFeature(ProtocolFeature p_ProtocolFeature) const;
+  std::string GetSelfId() const;
 
   bool SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId);
   bool LoadProfile(const std::string& p_ProfilesDir, const std::string& p_ProfileId);
@@ -93,8 +94,9 @@ private:
   bool m_WasOnline = false;
   bool m_IsSetup = false;
 
-  std::mutex m_Mutex;
+  mutable std::mutex m_Mutex;
   std::vector<ContactInfo> m_ContactInfos;
+  std::string m_SelfUserId;
 
   static std::mutex s_ConnIdMapMutex;
   static std::map<int, WmChat*> s_ConnIdMap;

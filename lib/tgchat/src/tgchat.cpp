@@ -93,6 +93,7 @@ public:
   std::string GetProfileId() const;
   std::string GetProfileDisplayName() const;
   bool HasFeature(ProtocolFeature p_ProtocolFeature) const;
+  std::string GetSelfId() const;
 
   bool SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId);
   bool LoadProfile(const std::string& p_ProfilesDir, const std::string& p_ProfileId);
@@ -241,6 +242,11 @@ bool TgChat::HasFeature(ProtocolFeature p_ProtocolFeature) const
   return m_Impl->HasFeature(p_ProtocolFeature);
 }
 
+std::string TgChat::GetSelfId() const
+{
+  return m_Impl->GetSelfId();
+}
+
 bool TgChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId)
 {
   return m_Impl->SetupProfile(p_ProfilesDir, p_ProfileId);
@@ -298,6 +304,11 @@ bool TgChat::Impl::HasFeature(ProtocolFeature p_ProtocolFeature) const
   static int customFeatures = FeatureTypingTimeout | FeatureEditMessagesWithinTwoDays | FeatureLimitedReactions |
     FeatureMarkReadEveryView;
   return (p_ProtocolFeature & customFeatures);
+}
+
+std::string TgChat::Impl::GetSelfId() const
+{
+  return StrUtil::NumToHex(m_SelfUserId);
 }
 
 bool TgChat::Impl::SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId)

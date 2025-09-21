@@ -86,8 +86,8 @@ private:
     void UpdateChatInfoLastMessageTime(const std::string& p_ProfileId, const std::string& p_ChatId);
     void UpdateChatInfoIsUnread(const std::string& p_ProfileId, const std::string& p_ChatId);
     std::string GetContactName(const std::string& p_ProfileId, const std::string& p_ChatId);
+    std::string GetContactNameIncludingSelf(const std::string& p_ProfileId, const std::string& p_ChatId);
     std::string GetContactListName(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_AllowId);
-    std::string GetContactListNameLock(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_AllowId);
     std::string GetContactPhone(const std::string& p_ProfileId, const std::string& p_ChatId);
     int64_t GetLastMessageTime(const std::string& p_ProfileId, const std::string& p_ChatId);
     bool GetChatIsUnread(const std::string& p_ProfileId, const std::string& p_ChatId);
@@ -169,6 +169,7 @@ private:
     bool IsProtocolUiControlActive();
     void HandleProtocolUiControlStart();
     void HandleProtocolUiControlEnd();
+    bool AutoCompose();
 
     static bool IsAttachmentDownloaded(const FileInfo& p_FileInfo);
     static bool IsAttachmentDownloadable(const FileInfo& p_FileInfo);
@@ -201,6 +202,7 @@ private:
     const std::pair<std::string, std::string>& GetNextChat();
     void SendProtocolRequest(const std::string& p_ProfileId, std::shared_ptr<RequestMessage> p_Request);
     bool HasProtocolFeature(const std::string& p_ProfileId, ProtocolFeature p_ProtocolFeature);
+    std::string GetSelfId(const std::string& p_ProfileId);
     void Quit();
     void EntryConvertEmojiEnabled();
     void SetProtocolUiControl(const std::string& p_ProfileId, bool& p_IsTakeControl);
@@ -365,6 +367,7 @@ private:
   void OnKeyEditMsg();
   void OnKeyQuit();
   void OnKeyExtCall();
+  void OnKeyAutoCompose();
 
 private:
   Impl m_Impl;

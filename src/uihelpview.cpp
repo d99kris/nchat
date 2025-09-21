@@ -83,6 +83,7 @@ void UiHelpView::Draw()
     AppendHelpItem("find_next", "FindNext", helpItems);
     AppendHelpItem("select_contact", "AddrBook", helpItems);
     AppendHelpItem("spell", "ExtSpell", helpItems);
+    AppendHelpItem("auto_compose", "AutoComp", helpItems);
     AppendHelpItem("decrease_list_width", "DecListW", helpItems);
     AppendHelpItem("increase_list_width", "IncListW", helpItems);
 

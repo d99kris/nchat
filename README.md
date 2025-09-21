@@ -63,6 +63,7 @@ Interactive Commands:
     KeyUp       select message
     Alt-d       delete/leave current chat
     Alt-e       external editor compose
+    Alt-i       auto-compose reply
     Alt-n       search contacts
     Alt-t       external telephone call
     Alt-/       find in chat
@@ -372,6 +373,9 @@ This configuration file holds general user interface settings. Default content:
     attachment_indicator=📎
     attachment_open_command=
     away_status_indication=0
+    auto_compose_command=
+    auto_compose_enabled=0
+    auto_compose_history_count=25
     call_command=
     chat_picker_sorted_alphabetically=0
     confirm_deletion=1
@@ -441,6 +445,29 @@ Specifies whether to indicate away status in the top bar while sharing away
 status with other users. I.e. the status will read `Away` instead of `Online`
 when the terminal is inactive (assuming `online_status_share=1` and
 `online_status_dynamic=1`).
+
+
+### auto_compose_command
+
+Specifies a custom command to use to auto-compose message reply. The
+command shall include `%1` which will be replaced by the path of a temporary
+text file with message history. If not specified, the following default
+command is used:
+
+    (prefix)/libexec/nchat/compose -c '%1'
+
+Refer to [Auto-Compose](/doc/AUTOCOMPOSE.md) for details.
+
+### auto_compose_enabled
+
+Specifies whether to enable using auto-compose. The reason for not enabling
+it by default is that the `compose` tool may use third-party services (if API
+key is set up in the shell environment) that can incur costs.
+
+### auto_compose_history_count
+
+Specifies the maximum number of chat messages up to latest (or current
+selected) to pass to the auto-compose tool.
 
 ### call_command
 
@@ -692,6 +719,7 @@ Specifies the character to suffix chats with unread messages in the chat list.
 ------------------------
 This configuration file holds user interface key bindings. Default content:
 
+    auto_compose=\33\151
     backspace=KEY_BACKSPACE
     backspace_alt=KEY_ALT_BACKSPACE
     backward_kill_word=\33\177

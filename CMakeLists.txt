@@ -9,6 +9,9 @@ include(TestBigEndian)
 if (NOT DEFINED CMAKE_INSTALL_LIBDIR)
   set(CMAKE_INSTALL_LIBDIR "lib")
 endif()
+if (NOT DEFINED CMAKE_INSTALL_LIBEXECDIR)
+  set(CMAKE_INSTALL_LIBEXECDIR "libexec")
+endif()
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR})
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR})
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
@@ -278,8 +281,11 @@ endif()
 
 # Common
 target_common_config(nchat)
-target_compile_definitions(nchat PRIVATE CMAKE_INSTALL_LIBDIR="${CMAKE_INSTALL_LIBDIR}"
-                           GO_VERSION="${GO_VERSION}" GO_VERSION_MIN="${GO_VERSION_MIN}")
+target_compile_definitions(nchat PRIVATE
+                           CMAKE_INSTALL_LIBDIR="${CMAKE_INSTALL_LIBDIR}"
+                           CMAKE_INSTALL_LIBEXECDIR="${CMAKE_INSTALL_LIBEXECDIR}"
+                           GO_VERSION="${GO_VERSION}"
+                           GO_VERSION_MIN="${GO_VERSION_MIN}")
 
 # Manual install dir
 if(NOT CMAKE_INSTALL_MANDIR)
@@ -295,6 +301,10 @@ endif()
 
 # Manual
 install(FILES src/nchat.1 DESTINATION "${CMAKE_INSTALL_MANDIR}/man1")
+
+# Utils
+configure_file(src/compose ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_INSTALL_LIBEXECDIR}/nchat/compose COPYONLY)
+install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_INSTALL_LIBEXECDIR}/nchat/compose DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}/nchat)
 
 # Themes
 macro(add_theme themedir)
@@ -328,12 +338,16 @@ if(HAS_SHARED_LIBS)
     COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libduchat${CMAKE_SHARED_LIBRARY_SUFFIX}"
     COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libwmchat${CMAKE_SHARED_LIBRARY_SUFFIX}"
     COMMAND "${CMAKE_COMMAND}" -E remove_directory "${CMAKE_INSTALL_PREFIX}/share/nchat"
+    COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBEXECDIR}/nchat/compose"
+    COMMAND "${CMAKE_COMMAND}" -E remove_directory "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBEXECDIR}/nchat"
   )
 else()
   add_custom_target(uninstall
     COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/bin/nchat"
     COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_MANDIR}/man1/nchat.1"
     COMMAND "${CMAKE_COMMAND}" -E remove_directory "${CMAKE_INSTALL_PREFIX}/share/nchat"
+    COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBEXECDIR}/nchat/compose"
+    COMMAND "${CMAKE_COMMAND}" -E remove_directory "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBEXECDIR}/nchat"
   )
 endif()
 
