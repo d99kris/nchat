@@ -1038,9 +1038,21 @@ func GetContacts(connId int) {
 
 	var client *whatsmeow.Client = GetClient(connId)
 
+	// common
+	isNotify := BoolToInt(false) // defer notification until last contact
+	selfId := JidToStr(*client.Store.ID)
+
+	// special handling for self (if not in contacts)
+	{
+		selfName := "" // overridden by ui
+		selfPhone := PhoneFromUserId(selfId)
+		isSelf := BoolToInt(true)   // self
+		LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", selfId, selfName))
+		CWmNewContactsNotify(connId, selfId, selfName, selfPhone, isSelf, isNotify)
+		AddContactName(connId, selfId, selfName)
+	}
+
 	// contacts
-	isSelf := BoolToInt(false)   // not self
-	isNotify := BoolToInt(false) // defer notification
 	ctx := context.TODO()
 	contacts, contErr := client.Store.Contacts.GetAllContacts(ctx)
 	if contErr != nil {
@@ -1052,6 +1064,7 @@ func GetContacts(connId int) {
 			if len(name) > 0 {
 				userId := JidToStr(jid)
 				phone := PhoneFromUserId(userId)
+				isSelf := BoolToInt(userId == selfId)
 				LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", userId, name))
 				CWmNewContactsNotify(connId, userId, name, phone, isSelf, isNotify)
 				AddContactName(connId, userId, name)
@@ -1060,22 +1073,6 @@ func GetContacts(connId int) {
 			}
 		}
 	}
-
-	// special handling for official whatsapp account
-	whatsappId := "0@s.whatsapp.net"
-	whatsappName := "WhatsApp"
-	whatsappPhone := ""
-	LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", whatsappId, whatsappName))
-	CWmNewContactsNotify(connId, whatsappId, whatsappName, whatsappPhone, isSelf, isNotify)
-	AddContactName(connId, whatsappId, whatsappName)
-
-	// special handling for status updates
-	statusId := "status@broadcast"
-	statusName := "Status Updates"
-	statusPhone := ""
-	LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", statusId, statusName))
-	CWmNewContactsNotify(connId, statusId, statusName, statusPhone, isSelf, isNotify)
-	AddContactName(connId, statusId, statusName)
 
 	// groups
 	groups, groupErr := client.GetJoinedGroups(ctx)
@@ -1087,6 +1084,7 @@ func GetContacts(connId int) {
 			groupId := JidToStr(group.JID)
 			groupName := group.GroupName.Name
 			groupPhone := ""
+			isSelf := BoolToInt(false)
 			LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", groupId, groupName))
 			CWmNewContactsNotify(connId, groupId, groupName, groupPhone, isSelf, isNotify)
 			AddContactName(connId, groupId, groupName)
@@ -1097,15 +1095,28 @@ func GetContacts(connId int) {
 		}
 	}
 
-	// special handling for self
-	selfId := JidToStr(*client.Store.ID)
-	selfName := "" // overridden by ui
-	selfPhone := PhoneFromUserId(selfId)
-	isSelf = BoolToInt(true)   // self
-	isNotify = BoolToInt(true) // perform notification upon last contact
-	LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", selfId, selfName))
-	CWmNewContactsNotify(connId, selfId, selfName, selfPhone, isSelf, isNotify)
-	AddContactName(connId, selfId, selfName)
+	// special handling for official whatsapp account
+	{
+		whatsappId := "0@s.whatsapp.net"
+		whatsappName := "WhatsApp"
+		whatsappPhone := ""
+		isSelf := BoolToInt(false)
+		LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", whatsappId, whatsappName))
+		CWmNewContactsNotify(connId, whatsappId, whatsappName, whatsappPhone, isSelf, isNotify)
+		AddContactName(connId, whatsappId, whatsappName)
+	}
+
+	// special handling for status updates
+	{
+		statusId := "status@broadcast"
+		statusName := "Status Updates"
+		statusPhone := ""
+		isSelf := BoolToInt(false)
+		isNotify = BoolToInt(true) // perform notification upon last contact
+		LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", statusId, statusName))
+		CWmNewContactsNotify(connId, statusId, statusName, statusPhone, isSelf, isNotify)
+		AddContactName(connId, statusId, statusName)
+	}
 
 	CWmClearStatus(connId, FlagFetching)
 }
