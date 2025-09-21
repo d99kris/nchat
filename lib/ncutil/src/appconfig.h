@@ -12,11 +12,18 @@
 
 #include "config.h"
 
-enum AttachmentPrefetch
+enum AttachmentPrefetchType
 {
   AttachmentPrefetchNone = 0,
   AttachmentPrefetchSelected = 1,
   AttachmentPrefetchAll = 2,
+};
+
+enum MessageDeleteType
+{
+  MessageDeleteErase = 1,
+  MessageDeleteReplace = 2,
+  MessageDeletePrefix = 3,
 };
 
 class AppConfig

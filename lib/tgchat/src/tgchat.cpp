@@ -1760,12 +1760,51 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
     std::vector<std::int64_t> msgIds = delete_messages.message_ids_;
     for (const auto& msgId : msgIds)
     {
-      std::shared_ptr<DeleteMessageNotify> deleteMessageNotify =
-        std::make_shared<DeleteMessageNotify>(m_ProfileId);
-      deleteMessageNotify->success = true;
-      deleteMessageNotify->chatId = chatId;
-      deleteMessageNotify->msgId = StrUtil::NumToHex(msgId);
-      CallMessageHandler(deleteMessageNotify);
+#ifdef HAS_TELEGRAM_CUSTOM_MESSAGE_DELETE_HANDLING
+      static const int messageDelete = AppConfig::GetNum("message_delete");
+#else
+      static const int messageDelete = MessageDeleteErase;
+#endif
+
+      if ((messageDelete == MessageDeleteReplace) || (messageDelete == MessageDeletePrefix))
+      {
+        std::vector<ChatMessage> chatMessages;
+        if (MessageCache::GetOneMessage(m_ProfileId, chatId, StrUtil::NumToHex(msgId), chatMessages))
+        {
+          ChatMessage chatMessage = chatMessages.front();
+          chatMessage.isRead = true;
+
+          if (messageDelete == MessageDeleteReplace)
+          {
+            chatMessage.text = std::string("[Deleted]");
+          }
+          else
+          {
+            if (!StrUtil::StartsWith(chatMessage.text, "[Deleted]"))
+            {
+              chatMessage.text = std::string("[Deleted]\n") + chatMessage.text;
+            }
+          }
+
+          std::shared_ptr<NewMessagesNotify> newMessagesNotify =
+            std::make_shared<NewMessagesNotify>(m_ProfileId);
+          newMessagesNotify->success = true;
+          newMessagesNotify->chatId = chatId;
+          newMessagesNotify->chatMessages = std::vector<ChatMessage>({ chatMessage });
+          newMessagesNotify->cached = false;
+          newMessagesNotify->sequence = true;
+          CallMessageHandler(newMessagesNotify);
+        }
+      }
+      else // (messageDelete == MessageDeleteErase)
+      {
+        std::shared_ptr<DeleteMessageNotify> deleteMessageNotify =
+          std::make_shared<DeleteMessageNotify>(m_ProfileId);
+        deleteMessageNotify->success = true;
+        deleteMessageNotify->chatId = chatId;
+        deleteMessageNotify->msgId = StrUtil::NumToHex(msgId);
+        CallMessageHandler(deleteMessageNotify);
+      }
     }
   },
   [this](td::td_api::updateConnectionState& connection_state)

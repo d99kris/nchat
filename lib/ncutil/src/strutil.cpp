@@ -292,6 +292,11 @@ std::vector<std::string> StrUtil::Split(const std::string& p_Str, char p_Sep)
   return vec;
 }
 
+bool StrUtil::StartsWith(const std::string& p_String, const std::string& p_Prefix)
+{
+  return (p_String.rfind(p_Prefix, 0) == 0);
+}
+
 std::string StrUtil::StrFromHex(const std::string& p_String)
 {
   std::string result;

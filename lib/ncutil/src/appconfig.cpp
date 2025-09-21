@@ -27,6 +27,7 @@ void AppConfig::Init()
     { "emoji_list_all", "0" },
     { "link_send_preview", "1" },
     { "logdump_enabled", "0" },
+    { "message_delete", "1" },
     { "proxy_host", "" },
     { "proxy_pass", "" },
     { "proxy_port", "" },
