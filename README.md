@@ -150,13 +150,17 @@ Using make.sh script
 If using macOS, Alpine, Arch, Fedora, Gentoo, Raspbian, Ubuntu or Void, one
 can use the `make.sh` script provided.
 
+> [!TIP]
+> You can pass arguments to the build script by setting CMAKEARGS environment variable
+
 **Dependencies**
 
     ./make.sh deps
 
 **Build / Install**
 
-    ./make.sh build && ./make.sh install
+    ./make.sh build
+    sudo ./make.sh install  # depending on your prefix dir, you can skip sudo
 
 Manually
 --------
