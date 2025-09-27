@@ -285,7 +285,7 @@ void DuChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
           std::string name = message.first;
           std::string text = message.second;
           std::string id = name + "_0";
-          bool isUnread = (name == "Michael");
+          bool isUnread = false;
 
           ChatInfo chatInfo;
           chatInfo.id = id;
