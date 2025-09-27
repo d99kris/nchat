@@ -22,6 +22,7 @@ void AppConfig::Init()
     { "attachment_prefetch", "1" },
     { "attachment_send_type", "1" },
     { "cache_enabled", "1" },
+    { "cache_read_only", "0" },
     { "coredump_enabled", "0" },
     { "downloads_dir", "" },
     { "emoji_list_all", "0" },

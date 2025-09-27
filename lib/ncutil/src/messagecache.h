@@ -1,6 +1,6 @@
 // messagecache.h
 //
-// Copyright (c) 2020-2024 Kristofer Berggren
+// Copyright (c) 2020-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -201,7 +201,7 @@ public:
   static void AddFromServiceMessage(const std::string& p_ProfileId, std::shared_ptr<ServiceMessage> p_ServiceMessage);
 
   static void AddProfile(const std::string& p_ProfileId, bool p_CheckSync, int p_DirVersion, bool p_IsSetup,
-                         bool* p_IsRemoved = nullptr);
+                         bool p_AllowReadOnly, bool* p_IsRemoved = nullptr);
   static void AddMessages(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_FromMsgId,
                           const std::vector<ChatMessage>& p_ChatMessages);
   static void AddChats(const std::string& p_ProfileId, const std::vector<ChatInfo>& p_ChatInfos);
@@ -261,4 +261,5 @@ private:
 
   static std::string m_HistoryDir;
   static bool m_CacheEnabled;
+  static bool m_CacheReadOnly;
 };

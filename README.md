@@ -269,6 +269,7 @@ This configuration file holds general application settings. Default content:
     attachment_prefetch=1
     attachment_send_type=1
     cache_enabled=1
+    cache_read_only=0
     coredump_enabled=0
     downloads_dir=
     emoji_list_all=0
@@ -306,6 +307,10 @@ Specifies level of attachment prefetching:
 ### cache_enabled
 
 Specifies whether to enable cache functionality.
+
+### cache_read_only
+
+Specifies whether to access cache read-only. Primarily intended for debugging.
 
 ### coredump_enabled
 

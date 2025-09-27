@@ -93,7 +93,7 @@ bool WmChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_Profi
 
   m_ConnId = connId;
   AddInstance(m_ConnId, this);
-  MessageCache::AddProfile(m_ProfileId, false, s_CacheDirVersion, true);
+  MessageCache::AddProfile(m_ProfileId, false /*p_CheckSync*/, s_CacheDirVersion, true /*p_IsSetup*/, false /*p_AllowReadOnly*/);
 
   InitConfig();
   Init();
@@ -122,7 +122,7 @@ bool WmChat::LoadProfile(const std::string& p_ProfilesDir, const std::string& p_
   }
 
   bool isRemoved = false;
-  MessageCache::AddProfile(m_ProfileId, false, s_CacheDirVersion, false, &isRemoved);
+  MessageCache::AddProfile(m_ProfileId, false /*p_CheckSync*/, s_CacheDirVersion, false /*p_IsSetup*/, false /*p_AllowReadOnly*/, &isRemoved);
   if (isRemoved)
   {
     LOG_INFO("cache removed - remove profile to force reauth");

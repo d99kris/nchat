@@ -1,6 +1,6 @@
 // messagecache.cpp
 //
-// Copyright (c) 2020-2024 Kristofer Berggren
+// Copyright (c) 2020-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -37,6 +37,7 @@ std::condition_variable MessageCache::m_CondVar;
 std::deque<std::shared_ptr<MessageCache::Request>> MessageCache::m_Queue;
 std::string MessageCache::m_HistoryDir;
 bool MessageCache::m_CacheEnabled = true;
+bool MessageCache::m_CacheReadOnly = false;
 
 static const std::string s_TableContacts = "contacts2";
 static const std::string s_TableChats = "chats2";
@@ -210,7 +211,7 @@ void MessageCache::AddFromServiceMessage(const std::string& p_ProfileId,
 }
 
 void MessageCache::AddProfile(const std::string& p_ProfileId, bool p_CheckSync, int p_DirVersion, bool p_IsSetup,
-                              bool* p_IsRemoved /*= nullptr*/)
+                              bool p_AllowReadOnly, bool* p_IsRemoved /*= nullptr*/)
 {
   if (!m_CacheEnabled) return;
 
@@ -243,7 +244,19 @@ void MessageCache::AddProfile(const std::string& p_ProfileId, bool p_CheckSync, 
     *p_IsRemoved = (!FileUtil::Exists(dbPath) && !p_IsSetup);
   }
 
-  m_Dbs[p_ProfileId].reset(new sqlite::database(dbPath));
+  m_CacheReadOnly = p_AllowReadOnly && AppConfig::GetBool("cache_read_only");
+  if (m_CacheReadOnly)
+  {
+    LOG_WARNING("cache read only");
+    std::string tmpDbPath = dbPath + ".tmp";
+    FileUtil::CopyFile(dbPath, tmpDbPath);
+    m_Dbs[p_ProfileId].reset(new sqlite::database(tmpDbPath));
+  }
+  else
+  {
+    m_Dbs[p_ProfileId].reset(new sqlite::database(dbPath));
+  }
+
   if (!m_Dbs[p_ProfileId]) return;
 
   try
