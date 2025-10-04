@@ -484,20 +484,46 @@ func StringToInt(s string) int {
 	return i
 }
 
-func JidToStr(jid types.JID) string {
-	return jid.User + "@" + jid.Server
-}
-
-func GetChatId(chatJid types.JID, senderJid types.JID) string {
-	if chatJid.Server == "broadcast" {
-		if chatJid.User == "status" {
-			return JidToStr(chatJid) // status updates
-		} else {
-			return JidToStr(senderJid) // broadcast messages
-		}
-	} else {
-		return JidToStr(chatJid) // regular messages
+func JidToStr(client *whatsmeow.Client, defaultJid types.JID, altJids ...types.JID) string {
+	StrFromJid := func(jid types.JID) string {
+		return jid.User + "@" + jid.Server
 	}
+
+	var jids []types.JID
+	for _, jid := range append([]types.JID{defaultJid}, altJids...) {
+		if !jid.IsEmpty() {
+			jids = append(jids, jid)
+		}
+	}
+
+	for _, jid := range jids {
+		if jid.Server == types.BroadcastServer && jid.User == "status" {
+			return StrFromJid(jid)
+		}
+	}
+
+	for _, jid := range jids {
+		if jid.Server == types.BroadcastServer && jid.User != "status" {
+			return StrFromJid(jid)
+		}
+	}
+
+	for _, jid := range jids {
+		if jid.Server != types.HiddenUserServer {
+			return StrFromJid(jid)
+		}
+	}
+
+	for _, jid := range jids {
+		if jid.Server == types.HiddenUserServer {
+			ctx := context.TODO()
+			if ljid, _ := client.Store.LIDs.GetPNForLID(ctx, jid); !ljid.IsEmpty() {
+				return StrFromJid(ljid)
+			}
+		}
+	}
+
+	return StrFromJid(defaultJid)
 }
 
 func IsRead(isSyncRead bool, isSelfChat bool, fromMe bool, timeSent time.Time, timeRead time.Time) bool {
@@ -819,14 +845,14 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 					isMuted = (mutedUntil == -1) || (mutedUntil > time.Now().Unix())
 					isPinned = settings.Pinned
 				} else {
-					LOG_DEBUG(fmt.Sprintf("Chat settings not found %s", JidToStr(chatJid)))
+					LOG_DEBUG(fmt.Sprintf("Chat settings not found %s", JidToStr(client, chatJid)))
 				}
 			}
 
-			LOG_TRACE(fmt.Sprintf("Call CWmNewChatsNotify %s %d %t %t", JidToStr(chatJid), len(syncMessages), isMuted, isPinned))
-			CWmNewChatsNotify(handler.connId, JidToStr(chatJid), isUnread, BoolToInt(isMuted), BoolToInt(isPinned), lastMessageTime)
+			LOG_TRACE(fmt.Sprintf("Call CWmNewChatsNotify %s %d %t %t", JidToStr(client, chatJid), len(syncMessages), isMuted, isPinned))
+			CWmNewChatsNotify(handler.connId, JidToStr(client, chatJid), isUnread, BoolToInt(isMuted), BoolToInt(isPinned), lastMessageTime)
 		} else {
-			LOG_TRACE(fmt.Sprintf("Skip CWmNewChatsNotify %s %d", JidToStr(chatJid), len(syncMessages)))
+			LOG_TRACE(fmt.Sprintf("Skip CWmNewChatsNotify %s %d", JidToStr(client, chatJid), len(syncMessages)))
 		}
 
 	}
@@ -840,12 +866,12 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 	connId := handler.connId
 	client := GetClient(connId)
-	chatId := JidToStr(groupInfo.JID)
+	chatId := JidToStr(client, groupInfo.JID)
 
 	selfJid := *client.Store.ID
 	senderJidStr := ""
-	if (groupInfo.Sender != nil) && (JidToStr(*groupInfo.Sender) != JidToStr(groupInfo.JID)) {
-		senderJidStr = JidToStr(*groupInfo.Sender)
+	if (groupInfo.Sender != nil) && (JidToStr(client, *groupInfo.Sender) != JidToStr(client, groupInfo.JID)) {
+		senderJidStr = JidToStr(client, *groupInfo.Sender)
 	}
 
 	// text
@@ -853,19 +879,19 @@ func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 	if groupInfo.Name != nil {
 		// Group name change
 		if senderJidStr == "" {
-			senderJidStr = JidToStr(groupInfo.JID)
+			senderJidStr = JidToStr(client, groupInfo.JID)
 		}
 
 		groupName := *groupInfo.Name
 		text = "[Changed group name to " + groupName.Name + "]"
 	} else if len(groupInfo.Join) > 0 {
 		// Group member joined
-		if (len(groupInfo.Join) == 1) && ((senderJidStr == "") || (senderJidStr == JidToStr(groupInfo.Join[0]))) {
-			senderJidStr = JidToStr(groupInfo.Join[0])
+		if (len(groupInfo.Join) == 1) && ((senderJidStr == "") || (senderJidStr == JidToStr(client, groupInfo.Join[0]))) {
+			senderJidStr = JidToStr(client, groupInfo.Join[0])
 			text = "[Joined]"
 		} else {
 			if senderJidStr == "" {
-				senderJidStr = JidToStr(groupInfo.JID)
+				senderJidStr = JidToStr(client, groupInfo.JID)
 			}
 
 			joined := ""
@@ -874,22 +900,22 @@ func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 					joined += ", "
 				}
 
-				joined += GetContactName(connId, JidToStr(jid))
+				joined += GetContactName(connId, JidToStr(client, jid))
 			}
 
 			text = "[Added " + joined + "]"
 		}
 	} else if len(groupInfo.Leave) > 0 {
 		// Group member left
-		if (len(groupInfo.Leave) == 1) && ((senderJidStr == "") || (senderJidStr == JidToStr(groupInfo.Leave[0]))) {
-			senderJidStr = JidToStr(groupInfo.Leave[0])
-			fromMe := (senderJidStr == JidToStr(selfJid))
+		if (len(groupInfo.Leave) == 1) && ((senderJidStr == "") || (senderJidStr == JidToStr(client, groupInfo.Leave[0]))) {
+			senderJidStr = JidToStr(client, groupInfo.Leave[0])
+			fromMe := (senderJidStr == JidToStr(client, selfJid))
 			if !fromMe {
 				text = "[Left]"
 			}
 		} else {
 			if senderJidStr == "" {
-				senderJidStr = JidToStr(groupInfo.JID)
+				senderJidStr = JidToStr(client, groupInfo.JID)
 			}
 
 			left := ""
@@ -898,7 +924,7 @@ func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 					left += ", "
 				}
 
-				left += GetContactName(connId, JidToStr(jid))
+				left += GetContactName(connId, JidToStr(client, jid))
 			}
 
 			text = "[Removed " + left + "]"
@@ -923,9 +949,9 @@ func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 	// general
 	timeSent := int(groupInfo.Timestamp.Unix())
 	msgId := strconv.Itoa(timeSent) // group info updates do not have msg id
-	fromMe := (senderJidStr == JidToStr(selfJid))
+	fromMe := (senderJidStr == JidToStr(client, selfJid))
 	senderId := senderJidStr
-	selfId := JidToStr(*client.Store.ID)
+	selfId := JidToStr(client, *client.Store.ID)
 	isSelfChat := (chatId == selfId)
 	isSyncRead := false
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, groupInfo.Timestamp, GetTimeRead(connId, chatId))
@@ -986,7 +1012,8 @@ func (handler *WmEventHandler) HandleClientOutdated() {
 
 func (handler *WmEventHandler) HandleDeleteForMe(deleteForMe *events.DeleteForMe) {
 	connId := handler.connId
-	chatId := JidToStr(deleteForMe.ChatJID)
+	client := GetClient(connId)
+	chatId := JidToStr(client, deleteForMe.ChatJID)
 	msgId := deleteForMe.MessageID
 	LOG_TRACE(fmt.Sprintf("Call CWmDeleteMessageNotify %s %s", chatId, msgId))
 	CWmDeleteMessageNotify(connId, chatId, msgId)
@@ -1043,7 +1070,7 @@ func GetContacts(connId int) {
 
 	// common
 	isNotify := BoolToInt(false) // defer notification until last contact
-	selfId := JidToStr(*client.Store.ID)
+	selfId := JidToStr(client, *client.Store.ID)
 
 	// special handling for self (if not in contacts)
 	{
@@ -1065,14 +1092,14 @@ func GetContacts(connId int) {
 		for jid, contactInfo := range contacts {
 			name := GetNameFromContactInfo(contactInfo)
 			if len(name) > 0 {
-				userId := JidToStr(jid)
+				userId := JidToStr(client, jid)
 				phone := PhoneFromUserId(userId)
 				isSelf := BoolToInt(userId == selfId)
 				LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", userId, name))
 				CWmNewContactsNotify(connId, userId, name, phone, isSelf, isNotify)
 				AddContactName(connId, userId, name)
 			} else {
-				LOG_WARNING(fmt.Sprintf("Skip CWmNewContactsNotify %s %#v", JidToStr(jid), contactInfo))
+				LOG_WARNING(fmt.Sprintf("Skip CWmNewContactsNotify %s %#v", JidToStr(client, jid), contactInfo))
 			}
 		}
 	}
@@ -1084,7 +1111,7 @@ func GetContacts(connId int) {
 	} else {
 		LOG_TRACE(fmt.Sprintf("groups %#v", groups))
 		for _, group := range groups {
-			groupId := JidToStr(group.JID)
+			groupId := JidToStr(client, group.JID)
 			groupName := group.GroupName.Name
 			groupPhone := ""
 			isSelf := BoolToInt(false)
@@ -1183,11 +1210,11 @@ func (handler *WmEventHandler) HandleTextMessage(messageInfo types.MessageInfo, 
 	fileStatus := FileStatusNone
 
 	// general
-	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
+	chatId := JidToStr(client, messageInfo.Chat, messageInfo.Sender)
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
-	senderId := JidToStr(messageInfo.Sender)
-	selfId := JidToStr(*client.Store.ID)
+	senderId := JidToStr(client, messageInfo.Sender)
+	selfId := JidToStr(client, *client.Store.ID)
 	isSelfChat := (chatId == selfId)
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
@@ -1239,11 +1266,11 @@ func (handler *WmEventHandler) HandleImageMessage(messageInfo types.MessageInfo,
 	}
 
 	// general
-	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
+	chatId := JidToStr(client, messageInfo.Chat, messageInfo.Sender)
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
-	senderId := JidToStr(messageInfo.Sender)
-	selfId := JidToStr(*client.Store.ID)
+	senderId := JidToStr(client, messageInfo.Sender)
+	selfId := JidToStr(client, *client.Store.ID)
 	isSelfChat := (chatId == selfId)
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
@@ -1294,11 +1321,11 @@ func (handler *WmEventHandler) HandleVideoMessage(messageInfo types.MessageInfo,
 	}
 
 	// general
-	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
+	chatId := JidToStr(client, messageInfo.Chat, messageInfo.Sender)
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
-	senderId := JidToStr(messageInfo.Sender)
-	selfId := JidToStr(*client.Store.ID)
+	senderId := JidToStr(client, messageInfo.Sender)
+	selfId := JidToStr(client, *client.Store.ID)
 	isSelfChat := (chatId == selfId)
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
@@ -1344,11 +1371,11 @@ func (handler *WmEventHandler) HandleAudioMessage(messageInfo types.MessageInfo,
 	fileStatus := FileStatusNotDownloaded
 
 	// general
-	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
+	chatId := JidToStr(client, messageInfo.Chat, messageInfo.Sender)
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
-	senderId := JidToStr(messageInfo.Sender)
-	selfId := JidToStr(*client.Store.ID)
+	senderId := JidToStr(client, messageInfo.Sender)
+	selfId := JidToStr(client, *client.Store.ID)
 	isSelfChat := (chatId == selfId)
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
@@ -1397,11 +1424,11 @@ func (handler *WmEventHandler) HandleDocumentMessage(messageInfo types.MessageIn
 	}
 
 	// general
-	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
+	chatId := JidToStr(client, messageInfo.Chat, messageInfo.Sender)
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
-	senderId := JidToStr(messageInfo.Sender)
-	selfId := JidToStr(*client.Store.ID)
+	senderId := JidToStr(client, messageInfo.Sender)
+	selfId := JidToStr(client, *client.Store.ID)
 	isSelfChat := (chatId == selfId)
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
@@ -1447,11 +1474,11 @@ func (handler *WmEventHandler) HandleStickerMessage(messageInfo types.MessageInf
 	fileStatus := FileStatusNotDownloaded
 
 	// general
-	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
+	chatId := JidToStr(client, messageInfo.Chat, messageInfo.Sender)
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
-	senderId := JidToStr(messageInfo.Sender)
-	selfId := JidToStr(*client.Store.ID)
+	senderId := JidToStr(client, messageInfo.Sender)
+	selfId := JidToStr(client, *client.Store.ID)
 	isSelfChat := (chatId == selfId)
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
@@ -1543,11 +1570,11 @@ func (handler *WmEventHandler) HandleTemplateMessage(messageInfo types.MessageIn
 	fileStatus := FileStatusNone
 
 	// general
-	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
+	chatId := JidToStr(client, messageInfo.Chat, messageInfo.Sender)
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
-	senderId := JidToStr(messageInfo.Sender)
-	selfId := JidToStr(*client.Store.ID)
+	senderId := JidToStr(client, messageInfo.Sender)
+	selfId := JidToStr(client, *client.Store.ID)
 	isSelfChat := (chatId == selfId)
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
@@ -1565,6 +1592,7 @@ func (handler *WmEventHandler) HandleReactionMessage(messageInfo types.MessageIn
 	LOG_TRACE(fmt.Sprintf("ReactionMessage"))
 
 	connId := handler.connId
+	client := GetClient(connId)
 
 	// get reaction part
 	reaction := msg.GetReactionMessage()
@@ -1574,9 +1602,9 @@ func (handler *WmEventHandler) HandleReactionMessage(messageInfo types.MessageIn
 	}
 
 	// general
-	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
+	chatId := JidToStr(client, messageInfo.Chat, messageInfo.Sender)
 	fromMe := messageInfo.IsFromMe
-	senderId := JidToStr(messageInfo.Sender)
+	senderId := JidToStr(client, messageInfo.Sender)
 	text := reaction.GetText()
 	msgId := *reaction.Key.ID
 
@@ -1807,11 +1835,11 @@ func (handler *WmEventHandler) HandleUnsupportedMessage(messageInfo types.Messag
 	fileStatus := FileStatusNone
 
 	// general
-	chatId := GetChatId(messageInfo.Chat, messageInfo.Sender)
+	chatId := JidToStr(client, messageInfo.Chat, messageInfo.Sender)
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
-	senderId := JidToStr(messageInfo.Sender)
-	selfId := JidToStr(*client.Store.ID)
+	senderId := JidToStr(client, messageInfo.Sender)
+	selfId := JidToStr(client, *client.Store.ID)
 	isSelfChat := (chatId == selfId)
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
@@ -2411,7 +2439,7 @@ func WmGetStatus(connId int, userId string) int {
 	}
 
 	// ignore presence requests for self
-	selfId := JidToStr(*client.Store.ID)
+	selfId := JidToStr(client, *client.Store.ID)
 	if userId == selfId {
 		return -1
 	}
@@ -2483,7 +2511,7 @@ func WmDeleteMessage(connId int, chatId string, senderId string, msgId string) i
 	senderJid, _ := types.ParseJID(senderId)
 
 	// skip deleting messages sent by others in private chat
-	selfId := JidToStr(*client.Store.ID)
+	selfId := JidToStr(client, *client.Store.ID)
 	isGroup := (chatJid.Server == types.GroupServer)
 	isFromSelf := (senderId == selfId)
 	if !isFromSelf && !isGroup {
@@ -2557,7 +2585,7 @@ func WmSendTyping(connId int, chatId string, isTyping int) int {
 	client := GetClient(connId)
 
 	// do not send typing to self chat
-	selfId := JidToStr(*client.Store.ID)
+	selfId := JidToStr(client, *client.Store.ID)
 	if chatId == selfId {
 		return 0
 	}
