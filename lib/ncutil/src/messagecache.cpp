@@ -28,8 +28,8 @@
 std::function<void(std::shared_ptr<ServiceMessage>)> MessageCache::m_MessageHandler;
 std::mutex MessageCache::m_DbMutex;
 std::map<std::string, std::unique_ptr<sqlite::database>> MessageCache::m_Dbs;
-std::unordered_map<std::string, std::unordered_map<std::string, bool>> MessageCache::m_InSync;
-std::unordered_map<std::string, bool> MessageCache::m_CheckSync;
+std::unordered_map<std::string, bool> MessageCache::m_CheckSequence;
+std::unordered_map<std::string, std::unordered_map<std::string, bool>> MessageCache::m_UpdatedSequence;
 bool MessageCache::m_Running = false;
 std::thread MessageCache::m_Thread;
 std::mutex MessageCache::m_QueueMutex;
@@ -210,7 +210,7 @@ void MessageCache::AddFromServiceMessage(const std::string& p_ProfileId,
   }
 }
 
-void MessageCache::AddProfile(const std::string& p_ProfileId, bool p_CheckSync, int p_DirVersion, bool p_IsSetup,
+void MessageCache::AddProfile(const std::string& p_ProfileId, bool p_CheckSequence, int p_DirVersion, bool p_IsSetup,
                               bool p_AllowReadOnly, bool* p_IsRemoved /*= nullptr*/)
 {
   if (!m_CacheEnabled) return;
@@ -222,7 +222,7 @@ void MessageCache::AddProfile(const std::string& p_ProfileId, bool p_CheckSync, 
     return;
   }
 
-  m_CheckSync[p_ProfileId] = p_CheckSync;
+  m_CheckSequence[p_ProfileId] = p_CheckSequence;
 
   const std::string& dbDir = m_HistoryDir + "/" + p_ProfileId;
   if (p_IsSetup)
@@ -348,7 +348,26 @@ void MessageCache::AddProfile(const std::string& p_ProfileId, bool p_CheckSync, 
         "SET schema=?;" << schemaVersion;
     }
 
-    static const int64_t s_SchemaVersion = 5;
+    if (schemaVersion == 5)
+    {
+      LOG_INFO("update db schema 5 to 6");
+
+      *m_Dbs[p_ProfileId] << "ALTER TABLE messages ADD COLUMN "
+        "isSequence INT DEFAULT 1;";
+
+      if (m_CheckSequence[p_ProfileId])
+      {
+        // For sequence checking protocols (ex. tg) set to zero to 'invalidate' existing cache, but
+        // skip purging of the cache, to cater for export/search purposes.
+        *m_Dbs[p_ProfileId] << "UPDATE messages SET isSequence = 0;";
+      }
+
+      schemaVersion = 6;
+      *m_Dbs[p_ProfileId] << "UPDATE version "
+        "SET schema = ?;" << schemaVersion;
+    }
+
+    static const int64_t s_SchemaVersion = 6;
     if (schemaVersion > s_SchemaVersion)
     {
       LOG_WARNING("cache db schema %d from newer nchat version detected, if cache issues are encountered "
@@ -446,13 +465,13 @@ bool MessageCache::FetchMessagesFrom(const std::string& p_ProfileId, const std::
   std::unique_lock<std::mutex> lock(m_DbMutex);
   if (!m_Dbs[p_ProfileId]) return false;
 
-  if (m_CheckSync[p_ProfileId] && !m_InSync[p_ProfileId][p_ChatId]) return false;
+  if (m_CheckSequence[p_ProfileId] && !m_UpdatedSequence[p_ProfileId][p_ChatId]) return false;
 
   int count = 0;
+  int64_t fromMsgIdTimeSent = std::numeric_limits<int64_t>::max();
 
   try
   {
-    int64_t fromMsgIdTimeSent = 0;
     if (!p_FromMsgId.empty())
     {
       // *INDENT-OFF*
@@ -464,19 +483,33 @@ bool MessageCache::FetchMessagesFrom(const std::string& p_ProfileId, const std::
         };
       // *INDENT-ON*
     }
+
+    if (m_CheckSequence[p_ProfileId])
+    {
+      // Get count of messages older than fromMsgIdTimeSent and newer than first message with isSequence = 0.
+      // Thus forcing fetching of that message from server.
+      // *INDENT-OFF*
+      *m_Dbs[p_ProfileId] << "SELECT COUNT(*) FROM " + s_TableMessages + " WHERE chatId = ? AND timeSent < ? "
+                             "AND timeSent > COALESCE((SELECT timeSent FROM messages WHERE chatId = ? "
+                             "AND isSequence = 0 AND timeSent < ? ORDER BY timeSent DESC LIMIT 1), 0)"
+                          << p_ChatId << fromMsgIdTimeSent << p_ChatId << fromMsgIdTimeSent >>
+        [&](const int& countRes)
+        {
+          count = countRes;
+        };
+      // *INDENT-ON*
+    }
     else
     {
-      fromMsgIdTimeSent = std::numeric_limits<int64_t>::max();
+      // *INDENT-OFF*
+      *m_Dbs[p_ProfileId] << "SELECT COUNT(*) FROM " + s_TableMessages + " WHERE chatId = ? AND timeSent < ?;"
+                          << p_ChatId << fromMsgIdTimeSent >>
+        [&](const int& countRes)
+        {
+          count = countRes;
+        };
+      // *INDENT-ON*
     }
-
-    // *INDENT-OFF*
-    *m_Dbs[p_ProfileId] << "SELECT COUNT(*) FROM " + s_TableMessages + " WHERE chatId = ? AND timeSent < ?;"
-                        << p_ChatId << fromMsgIdTimeSent >>
-      [&](const int& countRes)
-      {
-        count = countRes;
-      };
-    // *INDENT-ON*
   }
   catch (const sqlite::sqlite_exception& ex)
   {
@@ -491,19 +524,19 @@ bool MessageCache::FetchMessagesFrom(const std::string& p_ProfileId, const std::
       std::make_shared<FetchMessagesFromRequest>();
     fetchFromRequest->profileId = p_ProfileId;
     fetchFromRequest->chatId = p_ChatId;
-    fetchFromRequest->fromMsgId = p_FromMsgId;
-    fetchFromRequest->limit = p_Limit;
+    fetchFromRequest->fromMsgIdTimeSent = fromMsgIdTimeSent;
+    fetchFromRequest->limit = std::min(p_Limit, count);
 
     if (p_Sync)
     {
-      LOG_DEBUG("cache sync fetch %s %s count %d", p_ChatId.c_str(),
-                p_FromMsgId.c_str(), count);
+      LOG_DEBUG("cache sync fetch %s from %s count %d limit %d", p_ChatId.c_str(),
+                p_FromMsgId.c_str(), count, p_Limit);
       PerformRequest(fetchFromRequest);
     }
     else
     {
-      LOG_DEBUG("cache async fetch %s %s count %d", p_ChatId.c_str(),
-                p_FromMsgId.c_str(), count);
+      LOG_DEBUG("cache async fetch %s from %s count %d limit %d", p_ChatId.c_str(),
+                p_FromMsgId.c_str(), count, p_Limit);
       EnqueueRequest(fetchFromRequest);
     }
 
@@ -511,8 +544,8 @@ bool MessageCache::FetchMessagesFrom(const std::string& p_ProfileId, const std::
   }
   else
   {
-    LOG_DEBUG("cache cannot fetch %s %s count %d", p_ChatId.c_str(),
-              p_FromMsgId.c_str(), count);
+    LOG_DEBUG("cache cannot fetch %s from %s count %d limit %d", p_ChatId.c_str(),
+              p_FromMsgId.c_str(), count, p_Limit);
     return false;
   }
 }
@@ -525,8 +558,7 @@ bool MessageCache::FetchOneMessage(const std::string& p_ProfileId, const std::st
   std::unique_lock<std::mutex> lock(m_DbMutex);
   if (!m_Dbs[p_ProfileId]) return false;
 
-  bool inSync = (!m_CheckSync[p_ProfileId] || m_InSync[p_ProfileId][p_ChatId]);
-  LOG_TRACE("get cached message %d %d in %s", inSync, p_MsgId.c_str(), p_ChatId.c_str());
+  LOG_TRACE("get cached message %d in %s", p_MsgId.c_str(), p_ChatId.c_str());
 
   int count = 0;
   try
@@ -874,28 +906,35 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         const std::string& profileId = addMessagesRequest->profileId;
         if (!m_Dbs[profileId]) return;
 
+        if (addMessagesRequest->chatMessages.empty()) return;
+
         const std::string& chatId = addMessagesRequest->chatId;
         const std::string& fromMsgId = addMessagesRequest->fromMsgId;
         LOG_DEBUG("cache add %s %s %d", chatId.c_str(), fromMsgId.c_str(),
                   addMessagesRequest->chatMessages.size());
 
-        if (m_CheckSync[profileId] && !m_InSync[profileId][chatId])
+        if (m_CheckSequence[profileId])
         {
-          if (!addMessagesRequest->chatMessages.empty())
+          if (!m_UpdatedSequence[profileId][chatId])
           {
-            std::string msgIds;
+            m_UpdatedSequence[profileId][chatId] = true;
+
+            std::map<int64_t, std::string> timeSentMsgId;
             for (const auto& msg : addMessagesRequest->chatMessages)
             {
-              msgIds += (!msgIds.empty()) ? "," : "";
-              msgIds += "'" + msg.id + "'";
+              timeSentMsgId[msg.timeSent] = msg.id;
             }
+
+            auto oldestMsg = timeSentMsgId.begin();
+            const int64_t oldestTimeSent = oldestMsg->first;
+            const std::string oldestMsgId = oldestMsg->second;
 
             int count = 0;
             try
             {
               // *INDENT-OFF*
-              *m_Dbs[profileId] << "SELECT COUNT(*) FROM " + s_TableMessages + " WHERE chatId = ? AND id IN (" +
-                msgIds + ");" << chatId >>
+              *m_Dbs[profileId] << "SELECT COUNT(*) FROM " + s_TableMessages + " WHERE chatId = ? AND id = ?;"
+                                << chatId << oldestMsgId >>
                 [&](const int& countRes)
                 {
                   count = countRes;
@@ -909,12 +948,30 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
 
             if (count > 0)
             {
-              m_InSync[profileId][chatId] = true;
-              LOG_DEBUG("cache in sync %s list (%s)", chatId.c_str(), msgIds.c_str());
+              LOG_DEBUG("cache in sequence %s", chatId.c_str());
             }
             else
             {
-              LOG_DEBUG("cache not in sync %s list (%s)", chatId.c_str(), msgIds.c_str());
+              LOG_DEBUG("cache clear sequence %s before %lld", chatId.c_str(), oldestTimeSent);
+              try
+              {
+                // When adding new messages to cache and there is a gap until existing cached messages
+                // set isSequence = 0 for the newest existing cached message, indicating that messages
+                // must be fetched from server up until that point.
+                // Once fetched from server isSequence will be overwritted during INSERT INTO with default
+                // value of 1.
+                // *INDENT-OFF*
+                *m_Dbs[profileId] << "UPDATE " + s_TableMessages + " SET isSequence = 0 "
+                                     "WHERE chatId = ? AND id = "
+                                     "(SELECT id FROM " + s_TableMessages + " "
+                                     " WHERE chatId = ? AND timeSent < ? ORDER BY timeSent DESC LIMIT 1)"
+                                  << chatId << chatId << oldestTimeSent;
+                // *INDENT-ON*
+              }
+              catch (const sqlite::sqlite_exception& ex)
+              {
+                HANDLE_SQLITE_EXCEPTION(ex);
+              }
             }
           }
         }
@@ -1182,31 +1239,8 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
 
         const std::string& chatId = fetchFromRequest->chatId;
         const std::string& fromMsgId = fetchFromRequest->fromMsgId;
+        const int64_t fromMsgIdTimeSent = fetchFromRequest->fromMsgIdTimeSent;
         const int limit = fetchFromRequest->limit;
-
-        int64_t fromMsgIdTimeSent = 0;
-        if (!fromMsgId.empty())
-        {
-          try
-          {
-            // *INDENT-OFF*
-            *m_Dbs[profileId] << "SELECT timeSent FROM " + s_TableMessages + " WHERE chatId = ? AND id = ?;" <<
-              chatId << fromMsgId >>
-              [&](const int64_t& timeSent)
-              {
-                fromMsgIdTimeSent = timeSent;
-              };
-            // *INDENT-ON*
-          }
-          catch (const sqlite::sqlite_exception& ex)
-          {
-            HANDLE_SQLITE_EXCEPTION(ex);
-          }
-        }
-        else
-        {
-          fromMsgIdTimeSent = std::numeric_limits<int64_t>::max();
-        }
 
         std::vector<ChatMessage> chatMessages;
         PerformFetchMessagesFrom(profileId, chatId, fromMsgIdTimeSent, limit, chatMessages);
@@ -1394,6 +1428,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
           std::vector<ChatMessage> chatMessages;
           if (limit > 0)
           {
+            // @todo: consider not fetching cache with "gaps" when isSequence = 0 is encountered.
             PerformFetchMessagesFrom(profileId, chatId, fetchFromMsgIdTimeSent, limit, chatMessages);
           }
 

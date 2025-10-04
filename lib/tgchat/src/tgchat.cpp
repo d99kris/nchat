@@ -321,7 +321,8 @@ bool TgChat::Impl::SetupProfile(const std::string& p_ProfilesDir, std::string& p
   apathy::Path::rmdirs(apathy::Path(m_ProfileDir));
   apathy::Path::makedirs(m_ProfileDir);
 
-  MessageCache::AddProfile(m_ProfileId, true /*p_CheckSync*/, s_CacheDirVersion, true /*p_IsSetup*/, true /*p_AllowReadOnly*/);
+  MessageCache::AddProfile(m_ProfileId, true /*p_CheckSequence*/, s_CacheDirVersion, true /*p_IsSetup*/,
+                           true /*p_AllowReadOnly*/);
 
   p_ProfileId = m_ProfileId;
   m_IsSetup = true;
@@ -354,7 +355,8 @@ bool TgChat::Impl::LoadProfile(const std::string& p_ProfilesDir, const std::stri
 
   m_ProfileDir = p_ProfilesDir + "/" + p_ProfileId;
   m_ProfileId = p_ProfileId;
-  MessageCache::AddProfile(m_ProfileId, true /*p_CheckSync*/, s_CacheDirVersion, false /*p_IsSetup*/, true /*p_AllowReadOnly*/);
+  MessageCache::AddProfile(m_ProfileId, true /*p_CheckSequence*/, s_CacheDirVersion, false /*p_IsSetup*/,
+                           true /*p_AllowReadOnly*/);
 
   m_ProfileDirVersion = FileUtil::GetDirVersion(m_ProfileDir);
   if (s_TdlibDate < m_ProfileDirVersion)

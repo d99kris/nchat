@@ -1046,7 +1046,7 @@ func GetContacts(connId int) {
 	{
 		selfName := "" // overridden by ui
 		selfPhone := PhoneFromUserId(selfId)
-		isSelf := BoolToInt(true)   // self
+		isSelf := BoolToInt(true) // self
 		LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", selfId, selfName))
 		CWmNewContactsNotify(connId, selfId, selfName, selfPhone, isSelf, isNotify)
 		AddContactName(connId, selfId, selfName)

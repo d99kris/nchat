@@ -103,6 +103,7 @@ private:
     std::string profileId;
     std::string chatId;
     std::string fromMsgId;
+    int64_t fromMsgIdTimeSent = 0;
     int limit = 0;
   };
 
@@ -200,7 +201,7 @@ public:
 
   static void AddFromServiceMessage(const std::string& p_ProfileId, std::shared_ptr<ServiceMessage> p_ServiceMessage);
 
-  static void AddProfile(const std::string& p_ProfileId, bool p_CheckSync, int p_DirVersion, bool p_IsSetup,
+  static void AddProfile(const std::string& p_ProfileId, bool p_CheckSequence, int p_DirVersion, bool p_IsSetup,
                          bool p_AllowReadOnly, bool* p_IsRemoved = nullptr);
   static void AddMessages(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_FromMsgId,
                           const std::vector<ChatMessage>& p_ChatMessages);
@@ -250,8 +251,8 @@ private:
 
   static std::mutex m_DbMutex;
   static std::map<std::string, std::unique_ptr<sqlite::database>> m_Dbs;
-  static std::unordered_map<std::string, std::unordered_map<std::string, bool>> m_InSync;
-  static std::unordered_map<std::string, bool> m_CheckSync;
+  static std::unordered_map<std::string, bool> m_CheckSequence;
+  static std::unordered_map<std::string, std::unordered_map<std::string, bool>> m_UpdatedSequence;
 
   static bool m_Running;
   static std::thread m_Thread;
