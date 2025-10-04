@@ -46,3 +46,11 @@ and
 
     ./make.sh --no-whatsapp build
 
+
+Custom CMake Args
+=================
+One can pass custom arguments to CMake via the make.sh script by setting the
+environment variable `NCHAT_CMAKEARGS`. Example:
+
+    NCHAT_CMAKEARGS="-DHAS_TELEGRAM=OFF -DHAS_WHATSAPP=OFF" ./make.sh build
+
