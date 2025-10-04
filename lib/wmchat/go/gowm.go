@@ -883,7 +883,10 @@ func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 		// Group member left
 		if (len(groupInfo.Leave) == 1) && ((senderJidStr == "") || (senderJidStr == JidToStr(groupInfo.Leave[0]))) {
 			senderJidStr = JidToStr(groupInfo.Leave[0])
-			text = "[Left]"
+			fromMe := (senderJidStr == JidToStr(selfJid))
+			if !fromMe {
+				text = "[Left]"
+			}
 		} else {
 			if senderJidStr == "" {
 				senderJidStr = JidToStr(groupInfo.JID)
