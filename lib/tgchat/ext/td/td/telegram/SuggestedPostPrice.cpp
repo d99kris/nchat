@@ -23,7 +23,7 @@ SuggestedPostPrice::SuggestedPostPrice(telegram_api::object_ptr<telegram_api::St
     case telegram_api::starsAmount::ID: {
       auto star_amount = StarAmount(telegram_api::move_object_as<telegram_api::starsAmount>(amount_ptr), false);
       if (star_amount.get_nanostar_count() != 0) {
-        LOG(ERROR) << "Receive suggested post price of " << star_amount << " Telegram Stars";
+        LOG(ERROR) << "Receive price of " << star_amount << " Telegram Stars";
       }
       if (star_amount.get_star_count() == 0) {
         return;
@@ -36,7 +36,7 @@ SuggestedPostPrice::SuggestedPostPrice(telegram_api::object_ptr<telegram_api::St
       auto ton_amount =
           TonAmount(telegram_api::move_object_as<telegram_api::starsTonAmount>(amount_ptr), false).get_ton_amount();
       if (ton_amount % TON_MULTIPLIER != 0) {
-        LOG(ERROR) << "Receive suggested post price of " << ton_amount << " TONs";
+        LOG(ERROR) << "Receive price of " << ton_amount << " Toncoins";
       }
       ton_amount /= TON_MULTIPLIER;
       if (ton_amount == 0) {

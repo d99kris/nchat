@@ -41,7 +41,7 @@
 
 // #define SIMULATED_SPONSORED_MESSAGES
 
-static const int s_TdlibDate = 20250806;
+static const int s_TdlibDate = 20250919;
 
 namespace detail
 {
@@ -2012,9 +2012,9 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
   {
     LOG_TRACE("update supergroup");
   },
-  [](td::td_api::updateChatThemes&)
+  [](td::td_api::updateChatTheme&)
   {
-    LOG_TRACE("update chat themes");
+    LOG_TRACE("update chat theme");
   },
   [](td::td_api::updateUnreadMessageCount&)
   {

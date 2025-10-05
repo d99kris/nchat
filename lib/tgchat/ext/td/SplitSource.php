@@ -30,19 +30,11 @@ function split_file($file, $chunks, $undo) {
         $new_files[] = "$file$n.cpp";
     }
 
-    $is_generated = (strpos($file, 'td/generate/') === 0);
-
-    $cmake_file = $is_generated ? 'td/generate/CMakeLists.txt' : 'CMakeLists.txt';
+    $cmake_file = 'CMakeLists.txt';
     $cmake = file_get_contents($cmake_file);
 
     $cmake_cpp_name = $cpp_name;
     $cmake_new_files = $new_files;
-    if ($is_generated) {
-        foreach ($cmake_new_files as &$file_ref) {
-            $file_ref = str_replace('td/generate/auto/td', '${TD_AUTO_INCLUDE_DIR}', $file_ref);
-        }
-        $cmake_cpp_name = str_replace('td/generate/auto/td', '${TD_AUTO_INCLUDE_DIR}', $cmake_cpp_name);
-    }
 
     if ($undo) {
         foreach ($new_files as $file) {
@@ -72,7 +64,7 @@ function split_file($file, $chunks, $undo) {
 
     $lines = file($cpp_name);
     $depth = 0;
-    $target_depth = 1 + $is_generated;
+    $target_depth = 1;
     $is_static = false;
     $in_define = false;
     $in_comment = false;
@@ -171,16 +163,12 @@ function split_file($file, $chunks, $undo) {
                            '(?<name>complete_pending_preauthentication_requests)|'.
                            '(?<name>get_message_history_slice)|'.
                            '(Up|Down)load(?!ManagerCallback)[a-zA-Z]+C(?<name>allback)|(up|down)load_[a-z_]*_c(?<name>allback)_|'.
-                           '(?<name>lazy_to_json)|'.
                            '(?<name>LogEvent)[^sA]|'.
                            '(?<name>parse)[(]|'.
                            '(?<name>store)[(]/', $f, $matches, PREG_SET_ORDER)) {
             foreach ($matches as $match) {
                 $name = $match['name'];
                 if ($name === 'parse' || $name === 'store') {
-                    if ($is_generated) {
-                        continue;
-                    }
                     $name = 'LogEvent';
                 }
                 $deps[$name][] = $i;
@@ -297,6 +285,7 @@ function split_file($file, $chunks, $undo) {
             'AccentColorId' => 'AccentColorId',
             'account_manager[_(-](?![.]get[(][)])|AccountManager[^;>]' => 'AccountManager',
             'AffiliateType' => 'AffiliateType',
+            'AgeVerificationParameters' => 'AgeVerificationParameters',
             'alarm_manager[_(-](?![.]get[(][)])|AlarmManager' => 'AlarmManager',
             'animations_manager[_(-](?![.]get[(][)])|AnimationsManager[^;>]' => 'AnimationsManager',
             'attach_menu_manager[_(-](?![.]get[(][)])|AttachMenuManager[^;>]' => 'AttachMenuManager',
@@ -407,6 +396,7 @@ function split_file($file, $chunks, $undo) {
             'PhotoSizeSource' => 'PhotoSizeSource',
             'poll_manager[_(-](?![.]get[(][)])|PollManager' => 'PollManager',
             'privacy_manager[_(-](?![.]get[(][)])|PrivacyManager' => 'PrivacyManager',
+            'ProfileTab' => 'ProfileTab',
             'promo_data_manager[_(-](?![.]get[(][)])|PromoDataManager' => 'PromoDataManager',
             'PublicDialogType|get_public_dialog_type' => 'PublicDialogType',
             'quick_reply_manager[_(-](?![.]get[(][)])|QuickReplyManager' => 'QuickReplyManager',
@@ -421,6 +411,7 @@ function split_file($file, $chunks, $undo) {
             'RequestActor|RequestOnceActor' => 'RequestActor',
             'saved_messages_manager[_(-](?![.]get[(][)])|SavedMessagesManager' => 'SavedMessagesManager',
             'ScopeNotificationSettings|[a-z_]*_scope_notification_settings' => 'ScopeNotificationSettings',
+            'SearchPostsFlood' => 'SearchPostsFlood',
             'SecretChatActor' => 'SecretChatActor',
             'secret_chats_manager[_(-]|SecretChatsManager' => 'SecretChatsManager',
             'secure_manager[_(-](?![.]get[(][)])|SecureManager' => 'SecureManager',
@@ -431,10 +422,13 @@ function split_file($file, $chunks, $undo) {
             'StarGift[^A-Z]' => 'StarGift',
             'StarGiftAttribute[^I]' => 'StarGiftAttribute',
             'StarGiftAttributeId' => 'StarGiftAttributeId',
+            'StarGiftCollectionId' => 'StarGiftCollectionId',
             'StarGiftId' => 'StarGiftId',
             'star_gift_manager[_(-](?![.]get[(][)])|StarGiftManager' => 'StarGiftManager',
+            'StarGiftResalePrice' => 'StarGiftResalePrice',
             'StarGiftSettings' => 'StarGiftSettings',
             'star_manager[_(-](?![.]get[(][)])|StarManager' => 'StarManager',
+            'StarRating' => 'StarRating',
             'StarSubscription[^P]' => 'StarSubscription',
             'StarSubscriptionPricing' => 'StarSubscriptionPricing',
             'state_manager[_(-](?![.]get[(][)])|StateManager' => 'StateManager',
@@ -442,6 +436,9 @@ function split_file($file, $chunks, $undo) {
             'StickerSetId' => 'StickerSetId',
             'stickers_manager[_(-](?![.]get[(][)])|StickersManager' => 'StickersManager',
             'storage_manager[_(-](?![.]get[(][)])|StorageManager' => 'StorageManager',
+            'StoryAlbum' => 'StoryAlbum',
+            'StoryAlbumFullId' => 'StoryAlbumFullId',
+            'StoryAlbumId' => 'StoryAlbumId',
             'StoryId' => 'StoryId',
             'StoryListId' => 'StoryListId',
             'story_manager[_(-](?![.]get[(][)])|StoryManager' => 'StoryManager',
@@ -512,10 +509,7 @@ $files = array('td/telegram/ChatManager' => 10,
                'td/telegram/StickersManager' => 10,
                'td/telegram/StoryManager' => 10,
                'td/telegram/UpdatesManager' => 10,
-               'td/telegram/UserManager' => 10,
-               'td/generate/auto/td/telegram/td_api' => 10,
-               'td/generate/auto/td/telegram/td_api_json' => 10,
-               'td/generate/auto/td/telegram/telegram_api' => 10);
+               'td/telegram/UserManager' => 10);
 
 foreach ($files as $file => $chunks) {
     split_file($file, $chunks, $undo);

@@ -78,6 +78,12 @@ void FileReferenceManager::store_file_source(FileSourceId file_source_id, Storer
                           [&](const FileSourceBotMediaPreviewInfo &source) {
                             td::store(source.bot_user_id, storer);
                             td::store(source.language_code, storer);
+                          },
+                          [&](const FileSourceStoryAlbum &source) { td::store(source.story_album_full_id, storer); },
+                          [&](const FileSourceUserSavedMusic &source) {
+                            td::store(source.user_id, storer);
+                            td::store(source.document_id, storer);
+                            td::store(source.access_hash, storer);
                           }));
 }
 
@@ -191,6 +197,20 @@ FileSourceId FileReferenceManager::parse_file_source(Td *td, ParserT &parser) {
       td::parse(bot_user_id, parser);
       td::parse(language_code, parser);
       return td->bot_info_manager_->get_bot_media_preview_info_file_source_id(bot_user_id, language_code);
+    }
+    case 22: {
+      StoryAlbumFullId story_album_full_id;
+      td::parse(story_album_full_id, parser);
+      return td->story_manager_->get_story_album_file_source_id(story_album_full_id);
+    }
+    case 23: {
+      UserId user_id;
+      int64 document_id;
+      int64 access_hash;
+      td::parse(user_id, parser);
+      td::parse(document_id, parser);
+      td::parse(access_hash, parser);
+      return td->user_manager_->get_user_saved_music_file_source_id(user_id, document_id, access_hash);
     }
     default:
       parser.set_error("Invalid type in FileSource");

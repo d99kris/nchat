@@ -23,6 +23,7 @@ class Td;
 class StarGift {
   int64 id_ = 0;
   DialogId released_by_dialog_id_;
+  bool is_premium_ = false;
 
   FileId sticker_file_id_;
   int64 star_count_ = 0;
@@ -32,9 +33,15 @@ class StarGift {
   int32 availability_total_ = 0;
   int32 first_sale_date_ = 0;
   int32 last_sale_date_ = 0;
+  int32 per_user_remains_ = 0;
+  int32 per_user_total_ = 0;
+  int32 locked_until_date_ = 0;
+
   bool is_for_birthday_ = false;
 
   bool is_unique_ = false;
+  bool resale_ton_only_ = false;
+  bool is_theme_available_ = false;
   StarGiftAttributeSticker model_;
   StarGiftAttributeSticker pattern_;
   StarGiftAttributeBackdrop backdrop_;
@@ -49,6 +56,11 @@ class StarGift {
   int32 unique_availability_issued_ = 0;
   int32 unique_availability_total_ = 0;
   int64 resale_star_count_ = 0;
+  int64 resale_ton_count_ = 0;
+  int64 regular_gift_id_ = 0;
+  string value_currency_;
+  int64 value_amount_ = 0;
+  DialogId theme_dialog_id_;
 
   friend bool operator==(const StarGift &lhs, const StarGift &rhs);
 
@@ -81,6 +93,10 @@ class StarGift {
     CHECK(!is_unique_);
     return upgrade_star_count_;
   }
+
+  static void fix_availability(int32 &total, int32 &remains);
+
+  static td_api::object_ptr<td_api::giftPurchaseLimits> get_gift_purchase_limits_object(int32 total, int32 remains);
 
   td_api::object_ptr<td_api::gift> get_gift_object(const Td *td) const;
 

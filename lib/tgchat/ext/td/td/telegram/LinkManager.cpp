@@ -25,7 +25,9 @@
 #include "td/telegram/net/Proxy.h"
 #include "td/telegram/OptionManager.h"
 #include "td/telegram/ServerMessageId.h"
+#include "td/telegram/StarGiftCollectionId.h"
 #include "td/telegram/StickersManager.h"
+#include "td/telegram/StoryAlbumId.h"
 #include "td/telegram/StoryId.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/TdDb.h"
@@ -156,6 +158,16 @@ static bool is_valid_star_top_up_purpose(CSlice purpose) {
 static bool is_valid_story_id(Slice story_id) {
   auto r_story_id = to_integer_safe<int32>(story_id);
   return r_story_id.is_ok() && StoryId(r_story_id.ok()).is_server();
+}
+
+static bool is_valid_star_gift_collection_id(Slice collection_id) {
+  auto r_collection_id = to_integer_safe<int32>(collection_id);
+  return r_collection_id.is_ok() && StarGiftCollectionId(r_collection_id.ok()).is_valid();
+}
+
+static bool is_valid_story_album_id(Slice story_album_id) {
+  auto r_story_album_id = to_integer_safe<int32>(story_album_id);
+  return r_story_album_id.is_ok() && StoryAlbumId(r_story_album_id.ok()).is_valid();
 }
 
 static string get_url_query_hash(bool is_tg, const HttpUrlQuery &url_query) {
@@ -717,6 +729,18 @@ class LinkManager::InternalLinkMessageDraft final : public InternalLink {
   }
 };
 
+class LinkManager::InternalLinkMonoforum final : public InternalLink {
+  string channel_username_;
+
+  td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
+    return td_api::make_object<td_api::internalLinkTypeDirectMessagesChat>(channel_username_);
+  }
+
+ public:
+  explicit InternalLinkMonoforum(string channel_username) : channel_username_(std::move(channel_username)) {
+  }
+};
+
 class LinkManager::InternalLinkMyStars final : public InternalLink {
   td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
     return td_api::make_object<td_api::internalLinkTypeMyStars>();
@@ -873,6 +897,20 @@ class LinkManager::InternalLinkStickerSet final : public InternalLink {
   }
 };
 
+class LinkManager::InternalLinkStarGiftCollection final : public InternalLink {
+  string gift_owner_username_;
+  StarGiftCollectionId collection_id_;
+
+  td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
+    return td_api::make_object<td_api::internalLinkTypeGiftCollection>(gift_owner_username_, collection_id_.get());
+  }
+
+ public:
+  InternalLinkStarGiftCollection(string gift_owner_username, StarGiftCollectionId collection_id)
+      : gift_owner_username_(std::move(gift_owner_username)), collection_id_(collection_id) {
+  }
+};
+
 class LinkManager::InternalLinkStory final : public InternalLink {
   string story_poster_username_;
   StoryId story_id_;
@@ -884,6 +922,20 @@ class LinkManager::InternalLinkStory final : public InternalLink {
  public:
   InternalLinkStory(string story_poster_username, StoryId story_id)
       : story_poster_username_(std::move(story_poster_username)), story_id_(story_id) {
+  }
+};
+
+class LinkManager::InternalLinkStoryAlbum final : public InternalLink {
+  string story_album_owner_username_;
+  StoryAlbumId story_album_id_;
+
+  td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
+    return td_api::make_object<td_api::internalLinkTypeStoryAlbum>(story_album_owner_username_, story_album_id_.get());
+  }
+
+ public:
+  InternalLinkStoryAlbum(string story_album_owner_username, StoryAlbumId story_album_id)
+      : story_album_owner_username_(std::move(story_album_owner_username)), story_album_id_(story_album_id) {
   }
 };
 
@@ -1628,6 +1680,20 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_tg_link_query(Slice que
           return td::make_unique<InternalLinkAttachMenuBot>(get_target_chat_types(url_query.get_arg("choose")), nullptr,
                                                             std::move(username), arg.second);
         }
+        if (arg.first == "direct") {
+          // resolve?domain=<username>&direct
+          return td::make_unique<InternalLinkMonoforum>(std::move(username));
+        }
+        if (arg.first == "collection" && is_valid_star_gift_collection_id(arg.second)) {
+          // resolve?domain=<username>&collection=<collection_id>
+          return td::make_unique<InternalLinkStarGiftCollection>(std::move(username),
+                                                                 StarGiftCollectionId(to_integer<int32>(arg.second)));
+        }
+        if (arg.first == "album" && is_valid_story_album_id(arg.second)) {
+          // resolve?domain=<username>&album=<story_album_id>
+          return td::make_unique<InternalLinkStoryAlbum>(std::move(username),
+                                                         StoryAlbumId(to_integer<int32>(arg.second)));
+        }
       }
       if (username == "telegrampassport") {
         // resolve?domain=telegrampassport&bot_id=...&scope=...&public_key=...&nonce=...&callback_url=...
@@ -2102,6 +2168,15 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_t_me_link_query(Slice q
       // /<username>/s/<story_id>
       return td::make_unique<InternalLinkStory>(std::move(username), StoryId(to_integer<int32>(path[2])));
     }
+    if (path.size() == 3 && path[1] == "c" && is_valid_star_gift_collection_id(path[2])) {
+      // /<username>/c/<collection_id>
+      return td::make_unique<InternalLinkStarGiftCollection>(std::move(username),
+                                                             StarGiftCollectionId(to_integer<int32>(path[2])));
+    }
+    if (path.size() == 3 && path[1] == "a" && is_valid_story_album_id(path[2])) {
+      // /<username>/a/<story_album_id>
+      return td::make_unique<InternalLinkStoryAlbum>(std::move(username), StoryAlbumId(to_integer<int32>(path[2])));
+    }
     if (path.size() == 2 && is_valid_web_app_name(path[1])) {
       // /<username>/<web_app_name>
       // /<username>/<web_app_name>?startapp=<start_parameter>&mode=compact
@@ -2173,6 +2248,10 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_t_me_link_query(Slice q
         // /<bot_username>?startattach=<start_parameter>&choose=users+bots+groups+channels
         return td::make_unique<InternalLinkAttachMenuBot>(get_target_chat_types(url_query.get_arg("choose")), nullptr,
                                                           std::move(username), arg.second);
+      }
+      if (arg.first == "direct") {
+        // /<username>?direct
+        return td::make_unique<InternalLinkMonoforum>(std::move(username));
       }
     }
 
@@ -2547,6 +2626,17 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
         return Status::Error("HTTP link is unavailable for the link type");
       }
       return "tg://settings/auto_delete";
+    case td_api::internalLinkTypeDirectMessagesChat::ID: {
+      auto link = static_cast<const td_api::internalLinkTypeDirectMessagesChat *>(type_ptr);
+      if (!is_valid_username(link->channel_username_)) {
+        return Status::Error(400, "Invalid channel username specified");
+      }
+      if (is_internal) {
+        return PSTRING() << "tg://resolve?domain=" << url_encode(link->channel_username_) << "&direct";
+      } else {
+        return PSTRING() << get_t_me_url() << url_encode(link->channel_username_) << "?direct";
+      }
+    }
     case td_api::internalLinkTypeEditProfileSettings::ID:
       if (!is_internal) {
         return Status::Error("HTTP link is unavailable for the link type");
@@ -2564,6 +2654,21 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
         return PSTRING() << "tg://resolve?domain=" << link->bot_username_ << "&game=" << link->game_short_name_;
       } else {
         return PSTRING() << get_t_me_url() << link->bot_username_ << "?game=" << link->game_short_name_;
+      }
+    }
+    case td_api::internalLinkTypeGiftCollection::ID: {
+      auto link = static_cast<const td_api::internalLinkTypeGiftCollection *>(type_ptr);
+      if (!is_valid_username(link->gift_owner_username_)) {
+        return Status::Error(400, "Invalid gift collection owner username specified");
+      }
+      if (!StarGiftCollectionId(link->collection_id_).is_valid()) {
+        return Status::Error(400, "Invalid gift collection identifier specified");
+      }
+      if (is_internal) {
+        return PSTRING() << "tg://resolve?domain=" << link->gift_owner_username_
+                         << "&collection=" << link->collection_id_;
+      } else {
+        return PSTRING() << get_t_me_url() << link->gift_owner_username_ << "/c/" << link->collection_id_;
       }
     }
     case td_api::internalLinkTypeGroupCall::ID: {
@@ -2826,6 +2931,21 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
         return PSTRING() << "tg://resolve?domain=" << link->story_poster_username_ << "&story=" << link->story_id_;
       } else {
         return PSTRING() << get_t_me_url() << link->story_poster_username_ << "/s/" << link->story_id_;
+      }
+    }
+    case td_api::internalLinkTypeStoryAlbum::ID: {
+      auto link = static_cast<const td_api::internalLinkTypeStoryAlbum *>(type_ptr);
+      if (!is_valid_username(link->story_album_owner_username_)) {
+        return Status::Error(400, "Invalid story album owner username specified");
+      }
+      if (!StoryAlbumId(link->story_album_id_).is_valid()) {
+        return Status::Error(400, "Invalid story album identifier specified");
+      }
+      if (is_internal) {
+        return PSTRING() << "tg://resolve?domain=" << link->story_album_owner_username_
+                         << "&album=" << link->story_album_id_;
+      } else {
+        return PSTRING() << get_t_me_url() << link->story_album_owner_username_ << "/a/" << link->story_album_id_;
       }
     }
     case td_api::internalLinkTypeTheme::ID: {

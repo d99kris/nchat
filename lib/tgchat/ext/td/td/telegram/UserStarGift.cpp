@@ -15,6 +15,7 @@
 #include "td/telegram/StarManager.h"
 #include "td/telegram/Td.h"
 
+#include "td/utils/algorithm.h"
 #include "td/utils/logging.h"
 
 namespace td {
@@ -22,6 +23,7 @@ namespace td {
 UserStarGift::UserStarGift(Td *td, telegram_api::object_ptr<telegram_api::savedStarGift> &&gift, DialogId dialog_id)
     : gift_(td, std::move(gift->gift_), true)
     , message_(get_formatted_text(td->user_manager_.get(), std::move(gift->message_), true, false, "userStarGift"))
+    , prepaid_upgrade_hash_(std::move(gift->prepaid_upgrade_hash_))
     , convert_star_count_(StarManager::get_star_count(gift->convert_stars_))
     , upgrade_star_count_(StarManager::get_star_count(gift->upgrade_stars_))
     , transfer_star_count_(StarManager::get_star_count(gift->transfer_stars_))
@@ -34,12 +36,21 @@ UserStarGift::UserStarGift(Td *td, telegram_api::object_ptr<telegram_api::savedS
     , is_pinned_(gift->pinned_to_top_)
     , can_upgrade_(gift->can_upgrade_)
     , can_transfer_((gift->flags_ & telegram_api::savedStarGift::TRANSFER_STARS_MASK) != 0)
-    , was_refunded_(gift->refunded_) {
+    , was_refunded_(gift->refunded_)
+    , is_upgrade_separate_(gift->upgrade_separate_) {
   if (gift->from_id_ != nullptr) {
     sender_dialog_id_ = DialogId(gift->from_id_);
     if (!sender_dialog_id_.is_valid()) {
       LOG(ERROR) << "Receive " << sender_dialog_id_ << " as sender of a gift";
       sender_dialog_id_ = DialogId();
+    }
+  }
+  for (auto star_gift_collection_id : gift->collection_id_) {
+    StarGiftCollectionId collection_id(star_gift_collection_id);
+    if (collection_id.is_valid()) {
+      collection_ids_.push_back(collection_id);
+    } else {
+      LOG(ERROR) << "Receive " << collection_id;
     }
   }
   auto is_user = dialog_id.get_type() == DialogType::User;
@@ -65,12 +76,14 @@ UserStarGift::UserStarGift(Td *td, telegram_api::object_ptr<telegram_api::savedS
 }
 
 td_api::object_ptr<td_api::receivedGift> UserStarGift::get_received_gift_object(Td *td) const {
+  auto collection_ids = transform(collection_ids_, [](auto collection_id) { return collection_id.get(); });
   return td_api::make_object<td_api::receivedGift>(
       star_gift_id_.get_star_gift_id(),
       sender_dialog_id_ == DialogId() ? nullptr : get_message_sender_object(td, sender_dialog_id_, "receivedGift"),
       get_formatted_text_object(td->user_manager_.get(), message_, true, -1), is_name_hidden_, is_saved_, is_pinned_,
-      can_upgrade_, can_transfer_, was_refunded_, date_, gift_.get_sent_gift_object(td), convert_star_count_,
-      upgrade_star_count_, transfer_star_count_, can_transfer_at_, can_resell_at_, can_export_at_);
+      can_upgrade_, can_transfer_, was_refunded_, date_, gift_.get_sent_gift_object(td), std::move(collection_ids),
+      convert_star_count_, upgrade_star_count_, upgrade_star_count_ > 0 && is_upgrade_separate_, transfer_star_count_,
+      can_transfer_at_, can_resell_at_, can_export_at_, prepaid_upgrade_hash_);
 }
 
 }  // namespace td

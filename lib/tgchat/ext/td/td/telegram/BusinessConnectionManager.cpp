@@ -828,7 +828,7 @@ class TransferBusinessStarsQuery final : public Td::ResultHandler {
       }
       case telegram_api::payments_paymentVerificationNeeded::ID:
         LOG(ERROR) << "Receive " << to_string(payment_result);
-        break;
+        return on_error(Status::Error(500, "Receive invalid response"));
       default:
         UNREACHABLE();
     }
@@ -1167,7 +1167,7 @@ MessageInputReplyTo BusinessConnectionManager::create_business_message_input_rep
         return {};
       }
       return MessageInputReplyTo{message_id, DialogId(), MessageQuote(td_, std::move(reply_to_message->quote_)),
-                                 reply_to_message->checklist_task_id_};
+                                 max(0, reply_to_message->checklist_task_id_)};
     }
     case td_api::inputMessageReplyToExternalMessage::ID:
       return {};

@@ -15,6 +15,7 @@
 #include "td/telegram/DialogLocation.h"
 #include "td/telegram/DialogManager.h"
 #include "td/telegram/DialogParticipant.h"
+#include "td/telegram/DialogPhoto.h"
 #include "td/telegram/EmojiStatus.h"
 #include "td/telegram/ForumTopicInfo.h"
 #include "td/telegram/Global.h"
@@ -374,8 +375,8 @@ static td_api::object_ptr<td_api::ChatEventAction> get_chat_event_action_object(
     }
     case telegram_api::channelAdminLogEventActionChangeHistoryTTL::ID: {
       auto action = telegram_api::move_object_as<telegram_api::channelAdminLogEventActionChangeHistoryTTL>(action_ptr);
-      auto old_value = MessageTtl(clamp(action->prev_value_, 0, 86400 * 366));
-      auto new_value = MessageTtl(clamp(action->new_value_, 0, 86400 * 366));
+      auto old_value = MessageTtl(action->prev_value_, "channelAdminLogEventActionChangeHistoryTTL old");
+      auto new_value = MessageTtl(action->new_value_, "channelAdminLogEventActionChangeHistoryTTL new");
       return td_api::make_object<td_api::chatEventMessageAutoDeleteTimeChanged>(
           old_value.get_message_auto_delete_time_object(), new_value.get_message_auto_delete_time_object());
     }
@@ -581,7 +582,7 @@ class GetChannelAdminLogQuery final : public Td::ResultHandler {
         LOG(ERROR) << "Receive invalid " << user_id;
         continue;
       }
-      LOG_IF(ERROR, !td_->user_manager_->have_user(user_id)) << "Receive unknown " << user_id;
+      LOG_IF(ERROR, !td_->user_manager_->have_min_user(user_id)) << "Receive unknown " << user_id;
 
       DialogId actor_dialog_id;
       auto action = get_chat_event_action_object(td_, channel_id_, std::move(event->action_), actor_dialog_id);
