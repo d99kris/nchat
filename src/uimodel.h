@@ -170,6 +170,8 @@ private:
     void HandleProtocolUiControlStart();
     void HandleProtocolUiControlEnd();
     bool AutoCompose();
+    std::string ClipboardGetText();
+    void ClipboardSetText(const std::string& p_Text);
 
     static bool IsAttachmentDownloaded(const FileInfo& p_FileInfo);
     static bool IsAttachmentDownloadable(const FileInfo& p_FileInfo);

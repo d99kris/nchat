@@ -392,6 +392,8 @@ This configuration file holds general user interface settings. Default content:
     auto_compose_history_count=25
     call_command=
     chat_picker_sorted_alphabetically=0
+    clipboard_copy_command=
+    clipboard_paste_command=
     confirm_deletion=1
     desktop_notify_active=0
     desktop_notify_command=
@@ -499,6 +501,18 @@ macOS: `open 'tel://%1' &`
 Specifies whether the chat selection dialog (used when forwarding message)
 should be sorted alphabetically. If not, its order follows the main chat
 list order.
+
+### clipboard_copy_command
+
+Specifies a custom copy (and cut) command to be used instead of system
+clipboard. For a simple file-backed clipboard use `tee ~/.clipboard`. With
+`pbcopy` the behavior would be similar to default macOS behavior.
+
+### clipboard_paste_command
+
+Specifies a custom paste command to be used instead of system clipboard.
+For a simple file-backed clipboard use `cat ~/.clipboard`. With `pbpaste`
+the behavior would be similar to default macOS behavior.
 
 ### confirm_deletion
 

@@ -24,6 +24,8 @@ void UiConfig::Init()
     { "auto_compose_enabled", "0" },
     { "auto_compose_history_count", "25" },
     { "away_status_indication", "0" },
+    { "clipboard_copy_command", "" },
+    { "clipboard_paste_command", "" },
     { "call_command", "" },
     { "chat_picker_sorted_alphabetically", "0" },
     { "confirm_deletion", "1" },

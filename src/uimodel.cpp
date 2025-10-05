@@ -2882,7 +2882,7 @@ void UiModel::Impl::OnKeyCut()
     std::wstring& entryStr = m_EntryStr[profileId][chatId];
 
     std::string text = StrUtil::ToString(entryStr);
-    Clipboard::SetText(text);
+    ClipboardSetText(text);
 
     entryStr.clear();
     entryPos = 0;
@@ -2899,7 +2899,7 @@ void UiModel::Impl::OnKeyCopy()
   if (GetSelectMessageActive())
   {
     std::string text = UiModel::Impl::GetSelectedMessageText();
-    Clipboard::SetText(text);
+    ClipboardSetText(text);
   }
   else
   {
@@ -2908,7 +2908,7 @@ void UiModel::Impl::OnKeyCopy()
     std::wstring& entryStr = m_EntryStr[profileId][chatId];
 
     std::string text = StrUtil::ToString(entryStr);
-    Clipboard::SetText(text);
+    ClipboardSetText(text);
   }
 }
 
@@ -2921,7 +2921,7 @@ void UiModel::Impl::OnKeyPaste()
   int& entryPos = m_EntryPos[profileId][chatId];
   std::wstring& entryStr = m_EntryStr[profileId][chatId];
 
-  std::string text = Clipboard::GetText();
+  std::string text = ClipboardGetText();
   text = StrUtil::Textize(text);
   if (m_View->GetEmojiEnabled())
   {
@@ -3828,6 +3828,39 @@ bool UiModel::Impl::AutoCompose()
   FileUtil::RmFile(tempPath);
   UpdateEntry();
   return rv;
+}
+
+std::string UiModel::Impl::ClipboardGetText()
+{
+  std::string text;
+  static const std::string clipboardPasteCommand = UiConfig::GetStr("clipboard_paste_command");
+  if (!clipboardPasteCommand.empty())
+  {
+    RunCommand(clipboardPasteCommand, &text);
+  }
+  else
+  {
+    text = Clipboard::GetText();
+  }
+
+  return text;
+}
+
+void UiModel::Impl::ClipboardSetText(const std::string& p_Text)
+{
+  static const std::string clipboardCopyCommand = UiConfig::GetStr("clipboard_copy_command");
+  if (!clipboardCopyCommand.empty())
+  {
+    const std::string tempPath = FileUtil::MkTempFile();
+    FileUtil::WriteFile(tempPath, p_Text);
+    const std::string cmd = "cat " + tempPath + " | " + clipboardCopyCommand;
+    RunCommand(cmd);
+    FileUtil::RmFile(tempPath);
+  }
+  else
+  {
+    Clipboard::SetText(p_Text);
+  }
 }
 
 // ---------------------------------------------------------------------
