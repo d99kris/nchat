@@ -14,8 +14,8 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 
+	waAICommon "go.mau.fi/whatsmeow/proto/waAICommon"
 	waAdv "go.mau.fi/whatsmeow/proto/waAdv"
-	waBotMetadata "go.mau.fi/whatsmeow/proto/waBotMetadata"
 	waCommon "go.mau.fi/whatsmeow/proto/waCommon"
 	waCompanionReg "go.mau.fi/whatsmeow/proto/waCompanionReg"
 	waMmsRetry "go.mau.fi/whatsmeow/proto/waMmsRetry"
@@ -101,21 +101,23 @@ const (
 	PeerDataOperationRequestType_COMPANION_META_NONCE_FETCH              PeerDataOperationRequestType = 7
 	PeerDataOperationRequestType_COMPANION_SYNCD_SNAPSHOT_FATAL_RECOVERY PeerDataOperationRequestType = 8
 	PeerDataOperationRequestType_COMPANION_CANONICAL_USER_NONCE_FETCH    PeerDataOperationRequestType = 9
+	PeerDataOperationRequestType_HISTORY_SYNC_CHUNK_RETRY                PeerDataOperationRequestType = 10
 )
 
 // Enum value maps for PeerDataOperationRequestType.
 var (
 	PeerDataOperationRequestType_name = map[int32]string{
-		0: "UPLOAD_STICKER",
-		1: "SEND_RECENT_STICKER_BOOTSTRAP",
-		2: "GENERATE_LINK_PREVIEW",
-		3: "HISTORY_SYNC_ON_DEMAND",
-		4: "PLACEHOLDER_MESSAGE_RESEND",
-		5: "WAFFLE_LINKING_NONCE_FETCH",
-		6: "FULL_HISTORY_SYNC_ON_DEMAND",
-		7: "COMPANION_META_NONCE_FETCH",
-		8: "COMPANION_SYNCD_SNAPSHOT_FATAL_RECOVERY",
-		9: "COMPANION_CANONICAL_USER_NONCE_FETCH",
+		0:  "UPLOAD_STICKER",
+		1:  "SEND_RECENT_STICKER_BOOTSTRAP",
+		2:  "GENERATE_LINK_PREVIEW",
+		3:  "HISTORY_SYNC_ON_DEMAND",
+		4:  "PLACEHOLDER_MESSAGE_RESEND",
+		5:  "WAFFLE_LINKING_NONCE_FETCH",
+		6:  "FULL_HISTORY_SYNC_ON_DEMAND",
+		7:  "COMPANION_META_NONCE_FETCH",
+		8:  "COMPANION_SYNCD_SNAPSHOT_FATAL_RECOVERY",
+		9:  "COMPANION_CANONICAL_USER_NONCE_FETCH",
+		10: "HISTORY_SYNC_CHUNK_RETRY",
 	}
 	PeerDataOperationRequestType_value = map[string]int32{
 		"UPLOAD_STICKER":                          0,
@@ -128,6 +130,7 @@ var (
 		"COMPANION_META_NONCE_FETCH":              7,
 		"COMPANION_SYNCD_SNAPSHOT_FATAL_RECOVERY": 8,
 		"COMPANION_CANONICAL_USER_NONCE_FETCH":    9,
+		"HISTORY_SYNC_CHUNK_RETRY":                10,
 	}
 )
 
@@ -166,6 +169,80 @@ func (x *PeerDataOperationRequestType) UnmarshalJSON(b []byte) error {
 // Deprecated: Use PeerDataOperationRequestType.Descriptor instead.
 func (PeerDataOperationRequestType) EnumDescriptor() ([]byte, []int) {
 	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{1}
+}
+
+type HistorySyncType int32
+
+const (
+	HistorySyncType_INITIAL_BOOTSTRAP HistorySyncType = 0
+	HistorySyncType_INITIAL_STATUS_V3 HistorySyncType = 1
+	HistorySyncType_FULL              HistorySyncType = 2
+	HistorySyncType_RECENT            HistorySyncType = 3
+	HistorySyncType_PUSH_NAME         HistorySyncType = 4
+	HistorySyncType_NON_BLOCKING_DATA HistorySyncType = 5
+	HistorySyncType_ON_DEMAND         HistorySyncType = 6
+	HistorySyncType_NO_HISTORY        HistorySyncType = 7
+)
+
+// Enum value maps for HistorySyncType.
+var (
+	HistorySyncType_name = map[int32]string{
+		0: "INITIAL_BOOTSTRAP",
+		1: "INITIAL_STATUS_V3",
+		2: "FULL",
+		3: "RECENT",
+		4: "PUSH_NAME",
+		5: "NON_BLOCKING_DATA",
+		6: "ON_DEMAND",
+		7: "NO_HISTORY",
+	}
+	HistorySyncType_value = map[string]int32{
+		"INITIAL_BOOTSTRAP": 0,
+		"INITIAL_STATUS_V3": 1,
+		"FULL":              2,
+		"RECENT":            3,
+		"PUSH_NAME":         4,
+		"NON_BLOCKING_DATA": 5,
+		"ON_DEMAND":         6,
+		"NO_HISTORY":        7,
+	}
+)
+
+func (x HistorySyncType) Enum() *HistorySyncType {
+	p := new(HistorySyncType)
+	*p = x
+	return p
+}
+
+func (x HistorySyncType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (HistorySyncType) Descriptor() protoreflect.EnumDescriptor {
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[2].Descriptor()
+}
+
+func (HistorySyncType) Type() protoreflect.EnumType {
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[2]
+}
+
+func (x HistorySyncType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Do not use.
+func (x *HistorySyncType) UnmarshalJSON(b []byte) error {
+	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
+	if err != nil {
+		return err
+	}
+	*x = HistorySyncType(num)
+	return nil
+}
+
+// Deprecated: Use HistorySyncType.Descriptor instead.
+func (HistorySyncType) EnumDescriptor() ([]byte, []int) {
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{2}
 }
 
 type MediaKeyDomain int32
@@ -207,11 +284,11 @@ func (x MediaKeyDomain) String() string {
 }
 
 func (MediaKeyDomain) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[2].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[3].Descriptor()
 }
 
 func (MediaKeyDomain) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[2]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[3]
 }
 
 func (x MediaKeyDomain) Number() protoreflect.EnumNumber {
@@ -230,7 +307,7 @@ func (x *MediaKeyDomain) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use MediaKeyDomain.Descriptor instead.
 func (MediaKeyDomain) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{2}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{3}
 }
 
 type KeepType int32
@@ -266,11 +343,11 @@ func (x KeepType) String() string {
 }
 
 func (KeepType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[3].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[4].Descriptor()
 }
 
 func (KeepType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[3]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[4]
 }
 
 func (x KeepType) Number() protoreflect.EnumNumber {
@@ -289,7 +366,7 @@ func (x *KeepType) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use KeepType.Descriptor instead.
 func (KeepType) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{3}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{4}
 }
 
 type StickerPackMessage_StickerPackOrigin int32
@@ -325,11 +402,11 @@ func (x StickerPackMessage_StickerPackOrigin) String() string {
 }
 
 func (StickerPackMessage_StickerPackOrigin) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[4].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[5].Descriptor()
 }
 
 func (StickerPackMessage_StickerPackOrigin) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[4]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[5]
 }
 
 func (x StickerPackMessage_StickerPackOrigin) Number() protoreflect.EnumNumber {
@@ -378,11 +455,11 @@ func (x PlaceholderMessage_PlaceholderType) String() string {
 }
 
 func (PlaceholderMessage_PlaceholderType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[5].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[6].Descriptor()
 }
 
 func (PlaceholderMessage_PlaceholderType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[5]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[6]
 }
 
 func (x PlaceholderMessage_PlaceholderType) Number() protoreflect.EnumNumber {
@@ -437,11 +514,11 @@ func (x BCallMessage_MediaType) String() string {
 }
 
 func (BCallMessage_MediaType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[6].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[7].Descriptor()
 }
 
 func (BCallMessage_MediaType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[6]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[7]
 }
 
 func (x BCallMessage_MediaType) Number() protoreflect.EnumNumber {
@@ -511,11 +588,11 @@ func (x CallLogMessage_CallOutcome) String() string {
 }
 
 func (CallLogMessage_CallOutcome) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[7].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[8].Descriptor()
 }
 
 func (CallLogMessage_CallOutcome) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[7]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[8]
 }
 
 func (x CallLogMessage_CallOutcome) Number() protoreflect.EnumNumber {
@@ -570,11 +647,11 @@ func (x CallLogMessage_CallType) String() string {
 }
 
 func (CallLogMessage_CallType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[8].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[9].Descriptor()
 }
 
 func (CallLogMessage_CallType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[8]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[9]
 }
 
 func (x CallLogMessage_CallType) Number() protoreflect.EnumNumber {
@@ -626,11 +703,11 @@ func (x ScheduledCallEditMessage_EditType) String() string {
 }
 
 func (ScheduledCallEditMessage_EditType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[9].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[10].Descriptor()
 }
 
 func (ScheduledCallEditMessage_EditType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[9]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[10]
 }
 
 func (x ScheduledCallEditMessage_EditType) Number() protoreflect.EnumNumber {
@@ -685,11 +762,11 @@ func (x ScheduledCallCreationMessage_CallType) String() string {
 }
 
 func (ScheduledCallCreationMessage_CallType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[10].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[11].Descriptor()
 }
 
 func (ScheduledCallCreationMessage_CallType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[10]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[11]
 }
 
 func (x ScheduledCallCreationMessage_CallType) Number() protoreflect.EnumNumber {
@@ -747,11 +824,11 @@ func (x EventResponseMessage_EventResponseType) String() string {
 }
 
 func (EventResponseMessage_EventResponseType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[11].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[12].Descriptor()
 }
 
 func (EventResponseMessage_EventResponseType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[11]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[12]
 }
 
 func (x EventResponseMessage_EventResponseType) Number() protoreflect.EnumNumber {
@@ -806,11 +883,11 @@ func (x PinInChatMessage_Type) String() string {
 }
 
 func (PinInChatMessage_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[12].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[13].Descriptor()
 }
 
 func (PinInChatMessage_Type) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[12]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[13]
 }
 
 func (x PinInChatMessage_Type) Number() protoreflect.EnumNumber {
@@ -830,6 +907,62 @@ func (x *PinInChatMessage_Type) UnmarshalJSON(b []byte) error {
 // Deprecated: Use PinInChatMessage_Type.Descriptor instead.
 func (PinInChatMessage_Type) EnumDescriptor() ([]byte, []int) {
 	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{7, 0}
+}
+
+type StatusStickerInteractionMessage_StatusStickerType int32
+
+const (
+	StatusStickerInteractionMessage_UNKNOWN  StatusStickerInteractionMessage_StatusStickerType = 0
+	StatusStickerInteractionMessage_REACTION StatusStickerInteractionMessage_StatusStickerType = 1
+)
+
+// Enum value maps for StatusStickerInteractionMessage_StatusStickerType.
+var (
+	StatusStickerInteractionMessage_StatusStickerType_name = map[int32]string{
+		0: "UNKNOWN",
+		1: "REACTION",
+	}
+	StatusStickerInteractionMessage_StatusStickerType_value = map[string]int32{
+		"UNKNOWN":  0,
+		"REACTION": 1,
+	}
+)
+
+func (x StatusStickerInteractionMessage_StatusStickerType) Enum() *StatusStickerInteractionMessage_StatusStickerType {
+	p := new(StatusStickerInteractionMessage_StatusStickerType)
+	*p = x
+	return p
+}
+
+func (x StatusStickerInteractionMessage_StatusStickerType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (StatusStickerInteractionMessage_StatusStickerType) Descriptor() protoreflect.EnumDescriptor {
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[14].Descriptor()
+}
+
+func (StatusStickerInteractionMessage_StatusStickerType) Type() protoreflect.EnumType {
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[14]
+}
+
+func (x StatusStickerInteractionMessage_StatusStickerType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Do not use.
+func (x *StatusStickerInteractionMessage_StatusStickerType) UnmarshalJSON(b []byte) error {
+	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
+	if err != nil {
+		return err
+	}
+	*x = StatusStickerInteractionMessage_StatusStickerType(num)
+	return nil
+}
+
+// Deprecated: Use StatusStickerInteractionMessage_StatusStickerType.Descriptor instead.
+func (StatusStickerInteractionMessage_StatusStickerType) EnumDescriptor() ([]byte, []int) {
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{8, 0}
 }
 
 type PollCreationMessage_PollType int32
@@ -862,11 +995,11 @@ func (x PollCreationMessage_PollType) String() string {
 }
 
 func (PollCreationMessage_PollType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[13].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[15].Descriptor()
 }
 
 func (PollCreationMessage_PollType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[13]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[15]
 }
 
 func (x PollCreationMessage_PollType) Number() protoreflect.EnumNumber {
@@ -885,7 +1018,7 @@ func (x *PollCreationMessage_PollType) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use PollCreationMessage_PollType.Descriptor instead.
 func (PollCreationMessage_PollType) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{8, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{9, 0}
 }
 
 type ButtonsResponseMessage_Type int32
@@ -918,11 +1051,11 @@ func (x ButtonsResponseMessage_Type) String() string {
 }
 
 func (ButtonsResponseMessage_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[14].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[16].Descriptor()
 }
 
 func (ButtonsResponseMessage_Type) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[14]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[16]
 }
 
 func (x ButtonsResponseMessage_Type) Number() protoreflect.EnumNumber {
@@ -941,7 +1074,7 @@ func (x *ButtonsResponseMessage_Type) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use ButtonsResponseMessage_Type.Descriptor instead.
 func (ButtonsResponseMessage_Type) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{9, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{10, 0}
 }
 
 type ButtonsMessage_HeaderType int32
@@ -989,11 +1122,11 @@ func (x ButtonsMessage_HeaderType) String() string {
 }
 
 func (ButtonsMessage_HeaderType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[15].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[17].Descriptor()
 }
 
 func (ButtonsMessage_HeaderType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[15]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[17]
 }
 
 func (x ButtonsMessage_HeaderType) Number() protoreflect.EnumNumber {
@@ -1012,7 +1145,7 @@ func (x *ButtonsMessage_HeaderType) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use ButtonsMessage_HeaderType.Descriptor instead.
 func (ButtonsMessage_HeaderType) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{10, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{11, 0}
 }
 
 type ButtonsMessage_Button_Type int32
@@ -1048,11 +1181,11 @@ func (x ButtonsMessage_Button_Type) String() string {
 }
 
 func (ButtonsMessage_Button_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[16].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[18].Descriptor()
 }
 
 func (ButtonsMessage_Button_Type) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[16]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[18]
 }
 
 func (x ButtonsMessage_Button_Type) Number() protoreflect.EnumNumber {
@@ -1071,7 +1204,7 @@ func (x *ButtonsMessage_Button_Type) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use ButtonsMessage_Button_Type.Descriptor instead.
 func (ButtonsMessage_Button_Type) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{10, 0, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{11, 0, 0}
 }
 
 type SecretEncryptedMessage_SecretEncType int32
@@ -1107,11 +1240,11 @@ func (x SecretEncryptedMessage_SecretEncType) String() string {
 }
 
 func (SecretEncryptedMessage_SecretEncType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[17].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[19].Descriptor()
 }
 
 func (SecretEncryptedMessage_SecretEncType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[17]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[19]
 }
 
 func (x SecretEncryptedMessage_SecretEncType) Number() protoreflect.EnumNumber {
@@ -1130,7 +1263,7 @@ func (x *SecretEncryptedMessage_SecretEncType) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use SecretEncryptedMessage_SecretEncType.Descriptor instead.
 func (SecretEncryptedMessage_SecretEncType) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{11, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{12, 0}
 }
 
 type GroupInviteMessage_GroupType int32
@@ -1163,11 +1296,11 @@ func (x GroupInviteMessage_GroupType) String() string {
 }
 
 func (GroupInviteMessage_GroupType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[18].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[20].Descriptor()
 }
 
 func (GroupInviteMessage_GroupType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[18]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[20]
 }
 
 func (x GroupInviteMessage_GroupType) Number() protoreflect.EnumNumber {
@@ -1186,7 +1319,7 @@ func (x *GroupInviteMessage_GroupType) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use GroupInviteMessage_GroupType.Descriptor instead.
 func (GroupInviteMessage_GroupType) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{12, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{13, 0}
 }
 
 type InteractiveResponseMessage_Body_Format int32
@@ -1219,11 +1352,11 @@ func (x InteractiveResponseMessage_Body_Format) String() string {
 }
 
 func (InteractiveResponseMessage_Body_Format) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[19].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[21].Descriptor()
 }
 
 func (InteractiveResponseMessage_Body_Format) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[19]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[21]
 }
 
 func (x InteractiveResponseMessage_Body_Format) Number() protoreflect.EnumNumber {
@@ -1242,7 +1375,7 @@ func (x *InteractiveResponseMessage_Body_Format) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use InteractiveResponseMessage_Body_Format.Descriptor instead.
 func (InteractiveResponseMessage_Body_Format) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{13, 0, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{14, 0, 0}
 }
 
 type InteractiveMessage_CarouselMessage_CarouselCardType int32
@@ -1278,11 +1411,11 @@ func (x InteractiveMessage_CarouselMessage_CarouselCardType) String() string {
 }
 
 func (InteractiveMessage_CarouselMessage_CarouselCardType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[20].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[22].Descriptor()
 }
 
 func (InteractiveMessage_CarouselMessage_CarouselCardType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[20]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[22]
 }
 
 func (x InteractiveMessage_CarouselMessage_CarouselCardType) Number() protoreflect.EnumNumber {
@@ -1301,7 +1434,7 @@ func (x *InteractiveMessage_CarouselMessage_CarouselCardType) UnmarshalJSON(b []
 
 // Deprecated: Use InteractiveMessage_CarouselMessage_CarouselCardType.Descriptor instead.
 func (InteractiveMessage_CarouselMessage_CarouselCardType) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{14, 0, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{15, 0, 0}
 }
 
 type InteractiveMessage_ShopMessage_Surface int32
@@ -1340,11 +1473,11 @@ func (x InteractiveMessage_ShopMessage_Surface) String() string {
 }
 
 func (InteractiveMessage_ShopMessage_Surface) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[21].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[23].Descriptor()
 }
 
 func (InteractiveMessage_ShopMessage_Surface) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[21]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[23]
 }
 
 func (x InteractiveMessage_ShopMessage_Surface) Number() protoreflect.EnumNumber {
@@ -1363,7 +1496,7 @@ func (x *InteractiveMessage_ShopMessage_Surface) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use InteractiveMessage_ShopMessage_Surface.Descriptor instead.
 func (InteractiveMessage_ShopMessage_Surface) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{14, 1, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{15, 1, 0}
 }
 
 type ListResponseMessage_ListType int32
@@ -1396,11 +1529,11 @@ func (x ListResponseMessage_ListType) String() string {
 }
 
 func (ListResponseMessage_ListType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[22].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[24].Descriptor()
 }
 
 func (ListResponseMessage_ListType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[22]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[24]
 }
 
 func (x ListResponseMessage_ListType) Number() protoreflect.EnumNumber {
@@ -1419,7 +1552,7 @@ func (x *ListResponseMessage_ListType) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use ListResponseMessage_ListType.Descriptor instead.
 func (ListResponseMessage_ListType) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{15, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{16, 0}
 }
 
 type ListMessage_ListType int32
@@ -1455,11 +1588,11 @@ func (x ListMessage_ListType) String() string {
 }
 
 func (ListMessage_ListType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[23].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[25].Descriptor()
 }
 
 func (ListMessage_ListType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[23]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[25]
 }
 
 func (x ListMessage_ListType) Number() protoreflect.EnumNumber {
@@ -1478,7 +1611,7 @@ func (x *ListMessage_ListType) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use ListMessage_ListType.Descriptor instead.
 func (ListMessage_ListType) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{16, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{17, 0}
 }
 
 type OrderMessage_OrderSurface int32
@@ -1508,11 +1641,11 @@ func (x OrderMessage_OrderSurface) String() string {
 }
 
 func (OrderMessage_OrderSurface) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[24].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[26].Descriptor()
 }
 
 func (OrderMessage_OrderSurface) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[24]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[26]
 }
 
 func (x OrderMessage_OrderSurface) Number() protoreflect.EnumNumber {
@@ -1531,7 +1664,7 @@ func (x *OrderMessage_OrderSurface) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use OrderMessage_OrderSurface.Descriptor instead.
 func (OrderMessage_OrderSurface) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{17, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{18, 0}
 }
 
 type OrderMessage_OrderStatus int32
@@ -1567,11 +1700,11 @@ func (x OrderMessage_OrderStatus) String() string {
 }
 
 func (OrderMessage_OrderStatus) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[25].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[27].Descriptor()
 }
 
 func (OrderMessage_OrderStatus) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[25]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[27]
 }
 
 func (x OrderMessage_OrderStatus) Number() protoreflect.EnumNumber {
@@ -1590,7 +1723,60 @@ func (x *OrderMessage_OrderStatus) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use OrderMessage_OrderStatus.Descriptor instead.
 func (OrderMessage_OrderStatus) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{17, 1}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{18, 1}
+}
+
+type StatusQuotedMessage_StatusQuotedMessageType int32
+
+const (
+	StatusQuotedMessage_QUESTION_ANSWER StatusQuotedMessage_StatusQuotedMessageType = 1
+)
+
+// Enum value maps for StatusQuotedMessage_StatusQuotedMessageType.
+var (
+	StatusQuotedMessage_StatusQuotedMessageType_name = map[int32]string{
+		1: "QUESTION_ANSWER",
+	}
+	StatusQuotedMessage_StatusQuotedMessageType_value = map[string]int32{
+		"QUESTION_ANSWER": 1,
+	}
+)
+
+func (x StatusQuotedMessage_StatusQuotedMessageType) Enum() *StatusQuotedMessage_StatusQuotedMessageType {
+	p := new(StatusQuotedMessage_StatusQuotedMessageType)
+	*p = x
+	return p
+}
+
+func (x StatusQuotedMessage_StatusQuotedMessageType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (StatusQuotedMessage_StatusQuotedMessageType) Descriptor() protoreflect.EnumDescriptor {
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[28].Descriptor()
+}
+
+func (StatusQuotedMessage_StatusQuotedMessageType) Type() protoreflect.EnumType {
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[28]
+}
+
+func (x StatusQuotedMessage_StatusQuotedMessageType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Do not use.
+func (x *StatusQuotedMessage_StatusQuotedMessageType) UnmarshalJSON(b []byte) error {
+	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
+	if err != nil {
+		return err
+	}
+	*x = StatusQuotedMessage_StatusQuotedMessageType(num)
+	return nil
+}
+
+// Deprecated: Use StatusQuotedMessage_StatusQuotedMessageType.Descriptor instead.
+func (StatusQuotedMessage_StatusQuotedMessageType) EnumDescriptor() ([]byte, []int) {
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{19, 0}
 }
 
 type PaymentInviteMessage_ServiceType int32
@@ -1629,11 +1815,11 @@ func (x PaymentInviteMessage_ServiceType) String() string {
 }
 
 func (PaymentInviteMessage_ServiceType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[26].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[29].Descriptor()
 }
 
 func (PaymentInviteMessage_ServiceType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[26]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[29]
 }
 
 func (x PaymentInviteMessage_ServiceType) Number() protoreflect.EnumNumber {
@@ -1652,7 +1838,7 @@ func (x *PaymentInviteMessage_ServiceType) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use PaymentInviteMessage_ServiceType.Descriptor instead.
 func (PaymentInviteMessage_ServiceType) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{18, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{20, 0}
 }
 
 type HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_CalendarType int32
@@ -1685,11 +1871,11 @@ func (x HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeC
 }
 
 func (HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_CalendarType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[27].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[30].Descriptor()
 }
 
 func (HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_CalendarType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[27]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[30]
 }
 
 func (x HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_CalendarType) Number() protoreflect.EnumNumber {
@@ -1708,7 +1894,7 @@ func (x *HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTime
 
 // Deprecated: Use HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_CalendarType.Descriptor instead.
 func (HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_CalendarType) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{19, 0, 0, 0, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{21, 0, 0, 0, 0}
 }
 
 type HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_DayOfWeekType int32
@@ -1756,11 +1942,11 @@ func (x HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeC
 }
 
 func (HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_DayOfWeekType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[28].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[31].Descriptor()
 }
 
 func (HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_DayOfWeekType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[28]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[31]
 }
 
 func (x HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_DayOfWeekType) Number() protoreflect.EnumNumber {
@@ -1779,7 +1965,75 @@ func (x *HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTime
 
 // Deprecated: Use HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_DayOfWeekType.Descriptor instead.
 func (HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_DayOfWeekType) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{19, 0, 0, 0, 1}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{21, 0, 0, 0, 1}
+}
+
+type PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode int32
+
+const (
+	PeerDataOperationRequestResponseMessage_PeerDataOperationResult_GENERATION_ERROR   PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode = 1
+	PeerDataOperationRequestResponseMessage_PeerDataOperationResult_CHUNK_CONSUMED     PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode = 2
+	PeerDataOperationRequestResponseMessage_PeerDataOperationResult_TIMEOUT            PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode = 3
+	PeerDataOperationRequestResponseMessage_PeerDataOperationResult_SESSION_EXHAUSTED  PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode = 4
+	PeerDataOperationRequestResponseMessage_PeerDataOperationResult_CHUNK_EXHAUSTED    PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode = 5
+	PeerDataOperationRequestResponseMessage_PeerDataOperationResult_DUPLICATED_REQUEST PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode = 6
+)
+
+// Enum value maps for PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode.
+var (
+	PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode_name = map[int32]string{
+		1: "GENERATION_ERROR",
+		2: "CHUNK_CONSUMED",
+		3: "TIMEOUT",
+		4: "SESSION_EXHAUSTED",
+		5: "CHUNK_EXHAUSTED",
+		6: "DUPLICATED_REQUEST",
+	}
+	PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode_value = map[string]int32{
+		"GENERATION_ERROR":   1,
+		"CHUNK_CONSUMED":     2,
+		"TIMEOUT":            3,
+		"SESSION_EXHAUSTED":  4,
+		"CHUNK_EXHAUSTED":    5,
+		"DUPLICATED_REQUEST": 6,
+	}
+)
+
+func (x PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode) Enum() *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode {
+	p := new(PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode)
+	*p = x
+	return p
+}
+
+func (x PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode) Descriptor() protoreflect.EnumDescriptor {
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[32].Descriptor()
+}
+
+func (PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode) Type() protoreflect.EnumType {
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[32]
+}
+
+func (x PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Do not use.
+func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode) UnmarshalJSON(b []byte) error {
+	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
+	if err != nil {
+		return err
+	}
+	*x = PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode(num)
+	return nil
+}
+
+// Deprecated: Use PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode.Descriptor instead.
+func (PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode) EnumDescriptor() ([]byte, []int) {
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{22, 0, 0}
 }
 
 type PeerDataOperationRequestResponseMessage_PeerDataOperationResult_FullHistorySyncOnDemandResponseCode int32
@@ -1827,11 +2081,11 @@ func (x PeerDataOperationRequestResponseMessage_PeerDataOperationResult_FullHist
 }
 
 func (PeerDataOperationRequestResponseMessage_PeerDataOperationResult_FullHistorySyncOnDemandResponseCode) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[29].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[33].Descriptor()
 }
 
 func (PeerDataOperationRequestResponseMessage_PeerDataOperationResult_FullHistorySyncOnDemandResponseCode) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[29]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[33]
 }
 
 func (x PeerDataOperationRequestResponseMessage_PeerDataOperationResult_FullHistorySyncOnDemandResponseCode) Number() protoreflect.EnumNumber {
@@ -1850,81 +2104,7 @@ func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_FullHis
 
 // Deprecated: Use PeerDataOperationRequestResponseMessage_PeerDataOperationResult_FullHistorySyncOnDemandResponseCode.Descriptor instead.
 func (PeerDataOperationRequestResponseMessage_PeerDataOperationResult_FullHistorySyncOnDemandResponseCode) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{20, 0, 0}
-}
-
-type HistorySyncNotification_HistorySyncType int32
-
-const (
-	HistorySyncNotification_INITIAL_BOOTSTRAP HistorySyncNotification_HistorySyncType = 0
-	HistorySyncNotification_INITIAL_STATUS_V3 HistorySyncNotification_HistorySyncType = 1
-	HistorySyncNotification_FULL              HistorySyncNotification_HistorySyncType = 2
-	HistorySyncNotification_RECENT            HistorySyncNotification_HistorySyncType = 3
-	HistorySyncNotification_PUSH_NAME         HistorySyncNotification_HistorySyncType = 4
-	HistorySyncNotification_NON_BLOCKING_DATA HistorySyncNotification_HistorySyncType = 5
-	HistorySyncNotification_ON_DEMAND         HistorySyncNotification_HistorySyncType = 6
-	HistorySyncNotification_NO_HISTORY        HistorySyncNotification_HistorySyncType = 7
-)
-
-// Enum value maps for HistorySyncNotification_HistorySyncType.
-var (
-	HistorySyncNotification_HistorySyncType_name = map[int32]string{
-		0: "INITIAL_BOOTSTRAP",
-		1: "INITIAL_STATUS_V3",
-		2: "FULL",
-		3: "RECENT",
-		4: "PUSH_NAME",
-		5: "NON_BLOCKING_DATA",
-		6: "ON_DEMAND",
-		7: "NO_HISTORY",
-	}
-	HistorySyncNotification_HistorySyncType_value = map[string]int32{
-		"INITIAL_BOOTSTRAP": 0,
-		"INITIAL_STATUS_V3": 1,
-		"FULL":              2,
-		"RECENT":            3,
-		"PUSH_NAME":         4,
-		"NON_BLOCKING_DATA": 5,
-		"ON_DEMAND":         6,
-		"NO_HISTORY":        7,
-	}
-)
-
-func (x HistorySyncNotification_HistorySyncType) Enum() *HistorySyncNotification_HistorySyncType {
-	p := new(HistorySyncNotification_HistorySyncType)
-	*p = x
-	return p
-}
-
-func (x HistorySyncNotification_HistorySyncType) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (HistorySyncNotification_HistorySyncType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[30].Descriptor()
-}
-
-func (HistorySyncNotification_HistorySyncType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[30]
-}
-
-func (x HistorySyncNotification_HistorySyncType) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Do not use.
-func (x *HistorySyncNotification_HistorySyncType) UnmarshalJSON(b []byte) error {
-	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
-	if err != nil {
-		return err
-	}
-	*x = HistorySyncNotification_HistorySyncType(num)
-	return nil
-}
-
-// Deprecated: Use HistorySyncNotification_HistorySyncType.Descriptor instead.
-func (HistorySyncNotification_HistorySyncType) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{21, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{22, 0, 1}
 }
 
 type RequestWelcomeMessageMetadata_LocalChatState int32
@@ -1957,11 +2137,11 @@ func (x RequestWelcomeMessageMetadata_LocalChatState) String() string {
 }
 
 func (RequestWelcomeMessageMetadata_LocalChatState) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[31].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[34].Descriptor()
 }
 
 func (RequestWelcomeMessageMetadata_LocalChatState) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[31]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[34]
 }
 
 func (x RequestWelcomeMessageMetadata_LocalChatState) Number() protoreflect.EnumNumber {
@@ -1980,7 +2160,7 @@ func (x *RequestWelcomeMessageMetadata_LocalChatState) UnmarshalJSON(b []byte) e
 
 // Deprecated: Use RequestWelcomeMessageMetadata_LocalChatState.Descriptor instead.
 func (RequestWelcomeMessageMetadata_LocalChatState) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{22, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{23, 0}
 }
 
 type ProtocolMessage_Type int32
@@ -2085,11 +2265,11 @@ func (x ProtocolMessage_Type) String() string {
 }
 
 func (ProtocolMessage_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[32].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[35].Descriptor()
 }
 
 func (ProtocolMessage_Type) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[32]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[35]
 }
 
 func (x ProtocolMessage_Type) Number() protoreflect.EnumNumber {
@@ -2108,7 +2288,7 @@ func (x *ProtocolMessage_Type) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use ProtocolMessage_Type.Descriptor instead.
 func (ProtocolMessage_Type) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{23, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{24, 0}
 }
 
 type CloudAPIThreadControlNotification_CloudAPIThreadControl int32
@@ -2144,11 +2324,11 @@ func (x CloudAPIThreadControlNotification_CloudAPIThreadControl) String() string
 }
 
 func (CloudAPIThreadControlNotification_CloudAPIThreadControl) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[33].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[36].Descriptor()
 }
 
 func (CloudAPIThreadControlNotification_CloudAPIThreadControl) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[33]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[36]
 }
 
 func (x CloudAPIThreadControlNotification_CloudAPIThreadControl) Number() protoreflect.EnumNumber {
@@ -2167,288 +2347,7 @@ func (x *CloudAPIThreadControlNotification_CloudAPIThreadControl) UnmarshalJSON(
 
 // Deprecated: Use CloudAPIThreadControlNotification_CloudAPIThreadControl.Descriptor instead.
 func (CloudAPIThreadControlNotification_CloudAPIThreadControl) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{24, 0}
-}
-
-type BotFeedbackMessage_ReportKind int32
-
-const (
-	BotFeedbackMessage_NONE    BotFeedbackMessage_ReportKind = 0
-	BotFeedbackMessage_GENERIC BotFeedbackMessage_ReportKind = 1
-)
-
-// Enum value maps for BotFeedbackMessage_ReportKind.
-var (
-	BotFeedbackMessage_ReportKind_name = map[int32]string{
-		0: "NONE",
-		1: "GENERIC",
-	}
-	BotFeedbackMessage_ReportKind_value = map[string]int32{
-		"NONE":    0,
-		"GENERIC": 1,
-	}
-)
-
-func (x BotFeedbackMessage_ReportKind) Enum() *BotFeedbackMessage_ReportKind {
-	p := new(BotFeedbackMessage_ReportKind)
-	*p = x
-	return p
-}
-
-func (x BotFeedbackMessage_ReportKind) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (BotFeedbackMessage_ReportKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[34].Descriptor()
-}
-
-func (BotFeedbackMessage_ReportKind) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[34]
-}
-
-func (x BotFeedbackMessage_ReportKind) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Do not use.
-func (x *BotFeedbackMessage_ReportKind) UnmarshalJSON(b []byte) error {
-	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
-	if err != nil {
-		return err
-	}
-	*x = BotFeedbackMessage_ReportKind(num)
-	return nil
-}
-
-// Deprecated: Use BotFeedbackMessage_ReportKind.Descriptor instead.
-func (BotFeedbackMessage_ReportKind) EnumDescriptor() ([]byte, []int) {
 	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{25, 0}
-}
-
-type BotFeedbackMessage_BotFeedbackKindMultiplePositive int32
-
-const (
-	BotFeedbackMessage_BOT_FEEDBACK_MULTIPLE_POSITIVE_GENERIC BotFeedbackMessage_BotFeedbackKindMultiplePositive = 1
-)
-
-// Enum value maps for BotFeedbackMessage_BotFeedbackKindMultiplePositive.
-var (
-	BotFeedbackMessage_BotFeedbackKindMultiplePositive_name = map[int32]string{
-		1: "BOT_FEEDBACK_MULTIPLE_POSITIVE_GENERIC",
-	}
-	BotFeedbackMessage_BotFeedbackKindMultiplePositive_value = map[string]int32{
-		"BOT_FEEDBACK_MULTIPLE_POSITIVE_GENERIC": 1,
-	}
-)
-
-func (x BotFeedbackMessage_BotFeedbackKindMultiplePositive) Enum() *BotFeedbackMessage_BotFeedbackKindMultiplePositive {
-	p := new(BotFeedbackMessage_BotFeedbackKindMultiplePositive)
-	*p = x
-	return p
-}
-
-func (x BotFeedbackMessage_BotFeedbackKindMultiplePositive) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (BotFeedbackMessage_BotFeedbackKindMultiplePositive) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[35].Descriptor()
-}
-
-func (BotFeedbackMessage_BotFeedbackKindMultiplePositive) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[35]
-}
-
-func (x BotFeedbackMessage_BotFeedbackKindMultiplePositive) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Do not use.
-func (x *BotFeedbackMessage_BotFeedbackKindMultiplePositive) UnmarshalJSON(b []byte) error {
-	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
-	if err != nil {
-		return err
-	}
-	*x = BotFeedbackMessage_BotFeedbackKindMultiplePositive(num)
-	return nil
-}
-
-// Deprecated: Use BotFeedbackMessage_BotFeedbackKindMultiplePositive.Descriptor instead.
-func (BotFeedbackMessage_BotFeedbackKindMultiplePositive) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{25, 1}
-}
-
-type BotFeedbackMessage_BotFeedbackKindMultipleNegative int32
-
-const (
-	BotFeedbackMessage_BOT_FEEDBACK_MULTIPLE_NEGATIVE_GENERIC                BotFeedbackMessage_BotFeedbackKindMultipleNegative = 1
-	BotFeedbackMessage_BOT_FEEDBACK_MULTIPLE_NEGATIVE_HELPFUL                BotFeedbackMessage_BotFeedbackKindMultipleNegative = 2
-	BotFeedbackMessage_BOT_FEEDBACK_MULTIPLE_NEGATIVE_INTERESTING            BotFeedbackMessage_BotFeedbackKindMultipleNegative = 4
-	BotFeedbackMessage_BOT_FEEDBACK_MULTIPLE_NEGATIVE_ACCURATE               BotFeedbackMessage_BotFeedbackKindMultipleNegative = 8
-	BotFeedbackMessage_BOT_FEEDBACK_MULTIPLE_NEGATIVE_SAFE                   BotFeedbackMessage_BotFeedbackKindMultipleNegative = 16
-	BotFeedbackMessage_BOT_FEEDBACK_MULTIPLE_NEGATIVE_OTHER                  BotFeedbackMessage_BotFeedbackKindMultipleNegative = 32
-	BotFeedbackMessage_BOT_FEEDBACK_MULTIPLE_NEGATIVE_REFUSED                BotFeedbackMessage_BotFeedbackKindMultipleNegative = 64
-	BotFeedbackMessage_BOT_FEEDBACK_MULTIPLE_NEGATIVE_NOT_VISUALLY_APPEALING BotFeedbackMessage_BotFeedbackKindMultipleNegative = 128
-	BotFeedbackMessage_BOT_FEEDBACK_MULTIPLE_NEGATIVE_NOT_RELEVANT_TO_TEXT   BotFeedbackMessage_BotFeedbackKindMultipleNegative = 256
-)
-
-// Enum value maps for BotFeedbackMessage_BotFeedbackKindMultipleNegative.
-var (
-	BotFeedbackMessage_BotFeedbackKindMultipleNegative_name = map[int32]string{
-		1:   "BOT_FEEDBACK_MULTIPLE_NEGATIVE_GENERIC",
-		2:   "BOT_FEEDBACK_MULTIPLE_NEGATIVE_HELPFUL",
-		4:   "BOT_FEEDBACK_MULTIPLE_NEGATIVE_INTERESTING",
-		8:   "BOT_FEEDBACK_MULTIPLE_NEGATIVE_ACCURATE",
-		16:  "BOT_FEEDBACK_MULTIPLE_NEGATIVE_SAFE",
-		32:  "BOT_FEEDBACK_MULTIPLE_NEGATIVE_OTHER",
-		64:  "BOT_FEEDBACK_MULTIPLE_NEGATIVE_REFUSED",
-		128: "BOT_FEEDBACK_MULTIPLE_NEGATIVE_NOT_VISUALLY_APPEALING",
-		256: "BOT_FEEDBACK_MULTIPLE_NEGATIVE_NOT_RELEVANT_TO_TEXT",
-	}
-	BotFeedbackMessage_BotFeedbackKindMultipleNegative_value = map[string]int32{
-		"BOT_FEEDBACK_MULTIPLE_NEGATIVE_GENERIC":                1,
-		"BOT_FEEDBACK_MULTIPLE_NEGATIVE_HELPFUL":                2,
-		"BOT_FEEDBACK_MULTIPLE_NEGATIVE_INTERESTING":            4,
-		"BOT_FEEDBACK_MULTIPLE_NEGATIVE_ACCURATE":               8,
-		"BOT_FEEDBACK_MULTIPLE_NEGATIVE_SAFE":                   16,
-		"BOT_FEEDBACK_MULTIPLE_NEGATIVE_OTHER":                  32,
-		"BOT_FEEDBACK_MULTIPLE_NEGATIVE_REFUSED":                64,
-		"BOT_FEEDBACK_MULTIPLE_NEGATIVE_NOT_VISUALLY_APPEALING": 128,
-		"BOT_FEEDBACK_MULTIPLE_NEGATIVE_NOT_RELEVANT_TO_TEXT":   256,
-	}
-)
-
-func (x BotFeedbackMessage_BotFeedbackKindMultipleNegative) Enum() *BotFeedbackMessage_BotFeedbackKindMultipleNegative {
-	p := new(BotFeedbackMessage_BotFeedbackKindMultipleNegative)
-	*p = x
-	return p
-}
-
-func (x BotFeedbackMessage_BotFeedbackKindMultipleNegative) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (BotFeedbackMessage_BotFeedbackKindMultipleNegative) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[36].Descriptor()
-}
-
-func (BotFeedbackMessage_BotFeedbackKindMultipleNegative) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[36]
-}
-
-func (x BotFeedbackMessage_BotFeedbackKindMultipleNegative) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Do not use.
-func (x *BotFeedbackMessage_BotFeedbackKindMultipleNegative) UnmarshalJSON(b []byte) error {
-	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
-	if err != nil {
-		return err
-	}
-	*x = BotFeedbackMessage_BotFeedbackKindMultipleNegative(num)
-	return nil
-}
-
-// Deprecated: Use BotFeedbackMessage_BotFeedbackKindMultipleNegative.Descriptor instead.
-func (BotFeedbackMessage_BotFeedbackKindMultipleNegative) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{25, 2}
-}
-
-type BotFeedbackMessage_BotFeedbackKind int32
-
-const (
-	BotFeedbackMessage_BOT_FEEDBACK_POSITIVE                             BotFeedbackMessage_BotFeedbackKind = 0
-	BotFeedbackMessage_BOT_FEEDBACK_NEGATIVE_GENERIC                     BotFeedbackMessage_BotFeedbackKind = 1
-	BotFeedbackMessage_BOT_FEEDBACK_NEGATIVE_HELPFUL                     BotFeedbackMessage_BotFeedbackKind = 2
-	BotFeedbackMessage_BOT_FEEDBACK_NEGATIVE_INTERESTING                 BotFeedbackMessage_BotFeedbackKind = 3
-	BotFeedbackMessage_BOT_FEEDBACK_NEGATIVE_ACCURATE                    BotFeedbackMessage_BotFeedbackKind = 4
-	BotFeedbackMessage_BOT_FEEDBACK_NEGATIVE_SAFE                        BotFeedbackMessage_BotFeedbackKind = 5
-	BotFeedbackMessage_BOT_FEEDBACK_NEGATIVE_OTHER                       BotFeedbackMessage_BotFeedbackKind = 6
-	BotFeedbackMessage_BOT_FEEDBACK_NEGATIVE_REFUSED                     BotFeedbackMessage_BotFeedbackKind = 7
-	BotFeedbackMessage_BOT_FEEDBACK_NEGATIVE_NOT_VISUALLY_APPEALING      BotFeedbackMessage_BotFeedbackKind = 8
-	BotFeedbackMessage_BOT_FEEDBACK_NEGATIVE_NOT_RELEVANT_TO_TEXT        BotFeedbackMessage_BotFeedbackKind = 9
-	BotFeedbackMessage_BOT_FEEDBACK_NEGATIVE_PERSONALIZED                BotFeedbackMessage_BotFeedbackKind = 10
-	BotFeedbackMessage_BOT_FEEDBACK_NEGATIVE_CLARITY                     BotFeedbackMessage_BotFeedbackKind = 11
-	BotFeedbackMessage_BOT_FEEDBACK_NEGATIVE_DOESNT_LOOK_LIKE_THE_PERSON BotFeedbackMessage_BotFeedbackKind = 12
-	BotFeedbackMessage_BOT_FEEDBACK_NEGATIVE_HALLUCINATION_INTERNAL_ONLY BotFeedbackMessage_BotFeedbackKind = 13
-	BotFeedbackMessage_BOT_FEEDBACK_NEGATIVE                             BotFeedbackMessage_BotFeedbackKind = 14
-)
-
-// Enum value maps for BotFeedbackMessage_BotFeedbackKind.
-var (
-	BotFeedbackMessage_BotFeedbackKind_name = map[int32]string{
-		0:  "BOT_FEEDBACK_POSITIVE",
-		1:  "BOT_FEEDBACK_NEGATIVE_GENERIC",
-		2:  "BOT_FEEDBACK_NEGATIVE_HELPFUL",
-		3:  "BOT_FEEDBACK_NEGATIVE_INTERESTING",
-		4:  "BOT_FEEDBACK_NEGATIVE_ACCURATE",
-		5:  "BOT_FEEDBACK_NEGATIVE_SAFE",
-		6:  "BOT_FEEDBACK_NEGATIVE_OTHER",
-		7:  "BOT_FEEDBACK_NEGATIVE_REFUSED",
-		8:  "BOT_FEEDBACK_NEGATIVE_NOT_VISUALLY_APPEALING",
-		9:  "BOT_FEEDBACK_NEGATIVE_NOT_RELEVANT_TO_TEXT",
-		10: "BOT_FEEDBACK_NEGATIVE_PERSONALIZED",
-		11: "BOT_FEEDBACK_NEGATIVE_CLARITY",
-		12: "BOT_FEEDBACK_NEGATIVE_DOESNT_LOOK_LIKE_THE_PERSON",
-		13: "BOT_FEEDBACK_NEGATIVE_HALLUCINATION_INTERNAL_ONLY",
-		14: "BOT_FEEDBACK_NEGATIVE",
-	}
-	BotFeedbackMessage_BotFeedbackKind_value = map[string]int32{
-		"BOT_FEEDBACK_POSITIVE":                             0,
-		"BOT_FEEDBACK_NEGATIVE_GENERIC":                     1,
-		"BOT_FEEDBACK_NEGATIVE_HELPFUL":                     2,
-		"BOT_FEEDBACK_NEGATIVE_INTERESTING":                 3,
-		"BOT_FEEDBACK_NEGATIVE_ACCURATE":                    4,
-		"BOT_FEEDBACK_NEGATIVE_SAFE":                        5,
-		"BOT_FEEDBACK_NEGATIVE_OTHER":                       6,
-		"BOT_FEEDBACK_NEGATIVE_REFUSED":                     7,
-		"BOT_FEEDBACK_NEGATIVE_NOT_VISUALLY_APPEALING":      8,
-		"BOT_FEEDBACK_NEGATIVE_NOT_RELEVANT_TO_TEXT":        9,
-		"BOT_FEEDBACK_NEGATIVE_PERSONALIZED":                10,
-		"BOT_FEEDBACK_NEGATIVE_CLARITY":                     11,
-		"BOT_FEEDBACK_NEGATIVE_DOESNT_LOOK_LIKE_THE_PERSON": 12,
-		"BOT_FEEDBACK_NEGATIVE_HALLUCINATION_INTERNAL_ONLY": 13,
-		"BOT_FEEDBACK_NEGATIVE":                             14,
-	}
-)
-
-func (x BotFeedbackMessage_BotFeedbackKind) Enum() *BotFeedbackMessage_BotFeedbackKind {
-	p := new(BotFeedbackMessage_BotFeedbackKind)
-	*p = x
-	return p
-}
-
-func (x BotFeedbackMessage_BotFeedbackKind) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (BotFeedbackMessage_BotFeedbackKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[37].Descriptor()
-}
-
-func (BotFeedbackMessage_BotFeedbackKind) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[37]
-}
-
-func (x BotFeedbackMessage_BotFeedbackKind) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Do not use.
-func (x *BotFeedbackMessage_BotFeedbackKind) UnmarshalJSON(b []byte) error {
-	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
-	if err != nil {
-		return err
-	}
-	*x = BotFeedbackMessage_BotFeedbackKind(num)
-	return nil
-}
-
-// Deprecated: Use BotFeedbackMessage_BotFeedbackKind.Descriptor instead.
-func (BotFeedbackMessage_BotFeedbackKind) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{25, 3}
 }
 
 type VideoMessage_VideoSourceType int32
@@ -2481,11 +2380,11 @@ func (x VideoMessage_VideoSourceType) String() string {
 }
 
 func (VideoMessage_VideoSourceType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[38].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[37].Descriptor()
 }
 
 func (VideoMessage_VideoSourceType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[38]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[37]
 }
 
 func (x VideoMessage_VideoSourceType) Number() protoreflect.EnumNumber {
@@ -2543,11 +2442,11 @@ func (x VideoMessage_Attribution) String() string {
 }
 
 func (VideoMessage_Attribution) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[39].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[38].Descriptor()
 }
 
 func (VideoMessage_Attribution) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[39]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[38]
 }
 
 func (x VideoMessage_Attribution) Number() protoreflect.EnumNumber {
@@ -2605,11 +2504,11 @@ func (x ExtendedTextMessage_InviteLinkGroupType) String() string {
 }
 
 func (ExtendedTextMessage_InviteLinkGroupType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[40].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[39].Descriptor()
 }
 
 func (ExtendedTextMessage_InviteLinkGroupType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[40]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[39]
 }
 
 func (x ExtendedTextMessage_InviteLinkGroupType) Number() protoreflect.EnumNumber {
@@ -2673,11 +2572,11 @@ func (x ExtendedTextMessage_PreviewType) String() string {
 }
 
 func (ExtendedTextMessage_PreviewType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[41].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[40].Descriptor()
 }
 
 func (ExtendedTextMessage_PreviewType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[41]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[40]
 }
 
 func (x ExtendedTextMessage_PreviewType) Number() protoreflect.EnumNumber {
@@ -2747,11 +2646,11 @@ func (x ExtendedTextMessage_FontType) String() string {
 }
 
 func (ExtendedTextMessage_FontType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[42].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[41].Descriptor()
 }
 
 func (ExtendedTextMessage_FontType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[42]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[41]
 }
 
 func (x ExtendedTextMessage_FontType) Number() protoreflect.EnumNumber {
@@ -2815,11 +2714,11 @@ func (x LinkPreviewMetadata_SocialMediaPostType) String() string {
 }
 
 func (LinkPreviewMetadata_SocialMediaPostType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[43].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[42].Descriptor()
 }
 
 func (LinkPreviewMetadata_SocialMediaPostType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[43]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[42]
 }
 
 func (x LinkPreviewMetadata_SocialMediaPostType) Number() protoreflect.EnumNumber {
@@ -2871,11 +2770,11 @@ func (x PaymentLinkMetadata_PaymentLinkHeader_PaymentLinkHeaderType) String() st
 }
 
 func (PaymentLinkMetadata_PaymentLinkHeader_PaymentLinkHeaderType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[44].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[43].Descriptor()
 }
 
 func (PaymentLinkMetadata_PaymentLinkHeader_PaymentLinkHeaderType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[44]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[43]
 }
 
 func (x PaymentLinkMetadata_PaymentLinkHeader_PaymentLinkHeaderType) Number() protoreflect.EnumNumber {
@@ -2933,11 +2832,11 @@ func (x StatusNotificationMessage_StatusNotificationType) String() string {
 }
 
 func (StatusNotificationMessage_StatusNotificationType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[45].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[44].Descriptor()
 }
 
 func (StatusNotificationMessage_StatusNotificationType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[45]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[44]
 }
 
 func (x StatusNotificationMessage_StatusNotificationType) Number() protoreflect.EnumNumber {
@@ -2989,11 +2888,11 @@ func (x InvoiceMessage_AttachmentType) String() string {
 }
 
 func (InvoiceMessage_AttachmentType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[46].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[45].Descriptor()
 }
 
 func (InvoiceMessage_AttachmentType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[46]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[45]
 }
 
 func (x InvoiceMessage_AttachmentType) Number() protoreflect.EnumNumber {
@@ -3051,11 +2950,11 @@ func (x ImageMessage_ImageSourceType) String() string {
 }
 
 func (ImageMessage_ImageSourceType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[47].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[46].Descriptor()
 }
 
 func (ImageMessage_ImageSourceType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[47]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[46]
 }
 
 func (x ImageMessage_ImageSourceType) Number() protoreflect.EnumNumber {
@@ -3075,6 +2974,62 @@ func (x *ImageMessage_ImageSourceType) UnmarshalJSON(b []byte) error {
 // Deprecated: Use ImageMessage_ImageSourceType.Descriptor instead.
 func (ImageMessage_ImageSourceType) EnumDescriptor() ([]byte, []int) {
 	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{32, 0}
+}
+
+type ContextInfo_QuotedType int32
+
+const (
+	ContextInfo_EXPLICIT ContextInfo_QuotedType = 0
+	ContextInfo_AUTO     ContextInfo_QuotedType = 1
+)
+
+// Enum value maps for ContextInfo_QuotedType.
+var (
+	ContextInfo_QuotedType_name = map[int32]string{
+		0: "EXPLICIT",
+		1: "AUTO",
+	}
+	ContextInfo_QuotedType_value = map[string]int32{
+		"EXPLICIT": 0,
+		"AUTO":     1,
+	}
+)
+
+func (x ContextInfo_QuotedType) Enum() *ContextInfo_QuotedType {
+	p := new(ContextInfo_QuotedType)
+	*p = x
+	return p
+}
+
+func (x ContextInfo_QuotedType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ContextInfo_QuotedType) Descriptor() protoreflect.EnumDescriptor {
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[47].Descriptor()
+}
+
+func (ContextInfo_QuotedType) Type() protoreflect.EnumType {
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[47]
+}
+
+func (x ContextInfo_QuotedType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Do not use.
+func (x *ContextInfo_QuotedType) UnmarshalJSON(b []byte) error {
+	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
+	if err != nil {
+		return err
+	}
+	*x = ContextInfo_QuotedType(num)
+	return nil
+}
+
+// Deprecated: Use ContextInfo_QuotedType.Descriptor instead.
+func (ContextInfo_QuotedType) EnumDescriptor() ([]byte, []int) {
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{33, 0}
 }
 
 type ContextInfo_ForwardOrigin int32
@@ -3142,7 +3097,7 @@ func (x *ContextInfo_ForwardOrigin) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use ContextInfo_ForwardOrigin.Descriptor instead.
 func (ContextInfo_ForwardOrigin) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{33, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{33, 1}
 }
 
 type ContextInfo_StatusSourceType int32
@@ -3210,7 +3165,7 @@ func (x *ContextInfo_StatusSourceType) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use ContextInfo_StatusSourceType.Descriptor instead.
 func (ContextInfo_StatusSourceType) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{33, 1}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{33, 2}
 }
 
 type ContextInfo_PairedMediaType int32
@@ -3223,6 +3178,8 @@ const (
 	ContextInfo_HD_IMAGE_CHILD      ContextInfo_PairedMediaType = 4
 	ContextInfo_MOTION_PHOTO_PARENT ContextInfo_PairedMediaType = 5
 	ContextInfo_MOTION_PHOTO_CHILD  ContextInfo_PairedMediaType = 6
+	ContextInfo_HEVC_VIDEO_PARENT   ContextInfo_PairedMediaType = 7
+	ContextInfo_HEVC_VIDEO_CHILD    ContextInfo_PairedMediaType = 8
 )
 
 // Enum value maps for ContextInfo_PairedMediaType.
@@ -3235,6 +3192,8 @@ var (
 		4: "HD_IMAGE_CHILD",
 		5: "MOTION_PHOTO_PARENT",
 		6: "MOTION_PHOTO_CHILD",
+		7: "HEVC_VIDEO_PARENT",
+		8: "HEVC_VIDEO_CHILD",
 	}
 	ContextInfo_PairedMediaType_value = map[string]int32{
 		"NOT_PAIRED_MEDIA":    0,
@@ -3244,6 +3203,8 @@ var (
 		"HD_IMAGE_CHILD":      4,
 		"MOTION_PHOTO_PARENT": 5,
 		"MOTION_PHOTO_CHILD":  6,
+		"HEVC_VIDEO_PARENT":   7,
+		"HEVC_VIDEO_CHILD":    8,
 	}
 )
 
@@ -3281,7 +3242,7 @@ func (x *ContextInfo_PairedMediaType) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use ContextInfo_PairedMediaType.Descriptor instead.
 func (ContextInfo_PairedMediaType) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{33, 2}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{33, 3}
 }
 
 type ContextInfo_StatusAttributionType int32
@@ -3346,7 +3307,7 @@ func (x *ContextInfo_StatusAttributionType) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use ContextInfo_StatusAttributionType.Descriptor instead.
 func (ContextInfo_StatusAttributionType) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{33, 3}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{33, 4}
 }
 
 type ContextInfo_StatusAudienceMetadata_AudienceType int32
@@ -3694,384 +3655,6 @@ func (ContextInfo_AdReplyInfo_MediaType) EnumDescriptor() ([]byte, []int) {
 	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{33, 4, 0}
 }
 
-type AIRichResponseMessage_AIRichResponseSubMessageType int32
-
-const (
-	AIRichResponseMessage_AI_RICH_RESPONSE_UNKNOWN       AIRichResponseMessage_AIRichResponseSubMessageType = 0
-	AIRichResponseMessage_AI_RICH_RESPONSE_GRID_IMAGE    AIRichResponseMessage_AIRichResponseSubMessageType = 1
-	AIRichResponseMessage_AI_RICH_RESPONSE_TEXT          AIRichResponseMessage_AIRichResponseSubMessageType = 2
-	AIRichResponseMessage_AI_RICH_RESPONSE_INLINE_IMAGE  AIRichResponseMessage_AIRichResponseSubMessageType = 3
-	AIRichResponseMessage_AI_RICH_RESPONSE_TABLE         AIRichResponseMessage_AIRichResponseSubMessageType = 4
-	AIRichResponseMessage_AI_RICH_RESPONSE_CODE          AIRichResponseMessage_AIRichResponseSubMessageType = 5
-	AIRichResponseMessage_AI_RICH_RESPONSE_DYNAMIC       AIRichResponseMessage_AIRichResponseSubMessageType = 6
-	AIRichResponseMessage_AI_RICH_RESPONSE_MAP           AIRichResponseMessage_AIRichResponseSubMessageType = 7
-	AIRichResponseMessage_AI_RICH_RESPONSE_LATEX         AIRichResponseMessage_AIRichResponseSubMessageType = 8
-	AIRichResponseMessage_AI_RICH_RESPONSE_CONTENT_ITEMS AIRichResponseMessage_AIRichResponseSubMessageType = 9
-)
-
-// Enum value maps for AIRichResponseMessage_AIRichResponseSubMessageType.
-var (
-	AIRichResponseMessage_AIRichResponseSubMessageType_name = map[int32]string{
-		0: "AI_RICH_RESPONSE_UNKNOWN",
-		1: "AI_RICH_RESPONSE_GRID_IMAGE",
-		2: "AI_RICH_RESPONSE_TEXT",
-		3: "AI_RICH_RESPONSE_INLINE_IMAGE",
-		4: "AI_RICH_RESPONSE_TABLE",
-		5: "AI_RICH_RESPONSE_CODE",
-		6: "AI_RICH_RESPONSE_DYNAMIC",
-		7: "AI_RICH_RESPONSE_MAP",
-		8: "AI_RICH_RESPONSE_LATEX",
-		9: "AI_RICH_RESPONSE_CONTENT_ITEMS",
-	}
-	AIRichResponseMessage_AIRichResponseSubMessageType_value = map[string]int32{
-		"AI_RICH_RESPONSE_UNKNOWN":       0,
-		"AI_RICH_RESPONSE_GRID_IMAGE":    1,
-		"AI_RICH_RESPONSE_TEXT":          2,
-		"AI_RICH_RESPONSE_INLINE_IMAGE":  3,
-		"AI_RICH_RESPONSE_TABLE":         4,
-		"AI_RICH_RESPONSE_CODE":          5,
-		"AI_RICH_RESPONSE_DYNAMIC":       6,
-		"AI_RICH_RESPONSE_MAP":           7,
-		"AI_RICH_RESPONSE_LATEX":         8,
-		"AI_RICH_RESPONSE_CONTENT_ITEMS": 9,
-	}
-)
-
-func (x AIRichResponseMessage_AIRichResponseSubMessageType) Enum() *AIRichResponseMessage_AIRichResponseSubMessageType {
-	p := new(AIRichResponseMessage_AIRichResponseSubMessageType)
-	*p = x
-	return p
-}
-
-func (x AIRichResponseMessage_AIRichResponseSubMessageType) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (AIRichResponseMessage_AIRichResponseSubMessageType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[58].Descriptor()
-}
-
-func (AIRichResponseMessage_AIRichResponseSubMessageType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[58]
-}
-
-func (x AIRichResponseMessage_AIRichResponseSubMessageType) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Do not use.
-func (x *AIRichResponseMessage_AIRichResponseSubMessageType) UnmarshalJSON(b []byte) error {
-	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
-	if err != nil {
-		return err
-	}
-	*x = AIRichResponseMessage_AIRichResponseSubMessageType(num)
-	return nil
-}
-
-// Deprecated: Use AIRichResponseMessage_AIRichResponseSubMessageType.Descriptor instead.
-func (AIRichResponseMessage_AIRichResponseSubMessageType) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{34, 0}
-}
-
-type AIRichResponseMessage_AIRichResponseMessageType int32
-
-const (
-	AIRichResponseMessage_AI_RICH_RESPONSE_TYPE_UNKNOWN  AIRichResponseMessage_AIRichResponseMessageType = 0
-	AIRichResponseMessage_AI_RICH_RESPONSE_TYPE_STANDARD AIRichResponseMessage_AIRichResponseMessageType = 1
-)
-
-// Enum value maps for AIRichResponseMessage_AIRichResponseMessageType.
-var (
-	AIRichResponseMessage_AIRichResponseMessageType_name = map[int32]string{
-		0: "AI_RICH_RESPONSE_TYPE_UNKNOWN",
-		1: "AI_RICH_RESPONSE_TYPE_STANDARD",
-	}
-	AIRichResponseMessage_AIRichResponseMessageType_value = map[string]int32{
-		"AI_RICH_RESPONSE_TYPE_UNKNOWN":  0,
-		"AI_RICH_RESPONSE_TYPE_STANDARD": 1,
-	}
-)
-
-func (x AIRichResponseMessage_AIRichResponseMessageType) Enum() *AIRichResponseMessage_AIRichResponseMessageType {
-	p := new(AIRichResponseMessage_AIRichResponseMessageType)
-	*p = x
-	return p
-}
-
-func (x AIRichResponseMessage_AIRichResponseMessageType) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (AIRichResponseMessage_AIRichResponseMessageType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[59].Descriptor()
-}
-
-func (AIRichResponseMessage_AIRichResponseMessageType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[59]
-}
-
-func (x AIRichResponseMessage_AIRichResponseMessageType) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Do not use.
-func (x *AIRichResponseMessage_AIRichResponseMessageType) UnmarshalJSON(b []byte) error {
-	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
-	if err != nil {
-		return err
-	}
-	*x = AIRichResponseMessage_AIRichResponseMessageType(num)
-	return nil
-}
-
-// Deprecated: Use AIRichResponseMessage_AIRichResponseMessageType.Descriptor instead.
-func (AIRichResponseMessage_AIRichResponseMessageType) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{34, 1}
-}
-
-type AIRichResponseMessage_AIRichResponseContentItemsMetadata_ContentType int32
-
-const (
-	AIRichResponseMessage_AIRichResponseContentItemsMetadata_DEFAULT  AIRichResponseMessage_AIRichResponseContentItemsMetadata_ContentType = 0
-	AIRichResponseMessage_AIRichResponseContentItemsMetadata_CAROUSEL AIRichResponseMessage_AIRichResponseContentItemsMetadata_ContentType = 1
-)
-
-// Enum value maps for AIRichResponseMessage_AIRichResponseContentItemsMetadata_ContentType.
-var (
-	AIRichResponseMessage_AIRichResponseContentItemsMetadata_ContentType_name = map[int32]string{
-		0: "DEFAULT",
-		1: "CAROUSEL",
-	}
-	AIRichResponseMessage_AIRichResponseContentItemsMetadata_ContentType_value = map[string]int32{
-		"DEFAULT":  0,
-		"CAROUSEL": 1,
-	}
-)
-
-func (x AIRichResponseMessage_AIRichResponseContentItemsMetadata_ContentType) Enum() *AIRichResponseMessage_AIRichResponseContentItemsMetadata_ContentType {
-	p := new(AIRichResponseMessage_AIRichResponseContentItemsMetadata_ContentType)
-	*p = x
-	return p
-}
-
-func (x AIRichResponseMessage_AIRichResponseContentItemsMetadata_ContentType) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (AIRichResponseMessage_AIRichResponseContentItemsMetadata_ContentType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[60].Descriptor()
-}
-
-func (AIRichResponseMessage_AIRichResponseContentItemsMetadata_ContentType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[60]
-}
-
-func (x AIRichResponseMessage_AIRichResponseContentItemsMetadata_ContentType) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Do not use.
-func (x *AIRichResponseMessage_AIRichResponseContentItemsMetadata_ContentType) UnmarshalJSON(b []byte) error {
-	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
-	if err != nil {
-		return err
-	}
-	*x = AIRichResponseMessage_AIRichResponseContentItemsMetadata_ContentType(num)
-	return nil
-}
-
-// Deprecated: Use AIRichResponseMessage_AIRichResponseContentItemsMetadata_ContentType.Descriptor instead.
-func (AIRichResponseMessage_AIRichResponseContentItemsMetadata_ContentType) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{34, 0, 0}
-}
-
-type AIRichResponseMessage_AIRichResponseDynamicMetadata_AIRichResponseDynamicMetadataType int32
-
-const (
-	AIRichResponseMessage_AIRichResponseDynamicMetadata_AI_RICH_RESPONSE_DYNAMIC_METADATA_TYPE_UNKNOWN AIRichResponseMessage_AIRichResponseDynamicMetadata_AIRichResponseDynamicMetadataType = 0
-	AIRichResponseMessage_AIRichResponseDynamicMetadata_AI_RICH_RESPONSE_DYNAMIC_METADATA_TYPE_IMAGE   AIRichResponseMessage_AIRichResponseDynamicMetadata_AIRichResponseDynamicMetadataType = 1
-	AIRichResponseMessage_AIRichResponseDynamicMetadata_AI_RICH_RESPONSE_DYNAMIC_METADATA_TYPE_GIF     AIRichResponseMessage_AIRichResponseDynamicMetadata_AIRichResponseDynamicMetadataType = 2
-)
-
-// Enum value maps for AIRichResponseMessage_AIRichResponseDynamicMetadata_AIRichResponseDynamicMetadataType.
-var (
-	AIRichResponseMessage_AIRichResponseDynamicMetadata_AIRichResponseDynamicMetadataType_name = map[int32]string{
-		0: "AI_RICH_RESPONSE_DYNAMIC_METADATA_TYPE_UNKNOWN",
-		1: "AI_RICH_RESPONSE_DYNAMIC_METADATA_TYPE_IMAGE",
-		2: "AI_RICH_RESPONSE_DYNAMIC_METADATA_TYPE_GIF",
-	}
-	AIRichResponseMessage_AIRichResponseDynamicMetadata_AIRichResponseDynamicMetadataType_value = map[string]int32{
-		"AI_RICH_RESPONSE_DYNAMIC_METADATA_TYPE_UNKNOWN": 0,
-		"AI_RICH_RESPONSE_DYNAMIC_METADATA_TYPE_IMAGE":   1,
-		"AI_RICH_RESPONSE_DYNAMIC_METADATA_TYPE_GIF":     2,
-	}
-)
-
-func (x AIRichResponseMessage_AIRichResponseDynamicMetadata_AIRichResponseDynamicMetadataType) Enum() *AIRichResponseMessage_AIRichResponseDynamicMetadata_AIRichResponseDynamicMetadataType {
-	p := new(AIRichResponseMessage_AIRichResponseDynamicMetadata_AIRichResponseDynamicMetadataType)
-	*p = x
-	return p
-}
-
-func (x AIRichResponseMessage_AIRichResponseDynamicMetadata_AIRichResponseDynamicMetadataType) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (AIRichResponseMessage_AIRichResponseDynamicMetadata_AIRichResponseDynamicMetadataType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[61].Descriptor()
-}
-
-func (AIRichResponseMessage_AIRichResponseDynamicMetadata_AIRichResponseDynamicMetadataType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[61]
-}
-
-func (x AIRichResponseMessage_AIRichResponseDynamicMetadata_AIRichResponseDynamicMetadataType) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Do not use.
-func (x *AIRichResponseMessage_AIRichResponseDynamicMetadata_AIRichResponseDynamicMetadataType) UnmarshalJSON(b []byte) error {
-	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
-	if err != nil {
-		return err
-	}
-	*x = AIRichResponseMessage_AIRichResponseDynamicMetadata_AIRichResponseDynamicMetadataType(num)
-	return nil
-}
-
-// Deprecated: Use AIRichResponseMessage_AIRichResponseDynamicMetadata_AIRichResponseDynamicMetadataType.Descriptor instead.
-func (AIRichResponseMessage_AIRichResponseDynamicMetadata_AIRichResponseDynamicMetadataType) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{34, 1, 0}
-}
-
-type AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType int32
-
-const (
-	AIRichResponseMessage_AIRichResponseCodeMetadata_AI_RICH_RESPONSE_CODE_HIGHLIGHT_DEFAULT AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType = 0
-	AIRichResponseMessage_AIRichResponseCodeMetadata_AI_RICH_RESPONSE_CODE_HIGHLIGHT_KEYWORD AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType = 1
-	AIRichResponseMessage_AIRichResponseCodeMetadata_AI_RICH_RESPONSE_CODE_HIGHLIGHT_METHOD  AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType = 2
-	AIRichResponseMessage_AIRichResponseCodeMetadata_AI_RICH_RESPONSE_CODE_HIGHLIGHT_STRING  AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType = 3
-	AIRichResponseMessage_AIRichResponseCodeMetadata_AI_RICH_RESPONSE_CODE_HIGHLIGHT_NUMBER  AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType = 4
-	AIRichResponseMessage_AIRichResponseCodeMetadata_AI_RICH_RESPONSE_CODE_HIGHLIGHT_COMMENT AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType = 5
-)
-
-// Enum value maps for AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType.
-var (
-	AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType_name = map[int32]string{
-		0: "AI_RICH_RESPONSE_CODE_HIGHLIGHT_DEFAULT",
-		1: "AI_RICH_RESPONSE_CODE_HIGHLIGHT_KEYWORD",
-		2: "AI_RICH_RESPONSE_CODE_HIGHLIGHT_METHOD",
-		3: "AI_RICH_RESPONSE_CODE_HIGHLIGHT_STRING",
-		4: "AI_RICH_RESPONSE_CODE_HIGHLIGHT_NUMBER",
-		5: "AI_RICH_RESPONSE_CODE_HIGHLIGHT_COMMENT",
-	}
-	AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType_value = map[string]int32{
-		"AI_RICH_RESPONSE_CODE_HIGHLIGHT_DEFAULT": 0,
-		"AI_RICH_RESPONSE_CODE_HIGHLIGHT_KEYWORD": 1,
-		"AI_RICH_RESPONSE_CODE_HIGHLIGHT_METHOD":  2,
-		"AI_RICH_RESPONSE_CODE_HIGHLIGHT_STRING":  3,
-		"AI_RICH_RESPONSE_CODE_HIGHLIGHT_NUMBER":  4,
-		"AI_RICH_RESPONSE_CODE_HIGHLIGHT_COMMENT": 5,
-	}
-)
-
-func (x AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType) Enum() *AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType {
-	p := new(AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType)
-	*p = x
-	return p
-}
-
-func (x AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[62].Descriptor()
-}
-
-func (AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[62]
-}
-
-func (x AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Do not use.
-func (x *AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType) UnmarshalJSON(b []byte) error {
-	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
-	if err != nil {
-		return err
-	}
-	*x = AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType(num)
-	return nil
-}
-
-// Deprecated: Use AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType.Descriptor instead.
-func (AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{34, 2, 0}
-}
-
-type AIRichResponseMessage_AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment int32
-
-const (
-	AIRichResponseMessage_AIRichResponseInlineImageMetadata_AI_RICH_RESPONSE_IMAGE_LAYOUT_LEADING_ALIGNED  AIRichResponseMessage_AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment = 0
-	AIRichResponseMessage_AIRichResponseInlineImageMetadata_AI_RICH_RESPONSE_IMAGE_LAYOUT_TRAILING_ALIGNED AIRichResponseMessage_AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment = 1
-	AIRichResponseMessage_AIRichResponseInlineImageMetadata_AI_RICH_RESPONSE_IMAGE_LAYOUT_CENTER_ALIGNED   AIRichResponseMessage_AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment = 2
-)
-
-// Enum value maps for AIRichResponseMessage_AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment.
-var (
-	AIRichResponseMessage_AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment_name = map[int32]string{
-		0: "AI_RICH_RESPONSE_IMAGE_LAYOUT_LEADING_ALIGNED",
-		1: "AI_RICH_RESPONSE_IMAGE_LAYOUT_TRAILING_ALIGNED",
-		2: "AI_RICH_RESPONSE_IMAGE_LAYOUT_CENTER_ALIGNED",
-	}
-	AIRichResponseMessage_AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment_value = map[string]int32{
-		"AI_RICH_RESPONSE_IMAGE_LAYOUT_LEADING_ALIGNED":  0,
-		"AI_RICH_RESPONSE_IMAGE_LAYOUT_TRAILING_ALIGNED": 1,
-		"AI_RICH_RESPONSE_IMAGE_LAYOUT_CENTER_ALIGNED":   2,
-	}
-)
-
-func (x AIRichResponseMessage_AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment) Enum() *AIRichResponseMessage_AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment {
-	p := new(AIRichResponseMessage_AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment)
-	*p = x
-	return p
-}
-
-func (x AIRichResponseMessage_AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (AIRichResponseMessage_AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[63].Descriptor()
-}
-
-func (AIRichResponseMessage_AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[63]
-}
-
-func (x AIRichResponseMessage_AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Do not use.
-func (x *AIRichResponseMessage_AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment) UnmarshalJSON(b []byte) error {
-	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
-	if err != nil {
-		return err
-	}
-	*x = AIRichResponseMessage_AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment(num)
-	return nil
-}
-
-// Deprecated: Use AIRichResponseMessage_AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment.Descriptor instead.
-func (AIRichResponseMessage_AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{34, 3, 0}
-}
-
 type MessageAssociation_AssociationType int32
 
 const (
@@ -4092,6 +3675,9 @@ const (
 	MessageAssociation_VIEW_ALL_REPLIES            MessageAssociation_AssociationType = 14
 	MessageAssociation_STATUS_ADD_YOURS_AI_IMAGINE MessageAssociation_AssociationType = 15
 	MessageAssociation_STATUS_QUESTION             MessageAssociation_AssociationType = 16
+	MessageAssociation_STATUS_ADD_YOURS_DIWALI     MessageAssociation_AssociationType = 17
+	MessageAssociation_STATUS_REACTION             MessageAssociation_AssociationType = 18
+	MessageAssociation_HEVC_VIDEO_DUAL_UPLOAD      MessageAssociation_AssociationType = 19
 )
 
 // Enum value maps for MessageAssociation_AssociationType.
@@ -4114,6 +3700,9 @@ var (
 		14: "VIEW_ALL_REPLIES",
 		15: "STATUS_ADD_YOURS_AI_IMAGINE",
 		16: "STATUS_QUESTION",
+		17: "STATUS_ADD_YOURS_DIWALI",
+		18: "STATUS_REACTION",
+		19: "HEVC_VIDEO_DUAL_UPLOAD",
 	}
 	MessageAssociation_AssociationType_value = map[string]int32{
 		"UNKNOWN":                     0,
@@ -4133,6 +3722,9 @@ var (
 		"VIEW_ALL_REPLIES":            14,
 		"STATUS_ADD_YOURS_AI_IMAGINE": 15,
 		"STATUS_QUESTION":             16,
+		"STATUS_ADD_YOURS_DIWALI":     17,
+		"STATUS_REACTION":             18,
+		"HEVC_VIDEO_DUAL_UPLOAD":      19,
 	}
 )
 
@@ -4147,11 +3739,11 @@ func (x MessageAssociation_AssociationType) String() string {
 }
 
 func (MessageAssociation_AssociationType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[64].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[58].Descriptor()
 }
 
 func (MessageAssociation_AssociationType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[64]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[58]
 }
 
 func (x MessageAssociation_AssociationType) Number() protoreflect.EnumNumber {
@@ -4170,7 +3762,7 @@ func (x *MessageAssociation_AssociationType) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use MessageAssociation_AssociationType.Descriptor instead.
 func (MessageAssociation_AssociationType) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{35, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{34, 0}
 }
 
 type ThreadID_ThreadType int32
@@ -4206,11 +3798,11 @@ func (x ThreadID_ThreadType) String() string {
 }
 
 func (ThreadID_ThreadType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[65].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[59].Descriptor()
 }
 
 func (ThreadID_ThreadType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[65]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[59]
 }
 
 func (x ThreadID_ThreadType) Number() protoreflect.EnumNumber {
@@ -4229,7 +3821,7 @@ func (x *ThreadID_ThreadType) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use ThreadID_ThreadType.Descriptor instead.
 func (ThreadID_ThreadType) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{36, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{35, 0}
 }
 
 type MessageContextInfo_MessageAddonExpiryType int32
@@ -4262,11 +3854,11 @@ func (x MessageContextInfo_MessageAddonExpiryType) String() string {
 }
 
 func (MessageContextInfo_MessageAddonExpiryType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[66].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[60].Descriptor()
 }
 
 func (MessageContextInfo_MessageAddonExpiryType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[66]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[60]
 }
 
 func (x MessageContextInfo_MessageAddonExpiryType) Number() protoreflect.EnumNumber {
@@ -4285,7 +3877,7 @@ func (x *MessageContextInfo_MessageAddonExpiryType) UnmarshalJSON(b []byte) erro
 
 // Deprecated: Use MessageContextInfo_MessageAddonExpiryType.Descriptor instead.
 func (MessageContextInfo_MessageAddonExpiryType) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{37, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{36, 0}
 }
 
 type InteractiveAnnotation_StatusLinkType int32
@@ -4321,11 +3913,11 @@ func (x InteractiveAnnotation_StatusLinkType) String() string {
 }
 
 func (InteractiveAnnotation_StatusLinkType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[67].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[61].Descriptor()
 }
 
 func (InteractiveAnnotation_StatusLinkType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[67]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[61]
 }
 
 func (x InteractiveAnnotation_StatusLinkType) Number() protoreflect.EnumNumber {
@@ -4344,7 +3936,7 @@ func (x *InteractiveAnnotation_StatusLinkType) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use InteractiveAnnotation_StatusLinkType.Descriptor instead.
 func (InteractiveAnnotation_StatusLinkType) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{38, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{37, 0}
 }
 
 type HydratedTemplateButton_HydratedURLButton_WebviewPresentationType int32
@@ -4380,11 +3972,11 @@ func (x HydratedTemplateButton_HydratedURLButton_WebviewPresentationType) String
 }
 
 func (HydratedTemplateButton_HydratedURLButton_WebviewPresentationType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[68].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[62].Descriptor()
 }
 
 func (HydratedTemplateButton_HydratedURLButton_WebviewPresentationType) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[68]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[62]
 }
 
 func (x HydratedTemplateButton_HydratedURLButton_WebviewPresentationType) Number() protoreflect.EnumNumber {
@@ -4403,7 +3995,7 @@ func (x *HydratedTemplateButton_HydratedURLButton_WebviewPresentationType) Unmar
 
 // Deprecated: Use HydratedTemplateButton_HydratedURLButton_WebviewPresentationType.Descriptor instead.
 func (HydratedTemplateButton_HydratedURLButton_WebviewPresentationType) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{39, 0, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{38, 0, 0}
 }
 
 type PaymentBackground_Type int32
@@ -4436,11 +4028,11 @@ func (x PaymentBackground_Type) String() string {
 }
 
 func (PaymentBackground_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[69].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[63].Descriptor()
 }
 
 func (PaymentBackground_Type) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[69]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[63]
 }
 
 func (x PaymentBackground_Type) Number() protoreflect.EnumNumber {
@@ -4459,7 +4051,7 @@ func (x *PaymentBackground_Type) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use PaymentBackground_Type.Descriptor instead.
 func (PaymentBackground_Type) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{40, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{39, 0}
 }
 
 type DisappearingMode_Trigger int32
@@ -4504,11 +4096,11 @@ func (x DisappearingMode_Trigger) String() string {
 }
 
 func (DisappearingMode_Trigger) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[70].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[64].Descriptor()
 }
 
 func (DisappearingMode_Trigger) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[70]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[64]
 }
 
 func (x DisappearingMode_Trigger) Number() protoreflect.EnumNumber {
@@ -4527,7 +4119,7 @@ func (x *DisappearingMode_Trigger) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use DisappearingMode_Trigger.Descriptor instead.
 func (DisappearingMode_Trigger) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{41, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{40, 0}
 }
 
 type DisappearingMode_Initiator int32
@@ -4566,11 +4158,11 @@ func (x DisappearingMode_Initiator) String() string {
 }
 
 func (DisappearingMode_Initiator) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[71].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[65].Descriptor()
 }
 
 func (DisappearingMode_Initiator) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[71]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[65]
 }
 
 func (x DisappearingMode_Initiator) Number() protoreflect.EnumNumber {
@@ -4589,7 +4181,7 @@ func (x *DisappearingMode_Initiator) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use DisappearingMode_Initiator.Descriptor instead.
 func (DisappearingMode_Initiator) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{41, 1}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{40, 1}
 }
 
 type ProcessedVideo_VideoQuality int32
@@ -4628,11 +4220,11 @@ func (x ProcessedVideo_VideoQuality) String() string {
 }
 
 func (ProcessedVideo_VideoQuality) Descriptor() protoreflect.EnumDescriptor {
-	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[72].Descriptor()
+	return file_waE2E_WAWebProtobufsE2E_proto_enumTypes[66].Descriptor()
 }
 
 func (ProcessedVideo_VideoQuality) Type() protoreflect.EnumType {
-	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[72]
+	return &file_waE2E_WAWebProtobufsE2E_proto_enumTypes[66]
 }
 
 func (x ProcessedVideo_VideoQuality) Number() protoreflect.EnumNumber {
@@ -4651,7 +4243,7 @@ func (x *ProcessedVideo_VideoQuality) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use ProcessedVideo_VideoQuality.Descriptor instead.
 func (ProcessedVideo_VideoQuality) EnumDescriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{42, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{41, 0}
 }
 
 type StickerPackMessage struct {
@@ -5286,6 +4878,66 @@ func (x *PinInChatMessage) GetSenderTimestampMS() int64 {
 	return 0
 }
 
+type StatusStickerInteractionMessage struct {
+	state         protoimpl.MessageState                             `protogen:"open.v1"`
+	Key           *waCommon.MessageKey                               `protobuf:"bytes,1,opt,name=key" json:"key,omitempty"`
+	StickerKey    *string                                            `protobuf:"bytes,2,opt,name=stickerKey" json:"stickerKey,omitempty"`
+	Type          *StatusStickerInteractionMessage_StatusStickerType `protobuf:"varint,3,opt,name=type,enum=WAWebProtobufsE2E.StatusStickerInteractionMessage_StatusStickerType" json:"type,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StatusStickerInteractionMessage) Reset() {
+	*x = StatusStickerInteractionMessage{}
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StatusStickerInteractionMessage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StatusStickerInteractionMessage) ProtoMessage() {}
+
+func (x *StatusStickerInteractionMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StatusStickerInteractionMessage.ProtoReflect.Descriptor instead.
+func (*StatusStickerInteractionMessage) Descriptor() ([]byte, []int) {
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *StatusStickerInteractionMessage) GetKey() *waCommon.MessageKey {
+	if x != nil {
+		return x.Key
+	}
+	return nil
+}
+
+func (x *StatusStickerInteractionMessage) GetStickerKey() string {
+	if x != nil && x.StickerKey != nil {
+		return *x.StickerKey
+	}
+	return ""
+}
+
+func (x *StatusStickerInteractionMessage) GetType() StatusStickerInteractionMessage_StatusStickerType {
+	if x != nil && x.Type != nil {
+		return *x.Type
+	}
+	return StatusStickerInteractionMessage_UNKNOWN
+}
+
 type PollCreationMessage struct {
 	state                  protoimpl.MessageState        `protogen:"open.v1"`
 	EncKey                 []byte                        `protobuf:"bytes,1,opt,name=encKey" json:"encKey,omitempty"`
@@ -5302,7 +4954,7 @@ type PollCreationMessage struct {
 
 func (x *PollCreationMessage) Reset() {
 	*x = PollCreationMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[8]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5314,7 +4966,7 @@ func (x *PollCreationMessage) String() string {
 func (*PollCreationMessage) ProtoMessage() {}
 
 func (x *PollCreationMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[8]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5327,7 +4979,7 @@ func (x *PollCreationMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PollCreationMessage.ProtoReflect.Descriptor instead.
 func (*PollCreationMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{8}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *PollCreationMessage) GetEncKey() []byte {
@@ -5401,7 +5053,7 @@ type ButtonsResponseMessage struct {
 
 func (x *ButtonsResponseMessage) Reset() {
 	*x = ButtonsResponseMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[9]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5413,7 +5065,7 @@ func (x *ButtonsResponseMessage) String() string {
 func (*ButtonsResponseMessage) ProtoMessage() {}
 
 func (x *ButtonsResponseMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[9]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5426,7 +5078,7 @@ func (x *ButtonsResponseMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ButtonsResponseMessage.ProtoReflect.Descriptor instead.
 func (*ButtonsResponseMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{9}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ButtonsResponseMessage) GetResponse() isButtonsResponseMessage_Response {
@@ -5497,7 +5149,7 @@ type ButtonsMessage struct {
 
 func (x *ButtonsMessage) Reset() {
 	*x = ButtonsMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[10]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5509,7 +5161,7 @@ func (x *ButtonsMessage) String() string {
 func (*ButtonsMessage) ProtoMessage() {}
 
 func (x *ButtonsMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[10]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5522,7 +5174,7 @@ func (x *ButtonsMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ButtonsMessage.ProtoReflect.Descriptor instead.
 func (*ButtonsMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{10}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ButtonsMessage) GetHeader() isButtonsMessage_Header {
@@ -5658,7 +5310,7 @@ type SecretEncryptedMessage struct {
 
 func (x *SecretEncryptedMessage) Reset() {
 	*x = SecretEncryptedMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[11]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5670,7 +5322,7 @@ func (x *SecretEncryptedMessage) String() string {
 func (*SecretEncryptedMessage) ProtoMessage() {}
 
 func (x *SecretEncryptedMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[11]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5683,7 +5335,7 @@ func (x *SecretEncryptedMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SecretEncryptedMessage.ProtoReflect.Descriptor instead.
 func (*SecretEncryptedMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{11}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *SecretEncryptedMessage) GetTargetMessageKey() *waCommon.MessageKey {
@@ -5730,7 +5382,7 @@ type GroupInviteMessage struct {
 
 func (x *GroupInviteMessage) Reset() {
 	*x = GroupInviteMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[12]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5742,7 +5394,7 @@ func (x *GroupInviteMessage) String() string {
 func (*GroupInviteMessage) ProtoMessage() {}
 
 func (x *GroupInviteMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[12]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5755,7 +5407,7 @@ func (x *GroupInviteMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GroupInviteMessage.ProtoReflect.Descriptor instead.
 func (*GroupInviteMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{12}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *GroupInviteMessage) GetGroupJID() string {
@@ -5828,7 +5480,7 @@ type InteractiveResponseMessage struct {
 
 func (x *InteractiveResponseMessage) Reset() {
 	*x = InteractiveResponseMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[13]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5840,7 +5492,7 @@ func (x *InteractiveResponseMessage) String() string {
 func (*InteractiveResponseMessage) ProtoMessage() {}
 
 func (x *InteractiveResponseMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[13]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5853,7 +5505,7 @@ func (x *InteractiveResponseMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InteractiveResponseMessage.ProtoReflect.Descriptor instead.
 func (*InteractiveResponseMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{13}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *InteractiveResponseMessage) GetInteractiveResponseMessage() isInteractiveResponseMessage_InteractiveResponseMessage {
@@ -5917,7 +5569,7 @@ type InteractiveMessage struct {
 
 func (x *InteractiveMessage) Reset() {
 	*x = InteractiveMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[14]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5929,7 +5581,7 @@ func (x *InteractiveMessage) String() string {
 func (*InteractiveMessage) ProtoMessage() {}
 
 func (x *InteractiveMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[14]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5942,7 +5594,7 @@ func (x *InteractiveMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InteractiveMessage.ProtoReflect.Descriptor instead.
 func (*InteractiveMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{14}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *InteractiveMessage) GetInteractiveMessage() isInteractiveMessage_InteractiveMessage {
@@ -6064,7 +5716,7 @@ type ListResponseMessage struct {
 
 func (x *ListResponseMessage) Reset() {
 	*x = ListResponseMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[15]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6076,7 +5728,7 @@ func (x *ListResponseMessage) String() string {
 func (*ListResponseMessage) ProtoMessage() {}
 
 func (x *ListResponseMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[15]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6089,7 +5741,7 @@ func (x *ListResponseMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListResponseMessage.ProtoReflect.Descriptor instead.
 func (*ListResponseMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{15}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ListResponseMessage) GetTitle() string {
@@ -6143,7 +5795,7 @@ type ListMessage struct {
 
 func (x *ListMessage) Reset() {
 	*x = ListMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[16]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6155,7 +5807,7 @@ func (x *ListMessage) String() string {
 func (*ListMessage) ProtoMessage() {}
 
 func (x *ListMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[16]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6168,7 +5820,7 @@ func (x *ListMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMessage.ProtoReflect.Descriptor instead.
 func (*ListMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{16}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ListMessage) GetTitle() string {
@@ -6250,7 +5902,7 @@ type OrderMessage struct {
 
 func (x *OrderMessage) Reset() {
 	*x = OrderMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[17]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6262,7 +5914,7 @@ func (x *OrderMessage) String() string {
 func (*OrderMessage) ProtoMessage() {}
 
 func (x *OrderMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[17]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6275,7 +5927,7 @@ func (x *OrderMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OrderMessage.ProtoReflect.Descriptor instead.
 func (*OrderMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{17}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *OrderMessage) GetOrderID() string {
@@ -6383,6 +6035,74 @@ func (x *OrderMessage) GetCatalogType() string {
 	return ""
 }
 
+type StatusQuotedMessage struct {
+	state            protoimpl.MessageState                       `protogen:"open.v1"`
+	Type             *StatusQuotedMessage_StatusQuotedMessageType `protobuf:"varint,1,opt,name=type,enum=WAWebProtobufsE2E.StatusQuotedMessage_StatusQuotedMessageType" json:"type,omitempty"`
+	Text             *string                                      `protobuf:"bytes,2,opt,name=text" json:"text,omitempty"`
+	Thumbnail        []byte                                       `protobuf:"bytes,3,opt,name=thumbnail" json:"thumbnail,omitempty"`
+	OriginalStatusID *waCommon.MessageKey                         `protobuf:"bytes,4,opt,name=originalStatusID" json:"originalStatusID,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *StatusQuotedMessage) Reset() {
+	*x = StatusQuotedMessage{}
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StatusQuotedMessage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StatusQuotedMessage) ProtoMessage() {}
+
+func (x *StatusQuotedMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StatusQuotedMessage.ProtoReflect.Descriptor instead.
+func (*StatusQuotedMessage) Descriptor() ([]byte, []int) {
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *StatusQuotedMessage) GetType() StatusQuotedMessage_StatusQuotedMessageType {
+	if x != nil && x.Type != nil {
+		return *x.Type
+	}
+	return StatusQuotedMessage_QUESTION_ANSWER
+}
+
+func (x *StatusQuotedMessage) GetText() string {
+	if x != nil && x.Text != nil {
+		return *x.Text
+	}
+	return ""
+}
+
+func (x *StatusQuotedMessage) GetThumbnail() []byte {
+	if x != nil {
+		return x.Thumbnail
+	}
+	return nil
+}
+
+func (x *StatusQuotedMessage) GetOriginalStatusID() *waCommon.MessageKey {
+	if x != nil {
+		return x.OriginalStatusID
+	}
+	return nil
+}
+
 type PaymentInviteMessage struct {
 	state           protoimpl.MessageState            `protogen:"open.v1"`
 	ServiceType     *PaymentInviteMessage_ServiceType `protobuf:"varint,1,opt,name=serviceType,enum=WAWebProtobufsE2E.PaymentInviteMessage_ServiceType" json:"serviceType,omitempty"`
@@ -6393,7 +6113,7 @@ type PaymentInviteMessage struct {
 
 func (x *PaymentInviteMessage) Reset() {
 	*x = PaymentInviteMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[18]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6405,7 +6125,7 @@ func (x *PaymentInviteMessage) String() string {
 func (*PaymentInviteMessage) ProtoMessage() {}
 
 func (x *PaymentInviteMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[18]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6418,7 +6138,7 @@ func (x *PaymentInviteMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PaymentInviteMessage.ProtoReflect.Descriptor instead.
 func (*PaymentInviteMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{18}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *PaymentInviteMessage) GetServiceType() PaymentInviteMessage_ServiceType {
@@ -6452,7 +6172,7 @@ type HighlyStructuredMessage struct {
 
 func (x *HighlyStructuredMessage) Reset() {
 	*x = HighlyStructuredMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[19]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6464,7 +6184,7 @@ func (x *HighlyStructuredMessage) String() string {
 func (*HighlyStructuredMessage) ProtoMessage() {}
 
 func (x *HighlyStructuredMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[19]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6477,7 +6197,7 @@ func (x *HighlyStructuredMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HighlyStructuredMessage.ProtoReflect.Descriptor instead.
 func (*HighlyStructuredMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{19}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *HighlyStructuredMessage) GetNamespace() string {
@@ -6554,7 +6274,7 @@ type PeerDataOperationRequestResponseMessage struct {
 
 func (x *PeerDataOperationRequestResponseMessage) Reset() {
 	*x = PeerDataOperationRequestResponseMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[20]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6566,7 +6286,7 @@ func (x *PeerDataOperationRequestResponseMessage) String() string {
 func (*PeerDataOperationRequestResponseMessage) ProtoMessage() {}
 
 func (x *PeerDataOperationRequestResponseMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[20]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6579,7 +6299,7 @@ func (x *PeerDataOperationRequestResponseMessage) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use PeerDataOperationRequestResponseMessage.ProtoReflect.Descriptor instead.
 func (*PeerDataOperationRequestResponseMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{20}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *PeerDataOperationRequestResponseMessage) GetPeerDataOperationRequestType() PeerDataOperationRequestType {
@@ -6603,154 +6323,6 @@ func (x *PeerDataOperationRequestResponseMessage) GetPeerDataOperationResult() [
 	return nil
 }
 
-type HistorySyncNotification struct {
-	state                                  protoimpl.MessageState                   `protogen:"open.v1"`
-	FileSHA256                             []byte                                   `protobuf:"bytes,1,opt,name=fileSHA256" json:"fileSHA256,omitempty"`
-	FileLength                             *uint64                                  `protobuf:"varint,2,opt,name=fileLength" json:"fileLength,omitempty"`
-	MediaKey                               []byte                                   `protobuf:"bytes,3,opt,name=mediaKey" json:"mediaKey,omitempty"`
-	FileEncSHA256                          []byte                                   `protobuf:"bytes,4,opt,name=fileEncSHA256" json:"fileEncSHA256,omitempty"`
-	DirectPath                             *string                                  `protobuf:"bytes,5,opt,name=directPath" json:"directPath,omitempty"`
-	SyncType                               *HistorySyncNotification_HistorySyncType `protobuf:"varint,6,opt,name=syncType,enum=WAWebProtobufsE2E.HistorySyncNotification_HistorySyncType" json:"syncType,omitempty"`
-	ChunkOrder                             *uint32                                  `protobuf:"varint,7,opt,name=chunkOrder" json:"chunkOrder,omitempty"`
-	OriginalMessageID                      *string                                  `protobuf:"bytes,8,opt,name=originalMessageID" json:"originalMessageID,omitempty"`
-	Progress                               *uint32                                  `protobuf:"varint,9,opt,name=progress" json:"progress,omitempty"`
-	OldestMsgInChunkTimestampSec           *int64                                   `protobuf:"varint,10,opt,name=oldestMsgInChunkTimestampSec" json:"oldestMsgInChunkTimestampSec,omitempty"`
-	InitialHistBootstrapInlinePayload      []byte                                   `protobuf:"bytes,11,opt,name=initialHistBootstrapInlinePayload" json:"initialHistBootstrapInlinePayload,omitempty"`
-	PeerDataRequestSessionID               *string                                  `protobuf:"bytes,12,opt,name=peerDataRequestSessionID" json:"peerDataRequestSessionID,omitempty"`
-	FullHistorySyncOnDemandRequestMetadata *FullHistorySyncOnDemandRequestMetadata  `protobuf:"bytes,13,opt,name=fullHistorySyncOnDemandRequestMetadata" json:"fullHistorySyncOnDemandRequestMetadata,omitempty"`
-	EncHandle                              *string                                  `protobuf:"bytes,14,opt,name=encHandle" json:"encHandle,omitempty"`
-	unknownFields                          protoimpl.UnknownFields
-	sizeCache                              protoimpl.SizeCache
-}
-
-func (x *HistorySyncNotification) Reset() {
-	*x = HistorySyncNotification{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[21]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *HistorySyncNotification) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*HistorySyncNotification) ProtoMessage() {}
-
-func (x *HistorySyncNotification) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[21]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use HistorySyncNotification.ProtoReflect.Descriptor instead.
-func (*HistorySyncNotification) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{21}
-}
-
-func (x *HistorySyncNotification) GetFileSHA256() []byte {
-	if x != nil {
-		return x.FileSHA256
-	}
-	return nil
-}
-
-func (x *HistorySyncNotification) GetFileLength() uint64 {
-	if x != nil && x.FileLength != nil {
-		return *x.FileLength
-	}
-	return 0
-}
-
-func (x *HistorySyncNotification) GetMediaKey() []byte {
-	if x != nil {
-		return x.MediaKey
-	}
-	return nil
-}
-
-func (x *HistorySyncNotification) GetFileEncSHA256() []byte {
-	if x != nil {
-		return x.FileEncSHA256
-	}
-	return nil
-}
-
-func (x *HistorySyncNotification) GetDirectPath() string {
-	if x != nil && x.DirectPath != nil {
-		return *x.DirectPath
-	}
-	return ""
-}
-
-func (x *HistorySyncNotification) GetSyncType() HistorySyncNotification_HistorySyncType {
-	if x != nil && x.SyncType != nil {
-		return *x.SyncType
-	}
-	return HistorySyncNotification_INITIAL_BOOTSTRAP
-}
-
-func (x *HistorySyncNotification) GetChunkOrder() uint32 {
-	if x != nil && x.ChunkOrder != nil {
-		return *x.ChunkOrder
-	}
-	return 0
-}
-
-func (x *HistorySyncNotification) GetOriginalMessageID() string {
-	if x != nil && x.OriginalMessageID != nil {
-		return *x.OriginalMessageID
-	}
-	return ""
-}
-
-func (x *HistorySyncNotification) GetProgress() uint32 {
-	if x != nil && x.Progress != nil {
-		return *x.Progress
-	}
-	return 0
-}
-
-func (x *HistorySyncNotification) GetOldestMsgInChunkTimestampSec() int64 {
-	if x != nil && x.OldestMsgInChunkTimestampSec != nil {
-		return *x.OldestMsgInChunkTimestampSec
-	}
-	return 0
-}
-
-func (x *HistorySyncNotification) GetInitialHistBootstrapInlinePayload() []byte {
-	if x != nil {
-		return x.InitialHistBootstrapInlinePayload
-	}
-	return nil
-}
-
-func (x *HistorySyncNotification) GetPeerDataRequestSessionID() string {
-	if x != nil && x.PeerDataRequestSessionID != nil {
-		return *x.PeerDataRequestSessionID
-	}
-	return ""
-}
-
-func (x *HistorySyncNotification) GetFullHistorySyncOnDemandRequestMetadata() *FullHistorySyncOnDemandRequestMetadata {
-	if x != nil {
-		return x.FullHistorySyncOnDemandRequestMetadata
-	}
-	return nil
-}
-
-func (x *HistorySyncNotification) GetEncHandle() string {
-	if x != nil && x.EncHandle != nil {
-		return *x.EncHandle
-	}
-	return ""
-}
-
 type RequestWelcomeMessageMetadata struct {
 	state          protoimpl.MessageState                        `protogen:"open.v1"`
 	LocalChatState *RequestWelcomeMessageMetadata_LocalChatState `protobuf:"varint,1,opt,name=localChatState,enum=WAWebProtobufsE2E.RequestWelcomeMessageMetadata_LocalChatState" json:"localChatState,omitempty"`
@@ -6760,7 +6332,7 @@ type RequestWelcomeMessageMetadata struct {
 
 func (x *RequestWelcomeMessageMetadata) Reset() {
 	*x = RequestWelcomeMessageMetadata{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[22]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6772,7 +6344,7 @@ func (x *RequestWelcomeMessageMetadata) String() string {
 func (*RequestWelcomeMessageMetadata) ProtoMessage() {}
 
 func (x *RequestWelcomeMessageMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[22]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6785,7 +6357,7 @@ func (x *RequestWelcomeMessageMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RequestWelcomeMessageMetadata.ProtoReflect.Descriptor instead.
 func (*RequestWelcomeMessageMetadata) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{22}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *RequestWelcomeMessageMetadata) GetLocalChatState() RequestWelcomeMessageMetadata_LocalChatState {
@@ -6811,7 +6383,7 @@ type ProtocolMessage struct {
 	TimestampMS                             *int64                                   `protobuf:"varint,15,opt,name=timestampMS" json:"timestampMS,omitempty"`
 	PeerDataOperationRequestMessage         *PeerDataOperationRequestMessage         `protobuf:"bytes,16,opt,name=peerDataOperationRequestMessage" json:"peerDataOperationRequestMessage,omitempty"`
 	PeerDataOperationRequestResponseMessage *PeerDataOperationRequestResponseMessage `protobuf:"bytes,17,opt,name=peerDataOperationRequestResponseMessage" json:"peerDataOperationRequestResponseMessage,omitempty"`
-	BotFeedbackMessage                      *BotFeedbackMessage                      `protobuf:"bytes,18,opt,name=botFeedbackMessage" json:"botFeedbackMessage,omitempty"`
+	BotFeedbackMessage                      *waAICommon.BotFeedbackMessage           `protobuf:"bytes,18,opt,name=botFeedbackMessage" json:"botFeedbackMessage,omitempty"`
 	InvokerJID                              *string                                  `protobuf:"bytes,19,opt,name=invokerJID" json:"invokerJID,omitempty"`
 	RequestWelcomeMessageMetadata           *RequestWelcomeMessageMetadata           `protobuf:"bytes,20,opt,name=requestWelcomeMessageMetadata" json:"requestWelcomeMessageMetadata,omitempty"`
 	MediaNotifyMessage                      *MediaNotifyMessage                      `protobuf:"bytes,21,opt,name=mediaNotifyMessage" json:"mediaNotifyMessage,omitempty"`
@@ -6827,7 +6399,7 @@ type ProtocolMessage struct {
 
 func (x *ProtocolMessage) Reset() {
 	*x = ProtocolMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[23]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6839,7 +6411,7 @@ func (x *ProtocolMessage) String() string {
 func (*ProtocolMessage) ProtoMessage() {}
 
 func (x *ProtocolMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[23]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6852,7 +6424,7 @@ func (x *ProtocolMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProtocolMessage.ProtoReflect.Descriptor instead.
 func (*ProtocolMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{23}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *ProtocolMessage) GetKey() *waCommon.MessageKey {
@@ -6953,7 +6525,7 @@ func (x *ProtocolMessage) GetPeerDataOperationRequestResponseMessage() *PeerData
 	return nil
 }
 
-func (x *ProtocolMessage) GetBotFeedbackMessage() *BotFeedbackMessage {
+func (x *ProtocolMessage) GetBotFeedbackMessage() *waAICommon.BotFeedbackMessage {
 	if x != nil {
 		return x.BotFeedbackMessage
 	}
@@ -7037,7 +6609,7 @@ type CloudAPIThreadControlNotification struct {
 
 func (x *CloudAPIThreadControlNotification) Reset() {
 	*x = CloudAPIThreadControlNotification{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[24]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7049,7 +6621,7 @@ func (x *CloudAPIThreadControlNotification) String() string {
 func (*CloudAPIThreadControlNotification) ProtoMessage() {}
 
 func (x *CloudAPIThreadControlNotification) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[24]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7062,7 +6634,7 @@ func (x *CloudAPIThreadControlNotification) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use CloudAPIThreadControlNotification.ProtoReflect.Descriptor instead.
 func (*CloudAPIThreadControlNotification) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{24}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *CloudAPIThreadControlNotification) GetStatus() CloudAPIThreadControlNotification_CloudAPIThreadControl {
@@ -7105,98 +6677,6 @@ func (x *CloudAPIThreadControlNotification) GetShouldSuppressNotification() bool
 		return *x.ShouldSuppressNotification
 	}
 	return false
-}
-
-type BotFeedbackMessage struct {
-	state                    protoimpl.MessageState                       `protogen:"open.v1"`
-	MessageKey               *waCommon.MessageKey                         `protobuf:"bytes,1,opt,name=messageKey" json:"messageKey,omitempty"`
-	Kind                     *BotFeedbackMessage_BotFeedbackKind          `protobuf:"varint,2,opt,name=kind,enum=WAWebProtobufsE2E.BotFeedbackMessage_BotFeedbackKind" json:"kind,omitempty"`
-	Text                     *string                                      `protobuf:"bytes,3,opt,name=text" json:"text,omitempty"`
-	KindNegative             *uint64                                      `protobuf:"varint,4,opt,name=kindNegative" json:"kindNegative,omitempty"`
-	KindPositive             *uint64                                      `protobuf:"varint,5,opt,name=kindPositive" json:"kindPositive,omitempty"`
-	KindReport               *BotFeedbackMessage_ReportKind               `protobuf:"varint,6,opt,name=kindReport,enum=WAWebProtobufsE2E.BotFeedbackMessage_ReportKind" json:"kindReport,omitempty"`
-	SideBySideSurveyMetadata *BotFeedbackMessage_SideBySideSurveyMetadata `protobuf:"bytes,7,opt,name=sideBySideSurveyMetadata" json:"sideBySideSurveyMetadata,omitempty"`
-	unknownFields            protoimpl.UnknownFields
-	sizeCache                protoimpl.SizeCache
-}
-
-func (x *BotFeedbackMessage) Reset() {
-	*x = BotFeedbackMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[25]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *BotFeedbackMessage) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*BotFeedbackMessage) ProtoMessage() {}
-
-func (x *BotFeedbackMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[25]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use BotFeedbackMessage.ProtoReflect.Descriptor instead.
-func (*BotFeedbackMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{25}
-}
-
-func (x *BotFeedbackMessage) GetMessageKey() *waCommon.MessageKey {
-	if x != nil {
-		return x.MessageKey
-	}
-	return nil
-}
-
-func (x *BotFeedbackMessage) GetKind() BotFeedbackMessage_BotFeedbackKind {
-	if x != nil && x.Kind != nil {
-		return *x.Kind
-	}
-	return BotFeedbackMessage_BOT_FEEDBACK_POSITIVE
-}
-
-func (x *BotFeedbackMessage) GetText() string {
-	if x != nil && x.Text != nil {
-		return *x.Text
-	}
-	return ""
-}
-
-func (x *BotFeedbackMessage) GetKindNegative() uint64 {
-	if x != nil && x.KindNegative != nil {
-		return *x.KindNegative
-	}
-	return 0
-}
-
-func (x *BotFeedbackMessage) GetKindPositive() uint64 {
-	if x != nil && x.KindPositive != nil {
-		return *x.KindPositive
-	}
-	return 0
-}
-
-func (x *BotFeedbackMessage) GetKindReport() BotFeedbackMessage_ReportKind {
-	if x != nil && x.KindReport != nil {
-		return *x.KindReport
-	}
-	return BotFeedbackMessage_NONE
-}
-
-func (x *BotFeedbackMessage) GetSideBySideSurveyMetadata() *BotFeedbackMessage_SideBySideSurveyMetadata {
-	if x != nil {
-		return x.SideBySideSurveyMetadata
-	}
-	return nil
 }
 
 type VideoMessage struct {
@@ -7514,6 +6994,8 @@ type ExtendedTextMessage struct {
 	LinkPreviewMetadata              *LinkPreviewMetadata                     `protobuf:"bytes,34,opt,name=linkPreviewMetadata" json:"linkPreviewMetadata,omitempty"`
 	PaymentLinkMetadata              *PaymentLinkMetadata                     `protobuf:"bytes,35,opt,name=paymentLinkMetadata" json:"paymentLinkMetadata,omitempty"`
 	EndCardTiles                     []*VideoEndCard                          `protobuf:"bytes,36,rep,name=endCardTiles" json:"endCardTiles,omitempty"`
+	VideoContentURL                  *string                                  `protobuf:"bytes,37,opt,name=videoContentURL" json:"videoContentURL,omitempty"`
+	MusicMetadata                    *EmbeddedMusic                           `protobuf:"bytes,38,opt,name=musicMetadata" json:"musicMetadata,omitempty"`
 	unknownFields                    protoimpl.UnknownFields
 	sizeCache                        protoimpl.SizeCache
 }
@@ -7751,15 +7233,30 @@ func (x *ExtendedTextMessage) GetEndCardTiles() []*VideoEndCard {
 	return nil
 }
 
+func (x *ExtendedTextMessage) GetVideoContentURL() string {
+	if x != nil && x.VideoContentURL != nil {
+		return *x.VideoContentURL
+	}
+	return ""
+}
+
+func (x *ExtendedTextMessage) GetMusicMetadata() *EmbeddedMusic {
+	if x != nil {
+		return x.MusicMetadata
+	}
+	return nil
+}
+
 type LinkPreviewMetadata struct {
-	state               protoimpl.MessageState                   `protogen:"open.v1"`
-	PaymentLinkMetadata *PaymentLinkMetadata                     `protobuf:"bytes,1,opt,name=paymentLinkMetadata" json:"paymentLinkMetadata,omitempty"`
-	UrlMetadata         *URLMetadata                             `protobuf:"bytes,2,opt,name=urlMetadata" json:"urlMetadata,omitempty"`
-	FbExperimentID      *uint32                                  `protobuf:"varint,3,opt,name=fbExperimentID" json:"fbExperimentID,omitempty"`
-	LinkMediaDuration   *uint32                                  `protobuf:"varint,4,opt,name=linkMediaDuration" json:"linkMediaDuration,omitempty"`
-	SocialMediaPostType *LinkPreviewMetadata_SocialMediaPostType `protobuf:"varint,5,opt,name=socialMediaPostType,enum=WAWebProtobufsE2E.LinkPreviewMetadata_SocialMediaPostType" json:"socialMediaPostType,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	state                protoimpl.MessageState                   `protogen:"open.v1"`
+	PaymentLinkMetadata  *PaymentLinkMetadata                     `protobuf:"bytes,1,opt,name=paymentLinkMetadata" json:"paymentLinkMetadata,omitempty"`
+	UrlMetadata          *URLMetadata                             `protobuf:"bytes,2,opt,name=urlMetadata" json:"urlMetadata,omitempty"`
+	FbExperimentID       *uint32                                  `protobuf:"varint,3,opt,name=fbExperimentID" json:"fbExperimentID,omitempty"`
+	LinkMediaDuration    *uint32                                  `protobuf:"varint,4,opt,name=linkMediaDuration" json:"linkMediaDuration,omitempty"`
+	SocialMediaPostType  *LinkPreviewMetadata_SocialMediaPostType `protobuf:"varint,5,opt,name=socialMediaPostType,enum=WAWebProtobufsE2E.LinkPreviewMetadata_SocialMediaPostType" json:"socialMediaPostType,omitempty"`
+	LinkInlineVideoMuted *bool                                    `protobuf:"varint,6,opt,name=linkInlineVideoMuted" json:"linkInlineVideoMuted,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *LinkPreviewMetadata) Reset() {
@@ -7825,6 +7322,13 @@ func (x *LinkPreviewMetadata) GetSocialMediaPostType() LinkPreviewMetadata_Socia
 		return *x.SocialMediaPostType
 	}
 	return LinkPreviewMetadata_NONE
+}
+
+func (x *LinkPreviewMetadata) GetLinkInlineVideoMuted() bool {
+	if x != nil && x.LinkInlineVideoMuted != nil {
+		return *x.LinkInlineVideoMuted
+	}
+	return false
 }
 
 type PaymentLinkMetadata struct {
@@ -8388,7 +7892,7 @@ type ContextInfo struct {
 	EntryPointConversionExternalMedium *string                                     `protobuf:"bytes,51,opt,name=entryPointConversionExternalMedium" json:"entryPointConversionExternalMedium,omitempty"`
 	CtwaSignals                        *string                                     `protobuf:"bytes,54,opt,name=ctwaSignals" json:"ctwaSignals,omitempty"`
 	CtwaPayload                        []byte                                      `protobuf:"bytes,55,opt,name=ctwaPayload" json:"ctwaPayload,omitempty"`
-	ForwardedAiBotMessageInfo          *ContextInfo_ForwardedAIBotMessageInfo      `protobuf:"bytes,56,opt,name=forwardedAiBotMessageInfo" json:"forwardedAiBotMessageInfo,omitempty"`
+	ForwardedAiBotMessageInfo          *waAICommon.ForwardedAIBotMessageInfo       `protobuf:"bytes,56,opt,name=forwardedAiBotMessageInfo" json:"forwardedAiBotMessageInfo,omitempty"`
 	StatusAttributionType              *ContextInfo_StatusAttributionType          `protobuf:"varint,57,opt,name=statusAttributionType,enum=WAWebProtobufsE2E.ContextInfo_StatusAttributionType" json:"statusAttributionType,omitempty"`
 	UrlTrackingMap                     *UrlTrackingMap                             `protobuf:"bytes,58,opt,name=urlTrackingMap" json:"urlTrackingMap,omitempty"`
 	PairedMediaType                    *ContextInfo_PairedMediaType                `protobuf:"varint,59,opt,name=pairedMediaType,enum=WAWebProtobufsE2E.ContextInfo_PairedMediaType" json:"pairedMediaType,omitempty"`
@@ -8402,6 +7906,8 @@ type ContextInfo struct {
 	QuestionReplyQuotedMessage         *ContextInfo_QuestionReplyQuotedMessage     `protobuf:"bytes,68,opt,name=questionReplyQuotedMessage" json:"questionReplyQuotedMessage,omitempty"`
 	StatusAudienceMetadata             *ContextInfo_StatusAudienceMetadata         `protobuf:"bytes,69,opt,name=statusAudienceMetadata" json:"statusAudienceMetadata,omitempty"`
 	NonJIDMentions                     *uint32                                     `protobuf:"varint,70,opt,name=nonJIDMentions" json:"nonJIDMentions,omitempty"`
+	QuotedType                         *ContextInfo_QuotedType                     `protobuf:"varint,71,opt,name=quotedType,enum=WAWebProtobufsE2E.ContextInfo_QuotedType" json:"quotedType,omitempty"`
+	BotMessageSharingInfo              *waAICommon.BotMessageSharingInfo           `protobuf:"bytes,72,opt,name=botMessageSharingInfo" json:"botMessageSharingInfo,omitempty"`
 	unknownFields                      protoimpl.UnknownFields
 	sizeCache                          protoimpl.SizeCache
 }
@@ -8709,7 +8215,7 @@ func (x *ContextInfo) GetCtwaPayload() []byte {
 	return nil
 }
 
-func (x *ContextInfo) GetForwardedAiBotMessageInfo() *ContextInfo_ForwardedAIBotMessageInfo {
+func (x *ContextInfo) GetForwardedAiBotMessageInfo() *waAICommon.ForwardedAIBotMessageInfo {
 	if x != nil {
 		return x.ForwardedAiBotMessageInfo
 	}
@@ -8807,70 +8313,16 @@ func (x *ContextInfo) GetNonJIDMentions() uint32 {
 	return 0
 }
 
-type AIRichResponseMessage struct {
-	state           protoimpl.MessageState                               `protogen:"open.v1"`
-	MessageType     *AIRichResponseMessage_AIRichResponseMessageType     `protobuf:"varint,1,opt,name=messageType,enum=WAWebProtobufsE2E.AIRichResponseMessage_AIRichResponseMessageType" json:"messageType,omitempty"`
-	Submessages     []*AIRichResponseMessage_AIRichResponseSubMessage    `protobuf:"bytes,2,rep,name=submessages" json:"submessages,omitempty"`
-	UnifiedResponse *AIRichResponseMessage_AIRichResponseUnifiedResponse `protobuf:"bytes,3,opt,name=unifiedResponse" json:"unifiedResponse,omitempty"`
-	ContextInfo     *ContextInfo                                         `protobuf:"bytes,4,opt,name=contextInfo" json:"contextInfo,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
-}
-
-func (x *AIRichResponseMessage) Reset() {
-	*x = AIRichResponseMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[34]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AIRichResponseMessage) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AIRichResponseMessage) ProtoMessage() {}
-
-func (x *AIRichResponseMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[34]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
+func (x *ContextInfo) GetQuotedType() ContextInfo_QuotedType {
+	if x != nil && x.QuotedType != nil {
+		return *x.QuotedType
 	}
-	return mi.MessageOf(x)
+	return ContextInfo_EXPLICIT
 }
 
-// Deprecated: Use AIRichResponseMessage.ProtoReflect.Descriptor instead.
-func (*AIRichResponseMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{34}
-}
-
-func (x *AIRichResponseMessage) GetMessageType() AIRichResponseMessage_AIRichResponseMessageType {
-	if x != nil && x.MessageType != nil {
-		return *x.MessageType
-	}
-	return AIRichResponseMessage_AI_RICH_RESPONSE_TYPE_UNKNOWN
-}
-
-func (x *AIRichResponseMessage) GetSubmessages() []*AIRichResponseMessage_AIRichResponseSubMessage {
+func (x *ContextInfo) GetBotMessageSharingInfo() *waAICommon.BotMessageSharingInfo {
 	if x != nil {
-		return x.Submessages
-	}
-	return nil
-}
-
-func (x *AIRichResponseMessage) GetUnifiedResponse() *AIRichResponseMessage_AIRichResponseUnifiedResponse {
-	if x != nil {
-		return x.UnifiedResponse
-	}
-	return nil
-}
-
-func (x *AIRichResponseMessage) GetContextInfo() *ContextInfo {
-	if x != nil {
-		return x.ContextInfo
+		return x.BotMessageSharingInfo
 	}
 	return nil
 }
@@ -8886,7 +8338,7 @@ type MessageAssociation struct {
 
 func (x *MessageAssociation) Reset() {
 	*x = MessageAssociation{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[35]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8898,7 +8350,7 @@ func (x *MessageAssociation) String() string {
 func (*MessageAssociation) ProtoMessage() {}
 
 func (x *MessageAssociation) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[35]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8911,7 +8363,7 @@ func (x *MessageAssociation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MessageAssociation.ProtoReflect.Descriptor instead.
 func (*MessageAssociation) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{35}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *MessageAssociation) GetAssociationType() MessageAssociation_AssociationType {
@@ -8945,7 +8397,7 @@ type ThreadID struct {
 
 func (x *ThreadID) Reset() {
 	*x = ThreadID{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[36]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8957,7 +8409,7 @@ func (x *ThreadID) String() string {
 func (*ThreadID) ProtoMessage() {}
 
 func (x *ThreadID) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[36]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8970,7 +8422,7 @@ func (x *ThreadID) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ThreadID.ProtoReflect.Descriptor instead.
 func (*ThreadID) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{36}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *ThreadID) GetThreadType() ThreadID_ThreadType {
@@ -8995,7 +8447,7 @@ type MessageContextInfo struct {
 	PaddingBytes               []byte                                     `protobuf:"bytes,4,opt,name=paddingBytes" json:"paddingBytes,omitempty"`
 	MessageAddOnDurationInSecs *uint32                                    `protobuf:"varint,5,opt,name=messageAddOnDurationInSecs" json:"messageAddOnDurationInSecs,omitempty"`
 	BotMessageSecret           []byte                                     `protobuf:"bytes,6,opt,name=botMessageSecret" json:"botMessageSecret,omitempty"`
-	BotMetadata                *waBotMetadata.BotMetadata                 `protobuf:"bytes,7,opt,name=botMetadata" json:"botMetadata,omitempty"`
+	BotMetadata                *waAICommon.BotMetadata                    `protobuf:"bytes,7,opt,name=botMetadata" json:"botMetadata,omitempty"`
 	ReportingTokenVersion      *int32                                     `protobuf:"varint,8,opt,name=reportingTokenVersion" json:"reportingTokenVersion,omitempty"`
 	MessageAddOnExpiryType     *MessageContextInfo_MessageAddonExpiryType `protobuf:"varint,9,opt,name=messageAddOnExpiryType,enum=WAWebProtobufsE2E.MessageContextInfo_MessageAddonExpiryType" json:"messageAddOnExpiryType,omitempty"`
 	MessageAssociation         *MessageAssociation                        `protobuf:"bytes,10,opt,name=messageAssociation" json:"messageAssociation,omitempty"`
@@ -9010,7 +8462,7 @@ type MessageContextInfo struct {
 
 func (x *MessageContextInfo) Reset() {
 	*x = MessageContextInfo{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[37]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9022,7 +8474,7 @@ func (x *MessageContextInfo) String() string {
 func (*MessageContextInfo) ProtoMessage() {}
 
 func (x *MessageContextInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[37]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9035,7 +8487,7 @@ func (x *MessageContextInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MessageContextInfo.ProtoReflect.Descriptor instead.
 func (*MessageContextInfo) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{37}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *MessageContextInfo) GetDeviceListMetadata() *DeviceListMetadata {
@@ -9080,7 +8532,7 @@ func (x *MessageContextInfo) GetBotMessageSecret() []byte {
 	return nil
 }
 
-func (x *MessageContextInfo) GetBotMetadata() *waBotMetadata.BotMetadata {
+func (x *MessageContextInfo) GetBotMetadata() *waAICommon.BotMetadata {
 	if x != nil {
 		return x.BotMetadata
 	}
@@ -9162,7 +8614,7 @@ type InteractiveAnnotation struct {
 
 func (x *InteractiveAnnotation) Reset() {
 	*x = InteractiveAnnotation{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[38]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9174,7 +8626,7 @@ func (x *InteractiveAnnotation) String() string {
 func (*InteractiveAnnotation) ProtoMessage() {}
 
 func (x *InteractiveAnnotation) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[38]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9187,7 +8639,7 @@ func (x *InteractiveAnnotation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InteractiveAnnotation.ProtoReflect.Descriptor instead.
 func (*InteractiveAnnotation) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{38}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *InteractiveAnnotation) GetAction() isInteractiveAnnotation_Action {
@@ -9304,7 +8756,7 @@ type HydratedTemplateButton struct {
 
 func (x *HydratedTemplateButton) Reset() {
 	*x = HydratedTemplateButton{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[39]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9316,7 +8768,7 @@ func (x *HydratedTemplateButton) String() string {
 func (*HydratedTemplateButton) ProtoMessage() {}
 
 func (x *HydratedTemplateButton) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[39]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9329,7 +8781,7 @@ func (x *HydratedTemplateButton) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HydratedTemplateButton.ProtoReflect.Descriptor instead.
 func (*HydratedTemplateButton) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{39}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *HydratedTemplateButton) GetHydratedButton() isHydratedTemplateButton_HydratedButton {
@@ -9413,7 +8865,7 @@ type PaymentBackground struct {
 
 func (x *PaymentBackground) Reset() {
 	*x = PaymentBackground{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[40]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9425,7 +8877,7 @@ func (x *PaymentBackground) String() string {
 func (*PaymentBackground) ProtoMessage() {}
 
 func (x *PaymentBackground) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[40]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9438,7 +8890,7 @@ func (x *PaymentBackground) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PaymentBackground.ProtoReflect.Descriptor instead.
 func (*PaymentBackground) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{40}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *PaymentBackground) GetID() string {
@@ -9523,7 +8975,7 @@ type DisappearingMode struct {
 
 func (x *DisappearingMode) Reset() {
 	*x = DisappearingMode{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[41]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9535,7 +8987,7 @@ func (x *DisappearingMode) String() string {
 func (*DisappearingMode) ProtoMessage() {}
 
 func (x *DisappearingMode) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[41]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9548,7 +9000,7 @@ func (x *DisappearingMode) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DisappearingMode.ProtoReflect.Descriptor instead.
 func (*DisappearingMode) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{41}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *DisappearingMode) GetInitiator() DisappearingMode_Initiator {
@@ -9595,7 +9047,7 @@ type ProcessedVideo struct {
 
 func (x *ProcessedVideo) Reset() {
 	*x = ProcessedVideo{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[42]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9607,7 +9059,7 @@ func (x *ProcessedVideo) String() string {
 func (*ProcessedVideo) ProtoMessage() {}
 
 func (x *ProcessedVideo) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[42]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9620,7 +9072,7 @@ func (x *ProcessedVideo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProcessedVideo.ProtoReflect.Descriptor instead.
 func (*ProcessedVideo) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{42}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *ProcessedVideo) GetDirectPath() string {
@@ -9680,105 +9132,108 @@ func (x *ProcessedVideo) GetCapabilities() []string {
 }
 
 type Message struct {
-	state                                      protoimpl.MessageState        `protogen:"open.v1"`
-	Conversation                               *string                       `protobuf:"bytes,1,opt,name=conversation" json:"conversation,omitempty"`
-	SenderKeyDistributionMessage               *SenderKeyDistributionMessage `protobuf:"bytes,2,opt,name=senderKeyDistributionMessage" json:"senderKeyDistributionMessage,omitempty"`
-	ImageMessage                               *ImageMessage                 `protobuf:"bytes,3,opt,name=imageMessage" json:"imageMessage,omitempty"`
-	ContactMessage                             *ContactMessage               `protobuf:"bytes,4,opt,name=contactMessage" json:"contactMessage,omitempty"`
-	LocationMessage                            *LocationMessage              `protobuf:"bytes,5,opt,name=locationMessage" json:"locationMessage,omitempty"`
-	ExtendedTextMessage                        *ExtendedTextMessage          `protobuf:"bytes,6,opt,name=extendedTextMessage" json:"extendedTextMessage,omitempty"`
-	DocumentMessage                            *DocumentMessage              `protobuf:"bytes,7,opt,name=documentMessage" json:"documentMessage,omitempty"`
-	AudioMessage                               *AudioMessage                 `protobuf:"bytes,8,opt,name=audioMessage" json:"audioMessage,omitempty"`
-	VideoMessage                               *VideoMessage                 `protobuf:"bytes,9,opt,name=videoMessage" json:"videoMessage,omitempty"`
-	Call                                       *Call                         `protobuf:"bytes,10,opt,name=call" json:"call,omitempty"`
-	Chat                                       *Chat                         `protobuf:"bytes,11,opt,name=chat" json:"chat,omitempty"`
-	ProtocolMessage                            *ProtocolMessage              `protobuf:"bytes,12,opt,name=protocolMessage" json:"protocolMessage,omitempty"`
-	ContactsArrayMessage                       *ContactsArrayMessage         `protobuf:"bytes,13,opt,name=contactsArrayMessage" json:"contactsArrayMessage,omitempty"`
-	HighlyStructuredMessage                    *HighlyStructuredMessage      `protobuf:"bytes,14,opt,name=highlyStructuredMessage" json:"highlyStructuredMessage,omitempty"`
-	FastRatchetKeySenderKeyDistributionMessage *SenderKeyDistributionMessage `protobuf:"bytes,15,opt,name=fastRatchetKeySenderKeyDistributionMessage" json:"fastRatchetKeySenderKeyDistributionMessage,omitempty"`
-	SendPaymentMessage                         *SendPaymentMessage           `protobuf:"bytes,16,opt,name=sendPaymentMessage" json:"sendPaymentMessage,omitempty"`
-	LiveLocationMessage                        *LiveLocationMessage          `protobuf:"bytes,18,opt,name=liveLocationMessage" json:"liveLocationMessage,omitempty"`
-	RequestPaymentMessage                      *RequestPaymentMessage        `protobuf:"bytes,22,opt,name=requestPaymentMessage" json:"requestPaymentMessage,omitempty"`
-	DeclinePaymentRequestMessage               *DeclinePaymentRequestMessage `protobuf:"bytes,23,opt,name=declinePaymentRequestMessage" json:"declinePaymentRequestMessage,omitempty"`
-	CancelPaymentRequestMessage                *CancelPaymentRequestMessage  `protobuf:"bytes,24,opt,name=cancelPaymentRequestMessage" json:"cancelPaymentRequestMessage,omitempty"`
-	TemplateMessage                            *TemplateMessage              `protobuf:"bytes,25,opt,name=templateMessage" json:"templateMessage,omitempty"`
-	StickerMessage                             *StickerMessage               `protobuf:"bytes,26,opt,name=stickerMessage" json:"stickerMessage,omitempty"`
-	GroupInviteMessage                         *GroupInviteMessage           `protobuf:"bytes,28,opt,name=groupInviteMessage" json:"groupInviteMessage,omitempty"`
-	TemplateButtonReplyMessage                 *TemplateButtonReplyMessage   `protobuf:"bytes,29,opt,name=templateButtonReplyMessage" json:"templateButtonReplyMessage,omitempty"`
-	ProductMessage                             *ProductMessage               `protobuf:"bytes,30,opt,name=productMessage" json:"productMessage,omitempty"`
-	DeviceSentMessage                          *DeviceSentMessage            `protobuf:"bytes,31,opt,name=deviceSentMessage" json:"deviceSentMessage,omitempty"`
-	MessageContextInfo                         *MessageContextInfo           `protobuf:"bytes,35,opt,name=messageContextInfo" json:"messageContextInfo,omitempty"`
-	ListMessage                                *ListMessage                  `protobuf:"bytes,36,opt,name=listMessage" json:"listMessage,omitempty"`
-	ViewOnceMessage                            *FutureProofMessage           `protobuf:"bytes,37,opt,name=viewOnceMessage" json:"viewOnceMessage,omitempty"`
-	OrderMessage                               *OrderMessage                 `protobuf:"bytes,38,opt,name=orderMessage" json:"orderMessage,omitempty"`
-	ListResponseMessage                        *ListResponseMessage          `protobuf:"bytes,39,opt,name=listResponseMessage" json:"listResponseMessage,omitempty"`
-	EphemeralMessage                           *FutureProofMessage           `protobuf:"bytes,40,opt,name=ephemeralMessage" json:"ephemeralMessage,omitempty"`
-	InvoiceMessage                             *InvoiceMessage               `protobuf:"bytes,41,opt,name=invoiceMessage" json:"invoiceMessage,omitempty"`
-	ButtonsMessage                             *ButtonsMessage               `protobuf:"bytes,42,opt,name=buttonsMessage" json:"buttonsMessage,omitempty"`
-	ButtonsResponseMessage                     *ButtonsResponseMessage       `protobuf:"bytes,43,opt,name=buttonsResponseMessage" json:"buttonsResponseMessage,omitempty"`
-	PaymentInviteMessage                       *PaymentInviteMessage         `protobuf:"bytes,44,opt,name=paymentInviteMessage" json:"paymentInviteMessage,omitempty"`
-	InteractiveMessage                         *InteractiveMessage           `protobuf:"bytes,45,opt,name=interactiveMessage" json:"interactiveMessage,omitempty"`
-	ReactionMessage                            *ReactionMessage              `protobuf:"bytes,46,opt,name=reactionMessage" json:"reactionMessage,omitempty"`
-	StickerSyncRmrMessage                      *StickerSyncRMRMessage        `protobuf:"bytes,47,opt,name=stickerSyncRmrMessage" json:"stickerSyncRmrMessage,omitempty"`
-	InteractiveResponseMessage                 *InteractiveResponseMessage   `protobuf:"bytes,48,opt,name=interactiveResponseMessage" json:"interactiveResponseMessage,omitempty"`
-	PollCreationMessage                        *PollCreationMessage          `protobuf:"bytes,49,opt,name=pollCreationMessage" json:"pollCreationMessage,omitempty"`
-	PollUpdateMessage                          *PollUpdateMessage            `protobuf:"bytes,50,opt,name=pollUpdateMessage" json:"pollUpdateMessage,omitempty"`
-	KeepInChatMessage                          *KeepInChatMessage            `protobuf:"bytes,51,opt,name=keepInChatMessage" json:"keepInChatMessage,omitempty"`
-	DocumentWithCaptionMessage                 *FutureProofMessage           `protobuf:"bytes,53,opt,name=documentWithCaptionMessage" json:"documentWithCaptionMessage,omitempty"`
-	RequestPhoneNumberMessage                  *RequestPhoneNumberMessage    `protobuf:"bytes,54,opt,name=requestPhoneNumberMessage" json:"requestPhoneNumberMessage,omitempty"`
-	ViewOnceMessageV2                          *FutureProofMessage           `protobuf:"bytes,55,opt,name=viewOnceMessageV2" json:"viewOnceMessageV2,omitempty"`
-	EncReactionMessage                         *EncReactionMessage           `protobuf:"bytes,56,opt,name=encReactionMessage" json:"encReactionMessage,omitempty"`
-	EditedMessage                              *FutureProofMessage           `protobuf:"bytes,58,opt,name=editedMessage" json:"editedMessage,omitempty"`
-	ViewOnceMessageV2Extension                 *FutureProofMessage           `protobuf:"bytes,59,opt,name=viewOnceMessageV2Extension" json:"viewOnceMessageV2Extension,omitempty"`
-	PollCreationMessageV2                      *PollCreationMessage          `protobuf:"bytes,60,opt,name=pollCreationMessageV2" json:"pollCreationMessageV2,omitempty"`
-	ScheduledCallCreationMessage               *ScheduledCallCreationMessage `protobuf:"bytes,61,opt,name=scheduledCallCreationMessage" json:"scheduledCallCreationMessage,omitempty"`
-	GroupMentionedMessage                      *FutureProofMessage           `protobuf:"bytes,62,opt,name=groupMentionedMessage" json:"groupMentionedMessage,omitempty"`
-	PinInChatMessage                           *PinInChatMessage             `protobuf:"bytes,63,opt,name=pinInChatMessage" json:"pinInChatMessage,omitempty"`
-	PollCreationMessageV3                      *PollCreationMessage          `protobuf:"bytes,64,opt,name=pollCreationMessageV3" json:"pollCreationMessageV3,omitempty"`
-	ScheduledCallEditMessage                   *ScheduledCallEditMessage     `protobuf:"bytes,65,opt,name=scheduledCallEditMessage" json:"scheduledCallEditMessage,omitempty"`
-	PtvMessage                                 *VideoMessage                 `protobuf:"bytes,66,opt,name=ptvMessage" json:"ptvMessage,omitempty"`
-	BotInvokeMessage                           *FutureProofMessage           `protobuf:"bytes,67,opt,name=botInvokeMessage" json:"botInvokeMessage,omitempty"`
-	CallLogMesssage                            *CallLogMessage               `protobuf:"bytes,69,opt,name=callLogMesssage" json:"callLogMesssage,omitempty"`
-	MessageHistoryBundle                       *MessageHistoryBundle         `protobuf:"bytes,70,opt,name=messageHistoryBundle" json:"messageHistoryBundle,omitempty"`
-	EncCommentMessage                          *EncCommentMessage            `protobuf:"bytes,71,opt,name=encCommentMessage" json:"encCommentMessage,omitempty"`
-	BcallMessage                               *BCallMessage                 `protobuf:"bytes,72,opt,name=bcallMessage" json:"bcallMessage,omitempty"`
-	LottieStickerMessage                       *FutureProofMessage           `protobuf:"bytes,74,opt,name=lottieStickerMessage" json:"lottieStickerMessage,omitempty"`
-	EventMessage                               *EventMessage                 `protobuf:"bytes,75,opt,name=eventMessage" json:"eventMessage,omitempty"`
-	EncEventResponseMessage                    *EncEventResponseMessage      `protobuf:"bytes,76,opt,name=encEventResponseMessage" json:"encEventResponseMessage,omitempty"`
-	CommentMessage                             *CommentMessage               `protobuf:"bytes,77,opt,name=commentMessage" json:"commentMessage,omitempty"`
-	NewsletterAdminInviteMessage               *NewsletterAdminInviteMessage `protobuf:"bytes,78,opt,name=newsletterAdminInviteMessage" json:"newsletterAdminInviteMessage,omitempty"`
-	PlaceholderMessage                         *PlaceholderMessage           `protobuf:"bytes,80,opt,name=placeholderMessage" json:"placeholderMessage,omitempty"`
-	SecretEncryptedMessage                     *SecretEncryptedMessage       `protobuf:"bytes,82,opt,name=secretEncryptedMessage" json:"secretEncryptedMessage,omitempty"`
-	AlbumMessage                               *AlbumMessage                 `protobuf:"bytes,83,opt,name=albumMessage" json:"albumMessage,omitempty"`
-	EventCoverImage                            *FutureProofMessage           `protobuf:"bytes,85,opt,name=eventCoverImage" json:"eventCoverImage,omitempty"`
-	StickerPackMessage                         *StickerPackMessage           `protobuf:"bytes,86,opt,name=stickerPackMessage" json:"stickerPackMessage,omitempty"`
-	StatusMentionMessage                       *FutureProofMessage           `protobuf:"bytes,87,opt,name=statusMentionMessage" json:"statusMentionMessage,omitempty"`
-	PollResultSnapshotMessage                  *PollResultSnapshotMessage    `protobuf:"bytes,88,opt,name=pollResultSnapshotMessage" json:"pollResultSnapshotMessage,omitempty"`
-	PollCreationOptionImageMessage             *FutureProofMessage           `protobuf:"bytes,90,opt,name=pollCreationOptionImageMessage" json:"pollCreationOptionImageMessage,omitempty"`
-	AssociatedChildMessage                     *FutureProofMessage           `protobuf:"bytes,91,opt,name=associatedChildMessage" json:"associatedChildMessage,omitempty"`
-	GroupStatusMentionMessage                  *FutureProofMessage           `protobuf:"bytes,92,opt,name=groupStatusMentionMessage" json:"groupStatusMentionMessage,omitempty"`
-	PollCreationMessageV4                      *FutureProofMessage           `protobuf:"bytes,93,opt,name=pollCreationMessageV4" json:"pollCreationMessageV4,omitempty"`
-	PollCreationMessageV5                      *FutureProofMessage           `protobuf:"bytes,94,opt,name=pollCreationMessageV5" json:"pollCreationMessageV5,omitempty"`
-	StatusAddYours                             *FutureProofMessage           `protobuf:"bytes,95,opt,name=statusAddYours" json:"statusAddYours,omitempty"`
-	GroupStatusMessage                         *FutureProofMessage           `protobuf:"bytes,96,opt,name=groupStatusMessage" json:"groupStatusMessage,omitempty"`
-	RichResponseMessage                        *AIRichResponseMessage        `protobuf:"bytes,97,opt,name=richResponseMessage" json:"richResponseMessage,omitempty"`
-	StatusNotificationMessage                  *StatusNotificationMessage    `protobuf:"bytes,98,opt,name=statusNotificationMessage" json:"statusNotificationMessage,omitempty"`
-	LimitSharingMessage                        *FutureProofMessage           `protobuf:"bytes,99,opt,name=limitSharingMessage" json:"limitSharingMessage,omitempty"`
-	BotTaskMessage                             *FutureProofMessage           `protobuf:"bytes,100,opt,name=botTaskMessage" json:"botTaskMessage,omitempty"`
-	QuestionMessage                            *FutureProofMessage           `protobuf:"bytes,101,opt,name=questionMessage" json:"questionMessage,omitempty"`
-	MessageHistoryNotice                       *MessageHistoryNotice         `protobuf:"bytes,102,opt,name=messageHistoryNotice" json:"messageHistoryNotice,omitempty"`
-	GroupStatusMessageV2                       *FutureProofMessage           `protobuf:"bytes,103,opt,name=groupStatusMessageV2" json:"groupStatusMessageV2,omitempty"`
-	BotForwardedMessage                        *FutureProofMessage           `protobuf:"bytes,104,opt,name=botForwardedMessage" json:"botForwardedMessage,omitempty"`
-	StatusQuestionAnswerMessage                *StatusQuestionAnswerMessage  `protobuf:"bytes,105,opt,name=statusQuestionAnswerMessage" json:"statusQuestionAnswerMessage,omitempty"`
-	QuestionReplyMessage                       *FutureProofMessage           `protobuf:"bytes,106,opt,name=questionReplyMessage" json:"questionReplyMessage,omitempty"`
-	QuestionResponseMessage                    *QuestionResponseMessage      `protobuf:"bytes,107,opt,name=questionResponseMessage" json:"questionResponseMessage,omitempty"`
+	state                                      protoimpl.MessageState           `protogen:"open.v1"`
+	Conversation                               *string                          `protobuf:"bytes,1,opt,name=conversation" json:"conversation,omitempty"`
+	SenderKeyDistributionMessage               *SenderKeyDistributionMessage    `protobuf:"bytes,2,opt,name=senderKeyDistributionMessage" json:"senderKeyDistributionMessage,omitempty"`
+	ImageMessage                               *ImageMessage                    `protobuf:"bytes,3,opt,name=imageMessage" json:"imageMessage,omitempty"`
+	ContactMessage                             *ContactMessage                  `protobuf:"bytes,4,opt,name=contactMessage" json:"contactMessage,omitempty"`
+	LocationMessage                            *LocationMessage                 `protobuf:"bytes,5,opt,name=locationMessage" json:"locationMessage,omitempty"`
+	ExtendedTextMessage                        *ExtendedTextMessage             `protobuf:"bytes,6,opt,name=extendedTextMessage" json:"extendedTextMessage,omitempty"`
+	DocumentMessage                            *DocumentMessage                 `protobuf:"bytes,7,opt,name=documentMessage" json:"documentMessage,omitempty"`
+	AudioMessage                               *AudioMessage                    `protobuf:"bytes,8,opt,name=audioMessage" json:"audioMessage,omitempty"`
+	VideoMessage                               *VideoMessage                    `protobuf:"bytes,9,opt,name=videoMessage" json:"videoMessage,omitempty"`
+	Call                                       *Call                            `protobuf:"bytes,10,opt,name=call" json:"call,omitempty"`
+	Chat                                       *Chat                            `protobuf:"bytes,11,opt,name=chat" json:"chat,omitempty"`
+	ProtocolMessage                            *ProtocolMessage                 `protobuf:"bytes,12,opt,name=protocolMessage" json:"protocolMessage,omitempty"`
+	ContactsArrayMessage                       *ContactsArrayMessage            `protobuf:"bytes,13,opt,name=contactsArrayMessage" json:"contactsArrayMessage,omitempty"`
+	HighlyStructuredMessage                    *HighlyStructuredMessage         `protobuf:"bytes,14,opt,name=highlyStructuredMessage" json:"highlyStructuredMessage,omitempty"`
+	FastRatchetKeySenderKeyDistributionMessage *SenderKeyDistributionMessage    `protobuf:"bytes,15,opt,name=fastRatchetKeySenderKeyDistributionMessage" json:"fastRatchetKeySenderKeyDistributionMessage,omitempty"`
+	SendPaymentMessage                         *SendPaymentMessage              `protobuf:"bytes,16,opt,name=sendPaymentMessage" json:"sendPaymentMessage,omitempty"`
+	LiveLocationMessage                        *LiveLocationMessage             `protobuf:"bytes,18,opt,name=liveLocationMessage" json:"liveLocationMessage,omitempty"`
+	RequestPaymentMessage                      *RequestPaymentMessage           `protobuf:"bytes,22,opt,name=requestPaymentMessage" json:"requestPaymentMessage,omitempty"`
+	DeclinePaymentRequestMessage               *DeclinePaymentRequestMessage    `protobuf:"bytes,23,opt,name=declinePaymentRequestMessage" json:"declinePaymentRequestMessage,omitempty"`
+	CancelPaymentRequestMessage                *CancelPaymentRequestMessage     `protobuf:"bytes,24,opt,name=cancelPaymentRequestMessage" json:"cancelPaymentRequestMessage,omitempty"`
+	TemplateMessage                            *TemplateMessage                 `protobuf:"bytes,25,opt,name=templateMessage" json:"templateMessage,omitempty"`
+	StickerMessage                             *StickerMessage                  `protobuf:"bytes,26,opt,name=stickerMessage" json:"stickerMessage,omitempty"`
+	GroupInviteMessage                         *GroupInviteMessage              `protobuf:"bytes,28,opt,name=groupInviteMessage" json:"groupInviteMessage,omitempty"`
+	TemplateButtonReplyMessage                 *TemplateButtonReplyMessage      `protobuf:"bytes,29,opt,name=templateButtonReplyMessage" json:"templateButtonReplyMessage,omitempty"`
+	ProductMessage                             *ProductMessage                  `protobuf:"bytes,30,opt,name=productMessage" json:"productMessage,omitempty"`
+	DeviceSentMessage                          *DeviceSentMessage               `protobuf:"bytes,31,opt,name=deviceSentMessage" json:"deviceSentMessage,omitempty"`
+	MessageContextInfo                         *MessageContextInfo              `protobuf:"bytes,35,opt,name=messageContextInfo" json:"messageContextInfo,omitempty"`
+	ListMessage                                *ListMessage                     `protobuf:"bytes,36,opt,name=listMessage" json:"listMessage,omitempty"`
+	ViewOnceMessage                            *FutureProofMessage              `protobuf:"bytes,37,opt,name=viewOnceMessage" json:"viewOnceMessage,omitempty"`
+	OrderMessage                               *OrderMessage                    `protobuf:"bytes,38,opt,name=orderMessage" json:"orderMessage,omitempty"`
+	ListResponseMessage                        *ListResponseMessage             `protobuf:"bytes,39,opt,name=listResponseMessage" json:"listResponseMessage,omitempty"`
+	EphemeralMessage                           *FutureProofMessage              `protobuf:"bytes,40,opt,name=ephemeralMessage" json:"ephemeralMessage,omitempty"`
+	InvoiceMessage                             *InvoiceMessage                  `protobuf:"bytes,41,opt,name=invoiceMessage" json:"invoiceMessage,omitempty"`
+	ButtonsMessage                             *ButtonsMessage                  `protobuf:"bytes,42,opt,name=buttonsMessage" json:"buttonsMessage,omitempty"`
+	ButtonsResponseMessage                     *ButtonsResponseMessage          `protobuf:"bytes,43,opt,name=buttonsResponseMessage" json:"buttonsResponseMessage,omitempty"`
+	PaymentInviteMessage                       *PaymentInviteMessage            `protobuf:"bytes,44,opt,name=paymentInviteMessage" json:"paymentInviteMessage,omitempty"`
+	InteractiveMessage                         *InteractiveMessage              `protobuf:"bytes,45,opt,name=interactiveMessage" json:"interactiveMessage,omitempty"`
+	ReactionMessage                            *ReactionMessage                 `protobuf:"bytes,46,opt,name=reactionMessage" json:"reactionMessage,omitempty"`
+	StickerSyncRmrMessage                      *StickerSyncRMRMessage           `protobuf:"bytes,47,opt,name=stickerSyncRmrMessage" json:"stickerSyncRmrMessage,omitempty"`
+	InteractiveResponseMessage                 *InteractiveResponseMessage      `protobuf:"bytes,48,opt,name=interactiveResponseMessage" json:"interactiveResponseMessage,omitempty"`
+	PollCreationMessage                        *PollCreationMessage             `protobuf:"bytes,49,opt,name=pollCreationMessage" json:"pollCreationMessage,omitempty"`
+	PollUpdateMessage                          *PollUpdateMessage               `protobuf:"bytes,50,opt,name=pollUpdateMessage" json:"pollUpdateMessage,omitempty"`
+	KeepInChatMessage                          *KeepInChatMessage               `protobuf:"bytes,51,opt,name=keepInChatMessage" json:"keepInChatMessage,omitempty"`
+	DocumentWithCaptionMessage                 *FutureProofMessage              `protobuf:"bytes,53,opt,name=documentWithCaptionMessage" json:"documentWithCaptionMessage,omitempty"`
+	RequestPhoneNumberMessage                  *RequestPhoneNumberMessage       `protobuf:"bytes,54,opt,name=requestPhoneNumberMessage" json:"requestPhoneNumberMessage,omitempty"`
+	ViewOnceMessageV2                          *FutureProofMessage              `protobuf:"bytes,55,opt,name=viewOnceMessageV2" json:"viewOnceMessageV2,omitempty"`
+	EncReactionMessage                         *EncReactionMessage              `protobuf:"bytes,56,opt,name=encReactionMessage" json:"encReactionMessage,omitempty"`
+	EditedMessage                              *FutureProofMessage              `protobuf:"bytes,58,opt,name=editedMessage" json:"editedMessage,omitempty"`
+	ViewOnceMessageV2Extension                 *FutureProofMessage              `protobuf:"bytes,59,opt,name=viewOnceMessageV2Extension" json:"viewOnceMessageV2Extension,omitempty"`
+	PollCreationMessageV2                      *PollCreationMessage             `protobuf:"bytes,60,opt,name=pollCreationMessageV2" json:"pollCreationMessageV2,omitempty"`
+	ScheduledCallCreationMessage               *ScheduledCallCreationMessage    `protobuf:"bytes,61,opt,name=scheduledCallCreationMessage" json:"scheduledCallCreationMessage,omitempty"`
+	GroupMentionedMessage                      *FutureProofMessage              `protobuf:"bytes,62,opt,name=groupMentionedMessage" json:"groupMentionedMessage,omitempty"`
+	PinInChatMessage                           *PinInChatMessage                `protobuf:"bytes,63,opt,name=pinInChatMessage" json:"pinInChatMessage,omitempty"`
+	PollCreationMessageV3                      *PollCreationMessage             `protobuf:"bytes,64,opt,name=pollCreationMessageV3" json:"pollCreationMessageV3,omitempty"`
+	ScheduledCallEditMessage                   *ScheduledCallEditMessage        `protobuf:"bytes,65,opt,name=scheduledCallEditMessage" json:"scheduledCallEditMessage,omitempty"`
+	PtvMessage                                 *VideoMessage                    `protobuf:"bytes,66,opt,name=ptvMessage" json:"ptvMessage,omitempty"`
+	BotInvokeMessage                           *FutureProofMessage              `protobuf:"bytes,67,opt,name=botInvokeMessage" json:"botInvokeMessage,omitempty"`
+	CallLogMesssage                            *CallLogMessage                  `protobuf:"bytes,69,opt,name=callLogMesssage" json:"callLogMesssage,omitempty"`
+	MessageHistoryBundle                       *MessageHistoryBundle            `protobuf:"bytes,70,opt,name=messageHistoryBundle" json:"messageHistoryBundle,omitempty"`
+	EncCommentMessage                          *EncCommentMessage               `protobuf:"bytes,71,opt,name=encCommentMessage" json:"encCommentMessage,omitempty"`
+	BcallMessage                               *BCallMessage                    `protobuf:"bytes,72,opt,name=bcallMessage" json:"bcallMessage,omitempty"`
+	LottieStickerMessage                       *FutureProofMessage              `protobuf:"bytes,74,opt,name=lottieStickerMessage" json:"lottieStickerMessage,omitempty"`
+	EventMessage                               *EventMessage                    `protobuf:"bytes,75,opt,name=eventMessage" json:"eventMessage,omitempty"`
+	EncEventResponseMessage                    *EncEventResponseMessage         `protobuf:"bytes,76,opt,name=encEventResponseMessage" json:"encEventResponseMessage,omitempty"`
+	CommentMessage                             *CommentMessage                  `protobuf:"bytes,77,opt,name=commentMessage" json:"commentMessage,omitempty"`
+	NewsletterAdminInviteMessage               *NewsletterAdminInviteMessage    `protobuf:"bytes,78,opt,name=newsletterAdminInviteMessage" json:"newsletterAdminInviteMessage,omitempty"`
+	PlaceholderMessage                         *PlaceholderMessage              `protobuf:"bytes,80,opt,name=placeholderMessage" json:"placeholderMessage,omitempty"`
+	SecretEncryptedMessage                     *SecretEncryptedMessage          `protobuf:"bytes,82,opt,name=secretEncryptedMessage" json:"secretEncryptedMessage,omitempty"`
+	AlbumMessage                               *AlbumMessage                    `protobuf:"bytes,83,opt,name=albumMessage" json:"albumMessage,omitempty"`
+	EventCoverImage                            *FutureProofMessage              `protobuf:"bytes,85,opt,name=eventCoverImage" json:"eventCoverImage,omitempty"`
+	StickerPackMessage                         *StickerPackMessage              `protobuf:"bytes,86,opt,name=stickerPackMessage" json:"stickerPackMessage,omitempty"`
+	StatusMentionMessage                       *FutureProofMessage              `protobuf:"bytes,87,opt,name=statusMentionMessage" json:"statusMentionMessage,omitempty"`
+	PollResultSnapshotMessage                  *PollResultSnapshotMessage       `protobuf:"bytes,88,opt,name=pollResultSnapshotMessage" json:"pollResultSnapshotMessage,omitempty"`
+	PollCreationOptionImageMessage             *FutureProofMessage              `protobuf:"bytes,90,opt,name=pollCreationOptionImageMessage" json:"pollCreationOptionImageMessage,omitempty"`
+	AssociatedChildMessage                     *FutureProofMessage              `protobuf:"bytes,91,opt,name=associatedChildMessage" json:"associatedChildMessage,omitempty"`
+	GroupStatusMentionMessage                  *FutureProofMessage              `protobuf:"bytes,92,opt,name=groupStatusMentionMessage" json:"groupStatusMentionMessage,omitempty"`
+	PollCreationMessageV4                      *FutureProofMessage              `protobuf:"bytes,93,opt,name=pollCreationMessageV4" json:"pollCreationMessageV4,omitempty"`
+	PollCreationMessageV5                      *FutureProofMessage              `protobuf:"bytes,94,opt,name=pollCreationMessageV5" json:"pollCreationMessageV5,omitempty"`
+	StatusAddYours                             *FutureProofMessage              `protobuf:"bytes,95,opt,name=statusAddYours" json:"statusAddYours,omitempty"`
+	GroupStatusMessage                         *FutureProofMessage              `protobuf:"bytes,96,opt,name=groupStatusMessage" json:"groupStatusMessage,omitempty"`
+	RichResponseMessage                        *AIRichResponseMessage           `protobuf:"bytes,97,opt,name=richResponseMessage" json:"richResponseMessage,omitempty"`
+	StatusNotificationMessage                  *StatusNotificationMessage       `protobuf:"bytes,98,opt,name=statusNotificationMessage" json:"statusNotificationMessage,omitempty"`
+	LimitSharingMessage                        *FutureProofMessage              `protobuf:"bytes,99,opt,name=limitSharingMessage" json:"limitSharingMessage,omitempty"`
+	BotTaskMessage                             *FutureProofMessage              `protobuf:"bytes,100,opt,name=botTaskMessage" json:"botTaskMessage,omitempty"`
+	QuestionMessage                            *FutureProofMessage              `protobuf:"bytes,101,opt,name=questionMessage" json:"questionMessage,omitempty"`
+	MessageHistoryNotice                       *MessageHistoryNotice            `protobuf:"bytes,102,opt,name=messageHistoryNotice" json:"messageHistoryNotice,omitempty"`
+	GroupStatusMessageV2                       *FutureProofMessage              `protobuf:"bytes,103,opt,name=groupStatusMessageV2" json:"groupStatusMessageV2,omitempty"`
+	BotForwardedMessage                        *FutureProofMessage              `protobuf:"bytes,104,opt,name=botForwardedMessage" json:"botForwardedMessage,omitempty"`
+	StatusQuestionAnswerMessage                *StatusQuestionAnswerMessage     `protobuf:"bytes,105,opt,name=statusQuestionAnswerMessage" json:"statusQuestionAnswerMessage,omitempty"`
+	QuestionReplyMessage                       *FutureProofMessage              `protobuf:"bytes,106,opt,name=questionReplyMessage" json:"questionReplyMessage,omitempty"`
+	QuestionResponseMessage                    *QuestionResponseMessage         `protobuf:"bytes,107,opt,name=questionResponseMessage" json:"questionResponseMessage,omitempty"`
+	NewsletterFollowerInviteMessage            *NewsletterFollowerInviteMessage `protobuf:"bytes,108,opt,name=newsletterFollowerInviteMessage" json:"newsletterFollowerInviteMessage,omitempty"`
+	StatusQuotedMessage                        *StatusQuotedMessage             `protobuf:"bytes,109,opt,name=statusQuotedMessage" json:"statusQuotedMessage,omitempty"`
+	StatusStickerInteractionMessage            *StatusStickerInteractionMessage `protobuf:"bytes,110,opt,name=statusStickerInteractionMessage" json:"statusStickerInteractionMessage,omitempty"`
 	unknownFields                              protoimpl.UnknownFields
 	sizeCache                                  protoimpl.SizeCache
 }
 
 func (x *Message) Reset() {
 	*x = Message{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[43]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9790,7 +9245,7 @@ func (x *Message) String() string {
 func (*Message) ProtoMessage() {}
 
 func (x *Message) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[43]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9803,7 +9258,7 @@ func (x *Message) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Message.ProtoReflect.Descriptor instead.
 func (*Message) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{43}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *Message) GetConversation() string {
@@ -10443,6 +9898,27 @@ func (x *Message) GetQuestionResponseMessage() *QuestionResponseMessage {
 	return nil
 }
 
+func (x *Message) GetNewsletterFollowerInviteMessage() *NewsletterFollowerInviteMessage {
+	if x != nil {
+		return x.NewsletterFollowerInviteMessage
+	}
+	return nil
+}
+
+func (x *Message) GetStatusQuotedMessage() *StatusQuotedMessage {
+	if x != nil {
+		return x.StatusQuotedMessage
+	}
+	return nil
+}
+
+func (x *Message) GetStatusStickerInteractionMessage() *StatusStickerInteractionMessage {
+	if x != nil {
+		return x.StatusStickerInteractionMessage
+	}
+	return nil
+}
+
 type AlbumMessage struct {
 	state              protoimpl.MessageState `protogen:"open.v1"`
 	ExpectedImageCount *uint32                `protobuf:"varint,2,opt,name=expectedImageCount" json:"expectedImageCount,omitempty"`
@@ -10454,7 +9930,7 @@ type AlbumMessage struct {
 
 func (x *AlbumMessage) Reset() {
 	*x = AlbumMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[44]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10466,7 +9942,7 @@ func (x *AlbumMessage) String() string {
 func (*AlbumMessage) ProtoMessage() {}
 
 func (x *AlbumMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[44]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10479,7 +9955,7 @@ func (x *AlbumMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AlbumMessage.ProtoReflect.Descriptor instead.
 func (*AlbumMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{44}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *AlbumMessage) GetExpectedImageCount() uint32 {
@@ -10514,7 +9990,7 @@ type MessageHistoryMetadata struct {
 
 func (x *MessageHistoryMetadata) Reset() {
 	*x = MessageHistoryMetadata{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[45]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10526,7 +10002,7 @@ func (x *MessageHistoryMetadata) String() string {
 func (*MessageHistoryMetadata) ProtoMessage() {}
 
 func (x *MessageHistoryMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[45]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10539,7 +10015,7 @@ func (x *MessageHistoryMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MessageHistoryMetadata.ProtoReflect.Descriptor instead.
 func (*MessageHistoryMetadata) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{45}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *MessageHistoryMetadata) GetHistoryReceivers() []string {
@@ -10573,7 +10049,7 @@ type MessageHistoryNotice struct {
 
 func (x *MessageHistoryNotice) Reset() {
 	*x = MessageHistoryNotice{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[46]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10585,7 +10061,7 @@ func (x *MessageHistoryNotice) String() string {
 func (*MessageHistoryNotice) ProtoMessage() {}
 
 func (x *MessageHistoryNotice) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[46]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10598,7 +10074,7 @@ func (x *MessageHistoryNotice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MessageHistoryNotice.ProtoReflect.Descriptor instead.
 func (*MessageHistoryNotice) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{46}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *MessageHistoryNotice) GetContextInfo() *ContextInfo {
@@ -10631,7 +10107,7 @@ type MessageHistoryBundle struct {
 
 func (x *MessageHistoryBundle) Reset() {
 	*x = MessageHistoryBundle{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[47]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10643,7 +10119,7 @@ func (x *MessageHistoryBundle) String() string {
 func (*MessageHistoryBundle) ProtoMessage() {}
 
 func (x *MessageHistoryBundle) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[47]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10656,7 +10132,7 @@ func (x *MessageHistoryBundle) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MessageHistoryBundle.ProtoReflect.Descriptor instead.
 func (*MessageHistoryBundle) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{47}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *MessageHistoryBundle) GetMimetype() string {
@@ -10726,7 +10202,7 @@ type EncEventResponseMessage struct {
 
 func (x *EncEventResponseMessage) Reset() {
 	*x = EncEventResponseMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[48]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10738,7 +10214,7 @@ func (x *EncEventResponseMessage) String() string {
 func (*EncEventResponseMessage) ProtoMessage() {}
 
 func (x *EncEventResponseMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[48]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10751,7 +10227,7 @@ func (x *EncEventResponseMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EncEventResponseMessage.ProtoReflect.Descriptor instead.
 func (*EncEventResponseMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{48}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *EncEventResponseMessage) GetEventCreationMessageKey() *waCommon.MessageKey {
@@ -10793,7 +10269,7 @@ type EventMessage struct {
 
 func (x *EventMessage) Reset() {
 	*x = EventMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[49]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10805,7 +10281,7 @@ func (x *EventMessage) String() string {
 func (*EventMessage) ProtoMessage() {}
 
 func (x *EventMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[49]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10818,7 +10294,7 @@ func (x *EventMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventMessage.ProtoReflect.Descriptor instead.
 func (*EventMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{49}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *EventMessage) GetContextInfo() *ContextInfo {
@@ -10901,7 +10377,7 @@ type CommentMessage struct {
 
 func (x *CommentMessage) Reset() {
 	*x = CommentMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[50]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10913,7 +10389,7 @@ func (x *CommentMessage) String() string {
 func (*CommentMessage) ProtoMessage() {}
 
 func (x *CommentMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[50]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10926,7 +10402,7 @@ func (x *CommentMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CommentMessage.ProtoReflect.Descriptor instead.
 func (*CommentMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{50}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *CommentMessage) GetMessage() *Message {
@@ -10954,7 +10430,7 @@ type EncCommentMessage struct {
 
 func (x *EncCommentMessage) Reset() {
 	*x = EncCommentMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[51]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10966,7 +10442,7 @@ func (x *EncCommentMessage) String() string {
 func (*EncCommentMessage) ProtoMessage() {}
 
 func (x *EncCommentMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[51]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10979,7 +10455,7 @@ func (x *EncCommentMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EncCommentMessage.ProtoReflect.Descriptor instead.
 func (*EncCommentMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{51}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *EncCommentMessage) GetTargetMessageKey() *waCommon.MessageKey {
@@ -11014,7 +10490,7 @@ type EncReactionMessage struct {
 
 func (x *EncReactionMessage) Reset() {
 	*x = EncReactionMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[52]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11026,7 +10502,7 @@ func (x *EncReactionMessage) String() string {
 func (*EncReactionMessage) ProtoMessage() {}
 
 func (x *EncReactionMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[52]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11039,7 +10515,7 @@ func (x *EncReactionMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EncReactionMessage.ProtoReflect.Descriptor instead.
 func (*EncReactionMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{52}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *EncReactionMessage) GetTargetMessageKey() *waCommon.MessageKey {
@@ -11074,7 +10550,7 @@ type KeepInChatMessage struct {
 
 func (x *KeepInChatMessage) Reset() {
 	*x = KeepInChatMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[53]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11086,7 +10562,7 @@ func (x *KeepInChatMessage) String() string {
 func (*KeepInChatMessage) ProtoMessage() {}
 
 func (x *KeepInChatMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[53]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11099,7 +10575,7 @@ func (x *KeepInChatMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeepInChatMessage.ProtoReflect.Descriptor instead.
 func (*KeepInChatMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{53}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *KeepInChatMessage) GetKey() *waCommon.MessageKey {
@@ -11133,7 +10609,7 @@ type QuestionResponseMessage struct {
 
 func (x *QuestionResponseMessage) Reset() {
 	*x = QuestionResponseMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[54]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11145,7 +10621,7 @@ func (x *QuestionResponseMessage) String() string {
 func (*QuestionResponseMessage) ProtoMessage() {}
 
 func (x *QuestionResponseMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[54]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11158,7 +10634,7 @@ func (x *QuestionResponseMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QuestionResponseMessage.ProtoReflect.Descriptor instead.
 func (*QuestionResponseMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{54}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *QuestionResponseMessage) GetKey() *waCommon.MessageKey {
@@ -11185,7 +10661,7 @@ type StatusQuestionAnswerMessage struct {
 
 func (x *StatusQuestionAnswerMessage) Reset() {
 	*x = StatusQuestionAnswerMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[55]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11197,7 +10673,7 @@ func (x *StatusQuestionAnswerMessage) String() string {
 func (*StatusQuestionAnswerMessage) ProtoMessage() {}
 
 func (x *StatusQuestionAnswerMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[55]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11210,7 +10686,7 @@ func (x *StatusQuestionAnswerMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusQuestionAnswerMessage.ProtoReflect.Descriptor instead.
 func (*StatusQuestionAnswerMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{55}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *StatusQuestionAnswerMessage) GetKey() *waCommon.MessageKey {
@@ -11238,7 +10714,7 @@ type PollResultSnapshotMessage struct {
 
 func (x *PollResultSnapshotMessage) Reset() {
 	*x = PollResultSnapshotMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[56]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11250,7 +10726,7 @@ func (x *PollResultSnapshotMessage) String() string {
 func (*PollResultSnapshotMessage) ProtoMessage() {}
 
 func (x *PollResultSnapshotMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[56]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11263,7 +10739,7 @@ func (x *PollResultSnapshotMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PollResultSnapshotMessage.ProtoReflect.Descriptor instead.
 func (*PollResultSnapshotMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{56}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *PollResultSnapshotMessage) GetName() string {
@@ -11296,7 +10772,7 @@ type PollVoteMessage struct {
 
 func (x *PollVoteMessage) Reset() {
 	*x = PollVoteMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[57]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11308,7 +10784,7 @@ func (x *PollVoteMessage) String() string {
 func (*PollVoteMessage) ProtoMessage() {}
 
 func (x *PollVoteMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[57]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11321,7 +10797,7 @@ func (x *PollVoteMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PollVoteMessage.ProtoReflect.Descriptor instead.
 func (*PollVoteMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{57}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *PollVoteMessage) GetSelectedOptions() [][]byte {
@@ -11341,7 +10817,7 @@ type PollEncValue struct {
 
 func (x *PollEncValue) Reset() {
 	*x = PollEncValue{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[58]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11353,7 +10829,7 @@ func (x *PollEncValue) String() string {
 func (*PollEncValue) ProtoMessage() {}
 
 func (x *PollEncValue) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[58]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11366,7 +10842,7 @@ func (x *PollEncValue) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PollEncValue.ProtoReflect.Descriptor instead.
 func (*PollEncValue) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{58}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *PollEncValue) GetEncPayload() []byte {
@@ -11391,7 +10867,7 @@ type PollUpdateMessageMetadata struct {
 
 func (x *PollUpdateMessageMetadata) Reset() {
 	*x = PollUpdateMessageMetadata{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[59]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11403,7 +10879,7 @@ func (x *PollUpdateMessageMetadata) String() string {
 func (*PollUpdateMessageMetadata) ProtoMessage() {}
 
 func (x *PollUpdateMessageMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[59]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11416,7 +10892,7 @@ func (x *PollUpdateMessageMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PollUpdateMessageMetadata.ProtoReflect.Descriptor instead.
 func (*PollUpdateMessageMetadata) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{59}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{58}
 }
 
 type PollUpdateMessage struct {
@@ -11431,7 +10907,7 @@ type PollUpdateMessage struct {
 
 func (x *PollUpdateMessage) Reset() {
 	*x = PollUpdateMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[60]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11443,7 +10919,7 @@ func (x *PollUpdateMessage) String() string {
 func (*PollUpdateMessage) ProtoMessage() {}
 
 func (x *PollUpdateMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[60]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11456,7 +10932,7 @@ func (x *PollUpdateMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PollUpdateMessage.ProtoReflect.Descriptor instead.
 func (*PollUpdateMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{60}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *PollUpdateMessage) GetPollCreationMessageKey() *waCommon.MessageKey {
@@ -11498,7 +10974,7 @@ type StickerSyncRMRMessage struct {
 
 func (x *StickerSyncRMRMessage) Reset() {
 	*x = StickerSyncRMRMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[61]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11510,7 +10986,7 @@ func (x *StickerSyncRMRMessage) String() string {
 func (*StickerSyncRMRMessage) ProtoMessage() {}
 
 func (x *StickerSyncRMRMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[61]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11523,7 +10999,7 @@ func (x *StickerSyncRMRMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StickerSyncRMRMessage.ProtoReflect.Descriptor instead.
 func (*StickerSyncRMRMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{61}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *StickerSyncRMRMessage) GetFilehash() []string {
@@ -11559,7 +11035,7 @@ type ReactionMessage struct {
 
 func (x *ReactionMessage) Reset() {
 	*x = ReactionMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[62]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11571,7 +11047,7 @@ func (x *ReactionMessage) String() string {
 func (*ReactionMessage) ProtoMessage() {}
 
 func (x *ReactionMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[62]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11584,7 +11060,7 @@ func (x *ReactionMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReactionMessage.ProtoReflect.Descriptor instead.
 func (*ReactionMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{62}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *ReactionMessage) GetKey() *waCommon.MessageKey {
@@ -11624,7 +11100,7 @@ type FutureProofMessage struct {
 
 func (x *FutureProofMessage) Reset() {
 	*x = FutureProofMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[63]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11636,7 +11112,7 @@ func (x *FutureProofMessage) String() string {
 func (*FutureProofMessage) ProtoMessage() {}
 
 func (x *FutureProofMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[63]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11649,7 +11125,7 @@ func (x *FutureProofMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FutureProofMessage.ProtoReflect.Descriptor instead.
 func (*FutureProofMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{63}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *FutureProofMessage) GetMessage() *Message {
@@ -11670,7 +11146,7 @@ type DeviceSentMessage struct {
 
 func (x *DeviceSentMessage) Reset() {
 	*x = DeviceSentMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[64]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11682,7 +11158,7 @@ func (x *DeviceSentMessage) String() string {
 func (*DeviceSentMessage) ProtoMessage() {}
 
 func (x *DeviceSentMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[64]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11695,7 +11171,7 @@ func (x *DeviceSentMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeviceSentMessage.ProtoReflect.Descriptor instead.
 func (*DeviceSentMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{64}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *DeviceSentMessage) GetDestinationJID() string {
@@ -11728,7 +11204,7 @@ type RequestPhoneNumberMessage struct {
 
 func (x *RequestPhoneNumberMessage) Reset() {
 	*x = RequestPhoneNumberMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[65]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11740,7 +11216,7 @@ func (x *RequestPhoneNumberMessage) String() string {
 func (*RequestPhoneNumberMessage) ProtoMessage() {}
 
 func (x *RequestPhoneNumberMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[65]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11753,10 +11229,86 @@ func (x *RequestPhoneNumberMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RequestPhoneNumberMessage.ProtoReflect.Descriptor instead.
 func (*RequestPhoneNumberMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{65}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *RequestPhoneNumberMessage) GetContextInfo() *ContextInfo {
+	if x != nil {
+		return x.ContextInfo
+	}
+	return nil
+}
+
+type NewsletterFollowerInviteMessage struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	NewsletterJID  *string                `protobuf:"bytes,1,opt,name=newsletterJID" json:"newsletterJID,omitempty"`
+	NewsletterName *string                `protobuf:"bytes,2,opt,name=newsletterName" json:"newsletterName,omitempty"`
+	JPEGThumbnail  []byte                 `protobuf:"bytes,3,opt,name=JPEGThumbnail" json:"JPEGThumbnail,omitempty"`
+	Caption        *string                `protobuf:"bytes,4,opt,name=caption" json:"caption,omitempty"`
+	ContextInfo    *ContextInfo           `protobuf:"bytes,5,opt,name=contextInfo" json:"contextInfo,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *NewsletterFollowerInviteMessage) Reset() {
+	*x = NewsletterFollowerInviteMessage{}
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[65]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NewsletterFollowerInviteMessage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NewsletterFollowerInviteMessage) ProtoMessage() {}
+
+func (x *NewsletterFollowerInviteMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[65]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NewsletterFollowerInviteMessage.ProtoReflect.Descriptor instead.
+func (*NewsletterFollowerInviteMessage) Descriptor() ([]byte, []int) {
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{65}
+}
+
+func (x *NewsletterFollowerInviteMessage) GetNewsletterJID() string {
+	if x != nil && x.NewsletterJID != nil {
+		return *x.NewsletterJID
+	}
+	return ""
+}
+
+func (x *NewsletterFollowerInviteMessage) GetNewsletterName() string {
+	if x != nil && x.NewsletterName != nil {
+		return *x.NewsletterName
+	}
+	return ""
+}
+
+func (x *NewsletterFollowerInviteMessage) GetJPEGThumbnail() []byte {
+	if x != nil {
+		return x.JPEGThumbnail
+	}
+	return nil
+}
+
+func (x *NewsletterFollowerInviteMessage) GetCaption() string {
+	if x != nil && x.Caption != nil {
+		return *x.Caption
+	}
+	return ""
+}
+
+func (x *NewsletterFollowerInviteMessage) GetContextInfo() *ContextInfo {
 	if x != nil {
 		return x.ContextInfo
 	}
@@ -12810,6 +12362,7 @@ type PeerDataOperationRequestMessage struct {
 	PlaceholderMessageResendRequest     []*PeerDataOperationRequestMessage_PlaceholderMessageResendRequest   `protobuf:"bytes,5,rep,name=placeholderMessageResendRequest" json:"placeholderMessageResendRequest,omitempty"`
 	FullHistorySyncOnDemandRequest      *PeerDataOperationRequestMessage_FullHistorySyncOnDemandRequest      `protobuf:"bytes,6,opt,name=fullHistorySyncOnDemandRequest" json:"fullHistorySyncOnDemandRequest,omitempty"`
 	SyncdCollectionFatalRecoveryRequest *PeerDataOperationRequestMessage_SyncDCollectionFatalRecoveryRequest `protobuf:"bytes,7,opt,name=syncdCollectionFatalRecoveryRequest" json:"syncdCollectionFatalRecoveryRequest,omitempty"`
+	HistorySyncChunkRetryRequest        *PeerDataOperationRequestMessage_HistorySyncChunkRetryRequest        `protobuf:"bytes,8,opt,name=historySyncChunkRetryRequest" json:"historySyncChunkRetryRequest,omitempty"`
 	unknownFields                       protoimpl.UnknownFields
 	sizeCache                           protoimpl.SizeCache
 }
@@ -12889,6 +12442,13 @@ func (x *PeerDataOperationRequestMessage) GetFullHistorySyncOnDemandRequest() *P
 func (x *PeerDataOperationRequestMessage) GetSyncdCollectionFatalRecoveryRequest() *PeerDataOperationRequestMessage_SyncDCollectionFatalRecoveryRequest {
 	if x != nil {
 		return x.SyncdCollectionFatalRecoveryRequest
+	}
+	return nil
+}
+
+func (x *PeerDataOperationRequestMessage) GetHistorySyncChunkRetryRequest() *PeerDataOperationRequestMessage_HistorySyncChunkRetryRequest {
+	if x != nil {
+		return x.HistorySyncChunkRetryRequest
 	}
 	return nil
 }
@@ -13293,6 +12853,154 @@ func (x *AppStateSyncKey) GetKeyData() *AppStateSyncKeyData {
 	return nil
 }
 
+type HistorySyncNotification struct {
+	state                                  protoimpl.MessageState                  `protogen:"open.v1"`
+	FileSHA256                             []byte                                  `protobuf:"bytes,1,opt,name=fileSHA256" json:"fileSHA256,omitempty"`
+	FileLength                             *uint64                                 `protobuf:"varint,2,opt,name=fileLength" json:"fileLength,omitempty"`
+	MediaKey                               []byte                                  `protobuf:"bytes,3,opt,name=mediaKey" json:"mediaKey,omitempty"`
+	FileEncSHA256                          []byte                                  `protobuf:"bytes,4,opt,name=fileEncSHA256" json:"fileEncSHA256,omitempty"`
+	DirectPath                             *string                                 `protobuf:"bytes,5,opt,name=directPath" json:"directPath,omitempty"`
+	SyncType                               *HistorySyncType                        `protobuf:"varint,6,opt,name=syncType,enum=WAWebProtobufsE2E.HistorySyncType" json:"syncType,omitempty"`
+	ChunkOrder                             *uint32                                 `protobuf:"varint,7,opt,name=chunkOrder" json:"chunkOrder,omitempty"`
+	OriginalMessageID                      *string                                 `protobuf:"bytes,8,opt,name=originalMessageID" json:"originalMessageID,omitempty"`
+	Progress                               *uint32                                 `protobuf:"varint,9,opt,name=progress" json:"progress,omitempty"`
+	OldestMsgInChunkTimestampSec           *int64                                  `protobuf:"varint,10,opt,name=oldestMsgInChunkTimestampSec" json:"oldestMsgInChunkTimestampSec,omitempty"`
+	InitialHistBootstrapInlinePayload      []byte                                  `protobuf:"bytes,11,opt,name=initialHistBootstrapInlinePayload" json:"initialHistBootstrapInlinePayload,omitempty"`
+	PeerDataRequestSessionID               *string                                 `protobuf:"bytes,12,opt,name=peerDataRequestSessionID" json:"peerDataRequestSessionID,omitempty"`
+	FullHistorySyncOnDemandRequestMetadata *FullHistorySyncOnDemandRequestMetadata `protobuf:"bytes,13,opt,name=fullHistorySyncOnDemandRequestMetadata" json:"fullHistorySyncOnDemandRequestMetadata,omitempty"`
+	EncHandle                              *string                                 `protobuf:"bytes,14,opt,name=encHandle" json:"encHandle,omitempty"`
+	unknownFields                          protoimpl.UnknownFields
+	sizeCache                              protoimpl.SizeCache
+}
+
+func (x *HistorySyncNotification) Reset() {
+	*x = HistorySyncNotification{}
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[87]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HistorySyncNotification) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HistorySyncNotification) ProtoMessage() {}
+
+func (x *HistorySyncNotification) ProtoReflect() protoreflect.Message {
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[87]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HistorySyncNotification.ProtoReflect.Descriptor instead.
+func (*HistorySyncNotification) Descriptor() ([]byte, []int) {
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{87}
+}
+
+func (x *HistorySyncNotification) GetFileSHA256() []byte {
+	if x != nil {
+		return x.FileSHA256
+	}
+	return nil
+}
+
+func (x *HistorySyncNotification) GetFileLength() uint64 {
+	if x != nil && x.FileLength != nil {
+		return *x.FileLength
+	}
+	return 0
+}
+
+func (x *HistorySyncNotification) GetMediaKey() []byte {
+	if x != nil {
+		return x.MediaKey
+	}
+	return nil
+}
+
+func (x *HistorySyncNotification) GetFileEncSHA256() []byte {
+	if x != nil {
+		return x.FileEncSHA256
+	}
+	return nil
+}
+
+func (x *HistorySyncNotification) GetDirectPath() string {
+	if x != nil && x.DirectPath != nil {
+		return *x.DirectPath
+	}
+	return ""
+}
+
+func (x *HistorySyncNotification) GetSyncType() HistorySyncType {
+	if x != nil && x.SyncType != nil {
+		return *x.SyncType
+	}
+	return HistorySyncType_INITIAL_BOOTSTRAP
+}
+
+func (x *HistorySyncNotification) GetChunkOrder() uint32 {
+	if x != nil && x.ChunkOrder != nil {
+		return *x.ChunkOrder
+	}
+	return 0
+}
+
+func (x *HistorySyncNotification) GetOriginalMessageID() string {
+	if x != nil && x.OriginalMessageID != nil {
+		return *x.OriginalMessageID
+	}
+	return ""
+}
+
+func (x *HistorySyncNotification) GetProgress() uint32 {
+	if x != nil && x.Progress != nil {
+		return *x.Progress
+	}
+	return 0
+}
+
+func (x *HistorySyncNotification) GetOldestMsgInChunkTimestampSec() int64 {
+	if x != nil && x.OldestMsgInChunkTimestampSec != nil {
+		return *x.OldestMsgInChunkTimestampSec
+	}
+	return 0
+}
+
+func (x *HistorySyncNotification) GetInitialHistBootstrapInlinePayload() []byte {
+	if x != nil {
+		return x.InitialHistBootstrapInlinePayload
+	}
+	return nil
+}
+
+func (x *HistorySyncNotification) GetPeerDataRequestSessionID() string {
+	if x != nil && x.PeerDataRequestSessionID != nil {
+		return *x.PeerDataRequestSessionID
+	}
+	return ""
+}
+
+func (x *HistorySyncNotification) GetFullHistorySyncOnDemandRequestMetadata() *FullHistorySyncOnDemandRequestMetadata {
+	if x != nil {
+		return x.FullHistorySyncOnDemandRequestMetadata
+	}
+	return nil
+}
+
+func (x *HistorySyncNotification) GetEncHandle() string {
+	if x != nil && x.EncHandle != nil {
+		return *x.EncHandle
+	}
+	return ""
+}
+
 type Chat struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	DisplayName   *string                `protobuf:"bytes,1,opt,name=displayName" json:"displayName,omitempty"`
@@ -13303,7 +13011,7 @@ type Chat struct {
 
 func (x *Chat) Reset() {
 	*x = Chat{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[87]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[88]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13315,7 +13023,7 @@ func (x *Chat) String() string {
 func (*Chat) ProtoMessage() {}
 
 func (x *Chat) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[87]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[88]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13328,7 +13036,7 @@ func (x *Chat) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Chat.ProtoReflect.Descriptor instead.
 func (*Chat) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{87}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{88}
 }
 
 func (x *Chat) GetDisplayName() string {
@@ -13362,7 +13070,7 @@ type Call struct {
 
 func (x *Call) Reset() {
 	*x = Call{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[88]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[89]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13374,7 +13082,7 @@ func (x *Call) String() string {
 func (*Call) ProtoMessage() {}
 
 func (x *Call) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[88]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[89]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13387,7 +13095,7 @@ func (x *Call) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Call.ProtoReflect.Descriptor instead.
 func (*Call) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{88}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{89}
 }
 
 func (x *Call) GetCallKey() []byte {
@@ -13478,7 +13186,7 @@ type AudioMessage struct {
 
 func (x *AudioMessage) Reset() {
 	*x = AudioMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[89]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[90]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13490,7 +13198,7 @@ func (x *AudioMessage) String() string {
 func (*AudioMessage) ProtoMessage() {}
 
 func (x *AudioMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[89]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[90]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13503,7 +13211,7 @@ func (x *AudioMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AudioMessage.ProtoReflect.Descriptor instead.
 func (*AudioMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{89}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{90}
 }
 
 func (x *AudioMessage) GetURL() string {
@@ -13655,7 +13363,7 @@ type DocumentMessage struct {
 
 func (x *DocumentMessage) Reset() {
 	*x = DocumentMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[90]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[91]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13667,7 +13375,7 @@ func (x *DocumentMessage) String() string {
 func (*DocumentMessage) ProtoMessage() {}
 
 func (x *DocumentMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[90]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[91]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13680,7 +13388,7 @@ func (x *DocumentMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DocumentMessage.ProtoReflect.Descriptor instead.
 func (*DocumentMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{90}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{91}
 }
 
 func (x *DocumentMessage) GetURL() string {
@@ -13846,7 +13554,7 @@ type URLMetadata struct {
 
 func (x *URLMetadata) Reset() {
 	*x = URLMetadata{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[91]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[92]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13858,7 +13566,7 @@ func (x *URLMetadata) String() string {
 func (*URLMetadata) ProtoMessage() {}
 
 func (x *URLMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[91]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[92]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13871,7 +13579,7 @@ func (x *URLMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use URLMetadata.ProtoReflect.Descriptor instead.
 func (*URLMetadata) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{91}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{92}
 }
 
 func (x *URLMetadata) GetFbExperimentID() uint32 {
@@ -13897,7 +13605,7 @@ type MMSThumbnailMetadata struct {
 
 func (x *MMSThumbnailMetadata) Reset() {
 	*x = MMSThumbnailMetadata{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[92]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[93]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13909,7 +13617,7 @@ func (x *MMSThumbnailMetadata) String() string {
 func (*MMSThumbnailMetadata) ProtoMessage() {}
 
 func (x *MMSThumbnailMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[92]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[93]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13922,7 +13630,7 @@ func (x *MMSThumbnailMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MMSThumbnailMetadata.ProtoReflect.Descriptor instead.
 func (*MMSThumbnailMetadata) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{92}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{93}
 }
 
 func (x *MMSThumbnailMetadata) GetThumbnailDirectPath() string {
@@ -14001,7 +13709,7 @@ type LocationMessage struct {
 
 func (x *LocationMessage) Reset() {
 	*x = LocationMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[93]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[94]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14013,7 +13721,7 @@ func (x *LocationMessage) String() string {
 func (*LocationMessage) ProtoMessage() {}
 
 func (x *LocationMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[93]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[94]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14026,7 +13734,7 @@ func (x *LocationMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LocationMessage.ProtoReflect.Descriptor instead.
 func (*LocationMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{93}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{94}
 }
 
 func (x *LocationMessage) GetDegreesLatitude() float64 {
@@ -14124,7 +13832,7 @@ type ContactMessage struct {
 
 func (x *ContactMessage) Reset() {
 	*x = ContactMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[94]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[95]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14136,7 +13844,7 @@ func (x *ContactMessage) String() string {
 func (*ContactMessage) ProtoMessage() {}
 
 func (x *ContactMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[94]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[95]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14149,7 +13857,7 @@ func (x *ContactMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContactMessage.ProtoReflect.Descriptor instead.
 func (*ContactMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{94}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{95}
 }
 
 func (x *ContactMessage) GetDisplayName() string {
@@ -14183,7 +13891,7 @@ type SenderKeyDistributionMessage struct {
 
 func (x *SenderKeyDistributionMessage) Reset() {
 	*x = SenderKeyDistributionMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[95]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[96]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14195,7 +13903,7 @@ func (x *SenderKeyDistributionMessage) String() string {
 func (*SenderKeyDistributionMessage) ProtoMessage() {}
 
 func (x *SenderKeyDistributionMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[95]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[96]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14208,7 +13916,7 @@ func (x *SenderKeyDistributionMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SenderKeyDistributionMessage.ProtoReflect.Descriptor instead.
 func (*SenderKeyDistributionMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{95}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{96}
 }
 
 func (x *SenderKeyDistributionMessage) GetGroupID() string {
@@ -14237,7 +13945,7 @@ type VideoEndCard struct {
 
 func (x *VideoEndCard) Reset() {
 	*x = VideoEndCard{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[96]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[97]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14249,7 +13957,7 @@ func (x *VideoEndCard) String() string {
 func (*VideoEndCard) ProtoMessage() {}
 
 func (x *VideoEndCard) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[96]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[97]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14262,7 +13970,7 @@ func (x *VideoEndCard) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VideoEndCard.ProtoReflect.Descriptor instead.
 func (*VideoEndCard) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{96}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{97}
 }
 
 func (x *VideoEndCard) GetUsername() string {
@@ -14309,7 +14017,7 @@ type DeviceListMetadata struct {
 
 func (x *DeviceListMetadata) Reset() {
 	*x = DeviceListMetadata{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[97]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[98]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14321,7 +14029,7 @@ func (x *DeviceListMetadata) String() string {
 func (*DeviceListMetadata) ProtoMessage() {}
 
 func (x *DeviceListMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[97]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[98]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14334,7 +14042,7 @@ func (x *DeviceListMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeviceListMetadata.ProtoReflect.Descriptor instead.
 func (*DeviceListMetadata) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{97}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{98}
 }
 
 func (x *DeviceListMetadata) GetSenderKeyHash() []byte {
@@ -14403,7 +14111,7 @@ type EmbeddedMessage struct {
 
 func (x *EmbeddedMessage) Reset() {
 	*x = EmbeddedMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[98]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[99]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14415,7 +14123,7 @@ func (x *EmbeddedMessage) String() string {
 func (*EmbeddedMessage) ProtoMessage() {}
 
 func (x *EmbeddedMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[98]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[99]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14428,7 +14136,7 @@ func (x *EmbeddedMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EmbeddedMessage.ProtoReflect.Descriptor instead.
 func (*EmbeddedMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{98}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{99}
 }
 
 func (x *EmbeddedMessage) GetStanzaID() string {
@@ -14464,7 +14172,7 @@ type EmbeddedMusic struct {
 
 func (x *EmbeddedMusic) Reset() {
 	*x = EmbeddedMusic{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[99]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[100]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14476,7 +14184,7 @@ func (x *EmbeddedMusic) String() string {
 func (*EmbeddedMusic) ProtoMessage() {}
 
 func (x *EmbeddedMusic) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[99]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[100]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14489,7 +14197,7 @@ func (x *EmbeddedMusic) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EmbeddedMusic.ProtoReflect.Descriptor instead.
 func (*EmbeddedMusic) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{99}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{100}
 }
 
 func (x *EmbeddedMusic) GetMusicContentMediaID() string {
@@ -14582,7 +14290,7 @@ type EmbeddedContent struct {
 
 func (x *EmbeddedContent) Reset() {
 	*x = EmbeddedContent{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[100]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[101]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14594,7 +14302,7 @@ func (x *EmbeddedContent) String() string {
 func (*EmbeddedContent) ProtoMessage() {}
 
 func (x *EmbeddedContent) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[100]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[101]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14607,7 +14315,7 @@ func (x *EmbeddedContent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EmbeddedContent.ProtoReflect.Descriptor instead.
 func (*EmbeddedContent) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{100}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{101}
 }
 
 func (x *EmbeddedContent) GetContent() isEmbeddedContent_Content {
@@ -14661,7 +14369,7 @@ type TapLinkAction struct {
 
 func (x *TapLinkAction) Reset() {
 	*x = TapLinkAction{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[101]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[102]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14673,7 +14381,7 @@ func (x *TapLinkAction) String() string {
 func (*TapLinkAction) ProtoMessage() {}
 
 func (x *TapLinkAction) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[101]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[102]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14686,7 +14394,7 @@ func (x *TapLinkAction) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TapLinkAction.ProtoReflect.Descriptor instead.
 func (*TapLinkAction) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{101}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{102}
 }
 
 func (x *TapLinkAction) GetTitle() string {
@@ -14715,7 +14423,7 @@ type Point struct {
 
 func (x *Point) Reset() {
 	*x = Point{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[102]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[103]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14727,7 +14435,7 @@ func (x *Point) String() string {
 func (*Point) ProtoMessage() {}
 
 func (x *Point) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[102]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[103]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14740,7 +14448,7 @@ func (x *Point) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Point.ProtoReflect.Descriptor instead.
 func (*Point) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{102}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{103}
 }
 
 func (x *Point) GetXDeprecated() int32 {
@@ -14782,7 +14490,7 @@ type Location struct {
 
 func (x *Location) Reset() {
 	*x = Location{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[103]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[104]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14794,7 +14502,7 @@ func (x *Location) String() string {
 func (*Location) ProtoMessage() {}
 
 func (x *Location) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[103]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[104]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14807,7 +14515,7 @@ func (x *Location) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Location.ProtoReflect.Descriptor instead.
 func (*Location) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{103}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{104}
 }
 
 func (x *Location) GetDegreesLatitude() float64 {
@@ -14846,7 +14554,7 @@ type TemplateButton struct {
 
 func (x *TemplateButton) Reset() {
 	*x = TemplateButton{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[104]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[105]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14858,7 +14566,7 @@ func (x *TemplateButton) String() string {
 func (*TemplateButton) ProtoMessage() {}
 
 func (x *TemplateButton) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[104]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[105]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14871,7 +14579,7 @@ func (x *TemplateButton) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TemplateButton.ProtoReflect.Descriptor instead.
 func (*TemplateButton) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{104}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{105}
 }
 
 func (x *TemplateButton) GetButton() isTemplateButton_Button {
@@ -14948,7 +14656,7 @@ type Money struct {
 
 func (x *Money) Reset() {
 	*x = Money{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[105]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[106]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14960,7 +14668,7 @@ func (x *Money) String() string {
 func (*Money) ProtoMessage() {}
 
 func (x *Money) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[105]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[106]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14973,7 +14681,7 @@ func (x *Money) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Money.ProtoReflect.Descriptor instead.
 func (*Money) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{105}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{106}
 }
 
 func (x *Money) GetValue() int64 {
@@ -15007,7 +14715,7 @@ type ActionLink struct {
 
 func (x *ActionLink) Reset() {
 	*x = ActionLink{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[106]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[107]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15019,7 +14727,7 @@ func (x *ActionLink) String() string {
 func (*ActionLink) ProtoMessage() {}
 
 func (x *ActionLink) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[106]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[107]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15032,7 +14740,7 @@ func (x *ActionLink) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActionLink.ProtoReflect.Descriptor instead.
 func (*ActionLink) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{106}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{107}
 }
 
 func (x *ActionLink) GetURL() string {
@@ -15059,7 +14767,7 @@ type GroupMention struct {
 
 func (x *GroupMention) Reset() {
 	*x = GroupMention{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[107]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[108]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15071,7 +14779,7 @@ func (x *GroupMention) String() string {
 func (*GroupMention) ProtoMessage() {}
 
 func (x *GroupMention) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[107]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[108]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15084,7 +14792,7 @@ func (x *GroupMention) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GroupMention.ProtoReflect.Descriptor instead.
 func (*GroupMention) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{107}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{108}
 }
 
 func (x *GroupMention) GetGroupJID() string {
@@ -15112,7 +14820,7 @@ type MessageSecretMessage struct {
 
 func (x *MessageSecretMessage) Reset() {
 	*x = MessageSecretMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[108]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[109]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15124,7 +14832,7 @@ func (x *MessageSecretMessage) String() string {
 func (*MessageSecretMessage) ProtoMessage() {}
 
 func (x *MessageSecretMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[108]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[109]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15137,7 +14845,7 @@ func (x *MessageSecretMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MessageSecretMessage.ProtoReflect.Descriptor instead.
 func (*MessageSecretMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{108}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{109}
 }
 
 func (x *MessageSecretMessage) GetVersion() int32 {
@@ -15172,7 +14880,7 @@ type MediaNotifyMessage struct {
 
 func (x *MediaNotifyMessage) Reset() {
 	*x = MediaNotifyMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[109]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[110]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15184,7 +14892,7 @@ func (x *MediaNotifyMessage) String() string {
 func (*MediaNotifyMessage) ProtoMessage() {}
 
 func (x *MediaNotifyMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[109]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[110]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15197,7 +14905,7 @@ func (x *MediaNotifyMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MediaNotifyMessage.ProtoReflect.Descriptor instead.
 func (*MediaNotifyMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{109}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{110}
 }
 
 func (x *MediaNotifyMessage) GetExpressPathURL() string {
@@ -15230,7 +14938,7 @@ type LIDMigrationMappingSyncMessage struct {
 
 func (x *LIDMigrationMappingSyncMessage) Reset() {
 	*x = LIDMigrationMappingSyncMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[110]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[111]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15242,7 +14950,7 @@ func (x *LIDMigrationMappingSyncMessage) String() string {
 func (*LIDMigrationMappingSyncMessage) ProtoMessage() {}
 
 func (x *LIDMigrationMappingSyncMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[110]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[111]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15255,7 +14963,7 @@ func (x *LIDMigrationMappingSyncMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LIDMigrationMappingSyncMessage.ProtoReflect.Descriptor instead.
 func (*LIDMigrationMappingSyncMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{110}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{111}
 }
 
 func (x *LIDMigrationMappingSyncMessage) GetEncodedMappingPayload() []byte {
@@ -15274,7 +14982,7 @@ type UrlTrackingMap struct {
 
 func (x *UrlTrackingMap) Reset() {
 	*x = UrlTrackingMap{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[111]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[112]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15286,7 +14994,7 @@ func (x *UrlTrackingMap) String() string {
 func (*UrlTrackingMap) ProtoMessage() {}
 
 func (x *UrlTrackingMap) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[111]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[112]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15299,7 +15007,7 @@ func (x *UrlTrackingMap) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UrlTrackingMap.ProtoReflect.Descriptor instead.
 func (*UrlTrackingMap) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{111}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{112}
 }
 
 func (x *UrlTrackingMap) GetUrlTrackingMapElements() []*UrlTrackingMap_UrlTrackingMapElement {
@@ -15307,66 +15015,6 @@ func (x *UrlTrackingMap) GetUrlTrackingMapElements() []*UrlTrackingMap_UrlTracki
 		return x.UrlTrackingMapElements
 	}
 	return nil
-}
-
-type AIQueryFanout struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	MessageKey    *waCommon.MessageKey   `protobuf:"bytes,1,opt,name=messageKey" json:"messageKey,omitempty"`
-	Message       *Message               `protobuf:"bytes,2,opt,name=message" json:"message,omitempty"`
-	Timestamp     *int64                 `protobuf:"varint,3,opt,name=timestamp" json:"timestamp,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AIQueryFanout) Reset() {
-	*x = AIQueryFanout{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[112]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AIQueryFanout) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AIQueryFanout) ProtoMessage() {}
-
-func (x *AIQueryFanout) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[112]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AIQueryFanout.ProtoReflect.Descriptor instead.
-func (*AIQueryFanout) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{112}
-}
-
-func (x *AIQueryFanout) GetMessageKey() *waCommon.MessageKey {
-	if x != nil {
-		return x.MessageKey
-	}
-	return nil
-}
-
-func (x *AIQueryFanout) GetMessage() *Message {
-	if x != nil {
-		return x.Message
-	}
-	return nil
-}
-
-func (x *AIQueryFanout) GetTimestamp() int64 {
-	if x != nil && x.Timestamp != nil {
-		return *x.Timestamp
-	}
-	return 0
 }
 
 type MemberLabel struct {
@@ -15421,6 +15069,134 @@ func (x *MemberLabel) GetLabelTimestamp() int64 {
 	return 0
 }
 
+type AIRichResponseMessage struct {
+	state           protoimpl.MessageState                    `protogen:"open.v1"`
+	MessageType     *waAICommon.AIRichResponseMessageType     `protobuf:"varint,1,opt,name=messageType,enum=WAAICommon.AIRichResponseMessageType" json:"messageType,omitempty"`
+	Submessages     []*waAICommon.AIRichResponseSubMessage    `protobuf:"bytes,2,rep,name=submessages" json:"submessages,omitempty"`
+	UnifiedResponse *waAICommon.AIRichResponseUnifiedResponse `protobuf:"bytes,3,opt,name=unifiedResponse" json:"unifiedResponse,omitempty"`
+	ContextInfo     *ContextInfo                              `protobuf:"bytes,4,opt,name=contextInfo" json:"contextInfo,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *AIRichResponseMessage) Reset() {
+	*x = AIRichResponseMessage{}
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[114]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AIRichResponseMessage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AIRichResponseMessage) ProtoMessage() {}
+
+func (x *AIRichResponseMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[114]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AIRichResponseMessage.ProtoReflect.Descriptor instead.
+func (*AIRichResponseMessage) Descriptor() ([]byte, []int) {
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{114}
+}
+
+func (x *AIRichResponseMessage) GetMessageType() waAICommon.AIRichResponseMessageType {
+	if x != nil && x.MessageType != nil {
+		return *x.MessageType
+	}
+	return waAICommon.AIRichResponseMessageType(0)
+}
+
+func (x *AIRichResponseMessage) GetSubmessages() []*waAICommon.AIRichResponseSubMessage {
+	if x != nil {
+		return x.Submessages
+	}
+	return nil
+}
+
+func (x *AIRichResponseMessage) GetUnifiedResponse() *waAICommon.AIRichResponseUnifiedResponse {
+	if x != nil {
+		return x.UnifiedResponse
+	}
+	return nil
+}
+
+func (x *AIRichResponseMessage) GetContextInfo() *ContextInfo {
+	if x != nil {
+		return x.ContextInfo
+	}
+	return nil
+}
+
+type AIQueryFanout struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	MessageKey    *waCommon.MessageKey   `protobuf:"bytes,1,opt,name=messageKey" json:"messageKey,omitempty"`
+	Message       *Message               `protobuf:"bytes,2,opt,name=message" json:"message,omitempty"`
+	Timestamp     *int64                 `protobuf:"varint,3,opt,name=timestamp" json:"timestamp,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AIQueryFanout) Reset() {
+	*x = AIQueryFanout{}
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[115]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AIQueryFanout) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AIQueryFanout) ProtoMessage() {}
+
+func (x *AIQueryFanout) ProtoReflect() protoreflect.Message {
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[115]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AIQueryFanout.ProtoReflect.Descriptor instead.
+func (*AIQueryFanout) Descriptor() ([]byte, []int) {
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{115}
+}
+
+func (x *AIQueryFanout) GetMessageKey() *waCommon.MessageKey {
+	if x != nil {
+		return x.MessageKey
+	}
+	return nil
+}
+
+func (x *AIQueryFanout) GetMessage() *Message {
+	if x != nil {
+		return x.Message
+	}
+	return nil
+}
+
+func (x *AIQueryFanout) GetTimestamp() int64 {
+	if x != nil && x.Timestamp != nil {
+		return *x.Timestamp
+	}
+	return 0
+}
+
 type StickerPackMessage_Sticker struct {
 	state              protoimpl.MessageState `protogen:"open.v1"`
 	FileName           *string                `protobuf:"bytes,1,opt,name=fileName" json:"fileName,omitempty"`
@@ -15435,7 +15211,7 @@ type StickerPackMessage_Sticker struct {
 
 func (x *StickerPackMessage_Sticker) Reset() {
 	*x = StickerPackMessage_Sticker{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[114]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[116]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15447,7 +15223,7 @@ func (x *StickerPackMessage_Sticker) String() string {
 func (*StickerPackMessage_Sticker) ProtoMessage() {}
 
 func (x *StickerPackMessage_Sticker) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[114]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[116]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15515,7 +15291,7 @@ type CallLogMessage_CallParticipant struct {
 
 func (x *CallLogMessage_CallParticipant) Reset() {
 	*x = CallLogMessage_CallParticipant{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[115]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[117]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15527,7 +15303,7 @@ func (x *CallLogMessage_CallParticipant) String() string {
 func (*CallLogMessage_CallParticipant) ProtoMessage() {}
 
 func (x *CallLogMessage_CallParticipant) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[115]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[117]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15567,7 +15343,7 @@ type PollCreationMessage_Option struct {
 
 func (x *PollCreationMessage_Option) Reset() {
 	*x = PollCreationMessage_Option{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[116]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[118]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15579,7 +15355,7 @@ func (x *PollCreationMessage_Option) String() string {
 func (*PollCreationMessage_Option) ProtoMessage() {}
 
 func (x *PollCreationMessage_Option) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[116]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[118]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15592,7 +15368,7 @@ func (x *PollCreationMessage_Option) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PollCreationMessage_Option.ProtoReflect.Descriptor instead.
 func (*PollCreationMessage_Option) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{8, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{9, 0}
 }
 
 func (x *PollCreationMessage_Option) GetOptionName() string {
@@ -15621,7 +15397,7 @@ type ButtonsMessage_Button struct {
 
 func (x *ButtonsMessage_Button) Reset() {
 	*x = ButtonsMessage_Button{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[117]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[119]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15633,7 +15409,7 @@ func (x *ButtonsMessage_Button) String() string {
 func (*ButtonsMessage_Button) ProtoMessage() {}
 
 func (x *ButtonsMessage_Button) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[117]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[119]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15646,7 +15422,7 @@ func (x *ButtonsMessage_Button) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ButtonsMessage_Button.ProtoReflect.Descriptor instead.
 func (*ButtonsMessage_Button) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{10, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{11, 0}
 }
 
 func (x *ButtonsMessage_Button) GetButtonID() string {
@@ -15687,7 +15463,7 @@ type ButtonsMessage_Button_NativeFlowInfo struct {
 
 func (x *ButtonsMessage_Button_NativeFlowInfo) Reset() {
 	*x = ButtonsMessage_Button_NativeFlowInfo{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[118]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[120]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15699,7 +15475,7 @@ func (x *ButtonsMessage_Button_NativeFlowInfo) String() string {
 func (*ButtonsMessage_Button_NativeFlowInfo) ProtoMessage() {}
 
 func (x *ButtonsMessage_Button_NativeFlowInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[118]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[120]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15712,7 +15488,7 @@ func (x *ButtonsMessage_Button_NativeFlowInfo) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use ButtonsMessage_Button_NativeFlowInfo.ProtoReflect.Descriptor instead.
 func (*ButtonsMessage_Button_NativeFlowInfo) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{10, 0, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{11, 0, 0}
 }
 
 func (x *ButtonsMessage_Button_NativeFlowInfo) GetName() string {
@@ -15738,7 +15514,7 @@ type ButtonsMessage_Button_ButtonText struct {
 
 func (x *ButtonsMessage_Button_ButtonText) Reset() {
 	*x = ButtonsMessage_Button_ButtonText{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[119]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[121]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15750,7 +15526,7 @@ func (x *ButtonsMessage_Button_ButtonText) String() string {
 func (*ButtonsMessage_Button_ButtonText) ProtoMessage() {}
 
 func (x *ButtonsMessage_Button_ButtonText) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[119]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[121]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15763,7 +15539,7 @@ func (x *ButtonsMessage_Button_ButtonText) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ButtonsMessage_Button_ButtonText.ProtoReflect.Descriptor instead.
 func (*ButtonsMessage_Button_ButtonText) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{10, 0, 1}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{11, 0, 1}
 }
 
 func (x *ButtonsMessage_Button_ButtonText) GetDisplayText() string {
@@ -15783,7 +15559,7 @@ type InteractiveResponseMessage_Body struct {
 
 func (x *InteractiveResponseMessage_Body) Reset() {
 	*x = InteractiveResponseMessage_Body{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[120]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[122]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15795,7 +15571,7 @@ func (x *InteractiveResponseMessage_Body) String() string {
 func (*InteractiveResponseMessage_Body) ProtoMessage() {}
 
 func (x *InteractiveResponseMessage_Body) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[120]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[122]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15808,7 +15584,7 @@ func (x *InteractiveResponseMessage_Body) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InteractiveResponseMessage_Body.ProtoReflect.Descriptor instead.
 func (*InteractiveResponseMessage_Body) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{13, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{14, 0}
 }
 
 func (x *InteractiveResponseMessage_Body) GetText() string {
@@ -15836,7 +15612,7 @@ type InteractiveResponseMessage_NativeFlowResponseMessage struct {
 
 func (x *InteractiveResponseMessage_NativeFlowResponseMessage) Reset() {
 	*x = InteractiveResponseMessage_NativeFlowResponseMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[121]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[123]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15848,7 +15624,7 @@ func (x *InteractiveResponseMessage_NativeFlowResponseMessage) String() string {
 func (*InteractiveResponseMessage_NativeFlowResponseMessage) ProtoMessage() {}
 
 func (x *InteractiveResponseMessage_NativeFlowResponseMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[121]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[123]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15861,7 +15637,7 @@ func (x *InteractiveResponseMessage_NativeFlowResponseMessage) ProtoReflect() pr
 
 // Deprecated: Use InteractiveResponseMessage_NativeFlowResponseMessage.ProtoReflect.Descriptor instead.
 func (*InteractiveResponseMessage_NativeFlowResponseMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{13, 1}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{14, 1}
 }
 
 func (x *InteractiveResponseMessage_NativeFlowResponseMessage) GetName() string {
@@ -15896,7 +15672,7 @@ type InteractiveMessage_CarouselMessage struct {
 
 func (x *InteractiveMessage_CarouselMessage) Reset() {
 	*x = InteractiveMessage_CarouselMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[122]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[124]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15908,7 +15684,7 @@ func (x *InteractiveMessage_CarouselMessage) String() string {
 func (*InteractiveMessage_CarouselMessage) ProtoMessage() {}
 
 func (x *InteractiveMessage_CarouselMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[122]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[124]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15921,7 +15697,7 @@ func (x *InteractiveMessage_CarouselMessage) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use InteractiveMessage_CarouselMessage.ProtoReflect.Descriptor instead.
 func (*InteractiveMessage_CarouselMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{14, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{15, 0}
 }
 
 func (x *InteractiveMessage_CarouselMessage) GetCards() []*InteractiveMessage {
@@ -15956,7 +15732,7 @@ type InteractiveMessage_ShopMessage struct {
 
 func (x *InteractiveMessage_ShopMessage) Reset() {
 	*x = InteractiveMessage_ShopMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[123]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[125]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15968,7 +15744,7 @@ func (x *InteractiveMessage_ShopMessage) String() string {
 func (*InteractiveMessage_ShopMessage) ProtoMessage() {}
 
 func (x *InteractiveMessage_ShopMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[123]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[125]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15981,7 +15757,7 @@ func (x *InteractiveMessage_ShopMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InteractiveMessage_ShopMessage.ProtoReflect.Descriptor instead.
 func (*InteractiveMessage_ShopMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{14, 1}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{15, 1}
 }
 
 func (x *InteractiveMessage_ShopMessage) GetID() string {
@@ -16016,7 +15792,7 @@ type InteractiveMessage_NativeFlowMessage struct {
 
 func (x *InteractiveMessage_NativeFlowMessage) Reset() {
 	*x = InteractiveMessage_NativeFlowMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[124]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[126]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16028,7 +15804,7 @@ func (x *InteractiveMessage_NativeFlowMessage) String() string {
 func (*InteractiveMessage_NativeFlowMessage) ProtoMessage() {}
 
 func (x *InteractiveMessage_NativeFlowMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[124]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[126]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16041,7 +15817,7 @@ func (x *InteractiveMessage_NativeFlowMessage) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use InteractiveMessage_NativeFlowMessage.ProtoReflect.Descriptor instead.
 func (*InteractiveMessage_NativeFlowMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{14, 2}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{15, 2}
 }
 
 func (x *InteractiveMessage_NativeFlowMessage) GetButtons() []*InteractiveMessage_NativeFlowMessage_NativeFlowButton {
@@ -16076,7 +15852,7 @@ type InteractiveMessage_CollectionMessage struct {
 
 func (x *InteractiveMessage_CollectionMessage) Reset() {
 	*x = InteractiveMessage_CollectionMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[125]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[127]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16088,7 +15864,7 @@ func (x *InteractiveMessage_CollectionMessage) String() string {
 func (*InteractiveMessage_CollectionMessage) ProtoMessage() {}
 
 func (x *InteractiveMessage_CollectionMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[125]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[127]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16101,7 +15877,7 @@ func (x *InteractiveMessage_CollectionMessage) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use InteractiveMessage_CollectionMessage.ProtoReflect.Descriptor instead.
 func (*InteractiveMessage_CollectionMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{14, 3}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{15, 3}
 }
 
 func (x *InteractiveMessage_CollectionMessage) GetBizJID() string {
@@ -16126,15 +15902,20 @@ func (x *InteractiveMessage_CollectionMessage) GetMessageVersion() int32 {
 }
 
 type InteractiveMessage_Footer struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Text          *string                `protobuf:"bytes,1,opt,name=text" json:"text,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Media:
+	//
+	//	*InteractiveMessage_Footer_AudioMessage
+	Media              isInteractiveMessage_Footer_Media `protobuf_oneof:"media"`
+	Text               *string                           `protobuf:"bytes,1,opt,name=text" json:"text,omitempty"`
+	HasMediaAttachment *bool                             `protobuf:"varint,3,opt,name=hasMediaAttachment" json:"hasMediaAttachment,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *InteractiveMessage_Footer) Reset() {
 	*x = InteractiveMessage_Footer{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[126]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[128]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16146,7 +15927,7 @@ func (x *InteractiveMessage_Footer) String() string {
 func (*InteractiveMessage_Footer) ProtoMessage() {}
 
 func (x *InteractiveMessage_Footer) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[126]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[128]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16159,7 +15940,23 @@ func (x *InteractiveMessage_Footer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InteractiveMessage_Footer.ProtoReflect.Descriptor instead.
 func (*InteractiveMessage_Footer) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{14, 4}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{15, 4}
+}
+
+func (x *InteractiveMessage_Footer) GetMedia() isInteractiveMessage_Footer_Media {
+	if x != nil {
+		return x.Media
+	}
+	return nil
+}
+
+func (x *InteractiveMessage_Footer) GetAudioMessage() *AudioMessage {
+	if x != nil {
+		if x, ok := x.Media.(*InteractiveMessage_Footer_AudioMessage); ok {
+			return x.AudioMessage
+		}
+	}
+	return nil
 }
 
 func (x *InteractiveMessage_Footer) GetText() string {
@@ -16168,6 +15965,23 @@ func (x *InteractiveMessage_Footer) GetText() string {
 	}
 	return ""
 }
+
+func (x *InteractiveMessage_Footer) GetHasMediaAttachment() bool {
+	if x != nil && x.HasMediaAttachment != nil {
+		return *x.HasMediaAttachment
+	}
+	return false
+}
+
+type isInteractiveMessage_Footer_Media interface {
+	isInteractiveMessage_Footer_Media()
+}
+
+type InteractiveMessage_Footer_AudioMessage struct {
+	AudioMessage *AudioMessage `protobuf:"bytes,2,opt,name=audioMessage,oneof"`
+}
+
+func (*InteractiveMessage_Footer_AudioMessage) isInteractiveMessage_Footer_Media() {}
 
 type InteractiveMessage_Body struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -16178,7 +15992,7 @@ type InteractiveMessage_Body struct {
 
 func (x *InteractiveMessage_Body) Reset() {
 	*x = InteractiveMessage_Body{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[127]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[129]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16190,7 +16004,7 @@ func (x *InteractiveMessage_Body) String() string {
 func (*InteractiveMessage_Body) ProtoMessage() {}
 
 func (x *InteractiveMessage_Body) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[127]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[129]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16203,7 +16017,7 @@ func (x *InteractiveMessage_Body) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InteractiveMessage_Body.ProtoReflect.Descriptor instead.
 func (*InteractiveMessage_Body) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{14, 5}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{15, 5}
 }
 
 func (x *InteractiveMessage_Body) GetText() string {
@@ -16233,7 +16047,7 @@ type InteractiveMessage_Header struct {
 
 func (x *InteractiveMessage_Header) Reset() {
 	*x = InteractiveMessage_Header{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[128]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[130]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16245,7 +16059,7 @@ func (x *InteractiveMessage_Header) String() string {
 func (*InteractiveMessage_Header) ProtoMessage() {}
 
 func (x *InteractiveMessage_Header) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[128]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[130]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16258,7 +16072,7 @@ func (x *InteractiveMessage_Header) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InteractiveMessage_Header.ProtoReflect.Descriptor instead.
 func (*InteractiveMessage_Header) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{14, 6}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{15, 6}
 }
 
 func (x *InteractiveMessage_Header) GetMedia() isInteractiveMessage_Header_Media {
@@ -16393,7 +16207,7 @@ type InteractiveMessage_NativeFlowMessage_NativeFlowButton struct {
 
 func (x *InteractiveMessage_NativeFlowMessage_NativeFlowButton) Reset() {
 	*x = InteractiveMessage_NativeFlowMessage_NativeFlowButton{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[129]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[131]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16405,7 +16219,7 @@ func (x *InteractiveMessage_NativeFlowMessage_NativeFlowButton) String() string 
 func (*InteractiveMessage_NativeFlowMessage_NativeFlowButton) ProtoMessage() {}
 
 func (x *InteractiveMessage_NativeFlowMessage_NativeFlowButton) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[129]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[131]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16418,7 +16232,7 @@ func (x *InteractiveMessage_NativeFlowMessage_NativeFlowButton) ProtoReflect() p
 
 // Deprecated: Use InteractiveMessage_NativeFlowMessage_NativeFlowButton.ProtoReflect.Descriptor instead.
 func (*InteractiveMessage_NativeFlowMessage_NativeFlowButton) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{14, 2, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{15, 2, 0}
 }
 
 func (x *InteractiveMessage_NativeFlowMessage_NativeFlowButton) GetName() string {
@@ -16444,7 +16258,7 @@ type ListResponseMessage_SingleSelectReply struct {
 
 func (x *ListResponseMessage_SingleSelectReply) Reset() {
 	*x = ListResponseMessage_SingleSelectReply{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[130]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[132]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16456,7 +16270,7 @@ func (x *ListResponseMessage_SingleSelectReply) String() string {
 func (*ListResponseMessage_SingleSelectReply) ProtoMessage() {}
 
 func (x *ListResponseMessage_SingleSelectReply) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[130]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[132]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16469,7 +16283,7 @@ func (x *ListResponseMessage_SingleSelectReply) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use ListResponseMessage_SingleSelectReply.ProtoReflect.Descriptor instead.
 func (*ListResponseMessage_SingleSelectReply) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{15, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{16, 0}
 }
 
 func (x *ListResponseMessage_SingleSelectReply) GetSelectedRowID() string {
@@ -16490,7 +16304,7 @@ type ListMessage_ProductListInfo struct {
 
 func (x *ListMessage_ProductListInfo) Reset() {
 	*x = ListMessage_ProductListInfo{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[131]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[133]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16502,7 +16316,7 @@ func (x *ListMessage_ProductListInfo) String() string {
 func (*ListMessage_ProductListInfo) ProtoMessage() {}
 
 func (x *ListMessage_ProductListInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[131]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[133]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16515,7 +16329,7 @@ func (x *ListMessage_ProductListInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMessage_ProductListInfo.ProtoReflect.Descriptor instead.
 func (*ListMessage_ProductListInfo) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{16, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{17, 0}
 }
 
 func (x *ListMessage_ProductListInfo) GetProductSections() []*ListMessage_ProductSection {
@@ -16549,7 +16363,7 @@ type ListMessage_ProductListHeaderImage struct {
 
 func (x *ListMessage_ProductListHeaderImage) Reset() {
 	*x = ListMessage_ProductListHeaderImage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[132]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[134]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16561,7 +16375,7 @@ func (x *ListMessage_ProductListHeaderImage) String() string {
 func (*ListMessage_ProductListHeaderImage) ProtoMessage() {}
 
 func (x *ListMessage_ProductListHeaderImage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[132]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[134]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16574,7 +16388,7 @@ func (x *ListMessage_ProductListHeaderImage) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use ListMessage_ProductListHeaderImage.ProtoReflect.Descriptor instead.
 func (*ListMessage_ProductListHeaderImage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{16, 1}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{17, 1}
 }
 
 func (x *ListMessage_ProductListHeaderImage) GetProductID() string {
@@ -16601,7 +16415,7 @@ type ListMessage_ProductSection struct {
 
 func (x *ListMessage_ProductSection) Reset() {
 	*x = ListMessage_ProductSection{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[133]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[135]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16613,7 +16427,7 @@ func (x *ListMessage_ProductSection) String() string {
 func (*ListMessage_ProductSection) ProtoMessage() {}
 
 func (x *ListMessage_ProductSection) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[133]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[135]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16626,7 +16440,7 @@ func (x *ListMessage_ProductSection) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMessage_ProductSection.ProtoReflect.Descriptor instead.
 func (*ListMessage_ProductSection) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{16, 2}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{17, 2}
 }
 
 func (x *ListMessage_ProductSection) GetTitle() string {
@@ -16652,7 +16466,7 @@ type ListMessage_Product struct {
 
 func (x *ListMessage_Product) Reset() {
 	*x = ListMessage_Product{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[134]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[136]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16664,7 +16478,7 @@ func (x *ListMessage_Product) String() string {
 func (*ListMessage_Product) ProtoMessage() {}
 
 func (x *ListMessage_Product) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[134]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[136]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16677,7 +16491,7 @@ func (x *ListMessage_Product) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMessage_Product.ProtoReflect.Descriptor instead.
 func (*ListMessage_Product) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{16, 3}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{17, 3}
 }
 
 func (x *ListMessage_Product) GetProductID() string {
@@ -16697,7 +16511,7 @@ type ListMessage_Section struct {
 
 func (x *ListMessage_Section) Reset() {
 	*x = ListMessage_Section{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[135]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[137]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16709,7 +16523,7 @@ func (x *ListMessage_Section) String() string {
 func (*ListMessage_Section) ProtoMessage() {}
 
 func (x *ListMessage_Section) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[135]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[137]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16722,7 +16536,7 @@ func (x *ListMessage_Section) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMessage_Section.ProtoReflect.Descriptor instead.
 func (*ListMessage_Section) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{16, 4}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{17, 4}
 }
 
 func (x *ListMessage_Section) GetTitle() string {
@@ -16750,7 +16564,7 @@ type ListMessage_Row struct {
 
 func (x *ListMessage_Row) Reset() {
 	*x = ListMessage_Row{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[136]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[138]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16762,7 +16576,7 @@ func (x *ListMessage_Row) String() string {
 func (*ListMessage_Row) ProtoMessage() {}
 
 func (x *ListMessage_Row) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[136]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[138]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16775,7 +16589,7 @@ func (x *ListMessage_Row) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMessage_Row.ProtoReflect.Descriptor instead.
 func (*ListMessage_Row) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{16, 5}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{17, 5}
 }
 
 func (x *ListMessage_Row) GetTitle() string {
@@ -16813,7 +16627,7 @@ type HighlyStructuredMessage_HSMLocalizableParameter struct {
 
 func (x *HighlyStructuredMessage_HSMLocalizableParameter) Reset() {
 	*x = HighlyStructuredMessage_HSMLocalizableParameter{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[137]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[139]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16825,7 +16639,7 @@ func (x *HighlyStructuredMessage_HSMLocalizableParameter) String() string {
 func (*HighlyStructuredMessage_HSMLocalizableParameter) ProtoMessage() {}
 
 func (x *HighlyStructuredMessage_HSMLocalizableParameter) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[137]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[139]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16838,7 +16652,7 @@ func (x *HighlyStructuredMessage_HSMLocalizableParameter) ProtoReflect() protore
 
 // Deprecated: Use HighlyStructuredMessage_HSMLocalizableParameter.ProtoReflect.Descriptor instead.
 func (*HighlyStructuredMessage_HSMLocalizableParameter) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{19, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{21, 0}
 }
 
 func (x *HighlyStructuredMessage_HSMLocalizableParameter) GetParamOneof() isHighlyStructuredMessage_HSMLocalizableParameter_ParamOneof {
@@ -16904,7 +16718,7 @@ type HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime struct {
 
 func (x *HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime) Reset() {
 	*x = HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[138]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[140]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16916,7 +16730,7 @@ func (x *HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime) String() s
 func (*HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime) ProtoMessage() {}
 
 func (x *HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[138]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[140]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16929,7 +16743,7 @@ func (x *HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime) ProtoRefle
 
 // Deprecated: Use HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime.ProtoReflect.Descriptor instead.
 func (*HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{19, 0, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{21, 0, 0}
 }
 
 func (x *HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime) GetDatetimeOneof() isHighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_DatetimeOneof {
@@ -16985,7 +16799,7 @@ type HighlyStructuredMessage_HSMLocalizableParameter_HSMCurrency struct {
 
 func (x *HighlyStructuredMessage_HSMLocalizableParameter_HSMCurrency) Reset() {
 	*x = HighlyStructuredMessage_HSMLocalizableParameter_HSMCurrency{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[139]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[141]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16997,7 +16811,7 @@ func (x *HighlyStructuredMessage_HSMLocalizableParameter_HSMCurrency) String() s
 func (*HighlyStructuredMessage_HSMLocalizableParameter_HSMCurrency) ProtoMessage() {}
 
 func (x *HighlyStructuredMessage_HSMLocalizableParameter_HSMCurrency) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[139]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[141]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17010,7 +16824,7 @@ func (x *HighlyStructuredMessage_HSMLocalizableParameter_HSMCurrency) ProtoRefle
 
 // Deprecated: Use HighlyStructuredMessage_HSMLocalizableParameter_HSMCurrency.ProtoReflect.Descriptor instead.
 func (*HighlyStructuredMessage_HSMLocalizableParameter_HSMCurrency) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{19, 0, 1}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{21, 0, 1}
 }
 
 func (x *HighlyStructuredMessage_HSMLocalizableParameter_HSMCurrency) GetCurrencyCode() string {
@@ -17042,7 +16856,7 @@ type HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComp
 
 func (x *HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent) Reset() {
 	*x = HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[140]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[142]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17055,7 +16869,7 @@ func (*HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeCo
 }
 
 func (x *HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[140]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[142]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17068,7 +16882,7 @@ func (x *HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTime
 
 // Deprecated: Use HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent.ProtoReflect.Descriptor instead.
 func (*HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{19, 0, 0, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{21, 0, 0, 0}
 }
 
 func (x *HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent) GetDayOfWeek() HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_DayOfWeekType {
@@ -17129,7 +16943,7 @@ type HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeUnix
 
 func (x *HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeUnixEpoch) Reset() {
 	*x = HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeUnixEpoch{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[141]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[143]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17142,7 +16956,7 @@ func (*HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeUn
 }
 
 func (x *HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeUnixEpoch) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[141]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[143]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17155,7 +16969,7 @@ func (x *HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTime
 
 // Deprecated: Use HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeUnixEpoch.ProtoReflect.Descriptor instead.
 func (*HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeUnixEpoch) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{19, 0, 0, 1}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{21, 0, 0, 1}
 }
 
 func (x *HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeUnixEpoch) GetTimestamp() int64 {
@@ -17176,13 +16990,14 @@ type PeerDataOperationRequestResponseMessage_PeerDataOperationResult struct {
 	CompanionMetaNonceFetchRequestResponse          *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_CompanionMetaNonceFetchResponse          `protobuf:"bytes,7,opt,name=companionMetaNonceFetchRequestResponse" json:"companionMetaNonceFetchRequestResponse,omitempty"`
 	SyncdSnapshotFatalRecoveryResponse              *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_SyncDSnapshotFatalRecoveryResponse       `protobuf:"bytes,8,opt,name=syncdSnapshotFatalRecoveryResponse" json:"syncdSnapshotFatalRecoveryResponse,omitempty"`
 	CompanionCanonicalUserNonceFetchRequestResponse *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_CompanionCanonicalUserNonceFetchResponse `protobuf:"bytes,9,opt,name=companionCanonicalUserNonceFetchRequestResponse" json:"companionCanonicalUserNonceFetchRequestResponse,omitempty"`
+	HistorySyncChunkRetryResponse                   *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponse            `protobuf:"bytes,10,opt,name=historySyncChunkRetryResponse" json:"historySyncChunkRetryResponse,omitempty"`
 	unknownFields                                   protoimpl.UnknownFields
 	sizeCache                                       protoimpl.SizeCache
 }
 
 func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult) Reset() {
 	*x = PeerDataOperationRequestResponseMessage_PeerDataOperationResult{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[142]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[144]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17194,7 +17009,7 @@ func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult) String
 func (*PeerDataOperationRequestResponseMessage_PeerDataOperationResult) ProtoMessage() {}
 
 func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[142]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[144]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17207,7 +17022,7 @@ func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult) ProtoR
 
 // Deprecated: Use PeerDataOperationRequestResponseMessage_PeerDataOperationResult.ProtoReflect.Descriptor instead.
 func (*PeerDataOperationRequestResponseMessage_PeerDataOperationResult) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{20, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{22, 0}
 }
 
 func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult) GetMediaUploadResult() waMmsRetry.MediaRetryNotification_ResultType {
@@ -17273,6 +17088,90 @@ func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult) GetCom
 	return nil
 }
 
+func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult) GetHistorySyncChunkRetryResponse() *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponse {
+	if x != nil {
+		return x.HistorySyncChunkRetryResponse
+	}
+	return nil
+}
+
+type PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponse struct {
+	state         protoimpl.MessageState                                                                             `protogen:"open.v1"`
+	SyncType      *HistorySyncType                                                                                   `protobuf:"varint,1,opt,name=syncType,enum=WAWebProtobufsE2E.HistorySyncType" json:"syncType,omitempty"`
+	ChunkOrder    *uint32                                                                                            `protobuf:"varint,2,opt,name=chunkOrder" json:"chunkOrder,omitempty"`
+	RequestID     *string                                                                                            `protobuf:"bytes,3,opt,name=requestID" json:"requestID,omitempty"`
+	ResponseCode  *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode `protobuf:"varint,4,opt,name=responseCode,enum=WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode" json:"responseCode,omitempty"`
+	CanRecover    *bool                                                                                              `protobuf:"varint,5,opt,name=canRecover" json:"canRecover,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponse) Reset() {
+	*x = PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponse{}
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[145]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponse) ProtoMessage() {
+}
+
+func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[145]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponse.ProtoReflect.Descriptor instead.
+func (*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponse) Descriptor() ([]byte, []int) {
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{22, 0, 0}
+}
+
+func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponse) GetSyncType() HistorySyncType {
+	if x != nil && x.SyncType != nil {
+		return *x.SyncType
+	}
+	return HistorySyncType_INITIAL_BOOTSTRAP
+}
+
+func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponse) GetChunkOrder() uint32 {
+	if x != nil && x.ChunkOrder != nil {
+		return *x.ChunkOrder
+	}
+	return 0
+}
+
+func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponse) GetRequestID() string {
+	if x != nil && x.RequestID != nil {
+		return *x.RequestID
+	}
+	return ""
+}
+
+func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponse) GetResponseCode() PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode {
+	if x != nil && x.ResponseCode != nil {
+		return *x.ResponseCode
+	}
+	return PeerDataOperationRequestResponseMessage_PeerDataOperationResult_GENERATION_ERROR
+}
+
+func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponse) GetCanRecover() bool {
+	if x != nil && x.CanRecover != nil {
+		return *x.CanRecover
+	}
+	return false
+}
+
 type PeerDataOperationRequestResponseMessage_PeerDataOperationResult_SyncDSnapshotFatalRecoveryResponse struct {
 	state              protoimpl.MessageState `protogen:"open.v1"`
 	CollectionSnapshot []byte                 `protobuf:"bytes,1,opt,name=collectionSnapshot" json:"collectionSnapshot,omitempty"`
@@ -17283,7 +17182,7 @@ type PeerDataOperationRequestResponseMessage_PeerDataOperationResult_SyncDSnapsh
 
 func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_SyncDSnapshotFatalRecoveryResponse) Reset() {
 	*x = PeerDataOperationRequestResponseMessage_PeerDataOperationResult_SyncDSnapshotFatalRecoveryResponse{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[143]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[146]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17296,7 +17195,7 @@ func (*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_SyncDSnap
 }
 
 func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_SyncDSnapshotFatalRecoveryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[143]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[146]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17309,7 +17208,7 @@ func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_SyncDSn
 
 // Deprecated: Use PeerDataOperationRequestResponseMessage_PeerDataOperationResult_SyncDSnapshotFatalRecoveryResponse.ProtoReflect.Descriptor instead.
 func (*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_SyncDSnapshotFatalRecoveryResponse) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{20, 0, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{22, 0, 1}
 }
 
 func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_SyncDSnapshotFatalRecoveryResponse) GetCollectionSnapshot() []byte {
@@ -17337,7 +17236,7 @@ type PeerDataOperationRequestResponseMessage_PeerDataOperationResult_CompanionCa
 
 func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_CompanionCanonicalUserNonceFetchResponse) Reset() {
 	*x = PeerDataOperationRequestResponseMessage_PeerDataOperationResult_CompanionCanonicalUserNonceFetchResponse{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[144]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[147]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17350,7 +17249,7 @@ func (*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_Companion
 }
 
 func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_CompanionCanonicalUserNonceFetchResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[144]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[147]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17363,7 +17262,7 @@ func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_Compani
 
 // Deprecated: Use PeerDataOperationRequestResponseMessage_PeerDataOperationResult_CompanionCanonicalUserNonceFetchResponse.ProtoReflect.Descriptor instead.
 func (*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_CompanionCanonicalUserNonceFetchResponse) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{20, 0, 1}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{22, 0, 2}
 }
 
 func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_CompanionCanonicalUserNonceFetchResponse) GetNonce() string {
@@ -17396,7 +17295,7 @@ type PeerDataOperationRequestResponseMessage_PeerDataOperationResult_CompanionMe
 
 func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_CompanionMetaNonceFetchResponse) Reset() {
 	*x = PeerDataOperationRequestResponseMessage_PeerDataOperationResult_CompanionMetaNonceFetchResponse{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[145]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[148]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17409,7 +17308,7 @@ func (*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_Companion
 }
 
 func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_CompanionMetaNonceFetchResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[145]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[148]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17422,7 +17321,7 @@ func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_Compani
 
 // Deprecated: Use PeerDataOperationRequestResponseMessage_PeerDataOperationResult_CompanionMetaNonceFetchResponse.ProtoReflect.Descriptor instead.
 func (*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_CompanionMetaNonceFetchResponse) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{20, 0, 2}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{22, 0, 3}
 }
 
 func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_CompanionMetaNonceFetchResponse) GetNonce() string {
@@ -17442,7 +17341,7 @@ type PeerDataOperationRequestResponseMessage_PeerDataOperationResult_WaffleNonce
 
 func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_WaffleNonceFetchResponse) Reset() {
 	*x = PeerDataOperationRequestResponseMessage_PeerDataOperationResult_WaffleNonceFetchResponse{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[146]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[149]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17455,7 +17354,7 @@ func (*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_WaffleNon
 }
 
 func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_WaffleNonceFetchResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[146]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[149]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17468,7 +17367,7 @@ func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_WaffleN
 
 // Deprecated: Use PeerDataOperationRequestResponseMessage_PeerDataOperationResult_WaffleNonceFetchResponse.ProtoReflect.Descriptor instead.
 func (*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_WaffleNonceFetchResponse) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{20, 0, 3}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{22, 0, 4}
 }
 
 func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_WaffleNonceFetchResponse) GetNonce() string {
@@ -17495,7 +17394,7 @@ type PeerDataOperationRequestResponseMessage_PeerDataOperationResult_FullHistory
 
 func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_FullHistorySyncOnDemandRequestResponse) Reset() {
 	*x = PeerDataOperationRequestResponseMessage_PeerDataOperationResult_FullHistorySyncOnDemandRequestResponse{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[147]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[150]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17508,7 +17407,7 @@ func (*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_FullHisto
 }
 
 func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_FullHistorySyncOnDemandRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[147]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[150]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17521,7 +17420,7 @@ func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_FullHis
 
 // Deprecated: Use PeerDataOperationRequestResponseMessage_PeerDataOperationResult_FullHistorySyncOnDemandRequestResponse.ProtoReflect.Descriptor instead.
 func (*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_FullHistorySyncOnDemandRequestResponse) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{20, 0, 4}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{22, 0, 5}
 }
 
 func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_FullHistorySyncOnDemandRequestResponse) GetRequestMetadata() *FullHistorySyncOnDemandRequestMetadata {
@@ -17547,7 +17446,7 @@ type PeerDataOperationRequestResponseMessage_PeerDataOperationResult_Placeholder
 
 func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_PlaceholderMessageResendResponse) Reset() {
 	*x = PeerDataOperationRequestResponseMessage_PeerDataOperationResult_PlaceholderMessageResendResponse{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[148]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[151]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17560,7 +17459,7 @@ func (*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_Placehold
 }
 
 func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_PlaceholderMessageResendResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[148]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[151]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17573,7 +17472,7 @@ func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_Placeho
 
 // Deprecated: Use PeerDataOperationRequestResponseMessage_PeerDataOperationResult_PlaceholderMessageResendResponse.ProtoReflect.Descriptor instead.
 func (*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_PlaceholderMessageResendResponse) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{20, 0, 5}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{22, 0, 6}
 }
 
 func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_PlaceholderMessageResendResponse) GetWebMessageInfoBytes() []byte {
@@ -17599,7 +17498,7 @@ type PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPreview
 
 func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPreviewResponse) Reset() {
 	*x = PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPreviewResponse{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[149]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[152]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17612,7 +17511,7 @@ func (*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPrevi
 }
 
 func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPreviewResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[149]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[152]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17625,7 +17524,7 @@ func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPre
 
 // Deprecated: Use PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPreviewResponse.ProtoReflect.Descriptor instead.
 func (*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPreviewResponse) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{20, 0, 6}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{22, 0, 7}
 }
 
 func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPreviewResponse) GetURL() string {
@@ -17694,7 +17593,7 @@ type PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPreview
 
 func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPreviewResponse_PaymentLinkPreviewMetadata) Reset() {
 	*x = PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPreviewResponse_PaymentLinkPreviewMetadata{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[150]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[153]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17707,7 +17606,7 @@ func (*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPrevi
 }
 
 func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPreviewResponse_PaymentLinkPreviewMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[150]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[153]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17720,7 +17619,7 @@ func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPre
 
 // Deprecated: Use PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPreviewResponse_PaymentLinkPreviewMetadata.ProtoReflect.Descriptor instead.
 func (*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPreviewResponse_PaymentLinkPreviewMetadata) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{20, 0, 6, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{22, 0, 7, 0}
 }
 
 func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPreviewResponse_PaymentLinkPreviewMetadata) GetIsBusinessVerified() bool {
@@ -17752,7 +17651,7 @@ type PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPreview
 
 func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPreviewResponse_LinkPreviewHighQualityThumbnail) Reset() {
 	*x = PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPreviewResponse_LinkPreviewHighQualityThumbnail{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[151]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[154]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17765,7 +17664,7 @@ func (*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPrevi
 }
 
 func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPreviewResponse_LinkPreviewHighQualityThumbnail) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[151]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[154]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17778,7 +17677,7 @@ func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPre
 
 // Deprecated: Use PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPreviewResponse_LinkPreviewHighQualityThumbnail.ProtoReflect.Descriptor instead.
 func (*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPreviewResponse_LinkPreviewHighQualityThumbnail) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{20, 0, 6, 1}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{22, 0, 7, 1}
 }
 
 func (x *PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPreviewResponse_LinkPreviewHighQualityThumbnail) GetDirectPath() string {
@@ -17840,7 +17739,7 @@ type CloudAPIThreadControlNotification_CloudAPIThreadControlNotificationContent 
 
 func (x *CloudAPIThreadControlNotification_CloudAPIThreadControlNotificationContent) Reset() {
 	*x = CloudAPIThreadControlNotification_CloudAPIThreadControlNotificationContent{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[152]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[155]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17852,7 +17751,7 @@ func (x *CloudAPIThreadControlNotification_CloudAPIThreadControlNotificationCont
 func (*CloudAPIThreadControlNotification_CloudAPIThreadControlNotificationContent) ProtoMessage() {}
 
 func (x *CloudAPIThreadControlNotification_CloudAPIThreadControlNotificationContent) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[152]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[155]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17865,7 +17764,7 @@ func (x *CloudAPIThreadControlNotification_CloudAPIThreadControlNotificationCont
 
 // Deprecated: Use CloudAPIThreadControlNotification_CloudAPIThreadControlNotificationContent.ProtoReflect.Descriptor instead.
 func (*CloudAPIThreadControlNotification_CloudAPIThreadControlNotificationContent) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{24, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{25, 0}
 }
 
 func (x *CloudAPIThreadControlNotification_CloudAPIThreadControlNotificationContent) GetHandoffNotificationText() string {
@@ -17882,158 +17781,6 @@ func (x *CloudAPIThreadControlNotification_CloudAPIThreadControlNotificationCont
 	return ""
 }
 
-type BotFeedbackMessage_SideBySideSurveyMetadata struct {
-	state                     protoimpl.MessageState                                                     `protogen:"open.v1"`
-	SelectedRequestID         *string                                                                    `protobuf:"bytes,1,opt,name=selectedRequestID" json:"selectedRequestID,omitempty"`
-	SurveyID                  *uint32                                                                    `protobuf:"varint,2,opt,name=surveyID" json:"surveyID,omitempty"`
-	SimonSessionFbid          *string                                                                    `protobuf:"bytes,3,opt,name=simonSessionFbid" json:"simonSessionFbid,omitempty"`
-	ResponseOtid              *string                                                                    `protobuf:"bytes,4,opt,name=responseOtid" json:"responseOtid,omitempty"`
-	ResponseTimestampMSString *string                                                                    `protobuf:"bytes,5,opt,name=responseTimestampMSString" json:"responseTimestampMSString,omitempty"`
-	IsSelectedResponsePrimary *bool                                                                      `protobuf:"varint,6,opt,name=isSelectedResponsePrimary" json:"isSelectedResponsePrimary,omitempty"`
-	MessageIDToEdit           *string                                                                    `protobuf:"bytes,7,opt,name=messageIDToEdit" json:"messageIDToEdit,omitempty"`
-	AnalyticsData             *BotFeedbackMessage_SideBySideSurveyMetadata_SideBySideSurveyAnalyticsData `protobuf:"bytes,8,opt,name=analyticsData" json:"analyticsData,omitempty"`
-	unknownFields             protoimpl.UnknownFields
-	sizeCache                 protoimpl.SizeCache
-}
-
-func (x *BotFeedbackMessage_SideBySideSurveyMetadata) Reset() {
-	*x = BotFeedbackMessage_SideBySideSurveyMetadata{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[153]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *BotFeedbackMessage_SideBySideSurveyMetadata) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*BotFeedbackMessage_SideBySideSurveyMetadata) ProtoMessage() {}
-
-func (x *BotFeedbackMessage_SideBySideSurveyMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[153]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use BotFeedbackMessage_SideBySideSurveyMetadata.ProtoReflect.Descriptor instead.
-func (*BotFeedbackMessage_SideBySideSurveyMetadata) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{25, 0}
-}
-
-func (x *BotFeedbackMessage_SideBySideSurveyMetadata) GetSelectedRequestID() string {
-	if x != nil && x.SelectedRequestID != nil {
-		return *x.SelectedRequestID
-	}
-	return ""
-}
-
-func (x *BotFeedbackMessage_SideBySideSurveyMetadata) GetSurveyID() uint32 {
-	if x != nil && x.SurveyID != nil {
-		return *x.SurveyID
-	}
-	return 0
-}
-
-func (x *BotFeedbackMessage_SideBySideSurveyMetadata) GetSimonSessionFbid() string {
-	if x != nil && x.SimonSessionFbid != nil {
-		return *x.SimonSessionFbid
-	}
-	return ""
-}
-
-func (x *BotFeedbackMessage_SideBySideSurveyMetadata) GetResponseOtid() string {
-	if x != nil && x.ResponseOtid != nil {
-		return *x.ResponseOtid
-	}
-	return ""
-}
-
-func (x *BotFeedbackMessage_SideBySideSurveyMetadata) GetResponseTimestampMSString() string {
-	if x != nil && x.ResponseTimestampMSString != nil {
-		return *x.ResponseTimestampMSString
-	}
-	return ""
-}
-
-func (x *BotFeedbackMessage_SideBySideSurveyMetadata) GetIsSelectedResponsePrimary() bool {
-	if x != nil && x.IsSelectedResponsePrimary != nil {
-		return *x.IsSelectedResponsePrimary
-	}
-	return false
-}
-
-func (x *BotFeedbackMessage_SideBySideSurveyMetadata) GetMessageIDToEdit() string {
-	if x != nil && x.MessageIDToEdit != nil {
-		return *x.MessageIDToEdit
-	}
-	return ""
-}
-
-func (x *BotFeedbackMessage_SideBySideSurveyMetadata) GetAnalyticsData() *BotFeedbackMessage_SideBySideSurveyMetadata_SideBySideSurveyAnalyticsData {
-	if x != nil {
-		return x.AnalyticsData
-	}
-	return nil
-}
-
-type BotFeedbackMessage_SideBySideSurveyMetadata_SideBySideSurveyAnalyticsData struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	TessaEvent       *string                `protobuf:"bytes,1,opt,name=tessaEvent" json:"tessaEvent,omitempty"`
-	TessaSessionFbid *string                `protobuf:"bytes,2,opt,name=tessaSessionFbid" json:"tessaSessionFbid,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
-}
-
-func (x *BotFeedbackMessage_SideBySideSurveyMetadata_SideBySideSurveyAnalyticsData) Reset() {
-	*x = BotFeedbackMessage_SideBySideSurveyMetadata_SideBySideSurveyAnalyticsData{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[154]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *BotFeedbackMessage_SideBySideSurveyMetadata_SideBySideSurveyAnalyticsData) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*BotFeedbackMessage_SideBySideSurveyMetadata_SideBySideSurveyAnalyticsData) ProtoMessage() {}
-
-func (x *BotFeedbackMessage_SideBySideSurveyMetadata_SideBySideSurveyAnalyticsData) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[154]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use BotFeedbackMessage_SideBySideSurveyMetadata_SideBySideSurveyAnalyticsData.ProtoReflect.Descriptor instead.
-func (*BotFeedbackMessage_SideBySideSurveyMetadata_SideBySideSurveyAnalyticsData) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{25, 0, 0}
-}
-
-func (x *BotFeedbackMessage_SideBySideSurveyMetadata_SideBySideSurveyAnalyticsData) GetTessaEvent() string {
-	if x != nil && x.TessaEvent != nil {
-		return *x.TessaEvent
-	}
-	return ""
-}
-
-func (x *BotFeedbackMessage_SideBySideSurveyMetadata_SideBySideSurveyAnalyticsData) GetTessaSessionFbid() string {
-	if x != nil && x.TessaSessionFbid != nil {
-		return *x.TessaSessionFbid
-	}
-	return ""
-}
-
 type PaymentLinkMetadata_PaymentLinkHeader struct {
 	state         protoimpl.MessageState                                       `protogen:"open.v1"`
 	HeaderType    *PaymentLinkMetadata_PaymentLinkHeader_PaymentLinkHeaderType `protobuf:"varint,1,opt,name=headerType,enum=WAWebProtobufsE2E.PaymentLinkMetadata_PaymentLinkHeader_PaymentLinkHeaderType" json:"headerType,omitempty"`
@@ -18043,7 +17790,7 @@ type PaymentLinkMetadata_PaymentLinkHeader struct {
 
 func (x *PaymentLinkMetadata_PaymentLinkHeader) Reset() {
 	*x = PaymentLinkMetadata_PaymentLinkHeader{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[155]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[156]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18055,7 +17802,7 @@ func (x *PaymentLinkMetadata_PaymentLinkHeader) String() string {
 func (*PaymentLinkMetadata_PaymentLinkHeader) ProtoMessage() {}
 
 func (x *PaymentLinkMetadata_PaymentLinkHeader) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[155]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[156]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18087,7 +17834,7 @@ type PaymentLinkMetadata_PaymentLinkProvider struct {
 
 func (x *PaymentLinkMetadata_PaymentLinkProvider) Reset() {
 	*x = PaymentLinkMetadata_PaymentLinkProvider{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[156]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[157]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18099,7 +17846,7 @@ func (x *PaymentLinkMetadata_PaymentLinkProvider) String() string {
 func (*PaymentLinkMetadata_PaymentLinkProvider) ProtoMessage() {}
 
 func (x *PaymentLinkMetadata_PaymentLinkProvider) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[156]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[157]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18131,7 +17878,7 @@ type PaymentLinkMetadata_PaymentLinkButton struct {
 
 func (x *PaymentLinkMetadata_PaymentLinkButton) Reset() {
 	*x = PaymentLinkMetadata_PaymentLinkButton{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[157]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[158]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18143,7 +17890,7 @@ func (x *PaymentLinkMetadata_PaymentLinkButton) String() string {
 func (*PaymentLinkMetadata_PaymentLinkButton) ProtoMessage() {}
 
 func (x *PaymentLinkMetadata_PaymentLinkButton) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[157]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[158]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18175,7 +17922,7 @@ type ContextInfo_StatusAudienceMetadata struct {
 
 func (x *ContextInfo_StatusAudienceMetadata) Reset() {
 	*x = ContextInfo_StatusAudienceMetadata{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[158]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[159]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18187,7 +17934,7 @@ func (x *ContextInfo_StatusAudienceMetadata) String() string {
 func (*ContextInfo_StatusAudienceMetadata) ProtoMessage() {}
 
 func (x *ContextInfo_StatusAudienceMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[158]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[159]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18222,7 +17969,7 @@ type ContextInfo_DataSharingContext struct {
 
 func (x *ContextInfo_DataSharingContext) Reset() {
 	*x = ContextInfo_DataSharingContext{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[159]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[160]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18234,7 +17981,7 @@ func (x *ContextInfo_DataSharingContext) String() string {
 func (*ContextInfo_DataSharingContext) ProtoMessage() {}
 
 func (x *ContextInfo_DataSharingContext) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[159]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[160]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18291,7 +18038,7 @@ type ContextInfo_ForwardedNewsletterMessageInfo struct {
 
 func (x *ContextInfo_ForwardedNewsletterMessageInfo) Reset() {
 	*x = ContextInfo_ForwardedNewsletterMessageInfo{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[160]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[161]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18303,7 +18050,7 @@ func (x *ContextInfo_ForwardedNewsletterMessageInfo) String() string {
 func (*ContextInfo_ForwardedNewsletterMessageInfo) ProtoMessage() {}
 
 func (x *ContextInfo_ForwardedNewsletterMessageInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[160]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[161]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18389,7 +18136,7 @@ type ContextInfo_ExternalAdReplyInfo struct {
 
 func (x *ContextInfo_ExternalAdReplyInfo) Reset() {
 	*x = ContextInfo_ExternalAdReplyInfo{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[161]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[162]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18401,7 +18148,7 @@ func (x *ContextInfo_ExternalAdReplyInfo) String() string {
 func (*ContextInfo_ExternalAdReplyInfo) ProtoMessage() {}
 
 func (x *ContextInfo_ExternalAdReplyInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[161]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[162]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18618,7 +18365,7 @@ type ContextInfo_AdReplyInfo struct {
 
 func (x *ContextInfo_AdReplyInfo) Reset() {
 	*x = ContextInfo_AdReplyInfo{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[162]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[163]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18630,7 +18377,7 @@ func (x *ContextInfo_AdReplyInfo) String() string {
 func (*ContextInfo_AdReplyInfo) ProtoMessage() {}
 
 func (x *ContextInfo_AdReplyInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[162]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[163]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18675,18 +18422,19 @@ func (x *ContextInfo_AdReplyInfo) GetCaption() string {
 }
 
 type ContextInfo_FeatureEligibilities struct {
-	state              protoimpl.MessageState `protogen:"open.v1"`
-	CannotBeReactedTo  *bool                  `protobuf:"varint,1,opt,name=cannotBeReactedTo" json:"cannotBeReactedTo,omitempty"`
-	CannotBeRanked     *bool                  `protobuf:"varint,2,opt,name=cannotBeRanked" json:"cannotBeRanked,omitempty"`
-	CanRequestFeedback *bool                  `protobuf:"varint,3,opt,name=canRequestFeedback" json:"canRequestFeedback,omitempty"`
-	CanBeReshared      *bool                  `protobuf:"varint,4,opt,name=canBeReshared" json:"canBeReshared,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	CannotBeReactedTo    *bool                  `protobuf:"varint,1,opt,name=cannotBeReactedTo" json:"cannotBeReactedTo,omitempty"`
+	CannotBeRanked       *bool                  `protobuf:"varint,2,opt,name=cannotBeRanked" json:"cannotBeRanked,omitempty"`
+	CanRequestFeedback   *bool                  `protobuf:"varint,3,opt,name=canRequestFeedback" json:"canRequestFeedback,omitempty"`
+	CanBeReshared        *bool                  `protobuf:"varint,4,opt,name=canBeReshared" json:"canBeReshared,omitempty"`
+	CanReceiveMultiReact *bool                  `protobuf:"varint,5,opt,name=canReceiveMultiReact" json:"canReceiveMultiReact,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *ContextInfo_FeatureEligibilities) Reset() {
 	*x = ContextInfo_FeatureEligibilities{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[163]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[164]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18698,7 +18446,7 @@ func (x *ContextInfo_FeatureEligibilities) String() string {
 func (*ContextInfo_FeatureEligibilities) ProtoMessage() {}
 
 func (x *ContextInfo_FeatureEligibilities) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[163]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[164]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18742,64 +18490,11 @@ func (x *ContextInfo_FeatureEligibilities) GetCanBeReshared() bool {
 	return false
 }
 
-type ContextInfo_ForwardedAIBotMessageInfo struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	BotName       *string                `protobuf:"bytes,1,opt,name=botName" json:"botName,omitempty"`
-	BotJID        *string                `protobuf:"bytes,2,opt,name=botJID" json:"botJID,omitempty"`
-	CreatorName   *string                `protobuf:"bytes,3,opt,name=creatorName" json:"creatorName,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ContextInfo_ForwardedAIBotMessageInfo) Reset() {
-	*x = ContextInfo_ForwardedAIBotMessageInfo{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[164]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ContextInfo_ForwardedAIBotMessageInfo) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ContextInfo_ForwardedAIBotMessageInfo) ProtoMessage() {}
-
-func (x *ContextInfo_ForwardedAIBotMessageInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[164]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
+func (x *ContextInfo_FeatureEligibilities) GetCanReceiveMultiReact() bool {
+	if x != nil && x.CanReceiveMultiReact != nil {
+		return *x.CanReceiveMultiReact
 	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ContextInfo_ForwardedAIBotMessageInfo.ProtoReflect.Descriptor instead.
-func (*ContextInfo_ForwardedAIBotMessageInfo) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{33, 6}
-}
-
-func (x *ContextInfo_ForwardedAIBotMessageInfo) GetBotName() string {
-	if x != nil && x.BotName != nil {
-		return *x.BotName
-	}
-	return ""
-}
-
-func (x *ContextInfo_ForwardedAIBotMessageInfo) GetBotJID() string {
-	if x != nil && x.BotJID != nil {
-		return *x.BotJID
-	}
-	return ""
-}
-
-func (x *ContextInfo_ForwardedAIBotMessageInfo) GetCreatorName() string {
-	if x != nil && x.CreatorName != nil {
-		return *x.CreatorName
-	}
-	return ""
+	return false
 }
 
 type ContextInfo_QuestionReplyQuotedMessage struct {
@@ -18838,7 +18533,7 @@ func (x *ContextInfo_QuestionReplyQuotedMessage) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use ContextInfo_QuestionReplyQuotedMessage.ProtoReflect.Descriptor instead.
 func (*ContextInfo_QuestionReplyQuotedMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{33, 7}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{33, 6}
 }
 
 func (x *ContextInfo_QuestionReplyQuotedMessage) GetServerQuestionID() int32 {
@@ -18897,7 +18592,7 @@ func (x *ContextInfo_UTMInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContextInfo_UTMInfo.ProtoReflect.Descriptor instead.
 func (*ContextInfo_UTMInfo) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{33, 8}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{33, 7}
 }
 
 func (x *ContextInfo_UTMInfo) GetUtmSource() string {
@@ -18948,7 +18643,7 @@ func (x *ContextInfo_BusinessMessageForwardInfo) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use ContextInfo_BusinessMessageForwardInfo.ProtoReflect.Descriptor instead.
 func (*ContextInfo_BusinessMessageForwardInfo) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{33, 9}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{33, 8}
 }
 
 func (x *ContextInfo_BusinessMessageForwardInfo) GetBusinessOwnerJID() string {
@@ -19034,1132 +18729,6 @@ func (x *ContextInfo_DataSharingContext_Parameters) GetContents() *ContextInfo_D
 	return nil
 }
 
-type AIRichResponseMessage_AIRichResponseContentItemsMetadata struct {
-	state         protoimpl.MessageState                                                                        `protogen:"open.v1"`
-	ItemsMetadata []*AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata `protobuf:"bytes,1,rep,name=itemsMetadata" json:"itemsMetadata,omitempty"`
-	ContentType   *AIRichResponseMessage_AIRichResponseContentItemsMetadata_ContentType                         `protobuf:"varint,2,opt,name=contentType,enum=WAWebProtobufsE2E.AIRichResponseMessage_AIRichResponseContentItemsMetadata_ContentType" json:"contentType,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AIRichResponseMessage_AIRichResponseContentItemsMetadata) Reset() {
-	*x = AIRichResponseMessage_AIRichResponseContentItemsMetadata{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[169]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AIRichResponseMessage_AIRichResponseContentItemsMetadata) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AIRichResponseMessage_AIRichResponseContentItemsMetadata) ProtoMessage() {}
-
-func (x *AIRichResponseMessage_AIRichResponseContentItemsMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[169]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AIRichResponseMessage_AIRichResponseContentItemsMetadata.ProtoReflect.Descriptor instead.
-func (*AIRichResponseMessage_AIRichResponseContentItemsMetadata) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{34, 0}
-}
-
-func (x *AIRichResponseMessage_AIRichResponseContentItemsMetadata) GetItemsMetadata() []*AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata {
-	if x != nil {
-		return x.ItemsMetadata
-	}
-	return nil
-}
-
-func (x *AIRichResponseMessage_AIRichResponseContentItemsMetadata) GetContentType() AIRichResponseMessage_AIRichResponseContentItemsMetadata_ContentType {
-	if x != nil && x.ContentType != nil {
-		return *x.ContentType
-	}
-	return AIRichResponseMessage_AIRichResponseContentItemsMetadata_DEFAULT
-}
-
-type AIRichResponseMessage_AIRichResponseDynamicMetadata struct {
-	state         protoimpl.MessageState                                                                 `protogen:"open.v1"`
-	Type          *AIRichResponseMessage_AIRichResponseDynamicMetadata_AIRichResponseDynamicMetadataType `protobuf:"varint,1,opt,name=type,enum=WAWebProtobufsE2E.AIRichResponseMessage_AIRichResponseDynamicMetadata_AIRichResponseDynamicMetadataType" json:"type,omitempty"`
-	Version       *uint64                                                                                `protobuf:"varint,2,opt,name=version" json:"version,omitempty"`
-	URL           *string                                                                                `protobuf:"bytes,3,opt,name=URL" json:"URL,omitempty"`
-	LoopCount     *uint32                                                                                `protobuf:"varint,4,opt,name=loopCount" json:"loopCount,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AIRichResponseMessage_AIRichResponseDynamicMetadata) Reset() {
-	*x = AIRichResponseMessage_AIRichResponseDynamicMetadata{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[170]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AIRichResponseMessage_AIRichResponseDynamicMetadata) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AIRichResponseMessage_AIRichResponseDynamicMetadata) ProtoMessage() {}
-
-func (x *AIRichResponseMessage_AIRichResponseDynamicMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[170]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AIRichResponseMessage_AIRichResponseDynamicMetadata.ProtoReflect.Descriptor instead.
-func (*AIRichResponseMessage_AIRichResponseDynamicMetadata) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{34, 1}
-}
-
-func (x *AIRichResponseMessage_AIRichResponseDynamicMetadata) GetType() AIRichResponseMessage_AIRichResponseDynamicMetadata_AIRichResponseDynamicMetadataType {
-	if x != nil && x.Type != nil {
-		return *x.Type
-	}
-	return AIRichResponseMessage_AIRichResponseDynamicMetadata_AI_RICH_RESPONSE_DYNAMIC_METADATA_TYPE_UNKNOWN
-}
-
-func (x *AIRichResponseMessage_AIRichResponseDynamicMetadata) GetVersion() uint64 {
-	if x != nil && x.Version != nil {
-		return *x.Version
-	}
-	return 0
-}
-
-func (x *AIRichResponseMessage_AIRichResponseDynamicMetadata) GetURL() string {
-	if x != nil && x.URL != nil {
-		return *x.URL
-	}
-	return ""
-}
-
-func (x *AIRichResponseMessage_AIRichResponseDynamicMetadata) GetLoopCount() uint32 {
-	if x != nil && x.LoopCount != nil {
-		return *x.LoopCount
-	}
-	return 0
-}
-
-type AIRichResponseMessage_AIRichResponseCodeMetadata struct {
-	state         protoimpl.MessageState                                                      `protogen:"open.v1"`
-	CodeLanguage  *string                                                                     `protobuf:"bytes,1,opt,name=codeLanguage" json:"codeLanguage,omitempty"`
-	CodeBlocks    []*AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeBlock `protobuf:"bytes,2,rep,name=codeBlocks" json:"codeBlocks,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AIRichResponseMessage_AIRichResponseCodeMetadata) Reset() {
-	*x = AIRichResponseMessage_AIRichResponseCodeMetadata{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[171]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AIRichResponseMessage_AIRichResponseCodeMetadata) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AIRichResponseMessage_AIRichResponseCodeMetadata) ProtoMessage() {}
-
-func (x *AIRichResponseMessage_AIRichResponseCodeMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[171]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AIRichResponseMessage_AIRichResponseCodeMetadata.ProtoReflect.Descriptor instead.
-func (*AIRichResponseMessage_AIRichResponseCodeMetadata) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{34, 2}
-}
-
-func (x *AIRichResponseMessage_AIRichResponseCodeMetadata) GetCodeLanguage() string {
-	if x != nil && x.CodeLanguage != nil {
-		return *x.CodeLanguage
-	}
-	return ""
-}
-
-func (x *AIRichResponseMessage_AIRichResponseCodeMetadata) GetCodeBlocks() []*AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeBlock {
-	if x != nil {
-		return x.CodeBlocks
-	}
-	return nil
-}
-
-type AIRichResponseMessage_AIRichResponseInlineImageMetadata struct {
-	state         protoimpl.MessageState                                                                `protogen:"open.v1"`
-	ImageURL      *AIRichResponseMessage_AIRichResponseImageURL                                         `protobuf:"bytes,1,opt,name=imageURL" json:"imageURL,omitempty"`
-	ImageText     *string                                                                               `protobuf:"bytes,2,opt,name=imageText" json:"imageText,omitempty"`
-	Alignment     *AIRichResponseMessage_AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment `protobuf:"varint,3,opt,name=alignment,enum=WAWebProtobufsE2E.AIRichResponseMessage_AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment" json:"alignment,omitempty"`
-	TapLinkURL    *string                                                                               `protobuf:"bytes,4,opt,name=tapLinkURL" json:"tapLinkURL,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AIRichResponseMessage_AIRichResponseInlineImageMetadata) Reset() {
-	*x = AIRichResponseMessage_AIRichResponseInlineImageMetadata{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[172]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AIRichResponseMessage_AIRichResponseInlineImageMetadata) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AIRichResponseMessage_AIRichResponseInlineImageMetadata) ProtoMessage() {}
-
-func (x *AIRichResponseMessage_AIRichResponseInlineImageMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[172]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AIRichResponseMessage_AIRichResponseInlineImageMetadata.ProtoReflect.Descriptor instead.
-func (*AIRichResponseMessage_AIRichResponseInlineImageMetadata) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{34, 3}
-}
-
-func (x *AIRichResponseMessage_AIRichResponseInlineImageMetadata) GetImageURL() *AIRichResponseMessage_AIRichResponseImageURL {
-	if x != nil {
-		return x.ImageURL
-	}
-	return nil
-}
-
-func (x *AIRichResponseMessage_AIRichResponseInlineImageMetadata) GetImageText() string {
-	if x != nil && x.ImageText != nil {
-		return *x.ImageText
-	}
-	return ""
-}
-
-func (x *AIRichResponseMessage_AIRichResponseInlineImageMetadata) GetAlignment() AIRichResponseMessage_AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment {
-	if x != nil && x.Alignment != nil {
-		return *x.Alignment
-	}
-	return AIRichResponseMessage_AIRichResponseInlineImageMetadata_AI_RICH_RESPONSE_IMAGE_LAYOUT_LEADING_ALIGNED
-}
-
-func (x *AIRichResponseMessage_AIRichResponseInlineImageMetadata) GetTapLinkURL() string {
-	if x != nil && x.TapLinkURL != nil {
-		return *x.TapLinkURL
-	}
-	return ""
-}
-
-type AIRichResponseMessage_AIRichResponseSubMessage struct {
-	state                protoimpl.MessageState                                    `protogen:"open.v1"`
-	MessageType          *AIRichResponseMessage_AIRichResponseSubMessageType       `protobuf:"varint,1,opt,name=messageType,enum=WAWebProtobufsE2E.AIRichResponseMessage_AIRichResponseSubMessageType" json:"messageType,omitempty"`
-	GridImageMetadata    *AIRichResponseMessage_AIRichResponseGridImageMetadata    `protobuf:"bytes,2,opt,name=gridImageMetadata" json:"gridImageMetadata,omitempty"`
-	MessageText          *string                                                   `protobuf:"bytes,3,opt,name=messageText" json:"messageText,omitempty"`
-	ImageMetadata        *AIRichResponseMessage_AIRichResponseInlineImageMetadata  `protobuf:"bytes,4,opt,name=imageMetadata" json:"imageMetadata,omitempty"`
-	CodeMetadata         *AIRichResponseMessage_AIRichResponseCodeMetadata         `protobuf:"bytes,5,opt,name=codeMetadata" json:"codeMetadata,omitempty"`
-	TableMetadata        *AIRichResponseMessage_AIRichResponseTableMetadata        `protobuf:"bytes,6,opt,name=tableMetadata" json:"tableMetadata,omitempty"`
-	DynamicMetadata      *AIRichResponseMessage_AIRichResponseDynamicMetadata      `protobuf:"bytes,7,opt,name=dynamicMetadata" json:"dynamicMetadata,omitempty"`
-	LatexMetadata        *AIRichResponseMessage_AIRichResponseLatexMetadata        `protobuf:"bytes,8,opt,name=latexMetadata" json:"latexMetadata,omitempty"`
-	MapMetadata          *AIRichResponseMessage_AIRichResponseMapMetadata          `protobuf:"bytes,9,opt,name=mapMetadata" json:"mapMetadata,omitempty"`
-	ContentItemsMetadata *AIRichResponseMessage_AIRichResponseContentItemsMetadata `protobuf:"bytes,10,opt,name=contentItemsMetadata" json:"contentItemsMetadata,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
-}
-
-func (x *AIRichResponseMessage_AIRichResponseSubMessage) Reset() {
-	*x = AIRichResponseMessage_AIRichResponseSubMessage{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[173]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AIRichResponseMessage_AIRichResponseSubMessage) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AIRichResponseMessage_AIRichResponseSubMessage) ProtoMessage() {}
-
-func (x *AIRichResponseMessage_AIRichResponseSubMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[173]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AIRichResponseMessage_AIRichResponseSubMessage.ProtoReflect.Descriptor instead.
-func (*AIRichResponseMessage_AIRichResponseSubMessage) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{34, 4}
-}
-
-func (x *AIRichResponseMessage_AIRichResponseSubMessage) GetMessageType() AIRichResponseMessage_AIRichResponseSubMessageType {
-	if x != nil && x.MessageType != nil {
-		return *x.MessageType
-	}
-	return AIRichResponseMessage_AI_RICH_RESPONSE_UNKNOWN
-}
-
-func (x *AIRichResponseMessage_AIRichResponseSubMessage) GetGridImageMetadata() *AIRichResponseMessage_AIRichResponseGridImageMetadata {
-	if x != nil {
-		return x.GridImageMetadata
-	}
-	return nil
-}
-
-func (x *AIRichResponseMessage_AIRichResponseSubMessage) GetMessageText() string {
-	if x != nil && x.MessageText != nil {
-		return *x.MessageText
-	}
-	return ""
-}
-
-func (x *AIRichResponseMessage_AIRichResponseSubMessage) GetImageMetadata() *AIRichResponseMessage_AIRichResponseInlineImageMetadata {
-	if x != nil {
-		return x.ImageMetadata
-	}
-	return nil
-}
-
-func (x *AIRichResponseMessage_AIRichResponseSubMessage) GetCodeMetadata() *AIRichResponseMessage_AIRichResponseCodeMetadata {
-	if x != nil {
-		return x.CodeMetadata
-	}
-	return nil
-}
-
-func (x *AIRichResponseMessage_AIRichResponseSubMessage) GetTableMetadata() *AIRichResponseMessage_AIRichResponseTableMetadata {
-	if x != nil {
-		return x.TableMetadata
-	}
-	return nil
-}
-
-func (x *AIRichResponseMessage_AIRichResponseSubMessage) GetDynamicMetadata() *AIRichResponseMessage_AIRichResponseDynamicMetadata {
-	if x != nil {
-		return x.DynamicMetadata
-	}
-	return nil
-}
-
-func (x *AIRichResponseMessage_AIRichResponseSubMessage) GetLatexMetadata() *AIRichResponseMessage_AIRichResponseLatexMetadata {
-	if x != nil {
-		return x.LatexMetadata
-	}
-	return nil
-}
-
-func (x *AIRichResponseMessage_AIRichResponseSubMessage) GetMapMetadata() *AIRichResponseMessage_AIRichResponseMapMetadata {
-	if x != nil {
-		return x.MapMetadata
-	}
-	return nil
-}
-
-func (x *AIRichResponseMessage_AIRichResponseSubMessage) GetContentItemsMetadata() *AIRichResponseMessage_AIRichResponseContentItemsMetadata {
-	if x != nil {
-		return x.ContentItemsMetadata
-	}
-	return nil
-}
-
-type AIRichResponseMessage_AIRichResponseMapMetadata struct {
-	state           protoimpl.MessageState                                                         `protogen:"open.v1"`
-	CenterLatitude  *float64                                                                       `protobuf:"fixed64,1,opt,name=centerLatitude" json:"centerLatitude,omitempty"`
-	CenterLongitude *float64                                                                       `protobuf:"fixed64,2,opt,name=centerLongitude" json:"centerLongitude,omitempty"`
-	LatitudeDelta   *float64                                                                       `protobuf:"fixed64,3,opt,name=latitudeDelta" json:"latitudeDelta,omitempty"`
-	LongitudeDelta  *float64                                                                       `protobuf:"fixed64,4,opt,name=longitudeDelta" json:"longitudeDelta,omitempty"`
-	Annotations     []*AIRichResponseMessage_AIRichResponseMapMetadata_AIRichResponseMapAnnotation `protobuf:"bytes,5,rep,name=annotations" json:"annotations,omitempty"`
-	ShowInfoList    *bool                                                                          `protobuf:"varint,6,opt,name=showInfoList" json:"showInfoList,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
-}
-
-func (x *AIRichResponseMessage_AIRichResponseMapMetadata) Reset() {
-	*x = AIRichResponseMessage_AIRichResponseMapMetadata{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[174]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AIRichResponseMessage_AIRichResponseMapMetadata) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AIRichResponseMessage_AIRichResponseMapMetadata) ProtoMessage() {}
-
-func (x *AIRichResponseMessage_AIRichResponseMapMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[174]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AIRichResponseMessage_AIRichResponseMapMetadata.ProtoReflect.Descriptor instead.
-func (*AIRichResponseMessage_AIRichResponseMapMetadata) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{34, 5}
-}
-
-func (x *AIRichResponseMessage_AIRichResponseMapMetadata) GetCenterLatitude() float64 {
-	if x != nil && x.CenterLatitude != nil {
-		return *x.CenterLatitude
-	}
-	return 0
-}
-
-func (x *AIRichResponseMessage_AIRichResponseMapMetadata) GetCenterLongitude() float64 {
-	if x != nil && x.CenterLongitude != nil {
-		return *x.CenterLongitude
-	}
-	return 0
-}
-
-func (x *AIRichResponseMessage_AIRichResponseMapMetadata) GetLatitudeDelta() float64 {
-	if x != nil && x.LatitudeDelta != nil {
-		return *x.LatitudeDelta
-	}
-	return 0
-}
-
-func (x *AIRichResponseMessage_AIRichResponseMapMetadata) GetLongitudeDelta() float64 {
-	if x != nil && x.LongitudeDelta != nil {
-		return *x.LongitudeDelta
-	}
-	return 0
-}
-
-func (x *AIRichResponseMessage_AIRichResponseMapMetadata) GetAnnotations() []*AIRichResponseMessage_AIRichResponseMapMetadata_AIRichResponseMapAnnotation {
-	if x != nil {
-		return x.Annotations
-	}
-	return nil
-}
-
-func (x *AIRichResponseMessage_AIRichResponseMapMetadata) GetShowInfoList() bool {
-	if x != nil && x.ShowInfoList != nil {
-		return *x.ShowInfoList
-	}
-	return false
-}
-
-type AIRichResponseMessage_AIRichResponseLatexMetadata struct {
-	state         protoimpl.MessageState                                                             `protogen:"open.v1"`
-	Text          *string                                                                            `protobuf:"bytes,1,opt,name=text" json:"text,omitempty"`
-	Expressions   []*AIRichResponseMessage_AIRichResponseLatexMetadata_AIRichResponseLatexExpression `protobuf:"bytes,2,rep,name=expressions" json:"expressions,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AIRichResponseMessage_AIRichResponseLatexMetadata) Reset() {
-	*x = AIRichResponseMessage_AIRichResponseLatexMetadata{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[175]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AIRichResponseMessage_AIRichResponseLatexMetadata) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AIRichResponseMessage_AIRichResponseLatexMetadata) ProtoMessage() {}
-
-func (x *AIRichResponseMessage_AIRichResponseLatexMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[175]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AIRichResponseMessage_AIRichResponseLatexMetadata.ProtoReflect.Descriptor instead.
-func (*AIRichResponseMessage_AIRichResponseLatexMetadata) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{34, 6}
-}
-
-func (x *AIRichResponseMessage_AIRichResponseLatexMetadata) GetText() string {
-	if x != nil && x.Text != nil {
-		return *x.Text
-	}
-	return ""
-}
-
-func (x *AIRichResponseMessage_AIRichResponseLatexMetadata) GetExpressions() []*AIRichResponseMessage_AIRichResponseLatexMetadata_AIRichResponseLatexExpression {
-	if x != nil {
-		return x.Expressions
-	}
-	return nil
-}
-
-type AIRichResponseMessage_AIRichResponseUnifiedResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Data          []byte                 `protobuf:"bytes,1,opt,name=data" json:"data,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AIRichResponseMessage_AIRichResponseUnifiedResponse) Reset() {
-	*x = AIRichResponseMessage_AIRichResponseUnifiedResponse{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[176]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AIRichResponseMessage_AIRichResponseUnifiedResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AIRichResponseMessage_AIRichResponseUnifiedResponse) ProtoMessage() {}
-
-func (x *AIRichResponseMessage_AIRichResponseUnifiedResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[176]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AIRichResponseMessage_AIRichResponseUnifiedResponse.ProtoReflect.Descriptor instead.
-func (*AIRichResponseMessage_AIRichResponseUnifiedResponse) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{34, 7}
-}
-
-func (x *AIRichResponseMessage_AIRichResponseUnifiedResponse) GetData() []byte {
-	if x != nil {
-		return x.Data
-	}
-	return nil
-}
-
-type AIRichResponseMessage_AIRichResponseTableMetadata struct {
-	state         protoimpl.MessageState                                                      `protogen:"open.v1"`
-	Rows          []*AIRichResponseMessage_AIRichResponseTableMetadata_AIRichResponseTableRow `protobuf:"bytes,1,rep,name=rows" json:"rows,omitempty"`
-	Title         *string                                                                     `protobuf:"bytes,2,opt,name=title" json:"title,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AIRichResponseMessage_AIRichResponseTableMetadata) Reset() {
-	*x = AIRichResponseMessage_AIRichResponseTableMetadata{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[177]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AIRichResponseMessage_AIRichResponseTableMetadata) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AIRichResponseMessage_AIRichResponseTableMetadata) ProtoMessage() {}
-
-func (x *AIRichResponseMessage_AIRichResponseTableMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[177]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AIRichResponseMessage_AIRichResponseTableMetadata.ProtoReflect.Descriptor instead.
-func (*AIRichResponseMessage_AIRichResponseTableMetadata) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{34, 8}
-}
-
-func (x *AIRichResponseMessage_AIRichResponseTableMetadata) GetRows() []*AIRichResponseMessage_AIRichResponseTableMetadata_AIRichResponseTableRow {
-	if x != nil {
-		return x.Rows
-	}
-	return nil
-}
-
-func (x *AIRichResponseMessage_AIRichResponseTableMetadata) GetTitle() string {
-	if x != nil && x.Title != nil {
-		return *x.Title
-	}
-	return ""
-}
-
-type AIRichResponseMessage_AIRichResponseGridImageMetadata struct {
-	state         protoimpl.MessageState                          `protogen:"open.v1"`
-	GridImageURL  *AIRichResponseMessage_AIRichResponseImageURL   `protobuf:"bytes,1,opt,name=gridImageURL" json:"gridImageURL,omitempty"`
-	ImageURLs     []*AIRichResponseMessage_AIRichResponseImageURL `protobuf:"bytes,2,rep,name=imageURLs" json:"imageURLs,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AIRichResponseMessage_AIRichResponseGridImageMetadata) Reset() {
-	*x = AIRichResponseMessage_AIRichResponseGridImageMetadata{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[178]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AIRichResponseMessage_AIRichResponseGridImageMetadata) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AIRichResponseMessage_AIRichResponseGridImageMetadata) ProtoMessage() {}
-
-func (x *AIRichResponseMessage_AIRichResponseGridImageMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[178]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AIRichResponseMessage_AIRichResponseGridImageMetadata.ProtoReflect.Descriptor instead.
-func (*AIRichResponseMessage_AIRichResponseGridImageMetadata) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{34, 9}
-}
-
-func (x *AIRichResponseMessage_AIRichResponseGridImageMetadata) GetGridImageURL() *AIRichResponseMessage_AIRichResponseImageURL {
-	if x != nil {
-		return x.GridImageURL
-	}
-	return nil
-}
-
-func (x *AIRichResponseMessage_AIRichResponseGridImageMetadata) GetImageURLs() []*AIRichResponseMessage_AIRichResponseImageURL {
-	if x != nil {
-		return x.ImageURLs
-	}
-	return nil
-}
-
-type AIRichResponseMessage_AIRichResponseImageURL struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	ImagePreviewURL *string                `protobuf:"bytes,1,opt,name=imagePreviewURL" json:"imagePreviewURL,omitempty"`
-	ImageHighResURL *string                `protobuf:"bytes,2,opt,name=imageHighResURL" json:"imageHighResURL,omitempty"`
-	SourceURL       *string                `protobuf:"bytes,3,opt,name=sourceURL" json:"sourceURL,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
-}
-
-func (x *AIRichResponseMessage_AIRichResponseImageURL) Reset() {
-	*x = AIRichResponseMessage_AIRichResponseImageURL{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[179]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AIRichResponseMessage_AIRichResponseImageURL) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AIRichResponseMessage_AIRichResponseImageURL) ProtoMessage() {}
-
-func (x *AIRichResponseMessage_AIRichResponseImageURL) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[179]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AIRichResponseMessage_AIRichResponseImageURL.ProtoReflect.Descriptor instead.
-func (*AIRichResponseMessage_AIRichResponseImageURL) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{34, 10}
-}
-
-func (x *AIRichResponseMessage_AIRichResponseImageURL) GetImagePreviewURL() string {
-	if x != nil && x.ImagePreviewURL != nil {
-		return *x.ImagePreviewURL
-	}
-	return ""
-}
-
-func (x *AIRichResponseMessage_AIRichResponseImageURL) GetImageHighResURL() string {
-	if x != nil && x.ImageHighResURL != nil {
-		return *x.ImageHighResURL
-	}
-	return ""
-}
-
-func (x *AIRichResponseMessage_AIRichResponseImageURL) GetSourceURL() string {
-	if x != nil && x.SourceURL != nil {
-		return *x.SourceURL
-	}
-	return ""
-}
-
-type AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Types that are valid to be assigned to AIRichResponseContentItem:
-	//
-	//	*AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata_ReelItem
-	AIRichResponseContentItem isAIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata_AIRichResponseContentItem `protobuf_oneof:"aIRichResponseContentItem"`
-	unknownFields             protoimpl.UnknownFields
-	sizeCache                 protoimpl.SizeCache
-}
-
-func (x *AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata) Reset() {
-	*x = AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[180]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata) ProtoMessage() {
-}
-
-func (x *AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[180]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata.ProtoReflect.Descriptor instead.
-func (*AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{34, 0, 0}
-}
-
-func (x *AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata) GetAIRichResponseContentItem() isAIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata_AIRichResponseContentItem {
-	if x != nil {
-		return x.AIRichResponseContentItem
-	}
-	return nil
-}
-
-func (x *AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata) GetReelItem() *AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseReelItem {
-	if x != nil {
-		if x, ok := x.AIRichResponseContentItem.(*AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata_ReelItem); ok {
-			return x.ReelItem
-		}
-	}
-	return nil
-}
-
-type isAIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata_AIRichResponseContentItem interface {
-	isAIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata_AIRichResponseContentItem()
-}
-
-type AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata_ReelItem struct {
-	ReelItem *AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseReelItem `protobuf:"bytes,1,opt,name=reelItem,oneof"`
-}
-
-func (*AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata_ReelItem) isAIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata_AIRichResponseContentItem() {
-}
-
-type AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseReelItem struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	Title          *string                `protobuf:"bytes,1,opt,name=title" json:"title,omitempty"`
-	ProfileIconURL *string                `protobuf:"bytes,2,opt,name=profileIconURL" json:"profileIconURL,omitempty"`
-	ThumbnailURL   *string                `protobuf:"bytes,3,opt,name=thumbnailURL" json:"thumbnailURL,omitempty"`
-	VideoURL       *string                `protobuf:"bytes,4,opt,name=videoURL" json:"videoURL,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
-}
-
-func (x *AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseReelItem) Reset() {
-	*x = AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseReelItem{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[181]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseReelItem) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseReelItem) ProtoMessage() {
-}
-
-func (x *AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseReelItem) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[181]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseReelItem.ProtoReflect.Descriptor instead.
-func (*AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseReelItem) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{34, 0, 1}
-}
-
-func (x *AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseReelItem) GetTitle() string {
-	if x != nil && x.Title != nil {
-		return *x.Title
-	}
-	return ""
-}
-
-func (x *AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseReelItem) GetProfileIconURL() string {
-	if x != nil && x.ProfileIconURL != nil {
-		return *x.ProfileIconURL
-	}
-	return ""
-}
-
-func (x *AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseReelItem) GetThumbnailURL() string {
-	if x != nil && x.ThumbnailURL != nil {
-		return *x.ThumbnailURL
-	}
-	return ""
-}
-
-func (x *AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseReelItem) GetVideoURL() string {
-	if x != nil && x.VideoURL != nil {
-		return *x.VideoURL
-	}
-	return ""
-}
-
-type AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeBlock struct {
-	state         protoimpl.MessageState                                                            `protogen:"open.v1"`
-	HighlightType *AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType `protobuf:"varint,1,opt,name=highlightType,enum=WAWebProtobufsE2E.AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType" json:"highlightType,omitempty"`
-	CodeContent   *string                                                                           `protobuf:"bytes,2,opt,name=codeContent" json:"codeContent,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeBlock) Reset() {
-	*x = AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeBlock{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[182]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeBlock) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeBlock) ProtoMessage() {}
-
-func (x *AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeBlock) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[182]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeBlock.ProtoReflect.Descriptor instead.
-func (*AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeBlock) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{34, 2, 0}
-}
-
-func (x *AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeBlock) GetHighlightType() AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType {
-	if x != nil && x.HighlightType != nil {
-		return *x.HighlightType
-	}
-	return AIRichResponseMessage_AIRichResponseCodeMetadata_AI_RICH_RESPONSE_CODE_HIGHLIGHT_DEFAULT
-}
-
-func (x *AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeBlock) GetCodeContent() string {
-	if x != nil && x.CodeContent != nil {
-		return *x.CodeContent
-	}
-	return ""
-}
-
-type AIRichResponseMessage_AIRichResponseMapMetadata_AIRichResponseMapAnnotation struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	AnnotationNumber *uint32                `protobuf:"varint,1,opt,name=annotationNumber" json:"annotationNumber,omitempty"`
-	Latitude         *float64               `protobuf:"fixed64,2,opt,name=latitude" json:"latitude,omitempty"`
-	Longitude        *float64               `protobuf:"fixed64,3,opt,name=longitude" json:"longitude,omitempty"`
-	Title            *string                `protobuf:"bytes,4,opt,name=title" json:"title,omitempty"`
-	Body             *string                `protobuf:"bytes,5,opt,name=body" json:"body,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
-}
-
-func (x *AIRichResponseMessage_AIRichResponseMapMetadata_AIRichResponseMapAnnotation) Reset() {
-	*x = AIRichResponseMessage_AIRichResponseMapMetadata_AIRichResponseMapAnnotation{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[183]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AIRichResponseMessage_AIRichResponseMapMetadata_AIRichResponseMapAnnotation) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AIRichResponseMessage_AIRichResponseMapMetadata_AIRichResponseMapAnnotation) ProtoMessage() {}
-
-func (x *AIRichResponseMessage_AIRichResponseMapMetadata_AIRichResponseMapAnnotation) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[183]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AIRichResponseMessage_AIRichResponseMapMetadata_AIRichResponseMapAnnotation.ProtoReflect.Descriptor instead.
-func (*AIRichResponseMessage_AIRichResponseMapMetadata_AIRichResponseMapAnnotation) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{34, 5, 0}
-}
-
-func (x *AIRichResponseMessage_AIRichResponseMapMetadata_AIRichResponseMapAnnotation) GetAnnotationNumber() uint32 {
-	if x != nil && x.AnnotationNumber != nil {
-		return *x.AnnotationNumber
-	}
-	return 0
-}
-
-func (x *AIRichResponseMessage_AIRichResponseMapMetadata_AIRichResponseMapAnnotation) GetLatitude() float64 {
-	if x != nil && x.Latitude != nil {
-		return *x.Latitude
-	}
-	return 0
-}
-
-func (x *AIRichResponseMessage_AIRichResponseMapMetadata_AIRichResponseMapAnnotation) GetLongitude() float64 {
-	if x != nil && x.Longitude != nil {
-		return *x.Longitude
-	}
-	return 0
-}
-
-func (x *AIRichResponseMessage_AIRichResponseMapMetadata_AIRichResponseMapAnnotation) GetTitle() string {
-	if x != nil && x.Title != nil {
-		return *x.Title
-	}
-	return ""
-}
-
-func (x *AIRichResponseMessage_AIRichResponseMapMetadata_AIRichResponseMapAnnotation) GetBody() string {
-	if x != nil && x.Body != nil {
-		return *x.Body
-	}
-	return ""
-}
-
-type AIRichResponseMessage_AIRichResponseLatexMetadata_AIRichResponseLatexExpression struct {
-	state                protoimpl.MessageState `protogen:"open.v1"`
-	LatexExpression      *string                `protobuf:"bytes,1,opt,name=latexExpression" json:"latexExpression,omitempty"`
-	URL                  *string                `protobuf:"bytes,2,opt,name=URL" json:"URL,omitempty"`
-	Width                *float64               `protobuf:"fixed64,3,opt,name=width" json:"width,omitempty"`
-	Height               *float64               `protobuf:"fixed64,4,opt,name=height" json:"height,omitempty"`
-	FontHeight           *float64               `protobuf:"fixed64,5,opt,name=fontHeight" json:"fontHeight,omitempty"`
-	ImageTopPadding      *float64               `protobuf:"fixed64,6,opt,name=imageTopPadding" json:"imageTopPadding,omitempty"`
-	ImageLeadingPadding  *float64               `protobuf:"fixed64,7,opt,name=imageLeadingPadding" json:"imageLeadingPadding,omitempty"`
-	ImageBottomPadding   *float64               `protobuf:"fixed64,8,opt,name=imageBottomPadding" json:"imageBottomPadding,omitempty"`
-	ImageTrailingPadding *float64               `protobuf:"fixed64,9,opt,name=imageTrailingPadding" json:"imageTrailingPadding,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
-}
-
-func (x *AIRichResponseMessage_AIRichResponseLatexMetadata_AIRichResponseLatexExpression) Reset() {
-	*x = AIRichResponseMessage_AIRichResponseLatexMetadata_AIRichResponseLatexExpression{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[184]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AIRichResponseMessage_AIRichResponseLatexMetadata_AIRichResponseLatexExpression) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AIRichResponseMessage_AIRichResponseLatexMetadata_AIRichResponseLatexExpression) ProtoMessage() {
-}
-
-func (x *AIRichResponseMessage_AIRichResponseLatexMetadata_AIRichResponseLatexExpression) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[184]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AIRichResponseMessage_AIRichResponseLatexMetadata_AIRichResponseLatexExpression.ProtoReflect.Descriptor instead.
-func (*AIRichResponseMessage_AIRichResponseLatexMetadata_AIRichResponseLatexExpression) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{34, 6, 0}
-}
-
-func (x *AIRichResponseMessage_AIRichResponseLatexMetadata_AIRichResponseLatexExpression) GetLatexExpression() string {
-	if x != nil && x.LatexExpression != nil {
-		return *x.LatexExpression
-	}
-	return ""
-}
-
-func (x *AIRichResponseMessage_AIRichResponseLatexMetadata_AIRichResponseLatexExpression) GetURL() string {
-	if x != nil && x.URL != nil {
-		return *x.URL
-	}
-	return ""
-}
-
-func (x *AIRichResponseMessage_AIRichResponseLatexMetadata_AIRichResponseLatexExpression) GetWidth() float64 {
-	if x != nil && x.Width != nil {
-		return *x.Width
-	}
-	return 0
-}
-
-func (x *AIRichResponseMessage_AIRichResponseLatexMetadata_AIRichResponseLatexExpression) GetHeight() float64 {
-	if x != nil && x.Height != nil {
-		return *x.Height
-	}
-	return 0
-}
-
-func (x *AIRichResponseMessage_AIRichResponseLatexMetadata_AIRichResponseLatexExpression) GetFontHeight() float64 {
-	if x != nil && x.FontHeight != nil {
-		return *x.FontHeight
-	}
-	return 0
-}
-
-func (x *AIRichResponseMessage_AIRichResponseLatexMetadata_AIRichResponseLatexExpression) GetImageTopPadding() float64 {
-	if x != nil && x.ImageTopPadding != nil {
-		return *x.ImageTopPadding
-	}
-	return 0
-}
-
-func (x *AIRichResponseMessage_AIRichResponseLatexMetadata_AIRichResponseLatexExpression) GetImageLeadingPadding() float64 {
-	if x != nil && x.ImageLeadingPadding != nil {
-		return *x.ImageLeadingPadding
-	}
-	return 0
-}
-
-func (x *AIRichResponseMessage_AIRichResponseLatexMetadata_AIRichResponseLatexExpression) GetImageBottomPadding() float64 {
-	if x != nil && x.ImageBottomPadding != nil {
-		return *x.ImageBottomPadding
-	}
-	return 0
-}
-
-func (x *AIRichResponseMessage_AIRichResponseLatexMetadata_AIRichResponseLatexExpression) GetImageTrailingPadding() float64 {
-	if x != nil && x.ImageTrailingPadding != nil {
-		return *x.ImageTrailingPadding
-	}
-	return 0
-}
-
-type AIRichResponseMessage_AIRichResponseTableMetadata_AIRichResponseTableRow struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Items         []string               `protobuf:"bytes,1,rep,name=items" json:"items,omitempty"`
-	IsHeading     *bool                  `protobuf:"varint,2,opt,name=isHeading" json:"isHeading,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AIRichResponseMessage_AIRichResponseTableMetadata_AIRichResponseTableRow) Reset() {
-	*x = AIRichResponseMessage_AIRichResponseTableMetadata_AIRichResponseTableRow{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[185]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AIRichResponseMessage_AIRichResponseTableMetadata_AIRichResponseTableRow) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AIRichResponseMessage_AIRichResponseTableMetadata_AIRichResponseTableRow) ProtoMessage() {}
-
-func (x *AIRichResponseMessage_AIRichResponseTableMetadata_AIRichResponseTableRow) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[185]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AIRichResponseMessage_AIRichResponseTableMetadata_AIRichResponseTableRow.ProtoReflect.Descriptor instead.
-func (*AIRichResponseMessage_AIRichResponseTableMetadata_AIRichResponseTableRow) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{34, 8, 0}
-}
-
-func (x *AIRichResponseMessage_AIRichResponseTableMetadata_AIRichResponseTableRow) GetItems() []string {
-	if x != nil {
-		return x.Items
-	}
-	return nil
-}
-
-func (x *AIRichResponseMessage_AIRichResponseTableMetadata_AIRichResponseTableRow) GetIsHeading() bool {
-	if x != nil && x.IsHeading != nil {
-		return *x.IsHeading
-	}
-	return false
-}
-
 type HydratedTemplateButton_HydratedURLButton struct {
 	state               protoimpl.MessageState                                            `protogen:"open.v1"`
 	DisplayText         *string                                                           `protobuf:"bytes,1,opt,name=displayText" json:"displayText,omitempty"`
@@ -20172,7 +18741,7 @@ type HydratedTemplateButton_HydratedURLButton struct {
 
 func (x *HydratedTemplateButton_HydratedURLButton) Reset() {
 	*x = HydratedTemplateButton_HydratedURLButton{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[186]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[169]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20184,7 +18753,7 @@ func (x *HydratedTemplateButton_HydratedURLButton) String() string {
 func (*HydratedTemplateButton_HydratedURLButton) ProtoMessage() {}
 
 func (x *HydratedTemplateButton_HydratedURLButton) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[186]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[169]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20197,7 +18766,7 @@ func (x *HydratedTemplateButton_HydratedURLButton) ProtoReflect() protoreflect.M
 
 // Deprecated: Use HydratedTemplateButton_HydratedURLButton.ProtoReflect.Descriptor instead.
 func (*HydratedTemplateButton_HydratedURLButton) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{39, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{38, 0}
 }
 
 func (x *HydratedTemplateButton_HydratedURLButton) GetDisplayText() string {
@@ -20238,7 +18807,7 @@ type HydratedTemplateButton_HydratedCallButton struct {
 
 func (x *HydratedTemplateButton_HydratedCallButton) Reset() {
 	*x = HydratedTemplateButton_HydratedCallButton{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[187]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[170]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20250,7 +18819,7 @@ func (x *HydratedTemplateButton_HydratedCallButton) String() string {
 func (*HydratedTemplateButton_HydratedCallButton) ProtoMessage() {}
 
 func (x *HydratedTemplateButton_HydratedCallButton) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[187]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[170]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20263,7 +18832,7 @@ func (x *HydratedTemplateButton_HydratedCallButton) ProtoReflect() protoreflect.
 
 // Deprecated: Use HydratedTemplateButton_HydratedCallButton.ProtoReflect.Descriptor instead.
 func (*HydratedTemplateButton_HydratedCallButton) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{39, 1}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{38, 1}
 }
 
 func (x *HydratedTemplateButton_HydratedCallButton) GetDisplayText() string {
@@ -20290,7 +18859,7 @@ type HydratedTemplateButton_HydratedQuickReplyButton struct {
 
 func (x *HydratedTemplateButton_HydratedQuickReplyButton) Reset() {
 	*x = HydratedTemplateButton_HydratedQuickReplyButton{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[188]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[171]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20302,7 +18871,7 @@ func (x *HydratedTemplateButton_HydratedQuickReplyButton) String() string {
 func (*HydratedTemplateButton_HydratedQuickReplyButton) ProtoMessage() {}
 
 func (x *HydratedTemplateButton_HydratedQuickReplyButton) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[188]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[171]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20315,7 +18884,7 @@ func (x *HydratedTemplateButton_HydratedQuickReplyButton) ProtoReflect() protore
 
 // Deprecated: Use HydratedTemplateButton_HydratedQuickReplyButton.ProtoReflect.Descriptor instead.
 func (*HydratedTemplateButton_HydratedQuickReplyButton) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{39, 2}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{38, 2}
 }
 
 func (x *HydratedTemplateButton_HydratedQuickReplyButton) GetDisplayText() string {
@@ -20345,7 +18914,7 @@ type PaymentBackground_MediaData struct {
 
 func (x *PaymentBackground_MediaData) Reset() {
 	*x = PaymentBackground_MediaData{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[189]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[172]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20357,7 +18926,7 @@ func (x *PaymentBackground_MediaData) String() string {
 func (*PaymentBackground_MediaData) ProtoMessage() {}
 
 func (x *PaymentBackground_MediaData) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[189]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[172]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20370,7 +18939,7 @@ func (x *PaymentBackground_MediaData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PaymentBackground_MediaData.ProtoReflect.Descriptor instead.
 func (*PaymentBackground_MediaData) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{40, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{39, 0}
 }
 
 func (x *PaymentBackground_MediaData) GetMediaKey() []byte {
@@ -20418,7 +18987,7 @@ type PollResultSnapshotMessage_PollVote struct {
 
 func (x *PollResultSnapshotMessage_PollVote) Reset() {
 	*x = PollResultSnapshotMessage_PollVote{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[190]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[173]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20430,7 +18999,7 @@ func (x *PollResultSnapshotMessage_PollVote) String() string {
 func (*PollResultSnapshotMessage_PollVote) ProtoMessage() {}
 
 func (x *PollResultSnapshotMessage_PollVote) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[190]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[173]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20443,7 +19012,7 @@ func (x *PollResultSnapshotMessage_PollVote) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use PollResultSnapshotMessage_PollVote.ProtoReflect.Descriptor instead.
 func (*PollResultSnapshotMessage_PollVote) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{56, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{55, 0}
 }
 
 func (x *PollResultSnapshotMessage_PollVote) GetOptionName() string {
@@ -20480,7 +19049,7 @@ type ProductMessage_ProductSnapshot struct {
 
 func (x *ProductMessage_ProductSnapshot) Reset() {
 	*x = ProductMessage_ProductSnapshot{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[191]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[174]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20492,7 +19061,7 @@ func (x *ProductMessage_ProductSnapshot) String() string {
 func (*ProductMessage_ProductSnapshot) ProtoMessage() {}
 
 func (x *ProductMessage_ProductSnapshot) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[191]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[174]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20603,7 +19172,7 @@ type ProductMessage_CatalogSnapshot struct {
 
 func (x *ProductMessage_CatalogSnapshot) Reset() {
 	*x = ProductMessage_CatalogSnapshot{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[192]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[175]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20615,7 +19184,7 @@ func (x *ProductMessage_CatalogSnapshot) String() string {
 func (*ProductMessage_CatalogSnapshot) ProtoMessage() {}
 
 func (x *ProductMessage_CatalogSnapshot) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[192]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[175]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20673,7 +19242,7 @@ type TemplateMessage_HydratedFourRowTemplate struct {
 
 func (x *TemplateMessage_HydratedFourRowTemplate) Reset() {
 	*x = TemplateMessage_HydratedFourRowTemplate{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[193]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[176]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20685,7 +19254,7 @@ func (x *TemplateMessage_HydratedFourRowTemplate) String() string {
 func (*TemplateMessage_HydratedFourRowTemplate) ProtoMessage() {}
 
 func (x *TemplateMessage_HydratedFourRowTemplate) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[193]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[176]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20846,7 +19415,7 @@ type TemplateMessage_FourRowTemplate struct {
 
 func (x *TemplateMessage_FourRowTemplate) Reset() {
 	*x = TemplateMessage_FourRowTemplate{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[194]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[177]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20858,7 +19427,7 @@ func (x *TemplateMessage_FourRowTemplate) String() string {
 func (*TemplateMessage_FourRowTemplate) ProtoMessage() {}
 
 func (x *TemplateMessage_FourRowTemplate) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[194]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[177]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20982,6 +19551,74 @@ func (*TemplateMessage_FourRowTemplate_VideoMessage) isTemplateMessage_FourRowTe
 
 func (*TemplateMessage_FourRowTemplate_LocationMessage) isTemplateMessage_FourRowTemplate_Title() {}
 
+type PeerDataOperationRequestMessage_HistorySyncChunkRetryRequest struct {
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	SyncType            *HistorySyncType       `protobuf:"varint,1,opt,name=syncType,enum=WAWebProtobufsE2E.HistorySyncType" json:"syncType,omitempty"`
+	ChunkOrder          *uint32                `protobuf:"varint,2,opt,name=chunkOrder" json:"chunkOrder,omitempty"`
+	ChunkNotificationID *string                `protobuf:"bytes,3,opt,name=chunkNotificationID" json:"chunkNotificationID,omitempty"`
+	RegenerateChunk     *bool                  `protobuf:"varint,4,opt,name=regenerateChunk" json:"regenerateChunk,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *PeerDataOperationRequestMessage_HistorySyncChunkRetryRequest) Reset() {
+	*x = PeerDataOperationRequestMessage_HistorySyncChunkRetryRequest{}
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[178]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PeerDataOperationRequestMessage_HistorySyncChunkRetryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PeerDataOperationRequestMessage_HistorySyncChunkRetryRequest) ProtoMessage() {}
+
+func (x *PeerDataOperationRequestMessage_HistorySyncChunkRetryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[178]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PeerDataOperationRequestMessage_HistorySyncChunkRetryRequest.ProtoReflect.Descriptor instead.
+func (*PeerDataOperationRequestMessage_HistorySyncChunkRetryRequest) Descriptor() ([]byte, []int) {
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{78, 0}
+}
+
+func (x *PeerDataOperationRequestMessage_HistorySyncChunkRetryRequest) GetSyncType() HistorySyncType {
+	if x != nil && x.SyncType != nil {
+		return *x.SyncType
+	}
+	return HistorySyncType_INITIAL_BOOTSTRAP
+}
+
+func (x *PeerDataOperationRequestMessage_HistorySyncChunkRetryRequest) GetChunkOrder() uint32 {
+	if x != nil && x.ChunkOrder != nil {
+		return *x.ChunkOrder
+	}
+	return 0
+}
+
+func (x *PeerDataOperationRequestMessage_HistorySyncChunkRetryRequest) GetChunkNotificationID() string {
+	if x != nil && x.ChunkNotificationID != nil {
+		return *x.ChunkNotificationID
+	}
+	return ""
+}
+
+func (x *PeerDataOperationRequestMessage_HistorySyncChunkRetryRequest) GetRegenerateChunk() bool {
+	if x != nil && x.RegenerateChunk != nil {
+		return *x.RegenerateChunk
+	}
+	return false
+}
+
 type PeerDataOperationRequestMessage_SyncDCollectionFatalRecoveryRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	CollectionName *string                `protobuf:"bytes,1,opt,name=collectionName" json:"collectionName,omitempty"`
@@ -20992,7 +19629,7 @@ type PeerDataOperationRequestMessage_SyncDCollectionFatalRecoveryRequest struct 
 
 func (x *PeerDataOperationRequestMessage_SyncDCollectionFatalRecoveryRequest) Reset() {
 	*x = PeerDataOperationRequestMessage_SyncDCollectionFatalRecoveryRequest{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[195]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[179]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21004,7 +19641,7 @@ func (x *PeerDataOperationRequestMessage_SyncDCollectionFatalRecoveryRequest) St
 func (*PeerDataOperationRequestMessage_SyncDCollectionFatalRecoveryRequest) ProtoMessage() {}
 
 func (x *PeerDataOperationRequestMessage_SyncDCollectionFatalRecoveryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[195]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[179]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21017,7 +19654,7 @@ func (x *PeerDataOperationRequestMessage_SyncDCollectionFatalRecoveryRequest) Pr
 
 // Deprecated: Use PeerDataOperationRequestMessage_SyncDCollectionFatalRecoveryRequest.ProtoReflect.Descriptor instead.
 func (*PeerDataOperationRequestMessage_SyncDCollectionFatalRecoveryRequest) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{78, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{78, 1}
 }
 
 func (x *PeerDataOperationRequestMessage_SyncDCollectionFatalRecoveryRequest) GetCollectionName() string {
@@ -21043,7 +19680,7 @@ type PeerDataOperationRequestMessage_PlaceholderMessageResendRequest struct {
 
 func (x *PeerDataOperationRequestMessage_PlaceholderMessageResendRequest) Reset() {
 	*x = PeerDataOperationRequestMessage_PlaceholderMessageResendRequest{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[196]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[180]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21055,7 +19692,7 @@ func (x *PeerDataOperationRequestMessage_PlaceholderMessageResendRequest) String
 func (*PeerDataOperationRequestMessage_PlaceholderMessageResendRequest) ProtoMessage() {}
 
 func (x *PeerDataOperationRequestMessage_PlaceholderMessageResendRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[196]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[180]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21068,7 +19705,7 @@ func (x *PeerDataOperationRequestMessage_PlaceholderMessageResendRequest) ProtoR
 
 // Deprecated: Use PeerDataOperationRequestMessage_PlaceholderMessageResendRequest.ProtoReflect.Descriptor instead.
 func (*PeerDataOperationRequestMessage_PlaceholderMessageResendRequest) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{78, 1}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{78, 2}
 }
 
 func (x *PeerDataOperationRequestMessage_PlaceholderMessageResendRequest) GetMessageKey() *waCommon.MessageKey {
@@ -21088,7 +19725,7 @@ type PeerDataOperationRequestMessage_FullHistorySyncOnDemandRequest struct {
 
 func (x *PeerDataOperationRequestMessage_FullHistorySyncOnDemandRequest) Reset() {
 	*x = PeerDataOperationRequestMessage_FullHistorySyncOnDemandRequest{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[197]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[181]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21100,7 +19737,7 @@ func (x *PeerDataOperationRequestMessage_FullHistorySyncOnDemandRequest) String(
 func (*PeerDataOperationRequestMessage_FullHistorySyncOnDemandRequest) ProtoMessage() {}
 
 func (x *PeerDataOperationRequestMessage_FullHistorySyncOnDemandRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[197]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[181]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21113,7 +19750,7 @@ func (x *PeerDataOperationRequestMessage_FullHistorySyncOnDemandRequest) ProtoRe
 
 // Deprecated: Use PeerDataOperationRequestMessage_FullHistorySyncOnDemandRequest.ProtoReflect.Descriptor instead.
 func (*PeerDataOperationRequestMessage_FullHistorySyncOnDemandRequest) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{78, 2}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{78, 3}
 }
 
 func (x *PeerDataOperationRequestMessage_FullHistorySyncOnDemandRequest) GetRequestMetadata() *FullHistorySyncOnDemandRequestMetadata {
@@ -21144,7 +19781,7 @@ type PeerDataOperationRequestMessage_HistorySyncOnDemandRequest struct {
 
 func (x *PeerDataOperationRequestMessage_HistorySyncOnDemandRequest) Reset() {
 	*x = PeerDataOperationRequestMessage_HistorySyncOnDemandRequest{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[198]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[182]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21156,7 +19793,7 @@ func (x *PeerDataOperationRequestMessage_HistorySyncOnDemandRequest) String() st
 func (*PeerDataOperationRequestMessage_HistorySyncOnDemandRequest) ProtoMessage() {}
 
 func (x *PeerDataOperationRequestMessage_HistorySyncOnDemandRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[198]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[182]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21169,7 +19806,7 @@ func (x *PeerDataOperationRequestMessage_HistorySyncOnDemandRequest) ProtoReflec
 
 // Deprecated: Use PeerDataOperationRequestMessage_HistorySyncOnDemandRequest.ProtoReflect.Descriptor instead.
 func (*PeerDataOperationRequestMessage_HistorySyncOnDemandRequest) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{78, 3}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{78, 4}
 }
 
 func (x *PeerDataOperationRequestMessage_HistorySyncOnDemandRequest) GetChatJID() string {
@@ -21224,7 +19861,7 @@ type PeerDataOperationRequestMessage_RequestUrlPreview struct {
 
 func (x *PeerDataOperationRequestMessage_RequestUrlPreview) Reset() {
 	*x = PeerDataOperationRequestMessage_RequestUrlPreview{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[199]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[183]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21236,7 +19873,7 @@ func (x *PeerDataOperationRequestMessage_RequestUrlPreview) String() string {
 func (*PeerDataOperationRequestMessage_RequestUrlPreview) ProtoMessage() {}
 
 func (x *PeerDataOperationRequestMessage_RequestUrlPreview) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[199]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[183]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21249,7 +19886,7 @@ func (x *PeerDataOperationRequestMessage_RequestUrlPreview) ProtoReflect() proto
 
 // Deprecated: Use PeerDataOperationRequestMessage_RequestUrlPreview.ProtoReflect.Descriptor instead.
 func (*PeerDataOperationRequestMessage_RequestUrlPreview) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{78, 4}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{78, 5}
 }
 
 func (x *PeerDataOperationRequestMessage_RequestUrlPreview) GetURL() string {
@@ -21275,7 +19912,7 @@ type PeerDataOperationRequestMessage_RequestStickerReupload struct {
 
 func (x *PeerDataOperationRequestMessage_RequestStickerReupload) Reset() {
 	*x = PeerDataOperationRequestMessage_RequestStickerReupload{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[200]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[184]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21287,7 +19924,7 @@ func (x *PeerDataOperationRequestMessage_RequestStickerReupload) String() string
 func (*PeerDataOperationRequestMessage_RequestStickerReupload) ProtoMessage() {}
 
 func (x *PeerDataOperationRequestMessage_RequestStickerReupload) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[200]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[184]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21300,7 +19937,7 @@ func (x *PeerDataOperationRequestMessage_RequestStickerReupload) ProtoReflect() 
 
 // Deprecated: Use PeerDataOperationRequestMessage_RequestStickerReupload.ProtoReflect.Descriptor instead.
 func (*PeerDataOperationRequestMessage_RequestStickerReupload) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{78, 5}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{78, 6}
 }
 
 func (x *PeerDataOperationRequestMessage_RequestStickerReupload) GetFileSHA256() string {
@@ -21320,7 +19957,7 @@ type TemplateButton_CallButton struct {
 
 func (x *TemplateButton_CallButton) Reset() {
 	*x = TemplateButton_CallButton{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[201]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[185]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21332,7 +19969,7 @@ func (x *TemplateButton_CallButton) String() string {
 func (*TemplateButton_CallButton) ProtoMessage() {}
 
 func (x *TemplateButton_CallButton) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[201]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[185]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21345,7 +19982,7 @@ func (x *TemplateButton_CallButton) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TemplateButton_CallButton.ProtoReflect.Descriptor instead.
 func (*TemplateButton_CallButton) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{104, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{105, 0}
 }
 
 func (x *TemplateButton_CallButton) GetDisplayText() *HighlyStructuredMessage {
@@ -21372,7 +20009,7 @@ type TemplateButton_URLButton struct {
 
 func (x *TemplateButton_URLButton) Reset() {
 	*x = TemplateButton_URLButton{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[202]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[186]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21384,7 +20021,7 @@ func (x *TemplateButton_URLButton) String() string {
 func (*TemplateButton_URLButton) ProtoMessage() {}
 
 func (x *TemplateButton_URLButton) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[202]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[186]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21397,7 +20034,7 @@ func (x *TemplateButton_URLButton) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TemplateButton_URLButton.ProtoReflect.Descriptor instead.
 func (*TemplateButton_URLButton) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{104, 1}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{105, 1}
 }
 
 func (x *TemplateButton_URLButton) GetDisplayText() *HighlyStructuredMessage {
@@ -21424,7 +20061,7 @@ type TemplateButton_QuickReplyButton struct {
 
 func (x *TemplateButton_QuickReplyButton) Reset() {
 	*x = TemplateButton_QuickReplyButton{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[203]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[187]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21436,7 +20073,7 @@ func (x *TemplateButton_QuickReplyButton) String() string {
 func (*TemplateButton_QuickReplyButton) ProtoMessage() {}
 
 func (x *TemplateButton_QuickReplyButton) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[203]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[187]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21449,7 +20086,7 @@ func (x *TemplateButton_QuickReplyButton) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TemplateButton_QuickReplyButton.ProtoReflect.Descriptor instead.
 func (*TemplateButton_QuickReplyButton) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{104, 2}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{105, 2}
 }
 
 func (x *TemplateButton_QuickReplyButton) GetDisplayText() *HighlyStructuredMessage {
@@ -21478,7 +20115,7 @@ type UrlTrackingMap_UrlTrackingMapElement struct {
 
 func (x *UrlTrackingMap_UrlTrackingMapElement) Reset() {
 	*x = UrlTrackingMap_UrlTrackingMapElement{}
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[204]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[188]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21490,7 +20127,7 @@ func (x *UrlTrackingMap_UrlTrackingMapElement) String() string {
 func (*UrlTrackingMap_UrlTrackingMapElement) ProtoMessage() {}
 
 func (x *UrlTrackingMap_UrlTrackingMapElement) ProtoReflect() protoreflect.Message {
-	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[204]
+	mi := &file_waE2E_WAWebProtobufsE2E_proto_msgTypes[188]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21503,7 +20140,7 @@ func (x *UrlTrackingMap_UrlTrackingMapElement) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use UrlTrackingMap_UrlTrackingMapElement.ProtoReflect.Descriptor instead.
 func (*UrlTrackingMap_UrlTrackingMapElement) Descriptor() ([]byte, []int) {
-	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{111, 0}
+	return file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP(), []int{112, 0}
 }
 
 func (x *UrlTrackingMap_UrlTrackingMapElement) GetOriginalURL() string {
@@ -21538,7 +20175,7 @@ var File_waE2E_WAWebProtobufsE2E_proto protoreflect.FileDescriptor
 
 const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\n" +
-	"\x1dwaE2E/WAWebProtobufsE2E.proto\x12\x11WAWebProtobufsE2E\x1a\x11waAdv/WAAdv.proto\x1a!waBotMetadata/WABotMetadata.proto\x1a#waCompanionReg/WACompanionReg.proto\x1a\x1bwaMmsRetry/WAMmsRetry.proto\x1a\x17waCommon/WACommon.proto\x1a/waStatusAttributions/WAStatusAttributions.proto\"\xdf\t\n" +
+	"\x1dwaE2E/WAWebProtobufsE2E.proto\x12\x11WAWebProtobufsE2E\x1a\x1bwaAICommon/WAAICommon.proto\x1a\x11waAdv/WAAdv.proto\x1a#waCompanionReg/WACompanionReg.proto\x1a\x1bwaMmsRetry/WAMmsRetry.proto\x1a\x17waCommon/WACommon.proto\x1a/waStatusAttributions/WAStatusAttributions.proto\"\xdf\t\n" +
 	"\x12StickerPackMessage\x12$\n" +
 	"\rstickerPackID\x18\x01 \x01(\tR\rstickerPackID\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1c\n" +
@@ -21651,7 +20288,16 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\x04Type\x12\x10\n" +
 	"\fUNKNOWN_TYPE\x10\x00\x12\x0f\n" +
 	"\vPIN_FOR_ALL\x10\x01\x12\x11\n" +
-	"\rUNPIN_FOR_ALL\x10\x02\"\xde\x04\n" +
+	"\rUNPIN_FOR_ALL\x10\x02\"\xf3\x01\n" +
+	"\x1fStatusStickerInteractionMessage\x12&\n" +
+	"\x03key\x18\x01 \x01(\v2\x14.WACommon.MessageKeyR\x03key\x12\x1e\n" +
+	"\n" +
+	"stickerKey\x18\x02 \x01(\tR\n" +
+	"stickerKey\x12X\n" +
+	"\x04type\x18\x03 \x01(\x0e2D.WAWebProtobufsE2E.StatusStickerInteractionMessage.StatusStickerTypeR\x04type\".\n" +
+	"\x11StatusStickerType\x12\v\n" +
+	"\aUNKNOWN\x10\x00\x12\f\n" +
+	"\bREACTION\x10\x01\"\xde\x04\n" +
 	"\x13PollCreationMessage\x12\x16\n" +
 	"\x06encKey\x18\x01 \x01(\fR\x06encKey\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12G\n" +
@@ -21769,7 +20415,7 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"paramsJSON\x18\x02 \x01(\tR\n" +
 	"paramsJSON\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\x05R\aversionB\x1c\n" +
-	"\x1ainteractiveResponseMessage\"\x86\x12\n" +
+	"\x1ainteractiveResponseMessage\"\x87\x13\n" +
 	"\x12InteractiveMessage\x12i\n" +
 	"\x15shopStorefrontMessage\x18\x04 \x01(\v21.WAWebProtobufsE2E.InteractiveMessage.ShopMessageH\x00R\x15shopStorefrontMessage\x12g\n" +
 	"\x11collectionMessage\x18\x05 \x01(\v27.WAWebProtobufsE2E.InteractiveMessage.CollectionMessageH\x00R\x11collectionMessage\x12g\n" +
@@ -21807,9 +20453,12 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\x11CollectionMessage\x12\x16\n" +
 	"\x06bizJID\x18\x01 \x01(\tR\x06bizJID\x12\x0e\n" +
 	"\x02ID\x18\x02 \x01(\tR\x02ID\x12&\n" +
-	"\x0emessageVersion\x18\x03 \x01(\x05R\x0emessageVersion\x1a\x1c\n" +
-	"\x06Footer\x12\x12\n" +
-	"\x04text\x18\x01 \x01(\tR\x04text\x1a\x1a\n" +
+	"\x0emessageVersion\x18\x03 \x01(\x05R\x0emessageVersion\x1a\x9c\x01\n" +
+	"\x06Footer\x12E\n" +
+	"\faudioMessage\x18\x02 \x01(\v2\x1f.WAWebProtobufsE2E.AudioMessageH\x00R\faudioMessage\x12\x12\n" +
+	"\x04text\x18\x01 \x01(\tR\x04text\x12.\n" +
+	"\x12hasMediaAttachment\x18\x03 \x01(\bR\x12hasMediaAttachmentB\a\n" +
+	"\x05media\x1a\x1a\n" +
 	"\x04Body\x12\x12\n" +
 	"\x04text\x18\x01 \x01(\tR\x04text\x1a\x96\x04\n" +
 	"\x06Header\x12N\n" +
@@ -21895,7 +20544,14 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\vOrderStatus\x12\v\n" +
 	"\aINQUIRY\x10\x01\x12\f\n" +
 	"\bACCEPTED\x10\x02\x12\f\n" +
-	"\bDECLINED\x10\x03\"\xd1\x01\n" +
+	"\bDECLINED\x10\x03\"\x8d\x02\n" +
+	"\x13StatusQuotedMessage\x12R\n" +
+	"\x04type\x18\x01 \x01(\x0e2>.WAWebProtobufsE2E.StatusQuotedMessage.StatusQuotedMessageTypeR\x04type\x12\x12\n" +
+	"\x04text\x18\x02 \x01(\tR\x04text\x12\x1c\n" +
+	"\tthumbnail\x18\x03 \x01(\fR\tthumbnail\x12@\n" +
+	"\x10originalStatusID\x18\x04 \x01(\v2\x14.WACommon.MessageKeyR\x10originalStatusID\".\n" +
+	"\x17StatusQuotedMessageType\x12\x13\n" +
+	"\x0fQUESTION_ANSWER\x10\x01\"\xd1\x01\n" +
 	"\x14PaymentInviteMessage\x12U\n" +
 	"\vserviceType\x18\x01 \x01(\x0e23.WAWebProtobufsE2E.PaymentInviteMessage.ServiceTypeR\vserviceType\x12(\n" +
 	"\x0fexpiryTimestamp\x18\x02 \x01(\x03R\x0fexpiryTimestamp\"8\n" +
@@ -21959,11 +20615,11 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"amount1000\x18\x02 \x01(\x03R\n" +
 	"amount1000B\f\n" +
 	"\n" +
-	"paramOneof\"\x9b\x1e\n" +
+	"paramOneof\"\xd0#\n" +
 	"'PeerDataOperationRequestResponseMessage\x12s\n" +
 	"\x1cpeerDataOperationRequestType\x18\x01 \x01(\x0e2/.WAWebProtobufsE2E.PeerDataOperationRequestTypeR\x1cpeerDataOperationRequestType\x12\x1a\n" +
 	"\bstanzaID\x18\x02 \x01(\tR\bstanzaID\x12\x8c\x01\n" +
-	"\x17peerDataOperationResult\x18\x03 \x03(\v2R.WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResultR\x17peerDataOperationResult\x1a\xcf\x1b\n" +
+	"\x17peerDataOperationResult\x18\x03 \x03(\v2R.WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResultR\x17peerDataOperationResult\x1a\x84!\n" +
 	"\x17PeerDataOperationResult\x12[\n" +
 	"\x11mediaUploadResult\x18\x01 \x01(\x0e2-.WAMmsRetry.MediaRetryNotification.ResultTypeR\x11mediaUploadResult\x12I\n" +
 	"\x0estickerMessage\x18\x02 \x01(\v2!.WAWebProtobufsE2E.StickerMessageR\x0estickerMessage\x12\x98\x01\n" +
@@ -21973,7 +20629,19 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"&fullHistorySyncOnDemandRequestResponse\x18\x06 \x01(\v2y.WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.FullHistorySyncOnDemandRequestResponseR&fullHistorySyncOnDemandRequestResponse\x12\xca\x01\n" +
 	"&companionMetaNonceFetchRequestResponse\x18\a \x01(\v2r.WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.CompanionMetaNonceFetchResponseR&companionMetaNonceFetchRequestResponse\x12\xc5\x01\n" +
 	"\"syncdSnapshotFatalRecoveryResponse\x18\b \x01(\v2u.WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.SyncDSnapshotFatalRecoveryResponseR\"syncdSnapshotFatalRecoveryResponse\x12\xe5\x01\n" +
-	"/companionCanonicalUserNonceFetchRequestResponse\x18\t \x01(\v2{.WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.CompanionCanonicalUserNonceFetchResponseR/companionCanonicalUserNonceFetchRequestResponse\x1ax\n" +
+	"/companionCanonicalUserNonceFetchRequestResponse\x18\t \x01(\v2{.WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.CompanionCanonicalUserNonceFetchResponseR/companionCanonicalUserNonceFetchRequestResponse\x12\xb6\x01\n" +
+	"\x1dhistorySyncChunkRetryResponse\x18\n" +
+	" \x01(\v2p.WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.HistorySyncChunkRetryResponseR\x1dhistorySyncChunkRetryResponse\x1a\xd8\x02\n" +
+	"\x1dHistorySyncChunkRetryResponse\x12>\n" +
+	"\bsyncType\x18\x01 \x01(\x0e2\".WAWebProtobufsE2E.HistorySyncTypeR\bsyncType\x12\x1e\n" +
+	"\n" +
+	"chunkOrder\x18\x02 \x01(\rR\n" +
+	"chunkOrder\x12\x1c\n" +
+	"\trequestID\x18\x03 \x01(\tR\trequestID\x12\x98\x01\n" +
+	"\fresponseCode\x18\x04 \x01(\x0e2t.WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.HistorySyncChunkRetryResponseCodeR\fresponseCode\x12\x1e\n" +
+	"\n" +
+	"canRecover\x18\x05 \x01(\bR\n" +
+	"canRecover\x1ax\n" +
 	"\"SyncDSnapshotFatalRecoveryResponse\x12.\n" +
 	"\x12collectionSnapshot\x18\x01 \x01(\fR\x12collectionSnapshot\x12\"\n" +
 	"\fisCompressed\x18\x02 \x01(\bR\fisCompressed\x1a|\n" +
@@ -22014,7 +20682,14 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\n" +
 	"thumbWidth\x18\x06 \x01(\x05R\n" +
 	"thumbWidth\x12 \n" +
-	"\vthumbHeight\x18\a \x01(\x05R\vthumbHeight\"\xfe\x01\n" +
+	"\vthumbHeight\x18\a \x01(\x05R\vthumbHeight\"\x9e\x01\n" +
+	"!HistorySyncChunkRetryResponseCode\x12\x14\n" +
+	"\x10GENERATION_ERROR\x10\x01\x12\x12\n" +
+	"\x0eCHUNK_CONSUMED\x10\x02\x12\v\n" +
+	"\aTIMEOUT\x10\x03\x12\x15\n" +
+	"\x11SESSION_EXHAUSTED\x10\x04\x12\x13\n" +
+	"\x0fCHUNK_EXHAUSTED\x10\x05\x12\x16\n" +
+	"\x12DUPLICATED_REQUEST\x10\x06\"\xfe\x01\n" +
 	"#FullHistorySyncOnDemandResponseCode\x12\x13\n" +
 	"\x0fREQUEST_SUCCESS\x10\x00\x12\x18\n" +
 	"\x14REQUEST_TIME_EXPIRED\x10\x01\x12\x1c\n" +
@@ -22022,47 +20697,12 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\rGENERIC_ERROR\x10\x03\x12$\n" +
 	" ERROR_REQUEST_ON_NON_SMB_PRIMARY\x10\x04\x12%\n" +
 	"!ERROR_HOSTED_DEVICE_NOT_CONNECTED\x10\x05\x12*\n" +
-	"&ERROR_HOSTED_DEVICE_LOGIN_TIME_NOT_SET\x10\x06\"\x9a\a\n" +
-	"\x17HistorySyncNotification\x12\x1e\n" +
-	"\n" +
-	"fileSHA256\x18\x01 \x01(\fR\n" +
-	"fileSHA256\x12\x1e\n" +
-	"\n" +
-	"fileLength\x18\x02 \x01(\x04R\n" +
-	"fileLength\x12\x1a\n" +
-	"\bmediaKey\x18\x03 \x01(\fR\bmediaKey\x12$\n" +
-	"\rfileEncSHA256\x18\x04 \x01(\fR\rfileEncSHA256\x12\x1e\n" +
-	"\n" +
-	"directPath\x18\x05 \x01(\tR\n" +
-	"directPath\x12V\n" +
-	"\bsyncType\x18\x06 \x01(\x0e2:.WAWebProtobufsE2E.HistorySyncNotification.HistorySyncTypeR\bsyncType\x12\x1e\n" +
-	"\n" +
-	"chunkOrder\x18\a \x01(\rR\n" +
-	"chunkOrder\x12,\n" +
-	"\x11originalMessageID\x18\b \x01(\tR\x11originalMessageID\x12\x1a\n" +
-	"\bprogress\x18\t \x01(\rR\bprogress\x12B\n" +
-	"\x1coldestMsgInChunkTimestampSec\x18\n" +
-	" \x01(\x03R\x1coldestMsgInChunkTimestampSec\x12L\n" +
-	"!initialHistBootstrapInlinePayload\x18\v \x01(\fR!initialHistBootstrapInlinePayload\x12:\n" +
-	"\x18peerDataRequestSessionID\x18\f \x01(\tR\x18peerDataRequestSessionID\x12\x91\x01\n" +
-	"&fullHistorySyncOnDemandRequestMetadata\x18\r \x01(\v29.WAWebProtobufsE2E.FullHistorySyncOnDemandRequestMetadataR&fullHistorySyncOnDemandRequestMetadata\x12\x1c\n" +
-	"\tencHandle\x18\x0e \x01(\tR\tencHandle\"\x9a\x01\n" +
-	"\x0fHistorySyncType\x12\x15\n" +
-	"\x11INITIAL_BOOTSTRAP\x10\x00\x12\x15\n" +
-	"\x11INITIAL_STATUS_V3\x10\x01\x12\b\n" +
-	"\x04FULL\x10\x02\x12\n" +
-	"\n" +
-	"\x06RECENT\x10\x03\x12\r\n" +
-	"\tPUSH_NAME\x10\x04\x12\x15\n" +
-	"\x11NON_BLOCKING_DATA\x10\x05\x12\r\n" +
-	"\tON_DEMAND\x10\x06\x12\x0e\n" +
-	"\n" +
-	"NO_HISTORY\x10\a\"\xb4\x01\n" +
+	"&ERROR_HOSTED_DEVICE_LOGIN_TIME_NOT_SET\x10\x06\"\xb4\x01\n" +
 	"\x1dRequestWelcomeMessageMetadata\x12g\n" +
 	"\x0elocalChatState\x18\x01 \x01(\x0e2?.WAWebProtobufsE2E.RequestWelcomeMessageMetadata.LocalChatStateR\x0elocalChatState\"*\n" +
 	"\x0eLocalChatState\x12\t\n" +
 	"\x05EMPTY\x10\x00\x12\r\n" +
-	"\tNON_EMPTY\x10\x01\"\xb4\x16\n" +
+	"\tNON_EMPTY\x10\x01\"\xad\x16\n" +
 	"\x0fProtocolMessage\x12&\n" +
 	"\x03key\x18\x01 \x01(\v2\x14.WACommon.MessageKeyR\x03key\x12;\n" +
 	"\x04type\x18\x02 \x01(\x0e2'.WAWebProtobufsE2E.ProtocolMessage.TypeR\x04type\x120\n" +
@@ -22078,8 +20718,8 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\reditedMessage\x18\x0e \x01(\v2\x1a.WAWebProtobufsE2E.MessageR\reditedMessage\x12 \n" +
 	"\vtimestampMS\x18\x0f \x01(\x03R\vtimestampMS\x12|\n" +
 	"\x1fpeerDataOperationRequestMessage\x18\x10 \x01(\v22.WAWebProtobufsE2E.PeerDataOperationRequestMessageR\x1fpeerDataOperationRequestMessage\x12\x94\x01\n" +
-	"'peerDataOperationRequestResponseMessage\x18\x11 \x01(\v2:.WAWebProtobufsE2E.PeerDataOperationRequestResponseMessageR'peerDataOperationRequestResponseMessage\x12U\n" +
-	"\x12botFeedbackMessage\x18\x12 \x01(\v2%.WAWebProtobufsE2E.BotFeedbackMessageR\x12botFeedbackMessage\x12\x1e\n" +
+	"'peerDataOperationRequestResponseMessage\x18\x11 \x01(\v2:.WAWebProtobufsE2E.PeerDataOperationRequestResponseMessageR'peerDataOperationRequestResponseMessage\x12N\n" +
+	"\x12botFeedbackMessage\x18\x12 \x01(\v2\x1e.WAAICommon.BotFeedbackMessageR\x12botFeedbackMessage\x12\x1e\n" +
 	"\n" +
 	"invokerJID\x18\x13 \x01(\tR\n" +
 	"invokerJID\x12v\n" +
@@ -22133,66 +20773,7 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\x15CloudAPIThreadControl\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\x12\n" +
 	"\x0eCONTROL_PASSED\x10\x01\x12\x11\n" +
-	"\rCONTROL_TAKEN\x10\x02\"\xaa\x11\n" +
-	"\x12BotFeedbackMessage\x124\n" +
-	"\n" +
-	"messageKey\x18\x01 \x01(\v2\x14.WACommon.MessageKeyR\n" +
-	"messageKey\x12I\n" +
-	"\x04kind\x18\x02 \x01(\x0e25.WAWebProtobufsE2E.BotFeedbackMessage.BotFeedbackKindR\x04kind\x12\x12\n" +
-	"\x04text\x18\x03 \x01(\tR\x04text\x12\"\n" +
-	"\fkindNegative\x18\x04 \x01(\x04R\fkindNegative\x12\"\n" +
-	"\fkindPositive\x18\x05 \x01(\x04R\fkindPositive\x12P\n" +
-	"\n" +
-	"kindReport\x18\x06 \x01(\x0e20.WAWebProtobufsE2E.BotFeedbackMessage.ReportKindR\n" +
-	"kindReport\x12z\n" +
-	"\x18sideBySideSurveyMetadata\x18\a \x01(\v2>.WAWebProtobufsE2E.BotFeedbackMessage.SideBySideSurveyMetadataR\x18sideBySideSurveyMetadata\x1a\xcc\x04\n" +
-	"\x18SideBySideSurveyMetadata\x12,\n" +
-	"\x11selectedRequestID\x18\x01 \x01(\tR\x11selectedRequestID\x12\x1a\n" +
-	"\bsurveyID\x18\x02 \x01(\rR\bsurveyID\x12*\n" +
-	"\x10simonSessionFbid\x18\x03 \x01(\tR\x10simonSessionFbid\x12\"\n" +
-	"\fresponseOtid\x18\x04 \x01(\tR\fresponseOtid\x12<\n" +
-	"\x19responseTimestampMSString\x18\x05 \x01(\tR\x19responseTimestampMSString\x12<\n" +
-	"\x19isSelectedResponsePrimary\x18\x06 \x01(\bR\x19isSelectedResponsePrimary\x12(\n" +
-	"\x0fmessageIDToEdit\x18\a \x01(\tR\x0fmessageIDToEdit\x12\x82\x01\n" +
-	"\ranalyticsData\x18\b \x01(\v2\\.WAWebProtobufsE2E.BotFeedbackMessage.SideBySideSurveyMetadata.SideBySideSurveyAnalyticsDataR\ranalyticsData\x1ak\n" +
-	"\x1dSideBySideSurveyAnalyticsData\x12\x1e\n" +
-	"\n" +
-	"tessaEvent\x18\x01 \x01(\tR\n" +
-	"tessaEvent\x12*\n" +
-	"\x10tessaSessionFbid\x18\x02 \x01(\tR\x10tessaSessionFbid\"#\n" +
-	"\n" +
-	"ReportKind\x12\b\n" +
-	"\x04NONE\x10\x00\x12\v\n" +
-	"\aGENERIC\x10\x01\"M\n" +
-	"\x1fBotFeedbackKindMultiplePositive\x12*\n" +
-	"&BOT_FEEDBACK_MULTIPLE_POSITIVE_GENERIC\x10\x01\"\xcb\x03\n" +
-	"\x1fBotFeedbackKindMultipleNegative\x12*\n" +
-	"&BOT_FEEDBACK_MULTIPLE_NEGATIVE_GENERIC\x10\x01\x12*\n" +
-	"&BOT_FEEDBACK_MULTIPLE_NEGATIVE_HELPFUL\x10\x02\x12.\n" +
-	"*BOT_FEEDBACK_MULTIPLE_NEGATIVE_INTERESTING\x10\x04\x12+\n" +
-	"'BOT_FEEDBACK_MULTIPLE_NEGATIVE_ACCURATE\x10\b\x12'\n" +
-	"#BOT_FEEDBACK_MULTIPLE_NEGATIVE_SAFE\x10\x10\x12(\n" +
-	"$BOT_FEEDBACK_MULTIPLE_NEGATIVE_OTHER\x10 \x12*\n" +
-	"&BOT_FEEDBACK_MULTIPLE_NEGATIVE_REFUSED\x10@\x12:\n" +
-	"5BOT_FEEDBACK_MULTIPLE_NEGATIVE_NOT_VISUALLY_APPEALING\x10\x80\x01\x128\n" +
-	"3BOT_FEEDBACK_MULTIPLE_NEGATIVE_NOT_RELEVANT_TO_TEXT\x10\x80\x02\"\xd7\x04\n" +
-	"\x0fBotFeedbackKind\x12\x19\n" +
-	"\x15BOT_FEEDBACK_POSITIVE\x10\x00\x12!\n" +
-	"\x1dBOT_FEEDBACK_NEGATIVE_GENERIC\x10\x01\x12!\n" +
-	"\x1dBOT_FEEDBACK_NEGATIVE_HELPFUL\x10\x02\x12%\n" +
-	"!BOT_FEEDBACK_NEGATIVE_INTERESTING\x10\x03\x12\"\n" +
-	"\x1eBOT_FEEDBACK_NEGATIVE_ACCURATE\x10\x04\x12\x1e\n" +
-	"\x1aBOT_FEEDBACK_NEGATIVE_SAFE\x10\x05\x12\x1f\n" +
-	"\x1bBOT_FEEDBACK_NEGATIVE_OTHER\x10\x06\x12!\n" +
-	"\x1dBOT_FEEDBACK_NEGATIVE_REFUSED\x10\a\x120\n" +
-	",BOT_FEEDBACK_NEGATIVE_NOT_VISUALLY_APPEALING\x10\b\x12.\n" +
-	"*BOT_FEEDBACK_NEGATIVE_NOT_RELEVANT_TO_TEXT\x10\t\x12&\n" +
-	"\"BOT_FEEDBACK_NEGATIVE_PERSONALIZED\x10\n" +
-	"\x12!\n" +
-	"\x1dBOT_FEEDBACK_NEGATIVE_CLARITY\x10\v\x125\n" +
-	"1BOT_FEEDBACK_NEGATIVE_DOESNT_LOOK_LIKE_THE_PERSON\x10\f\x125\n" +
-	"1BOT_FEEDBACK_NEGATIVE_HALLUCINATION_INTERNAL_ONLY\x10\r\x12\x19\n" +
-	"\x15BOT_FEEDBACK_NEGATIVE\x10\x0e\"\xc5\f\n" +
+	"\rCONTROL_TAKEN\x10\x02\"\xc5\f\n" +
 	"\fVideoMessage\x12\x10\n" +
 	"\x03URL\x18\x01 \x01(\tR\x03URL\x12\x1a\n" +
 	"\bmimetype\x18\x02 \x01(\tR\bmimetype\x12\x1e\n" +
@@ -22240,7 +20821,7 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\x04NONE\x10\x00\x12\t\n" +
 	"\x05GIPHY\x10\x01\x12\t\n" +
 	"\x05TENOR\x10\x02\x12\t\n" +
-	"\x05KLIPY\x10\x03\"\x91\x0f\n" +
+	"\x05KLIPY\x10\x03\"\x83\x10\n" +
 	"\x13ExtendedTextMessage\x12\x12\n" +
 	"\x04text\x18\x01 \x01(\tR\x04text\x12 \n" +
 	"\vmatchedText\x18\x02 \x01(\tR\vmatchedText\x12 \n" +
@@ -22273,7 +20854,9 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\x12faviconMMSMetadata\x18! \x01(\v2'.WAWebProtobufsE2E.MMSThumbnailMetadataR\x12faviconMMSMetadata\x12X\n" +
 	"\x13linkPreviewMetadata\x18\" \x01(\v2&.WAWebProtobufsE2E.LinkPreviewMetadataR\x13linkPreviewMetadata\x12X\n" +
 	"\x13paymentLinkMetadata\x18# \x01(\v2&.WAWebProtobufsE2E.PaymentLinkMetadataR\x13paymentLinkMetadata\x12C\n" +
-	"\fendCardTiles\x18$ \x03(\v2\x1f.WAWebProtobufsE2E.VideoEndCardR\fendCardTiles\"H\n" +
+	"\fendCardTiles\x18$ \x03(\v2\x1f.WAWebProtobufsE2E.VideoEndCardR\fendCardTiles\x12(\n" +
+	"\x0fvideoContentURL\x18% \x01(\tR\x0fvideoContentURL\x12F\n" +
+	"\rmusicMetadata\x18& \x01(\v2 .WAWebProtobufsE2E.EmbeddedMusicR\rmusicMetadata\"H\n" +
 	"\x13InviteLinkGroupType\x12\v\n" +
 	"\aDEFAULT\x10\x00\x12\n" +
 	"\n" +
@@ -22297,13 +20880,14 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\x11CALISTOGA_REGULAR\x10\b\x12\x12\n" +
 	"\x0eEXO2_EXTRABOLD\x10\t\x12\x15\n" +
 	"\x11COURIERPRIME_BOLD\x10\n" +
-	"\"\xe0\x03\n" +
+	"\"\x94\x04\n" +
 	"\x13LinkPreviewMetadata\x12X\n" +
 	"\x13paymentLinkMetadata\x18\x01 \x01(\v2&.WAWebProtobufsE2E.PaymentLinkMetadataR\x13paymentLinkMetadata\x12@\n" +
 	"\vurlMetadata\x18\x02 \x01(\v2\x1e.WAWebProtobufsE2E.URLMetadataR\vurlMetadata\x12&\n" +
 	"\x0efbExperimentID\x18\x03 \x01(\rR\x0efbExperimentID\x12,\n" +
 	"\x11linkMediaDuration\x18\x04 \x01(\rR\x11linkMediaDuration\x12l\n" +
-	"\x13socialMediaPostType\x18\x05 \x01(\x0e2:.WAWebProtobufsE2E.LinkPreviewMetadata.SocialMediaPostTypeR\x13socialMediaPostType\"i\n" +
+	"\x13socialMediaPostType\x18\x05 \x01(\x0e2:.WAWebProtobufsE2E.LinkPreviewMetadata.SocialMediaPostTypeR\x13socialMediaPostType\x122\n" +
+	"\x14linkInlineVideoMuted\x18\x06 \x01(\bR\x14linkInlineVideoMuted\"i\n" +
 	"\x13SocialMediaPostType\x12\b\n" +
 	"\x04NONE\x10\x00\x12\b\n" +
 	"\x04REEL\x10\x01\x12\x0e\n" +
@@ -22398,7 +20982,7 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"USER_IMAGE\x10\x00\x12\x10\n" +
 	"\fAI_GENERATED\x10\x01\x12\x0f\n" +
 	"\vAI_MODIFIED\x10\x02\x12\x1a\n" +
-	"\x16RASTERIZED_TEXT_STATUS\x10\x03\"\xb08\n" +
+	"\x16RASTERIZED_TEXT_STATUS\x10\x03\"\xd79\n" +
 	"\vContextInfo\x12\x1a\n" +
 	"\bstanzaID\x18\x01 \x01(\tR\bstanzaID\x12 \n" +
 	"\vparticipant\x18\x02 \x01(\tR\vparticipant\x12@\n" +
@@ -22442,8 +21026,8 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\"entryPointConversionExternalSource\x182 \x01(\tR\"entryPointConversionExternalSource\x12N\n" +
 	"\"entryPointConversionExternalMedium\x183 \x01(\tR\"entryPointConversionExternalMedium\x12 \n" +
 	"\vctwaSignals\x186 \x01(\tR\vctwaSignals\x12 \n" +
-	"\vctwaPayload\x187 \x01(\fR\vctwaPayload\x12v\n" +
-	"\x19forwardedAiBotMessageInfo\x188 \x01(\v28.WAWebProtobufsE2E.ContextInfo.ForwardedAIBotMessageInfoR\x19forwardedAiBotMessageInfo\x12j\n" +
+	"\vctwaPayload\x187 \x01(\fR\vctwaPayload\x12c\n" +
+	"\x19forwardedAiBotMessageInfo\x188 \x01(\v2%.WAAICommon.ForwardedAIBotMessageInfoR\x19forwardedAiBotMessageInfo\x12j\n" +
 	"\x15statusAttributionType\x189 \x01(\x0e24.WAWebProtobufsE2E.ContextInfo.StatusAttributionTypeR\x15statusAttributionType\x12I\n" +
 	"\x0eurlTrackingMap\x18: \x01(\v2!.WAWebProtobufsE2E.UrlTrackingMapR\x0eurlTrackingMap\x12X\n" +
 	"\x0fpairedMediaType\x18; \x01(\x0e2..WAWebProtobufsE2E.ContextInfo.PairedMediaTypeR\x0fpairedMediaType\x12&\n" +
@@ -22458,7 +21042,11 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\rforwardOrigin\x18C \x01(\x0e2,.WAWebProtobufsE2E.ContextInfo.ForwardOriginR\rforwardOrigin\x12y\n" +
 	"\x1aquestionReplyQuotedMessage\x18D \x01(\v29.WAWebProtobufsE2E.ContextInfo.QuestionReplyQuotedMessageR\x1aquestionReplyQuotedMessage\x12m\n" +
 	"\x16statusAudienceMetadata\x18E \x01(\v25.WAWebProtobufsE2E.ContextInfo.StatusAudienceMetadataR\x16statusAudienceMetadata\x12&\n" +
-	"\x0enonJIDMentions\x18F \x01(\rR\x0enonJIDMentions\x1a\xb0\x01\n" +
+	"\x0enonJIDMentions\x18F \x01(\rR\x0enonJIDMentions\x12I\n" +
+	"\n" +
+	"quotedType\x18G \x01(\x0e2).WAWebProtobufsE2E.ContextInfo.QuotedTypeR\n" +
+	"quotedType\x12W\n" +
+	"\x15botMessageSharingInfo\x18H \x01(\v2!.WAAICommon.BotMessageSharingInfoR\x15botMessageSharingInfo\x1a\xb0\x01\n" +
 	"\x16StatusAudienceMetadata\x12f\n" +
 	"\faudienceType\x18\x01 \x01(\x0e2B.WAWebProtobufsE2E.ContextInfo.StatusAudienceMetadata.AudienceTypeR\faudienceType\".\n" +
 	"\fAudienceType\x12\v\n" +
@@ -22542,16 +21130,13 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\tMediaType\x12\b\n" +
 	"\x04NONE\x10\x00\x12\t\n" +
 	"\x05IMAGE\x10\x01\x12\t\n" +
-	"\x05VIDEO\x10\x02\x1a\xc2\x01\n" +
+	"\x05VIDEO\x10\x02\x1a\xf6\x01\n" +
 	"\x14FeatureEligibilities\x12,\n" +
 	"\x11cannotBeReactedTo\x18\x01 \x01(\bR\x11cannotBeReactedTo\x12&\n" +
 	"\x0ecannotBeRanked\x18\x02 \x01(\bR\x0ecannotBeRanked\x12.\n" +
 	"\x12canRequestFeedback\x18\x03 \x01(\bR\x12canRequestFeedback\x12$\n" +
-	"\rcanBeReshared\x18\x04 \x01(\bR\rcanBeReshared\x1ao\n" +
-	"\x19ForwardedAIBotMessageInfo\x12\x18\n" +
-	"\abotName\x18\x01 \x01(\tR\abotName\x12\x16\n" +
-	"\x06botJID\x18\x02 \x01(\tR\x06botJID\x12 \n" +
-	"\vcreatorName\x18\x03 \x01(\tR\vcreatorName\x1a\xd0\x01\n" +
+	"\rcanBeReshared\x18\x04 \x01(\bR\rcanBeReshared\x122\n" +
+	"\x14canReceiveMultiReact\x18\x05 \x01(\bR\x14canReceiveMultiReact\x1a\xd0\x01\n" +
 	"\x1aQuestionReplyQuotedMessage\x12*\n" +
 	"\x10serverQuestionID\x18\x01 \x01(\x05R\x10serverQuestionID\x12B\n" +
 	"\x0equotedQuestion\x18\x02 \x01(\v2\x1a.WAWebProtobufsE2E.MessageR\x0equotedQuestion\x12B\n" +
@@ -22560,7 +21145,11 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\tutmSource\x18\x01 \x01(\tR\tutmSource\x12 \n" +
 	"\vutmCampaign\x18\x02 \x01(\tR\vutmCampaign\x1aH\n" +
 	"\x1aBusinessMessageForwardInfo\x12*\n" +
-	"\x10businessOwnerJID\x18\x01 \x01(\tR\x10businessOwnerJID\"V\n" +
+	"\x10businessOwnerJID\x18\x01 \x01(\tR\x10businessOwnerJID\"$\n" +
+	"\n" +
+	"QuotedType\x12\f\n" +
+	"\bEXPLICIT\x10\x00\x12\b\n" +
+	"\x04AUTO\x10\x01\"V\n" +
 	"\rForwardOrigin\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\b\n" +
 	"\x04CHAT\x10\x01\x12\n" +
@@ -22575,7 +21164,7 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\x03GIF\x10\x02\x12\t\n" +
 	"\x05AUDIO\x10\x03\x12\b\n" +
 	"\x04TEXT\x10\x04\x12\x14\n" +
-	"\x10MUSIC_STANDALONE\x10\x05\"\xaa\x01\n" +
+	"\x10MUSIC_STANDALONE\x10\x05\"\xd7\x01\n" +
 	"\x0fPairedMediaType\x12\x14\n" +
 	"\x10NOT_PAIRED_MEDIA\x10\x00\x12\x13\n" +
 	"\x0fSD_VIDEO_PARENT\x10\x01\x12\x12\n" +
@@ -22583,140 +21172,19 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\x0fSD_IMAGE_PARENT\x10\x03\x12\x12\n" +
 	"\x0eHD_IMAGE_CHILD\x10\x04\x12\x17\n" +
 	"\x13MOTION_PHOTO_PARENT\x10\x05\x12\x16\n" +
-	"\x12MOTION_PHOTO_CHILD\x10\x06\"\x92\x01\n" +
+	"\x12MOTION_PHOTO_CHILD\x10\x06\x12\x15\n" +
+	"\x11HEVC_VIDEO_PARENT\x10\a\x12\x14\n" +
+	"\x10HEVC_VIDEO_CHILD\x10\b\"\x92\x01\n" +
 	"\x15StatusAttributionType\x12\b\n" +
 	"\x04NONE\x10\x00\x12\x19\n" +
 	"\x15RESHARED_FROM_MENTION\x10\x01\x12\x16\n" +
 	"\x12RESHARED_FROM_POST\x10\x02\x12!\n" +
 	"\x1dRESHARED_FROM_POST_MANY_TIMES\x10\x03\x12\x19\n" +
-	"\x15FORWARDED_FROM_STATUS\x10\x04\"\xf1.\n" +
-	"\x15AIRichResponseMessage\x12d\n" +
-	"\vmessageType\x18\x01 \x01(\x0e2B.WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseMessageTypeR\vmessageType\x12c\n" +
-	"\vsubmessages\x18\x02 \x03(\v2A.WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseSubMessageR\vsubmessages\x12p\n" +
-	"\x0funifiedResponse\x18\x03 \x01(\v2F.WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseUnifiedResponseR\x0funifiedResponse\x12@\n" +
-	"\vcontextInfo\x18\x04 \x01(\v2\x1e.WAWebProtobufsE2E.ContextInfoR\vcontextInfo\x1a\xbe\x05\n" +
-	"\"AIRichResponseContentItemsMetadata\x12\x93\x01\n" +
-	"\ritemsMetadata\x18\x01 \x03(\v2m.WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseContentItemsMetadata.AIRichResponseContentItemMetadataR\ritemsMetadata\x12y\n" +
-	"\vcontentType\x18\x02 \x01(\x0e2W.WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseContentItemsMetadata.ContentTypeR\vcontentType\x1a\xc3\x01\n" +
-	"!AIRichResponseContentItemMetadata\x12\x80\x01\n" +
-	"\breelItem\x18\x01 \x01(\v2b.WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseContentItemsMetadata.AIRichResponseReelItemH\x00R\breelItemB\x1b\n" +
-	"\x19aIRichResponseContentItem\x1a\x96\x01\n" +
-	"\x16AIRichResponseReelItem\x12\x14\n" +
-	"\x05title\x18\x01 \x01(\tR\x05title\x12&\n" +
-	"\x0eprofileIconURL\x18\x02 \x01(\tR\x0eprofileIconURL\x12\"\n" +
-	"\fthumbnailURL\x18\x03 \x01(\tR\fthumbnailURL\x12\x1a\n" +
-	"\bvideoURL\x18\x04 \x01(\tR\bvideoURL\"(\n" +
-	"\vContentType\x12\v\n" +
-	"\aDEFAULT\x10\x00\x12\f\n" +
-	"\bCAROUSEL\x10\x01\x1a\xa3\x03\n" +
-	"\x1dAIRichResponseDynamicMetadata\x12|\n" +
-	"\x04type\x18\x01 \x01(\x0e2h.WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseDynamicMetadata.AIRichResponseDynamicMetadataTypeR\x04type\x12\x18\n" +
-	"\aversion\x18\x02 \x01(\x04R\aversion\x12\x10\n" +
-	"\x03URL\x18\x03 \x01(\tR\x03URL\x12\x1c\n" +
-	"\tloopCount\x18\x04 \x01(\rR\tloopCount\"\xb9\x01\n" +
-	"!AIRichResponseDynamicMetadataType\x122\n" +
-	".AI_RICH_RESPONSE_DYNAMIC_METADATA_TYPE_UNKNOWN\x10\x00\x120\n" +
-	",AI_RICH_RESPONSE_DYNAMIC_METADATA_TYPE_IMAGE\x10\x01\x12.\n" +
-	"*AI_RICH_RESPONSE_DYNAMIC_METADATA_TYPE_GIF\x10\x02\x1a\xb6\x05\n" +
-	"\x1aAIRichResponseCodeMetadata\x12\"\n" +
-	"\fcodeLanguage\x18\x01 \x01(\tR\fcodeLanguage\x12{\n" +
-	"\n" +
-	"codeBlocks\x18\x02 \x03(\v2[.WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseCodeMetadata.AIRichResponseCodeBlockR\n" +
-	"codeBlocks\x1a\xc7\x01\n" +
-	"\x17AIRichResponseCodeBlock\x12\x89\x01\n" +
-	"\rhighlightType\x18\x01 \x01(\x0e2c.WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseCodeMetadata.AIRichResponseCodeHighlightTypeR\rhighlightType\x12 \n" +
-	"\vcodeContent\x18\x02 \x01(\tR\vcodeContent\"\xac\x02\n" +
-	"\x1fAIRichResponseCodeHighlightType\x12+\n" +
-	"'AI_RICH_RESPONSE_CODE_HIGHLIGHT_DEFAULT\x10\x00\x12+\n" +
-	"'AI_RICH_RESPONSE_CODE_HIGHLIGHT_KEYWORD\x10\x01\x12*\n" +
-	"&AI_RICH_RESPONSE_CODE_HIGHLIGHT_METHOD\x10\x02\x12*\n" +
-	"&AI_RICH_RESPONSE_CODE_HIGHLIGHT_STRING\x10\x03\x12*\n" +
-	"&AI_RICH_RESPONSE_CODE_HIGHLIGHT_NUMBER\x10\x04\x12+\n" +
-	"'AI_RICH_RESPONSE_CODE_HIGHLIGHT_COMMENT\x10\x05\x1a\x80\x04\n" +
-	"!AIRichResponseInlineImageMetadata\x12[\n" +
-	"\bimageURL\x18\x01 \x01(\v2?.WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseImageURLR\bimageURL\x12\x1c\n" +
-	"\timageText\x18\x02 \x01(\tR\timageText\x12\x85\x01\n" +
-	"\talignment\x18\x03 \x01(\x0e2g.WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseInlineImageMetadata.AIRichResponseImageAlignmentR\talignment\x12\x1e\n" +
-	"\n" +
-	"tapLinkURL\x18\x04 \x01(\tR\n" +
-	"tapLinkURL\"\xb7\x01\n" +
-	"\x1cAIRichResponseImageAlignment\x121\n" +
-	"-AI_RICH_RESPONSE_IMAGE_LAYOUT_LEADING_ALIGNED\x10\x00\x122\n" +
-	".AI_RICH_RESPONSE_IMAGE_LAYOUT_TRAILING_ALIGNED\x10\x01\x120\n" +
-	",AI_RICH_RESPONSE_IMAGE_LAYOUT_CENTER_ALIGNED\x10\x02\x1a\xa9\b\n" +
-	"\x18AIRichResponseSubMessage\x12g\n" +
-	"\vmessageType\x18\x01 \x01(\x0e2E.WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseSubMessageTypeR\vmessageType\x12v\n" +
-	"\x11gridImageMetadata\x18\x02 \x01(\v2H.WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseGridImageMetadataR\x11gridImageMetadata\x12 \n" +
-	"\vmessageText\x18\x03 \x01(\tR\vmessageText\x12p\n" +
-	"\rimageMetadata\x18\x04 \x01(\v2J.WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseInlineImageMetadataR\rimageMetadata\x12g\n" +
-	"\fcodeMetadata\x18\x05 \x01(\v2C.WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseCodeMetadataR\fcodeMetadata\x12j\n" +
-	"\rtableMetadata\x18\x06 \x01(\v2D.WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseTableMetadataR\rtableMetadata\x12p\n" +
-	"\x0fdynamicMetadata\x18\a \x01(\v2F.WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseDynamicMetadataR\x0fdynamicMetadata\x12j\n" +
-	"\rlatexMetadata\x18\b \x01(\v2D.WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseLatexMetadataR\rlatexMetadata\x12d\n" +
-	"\vmapMetadata\x18\t \x01(\v2B.WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseMapMetadataR\vmapMetadata\x12\x7f\n" +
-	"\x14contentItemsMetadata\x18\n" +
-	" \x01(\v2K.WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseContentItemsMetadataR\x14contentItemsMetadata\x1a\x92\x04\n" +
-	"\x19AIRichResponseMapMetadata\x12&\n" +
-	"\x0ecenterLatitude\x18\x01 \x01(\x01R\x0ecenterLatitude\x12(\n" +
-	"\x0fcenterLongitude\x18\x02 \x01(\x01R\x0fcenterLongitude\x12$\n" +
-	"\rlatitudeDelta\x18\x03 \x01(\x01R\rlatitudeDelta\x12&\n" +
-	"\x0elongitudeDelta\x18\x04 \x01(\x01R\x0elongitudeDelta\x12\x80\x01\n" +
-	"\vannotations\x18\x05 \x03(\v2^.WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseMapMetadata.AIRichResponseMapAnnotationR\vannotations\x12\"\n" +
-	"\fshowInfoList\x18\x06 \x01(\bR\fshowInfoList\x1a\xad\x01\n" +
-	"\x1bAIRichResponseMapAnnotation\x12*\n" +
-	"\x10annotationNumber\x18\x01 \x01(\rR\x10annotationNumber\x12\x1a\n" +
-	"\blatitude\x18\x02 \x01(\x01R\blatitude\x12\x1c\n" +
-	"\tlongitude\x18\x03 \x01(\x01R\tlongitude\x12\x14\n" +
-	"\x05title\x18\x04 \x01(\tR\x05title\x12\x12\n" +
-	"\x04body\x18\x05 \x01(\tR\x04body\x1a\xa4\x04\n" +
-	"\x1bAIRichResponseLatexMetadata\x12\x12\n" +
-	"\x04text\x18\x01 \x01(\tR\x04text\x12\x84\x01\n" +
-	"\vexpressions\x18\x02 \x03(\v2b.WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseLatexMetadata.AIRichResponseLatexExpressionR\vexpressions\x1a\xe9\x02\n" +
-	"\x1dAIRichResponseLatexExpression\x12(\n" +
-	"\x0flatexExpression\x18\x01 \x01(\tR\x0flatexExpression\x12\x10\n" +
-	"\x03URL\x18\x02 \x01(\tR\x03URL\x12\x14\n" +
-	"\x05width\x18\x03 \x01(\x01R\x05width\x12\x16\n" +
-	"\x06height\x18\x04 \x01(\x01R\x06height\x12\x1e\n" +
-	"\n" +
-	"fontHeight\x18\x05 \x01(\x01R\n" +
-	"fontHeight\x12(\n" +
-	"\x0fimageTopPadding\x18\x06 \x01(\x01R\x0fimageTopPadding\x120\n" +
-	"\x13imageLeadingPadding\x18\a \x01(\x01R\x13imageLeadingPadding\x12.\n" +
-	"\x12imageBottomPadding\x18\b \x01(\x01R\x12imageBottomPadding\x122\n" +
-	"\x14imageTrailingPadding\x18\t \x01(\x01R\x14imageTrailingPadding\x1a3\n" +
-	"\x1dAIRichResponseUnifiedResponse\x12\x12\n" +
-	"\x04data\x18\x01 \x01(\fR\x04data\x1a\xf2\x01\n" +
-	"\x1bAIRichResponseTableMetadata\x12o\n" +
-	"\x04rows\x18\x01 \x03(\v2[.WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseTableMetadata.AIRichResponseTableRowR\x04rows\x12\x14\n" +
-	"\x05title\x18\x02 \x01(\tR\x05title\x1aL\n" +
-	"\x16AIRichResponseTableRow\x12\x14\n" +
-	"\x05items\x18\x01 \x03(\tR\x05items\x12\x1c\n" +
-	"\tisHeading\x18\x02 \x01(\bR\tisHeading\x1a\xe5\x01\n" +
-	"\x1fAIRichResponseGridImageMetadata\x12c\n" +
-	"\fgridImageURL\x18\x01 \x01(\v2?.WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseImageURLR\fgridImageURL\x12]\n" +
-	"\timageURLs\x18\x02 \x03(\v2?.WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseImageURLR\timageURLs\x1a\x8a\x01\n" +
-	"\x16AIRichResponseImageURL\x12(\n" +
-	"\x0fimagePreviewURL\x18\x01 \x01(\tR\x0fimagePreviewURL\x12(\n" +
-	"\x0fimageHighResURL\x18\x02 \x01(\tR\x0fimageHighResURL\x12\x1c\n" +
-	"\tsourceURL\x18\x03 \x01(\tR\tsourceURL\"\xca\x02\n" +
-	"\x1cAIRichResponseSubMessageType\x12\x1c\n" +
-	"\x18AI_RICH_RESPONSE_UNKNOWN\x10\x00\x12\x1f\n" +
-	"\x1bAI_RICH_RESPONSE_GRID_IMAGE\x10\x01\x12\x19\n" +
-	"\x15AI_RICH_RESPONSE_TEXT\x10\x02\x12!\n" +
-	"\x1dAI_RICH_RESPONSE_INLINE_IMAGE\x10\x03\x12\x1a\n" +
-	"\x16AI_RICH_RESPONSE_TABLE\x10\x04\x12\x19\n" +
-	"\x15AI_RICH_RESPONSE_CODE\x10\x05\x12\x1c\n" +
-	"\x18AI_RICH_RESPONSE_DYNAMIC\x10\x06\x12\x18\n" +
-	"\x14AI_RICH_RESPONSE_MAP\x10\a\x12\x1a\n" +
-	"\x16AI_RICH_RESPONSE_LATEX\x10\b\x12\"\n" +
-	"\x1eAI_RICH_RESPONSE_CONTENT_ITEMS\x10\t\"b\n" +
-	"\x19AIRichResponseMessageType\x12!\n" +
-	"\x1dAI_RICH_RESPONSE_TYPE_UNKNOWN\x10\x00\x12\"\n" +
-	"\x1eAI_RICH_RESPONSE_TYPE_STANDARD\x10\x01\"\xe3\x04\n" +
+	"\x15FORWARDED_FROM_STATUS\x10\x04\"\xb1\x05\n" +
 	"\x12MessageAssociation\x12_\n" +
 	"\x0fassociationType\x18\x01 \x01(\x0e25.WAWebProtobufsE2E.MessageAssociation.AssociationTypeR\x0fassociationType\x12@\n" +
 	"\x10parentMessageKey\x18\x02 \x01(\v2\x14.WACommon.MessageKeyR\x10parentMessageKey\x12\"\n" +
-	"\fmessageIndex\x18\x03 \x01(\x05R\fmessageIndex\"\x85\x03\n" +
+	"\fmessageIndex\x18\x03 \x01(\x05R\fmessageIndex\"\xd3\x03\n" +
 	"\x0fAssociationType\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\x0f\n" +
 	"\vMEDIA_ALBUM\x10\x01\x12\x0e\n" +
@@ -22737,7 +21205,10 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\x12STATUS_LINK_ACTION\x10\r\x12\x14\n" +
 	"\x10VIEW_ALL_REPLIES\x10\x0e\x12\x1f\n" +
 	"\x1bSTATUS_ADD_YOURS_AI_IMAGINE\x10\x0f\x12\x13\n" +
-	"\x0fSTATUS_QUESTION\x10\x10\"\xc2\x01\n" +
+	"\x0fSTATUS_QUESTION\x10\x10\x12\x1b\n" +
+	"\x17STATUS_ADD_YOURS_DIWALI\x10\x11\x12\x13\n" +
+	"\x0fSTATUS_REACTION\x10\x12\x12\x1a\n" +
+	"\x16HEVC_VIDEO_DUAL_UPLOAD\x10\x13\"\xc2\x01\n" +
 	"\bThreadID\x12F\n" +
 	"\n" +
 	"threadType\x18\x01 \x01(\x0e2&.WAWebProtobufsE2E.ThreadID.ThreadTypeR\n" +
@@ -22747,15 +21218,15 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"ThreadType\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\x10\n" +
 	"\fVIEW_REPLIES\x10\x01\x12\r\n" +
-	"\tAI_THREAD\x10\x02\"\xe8\a\n" +
+	"\tAI_THREAD\x10\x02\"\xe5\a\n" +
 	"\x12MessageContextInfo\x12U\n" +
 	"\x12deviceListMetadata\x18\x01 \x01(\v2%.WAWebProtobufsE2E.DeviceListMetadataR\x12deviceListMetadata\x12<\n" +
 	"\x19deviceListMetadataVersion\x18\x02 \x01(\x05R\x19deviceListMetadataVersion\x12$\n" +
 	"\rmessageSecret\x18\x03 \x01(\fR\rmessageSecret\x12\"\n" +
 	"\fpaddingBytes\x18\x04 \x01(\fR\fpaddingBytes\x12>\n" +
 	"\x1amessageAddOnDurationInSecs\x18\x05 \x01(\rR\x1amessageAddOnDurationInSecs\x12*\n" +
-	"\x10botMessageSecret\x18\x06 \x01(\fR\x10botMessageSecret\x12<\n" +
-	"\vbotMetadata\x18\a \x01(\v2\x1a.WABotMetadata.BotMetadataR\vbotMetadata\x124\n" +
+	"\x10botMessageSecret\x18\x06 \x01(\fR\x10botMessageSecret\x129\n" +
+	"\vbotMetadata\x18\a \x01(\v2\x17.WAAICommon.BotMetadataR\vbotMetadata\x124\n" +
 	"\x15reportingTokenVersion\x18\b \x01(\x05R\x15reportingTokenVersion\x12t\n" +
 	"\x16messageAddOnExpiryType\x18\t \x01(\x0e2<.WAWebProtobufsE2E.MessageContextInfo.MessageAddonExpiryTypeR\x16messageAddOnExpiryType\x12U\n" +
 	"\x12messageAssociation\x18\n" +
@@ -22871,7 +21342,7 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\tUNDEFINED\x10\x00\x12\a\n" +
 	"\x03LOW\x10\x01\x12\a\n" +
 	"\x03MID\x10\x02\x12\b\n" +
-	"\x04HIGH\x10\x03\"\xeb>\n" +
+	"\x04HIGH\x10\x03\"\xc1A\n" +
 	"\aMessage\x12\"\n" +
 	"\fconversation\x18\x01 \x01(\tR\fconversation\x12s\n" +
 	"\x1csenderKeyDistributionMessage\x18\x02 \x01(\v2/.WAWebProtobufsE2E.SenderKeyDistributionMessageR\x1csenderKeyDistributionMessage\x12C\n" +
@@ -22966,7 +21437,10 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\x13botForwardedMessage\x18h \x01(\v2%.WAWebProtobufsE2E.FutureProofMessageR\x13botForwardedMessage\x12p\n" +
 	"\x1bstatusQuestionAnswerMessage\x18i \x01(\v2..WAWebProtobufsE2E.StatusQuestionAnswerMessageR\x1bstatusQuestionAnswerMessage\x12Y\n" +
 	"\x14questionReplyMessage\x18j \x01(\v2%.WAWebProtobufsE2E.FutureProofMessageR\x14questionReplyMessage\x12d\n" +
-	"\x17questionResponseMessage\x18k \x01(\v2*.WAWebProtobufsE2E.QuestionResponseMessageR\x17questionResponseMessage\"\xb0\x01\n" +
+	"\x17questionResponseMessage\x18k \x01(\v2*.WAWebProtobufsE2E.QuestionResponseMessageR\x17questionResponseMessage\x12|\n" +
+	"\x1fnewsletterFollowerInviteMessage\x18l \x01(\v22.WAWebProtobufsE2E.NewsletterFollowerInviteMessageR\x1fnewsletterFollowerInviteMessage\x12X\n" +
+	"\x13statusQuotedMessage\x18m \x01(\v2&.WAWebProtobufsE2E.StatusQuotedMessageR\x13statusQuotedMessage\x12|\n" +
+	"\x1fstatusStickerInteractionMessage\x18n \x01(\v22.WAWebProtobufsE2E.StatusStickerInteractionMessageR\x1fstatusStickerInteractionMessage\"\xb0\x01\n" +
 	"\fAlbumMessage\x12.\n" +
 	"\x12expectedImageCount\x18\x02 \x01(\rR\x12expectedImageCount\x12.\n" +
 	"\x12expectedVideoCount\x18\x03 \x01(\rR\x12expectedVideoCount\x12@\n" +
@@ -23074,7 +21548,13 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\amessage\x18\x02 \x01(\v2\x1a.WAWebProtobufsE2E.MessageR\amessage\x12\x14\n" +
 	"\x05phash\x18\x03 \x01(\tR\x05phash\"]\n" +
 	"\x19RequestPhoneNumberMessage\x12@\n" +
-	"\vcontextInfo\x18\x01 \x01(\v2\x1e.WAWebProtobufsE2E.ContextInfoR\vcontextInfo\"\x9a\x02\n" +
+	"\vcontextInfo\x18\x01 \x01(\v2\x1e.WAWebProtobufsE2E.ContextInfoR\vcontextInfo\"\xf1\x01\n" +
+	"\x1fNewsletterFollowerInviteMessage\x12$\n" +
+	"\rnewsletterJID\x18\x01 \x01(\tR\rnewsletterJID\x12&\n" +
+	"\x0enewsletterName\x18\x02 \x01(\tR\x0enewsletterName\x12$\n" +
+	"\rJPEGThumbnail\x18\x03 \x01(\fR\rJPEGThumbnail\x12\x18\n" +
+	"\acaption\x18\x04 \x01(\tR\acaption\x12@\n" +
+	"\vcontextInfo\x18\x05 \x01(\v2\x1e.WAWebProtobufsE2E.ContextInfoR\vcontextInfo\"\x9a\x02\n" +
 	"\x1cNewsletterAdminInviteMessage\x12$\n" +
 	"\rnewsletterJID\x18\x01 \x01(\tR\rnewsletterJID\x12&\n" +
 	"\x0enewsletterName\x18\x02 \x01(\tR\x0enewsletterName\x12$\n" +
@@ -23225,7 +21705,7 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\bcontacts\x18\x02 \x03(\v2!.WAWebProtobufsE2E.ContactMessageR\bcontacts\x12@\n" +
 	"\vcontextInfo\x18\x11 \x01(\v2\x1e.WAWebProtobufsE2E.ContextInfoR\vcontextInfo\"j\n" +
 	"&InitialSecurityNotificationSettingSync\x12@\n" +
-	"\x1bsecurityNotificationEnabled\x18\x01 \x01(\bR\x1bsecurityNotificationEnabled\"\xc5\x0e\n" +
+	"\x1bsecurityNotificationEnabled\x18\x01 \x01(\bR\x1bsecurityNotificationEnabled\"\xb8\x11\n" +
 	"\x1fPeerDataOperationRequestMessage\x12s\n" +
 	"\x1cpeerDataOperationRequestType\x18\x01 \x01(\x0e2/.WAWebProtobufsE2E.PeerDataOperationRequestTypeR\x1cpeerDataOperationRequestType\x12\x81\x01\n" +
 	"\x16requestStickerReupload\x18\x02 \x03(\v2I.WAWebProtobufsE2E.PeerDataOperationRequestMessage.RequestStickerReuploadR\x16requestStickerReupload\x12r\n" +
@@ -23233,7 +21713,15 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\x1ahistorySyncOnDemandRequest\x18\x04 \x01(\v2M.WAWebProtobufsE2E.PeerDataOperationRequestMessage.HistorySyncOnDemandRequestR\x1ahistorySyncOnDemandRequest\x12\x9c\x01\n" +
 	"\x1fplaceholderMessageResendRequest\x18\x05 \x03(\v2R.WAWebProtobufsE2E.PeerDataOperationRequestMessage.PlaceholderMessageResendRequestR\x1fplaceholderMessageResendRequest\x12\x99\x01\n" +
 	"\x1efullHistorySyncOnDemandRequest\x18\x06 \x01(\v2Q.WAWebProtobufsE2E.PeerDataOperationRequestMessage.FullHistorySyncOnDemandRequestR\x1efullHistorySyncOnDemandRequest\x12\xa8\x01\n" +
-	"#syncdCollectionFatalRecoveryRequest\x18\a \x01(\v2V.WAWebProtobufsE2E.PeerDataOperationRequestMessage.SyncDCollectionFatalRecoveryRequestR#syncdCollectionFatalRecoveryRequest\x1ak\n" +
+	"#syncdCollectionFatalRecoveryRequest\x18\a \x01(\v2V.WAWebProtobufsE2E.PeerDataOperationRequestMessage.SyncDCollectionFatalRecoveryRequestR#syncdCollectionFatalRecoveryRequest\x12\x93\x01\n" +
+	"\x1chistorySyncChunkRetryRequest\x18\b \x01(\v2O.WAWebProtobufsE2E.PeerDataOperationRequestMessage.HistorySyncChunkRetryRequestR\x1chistorySyncChunkRetryRequest\x1a\xda\x01\n" +
+	"\x1cHistorySyncChunkRetryRequest\x12>\n" +
+	"\bsyncType\x18\x01 \x01(\x0e2\".WAWebProtobufsE2E.HistorySyncTypeR\bsyncType\x12\x1e\n" +
+	"\n" +
+	"chunkOrder\x18\x02 \x01(\rR\n" +
+	"chunkOrder\x120\n" +
+	"\x13chunkNotificationID\x18\x03 \x01(\tR\x13chunkNotificationID\x12(\n" +
+	"\x0fregenerateChunk\x18\x04 \x01(\bR\x0fregenerateChunk\x1ak\n" +
 	"#SyncDCollectionFatalRecoveryRequest\x12&\n" +
 	"\x0ecollectionName\x18\x01 \x01(\tR\x0ecollectionName\x12\x1c\n" +
 	"\ttimestamp\x18\x02 \x01(\x03R\ttimestamp\x1aW\n" +
@@ -23281,7 +21769,31 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\x05keyID\x18\x01 \x01(\fR\x05keyID\"\x8f\x01\n" +
 	"\x0fAppStateSyncKey\x12:\n" +
 	"\x05keyID\x18\x01 \x01(\v2$.WAWebProtobufsE2E.AppStateSyncKeyIdR\x05keyID\x12@\n" +
-	"\akeyData\x18\x02 \x01(\v2&.WAWebProtobufsE2E.AppStateSyncKeyDataR\akeyData\"8\n" +
+	"\akeyData\x18\x02 \x01(\v2&.WAWebProtobufsE2E.AppStateSyncKeyDataR\akeyData\"\xe5\x05\n" +
+	"\x17HistorySyncNotification\x12\x1e\n" +
+	"\n" +
+	"fileSHA256\x18\x01 \x01(\fR\n" +
+	"fileSHA256\x12\x1e\n" +
+	"\n" +
+	"fileLength\x18\x02 \x01(\x04R\n" +
+	"fileLength\x12\x1a\n" +
+	"\bmediaKey\x18\x03 \x01(\fR\bmediaKey\x12$\n" +
+	"\rfileEncSHA256\x18\x04 \x01(\fR\rfileEncSHA256\x12\x1e\n" +
+	"\n" +
+	"directPath\x18\x05 \x01(\tR\n" +
+	"directPath\x12>\n" +
+	"\bsyncType\x18\x06 \x01(\x0e2\".WAWebProtobufsE2E.HistorySyncTypeR\bsyncType\x12\x1e\n" +
+	"\n" +
+	"chunkOrder\x18\a \x01(\rR\n" +
+	"chunkOrder\x12,\n" +
+	"\x11originalMessageID\x18\b \x01(\tR\x11originalMessageID\x12\x1a\n" +
+	"\bprogress\x18\t \x01(\rR\bprogress\x12B\n" +
+	"\x1coldestMsgInChunkTimestampSec\x18\n" +
+	" \x01(\x03R\x1coldestMsgInChunkTimestampSec\x12L\n" +
+	"!initialHistBootstrapInlinePayload\x18\v \x01(\fR!initialHistBootstrapInlinePayload\x12:\n" +
+	"\x18peerDataRequestSessionID\x18\f \x01(\tR\x18peerDataRequestSessionID\x12\x91\x01\n" +
+	"&fullHistorySyncOnDemandRequestMetadata\x18\r \x01(\v29.WAWebProtobufsE2E.FullHistorySyncOnDemandRequestMetadataR&fullHistorySyncOnDemandRequestMetadata\x12\x1c\n" +
+	"\tencHandle\x18\x0e \x01(\tR\tencHandle\"8\n" +
 	"\x04Chat\x12 \n" +
 	"\vdisplayName\x18\x01 \x01(\tR\vdisplayName\x12\x0e\n" +
 	"\x02ID\x18\x02 \x01(\tR\x02ID\"\x9e\x03\n" +
@@ -23481,20 +21993,25 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\voriginalURL\x18\x01 \x01(\tR\voriginalURL\x120\n" +
 	"\x13unconsentedUsersURL\x18\x02 \x01(\tR\x13unconsentedUsersURL\x12,\n" +
 	"\x11consentedUsersURL\x18\x03 \x01(\tR\x11consentedUsersURL\x12\x1c\n" +
-	"\tcardIndex\x18\x04 \x01(\rR\tcardIndex\"\x99\x01\n" +
+	"\tcardIndex\x18\x04 \x01(\rR\tcardIndex\"K\n" +
+	"\vMemberLabel\x12\x14\n" +
+	"\x05label\x18\x01 \x01(\tR\x05label\x12&\n" +
+	"\x0elabelTimestamp\x18\x02 \x01(\x03R\x0elabelTimestamp\"\xbf\x02\n" +
+	"\x15AIRichResponseMessage\x12G\n" +
+	"\vmessageType\x18\x01 \x01(\x0e2%.WAAICommon.AIRichResponseMessageTypeR\vmessageType\x12F\n" +
+	"\vsubmessages\x18\x02 \x03(\v2$.WAAICommon.AIRichResponseSubMessageR\vsubmessages\x12S\n" +
+	"\x0funifiedResponse\x18\x03 \x01(\v2).WAAICommon.AIRichResponseUnifiedResponseR\x0funifiedResponse\x12@\n" +
+	"\vcontextInfo\x18\x04 \x01(\v2\x1e.WAWebProtobufsE2E.ContextInfoR\vcontextInfo\"\x99\x01\n" +
 	"\rAIQueryFanout\x124\n" +
 	"\n" +
 	"messageKey\x18\x01 \x01(\v2\x14.WACommon.MessageKeyR\n" +
 	"messageKey\x124\n" +
 	"\amessage\x18\x02 \x01(\v2\x1a.WAWebProtobufsE2E.MessageR\amessage\x12\x1c\n" +
-	"\ttimestamp\x18\x03 \x01(\x03R\ttimestamp\"K\n" +
-	"\vMemberLabel\x12\x14\n" +
-	"\x05label\x18\x01 \x01(\tR\x05label\x12&\n" +
-	"\x0elabelTimestamp\x18\x02 \x01(\x03R\x0elabelTimestamp*E\n" +
+	"\ttimestamp\x18\x03 \x01(\x03R\ttimestamp*E\n" +
 	"\x0fPollContentType\x12\x1d\n" +
 	"\x19UNKNOWN_POLL_CONTENT_TYPE\x10\x00\x12\b\n" +
 	"\x04TEXT\x10\x01\x12\t\n" +
-	"\x05IMAGE\x10\x02*\xe4\x02\n" +
+	"\x05IMAGE\x10\x02*\x82\x03\n" +
 	"\x1cPeerDataOperationRequestType\x12\x12\n" +
 	"\x0eUPLOAD_STICKER\x10\x00\x12!\n" +
 	"\x1dSEND_RECENT_STICKER_BOOTSTRAP\x10\x01\x12\x19\n" +
@@ -23505,7 +22022,20 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\x1bFULL_HISTORY_SYNC_ON_DEMAND\x10\x06\x12\x1e\n" +
 	"\x1aCOMPANION_META_NONCE_FETCH\x10\a\x12+\n" +
 	"'COMPANION_SYNCD_SNAPSHOT_FATAL_RECOVERY\x10\b\x12(\n" +
-	"$COMPANION_CANONICAL_USER_NONCE_FETCH\x10\t*I\n" +
+	"$COMPANION_CANONICAL_USER_NONCE_FETCH\x10\t\x12\x1c\n" +
+	"\x18HISTORY_SYNC_CHUNK_RETRY\x10\n" +
+	"*\x9a\x01\n" +
+	"\x0fHistorySyncType\x12\x15\n" +
+	"\x11INITIAL_BOOTSTRAP\x10\x00\x12\x15\n" +
+	"\x11INITIAL_STATUS_V3\x10\x01\x12\b\n" +
+	"\x04FULL\x10\x02\x12\n" +
+	"\n" +
+	"\x06RECENT\x10\x03\x12\r\n" +
+	"\tPUSH_NAME\x10\x04\x12\x15\n" +
+	"\x11NON_BLOCKING_DATA\x10\x05\x12\r\n" +
+	"\tON_DEMAND\x10\x06\x12\x0e\n" +
+	"\n" +
+	"NO_HISTORY\x10\a*I\n" +
 	"\x0eMediaKeyDomain\x12\t\n" +
 	"\x05UNSET\x10\x00\x12\r\n" +
 	"\tE2EE_CHAT\x10\x01\x12\n" +
@@ -23530,734 +22060,708 @@ func file_waE2E_WAWebProtobufsE2E_proto_rawDescGZIP() []byte {
 	return file_waE2E_WAWebProtobufsE2E_proto_rawDescData
 }
 
-var file_waE2E_WAWebProtobufsE2E_proto_enumTypes = make([]protoimpl.EnumInfo, 73)
-var file_waE2E_WAWebProtobufsE2E_proto_msgTypes = make([]protoimpl.MessageInfo, 205)
+var file_waE2E_WAWebProtobufsE2E_proto_enumTypes = make([]protoimpl.EnumInfo, 67)
+var file_waE2E_WAWebProtobufsE2E_proto_msgTypes = make([]protoimpl.MessageInfo, 189)
 var file_waE2E_WAWebProtobufsE2E_proto_goTypes = []any{
 	(PollContentType)(0),                                     // 0: WAWebProtobufsE2E.PollContentType
 	(PeerDataOperationRequestType)(0),                        // 1: WAWebProtobufsE2E.PeerDataOperationRequestType
-	(MediaKeyDomain)(0),                                      // 2: WAWebProtobufsE2E.MediaKeyDomain
-	(KeepType)(0),                                            // 3: WAWebProtobufsE2E.KeepType
-	(StickerPackMessage_StickerPackOrigin)(0),                // 4: WAWebProtobufsE2E.StickerPackMessage.StickerPackOrigin
-	(PlaceholderMessage_PlaceholderType)(0),                  // 5: WAWebProtobufsE2E.PlaceholderMessage.PlaceholderType
-	(BCallMessage_MediaType)(0),                              // 6: WAWebProtobufsE2E.BCallMessage.MediaType
-	(CallLogMessage_CallOutcome)(0),                          // 7: WAWebProtobufsE2E.CallLogMessage.CallOutcome
-	(CallLogMessage_CallType)(0),                             // 8: WAWebProtobufsE2E.CallLogMessage.CallType
-	(ScheduledCallEditMessage_EditType)(0),                   // 9: WAWebProtobufsE2E.ScheduledCallEditMessage.EditType
-	(ScheduledCallCreationMessage_CallType)(0),               // 10: WAWebProtobufsE2E.ScheduledCallCreationMessage.CallType
-	(EventResponseMessage_EventResponseType)(0),              // 11: WAWebProtobufsE2E.EventResponseMessage.EventResponseType
-	(PinInChatMessage_Type)(0),                               // 12: WAWebProtobufsE2E.PinInChatMessage.Type
-	(PollCreationMessage_PollType)(0),                        // 13: WAWebProtobufsE2E.PollCreationMessage.PollType
-	(ButtonsResponseMessage_Type)(0),                         // 14: WAWebProtobufsE2E.ButtonsResponseMessage.Type
-	(ButtonsMessage_HeaderType)(0),                           // 15: WAWebProtobufsE2E.ButtonsMessage.HeaderType
-	(ButtonsMessage_Button_Type)(0),                          // 16: WAWebProtobufsE2E.ButtonsMessage.Button.Type
-	(SecretEncryptedMessage_SecretEncType)(0),                // 17: WAWebProtobufsE2E.SecretEncryptedMessage.SecretEncType
-	(GroupInviteMessage_GroupType)(0),                        // 18: WAWebProtobufsE2E.GroupInviteMessage.GroupType
-	(InteractiveResponseMessage_Body_Format)(0),              // 19: WAWebProtobufsE2E.InteractiveResponseMessage.Body.Format
-	(InteractiveMessage_CarouselMessage_CarouselCardType)(0), // 20: WAWebProtobufsE2E.InteractiveMessage.CarouselMessage.CarouselCardType
-	(InteractiveMessage_ShopMessage_Surface)(0),              // 21: WAWebProtobufsE2E.InteractiveMessage.ShopMessage.Surface
-	(ListResponseMessage_ListType)(0),                        // 22: WAWebProtobufsE2E.ListResponseMessage.ListType
-	(ListMessage_ListType)(0),                                // 23: WAWebProtobufsE2E.ListMessage.ListType
-	(OrderMessage_OrderSurface)(0),                           // 24: WAWebProtobufsE2E.OrderMessage.OrderSurface
-	(OrderMessage_OrderStatus)(0),                            // 25: WAWebProtobufsE2E.OrderMessage.OrderStatus
-	(PaymentInviteMessage_ServiceType)(0),                    // 26: WAWebProtobufsE2E.PaymentInviteMessage.ServiceType
-	(HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_CalendarType)(0),       // 27: WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime.HSMDateTimeComponent.CalendarType
-	(HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_DayOfWeekType)(0),      // 28: WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime.HSMDateTimeComponent.DayOfWeekType
-	(PeerDataOperationRequestResponseMessage_PeerDataOperationResult_FullHistorySyncOnDemandResponseCode)(0), // 29: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.FullHistorySyncOnDemandResponseCode
-	(HistorySyncNotification_HistorySyncType)(0),                                                             // 30: WAWebProtobufsE2E.HistorySyncNotification.HistorySyncType
-	(RequestWelcomeMessageMetadata_LocalChatState)(0),                                                        // 31: WAWebProtobufsE2E.RequestWelcomeMessageMetadata.LocalChatState
-	(ProtocolMessage_Type)(0),                                                                  // 32: WAWebProtobufsE2E.ProtocolMessage.Type
-	(CloudAPIThreadControlNotification_CloudAPIThreadControl)(0),                               // 33: WAWebProtobufsE2E.CloudAPIThreadControlNotification.CloudAPIThreadControl
-	(BotFeedbackMessage_ReportKind)(0),                                                         // 34: WAWebProtobufsE2E.BotFeedbackMessage.ReportKind
-	(BotFeedbackMessage_BotFeedbackKindMultiplePositive)(0),                                    // 35: WAWebProtobufsE2E.BotFeedbackMessage.BotFeedbackKindMultiplePositive
-	(BotFeedbackMessage_BotFeedbackKindMultipleNegative)(0),                                    // 36: WAWebProtobufsE2E.BotFeedbackMessage.BotFeedbackKindMultipleNegative
-	(BotFeedbackMessage_BotFeedbackKind)(0),                                                    // 37: WAWebProtobufsE2E.BotFeedbackMessage.BotFeedbackKind
-	(VideoMessage_VideoSourceType)(0),                                                          // 38: WAWebProtobufsE2E.VideoMessage.VideoSourceType
-	(VideoMessage_Attribution)(0),                                                              // 39: WAWebProtobufsE2E.VideoMessage.Attribution
-	(ExtendedTextMessage_InviteLinkGroupType)(0),                                               // 40: WAWebProtobufsE2E.ExtendedTextMessage.InviteLinkGroupType
-	(ExtendedTextMessage_PreviewType)(0),                                                       // 41: WAWebProtobufsE2E.ExtendedTextMessage.PreviewType
-	(ExtendedTextMessage_FontType)(0),                                                          // 42: WAWebProtobufsE2E.ExtendedTextMessage.FontType
-	(LinkPreviewMetadata_SocialMediaPostType)(0),                                               // 43: WAWebProtobufsE2E.LinkPreviewMetadata.SocialMediaPostType
-	(PaymentLinkMetadata_PaymentLinkHeader_PaymentLinkHeaderType)(0),                           // 44: WAWebProtobufsE2E.PaymentLinkMetadata.PaymentLinkHeader.PaymentLinkHeaderType
-	(StatusNotificationMessage_StatusNotificationType)(0),                                      // 45: WAWebProtobufsE2E.StatusNotificationMessage.StatusNotificationType
-	(InvoiceMessage_AttachmentType)(0),                                                         // 46: WAWebProtobufsE2E.InvoiceMessage.AttachmentType
-	(ImageMessage_ImageSourceType)(0),                                                          // 47: WAWebProtobufsE2E.ImageMessage.ImageSourceType
-	(ContextInfo_ForwardOrigin)(0),                                                             // 48: WAWebProtobufsE2E.ContextInfo.ForwardOrigin
-	(ContextInfo_StatusSourceType)(0),                                                          // 49: WAWebProtobufsE2E.ContextInfo.StatusSourceType
-	(ContextInfo_PairedMediaType)(0),                                                           // 50: WAWebProtobufsE2E.ContextInfo.PairedMediaType
-	(ContextInfo_StatusAttributionType)(0),                                                     // 51: WAWebProtobufsE2E.ContextInfo.StatusAttributionType
-	(ContextInfo_StatusAudienceMetadata_AudienceType)(0),                                       // 52: WAWebProtobufsE2E.ContextInfo.StatusAudienceMetadata.AudienceType
-	(ContextInfo_DataSharingContext_DataSharingFlags)(0),                                       // 53: WAWebProtobufsE2E.ContextInfo.DataSharingContext.DataSharingFlags
-	(ContextInfo_ForwardedNewsletterMessageInfo_ContentType)(0),                                // 54: WAWebProtobufsE2E.ContextInfo.ForwardedNewsletterMessageInfo.ContentType
-	(ContextInfo_ExternalAdReplyInfo_AdType)(0),                                                // 55: WAWebProtobufsE2E.ContextInfo.ExternalAdReplyInfo.AdType
-	(ContextInfo_ExternalAdReplyInfo_MediaType)(0),                                             // 56: WAWebProtobufsE2E.ContextInfo.ExternalAdReplyInfo.MediaType
-	(ContextInfo_AdReplyInfo_MediaType)(0),                                                     // 57: WAWebProtobufsE2E.ContextInfo.AdReplyInfo.MediaType
-	(AIRichResponseMessage_AIRichResponseSubMessageType)(0),                                    // 58: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseSubMessageType
-	(AIRichResponseMessage_AIRichResponseMessageType)(0),                                       // 59: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseMessageType
-	(AIRichResponseMessage_AIRichResponseContentItemsMetadata_ContentType)(0),                  // 60: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseContentItemsMetadata.ContentType
-	(AIRichResponseMessage_AIRichResponseDynamicMetadata_AIRichResponseDynamicMetadataType)(0), // 61: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseDynamicMetadata.AIRichResponseDynamicMetadataType
-	(AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType)(0),      // 62: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseCodeMetadata.AIRichResponseCodeHighlightType
-	(AIRichResponseMessage_AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment)(0),  // 63: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseInlineImageMetadata.AIRichResponseImageAlignment
-	(MessageAssociation_AssociationType)(0),                                                    // 64: WAWebProtobufsE2E.MessageAssociation.AssociationType
-	(ThreadID_ThreadType)(0),                                                                   // 65: WAWebProtobufsE2E.ThreadID.ThreadType
-	(MessageContextInfo_MessageAddonExpiryType)(0),                                             // 66: WAWebProtobufsE2E.MessageContextInfo.MessageAddonExpiryType
-	(InteractiveAnnotation_StatusLinkType)(0),                                                  // 67: WAWebProtobufsE2E.InteractiveAnnotation.StatusLinkType
-	(HydratedTemplateButton_HydratedURLButton_WebviewPresentationType)(0),                      // 68: WAWebProtobufsE2E.HydratedTemplateButton.HydratedURLButton.WebviewPresentationType
-	(PaymentBackground_Type)(0),                                                                // 69: WAWebProtobufsE2E.PaymentBackground.Type
-	(DisappearingMode_Trigger)(0),                                                              // 70: WAWebProtobufsE2E.DisappearingMode.Trigger
-	(DisappearingMode_Initiator)(0),                                                            // 71: WAWebProtobufsE2E.DisappearingMode.Initiator
-	(ProcessedVideo_VideoQuality)(0),                                                           // 72: WAWebProtobufsE2E.ProcessedVideo.VideoQuality
-	(*StickerPackMessage)(nil),                                                                 // 73: WAWebProtobufsE2E.StickerPackMessage
-	(*PlaceholderMessage)(nil),                                                                 // 74: WAWebProtobufsE2E.PlaceholderMessage
-	(*BCallMessage)(nil),                                                                       // 75: WAWebProtobufsE2E.BCallMessage
-	(*CallLogMessage)(nil),                                                                     // 76: WAWebProtobufsE2E.CallLogMessage
-	(*ScheduledCallEditMessage)(nil),                                                           // 77: WAWebProtobufsE2E.ScheduledCallEditMessage
-	(*ScheduledCallCreationMessage)(nil),                                                       // 78: WAWebProtobufsE2E.ScheduledCallCreationMessage
-	(*EventResponseMessage)(nil),                                                               // 79: WAWebProtobufsE2E.EventResponseMessage
-	(*PinInChatMessage)(nil),                                                                   // 80: WAWebProtobufsE2E.PinInChatMessage
-	(*PollCreationMessage)(nil),                                                                // 81: WAWebProtobufsE2E.PollCreationMessage
-	(*ButtonsResponseMessage)(nil),                                                             // 82: WAWebProtobufsE2E.ButtonsResponseMessage
-	(*ButtonsMessage)(nil),                                                                     // 83: WAWebProtobufsE2E.ButtonsMessage
-	(*SecretEncryptedMessage)(nil),                                                             // 84: WAWebProtobufsE2E.SecretEncryptedMessage
-	(*GroupInviteMessage)(nil),                                                                 // 85: WAWebProtobufsE2E.GroupInviteMessage
-	(*InteractiveResponseMessage)(nil),                                                         // 86: WAWebProtobufsE2E.InteractiveResponseMessage
-	(*InteractiveMessage)(nil),                                                                 // 87: WAWebProtobufsE2E.InteractiveMessage
-	(*ListResponseMessage)(nil),                                                                // 88: WAWebProtobufsE2E.ListResponseMessage
-	(*ListMessage)(nil),                                                                        // 89: WAWebProtobufsE2E.ListMessage
-	(*OrderMessage)(nil),                                                                       // 90: WAWebProtobufsE2E.OrderMessage
-	(*PaymentInviteMessage)(nil),                                                               // 91: WAWebProtobufsE2E.PaymentInviteMessage
-	(*HighlyStructuredMessage)(nil),                                                            // 92: WAWebProtobufsE2E.HighlyStructuredMessage
-	(*PeerDataOperationRequestResponseMessage)(nil),                                            // 93: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage
-	(*HistorySyncNotification)(nil),                                                            // 94: WAWebProtobufsE2E.HistorySyncNotification
-	(*RequestWelcomeMessageMetadata)(nil),                                                      // 95: WAWebProtobufsE2E.RequestWelcomeMessageMetadata
-	(*ProtocolMessage)(nil),                                                                    // 96: WAWebProtobufsE2E.ProtocolMessage
-	(*CloudAPIThreadControlNotification)(nil),                                                  // 97: WAWebProtobufsE2E.CloudAPIThreadControlNotification
-	(*BotFeedbackMessage)(nil),                                                                 // 98: WAWebProtobufsE2E.BotFeedbackMessage
-	(*VideoMessage)(nil),                                                                       // 99: WAWebProtobufsE2E.VideoMessage
-	(*ExtendedTextMessage)(nil),                                                                // 100: WAWebProtobufsE2E.ExtendedTextMessage
-	(*LinkPreviewMetadata)(nil),                                                                // 101: WAWebProtobufsE2E.LinkPreviewMetadata
-	(*PaymentLinkMetadata)(nil),                                                                // 102: WAWebProtobufsE2E.PaymentLinkMetadata
-	(*StatusNotificationMessage)(nil),                                                          // 103: WAWebProtobufsE2E.StatusNotificationMessage
-	(*InvoiceMessage)(nil),                                                                     // 104: WAWebProtobufsE2E.InvoiceMessage
-	(*ImageMessage)(nil),                                                                       // 105: WAWebProtobufsE2E.ImageMessage
-	(*ContextInfo)(nil),                                                                        // 106: WAWebProtobufsE2E.ContextInfo
-	(*AIRichResponseMessage)(nil),                                                              // 107: WAWebProtobufsE2E.AIRichResponseMessage
-	(*MessageAssociation)(nil),                                                                 // 108: WAWebProtobufsE2E.MessageAssociation
-	(*ThreadID)(nil),                                                                           // 109: WAWebProtobufsE2E.ThreadID
-	(*MessageContextInfo)(nil),                                                                 // 110: WAWebProtobufsE2E.MessageContextInfo
-	(*InteractiveAnnotation)(nil),                                                              // 111: WAWebProtobufsE2E.InteractiveAnnotation
-	(*HydratedTemplateButton)(nil),                                                             // 112: WAWebProtobufsE2E.HydratedTemplateButton
-	(*PaymentBackground)(nil),                                                                  // 113: WAWebProtobufsE2E.PaymentBackground
-	(*DisappearingMode)(nil),                                                                   // 114: WAWebProtobufsE2E.DisappearingMode
-	(*ProcessedVideo)(nil),                                                                     // 115: WAWebProtobufsE2E.ProcessedVideo
-	(*Message)(nil),                                                                            // 116: WAWebProtobufsE2E.Message
-	(*AlbumMessage)(nil),                                                                       // 117: WAWebProtobufsE2E.AlbumMessage
-	(*MessageHistoryMetadata)(nil),                                                             // 118: WAWebProtobufsE2E.MessageHistoryMetadata
-	(*MessageHistoryNotice)(nil),                                                               // 119: WAWebProtobufsE2E.MessageHistoryNotice
-	(*MessageHistoryBundle)(nil),                                                               // 120: WAWebProtobufsE2E.MessageHistoryBundle
-	(*EncEventResponseMessage)(nil),                                                            // 121: WAWebProtobufsE2E.EncEventResponseMessage
-	(*EventMessage)(nil),                                                                       // 122: WAWebProtobufsE2E.EventMessage
-	(*CommentMessage)(nil),                                                                     // 123: WAWebProtobufsE2E.CommentMessage
-	(*EncCommentMessage)(nil),                                                                  // 124: WAWebProtobufsE2E.EncCommentMessage
-	(*EncReactionMessage)(nil),                                                                 // 125: WAWebProtobufsE2E.EncReactionMessage
-	(*KeepInChatMessage)(nil),                                                                  // 126: WAWebProtobufsE2E.KeepInChatMessage
-	(*QuestionResponseMessage)(nil),                                                            // 127: WAWebProtobufsE2E.QuestionResponseMessage
-	(*StatusQuestionAnswerMessage)(nil),                                                        // 128: WAWebProtobufsE2E.StatusQuestionAnswerMessage
-	(*PollResultSnapshotMessage)(nil),                                                          // 129: WAWebProtobufsE2E.PollResultSnapshotMessage
-	(*PollVoteMessage)(nil),                                                                    // 130: WAWebProtobufsE2E.PollVoteMessage
-	(*PollEncValue)(nil),                                                                       // 131: WAWebProtobufsE2E.PollEncValue
-	(*PollUpdateMessageMetadata)(nil),                                                          // 132: WAWebProtobufsE2E.PollUpdateMessageMetadata
-	(*PollUpdateMessage)(nil),                                                                  // 133: WAWebProtobufsE2E.PollUpdateMessage
-	(*StickerSyncRMRMessage)(nil),                                                              // 134: WAWebProtobufsE2E.StickerSyncRMRMessage
-	(*ReactionMessage)(nil),                                                                    // 135: WAWebProtobufsE2E.ReactionMessage
-	(*FutureProofMessage)(nil),                                                                 // 136: WAWebProtobufsE2E.FutureProofMessage
-	(*DeviceSentMessage)(nil),                                                                  // 137: WAWebProtobufsE2E.DeviceSentMessage
-	(*RequestPhoneNumberMessage)(nil),                                                          // 138: WAWebProtobufsE2E.RequestPhoneNumberMessage
-	(*NewsletterAdminInviteMessage)(nil),                                                       // 139: WAWebProtobufsE2E.NewsletterAdminInviteMessage
-	(*ProductMessage)(nil),                                                                     // 140: WAWebProtobufsE2E.ProductMessage
-	(*TemplateButtonReplyMessage)(nil),                                                         // 141: WAWebProtobufsE2E.TemplateButtonReplyMessage
-	(*TemplateMessage)(nil),                                                                    // 142: WAWebProtobufsE2E.TemplateMessage
-	(*StickerMessage)(nil),                                                                     // 143: WAWebProtobufsE2E.StickerMessage
-	(*LiveLocationMessage)(nil),                                                                // 144: WAWebProtobufsE2E.LiveLocationMessage
-	(*CancelPaymentRequestMessage)(nil),                                                        // 145: WAWebProtobufsE2E.CancelPaymentRequestMessage
-	(*DeclinePaymentRequestMessage)(nil),                                                       // 146: WAWebProtobufsE2E.DeclinePaymentRequestMessage
-	(*RequestPaymentMessage)(nil),                                                              // 147: WAWebProtobufsE2E.RequestPaymentMessage
-	(*SendPaymentMessage)(nil),                                                                 // 148: WAWebProtobufsE2E.SendPaymentMessage
-	(*ContactsArrayMessage)(nil),                                                               // 149: WAWebProtobufsE2E.ContactsArrayMessage
-	(*InitialSecurityNotificationSettingSync)(nil),                                             // 150: WAWebProtobufsE2E.InitialSecurityNotificationSettingSync
-	(*PeerDataOperationRequestMessage)(nil),                                                    // 151: WAWebProtobufsE2E.PeerDataOperationRequestMessage
-	(*FullHistorySyncOnDemandRequestMetadata)(nil),                                             // 152: WAWebProtobufsE2E.FullHistorySyncOnDemandRequestMetadata
-	(*AppStateFatalExceptionNotification)(nil),                                                 // 153: WAWebProtobufsE2E.AppStateFatalExceptionNotification
-	(*AppStateSyncKeyRequest)(nil),                                                             // 154: WAWebProtobufsE2E.AppStateSyncKeyRequest
-	(*AppStateSyncKeyShare)(nil),                                                               // 155: WAWebProtobufsE2E.AppStateSyncKeyShare
-	(*AppStateSyncKeyData)(nil),                                                                // 156: WAWebProtobufsE2E.AppStateSyncKeyData
-	(*AppStateSyncKeyFingerprint)(nil),                                                         // 157: WAWebProtobufsE2E.AppStateSyncKeyFingerprint
-	(*AppStateSyncKeyId)(nil),                                                                  // 158: WAWebProtobufsE2E.AppStateSyncKeyId
-	(*AppStateSyncKey)(nil),                                                                    // 159: WAWebProtobufsE2E.AppStateSyncKey
-	(*Chat)(nil),                                                                               // 160: WAWebProtobufsE2E.Chat
-	(*Call)(nil),                                                                               // 161: WAWebProtobufsE2E.Call
-	(*AudioMessage)(nil),                                                                       // 162: WAWebProtobufsE2E.AudioMessage
-	(*DocumentMessage)(nil),                                                                    // 163: WAWebProtobufsE2E.DocumentMessage
-	(*URLMetadata)(nil),                                                                        // 164: WAWebProtobufsE2E.URLMetadata
-	(*MMSThumbnailMetadata)(nil),                                                               // 165: WAWebProtobufsE2E.MMSThumbnailMetadata
-	(*LocationMessage)(nil),                                                                    // 166: WAWebProtobufsE2E.LocationMessage
-	(*ContactMessage)(nil),                                                                     // 167: WAWebProtobufsE2E.ContactMessage
-	(*SenderKeyDistributionMessage)(nil),                                                       // 168: WAWebProtobufsE2E.SenderKeyDistributionMessage
-	(*VideoEndCard)(nil),                                                                       // 169: WAWebProtobufsE2E.VideoEndCard
-	(*DeviceListMetadata)(nil),                                                                 // 170: WAWebProtobufsE2E.DeviceListMetadata
-	(*EmbeddedMessage)(nil),                                                                    // 171: WAWebProtobufsE2E.EmbeddedMessage
-	(*EmbeddedMusic)(nil),                                                                      // 172: WAWebProtobufsE2E.EmbeddedMusic
-	(*EmbeddedContent)(nil),                                                                    // 173: WAWebProtobufsE2E.EmbeddedContent
-	(*TapLinkAction)(nil),                                                                      // 174: WAWebProtobufsE2E.TapLinkAction
-	(*Point)(nil),                                                                              // 175: WAWebProtobufsE2E.Point
-	(*Location)(nil),                                                                           // 176: WAWebProtobufsE2E.Location
-	(*TemplateButton)(nil),                                                                     // 177: WAWebProtobufsE2E.TemplateButton
-	(*Money)(nil),                                                                              // 178: WAWebProtobufsE2E.Money
-	(*ActionLink)(nil),                                                                         // 179: WAWebProtobufsE2E.ActionLink
-	(*GroupMention)(nil),                                                                       // 180: WAWebProtobufsE2E.GroupMention
-	(*MessageSecretMessage)(nil),                                                               // 181: WAWebProtobufsE2E.MessageSecretMessage
-	(*MediaNotifyMessage)(nil),                                                                 // 182: WAWebProtobufsE2E.MediaNotifyMessage
-	(*LIDMigrationMappingSyncMessage)(nil),                                                     // 183: WAWebProtobufsE2E.LIDMigrationMappingSyncMessage
-	(*UrlTrackingMap)(nil),                                                                     // 184: WAWebProtobufsE2E.UrlTrackingMap
-	(*AIQueryFanout)(nil),                                                                      // 185: WAWebProtobufsE2E.AIQueryFanout
-	(*MemberLabel)(nil),                                                                        // 186: WAWebProtobufsE2E.MemberLabel
-	(*StickerPackMessage_Sticker)(nil),                                                         // 187: WAWebProtobufsE2E.StickerPackMessage.Sticker
-	(*CallLogMessage_CallParticipant)(nil),                                                     // 188: WAWebProtobufsE2E.CallLogMessage.CallParticipant
-	(*PollCreationMessage_Option)(nil),                                                         // 189: WAWebProtobufsE2E.PollCreationMessage.Option
-	(*ButtonsMessage_Button)(nil),                                                              // 190: WAWebProtobufsE2E.ButtonsMessage.Button
-	(*ButtonsMessage_Button_NativeFlowInfo)(nil),                                               // 191: WAWebProtobufsE2E.ButtonsMessage.Button.NativeFlowInfo
-	(*ButtonsMessage_Button_ButtonText)(nil),                                                   // 192: WAWebProtobufsE2E.ButtonsMessage.Button.ButtonText
-	(*InteractiveResponseMessage_Body)(nil),                                                    // 193: WAWebProtobufsE2E.InteractiveResponseMessage.Body
-	(*InteractiveResponseMessage_NativeFlowResponseMessage)(nil),                               // 194: WAWebProtobufsE2E.InteractiveResponseMessage.NativeFlowResponseMessage
-	(*InteractiveMessage_CarouselMessage)(nil),                                                 // 195: WAWebProtobufsE2E.InteractiveMessage.CarouselMessage
-	(*InteractiveMessage_ShopMessage)(nil),                                                     // 196: WAWebProtobufsE2E.InteractiveMessage.ShopMessage
-	(*InteractiveMessage_NativeFlowMessage)(nil),                                               // 197: WAWebProtobufsE2E.InteractiveMessage.NativeFlowMessage
-	(*InteractiveMessage_CollectionMessage)(nil),                                               // 198: WAWebProtobufsE2E.InteractiveMessage.CollectionMessage
-	(*InteractiveMessage_Footer)(nil),                                                          // 199: WAWebProtobufsE2E.InteractiveMessage.Footer
-	(*InteractiveMessage_Body)(nil),                                                            // 200: WAWebProtobufsE2E.InteractiveMessage.Body
-	(*InteractiveMessage_Header)(nil),                                                          // 201: WAWebProtobufsE2E.InteractiveMessage.Header
-	(*InteractiveMessage_NativeFlowMessage_NativeFlowButton)(nil),                              // 202: WAWebProtobufsE2E.InteractiveMessage.NativeFlowMessage.NativeFlowButton
-	(*ListResponseMessage_SingleSelectReply)(nil),                                              // 203: WAWebProtobufsE2E.ListResponseMessage.SingleSelectReply
-	(*ListMessage_ProductListInfo)(nil),                                                        // 204: WAWebProtobufsE2E.ListMessage.ProductListInfo
-	(*ListMessage_ProductListHeaderImage)(nil),                                                 // 205: WAWebProtobufsE2E.ListMessage.ProductListHeaderImage
-	(*ListMessage_ProductSection)(nil),                                                         // 206: WAWebProtobufsE2E.ListMessage.ProductSection
-	(*ListMessage_Product)(nil),                                                                // 207: WAWebProtobufsE2E.ListMessage.Product
-	(*ListMessage_Section)(nil),                                                                // 208: WAWebProtobufsE2E.ListMessage.Section
-	(*ListMessage_Row)(nil),                                                                    // 209: WAWebProtobufsE2E.ListMessage.Row
-	(*HighlyStructuredMessage_HSMLocalizableParameter)(nil),                                    // 210: WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter
-	(*HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime)(nil),                        // 211: WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime
-	(*HighlyStructuredMessage_HSMLocalizableParameter_HSMCurrency)(nil),                        // 212: WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMCurrency
-	(*HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent)(nil),                                    // 213: WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime.HSMDateTimeComponent
-	(*HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeUnixEpoch)(nil),                                    // 214: WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime.HSMDateTimeUnixEpoch
-	(*PeerDataOperationRequestResponseMessage_PeerDataOperationResult)(nil),                                                     // 215: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult
-	(*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_SyncDSnapshotFatalRecoveryResponse)(nil),                  // 216: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.SyncDSnapshotFatalRecoveryResponse
-	(*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_CompanionCanonicalUserNonceFetchResponse)(nil),            // 217: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.CompanionCanonicalUserNonceFetchResponse
-	(*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_CompanionMetaNonceFetchResponse)(nil),                     // 218: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.CompanionMetaNonceFetchResponse
-	(*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_WaffleNonceFetchResponse)(nil),                            // 219: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.WaffleNonceFetchResponse
-	(*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_FullHistorySyncOnDemandRequestResponse)(nil),              // 220: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.FullHistorySyncOnDemandRequestResponse
-	(*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_PlaceholderMessageResendResponse)(nil),                    // 221: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.PlaceholderMessageResendResponse
-	(*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPreviewResponse)(nil),                                 // 222: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.LinkPreviewResponse
-	(*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPreviewResponse_PaymentLinkPreviewMetadata)(nil),      // 223: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.LinkPreviewResponse.PaymentLinkPreviewMetadata
-	(*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPreviewResponse_LinkPreviewHighQualityThumbnail)(nil), // 224: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.LinkPreviewResponse.LinkPreviewHighQualityThumbnail
-	(*CloudAPIThreadControlNotification_CloudAPIThreadControlNotificationContent)(nil),                                          // 225: WAWebProtobufsE2E.CloudAPIThreadControlNotification.CloudAPIThreadControlNotificationContent
-	(*BotFeedbackMessage_SideBySideSurveyMetadata)(nil),                                                                         // 226: WAWebProtobufsE2E.BotFeedbackMessage.SideBySideSurveyMetadata
-	(*BotFeedbackMessage_SideBySideSurveyMetadata_SideBySideSurveyAnalyticsData)(nil),                                           // 227: WAWebProtobufsE2E.BotFeedbackMessage.SideBySideSurveyMetadata.SideBySideSurveyAnalyticsData
-	(*PaymentLinkMetadata_PaymentLinkHeader)(nil),                                                                               // 228: WAWebProtobufsE2E.PaymentLinkMetadata.PaymentLinkHeader
-	(*PaymentLinkMetadata_PaymentLinkProvider)(nil),                                                                             // 229: WAWebProtobufsE2E.PaymentLinkMetadata.PaymentLinkProvider
-	(*PaymentLinkMetadata_PaymentLinkButton)(nil),                                                                               // 230: WAWebProtobufsE2E.PaymentLinkMetadata.PaymentLinkButton
-	(*ContextInfo_StatusAudienceMetadata)(nil),                                                                                  // 231: WAWebProtobufsE2E.ContextInfo.StatusAudienceMetadata
-	(*ContextInfo_DataSharingContext)(nil),                                                                                      // 232: WAWebProtobufsE2E.ContextInfo.DataSharingContext
-	(*ContextInfo_ForwardedNewsletterMessageInfo)(nil),                                                                          // 233: WAWebProtobufsE2E.ContextInfo.ForwardedNewsletterMessageInfo
-	(*ContextInfo_ExternalAdReplyInfo)(nil),                                                                                     // 234: WAWebProtobufsE2E.ContextInfo.ExternalAdReplyInfo
-	(*ContextInfo_AdReplyInfo)(nil),                                                                                             // 235: WAWebProtobufsE2E.ContextInfo.AdReplyInfo
-	(*ContextInfo_FeatureEligibilities)(nil),                                                                                    // 236: WAWebProtobufsE2E.ContextInfo.FeatureEligibilities
-	(*ContextInfo_ForwardedAIBotMessageInfo)(nil),                                                                               // 237: WAWebProtobufsE2E.ContextInfo.ForwardedAIBotMessageInfo
-	(*ContextInfo_QuestionReplyQuotedMessage)(nil),                                                                              // 238: WAWebProtobufsE2E.ContextInfo.QuestionReplyQuotedMessage
-	(*ContextInfo_UTMInfo)(nil),                                                                                                 // 239: WAWebProtobufsE2E.ContextInfo.UTMInfo
-	(*ContextInfo_BusinessMessageForwardInfo)(nil),                                                                              // 240: WAWebProtobufsE2E.ContextInfo.BusinessMessageForwardInfo
-	(*ContextInfo_DataSharingContext_Parameters)(nil),                                                                           // 241: WAWebProtobufsE2E.ContextInfo.DataSharingContext.Parameters
-	(*AIRichResponseMessage_AIRichResponseContentItemsMetadata)(nil),                                                            // 242: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseContentItemsMetadata
-	(*AIRichResponseMessage_AIRichResponseDynamicMetadata)(nil),                                                                 // 243: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseDynamicMetadata
-	(*AIRichResponseMessage_AIRichResponseCodeMetadata)(nil),                                                                    // 244: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseCodeMetadata
-	(*AIRichResponseMessage_AIRichResponseInlineImageMetadata)(nil),                                                             // 245: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseInlineImageMetadata
-	(*AIRichResponseMessage_AIRichResponseSubMessage)(nil),                                                                      // 246: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseSubMessage
-	(*AIRichResponseMessage_AIRichResponseMapMetadata)(nil),                                                                     // 247: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseMapMetadata
-	(*AIRichResponseMessage_AIRichResponseLatexMetadata)(nil),                                                                   // 248: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseLatexMetadata
-	(*AIRichResponseMessage_AIRichResponseUnifiedResponse)(nil),                                                                 // 249: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseUnifiedResponse
-	(*AIRichResponseMessage_AIRichResponseTableMetadata)(nil),                                                                   // 250: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseTableMetadata
-	(*AIRichResponseMessage_AIRichResponseGridImageMetadata)(nil),                                                               // 251: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseGridImageMetadata
-	(*AIRichResponseMessage_AIRichResponseImageURL)(nil),                                                                        // 252: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseImageURL
-	(*AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata)(nil),                          // 253: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseContentItemsMetadata.AIRichResponseContentItemMetadata
-	(*AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseReelItem)(nil),                                     // 254: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseContentItemsMetadata.AIRichResponseReelItem
-	(*AIRichResponseMessage_AIRichResponseCodeMetadata_AIRichResponseCodeBlock)(nil),                                            // 255: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseCodeMetadata.AIRichResponseCodeBlock
-	(*AIRichResponseMessage_AIRichResponseMapMetadata_AIRichResponseMapAnnotation)(nil),                                         // 256: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseMapMetadata.AIRichResponseMapAnnotation
-	(*AIRichResponseMessage_AIRichResponseLatexMetadata_AIRichResponseLatexExpression)(nil),                                     // 257: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseLatexMetadata.AIRichResponseLatexExpression
-	(*AIRichResponseMessage_AIRichResponseTableMetadata_AIRichResponseTableRow)(nil),                                            // 258: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseTableMetadata.AIRichResponseTableRow
-	(*HydratedTemplateButton_HydratedURLButton)(nil),                                                                            // 259: WAWebProtobufsE2E.HydratedTemplateButton.HydratedURLButton
-	(*HydratedTemplateButton_HydratedCallButton)(nil),                                                                           // 260: WAWebProtobufsE2E.HydratedTemplateButton.HydratedCallButton
-	(*HydratedTemplateButton_HydratedQuickReplyButton)(nil),                                                                     // 261: WAWebProtobufsE2E.HydratedTemplateButton.HydratedQuickReplyButton
-	(*PaymentBackground_MediaData)(nil),                                                                                         // 262: WAWebProtobufsE2E.PaymentBackground.MediaData
-	(*PollResultSnapshotMessage_PollVote)(nil),                                                                                  // 263: WAWebProtobufsE2E.PollResultSnapshotMessage.PollVote
-	(*ProductMessage_ProductSnapshot)(nil),                                                                                      // 264: WAWebProtobufsE2E.ProductMessage.ProductSnapshot
-	(*ProductMessage_CatalogSnapshot)(nil),                                                                                      // 265: WAWebProtobufsE2E.ProductMessage.CatalogSnapshot
-	(*TemplateMessage_HydratedFourRowTemplate)(nil),                                                                             // 266: WAWebProtobufsE2E.TemplateMessage.HydratedFourRowTemplate
-	(*TemplateMessage_FourRowTemplate)(nil),                                                                                     // 267: WAWebProtobufsE2E.TemplateMessage.FourRowTemplate
-	(*PeerDataOperationRequestMessage_SyncDCollectionFatalRecoveryRequest)(nil),                                                 // 268: WAWebProtobufsE2E.PeerDataOperationRequestMessage.SyncDCollectionFatalRecoveryRequest
-	(*PeerDataOperationRequestMessage_PlaceholderMessageResendRequest)(nil),                                                     // 269: WAWebProtobufsE2E.PeerDataOperationRequestMessage.PlaceholderMessageResendRequest
-	(*PeerDataOperationRequestMessage_FullHistorySyncOnDemandRequest)(nil),                                                      // 270: WAWebProtobufsE2E.PeerDataOperationRequestMessage.FullHistorySyncOnDemandRequest
-	(*PeerDataOperationRequestMessage_HistorySyncOnDemandRequest)(nil),                                                          // 271: WAWebProtobufsE2E.PeerDataOperationRequestMessage.HistorySyncOnDemandRequest
-	(*PeerDataOperationRequestMessage_RequestUrlPreview)(nil),                                                                   // 272: WAWebProtobufsE2E.PeerDataOperationRequestMessage.RequestUrlPreview
-	(*PeerDataOperationRequestMessage_RequestStickerReupload)(nil),                                                              // 273: WAWebProtobufsE2E.PeerDataOperationRequestMessage.RequestStickerReupload
-	(*TemplateButton_CallButton)(nil),                                                                                           // 274: WAWebProtobufsE2E.TemplateButton.CallButton
-	(*TemplateButton_URLButton)(nil),                                                                                            // 275: WAWebProtobufsE2E.TemplateButton.URLButton
-	(*TemplateButton_QuickReplyButton)(nil),                                                                                     // 276: WAWebProtobufsE2E.TemplateButton.QuickReplyButton
-	(*UrlTrackingMap_UrlTrackingMapElement)(nil),                                                                                // 277: WAWebProtobufsE2E.UrlTrackingMap.UrlTrackingMapElement
-	(*waCommon.MessageKey)(nil),                                                                                                 // 278: WACommon.MessageKey
-	(*waCommon.LimitSharing)(nil),                                                                                               // 279: WACommon.LimitSharing
-	(*waStatusAttributions.StatusAttribution)(nil),                                                                              // 280: WAStatusAttributions.StatusAttribution
-	(*waBotMetadata.BotMetadata)(nil),                                                                                           // 281: WABotMetadata.BotMetadata
-	(waAdv.ADVEncryptionType)(0),                                                                                                // 282: WAAdv.ADVEncryptionType
-	(waMmsRetry.MediaRetryNotification_ResultType)(0),                                                                           // 283: WAMmsRetry.MediaRetryNotification.ResultType
-	(*waCompanionReg.DeviceProps_HistorySyncConfig)(nil),                                                                        // 284: WACompanionReg.DeviceProps.HistorySyncConfig
+	(HistorySyncType)(0),                                     // 2: WAWebProtobufsE2E.HistorySyncType
+	(MediaKeyDomain)(0),                                      // 3: WAWebProtobufsE2E.MediaKeyDomain
+	(KeepType)(0),                                            // 4: WAWebProtobufsE2E.KeepType
+	(StickerPackMessage_StickerPackOrigin)(0),                // 5: WAWebProtobufsE2E.StickerPackMessage.StickerPackOrigin
+	(PlaceholderMessage_PlaceholderType)(0),                  // 6: WAWebProtobufsE2E.PlaceholderMessage.PlaceholderType
+	(BCallMessage_MediaType)(0),                              // 7: WAWebProtobufsE2E.BCallMessage.MediaType
+	(CallLogMessage_CallOutcome)(0),                          // 8: WAWebProtobufsE2E.CallLogMessage.CallOutcome
+	(CallLogMessage_CallType)(0),                             // 9: WAWebProtobufsE2E.CallLogMessage.CallType
+	(ScheduledCallEditMessage_EditType)(0),                   // 10: WAWebProtobufsE2E.ScheduledCallEditMessage.EditType
+	(ScheduledCallCreationMessage_CallType)(0),               // 11: WAWebProtobufsE2E.ScheduledCallCreationMessage.CallType
+	(EventResponseMessage_EventResponseType)(0),              // 12: WAWebProtobufsE2E.EventResponseMessage.EventResponseType
+	(PinInChatMessage_Type)(0),                               // 13: WAWebProtobufsE2E.PinInChatMessage.Type
+	(StatusStickerInteractionMessage_StatusStickerType)(0),   // 14: WAWebProtobufsE2E.StatusStickerInteractionMessage.StatusStickerType
+	(PollCreationMessage_PollType)(0),                        // 15: WAWebProtobufsE2E.PollCreationMessage.PollType
+	(ButtonsResponseMessage_Type)(0),                         // 16: WAWebProtobufsE2E.ButtonsResponseMessage.Type
+	(ButtonsMessage_HeaderType)(0),                           // 17: WAWebProtobufsE2E.ButtonsMessage.HeaderType
+	(ButtonsMessage_Button_Type)(0),                          // 18: WAWebProtobufsE2E.ButtonsMessage.Button.Type
+	(SecretEncryptedMessage_SecretEncType)(0),                // 19: WAWebProtobufsE2E.SecretEncryptedMessage.SecretEncType
+	(GroupInviteMessage_GroupType)(0),                        // 20: WAWebProtobufsE2E.GroupInviteMessage.GroupType
+	(InteractiveResponseMessage_Body_Format)(0),              // 21: WAWebProtobufsE2E.InteractiveResponseMessage.Body.Format
+	(InteractiveMessage_CarouselMessage_CarouselCardType)(0), // 22: WAWebProtobufsE2E.InteractiveMessage.CarouselMessage.CarouselCardType
+	(InteractiveMessage_ShopMessage_Surface)(0),              // 23: WAWebProtobufsE2E.InteractiveMessage.ShopMessage.Surface
+	(ListResponseMessage_ListType)(0),                        // 24: WAWebProtobufsE2E.ListResponseMessage.ListType
+	(ListMessage_ListType)(0),                                // 25: WAWebProtobufsE2E.ListMessage.ListType
+	(OrderMessage_OrderSurface)(0),                           // 26: WAWebProtobufsE2E.OrderMessage.OrderSurface
+	(OrderMessage_OrderStatus)(0),                            // 27: WAWebProtobufsE2E.OrderMessage.OrderStatus
+	(StatusQuotedMessage_StatusQuotedMessageType)(0),         // 28: WAWebProtobufsE2E.StatusQuotedMessage.StatusQuotedMessageType
+	(PaymentInviteMessage_ServiceType)(0),                    // 29: WAWebProtobufsE2E.PaymentInviteMessage.ServiceType
+	(HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_CalendarType)(0),       // 30: WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime.HSMDateTimeComponent.CalendarType
+	(HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_DayOfWeekType)(0),      // 31: WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime.HSMDateTimeComponent.DayOfWeekType
+	(PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode)(0),   // 32: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.HistorySyncChunkRetryResponseCode
+	(PeerDataOperationRequestResponseMessage_PeerDataOperationResult_FullHistorySyncOnDemandResponseCode)(0), // 33: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.FullHistorySyncOnDemandResponseCode
+	(RequestWelcomeMessageMetadata_LocalChatState)(0),                                                        // 34: WAWebProtobufsE2E.RequestWelcomeMessageMetadata.LocalChatState
+	(ProtocolMessage_Type)(0),                                             // 35: WAWebProtobufsE2E.ProtocolMessage.Type
+	(CloudAPIThreadControlNotification_CloudAPIThreadControl)(0),          // 36: WAWebProtobufsE2E.CloudAPIThreadControlNotification.CloudAPIThreadControl
+	(VideoMessage_VideoSourceType)(0),                                     // 37: WAWebProtobufsE2E.VideoMessage.VideoSourceType
+	(VideoMessage_Attribution)(0),                                         // 38: WAWebProtobufsE2E.VideoMessage.Attribution
+	(ExtendedTextMessage_InviteLinkGroupType)(0),                          // 39: WAWebProtobufsE2E.ExtendedTextMessage.InviteLinkGroupType
+	(ExtendedTextMessage_PreviewType)(0),                                  // 40: WAWebProtobufsE2E.ExtendedTextMessage.PreviewType
+	(ExtendedTextMessage_FontType)(0),                                     // 41: WAWebProtobufsE2E.ExtendedTextMessage.FontType
+	(LinkPreviewMetadata_SocialMediaPostType)(0),                          // 42: WAWebProtobufsE2E.LinkPreviewMetadata.SocialMediaPostType
+	(PaymentLinkMetadata_PaymentLinkHeader_PaymentLinkHeaderType)(0),      // 43: WAWebProtobufsE2E.PaymentLinkMetadata.PaymentLinkHeader.PaymentLinkHeaderType
+	(StatusNotificationMessage_StatusNotificationType)(0),                 // 44: WAWebProtobufsE2E.StatusNotificationMessage.StatusNotificationType
+	(InvoiceMessage_AttachmentType)(0),                                    // 45: WAWebProtobufsE2E.InvoiceMessage.AttachmentType
+	(ImageMessage_ImageSourceType)(0),                                     // 46: WAWebProtobufsE2E.ImageMessage.ImageSourceType
+	(ContextInfo_QuotedType)(0),                                           // 47: WAWebProtobufsE2E.ContextInfo.QuotedType
+	(ContextInfo_ForwardOrigin)(0),                                        // 48: WAWebProtobufsE2E.ContextInfo.ForwardOrigin
+	(ContextInfo_StatusSourceType)(0),                                     // 49: WAWebProtobufsE2E.ContextInfo.StatusSourceType
+	(ContextInfo_PairedMediaType)(0),                                      // 50: WAWebProtobufsE2E.ContextInfo.PairedMediaType
+	(ContextInfo_StatusAttributionType)(0),                                // 51: WAWebProtobufsE2E.ContextInfo.StatusAttributionType
+	(ContextInfo_StatusAudienceMetadata_AudienceType)(0),                  // 52: WAWebProtobufsE2E.ContextInfo.StatusAudienceMetadata.AudienceType
+	(ContextInfo_DataSharingContext_DataSharingFlags)(0),                  // 53: WAWebProtobufsE2E.ContextInfo.DataSharingContext.DataSharingFlags
+	(ContextInfo_ForwardedNewsletterMessageInfo_ContentType)(0),           // 54: WAWebProtobufsE2E.ContextInfo.ForwardedNewsletterMessageInfo.ContentType
+	(ContextInfo_ExternalAdReplyInfo_AdType)(0),                           // 55: WAWebProtobufsE2E.ContextInfo.ExternalAdReplyInfo.AdType
+	(ContextInfo_ExternalAdReplyInfo_MediaType)(0),                        // 56: WAWebProtobufsE2E.ContextInfo.ExternalAdReplyInfo.MediaType
+	(ContextInfo_AdReplyInfo_MediaType)(0),                                // 57: WAWebProtobufsE2E.ContextInfo.AdReplyInfo.MediaType
+	(MessageAssociation_AssociationType)(0),                               // 58: WAWebProtobufsE2E.MessageAssociation.AssociationType
+	(ThreadID_ThreadType)(0),                                              // 59: WAWebProtobufsE2E.ThreadID.ThreadType
+	(MessageContextInfo_MessageAddonExpiryType)(0),                        // 60: WAWebProtobufsE2E.MessageContextInfo.MessageAddonExpiryType
+	(InteractiveAnnotation_StatusLinkType)(0),                             // 61: WAWebProtobufsE2E.InteractiveAnnotation.StatusLinkType
+	(HydratedTemplateButton_HydratedURLButton_WebviewPresentationType)(0), // 62: WAWebProtobufsE2E.HydratedTemplateButton.HydratedURLButton.WebviewPresentationType
+	(PaymentBackground_Type)(0),                                           // 63: WAWebProtobufsE2E.PaymentBackground.Type
+	(DisappearingMode_Trigger)(0),                                         // 64: WAWebProtobufsE2E.DisappearingMode.Trigger
+	(DisappearingMode_Initiator)(0),                                       // 65: WAWebProtobufsE2E.DisappearingMode.Initiator
+	(ProcessedVideo_VideoQuality)(0),                                      // 66: WAWebProtobufsE2E.ProcessedVideo.VideoQuality
+	(*StickerPackMessage)(nil),                                            // 67: WAWebProtobufsE2E.StickerPackMessage
+	(*PlaceholderMessage)(nil),                                            // 68: WAWebProtobufsE2E.PlaceholderMessage
+	(*BCallMessage)(nil),                                                  // 69: WAWebProtobufsE2E.BCallMessage
+	(*CallLogMessage)(nil),                                                // 70: WAWebProtobufsE2E.CallLogMessage
+	(*ScheduledCallEditMessage)(nil),                                      // 71: WAWebProtobufsE2E.ScheduledCallEditMessage
+	(*ScheduledCallCreationMessage)(nil),                                  // 72: WAWebProtobufsE2E.ScheduledCallCreationMessage
+	(*EventResponseMessage)(nil),                                          // 73: WAWebProtobufsE2E.EventResponseMessage
+	(*PinInChatMessage)(nil),                                              // 74: WAWebProtobufsE2E.PinInChatMessage
+	(*StatusStickerInteractionMessage)(nil),                               // 75: WAWebProtobufsE2E.StatusStickerInteractionMessage
+	(*PollCreationMessage)(nil),                                           // 76: WAWebProtobufsE2E.PollCreationMessage
+	(*ButtonsResponseMessage)(nil),                                        // 77: WAWebProtobufsE2E.ButtonsResponseMessage
+	(*ButtonsMessage)(nil),                                                // 78: WAWebProtobufsE2E.ButtonsMessage
+	(*SecretEncryptedMessage)(nil),                                        // 79: WAWebProtobufsE2E.SecretEncryptedMessage
+	(*GroupInviteMessage)(nil),                                            // 80: WAWebProtobufsE2E.GroupInviteMessage
+	(*InteractiveResponseMessage)(nil),                                    // 81: WAWebProtobufsE2E.InteractiveResponseMessage
+	(*InteractiveMessage)(nil),                                            // 82: WAWebProtobufsE2E.InteractiveMessage
+	(*ListResponseMessage)(nil),                                           // 83: WAWebProtobufsE2E.ListResponseMessage
+	(*ListMessage)(nil),                                                   // 84: WAWebProtobufsE2E.ListMessage
+	(*OrderMessage)(nil),                                                  // 85: WAWebProtobufsE2E.OrderMessage
+	(*StatusQuotedMessage)(nil),                                           // 86: WAWebProtobufsE2E.StatusQuotedMessage
+	(*PaymentInviteMessage)(nil),                                          // 87: WAWebProtobufsE2E.PaymentInviteMessage
+	(*HighlyStructuredMessage)(nil),                                       // 88: WAWebProtobufsE2E.HighlyStructuredMessage
+	(*PeerDataOperationRequestResponseMessage)(nil),                       // 89: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage
+	(*RequestWelcomeMessageMetadata)(nil),                                 // 90: WAWebProtobufsE2E.RequestWelcomeMessageMetadata
+	(*ProtocolMessage)(nil),                                               // 91: WAWebProtobufsE2E.ProtocolMessage
+	(*CloudAPIThreadControlNotification)(nil),                             // 92: WAWebProtobufsE2E.CloudAPIThreadControlNotification
+	(*VideoMessage)(nil),                                                  // 93: WAWebProtobufsE2E.VideoMessage
+	(*ExtendedTextMessage)(nil),                                           // 94: WAWebProtobufsE2E.ExtendedTextMessage
+	(*LinkPreviewMetadata)(nil),                                           // 95: WAWebProtobufsE2E.LinkPreviewMetadata
+	(*PaymentLinkMetadata)(nil),                                           // 96: WAWebProtobufsE2E.PaymentLinkMetadata
+	(*StatusNotificationMessage)(nil),                                     // 97: WAWebProtobufsE2E.StatusNotificationMessage
+	(*InvoiceMessage)(nil),                                                // 98: WAWebProtobufsE2E.InvoiceMessage
+	(*ImageMessage)(nil),                                                  // 99: WAWebProtobufsE2E.ImageMessage
+	(*ContextInfo)(nil),                                                   // 100: WAWebProtobufsE2E.ContextInfo
+	(*MessageAssociation)(nil),                                            // 101: WAWebProtobufsE2E.MessageAssociation
+	(*ThreadID)(nil),                                                      // 102: WAWebProtobufsE2E.ThreadID
+	(*MessageContextInfo)(nil),                                            // 103: WAWebProtobufsE2E.MessageContextInfo
+	(*InteractiveAnnotation)(nil),                                         // 104: WAWebProtobufsE2E.InteractiveAnnotation
+	(*HydratedTemplateButton)(nil),                                        // 105: WAWebProtobufsE2E.HydratedTemplateButton
+	(*PaymentBackground)(nil),                                             // 106: WAWebProtobufsE2E.PaymentBackground
+	(*DisappearingMode)(nil),                                              // 107: WAWebProtobufsE2E.DisappearingMode
+	(*ProcessedVideo)(nil),                                                // 108: WAWebProtobufsE2E.ProcessedVideo
+	(*Message)(nil),                                                       // 109: WAWebProtobufsE2E.Message
+	(*AlbumMessage)(nil),                                                  // 110: WAWebProtobufsE2E.AlbumMessage
+	(*MessageHistoryMetadata)(nil),                                        // 111: WAWebProtobufsE2E.MessageHistoryMetadata
+	(*MessageHistoryNotice)(nil),                                          // 112: WAWebProtobufsE2E.MessageHistoryNotice
+	(*MessageHistoryBundle)(nil),                                          // 113: WAWebProtobufsE2E.MessageHistoryBundle
+	(*EncEventResponseMessage)(nil),                                       // 114: WAWebProtobufsE2E.EncEventResponseMessage
+	(*EventMessage)(nil),                                                  // 115: WAWebProtobufsE2E.EventMessage
+	(*CommentMessage)(nil),                                                // 116: WAWebProtobufsE2E.CommentMessage
+	(*EncCommentMessage)(nil),                                             // 117: WAWebProtobufsE2E.EncCommentMessage
+	(*EncReactionMessage)(nil),                                            // 118: WAWebProtobufsE2E.EncReactionMessage
+	(*KeepInChatMessage)(nil),                                             // 119: WAWebProtobufsE2E.KeepInChatMessage
+	(*QuestionResponseMessage)(nil),                                       // 120: WAWebProtobufsE2E.QuestionResponseMessage
+	(*StatusQuestionAnswerMessage)(nil),                                   // 121: WAWebProtobufsE2E.StatusQuestionAnswerMessage
+	(*PollResultSnapshotMessage)(nil),                                     // 122: WAWebProtobufsE2E.PollResultSnapshotMessage
+	(*PollVoteMessage)(nil),                                               // 123: WAWebProtobufsE2E.PollVoteMessage
+	(*PollEncValue)(nil),                                                  // 124: WAWebProtobufsE2E.PollEncValue
+	(*PollUpdateMessageMetadata)(nil),                                     // 125: WAWebProtobufsE2E.PollUpdateMessageMetadata
+	(*PollUpdateMessage)(nil),                                             // 126: WAWebProtobufsE2E.PollUpdateMessage
+	(*StickerSyncRMRMessage)(nil),                                         // 127: WAWebProtobufsE2E.StickerSyncRMRMessage
+	(*ReactionMessage)(nil),                                               // 128: WAWebProtobufsE2E.ReactionMessage
+	(*FutureProofMessage)(nil),                                            // 129: WAWebProtobufsE2E.FutureProofMessage
+	(*DeviceSentMessage)(nil),                                             // 130: WAWebProtobufsE2E.DeviceSentMessage
+	(*RequestPhoneNumberMessage)(nil),                                     // 131: WAWebProtobufsE2E.RequestPhoneNumberMessage
+	(*NewsletterFollowerInviteMessage)(nil),                               // 132: WAWebProtobufsE2E.NewsletterFollowerInviteMessage
+	(*NewsletterAdminInviteMessage)(nil),                                  // 133: WAWebProtobufsE2E.NewsletterAdminInviteMessage
+	(*ProductMessage)(nil),                                                // 134: WAWebProtobufsE2E.ProductMessage
+	(*TemplateButtonReplyMessage)(nil),                                    // 135: WAWebProtobufsE2E.TemplateButtonReplyMessage
+	(*TemplateMessage)(nil),                                               // 136: WAWebProtobufsE2E.TemplateMessage
+	(*StickerMessage)(nil),                                                // 137: WAWebProtobufsE2E.StickerMessage
+	(*LiveLocationMessage)(nil),                                           // 138: WAWebProtobufsE2E.LiveLocationMessage
+	(*CancelPaymentRequestMessage)(nil),                                   // 139: WAWebProtobufsE2E.CancelPaymentRequestMessage
+	(*DeclinePaymentRequestMessage)(nil),                                  // 140: WAWebProtobufsE2E.DeclinePaymentRequestMessage
+	(*RequestPaymentMessage)(nil),                                         // 141: WAWebProtobufsE2E.RequestPaymentMessage
+	(*SendPaymentMessage)(nil),                                            // 142: WAWebProtobufsE2E.SendPaymentMessage
+	(*ContactsArrayMessage)(nil),                                          // 143: WAWebProtobufsE2E.ContactsArrayMessage
+	(*InitialSecurityNotificationSettingSync)(nil),                        // 144: WAWebProtobufsE2E.InitialSecurityNotificationSettingSync
+	(*PeerDataOperationRequestMessage)(nil),                               // 145: WAWebProtobufsE2E.PeerDataOperationRequestMessage
+	(*FullHistorySyncOnDemandRequestMetadata)(nil),                        // 146: WAWebProtobufsE2E.FullHistorySyncOnDemandRequestMetadata
+	(*AppStateFatalExceptionNotification)(nil),                            // 147: WAWebProtobufsE2E.AppStateFatalExceptionNotification
+	(*AppStateSyncKeyRequest)(nil),                                        // 148: WAWebProtobufsE2E.AppStateSyncKeyRequest
+	(*AppStateSyncKeyShare)(nil),                                          // 149: WAWebProtobufsE2E.AppStateSyncKeyShare
+	(*AppStateSyncKeyData)(nil),                                           // 150: WAWebProtobufsE2E.AppStateSyncKeyData
+	(*AppStateSyncKeyFingerprint)(nil),                                    // 151: WAWebProtobufsE2E.AppStateSyncKeyFingerprint
+	(*AppStateSyncKeyId)(nil),                                             // 152: WAWebProtobufsE2E.AppStateSyncKeyId
+	(*AppStateSyncKey)(nil),                                               // 153: WAWebProtobufsE2E.AppStateSyncKey
+	(*HistorySyncNotification)(nil),                                       // 154: WAWebProtobufsE2E.HistorySyncNotification
+	(*Chat)(nil),                                                          // 155: WAWebProtobufsE2E.Chat
+	(*Call)(nil),                                                          // 156: WAWebProtobufsE2E.Call
+	(*AudioMessage)(nil),                                                  // 157: WAWebProtobufsE2E.AudioMessage
+	(*DocumentMessage)(nil),                                               // 158: WAWebProtobufsE2E.DocumentMessage
+	(*URLMetadata)(nil),                                                   // 159: WAWebProtobufsE2E.URLMetadata
+	(*MMSThumbnailMetadata)(nil),                                          // 160: WAWebProtobufsE2E.MMSThumbnailMetadata
+	(*LocationMessage)(nil),                                               // 161: WAWebProtobufsE2E.LocationMessage
+	(*ContactMessage)(nil),                                                // 162: WAWebProtobufsE2E.ContactMessage
+	(*SenderKeyDistributionMessage)(nil),                                  // 163: WAWebProtobufsE2E.SenderKeyDistributionMessage
+	(*VideoEndCard)(nil),                                                  // 164: WAWebProtobufsE2E.VideoEndCard
+	(*DeviceListMetadata)(nil),                                            // 165: WAWebProtobufsE2E.DeviceListMetadata
+	(*EmbeddedMessage)(nil),                                               // 166: WAWebProtobufsE2E.EmbeddedMessage
+	(*EmbeddedMusic)(nil),                                                 // 167: WAWebProtobufsE2E.EmbeddedMusic
+	(*EmbeddedContent)(nil),                                               // 168: WAWebProtobufsE2E.EmbeddedContent
+	(*TapLinkAction)(nil),                                                 // 169: WAWebProtobufsE2E.TapLinkAction
+	(*Point)(nil),                                                         // 170: WAWebProtobufsE2E.Point
+	(*Location)(nil),                                                      // 171: WAWebProtobufsE2E.Location
+	(*TemplateButton)(nil),                                                // 172: WAWebProtobufsE2E.TemplateButton
+	(*Money)(nil),                                                         // 173: WAWebProtobufsE2E.Money
+	(*ActionLink)(nil),                                                    // 174: WAWebProtobufsE2E.ActionLink
+	(*GroupMention)(nil),                                                  // 175: WAWebProtobufsE2E.GroupMention
+	(*MessageSecretMessage)(nil),                                          // 176: WAWebProtobufsE2E.MessageSecretMessage
+	(*MediaNotifyMessage)(nil),                                            // 177: WAWebProtobufsE2E.MediaNotifyMessage
+	(*LIDMigrationMappingSyncMessage)(nil),                                // 178: WAWebProtobufsE2E.LIDMigrationMappingSyncMessage
+	(*UrlTrackingMap)(nil),                                                // 179: WAWebProtobufsE2E.UrlTrackingMap
+	(*MemberLabel)(nil),                                                   // 180: WAWebProtobufsE2E.MemberLabel
+	(*AIRichResponseMessage)(nil),                                         // 181: WAWebProtobufsE2E.AIRichResponseMessage
+	(*AIQueryFanout)(nil),                                                 // 182: WAWebProtobufsE2E.AIQueryFanout
+	(*StickerPackMessage_Sticker)(nil),                                    // 183: WAWebProtobufsE2E.StickerPackMessage.Sticker
+	(*CallLogMessage_CallParticipant)(nil),                                // 184: WAWebProtobufsE2E.CallLogMessage.CallParticipant
+	(*PollCreationMessage_Option)(nil),                                    // 185: WAWebProtobufsE2E.PollCreationMessage.Option
+	(*ButtonsMessage_Button)(nil),                                         // 186: WAWebProtobufsE2E.ButtonsMessage.Button
+	(*ButtonsMessage_Button_NativeFlowInfo)(nil),                          // 187: WAWebProtobufsE2E.ButtonsMessage.Button.NativeFlowInfo
+	(*ButtonsMessage_Button_ButtonText)(nil),                              // 188: WAWebProtobufsE2E.ButtonsMessage.Button.ButtonText
+	(*InteractiveResponseMessage_Body)(nil),                               // 189: WAWebProtobufsE2E.InteractiveResponseMessage.Body
+	(*InteractiveResponseMessage_NativeFlowResponseMessage)(nil),          // 190: WAWebProtobufsE2E.InteractiveResponseMessage.NativeFlowResponseMessage
+	(*InteractiveMessage_CarouselMessage)(nil),                            // 191: WAWebProtobufsE2E.InteractiveMessage.CarouselMessage
+	(*InteractiveMessage_ShopMessage)(nil),                                // 192: WAWebProtobufsE2E.InteractiveMessage.ShopMessage
+	(*InteractiveMessage_NativeFlowMessage)(nil),                          // 193: WAWebProtobufsE2E.InteractiveMessage.NativeFlowMessage
+	(*InteractiveMessage_CollectionMessage)(nil),                          // 194: WAWebProtobufsE2E.InteractiveMessage.CollectionMessage
+	(*InteractiveMessage_Footer)(nil),                                     // 195: WAWebProtobufsE2E.InteractiveMessage.Footer
+	(*InteractiveMessage_Body)(nil),                                       // 196: WAWebProtobufsE2E.InteractiveMessage.Body
+	(*InteractiveMessage_Header)(nil),                                     // 197: WAWebProtobufsE2E.InteractiveMessage.Header
+	(*InteractiveMessage_NativeFlowMessage_NativeFlowButton)(nil),         // 198: WAWebProtobufsE2E.InteractiveMessage.NativeFlowMessage.NativeFlowButton
+	(*ListResponseMessage_SingleSelectReply)(nil),                         // 199: WAWebProtobufsE2E.ListResponseMessage.SingleSelectReply
+	(*ListMessage_ProductListInfo)(nil),                                   // 200: WAWebProtobufsE2E.ListMessage.ProductListInfo
+	(*ListMessage_ProductListHeaderImage)(nil),                            // 201: WAWebProtobufsE2E.ListMessage.ProductListHeaderImage
+	(*ListMessage_ProductSection)(nil),                                    // 202: WAWebProtobufsE2E.ListMessage.ProductSection
+	(*ListMessage_Product)(nil),                                           // 203: WAWebProtobufsE2E.ListMessage.Product
+	(*ListMessage_Section)(nil),                                           // 204: WAWebProtobufsE2E.ListMessage.Section
+	(*ListMessage_Row)(nil),                                               // 205: WAWebProtobufsE2E.ListMessage.Row
+	(*HighlyStructuredMessage_HSMLocalizableParameter)(nil),               // 206: WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter
+	(*HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime)(nil),   // 207: WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime
+	(*HighlyStructuredMessage_HSMLocalizableParameter_HSMCurrency)(nil),   // 208: WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMCurrency
+	(*HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent)(nil),                                    // 209: WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime.HSMDateTimeComponent
+	(*HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeUnixEpoch)(nil),                                    // 210: WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime.HSMDateTimeUnixEpoch
+	(*PeerDataOperationRequestResponseMessage_PeerDataOperationResult)(nil),                                                     // 211: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult
+	(*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponse)(nil),                       // 212: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.HistorySyncChunkRetryResponse
+	(*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_SyncDSnapshotFatalRecoveryResponse)(nil),                  // 213: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.SyncDSnapshotFatalRecoveryResponse
+	(*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_CompanionCanonicalUserNonceFetchResponse)(nil),            // 214: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.CompanionCanonicalUserNonceFetchResponse
+	(*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_CompanionMetaNonceFetchResponse)(nil),                     // 215: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.CompanionMetaNonceFetchResponse
+	(*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_WaffleNonceFetchResponse)(nil),                            // 216: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.WaffleNonceFetchResponse
+	(*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_FullHistorySyncOnDemandRequestResponse)(nil),              // 217: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.FullHistorySyncOnDemandRequestResponse
+	(*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_PlaceholderMessageResendResponse)(nil),                    // 218: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.PlaceholderMessageResendResponse
+	(*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPreviewResponse)(nil),                                 // 219: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.LinkPreviewResponse
+	(*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPreviewResponse_PaymentLinkPreviewMetadata)(nil),      // 220: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.LinkPreviewResponse.PaymentLinkPreviewMetadata
+	(*PeerDataOperationRequestResponseMessage_PeerDataOperationResult_LinkPreviewResponse_LinkPreviewHighQualityThumbnail)(nil), // 221: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.LinkPreviewResponse.LinkPreviewHighQualityThumbnail
+	(*CloudAPIThreadControlNotification_CloudAPIThreadControlNotificationContent)(nil),                                          // 222: WAWebProtobufsE2E.CloudAPIThreadControlNotification.CloudAPIThreadControlNotificationContent
+	(*PaymentLinkMetadata_PaymentLinkHeader)(nil),                                                                               // 223: WAWebProtobufsE2E.PaymentLinkMetadata.PaymentLinkHeader
+	(*PaymentLinkMetadata_PaymentLinkProvider)(nil),                                                                             // 224: WAWebProtobufsE2E.PaymentLinkMetadata.PaymentLinkProvider
+	(*PaymentLinkMetadata_PaymentLinkButton)(nil),                                                                               // 225: WAWebProtobufsE2E.PaymentLinkMetadata.PaymentLinkButton
+	(*ContextInfo_StatusAudienceMetadata)(nil),                                                                                  // 226: WAWebProtobufsE2E.ContextInfo.StatusAudienceMetadata
+	(*ContextInfo_DataSharingContext)(nil),                                                                                      // 227: WAWebProtobufsE2E.ContextInfo.DataSharingContext
+	(*ContextInfo_ForwardedNewsletterMessageInfo)(nil),                                                                          // 228: WAWebProtobufsE2E.ContextInfo.ForwardedNewsletterMessageInfo
+	(*ContextInfo_ExternalAdReplyInfo)(nil),                                                                                     // 229: WAWebProtobufsE2E.ContextInfo.ExternalAdReplyInfo
+	(*ContextInfo_AdReplyInfo)(nil),                                                                                             // 230: WAWebProtobufsE2E.ContextInfo.AdReplyInfo
+	(*ContextInfo_FeatureEligibilities)(nil),                                                                                    // 231: WAWebProtobufsE2E.ContextInfo.FeatureEligibilities
+	(*ContextInfo_QuestionReplyQuotedMessage)(nil),                                                                              // 232: WAWebProtobufsE2E.ContextInfo.QuestionReplyQuotedMessage
+	(*ContextInfo_UTMInfo)(nil),                                                 // 233: WAWebProtobufsE2E.ContextInfo.UTMInfo
+	(*ContextInfo_BusinessMessageForwardInfo)(nil),                              // 234: WAWebProtobufsE2E.ContextInfo.BusinessMessageForwardInfo
+	(*ContextInfo_DataSharingContext_Parameters)(nil),                           // 235: WAWebProtobufsE2E.ContextInfo.DataSharingContext.Parameters
+	(*HydratedTemplateButton_HydratedURLButton)(nil),                            // 236: WAWebProtobufsE2E.HydratedTemplateButton.HydratedURLButton
+	(*HydratedTemplateButton_HydratedCallButton)(nil),                           // 237: WAWebProtobufsE2E.HydratedTemplateButton.HydratedCallButton
+	(*HydratedTemplateButton_HydratedQuickReplyButton)(nil),                     // 238: WAWebProtobufsE2E.HydratedTemplateButton.HydratedQuickReplyButton
+	(*PaymentBackground_MediaData)(nil),                                         // 239: WAWebProtobufsE2E.PaymentBackground.MediaData
+	(*PollResultSnapshotMessage_PollVote)(nil),                                  // 240: WAWebProtobufsE2E.PollResultSnapshotMessage.PollVote
+	(*ProductMessage_ProductSnapshot)(nil),                                      // 241: WAWebProtobufsE2E.ProductMessage.ProductSnapshot
+	(*ProductMessage_CatalogSnapshot)(nil),                                      // 242: WAWebProtobufsE2E.ProductMessage.CatalogSnapshot
+	(*TemplateMessage_HydratedFourRowTemplate)(nil),                             // 243: WAWebProtobufsE2E.TemplateMessage.HydratedFourRowTemplate
+	(*TemplateMessage_FourRowTemplate)(nil),                                     // 244: WAWebProtobufsE2E.TemplateMessage.FourRowTemplate
+	(*PeerDataOperationRequestMessage_HistorySyncChunkRetryRequest)(nil),        // 245: WAWebProtobufsE2E.PeerDataOperationRequestMessage.HistorySyncChunkRetryRequest
+	(*PeerDataOperationRequestMessage_SyncDCollectionFatalRecoveryRequest)(nil), // 246: WAWebProtobufsE2E.PeerDataOperationRequestMessage.SyncDCollectionFatalRecoveryRequest
+	(*PeerDataOperationRequestMessage_PlaceholderMessageResendRequest)(nil),     // 247: WAWebProtobufsE2E.PeerDataOperationRequestMessage.PlaceholderMessageResendRequest
+	(*PeerDataOperationRequestMessage_FullHistorySyncOnDemandRequest)(nil),      // 248: WAWebProtobufsE2E.PeerDataOperationRequestMessage.FullHistorySyncOnDemandRequest
+	(*PeerDataOperationRequestMessage_HistorySyncOnDemandRequest)(nil),          // 249: WAWebProtobufsE2E.PeerDataOperationRequestMessage.HistorySyncOnDemandRequest
+	(*PeerDataOperationRequestMessage_RequestUrlPreview)(nil),                   // 250: WAWebProtobufsE2E.PeerDataOperationRequestMessage.RequestUrlPreview
+	(*PeerDataOperationRequestMessage_RequestStickerReupload)(nil),              // 251: WAWebProtobufsE2E.PeerDataOperationRequestMessage.RequestStickerReupload
+	(*TemplateButton_CallButton)(nil),                                           // 252: WAWebProtobufsE2E.TemplateButton.CallButton
+	(*TemplateButton_URLButton)(nil),                                            // 253: WAWebProtobufsE2E.TemplateButton.URLButton
+	(*TemplateButton_QuickReplyButton)(nil),                                     // 254: WAWebProtobufsE2E.TemplateButton.QuickReplyButton
+	(*UrlTrackingMap_UrlTrackingMapElement)(nil),                                // 255: WAWebProtobufsE2E.UrlTrackingMap.UrlTrackingMapElement
+	(*waCommon.MessageKey)(nil),                                                 // 256: WACommon.MessageKey
+	(*waAICommon.BotFeedbackMessage)(nil),                                       // 257: WAAICommon.BotFeedbackMessage
+	(*waCommon.LimitSharing)(nil),                                               // 258: WACommon.LimitSharing
+	(*waAICommon.ForwardedAIBotMessageInfo)(nil),                                // 259: WAAICommon.ForwardedAIBotMessageInfo
+	(*waStatusAttributions.StatusAttribution)(nil),                              // 260: WAStatusAttributions.StatusAttribution
+	(*waAICommon.BotMessageSharingInfo)(nil),                                    // 261: WAAICommon.BotMessageSharingInfo
+	(*waAICommon.BotMetadata)(nil),                                              // 262: WAAICommon.BotMetadata
+	(waAdv.ADVEncryptionType)(0),                                                // 263: WAAdv.ADVEncryptionType
+	(waAICommon.AIRichResponseMessageType)(0),                                   // 264: WAAICommon.AIRichResponseMessageType
+	(*waAICommon.AIRichResponseSubMessage)(nil),                                 // 265: WAAICommon.AIRichResponseSubMessage
+	(*waAICommon.AIRichResponseUnifiedResponse)(nil),                            // 266: WAAICommon.AIRichResponseUnifiedResponse
+	(waMmsRetry.MediaRetryNotification_ResultType)(0),                           // 267: WAMmsRetry.MediaRetryNotification.ResultType
+	(*waCompanionReg.DeviceProps_HistorySyncConfig)(nil),                        // 268: WACompanionReg.DeviceProps.HistorySyncConfig
 }
 var file_waE2E_WAWebProtobufsE2E_proto_depIdxs = []int32{
-	187, // 0: WAWebProtobufsE2E.StickerPackMessage.stickers:type_name -> WAWebProtobufsE2E.StickerPackMessage.Sticker
-	106, // 1: WAWebProtobufsE2E.StickerPackMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	4,   // 2: WAWebProtobufsE2E.StickerPackMessage.stickerPackOrigin:type_name -> WAWebProtobufsE2E.StickerPackMessage.StickerPackOrigin
-	5,   // 3: WAWebProtobufsE2E.PlaceholderMessage.type:type_name -> WAWebProtobufsE2E.PlaceholderMessage.PlaceholderType
-	6,   // 4: WAWebProtobufsE2E.BCallMessage.mediaType:type_name -> WAWebProtobufsE2E.BCallMessage.MediaType
-	7,   // 5: WAWebProtobufsE2E.CallLogMessage.callOutcome:type_name -> WAWebProtobufsE2E.CallLogMessage.CallOutcome
-	8,   // 6: WAWebProtobufsE2E.CallLogMessage.callType:type_name -> WAWebProtobufsE2E.CallLogMessage.CallType
-	188, // 7: WAWebProtobufsE2E.CallLogMessage.participants:type_name -> WAWebProtobufsE2E.CallLogMessage.CallParticipant
-	278, // 8: WAWebProtobufsE2E.ScheduledCallEditMessage.key:type_name -> WACommon.MessageKey
-	9,   // 9: WAWebProtobufsE2E.ScheduledCallEditMessage.editType:type_name -> WAWebProtobufsE2E.ScheduledCallEditMessage.EditType
-	10,  // 10: WAWebProtobufsE2E.ScheduledCallCreationMessage.callType:type_name -> WAWebProtobufsE2E.ScheduledCallCreationMessage.CallType
-	11,  // 11: WAWebProtobufsE2E.EventResponseMessage.response:type_name -> WAWebProtobufsE2E.EventResponseMessage.EventResponseType
-	278, // 12: WAWebProtobufsE2E.PinInChatMessage.key:type_name -> WACommon.MessageKey
-	12,  // 13: WAWebProtobufsE2E.PinInChatMessage.type:type_name -> WAWebProtobufsE2E.PinInChatMessage.Type
-	189, // 14: WAWebProtobufsE2E.PollCreationMessage.options:type_name -> WAWebProtobufsE2E.PollCreationMessage.Option
-	106, // 15: WAWebProtobufsE2E.PollCreationMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	0,   // 16: WAWebProtobufsE2E.PollCreationMessage.pollContentType:type_name -> WAWebProtobufsE2E.PollContentType
-	13,  // 17: WAWebProtobufsE2E.PollCreationMessage.pollType:type_name -> WAWebProtobufsE2E.PollCreationMessage.PollType
-	189, // 18: WAWebProtobufsE2E.PollCreationMessage.correctAnswer:type_name -> WAWebProtobufsE2E.PollCreationMessage.Option
-	106, // 19: WAWebProtobufsE2E.ButtonsResponseMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	14,  // 20: WAWebProtobufsE2E.ButtonsResponseMessage.type:type_name -> WAWebProtobufsE2E.ButtonsResponseMessage.Type
-	163, // 21: WAWebProtobufsE2E.ButtonsMessage.documentMessage:type_name -> WAWebProtobufsE2E.DocumentMessage
-	105, // 22: WAWebProtobufsE2E.ButtonsMessage.imageMessage:type_name -> WAWebProtobufsE2E.ImageMessage
-	99,  // 23: WAWebProtobufsE2E.ButtonsMessage.videoMessage:type_name -> WAWebProtobufsE2E.VideoMessage
-	166, // 24: WAWebProtobufsE2E.ButtonsMessage.locationMessage:type_name -> WAWebProtobufsE2E.LocationMessage
-	106, // 25: WAWebProtobufsE2E.ButtonsMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	190, // 26: WAWebProtobufsE2E.ButtonsMessage.buttons:type_name -> WAWebProtobufsE2E.ButtonsMessage.Button
-	15,  // 27: WAWebProtobufsE2E.ButtonsMessage.headerType:type_name -> WAWebProtobufsE2E.ButtonsMessage.HeaderType
-	278, // 28: WAWebProtobufsE2E.SecretEncryptedMessage.targetMessageKey:type_name -> WACommon.MessageKey
-	17,  // 29: WAWebProtobufsE2E.SecretEncryptedMessage.secretEncType:type_name -> WAWebProtobufsE2E.SecretEncryptedMessage.SecretEncType
-	106, // 30: WAWebProtobufsE2E.GroupInviteMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	18,  // 31: WAWebProtobufsE2E.GroupInviteMessage.groupType:type_name -> WAWebProtobufsE2E.GroupInviteMessage.GroupType
-	194, // 32: WAWebProtobufsE2E.InteractiveResponseMessage.nativeFlowResponseMessage:type_name -> WAWebProtobufsE2E.InteractiveResponseMessage.NativeFlowResponseMessage
-	193, // 33: WAWebProtobufsE2E.InteractiveResponseMessage.body:type_name -> WAWebProtobufsE2E.InteractiveResponseMessage.Body
-	106, // 34: WAWebProtobufsE2E.InteractiveResponseMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	196, // 35: WAWebProtobufsE2E.InteractiveMessage.shopStorefrontMessage:type_name -> WAWebProtobufsE2E.InteractiveMessage.ShopMessage
-	198, // 36: WAWebProtobufsE2E.InteractiveMessage.collectionMessage:type_name -> WAWebProtobufsE2E.InteractiveMessage.CollectionMessage
-	197, // 37: WAWebProtobufsE2E.InteractiveMessage.nativeFlowMessage:type_name -> WAWebProtobufsE2E.InteractiveMessage.NativeFlowMessage
-	195, // 38: WAWebProtobufsE2E.InteractiveMessage.carouselMessage:type_name -> WAWebProtobufsE2E.InteractiveMessage.CarouselMessage
-	201, // 39: WAWebProtobufsE2E.InteractiveMessage.header:type_name -> WAWebProtobufsE2E.InteractiveMessage.Header
-	200, // 40: WAWebProtobufsE2E.InteractiveMessage.body:type_name -> WAWebProtobufsE2E.InteractiveMessage.Body
-	199, // 41: WAWebProtobufsE2E.InteractiveMessage.footer:type_name -> WAWebProtobufsE2E.InteractiveMessage.Footer
-	106, // 42: WAWebProtobufsE2E.InteractiveMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	184, // 43: WAWebProtobufsE2E.InteractiveMessage.urlTrackingMap:type_name -> WAWebProtobufsE2E.UrlTrackingMap
-	22,  // 44: WAWebProtobufsE2E.ListResponseMessage.listType:type_name -> WAWebProtobufsE2E.ListResponseMessage.ListType
-	203, // 45: WAWebProtobufsE2E.ListResponseMessage.singleSelectReply:type_name -> WAWebProtobufsE2E.ListResponseMessage.SingleSelectReply
-	106, // 46: WAWebProtobufsE2E.ListResponseMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	23,  // 47: WAWebProtobufsE2E.ListMessage.listType:type_name -> WAWebProtobufsE2E.ListMessage.ListType
-	208, // 48: WAWebProtobufsE2E.ListMessage.sections:type_name -> WAWebProtobufsE2E.ListMessage.Section
-	204, // 49: WAWebProtobufsE2E.ListMessage.productListInfo:type_name -> WAWebProtobufsE2E.ListMessage.ProductListInfo
-	106, // 50: WAWebProtobufsE2E.ListMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	25,  // 51: WAWebProtobufsE2E.OrderMessage.status:type_name -> WAWebProtobufsE2E.OrderMessage.OrderStatus
-	24,  // 52: WAWebProtobufsE2E.OrderMessage.surface:type_name -> WAWebProtobufsE2E.OrderMessage.OrderSurface
-	106, // 53: WAWebProtobufsE2E.OrderMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	278, // 54: WAWebProtobufsE2E.OrderMessage.orderRequestMessageID:type_name -> WACommon.MessageKey
-	26,  // 55: WAWebProtobufsE2E.PaymentInviteMessage.serviceType:type_name -> WAWebProtobufsE2E.PaymentInviteMessage.ServiceType
-	210, // 56: WAWebProtobufsE2E.HighlyStructuredMessage.localizableParams:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter
-	142, // 57: WAWebProtobufsE2E.HighlyStructuredMessage.hydratedHsm:type_name -> WAWebProtobufsE2E.TemplateMessage
-	1,   // 58: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.peerDataOperationRequestType:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestType
-	215, // 59: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.peerDataOperationResult:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult
-	30,  // 60: WAWebProtobufsE2E.HistorySyncNotification.syncType:type_name -> WAWebProtobufsE2E.HistorySyncNotification.HistorySyncType
-	152, // 61: WAWebProtobufsE2E.HistorySyncNotification.fullHistorySyncOnDemandRequestMetadata:type_name -> WAWebProtobufsE2E.FullHistorySyncOnDemandRequestMetadata
-	31,  // 62: WAWebProtobufsE2E.RequestWelcomeMessageMetadata.localChatState:type_name -> WAWebProtobufsE2E.RequestWelcomeMessageMetadata.LocalChatState
-	278, // 63: WAWebProtobufsE2E.ProtocolMessage.key:type_name -> WACommon.MessageKey
-	32,  // 64: WAWebProtobufsE2E.ProtocolMessage.type:type_name -> WAWebProtobufsE2E.ProtocolMessage.Type
-	94,  // 65: WAWebProtobufsE2E.ProtocolMessage.historySyncNotification:type_name -> WAWebProtobufsE2E.HistorySyncNotification
-	155, // 66: WAWebProtobufsE2E.ProtocolMessage.appStateSyncKeyShare:type_name -> WAWebProtobufsE2E.AppStateSyncKeyShare
-	154, // 67: WAWebProtobufsE2E.ProtocolMessage.appStateSyncKeyRequest:type_name -> WAWebProtobufsE2E.AppStateSyncKeyRequest
-	150, // 68: WAWebProtobufsE2E.ProtocolMessage.initialSecurityNotificationSettingSync:type_name -> WAWebProtobufsE2E.InitialSecurityNotificationSettingSync
-	153, // 69: WAWebProtobufsE2E.ProtocolMessage.appStateFatalExceptionNotification:type_name -> WAWebProtobufsE2E.AppStateFatalExceptionNotification
-	114, // 70: WAWebProtobufsE2E.ProtocolMessage.disappearingMode:type_name -> WAWebProtobufsE2E.DisappearingMode
-	116, // 71: WAWebProtobufsE2E.ProtocolMessage.editedMessage:type_name -> WAWebProtobufsE2E.Message
-	151, // 72: WAWebProtobufsE2E.ProtocolMessage.peerDataOperationRequestMessage:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestMessage
-	93,  // 73: WAWebProtobufsE2E.ProtocolMessage.peerDataOperationRequestResponseMessage:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage
-	98,  // 74: WAWebProtobufsE2E.ProtocolMessage.botFeedbackMessage:type_name -> WAWebProtobufsE2E.BotFeedbackMessage
-	95,  // 75: WAWebProtobufsE2E.ProtocolMessage.requestWelcomeMessageMetadata:type_name -> WAWebProtobufsE2E.RequestWelcomeMessageMetadata
-	182, // 76: WAWebProtobufsE2E.ProtocolMessage.mediaNotifyMessage:type_name -> WAWebProtobufsE2E.MediaNotifyMessage
-	97,  // 77: WAWebProtobufsE2E.ProtocolMessage.cloudApiThreadControlNotification:type_name -> WAWebProtobufsE2E.CloudAPIThreadControlNotification
-	183, // 78: WAWebProtobufsE2E.ProtocolMessage.lidMigrationMappingSyncMessage:type_name -> WAWebProtobufsE2E.LIDMigrationMappingSyncMessage
-	279, // 79: WAWebProtobufsE2E.ProtocolMessage.limitSharing:type_name -> WACommon.LimitSharing
-	185, // 80: WAWebProtobufsE2E.ProtocolMessage.aiQueryFanout:type_name -> WAWebProtobufsE2E.AIQueryFanout
-	186, // 81: WAWebProtobufsE2E.ProtocolMessage.memberLabel:type_name -> WAWebProtobufsE2E.MemberLabel
-	33,  // 82: WAWebProtobufsE2E.CloudAPIThreadControlNotification.status:type_name -> WAWebProtobufsE2E.CloudAPIThreadControlNotification.CloudAPIThreadControl
-	225, // 83: WAWebProtobufsE2E.CloudAPIThreadControlNotification.notificationContent:type_name -> WAWebProtobufsE2E.CloudAPIThreadControlNotification.CloudAPIThreadControlNotificationContent
-	278, // 84: WAWebProtobufsE2E.BotFeedbackMessage.messageKey:type_name -> WACommon.MessageKey
-	37,  // 85: WAWebProtobufsE2E.BotFeedbackMessage.kind:type_name -> WAWebProtobufsE2E.BotFeedbackMessage.BotFeedbackKind
-	34,  // 86: WAWebProtobufsE2E.BotFeedbackMessage.kindReport:type_name -> WAWebProtobufsE2E.BotFeedbackMessage.ReportKind
-	226, // 87: WAWebProtobufsE2E.BotFeedbackMessage.sideBySideSurveyMetadata:type_name -> WAWebProtobufsE2E.BotFeedbackMessage.SideBySideSurveyMetadata
-	111, // 88: WAWebProtobufsE2E.VideoMessage.interactiveAnnotations:type_name -> WAWebProtobufsE2E.InteractiveAnnotation
-	106, // 89: WAWebProtobufsE2E.VideoMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	39,  // 90: WAWebProtobufsE2E.VideoMessage.gifAttribution:type_name -> WAWebProtobufsE2E.VideoMessage.Attribution
-	111, // 91: WAWebProtobufsE2E.VideoMessage.annotations:type_name -> WAWebProtobufsE2E.InteractiveAnnotation
-	115, // 92: WAWebProtobufsE2E.VideoMessage.processedVideos:type_name -> WAWebProtobufsE2E.ProcessedVideo
-	38,  // 93: WAWebProtobufsE2E.VideoMessage.videoSourceType:type_name -> WAWebProtobufsE2E.VideoMessage.VideoSourceType
-	2,   // 94: WAWebProtobufsE2E.VideoMessage.mediaKeyDomain:type_name -> WAWebProtobufsE2E.MediaKeyDomain
-	42,  // 95: WAWebProtobufsE2E.ExtendedTextMessage.font:type_name -> WAWebProtobufsE2E.ExtendedTextMessage.FontType
-	41,  // 96: WAWebProtobufsE2E.ExtendedTextMessage.previewType:type_name -> WAWebProtobufsE2E.ExtendedTextMessage.PreviewType
-	106, // 97: WAWebProtobufsE2E.ExtendedTextMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	40,  // 98: WAWebProtobufsE2E.ExtendedTextMessage.inviteLinkGroupType:type_name -> WAWebProtobufsE2E.ExtendedTextMessage.InviteLinkGroupType
-	40,  // 99: WAWebProtobufsE2E.ExtendedTextMessage.inviteLinkGroupTypeV2:type_name -> WAWebProtobufsE2E.ExtendedTextMessage.InviteLinkGroupType
-	165, // 100: WAWebProtobufsE2E.ExtendedTextMessage.faviconMMSMetadata:type_name -> WAWebProtobufsE2E.MMSThumbnailMetadata
-	101, // 101: WAWebProtobufsE2E.ExtendedTextMessage.linkPreviewMetadata:type_name -> WAWebProtobufsE2E.LinkPreviewMetadata
-	102, // 102: WAWebProtobufsE2E.ExtendedTextMessage.paymentLinkMetadata:type_name -> WAWebProtobufsE2E.PaymentLinkMetadata
-	169, // 103: WAWebProtobufsE2E.ExtendedTextMessage.endCardTiles:type_name -> WAWebProtobufsE2E.VideoEndCard
-	102, // 104: WAWebProtobufsE2E.LinkPreviewMetadata.paymentLinkMetadata:type_name -> WAWebProtobufsE2E.PaymentLinkMetadata
-	164, // 105: WAWebProtobufsE2E.LinkPreviewMetadata.urlMetadata:type_name -> WAWebProtobufsE2E.URLMetadata
-	43,  // 106: WAWebProtobufsE2E.LinkPreviewMetadata.socialMediaPostType:type_name -> WAWebProtobufsE2E.LinkPreviewMetadata.SocialMediaPostType
-	230, // 107: WAWebProtobufsE2E.PaymentLinkMetadata.button:type_name -> WAWebProtobufsE2E.PaymentLinkMetadata.PaymentLinkButton
-	228, // 108: WAWebProtobufsE2E.PaymentLinkMetadata.header:type_name -> WAWebProtobufsE2E.PaymentLinkMetadata.PaymentLinkHeader
-	229, // 109: WAWebProtobufsE2E.PaymentLinkMetadata.provider:type_name -> WAWebProtobufsE2E.PaymentLinkMetadata.PaymentLinkProvider
-	278, // 110: WAWebProtobufsE2E.StatusNotificationMessage.responseMessageKey:type_name -> WACommon.MessageKey
-	278, // 111: WAWebProtobufsE2E.StatusNotificationMessage.originalMessageKey:type_name -> WACommon.MessageKey
-	45,  // 112: WAWebProtobufsE2E.StatusNotificationMessage.type:type_name -> WAWebProtobufsE2E.StatusNotificationMessage.StatusNotificationType
-	46,  // 113: WAWebProtobufsE2E.InvoiceMessage.attachmentType:type_name -> WAWebProtobufsE2E.InvoiceMessage.AttachmentType
-	111, // 114: WAWebProtobufsE2E.ImageMessage.interactiveAnnotations:type_name -> WAWebProtobufsE2E.InteractiveAnnotation
-	106, // 115: WAWebProtobufsE2E.ImageMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	111, // 116: WAWebProtobufsE2E.ImageMessage.annotations:type_name -> WAWebProtobufsE2E.InteractiveAnnotation
-	47,  // 117: WAWebProtobufsE2E.ImageMessage.imageSourceType:type_name -> WAWebProtobufsE2E.ImageMessage.ImageSourceType
-	2,   // 118: WAWebProtobufsE2E.ImageMessage.mediaKeyDomain:type_name -> WAWebProtobufsE2E.MediaKeyDomain
-	116, // 119: WAWebProtobufsE2E.ContextInfo.quotedMessage:type_name -> WAWebProtobufsE2E.Message
-	235, // 120: WAWebProtobufsE2E.ContextInfo.quotedAd:type_name -> WAWebProtobufsE2E.ContextInfo.AdReplyInfo
-	278, // 121: WAWebProtobufsE2E.ContextInfo.placeholderKey:type_name -> WACommon.MessageKey
-	234, // 122: WAWebProtobufsE2E.ContextInfo.externalAdReply:type_name -> WAWebProtobufsE2E.ContextInfo.ExternalAdReplyInfo
-	114, // 123: WAWebProtobufsE2E.ContextInfo.disappearingMode:type_name -> WAWebProtobufsE2E.DisappearingMode
-	179, // 124: WAWebProtobufsE2E.ContextInfo.actionLink:type_name -> WAWebProtobufsE2E.ActionLink
-	180, // 125: WAWebProtobufsE2E.ContextInfo.groupMentions:type_name -> WAWebProtobufsE2E.GroupMention
-	239, // 126: WAWebProtobufsE2E.ContextInfo.utm:type_name -> WAWebProtobufsE2E.ContextInfo.UTMInfo
-	233, // 127: WAWebProtobufsE2E.ContextInfo.forwardedNewsletterMessageInfo:type_name -> WAWebProtobufsE2E.ContextInfo.ForwardedNewsletterMessageInfo
-	240, // 128: WAWebProtobufsE2E.ContextInfo.businessMessageForwardInfo:type_name -> WAWebProtobufsE2E.ContextInfo.BusinessMessageForwardInfo
-	232, // 129: WAWebProtobufsE2E.ContextInfo.dataSharingContext:type_name -> WAWebProtobufsE2E.ContextInfo.DataSharingContext
-	236, // 130: WAWebProtobufsE2E.ContextInfo.featureEligibilities:type_name -> WAWebProtobufsE2E.ContextInfo.FeatureEligibilities
-	237, // 131: WAWebProtobufsE2E.ContextInfo.forwardedAiBotMessageInfo:type_name -> WAWebProtobufsE2E.ContextInfo.ForwardedAIBotMessageInfo
-	51,  // 132: WAWebProtobufsE2E.ContextInfo.statusAttributionType:type_name -> WAWebProtobufsE2E.ContextInfo.StatusAttributionType
-	184, // 133: WAWebProtobufsE2E.ContextInfo.urlTrackingMap:type_name -> WAWebProtobufsE2E.UrlTrackingMap
-	50,  // 134: WAWebProtobufsE2E.ContextInfo.pairedMediaType:type_name -> WAWebProtobufsE2E.ContextInfo.PairedMediaType
-	186, // 135: WAWebProtobufsE2E.ContextInfo.memberLabel:type_name -> WAWebProtobufsE2E.MemberLabel
-	49,  // 136: WAWebProtobufsE2E.ContextInfo.statusSourceType:type_name -> WAWebProtobufsE2E.ContextInfo.StatusSourceType
-	280, // 137: WAWebProtobufsE2E.ContextInfo.statusAttributions:type_name -> WAStatusAttributions.StatusAttribution
-	48,  // 138: WAWebProtobufsE2E.ContextInfo.forwardOrigin:type_name -> WAWebProtobufsE2E.ContextInfo.ForwardOrigin
-	238, // 139: WAWebProtobufsE2E.ContextInfo.questionReplyQuotedMessage:type_name -> WAWebProtobufsE2E.ContextInfo.QuestionReplyQuotedMessage
-	231, // 140: WAWebProtobufsE2E.ContextInfo.statusAudienceMetadata:type_name -> WAWebProtobufsE2E.ContextInfo.StatusAudienceMetadata
-	59,  // 141: WAWebProtobufsE2E.AIRichResponseMessage.messageType:type_name -> WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseMessageType
-	246, // 142: WAWebProtobufsE2E.AIRichResponseMessage.submessages:type_name -> WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseSubMessage
-	249, // 143: WAWebProtobufsE2E.AIRichResponseMessage.unifiedResponse:type_name -> WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseUnifiedResponse
-	106, // 144: WAWebProtobufsE2E.AIRichResponseMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	64,  // 145: WAWebProtobufsE2E.MessageAssociation.associationType:type_name -> WAWebProtobufsE2E.MessageAssociation.AssociationType
-	278, // 146: WAWebProtobufsE2E.MessageAssociation.parentMessageKey:type_name -> WACommon.MessageKey
-	65,  // 147: WAWebProtobufsE2E.ThreadID.threadType:type_name -> WAWebProtobufsE2E.ThreadID.ThreadType
-	278, // 148: WAWebProtobufsE2E.ThreadID.threadKey:type_name -> WACommon.MessageKey
-	170, // 149: WAWebProtobufsE2E.MessageContextInfo.deviceListMetadata:type_name -> WAWebProtobufsE2E.DeviceListMetadata
-	281, // 150: WAWebProtobufsE2E.MessageContextInfo.botMetadata:type_name -> WABotMetadata.BotMetadata
-	66,  // 151: WAWebProtobufsE2E.MessageContextInfo.messageAddOnExpiryType:type_name -> WAWebProtobufsE2E.MessageContextInfo.MessageAddonExpiryType
-	108, // 152: WAWebProtobufsE2E.MessageContextInfo.messageAssociation:type_name -> WAWebProtobufsE2E.MessageAssociation
-	279, // 153: WAWebProtobufsE2E.MessageContextInfo.limitSharing:type_name -> WACommon.LimitSharing
-	279, // 154: WAWebProtobufsE2E.MessageContextInfo.limitSharingV2:type_name -> WACommon.LimitSharing
-	109, // 155: WAWebProtobufsE2E.MessageContextInfo.threadID:type_name -> WAWebProtobufsE2E.ThreadID
-	176, // 156: WAWebProtobufsE2E.InteractiveAnnotation.location:type_name -> WAWebProtobufsE2E.Location
-	233, // 157: WAWebProtobufsE2E.InteractiveAnnotation.newsletter:type_name -> WAWebProtobufsE2E.ContextInfo.ForwardedNewsletterMessageInfo
-	174, // 158: WAWebProtobufsE2E.InteractiveAnnotation.tapAction:type_name -> WAWebProtobufsE2E.TapLinkAction
-	175, // 159: WAWebProtobufsE2E.InteractiveAnnotation.polygonVertices:type_name -> WAWebProtobufsE2E.Point
-	173, // 160: WAWebProtobufsE2E.InteractiveAnnotation.embeddedContent:type_name -> WAWebProtobufsE2E.EmbeddedContent
-	67,  // 161: WAWebProtobufsE2E.InteractiveAnnotation.statusLinkType:type_name -> WAWebProtobufsE2E.InteractiveAnnotation.StatusLinkType
-	261, // 162: WAWebProtobufsE2E.HydratedTemplateButton.quickReplyButton:type_name -> WAWebProtobufsE2E.HydratedTemplateButton.HydratedQuickReplyButton
-	259, // 163: WAWebProtobufsE2E.HydratedTemplateButton.urlButton:type_name -> WAWebProtobufsE2E.HydratedTemplateButton.HydratedURLButton
-	260, // 164: WAWebProtobufsE2E.HydratedTemplateButton.callButton:type_name -> WAWebProtobufsE2E.HydratedTemplateButton.HydratedCallButton
-	262, // 165: WAWebProtobufsE2E.PaymentBackground.mediaData:type_name -> WAWebProtobufsE2E.PaymentBackground.MediaData
-	69,  // 166: WAWebProtobufsE2E.PaymentBackground.type:type_name -> WAWebProtobufsE2E.PaymentBackground.Type
-	71,  // 167: WAWebProtobufsE2E.DisappearingMode.initiator:type_name -> WAWebProtobufsE2E.DisappearingMode.Initiator
-	70,  // 168: WAWebProtobufsE2E.DisappearingMode.trigger:type_name -> WAWebProtobufsE2E.DisappearingMode.Trigger
-	72,  // 169: WAWebProtobufsE2E.ProcessedVideo.quality:type_name -> WAWebProtobufsE2E.ProcessedVideo.VideoQuality
-	168, // 170: WAWebProtobufsE2E.Message.senderKeyDistributionMessage:type_name -> WAWebProtobufsE2E.SenderKeyDistributionMessage
-	105, // 171: WAWebProtobufsE2E.Message.imageMessage:type_name -> WAWebProtobufsE2E.ImageMessage
-	167, // 172: WAWebProtobufsE2E.Message.contactMessage:type_name -> WAWebProtobufsE2E.ContactMessage
-	166, // 173: WAWebProtobufsE2E.Message.locationMessage:type_name -> WAWebProtobufsE2E.LocationMessage
-	100, // 174: WAWebProtobufsE2E.Message.extendedTextMessage:type_name -> WAWebProtobufsE2E.ExtendedTextMessage
-	163, // 175: WAWebProtobufsE2E.Message.documentMessage:type_name -> WAWebProtobufsE2E.DocumentMessage
-	162, // 176: WAWebProtobufsE2E.Message.audioMessage:type_name -> WAWebProtobufsE2E.AudioMessage
-	99,  // 177: WAWebProtobufsE2E.Message.videoMessage:type_name -> WAWebProtobufsE2E.VideoMessage
-	161, // 178: WAWebProtobufsE2E.Message.call:type_name -> WAWebProtobufsE2E.Call
-	160, // 179: WAWebProtobufsE2E.Message.chat:type_name -> WAWebProtobufsE2E.Chat
-	96,  // 180: WAWebProtobufsE2E.Message.protocolMessage:type_name -> WAWebProtobufsE2E.ProtocolMessage
-	149, // 181: WAWebProtobufsE2E.Message.contactsArrayMessage:type_name -> WAWebProtobufsE2E.ContactsArrayMessage
-	92,  // 182: WAWebProtobufsE2E.Message.highlyStructuredMessage:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage
-	168, // 183: WAWebProtobufsE2E.Message.fastRatchetKeySenderKeyDistributionMessage:type_name -> WAWebProtobufsE2E.SenderKeyDistributionMessage
-	148, // 184: WAWebProtobufsE2E.Message.sendPaymentMessage:type_name -> WAWebProtobufsE2E.SendPaymentMessage
-	144, // 185: WAWebProtobufsE2E.Message.liveLocationMessage:type_name -> WAWebProtobufsE2E.LiveLocationMessage
-	147, // 186: WAWebProtobufsE2E.Message.requestPaymentMessage:type_name -> WAWebProtobufsE2E.RequestPaymentMessage
-	146, // 187: WAWebProtobufsE2E.Message.declinePaymentRequestMessage:type_name -> WAWebProtobufsE2E.DeclinePaymentRequestMessage
-	145, // 188: WAWebProtobufsE2E.Message.cancelPaymentRequestMessage:type_name -> WAWebProtobufsE2E.CancelPaymentRequestMessage
-	142, // 189: WAWebProtobufsE2E.Message.templateMessage:type_name -> WAWebProtobufsE2E.TemplateMessage
-	143, // 190: WAWebProtobufsE2E.Message.stickerMessage:type_name -> WAWebProtobufsE2E.StickerMessage
-	85,  // 191: WAWebProtobufsE2E.Message.groupInviteMessage:type_name -> WAWebProtobufsE2E.GroupInviteMessage
-	141, // 192: WAWebProtobufsE2E.Message.templateButtonReplyMessage:type_name -> WAWebProtobufsE2E.TemplateButtonReplyMessage
-	140, // 193: WAWebProtobufsE2E.Message.productMessage:type_name -> WAWebProtobufsE2E.ProductMessage
-	137, // 194: WAWebProtobufsE2E.Message.deviceSentMessage:type_name -> WAWebProtobufsE2E.DeviceSentMessage
-	110, // 195: WAWebProtobufsE2E.Message.messageContextInfo:type_name -> WAWebProtobufsE2E.MessageContextInfo
-	89,  // 196: WAWebProtobufsE2E.Message.listMessage:type_name -> WAWebProtobufsE2E.ListMessage
-	136, // 197: WAWebProtobufsE2E.Message.viewOnceMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
-	90,  // 198: WAWebProtobufsE2E.Message.orderMessage:type_name -> WAWebProtobufsE2E.OrderMessage
-	88,  // 199: WAWebProtobufsE2E.Message.listResponseMessage:type_name -> WAWebProtobufsE2E.ListResponseMessage
-	136, // 200: WAWebProtobufsE2E.Message.ephemeralMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
-	104, // 201: WAWebProtobufsE2E.Message.invoiceMessage:type_name -> WAWebProtobufsE2E.InvoiceMessage
-	83,  // 202: WAWebProtobufsE2E.Message.buttonsMessage:type_name -> WAWebProtobufsE2E.ButtonsMessage
-	82,  // 203: WAWebProtobufsE2E.Message.buttonsResponseMessage:type_name -> WAWebProtobufsE2E.ButtonsResponseMessage
-	91,  // 204: WAWebProtobufsE2E.Message.paymentInviteMessage:type_name -> WAWebProtobufsE2E.PaymentInviteMessage
-	87,  // 205: WAWebProtobufsE2E.Message.interactiveMessage:type_name -> WAWebProtobufsE2E.InteractiveMessage
-	135, // 206: WAWebProtobufsE2E.Message.reactionMessage:type_name -> WAWebProtobufsE2E.ReactionMessage
-	134, // 207: WAWebProtobufsE2E.Message.stickerSyncRmrMessage:type_name -> WAWebProtobufsE2E.StickerSyncRMRMessage
-	86,  // 208: WAWebProtobufsE2E.Message.interactiveResponseMessage:type_name -> WAWebProtobufsE2E.InteractiveResponseMessage
-	81,  // 209: WAWebProtobufsE2E.Message.pollCreationMessage:type_name -> WAWebProtobufsE2E.PollCreationMessage
-	133, // 210: WAWebProtobufsE2E.Message.pollUpdateMessage:type_name -> WAWebProtobufsE2E.PollUpdateMessage
-	126, // 211: WAWebProtobufsE2E.Message.keepInChatMessage:type_name -> WAWebProtobufsE2E.KeepInChatMessage
-	136, // 212: WAWebProtobufsE2E.Message.documentWithCaptionMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
-	138, // 213: WAWebProtobufsE2E.Message.requestPhoneNumberMessage:type_name -> WAWebProtobufsE2E.RequestPhoneNumberMessage
-	136, // 214: WAWebProtobufsE2E.Message.viewOnceMessageV2:type_name -> WAWebProtobufsE2E.FutureProofMessage
-	125, // 215: WAWebProtobufsE2E.Message.encReactionMessage:type_name -> WAWebProtobufsE2E.EncReactionMessage
-	136, // 216: WAWebProtobufsE2E.Message.editedMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
-	136, // 217: WAWebProtobufsE2E.Message.viewOnceMessageV2Extension:type_name -> WAWebProtobufsE2E.FutureProofMessage
-	81,  // 218: WAWebProtobufsE2E.Message.pollCreationMessageV2:type_name -> WAWebProtobufsE2E.PollCreationMessage
-	78,  // 219: WAWebProtobufsE2E.Message.scheduledCallCreationMessage:type_name -> WAWebProtobufsE2E.ScheduledCallCreationMessage
-	136, // 220: WAWebProtobufsE2E.Message.groupMentionedMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
-	80,  // 221: WAWebProtobufsE2E.Message.pinInChatMessage:type_name -> WAWebProtobufsE2E.PinInChatMessage
-	81,  // 222: WAWebProtobufsE2E.Message.pollCreationMessageV3:type_name -> WAWebProtobufsE2E.PollCreationMessage
-	77,  // 223: WAWebProtobufsE2E.Message.scheduledCallEditMessage:type_name -> WAWebProtobufsE2E.ScheduledCallEditMessage
-	99,  // 224: WAWebProtobufsE2E.Message.ptvMessage:type_name -> WAWebProtobufsE2E.VideoMessage
-	136, // 225: WAWebProtobufsE2E.Message.botInvokeMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
-	76,  // 226: WAWebProtobufsE2E.Message.callLogMesssage:type_name -> WAWebProtobufsE2E.CallLogMessage
-	120, // 227: WAWebProtobufsE2E.Message.messageHistoryBundle:type_name -> WAWebProtobufsE2E.MessageHistoryBundle
-	124, // 228: WAWebProtobufsE2E.Message.encCommentMessage:type_name -> WAWebProtobufsE2E.EncCommentMessage
-	75,  // 229: WAWebProtobufsE2E.Message.bcallMessage:type_name -> WAWebProtobufsE2E.BCallMessage
-	136, // 230: WAWebProtobufsE2E.Message.lottieStickerMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
-	122, // 231: WAWebProtobufsE2E.Message.eventMessage:type_name -> WAWebProtobufsE2E.EventMessage
-	121, // 232: WAWebProtobufsE2E.Message.encEventResponseMessage:type_name -> WAWebProtobufsE2E.EncEventResponseMessage
-	123, // 233: WAWebProtobufsE2E.Message.commentMessage:type_name -> WAWebProtobufsE2E.CommentMessage
-	139, // 234: WAWebProtobufsE2E.Message.newsletterAdminInviteMessage:type_name -> WAWebProtobufsE2E.NewsletterAdminInviteMessage
-	74,  // 235: WAWebProtobufsE2E.Message.placeholderMessage:type_name -> WAWebProtobufsE2E.PlaceholderMessage
-	84,  // 236: WAWebProtobufsE2E.Message.secretEncryptedMessage:type_name -> WAWebProtobufsE2E.SecretEncryptedMessage
-	117, // 237: WAWebProtobufsE2E.Message.albumMessage:type_name -> WAWebProtobufsE2E.AlbumMessage
-	136, // 238: WAWebProtobufsE2E.Message.eventCoverImage:type_name -> WAWebProtobufsE2E.FutureProofMessage
-	73,  // 239: WAWebProtobufsE2E.Message.stickerPackMessage:type_name -> WAWebProtobufsE2E.StickerPackMessage
-	136, // 240: WAWebProtobufsE2E.Message.statusMentionMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
-	129, // 241: WAWebProtobufsE2E.Message.pollResultSnapshotMessage:type_name -> WAWebProtobufsE2E.PollResultSnapshotMessage
-	136, // 242: WAWebProtobufsE2E.Message.pollCreationOptionImageMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
-	136, // 243: WAWebProtobufsE2E.Message.associatedChildMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
-	136, // 244: WAWebProtobufsE2E.Message.groupStatusMentionMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
-	136, // 245: WAWebProtobufsE2E.Message.pollCreationMessageV4:type_name -> WAWebProtobufsE2E.FutureProofMessage
-	136, // 246: WAWebProtobufsE2E.Message.pollCreationMessageV5:type_name -> WAWebProtobufsE2E.FutureProofMessage
-	136, // 247: WAWebProtobufsE2E.Message.statusAddYours:type_name -> WAWebProtobufsE2E.FutureProofMessage
-	136, // 248: WAWebProtobufsE2E.Message.groupStatusMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
-	107, // 249: WAWebProtobufsE2E.Message.richResponseMessage:type_name -> WAWebProtobufsE2E.AIRichResponseMessage
-	103, // 250: WAWebProtobufsE2E.Message.statusNotificationMessage:type_name -> WAWebProtobufsE2E.StatusNotificationMessage
-	136, // 251: WAWebProtobufsE2E.Message.limitSharingMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
-	136, // 252: WAWebProtobufsE2E.Message.botTaskMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
-	136, // 253: WAWebProtobufsE2E.Message.questionMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
-	119, // 254: WAWebProtobufsE2E.Message.messageHistoryNotice:type_name -> WAWebProtobufsE2E.MessageHistoryNotice
-	136, // 255: WAWebProtobufsE2E.Message.groupStatusMessageV2:type_name -> WAWebProtobufsE2E.FutureProofMessage
-	136, // 256: WAWebProtobufsE2E.Message.botForwardedMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
-	128, // 257: WAWebProtobufsE2E.Message.statusQuestionAnswerMessage:type_name -> WAWebProtobufsE2E.StatusQuestionAnswerMessage
-	136, // 258: WAWebProtobufsE2E.Message.questionReplyMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
-	127, // 259: WAWebProtobufsE2E.Message.questionResponseMessage:type_name -> WAWebProtobufsE2E.QuestionResponseMessage
-	106, // 260: WAWebProtobufsE2E.AlbumMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	106, // 261: WAWebProtobufsE2E.MessageHistoryNotice.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	118, // 262: WAWebProtobufsE2E.MessageHistoryNotice.messageHistoryMetadata:type_name -> WAWebProtobufsE2E.MessageHistoryMetadata
-	106, // 263: WAWebProtobufsE2E.MessageHistoryBundle.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	118, // 264: WAWebProtobufsE2E.MessageHistoryBundle.messageHistoryMetadata:type_name -> WAWebProtobufsE2E.MessageHistoryMetadata
-	278, // 265: WAWebProtobufsE2E.EncEventResponseMessage.eventCreationMessageKey:type_name -> WACommon.MessageKey
-	106, // 266: WAWebProtobufsE2E.EventMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	166, // 267: WAWebProtobufsE2E.EventMessage.location:type_name -> WAWebProtobufsE2E.LocationMessage
-	116, // 268: WAWebProtobufsE2E.CommentMessage.message:type_name -> WAWebProtobufsE2E.Message
-	278, // 269: WAWebProtobufsE2E.CommentMessage.targetMessageKey:type_name -> WACommon.MessageKey
-	278, // 270: WAWebProtobufsE2E.EncCommentMessage.targetMessageKey:type_name -> WACommon.MessageKey
-	278, // 271: WAWebProtobufsE2E.EncReactionMessage.targetMessageKey:type_name -> WACommon.MessageKey
-	278, // 272: WAWebProtobufsE2E.KeepInChatMessage.key:type_name -> WACommon.MessageKey
-	3,   // 273: WAWebProtobufsE2E.KeepInChatMessage.keepType:type_name -> WAWebProtobufsE2E.KeepType
-	278, // 274: WAWebProtobufsE2E.QuestionResponseMessage.key:type_name -> WACommon.MessageKey
-	278, // 275: WAWebProtobufsE2E.StatusQuestionAnswerMessage.key:type_name -> WACommon.MessageKey
-	263, // 276: WAWebProtobufsE2E.PollResultSnapshotMessage.pollVotes:type_name -> WAWebProtobufsE2E.PollResultSnapshotMessage.PollVote
-	106, // 277: WAWebProtobufsE2E.PollResultSnapshotMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	278, // 278: WAWebProtobufsE2E.PollUpdateMessage.pollCreationMessageKey:type_name -> WACommon.MessageKey
-	131, // 279: WAWebProtobufsE2E.PollUpdateMessage.vote:type_name -> WAWebProtobufsE2E.PollEncValue
-	132, // 280: WAWebProtobufsE2E.PollUpdateMessage.metadata:type_name -> WAWebProtobufsE2E.PollUpdateMessageMetadata
-	278, // 281: WAWebProtobufsE2E.ReactionMessage.key:type_name -> WACommon.MessageKey
-	116, // 282: WAWebProtobufsE2E.FutureProofMessage.message:type_name -> WAWebProtobufsE2E.Message
-	116, // 283: WAWebProtobufsE2E.DeviceSentMessage.message:type_name -> WAWebProtobufsE2E.Message
-	106, // 284: WAWebProtobufsE2E.RequestPhoneNumberMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	106, // 285: WAWebProtobufsE2E.NewsletterAdminInviteMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	264, // 286: WAWebProtobufsE2E.ProductMessage.product:type_name -> WAWebProtobufsE2E.ProductMessage.ProductSnapshot
-	265, // 287: WAWebProtobufsE2E.ProductMessage.catalog:type_name -> WAWebProtobufsE2E.ProductMessage.CatalogSnapshot
-	106, // 288: WAWebProtobufsE2E.ProductMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	106, // 289: WAWebProtobufsE2E.TemplateButtonReplyMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	267, // 290: WAWebProtobufsE2E.TemplateMessage.fourRowTemplate:type_name -> WAWebProtobufsE2E.TemplateMessage.FourRowTemplate
-	266, // 291: WAWebProtobufsE2E.TemplateMessage.hydratedFourRowTemplate:type_name -> WAWebProtobufsE2E.TemplateMessage.HydratedFourRowTemplate
-	87,  // 292: WAWebProtobufsE2E.TemplateMessage.interactiveMessageTemplate:type_name -> WAWebProtobufsE2E.InteractiveMessage
-	106, // 293: WAWebProtobufsE2E.TemplateMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	266, // 294: WAWebProtobufsE2E.TemplateMessage.hydratedTemplate:type_name -> WAWebProtobufsE2E.TemplateMessage.HydratedFourRowTemplate
-	106, // 295: WAWebProtobufsE2E.StickerMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	2,   // 296: WAWebProtobufsE2E.StickerMessage.mediaKeyDomain:type_name -> WAWebProtobufsE2E.MediaKeyDomain
-	106, // 297: WAWebProtobufsE2E.LiveLocationMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	278, // 298: WAWebProtobufsE2E.CancelPaymentRequestMessage.key:type_name -> WACommon.MessageKey
-	278, // 299: WAWebProtobufsE2E.DeclinePaymentRequestMessage.key:type_name -> WACommon.MessageKey
-	116, // 300: WAWebProtobufsE2E.RequestPaymentMessage.noteMessage:type_name -> WAWebProtobufsE2E.Message
-	178, // 301: WAWebProtobufsE2E.RequestPaymentMessage.amount:type_name -> WAWebProtobufsE2E.Money
-	113, // 302: WAWebProtobufsE2E.RequestPaymentMessage.background:type_name -> WAWebProtobufsE2E.PaymentBackground
-	116, // 303: WAWebProtobufsE2E.SendPaymentMessage.noteMessage:type_name -> WAWebProtobufsE2E.Message
-	278, // 304: WAWebProtobufsE2E.SendPaymentMessage.requestMessageKey:type_name -> WACommon.MessageKey
-	113, // 305: WAWebProtobufsE2E.SendPaymentMessage.background:type_name -> WAWebProtobufsE2E.PaymentBackground
-	167, // 306: WAWebProtobufsE2E.ContactsArrayMessage.contacts:type_name -> WAWebProtobufsE2E.ContactMessage
-	106, // 307: WAWebProtobufsE2E.ContactsArrayMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	1,   // 308: WAWebProtobufsE2E.PeerDataOperationRequestMessage.peerDataOperationRequestType:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestType
-	273, // 309: WAWebProtobufsE2E.PeerDataOperationRequestMessage.requestStickerReupload:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestMessage.RequestStickerReupload
-	272, // 310: WAWebProtobufsE2E.PeerDataOperationRequestMessage.requestURLPreview:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestMessage.RequestUrlPreview
-	271, // 311: WAWebProtobufsE2E.PeerDataOperationRequestMessage.historySyncOnDemandRequest:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestMessage.HistorySyncOnDemandRequest
-	269, // 312: WAWebProtobufsE2E.PeerDataOperationRequestMessage.placeholderMessageResendRequest:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestMessage.PlaceholderMessageResendRequest
-	270, // 313: WAWebProtobufsE2E.PeerDataOperationRequestMessage.fullHistorySyncOnDemandRequest:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestMessage.FullHistorySyncOnDemandRequest
-	268, // 314: WAWebProtobufsE2E.PeerDataOperationRequestMessage.syncdCollectionFatalRecoveryRequest:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestMessage.SyncDCollectionFatalRecoveryRequest
-	158, // 315: WAWebProtobufsE2E.AppStateSyncKeyRequest.keyIDs:type_name -> WAWebProtobufsE2E.AppStateSyncKeyId
-	159, // 316: WAWebProtobufsE2E.AppStateSyncKeyShare.keys:type_name -> WAWebProtobufsE2E.AppStateSyncKey
-	157, // 317: WAWebProtobufsE2E.AppStateSyncKeyData.fingerprint:type_name -> WAWebProtobufsE2E.AppStateSyncKeyFingerprint
-	158, // 318: WAWebProtobufsE2E.AppStateSyncKey.keyID:type_name -> WAWebProtobufsE2E.AppStateSyncKeyId
-	156, // 319: WAWebProtobufsE2E.AppStateSyncKey.keyData:type_name -> WAWebProtobufsE2E.AppStateSyncKeyData
-	106, // 320: WAWebProtobufsE2E.Call.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	106, // 321: WAWebProtobufsE2E.AudioMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	2,   // 322: WAWebProtobufsE2E.AudioMessage.mediaKeyDomain:type_name -> WAWebProtobufsE2E.MediaKeyDomain
-	106, // 323: WAWebProtobufsE2E.DocumentMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	2,   // 324: WAWebProtobufsE2E.DocumentMessage.mediaKeyDomain:type_name -> WAWebProtobufsE2E.MediaKeyDomain
-	2,   // 325: WAWebProtobufsE2E.MMSThumbnailMetadata.mediaKeyDomain:type_name -> WAWebProtobufsE2E.MediaKeyDomain
-	106, // 326: WAWebProtobufsE2E.LocationMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	106, // 327: WAWebProtobufsE2E.ContactMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
-	282, // 328: WAWebProtobufsE2E.DeviceListMetadata.senderAccountType:type_name -> WAAdv.ADVEncryptionType
-	282, // 329: WAWebProtobufsE2E.DeviceListMetadata.receiverAccountType:type_name -> WAAdv.ADVEncryptionType
-	116, // 330: WAWebProtobufsE2E.EmbeddedMessage.message:type_name -> WAWebProtobufsE2E.Message
-	171, // 331: WAWebProtobufsE2E.EmbeddedContent.embeddedMessage:type_name -> WAWebProtobufsE2E.EmbeddedMessage
-	172, // 332: WAWebProtobufsE2E.EmbeddedContent.embeddedMusic:type_name -> WAWebProtobufsE2E.EmbeddedMusic
-	276, // 333: WAWebProtobufsE2E.TemplateButton.quickReplyButton:type_name -> WAWebProtobufsE2E.TemplateButton.QuickReplyButton
-	275, // 334: WAWebProtobufsE2E.TemplateButton.urlButton:type_name -> WAWebProtobufsE2E.TemplateButton.URLButton
-	274, // 335: WAWebProtobufsE2E.TemplateButton.callButton:type_name -> WAWebProtobufsE2E.TemplateButton.CallButton
-	277, // 336: WAWebProtobufsE2E.UrlTrackingMap.urlTrackingMapElements:type_name -> WAWebProtobufsE2E.UrlTrackingMap.UrlTrackingMapElement
-	278, // 337: WAWebProtobufsE2E.AIQueryFanout.messageKey:type_name -> WACommon.MessageKey
-	116, // 338: WAWebProtobufsE2E.AIQueryFanout.message:type_name -> WAWebProtobufsE2E.Message
-	7,   // 339: WAWebProtobufsE2E.CallLogMessage.CallParticipant.callOutcome:type_name -> WAWebProtobufsE2E.CallLogMessage.CallOutcome
-	192, // 340: WAWebProtobufsE2E.ButtonsMessage.Button.buttonText:type_name -> WAWebProtobufsE2E.ButtonsMessage.Button.ButtonText
-	16,  // 341: WAWebProtobufsE2E.ButtonsMessage.Button.type:type_name -> WAWebProtobufsE2E.ButtonsMessage.Button.Type
-	191, // 342: WAWebProtobufsE2E.ButtonsMessage.Button.nativeFlowInfo:type_name -> WAWebProtobufsE2E.ButtonsMessage.Button.NativeFlowInfo
-	19,  // 343: WAWebProtobufsE2E.InteractiveResponseMessage.Body.format:type_name -> WAWebProtobufsE2E.InteractiveResponseMessage.Body.Format
-	87,  // 344: WAWebProtobufsE2E.InteractiveMessage.CarouselMessage.cards:type_name -> WAWebProtobufsE2E.InteractiveMessage
-	20,  // 345: WAWebProtobufsE2E.InteractiveMessage.CarouselMessage.carouselCardType:type_name -> WAWebProtobufsE2E.InteractiveMessage.CarouselMessage.CarouselCardType
-	21,  // 346: WAWebProtobufsE2E.InteractiveMessage.ShopMessage.surface:type_name -> WAWebProtobufsE2E.InteractiveMessage.ShopMessage.Surface
-	202, // 347: WAWebProtobufsE2E.InteractiveMessage.NativeFlowMessage.buttons:type_name -> WAWebProtobufsE2E.InteractiveMessage.NativeFlowMessage.NativeFlowButton
-	163, // 348: WAWebProtobufsE2E.InteractiveMessage.Header.documentMessage:type_name -> WAWebProtobufsE2E.DocumentMessage
-	105, // 349: WAWebProtobufsE2E.InteractiveMessage.Header.imageMessage:type_name -> WAWebProtobufsE2E.ImageMessage
-	99,  // 350: WAWebProtobufsE2E.InteractiveMessage.Header.videoMessage:type_name -> WAWebProtobufsE2E.VideoMessage
-	166, // 351: WAWebProtobufsE2E.InteractiveMessage.Header.locationMessage:type_name -> WAWebProtobufsE2E.LocationMessage
-	140, // 352: WAWebProtobufsE2E.InteractiveMessage.Header.productMessage:type_name -> WAWebProtobufsE2E.ProductMessage
-	206, // 353: WAWebProtobufsE2E.ListMessage.ProductListInfo.productSections:type_name -> WAWebProtobufsE2E.ListMessage.ProductSection
-	205, // 354: WAWebProtobufsE2E.ListMessage.ProductListInfo.headerImage:type_name -> WAWebProtobufsE2E.ListMessage.ProductListHeaderImage
-	207, // 355: WAWebProtobufsE2E.ListMessage.ProductSection.products:type_name -> WAWebProtobufsE2E.ListMessage.Product
-	209, // 356: WAWebProtobufsE2E.ListMessage.Section.rows:type_name -> WAWebProtobufsE2E.ListMessage.Row
-	212, // 357: WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.currency:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMCurrency
-	211, // 358: WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.dateTime:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime
-	213, // 359: WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime.component:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime.HSMDateTimeComponent
-	214, // 360: WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime.unixEpoch:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime.HSMDateTimeUnixEpoch
-	28,  // 361: WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime.HSMDateTimeComponent.dayOfWeek:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime.HSMDateTimeComponent.DayOfWeekType
-	27,  // 362: WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime.HSMDateTimeComponent.calendar:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime.HSMDateTimeComponent.CalendarType
-	283, // 363: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.mediaUploadResult:type_name -> WAMmsRetry.MediaRetryNotification.ResultType
-	143, // 364: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.stickerMessage:type_name -> WAWebProtobufsE2E.StickerMessage
-	222, // 365: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.linkPreviewResponse:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.LinkPreviewResponse
-	221, // 366: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.placeholderMessageResendResponse:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.PlaceholderMessageResendResponse
-	219, // 367: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.waffleNonceFetchRequestResponse:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.WaffleNonceFetchResponse
-	220, // 368: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.fullHistorySyncOnDemandRequestResponse:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.FullHistorySyncOnDemandRequestResponse
-	218, // 369: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.companionMetaNonceFetchRequestResponse:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.CompanionMetaNonceFetchResponse
-	216, // 370: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.syncdSnapshotFatalRecoveryResponse:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.SyncDSnapshotFatalRecoveryResponse
-	217, // 371: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.companionCanonicalUserNonceFetchRequestResponse:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.CompanionCanonicalUserNonceFetchResponse
-	152, // 372: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.FullHistorySyncOnDemandRequestResponse.requestMetadata:type_name -> WAWebProtobufsE2E.FullHistorySyncOnDemandRequestMetadata
-	29,  // 373: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.FullHistorySyncOnDemandRequestResponse.responseCode:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.FullHistorySyncOnDemandResponseCode
-	224, // 374: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.LinkPreviewResponse.hqThumbnail:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.LinkPreviewResponse.LinkPreviewHighQualityThumbnail
-	223, // 375: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.LinkPreviewResponse.previewMetadata:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.LinkPreviewResponse.PaymentLinkPreviewMetadata
-	227, // 376: WAWebProtobufsE2E.BotFeedbackMessage.SideBySideSurveyMetadata.analyticsData:type_name -> WAWebProtobufsE2E.BotFeedbackMessage.SideBySideSurveyMetadata.SideBySideSurveyAnalyticsData
-	44,  // 377: WAWebProtobufsE2E.PaymentLinkMetadata.PaymentLinkHeader.headerType:type_name -> WAWebProtobufsE2E.PaymentLinkMetadata.PaymentLinkHeader.PaymentLinkHeaderType
-	52,  // 378: WAWebProtobufsE2E.ContextInfo.StatusAudienceMetadata.audienceType:type_name -> WAWebProtobufsE2E.ContextInfo.StatusAudienceMetadata.AudienceType
-	241, // 379: WAWebProtobufsE2E.ContextInfo.DataSharingContext.parameters:type_name -> WAWebProtobufsE2E.ContextInfo.DataSharingContext.Parameters
-	54,  // 380: WAWebProtobufsE2E.ContextInfo.ForwardedNewsletterMessageInfo.contentType:type_name -> WAWebProtobufsE2E.ContextInfo.ForwardedNewsletterMessageInfo.ContentType
-	56,  // 381: WAWebProtobufsE2E.ContextInfo.ExternalAdReplyInfo.mediaType:type_name -> WAWebProtobufsE2E.ContextInfo.ExternalAdReplyInfo.MediaType
-	55,  // 382: WAWebProtobufsE2E.ContextInfo.ExternalAdReplyInfo.adType:type_name -> WAWebProtobufsE2E.ContextInfo.ExternalAdReplyInfo.AdType
-	57,  // 383: WAWebProtobufsE2E.ContextInfo.AdReplyInfo.mediaType:type_name -> WAWebProtobufsE2E.ContextInfo.AdReplyInfo.MediaType
-	116, // 384: WAWebProtobufsE2E.ContextInfo.QuestionReplyQuotedMessage.quotedQuestion:type_name -> WAWebProtobufsE2E.Message
-	116, // 385: WAWebProtobufsE2E.ContextInfo.QuestionReplyQuotedMessage.quotedResponse:type_name -> WAWebProtobufsE2E.Message
-	241, // 386: WAWebProtobufsE2E.ContextInfo.DataSharingContext.Parameters.contents:type_name -> WAWebProtobufsE2E.ContextInfo.DataSharingContext.Parameters
-	253, // 387: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseContentItemsMetadata.itemsMetadata:type_name -> WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseContentItemsMetadata.AIRichResponseContentItemMetadata
-	60,  // 388: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseContentItemsMetadata.contentType:type_name -> WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseContentItemsMetadata.ContentType
-	61,  // 389: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseDynamicMetadata.type:type_name -> WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseDynamicMetadata.AIRichResponseDynamicMetadataType
-	255, // 390: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseCodeMetadata.codeBlocks:type_name -> WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseCodeMetadata.AIRichResponseCodeBlock
-	252, // 391: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseInlineImageMetadata.imageURL:type_name -> WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseImageURL
-	63,  // 392: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseInlineImageMetadata.alignment:type_name -> WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseInlineImageMetadata.AIRichResponseImageAlignment
-	58,  // 393: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseSubMessage.messageType:type_name -> WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseSubMessageType
-	251, // 394: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseSubMessage.gridImageMetadata:type_name -> WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseGridImageMetadata
-	245, // 395: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseSubMessage.imageMetadata:type_name -> WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseInlineImageMetadata
-	244, // 396: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseSubMessage.codeMetadata:type_name -> WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseCodeMetadata
-	250, // 397: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseSubMessage.tableMetadata:type_name -> WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseTableMetadata
-	243, // 398: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseSubMessage.dynamicMetadata:type_name -> WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseDynamicMetadata
-	248, // 399: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseSubMessage.latexMetadata:type_name -> WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseLatexMetadata
-	247, // 400: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseSubMessage.mapMetadata:type_name -> WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseMapMetadata
-	242, // 401: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseSubMessage.contentItemsMetadata:type_name -> WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseContentItemsMetadata
-	256, // 402: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseMapMetadata.annotations:type_name -> WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseMapMetadata.AIRichResponseMapAnnotation
-	257, // 403: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseLatexMetadata.expressions:type_name -> WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseLatexMetadata.AIRichResponseLatexExpression
-	258, // 404: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseTableMetadata.rows:type_name -> WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseTableMetadata.AIRichResponseTableRow
-	252, // 405: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseGridImageMetadata.gridImageURL:type_name -> WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseImageURL
-	252, // 406: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseGridImageMetadata.imageURLs:type_name -> WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseImageURL
-	254, // 407: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseContentItemsMetadata.AIRichResponseContentItemMetadata.reelItem:type_name -> WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseContentItemsMetadata.AIRichResponseReelItem
-	62,  // 408: WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseCodeMetadata.AIRichResponseCodeBlock.highlightType:type_name -> WAWebProtobufsE2E.AIRichResponseMessage.AIRichResponseCodeMetadata.AIRichResponseCodeHighlightType
-	68,  // 409: WAWebProtobufsE2E.HydratedTemplateButton.HydratedURLButton.webviewPresentation:type_name -> WAWebProtobufsE2E.HydratedTemplateButton.HydratedURLButton.WebviewPresentationType
-	105, // 410: WAWebProtobufsE2E.ProductMessage.ProductSnapshot.productImage:type_name -> WAWebProtobufsE2E.ImageMessage
-	105, // 411: WAWebProtobufsE2E.ProductMessage.CatalogSnapshot.catalogImage:type_name -> WAWebProtobufsE2E.ImageMessage
-	163, // 412: WAWebProtobufsE2E.TemplateMessage.HydratedFourRowTemplate.documentMessage:type_name -> WAWebProtobufsE2E.DocumentMessage
-	105, // 413: WAWebProtobufsE2E.TemplateMessage.HydratedFourRowTemplate.imageMessage:type_name -> WAWebProtobufsE2E.ImageMessage
-	99,  // 414: WAWebProtobufsE2E.TemplateMessage.HydratedFourRowTemplate.videoMessage:type_name -> WAWebProtobufsE2E.VideoMessage
-	166, // 415: WAWebProtobufsE2E.TemplateMessage.HydratedFourRowTemplate.locationMessage:type_name -> WAWebProtobufsE2E.LocationMessage
-	112, // 416: WAWebProtobufsE2E.TemplateMessage.HydratedFourRowTemplate.hydratedButtons:type_name -> WAWebProtobufsE2E.HydratedTemplateButton
-	163, // 417: WAWebProtobufsE2E.TemplateMessage.FourRowTemplate.documentMessage:type_name -> WAWebProtobufsE2E.DocumentMessage
-	92,  // 418: WAWebProtobufsE2E.TemplateMessage.FourRowTemplate.highlyStructuredMessage:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage
-	105, // 419: WAWebProtobufsE2E.TemplateMessage.FourRowTemplate.imageMessage:type_name -> WAWebProtobufsE2E.ImageMessage
-	99,  // 420: WAWebProtobufsE2E.TemplateMessage.FourRowTemplate.videoMessage:type_name -> WAWebProtobufsE2E.VideoMessage
-	166, // 421: WAWebProtobufsE2E.TemplateMessage.FourRowTemplate.locationMessage:type_name -> WAWebProtobufsE2E.LocationMessage
-	92,  // 422: WAWebProtobufsE2E.TemplateMessage.FourRowTemplate.content:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage
-	92,  // 423: WAWebProtobufsE2E.TemplateMessage.FourRowTemplate.footer:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage
-	177, // 424: WAWebProtobufsE2E.TemplateMessage.FourRowTemplate.buttons:type_name -> WAWebProtobufsE2E.TemplateButton
-	278, // 425: WAWebProtobufsE2E.PeerDataOperationRequestMessage.PlaceholderMessageResendRequest.messageKey:type_name -> WACommon.MessageKey
-	152, // 426: WAWebProtobufsE2E.PeerDataOperationRequestMessage.FullHistorySyncOnDemandRequest.requestMetadata:type_name -> WAWebProtobufsE2E.FullHistorySyncOnDemandRequestMetadata
-	284, // 427: WAWebProtobufsE2E.PeerDataOperationRequestMessage.FullHistorySyncOnDemandRequest.historySyncConfig:type_name -> WACompanionReg.DeviceProps.HistorySyncConfig
-	92,  // 428: WAWebProtobufsE2E.TemplateButton.CallButton.displayText:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage
-	92,  // 429: WAWebProtobufsE2E.TemplateButton.CallButton.phoneNumber:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage
-	92,  // 430: WAWebProtobufsE2E.TemplateButton.URLButton.displayText:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage
-	92,  // 431: WAWebProtobufsE2E.TemplateButton.URLButton.URL:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage
-	92,  // 432: WAWebProtobufsE2E.TemplateButton.QuickReplyButton.displayText:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage
-	433, // [433:433] is the sub-list for method output_type
-	433, // [433:433] is the sub-list for method input_type
-	433, // [433:433] is the sub-list for extension type_name
-	433, // [433:433] is the sub-list for extension extendee
-	0,   // [0:433] is the sub-list for field type_name
+	183, // 0: WAWebProtobufsE2E.StickerPackMessage.stickers:type_name -> WAWebProtobufsE2E.StickerPackMessage.Sticker
+	100, // 1: WAWebProtobufsE2E.StickerPackMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	5,   // 2: WAWebProtobufsE2E.StickerPackMessage.stickerPackOrigin:type_name -> WAWebProtobufsE2E.StickerPackMessage.StickerPackOrigin
+	6,   // 3: WAWebProtobufsE2E.PlaceholderMessage.type:type_name -> WAWebProtobufsE2E.PlaceholderMessage.PlaceholderType
+	7,   // 4: WAWebProtobufsE2E.BCallMessage.mediaType:type_name -> WAWebProtobufsE2E.BCallMessage.MediaType
+	8,   // 5: WAWebProtobufsE2E.CallLogMessage.callOutcome:type_name -> WAWebProtobufsE2E.CallLogMessage.CallOutcome
+	9,   // 6: WAWebProtobufsE2E.CallLogMessage.callType:type_name -> WAWebProtobufsE2E.CallLogMessage.CallType
+	184, // 7: WAWebProtobufsE2E.CallLogMessage.participants:type_name -> WAWebProtobufsE2E.CallLogMessage.CallParticipant
+	256, // 8: WAWebProtobufsE2E.ScheduledCallEditMessage.key:type_name -> WACommon.MessageKey
+	10,  // 9: WAWebProtobufsE2E.ScheduledCallEditMessage.editType:type_name -> WAWebProtobufsE2E.ScheduledCallEditMessage.EditType
+	11,  // 10: WAWebProtobufsE2E.ScheduledCallCreationMessage.callType:type_name -> WAWebProtobufsE2E.ScheduledCallCreationMessage.CallType
+	12,  // 11: WAWebProtobufsE2E.EventResponseMessage.response:type_name -> WAWebProtobufsE2E.EventResponseMessage.EventResponseType
+	256, // 12: WAWebProtobufsE2E.PinInChatMessage.key:type_name -> WACommon.MessageKey
+	13,  // 13: WAWebProtobufsE2E.PinInChatMessage.type:type_name -> WAWebProtobufsE2E.PinInChatMessage.Type
+	256, // 14: WAWebProtobufsE2E.StatusStickerInteractionMessage.key:type_name -> WACommon.MessageKey
+	14,  // 15: WAWebProtobufsE2E.StatusStickerInteractionMessage.type:type_name -> WAWebProtobufsE2E.StatusStickerInteractionMessage.StatusStickerType
+	185, // 16: WAWebProtobufsE2E.PollCreationMessage.options:type_name -> WAWebProtobufsE2E.PollCreationMessage.Option
+	100, // 17: WAWebProtobufsE2E.PollCreationMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	0,   // 18: WAWebProtobufsE2E.PollCreationMessage.pollContentType:type_name -> WAWebProtobufsE2E.PollContentType
+	15,  // 19: WAWebProtobufsE2E.PollCreationMessage.pollType:type_name -> WAWebProtobufsE2E.PollCreationMessage.PollType
+	185, // 20: WAWebProtobufsE2E.PollCreationMessage.correctAnswer:type_name -> WAWebProtobufsE2E.PollCreationMessage.Option
+	100, // 21: WAWebProtobufsE2E.ButtonsResponseMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	16,  // 22: WAWebProtobufsE2E.ButtonsResponseMessage.type:type_name -> WAWebProtobufsE2E.ButtonsResponseMessage.Type
+	158, // 23: WAWebProtobufsE2E.ButtonsMessage.documentMessage:type_name -> WAWebProtobufsE2E.DocumentMessage
+	99,  // 24: WAWebProtobufsE2E.ButtonsMessage.imageMessage:type_name -> WAWebProtobufsE2E.ImageMessage
+	93,  // 25: WAWebProtobufsE2E.ButtonsMessage.videoMessage:type_name -> WAWebProtobufsE2E.VideoMessage
+	161, // 26: WAWebProtobufsE2E.ButtonsMessage.locationMessage:type_name -> WAWebProtobufsE2E.LocationMessage
+	100, // 27: WAWebProtobufsE2E.ButtonsMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	186, // 28: WAWebProtobufsE2E.ButtonsMessage.buttons:type_name -> WAWebProtobufsE2E.ButtonsMessage.Button
+	17,  // 29: WAWebProtobufsE2E.ButtonsMessage.headerType:type_name -> WAWebProtobufsE2E.ButtonsMessage.HeaderType
+	256, // 30: WAWebProtobufsE2E.SecretEncryptedMessage.targetMessageKey:type_name -> WACommon.MessageKey
+	19,  // 31: WAWebProtobufsE2E.SecretEncryptedMessage.secretEncType:type_name -> WAWebProtobufsE2E.SecretEncryptedMessage.SecretEncType
+	100, // 32: WAWebProtobufsE2E.GroupInviteMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	20,  // 33: WAWebProtobufsE2E.GroupInviteMessage.groupType:type_name -> WAWebProtobufsE2E.GroupInviteMessage.GroupType
+	190, // 34: WAWebProtobufsE2E.InteractiveResponseMessage.nativeFlowResponseMessage:type_name -> WAWebProtobufsE2E.InteractiveResponseMessage.NativeFlowResponseMessage
+	189, // 35: WAWebProtobufsE2E.InteractiveResponseMessage.body:type_name -> WAWebProtobufsE2E.InteractiveResponseMessage.Body
+	100, // 36: WAWebProtobufsE2E.InteractiveResponseMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	192, // 37: WAWebProtobufsE2E.InteractiveMessage.shopStorefrontMessage:type_name -> WAWebProtobufsE2E.InteractiveMessage.ShopMessage
+	194, // 38: WAWebProtobufsE2E.InteractiveMessage.collectionMessage:type_name -> WAWebProtobufsE2E.InteractiveMessage.CollectionMessage
+	193, // 39: WAWebProtobufsE2E.InteractiveMessage.nativeFlowMessage:type_name -> WAWebProtobufsE2E.InteractiveMessage.NativeFlowMessage
+	191, // 40: WAWebProtobufsE2E.InteractiveMessage.carouselMessage:type_name -> WAWebProtobufsE2E.InteractiveMessage.CarouselMessage
+	197, // 41: WAWebProtobufsE2E.InteractiveMessage.header:type_name -> WAWebProtobufsE2E.InteractiveMessage.Header
+	196, // 42: WAWebProtobufsE2E.InteractiveMessage.body:type_name -> WAWebProtobufsE2E.InteractiveMessage.Body
+	195, // 43: WAWebProtobufsE2E.InteractiveMessage.footer:type_name -> WAWebProtobufsE2E.InteractiveMessage.Footer
+	100, // 44: WAWebProtobufsE2E.InteractiveMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	179, // 45: WAWebProtobufsE2E.InteractiveMessage.urlTrackingMap:type_name -> WAWebProtobufsE2E.UrlTrackingMap
+	24,  // 46: WAWebProtobufsE2E.ListResponseMessage.listType:type_name -> WAWebProtobufsE2E.ListResponseMessage.ListType
+	199, // 47: WAWebProtobufsE2E.ListResponseMessage.singleSelectReply:type_name -> WAWebProtobufsE2E.ListResponseMessage.SingleSelectReply
+	100, // 48: WAWebProtobufsE2E.ListResponseMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	25,  // 49: WAWebProtobufsE2E.ListMessage.listType:type_name -> WAWebProtobufsE2E.ListMessage.ListType
+	204, // 50: WAWebProtobufsE2E.ListMessage.sections:type_name -> WAWebProtobufsE2E.ListMessage.Section
+	200, // 51: WAWebProtobufsE2E.ListMessage.productListInfo:type_name -> WAWebProtobufsE2E.ListMessage.ProductListInfo
+	100, // 52: WAWebProtobufsE2E.ListMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	27,  // 53: WAWebProtobufsE2E.OrderMessage.status:type_name -> WAWebProtobufsE2E.OrderMessage.OrderStatus
+	26,  // 54: WAWebProtobufsE2E.OrderMessage.surface:type_name -> WAWebProtobufsE2E.OrderMessage.OrderSurface
+	100, // 55: WAWebProtobufsE2E.OrderMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	256, // 56: WAWebProtobufsE2E.OrderMessage.orderRequestMessageID:type_name -> WACommon.MessageKey
+	28,  // 57: WAWebProtobufsE2E.StatusQuotedMessage.type:type_name -> WAWebProtobufsE2E.StatusQuotedMessage.StatusQuotedMessageType
+	256, // 58: WAWebProtobufsE2E.StatusQuotedMessage.originalStatusID:type_name -> WACommon.MessageKey
+	29,  // 59: WAWebProtobufsE2E.PaymentInviteMessage.serviceType:type_name -> WAWebProtobufsE2E.PaymentInviteMessage.ServiceType
+	206, // 60: WAWebProtobufsE2E.HighlyStructuredMessage.localizableParams:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter
+	136, // 61: WAWebProtobufsE2E.HighlyStructuredMessage.hydratedHsm:type_name -> WAWebProtobufsE2E.TemplateMessage
+	1,   // 62: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.peerDataOperationRequestType:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestType
+	211, // 63: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.peerDataOperationResult:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult
+	34,  // 64: WAWebProtobufsE2E.RequestWelcomeMessageMetadata.localChatState:type_name -> WAWebProtobufsE2E.RequestWelcomeMessageMetadata.LocalChatState
+	256, // 65: WAWebProtobufsE2E.ProtocolMessage.key:type_name -> WACommon.MessageKey
+	35,  // 66: WAWebProtobufsE2E.ProtocolMessage.type:type_name -> WAWebProtobufsE2E.ProtocolMessage.Type
+	154, // 67: WAWebProtobufsE2E.ProtocolMessage.historySyncNotification:type_name -> WAWebProtobufsE2E.HistorySyncNotification
+	149, // 68: WAWebProtobufsE2E.ProtocolMessage.appStateSyncKeyShare:type_name -> WAWebProtobufsE2E.AppStateSyncKeyShare
+	148, // 69: WAWebProtobufsE2E.ProtocolMessage.appStateSyncKeyRequest:type_name -> WAWebProtobufsE2E.AppStateSyncKeyRequest
+	144, // 70: WAWebProtobufsE2E.ProtocolMessage.initialSecurityNotificationSettingSync:type_name -> WAWebProtobufsE2E.InitialSecurityNotificationSettingSync
+	147, // 71: WAWebProtobufsE2E.ProtocolMessage.appStateFatalExceptionNotification:type_name -> WAWebProtobufsE2E.AppStateFatalExceptionNotification
+	107, // 72: WAWebProtobufsE2E.ProtocolMessage.disappearingMode:type_name -> WAWebProtobufsE2E.DisappearingMode
+	109, // 73: WAWebProtobufsE2E.ProtocolMessage.editedMessage:type_name -> WAWebProtobufsE2E.Message
+	145, // 74: WAWebProtobufsE2E.ProtocolMessage.peerDataOperationRequestMessage:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestMessage
+	89,  // 75: WAWebProtobufsE2E.ProtocolMessage.peerDataOperationRequestResponseMessage:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage
+	257, // 76: WAWebProtobufsE2E.ProtocolMessage.botFeedbackMessage:type_name -> WAAICommon.BotFeedbackMessage
+	90,  // 77: WAWebProtobufsE2E.ProtocolMessage.requestWelcomeMessageMetadata:type_name -> WAWebProtobufsE2E.RequestWelcomeMessageMetadata
+	177, // 78: WAWebProtobufsE2E.ProtocolMessage.mediaNotifyMessage:type_name -> WAWebProtobufsE2E.MediaNotifyMessage
+	92,  // 79: WAWebProtobufsE2E.ProtocolMessage.cloudApiThreadControlNotification:type_name -> WAWebProtobufsE2E.CloudAPIThreadControlNotification
+	178, // 80: WAWebProtobufsE2E.ProtocolMessage.lidMigrationMappingSyncMessage:type_name -> WAWebProtobufsE2E.LIDMigrationMappingSyncMessage
+	258, // 81: WAWebProtobufsE2E.ProtocolMessage.limitSharing:type_name -> WACommon.LimitSharing
+	182, // 82: WAWebProtobufsE2E.ProtocolMessage.aiQueryFanout:type_name -> WAWebProtobufsE2E.AIQueryFanout
+	180, // 83: WAWebProtobufsE2E.ProtocolMessage.memberLabel:type_name -> WAWebProtobufsE2E.MemberLabel
+	36,  // 84: WAWebProtobufsE2E.CloudAPIThreadControlNotification.status:type_name -> WAWebProtobufsE2E.CloudAPIThreadControlNotification.CloudAPIThreadControl
+	222, // 85: WAWebProtobufsE2E.CloudAPIThreadControlNotification.notificationContent:type_name -> WAWebProtobufsE2E.CloudAPIThreadControlNotification.CloudAPIThreadControlNotificationContent
+	104, // 86: WAWebProtobufsE2E.VideoMessage.interactiveAnnotations:type_name -> WAWebProtobufsE2E.InteractiveAnnotation
+	100, // 87: WAWebProtobufsE2E.VideoMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	38,  // 88: WAWebProtobufsE2E.VideoMessage.gifAttribution:type_name -> WAWebProtobufsE2E.VideoMessage.Attribution
+	104, // 89: WAWebProtobufsE2E.VideoMessage.annotations:type_name -> WAWebProtobufsE2E.InteractiveAnnotation
+	108, // 90: WAWebProtobufsE2E.VideoMessage.processedVideos:type_name -> WAWebProtobufsE2E.ProcessedVideo
+	37,  // 91: WAWebProtobufsE2E.VideoMessage.videoSourceType:type_name -> WAWebProtobufsE2E.VideoMessage.VideoSourceType
+	3,   // 92: WAWebProtobufsE2E.VideoMessage.mediaKeyDomain:type_name -> WAWebProtobufsE2E.MediaKeyDomain
+	41,  // 93: WAWebProtobufsE2E.ExtendedTextMessage.font:type_name -> WAWebProtobufsE2E.ExtendedTextMessage.FontType
+	40,  // 94: WAWebProtobufsE2E.ExtendedTextMessage.previewType:type_name -> WAWebProtobufsE2E.ExtendedTextMessage.PreviewType
+	100, // 95: WAWebProtobufsE2E.ExtendedTextMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	39,  // 96: WAWebProtobufsE2E.ExtendedTextMessage.inviteLinkGroupType:type_name -> WAWebProtobufsE2E.ExtendedTextMessage.InviteLinkGroupType
+	39,  // 97: WAWebProtobufsE2E.ExtendedTextMessage.inviteLinkGroupTypeV2:type_name -> WAWebProtobufsE2E.ExtendedTextMessage.InviteLinkGroupType
+	160, // 98: WAWebProtobufsE2E.ExtendedTextMessage.faviconMMSMetadata:type_name -> WAWebProtobufsE2E.MMSThumbnailMetadata
+	95,  // 99: WAWebProtobufsE2E.ExtendedTextMessage.linkPreviewMetadata:type_name -> WAWebProtobufsE2E.LinkPreviewMetadata
+	96,  // 100: WAWebProtobufsE2E.ExtendedTextMessage.paymentLinkMetadata:type_name -> WAWebProtobufsE2E.PaymentLinkMetadata
+	164, // 101: WAWebProtobufsE2E.ExtendedTextMessage.endCardTiles:type_name -> WAWebProtobufsE2E.VideoEndCard
+	167, // 102: WAWebProtobufsE2E.ExtendedTextMessage.musicMetadata:type_name -> WAWebProtobufsE2E.EmbeddedMusic
+	96,  // 103: WAWebProtobufsE2E.LinkPreviewMetadata.paymentLinkMetadata:type_name -> WAWebProtobufsE2E.PaymentLinkMetadata
+	159, // 104: WAWebProtobufsE2E.LinkPreviewMetadata.urlMetadata:type_name -> WAWebProtobufsE2E.URLMetadata
+	42,  // 105: WAWebProtobufsE2E.LinkPreviewMetadata.socialMediaPostType:type_name -> WAWebProtobufsE2E.LinkPreviewMetadata.SocialMediaPostType
+	225, // 106: WAWebProtobufsE2E.PaymentLinkMetadata.button:type_name -> WAWebProtobufsE2E.PaymentLinkMetadata.PaymentLinkButton
+	223, // 107: WAWebProtobufsE2E.PaymentLinkMetadata.header:type_name -> WAWebProtobufsE2E.PaymentLinkMetadata.PaymentLinkHeader
+	224, // 108: WAWebProtobufsE2E.PaymentLinkMetadata.provider:type_name -> WAWebProtobufsE2E.PaymentLinkMetadata.PaymentLinkProvider
+	256, // 109: WAWebProtobufsE2E.StatusNotificationMessage.responseMessageKey:type_name -> WACommon.MessageKey
+	256, // 110: WAWebProtobufsE2E.StatusNotificationMessage.originalMessageKey:type_name -> WACommon.MessageKey
+	44,  // 111: WAWebProtobufsE2E.StatusNotificationMessage.type:type_name -> WAWebProtobufsE2E.StatusNotificationMessage.StatusNotificationType
+	45,  // 112: WAWebProtobufsE2E.InvoiceMessage.attachmentType:type_name -> WAWebProtobufsE2E.InvoiceMessage.AttachmentType
+	104, // 113: WAWebProtobufsE2E.ImageMessage.interactiveAnnotations:type_name -> WAWebProtobufsE2E.InteractiveAnnotation
+	100, // 114: WAWebProtobufsE2E.ImageMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	104, // 115: WAWebProtobufsE2E.ImageMessage.annotations:type_name -> WAWebProtobufsE2E.InteractiveAnnotation
+	46,  // 116: WAWebProtobufsE2E.ImageMessage.imageSourceType:type_name -> WAWebProtobufsE2E.ImageMessage.ImageSourceType
+	3,   // 117: WAWebProtobufsE2E.ImageMessage.mediaKeyDomain:type_name -> WAWebProtobufsE2E.MediaKeyDomain
+	109, // 118: WAWebProtobufsE2E.ContextInfo.quotedMessage:type_name -> WAWebProtobufsE2E.Message
+	230, // 119: WAWebProtobufsE2E.ContextInfo.quotedAd:type_name -> WAWebProtobufsE2E.ContextInfo.AdReplyInfo
+	256, // 120: WAWebProtobufsE2E.ContextInfo.placeholderKey:type_name -> WACommon.MessageKey
+	229, // 121: WAWebProtobufsE2E.ContextInfo.externalAdReply:type_name -> WAWebProtobufsE2E.ContextInfo.ExternalAdReplyInfo
+	107, // 122: WAWebProtobufsE2E.ContextInfo.disappearingMode:type_name -> WAWebProtobufsE2E.DisappearingMode
+	174, // 123: WAWebProtobufsE2E.ContextInfo.actionLink:type_name -> WAWebProtobufsE2E.ActionLink
+	175, // 124: WAWebProtobufsE2E.ContextInfo.groupMentions:type_name -> WAWebProtobufsE2E.GroupMention
+	233, // 125: WAWebProtobufsE2E.ContextInfo.utm:type_name -> WAWebProtobufsE2E.ContextInfo.UTMInfo
+	228, // 126: WAWebProtobufsE2E.ContextInfo.forwardedNewsletterMessageInfo:type_name -> WAWebProtobufsE2E.ContextInfo.ForwardedNewsletterMessageInfo
+	234, // 127: WAWebProtobufsE2E.ContextInfo.businessMessageForwardInfo:type_name -> WAWebProtobufsE2E.ContextInfo.BusinessMessageForwardInfo
+	227, // 128: WAWebProtobufsE2E.ContextInfo.dataSharingContext:type_name -> WAWebProtobufsE2E.ContextInfo.DataSharingContext
+	231, // 129: WAWebProtobufsE2E.ContextInfo.featureEligibilities:type_name -> WAWebProtobufsE2E.ContextInfo.FeatureEligibilities
+	259, // 130: WAWebProtobufsE2E.ContextInfo.forwardedAiBotMessageInfo:type_name -> WAAICommon.ForwardedAIBotMessageInfo
+	51,  // 131: WAWebProtobufsE2E.ContextInfo.statusAttributionType:type_name -> WAWebProtobufsE2E.ContextInfo.StatusAttributionType
+	179, // 132: WAWebProtobufsE2E.ContextInfo.urlTrackingMap:type_name -> WAWebProtobufsE2E.UrlTrackingMap
+	50,  // 133: WAWebProtobufsE2E.ContextInfo.pairedMediaType:type_name -> WAWebProtobufsE2E.ContextInfo.PairedMediaType
+	180, // 134: WAWebProtobufsE2E.ContextInfo.memberLabel:type_name -> WAWebProtobufsE2E.MemberLabel
+	49,  // 135: WAWebProtobufsE2E.ContextInfo.statusSourceType:type_name -> WAWebProtobufsE2E.ContextInfo.StatusSourceType
+	260, // 136: WAWebProtobufsE2E.ContextInfo.statusAttributions:type_name -> WAStatusAttributions.StatusAttribution
+	48,  // 137: WAWebProtobufsE2E.ContextInfo.forwardOrigin:type_name -> WAWebProtobufsE2E.ContextInfo.ForwardOrigin
+	232, // 138: WAWebProtobufsE2E.ContextInfo.questionReplyQuotedMessage:type_name -> WAWebProtobufsE2E.ContextInfo.QuestionReplyQuotedMessage
+	226, // 139: WAWebProtobufsE2E.ContextInfo.statusAudienceMetadata:type_name -> WAWebProtobufsE2E.ContextInfo.StatusAudienceMetadata
+	47,  // 140: WAWebProtobufsE2E.ContextInfo.quotedType:type_name -> WAWebProtobufsE2E.ContextInfo.QuotedType
+	261, // 141: WAWebProtobufsE2E.ContextInfo.botMessageSharingInfo:type_name -> WAAICommon.BotMessageSharingInfo
+	58,  // 142: WAWebProtobufsE2E.MessageAssociation.associationType:type_name -> WAWebProtobufsE2E.MessageAssociation.AssociationType
+	256, // 143: WAWebProtobufsE2E.MessageAssociation.parentMessageKey:type_name -> WACommon.MessageKey
+	59,  // 144: WAWebProtobufsE2E.ThreadID.threadType:type_name -> WAWebProtobufsE2E.ThreadID.ThreadType
+	256, // 145: WAWebProtobufsE2E.ThreadID.threadKey:type_name -> WACommon.MessageKey
+	165, // 146: WAWebProtobufsE2E.MessageContextInfo.deviceListMetadata:type_name -> WAWebProtobufsE2E.DeviceListMetadata
+	262, // 147: WAWebProtobufsE2E.MessageContextInfo.botMetadata:type_name -> WAAICommon.BotMetadata
+	60,  // 148: WAWebProtobufsE2E.MessageContextInfo.messageAddOnExpiryType:type_name -> WAWebProtobufsE2E.MessageContextInfo.MessageAddonExpiryType
+	101, // 149: WAWebProtobufsE2E.MessageContextInfo.messageAssociation:type_name -> WAWebProtobufsE2E.MessageAssociation
+	258, // 150: WAWebProtobufsE2E.MessageContextInfo.limitSharing:type_name -> WACommon.LimitSharing
+	258, // 151: WAWebProtobufsE2E.MessageContextInfo.limitSharingV2:type_name -> WACommon.LimitSharing
+	102, // 152: WAWebProtobufsE2E.MessageContextInfo.threadID:type_name -> WAWebProtobufsE2E.ThreadID
+	171, // 153: WAWebProtobufsE2E.InteractiveAnnotation.location:type_name -> WAWebProtobufsE2E.Location
+	228, // 154: WAWebProtobufsE2E.InteractiveAnnotation.newsletter:type_name -> WAWebProtobufsE2E.ContextInfo.ForwardedNewsletterMessageInfo
+	169, // 155: WAWebProtobufsE2E.InteractiveAnnotation.tapAction:type_name -> WAWebProtobufsE2E.TapLinkAction
+	170, // 156: WAWebProtobufsE2E.InteractiveAnnotation.polygonVertices:type_name -> WAWebProtobufsE2E.Point
+	168, // 157: WAWebProtobufsE2E.InteractiveAnnotation.embeddedContent:type_name -> WAWebProtobufsE2E.EmbeddedContent
+	61,  // 158: WAWebProtobufsE2E.InteractiveAnnotation.statusLinkType:type_name -> WAWebProtobufsE2E.InteractiveAnnotation.StatusLinkType
+	238, // 159: WAWebProtobufsE2E.HydratedTemplateButton.quickReplyButton:type_name -> WAWebProtobufsE2E.HydratedTemplateButton.HydratedQuickReplyButton
+	236, // 160: WAWebProtobufsE2E.HydratedTemplateButton.urlButton:type_name -> WAWebProtobufsE2E.HydratedTemplateButton.HydratedURLButton
+	237, // 161: WAWebProtobufsE2E.HydratedTemplateButton.callButton:type_name -> WAWebProtobufsE2E.HydratedTemplateButton.HydratedCallButton
+	239, // 162: WAWebProtobufsE2E.PaymentBackground.mediaData:type_name -> WAWebProtobufsE2E.PaymentBackground.MediaData
+	63,  // 163: WAWebProtobufsE2E.PaymentBackground.type:type_name -> WAWebProtobufsE2E.PaymentBackground.Type
+	65,  // 164: WAWebProtobufsE2E.DisappearingMode.initiator:type_name -> WAWebProtobufsE2E.DisappearingMode.Initiator
+	64,  // 165: WAWebProtobufsE2E.DisappearingMode.trigger:type_name -> WAWebProtobufsE2E.DisappearingMode.Trigger
+	66,  // 166: WAWebProtobufsE2E.ProcessedVideo.quality:type_name -> WAWebProtobufsE2E.ProcessedVideo.VideoQuality
+	163, // 167: WAWebProtobufsE2E.Message.senderKeyDistributionMessage:type_name -> WAWebProtobufsE2E.SenderKeyDistributionMessage
+	99,  // 168: WAWebProtobufsE2E.Message.imageMessage:type_name -> WAWebProtobufsE2E.ImageMessage
+	162, // 169: WAWebProtobufsE2E.Message.contactMessage:type_name -> WAWebProtobufsE2E.ContactMessage
+	161, // 170: WAWebProtobufsE2E.Message.locationMessage:type_name -> WAWebProtobufsE2E.LocationMessage
+	94,  // 171: WAWebProtobufsE2E.Message.extendedTextMessage:type_name -> WAWebProtobufsE2E.ExtendedTextMessage
+	158, // 172: WAWebProtobufsE2E.Message.documentMessage:type_name -> WAWebProtobufsE2E.DocumentMessage
+	157, // 173: WAWebProtobufsE2E.Message.audioMessage:type_name -> WAWebProtobufsE2E.AudioMessage
+	93,  // 174: WAWebProtobufsE2E.Message.videoMessage:type_name -> WAWebProtobufsE2E.VideoMessage
+	156, // 175: WAWebProtobufsE2E.Message.call:type_name -> WAWebProtobufsE2E.Call
+	155, // 176: WAWebProtobufsE2E.Message.chat:type_name -> WAWebProtobufsE2E.Chat
+	91,  // 177: WAWebProtobufsE2E.Message.protocolMessage:type_name -> WAWebProtobufsE2E.ProtocolMessage
+	143, // 178: WAWebProtobufsE2E.Message.contactsArrayMessage:type_name -> WAWebProtobufsE2E.ContactsArrayMessage
+	88,  // 179: WAWebProtobufsE2E.Message.highlyStructuredMessage:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage
+	163, // 180: WAWebProtobufsE2E.Message.fastRatchetKeySenderKeyDistributionMessage:type_name -> WAWebProtobufsE2E.SenderKeyDistributionMessage
+	142, // 181: WAWebProtobufsE2E.Message.sendPaymentMessage:type_name -> WAWebProtobufsE2E.SendPaymentMessage
+	138, // 182: WAWebProtobufsE2E.Message.liveLocationMessage:type_name -> WAWebProtobufsE2E.LiveLocationMessage
+	141, // 183: WAWebProtobufsE2E.Message.requestPaymentMessage:type_name -> WAWebProtobufsE2E.RequestPaymentMessage
+	140, // 184: WAWebProtobufsE2E.Message.declinePaymentRequestMessage:type_name -> WAWebProtobufsE2E.DeclinePaymentRequestMessage
+	139, // 185: WAWebProtobufsE2E.Message.cancelPaymentRequestMessage:type_name -> WAWebProtobufsE2E.CancelPaymentRequestMessage
+	136, // 186: WAWebProtobufsE2E.Message.templateMessage:type_name -> WAWebProtobufsE2E.TemplateMessage
+	137, // 187: WAWebProtobufsE2E.Message.stickerMessage:type_name -> WAWebProtobufsE2E.StickerMessage
+	80,  // 188: WAWebProtobufsE2E.Message.groupInviteMessage:type_name -> WAWebProtobufsE2E.GroupInviteMessage
+	135, // 189: WAWebProtobufsE2E.Message.templateButtonReplyMessage:type_name -> WAWebProtobufsE2E.TemplateButtonReplyMessage
+	134, // 190: WAWebProtobufsE2E.Message.productMessage:type_name -> WAWebProtobufsE2E.ProductMessage
+	130, // 191: WAWebProtobufsE2E.Message.deviceSentMessage:type_name -> WAWebProtobufsE2E.DeviceSentMessage
+	103, // 192: WAWebProtobufsE2E.Message.messageContextInfo:type_name -> WAWebProtobufsE2E.MessageContextInfo
+	84,  // 193: WAWebProtobufsE2E.Message.listMessage:type_name -> WAWebProtobufsE2E.ListMessage
+	129, // 194: WAWebProtobufsE2E.Message.viewOnceMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
+	85,  // 195: WAWebProtobufsE2E.Message.orderMessage:type_name -> WAWebProtobufsE2E.OrderMessage
+	83,  // 196: WAWebProtobufsE2E.Message.listResponseMessage:type_name -> WAWebProtobufsE2E.ListResponseMessage
+	129, // 197: WAWebProtobufsE2E.Message.ephemeralMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
+	98,  // 198: WAWebProtobufsE2E.Message.invoiceMessage:type_name -> WAWebProtobufsE2E.InvoiceMessage
+	78,  // 199: WAWebProtobufsE2E.Message.buttonsMessage:type_name -> WAWebProtobufsE2E.ButtonsMessage
+	77,  // 200: WAWebProtobufsE2E.Message.buttonsResponseMessage:type_name -> WAWebProtobufsE2E.ButtonsResponseMessage
+	87,  // 201: WAWebProtobufsE2E.Message.paymentInviteMessage:type_name -> WAWebProtobufsE2E.PaymentInviteMessage
+	82,  // 202: WAWebProtobufsE2E.Message.interactiveMessage:type_name -> WAWebProtobufsE2E.InteractiveMessage
+	128, // 203: WAWebProtobufsE2E.Message.reactionMessage:type_name -> WAWebProtobufsE2E.ReactionMessage
+	127, // 204: WAWebProtobufsE2E.Message.stickerSyncRmrMessage:type_name -> WAWebProtobufsE2E.StickerSyncRMRMessage
+	81,  // 205: WAWebProtobufsE2E.Message.interactiveResponseMessage:type_name -> WAWebProtobufsE2E.InteractiveResponseMessage
+	76,  // 206: WAWebProtobufsE2E.Message.pollCreationMessage:type_name -> WAWebProtobufsE2E.PollCreationMessage
+	126, // 207: WAWebProtobufsE2E.Message.pollUpdateMessage:type_name -> WAWebProtobufsE2E.PollUpdateMessage
+	119, // 208: WAWebProtobufsE2E.Message.keepInChatMessage:type_name -> WAWebProtobufsE2E.KeepInChatMessage
+	129, // 209: WAWebProtobufsE2E.Message.documentWithCaptionMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
+	131, // 210: WAWebProtobufsE2E.Message.requestPhoneNumberMessage:type_name -> WAWebProtobufsE2E.RequestPhoneNumberMessage
+	129, // 211: WAWebProtobufsE2E.Message.viewOnceMessageV2:type_name -> WAWebProtobufsE2E.FutureProofMessage
+	118, // 212: WAWebProtobufsE2E.Message.encReactionMessage:type_name -> WAWebProtobufsE2E.EncReactionMessage
+	129, // 213: WAWebProtobufsE2E.Message.editedMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
+	129, // 214: WAWebProtobufsE2E.Message.viewOnceMessageV2Extension:type_name -> WAWebProtobufsE2E.FutureProofMessage
+	76,  // 215: WAWebProtobufsE2E.Message.pollCreationMessageV2:type_name -> WAWebProtobufsE2E.PollCreationMessage
+	72,  // 216: WAWebProtobufsE2E.Message.scheduledCallCreationMessage:type_name -> WAWebProtobufsE2E.ScheduledCallCreationMessage
+	129, // 217: WAWebProtobufsE2E.Message.groupMentionedMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
+	74,  // 218: WAWebProtobufsE2E.Message.pinInChatMessage:type_name -> WAWebProtobufsE2E.PinInChatMessage
+	76,  // 219: WAWebProtobufsE2E.Message.pollCreationMessageV3:type_name -> WAWebProtobufsE2E.PollCreationMessage
+	71,  // 220: WAWebProtobufsE2E.Message.scheduledCallEditMessage:type_name -> WAWebProtobufsE2E.ScheduledCallEditMessage
+	93,  // 221: WAWebProtobufsE2E.Message.ptvMessage:type_name -> WAWebProtobufsE2E.VideoMessage
+	129, // 222: WAWebProtobufsE2E.Message.botInvokeMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
+	70,  // 223: WAWebProtobufsE2E.Message.callLogMesssage:type_name -> WAWebProtobufsE2E.CallLogMessage
+	113, // 224: WAWebProtobufsE2E.Message.messageHistoryBundle:type_name -> WAWebProtobufsE2E.MessageHistoryBundle
+	117, // 225: WAWebProtobufsE2E.Message.encCommentMessage:type_name -> WAWebProtobufsE2E.EncCommentMessage
+	69,  // 226: WAWebProtobufsE2E.Message.bcallMessage:type_name -> WAWebProtobufsE2E.BCallMessage
+	129, // 227: WAWebProtobufsE2E.Message.lottieStickerMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
+	115, // 228: WAWebProtobufsE2E.Message.eventMessage:type_name -> WAWebProtobufsE2E.EventMessage
+	114, // 229: WAWebProtobufsE2E.Message.encEventResponseMessage:type_name -> WAWebProtobufsE2E.EncEventResponseMessage
+	116, // 230: WAWebProtobufsE2E.Message.commentMessage:type_name -> WAWebProtobufsE2E.CommentMessage
+	133, // 231: WAWebProtobufsE2E.Message.newsletterAdminInviteMessage:type_name -> WAWebProtobufsE2E.NewsletterAdminInviteMessage
+	68,  // 232: WAWebProtobufsE2E.Message.placeholderMessage:type_name -> WAWebProtobufsE2E.PlaceholderMessage
+	79,  // 233: WAWebProtobufsE2E.Message.secretEncryptedMessage:type_name -> WAWebProtobufsE2E.SecretEncryptedMessage
+	110, // 234: WAWebProtobufsE2E.Message.albumMessage:type_name -> WAWebProtobufsE2E.AlbumMessage
+	129, // 235: WAWebProtobufsE2E.Message.eventCoverImage:type_name -> WAWebProtobufsE2E.FutureProofMessage
+	67,  // 236: WAWebProtobufsE2E.Message.stickerPackMessage:type_name -> WAWebProtobufsE2E.StickerPackMessage
+	129, // 237: WAWebProtobufsE2E.Message.statusMentionMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
+	122, // 238: WAWebProtobufsE2E.Message.pollResultSnapshotMessage:type_name -> WAWebProtobufsE2E.PollResultSnapshotMessage
+	129, // 239: WAWebProtobufsE2E.Message.pollCreationOptionImageMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
+	129, // 240: WAWebProtobufsE2E.Message.associatedChildMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
+	129, // 241: WAWebProtobufsE2E.Message.groupStatusMentionMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
+	129, // 242: WAWebProtobufsE2E.Message.pollCreationMessageV4:type_name -> WAWebProtobufsE2E.FutureProofMessage
+	129, // 243: WAWebProtobufsE2E.Message.pollCreationMessageV5:type_name -> WAWebProtobufsE2E.FutureProofMessage
+	129, // 244: WAWebProtobufsE2E.Message.statusAddYours:type_name -> WAWebProtobufsE2E.FutureProofMessage
+	129, // 245: WAWebProtobufsE2E.Message.groupStatusMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
+	181, // 246: WAWebProtobufsE2E.Message.richResponseMessage:type_name -> WAWebProtobufsE2E.AIRichResponseMessage
+	97,  // 247: WAWebProtobufsE2E.Message.statusNotificationMessage:type_name -> WAWebProtobufsE2E.StatusNotificationMessage
+	129, // 248: WAWebProtobufsE2E.Message.limitSharingMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
+	129, // 249: WAWebProtobufsE2E.Message.botTaskMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
+	129, // 250: WAWebProtobufsE2E.Message.questionMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
+	112, // 251: WAWebProtobufsE2E.Message.messageHistoryNotice:type_name -> WAWebProtobufsE2E.MessageHistoryNotice
+	129, // 252: WAWebProtobufsE2E.Message.groupStatusMessageV2:type_name -> WAWebProtobufsE2E.FutureProofMessage
+	129, // 253: WAWebProtobufsE2E.Message.botForwardedMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
+	121, // 254: WAWebProtobufsE2E.Message.statusQuestionAnswerMessage:type_name -> WAWebProtobufsE2E.StatusQuestionAnswerMessage
+	129, // 255: WAWebProtobufsE2E.Message.questionReplyMessage:type_name -> WAWebProtobufsE2E.FutureProofMessage
+	120, // 256: WAWebProtobufsE2E.Message.questionResponseMessage:type_name -> WAWebProtobufsE2E.QuestionResponseMessage
+	132, // 257: WAWebProtobufsE2E.Message.newsletterFollowerInviteMessage:type_name -> WAWebProtobufsE2E.NewsletterFollowerInviteMessage
+	86,  // 258: WAWebProtobufsE2E.Message.statusQuotedMessage:type_name -> WAWebProtobufsE2E.StatusQuotedMessage
+	75,  // 259: WAWebProtobufsE2E.Message.statusStickerInteractionMessage:type_name -> WAWebProtobufsE2E.StatusStickerInteractionMessage
+	100, // 260: WAWebProtobufsE2E.AlbumMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	100, // 261: WAWebProtobufsE2E.MessageHistoryNotice.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	111, // 262: WAWebProtobufsE2E.MessageHistoryNotice.messageHistoryMetadata:type_name -> WAWebProtobufsE2E.MessageHistoryMetadata
+	100, // 263: WAWebProtobufsE2E.MessageHistoryBundle.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	111, // 264: WAWebProtobufsE2E.MessageHistoryBundle.messageHistoryMetadata:type_name -> WAWebProtobufsE2E.MessageHistoryMetadata
+	256, // 265: WAWebProtobufsE2E.EncEventResponseMessage.eventCreationMessageKey:type_name -> WACommon.MessageKey
+	100, // 266: WAWebProtobufsE2E.EventMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	161, // 267: WAWebProtobufsE2E.EventMessage.location:type_name -> WAWebProtobufsE2E.LocationMessage
+	109, // 268: WAWebProtobufsE2E.CommentMessage.message:type_name -> WAWebProtobufsE2E.Message
+	256, // 269: WAWebProtobufsE2E.CommentMessage.targetMessageKey:type_name -> WACommon.MessageKey
+	256, // 270: WAWebProtobufsE2E.EncCommentMessage.targetMessageKey:type_name -> WACommon.MessageKey
+	256, // 271: WAWebProtobufsE2E.EncReactionMessage.targetMessageKey:type_name -> WACommon.MessageKey
+	256, // 272: WAWebProtobufsE2E.KeepInChatMessage.key:type_name -> WACommon.MessageKey
+	4,   // 273: WAWebProtobufsE2E.KeepInChatMessage.keepType:type_name -> WAWebProtobufsE2E.KeepType
+	256, // 274: WAWebProtobufsE2E.QuestionResponseMessage.key:type_name -> WACommon.MessageKey
+	256, // 275: WAWebProtobufsE2E.StatusQuestionAnswerMessage.key:type_name -> WACommon.MessageKey
+	240, // 276: WAWebProtobufsE2E.PollResultSnapshotMessage.pollVotes:type_name -> WAWebProtobufsE2E.PollResultSnapshotMessage.PollVote
+	100, // 277: WAWebProtobufsE2E.PollResultSnapshotMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	256, // 278: WAWebProtobufsE2E.PollUpdateMessage.pollCreationMessageKey:type_name -> WACommon.MessageKey
+	124, // 279: WAWebProtobufsE2E.PollUpdateMessage.vote:type_name -> WAWebProtobufsE2E.PollEncValue
+	125, // 280: WAWebProtobufsE2E.PollUpdateMessage.metadata:type_name -> WAWebProtobufsE2E.PollUpdateMessageMetadata
+	256, // 281: WAWebProtobufsE2E.ReactionMessage.key:type_name -> WACommon.MessageKey
+	109, // 282: WAWebProtobufsE2E.FutureProofMessage.message:type_name -> WAWebProtobufsE2E.Message
+	109, // 283: WAWebProtobufsE2E.DeviceSentMessage.message:type_name -> WAWebProtobufsE2E.Message
+	100, // 284: WAWebProtobufsE2E.RequestPhoneNumberMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	100, // 285: WAWebProtobufsE2E.NewsletterFollowerInviteMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	100, // 286: WAWebProtobufsE2E.NewsletterAdminInviteMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	241, // 287: WAWebProtobufsE2E.ProductMessage.product:type_name -> WAWebProtobufsE2E.ProductMessage.ProductSnapshot
+	242, // 288: WAWebProtobufsE2E.ProductMessage.catalog:type_name -> WAWebProtobufsE2E.ProductMessage.CatalogSnapshot
+	100, // 289: WAWebProtobufsE2E.ProductMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	100, // 290: WAWebProtobufsE2E.TemplateButtonReplyMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	244, // 291: WAWebProtobufsE2E.TemplateMessage.fourRowTemplate:type_name -> WAWebProtobufsE2E.TemplateMessage.FourRowTemplate
+	243, // 292: WAWebProtobufsE2E.TemplateMessage.hydratedFourRowTemplate:type_name -> WAWebProtobufsE2E.TemplateMessage.HydratedFourRowTemplate
+	82,  // 293: WAWebProtobufsE2E.TemplateMessage.interactiveMessageTemplate:type_name -> WAWebProtobufsE2E.InteractiveMessage
+	100, // 294: WAWebProtobufsE2E.TemplateMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	243, // 295: WAWebProtobufsE2E.TemplateMessage.hydratedTemplate:type_name -> WAWebProtobufsE2E.TemplateMessage.HydratedFourRowTemplate
+	100, // 296: WAWebProtobufsE2E.StickerMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	3,   // 297: WAWebProtobufsE2E.StickerMessage.mediaKeyDomain:type_name -> WAWebProtobufsE2E.MediaKeyDomain
+	100, // 298: WAWebProtobufsE2E.LiveLocationMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	256, // 299: WAWebProtobufsE2E.CancelPaymentRequestMessage.key:type_name -> WACommon.MessageKey
+	256, // 300: WAWebProtobufsE2E.DeclinePaymentRequestMessage.key:type_name -> WACommon.MessageKey
+	109, // 301: WAWebProtobufsE2E.RequestPaymentMessage.noteMessage:type_name -> WAWebProtobufsE2E.Message
+	173, // 302: WAWebProtobufsE2E.RequestPaymentMessage.amount:type_name -> WAWebProtobufsE2E.Money
+	106, // 303: WAWebProtobufsE2E.RequestPaymentMessage.background:type_name -> WAWebProtobufsE2E.PaymentBackground
+	109, // 304: WAWebProtobufsE2E.SendPaymentMessage.noteMessage:type_name -> WAWebProtobufsE2E.Message
+	256, // 305: WAWebProtobufsE2E.SendPaymentMessage.requestMessageKey:type_name -> WACommon.MessageKey
+	106, // 306: WAWebProtobufsE2E.SendPaymentMessage.background:type_name -> WAWebProtobufsE2E.PaymentBackground
+	162, // 307: WAWebProtobufsE2E.ContactsArrayMessage.contacts:type_name -> WAWebProtobufsE2E.ContactMessage
+	100, // 308: WAWebProtobufsE2E.ContactsArrayMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	1,   // 309: WAWebProtobufsE2E.PeerDataOperationRequestMessage.peerDataOperationRequestType:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestType
+	251, // 310: WAWebProtobufsE2E.PeerDataOperationRequestMessage.requestStickerReupload:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestMessage.RequestStickerReupload
+	250, // 311: WAWebProtobufsE2E.PeerDataOperationRequestMessage.requestURLPreview:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestMessage.RequestUrlPreview
+	249, // 312: WAWebProtobufsE2E.PeerDataOperationRequestMessage.historySyncOnDemandRequest:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestMessage.HistorySyncOnDemandRequest
+	247, // 313: WAWebProtobufsE2E.PeerDataOperationRequestMessage.placeholderMessageResendRequest:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestMessage.PlaceholderMessageResendRequest
+	248, // 314: WAWebProtobufsE2E.PeerDataOperationRequestMessage.fullHistorySyncOnDemandRequest:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestMessage.FullHistorySyncOnDemandRequest
+	246, // 315: WAWebProtobufsE2E.PeerDataOperationRequestMessage.syncdCollectionFatalRecoveryRequest:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestMessage.SyncDCollectionFatalRecoveryRequest
+	245, // 316: WAWebProtobufsE2E.PeerDataOperationRequestMessage.historySyncChunkRetryRequest:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestMessage.HistorySyncChunkRetryRequest
+	152, // 317: WAWebProtobufsE2E.AppStateSyncKeyRequest.keyIDs:type_name -> WAWebProtobufsE2E.AppStateSyncKeyId
+	153, // 318: WAWebProtobufsE2E.AppStateSyncKeyShare.keys:type_name -> WAWebProtobufsE2E.AppStateSyncKey
+	151, // 319: WAWebProtobufsE2E.AppStateSyncKeyData.fingerprint:type_name -> WAWebProtobufsE2E.AppStateSyncKeyFingerprint
+	152, // 320: WAWebProtobufsE2E.AppStateSyncKey.keyID:type_name -> WAWebProtobufsE2E.AppStateSyncKeyId
+	150, // 321: WAWebProtobufsE2E.AppStateSyncKey.keyData:type_name -> WAWebProtobufsE2E.AppStateSyncKeyData
+	2,   // 322: WAWebProtobufsE2E.HistorySyncNotification.syncType:type_name -> WAWebProtobufsE2E.HistorySyncType
+	146, // 323: WAWebProtobufsE2E.HistorySyncNotification.fullHistorySyncOnDemandRequestMetadata:type_name -> WAWebProtobufsE2E.FullHistorySyncOnDemandRequestMetadata
+	100, // 324: WAWebProtobufsE2E.Call.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	100, // 325: WAWebProtobufsE2E.AudioMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	3,   // 326: WAWebProtobufsE2E.AudioMessage.mediaKeyDomain:type_name -> WAWebProtobufsE2E.MediaKeyDomain
+	100, // 327: WAWebProtobufsE2E.DocumentMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	3,   // 328: WAWebProtobufsE2E.DocumentMessage.mediaKeyDomain:type_name -> WAWebProtobufsE2E.MediaKeyDomain
+	3,   // 329: WAWebProtobufsE2E.MMSThumbnailMetadata.mediaKeyDomain:type_name -> WAWebProtobufsE2E.MediaKeyDomain
+	100, // 330: WAWebProtobufsE2E.LocationMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	100, // 331: WAWebProtobufsE2E.ContactMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	263, // 332: WAWebProtobufsE2E.DeviceListMetadata.senderAccountType:type_name -> WAAdv.ADVEncryptionType
+	263, // 333: WAWebProtobufsE2E.DeviceListMetadata.receiverAccountType:type_name -> WAAdv.ADVEncryptionType
+	109, // 334: WAWebProtobufsE2E.EmbeddedMessage.message:type_name -> WAWebProtobufsE2E.Message
+	166, // 335: WAWebProtobufsE2E.EmbeddedContent.embeddedMessage:type_name -> WAWebProtobufsE2E.EmbeddedMessage
+	167, // 336: WAWebProtobufsE2E.EmbeddedContent.embeddedMusic:type_name -> WAWebProtobufsE2E.EmbeddedMusic
+	254, // 337: WAWebProtobufsE2E.TemplateButton.quickReplyButton:type_name -> WAWebProtobufsE2E.TemplateButton.QuickReplyButton
+	253, // 338: WAWebProtobufsE2E.TemplateButton.urlButton:type_name -> WAWebProtobufsE2E.TemplateButton.URLButton
+	252, // 339: WAWebProtobufsE2E.TemplateButton.callButton:type_name -> WAWebProtobufsE2E.TemplateButton.CallButton
+	255, // 340: WAWebProtobufsE2E.UrlTrackingMap.urlTrackingMapElements:type_name -> WAWebProtobufsE2E.UrlTrackingMap.UrlTrackingMapElement
+	264, // 341: WAWebProtobufsE2E.AIRichResponseMessage.messageType:type_name -> WAAICommon.AIRichResponseMessageType
+	265, // 342: WAWebProtobufsE2E.AIRichResponseMessage.submessages:type_name -> WAAICommon.AIRichResponseSubMessage
+	266, // 343: WAWebProtobufsE2E.AIRichResponseMessage.unifiedResponse:type_name -> WAAICommon.AIRichResponseUnifiedResponse
+	100, // 344: WAWebProtobufsE2E.AIRichResponseMessage.contextInfo:type_name -> WAWebProtobufsE2E.ContextInfo
+	256, // 345: WAWebProtobufsE2E.AIQueryFanout.messageKey:type_name -> WACommon.MessageKey
+	109, // 346: WAWebProtobufsE2E.AIQueryFanout.message:type_name -> WAWebProtobufsE2E.Message
+	8,   // 347: WAWebProtobufsE2E.CallLogMessage.CallParticipant.callOutcome:type_name -> WAWebProtobufsE2E.CallLogMessage.CallOutcome
+	188, // 348: WAWebProtobufsE2E.ButtonsMessage.Button.buttonText:type_name -> WAWebProtobufsE2E.ButtonsMessage.Button.ButtonText
+	18,  // 349: WAWebProtobufsE2E.ButtonsMessage.Button.type:type_name -> WAWebProtobufsE2E.ButtonsMessage.Button.Type
+	187, // 350: WAWebProtobufsE2E.ButtonsMessage.Button.nativeFlowInfo:type_name -> WAWebProtobufsE2E.ButtonsMessage.Button.NativeFlowInfo
+	21,  // 351: WAWebProtobufsE2E.InteractiveResponseMessage.Body.format:type_name -> WAWebProtobufsE2E.InteractiveResponseMessage.Body.Format
+	82,  // 352: WAWebProtobufsE2E.InteractiveMessage.CarouselMessage.cards:type_name -> WAWebProtobufsE2E.InteractiveMessage
+	22,  // 353: WAWebProtobufsE2E.InteractiveMessage.CarouselMessage.carouselCardType:type_name -> WAWebProtobufsE2E.InteractiveMessage.CarouselMessage.CarouselCardType
+	23,  // 354: WAWebProtobufsE2E.InteractiveMessage.ShopMessage.surface:type_name -> WAWebProtobufsE2E.InteractiveMessage.ShopMessage.Surface
+	198, // 355: WAWebProtobufsE2E.InteractiveMessage.NativeFlowMessage.buttons:type_name -> WAWebProtobufsE2E.InteractiveMessage.NativeFlowMessage.NativeFlowButton
+	157, // 356: WAWebProtobufsE2E.InteractiveMessage.Footer.audioMessage:type_name -> WAWebProtobufsE2E.AudioMessage
+	158, // 357: WAWebProtobufsE2E.InteractiveMessage.Header.documentMessage:type_name -> WAWebProtobufsE2E.DocumentMessage
+	99,  // 358: WAWebProtobufsE2E.InteractiveMessage.Header.imageMessage:type_name -> WAWebProtobufsE2E.ImageMessage
+	93,  // 359: WAWebProtobufsE2E.InteractiveMessage.Header.videoMessage:type_name -> WAWebProtobufsE2E.VideoMessage
+	161, // 360: WAWebProtobufsE2E.InteractiveMessage.Header.locationMessage:type_name -> WAWebProtobufsE2E.LocationMessage
+	134, // 361: WAWebProtobufsE2E.InteractiveMessage.Header.productMessage:type_name -> WAWebProtobufsE2E.ProductMessage
+	202, // 362: WAWebProtobufsE2E.ListMessage.ProductListInfo.productSections:type_name -> WAWebProtobufsE2E.ListMessage.ProductSection
+	201, // 363: WAWebProtobufsE2E.ListMessage.ProductListInfo.headerImage:type_name -> WAWebProtobufsE2E.ListMessage.ProductListHeaderImage
+	203, // 364: WAWebProtobufsE2E.ListMessage.ProductSection.products:type_name -> WAWebProtobufsE2E.ListMessage.Product
+	205, // 365: WAWebProtobufsE2E.ListMessage.Section.rows:type_name -> WAWebProtobufsE2E.ListMessage.Row
+	208, // 366: WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.currency:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMCurrency
+	207, // 367: WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.dateTime:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime
+	209, // 368: WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime.component:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime.HSMDateTimeComponent
+	210, // 369: WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime.unixEpoch:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime.HSMDateTimeUnixEpoch
+	31,  // 370: WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime.HSMDateTimeComponent.dayOfWeek:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime.HSMDateTimeComponent.DayOfWeekType
+	30,  // 371: WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime.HSMDateTimeComponent.calendar:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime.HSMDateTimeComponent.CalendarType
+	267, // 372: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.mediaUploadResult:type_name -> WAMmsRetry.MediaRetryNotification.ResultType
+	137, // 373: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.stickerMessage:type_name -> WAWebProtobufsE2E.StickerMessage
+	219, // 374: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.linkPreviewResponse:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.LinkPreviewResponse
+	218, // 375: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.placeholderMessageResendResponse:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.PlaceholderMessageResendResponse
+	216, // 376: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.waffleNonceFetchRequestResponse:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.WaffleNonceFetchResponse
+	217, // 377: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.fullHistorySyncOnDemandRequestResponse:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.FullHistorySyncOnDemandRequestResponse
+	215, // 378: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.companionMetaNonceFetchRequestResponse:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.CompanionMetaNonceFetchResponse
+	213, // 379: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.syncdSnapshotFatalRecoveryResponse:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.SyncDSnapshotFatalRecoveryResponse
+	214, // 380: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.companionCanonicalUserNonceFetchRequestResponse:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.CompanionCanonicalUserNonceFetchResponse
+	212, // 381: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.historySyncChunkRetryResponse:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.HistorySyncChunkRetryResponse
+	2,   // 382: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.HistorySyncChunkRetryResponse.syncType:type_name -> WAWebProtobufsE2E.HistorySyncType
+	32,  // 383: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.HistorySyncChunkRetryResponse.responseCode:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.HistorySyncChunkRetryResponseCode
+	146, // 384: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.FullHistorySyncOnDemandRequestResponse.requestMetadata:type_name -> WAWebProtobufsE2E.FullHistorySyncOnDemandRequestMetadata
+	33,  // 385: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.FullHistorySyncOnDemandRequestResponse.responseCode:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.FullHistorySyncOnDemandResponseCode
+	221, // 386: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.LinkPreviewResponse.hqThumbnail:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.LinkPreviewResponse.LinkPreviewHighQualityThumbnail
+	220, // 387: WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.LinkPreviewResponse.previewMetadata:type_name -> WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResult.LinkPreviewResponse.PaymentLinkPreviewMetadata
+	43,  // 388: WAWebProtobufsE2E.PaymentLinkMetadata.PaymentLinkHeader.headerType:type_name -> WAWebProtobufsE2E.PaymentLinkMetadata.PaymentLinkHeader.PaymentLinkHeaderType
+	52,  // 389: WAWebProtobufsE2E.ContextInfo.StatusAudienceMetadata.audienceType:type_name -> WAWebProtobufsE2E.ContextInfo.StatusAudienceMetadata.AudienceType
+	235, // 390: WAWebProtobufsE2E.ContextInfo.DataSharingContext.parameters:type_name -> WAWebProtobufsE2E.ContextInfo.DataSharingContext.Parameters
+	54,  // 391: WAWebProtobufsE2E.ContextInfo.ForwardedNewsletterMessageInfo.contentType:type_name -> WAWebProtobufsE2E.ContextInfo.ForwardedNewsletterMessageInfo.ContentType
+	56,  // 392: WAWebProtobufsE2E.ContextInfo.ExternalAdReplyInfo.mediaType:type_name -> WAWebProtobufsE2E.ContextInfo.ExternalAdReplyInfo.MediaType
+	55,  // 393: WAWebProtobufsE2E.ContextInfo.ExternalAdReplyInfo.adType:type_name -> WAWebProtobufsE2E.ContextInfo.ExternalAdReplyInfo.AdType
+	57,  // 394: WAWebProtobufsE2E.ContextInfo.AdReplyInfo.mediaType:type_name -> WAWebProtobufsE2E.ContextInfo.AdReplyInfo.MediaType
+	109, // 395: WAWebProtobufsE2E.ContextInfo.QuestionReplyQuotedMessage.quotedQuestion:type_name -> WAWebProtobufsE2E.Message
+	109, // 396: WAWebProtobufsE2E.ContextInfo.QuestionReplyQuotedMessage.quotedResponse:type_name -> WAWebProtobufsE2E.Message
+	235, // 397: WAWebProtobufsE2E.ContextInfo.DataSharingContext.Parameters.contents:type_name -> WAWebProtobufsE2E.ContextInfo.DataSharingContext.Parameters
+	62,  // 398: WAWebProtobufsE2E.HydratedTemplateButton.HydratedURLButton.webviewPresentation:type_name -> WAWebProtobufsE2E.HydratedTemplateButton.HydratedURLButton.WebviewPresentationType
+	99,  // 399: WAWebProtobufsE2E.ProductMessage.ProductSnapshot.productImage:type_name -> WAWebProtobufsE2E.ImageMessage
+	99,  // 400: WAWebProtobufsE2E.ProductMessage.CatalogSnapshot.catalogImage:type_name -> WAWebProtobufsE2E.ImageMessage
+	158, // 401: WAWebProtobufsE2E.TemplateMessage.HydratedFourRowTemplate.documentMessage:type_name -> WAWebProtobufsE2E.DocumentMessage
+	99,  // 402: WAWebProtobufsE2E.TemplateMessage.HydratedFourRowTemplate.imageMessage:type_name -> WAWebProtobufsE2E.ImageMessage
+	93,  // 403: WAWebProtobufsE2E.TemplateMessage.HydratedFourRowTemplate.videoMessage:type_name -> WAWebProtobufsE2E.VideoMessage
+	161, // 404: WAWebProtobufsE2E.TemplateMessage.HydratedFourRowTemplate.locationMessage:type_name -> WAWebProtobufsE2E.LocationMessage
+	105, // 405: WAWebProtobufsE2E.TemplateMessage.HydratedFourRowTemplate.hydratedButtons:type_name -> WAWebProtobufsE2E.HydratedTemplateButton
+	158, // 406: WAWebProtobufsE2E.TemplateMessage.FourRowTemplate.documentMessage:type_name -> WAWebProtobufsE2E.DocumentMessage
+	88,  // 407: WAWebProtobufsE2E.TemplateMessage.FourRowTemplate.highlyStructuredMessage:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage
+	99,  // 408: WAWebProtobufsE2E.TemplateMessage.FourRowTemplate.imageMessage:type_name -> WAWebProtobufsE2E.ImageMessage
+	93,  // 409: WAWebProtobufsE2E.TemplateMessage.FourRowTemplate.videoMessage:type_name -> WAWebProtobufsE2E.VideoMessage
+	161, // 410: WAWebProtobufsE2E.TemplateMessage.FourRowTemplate.locationMessage:type_name -> WAWebProtobufsE2E.LocationMessage
+	88,  // 411: WAWebProtobufsE2E.TemplateMessage.FourRowTemplate.content:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage
+	88,  // 412: WAWebProtobufsE2E.TemplateMessage.FourRowTemplate.footer:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage
+	172, // 413: WAWebProtobufsE2E.TemplateMessage.FourRowTemplate.buttons:type_name -> WAWebProtobufsE2E.TemplateButton
+	2,   // 414: WAWebProtobufsE2E.PeerDataOperationRequestMessage.HistorySyncChunkRetryRequest.syncType:type_name -> WAWebProtobufsE2E.HistorySyncType
+	256, // 415: WAWebProtobufsE2E.PeerDataOperationRequestMessage.PlaceholderMessageResendRequest.messageKey:type_name -> WACommon.MessageKey
+	146, // 416: WAWebProtobufsE2E.PeerDataOperationRequestMessage.FullHistorySyncOnDemandRequest.requestMetadata:type_name -> WAWebProtobufsE2E.FullHistorySyncOnDemandRequestMetadata
+	268, // 417: WAWebProtobufsE2E.PeerDataOperationRequestMessage.FullHistorySyncOnDemandRequest.historySyncConfig:type_name -> WACompanionReg.DeviceProps.HistorySyncConfig
+	88,  // 418: WAWebProtobufsE2E.TemplateButton.CallButton.displayText:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage
+	88,  // 419: WAWebProtobufsE2E.TemplateButton.CallButton.phoneNumber:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage
+	88,  // 420: WAWebProtobufsE2E.TemplateButton.URLButton.displayText:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage
+	88,  // 421: WAWebProtobufsE2E.TemplateButton.URLButton.URL:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage
+	88,  // 422: WAWebProtobufsE2E.TemplateButton.QuickReplyButton.displayText:type_name -> WAWebProtobufsE2E.HighlyStructuredMessage
+	423, // [423:423] is the sub-list for method output_type
+	423, // [423:423] is the sub-list for method input_type
+	423, // [423:423] is the sub-list for extension type_name
+	423, // [423:423] is the sub-list for extension extendee
+	0,   // [0:423] is the sub-list for field type_name
 }
 
 func init() { file_waE2E_WAWebProtobufsE2E_proto_init() }
@@ -24265,32 +22769,32 @@ func file_waE2E_WAWebProtobufsE2E_proto_init() {
 	if File_waE2E_WAWebProtobufsE2E_proto != nil {
 		return
 	}
-	file_waE2E_WAWebProtobufsE2E_proto_msgTypes[9].OneofWrappers = []any{
+	file_waE2E_WAWebProtobufsE2E_proto_msgTypes[10].OneofWrappers = []any{
 		(*ButtonsResponseMessage_SelectedDisplayText)(nil),
 	}
-	file_waE2E_WAWebProtobufsE2E_proto_msgTypes[10].OneofWrappers = []any{
+	file_waE2E_WAWebProtobufsE2E_proto_msgTypes[11].OneofWrappers = []any{
 		(*ButtonsMessage_Text)(nil),
 		(*ButtonsMessage_DocumentMessage)(nil),
 		(*ButtonsMessage_ImageMessage)(nil),
 		(*ButtonsMessage_VideoMessage)(nil),
 		(*ButtonsMessage_LocationMessage)(nil),
 	}
-	file_waE2E_WAWebProtobufsE2E_proto_msgTypes[13].OneofWrappers = []any{
+	file_waE2E_WAWebProtobufsE2E_proto_msgTypes[14].OneofWrappers = []any{
 		(*InteractiveResponseMessage_NativeFlowResponseMessage_)(nil),
 	}
-	file_waE2E_WAWebProtobufsE2E_proto_msgTypes[14].OneofWrappers = []any{
+	file_waE2E_WAWebProtobufsE2E_proto_msgTypes[15].OneofWrappers = []any{
 		(*InteractiveMessage_ShopStorefrontMessage)(nil),
 		(*InteractiveMessage_CollectionMessage_)(nil),
 		(*InteractiveMessage_NativeFlowMessage_)(nil),
 		(*InteractiveMessage_CarouselMessage_)(nil),
 	}
-	file_waE2E_WAWebProtobufsE2E_proto_msgTypes[38].OneofWrappers = []any{
+	file_waE2E_WAWebProtobufsE2E_proto_msgTypes[37].OneofWrappers = []any{
 		(*InteractiveAnnotation_Location)(nil),
 		(*InteractiveAnnotation_Newsletter)(nil),
 		(*InteractiveAnnotation_EmbeddedAction)(nil),
 		(*InteractiveAnnotation_TapAction)(nil),
 	}
-	file_waE2E_WAWebProtobufsE2E_proto_msgTypes[39].OneofWrappers = []any{
+	file_waE2E_WAWebProtobufsE2E_proto_msgTypes[38].OneofWrappers = []any{
 		(*HydratedTemplateButton_QuickReplyButton)(nil),
 		(*HydratedTemplateButton_UrlButton)(nil),
 		(*HydratedTemplateButton_CallButton)(nil),
@@ -24300,16 +22804,19 @@ func file_waE2E_WAWebProtobufsE2E_proto_init() {
 		(*TemplateMessage_HydratedFourRowTemplate_)(nil),
 		(*TemplateMessage_InteractiveMessageTemplate)(nil),
 	}
-	file_waE2E_WAWebProtobufsE2E_proto_msgTypes[100].OneofWrappers = []any{
+	file_waE2E_WAWebProtobufsE2E_proto_msgTypes[101].OneofWrappers = []any{
 		(*EmbeddedContent_EmbeddedMessage)(nil),
 		(*EmbeddedContent_EmbeddedMusic)(nil),
 	}
-	file_waE2E_WAWebProtobufsE2E_proto_msgTypes[104].OneofWrappers = []any{
+	file_waE2E_WAWebProtobufsE2E_proto_msgTypes[105].OneofWrappers = []any{
 		(*TemplateButton_QuickReplyButton_)(nil),
 		(*TemplateButton_UrlButton)(nil),
 		(*TemplateButton_CallButton_)(nil),
 	}
 	file_waE2E_WAWebProtobufsE2E_proto_msgTypes[128].OneofWrappers = []any{
+		(*InteractiveMessage_Footer_AudioMessage)(nil),
+	}
+	file_waE2E_WAWebProtobufsE2E_proto_msgTypes[130].OneofWrappers = []any{
 		(*InteractiveMessage_Header_DocumentMessage)(nil),
 		(*InteractiveMessage_Header_ImageMessage)(nil),
 		(*InteractiveMessage_Header_JPEGThumbnail)(nil),
@@ -24317,25 +22824,22 @@ func file_waE2E_WAWebProtobufsE2E_proto_init() {
 		(*InteractiveMessage_Header_LocationMessage)(nil),
 		(*InteractiveMessage_Header_ProductMessage)(nil),
 	}
-	file_waE2E_WAWebProtobufsE2E_proto_msgTypes[137].OneofWrappers = []any{
+	file_waE2E_WAWebProtobufsE2E_proto_msgTypes[139].OneofWrappers = []any{
 		(*HighlyStructuredMessage_HSMLocalizableParameter_Currency)(nil),
 		(*HighlyStructuredMessage_HSMLocalizableParameter_DateTime)(nil),
 	}
-	file_waE2E_WAWebProtobufsE2E_proto_msgTypes[138].OneofWrappers = []any{
+	file_waE2E_WAWebProtobufsE2E_proto_msgTypes[140].OneofWrappers = []any{
 		(*HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_Component)(nil),
 		(*HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_UnixEpoch)(nil),
 	}
-	file_waE2E_WAWebProtobufsE2E_proto_msgTypes[180].OneofWrappers = []any{
-		(*AIRichResponseMessage_AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata_ReelItem)(nil),
-	}
-	file_waE2E_WAWebProtobufsE2E_proto_msgTypes[193].OneofWrappers = []any{
+	file_waE2E_WAWebProtobufsE2E_proto_msgTypes[176].OneofWrappers = []any{
 		(*TemplateMessage_HydratedFourRowTemplate_DocumentMessage)(nil),
 		(*TemplateMessage_HydratedFourRowTemplate_HydratedTitleText)(nil),
 		(*TemplateMessage_HydratedFourRowTemplate_ImageMessage)(nil),
 		(*TemplateMessage_HydratedFourRowTemplate_VideoMessage)(nil),
 		(*TemplateMessage_HydratedFourRowTemplate_LocationMessage)(nil),
 	}
-	file_waE2E_WAWebProtobufsE2E_proto_msgTypes[194].OneofWrappers = []any{
+	file_waE2E_WAWebProtobufsE2E_proto_msgTypes[177].OneofWrappers = []any{
 		(*TemplateMessage_FourRowTemplate_DocumentMessage)(nil),
 		(*TemplateMessage_FourRowTemplate_HighlyStructuredMessage)(nil),
 		(*TemplateMessage_FourRowTemplate_ImageMessage)(nil),
@@ -24347,8 +22851,8 @@ func file_waE2E_WAWebProtobufsE2E_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_waE2E_WAWebProtobufsE2E_proto_rawDesc), len(file_waE2E_WAWebProtobufsE2E_proto_rawDesc)),
-			NumEnums:      73,
-			NumMessages:   205,
+			NumEnums:      67,
+			NumMessages:   189,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
