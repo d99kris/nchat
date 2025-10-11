@@ -505,14 +505,26 @@ list order.
 ### clipboard_copy_command
 
 Specifies a custom copy (and cut) command to be used instead of system
-clipboard. For a simple file-backed clipboard use `tee ~/.clipboard`. With
-`pbcopy` the behavior would be similar to default macOS behavior.
+clipboard. Examples:
+
+| Platform    | Command                          |
+|-------------|----------------------------------|
+| File-based  | `tee ~/.clipboard`               |
+| macOS       | `pbcopy`                         |
+| Wayland     | `wl-copy`                        |
+| X11         | `xclip -selection clipboard`     |
 
 ### clipboard_paste_command
 
 Specifies a custom paste command to be used instead of system clipboard.
-For a simple file-backed clipboard use `cat ~/.clipboard`. With `pbpaste`
-the behavior would be similar to default macOS behavior.
+Examples:
+
+| Platform    | Command                          |
+|-------------|----------------------------------|
+| File-based  | `cat ~/.clipboard`               |
+| macOS       | `pbpaste`                        |
+| Wayland     | `wl-paste`                       |
+| X11         | `xclip -o -selection clipboard`  |
 
 ### confirm_deletion
 
