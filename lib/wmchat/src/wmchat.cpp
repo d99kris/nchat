@@ -790,19 +790,29 @@ void WmNewChatsNotify(int p_ConnId, char* p_ChatId, int p_IsUnread, int p_IsMute
 
 void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe,
                          char* p_QuotedId, char* p_FileId, char* p_FilePath, int p_FileStatus, int p_TimeSent,
-                         int p_IsRead, int p_IsEditCaption)
+                         int p_IsRead, int p_IsEdited)
 {
   WmChat* instance = WmChat::GetInstance(p_ConnId);
   if (instance != nullptr)
   {
-    std::string fileInfoStr;
-    if (p_IsEditCaption)
+    ChatMessage chatMessage;
+    chatMessage.id = std::string(p_MsgId);
+    chatMessage.senderId = std::string(p_SenderId);
+    chatMessage.text = std::string(p_Text);
+    chatMessage.isOutgoing = (p_FromMe == 1);
+    chatMessage.quotedId = std::string(p_QuotedId);
+    chatMessage.timeSent = (((int64_t)p_TimeSent) * 1000) + (std::hash<std::string>{ }(chatMessage.id) % 256);
+    chatMessage.isRead = (p_IsRead == 1);
+
+    if (p_IsEdited)
     {
       std::vector<ChatMessage> chatMessages;
       if (MessageCache::GetOneMessage(instance->GetProfileId(), std::string(p_ChatId), std::string(p_MsgId),
                                       chatMessages))
       {
-        fileInfoStr = chatMessages.at(0).fileInfo;
+        // retain original sent time and file info
+        chatMessage.timeSent = chatMessages.at(0).timeSent;
+        chatMessage.fileInfo = chatMessages.at(0).fileInfo;
       }
     }
     else
@@ -814,19 +824,9 @@ void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_Se
         fileInfo.fileStatus = (FileStatus)p_FileStatus;
         fileInfo.fileId = fileId;
         fileInfo.filePath = std::string(p_FilePath);
-        fileInfoStr = ProtocolUtil::FileInfoToHex(fileInfo);
+        chatMessage.fileInfo = ProtocolUtil::FileInfoToHex(fileInfo);
       }
     }
-
-    ChatMessage chatMessage;
-    chatMessage.id = std::string(p_MsgId);
-    chatMessage.senderId = std::string(p_SenderId);
-    chatMessage.text = std::string(p_Text);
-    chatMessage.isOutgoing = (p_FromMe == 1);
-    chatMessage.quotedId = std::string(p_QuotedId);
-    chatMessage.fileInfo = fileInfoStr;
-    chatMessage.timeSent = (((int64_t)p_TimeSent) * 1000) + (std::hash<std::string>{ }(chatMessage.id) % 256);
-    chatMessage.isRead = (p_IsRead == 1);
 
     std::shared_ptr<NewMessagesNotify> newMessagesNotify =
       std::make_shared<NewMessagesNotify>(instance->GetProfileId());
