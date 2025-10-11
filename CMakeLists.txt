@@ -41,6 +41,10 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   endif()
 elseif (${CMAKE_SYSTEM_NAME} MATCHES "Android")
   add_compile_definitions(_XOPEN_SOURCE_EXTENDED)
+  if (DEFINED ENV{PREFIX} AND "$ENV{PREFIX}" MATCHES "^/data/data/com\\.termux/files/usr$")
+    message(STATUS "Found termux")
+    add_compile_definitions(HAVE_TERMUX)
+  endif()
 endif()
 
 # Config - Components built as shared libraries

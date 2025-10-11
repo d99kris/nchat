@@ -103,11 +103,11 @@ while [[ ${#} -gt 0 ]]; do
       ;;
 
     --no-telegram)
-      CMAKEARGS="${CMAKEARGS} -DHAS_TELEGRAM=OFF"
+      CMAKEARGS="-DHAS_TELEGRAM=OFF ${CMAKEARGS}"
       ;;
 
     --no-whatsapp)
-      CMAKEARGS="${CMAKEARGS} -DHAS_WHATSAPP=OFF"
+      CMAKEARGS="-DHAS_WHATSAPP=OFF ${CMAKEARGS}"
       ;;
 
     -y)
@@ -126,53 +126,66 @@ while [[ ${#} -gt 0 ]]; do
   shift
 done
 
+# detect os / distro
+OS="$(uname)"
+if [ "${OS}" == "Linux" ]; then
+  unset NAME
+  eval $(grep "^NAME=" /etc/os-release 2> /dev/null)
+  if [[ "${NAME}" != "" ]]; then
+    DISTRO="${NAME}"
+  else
+    if [[ "${TERMUX_VERSION}" != "" ]]; then
+      DISTRO="Termux"
+    fi
+  fi
+fi
+
 # deps
 if [[ "${DEPS}" == "1" ]]; then
-  OS="$(uname)"
   if [ "${OS}" == "Linux" ]; then
-    unset NAME
-    eval $(grep "^NAME=" /etc/os-release 2> /dev/null)
-    if [[ "${NAME}" == "Ubuntu" ]]; then
-      sudo apt update && sudo apt ${YES} install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev || exiterr "deps failed (${NAME}), exiting."
-      sudo apt ${YES} install golang-1.23 || exiterr "deps failed (${NAME} apt golang), exiting."
-      sudo update-alternatives --install /usr/bin/go go /usr/lib/go-1.23/bin/go 123 || exiterr "deps failed (${NAME} select golang), exiting."
-    elif [[ "${NAME}" == "Debian GNU/Linux" ]]; then
-      sudo apt update && sudo apt ${YES} install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev || exiterr "deps failed (${NAME}), exiting."
+    if [[ "${DISTRO}" == "Ubuntu" ]]; then
+      sudo apt update && sudo apt ${YES} install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev || exiterr "deps failed (${DISTRO}), exiting."
+      sudo apt ${YES} install golang-1.23 || exiterr "deps failed (${DISTRO} apt golang), exiting."
+      sudo update-alternatives --install /usr/bin/go go /usr/lib/go-1.23/bin/go 123 || exiterr "deps failed (${DISTRO} select golang), exiting."
+    elif [[ "${DISTRO}" == "Debian GNU/Linux" ]]; then
+      sudo apt update && sudo apt ${YES} install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev || exiterr "deps failed (${DISTRO}), exiting."
       RELEASE=$(lsb_release -a | grep 'Codename:' | awk -F':' '{print $2}' | awk '{$1=$1;print}')
       if [[ "${RELEASE}" == "bookworm" ]]; then
         sudo apt install ${YES} -t bookworm-backports golang-1.23
         if [[ "${?}" != "0" ]]; then
           echo "Please ensure backports are enabled, see https://backports.debian.org/Instructions/#index2h2"
-          exiterr "deps failed (${NAME} ${RELEASE}), exiting."
+          exiterr "deps failed (${DISTRO} ${RELEASE}), exiting."
         fi
-        sudo update-alternatives --install /usr/bin/go go /usr/lib/go-1.23/bin/go 123 || exiterr "deps failed (${NAME} select golang), exiting."
+        sudo update-alternatives --install /usr/bin/go go /usr/lib/go-1.23/bin/go 123 || exiterr "deps failed (${DISTRO} select golang), exiting."
       elif [[ "${RELEASE}" == "unstable" ]]; then
-        sudo apt ${YES} install golang || exiterr "deps failed (${NAME} ${RELEASE}), exiting."
+        sudo apt ${YES} install golang || exiterr "deps failed (${DISTRO} ${RELEASE}), exiting."
       else
-        echo "Unsupported ${NAME} version ${RELEASE}. Install golang-1.23 or newer manually, for example by running:"
+        echo "Unsupported ${DISTRO} version ${RELEASE}. Install golang-1.23 or newer manually, for example by running:"
         echo "wget https://go.dev/dl/go1.24.4.linux-amd64.tar.gz && sudo tar xf go.1.24.4.linux-amd64.tar.gz -C /usr/local"
-        exiterr "deps failed (${NAME} ${RELEASE}), exiting."
+        exiterr "deps failed (${DISTRO} ${RELEASE}), exiting."
       fi
-    elif [[ "${NAME}" == "Raspbian GNU/Linux" ]] || [[ "${NAME}" == "Pop!_OS" ]]; then
-      sudo apt update && sudo apt ${YES} install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev golang || exiterr "deps failed (${NAME}), exiting."
-    elif [[ "${NAME}" == "Gentoo" ]]; then
-      sudo emerge -n dev-build/cmake dev-util/ccache dev-util/gperf sys-apps/help2man sys-libs/readline dev-libs/openssl sys-libs/ncurses sys-libs/zlib dev-db/sqlite sys-apps/file dev-lang/go || exiterr "deps failed (${NAME}), exiting."
-    elif [[ "${NAME}" == "Fedora Linux" ]]; then
-      sudo dnf ${YES} install git cmake clang golang ccache file-devel file-libs gperf readline-devel openssl-devel ncurses-devel sqlite-devel zlib-devel || exiterr "deps failed (${NAME}), exiting."
-    elif [[ "${NAME}" == "Arch Linux" ]] || [[ "${NAME}" == "Arch Linux ARM" ]] || [[ "${NAME}" == "EndeavourOS" ]]; then
-      sudo pacman -S ccache cmake file go gperf help2man ncurses openssl readline sqlite zlib base-devel || exiterr "deps failed (${NAME}), exiting."
-    elif [[ "${NAME}" == "Void" ]]; then
-      sudo xbps-install ${YES} base-devel go ccache cmake gperf help2man libmagick-devel readline-devel sqlite-devel file-devel openssl-devel || exiterr "deps failed (${NAME}), exiting."
-    elif [[ "${NAME}" == "Alpine Linux" ]]; then
-      sudo apk add git build-base cmake ncurses-dev openssl-dev sqlite-dev file-dev go linux-headers zlib-dev ccache gperf readline || exiterr "deps failed (${NAME}), exiting."
-    elif [[ "${NAME}" == "openSUSE Tumbleweed" ]]; then
-      sudo zypper install ${YES} -t pattern devel_C_C++ && sudo zypper install ${YES} go ccache cmake libopenssl-devel sqlite3-devel file-devel readline-devel || exiterr "deps failed (${NAME}), exiting."
-    elif [[ "${NAME}" == "Chimera" ]]; then
-      doas apk add git cmake clang go ccache gperf readline-devel openssl-devel ncurses-devel sqlite-devel zlib-devel file-devel || exiterr "deps failed (${NAME}), exiting."
-    elif [[ "${NAME}" == "Rocky Linux" ]]; then
-      sudo yum config-manager --set-enabled powertools && sudo yum ${YES} groupinstall "Development Tools" && sudo yum ${YES} install git go cmake gperf readline-devel openssl-devel ncurses-devel zlib-devel sqlite-devel file-devel || exiterr "deps failed (${NAME}), exiting."
+    elif [[ "${DISTRO}" == "Raspbian GNU/Linux" ]] || [[ "${DISTRO}" == "Pop!_OS" ]]; then
+      sudo apt update && sudo apt ${YES} install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev golang || exiterr "deps failed (${DISTRO}), exiting."
+    elif [[ "${DISTRO}" == "Gentoo" ]]; then
+      sudo emerge -n dev-build/cmake dev-util/ccache dev-util/gperf sys-apps/help2man sys-libs/readline dev-libs/openssl sys-libs/ncurses sys-libs/zlib dev-db/sqlite sys-apps/file dev-lang/go || exiterr "deps failed (${DISTRO}), exiting."
+    elif [[ "${DISTRO}" == "Fedora Linux" ]]; then
+      sudo dnf ${YES} install git cmake clang golang ccache file-devel file-libs gperf readline-devel openssl-devel ncurses-devel sqlite-devel zlib-devel || exiterr "deps failed (${DISTRO}), exiting."
+    elif [[ "${DISTRO}" == "Arch Linux" ]] || [[ "${DISTRO}" == "Arch Linux ARM" ]] || [[ "${DISTRO}" == "EndeavourOS" ]]; then
+      sudo pacman -S ccache cmake file go gperf help2man ncurses openssl readline sqlite zlib base-devel || exiterr "deps failed (${DISTRO}), exiting."
+    elif [[ "${DISTRO}" == "Void" ]]; then
+      sudo xbps-install ${YES} base-devel go ccache cmake gperf help2man libmagick-devel readline-devel sqlite-devel file-devel openssl-devel || exiterr "deps failed (${DISTRO}), exiting."
+    elif [[ "${DISTRO}" == "Alpine Linux" ]]; then
+      sudo apk add git build-base cmake ncurses-dev openssl-dev sqlite-dev file-dev go linux-headers zlib-dev ccache gperf readline || exiterr "deps failed (${DISTRO}), exiting."
+    elif [[ "${DISTRO}" == "openSUSE Tumbleweed" ]]; then
+      sudo zypper install ${YES} -t pattern devel_C_C++ && sudo zypper install ${YES} go ccache cmake libopenssl-devel sqlite3-devel file-devel readline-devel || exiterr "deps failed (${DISTRO}), exiting."
+    elif [[ "${DISTRO}" == "Chimera" ]]; then
+      doas apk add git cmake clang go ccache gperf readline-devel openssl-devel ncurses-devel sqlite-devel zlib-devel file-devel || exiterr "deps failed (${DISTRO}), exiting."
+    elif [[ "${DISTRO}" == "Rocky Linux" ]]; then
+      sudo yum config-manager --set-enabled powertools && sudo yum ${YES} groupinstall "Development Tools" && sudo yum ${YES} install git go cmake gperf readline-devel openssl-devel ncurses-devel zlib-devel sqlite-devel file-devel || exiterr "deps failed (${DISTRO}), exiting."
+    elif [[ "${DISTRO}" == "Termux" ]]; then
+      pkg install cmake clang golang ccache gperf file readline libsqlite openssl libandroid-wordexp || exiterr "deps failed (${DISTRO}), exiting."
     else
-      exiterr "deps failed (unsupported linux distro ${NAME}), exiting."
+      exiterr "deps failed (unsupported linux distro ${DISTRO}), exiting."
     fi
   elif [ "${OS}" == "Darwin" ]; then
     if command -v brew &> /dev/null; then
@@ -227,9 +240,17 @@ if [[ "${BUMP}" == "1" ]]; then
   fi
 fi
 
-# build
-if [[ "${BUILD}" == "1" ]]; then
-  OS="$(uname)"
+# cmake args
+if [[ "${BUILD}" == "1" ]] || [[ "${DEBUG}" == "1" ]]; then
+  if [[ "${OS}" == "Linux" ]] && [[ "${DISTRO}" == "Termux" ]]; then
+    CMAKEARGS="-DCMAKE_INSTALL_PREFIX=${PREFIX} -DHAS_DYNAMICLOAD=OFF -DHAS_STATICGOLIB=OFF ${CMAKEARGS}"
+    export CC="clang"
+    export CXX="clang++"
+  fi
+fi
+
+# make args
+if [[ "${BUILD}" == "1" ]] || [[ "${DEBUG}" == "1" ]]; then
   if [ "${OS}" == "Linux" ]; then
     MEM="$(( $(($(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE) / (1000 * 1000 * 1000))) * 1000 ))" # in MB
   elif [ "${OS}" == "Darwin" ]; then
@@ -237,7 +258,7 @@ if [[ "${BUILD}" == "1" ]]; then
   fi
 
   MEM_NEEDED_PER_CORE="3500" # tdlib under g++ needs 3.5 GB
-  if [[ "$(c++ -dM -E -x c++ - < /dev/null | grep CLANG_ATOMIC > /dev/null ; echo ${?})" == "0" ]]; then
+  if [[ "$(${CXX:-c++} -dM -E -x c++ - < /dev/null | grep CLANG_ATOMIC > /dev/null ; echo ${?})" == "0" ]]; then
     MEM_NEEDED_PER_CORE="1500" # tdlib under clang++ needs 1.5 GB
   fi
 
@@ -259,51 +280,26 @@ if [[ "${BUILD}" == "1" ]]; then
   fi
 
   MAKEARGS="-j${MAX_THREADS}"
-  echo "-- Using ${MAKEARGS} (${CPU_MAX_THREADS} cores, ${MEM} MB phys mem, ${MEM_NEEDED_PER_CORE} MB mem per core needed)"
+fi
 
+# build
+if [[ "${BUILD}" == "1" ]]; then
+  echo "-- Using cmake ${CMAKEARGS}"
+  echo "-- Using ${MAKEARGS} (${CPU_MAX_THREADS} cores, ${MEM} MB phys mem, ${MEM_NEEDED_PER_CORE} MB mem per core needed)"
   mkdir -p build && cd build && cmake ${CMAKEARGS} .. && make -s ${MAKEARGS} && cd .. || exiterr "build failed, exiting."
 fi
 
 # debug
 if [[ "${DEBUG}" == "1" ]]; then
-  OS="$(uname)"
-  if [ "${OS}" == "Linux" ]; then
-    MEM="$(( $(($(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE) / (1000 * 1000 * 1000))) * 1000 ))" # in MB
-  elif [ "${OS}" == "Darwin" ]; then
-    MEM="$(( $(($(sysctl -n hw.memsize) / (1000 * 1000 * 1000))) * 1000 ))" # in MB
-  fi
-
-  MEM_NEEDED_PER_CORE="3500" # tdlib under g++ needs 3.5 GB
-  if [[ "$(c++ -dM -E -x c++ - < /dev/null | grep CLANG_ATOMIC > /dev/null ; echo ${?})" == "0" ]]; then
-    MEM_NEEDED_PER_CORE="1500" # tdlib under clang++ needs 1.5 GB
-  fi
-
-  MEM_MAX_THREADS="$((${MEM} / ${MEM_NEEDED_PER_CORE}))"
-  if [[ "${MEM_MAX_THREADS}" == "0" ]]; then
-    MEM_MAX_THREADS="1" # minimum 1 core
-  fi
-
-  if [[ "${OS}" == "Darwin" ]]; then
-    CPU_MAX_THREADS="$(sysctl -n hw.ncpu)"
-  else
-    CPU_MAX_THREADS="$(nproc)"
-  fi
-
-  if [[ ${MEM_MAX_THREADS} -gt ${CPU_MAX_THREADS} ]]; then
-    MAX_THREADS=${CPU_MAX_THREADS}
-  else
-    MAX_THREADS=${MEM_MAX_THREADS}
-  fi
-
-  MAKEARGS="-j${MAX_THREADS}"
+  CMAKEARGS="-DCMAKE_BUILD_TYPE=Debug ${CMAKEARGS}"
+  echo "-- Using cmake ${CMAKEARGS}"
   echo "-- Using ${MAKEARGS} (${CPU_MAX_THREADS} cores, ${MEM} MB phys mem, ${MEM_NEEDED_PER_CORE} MB mem per core needed)"
-
-  mkdir -p dbgbuild && cd dbgbuild && cmake -DCMAKE_BUILD_TYPE=Debug ${CMAKEARGS} .. && make -s ${MAKEARGS} && cd .. || exiterr "debug build failed, exiting."
+  mkdir -p dbgbuild && cd dbgbuild && cmake ${CMAKEARGS} .. && make -s ${MAKEARGS} && cd .. || exiterr "debug build failed, exiting."
 fi
 
 # tests
 if [[ "${TESTS}" == "1" ]]; then
-  true || exiterr "tests failed, exiting."  
+  true || exiterr "tests failed, exiting."
 fi
 
 # doc
@@ -320,14 +316,20 @@ fi
 
 # install
 if [[ "${INSTALL}" == "1" ]]; then
-  OS="$(uname)"
-  if [ "${OS}" == "Linux" ]; then
-    cd build && sudo make install && cd .. || exiterr "install failed (linux), exiting."
-  elif [ "${OS}" == "Darwin" ]; then
-    cd build && sudo make install && cd .. || exiterr "install failed (mac), exiting."
-  else
-    exiterr "install failed (unsupported os ${OS}), exiting."
+  if [[ -z ${INSTALL_CMD+x} ]]; then
+    if [[ "${OS}" == "Linux" ]]; then
+      if [[ "${DISTRO}" != "Termux" ]]; then
+        INSTALL_CMD="$(basename $(which sudo doas | head -1))"
+      fi
+    elif [[ "${OS}" == "Darwin" ]]; then
+      if [[ "${GITHUB_ACTIONS}" == "true" ]]; then
+        INSTALL_CMD="sudo"
+      fi
+    fi
   fi
+
+  echo "-- Using ${INSTALL_CMD:+$INSTALL_CMD }make install"
+  cd build && ${INSTALL_CMD} make install && cd .. || exiterr "install failed (${OS}), exiting."
 fi
 
 # exit
