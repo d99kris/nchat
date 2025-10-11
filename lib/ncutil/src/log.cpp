@@ -1,6 +1,6 @@
 // log.cpp
 //
-// Copyright (c) 2020-2024 Kristofer Berggren
+// Copyright (c) 2020-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -44,7 +44,7 @@ void Log::Cleanup(bool p_IsLogdumpEnabled)
   if (p_IsLogdumpEnabled && m_HadWarnErr)
   {
     const std::string cmd = "grep -e '| ERROR |' -e '| WARN  |' " + m_Path;
-    int rv = system(cmd.c_str());
+    int rv = SysUtil::System(cmd);
     if (rv != 0)
     {
       printf("log dump command failed: %s\n", cmd.c_str());

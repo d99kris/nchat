@@ -21,6 +21,7 @@
 #include "sethelp.h"
 #include "status.h"
 #include "strutil.h"
+#include "sysutil.h"
 #include "timeutil.h"
 #include "uidialog.h"
 #include "uichatlistdialog.h"
@@ -956,7 +957,7 @@ void UiModel::Impl::OnKeyOpenMsg()
 
   const std::string cmd = openCmd + " " + tempPath;
   LOG_DEBUG("launching external pager: %s", cmd.c_str());
-  int rv = system(cmd.c_str());
+  int rv = SysUtil::System(cmd);
   if (rv == 0)
   {
     LOG_DEBUG("external pager exited successfully");
@@ -1098,7 +1099,7 @@ bool UiModel::Impl::RunCommand(const std::string& p_Cmd, std::string* p_StdOut /
 
   // run command
   LOG_TRACE("cmd \"%s\" start", cmd.c_str());
-  const int rv = system(cmd.c_str());
+  const int rv = SysUtil::System(cmd);
   if (rv != 0)
   {
     LOG_WARNING("cmd \"%s\" failed (%d)", cmd.c_str(), rv);
@@ -1138,7 +1139,7 @@ void UiModel::Impl::RunProgram(const std::string& p_Cmd)
 
   // run command
   LOG_TRACE("cmd \"%s\" start", p_Cmd.c_str());
-  int rv = system(p_Cmd.c_str());
+  int rv = SysUtil::System(p_Cmd);
   if (rv != 0)
   {
     LOG_WARNING("cmd \"%s\" failed (%d)", p_Cmd.c_str(), rv);
@@ -3165,7 +3166,7 @@ void UiModel::Impl::CallExternalEdit(const std::string& p_EditorCmd)
   FileUtil::WriteFile(tempPath, composeStr);
   const std::string cmd = p_EditorCmd + " " + tempPath;
   LOG_DEBUG("launching external editor: %s", cmd.c_str());
-  int rv = system(cmd.c_str());
+  int rv = SysUtil::System(cmd);
   if (rv == 0)
   {
     LOG_DEBUG("external editor exited successfully");
@@ -4520,7 +4521,7 @@ std::vector<std::string> UiModel::SelectFile()
 
     // run command
     LOG_TRACE("cmd \"%s\" start", cmd.c_str());
-    int rv = system(cmd.c_str());
+    int rv = SysUtil::System(cmd);
     if (rv == 0)
     {
       std::string filesStr = FileUtil::ReadFile(outPath);

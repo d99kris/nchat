@@ -1,6 +1,6 @@
 // sysutil.cpp
 //
-// Copyright (c) 2025 Kristofer Berggren
+// Copyright (c) 2024-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -10,6 +10,8 @@
 #include <sstream>
 
 #include <unistd.h>
+
+#include <sys/wait.h>
 
 #include "fileutil.h"
 #include "strutil.h"
@@ -90,4 +92,25 @@ bool SysUtil::IsSupportedLibc()
 #else
   return false;
 #endif
+}
+
+int SysUtil::System(const std::string& p_Cmd)
+{
+#if defined(HAVE_TERMUX)
+  static const std::string shPath = "/data/data/com.termux/files/usr/bin/sh";
+#else
+  static const std::string shPath = "/bin/sh";
+#endif
+
+  pid_t pid = fork();
+  if (pid == 0)
+  {
+    execl(shPath.c_str(), "sh", "-c", p_Cmd.c_str(), (char*)nullptr);
+    _exit(127);
+  }
+
+  if (pid < 0) return -1;
+
+  int status = 0;
+  return (waitpid(pid, &status, 0) < 0) ? -1 : status;
 }
