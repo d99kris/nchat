@@ -307,6 +307,9 @@ int main(int argc, char* argv[])
     }
   }
 
+  // Init temp
+  FileUtil::InitTempDir();
+
   // Init ui
   std::shared_ptr<Ui> ui = std::make_shared<Ui>();
 
@@ -438,6 +441,7 @@ int main(int argc, char* argv[])
   AppConfig::SetStr("version_used", AppUtil::GetAppVersion());
 
   // Cleanup
+  FileUtil::CleanupTempDir();
   MessageCache::Cleanup();
   AppConfig::Cleanup();
   Profiles::Cleanup();

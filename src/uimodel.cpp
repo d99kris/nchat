@@ -952,7 +952,7 @@ void UiModel::Impl::OnKeyOpenMsg()
   const ChatMessage& chatMessage = messages.at(messageId);
 
   endwin();
-  std::string tempPath = FileUtil::GetApplicationDir() + "/tmpview.txt";
+  std::string tempPath = FileUtil::GetTempDir() + "/view.txt";
   FileUtil::WriteFile(tempPath, chatMessage.text);
 
   const std::string cmd = openCmd + " " + tempPath;
@@ -1091,10 +1091,21 @@ void UiModel::Impl::OpenAttachment(const std::string& p_Path)
 bool UiModel::Impl::RunCommand(const std::string& p_Cmd, std::string* p_StdOut /*= nullptr*/)
 {
   const bool logStdErr = true;
-  const std::string stdoutFile = (p_StdOut != nullptr) ? FileUtil::MkTempFile() : "/dev/null";
-  const std::string stderrFile = logStdErr ? FileUtil::MkTempFile() : "/dev/null";
-  const std::string cmdPrefix = "2>'" + stderrFile + "' ";
-  const std::string cmdSuffix = " >'" + stdoutFile + "'";
+
+  std::string stdoutPath = "/dev/null";
+  if (p_StdOut != nullptr)
+  {
+    stdoutPath = FileUtil::GetTempDir() + "/stdout.txt";
+  }
+
+  std::string stderrPath = "/dev/null";
+  if (logStdErr)
+  {
+    stderrPath = FileUtil::GetTempDir() + "/stderr.txt";
+  }
+
+  const std::string cmdPrefix = "2>'" + stderrPath + "' ";
+  const std::string cmdSuffix = " >'" + stdoutPath + "'";
   const std::string cmd = cmdPrefix + p_Cmd + cmdSuffix;
 
   // run command
@@ -1106,17 +1117,17 @@ bool UiModel::Impl::RunCommand(const std::string& p_Cmd, std::string* p_StdOut /
   }
 
   // stdout
-  if ((p_StdOut != nullptr) && FileUtil::Exists(stdoutFile))
+  if ((p_StdOut != nullptr) && FileUtil::Exists(stdoutPath))
   {
-    *p_StdOut = FileUtil::ReadFile(stdoutFile);
-    FileUtil::RmFile(stdoutFile);
+    *p_StdOut = FileUtil::ReadFile(stdoutPath);
+    FileUtil::RmFile(stdoutPath);
   }
 
   // stderr
-  if (logStdErr && FileUtil::Exists(stderrFile))
+  if (logStdErr && FileUtil::Exists(stderrPath))
   {
-    const std::string stderrStr = FileUtil::ReadFile(stderrFile);
-    FileUtil::RmFile(stderrFile);
+    const std::string stderrStr = FileUtil::ReadFile(stderrPath);
+    FileUtil::RmFile(stderrPath);
     if (!stderrStr.empty())
     {
       LOG_WARNING("cmd \"%s\" stderr:", cmd.c_str());
@@ -3161,7 +3172,7 @@ void UiModel::Impl::CallExternalEdit(const std::string& p_EditorCmd)
   int& entryPos = m_EntryPos[profileId][chatId];
 
   endwin();
-  std::string tempPath = FileUtil::GetApplicationDir() + "/tmpcompose.txt";
+  std::string tempPath = FileUtil::GetTempDir() + "/compose.txt";
   std::string composeStr = StrUtil::ToString(entryStr);
   FileUtil::WriteFile(tempPath, composeStr);
   const std::string cmd = p_EditorCmd + " " + tempPath;
@@ -3787,7 +3798,7 @@ bool UiModel::Impl::AutoCompose()
   StrUtil::ReplaceString(selfName, "\n", " ");
   historyStr += selfName + ":\n";
 
-  std::string tempPath = FileUtil::GetApplicationDir() + "/tmphistory.txt";
+  std::string tempPath = FileUtil::GetTempDir() + "/history.txt";
   FileUtil::WriteFile(tempPath, historyStr);
 
   static const std::string cmdTemplate = []()
@@ -3852,7 +3863,7 @@ void UiModel::Impl::ClipboardSetText(const std::string& p_Text)
   static const std::string clipboardCopyCommand = UiConfig::GetStr("clipboard_copy_command");
   if (!clipboardCopyCommand.empty())
   {
-    const std::string tempPath = FileUtil::MkTempFile();
+    const std::string tempPath = FileUtil::GetTempDir() + "/clipboard.txt";
     FileUtil::WriteFile(tempPath, p_Text);
     const std::string cmd = "cat " + tempPath + " | " + clipboardCopyCommand;
     RunCommand(cmd);
@@ -4515,7 +4526,7 @@ std::vector<std::string> UiModel::SelectFile()
   if (!filePickerCommand.empty())
   {
     endwin();
-    std::string outPath = FileUtil::MkTempFile();
+    std::string outPath = FileUtil::GetTempDir() + "/filepicker.txt";
     std::string cmd = "2>&1 " + filePickerCommand;
     StrUtil::ReplaceString(cmd, "%1", outPath);
 

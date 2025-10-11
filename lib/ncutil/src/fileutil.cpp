@@ -44,6 +44,11 @@ std::string FileUtil::BaseName(const std::string& p_Path)
   return rv;
 }
 
+void FileUtil::CleanupTempDir()
+{
+  FileUtil::RmDir(FileUtil::GetTempDir());
+}
+
 void FileUtil::CopyFile(const std::string& p_SrcPath, const std::string& p_DstPath)
 {
   std::ifstream srcFile(p_SrcPath, std::ios::binary);
@@ -255,6 +260,12 @@ std::string FileUtil::GetSuffixedSize(ssize_t p_Size)
   return std::to_string(p_Size) + " " + suffixes.at(i);
 }
 
+std::string FileUtil::GetTempDir()
+{
+  static std::string tempDir = FileUtil::GetApplicationDir() + "/temp";
+  return tempDir;
+}
+
 void FileUtil::InitDirVersion(const std::string& p_Dir, int p_Version)
 {
   int storedVersion = GetDirVersion(p_Dir);
@@ -266,6 +277,12 @@ void FileUtil::InitDirVersion(const std::string& p_Dir, int p_Version)
     std::string versionPath = p_Dir + "/version";
     FileUtil::WriteFile(versionPath, StrUtil::StrToHex(std::to_string(p_Version)));
   }
+}
+
+void FileUtil::InitTempDir()
+{
+  FileUtil::RmDir(FileUtil::GetTempDir());
+  FileUtil::MkDir(FileUtil::GetTempDir());
 }
 
 bool FileUtil::IsDir(const std::string& p_Path)
@@ -288,21 +305,6 @@ std::set<DirEntry, DirEntryCompare> FileUtil::ListPaths(const std::string& p_Fol
 void FileUtil::MkDir(const std::string& p_Path)
 {
   apathy::Path::makedirs(p_Path);
-}
-
-std::string FileUtil::MkTempFile()
-{
-  std::string name = std::string("/tmp/nchat-tmpfile.XX" "XX" "XX");
-  char* cname = strdup(name.c_str());
-  int fd = mkstemp(cname);
-  if (fd != -1)
-  {
-    close(fd);
-  }
-
-  name = std::string(cname);
-  free(cname);
-  return name;
 }
 
 void FileUtil::Move(const std::string& p_From, const std::string& p_To)
