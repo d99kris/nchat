@@ -1,7 +1,7 @@
 Auto-Compose
 ============
 The nchat bundled default auto-compose utility `compose` uses external
-services for for chat completion, and generally requires an API key
+services for chat completion, and generally requires an API key
 (set in environment) to work. Environment variables to set:
 
     OpenAI: OPENAI_API_KEY
@@ -53,7 +53,7 @@ Configuring Custom Service / Model
 ----------------------------------
 Edit `ui.conf` to match the desired compose path and usage, example:
 
-    desktop_notify_command=/usr/local/libexec/nchat/compose -s gemini -m gemini-2.0-flash
+    auto_compose_command=/usr/local/libexec/nchat/compose -s gemini -m gemini-2.0-flash
 
 Generally one can determine the path of compose based on nchat install path:
 
