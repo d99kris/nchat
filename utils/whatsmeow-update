@@ -2,7 +2,7 @@
 
 # whatsmeow-update
 #
-# Copyright (c) 2023 Kristofer Berggren
+# Copyright (c) 2023-2025 Kristofer Berggren
 # All rights reserved.
 #
 # whatsmeow-update is distributed under the MIT license.
@@ -100,8 +100,12 @@ type DownloadableMessageWithURL interface {
 // nchat additions end
 EOT
 
+# Update whatsmeow date
 [[ "$(uname)" == "Linux" ]] && SEDCMD="sed" || SEDCMD="gsed"
 ${SEDCMD} -E -i -e "s/^var whatsmeowDate int.*$/var whatsmeowDate int = ${NEWVERSION}/g" lib/wmchat/go/gowm.go
+
+# Perform go mod tidy
+pushd lib/wmchat/go > /dev/null && go mod tidy && popd > /dev/null
 
 # Complete
 echo "Done"
