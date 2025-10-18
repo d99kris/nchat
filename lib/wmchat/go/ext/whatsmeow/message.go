@@ -124,6 +124,11 @@ func (cli *Client) parseMessageSource(node *waBinary.Node, requireParticipant bo
 		source.Sender = from
 		// TODO IsFromMe?
 	} else if from.User == clientID.User || from.User == clientLID.User {
+		if from.Server == types.HostedServer {
+			from.Server = types.DefaultUserServer
+		} else if from.Server == types.HostedLIDServer {
+			from.Server = types.HiddenUserServer
+		}
 		source.IsFromMe = true
 		source.Sender = from
 		recipient := ag.OptionalJID("recipient")
@@ -132,7 +137,7 @@ func (cli *Client) parseMessageSource(node *waBinary.Node, requireParticipant bo
 		} else {
 			source.Chat = from.ToNonAD()
 		}
-		if source.Chat.Server == types.HiddenUserServer {
+		if source.Chat.Server == types.HiddenUserServer || source.Chat.Server == types.HostedLIDServer {
 			source.RecipientAlt = ag.OptionalJIDOrEmpty("peer_recipient_pn")
 		} else {
 			source.RecipientAlt = ag.OptionalJIDOrEmpty("peer_recipient_lid")
@@ -148,9 +153,14 @@ func (cli *Client) parseMessageSource(node *waBinary.Node, requireParticipant bo
 			source.Chat = from
 		}
 	} else {
+		if from.Server == types.HostedServer {
+			from.Server = types.DefaultUserServer
+		} else if from.Server == types.HostedLIDServer {
+			from.Server = types.HiddenUserServer
+		}
 		source.Chat = from.ToNonAD()
 		source.Sender = from
-		if source.Sender.Server == types.HiddenUserServer {
+		if source.Sender.Server == types.HiddenUserServer || source.Chat.Server == types.HostedLIDServer {
 			source.SenderAlt = ag.OptionalJIDOrEmpty("sender_pn")
 		} else {
 			source.SenderAlt = ag.OptionalJIDOrEmpty("sender_lid")
@@ -291,13 +301,10 @@ func (cli *Client) decryptMessages(ctx context.Context, info *types.MessageInfo,
 	if ok && len(node.GetChildrenByTag("enc")) == 0 {
 		uType := events.UnavailableType(unavailableNode.AttrGetter().String("type"))
 		cli.Log.Warnf("Unavailable message %s from %s (type: %q)", info.ID, info.SourceString(), uType)
-		if cli.SynchronousAck {
+		cli.backgroundIfAsyncAck(func() {
 			cli.immediateRequestMessageFromPhone(ctx, info)
-			cli.sendAck(node)
-		} else {
-			go cli.delayedRequestMessageFromPhone(info)
-			go cli.sendAck(node)
-		}
+			cli.sendAck(node, 0)
+		})
 		cli.dispatchEvent(&events.UndecryptableMessage{Info: *info, IsUnavailable: true, UnavailableType: uType})
 		return
 	}
@@ -320,10 +327,12 @@ func (cli *Client) decryptMessages(ctx context.Context, info *types.MessageInfo,
 			cli.Log.Warnf("No LID found for %s", info.Sender)
 		}
 	}
+	var recognizedStanza, protobufFailed bool
 	for _, child := range children {
 		if child.Tag != "enc" {
 			continue
 		}
+		recognizedStanza = true
 		ag := child.AttrGetter()
 		encType, ok := ag.GetString("type", false)
 		if !ok {
@@ -380,10 +389,17 @@ func (cli *Client) decryptMessages(ctx context.Context, info *types.MessageInfo,
 				return
 			}
 			isUnavailable := encType == "skmsg" && !containsDirectMsg && errors.Is(err, signalerror.ErrNoSenderKeyForUser)
-			if cli.SynchronousAck {
+			if encType == "msmsg" {
+				cli.backgroundIfAsyncAck(func() {
+					cli.sendAck(node, NackMissingMessageSecret)
+				})
+			} else if cli.SynchronousAck {
 				cli.sendRetryReceipt(ctx, node, info, isUnavailable)
+				// TODO this probably isn't supposed to ack
+				cli.sendAck(node, 0)
 			} else {
 				go cli.sendRetryReceipt(context.WithoutCancel(ctx), node, info, isUnavailable)
+				go cli.sendAck(node, 0)
 			}
 			cli.dispatchEvent(&events.UndecryptableMessage{
 				Info:            *info,
@@ -399,15 +415,16 @@ func (cli *Client) decryptMessages(ctx context.Context, info *types.MessageInfo,
 		var handlerFailed bool
 		switch ag.Int("v") {
 		case 2:
-			// TODO send nack instead of receipt for proto unmarshal errors (both this one and armadillo)
 			err = proto.Unmarshal(decrypted, &msg)
 			if err != nil {
 				cli.Log.Warnf("Error unmarshaling decrypted message from %s: %v", info.SourceString(), err)
+				protobufFailed = true
 				continue
 			}
+			protobufFailed = false
 			handlerFailed = cli.handleDecryptedMessage(ctx, info, &msg, retryCount)
 		case 3:
-			handlerFailed = cli.handleDecryptedArmadillo(ctx, info, decrypted, retryCount)
+			handlerFailed, protobufFailed = cli.handleDecryptedArmadillo(ctx, info, decrypted, retryCount)
 		default:
 			cli.Log.Warnf("Unknown version %d in decrypted message from %s", ag.Int("v"), info.SourceString())
 		}
@@ -441,11 +458,15 @@ func (cli *Client) decryptMessages(ctx context.Context, info *types.MessageInfo,
 			}
 		}
 	}
-	if cli.SynchronousAck {
-		cli.sendMessageReceipt(info, node)
-	} else {
-		go cli.sendMessageReceipt(info, node)
-	}
+	cli.backgroundIfAsyncAck(func() {
+		if !recognizedStanza {
+			cli.sendAck(node, NackUnrecognizedStanza)
+		} else if protobufFailed {
+			cli.sendAck(node, NackInvalidProtobuf)
+		} else {
+			cli.sendMessageReceipt(info, node)
+		}
+	})
 	return
 }
 

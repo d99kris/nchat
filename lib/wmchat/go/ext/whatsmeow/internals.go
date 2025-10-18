@@ -67,7 +67,11 @@ func (int *DangerousInternalClient) RequestAppStateKeys(ctx context.Context, raw
 	int.c.requestAppStateKeys(ctx, rawKeyIDs)
 }
 
-func (int *DangerousInternalClient) HandleDecryptedArmadillo(ctx context.Context, info *types.MessageInfo, decrypted []byte, retryCount int) (handlerFailed bool) {
+func (int *DangerousInternalClient) SendAppState(ctx context.Context, patch appstate.PatchInfo, waitForSync bool) error {
+	return int.c.sendAppState(ctx, patch, waitForSync)
+}
+
+func (int *DangerousInternalClient) HandleDecryptedArmadillo(ctx context.Context, info *types.MessageInfo, decrypted []byte, retryCount int) (handlerFailed, protobufFailed bool) {
 	return int.c.handleDecryptedArmadillo(ctx, info, decrypted, retryCount)
 }
 
@@ -479,6 +483,10 @@ func (int *DangerousInternalClient) UploadPreKeys(ctx context.Context) {
 	int.c.uploadPreKeys(ctx)
 }
 
+func (int *DangerousInternalClient) FetchPreKeysNoError(ctx context.Context, retryDevices []types.JID) map[types.JID]*prekey.Bundle {
+	return int.c.fetchPreKeysNoError(ctx, retryDevices)
+}
+
 func (int *DangerousInternalClient) FetchPreKeys(ctx context.Context, users []types.JID) (map[types.JID]preKeyResp, error) {
 	return int.c.fetchPreKeys(ctx, users)
 }
@@ -511,12 +519,16 @@ func (int *DangerousInternalClient) ParseReceipt(node *waBinary.Node) (*events.R
 	return int.c.parseReceipt(node)
 }
 
+func (int *DangerousInternalClient) BackgroundIfAsyncAck(fn func()) {
+	int.c.backgroundIfAsyncAck(fn)
+}
+
 func (int *DangerousInternalClient) MaybeDeferredAck(ctx context.Context, node *waBinary.Node) func(...*bool) {
 	return int.c.maybeDeferredAck(ctx, node)
 }
 
-func (int *DangerousInternalClient) SendAck(node *waBinary.Node) {
-	int.c.sendAck(node)
+func (int *DangerousInternalClient) SendAck(node *waBinary.Node, error int) {
+	int.c.sendAck(node, error)
 }
 
 func (int *DangerousInternalClient) SendMessageReceipt(info *types.MessageInfo, node *waBinary.Node) {
@@ -611,7 +623,7 @@ func (int *DangerousInternalClient) PrepareMessageNodeV3(ctx context.Context, to
 	return int.c.prepareMessageNodeV3(ctx, to, ownID, id, payload, skdm, msgAttrs, frankingTag, participants, timings)
 }
 
-func (int *DangerousInternalClient) EncryptMessageForDevicesV3(ctx context.Context, allDevices []types.JID, ownID types.JID, id string, payload *waMsgTransport.MessageTransport_Payload, skdm *waMsgTransport.MessageTransport_Protocol_Ancillary_SenderKeyDistributionMessage, dsm *waMsgTransport.MessageTransport_Protocol_Integral_DeviceSentMessage, encAttrs waBinary.Attrs) []waBinary.Node {
+func (int *DangerousInternalClient) EncryptMessageForDevicesV3(ctx context.Context, allDevices []types.JID, ownID types.JID, id string, payload *waMsgTransport.MessageTransport_Payload, skdm *waMsgTransport.MessageTransport_Protocol_Ancillary_SenderKeyDistributionMessage, dsm *waMsgTransport.MessageTransport_Protocol_Integral_DeviceSentMessage, encAttrs waBinary.Attrs) ([]waBinary.Node, error) {
 	return int.c.encryptMessageForDevicesV3(ctx, allDevices, ownID, id, payload, skdm, dsm, encAttrs)
 }
 
