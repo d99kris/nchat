@@ -546,7 +546,7 @@ func ParseWebMessageInfo(selfJid types.JID, chatJid types.JID, webMsg *waWeb.Web
 		Timestamp: time.Unix(int64(webMsg.GetMessageTimestamp()), 0),
 	}
 	if info.IsFromMe {
-		info.Sender = selfJid.ToNonAD()
+		info.Sender = selfJid
 	} else if webMsg.GetParticipant() != "" {
 		info.Sender, _ = types.ParseJID(webMsg.GetParticipant())
 	} else if webMsg.GetKey().GetParticipant() != "" {
@@ -761,7 +761,8 @@ func (handler *WmEventHandler) HandleReceipt(receipt *events.Receipt) {
 	if receipt.Type == events.ReceiptTypeRead || receipt.Type == events.ReceiptTypeReadSelf {
 		LOG_TRACE(fmt.Sprintf("%#v was read by %s at %s", receipt.MessageIDs, receipt.SourceString(), receipt.Timestamp))
 		connId := handler.connId
-		chatId := receipt.MessageSource.Chat.ToNonAD().String()
+		var client *whatsmeow.Client = GetClient(connId)
+		chatId := JidToStr(client, receipt.MessageSource.Chat)
 		isRead := true
 		for _, msgId := range receipt.MessageIDs {
 			LOG_TRACE(fmt.Sprintf("Call CWmNewMessageStatusNotify"))
@@ -773,7 +774,8 @@ func (handler *WmEventHandler) HandleReceipt(receipt *events.Receipt) {
 func (handler *WmEventHandler) HandlePresence(presence *events.Presence) {
 	if presence.From.Server != types.GroupServer {
 		connId := handler.connId
-		userId := presence.From.ToNonAD().String()
+		var client *whatsmeow.Client = GetClient(connId)
+		userId := JidToStr(client, presence.From)
 		isOnline := !presence.Unavailable
 		timeSeen := int(presence.LastSeen.Unix())
 		LOG_TRACE(fmt.Sprintf("Call CWmNewStatusNotify"))
@@ -783,8 +785,9 @@ func (handler *WmEventHandler) HandlePresence(presence *events.Presence) {
 
 func (handler *WmEventHandler) HandleChatPresence(chatPresence *events.ChatPresence) {
 	connId := handler.connId
-	chatId := chatPresence.MessageSource.Chat.ToNonAD().String()
-	userId := chatPresence.MessageSource.Sender.ToNonAD().String()
+	var client *whatsmeow.Client = GetClient(connId)
+	chatId := JidToStr(client, chatPresence.MessageSource.Chat)
+	userId := JidToStr(client, chatPresence.MessageSource.Sender)
 	isTyping := (chatPresence.State == types.ChatPresenceComposing)
 	LOG_TRACE(fmt.Sprintf("Call CWmNewTypingNotify"))
 	CWmNewTypingNotify(connId, chatId, userId, BoolToInt(isTyping))
@@ -967,7 +970,8 @@ func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 
 func (handler *WmEventHandler) HandleDeleteChat(deleteChat *events.DeleteChat) {
 	connId := handler.connId
-	chatId := deleteChat.JID.ToNonAD().String()
+	var client *whatsmeow.Client = GetClient(connId)
+	chatId := JidToStr(client, deleteChat.JID)
 
 	LOG_TRACE(fmt.Sprintf("Call CWmDeleteChatNotify %s", chatId))
 	CWmDeleteChatNotify(connId, chatId)
@@ -975,7 +979,8 @@ func (handler *WmEventHandler) HandleDeleteChat(deleteChat *events.DeleteChat) {
 
 func (handler *WmEventHandler) HandleMute(mute *events.Mute) {
 	connId := handler.connId
-	chatId := mute.JID.ToNonAD().String()
+	var client *whatsmeow.Client = GetClient(connId)
+	chatId := JidToStr(client, mute.JID)
 	muteAction := mute.Action
 	if muteAction == nil {
 		LOG_WARNING(fmt.Sprintf("mute event missing mute action"))
@@ -990,7 +995,8 @@ func (handler *WmEventHandler) HandleMute(mute *events.Mute) {
 
 func (handler *WmEventHandler) HandlePin(pin *events.Pin) {
 	connId := handler.connId
-	chatId := pin.JID.ToNonAD().String()
+	var client *whatsmeow.Client = GetClient(connId)
+	chatId := JidToStr(client, pin.JID)
 	pinAction := pin.Action
 	if pinAction == nil {
 		LOG_WARNING(fmt.Sprintf("pin event missing pin action"))
@@ -1638,7 +1644,8 @@ func (handler *WmEventHandler) HandleProtocolMessage(messageInfo types.MessageIn
 	} else if protocol.GetType() == waE2E.ProtocolMessage_REVOKE {
 		// handle message revoke
 		connId := handler.connId
-		chatId := messageInfo.Chat.String()
+		var client *whatsmeow.Client = GetClient(connId)
+		chatId := JidToStr(client, messageInfo.Chat)
 		msgId := protocol.GetKey().GetId()
 		LOG_TRACE(fmt.Sprintf("Call CWmDeleteMessageNotify %s %s", chatId, msgId))
 		CWmDeleteMessageNotify(connId, chatId, msgId)
