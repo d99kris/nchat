@@ -18,6 +18,7 @@ public:
   static std::string GetGo(const std::string& p_GoVersion);
   static std::string GetOsArch();
   static bool IsSupportedLibc();
+  static bool RunCommand(const std::string& p_Cmd, std::string* p_StdOut = nullptr);
   static int System(const std::string& p_Cmd);
 
   template<typename T>

@@ -1090,52 +1090,7 @@ void UiModel::Impl::OpenAttachment(const std::string& p_Path)
 // Used when taking over terminal is disallowed or when output needs to be captured
 bool UiModel::Impl::RunCommand(const std::string& p_Cmd, std::string* p_StdOut /*= nullptr*/)
 {
-  const bool logStdErr = true;
-
-  std::string stdoutPath = "/dev/null";
-  if (p_StdOut != nullptr)
-  {
-    stdoutPath = FileUtil::GetTempDir() + "/stdout.txt";
-  }
-
-  std::string stderrPath = "/dev/null";
-  if (logStdErr)
-  {
-    stderrPath = FileUtil::GetTempDir() + "/stderr.txt";
-  }
-
-  const std::string cmdPrefix = "2>'" + stderrPath + "' ";
-  const std::string cmdSuffix = " >'" + stdoutPath + "'";
-  const std::string cmd = cmdPrefix + p_Cmd + cmdSuffix;
-
-  // run command
-  LOG_TRACE("cmd \"%s\" start", cmd.c_str());
-  const int rv = SysUtil::System(cmd);
-  if (rv != 0)
-  {
-    LOG_WARNING("cmd \"%s\" failed (%d)", cmd.c_str(), rv);
-  }
-
-  // stdout
-  if ((p_StdOut != nullptr) && FileUtil::Exists(stdoutPath))
-  {
-    *p_StdOut = FileUtil::ReadFile(stdoutPath);
-    FileUtil::RmFile(stdoutPath);
-  }
-
-  // stderr
-  if (logStdErr && FileUtil::Exists(stderrPath))
-  {
-    const std::string stderrStr = FileUtil::ReadFile(stderrPath);
-    FileUtil::RmFile(stderrPath);
-    if (!stderrStr.empty())
-    {
-      LOG_WARNING("cmd \"%s\" stderr:", cmd.c_str());
-      Log::Dump(stderrStr.c_str());
-    }
-  }
-
-  return (rv == 0);
+  return SysUtil::RunCommand(p_Cmd, p_StdOut);
 }
 
 // Used when taking over terminal is allowed
@@ -2700,7 +2655,6 @@ void UiModel::Impl::DesktopNotify(const std::string& p_Name, const std::string& 
       std::string output;
       if (RunCommand("which " + command + " | head -1", &output))
       {
-        output.erase(std::remove(output.begin(), output.end(), '\n'), output.end());
         if (!output.empty())
         {
           if (output.find("/osascript") != std::string::npos)
@@ -2896,7 +2850,7 @@ void UiModel::Impl::Cut()
     std::wstring& entryStr = m_EntryStr[profileId][chatId];
 
     std::string text = StrUtil::ToString(entryStr);
-    ClipboardSetText(text);
+    Clipboard::SetText(text);
 
     entryStr.clear();
     entryPos = 0;
@@ -2913,7 +2867,7 @@ void UiModel::Impl::Copy()
   if (GetSelectMessageActive())
   {
     std::string text = UiModel::Impl::GetSelectedMessageText();
-    ClipboardSetText(text);
+    Clipboard::SetText(text);
   }
   else
   {
@@ -2922,7 +2876,7 @@ void UiModel::Impl::Copy()
     std::wstring& entryStr = m_EntryStr[profileId][chatId];
 
     std::string text = StrUtil::ToString(entryStr);
-    ClipboardSetText(text);
+    Clipboard::SetText(text);
   }
 }
 
@@ -2935,7 +2889,7 @@ void UiModel::Impl::Paste()
   int& entryPos = m_EntryPos[profileId][chatId];
   std::wstring& entryStr = m_EntryStr[profileId][chatId];
 
-  std::string text = ClipboardGetText();
+  std::string text = Clipboard::GetText();
   text = StrUtil::Textize(text);
   if (m_View->GetEmojiEnabled())
   {
@@ -3119,7 +3073,6 @@ void UiModel::Impl::OnKeySpell()
       std::string output;
       if (RunCommand("which aspell ispell | head -1", &output))
       {
-        output.erase(std::remove(output.begin(), output.end(), '\n'), output.end());
         if (!output.empty())
         {
           if (output.find("/aspell") != std::string::npos)
@@ -3824,12 +3777,6 @@ bool UiModel::Impl::AutoCompose()
     int& entryPos = m_EntryPos[profileId][chatId];
     std::wstring& entryStr = m_EntryStr[profileId][chatId];
 
-    // trim trailing linebreak
-    if (!str.empty() && str.back() == '\n')
-    {
-      str = str.substr(0, str.length() - 1);
-    }
-
     if (!m_View->GetEmojiEnabled())
     {
       str = StrUtil::Textize(str);
@@ -3842,39 +3789,6 @@ bool UiModel::Impl::AutoCompose()
   FileUtil::RmFile(tempPath);
   UpdateEntry();
   return rv;
-}
-
-std::string UiModel::Impl::ClipboardGetText()
-{
-  std::string text;
-  static const std::string clipboardPasteCommand = UiConfig::GetStr("clipboard_paste_command");
-  if (!clipboardPasteCommand.empty())
-  {
-    RunCommand(clipboardPasteCommand, &text);
-  }
-  else
-  {
-    text = Clipboard::GetText();
-  }
-
-  return text;
-}
-
-void UiModel::Impl::ClipboardSetText(const std::string& p_Text)
-{
-  static const std::string clipboardCopyCommand = UiConfig::GetStr("clipboard_copy_command");
-  if (!clipboardCopyCommand.empty())
-  {
-    const std::string tempPath = FileUtil::GetTempDir() + "/clipboard.txt";
-    FileUtil::WriteFile(tempPath, p_Text);
-    const std::string cmd = "cat " + tempPath + " | " + clipboardCopyCommand;
-    RunCommand(cmd);
-    FileUtil::RmFile(tempPath);
-  }
-  else
-  {
-    Clipboard::SetText(p_Text);
-  }
 }
 
 // ---------------------------------------------------------------------

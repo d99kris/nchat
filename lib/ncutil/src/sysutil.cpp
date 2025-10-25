@@ -14,6 +14,7 @@
 #include <sys/wait.h>
 
 #include "fileutil.h"
+#include "log.h"
 #include "strutil.h"
 
 std::string SysUtil::GetCompiler()
@@ -92,6 +93,64 @@ bool SysUtil::IsSupportedLibc()
 #else
   return false;
 #endif
+}
+
+bool SysUtil::RunCommand(const std::string& p_Cmd, std::string* p_StdOut /*= nullptr*/)
+{
+  const bool logStdErr = true;
+
+  std::string stdoutPath = "/dev/null";
+  if (p_StdOut != nullptr)
+  {
+    stdoutPath = FileUtil::GetTempDir() + "/stdout.txt";
+  }
+
+  std::string stderrPath = "/dev/null";
+  if (logStdErr)
+  {
+    stderrPath = FileUtil::GetTempDir() + "/stderr.txt";
+  }
+
+  const std::string cmdPrefix = "2>'" + stderrPath + "' ";
+  const std::string cmdSuffix = " >'" + stdoutPath + "'";
+  const std::string cmd = cmdPrefix + p_Cmd + cmdSuffix;
+
+  // run command
+  LOG_TRACE("cmd \"%s\" start", cmd.c_str());
+  const int rv = SysUtil::System(cmd);
+  if (rv != 0)
+  {
+    LOG_WARNING("cmd \"%s\" failed (%d)", cmd.c_str(), rv);
+  }
+
+  // stdout
+  if ((p_StdOut != nullptr) && FileUtil::Exists(stdoutPath))
+  {
+    std::string str = FileUtil::ReadFile(stdoutPath);
+    FileUtil::RmFile(stdoutPath);
+
+    // trim trailing linebreak
+    if (!str.empty() && str.back() == '\n')
+    {
+      str = str.substr(0, str.length() - 1);
+    }
+
+    *p_StdOut = str;
+  }
+
+  // stderr
+  if (logStdErr && FileUtil::Exists(stderrPath))
+  {
+    const std::string stderrStr = FileUtil::ReadFile(stderrPath);
+    FileUtil::RmFile(stderrPath);
+    if (!stderrStr.empty())
+    {
+      LOG_WARNING("cmd \"%s\" stderr:", cmd.c_str());
+      Log::Dump(stderrStr.c_str());
+    }
+  }
+
+  return (rv == 0);
 }
 
 int SysUtil::System(const std::string& p_Cmd)

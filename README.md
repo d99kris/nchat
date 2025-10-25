@@ -270,6 +270,10 @@ This configuration file holds general application settings. Default content:
     attachment_send_type=1
     cache_enabled=1
     cache_read_only=0
+    clipboard_copy_command=
+    clipboard_has_image_command=
+    clipboard_paste_command=
+    clipboard_paste_image_command=
     coredump_enabled=0
     downloads_dir=
     emoji_list_all=0
@@ -311,6 +315,11 @@ Specifies whether to enable cache functionality.
 ### cache_read_only
 
 Specifies whether to access cache read-only. Primarily intended for debugging.
+
+### clipboard_*_command
+
+Specifies custom clipboard commands to be used instead of system clipboard.
+Refer to [Clipboard](/doc/CLIPBOARD.md) for details.
 
 ### coredump_enabled
 
@@ -392,8 +401,6 @@ This configuration file holds general user interface settings. Default content:
     auto_compose_history_count=25
     call_command=
     chat_picker_sorted_alphabetically=0
-    clipboard_copy_command=
-    clipboard_paste_command=
     confirm_deletion=1
     confirm_send_pasted_image=1
     desktop_notify_active=0
@@ -502,30 +509,6 @@ macOS: `open 'tel://%1' &`
 Specifies whether the chat selection dialog (used when forwarding message)
 should be sorted alphabetically. If not, its order follows the main chat
 list order.
-
-### clipboard_copy_command
-
-Specifies a custom copy (and cut) command to be used instead of system
-clipboard. Examples:
-
-| Platform    | Command                          |
-|-------------|----------------------------------|
-| File-based  | `tee ~/.clipboard`               |
-| macOS       | `pbcopy`                         |
-| Wayland     | `wl-copy`                        |
-| X11         | `xclip -selection clipboard`     |
-
-### clipboard_paste_command
-
-Specifies a custom paste command to be used instead of system clipboard.
-Examples:
-
-| Platform    | Command                          |
-|-------------|----------------------------------|
-| File-based  | `cat ~/.clipboard`               |
-| macOS       | `pbpaste`                        |
-| Wayland     | `wl-paste`                       |
-| X11         | `xclip -o -selection clipboard`  |
 
 ### confirm_deletion
 

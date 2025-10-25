@@ -7,6 +7,7 @@
 
 #include "clipboard.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -17,9 +18,50 @@
 #include <png.h>
 #endif
 
+#include "appconfig.h"
 #include "clip.h"
+#include "fileutil.h"
 #include "log.h"
 #include "sysutil.h"
+
+enum class DisplayServer
+{
+  Unknown = 0,
+  Quartz,
+  Wayland,
+  X11,
+};
+
+bool IsDisplayServer(DisplayServer p_DisplayServer)
+{
+  static DisplayServer displayServer = []()
+  {
+#ifdef __APPLE__
+    return DisplayServer::Quartz;
+#else
+    const std::string xdgSessionType(getenv("XDG_SESSION_TYPE") ? getenv("XDG_SESSION_TYPE") : "");
+    if (xdgSessionType == "wayland")
+    {
+      return DisplayServer::Wayland;
+    }
+    else if (xdgSessionType == "x11")
+    {
+      return DisplayServer::X11;
+    }
+    else if (getenv("WAYLAND_DISPLAY"))
+    {
+      return DisplayServer::Wayland;
+    }
+    else if (getenv("DISPLAY"))
+    {
+      return DisplayServer::X11;
+    }
+
+    return DisplayServer::Unknown;
+#endif
+  }();
+  return (p_DisplayServer == displayServer);
+}
 
 #ifdef HAVE_PNG_H
 static bool WriteRgbaPng(const std::string& p_Path, unsigned p_W, unsigned p_H, const uint8_t* p_Rgba, size_t p_Stride)
@@ -166,20 +208,78 @@ static bool SaveImagePng(const clip::image& p_Image, const std::string& p_Path)
 
 void Clipboard::SetText(const std::string& p_Text)
 {
-  clip::set_text(p_Text);
+  static const std::string clipboardCopyCommand = []()
+  {
+    std::string command = AppConfig::GetStr("clipboard_copy_command");
+    if (command.empty() && IsDisplayServer(DisplayServer::Wayland))
+    {
+      command = "wl-copy";
+    }
+    return command;
+  }();
+
+  if (!clipboardCopyCommand.empty())
+  {
+    const std::string tempPath = FileUtil::GetTempDir() + "/clipboard.txt";
+    FileUtil::WriteFile(tempPath, p_Text);
+    const std::string cmd = "cat " + tempPath + " | " + clipboardCopyCommand;
+    SysUtil::RunCommand(cmd);
+    FileUtil::RmFile(tempPath);
+  }
+  else
+  {
+    clip::set_text(p_Text);
+  }
 }
 
 std::string Clipboard::GetText()
 {
+  static const std::string clipboardPasteCommand = []()
+  {
+    std::string command = AppConfig::GetStr("clipboard_paste_command");
+    if (command.empty() && IsDisplayServer(DisplayServer::Wayland))
+    {
+      command = "wl-paste";
+    }
+    return command;
+  }();
+
   std::string text;
-  clip::get_text(text);
+  if (!clipboardPasteCommand.empty())
+  {
+    SysUtil::RunCommand(clipboardPasteCommand, &text);
+  }
+  else
+  {
+    clip::get_text(text);
+  }
+
   return text;
 }
 
 bool Clipboard::HasImage()
 {
 #ifdef HAVE_PNG_H
-  return clip::has(clip::image_format());
+  static const std::string clipboardHasImageCommand = []()
+  {
+    std::string command = AppConfig::GetStr("clipboard_has_image_command");
+    if (command.empty() && IsDisplayServer(DisplayServer::Wayland))
+    {
+      command = "wl-paste --list-types | grep -m1 'image/png' | wc -l";
+    }
+    return command;
+  }();
+
+  if (!clipboardHasImageCommand.empty())
+  {
+    std::string output;
+    SysUtil::RunCommand(clipboardHasImageCommand, &output);
+    return (output == "1");
+  }
+  else
+  {
+    return clip::has(clip::image_format());
+  }
 #else
   return false;
 #endif
@@ -188,21 +288,40 @@ bool Clipboard::HasImage()
 bool Clipboard::GetImage(const std::string& p_Path)
 {
 #ifdef HAVE_PNG_H
-  if (!clip::has(clip::image_format()))
+  static const std::string clipboardPasteImageCommand = []()
   {
-    LOG_WARNING("no clipboard image");
-    return false;
-  }
+    std::string command = AppConfig::GetStr("clipboard_paste_image_command");
+    if (command.empty() && IsDisplayServer(DisplayServer::Wayland))
+    {
+      command = "wl-paste --type image/png";
+    }
+    return command;
+  }();
 
-  clip::image image;
-  if (!clip::get_image(image))
+  if (!clipboardPasteImageCommand.empty())
   {
-    LOG_WARNING("get clipboard image failed");
-    return false;
+    std::string command = clipboardPasteImageCommand + " | tee " + p_Path;
+    bool rv = SysUtil::RunCommand(command);
+    return rv;
   }
+  else
+  {
+    if (!clip::has(clip::image_format()))
+    {
+      LOG_WARNING("no clipboard image");
+      return false;
+    }
 
-  bool rv = SaveImagePng(image, p_Path);
-  return rv;
+    clip::image image;
+    if (!clip::get_image(image))
+    {
+      LOG_WARNING("get clipboard image failed");
+      return false;
+    }
+
+    bool rv = SaveImagePng(image, p_Path);
+    return rv;
+  }
 #else
   UNUSED(p_Path);
   return false;
