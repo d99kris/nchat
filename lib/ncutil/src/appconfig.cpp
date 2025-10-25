@@ -36,7 +36,6 @@ void AppConfig::Init()
     { "timestamp_iso", "0" },
     { "use_pairing_code", "0" },
     { "use_qr_terminal", "0" },
-    { "version_used", "" },
   };
 
   const std::string configPath(FileUtil::GetApplicationDir() + std::string("/app.conf"));

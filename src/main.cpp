@@ -18,6 +18,7 @@
 
 #include "appconfig.h"
 #include "apputil.h"
+#include "debuginfo.h"
 #include "fileutil.h"
 #include "log.h"
 #include "messagecache.h"
@@ -273,8 +274,9 @@ int main(int argc, char* argv[])
   FileUtil::SetDownloadsDir(AppConfig::GetStr("downloads_dir"));
   static const bool isLogdumpEnabled = AppConfig::GetBool("logdump_enabled");
 
-  // Log last version
-  const std::string versionUsed = AppConfig::GetStr("version_used");
+  // Init debug info, log last version
+  DebugInfo::Init();
+  const std::string versionUsed = DebugInfo::GetStr("version_used");
   if (!versionUsed.empty() && (versionUsed != AppUtil::GetAppVersion()))
   {
     LOG_INFO("last version %s", versionUsed.c_str());
@@ -302,6 +304,7 @@ int main(int argc, char* argv[])
     if (!setupProtocol)
     {
       MessageCache::Cleanup();
+      DebugInfo::Cleanup();
       AppConfig::Cleanup();
       return 1;
     }
@@ -438,11 +441,12 @@ int main(int argc, char* argv[])
   }
 
   // Save last version
-  AppConfig::SetStr("version_used", AppUtil::GetAppVersion());
+  DebugInfo::SetStr("version_used", AppUtil::GetAppVersion());
 
   // Cleanup
   FileUtil::CleanupTempDir();
   MessageCache::Cleanup();
+  DebugInfo::Cleanup();
   AppConfig::Cleanup();
   Profiles::Cleanup();
 
