@@ -366,7 +366,7 @@ void FileUtil::RmFilesByAge(const std::string& p_Dir, const std::string& p_Patte
 
     path += name;
 
-    struct stat st{};
+    struct stat st { };
     if (stat(path.c_str(), &st) != 0) continue;
 
     if (!S_ISREG(st.st_mode)) continue;

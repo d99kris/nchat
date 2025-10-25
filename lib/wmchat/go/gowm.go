@@ -505,9 +505,9 @@ func JidToStr(client *whatsmeow.Client, defaultJid types.JID, altJids ...types.J
 		} else if jid.Server == types.BroadcastServer && jid.User != "status" {
 			// place broadcast messages under corresponding sender, not a dedicated 'broadcast' chat
 			// i.e. intentional fall-through to second argument
-		}	else if jid.Server != types.HiddenUserServer {
+		} else if jid.Server != types.HiddenUserServer {
 			return StrFromJid(jid)
-		}	else if jid.Server == types.HiddenUserServer {
+		} else if jid.Server == types.HiddenUserServer {
 			ctx := context.TODO()
 			if ljid, _ := client.Store.LIDs.GetPNForLID(ctx, jid); !ljid.IsEmpty() {
 				return StrFromJid(ljid)
