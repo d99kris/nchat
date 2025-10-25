@@ -484,6 +484,8 @@ func StringToInt(s string) int {
 	return i
 }
 
+// This function is called with single argument to obtain userId string
+// or with two arguments (chatId, userId) to obtain a chatId string.
 func JidToStr(client *whatsmeow.Client, defaultJid types.JID, altJids ...types.JID) string {
 	StrFromJid := func(jid types.JID) string {
 		return jid.User + "@" + jid.Server
@@ -498,24 +500,14 @@ func JidToStr(client *whatsmeow.Client, defaultJid types.JID, altJids ...types.J
 
 	for _, jid := range jids {
 		if jid.Server == types.BroadcastServer && jid.User == "status" {
+			// place status messages under a dedicated chat
 			return StrFromJid(jid)
-		}
-	}
-
-	for _, jid := range jids {
-		if jid.Server == types.BroadcastServer && jid.User != "status" {
+		} else if jid.Server == types.BroadcastServer && jid.User != "status" {
+			// place broadcast messages under corresponding sender, not a dedicated 'broadcast' chat
+			// i.e. intentional fall-through to second argument
+		}	else if jid.Server != types.HiddenUserServer {
 			return StrFromJid(jid)
-		}
-	}
-
-	for _, jid := range jids {
-		if jid.Server != types.HiddenUserServer {
-			return StrFromJid(jid)
-		}
-	}
-
-	for _, jid := range jids {
-		if jid.Server == types.HiddenUserServer {
+		}	else if jid.Server == types.HiddenUserServer {
 			ctx := context.TODO()
 			if ljid, _ := client.Store.LIDs.GetPNForLID(ctx, jid); !ljid.IsEmpty() {
 				return StrFromJid(ljid)
