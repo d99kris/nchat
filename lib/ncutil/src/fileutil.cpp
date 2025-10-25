@@ -373,7 +373,7 @@ void FileUtil::RmFilesByAge(const std::string& p_Dir, const std::string& p_Patte
 
     if ((now - st.st_mtime) > p_MinAgeSec)
     {
-      LOG_WARNING("delete %s", path.c_str());
+      LOG_DEBUG("delete %s", path.c_str());
       FileUtil::RmFile(path);
     }
   }
