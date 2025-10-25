@@ -1,6 +1,6 @@
 // fileutil.h
 //
-// Copyright (c) 2020-2024 Kristofer Berggren
+// Copyright (c) 2020-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -91,6 +91,7 @@ public:
   static std::string RemoveFileExt(const std::string& p_Path);
   static void RmDir(const std::string& p_Path);
   static void RmFile(const std::string& p_Path);
+  static void RmFilesByAge(const std::string& p_Dir, const std::string& p_Pattern, int p_MinAgeSec);
   static void SetApplicationDir(const std::string& p_Path);
   static void SetDirVersion(const std::string& p_Dir, int p_Version);
   static void SetDownloadsDir(const std::string& p_DownloadsDir);

@@ -146,9 +146,9 @@ private:
 
     void OnKeyQuit();
     void OnKeyExtEdit();
-    void OnKeyCut();
-    void OnKeyCopy();
-    void OnKeyPaste();
+    void Cut();
+    void Copy();
+    void Paste();
     void OnKeyCancel();
     bool PreEditMsg(std::string& p_ProfileId, std::string& p_ChatId, std::string& p_MsgId,
                     std::string& p_MsgDialogText);
@@ -370,6 +370,9 @@ private:
   void OnKeyQuit();
   void OnKeyExtCall();
   void OnKeyAutoCompose();
+  void OnKeyCut();
+  void OnKeyCopy();
+  void OnKeyPaste();
 
 private:
   Impl m_Impl;

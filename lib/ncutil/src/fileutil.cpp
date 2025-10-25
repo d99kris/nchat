@@ -1,6 +1,6 @@
 // fileutil.cpp
 //
-// Copyright (c) 2020-2024 Kristofer Berggren
+// Copyright (c) 2020-2025 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -10,6 +10,7 @@
 #include <climits>
 #include <fstream>
 
+#include <fnmatch.h>
 #include <wordexp.h>
 
 #include <sys/types.h>
@@ -339,6 +340,45 @@ void FileUtil::RmDir(const std::string& p_Path)
 void FileUtil::RmFile(const std::string& p_Path)
 {
   unlink(p_Path.c_str());
+}
+
+void FileUtil::RmFilesByAge(const std::string& p_Dir, const std::string& p_Pattern, int p_MinAgeSec)
+{
+  DIR* d = opendir(p_Dir.c_str());
+  if (!d) return;
+
+  const std::time_t now = std::time(nullptr);
+  for (dirent* e; (e = readdir(d)) != nullptr; )
+  {
+    const char* name = e->d_name;
+
+    // skip . and ..
+    if (name[0] == '.' && (name[1] == '\0' || (name[1] == '.' && name[2] == '\0'))) continue;
+
+    // match pattern
+    if (fnmatch(p_Pattern.c_str(), name, 0) != 0) continue;
+
+    std::string path = p_Dir;
+    if (!path.empty() && path.back() != '/')
+    {
+      path += '/';
+    }
+
+    path += name;
+
+    struct stat st{};
+    if (stat(path.c_str(), &st) != 0) continue;
+
+    if (!S_ISREG(st.st_mode)) continue;
+
+    if ((now - st.st_mtime) > p_MinAgeSec)
+    {
+      LOG_WARNING("delete %s", path.c_str());
+      FileUtil::RmFile(path);
+    }
+  }
+
+  closedir(d);
 }
 
 void FileUtil::SetApplicationDir(const std::string& p_Path)

@@ -395,6 +395,7 @@ This configuration file holds general user interface settings. Default content:
     clipboard_copy_command=
     clipboard_paste_command=
     confirm_deletion=1
+    confirm_send_pasted_image=1
     desktop_notify_active=0
     desktop_notify_command=
     desktop_notify_connectivity=0
@@ -530,6 +531,11 @@ Examples:
 
 Specifies whether to prompt the user for confirmation when deleting a message
 or a chat.
+
+### confirm_send_pasted_image
+
+Specifies whether to prompt the user for confirmation when pasting an image
+to a chat.
 
 ### desktop_notify_active
 

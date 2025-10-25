@@ -1249,6 +1249,8 @@ std::string UiModel::Impl::OnKeySaveAttachment(std::string p_FilePath /*= std::s
 
 void UiModel::Impl::TransferFile(const std::vector<std::string>& p_FilePaths)
 {
+  AnyUserKeyInput();
+
   if (!p_FilePaths.empty())
   {
     std::string profileId = m_CurrentChat.first;
@@ -2883,7 +2885,7 @@ std::string UiModel::Impl::GetSelectedMessageText()
   return mit->second.text;
 }
 
-void UiModel::Impl::OnKeyCut()
+void UiModel::Impl::Cut()
 {
   AnyUserKeyInput();
 
@@ -2904,7 +2906,7 @@ void UiModel::Impl::OnKeyCut()
   }
 }
 
-void UiModel::Impl::OnKeyCopy()
+void UiModel::Impl::Copy()
 {
   AnyUserKeyInput();
 
@@ -2924,7 +2926,7 @@ void UiModel::Impl::OnKeyCopy()
   }
 }
 
-void UiModel::Impl::OnKeyPaste()
+void UiModel::Impl::Paste()
 {
   AnyUserKeyInput();
 
@@ -4126,18 +4128,15 @@ void UiModel::KeyHandler(wint_t p_Key)
   }
   else if (p_Key == keyCut)
   {
-    std::unique_lock<owned_mutex> lock(m_ModelMutex);
-    GetImpl().OnKeyCut();
+    OnKeyCut();
   }
   else if (p_Key == keyCopy)
   {
-    std::unique_lock<owned_mutex> lock(m_ModelMutex);
-    GetImpl().OnKeyCopy();
+    OnKeyCopy();
   }
   else if (p_Key == keyPaste)
   {
-    std::unique_lock<owned_mutex> lock(m_ModelMutex);
-    GetImpl().OnKeyPaste();
+    OnKeyPaste();
   }
   else if (p_Key == keyReact)
   {
@@ -4903,6 +4902,58 @@ void UiModel::OnKeyAutoCompose()
   if (!rv)
   {
     MessageDialog("Warning", "Auto-compose failed.", 0.7, 5);
+  }
+}
+
+void UiModel::OnKeyCut()
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  GetImpl().Cut();
+}
+
+void UiModel::OnKeyCopy()
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  GetImpl().Copy();
+}
+
+void UiModel::OnKeyPaste()
+{
+  if (Clipboard::HasImage())
+  {
+    // Open modal dialog without model mutex held
+    static const bool confirmSendPastedImage = UiConfig::GetBool("confirm_send_pasted_image");
+    if (confirmSendPastedImage)
+    {
+      if (!MessageDialog("Confirmation", "Send pasted image?", 0.5, 5))
+      {
+        return;
+      }
+    }
+
+    static int index = 0;
+    ++index;
+    const std::string tempPath = FileUtil::GetTempDir() + "/clipboard-" + std::to_string(index) + ".png";
+    if (!Clipboard::GetImage(tempPath))
+    {
+      MessageDialog("Warning", "Failed getting clipboard image.", 0.7, 5);
+      return;
+    }
+
+    const std::vector<std::string> tempPaths = { tempPath };
+
+    {
+      std::unique_lock<owned_mutex> lock(m_ModelMutex);
+      GetImpl().TransferFile(tempPaths);
+    }
+
+    // Delete temp clipboard images after some time, allowing for it to be sent async
+    FileUtil::RmFilesByAge(FileUtil::GetTempDir(), "clipboard-*.png", 60);
+  }
+  else
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().Paste();
   }
 }
 

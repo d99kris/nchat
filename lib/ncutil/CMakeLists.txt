@@ -73,9 +73,26 @@ add_library(ncutil ${LIBRARY_LINKING_TYPE}
 )
 install(TARGETS ncutil DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
-CHECK_INCLUDE_FILE(execinfo.h FOUND_EXECINFO)
-if(FOUND_EXECINFO)
+# Optional dependencies
+check_include_file_cxx(execinfo.h FOUND_EXECINFO_H)
+if(FOUND_EXECINFO_H)
   target_compile_definitions(ncutil PRIVATE HAVE_EXECINFO_H=1)
+endif()
+
+find_package(PNG)
+if (PNG_FOUND)
+  set(CMAKE_REQUIRED_INCLUDES_SAVE ${CMAKE_REQUIRED_INCLUDES})
+  set(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES};${PNG_INCLUDE_DIRS})
+  check_include_file_cxx(png.h FOUND_PNG_H)
+  set(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES_SAVE})
+endif()
+if(FOUND_PNG_H)
+  target_include_directories(ncutil PRIVATE ${PNG_INCLUDE_DIRS})
+  target_link_libraries(ncutil PRIVATE ${PNG_LIBRARIES})
+  target_compile_definitions(ncutil PRIVATE HAVE_PNG_H=1)
+  message(STATUS "Clipboard: Text, Image")
+else()
+  message(STATUS "Clipboard: Text")
 endif()
 
 # Common
