@@ -923,6 +923,40 @@ void UiModel::Impl::OnKeyDeleteChat()
   SendProtocolRequest(profileId, deleteChatRequest);
 }
 
+void UiModel::Impl::OnKeyArchiveChat()
+{
+  AnyUserKeyInput();
+
+  const std::string& profileId = m_CurrentChat.first;
+  const std::string& chatId = m_CurrentChat.second;
+
+  if (profileId.empty() || chatId.empty()) return;
+
+  bool isArchived = m_ChatInfos[profileId][chatId].isArchived;
+
+  std::shared_ptr<UpdateArchiveRequest> updateArchiveRequest = std::make_shared<UpdateArchiveRequest>();
+  updateArchiveRequest->chatId = chatId;
+  updateArchiveRequest->isArchived = !isArchived;
+  SendProtocolRequest(profileId, updateArchiveRequest);
+}
+
+void UiModel::Impl::OnKeyStarContact()
+{
+  AnyUserKeyInput();
+
+  const std::string& profileId = m_CurrentChat.first;
+  const std::string& contactId = m_CurrentChat.second;
+
+  if (profileId.empty() || contactId.empty()) return;
+
+  bool isStarred = m_ContactInfos[profileId][contactId].isStarred;
+
+  std::shared_ptr<UpdateStarRequest> updateStarRequest = std::make_shared<UpdateStarRequest>();
+  updateStarRequest->contactId = contactId;
+  updateStarRequest->isStarred = !isStarred;
+  SendProtocolRequest(profileId, updateStarRequest);
+}
+
 void UiModel::Impl::OnKeyOpenMsg()
 {
   AnyUserKeyInput();
@@ -1976,6 +2010,17 @@ bool UiModel::Impl::Process()
 void UiModel::Impl::SortChats()
 {
   static const bool mutedPositionByTimestamp = UiConfig::GetBool("muted_position_by_timestamp");
+  static const bool hideArchived = UiConfig::GetBool("hide_archived_chats");
+
+  if (hideArchived)
+  {
+    m_ChatVec.erase(std::remove_if(m_ChatVec.begin(), m_ChatVec.end(),
+                                     [&](const std::pair<std::string, std::string>& chat) -> bool
+    {
+      return m_ChatInfos[chat.first][chat.second].isArchived;
+    }), m_ChatVec.end());
+  }
+
   std::sort(m_ChatVec.begin(), m_ChatVec.end(),
             [&](const std::pair<std::string, std::string>& lhs, const std::pair<std::string, std::string>& rhs) -> bool
   {
@@ -4015,8 +4060,11 @@ void UiModel::KeyHandler(wint_t p_Key)
   }
   else if (p_Key == keyToggleTop)
   {
-    std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().OnKeyToggleTop();
+  }
+  else if (p_Key == keyToggleArchive)
+  {
+    GetImpl().OnKeyToggleArchive();
   }
   else if (p_Key == keyToggleEmoji)
   {
@@ -4196,6 +4244,14 @@ void UiModel::KeyHandler(wint_t p_Key)
   else if (p_Key == keyGotoChat)
   {
     OnKeyGotoChat();
+  }
+  else if (p_Key == keyStarChat)
+  {
+    GetImpl().OnKeyStarChat();
+  }
+  else if (p_Key == keyStarChat)
+  {
+    GetImpl().OnKeyStarChat();
   }
   else if (p_Key == keyAutoCompose)
   {
