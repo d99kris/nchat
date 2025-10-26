@@ -45,6 +45,8 @@ private:
     UpdateMessageReactionsRequestType,
     UpdateMuteRequestType,
     UpdatePinRequestType,
+    UpdateArchiveRequestType,
+    UpdateStarRequestType,
   };
 
   class Request
@@ -194,6 +196,24 @@ private:
     int64_t timePinned = -1;
   };
 
+  class UpdateArchiveRequest : public Request
+  {
+  public:
+    virtual RequestType GetRequestType() const { return UpdateArchiveRequestType; }
+    std::string profileId;
+    std::string chatId;
+    bool isArchived = false;
+  };
+
+  class UpdateStarRequest : public Request
+  {
+  public:
+    virtual RequestType GetRequestType() const { return UpdateStarRequestType; }
+    std::string profileId;
+    std::string contactId;
+    bool isStarred = false;
+  };
+
 public:
   static void Init();
   static void Cleanup();
@@ -232,6 +252,8 @@ public:
   static void UpdateMute(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_IsMuted);
   static void UpdatePin(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_IsPinned,
                         int64_t p_TimePinned);
+  static void UpdateArchive(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_IsArchived);
+  static void UpdateStar(const std::string& p_ProfileId, const std::string& p_ContactId, bool p_IsStarred);
   static void Export(const std::string& p_ExportDir);
 
 private:
