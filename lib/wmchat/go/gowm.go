@@ -9,6 +9,7 @@ package main
 
 import (
 	"context"
+	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -97,12 +98,38 @@ var FlagUpdating = (1 << 5)
 var FlagSyncing = (1 << 6)
 var FlagAway = (1 << 7)
 
+func SaveMap(path string, m map[string]string) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return gob.NewEncoder(f).Encode(m)
+}
+
+func LoadMap(path string) (map[string]string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return make(map[string]string), err
+	}
+	defer f.Close()
+	var m map[string]string
+	if err := gob.NewDecoder(f).Decode(&m); err != nil {
+		return make(map[string]string), err
+	}
+	return m, nil
+}
+
+func GetContactsStorePath(connPath string) string {
+	return connPath + "/contacts.dat"
+}
+
 func AddConn(conn *whatsmeow.Client, path string, sendType int) int {
 	mx.Lock()
 	var connId int = len(clients)
 	clients[connId] = conn
 	paths[connId] = path
-	contacts[connId] = make(map[string]string)
+	contacts[connId], _ = LoadMap(GetContactsStorePath(path))
 	states[connId] = None
 	timeReads[connId] = make(map[string]time.Time)
 	expirations[connId] = make(map[string]uint32)
@@ -114,6 +141,7 @@ func AddConn(conn *whatsmeow.Client, path string, sendType int) int {
 
 func RemoveConn(connId int) {
 	mx.Lock()
+	SaveMap(GetContactsStorePath(paths[connId]), contacts[connId])
 	delete(clients, connId)
 	delete(paths, connId)
 	delete(contacts, connId)
@@ -1184,6 +1212,28 @@ func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg 
 	}
 }
 
+func (handler *WmEventHandler) ProcessContextInfo(contextInfo *waE2E.ContextInfo, quotedId *string, text *string) {
+	if contextInfo != nil {
+		if quotedId != nil {
+			*quotedId = contextInfo.GetStanzaId()
+		}
+
+		if (contextInfo.MentionedJID != nil) && (text != nil) {
+			connId := handler.connId
+			var client *whatsmeow.Client = GetClient(handler.connId)
+			for _, mentionedStr := range contextInfo.MentionedJID {
+				mentionedStrParts := strings.SplitN(mentionedStr, "@", 2)
+				mentionedJid, _ := types.ParseJID(mentionedStr)      // ex: 121874109111111@lid
+				mentionedId := JidToStr(client, mentionedJid)        // ex: 6511111111@s.whatsapp.net
+				mentionedName := GetContactName(connId, mentionedId) // ex: Michael
+				mentionedOrigText := "@" + mentionedStrParts[0]      // ex: @121874109111111
+				mentionedNewText := "@" + mentionedName              // ex: @Michael
+				*text = strings.ReplaceAll(*text, mentionedOrigText, mentionedNewText)
+			}
+		}
+	}
+}
+
 func (handler *WmEventHandler) HandleTextMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool) {
 	LOG_TRACE(fmt.Sprintf("TextMessage"))
 
@@ -1198,9 +1248,7 @@ func (handler *WmEventHandler) HandleTextMessage(messageInfo types.MessageInfo, 
 	} else {
 		text = msg.GetExtendedTextMessage().GetText()
 		ci := msg.GetExtendedTextMessage().GetContextInfo()
-		if ci != nil {
-			quotedId = ci.GetStanzaId()
-		}
+		handler.ProcessContextInfo(ci, &quotedId, &text)
 	}
 
 	// file id, path and status
@@ -1250,9 +1298,7 @@ func (handler *WmEventHandler) HandleImageMessage(messageInfo types.MessageInfo,
 	// context
 	quotedId := ""
 	ci := img.GetContextInfo()
-	if ci != nil {
-		quotedId = ci.GetStanzaId()
-	}
+	handler.ProcessContextInfo(ci, &quotedId, &text)
 
 	// file path, id and status
 	filePath := ""
@@ -1305,9 +1351,7 @@ func (handler *WmEventHandler) HandleVideoMessage(messageInfo types.MessageInfo,
 	// context
 	quotedId := ""
 	ci := vid.GetContextInfo()
-	if ci != nil {
-		quotedId = ci.GetStanzaId()
-	}
+	handler.ProcessContextInfo(ci, &quotedId, &text)
 
 	// file path, id and status
 	filePath := ""
@@ -1359,9 +1403,7 @@ func (handler *WmEventHandler) HandleAudioMessage(messageInfo types.MessageInfo,
 	// context
 	quotedId := ""
 	ci := aud.GetContextInfo()
-	if ci != nil {
-		quotedId = ci.GetStanzaId()
-	}
+	handler.ProcessContextInfo(ci, &quotedId, &text)
 
 	// file id, path and status
 	var tmpPath string = GetPath(connId) + "/tmp"
@@ -1408,9 +1450,7 @@ func (handler *WmEventHandler) HandleDocumentMessage(messageInfo types.MessageIn
 	// context
 	quotedId := ""
 	ci := doc.GetContextInfo()
-	if ci != nil {
-		quotedId = ci.GetStanzaId()
-	}
+	handler.ProcessContextInfo(ci, &quotedId, &text)
 
 	// file path, id and status
 	filePath := ""
@@ -1462,9 +1502,7 @@ func (handler *WmEventHandler) HandleStickerMessage(messageInfo types.MessageInf
 	// context
 	quotedId := ""
 	ci := sticker.GetContextInfo()
-	if ci != nil {
-		quotedId = ci.GetStanzaId()
-	}
+	handler.ProcessContextInfo(ci, &quotedId, &text)
 
 	// file id, path and status
 	var tmpPath string = GetPath(connId) + "/tmp"
@@ -1559,9 +1597,7 @@ func (handler *WmEventHandler) HandleTemplateMessage(messageInfo types.MessageIn
 	// context
 	quotedId := ""
 	ci := tpl.GetContextInfo()
-	if ci != nil {
-		quotedId = ci.GetStanzaId()
-	}
+	handler.ProcessContextInfo(ci, &quotedId, &text)
 
 	// file id, path and status
 	fileId := ""
