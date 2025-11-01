@@ -1954,6 +1954,10 @@ void UiModel::Impl::SortChats()
     if (lhsChatInfo.lastMessageTime > rhsChatInfo.lastMessageTime) return true;
     if (lhsChatInfo.lastMessageTime < rhsChatInfo.lastMessageTime) return false;
 
+    // lower chat ids are listed first
+    if (lhsChatInfo.id < rhsChatInfo.id) return true;
+    if (lhsChatInfo.id > rhsChatInfo.id) return false;
+
     return false;
   });
 
