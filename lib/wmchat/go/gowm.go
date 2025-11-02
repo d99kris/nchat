@@ -1070,6 +1070,10 @@ func GetNameFromContactInfo(contactInfo types.ContactInfo) string {
 		return contactInfo.BusinessName
 	}
 
+	if len(contactInfo.RedactedPhone) > 0 {
+		return contactInfo.RedactedPhone
+	}
+
 	return ""
 }
 
@@ -1125,8 +1129,7 @@ func GetContacts(connId int) {
 				CWmNewContactsNotify(connId, userId, name, phone, isSelf, isNotify)
 				AddContactName(connId, userId, name)
 			} else {
-				// This is not necessarily an issue, it seems details of some community members are not provided.
-				LOG_DEBUG(fmt.Sprintf("Skip CWmNewContactsNotify %s %#v", JidToStr(client, jid), contactInfo))
+				LOG_WARNING(fmt.Sprintf("Skip CWmNewContactsNotify %s %#v", JidToStr(client, jid), contactInfo))
 			}
 		}
 	}
