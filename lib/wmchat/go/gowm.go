@@ -48,7 +48,7 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
-var whatsmeowDate int = 20251023
+var whatsmeowDate int = 20251106
 
 type JSONMessage []json.RawMessage
 type JSONMessageType string
@@ -2492,7 +2492,8 @@ func WmGetStatus(connId int, userId string) int {
 	}
 
 	// subscribe user presence
-	err := client.SubscribePresence(userJid)
+	ctx := context.TODO()
+	err := client.SubscribePresence(ctx, userJid)
 
 	// log any error
 	if err != nil {
@@ -2525,7 +2526,8 @@ func WmMarkMessageRead(connId int, chatId string, senderId string, msgId string)
 	timeRead := time.Now()
 	chatJid, _ := types.ParseJID(chatId)
 	senderJid, _ := types.ParseJID(senderId)
-	err := client.MarkRead(msgIds, timeRead, chatJid, senderJid)
+	ctx := context.TODO()
+	err := client.MarkRead(ctx, msgIds, timeRead, chatJid, senderJid)
 
 	// store time
 	SetTimeRead(connId, chatId, timeRead)
@@ -2601,7 +2603,8 @@ func WmDeleteChat(connId int, chatId string) int {
 	// leave / delete
 	if chatJid.Server == types.GroupServer {
 		// if group, exit it
-		err := client.LeaveGroup(chatJid)
+		ctx := context.TODO()
+		err := client.LeaveGroup(ctx, chatJid)
 
 		// log any error
 		if err != nil {
@@ -2645,7 +2648,8 @@ func WmSendTyping(connId int, chatId string, isTyping int) int {
 
 	var chatPresenceMedia types.ChatPresenceMedia = types.ChatPresenceMediaText
 	chatJid, _ := types.ParseJID(chatId)
-	err := client.SendChatPresence(chatJid, chatPresence, chatPresenceMedia)
+	ctx := context.TODO()
+	err := client.SendChatPresence(ctx, chatJid, chatPresence, chatPresenceMedia)
 
 	// log any error
 	if err != nil {
@@ -2683,7 +2687,8 @@ func WmSendStatus(connId int, isOnline int) int {
 		presence = types.PresenceAvailable
 	}
 
-	err := client.SendPresence(presence)
+	ctx := context.TODO()
+	err := client.SendPresence(ctx, presence)
 	if err != nil {
 		LOG_WARNING("Failed to send presence")
 	} else {
