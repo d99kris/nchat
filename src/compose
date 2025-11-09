@@ -83,7 +83,7 @@ def build_payload(model: str, your_name: str, chat_messages: list[dict], tempera
         payload["temperature"] = temperature
     return payload
 
-def send_request(payload: dict, api_url: str, api_key: str, verbose: bool=False) -> str:
+def send_request(payload: dict, api_url: str, api_key: str, verbose: bool, timeout: int) -> str:
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {api_key}",
@@ -99,7 +99,7 @@ def send_request(payload: dict, api_url: str, api_key: str, verbose: bool=False)
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=60*2) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             body = resp.read().decode("utf-8")
             result = json.loads(body)
     except urllib.error.HTTPError as e:
@@ -140,8 +140,13 @@ def main():
                         help="Sampling temperature (e.g., 0.2).")
     parser.add_argument("-v", "--verbose", action="store_true",
                         help="Print request payload to stderr.")
+    parser.add_argument("-T", "--timeout", type=int, default=10,
+                        help="Network timeout in seconds (default: 10).")
     args = parser.parse_args()
 
+    if args.timeout <= 0:
+        print("Error: -T / --timeout must be > 0 seconds.", file=sys.stderr)
+        sys.exit(1)
 
     # Resolve service -> api_url, api_key_env, and default model
     service = args.service.strip()
@@ -165,7 +170,7 @@ def main():
     lines = read_chat_file(args.chat_completion)
     your_name, chat_messages = parse_chat(lines)
     payload = build_payload(model, your_name, chat_messages, args.temperature)
-    reply = send_request(payload, api_url, api_key, verbose=args.verbose)
+    reply = send_request(payload, api_url, api_key, verbose=args.verbose, timeout=args.timeout)
     reply_without_name = reply.split(":", 1)[1].strip() if ":" in reply else reply
     print(reply_without_name)
 

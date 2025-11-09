@@ -28,9 +28,9 @@ Example usage with OpenAI:
 
     ./src/compose -s openai -c doc/example-history.txt
 
-Example usage with OpenAI and custom model:
+Example usage with OpenAI and custom model and longer timeout of 60 secs:
 
-    ./src/compose -s openai -m gpt-5-nano -c doc/example-history.txt
+    ./src/compose -s openai -m gpt-5-nano -T 60 -c doc/example-history.txt
 
 Example usage with Google Gemini:
 
