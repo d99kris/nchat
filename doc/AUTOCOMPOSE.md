@@ -51,9 +51,16 @@ Example starting llama.cpp server:
 
 Configuring Custom Service / Model
 ----------------------------------
-Edit `ui.conf` to match the desired compose path and usage, example:
+Edit `ui.conf` to match the desired compose path and usage.
 
-    auto_compose_command=/usr/local/libexec/nchat/compose -s gemini -m gemini-2.0-flash
+Example usage with Google Gemini and custom model:
+
+    auto_compose_command=/usr/local/libexec/nchat/compose -s gemini -m gemini-2.0-flash -c '%1'
+
+Example usage with OpenAI and custom model and longer timeout of 60 secs:
+
+    auto_compose_command=/usr/local/libexec/nchat/compose -s openai -m gpt-5-nano -T 60 -c '%1'
+
 
 Generally one can determine the path of compose based on nchat install path:
 
