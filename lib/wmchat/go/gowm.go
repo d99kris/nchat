@@ -512,6 +512,14 @@ func StringToInt(s string) int {
 	return i
 }
 
+func SanitizeName(text string) string {
+	newText := strings.ReplaceAll(text, "\n", " ")
+	if newText != text {
+		LOG_DEBUG(fmt.Sprintf("sanitized '%s' -> '%s'", text, newText))
+	}
+	return newText
+}
+
 // This function is called with single argument to obtain userId string
 // or with two arguments (chatId, userId) to obtain a chatId string.
 func JidToStr(client *whatsmeow.Client, defaultJid types.JID, altJids ...types.JID) string {
@@ -1055,23 +1063,23 @@ func (handler *WmEventHandler) HandleLoggedOut() {
 
 func GetNameFromContactInfo(contactInfo types.ContactInfo) string {
 	if len(contactInfo.FullName) > 0 {
-		return contactInfo.FullName
+		return SanitizeName(contactInfo.FullName)
 	}
 
 	if len(contactInfo.FirstName) > 0 {
-		return contactInfo.FirstName
+		return SanitizeName(contactInfo.FirstName)
 	}
 
 	if len(contactInfo.PushName) > 0 {
-		return contactInfo.PushName
+		return SanitizeName(contactInfo.PushName)
 	}
 
 	if len(contactInfo.BusinessName) > 0 {
-		return contactInfo.BusinessName
+		return SanitizeName(contactInfo.BusinessName)
 	}
 
 	if len(contactInfo.RedactedPhone) > 0 {
-		return contactInfo.RedactedPhone
+		return SanitizeName(contactInfo.RedactedPhone)
 	}
 
 	return ""
