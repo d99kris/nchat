@@ -27,6 +27,7 @@
 #include "td/telegram/MessageQuote.h"
 #include "td/telegram/MessageReplyHeader.h"
 #include "td/telegram/MessageSelfDestructType.h"
+#include "td/telegram/MessageTopic.h"
 #include "td/telegram/misc.h"
 #include "td/telegram/OptionManager.h"
 #include "td/telegram/ReplyMarkup.h"
@@ -246,7 +247,7 @@ class QuickReplyManager::SendQuickReplyMessageQuery final : public Td::ResultHan
 
     int32 flags = telegram_api::messages_sendMessage::QUICK_REPLY_SHORTCUT_MASK;
     auto reply_to = MessageInputReplyTo(m->reply_to_message_id, DialogId(), MessageQuote(), 0)
-                        .get_input_reply_to(td_, MessageId(), SavedMessagesTopicId());
+                        .get_input_reply_to(td_, MessageTopic());
     if (reply_to != nullptr) {
       flags |= telegram_api::messages_sendMessage::REPLY_TO_MASK;
     }
@@ -300,7 +301,7 @@ class QuickReplyManager::SendQuickReplyInlineMessageQuery final : public Td::Res
 
     int32 flags = telegram_api::messages_sendInlineBotResult::QUICK_REPLY_SHORTCUT_MASK;
     auto reply_to = MessageInputReplyTo(m->reply_to_message_id, DialogId(), MessageQuote(), 0)
-                        .get_input_reply_to(td_, MessageId(), SavedMessagesTopicId());
+                        .get_input_reply_to(td_, MessageTopic());
     if (reply_to != nullptr) {
       flags |= telegram_api::messages_sendInlineBotResult::REPLY_TO_MASK;
     }
@@ -360,7 +361,7 @@ class QuickReplyManager::SendQuickReplyMediaQuery final : public Td::ResultHandl
 
     int32 flags = telegram_api::messages_sendMedia::QUICK_REPLY_SHORTCUT_MASK;
     auto reply_to = MessageInputReplyTo(m->reply_to_message_id, DialogId(), MessageQuote(), 0)
-                        .get_input_reply_to(td_, MessageId(), SavedMessagesTopicId());
+                        .get_input_reply_to(td_, MessageTopic());
     if (reply_to != nullptr) {
       flags |= telegram_api::messages_sendMedia::REPLY_TO_MASK;
     }
@@ -561,8 +562,8 @@ class QuickReplyManager::SendQuickReplyMultiMediaQuery final : public Td::Result
     CHECK(file_ids_.size() == random_ids_.size());
 
     int32 flags = telegram_api::messages_sendMultiMedia::QUICK_REPLY_SHORTCUT_MASK;
-    auto reply_to = MessageInputReplyTo(reply_to_message_id, DialogId(), MessageQuote(), 0)
-                        .get_input_reply_to(td_, MessageId(), SavedMessagesTopicId());
+    auto reply_to =
+        MessageInputReplyTo(reply_to_message_id, DialogId(), MessageQuote(), 0).get_input_reply_to(td_, MessageTopic());
     if (reply_to != nullptr) {
       flags |= telegram_api::messages_sendMultiMedia::REPLY_TO_MASK;
     }
@@ -1097,7 +1098,7 @@ unique_ptr<QuickReplyManager::QuickReplyMessage> QuickReplyManager::create_messa
           std::move(message->media_), my_dialog_id, message->date_, true, via_bot_user_id, &ttl,
           &disable_web_page_preview, source);
 
-      auto reply_header = MessageReplyHeader(td_, std::move(message->reply_to_), my_dialog_id, message_id, -1, false);
+      auto reply_header = MessageReplyHeader(td_, std::move(message->reply_to_), my_dialog_id, message_id, -1);
       if (reply_header.story_full_id_ != StoryFullId()) {
         LOG(ERROR) << "Receive reply to " << reply_header.story_full_id_;
         reply_header.story_full_id_ = {};

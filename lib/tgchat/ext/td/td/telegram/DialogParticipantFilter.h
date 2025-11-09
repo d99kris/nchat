@@ -6,7 +6,9 @@
 //
 #pragma once
 
-#include "td/telegram/MessageId.h"
+#include "td/telegram/ChannelParticipantFilter.h"
+#include "td/telegram/DialogId.h"
+#include "td/telegram/MessageTopic.h"
 #include "td/telegram/td_api.h"
 
 #include "td/utils/common.h"
@@ -20,14 +22,14 @@ class Td;
 class DialogParticipantFilter {
   enum class Type : int32 { Contacts, Administrators, Members, Restricted, Banned, Mention, Bots };
   Type type_;
-  MessageId top_thread_message_id_;
+  MessageTopic message_topic_;
 
   friend StringBuilder &operator<<(StringBuilder &string_builder, const DialogParticipantFilter &filter);
 
  public:
-  explicit DialogParticipantFilter(const td_api::object_ptr<td_api::ChatMembersFilter> &filter);
+  DialogParticipantFilter(Td *td, DialogId dialog_id, const td_api::object_ptr<td_api::ChatMembersFilter> &filter);
 
-  td_api::object_ptr<td_api::SupergroupMembersFilter> get_supergroup_members_filter_object(const string &query) const;
+  ChannelParticipantFilter as_channel_participant_filter(const string &query) const;
 
   bool has_query() const;
 

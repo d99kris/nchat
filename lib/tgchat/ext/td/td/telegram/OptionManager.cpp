@@ -200,6 +200,10 @@ OptionManager::OptionManager(Td *td)
   set_default_integer_option("gift_resale_toncoin_earnings_per_mille", 900);
   set_default_integer_option("story_album_count_max", is_test_dc ? 20 : 100);
   set_default_integer_option("story_album_size_max", is_test_dc ? 200 : 1000);
+  set_default_integer_option("pending_text_message_period", 30);
+  set_default_integer_option("user_note_text_length_max", 128);
+  set_default_integer_option("group_call_message_show_time_max", 10);
+  set_default_integer_option("group_call_message_text_length_max", 128);
 
   if (options.isset("my_phone_number") || !options.isset("my_id")) {
     update_premium_options();
@@ -756,7 +760,7 @@ td_api::object_ptr<td_api::OptionValue> OptionManager::get_option_synchronously(
       break;
     case 'v':
       if (name == "version") {
-        return td_api::make_object<td_api::optionValueString>("1.8.55");
+        return td_api::make_object<td_api::optionValueString>("1.8.56");
       }
       break;
   }

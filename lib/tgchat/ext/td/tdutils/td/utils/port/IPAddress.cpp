@@ -510,6 +510,11 @@ Status IPAddress::init_socket_address(const SocketFd &socket_fd) {
     return OS_SOCKET_ERROR("Failed to get socket address");
   }
   is_valid_ = true;
+  auto address_family = get_address_family();
+  if (address_family != AF_INET && address_family != AF_INET6) {
+    is_valid_ = false;
+    return Status::Error("Receive unsupported IP address");
+  }
   return Status::OK();
 }
 
@@ -525,6 +530,11 @@ Status IPAddress::init_peer_address(const SocketFd &socket_fd) {
     return OS_SOCKET_ERROR("Failed to get peer socket address");
   }
   is_valid_ = true;
+  auto address_family = get_address_family();
+  if (address_family != AF_INET && address_family != AF_INET6) {
+    is_valid_ = false;
+    return Status::Error("Receive unsupported IP address");
+  }
   return Status::OK();
 }
 
@@ -570,13 +580,15 @@ string IPAddress::get_ip_host() const {
     return "0.0.0.0";
   }
 
-  switch (get_address_family()) {
+  auto address_family = get_address_family();
+  switch (address_family) {
     case AF_INET6:
       return PSTRING() << '[' << ::td::get_ip_str(AF_INET6, &ipv6_addr_.sin6_addr) << ']';
     case AF_INET:
       return ::td::get_ip_str(AF_INET, &ipv4_addr_.sin_addr).str();
     default:
-      UNREACHABLE();
+      LOG(FATAL) << "Have address with family " << address_family << ", AF_INET = " << AF_INET
+                 << ", AF_INET6 = " << AF_INET6;
       return string();
   }
 }

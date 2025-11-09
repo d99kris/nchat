@@ -568,8 +568,8 @@ class UpdatesManager final : public Actor {
   void on_update(tl_object_ptr<telegram_api::updateReadMonoForumOutbox> update, Promise<Unit> &&promise);
   void on_update(tl_object_ptr<telegram_api::updateMonoForumNoPaidException> update, Promise<Unit> &&promise);
 
-  void on_update(tl_object_ptr<telegram_api::updateChannelPinnedTopic> update, Promise<Unit> &&promise);
-  void on_update(tl_object_ptr<telegram_api::updateChannelPinnedTopics> update, Promise<Unit> &&promise);
+  void on_update(tl_object_ptr<telegram_api::updatePinnedForumTopic> update, Promise<Unit> &&promise);
+  void on_update(tl_object_ptr<telegram_api::updatePinnedForumTopics> update, Promise<Unit> &&promise);
 
   void on_update(tl_object_ptr<telegram_api::updatePinnedMessages> update, Promise<Unit> &&promise);
   void on_update(tl_object_ptr<telegram_api::updatePinnedChannelMessages> update, Promise<Unit> &&promise);
@@ -630,6 +630,10 @@ class UpdatesManager final : public Actor {
   void on_update(tl_object_ptr<telegram_api::updateGroupCallChainBlocks> update, Promise<Unit> &&promise);
   void on_update(tl_object_ptr<telegram_api::updateGroupCall> update, Promise<Unit> &&promise);
   void on_update(tl_object_ptr<telegram_api::updateGroupCallParticipants> update, Promise<Unit> &&promise);
+
+  void on_update(tl_object_ptr<telegram_api::updateGroupCallMessage> update, Promise<Unit> &&promise);
+
+  void on_update(tl_object_ptr<telegram_api::updateGroupCallEncryptedMessage> update, Promise<Unit> &&promise);
 
   void on_update(tl_object_ptr<telegram_api::updateContactsReset> update, Promise<Unit> &&promise);
 

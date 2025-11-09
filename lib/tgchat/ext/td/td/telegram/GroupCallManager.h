@@ -13,6 +13,7 @@
 #include "td/telegram/GroupCallParticipantOrder.h"
 #include "td/telegram/InputGroupCall.h"
 #include "td/telegram/InputGroupCallId.h"
+#include "td/telegram/MessageEntity.h"
 #include "td/telegram/MessageFullId.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
@@ -33,6 +34,8 @@
 namespace td {
 
 struct GroupCallJoinParameters;
+class JsonObject;
+class JsonValue;
 class Td;
 
 class GroupCallManager final : public Actor {
@@ -48,6 +51,7 @@ class GroupCallManager final : public Actor {
 
   bool is_group_call_being_joined(InputGroupCallId input_group_call_id) const;
 
+  // use get_group_call_is_joined internally instead
   bool is_group_call_joined(InputGroupCallId input_group_call_id) const;
 
   GroupCallId get_group_call_id(InputGroupCallId input_group_call_id, DialogId dialog_id);
@@ -118,6 +122,12 @@ class GroupCallManager final : public Actor {
   void toggle_group_call_mute_new_participants(GroupCallId group_call_id, bool mute_new_participants,
                                                Promise<Unit> &&promise);
 
+  void toggle_group_call_are_messages_enabled(GroupCallId group_call_id, bool are_messages_enabled,
+                                              Promise<Unit> &&promise);
+
+  void send_group_call_message(GroupCallId group_call_id, td_api::object_ptr<td_api::formattedText> &&text,
+                               Promise<Unit> &&promise);
+
   void revoke_group_call_invite_link(GroupCallId group_call_id, Promise<Unit> &&promise);
 
   void invite_group_call_participant(GroupCallId group_call_id, UserId user_id, bool is_video,
@@ -179,6 +189,12 @@ class GroupCallManager final : public Actor {
   void on_update_group_call_participants(InputGroupCallId input_group_call_id,
                                          vector<tl_object_ptr<telegram_api::groupCallParticipant>> &&participants,
                                          int32 version, bool is_recursive = false);
+
+  void on_new_group_call_message(InputGroupCallId input_group_call_id, DialogId sender_dialog_id, int64 random_id,
+                                 telegram_api::object_ptr<telegram_api::textWithEntities> &&message);
+
+  void on_new_encrypted_group_call_message(InputGroupCallId input_group_call_id, DialogId sender_dialog_id,
+                                           string &&encrypted_message);
 
   void process_join_video_chat_response(InputGroupCallId input_group_call_id, uint64 generation,
                                         tl_object_ptr<telegram_api::Updates> &&updates, Promise<Unit> &&promise);
@@ -291,6 +307,8 @@ class GroupCallManager final : public Actor {
   static bool get_group_call_is_my_presentation_paused(const GroupCall *group_call);
 
   static bool get_group_call_mute_new_participants(const GroupCall *group_call);
+
+  static bool get_group_call_are_messages_enabled(const GroupCall *group_call);
 
   static int32 get_group_call_record_start_date(const GroupCall *group_call);
 
@@ -423,6 +441,12 @@ class GroupCallManager final : public Actor {
   void on_toggle_group_call_mute_new_participants(InputGroupCallId input_group_call_id, bool mute_new_participants,
                                                   Result<Unit> &&result);
 
+  void send_toggle_group_call_are_messages_enabled_query(InputGroupCallId input_group_call_id,
+                                                         bool are_messages_enabled);
+
+  void on_toggle_group_call_are_messages_enabled(InputGroupCallId input_group_call_id, bool are_messages_enabled,
+                                                 Result<Unit> &&result);
+
   void send_toggle_group_call_recording_query(InputGroupCallId input_group_call_id, bool is_enabled,
                                               const string &title, bool record_video, bool use_portrait_orientation,
                                               uint64 generation);
@@ -480,6 +504,12 @@ class GroupCallManager final : public Actor {
   void poll_group_call_blocks(GroupCall *group_call, int32 sub_chain_id);
 
   void on_poll_group_call_blocks(InputGroupCallId input_group_call_id, int32 sub_chain_id);
+
+  Result<MessageEntity> parse_message_entity(JsonValue &value);
+
+  Result<FormattedText> parse_text_with_entities(JsonObject &object);
+
+  Result<FormattedText> parse_group_call_message(JsonObject &object);
 
   vector<td_api::object_ptr<td_api::groupCallRecentSpeaker>> get_recent_speakers(const GroupCall *group_call,
                                                                                  bool for_update);

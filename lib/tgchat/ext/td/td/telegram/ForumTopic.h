@@ -9,6 +9,7 @@
 #include "td/telegram/DialogId.h"
 #include "td/telegram/DialogNotificationSettings.h"
 #include "td/telegram/DraftMessage.h"
+#include "td/telegram/ForumTopicId.h"
 #include "td/telegram/ForumTopicInfo.h"
 #include "td/telegram/MessageId.h"
 #include "td/telegram/td_api.h"
@@ -60,6 +61,8 @@ class ForumTopic {
     return true;
   }
 
+  bool set_draft_message(unique_ptr<DraftMessage> &&draft_message, bool from_update);
+
   DialogNotificationSettings *get_notification_settings() {
     return &notification_settings_;
   }
@@ -68,11 +71,15 @@ class ForumTopic {
     return &notification_settings_;
   }
 
+  const unique_ptr<DraftMessage> &get_draft_message() const {
+    return draft_message_;
+  }
+
   td_api::object_ptr<td_api::forumTopic> get_forum_topic_object(Td *td, DialogId dialog_id,
                                                                 const ForumTopicInfo &info) const;
 
   td_api::object_ptr<td_api::updateForumTopic> get_update_forum_topic_object(Td *td, DialogId dialog_id,
-                                                                             MessageId top_thread_message_id) const;
+                                                                             ForumTopicId forum_topic_id) const;
 
   template <class StorerT>
   void store(StorerT &storer) const;

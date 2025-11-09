@@ -6,7 +6,8 @@
 //
 #pragma once
 
-#include "td/telegram/MessageId.h"
+#include "td/telegram/DialogId.h"
+#include "td/telegram/MessageTopic.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 
@@ -15,18 +16,25 @@
 
 namespace td {
 
+class Td;
+
 class ChannelParticipantFilter {
   enum class Type : int32 { Recent, Contacts, Administrators, Search, Mention, Restricted, Banned, Bots };
   Type type_;
   string query_;
-  MessageId top_thread_message_id_;
+  MessageTopic message_topic_;
 
   friend StringBuilder &operator<<(StringBuilder &string_builder, const ChannelParticipantFilter &filter);
 
- public:
-  explicit ChannelParticipantFilter(const td_api::object_ptr<td_api::SupergroupMembersFilter> &filter);
+  friend class DialogParticipantFilter;
 
-  tl_object_ptr<telegram_api::ChannelParticipantsFilter> get_input_channel_participants_filter() const;
+ public:
+  ChannelParticipantFilter(Td *td, DialogId dialog_id,
+                           const td_api::object_ptr<td_api::SupergroupMembersFilter> &filter);
+
+  telegram_api::object_ptr<telegram_api::ChannelParticipantsFilter> get_input_channel_participants_filter() const;
+
+  static ChannelParticipantFilter recent();
 
   bool is_administrators() const {
     return type_ == Type::Administrators;

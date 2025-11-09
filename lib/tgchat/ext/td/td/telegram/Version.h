@@ -10,7 +10,7 @@
 
 namespace td {
 
-constexpr int32 MTPROTO_LAYER = 214;
+constexpr int32 MTPROTO_LAYER = 216;
 
 enum class Version : int32 {
   Initial,  // 0
@@ -69,6 +69,7 @@ enum class Version : int32 {
   SupportMoreEmojiGroups,
   SupportStarGiveaways,
   SupportGiftChatThemes,  // 55
+  SupportBotTopics,
   Next
 };
 

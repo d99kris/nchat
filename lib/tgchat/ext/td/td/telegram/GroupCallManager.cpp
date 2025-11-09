@@ -9,6 +9,7 @@
 #include "td/telegram/AccessRights.h"
 #include "td/telegram/AuthManager.h"
 #include "td/telegram/ChatManager.h"
+#include "td/telegram/CustomEmojiId.h"
 #include "td/telegram/DialogAction.h"
 #include "td/telegram/DialogActionManager.h"
 #include "td/telegram/DialogManager.h"
@@ -16,9 +17,10 @@
 #include "td/telegram/DialogParticipantManager.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/GroupCallJoinParameters.h"
-#include "td/telegram/MessageId.h"
+#include "td/telegram/MessageEntity.h"
 #include "td/telegram/MessageSender.h"
 #include "td/telegram/MessagesManager.h"
+#include "td/telegram/MessageTopic.h"
 #include "td/telegram/misc.h"
 #include "td/telegram/net/DcId.h"
 #include "td/telegram/net/NetQuery.h"
@@ -27,18 +29,21 @@
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/UpdatesManager.h"
 #include "td/telegram/UserManager.h"
+#include "td/telegram/Version.h"
 
 #include "td/actor/SleepActor.h"
 
 #include "td/utils/algorithm.h"
 #include "td/utils/buffer.h"
 #include "td/utils/FlatHashSet.h"
+#include "td/utils/JsonBuilder.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/Random.h"
 #include "td/utils/Slice.h"
 #include "td/utils/SliceBuilder.h"
 #include "td/utils/UInt.h"
+#include "td/utils/utf8.h"
 
 #include <algorithm>
 #include <map>
@@ -866,13 +871,17 @@ class ToggleGroupCallSettingsQuery final : public Td::ResultHandler {
   explicit ToggleGroupCallSettingsQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
   }
 
-  void send(InputGroupCallId input_group_call_id, bool reset_invite_hash, bool set_join_muted, bool join_muted) {
+  void send(InputGroupCallId input_group_call_id, bool reset_invite_hash, bool set_join_muted, bool join_muted,
+            bool set_messages_enabled, bool messages_enabled) {
     int32 flags = 0;
     if (set_join_muted) {
       flags |= telegram_api::phone_toggleGroupCallSettings::JOIN_MUTED_MASK;
     }
+    if (set_messages_enabled) {
+      flags |= telegram_api::phone_toggleGroupCallSettings::MESSAGES_ENABLED_MASK;
+    }
     send_query(G()->net_query_creator().create(telegram_api::phone_toggleGroupCallSettings(
-        flags, reset_invite_hash, input_group_call_id.get_input_group_call(), join_muted)));
+        flags, reset_invite_hash, input_group_call_id.get_input_group_call(), join_muted, messages_enabled)));
   }
 
   void on_result(BufferSlice packet) final {
@@ -891,6 +900,59 @@ class ToggleGroupCallSettingsQuery final : public Td::ResultHandler {
       promise_.set_value(Unit());
       return;
     }
+    promise_.set_error(std::move(status));
+  }
+};
+
+class SendGroupCallMessageQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+
+ public:
+  explicit SendGroupCallMessageQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(InputGroupCallId input_group_call_id, const FormattedText &text) {
+    send_query(G()->net_query_creator().create(telegram_api::phone_sendGroupCallMessage(
+        input_group_call_id.get_input_group_call(), Random::secure_int64(),
+        get_input_text_with_entities(td_->user_manager_.get(), text, "SendGroupCallMessageQuery"))));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::phone_sendGroupCallMessage>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    promise_.set_value(Unit());
+  }
+
+  void on_error(Status status) final {
+    promise_.set_error(std::move(status));
+  }
+};
+
+class SendGroupCallEncryptedMessageQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+
+ public:
+  explicit SendGroupCallEncryptedMessageQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(InputGroupCallId input_group_call_id, const string &data) {
+    send_query(G()->net_query_creator().create(telegram_api::phone_sendGroupCallEncryptedMessage(
+        input_group_call_id.get_input_group_call(), BufferSlice(data))));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::phone_sendGroupCallEncryptedMessage>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    promise_.set_value(Unit());
+  }
+
+  void on_error(Status status) final {
     promise_.set_error(std::move(status));
   }
 };
@@ -1283,6 +1345,8 @@ struct GroupCallManager::GroupCall {
   bool allowed_toggle_mute_new_participants = false;
   bool joined_date_asc = false;
   bool is_video_recorded = false;
+  bool are_messages_enabled = false;
+  bool allowed_toggle_are_messages_enabled = false;
   bool is_blockchain_being_polled[2] = {false, false};
   int32 scheduled_start_date = 0;
   int32 participant_count = 0;
@@ -1300,6 +1364,7 @@ struct GroupCallManager::GroupCall {
   tde2e_api::CallVerificationState call_verification_state;
   int32 block_next_offset[2] = {};
   vector<int64> blockchain_participant_ids;
+  FlatHashSet<int64> message_random_ids;
 
   int32 version = -1;
   int32 leave_version = -1;
@@ -1307,6 +1372,7 @@ struct GroupCallManager::GroupCall {
   int32 start_subscribed_version = -1;
   int32 can_enable_video_version = -1;
   int32 mute_version = -1;
+  int32 are_messages_enabled_version = -1;
   int32 stream_dc_id_version = -1;
   int32 record_start_date_version = -1;
   int32 scheduled_start_date_version = -1;
@@ -1322,6 +1388,8 @@ struct GroupCallManager::GroupCall {
   bool pending_is_my_presentation_paused = false;
   bool have_pending_mute_new_participants = false;
   bool pending_mute_new_participants = false;
+  bool have_pending_are_messages_enabled = false;
+  bool pending_are_messages_enabled = false;
   string pending_title;
   bool have_pending_record_start_date = false;
   int32 pending_record_start_date = 0;
@@ -1501,7 +1569,7 @@ void GroupCallManager::on_send_speaking_action_timeout(GroupCallId group_call_id
 
   pending_send_speaking_action_timeout_.add_timeout_in(group_call_id.get(), 4.0);
 
-  td_->dialog_action_manager_->send_dialog_action(group_call->dialog_id, MessageId(), {},
+  td_->dialog_action_manager_->send_dialog_action(group_call->dialog_id, MessageTopic(), {},
                                                   DialogAction::get_speaking_action(), Promise<Unit>());
 }
 
@@ -1618,6 +1686,7 @@ bool GroupCallManager::is_group_call_being_joined(InputGroupCallId input_group_c
   return pending_join_requests_.count(input_group_call_id) != 0;
 }
 
+// use get_group_call_is_joined internally instead
 bool GroupCallManager::is_group_call_joined(InputGroupCallId input_group_call_id) const {
   auto *group_call = get_group_call(input_group_call_id);
   if (group_call == nullptr) {
@@ -2162,6 +2231,12 @@ bool GroupCallManager::get_group_call_mute_new_participants(const GroupCall *gro
                                                         : group_call->mute_new_participants;
 }
 
+bool GroupCallManager::get_group_call_are_messages_enabled(const GroupCall *group_call) {
+  CHECK(group_call != nullptr);
+  return group_call->have_pending_are_messages_enabled ? group_call->pending_are_messages_enabled
+                                                       : group_call->are_messages_enabled;
+}
+
 int32 GroupCallManager::get_group_call_record_start_date(const GroupCall *group_call) {
   CHECK(group_call != nullptr);
   return group_call->have_pending_record_start_date ? group_call->pending_record_start_date
@@ -2604,6 +2679,233 @@ bool GroupCallManager::process_pending_group_call_participant_updates(InputGroup
   return need_update;
 }
 
+void GroupCallManager::on_new_group_call_message(InputGroupCallId input_group_call_id, DialogId sender_dialog_id,
+                                                 int64 random_id,
+                                                 telegram_api::object_ptr<telegram_api::textWithEntities> &&message) {
+  if (G()->close_flag()) {
+    return;
+  }
+  auto group_call = get_group_call(input_group_call_id);
+  if (group_call == nullptr || !group_call->is_inited || !group_call->is_active || group_call->is_conference ||
+      group_call->call_id != tde2e_api::CallId() || !sender_dialog_id.is_valid() || random_id == 0 ||
+      !group_call->message_random_ids.insert(random_id).second) {
+    return;
+  }
+  if (!group_call->is_joined || group_call->is_being_left) {
+    if (group_call->is_being_joined || group_call->need_rejoin) {
+      group_call->after_join.push_back(
+          PromiseCreator::lambda([actor_id = actor_id(this), input_group_call_id, sender_dialog_id, random_id,
+                                  message = std::move(message)](Result<Unit> &&result) mutable {
+            if (result.is_ok()) {
+              send_closure(actor_id, &GroupCallManager::on_new_group_call_message, input_group_call_id,
+                           sender_dialog_id, random_id, std::move(message));
+            }
+          }));
+    }
+    return;
+  }
+
+  auto text =
+      get_formatted_text(td_->user_manager_.get(), std::move(message), true, false, "on_new_group_call_message");
+  if (text.text.empty()) {
+    return;
+  }
+  send_closure(G()->td(), &Td::send_update,
+               td_api::make_object<td_api::updateGroupCallNewMessage>(
+                   group_call->group_call_id.get(),
+                   get_message_sender_object(td_, sender_dialog_id, "on_new_group_call_message"),
+                   get_formatted_text_object(td_->user_manager_.get(), text, true, -1)));
+}
+
+Result<MessageEntity> GroupCallManager::parse_message_entity(JsonValue &value) {
+  if (value.type() != JsonValue::Type::Object) {
+    return Status::Error("Expected object for MessageEntity");
+  }
+
+  auto &object = value.get_object();
+  TRY_RESULT(type, object.get_required_string_field("_"));
+  TRY_RESULT(min_layer, object.get_optional_int_field("_min_layer"));
+  TRY_RESULT(offset, object.get_required_int_field("offset"));
+  TRY_RESULT(length, object.get_required_int_field("length"));
+  if (type == "messageEntityUnknown" || type == "messageEntityMention" || type == "messageEntityHashtag" ||
+      type == "messageEntityCashtag" || type == "messageEntityPhone" || type == "messageEntityBotCommand" ||
+      type == "messageEntityBankCard" || type == "messageEntityUrl" || type == "messageEntityEmail" ||
+      type == "messageEntityMentionName" || min_layer > MTPROTO_LAYER) {
+    return Status::Error("Skip");
+  }
+  if (type == "messageEntityPre") {
+    TRY_RESULT(language, object.get_optional_string_field("language"));
+    if (!clean_input_string(language)) {
+      return Status::Error("Receive invalid UTF-8");
+    }
+    if (language.empty()) {
+      return MessageEntity(MessageEntity::Type::Pre, offset, length);
+    } else {
+      return MessageEntity(MessageEntity::Type::PreCode, offset, length, std::move(language));
+    }
+  }
+  if (type == "messageEntityTextUrl") {
+    TRY_RESULT(url, object.get_required_string_field("url"));
+    if (!clean_input_string(url)) {
+      return Status::Error("Receive invalid UTF-8");
+    }
+    return MessageEntity(MessageEntity::Type::TextUrl, offset, length, std::move(url));
+  }
+  if (type == "messageEntityCustomEmoji") {
+    TRY_RESULT(document_id, object.get_required_long_field("document_id"));
+    return MessageEntity(MessageEntity::Type::CustomEmoji, offset, length, CustomEmojiId(document_id));
+  }
+
+  MessageEntity::Type entity_type = MessageEntity::Type::Size;
+  if (type == "messageEntityBold") {
+    entity_type = MessageEntity::Type::Bold;
+  } else if (type == "messageEntityItalic") {
+    entity_type = MessageEntity::Type::Italic;
+  } else if (type == "messageEntityUnderline") {
+    entity_type = MessageEntity::Type::Underline;
+  } else if (type == "messageEntityStrike") {
+    entity_type = MessageEntity::Type::Strikethrough;
+  } else if (type == "messageEntityBlockquote") {
+    entity_type = MessageEntity::Type::BlockQuote;
+  } else if (type == "messageEntityCode") {
+    entity_type = MessageEntity::Type::Code;
+  } else if (type == "messageEntitySpoiler") {
+    entity_type = MessageEntity::Type::Spoiler;
+  } else {
+    return Status::Error("Receive invalid message entity type");
+  }
+  return MessageEntity(entity_type, offset, length);
+}
+
+Result<FormattedText> GroupCallManager::parse_text_with_entities(JsonObject &object) {
+  TRY_RESULT(type, object.get_required_string_field("_"));
+  if (type != "textWithEntities") {
+    return Status::Error("Expected textWithEntities");
+  }
+  TRY_RESULT(min_layer, object.get_optional_int_field("_min_layer"));
+  if (min_layer > MTPROTO_LAYER) {
+    return Status::Error("Unsupported object");
+  }
+  TRY_RESULT(text, object.get_required_string_field("text"));
+  if (!clean_input_string(text)) {
+    return Status::Error("Receive invalid UTF-8");
+  }
+  if (static_cast<int64>(utf8_length(text)) > G()->get_option_integer("group_call_message_text_length_max")) {
+    return Status::Error("Text is too long");
+  }
+  auto input_entities = object.extract_field("entities");
+  vector<MessageEntity> entities;
+  if (input_entities.type() == JsonValue::Type::Array) {
+    for (auto &input_entity : input_entities.get_array()) {
+      auto r_entity = parse_message_entity(input_entity);
+      if (r_entity.is_error()) {
+        if (r_entity.error().message() == "Skip") {
+          continue;
+        }
+        return r_entity.move_as_error();
+      }
+      if (entities.size() > 1000u) {
+        return Status::Error("Too many entities");
+      }
+      entities.push_back(r_entity.move_as_ok());
+    }
+  } else if (input_entities.type() != JsonValue::Type::Null) {
+    return Status::Error("Invalid entities type");
+  }
+  return FormattedText{std::move(text), std::move(entities)};
+}
+
+Result<FormattedText> GroupCallManager::parse_group_call_message(JsonObject &object) {
+  TRY_RESULT(type, object.get_required_string_field("_"));
+  if (type != "groupCallMessage") {
+    return Status::Error("Expected groupCallMessage");
+  }
+  TRY_RESULT(min_layer, object.get_optional_int_field("_min_layer"));
+  if (min_layer > MTPROTO_LAYER) {
+    return Status::Error("Unsupported object");
+  }
+  auto message = object.extract_field("message");
+  if (message.type() != JsonValue::Type::Object) {
+    return Status::Error("Message expected to be an object");
+  }
+  return parse_text_with_entities(message.get_object());
+}
+
+void GroupCallManager::on_new_encrypted_group_call_message(InputGroupCallId input_group_call_id,
+                                                           DialogId sender_dialog_id, string &&encrypted_message) {
+  if (G()->close_flag()) {
+    return;
+  }
+  auto group_call = get_group_call(input_group_call_id);
+  if (group_call == nullptr || !group_call->is_inited || !group_call->is_active || !group_call->is_conference ||
+      group_call->call_id == tde2e_api::CallId() || !sender_dialog_id.is_valid()) {
+    return;
+  }
+  if (!group_call->is_joined || group_call->is_being_left) {
+    if (group_call->is_being_joined || group_call->need_rejoin) {
+      group_call->after_join.push_back(
+          PromiseCreator::lambda([actor_id = actor_id(this), input_group_call_id, sender_dialog_id,
+                                  encrypted_message = std::move(encrypted_message)](Result<Unit> &&result) mutable {
+            if (result.is_ok()) {
+              send_closure(actor_id, &GroupCallManager::on_new_encrypted_group_call_message, input_group_call_id,
+                           sender_dialog_id, std::move(encrypted_message));
+            }
+          }));
+    }
+    return;
+  }
+
+  auto r_message = tde2e_api::call_decrypt(group_call->call_id, sender_dialog_id.get(), tde2e_api::CallChannelId(),
+                                           encrypted_message);
+  if (r_message.is_error()) {
+    LOG(INFO) << "Failed to decrypt a message from " << sender_dialog_id;
+    return;
+  }
+  auto r_value = json_decode(r_message.value());
+  LOG(INFO) << "Receive group call message from " << sender_dialog_id << ": " << r_message.value();
+  if (r_value.is_error()) {
+    LOG(INFO) << "Failed to decode JSON object: " << r_value.error();
+    return;
+  }
+  auto value = r_value.move_as_ok();
+  if (value.type() != JsonValue::Type::Object) {
+    return;
+  }
+
+  auto &object = value.get_object();
+  auto r_random_id = object.get_required_long_field("random_id");
+  if (!r_random_id.is_ok() || !group_call->message_random_ids.insert(r_random_id.ok()).second) {
+    LOG(INFO) << "Ignore duplicate message from " << sender_dialog_id;
+    return;
+  }
+
+  auto r_text = parse_group_call_message(object);
+  if (r_text.is_error()) {
+    LOG(INFO) << "Failed to parse group call message object: " << r_text.error();
+    return;
+  }
+  auto text = r_text.move_as_ok();
+  auto status = fix_formatted_text(text.text, text.entities, false, false, true, true, false);
+  if (status.is_error()) {
+    LOG(INFO) << "Ignore invalid formatted text: " << status;
+    return;
+  }
+  if (text.text.empty()) {
+    LOG(INFO) << "Ignore empty message";
+    return;
+  }
+  if (sender_dialog_id.get_type() != DialogType::User ||
+      !td_->user_manager_->is_user_premium(sender_dialog_id.get_user_id())) {
+    remove_premium_custom_emoji_entities(td_, text.entities, true);
+  }
+
+  send_closure(G()->td(), &Td::send_update,
+               td_api::make_object<td_api::updateGroupCallNewMessage>(
+                   group_call->group_call_id.get(),
+                   get_message_sender_object(td_, sender_dialog_id, "on_new_encrypted_group_call_message"),
+                   get_formatted_text_object(td_->user_manager_.get(), text, true, -1)));
+}
+
 bool GroupCallManager::is_my_audio_source(InputGroupCallId input_group_call_id, const GroupCall *group_call,
                                           int32 audio_source) const {
   auto it = pending_join_requests_.find(input_group_call_id);
@@ -2624,7 +2926,7 @@ void GroupCallManager::sync_group_call_participants(InputGroupCallId input_group
 
   sync_participants_timeout_.cancel_timeout(group_call->group_call_id.get());
 
-  if (group_call->syncing_participants) {
+  if (group_call->syncing_participants || (group_call->is_conference && !group_call->is_joined)) {
     group_call->need_syncing_participants = true;
     return;
   }
@@ -3707,7 +4009,8 @@ void GroupCallManager::try_load_group_call_administrators(InputGroupCallId input
                      std::move(result));
       });
   td_->dialog_participant_manager_->search_dialog_participants(
-      dialog_id, string(), 100, DialogParticipantFilter(td_api::make_object<td_api::chatMembersFilterAdministrators>()),
+      dialog_id, string(), 100,
+      DialogParticipantFilter(td_, dialog_id, td_api::make_object<td_api::chatMembersFilterAdministrators>()),
       std::move(promise));
 }
 
@@ -3865,6 +4168,9 @@ bool GroupCallManager::on_join_group_call_response(InputGroupCallId input_group_
   if (group_call->audio_source != 0) {
     check_group_call_is_joined_timeout_.set_timeout_in(group_call->group_call_id.get(),
                                                        CHECK_GROUP_CALL_IS_JOINED_TIMEOUT);
+  }
+  if (group_call->need_syncing_participants) {
+    sync_participants_timeout_.add_timeout_in(group_call->group_call_id.get(), 0.0);
   }
   pending_join_requests_.erase(it);
   try_clear_group_call_participants(input_group_call_id);
@@ -4395,7 +4701,7 @@ void GroupCallManager::send_toggle_group_call_mute_new_participants_query(InputG
                      mute_new_participants, std::move(result));
       });
   td_->create_handler<ToggleGroupCallSettingsQuery>(std::move(promise))
-      ->send(input_group_call_id, false, true, mute_new_participants);
+      ->send(input_group_call_id, false, true, mute_new_participants, false, false);
 }
 
 void GroupCallManager::on_toggle_group_call_mute_new_participants(InputGroupCallId input_group_call_id,
@@ -4434,6 +4740,245 @@ void GroupCallManager::on_toggle_group_call_mute_new_participants(InputGroupCall
   }
 }
 
+void GroupCallManager::toggle_group_call_are_messages_enabled(GroupCallId group_call_id, bool are_messages_enabled,
+                                                              Promise<Unit> &&promise) {
+  TRY_STATUS_PROMISE(promise, G()->close_status());
+  TRY_RESULT_PROMISE(promise, input_group_call_id, get_input_group_call_id(group_call_id));
+
+  auto *group_call = get_group_call(input_group_call_id);
+  if (group_call == nullptr || !group_call->is_inited) {
+    reload_group_call(input_group_call_id,
+                      PromiseCreator::lambda([actor_id = actor_id(this), group_call_id, are_messages_enabled,
+                                              promise = std::move(promise)](
+                                                 Result<td_api::object_ptr<td_api::groupCall>> &&result) mutable {
+                        if (result.is_error()) {
+                          promise.set_error(result.move_as_error());
+                        } else {
+                          send_closure(actor_id, &GroupCallManager::toggle_group_call_are_messages_enabled,
+                                       group_call_id, are_messages_enabled, std::move(promise));
+                        }
+                      }));
+    return;
+  }
+  if (!group_call->is_active || !group_call->can_be_managed || !group_call->allowed_toggle_are_messages_enabled) {
+    return promise.set_error(400, "Can't change are_messages_enabled setting");
+  }
+
+  if (are_messages_enabled == get_group_call_are_messages_enabled(group_call)) {
+    return promise.set_value(Unit());
+  }
+
+  // there is no reason to save promise; we will send an update with actual value anyway
+
+  group_call->pending_are_messages_enabled = are_messages_enabled;
+  if (!group_call->have_pending_are_messages_enabled) {
+    group_call->have_pending_are_messages_enabled = true;
+    send_toggle_group_call_are_messages_enabled_query(input_group_call_id, are_messages_enabled);
+  }
+  send_update_group_call(group_call, "toggle_group_call_are_messages_enabled");
+  promise.set_value(Unit());
+}
+
+void GroupCallManager::send_toggle_group_call_are_messages_enabled_query(InputGroupCallId input_group_call_id,
+                                                                         bool are_messages_enabled) {
+  auto promise = PromiseCreator::lambda(
+      [actor_id = actor_id(this), input_group_call_id, are_messages_enabled](Result<Unit> result) {
+        send_closure(actor_id, &GroupCallManager::on_toggle_group_call_are_messages_enabled, input_group_call_id,
+                     are_messages_enabled, std::move(result));
+      });
+  td_->create_handler<ToggleGroupCallSettingsQuery>(std::move(promise))
+      ->send(input_group_call_id, false, false, false, true, are_messages_enabled);
+}
+
+void GroupCallManager::on_toggle_group_call_are_messages_enabled(InputGroupCallId input_group_call_id,
+                                                                 bool are_messages_enabled, Result<Unit> &&result) {
+  if (G()->close_flag()) {
+    return;
+  }
+
+  auto *group_call = get_group_call(input_group_call_id);
+  if (!is_group_call_active(group_call) || !group_call->have_pending_are_messages_enabled) {
+    return;
+  }
+
+  if (result.is_error()) {
+    group_call->have_pending_are_messages_enabled = false;
+    if (group_call->can_be_managed && group_call->allowed_toggle_are_messages_enabled) {
+      LOG(ERROR) << "Failed to set are_messages_enabled to " << are_messages_enabled << " in " << input_group_call_id
+                 << ": " << result.error();
+    }
+    if (group_call->pending_are_messages_enabled != group_call->are_messages_enabled) {
+      send_update_group_call(group_call, "on_toggle_group_call_are_messages_enabled failed");
+    }
+  } else {
+    if (group_call->pending_are_messages_enabled != are_messages_enabled) {
+      // need to send another request
+      send_toggle_group_call_are_messages_enabled_query(input_group_call_id, group_call->pending_are_messages_enabled);
+      return;
+    }
+
+    group_call->have_pending_are_messages_enabled = false;
+    if (group_call->are_messages_enabled != are_messages_enabled) {
+      LOG(ERROR) << "Failed to set are_messages_enabled to " << are_messages_enabled << " in " << input_group_call_id;
+      send_update_group_call(group_call, "on_toggle_group_call_are_messages_enabled failed 2");
+    }
+  }
+}
+
+void GroupCallManager::send_group_call_message(GroupCallId group_call_id,
+                                               td_api::object_ptr<td_api::formattedText> &&text,
+                                               Promise<Unit> &&promise) {
+  TRY_STATUS_PROMISE(promise, G()->close_status());
+  TRY_RESULT_PROMISE(promise, input_group_call_id, get_input_group_call_id(group_call_id));
+
+  auto *group_call = get_group_call(input_group_call_id);
+  if (group_call == nullptr || !group_call->is_inited) {
+    reload_group_call(input_group_call_id,
+                      PromiseCreator::lambda([actor_id = actor_id(this), group_call_id, text = std::move(text),
+                                              promise = std::move(promise)](
+                                                 Result<td_api::object_ptr<td_api::groupCall>> &&result) mutable {
+                        if (result.is_error()) {
+                          promise.set_error(result.move_as_error());
+                        } else {
+                          send_closure(actor_id, &GroupCallManager::send_group_call_message, group_call_id,
+                                       std::move(text), std::move(promise));
+                        }
+                      }));
+    return;
+  }
+  if (!group_call->is_joined) {
+    if (group_call->is_being_joined || group_call->need_rejoin) {
+      group_call->after_join.push_back(
+          PromiseCreator::lambda([actor_id = actor_id(this), group_call_id, text = std::move(text),
+                                  promise = std::move(promise)](Result<Unit> &&result) mutable {
+            if (result.is_error()) {
+              promise.set_error(400, "GROUPCALL_JOIN_MISSING");
+            } else {
+              send_closure(actor_id, &GroupCallManager::send_group_call_message, group_call_id, std::move(text),
+                           std::move(promise));
+            }
+          }));
+      return;
+    }
+    return promise.set_error(400, "GROUPCALL_JOIN_MISSING");
+  }
+
+  TRY_RESULT_PROMISE(promise, message,
+                     get_formatted_text(td_, group_call->dialog_id, std::move(text), td_->auth_manager_->is_bot(),
+                                        false, true, false));
+  if (static_cast<int64>(utf8_length(message.text)) > G()->get_option_integer("group_call_message_text_length_max")) {
+    return promise.set_error(400, "Message is too long");
+  }
+
+  auto as_dialog_id =
+      group_call->as_dialog_id.is_valid() ? group_call->as_dialog_id : td_->dialog_manager_->get_my_dialog_id();
+  send_closure(
+      G()->td(), &Td::send_update,
+      td_api::make_object<td_api::updateGroupCallNewMessage>(
+          group_call->group_call_id.get(), get_message_sender_object(td_, as_dialog_id, "send_group_call_message"),
+          get_formatted_text_object(td_->user_manager_.get(), message, true, -1)));
+
+  if (group_call->is_conference || group_call->call_id != tde2e_api::CallId()) {
+    auto json_message = json_encode<string>(json_object([&message](auto &o) {
+      o("_", "groupCallMessage");
+      o("random_id", to_string(Random::secure_int64()));
+      o("message", json_object([&message](auto &o) {
+          o("_", "textWithEntities");
+          o("text", message.text);
+          o("entities", json_array(message.entities, [](auto &entity) {
+              return json_object([&entity](auto &o) {
+                switch (entity.type) {
+                  case MessageEntity::Type::Mention:
+                    o("_", "messageEntityUnknown");
+                    break;
+                  case MessageEntity::Type::Hashtag:
+                    o("_", "messageEntityUnknown");
+                    break;
+                  case MessageEntity::Type::Cashtag:
+                    o("_", "messageEntityUnknown");
+                    break;
+                  case MessageEntity::Type::BotCommand:
+                    o("_", "messageEntityUnknown");
+                    break;
+                  case MessageEntity::Type::PhoneNumber:
+                    o("_", "messageEntityUnknown");
+                    break;
+                  case MessageEntity::Type::BankCardNumber:
+                    o("_", "messageEntityUnknown");
+                    break;
+                  case MessageEntity::Type::Url:
+                    o("_", "messageEntityUrl");
+                    break;
+                  case MessageEntity::Type::EmailAddress:
+                    o("_", "messageEntityEmail");
+                    break;
+                  case MessageEntity::Type::Bold:
+                    o("_", "messageEntityBold");
+                    break;
+                  case MessageEntity::Type::Italic:
+                    o("_", "messageEntityItalic");
+                    break;
+                  case MessageEntity::Type::Underline:
+                    o("_", "messageEntityUnderline");
+                    break;
+                  case MessageEntity::Type::Strikethrough:
+                    o("_", "messageEntityStrike");
+                    break;
+                  case MessageEntity::Type::BlockQuote:
+                    o("_", "messageEntityBlockquote");
+                    break;
+                  case MessageEntity::Type::Code:
+                    o("_", "messageEntityCode");
+                    break;
+                  case MessageEntity::Type::Pre:
+                    o("_", "messageEntityPre");
+                    o("language", string());
+                    break;
+                  case MessageEntity::Type::PreCode:
+                    o("_", "messageEntityPre");
+                    o("language", entity.argument);
+                    break;
+                  case MessageEntity::Type::TextUrl:
+                    o("_", "messageEntityTextUrl");
+                    o("url", entity.argument);
+                    break;
+                  case MessageEntity::Type::MentionName:
+                    o("_", "messageEntityMentionName");
+                    o("user_id", 0);
+                    break;
+                  case MessageEntity::Type::MediaTimestamp:
+                    o("_", "messageEntityUnknown");
+                    break;
+                  case MessageEntity::Type::Spoiler:
+                    o("_", "messageEntitySpoiler");
+                    break;
+                  case MessageEntity::Type::CustomEmoji:
+                    o("_", "messageEntityCustomEmoji");
+                    o("document_id", to_string(entity.custom_emoji_id.get()));
+                    break;
+                  case MessageEntity::Type::ExpandableBlockQuote:
+                    o("_", "messageEntityBlockquote");
+                    break;
+                  default:
+                    UNREACHABLE();
+                }
+                o("offset", entity.offset);
+                o("length", entity.length);
+              });
+            }));
+        }));
+    }));
+    auto r_data = tde2e_api::call_encrypt(group_call->call_id, tde2e_api::CallChannelId(), json_message, 0);
+    if (r_data.is_error()) {
+      return promise.set_error(400, r_data.error().message);
+    }
+    td_->create_handler<SendGroupCallEncryptedMessageQuery>(std::move(promise))
+        ->send(input_group_call_id, r_data.value());
+  } else {
+    td_->create_handler<SendGroupCallMessageQuery>(std::move(promise))->send(input_group_call_id, message);
+  }
+}
+
 void GroupCallManager::revoke_group_call_invite_link(GroupCallId group_call_id, Promise<Unit> &&promise) {
   TRY_STATUS_PROMISE(promise, G()->close_status());
   TRY_RESULT_PROMISE(promise, input_group_call_id, get_input_group_call_id(group_call_id));
@@ -4456,7 +5001,8 @@ void GroupCallManager::revoke_group_call_invite_link(GroupCallId group_call_id, 
     return promise.set_error(400, "Can't revoke invite link in the group call");
   }
 
-  td_->create_handler<ToggleGroupCallSettingsQuery>(std::move(promise))->send(input_group_call_id, true, false, false);
+  td_->create_handler<ToggleGroupCallSettingsQuery>(std::move(promise))
+      ->send(input_group_call_id, true, false, false, false, false);
 }
 
 void GroupCallManager::invite_group_call_participant(
@@ -5407,6 +5953,7 @@ bool GroupCallManager::try_clear_group_call_participants(InputGroupCallId input_
     need_update = true;
   }
   group_call->leave_version = group_call->version;
+  group_call->need_syncing_participants = false;
   group_call->version = -1;
 
   for (auto &participant : participants->participants) {
@@ -5442,10 +5989,18 @@ InputGroupCallId GroupCallManager::update_group_call(const tl_object_ptr<telegra
   GroupCall call;
   call.is_inited = true;
 
+  bool is_min = false;
   switch (group_call_ptr->get_id()) {
     case telegram_api::groupCall::ID: {
       auto group_call = static_cast<const telegram_api::groupCall *>(group_call_ptr.get());
       input_group_call_id = InputGroupCallId(group_call->id_, group_call->access_hash_);
+      if (group_call->min_) {
+        auto old_group_call = get_group_call(input_group_call_id);
+        if (old_group_call == nullptr || !old_group_call->is_inited) {
+          return input_group_call_id;
+        }
+        is_min = true;
+      }
       call.is_active = true;
       call.is_conference = group_call->conference_;
       call.is_rtmp_stream = group_call->rtmp_stream_;
@@ -5457,6 +6012,8 @@ InputGroupCallId GroupCallManager::update_group_call(const tl_object_ptr<telegra
       call.mute_new_participants = group_call->join_muted_;
       call.joined_date_asc = group_call->join_date_asc_;
       call.allowed_toggle_mute_new_participants = group_call->can_change_join_muted_;
+      call.are_messages_enabled = group_call->messages_enabled_;
+      call.allowed_toggle_are_messages_enabled = group_call->can_change_messages_enabled_;
       call.participant_count = group_call->participants_count_;
       call.unmuted_video_count = group_call->unmuted_video_count_;
       call.unmuted_video_limit = group_call->unmuted_video_limit_;
@@ -5490,6 +6047,7 @@ InputGroupCallId GroupCallManager::update_group_call(const tl_object_ptr<telegra
       call.can_enable_video_version = group_call->version_;
       call.start_subscribed_version = group_call->version_;
       call.mute_version = group_call->version_;
+      call.are_messages_enabled_version = group_call->version_;
       call.stream_dc_id_version = group_call->version_;
       call.record_start_date_version = group_call->version_;
       call.scheduled_start_date_version = group_call->version_;
@@ -5555,10 +6113,12 @@ InputGroupCallId GroupCallManager::update_group_call(const tl_object_ptr<telegra
     if (!group_call->is_active) {
       // never update ended calls
     } else if (!call.is_active) {
-      // always update to an ended call, dropping also is_joined, is_speaking and other local flags
-      clear_group_call(group_call);
-      *group_call = std::move(call);
-      need_update = true;
+      if (!is_min) {
+        // always update to an ended non-min call, dropping also is_joined, is_speaking and other local flags
+        clear_group_call(group_call);
+        *group_call = std::move(call);
+        need_update = true;
+      }
     } else {
       if (call.is_conference != group_call->is_conference) {
         group_call->is_conference = call.is_conference;
@@ -5568,7 +6128,7 @@ InputGroupCallId GroupCallManager::update_group_call(const tl_object_ptr<telegra
         group_call->is_rtmp_stream = call.is_rtmp_stream;
         need_update = true;
       }
-      if (call.is_creator != group_call->is_creator) {
+      if (call.is_creator != group_call->is_creator && !is_min) {
         group_call->is_creator = call.is_creator;
         need_update = true;
       }
@@ -5578,7 +6138,7 @@ InputGroupCallId GroupCallManager::update_group_call(const tl_object_ptr<telegra
       }
       if ((call.unmuted_video_count != group_call->unmuted_video_count ||
            call.unmuted_video_limit != group_call->unmuted_video_limit) &&
-          call.can_enable_video_version >= group_call->can_enable_video_version) {
+          call.can_enable_video_version >= group_call->can_enable_video_version && !is_min) {
         auto old_can_enable_video = get_group_call_can_enable_video(group_call);
         group_call->unmuted_video_count = call.unmuted_video_count;
         group_call->unmuted_video_limit = call.unmuted_video_limit;
@@ -5588,7 +6148,7 @@ InputGroupCallId GroupCallManager::update_group_call(const tl_object_ptr<telegra
         }
       }
       if (call.start_subscribed != group_call->start_subscribed &&
-          call.start_subscribed_version >= group_call->start_subscribed_version) {
+          call.start_subscribed_version >= group_call->start_subscribed_version && !is_min) {
         auto old_start_subscribed = get_group_call_start_subscribed(group_call);
         group_call->start_subscribed = call.start_subscribed;
         group_call->start_subscribed_version = call.start_subscribed_version;
@@ -5599,7 +6159,7 @@ InputGroupCallId GroupCallManager::update_group_call(const tl_object_ptr<telegra
       auto mute_flags_changed =
           call.mute_new_participants != group_call->mute_new_participants ||
           call.allowed_toggle_mute_new_participants != group_call->allowed_toggle_mute_new_participants;
-      if (mute_flags_changed && call.mute_version >= group_call->mute_version) {
+      if (mute_flags_changed && call.mute_version >= group_call->mute_version && !is_min) {
         auto old_mute_new_participants = get_group_call_mute_new_participants(group_call);
         need_update |= (call.allowed_toggle_mute_new_participants && call.can_be_managed) !=
                        (group_call->allowed_toggle_mute_new_participants && group_call->can_be_managed);
@@ -5610,6 +6170,20 @@ InputGroupCallId GroupCallManager::update_group_call(const tl_object_ptr<telegra
           need_update = true;
         }
       }
+      if (call.are_messages_enabled != group_call->are_messages_enabled &&
+          call.are_messages_enabled_version >= group_call->are_messages_enabled_version) {
+        auto old_are_messages_enabled = get_group_call_are_messages_enabled(group_call);
+        group_call->are_messages_enabled = call.are_messages_enabled;
+        group_call->are_messages_enabled_version = call.are_messages_enabled_version;
+        if (old_are_messages_enabled != get_group_call_are_messages_enabled(group_call)) {
+          need_update = true;
+        }
+      }
+      if (call.allowed_toggle_are_messages_enabled != group_call->allowed_toggle_are_messages_enabled && !is_min) {
+        need_update |= (call.allowed_toggle_are_messages_enabled && call.can_be_managed) !=
+                       (group_call->allowed_toggle_are_messages_enabled && group_call->can_be_managed);
+        group_call->allowed_toggle_are_messages_enabled = call.allowed_toggle_are_messages_enabled;
+      }
       if (call.title != group_call->title && call.title_version >= group_call->title_version) {
         string old_group_call_title = get_group_call_title(group_call);
         group_call->title = std::move(call.title);
@@ -5618,16 +6192,16 @@ InputGroupCallId GroupCallManager::update_group_call(const tl_object_ptr<telegra
           need_update = true;
         }
       }
-      if (call.invite_link != group_call->invite_link) {
+      if (call.invite_link != group_call->invite_link && !is_min) {
         group_call->invite_link = std::move(call.invite_link);
         need_update = true;
       }
-      if (call.can_be_managed != group_call->can_be_managed) {
+      if (call.can_be_managed != group_call->can_be_managed && !is_min) {
         group_call->can_be_managed = call.can_be_managed;
         need_update = true;
       }
       if (call.stream_dc_id != group_call->stream_dc_id &&
-          call.stream_dc_id_version >= group_call->stream_dc_id_version) {
+          call.stream_dc_id_version >= group_call->stream_dc_id_version && !is_min) {
         group_call->stream_dc_id = call.stream_dc_id;
         group_call->stream_dc_id_version = call.stream_dc_id_version;
       }
@@ -6133,6 +6707,9 @@ tl_object_ptr<td_api::groupCall> GroupCallManager::get_group_call_object(
   bool can_toggle_mute_new_participants =
       group_call->is_active && group_call->can_be_managed && group_call->allowed_toggle_mute_new_participants;
   bool can_enable_video = get_group_call_can_enable_video(group_call);
+  bool are_messages_enabled = get_group_call_are_messages_enabled(group_call);
+  bool can_toggle_are_messages_enabled =
+      group_call->is_active && group_call->can_be_managed && group_call->allowed_toggle_are_messages_enabled;
   int32 record_start_date = get_group_call_record_start_date(group_call);
   int32 record_duration = record_start_date == 0 ? 0 : max(G()->unix_time() - record_start_date + 1, 1);
   bool is_video_recorded = get_group_call_is_video_recorded(group_call);
@@ -6142,7 +6719,8 @@ tl_object_ptr<td_api::groupCall> GroupCallManager::get_group_call_object(
       is_joined, group_call->need_rejoin, group_call->is_creator, group_call->can_be_managed,
       group_call->participant_count, group_call->has_hidden_listeners, group_call->loaded_all_participants,
       std::move(recent_speakers), is_my_video_enabled, is_my_video_paused, can_enable_video, mute_new_participants,
-      can_toggle_mute_new_participants, record_duration, is_video_recorded, group_call->duration);
+      can_toggle_mute_new_participants, are_messages_enabled, can_toggle_are_messages_enabled, record_duration,
+      is_video_recorded, group_call->duration);
 }
 
 tl_object_ptr<td_api::updateGroupCall> GroupCallManager::get_update_group_call_object(

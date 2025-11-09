@@ -2873,6 +2873,7 @@ string NotificationManager::convert_loc_key(const string &loc_key) {
       {"MESSAGE_STICKER", "MESSAGE_STICKER"},
       {"MESSAGE_STORY", "MESSAGE_STORY"},
       {"MESSAGE_STORY_MENTION", "MESSAGE_STORY_MENTION"},
+      {"MESSAGE_SUGGEST_BIRTHDAY", "MESSAGE_SUGGEST_BIRTHDAY"},
       {"MESSAGE_SUGGEST_USERPIC", "MESSAGE_SUGGEST_PHOTO"},
       {"MESSAGE_TEXT", "MESSAGE_TEXT"},
       {"MESSAGE_THEME", "MESSAGE_CHAT_CHANGE_THEME"},
@@ -2926,7 +2927,7 @@ void NotificationManager::add_push_notification_user(
   auto user_name = sender_user_id.get() == 136817688 ? "Channel" : sender_name;
   auto user = telegram_api::make_object<telegram_api::user>(
       flags, false, false, false, false, false, false, false, false, false, true /*min*/, false, false, false, false,
-      false, false, false, false, 0, false, false, false, false, false, false, false, sender_user_id.get(),
+      false, false, false, false, 0, false, false, false, false, false, false, false, false, sender_user_id.get(),
       sender_access_hash, user_name, string(), string(), string(), std::move(sender_photo), nullptr, 0, Auto(),
       string(), string(), nullptr, vector<telegram_api::object_ptr<telegram_api::username>>(), 0, nullptr, nullptr, 0,
       0, 0);

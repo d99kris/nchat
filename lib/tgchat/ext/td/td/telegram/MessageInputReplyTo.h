@@ -21,7 +21,7 @@
 namespace td {
 
 class Dependencies;
-
+class MessageTopic;
 class Td;
 
 class MessageInputReplyTo {
@@ -89,8 +89,8 @@ class MessageInputReplyTo {
 
   void add_dependencies(Dependencies &dependencies) const;
 
-  telegram_api::object_ptr<telegram_api::InputReplyTo> get_input_reply_to(
-      Td *td, MessageId top_thread_message_id, SavedMessagesTopicId saved_messages_topic_id) const;
+  telegram_api::object_ptr<telegram_api::InputReplyTo> get_input_reply_to(Td *td,
+                                                                          const MessageTopic &message_topic) const;
 
   // only for draft messages
   td_api::object_ptr<td_api::InputMessageReplyTo> get_input_message_reply_to_object(Td *td) const;

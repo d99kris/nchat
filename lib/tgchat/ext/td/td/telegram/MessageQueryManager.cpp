@@ -8,6 +8,7 @@
 
 #include "td/telegram/AccessRights.h"
 #include "td/telegram/AuthManager.h"
+#include "td/telegram/ChannelParticipantFilter.h"
 #include "td/telegram/ChatManager.h"
 #include "td/telegram/Dependencies.h"
 #include "td/telegram/DialogId.h"
@@ -18,6 +19,7 @@
 #include "td/telegram/files/FileManager.h"
 #include "td/telegram/files/FileType.h"
 #include "td/telegram/FolderId.h"
+#include "td/telegram/ForumTopicManager.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/HashtagHints.h"
 #include "td/telegram/logevent/LogEvent.h"
@@ -748,15 +750,10 @@ class GetMessagePositionQuery final : public Td::ResultHandler {
     message_topic_ = message_topic;
     filter_ = filter;
 
-    auto saved_messages_topic_id = message_topic.get_any_saved_messages_topic_id();
-    telegram_api::object_ptr<telegram_api::InputPeer> saved_input_peer;
-    if (saved_messages_topic_id.is_valid()) {
-      saved_input_peer = saved_messages_topic_id.get_input_peer(td_);
-      CHECK(saved_input_peer != nullptr);
-    }
-    auto top_msg_id = message_topic.get_forum_topic_id().get_server_message_id().get();
+    auto saved_input_peer = message_topic.get_saved_input_peer(td_);
+    auto top_msg_id = message_topic.get_input_top_msg_id();
     if (filter == MessageSearchFilter::Empty && top_msg_id == 0) {
-      if (saved_messages_topic_id.is_valid()) {
+      if (saved_input_peer != nullptr) {
         int32 flags = 0;
         if (message_topic_.is_monoforum()) {
           flags |= telegram_api::messages_getSavedHistory::PARENT_PEER_MASK;
@@ -1486,29 +1483,28 @@ class DeleteScheduledMessagesQuery final : public Td::ResultHandler {
 
 class DeleteTopicHistoryQuery final : public Td::ResultHandler {
   Promise<AffectedHistory> promise_;
-  ChannelId channel_id_;
-  MessageId top_thread_message_id_;
+  DialogId dialog_id_;
+  ForumTopicId forum_topic_id_;
 
  public:
   explicit DeleteTopicHistoryQuery(Promise<AffectedHistory> &&promise) : promise_(std::move(promise)) {
   }
 
-  void send(DialogId dialog_id, MessageId top_thread_message_id) {
-    CHECK(dialog_id.get_type() == DialogType::Channel);
-    channel_id_ = dialog_id.get_channel_id();
-    top_thread_message_id_ = top_thread_message_id;
+  void send(DialogId dialog_id, ForumTopicId forum_topic_id) {
+    dialog_id_ = dialog_id;
+    forum_topic_id_ = forum_topic_id;
 
-    auto input_channel = td_->chat_manager_->get_input_channel(channel_id_);
-    if (input_channel == nullptr) {
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Write);
+    if (input_peer == nullptr) {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
 
-    send_query(G()->net_query_creator().create(telegram_api::channels_deleteTopicHistory(
-        std::move(input_channel), top_thread_message_id.get_server_message_id().get())));
+    send_query(G()->net_query_creator().create(
+        telegram_api::messages_deleteTopicHistory(std::move(input_peer), forum_topic_id.get())));
   }
 
   void on_result(BufferSlice packet) final {
-    auto result_ptr = fetch_result<telegram_api::channels_deleteTopicHistory>(packet);
+    auto result_ptr = fetch_result<telegram_api::messages_deleteTopicHistory>(packet);
     if (result_ptr.is_error()) {
       return on_error(result_ptr.move_as_error());
     }
@@ -1517,8 +1513,7 @@ class DeleteTopicHistoryQuery final : public Td::ResultHandler {
   }
 
   void on_error(Status status) final {
-    td_->messages_manager_->on_get_message_error(DialogId(channel_id_), top_thread_message_id_, status,
-                                                 "DeleteTopicHistoryQuery");
+    td_->forum_topic_manager_->on_get_forum_topic_error(dialog_id_, forum_topic_id_, status, "DeleteTopicHistoryQuery");
     promise_.set_error(std::move(status));
   }
 };
@@ -1526,13 +1521,15 @@ class DeleteTopicHistoryQuery final : public Td::ResultHandler {
 class ReadMentionsQuery final : public Td::ResultHandler {
   Promise<AffectedHistory> promise_;
   DialogId dialog_id_;
+  ForumTopicId forum_topic_id_;
 
  public:
   explicit ReadMentionsQuery(Promise<AffectedHistory> &&promise) : promise_(std::move(promise)) {
   }
 
-  void send(DialogId dialog_id, MessageId top_thread_message_id) {
+  void send(DialogId dialog_id, ForumTopicId forum_topic_id) {
     dialog_id_ = dialog_id;
+    forum_topic_id_ = forum_topic_id;
 
     auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Read);
     if (input_peer == nullptr) {
@@ -1540,13 +1537,11 @@ class ReadMentionsQuery final : public Td::ResultHandler {
     }
 
     int32 flags = 0;
-    if (top_thread_message_id.is_valid()) {
+    if (forum_topic_id.is_valid()) {
       flags |= telegram_api::messages_readMentions::TOP_MSG_ID_MASK;
     }
     send_query(G()->net_query_creator().create(
-        telegram_api::messages_readMentions(flags, std::move(input_peer),
-                                            top_thread_message_id.get_server_message_id().get()),
-        {{dialog_id}}));
+        telegram_api::messages_readMentions(flags, std::move(input_peer), forum_topic_id.get()), {{dialog_id}}));
   }
 
   void on_result(BufferSlice packet) final {
@@ -1559,7 +1554,7 @@ class ReadMentionsQuery final : public Td::ResultHandler {
   }
 
   void on_error(Status status) final {
-    td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "ReadMentionsQuery");
+    td_->forum_topic_manager_->on_get_forum_topic_error(dialog_id_, forum_topic_id_, status, "ReadMentionsQuery");
     promise_.set_error(std::move(status));
   }
 };
@@ -1567,13 +1562,13 @@ class ReadMentionsQuery final : public Td::ResultHandler {
 class ReadReactionsQuery final : public Td::ResultHandler {
   Promise<AffectedHistory> promise_;
   DialogId dialog_id_;
-  MessageId top_thread_message_id_;
+  ForumTopicId forum_topic_id_;
 
  public:
   explicit ReadReactionsQuery(Promise<AffectedHistory> &&promise) : promise_(std::move(promise)) {
   }
 
-  void send(DialogId dialog_id, MessageId top_thread_message_id, SavedMessagesTopicId saved_messages_topic_id) {
+  void send(DialogId dialog_id, ForumTopicId forum_topic_id, SavedMessagesTopicId saved_messages_topic_id) {
     dialog_id_ = dialog_id;
 
     auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Read);
@@ -1582,7 +1577,7 @@ class ReadReactionsQuery final : public Td::ResultHandler {
     }
 
     int32 flags = 0;
-    if (top_thread_message_id.is_valid()) {
+    if (forum_topic_id.is_valid()) {
       flags |= telegram_api::messages_readReactions::TOP_MSG_ID_MASK;
     }
     telegram_api::object_ptr<telegram_api::InputPeer> saved_input_peer;
@@ -1592,8 +1587,7 @@ class ReadReactionsQuery final : public Td::ResultHandler {
       CHECK(saved_input_peer != nullptr);
     }
     send_query(G()->net_query_creator().create(
-        telegram_api::messages_readReactions(flags, std::move(input_peer),
-                                             top_thread_message_id.get_server_message_id().get(),
+        telegram_api::messages_readReactions(flags, std::move(input_peer), forum_topic_id.get(),
                                              std::move(saved_input_peer)),
         {{dialog_id}}));
   }
@@ -1608,7 +1602,7 @@ class ReadReactionsQuery final : public Td::ResultHandler {
   }
 
   void on_error(Status status) final {
-    td_->messages_manager_->on_get_message_error(dialog_id_, top_thread_message_id_, status, "ReadReactionsQuery");
+    td_->forum_topic_manager_->on_get_forum_topic_error(dialog_id_, forum_topic_id_, status, "ReadReactionsQuery");
     promise_.set_error(std::move(status));
   }
 };
@@ -1697,15 +1691,15 @@ class ReadChannelMessagesContentsQuery final : public Td::ResultHandler {
 class UnpinAllMessagesQuery final : public Td::ResultHandler {
   Promise<AffectedHistory> promise_;
   DialogId dialog_id_;
-  MessageId top_thread_message_id_;
+  ForumTopicId forum_topic_id_;
 
  public:
   explicit UnpinAllMessagesQuery(Promise<AffectedHistory> &&promise) : promise_(std::move(promise)) {
   }
 
-  void send(DialogId dialog_id, MessageId top_thread_message_id, SavedMessagesTopicId saved_messages_topic_id) {
+  void send(DialogId dialog_id, ForumTopicId forum_topic_id, SavedMessagesTopicId saved_messages_topic_id) {
     dialog_id_ = dialog_id;
-    top_thread_message_id_ = top_thread_message_id;
+    forum_topic_id_ = forum_topic_id;
 
     auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Write);
     if (input_peer == nullptr) {
@@ -1714,7 +1708,7 @@ class UnpinAllMessagesQuery final : public Td::ResultHandler {
     }
 
     int32 flags = 0;
-    if (top_thread_message_id.is_valid()) {
+    if (forum_topic_id.is_valid()) {
       flags |= telegram_api::messages_unpinAllMessages::TOP_MSG_ID_MASK;
     }
     telegram_api::object_ptr<telegram_api::InputPeer> saved_input_peer;
@@ -1724,8 +1718,7 @@ class UnpinAllMessagesQuery final : public Td::ResultHandler {
       CHECK(saved_input_peer != nullptr);
     }
     send_query(G()->net_query_creator().create(telegram_api::messages_unpinAllMessages(
-        flags, std::move(input_peer), top_thread_message_id.get_server_message_id().get(),
-        std::move(saved_input_peer))));
+        flags, std::move(input_peer), forum_topic_id.get(), std::move(saved_input_peer))));
   }
 
   void on_result(BufferSlice packet) final {
@@ -1738,7 +1731,7 @@ class UnpinAllMessagesQuery final : public Td::ResultHandler {
   }
 
   void on_error(Status status) final {
-    td_->messages_manager_->on_get_message_error(dialog_id_, top_thread_message_id_, status, "UnpinAllMessagesQuery");
+    td_->forum_topic_manager_->on_get_forum_topic_error(dialog_id_, forum_topic_id_, status, "UnpinAllMessagesQuery");
     promise_.set_error(std::move(status));
   }
 };
@@ -2345,8 +2338,8 @@ void MessageQueryManager::on_get_message_viewers(DialogId dialog_id, MessageView
                                                       "on_get_message_viewers");
         case DialogType::Channel:
           return td_->dialog_participant_manager_->get_channel_participants(
-              dialog_id.get_channel_id(), td_api::make_object<td_api::supergroupMembersFilterRecent>(), string(), 0,
-              200, 200, PromiseCreator::lambda([query_promise = std::move(query_promise)](DialogParticipants) mutable {
+              dialog_id.get_channel_id(), ChannelParticipantFilter::recent(), string(), 0, 200, 200,
+              PromiseCreator::lambda([query_promise = std::move(query_promise)](DialogParticipants) mutable {
                 query_promise.set_value(Unit());
               }));
         default:
@@ -3034,14 +3027,14 @@ void MessageQueryManager::delete_scheduled_messages_on_server(DialogId dialog_id
 class MessageQueryManager::DeleteTopicHistoryOnServerLogEvent {
  public:
   DialogId dialog_id_;
-  MessageId top_thread_message_id_;
+  ForumTopicId forum_topic_id_;
 
   template <class StorerT>
   void store(StorerT &storer) const {
     BEGIN_STORE_FLAGS();
     END_STORE_FLAGS();
     td::store(dialog_id_, storer);
-    td::store(top_thread_message_id_, storer);
+    td::store(forum_topic_id_, storer);
   }
 
   template <class ParserT>
@@ -3049,38 +3042,38 @@ class MessageQueryManager::DeleteTopicHistoryOnServerLogEvent {
     BEGIN_PARSE_FLAGS();
     END_PARSE_FLAGS();
     td::parse(dialog_id_, parser);
-    td::parse(top_thread_message_id_, parser);
+    td::parse(forum_topic_id_, parser);
   }
 };
 
 uint64 MessageQueryManager::save_delete_topic_history_on_server_log_event(DialogId dialog_id,
-                                                                          MessageId top_thread_message_id) {
-  DeleteTopicHistoryOnServerLogEvent log_event{dialog_id, top_thread_message_id};
+                                                                          ForumTopicId forum_topic_id) {
+  DeleteTopicHistoryOnServerLogEvent log_event{dialog_id, forum_topic_id};
   return binlog_add(G()->td_db()->get_binlog(), LogEvent::HandlerType::DeleteTopicHistoryOnServer,
                     get_log_event_storer(log_event));
 }
 
-void MessageQueryManager::delete_topic_history_on_server(DialogId dialog_id, MessageId top_thread_message_id,
+void MessageQueryManager::delete_topic_history_on_server(DialogId dialog_id, ForumTopicId forum_topic_id,
                                                          uint64 log_event_id, Promise<Unit> &&promise) {
   if (log_event_id == 0 && G()->use_message_database()) {
-    log_event_id = save_delete_topic_history_on_server_log_event(dialog_id, top_thread_message_id);
+    log_event_id = save_delete_topic_history_on_server_log_event(dialog_id, forum_topic_id);
   }
 
   auto new_promise = get_erase_log_event_promise(log_event_id, std::move(promise));
   promise = std::move(new_promise);  // to prevent self-move
 
-  AffectedHistoryQuery query = [td = td_, top_thread_message_id](DialogId dialog_id,
-                                                                 Promise<AffectedHistory> &&query_promise) {
-    td->create_handler<DeleteTopicHistoryQuery>(std::move(query_promise))->send(dialog_id, top_thread_message_id);
+  AffectedHistoryQuery query = [td = td_, forum_topic_id](DialogId dialog_id,
+                                                          Promise<AffectedHistory> &&query_promise) {
+    td->create_handler<DeleteTopicHistoryQuery>(std::move(query_promise))->send(dialog_id, forum_topic_id);
   };
   run_affected_history_query_until_complete(dialog_id, std::move(query), true, std::move(promise));
 }
 
-void MessageQueryManager::read_all_topic_mentions_on_server(DialogId dialog_id, MessageId top_thread_message_id,
+void MessageQueryManager::read_all_topic_mentions_on_server(DialogId dialog_id, ForumTopicId forum_topic_id,
                                                             uint64 log_event_id, Promise<Unit> &&promise) {
-  AffectedHistoryQuery query = [td = td_, top_thread_message_id](DialogId dialog_id,
-                                                                 Promise<AffectedHistory> &&query_promise) {
-    td->create_handler<ReadMentionsQuery>(std::move(query_promise))->send(dialog_id, top_thread_message_id);
+  AffectedHistoryQuery query = [td = td_, forum_topic_id](DialogId dialog_id,
+                                                          Promise<AffectedHistory> &&query_promise) {
+    td->create_handler<ReadMentionsQuery>(std::move(query_promise))->send(dialog_id, forum_topic_id);
   };
   run_affected_history_query_until_complete(dialog_id, std::move(query), true, std::move(promise));
 }
@@ -3113,19 +3106,19 @@ void MessageQueryManager::read_all_dialog_mentions_on_server(DialogId dialog_id,
   }
 
   AffectedHistoryQuery query = [td = td_](DialogId dialog_id, Promise<AffectedHistory> &&query_promise) {
-    td->create_handler<ReadMentionsQuery>(std::move(query_promise))->send(dialog_id, MessageId());
+    td->create_handler<ReadMentionsQuery>(std::move(query_promise))->send(dialog_id, ForumTopicId());
   };
   run_affected_history_query_until_complete(dialog_id, std::move(query), false,
                                             get_erase_log_event_promise(log_event_id, std::move(promise)));
 }
 
-void MessageQueryManager::read_all_topic_reactions_on_server(DialogId dialog_id, MessageId top_thread_message_id,
+void MessageQueryManager::read_all_topic_reactions_on_server(DialogId dialog_id, ForumTopicId forum_topic_id,
                                                              SavedMessagesTopicId saved_messages_topic_id,
                                                              uint64 log_event_id, Promise<Unit> &&promise) {
-  AffectedHistoryQuery query = [td = td_, top_thread_message_id, saved_messages_topic_id](
+  AffectedHistoryQuery query = [td = td_, forum_topic_id, saved_messages_topic_id](
                                    DialogId dialog_id, Promise<AffectedHistory> &&query_promise) {
     td->create_handler<ReadReactionsQuery>(std::move(query_promise))
-        ->send(dialog_id, top_thread_message_id, saved_messages_topic_id);
+        ->send(dialog_id, forum_topic_id, saved_messages_topic_id);
   };
   run_affected_history_query_until_complete(dialog_id, std::move(query), true, std::move(promise));
 }
@@ -3159,19 +3152,19 @@ void MessageQueryManager::read_all_dialog_reactions_on_server(DialogId dialog_id
 
   AffectedHistoryQuery query = [td = td_](DialogId dialog_id, Promise<AffectedHistory> &&query_promise) {
     td->create_handler<ReadReactionsQuery>(std::move(query_promise))
-        ->send(dialog_id, MessageId(), SavedMessagesTopicId());
+        ->send(dialog_id, ForumTopicId(), SavedMessagesTopicId());
   };
   run_affected_history_query_until_complete(dialog_id, std::move(query), false,
                                             get_erase_log_event_promise(log_event_id, std::move(promise)));
 }
 
-void MessageQueryManager::unpin_all_topic_messages_on_server(DialogId dialog_id, MessageId top_thread_message_id,
+void MessageQueryManager::unpin_all_topic_messages_on_server(DialogId dialog_id, ForumTopicId forum_topic_id,
                                                              SavedMessagesTopicId saved_messages_topic_id,
                                                              uint64 log_event_id, Promise<Unit> &&promise) {
-  AffectedHistoryQuery query = [td = td_, top_thread_message_id, saved_messages_topic_id](
+  AffectedHistoryQuery query = [td = td_, forum_topic_id, saved_messages_topic_id](
                                    DialogId dialog_id, Promise<AffectedHistory> &&query_promise) {
     td->create_handler<UnpinAllMessagesQuery>(std::move(query_promise))
-        ->send(dialog_id, top_thread_message_id, saved_messages_topic_id);
+        ->send(dialog_id, forum_topic_id, saved_messages_topic_id);
   };
   run_affected_history_query_until_complete(dialog_id, std::move(query), true, std::move(promise));
 }
@@ -3306,7 +3299,7 @@ void MessageQueryManager::unpin_all_dialog_messages_on_server(DialogId dialog_id
 
   AffectedHistoryQuery query = [td = td_](DialogId dialog_id, Promise<AffectedHistory> &&query_promise) {
     td->create_handler<UnpinAllMessagesQuery>(std::move(query_promise))
-        ->send(dialog_id, MessageId(), SavedMessagesTopicId());
+        ->send(dialog_id, ForumTopicId(), SavedMessagesTopicId());
   };
   run_affected_history_query_until_complete(dialog_id, std::move(query), true,
                                             get_erase_log_event_promise(log_event_id, std::move(promise)));
@@ -3448,7 +3441,10 @@ void MessageQueryManager::on_binlog_events(vector<BinlogEvent> &&events) {
         }
 
         DeleteTopicHistoryOnServerLogEvent log_event;
-        log_event_parse(log_event, event.get_data()).ensure();
+        if (log_event_parse(log_event, event.get_data()).is_error()) {
+          binlog_erase(G()->td_db()->get_binlog(), event.id_);
+          break;
+        }
 
         auto dialog_id = log_event.dialog_id_;
         if (!td_->dialog_manager_->have_dialog_force(dialog_id, "DeleteTopicHistoryOnServerLogEvent") ||
@@ -3457,7 +3453,7 @@ void MessageQueryManager::on_binlog_events(vector<BinlogEvent> &&events) {
           break;
         }
 
-        delete_topic_history_on_server(dialog_id, log_event.top_thread_message_id_, event.id_, Auto());
+        delete_topic_history_on_server(dialog_id, log_event.forum_topic_id_, event.id_, Auto());
         break;
       }
       case LogEvent::HandlerType::ReadAllDialogMentionsOnServer: {

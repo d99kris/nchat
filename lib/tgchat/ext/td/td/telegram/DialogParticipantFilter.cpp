@@ -35,7 +35,8 @@ StringBuilder &operator<<(StringBuilder &string_builder, const DialogParticipant
   }
 }
 
-DialogParticipantFilter::DialogParticipantFilter(const td_api::object_ptr<td_api::ChatMembersFilter> &filter) {
+DialogParticipantFilter::DialogParticipantFilter(Td *td, DialogId dialog_id,
+                                                 const td_api::object_ptr<td_api::ChatMembersFilter> &filter) {
   if (filter == nullptr) {
     type_ = Type::Members;
     return;
@@ -58,9 +59,9 @@ DialogParticipantFilter::DialogParticipantFilter(const td_api::object_ptr<td_api
       break;
     case td_api::chatMembersFilterMention::ID: {
       auto mention_filter = static_cast<const td_api::chatMembersFilterMention *>(filter.get());
-      top_thread_message_id_ = MessageId(mention_filter->message_thread_id_);
-      if (!top_thread_message_id_.is_server()) {
-        top_thread_message_id_ = MessageId();
+      auto r_message_topic = MessageTopic::get_message_topic(td, dialog_id, mention_filter->topic_id_);
+      if (r_message_topic.is_ok()) {
+        message_topic_ = r_message_topic.move_as_ok();
       }
       type_ = Type::Mention;
       break;
@@ -75,37 +76,51 @@ DialogParticipantFilter::DialogParticipantFilter(const td_api::object_ptr<td_api
   }
 }
 
-td_api::object_ptr<td_api::SupergroupMembersFilter> DialogParticipantFilter::get_supergroup_members_filter_object(
-    const string &query) const {
+ChannelParticipantFilter DialogParticipantFilter::as_channel_participant_filter(const string &query) const {
+  ChannelParticipantFilter filter{nullptr, DialogId(), nullptr};
   switch (type_) {
     case Type::Contacts:
-      return td_api::make_object<td_api::supergroupMembersFilterContacts>();
+      filter.type_ = ChannelParticipantFilter::Type::Contacts;
+      filter.query_ = query;
+      break;
     case Type::Administrators:
-      return td_api::make_object<td_api::supergroupMembersFilterAdministrators>();
+      filter.type_ = ChannelParticipantFilter::Type::Administrators;
+      break;
     case Type::Members:
-      return td_api::make_object<td_api::supergroupMembersFilterSearch>(query);
+      filter.type_ = ChannelParticipantFilter::Type::Search;
+      filter.query_ = query;
+      break;
     case Type::Restricted:
-      return td_api::make_object<td_api::supergroupMembersFilterRestricted>(query);
+      filter.type_ = ChannelParticipantFilter::Type::Restricted;
+      filter.query_ = query;
+      break;
     case Type::Banned:
-      return td_api::make_object<td_api::supergroupMembersFilterBanned>(query);
+      filter.type_ = ChannelParticipantFilter::Type::Banned;
+      filter.query_ = query;
+      break;
     case Type::Mention:
-      return td_api::make_object<td_api::supergroupMembersFilterMention>(query, top_thread_message_id_.get());
+      filter.type_ = ChannelParticipantFilter::Type::Mention;
+      filter.query_ = query;
+      filter.message_topic_ = message_topic_;
+      break;
     case Type::Bots:
-      return td_api::make_object<td_api::supergroupMembersFilterBots>();
+      filter.type_ = ChannelParticipantFilter::Type::Bots;
+      break;
     default:
       UNREACHABLE();
-      return nullptr;
+      break;
   }
+  return filter;
 }
 
 bool DialogParticipantFilter::has_query() const {
   switch (type_) {
+    case Type::Contacts:
     case Type::Members:
     case Type::Restricted:
     case Type::Banned:
     case Type::Mention:
       return true;
-    case Type::Contacts:
     case Type::Administrators:
     case Type::Bots:
       return false;

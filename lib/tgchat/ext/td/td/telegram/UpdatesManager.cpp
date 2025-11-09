@@ -32,6 +32,7 @@
 #include "td/telegram/DownloadManager.h"
 #include "td/telegram/EmojiStatus.h"
 #include "td/telegram/FolderId.h"
+#include "td/telegram/ForumTopicId.h"
 #include "td/telegram/ForumTopicManager.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/GroupCallManager.h"
@@ -1014,6 +1015,7 @@ bool UpdatesManager::is_acceptable_message(const telegram_api::Message *message_
         case telegram_api::messageActionSuggestedPostSuccess::ID:
         case telegram_api::messageActionSuggestedPostRefund::ID:
         case telegram_api::messageActionGiftTon::ID:
+        case telegram_api::messageActionSuggestBirthday::ID:
           break;
         case telegram_api::messageActionChatCreate::ID: {
           auto chat_create = static_cast<const telegram_api::messageActionChatCreate *>(action);
@@ -3769,24 +3771,23 @@ void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateMonoForumNoPaid
   promise.set_value(Unit());
 }
 
-void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateChannelPinnedTopic> update, Promise<Unit> &&promise) {
-  td_->forum_topic_manager_->on_update_forum_topic_is_pinned(
-      DialogId(ChannelId(update->channel_id_)), MessageId(ServerMessageId(update->topic_id_)), update->pinned_);
+void UpdatesManager::on_update(tl_object_ptr<telegram_api::updatePinnedForumTopic> update, Promise<Unit> &&promise) {
+  td_->forum_topic_manager_->on_update_forum_topic_is_pinned(DialogId(update->peer_), ForumTopicId(update->topic_id_),
+                                                             update->pinned_);
   promise.set_value(Unit());
 }
 
-void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateChannelPinnedTopics> update, Promise<Unit> &&promise) {
-  vector<MessageId> top_thread_message_ids;
-  for (auto &server_message_id : update->order_) {
-    auto message_id = MessageId(ServerMessageId(server_message_id));
-    if (!message_id.is_valid()) {
+void UpdatesManager::on_update(tl_object_ptr<telegram_api::updatePinnedForumTopics> update, Promise<Unit> &&promise) {
+  vector<ForumTopicId> forum_topic_ids;
+  for (auto topic_id : update->order_) {
+    auto forum_topic_id = ForumTopicId(topic_id);
+    if (!forum_topic_id.is_valid()) {
       LOG(ERROR) << "Receive " << to_string(update);
       break;
     }
-    top_thread_message_ids.push_back(message_id);
+    forum_topic_ids.push_back(forum_topic_id);
   }
-  td_->forum_topic_manager_->on_update_pinned_forum_topics(DialogId(ChannelId(update->channel_id_)),
-                                                           std::move(top_thread_message_ids));
+  td_->forum_topic_manager_->on_update_pinned_forum_topics(DialogId(update->peer_), std::move(forum_topic_ids));
   promise.set_value(Unit());
 }
 
@@ -3834,10 +3835,10 @@ void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateNotifySettings>
     case telegram_api::notifyForumTopic::ID: {
       auto notify_peer = static_cast<const telegram_api::notifyForumTopic *>(update->peer_.get());
       DialogId dialog_id(notify_peer->peer_);
-      auto top_thread_message_id = MessageId(ServerMessageId(notify_peer->top_msg_id_));
-      if (dialog_id.is_valid() && top_thread_message_id.is_valid()) {
+      auto forum_topic_id = ForumTopicId(notify_peer->top_msg_id_);
+      if (dialog_id.is_valid() && forum_topic_id.is_valid()) {
         td_->forum_topic_manager_->on_update_forum_topic_notify_settings(
-            dialog_id, top_thread_message_id, std::move(update->notify_settings_), "updateNotifySettings");
+            dialog_id, forum_topic_id, std::move(update->notify_settings_), "updateNotifySettings");
       } else {
         LOG(ERROR) << "Receive wrong " << to_string(update);
       }
@@ -4103,22 +4104,24 @@ bool UpdatesManager::is_channel_pts_update(const telegram_api::Update *update) {
 
 void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateUserTyping> update, Promise<Unit> &&promise) {
   DialogId dialog_id(UserId(update->user_id_));
-  td_->dialog_action_manager_->on_dialog_action(dialog_id, MessageId(), dialog_id,
-                                                DialogAction(std::move(update->action_)), get_short_update_date());
+  td_->dialog_action_manager_->on_dialog_action(dialog_id, MessageId(ServerMessageId(update->top_msg_id_)), dialog_id,
+                                                DialogAction(td_->user_manager_.get(), std::move(update->action_)),
+                                                get_short_update_date());
   promise.set_value(Unit());
 }
 
 void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateChatUserTyping> update, Promise<Unit> &&promise) {
-  td_->dialog_action_manager_->on_dialog_action(DialogId(ChatId(update->chat_id_)), MessageId(),
-                                                DialogId(update->from_id_), DialogAction(std::move(update->action_)),
-                                                get_short_update_date());
+  td_->dialog_action_manager_->on_dialog_action(
+      DialogId(ChatId(update->chat_id_)), MessageId(), DialogId(update->from_id_),
+      DialogAction(td_->user_manager_.get(), std::move(update->action_)), get_short_update_date());
   promise.set_value(Unit());
 }
 
 void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateChannelUserTyping> update, Promise<Unit> &&promise) {
   td_->dialog_action_manager_->on_dialog_action(
       DialogId(ChannelId(update->channel_id_)), MessageId(ServerMessageId(update->top_msg_id_)),
-      DialogId(update->from_id_), DialogAction(std::move(update->action_)), get_short_update_date());
+      DialogId(update->from_id_), DialogAction(td_->user_manager_.get(), std::move(update->action_)),
+      get_short_update_date());
   promise.set_value(Unit());
 }
 
@@ -4510,6 +4513,20 @@ void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateGroupCallPartic
                                Promise<Unit> &&promise) {
   send_closure(G()->group_call_manager(), &GroupCallManager::on_update_group_call_participants,
                InputGroupCallId(update->call_), std::move(update->participants_), update->version_, false);
+  promise.set_value(Unit());
+}
+
+void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateGroupCallMessage> update, Promise<Unit> &&promise) {
+  send_closure(G()->group_call_manager(), &GroupCallManager::on_new_group_call_message, InputGroupCallId(update->call_),
+               DialogId(update->from_id_), update->random_id_, std::move(update->message_));
+  promise.set_value(Unit());
+}
+
+void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateGroupCallEncryptedMessage> update,
+                               Promise<Unit> &&promise) {
+  send_closure(G()->group_call_manager(), &GroupCallManager::on_new_encrypted_group_call_message,
+               InputGroupCallId(update->call_), DialogId(update->from_id_),
+               update->encrypted_message_.as_slice().str());
   promise.set_value(Unit());
 }
 

@@ -69,13 +69,16 @@ class StarGiftManager final : public Actor {
   void transfer_gift(BusinessConnectionId business_connection_id, StarGiftId star_gift_id, DialogId receiver_dialog_id,
                      int64 star_count, Promise<Unit> &&promise);
 
+  void drop_gift_original_details(StarGiftId star_gift_id, int64 star_count, Promise<Unit> &&promise);
+
   void send_resold_gift(const string &gift_name, DialogId receiver_dialog_id, StarGiftResalePrice price,
                         Promise<td_api::object_ptr<td_api::GiftResaleResult>> &&promise);
 
   void get_saved_star_gifts(BusinessConnectionId business_connection_id, DialogId dialog_id,
                             StarGiftCollectionId collection_id, bool exclude_unsaved, bool exclude_saved,
                             bool exclude_unlimited, bool exclude_upgradable, bool exclude_non_upgradable,
-                            bool exclude_unique, bool sort_by_value, const string &offset, int32 limit,
+                            bool exclude_unique, bool peer_color_available, bool exclude_hosted, bool sort_by_value,
+                            const string &offset, int32 limit,
                             Promise<td_api::object_ptr<td_api::receivedGifts>> &&promise);
 
   void get_saved_star_gift(StarGiftId star_gift_id, Promise<td_api::object_ptr<td_api::receivedGift>> &&promise);

@@ -225,12 +225,10 @@ class ToggleChannelUsernameQuery final : public Td::ResultHandler {
 
   void on_error(Status status) final {
     if (status.message() == "USERNAME_NOT_MODIFIED" || status.message() == "CHAT_NOT_MODIFIED") {
-      td_->chat_manager_->on_update_channel_username_is_active(channel_id_, std::move(username_), is_active_,
-                                                               std::move(promise_));
       return;
-    } else {
-      td_->chat_manager_->on_get_channel_error(channel_id_, status, "ToggleChannelUsernameQuery");
     }
+    td_->chat_manager_->on_get_channel_error(channel_id_, status, "ToggleChannelUsernameQuery");
+    td_->chat_manager_->reload_channel(channel_id_, Promise<Unit>(), "ToggleChannelUsernameQuery");
     promise_.set_error(std::move(status));
   }
 };
@@ -264,11 +262,10 @@ class DeactivateAllChannelUsernamesQuery final : public Td::ResultHandler {
 
   void on_error(Status status) final {
     if (status.message() == "USERNAME_NOT_MODIFIED" || status.message() == "CHAT_NOT_MODIFIED") {
-      td_->chat_manager_->on_deactivate_channel_usernames(channel_id_, std::move(promise_));
       return;
-    } else {
-      td_->chat_manager_->on_get_channel_error(channel_id_, status, "DeactivateAllChannelUsernamesQuery");
     }
+    td_->chat_manager_->on_get_channel_error(channel_id_, status, "DeactivateAllChannelUsernamesQuery");
+    td_->chat_manager_->reload_channel(channel_id_, Promise<Unit>(), "DeactivateAllChannelUsernamesQuery");
     promise_.set_error(std::move(status));
   }
 };
@@ -309,12 +306,10 @@ class ReorderChannelUsernamesQuery final : public Td::ResultHandler {
 
   void on_error(Status status) final {
     if (status.message() == "USERNAME_NOT_MODIFIED" || status.message() == "CHAT_NOT_MODIFIED") {
-      td_->chat_manager_->on_update_channel_active_usernames_order(channel_id_, std::move(usernames_),
-                                                                   std::move(promise_));
       return;
-    } else {
-      td_->chat_manager_->on_get_channel_error(channel_id_, status, "ReorderChannelUsernamesQuery");
     }
+    td_->chat_manager_->on_get_channel_error(channel_id_, status, "ReorderChannelUsernamesQuery");
+    td_->chat_manager_->reload_channel(channel_id_, Promise<Unit>(), "ReorderChannelUsernamesQuery");
     promise_.set_error(std::move(status));
   }
 };
@@ -3150,32 +3145,36 @@ void ChatManager::set_channel_username(ChannelId channel_id, const string &usern
 
 void ChatManager::toggle_channel_username_is_active(ChannelId channel_id, string &&username, bool is_active,
                                                     Promise<Unit> &&promise) {
-  const auto *c = get_channel(channel_id);
+  auto *c = get_channel(channel_id);
   if (c == nullptr) {
     return promise.set_error(400, "Supergroup not found");
   }
   if (!get_channel_status(c).is_creator()) {
     return promise.set_error(400, "Not enough rights to change username");
   }
-  if (!c->usernames.can_toggle(username)) {
+  if (!c->usernames.can_toggle(false, username)) {
     return promise.set_error(400, "Wrong username specified");
   }
+  on_update_channel_usernames(c, channel_id, c->usernames.toggle(false, username, is_active));
+  update_channel(c, channel_id);
   td_->create_handler<ToggleChannelUsernameQuery>(std::move(promise))->send(channel_id, std::move(username), is_active);
 }
 
 void ChatManager::disable_all_channel_usernames(ChannelId channel_id, Promise<Unit> &&promise) {
-  const auto *c = get_channel(channel_id);
+  auto *c = get_channel(channel_id);
   if (c == nullptr) {
     return promise.set_error(400, "Supergroup not found");
   }
   if (!get_channel_status(c).is_creator()) {
     return promise.set_error(400, "Not enough rights to disable usernames");
   }
+  on_update_channel_usernames(c, channel_id, c->usernames.deactivate_all());
+  update_channel(c, channel_id);
   td_->create_handler<DeactivateAllChannelUsernamesQuery>(std::move(promise))->send(channel_id);
 }
 
 void ChatManager::reorder_channel_usernames(ChannelId channel_id, vector<string> &&usernames, Promise<Unit> &&promise) {
-  const auto *c = get_channel(channel_id);
+  auto *c = get_channel(channel_id);
   if (c == nullptr) {
     return promise.set_error(400, "Supergroup not found");
   }
@@ -3188,6 +3187,8 @@ void ChatManager::reorder_channel_usernames(ChannelId channel_id, vector<string>
   if (usernames.size() <= 1) {
     return promise.set_value(Unit());
   }
+  on_update_channel_usernames(c, channel_id, c->usernames.reorder_to(vector<string>(usernames)));
+  update_channel(c, channel_id);
   td_->create_handler<ReorderChannelUsernamesQuery>(std::move(promise))->send(channel_id, std::move(usernames));
 }
 
@@ -3195,10 +3196,10 @@ void ChatManager::on_update_channel_username_is_active(ChannelId channel_id, str
                                                        Promise<Unit> &&promise) {
   auto *c = get_channel(channel_id);
   CHECK(c != nullptr);
-  if (!c->usernames.can_toggle(username)) {
+  if (!c->usernames.can_toggle(false, username)) {
     return reload_channel(channel_id, std::move(promise), "on_update_channel_username_is_active");
   }
-  on_update_channel_usernames(c, channel_id, c->usernames.toggle(username, is_active));
+  on_update_channel_usernames(c, channel_id, c->usernames.toggle(false, username, is_active));
   update_channel(c, channel_id);
   promise.set_value(Unit());
 }
@@ -3757,7 +3758,7 @@ void ChatManager::set_channel_location(ChannelId channel_id, const DialogLocatio
 }
 
 void ChatManager::set_channel_slow_mode_delay(DialogId dialog_id, int32 slow_mode_delay, Promise<Unit> &&promise) {
-  vector<int32> allowed_slow_mode_delays{0, 10, 30, 60, 300, 900, 3600};
+  vector<int32> allowed_slow_mode_delays{0, 5, 10, 30, 60, 300, 900, 3600};
   if (!td::contains(allowed_slow_mode_delays, slow_mode_delay)) {
     return promise.set_error(400, "Invalid new value for slow mode delay");
   }
@@ -8546,7 +8547,8 @@ bool ChatManager::get_channel_join_request(ChannelId channel_id) const {
 }
 
 bool ChatManager::get_channel_join_request(const Channel *c) {
-  return c->join_request && c->is_megagroup && !c->is_monoforum && (is_channel_public(c) || c->has_linked_channel);
+  return c->join_request && c->is_megagroup && !c->is_monoforum && (is_channel_public(c) || c->has_linked_channel) &&
+         !c->is_gigagroup;
 }
 
 ChannelId ChatManager::get_channel_linked_channel_id(ChannelId channel_id, const char *source) {

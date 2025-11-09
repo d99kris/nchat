@@ -10,10 +10,12 @@
 #include "td/telegram/AuthManager.h"
 #include "td/telegram/BusinessConnectionManager.h"
 #include "td/telegram/DialogManager.h"
+#include "td/telegram/ForumTopicId.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/MessageSender.h"
 #include "td/telegram/MessagesManager.h"
 #include "td/telegram/net/NetQuery.h"
+#include "td/telegram/OptionManager.h"
 #include "td/telegram/SecretChatsManager.h"
 #include "td/telegram/ServerMessageId.h"
 #include "td/telegram/StickersManager.h"
@@ -42,22 +44,22 @@ class SetTypingQuery final : public Td::ResultHandler {
   explicit SetTypingQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
   }
 
-  NetQueryRef send(DialogId dialog_id, tl_object_ptr<telegram_api::InputPeer> &&input_peer,
-                   MessageId top_thread_message_id, BusinessConnectionId business_connection_id,
+  NetQueryRef send(DialogId dialog_id, tl_object_ptr<telegram_api::InputPeer> &&input_peer, MessageTopic message_topic,
+                   BusinessConnectionId business_connection_id,
                    tl_object_ptr<telegram_api::SendMessageAction> &&action) {
     dialog_id_ = dialog_id;
     business_connection_id_ = business_connection_id;
     CHECK(input_peer != nullptr);
 
     int32 flags = 0;
-    if (top_thread_message_id.is_valid()) {
+    auto top_msg_id = message_topic.get_input_top_msg_id();
+    if (top_msg_id != 0) {
       flags |= telegram_api::messages_setTyping::TOP_MSG_ID_MASK;
     }
 
     auto query = G()->net_query_creator().create_with_prefix(
         business_connection_id.get_invoke_prefix(),
-        telegram_api::messages_setTyping(flags, std::move(input_peer),
-                                         top_thread_message_id.get_server_message_id().get(), std::move(action)),
+        telegram_api::messages_setTyping(flags, std::move(input_peer), top_msg_id, std::move(action)),
         td_->business_connection_manager_->get_business_connection_dc_id(business_connection_id));
     query->total_timeout_limit_ = 2;
     auto result = query.get_weak();
@@ -178,6 +180,23 @@ void DialogActionManager::on_dialog_action(DialogId dialog_id, MessageId top_thr
     }
   }
 
+  {
+    auto text_draft_info = action.get_text_draft_info();
+    if (text_draft_info.is_text_draft_) {
+      auto period = td_->option_manager_->get_option_integer("pending_text_message_period", 0);
+      if (date > G()->unix_time() - period && dialog_type == DialogType::User && dialog_id == typing_dialog_id &&
+          td_->user_manager_->is_user_bot(dialog_id.get_user_id())) {
+        send_closure(
+            G()->td(), &Td::send_update,
+            td_api::make_object<td_api::updatePendingTextMessage>(
+                td_->dialog_manager_->get_chat_id_object(dialog_id, "updateChatAction"),
+                ForumTopicId::from_top_thread_message_id(top_thread_message_id).get(), text_draft_info.random_id_,
+                get_formatted_text_object(td_->user_manager_.get(), text_draft_info.text_, false, -1)));
+      }
+      return;
+    }
+  }
+
   if (!td_->messages_manager_->have_dialog(dialog_id)) {
     LOG(DEBUG) << "Ignore " << action << " in unknown " << dialog_id;
     return;
@@ -276,6 +295,7 @@ void DialogActionManager::on_dialog_action(DialogId dialog_id, MessageId top_thr
   }
 
   if (top_thread_message_id.is_valid()) {
+    // duplicate per-thread message action to the chat itself
     send_update_chat_action(dialog_id, MessageId(), typing_dialog_id, action);
   }
   send_update_chat_action(dialog_id, top_thread_message_id, typing_dialog_id, action);
@@ -291,12 +311,13 @@ void DialogActionManager::send_update_chat_action(DialogId dialog_id, MessageId 
              << dialog_id;
   send_closure(G()->td(), &Td::send_update,
                td_api::make_object<td_api::updateChatAction>(
-                   td_->dialog_manager_->get_chat_id_object(dialog_id, "updateChatAction"), top_thread_message_id.get(),
+                   td_->dialog_manager_->get_chat_id_object(dialog_id, "updateChatAction"),
+                   MessageTopic::autodetect(td_, dialog_id, top_thread_message_id).get_message_topic_object(td_),
                    get_message_sender_object(td_, typing_dialog_id, "send_update_chat_action"),
-                   action.get_chat_action_object()));
+                   action.get_chat_action_object(td_->user_manager_.get())));
 }
 
-void DialogActionManager::send_dialog_action(DialogId dialog_id, MessageId top_thread_message_id,
+void DialogActionManager::send_dialog_action(DialogId dialog_id, MessageTopic message_topic,
                                              BusinessConnectionId business_connection_id, DialogAction action,
                                              Promise<Unit> &&promise) {
   bool as_business = business_connection_id.is_valid();
@@ -306,13 +327,7 @@ void DialogActionManager::send_dialog_action(DialogId dialog_id, MessageId top_t
   } else if (!td_->dialog_manager_->have_dialog_force(dialog_id, "send_dialog_action")) {
     return promise.set_error(400, "Chat not found");
   }
-  if (top_thread_message_id != MessageId() && !top_thread_message_id.is_server()) {
-    return promise.set_error(400, "Invalid message thread specified");
-  }
 
-  if (!as_business && td_->dialog_manager_->is_forum_channel(dialog_id) && !top_thread_message_id.is_valid()) {
-    top_thread_message_id = MessageId(ServerMessageId(1));
-  }
   if (!as_business && td_->dialog_manager_->is_monoforum_channel(dialog_id)) {
     if (td_->auth_manager_->is_bot()) {
       return promise.set_error(400, "Chat actions can't be sent to channel direct messages chats");
@@ -350,6 +365,7 @@ void DialogActionManager::send_dialog_action(DialogId dialog_id, MessageId top_t
 
   if (dialog_id.get_type() == DialogType::SecretChat) {
     CHECK(!as_business);
+    CHECK(message_topic.is_empty());
     send_closure(G()->secret_chats_manager(), &SecretChatsManager::send_message_action, dialog_id.get_secret_chat_id(),
                  action.get_secret_input_send_message_action());
     promise.set_value(Unit());
@@ -359,8 +375,8 @@ void DialogActionManager::send_dialog_action(DialogId dialog_id, MessageId top_t
   CHECK(input_peer != nullptr);
 
   auto new_query_ref = td_->create_handler<SetTypingQuery>(std::move(promise))
-                           ->send(dialog_id, std::move(input_peer), top_thread_message_id, business_connection_id,
-                                  action.get_input_send_message_action());
+                           ->send(dialog_id, std::move(input_peer), message_topic, business_connection_id,
+                                  action.get_input_send_message_action(td_->user_manager_.get()));
   if (td_->auth_manager_->is_bot()) {
     return;
   }

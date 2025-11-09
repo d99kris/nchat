@@ -6,6 +6,7 @@
 //
 #include "td/telegram/RepliedMessageInfo.h"
 
+#include "td/telegram/AuthManager.h"
 #include "td/telegram/Dependencies.h"
 #include "td/telegram/DialogManager.h"
 #include "td/telegram/MessageContent.h"
@@ -86,7 +87,8 @@ RepliedMessageInfo::RepliedMessageInfo(Td *td, tl_object_ptr<telegram_api::messa
         LOG(ERROR) << "Receive reply to " << message_id_ << " in " << MessageFullId{dialog_id, message_id};
         message_id_ = MessageId();
       }
-    } else if (reply_header->reply_to_peer_id_ != nullptr) {
+    } else if (reply_header->reply_to_peer_id_ != nullptr &&
+               !(td->auth_manager_->is_bot() && dialog_id.get_type() == DialogType::User)) {
       LOG(ERROR) << "Receive " << to_string(reply_header) << " in " << MessageFullId{dialog_id, message_id};
     }
     if (reply_header->reply_from_ != nullptr) {
@@ -228,6 +230,11 @@ bool RepliedMessageInfo::need_reply_changed_warning(
   }
   if (is_yet_unsent && old_top_thread_message_id == new_info.message_id_ && new_info.dialog_id_ == DialogId()) {
     // move of reply to the top thread message after deletion of the replied message
+    return false;
+  }
+  if (is_yet_unsent && td->auth_manager_->is_bot() && old_top_thread_message_id.is_valid() &&
+      new_info.dialog_id_ == DialogId()) {
+    // move or initialization of reply to the forum topic creation message after deletion of the replied message
     return false;
   }
   if (new_info.todo_item_id_ != 0 && old_info.todo_item_id_ == 0) {

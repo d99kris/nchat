@@ -1873,6 +1873,21 @@ bool DialogManager::is_broadcast_channel(DialogId dialog_id) const {
   return td_->chat_manager_->is_broadcast_channel(dialog_id.get_channel_id());
 }
 
+bool DialogManager::can_dialog_have_threads(DialogId dialog_id) const {
+  switch (dialog_id.get_type()) {
+    case DialogType::User:
+      return td_->auth_manager_->is_bot() || td_->user_manager_->is_user_bot(dialog_id.get_user_id());
+    case DialogType::Channel:
+      return !td_->chat_manager_->is_broadcast_channel(dialog_id.get_channel_id());
+    case DialogType::Chat:
+    case DialogType::SecretChat:
+    case DialogType::None:
+    default:
+      break;
+  }
+  return false;
+}
+
 bool DialogManager::on_get_dialog_error(DialogId dialog_id, const Status &status, const char *source) {
   auto message = status.message();
   if (message == CSlice("BOT_METHOD_INVALID")) {
@@ -1993,6 +2008,24 @@ CustomEmojiId DialogManager::get_dialog_background_custom_emoji_id(DialogId dial
     default:
       UNREACHABLE();
       return CustomEmojiId();
+  }
+}
+
+td_api::object_ptr<td_api::upgradedGiftColors> DialogManager::get_dialog_upgraded_gift_colors_object(
+    DialogId dialog_id) const {
+  switch (dialog_id.get_type()) {
+    case DialogType::User:
+      return td_->user_manager_->get_user_upgraded_gift_colors_object(dialog_id.get_user_id());
+    case DialogType::Chat:
+      return nullptr;
+    case DialogType::Channel:
+      return nullptr;
+    case DialogType::SecretChat:
+      return td_->user_manager_->get_secret_chat_upgraded_gift_colors_object(dialog_id.get_secret_chat_id());
+    case DialogType::None:
+    default:
+      UNREACHABLE();
+      return 0;
   }
 }
 

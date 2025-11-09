@@ -151,6 +151,8 @@ class DialogManager final : public Actor {
 
   bool is_broadcast_channel(DialogId dialog_id) const;
 
+  bool can_dialog_have_threads(DialogId dialog_id) const;
+
   bool on_get_dialog_error(DialogId dialog_id, const Status &status, const char *source);
 
   void delete_dialog(DialogId dialog_id, Promise<Unit> &&promise);
@@ -162,6 +164,8 @@ class DialogManager final : public Actor {
   int32 get_dialog_accent_color_id_object(DialogId dialog_id) const;
 
   CustomEmojiId get_dialog_background_custom_emoji_id(DialogId dialog_id) const;
+
+  td_api::object_ptr<td_api::upgradedGiftColors> get_dialog_upgraded_gift_colors_object(DialogId dialog_id) const;
 
   int32 get_dialog_profile_accent_color_id_object(DialogId dialog_id) const;
 

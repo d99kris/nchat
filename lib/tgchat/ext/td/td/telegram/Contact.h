@@ -6,6 +6,7 @@
 //
 #pragma once
 
+#include "td/telegram/MessageEntity.h"
 #include "td/telegram/SecretInputMedia.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
@@ -23,6 +24,7 @@
 namespace td {
 
 class Td;
+class UserManager;
 
 class Contact {
   string phone_number_;
@@ -30,6 +32,8 @@ class Contact {
   string last_name_;
   string vcard_;
   UserId user_id_;
+  bool edit_note_ = false;
+  FormattedText note_;
 
   friend bool operator==(const Contact &lhs, const Contact &rhs);
 
@@ -43,6 +47,8 @@ class Contact {
 
   Contact(string phone_number, string first_name, string last_name, string vcard, UserId user_id);
 
+  Contact(string phone_number, string first_name, string last_name, bool edit_note, FormattedText &&note);
+
   void set_user_id(UserId user_id);
 
   UserId get_user_id() const;
@@ -53,19 +59,29 @@ class Contact {
 
   const string &get_last_name() const;
 
+  bool get_edit_note() const {
+    return edit_note_;
+  }
+
+  const FormattedText &get_note() const {
+    return note_;
+  }
+
   tl_object_ptr<td_api::contact> get_contact_object(Td *td) const;
 
   tl_object_ptr<telegram_api::inputMediaContact> get_input_media_contact() const;
 
   SecretInputMedia get_secret_input_media_contact() const;
 
-  tl_object_ptr<telegram_api::inputPhoneContact> get_input_phone_contact(int64 client_id) const;
+  tl_object_ptr<telegram_api::inputPhoneContact> get_input_phone_contact(const UserManager *user_manager,
+                                                                         int64 client_id) const;
 
   tl_object_ptr<telegram_api::inputBotInlineMessageMediaContact> get_input_bot_inline_message_media_contact(
       tl_object_ptr<telegram_api::ReplyMarkup> &&reply_markup) const;
 
   template <class StorerT>
   void store(StorerT &storer) const {
+    // don't need to store edit_note and note
     using td::store;
     bool has_first_name = !first_name_.empty();
     bool has_last_name = !last_name_.empty();
@@ -143,6 +159,8 @@ struct ContactHash {
 };
 
 Result<Contact> get_contact(Td *td, td_api::object_ptr<td_api::contact> &&contact) TD_WARN_UNUSED_RESULT;
+
+Result<Contact> get_contact(Td *td, td_api::object_ptr<td_api::importedContact> &&contact) TD_WARN_UNUSED_RESULT;
 
 Result<Contact> process_input_message_contact(
     Td *td, td_api::object_ptr<td_api::InputMessageContent> &&input_message_content) TD_WARN_UNUSED_RESULT;
