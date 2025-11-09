@@ -8,7 +8,7 @@ Steps to generate nchat themes:
     cd iTerm2-Color-Schemes
     mkdir -p nchat-color nchat-usercolor
     cd tools
-    pip install -U rich
+    pip3 install rich PyYAML Jinja2
     python3 ./gen.py -t nchat-color
     python3 ./gen.py -t nchat-usercolor
     cd ..
