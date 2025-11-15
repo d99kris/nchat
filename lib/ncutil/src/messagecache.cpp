@@ -878,7 +878,7 @@ void MessageCache::Process()
     }
 
     PerformRequest(request);
-    TimeUtil::Sleep(0.000010); // hack for GCC -O2 to enable context switching for non-empty queue
+    std::this_thread::yield(); // hack for GCC -O2 to enable context switching
   }
 
   if (!m_Queue.empty())
