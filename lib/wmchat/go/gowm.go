@@ -1127,18 +1127,44 @@ func GetContacts(connId int) {
 		LOG_WARNING(fmt.Sprintf("get all contacts failed %#v", contErr))
 	} else {
 		LOG_TRACE(fmt.Sprintf("contacts %#v", contacts))
+		var userIdName map[string]string = make(map[string]string)
+
+		// add lid-based data first (public names)
 		for jid, contactInfo := range contacts {
-			name := GetNameFromContactInfo(contactInfo)
-			if len(name) > 0 {
-				userId := JidToStr(client, jid)
-				phone := PhoneFromUserId(userId)
-				isSelf := BoolToInt(userId == selfId)
-				LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", userId, name))
-				CWmNewContactsNotify(connId, userId, name, phone, isSelf, isNotify)
-				AddContactName(connId, userId, name)
-			} else {
-				LOG_WARNING(fmt.Sprintf("Skip CWmNewContactsNotify %s %#v", JidToStr(client, jid), contactInfo))
+			if jid.Server == types.HiddenUserServer {
+				name := GetNameFromContactInfo(contactInfo)
+				if len(name) > 0 {
+					userId := JidToStr(client, jid)
+					userIdName[userId] = name
+				} else {
+					LOG_WARNING(fmt.Sprintf("Skip empty name %s %#v", JidToStr(client, jid), contactInfo))
+				}
 			}
+		}
+
+		// add regular data second (address book names)
+		for jid, contactInfo := range contacts {
+			if jid.Server != types.HiddenUserServer {
+				name := GetNameFromContactInfo(contactInfo)
+				if len(name) > 0 {
+					userId := JidToStr(client, jid)
+					if oldName, ok := userIdName[userId]; ok {
+						LOG_TRACE(fmt.Sprintf("Replace public name %s with %s", oldName, name))
+					}
+					userIdName[userId] = name
+				} else {
+					LOG_WARNING(fmt.Sprintf("Skip empty name %s %#v", JidToStr(client, jid), contactInfo))
+				}
+			}
+		}
+
+		// propagate data
+		for userId, name := range userIdName {
+			phone := PhoneFromUserId(userId)
+			isSelf := BoolToInt(userId == selfId)
+			LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", userId, name))
+			CWmNewContactsNotify(connId, userId, name, phone, isSelf, isNotify)
+			AddContactName(connId, userId, name)
 		}
 	}
 
