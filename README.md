@@ -403,9 +403,11 @@ This configuration file holds general user interface settings. Default content:
     chat_picker_sorted_alphabetically=0
     confirm_deletion=1
     confirm_send_pasted_image=1
-    desktop_notify_active=0
+    desktop_notify_active_current=0
+    desktop_notify_active_noncurrent=0
     desktop_notify_command=
     desktop_notify_connectivity=0
+    desktop_notify_enabled=0
     desktop_notify_inactive=0
     downloadable_indicator=+
     emoji_enabled=1
@@ -520,10 +522,15 @@ or a chat.
 Specifies whether to prompt the user for confirmation when pasting an image
 to a chat.
 
-### desktop_notify_active
+### desktop_notify_active_current
 
-Specifies whether new message shall trigger desktop notification when nchat
-terminal window is active.
+Specifies whether new message in current chat shall trigger desktop
+notification when nchat terminal window is active.
+
+### desktop_notify_active_noncurrent
+
+Specifies whether new message in non-current chat shall trigger desktop
+notification when nchat terminal window is active.
 
 ### desktop_notify_command
 
@@ -540,6 +547,12 @@ macOS: `osascript -e 'display notification "%1: %2" with title "nchat"'`
 
 Specifies whether change of connectivity status (going offline or back online)
 shall trigger desktop notification.
+
+### desktop_notify_enabled
+
+Specifies whether desktop notifications are permitted. Simply enabling this
+parameter will not display notifications, unless other `desktop_notify_*`
+parameters are enabled.
 
 ### desktop_notify_inactive
 

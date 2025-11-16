@@ -101,6 +101,7 @@ private:
     std::unordered_map<std::string, std::unordered_map<std::string, ContactInfo>> GetContactInfos();
     int64_t GetContactInfosUpdateTime();
     std::pair<std::string, std::string>& GetCurrentChat();
+    bool IsCurrentChat(const std::string& p_ProfileId, const std::string& p_ChatId);
     int& GetCurrentChatIndex();
 
     std::unordered_map<std::string, ChatMessage>& GetMessages(const std::string& p_ProfileId,

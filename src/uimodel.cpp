@@ -2070,9 +2070,27 @@ void UiModel::Impl::UpdateChatInfoIsUnread(const std::string& p_ProfileId, const
             m_TriggerTerminalBell = true;
           }
 
-          static const bool desktopNotifyActive = UiConfig::GetBool("desktop_notify_active");
-          static const bool desktopNotifyInactive = UiConfig::GetBool("desktop_notify_inactive");
-          bool desktopNotify = m_TerminalActive ? desktopNotifyActive : desktopNotifyInactive;
+          bool desktopNotify = false;
+          if (m_TerminalActive)
+          {
+            const bool isCurrentChat = IsCurrentChat(p_ProfileId, p_ChatId);
+            if (isCurrentChat)
+            {
+              static const bool desktopNotifyActiveCurrent = UiConfig::GetBool("desktop_notify_active_current");
+              desktopNotify = desktopNotifyActiveCurrent;
+            }
+            else
+            {
+              static const bool desktopNotifyActiveNoncurrent = UiConfig::GetBool("desktop_notify_active_noncurrent");
+              desktopNotify = desktopNotifyActiveNoncurrent;
+            }
+          }
+          else
+          {
+            static const bool desktopNotifyInactive = UiConfig::GetBool("desktop_notify_inactive");
+            desktopNotify = desktopNotifyInactive;
+          }
+
           if (desktopNotify)
           {
             const std::string name = (chatMessage.senderId == p_ChatId)
@@ -2506,6 +2524,11 @@ std::pair<std::string, std::string>& UiModel::Impl::GetCurrentChat()
   return m_CurrentChat;
 }
 
+bool UiModel::Impl::IsCurrentChat(const std::string& p_ProfileId, const std::string& p_ChatId)
+{
+  return ((p_ProfileId == m_CurrentChat.first) && (p_ChatId == m_CurrentChat.second));
+}
+
 int& UiModel::Impl::GetCurrentChatIndex()
 {
   return m_CurrentChatIndex;
@@ -2646,6 +2669,9 @@ void UiModel::Impl::SetTerminalActive(bool p_TerminalActive)
 
 void UiModel::Impl::DesktopNotify(const std::string& p_Name, const std::string& p_Text)
 {
+  static const bool desktopNotifyEnabled = UiConfig::GetBool("desktop_notify_enabled");
+  if (!desktopNotifyEnabled) return;
+
   static const std::string cmdTemplate = [this]()
   {
     std::string desktopNotifyCommand = UiConfig::GetStr("desktop_notify_command");
