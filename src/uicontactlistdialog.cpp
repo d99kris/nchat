@@ -127,6 +127,9 @@ void UiContactListDialog::UpdateList()
   std::sort(localContactListItemVec.begin(), localContactListItemVec.end(),
             [&](const UiContactListItem& lhs, const UiContactListItem& rhs) -> bool
   {
+    if (lhs.isStarred > rhs.isStarred) return true;
+    if (lhs.isStarred < rhs.isStarred) return false;
+
     return lhs.name < rhs.name;
   });
 
