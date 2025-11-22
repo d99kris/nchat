@@ -399,6 +399,7 @@ This configuration file holds general user interface settings. Default content:
     auto_compose_command=
     auto_compose_enabled=0
     auto_compose_history_count=25
+    auto_select_chat_timeout_sec=1
     call_command=
     chat_picker_sorted_alphabetically=0
     confirm_deletion=1
@@ -422,6 +423,7 @@ This configuration file holds general user interface settings. Default content:
     list_enabled=1
     list_width=14
     listdialog_show_filter=1
+    mark_read_any_chat=0
     mark_read_on_view=1
     mark_read_when_inactive=0
     message_edit_command=
@@ -494,6 +496,14 @@ key is set up in the shell environment) that can incur costs.
 
 Specifies the maximum number of chat messages up to latest (or current
 selected) to pass to the auto-compose tool.
+
+### auto_select_chat_timeout_sec
+
+Specifies a timeout after receiving previous history sync message (with
+timestamp before the application went online) for automatically setting
+current chat. If disabled (value 0) current chat will only be set upon
+any user input, or receiving a message with timestamp after application
+went online (connected to server).
 
 ### call_command
 
@@ -631,6 +641,12 @@ Specifies width of chat list.
 ### listdialog_show_filter
 
 Specifies whether list dialogs should display the search filter input by user.
+
+### mark_read_any_chat
+
+Specifies whether nchat may mark messages as read before current chat has
+been set (either through user activity or time elapsed since last old sync
+message was received).
 
 ### mark_read_on_view
 

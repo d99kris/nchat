@@ -81,6 +81,7 @@ private:
     void AddProtocol(std::shared_ptr<Protocol> p_Protocol);
     std::unordered_map<std::string, std::shared_ptr<Protocol>> GetProtocols();
     bool Process();
+    void ProcessTimers();
 
     std::string GetLastMessageId(const std::string& p_ProfileId, const std::string& p_ChatId);
     void UpdateChatInfoLastMessageTime(const std::string& p_ProfileId, const std::string& p_ChatId);
@@ -192,6 +193,7 @@ private:
     void UpdateHistory();
     void UpdateEntry();
     void ResetMessageOffset();
+    bool IsCurrentChatSet();
     bool SetCurrentChatIndexIfNotSet();
     void DesktopNotify(const std::string& p_Name, const std::string& p_Text);
     void SetHistoryInteraction(bool p_HistoryInteraction);
@@ -224,6 +226,7 @@ private:
     std::unordered_map<std::string, std::unordered_map<std::string, ContactInfo>> m_ContactInfos;
     int64_t m_ContactInfosUpdateTime = 0;
     std::unordered_map<std::string, int64_t> m_ConnectTime;
+    int64_t m_LastSyncMessageTime = 0;
 
     std::pair<std::string, std::string> m_CurrentChat;
     int m_CurrentChatIndex = -1;
