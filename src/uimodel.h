@@ -39,6 +39,7 @@ private:
     void OnKeyToggleHelp();
     void OnKeyToggleList();
     void OnKeyToggleTop();
+    void OnKeyToggleArchive();
     void OnKeyToggleEmoji();
     void OnKeySendMsg();
     void SendMessage();
@@ -62,6 +63,10 @@ private:
                             const std::string& p_FileId, DownloadFileAction p_DownloadFileAction);
     void OnKeyDeleteMsg();
     void OnKeyDeleteChat();
+    void OnKeyArchiveChat();
+    void OnKeyStarContact();
+    void OnKeyStarContact();
+    void OnKeyStarChat();
     void OnKeyOpenMsg();
     bool GetMessageAttachmentPath(std::string& p_FilePath, DownloadFileAction p_DownloadFileAction);
     void OnKeyOpenAttachment(std::string p_FilePath = std::string());

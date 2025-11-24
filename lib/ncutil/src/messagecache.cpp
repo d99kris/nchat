@@ -367,7 +367,29 @@ void MessageCache::AddProfile(const std::string& p_ProfileId, bool p_CheckSequen
         "SET schema = ?;" << schemaVersion;
     }
 
-    static const int64_t s_SchemaVersion = 6;
+    if (schemaVersion == 6)
+    {
+      LOG_INFO("update db schema 6 to 7");
+
+      *m_Dbs[p_ProfileId] << "ALTER TABLE chats2 ADD COLUMN isArchived INT;";
+
+      schemaVersion = 7;
+      *m_Dbs[p_ProfileId] << "UPDATE version "
+        "SET schema = ?;" << schemaVersion;
+    }
+
+    if (schemaVersion == 7)
+    {
+      LOG_INFO("update db schema 7 to 8");
+
+      *m_Dbs[p_ProfileId] << "ALTER TABLE contacts2 ADD COLUMN isStarred INT;";
+
+      schemaVersion = 8;
+      *m_Dbs[p_ProfileId] << "UPDATE version "
+        "SET schema = ?;" << schemaVersion;
+    }
+
+    static const int64_t s_SchemaVersion = 8;
     if (schemaVersion > s_SchemaVersion)
     {
       LOG_WARNING("cache db schema %d from newer nchat version detected, if cache issues are encountered "
@@ -726,6 +748,30 @@ void MessageCache::UpdatePin(const std::string& p_ProfileId, const std::string& 
   EnqueueRequest(updatePinRequest);
 }
 
+void MessageCache::UpdateArchive(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_IsArchived)
+{
+  if (!m_CacheEnabled) return;
+
+  std::shared_ptr<UpdateArchiveRequest> updateArchiveRequest =
+    std::make_shared<UpdateArchiveRequest>();
+  updateArchiveRequest->profileId = p_ProfileId;
+  updateArchiveRequest->chatId = p_ChatId;
+  updateArchiveRequest->isArchived = p_IsArchived;
+  EnqueueRequest(updateArchiveRequest);
+}
+
+void MessageCache::UpdateStar(const std::string& p_ProfileId, const std::string& p_ContactId, bool p_IsStarred)
+{
+  if (!m_CacheEnabled) return;
+
+  std::shared_ptr<UpdateStarRequest> updateStarRequest =
+    std::make_shared<UpdateStarRequest>();
+  updateStarRequest->profileId = p_ProfileId;
+  updateStarRequest->contactId = p_ContactId;
+  updateStarRequest->isStarred = p_IsStarred;
+  EnqueueRequest(updateStarRequest);
+}
+
 void MessageCache::Export(const std::string& p_ExportDir)
 {
   if (!m_CacheEnabled)
@@ -1082,10 +1128,10 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
           for (const auto& chatInfo : addChatsRequest->chatInfos)
           {
             *m_Dbs[profileId] << "INSERT INTO " + s_TableChats + " "
-              "(id, isMuted, isPinned, lastMessageTime) VALUES "
-              "(?, ?, ?, ?);" <<
+              "(id, isMuted, isPinned, lastMessageTime, isArchived) VALUES "
+              "(?, ?, ?, ?, ?);" <<
               chatInfo.id << chatInfo.isMuted << chatInfo.isPinned <<
-              chatInfo.lastMessageTime;
+              chatInfo.lastMessageTime << chatInfo.isArchived;
           }
           *m_Dbs[profileId] << "COMMIT;";
         }
@@ -1120,9 +1166,9 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
           for (const auto& contactInfo : addContactsRequest->contactInfos)
           {
             *m_Dbs[profileId] << "INSERT INTO " + s_TableContacts + " "
-              "(id, name, phone, isSelf) VALUES "
-              "(?,?,?,?);" <<
-              contactInfo.id << contactInfo.name << contactInfo.phone << contactInfo.isSelf;
+              "(id, name, phone, isSelf, isStarred) VALUES "
+              "(?,?,?,?,?);" <<
+              contactInfo.id << contactInfo.name << contactInfo.phone << contactInfo.isSelf << contactInfo.isStarred;
           }
           *m_Dbs[profileId] << "COMMIT;";
         }
@@ -1168,6 +1214,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
                 chatInfo.isUnread = !isOutgoing && !isRead;
                 chatInfo.isMuted = chatIdMuted[chatId];
                 chatInfo.isPinned = chatIdPinned[chatId];
+                chatInfo.isArchived = chatIdArchived[chatId];
                 chatInfo.lastMessageTime = chatInfo.isPinned ? chatIdLastMessageTime[chatId] : timeSent;
                 chatInfos.push_back(chatInfo);
               }
@@ -1202,14 +1249,15 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         try
         {
           // *INDENT-OFF*
-          *m_Dbs[profileId] << "SELECT id, name, phone, isSelf FROM " + s_TableContacts + ";" >>
-            [&](const std::string& id, const std::string& name, const std::string& phone, int32_t isSelf)
+          *m_Dbs[profileId] << "SELECT id, name, phone, isSelf, isStarred FROM " + s_TableContacts + ";" >>
+            [&](const std::string& id, const std::string& name, const std::string& phone, int32_t isSelf, int32_t isStarred)
             {
               ContactInfo contactInfo;
               contactInfo.id = id;
               contactInfo.name = name;
               contactInfo.phone = phone;
               contactInfo.isSelf = isSelf;
+              contactInfo.isStarred = isStarred;
               contactInfos.push_back(contactInfo);
             };
           // *INDENT-ON*
@@ -1685,6 +1733,60 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         }
 
         LOG_DEBUG("cache update pinned %s %d", chatId.c_str(), isPinned);
+      }
+      break;
+
+    case UpdateArchiveRequestType:
+      {
+        std::unique_lock<std::mutex> lock(m_DbMutex);
+        std::shared_ptr<UpdateArchiveRequest> updateArchiveRequest =
+          std::static_pointer_cast<UpdateArchiveRequest>(p_Request);
+        const std::string& profileId = updateArchiveRequest->profileId;
+        if (!m_Dbs[profileId]) return;
+
+        const std::string& chatId = updateArchiveRequest->chatId;
+        bool isArchived = updateArchiveRequest->isArchived;
+
+        try
+        {
+          *m_Dbs[profileId] << "INSERT INTO " + s_TableChats + " "
+            "(id, isArchived) VALUES "
+            "(?, ?) ON CONFLICT(id) DO UPDATE SET isArchived=?;" <<
+            chatId << isArchived << isArchived;
+        }
+        catch (const sqlite::sqlite_exception& ex)
+        {
+          HANDLE_SQLITE_EXCEPTION(ex);
+        }
+
+        LOG_DEBUG("cache update archived %s %d", chatId.c_str(), isArchived);
+      }
+      break;
+
+    case UpdateStarRequestType:
+      {
+        std::unique_lock<std::mutex> lock(m_DbMutex);
+        std::shared_ptr<UpdateStarRequest> updateStarRequest =
+          std::static_pointer_cast<UpdateStarRequest>(p_Request);
+        const std::string& profileId = updateStarRequest->profileId;
+        if (!m_Dbs[profileId]) return;
+
+        const std::string& contactId = updateStarRequest->contactId;
+        bool isStarred = updateStarRequest->isStarred;
+
+        try
+        {
+          *m_Dbs[profileId] << "INSERT INTO " + s_TableContacts + " "
+            "(id, isStarred) VALUES "
+            "(?, ?) ON CONFLICT(id) DO UPDATE SET isStarred=?;" <<
+            contactId << isStarred << isStarred;
+        }
+        catch (const sqlite::sqlite_exception& ex)
+        {
+          HANDLE_SQLITE_EXCEPTION(ex);
+        }
+
+        LOG_DEBUG("cache update starred %s %d", contactId.c_str(), isStarred);
       }
       break;
 

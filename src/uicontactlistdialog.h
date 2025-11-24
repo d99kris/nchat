@@ -19,6 +19,7 @@ struct UiContactListItem
   std::string profileId;
   std::string contactId;
   std::string name;
+  bool isStarred = false;
 };
 
 class UiContactListDialog : public UiListDialog

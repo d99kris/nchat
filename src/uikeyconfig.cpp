@@ -158,7 +158,7 @@ void UiKeyConfig::InitKeyCodes(bool p_MapKeys)
     { "KEY_SPREVIOUS", KEY_SPREVIOUS },
     { "KEY_SPRINT", KEY_SPRINT },
     { "KEY_SREDO", KEY_SREDO },
-    { "KEY_SREPLACE", KEY_SREPLACE },
+    { "KEY_SREPLACE", KEY_REPLACE },
     { "KEY_SRIGHT", KEY_SRIGHT },
     { "KEY_SRSUME", KEY_SRSUME },
     { "KEY_SSAVE", KEY_SSAVE },
@@ -218,8 +218,8 @@ void UiKeyConfig::Init(bool p_MapKeys)
 #endif
     { "edit_msg", "KEY_CTRLZ" },
     { "backward_kill_word", "\\33\\177" }, // alt/opt-backspace
-    { "cut", "\\33\\170" }, // alt/opt-x
-    { "copy", "\\33\\143" }, // alt/opt-c
+    { "cut", "\\33\\167" }, // alt/opt-w
+    { "copy", "\\33\\171" }, // alt/opt-y
     { "paste", "\\33\\166" }, // alt/opt-v
     { "ext_call", "\\33\\164" }, // alt/opt-t
     { "ext_edit", "\\33\\145" }, // alt/opt-e
@@ -232,12 +232,14 @@ void UiKeyConfig::Init(bool p_MapKeys)
     { "toggle_help", "KEY_CTRLG" },
     { "toggle_list", "KEY_CTRLL" },
     { "toggle_top", "KEY_CTRLP" },
+    { "toggle_archive", "\\33\\141" },
     { "next_chat", "KEY_TAB" },
     { "prev_chat", "KEY_BTAB" },
     { "unread_chat", "KEY_CTRLF" },
     { "send_msg", "KEY_CTRLX" },
     { "delete_msg", "KEY_CTRLD" },
     { "delete_chat", "\\33\\144" }, // alt/opt-d
+    { "archive_chat", "\\33\\170" }, // alt/opt-x
     { "open", "KEY_CTRLV" },
     { "open_link", "KEY_CTRLW" },
     { "open_msg", "\\33\\167" }, // alt/opt-w
@@ -245,7 +247,9 @@ void UiKeyConfig::Init(bool p_MapKeys)
     { "transfer", "KEY_CTRLT" },
     { "select_emoji", "KEY_CTRLS" },
     { "select_contact", "\\33\\156" }, // alt/opt-n
+    { "star_contact", "\\33\\143" }, // alt/opt-c
     { "forward_msg", "\\33\\162" }, // alt/opt-r
+    { "star_chat", "\\33\\163" },
     { "goto_chat", "KEY_CTRLN" },
     { "other_commands_help", "KEY_CTRLO" },
     { "decrease_list_width", "\\33\\54" }, // alt/opt-,

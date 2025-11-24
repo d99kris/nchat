@@ -42,6 +42,7 @@ void UiConfig::Init()
     { "file_picker_command", "" },
     { "file_picker_persist_dir", "1" },
     { "help_enabled", "1" },
+    { "hide_archived_chats", "0" },
     { "home_fetch_all", "0" },
     { "linefeed_on_enter", "1" },
     { "link_open_command", "" },

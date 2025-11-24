@@ -120,6 +120,7 @@ struct ContactInfo
   std::string name;
   std::string phone;
   bool isSelf = false;
+  bool isStarred = false;
 };
 
 struct ChatInfo
@@ -129,6 +130,7 @@ struct ChatInfo
   bool isUnreadMention = false; // only required for tgchat
   bool isMuted = false;
   bool isPinned = false;
+  bool isArchived = false;
   int64_t lastMessageTime = -1;
 };
 

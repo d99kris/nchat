@@ -82,6 +82,7 @@ void UiHelpView::Draw()
     AppendHelpItem("find", "Find", helpItems);
     AppendHelpItem("find_next", "FindNext", helpItems);
     AppendHelpItem("select_contact", "AddrBook", helpItems);
+    AppendHelpItem("star_contact", "StarCont", helpItems);
     AppendHelpItem("spell", "ExtSpell", helpItems);
     AppendHelpItem("auto_compose", "AutoComp", helpItems);
     AppendHelpItem("decrease_list_width", "DecListW", helpItems);
@@ -95,6 +96,7 @@ void UiHelpView::Draw()
     AppendHelpItem("toggle_list", "TgList", helpItems);
     AppendHelpItem("toggle_top", "TgTop", helpItems);
     AppendHelpItem("toggle_help", "TgHelp", helpItems);
+    AppendHelpItem("toggle_archive", "TgArch", helpItems);
 
     return helpItems;
   }();
@@ -117,6 +119,7 @@ void UiHelpView::Draw()
     AppendHelpItem("react", "AddReact", helpItems);
     AppendHelpItem("open_msg", "ExtView", helpItems);
     AppendHelpItem("forward_msg", "FwdMsg", helpItems);
+    AppendHelpItem("star_chat", "Star", helpItems);
 
     helpItems.insert(std::end(helpItems), std::begin(mainPostHelpItems), std::end(mainPostHelpItems));
     return helpItems;
@@ -129,6 +132,8 @@ void UiHelpView::Draw()
 
     AppendHelpItem("up", "SelectMsg", helpItems);
     AppendHelpItem("delete_chat", "DelChat", helpItems);
+    AppendHelpItem("archive_chat", "Archive", helpItems);
+    AppendHelpItem("star_chat", "Star", helpItems);
 
     helpItems.insert(std::end(helpItems), std::begin(mainPostHelpItems), std::end(mainPostHelpItems));
     return helpItems;
