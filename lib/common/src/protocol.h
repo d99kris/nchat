@@ -120,6 +120,7 @@ struct ContactInfo
   std::string name;
   std::string phone;
   bool isSelf = false;
+  bool isAlias = false; // only used by wmchat
 };
 
 struct ChatInfo

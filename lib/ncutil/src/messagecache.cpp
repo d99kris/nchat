@@ -367,7 +367,19 @@ void MessageCache::AddProfile(const std::string& p_ProfileId, bool p_CheckSequen
         "SET schema = ?;" << schemaVersion;
     }
 
-    static const int64_t s_SchemaVersion = 6;
+    if (schemaVersion == 6)
+    {
+      LOG_INFO("update db schema 6 to 7");
+
+      *m_Dbs[p_ProfileId] << "ALTER TABLE contacts2 ADD COLUMN "
+        "isAlias INT DEFAULT 0;";
+
+      schemaVersion = 7;
+      *m_Dbs[p_ProfileId] << "UPDATE version "
+        "SET schema = ?;" << schemaVersion;
+    }
+
+    static const int64_t s_SchemaVersion = 7;
     if (schemaVersion > s_SchemaVersion)
     {
       LOG_WARNING("cache db schema %d from newer nchat version detected, if cache issues are encountered "
@@ -1120,9 +1132,10 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
           for (const auto& contactInfo : addContactsRequest->contactInfos)
           {
             *m_Dbs[profileId] << "INSERT INTO " + s_TableContacts + " "
-              "(id, name, phone, isSelf) VALUES "
-              "(?,?,?,?);" <<
-              contactInfo.id << contactInfo.name << contactInfo.phone << contactInfo.isSelf;
+              "(id, name, phone, isSelf, isAlias) VALUES "
+              "(?,?,?,?,?);" <<
+              contactInfo.id << contactInfo.name << contactInfo.phone << contactInfo.isSelf <<
+              contactInfo.isAlias;
           }
           *m_Dbs[profileId] << "COMMIT;";
         }
@@ -1202,14 +1215,15 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         try
         {
           // *INDENT-OFF*
-          *m_Dbs[profileId] << "SELECT id, name, phone, isSelf FROM " + s_TableContacts + ";" >>
-            [&](const std::string& id, const std::string& name, const std::string& phone, int32_t isSelf)
+          *m_Dbs[profileId] << "SELECT id, name, phone, isSelf, isAlias FROM " + s_TableContacts + ";" >>
+            [&](const std::string& id, const std::string& name, const std::string& phone, int32_t isSelf, int32_t isAlias)
             {
               ContactInfo contactInfo;
               contactInfo.id = id;
               contactInfo.name = name;
               contactInfo.phone = phone;
               contactInfo.isSelf = isSelf;
+              contactInfo.isAlias = isAlias;
               contactInfos.push_back(contactInfo);
             };
           // *INDENT-ON*

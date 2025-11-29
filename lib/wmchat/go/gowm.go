@@ -21,6 +21,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"slices"
 	"sort"
 	"strconv"
@@ -73,11 +74,13 @@ var (
 	clients     map[int]*whatsmeow.Client    = make(map[int]*whatsmeow.Client)
 	paths       map[int]string               = make(map[int]string)
 	contacts    map[int]map[string]string    = make(map[int]map[string]string)
+	senders     map[int]map[string]string    = make(map[int]map[string]string)
 	states      map[int]State                = make(map[int]State)
 	timeReads   map[int]map[string]time.Time = make(map[int]map[string]time.Time)
 	expirations map[int]map[string]uint32    = make(map[int]map[string]uint32)
 	handlers    map[int]*WmEventHandler      = make(map[int]*WmEventHandler)
 	sendTypes   map[int]int                  = make(map[int]int)
+	namesSynced map[int]bool                 = make(map[int]bool)
 )
 
 // keep in sync with enum FileStatus in protocol.h
@@ -97,6 +100,11 @@ var FlagSending = (1 << 4)
 var FlagUpdating = (1 << 5)
 var FlagSyncing = (1 << 6)
 var FlagAway = (1 << 7)
+
+// keep in sync with enum NotifyType in wmchat.cpp
+var NotifyDirect = 0
+var NotifyCache = 1
+var NotifySendCached = 2
 
 func SaveMap(path string, m map[string]string) error {
 	f, err := os.Create(path)
@@ -124,17 +132,23 @@ func GetContactsStorePath(connPath string) string {
 	return connPath + "/contacts.dat"
 }
 
+func GetSendersStorePath(connPath string) string {
+	return connPath + "/senders.dat"
+}
+
 func AddConn(conn *whatsmeow.Client, path string, sendType int) int {
 	mx.Lock()
 	var connId int = len(clients)
 	clients[connId] = conn
 	paths[connId] = path
 	contacts[connId], _ = LoadMap(GetContactsStorePath(path))
+	senders[connId], _ = LoadMap(GetSendersStorePath(path))
 	states[connId] = None
 	timeReads[connId] = make(map[string]time.Time)
 	expirations[connId] = make(map[string]uint32)
 	handlers[connId] = &WmEventHandler{connId}
 	sendTypes[connId] = sendType
+	namesSynced[connId] = false
 	mx.Unlock()
 	return connId
 }
@@ -142,14 +156,17 @@ func AddConn(conn *whatsmeow.Client, path string, sendType int) int {
 func RemoveConn(connId int) {
 	mx.Lock()
 	SaveMap(GetContactsStorePath(paths[connId]), contacts[connId])
+	SaveMap(GetSendersStorePath(paths[connId]), senders[connId])
 	delete(clients, connId)
 	delete(paths, connId)
 	delete(contacts, connId)
+	delete(senders, connId)
 	delete(states, connId)
 	delete(timeReads, connId)
 	delete(expirations, connId)
 	delete(handlers, connId)
 	delete(sendTypes, connId)
+	delete(namesSynced, connId)
 	mx.Unlock()
 }
 
@@ -194,6 +211,27 @@ func SetState(connId int, status State) {
 	mx.Unlock()
 }
 
+func GetNamesSynced(connId int) bool {
+	mx.Lock()
+	var isNamesSynced bool = namesSynced[connId]
+	mx.Unlock()
+	return isNamesSynced
+}
+
+func SetNamesSynced(connId int, synced bool) {
+	mx.Lock()
+	namesSynced[connId] = synced
+	mx.Unlock()
+}
+
+func HasContact(connId int, id string) bool {
+	var ok bool
+	mx.Lock()
+	_, ok = contacts[connId][id]
+	mx.Unlock()
+	return ok
+}
+
 func AddContactName(connId int, id string, name string) {
 	mx.Lock()
 	contacts[connId][id] = name
@@ -210,6 +248,34 @@ func GetContactName(connId int, id string) string {
 		name = id
 	}
 	return name
+}
+
+func HasSender(connId int, id string) bool {
+	var ok bool
+	mx.Lock()
+	_, ok = senders[connId][id]
+	mx.Unlock()
+	return ok
+}
+
+func AddSender(connId int, id string, name string) {
+	mx.Lock()
+	senders[connId][id] = name
+	mx.Unlock()
+}
+
+func GetAllSenders(connId int) map[string]string {
+	allSenders := make(map[string]string)
+	mx.Lock()
+	allSenders = senders[connId]
+	mx.Unlock()
+	return allSenders
+}
+
+func RemoveSender(connId int, id string) {
+	mx.Lock()
+	delete(senders[connId], id)
+	mx.Unlock()
 }
 
 func GetTimeRead(connId int, chatId string) time.Time {
@@ -520,40 +586,71 @@ func SanitizeName(text string) string {
 	return newText
 }
 
-// This function is called with single argument to obtain userId string
-// or with two arguments (chatId, userId) to obtain a chatId string.
-func JidToStr(client *whatsmeow.Client, defaultJid types.JID, altJids ...types.JID) string {
-	StrFromJid := func(jid types.JID) string {
-		return jid.User + "@" + jid.Server
-	}
-
-	var jids []types.JID
-	for _, jid := range append([]types.JID{defaultJid}, altJids...) {
-		if !jid.IsEmpty() {
-			jids = append(jids, jid)
-		}
-	}
-
-	for _, jid := range jids {
-		if jid.Server == types.BroadcastServer && jid.User == "status" {
-			// place status messages under a dedicated chat
-			return StrFromJid(jid)
-		} else if jid.Server == types.BroadcastServer && jid.User != "status" {
-			// place broadcast messages under corresponding sender, not a dedicated 'broadcast' chat
-			// i.e. intentional fall-through to second argument
-		} else if jid.Server != types.HiddenUserServer {
-			return StrFromJid(jid)
-		} else if jid.Server == types.HiddenUserServer {
-			ctx := context.TODO()
-			if ljid, _ := client.Store.LIDs.GetPNForLID(ctx, jid); !ljid.IsEmpty() {
-				return StrFromJid(ljid)
-			}
-		}
-	}
-
-	return StrFromJid(defaultJid)
+// Convert Jid to string without any mapping, use with care!
+func StrFromJid(jid types.JID) string {
+	return jid.User + "@" + jid.Server
 }
 
+// Get self id
+func GetSelfId(client *whatsmeow.Client) string {
+	return StrFromJid(*client.Store.ID)
+}
+
+// Get chat id
+func GetChatId(client *whatsmeow.Client, chatJid *types.JID, senderJid *types.JID) string {
+	if chatJid == nil {
+		LOG_WARNING(fmt.Sprintf("chatJid is nil\n%s", string(debug.Stack())))
+		return ""
+	} else if chatJid.Server == types.BroadcastServer && chatJid.User == "status" {
+		// place status messages under a dedicated chat
+		return StrFromJid(*chatJid)
+	} else if chatJid.Server == types.BroadcastServer && chatJid.User != "status" {
+		if senderJid != nil {
+			userId := GetUserId(client, nil, senderJid)
+			if userId == GetSelfId(client) {
+				// place broadcast message from self under the broadcast list chat
+				return StrFromJid(*chatJid)
+			} else {
+				// place broadcast messages under corresponding sender, not a dedicated 'broadcast' chat
+				// i.e. intentional fall-through to second argument
+				return userId
+			}
+		} else {
+			LOG_WARNING(fmt.Sprintf("senderJid is nil\n%s", string(debug.Stack())))
+		}
+	} else if chatJid.Server == types.HiddenUserServer {
+		// try map lid chat id to phone number based
+		ctx := context.TODO()
+		if pChatJid, _ := client.Store.LIDs.GetPNForLID(ctx, *chatJid); !pChatJid.IsEmpty() {
+			return StrFromJid(pChatJid)
+		}
+	}
+
+	// fall back to plain chatJid
+	return StrFromJid(*chatJid)
+}
+
+// Get user id
+func GetUserId(client *whatsmeow.Client, chatJid *types.JID, userJid *types.JID) string {
+	if userJid == nil {
+		LOG_WARNING(fmt.Sprintf("userJid is nil\n%s", string(debug.Stack())))
+		return ""
+	} else if chatJid != nil && chatJid.Server == types.GroupServer {
+		// use sender jid as-is in group
+		return StrFromJid(*userJid)
+	} else if userJid.Server == types.HiddenUserServer {
+		// try map lid sender id to phone number based
+		ctx := context.TODO()
+		if pUserJid, _ := client.Store.LIDs.GetPNForLID(ctx, *userJid); !pUserJid.IsEmpty() {
+			return StrFromJid(pUserJid)
+		}
+	}
+
+	// fall back to plain senderJid
+	return StrFromJid(*userJid)
+}
+
+// Check if read
 func IsRead(isSyncRead bool, isSelfChat bool, fromMe bool, timeSent time.Time, timeRead time.Time) bool {
 	// consider message read:
 	// - during initial sync for chats with no unread messages
@@ -790,7 +887,7 @@ func (handler *WmEventHandler) HandleReceipt(receipt *events.Receipt) {
 		LOG_TRACE(fmt.Sprintf("%#v was read by %s at %s", receipt.MessageIDs, receipt.SourceString(), receipt.Timestamp))
 		connId := handler.connId
 		var client *whatsmeow.Client = GetClient(connId)
-		chatId := JidToStr(client, receipt.MessageSource.Chat)
+		chatId := GetChatId(client, &receipt.MessageSource.Chat, nil)
 		isRead := true
 		for _, msgId := range receipt.MessageIDs {
 			LOG_TRACE(fmt.Sprintf("Call CWmNewMessageStatusNotify"))
@@ -803,7 +900,7 @@ func (handler *WmEventHandler) HandlePresence(presence *events.Presence) {
 	if presence.From.Server != types.GroupServer {
 		connId := handler.connId
 		var client *whatsmeow.Client = GetClient(connId)
-		userId := JidToStr(client, presence.From)
+		userId := GetUserId(client, nil, &presence.From)
 		isOnline := !presence.Unavailable
 		timeSeen := int(presence.LastSeen.Unix())
 		LOG_TRACE(fmt.Sprintf("Call CWmNewStatusNotify"))
@@ -814,8 +911,8 @@ func (handler *WmEventHandler) HandlePresence(presence *events.Presence) {
 func (handler *WmEventHandler) HandleChatPresence(chatPresence *events.ChatPresence) {
 	connId := handler.connId
 	var client *whatsmeow.Client = GetClient(connId)
-	chatId := JidToStr(client, chatPresence.MessageSource.Chat)
-	userId := JidToStr(client, chatPresence.MessageSource.Sender)
+	chatId := GetChatId(client, &chatPresence.MessageSource.Chat, &chatPresence.MessageSource.Sender)
+	userId := GetUserId(client, &chatPresence.MessageSource.Chat, &chatPresence.MessageSource.Sender)
 	isTyping := (chatPresence.State == types.ChatPresenceComposing)
 	LOG_TRACE(fmt.Sprintf("Call CWmNewTypingNotify"))
 	CWmNewTypingNotify(connId, chatId, userId, BoolToInt(isTyping))
@@ -863,6 +960,7 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 			}
 		}
 
+		chatId := GetChatId(client, &chatJid, nil)
 		if hasMessages {
 			isMuted := false
 			isPinned := false
@@ -876,14 +974,14 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 					isMuted = (mutedUntil == -1) || (mutedUntil > time.Now().Unix())
 					isPinned = settings.Pinned
 				} else {
-					LOG_DEBUG(fmt.Sprintf("Chat settings not found %s", JidToStr(client, chatJid)))
+					LOG_DEBUG(fmt.Sprintf("Chat settings not found %s", chatId))
 				}
 			}
 
-			LOG_TRACE(fmt.Sprintf("Call CWmNewChatsNotify %s %d %t %t", JidToStr(client, chatJid), len(syncMessages), isMuted, isPinned))
-			CWmNewChatsNotify(handler.connId, JidToStr(client, chatJid), isUnread, BoolToInt(isMuted), BoolToInt(isPinned), lastMessageTime)
+			LOG_TRACE(fmt.Sprintf("Call CWmNewChatsNotify %s %d %t %t", chatId, len(syncMessages), isMuted, isPinned))
+			CWmNewChatsNotify(handler.connId, chatId, isUnread, BoolToInt(isMuted), BoolToInt(isPinned), lastMessageTime)
 		} else {
-			LOG_TRACE(fmt.Sprintf("Skip CWmNewChatsNotify %s %d", JidToStr(client, chatJid), len(syncMessages)))
+			LOG_TRACE(fmt.Sprintf("Skip CWmNewChatsNotify %s %d", chatId, len(syncMessages)))
 		}
 
 	}
@@ -897,12 +995,12 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 	connId := handler.connId
 	client := GetClient(connId)
-	chatId := JidToStr(client, groupInfo.JID)
+	chatId := GetChatId(client, &groupInfo.JID, nil)
+	userId := GetUserId(client, &groupInfo.JID, groupInfo.Sender)
 
-	selfJid := *client.Store.ID
 	senderJidStr := ""
-	if (groupInfo.Sender != nil) && (JidToStr(client, *groupInfo.Sender) != JidToStr(client, groupInfo.JID)) {
-		senderJidStr = JidToStr(client, *groupInfo.Sender)
+	if (userId != chatId) {
+		senderJidStr = userId
 	}
 
 	// text
@@ -910,19 +1008,19 @@ func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 	if groupInfo.Name != nil {
 		// Group name change
 		if senderJidStr == "" {
-			senderJidStr = JidToStr(client, groupInfo.JID)
+			senderJidStr = chatId
 		}
 
 		groupName := *groupInfo.Name
 		text = "[Changed group name to " + groupName.Name + "]"
 	} else if len(groupInfo.Join) > 0 {
 		// Group member joined
-		if (len(groupInfo.Join) == 1) && ((senderJidStr == "") || (senderJidStr == JidToStr(client, groupInfo.Join[0]))) {
-			senderJidStr = JidToStr(client, groupInfo.Join[0])
+		if (len(groupInfo.Join) == 1) && ((senderJidStr == "") || (senderJidStr == GetUserId(client, &groupInfo.JID, &groupInfo.Join[0]))) {
+			senderJidStr = GetUserId(client, &groupInfo.JID, &groupInfo.Join[0])
 			text = "[Joined]"
 		} else {
 			if senderJidStr == "" {
-				senderJidStr = JidToStr(client, groupInfo.JID)
+				senderJidStr = GetChatId(client, &groupInfo.JID, nil)
 			}
 
 			joined := ""
@@ -931,22 +1029,22 @@ func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 					joined += ", "
 				}
 
-				joined += GetContactName(connId, JidToStr(client, jid))
+				joined += GetContactName(connId, GetUserId(client, nil, &jid))
 			}
 
 			text = "[Added " + joined + "]"
 		}
 	} else if len(groupInfo.Leave) > 0 {
 		// Group member left
-		if (len(groupInfo.Leave) == 1) && ((senderJidStr == "") || (senderJidStr == JidToStr(client, groupInfo.Leave[0]))) {
-			senderJidStr = JidToStr(client, groupInfo.Leave[0])
-			fromMe := (senderJidStr == JidToStr(client, selfJid))
+		if (len(groupInfo.Leave) == 1) && ((senderJidStr == "") || (senderJidStr == GetUserId(client, &groupInfo.JID, &groupInfo.Leave[0]))) {
+			senderJidStr = GetUserId(client, &groupInfo.JID, &groupInfo.Leave[0])
+			fromMe := (senderJidStr == GetSelfId(client))
 			if !fromMe {
 				text = "[Left]"
 			}
 		} else {
 			if senderJidStr == "" {
-				senderJidStr = JidToStr(client, groupInfo.JID)
+				senderJidStr = GetChatId(client, &groupInfo.JID, nil)
 			}
 
 			left := ""
@@ -955,7 +1053,7 @@ func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 					left += ", "
 				}
 
-				left += GetContactName(connId, JidToStr(client, jid))
+				left += GetContactName(connId, GetUserId(client, nil, &jid))
 			}
 
 			text = "[Removed " + left + "]"
@@ -980,9 +1078,9 @@ func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 	// general
 	timeSent := int(groupInfo.Timestamp.Unix())
 	msgId := strconv.Itoa(timeSent) // group info updates do not have msg id
-	fromMe := (senderJidStr == JidToStr(client, selfJid))
+	fromMe := (senderJidStr == GetSelfId(client))
 	senderId := senderJidStr
-	selfId := JidToStr(client, *client.Store.ID)
+	selfId := GetSelfId(client)
 	isSelfChat := (chatId == selfId)
 	isSyncRead := false
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, groupInfo.Timestamp, GetTimeRead(connId, chatId))
@@ -999,7 +1097,7 @@ func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 func (handler *WmEventHandler) HandleDeleteChat(deleteChat *events.DeleteChat) {
 	connId := handler.connId
 	var client *whatsmeow.Client = GetClient(connId)
-	chatId := JidToStr(client, deleteChat.JID)
+	chatId := GetChatId(client, &deleteChat.JID, nil)
 
 	LOG_TRACE(fmt.Sprintf("Call CWmDeleteChatNotify %s", chatId))
 	CWmDeleteChatNotify(connId, chatId)
@@ -1008,7 +1106,7 @@ func (handler *WmEventHandler) HandleDeleteChat(deleteChat *events.DeleteChat) {
 func (handler *WmEventHandler) HandleMute(mute *events.Mute) {
 	connId := handler.connId
 	var client *whatsmeow.Client = GetClient(connId)
-	chatId := JidToStr(client, mute.JID)
+	chatId := GetChatId(client, &mute.JID, nil)
 	muteAction := mute.Action
 	if muteAction == nil {
 		LOG_WARNING(fmt.Sprintf("mute event missing mute action"))
@@ -1024,7 +1122,7 @@ func (handler *WmEventHandler) HandleMute(mute *events.Mute) {
 func (handler *WmEventHandler) HandlePin(pin *events.Pin) {
 	connId := handler.connId
 	var client *whatsmeow.Client = GetClient(connId)
-	chatId := JidToStr(client, pin.JID)
+	chatId := GetChatId(client, &pin.JID, nil)
 	pinAction := pin.Action
 	if pinAction == nil {
 		LOG_WARNING(fmt.Sprintf("pin event missing pin action"))
@@ -1047,7 +1145,7 @@ func (handler *WmEventHandler) HandleClientOutdated() {
 func (handler *WmEventHandler) HandleDeleteForMe(deleteForMe *events.DeleteForMe) {
 	connId := handler.connId
 	client := GetClient(connId)
-	chatId := JidToStr(client, deleteForMe.ChatJID)
+	chatId := GetChatId(client, &deleteForMe.ChatJID, nil)
 	msgId := deleteForMe.MessageID
 	LOG_TRACE(fmt.Sprintf("Call CWmDeleteMessageNotify %s %s", chatId, msgId))
 	CWmDeleteMessageNotify(connId, chatId, msgId)
@@ -1107,16 +1205,17 @@ func GetContacts(connId int) {
 	var client *whatsmeow.Client = GetClient(connId)
 
 	// common
-	isNotify := BoolToInt(false) // defer notification until last contact
-	selfId := JidToStr(client, *client.Store.ID)
+	var notify int = NotifyCache // defer notification until last contact
+	selfId := GetSelfId(client)
 
 	// special handling for self (if not in contacts)
 	{
 		selfName := "" // overridden by ui
 		selfPhone := PhoneFromUserId(selfId)
 		isSelf := BoolToInt(true) // self
+		isAlias := BoolToInt(false)
 		LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", selfId, selfName))
-		CWmNewContactsNotify(connId, selfId, selfName, selfPhone, isSelf, isNotify)
+		CWmNewContactsNotify(connId, selfId, selfName, selfPhone, isSelf, isAlias, notify)
 		AddContactName(connId, selfId, selfName)
 	}
 
@@ -1127,43 +1226,104 @@ func GetContacts(connId int) {
 		LOG_WARNING(fmt.Sprintf("get all contacts failed %#v", contErr))
 	} else {
 		LOG_TRACE(fmt.Sprintf("contacts %#v", contacts))
-		var userIdName map[string]string = make(map[string]string)
+		var userIdPhones map[string]string = make(map[string]string) // phone
+		var userIdNames map[string]string = make(map[string]string) // contacts
+		var aliasUserIdNames map[string]string = make(map[string]string) // public
+		var senderUserIdNames map[string]string = make(map[string]string) // public/phone
 
-		// add lid-based data first (public names)
-		for jid, contactInfo := range contacts {
-			if jid.Server == types.HiddenUserServer {
-				name := GetNameFromContactInfo(contactInfo)
-				if len(name) > 0 {
-					userId := JidToStr(client, jid)
-					userIdName[userId] = name
-				} else {
-					LOG_WARNING(fmt.Sprintf("Skip empty name %s %#v", JidToStr(client, jid), contactInfo))
-				}
-			}
-		}
-
-		// add regular data second (address book names)
+		// add regular data first (address book names)
 		for jid, contactInfo := range contacts {
 			if jid.Server != types.HiddenUserServer {
 				name := GetNameFromContactInfo(contactInfo)
+				userId := StrFromJid(jid)
 				if len(name) > 0 {
-					userId := JidToStr(client, jid)
-					if oldName, ok := userIdName[userId]; ok {
-						LOG_TRACE(fmt.Sprintf("Replace public name %s with %s", oldName, name))
+					userIdNames[userId] = name
+					userIdPhones[userId] = PhoneFromUserId(userId)
+
+					// add lid alias if available
+					if lid, _ := client.Store.LIDs.GetLIDForPN(ctx, jid); !lid.IsEmpty() {
+						userLid := StrFromJid(lid)
+						aliasUserIdNames[userLid] = name
+						userIdPhones[userLid] = userIdPhones[userId]
 					}
-					userIdName[userId] = name
 				} else {
-					LOG_WARNING(fmt.Sprintf("Skip empty name %s %#v", JidToStr(client, jid), contactInfo))
+					LOG_WARNING(fmt.Sprintf("Skip empty name %s %#v", userId, contactInfo))
 				}
 			}
 		}
 
-		// propagate data
-		for userId, name := range userIdName {
-			phone := PhoneFromUserId(userId)
+		// add lid-based data second (public names)
+		for jid, contactInfo := range contacts {
+			if jid.Server == types.HiddenUserServer {
+				name := GetNameFromContactInfo(contactInfo)
+				userId := StrFromJid(jid)
+				if len(name) > 0 {
+					// check for phone-number based id
+					if pid, _ := client.Store.LIDs.GetPNForLID(ctx, jid); !pid.IsEmpty() {
+						// check that it's present in the regular userIdNames map
+						userPid := StrFromJid(pid)
+						if pname, ok := userIdNames[userPid]; ok {
+							// if found, treat this jid as an alias, using phone-number based name
+							aliasUserIdNames[userId] = pname
+							userIdPhones[userId] = userIdPhones[userPid]
+						} else {
+							// if not found, use only phone number, keep name from lid
+							userIdNames[userId] = name
+							userIdPhones[userId] = PhoneFromUserId(userPid)
+						}
+
+						continue
+					}
+
+					// otherwise, treat it as non-alias, and use lid-based name
+					userIdNames[userId] = name
+					userIdPhones[userId] = ""
+				} else {
+					LOG_WARNING(fmt.Sprintf("Skip empty name %s %#v", userId, contactInfo))
+				}
+			}
+		}
+
+		// add alias names based on local cache
+		senders := GetAllSenders(connId)
+		for userId, name := range senders {
+			if _, ok := userIdNames[userId]; ok {
+				RemoveSender(connId, userId)
+			} else if _, ok := aliasUserIdNames[userId]; ok {
+				RemoveSender(connId, userId)
+			} else {
+				senderUserIdNames[userId] = name
+				userIdPhones[userId] = ""
+			}
+		}
+
+		// propagate regular names
+		for userId, name := range userIdNames {
+			phone := userIdPhones[userId]
 			isSelf := BoolToInt(userId == selfId)
-			LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", userId, name))
-			CWmNewContactsNotify(connId, userId, name, phone, isSelf, isNotify)
+			isAlias := BoolToInt(false)
+			LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify regular %s %s", userId, name))
+			CWmNewContactsNotify(connId, userId, name, phone, isSelf, isAlias, notify)
+			AddContactName(connId, userId, name)
+		}
+
+		// propagate alias names
+		for userId, name := range aliasUserIdNames {
+			phone := userIdPhones[userId]
+			isSelf := BoolToInt(userId == selfId)
+			isAlias := BoolToInt(true)
+			LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify alias %s %s", userId, name))
+			CWmNewContactsNotify(connId, userId, name, phone, isSelf, isAlias, notify)
+			AddContactName(connId, userId, name)
+		}
+
+		// propagate sender names
+		for userId, name := range senderUserIdNames {
+			phone := userIdPhones[userId]
+			isSelf := BoolToInt(userId == selfId)
+			isAlias := BoolToInt(true)
+			LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify sender %s %s", userId, name))
+			CWmNewContactsNotify(connId, userId, name, phone, isSelf, isAlias, notify)
 			AddContactName(connId, userId, name)
 		}
 	}
@@ -1175,12 +1335,13 @@ func GetContacts(connId int) {
 	} else {
 		LOG_TRACE(fmt.Sprintf("groups %#v", groups))
 		for _, group := range groups {
-			groupId := JidToStr(client, group.JID)
+			groupId := StrFromJid(group.JID)
 			groupName := group.GroupName.Name
 			groupPhone := ""
 			isSelf := BoolToInt(false)
+			isAlias := BoolToInt(false)
 			LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", groupId, groupName))
-			CWmNewContactsNotify(connId, groupId, groupName, groupPhone, isSelf, isNotify)
+			CWmNewContactsNotify(connId, groupId, groupName, groupPhone, isSelf, isAlias, notify)
 			AddContactName(connId, groupId, groupName)
 
 			if group.GroupEphemeral.IsEphemeral {
@@ -1195,8 +1356,9 @@ func GetContacts(connId int) {
 		whatsappName := "WhatsApp"
 		whatsappPhone := ""
 		isSelf := BoolToInt(false)
+		isAlias := BoolToInt(false)
 		LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", whatsappId, whatsappName))
-		CWmNewContactsNotify(connId, whatsappId, whatsappName, whatsappPhone, isSelf, isNotify)
+		CWmNewContactsNotify(connId, whatsappId, whatsappName, whatsappPhone, isSelf, isAlias, notify)
 		AddContactName(connId, whatsappId, whatsappName)
 	}
 
@@ -1206,12 +1368,14 @@ func GetContacts(connId int) {
 		statusName := "Status Updates"
 		statusPhone := ""
 		isSelf := BoolToInt(false)
-		isNotify = BoolToInt(true) // perform notification upon last contact
+		isAlias := BoolToInt(false)
+		notify = NotifySendCached // perform notification upon last contact
 		LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", statusId, statusName))
-		CWmNewContactsNotify(connId, statusId, statusName, statusPhone, isSelf, isNotify)
+		CWmNewContactsNotify(connId, statusId, statusName, statusPhone, isSelf, isAlias, notify)
 		AddContactName(connId, statusId, statusName)
 	}
 
+	SetNamesSynced(connId, true)
 	CWmClearStatus(connId, FlagFetching)
 }
 
@@ -1261,12 +1425,44 @@ func (handler *WmEventHandler) ProcessContextInfo(contextInfo *waE2E.ContextInfo
 			for _, mentionedStr := range contextInfo.MentionedJID {
 				mentionedStrParts := strings.SplitN(mentionedStr, "@", 2)
 				mentionedJid, _ := types.ParseJID(mentionedStr)      // ex: 121874109111111@lid
-				mentionedId := JidToStr(client, mentionedJid)        // ex: 6511111111@s.whatsapp.net
+				mentionedId := GetUserId(client, nil, &mentionedJid) // ex: 6511111111@s.whatsapp.net
 				mentionedName := GetContactName(connId, mentionedId) // ex: Michael
 				mentionedOrigText := "@" + mentionedStrParts[0]      // ex: @121874109111111
 				mentionedNewText := "@" + mentionedName              // ex: @Michael
 				*text = strings.ReplaceAll(*text, mentionedOrigText, mentionedNewText)
 			}
+		}
+	}
+}
+
+func (handler *WmEventHandler) ProcessMessageInfo(messageInfo types.MessageInfo) {
+	connId := handler.connId
+	var client *whatsmeow.Client = GetClient(connId)
+	userId := GetUserId(client, &messageInfo.Chat, &messageInfo.Sender)
+	if messageInfo.Sender.Server != types.HiddenUserServer {
+		return
+	}
+
+	if HasContact(connId, userId) || HasSender(connId, userId) {
+		return
+	}
+
+	// check for phone-number based id
+	ctx := context.TODO()
+	if pid, _ := client.Store.LIDs.GetPNForLID(ctx, messageInfo.Sender); !pid.IsEmpty() {
+		userPid := StrFromJid(pid)
+		name := PhoneFromUserId(userPid)
+		LOG_TRACE(fmt.Sprintf("add sender %s %s", userId, name))
+		AddSender(connId, userId, name)
+
+		if GetNamesSynced(connId) {
+			phone := ""
+			isSelf := BoolToInt(false)
+			isAlias := BoolToInt(true)
+			var notify int = NotifyDirect // notify without cache
+			LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify sender %s %s", userId, name))
+			CWmNewContactsNotify(connId, userId, name, phone, isSelf, isAlias, notify)
+			AddContactName(connId, userId, name)
 		}
 	}
 }
@@ -1294,18 +1490,18 @@ func (handler *WmEventHandler) HandleTextMessage(messageInfo types.MessageInfo, 
 	fileStatus := FileStatusNone
 
 	// general
-	chatId := JidToStr(client, messageInfo.Chat, messageInfo.Sender)
+	chatId := GetChatId(client, &messageInfo.Chat, &messageInfo.Sender)
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
-	senderId := JidToStr(client, messageInfo.Sender)
-	selfId := JidToStr(client, *client.Store.ID)
+	senderId := GetUserId(client, &messageInfo.Chat, &messageInfo.Sender)
+	selfId := GetSelfId(client)
 	isSelfChat := (chatId == selfId)
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 	isEdited := (messageInfo.Edit == "1")
 
-	// reset typing if needed
 	ResetTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
+	handler.ProcessMessageInfo(messageInfo)
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: %s", chatId, text))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent,
@@ -1348,17 +1544,17 @@ func (handler *WmEventHandler) HandleImageMessage(messageInfo types.MessageInfo,
 	}
 
 	// general
-	chatId := JidToStr(client, messageInfo.Chat, messageInfo.Sender)
+	chatId := GetChatId(client, &messageInfo.Chat, &messageInfo.Sender)
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
-	senderId := JidToStr(client, messageInfo.Sender)
-	selfId := JidToStr(client, *client.Store.ID)
+	senderId := GetUserId(client, &messageInfo.Chat, &messageInfo.Sender)
+	selfId := GetSelfId(client)
 	isSelfChat := (chatId == selfId)
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 
-	// reset typing if needed
 	ResetTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
+	handler.ProcessMessageInfo(messageInfo)
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: image", chatId))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent,
@@ -1401,17 +1597,17 @@ func (handler *WmEventHandler) HandleVideoMessage(messageInfo types.MessageInfo,
 	}
 
 	// general
-	chatId := JidToStr(client, messageInfo.Chat, messageInfo.Sender)
+	chatId := GetChatId(client, &messageInfo.Chat, &messageInfo.Sender)
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
-	senderId := JidToStr(client, messageInfo.Sender)
-	selfId := JidToStr(client, *client.Store.ID)
+	senderId := GetUserId(client, &messageInfo.Chat, &messageInfo.Sender)
+	selfId := GetSelfId(client)
 	isSelfChat := (chatId == selfId)
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 
-	// reset typing if needed
 	ResetTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
+	handler.ProcessMessageInfo(messageInfo)
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: video", chatId))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent,
@@ -1449,18 +1645,18 @@ func (handler *WmEventHandler) HandleAudioMessage(messageInfo types.MessageInfo,
 	fileStatus := FileStatusNotDownloaded
 
 	// general
-	chatId := JidToStr(client, messageInfo.Chat, messageInfo.Sender)
+	chatId := GetChatId(client, &messageInfo.Chat, &messageInfo.Sender)
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
-	senderId := JidToStr(client, messageInfo.Sender)
-	selfId := JidToStr(client, *client.Store.ID)
+	senderId := GetUserId(client, &messageInfo.Chat, &messageInfo.Sender)
+	selfId := GetSelfId(client)
 	isSelfChat := (chatId == selfId)
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 	isEdited := (messageInfo.Edit == "1")
 
-	// reset typing if needed
 	ResetTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
+	handler.ProcessMessageInfo(messageInfo)
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: audio", chatId))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent,
@@ -1500,17 +1696,17 @@ func (handler *WmEventHandler) HandleDocumentMessage(messageInfo types.MessageIn
 	}
 
 	// general
-	chatId := JidToStr(client, messageInfo.Chat, messageInfo.Sender)
+	chatId := GetChatId(client, &messageInfo.Chat, &messageInfo.Sender)
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
-	senderId := JidToStr(client, messageInfo.Sender)
-	selfId := JidToStr(client, *client.Store.ID)
+	senderId := GetUserId(client, &messageInfo.Chat, &messageInfo.Sender)
+	selfId := GetSelfId(client)
 	isSelfChat := (chatId == selfId)
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 
-	// reset typing if needed
 	ResetTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
+	handler.ProcessMessageInfo(messageInfo)
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: document", chatId))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent,
@@ -1548,18 +1744,18 @@ func (handler *WmEventHandler) HandleStickerMessage(messageInfo types.MessageInf
 	fileStatus := FileStatusNotDownloaded
 
 	// general
-	chatId := JidToStr(client, messageInfo.Chat, messageInfo.Sender)
+	chatId := GetChatId(client, &messageInfo.Chat, &messageInfo.Sender)
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
-	senderId := JidToStr(client, messageInfo.Sender)
-	selfId := JidToStr(client, *client.Store.ID)
+	senderId := GetUserId(client, &messageInfo.Chat, &messageInfo.Sender)
+	selfId := GetSelfId(client)
 	isSelfChat := (chatId == selfId)
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 	isEdited := (messageInfo.Edit == "1")
 
-	// reset typing if needed
 	ResetTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
+	handler.ProcessMessageInfo(messageInfo)
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: sticker", chatId))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent,
@@ -1642,18 +1838,18 @@ func (handler *WmEventHandler) HandleTemplateMessage(messageInfo types.MessageIn
 	fileStatus := FileStatusNone
 
 	// general
-	chatId := JidToStr(client, messageInfo.Chat, messageInfo.Sender)
+	chatId := GetChatId(client, &messageInfo.Chat, &messageInfo.Sender)
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
-	senderId := JidToStr(client, messageInfo.Sender)
-	selfId := JidToStr(client, *client.Store.ID)
+	senderId := GetUserId(client, &messageInfo.Chat, &messageInfo.Sender)
+	selfId := GetSelfId(client)
 	isSelfChat := (chatId == selfId)
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 	isEdited := (messageInfo.Edit == "1")
 
-	// reset typing if needed
 	ResetTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
+	handler.ProcessMessageInfo(messageInfo)
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: template", chatId))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent,
@@ -1674,9 +1870,9 @@ func (handler *WmEventHandler) HandleReactionMessage(messageInfo types.MessageIn
 	}
 
 	// general
-	chatId := JidToStr(client, messageInfo.Chat, messageInfo.Sender)
+	chatId := GetChatId(client, &messageInfo.Chat, &messageInfo.Sender)
 	fromMe := messageInfo.IsFromMe
-	senderId := JidToStr(client, messageInfo.Sender)
+	senderId := GetUserId(client, &messageInfo.Chat, &messageInfo.Sender)
 	text := reaction.GetText()
 	msgId := *reaction.Key.ID
 
@@ -1711,7 +1907,7 @@ func (handler *WmEventHandler) HandleProtocolMessage(messageInfo types.MessageIn
 		// handle message revoke
 		connId := handler.connId
 		var client *whatsmeow.Client = GetClient(connId)
-		chatId := JidToStr(client, messageInfo.Chat)
+		chatId := GetChatId(client, &messageInfo.Chat, &messageInfo.Sender)
 		msgId := protocol.GetKey().GetId()
 		LOG_TRACE(fmt.Sprintf("Call CWmDeleteMessageNotify %s %s", chatId, msgId))
 		CWmDeleteMessageNotify(connId, chatId, msgId)
@@ -1908,18 +2104,18 @@ func (handler *WmEventHandler) HandleUnsupportedMessage(messageInfo types.Messag
 	fileStatus := FileStatusNone
 
 	// general
-	chatId := JidToStr(client, messageInfo.Chat, messageInfo.Sender)
+	chatId := GetChatId(client, &messageInfo.Chat, &messageInfo.Sender)
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
-	senderId := JidToStr(client, messageInfo.Sender)
-	selfId := JidToStr(client, *client.Store.ID)
+	senderId := GetUserId(client, &messageInfo.Chat, &messageInfo.Sender)
+	selfId := GetSelfId(client)
 	isSelfChat := (chatId == selfId)
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 	isEdited := (messageInfo.Edit == "1")
 
-	// reset typing if needed
 	ResetTypingStatus(connId, chatId, senderId, fromMe, isSyncRead)
+	handler.ProcessMessageInfo(messageInfo)
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: %s", chatId, text))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent,
@@ -1938,7 +2134,7 @@ func ResetTypingStatus(connId int, chatId string, userId string, fromMe bool, is
 	// update
 	isTyping := false
 
-	LOG_TRACE(fmt.Sprintf("Call CWmNewTypingNotify"))
+	LOG_TRACE(fmt.Sprintf("Call CWmNewTypingNotify %t %s %s", isTyping, chatId, userId))
 	CWmNewTypingNotify(connId, chatId, userId, BoolToInt(isTyping))
 }
 
@@ -2512,7 +2708,7 @@ func WmGetStatus(connId int, userId string) int {
 	}
 
 	// ignore presence requests for self
-	selfId := JidToStr(client, *client.Store.ID)
+	selfId := GetSelfId(client)
 	if userId == selfId {
 		return -1
 	}
@@ -2586,7 +2782,7 @@ func WmDeleteMessage(connId int, chatId string, senderId string, msgId string) i
 	senderJid, _ := types.ParseJID(senderId)
 
 	// skip deleting messages sent by others in private chat
-	selfId := JidToStr(client, *client.Store.ID)
+	selfId := GetSelfId(client)
 	isGroup := (chatJid.Server == types.GroupServer)
 	isFromSelf := (senderId == selfId)
 	if !isFromSelf && !isGroup {
@@ -2661,7 +2857,7 @@ func WmSendTyping(connId int, chatId string, isTyping int) int {
 	client := GetClient(connId)
 
 	// do not send typing to self chat
-	selfId := JidToStr(client, *client.Store.ID)
+	selfId := GetSelfId(client)
 	if chatId == selfId {
 		return 0
 	}

@@ -21,6 +21,14 @@
 #include "strutil.h"
 #include "timeutil.h"
 
+// keep in sync with vars in gowm.go
+enum NotifyType
+{
+  NotifyDirect = 0,
+  NotifyCache = 1,
+  NotifySendCached = 2,
+};
+
 std::mutex WmChat::s_ConnIdMapMutex;
 std::map<int, WmChat*> WmChat::s_ConnIdMap;
 
@@ -729,7 +737,7 @@ WmChat* WmChat::GetInstance(int p_ConnId)
   return (it != s_ConnIdMap.end()) ? it->second : nullptr;
 }
 
-void WmNewContactsNotify(int p_ConnId, char* p_ChatId, char* p_Name, char* p_Phone, int p_IsSelf, int p_IsNotify)
+void WmNewContactsNotify(int p_ConnId, char* p_ChatId, char* p_Name, char* p_Phone, int p_IsSelf, int p_IsAlias, int p_Notify)
 {
   WmChat* instance = WmChat::GetInstance(p_ConnId);
   if (instance != nullptr)
@@ -739,18 +747,32 @@ void WmNewContactsNotify(int p_ConnId, char* p_ChatId, char* p_Name, char* p_Pho
     contactInfo.name = std::string(p_Name);
     contactInfo.phone = std::string(p_Phone);
     contactInfo.isSelf = (p_IsSelf == 1);
+    contactInfo.isAlias = (p_IsAlias == 1);
 
-    instance->AddContactInfo(contactInfo);
+    std::shared_ptr<NewContactsNotify> newContactsNotify;
 
-    const bool isNotify = (p_IsNotify == 1);
-    if (isNotify)
+    if (p_Notify == NotifyDirect)
     {
-      std::shared_ptr<NewContactsNotify> newContactsNotify =
-        std::make_shared<NewContactsNotify>(instance->GetProfileId());
+      newContactsNotify = std::make_shared<NewContactsNotify>(instance->GetProfileId());
+      newContactsNotify->fullSync = false;
+      newContactsNotify->contactInfos.push_back(contactInfo);
+    }
+    else if (p_Notify == NotifyCache)
+    {
+      instance->AddContactInfo(contactInfo);
+    }
+    else if (p_Notify == NotifySendCached)
+    {
+      instance->AddContactInfo(contactInfo);
+
+      newContactsNotify = std::make_shared<NewContactsNotify>(instance->GetProfileId());
       newContactsNotify->fullSync = true;
       newContactsNotify->contactInfos = instance->GetContactInfos();
       instance->ClearContactInfos();
+    }
 
+    if (newContactsNotify)
+    {
       std::shared_ptr<DeferNotifyRequest> deferNotifyRequest = std::make_shared<DeferNotifyRequest>();
       deferNotifyRequest->serviceMessage = newContactsNotify;
       instance->SendRequest(deferNotifyRequest);

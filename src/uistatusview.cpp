@@ -26,7 +26,7 @@ void UiStatusView::Draw()
   curs_set(0);
 
   std::pair<std::string, std::string>& currentChat = m_Model->GetCurrentChatLocked();
-  std::string name = m_Model->GetContactListNameLocked(currentChat.first, currentChat.second, true /*p_AllowId*/);
+  std::string name = m_Model->GetContactListNameLocked(currentChat.first, currentChat.second, true /*p_AllowId*/, true /*p_AllowAlias*/);
   if (!m_Model->GetEmojiEnabledLocked())
   {
     name = StrUtil::Textize(name);
@@ -81,6 +81,11 @@ void UiStatusView::Draw()
       wstatus = wstatus + L" chat " + StrUtil::ToWString(currentChat.second);
       int64_t lastMessageTime = m_Model->GetLastMessageTimeLocked(currentChat.first, currentChat.second);
       wstatus = wstatus + L" time " + StrUtil::ToWString(std::to_string(lastMessageTime));
+      std::string phone = m_Model->GetContactPhoneLocked(currentChat.first, currentChat.second);
+      if (!phone.empty())
+      {
+        wstatus = wstatus + L" phone " + StrUtil::ToWString(phone);
+      }
     }
 
     wstatus = StrUtil::TrimPadWString(wstatus, m_W);

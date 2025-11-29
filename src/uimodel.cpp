@@ -2187,11 +2187,15 @@ std::string UiModel::Impl::GetContactNameIncludingSelf(const std::string& p_Prof
 }
 
 std::string UiModel::Impl::GetContactListName(const std::string& p_ProfileId, const std::string& p_ChatId,
-                                              bool p_AllowId)
+                                              bool p_AllowId, bool p_AllowAlias)
 {
   const ContactInfo& contactInfo = m_ContactInfos[p_ProfileId][p_ChatId];
   const std::string& chatName = contactInfo.name;
-  if (contactInfo.isSelf)
+  if (!p_AllowAlias && contactInfo.isAlias)
+  {
+    return "";
+  }
+  else if (contactInfo.isSelf)
   {
     return "Saved Messages";
   }
@@ -4259,10 +4263,11 @@ std::vector<std::pair<std::string, std::string>> UiModel::GetChatVec()
   return GetImpl().GetChatVec();
 }
 
-std::string UiModel::GetContactListName(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_AllowId)
+std::string UiModel::GetContactListName(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_AllowId,
+                                        bool p_AllowAlias)
 {
   std::unique_lock<owned_mutex> lock(m_ModelMutex);
-  return GetImpl().GetContactListName(p_ProfileId, p_ChatId, p_AllowId);
+  return GetImpl().GetContactListName(p_ProfileId, p_ChatId, p_AllowId, p_AllowAlias);
 }
 
 std::unordered_map<std::string, std::unordered_map<std::string, ContactInfo>> UiModel::GetContactInfos()
@@ -4344,10 +4349,10 @@ std::vector<std::pair<std::string, std::string>>& UiModel::GetChatVecLocked()
 }
 
 std::string UiModel::GetContactListNameLocked(const std::string& p_ProfileId, const std::string& p_ChatId,
-                                              bool p_AllowId)
+                                              bool p_AllowId, bool p_AllowAlias)
 {
   nc_assert(m_ModelMutex.owns_lock());
-  return GetImpl().GetContactListName(p_ProfileId, p_ChatId, p_AllowId);
+  return GetImpl().GetContactListName(p_ProfileId, p_ChatId, p_AllowId, p_AllowAlias);
 }
 
 std::string UiModel::GetContactNameLocked(const std::string& p_ProfileId, const std::string& p_ChatId)
