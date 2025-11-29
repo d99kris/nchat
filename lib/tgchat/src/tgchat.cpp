@@ -2346,7 +2346,11 @@ void TgChat::Impl::SendQuery(td::td_api::object_ptr<td::td_api::Function> f,
     std::unique_lock<std::mutex> lock(m_HandlersMutex);
     m_Handlers.emplace(request_id, std::move(handler));
   }
-  m_ClientManager->send(m_ClientId, request_id, std::move(f));
+
+  if (m_ClientManager)
+  {
+    m_ClientManager->send(m_ClientId, request_id, std::move(f));
+  }
 }
 
 void TgChat::Impl::CheckAuthError(Object object)
