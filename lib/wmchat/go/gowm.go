@@ -49,7 +49,7 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
-var whatsmeowDate int = 20251106
+var whatsmeowDate int = 20251120
 
 type JSONMessage []json.RawMessage
 type JSONMessageType string
@@ -666,7 +666,7 @@ func ParseWebMessageInfo(selfJid types.JID, chatJid types.JID, webMsg *waWeb.Web
 			IsFromMe: webMsg.GetKey().GetFromMe(),
 			IsGroup:  chatJid.Server == types.GroupServer,
 		},
-		ID:        webMsg.GetKey().GetId(),
+		ID:        webMsg.GetKey().GetID(),
 		PushName:  webMsg.GetPushName(),
 		Timestamp: time.Unix(int64(webMsg.GetMessageTimestamp()), 0),
 	}
@@ -934,7 +934,7 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 	for _, conversation := range conversations {
 		LOG_TRACE(fmt.Sprintf("HandleHistorySync Conversation %#v", *conversation))
 
-		chatJid, _ := types.ParseJID(conversation.GetId())
+		chatJid, _ := types.ParseJID(conversation.GetID())
 
 		isUnread := 0
 		lastMessageTime := 0
@@ -1416,7 +1416,7 @@ func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg 
 func (handler *WmEventHandler) ProcessContextInfo(contextInfo *waE2E.ContextInfo, quotedId *string, text *string) {
 	if contextInfo != nil {
 		if quotedId != nil {
-			*quotedId = contextInfo.GetStanzaId()
+			*quotedId = contextInfo.GetStanzaID()
 		}
 
 		if (contextInfo.MentionedJID != nil) && (text != nil) {
@@ -1898,7 +1898,7 @@ func (handler *WmEventHandler) HandleProtocolMessage(messageInfo types.MessageIn
 		editedMsg := protocol.GetEditedMessage()
 		if editedMsg != nil {
 			newMessageInfo := messageInfo
-			newMessageInfo.ID = protocol.GetKey().GetId()
+			newMessageInfo.ID = protocol.GetKey().GetID()
 			handler.HandleMessage(newMessageInfo, editedMsg, isSyncRead)
 		} else {
 			LOG_WARNING(fmt.Sprintf("get edited message failed"))
@@ -1908,7 +1908,7 @@ func (handler *WmEventHandler) HandleProtocolMessage(messageInfo types.MessageIn
 		connId := handler.connId
 		var client *whatsmeow.Client = GetClient(connId)
 		chatId := GetChatId(client, &messageInfo.Chat, &messageInfo.Sender)
-		msgId := protocol.GetKey().GetId()
+		msgId := protocol.GetKey().GetID()
 		LOG_TRACE(fmt.Sprintf("Call CWmDeleteMessageNotify %s %s", chatId, msgId))
 		CWmDeleteMessageNotify(connId, chatId, msgId)
 	} else {
