@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# cvc v0.22
+# cvc v0.24
 #
 # Copyright (c) 2018-2025 Kristofer Berggren
 # All rights reserved.
@@ -54,6 +54,7 @@
 # For simplified usage one can set up aliases, example:
 # alias ad='cvc add'
 # alias ap='cvc ap'
+# alias bl='cvc bl'
 # alias ci='cvc ci'
 # alias cl='cvc cl'
 # alias co='cvc co'
@@ -195,6 +196,29 @@ git_apply()
   fi
 
   exit 0
+}
+
+
+git_blame()
+{
+  # Check arguments
+  if [[ "${2}" == "" ]] || [[ ! -f "${2}" ]]; then
+    echo "usage: cvc bl <FILEPATH>"
+    exit 1
+  fi
+  FILEPATH=$(realpath ${2})
+
+  # Git blame
+  if [ -t 1 ]; then
+    # Interactive / tty
+    git blame "${FILEPATH}" | less
+  else
+    # Non-interactive / piped
+    git blame "${FILEPATH}"
+  fi
+
+  # Propagate exit status
+  exit ${?}
 }
 
 
@@ -496,6 +520,12 @@ git_sync()
           continue
         fi
 
+        DSTPARENT=$(dirname "${DSTPATH}")
+        if [[ ! -d "${DSTPARENT}" ]]; then
+          echo "MkDir: ${DSTPARENT}"
+          mkdir -p "${DSTPARENT}"
+        fi
+
         echo "Copy/Add: ${SRCPATH} -> ${DSTPATH}"
         if [[ "${DRYRUN}" != "1" ]]; then
           cp -a ${SRCPATH} ${DSTPATH}
@@ -641,6 +671,29 @@ svn_apply()
 
   # Propagate exit status
   exit ${RV}
+}
+
+
+svn_blame()
+{
+  # Check arguments
+  if [[ "${2}" == "" ]] || [[ ! -f "${2}" ]]; then
+    echo "usage: cvc bl <FILEPATH>"
+    exit 1
+  fi
+  FILEPATH=$(realpath ${2})
+
+  # Svn blame
+  if [ -t 1 ]; then
+    # Interactive / tty
+    svn blame "${FILEPATH}" | less
+  else
+    # Non-interactive / piped
+    svn blame "${FILEPATH}"
+  fi
+
+  # Propagate exit status
+  exit ${?}
 }
 
 
@@ -794,10 +847,10 @@ svn_listbranches()
 
 svn_log()
 {
-  if [[ "${2}" == "" ]]; then
-    svn log -r1:HEAD
-  else
+  if [[ "${2}" != "" ]] && [[ ${2} == -r* || ${2} == -c* ]]; then
     svn log ${@:2}
+  else
+    svn log -r1:HEAD ${@:2}
   fi
 
   # Propagate exit status
@@ -998,7 +1051,6 @@ TYPE="${CVC_DEFAULT_VC}"
 case "${1}" in
   co)
     ${TYPE}_co "${@}"
-    exit 0
     ;;
 
   gco)
@@ -1007,7 +1059,6 @@ case "${1}" in
 
   in*)
     ${TYPE}_init "${@}"
-    exit 0
     ;;
 
   sco)
@@ -1058,6 +1109,10 @@ case "${1}" in
 
   ap*)
     ${TYPE}_apply "${@}"
+    ;;
+
+  bl*)
+    ${TYPE}_blame "${@}"
     ;;
 
   ci)
@@ -1117,28 +1172,29 @@ case "${1}" in
     ;;
 
   *)
-    echo "usage: cvc ad[d] | ap[ply] | ci | cl[ean] | co | de[l] | dg | di[ff] | in[it]"
-    echo "           lo[g] [-v] | re[vert] | st[atus] | sy[nc] | up[date] | ur[l]"
-    echo "           lb | nb | sb "
+    echo "usage: cvc ad[d] | ap[ply] | bl | ci | cl[ean] | co | de[l] | dg | di[ff]"
+    echo "           in[it] | lo[g] [-v] | re[vert] | st[atus] | sy[nc] | up[date]"
+    echo "           ur[l] | lb | nb | sb "
     echo ""
-    echo "cvc ad      add to version control"
-    echo "cvc ap      apply patch"
-    echo "cvc ci [-m] commit and push"
-    echo "cvc cl      clean up untracked files"
-    echo "cvc co      check out / clone"
-    echo "cvc de      delete"
-    echo "cvc dg      diffgrep grepping added lines"
-    echo "cvc di      diff"
-    echo "cvc in      init local repository"
-    echo "cvc lo [-v] log"
-    echo "cvc re      revert local file change"
-    echo "cvc st      status"
-    echo "cvc sy      sync changes from other repository"
-    echo "cvc up      update"
-    echo "cvc ur      remote clone url"
-    echo "cvc lb      list branches"
-    echo "cvc nb      new branch"
-    echo "cvc sb      switch branch"
+    echo "cvc ad        add to version control"
+    echo "cvc ap        apply patch"
+    echo "cvc bl PATH   blame"
+    echo "cvc ci [-m]   commit and push"
+    echo "cvc cl        clean up untracked files"
+    echo "cvc co        check out / clone"
+    echo "cvc de        delete"
+    echo "cvc dg TEXT   diffgrep grepping added lines"
+    echo "cvc di        diff"
+    echo "cvc in        init local repository"
+    echo "cvc lo [-v]   log"
+    echo "cvc re        revert local file change"
+    echo "cvc st        status"
+    echo "cvc sy        sync changes from other repository"
+    echo "cvc up        update"
+    echo "cvc ur        remote clone url"
+    echo "cvc lb        list branches"
+    echo "cvc nb        new branch"
+    echo "cvc sb        switch branch"
     echo ""
     exit 1
 esac
