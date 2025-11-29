@@ -9,17 +9,20 @@
 
 #include "fileutil.h"
 #include "strutil.h"
+#include "uimodel.h"
 
 UiFileListDialog::UiFileListDialog(const UiDialogParams& p_Params, const std::string& p_CurrentDir)
   : UiListDialog(p_Params, true /*p_ShadeHidden*/)
   , m_CurrentDir(p_CurrentDir)
 {
+  m_Model->SetFileListDialogActive(true);
   m_DirEntrys = FileUtil::ListPaths(m_CurrentDir);
   UpdateList();
 }
 
 UiFileListDialog::~UiFileListDialog()
 {
+  m_Model->SetFileListDialogActive(false);
 }
 
 std::string UiFileListDialog::GetCurrentDir()

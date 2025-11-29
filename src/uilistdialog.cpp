@@ -22,9 +22,6 @@ UiListDialog::UiListDialog(const UiDialogParams& p_Params, bool p_ShadeHidden)
   , m_ShadeHidden(p_ShadeHidden)
 {
   m_Model->SetListDialogActive(true);
-  m_Model->Draw();
-  curs_set(0); // needed as UiView::Draw() sets curs_set(1)
-  UpdateFooter();
 }
 
 UiListDialog::~UiListDialog()
@@ -34,6 +31,10 @@ UiListDialog::~UiListDialog()
 
 bool UiListDialog::Run()
 {
+  m_Model->Draw();
+  curs_set(0); // needed as UiView::Draw() sets curs_set(1)
+  UpdateFooter();
+
   Draw();
   int64_t lastTimerEvent = 0;
   while (m_Running)

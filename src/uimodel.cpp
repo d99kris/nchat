@@ -2623,6 +2623,18 @@ void UiModel::Impl::SetListDialogActive(bool p_ListDialogActive)
   UpdateHelp();
 }
 
+bool UiModel::Impl::GetFileListDialogActive()
+{
+  return m_FileListDialogActive;
+}
+
+void UiModel::Impl::SetFileListDialogActive(bool p_FileListDialogActive)
+{
+  m_FileListDialogActive = p_FileListDialogActive;
+  SetHelpOffset(0);
+  UpdateHelp();
+}
+
 bool UiModel::Impl::GetMessageDialogActive()
 {
   return m_MessageDialogActive;
@@ -4318,6 +4330,12 @@ void UiModel::SetListDialogActive(bool p_ListDialogActive)
   GetImpl().SetListDialogActive(p_ListDialogActive);
 }
 
+void UiModel::SetFileListDialogActive(bool p_FileListDialogActive)
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  GetImpl().SetFileListDialogActive(p_FileListDialogActive);
+}
+
 void UiModel::SetStatusOnline(const std::string& p_ProfileId, bool p_IsOnline)
 {
   std::unique_lock<owned_mutex> lock(m_ModelMutex);
@@ -4419,6 +4437,12 @@ bool UiModel::GetListDialogActiveLocked()
 {
   nc_assert(m_ModelMutex.owns_lock());
   return GetImpl().GetListDialogActive();
+}
+
+bool UiModel::GetFileListDialogActiveLocked()
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetFileListDialogActive();
 }
 
 bool UiModel::GetMessageDialogActiveLocked()
