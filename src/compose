@@ -66,21 +66,29 @@ def parse_chat(lines: list[str]) -> tuple[str, list[dict]]:
 
     return your_name, messages
 
-def build_payload(model: str, your_name: str, chat_messages: list[dict], temperature: float|None) -> dict:
+def build_payload(model: str, your_name: str, chat_messages: list[dict], temperature: float|None, prompt: str | None, max_tokens: int | None) -> dict:
+    prompt = prompt if prompt else "Suggest {your_name}'s next reply."
+    prompt = prompt.replace("{your_name}", your_name)
+
     system_msg = {
         "role": "system",
-        "content": f"You are {your_name} in a chat. Suggest {your_name}'s next reply."
+        "content": f"You are {your_name} in a chat. " + prompt
     }
     final_instruction = {
         "role": "user",
-        "content": f"Suggest {your_name}'s next reply."
+        "content": prompt
     }
     payload = {
         "model": model,
         "messages": [system_msg] + chat_messages + [final_instruction]
     }
+
     if temperature is not None:
         payload["temperature"] = temperature
+
+    if max_tokens is not None:
+        payload["max_tokens"] = max_tokens
+
     return payload
 
 def send_request(payload: dict, api_url: str, api_key: str, verbose: bool, timeout: int) -> str:
@@ -136,6 +144,10 @@ def main():
                         help="Service: openai (default), gemini, or host[:port]/URL for OpenAI-compatible server.")
     parser.add_argument("-m", "--model", default=None,
                         help="Model name. Defaults depend on --service (openai: gpt-4o-mini, gemini: gemini-2.0-flash).")
+    parser.add_argument("-M", "--max-tokens", type=int,
+                        help="Maximum number of output tokens to generate.")
+    parser.add_argument("-p", "--prompt", default=None,
+                        help="Instruction prompt (default: \"Suggest {your_name}'s next reply.\")")
     parser.add_argument("-t", "--temperature", type=float,
                         help="Sampling temperature (e.g., 0.2).")
     parser.add_argument("-v", "--verbose", action="store_true",
@@ -169,7 +181,7 @@ def main():
 
     lines = read_chat_file(args.chat_completion)
     your_name, chat_messages = parse_chat(lines)
-    payload = build_payload(model, your_name, chat_messages, args.temperature)
+    payload = build_payload(model, your_name, chat_messages, args.temperature, args.prompt, args.max_tokens)
     reply = send_request(payload, api_url, api_key, verbose=args.verbose, timeout=args.timeout)
     reply_without_name = reply.split(":", 1)[1].strip() if ":" in reply else reply
     print(reply_without_name)
