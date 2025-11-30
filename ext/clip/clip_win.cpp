@@ -141,6 +141,7 @@ struct BitmapInfo {
           alpha_mask = 0xff000000;
           break;
         case 24:
+        case 8: // We return 8bpp images as 24bpp
           red_mask   = 0xff0000;
           green_mask = 0xff00;
           blue_mask  = 0xff;

@@ -67,6 +67,10 @@ endif()
 add_library(clip ${CLIP_SOURCES})
 
 if(WIN32)
+  option(CLIP_SUPPORT_WINXP "Enable Windows XP support" OFF)
+  if (CLIP_SUPPORT_WINXP)
+    add_definitions(-DCLIP_SUPPORT_WINXP)
+  endif()
   target_link_libraries(clip shlwapi)
 
   # MinGW requires the windowscodecs just because CLSIDs are defined

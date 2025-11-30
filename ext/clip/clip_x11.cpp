@@ -518,7 +518,16 @@ private:
             event->requestor,
             event->property,
             event->target)) {
-        return;
+        // If the requested "target" type is not present in our
+        // clipboard, we continue normally sending a SelectionNotify
+        // to the "requestor" anyway because some text editors
+        // (e.g. Emacs) request the TIMESTAMP target (without asking
+        // if it's present in TARGETS) after asking for UTF8_STRING.
+        //
+        // Sending the SelectionNotify will wake up the "requestor"
+        // that is asking for the clipboard content. In this way we
+        // avoid a "Timed out waiting for reply from selection owner"
+        // error in Emacs (and probably other text editors).
       }
     }
 
