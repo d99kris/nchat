@@ -591,7 +591,12 @@ func StrFromJid(jid types.JID) string {
 	return jid.User + "@" + jid.Server
 }
 
-// Get self id
+// Check if self id
+func IsSelfId(client *whatsmeow.Client, userId string) bool {
+	return (StrFromJid(*client.Store.ID) == userId) || (StrFromJid(client.Store.LID) == userId)
+}
+
+// Get self id - @todo: deprecate and use IsSelfId() instead
 func GetSelfId(client *whatsmeow.Client) string {
 	return StrFromJid(*client.Store.ID)
 }
@@ -1206,17 +1211,24 @@ func GetContacts(connId int) {
 
 	// common
 	var notify int = NotifyCache // defer notification until last contact
-	selfId := GetSelfId(client)
 
 	// special handling for self (if not in contacts)
 	{
-		selfName := "" // overridden by ui
-		selfPhone := PhoneFromUserId(selfId)
+		selfId := StrFromJid(*client.Store.ID)
+		selfName := client.Store.PushName // used for mentions
+		selfPhone := PhoneFromUserId(StrFromJid(*client.Store.ID))
 		isSelf := BoolToInt(true) // self
 		isAlias := BoolToInt(false)
+
 		LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", selfId, selfName))
 		CWmNewContactsNotify(connId, selfId, selfName, selfPhone, isSelf, isAlias, notify)
 		AddContactName(connId, selfId, selfName)
+
+		selfLid := StrFromJid(client.Store.LID)
+		isAlias = BoolToInt(true)
+		LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", selfLid, selfName))
+		CWmNewContactsNotify(connId, selfLid, selfName, selfPhone, isSelf, isAlias, notify)
+		AddContactName(connId, selfLid, selfName)
 	}
 
 	// contacts
@@ -1299,32 +1311,38 @@ func GetContacts(connId int) {
 
 		// propagate regular names
 		for userId, name := range userIdNames {
-			phone := userIdPhones[userId]
-			isSelf := BoolToInt(userId == selfId)
-			isAlias := BoolToInt(false)
-			LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify regular %s %s", userId, name))
-			CWmNewContactsNotify(connId, userId, name, phone, isSelf, isAlias, notify)
-			AddContactName(connId, userId, name)
+			isSelf := IsSelfId(client, userId)
+			if !isSelf {
+				phone := userIdPhones[userId]
+				isAlias := BoolToInt(false)
+				LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify regular %s %s", userId, name))
+				CWmNewContactsNotify(connId, userId, name, phone, BoolToInt(isSelf), isAlias, notify)
+				AddContactName(connId, userId, name)
+			}
 		}
 
 		// propagate alias names
 		for userId, name := range aliasUserIdNames {
-			phone := userIdPhones[userId]
-			isSelf := BoolToInt(userId == selfId)
-			isAlias := BoolToInt(true)
-			LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify alias %s %s", userId, name))
-			CWmNewContactsNotify(connId, userId, name, phone, isSelf, isAlias, notify)
-			AddContactName(connId, userId, name)
+			isSelf := IsSelfId(client, userId)
+			if !isSelf {
+				phone := userIdPhones[userId]
+				isAlias := BoolToInt(true)
+				LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify alias %s %s", userId, name))
+				CWmNewContactsNotify(connId, userId, name, phone, BoolToInt(isSelf), isAlias, notify)
+				AddContactName(connId, userId, name)
+			}
 		}
 
 		// propagate sender names
 		for userId, name := range senderUserIdNames {
-			phone := userIdPhones[userId]
-			isSelf := BoolToInt(userId == selfId)
-			isAlias := BoolToInt(true)
-			LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify sender %s %s", userId, name))
-			CWmNewContactsNotify(connId, userId, name, phone, isSelf, isAlias, notify)
-			AddContactName(connId, userId, name)
+			isSelf := IsSelfId(client, userId)
+			if !isSelf {
+				phone := userIdPhones[userId]
+				isAlias := BoolToInt(true)
+				LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify sender %s %s", userId, name))
+				CWmNewContactsNotify(connId, userId, name, phone, BoolToInt(isSelf), isAlias, notify)
+				AddContactName(connId, userId, name)
+			}
 		}
 	}
 
@@ -1421,14 +1439,14 @@ func (handler *WmEventHandler) ProcessContextInfo(contextInfo *waE2E.ContextInfo
 
 		if (contextInfo.MentionedJID != nil) && (text != nil) {
 			connId := handler.connId
-			var client *whatsmeow.Client = GetClient(handler.connId)
 			for _, mentionedStr := range contextInfo.MentionedJID {
 				mentionedStrParts := strings.SplitN(mentionedStr, "@", 2)
 				mentionedJid, _ := types.ParseJID(mentionedStr)      // ex: 121874109111111@lid
-				mentionedId := GetUserId(client, nil, &mentionedJid) // ex: 6511111111@s.whatsapp.net
+				mentionedId := StrFromJid(mentionedJid)              // ex: 121874109111111@lid (skip phone mapping, whatsapp mentions only in groups)
 				mentionedName := GetContactName(connId, mentionedId) // ex: Michael
 				mentionedOrigText := "@" + mentionedStrParts[0]      // ex: @121874109111111
 				mentionedNewText := "@" + mentionedName              // ex: @Michael
+				LOG_TRACE(fmt.Sprintf("mention jid %s id %s name %s", StrFromJid(mentionedJid), mentionedId, mentionedName)) // @todo: remove
 				*text = strings.ReplaceAll(*text, mentionedOrigText, mentionedNewText)
 			}
 		}
