@@ -6,16 +6,19 @@
 //
 #pragma once
 
+#include "td/telegram/DialogId.h"
 #include "td/telegram/MessageEntity.h"
 #include "td/telegram/MessageInputReplyTo.h"
 #include "td/telegram/MessageTopic.h"
-#include "td/telegram/ReplyMarkup.h"
+#include "td/telegram/td_api.h"
 
 #include "td/utils/common.h"
+#include "td/utils/Status.h"
 #include "td/utils/StringBuilder.h"
 
 namespace td {
 
+struct ReplyMarkup;
 class Td;
 
 struct MessageCopyOptions {
@@ -29,39 +32,18 @@ struct MessageCopyOptions {
   MessageCopyOptions() = default;
   MessageCopyOptions(bool send_copy, bool remove_caption) : send_copy(send_copy), replace_caption(remove_caption) {
   }
+  MessageCopyOptions(const MessageCopyOptions &) = delete;
+  MessageCopyOptions &operator=(const MessageCopyOptions &) = delete;
+  MessageCopyOptions(MessageCopyOptions &&) noexcept = default;
+  MessageCopyOptions &operator=(MessageCopyOptions &&) noexcept = default;
+  ~MessageCopyOptions();
 
-  bool is_supported_server_side(const Td *td, const MessageTopic &message_topic) const {
-    if (!send_copy) {
-      return true;
-    }
-    if ((replace_caption && !new_caption.text.empty()) || reply_markup != nullptr) {
-      return false;
-    }
-    if (input_reply_to.is_valid() &&
-        (!message_topic.is_forum() || input_reply_to.has_quote() || input_reply_to.has_todo_item_id() ||
-         input_reply_to.get_same_chat_reply_to_message_id() != message_topic.get_implicit_reply_to_message_id(td))) {
-      return false;
-    }
-    return true;
-  }
+  static Result<MessageCopyOptions> get_message_copy_options(Td *td, DialogId dialog_id,
+                                                             td_api::object_ptr<td_api::messageCopyOptions> &&options);
+
+  bool is_supported_server_side(const Td *td, const MessageTopic &message_topic) const;
 };
 
-inline StringBuilder &operator<<(StringBuilder &string_builder, MessageCopyOptions copy_options) {
-  if (copy_options.send_copy) {
-    string_builder << "CopyOptions[replace_caption = " << copy_options.replace_caption;
-    if (copy_options.replace_caption) {
-      string_builder << ", new_caption = " << copy_options.new_caption
-                     << ", new_show_caption_above_media = " << copy_options.new_invert_media;
-    }
-    if (copy_options.input_reply_to.is_valid()) {
-      string_builder << ", in reply to " << copy_options.input_reply_to;
-    }
-    if (copy_options.reply_markup != nullptr) {
-      string_builder << ", with reply markup";
-    }
-    string_builder << "]";
-  }
-  return string_builder;
-}
+StringBuilder &operator<<(StringBuilder &string_builder, MessageCopyOptions copy_options);
 
 }  // namespace td

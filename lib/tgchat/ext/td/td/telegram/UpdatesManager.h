@@ -121,8 +121,11 @@ class UpdatesManager final : public Actor {
 
   static string extract_join_group_call_presentation_params(telegram_api::Updates *updates_ptr);
 
+  static vector<telegram_api::object_ptr<telegram_api::updateGroupCallMessage>> extract_group_call_messages(
+      telegram_api::Updates *updates_ptr);
+
   static telegram_api::object_ptr<telegram_api::StoryItem> extract_story(telegram_api::Updates *updates_ptr,
-                                                                         DialogId owner_dialog_id);
+                                                                         DialogId owner_dialog_id, bool is_business);
 
   static vector<DialogId> get_update_notify_settings_dialog_ids(const telegram_api::Updates *updates_ptr);
 
@@ -287,6 +290,9 @@ class UpdatesManager final : public Actor {
   double next_data_reload_time_ = 0.0;
   Timeout data_reload_timeout_;
 
+  double next_often_data_reload_time_ = 0.0;
+  Timeout often_data_reload_timeout_;
+
   bool is_ping_sent_ = false;
 
   bool expect_pts_gap_ = false;
@@ -439,6 +445,14 @@ class UpdatesManager final : public Actor {
   void try_reload_data();
 
   void on_data_reloaded();
+
+  static void try_reload_often_data_static(void *td);
+
+  void schedule_often_data_reload();
+
+  void try_reload_often_data();
+
+  void on_often_data_reloaded();
 
   uint64 get_most_unused_auth_key_id();
 
@@ -634,6 +648,12 @@ class UpdatesManager final : public Actor {
   void on_update(tl_object_ptr<telegram_api::updateGroupCallMessage> update, Promise<Unit> &&promise);
 
   void on_update(tl_object_ptr<telegram_api::updateGroupCallEncryptedMessage> update, Promise<Unit> &&promise);
+
+  void on_update(tl_object_ptr<telegram_api::updateDeleteGroupCallMessages> update, Promise<Unit> &&promise);
+
+  void on_update(tl_object_ptr<telegram_api::updateStarGiftAuctionState> update, Promise<Unit> &&promise);
+
+  void on_update(tl_object_ptr<telegram_api::updateStarGiftAuctionUserState> update, Promise<Unit> &&promise);
 
   void on_update(tl_object_ptr<telegram_api::updateContactsReset> update, Promise<Unit> &&promise);
 

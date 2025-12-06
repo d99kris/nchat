@@ -370,7 +370,7 @@ class GetPremiumPromoQuery final : public Td::ResultHandler {
 
     auto period_options = get_premium_gift_options(std::move(promo->period_options_));
     promise_.set_value(
-        td_api::make_object<td_api::premiumState>(get_formatted_text_object(td_->user_manager_.get(), state, true, 0),
+        td_api::make_object<td_api::premiumState>(get_formatted_text_object(td_->user_manager_.get(), state, true, -1),
                                                   get_premium_state_payment_options_object(period_options),
                                                   std::move(animations), std::move(business_animations)));
   }
@@ -520,7 +520,7 @@ class CheckGiftCodeQuery final : public Td::ResultHandler {
     td_->user_manager_->on_get_users(std::move(result->users_), "CheckGiftCodeQuery");
     td_->chat_manager_->on_get_chats(std::move(result->chats_), "CheckGiftCodeQuery");
 
-    if (result->date_ <= 0 || result->months_ <= 0 || result->used_date_ < 0) {
+    if (result->date_ <= 0 || result->days_ <= 0 || result->used_date_ < 0) {
       LOG(ERROR) << "Receive " << to_string(result);
       return on_error(Status::Error(500, "Receive invalid response"));
     }
@@ -551,10 +551,12 @@ class CheckGiftCodeQuery final : public Td::ResultHandler {
       LOG(ERROR) << "Receive " << to_string(result);
       message_id = MessageId();
     }
+    auto month_count = get_premium_duration_month_count(result->days_);
     promise_.set_value(td_api::make_object<td_api::premiumGiftCodeInfo>(
         creator_dialog_id == DialogId() ? nullptr
                                         : get_message_sender_object(td_, creator_dialog_id, "premiumGiftCodeInfo"),
-        result->date_, result->via_giveaway_, message_id.get(), result->months_,
+        result->date_, result->via_giveaway_, message_id.get(),
+        get_premium_duration_day_count(month_count) == result->days_ ? month_count : 0, result->days_,
         td_->user_manager_->get_user_id_object(user_id, "premiumGiftCodeInfo"), result->used_date_));
   }
 

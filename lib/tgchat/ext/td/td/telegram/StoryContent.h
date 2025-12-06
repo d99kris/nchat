@@ -42,7 +42,7 @@ void parse_story_content(unique_ptr<StoryContent> &content, LogEventParser &pars
 void add_story_content_dependencies(Dependencies &dependencies, const StoryContent *story_content);
 
 unique_ptr<StoryContent> get_story_content(Td *td, telegram_api::object_ptr<telegram_api::MessageMedia> &&media_ptr,
-                                           DialogId owner_dialog_id);
+                                           DialogId owner_dialog_id, bool is_bot_preview);
 
 Result<unique_ptr<StoryContent>> get_input_story_content(
     Td *td, td_api::object_ptr<td_api::InputStoryContent> &&input_story_content, DialogId owner_dialog_id);
@@ -62,7 +62,8 @@ void merge_story_contents(Td *td, const StoryContent *old_content, StoryContent 
 
 unique_ptr<StoryContent> copy_story_content(const StoryContent *content);
 
-td_api::object_ptr<td_api::StoryContent> get_story_content_object(Td *td, const StoryContent *content);
+td_api::object_ptr<td_api::StoryContent> get_story_content_object(Td *td, const StoryContent *content,
+                                                                  DialogId owner_dialog_id);
 
 FileId get_story_content_any_file_id(const StoryContent *content);
 
