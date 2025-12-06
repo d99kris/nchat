@@ -12,15 +12,20 @@ import argparse
 import urllib.request
 import urllib.error
 
-def get_api_key(api_key_env: str|None, service: str) -> str|None:
-    """Return API key from `api_key_env`. If None, return None (no auth)."""
-    if api_key_env is None:
+def get_api_key(requires_auth: bool, service: str, cli_api_key: str|None = None) -> str|None:
+    """Return API key from cli_api_key, or None if no auth needed.
+    
+    If authentication is required but no key is provided, exit with error.
+    """
+    if not requires_auth:
         return None
-    api_key = os.getenv(api_key_env)
-    if not api_key:
-        print(f"Error: Please set the {api_key_env} environment variable for the '{service}' service.", file=sys.stderr)
-        sys.exit(1)
-    return api_key
+    
+    if cli_api_key:
+        return cli_api_key
+    
+    # Auth required but no key provided
+    print(f"Error: API key required for '{service}' service. Use -k/--api-key to provide it.", file=sys.stderr)
+    sys.exit(1)
 
 def read_chat_file(path: str) -> list[str]:
     try:
@@ -66,36 +71,61 @@ def parse_chat(lines: list[str]) -> tuple[str, list[dict]]:
 
     return your_name, messages
 
-def build_payload(model: str, your_name: str, chat_messages: list[dict], temperature: float|None, prompt: str | None, max_tokens: int | None) -> dict:
+def build_payload(model: str, your_name: str, chat_messages: list[dict], temperature: float|None, prompt: str | None, max_tokens: int | None, is_ollama_native: bool = False) -> dict:
     prompt = prompt if prompt else "Suggest {your_name}'s next reply."
     prompt = prompt.replace("{your_name}", your_name)
 
-    system_msg = {
-        "role": "system",
-        "content": f"You are {your_name} in a chat. " + prompt
-    }
-    final_instruction = {
-        "role": "user",
-        "content": prompt
-    }
-    payload = {
-        "model": model,
-        "messages": [system_msg] + chat_messages + [final_instruction]
-    }
-
-    if temperature is not None:
-        payload["temperature"] = temperature
-
+    if is_ollama_native:
+        # Ollama native format (/api/chat)
+        # Convert chat_messages to Ollama format
+        messages = []
+        messages.append({"role": "system", "content": f"You are {your_name} in a chat. " + prompt})
+        for msg in chat_messages:
+            messages.append(msg)
+        messages.append({"role": "user", "content": prompt})
+        
+        payload = {
+            "model": model,
+            "messages": messages,
+            "stream": False,
+        }
+        if temperature is not None:
+            payload["options"] = {"temperature": temperature}
+    else:
+        # OpenAI format
+        system_msg = {
+            "role": "system",
+            "content": f"You are {your_name} in a chat. " + prompt
+        }
+        final_instruction = {
+            "role": "user",
+            "content": prompt
+        }
+        payload = {
+            "model": model,
+            "messages": [system_msg] + chat_messages + [final_instruction]
+        }
+        if temperature is not None:
+            payload["temperature"] = temperature
+    
     if max_tokens is not None:
-        payload["max_tokens"] = max_tokens
+        if is_ollama_native:
+            if "options" not in payload:
+                payload["options"] = {}
+            payload["options"]["num_predict"] = max_tokens
+        else:
+            payload["max_tokens"] = max_tokens
 
     return payload
 
-def send_request(payload: dict, api_url: str, api_key: str, verbose: bool, timeout: int) -> str:
+def send_request(payload: dict, api_url: str, api_key: str|None, verbose: bool, timeout: int, is_ollama_native: bool = False) -> str:
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key}",
     }
+    # Only add Authorization header if API key is provided
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    
     if verbose:
         print("=== Request ===", file=sys.stderr)
         print(json.dumps(payload, ensure_ascii=False, indent=2), file=sys.stderr)
@@ -126,7 +156,12 @@ def send_request(payload: dict, api_url: str, api_key: str, verbose: bool, timeo
         sys.exit(1)
 
     try:
-        return result["choices"][0]["message"]["content"]
+        if is_ollama_native:
+            # Ollama native format returns response in message.content
+            return result["message"]["content"]
+        else:
+            # OpenAI format
+            return result["choices"][0]["message"]["content"]
     except (KeyError, IndexError):
         if verbose:
             print("=== Raw Response ===", file=sys.stderr)
@@ -141,7 +176,7 @@ def main():
     parser.add_argument("-c", "--chat-completion", required=True,
                         help="Path to input chat file. Last line must be 'YourName:'.")
     parser.add_argument("-s", "--service", default="openai",
-                        help="Service: openai (default), gemini, ollama, or host[:port]/URL for OpenAI-compatible server.")
+                        help="Service: openai (default), gemini, ollama, ollama-cloud, or host[:port]/URL for OpenAI-compatible server.")
     parser.add_argument("-m", "--model", default=None,
                         help="Model name. Defaults depend on --service (openai: gpt-4o-mini, gemini: gemini-2.0-flash).")
     parser.add_argument("-M", "--max-tokens", type=int,
@@ -154,40 +189,55 @@ def main():
                         help="Print request payload to stderr.")
     parser.add_argument("-T", "--timeout", type=int, default=10,
                         help="Network timeout in seconds (default: 10).")
+    parser.add_argument("-k", "--api-key", default=None,
+                        help="API key for authenticated services (OpenAI, Gemini, Ollama Cloud).")
+    parser.add_argument("--api-url", default=None,
+                        help="Custom API endpoint URL (overrides default for the service). Useful for custom Ollama Cloud endpoints or compatible services.")
     args = parser.parse_args()
 
     if args.timeout <= 0:
         print("Error: -T / --timeout must be > 0 seconds.", file=sys.stderr)
         sys.exit(1)
 
-    # Resolve service -> api_url, api_key_env, and default model
+    # Resolve service -> api_url, requires_auth, and default model
     service = args.service.strip().lower()  # Normalize service name
     if service == "openai":
         api_url = "https://api.openai.com/v1/chat/completions"
-        api_key_env = "OPENAI_API_KEY"
+        requires_auth = True
         service_default_model = "gpt-4o-mini"
     elif service == "gemini":
         api_url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
-        api_key_env = "GEMINI_API_KEY"
+        requires_auth = True
         service_default_model = "gemini-2.0-flash"
     elif service == "ollama":
         api_url = "http://localhost:11434/v1/chat/completions"
-        api_key_env = None
+        requires_auth = False  # No auth required for local Ollama
         service_default_model = "deepseek-v3.1:671b-cloud"
+    elif service == "ollama-cloud":
+        api_url = "http://localhost:11434/api/chat"  # Ollama Cloud via local client
+        requires_auth = True  # API key required for Ollama Cloud
+        service_default_model = "gpt-4o-mini"
     else:
         base = service if service.startswith(("http://", "https://")) else f"http://{service}"
         api_url = base.rstrip("/") + "/v1/chat/completions"
-        api_key_env = None  # no auth for custom hosts
+        requires_auth = False  # no auth for custom hosts by default
         service_default_model = "gpt-4o-mini"
 
-    # Ensure the correct API key is used for the selected service
-    api_key = get_api_key(api_key_env, service)
+    # Override api_url if custom endpoint is provided
+    if args.api_url:
+        api_url = args.api_url
+
+    # Get API key if required
+    api_key = get_api_key(requires_auth, service, args.api_key)
     model = args.model if args.model else service_default_model
+
+    # Determine if using Ollama native format
+    is_ollama_native = (service == "ollama-cloud")
 
     lines = read_chat_file(args.chat_completion)
     your_name, chat_messages = parse_chat(lines)
-    payload = build_payload(model, your_name, chat_messages, args.temperature, args.prompt, args.max_tokens)
-    reply = send_request(payload, api_url, api_key, verbose=args.verbose, timeout=args.timeout)
+    payload = build_payload(model, your_name, chat_messages, args.temperature, args.prompt, args.max_tokens, is_ollama_native)
+    reply = send_request(payload, api_url, api_key, verbose=args.verbose, timeout=args.timeout, is_ollama_native=is_ollama_native)
     reply_without_name = reply.split(":", 1)[1].strip() if ":" in reply else reply
     print(reply_without_name)
 
