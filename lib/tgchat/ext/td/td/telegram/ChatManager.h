@@ -8,6 +8,7 @@
 
 #include "td/telegram/AccentColorId.h"
 #include "td/telegram/AccessRights.h"
+#include "td/telegram/ActiveStoryState.h"
 #include "td/telegram/BotCommand.h"
 #include "td/telegram/ChannelId.h"
 #include "td/telegram/ChannelType.h"
@@ -44,6 +45,7 @@
 #include "td/utils/FlatHashMap.h"
 #include "td/utils/FlatHashSet.h"
 #include "td/utils/Promise.h"
+#include "td/utils/Slice.h"
 #include "td/utils/Status.h"
 #include "td/utils/StringBuilder.h"
 #include "td/utils/Time.h"
@@ -132,8 +134,9 @@ class ChatManager final : public Actor {
 
   string get_channel_search_text(ChannelId channel_id) const;
 
-  string get_channel_first_username(ChannelId channel_id) const;
-  string get_channel_editable_username(ChannelId channel_id) const;
+  Slice get_channel_first_username(ChannelId channel_id) const;
+
+  Slice get_channel_editable_username(ChannelId channel_id) const;
 
   void on_binlog_chat_event(BinlogEvent &&event);
   void on_binlog_channel_event(BinlogEvent &&event);
@@ -160,7 +163,9 @@ class ChatManager final : public Actor {
   void on_update_channel_participant_count(ChannelId channel_id, int32 participant_count);
   void on_update_channel_editable_username(ChannelId channel_id, string &&username);
   void on_update_channel_usernames(ChannelId channel_id, Usernames &&usernames);
-  void on_update_channel_story_ids(ChannelId channel_id, StoryId max_active_story_id, StoryId max_read_story_id);
+  void on_update_channel_story_ids(ChannelId channel_id,
+                                   telegram_api::object_ptr<telegram_api::recentStory> &&recent_story,
+                                   StoryId max_read_story_id);
   void on_update_channel_max_read_story_id(ChannelId channel_id, StoryId max_read_story_id);
   void on_update_channel_stories_hidden(ChannelId channel_id, bool stories_hidden);
   void on_update_channel_description(ChannelId channel_id, string &&description);
@@ -196,6 +201,8 @@ class ChatManager final : public Actor {
   bool on_get_channel_error(ChannelId channel_id, const Status &status, const char *source);
 
   void on_get_created_public_channels(PublicDialogType type, vector<tl_object_ptr<telegram_api::Chat>> &&chats);
+
+  void load_created_public_broadcasts(Promise<Unit> &&promise);
 
   bool are_created_public_broadcasts_inited() const;
 
@@ -530,6 +537,7 @@ class ChatManager final : public Actor {
     bool stories_hidden = false;
     bool autotranslation = false;
     bool broadcast_messages_allowed = false;
+    bool has_live_story = false;
 
     bool is_megagroup = false;
     bool is_gigagroup = false;
@@ -756,7 +764,8 @@ class ChatManager final : public Actor {
   static void on_update_channel_noforwards(Channel *c, ChannelId channel_id, bool noforwards);
   static void on_update_channel_is_forum(Channel *c, ChannelId channel_id, bool is_forum, bool is_forum_tabs);
   void on_update_channel_stories_hidden(Channel *c, ChannelId channel_id, bool stories_hidden);
-  void on_update_channel_story_ids_impl(Channel *c, ChannelId channel_id, StoryId max_active_story_id,
+  void on_update_channel_story_ids_impl(Channel *c, ChannelId channel_id,
+                                        telegram_api::object_ptr<telegram_api::recentStory> &&recent_story,
                                         StoryId max_read_story_id);
   void on_update_channel_max_read_story_id(Channel *c, ChannelId channel_id, StoryId max_read_story_id);
   void on_update_channel_bot_verification_icon(Channel *c, ChannelId channel_id, CustomEmojiId bot_verification_icon);
@@ -878,7 +887,7 @@ class ChatManager final : public Actor {
 
   bool need_poll_channel_active_stories(const Channel *c, ChannelId channel_id) const;
 
-  static bool get_channel_has_unread_stories(const Channel *c);
+  static ActiveStoryState get_channel_active_story_state(const Channel *c);
 
   td_api::object_ptr<td_api::updateSupergroup> get_update_supergroup_object(ChannelId channel_id,
                                                                             const Channel *c) const;

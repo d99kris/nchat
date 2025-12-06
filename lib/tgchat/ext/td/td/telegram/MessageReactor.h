@@ -36,13 +36,17 @@ class MessageReactor {
 
   friend StringBuilder &operator<<(StringBuilder &string_builder, const MessageReactor &reactor);
 
+  void store_min_channel(Td *td);
+
  public:
   MessageReactor() = default;
 
   MessageReactor(Td *td, telegram_api::object_ptr<telegram_api::messageReactor> &&reactor);
 
-  MessageReactor(DialogId dialog_id, int32 count, bool is_anonymous)
-      : dialog_id_(dialog_id), count_(count), is_me_(true), is_anonymous_(is_anonymous) {
+  MessageReactor(Td *td, telegram_api::object_ptr<telegram_api::groupCallDonor> &&donor);
+
+  MessageReactor(DialogId dialog_id, int32 count, bool is_me, bool is_anonymous)
+      : dialog_id_(dialog_id), count_(count), is_me_(is_me), is_anonymous_(is_anonymous) {
   }
 
   bool is_valid() const {
@@ -53,6 +57,10 @@ class MessageReactor {
     return is_me_;
   }
 
+  bool is_same(DialogId dialog_id) const {
+    return dialog_id_ == dialog_id;
+  }
+
   bool is_anonymous() const {
     return is_anonymous_;
   }
@@ -60,6 +68,10 @@ class MessageReactor {
   PaidReactionType get_paid_reaction_type(DialogId my_dialog_id) const;
 
   bool fix_is_me(DialogId my_dialog_id);
+
+  int32 get_count() const {
+    return count_;
+  }
 
   void add_count(int32 count, DialogId reactor_dialog_id, DialogId my_dialog_id) {
     count_ += count;
@@ -72,13 +84,17 @@ class MessageReactor {
     }
   }
 
+  void remove_count(int32 count) {
+    count_ = max(count_ - count, 0);
+  }
+
   td_api::object_ptr<td_api::paidReactor> get_paid_reactor_object(Td *td) const;
 
   void add_min_channel(Td *td) const;
 
   void add_dependencies(Dependencies &dependencies) const;
 
-  static void fix_message_reactors(vector<MessageReactor> &reactors, bool need_warning);
+  static void fix_message_reactors(vector<MessageReactor> &reactors, bool need_warning, bool for_group_call);
 
   template <class StorerT>
   void store(StorerT &storer) const;

@@ -6,6 +6,7 @@
 //
 #include "td/telegram/ChatManager.h"
 
+#include "td/telegram/ActiveStoryState.h"
 #include "td/telegram/AuthManager.h"
 #include "td/telegram/BotVerification.h"
 #include "td/telegram/BotVerification.hpp"
@@ -2088,6 +2089,7 @@ void ChatManager::Channel::store(StorerT &storer) const {
     STORE_FLAG(has_monoforum_channel_id);
     STORE_FLAG(is_forum_tabs);
     STORE_FLAG(is_admined_monoforum);
+    STORE_FLAG(has_live_story);
     END_STORE_FLAGS();
   }
 
@@ -2237,6 +2239,7 @@ void ChatManager::Channel::parse(ParserT &parser) {
     PARSE_FLAG(has_monoforum_channel_id);
     PARSE_FLAG(is_forum_tabs);
     PARSE_FLAG(is_admined_monoforum);
+    PARSE_FLAG(has_live_story);
     END_PARSE_FLAGS();
   }
 
@@ -2828,7 +2831,7 @@ bool ChatManager::have_input_peer_channel(const Channel *c, ChannelId channel_id
     if (is_public) {
       return true;
     }
-    if (!from_linked && c->has_linked_channel) {
+    if (!from_linked && c->has_linked_channel && c->is_megagroup) {
       auto linked_channel_id = get_linked_channel_id(channel_id);
       if (linked_channel_id.is_valid() && have_channel(linked_channel_id)) {
         if (have_input_peer_channel(get_channel(linked_channel_id), linked_channel_id, access_rights, true)) {
@@ -3094,15 +3097,15 @@ string ChatManager::get_channel_search_text(ChannelId channel_id) const {
   return PSTRING() << c->title << ' ' << implode(c->usernames.get_active_usernames());
 }
 
-string ChatManager::get_channel_first_username(ChannelId channel_id) const {
+Slice ChatManager::get_channel_first_username(ChannelId channel_id) const {
   auto c = get_channel(channel_id);
   if (c == nullptr) {
-    return string();
+    return Slice();
   }
   return c->usernames.get_first_username();
 }
 
-string ChatManager::get_channel_editable_username(ChannelId channel_id) const {
+Slice ChatManager::get_channel_editable_username(ChannelId channel_id) const {
   auto c = get_channel(channel_id);
   if (c == nullptr) {
     return string();
@@ -4204,6 +4207,22 @@ void ChatManager::save_created_public_channels(PublicDialogType type) {
 
 void ChatManager::check_created_public_dialogs_limit(PublicDialogType type, Promise<Unit> &&promise) {
   td_->create_handler<GetCreatedPublicChannelsQuery>(std::move(promise))->send(type, true);
+}
+
+void ChatManager::load_created_public_broadcasts(Promise<Unit> &&promise) {
+  if (td_->auth_manager_->is_bot() || are_created_public_broadcasts_inited()) {
+    return promise.set_value(Unit());
+  }
+
+  auto new_promise = PromiseCreator::lambda(
+      [promise = std::move(promise)](Result<td_api::object_ptr<td_api::chats>> &&result) mutable {
+        if (result.is_error()) {
+          promise.set_error(result.move_as_error());
+        } else {
+          promise.set_value(Unit());
+        }
+      });
+  get_created_public_dialogs(PublicDialogType::ForPersonalDialog, std::move(new_promise), true);
 }
 
 bool ChatManager::are_created_public_broadcasts_inited() const {
@@ -5624,6 +5643,7 @@ void ChatManager::update_channel_full(ChannelFull *channel_full, ChannelId chann
 
 void ChatManager::on_get_chat(tl_object_ptr<telegram_api::Chat> &&chat, const char *source) {
   LOG(DEBUG) << "Receive from " << source << ' ' << to_string(chat);
+  CHECK(chat != nullptr);
   switch (chat->get_id()) {
     case telegram_api::chatEmpty::ID:
       on_get_chat_empty(static_cast<telegram_api::chatEmpty &>(*chat), source);
@@ -7617,7 +7637,8 @@ void ChatManager::on_update_channel_is_forum(Channel *c, ChannelId channel_id, b
   }
 }
 
-void ChatManager::on_update_channel_story_ids(ChannelId channel_id, StoryId max_active_story_id,
+void ChatManager::on_update_channel_story_ids(ChannelId channel_id,
+                                              telegram_api::object_ptr<telegram_api::recentStory> &&recent_story,
                                               StoryId max_read_story_id) {
   if (!channel_id.is_valid()) {
     LOG(ERROR) << "Receive invalid " << channel_id;
@@ -7626,17 +7647,24 @@ void ChatManager::on_update_channel_story_ids(ChannelId channel_id, StoryId max_
 
   Channel *c = get_channel_force(channel_id, "on_update_channel_story_ids");
   if (c != nullptr) {
-    on_update_channel_story_ids_impl(c, channel_id, max_active_story_id, max_read_story_id);
+    on_update_channel_story_ids_impl(c, channel_id, std::move(recent_story), max_read_story_id);
     update_channel(c, channel_id);
   } else {
     LOG(INFO) << "Ignore update channel story identifiers about unknown " << channel_id;
   }
 }
 
-void ChatManager::on_update_channel_story_ids_impl(Channel *c, ChannelId channel_id, StoryId max_active_story_id,
+void ChatManager::on_update_channel_story_ids_impl(Channel *c, ChannelId channel_id,
+                                                   telegram_api::object_ptr<telegram_api::recentStory> &&recent_story,
                                                    StoryId max_read_story_id) {
   if (td_->auth_manager_->is_bot()) {
     return;
+  }
+  StoryId max_active_story_id;
+  bool has_live_story = false;
+  if (recent_story != nullptr) {
+    max_active_story_id = StoryId(recent_story->max_id_);
+    has_live_story = recent_story->live_;
   }
   if (max_active_story_id != StoryId() && !max_active_story_id.is_server()) {
     LOG(ERROR) << "Receive max active " << max_active_story_id << " for " << channel_id;
@@ -7646,8 +7674,17 @@ void ChatManager::on_update_channel_story_ids_impl(Channel *c, ChannelId channel
     LOG(ERROR) << "Receive max read " << max_read_story_id << " for " << channel_id;
     return;
   }
+  if (has_live_story && max_active_story_id == StoryId()) {
+    LOG(ERROR) << "Receive live story without identifier for " << channel_id;
+    return;
+  }
 
-  auto has_unread_stories = get_channel_has_unread_stories(c);
+  auto active_story_state = get_channel_active_story_state(c);
+  if (c->has_live_story != has_live_story) {
+    LOG(DEBUG) << "Change has_live_story of " << channel_id << " to " << has_live_story;
+    c->has_live_story = has_live_story;
+    c->need_save_to_database = true;
+  }
   if (c->max_active_story_id != max_active_story_id) {
     LOG(DEBUG) << "Change last active story of " << channel_id << " from " << c->max_active_story_id << " to "
                << max_active_story_id;
@@ -7676,8 +7713,8 @@ void ChatManager::on_update_channel_story_ids_impl(Channel *c, ChannelId channel
     c->max_read_story_id = max_read_story_id;
     c->need_save_to_database = true;
   }
-  if (has_unread_stories != get_channel_has_unread_stories(c)) {
-    LOG(DEBUG) << "Change has_unread_stories of " << channel_id << " to " << !has_unread_stories;
+  if (active_story_state != get_channel_active_story_state(c)) {
+    LOG(DEBUG) << "Change active_story_state of " << channel_id;
     c->is_changed = true;
   }
 }
@@ -7697,15 +7734,15 @@ void ChatManager::on_update_channel_max_read_story_id(Channel *c, ChannelId chan
     return;
   }
 
-  auto has_unread_stories = get_channel_has_unread_stories(c);
+  auto active_story_state = get_channel_active_story_state(c);
   if (max_read_story_id.get() > c->max_read_story_id.get()) {
     LOG(DEBUG) << "Change last read story of " << channel_id << " from " << c->max_read_story_id << " to "
                << max_read_story_id;
     c->max_read_story_id = max_read_story_id;
     c->need_save_to_database = true;
   }
-  if (has_unread_stories != get_channel_has_unread_stories(c)) {
-    LOG(DEBUG) << "Change has_unread_stories of " << channel_id << " to " << !has_unread_stories;
+  if (active_story_state != get_channel_active_story_state(c)) {
+    LOG(DEBUG) << "Change active_story_state of " << channel_id;
     c->is_changed = true;
   }
 }
@@ -9041,7 +9078,7 @@ void ChatManager::on_get_channel(telegram_api::channel &channel, const char *sou
   bool is_monoforum = channel.monoforum_;
   bool have_participant_count = (channel.flags_ & telegram_api::channel::PARTICIPANTS_COUNT_MASK) != 0;
   int32 participant_count = channel.participants_count_;
-  bool stories_available = channel.stories_max_id_ > 0;
+  bool stories_available = channel.stories_max_id_ != nullptr && channel.stories_max_id_->max_id_ > 0;
   bool stories_unavailable = channel.stories_unavailable_;
   bool show_message_sender = channel.signature_profiles_;
   auto boost_level = channel.level_;
@@ -9323,7 +9360,7 @@ void ChatManager::on_get_channel(telegram_api::channel &channel, const char *sou
                                         RestrictedRights(channel.default_banned_rights_, ChannelType::Megagroup));
   if (!td_->auth_manager_->is_bot() && (stories_available || stories_unavailable)) {
     // update at the end, because it calls need_poll_channel_active_stories
-    on_update_channel_story_ids_impl(c, channel_id, StoryId(channel.stories_max_id_), StoryId());
+    on_update_channel_story_ids_impl(c, channel_id, std::move(channel.stories_max_id_), StoryId());
   }
 
   if (c->cache_version != Channel::CACHE_VERSION) {
@@ -9563,7 +9600,7 @@ td_api::object_ptr<td_api::updateSupergroup> ChatManager::get_update_unknown_sup
   return td_api::make_object<td_api::updateSupergroup>(td_api::make_object<td_api::supergroup>(
       channel_id.get(), nullptr, 0, DialogParticipantStatus::Banned(0).get_chat_member_status_object(), 0, 0, false,
       false, false, false, false, !is_megagroup, false, false, !is_megagroup, false, false, false, false, nullptr,
-      false, false, nullptr, 0, false, false));
+      false, false, nullptr, 0, nullptr));
 }
 
 int64 ChatManager::get_supergroup_id_object(ChannelId channel_id, const char *source) const {
@@ -9584,9 +9621,9 @@ bool ChatManager::need_poll_channel_active_stories(const Channel *c, ChannelId c
          have_input_peer_channel(c, channel_id, AccessRights::Read);
 }
 
-bool ChatManager::get_channel_has_unread_stories(const Channel *c) {
+ActiveStoryState ChatManager::get_channel_active_story_state(const Channel *c) {
   CHECK(c != nullptr);
-  return c->max_active_story_id.get() > c->max_read_story_id.get();
+  return ActiveStoryState(c->max_active_story_id, c->max_read_story_id, c->has_live_story);
 }
 
 td_api::object_ptr<td_api::supergroup> ChatManager::get_supergroup_object(ChannelId channel_id) const {
@@ -9605,7 +9642,7 @@ td_api::object_ptr<td_api::supergroup> ChatManager::get_supergroup_object(Channe
       get_channel_join_request(c), c->is_slow_mode_enabled, !c->is_megagroup, c->is_gigagroup, c->is_forum,
       c->is_monoforum, c->is_admined_monoforum, get_channel_verification_status_object(c),
       c->broadcast_messages_allowed, c->is_forum_tabs, get_restriction_info_object(c->restriction_reasons),
-      c->paid_message_star_count, c->max_active_story_id.is_valid(), get_channel_has_unread_stories(c));
+      c->paid_message_star_count, get_channel_active_story_state(c).get_active_story_state_object());
 }
 
 tl_object_ptr<td_api::supergroupFullInfo> ChatManager::get_supergroup_full_info_object(ChannelId channel_id) const {

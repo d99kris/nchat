@@ -8,6 +8,7 @@
 
 #include "td/telegram/AccentColorId.h"
 #include "td/telegram/AccessRights.h"
+#include "td/telegram/ActiveStoryState.h"
 #include "td/telegram/Birthdate.h"
 #include "td/telegram/BotCommand.h"
 #include "td/telegram/BotMenuButton.h"
@@ -50,6 +51,7 @@
 #include "td/utils/HashTableUtils.h"
 #include "td/utils/Hints.h"
 #include "td/utils/Promise.h"
+#include "td/utils/Slice.h"
 #include "td/utils/Status.h"
 #include "td/utils/StringBuilder.h"
 #include "td/utils/Time.h"
@@ -137,7 +139,8 @@ class UserManager final : public Actor {
 
   void on_update_user_emoji_status(UserId user_id, telegram_api::object_ptr<telegram_api::EmojiStatus> &&emoji_status);
 
-  void on_update_user_story_ids(UserId user_id, StoryId max_active_story_id, StoryId max_read_story_id);
+  void on_update_user_story_ids(UserId user_id, telegram_api::object_ptr<telegram_api::recentStory> &&recent_story,
+                                StoryId max_read_story_id);
 
   void on_update_user_max_read_story_id(UserId user_id, StoryId max_read_story_id);
 
@@ -327,7 +330,7 @@ class UserManager final : public Actor {
 
   void for_each_secret_chat_with_user(UserId user_id, const std::function<void(SecretChatId)> &f);
 
-  string get_user_first_username(UserId user_id) const;
+  Slice get_user_first_username(UserId user_id) const;
 
   int32 get_secret_chat_date(SecretChatId secret_chat_id) const;
 
@@ -623,6 +626,7 @@ class UserManager final : public Actor {
     bool attach_menu_enabled = false;
     bool stories_hidden = false;
     bool contact_require_premium = false;
+    bool has_live_story = false;
 
     bool is_photo_inited = false;
 
@@ -803,8 +807,6 @@ class UserManager final : public Actor {
     vector<Photo> photos;
     int32 count = -1;
     int32 offset = -1;
-
-    vector<PendingGetPhotoRequest> pending_requests;
   };
 
   struct PendingGetSavedMusicRequest {
@@ -818,8 +820,6 @@ class UserManager final : public Actor {
     vector<FileId> saved_music_file_ids;
     int32 count = -1;
     int32 offset = -1;
-
-    vector<PendingGetSavedMusicRequest> pending_requests;
   };
 
   class UserLogEvent;
@@ -923,7 +923,9 @@ class UserManager final : public Actor {
 
   void on_update_user_emoji_status(User *u, UserId user_id, unique_ptr<EmojiStatus> emoji_status);
 
-  void on_update_user_story_ids_impl(User *u, UserId user_id, StoryId max_active_story_id, StoryId max_read_story_id);
+  void on_update_user_story_ids_impl(User *u, UserId user_id,
+                                     telegram_api::object_ptr<telegram_api::recentStory> &&recent_story,
+                                     StoryId max_read_story_id);
 
   void on_update_user_max_read_story_id(User *u, UserId user_id, StoryId max_read_story_id);
 
@@ -1031,7 +1033,8 @@ class UserManager final : public Actor {
 
   void on_get_support_user(UserId user_id, Promise<td_api::object_ptr<td_api::user>> &&promise);
 
-  void send_get_user_photos_query(UserId user_id, const UserPhotos *user_photos);
+  void send_get_user_photos_query(UserId user_id, const UserPhotos *user_photos,
+                                  const vector<PendingGetPhotoRequest> &requests);
 
   void on_get_user_profile_photos(UserId user_id, Result<Unit> &&result);
 
@@ -1039,7 +1042,8 @@ class UserManager final : public Actor {
 
   void apply_pending_user_photo(User *u, UserId user_id, const char *source);
 
-  void send_get_user_saved_music_query(UserId user_id, const UserSavedMusic *user_saved_music);
+  void send_get_user_saved_music_query(UserId user_id, const UserSavedMusic *user_saved_music,
+                                       const vector<PendingGetSavedMusicRequest> &requests);
 
   void finish_get_user_saved_music(UserId user_id, Result<Unit> &&result);
 
@@ -1149,7 +1153,7 @@ class UserManager final : public Actor {
 
   td_api::object_ptr<td_api::UserStatus> get_user_status_object(UserId user_id, const User *u, int32 unix_time) const;
 
-  static bool get_user_has_unread_stories(const User *u);
+  static ActiveStoryState get_user_active_story_state(const User *u);
 
   td_api::object_ptr<td_api::updateUser> get_update_user_object(UserId user_id, const User *u) const;
 
@@ -1187,6 +1191,8 @@ class UserManager final : public Actor {
   WaitFreeHashMap<UserId, unique_ptr<User>, UserIdHash> users_;
   WaitFreeHashMap<UserId, unique_ptr<UserFull>, UserIdHash> users_full_;
   WaitFreeHashMap<UserId, unique_ptr<UserPhotos>, UserIdHash> user_photos_;
+  WaitFreeHashMap<UserId, vector<PendingGetPhotoRequest>, UserIdHash> pending_get_user_photos_requests_;
+
   mutable FlatHashSet<UserId, UserIdHash> unknown_users_;
   WaitFreeHashMap<UserId, telegram_api::object_ptr<telegram_api::UserProfilePhoto>, UserIdHash> pending_user_photos_;
   struct UserIdPhotoIdHash {
@@ -1218,6 +1224,7 @@ class UserManager final : public Actor {
   };
   WaitFreeHashMap<UserSavedMusicId, FileSourceId, UserSavedMusicIdHash> user_saved_music_file_source_ids_;
   WaitFreeHashMap<UserId, unique_ptr<UserSavedMusic>, UserIdHash> user_saved_music_;
+  WaitFreeHashMap<UserId, vector<PendingGetSavedMusicRequest>, UserIdHash> pending_get_user_saved_music_requests_;
 
   bool are_my_saved_music_ids_inited_ = false;
   vector<Promise<Unit>> reload_my_saved_music_queries_;

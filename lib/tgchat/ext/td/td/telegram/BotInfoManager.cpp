@@ -129,14 +129,14 @@ class SetBotBroadcastDefaultAdminRightsQuery final : public Td::ResultHandler {
 static td_api::object_ptr<td_api::botMediaPreview> convert_bot_media_preview(
     Td *td, telegram_api::object_ptr<telegram_api::botPreviewMedia> media, UserId bot_user_id,
     vector<FileId> &file_ids) {
-  auto content = get_story_content(td, std::move(media->media_), DialogId(bot_user_id));
+  auto content = get_story_content(td, std::move(media->media_), DialogId(bot_user_id), true);
   if (content == nullptr) {
     LOG(ERROR) << "Receive invalid media preview for " << bot_user_id;
     return nullptr;
   }
   append(file_ids, get_story_content_file_ids(td, content.get()));
-  return td_api::make_object<td_api::botMediaPreview>(max(media->date_, 0),
-                                                      get_story_content_object(td, content.get()));
+  return td_api::make_object<td_api::botMediaPreview>(
+      max(media->date_, 0), get_story_content_object(td, content.get(), DialogId(bot_user_id)));
 }
 
 class GetPreviewMediasQuery final : public Td::ResultHandler {

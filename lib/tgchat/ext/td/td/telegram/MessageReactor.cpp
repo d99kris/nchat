@@ -10,20 +10,18 @@
 #include "td/telegram/Dependencies.h"
 #include "td/telegram/DialogManager.h"
 #include "td/telegram/MessageSender.h"
+#include "td/telegram/StarManager.h"
 #include "td/telegram/Td.h"
 
+#include "td/utils/algorithm.h"
 #include "td/utils/logging.h"
 
 #include <algorithm>
+#include <limits>
 
 namespace td {
 
-MessageReactor::MessageReactor(Td *td, telegram_api::object_ptr<telegram_api::messageReactor> &&reactor)
-    : dialog_id_(reactor->peer_id_ == nullptr ? DialogId() : DialogId(reactor->peer_id_))
-    , count_(reactor->count_)
-    , is_top_(reactor->top_)
-    , is_me_(reactor->my_)
-    , is_anonymous_(reactor->anonymous_) {
+void MessageReactor::store_min_channel(Td *td) {
   if (dialog_id_.get_type() == DialogType::Channel && !td->dialog_manager_->have_dialog_info(dialog_id_)) {
     auto channel_id = dialog_id_.get_channel_id();
     auto min_channel = td->chat_manager_->get_min_channel(channel_id);
@@ -33,6 +31,25 @@ MessageReactor::MessageReactor(Td *td, telegram_api::object_ptr<telegram_api::me
       min_channel_ = make_unique<MinChannel>(*min_channel);
     }
   }
+}
+
+MessageReactor::MessageReactor(Td *td, telegram_api::object_ptr<telegram_api::messageReactor> &&reactor)
+    : dialog_id_(reactor->peer_id_ == nullptr ? DialogId() : DialogId(reactor->peer_id_))
+    , count_(reactor->count_)
+    , is_top_(reactor->top_)
+    , is_me_(reactor->my_)
+    , is_anonymous_(reactor->anonymous_) {
+  store_min_channel(td);
+}
+
+MessageReactor::MessageReactor(Td *td, telegram_api::object_ptr<telegram_api::groupCallDonor> &&donor)
+    : dialog_id_(donor->peer_id_ == nullptr ? DialogId() : DialogId(donor->peer_id_))
+    , count_(static_cast<int32>(
+          td::min(static_cast<int64>(std::numeric_limits<int32>::max()), StarManager::get_star_count(donor->stars_))))
+    , is_top_(donor->top_)
+    , is_me_(donor->my_)
+    , is_anonymous_() {
+  store_min_channel(td);
 }
 
 td_api::object_ptr<td_api::paidReactor> MessageReactor::get_paid_reactor_object(Td *td) const {
@@ -69,8 +86,8 @@ bool MessageReactor::fix_is_me(DialogId my_dialog_id) {
   return false;
 }
 
-void MessageReactor::fix_message_reactors(vector<MessageReactor> &reactors, bool need_warning) {
-  size_t TOP_REACTOR_COUNT = 3u;
+void MessageReactor::fix_message_reactors(vector<MessageReactor> &reactors, bool need_warning, bool for_group_call) {
+  size_t TOP_REACTOR_COUNT = for_group_call ? 100u : 3u;
   if (reactors.size() > TOP_REACTOR_COUNT + 1) {
     LOG(ERROR) << "Have too many " << reactors;
     reactors.resize(TOP_REACTOR_COUNT + 1);
@@ -94,13 +111,19 @@ void MessageReactor::fix_message_reactors(vector<MessageReactor> &reactors, bool
     }
   }
   bool was_me = false;
-  for (const auto &reactor : reactors) {
-    CHECK(reactor.is_valid());
+  td::remove_if(reactors, [&was_me](const MessageReactor &reactor) {
+    if (!reactor.is_valid()) {
+      return true;
+    }
     if (reactor.is_me()) {
-      CHECK(!was_me);
+      if (was_me) {
+        LOG(ERROR) << "Receive self mutiple times";
+        return true;
+      }
       was_me = true;
     }
-  }
+    return false;
+  });
   std::sort(reactors.begin(), reactors.end());
   if (reactors.size() > TOP_REACTOR_COUNT && !reactors[TOP_REACTOR_COUNT].is_me()) {
     reactors.resize(TOP_REACTOR_COUNT);

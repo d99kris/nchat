@@ -13,6 +13,7 @@
 #include "td/utils/common.h"
 #include "td/utils/crypto.h"
 #include "td/utils/logging.h"
+#include "td/utils/misc.h"
 #include "td/utils/Random.h"
 #include "td/utils/SliceBuilder.h"
 #include "td/utils/Span.h"
@@ -39,7 +40,19 @@ void Grease::init(MutableSlice res) {
 class TlsHello {
  public:
   struct Op {
-    enum class Type { String, Random, Zero, Domain, Grease, Key, BeginScope, EndScope, Permutation };
+    enum class Type {
+      String,
+      Random,
+      Zero,
+      Domain,
+      Grease,
+      Key,
+      MlKem768Key,
+      BeginScope,
+      EndScope,
+      Permutation,
+      Padding
+    };
     Type type;
     int length;
     int seed;
@@ -90,10 +103,26 @@ class TlsHello {
       res.type = Type::Key;
       return res;
     }
+    static Op ml_kem_768_key() {
+      Op res;
+      res.type = Type::MlKem768Key;
+      return res;
+    }
     static Op permutation(vector<vector<Op>> parts) {
       Op res;
       res.type = Type::Permutation;
       res.parts = std::move(parts);
+      return res;
+    }
+    static Op ech_payload() {
+      Op res;
+      res.type = Type::Random;
+      res.length = Random::fast(0, 3) * 32 + 144;
+      return res;
+    }
+    static Op padding() {
+      Op res;
+      res.type = Type::Padding;
       return res;
     }
   };
@@ -123,10 +152,10 @@ class TlsHello {
           Op::end_scope(),
           Op::str("\x00\x17\x00\x00\xff\x01\x00\x01\x00\x00\x0a\x00\x0c\x00\x0a"),
           Op::grease(4),
-          Op::str("\x00\x1d\x00\x17\x00\x18\x00\x19\x00\x0b\x00\x02\x01\x00\x00\x10\x00\x0e\x00\x0c\x02\x68\x32\x08"
-                  "\x68\x74\x74\x70\x2f\x31\x2e\x31\x00\x05\x00\x05\x01\x00\x00\x00\x00\x00\x0d\x00\x18\x00\x16\x04"
-                  "\x03\x08\x04\x04\x01\x05\x03\x02\x03\x08\x05\x08\x05\x05\x01\x08\x06\x06\x01\x02\x01\x00\x12\x00"
-                  "\x00\x00\x33\x00\x2b\x00\x29"),
+          Op::str(
+              "\x00\x1d\x00\x17\x00\x18\x00\x19\x00\x0b\x00\x02\x01\x00\x00\x10\x00\x0e\x00\x0c\x02\x68\x32\x08\x68\x74"
+              "\x74\x70\x2f\x31\x2e\x31\x00\x05\x00\x05\x01\x00\x00\x00\x00\x00\x0d\x00\x16\x00\x14\x04\x03\x08\x04\x04"
+              "\x01\x05\x03\x08\x05\x08\x05\x05\x01\x08\x06\x06\x01\x02\x01\x00\x12\x00\x00\x00\x33\x00\x2b\x00\x29"),
           Op::grease(4),
           Op::str("\x00\x01\x00\x00\x1d\x00\x20"),
           Op::key(),
@@ -134,25 +163,31 @@ class TlsHello {
           Op::grease(6),
           Op::str("\x03\x04\x03\x03\x03\x02\x03\x01\x00\x1b\x00\x03\x02\x00\x01"),
           Op::grease(3),
-          Op::str("\x00\x01\x00\x00\x15")};
+          Op::str("\x00\x01\x00"),
+          Op::padding()};
 #else
       res.ops_ = {
-          Op::str("\x16\x03\x01\x02\x00\x01\x00\x01\xfc\x03\x03"),
+          Op::str("\x16\x03\x01"),
+          Op::begin_scope(),
+          Op::str("\x01\x00"),
+          Op::begin_scope(),
+          Op::str("\x03\x03"),
           Op::zero(32),
           Op::str("\x20"),
           Op::random(32),
           Op::str("\x00\x20"),
           Op::grease(0),
-          Op::str("\x13\x01\x13\x02\x13\x03\xc0\x2b\xc0\x2f\xc0\x2c\xc0\x30\xcc\xa9\xcc\xa8\xc0\x13\xc0\x14\x00\x9c"
-                  "\x00\x9d\x00\x2f\x00\x35\x01\x00\x01\x93"),
+          Op::str("\x13\x01\x13\x02\x13\x03\xc0\x2b\xc0\x2f\xc0\x2c\xc0\x30\xcc\xa9\xcc\xa8\xc0\x13\xc0\x14\x00\x9c\x00"
+                  "\x9d\x00\x2f\x00\x35\x01\x00"),
+          Op::begin_scope(),
           Op::grease(2),
           Op::str("\x00\x00"),
-
           Op::permutation(
               {vector<Op>{Op::str("\x00\x00"), Op::begin_scope(), Op::begin_scope(), Op::str("\x00"), Op::begin_scope(),
                           Op::domain(), Op::end_scope(), Op::end_scope(), Op::end_scope()},
                vector<Op>{Op::str("\x00\x05\x00\x05\x01\x00\x00\x00\x00")},
-               vector<Op>{Op::str("\x00\x0a\x00\x0a\x00\x08"), Op::grease(4), Op::str("\x00\x1d\x00\x17\x00\x18")},
+               vector<Op>{Op::str("\x00\x0a\x00\x0c\x00\x0a"), Op::grease(4),
+                          Op::str("\x11\xec\x00\x1d\x00\x17\x00\x18")},
                vector<Op>{Op::str("\x00\x0b\x00\x02\x01\x00")},
                vector<Op>{
                    Op::str("\x00\x0d\x00\x12\x00\x10\x04\x03\x08\x04\x04\x01\x05\x03\x08\x05\x05\x01\x08\x06\x06\x01")},
@@ -161,12 +196,19 @@ class TlsHello {
                vector<Op>{Op::str("\x00\x1b\x00\x03\x02\x00\x02")}, vector<Op>{Op::str("\x00\x23\x00\x00")},
                vector<Op>{Op::str("\x00\x2b\x00\x07\x06"), Op::grease(6), Op::str("\x03\x04\x03\x03")},
                vector<Op>{Op::str("\x00\x2d\x00\x02\x01\x01")},
-               vector<Op>{Op::str("\x00\x33\x00\x2b\x00\x29"), Op::grease(4), Op::str("\x00\x01\x00\x00\x1d\x00\x20"),
-                          Op::key()},
-               vector<Op>{Op::str("\x44\x69\x00\x05\x00\x03\x02\x68\x32")},
+               vector<Op>{Op::str("\x00\x33\x04\xef\x04\xed"), Op::grease(4), Op::str("\x00\x01\x00\x11\xec\x04\xc0"),
+                          Op::ml_kem_768_key(), Op::key(), Op::str("\x00\x1d\x00\x20"), Op::key()},
+               vector<Op>{Op::str("\x44\xcd\x00\x05\x00\x03\x02\x68\x32")},
+               vector<Op>{Op::str("\xfe\x02"), Op::begin_scope(), Op::str("\x00\x00\x01\x00\x01"), Op::random(1),
+                          Op::str("\x00\x20"), Op::random(20), Op::begin_scope(), Op::ech_payload(), Op::end_scope(),
+                          Op::end_scope()},
                vector<Op>{Op::str("\xff\x01\x00\x01\x00")}}),
           Op::grease(3),
-          Op::str("\x00\x01\x00\x00\x15")};
+          Op::str("\x00\x01\x00"),
+          Op::padding(),
+          Op::end_scope(),
+          Op::end_scope(),
+          Op::end_scope()};
 #endif
       return res;
     }();
@@ -220,13 +262,13 @@ class TlsHelloCalcLength {
         size_ += op.data.size();
         break;
       case Type::Random:
-        if (op.length <= 0 || op.length > 1024) {
+        if (op.length <= 0 || op.length > 2048) {
           return on_error(Status::Error("Invalid random length"));
         }
         size_ += op.length;
         break;
       case Type::Zero:
-        if (op.length <= 0 || op.length > 1024) {
+        if (op.length <= 0 || op.length > 2048) {
           return on_error(Status::Error("Invalid zero length"));
         }
         size_ += op.length;
@@ -244,6 +286,9 @@ class TlsHelloCalcLength {
         break;
       case Type::Key:
         size_ += 32;
+        break;
+      case Type::MlKem768Key:
+        size_ += 1184;
         break;
       case Type::BeginScope:
         size_ += 2;
@@ -270,6 +315,11 @@ class TlsHelloCalcLength {
         }
         break;
       }
+      case Type::Padding:
+        if (size_ < 513) {
+          size_ = 517;
+        }
+        break;
       default:
         UNREACHABLE();
     }
@@ -283,19 +333,11 @@ class TlsHelloCalcLength {
     if (status_.is_error()) {
       return std::move(status_);
     }
-    if (size_ > 514) {
-      return Status::Error("Too long for zero padding");
+    if (!scope_offset_.empty()) {
+      return Status::Error("Unbalanced scopes");
     }
     if (size_ < 11 + 32) {
       return Status::Error("Too small for hash");
-    }
-    int zero_pad = 515 - static_cast<int>(size_);
-    using Op = TlsHello::Op;
-    do_op(Op::begin_scope(), nullptr);
-    do_op(Op::zero(zero_pad), nullptr);
-    do_op(Op::end_scope(), nullptr);
-    if (!scope_offset_.empty()) {
-      return Status::Error("Unbalanced scopes");
     }
     return size_;
   }
@@ -367,6 +409,17 @@ class TlsHelloStore {
         dest_.remove_prefix(32);
         break;
       }
+      case Type::MlKem768Key:
+        for (size_t i = 0; i < 384; i++) {
+          auto a = Random::secure_uint32() % 3329;
+          auto b = Random::secure_uint32() % 3329;
+          dest_[0] = static_cast<char>(a & 255);
+          dest_[1] = static_cast<char>((a >> 8) + ((b & 15) << 4));
+          dest_[2] = static_cast<char>(b >> 4);
+          dest_.remove_prefix(3);
+        }
+        do_op(TlsHello::Op::random(32), nullptr);
+        break;
       case Type::BeginScope:
         scope_offset_.push_back(get_offset());
         dest_.remove_prefix(2);
@@ -405,23 +458,28 @@ class TlsHelloStore {
         }
         break;
       }
+      case Type::Padding: {
+        auto size = 513 - static_cast<int>(get_offset());
+        if (size > 0) {
+          do_op(TlsHello::Op::str("\x00\x15"), nullptr);
+          do_op(TlsHello::Op::begin_scope(), nullptr);
+          do_op(TlsHello::Op::zero(size), nullptr);
+          do_op(TlsHello::Op::end_scope(), nullptr);
+        }
+        break;
+      }
       default:
         UNREACHABLE();
     }
   }
 
   void finish(Slice secret, int32 unix_time) {
-    int zero_pad = 515 - static_cast<int>(get_offset());
-    using Op = TlsHello::Op;
-    do_op(Op::begin_scope(), nullptr);
-    do_op(Op::zero(zero_pad), nullptr);
-    do_op(Op::end_scope(), nullptr);
-
     auto hash_dest = data_.substr(11, 32);
     hmac_sha256(secret, data_, hash_dest);
     int32 old = as<int32>(hash_dest.substr(28).data());
     as<int32>(hash_dest.substr(28).data()) = old ^ unix_time;
     CHECK(dest_.empty());
+    // LOG(ERROR) << hex_encode(data_);
   }
 
  private:
@@ -513,6 +571,13 @@ void TlsInit::send_hello() {
 }
 
 Status TlsInit::wait_hello_response() {
+  /*
+  auto it2 = fd_.input_buffer().clone();
+  string buffer(it2.size(), '\0');
+  it2.advance(it2.size(), buffer);
+  LOG(ERROR) << hex_encode(buffer);
+  */
+
   auto it = fd_.input_buffer().clone();
   for (auto prefix : {Slice("\x16\x03\x03"), Slice("\x14\x03\x03\x00\x01\x01\x17\x03\x03")}) {
     if (it.size() < prefix.size() + 2) {
