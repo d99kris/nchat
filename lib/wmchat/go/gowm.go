@@ -1188,6 +1188,49 @@ func GetNameFromContactInfo(contactInfo types.ContactInfo) string {
 	return ""
 }
 
+func GetGroupDisplayName(connId int, groupInfo *types.GroupInfo) string {
+	// Use group name if set
+	if len(groupInfo.GroupName.Name) > 0 {
+		return groupInfo.GroupName.Name
+	}
+
+	// Otherwise build group name from participants
+	const maxParticipants = 6
+	names := []string{}
+	client := GetClient(connId)
+	for _, participant := range groupInfo.Participants {
+		if len(names) >= maxParticipants {
+			break
+		}
+
+		userId := StrFromJid(participant.JID)
+		if IsSelfId(client, userId) {
+			continue
+		}
+
+		name := GetContactName(connId, userId)
+		if len(name) == 0 {
+			name = participant.DisplayName
+		}
+
+		names = append(names, name)
+	}
+
+	if len(names) == 0 {
+		return "Unnamed Group"
+	}
+
+	if len(names) == 1 {
+		return names[0]
+	}
+
+	if len(names) == 2 {
+		return names[0] + " & " + names[1]
+	}
+
+	return strings.Join(names[:len(names)-1], ", ") + " & " + names[len(names)-1]
+}
+
 func PhoneFromUserId(userId string) string {
 	phone := ""
 	if strings.HasSuffix(userId, "@s.whatsapp.net") {
@@ -1353,8 +1396,12 @@ func GetContacts(connId int) {
 	} else {
 		LOG_TRACE(fmt.Sprintf("groups %#v", groups))
 		for _, group := range groups {
+			if group == nil {
+				continue
+			}
+
 			groupId := StrFromJid(group.JID)
-			groupName := group.GroupName.Name
+			groupName := GetGroupDisplayName(connId, group)
 			groupPhone := ""
 			isSelf := BoolToInt(false)
 			isAlias := BoolToInt(false)
