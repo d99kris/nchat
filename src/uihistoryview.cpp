@@ -125,6 +125,7 @@ void UiHistoryView::Draw()
     if (!msg.text.empty())
     {
       std::string text = msg.text;
+      StrUtil::SanitizeMessageStr(text);
       if (!emojiEnabled)
       {
         text = StrUtil::Textize(text);
