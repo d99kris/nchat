@@ -384,8 +384,7 @@ void UiModel::Impl::EntryKeyHandler(wint_t p_Key)
   }
   else if (p_Key == keyClear)
   {
-    entryStr.clear();
-    entryPos = 0;
+    Clear();
     SetTyping(profileId, chatId, true);
   }
   else if (p_Key == keyLinebreak)
@@ -3009,8 +3008,23 @@ void UiModel::Impl::Clear()
   std::string chatId = m_CurrentChat.second;
   int& entryPos = m_EntryPos[profileId][chatId];
   std::wstring& entryStr = m_EntryStr[profileId][chatId];
-  entryStr.clear();
-  entryPos = 0;
+
+  if (entryStr.empty())
+  {
+    if (!m_EntryStrUndo[profileId][chatId].empty())
+    {
+      entryStr = m_EntryStrUndo[profileId][chatId];
+      entryPos = m_EntryPosUndo[profileId][chatId];
+      m_EntryStrUndo[profileId][chatId].clear();
+    }
+  }
+  else
+  {
+    m_EntryStrUndo[profileId][chatId] = entryStr;
+    m_EntryPosUndo[profileId][chatId] = entryPos;
+    entryStr.clear();
+    entryPos = 0;
+  }
 
   UpdateEntry();
 }
