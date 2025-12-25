@@ -279,6 +279,11 @@ void StrUtil::ReplaceString(std::string& p_Str, const std::string& p_Search, con
   }
 }
 
+void StrUtil::SanitizeMessageStr(std::string& p_Str)
+{
+  p_Str.erase(std::remove(p_Str.begin(), p_Str.end(), '\r'), p_Str.end());
+}
+
 std::vector<std::string> StrUtil::Split(const std::string& p_Str, char p_Sep)
 {
   std::vector<std::string> vec;
