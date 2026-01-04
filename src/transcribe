@@ -1,0 +1,460 @@
+#!/usr/bin/env python3
+"""
+nchat audio transcription script
+Supports multiple Whisper backends: OpenAI API, whisper.cpp, Whisper Python
+"""
+
+import argparse
+import os
+import sys
+from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import Optional
+
+# Exit codes
+EXIT_SUCCESS = 0
+EXIT_INVALID_ARGS = 1
+EXIT_FILE_ERROR = 2
+EXIT_SERVICE_ERROR = 3
+EXIT_TIMEOUT = 4
+EXIT_UNSUPPORTED_FORMAT = 5
+
+# Supported audio formats
+SUPPORTED_FORMATS = {'.ogg', '.oga', '.opus', '.mp3', '.m4a', '.wav', '.flac', '.webm'}
+
+
+class TranscriptionService(ABC):
+    """Base class for transcription services"""
+
+    @abstractmethod
+    def transcribe(self, audio_file: str, language: str = "auto") -> str:
+        """
+        Transcribe audio file.
+
+        Args:
+            audio_file: Path to audio file
+            language: Language code or "auto" for detection
+
+        Returns:
+            Transcribed text as string
+
+        Raises:
+            RuntimeError: If transcription fails
+        """
+        pass
+
+
+class OpenAIWhisperService(TranscriptionService):
+    """OpenAI Whisper API service"""
+
+    def __init__(self, api_key: Optional[str] = None):
+        """
+        Initialize OpenAI service.
+
+        Args:
+            api_key: OpenAI API key (defaults to OPENAI_API_KEY env var)
+
+        Raises:
+            RuntimeError: If API key is not provided
+        """
+        self.api_key = api_key or os.getenv('OPENAI_API_KEY')
+        if not self.api_key:
+            raise RuntimeError("OpenAI API key not set. Please set OPENAI_API_KEY environment variable.")
+
+        try:
+            from openai import OpenAI
+            self.client = OpenAI(api_key=self.api_key)
+        except ImportError:
+            raise RuntimeError("OpenAI package not installed. Install with: pip install openai")
+
+    def transcribe(self, audio_file: str, language: str = "auto") -> str:
+        """
+        Transcribe audio file using OpenAI Whisper API.
+
+        Args:
+            audio_file: Path to audio file
+            language: Language code or "auto" for detection
+
+        Returns:
+            Transcribed text as string
+
+        Raises:
+            FileNotFoundError: If audio file doesn't exist
+            RuntimeError: If API request fails
+        """
+        if not os.path.isfile(audio_file):
+            raise FileNotFoundError(f"Audio file not found: {audio_file}")
+
+        try:
+            with open(audio_file, "rb") as f:
+                # OpenAI API: if language is "auto", don't specify language parameter
+                # This allows Whisper to auto-detect
+                kwargs = {
+                    "model": "whisper-1",
+                    "file": f,
+                }
+
+                # Only add language if not auto-detect
+                if language != "auto":
+                    kwargs["language"] = language
+
+                response = self.client.audio.transcriptions.create(**kwargs)
+
+            return response.text.strip()
+
+        except Exception as e:
+            # Handle API errors
+            error_msg = str(e)
+            if "authentication" in error_msg.lower() or "api_key" in error_msg.lower():
+                raise RuntimeError(f"OpenAI API authentication failed: {error_msg}")
+            elif "rate_limit" in error_msg.lower():
+                raise RuntimeError(f"OpenAI API rate limit exceeded: {error_msg}")
+            elif "invalid" in error_msg.lower() and "audio" in error_msg.lower():
+                raise RuntimeError(f"Invalid audio file: {error_msg}")
+            else:
+                raise RuntimeError(f"OpenAI API error: {error_msg}")
+
+
+class WhisperCppService(TranscriptionService):
+    """whisper.cpp HTTP server service"""
+
+    def __init__(self, server_url: Optional[str] = None):
+        """
+        Initialize whisper.cpp service.
+
+        Args:
+            server_url: URL of whisper.cpp server (defaults to WHISPER_CPP_SERVER env var or http://localhost:8080)
+        """
+        self.server_url = server_url or os.getenv('WHISPER_CPP_SERVER', 'http://localhost:8080')
+
+        try:
+            import requests
+            self.requests = requests
+        except ImportError:
+            raise RuntimeError("requests package not installed. Install with: pip install requests")
+
+    def transcribe(self, audio_file: str, language: str = "auto") -> str:
+        """
+        Transcribe audio file using whisper.cpp HTTP server.
+
+        Args:
+            audio_file: Path to audio file
+            language: Language code or "auto" for detection
+
+        Returns:
+            Transcribed text as string
+
+        Raises:
+            FileNotFoundError: If audio file doesn't exist
+            RuntimeError: If server request fails
+        """
+        if not os.path.isfile(audio_file):
+            raise FileNotFoundError(f"Audio file not found: {audio_file}")
+
+        try:
+            with open(audio_file, 'rb') as f:
+                files = {'file': f}
+                data = {}
+
+                # Add language if not auto-detect
+                if language != "auto":
+                    data['language'] = language
+
+                response = self.requests.post(
+                    f"{self.server_url}/inference",
+                    files=files,
+                    data=data,
+                    timeout=30
+                )
+
+                if response.status_code != 200:
+                    raise RuntimeError(f"Server returned error: {response.status_code} - {response.text}")
+
+                result = response.json()
+                transcription = result.get('text', '')
+
+                return transcription.strip()
+
+        except self.requests.exceptions.ConnectionError:
+            raise RuntimeError(f"Could not connect to whisper.cpp server at {self.server_url}")
+        except self.requests.exceptions.Timeout:
+            raise RuntimeError(f"Request to whisper.cpp server timed out")
+        except Exception as e:
+            raise RuntimeError(f"whisper.cpp error: {str(e)}")
+
+
+class WhisperLocalService(TranscriptionService):
+    """Local Whisper Python package service"""
+
+    def __init__(self, model_size: str = "base"):
+        """
+        Initialize local Whisper service.
+
+        Args:
+            model_size: Model size (tiny, base, small, medium, large)
+        """
+        self.model_size = model_size
+        self.model = None
+
+        try:
+            import whisper
+            self.whisper = whisper
+        except ImportError:
+            # Try faster-whisper as alternative
+            try:
+                from faster_whisper import WhisperModel
+                self.faster_whisper = WhisperModel
+                self.use_faster = True
+            except ImportError:
+                raise RuntimeError(
+                    "Whisper package not installed. Install with: pip install openai-whisper "
+                    "or pip install faster-whisper"
+                )
+        else:
+            self.use_faster = False
+
+    def transcribe(self, audio_file: str, language: str = "auto") -> str:
+        """
+        Transcribe audio file using local Whisper.
+
+        Args:
+            audio_file: Path to audio file
+            language: Language code or "auto" for detection
+
+        Returns:
+            Transcribed text as string
+
+        Raises:
+            FileNotFoundError: If audio file doesn't exist
+            RuntimeError: If transcription fails
+        """
+        if not os.path.isfile(audio_file):
+            raise FileNotFoundError(f"Audio file not found: {audio_file}")
+
+        try:
+            # Load model if not already loaded
+            if self.model is None:
+                if self.use_faster:
+                    # Use faster-whisper (more efficient)
+                    self.model = self.faster_whisper(self.model_size, device="cpu", compute_type="int8")
+                else:
+                    # Use standard whisper
+                    self.model = self.whisper.load_model(self.model_size)
+
+            # Perform transcription
+            if self.use_faster:
+                # faster-whisper API
+                segments, info = self.model.transcribe(
+                    audio_file,
+                    language=None if language == "auto" else language
+                )
+                transcription = " ".join([segment.text for segment in segments])
+            else:
+                # standard whisper API
+                result = self.model.transcribe(
+                    audio_file,
+                    language=None if language == "auto" else language
+                )
+                transcription = result['text']
+
+            return transcription.strip()
+
+        except Exception as e:
+            raise RuntimeError(f"Local Whisper error: {str(e)}")
+
+
+def detect_service() -> str:
+    """
+    Auto-detect available transcription service.
+
+    Returns:
+        Service name (openai, whisper-cpp, or whisper-local)
+
+    Priority:
+    1. Environment variable WHISPER_SERVICE
+    2. OpenAI API (if OPENAI_API_KEY is set)
+    3. whisper.cpp server (if running on localhost:8080)
+    4. Local Whisper (if installed)
+    """
+    # Check environment variable override
+    env_service = os.getenv("WHISPER_SERVICE")
+    if env_service:
+        return env_service
+
+    # Check for OpenAI API key
+    if os.getenv("OPENAI_API_KEY"):
+        return "openai"
+
+    # Check for whisper.cpp server
+    try:
+        import requests
+        server_url = os.getenv('WHISPER_CPP_SERVER', 'http://localhost:8080')
+        response = requests.get(f"{server_url}/", timeout=1)
+        if response.status_code in [200, 404]:  # Server is running
+            return "whisper-cpp"
+    except Exception:
+        pass
+
+    # Check for local Whisper
+    try:
+        import whisper
+        return "whisper-local"
+    except ImportError:
+        try:
+            from faster_whisper import WhisperModel
+            return "whisper-local"
+        except ImportError:
+            pass
+
+    # No service available
+    raise RuntimeError(
+        "No transcription service available. Please either:\n"
+        "  1. Set OPENAI_API_KEY environment variable for OpenAI API\n"
+        "  2. Start whisper.cpp server (see doc/TRANSCRIPTION-SETUP.md)\n"
+        "  3. Install local Whisper: pip install openai-whisper"
+    )
+
+
+def validate_audio_file(file_path: str) -> bool:
+    """
+    Validate audio file exists and has supported format.
+
+    Args:
+        file_path: Path to audio file
+
+    Returns:
+        True if valid, False otherwise
+
+    Raises:
+        FileNotFoundError: If file doesn't exist
+        ValueError: If format is unsupported
+    """
+    if not os.path.isfile(file_path):
+        raise FileNotFoundError(f"Audio file not found: {file_path}")
+
+    file_ext = Path(file_path).suffix.lower()
+    if file_ext not in SUPPORTED_FORMATS:
+        raise ValueError(
+            f"Unsupported audio format: {file_ext}\n"
+            f"Supported formats: {', '.join(sorted(SUPPORTED_FORMATS))}"
+        )
+
+    return True
+
+
+def create_service(service_name: str, model: str = "base") -> TranscriptionService:
+    """
+    Factory method to create transcription service.
+
+    Args:
+        service_name: Service to create (openai, whisper-cpp, whisper-local)
+        model: Model size for local services (tiny, base, small, medium, large)
+
+    Returns:
+        Transcription service instance
+
+    Raises:
+        ValueError: If service name is invalid
+        RuntimeError: If service initialization fails
+    """
+    if service_name == "openai":
+        return OpenAIWhisperService()
+    elif service_name == "whisper-cpp":
+        return WhisperCppService()
+    elif service_name == "whisper-local":
+        return WhisperLocalService(model_size=model)
+    else:
+        raise ValueError(f"Unknown service: {service_name}")
+
+
+def main():
+    """Main entry point for transcription script"""
+
+    parser = argparse.ArgumentParser(
+        description="Transcribe audio files using Whisper",
+        epilog="See doc/TRANSCRIPTION.md for more information"
+    )
+
+    parser.add_argument(
+        "-f", "--file",
+        required=True,
+        help="Audio file path (required)"
+    )
+
+    parser.add_argument(
+        "-s", "--service",
+        default="auto",
+        choices=["auto", "openai", "whisper-cpp", "whisper-local"],
+        help="Transcription service to use (default: auto)"
+    )
+
+    parser.add_argument(
+        "-l", "--language",
+        default="auto",
+        help="Audio language code (en, es, fr, etc.) or 'auto' for detection (default: auto)"
+    )
+
+    parser.add_argument(
+        "-m", "--model",
+        default="base",
+        choices=["tiny", "base", "small", "medium", "large"],
+        help="Model size for local services (default: base)"
+    )
+
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=30,
+        help="Request timeout in seconds (default: 30)"
+    )
+
+    parser.add_argument(
+        "--version",
+        action="version",
+        version="%(prog)s 1.0"
+    )
+
+    args = parser.parse_args()
+
+    try:
+        # Validate audio file
+        validate_audio_file(args.file)
+
+        # Auto-detect service if needed
+        service_name = args.service
+        if service_name == "auto":
+            service_name = detect_service()
+
+        # Create service instance
+        service = create_service(service_name, args.model)
+
+        # Perform transcription
+        transcription = service.transcribe(args.file, args.language)
+
+        # Output result to stdout
+        print(transcription)
+        sys.exit(EXIT_SUCCESS)
+
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(EXIT_FILE_ERROR)
+
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(EXIT_UNSUPPORTED_FORMAT)
+
+    except RuntimeError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(EXIT_SERVICE_ERROR)
+
+    except KeyboardInterrupt:
+        print("\nTranscription interrupted", file=sys.stderr)
+        sys.exit(EXIT_TIMEOUT)
+
+    except Exception as e:
+        print(f"Unexpected error: {e}", file=sys.stderr)
+        sys.exit(EXIT_SERVICE_ERROR)
+
+
+if __name__ == "__main__":
+    main()
