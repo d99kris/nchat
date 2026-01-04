@@ -16,6 +16,7 @@
 #include "clipboard.h"
 #include "fileutil.h"
 #include "log.h"
+#include "messagecache.h"
 #include "numutil.h"
 #include "protocolutil.h"
 #include "sethelp.h"
@@ -31,6 +32,7 @@
 #include "uiemojilistdialog.h"
 #include "uifilelistdialog.h"
 #include "uikeyconfig.h"
+#include "uilanguagelistdialog.h"
 #include "uikeyinput.h"
 #include "uimessagedialog.h"
 #include "uitextinputdialog.h"
@@ -3889,6 +3891,183 @@ bool UiModel::Impl::AutoCompose()
   return rv;
 }
 
+bool UiModel::Impl::TranscribeAudio(bool p_ForceRetranscribe)
+{
+  AnyUserKeyInput();
+
+  const std::string& profileId = m_CurrentChat.first;
+  const std::string& chatId = m_CurrentChat.second;
+  const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
+  const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
+
+  const int messageOffset = GetSelectMessageActive() ? m_MessageOffset[profileId][chatId] : 0;
+  const int editOffset = GetEditMessageActive() ? 1 : 0;
+  const int offset = messageOffset + editOffset;
+
+  auto it = std::next(messageVec.begin(), offset);
+  if (it == messageVec.end())
+  {
+    LOG_WARNING("end of message history");
+    return false;
+  }
+
+  auto msgIt = messages.find(*it);
+  if (msgIt == messages.end())
+  {
+    LOG_WARNING("message not found");
+    return false;
+  }
+
+  const ChatMessage& msg = msgIt->second;
+  const std::string& msgId = msg.id;
+
+  // Check if message has a file attachment
+  if (msg.fileInfo.empty())
+  {
+    LOG_DEBUG("message has no file attachment");
+    LOG_WARNING("Selected message has no file attachment");
+    return false;
+  }
+
+  FileInfo fileInfo = ProtocolUtil::FileInfoFromHex(msg.fileInfo);
+
+  // Check if file is downloaded
+  if (!IsAttachmentDownloaded(fileInfo))
+  {
+    LOG_DEBUG("audio file not downloaded");
+    LOG_WARNING("File not downloaded yet - select it to download first");
+    return false;
+  }
+
+  // Check if file is an audio file (based on extension)
+  const std::string filePath = fileInfo.filePath;
+  std::string ext = FileUtil::GetFileExt(filePath);
+  
+  // Remove leading dot if present
+  if (!ext.empty() && ext[0] == '.')
+  {
+    ext = ext.substr(1);
+  }
+  
+  static const std::set<std::string> audioExtensions = {
+    "ogg", "opus", "mp3", "m4a", "aac", "wav", "flac", "oga"
+  };
+
+  if (audioExtensions.find(ext) == audioExtensions.end())
+  {
+    LOG_DEBUG("file is not an audio file: %s", ext.c_str());
+    LOG_WARNING("File is not an audio file (extension: %s). Supported: ogg, opus, mp3, m4a, aac, wav, flac, oga", ext.c_str());
+    return false;
+  }
+
+  // Check cache unless forcing retranscription
+  static const bool useCache = UiConfig::GetBool("audio_transcribe_cache");
+  if (!p_ForceRetranscribe && useCache)
+  {
+    std::string cachedTranscription = MessageCache::GetTranscription(profileId, chatId, msgId);
+    if (!cachedTranscription.empty())
+    {
+      LOG_DEBUG("using cached transcription");
+      UpdateHistory();
+      return true;
+    }
+  }
+
+  // Get transcribe command
+  static const std::string cmdTemplate = []()
+  {
+    std::string transcribeCommand = UiConfig::GetStr("audio_transcribe_command");
+    if (transcribeCommand.empty())
+    {
+      transcribeCommand = FileUtil::DirName(FileUtil::GetSelfPath()) +
+        "/../" CMAKE_INSTALL_LIBEXECDIR "/nchat/transcribe -f '%1'";
+    }
+
+    return transcribeCommand;
+  }();
+
+  // Build and execute command
+  std::string transcription;
+  std::string cmd = cmdTemplate;
+  StrUtil::ReplaceString(cmd, "%1", filePath);
+
+  // Add language parameter if specified
+  // First check per-chat language setting, then fall back to global setting
+  std::string language;
+  if (m_ChatInfos.count(profileId) && m_ChatInfos[profileId].count(chatId))
+  {
+    language = m_ChatInfos[profileId][chatId].transcriptionLanguage;
+  }
+
+  // Fall back to global setting if per-chat language is not set
+  if (language.empty())
+  {
+    language = UiConfig::GetStr("audio_transcribe_language");
+  }
+
+  // Default to auto if still empty
+  if (language.empty())
+  {
+    language = "auto";
+  }
+
+  if (language != "auto")
+  {
+    cmd += " -l " + language;
+  }
+
+  static const int timeout = UiConfig::GetNum("audio_transcribe_timeout");
+  LOG_TRACE("transcribe cmd \"%s\" start", cmd.c_str());
+
+  const bool rv = RunCommand(cmd, &transcription);
+
+  if (rv && !transcription.empty())
+  {
+    // Store in cache
+    if (useCache)
+    {
+      MessageCache::StoreTranscription(profileId, chatId, msgId, transcription, language);
+    }
+
+    // Update UI
+    UpdateHistory();
+    return true;
+  }
+  else
+  {
+    LOG_WARNING("transcription failed");
+    return false;
+  }
+}
+
+std::string UiModel::Impl::GetCurrentTranscriptionLanguage(const std::string& p_ProfileId,
+                                                           const std::string& p_ChatId)
+{
+  if (m_ChatInfos.count(p_ProfileId) && m_ChatInfos[p_ProfileId].count(p_ChatId))
+  {
+    return m_ChatInfos[p_ProfileId][p_ChatId].transcriptionLanguage;
+  }
+  return "";
+}
+
+void UiModel::Impl::UpdateCurrentTranscriptionLanguage(const std::string& p_ProfileId,
+                                                        const std::string& p_ChatId,
+                                                        const std::string& p_Language)
+{
+  if (m_ChatInfos.count(p_ProfileId) && m_ChatInfos[p_ProfileId].count(p_ChatId))
+  {
+    m_ChatInfos[p_ProfileId][p_ChatId].transcriptionLanguage = p_Language;
+  }
+  else
+  {
+    // Create chat info if it doesn't exist
+    ChatInfo chatInfo;
+    chatInfo.id = p_ChatId;
+    chatInfo.transcriptionLanguage = p_Language;
+    m_ChatInfos[p_ProfileId][p_ChatId] = chatInfo;
+  }
+}
+
 // ---------------------------------------------------------------------
 // UiModel
 // ---------------------------------------------------------------------
@@ -4001,6 +4180,9 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keyTerminalResize = UiKeyConfig::GetKey("terminal_resize");
 
   static wint_t keyAutoCompose = UiKeyConfig::GetKey("auto_compose");
+  static wint_t keyTranscribeAudio = UiKeyConfig::GetKey("transcribe_audio");
+  static wint_t keyRetranscribeAudio = UiKeyConfig::GetKey("retranscribe_audio");
+  static wint_t keySetTranscriptionLang = UiKeyConfig::GetKey("set_transcription_lang");
 
   if (p_Key == keyTerminalResize)
   {
@@ -4211,6 +4393,21 @@ void UiModel::KeyHandler(wint_t p_Key)
   else if (p_Key == keyAutoCompose)
   {
     OnKeyAutoCompose();
+  }
+  else if (p_Key == keyTranscribeAudio)
+  {
+    LOG_DEBUG("transcribe_audio key pressed");
+    OnKeyTranscribeAudio();
+  }
+  else if (p_Key == keyRetranscribeAudio)
+  {
+    LOG_DEBUG("retranscribe_audio key pressed");
+    OnKeyRetranscribeAudio();
+  }
+  else if (p_Key == keySetTranscriptionLang)
+  {
+    LOG_DEBUG("set_transcription_lang key pressed");
+    OnKeySetTranscriptionLang();
   }
   else
   {
@@ -4979,6 +5176,140 @@ void UiModel::OnKeyPaste()
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().Paste();
+  }
+}
+
+void UiModel::OnKeyTranscribeAudio()
+{
+  LOG_DEBUG("OnKeyTranscribeAudio called");
+  
+  // Check if transcription is enabled (check every time, not static)
+  bool transcribeEnabled = UiConfig::GetBool("audio_transcribe_enabled");
+  LOG_DEBUG("audio_transcribe_enabled = %d", transcribeEnabled);
+
+  if (!transcribeEnabled)
+  {
+    LOG_DEBUG("transcription not enabled, showing dialog");
+    MessageDialog("Warning", "Audio transcription not enabled.", 0.7, 5);
+    return;
+  }
+  
+  LOG_DEBUG("transcription enabled, checking prerequisites");
+
+  // Pre-req
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    if (!GetImpl().GetSelectMessageActive())
+    {
+      MessageDialog("Info", "Please select a message first (press Up arrow).", 0.7, 5);
+      return;
+    }
+    if (GetImpl().GetEditMessageActive())
+    {
+      MessageDialog("Info", "Cannot transcribe while editing a message.", 0.7, 5);
+      return;
+    }
+  }
+
+  bool rv = false;
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    rv = GetImpl().TranscribeAudio(false /* forceRetranscribe */);
+  }
+
+  if (!rv)
+  {
+    MessageDialog("Warning", "Transcription failed.", 0.7, 5);
+  }
+}
+
+void UiModel::OnKeyRetranscribeAudio()
+{
+  // Check if transcription is enabled (check every time, not static)
+  bool transcribeEnabled = UiConfig::GetBool("audio_transcribe_enabled");
+
+  if (!transcribeEnabled)
+  {
+    MessageDialog("Warning", "Audio transcription not enabled.", 0.7, 5);
+    return;
+  }
+
+  // Pre-req
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    if (!GetImpl().GetSelectMessageActive())
+    {
+      MessageDialog("Info", "Please select a message first (press Up arrow).", 0.7, 5);
+      return;
+    }
+    if (GetImpl().GetEditMessageActive())
+    {
+      MessageDialog("Info", "Cannot transcribe while editing a message.", 0.7, 5);
+      return;
+    }
+  }
+
+  bool rv = false;
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    rv = GetImpl().TranscribeAudio(true /* forceRetranscribe */);
+  }
+
+  if (!rv)
+  {
+    MessageDialog("Warning", "Re-transcription failed.", 0.7, 5);
+  }
+}
+
+void UiModel::OnKeySetTranscriptionLang()
+{
+  // Get current chat info
+  std::string profileId;
+  std::string chatId;
+  std::string currentLanguage;
+
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+
+    // Check if we have a valid current chat
+    if (GetImpl().GetCurrentChat().first.empty() || GetImpl().GetCurrentChat().second.empty())
+    {
+      MessageDialog("Info", "Please select a chat first.", 0.7, 5);
+      return;
+    }
+
+    profileId = GetImpl().GetCurrentChat().first;
+    chatId = GetImpl().GetCurrentChat().second;
+
+    // Get current transcription language for this chat
+    currentLanguage = GetImpl().GetCurrentTranscriptionLanguage(profileId, chatId);
+  }
+
+  // Open modal dialog without model mutex held
+  UiDialogParams params(this, "Set Transcription Language", 0.75, 0.65);
+  UiLanguageListDialog dialog(params, currentLanguage);
+  if (dialog.Run())
+  {
+    std::string selectedLanguage = dialog.GetSelectedLanguage();
+
+    {
+      std::unique_lock<owned_mutex> lock(m_ModelMutex);
+
+      // Update in-memory chat info
+      GetImpl().UpdateCurrentTranscriptionLanguage(profileId, chatId, selectedLanguage);
+
+      // Persist to database
+      MessageCache::UpdateTranscriptionLanguage(profileId, chatId, selectedLanguage);
+
+      GetImpl().ReinitView();
+    }
+
+    MessageDialog("Info", "Transcription language updated successfully.", 0.7, 5);
+  }
+  else
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().ReinitView();
   }
 }
 
