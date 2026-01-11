@@ -405,11 +405,11 @@ This configuration file holds general user interface settings. Default content:
     confirm_deletion=1
     confirm_send_pasted_image=1
     desktop_notify_active_current=0
-    desktop_notify_active_noncurrent=0
+    desktop_notify_active_noncurrent=1
     desktop_notify_command=
-    desktop_notify_connectivity=0
+    desktop_notify_connectivity=1
     desktop_notify_enabled=0
-    desktop_notify_inactive=0
+    desktop_notify_inactive=1
     downloadable_indicator=+
     emoji_enabled=1
     entry_height=4
