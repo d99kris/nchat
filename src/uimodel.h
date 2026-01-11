@@ -201,7 +201,7 @@ private:
     void DesktopNotify(const std::string& p_Name, const std::string& p_Text);
     void SetHistoryInteraction(bool p_HistoryInteraction);
     std::string GetSelectedMessageText();
-    void Clear();
+    void Clear(bool p_AllowUndo);
     void SaveEditMessage();
     std::string EntryStrToSendStr(const std::wstring& p_EntryStr);
     void CallExternalEdit(const std::string& p_EditorCmd);
@@ -253,8 +253,8 @@ private:
     std::unordered_map<std::string, std::unordered_map<std::string, std::wstring>> m_EntryStr;
     std::unordered_map<std::string, std::unordered_map<std::string, int>> m_EntryPos;
 
-    std::unordered_map<std::string, std::unordered_map<std::string, std::wstring>> m_EntryStrUndo;
-    std::unordered_map<std::string, std::unordered_map<std::string, int>> m_EntryPosUndo;
+    std::unordered_map<std::string, std::unordered_map<std::string, std::wstring>> m_EntryStrCleared;
+    std::unordered_map<std::string, std::unordered_map<std::string, int>> m_EntryPosCleared;
 
     std::unordered_map<std::string, std::unordered_map<std::string, std::set<std::string>>> m_UsersTyping;
     std::unordered_map<std::string, std::unordered_map<std::string, bool>> m_UserOnline;

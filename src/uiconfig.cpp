@@ -73,6 +73,7 @@ void UiConfig::Init()
     { "top_show_version", "0" },
     { "transfer_send_caption", "1" },
     { "typing_status_share", "1" },
+    { "undo_clear_input", "1" },
     { "unread_indicator", "*" },
   };
 
