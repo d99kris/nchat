@@ -384,8 +384,7 @@ void UiModel::Impl::EntryKeyHandler(wint_t p_Key)
   }
   else if (p_Key == keyClear)
   {
-    entryStr.clear();
-    entryPos = 0;
+    Clear(true /*p_AllowUndo*/);
     SetTyping(profileId, chatId, true);
   }
   else if (p_Key == keyLinebreak)
@@ -3002,15 +3001,38 @@ void UiModel::Impl::Paste()
   UpdateEntry();
 }
 
-void UiModel::Impl::Clear()
+void UiModel::Impl::Clear(bool p_AllowUndo)
 {
-
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
   int& entryPos = m_EntryPos[profileId][chatId];
   std::wstring& entryStr = m_EntryStr[profileId][chatId];
-  entryStr.clear();
-  entryPos = 0;
+
+  static const bool undoClearInputEnabled = (UiConfig::GetNum("undo_clear_input") == 1);
+  if (undoClearInputEnabled && p_AllowUndo)
+  {
+    if (entryStr.empty())
+    {
+      if (!m_EntryStrCleared[profileId][chatId].empty())
+      {
+        entryStr = m_EntryStrCleared[profileId][chatId];
+        entryPos = m_EntryPosCleared[profileId][chatId];
+        m_EntryStrCleared[profileId][chatId].clear();
+      }
+    }
+    else
+    {
+      m_EntryStrCleared[profileId][chatId] = entryStr;
+      m_EntryPosCleared[profileId][chatId] = entryPos;
+      entryStr.clear();
+      entryPos = 0;
+    }
+  }
+  else
+  {
+    entryStr.clear();
+    entryPos = 0;
+  }
 
   UpdateEntry();
 }
@@ -3126,19 +3148,20 @@ void UiModel::Impl::SaveEditMessage()
 
   SetEditMessageActive(false);
 
-  Clear();
+  Clear(false /*p_AllowUndo*/);
 }
 
 void UiModel::Impl::OnKeyCancel()
 {
   AnyUserKeyInput();
   bool editMessageActive = GetEditMessageActive();
+  bool allowUndo = !editMessageActive;
   if (editMessageActive)
   {
     SetEditMessageActive(false);
   }
 
-  Clear();
+  Clear(allowUndo);
 }
 
 std::string UiModel::Impl::EntryStrToSendStr(const std::wstring& p_EntryStr)
