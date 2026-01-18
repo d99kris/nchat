@@ -252,6 +252,9 @@ void DuChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
           { "Chinese",
             "一二三。一二三。一二三。一二三。一二三。一二三。一二三。一二三。一二三。一二三。"
             "一二三。一二三。一二三。一二三。一二三。一二三。一二三。一二三。一二三。一二三。" },
+          { "No Space",
+            "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"
+            "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz" },
           { "Emoji",
             "📃📃📃📃📃 📃📃📃📃📃. 📃📃📃📃📃 📃📃📃📃📃. 📃📃📃📃📃 📃📃📃📃📃. "
             "📃📃📃📃📃 📃📃📃📃📃. 📃📃📃📃📃 📃📃📃📃📃." },

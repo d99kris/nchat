@@ -178,6 +178,7 @@ private:
 
     static bool IsAttachmentDownloaded(const FileInfo& p_FileInfo);
     static bool IsAttachmentDownloadable(const FileInfo& p_FileInfo);
+    static void SanitizeEntryStr(std::string& p_Str);
 
   private:
     void SortChats();

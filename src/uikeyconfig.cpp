@@ -1,6 +1,6 @@
 // uikeyconfig.cpp
 //
-// Copyright (c) 2019-2025 Kristofer Berggren
+// Copyright (c) 2019-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -254,6 +254,7 @@ void UiKeyConfig::Init(bool p_MapKeys)
     { "terminal_focus_out", "KEY_FOCUS_OUT" },
     { "terminal_resize", "KEY_RESIZE" },
     { "auto_compose", "\\33\\151" }, // alt/opt-i
+    { "tab", "\\33\\11" }, // alt/opt-tab
   };
 
   const std::string configPath(FileUtil::GetApplicationDir() + std::string("/key.conf"));

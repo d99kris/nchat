@@ -97,6 +97,7 @@ Interactive Commands for Text Input:
     Alt-Right   move cursor forward one word
     Alt-Backsp  delete previous word
     Alt-Delete  delete next word
+    Alt-Tab     insert tab (four spaces)
     Alt-c       copy input buffer to clipboard (if no message selected)
     Alt-v       paste into input buffer from clipboard
     Alt-x       cut input buffer to clipboard
@@ -441,6 +442,7 @@ This configuration file holds general user interface settings. Default content:
     spell_check_command=
     status_broadcast=1
     syncing_indicator=⇄
+    tab_size=4
     terminal_bell_active=0
     terminal_bell_inactive=1
     terminal_title=
@@ -739,6 +741,10 @@ Specifies (WhatsApp) Status Updates chat level of visibility:
 Specifies text to suffix attachment filenames in message view for downloads
 in progress.
 
+### tab_size
+
+Specifies number of spaces to insert when user inputs a tab character.
+
 ### terminal_bell_active
 
 Specifies whether new message shall trigger terminal bell when nchat terminal
@@ -834,6 +840,7 @@ This configuration file holds user interface key bindings. Default content:
     select_emoji=KEY_CTRLS
     send_msg=KEY_CTRLX
     spell=\33\44
+    tab=\33\11
     terminal_focus_in=KEY_FOCUS_IN
     terminal_focus_out=KEY_FOCUS_OUT
     terminal_resize=KEY_RESIZE
@@ -1066,7 +1073,7 @@ determine the key codes and modify `~/.config/nchat/key.conf` accordingly.
 
 ### 2. Send messages with Enter key?
 
-To simply send on enter key press and skip message compose with linebreaks,
+To simply send on Enter key press and skip message compose with linebreaks,
 one can just set `send_msg=KEY_RETURN` in `~/.config/nchat/key.conf`.
 
 To also be able to compose messages with linebreaks using Alt/Opt-Enter, edit

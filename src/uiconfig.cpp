@@ -66,6 +66,7 @@ void UiConfig::Init()
     { "spell_check_command", "" },
     { "status_broadcast", "1" },
     { "syncing_indicator", "\xe2\x87\x84" },
+    { "tab_size", "4" },
     { "terminal_bell_active", "0" },
     { "terminal_bell_inactive", "1" },
     { "terminal_title", "" },

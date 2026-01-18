@@ -1,6 +1,6 @@
 // uimodel.cpp
 //
-// Copyright (c) 2019-2025 Kristofer Berggren
+// Copyright (c) 2019-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -198,6 +198,7 @@ void UiModel::Impl::EntryKeyHandler(wint_t p_Key)
   static wint_t keyKillWord = UiKeyConfig::GetKey("kill_word");
   static wint_t keyClear = UiKeyConfig::GetKey("clear");
   static wint_t keyLinebreak = UiKeyConfig::GetKey("linebreak");
+  static wint_t keyTab = UiKeyConfig::GetKey("tab");
 
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
@@ -391,6 +392,17 @@ void UiModel::Impl::EntryKeyHandler(wint_t p_Key)
   {
     wint_t keyLF = 0xA;
     entryStr.insert(entryPos++, 1, keyLF);
+    SetTyping(profileId, chatId, true);
+  }
+  else if (p_Key == keyTab)
+  {
+    static const int tabSize = UiConfig::GetNum("tab_size");
+    wint_t keySpace = 0x20;
+    for (int i = 0; i < tabSize; ++i)
+    {
+      entryStr.insert(entryPos++, 1, keySpace);
+    }
+
     SetTyping(profileId, chatId, true);
   }
   else if (StrUtil::IsValidTextKey(p_Key))
@@ -2910,6 +2922,12 @@ bool UiModel::Impl::IsAttachmentDownloadable(const FileInfo& p_FileInfo)
   return false;
 }
 
+void UiModel::Impl::SanitizeEntryStr(std::string& p_Str)
+{
+  static const int tabSize = UiConfig::GetNum("tab_size");
+  StrUtil::ReplaceString(p_Str, "\t", std::string(tabSize, ' '));
+}
+
 std::string UiModel::Impl::GetSelectedMessageText()
 {
   std::string profileId = m_CurrentChat.first;
@@ -2993,6 +3011,7 @@ void UiModel::Impl::Paste()
     text = StrUtil::Emojize(text, true /*p_Pad*/);
   }
 
+  SanitizeEntryStr(text);
   std::wstring wtext = StrUtil::ToWString(text);
   entryStr.insert(entryPos, wtext);
   entryPos += wtext.size();
