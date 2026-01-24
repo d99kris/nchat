@@ -185,7 +185,14 @@ if [[ "${DEPS}" == "1" ]]; then
     elif [[ "${DISTRO}" == "Chimera" ]]; then
       doas apk add git cmake clang go ccache gperf readline-devel openssl-devel ncurses-devel sqlite-devel zlib-devel file-devel ${WL_CLIPBOARD} || exiterr "deps failed (${DISTRO}), exiting."
     elif [[ "${DISTRO}" == "Rocky Linux" ]]; then
-      sudo yum config-manager --set-enabled powertools && sudo yum ${YES} groupinstall "Development Tools" && sudo yum ${YES} install git go cmake gperf readline-devel openssl-devel ncurses-devel zlib-devel sqlite-devel file-devel || exiterr "deps failed (${DISTRO}), exiting."
+      eval $(grep "^VERSION_ID=" /etc/os-release 2> /dev/null)
+      MAJOR="${VERSION_ID%%.*}"
+      MAJOR="${MAJOR:-0}"
+      EXTRA_REPOSITORY="powertools"
+      if [[ ${MAJOR} -ge 9 ]]; then
+        EXTRA_REPOSITORY="crb"
+      fi
+      sudo yum config-manager --set-enabled ${EXTRA_REPOSITORY} && sudo yum ${YES} groupinstall "Development Tools" && sudo yum ${YES} install git go cmake gperf readline-devel openssl-devel ncurses-devel zlib-devel sqlite-devel file-devel || exiterr "deps failed (${DISTRO}), exiting."
     elif [[ "${DISTRO}" == "Termux" ]]; then
       pkg install cmake clang golang ccache gperf file readline libsqlite openssl libandroid-wordexp || exiterr "deps failed (${DISTRO}), exiting."
     else
