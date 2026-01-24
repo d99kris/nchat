@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2026
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -123,6 +123,9 @@ static td_api::object_ptr<td_api::PremiumFeature> get_premium_feature_object(Sli
   }
   if (premium_feature == "todo") {
     return td_api::make_object<td_api::premiumFeatureChecklists>();
+  }
+  if (premium_feature == "paid_messages") {
+    return td_api::make_object<td_api::premiumFeaturePaidMessages>();
   }
   if (G()->is_test_dc()) {
     LOG(ERROR) << "Receive unsupported premium feature " << premium_feature;
@@ -362,7 +365,7 @@ class GetPremiumPromoQuery final : public Td::ResultHandler {
           auto animation_object = td_->animations_manager_->get_animation_object(parsed_document.file_id);
           business_animations.push_back(td_api::make_object<td_api::businessFeaturePromotionAnimation>(
               std::move(business_feature), std::move(animation_object)));
-        } else if (G()->is_test_dc()) {
+        } else if (promo->video_sections_[i] != "gifts") {
           LOG(ERROR) << "Receive unsupported feature " << promo->video_sections_[i];
         }
       }
@@ -1051,6 +1054,8 @@ static string get_premium_source(const td_api::PremiumFeature *feature) {
       return "effects";
     case td_api::premiumFeatureChecklists::ID:
       return "todo";
+    case td_api::premiumFeaturePaidMessages::ID:
+      return "paid_messages";
     default:
       UNREACHABLE();
   }
@@ -1246,6 +1251,8 @@ void get_premium_features(Td *td, const td_api::object_ptr<td_api::PremiumSource
     auto feature = get_premium_feature_object(premium_feature);
     if (feature != nullptr) {
       features.push_back(std::move(feature));
+    } else {
+      LOG(ERROR) << "Receive unsupported Premium feature " << premium_feature;
     }
   }
 

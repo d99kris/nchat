@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2026
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -10,6 +10,7 @@
 #include "td/telegram/files/FileId.h"
 #include "td/telegram/PeerColorCollectible.h"
 #include "td/telegram/StarGiftAttribute.h"
+#include "td/telegram/StarGiftBackground.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 
@@ -31,6 +32,7 @@ class StarGift {
   int64 star_count_ = 0;
   int64 default_sell_star_count_ = 0;
   int64 upgrade_star_count_ = 0;
+  int32 upgrade_variants_ = 0;
   int32 availability_remains_ = 0;
   int32 availability_total_ = 0;
   int32 first_sale_date_ = 0;
@@ -38,6 +40,7 @@ class StarGift {
   int32 per_user_remains_ = 0;
   int32 per_user_total_ = 0;
   int32 locked_until_date_ = 0;
+  unique_value_ptr<StarGiftBackground> background_;
 
   bool has_colors_ = false;
   bool is_for_birthday_ = false;
@@ -63,10 +66,13 @@ class StarGift {
   int32 unique_availability_total_ = 0;
   int64 resale_star_count_ = 0;
   int64 resale_ton_count_ = 0;
+  int64 offer_min_star_count_ = 0;
   int64 regular_gift_id_ = 0;
   int32 gifts_per_round_ = 0;
+  int32 auction_start_date_ = 0;
   string value_currency_;
   int64 value_amount_ = 0;
+  int64 value_usd_amount_ = 0;
   DialogId theme_dialog_id_;
   unique_value_ptr<PeerColorCollectible> peer_color_;
 
@@ -77,7 +83,7 @@ class StarGift {
  public:
   StarGift() = default;
 
-  StarGift(Td *td, telegram_api::object_ptr<telegram_api::StarGift> &&star_gift_ptr, bool allow_unique_gift);
+  StarGift(Td *td, telegram_api::object_ptr<telegram_api::StarGift> star_gift_ptr, bool allow_unique_gift);
 
   bool is_valid() const {
     return id_ != 0 && (is_unique_ ? model_.is_valid() && pattern_.is_valid() && backdrop_.is_valid()
@@ -102,11 +108,16 @@ class StarGift {
     return upgrade_star_count_;
   }
 
+  bool is_auction() const {
+    return is_auction_ && !auction_slug_.empty() && gifts_per_round_ > 0;
+  }
+
   static void fix_availability(int32 &total, int32 &remains);
 
   static td_api::object_ptr<td_api::giftPurchaseLimits> get_gift_purchase_limits_object(int32 total, int32 remains);
 
-  td_api::object_ptr<td_api::gift> get_gift_object(const Td *td) const;
+  td_api::object_ptr<td_api::gift> get_gift_object(const Td *td,
+                                                   const StarGiftBackground *external_background = nullptr) const;
 
   td_api::object_ptr<td_api::upgradedGift> get_upgraded_gift_object(Td *td) const;
 

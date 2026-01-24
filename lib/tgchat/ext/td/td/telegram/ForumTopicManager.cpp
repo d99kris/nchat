@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2026
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -19,6 +19,7 @@
 #include "td/telegram/Global.h"
 #include "td/telegram/LinkManager.h"
 #include "td/telegram/logevent/LogEvent.h"
+#include "td/telegram/MessageQueryManager.h"
 #include "td/telegram/MessagesManager.h"
 #include "td/telegram/MessageThreadDb.h"
 #include "td/telegram/MessageTopic.h"
@@ -305,7 +306,7 @@ class GetForumTopicQuery final : public Td::ResultHandler {
     dialog_id_ = dialog_id;
     forum_topic_id_ = forum_topic_id;
 
-    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Write);
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Read);
     if (input_peer == nullptr) {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
@@ -370,7 +371,7 @@ class GetForumTopicsQuery final : public Td::ResultHandler {
             ForumTopicId offset_forum_topic_id, int32 limit) {
     dialog_id_ = dialog_id;
 
-    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Write);
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Read);
     if (input_peer == nullptr) {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
@@ -1002,7 +1003,7 @@ void ForumTopicManager::delete_forum_topic(DialogId dialog_id, ForumTopicId foru
     }
     send_closure(actor_id, &ForumTopicManager::on_delete_forum_topic, dialog_id, forum_topic_id, std::move(promise));
   });
-  td_->messages_manager_->delete_topic_history(dialog_id, forum_topic_id, std::move(delete_promise));
+  td_->message_query_manager_->delete_topic_history(dialog_id, forum_topic_id, std::move(delete_promise));
 }
 
 void ForumTopicManager::on_delete_forum_topic(DialogId dialog_id, ForumTopicId forum_topic_id,

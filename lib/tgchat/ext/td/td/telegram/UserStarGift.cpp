@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2026
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -32,6 +32,7 @@ UserStarGift::UserStarGift(Td *td, telegram_api::object_ptr<telegram_api::savedS
     , can_transfer_at_(max(0, gift->can_transfer_at_))
     , can_resell_at_(max(0, gift->can_resell_at_))
     , can_export_at_(max(0, gift->can_export_at_))
+    , gift_num_(max(0, gift->gift_num_))
     , is_name_hidden_(gift->name_hidden_)
     , is_saved_(!gift->unsaved_)
     , is_pinned_(gift->pinned_to_top_)
@@ -42,7 +43,7 @@ UserStarGift::UserStarGift(Td *td, telegram_api::object_ptr<telegram_api::savedS
   if (gift->from_id_ != nullptr) {
     sender_dialog_id_ = DialogId(gift->from_id_);
     if (!sender_dialog_id_.is_valid()) {
-      LOG(ERROR) << "Receive " << sender_dialog_id_ << " as sender of a gift";
+      LOG(ERROR) << "Receive " << sender_dialog_id_ << " as sender of " << gift_;
       sender_dialog_id_ = DialogId();
     }
   }
@@ -51,7 +52,7 @@ UserStarGift::UserStarGift(Td *td, telegram_api::object_ptr<telegram_api::savedS
     if (collection_id.is_valid()) {
       collection_ids_.push_back(collection_id);
     } else {
-      LOG(ERROR) << "Receive " << collection_id;
+      LOG(ERROR) << "Receive " << collection_id << " for " << gift_;
     }
   }
   auto is_user = dialog_id.get_type() == DialogType::User;
@@ -66,11 +67,11 @@ UserStarGift::UserStarGift(Td *td, telegram_api::object_ptr<telegram_api::savedS
     }
   }
   if (sender_dialog_id_ != DialogId() && !sender_dialog_id_.is_valid()) {
-    LOG(ERROR) << "Receive " << sender_dialog_id_ << " as sender of a gift";
+    LOG(ERROR) << "Receive " << sender_dialog_id_ << " as sender of " << gift_;
     sender_dialog_id_ = DialogId();
   }
   if (!is_saved_ && is_user && !is_me && !td->auth_manager_->is_bot()) {
-    LOG(ERROR) << "Receive non-saved gift for another user";
+    LOG(ERROR) << "Receive non-saved " << gift_ << " for " << dialog_id;
     is_saved_ = true;
   }
   td->star_gift_manager_->on_get_star_gift(gift_, true);
@@ -81,10 +82,11 @@ td_api::object_ptr<td_api::receivedGift> UserStarGift::get_received_gift_object(
   return td_api::make_object<td_api::receivedGift>(
       star_gift_id_.get_star_gift_id(),
       sender_dialog_id_ == DialogId() ? nullptr : get_message_sender_object(td, sender_dialog_id_, "receivedGift"),
-      get_formatted_text_object(td->user_manager_.get(), message_, true, -1), is_name_hidden_, is_saved_, is_pinned_,
-      can_upgrade_, can_transfer_, was_refunded_, date_, gift_.get_sent_gift_object(td), std::move(collection_ids),
-      convert_star_count_, upgrade_star_count_, upgrade_star_count_ > 0 && is_upgrade_separate_, transfer_star_count_,
-      drop_original_details_star_count_, can_transfer_at_, can_resell_at_, can_export_at_, prepaid_upgrade_hash_);
+      get_formatted_text_object(td->user_manager_.get(), message_, true, -1), gift_num_, is_name_hidden_, is_saved_,
+      is_pinned_, can_upgrade_, can_transfer_, was_refunded_, date_, gift_.get_sent_gift_object(td),
+      std::move(collection_ids), convert_star_count_, upgrade_star_count_,
+      upgrade_star_count_ > 0 && is_upgrade_separate_, transfer_star_count_, drop_original_details_star_count_,
+      can_transfer_at_, can_resell_at_, can_export_at_, prepaid_upgrade_hash_);
 }
 
 }  // namespace td

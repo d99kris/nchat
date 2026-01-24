@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2026
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -1359,6 +1359,7 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
   string verify_age_country;
   int32 verify_age_min = 0;
   string whitelisted_bots;
+  string ton_stakedice_stake_suggested_amounts;
 
   // {"stories_all_hidden", "archive_all_stories"}
   static const FlatHashMap<Slice, Slice, SliceHash> bool_keys = {
@@ -1367,9 +1368,10 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
       {"channel_revenue_withdrawal_enabled", "can_withdraw_chat_revenue"},
       {"premium_gift_attach_menu_icon", "gift_premium_from_attachment_menu"},
       {"premium_gift_text_field_icon", "gift_premium_from_input_field"},
-      {"story_weather_preload", "can_preload_weather"},
+      {"settings_display_passkeys", "can_use_login_passkey"},
       {"stars_gifts_enabled", "can_gift_stars"},
       {"stars_paid_messages_available", "can_enable_paid_messages"},
+      {"story_weather_preload", "can_preload_weather"},
       {"video_ignore_alt_documents", ""}};
 
   static const FlatHashMap<Slice, Slice, SliceHash> integer_keys = {
@@ -1408,6 +1410,7 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
       {"intro_description_length_limit", "business_start_page_message_length_max"},
       {"intro_title_length_limit", "business_start_page_title_length_max"},
       {"message_typing_draft_ttl", "pending_text_message_period"},
+      {"passkeys_account_passkeys_max", "login_passkey_count_max"},
       {"pm_read_date_expire_period", ""},
       {"poll_answers_max", "poll_answer_count_max"},
       {"quick_replies_limit", "quick_reply_shortcut_count_max"},
@@ -1433,8 +1436,8 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
       {"stars_paid_messages_channel_amount_default", "direct_channel_message_star_count_default"},
       {"stars_paid_post_amount_max", "paid_media_message_star_count_max"},
       {"stars_paid_reaction_amount_max", "paid_reaction_star_count_max"},
-      {"stars_revenue_withdrawal_min", "star_withdrawal_count_min"},
       {"stars_revenue_withdrawal_max", "star_withdrawal_count_max"},
+      {"stars_revenue_withdrawal_min", "star_withdrawal_count_min"},
       {"stars_stargift_resale_amount_max", "gift_resale_star_count_max"},
       {"stars_stargift_resale_amount_min", "gift_resale_star_count_min"},
       {"stars_stargift_resale_commission_permille", "gift_resale_star_earnings_per_mille"},
@@ -1458,8 +1461,8 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
       {"stories_stealth_past_period", "story_stealth_mode_past_period"},
       {"story_viewers_expire_period", "story_viewers_expiration_delay"},
       {"telegram_antispam_group_size_min", "aggressive_anti_spam_supergroup_member_count_min"},
-      {"todo_items_max", "checklist_task_count_max"},
       {"todo_item_length_max", "checklist_task_text_length_max"},
+      {"todo_items_max", "checklist_task_count_max"},
       {"todo_title_length_max", "checklist_title_length_max"},
       {"ton_stargift_resale_commission_permille", "gift_resale_toncoin_earnings_per_mille"},
       {"ton_suggested_post_commission_permille", "suggested_post_toncoin_earnings_per_mille"},
@@ -1468,18 +1471,19 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
       {"upload_premium_speedup_notify_period", ""},
       {"upload_premium_speedup_upload", "premium_upload_speedup"}};
   static const FlatHashMap<Slice, Slice, SliceHash> long_keys = {
+      {"stories_changelog_user_id", "stories_changelog_user_id"},
       {"telegram_antispam_user_id", "anti_spam_bot_user_id"},
-      {"stories_changelog_user_id", "stories_changelog_user_id"}};
+      {"ton_stakedice_stake_amount_max", "stake_dice_stake_amount_max"},
+      {"ton_stakedice_stake_amount_min", "stake_dice_stake_amount_min"}};
   static const FlatHashSet<Slice, SliceHash> ignored_options(
-      {"default_emoji_statuses_stickerset_id", "forum_upgrade_participants_min", "getfile_experimental_params",
-       "message_animated_emoji_max", "stickers_emoji_cache_time", "stories_export_nopublic_link", "test",
-       "upload_max_fileparts_default", "upload_max_fileparts_premium", "channel_color_level_min",
-       "groupcall_video_participants_max", "story_expire_period", "stories_posting",
-       "giveaway_gifts_purchase_available", "stars_purchase_blocked", "stargifts_blocked", "starref_program_allowed",
-       "starref_connect_allowed", "stars_rating_learnmore_url", "qr_login_camera", "qr_login_code",
-       "dialog_filters_enabled",
+      {"channel_color_level_min", "default_emoji_statuses_stickerset_id", "dialog_filters_enabled",
+       "dialog_filters_tooltip", "forum_upgrade_participants_min", "getfile_experimental_params",
+       "giveaway_gifts_purchase_available", "groupcall_video_participants_max", "ios_display_passkeys",
+       "message_animated_emoji_max", "qr_login_camera", "qr_login_code", "stargifts_blocked", "starref_connect_allowed",
+       "starref_program_allowed", "stars_purchase_blocked", "stars_rating_learnmore_url", "stickers_emoji_cache_time",
+       "stories_export_nopublic_link", "stories_posting", "story_expire_period", "test", "upload_max_fileparts_default",
        //
-       "dialog_filters_tooltip"});
+       "upload_max_fileparts_premium"});
   if (config->get_id() == telegram_api::jsonObject::ID) {
     for (auto &key_value : static_cast<telegram_api::jsonObject *>(config.get())->value_) {
       Slice key = key_value->key_;
@@ -1969,6 +1973,25 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
                      std::move(key_value->value_));
         continue;
       }
+      if (key == "ton_stakedice_stake_suggested_amounts") {
+        if (value->get_id() == telegram_api::jsonArray::ID) {
+          auto amounts = std::move(static_cast<telegram_api::jsonArray *>(value)->value_);
+          for (auto &amount : amounts) {
+            auto ton_amount = get_json_value_long(std::move(amount), key);
+            if (ton_amount > 0) {
+              if (!ton_stakedice_stake_suggested_amounts.empty()) {
+                ton_stakedice_stake_suggested_amounts += ',';
+              }
+              ton_stakedice_stake_suggested_amounts += to_string(ton_amount);
+            } else {
+              LOG(ERROR) << "Receive unexpected ton amount " << ton_amount;
+            }
+          }
+        } else {
+          LOG(ERROR) << "Receive unexpected ton_stakedice_stake_suggested_amounts " << to_string(*value);
+        }
+        continue;
+      }
 
       new_values.push_back(std::move(key_value));
     }
@@ -2078,6 +2101,7 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
   } else {
     options.set_option_string("premium_invoice_slug", premium_invoice_slug);
   }
+  options.set_option_string("ton_stakedice_stake_suggested_amounts", ton_stakedice_stake_suggested_amounts);
 
   options.set_option_boolean("need_premium_for_new_chat_privacy", need_premium_for_new_chat_privacy);
 

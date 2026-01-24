@@ -41,7 +41,7 @@
 
 // #define SIMULATED_SPONSORED_MESSAGES
 
-static const int s_TdlibDate = 20251204;
+static const int s_TdlibDate = 20260103;
 
 namespace detail
 {

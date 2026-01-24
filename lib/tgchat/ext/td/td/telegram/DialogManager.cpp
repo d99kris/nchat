@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2026
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -1490,6 +1490,33 @@ bool DialogManager::have_input_peer(DialogId dialog_id, bool allow_secret_chats,
   }
 }
 
+Status DialogManager::can_send_message_to_dialog(DialogId dialog_id) const {
+  if (!have_input_peer(dialog_id, true, AccessRights::Write)) {
+    return Status::Error(400, "Have no write access to the chat");
+  }
+
+  if (dialog_id.get_type() == DialogType::Channel) {
+    auto channel_id = dialog_id.get_channel_id();
+    auto channel_type = td_->chat_manager_->get_channel_type(channel_id);
+    auto channel_status = td_->chat_manager_->get_channel_permissions(channel_id);
+
+    switch (channel_type) {
+      case ChannelType::Unknown:
+      case ChannelType::Megagroup:
+        break;
+      case ChannelType::Broadcast: {
+        if (!channel_status.can_post_messages()) {
+          return Status::Error(400, "Need administrator rights in the channel chat");
+        }
+        break;
+      }
+      default:
+        UNREACHABLE();
+    }
+  }
+  return Status::OK();
+}
+
 bool DialogManager::have_dialog_force(DialogId dialog_id, const char *source) const {
   return td_->messages_manager_->have_dialog_force(dialog_id, source);
 }
@@ -2334,6 +2361,7 @@ void DialogManager::set_dialog_photo(DialogId dialog_id, const td_api::object_pt
 void DialogManager::send_edit_dialog_photo_query(
     DialogId dialog_id, FileUploadId file_upload_id,
     telegram_api::object_ptr<telegram_api::InputChatPhoto> &&input_chat_photo, Promise<Unit> &&promise) {
+  TRY_STATUS_PROMISE(promise, G()->close_status());
   td_->create_handler<EditDialogPhotoQuery>(std::move(promise))
       ->send(dialog_id, file_upload_id, std::move(input_chat_photo));
 }
@@ -2341,6 +2369,7 @@ void DialogManager::send_edit_dialog_photo_query(
 void DialogManager::upload_dialog_photo(DialogId dialog_id, FileUploadId file_upload_id, bool is_animation,
                                         double main_frame_timestamp, bool is_reupload, Promise<Unit> &&promise,
                                         vector<int> bad_parts) {
+  TRY_STATUS_PROMISE(promise, G()->close_status());
   CHECK(file_upload_id.is_valid());
   LOG(INFO) << "Ask to upload chat photo " << file_upload_id;
   bool is_inserted = being_uploaded_dialog_photos_

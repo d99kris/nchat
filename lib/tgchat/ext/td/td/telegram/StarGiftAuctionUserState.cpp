@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2026
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -12,7 +12,7 @@
 namespace td {
 
 StarGiftAuctionUserState::StarGiftAuctionUserState(
-    telegram_api::object_ptr<telegram_api::starGiftAuctionUserState> &state) {
+    const telegram_api::object_ptr<telegram_api::starGiftAuctionUserState> &state) {
   CHECK(state != nullptr);
   bid_amount_ = StarManager::get_star_count(state->bid_amount_);
   bid_date_ = max(0, state->bid_date_);

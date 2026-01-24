@@ -50,7 +50,9 @@ If you use Python >= 3.6, take a look at [python-telegram](https://github.com/al
 The wrapper uses the full power of asyncio, has a good documentation and has several examples. It can be installed through pip or used in a Docker container.
 You can also try a fork [python-telegram](https://github.com/iTeam-co/pytglib) of this library.
 
-If you want to use TDLib with asyncio and Python >= 3.9, take a look at [aiotdlib](https://github.com/pylakey/aiotdlib) or [Pytdbot](https://github.com/pytdbot/client).
+If you want to use TDLib with asyncio and Python >= 3.9, take a look at [aiotdlib](https://github.com/pylakey/aiotdlib) or [Pytdbot](https://github.com/pytdbot/client) (built on [AYMENJD/tdjson](https://github.com/AYMENJD/tdjson), a high-performance TDLib binding).
+
+If you want to use TDLib with [SidusAI](https://sidusai.ai/), take a look at [sidusai-tdlib](https://github.com/sidus-ai/sidus-ai-core/pull/22/files).
 
 For older Python versions you can use [pytdlib](https://github.com/pytdlib/pytdlib).
 This wrapper contains generator for TDLib API classes and basic interface for interaction with TDLib.
@@ -311,7 +313,7 @@ TDLib can be used from Assembly through the [JSON](https://github.com/tdlib/td#u
 
 See [nasm_tdjson_example](https://gist.github.com/isopen/41481eda87db2e6426af75be9d1f3748).
 
-You can also see [gas_tdjson_example](https://gist.github.com/isopen/25c4829daffb3880a32fac1f85f5f888), [arm_tdjson_example](https://gist.github.com/isopen/c00f09d643ce65e465637f812a79695b).
+You can also see [gas_tdjson_example](https://gist.github.com/isopen/25c4829daffb3880a32fac1f85f5f888), [arm_tdjson_example](https://gist.github.com/isopen/c00f09d643ce65e465637f812a79695b), [arm64_tdjson_example](https://gist.github.com/isopen/cd11dd0cf7cbf2672ac9d7b78d8565eb).
 
 <a name="g"></a>
 ## Using TDLib from G projects

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2026
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -387,19 +387,12 @@ class MessagesManager final : public Actor {
 
   void delete_dialog_history(DialogId dialog_id, bool remove_from_dialog_list, bool revoke, Promise<Unit> &&promise);
 
-  void delete_topic_history(DialogId dialog_id, ForumTopicId forum_topic_id, Promise<Unit> &&promise);
-
-  void delete_all_call_messages(bool revoke, Promise<Unit> &&promise);
-
   void delete_dialog_messages(DialogId dialog_id, const vector<MessageId> &message_ids,
                               bool force_update_for_not_found_messages, const char *source);
 
-  void delete_dialog_messages_by_sender(DialogId dialog_id, DialogId sender_dialog_id, Promise<Unit> &&promise);
+  void delete_local_dialog_messages_by_sender(DialogId dialog_id, DialogId sender_dialog_id);
 
-  static Status fix_delete_message_min_max_dates(int32 &min_date, int32 &max_date);
-
-  void delete_dialog_messages_by_date(DialogId dialog_id, int32 min_date, int32 max_date, bool revoke,
-                                      Promise<Unit> &&promise);
+  void delete_local_dialog_messages_by_date(DialogId dialog_id, int32 min_date, int32 max_date);
 
   void on_dialog_deleted(DialogId dialog_id, Promise<Unit> &&promise);
 
@@ -1034,6 +1027,7 @@ class MessagesManager final : public Actor {
     int32 edit_date = 0;
     vector<RestrictionReason> restriction_reasons;
     string author_signature;
+    string summary_from_language;
     int64 media_album_id = 0;
     MessageEffectId effect_id;
     int32 report_delivery_until_date = 0;
@@ -1098,6 +1092,7 @@ class MessagesManager final : public Actor {
     vector<RestrictionReason> restriction_reasons;
 
     string author_signature;
+    string summary_from_language;
 
     bool is_channel_post = false;
     bool is_topic_message = false;
@@ -1846,9 +1841,9 @@ class MessagesManager final : public Actor {
                                   const MessageInputReplyTo input_reply_to, DialogId from_dialog_id,
                                   telegram_api::object_ptr<telegram_api::InputPeer> as_input_peer,
                                   vector<MessageId> message_ids, vector<int64> random_ids, int32 schedule_date,
-                                  int32 schedule_repeat_period, int32 new_video_start_timestamp,
-                                  int64 paid_message_star_count, unique_ptr<SuggestedPost> &&suggested_post,
-                                  Promise<Unit> &&promise);
+                                  int32 schedule_repeat_period, MessageEffectId effect_id,
+                                  int32 new_video_start_timestamp, int64 paid_message_star_count,
+                                  unique_ptr<SuggestedPost> &&suggested_post, Promise<Unit> &&promise);
 
   Result<td_api::object_ptr<td_api::message>> forward_message(DialogId to_dialog_id,
                                                               const td_api::object_ptr<td_api::MessageTopic> &topic_id,

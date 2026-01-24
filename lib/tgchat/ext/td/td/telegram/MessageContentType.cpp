@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2026
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -180,6 +180,10 @@ StringBuilder &operator<<(StringBuilder &string_builder, MessageContentType cont
       return string_builder << "SuggestedPostApproval";
     case MessageContentType::SuggestBirthday:
       return string_builder << "SuggestBirthday";
+    case MessageContentType::StarGiftPurchaseOffer:
+      return string_builder << "GiftPurchaseOffer";
+    case MessageContentType::StarGiftPurchaseOfferDeclined:
+      return string_builder << "GiftPurchaseOfferDeclined";
     default:
       return string_builder << "Invalid type " << static_cast<int32>(content_type);
   }
@@ -284,6 +288,8 @@ bool is_allowed_media_group_content(MessageContentType content_type) {
     case MessageContentType::SuggestedPostRefund:
     case MessageContentType::SuggestedPostApproval:
     case MessageContentType::SuggestBirthday:
+    case MessageContentType::StarGiftPurchaseOffer:
+    case MessageContentType::StarGiftPurchaseOfferDeclined:
       return false;
     default:
       UNREACHABLE();
@@ -382,6 +388,8 @@ bool can_be_secret_message_content(MessageContentType content_type) {
     case MessageContentType::SuggestedPostRefund:
     case MessageContentType::SuggestedPostApproval:
     case MessageContentType::SuggestBirthday:
+    case MessageContentType::StarGiftPurchaseOffer:
+    case MessageContentType::StarGiftPurchaseOfferDeclined:
       return false;
     default:
       UNREACHABLE();
@@ -476,6 +484,8 @@ bool can_be_local_message_content(MessageContentType content_type) {
     case MessageContentType::SuggestedPostRefund:
     case MessageContentType::SuggestedPostApproval:
     case MessageContentType::SuggestBirthday:
+    case MessageContentType::StarGiftPurchaseOffer:
+    case MessageContentType::StarGiftPurchaseOfferDeclined:
       return false;
     default:
       UNREACHABLE();
@@ -570,6 +580,8 @@ bool is_service_message_content(MessageContentType content_type) {
     case MessageContentType::SuggestedPostRefund:
     case MessageContentType::SuggestedPostApproval:
     case MessageContentType::SuggestBirthday:
+    case MessageContentType::StarGiftPurchaseOffer:
+    case MessageContentType::StarGiftPurchaseOfferDeclined:
       return true;
     default:
       UNREACHABLE();
@@ -664,6 +676,8 @@ bool is_editable_message_content(MessageContentType content_type) {
     case MessageContentType::SuggestedPostRefund:
     case MessageContentType::SuggestedPostApproval:
     case MessageContentType::SuggestBirthday:
+    case MessageContentType::StarGiftPurchaseOffer:
+    case MessageContentType::StarGiftPurchaseOfferDeclined:
       return false;
     default:
       UNREACHABLE();
@@ -823,6 +837,8 @@ bool can_have_message_content_caption(MessageContentType content_type) {
     case MessageContentType::SuggestedPostRefund:
     case MessageContentType::SuggestedPostApproval:
     case MessageContentType::SuggestBirthday:
+    case MessageContentType::StarGiftPurchaseOffer:
+    case MessageContentType::StarGiftPurchaseOfferDeclined:
       return false;
     default:
       UNREACHABLE();
@@ -919,6 +935,8 @@ bool can_send_message_content_to_secret_chat(MessageContentType content_type) {
     case MessageContentType::SuggestedPostRefund:
     case MessageContentType::SuggestedPostApproval:
     case MessageContentType::SuggestBirthday:
+    case MessageContentType::StarGiftPurchaseOffer:
+    case MessageContentType::StarGiftPurchaseOfferDeclined:
     default:
       UNREACHABLE();
       return false;
@@ -1030,6 +1048,8 @@ bool get_default_service_message_content_reactions_are_possible(MessageContentTy
     case MessageContentType::SuggestedPostRefund:
     case MessageContentType::SuggestedPostApproval:
     case MessageContentType::SuggestBirthday:
+    case MessageContentType::StarGiftPurchaseOffer:
+    case MessageContentType::StarGiftPurchaseOfferDeclined:
       return true;
     default:
       UNREACHABLE();

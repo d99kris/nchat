@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2026
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -13,6 +13,7 @@
 #include "td/telegram/SentEmailCode.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
+#include "td/telegram/TempPasswordState.h"
 
 #include "td/actor/actor.h"
 
@@ -23,33 +24,8 @@
 #include "td/utils/Promise.h"
 #include "td/utils/Slice.h"
 #include "td/utils/Status.h"
-#include "td/utils/tl_helpers.h"
 
 namespace td {
-
-struct TempPasswordState {
-  bool has_temp_password = false;
-  string temp_password;
-  int32 valid_until = 0;  // unix_time
-
-  tl_object_ptr<td_api::temporaryPasswordState> get_temporary_password_state_object() const;
-
-  template <class StorerT>
-  void store(StorerT &storer) const {
-    using ::td::store;
-    CHECK(has_temp_password);
-    store(temp_password, storer);
-    store(valid_until, storer);
-  }
-
-  template <class ParserT>
-  void parse(ParserT &parser) {
-    using ::td::parse;
-    has_temp_password = true;
-    parse(temp_password, parser);
-    parse(valid_until, parser);
-  }
-};
 
 class PasswordManager final : public NetQueryCallback {
  public:
@@ -58,7 +34,8 @@ class PasswordManager final : public NetQueryCallback {
   using ResetPasswordResult = tl_object_ptr<td_api::ResetPasswordResult>;
   using PasswordInputSettings = tl_object_ptr<telegram_api::account_passwordInputSettings>;
 
-  explicit PasswordManager(ActorShared<> parent) : parent_(std::move(parent)) {
+  PasswordManager(int32 api_id, const string &api_hash, ActorShared<> parent)
+      : parent_(std::move(parent)), api_id_(api_id), api_hash_(api_hash) {
   }
 
   static tl_object_ptr<telegram_api::InputCheckPasswordSRP> get_input_check_password(Slice password, Slice client_salt,
@@ -104,8 +81,22 @@ class PasswordManager final : public NetQueryCallback {
 
   static TempPasswordState get_temp_password_state_sync();
 
+  void get_passkey_login_options(Promise<string> &&promise);
+
+  void init_passkey_registration(Promise<string> &&promise);
+
+  void register_passkey(string client_data, string attestation_data,
+                        Promise<td_api::object_ptr<td_api::passkey>> &&promise);
+
+  void get_passkeys(Promise<td_api::object_ptr<td_api::passkeys>> &&promise);
+
+  void delete_passkey(string passkey_id, Promise<Unit> &&promise);
+
  private:
   ActorShared<> parent_;
+
+  int32 api_id_;
+  string api_hash_;
 
   struct PasswordState {
     bool has_password = false;

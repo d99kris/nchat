@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2026
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -614,6 +614,8 @@ class UpdatesManager final : public Actor {
   void on_update(tl_object_ptr<telegram_api::updateSavedGifs> update, Promise<Unit> &&promise);
 
   void on_update(tl_object_ptr<telegram_api::updateConfig> update, Promise<Unit> &&promise);
+
+  void on_update(tl_object_ptr<telegram_api::updateEmojiGameInfo> update, Promise<Unit> &&promise);
 
   void on_update(tl_object_ptr<telegram_api::updatePtsChanged> update, Promise<Unit> &&promise);
 
