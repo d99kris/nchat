@@ -2,7 +2,7 @@
 
 # make.sh
 #
-# Copyright (C) 2020-2025 Kristofer Berggren
+# Copyright (C) 2020-2026 Kristofer Berggren
 # All rights reserved.
 #
 # See LICENSE for redistribution information.
@@ -143,12 +143,15 @@ fi
 # deps
 if [[ "${DEPS}" == "1" ]]; then
   if [ "${OS}" == "Linux" ]; then
+    # add wl-clipboard package for wayland systems
+    WL_CLIPBOARD=$([[ "$XDG_SESSION_TYPE" == "wayland" || -n "$WAYLAND_DISPLAY" ]] && echo "wl-clipboard")
+
     if [[ "${DISTRO}" == "Ubuntu" ]]; then
-      sudo apt update && sudo apt ${YES} install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev || exiterr "deps failed (${DISTRO}), exiting."
+      sudo apt update && sudo apt ${YES} install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev ${WL_CLIPBOARD} || exiterr "deps failed (${DISTRO}), exiting."
       sudo apt ${YES} install golang-1.23 || exiterr "deps failed (${DISTRO} apt golang), exiting."
       sudo update-alternatives --install /usr/bin/go go /usr/lib/go-1.23/bin/go 123 || exiterr "deps failed (${DISTRO} select golang), exiting."
     elif [[ "${DISTRO}" == "Debian GNU/Linux" ]]; then
-      sudo apt update && sudo apt ${YES} install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev || exiterr "deps failed (${DISTRO}), exiting."
+      sudo apt update && sudo apt ${YES} install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev ${WL_CLIPBOARD} || exiterr "deps failed (${DISTRO}), exiting."
       RELEASE=$(lsb_release -a | grep 'Codename:' | awk -F':' '{print $2}' | awk '{$1=$1;print}')
       if [[ "${RELEASE}" == "bookworm" ]]; then
         sudo apt install ${YES} -t bookworm-backports golang-1.23
@@ -165,21 +168,22 @@ if [[ "${DEPS}" == "1" ]]; then
         exiterr "deps failed (${DISTRO} ${RELEASE}), exiting."
       fi
     elif [[ "${DISTRO}" == "Raspbian GNU/Linux" ]] || [[ "${DISTRO}" == "Pop!_OS" ]]; then
-      sudo apt update && sudo apt ${YES} install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev golang || exiterr "deps failed (${DISTRO}), exiting."
+      sudo apt update && sudo apt ${YES} install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev golang ${WL_CLIPBOARD} || exiterr "deps failed (${DISTRO}), exiting."
     elif [[ "${DISTRO}" == "Gentoo" ]]; then
-      sudo emerge -n dev-build/cmake dev-util/ccache dev-util/gperf sys-apps/help2man sys-libs/readline dev-libs/openssl sys-libs/ncurses sys-libs/zlib dev-db/sqlite sys-apps/file dev-lang/go || exiterr "deps failed (${DISTRO}), exiting."
+      WL_CLIPBOARD=${WL_CLIPBOARD:+gui-apps/$WL_CLIPBOARD}
+      sudo emerge -n dev-build/cmake dev-util/ccache dev-util/gperf sys-apps/help2man sys-libs/readline dev-libs/openssl sys-libs/ncurses sys-libs/zlib dev-db/sqlite sys-apps/file dev-lang/go ${WL_CLIPBOARD} || exiterr "deps failed (${DISTRO}), exiting."
     elif [[ "${DISTRO}" == "Fedora Linux" ]]; then
-      sudo dnf ${YES} install git cmake clang golang ccache file-devel file-libs gperf readline-devel openssl-devel ncurses-devel sqlite-devel zlib-devel || exiterr "deps failed (${DISTRO}), exiting."
+      sudo dnf ${YES} install git cmake clang golang ccache file-devel file-libs gperf readline-devel openssl-devel ncurses-devel sqlite-devel zlib-devel ${WL_CLIPBOARD} || exiterr "deps failed (${DISTRO}), exiting."
     elif [[ "${DISTRO}" == "Arch Linux" ]] || [[ "${DISTRO}" == "Arch Linux ARM" ]] || [[ "${DISTRO}" == "EndeavourOS" ]]; then
-      sudo pacman -S ccache cmake file go gperf help2man ncurses openssl readline sqlite zlib base-devel || exiterr "deps failed (${DISTRO}), exiting."
+      sudo pacman -S ccache cmake file go gperf help2man ncurses openssl readline sqlite zlib base-devel ${WL_CLIPBOARD} || exiterr "deps failed (${DISTRO}), exiting."
     elif [[ "${DISTRO}" == "Void" ]]; then
-      sudo xbps-install ${YES} base-devel go ccache cmake gperf help2man libmagick-devel readline-devel sqlite-devel file-devel openssl-devel || exiterr "deps failed (${DISTRO}), exiting."
+      sudo xbps-install ${YES} base-devel go ccache cmake gperf help2man libmagick-devel readline-devel sqlite-devel file-devel openssl-devel ${WL_CLIPBOARD} || exiterr "deps failed (${DISTRO}), exiting."
     elif [[ "${DISTRO}" == "Alpine Linux" ]]; then
-      sudo apk add git build-base cmake ncurses-dev openssl-dev sqlite-dev file-dev go linux-headers zlib-dev ccache gperf readline || exiterr "deps failed (${DISTRO}), exiting."
+      sudo apk add git build-base cmake ncurses-dev openssl-dev sqlite-dev file-dev go linux-headers zlib-dev ccache gperf readline ${WL_CLIPBOARD} || exiterr "deps failed (${DISTRO}), exiting."
     elif [[ "${DISTRO}" == "openSUSE Tumbleweed" ]]; then
-      sudo zypper install ${YES} -t pattern devel_C_C++ && sudo zypper install ${YES} go ccache cmake libopenssl-devel sqlite3-devel file-devel readline-devel || exiterr "deps failed (${DISTRO}), exiting."
+      sudo zypper install ${YES} -t pattern devel_C_C++ && sudo zypper install ${YES} go ccache cmake libopenssl-devel sqlite3-devel file-devel readline-devel ${WL_CLIPBOARD} || exiterr "deps failed (${DISTRO}), exiting."
     elif [[ "${DISTRO}" == "Chimera" ]]; then
-      doas apk add git cmake clang go ccache gperf readline-devel openssl-devel ncurses-devel sqlite-devel zlib-devel file-devel || exiterr "deps failed (${DISTRO}), exiting."
+      doas apk add git cmake clang go ccache gperf readline-devel openssl-devel ncurses-devel sqlite-devel zlib-devel file-devel ${WL_CLIPBOARD} || exiterr "deps failed (${DISTRO}), exiting."
     elif [[ "${DISTRO}" == "Rocky Linux" ]]; then
       sudo yum config-manager --set-enabled powertools && sudo yum ${YES} groupinstall "Development Tools" && sudo yum ${YES} install git go cmake gperf readline-devel openssl-devel ncurses-devel zlib-devel sqlite-devel file-devel || exiterr "deps failed (${DISTRO}), exiting."
     elif [[ "${DISTRO}" == "Termux" ]]; then

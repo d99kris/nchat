@@ -187,6 +187,12 @@ Void
 
     sudo xbps-install base-devel go ccache cmake gperf help2man libmagick-devel readline-devel sqlite-devel file-devel openssl-devel
 
+**Extra Dependencies**
+
+For Wayland-based systems install `wl-clipboard` to enable clipboard functionality.
+
+To support pasting and sending images directly from clipboard `libpng-dev` is needed.
+
 **Build**
 
     mkdir -p build && cd build && cmake .. && make -s
