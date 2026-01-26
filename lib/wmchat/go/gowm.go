@@ -861,6 +861,10 @@ func (handler *WmEventHandler) HandleEvent(rawEvt interface{}) {
 		LOG_TRACE(fmt.Sprintf("%#v", evt))
 		handler.HandleMute(evt)
 
+	case *events.Archive:
+		LOG_TRACE(fmt.Sprintf("%#v", evt))
+		handler.HandleArchive(evt)
+
 	case *events.Pin:
 		LOG_TRACE(fmt.Sprintf("%#v", evt))
 		handler.HandlePin(evt)
@@ -976,7 +980,7 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 			} else {
 				if settings.Found {
 					mutedUntil := settings.MutedUntil.Unix()
-					isMuted = (mutedUntil == -1) || (mutedUntil > time.Now().Unix())
+					isMuted = (mutedUntil == -1) || (mutedUntil > time.Now().Unix()) || settings.Archived
 					isPinned = settings.Pinned
 				} else {
 					LOG_DEBUG(fmt.Sprintf("Chat settings not found %s", chatId))
@@ -1121,6 +1125,32 @@ func (handler *WmEventHandler) HandleMute(mute *events.Mute) {
 	isMuted := *muteAction.Muted
 
 	LOG_TRACE(fmt.Sprintf("Call CWmUpdateMuteNotify %s %s", chatId, strconv.FormatBool(isMuted)))
+	CWmUpdateMuteNotify(connId, chatId, BoolToInt(isMuted))
+}
+
+func (handler *WmEventHandler) HandleArchive(archive *events.Archive) {
+	connId := handler.connId
+	var client *whatsmeow.Client = GetClient(connId)
+	chatId := GetChatId(client, &archive.JID, nil)
+	archiveAction := archive.Action
+	if archiveAction == nil {
+		LOG_WARNING(fmt.Sprintf("archive event missing archive action"))
+		return
+	}
+
+	isArchived := *archiveAction.Archived
+	isMuted := isArchived
+
+	if !isArchived {
+		ctx := context.TODO()
+		settings, setErr := client.Store.ChatSettings.GetChatSettings(ctx, archive.JID)
+		if setErr == nil && settings.Found {
+			mutedUntil := settings.MutedUntil.Unix()
+			isMuted = (mutedUntil == -1) || (mutedUntil > time.Now().Unix())
+		}
+	}
+
+	LOG_TRACE(fmt.Sprintf("HandleArchive: Chat %s archive event. Archived: %t, Setting Muted: %t", chatId, isArchived, isMuted))
 	CWmUpdateMuteNotify(connId, chatId, BoolToInt(isMuted))
 }
 
