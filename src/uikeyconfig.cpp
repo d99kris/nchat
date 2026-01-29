@@ -232,6 +232,9 @@ void UiKeyConfig::Init(bool p_MapKeys)
     { "toggle_help", "KEY_CTRLG" },
     { "toggle_list", "KEY_CTRLL" },
     { "toggle_top", "KEY_CTRLP" },
+    { "transcribe_audio", "\\33\\165" }, // alt/opt-u
+    { "retranscribe_audio", "\\33\\125" }, // alt/opt-U
+    { "set_transcription_lang", "\\33\\154" }, // alt/opt-l
     { "next_chat", "KEY_TAB" },
     { "prev_chat", "KEY_BTAB" },
     { "unread_chat", "KEY_CTRLF" },

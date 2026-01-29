@@ -131,6 +131,7 @@ struct ChatInfo
   bool isMuted = false;
   bool isPinned = false;
   int64_t lastMessageTime = -1;
+  std::string transcriptionLanguage; // language for audio transcription (e.g., "en", "ru", "auto", or empty for global default)
 };
 
 enum FileStatus

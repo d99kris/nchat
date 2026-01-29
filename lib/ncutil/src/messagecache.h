@@ -45,6 +45,7 @@ private:
     UpdateMessageReactionsRequestType,
     UpdateMuteRequestType,
     UpdatePinRequestType,
+    UpdateTranscriptionLanguageRequestType,
   };
 
   class Request
@@ -194,6 +195,15 @@ private:
     int64_t timePinned = -1;
   };
 
+  class UpdateTranscriptionLanguageRequest : public Request
+  {
+  public:
+    virtual RequestType GetRequestType() const { return UpdateTranscriptionLanguageRequestType; }
+    std::string profileId;
+    std::string chatId;
+    std::string transcriptionLanguage;
+  };
+
 public:
   static void Init();
   static void Cleanup();
@@ -232,7 +242,20 @@ public:
   static void UpdateMute(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_IsMuted);
   static void UpdatePin(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_IsPinned,
                         int64_t p_TimePinned);
+  static void UpdateTranscriptionLanguage(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                          const std::string& p_TranscriptionLanguage);
   static void Export(const std::string& p_ExportDir);
+
+  // Transcription methods
+  static bool StoreTranscription(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                 const std::string& p_MsgId, const std::string& p_Transcription,
+                                 const std::string& p_Language = "", const std::string& p_Service = "");
+  static std::string GetTranscription(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                      const std::string& p_MsgId);
+  static bool HasTranscription(const std::string& p_ProfileId, const std::string& p_ChatId,
+                               const std::string& p_MsgId);
+  static void DeleteTranscription(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                  const std::string& p_MsgId);
 
 private:
   static void Process();
