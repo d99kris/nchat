@@ -301,8 +301,12 @@ std::string TgChat::Impl::GetProfileDisplayName() const
 
 bool TgChat::Impl::HasFeature(ProtocolFeature p_ProtocolFeature) const
 {
-  static int customFeatures = FeatureTypingTimeout | FeatureEditMessagesWithinTwoDays | FeatureLimitedReactions |
-    FeatureMarkReadEveryView;
+  static int customFeatures =
+    FeatureTypingTimeout |
+    FeatureEditMessagesWithinTwoDays |
+    FeatureLimitedReactions |
+    FeatureMarkReadEveryView |
+    FeatureAutoGetContactsOnLogin;
   return (p_ProtocolFeature & customFeatures);
 }
 

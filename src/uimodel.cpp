@@ -1373,6 +1373,13 @@ void UiModel::Impl::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMess
           SendProtocolRequest(profileId, getChatsRequest);
         }
 
+        if (!HasProtocolFeature(profileId, FeatureAutoGetContactsOnLogin))
+        {
+          std::shared_ptr<GetContactsRequest> getContactsRequest = std::make_shared<GetContactsRequest>();
+          LOG_TRACE("get contacts");
+          SendProtocolRequest(profileId, getContactsRequest);
+        }
+
         if (connectNotify->success)
         {
           SetStatusOnline(profileId, true);

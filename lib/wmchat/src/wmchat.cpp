@@ -60,7 +60,9 @@ std::string WmChat::GetProfileDisplayName() const
 
 bool WmChat::HasFeature(ProtocolFeature p_ProtocolFeature) const
 {
-  ProtocolFeature customFeatures = FeatureEditMessagesWithinFifteenMins;
+  static int customFeatures =
+    FeatureEditMessagesWithinFifteenMins |
+    FeatureAutoGetContactsOnLogin;
   return (p_ProtocolFeature & customFeatures);
 }
 

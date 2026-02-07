@@ -38,7 +38,8 @@ std::string DuChat::GetProfileId() const
 
 bool DuChat::HasFeature(ProtocolFeature p_ProtocolFeature) const
 {
-  ProtocolFeature customFeatures = FeatureNone;
+  static int customFeatures =
+    FeatureAutoGetContactsOnLogin;
   return (p_ProtocolFeature & customFeatures);
 }
 
