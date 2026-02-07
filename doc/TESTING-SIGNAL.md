@@ -61,7 +61,7 @@ Updated: 7 Feb, 2026
         - [x] Delete chat
         - [x] Muted chat
         - [x] Pinned chat
-- [ ] Groups
+- [x] Groups
     - [x] Send message
     - [x] Receive message
     - [x] Send receipt
