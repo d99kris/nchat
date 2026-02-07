@@ -1,0 +1,11 @@
+include:
+- project: 'mautrix/ci'
+  file: '/gov2-as-default.yml'
+
+variables:
+  BUILDER_IMAGE: dock.mau.dev/tulir/gomuks-build-docker/signal
+
+# 32-bit arm builds aren't supported
+build arm:
+  rules:
+    - when: never

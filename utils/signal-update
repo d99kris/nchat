@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+
+# signal-update
+#
+# Copyright (c) 2026 Kristofer Berggren
+# All rights reserved.
+#
+# signal-update is distributed under the MIT license.
+
+SYNCNAME="signal"
+SYNCBRANCH="main"
+SYNCURL="https://github.com/mautrix/signal"
+TARGET="lib/sgchat/go/ext/signal"
+if [[ "${1}" == "-h" ]]; then
+  echo "usage: ./utils/signal-update [commit]"
+  exit 0
+fi
+
+exiterr()
+{
+  >&2 echo "${1}"
+  exit 1
+}
+
+REPOROOT="$(git rev-parse --show-toplevel)"
+if [[ "${REPOROOT}" == "" ]]; then
+  exit 1
+fi
+
+cd "${REPOROOT}"
+REPOPARENT=$(dirname "${REPOROOT}")
+SYNCDIR="${REPOPARENT}/${SYNCNAME}"
+
+# Clone / Update source repository
+if [[ ! -d "${SYNCDIR}" ]]; then
+  echo "Clone"
+  git clone "${SYNCURL}" "${SYNCDIR}" || exiterr "git clone failed"
+else
+  echo "Update"
+  pushd "${SYNCDIR}" > /dev/null || exiterr "pushd failed"
+  [[ "$(${REPOROOT}/utils/cvc ur)" == "${SYNCURL}" ]] || exiterr "clone mismatch"
+  git checkout ${SYNCBRANCH} || exiterr "git checkout ${SYNCBRANCH} failed"
+  git pull --prune --rebase --autostash > /dev/null || exiterr "git pull failed"
+  git clean -ffdx || exiterr "git clean failed"
+  git diff --exit-code > /dev/null || exiterr "source dir has local changes"
+  popd > /dev/null || exiterr "popd failed"
+fi
+
+# Checkout commit, if specified
+if [[ "${1}" != "" ]]; then
+  echo "Checkout"
+  COMMIT="${1}"
+  pushd "${SYNCDIR}" > /dev/null || exiterr "pushd failed"
+  git checkout ${COMMIT} || exiterr "git checkout ${COMMIT} failed"
+  NEWVERSION="$(git show -s --date=format:'%Y%m%d' --format=%cd)"
+  SYNCCOMMIT="$(git show -s | head -1 | cut -d' ' -f2 | cut -c1-7)"
+  popd > /dev/null || exiterr "popd failed"
+else
+  echo "Get date"
+  pushd "${SYNCDIR}" > /dev/null || exiterr "pushd failed"
+  NEWVERSION="$(git show -s --date=format:'%Y%m%d' --format=%cd)"
+  SYNCCOMMIT="$(git show -s | head -1 | cut -d' ' -f2 | cut -c1-7)"
+  popd > /dev/null || exiterr "popd failed"
+fi
+
+# Apply customizations to source repo
+PATCHFILE="lib/sgchat/go/ext/nchat-signal.patch"
+if [[ -f "${PATCHFILE}" ]]; then
+  echo "Patch"
+  pushd "${SYNCDIR}" > /dev/null || exiterr "pushd failed"
+  ${REPOROOT}/utils/cvc apply "${REPOROOT}/${PATCHFILE}" || exiterr "patch apply failed - review ${PATCHFILE}"
+  popd > /dev/null || exiterr "popd failed"
+else
+  exiterr "patch file not found: ${PATCHFILE}"
+fi
+
+# Sync patched repo to nchat
+echo "Sync"
+REPOTARGET="${REPOROOT}/${TARGET}"
+pushd "${REPOTARGET}" > /dev/null || exiterr "pushd failed"
+${REPOROOT}/utils/cvc sync "${SYNCDIR}" || exiterr "cvc sync failed"
+popd > /dev/null || exiterr "popd failed"
+
+# Restore source repo
+pushd "${SYNCDIR}" > /dev/null || exiterr "pushd failed"
+git checkout . || exiterr "source repo restore failed"
+popd > /dev/null || exiterr "popd failed"
+
+# Update signalmeow date
+[[ "$(uname)" == "Linux" ]] && SEDCMD="sed" || SEDCMD="gsed"
+${SEDCMD} -E -i -e "s/^var signalDate int.*$/var signalDate int = ${NEWVERSION}/g" lib/sgchat/go/gosg.go
+
+# Update LIBSIGNAL_BUILD_REF in CMakeLists.txt
+echo "Determine libsignal build ref"
+LIBSIGNAL_VERSION=$(grep 'const Version' "${REPOTARGET}/pkg/libsignalgo/version.go" | cut -d'"' -f2)
+if [[ -n "${LIBSIGNAL_VERSION}" ]]; then
+  echo "libsignal version needed: ${LIBSIGNAL_VERSION}"
+  BUILDREPO_API="https://mau.dev/api/v4/projects/tulir%2Fgomuks-build-docker"
+  PIPELINES=$(curl -sf "${BUILDREPO_API}/pipelines?ref=master&status=success&per_page=10")
+  if [[ $? -eq 0 ]]; then
+    LIBSIGNAL_BUILD_REF=""
+    for SHA in $(echo "${PIPELINES}" | grep -oE '"sha"[[:space:]]*:[[:space:]]*"[0-9a-f]+"' | grep -oE '[0-9a-f]{40}'); do
+      CI_VERSION=$(curl -sf "${BUILDREPO_API}/repository/files/.gitlab-ci.yml/raw?ref=${SHA}" | grep 'LIBSIGNAL_VERSION:' | head -1 | tr -d ' "' | cut -d: -f2)
+      if [[ "${CI_VERSION}" == "${LIBSIGNAL_VERSION}" ]]; then
+        LIBSIGNAL_BUILD_REF="${SHA}"
+        break
+      fi
+    done
+    if [[ -n "${LIBSIGNAL_BUILD_REF}" ]]; then
+      ${SEDCMD} -E -i "s|^set\\(LIBSIGNAL_BUILD_REF \"[^\"]*\"|set(LIBSIGNAL_BUILD_REF \"${LIBSIGNAL_BUILD_REF}\"|" lib/sgchat/go/CMakeLists.txt
+      echo "Updated LIBSIGNAL_BUILD_REF to ${LIBSIGNAL_BUILD_REF}"
+    else
+      echo "Warning: No matching libsignal build found for ${LIBSIGNAL_VERSION}"
+      echo "Consider using -DBUILD_LIBSIGNAL=ON to build from source"
+    fi
+  else
+    echo "Warning: Could not query GitLab API for build pipelines"
+  fi
+else
+  echo "Warning: Could not determine libsignal version from version.go"
+fi
+
+# Perform go mod tidy
+pushd lib/sgchat/go > /dev/null && go mod tidy && popd > /dev/null
+
+# Complete
+echo "Done"
+echo "Proceed to bump project version and build:"
+echo "./make.sh bump"
+echo "./make.sh doc"
+echo ""
+echo "If succesful proceed to commit the changes:"
+echo "git add -u"
+echo "git commit -m \"update signalmeow to ${NEWVERSION} from mautrix/signal@${SYNCCOMMIT}\""
+echo "git push"
+
+exit 0

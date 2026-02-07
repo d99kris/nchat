@@ -1,0 +1,6 @@
+.editorconfig
+logs
+start
+config.yaml
+registration.yaml
+*.db

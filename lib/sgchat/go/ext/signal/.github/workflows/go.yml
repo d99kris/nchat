@@ -1,0 +1,72 @@
+name: Go
+
+on: [push, pull_request]
+
+env:
+  GOTOOLCHAIN: local
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go-version: ["1.24", "1.25"]
+    name: Lint ${{ matrix.go-version == '1.25' && '(latest)' || '(old)' }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true
+
+      - name: Install libolm
+        run: sudo apt-get install libolm-dev
+
+      - name: Install dependencies
+        run: |
+          go install golang.org/x/tools/cmd/goimports@latest
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          export PATH="$HOME/go/bin:$PATH"
+
+      - name: Run pre-commit
+        uses: pre-commit/action@v3.0.1
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go-version: ["1.24", "1.25"]
+    name: Test ${{ matrix.go-version == '1.25' && '(latest)' || '(old)' }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true
+
+      #- name: Set up gotestfmt
+      #  uses: GoTestTools/gotestfmt-action@v2
+      #  with:
+      #    token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install libolm
+        run: sudo apt-get install libolm-dev
+
+      - name: Download libsignal
+        run: |
+          curl -L https://mau.dev/tulir/gomuks-build-docker/-/jobs/artifacts/master/raw/libsignal_ffi.a?job=libsignal%20linux%20amd64 -o libsignal_ffi.a
+
+      - name: Run tests
+        run: |
+          set -euo pipefail
+          export LIBRARY_PATH=.
+          #go test -v -json ./... -cover | gotestfmt
+          go test ./...

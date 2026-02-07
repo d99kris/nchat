@@ -258,7 +258,7 @@ Security
 ========
 User data is stored locally in `~/.config/nchat`. Default file permissions
 only allow user access, but anyone who can gain access to a user's private
-files can also access the user's personal Telegram data. To protect against
+files can also access the user's personal nchat data. To protect against
 the most simple attack vectors it may be suitable to use disk encryption and
 to ensure `~/.config/nchat` is not backed up unencrypted.
 
@@ -1171,8 +1171,6 @@ Project Scope
 Limitations
 -----------
 There are no plans to support the following features:
-- Facebook Messenger
-- Signal
 - Telegram secret chats
 - Voice / video calls
 
@@ -1228,16 +1226,24 @@ nchat is primarily implemented in C++ with some parts in Go. Its source tree
 includes the source code of the following third-party libraries:
 
 - [apathy](https://github.com/dlecocq/apathy) -
-  Copyright 2013 Dan Lecocq - [MIT License](/ext/apathy/LICENSE)
+  Copyright 2013 Dan Lecocq -
+  [MIT License](/ext/apathy/LICENSE)
 
 - [cereal](https://github.com/USCiLab/cereal) -
-  Copyright 2013 Randolph Voorhies, Shane Grant - [BSD-3 License](/ext/cereal/LICENSE)
+  Copyright 2013 Randolph Voorhies, Shane Grant -
+  [BSD-3 License](/ext/cereal/LICENSE)
 
 - [clip](https://github.com/dacap/clip) -
-  Copyright 2015 David Capello - [MIT License](/ext/clip/LICENSE.txt)
+  Copyright 2015 David Capello -
+  [MIT License](/ext/clip/LICENSE.txt)
+
+- [mautrix-signal](https://github.com/mautrix/signal) -
+  Copyright 2020 Tulir Asokan -
+  [AGPL License](/lib/sgchat/go/ext/signal/LICENSE)
 
 - [sqlite_modern_cpp](https://github.com/SqliteModernCpp/sqlite_modern_cpp) -
-  Copyright 2017 aminroosta - [MIT License](/ext/sqlite_modern_cpp/License.txt)
+  Copyright 2017 aminroosta -
+  [MIT License](/ext/sqlite_modern_cpp/License.txt)
 
 - [tdlib](https://github.com/tdlib/td) -
   Copyright 2014 Aliaksei Levin, Arseny Smirnov -

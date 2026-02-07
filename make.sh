@@ -214,11 +214,13 @@ fi
 # src
 if [[ "${SRC}" == "1" ]]; then
   go fmt lib/wmchat/go/*.go || exiterr "go fmt failed, exiting."
+  go fmt lib/sgchat/go/*.go || exiterr "go fmt failed, exiting."
   uncrustify --update-config-with-doc -c etc/uncrustify.cfg -o etc/uncrustify.cfg && \
   uncrustify -c etc/uncrustify.cfg --replace --no-backup src/*.{cpp,h} \
              lib/common/src/*.h \
              lib/duchat/src/*.{cpp,h} \
              lib/ncutil/src/*.{cpp,h} \
+             lib/sgchat/src/*.{cpp,h} \
              lib/tgchat/src/*.{cpp,h} \
              lib/wmchat/src/*.{cpp,h} \
     || exiterr "unrustify failed, exiting."

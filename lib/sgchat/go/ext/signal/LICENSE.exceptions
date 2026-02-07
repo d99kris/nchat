@@ -1,0 +1,15 @@
+The mautrix-signal developers grant the following special exceptions:
+
+* to Beeper the right to embed the program in the Beeper clients and servers,
+  and use and distribute the collective work without applying the license to
+  the whole.
+* to Element the right to distribute compiled binaries of the program as a part
+  of the Element Server Suite and other server bundles without applying the
+  license.
+
+All exceptions are only valid under the condition that any modifications to
+the source code of mautrix-signal (including signalmeow and libsignalgo) remain
+publicly available under the terms of the GNU AGPL version 3 or later.
+
+Note: mautrix-signal depends on libsignal, which is also licensed under the AGPL.
+A license exception for libsignal must be acquired separately from Signal.
