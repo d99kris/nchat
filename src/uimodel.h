@@ -88,7 +88,8 @@ private:
     void UpdateChatInfoIsUnread(const std::string& p_ProfileId, const std::string& p_ChatId);
     std::string GetContactName(const std::string& p_ProfileId, const std::string& p_ChatId);
     std::string GetContactNameIncludingSelf(const std::string& p_ProfileId, const std::string& p_ChatId);
-    std::string GetContactListName(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_AllowId, bool p_AllowAlias);
+    std::string GetContactListName(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_AllowId,
+                                   bool p_AllowAlias);
     std::string GetContactPhone(const std::string& p_ProfileId, const std::string& p_ChatId);
     int64_t GetLastMessageTime(const std::string& p_ProfileId, const std::string& p_ChatId);
     bool GetChatIsUnread(const std::string& p_ProfileId, const std::string& p_ChatId);
@@ -301,7 +302,8 @@ public:
 
   void GetAvailableEmojis(std::set<std::string>& p_AvailableEmojis, bool& p_Pending);
   std::vector<std::pair<std::string, std::string>> GetChatVec();
-  std::string GetContactListName(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_AllowId, bool p_AllowAlias);
+  std::string GetContactListName(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_AllowId,
+                                 bool p_AllowAlias);
   std::unordered_map<std::string, std::unordered_map<std::string, ContactInfo>> GetContactInfos();
   std::string GetProfileDisplayName(const std::string& p_ProfileId);
 
@@ -319,7 +321,8 @@ public:
   bool GetChatIsUnreadLocked(const std::string& p_ProfileId, const std::string& p_ChatId);
   std::string GetChatStatusLocked(const std::string& p_ProfileId, const std::string& p_ChatId);
   std::vector<std::pair<std::string, std::string>>& GetChatVecLocked();
-  std::string GetContactListNameLocked(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_AllowId, bool p_AllowAlias);
+  std::string GetContactListNameLocked(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_AllowId,
+                                       bool p_AllowAlias);
   std::string GetContactNameLocked(const std::string& p_ProfileId, const std::string& p_ChatId);
   std::string GetContactPhoneLocked(const std::string& p_ProfileId, const std::string& p_ChatId);
   int GetCurrentChatIndexLocked();

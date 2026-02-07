@@ -64,7 +64,8 @@ void UiChatListDialog::UpdateList()
   {
     const std::string& profileId = profileChat.first;
     const std::string& chatId = profileChat.second;
-    const std::string& name = m_Model->GetContactListName(profileId, chatId, true /*p_AllowId*/, true /*p_AllowAlias*/);;
+    const std::string& name = m_Model->GetContactListName(profileId, chatId, true /*p_AllowId*/, true /*p_AllowAlias*/);
+    ;
 
     if (name.empty()) continue;
 

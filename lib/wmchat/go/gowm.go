@@ -1004,7 +1004,7 @@ func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 	userId := GetUserId(client, &groupInfo.JID, groupInfo.Sender)
 
 	senderJidStr := ""
-	if (userId != chatId) {
+	if userId != chatId {
 		senderJidStr = userId
 	}
 
@@ -1281,9 +1281,9 @@ func GetContacts(connId int) {
 		LOG_WARNING(fmt.Sprintf("get all contacts failed %#v", contErr))
 	} else {
 		LOG_TRACE(fmt.Sprintf("contacts %#v", contacts))
-		var userIdPhones map[string]string = make(map[string]string) // phone
-		var userIdNames map[string]string = make(map[string]string) // contacts
-		var aliasUserIdNames map[string]string = make(map[string]string) // public
+		var userIdPhones map[string]string = make(map[string]string)      // phone
+		var userIdNames map[string]string = make(map[string]string)       // contacts
+		var aliasUserIdNames map[string]string = make(map[string]string)  // public
 		var senderUserIdNames map[string]string = make(map[string]string) // public/phone
 
 		// add regular data first (address book names)
@@ -1488,11 +1488,11 @@ func (handler *WmEventHandler) ProcessContextInfo(contextInfo *waE2E.ContextInfo
 			connId := handler.connId
 			for _, mentionedStr := range contextInfo.MentionedJID {
 				mentionedStrParts := strings.SplitN(mentionedStr, "@", 2)
-				mentionedJid, _ := types.ParseJID(mentionedStr)      // ex: 121874109111111@lid
-				mentionedId := StrFromJid(mentionedJid)              // ex: 121874109111111@lid (skip phone mapping, whatsapp mentions only in groups)
-				mentionedName := GetContactName(connId, mentionedId) // ex: Michael
-				mentionedOrigText := "@" + mentionedStrParts[0]      // ex: @121874109111111
-				mentionedNewText := "@" + mentionedName              // ex: @Michael
+				mentionedJid, _ := types.ParseJID(mentionedStr)                                                              // ex: 121874109111111@lid
+				mentionedId := StrFromJid(mentionedJid)                                                                      // ex: 121874109111111@lid (skip phone mapping, whatsapp mentions only in groups)
+				mentionedName := GetContactName(connId, mentionedId)                                                         // ex: Michael
+				mentionedOrigText := "@" + mentionedStrParts[0]                                                              // ex: @121874109111111
+				mentionedNewText := "@" + mentionedName                                                                      // ex: @Michael
 				LOG_TRACE(fmt.Sprintf("mention jid %s id %s name %s", StrFromJid(mentionedJid), mentionedId, mentionedName)) // @todo: remove
 				*text = strings.ReplaceAll(*text, mentionedOrigText, mentionedNewText)
 			}
