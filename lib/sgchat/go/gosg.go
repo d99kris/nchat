@@ -24,6 +24,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/mdp/qrterminal"
@@ -506,50 +507,278 @@ func StringToUUID(s string) uuid.UUID {
 	return id
 }
 
-func ProcessMentions(connId int, text string, bodyRanges []*signalpb.BodyRange) string {
+func utf16OffsetToByteOffset(s string, utf16Offset int) int {
+	units := 0
+	for i, r := range s {
+		if units >= utf16Offset {
+			return i
+		}
+		if r >= 0x10000 {
+			units += 2
+		} else {
+			units++
+		}
+	}
+	return len(s)
+}
+
+func byteOffsetToUtf16Offset(s string, byteOffset int) int {
+	units := 0
+	for i, r := range s {
+		if i >= byteOffset {
+			return units
+		}
+		if r >= 0x10000 {
+			units += 2
+		} else {
+			units++
+		}
+	}
+	return units
+}
+
+func styleToMarker(style signalpb.BodyRange_Style) string {
+	switch style {
+	case signalpb.BodyRange_BOLD:
+		return "*"
+	case signalpb.BodyRange_ITALIC:
+		return "_"
+	case signalpb.BodyRange_STRIKETHROUGH:
+		return "~"
+	case signalpb.BodyRange_MONOSPACE:
+		return "`"
+	default:
+		return ""
+	}
+}
+
+func backupStyleToMarker(style backuppb.BodyRange_Style) string {
+	switch style {
+	case backuppb.BodyRange_BOLD:
+		return "*"
+	case backuppb.BodyRange_ITALIC:
+		return "_"
+	case backuppb.BodyRange_STRIKETHROUGH:
+		return "~"
+	case backuppb.BodyRange_MONOSPACE:
+		return "`"
+	default:
+		return ""
+	}
+}
+
+type textOp struct {
+	bytePos    int
+	byteLen    int
+	insertText string
+	priority   int // lower = applied first when same bytePos (after descending sort)
+}
+
+func ProcessFormattedText(connId int, text string, bodyRanges []*signalpb.BodyRange) string {
 	if len(bodyRanges) == 0 {
 		return text
 	}
+
 	mentionsQuoted := CSgAppConfigGetNum("mentions_quoted") != 0
+	var ops []textOp
+
 	for _, br := range bodyRanges {
+		start := int(br.GetStart())
+		length := int(br.GetLength())
+
 		mentionAci := br.GetMentionAci()
-		if mentionAci == "" {
+		if mentionAci != "" {
+			// Mention: replace U+FFFC at start position
+			bytePos := utf16OffsetToByteOffset(text, start)
+			mentionId := UUIDToString(StringToUUID(mentionAci))
+			mentionName := GetContactName(connId, mentionId)
+			var replacement string
+			if mentionsQuoted && strings.Contains(mentionName, " ") {
+				replacement = "@[" + mentionName + "]"
+			} else {
+				replacement = "@" + mentionName
+			}
+			// U+FFFC is 3 bytes in UTF-8
+			ops = append(ops, textOp{bytePos: bytePos, byteLen: 3, insertText: replacement, priority: 1})
 			continue
 		}
-		mentionId := UUIDToString(StringToUUID(mentionAci))
-		mentionName := GetContactName(connId, mentionId)
-		var replacement string
-		if mentionsQuoted && strings.Contains(mentionName, " ") {
-			replacement = "@[" + mentionName + "]"
-		} else {
-			replacement = "@" + mentionName
+
+		marker := styleToMarker(br.GetStyle())
+		if marker == "" {
+			continue
 		}
-		text = strings.Replace(text, "\uFFFC", replacement, 1)
+
+		startByte := utf16OffsetToByteOffset(text, start)
+		endByte := utf16OffsetToByteOffset(text, start+length)
+		// Insert closing marker at end, opening marker at start
+		// Priority: opening (0) before closing (2) at same position after desc sort
+		ops = append(ops, textOp{bytePos: endByte, byteLen: 0, insertText: marker, priority: 2})
+		ops = append(ops, textOp{bytePos: startByte, byteLen: 0, insertText: marker, priority: 0})
 	}
+
+	// Sort descending by bytePos, then ascending by priority
+	sort.Slice(ops, func(i, j int) bool {
+		if ops[i].bytePos != ops[j].bytePos {
+			return ops[i].bytePos > ops[j].bytePos
+		}
+		return ops[i].priority < ops[j].priority
+	})
+
+	// Apply back-to-front
+	for _, op := range ops {
+		text = text[:op.bytePos] + op.insertText + text[op.bytePos+op.byteLen:]
+	}
+
 	return text
 }
 
-func ProcessBackupMentions(connId int, text string, bodyRanges []*backuppb.BodyRange) string {
+func ProcessBackupFormattedText(connId int, text string, bodyRanges []*backuppb.BodyRange) string {
 	if len(bodyRanges) == 0 {
 		return text
 	}
+
 	mentionsQuoted := CSgAppConfigGetNum("mentions_quoted") != 0
+	var ops []textOp
+
 	for _, br := range bodyRanges {
+		start := int(br.GetStart())
+		length := int(br.GetLength())
+
 		mentionAci := br.GetMentionAci()
-		if len(mentionAci) != 16 {
+		if len(mentionAci) == 16 {
+			bytePos := utf16OffsetToByteOffset(text, start)
+			mentionId := UUIDToString(uuid.UUID(mentionAci))
+			mentionName := GetContactName(connId, mentionId)
+			var replacement string
+			if mentionsQuoted && strings.Contains(mentionName, " ") {
+				replacement = "@[" + mentionName + "]"
+			} else {
+				replacement = "@" + mentionName
+			}
+			ops = append(ops, textOp{bytePos: bytePos, byteLen: 3, insertText: replacement, priority: 1})
 			continue
 		}
-		mentionId := UUIDToString(uuid.UUID(mentionAci))
-		mentionName := GetContactName(connId, mentionId)
-		var replacement string
-		if mentionsQuoted && strings.Contains(mentionName, " ") {
-			replacement = "@[" + mentionName + "]"
-		} else {
-			replacement = "@" + mentionName
+
+		marker := backupStyleToMarker(br.GetStyle())
+		if marker == "" {
+			continue
 		}
-		text = strings.Replace(text, "\uFFFC", replacement, 1)
+
+		startByte := utf16OffsetToByteOffset(text, start)
+		endByte := utf16OffsetToByteOffset(text, start+length)
+		ops = append(ops, textOp{bytePos: endByte, byteLen: 0, insertText: marker, priority: 2})
+		ops = append(ops, textOp{bytePos: startByte, byteLen: 0, insertText: marker, priority: 0})
 	}
+
+	sort.Slice(ops, func(i, j int) bool {
+		if ops[i].bytePos != ops[j].bytePos {
+			return ops[i].bytePos > ops[j].bytePos
+		}
+		return ops[i].priority < ops[j].priority
+	})
+
+	for _, op := range ops {
+		text = text[:op.bytePos] + op.insertText + text[op.bytePos+op.byteLen:]
+	}
+
 	return text
+}
+
+
+func ParseMarkdown(text string) (string, []*signalpb.BodyRange) {
+	type markerPair struct {
+		openByte  int
+		closeByte int
+		marker    string
+	}
+
+	markerStyles := map[string]signalpb.BodyRange_Style{
+		"*": signalpb.BodyRange_BOLD,
+		"_": signalpb.BodyRange_ITALIC,
+		"~": signalpb.BodyRange_STRIKETHROUGH,
+		"`": signalpb.BodyRange_MONOSPACE,
+	}
+
+	// Pass 1: find matching marker pairs
+	openPositions := make(map[string][]int) // marker -> stack of open byte positions
+	var pairs []markerPair
+	i := 0
+	for i < len(text) {
+		r, size := utf8.DecodeRuneInString(text[i:])
+		ch := string(r)
+		if _, ok := markerStyles[ch]; ok && size == 1 {
+			if stack, exists := openPositions[ch]; exists && len(stack) > 0 {
+				openPos := stack[len(stack)-1]
+				// Only valid if there is content between markers
+				if i > openPos+1 {
+					pairs = append(pairs, markerPair{openByte: openPos, closeByte: i, marker: ch})
+					openPositions[ch] = stack[:len(stack)-1]
+				} else {
+					// Adjacent markers like ** — treat second as new open
+					openPositions[ch] = stack[:len(stack)-1]
+					openPositions[ch] = append(openPositions[ch], i)
+				}
+			} else {
+				openPositions[ch] = append(openPositions[ch], i)
+			}
+		}
+		i += size
+	}
+
+	if len(pairs) == 0 {
+		return text, nil
+	}
+
+	// Build set of byte positions to skip (marker positions)
+	skipSet := make(map[int]bool)
+	for _, p := range pairs {
+		skipSet[p.openByte] = true
+		skipSet[p.closeByte] = true
+	}
+
+	// Pass 2: build stripped text and byte offset mapping
+	origToStripped := make(map[int]int)
+	var stripped strings.Builder
+	strippedPos := 0
+	for j := 0; j < len(text); {
+		origToStripped[j] = strippedPos
+		_, size := utf8.DecodeRuneInString(text[j:])
+		if skipSet[j] {
+			j += size
+			continue
+		}
+		stripped.WriteString(text[j : j+size])
+		strippedPos += size
+		j += size
+	}
+	origToStripped[len(text)] = strippedPos
+
+	strippedText := stripped.String()
+
+	// Create BodyRanges
+	var bodyRanges []*signalpb.BodyRange
+	for _, p := range pairs {
+		startByte := origToStripped[p.openByte]
+		endByte := origToStripped[p.closeByte]
+		startUtf16 := byteOffsetToUtf16Offset(strippedText, startByte)
+		endUtf16 := byteOffsetToUtf16Offset(strippedText, endByte)
+		length := endUtf16 - startUtf16
+		if length <= 0 {
+			continue
+		}
+		style := markerStyles[p.marker]
+		startU32 := uint32(startUtf16)
+		lengthU32 := uint32(length)
+		bodyRanges = append(bodyRanges, &signalpb.BodyRange{
+			Start:  &startU32,
+			Length: &lengthU32,
+			AssociatedValue: &signalpb.BodyRange_Style_{
+				Style: style,
+			},
+		})
+	}
+
+	return strippedText, bodyRanges
 }
 
 func SliceIndex(list []string, value string, defaultValue int) int {
@@ -815,7 +1044,7 @@ func (handler *SgEventHandler) handleDataMessage(chatId string, senderId string,
 
 	// Text message
 	text := msg.GetBody()
-	text = ProcessMentions(connId, text, msg.GetBodyRanges())
+	text = ProcessFormattedText(connId, text, msg.GetBodyRanges())
 	if text == "" && placeholder != "" {
 		text = placeholder
 	}
@@ -1039,7 +1268,7 @@ func (handler *SgEventHandler) handleEditMessage(chatId string, senderId string,
 	}
 
 	text := dataMsg.GetBody()
-	text = ProcessMentions(connId, text, dataMsg.GetBodyRanges())
+	text = ProcessFormattedText(connId, text, dataMsg.GetBodyRanges())
 	quotedId := ""
 	if dataMsg.GetQuote() != nil {
 		quotedId = fmt.Sprintf("%d", dataMsg.GetQuote().GetId())
@@ -1793,7 +2022,7 @@ func SgGetMessages(connId int, chatId string, limit int, fromMsgId string, owner
 		case *backuppb.ChatItem_StandardMessage:
 			if msg.StandardMessage.GetText() != nil {
 				text = msg.StandardMessage.GetText().GetBody()
-				text = ProcessBackupMentions(connId, text, msg.StandardMessage.GetText().GetBodyRanges())
+				text = ProcessBackupFormattedText(connId, text, msg.StandardMessage.GetText().GetBodyRanges())
 			}
 			if msg.StandardMessage.GetQuote() != nil && msg.StandardMessage.GetQuote().TargetSentTimestamp != nil {
 				quotedId = fmt.Sprintf("%d", msg.StandardMessage.GetQuote().GetTargetSentTimestamp())
@@ -1896,7 +2125,11 @@ func SgSendMessage(connId int, chatId string, text string, quotedId string, quot
 			return -1
 		}
 
-		dataMsg.Body = proto.String(text)
+		plainText, mdBodyRanges := ParseMarkdown(text)
+		dataMsg.Body = proto.String(plainText)
+		if len(mdBodyRanges) > 0 {
+			dataMsg.BodyRanges = mdBodyRanges
+		}
 
 		editMsg := &signalpb.EditMessage{
 			TargetSentTimestamp: proto.Uint64(targetTimestamp),
@@ -1930,7 +2163,11 @@ func SgSendMessage(connId int, chatId string, text string, quotedId string, quot
 	} else {
 		// Set body
 		if text != "" {
-			dataMsg.Body = proto.String(text)
+			plainText, mdBodyRanges := ParseMarkdown(text)
+			dataMsg.Body = proto.String(plainText)
+			if len(mdBodyRanges) > 0 {
+				dataMsg.BodyRanges = mdBodyRanges
+			}
 		}
 
 		// Handle quote
