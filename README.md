@@ -286,6 +286,7 @@ This configuration file holds general application settings. Default content:
     emoji_list_all=0
     link_send_preview=1
     logdump_enabled=0
+    mentions_quoted=1
     message_delete=1
     proxy_host=
     proxy_pass=
@@ -349,6 +350,10 @@ Specifies whether to enable preview for links in messages sent (Telegram only).
 ### logdump_enabled
 
 Specifies whether to dump warning and error log messages to stdout upon exit.
+
+### mentions_quoted
+
+Specifies whether to use bracket quoting for display-name mentions with spaces.
 
 ### message_delete
 

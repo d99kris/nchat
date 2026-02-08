@@ -1,6 +1,6 @@
 // tgchat.cpp
 //
-// Copyright (c) 2020-2025 Kristofer Berggren
+// Copyright (c) 2020-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -151,6 +151,7 @@ private:
   std::string GetRandomString(size_t p_Len);
   std::uint64_t GetNextQueryId();
   std::int64_t GetSenderId(td::td_api::object_ptr<td::td_api::MessageSender>&& p_TdMessageSender);
+  void ProcessMentionEntities(td::td_api::object_ptr<td::td_api::formattedText>& p_FormattedText);
   std::string GetText(td::td_api::object_ptr<td::td_api::formattedText>&& p_FormattedText);
   void TdMessageContentConvert(td::td_api::MessageContent& p_TdMessageContent, int64_t p_SenderId,
                                std::string& p_Text, std::string& p_FileInfo);
@@ -2449,9 +2450,124 @@ std::int64_t TgChat::Impl::GetSenderId(td::td_api::object_ptr<td::td_api::Messag
   return senderId;
 }
 
+static size_t Utf16PosToBytePos(const std::string& p_Str, int32_t p_Utf16Pos)
+{
+  int32_t utf16Units = 0;
+  size_t i = 0;
+  while (i < p_Str.size() && utf16Units < p_Utf16Pos)
+  {
+    unsigned char c = static_cast<unsigned char>(p_Str[i]);
+    if (c < 0x80)
+    {
+      i += 1;
+      utf16Units += 1;
+    }
+    else if (c < 0xE0)
+    {
+      i += 2;
+      utf16Units += 1;
+    }
+    else if (c < 0xF0)
+    {
+      i += 3;
+      utf16Units += 1;
+    }
+    else
+    {
+      i += 4;
+      utf16Units += 2; // surrogate pair = 2 UTF-16 code units
+    }
+  }
+  return i;
+}
+
+void TgChat::Impl::ProcessMentionEntities(td::td_api::object_ptr<td::td_api::formattedText>& p_FormattedText)
+{
+  static const bool bracketQuote = AppConfig::GetBool("mentions_quoted");
+  auto& text = p_FormattedText->text_;
+  auto& entities = p_FormattedText->entities_;
+
+  for (int i = static_cast<int>(entities.size()) - 1; i >= 0; --i)
+  {
+    auto& entity = entities[i];
+    const auto entityId = entity->type_->get_id();
+
+    if (entityId == td::td_api::textEntityTypeMentionName::ID)
+    {
+      const int32_t utf16Offset = entity->offset_;
+      const int32_t utf16Length = entity->length_;
+
+      // Convert UTF-16 offset to byte position
+      size_t byteOffset = Utf16PosToBytePos(text, utf16Offset);
+      size_t byteEnd = Utf16PosToBytePos(text, utf16Offset + utf16Length);
+      std::string mentionText = text.substr(byteOffset, byteEnd - byteOffset);
+
+      bool hasSpaces = (mentionText.find(' ') != std::string::npos);
+      std::string prefix;
+      std::string suffix;
+      if (bracketQuote && hasSpaces)
+      {
+        prefix = "@[";
+        suffix = "]";
+      }
+      else
+      {
+        prefix = "@";
+      }
+
+      // Insert suffix first (at higher position), then prefix
+      text.insert(byteEnd, suffix);
+      text.insert(byteOffset, prefix);
+
+      int32_t prefixUtf16Len = static_cast<int32_t>(prefix.size());
+      int32_t suffixUtf16Len = static_cast<int32_t>(suffix.size());
+      int32_t totalInserted = prefixUtf16Len + suffixUtf16Len;
+
+      // Adjust offsets of other entities
+      for (int j = 0; j < static_cast<int>(entities.size()); ++j)
+      {
+        if (j == i) continue;
+        auto& other = entities[j];
+
+        if (other->offset_ + other->length_ <= utf16Offset)
+        {
+          // Entity entirely before mention - no change
+        }
+        else if (other->offset_ <= utf16Offset &&
+                 other->offset_ + other->length_ >= utf16Offset + utf16Length)
+        {
+          // Entity contains the mention - extend its length
+          other->length_ += totalInserted;
+        }
+        else if (other->offset_ >= utf16Offset + utf16Length)
+        {
+          // Entity entirely after mention - shift offset
+          other->offset_ += totalInserted;
+        }
+        else if (other->offset_ >= utf16Offset && other->offset_ < utf16Offset + utf16Length)
+        {
+          // Entity starts inside mention - shift by prefix, extend by suffix
+          other->offset_ += prefixUtf16Len;
+          other->length_ += suffixUtf16Len;
+        }
+      }
+
+      // Erase the mention entity
+      entities.erase(entities.begin() + i);
+    }
+    else if (entityId == td::td_api::textEntityTypeMention::ID)
+    {
+      // Text already has @username, just remove the entity so getMarkdownText works
+      entities.erase(entities.begin() + i);
+    }
+  }
+}
+
 std::string TgChat::Impl::GetText(td::td_api::object_ptr<td::td_api::formattedText>&& p_FormattedText)
 {
   if (!p_FormattedText) return "";
+
+  ProcessMentionEntities(p_FormattedText);
 
   std::string text = p_FormattedText->text_;
   static const bool markdownEnabled = (m_Config.Get("markdown_enabled") == "1");
