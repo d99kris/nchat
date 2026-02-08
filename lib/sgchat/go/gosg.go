@@ -506,6 +506,52 @@ func StringToUUID(s string) uuid.UUID {
 	return id
 }
 
+func ProcessMentions(connId int, text string, bodyRanges []*signalpb.BodyRange) string {
+	if len(bodyRanges) == 0 {
+		return text
+	}
+	mentionsQuoted := CSgAppConfigGetNum("mentions_quoted") != 0
+	for _, br := range bodyRanges {
+		mentionAci := br.GetMentionAci()
+		if mentionAci == "" {
+			continue
+		}
+		mentionId := UUIDToString(StringToUUID(mentionAci))
+		mentionName := GetContactName(connId, mentionId)
+		var replacement string
+		if mentionsQuoted && strings.Contains(mentionName, " ") {
+			replacement = "@[" + mentionName + "]"
+		} else {
+			replacement = "@" + mentionName
+		}
+		text = strings.Replace(text, "\uFFFC", replacement, 1)
+	}
+	return text
+}
+
+func ProcessBackupMentions(connId int, text string, bodyRanges []*backuppb.BodyRange) string {
+	if len(bodyRanges) == 0 {
+		return text
+	}
+	mentionsQuoted := CSgAppConfigGetNum("mentions_quoted") != 0
+	for _, br := range bodyRanges {
+		mentionAci := br.GetMentionAci()
+		if len(mentionAci) != 16 {
+			continue
+		}
+		mentionId := UUIDToString(uuid.UUID(mentionAci))
+		mentionName := GetContactName(connId, mentionId)
+		var replacement string
+		if mentionsQuoted && strings.Contains(mentionName, " ") {
+			replacement = "@[" + mentionName + "]"
+		} else {
+			replacement = "@" + mentionName
+		}
+		text = strings.Replace(text, "\uFFFC", replacement, 1)
+	}
+	return text
+}
+
 func SliceIndex(list []string, value string, defaultValue int) int {
 	for i, v := range list {
 		if v == value {
@@ -769,6 +815,7 @@ func (handler *SgEventHandler) handleDataMessage(chatId string, senderId string,
 
 	// Text message
 	text := msg.GetBody()
+	text = ProcessMentions(connId, text, msg.GetBodyRanges())
 	if text == "" && placeholder != "" {
 		text = placeholder
 	}
@@ -992,6 +1039,7 @@ func (handler *SgEventHandler) handleEditMessage(chatId string, senderId string,
 	}
 
 	text := dataMsg.GetBody()
+	text = ProcessMentions(connId, text, dataMsg.GetBodyRanges())
 	quotedId := ""
 	if dataMsg.GetQuote() != nil {
 		quotedId = fmt.Sprintf("%d", dataMsg.GetQuote().GetId())
@@ -1745,6 +1793,7 @@ func SgGetMessages(connId int, chatId string, limit int, fromMsgId string, owner
 		case *backuppb.ChatItem_StandardMessage:
 			if msg.StandardMessage.GetText() != nil {
 				text = msg.StandardMessage.GetText().GetBody()
+				text = ProcessBackupMentions(connId, text, msg.StandardMessage.GetText().GetBodyRanges())
 			}
 			if msg.StandardMessage.GetQuote() != nil && msg.StandardMessage.GetQuote().TargetSentTimestamp != nil {
 				quotedId = fmt.Sprintf("%d", msg.StandardMessage.GetQuote().GetTargetSentTimestamp())
