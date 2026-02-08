@@ -1,6 +1,6 @@
 // gowm.go
 //
-// Copyright (c) 2021-2025 Kristofer Berggren
+// Copyright (c) 2021-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -1488,11 +1488,18 @@ func (handler *WmEventHandler) ProcessContextInfo(contextInfo *waE2E.ContextInfo
 			connId := handler.connId
 			for _, mentionedStr := range contextInfo.MentionedJID {
 				mentionedStrParts := strings.SplitN(mentionedStr, "@", 2)
-				mentionedJid, _ := types.ParseJID(mentionedStr)                                                              // ex: 121874109111111@lid
-				mentionedId := StrFromJid(mentionedJid)                                                                      // ex: 121874109111111@lid (skip phone mapping, whatsapp mentions only in groups)
-				mentionedName := GetContactName(connId, mentionedId)                                                         // ex: Michael
-				mentionedOrigText := "@" + mentionedStrParts[0]                                                              // ex: @121874109111111
-				mentionedNewText := "@" + mentionedName                                                                      // ex: @Michael
+				mentionedJid, _ := types.ParseJID(mentionedStr)      // ex: 121874109111111@lid
+				mentionedId := StrFromJid(mentionedJid)              // ex: 121874109111111@lid (skip phone mapping, whatsapp mentions only in groups)
+				mentionedName := GetContactName(connId, mentionedId) // ex: Michael Scott
+				mentionedOrigText := "@" + mentionedStrParts[0]      // ex: @121874109111111
+				mentionedQuoted := CWmAppConfigGetNum("mentions_quoted") != 0
+				mentionedHasSpace := strings.Contains(mentionedName, " ")
+				var mentionedNewText string
+				if mentionedQuoted && mentionedHasSpace {
+					mentionedNewText = "@[" + mentionedName + "]" // ex: @[Michael Scott]
+				} else {
+					mentionedNewText = "@" + mentionedName // ex: @Michael Scott
+				}
 				LOG_TRACE(fmt.Sprintf("mention jid %s id %s name %s", StrFromJid(mentionedJid), mentionedId, mentionedName)) // @todo: remove
 				*text = strings.ReplaceAll(*text, mentionedOrigText, mentionedNewText)
 			}
