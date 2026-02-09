@@ -263,9 +263,16 @@ bool Clipboard::HasImage()
   static const std::string clipboardHasImageCommand = []()
   {
     std::string command = AppConfig::GetStr("clipboard_has_image_command");
-    if (command.empty() && IsDisplayServer(DisplayServer::Wayland))
+    if (command.empty())
     {
-      command = "wl-paste --list-types | grep -m1 'image/png' | wc -l";
+      if (IsDisplayServer(DisplayServer::Wayland))
+      {
+        command = "wl-paste --type image/png";
+      }
+      else if (IsDisplayServer(DisplayServer::X11))
+      {
+        command = "xclip -selection clipboard -o -t image/png";
+      }
     }
     return command;
   }();
@@ -291,9 +298,16 @@ bool Clipboard::GetImage(const std::string& p_Path)
   static const std::string clipboardPasteImageCommand = []()
   {
     std::string command = AppConfig::GetStr("clipboard_paste_image_command");
-    if (command.empty() && IsDisplayServer(DisplayServer::Wayland))
+    if (command.empty())
     {
-      command = "wl-paste --type image/png";
+      if (IsDisplayServer(DisplayServer::Wayland))
+      {
+        command = "wl-paste --type image/png";
+      }
+      else if (IsDisplayServer(DisplayServer::X11))
+      {
+        command = "xclip -selection clipboard -o -t image/png";
+      }
     }
     return command;
   }();
