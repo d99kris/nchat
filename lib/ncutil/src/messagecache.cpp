@@ -379,7 +379,40 @@ void MessageCache::AddProfile(const std::string& p_ProfileId, bool p_CheckSequen
         "SET schema = ?;" << schemaVersion;
     }
 
-    static const int64_t s_SchemaVersion = 7;
+    if (schemaVersion == 7)
+    {
+      LOG_INFO("update db schema 7 to 8");
+
+      *m_Dbs[p_ProfileId] << "CREATE TABLE IF NOT EXISTS transcriptions ("
+        "chatId TEXT NOT NULL,"
+        "msgId TEXT NOT NULL,"
+        "transcription TEXT NOT NULL,"
+        "language TEXT DEFAULT '',"
+        "service TEXT DEFAULT '',"
+        "timestamp INTEGER NOT NULL,"
+        "PRIMARY KEY (chatId, msgId)"
+        ");";
+
+      *m_Dbs[p_ProfileId] << "CREATE INDEX IF NOT EXISTS idx_transcriptions_timestamp "
+        "ON transcriptions(timestamp);";
+
+      schemaVersion = 8;
+      *m_Dbs[p_ProfileId] << "UPDATE version "
+        "SET schema = ?;" << schemaVersion;
+    }
+
+    if (schemaVersion == 8)
+    {
+      LOG_INFO("update db schema 8 to 9");
+
+      *m_Dbs[p_ProfileId] << "ALTER TABLE chats2 ADD COLUMN transcriptionLanguage TEXT DEFAULT '';";
+
+      schemaVersion = 9;
+      *m_Dbs[p_ProfileId] << "UPDATE version "
+        "SET schema = ?;" << schemaVersion;
+    }
+
+    static const int64_t s_SchemaVersion = 9;
     if (schemaVersion > s_SchemaVersion)
     {
       LOG_WARNING("cache db schema %d from newer nchat version detected, if cache issues are encountered "
@@ -738,6 +771,19 @@ void MessageCache::UpdatePin(const std::string& p_ProfileId, const std::string& 
   EnqueueRequest(updatePinRequest);
 }
 
+void MessageCache::UpdateTranscriptionLanguage(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                                const std::string& p_TranscriptionLanguage)
+{
+  if (!m_CacheEnabled) return;
+
+  std::shared_ptr<UpdateTranscriptionLanguageRequest> updateTranscriptionLanguageRequest =
+    std::make_shared<UpdateTranscriptionLanguageRequest>();
+  updateTranscriptionLanguageRequest->profileId = p_ProfileId;
+  updateTranscriptionLanguageRequest->chatId = p_ChatId;
+  updateTranscriptionLanguageRequest->transcriptionLanguage = p_TranscriptionLanguage;
+  EnqueueRequest(updateTranscriptionLanguageRequest);
+}
+
 void MessageCache::Export(const std::string& p_ExportDir)
 {
   if (!m_CacheEnabled)
@@ -1094,10 +1140,10 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
           for (const auto& chatInfo : addChatsRequest->chatInfos)
           {
             *m_Dbs[profileId] << "INSERT INTO " + s_TableChats + " "
-              "(id, isMuted, isPinned, lastMessageTime) VALUES "
-              "(?, ?, ?, ?);" <<
+              "(id, isMuted, isPinned, lastMessageTime, transcriptionLanguage) VALUES "
+              "(?, ?, ?, ?, ?);" <<
               chatInfo.id << chatInfo.isMuted << chatInfo.isPinned <<
-              chatInfo.lastMessageTime;
+              chatInfo.lastMessageTime << chatInfo.transcriptionLanguage;
           }
           *m_Dbs[profileId] << "COMMIT;";
         }
@@ -1162,12 +1208,14 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
           std::map<std::string, int32_t> chatIdMuted;
           std::map<std::string, int32_t> chatIdPinned;
           std::map<std::string, int64_t> chatIdLastMessageTime;
-          *m_Dbs[profileId] << "SELECT id, isMuted, isPinned, lastMessageTime FROM " + s_TableChats + ";" >>
-            [&](const std::string& chatId, int32_t isMuted, int32_t isPinned, int64_t lastMessageTime)
+          std::map<std::string, std::string> chatIdTranscriptionLanguage;
+          *m_Dbs[profileId] << "SELECT id, isMuted, isPinned, lastMessageTime, transcriptionLanguage FROM " + s_TableChats + ";" >>
+            [&](const std::string& chatId, int32_t isMuted, int32_t isPinned, int64_t lastMessageTime, const std::string& transcriptionLanguage)
             {
               chatIdMuted[chatId] = isMuted;
               chatIdPinned[chatId] = isPinned;
               chatIdLastMessageTime[chatId] = lastMessageTime;
+              chatIdTranscriptionLanguage[chatId] = transcriptionLanguage;
             };
 
           *m_Dbs[profileId] << "SELECT chatId, MAX(timeSent), isOutgoing, isRead FROM " + s_TableMessages + " "
@@ -1182,6 +1230,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
                 chatInfo.isMuted = chatIdMuted[chatId];
                 chatInfo.isPinned = chatIdPinned[chatId];
                 chatInfo.lastMessageTime = chatInfo.isPinned ? chatIdLastMessageTime[chatId] : timeSent;
+                chatInfo.transcriptionLanguage = chatIdTranscriptionLanguage[chatId];
                 chatInfos.push_back(chatInfo);
               }
             };
@@ -1702,6 +1751,33 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
       }
       break;
 
+    case UpdateTranscriptionLanguageRequestType:
+      {
+        std::unique_lock<std::mutex> lock(m_DbMutex);
+        std::shared_ptr<UpdateTranscriptionLanguageRequest> updateTranscriptionLanguageRequest =
+          std::static_pointer_cast<UpdateTranscriptionLanguageRequest>(p_Request);
+        const std::string& profileId = updateTranscriptionLanguageRequest->profileId;
+        if (!m_Dbs[profileId]) return;
+
+        const std::string& chatId = updateTranscriptionLanguageRequest->chatId;
+        const std::string& transcriptionLanguage = updateTranscriptionLanguageRequest->transcriptionLanguage;
+
+        try
+        {
+          *m_Dbs[profileId] << "INSERT INTO " + s_TableChats + " "
+            "(id, transcriptionLanguage) VALUES "
+            "(?, ?) ON CONFLICT(id) DO UPDATE SET transcriptionLanguage=?;" <<
+            chatId << transcriptionLanguage << transcriptionLanguage;
+        }
+        catch (const sqlite::sqlite_exception& ex)
+        {
+          HANDLE_SQLITE_EXCEPTION(ex);
+        }
+
+        LOG_DEBUG("cache update transcription language %s %s", chatId.c_str(), transcriptionLanguage.c_str());
+      }
+      break;
+
     default:
       {
         LOG_WARNING("cache unknown request type %d", p_Request->GetRequestType());
@@ -1806,5 +1882,118 @@ void MessageCache::CallMessageHandler(std::shared_ptr<ServiceMessage> p_ServiceM
   else
   {
     LOG_WARNING("message handler not set");
+  }
+}
+
+bool MessageCache::StoreTranscription(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                     const std::string& p_MsgId, const std::string& p_Transcription,
+                                     const std::string& p_Language, const std::string& p_Service)
+{
+  if (!m_CacheEnabled) return false;
+
+  std::unique_lock<std::mutex> lock(m_DbMutex);
+
+  if (m_Dbs.find(p_ProfileId) == m_Dbs.end()) return false;
+
+  try
+  {
+    int64_t timestamp = TimeUtil::GetCurrentTimeMSec() / 1000;
+
+    *m_Dbs[p_ProfileId] << "INSERT OR REPLACE INTO transcriptions "
+      "(chatId, msgId, transcription, language, service, timestamp) "
+      "VALUES (?, ?, ?, ?, ?, ?);"
+      << p_ChatId << p_MsgId << p_Transcription << p_Language << p_Service << timestamp;
+
+    return true;
+  }
+  catch (const sqlite::sqlite_exception& ex)
+  {
+    HANDLE_SQLITE_EXCEPTION(ex);
+    return false;
+  }
+}
+
+std::string MessageCache::GetTranscription(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                          const std::string& p_MsgId)
+{
+  if (!m_CacheEnabled) return "";
+
+  std::unique_lock<std::mutex> lock(m_DbMutex);
+
+  if (m_Dbs.find(p_ProfileId) == m_Dbs.end()) return "";
+
+  try
+  {
+    std::string transcription;
+
+    // *INDENT-OFF*
+    *m_Dbs[p_ProfileId] << "SELECT transcription FROM transcriptions "
+      "WHERE chatId = ? AND msgId = ?;"
+      << p_ChatId << p_MsgId >>
+      [&](const std::string& p_Transcription)
+      {
+        transcription = p_Transcription;
+      };
+    // *INDENT-ON*
+
+    return transcription;
+  }
+  catch (const sqlite::sqlite_exception& ex)
+  {
+    HANDLE_SQLITE_EXCEPTION(ex);
+    return "";
+  }
+}
+
+bool MessageCache::HasTranscription(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                   const std::string& p_MsgId)
+{
+  if (!m_CacheEnabled) return false;
+
+  std::unique_lock<std::mutex> lock(m_DbMutex);
+
+  if (m_Dbs.find(p_ProfileId) == m_Dbs.end()) return false;
+
+  try
+  {
+    bool hasTranscription = false;
+
+    // *INDENT-OFF*
+    *m_Dbs[p_ProfileId] << "SELECT 1 FROM transcriptions "
+      "WHERE chatId = ? AND msgId = ? LIMIT 1;"
+      << p_ChatId << p_MsgId >>
+      [&](int)
+      {
+        hasTranscription = true;
+      };
+    // *INDENT-ON*
+
+    return hasTranscription;
+  }
+  catch (const sqlite::sqlite_exception& ex)
+  {
+    HANDLE_SQLITE_EXCEPTION(ex);
+    return false;
+  }
+}
+
+void MessageCache::DeleteTranscription(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                      const std::string& p_MsgId)
+{
+  if (!m_CacheEnabled) return;
+
+  std::unique_lock<std::mutex> lock(m_DbMutex);
+
+  if (m_Dbs.find(p_ProfileId) == m_Dbs.end()) return;
+
+  try
+  {
+    *m_Dbs[p_ProfileId] << "DELETE FROM transcriptions "
+      "WHERE chatId = ? AND msgId = ?;"
+      << p_ChatId << p_MsgId;
+  }
+  catch (const sqlite::sqlite_exception& ex)
+  {
+    HANDLE_SQLITE_EXCEPTION(ex);
   }
 }
