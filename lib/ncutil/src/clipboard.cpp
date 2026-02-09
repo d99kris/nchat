@@ -267,11 +267,11 @@ bool Clipboard::HasImage()
     {
       if (IsDisplayServer(DisplayServer::Wayland))
       {
-        command = "wl-paste --type image/png";
+        command = "wl-paste --list-types | grep -m1 'image/png' | wc -l";
       }
       else if (IsDisplayServer(DisplayServer::X11))
       {
-        command = "xclip -selection clipboard -o -t image/png";
+        command = "xclip -selection clipboard -o -t TARGETS | grep -m1 'image/png' | wc -l";
       }
     }
     return command;
