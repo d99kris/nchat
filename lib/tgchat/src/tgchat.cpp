@@ -1044,7 +1044,7 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         auto delete_messages = td::td_api::make_object<td::td_api::deleteMessages>();
         delete_messages->chat_id_ = chatId;
         delete_messages->message_ids_ = msgIds;
-        delete_messages->revoke_ = true; // delete for all (if possible)
+        delete_messages->revoke_ = deleteMessageRequest->revoke;
 
         SendQuery(std::move(delete_messages),
                   [this, deleteMessageRequest](Object object)
