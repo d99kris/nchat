@@ -1,0 +1,82 @@
+Testing Checklist - Template
+============================
+For major upgrades of chat protocols or adding a new one, it is good to
+verify the following basic functionality.
+
+Updated: DD MMM, YYYY
+
+- [ ] Build
+    - [ ] Linux arm64
+    - [ ] Linux amd64
+    - [ ] macOS arm64
+- [ ] Setup
+    - [ ] QR code / PIN
+    - [ ] History sync
+    - [ ] Handle unlink
+    - [ ] Handle setup abort
+- [ ] Chat list
+    - [ ] Names
+    - [ ] Group names
+- [ ] Send message
+    - [ ] Text
+    - [ ] Text quoting message
+    - [ ] Image
+    - [ ] Image with caption
+    - [ ] Audio
+    - [ ] Audio with caption
+    - [ ] Video
+    - [ ] Video with caption
+    - [ ] Document
+    - [ ] Document with caption
+- [ ] Receive message
+    - [ ] Text
+    - [ ] Text quoting message
+    - [ ] Image
+    - [ ] Image with caption
+    - [ ] Audio
+    - [ ] Audio with caption
+    - [ ] Video
+    - [ ] Video with caption
+    - [ ] Document
+    - [ ] Document with caption
+- [ ] Receipts
+    - [ ] Receive read receipt
+    - [ ] Send read receipt
+- [ ] Reactions
+    - [ ] Add reaction
+    - [ ] Remove reaction
+    - [ ] Receive add reaction
+    - [ ] Receive remove reaction
+- [ ] Status
+    - [ ] Send online
+    - [ ] Send typing
+    - [ ] Receive online
+    - [ ] Receive typing
+    - [ ] Detect network connectivity
+- [ ] Chats
+    - [ ] New chat
+    - [ ] Delete chat
+    - [ ] Reflect phone changes
+        - [ ] New chat
+        - [ ] Delete chat
+        - [ ] Muted chat
+        - [ ] Pinned chat
+- [ ] Groups
+    - [ ] Send message
+    - [ ] Receive message
+    - [ ] Send receipt
+    - [ ] Receive receipt
+    - [ ] Update messages
+        - [ ] Changed group name
+        - [ ] Added member
+        - [ ] Removed member
+        - [ ] Member joined
+        - [ ] Member left
+- [ ] Delete messages
+    - [ ] Send delete
+    - [ ] Receive delete
+    - [ ] Send delete in group
+    - [ ] Receive delete in group
+- [ ] Contacts
+    - [ ] View list
+    - [ ] Call contact in external app

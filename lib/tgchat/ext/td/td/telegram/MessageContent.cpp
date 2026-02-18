@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2026
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -103,6 +103,7 @@
 #include "td/telegram/ToDoItem.hpp"
 #include "td/telegram/ToDoList.h"
 #include "td/telegram/ToDoList.hpp"
+#include "td/telegram/TonAmount.h"
 #include "td/telegram/TopDialogManager.h"
 #include "td/telegram/TranscriptionManager.h"
 #include "td/telegram/UserId.h"
@@ -130,6 +131,7 @@
 #include "td/utils/MimeType.h"
 #include "td/utils/misc.h"
 #include "td/utils/PathView.h"
+#include "td/utils/Random.h"
 #include "td/utils/Slice.h"
 #include "td/utils/SliceBuilder.h"
 #include "td/utils/tl_helpers.h"
@@ -539,7 +541,7 @@ class MessageChatSetTtl final : public MessageContent {
 
 class MessageUnsupported final : public MessageContent {
  public:
-  static constexpr int32 CURRENT_VERSION = 51;
+  static constexpr int32 CURRENT_VERSION = 53;
   int32 version = CURRENT_VERSION;
 
   MessageUnsupported() = default;
@@ -758,12 +760,24 @@ class MessageDice final : public MessageContent {
  public:
   string emoji;
   int32 dice_value = 0;
+  bool is_stake = false;
+  string seed;
+  string state_hash;
+  int64 stake_ton_count = 0;
+  int64 prize_ton_count = 0;
 
   static constexpr const char *DEFAULT_EMOJI = "🎲";
 
   MessageDice() = default;
-  MessageDice(const string &emoji, int32 dice_value)
-      : emoji(emoji.empty() ? string(DEFAULT_EMOJI) : remove_emoji_modifiers(emoji)), dice_value(dice_value) {
+  MessageDice(const string &emoji, int32 dice_value, bool is_stake, string seed, string state_hash,
+              int64 stake_ton_count, int64 prize_ton_count)
+      : emoji(emoji.empty() ? string(DEFAULT_EMOJI) : remove_emoji_modifiers(emoji))
+      , dice_value(dice_value)
+      , is_stake(is_stake)
+      , seed(std::move(seed))
+      , state_hash(std::move(state_hash))
+      , stake_ton_count(stake_ton_count)
+      , prize_ton_count(prize_ton_count) {
   }
 
   MessageContentType get_type() const final {
@@ -775,9 +789,30 @@ class MessageDice final : public MessageContent {
       return false;
     }
     if (emoji == DEFAULT_EMOJI || emoji == "🎯") {
-      return dice_value <= 6;
+      if (dice_value > 6) {
+        return false;
+      }
+    } else if (dice_value > 1000) {
+      return false;
     }
-    return dice_value <= 1000;
+    if (is_stake) {
+      if (dice_value != 0) {
+        if (emoji != DEFAULT_EMOJI) {
+          return false;
+        }
+        if (seed.empty()) {
+          return false;
+        }
+        if (stake_ton_count <= 0 || prize_ton_count <= 0) {
+          return false;
+        }
+      } else {
+        if (state_hash.empty() || seed.size() != 32u) {
+          return false;
+        }
+      }
+    }
+    return true;
   }
 };
 
@@ -1283,6 +1318,7 @@ class MessageStarGift final : public MessageContent {
   MessageId gift_message_id;
   MessageId upgrade_message_id;
   string prepaid_upgrade_hash;
+  int32 gift_num = 0;
   bool name_hidden = false;
   bool is_saved = false;
   bool can_upgrade = false;
@@ -1297,9 +1333,9 @@ class MessageStarGift final : public MessageContent {
   MessageStarGift(StarGift &&star_gift, DialogId sender_dialog_id, DialogId receiver_dialog_id,
                   DialogId owner_dialog_id, int64 saved_id, FormattedText &&text, int64 convert_star_count,
                   int64 upgrade_star_count, MessageId gift_message_id, MessageId upgrade_message_id,
-                  string prepaid_upgrade_hash, bool name_hidden, bool is_saved, bool can_upgrade, bool was_converted,
-                  bool was_upgraded, bool was_refunded, bool is_prepaid_upgrade, bool is_upgrade_separate,
-                  bool is_auction_acquired)
+                  string prepaid_upgrade_hash, int32 gift_num, bool name_hidden, bool is_saved, bool can_upgrade,
+                  bool was_converted, bool was_upgraded, bool was_refunded, bool is_prepaid_upgrade,
+                  bool is_upgrade_separate, bool is_auction_acquired)
       : star_gift(std::move(star_gift))
       , sender_dialog_id(sender_dialog_id)
       , receiver_dialog_id(receiver_dialog_id)
@@ -1311,6 +1347,7 @@ class MessageStarGift final : public MessageContent {
       , gift_message_id(gift_message_id)
       , upgrade_message_id(upgrade_message_id)
       , prepaid_upgrade_hash(std::move(prepaid_upgrade_hash))
+      , gift_num(gift_num)
       , name_hidden(name_hidden)
       , is_saved(is_saved)
       , can_upgrade(can_upgrade)
@@ -1344,6 +1381,7 @@ class MessageStarGiftUnique final : public MessageContent {
   bool is_upgrade = false;
   bool is_prepaid_upgrade = false;
   bool is_assigned = false;
+  bool from_offer = false;
   bool can_transfer = false;
   bool was_transferred = false;
   bool was_refunded = false;
@@ -1353,8 +1391,8 @@ class MessageStarGiftUnique final : public MessageContent {
                         DialogId owner_dialog_id, int64 saved_id, StarGiftResalePrice resale_price,
                         int64 transfer_star_count, int64 drop_original_details_star_count, int32 can_transfer_at,
                         int32 can_resell_at, int32 can_export_at, bool is_saved, bool is_upgrade,
-                        bool is_prepaid_upgrade, bool is_assigned, bool can_transfer, bool was_transferred,
-                        bool was_refunded)
+                        bool is_prepaid_upgrade, bool is_assigned, bool from_offer, bool can_transfer,
+                        bool was_transferred, bool was_refunded)
       : gift_message_id(gift_message_id)
       , star_gift(std::move(star_gift))
       , sender_dialog_id(sender_dialog_id)
@@ -1370,6 +1408,7 @@ class MessageStarGiftUnique final : public MessageContent {
       , is_upgrade(is_upgrade)
       , is_prepaid_upgrade(is_prepaid_upgrade)
       , is_assigned(is_assigned)
+      , from_offer(from_offer)
       , can_transfer(can_transfer)
       , was_transferred(was_transferred)
       , was_refunded(was_refunded) {
@@ -1572,6 +1611,50 @@ class MessageSuggestBirthday final : public MessageContent {
 
   MessageContentType get_type() const final {
     return MessageContentType::SuggestBirthday;
+  }
+};
+
+class MessageStarGiftPurchaseOffer final : public MessageContent {
+ public:
+  StarGift star_gift;
+  StarGiftResalePrice price;
+  int32 expires_at = 0;
+  bool is_accepted = false;
+  bool is_declined = false;
+
+  MessageStarGiftPurchaseOffer() = default;
+  MessageStarGiftPurchaseOffer(StarGift &&star_gift, StarGiftResalePrice &&price, int32 expires_at, bool is_accepted,
+                               bool is_declined)
+      : star_gift(std::move(star_gift))
+      , price(std::move(price))
+      , expires_at(expires_at)
+      , is_accepted(is_accepted)
+      , is_declined(is_declined) {
+  }
+
+  MessageContentType get_type() const final {
+    return MessageContentType::StarGiftPurchaseOffer;
+  }
+};
+
+class MessageStarGiftPurchaseOfferDeclined final : public MessageContent {
+ public:
+  StarGift star_gift;
+  StarGiftResalePrice price;
+  MessageId offer_message_id;
+  bool was_expired = false;
+
+  MessageStarGiftPurchaseOfferDeclined() = default;
+  MessageStarGiftPurchaseOfferDeclined(StarGift &&star_gift, StarGiftResalePrice &&price, MessageId offer_message_id,
+                                       bool was_expired)
+      : star_gift(std::move(star_gift))
+      , price(std::move(price))
+      , offer_message_id(offer_message_id)
+      , was_expired(was_expired) {
+  }
+
+  MessageContentType get_type() const final {
+    return MessageContentType::StarGiftPurchaseOfferDeclined;
   }
 };
 
@@ -1922,8 +2005,31 @@ static void store(const MessageContent *content, StorerT &storer) {
     }
     case MessageContentType::Dice: {
       const auto *m = static_cast<const MessageDice *>(content);
+      bool has_seed = !m->seed.empty();
+      bool has_stake_ton_count = m->stake_ton_count != 0;
+      bool has_prize_ton_count = m->prize_ton_count != 0;
+      bool has_state_hash = !m->state_hash.empty();
+      BEGIN_STORE_FLAGS();
+      STORE_FLAG(m->is_stake);
+      STORE_FLAG(has_seed);
+      STORE_FLAG(has_stake_ton_count);
+      STORE_FLAG(has_prize_ton_count);
+      STORE_FLAG(has_state_hash);
+      END_STORE_FLAGS();
       store(m->emoji, storer);
       store(m->dice_value, storer);
+      if (has_seed) {
+        store(m->seed, storer);
+      }
+      if (has_stake_ton_count) {
+        store(m->stake_ton_count, storer);
+      }
+      if (has_prize_ton_count) {
+        store(m->prize_ton_count, storer);
+      }
+      if (has_state_hash) {
+        store(m->state_hash, storer);
+      }
       break;
     }
     case MessageContentType::ProximityAlertTriggered: {
@@ -2299,6 +2405,7 @@ static void store(const MessageContent *content, StorerT &storer) {
       bool has_gift_message_id = m->gift_message_id.is_valid();
       bool has_prepaid_upgrade_hash = !m->prepaid_upgrade_hash.empty();
       bool has_receiver_dialog_id = m->receiver_dialog_id.is_valid();
+      bool has_gift_num = m->gift_num != 0;
       BEGIN_STORE_FLAGS();
       STORE_FLAG(m->name_hidden);
       STORE_FLAG(m->is_saved);
@@ -2318,6 +2425,7 @@ static void store(const MessageContent *content, StorerT &storer) {
       STORE_FLAG(m->is_upgrade_separate);
       STORE_FLAG(m->is_auction_acquired);
       STORE_FLAG(has_receiver_dialog_id);
+      STORE_FLAG(has_gift_num);
       END_STORE_FLAGS();
       store(m->star_gift, storer);
       if (has_text) {
@@ -2347,6 +2455,9 @@ static void store(const MessageContent *content, StorerT &storer) {
       }
       if (has_receiver_dialog_id) {
         store(m->receiver_dialog_id, storer);
+      }
+      if (has_gift_num) {
+        store(m->gift_num, storer);
       }
       break;
     }
@@ -2381,6 +2492,7 @@ static void store(const MessageContent *content, StorerT &storer) {
       STORE_FLAG(m->is_prepaid_upgrade);
       STORE_FLAG(has_drop_original_details_star_count);
       STORE_FLAG(m->is_assigned);
+      STORE_FLAG(m->from_offer);
       END_STORE_FLAGS();
       store(m->star_gift, storer);
       if (has_transfer_star_count) {
@@ -2572,6 +2684,31 @@ static void store(const MessageContent *content, StorerT &storer) {
       BEGIN_STORE_FLAGS();
       END_STORE_FLAGS();
       store(m->birthdate, storer);
+      break;
+    }
+    case MessageContentType::StarGiftPurchaseOffer: {
+      const auto *m = static_cast<const MessageStarGiftPurchaseOffer *>(content);
+      BEGIN_STORE_FLAGS();
+      STORE_FLAG(m->is_accepted);
+      STORE_FLAG(m->is_declined);
+      END_STORE_FLAGS();
+      store(m->star_gift, storer);
+      store(m->price, storer);
+      store(m->expires_at, storer);
+      break;
+    }
+    case MessageContentType::StarGiftPurchaseOfferDeclined: {
+      const auto *m = static_cast<const MessageStarGiftPurchaseOfferDeclined *>(content);
+      bool has_offer_message_id = m->offer_message_id.is_valid();
+      BEGIN_STORE_FLAGS();
+      STORE_FLAG(m->was_expired);
+      STORE_FLAG(has_offer_message_id);
+      END_STORE_FLAGS();
+      store(m->star_gift, storer);
+      store(m->price, storer);
+      if (has_offer_message_id) {
+        store(m->offer_message_id, storer);
+      }
       break;
     }
     default:
@@ -3065,6 +3202,19 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
     }
     case MessageContentType::Dice: {
       auto m = make_unique<MessageDice>();
+      bool has_seed = false;
+      bool has_stake_ton_count = false;
+      bool has_prize_ton_count = false;
+      bool has_state_hash = false;
+      if (parser.version() >= static_cast<int32>(Version::AddDiceFlags)) {
+        BEGIN_PARSE_FLAGS();
+        PARSE_FLAG(m->is_stake);
+        PARSE_FLAG(has_seed);
+        PARSE_FLAG(has_stake_ton_count);
+        PARSE_FLAG(has_prize_ton_count);
+        PARSE_FLAG(has_state_hash);
+        END_PARSE_FLAGS();
+      }
       if (parser.version() >= static_cast<int32>(Version::AddDiceEmoji)) {
         parse(m->emoji, parser);
         remove_emoji_modifiers_in_place(m->emoji);
@@ -3072,6 +3222,18 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
         m->emoji = MessageDice::DEFAULT_EMOJI;
       }
       parse(m->dice_value, parser);
+      if (has_seed) {
+        parse(m->seed, parser);
+      }
+      if (has_stake_ton_count) {
+        parse(m->stake_ton_count, parser);
+      }
+      if (has_prize_ton_count) {
+        parse(m->prize_ton_count, parser);
+      }
+      if (has_state_hash) {
+        parse(m->state_hash, parser);
+      }
       is_bad = !m->is_valid();
       content = std::move(m);
       break;
@@ -3530,6 +3692,7 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
       bool has_gift_message_id;
       bool has_prepaid_upgrade_hash;
       bool has_receiver_dialog_id;
+      bool has_gift_num;
       BEGIN_PARSE_FLAGS();
       PARSE_FLAG(m->name_hidden);
       PARSE_FLAG(m->is_saved);
@@ -3549,6 +3712,7 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
       PARSE_FLAG(m->is_upgrade_separate);
       PARSE_FLAG(m->is_auction_acquired);
       PARSE_FLAG(has_receiver_dialog_id);
+      PARSE_FLAG(has_gift_num);
       END_PARSE_FLAGS();
       parse(m->star_gift, parser);
       if (has_text) {
@@ -3578,6 +3742,9 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
       }
       if (has_receiver_dialog_id) {
         parse(m->receiver_dialog_id, parser);
+      }
+      if (has_gift_num) {
+        parse(m->gift_num, parser);
       }
       if (!m->star_gift.is_valid() || m->star_gift.is_unique()) {
         is_bad = true;
@@ -3618,6 +3785,7 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
       PARSE_FLAG(m->is_prepaid_upgrade);
       PARSE_FLAG(has_drop_original_details_star_count);
       PARSE_FLAG(m->is_assigned);
+      PARSE_FLAG(m->from_offer);
       END_PARSE_FLAGS();
       parse(m->star_gift, parser);
       if (has_transfer_star_count) {
@@ -3829,6 +3997,41 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
       BEGIN_PARSE_FLAGS();
       END_PARSE_FLAGS();
       parse(m->birthdate, parser);
+      content = std::move(m);
+      break;
+    }
+    case MessageContentType::StarGiftPurchaseOffer: {
+      auto m = make_unique<MessageStarGiftPurchaseOffer>();
+      BEGIN_PARSE_FLAGS();
+      PARSE_FLAG(m->is_accepted);
+      PARSE_FLAG(m->is_declined);
+      END_PARSE_FLAGS();
+      parse(m->star_gift, parser);
+      parse(m->price, parser);
+      parse(m->expires_at, parser);
+      if (!m->star_gift.is_valid() || !m->star_gift.is_unique()) {
+        is_bad = true;
+        break;
+      }
+      content = std::move(m);
+      break;
+    }
+    case MessageContentType::StarGiftPurchaseOfferDeclined: {
+      auto m = make_unique<MessageStarGiftPurchaseOfferDeclined>();
+      bool has_offer_message_id;
+      BEGIN_PARSE_FLAGS();
+      PARSE_FLAG(m->was_expired);
+      PARSE_FLAG(has_offer_message_id);
+      END_PARSE_FLAGS();
+      parse(m->star_gift, parser);
+      parse(m->price, parser);
+      if (has_offer_message_id) {
+        parse(m->offer_message_id, parser);
+      }
+      if (!m->star_gift.is_valid() || !m->star_gift.is_unique()) {
+        is_bad = true;
+        break;
+      }
       content = std::move(m);
       break;
     }
@@ -4163,7 +4366,7 @@ static Result<InputMessageContent> create_input_message_content(
       if (!clean_input_string(input_dice->emoji_)) {
         return Status::Error(400, "Dice emoji must be encoded in UTF-8");
       }
-      content = td::make_unique<MessageDice>(input_dice->emoji_, 0);
+      content = td::make_unique<MessageDice>(input_dice->emoji_, 0, false, string(), string(), 0, 0);
       clear_draft = input_dice->clear_draft_;
       break;
     }
@@ -4180,7 +4383,7 @@ static Result<InputMessageContent> create_input_message_content(
 
       if (input_paid_media->star_count_ <= 0 ||
           input_paid_media->star_count_ >
-              td->option_manager_->get_option_integer("paid_media_message_star_count_max")) {
+              (is_bot ? 1000000 : td->option_manager_->get_option_integer("paid_media_message_star_count_max"))) {
         return Status::Error(400, "Invalid media price specified");
       }
       vector<MessageExtendedMedia> extended_media;
@@ -4211,6 +4414,21 @@ static Result<InputMessageContent> create_input_message_content(
 
       content =
           make_unique<MessagePhoto>(std::move(photo), std::move(caption), input_photo->has_spoiler_ && !is_secret);
+      break;
+    }
+    case td_api::inputMessageStakeDice::ID: {
+      auto input_dice = static_cast<td_api::inputMessageStakeDice *>(input_message_content.get());
+      if (!clean_input_string(input_dice->state_hash_)) {
+        return Status::Error(400, "State hash must be encoded in UTF-8");
+      }
+      if (input_dice->state_hash_.empty()) {
+        return Status::Error(400, "State hash must be non-empty");
+      }
+      string client_seed(32, '\0');
+      Random::secure_bytes(client_seed);
+      content = td::make_unique<MessageDice>(MessageDice::DEFAULT_EMOJI, 0, true, std::move(client_seed),
+                                             std::move(input_dice->state_hash_), input_dice->stake_toncoin_amount_, -1);
+      clear_draft = input_dice->clear_draft_;
       break;
     }
     case td_api::inputMessageSticker::ID: {
@@ -4640,6 +4858,8 @@ bool can_message_content_have_input_media(const Td *td, const MessageContent *co
     case MessageContentType::SuggestedPostRefund:
     case MessageContentType::SuggestedPostApproval:
     case MessageContentType::SuggestBirthday:
+    case MessageContentType::StarGiftPurchaseOffer:
+    case MessageContentType::StarGiftPurchaseOfferDeclined:
       return false;
     case MessageContentType::Animation:
     case MessageContentType::Audio:
@@ -4800,6 +5020,8 @@ SecretInputMedia get_message_content_secret_input_media(
     case MessageContentType::SuggestedPostRefund:
     case MessageContentType::SuggestedPostApproval:
     case MessageContentType::SuggestBirthday:
+    case MessageContentType::StarGiftPurchaseOffer:
+    case MessageContentType::StarGiftPurchaseOfferDeclined:
       break;
     default:
       UNREACHABLE();
@@ -4834,6 +5056,10 @@ static telegram_api::object_ptr<telegram_api::InputMedia> get_message_content_in
     }
     case MessageContentType::Dice: {
       const auto *m = static_cast<const MessageDice *>(content);
+      if (m->is_stake) {
+        return make_tl_object<telegram_api::inputMediaStakeDice>(m->state_hash, m->stake_ton_count,
+                                                                 BufferSlice(m->seed));
+      }
       return make_tl_object<telegram_api::inputMediaDice>(m->emoji);
     }
     case MessageContentType::Document: {
@@ -4989,6 +5215,8 @@ static telegram_api::object_ptr<telegram_api::InputMedia> get_message_content_in
     case MessageContentType::SuggestedPostRefund:
     case MessageContentType::SuggestedPostApproval:
     case MessageContentType::SuggestBirthday:
+    case MessageContentType::StarGiftPurchaseOffer:
+    case MessageContentType::StarGiftPurchaseOfferDeclined:
       break;
     default:
       UNREACHABLE();
@@ -5215,6 +5443,8 @@ void delete_message_content_thumbnail(MessageContent *content, Td *td, int32 med
     case MessageContentType::SuggestedPostRefund:
     case MessageContentType::SuggestedPostApproval:
     case MessageContentType::SuggestBirthday:
+    case MessageContentType::StarGiftPurchaseOffer:
+    case MessageContentType::StarGiftPurchaseOfferDeclined:
       break;
     default:
       UNREACHABLE();
@@ -5474,6 +5704,8 @@ Status can_send_message_content(DialogId dialog_id, const MessageContent *conten
     case MessageContentType::SuggestedPostRefund:
     case MessageContentType::SuggestedPostApproval:
     case MessageContentType::SuggestBirthday:
+    case MessageContentType::StarGiftPurchaseOffer:
+    case MessageContentType::StarGiftPurchaseOfferDeclined:
       UNREACHABLE();
   }
   return Status::OK();
@@ -5656,6 +5888,8 @@ static int32 get_message_content_media_index_mask(const MessageContent *content,
     case MessageContentType::SuggestedPostRefund:
     case MessageContentType::SuggestedPostApproval:
     case MessageContentType::SuggestBirthday:
+    case MessageContentType::StarGiftPurchaseOffer:
+    case MessageContentType::StarGiftPurchaseOfferDeclined:
       return 0;
     default:
       UNREACHABLE();
@@ -5790,6 +6024,14 @@ MessageFullId get_message_content_replied_message_id(DialogId dialog_id, const M
       }
 
       return {dialog_id, m->suggested_post_message_id};
+    }
+    case MessageContentType::StarGiftPurchaseOfferDeclined: {
+      auto *m = static_cast<const MessageStarGiftPurchaseOfferDeclined *>(content);
+      if (!m->offer_message_id.is_valid()) {
+        return MessageFullId();
+      }
+
+      return {dialog_id, m->offer_message_id};
     }
     // update getRepliedMessage documentation
     default:
@@ -6036,6 +6278,12 @@ vector<UserId> get_message_content_min_user_ids(const Td *td, const MessageConte
     case MessageContentType::SuggestedPostApproval:
       break;
     case MessageContentType::SuggestBirthday:
+      break;
+    case MessageContentType::StarGiftPurchaseOffer:
+      // private chats only
+      break;
+    case MessageContentType::StarGiftPurchaseOfferDeclined:
+      // private chats only
       break;
     default:
       UNREACHABLE();
@@ -6506,6 +6754,8 @@ void merge_message_contents(Td *td, const MessageContent *old_content, MessageCo
     case MessageContentType::SuggestedPostRefund:
     case MessageContentType::SuggestedPostApproval:
     case MessageContentType::SuggestBirthday:
+    case MessageContentType::StarGiftPurchaseOffer:
+    case MessageContentType::StarGiftPurchaseOfferDeclined:
       break;
     default:
       UNREACHABLE();
@@ -6674,6 +6924,8 @@ bool merge_message_content_file_id(Td *td, MessageContent *message_content, File
     case MessageContentType::SuggestedPostRefund:
     case MessageContentType::SuggestedPostApproval:
     case MessageContentType::SuggestBirthday:
+    case MessageContentType::StarGiftPurchaseOffer:
+    case MessageContentType::StarGiftPurchaseOfferDeclined:
       LOG(ERROR) << "Receive new file " << new_file_id << " in a sent message of the type " << content_type;
       break;
     default:
@@ -7018,8 +7270,11 @@ void compare_message_contents(Td *td, const MessageContent *old_content, const M
     case MessageContentType::Dice: {
       const auto *lhs = static_cast<const MessageDice *>(old_content);
       const auto *rhs = static_cast<const MessageDice *>(new_content);
-      if (lhs->emoji != rhs->emoji || lhs->dice_value != rhs->dice_value) {
+      if (lhs->emoji != rhs->emoji || lhs->dice_value != rhs->dice_value || lhs->is_stake != rhs->is_stake ||
+          lhs->stake_ton_count != rhs->stake_ton_count || lhs->prize_ton_count != rhs->prize_ton_count) {
         need_update = true;
+      } else if (lhs->seed != rhs->seed || lhs->state_hash != rhs->state_hash) {
+        is_content_changed = true;
       }
       break;
     }
@@ -7286,11 +7541,11 @@ void compare_message_contents(Td *td, const MessageContent *old_content, const M
           lhs->saved_id != rhs->saved_id || lhs->text != rhs->text ||
           lhs->convert_star_count != rhs->convert_star_count || lhs->upgrade_star_count != rhs->upgrade_star_count ||
           lhs->gift_message_id != rhs->gift_message_id || lhs->upgrade_message_id != rhs->upgrade_message_id ||
-          lhs->prepaid_upgrade_hash != rhs->prepaid_upgrade_hash || lhs->name_hidden != rhs->name_hidden ||
-          lhs->is_saved != rhs->is_saved || lhs->can_upgrade != rhs->can_upgrade ||
-          lhs->was_converted != rhs->was_converted || lhs->was_upgraded != rhs->was_upgraded ||
-          lhs->was_refunded != rhs->was_refunded || lhs->is_prepaid_upgrade != rhs->is_prepaid_upgrade ||
-          lhs->is_upgrade_separate != rhs->is_upgrade_separate ||
+          lhs->prepaid_upgrade_hash != rhs->prepaid_upgrade_hash || lhs->gift_num != rhs->gift_num ||
+          lhs->name_hidden != rhs->name_hidden || lhs->is_saved != rhs->is_saved ||
+          lhs->can_upgrade != rhs->can_upgrade || lhs->was_converted != rhs->was_converted ||
+          lhs->was_upgraded != rhs->was_upgraded || lhs->was_refunded != rhs->was_refunded ||
+          lhs->is_prepaid_upgrade != rhs->is_prepaid_upgrade || lhs->is_upgrade_separate != rhs->is_upgrade_separate ||
           lhs->is_auction_acquired != rhs->is_auction_acquired) {
         need_update = true;
       }
@@ -7307,8 +7562,9 @@ void compare_message_contents(Td *td, const MessageContent *old_content, const M
           lhs->can_transfer_at != rhs->can_transfer_at || lhs->can_resell_at != rhs->can_resell_at ||
           lhs->can_export_at != rhs->can_export_at || lhs->is_saved != rhs->is_saved ||
           lhs->is_upgrade != rhs->is_upgrade || lhs->is_prepaid_upgrade != rhs->is_prepaid_upgrade ||
-          lhs->is_assigned != rhs->is_assigned || lhs->can_transfer != rhs->can_transfer ||
-          lhs->was_transferred != rhs->was_transferred || lhs->was_refunded != rhs->was_refunded) {
+          lhs->is_assigned != rhs->is_assigned || lhs->from_offer != rhs->from_offer ||
+          lhs->can_transfer != rhs->can_transfer || lhs->was_transferred != rhs->was_transferred ||
+          lhs->was_refunded != rhs->was_refunded) {
         need_update = true;
       }
       break;
@@ -7406,6 +7662,24 @@ void compare_message_contents(Td *td, const MessageContent *old_content, const M
       const auto *lhs = static_cast<const MessageSuggestBirthday *>(old_content);
       const auto *rhs = static_cast<const MessageSuggestBirthday *>(new_content);
       if (lhs->birthdate != rhs->birthdate) {
+        need_update = true;
+      }
+      break;
+    }
+    case MessageContentType::StarGiftPurchaseOffer: {
+      const auto *lhs = static_cast<const MessageStarGiftPurchaseOffer *>(old_content);
+      const auto *rhs = static_cast<const MessageStarGiftPurchaseOffer *>(new_content);
+      if (lhs->star_gift != rhs->star_gift || lhs->price != rhs->price || lhs->expires_at != rhs->expires_at ||
+          lhs->is_accepted != rhs->is_accepted || lhs->is_declined != rhs->is_declined) {
+        need_update = true;
+      }
+      break;
+    }
+    case MessageContentType::StarGiftPurchaseOfferDeclined: {
+      const auto *lhs = static_cast<const MessageStarGiftPurchaseOfferDeclined *>(old_content);
+      const auto *rhs = static_cast<const MessageStarGiftPurchaseOfferDeclined *>(new_content);
+      if (lhs->star_gift != rhs->star_gift || lhs->price != rhs->price ||
+          lhs->offer_message_id != rhs->offer_message_id || lhs->was_expired != rhs->was_expired) {
         need_update = true;
       }
       break;
@@ -7511,6 +7785,16 @@ void register_message_content(Td *td, const MessageContent *content, MessageFull
     case MessageContentType::GiftTon: {
       auto crypto_amount = static_cast<const MessageGiftTon *>(content)->crypto_amount;
       return td->stickers_manager_->register_ton_gift(crypto_amount, message_full_id, source);
+    }
+    case MessageContentType::StarGiftPurchaseOffer: {
+      auto star_gift = static_cast<const MessageStarGiftPurchaseOffer *>(content);
+      td->star_gift_manager_->on_get_star_gift(star_gift->star_gift, false);
+      return td->star_gift_manager_->register_gift(message_full_id, source);
+    }
+    case MessageContentType::StarGiftPurchaseOfferDeclined: {
+      auto star_gift = static_cast<const MessageStarGiftPurchaseOfferDeclined *>(content);
+      td->star_gift_manager_->on_get_star_gift(star_gift->star_gift, false);
+      return td->star_gift_manager_->register_gift(message_full_id, source);
     }
     default:
       return;
@@ -7678,6 +7962,10 @@ void unregister_message_content(Td *td, const MessageContent *content, MessageFu
       auto crypto_amount = static_cast<const MessageGiftTon *>(content)->crypto_amount;
       return td->stickers_manager_->unregister_ton_gift(crypto_amount, message_full_id, source);
     }
+    case MessageContentType::StarGiftPurchaseOffer:
+      return td->star_gift_manager_->unregister_gift(message_full_id, source);
+    case MessageContentType::StarGiftPurchaseOfferDeclined:
+      return td->star_gift_manager_->unregister_gift(message_full_id, source);
     default:
       return;
   }
@@ -8208,8 +8496,15 @@ unique_ptr<MessageContent> get_message_content(Td *td, FormattedText message,
     }
     case telegram_api::messageMediaDice::ID: {
       auto media = telegram_api::move_object_as<telegram_api::messageMediaDice>(media_ptr);
+      bool is_stake = media->game_outcome_ != nullptr;
+      if (is_stake && media->emoticon_ != MessageDice::DEFAULT_EMOJI) {
+        return make_unique<MessageUnsupported>();
+      }
 
-      auto m = td::make_unique<MessageDice>(media->emoticon_, media->value_);
+      auto m = td::make_unique<MessageDice>(
+          media->emoticon_, media->value_, is_stake, is_stake ? media->game_outcome_->seed_.as_slice().str() : string(),
+          string(), is_stake ? TonAmount::get_ton_count(media->game_outcome_->stake_ton_amount_, false) : 0,
+          is_stake ? TonAmount::get_ton_count(media->game_outcome_->ton_amount_, false) : 0);
       if (!m->is_valid()) {
         break;
       }
@@ -8543,11 +8838,14 @@ unique_ptr<MessageContent> dup_message_content(Td *td, DialogId dialog_id, const
     case MessageContentType::Contact:
       return make_unique<MessageContact>(*static_cast<const MessageContact *>(content));
     case MessageContentType::Dice: {
-      auto result = td::make_unique<MessageDice>(*static_cast<const MessageDice *>(content));
-      if (type != MessageContentDupType::Forward) {
-        result->dice_value = 0;
+      auto old_content = static_cast<const MessageDice *>(content);
+      if (type == MessageContentDupType::Send && old_content->is_stake) {
+        return td::make_unique<MessageDice>(old_content->emoji, 0, true, old_content->seed, old_content->state_hash,
+                                            old_content->stake_ton_count, 0);
       }
-      return std::move(result);
+      return td::make_unique<MessageDice>(old_content->emoji,
+                                          type != MessageContentDupType::Forward ? 0 : old_content->dice_value, false,
+                                          string(), string(), 0, 0);
     }
     case MessageContentType::Document: {
       auto result = make_unique<MessageDocument>(*static_cast<const MessageDocument *>(content));
@@ -8741,6 +9039,8 @@ unique_ptr<MessageContent> dup_message_content(Td *td, DialogId dialog_id, const
     case MessageContentType::SuggestedPostRefund:
     case MessageContentType::SuggestedPostApproval:
     case MessageContentType::SuggestBirthday:
+    case MessageContentType::StarGiftPurchaseOffer:
+    case MessageContentType::StarGiftPurchaseOfferDeclined:
       return nullptr;
     default:
       UNREACHABLE();
@@ -8816,6 +9116,8 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
       case telegram_api::messageActionTodoAppendTasks::ID:
       case telegram_api::messageActionGiftTon::ID:
       case telegram_api::messageActionSuggestBirthday::ID:
+      case telegram_api::messageActionStarGiftPurchaseOffer::ID:
+      case telegram_api::messageActionStarGiftPurchaseOfferDeclined::ID:
         // ok
         break;
       default:
@@ -8823,6 +9125,7 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
     }
   }
   switch (action_ptr->get_id()) {
+    case telegram_api::messageActionHistoryClear::ID:
     case telegram_api::messageActionPinMessage::ID:
     case telegram_api::messageActionGameScore::ID:
     case telegram_api::messageActionPaymentSent::ID:
@@ -8837,6 +9140,7 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
     case telegram_api::messageActionSuggestedPostApproval::ID:
     case telegram_api::messageActionSuggestedPostSuccess::ID:
     case telegram_api::messageActionSuggestedPostRefund::ID:
+    case telegram_api::messageActionStarGiftPurchaseOfferDeclined::ID:
       // ok
       break;
     default:
@@ -9191,7 +9495,7 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
     }
     case telegram_api::messageActionSetChatWallPaper::ID: {
       auto action = telegram_api::move_object_as<telegram_api::messageActionSetChatWallPaper>(action_ptr);
-      BackgroundInfo background_info(td, std::move(action->wallpaper_), true);
+      BackgroundInfo background_info(td, std::move(action->wallpaper_), true, false);
       if (!background_info.is_valid()) {
         break;
       }
@@ -9343,9 +9647,9 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
           std::move(star_gift), gift_sender_dialog_id, gift_receiver_dialog_id, gift_owner_dialog_id, saved_id,
           std::move(text), StarManager::get_star_count(action->convert_stars_),
           StarManager::get_star_count(action->upgrade_stars_), gift_message_id, upgrade_message_id,
-          std::move(action->prepaid_upgrade_hash_), action->name_hidden_, action->saved_, action->can_upgrade_,
-          action->converted_, action->upgraded_, action->refunded_, action->prepaid_upgrade_, action->upgrade_separate_,
-          action->auction_acquired_);
+          std::move(action->prepaid_upgrade_hash_), action->gift_num_, action->name_hidden_, action->saved_,
+          action->can_upgrade_, action->converted_, action->upgraded_, action->refunded_, action->prepaid_upgrade_,
+          action->upgrade_separate_, action->auction_acquired_);
     }
     case telegram_api::messageActionStarGiftUnique::ID: {
       auto action = telegram_api::move_object_as<telegram_api::messageActionStarGiftUnique>(action_ptr);
@@ -9357,7 +9661,7 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
       if (!reply_to_message_id.is_valid() && reply_to_message_id != MessageId()) {
         LOG(ERROR) << "Receive unique gift message with " << reply_to_message_id << " in " << owner_dialog_id;
         reply_to_message_id = MessageId();
-      } else if (reply_to_message_id != MessageId() && action->resale_amount_ != nullptr) {
+      } else if (reply_to_message_id != MessageId() && action->resale_amount_ != nullptr && !action->from_offer_) {
         if (message_date >= 1754000000) {
           LOG(ERROR) << "Receive " << replied_message_info << " in " << owner_dialog_id << " for " << to_string(action);
         }
@@ -9378,7 +9682,7 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
           StarGiftResalePrice(std::move(action->resale_amount_)), StarManager::get_star_count(action->transfer_stars_),
           StarManager::get_star_count(action->drop_original_details_stars_), max(0, action->can_transfer_at_),
           max(0, action->can_resell_at_), max(0, action->can_export_at_), action->saved_, action->upgrade_,
-          action->prepaid_upgrade_, action->assigned_,
+          action->prepaid_upgrade_, action->assigned_, action->from_offer_,
           (action->flags_ & telegram_api::messageActionStarGiftUnique::TRANSFER_STARS_MASK) != 0, action->transferred_,
           action->refunded_);
     }
@@ -9486,6 +9790,30 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
     case telegram_api::messageActionSuggestBirthday::ID: {
       auto action = telegram_api::move_object_as<telegram_api::messageActionSuggestBirthday>(action_ptr);
       return td::make_unique<MessageSuggestBirthday>(Birthdate(std::move(action->birthday_)));
+    }
+    case telegram_api::messageActionStarGiftPurchaseOffer::ID: {
+      auto action = telegram_api::move_object_as<telegram_api::messageActionStarGiftPurchaseOffer>(action_ptr);
+      StarGift star_gift(td, std::move(action->gift_), true);
+      if (!star_gift.is_valid() || !star_gift.is_unique()) {
+        break;
+      }
+      return td::make_unique<MessageStarGiftPurchaseOffer>(
+          std::move(star_gift), StarGiftResalePrice(std::move(action->price_)), max(0, action->expires_at_),
+          action->accepted_, action->declined_);
+    }
+    case telegram_api::messageActionStarGiftPurchaseOfferDeclined::ID: {
+      auto action = telegram_api::move_object_as<telegram_api::messageActionStarGiftPurchaseOfferDeclined>(action_ptr);
+      StarGift star_gift(td, std::move(action->gift_), true);
+      if (!star_gift.is_valid() || !star_gift.is_unique()) {
+        break;
+      }
+      auto reply_to_message_id = replied_message_info.get_same_chat_reply_to_message_id(true);
+      if (!reply_to_message_id.is_valid() && reply_to_message_id != MessageId()) {
+        LOG(ERROR) << "Receive gift purchase offer decline with " << reply_to_message_id << " in " << owner_dialog_id;
+        reply_to_message_id = MessageId();
+      }
+      return td::make_unique<MessageStarGiftPurchaseOfferDeclined>(
+          std::move(star_gift), StarGiftResalePrice(std::move(action->price_)), reply_to_message_id, action->expired_);
     }
     default:
       UNREACHABLE();
@@ -9758,8 +10086,12 @@ td_api::object_ptr<td_api::MessageContent> get_message_content_object(
           m->dice_value == 0 ? nullptr : td->stickers_manager_->get_dice_stickers_object(m->emoji, m->dice_value);
       auto success_animation_frame_number =
           td->stickers_manager_->get_dice_success_animation_frame_number(m->emoji, m->dice_value);
-      return make_tl_object<td_api::messageDice>(std::move(initial_state), std::move(final_state), m->emoji,
-                                                 m->dice_value, success_animation_frame_number);
+      if (m->is_stake) {
+        return td_api::make_object<td_api::messageStakeDice>(std::move(initial_state), std::move(final_state),
+                                                             m->dice_value, m->stake_ton_count, m->prize_ton_count);
+      }
+      return td_api::make_object<td_api::messageDice>(std::move(initial_state), std::move(final_state), m->emoji,
+                                                      m->dice_value, success_animation_frame_number);
     }
     case MessageContentType::ProximityAlertTriggered: {
       const auto *m = static_cast<const MessageProximityAlertTriggered *>(content);
@@ -10019,7 +10351,7 @@ td_api::object_ptr<td_api::MessageContent> get_message_content_object(
           sender_dialog_id == DialogId() ? nullptr
                                          : get_message_sender_object(td, sender_dialog_id, "messageGift sender"),
           get_message_sender_object(td, receiver_dialog_id, "messageGift receiver"), star_gift_id.get_star_gift_id(),
-          get_text_object(m->text), m->convert_star_count, m->upgrade_star_count, m->is_upgrade_separate,
+          get_text_object(m->text), m->gift_num, m->convert_star_count, m->upgrade_star_count, m->is_upgrade_separate,
           m->is_auction_acquired, m->name_hidden, m->is_saved, m->is_prepaid_upgrade, m->can_upgrade, m->was_converted,
           m->was_upgraded, m->was_refunded,
           StarGiftId(m->upgrade_message_id.get_server_message_id()).get_star_gift_id(), m->prepaid_upgrade_hash);
@@ -10036,6 +10368,9 @@ td_api::object_ptr<td_api::MessageContent> get_message_content_object(
         receiver_dialog_id = m->is_upgrade != is_outgoing ? dialog_id : td->dialog_manager_->get_my_dialog_id();
       }
       auto origin = [&]() -> td_api::object_ptr<td_api::UpgradedGiftOrigin> {
+        if (m->from_offer) {
+          return td_api::make_object<td_api::upgradedGiftOriginOffer>(m->resale_price.get_gift_resale_price_object());
+        }
         if (m->is_assigned) {
           return td_api::make_object<td_api::upgradedGiftOriginBlockchain>();
         }
@@ -10174,6 +10509,27 @@ td_api::object_ptr<td_api::MessageContent> get_message_content_object(
     case MessageContentType::SuggestBirthday: {
       const auto *m = static_cast<const MessageSuggestBirthday *>(content);
       return td_api::make_object<td_api::messageSuggestBirthdate>(m->birthdate.get_birthdate_object());
+    }
+    case MessageContentType::StarGiftPurchaseOffer: {
+      const auto *m = static_cast<const MessageStarGiftPurchaseOffer *>(content);
+      auto state = [&]() -> td_api::object_ptr<td_api::GiftPurchaseOfferState> {
+        if (m->is_accepted) {
+          return td_api::make_object<td_api::giftPurchaseOfferStateAccepted>();
+        }
+        if (m->is_declined) {
+          return td_api::make_object<td_api::giftPurchaseOfferStateRejected>();
+        }
+        return td_api::make_object<td_api::giftPurchaseOfferStatePending>();
+      }();
+      return td_api::make_object<td_api::messageUpgradedGiftPurchaseOffer>(
+          m->star_gift.get_upgraded_gift_object(td), std::move(state), m->price.get_gift_resale_price_object(),
+          m->expires_at);
+    }
+    case MessageContentType::StarGiftPurchaseOfferDeclined: {
+      const auto *m = static_cast<const MessageStarGiftPurchaseOfferDeclined *>(content);
+      return td_api::make_object<td_api::messageUpgradedGiftPurchaseOfferRejected>(
+          m->star_gift.get_upgraded_gift_object(td), m->price.get_gift_resale_price_object(), m->offer_message_id.get(),
+          m->was_expired);
     }
     default:
       UNREACHABLE();
@@ -10860,6 +11216,8 @@ string get_message_content_search_text(const Td *td, const MessageContent *conte
     case MessageContentType::SuggestedPostRefund:
     case MessageContentType::SuggestedPostApproval:
     case MessageContentType::SuggestBirthday:
+    case MessageContentType::StarGiftPurchaseOffer:
+    case MessageContentType::StarGiftPurchaseOfferDeclined:
       return string();
     default:
       UNREACHABLE();
@@ -11346,6 +11704,16 @@ void add_message_content_dependencies(Dependencies &dependencies, const MessageC
       break;
     case MessageContentType::SuggestBirthday:
       break;
+    case MessageContentType::StarGiftPurchaseOffer: {
+      const auto *content = static_cast<const MessageStarGiftPurchaseOffer *>(message_content);
+      content->star_gift.add_dependencies(dependencies);
+      break;
+    }
+    case MessageContentType::StarGiftPurchaseOfferDeclined: {
+      const auto *content = static_cast<const MessageStarGiftPurchaseOfferDeclined *>(message_content);
+      content->star_gift.add_dependencies(dependencies);
+      break;
+    }
     default:
       UNREACHABLE();
       break;

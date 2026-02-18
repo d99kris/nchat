@@ -97,6 +97,7 @@ Interactive Commands for Text Input:
     Alt-Right   move cursor forward one word
     Alt-Backsp  delete previous word
     Alt-Delete  delete next word
+    Alt-Tab     insert tab (four spaces)
     Alt-c       copy input buffer to clipboard (if no message selected)
     Alt-v       paste into input buffer from clipboard
     Alt-x       cut input buffer to clipboard
@@ -186,6 +187,12 @@ Void
 
     sudo xbps-install base-devel go ccache cmake gperf help2man libmagick-devel readline-devel sqlite-devel file-devel openssl-devel
 
+**Extra Dependencies**
+
+For Wayland-based systems install `wl-clipboard` to enable clipboard functionality.
+
+To support pasting and sending images directly from clipboard `libpng-dev` is needed.
+
 **Build**
 
     mkdir -p build && cd build && cmake .. && make -s
@@ -251,7 +258,7 @@ Security
 ========
 User data is stored locally in `~/.config/nchat`. Default file permissions
 only allow user access, but anyone who can gain access to a user's private
-files can also access the user's personal Telegram data. To protect against
+files can also access the user's personal nchat data. To protect against
 the most simple attack vectors it may be suitable to use disk encryption and
 to ensure `~/.config/nchat` is not backed up unencrypted.
 
@@ -279,6 +286,7 @@ This configuration file holds general application settings. Default content:
     emoji_list_all=0
     link_send_preview=1
     logdump_enabled=0
+    mentions_quoted=1
     message_delete=1
     proxy_host=
     proxy_pass=
@@ -343,6 +351,10 @@ Specifies whether to enable preview for links in messages sent (Telegram only).
 
 Specifies whether to dump warning and error log messages to stdout upon exit.
 
+### mentions_quoted
+
+Specifies whether to use bracket quoting for display-name mentions with spaces.
+
 ### message_delete
 
 Specifies handling of message deletion by other users (WhatsApp only):
@@ -405,11 +417,11 @@ This configuration file holds general user interface settings. Default content:
     confirm_deletion=1
     confirm_send_pasted_image=1
     desktop_notify_active_current=0
-    desktop_notify_active_noncurrent=0
+    desktop_notify_active_noncurrent=1
     desktop_notify_command=
-    desktop_notify_connectivity=0
+    desktop_notify_connectivity=1
     desktop_notify_enabled=0
-    desktop_notify_inactive=0
+    desktop_notify_inactive=1
     downloadable_indicator=+
     emoji_enabled=1
     entry_height=4
@@ -441,6 +453,7 @@ This configuration file holds general user interface settings. Default content:
     spell_check_command=
     status_broadcast=1
     syncing_indicator=⇄
+    tab_size=4
     terminal_bell_active=0
     terminal_bell_inactive=1
     terminal_title=
@@ -448,6 +461,7 @@ This configuration file holds general user interface settings. Default content:
     top_show_version=0
     transfer_send_caption=1
     typing_status_share=1
+    undo_clear_input=1
     unread_indicator=*
 
 ### attachment_indicator
@@ -738,6 +752,10 @@ Specifies (WhatsApp) Status Updates chat level of visibility:
 Specifies text to suffix attachment filenames in message view for downloads
 in progress.
 
+### tab_size
+
+Specifies number of spaces to insert when user inputs a tab character.
+
 ### terminal_bell_active
 
 Specifies whether new message shall trigger terminal bell when nchat terminal
@@ -768,6 +786,11 @@ Specifies if entered text should be sent as caption when transferring a file.
 
 Specifies whether to share typing status with other user(s) in the
 conversation.
+
+### undo_clear_input
+
+Specifies whether undoing clearing of input buffer (by pressing ctrl-c again)
+is enabled.
 
 ### unread_indicator
 
@@ -828,6 +851,7 @@ This configuration file holds user interface key bindings. Default content:
     select_emoji=KEY_CTRLS
     send_msg=KEY_CTRLX
     spell=\33\44
+    tab=\33\11
     terminal_focus_in=KEY_FOCUS_IN
     terminal_focus_out=KEY_FOCUS_OUT
     terminal_resize=KEY_RESIZE
@@ -1060,7 +1084,7 @@ determine the key codes and modify `~/.config/nchat/key.conf` accordingly.
 
 ### 2. Send messages with Enter key?
 
-To simply send on enter key press and skip message compose with linebreaks,
+To simply send on Enter key press and skip message compose with linebreaks,
 one can just set `send_msg=KEY_RETURN` in `~/.config/nchat/key.conf`.
 
 To also be able to compose messages with linebreaks using Alt/Opt-Enter, edit
@@ -1152,8 +1176,6 @@ Project Scope
 Limitations
 -----------
 There are no plans to support the following features:
-- Facebook Messenger
-- Signal
 - Telegram secret chats
 - Voice / video calls
 
@@ -1209,16 +1231,24 @@ nchat is primarily implemented in C++ with some parts in Go. Its source tree
 includes the source code of the following third-party libraries:
 
 - [apathy](https://github.com/dlecocq/apathy) -
-  Copyright 2013 Dan Lecocq - [MIT License](/ext/apathy/LICENSE)
+  Copyright 2013 Dan Lecocq -
+  [MIT License](/ext/apathy/LICENSE)
 
 - [cereal](https://github.com/USCiLab/cereal) -
-  Copyright 2013 Randolph Voorhies, Shane Grant - [BSD-3 License](/ext/cereal/LICENSE)
+  Copyright 2013 Randolph Voorhies, Shane Grant -
+  [BSD-3 License](/ext/cereal/LICENSE)
 
 - [clip](https://github.com/dacap/clip) -
-  Copyright 2015 David Capello - [MIT License](/ext/clip/LICENSE.txt)
+  Copyright 2015 David Capello -
+  [MIT License](/ext/clip/LICENSE.txt)
+
+- [mautrix-signal](https://github.com/mautrix/signal) -
+  Copyright 2020 Tulir Asokan -
+  [AGPL License](/lib/sgchat/go/ext/signal/LICENSE)
 
 - [sqlite_modern_cpp](https://github.com/SqliteModernCpp/sqlite_modern_cpp) -
-  Copyright 2017 aminroosta - [MIT License](/ext/sqlite_modern_cpp/License.txt)
+  Copyright 2017 aminroosta -
+  [MIT License](/ext/sqlite_modern_cpp/License.txt)
 
 - [tdlib](https://github.com/tdlib/td) -
   Copyright 2014 Aliaksei Levin, Arseny Smirnov -

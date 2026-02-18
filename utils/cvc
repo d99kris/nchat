@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-# cvc v0.24
+# cvc v0.27
 #
-# Copyright (c) 2018-2025 Kristofer Berggren
+# Copyright (c) 2018-2026 Kristofer Berggren
 # All rights reserved.
 #
 # cvc is distributed under the MIT license.
@@ -109,8 +109,19 @@ git_apply()
   fi
 
   if [[ "${?}" != "0" ]]; then
-    # With issues applying the patch, try to update affected repository files to base version
-    PATCHFILE="${2}"
+
+    # On failed patch apply, prompt user whether to try find and use base commit
+    echo ""
+    read -p "Apply patch failed, try switch to base commit (y/n)? "
+    if [[ "${REPLY}" != "y" ]]; then
+      exit 1
+    fi
+
+    BASECOMMIT="$(head -1 ${PATCHFILE} | grep "^Base-Commit:" | cut -d' ' -f2)"
+    if [[ "${BASECOMMIT}" == "" ]]; then
+      echo "aborting, base commit unknown."
+      exit 1
+    fi
 
     ORIGBRANCH=$(git status | head -1 | awk -F 'On branch ' '{print $2}')
     if [[ "${ORIGBRANCH}" == "" ]]; then
@@ -131,43 +142,9 @@ git_apply()
     fi
     cd "${BASEDIR}" || exit 1
 
-    LASTCOMMIT=""
-    LASTTIME=0
-    while IFS='$\n' read -r LINE; do
-      SRCPATH="$(echo $LINE | cut -d' ' -f3 | cut -c3-)"
-      SRCHASH=$(echo $LINE | awk -F' index ' '{print $2}' | cut -d'.' -f1)
-      if [[ ! -f "${SRCPATH}" ]]; then
-        echo "skipping not found: ${SRCPATH}"
-        continue
-      fi
-
-      if [[ "${SRCHASH}" == "" ]]; then
-        echo "skipping empty hash: ${SRCPATH}"
-        continue
-      fi
-
-      SRCCOMMIT=$(git log -c --date=unix "${SRCPATH}" | grep -B64 "${SRCHASH}" | grep "^commit " | tail -1 | awk '{print $2}' | cut -c1-8)
-      if [[ "${SRCCOMMIT}" == "" ]]; then
-        echo "skipping commit not found: ${SRCPATH}"
-        continue
-      fi
-
-      SRCTIME=$(git log -c --date=unix "${SRCPATH}" | grep -B64 "${SRCHASH}" | grep "^Date: " | tail -1 | awk -F':' '{print $2}' | awk '{$1=$1;print}')
-      echo -n "."
-      if [ "${SRCTIME}" -gt "${LASTTIME}" ]; then
-        LASTTIME=${SRCTIME}
-        LASTCOMMIT="${SRCCOMMIT}"
-      fi
-    done < <(grep -B1 "^index " "${PATCHFILE}" | tr '\n' '\t' | sed -e 's/\tdiff/\ndiff/g' | cat - <(echo "--"))
-
-    if [[ "${LASTCOMMIT}" == "" ]]; then
-      echo "no matching commit found."
-      exit 1
-    fi
-
     WORKBRANCH="cvc-patch-integration"
 
-    git checkout ${LASTCOMMIT} || exit 1
+    git checkout ${BASECOMMIT} || exit 1
     git switch -c ${WORKBRANCH} || exit 1
 
     WORKDIR=$(mktemp -d)
@@ -195,7 +172,8 @@ git_apply()
     exit ${RV}
   fi
 
-  exit 0
+  # Propagate exit status
+  exit ${?}
 }
 
 
@@ -325,8 +303,13 @@ git_diff()
   # Git diff
   if [[ "${2}" == "" ]]; then
     BRANCH="$(git branch --show-current)"
+    echo "Base-Commit: $(git rev-parse HEAD)"
+    echo "Base-Branch: ${BRANCH}"
     git --no-pager diff ${BRANCH}
   else
+    BRANCH="$(git branch --show-current)"
+    echo "Base-Commit: $(git rev-parse HEAD)"
+    echo "Base-Branch: ${BRANCH}"
     git --no-pager diff ${@:2}
   fi
 

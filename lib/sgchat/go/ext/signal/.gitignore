@@ -1,0 +1,12 @@
+*.yaml
+!example-config.yaml
+!.pre-commit-config.yaml
+
+*.db*
+*.log*
+
+/mautrix-signal
+/start
+/libsignal_ffi.a
+
+.idea

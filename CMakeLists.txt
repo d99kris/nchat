@@ -30,15 +30,31 @@ endif()
 # Platform specifics
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   add_definitions(-D_XOPEN_SOURCE_EXTENDED)
+
+  # ncurses
   execute_process(COMMAND sh "-c"
                   "command -v brew &> /dev/null && brew --prefix ncurses 2> /dev/null | tr -d '\n'"
-                  OUTPUT_VARIABLE CMAKE_PREFIX_PATH)
-  if (EXISTS "${CMAKE_PREFIX_PATH}")
-    message(STATUS "Ncurses cmake prefix '${CMAKE_PREFIX_PATH}' (detected).")
+                  OUTPUT_VARIABLE NCURSES_ROOT_DIR)
+  if (EXISTS "${NCURSES_ROOT_DIR}")
+    message(STATUS "Ncurses cmake prefix '${NCURSES_ROOT_DIR}' (detected).")
   else()
-    set(CMAKE_PREFIX_PATH /opt/local)
-    message(STATUS "Ncurses cmake prefix '${CMAKE_PREFIX_PATH}' (default).")
+    set(NCURSES_ROOT_DIR /opt/local)
+    message(STATUS "Ncurses cmake prefix '${NCURSES_ROOT_DIR}' (default).")
   endif()
+  list(APPEND CMAKE_PREFIX_PATH ${NCURSES_ROOT_DIR})
+
+  # openssl
+  execute_process(COMMAND sh "-c"
+                  "command -v brew &> /dev/null && brew --prefix openssl 2> /dev/null | tr -d '\n'"
+                  OUTPUT_VARIABLE OPENSSL_ROOT_DIR)
+  if (EXISTS "${OPENSSL_ROOT_DIR}")
+    message(STATUS "OpenSSL cmake prefix '${OPENSSL_ROOT_DIR}' (detected).")
+  else()
+    set(OPENSSL_ROOT_DIR /opt/local)
+    message(STATUS "OpenSSL cmake prefix '${OPENSSL_ROOT_DIR}' (default).")
+  endif()
+  list(APPEND CMAKE_PREFIX_PATH ${OPENSSL_ROOT_DIR})
+
 elseif (${CMAKE_SYSTEM_NAME} MATCHES "Android")
   add_compile_definitions(_XOPEN_SOURCE_EXTENDED)
   if (DEFINED ENV{PREFIX} AND "$ENV{PREFIX}" MATCHES "^/data/data/com\\.termux/files/usr$")
@@ -68,6 +84,10 @@ message(STATUS "Telegram: ${HAS_TELEGRAM}")
 option(HAS_WHATSAPP "WhatsApp" ON)
 message(STATUS "WhatsApp: ${HAS_WHATSAPP}")
 
+# Optional component - Signal
+option(HAS_SIGNAL "Signal" OFF)
+message(STATUS "Signal: ${HAS_SIGNAL}")
+
 # Feature - Dynamic library load
 option(HAS_DYNAMICLOAD "Dynamic Load" ON)
 if(HAS_DYNAMICLOAD AND NOT HAS_SHARED_LIBS)
@@ -92,8 +112,8 @@ message(STATUS "Static Go: ${HAS_STATICGOLIB}")
 # Check Golang version for whatsmeow minimum requirement
 set(GO_VERSION_MIN 1.23)
 execute_process(COMMAND bash "-c" "go version 2> /dev/null | cut -c14- | cut -d' ' -f1 | tr -d '\n'" OUTPUT_VARIABLE GO_VERSION)
-if(HAS_WHATSAPP AND (NOT GO_VERSION VERSION_GREATER_EQUAL GO_VERSION_MIN))
-  message(FATAL_ERROR "Go version ${GO_VERSION} (need >= ${GO_VERSION_MIN} to build WhatsApp).")
+if((HAS_WHATSAPP OR HAS_SIGNAL) AND (NOT GO_VERSION VERSION_GREATER_EQUAL GO_VERSION_MIN))
+  message(FATAL_ERROR "Go version ${GO_VERSION} (need >= ${GO_VERSION_MIN} to build WhatsApp or Signal).")
 endif()
 
 # Check Little/Big Endian for tdlib requirement
@@ -221,6 +241,9 @@ endif()
 if(HAS_WHATSAPP)
   add_subdirectory(lib/wmchat)
 endif()
+if(HAS_SIGNAL)
+  add_subdirectory(lib/sgchat)
+endif()
 
 # Dependency clip
 add_subdirectory(ext/clip)
@@ -259,6 +282,14 @@ if(HAS_WHATSAPP)
   target_compile_definitions(nchat PRIVATE HAS_WHATSAPP="${HAS_WHATSAPP}")
   if(NOT HAS_DYNAMICLOAD)
     target_link_libraries(nchat PUBLIC wmchat)
+  endif()
+endif()
+
+if(HAS_SIGNAL)
+  target_include_directories(nchat PRIVATE "lib/sgchat/src")
+  target_compile_definitions(nchat PRIVATE HAS_SIGNAL="${HAS_SIGNAL}")
+  if(NOT HAS_DYNAMICLOAD)
+    target_link_libraries(nchat PUBLIC sgchat)
   endif()
 endif()
 
@@ -341,6 +372,7 @@ if(HAS_SHARED_LIBS)
     COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libtgchat${CMAKE_SHARED_LIBRARY_SUFFIX}"
     COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libduchat${CMAKE_SHARED_LIBRARY_SUFFIX}"
     COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libwmchat${CMAKE_SHARED_LIBRARY_SUFFIX}"
+    COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libsgchat${CMAKE_SHARED_LIBRARY_SUFFIX}"
     COMMAND "${CMAKE_COMMAND}" -E remove_directory "${CMAKE_INSTALL_PREFIX}/share/nchat"
     COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBEXECDIR}/nchat/compose"
     COMMAND "${CMAKE_COMMAND}" -E remove_directory "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBEXECDIR}/nchat"

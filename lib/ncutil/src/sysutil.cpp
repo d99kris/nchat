@@ -111,8 +111,8 @@ bool SysUtil::RunCommand(const std::string& p_Cmd, std::string* p_StdOut /*= nul
     stderrPath = FileUtil::GetTempDir() + "/stderr.txt";
   }
 
-  const std::string cmdPrefix = "2>'" + stderrPath + "' ";
-  const std::string cmdSuffix = " >'" + stdoutPath + "'";
+  const std::string cmdPrefix = "{ ";
+  const std::string cmdSuffix = " ; } >'" + stdoutPath + "' 2>'" + stderrPath + "'";
   const std::string cmd = cmdPrefix + p_Cmd + cmdSuffix;
 
   // run command

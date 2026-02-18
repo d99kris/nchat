@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2026
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -158,7 +158,7 @@ OptionManager::OptionManager(Td *td)
   set_default_integer_option("fact_check_length_max", 1024);
   set_default_integer_option("star_withdrawal_count_min", is_test_dc ? 10 : 1000);
   set_default_integer_option("story_link_area_count_max", 3);
-  set_default_integer_option("paid_media_message_star_count_max", 10000);
+  set_default_integer_option("paid_media_message_star_count_max", 25000);
   set_default_integer_option("bot_media_preview_count_max", 12);
   set_default_integer_option("paid_reaction_star_count_max", 10000);
   set_default_integer_option("subscription_star_count_max", 10000);
@@ -195,7 +195,7 @@ OptionManager::OptionManager(Td *td)
   set_default_integer_option("star_withdrawal_count_max", is_test_dc ? 100 : 25000000);
   set_default_integer_option("gift_collection_count_max", 10);
   set_default_integer_option("gift_collection_size_max", 500);
-  set_default_integer_option("gift_resale_toncoin_cent_count_min", 100);
+  set_default_integer_option("gift_resale_toncoin_cent_count_min", is_test_dc ? 5000 : 700);
   set_default_integer_option("gift_resale_toncoin_cent_count_max", 10000000);
   set_default_integer_option("gift_resale_toncoin_earnings_per_mille", 900);
   set_default_integer_option("story_album_count_max", is_test_dc ? 20 : 100);
@@ -205,6 +205,9 @@ OptionManager::OptionManager(Td *td)
   set_default_integer_option("group_call_message_show_time_max", 10);
   set_default_integer_option("group_call_message_text_length_max", 128);
   set_default_integer_option("paid_group_call_message_star_count_max", 10000);
+  set_default_integer_option("login_passkey_count_max", 5);
+  set_default_integer_option("stake_dice_stake_amount_max", 50000000000);
+  set_default_integer_option("stake_dice_stake_amount_min", 100000000);
 
   if (options.isset("my_phone_number") || !options.isset("my_id")) {
     update_premium_options();
@@ -513,6 +516,7 @@ bool OptionManager::is_internal_option(Slice name) {
                                                               "story_expiring_limit_default",
                                                               "story_expiring_limit_premium",
                                                               "ton_proxy_address",
+                                                              "ton_stakedice_stake_suggested_amounts",
                                                               "upload_premium_speedup_notify_period",
                                                               "video_ignore_alt_documents",
                                                               "video_note_size_max",
@@ -767,7 +771,7 @@ td_api::object_ptr<td_api::OptionValue> OptionManager::get_option_synchronously(
       break;
     case 'v':
       if (name == "version") {
-        return td_api::make_object<td_api::optionValueString>("1.8.58");
+        return td_api::make_object<td_api::optionValueString>("1.8.60");
       }
       break;
   }

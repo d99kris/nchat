@@ -1,6 +1,6 @@
 // appconfig.cpp
 //
-// Copyright (c) 2021-2025 Kristofer Berggren
+// Copyright (c) 2021-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -32,6 +32,7 @@ void AppConfig::Init()
     { "emoji_list_all", "0" },
     { "link_send_preview", "1" },
     { "logdump_enabled", "0" },
+    { "mentions_quoted", "1" },
     { "message_delete", "1" },
     { "proxy_host", "" },
     { "proxy_pass", "" },

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2026
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -64,6 +64,11 @@ class AuthManager final : public NetActor {
 
   void request_qr_code_authentication(uint64 query_id, vector<UserId> other_user_ids);
 
+  void on_init_passkey_login(int32 dc_id, uint64 main_auth_key_id);
+
+  void finish_passkey_login(uint64 query_id, const string &passkey_id, const string &client_data,
+                            const string &authenticator_data, const string &signature, const string &user_handle);
+
   void check_bot_token(uint64 query_id, string bot_token);
 
   void check_password(uint64 query_id, string password);
@@ -120,6 +125,7 @@ class AuthManager final : public NetActor {
     ResetEmailAddress,
     RequestQrCode,
     ImportQrCode,
+    FinishPasskeyLogin,
     GetPassword,
     CheckPassword,
     RequestPasswordRecovery,
@@ -148,6 +154,24 @@ class AuthManager final : public NetActor {
     void store(StorerT &storer) const;
     template <class ParserT>
     void parse(ParserT &parser);
+  };
+
+  struct PasskeyParameters {
+    string passkey_id_;
+    string client_data_;
+    string authenticator_data_;
+    string signature_;
+    string user_handle_;
+
+    PasskeyParameters() = default;
+    PasskeyParameters(const string &passkey_id, const string &client_data, const string &authenticator_data,
+                      const string &signature, const string &user_handle)
+        : passkey_id_(passkey_id)
+        , client_data_(client_data)
+        , authenticator_data_(authenticator_data)
+        , signature_(signature)
+        , user_handle_(user_handle) {
+    }
   };
 
   struct DbState;
@@ -210,10 +234,15 @@ class AuthManager final : public NetActor {
 
   bool checking_password_ = false;
   bool was_qr_code_request_ = false;
+  bool was_passkey_login_request_ = false;
   bool was_check_bot_token_ = false;
   bool is_bot_ = false;
   uint64 net_query_id_ = 0;
   NetQueryType net_query_type_ = NetQueryType::None;
+
+  PasskeyParameters passkey_parameters_;
+  int32 passkey_dc_id_ = 0;
+  int64 passkey_auth_key_id_ = 0;
 
   vector<uint64> pending_get_authorization_state_requests_;
 
@@ -233,6 +262,8 @@ class AuthManager final : public NetActor {
   void send_log_out_query();
   void destroy_auth_keys();
 
+  void send_finish_passkey_login_query();
+
   void on_account_banned() const;
 
   void on_sent_code(telegram_api::object_ptr<telegram_api::auth_SentCode> &&sent_code_ptr);
@@ -244,6 +275,7 @@ class AuthManager final : public NetActor {
   void on_verify_email_address_result(NetQueryPtr &&net_query);
   void on_reset_email_address_result(NetQueryPtr &&net_query);
   void on_request_qr_code_result(NetQueryPtr &&net_query, bool is_import);
+  void on_finish_passkey_login_result(NetQueryPtr &&net_query);
   void on_get_password_result(NetQueryPtr &&net_query);
   void on_request_password_recovery_result(NetQueryPtr &&net_query);
   void on_check_password_recovery_code_result(NetQueryPtr &&net_query);

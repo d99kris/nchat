@@ -1,6 +1,6 @@
 // main.cpp
 //
-// Copyright (c) 2019-2025 Kristofer Berggren
+// Copyright (c) 2019-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -38,6 +38,10 @@
 
 #ifdef HAS_WHATSAPP
 #include "wmchat.h"
+#endif
+
+#ifdef HAS_SIGNAL
+#include "sgchat.h"
 #endif
 
 static std::string GetFeatures();
@@ -122,6 +126,9 @@ static std::vector<std::shared_ptr<ProtocolBaseFactory>> GetProtocolFactorys()
 #endif
 #ifdef HAS_WHATSAPP
     std::shared_ptr<ProtocolBaseFactory>(new ProtocolFactory<WmChat>()),
+#endif
+#ifdef HAS_SIGNAL
+    std::shared_ptr<ProtocolBaseFactory>(new ProtocolFactory<SgChat>()),
 #endif
   };
 
@@ -689,9 +696,13 @@ void ShowVersion()
   std::cout <<
     AppUtil::GetAppName(true /*p_WithVersion*/) << "\n"
     "\n"
-    "Copyright (c) 2019-2025 Kristofer Berggren\n"
+    "Copyright (c) 2019-2026 Kristofer Berggren\n"
     "\n"
-    "nchat is distributed under the MIT license.\n"
+#ifdef HAS_SIGNAL
+    "Combined distribution subject to GNU AGPL v3 license.\n"
+#else
+    "Combined distribution subject to MIT license.\n"
+#endif
     "\n"
     "Written by Kristofer Berggren.\n";
 }

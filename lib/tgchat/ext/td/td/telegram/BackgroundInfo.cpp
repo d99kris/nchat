@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2026
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -12,9 +12,9 @@
 namespace td {
 
 BackgroundInfo::BackgroundInfo(Td *td, telegram_api::object_ptr<telegram_api::WallPaper> &&wallpaper_ptr,
-                               bool allow_empty) {
+                               bool allow_empty, bool is_no_file_pattern) {
   auto background = td->background_manager_->on_get_background(BackgroundId(), string(), std::move(wallpaper_ptr),
-                                                               false, allow_empty);
+                                                               false, allow_empty, is_no_file_pattern);
   background_id_ = background.first;
   background_type_ = std::move(background.second);
 }

@@ -69,6 +69,7 @@ type Client struct {
 
 	isLoggedIn            atomic.Bool
 	expectedDisconnect    *exsync.Event
+	forceAutoReconnect    atomic.Bool
 	EnableAutoReconnect   bool
 	InitialAutoReconnect  bool
 	LastSuccessfulConnect time.Time
@@ -532,13 +533,13 @@ func (cli *Client) IsLoggedIn() bool {
 }
 
 func (cli *Client) onDisconnect(ctx context.Context, ns *socket.NoiseSocket, remote bool) {
-	ns.Stop(false)
+	ns.Stop(false, false)
 	cli.socketLock.Lock()
 	defer cli.socketLock.Unlock()
 	if cli.socket == ns {
 		cli.socket = nil
 		cli.clearResponseWaiters(xmlStreamEndNode)
-		if !cli.isExpectedDisconnect() && remote {
+		if !cli.isExpectedDisconnect() && (cli.forceAutoReconnect.Swap(false) || remote) {
 			cli.Log.Debugf("Emitting Disconnected event")
 			go cli.dispatchEvent(&events.Disconnected{})
 			go cli.autoReconnect(ctx)
@@ -553,10 +554,12 @@ func (cli *Client) onDisconnect(ctx context.Context, ns *socket.NoiseSocket, rem
 }
 
 func (cli *Client) expectDisconnect() {
+	cli.forceAutoReconnect.Store(false)
 	cli.expectedDisconnect.Set()
 }
 
 func (cli *Client) resetExpectedDisconnect() {
+	cli.forceAutoReconnect.Store(false)
 	cli.expectedDisconnect.Clear()
 }
 
@@ -626,10 +629,25 @@ func (cli *Client) Disconnect() {
 	cli.clearDelayedMessageRequests()
 }
 
+// ResetConnection disconnects from the WhatsApp web websocket and forces an automatic reconnection.
+// This will not do anything if the socket is already disconnected or if EnableAutoReconnect is false.
+func (cli *Client) ResetConnection() {
+	if cli == nil {
+		return
+	}
+	cli.socketLock.Lock()
+	cli.forceAutoReconnect.Store(true)
+	if cli.socket != nil {
+		cli.socket.Stop(true, true)
+		cli.clearResponseWaiters(xmlStreamEndNode)
+	}
+	cli.socketLock.Unlock()
+}
+
 // Disconnect closes the websocket connection.
 func (cli *Client) unlockedDisconnect() {
 	if cli.socket != nil {
-		cli.socket.Stop(true)
+		cli.socket.Stop(true, false)
 		cli.socket = nil
 		cli.clearResponseWaiters(xmlStreamEndNode)
 	}

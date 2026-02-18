@@ -38,7 +38,8 @@ std::string DuChat::GetProfileId() const
 
 bool DuChat::HasFeature(ProtocolFeature p_ProtocolFeature) const
 {
-  ProtocolFeature customFeatures = FeatureNone;
+  static int customFeatures =
+    FeatureAutoGetContactsOnLogin;
   return (p_ProtocolFeature & customFeatures);
 }
 
@@ -252,6 +253,9 @@ void DuChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
           { "Chinese",
             "一二三。一二三。一二三。一二三。一二三。一二三。一二三。一二三。一二三。一二三。"
             "一二三。一二三。一二三。一二三。一二三。一二三。一二三。一二三。一二三。一二三。" },
+          { "No Space",
+            "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"
+            "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz" },
           { "Emoji",
             "📃📃📃📃📃 📃📃📃📃📃. 📃📃📃📃📃 📃📃📃📃📃. 📃📃📃📃📃 📃📃📃📃📃. "
             "📃📃📃📃📃 📃📃📃📃📃. 📃📃📃📃📃 📃📃📃📃📃." },

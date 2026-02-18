@@ -1,6 +1,6 @@
 // gowm.go
 //
-// Copyright (c) 2021-2025 Kristofer Berggren
+// Copyright (c) 2021-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -49,7 +49,7 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
-var whatsmeowDate int = 20251217
+var whatsmeowDate int = 20260116
 
 type JSONMessage []json.RawMessage
 type JSONMessageType string
@@ -1004,7 +1004,7 @@ func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 	userId := GetUserId(client, &groupInfo.JID, groupInfo.Sender)
 
 	senderJidStr := ""
-	if (userId != chatId) {
+	if userId != chatId {
 		senderJidStr = userId
 	}
 
@@ -1281,9 +1281,9 @@ func GetContacts(connId int) {
 		LOG_WARNING(fmt.Sprintf("get all contacts failed %#v", contErr))
 	} else {
 		LOG_TRACE(fmt.Sprintf("contacts %#v", contacts))
-		var userIdPhones map[string]string = make(map[string]string) // phone
-		var userIdNames map[string]string = make(map[string]string) // contacts
-		var aliasUserIdNames map[string]string = make(map[string]string) // public
+		var userIdPhones map[string]string = make(map[string]string)      // phone
+		var userIdNames map[string]string = make(map[string]string)       // contacts
+		var aliasUserIdNames map[string]string = make(map[string]string)  // public
 		var senderUserIdNames map[string]string = make(map[string]string) // public/phone
 
 		// add regular data first (address book names)
@@ -1490,9 +1490,16 @@ func (handler *WmEventHandler) ProcessContextInfo(contextInfo *waE2E.ContextInfo
 				mentionedStrParts := strings.SplitN(mentionedStr, "@", 2)
 				mentionedJid, _ := types.ParseJID(mentionedStr)      // ex: 121874109111111@lid
 				mentionedId := StrFromJid(mentionedJid)              // ex: 121874109111111@lid (skip phone mapping, whatsapp mentions only in groups)
-				mentionedName := GetContactName(connId, mentionedId) // ex: Michael
+				mentionedName := GetContactName(connId, mentionedId) // ex: Michael Scott
 				mentionedOrigText := "@" + mentionedStrParts[0]      // ex: @121874109111111
-				mentionedNewText := "@" + mentionedName              // ex: @Michael
+				mentionedQuoted := CWmAppConfigGetNum("mentions_quoted") != 0
+				mentionedHasSpace := strings.Contains(mentionedName, " ")
+				var mentionedNewText string
+				if mentionedQuoted && mentionedHasSpace {
+					mentionedNewText = "@[" + mentionedName + "]" // ex: @[Michael Scott]
+				} else {
+					mentionedNewText = "@" + mentionedName // ex: @Michael Scott
+				}
 				LOG_TRACE(fmt.Sprintf("mention jid %s id %s name %s", StrFromJid(mentionedJid), mentionedId, mentionedName)) // @todo: remove
 				*text = strings.ReplaceAll(*text, mentionedOrigText, mentionedNewText)
 			}

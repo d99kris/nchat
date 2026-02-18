@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+
+# signal-mkpatch
+#
+# Copyright (c) 2026 Kristofer Berggren
+# All rights reserved.
+#
+# signal-mkpatch is distributed under the MIT license.
+
+SYNCNAME="signal"
+TARGET="lib/sgchat/go/ext/signal"
+PATCHFILE="lib/sgchat/go/ext/nchat-signal.patch"
+
+if [[ "${1}" == "-h" ]]; then
+  echo "usage: ./utils/signal-mkpatch [commit]"
+  exit 0
+fi
+
+exiterr()
+{
+  >&2 echo "${1}"
+  exit 1
+}
+
+REPOROOT="$(git rev-parse --show-toplevel)"
+if [[ "${REPOROOT}" == "" ]]; then
+  exit 1
+fi
+
+cd "${REPOROOT}"
+
+# Check for uncommitted changes in signal dir
+git diff --quiet HEAD -- "${TARGET}" || exiterr "signal dir has uncommitted changes"
+
+# Check external signal repo
+REPOPARENT=$(dirname "${REPOROOT}")
+SYNCDIR="${REPOPARENT}/${SYNCNAME}"
+[[ -d "${SYNCDIR}" ]] || exiterr "external signal repo not found at ${SYNCDIR} - run signal-update first"
+
+# Checkout specified commit in external signal repo
+if [[ "${1}" != "" ]]; then
+  echo "Checkout"
+  COMMIT="${1}"
+  pushd "${SYNCDIR}" > /dev/null || exiterr "pushd failed"
+  git checkout ${COMMIT} || exiterr "git checkout ${COMMIT} failed"
+  git clean -ffdx || exiterr "git clean failed"
+  popd > /dev/null || exiterr "popd failed"
+fi
+
+# Sync nchat customizations to signal repo
+echo "Sync"
+REPOTARGET="${REPOROOT}/${TARGET}"
+pushd "${SYNCDIR}" > /dev/null || exiterr "pushd failed"
+${REPOROOT}/utils/cvc sync "${REPOTARGET}" || exiterr "cvc sync failed"
+
+# Generate patch
+echo "Diff"
+${REPOROOT}/utils/cvc diff > "${REPOROOT}/${PATCHFILE}"
+if [[ ! -s "${REPOROOT}/${PATCHFILE}" ]]; then
+  rm -f "${REPOROOT}/${PATCHFILE}"
+  git checkout HEAD -- . || true
+  git clean -ffdx || true
+  popd > /dev/null || exiterr "popd failed"
+  exiterr "no differences found - patch file not created"
+fi
+
+# Restore signal repo
+echo "Restore"
+git checkout HEAD -- . || exiterr "restore failed"
+git clean -ffdx || exiterr "clean failed"
+popd > /dev/null || exiterr "popd failed"
+
+echo "Done - patch saved to ${PATCHFILE}"
+exit 0

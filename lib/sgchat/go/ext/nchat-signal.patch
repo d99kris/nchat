@@ -1,0 +1,104 @@
+Base-Commit: 93da772584b20ac1975e872e26739b273314b73e
+Base-Branch: 
+diff --git a/pkg/signalmeow/events/message.go b/pkg/signalmeow/events/message.go
+index 7d3732a..86faba7 100644
+--- a/pkg/signalmeow/events/message.go
++++ b/pkg/signalmeow/events/message.go
+@@ -39,6 +39,8 @@ func (*DeleteForMe) isSignalEvent()            {}
+ func (*MessageRequestResponse) isSignalEvent() {}
+ func (*QueueEmpty) isSignalEvent()             {}
+ func (*LoggedOut) isSignalEvent()              {}
++func (*PinnedConversationsChanged) isSignalEvent() {}
++func (*ChatMuteChanged) isSignalEvent()            {}
+ 
+ type MessageInfo struct {
+ 	Sender uuid.UUID
+@@ -101,3 +103,12 @@ type MessageRequestResponse struct {
+ type QueueEmpty struct{}
+ 
+ type LoggedOut struct{ Error error }
++
++type PinnedConversationsChanged struct {
++	PinnedConversations []*signalpb.AccountRecord_PinnedConversation
++}
++
++type ChatMuteChanged struct {
++	ChatID              string
++	MutedUntilTimestamp uint64
++}
+diff --git a/pkg/signalmeow/storageservice.go b/pkg/signalmeow/storageservice.go
+index fcf6848..a91ec6f 100644
+--- a/pkg/signalmeow/storageservice.go
++++ b/pkg/signalmeow/storageservice.go
+@@ -121,6 +121,12 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
+ 			if topLevelChanged {
+ 				changedContacts = append(changedContacts, recipient)
+ 			}
++			if aci != uuid.Nil {
++				go cli.handleEvent(&events.ChatMuteChanged{
++					ChatID:              aci.String(),
++					MutedUntilTimestamp: data.Contact.GetMutedUntilTimestamp(),
++				})
++			}
+ 		case *signalpb.StorageRecord_GroupV2:
+ 			if len(data.GroupV2.MasterKey) != libsignalgo.GroupMasterKeyLength {
+ 				log.Warn().Msg("Invalid group master key length")
+@@ -132,6 +138,10 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
+ 				return fmt.Errorf("failed to store group master key for %s: %w", groupID, err)
+ 			}
+ 			log.Debug().Stringer("group_id", groupID).Msg("Stored group master key from storage service")
++			go cli.handleEvent(&events.ChatMuteChanged{
++				ChatID:              string(groupID),
++				MutedUntilTimestamp: data.GroupV2.GetMutedUntilTimestamp(),
++			})
+ 		case *signalpb.StorageRecord_Account:
+ 			log.Trace().Any("account_record", data.Account).Msg("Found account record")
+ 			cli.Store.AccountRecord = data.Account
+@@ -140,6 +150,9 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
+ 				return fmt.Errorf("failed to save device after receiving account record: %w", err)
+ 			}
+ 			log.Debug().Msg("Saved device after receiving account record")
++			go cli.handleEvent(&events.PinnedConversationsChanged{
++				PinnedConversations: data.Account.GetPinnedConversations(),
++			})
+ 		case *signalpb.StorageRecord_GroupV1, *signalpb.StorageRecord_StoryDistributionList:
+ 			// irrelevant data
+ 		default:
+diff --git a/pkg/signalmeow/store/group_store.go b/pkg/signalmeow/store/group_store.go
+index 39b4684..640ce35 100644
+--- a/pkg/signalmeow/store/group_store.go
++++ b/pkg/signalmeow/store/group_store.go
+@@ -37,10 +37,12 @@ type dbGroup struct {
+ type GroupStore interface {
+ 	MasterKeyFromGroupIdentifier(ctx context.Context, groupID types.GroupIdentifier) (types.SerializedGroupMasterKey, error)
+ 	StoreMasterKey(ctx context.Context, groupID types.GroupIdentifier, key types.SerializedGroupMasterKey) error
++	AllGroupIdentifiers(ctx context.Context) ([]types.GroupIdentifier, error)
+ }
+ 
+ const (
+ 	getGroupByIDQuery         = `SELECT account_id, group_identifier, master_key FROM signalmeow_groups WHERE account_id=$1 AND group_identifier=$2`
++	getAllGroupIDsQuery       = `SELECT group_identifier FROM signalmeow_groups WHERE account_id=$1`
+ 	upsertGroupMasterKeyQuery = `
+ 		INSERT INTO signalmeow_groups (account_id, group_identifier, master_key)
+ 		VALUES ($1, $2, $3)
+@@ -73,3 +75,20 @@ func (s *sqlStore) StoreMasterKey(ctx context.Context, groupID types.GroupIdenti
+ 	_, err := s.db.Exec(ctx, upsertGroupMasterKeyQuery, s.AccountID, groupID, key)
+ 	return err
+ }
++
++func (s *sqlStore) AllGroupIdentifiers(ctx context.Context) ([]types.GroupIdentifier, error) {
++	rows, err := s.db.Query(ctx, getAllGroupIDsQuery, s.AccountID)
++	if err != nil {
++		return nil, err
++	}
++	defer rows.Close()
++	var groups []types.GroupIdentifier
++	for rows.Next() {
++		var gid types.GroupIdentifier
++		if err := rows.Scan(&gid); err != nil {
++			return nil, err
++		}
++		groups = append(groups, gid)
++	}
++	return groups, rows.Err()
++}

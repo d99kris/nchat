@@ -28,6 +28,7 @@ enum ProtocolFeature
   FeatureEditMessagesWithinFifteenMins = (1 << 3),
   FeatureLimitedReactions = (1 << 4),
   FeatureMarkReadEveryView = (1 << 5),
+  FeatureAutoGetContactsOnLogin = (1 << 6),
 };
 
 class Protocol

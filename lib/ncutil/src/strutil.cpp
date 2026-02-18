@@ -1,6 +1,6 @@
 // strutil.cpp
 //
-// Copyright (c) 2020-2025 Kristofer Berggren
+// Copyright (c) 2020-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -20,8 +20,6 @@
 
 #include "emojiutil.h"
 #include "log.h"
-
-#define HAS_WCSWIDTH_WORDWRAP
 
 void StrUtil::DeleteToNextMatch(std::wstring& p_Str, int& p_Pos, int p_Offs, std::wstring p_Chars)
 {
@@ -454,7 +452,6 @@ std::vector<std::wstring> StrUtil::WordWrap(std::wstring p_Text, unsigned p_Line
                                             bool p_QuoteWrap, int p_ExpandTabSize,
                                             int p_Pos, int& p_WrapLine, int& p_WrapPos)
 {
-  std::wostringstream wrapped;
   std::vector<std::wstring> lines;
 
   p_WrapLine = 0;
@@ -568,18 +565,18 @@ std::vector<std::wstring> StrUtil::WordWrap(std::wstring p_Text, unsigned p_Line
   if (true)
   {
     std::wstring line;
-    std::wstring prevQuotePrefix;
     std::wistringstream textss(p_Text);
     const std::wstring flowedSuffix = p_OutputFormatFlowed ? L" " : L"";
     const size_t quotePrefixMaxLen = p_LineLength / 2;
+
     while (std::getline(textss, line))
     {
       std::wstring linePart = line;
-
       std::wstring quotePrefix;
       std::wstring tmpLine;
       size_t quotePrefixLen = 0;
       const bool hasQuotePrefix = p_QuoteWrap && GetQuotePrefix(linePart, quotePrefix, tmpLine);
+
       if (hasQuotePrefix)
       {
         quotePrefix.erase(std::remove(quotePrefix.begin(), quotePrefix.end(), L' '), quotePrefix.end());
@@ -590,112 +587,75 @@ std::vector<std::wstring> StrUtil::WordWrap(std::wstring p_Text, unsigned p_Line
           quotePrefix = quotePrefix.substr(quotePrefixLen - quotePrefixMaxLen);
           quotePrefixLen = quotePrefix.size();
         }
-
         linePart = quotePrefix + tmpLine;
       }
 
-      while (true)
+      while (!linePart.empty() || line.empty()) // Ensure we handle empty lines
       {
+        unsigned current_width = 0;
+        std::wstring tmpline;
+        size_t last_space = std::wstring::npos;
+        bool lineWrapped = false;
+
         std::wstring tmpPrefix;
         if (hasQuotePrefix && !GetQuotePrefix(linePart, tmpPrefix, tmpLine))
         {
           linePart = quotePrefix + linePart;
         }
 
-#ifdef HAS_WCSWIDTH_WORDWRAP
-        unsigned current_width = 0;
-        std::wstring tmpline;
-        size_t last_space = std::wstring::npos;
         for (size_t i = 0; i < linePart.size(); ++i)
         {
           wchar_t wc = linePart[i];
           unsigned char_width = std::max(wcwidth(wc), 1);
 
-          // If the character is a space, mark it as a potential wrap point
+          // Track the most recent space for wrapping
           if (wc == L' ')
           {
-            last_space = tmpline.size();
+            last_space = i;
           }
 
-          // Check if adding the character exceeds the width
+          // Check if adding this character exceeds the wrap length
           if (current_width + char_width > wrapLineLength)
           {
             if (last_space != std::wstring::npos)
             {
-              // Wrap at the last space
-              lines.push_back(tmpline.substr(0, last_space));
-
-              // Start the new line with the remainder after the space
-              tmpline = tmpline.substr(std::min(last_space + 1, tmpline.size()));
-              current_width = 0;
-              for (wchar_t c : tmpline)
-              {
-                current_width += std::max(wcwidth(c), 1);
-              }
-
-              last_space = std::wstring::npos;
+              // Wrap at the last space found
+              lines.push_back(linePart.substr(0, last_space) + flowedSuffix);
+              linePart = linePart.substr(last_space + 1);
             }
             else
             {
-              // No space found, wrap at the current position
-              lines.push_back(tmpline);
-              tmpline.clear();
-              current_width = 0;
+              // No space found, hard wrap at current character (single width char) or
+              // previous (double width char)
+              const int lenOffset = (char_width == 1) ? 1 : 0;
+              lines.push_back(linePart.substr(0, i + lenOffset));
+              linePart = linePart.substr(i + lenOffset);
             }
+
+            // Reset for the next segment of the same original line
+            lineWrapped = true;
+            break;
           }
 
-          // Add the character to the current line and update the width
-          if (!tmpline.empty() || (wc != L' '))
-          {
-            tmpline += wc;
-            current_width += char_width;
-          }
+          tmpline += wc;
+          current_width += char_width;
         }
 
-        // Add any remaining text
-        lines.push_back(tmpline);
-
-        break;
-#else
-        if (linePart.size() > wrapLineLength)
+        if (!lineWrapped)
         {
-          size_t spacePos = linePart.rfind(L' ', wrapLineLength);
-          if ((spacePos != std::wstring::npos) && (spacePos > quotePrefixLen))
-          {
-            lines.push_back(linePart.substr(0, spacePos) + flowedSuffix);
-            if (linePart.size() > (spacePos + 1))
-            {
-              linePart = linePart.substr(spacePos + 1);
-            }
-            else
-            {
-              linePart.clear();
-            }
-          }
-          else
-          {
-            lines.push_back(linePart.substr(0, overflowLineLength));
-            if (linePart.size() > overflowLineLength)
-            {
-              linePart = linePart.substr(overflowLineLength);
-            }
-            else
-            {
-              linePart.clear();
-            }
-          }
-        }
-        else
-        {
+          // Add the final remaining part of the line, if we didn't wrap / split the line
           lines.push_back(linePart);
           linePart.clear();
-          break;
         }
-#endif
+
+        if (linePart.empty()) break;
+
+        if (line.empty()) break; // Handle original empty lines
       }
     }
   }
 
+  // Update wrap position metadata
   for (auto& line : lines)
   {
     if (p_Pos > 0)

@@ -88,7 +88,8 @@ private:
     void UpdateChatInfoIsUnread(const std::string& p_ProfileId, const std::string& p_ChatId);
     std::string GetContactName(const std::string& p_ProfileId, const std::string& p_ChatId);
     std::string GetContactNameIncludingSelf(const std::string& p_ProfileId, const std::string& p_ChatId);
-    std::string GetContactListName(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_AllowId, bool p_AllowAlias);
+    std::string GetContactListName(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_AllowId,
+                                   bool p_AllowAlias);
     std::string GetContactPhone(const std::string& p_ProfileId, const std::string& p_ChatId);
     int64_t GetLastMessageTime(const std::string& p_ProfileId, const std::string& p_ChatId);
     bool GetChatIsUnread(const std::string& p_ProfileId, const std::string& p_ChatId);
@@ -178,6 +179,7 @@ private:
 
     static bool IsAttachmentDownloaded(const FileInfo& p_FileInfo);
     static bool IsAttachmentDownloadable(const FileInfo& p_FileInfo);
+    static void SanitizeEntryStr(std::string& p_Str);
 
   private:
     void SortChats();
@@ -201,7 +203,7 @@ private:
     void DesktopNotify(const std::string& p_Name, const std::string& p_Text);
     void SetHistoryInteraction(bool p_HistoryInteraction);
     std::string GetSelectedMessageText();
-    void Clear();
+    void Clear(bool p_AllowUndo);
     void SaveEditMessage();
     std::string EntryStrToSendStr(const std::wstring& p_EntryStr);
     void CallExternalEdit(const std::string& p_EditorCmd);
@@ -253,6 +255,9 @@ private:
     std::unordered_map<std::string, std::unordered_map<std::string, std::wstring>> m_EntryStr;
     std::unordered_map<std::string, std::unordered_map<std::string, int>> m_EntryPos;
 
+    std::unordered_map<std::string, std::unordered_map<std::string, std::wstring>> m_EntryStrCleared;
+    std::unordered_map<std::string, std::unordered_map<std::string, int>> m_EntryPosCleared;
+
     std::unordered_map<std::string, std::unordered_map<std::string, std::set<std::string>>> m_UsersTyping;
     std::unordered_map<std::string, std::unordered_map<std::string, bool>> m_UserOnline;
     std::unordered_map<std::string, std::unordered_map<std::string, int64_t>> m_UserTimeSeen;
@@ -297,7 +302,8 @@ public:
 
   void GetAvailableEmojis(std::set<std::string>& p_AvailableEmojis, bool& p_Pending);
   std::vector<std::pair<std::string, std::string>> GetChatVec();
-  std::string GetContactListName(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_AllowId, bool p_AllowAlias);
+  std::string GetContactListName(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_AllowId,
+                                 bool p_AllowAlias);
   std::unordered_map<std::string, std::unordered_map<std::string, ContactInfo>> GetContactInfos();
   std::string GetProfileDisplayName(const std::string& p_ProfileId);
 
@@ -315,7 +321,8 @@ public:
   bool GetChatIsUnreadLocked(const std::string& p_ProfileId, const std::string& p_ChatId);
   std::string GetChatStatusLocked(const std::string& p_ProfileId, const std::string& p_ChatId);
   std::vector<std::pair<std::string, std::string>>& GetChatVecLocked();
-  std::string GetContactListNameLocked(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_AllowId, bool p_AllowAlias);
+  std::string GetContactListNameLocked(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_AllowId,
+                                       bool p_AllowAlias);
   std::string GetContactNameLocked(const std::string& p_ProfileId, const std::string& p_ChatId);
   std::string GetContactPhoneLocked(const std::string& p_ProfileId, const std::string& p_ChatId);
   int GetCurrentChatIndexLocked();

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2026
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -750,8 +750,6 @@ WebPageId WebPagesManager::on_get_web_page(tl_object_ptr<telegram_api::WebPage> 
             }
             page->star_gifts_.push_back(std::move(star_gift));
             page->auction_end_date_ = attribute->end_date_;
-            page->gift_background_ = make_unique<StarGiftBackground>(attribute->center_color_, attribute->edge_color_,
-                                                                     attribute->text_color_);
             if (page->type_ != "telegram_auction") {
               LOG(ERROR) << "Receive webPageAttributeStarGiftAuction for " << page->type_;
             }
@@ -1542,12 +1540,9 @@ td_api::object_ptr<td_api::LinkPreviewType> WebPagesManager::get_link_preview_ty
     Slice type = Slice(web_page->type_).substr(9);
     if (type == "auction") {
       if (web_page->star_gifts_.size() == 1) {
-        td_api::object_ptr<td_api::giftBackground> background;
-        if (web_page->gift_background_ != nullptr) {
-          background = web_page->gift_background_->get_gift_background_object();
-        }
         return td_api::make_object<td_api::linkPreviewTypeGiftAuction>(
-            web_page->star_gifts_[0].get_gift_object(td_), std::move(background), web_page->auction_end_date_);
+            web_page->star_gifts_[0].get_gift_object(td_, web_page->gift_background_.get()),
+            web_page->auction_end_date_);
       } else {
         LOG(ERROR) << "Receive gift auction " << web_page->url_ << " without the gift";
         need_reload = true;

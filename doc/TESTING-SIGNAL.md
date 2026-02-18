@@ -1,0 +1,82 @@
+Testing Checklist - Signal
+==========================
+For major upgrades of chat protocols or adding a new one, it is good to
+verify the following basic functionality.
+
+Updated: 7 Feb, 2026
+
+- [x] Build
+    - [x] Linux arm64
+    - [x] Linux amd64
+    - [x] macOS arm64
+- [x] Setup
+    - [x] QR code / PIN
+    - [x] History sync
+    - [x] Handle unlink
+    - [x] Handle setup abort
+- [x] Chat list
+    - [x] Names
+    - [x] Group names
+- [x] Send message
+    - [x] Text
+    - [x] Text quoting message
+    - [x] Image
+    - [x] Image with caption
+    - [x] Audio
+    - [x] Audio with caption
+    - [x] Video
+    - [x] Video with caption
+    - [x] Document
+    - [x] Document with caption
+- [x] Receive message
+    - [x] Text
+    - [x] Text quoting message
+    - [x] Image
+    - [x] Image with caption
+    - [x] Audio
+    - [x] Audio with caption (n/a)
+    - [x] Video
+    - [x] Video with caption
+    - [x] Document
+    - [x] Document with caption
+- [x] Receipts
+    - [x] Receive read receipt
+    - [x] Send read receipt
+- [x] Reactions
+    - [x] Add reaction
+    - [x] Remove reaction
+    - [x] Receive add reaction
+    - [x] Receive remove reaction
+- [x] Status
+    - [x] Send online (n/a)
+    - [x] Send typing
+    - [x] Receive online (n/a)
+    - [x] Receive typing
+    - [x] Detect network connectivity
+- [x] Chats
+    - [x] New chat
+    - [x] Delete chat
+    - [x] Reflect phone changes
+        - [x] New chat
+        - [x] Delete chat
+        - [x] Muted chat
+        - [x] Pinned chat
+- [x] Groups
+    - [x] Send message
+    - [x] Receive message
+    - [x] Send receipt
+    - [x] Receive receipt
+    - [x] Update messages
+        - [x] Changed group name
+        - [x] Added member
+        - [x] Removed member
+        - [x] Member joined
+        - [x] Member left
+- [x] Delete messages
+    - [x] Send delete
+    - [x] Receive delete
+    - [x] Send delete in group
+    - [x] Receive delete in group
+- [x] Contacts
+    - [x] View list
+    - [x] Call contact in external app

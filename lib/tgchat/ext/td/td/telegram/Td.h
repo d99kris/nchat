@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2026
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -441,7 +441,7 @@ class Td final : public Actor {
 
   void init_managers();
 
-  void init_pure_actor_managers();
+  void init_pure_actor_managers(const Parameters &parameters);
 
   void process_binlog_events(TdDb::OpenedDatabase &&events);
 

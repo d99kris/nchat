@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2026
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -39,7 +39,8 @@ struct SuggestedAction {
     UserpicSetup,
     Custom,
     SetupLoginEmail,
-    SetupLoginEmailNoskip
+    SetupLoginEmailNoskip,
+    SetupPasskey
   };
   Type type_ = Type::Empty;
   DialogId dialog_id_;
@@ -107,7 +108,7 @@ inline bool operator<(const SuggestedAction &lhs, const SuggestedAction &rhs) {
     return static_cast<int32>(lhs.type_) < static_cast<int32>(rhs.type_);
   }
   if (lhs.custom_type_ != rhs.custom_type_) {
-    return lhs.custom_type_ == rhs.custom_type_;
+    return lhs.custom_type_ < rhs.custom_type_;
   }
   return lhs.url_ < rhs.url_;
 }

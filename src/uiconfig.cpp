@@ -1,6 +1,6 @@
 // uiconfig.cpp
 //
-// Copyright (c) 2019-2025 Kristofer Berggren
+// Copyright (c) 2019-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -30,11 +30,11 @@ void UiConfig::Init()
     { "confirm_deletion", "1" },
     { "confirm_send_pasted_image", "1" },
     { "desktop_notify_active_current", "0" },
-    { "desktop_notify_active_noncurrent", "0" },
-    { "desktop_notify_connectivity", "0" },
-    { "desktop_notify_enabled", "1" },
-    { "desktop_notify_inactive", "0" },
+    { "desktop_notify_active_noncurrent", "1" },
     { "desktop_notify_command", "" },
+    { "desktop_notify_connectivity", "1" },
+    { "desktop_notify_enabled", "0" },
+    { "desktop_notify_inactive", "1" },
     { "downloadable_indicator", "+" },
     { "emoji_enabled", "1" },
     { "entry_height", "4" },
@@ -66,6 +66,7 @@ void UiConfig::Init()
     { "spell_check_command", "" },
     { "status_broadcast", "1" },
     { "syncing_indicator", "\xe2\x87\x84" },
+    { "tab_size", "4" },
     { "terminal_bell_active", "0" },
     { "terminal_bell_inactive", "1" },
     { "terminal_title", "" },
@@ -73,6 +74,7 @@ void UiConfig::Init()
     { "top_show_version", "0" },
     { "transfer_send_caption", "1" },
     { "typing_status_share", "1" },
+    { "undo_clear_input", "1" },
     { "unread_indicator", "*" },
   };
 

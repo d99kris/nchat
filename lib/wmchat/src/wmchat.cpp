@@ -60,7 +60,9 @@ std::string WmChat::GetProfileDisplayName() const
 
 bool WmChat::HasFeature(ProtocolFeature p_ProtocolFeature) const
 {
-  ProtocolFeature customFeatures = FeatureEditMessagesWithinFifteenMins;
+  static int customFeatures =
+    FeatureEditMessagesWithinFifteenMins |
+    FeatureAutoGetContactsOnLogin;
   return (p_ProtocolFeature & customFeatures);
 }
 
@@ -737,7 +739,8 @@ WmChat* WmChat::GetInstance(int p_ConnId)
   return (it != s_ConnIdMap.end()) ? it->second : nullptr;
 }
 
-void WmNewContactsNotify(int p_ConnId, char* p_ChatId, char* p_Name, char* p_Phone, int p_IsSelf, int p_IsAlias, int p_Notify)
+void WmNewContactsNotify(int p_ConnId, char* p_ChatId, char* p_Name, char* p_Phone, int p_IsSelf, int p_IsAlias,
+                         int p_Notify)
 {
   WmChat* instance = WmChat::GetInstance(p_ConnId);
   if (instance != nullptr)

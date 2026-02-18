@@ -26,7 +26,8 @@ void UiStatusView::Draw()
   curs_set(0);
 
   std::pair<std::string, std::string>& currentChat = m_Model->GetCurrentChatLocked();
-  std::string name = m_Model->GetContactListNameLocked(currentChat.first, currentChat.second, true /*p_AllowId*/, true /*p_AllowAlias*/);
+  std::string name = m_Model->GetContactListNameLocked(currentChat.first, currentChat.second, true /*p_AllowId*/,
+                                                       true /*p_AllowAlias*/);
   if (!m_Model->GetEmojiEnabledLocked())
   {
     name = StrUtil::Textize(name);
