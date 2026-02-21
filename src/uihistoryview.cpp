@@ -17,6 +17,7 @@
 #include "uicolorconfig.h"
 #include "uiconfig.h"
 #include "uimodel.h"
+#include "messagecache.h"
 
 UiHistoryView::UiHistoryView(const UiViewParams& p_Params)
   : UiViewBase(p_Params)
@@ -71,6 +72,7 @@ void UiHistoryView::Draw()
   static std::wstring attachmentIndicator =
     StrUtil::ToWString(UiConfig::GetStr("attachment_indicator") + " ");
   static std::wstring quoteIndicator = L"> ";
+  static std::wstring transcriptionIndicator = L"[Transcribed] ";
 
   std::pair<std::string, std::string>& currentChat = m_Model->GetCurrentChatLocked();
   const bool emojiEnabled = m_Model->GetEmojiEnabledLocked();
@@ -171,6 +173,9 @@ void UiHistoryView::Draw()
       wlines.insert(wlines.begin(), quote);
     }
 
+    // Transcription lines counter (needs to be accessible in rendering loop)
+    int transcriptionLines = 0;
+
     // File attachment
     if (!msg.fileInfo.empty())
     {
@@ -222,6 +227,66 @@ void UiHistoryView::Draw()
 
       std::wstring fileStr = attachmentIndicator + StrUtil::ToWString(fileName + fileStatus);
       wlines.insert(wlines.begin(), fileStr);
+
+      // Transcription (if audio file and transcription available)
+      static const bool transcribeInline = UiConfig::GetBool("audio_transcribe_inline");
+      if (transcribeInline)
+      {
+        std::string ext = FileUtil::GetFileExt(fileInfo.filePath);
+        
+        // Remove leading dot if present
+        if (!ext.empty() && ext[0] == '.')
+        {
+          ext = ext.substr(1);
+        }
+        
+        static const std::set<std::string> audioExtensions = {
+          "ogg", "opus", "mp3", "m4a", "aac", "wav", "flac", "oga"
+        };
+
+        if (audioExtensions.find(ext) != audioExtensions.end())
+        {
+          std::string transcription = MessageCache::GetTranscription(currentChat.first, currentChat.second, msg.id);
+          if (!transcription.empty())
+          {
+            StrUtil::SanitizeMessageStr(transcription);
+            if (!emojiEnabled)
+            {
+              transcription = StrUtil::Textize(transcription);
+            }
+
+            std::vector<std::wstring> transcriptionWLines =
+              StrUtil::WordWrap(StrUtil::ToWString(transcription), m_PaddedW - 2, false, false, false, 2);
+
+            // Check if transcription exceeds max lines limit
+            static const int maxTranscriptionLines = UiConfig::GetNum("audio_transcribe_max_lines");
+            const bool needsTruncation = (maxTranscriptionLines > 0) &&
+                                         (static_cast<int>(transcriptionWLines.size()) > maxTranscriptionLines);
+
+            if (needsTruncation)
+            {
+              int hiddenLines = transcriptionWLines.size() - maxTranscriptionLines + 1; // +1 for truncation indicator line
+              transcriptionWLines.resize(maxTranscriptionLines - 1); // Reserve last line for indicator
+              std::wstring truncationMsg = L"... (" + std::to_wstring(hiddenLines) + L" more lines)";
+              transcriptionWLines.push_back(truncationMsg);
+            }
+
+            // Add transcription indicator on first line
+            if (!transcriptionWLines.empty())
+            {
+              transcriptionWLines[0] = transcriptionIndicator + transcriptionWLines[0];
+            }
+
+            // Insert transcription lines after file attachment
+            for (auto tline = transcriptionWLines.rbegin(); tline != transcriptionWLines.rend(); ++tline)
+            {
+              wlines.insert(wlines.begin() + 1, *tline);
+            }
+
+            transcriptionLines = transcriptionWLines.size();
+          }
+        }
+      }
     }
 
     // Reactions
@@ -319,6 +384,13 @@ void UiHistoryView::Draw()
       bool isAttachment = (wline->rfind(attachmentIndicator, 0) == 0);
       bool isQuote = (wline->rfind(quoteIndicator, 0) == 0);
       bool isReaction = (reactionLines == 1) && (std::distance(wline, wlines.rbegin()) == 0);
+      
+      // Transcription lines are at positions 1 to (1 + transcriptionLines - 1) in forward iteration
+      // In reverse, calculate the position from the end
+      size_t posFromEnd = std::distance(wline, wlines.rbegin());
+      size_t vectorSize = wlines.size();
+      size_t posFromBegin = vectorSize - 1 - posFromEnd;
+      bool isTranscription = (transcriptionLines > 0) && (posFromBegin >= 1) && (posFromBegin < 1 + static_cast<size_t>(transcriptionLines));
 
       if (isAttachment)
       {
@@ -331,6 +403,10 @@ void UiHistoryView::Draw()
       else if (isReaction)
       {
         wattron(m_PaddedWin, attributeTextNormal | colorPairTextReaction);
+      }
+      else if (isTranscription)
+      {
+        wattron(m_PaddedWin, attributeText | colorPairTextQuoted | A_DIM);
       }
       else
       {
@@ -351,6 +427,10 @@ void UiHistoryView::Draw()
       else if (isReaction)
       {
         wattroff(m_PaddedWin, attributeTextNormal | colorPairTextReaction);
+      }
+      else if (isTranscription)
+      {
+        wattroff(m_PaddedWin, attributeText | colorPairTextQuoted | A_DIM);
       }
       else
       {

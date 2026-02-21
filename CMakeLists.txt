@@ -197,6 +197,8 @@ add_executable(nchat
   src/uilistborderview.h
   src/uilistdialog.cpp
   src/uilistdialog.h
+  src/uilanguagelistdialog.cpp
+  src/uilanguagelistdialog.h
   src/uilistview.cpp
   src/uilistview.h
   src/uimessagedialog.cpp
@@ -340,6 +342,9 @@ install(FILES src/nchat.1 DESTINATION "${CMAKE_INSTALL_MANDIR}/man1")
 # Utils
 configure_file(src/compose ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_INSTALL_LIBEXECDIR}/nchat/compose COPYONLY)
 install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_INSTALL_LIBEXECDIR}/nchat/compose DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}/nchat)
+
+configure_file(src/transcribe ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_INSTALL_LIBEXECDIR}/nchat/transcribe COPYONLY)
+install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_INSTALL_LIBEXECDIR}/nchat/transcribe DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}/nchat)
 
 # Themes
 macro(add_theme themedir)
