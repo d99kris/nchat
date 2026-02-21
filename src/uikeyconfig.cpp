@@ -237,6 +237,7 @@ void UiKeyConfig::Init(bool p_MapKeys)
     { "unread_chat", "KEY_CTRLF" },
     { "send_msg", "KEY_CTRLX" },
     { "delete_msg", "KEY_CTRLD" },
+    { "delete_msg_local", "\\33\\104" }, // alt/opt-shift-d
     { "delete_chat", "\\33\\144" }, // alt/opt-d
     { "open", "KEY_CTRLV" },
     { "open_link", "KEY_CTRLW" },

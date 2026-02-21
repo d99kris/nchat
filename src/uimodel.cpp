@@ -899,7 +899,7 @@ void UiModel::Impl::DownloadAttachment(const std::string& p_ProfileId, const std
   mit->second.fileInfo = ProtocolUtil::FileInfoToHex(fileInfo);
 }
 
-void UiModel::Impl::OnKeyDeleteMsg()
+void UiModel::Impl::OnKeyDeleteMsg(bool p_Revoke)
 {
   AnyUserKeyInput();
 
@@ -932,6 +932,7 @@ void UiModel::Impl::OnKeyDeleteMsg()
   deleteMessageRequest->chatId = chatId;
   deleteMessageRequest->senderId = senderId;
   deleteMessageRequest->msgId = msgId;
+  deleteMessageRequest->revoke = p_Revoke;
   SendProtocolRequest(profileId, deleteMessageRequest);
 }
 
@@ -4009,6 +4010,7 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keySelectEmoji = UiKeyConfig::GetKey("select_emoji");
   static wint_t keySelectContact = UiKeyConfig::GetKey("select_contact");
   static wint_t keyTransfer = UiKeyConfig::GetKey("transfer");
+  static wint_t keyDeleteMsgLocal = UiKeyConfig::GetKey("delete_msg_local");
   static wint_t keyDeleteMsg = UiKeyConfig::GetKey("delete_msg");
   static wint_t keyDeleteChat = UiKeyConfig::GetKey("delete_chat");
   static wint_t keyEditMsg = UiKeyConfig::GetKey("edit_msg");
@@ -4150,7 +4152,11 @@ void UiModel::KeyHandler(wint_t p_Key)
   }
   else if (p_Key == keyDeleteMsg)
   {
-    OnKeyDeleteMsg();
+    OnKeyDeleteMsg(true);
+  }
+  else if (p_Key == keyDeleteMsgLocal)
+  {
+    OnKeyDeleteMsg(false);
   }
   else if (p_Key == keyDeleteChat)
   {
@@ -4832,7 +4838,7 @@ bool UiModel::MessageDialog(const std::string& p_Title, const std::string& p_Tex
   return rv;
 }
 
-void UiModel::OnKeyDeleteMsg()
+void UiModel::OnKeyDeleteMsg(bool p_Revoke)
 {
   // Pre-req
   {
@@ -4851,7 +4857,7 @@ void UiModel::OnKeyDeleteMsg()
   }
 
   std::unique_lock<owned_mutex> lock(m_ModelMutex);
-  GetImpl().OnKeyDeleteMsg();
+  GetImpl().OnKeyDeleteMsg(p_Revoke);
 }
 
 void UiModel::OnKeyDeleteChat()
