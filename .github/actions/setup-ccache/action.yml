@@ -1,0 +1,51 @@
+name: setup-ccache
+
+inputs:
+  max_size:
+    description: Max ccache size
+    default: 1G
+
+  cache_key_prefix:
+    description: Cache key prefix
+    default: ""   # leave empty, auto-use repo name
+
+runs:
+  using: composite
+  steps:
+    - name: Install ccache (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: sudo apt-get update && sudo apt-get install -y ccache
+
+    - name: Install ccache (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        export HOMEBREW_NO_AUTO_UPDATE=1
+        brew install ccache
+
+    - name: Compute cache key
+      id: cache-key
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.cache_key_prefix }}" ]; then
+          PREFIX="${{ inputs.cache_key_prefix }}"
+        else
+          PREFIX="${GITHUB_REPOSITORY##*/}"
+        fi
+        echo "prefix=${PREFIX}" >> "$GITHUB_OUTPUT"
+        echo "ccache_dir=$HOME/.ccache" >> "$GITHUB_OUTPUT"
+
+    - name: Restore ccache
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.cache-key.outputs.ccache_dir }}
+        key: ${{ steps.cache-key.outputs.prefix }}-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt','**/*.cmake') }}
+        restore-keys: |
+          ${{ steps.cache-key.outputs.prefix }}-${{ runner.os }}-
+
+    - name: Configure ccache
+      shell: bash
+      run: |
+        ccache --set-config=cache_dir=${{ steps.cache-key.outputs.ccache_dir }}
+        ccache --set-config=max_size=${{ inputs.max_size }}
