@@ -1,4 +1,4 @@
--- v0 -> v26 (compatible with v13+): Latest revision
+-- v0 -> v27 (compatible with v13+): Latest revision
 CREATE TABLE signalmeow_device (
     aci_uuid              TEXT PRIMARY KEY,
 
@@ -100,7 +100,9 @@ CREATE TABLE signalmeow_outbound_sender_key_info (
     distribution_id TEXT  NOT NULL,
     shared_with     jsonb NOT NULL,
 
-    PRIMARY KEY (account_id, group_id)
+    PRIMARY KEY (account_id, group_id),
+    CONSTRAINT signalmeow_outbound_sender_key_info_device_fkey
+        FOREIGN KEY (account_id) REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE TABLE signalmeow_groups (
@@ -108,7 +110,9 @@ CREATE TABLE signalmeow_groups (
     group_identifier TEXT NOT NULL,
     master_key       TEXT NOT NULL,
 
-    PRIMARY KEY (account_id, group_identifier)
+    PRIMARY KEY (account_id, group_identifier),
+    CONSTRAINT signalmeow_groups_device_fkey
+        FOREIGN KEY (account_id) REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE TABLE signalmeow_recipients (

@@ -84,8 +84,7 @@ func (i *IdentityKey) VerifyAlternateIdentity(other *IdentityKey, signature []by
 }
 
 func (i *IdentityKey) Equal(other *IdentityKey) (bool, error) {
-	result, err := i.publicKey.Compare(other.publicKey)
-	return result == 0, err
+	return i.publicKey.Equal(other.publicKey)
 }
 
 type IdentityKeyPair struct {

@@ -1,14 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 
-ANDROID_GIT_REVISION=${1:-d261f3ebf51864da067b968ee3366ed3e7369c78}
-DESKTOP_GIT_REVISION=${1:-fb566c48e0fa146dfe0bea077ecdb3ff846ef80a}
+ANDROID_GIT_REVISION=${1:-bc6114f6e0d3a4b1dcdc472331505f2644185264}
+DESKTOP_GIT_REVISION=${1:-a9063ec0c3c1079072c1e30e0749c1ae8be5500a}
 
 update_proto() {
   case "$1" in
     Signal-Android)
       REPO="Signal-Android"
-      prefix="libsignal-service/src/main/protowire/"
+      prefix="lib/libsignal-service/src/main/protowire/"
       GIT_REVISION=$ANDROID_GIT_REVISION
       ;;
     Signal-Android-App)

@@ -20,13 +20,9 @@ package libsignalgo
 /*
 #include "./libsignal-ffi.h"
 
-typedef const SignalProtocolAddress const_address;
-
-typedef const SignalSenderKeyRecord const_sender_key_record;
-typedef const uint8_t const_uuid_bytes[16];
-
-extern int signal_load_sender_key_callback(void *store_ctx, SignalSenderKeyRecord**, const_address*, const_uuid_bytes*);
-extern int signal_store_sender_key_callback(void *store_ctx, const_address*, const_uuid_bytes*, const_sender_key_record*);
+extern int signal_load_sender_key_callback(void *store_ctx, SignalMutPointerSenderKeyRecord *out, SignalMutPointerProtocolAddress sender, SignalUuid distribution_id);
+extern int signal_store_sender_key_callback(void *store_ctx, SignalMutPointerProtocolAddress sender, SignalUuid distribution_id, SignalMutPointerSenderKeyRecord record);
+extern void signal_destroy_sender_key_store_callback(void *store_ctx);
 */
 import "C"
 import (
@@ -42,36 +38,40 @@ type SenderKeyStore interface {
 }
 
 //export signal_load_sender_key_callback
-func signal_load_sender_key_callback(storeCtx unsafe.Pointer, recordp **C.SignalSenderKeyRecord, address *C.const_address, distributionIDBytes *C.const_uuid_bytes) C.int {
+func signal_load_sender_key_callback(storeCtx unsafe.Pointer, recordp *C.SignalMutPointerSenderKeyRecord, address C.SignalMutPointerProtocolAddress, distributionID C.SignalUuid) C.int {
 	return wrapStoreCallback(storeCtx, func(store SenderKeyStore, ctx context.Context) error {
-		distributionID := uuid.UUID(*(*[16]byte)(unsafe.Pointer(distributionIDBytes)))
-		record, err := store.LoadSenderKey(ctx, &Address{ptr: (*C.SignalProtocolAddress)(unsafe.Pointer(address))}, distributionID)
+		record, err := store.LoadSenderKey(ctx, &Address{ptr: address.raw}, *(*uuid.UUID)(unsafe.Pointer(&distributionID)))
 		if err == nil && record != nil {
 			record.CancelFinalizer()
-			*recordp = record.ptr
+			recordp.raw = record.ptr
 		}
 		return err
 	})
 }
 
 //export signal_store_sender_key_callback
-func signal_store_sender_key_callback(storeCtx unsafe.Pointer, address *C.const_address, distributionIDBytes *C.const_uuid_bytes, senderKeyRecord *C.const_sender_key_record) C.int {
+func signal_store_sender_key_callback(storeCtx unsafe.Pointer, address C.SignalMutPointerProtocolAddress, distributionID C.SignalUuid, senderKeyRecord C.SignalMutPointerSenderKeyRecord) C.int {
 	return wrapStoreCallback(storeCtx, func(store SenderKeyStore, ctx context.Context) error {
-		distributionID := uuid.UUID(*(*[16]byte)(unsafe.Pointer(distributionIDBytes)))
-		record := SenderKeyRecord{ptr: (*C.SignalSenderKeyRecord)(unsafe.Pointer(senderKeyRecord))}
+		record := SenderKeyRecord{ptr: senderKeyRecord.raw}
 		cloned, err := record.Clone()
 		if err != nil {
 			return err
 		}
 
-		return store.StoreSenderKey(ctx, &Address{ptr: (*C.SignalProtocolAddress)(unsafe.Pointer(address))}, distributionID, cloned)
+		return store.StoreSenderKey(ctx, &Address{ptr: address.raw}, *(*uuid.UUID)(unsafe.Pointer(&distributionID)), cloned)
 	})
+}
+
+//export signal_destroy_sender_key_store_callback
+func signal_destroy_sender_key_store_callback(storeCtx unsafe.Pointer) {
+	// No-op: Go's garbage collector handles cleanup
 }
 
 func (ctx *CallbackContext) wrapSenderKeyStore(store SenderKeyStore) C.SignalConstPointerFfiSenderKeyStoreStruct {
 	return C.SignalConstPointerFfiSenderKeyStoreStruct{&C.SignalSenderKeyStore{
 		ctx:              wrapStore(ctx, store),
-		load_sender_key:  C.SignalLoadSenderKey(C.signal_load_sender_key_callback),
-		store_sender_key: C.SignalStoreSenderKey(C.signal_store_sender_key_callback),
+		load_sender_key:  C.SignalFfiBridgeSenderKeyStoreLoadSenderKey(C.signal_load_sender_key_callback),
+		store_sender_key: C.SignalFfiBridgeSenderKeyStoreStoreSenderKey(C.signal_store_sender_key_callback),
+		destroy:          C.SignalFfiBridgeSenderKeyStoreDestroy(C.signal_destroy_sender_key_store_callback),
 	}}
 }

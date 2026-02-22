@@ -44,7 +44,7 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
-var signalDate int = 20260129
+var signalDate int = 20260216
 
 type State int64
 
@@ -1318,7 +1318,7 @@ func (handler *SgEventHandler) handleGroupChange(chatId string, senderId string,
 			if actions.GetModifyAvatar() != nil {
 				texts = append(texts, "[Changed group avatar]")
 			}
-			if actions.GetModifyDisappearingMessagesTimer() != nil {
+			if actions.GetModifyDisappearingMessageTimer() != nil {
 				texts = append(texts, "[Changed disappearing messages timer]")
 			}
 			for _, a := range actions.GetModifyMemberRoles() {
@@ -1329,13 +1329,13 @@ func (handler *SgEventHandler) handleGroupChange(chatId string, senderId string,
 				name := GetContactName(connId, memberId)
 				texts = append(texts, "[Changed role for "+name+"]")
 			}
-			for range actions.GetAddPendingMembers() {
+			for range actions.GetAddMembersPendingProfileKey() {
 				texts = append(texts, "[Invited a member]")
 			}
-			for range actions.GetDeletePendingMembers() {
+			for range actions.GetDeleteMembersPendingProfileKey() {
 				texts = append(texts, "[Invitation revoked]")
 			}
-			for _, a := range actions.GetPromotePendingMembers() {
+			for _, a := range actions.GetPromoteMembersPendingProfileKey() {
 				memberId := ""
 				if gsp != nil {
 					memberId = decryptGroupMemberUUID(gsp, a.GetUserId())
@@ -1343,13 +1343,13 @@ func (handler *SgEventHandler) handleGroupChange(chatId string, senderId string,
 				name := GetContactName(connId, memberId)
 				texts = append(texts, "["+name+" accepted invite]")
 			}
-			for range actions.GetAddRequestingMembers() {
+			for range actions.GetAddMembersPendingAdminApproval() {
 				texts = append(texts, "[Member requested to join]")
 			}
-			for range actions.GetDeleteRequestingMembers() {
+			for range actions.GetDeleteMembersPendingAdminApproval() {
 				texts = append(texts, "[Join request denied]")
 			}
-			for _, a := range actions.GetPromoteRequestingMembers() {
+			for _, a := range actions.GetPromoteMembersPendingAdminApproval() {
 				memberId := ""
 				if gsp != nil {
 					memberId = decryptGroupMemberUUID(gsp, a.GetUserId())
