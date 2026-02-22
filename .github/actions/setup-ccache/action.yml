@@ -33,14 +33,17 @@ runs:
         else
           PREFIX="${GITHUB_REPOSITORY##*/}"
         fi
+        COMPILER_VER="$(cc --version 2>&1 | head -1)"
+        COMPILER_HASH="$(echo "${COMPILER_VER}" | shasum -a 256 | cut -d' ' -f1 | head -c 16)"
         echo "prefix=${PREFIX}" >> "$GITHUB_OUTPUT"
         echo "ccache_dir=$HOME/.ccache" >> "$GITHUB_OUTPUT"
+        echo "compiler_hash=${COMPILER_HASH}" >> "$GITHUB_OUTPUT"
 
     - name: Restore ccache
       uses: actions/cache@v4
       with:
         path: ${{ steps.cache-key.outputs.ccache_dir }}
-        key: ${{ steps.cache-key.outputs.prefix }}-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt','**/*.cmake') }}
+        key: ${{ steps.cache-key.outputs.prefix }}-${{ runner.os }}-${{ steps.cache-key.outputs.compiler_hash }}-${{ hashFiles('**/CMakeLists.txt','**/*.cmake') }}
         restore-keys: |
           ${{ steps.cache-key.outputs.prefix }}-${{ runner.os }}-
 
