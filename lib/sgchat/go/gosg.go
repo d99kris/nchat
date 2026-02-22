@@ -1499,6 +1499,9 @@ func (handler *SgEventHandler) handleContactList(evt *events.ContactList) bool {
 		if name == "" {
 			name = contact.E164
 		}
+		if name == "" {
+			continue
+		}
 		phone := contact.E164
 		isSelf := false
 		isAlias := false
@@ -2416,7 +2419,12 @@ func SgGetGroupMembers(connId int, chatId string) int {
 	var members []MemberInfo
 	for _, member := range group.Members {
 		memberId := UUIDToString(member.ACI)
-		memberName := GetContactName(connId, memberId)
+		memberName := ""
+		mx.Lock()
+		if n, ok := contacts[connId][memberId]; ok {
+			memberName = n
+		}
+		mx.Unlock()
 		members = append(members, MemberInfo{Id: memberId, Name: memberName})
 	}
 

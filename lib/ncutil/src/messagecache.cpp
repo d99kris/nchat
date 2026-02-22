@@ -215,7 +215,18 @@ void MessageCache::AddFromServiceMessage(const std::string& p_ProfileId,
           memberIds.push_back(ci.id);
         }
         MessageCache::AddGroupMembers(p_ProfileId, newGroupMembersNotify->chatId, memberIds);
-        MessageCache::AddContacts(p_ProfileId, false /*p_FullSync*/, newGroupMembersNotify->contactInfos);
+        std::vector<ContactInfo> namedContacts;
+        for (const auto& ci : newGroupMembersNotify->contactInfos)
+        {
+          if (!ci.name.empty())
+          {
+            namedContacts.push_back(ci);
+          }
+        }
+        if (!namedContacts.empty())
+        {
+          MessageCache::AddContacts(p_ProfileId, false /*p_FullSync*/, namedContacts);
+        }
       }
       break;
 
