@@ -1,6 +1,6 @@
 // uilistdialog.cpp
 //
-// Copyright (c) 2019-2025 Kristofer Berggren
+// Copyright (c) 2019-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -46,7 +46,7 @@ bool UiListDialog::Run()
     }
 
     int64_t nowTime = TimeUtil::GetCurrentTimeMSec();
-    if ((nowTime - lastTimerEvent) > 1000)
+    if ((nowTime - lastTimerEvent) > 50) // need short check interval for timely ui update after fetching data
     {
       lastTimerEvent = nowTime;
       if (OnTimer())

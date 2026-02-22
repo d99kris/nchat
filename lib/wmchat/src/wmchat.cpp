@@ -1,6 +1,6 @@
 // wmchat.cpp
 //
-// Copyright (c) 2020-2025 Kristofer Berggren
+// Copyright (c) 2020-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -64,6 +64,14 @@ bool WmChat::HasFeature(ProtocolFeature p_ProtocolFeature) const
     FeatureEditMessagesWithinFifteenMins |
     FeatureAutoGetContactsOnLogin;
   return (p_ProtocolFeature & customFeatures);
+}
+
+bool WmChat::IsGroupChat(const std::string& p_ChatId) const
+{
+  // WhatsApp group JIDs end with @g.us
+  static const std::string groupSuffix = "@g.us";
+  return (p_ChatId.size() > groupSuffix.size() &&
+          p_ChatId.compare(p_ChatId.size() - groupSuffix.size(), groupSuffix.size(), groupSuffix) == 0);
 }
 
 std::string WmChat::GetSelfId() const
@@ -390,12 +398,14 @@ void WmChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
           fileType = fileInfo.fileType;
         }
 
+        std::string mentionsJson = ProtocolUtil::MentionsToJson(sendMessageRequest->chatMessage.mentions);
+
         int rv =
           CWmSendMessage(m_ConnId, const_cast<char*>(chatId.c_str()), const_cast<char*>(text.c_str()),
                          const_cast<char*>(quotedId.c_str()), const_cast<char*>(quotedText.c_str()),
                          const_cast<char*>(quotedSender.c_str()), const_cast<char*>(filePath.c_str()),
                          const_cast<char*>(fileType.c_str()), const_cast<char*>(editMsgId.c_str()),
-                         editMsgSent);
+                         editMsgSent, const_cast<char*>(mentionsJson.c_str()));
         Status::Clear(m_ProfileId, Status::FlagSending);
 
         std::shared_ptr<SendMessageNotify> sendMessageNotify = std::make_shared<SendMessageNotify>(m_ProfileId);
@@ -429,11 +439,13 @@ void WmChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
           fileType = fileInfo.fileType;
         }
 
+        std::string editMentionsJson = ProtocolUtil::MentionsToJson(editMessageRequest->chatMessage.mentions);
+
         CWmSendMessage(m_ConnId, const_cast<char*>(chatId.c_str()), const_cast<char*>(text.c_str()),
                        const_cast<char*>(quotedId.c_str()), const_cast<char*>(quotedText.c_str()),
                        const_cast<char*>(quotedSender.c_str()), const_cast<char*>(filePath.c_str()),
                        const_cast<char*>(fileType.c_str()), const_cast<char*>(editMsgId.c_str()),
-                       editMsgSent);
+                       editMsgSent, const_cast<char*>(editMentionsJson.c_str()));
         Status::Clear(m_ProfileId, Status::FlagSending);
       }
       break;
@@ -629,6 +641,16 @@ void WmChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
       }
       break;
 
+    case GetGroupMembersRequestType:
+      {
+        LOG_DEBUG("get group members");
+        std::shared_ptr<GetGroupMembersRequest> getGroupMembersRequest =
+          std::static_pointer_cast<GetGroupMembersRequest>(p_RequestMessage);
+        std::string chatId = getGroupMembersRequest->chatId;
+        CWmGetGroupMembers(m_ConnId, const_cast<char*>(chatId.c_str()));
+      }
+      break;
+
     default:
       LOG_DEBUG("unknown request %d", p_RequestMessage->GetMessageType());
       break;
@@ -811,6 +833,28 @@ void WmNewChatsNotify(int p_ConnId, char* p_ChatId, int p_IsUnread, int p_IsMute
   }
 
   free(p_ChatId);
+}
+
+void WmNewGroupMembersNotify(int p_ConnId, char* p_ChatId, char* p_MembersJson)
+{
+  WmChat* instance = WmChat::GetInstance(p_ConnId);
+  if (instance != nullptr)
+  {
+    std::shared_ptr<NewGroupMembersNotify> notify =
+      std::make_shared<NewGroupMembersNotify>(instance->GetProfileId());
+    notify->chatId = std::string(p_ChatId);
+
+    // Parse JSON array of {id, name} objects
+    std::string json = std::string(p_MembersJson);
+    notify->contactInfos = ProtocolUtil::ContactInfosFromJson(json);
+
+    std::shared_ptr<DeferNotifyRequest> deferNotifyRequest = std::make_shared<DeferNotifyRequest>();
+    deferNotifyRequest->serviceMessage = notify;
+    instance->SendRequest(deferNotifyRequest);
+  }
+
+  free(p_ChatId);
+  free(p_MembersJson);
 }
 
 void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe,

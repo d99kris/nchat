@@ -2453,7 +2453,7 @@ func WmGetMessages(connId int, chatId string, limit int, fromMsgId string, owner
 	return -1
 }
 
-func WmSendMessage(connId int, chatId string, text string, quotedId string, quotedText string, quotedSender string, filePath string, fileType string, editMsgId string, editMsgSent int) int {
+func WmSendMessage(connId int, chatId string, text string, quotedId string, quotedText string, quotedSender string, filePath string, fileType string, editMsgId string, editMsgSent int, mentionsJson string) int {
 
 	LOG_TRACE("send message " + strconv.Itoa(connId) + ", " + chatId + ", " + text + ", " + quotedId + ", " + filePath + ", " + editMsgId)
 
@@ -2502,6 +2502,34 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 	if expiration != 0 {
 		LOG_TRACE("send expiration " + strconv.FormatUint(uint64(expiration), 10))
 		contextInfo.Expiration = &expiration
+	}
+
+	// process mentions
+	if len(mentionsJson) > 0 {
+		var mentions map[string]string
+		if jsonErr := json.Unmarshal([]byte(mentionsJson), &mentions); jsonErr == nil {
+			var mentionedJids []string
+			for name, userId := range mentions {
+				// Replace @Name or @[Name] with @<user-local-part> in text
+				userJid, parseErr := types.ParseJID(userId)
+				if parseErr != nil {
+					LOG_WARNING(fmt.Sprintf("mention jid parse err %#v", parseErr))
+					continue
+				}
+				userLocal := userJid.User
+				bracketPattern := "@[" + name + "]"
+				atPattern := "@" + name
+				if strings.Contains(text, bracketPattern) {
+					text = strings.Replace(text, bracketPattern, "@"+userLocal, 1)
+				} else if strings.Contains(text, atPattern) {
+					text = strings.Replace(text, atPattern, "@"+userLocal, 1)
+				}
+				mentionedJids = append(mentionedJids, userId)
+			}
+			if len(mentionedJids) > 0 {
+				contextInfo.MentionedJID = mentionedJids
+			}
+		}
 	}
 
 	// check message type
@@ -2726,6 +2754,59 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 		handler := GetHandler(connId)
 		handler.HandleMessage(messageInfo, &message, isSyncRead)
 	}
+
+	return 0
+}
+
+func WmGetGroupMembers(connId int, chatId string) int {
+
+	LOG_TRACE("get group members " + strconv.Itoa(connId) + ", " + chatId)
+
+	// sanity check arg
+	if connId == -1 {
+		LOG_WARNING("invalid connId")
+		return -1
+	}
+
+	// get client
+	var client *whatsmeow.Client = GetClient(connId)
+
+	// parse chat JID
+	chatJid, jidErr := types.ParseJID(chatId)
+	if jidErr != nil {
+		LOG_WARNING(fmt.Sprintf("jid err %#v", jidErr))
+		return -1
+	}
+
+	if chatJid.Server != types.GroupServer {
+		LOG_WARNING("not a group chat")
+		return -1
+	}
+
+	// get group info
+	ctx := context.TODO()
+	groupInfo, groupErr := client.GetGroupInfo(ctx, chatJid)
+	if groupErr != nil {
+		LOG_WARNING(fmt.Sprintf("get group info failed %#v", groupErr))
+		return -1
+	}
+
+	type MemberInfo struct {
+		Id   string `json:"id"`
+		Name string `json:"name"`
+	}
+	var members []MemberInfo
+	for _, participant := range groupInfo.Participants {
+		memberId := StrFromJid(participant.JID)
+		memberName := GetContactName(connId, memberId)
+		members = append(members, MemberInfo{Id: memberId, Name: memberName})
+	}
+	membersJsonBytes, jsonErr := json.Marshal(members)
+	if jsonErr != nil {
+		LOG_WARNING(fmt.Sprintf("marshal group members err %#v", jsonErr))
+		return -1
+	}
+	CWmNewGroupMembersNotify(connId, chatId, string(membersJsonBytes))
 
 	return 0
 }

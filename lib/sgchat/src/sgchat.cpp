@@ -66,6 +66,25 @@ bool SgChat::HasFeature(ProtocolFeature p_ProtocolFeature) const
   return (p_ProtocolFeature & customFeatures);
 }
 
+bool SgChat::IsGroupChat(const std::string& p_ChatId) const
+{
+  // Signal 1-on-1 chats use UUID format (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+  // Groups use non-UUID identifiers
+  if (p_ChatId.size() != 36) return true;
+  for (size_t i = 0; i < p_ChatId.size(); ++i)
+  {
+    if (i == 8 || i == 13 || i == 18 || i == 23)
+    {
+      if (p_ChatId[i] != '-') return true;
+    }
+    else
+    {
+      if (!std::isxdigit(static_cast<unsigned char>(p_ChatId[i]))) return true;
+    }
+  }
+  return false;
+}
+
 std::string SgChat::GetSelfId() const
 {
   std::unique_lock<std::mutex> lock(m_Mutex);
@@ -393,12 +412,14 @@ void SgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
           fileType = fileInfo.fileType;
         }
 
+        std::string mentionsJson = ProtocolUtil::MentionsToJson(sendMessageRequest->chatMessage.mentions);
+
         int rv =
           CSgSendMessage(m_ConnId, const_cast<char*>(chatId.c_str()), const_cast<char*>(text.c_str()),
                          const_cast<char*>(quotedId.c_str()), const_cast<char*>(quotedText.c_str()),
                          const_cast<char*>(quotedSender.c_str()), const_cast<char*>(filePath.c_str()),
                          const_cast<char*>(fileType.c_str()), const_cast<char*>(editMsgId.c_str()),
-                         editMsgSent);
+                         editMsgSent, const_cast<char*>(mentionsJson.c_str()));
         Status::Clear(m_ProfileId, Status::FlagSending);
 
         std::shared_ptr<SendMessageNotify> sendMessageNotify = std::make_shared<SendMessageNotify>(m_ProfileId);
@@ -432,11 +453,13 @@ void SgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
           fileType = fileInfo.fileType;
         }
 
+        std::string editMentionsJson = ProtocolUtil::MentionsToJson(editMessageRequest->chatMessage.mentions);
+
         CSgSendMessage(m_ConnId, const_cast<char*>(chatId.c_str()), const_cast<char*>(text.c_str()),
                        const_cast<char*>(quotedId.c_str()), const_cast<char*>(quotedText.c_str()),
                        const_cast<char*>(quotedSender.c_str()), const_cast<char*>(filePath.c_str()),
                        const_cast<char*>(fileType.c_str()), const_cast<char*>(editMsgId.c_str()),
-                       editMsgSent);
+                       editMsgSent, const_cast<char*>(editMentionsJson.c_str()));
         Status::Clear(m_ProfileId, Status::FlagSending);
       }
       break;
@@ -628,6 +651,16 @@ void SgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
                                   findMessageRequest->lastMsgId,
                                   findMessageRequest->findText,
                                   findMessageRequest->findMsgId);
+      }
+      break;
+
+    case GetGroupMembersRequestType:
+      {
+        LOG_DEBUG("get group members");
+        std::shared_ptr<GetGroupMembersRequest> getGroupMembersRequest =
+          std::static_pointer_cast<GetGroupMembersRequest>(p_RequestMessage);
+        std::string chatId = getGroupMembersRequest->chatId;
+        CSgGetGroupMembers(m_ConnId, const_cast<char*>(chatId.c_str()));
       }
       break;
 
@@ -832,6 +865,27 @@ void SgNewChatsNotify(int p_ConnId, char* p_ChatId, int p_IsUnread, int p_IsMute
   }
 
   free(p_ChatId);
+}
+
+void SgNewGroupMembersNotify(int p_ConnId, char* p_ChatId, char* p_MembersJson)
+{
+  SgChat* instance = SgChat::GetInstance(p_ConnId);
+  if (instance != nullptr)
+  {
+    std::shared_ptr<NewGroupMembersNotify> notify =
+      std::make_shared<NewGroupMembersNotify>(instance->GetProfileId());
+    notify->chatId = std::string(p_ChatId);
+
+    std::string json = std::string(p_MembersJson);
+    notify->contactInfos = ProtocolUtil::ContactInfosFromJson(json);
+
+    std::shared_ptr<DeferNotifyRequest> deferNotifyRequest = std::make_shared<DeferNotifyRequest>();
+    deferNotifyRequest->serviceMessage = notify;
+    instance->SendRequest(deferNotifyRequest);
+  }
+
+  free(p_ChatId);
+  free(p_MembersJson);
 }
 
 void SgNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe,

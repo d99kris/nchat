@@ -1,6 +1,6 @@
 // uihelpview.cpp
 //
-// Copyright (c) 2019-2025 Kristofer Berggren
+// Copyright (c) 2019-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -93,6 +93,7 @@ void UiHelpView::Draw()
     AppendHelpItem("find", "Find", helpItems);
     AppendHelpItem("find_next", "FindNext", helpItems);
     AppendHelpItem("select_contact", "AddrBook", helpItems);
+    AppendHelpItem("select_mention", "Mention", helpItems);
     AppendHelpItem("spell", "ExtSpell", helpItems);
     AppendHelpItem("auto_compose", "AutoComp", helpItems);
     AppendHelpItem("decrease_list_width", "DecListW", helpItems);

@@ -12,6 +12,7 @@
 #include <ncurses.h>
 
 #include "appconfig.h"
+#include "messagecache.h"
 #include "apputil.h"
 #include "clipboard.h"
 #include "fileutil.h"
@@ -27,6 +28,7 @@
 #include "uichatlistdialog.h"
 #include "uiconfig.h"
 #include "uicontactlistdialog.h"
+#include "uigroupmemberlistdialog.h"
 #include "uicontroller.h"
 #include "uiemojilistdialog.h"
 #include "uifilelistdialog.h"
@@ -153,6 +155,8 @@ void UiModel::Impl::SendMessage()
   std::shared_ptr<SendMessageRequest> sendMessageRequest = std::make_shared<SendMessageRequest>();
   sendMessageRequest->chatId = chatId;
   sendMessageRequest->chatMessage.text = EntryStrToSendStr(entryStr);
+  sendMessageRequest->chatMessage.mentions = ParseMentions(profileId, chatId,
+                                                           sendMessageRequest->chatMessage.text);
 
   if (GetSelectMessageActive())
   {
@@ -1307,6 +1311,168 @@ void UiModel::Impl::InsertEmoji(const std::wstring& p_Emoji)
   ReinitView();
 }
 
+void UiModel::Impl::InsertText(const std::wstring& p_Text)
+{
+  std::string profileId = m_CurrentChat.first;
+  std::string chatId = m_CurrentChat.second;
+  int& entryPos = m_EntryPos[profileId][chatId];
+  std::wstring& entryStr = m_EntryStr[profileId][chatId];
+
+  entryStr.insert(entryPos, p_Text);
+  entryPos += p_Text.size();
+
+  SetTyping(profileId, chatId, true);
+  UpdateEntry();
+
+  ReinitView();
+}
+
+void UiModel::Impl::RequestGroupMembers(const std::string& p_ProfileId, const std::string& p_ChatId)
+{
+  auto it = m_GroupMembers.find(p_ProfileId);
+  if (it != m_GroupMembers.end() && it->second.count(p_ChatId))
+  {
+    return;
+  }
+
+  auto pit = m_Protocols.find(p_ProfileId);
+  if (pit != m_Protocols.end())
+  {
+    auto request = std::make_shared<GetGroupMembersRequest>();
+    request->chatId = p_ChatId;
+    pit->second->SendRequest(request);
+  }
+}
+
+std::vector<std::string> UiModel::Impl::GetGroupMembers(const std::string& p_ProfileId, const std::string& p_ChatId)
+{
+  auto it = m_GroupMembers.find(p_ProfileId);
+  if (it != m_GroupMembers.end())
+  {
+    auto it2 = it->second.find(p_ChatId);
+    if (it2 != it->second.end())
+    {
+      return it2->second;
+    }
+  }
+  // Fallback: synchronous fetch from MessageCache (member IDs + contact names)
+  std::vector<ContactInfo> contactInfos = MessageCache::FetchGroupMembersSync(p_ProfileId, p_ChatId);
+  if (!contactInfos.empty())
+  {
+    std::vector<std::string> memberIds;
+    for (const auto& ci : contactInfos)
+    {
+      memberIds.push_back(ci.id);
+      if (!ci.name.empty() && m_ContactInfos[p_ProfileId].find(ci.id) == m_ContactInfos[p_ProfileId].end())
+      {
+        m_ContactInfos[p_ProfileId][ci.id] = ci;
+      }
+    }
+    m_GroupMembers[p_ProfileId][p_ChatId] = memberIds;
+    m_GroupMembersUpdateTime = TimeUtil::GetCurrentTimeMSec();
+    return memberIds;
+  }
+  return std::vector<std::string>();
+}
+
+bool UiModel::Impl::GetChatInfoIsGroup(const std::string& p_ProfileId, const std::string& p_ChatId)
+{
+  auto it = m_Protocols.find(p_ProfileId);
+  if (it != m_Protocols.end())
+  {
+    return it->second->IsGroupChat(p_ChatId);
+  }
+  return false;
+}
+
+std::map<std::string, std::string> UiModel::Impl::ParseMentions(const std::string& p_ProfileId,
+                                                                const std::string& p_ChatId,
+                                                                const std::string& p_Text)
+{
+  std::map<std::string, std::string> mentions;
+
+  std::vector<std::string> memberIds = GetGroupMembers(p_ProfileId, p_ChatId);
+  if (memberIds.empty()) return mentions;
+
+  // Build name -> memberId map
+  std::map<std::string, std::string> nameMemberMap;
+  for (const auto& memberId : memberIds)
+  {
+    auto cit = m_ContactInfos.find(p_ProfileId);
+    if (cit != m_ContactInfos.end())
+    {
+      auto cit2 = cit->second.find(memberId);
+      if (cit2 != cit->second.end() && !cit2->second.name.empty())
+      {
+        nameMemberMap[cit2->second.name] = memberId;
+      }
+    }
+  }
+
+  if (nameMemberMap.empty()) return mentions;
+
+  // Scan text for @[Name With Spaces] and @Name patterns
+  size_t pos = 0;
+  while (pos < p_Text.size())
+  {
+    if (p_Text[pos] == '@')
+    {
+      if ((pos + 1 < p_Text.size()) && p_Text[pos + 1] == '[')
+      {
+        // Bracket-quoted mention: @[Name With Spaces]
+        size_t closePos = p_Text.find(']', pos + 2);
+        if (closePos != std::string::npos)
+        {
+          std::string name = p_Text.substr(pos + 2, closePos - pos - 2);
+          auto it = nameMemberMap.find(name);
+          if (it != nameMemberMap.end())
+          {
+            mentions[name] = it->second;
+          }
+          pos = closePos + 1;
+          continue;
+        }
+      }
+
+      // Simple mention: @Word
+      size_t end = pos + 1;
+      while (end < p_Text.size() && p_Text[end] != ' ' && p_Text[end] != '\n' && p_Text[end] != '\t')
+      {
+        ++end;
+      }
+
+      if (end > pos + 1)
+      {
+        std::string name = p_Text.substr(pos + 1, end - pos - 1);
+        auto it = nameMemberMap.find(name);
+        if (it == nameMemberMap.end())
+        {
+          // Trim trailing punctuation (e.g. @Name, or @Name.) and retry
+          while (!name.empty() && (name.back() == '.' || name.back() == ',' ||
+                                   name.back() == '!' || name.back() == '?' ||
+                                   name.back() == ':' || name.back() == ';'))
+          {
+            name.pop_back();
+          }
+          it = nameMemberMap.find(name);
+        }
+        if (it != nameMemberMap.end())
+        {
+          mentions[name] = it->second;
+        }
+      }
+
+      pos = end;
+    }
+    else
+    {
+      ++pos;
+    }
+  }
+
+  return mentions;
+}
+
 void UiModel::Impl::OpenCreateChat(const std::pair<std::string, std::string>& p_Chat)
 {
   std::string profileId = p_Chat.first;
@@ -1861,6 +2027,40 @@ void UiModel::Impl::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMess
       }
       break;
 
+    case NewGroupMembersNotifyType:
+      {
+        LOG_INFO("NewGroupMembersNotifyType received");
+
+        std::shared_ptr<NewGroupMembersNotify> notify =
+          std::static_pointer_cast<NewGroupMembersNotify>(p_ServiceMessage);
+        std::string chatId = notify->chatId;
+
+        // Update contacts (names may be new), preserving isSelf flag
+        for (auto& ci : notify->contactInfos)
+        {
+          if (!ci.name.empty())
+          {
+            auto existIt = m_ContactInfos[profileId].find(ci.id);
+            if (existIt != m_ContactInfos[profileId].end())
+            {
+              ci.isSelf = existIt->second.isSelf;
+            }
+            m_ContactInfos[profileId][ci.id] = ci;
+          }
+        }
+        m_ContactInfosUpdateTime = TimeUtil::GetCurrentTimeMSec();
+
+        // Update runtime cache
+        std::vector<std::string> memberIds;
+        for (auto& ci : notify->contactInfos)
+        {
+          memberIds.push_back(ci.id);
+        }
+        m_GroupMembers[profileId][chatId] = memberIds;
+        m_GroupMembersUpdateTime = TimeUtil::GetCurrentTimeMSec();
+      }
+      break;
+
     case ProtocolUiControlNotifyType:
       {
         std::shared_ptr<ProtocolUiControlNotify> protocolUiControlNotify =
@@ -2231,6 +2431,11 @@ std::string UiModel::Impl::GetContactPhone(const std::string& p_ProfileId, const
   return contactInfo.phone.empty() ? "" : "+" + contactInfo.phone;
 }
 
+bool UiModel::Impl::IsContactSelf(const std::string& p_ProfileId, const std::string& p_ContactId)
+{
+  return m_ContactInfos[p_ProfileId][p_ContactId].isSelf;
+}
+
 int64_t UiModel::Impl::GetLastMessageTime(const std::string& p_ProfileId, const std::string& p_ChatId)
 {
   const ChatInfo& chatInfo = m_ChatInfos[p_ProfileId][p_ChatId];
@@ -2584,6 +2789,11 @@ std::unordered_map<std::string, std::unordered_map<std::string, ContactInfo>> Ui
 int64_t UiModel::Impl::GetContactInfosUpdateTime()
 {
   return m_ContactInfosUpdateTime;
+}
+
+int64_t UiModel::Impl::GetGroupMembersUpdateTime()
+{
+  return m_GroupMembersUpdateTime;
 }
 
 std::pair<std::string, std::string>& UiModel::Impl::GetCurrentChat()
@@ -3170,6 +3380,8 @@ void UiModel::Impl::SaveEditMessage()
 
   // update text content
   editMessageRequest->chatMessage.text = EntryStrToSendStr(entryStr);
+  editMessageRequest->chatMessage.mentions = ParseMentions(profileId, chatId,
+                                                           editMessageRequest->chatMessage.text);
   SendProtocolRequest(profileId, editMessageRequest);
 
   SetEditMessageActive(false);
@@ -4050,6 +4262,7 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keyTerminalResize = UiKeyConfig::GetKey("terminal_resize");
 
   static wint_t keyAutoCompose = UiKeyConfig::GetKey("auto_compose");
+  static wint_t keySelectMention = UiKeyConfig::GetKey("select_mention");
 
   if (p_Key == keyTerminalResize)
   {
@@ -4257,6 +4470,10 @@ void UiModel::KeyHandler(wint_t p_Key)
   {
     OnKeyGotoChat();
   }
+  else if (p_Key == keySelectMention)
+  {
+    OnKeySelectMention();
+  }
   else if (p_Key == keyAutoCompose)
   {
     OnKeyAutoCompose();
@@ -4331,6 +4548,12 @@ std::string UiModel::GetContactListName(const std::string& p_ProfileId, const st
   return GetImpl().GetContactListName(p_ProfileId, p_ChatId, p_AllowId, p_AllowAlias);
 }
 
+bool UiModel::IsContactSelf(const std::string& p_ProfileId, const std::string& p_ContactId)
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  return GetImpl().IsContactSelf(p_ProfileId, p_ContactId);
+}
+
 std::unordered_map<std::string, std::unordered_map<std::string, ContactInfo>> UiModel::GetContactInfos()
 {
   std::unique_lock<owned_mutex> lock(m_ModelMutex);
@@ -4347,6 +4570,24 @@ int64_t UiModel::GetContactInfosUpdateTime()
 {
   std::unique_lock<owned_mutex> lock(m_ModelMutex);
   return GetImpl().GetContactInfosUpdateTime();
+}
+
+int64_t UiModel::GetGroupMembersUpdateTime()
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  return GetImpl().GetGroupMembersUpdateTime();
+}
+
+void UiModel::RequestGroupMembers(const std::string& p_ProfileId, const std::string& p_ChatId)
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  GetImpl().RequestGroupMembers(p_ProfileId, p_ChatId);
+}
+
+std::vector<std::string> UiModel::GetGroupMembers(const std::string& p_ProfileId, const std::string& p_ChatId)
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  return GetImpl().GetGroupMembers(p_ProfileId, p_ChatId);
 }
 
 bool UiModel::GetEmojiEnabled()
@@ -4706,6 +4947,66 @@ void UiModel::OnKeySelectContact()
     std::pair<std::string, std::string> newChat = std::make_pair(profileId, userId);
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().OpenCreateChat(newChat);
+  }
+  else
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().ReinitView();
+  }
+}
+
+void UiModel::OnKeySelectMention()
+{
+  std::string profileId;
+  std::string chatId;
+  bool isGroup = false;
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    if (GetImpl().GetEditMessageActive()) return;
+
+    profileId = GetImpl().GetCurrentChat().first;
+    chatId = GetImpl().GetCurrentChat().second;
+    isGroup = GetImpl().GetChatInfoIsGroup(profileId, chatId);
+  }
+
+  if (!isGroup)
+  {
+    MessageDialog("Warning", "Mentions only supported in group chats.", 0.7, 5);
+    return;
+  }
+
+  // Open modal dialog without model mutex held
+  UiDialogParams params(this, "Mention", 0.75, 0.65);
+  UiGroupMemberListDialog dialog(params, profileId, chatId);
+  if (dialog.Run())
+  {
+    UiGroupMemberListItem item = dialog.GetSelectedItem();
+    std::string contactName;
+    {
+      std::unique_lock<owned_mutex> lock(m_ModelMutex);
+      contactName = GetImpl().GetContactListName(profileId, item.memberId, false /*p_AllowId*/,
+                                                 false /*p_AllowAlias*/);
+    }
+
+    if (contactName.empty())
+    {
+      contactName = item.name;
+    }
+
+    bool hasSpace = (contactName.find(' ') != std::string::npos);
+    static const bool mentionsQuoted = AppConfig::GetBool("mentions_quoted");
+    std::string mentionText;
+    if (mentionsQuoted && hasSpace)
+    {
+      mentionText = "@[" + contactName + "]";
+    }
+    else
+    {
+      mentionText = "@" + contactName;
+    }
+
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().InsertText(StrUtil::ToWString(mentionText));
   }
   else
   {

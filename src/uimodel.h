@@ -1,6 +1,6 @@
 // uimodel.h
 //
-// Copyright (c) 2019-2025 Kristofer Berggren
+// Copyright (c) 2019-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -73,6 +73,12 @@ private:
     std::string OnKeySaveAttachment(std::string p_FilePath = std::string());
     void TransferFile(const std::vector<std::string>& p_FilePaths);
     void InsertEmoji(const std::wstring& p_Emoji);
+    void InsertText(const std::wstring& p_Text);
+    void RequestGroupMembers(const std::string& p_ProfileId, const std::string& p_ChatId);
+    std::vector<std::string> GetGroupMembers(const std::string& p_ProfileId, const std::string& p_ChatId);
+    bool GetChatInfoIsGroup(const std::string& p_ProfileId, const std::string& p_ChatId);
+    std::map<std::string, std::string> ParseMentions(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                                     const std::string& p_Text);
     void OpenCreateChat(const std::pair<std::string, std::string>& p_Chat);
     void FetchCachedMessage(const std::string& p_ProfileId, const std::string& p_ChatId,
                             const std::string& p_MsgId);
@@ -91,6 +97,7 @@ private:
     std::string GetContactListName(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_AllowId,
                                    bool p_AllowAlias);
     std::string GetContactPhone(const std::string& p_ProfileId, const std::string& p_ChatId);
+    bool IsContactSelf(const std::string& p_ProfileId, const std::string& p_ContactId);
     int64_t GetLastMessageTime(const std::string& p_ProfileId, const std::string& p_ChatId);
     bool GetChatIsUnread(const std::string& p_ProfileId, const std::string& p_ChatId);
     std::string GetChatStatus(const std::string& p_ProfileId, const std::string& p_ChatId);
@@ -102,6 +109,7 @@ private:
     std::vector<std::pair<std::string, std::string>>& GetChatVecLock();
     std::unordered_map<std::string, std::unordered_map<std::string, ContactInfo>> GetContactInfos();
     int64_t GetContactInfosUpdateTime();
+    int64_t GetGroupMembersUpdateTime();
     std::pair<std::string, std::string>& GetCurrentChat();
     bool IsCurrentChat(const std::string& p_ProfileId, const std::string& p_ChatId);
     int& GetCurrentChatIndex();
@@ -262,6 +270,9 @@ private:
     std::unordered_map<std::string, std::unordered_map<std::string, bool>> m_UserOnline;
     std::unordered_map<std::string, std::unordered_map<std::string, int64_t>> m_UserTimeSeen;
 
+    std::unordered_map<std::string, std::unordered_map<std::string, std::vector<std::string>>> m_GroupMembers;
+    int64_t m_GroupMembersUpdateTime = 0;
+
     std::unordered_map<std::string, std::unordered_map<std::string, std::set<std::string>>> m_AvailableReactions;
     std::unordered_map<std::string, std::unordered_map<std::string, bool>> m_AvailableReactionsPending;
 
@@ -304,10 +315,14 @@ public:
   std::vector<std::pair<std::string, std::string>> GetChatVec();
   std::string GetContactListName(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_AllowId,
                                  bool p_AllowAlias);
+  bool IsContactSelf(const std::string& p_ProfileId, const std::string& p_ContactId);
   std::unordered_map<std::string, std::unordered_map<std::string, ContactInfo>> GetContactInfos();
   std::string GetProfileDisplayName(const std::string& p_ProfileId);
 
   int64_t GetContactInfosUpdateTime();
+  int64_t GetGroupMembersUpdateTime();
+  void RequestGroupMembers(const std::string& p_ProfileId, const std::string& p_ChatId);
+  std::vector<std::string> GetGroupMembers(const std::string& p_ProfileId, const std::string& p_ChatId);
   bool GetEmojiEnabled();
   int GetHelpOffset();
   void SetHelpOffset(int p_HelpOffset);
@@ -385,6 +400,7 @@ private:
   void OnKeyQuit();
   void OnKeyExtCall();
   void OnKeyAutoCompose();
+  void OnKeySelectMention();
   void OnKeyCut();
   void OnKeyCopy();
   void OnKeyPaste();
