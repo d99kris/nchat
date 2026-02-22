@@ -6,7 +6,7 @@ nchat
 | [![Linux](https://github.com/d99kris/nchat/workflows/Linux/badge.svg)](https://github.com/d99kris/nchat/actions?query=workflow%3ALinux) | [![macOS](https://github.com/d99kris/nchat/workflows/macOS/badge.svg)](https://github.com/d99kris/nchat/actions?query=workflow%3AmacOS) |
 
 nchat is a terminal-based chat client for Linux and macOS with support for
-Telegram and WhatsApp.
+Telegram, WhatsApp and Signal.
 
 ![screenshot nchat](/doc/screenshot-nchat.png)
 
@@ -23,6 +23,12 @@ Features
 - Toggle to view textized emojis vs. graphical
 - View / save media files (documents, photos, videos)
 - Send and display reactions
+
+
+Optional Features
+-----------------
+Signal support is disabled by default and requires enabling a
+[feature flag](/doc/SIGNAL.md).
 
 
 Usage
@@ -110,6 +116,7 @@ tested on:
 
 - macOS Sequoia 15.5
 - Ubuntu 24.04 LTS
+
 
 Install using Package Manager
 =============================
@@ -225,7 +232,8 @@ code. Example:
     0. Dummy
     1. Telegram
     2. WhatsAppMd
-    3. Exit setup
+    3. Signal
+    4. Exit setup
     Select protocol (3): 1
     Enter phone number (ex. +6511111111): +6511111111
     Enter authentication code: xxxxx
@@ -394,7 +402,7 @@ It specifies whether to use pairing code instead of QR code (WhatsApp only).
 
 Stores the environment variable flag `USE_QR_TERMINAL` if set during setup.
 It specifies whether to display QR code in the terminal, disabling detection
-of GUI capability for displaying images (WhatsApp only).
+of GUI capability for displaying images (WhatsApp/Signal only).
 
 ### version_used
 
@@ -1068,6 +1076,20 @@ with multiple profiles. The default profile name is `WhatsAppMd` or
 `WhatsAppMd_+nnnnn` (when more than one WhatsAppMd profile is set up) if this
 setting is not specified.
 
+~/.config/nchat/profiles/Signal_+nnnnn/signal.conf
+----------------------------------------------------------
+This configuration file holds protocol-specific settings for Signal. Default
+content:
+
+    profile_display_name=
+
+### profile_display_name
+
+Specifies an optional short/display name in the status bar when using nchat
+with multiple profiles. The default profile name is `Signal` or
+`Signal_+nnnnn` (when more than one Signal profile is set up) if this
+setting is not specified.
+
 
 FAQ
 ===
@@ -1134,7 +1156,7 @@ entered in WhatsApp on the primary device:
 
     USE_PAIRING_CODE=1 nchat -s
 
-### 7. No QR code is shown when setting up WhatsApp?
+### 7. No QR code is shown when setting up WhatsApp / Signal?
 
 By default nchat will attempt to detect if the system is capable of viewing
 images using a GUI image viewer, and if detected (indicated by "has gui" in
@@ -1179,8 +1201,8 @@ There are no plans to support the following features:
 - Telegram secret chats
 - Voice / video calls
 
-Additionally, WhatsApp is only supported on macOS and glibc-based Linux
-systems. Thus, it is not supported on musl-based operating systems, such
+Additionally, WhatsApp and Signal are only supported on macOS and glibc-based
+Linux systems. Thus, it is not supported on musl-based operating systems, such
 as Alpine Linux. See [issue #204](https://github.com/d99kris/nchat/issues/204)
 for technical details on this limitation.
 
@@ -1188,9 +1210,9 @@ Roadmap
 -------
 There is currently no concrete roadmap for further feature development of
 nchat. It is not intended to be a full-featured client on par with official
-Telegram / WhatsApp clients, but rather a light-weight client providing
-essential functionality suitable for the terminal. However, feel free to
-submit feature requests if there's something missing, or help upvote
+Telegram / WhatsApp / Signal clients, but rather a light-weight client
+providing essential functionality suitable for the terminal. However, feel
+free to submit feature requests if there's something missing, or help upvote
 [existing feature requests](https://github.com/d99kris/nchat/discussions/categories/ideas?discussions_q=is%3Aopen+category%3AIdeas),
 if it's useful and low effort it will be considered.
 
@@ -1211,6 +1233,10 @@ Terminal-based Telegram clients:
 Terminal-based WhatsApp clients:
 
 - [whatscli](https://github.com/normen/whatscli)
+
+Terminal-based Signal clients:
+
+- [gurk-rs](https://github.com/boxdot/gurk-rs)
 
 
 Technical Details
@@ -1258,8 +1284,10 @@ includes the source code of the following third-party libraries:
   Copyright 2022 Tulir Asokan -
   [MPL License](/lib/wmchat/go/ext/whatsmeow/LICENSE)
 
-The [tdlib](https://github.com/tdlib/td) and
-[whatsmeow](https://github.com/tulir/whatsmeow) libraries are actively
+The [tdlib](https://github.com/tdlib/td),
+[whatsmeow](https://github.com/tulir/whatsmeow) and
+[signal](https://github.com/mautrix/signal)
+libraries are actively
 developed and need to be updated and integrated into nchat on a regular
 basis by nchat maintainer(s). To facilitate this there are scripts available
 to update to latest (or a specific) version of these libraries. Example usages:
@@ -1267,6 +1295,8 @@ to update to latest (or a specific) version of these libraries. Example usages:
     ./utils/tdlib-update 8517026
 
     ./utils/whatsmeow-update 7aedaa1
+
+    ./utils/signal-update 93da772
 
 Code Formatting
 ---------------
