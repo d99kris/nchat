@@ -693,6 +693,7 @@ void ShowHelp()
 
 void ShowVersion()
 {
+  // *INDENT-OFF*
   std::cout <<
     AppUtil::GetAppName(true /*p_WithVersion*/) << "\n"
     "\n"
@@ -705,4 +706,5 @@ void ShowVersion()
 #endif
     "\n"
     "Written by Kristofer Berggren.\n";
+  // *INDENT-ON*
 }
