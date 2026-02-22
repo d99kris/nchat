@@ -6,10 +6,12 @@
 //
 #include "td/telegram/AuthManager.h"
 
+#include "td/telegram/Application.h"
 #include "td/telegram/AttachMenuManager.h"
 #include "td/telegram/AuthManager.hpp"
 #include "td/telegram/ConfigManager.h"
 #include "td/telegram/DialogFilterManager.h"
+#include "td/telegram/DialogId.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/logevent/LogEvent.h"
 #include "td/telegram/logevent/LogEventHelper.h"
@@ -1434,6 +1436,7 @@ void AuthManager::on_get_authorization(tl_object_ptr<telegram_api::auth_Authoriz
     return on_current_query_ok();
   }
   auto auth = telegram_api::move_object_as<telegram_api::auth_authorization>(auth_ptr);
+  string debug = oneline(to_string(auth));
 
   td_->option_manager_->set_option_integer("authorization_date", G()->unix_time());
   if (was_check_bot_token_) {
@@ -1456,8 +1459,11 @@ void AuthManager::on_get_authorization(tl_object_ptr<telegram_api::auth_Authoriz
   }
   td_->user_manager_->on_get_user(std::move(auth->user_), "on_get_authorization");
   update_state(State::Ok);
+  td_->messages_manager_->on_authorization_success();
   if (!td_->user_manager_->get_my_id().is_valid()) {
-    LOG(ERROR) << "Server didsn't send proper authorization";
+    LOG(ERROR) << "Server didsn't send proper authorization: " << debug;
+    save_app_log(td_, "tdlib.auth", DialogId(static_cast<int64>(1)),
+                 telegram_api::make_object<telegram_api::jsonString>(debug), Promise<Unit>());
     on_current_query_error(Status::Error(500, "Server didn't send proper authorization"));
     log_out(0);
     return;
@@ -1473,7 +1479,6 @@ void AuthManager::on_get_authorization(tl_object_ptr<telegram_api::auth_Authoriz
                                             base64url_encode(auth->future_auth_token_.as_slice()));
   }
   td_->attach_menu_manager_->init();
-  td_->messages_manager_->on_authorization_success();
   td_->dialog_filter_manager_->on_authorization_success();  // must be after MessagesManager::on_authorization_success()
                                                             // to have folders created
   td_->notification_manager_->init();

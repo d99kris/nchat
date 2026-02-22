@@ -56,6 +56,8 @@ class MessageTopic {
   static Result<MessageTopic> get_message_topic(Td *td, DialogId dialog_id,
                                                 const td_api::object_ptr<td_api::MessageTopic> &topic);
 
+  static Result<MessageTopic> get_send_message_topic(Td *td, DialogId dialog_id, MessageTopic &&message_topic);
+
   static Result<MessageTopic> get_send_message_topic(Td *td, DialogId dialog_id,
                                                      const td_api::object_ptr<td_api::MessageTopic> &topic);
 
@@ -71,6 +73,10 @@ class MessageTopic {
 
   bool is_forum() const {
     return type_ == Type::Forum;
+  }
+
+  bool is_forum_general() const {
+    return type_ == Type::Forum && forum_topic_id_ == ForumTopicId::general();
   }
 
   bool is_monoforum() const {

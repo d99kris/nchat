@@ -10,6 +10,7 @@
 #include "td/telegram/files/FileId.h"
 #include "td/telegram/MessageEntity.h"
 #include "td/telegram/StarGiftAttributeId.h"
+#include "td/telegram/StarGiftAttributeRarity.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 
@@ -24,7 +25,8 @@ class Td;
 class StarGiftAttributeSticker {
   string name_;
   FileId sticker_file_id_;
-  int32 rarity_permille_ = 0;
+  StarGiftAttributeRarity rarity_;
+  bool is_crafted_ = false;
 
   friend bool operator==(const StarGiftAttributeSticker &lhs, const StarGiftAttributeSticker &rhs);
 
@@ -36,7 +38,11 @@ class StarGiftAttributeSticker {
   StarGiftAttributeSticker(Td *td, telegram_api::object_ptr<telegram_api::starGiftAttributePattern> &&attribute);
 
   bool is_valid() const {
-    return 0 < rarity_permille_ && rarity_permille_ <= 1000 && sticker_file_id_.is_valid();
+    return rarity_.is_valid() && sticker_file_id_.is_valid();
+  }
+
+  bool is_crafted() const {
+    return is_crafted_;
   }
 
   td_api::object_ptr<td_api::upgradedGiftModel> get_upgraded_gift_model_object(const Td *td) const;
@@ -65,7 +71,7 @@ class StarGiftAttributeBackdrop {
   int32 edge_color_ = 0;
   int32 pattern_color_ = 0;
   int32 text_color_ = 0;
-  int32 rarity_permille_ = 0;
+  StarGiftAttributeRarity rarity_;
 
   friend bool operator==(const StarGiftAttributeBackdrop &lhs, const StarGiftAttributeBackdrop &rhs);
 

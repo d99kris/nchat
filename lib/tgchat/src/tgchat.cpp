@@ -41,7 +41,7 @@
 
 // #define SIMULATED_SPONSORED_MESSAGES
 
-static const int s_TdlibDate = 20260103;
+static const int s_TdlibDate = 20260207;
 
 namespace detail
 {
@@ -1591,10 +1591,10 @@ void TgChat::Impl::InitProxy()
 
     if (proxiesObject->get_id() == td::td_api::error::ID) return;
 
-    auto proxies = td::move_tl_object_as<td::td_api::proxies>(proxiesObject);
+    auto proxies = td::move_tl_object_as<td::td_api::addedProxies>(proxiesObject);
     if (!proxies) return;
 
-    for (const td::td_api::object_ptr<td::td_api::proxy>& proxy : proxies->proxies_)
+    for (const td::td_api::object_ptr<td::td_api::addedProxy>& proxy : proxies->proxies_)
     {
       if (proxy)
       {
@@ -1618,7 +1618,8 @@ void TgChat::Impl::InitProxy()
       const bool proxyEnable = true;
       auto proxyType = (!proxyUser.empty()) ? td::make_tl_object<td::td_api::proxyTypeSocks5>(proxyUser, proxyPass)
                                             : td::td_api::make_object<td::td_api::proxyTypeSocks5>();
-      SendQuery(td::td_api::make_object<td::td_api::addProxy>(proxyHost, proxyPort, proxyEnable, std::move(proxyType)),
+      SendQuery(td::td_api::make_object<td::td_api::addProxy>(
+                  td::td_api::make_object<td::td_api::proxy>(proxyHost, proxyPort, std::move(proxyType)), proxyEnable),
                 [](Object object)
       {
         if (object->get_id() == td::td_api::error::ID)

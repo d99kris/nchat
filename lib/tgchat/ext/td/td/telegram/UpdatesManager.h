@@ -121,6 +121,8 @@ class UpdatesManager final : public Actor {
 
   static string extract_join_group_call_presentation_params(telegram_api::Updates *updates_ptr);
 
+  static bool extract_star_gift_craft_fail(telegram_api::Updates *updates_ptr);
+
   static vector<telegram_api::object_ptr<telegram_api::updateGroupCallMessage>> extract_group_call_messages(
       telegram_api::Updates *updates_ptr);
 
@@ -652,6 +654,8 @@ class UpdatesManager final : public Actor {
   void on_update(tl_object_ptr<telegram_api::updateGroupCallEncryptedMessage> update, Promise<Unit> &&promise);
 
   void on_update(tl_object_ptr<telegram_api::updateDeleteGroupCallMessages> update, Promise<Unit> &&promise);
+
+  void on_update(tl_object_ptr<telegram_api::updateStarGiftCraftFail> update, Promise<Unit> &&promise);
 
   void on_update(tl_object_ptr<telegram_api::updateStarGiftAuctionState> update, Promise<Unit> &&promise);
 

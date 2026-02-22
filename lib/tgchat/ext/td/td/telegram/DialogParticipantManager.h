@@ -153,6 +153,8 @@ class DialogParticipantManager final : public Actor {
 
   void transfer_dialog_ownership(DialogId dialog_id, UserId user_id, const string &password, Promise<Unit> &&promise);
 
+  void get_future_creator_after_leave(DialogId dialog_id, Promise<td_api::object_ptr<td_api::user>> &&promise);
+
   void get_current_state(vector<td_api::object_ptr<td_api::Update>> &updates) const;
 
  private:
@@ -250,14 +252,14 @@ class DialogParticipantManager final : public Actor {
 
   void set_channel_participant_status_impl(ChannelId channel_id, DialogId participant_dialog_id,
                                            DialogParticipantStatus new_status, DialogParticipantStatus old_status,
-                                           Promise<Unit> &&promise);
+                                           bool ignore_restricted_is_member, Promise<Unit> &&promise);
 
   void promote_channel_participant(ChannelId channel_id, UserId user_id, const DialogParticipantStatus &new_status,
                                    const DialogParticipantStatus &old_status, Promise<Unit> &&promise);
 
   void restrict_channel_participant(ChannelId channel_id, DialogId participant_dialog_id,
                                     DialogParticipantStatus &&new_status, DialogParticipantStatus &&old_status,
-                                    Promise<Unit> &&promise);
+                                    bool ignore_is_member, Promise<Unit> &&promise);
 
   void speculative_add_channel_user(ChannelId channel_id, UserId user_id, const DialogParticipantStatus &new_status,
                                     const DialogParticipantStatus &old_status);

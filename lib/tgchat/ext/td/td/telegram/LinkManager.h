@@ -80,7 +80,7 @@ class LinkManager final : public Actor {
   void get_login_url(MessageFullId message_full_id, int64 button_id, bool allow_write_access,
                      Promise<td_api::object_ptr<td_api::httpUrl>> &&promise);
 
-  void get_link_login_url(const string &url, bool allow_write_access,
+  void get_link_login_url(const string &url, bool allow_write_access, bool allow_phone_number_access,
                           Promise<td_api::object_ptr<td_api::httpUrl>> &&promise);
 
   static Result<string> get_background_url(const string &name,
@@ -110,8 +110,6 @@ class LinkManager final : public Actor {
 
   static string get_public_dialog_link(Slice username, Slice draft_text, bool open_profile, bool is_internal);
 
-  static Result<string> get_proxy_link(const Proxy &proxy, bool is_internal);
-
   static UserId get_link_user_id(Slice url);
 
   static string get_t_me_url();
@@ -127,7 +125,6 @@ class LinkManager final : public Actor {
 
   void tear_down() final;
 
-  class InternalLinkActiveSessions;
   class InternalLinkAttachMenuBot;
   class InternalLinkAuthenticationCode;
   class InternalLinkBackground;
@@ -136,50 +133,47 @@ class LinkManager final : public Actor {
   class InternalLinkBotStartInGroup;
   class InternalLinkBusinessChat;
   class InternalLinkBuyStars;
-  class InternalLinkChangePhoneNumber;
+  class InternalLinkCalls;
   class InternalLinkConfirmPhone;
-  class InternalLinkDefaultMessageAutoDeleteTimerSettings;
+  class InternalLinkContacts;
   class InternalLinkDialogBoost;
   class InternalLinkDialogFolderInvite;
-  class InternalLinkDialogFolderSettings;
   class InternalLinkDialogInvite;
   class InternalLinkDialogReferralProgram;
-  class InternalLinkEditProfileSettings;
+  class InternalLinkDialogSelection;
   class InternalLinkGame;
   class InternalLinkGiftAuction;
   class InternalLinkGroupCall;
   class InternalLinkInstantView;
   class InternalLinkInvoice;
   class InternalLinkLanguage;
-  class InternalLinkLanguageSettings;
   class InternalLinkLiveStory;
-  class InternalLinkLoginEmailSettings;
   class InternalLinkMainWebApp;
   class InternalLinkMessage;
   class InternalLinkMessageDraft;
   class InternalLinkMonoforum;
-  class InternalLinkMyStars;
-  class InternalLinkMyToncoins;
+  class InternalLinkMyProfile;
+  class InternalLinkNewChannelChat;
+  class InternalLinkNewGroupChat;
+  class InternalLinkNewPrivateChat;
   class InternalLinkPassportDataRequest;
-  class InternalLinkPasswordSettings;
-  class InternalLinkPhoneNumberPrivacySettings;
+  class InternalLinkPostStory;
   class InternalLinkPremiumFeatures;
   class InternalLinkPremiumGift;
   class InternalLinkPremiumGiftCode;
-  class InternalLinkPrivacyAndSecuritySettings;
   class InternalLinkProxy;
   class InternalLinkPublicDialog;
   class InternalLinkQrCodeAuthentication;
   class InternalLinkRestorePurchases;
+  class InternalLinkSavedMessages;
+  class InternalLinkSearch;
   class InternalLinkSettings;
   class InternalLinkStickerSet;
   class InternalLinkStarGiftCollection;
   class InternalLinkStory;
   class InternalLinkStoryAlbum;
   class InternalLinkTheme;
-  class InternalLinkThemeSettings;
   class InternalLinkUnknownDeepLink;
-  class InternalLinkUnsupportedProxy;
   class InternalLinkUpgradedGift;
   class InternalLinkUserPhoneNumber;
   class InternalLinkUserToken;
@@ -207,6 +201,8 @@ class LinkManager final : public Actor {
   static Result<string> get_internal_link_impl(const td_api::InternalLinkType *type_ptr, bool is_internal);
 
   static Result<string> check_link_impl(Slice link, bool http_only, bool https_only);
+
+  static Result<string> get_proxy_link(const Proxy &proxy, bool is_internal);
 
   Td *td_;
   ActorShared<> parent_;

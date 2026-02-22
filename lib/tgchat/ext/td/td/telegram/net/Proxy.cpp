@@ -8,6 +8,8 @@
 
 #include "td/telegram/td_api.h"
 
+#include "td/utils/utf8.h"
+
 namespace td {
 
 Result<Proxy> Proxy::create_proxy(string server, int port, const td_api::ProxyType *proxy_type) {
@@ -19,6 +21,9 @@ Result<Proxy> Proxy::create_proxy(string server, int port, const td_api::ProxyTy
   }
   if (server.size() > 255) {
     return Status::Error(400, "Server name is too long");
+  }
+  if (!check_utf8(server)) {
+    return Status::Error(400, "Server name must be encoded in UTF-8");
   }
   if (port <= 0 || port > 65535) {
     return Status::Error(400, "Wrong port number");
@@ -46,6 +51,32 @@ Result<Proxy> Proxy::create_proxy(string server, int port, const td_api::ProxyTy
       UNREACHABLE();
       return Status::Error(400, "Wrong proxy type");
   }
+}
+
+Result<Proxy> Proxy::create_proxy(const td_api::proxy *proxy) {
+  if (proxy == nullptr) {
+    return Status::Error(400, "Proxy must be non-empty");
+  }
+  return create_proxy(proxy->server_, proxy->port_, proxy->type_.get());
+}
+
+td_api::object_ptr<td_api::proxy> Proxy::get_proxy_object() const {
+  auto type = [&]() -> td_api::object_ptr<td_api::ProxyType> {
+    switch (type_) {
+      case Type::Socks5:
+        return td_api::make_object<td_api::proxyTypeSocks5>(user_, password_);
+      case Type::HttpTcp:
+        return td_api::make_object<td_api::proxyTypeHttp>(user_, password_, false);
+      case Type::HttpCaching:
+        return td_api::make_object<td_api::proxyTypeHttp>(user_, password_, true);
+      case Type::Mtproto:
+        return td_api::make_object<td_api::proxyTypeMtproto>(secret_.get_encoded_secret());
+      default:
+        UNREACHABLE();
+        return nullptr;
+    }
+  }();
+  return td_api::make_object<td_api::proxy>(server_, port_, std::move(type));
 }
 
 StringBuilder &operator<<(StringBuilder &string_builder, const Proxy &proxy) {

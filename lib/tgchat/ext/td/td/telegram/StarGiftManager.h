@@ -87,13 +87,17 @@ class StarGiftManager final : public Actor {
 
   void get_gift_upgrade_preview(int64 gift_id, Promise<td_api::object_ptr<td_api::giftUpgradePreview>> &&promise);
 
-  void get_gift_upgrade_variants(int64 gift_id, Promise<td_api::object_ptr<td_api::giftUpgradeVariants>> &&promise);
+  void get_gift_upgrade_variants(int64 gift_id, bool return_upgrade_models, bool return_craft_models,
+                                 Promise<td_api::object_ptr<td_api::giftUpgradeVariants>> &&promise);
 
   void upgrade_gift(BusinessConnectionId business_connection_id, StarGiftId star_gift_id, bool keep_original_details,
                     int64 star_count, Promise<td_api::object_ptr<td_api::upgradeGiftResult>> &&promise);
 
   void buy_gift_upgrade(DialogId dialog_id, const string &prepaid_upgrade_hash, int64 star_count,
                         Promise<Unit> &&promise);
+
+  void craft_gift(const vector<StarGiftId> &star_gift_ids,
+                  Promise<td_api::object_ptr<td_api::CraftGiftResult>> &&promise);
 
   void transfer_gift(BusinessConnectionId business_connection_id, StarGiftId star_gift_id, DialogId receiver_dialog_id,
                      int64 star_count, Promise<Unit> &&promise);
@@ -117,6 +121,9 @@ class StarGiftManager final : public Actor {
 
   void get_saved_star_gift(StarGiftId star_gift_id, Promise<td_api::object_ptr<td_api::receivedGift>> &&promise);
 
+  void get_craft_star_gifts(int64 gift_id, const string &offset, int32 limit,
+                            Promise<td_api::object_ptr<td_api::giftsForCrafting>> &&promise);
+
   void get_upgraded_gift(const string &name, Promise<td_api::object_ptr<td_api::upgradedGift>> &&promise);
 
   void get_upgraded_gift_value_info(const string &name,
@@ -126,7 +133,7 @@ class StarGiftManager final : public Actor {
 
   void set_star_gift_price(StarGiftId star_gift_id, StarGiftResalePrice price, Promise<Unit> &&promise);
 
-  void get_resale_star_gifts(int64 gift_id, const td_api::object_ptr<td_api::GiftForResaleOrder> &order,
+  void get_resale_star_gifts(int64 gift_id, const td_api::object_ptr<td_api::GiftForResaleOrder> &order, bool for_craft,
                              const vector<td_api::object_ptr<td_api::UpgradedGiftAttributeId>> &attributes,
                              const string &offset, int32 limit,
                              Promise<td_api::object_ptr<td_api::giftsForResale>> &&promise);

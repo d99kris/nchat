@@ -23,6 +23,7 @@
 #include "td/telegram/MessageSender.h"
 #include "td/telegram/MessagesManager.h"
 #include "td/telegram/OnlineManager.h"
+#include "td/telegram/OptionManager.h"
 #include "td/telegram/PasswordManager.h"
 #include "td/telegram/StarGift.h"
 #include "td/telegram/StarGiftAttribute.h"
@@ -41,6 +42,7 @@
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/Random.h"
+#include "td/utils/Slice.h"
 #include "td/utils/Status.h"
 
 #include <algorithm>
@@ -703,13 +705,17 @@ class GetUpgradeGiftPreviewQuery final : public Td::ResultHandler {
 
 class GetStarGiftUpgradeAttributesQuery final : public Td::ResultHandler {
   Promise<td_api::object_ptr<td_api::giftUpgradeVariants>> promise_;
+  bool return_upgrade_models_;
+  bool return_craft_models_;
 
  public:
   explicit GetStarGiftUpgradeAttributesQuery(Promise<td_api::object_ptr<td_api::giftUpgradeVariants>> &&promise)
       : promise_(std::move(promise)) {
   }
 
-  void send(int64 gift_id) {
+  void send(int64 gift_id, bool return_upgrade_models, bool return_craft_models) {
+    return_upgrade_models_ = return_upgrade_models;
+    return_craft_models_ = return_craft_models;
     send_query(G()->net_query_creator().create(telegram_api::payments_getStarGiftUpgradeAttributes(gift_id)));
   }
 
@@ -729,7 +735,7 @@ class GetStarGiftUpgradeAttributesQuery final : public Td::ResultHandler {
               td_, telegram_api::move_object_as<telegram_api::starGiftAttributeModel>(attribute));
           if (!model.is_valid()) {
             LOG(ERROR) << "Receive invalid model";
-          } else {
+          } else if ((!model.is_crafted() && return_upgrade_models_) || (model.is_crafted() && return_craft_models_)) {
             result->models_.push_back(model.get_upgraded_gift_model_object(td_));
           }
           break;
@@ -1078,6 +1084,82 @@ class GetGiftPrepaidUpgradePaymentFormQuery final : public Td::ResultHandler {
   }
 };
 
+static Promise<Unit> get_gift_craft_promise(Td *td, telegram_api::object_ptr<telegram_api::Updates> &updates,
+                                            Promise<td_api::object_ptr<td_api::CraftGiftResult>> &&promise) {
+  if (UpdatesManager::extract_star_gift_craft_fail(updates.get())) {
+    return PromiseCreator::lambda([promise = std::move(promise)](Result<Unit> result) mutable {
+      if (result.is_error()) {
+        return promise.set_error(result.move_as_error());
+      }
+      promise.set_value(td_api::make_object<td_api::craftGiftResultFail>());
+    });
+  }
+  vector<std::pair<const telegram_api::Message *, bool>> new_messages = UpdatesManager::get_new_messages(updates.get());
+  if (new_messages.size() != 1u || new_messages[0].second ||
+      new_messages[0].first->get_id() != telegram_api::messageService::ID) {
+    promise.set_error(500, "Receive invalid server response");
+    return Auto();
+  }
+  auto message = static_cast<const telegram_api::messageService *>(new_messages[0].first);
+  auto action_id = message->action_->get_id();
+  if (action_id != telegram_api::messageActionStarGiftUnique::ID) {
+    promise.set_error(500, "Receive invalid server response");
+    return Auto();
+  }
+  auto action = static_cast<const telegram_api::messageActionStarGiftUnique *>(message->action_.get());
+  if (!action->craft_ || action->transferred_ || action->refunded_ ||
+      action->gift_->get_id() != telegram_api::starGiftUnique::ID) {
+    promise.set_error(500, "Receive invalid server response");
+    return Auto();
+  }
+  auto message_full_id = MessageFullId::get_message_full_id(new_messages[0].first, false);
+  return PromiseCreator::lambda([message_full_id, promise = std::move(promise)](Result<Unit> result) mutable {
+    if (result.is_error()) {
+      return promise.set_error(result.move_as_error());
+    }
+    send_closure(G()->messages_manager(), &MessagesManager::finish_gift_craft, message_full_id, std::move(promise));
+  });
+}
+
+class CraftStarGiftQuery final : public Td::ResultHandler {
+  Promise<td_api::object_ptr<td_api::CraftGiftResult>> promise_;
+
+ public:
+  explicit CraftStarGiftQuery(Promise<td_api::object_ptr<td_api::CraftGiftResult>> &&promise)
+      : promise_(std::move(promise)) {
+  }
+
+  void send(const vector<StarGiftId> &star_gift_ids) {
+    send_query(G()->net_query_creator().create(
+        telegram_api::payments_craftStarGift(StarGiftId::get_input_saved_star_gifts(td_, star_gift_ids))));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::payments_craftStarGift>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    auto ptr = result_ptr.move_as_ok();
+    LOG(INFO) << "Receive result for CraftStarGiftQuery: " << to_string(ptr);
+    auto promise = get_gift_craft_promise(td_, ptr, std::move(promise_));
+    td_->updates_manager_->on_get_updates(std::move(ptr), std::move(promise));
+    get_upgraded_gift_emoji_statuses(td_, Auto());
+  }
+
+  void on_error(Status status) final {
+    Slice too_early_prefix = "STARGIFT_CRAFT_TOO_EARLY_";
+    if (begins_with(status.message(), too_early_prefix)) {
+      return promise_.set_value(td_api::make_object<td_api::craftGiftResultTooEarly>(
+          to_integer<int32>(status.message().substr(too_early_prefix.size()))));
+    }
+    if (status.message() == "STARGIFT_CRAFT_UNAVAILABLE" || status.message() == "STARGIFT_ALREADY_CRAFTED") {
+      return promise_.set_value(td_api::make_object<td_api::craftGiftResultInvalidGift>());
+    }
+    promise_.set_error(std::move(status));
+  }
+};
+
 class TransferStarGiftQuery final : public Td::ResultHandler {
   Promise<Unit> promise_;
 
@@ -1328,17 +1410,45 @@ class GetGiftDropOriginalDetailsPaymentFormQuery final : public Td::ResultHandle
   }
 };
 
+static Promise<Unit> get_gift_resale_promise(Td *td, StarGiftId star_gift_id,
+                                             const telegram_api::object_ptr<telegram_api::Updates> &updates,
+                                             Promise<string> &&promise) {
+  vector<std::pair<const telegram_api::Message *, bool>> new_messages = UpdatesManager::get_new_messages(updates.get());
+  if (new_messages.size() == 1u && !new_messages[0].second &&
+      new_messages[0].first->get_id() == telegram_api::messageService::ID) {
+    auto message = static_cast<const telegram_api::messageService *>(new_messages[0].first);
+    if (message->action_->get_id() == telegram_api::messageActionStarGiftUnique::ID) {
+      auto action = static_cast<const telegram_api::messageActionStarGiftUnique *>(message->action_.get());
+      if (action->gift_->get_id() == telegram_api::starGiftUnique::ID && action->resale_amount_ != nullptr) {
+        auto message_full_id = MessageFullId::get_message_full_id(new_messages[0].first, false);
+        if (message_full_id.get_dialog_id() == td->dialog_manager_->get_my_dialog_id()) {
+          star_gift_id = StarGiftId(message_full_id.get_message_id().get_server_message_id());
+        }
+      }
+    }
+  }
+  return PromiseCreator::lambda(
+      [received_gift_id = star_gift_id.get_star_gift_id(), promise = std::move(promise)](Result<Unit> result) mutable {
+        if (result.is_error()) {
+          return promise.set_error(result.move_as_error());
+        }
+        promise.set_value(std::move(received_gift_id));
+      });
+}
+
 class ResaleGiftQuery final : public Td::ResultHandler {
-  Promise<Unit> promise_;
+  Promise<string> promise_;
   StarGiftResalePrice price_;
+  StarGiftId star_gift_id_;
 
  public:
-  explicit ResaleGiftQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  explicit ResaleGiftQuery(Promise<string> &&promise) : promise_(std::move(promise)) {
   }
 
   void send(telegram_api::object_ptr<telegram_api::inputInvoiceStarGiftResale> input_invoice, int64 payment_form_id,
-            StarGiftResalePrice price) {
+            StarGiftResalePrice price, StarGiftId star_gift_id) {
     price_ = price;
+    star_gift_id_ = std::move(star_gift_id);
     send_query(G()->net_query_creator().create(
         telegram_api::payments_sendStarsForm(payment_form_id, std::move(input_invoice))));
   }
@@ -1355,7 +1465,8 @@ class ResaleGiftQuery final : public Td::ResultHandler {
       case telegram_api::payments_paymentResult::ID: {
         auto result = telegram_api::move_object_as<telegram_api::payments_paymentResult>(payment_result);
         td_->star_manager_->add_pending_owned_amount(price_, 1, true);
-        td_->updates_manager_->on_get_updates(std::move(result->updates_), std::move(promise_));
+        auto promise = get_gift_resale_promise(td_, std::move(star_gift_id_), result->updates_, std::move(promise_));
+        td_->updates_manager_->on_get_updates(std::move(result->updates_), std::move(promise));
         break;
       }
       case telegram_api::payments_paymentVerificationNeeded::ID:
@@ -1380,6 +1491,7 @@ class GetGiftResalePaymentFormQuery final : public Td::ResultHandler {
   Promise<td_api::object_ptr<td_api::GiftResaleResult>> promise_;
   StarGiftResalePrice price_;
   telegram_api::object_ptr<telegram_api::inputInvoiceStarGiftResale> resale_input_invoice_;
+  StarGiftId star_gift_id_;
 
  public:
   explicit GetGiftResalePaymentFormQuery(Promise<td_api::object_ptr<td_api::GiftResaleResult>> &&promise)
@@ -1388,9 +1500,10 @@ class GetGiftResalePaymentFormQuery final : public Td::ResultHandler {
 
   void send(telegram_api::object_ptr<telegram_api::inputInvoiceStarGiftResale> input_invoice,
             telegram_api::object_ptr<telegram_api::inputInvoiceStarGiftResale> resale_input_invoice,
-            StarGiftResalePrice price) {
+            StarGiftResalePrice price, StarGiftId star_gift_id) {
     resale_input_invoice_ = std::move(resale_input_invoice);
     price_ = price;
+    star_gift_id_ = std::move(star_gift_id);
     td_->star_manager_->add_pending_owned_amount(price_, -1, false);
     send_query(
         G()->net_query_creator().create(telegram_api::payments_getPaymentForm(0, std::move(input_invoice), nullptr)));
@@ -1438,14 +1551,14 @@ class GetGiftResalePaymentFormQuery final : public Td::ResultHandler {
           price_ = real_price;
         }
         td_->create_handler<ResaleGiftQuery>(
-               PromiseCreator::lambda([promise = std::move(promise_)](Result<Unit> result) mutable {
+               PromiseCreator::lambda([promise = std::move(promise_)](Result<string> result) mutable {
                  if (result.is_error()) {
                    promise.set_error(result.move_as_error());
                  } else {
-                   promise.set_value(td_api::make_object<td_api::giftResaleResultOk>());
+                   promise.set_value(td_api::make_object<td_api::giftResaleResultOk>(result.move_as_ok()));
                  }
                }))
-            ->send(std::move(resale_input_invoice_), payment_form->form_id_, price_);
+            ->send(std::move(resale_input_invoice_), payment_form->form_id_, price_, std::move(star_gift_id_));
         break;
       }
       default:
@@ -1494,6 +1607,8 @@ class SendStarGiftOfferQuery final : public Td::ResultHandler {
 
     auto ptr = result_ptr.move_as_ok();
     LOG(INFO) << "Receive result for SendStarGiftOfferQuery: " << to_string(ptr);
+    td_->star_manager_->add_pending_owned_star_count(paid_message_star_count_, true);
+    td_->star_manager_->add_pending_owned_amount(price_, 1, true);
     td_->updates_manager_->on_get_updates(std::move(ptr), std::move(promise_));
   }
 
@@ -1671,6 +1786,71 @@ class GetSavedStarGiftQuery final : public Td::ResultHandler {
   }
 };
 
+class GetCraftStarGiftsQuery final : public Td::ResultHandler {
+  Promise<td_api::object_ptr<td_api::giftsForCrafting>> promise_;
+
+ public:
+  explicit GetCraftStarGiftsQuery(Promise<td_api::object_ptr<td_api::giftsForCrafting>> &&promise)
+      : promise_(std::move(promise)) {
+  }
+
+  void send(int64 gift_id, const string &offset, int32 limit) {
+    send_query(G()->net_query_creator().create(telegram_api::payments_getCraftStarGifts(gift_id, offset, limit)));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::payments_getCraftStarGifts>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    auto ptr = result_ptr.move_as_ok();
+    LOG(INFO) << "Receive result for GetCraftStarGiftsQuery: " << to_string(ptr);
+    td_->user_manager_->on_get_users(std::move(ptr->users_), "GetCraftStarGiftsQuery");
+    td_->chat_manager_->on_get_chats(std::move(ptr->chats_), "GetCraftStarGiftsQuery");
+
+    auto total_count = ptr->count_;
+    if (total_count < static_cast<int32>(ptr->gifts_.size())) {
+      LOG(ERROR) << "Receive " << ptr->gifts_.size() << " gifts with total count = " << total_count;
+      total_count = static_cast<int32>(ptr->gifts_.size());
+    }
+    vector<td_api::object_ptr<td_api::receivedGift>> gifts;
+    for (auto &gift : ptr->gifts_) {
+      UserStarGift user_gift(td_, std::move(gift), td_->dialog_manager_->get_my_dialog_id());
+      if (!user_gift.is_valid()) {
+        LOG(ERROR) << "Receive invalid gift for crafting";
+        continue;
+      }
+      if (!user_gift.is_unique()) {
+        LOG(ERROR) << "Receive non-unique gift for crafting";
+        continue;
+      }
+      gifts.push_back(user_gift.get_received_gift_object(td_));
+    }
+    auto attribute_persistence_per_mille =
+        transform(full_split(td_->option_manager_->get_option_string("stargifts_craft_attribute_permilles",
+                                                                     "100,80,400,70,350,700,60,300,600,1000"),
+                             ','),
+                  to_integer<int32>);
+    CHECK(attribute_persistence_per_mille.size() == 10u);
+    vector<td_api::object_ptr<td_api::attributeCraftPersistenceProbability>> probabilities;
+    for (size_t num = 1; num <= 4; num++) {
+      vector<int32> numbers;
+      for (size_t i = 1; i <= 4; i++) {
+        numbers.push_back(i <= num ? attribute_persistence_per_mille[num * (num - 1) / 2 + i - 1] : 0);
+      }
+      probabilities.push_back(td_api::make_object<td_api::attributeCraftPersistenceProbability>(std::move(numbers)));
+    }
+    LOG(ERROR) << to_string(probabilities);
+    promise_.set_value(td_api::make_object<td_api::giftsForCrafting>(total_count, std::move(gifts),
+                                                                     std::move(probabilities), ptr->next_offset_));
+  }
+
+  void on_error(Status status) final {
+    promise_.set_error(std::move(status));
+  }
+};
+
 class GetUniqueStarGiftQuery final : public Td::ResultHandler {
   Promise<td_api::object_ptr<td_api::upgradedGift>> promise_;
 
@@ -1814,7 +1994,7 @@ class GetResaleStarGiftsQuery final : public Td::ResultHandler {
       : promise_(std::move(promise)) {
   }
 
-  void send(int64 gift_id, const td_api::object_ptr<td_api::GiftForResaleOrder> &order,
+  void send(int64 gift_id, const td_api::object_ptr<td_api::GiftForResaleOrder> &order, bool for_craft,
             const vector<StarGiftAttributeId> &attribute_ids, const string &offset, int32 limit) {
     int32 flags = 0;
     auto order_id = order->get_id();
@@ -1826,8 +2006,8 @@ class GetResaleStarGiftsQuery final : public Td::ResultHandler {
       flags |= telegram_api::payments_getResaleStarGifts::ATTRIBUTES_HASH_MASK;
     }
     send_query(G()->net_query_creator().create(telegram_api::payments_getResaleStarGifts(
-        flags, order_id == td_api::giftForResaleOrderPrice::ID, order_id == td_api::giftForResaleOrderNumber::ID, 0,
-        gift_id, std::move(attributes), offset, limit)));
+        flags, order_id == td_api::giftForResaleOrderPrice::ID, order_id == td_api::giftForResaleOrderNumber::ID,
+        for_craft, 0, gift_id, std::move(attributes), offset, limit)));
   }
 
   void on_result(BufferSlice packet) final {
@@ -2716,7 +2896,7 @@ Status StarGiftManager::check_star_gift_id(const StarGiftId &star_gift_id, Dialo
   if (star_gift_id.get_input_saved_star_gift(td_) == nullptr) {
     return Status::Error(400, "Invalid gift identifier specified");
   }
-  if (star_gift_id.get_dialog_id(td_) != dialog_id) {
+  if (dialog_id != DialogId() && star_gift_id.get_dialog_id(td_) != dialog_id) {
     return Status::Error(400, "The gift is not from the chat");
   }
   return Status::OK();
@@ -2753,9 +2933,10 @@ void StarGiftManager::get_gift_upgrade_preview(int64 gift_id,
   td_->create_handler<GetUpgradeGiftPreviewQuery>(std::move(promise))->send(gift_id);
 }
 
-void StarGiftManager::get_gift_upgrade_variants(int64 gift_id,
+void StarGiftManager::get_gift_upgrade_variants(int64 gift_id, bool return_upgrade_models, bool return_craft_models,
                                                 Promise<td_api::object_ptr<td_api::giftUpgradeVariants>> &&promise) {
-  td_->create_handler<GetStarGiftUpgradeAttributesQuery>(std::move(promise))->send(gift_id);
+  td_->create_handler<GetStarGiftUpgradeAttributesQuery>(std::move(promise))
+      ->send(gift_id, return_upgrade_models, return_craft_models);
 }
 
 void StarGiftManager::upgrade_gift(BusinessConnectionId business_connection_id, StarGiftId star_gift_id,
@@ -2807,6 +2988,12 @@ void StarGiftManager::buy_gift_upgrade(DialogId dialog_id, const string &prepaid
       std::move(upgrade_input_peer), prepaid_upgrade_hash);
   td_->create_handler<GetGiftPrepaidUpgradePaymentFormQuery>(std::move(promise))
       ->send(std::move(input_invoice), std::move(upgrade_input_invoice), star_count);
+}
+
+void StarGiftManager::craft_gift(const vector<StarGiftId> &star_gift_ids,
+                                 Promise<td_api::object_ptr<td_api::CraftGiftResult>> &&promise) {
+  TRY_STATUS_PROMISE(promise, check_star_gift_ids(star_gift_ids, td_->dialog_manager_->get_my_dialog_id()));
+  td_->create_handler<CraftStarGiftQuery>(std::move(promise))->send(star_gift_ids);
 }
 
 void StarGiftManager::transfer_gift(BusinessConnectionId business_connection_id, StarGiftId star_gift_id,
@@ -2905,8 +3092,12 @@ void StarGiftManager::send_resold_gift(const string &gift_name, DialogId receive
                                                                                            std::move(input_peer));
   auto resale_input_invoice = telegram_api::make_object<telegram_api::inputInvoiceStarGiftResale>(
       0, price.is_ton(), gift_name, std::move(resale_input_peer));
+  StarGiftId star_gift_id;
+  if (receiver_dialog_id == td_->dialog_manager_->get_my_dialog_id()) {
+    star_gift_id = StarGiftId::from_slug(gift_name);
+  }
   td_->create_handler<GetGiftResalePaymentFormQuery>(std::move(promise))
-      ->send(std::move(input_invoice), std::move(resale_input_invoice), price);
+      ->send(std::move(input_invoice), std::move(resale_input_invoice), price, std::move(star_gift_id));
 }
 
 void StarGiftManager::send_gift_offer(DialogId owner_dialog_id, const string &gift_name, StarGiftResalePrice price,
@@ -2963,6 +3154,14 @@ void StarGiftManager::get_saved_star_gift(StarGiftId star_gift_id,
   td_->create_handler<GetSavedStarGiftQuery>(std::move(promise))->send(star_gift_id);
 }
 
+void StarGiftManager::get_craft_star_gifts(int64 gift_id, const string &offset, int32 limit,
+                                           Promise<td_api::object_ptr<td_api::giftsForCrafting>> &&promise) {
+  if (limit < 0) {
+    return promise.set_error(400, "Limit must be non-negative");
+  }
+  td_->create_handler<GetCraftStarGiftsQuery>(std::move(promise))->send(gift_id, offset, limit);
+}
+
 void StarGiftManager::get_upgraded_gift(const string &name,
                                         Promise<td_api::object_ptr<td_api::upgradedGift>> &&promise) {
   td_->create_handler<GetUniqueStarGiftQuery>(std::move(promise))->send(name);
@@ -3010,7 +3209,7 @@ void StarGiftManager::set_star_gift_price(StarGiftId star_gift_id, StarGiftResal
 }
 
 void StarGiftManager::get_resale_star_gifts(
-    int64 gift_id, const td_api::object_ptr<td_api::GiftForResaleOrder> &order,
+    int64 gift_id, const td_api::object_ptr<td_api::GiftForResaleOrder> &order, bool for_craft,
     const vector<td_api::object_ptr<td_api::UpgradedGiftAttributeId>> &attributes, const string &offset, int32 limit,
     Promise<td_api::object_ptr<td_api::giftsForResale>> &&promise) {
   if (limit < 0) {
@@ -3021,7 +3220,8 @@ void StarGiftManager::get_resale_star_gifts(
   }
   TRY_RESULT_PROMISE(promise, attribute_ids, StarGiftAttributeId::get_star_gift_attribute_ids(attributes));
 
-  td_->create_handler<GetResaleStarGiftsQuery>(std::move(promise))->send(gift_id, order, attribute_ids, offset, limit);
+  td_->create_handler<GetResaleStarGiftsQuery>(std::move(promise))
+      ->send(gift_id, order, for_craft, attribute_ids, offset, limit);
 }
 
 void StarGiftManager::get_gift_collections(DialogId dialog_id,

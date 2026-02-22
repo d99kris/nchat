@@ -1360,6 +1360,7 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
   int32 verify_age_min = 0;
   string whitelisted_bots;
   string ton_stakedice_stake_suggested_amounts;
+  string gift_craft_probabilities;
 
   // {"stories_all_hidden", "archive_all_stories"}
   static const FlatHashMap<Slice, Slice, SliceHash> bool_keys = {
@@ -1992,6 +1993,46 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
         }
         continue;
       }
+      if (key == "stargifts_craft_attribute_permilles") {
+        if (value->get_id() == telegram_api::jsonArray::ID) {
+          int32 row_count = 0;
+          auto probability_rows = std::move(static_cast<telegram_api::jsonArray *>(value)->value_);
+          for (auto &probability_row : probability_rows) {
+            row_count++;
+            if (probability_row->get_id() == telegram_api::jsonArray::ID) {
+              auto probabilities = std::move(static_cast<telegram_api::jsonArray *>(probability_row.get())->value_);
+              int32 count = 0;
+              for (auto &probability : probabilities) {
+                auto per_mille = get_json_value_int(std::move(probability), key);
+                if (0 < per_mille && per_mille <= 1000) {
+                  if (!gift_craft_probabilities.empty()) {
+                    gift_craft_probabilities += ',';
+                  }
+                  gift_craft_probabilities += to_string(per_mille);
+                  count++;
+                } else {
+                  LOG(ERROR) << "Receive unexpected probability " << per_mille;
+                }
+              }
+              if (count != row_count) {
+                LOG(ERROR) << "Receive " << count << " gift craft probability in row " << row_count;
+                gift_craft_probabilities.clear();
+                break;
+              }
+            } else {
+              LOG(ERROR) << "Receive unexpected probability row";
+              break;
+            }
+          }
+          if (row_count != 4u) {
+            LOG(ERROR) << "Receive " << row_count << " gift craft probability rows";
+            gift_craft_probabilities.clear();
+          }
+        } else {
+          LOG(ERROR) << "Receive unexpected stargifts_craft_attribute_permilles " << to_string(*value);
+        }
+        continue;
+      }
 
       new_values.push_back(std::move(key_value));
     }
@@ -2102,6 +2143,11 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
     options.set_option_string("premium_invoice_slug", premium_invoice_slug);
   }
   options.set_option_string("ton_stakedice_stake_suggested_amounts", ton_stakedice_stake_suggested_amounts);
+  if (gift_craft_probabilities.empty()) {
+    options.set_option_empty("stargifts_craft_attribute_permilles");
+  } else {
+    options.set_option_string("stargifts_craft_attribute_permilles", gift_craft_probabilities);
+  }
 
   options.set_option_boolean("need_premium_for_new_chat_privacy", need_premium_for_new_chat_privacy);
 

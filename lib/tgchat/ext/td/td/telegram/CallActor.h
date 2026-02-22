@@ -101,6 +101,8 @@ class CallActor final : public NetQueryCallback {
  public:
   CallActor(Td *td, CallId call_id, ActorShared<> parent, Promise<int64> promise);
 
+  static int64 get_recent_call_access_hash(int64 call_id);
+
   void create_call(UserId user_id, CallProtocol &&protocol, bool is_video, Promise<CallId> &&promise);
 
   void accept_call(CallProtocol &&protocol, Promise<Unit> promise);
@@ -112,8 +114,9 @@ class CallActor final : public NetQueryCallback {
   void discard_call(bool is_disconnected, const string &invite_link, int32 duration, bool is_video, int64 connection_id,
                     Promise<Unit> promise);
 
-  void rate_call(int32 rating, string comment, vector<td_api::object_ptr<td_api::CallProblem>> &&problems,
-                 Promise<Unit> promise);
+  void get_input_phone_call_to_promise(Promise<telegram_api::object_ptr<telegram_api::inputPhoneCall>> &&promise);
+
+  void on_set_call_rating();
 
   void send_call_debug_information(string data, Promise<Unit> promise);
 
@@ -156,6 +159,7 @@ class CallActor final : public NetQueryCallback {
   CallId local_call_id_;
   int64 call_id_{0};
   bool is_call_id_inited_{false};
+  bool is_call_id_saved_{false};
   bool has_notification_{false};
   int64 call_access_hash_{0};
   UserId call_admin_user_id_;
@@ -200,8 +204,6 @@ class CallActor final : public NetQueryCallback {
   void on_begin_exchanging_key();
 
   void on_call_discarded(CallDiscardReason reason, bool need_rating, bool need_debug, bool is_video);
-
-  void on_set_rating_query_result(Result<NetQueryPtr> r_net_query);
 
   void on_save_debug_query_result(Result<NetQueryPtr> r_net_query);
 
