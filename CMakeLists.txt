@@ -36,24 +36,39 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
                   "command -v brew &> /dev/null && brew --prefix ncurses 2> /dev/null | tr -d '\n'"
                   OUTPUT_VARIABLE NCURSES_ROOT_DIR)
   if (EXISTS "${NCURSES_ROOT_DIR}")
-    message(STATUS "Ncurses cmake prefix '${NCURSES_ROOT_DIR}' (detected).")
-  else()
+    message(STATUS "Ncurses cmake prefix '${NCURSES_ROOT_DIR}' (homebrew).")
+    list(APPEND CMAKE_PREFIX_PATH ${NCURSES_ROOT_DIR})
+  elseif (EXISTS "/opt/local/bin/port")
     set(NCURSES_ROOT_DIR /opt/local)
-    message(STATUS "Ncurses cmake prefix '${NCURSES_ROOT_DIR}' (default).")
+    message(STATUS "Ncurses cmake prefix '${NCURSES_ROOT_DIR}' (macports).")
+    list(APPEND CMAKE_PREFIX_PATH ${NCURSES_ROOT_DIR})
   endif()
-  list(APPEND CMAKE_PREFIX_PATH ${NCURSES_ROOT_DIR})
 
   # openssl
   execute_process(COMMAND sh "-c"
                   "command -v brew &> /dev/null && brew --prefix openssl 2> /dev/null | tr -d '\n'"
                   OUTPUT_VARIABLE OPENSSL_ROOT_DIR)
   if (EXISTS "${OPENSSL_ROOT_DIR}")
-    message(STATUS "OpenSSL cmake prefix '${OPENSSL_ROOT_DIR}' (detected).")
-  else()
+    message(STATUS "OpenSSL cmake prefix '${OPENSSL_ROOT_DIR}' (homebrew).")
+    list(APPEND CMAKE_PREFIX_PATH ${OPENSSL_ROOT_DIR})
+  elseif (EXISTS "/opt/local/bin/port")
     set(OPENSSL_ROOT_DIR /opt/local)
-    message(STATUS "OpenSSL cmake prefix '${OPENSSL_ROOT_DIR}' (default).")
+    message(STATUS "OpenSSL cmake prefix '${OPENSSL_ROOT_DIR}' (macports).")
+    list(APPEND CMAKE_PREFIX_PATH ${OPENSSL_ROOT_DIR})
   endif()
-  list(APPEND CMAKE_PREFIX_PATH ${OPENSSL_ROOT_DIR})
+
+  # sqlite
+  execute_process(COMMAND sh "-c"
+                  "command -v brew &> /dev/null && brew --prefix sqlite 2> /dev/null | tr -d '\n'"
+                  OUTPUT_VARIABLE SQLITE_ROOT_DIR)
+  if (EXISTS "${SQLITE_ROOT_DIR}")
+    message(STATUS "SQLite cmake prefix '${SQLITE_ROOT_DIR}' (homebrew).")
+    list(APPEND CMAKE_PREFIX_PATH ${SQLITE_ROOT_DIR})
+  elseif (EXISTS "/opt/local/bin/port")
+    set(SQLITE_ROOT_DIR /opt/local)
+    message(STATUS "SQLite cmake prefix '${SQLITE_ROOT_DIR}' (macports).")
+    list(APPEND CMAKE_PREFIX_PATH ${SQLITE_ROOT_DIR})
+  endif()
 
 elseif (${CMAKE_SYSTEM_NAME} MATCHES "Android")
   add_compile_definitions(_XOPEN_SOURCE_EXTENDED)
