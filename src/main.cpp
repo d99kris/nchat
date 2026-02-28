@@ -25,6 +25,7 @@
 #include "profiles.h"
 #include "scopeddirlock.h"
 #include "status.h"
+#include "strutil.h"
 #include "sysutil.h"
 #include "ui.h"
 
@@ -474,21 +475,20 @@ int main(int argc, char* argv[])
 
 std::string GetFeatures()
 {
-  std::string features =
+  std::vector<std::string> features;
 #if defined(HAS_TELEGRAM)
-    "telegram on, "
-#else
-    "telegram off, "
+  features.push_back("telegram");
 #endif
 
 #if defined(HAS_WHATSAPP)
-    "whatsapp on"
-#else
-    "whatsapp off"
+  features.push_back("whatsapp");
 #endif
-  ;
 
-  return features;
+#if defined(HAS_SIGNAL)
+  features.push_back("signal");
+#endif
+
+  return StrUtil::Join(features, ", ");
 }
 
 void RemoveProfile()
