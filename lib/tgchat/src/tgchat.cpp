@@ -15,6 +15,7 @@
 #include <regex>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <td/telegram/Client.h>
@@ -127,6 +128,25 @@ private:
     ChatSuperGroupChannel,
     ChatSecret,
   };
+
+  enum AuthInputType
+  {
+    AuthInputNone = 0,
+    AuthInputCode,
+    AuthInputPassword,
+    AuthInputRegistration,
+    AuthInputSessionClosed,
+  };
+
+  void StartAuthInput(AuthInputType p_Type);
+  void StopAuthInput();
+  void AuthInputLoop();
+
+  std::thread m_AuthInputThread;
+  std::mutex m_AuthInputMutex;
+  std::condition_variable m_AuthInputCondVar;
+  AuthInputType m_AuthInputType = AuthInputNone;
+  std::uint64_t m_AuthInputQueryId = 0;
 
 private:
   void CallMessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage);
@@ -354,6 +374,7 @@ bool TgChat::Impl::SetupProfile(const std::string& p_ProfilesDir, std::string& p
   Init();
 
   ProcessService();
+  StopAuthInput();
 
   Cleanup();
   CleanupConfig();
@@ -441,6 +462,8 @@ bool TgChat::Impl::Logout()
     m_Running = false;
     m_ProcessCondVar.notify_one();
   }
+
+  StopAuthInput();
 
   if (m_Thread.joinable())
   {
@@ -2269,18 +2292,7 @@ void TgChat::Impl::OnAuthStateUpdate()
     if (m_WasAuthorized)
     {
       LOG_WARNING("session closed by other device");
-      SetProtocolUiControl(true);
-      std::cout << "\n";
-      std::cout << "WARNING: Session terminated by other device.\n";
-      std::cout << "Please restart nchat to reauthenticate. Press ENTER to continue.\n";
-      std::string str;
-      std::getline(std::cin, str);
-      SetProtocolUiControl(false);
-
-      LOG_TRACE("request app exit");
-      std::shared_ptr<RequestAppExitNotify> requestAppExitNotify =
-        std::make_shared<RequestAppExitNotify>(m_ProfileId);
-      CallMessageHandler(requestAppExitNotify);
+      StartAuthInput(AuthInputSessionClosed);
     }
   },
   [this](td::td_api::authorizationStateWaitCode&)
@@ -2301,26 +2313,14 @@ void TgChat::Impl::OnAuthStateUpdate()
       }
     }
 
-    std::cout << "Enter authentication code: ";
-    std::string code;
-    std::getline(std::cin, code);
-    SendQuery(td::td_api::make_object<td::td_api::checkAuthenticationCode>(code),
-              CreateAuthQueryHandler());
+    StartAuthInput(AuthInputCode);
   },
   [this](td::td_api::authorizationStateWaitRegistration&)
   {
     LOG_DEBUG("auth wait registration");
     if (m_IsSetup || m_IsReinit)
     {
-      std::string first_name;
-      std::string last_name;
-      std::cout << "Enter your first name: ";
-      std::getline(std::cin, first_name);
-      std::cout << "Enter your last name: ";
-      std::getline(std::cin, last_name);
-      bool disable_notification = false;
-      SendQuery(td::td_api::make_object<td::td_api::registerUser>(first_name, last_name, disable_notification),
-                CreateAuthQueryHandler());
+      StartAuthInput(AuthInputRegistration);
     }
     else
     {
@@ -2333,10 +2333,7 @@ void TgChat::Impl::OnAuthStateUpdate()
     LOG_DEBUG("auth wait password");
     if (m_IsSetup || m_IsReinit)
     {
-      std::cout << "Enter authentication password: ";
-      std::string password = StrUtil::GetPass();
-      SendQuery(td::td_api::make_object<td::td_api::checkAuthenticationPassword>(password),
-                CreateAuthQueryHandler());
+      StartAuthInput(AuthInputPassword);
     }
     else
     {
@@ -2430,6 +2427,140 @@ void TgChat::Impl::OnAuthStateUpdate()
   }
   ));
   // *INDENT-ON*
+}
+
+void TgChat::Impl::StartAuthInput(AuthInputType p_Type)
+{
+  {
+    std::unique_lock<std::mutex> lock(m_AuthInputMutex);
+    m_AuthInputType = p_Type;
+    m_AuthInputQueryId = m_AuthQueryId;
+  }
+
+  if (!m_AuthInputThread.joinable())
+  {
+    m_AuthInputThread = std::thread(&TgChat::Impl::AuthInputLoop, this);
+  }
+
+  m_AuthInputCondVar.notify_one();
+}
+
+void TgChat::Impl::StopAuthInput()
+{
+  {
+    std::unique_lock<std::mutex> lock(m_AuthInputMutex);
+    m_AuthInputType = AuthInputNone;
+  }
+  m_AuthInputCondVar.notify_one();
+
+  // Skip interrupting getline and just detach rather than join.
+  // The thread will exit when stdin closes or the process exits.
+  if (m_AuthInputThread.joinable())
+  {
+    m_AuthInputThread.detach();
+  }
+}
+
+void TgChat::Impl::AuthInputLoop()
+{
+  while (true)
+  {
+    AuthInputType inputType = AuthInputNone;
+    std::uint64_t authQueryId = 0;
+
+    {
+      std::unique_lock<std::mutex> lock(m_AuthInputMutex);
+      m_AuthInputCondVar.wait(lock, [this]()
+      {
+        return (m_AuthInputType != AuthInputNone) || !m_Running;
+      });
+
+      if (!m_Running) return;
+
+      inputType = m_AuthInputType;
+      authQueryId = m_AuthInputQueryId;
+      m_AuthInputType = AuthInputNone;
+    }
+
+    switch (inputType)
+    {
+      case AuthInputCode:
+        {
+          std::cout << "Enter authentication code: ";
+          std::string code;
+          std::getline(std::cin, code);
+          if (std::cin.fail() || std::cin.eof())
+          {
+            m_Running = false;
+            return;
+          }
+          if (m_AuthQueryId != authQueryId) break;
+          SendQuery(td::td_api::make_object<td::td_api::checkAuthenticationCode>(code),
+                    CreateAuthQueryHandler());
+        }
+        break;
+
+      case AuthInputPassword:
+        {
+          std::cout << "Enter authentication password: ";
+          std::string password = StrUtil::GetPass();
+          if (std::cin.fail() || std::cin.eof())
+          {
+            m_Running = false;
+            return;
+          }
+          if (m_AuthQueryId != authQueryId) break;
+          SendQuery(td::td_api::make_object<td::td_api::checkAuthenticationPassword>(password),
+                    CreateAuthQueryHandler());
+        }
+        break;
+
+      case AuthInputRegistration:
+        {
+          std::string first_name;
+          std::string last_name;
+          std::cout << "Enter your first name: ";
+          std::getline(std::cin, first_name);
+          if (std::cin.fail() || std::cin.eof())
+          {
+            m_Running = false;
+            return;
+          }
+
+          std::cout << "Enter your last name: ";
+          std::getline(std::cin, last_name);
+          if (std::cin.fail() || std::cin.eof())
+          {
+            m_Running = false;
+            return;
+          }
+          if (m_AuthQueryId != authQueryId) break;
+          bool disable_notification = false;
+          SendQuery(td::td_api::make_object<td::td_api::registerUser>(first_name, last_name, disable_notification),
+                    CreateAuthQueryHandler());
+        }
+        break;
+
+      case AuthInputSessionClosed:
+        {
+          SetProtocolUiControl(true);
+          std::cout << "\n";
+          std::cout << "WARNING: Session terminated by other device.\n";
+          std::cout << "Please restart nchat to reauthenticate. Press ENTER to continue.\n";
+          std::string str;
+          std::getline(std::cin, str);
+          SetProtocolUiControl(false);
+          LOG_TRACE("request app exit");
+          std::shared_ptr<RequestAppExitNotify> requestAppExitNotify =
+            std::make_shared<RequestAppExitNotify>(m_ProfileId);
+          CallMessageHandler(requestAppExitNotify);
+        }
+        return;
+
+      default:
+        break;
+    }
+  }
 }
 
 void TgChat::Impl::SendQuery(td::td_api::object_ptr<td::td_api::Function> f,
