@@ -153,7 +153,9 @@ if [[ "${DEPS}" == "1" ]]; then
     elif [[ "${DISTRO}" == "Debian GNU/Linux" ]]; then
       sudo apt update && sudo apt ${YES} install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev ${WL_CLIPBOARD} || exiterr "deps failed (${DISTRO}), exiting."
       RELEASE=$(lsb_release -a | grep 'Codename:' | awk -F':' '{print $2}' | awk '{$1=$1;print}')
-      if [[ "${RELEASE}" == "bookworm" ]]; then
+      if [[ "${RELEASE}" == "trixie" ]]; then
+        sudo apt ${YES} install golang-go || exiterr "deps failed (${DISTRO} ${RELEASE}), exiting."
+      elif [[ "${RELEASE}" == "bookworm" ]]; then
         sudo apt install ${YES} -t bookworm-backports golang-1.23
         if [[ "${?}" != "0" ]]; then
           echo "Please ensure backports are enabled, see https://backports.debian.org/Instructions/#index2h2"
@@ -164,7 +166,7 @@ if [[ "${DEPS}" == "1" ]]; then
         sudo apt ${YES} install golang || exiterr "deps failed (${DISTRO} ${RELEASE}), exiting."
       else
         echo "Unsupported ${DISTRO} version ${RELEASE}. Install golang-1.23 or newer manually, for example by running:"
-        echo "wget https://go.dev/dl/go1.24.4.linux-amd64.tar.gz && sudo tar xf go.1.24.4.linux-amd64.tar.gz -C /usr/local"
+        echo "curl -fL https://go.dev/dl/go1.24.4.linux-amd64.tar.gz | sudo tar -xz -C /usr/local"
         exiterr "deps failed (${DISTRO} ${RELEASE}), exiting."
       fi
     elif [[ "${DISTRO}" == "Raspbian GNU/Linux" ]] || [[ "${DISTRO}" == "Pop!_OS" ]]; then
