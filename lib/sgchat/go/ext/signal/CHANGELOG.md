@@ -1,3 +1,10 @@
+# v26.02
+
+* Bumped minimum Go version to 1.25.
+* Updated libsignal to v0.87.1.
+* Added automatic recovery for the session not found error from libsignal.
+* Fixed sender key state not being cleared on logout properly.
+
 # v26.01
 
 * Updated libsignal to v0.86.12.

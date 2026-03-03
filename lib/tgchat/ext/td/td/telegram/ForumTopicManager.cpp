@@ -64,7 +64,7 @@ class CreateForumTopicQuery final : public Td::ResultHandler {
     if (icon_custom_emoji_id.is_valid()) {
       flags |= telegram_api::messages_createForumTopic::ICON_EMOJI_ID_MASK;
     }
-    tl_object_ptr<telegram_api::InputPeer> as_input_peer;
+    telegram_api::object_ptr<telegram_api::InputPeer> as_input_peer;
     if (as_dialog_id.is_valid()) {
       as_input_peer = td_->dialog_manager_->get_input_peer(as_dialog_id, AccessRights::Write);
       if (as_input_peer != nullptr) {
@@ -107,10 +107,17 @@ class CreateForumTopicQuery final : public Td::ResultHandler {
     }
 
     auto action = static_cast<const telegram_api::messageActionTopicCreate *>(service_message->action_.get());
+    auto forum_topic_id = ForumTopicId(service_message->id_);
+    if (service_message->reply_to_ != nullptr &&
+        service_message->reply_to_->get_id() == telegram_api::messageReplyHeader::ID) {
+      auto reply_header = static_cast<const telegram_api::messageReplyHeader *>(service_message->reply_to_.get());
+      if (reply_header->forum_topic_ && reply_header->reply_to_top_id_ > 0) {
+        forum_topic_id = ForumTopicId(reply_header->reply_to_top_id_);
+      }
+    }
     auto forum_topic_info = td::make_unique<ForumTopicInfo>(
-        dialog_id_, ForumTopicId(service_message->id_), action->title_,
-        ForumTopicIcon(action->icon_color_, action->icon_emoji_id_), service_message->date_, creator_dialog_id_, true,
-        false, false, action->title_missing_);
+        dialog_id_, forum_topic_id, action->title_, ForumTopicIcon(action->icon_color_, action->icon_emoji_id_),
+        service_message->date_, creator_dialog_id_, true, false, false, action->title_missing_);
     td_->updates_manager_->on_get_updates(
         std::move(ptr), PromiseCreator::lambda([dialog_id = dialog_id_, forum_topic_info = std::move(forum_topic_info),
                                                 promise = std::move(promise_)](Unit result) mutable {
@@ -507,7 +514,7 @@ void ForumTopicManager::tear_down() {
 void ForumTopicManager::create_forum_topic(DialogId dialog_id, string &&title, bool title_missing,
                                            td_api::object_ptr<td_api::forumTopicIcon> &&icon,
                                            Promise<td_api::object_ptr<td_api::forumTopicInfo>> &&promise) {
-  TRY_STATUS_PROMISE(promise, is_forum(dialog_id, !td_->auth_manager_->is_bot()));
+  TRY_STATUS_PROMISE(promise, is_forum(dialog_id, true));
   if (dialog_id.get_type() == DialogType::Channel) {
     auto channel_id = dialog_id.get_channel_id();
 
@@ -518,7 +525,7 @@ void ForumTopicManager::create_forum_topic(DialogId dialog_id, string &&title, b
 
   auto new_title = clean_name(std::move(title), MAX_FORUM_TOPIC_TITLE_LENGTH);
   if (new_title.empty()) {
-    return promise.set_error(400, "Title must be non-empty");
+    return promise.set_error(400, "Name must be non-empty");
   }
 
   int32 icon_color = -1;
@@ -573,7 +580,7 @@ void ForumTopicManager::edit_forum_topic(DialogId dialog_id, ForumTopicId forum_
   bool edit_title = !title.empty();
   auto new_title = clean_name(std::move(title), MAX_FORUM_TOPIC_TITLE_LENGTH);
   if (edit_title && new_title.empty()) {
-    return promise.set_error(400, "Title must be non-empty");
+    return promise.set_error(400, "Name must be non-empty");
   }
   if (!edit_title && !edit_icon_custom_emoji) {
     return promise.set_value(Unit());
@@ -677,7 +684,7 @@ void ForumTopicManager::on_update_forum_topic_draft_message(DialogId dialog_id, 
   }
   auto topic = get_topic(dialog_id, forum_topic_id);
   if (topic == nullptr || topic->topic_ == nullptr) {
-    LOG(INFO) << "Ignore update about unknown " << forum_topic_id << " in " << dialog_id;
+    LOG(DEBUG) << "Ignore update about unknown " << forum_topic_id << " in " << dialog_id;
     return;
   }
   if (topic->topic_->set_draft_message(std::move(draft_message), true)) {
@@ -691,12 +698,12 @@ void ForumTopicManager::clear_forum_topic_draft_by_sent_message(DialogId dialog_
   if (td_->auth_manager_->is_bot()) {
     return;
   }
+  LOG(INFO) << "Clear draft in " << forum_topic_id << " of " << dialog_id << " by sent message";
   auto topic = get_topic(dialog_id, forum_topic_id);
   if (topic == nullptr || topic->topic_ == nullptr) {
     return;
   }
 
-  LOG(INFO) << "Clear draft in " << forum_topic_id << " of " << dialog_id << " by sent message";
   if (!message_clear_draft) {
     const auto *draft_message = topic->topic_->get_draft_message().get();
     if (draft_message == nullptr || !draft_message->need_clear_local(message_content_type)) {
@@ -804,9 +811,9 @@ Status ForumTopicManager::set_forum_topic_draft_message(DialogId dialog_id, Foru
   TRY_STATUS(can_be_forum_topic_id(forum_topic_id));
   auto topic = get_topic(dialog_id, forum_topic_id);
   if (topic == nullptr || topic->topic_ == nullptr) {
-    return Status::Error(400, "Topic not found");
-  }
-  if (topic->topic_->set_draft_message(std::move(draft_message), false)) {
+    save_draft_message(td_, dialog_id, MessageTopic::forum(dialog_id, forum_topic_id), std::move(draft_message),
+                       Promise<Unit>());
+  } else if (topic->topic_->set_draft_message(std::move(draft_message), false)) {
     save_draft_message(td_, dialog_id, MessageTopic::forum(dialog_id, forum_topic_id),
                        topic->topic_->get_draft_message(), Promise<Unit>());
     on_forum_topic_changed(dialog_id, topic);
@@ -820,9 +827,13 @@ void ForumTopicManager::get_forum_topic(DialogId dialog_id, ForumTopicId forum_t
   TRY_STATUS_PROMISE(promise, can_be_forum_topic_id(forum_topic_id));
 
   if (td_->auth_manager_->is_bot()) {
-    auto forum_topic = get_forum_topic_object(dialog_id, forum_topic_id);
-    if (forum_topic != nullptr) {
-      return promise.set_value(std::move(forum_topic));
+    auto topic = get_topic(dialog_id, forum_topic_id);
+    if (topic != nullptr && topic->topic_ != nullptr && topic->receive_date_ > G()->unix_time() - 60) {
+      CHECK(topic->info_ != nullptr);
+      auto forum_topic = topic->topic_->get_forum_topic_object(td_, dialog_id, *topic->info_);
+      if (forum_topic != nullptr) {
+        return promise.set_value(std::move(forum_topic));
+      }
     }
   }
 
@@ -1147,6 +1158,7 @@ ForumTopicId ForumTopicManager::on_get_forum_topic_impl(DialogId dialog_id,
         topic->topic_ = std::move(forum_topic_full);
         topic->need_save_to_database_ = true;  // TODO temporary
       }
+      topic->receive_date_ = G()->unix_time();
       set_topic_info(dialog_id, topic, std::move(forum_topic_info));
       send_update_forum_topic(dialog_id, topic);
       save_topic_to_database(dialog_id, topic);
@@ -1228,6 +1240,18 @@ Status ForumTopicManager::can_be_forum_topic_id(ForumTopicId forum_topic_id) {
     return Status::Error(400, "Invalid forum topic identifier specified");
   }
   return Status::OK();
+}
+
+bool ForumTopicManager::can_send_message_to_forum_topic(DialogId dialog_id, ForumTopicId forum_topic_id) const {
+  auto *topic_info = get_topic_info(dialog_id, forum_topic_id);
+  if (topic_info == nullptr) {
+    return true;  // allow sending to unknown topic
+  }
+  if (topic_info->is_closed() && !topic_info->is_outgoing() && dialog_id.get_type() == DialogType::Channel &&
+      !td_->chat_manager_->get_channel_status(dialog_id.get_channel_id()).can_edit_topics()) {
+    return false;  // don't allow sending to closed topic
+  }
+  return true;
 }
 
 ForumTopicManager::DialogTopics *ForumTopicManager::add_dialog_topics(DialogId dialog_id) {

@@ -15,6 +15,7 @@
 #include <regex>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <td/telegram/Client.h>
@@ -41,7 +42,7 @@
 
 // #define SIMULATED_SPONSORED_MESSAGES
 
-static const int s_TdlibDate = 20260103;
+static const int s_TdlibDate = 20260207;
 
 namespace detail
 {
@@ -128,6 +129,25 @@ private:
     ChatSecret,
   };
 
+  enum AuthInputType
+  {
+    AuthInputNone = 0,
+    AuthInputCode,
+    AuthInputPassword,
+    AuthInputRegistration,
+    AuthInputSessionClosed,
+  };
+
+  void StartAuthInput(AuthInputType p_Type);
+  void StopAuthInput();
+  void AuthInputLoop();
+
+  std::thread m_AuthInputThread;
+  std::mutex m_AuthInputMutex;
+  std::condition_variable m_AuthInputCondVar;
+  AuthInputType m_AuthInputType = AuthInputNone;
+  std::uint64_t m_AuthInputQueryId = 0;
+
 private:
   void CallMessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMessage);
   void PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage);
@@ -152,6 +172,17 @@ private:
   std::uint64_t GetNextQueryId();
   std::int64_t GetSenderId(td::td_api::object_ptr<td::td_api::MessageSender>&& p_TdMessageSender);
   void ProcessMentionEntities(td::td_api::object_ptr<td::td_api::formattedText>& p_FormattedText);
+  struct MentionInfo
+  {
+    size_t bytePos;          // byte offset of displayName in processed text
+    std::string displayName; // name shown in text (first word only for Telegram)
+    std::string userId;
+  };
+  std::string PreprocessMentionText(const std::string& p_Text,
+                                    const std::map<std::string, std::string>& p_Mentions,
+                                    std::vector<MentionInfo>& p_MentionInfos);
+  void AddMentionEntities(td::td_api::object_ptr<td::td_api::formattedText>& p_FormattedText,
+                          const std::vector<MentionInfo>& p_MentionInfos);
   std::string GetText(td::td_api::object_ptr<td::td_api::formattedText>&& p_FormattedText);
   void TdMessageContentConvert(td::td_api::MessageContent& p_TdMessageContent, int64_t p_SenderId,
                                std::string& p_Text, std::string& p_FileInfo);
@@ -241,6 +272,12 @@ std::string TgChat::GetProfileDisplayName() const
 bool TgChat::HasFeature(ProtocolFeature p_ProtocolFeature) const
 {
   return m_Impl->HasFeature(p_ProtocolFeature);
+}
+
+bool TgChat::IsGroupChat(const std::string& p_ChatId) const
+{
+  int64_t chatId = StrUtil::NumFromHex<int64_t>(p_ChatId);
+  return (chatId < 0);
 }
 
 std::string TgChat::GetSelfId() const
@@ -337,6 +374,7 @@ bool TgChat::Impl::SetupProfile(const std::string& p_ProfilesDir, std::string& p
   Init();
 
   ProcessService();
+  StopAuthInput();
 
   Cleanup();
   CleanupConfig();
@@ -424,6 +462,8 @@ bool TgChat::Impl::Logout()
     m_Running = false;
     m_ProcessCondVar.notify_one();
   }
+
+  StopAuthInput();
 
   if (m_Thread.joinable())
   {
@@ -853,17 +893,35 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
                                                                             nullptr /*quote_*/, 0 /*checklist_task_id_*/);
         }
 
+        const auto& mentions = sendMessageRequest->chatMessage.mentions;
+
+        // Preprocess mentions in raw text before markdown parsing
+        std::vector<MentionInfo> mentionInfos;
+        std::string processedText = sendMessageRequest->chatMessage.text;
+        if (!mentions.empty())
+        {
+          processedText = PreprocessMentionText(processedText, mentions, mentionInfos);
+        }
+
         if (sendMessageRequest->chatMessage.fileInfo.empty())
         {
-          auto message_content = GetMessageText(sendMessageRequest->chatMessage.text);
+          auto message_content = GetMessageText(processedText);
+          if (!mentionInfos.empty())
+          {
+            AddMentionEntities(message_content->text_, mentionInfos);
+          }
           send_message->input_message_content_ = std::move(message_content);
         }
         else
         {
           td::td_api::object_ptr<td::td_api::formattedText> formatted_text;
-          if (!sendMessageRequest->chatMessage.text.empty())
+          if (!processedText.empty())
           {
-            formatted_text = GetFormattedText(sendMessageRequest->chatMessage.text);
+            formatted_text = GetFormattedText(processedText);
+            if (!mentionInfos.empty())
+            {
+              AddMentionEntities(formatted_text, mentionInfos);
+            }
           }
 
           static const bool attachmentSendType = AppConfig::GetBool("attachment_send_type");
@@ -925,13 +983,27 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         std::shared_ptr<EditMessageRequest> editMessageRequest =
           std::static_pointer_cast<EditMessageRequest>(p_RequestMessage);
 
+        const auto& editMentions = editMessageRequest->chatMessage.mentions;
+
+        // Preprocess mentions in raw text before markdown parsing
+        std::vector<MentionInfo> editMentionInfos;
+        std::string editProcessedText = editMessageRequest->chatMessage.text;
+        if (!editMentions.empty())
+        {
+          editProcessedText = PreprocessMentionText(editProcessedText, editMentions, editMentionInfos);
+        }
+
         if (editMessageRequest->chatMessage.fileInfo.empty())
         {
           auto edit_message = td::td_api::make_object<td::td_api::editMessageText>();
           edit_message->chat_id_ = StrUtil::NumFromHex<int64_t>(editMessageRequest->chatId);
           edit_message->message_id_ = StrUtil::NumFromHex<int64_t>(editMessageRequest->msgId);
 
-          auto message_content = GetMessageText(editMessageRequest->chatMessage.text);
+          auto message_content = GetMessageText(editProcessedText);
+          if (!editMentionInfos.empty())
+          {
+            AddMentionEntities(message_content->text_, editMentionInfos);
+          }
           edit_message->input_message_content_ = std::move(message_content);
 
           SendQuery(std::move(edit_message),
@@ -952,7 +1024,11 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
           edit_message->chat_id_ = StrUtil::NumFromHex<int64_t>(editMessageRequest->chatId);
           edit_message->message_id_ = StrUtil::NumFromHex<int64_t>(editMessageRequest->msgId);
 
-          auto message_content = GetFormattedText(editMessageRequest->chatMessage.text);
+          auto message_content = GetFormattedText(editProcessedText);
+          if (!editMentionInfos.empty())
+          {
+            AddMentionEntities(message_content, editMentionInfos);
+          }
           edit_message->caption_ = std::move(message_content);
 
           SendQuery(std::move(edit_message),
@@ -1469,6 +1545,42 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
       }
       break;
 
+    case GetGroupMembersRequestType:
+      {
+        std::shared_ptr<GetGroupMembersRequest> getGroupMembersRequest =
+          std::static_pointer_cast<GetGroupMembersRequest>(p_RequestMessage);
+
+        int64_t chatId = StrUtil::NumFromHex<int64_t>(getGroupMembersRequest->chatId);
+
+        auto search = td::td_api::make_object<td::td_api::searchChatMembers>(
+          chatId, "" /*query*/, 200 /*limit*/, nullptr /*filter*/);
+
+        SendQuery(std::move(search),
+                  [this, getGroupMembersRequest](Object object)
+        {
+          if (object->get_id() != td::td_api::chatMembers::ID) return;
+
+          auto chatMembers = td::move_tl_object_as<td::td_api::chatMembers>(object);
+          auto notify = std::make_shared<NewGroupMembersNotify>(m_ProfileId);
+          notify->chatId = getGroupMembersRequest->chatId;
+
+          for (auto& member : chatMembers->members_)
+          {
+            if (member->member_id_->get_id() == td::td_api::messageSenderUser::ID)
+            {
+              auto senderUser =
+                static_cast<td::td_api::messageSenderUser*>(member->member_id_.get());
+              ContactInfo ci;
+              ci.id = StrUtil::NumToHex(senderUser->user_id_);
+              ci.name = GetContactName(senderUser->user_id_);
+              notify->contactInfos.push_back(ci);
+            }
+          }
+          CallMessageHandler(notify);
+        });
+      }
+      break;
+
     default:
       LOG_DEBUG("unknown request message %d", p_RequestMessage->GetMessageType());
       break;
@@ -1502,10 +1614,10 @@ void TgChat::Impl::InitProxy()
 
     if (proxiesObject->get_id() == td::td_api::error::ID) return;
 
-    auto proxies = td::move_tl_object_as<td::td_api::proxies>(proxiesObject);
+    auto proxies = td::move_tl_object_as<td::td_api::addedProxies>(proxiesObject);
     if (!proxies) return;
 
-    for (const td::td_api::object_ptr<td::td_api::proxy>& proxy : proxies->proxies_)
+    for (const td::td_api::object_ptr<td::td_api::addedProxy>& proxy : proxies->proxies_)
     {
       if (proxy)
       {
@@ -1529,7 +1641,8 @@ void TgChat::Impl::InitProxy()
       const bool proxyEnable = true;
       auto proxyType = (!proxyUser.empty()) ? td::make_tl_object<td::td_api::proxyTypeSocks5>(proxyUser, proxyPass)
                                             : td::td_api::make_object<td::td_api::proxyTypeSocks5>();
-      SendQuery(td::td_api::make_object<td::td_api::addProxy>(proxyHost, proxyPort, proxyEnable, std::move(proxyType)),
+      SendQuery(td::td_api::make_object<td::td_api::addProxy>(
+                  td::td_api::make_object<td::td_api::proxy>(proxyHost, proxyPort, std::move(proxyType)), proxyEnable),
                 [](Object object)
       {
         if (object->get_id() == td::td_api::error::ID)
@@ -2179,18 +2292,7 @@ void TgChat::Impl::OnAuthStateUpdate()
     if (m_WasAuthorized)
     {
       LOG_WARNING("session closed by other device");
-      SetProtocolUiControl(true);
-      std::cout << "\n";
-      std::cout << "WARNING: Session terminated by other device.\n";
-      std::cout << "Please restart nchat to reauthenticate. Press ENTER to continue.\n";
-      std::string str;
-      std::getline(std::cin, str);
-      SetProtocolUiControl(false);
-
-      LOG_TRACE("request app exit");
-      std::shared_ptr<RequestAppExitNotify> requestAppExitNotify =
-        std::make_shared<RequestAppExitNotify>(m_ProfileId);
-      CallMessageHandler(requestAppExitNotify);
+      StartAuthInput(AuthInputSessionClosed);
     }
   },
   [this](td::td_api::authorizationStateWaitCode&)
@@ -2211,26 +2313,14 @@ void TgChat::Impl::OnAuthStateUpdate()
       }
     }
 
-    std::cout << "Enter authentication code: ";
-    std::string code;
-    std::getline(std::cin, code);
-    SendQuery(td::td_api::make_object<td::td_api::checkAuthenticationCode>(code),
-              CreateAuthQueryHandler());
+    StartAuthInput(AuthInputCode);
   },
   [this](td::td_api::authorizationStateWaitRegistration&)
   {
     LOG_DEBUG("auth wait registration");
     if (m_IsSetup || m_IsReinit)
     {
-      std::string first_name;
-      std::string last_name;
-      std::cout << "Enter your first name: ";
-      std::getline(std::cin, first_name);
-      std::cout << "Enter your last name: ";
-      std::getline(std::cin, last_name);
-      bool disable_notification = false;
-      SendQuery(td::td_api::make_object<td::td_api::registerUser>(first_name, last_name, disable_notification),
-                CreateAuthQueryHandler());
+      StartAuthInput(AuthInputRegistration);
     }
     else
     {
@@ -2243,10 +2333,7 @@ void TgChat::Impl::OnAuthStateUpdate()
     LOG_DEBUG("auth wait password");
     if (m_IsSetup || m_IsReinit)
     {
-      std::cout << "Enter authentication password: ";
-      std::string password = StrUtil::GetPass();
-      SendQuery(td::td_api::make_object<td::td_api::checkAuthenticationPassword>(password),
-                CreateAuthQueryHandler());
+      StartAuthInput(AuthInputPassword);
     }
     else
     {
@@ -2340,6 +2427,140 @@ void TgChat::Impl::OnAuthStateUpdate()
   }
   ));
   // *INDENT-ON*
+}
+
+void TgChat::Impl::StartAuthInput(AuthInputType p_Type)
+{
+  {
+    std::unique_lock<std::mutex> lock(m_AuthInputMutex);
+    m_AuthInputType = p_Type;
+    m_AuthInputQueryId = m_AuthQueryId;
+  }
+
+  if (!m_AuthInputThread.joinable())
+  {
+    m_AuthInputThread = std::thread(&TgChat::Impl::AuthInputLoop, this);
+  }
+
+  m_AuthInputCondVar.notify_one();
+}
+
+void TgChat::Impl::StopAuthInput()
+{
+  {
+    std::unique_lock<std::mutex> lock(m_AuthInputMutex);
+    m_AuthInputType = AuthInputNone;
+  }
+  m_AuthInputCondVar.notify_one();
+
+  // Skip interrupting getline and just detach rather than join.
+  // The thread will exit when stdin closes or the process exits.
+  if (m_AuthInputThread.joinable())
+  {
+    m_AuthInputThread.detach();
+  }
+}
+
+void TgChat::Impl::AuthInputLoop()
+{
+  while (true)
+  {
+    AuthInputType inputType = AuthInputNone;
+    std::uint64_t authQueryId = 0;
+
+    {
+      std::unique_lock<std::mutex> lock(m_AuthInputMutex);
+      m_AuthInputCondVar.wait(lock, [this]()
+      {
+        return (m_AuthInputType != AuthInputNone) || !m_Running;
+      });
+
+      if (!m_Running) return;
+
+      inputType = m_AuthInputType;
+      authQueryId = m_AuthInputQueryId;
+      m_AuthInputType = AuthInputNone;
+    }
+
+    switch (inputType)
+    {
+      case AuthInputCode:
+        {
+          std::cout << "Enter authentication code: ";
+          std::string code;
+          std::getline(std::cin, code);
+          if (std::cin.fail() || std::cin.eof())
+          {
+            m_Running = false;
+            return;
+          }
+          if (m_AuthQueryId != authQueryId) break;
+          SendQuery(td::td_api::make_object<td::td_api::checkAuthenticationCode>(code),
+                    CreateAuthQueryHandler());
+        }
+        break;
+
+      case AuthInputPassword:
+        {
+          std::cout << "Enter authentication password: ";
+          std::string password = StrUtil::GetPass();
+          if (std::cin.fail() || std::cin.eof())
+          {
+            m_Running = false;
+            return;
+          }
+          if (m_AuthQueryId != authQueryId) break;
+          SendQuery(td::td_api::make_object<td::td_api::checkAuthenticationPassword>(password),
+                    CreateAuthQueryHandler());
+        }
+        break;
+
+      case AuthInputRegistration:
+        {
+          std::string first_name;
+          std::string last_name;
+          std::cout << "Enter your first name: ";
+          std::getline(std::cin, first_name);
+          if (std::cin.fail() || std::cin.eof())
+          {
+            m_Running = false;
+            return;
+          }
+
+          std::cout << "Enter your last name: ";
+          std::getline(std::cin, last_name);
+          if (std::cin.fail() || std::cin.eof())
+          {
+            m_Running = false;
+            return;
+          }
+          if (m_AuthQueryId != authQueryId) break;
+          bool disable_notification = false;
+          SendQuery(td::td_api::make_object<td::td_api::registerUser>(first_name, last_name, disable_notification),
+                    CreateAuthQueryHandler());
+        }
+        break;
+
+      case AuthInputSessionClosed:
+        {
+          SetProtocolUiControl(true);
+          std::cout << "\n";
+          std::cout << "WARNING: Session terminated by other device.\n";
+          std::cout << "Please restart nchat to reauthenticate. Press ENTER to continue.\n";
+          std::string str;
+          std::getline(std::cin, str);
+          SetProtocolUiControl(false);
+          LOG_TRACE("request app exit");
+          std::shared_ptr<RequestAppExitNotify> requestAppExitNotify =
+            std::make_shared<RequestAppExitNotify>(m_ProfileId);
+          CallMessageHandler(requestAppExitNotify);
+        }
+        return;
+
+      default:
+        break;
+    }
+  }
 }
 
 void TgChat::Impl::SendQuery(td::td_api::object_ptr<td::td_api::Function> f,
@@ -2448,6 +2669,37 @@ std::int64_t TgChat::Impl::GetSenderId(td::td_api::object_ptr<td::td_api::Messag
   }
 
   return senderId;
+}
+
+static int32_t BytePosToUtf16Pos(const std::string& p_Str, size_t p_BytePos)
+{
+  int32_t utf16Units = 0;
+  size_t i = 0;
+  while (i < p_Str.size() && i < p_BytePos)
+  {
+    unsigned char c = static_cast<unsigned char>(p_Str[i]);
+    if (c < 0x80)
+    {
+      i += 1;
+      utf16Units += 1;
+    }
+    else if (c < 0xE0)
+    {
+      i += 2;
+      utf16Units += 1;
+    }
+    else if (c < 0xF0)
+    {
+      i += 3;
+      utf16Units += 1;
+    }
+    else
+    {
+      i += 4;
+      utf16Units += 2; // surrogate pair = 2 UTF-16 code units
+    }
+  }
+  return utf16Units;
 }
 
 static size_t Utf16PosToBytePos(const std::string& p_Str, int32_t p_Utf16Pos)
@@ -2560,6 +2812,163 @@ void TgChat::Impl::ProcessMentionEntities(td::td_api::object_ptr<td::td_api::for
       // Text already has @username, just remove the entity so getMarkdownText works
       entities.erase(entities.begin() + i);
     }
+  }
+}
+
+std::string TgChat::Impl::PreprocessMentionText(const std::string& p_Text,
+                                                const std::map<std::string, std::string>& p_Mentions,
+                                                std::vector<MentionInfo>& p_MentionInfos)
+{
+  p_MentionInfos.clear();
+  std::string text = p_Text;
+
+  // Collect mention positions in forward pass
+  struct MentionPos
+  {
+    size_t patternStart; // byte offset of '@'
+    size_t patternEnd;   // byte offset past the full pattern
+    std::string displayName;
+    std::string userId;
+  };
+  std::vector<MentionPos> positions;
+
+  size_t pos = 0;
+  while (pos < text.size())
+  {
+    size_t atPos = text.find('@', pos);
+    if (atPos == std::string::npos) break;
+
+    std::string name;
+    size_t fullEnd = 0;
+
+    if (atPos + 1 < text.size() && text[atPos + 1] == '[')
+    {
+      // @[Name With Spaces] pattern
+      size_t closeBracket = text.find(']', atPos + 2);
+      if (closeBracket != std::string::npos)
+      {
+        name = text.substr(atPos + 2, closeBracket - (atPos + 2));
+        fullEnd = closeBracket + 1;
+      }
+    }
+
+    if (name.empty() && atPos + 1 < text.size())
+    {
+      // @Name pattern (word chars until space/end)
+      size_t namePos = atPos + 1;
+      size_t end = namePos;
+      while (end < text.size() && text[end] != ' ' && text[end] != '\n' &&
+             text[end] != '\t' && text[end] != '@')
+      {
+        end++;
+      }
+      if (end > namePos)
+      {
+        name = text.substr(namePos, end - namePos);
+        fullEnd = end;
+      }
+    }
+
+    if (!name.empty())
+    {
+      auto it = p_Mentions.find(name);
+      if (it == p_Mentions.end())
+      {
+        // Trim trailing punctuation and retry
+        std::string trimmed = name;
+        while (!trimmed.empty() && (trimmed.back() == '.' || trimmed.back() == ',' ||
+                                    trimmed.back() == '!' || trimmed.back() == '?' ||
+                                    trimmed.back() == ':' || trimmed.back() == ';'))
+        {
+          trimmed.pop_back();
+        }
+        if (trimmed != name)
+        {
+          it = p_Mentions.find(trimmed);
+          if (it != p_Mentions.end())
+          {
+            // Adjust fullEnd to exclude trimmed punctuation
+            fullEnd -= (name.size() - trimmed.size());
+            name = trimmed;
+          }
+        }
+      }
+      if (it != p_Mentions.end())
+      {
+        // Telegram does not support spaces in mention display names,
+        // so truncate to first word
+        std::string displayName = name;
+        size_t spacePos = name.find(' ');
+        if (spacePos != std::string::npos)
+        {
+          displayName = name.substr(0, spacePos);
+        }
+
+        MentionPos mp;
+        mp.patternStart = atPos;
+        mp.patternEnd = fullEnd;
+        mp.displayName = displayName;
+        mp.userId = it->second;
+        positions.push_back(mp);
+        pos = fullEnd;
+        continue;
+      }
+    }
+
+    pos = atPos + 1;
+  }
+
+  // Replace in reverse order to keep earlier byte offsets valid
+  for (int i = static_cast<int>(positions.size()) - 1; i >= 0; --i)
+  {
+    const MentionPos& mp = positions[i];
+    text.replace(mp.patternStart, mp.patternEnd - mp.patternStart, mp.displayName);
+  }
+
+  // Build MentionInfo with final byte positions
+  // Since we replaced in reverse, positions[0..n] patternStart values are still valid
+  for (const auto& mp : positions)
+  {
+    MentionInfo info;
+    info.bytePos = mp.patternStart;
+    info.displayName = mp.displayName;
+    info.userId = mp.userId;
+    p_MentionInfos.push_back(info);
+  }
+
+  return text;
+}
+
+void TgChat::Impl::AddMentionEntities(td::td_api::object_ptr<td::td_api::formattedText>& p_FormattedText,
+                                      const std::vector<MentionInfo>& p_MentionInfos)
+{
+  if (!p_FormattedText || p_MentionInfos.empty()) return;
+
+  const std::string& text = p_FormattedText->text_;
+  auto& entities = p_FormattedText->entities_;
+
+  for (const auto& info : p_MentionInfos)
+  {
+    // Find the displayName in the formatted text at or near the expected position
+    size_t foundPos = text.find(info.displayName, info.bytePos);
+    if (foundPos == std::string::npos)
+    {
+      foundPos = text.find(info.displayName);
+    }
+    if (foundPos == std::string::npos)
+    {
+      LOG_WARNING("Could not find mention displayName '%s' in formatted text", info.displayName.c_str());
+      continue;
+    }
+
+    int32_t utf16Offset = BytePosToUtf16Pos(text, foundPos);
+    int32_t utf16Len = BytePosToUtf16Pos(info.displayName, info.displayName.size());
+
+    int64_t userId = StrUtil::NumFromHex<int64_t>(info.userId);
+    auto mentionType = td::td_api::make_object<td::td_api::textEntityTypeMentionName>(userId);
+    auto mentionEntity = td::td_api::make_object<td::td_api::textEntity>(
+      utf16Offset, utf16Len, std::move(mentionType));
+    entities.push_back(std::move(mentionEntity));
   }
 }
 

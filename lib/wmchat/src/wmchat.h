@@ -1,6 +1,6 @@
 // wmchat.h
 //
-// Copyright (c) 2020-2025 Kristofer Berggren
+// Copyright (c) 2020-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -40,6 +40,7 @@ public:
   std::string GetProfileId() const;
   std::string GetProfileDisplayName() const;
   bool HasFeature(ProtocolFeature p_ProtocolFeature) const;
+  bool IsGroupChat(const std::string& p_ChatId) const;
   std::string GetSelfId() const;
 
   bool SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId);
@@ -108,6 +109,7 @@ void WmNewContactsNotify(int p_ConnId, char* p_ChatId, char* p_Name, char* p_Pho
                          int p_Notify);
 void WmNewChatsNotify(int p_ConnId, char* p_ChatId, int p_IsUnread, int p_IsMuted, int p_IsPinned,
                       int p_LastMessageTime);
+void WmNewGroupMembersNotify(int p_ConnId, char* p_ChatId, char* p_MembersJson);
 void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe,
                          char* p_ReplyId, char* p_FileId, char* p_FilePath, int p_FileStatus, int p_TimeSent,
                          int p_IsRead, int p_IsEdited);

@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/url"
 	"runtime/debug"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -89,6 +90,7 @@ type Client struct {
 	// EmitAppStateEventsOnFullSync can be set to true if you want to get app state events emitted
 	// even when re-syncing the whole state.
 	EmitAppStateEventsOnFullSync bool
+	AppStateDebugLogs            bool
 
 	AutomaticMessageRerequestFromPhone bool
 	pendingPhoneRerequests             map[types.MessageID]context.CancelFunc
@@ -142,10 +144,16 @@ type Client struct {
 	sessionRecreateHistoryLock sync.Mutex
 	// GetMessageForRetry is used to find the source message for handling retry receipts
 	// when the message is not found in the recently sent message cache.
+	// Note: in DMs, the "to" field may be different from what you originally sent to (LID vs phone number),
+	// make sure to check both if necessary.
 	GetMessageForRetry func(requester, to types.JID, id types.MessageID) *waE2E.Message
 	// PreRetryCallback is called before a retry receipt is accepted.
 	// If it returns false, the accepting will be cancelled and the retry receipt will be ignored.
 	PreRetryCallback func(receipt *events.Receipt, id types.MessageID, retryCount int, msg *waE2E.Message) bool
+	// Should whatsmeow store recently sent messages in the database so that retry receipts can be accepted
+	// even if the process is restarted? If false, only the in-memory cache and GetMessageForRetry will be used.
+	UseRetryMessageStore bool
+	lastRetryStoreClear  time.Time
 
 	// PrePairCallback is called before pairing is completed. If it returns false, the pairing will be cancelled and
 	// the client will disconnect.
@@ -171,6 +179,8 @@ type Client struct {
 
 	uniqueID  string
 	idCounter atomic.Uint64
+
+	serverTimeOffset atomic.Int64
 
 	mediaHTTP     *http.Client
 	websocketHTTP *http.Client
@@ -971,5 +981,38 @@ func (cli *Client) StoreLIDPNMapping(ctx context.Context, first, second types.JI
 	err := cli.Store.LIDs.PutLIDMapping(ctx, lid, pn)
 	if err != nil {
 		cli.Log.Errorf("Failed to store LID-PN mapping for %s -> %s: %v", lid, pn, err)
+	}
+}
+
+const unifiedOffset = 3 * 24 * time.Hour
+const week = 7 * 24 * time.Hour
+
+func (cli *Client) getUnifiedSessionID() string {
+	unifiedTS := time.Now().
+		Add(time.Duration(cli.serverTimeOffset.Load())).
+		Add(unifiedOffset)
+	unifiedID := unifiedTS.UnixMilli() % week.Milliseconds()
+	return strconv.FormatInt(unifiedID, 10)
+}
+
+func (cli *Client) sendUnifiedSession() {
+	if cli == nil {
+		return
+	}
+
+	node := waBinary.Node{
+		Tag:   "ib",
+		Attrs: waBinary.Attrs{},
+		Content: []waBinary.Node{{
+			Tag: "unified_session",
+			Attrs: waBinary.Attrs{
+				"id": cli.getUnifiedSessionID(),
+			},
+		}},
+	}
+
+	err := cli.sendNode(cli.BackgroundEventCtx, node)
+	if err != nil {
+		cli.Log.Debugf("Failed to send unified_session telemetry: %v", err)
 	}
 }

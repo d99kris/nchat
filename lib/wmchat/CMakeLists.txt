@@ -28,7 +28,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   add_compile_definitions(_XOPEN_SOURCE_EXTENDED)
   FIND_LIBRARY(CARBON_LIBRARY CoreFoundation)
   FIND_LIBRARY(CARBON_LIBRARY Security)
-  target_link_libraries(wmchat PUBLIC "-framework CoreFoundation" "-framework Security")
+  target_link_libraries(wmchat PUBLIC "-framework CoreFoundation" "-framework Security" resolv)
 endif()
 
 # Headers

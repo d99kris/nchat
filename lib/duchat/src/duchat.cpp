@@ -1,6 +1,6 @@
 // duchat.cpp
 //
-// Copyright (c) 2020-2025 Kristofer Berggren
+// Copyright (c) 2020-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -16,6 +16,8 @@
 #include "log.h"
 #include "status.h"
 #include "strutil.h"
+
+static const std::string s_GroupId = "The Office_0";
 
 extern "C" DuChat* CreateDuChat()
 {
@@ -41,6 +43,11 @@ bool DuChat::HasFeature(ProtocolFeature p_ProtocolFeature) const
   static int customFeatures =
     FeatureAutoGetContactsOnLogin;
   return (p_ProtocolFeature & customFeatures);
+}
+
+bool DuChat::IsGroupChat(const std::string& p_ChatId) const
+{
+  return (p_ChatId == s_GroupId);
 }
 
 std::string DuChat::GetSelfId() const
@@ -327,17 +334,14 @@ void DuChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
         // Group chat
         {
           t = 1237962000;
-          std::string gname = "The Office";
-          std::string gid = gname + "_0";
-
           ChatInfo chatInfo;
-          chatInfo.id = gid;
+          chatInfo.id = s_GroupId;
           chatInfo.lastMessageTime = (t * 1000);
           newChatsNotify->chatInfos.push_back(chatInfo);
 
           ContactInfo contactInfo;
-          contactInfo.id = gid;
-          contactInfo.name = gname;
+          contactInfo.id = s_GroupId;
+          contactInfo.name = "The Office";
           newContactsNotify->contactInfos.push_back(contactInfo);
 
           // From others
@@ -363,7 +367,7 @@ void DuChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
             }
 
             t = t - 100;
-            s_Messages[gid].push_back(chatMessage);
+            s_Messages[s_GroupId].push_back(chatMessage);
           }
         }
 

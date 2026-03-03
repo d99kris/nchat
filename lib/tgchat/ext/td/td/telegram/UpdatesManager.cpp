@@ -679,7 +679,8 @@ void UpdatesManager::set_date(int32 date, bool from_update, string date_source) 
     }
     auto now = G()->unix_time();
     if (date_ > now + 1) {
-      LOG(ERROR) << "Receive wrong by " << (date_ - now) << " date = " << date_ << " from " << date_source;
+      LOG(ERROR) << "Receive wrong by " << (date_ - now) << " date = " << date_ << ", now = " << G()->server_time()
+                 << ", is_server_time_reliable = " << G()->is_server_time_reliable() << " from " << date_source;
       date_ = now;
       if (date_ <= date) {
         return;
@@ -699,7 +700,7 @@ void UpdatesManager::set_date(int32 date, bool from_update, string date_source) 
         return;
       }
     }
-    LOG(ERROR) << "Receive wrong by " << (date_ - date) << " date = " << date << " from " << date_source
+    LOG(ERROR) << "Receive wrong by " << (date - date_) << " date = " << date << " from " << date_source
                << ". Current date = " << date_ << " from " << date_source_;
   }
 }
@@ -1123,6 +1124,20 @@ bool UpdatesManager::is_acceptable_message(const telegram_api::Message *message_
             if (!is_acceptable_peer(participant)) {
               return false;
             }
+          }
+          break;
+        }
+        case telegram_api::messageActionNewCreatorPending::ID: {
+          auto content = static_cast<const telegram_api::messageActionNewCreatorPending *>(action);
+          if (!is_acceptable_user(UserId(content->new_creator_id_))) {
+            return false;
+          }
+          break;
+        }
+        case telegram_api::messageActionChangeCreator::ID: {
+          auto content = static_cast<const telegram_api::messageActionChangeCreator *>(action);
+          if (!is_acceptable_user(UserId(content->new_creator_id_))) {
+            return false;
           }
           break;
         }
@@ -1596,6 +1611,18 @@ string UpdatesManager::extract_join_group_call_presentation_params(telegram_api:
     }
   }
   return string();
+}
+
+bool UpdatesManager::extract_star_gift_craft_fail(telegram_api::Updates *updates_ptr) {
+  auto updates = get_updates(updates_ptr);
+  for (auto it = updates->begin(); it != updates->end(); ++it) {
+    auto *update = it->get();
+    if (update->get_id() == telegram_api::updateStarGiftCraftFail::ID) {
+      updates->erase(it);
+      return true;
+    }
+  }
+  return false;
 }
 
 vector<telegram_api::object_ptr<telegram_api::updateGroupCallMessage>> UpdatesManager::extract_group_call_messages(
@@ -4474,8 +4501,7 @@ void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateStickerSets> up
 
 void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateStickerSetsOrder> update, Promise<Unit> &&promise) {
   auto sticker_type = get_sticker_type(update->masks_, update->emojis_);
-  td_->stickers_manager_->on_update_sticker_sets_order(sticker_type,
-                                                       StickersManager::convert_sticker_set_ids(update->order_));
+  td_->stickers_manager_->on_update_sticker_sets_order(sticker_type, StickerSetId::get_sticker_set_ids(update->order_));
   promise.set_value(Unit());
 }
 
@@ -4609,6 +4635,11 @@ void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateDeleteGroupCall
                                Promise<Unit> &&promise) {
   send_closure(G()->group_call_manager(), &GroupCallManager::on_update_group_call_messages_deleted,
                InputGroupCallId(update->call_), std::move(update->messages_));
+  promise.set_value(Unit());
+}
+
+void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateStarGiftCraftFail> update, Promise<Unit> &&promise) {
+  LOG(ERROR) << "Receive unexpected updateStarGiftCraftFail";
   promise.set_value(Unit());
 }
 

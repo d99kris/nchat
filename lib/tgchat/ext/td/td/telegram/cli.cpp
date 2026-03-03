@@ -2019,11 +2019,11 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::setNetworkType>(td_api::make_object<td_api::networkTypeWiFi>()));
       send_request(td_api::make_object<td_api::getNetworkStatistics>());
       send_request(td_api::make_object<td_api::getCountryCode>());
-      send_request(
-          td_api::make_object<td_api::addProxy>("1.1.1.1", 1111, true, td_api::make_object<td_api::proxyTypeSocks5>()));
-      send_request(td_api::make_object<td_api::addProxy>("1.1.1.1", 1112, false,
-                                                         td_api::make_object<td_api::proxyTypeSocks5>()));
-      send_request(td_api::make_object<td_api::pingProxy>(0));
+      send_request(td_api::make_object<td_api::addProxy>(
+          td_api::make_object<td_api::proxy>("1.1.1.1", 1111, td_api::make_object<td_api::proxyTypeSocks5>()), true));
+      send_request(td_api::make_object<td_api::addProxy>(
+          td_api::make_object<td_api::proxy>("1.1.1.1", 1112, td_api::make_object<td_api::proxyTypeSocks5>()), false));
+      send_request(td_api::make_object<td_api::pingProxy>(nullptr));
 
       auto bad_request = td_api::make_object<td_api::setTdlibParameters>();
       bad_request->database_directory_ = "/..";
@@ -3200,13 +3200,13 @@ class CliClient final : public Actor {
       get_args(args, chat_id, are_enabled);
       send_request(td_api::make_object<td_api::toggleChatGiftNotifications>(chat_id, are_enabled));
     } else if (op == "ggup") {
-      int64 gift_id;
-      get_args(args, gift_id);
-      send_request(td_api::make_object<td_api::getGiftUpgradePreview>(gift_id));
-    } else if (op == "gguv") {
-      int64 gift_id;
-      get_args(args, gift_id);
-      send_request(td_api::make_object<td_api::getGiftUpgradeVariants>(gift_id));
+      int64 regular_gift_id;
+      get_args(args, regular_gift_id);
+      send_request(td_api::make_object<td_api::getGiftUpgradePreview>(regular_gift_id));
+    } else if (op == "gugv" || op == "gugvu" || op == "gugvc") {
+      int64 regular_gift_id;
+      get_args(args, regular_gift_id);
+      send_request(td_api::make_object<td_api::getUpgradedGiftVariants>(regular_gift_id, op != "gugvc", op != "gugvu"));
     } else if (op == "ug") {
       string received_gift_id;
       bool keep_original_details;
@@ -3221,6 +3221,10 @@ class CliClient final : public Actor {
       get_args(args, owner_id, upgrade_gift_hash, star_count);
       send_request(
           td_api::make_object<td_api::buyGiftUpgrade>(as_message_sender(owner_id), upgrade_gift_hash, star_count));
+    } else if (op == "cg") {
+      string received_gift_ids;
+      get_args(args, received_gift_ids);
+      send_request(td_api::make_object<td_api::craftGift>(autosplit_str(received_gift_ids)));
     } else if (op == "tg") {
       string received_gift_id;
       string new_owner_id;
@@ -3273,6 +3277,12 @@ class CliClient final : public Actor {
       string received_gift_id;
       get_args(args, received_gift_id);
       send_request(td_api::make_object<td_api::getReceivedGift>(received_gift_id));
+    } else if (op == "ggfc") {
+      int64 gift_id;
+      int32 limit;
+      string offset;
+      get_args(args, gift_id, limit, offset);
+      send_request(td_api::make_object<td_api::getGiftsForCrafting>(gift_id, offset, limit));
     } else if (op == "gug") {
       string name;
       get_args(args, name);
@@ -3293,7 +3303,7 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::getUpgradedGiftWithdrawalUrl>(received_gift_id, password));
     } else if (op == "gugpa") {
       send_request(td_api::make_object<td_api::getUpgradedGiftsPromotionalAnimation>());
-    } else if (op == "sgfr" || op == "sgfrd" || op == "sgfrn") {
+    } else if (op == "sgfr" || op == "sgfrd" || op == "sgfrn" || op == "spfrc") {
       int64 gift_id;
       string limit;
       string offset;
@@ -3307,7 +3317,7 @@ class CliClient final : public Actor {
         order = td_api::make_object<td_api::giftForResaleOrderPrice>();
       }
       send_request(td_api::make_object<td_api::searchGiftsForResale>(
-          gift_id, std::move(order), get_upgraded_gift_attribute_ids(), offset, as_limit(limit)));
+          gift_id, std::move(order), op == "spfrc", get_upgraded_gift_attribute_ids(), offset, as_limit(limit)));
     } else if (op == "ggic") {
       string owner_id;
       get_args(args, owner_id);
@@ -7211,6 +7221,10 @@ class CliClient final : public Actor {
       string password;
       get_args(args, chat_id, user_id, password);
       send_request(td_api::make_object<td_api::transferChatOwnership>(chat_id, user_id, password));
+    } else if (op == "gcoal") {
+      ChatId chat_id;
+      get_args(args, chat_id);
+      send_request(td_api::make_object<td_api::getChatOwnerAfterLeaving>(chat_id));
     } else if (op == "log") {
       ChatId chat_id;
       string limit;
@@ -8000,9 +8014,9 @@ class CliClient final : public Actor {
     } else if (op == "geli") {
       const string &link = args;
       send_request(td_api::make_object<td_api::getExternalLinkInfo>(link));
-    } else if (op == "gel" || op == "gelw") {
+    } else if (op == "gel" || op == "gelw" || op == "gelp") {
       const string &link = args;
-      send_request(td_api::make_object<td_api::getExternalLink>(link, op == "gelw"));
+      send_request(td_api::make_object<td_api::getExternalLink>(link, op == "gelw", op == "gelp"));
     } else if (op == "racm") {
       ChatId chat_id;
       get_args(args, chat_id);
@@ -8289,7 +8303,7 @@ class CliClient final : public Actor {
     } else if (op == "rproxy") {
       send_request(td_api::make_object<td_api::removeProxy>(as_proxy_id(args)));
     } else if (op == "aproxy" || op == "aeproxy" || op == "aeproxytcp" || op == "editproxy" || op == "editeproxy" ||
-               op == "editeproxytcp" || op == "tproxy") {
+               op == "editeproxytcp" || op == "tproxy" || op == "pproxy" || op == "pproxyp") {
       string proxy_id;
       string server;
       int32 port;
@@ -8310,20 +8324,20 @@ class CliClient final : public Actor {
           type = td_api::make_object<td_api::proxyTypeSocks5>(user, password);
         }
       }
+      auto proxy = td_api::make_object<td_api::proxy>(server, port, std::move(type));
       if (op[0] == 'e') {
-        send_request(
-            td_api::make_object<td_api::editProxy>(as_proxy_id(proxy_id), server, port, enable, std::move(type)));
+        send_request(td_api::make_object<td_api::editProxy>(as_proxy_id(proxy_id), std::move(proxy), enable));
+      } else if (op == "pproxy" || op == "pproxyp") {
+        send_request(td_api::make_object<td_api::pingProxy>(std::move(proxy)));
       } else if (op == "tproxy") {
-        send_request(td_api::make_object<td_api::testProxy>(server, port, std::move(type), 2, 10.0));
+        send_request(td_api::make_object<td_api::testProxy>(std::move(proxy), 2, 10.0));
       } else {
-        send_request(td_api::make_object<td_api::addProxy>(server, port, enable, std::move(type)));
+        send_request(td_api::make_object<td_api::addProxy>(std::move(proxy), enable));
       }
+    } else if (op == "ping") {
+      send_request(td_api::make_object<td_api::pingProxy>());
     } else if (op == "gproxy" || op == "gproxies") {
       send_request(td_api::make_object<td_api::getProxies>());
-    } else if (op == "gproxyl" || op == "gpl") {
-      send_request(td_api::make_object<td_api::getProxyLink>(as_proxy_id(args)));
-    } else if (op == "pproxy") {
-      send_request(td_api::make_object<td_api::pingProxy>(as_proxy_id(args)));
     } else if (op == "gusi") {
       UserId user_id;
       get_args(args, user_id);

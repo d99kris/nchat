@@ -1,6 +1,6 @@
 // protocol.h
 //
-// Copyright (c) 2020-2025 Kristofer Berggren
+// Copyright (c) 2020-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -45,6 +45,7 @@ public:
   virtual std::string GetProfileId() const = 0;
   virtual std::string GetProfileDisplayName() const = 0;
   virtual bool HasFeature(ProtocolFeature p_ProtocolFeature) const = 0;
+  virtual bool IsGroupChat(const std::string& p_ChatId) const = 0;
   virtual std::string GetSelfId() const = 0;
 
   virtual bool SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId) = 0;
@@ -89,6 +90,7 @@ enum MessageType
   GetUnreadReactionsRequestType,
   ReinitRequestType,
   FindMessageRequestType,
+  GetGroupMembersRequestType,
   // Service messages
   ServiceMessageType,
   NewContactsNotifyType,
@@ -113,6 +115,7 @@ enum MessageType
   AvailableReactionsNotifyType,
   FindMessageNotifyType,
   UpdatePinNotifyType,
+  NewGroupMembersNotifyType,
 };
 
 struct ContactInfo
@@ -186,6 +189,7 @@ struct ChatMessage
   std::string quotedSender;
   std::string fileInfo;
   std::string link; // only required for tgchat, sponsored msg, not db cached
+  std::map<std::string, std::string> mentions; // displayName -> userId, not db cached
   Reactions reactions;
   int64_t timeSent = -1;
   bool isOutgoing = true;
@@ -409,6 +413,13 @@ public:
   std::string lastMsgId;
   std::string findText;
   std::string findMsgId;
+};
+
+class GetGroupMembersRequest : public RequestMessage
+{
+public:
+  virtual MessageType GetMessageType() const { return GetGroupMembersRequestType; }
+  std::string chatId;
 };
 
 // Service messages
@@ -663,4 +674,14 @@ public:
   std::string chatId;
   bool isPinned;
   int64_t timePinned = -1;
+};
+
+class NewGroupMembersNotify : public ServiceMessage
+{
+public:
+  explicit NewGroupMembersNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
+  virtual MessageType GetMessageType() const { return NewGroupMembersNotifyType; }
+  std::string chatId;
+  std::vector<ContactInfo> contactInfos;
 };

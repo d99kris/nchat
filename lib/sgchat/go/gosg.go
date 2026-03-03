@@ -44,7 +44,7 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
-var signalDate int = 20260129
+var signalDate int = 20260216
 
 type State int64
 
@@ -684,7 +684,6 @@ func ProcessBackupFormattedText(connId int, text string, bodyRanges []*backuppb.
 	return text
 }
 
-
 func ParseMarkdown(text string) (string, []*signalpb.BodyRange) {
 	type markerPair struct {
 		openByte  int
@@ -779,6 +778,138 @@ func ParseMarkdown(text string) (string, []*signalpb.BodyRange) {
 	}
 
 	return strippedText, bodyRanges
+}
+
+// ProcessMentionsForSend replaces @Name and @[Name] with U+FFFC in text
+// and returns the modified text plus BodyRanges for mentions.
+// Must be called AFTER ParseMarkdown since it works on the stripped text.
+func ProcessMentionsForSend(text string, mentionsJson string) (string, []*signalpb.BodyRange) {
+	if mentionsJson == "" || mentionsJson == "{}" {
+		return text, nil
+	}
+
+	var mentions map[string]string
+	if err := json.Unmarshal([]byte(mentionsJson), &mentions); err != nil {
+		LOG_WARNING(fmt.Sprintf("unmarshal mentions err %#v", err))
+		return text, nil
+	}
+
+	var mentionRanges []*signalpb.BodyRange
+
+	// Process mentions in reverse order of position to keep offsets valid
+	type mentionPos struct {
+		byteStart int
+		byteEnd   int
+		name      string
+		userId    string
+	}
+	var positions []mentionPos
+
+	pos := 0
+	for pos < len(text) {
+		atIdx := strings.Index(text[pos:], "@")
+		if atIdx == -1 {
+			break
+		}
+		atIdx += pos
+
+		var name, userId string
+		var fullEnd int
+
+		if atIdx+1 < len(text) && text[atIdx+1] == '[' {
+			// @[Name With Spaces] pattern
+			closeBracket := strings.Index(text[atIdx+2:], "]")
+			if closeBracket != -1 {
+				closeBracket += atIdx + 2
+				candidate := text[atIdx+2 : closeBracket]
+				if uid, ok := mentions[candidate]; ok {
+					name = candidate
+					userId = uid
+					fullEnd = closeBracket + 1
+				}
+			}
+		}
+
+		if name == "" && atIdx+1 < len(text) {
+			// @Name pattern
+			end := atIdx + 1
+			for end < len(text) && text[end] != ' ' && text[end] != '\n' && text[end] != '\t' && text[end] != '@' {
+				end++
+			}
+			if end > atIdx+1 {
+				candidate := text[atIdx+1 : end]
+				if uid, ok := mentions[candidate]; ok {
+					name = candidate
+					userId = uid
+					fullEnd = end
+				} else {
+					// Trim trailing punctuation and retry
+					trimmed := strings.TrimRight(candidate, ".,!?:;")
+					if trimmed != candidate {
+						if uid2, ok2 := mentions[trimmed]; ok2 {
+							name = trimmed
+							userId = uid2
+							fullEnd = atIdx + 1 + len(trimmed)
+						}
+					}
+				}
+			}
+		}
+
+		if name != "" {
+			positions = append(positions, mentionPos{
+				byteStart: atIdx,
+				byteEnd:   fullEnd,
+				name:      name,
+				userId:    userId,
+			})
+			pos = fullEnd
+		} else {
+			pos = atIdx + 1
+		}
+	}
+
+	// Build result string forward, computing UTF-16 offsets as we go
+	var result strings.Builder
+	utf16Pos := 0
+	prevEnd := 0
+
+	for _, mp := range positions {
+		// Append text between previous mention and this one
+		between := text[prevEnd:mp.byteStart]
+		result.WriteString(between)
+		for _, r := range between {
+			if r >= 0x10000 {
+				utf16Pos += 2
+			} else {
+				utf16Pos++
+			}
+		}
+
+		// Record UTF-16 offset, then append U+FFFC replacement
+		startU32 := uint32(utf16Pos)
+		lengthU32 := uint32(1) // U+FFFC is 1 UTF-16 code unit
+		mentionRanges = append(mentionRanges, &signalpb.BodyRange{
+			Start:  &startU32,
+			Length: &lengthU32,
+			AssociatedValue: &signalpb.BodyRange_MentionAci{
+				MentionAci: mp.userId,
+			},
+		})
+		result.WriteString("\uFFFC")
+		utf16Pos++ // U+FFFC is 1 UTF-16 code unit
+
+		LOG_TRACE(fmt.Sprintf("mention %q userId=%s utf16Offset=%d", mp.name, mp.userId, startU32))
+		prevEnd = mp.byteEnd
+	}
+
+	// Append remaining text after last mention
+	result.WriteString(text[prevEnd:])
+	text = result.String()
+
+	LOG_TRACE(fmt.Sprintf("ProcessMentionsForSend result: %d mentions, textLen=%d", len(mentionRanges), len(text)))
+
+	return text, mentionRanges
 }
 
 func SliceIndex(list []string, value string, defaultValue int) int {
@@ -1187,7 +1318,7 @@ func (handler *SgEventHandler) handleGroupChange(chatId string, senderId string,
 			if actions.GetModifyAvatar() != nil {
 				texts = append(texts, "[Changed group avatar]")
 			}
-			if actions.GetModifyDisappearingMessagesTimer() != nil {
+			if actions.GetModifyDisappearingMessageTimer() != nil {
 				texts = append(texts, "[Changed disappearing messages timer]")
 			}
 			for _, a := range actions.GetModifyMemberRoles() {
@@ -1198,13 +1329,13 @@ func (handler *SgEventHandler) handleGroupChange(chatId string, senderId string,
 				name := GetContactName(connId, memberId)
 				texts = append(texts, "[Changed role for "+name+"]")
 			}
-			for range actions.GetAddPendingMembers() {
+			for range actions.GetAddMembersPendingProfileKey() {
 				texts = append(texts, "[Invited a member]")
 			}
-			for range actions.GetDeletePendingMembers() {
+			for range actions.GetDeleteMembersPendingProfileKey() {
 				texts = append(texts, "[Invitation revoked]")
 			}
-			for _, a := range actions.GetPromotePendingMembers() {
+			for _, a := range actions.GetPromoteMembersPendingProfileKey() {
 				memberId := ""
 				if gsp != nil {
 					memberId = decryptGroupMemberUUID(gsp, a.GetUserId())
@@ -1212,13 +1343,13 @@ func (handler *SgEventHandler) handleGroupChange(chatId string, senderId string,
 				name := GetContactName(connId, memberId)
 				texts = append(texts, "["+name+" accepted invite]")
 			}
-			for range actions.GetAddRequestingMembers() {
+			for range actions.GetAddMembersPendingAdminApproval() {
 				texts = append(texts, "[Member requested to join]")
 			}
-			for range actions.GetDeleteRequestingMembers() {
+			for range actions.GetDeleteMembersPendingAdminApproval() {
 				texts = append(texts, "[Join request denied]")
 			}
-			for _, a := range actions.GetPromoteRequestingMembers() {
+			for _, a := range actions.GetPromoteMembersPendingAdminApproval() {
 				memberId := ""
 				if gsp != nil {
 					memberId = decryptGroupMemberUUID(gsp, a.GetUserId())
@@ -1367,6 +1498,9 @@ func (handler *SgEventHandler) handleContactList(evt *events.ContactList) bool {
 		}
 		if name == "" {
 			name = contact.E164
+		}
+		if name == "" {
+			continue
 		}
 		phone := contact.E164
 		isSelf := false
@@ -2083,7 +2217,7 @@ func SgGetMessages(connId int, chatId string, limit int, fromMsgId string, owner
 	return 0
 }
 
-func SgSendMessage(connId int, chatId string, text string, quotedId string, quotedText string, quotedSender string, filePath string, fileType string, editMsgId string, editMsgSent int) int {
+func SgSendMessage(connId int, chatId string, text string, quotedId string, quotedText string, quotedSender string, filePath string, fileType string, editMsgId string, editMsgSent int, mentionsJson string) int {
 	LOG_TRACE("send message " + strconv.Itoa(connId) + ", " + chatId + ", " + text + ", " + quotedId + ", " + filePath + ", " + editMsgId)
 
 	// sanity check arg
@@ -2126,9 +2260,11 @@ func SgSendMessage(connId int, chatId string, text string, quotedId string, quot
 		}
 
 		plainText, mdBodyRanges := ParseMarkdown(text)
+		plainText, mentionBodyRanges := ProcessMentionsForSend(plainText, mentionsJson)
 		dataMsg.Body = proto.String(plainText)
-		if len(mdBodyRanges) > 0 {
-			dataMsg.BodyRanges = mdBodyRanges
+		allBodyRanges := append(mdBodyRanges, mentionBodyRanges...)
+		if len(allBodyRanges) > 0 {
+			dataMsg.BodyRanges = allBodyRanges
 		}
 
 		editMsg := &signalpb.EditMessage{
@@ -2164,9 +2300,11 @@ func SgSendMessage(connId int, chatId string, text string, quotedId string, quot
 		// Set body
 		if text != "" {
 			plainText, mdBodyRanges := ParseMarkdown(text)
+			plainText, mentionBodyRanges := ProcessMentionsForSend(plainText, mentionsJson)
 			dataMsg.Body = proto.String(plainText)
-			if len(mdBodyRanges) > 0 {
-				dataMsg.BodyRanges = mdBodyRanges
+			allBodyRanges := append(mdBodyRanges, mentionBodyRanges...)
+			if len(allBodyRanges) > 0 {
+				dataMsg.BodyRanges = allBodyRanges
 			}
 		}
 
@@ -2241,6 +2379,62 @@ func SgSendMessage(connId int, chatId string, text string, quotedId string, quot
 	}
 
 	LOG_TRACE("send message ok")
+	return 0
+}
+
+func SgGetGroupMembers(connId int, chatId string) int {
+	LOG_TRACE("get group members " + strconv.Itoa(connId) + ", " + chatId)
+
+	client := GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return -1
+	}
+
+	ctx := context.TODO()
+
+	// In Signal, groups use GroupIdentifier as chatId
+	recipientUUID := StringToUUID(chatId)
+	if recipientUUID != uuid.Nil {
+		LOG_WARNING("not a group chat")
+		return -1
+	}
+
+	groupID := types.GroupIdentifier(chatId)
+	group, _, err := client.RetrieveGroupByID(ctx, groupID, 0)
+	if err != nil {
+		LOG_WARNING(fmt.Sprintf("retrieve group error: %v", err))
+		return -1
+	}
+
+	if group == nil {
+		LOG_WARNING("group is nil")
+		return -1
+	}
+
+	type MemberInfo struct {
+		Id   string `json:"id"`
+		Name string `json:"name"`
+	}
+	var members []MemberInfo
+	for _, member := range group.Members {
+		memberId := UUIDToString(member.ACI)
+		memberName := ""
+		mx.Lock()
+		if n, ok := contacts[connId][memberId]; ok {
+			memberName = n
+		}
+		mx.Unlock()
+		members = append(members, MemberInfo{Id: memberId, Name: memberName})
+	}
+
+	membersJsonBytes, jsonErr := json.Marshal(members)
+	if jsonErr != nil {
+		LOG_WARNING(fmt.Sprintf("marshal group members err %#v", jsonErr))
+		return -1
+	}
+	CSgNewGroupMembersNotify(connId, chatId, string(membersJsonBytes))
+
 	return 0
 }
 

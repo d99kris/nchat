@@ -34,7 +34,7 @@ set(LIB "libcgosg${CMAKE_SHARED_LIBRARY_SUFFIX}")
 
 # Option to build libsignal_ffi from source instead of downloading
 option(BUILD_LIBSIGNAL "Build libsignal_ffi from source" ON)
-set(LIBSIGNAL_BUILD_REF "f5f6456c03c3266092609c838b28ab205e9200ec" CACHE STRING "Git ref (branch, tag, or commit SHA) for libsignal_ffi.a download")
+set(LIBSIGNAL_BUILD_REF "878e78f72ece200cc6e8d195e19362831adca10b" CACHE STRING "Git ref (branch, tag, or commit SHA) for libsignal_ffi.a download")
 
 set(LIBSIGNAL_FFI_DIR ${CMAKE_CURRENT_BINARY_DIR}/libsignal)
 set(LIBSIGNAL_FFI_FILE ${LIBSIGNAL_FFI_DIR}/libsignal_ffi.a)

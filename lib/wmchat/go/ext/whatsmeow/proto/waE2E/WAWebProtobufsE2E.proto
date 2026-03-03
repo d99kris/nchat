@@ -2,7 +2,7 @@ syntax = "proto2";
 package WAWebProtobufsE2E;
 option go_package = "go.mau.fi/whatsmeow/proto/waE2E";
 
-import "waAICommon/WAAICommon.proto";
+import "waAICommon/WAWebProtobufsAICommon.proto";
 import "waAdv/WAAdv.proto";
 import "waCompanionReg/WACompanionReg.proto";
 import "waMmsRetry/WAMmsRetry.proto";
@@ -48,11 +48,9 @@ enum HistorySyncType {
 }
 
 enum MediaKeyDomain {
-	UNSET = 0;
-	E2EE_CHAT = 1;
-	STATUS = 2;
-	CAPI = 3;
-	BOT = 4;
+	MEDIA_KEY_DOMAIN_UNKNOWN = 0;
+	MEDIA_KEY_DOMAIN_E2EE = 1;
+	MEDIA_KEY_DOMAIN_NON_E2EE = 2;
 }
 
 enum WebLinkRenderConfig {
@@ -80,6 +78,7 @@ message StickerPackMessage {
 		optional string accessibilityLabel = 4;
 		optional bool isLottie = 5;
 		optional string mimetype = 6;
+		optional int32 premium = 7;
 	}
 
 	optional string stickerPackID = 1;
@@ -283,12 +282,15 @@ message SecretEncryptedMessage {
 		UNKNOWN = 0;
 		EVENT_EDIT = 1;
 		MESSAGE_EDIT = 2;
+		MESSAGE_SCHEDULE = 3;
+		POLL_EDIT = 4;
 	}
 
 	optional WACommon.MessageKey targetMessageKey = 1;
 	optional bytes encPayload = 2;
 	optional bytes encIV = 3;
 	optional SecretEncType secretEncType = 4;
+	optional string remoteKeyID = 5;
 }
 
 message GroupInviteMessage {
@@ -375,6 +377,12 @@ message InteractiveMessage {
 		optional int32 messageVersion = 3;
 	}
 
+	message BloksWidget {
+		optional string uuid = 1;
+		optional string data = 2;
+		optional string type = 3;
+	}
+
 	message Footer {
 		oneof media {
 			AudioMessage audioMessage = 2;
@@ -401,6 +409,7 @@ message InteractiveMessage {
 		optional string title = 1;
 		optional string subtitle = 2;
 		optional bool hasMediaAttachment = 5;
+		optional BloksWidget bloksWidget = 10;
 	}
 
 	oneof interactiveMessage {
@@ -413,6 +422,7 @@ message InteractiveMessage {
 	optional Header header = 1;
 	optional Body body = 2;
 	optional Footer footer = 3;
+	optional BloksWidget bloksWidget = 8;
 	optional ContextInfo contextInfo = 15;
 	optional UrlTrackingMap urlTrackingMap = 16;
 }
@@ -532,6 +542,7 @@ message PaymentInviteMessage {
 	optional ServiceType serviceType = 1;
 	optional int64 expiryTimestamp = 2;
 	optional bool incentiveEligible = 3;
+	optional string referralID = 4;
 }
 
 message HighlyStructuredMessage {
@@ -617,6 +628,19 @@ message PeerDataOperationRequestResponseMessage {
 			ERROR_HOSTED_DEVICE_LOGIN_TIME_NOT_SET = 6;
 		}
 
+		message FlowResponsesCsvBundle {
+			optional string flowID = 1;
+			optional string galaxyFlowDownloadRequestID = 2;
+			optional string fileName = 3;
+			optional string mimetype = 4;
+			optional bytes fileSHA256 = 5;
+			optional bytes mediaKey = 6;
+			optional bytes fileEncSHA256 = 7;
+			optional string directPath = 8;
+			optional int64 mediaKeyTimestamp = 9;
+			optional uint64 fileLength = 10;
+		}
+
 		message HistorySyncChunkRetryResponse {
 			optional HistorySyncType syncType = 1;
 			optional uint32 chunkOrder = 2;
@@ -658,6 +682,9 @@ message PeerDataOperationRequestResponseMessage {
 			message PaymentLinkPreviewMetadata {
 				optional bool isBusinessVerified = 1;
 				optional string providerName = 2;
+				optional string amount = 3;
+				optional string offset = 4;
+				optional string currency = 5;
 			}
 
 			message LinkPreviewHighQualityThumbnail {
@@ -690,6 +717,7 @@ message PeerDataOperationRequestResponseMessage {
 		optional SyncDSnapshotFatalRecoveryResponse syncdSnapshotFatalRecoveryResponse = 8;
 		optional CompanionCanonicalUserNonceFetchResponse companionCanonicalUserNonceFetchRequestResponse = 9;
 		optional HistorySyncChunkRetryResponse historySyncChunkRetryResponse = 10;
+		optional FlowResponsesCsvBundle flowResponsesCsvBundle = 11;
 	}
 
 	optional PeerDataOperationRequestType peerDataOperationRequestType = 1;
@@ -701,11 +729,18 @@ message PeerDataOperationRequestMessage {
 	message GalaxyFlowAction {
 		enum GalaxyFlowActionType {
 			NOTIFY_LAUNCH = 1;
+			DOWNLOAD_RESPONSES = 2;
 		}
 
 		optional GalaxyFlowActionType type = 1;
 		optional string flowID = 2;
 		optional string stanzaID = 3;
+		optional string galaxyFlowDownloadRequestID = 4;
+		optional string agmID = 5;
+	}
+
+	message CompanionCanonicalUserNonceFetchRequest {
+		optional string registrationTraceID = 1;
 	}
 
 	message HistorySyncChunkRetryRequest {
@@ -727,6 +762,7 @@ message PeerDataOperationRequestMessage {
 	message FullHistorySyncOnDemandRequest {
 		optional FullHistorySyncOnDemandRequestMetadata requestMetadata = 1;
 		optional WACompanionReg.DeviceProps.HistorySyncConfig historySyncConfig = 2;
+		optional FullHistorySyncOnDemandConfig fullHistorySyncOnDemandConfig = 3;
 	}
 
 	message HistorySyncOnDemandRequest {
@@ -756,15 +792,22 @@ message PeerDataOperationRequestMessage {
 	optional SyncDCollectionFatalRecoveryRequest syncdCollectionFatalRecoveryRequest = 7;
 	optional HistorySyncChunkRetryRequest historySyncChunkRetryRequest = 8;
 	optional GalaxyFlowAction galaxyFlowAction = 9;
+	optional CompanionCanonicalUserNonceFetchRequest companionCanonicalUserNonceFetchRequest = 10;
 }
 
 message RequestWelcomeMessageMetadata {
+	enum WelcomeTrigger {
+		CHAT_OPEN = 0;
+		COMPANION_PAIRING = 1;
+	}
+
 	enum LocalChatState {
 		EMPTY = 0;
 		NON_EMPTY = 1;
 	}
 
 	optional LocalChatState localChatState = 1;
+	optional WelcomeTrigger welcomeTrigger = 2;
 }
 
 message ProtocolMessage {
@@ -795,6 +838,8 @@ message ProtocolMessage {
 		AI_PSI_METADATA = 28;
 		AI_QUERY_FANOUT = 29;
 		GROUP_MEMBER_LABEL_CHANGE = 30;
+		AI_MEDIA_COLLECTION_MESSAGE = 31;
+		MESSAGE_UNSCHEDULE = 32;
 	}
 
 	optional WACommon.MessageKey key = 1;
@@ -811,7 +856,7 @@ message ProtocolMessage {
 	optional int64 timestampMS = 15;
 	optional PeerDataOperationRequestMessage peerDataOperationRequestMessage = 16;
 	optional PeerDataOperationRequestResponseMessage peerDataOperationRequestResponseMessage = 17;
-	optional WAAICommon.BotFeedbackMessage botFeedbackMessage = 18;
+	optional WAWebProtobufsAICommon.BotFeedbackMessage botFeedbackMessage = 18;
 	optional string invokerJID = 19;
 	optional RequestWelcomeMessageMetadata requestWelcomeMessageMetadata = 20;
 	optional MediaNotifyMessage mediaNotifyMessage = 21;
@@ -821,6 +866,8 @@ message ProtocolMessage {
 	optional bytes aiPsiMetadata = 25;
 	optional AIQueryFanout aiQueryFanout = 26;
 	optional MemberLabel memberLabel = 27;
+	optional WAWebProtobufsAICommon.AIMediaCollectionMessage aiMediaCollectionMessage = 28;
+	optional uint32 afterReadDurationMS = 29;
 }
 
 message CloudAPIThreadControlNotification {
@@ -886,7 +933,6 @@ message VideoMessage {
 	optional uint64 motionPhotoPresentationOffsetMS = 29;
 	optional string metadataURL = 30;
 	optional VideoSourceType videoSourceType = 31;
-	optional MediaKeyDomain mediaKeyDomain = 32;
 }
 
 message ExtendedTextMessage {
@@ -1063,7 +1109,6 @@ message ImageMessage {
 	repeated InteractiveAnnotation annotations = 30;
 	optional ImageSourceType imageSourceType = 31;
 	optional string accessibilityLabel = 32;
-	optional MediaKeyDomain mediaKeyDomain = 33;
 	optional string qrURL = 34;
 }
 
@@ -1118,6 +1163,8 @@ message ContextInfo {
 		}
 
 		optional AudienceType audienceType = 1;
+		optional string listName = 2;
+		optional string listEmoji = 3;
 	}
 
 	message DataSharingContext {
@@ -1209,6 +1256,10 @@ message ContextInfo {
 		optional string caption = 17;
 	}
 
+	message PartiallySelectedContent {
+		optional string text = 1;
+	}
+
 	message FeatureEligibilities {
 		optional bool cannotBeReactedTo = 1;
 		optional bool cannotBeRanked = 2;
@@ -1271,7 +1322,7 @@ message ContextInfo {
 	optional string entryPointConversionExternalMedium = 51;
 	optional string ctwaSignals = 54;
 	optional bytes ctwaPayload = 55;
-	optional WAAICommon.ForwardedAIBotMessageInfo forwardedAiBotMessageInfo = 56;
+	optional WAWebProtobufsAICommon.ForwardedAIBotMessageInfo forwardedAiBotMessageInfo = 56;
 	optional StatusAttributionType statusAttributionType = 57;
 	optional UrlTrackingMap urlTrackingMap = 58;
 	optional PairedMediaType pairedMediaType = 59;
@@ -1286,7 +1337,11 @@ message ContextInfo {
 	optional StatusAudienceMetadata statusAudienceMetadata = 69;
 	optional uint32 nonJIDMentions = 70;
 	optional QuotedType quotedType = 71;
-	optional WAAICommon.BotMessageSharingInfo botMessageSharingInfo = 72;
+	optional WAWebProtobufsAICommon.BotMessageSharingInfo botMessageSharingInfo = 72;
+	optional bool isSpoiler = 73;
+	optional MediaDomainInfo mediaDomainInfo = 74;
+	optional PartiallySelectedContent partiallySelectedContent = 75;
+	optional uint32 afterReadDurationMS = 76;
 }
 
 message MessageAssociation {
@@ -1341,7 +1396,7 @@ message MessageContextInfo {
 	optional bytes paddingBytes = 4;
 	optional uint32 messageAddOnDurationInSecs = 5;
 	optional bytes botMessageSecret = 6;
-	optional WAAICommon.BotMetadata botMetadata = 7;
+	optional WAWebProtobufsAICommon.BotMetadata botMetadata = 7;
 	optional int32 reportingTokenVersion = 8;
 	optional MessageAddonExpiryType messageAddOnExpiryType = 9;
 	optional MessageAssociation messageAssociation = 10;
@@ -1571,6 +1626,8 @@ message Message {
 	optional PollResultSnapshotMessage pollResultSnapshotMessageV3 = 115;
 	optional FutureProofMessage newsletterAdminProfileMessage = 116;
 	optional FutureProofMessage newsletterAdminProfileMessageV2 = 117;
+	optional FutureProofMessage spoilerMessage = 118;
+	optional FutureProofMessage pollCreationMessageV6 = 119;
 }
 
 message AlbumMessage {
@@ -1583,6 +1640,7 @@ message MessageHistoryMetadata {
 	repeated string historyReceivers = 1;
 	optional int64 oldestMessageTimestamp = 2;
 	optional int64 messageCount = 3;
+	repeated string nonHistoryReceivers = 4;
 }
 
 message MessageHistoryNotice {
@@ -1700,6 +1758,8 @@ message PollCreationMessage {
 	optional PollContentType pollContentType = 6;
 	optional PollType pollType = 7;
 	optional Option correctAnswer = 8;
+	optional int64 endTime = 9;
+	optional bool hideParticipantName = 10;
 }
 
 message StickerSyncRMRMessage {
@@ -1847,7 +1907,7 @@ message StickerMessage {
 	optional bool isAiSticker = 20;
 	optional bool isLottie = 21;
 	optional string accessibilityLabel = 22;
-	optional MediaKeyDomain mediaKeyDomain = 23;
+	optional int32 premium = 24;
 }
 
 message LiveLocationMessage {
@@ -1898,8 +1958,15 @@ message InitialSecurityNotificationSettingSync {
 	optional bool securityNotificationEnabled = 1;
 }
 
+message FullHistorySyncOnDemandConfig {
+	optional uint64 historyFromTimestamp = 1;
+	optional uint32 historyDurationDays = 2;
+}
+
 message FullHistorySyncOnDemandRequestMetadata {
 	optional string requestID = 1;
+	optional string businessProduct = 2;
+	optional bytes opaqueClientData = 3;
 }
 
 message AppStateFatalExceptionNotification {
@@ -1974,6 +2041,7 @@ message Call {
 	optional string nativeFlowCallButtonPayload = 8;
 	optional string deeplinkPayload = 9;
 	optional MessageContextInfo messageContextInfo = 10;
+	optional uint32 callEntryPoint = 11;
 }
 
 message AudioMessage {
@@ -1993,7 +2061,6 @@ message AudioMessage {
 	optional fixed32 backgroundArgb = 20;
 	optional bool viewOnce = 21;
 	optional string accessibilityLabel = 22;
-	optional MediaKeyDomain mediaKeyDomain = 23;
 }
 
 message DocumentMessage {
@@ -2018,7 +2085,6 @@ message DocumentMessage {
 	optional uint32 thumbnailWidth = 19;
 	optional string caption = 20;
 	optional string accessibilityLabel = 21;
-	optional MediaKeyDomain mediaKeyDomain = 22;
 }
 
 message URLMetadata {
@@ -2038,7 +2104,6 @@ message MMSThumbnailMetadata {
 	optional int64 mediaKeyTimestamp = 5;
 	optional uint32 thumbnailHeight = 6;
 	optional uint32 thumbnailWidth = 7;
-	optional MediaKeyDomain mediaKeyDomain = 8;
 }
 
 message LocationMessage {
@@ -2073,6 +2138,11 @@ message VideoEndCard {
 	required string caption = 2;
 	required string thumbnailImageURL = 3;
 	required string profilePictureURL = 4;
+}
+
+message MediaDomainInfo {
+	optional MediaKeyDomain mediaKeyDomain = 1;
+	optional bytes e2EeMediaKey = 2;
 }
 
 message DeviceListMetadata {
@@ -2207,9 +2277,9 @@ message MemberLabel {
 }
 
 message AIRichResponseMessage {
-	optional WAAICommon.AIRichResponseMessageType messageType = 1;
-	repeated WAAICommon.AIRichResponseSubMessage submessages = 2;
-	optional WAAICommon.AIRichResponseUnifiedResponse unifiedResponse = 3;
+	optional WAWebProtobufsAICommon.AIRichResponseMessageType messageType = 1;
+	repeated WAWebProtobufsAICommon.AIRichResponseSubMessage submessages = 2;
+	optional WAWebProtobufsAICommon.AIRichResponseUnifiedResponse unifiedResponse = 3;
 	optional ContextInfo contextInfo = 4;
 }
 

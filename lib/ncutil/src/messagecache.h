@@ -1,6 +1,6 @@
 // messagecache.h
 //
-// Copyright (c) 2020-2025 Kristofer Berggren
+// Copyright (c) 2020-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -45,6 +45,8 @@ private:
     UpdateMessageReactionsRequestType,
     UpdateMuteRequestType,
     UpdatePinRequestType,
+    AddGroupMembersRequestType,
+    FetchGroupMembersRequestType,
   };
 
   class Request
@@ -194,6 +196,23 @@ private:
     int64_t timePinned = -1;
   };
 
+  class AddGroupMembersRequest : public Request
+  {
+  public:
+    virtual RequestType GetRequestType() const { return AddGroupMembersRequestType; }
+    std::string profileId;
+    std::string chatId;
+    std::vector<std::string> memberIds;
+  };
+
+  class FetchGroupMembersRequest : public Request
+  {
+  public:
+    virtual RequestType GetRequestType() const { return FetchGroupMembersRequestType; }
+    std::string profileId;
+    std::string chatId;
+  };
+
 public:
   static void Init();
   static void Cleanup();
@@ -232,6 +251,10 @@ public:
   static void UpdateMute(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_IsMuted);
   static void UpdatePin(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_IsPinned,
                         int64_t p_TimePinned);
+  static void AddGroupMembers(const std::string& p_ProfileId, const std::string& p_ChatId,
+                              const std::vector<std::string>& p_MemberIds);
+  static void FetchGroupMembers(const std::string& p_ProfileId, const std::string& p_ChatId);
+  static std::vector<ContactInfo> FetchGroupMembersSync(const std::string& p_ProfileId, const std::string& p_ChatId);
   static void Export(const std::string& p_ExportDir);
 
 private:

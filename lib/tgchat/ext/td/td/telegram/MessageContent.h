@@ -281,6 +281,9 @@ td_api::object_ptr<td_api::MessageContent> get_message_content_object(
 td_api::object_ptr<td_api::upgradeGiftResult> get_message_content_upgrade_gift_result_object(
     const MessageContent *content, Td *td, DialogId dialog_id, MessageId message_id);
 
+td_api::object_ptr<td_api::CraftGiftResult> get_message_content_craft_gift_result_object(const MessageContent *content,
+                                                                                         Td *td, MessageId message_id);
+
 FormattedText *get_message_content_text_mutable(MessageContent *content);
 
 const FormattedText *get_message_content_text(const MessageContent *content);
@@ -321,6 +324,10 @@ StoryFullId get_message_content_story_full_id(const Td *td, const MessageContent
 
 string get_message_content_search_text(const Td *td, const MessageContent *content);
 
+int64 get_message_content_stake_ton_count(const MessageContent *content);
+
+int64 get_message_content_prize_ton_count(const MessageContent *content);
+
 bool update_message_content_extended_media(
     MessageContent *content, vector<telegram_api::object_ptr<telegram_api::MessageExtendedMedia>> extended_media,
     DialogId owner_dialog_id, Td *td);
@@ -345,7 +352,8 @@ void update_expired_message_content(unique_ptr<MessageContent> &content);
 
 void update_failed_to_send_message_content(Td *td, unique_ptr<MessageContent> &content);
 
-void add_message_content_dependencies(Dependencies &dependencies, const MessageContent *message_content, bool is_bot);
+void add_message_content_dependencies(Dependencies &dependencies, const MessageContent *message_content,
+                                      UserId my_user_id, bool is_bot);
 
 void update_forum_topic_info_by_service_message_content(Td *td, const MessageContent *content, DialogId dialog_id,
                                                         ForumTopicId forum_topic_id);

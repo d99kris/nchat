@@ -7,6 +7,7 @@
 #pragma once
 
 #include "td/telegram/StarGiftAttribute.h"
+#include "td/telegram/StarGiftAttributeRarity.hpp"
 #include "td/telegram/StickersManager.h"
 #include "td/telegram/StickersManager.hpp"
 #include "td/telegram/Td.h"
@@ -22,20 +23,22 @@ void StarGiftAttributeSticker::store(StorerT &storer) const {
   CHECK(is_valid());
   Td *td = storer.context()->td().get_actor_unsafe();
   BEGIN_STORE_FLAGS();
+  STORE_FLAG(is_crafted_);
   END_STORE_FLAGS();
   td::store(name_, storer);
   td->stickers_manager_->store_sticker(sticker_file_id_, false, storer, "StarGiftAttributeSticker");
-  td::store(rarity_permille_, storer);
+  td::store(rarity_, storer);
 }
 
 template <class ParserT>
 void StarGiftAttributeSticker::parse(ParserT &parser) {
   Td *td = parser.context()->td().get_actor_unsafe();
   BEGIN_PARSE_FLAGS();
+  PARSE_FLAG(is_crafted_);
   END_PARSE_FLAGS();
   td::parse(name_, parser);
   sticker_file_id_ = td->stickers_manager_->parse_sticker(false, parser);
-  td::parse(rarity_permille_, parser);
+  td::parse(rarity_, parser);
 }
 
 template <class StorerT>
@@ -50,7 +53,7 @@ void StarGiftAttributeBackdrop::store(StorerT &storer) const {
   td::store(edge_color_, storer);
   td::store(pattern_color_, storer);
   td::store(text_color_, storer);
-  td::store(rarity_permille_, storer);
+  td::store(rarity_, storer);
   if (has_id) {
     td::store(id_, storer);
   }
@@ -67,7 +70,7 @@ void StarGiftAttributeBackdrop::parse(ParserT &parser) {
   td::parse(edge_color_, parser);
   td::parse(pattern_color_, parser);
   td::parse(text_color_, parser);
-  td::parse(rarity_permille_, parser);
+  td::parse(rarity_, parser);
   if (has_id) {
     td::parse(id_, parser);
   }

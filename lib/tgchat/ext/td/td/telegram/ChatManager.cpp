@@ -3848,7 +3848,7 @@ bool ChatManager::can_get_channel_message_statistics(ChannelId channel_id) const
     return false;
   }
 
-  auto channel_full = get_channel_full(channel_id);
+  auto channel_full = get_channel_full_const(channel_id);
   if (channel_full != nullptr) {
     return channel_full->stats_dc_id.is_exact();
   }
@@ -3863,7 +3863,7 @@ bool ChatManager::can_get_channel_story_statistics(ChannelId channel_id) const {
     return false;
   }
 
-  auto channel_full = get_channel_full(channel_id);
+  auto channel_full = get_channel_full_const(channel_id);
   if (channel_full != nullptr) {
     return channel_full->stats_dc_id.is_exact();
   }
@@ -4038,9 +4038,8 @@ void ChatManager::return_created_public_dialogs(Promise<td_api::object_ptr<td_ap
     return;
   }
 
-  auto total_count = narrow_cast<int32>(channel_ids.size());
-  promise.set_value(td_api::make_object<td_api::chats>(
-      total_count, transform(channel_ids, [](ChannelId channel_id) { return DialogId(channel_id).get(); })));
+  promise.set_value(td_->dialog_manager_->get_chats_object(-1, DialogId::get_dialog_ids(channel_ids),
+                                                           "return_created_public_dialogs"));
 }
 
 bool ChatManager::is_suitable_discussion_chat(const Chat *c) {
@@ -4294,7 +4293,7 @@ void ChatManager::update_dialogs_for_discussion(DialogId dialog_id, bool is_suit
 vector<DialogId> ChatManager::get_inactive_channels(Promise<Unit> &&promise) {
   if (inactive_channel_ids_inited_) {
     promise.set_value(Unit());
-    return transform(inactive_channel_ids_, [&](ChannelId channel_id) { return DialogId(channel_id); });
+    return DialogId::get_dialog_ids(inactive_channel_ids_);
   }
 
   td_->create_handler<GetInactiveChannelsQuery>(std::move(promise))->send();
@@ -4899,8 +4898,8 @@ void ChatManager::on_load_channel_from_database(ChannelId channel_id, string val
               c->monoforum_channel_id, true,
               PromiseCreator::lambda([promise = std::move(promise)](Unit) mutable { promise.set_value(Unit()); }));
         }
+        return;
       }
-      return;
     }
   }
   set_promises(promises);
@@ -5059,13 +5058,14 @@ string ChatManager::get_channel_full_database_value(const ChannelFull *channel_f
   return log_event_store(*channel_full).as_slice().str();
 }
 
-void ChatManager::on_load_channel_full_from_database(ChannelId channel_id, string value, const char *source) {
+void ChatManager::on_load_channel_full_from_database(ChannelId channel_id, string value, const char *source,
+                                                     bool is_recursive) {
   LOG(INFO) << "Successfully loaded full " << channel_id << " of size " << value.size() << " from database from "
             << source;
   //  G()->td_db()->get_sqlite_pmc()->erase(get_channel_full_database_key(channel_id), Auto());
   //  return;
 
-  if (get_channel_full(channel_id, true, "on_load_channel_full_from_database") != nullptr || value.empty()) {
+  if (get_channel_full_const(channel_id) != nullptr || value.empty()) {
     return;
   }
 
@@ -5163,10 +5163,19 @@ void ChatManager::on_load_channel_full_from_database(ChannelId channel_id, strin
   if (channel_full->expires_at == 0.0) {
     load_channel_full(channel_id, true, Auto(), "on_load_channel_full_from_database");
   }
+
+  auto monoforum_channel_id = channel_full->monoforum_channel_id;
+  if (monoforum_channel_id.is_valid() && get_channel_full_const(monoforum_channel_id) == nullptr) {
+    if (is_recursive ||
+        get_channel_full_force(monoforum_channel_id, true, "on_load_channel_full_from_database", true) == nullptr) {
+      LOG(INFO) << "Can't find full " << monoforum_channel_id << " from full " << channel_id;
+      reload_channel_full(monoforum_channel_id, Promise<Unit>(), "on_load_channel_full_from_database");
+    }
+  }
 }
 
-ChatManager::ChannelFull *ChatManager::get_channel_full_force(ChannelId channel_id, bool only_local,
-                                                              const char *source) {
+ChatManager::ChannelFull *ChatManager::get_channel_full_force(ChannelId channel_id, bool only_local, const char *source,
+                                                              bool is_recursive) {
   if (!have_channel_force(channel_id, source)) {
     return nullptr;
   }
@@ -5184,7 +5193,8 @@ ChatManager::ChannelFull *ChatManager::get_channel_full_force(ChannelId channel_
 
   LOG(INFO) << "Trying to load full " << channel_id << " from database from " << source;
   on_load_channel_full_from_database(
-      channel_id, G()->td_db()->get_sqlite_sync_pmc()->get(get_channel_full_database_key(channel_id)), source);
+      channel_id, G()->td_db()->get_sqlite_sync_pmc()->get(get_channel_full_database_key(channel_id)), source,
+      is_recursive);
   return get_channel_full(channel_id, only_local, source);
 }
 
@@ -5599,6 +5609,19 @@ void ChatManager::update_channel_full(ChannelFull *channel_full, ChannelId chann
     channel_full->is_slow_mode_next_send_date_changed = false;
   }
 
+  if (channel_full->is_photo_changed) {
+    if (channel_full->monoforum_channel_id.is_valid() && is_broadcast_channel(channel_id)) {
+      auto monoforum_channel_id = channel_full->monoforum_channel_id;
+      auto monoforum_channel_full = get_channel_full_const(monoforum_channel_id);
+      if (monoforum_channel_full != nullptr && monoforum_channel_full->is_update_channel_full_sent) {
+        send_closure(G()->td(), &Td::send_update,
+                     get_update_supergroup_full_info_object(monoforum_channel_id, monoforum_channel_full,
+                                                            "update_channel_full monoforum"));
+      }
+    }
+    channel_full->is_photo_changed = false;
+  }
+
   if (channel_full->need_save_to_database) {
     channel_full->is_changed |= td::remove_if(
         channel_full->bot_commands, [bot_user_ids = &channel_full->bot_user_ids](const BotCommands &commands) {
@@ -5621,18 +5644,11 @@ void ChatManager::update_channel_full(ChannelFull *channel_full, ChannelId chann
                                                 true);
     }
 
-    {
-      Channel *c = get_channel(channel_id);
-      CHECK(c == nullptr || c->is_update_supergroup_sent);
-    }
     if (!channel_full->is_update_channel_full_sent) {
       LOG(ERROR) << "Send partial updateSupergroupFullInfo for " << channel_id << " from " << source;
       channel_full->is_update_channel_full_sent = true;
     }
-    send_closure(
-        G()->td(), &Td::send_update,
-        make_tl_object<td_api::updateSupergroupFullInfo>(get_supergroup_id_object(channel_id, "update_channel_full"),
-                                                         get_supergroup_full_info_object(channel_id, channel_full)));
+    send_closure(G()->td(), &Td::send_update, get_update_supergroup_full_info_object(channel_id, channel_full, source));
     channel_full->need_send_update = false;
   }
   if (channel_full->need_save_to_database) {
@@ -6120,6 +6136,13 @@ void ChatManager::on_get_chat_full(tl_object_ptr<telegram_api::ChatFull> &&chat_
 
     td_->suggested_action_manager_->set_dialog_pending_suggestions(DialogId(channel_id),
                                                                    std::move(channel->pending_suggestions_));
+
+    if (monoforum_channel_id.is_valid() && c->is_monoforum && get_channel_full_const(monoforum_channel_id) == nullptr) {
+      return reload_channel_full(
+          monoforum_channel_id,
+          PromiseCreator::lambda([promise = std::move(promise)](Unit) mutable { promise.set_value(Unit()); }),
+          "on_get_channel_full 3");
+    }
   }
   promise.set_value(Unit());
 }
@@ -6326,8 +6349,8 @@ bool ChatManager::on_get_channel_error(ChannelId channel_id, const Status &statu
     if (c->status.is_member()) {
       LOG(INFO) << "Emulate leaving " << channel_id;
       // TODO we also may try to write to a public channel
-      telegram_api::channelForbidden channel_forbidden(0, !c->is_megagroup, c->is_megagroup, channel_id.get(),
-                                                       c->access_hash, c->title, 0);
+      telegram_api::channelForbidden channel_forbidden(0, !c->is_megagroup, c->is_megagroup, c->is_monoforum,
+                                                       channel_id.get(), c->access_hash, c->title, 0);
       on_get_channel_forbidden(channel_forbidden, "CHANNEL_PRIVATE");
     } else if (!c->status.is_banned()) {
       if (!c->usernames.is_empty()) {
@@ -6581,6 +6604,7 @@ void ChatManager::on_update_channel_full_photo(ChannelFull *channel_full, Channe
   if (photo != channel_full->photo) {
     channel_full->photo = std::move(photo);
     channel_full->is_changed = true;
+    channel_full->is_photo_changed = true;
   }
 
   auto photo_file_ids = photo_get_file_ids(channel_full->photo);
@@ -6636,7 +6660,7 @@ void ChatManager::remove_linked_channel_id(ChannelId channel_id) {
 }
 
 ChannelId ChatManager::get_linked_channel_id(ChannelId channel_id) const {
-  auto channel_full = get_channel_full(channel_id);
+  auto channel_full = get_channel_full_const(channel_id);
   if (channel_full != nullptr) {
     return channel_full->linked_channel_id;
   }
@@ -7120,8 +7144,8 @@ void ChatManager::on_update_chat_default_permissions(ChatId chat_id, RestrictedR
   CHECK(c->version >= 0);
 
   if (version > c->version) {
-    // this should be unreachable, because version and default permissions must be already updated from
-    // the chat object in on_get_chat
+    // this should be unreachable unless the update was a short update, because version and
+    // default permissions must be already updated from the chat object in on_get_chat
     if (version != c->version + 1) {
       LOG(INFO) << "Default permissions of " << chat_id << " with version " << c->version
                 << " has changed, but new version is " << version;
@@ -7129,7 +7153,8 @@ void ChatManager::on_update_chat_default_permissions(ChatId chat_id, RestrictedR
       return;
     }
 
-    LOG_IF(ERROR, default_permissions == c->default_permissions)
+    // can happen when an administrator is assigned first time in an old basic group
+    LOG_IF(INFO, default_permissions == c->default_permissions)
         << "Receive updateChatDefaultBannedRights in " << chat_id << " with version " << version
         << " and default_permissions = " << default_permissions
         << ", but default_permissions are not changed. Current version is " << c->version;
@@ -7428,10 +7453,7 @@ void ChatManager::on_update_channel_photo(Channel *c, ChannelId channel_id, Dial
     if (invalidate_photo_cache) {
       auto channel_full = get_channel_full(channel_id, true, "on_update_channel_photo");  // must not load ChannelFull
       if (channel_full != nullptr) {
-        if (!channel_full->photo.is_empty()) {
-          channel_full->photo = Photo();
-          channel_full->is_changed = true;
-        }
+        on_update_channel_full_photo(channel_full, channel_id, Photo());
         if (c->photo.small_file_id.is_valid()) {
           if (channel_full->expires_at > 0.0) {
             channel_full->expires_at = 0.0;
@@ -7535,7 +7557,7 @@ void ChatManager::on_update_channel_status(Channel *c, ChannelId channel_id, Dia
 void ChatManager::on_channel_status_changed(Channel *c, ChannelId channel_id, const DialogParticipantStatus &old_status,
                                             const DialogParticipantStatus &new_status) {
   CHECK(c->is_update_supergroup_sent);
-  bool have_channel_full = get_channel_full(channel_id) != nullptr;
+  bool have_channel_full = get_channel_full_const(channel_id) != nullptr;
 
   if (old_status.can_post_stories() != new_status.can_post_stories()) {
     td_->story_manager_->update_dialogs_to_send_stories(channel_id, new_status.can_post_stories());
@@ -7597,7 +7619,7 @@ void ChatManager::on_channel_status_changed(Channel *c, ChannelId channel_id, co
   }
 
   // must not load ChannelFull, because must not change the Channel
-  CHECK(have_channel_full == (get_channel_full(channel_id) != nullptr));
+  CHECK(have_channel_full == (get_channel_full_const(channel_id) != nullptr));
 }
 
 void ChatManager::on_update_channel_default_permissions(Channel *c, ChannelId channel_id,
@@ -7846,14 +7868,14 @@ void ChatManager::on_update_channel_usernames(Channel *c, ChannelId channel_id, 
 
 void ChatManager::on_channel_usernames_changed(const Channel *c, ChannelId channel_id, const Usernames &old_usernames,
                                                const Usernames &new_usernames) {
-  bool have_channel_full = get_channel_full(channel_id) != nullptr;
+  bool have_channel_full = get_channel_full_const(channel_id) != nullptr;
   if (!old_usernames.has_first_username() || !new_usernames.has_first_username()) {
     // moving channel from private to public can change availability of chat members
     invalidate_channel_full(channel_id, !c->is_slow_mode_enabled, "on_channel_usernames_changed");
   }
 
   // must not load ChannelFull, because must not change the Channel
-  CHECK(have_channel_full == (get_channel_full(channel_id) != nullptr));
+  CHECK(have_channel_full == (get_channel_full_const(channel_id) != nullptr));
 }
 
 void ChatManager::on_update_channel_description(ChannelId channel_id, string &&description) {
@@ -8113,7 +8135,7 @@ FileSourceId ChatManager::get_channel_full_file_source_id(ChannelId channel_id) 
     return FileSourceId();
   }
 
-  auto channel_full = get_channel_full(channel_id);
+  auto channel_full = get_channel_full_const(channel_id);
   if (channel_full != nullptr) {
     VLOG(file_references) << "Don't need to create file source for full " << channel_id;
     // channel full was already added, source ID was registered and shouldn't be needed
@@ -8741,10 +8763,6 @@ void ChatManager::reload_channel(ChannelId channel_id, Promise<Unit> &&promise, 
 }
 
 const ChatManager::ChannelFull *ChatManager::get_channel_full_const(ChannelId channel_id) const {
-  return channels_full_.get_pointer(channel_id);
-}
-
-const ChatManager::ChannelFull *ChatManager::get_channel_full(ChannelId channel_id) const {
   return channels_full_.get_pointer(channel_id);
 }
 
@@ -9437,6 +9455,7 @@ void ChatManager::on_get_channel_forbidden(telegram_api::channelForbidden &chann
   bool is_fake = false;
   bool autotranslation = false;
   bool broadcast_messages_allowed = false;
+  bool is_monoforum = channel.monoforum_;
   bool is_admined_monoforum = false;
 
   LOG_IF(ERROR, channel.broadcast_ == is_megagroup)
@@ -9452,7 +9471,7 @@ void ChatManager::on_get_channel_forbidden(telegram_api::channelForbidden &chann
   if (c->is_slow_mode_enabled != is_slow_mode_enabled || c->is_megagroup != is_megagroup ||
       !c->restriction_reasons.empty() || c->is_scam != is_scam || c->is_fake != is_fake ||
       c->join_to_send != join_to_send || c->join_request != join_request ||
-      c->broadcast_messages_allowed != broadcast_messages_allowed) {
+      c->broadcast_messages_allowed != broadcast_messages_allowed || c->is_monoforum != is_monoforum) {
     // c->has_linked_channel = has_linked_channel;
     c->is_slow_mode_enabled = is_slow_mode_enabled;
     c->is_megagroup = is_megagroup;
@@ -9462,6 +9481,7 @@ void ChatManager::on_get_channel_forbidden(telegram_api::channelForbidden &chann
     c->join_to_send = join_to_send;
     c->join_request = join_request;
     c->broadcast_messages_allowed = broadcast_messages_allowed;
+    c->is_monoforum = is_monoforum;
 
     c->is_changed = true;
     need_invalidate_channel_full = true;
@@ -9651,12 +9671,13 @@ td_api::object_ptr<td_api::supergroup> ChatManager::get_supergroup_object(Channe
       c->paid_message_star_count, get_channel_active_story_state(c).get_active_story_state_object());
 }
 
-tl_object_ptr<td_api::supergroupFullInfo> ChatManager::get_supergroup_full_info_object(ChannelId channel_id) const {
-  return get_supergroup_full_info_object(channel_id, get_channel_full(channel_id));
+td_api::object_ptr<td_api::supergroupFullInfo> ChatManager::get_supergroup_full_info_object(
+    ChannelId channel_id) const {
+  return get_supergroup_full_info_object(channel_id, get_channel_full_const(channel_id), get_channel(channel_id));
 }
 
-tl_object_ptr<td_api::supergroupFullInfo> ChatManager::get_supergroup_full_info_object(
-    ChannelId channel_id, const ChannelFull *channel_full) const {
+td_api::object_ptr<td_api::supergroupFullInfo> ChatManager::get_supergroup_full_info_object(
+    ChannelId channel_id, const ChannelFull *channel_full, const Channel *c) const {
   CHECK(channel_full != nullptr);
   double slow_mode_delay_expires_in = 0;
   if (channel_full->slow_mode_next_send_date != 0 &&
@@ -9670,8 +9691,15 @@ tl_object_ptr<td_api::supergroupFullInfo> ChatManager::get_supergroup_full_info_
                               ? nullptr
                               : channel_full->bot_verification->get_bot_verification_object(td_);
   bool has_hidden_participants = channel_full->has_hidden_participants || !channel_full->can_get_participants;
+  auto *photo = &channel_full->photo;
+  if (c != nullptr && c->is_monoforum) {
+    auto monoforum_channel_full = get_channel_full_const(channel_full->monoforum_channel_id);
+    if (monoforum_channel_full != nullptr) {
+      photo = &monoforum_channel_full->photo;
+    }
+  }
   return td_api::make_object<td_api::supergroupFullInfo>(
-      get_chat_photo_object(td_->file_manager_.get(), channel_full->photo), channel_full->description,
+      get_chat_photo_object(td_->file_manager_.get(), *photo), channel_full->description,
       channel_full->participant_count, channel_full->administrator_count, channel_full->restricted_count,
       channel_full->banned_count, DialogId(channel_full->linked_channel_id).get(),
       DialogId(channel_full->monoforum_channel_id).get(), channel_full->slow_mode_delay, slow_mode_delay_expires_in,
@@ -9690,6 +9718,14 @@ tl_object_ptr<td_api::supergroupFullInfo> ChatManager::get_supergroup_full_info_
       std::move(bot_verification), get_profile_tab_object(channel_full->main_profile_tab),
       get_basic_group_id_object(channel_full->migrated_from_chat_id, "get_supergroup_full_info_object"),
       channel_full->migrated_from_max_message_id.get());
+}
+
+td_api::object_ptr<td_api::updateSupergroupFullInfo> ChatManager::get_update_supergroup_full_info_object(
+    ChannelId channel_id, const ChannelFull *channel_full, const char *source) const {
+  const Channel *c = get_channel(channel_id);
+  CHECK(c == nullptr || c->is_update_supergroup_sent);
+  return td_api::make_object<td_api::updateSupergroupFullInfo>(
+      get_supergroup_id_object(channel_id, source), get_supergroup_full_info_object(channel_id, channel_full, c));
 }
 
 void ChatManager::get_current_state(vector<td_api::object_ptr<td_api::Update>> &updates) const {
@@ -9713,8 +9749,8 @@ void ChatManager::get_current_state(vector<td_api::object_ptr<td_api::Update>> &
   });
 
   channels_full_.foreach([&](const ChannelId &channel_id, const unique_ptr<ChannelFull> &channel_full) {
-    updates.push_back(td_api::make_object<td_api::updateSupergroupFullInfo>(
-        channel_id.get(), get_supergroup_full_info_object(channel_id, channel_full.get())));
+    CHECK(channel_full->is_update_channel_full_sent);
+    updates.push_back(get_update_supergroup_full_info_object(channel_id, channel_full.get(), "get_current_state"));
   });
   chats_full_.foreach([&](const ChatId &chat_id, const unique_ptr<ChatFull> &chat_full) {
     updates.push_back(td_api::make_object<td_api::updateBasicGroupFullInfo>(

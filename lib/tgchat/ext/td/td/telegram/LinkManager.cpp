@@ -170,6 +170,168 @@ static bool is_valid_story_album_id(Slice story_album_id) {
   return r_story_album_id.is_ok() && StoryAlbumId(r_story_album_id.ok()).is_valid();
 }
 
+static const vector<string> &get_appearance_settings_subsections() {
+  static const vector<string> subsections{
+      "themes", "themes/edit", "themes/create", "wallpapers", "wallpapers/edit", "wallpapers/set",
+      "wallpapers/choose-photo", "your-color/profile", "your-color/profile/add-icons", "your-color/profile/use-gift",
+      "your-color/profile/reset", "your-color/name", "your-color/name/add-icons", "your-color/name/use-gift",
+      "night-mode", "auto-night-mode", "text-size", "text-size/use-system", "message-corners", "animations",
+      "stickers-and-emoji", "stickers-and-emoji/edit", "stickers-and-emoji/trending", "stickers-and-emoji/archived",
+      "stickers-and-emoji/archived/edit", "stickers-and-emoji/emoji", "stickers-and-emoji/emoji/edit",
+      "stickers-and-emoji/emoji/archived", "stickers-and-emoji/emoji/archived/edit", "stickers-and-emoji/emoji/suggest",
+      "stickers-and-emoji/emoji/quick-reaction", "stickers-and-emoji/emoji/quick-reaction/choose",
+      "stickers-and-emoji/suggest-by-emoji", "stickers-and-emoji/large-emoji", "stickers-and-emoji/dynamic-order",
+      "stickers-and-emoji/emoji/show-more", "app-icon",
+      // no formatting
+      "tap-for-next-media"};
+  return subsections;
+}
+
+static const vector<string> &get_business_settings_subsections() {
+  static const vector<string> subsections{"do-not-hide-ads"};
+  return subsections;
+}
+
+static const vector<string> &get_data_settings_subsections() {
+  static const vector<string> subsections{
+      "storage", "storage/edit", "storage/auto-remove", "storage/clear-cache", "storage/max-cache", "usage",
+      "usage/mobile", "usage/wifi", "usage/reset", "usage/roaming", "auto-download/mobile",
+      "auto-download/mobile/enable", "auto-download/mobile/usage", "auto-download/mobile/photos",
+      "auto-download/mobile/stories", "auto-download/mobile/videos", "auto-download/mobile/files", "auto-download/wifi",
+      "auto-download/wifi/enable", "auto-download/wifi/usage", "auto-download/wifi/photos",
+      "auto-download/wifi/stories", "auto-download/wifi/videos", "auto-download/wifi/files", "auto-download/roaming",
+      "auto-download/roaming/enable", "auto-download/roaming/usage", "auto-download/roaming/photos",
+      "auto-download/roaming/stories", "auto-download/roaming/videos", "auto-download/roaming/files",
+      "auto-download/reset", "save-to-photos/chats", "save-to-photos/chats/max-video-size",
+      "save-to-photos/chats/add-exception", "save-to-photos/chats/delete-all", "save-to-photos/groups",
+      "save-to-photos/groups/max-video-size", "save-to-photos/groups/add-exception", "save-to-photos/groups/delete-all",
+      "save-to-photos/channels", "save-to-photos/channels/max-video-size", "save-to-photos/channels/add-exception",
+      "save-to-photos/channels/delete-all", "less-data-calls", "open-links", "share-sheet",
+      "share-sheet/suggested-chats", "share-sheet/suggest-by", "share-sheet/reset", "saved-edited-photos",
+      "pause-music", "raise-to-listen", "raise-to-speak", "show-18-content", "proxy", "proxy/edit", "proxy/use-proxy",
+      "proxy/add-proxy", "proxy/share-list",
+      // no formatting
+      "proxy/use-for-calls"};
+  return subsections;
+}
+
+static const vector<string> &get_device_settings_subsections() {
+  static const vector<string> subsections{"edit", "link-desktop", "terminate-sessions", "auto-terminate"};
+  return subsections;
+}
+
+static const vector<string> &get_edit_profile_settings_subsections() {
+  static const vector<string> subsections{"set-photo", "first-name",    "last-name", "bio",
+                                          "birthday",  "change-number", "username",  "your-color",
+                                          "channel",   "add-account",   "log-out"};
+  return subsections;
+}
+
+static const vector<string> &get_edit_profile_other_settings_subsections() {
+  static const vector<string> subsections{"emoji-status", "profile-color/profile", "profile-color/profile/add-icons",
+                                          "profile-color/profile/use-gift", "profile-color/name",
+                                          "profile-color/name/add-icons", "profile-color/name/use-gift",
+                                          // no formatting
+                                          "profile-photo/use-emoji"};
+  return subsections;
+}
+
+static const vector<string> &get_folder_settings_subsections() {
+  static const vector<string> subsections{"edit", "create", "add-recommended", "show-tags", "tab-view"};
+  return subsections;
+}
+
+static const vector<string> &get_in_app_browser_settings_subsections() {
+  static const vector<string> subsections{"enable-browser", "clear-cookies", "clear-cache", "history",
+                                          "clear-history",  "never-open",    "clear-list",  "search"};
+  return subsections;
+}
+
+static const vector<string> &get_language_settings_subsections() {
+  static const vector<string> subsections{"show-button", "translate-chats", "do-not-translate"};
+  return subsections;
+}
+
+static const vector<string> &get_my_stars_settings_subsections() {
+  static const vector<string> subsections{"top-up", "stats", "gift", "earn"};
+  return subsections;
+}
+
+static const vector<string> &get_notification_settings_subsections() {
+  static const vector<string> subsections{
+      "accounts", "private-chats", "private-chats/edit", "private-chats/show", "private-chats/preview",
+      "private-chats/sound", "private-chats/add-exception", "private-chats/delete-exceptions",
+      "private-chats/light-color", "private-chats/vibrate", "private-chats/priority", "groups", "groups/edit",
+      "groups/show", "groups/preview", "groups/sound", "groups/add-exception", "groups/delete-exceptions",
+      "groups/light-color", "groups/vibrate", "groups/priority", "channels", "channels/edit", "channels/show",
+      "channels/preview", "channels/sound", "channels/add-exception", "channels/delete-exceptions",
+      "channels/light-color", "channels/vibrate", "channels/priority", "stories", "stories/new", "stories/important",
+      "stories/show-sender", "stories/sound", "stories/add-exception", "stories/delete-exceptions",
+      "stories/light-color", "stories/vibrate", "stories/priority", "reactions", "reactions/messages",
+      "reactions/stories", "reactions/show-sender", "reactions/sound", "reactions/light-color", "reactions/vibrate",
+      "reactions/priority", "in-app-sounds", "in-app-vibrate", "in-app-preview", "in-chat-sounds", "in-app-popup",
+      "lock-screen-names", "include-channels", "include-muted-chats", "count-unread-messages", "new-contacts",
+      "pinned-messages", "reset",
+      // no formatting
+      "web"};
+  return subsections;
+}
+
+static const vector<string> &get_power_saving_settings_subsections() {
+  static const vector<string> subsections{"videos", "gifs", "stickers", "emoji", "effects", "preload", "background",
+                                          "call-animations", "particles",
+                                          // no formatting
+                                          "transitions"};
+  return subsections;
+}
+
+static const vector<string> &get_privacy_settings_subsections() {
+  static const vector<string> subsections{
+      "blocked", "blocked/edit", "blocked/block-user", "blocked/block-user/chats", "blocked/block-user/contacts",
+      "active-websites", "active-websites/edit", "active-websites/disconnect-all", "passcode", "passcode/disable",
+      "passcode/change", "passcode/auto-lock", "passcode/face-id", "passcode/fingerprint", "2sv", "2sv/change",
+      "2sv/disable", "2sv/change-email", "passkey", "passkey/create", "auto-delete", "auto-delete/set-custom",
+      "login-email", "phone-number", "phone-number/never", "phone-number/always", "last-seen", "last-seen/never",
+      "last-seen/always", "last-seen/hide-read-time", "profile-photos", "profile-photos/never", "profile-photos/always",
+      "profile-photos/set-public", "profile-photos/update-public", "profile-photos/remove-public", "bio", "bio/never",
+      "bio/always", "gifts", "gifts/show-icon", "gifts/never", "gifts/always", "gifts/accepted-types", "birthday",
+      "birthday/add", "birthday/never", "birthday/always", "saved-music", "saved-music/never", "saved-music/always",
+      "forwards", "forwards/never", "forwards/always", "calls", "calls/never", "calls/always", "calls/p2p",
+      "calls/p2p/never", "calls/p2p/always", "calls/ios-integration", "voice", "voice/never", "voice/always",
+      "messages", "messages/set-price", "messages/exceptions", "invites", "invites/never", "invites/always",
+      "self-destruct", "data-settings", "data-settings/sync-contacts", "data-settings/delete-synced",
+      "data-settings/suggest-contacts", "data-settings/delete-cloud-drafts", "data-settings/clear-payment-info",
+      "data-settings/link-previews", "data-settings/bot-settings", "data-settings/map-provider",
+      // no formatting
+      "archive-and-mute"};
+  return subsections;
+}
+
+static const vector<string> &get_qr_code_settings_subsections() {
+  static const vector<string> subsections{"share", "scan"};
+  return subsections;
+}
+
+static const vector<string> &get_send_gift_settings_subsections() {
+  static const vector<string> subsections{"self"};
+  return subsections;
+}
+
+static const vector<string> &get_calls_sections() {
+  static const vector<string> sections{"all", "missed", "edit", "show-tab", "start-call"};
+  return sections;
+}
+
+static const vector<string> &get_contacts_sections() {
+  static const vector<string> sections{"search", "sort", "new", "invite", "manage"};
+  return sections;
+}
+
+static const vector<string> &get_my_profile_sections() {
+  static const vector<string> sections{"posts", "posts/all-stories", "posts/add-album", "gifts", "archived-posts"};
+  return sections;
+}
+
 static string get_url_query_hash(bool is_tg, const HttpUrlQuery &url_query) {
   const auto &path = url_query.path_;
   if (is_tg) {
@@ -376,12 +538,6 @@ static td_api::object_ptr<td_api::WebAppOpenMode> get_web_app_open_mode_object(c
   return td_api::make_object<td_api::webAppOpenModeFullSize>();
 }
 
-class LinkManager::InternalLinkActiveSessions final : public InternalLink {
-  td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
-    return td_api::make_object<td_api::internalLinkTypeActiveSessions>();
-  }
-};
-
 class LinkManager::InternalLinkAttachMenuBot final : public InternalLink {
   td_api::object_ptr<td_api::targetChatTypes> allowed_chat_types_;
   unique_ptr<InternalLink> dialog_link_;
@@ -518,7 +674,7 @@ class LinkManager::InternalLinkBuyStars final : public InternalLink {
   string purpose_;
 
   td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
-    return td_api::make_object<td_api::internalLinkTypeBuyStars>(star_count_, purpose_);
+    return td_api::make_object<td_api::internalLinkTypeStarPurchase>(star_count_, purpose_);
   }
 
  public:
@@ -528,9 +684,15 @@ class LinkManager::InternalLinkBuyStars final : public InternalLink {
   }
 };
 
-class LinkManager::InternalLinkChangePhoneNumber final : public InternalLink {
+class LinkManager::InternalLinkCalls final : public InternalLink {
+  string section_;
+
   td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
-    return td_api::make_object<td_api::internalLinkTypeChangePhoneNumber>();
+    return td_api::make_object<td_api::internalLinkTypeCallsPage>(section_);
+  }
+
+ public:
+  explicit InternalLinkCalls(string section) : section_(std::move(section)) {
   }
 };
 
@@ -548,9 +710,15 @@ class LinkManager::InternalLinkConfirmPhone final : public InternalLink {
   }
 };
 
-class LinkManager::InternalLinkDefaultMessageAutoDeleteTimerSettings final : public InternalLink {
+class LinkManager::InternalLinkContacts final : public InternalLink {
+  string section_;
+
   td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
-    return td_api::make_object<td_api::internalLinkTypeDefaultMessageAutoDeleteTimerSettings>();
+    return td_api::make_object<td_api::internalLinkTypeContactsPage>(section_);
+  }
+
+ public:
+  explicit InternalLinkContacts(string section) : section_(std::move(section)) {
   }
 };
 
@@ -604,15 +772,9 @@ class LinkManager::InternalLinkDialogReferralProgram final : public InternalLink
   }
 };
 
-class LinkManager::InternalLinkEditProfileSettings final : public InternalLink {
+class LinkManager::InternalLinkDialogSelection final : public InternalLink {
   td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
-    return td_api::make_object<td_api::internalLinkTypeEditProfileSettings>();
-  }
-};
-
-class LinkManager::InternalLinkDialogFolderSettings final : public InternalLink {
-  td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
-    return td_api::make_object<td_api::internalLinkTypeChatFolderSettings>();
+    return td_api::make_object<td_api::internalLinkTypeChatSelection>();
   }
 };
 
@@ -692,12 +854,6 @@ class LinkManager::InternalLinkLanguage final : public InternalLink {
   }
 };
 
-class LinkManager::InternalLinkLanguageSettings final : public InternalLink {
-  td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
-    return td_api::make_object<td_api::internalLinkTypeLanguageSettings>();
-  }
-};
-
 class LinkManager::InternalLinkLiveStory final : public InternalLink {
   string dialog_username_;
 
@@ -707,12 +863,6 @@ class LinkManager::InternalLinkLiveStory final : public InternalLink {
 
  public:
   explicit InternalLinkLiveStory(string dialog_username) : dialog_username_(std::move(dialog_username)) {
-  }
-};
-
-class LinkManager::InternalLinkLoginEmailSettings final : public InternalLink {
-  td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
-    return td_api::make_object<td_api::internalLinkTypeLoginEmailSettings>();
   }
 };
 
@@ -771,15 +921,33 @@ class LinkManager::InternalLinkMonoforum final : public InternalLink {
   }
 };
 
-class LinkManager::InternalLinkMyStars final : public InternalLink {
+class LinkManager::InternalLinkMyProfile final : public InternalLink {
+  string section_;
+
   td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
-    return td_api::make_object<td_api::internalLinkTypeMyStars>();
+    return td_api::make_object<td_api::internalLinkTypeMyProfilePage>(section_);
+  }
+
+ public:
+  explicit InternalLinkMyProfile(string section) : section_(std::move(section)) {
   }
 };
 
-class LinkManager::InternalLinkMyToncoins final : public InternalLink {
+class LinkManager::InternalLinkNewChannelChat final : public InternalLink {
   td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
-    return td_api::make_object<td_api::internalLinkTypeMyToncoins>();
+    return td_api::make_object<td_api::internalLinkTypeNewChannelChat>();
+  }
+};
+
+class LinkManager::InternalLinkNewGroupChat final : public InternalLink {
+  td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
+    return td_api::make_object<td_api::internalLinkTypeNewGroupChat>();
+  }
+};
+
+class LinkManager::InternalLinkNewPrivateChat final : public InternalLink {
+  td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
+    return td_api::make_object<td_api::internalLinkTypeNewPrivateChat>();
   }
 };
 
@@ -806,15 +974,30 @@ class LinkManager::InternalLinkPassportDataRequest final : public InternalLink {
   }
 };
 
-class LinkManager::InternalLinkPasswordSettings final : public InternalLink {
-  td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
-    return td_api::make_object<td_api::internalLinkTypePasswordSettings>();
-  }
-};
+class LinkManager::InternalLinkPostStory final : public InternalLink {
+  string content_type_;
 
-class LinkManager::InternalLinkPhoneNumberPrivacySettings final : public InternalLink {
   td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
-    return td_api::make_object<td_api::internalLinkTypePhoneNumberPrivacySettings>();
+    auto content_type = [&]() -> td_api::object_ptr<td_api::StoryContentType> {
+      if (content_type_ == "photo") {
+        return td_api::make_object<td_api::storyContentTypePhoto>();
+      }
+      if (content_type_ == "video") {
+        return td_api::make_object<td_api::storyContentTypeVideo>();
+      }
+      if (content_type_ == "live") {
+        return td_api::make_object<td_api::storyContentTypeLive>();
+      }
+      if (!content_type_.empty()) {
+        return td_api::make_object<td_api::storyContentTypeUnsupported>();
+      }
+      return nullptr;
+    }();
+    return td_api::make_object<td_api::internalLinkTypeNewStory>(std::move(content_type));
+  }
+
+ public:
+  explicit InternalLinkPostStory(string content_type) : content_type_(std::move(content_type)) {
   }
 };
 
@@ -822,7 +1005,7 @@ class LinkManager::InternalLinkPremiumFeatures final : public InternalLink {
   string referrer_;
 
   td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
-    return td_api::make_object<td_api::internalLinkTypePremiumFeatures>(referrer_);
+    return td_api::make_object<td_api::internalLinkTypePremiumFeaturesPage>(referrer_);
   }
 
  public:
@@ -834,7 +1017,7 @@ class LinkManager::InternalLinkPremiumGift final : public InternalLink {
   string referrer_;
 
   td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
-    return td_api::make_object<td_api::internalLinkTypePremiumGift>(referrer_);
+    return td_api::make_object<td_api::internalLinkTypePremiumGiftPurchase>(referrer_);
   }
 
  public:
@@ -854,20 +1037,16 @@ class LinkManager::InternalLinkPremiumGiftCode final : public InternalLink {
   }
 };
 
-class LinkManager::InternalLinkPrivacyAndSecuritySettings final : public InternalLink {
-  td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
-    return td_api::make_object<td_api::internalLinkTypePrivacyAndSecuritySettings>();
-  }
-};
-
 class LinkManager::InternalLinkProxy final : public InternalLink {
   string server_;
   int32 port_;
   td_api::object_ptr<td_api::ProxyType> type_;
 
   td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
-    CHECK(type_ != nullptr);
     auto type = type_.get();
+    if (type == nullptr) {
+      return td_api::make_object<td_api::internalLinkTypeProxy>();
+    }
     auto proxy_type = [type]() -> td_api::object_ptr<td_api::ProxyType> {
       switch (type->get_id()) {
         case td_api::proxyTypeSocks5::ID: {
@@ -883,7 +1062,8 @@ class LinkManager::InternalLinkProxy final : public InternalLink {
           return nullptr;
       }
     }();
-    return td_api::make_object<td_api::internalLinkTypeProxy>(server_, port_, std::move(proxy_type));
+    return td_api::make_object<td_api::internalLinkTypeProxy>(
+        td_api::make_object<td_api::proxy>(server_, port_, std::move(proxy_type)));
   }
 
  public:
@@ -919,9 +1099,186 @@ class LinkManager::InternalLinkRestorePurchases final : public InternalLink {
   }
 };
 
-class LinkManager::InternalLinkSettings final : public InternalLink {
+class LinkManager::InternalLinkSavedMessages final : public InternalLink {
   td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
-    return td_api::make_object<td_api::internalLinkTypeSettings>();
+    return td_api::make_object<td_api::internalLinkTypeSavedMessages>();
+  }
+};
+
+class LinkManager::InternalLinkSearch final : public InternalLink {
+  td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
+    return td_api::make_object<td_api::internalLinkTypeSearch>();
+  }
+};
+
+class LinkManager::InternalLinkSettings final : public InternalLink {
+  vector<string> path_;
+
+  td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
+    auto section = [&]() -> td_api::object_ptr<td_api::SettingsSection> {
+      if (path_.empty()) {
+        return nullptr;
+      }
+      string subsection;
+      if (path_.size() >= 2u) {
+        subsection = path_[1];
+        for (size_t i = 2; i < path_.size(); i++) {
+          subsection += '/';
+          subsection += path_[i];
+        }
+      }
+      if (path_[0] == "appearance") {
+        if (td::contains(get_appearance_settings_subsections(), subsection)) {
+          return td_api::make_object<td_api::settingsSectionAppearance>(subsection);
+        }
+        return td_api::make_object<td_api::settingsSectionAppearance>();
+      }
+      if (path_[0] == "ask-question") {
+        return td_api::make_object<td_api::settingsSectionAskQuestion>();
+      }
+      if (path_[0] == "auto_delete") {
+        return td_api::make_object<td_api::settingsSectionPrivacyAndSecurity>("auto-delete");
+      }
+      if (path_[0] == "business") {
+        if (td::contains(get_business_settings_subsections(), subsection)) {
+          return td_api::make_object<td_api::settingsSectionBusiness>(subsection);
+        }
+        return td_api::make_object<td_api::settingsSectionBusiness>();
+      }
+      if (path_[0] == "change_number") {
+        return td_api::make_object<td_api::settingsSectionEditProfile>("change-number");
+      }
+      if (path_[0] == "chat" && path_.size() >= 2u && path_[1] == "browser") {
+        if (path_.size() == 2u) {
+          subsection = string();
+        } else {
+          subsection = path_[2];
+        }
+        if (td::contains(get_in_app_browser_settings_subsections(), subsection)) {
+          return td_api::make_object<td_api::settingsSectionInAppBrowser>(subsection);
+        }
+        return td_api::make_object<td_api::settingsSectionInAppBrowser>();
+      }
+      if (path_[0] == "data") {
+        if (td::contains(get_data_settings_subsections(), subsection)) {
+          return td_api::make_object<td_api::settingsSectionDataAndStorage>(subsection);
+        }
+        return td_api::make_object<td_api::settingsSectionDataAndStorage>();
+      }
+      if (path_[0] == "devices") {
+        if (td::contains(get_device_settings_subsections(), subsection)) {
+          return td_api::make_object<td_api::settingsSectionDevices>(subsection);
+        }
+        return td_api::make_object<td_api::settingsSectionDevices>();
+      }
+      if (path_[0] == "edit") {
+        if (td::contains(get_edit_profile_settings_subsections(), subsection)) {
+          return td_api::make_object<td_api::settingsSectionEditProfile>(subsection);
+        }
+        return td_api::make_object<td_api::settingsSectionEditProfile>();
+      }
+      if (path_[0] == "edit_profile") {
+        return td_api::make_object<td_api::settingsSectionEditProfile>();
+      }
+      if (path_[0] == "emoji-status" || path_[0] == "profile-color" || path_[0] == "profile-photo") {
+        if (subsection.empty()) {
+          subsection = path_[0];
+        } else {
+          subsection = PSTRING() << path_[0] << '/' << subsection;
+        }
+        if (td::contains(get_edit_profile_other_settings_subsections(), subsection)) {
+          return td_api::make_object<td_api::settingsSectionEditProfile>(subsection);
+        }
+        if (path_[0] == "emoji-status") {
+          return td_api::make_object<td_api::settingsSectionEditProfile>(path_[0]);
+        }
+        return td_api::make_object<td_api::settingsSectionEditProfile>();
+      }
+      if (path_[0] == "faq") {
+        return td_api::make_object<td_api::settingsSectionFaq>();
+      }
+      if (path_[0] == "features") {
+        return td_api::make_object<td_api::settingsSectionFeatures>();
+      }
+      if (path_[0] == "folders") {
+        if (td::contains(get_folder_settings_subsections(), subsection)) {
+          return td_api::make_object<td_api::settingsSectionChatFolders>(subsection);
+        }
+        return td_api::make_object<td_api::settingsSectionChatFolders>();
+      }
+      if (path_[0] == "language") {
+        if (td::contains(get_language_settings_subsections(), subsection)) {
+          return td_api::make_object<td_api::settingsSectionLanguage>(subsection);
+        }
+        return td_api::make_object<td_api::settingsSectionLanguage>();
+      }
+      if (path_[0] == "login_email") {
+        return td_api::make_object<td_api::settingsSectionPrivacyAndSecurity>("login-email");
+      }
+      if (path_[0] == "notifications") {
+        if (td::contains(get_notification_settings_subsections(), subsection)) {
+          return td_api::make_object<td_api::settingsSectionNotifications>(subsection);
+        }
+        return td_api::make_object<td_api::settingsSectionNotifications>();
+      }
+      if (path_[0] == "power-saving") {
+        if (td::contains(get_power_saving_settings_subsections(), subsection)) {
+          return td_api::make_object<td_api::settingsSectionPowerSaving>(subsection);
+        }
+        return td_api::make_object<td_api::settingsSectionPowerSaving>();
+      }
+      if (path_[0] == "password") {
+        return td_api::make_object<td_api::settingsSectionPrivacyAndSecurity>("2sv");
+      }
+      if (path_[0] == "phone_privacy") {
+        return td_api::make_object<td_api::settingsSectionPrivacyAndSecurity>("phone-number");
+      }
+      if (path_[0] == "premium") {
+        return td_api::make_object<td_api::settingsSectionPremium>();
+      }
+      if (path_[0] == "privacy") {
+        if (td::contains(get_privacy_settings_subsections(), subsection)) {
+          return td_api::make_object<td_api::settingsSectionPrivacyAndSecurity>(subsection);
+        }
+        return td_api::make_object<td_api::settingsSectionPrivacyAndSecurity>();
+      }
+      if (path_[0] == "privacy-policy") {
+        return td_api::make_object<td_api::settingsSectionPrivacyPolicy>();
+      }
+      if (path_[0] == "qr-code") {
+        if (td::contains(get_qr_code_settings_subsections(), subsection)) {
+          return td_api::make_object<td_api::settingsSectionQrCode>(subsection);
+        }
+        return td_api::make_object<td_api::settingsSectionQrCode>();
+      }
+      if (path_[0] == "search") {
+        return td_api::make_object<td_api::settingsSectionSearch>();
+      }
+      if (path_[0] == "send-gift") {
+        if (td::contains(get_send_gift_settings_subsections(), subsection)) {
+          return td_api::make_object<td_api::settingsSectionSendGift>(subsection);
+        }
+        return td_api::make_object<td_api::settingsSectionSendGift>();
+      }
+      if (path_[0] == "stars") {
+        if (td::contains(get_my_stars_settings_subsections(), subsection)) {
+          return td_api::make_object<td_api::settingsSectionMyStars>(subsection);
+        }
+        return td_api::make_object<td_api::settingsSectionMyStars>();
+      }
+      if (path_[0] == "themes") {
+        return td_api::make_object<td_api::settingsSectionAppearance>();
+      }
+      if (path_[0] == "ton") {
+        return td_api::make_object<td_api::settingsSectionMyToncoins>();
+      }
+      return nullptr;
+    }();
+    return td_api::make_object<td_api::internalLinkTypeSettings>(std::move(section));
+  }
+
+ public:
+  explicit InternalLinkSettings(vector<string> &&path) : path_(std::move(path)) {
   }
 };
 
@@ -993,12 +1350,6 @@ class LinkManager::InternalLinkTheme final : public InternalLink {
   }
 };
 
-class LinkManager::InternalLinkThemeSettings final : public InternalLink {
-  td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
-    return td_api::make_object<td_api::internalLinkTypeThemeSettings>();
-  }
-};
-
 class LinkManager::InternalLinkUnknownDeepLink final : public InternalLink {
   string link_;
 
@@ -1008,12 +1359,6 @@ class LinkManager::InternalLinkUnknownDeepLink final : public InternalLink {
 
  public:
   explicit InternalLinkUnknownDeepLink(string link) : link_(std::move(link)) {
-  }
-};
-
-class LinkManager::InternalLinkUnsupportedProxy final : public InternalLink {
-  td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
-    return td_api::make_object<td_api::internalLinkTypeUnsupportedProxy>();
   }
 };
 
@@ -1278,7 +1623,8 @@ class RequestUrlAuthQuery final : public Td::ResultHandler {
         td_->user_manager_->on_get_user(std::move(request->bot_), "RequestUrlAuthQuery");
         promise_.set_value(td_api::make_object<td_api::loginUrlInfoRequestConfirmation>(
             url_, request->domain_, td_->user_manager_->get_user_id_object(bot_user_id, "RequestUrlAuthQuery"),
-            request->request_write_access_));
+            request->request_write_access_, request->request_phone_number_, request->browser_, request->platform_,
+            request->ip_, request->region_));
         break;
       }
       case telegram_api::urlAuthResultAccepted::ID: {
@@ -1297,6 +1643,9 @@ class RequestUrlAuthQuery final : public Td::ResultHandler {
         !td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "RequestUrlAuthQuery")) {
       LOG(INFO) << "Receive error for RequestUrlAuthQuery: " << status;
     }
+    if (status.message() == "URL_EXPIRED" || status.message() == "URL_INVALID") {
+      return promise_.set_error(std::move(status));
+    }
     promise_.set_value(td_api::make_object<td_api::loginUrlInfoOpen>(url_, false));
   }
 };
@@ -1310,7 +1659,8 @@ class AcceptUrlAuthQuery final : public Td::ResultHandler {
   explicit AcceptUrlAuthQuery(Promise<td_api::object_ptr<td_api::httpUrl>> &&promise) : promise_(std::move(promise)) {
   }
 
-  void send(string url, MessageFullId message_full_id, int32 button_id, bool allow_write_access) {
+  void send(string url, MessageFullId message_full_id, int32 button_id, bool allow_write_access,
+            bool allow_phone_number_access) {
     url_ = std::move(url);
     int32 flags = 0;
     telegram_api::object_ptr<telegram_api::InputPeer> input_peer;
@@ -1323,7 +1673,7 @@ class AcceptUrlAuthQuery final : public Td::ResultHandler {
       flags |= telegram_api::messages_acceptUrlAuth::URL_MASK;
     }
     send_query(G()->net_query_creator().create(telegram_api::messages_acceptUrlAuth(
-        flags, allow_write_access, std::move(input_peer),
+        flags, allow_write_access, allow_phone_number_access, std::move(input_peer),
         message_full_id.get_message_id().get_server_message_id().get(), button_id, url_)));
   }
 
@@ -1649,6 +1999,9 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_tg_link_query(Slice que
             PSTRING() << "tg://resolve" << copy_arg("domain") << copy_arg("post") << copy_arg("single")
                       << copy_arg("thread") << copy_arg("comment") << copy_arg("t"));
       }
+      if (username == "oauth" && has_arg("startapp")) {
+        return nullptr;
+      }
       for (auto &arg : url_query.args_) {
         if ((arg.first == "voicechat" || arg.first == "videochat" || arg.first == "livestream") &&
             is_valid_video_chat_invite_hash(arg.second)) {
@@ -1780,6 +2133,21 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_tg_link_query(Slice que
     if (is_valid_user_token(token)) {
       return td::make_unique<InternalLinkUserToken>(std::move(token));
     }
+  } else if (path.size() >= 1u && path[0] == "contacts") {
+    // contacts[/section]
+    if (path.size() == 2u && td::contains(get_contacts_sections(), path[1])) {
+      return td::make_unique<InternalLinkContacts>(path[1]);
+    }
+    return td::make_unique<InternalLinkContacts>(string());
+  } else if (path.size() == 2 && path[0] == "chats" && path[1] == "edit") {
+    // chats/edit
+    return td::make_unique<InternalLinkDialogSelection>();
+  } else if (path.size() == 2 && path[0] == "chats" && path[1] == "emoji-status") {
+    // chats/emoji-status
+    return td::make_unique<InternalLinkSettings>(vector<string>{"emoji-status"});
+  } else if (path.size() == 2 && path[0] == "chats" && path[1] == "search") {
+    // chats/search
+    return td::make_unique<InternalLinkSearch>();
   } else if (path.size() == 1 && path[0] == "login") {
     // login?code=123456
     auto code = get_arg("code");
@@ -1790,6 +2158,21 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_tg_link_query(Slice que
     if (has_arg("token")) {
       return td::make_unique<InternalLinkQrCodeAuthentication>();
     }
+  } else if (path.size() == 1 && path[0] == "new") {
+    // new
+    return td::make_unique<InternalLinkNewPrivateChat>();
+  } else if (path.size() == 2 && path[0] == "new" && path[1] == "channel") {
+    // new/channel
+    return td::make_unique<InternalLinkNewChannelChat>();
+  } else if (path.size() == 2 && path[0] == "new" && path[1] == "group") {
+    // new/group
+    return td::make_unique<InternalLinkNewGroupChat>();
+  } else if (path.size() == 1 && path[0] == "oauth" && has_arg("token")) {
+    // oauth?token=...
+    return nullptr;
+  } else if (path.size() <= 2 && path[0] == "post") {
+    // post[/content-type]
+    return td::make_unique<InternalLinkPostStory>(path.size() == 2 ? path[1] : string());
   } else if (path.size() == 1 && path[0] == "restore_purchases") {
     // restore_purchases
     return td::make_unique<InternalLinkRestorePurchases>();
@@ -1808,59 +2191,46 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_tg_link_query(Slice que
     if (is_valid_premium_referrer(referrer)) {
       return td::make_unique<InternalLinkPremiumGift>(std::move(referrer));
     }
+  } else if (path.size() >= 2 && path[0] == "settings" && path[1] == "saved-messages") {
+    // settings/saved-messages
+    return td::make_unique<InternalLinkSavedMessages>();
+  } else if (path.size() >= 2 && path[0] == "settings" && path[1] == "calls") {
+    // settings/calls[/section]
+    string section;
+    if (path.size() >= 3u) {
+      section = path[2];
+      for (size_t i = 3; i < path.size(); i++) {
+        section += '/';
+        section += path[i];
+      }
+    }
+    if (!td::contains(get_calls_sections(), section)) {
+      section = string();
+    }
+    return td::make_unique<InternalLinkCalls>(std::move(section));
+  } else if (path.size() >= 2 && path[0] == "settings" && path[1] == "my-profile") {
+    // settings/my-profile[/section]
+    string section;
+    if (path.size() >= 3u) {
+      section = path[2];
+      for (size_t i = 3; i < path.size(); i++) {
+        section += '/';
+        section += path[i];
+      }
+    }
+    if (!td::contains(get_my_profile_sections(), section)) {
+      section = string();
+    }
+    return td::make_unique<InternalLinkMyProfile>(std::move(section));
   } else if (!path.empty() && path[0] == "settings") {
-    if (path.size() == 2 && path[1] == "auto_delete") {
-      // settings/auto_delete
-      return td::make_unique<InternalLinkDefaultMessageAutoDeleteTimerSettings>();
-    }
-    if (path.size() == 2 && path[1] == "change_number") {
-      // settings/change_number
-      return td::make_unique<InternalLinkChangePhoneNumber>();
-    }
-    if (path.size() == 2 && path[1] == "devices") {
-      // settings/devices
-      return td::make_unique<InternalLinkActiveSessions>();
-    }
-    if (path.size() == 2 && path[1] == "edit_profile") {
-      // settings/edit_profile
-      return td::make_unique<InternalLinkEditProfileSettings>();
-    }
-    if (path.size() == 2 && path[1] == "folders") {
-      // settings/folders
-      return td::make_unique<InternalLinkDialogFolderSettings>();
-    }
-    if (path.size() == 2 && path[1] == "language") {
-      // settings/language
-      return td::make_unique<InternalLinkLanguageSettings>();
-    }
-    if (path.size() == 2 && path[1] == "login_email") {
-      // settings/login_email
-      return td::make_unique<InternalLinkLoginEmailSettings>();
-    }
-    if (path.size() == 2 && path[1] == "password") {
-      // settings/password
-      return td::make_unique<InternalLinkPasswordSettings>();
-    }
-    if (path.size() == 2 && path[1] == "phone_privacy") {
-      // settings/phone_privacy
-      return td::make_unique<InternalLinkPhoneNumberPrivacySettings>();
-    }
-    if (path.size() == 2 && path[1] == "privacy") {
-      // settings/privacy
-      return td::make_unique<InternalLinkPrivacyAndSecuritySettings>();
-    }
-    if (path.size() == 2 && path[1] == "themes") {
-      // settings/themes
-      return td::make_unique<InternalLinkThemeSettings>();
-    }
-    // settings
-    return td::make_unique<InternalLinkSettings>();
+    // settings[/section[/subsection]]
+    return td::make_unique<InternalLinkSettings>(vector<string>{path.begin() + 1, path.end()});
   } else if (!path.empty() && path[0] == "stars") {
     // stars
-    return td::make_unique<InternalLinkMyStars>();
+    return td::make_unique<InternalLinkSettings>(vector<string>{"stars"});
   } else if (!path.empty() && path[0] == "ton") {
     // ton
-    return td::make_unique<InternalLinkMyToncoins>();
+    return td::make_unique<InternalLinkSettings>(vector<string>{"ton"});
   } else if (path.size() == 1 && path[0] == "addlist") {
     auto slug = get_url_query_slug(true, url_query, "addlist");
     if (!slug.empty() && is_base64url_characters(slug)) {
@@ -1917,7 +2287,7 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_tg_link_query(Slice que
           std::move(server), port,
           td_api::make_object<td_api::proxyTypeSocks5>(std::move(username), std::move(password)));
     } else {
-      return td::make_unique<InternalLinkUnsupportedProxy>();
+      return td::make_unique<InternalLinkProxy>(string(), 0, nullptr);
     }
   } else if (path.size() == 1 && path[0] == "proxy") {
     // proxy?server=<server>&port=<port>&secret=<secret>
@@ -1928,7 +2298,7 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_tg_link_query(Slice que
       return td::make_unique<InternalLinkProxy>(
           std::move(server), port, td_api::make_object<td_api::proxyTypeMtproto>(r_secret.ok().get_encoded_secret()));
     } else {
-      return td::make_unique<InternalLinkUnsupportedProxy>();
+      return td::make_unique<InternalLinkProxy>(string(), 0, nullptr);
     }
   } else if (path.size() == 1 && path[0] == "privatepost") {
     // privatepost?channel=123456789&post=12345&single&thread=<thread_id>&comment=<message_id>&t=<media_timestamp>
@@ -2146,7 +2516,7 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_t_me_link_query(Slice q
           std::move(server), port,
           td_api::make_object<td_api::proxyTypeSocks5>(std::move(username), std::move(password)));
     } else {
-      return td::make_unique<InternalLinkUnsupportedProxy>();
+      return td::make_unique<InternalLinkProxy>(string(), 0, nullptr);
     }
   } else if (path[0] == "proxy") {
     // /proxy?server=<server>&port=<port>&secret=<secret>
@@ -2157,7 +2527,7 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_t_me_link_query(Slice q
       return td::make_unique<InternalLinkProxy>(
           std::move(server), port, td_api::make_object<td_api::proxyTypeMtproto>(r_secret.ok().get_encoded_secret()));
     } else {
-      return td::make_unique<InternalLinkUnsupportedProxy>();
+      return td::make_unique<InternalLinkProxy>(string(), 0, nullptr);
     }
   } else if (path[0] == "bg") {
     if (path.size() >= 2 && !path[1].empty()) {
@@ -2409,11 +2779,6 @@ Result<string> LinkManager::get_internal_link(const td_api::object_ptr<td_api::I
 
 Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkType *type_ptr, bool is_internal) {
   switch (type_ptr->get_id()) {
-    case td_api::internalLinkTypeActiveSessions::ID:
-      if (!is_internal) {
-        return Status::Error("HTTP link is unavailable for the link type");
-      }
-      return "tg://settings/devices";
     case td_api::internalLinkTypeAttachmentMenuBot::ID: {
       auto link = static_cast<const td_api::internalLinkTypeAttachmentMenuBot *>(type_ptr);
       if (!is_valid_username(link->bot_username_)) {
@@ -2625,24 +2990,16 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
         return PSTRING() << get_t_me_url() << "m/" << url_encode(link->link_name_);
       }
     }
-    case td_api::internalLinkTypeBuyStars::ID: {
-      auto link = static_cast<const td_api::internalLinkTypeBuyStars *>(type_ptr);
+    case td_api::internalLinkTypeCallsPage::ID: {
+      auto link = static_cast<const td_api::internalLinkTypeCallsPage *>(type_ptr);
       if (!is_internal) {
         return Status::Error("HTTP link is unavailable for the link type");
       }
-      if (link->star_count_ <= 0) {
-        return Status::Error(400, "Invalid Telegram Star amount provided");
+      if (td::contains(get_calls_sections(), link->section_)) {
+        return PSTRING() << "tg://settings/calls/" << link->section_;
       }
-      if (!is_valid_star_top_up_purpose(link->purpose_)) {
-        return Status::Error(400, "Invalid purpose specified");
-      }
-      return PSTRING() << "tg://stars_topup?balance=" << link->star_count_ << "&purpose=" << url_encode(link->purpose_);
+      return "tg://settings/calls";
     }
-    case td_api::internalLinkTypeChangePhoneNumber::ID:
-      if (!is_internal) {
-        return Status::Error("HTTP link is unavailable for the link type");
-      }
-      return "tg://settings/change_number";
     case td_api::internalLinkTypeChatAffiliateProgram::ID: {
       auto link = static_cast<const td_api::internalLinkTypeChatAffiliateProgram *>(type_ptr);
       if (!is_valid_username(link->username_)) {
@@ -2682,11 +3039,6 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
       }
       return get_dialog_filter_invite_link(slug, is_internal);
     }
-    case td_api::internalLinkTypeChatFolderSettings::ID:
-      if (!is_internal) {
-        return Status::Error("HTTP link is unavailable for the link type");
-      }
-      return "tg://settings/folders";
     case td_api::internalLinkTypeChatInvite::ID: {
       auto link = static_cast<const td_api::internalLinkTypeChatInvite *>(type_ptr);
       auto invite_hash = get_dialog_invite_link_hash(link->invite_link_);
@@ -2695,11 +3047,21 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
       }
       return get_dialog_invite_link(invite_hash, is_internal);
     }
-    case td_api::internalLinkTypeDefaultMessageAutoDeleteTimerSettings::ID:
+    case td_api::internalLinkTypeChatSelection::ID:
       if (!is_internal) {
         return Status::Error("HTTP link is unavailable for the link type");
       }
-      return "tg://settings/auto_delete";
+      return "tg://chats/edit";
+    case td_api::internalLinkTypeContactsPage::ID: {
+      auto link = static_cast<const td_api::internalLinkTypeContactsPage *>(type_ptr);
+      if (!is_internal) {
+        return Status::Error("HTTP link is unavailable for the link type");
+      }
+      if (td::contains(get_contacts_sections(), link->section_)) {
+        return PSTRING() << "tg://contacts/" << link->section_;
+      }
+      return "tg://contacts";
+    }
     case td_api::internalLinkTypeDirectMessagesChat::ID: {
       auto link = static_cast<const td_api::internalLinkTypeDirectMessagesChat *>(type_ptr);
       if (!is_valid_username(link->channel_username_)) {
@@ -2711,11 +3073,6 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
         return PSTRING() << get_t_me_url() << url_encode(link->channel_username_) << "?direct";
       }
     }
-    case td_api::internalLinkTypeEditProfileSettings::ID:
-      if (!is_internal) {
-        return Status::Error("HTTP link is unavailable for the link type");
-      }
-      return "tg://settings/edit_profile";
     case td_api::internalLinkTypeGame::ID: {
       auto link = static_cast<const td_api::internalLinkTypeGame *>(type_ptr);
       if (!is_valid_username(link->bot_username_)) {
@@ -2811,11 +3168,6 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
         return PSTRING() << get_t_me_url() << "setlanguage/" << url_encode(link->language_pack_id_);
       }
     }
-    case td_api::internalLinkTypeLanguageSettings::ID:
-      if (!is_internal) {
-        return Status::Error("HTTP link is unavailable for the link type");
-      }
-      return "tg://settings/language";
     case td_api::internalLinkTypeLiveStory::ID: {
       auto link = static_cast<const td_api::internalLinkTypeLiveStory *>(type_ptr);
       if (!is_valid_username(link->story_poster_username_)) {
@@ -2827,11 +3179,6 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
         return PSTRING() << get_t_me_url() << link->story_poster_username_ << "/s/live";
       }
     }
-    case td_api::internalLinkTypeLoginEmailSettings::ID:
-      if (!is_internal) {
-        return Status::Error("HTTP link is unavailable for the link type");
-      }
-      return "tg://settings/login_email";
     case td_api::internalLinkTypeMainWebApp::ID: {
       auto link = static_cast<const td_api::internalLinkTypeMainWebApp *>(type_ptr);
       if (!is_valid_username(link->bot_username_)) {
@@ -2902,16 +3249,52 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
         return PSTRING() << get_t_me_url() << "share/url?url=" << url_encode(url) << text;
       }
     }
-    case td_api::internalLinkTypeMyStars::ID:
+    case td_api::internalLinkTypeMyProfilePage::ID: {
+      auto link = static_cast<const td_api::internalLinkTypeMyProfilePage *>(type_ptr);
       if (!is_internal) {
         return Status::Error("HTTP link is unavailable for the link type");
       }
-      return "tg://stars";
-    case td_api::internalLinkTypeMyToncoins::ID:
+      if (td::contains(get_my_profile_sections(), link->section_)) {
+        return PSTRING() << "tg://settings/my-profile/" << link->section_;
+      }
+      return "tg://settings/my-profile";
+    }
+    case td_api::internalLinkTypeNewChannelChat::ID:
       if (!is_internal) {
         return Status::Error("HTTP link is unavailable for the link type");
       }
-      return "tg://ton";
+      return "tg://new/channel";
+    case td_api::internalLinkTypeNewGroupChat::ID:
+      if (!is_internal) {
+        return Status::Error("HTTP link is unavailable for the link type");
+      }
+      return "tg://new/group";
+    case td_api::internalLinkTypeNewPrivateChat::ID:
+      if (!is_internal) {
+        return Status::Error("HTTP link is unavailable for the link type");
+      }
+      return "tg://new";
+    case td_api::internalLinkTypeNewStory::ID: {
+      auto link = static_cast<const td_api::internalLinkTypeNewStory *>(type_ptr);
+      if (!is_internal) {
+        return Status::Error("HTTP link is unavailable for the link type");
+      }
+      if (link->content_type_ != nullptr) {
+        switch (link->content_type_->get_id()) {
+          case td_api::storyContentTypePhoto::ID:
+            return "tg://post/photo";
+          case td_api::storyContentTypeVideo::ID:
+            return "tg://post/video";
+          case td_api::storyContentTypeLive::ID:
+            return "tg://post/live";
+          case td_api::storyContentTypeUnsupported::ID:
+            return "tg://post/unsupported";
+          default:
+            UNREACHABLE();
+        }
+      }
+      return "tg://post";
+    }
     case td_api::internalLinkTypePassportDataRequest::ID: {
       auto link = static_cast<const td_api::internalLinkTypePassportDataRequest *>(type_ptr);
       if (!is_internal) {
@@ -2928,11 +3311,6 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
                        << "&scope=" << url_encode(link->scope_) << "&public_key=" << url_encode(link->public_key_)
                        << "&nonce=" << url_encode(link->nonce_) << "&callback_url=" << url_encode(link->callback_url_);
     }
-    case td_api::internalLinkTypePasswordSettings::ID:
-      if (!is_internal) {
-        return Status::Error("HTTP link is unavailable for the link type");
-      }
-      return "tg://settings/password";
     case td_api::internalLinkTypePhoneNumberConfirmation::ID: {
       auto link = static_cast<const td_api::internalLinkTypePhoneNumberConfirmation *>(type_ptr);
       if (!is_valid_phone_number(link->phone_number_)) {
@@ -2949,13 +3327,8 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
                          << "&hash=" << url_encode(link->hash_);
       }
     }
-    case td_api::internalLinkTypePhoneNumberPrivacySettings::ID:
-      if (!is_internal) {
-        return Status::Error("HTTP link is unavailable for the link type");
-      }
-      return "tg://settings/phone_privacy";
-    case td_api::internalLinkTypePremiumFeatures::ID: {
-      auto link = static_cast<const td_api::internalLinkTypePremiumFeatures *>(type_ptr);
+    case td_api::internalLinkTypePremiumFeaturesPage::ID: {
+      auto link = static_cast<const td_api::internalLinkTypePremiumFeaturesPage *>(type_ptr);
       if (!is_internal) {
         return Status::Error("HTTP link is unavailable for the link type");
       }
@@ -2963,16 +3336,6 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
         return Status::Error("Invalid referrer specified");
       }
       return PSTRING() << "tg://premium_offer?ref=" << url_encode(link->referrer_);
-    }
-    case td_api::internalLinkTypePremiumGift::ID: {
-      auto link = static_cast<const td_api::internalLinkTypePremiumGift *>(type_ptr);
-      if (!is_internal) {
-        return Status::Error("HTTP link is unavailable for the link type");
-      }
-      if (!is_valid_premium_referrer(link->referrer_)) {
-        return Status::Error("Invalid referrer specified");
-      }
-      return PSTRING() << "tg://premium_multigift?ref=" << url_encode(link->referrer_);
     }
     case td_api::internalLinkTypePremiumGiftCode::ID: {
       auto link = static_cast<const td_api::internalLinkTypePremiumGiftCode *>(type_ptr);
@@ -2985,14 +3348,26 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
         return PSTRING() << get_t_me_url() << "giftcode/" << url_encode(link->code_);
       }
     }
-    case td_api::internalLinkTypePrivacyAndSecuritySettings::ID:
+    case td_api::internalLinkTypePremiumGiftPurchase::ID: {
+      auto link = static_cast<const td_api::internalLinkTypePremiumGiftPurchase *>(type_ptr);
       if (!is_internal) {
         return Status::Error("HTTP link is unavailable for the link type");
       }
-      return "tg://settings/privacy";
+      if (!is_valid_premium_referrer(link->referrer_)) {
+        return Status::Error("Invalid referrer specified");
+      }
+      return PSTRING() << "tg://premium_multigift?ref=" << url_encode(link->referrer_);
+    }
     case td_api::internalLinkTypeProxy::ID: {
       auto link = static_cast<const td_api::internalLinkTypeProxy *>(type_ptr);
-      TRY_RESULT(proxy, Proxy::create_proxy(link->server_, link->port_, link->type_.get()));
+      if (link->proxy_ == nullptr) {
+        if (is_internal) {
+          return "tg://proxy?port=-1&server=0.0.0.0";
+        } else {
+          return PSTRING() << get_t_me_url() << "proxy?port=-1&server=0.0.0.0";
+        }
+      }
+      TRY_RESULT(proxy, Proxy::create_proxy(link->proxy_.get()));
       return get_proxy_link(proxy, is_internal);
     }
     case td_api::internalLinkTypePublicChat::ID: {
@@ -3012,11 +3387,174 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
         return Status::Error("HTTP link is unavailable for the link type");
       }
       return "tg://restore_purchases";
-    case td_api::internalLinkTypeSettings::ID:
+    case td_api::internalLinkTypeSavedMessages::ID:
       if (!is_internal) {
         return Status::Error("HTTP link is unavailable for the link type");
       }
-      return "tg://settings";
+      return "tg://settings/saved-messages";
+    case td_api::internalLinkTypeSearch::ID:
+      if (!is_internal) {
+        return Status::Error("HTTP link is unavailable for the link type");
+      }
+      return "tg://chats/search";
+    case td_api::internalLinkTypeSettings::ID: {
+      auto link = static_cast<const td_api::internalLinkTypeSettings *>(type_ptr);
+      if (!is_internal) {
+        return Status::Error("HTTP link is unavailable for the link type");
+      }
+      auto *section_ptr = link->section_.get();
+      if (section_ptr == nullptr) {
+        return "tg://settings";
+      }
+      switch (section_ptr->get_id()) {
+        case td_api::settingsSectionAppearance::ID: {
+          const auto &subsection = static_cast<const td_api::settingsSectionAppearance *>(section_ptr)->subsection_;
+          if (td::contains(get_appearance_settings_subsections(), subsection)) {
+            return PSTRING() << "tg://settings/appearance/" << subsection;
+          }
+          return "tg://settings/themes";
+        }
+        case td_api::settingsSectionBusiness::ID: {
+          const auto &subsection = static_cast<const td_api::settingsSectionBusiness *>(section_ptr)->subsection_;
+          if (td::contains(get_business_settings_subsections(), subsection)) {
+            return PSTRING() << "tg://settings/business/" << subsection;
+          }
+          return "tg://settings/business";
+        }
+        case td_api::settingsSectionAskQuestion::ID:
+          return "tg://settings/ask-question";
+        case td_api::settingsSectionChatFolders::ID: {
+          const auto &subsection = static_cast<const td_api::settingsSectionChatFolders *>(section_ptr)->subsection_;
+          if (td::contains(get_folder_settings_subsections(), subsection)) {
+            return PSTRING() << "tg://settings/folders/" << subsection;
+          }
+          return "tg://settings/folders";
+        }
+        case td_api::settingsSectionDataAndStorage::ID: {
+          const auto &subsection = static_cast<const td_api::settingsSectionDataAndStorage *>(section_ptr)->subsection_;
+          if (td::contains(get_data_settings_subsections(), subsection)) {
+            return PSTRING() << "tg://settings/data/" << subsection;
+          }
+          return "tg://settings/data";
+        }
+        case td_api::settingsSectionDevices::ID: {
+          const auto &subsection = static_cast<const td_api::settingsSectionDevices *>(section_ptr)->subsection_;
+          if (td::contains(get_device_settings_subsections(), subsection)) {
+            return PSTRING() << "tg://settings/devices/" << subsection;
+          }
+          return "tg://settings/devices";
+        }
+        case td_api::settingsSectionEditProfile::ID: {
+          const auto &subsection = static_cast<const td_api::settingsSectionEditProfile *>(section_ptr)->subsection_;
+          if (td::contains(get_edit_profile_settings_subsections(), subsection)) {
+            if (subsection == "change-number") {
+              return "tg://settings/change_number";
+            }
+            return PSTRING() << "tg://settings/edit/" << subsection;
+          } else if (td::contains(get_edit_profile_other_settings_subsections(), subsection)) {
+            return PSTRING() << "tg://settings/" << subsection;
+          }
+          return "tg://settings/edit_profile";
+        }
+        case td_api::settingsSectionFaq::ID:
+          return "tg://settings/faq";
+        case td_api::settingsSectionFeatures::ID:
+          return "tg://settings/features";
+        case td_api::settingsSectionInAppBrowser::ID: {
+          const auto &subsection = static_cast<const td_api::settingsSectionInAppBrowser *>(section_ptr)->subsection_;
+          if (td::contains(get_in_app_browser_settings_subsections(), subsection)) {
+            return PSTRING() << "tg://settings/chat/browser/" << subsection;
+          }
+          return "tg://settings/chat/browser";
+        }
+        case td_api::settingsSectionLanguage::ID: {
+          const auto &subsection = static_cast<const td_api::settingsSectionLanguage *>(section_ptr)->subsection_;
+          if (td::contains(get_language_settings_subsections(), subsection)) {
+            return PSTRING() << "tg://settings/language/" << subsection;
+          }
+          return "tg://settings/language";
+        }
+        case td_api::settingsSectionMyStars::ID: {
+          const auto &subsection = static_cast<const td_api::settingsSectionMyStars *>(section_ptr)->subsection_;
+          if (td::contains(get_my_stars_settings_subsections(), subsection)) {
+            return PSTRING() << "tg://settings/stars/" << subsection;
+          }
+          return "tg://stars";
+        }
+        case td_api::settingsSectionMyToncoins::ID:
+          return "tg://ton";
+        case td_api::settingsSectionNotifications::ID: {
+          const auto &subsection = static_cast<const td_api::settingsSectionNotifications *>(section_ptr)->subsection_;
+          if (td::contains(get_notification_settings_subsections(), subsection)) {
+            return PSTRING() << "tg://settings/notifications/" << subsection;
+          }
+          return "tg://settings/notifications";
+        }
+        case td_api::settingsSectionPowerSaving::ID: {
+          const auto &subsection = static_cast<const td_api::settingsSectionPowerSaving *>(section_ptr)->subsection_;
+          if (td::contains(get_power_saving_settings_subsections(), subsection)) {
+            return PSTRING() << "tg://settings/power-saving/" << subsection;
+          }
+          return "tg://settings/power-saving";
+        }
+        case td_api::settingsSectionPremium::ID:
+          return "tg://settings/premium";
+        case td_api::settingsSectionPrivacyAndSecurity::ID: {
+          const auto &subsection =
+              static_cast<const td_api::settingsSectionPrivacyAndSecurity *>(section_ptr)->subsection_;
+          if (td::contains(get_privacy_settings_subsections(), subsection)) {
+            if (subsection == "phone-number") {
+              return "tg://settings/phone_privacy";
+            }
+            if (subsection == "auto-delete") {
+              return "tg://settings/auto_delete";
+            }
+            if (subsection == "login-email") {
+              return "tg://settings/login_email";
+            }
+            if (subsection == "2sv") {
+              return "tg://settings/password";
+            }
+            return PSTRING() << "tg://settings/privacy/" << subsection;
+          }
+          return "tg://settings/privacy";
+        }
+        case td_api::settingsSectionPrivacyPolicy::ID:
+          return "tg://settings/privacy-policy";
+        case td_api::settingsSectionQrCode::ID: {
+          const auto &subsection = static_cast<const td_api::settingsSectionQrCode *>(section_ptr)->subsection_;
+          if (td::contains(get_qr_code_settings_subsections(), subsection)) {
+            return PSTRING() << "tg://settings/qr-code/" << subsection;
+          }
+          return "tg://settings/qr-code";
+        }
+        case td_api::settingsSectionSearch::ID:
+          return "tg://settings/search";
+        case td_api::settingsSectionSendGift::ID: {
+          const auto &subsection = static_cast<const td_api::settingsSectionSendGift *>(section_ptr)->subsection_;
+          if (td::contains(get_send_gift_settings_subsections(), subsection)) {
+            return PSTRING() << "tg://settings/send-gift/" << subsection;
+          }
+          return "tg://settings/send-gift";
+        }
+        default:
+          UNREACHABLE();
+          return "";
+      }
+    }
+    case td_api::internalLinkTypeStarPurchase::ID: {
+      auto link = static_cast<const td_api::internalLinkTypeStarPurchase *>(type_ptr);
+      if (!is_internal) {
+        return Status::Error("HTTP link is unavailable for the link type");
+      }
+      if (link->star_count_ <= 0) {
+        return Status::Error(400, "Invalid Telegram Star amount provided");
+      }
+      if (!is_valid_star_top_up_purpose(link->purpose_)) {
+        return Status::Error(400, "Invalid purpose specified");
+      }
+      return PSTRING() << "tg://stars_topup?balance=" << link->star_count_ << "&purpose=" << url_encode(link->purpose_);
+    }
     case td_api::internalLinkTypeStickerSet::ID: {
       auto link = static_cast<const td_api::internalLinkTypeStickerSet *>(type_ptr);
       if (!is_valid_sticker_set_name(link->sticker_set_name_)) {
@@ -3070,11 +3608,6 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
         return PSTRING() << get_t_me_url() << "addtheme/" << url_encode(link->theme_name_);
       }
     }
-    case td_api::internalLinkTypeThemeSettings::ID:
-      if (!is_internal) {
-        return Status::Error("HTTP link is unavailable for the link type");
-      }
-      return "tg://settings/themes";
     case td_api::internalLinkTypeUnknownDeepLink::ID: {
       auto link = static_cast<const td_api::internalLinkTypeUnknownDeepLink *>(type_ptr);
       if (!is_internal) {
@@ -3090,12 +3623,6 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
       }
       return std::move(static_cast<td_api::internalLinkTypeUnknownDeepLink &>(*parsed_object).link_);
     }
-    case td_api::internalLinkTypeUnsupportedProxy::ID:
-      if (is_internal) {
-        return "tg://proxy?port=-1&server=0.0.0.0";
-      } else {
-        return PSTRING() << get_t_me_url() << "proxy?port=-1&server=0.0.0.0";
-      }
     case td_api::internalLinkTypeUpgradedGift::ID: {
       auto link = static_cast<const td_api::internalLinkTypeUpgradedGift *>(type_ptr);
       if (!is_valid_upgraded_gift_name(link->name_)) {
@@ -3264,6 +3791,17 @@ void LinkManager::get_external_link_info(string &&link, Promise<td_api::object_p
 
   auto r_url = parse_url(link);
   if (r_url.is_error()) {
+    auto info = get_link_info(link);
+    if (info.type_ == LinkType::Tg) {
+      const auto url_query = parse_url_query(info.query_);
+      const auto &path = url_query.path_;
+      if (path.size() == 1 &&
+          ((path[0] == "resolve" && url_query.get_arg("domain") == "oauth" && !url_query.get_arg("startapp").empty()) ||
+           (path[0] == "oauth" && !url_query.get_arg("token").empty()))) {
+        td_->create_handler<RequestUrlAuthQuery>(std::move(promise))->send(link, MessageFullId(), 0);
+        return;
+      }
+    }
     return promise.set_value(std::move(default_result));
   }
 
@@ -3352,12 +3890,13 @@ void LinkManager::get_login_url(MessageFullId message_full_id, int64 button_id, 
                                 Promise<td_api::object_ptr<td_api::httpUrl>> &&promise) {
   TRY_RESULT_PROMISE(promise, url, td_->messages_manager_->get_login_button_url(message_full_id, button_id));
   td_->create_handler<AcceptUrlAuthQuery>(std::move(promise))
-      ->send(std::move(url), message_full_id, narrow_cast<int32>(button_id), allow_write_access);
+      ->send(std::move(url), message_full_id, narrow_cast<int32>(button_id), allow_write_access, false);
 }
 
-void LinkManager::get_link_login_url(const string &url, bool allow_write_access,
+void LinkManager::get_link_login_url(const string &url, bool allow_write_access, bool allow_phone_number_access,
                                      Promise<td_api::object_ptr<td_api::httpUrl>> &&promise) {
-  td_->create_handler<AcceptUrlAuthQuery>(std::move(promise))->send(url, MessageFullId(), 0, allow_write_access);
+  td_->create_handler<AcceptUrlAuthQuery>(std::move(promise))
+      ->send(url, MessageFullId(), 0, allow_write_access, allow_phone_number_access);
 }
 
 Result<string> LinkManager::get_background_url(const string &name,

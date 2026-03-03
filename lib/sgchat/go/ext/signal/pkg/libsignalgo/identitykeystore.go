@@ -20,14 +20,12 @@ package libsignalgo
 /*
 #include "./libsignal-ffi.h"
 
-typedef const SignalProtocolAddress const_address;
-typedef const SignalPublicKey const_public_key;
-
-extern int signal_get_identity_key_pair_callback(void *store_ctx, SignalPrivateKey **keyp);
+extern int signal_get_identity_key_pair_callback(void *store_ctx, SignalMutPointerPrivateKey *keyp);
 extern int signal_get_local_registration_id_callback(void *store_ctx, uint32_t *idp);
-extern int signal_save_identity_key_callback(void *store_ctx, const_address *address, const_public_key *public_key);
-extern int signal_get_identity_key_callback(void *store_ctx, SignalPublicKey **public_keyp, const_address *address);
-extern int signal_is_trusted_identity_callback(void *store_ctx, const_address *address, const_public_key *public_key, unsigned int direction);
+extern int signal_save_identity_key_callback(void *store_ctx, uint8_t *out, SignalMutPointerProtocolAddress address, SignalMutPointerPublicKey public_key);
+extern int signal_get_identity_key_callback(void *store_ctx, SignalMutPointerPublicKey *public_keyp, SignalMutPointerProtocolAddress address);
+extern int signal_is_trusted_identity_callback(void *store_ctx, bool *out, SignalMutPointerProtocolAddress address, SignalMutPointerPublicKey public_key, uint32_t direction);
+extern void signal_destroy_identity_key_store_callback(void *store_ctx);
 */
 import "C"
 import (
@@ -51,21 +49,21 @@ type IdentityKeyStore interface {
 }
 
 //export signal_get_identity_key_pair_callback
-func signal_get_identity_key_pair_callback(storeCtx unsafe.Pointer, keyp **C.SignalPrivateKey) C.int {
+func signal_get_identity_key_pair_callback(storeCtx unsafe.Pointer, keyp *C.SignalMutPointerPrivateKey) C.int {
 	return wrapStoreCallback(storeCtx, func(store IdentityKeyStore, ctx context.Context) error {
 		key, err := store.GetIdentityKeyPair(ctx)
 		if err != nil {
 			return err
 		}
 		if key == nil {
-			*keyp = nil
+			keyp.raw = nil
 		} else {
 			clone, err := key.privateKey.Clone()
 			if err != nil {
 				return err
 			}
 			clone.CancelFinalizer()
-			*keyp = clone.ptr
+			keyp.raw = clone.ptr
 		}
 		return err
 	})
@@ -83,17 +81,17 @@ func signal_get_local_registration_id_callback(storeCtx unsafe.Pointer, idp *C.u
 }
 
 //export signal_save_identity_key_callback
-func signal_save_identity_key_callback(storeCtx unsafe.Pointer, address *C.const_address, publicKey *C.const_public_key) C.int {
-	return wrapStoreCallbackCustomReturn(storeCtx, func(store IdentityKeyStore, ctx context.Context) (int, error) {
-		publicKeyStruct := PublicKey{ptr: (*C.SignalPublicKey)(unsafe.Pointer(publicKey))}
+func signal_save_identity_key_callback(storeCtx unsafe.Pointer, out *C.uint8_t, address C.SignalMutPointerProtocolAddress, publicKey C.SignalMutPointerPublicKey) C.int {
+	return wrapStoreCallback(storeCtx, func(store IdentityKeyStore, ctx context.Context) error {
+		publicKeyStruct := PublicKey{ptr: publicKey.raw}
 		cloned, err := publicKeyStruct.Clone()
 		if err != nil {
-			return -1, err
+			return err
 		}
-		addr := &Address{ptr: (*C.SignalProtocolAddress)(unsafe.Pointer(address))}
+		addr := &Address{ptr: address.raw}
 		theirServiceID, err := addr.NameServiceID()
 		if err != nil {
-			return -1, err
+			return err
 		}
 		replaced, err := store.SaveIdentityKey(
 			ctx,
@@ -101,20 +99,21 @@ func signal_save_identity_key_callback(storeCtx unsafe.Pointer, address *C.const
 			&IdentityKey{cloned},
 		)
 		if err != nil {
-			return -1, err
+			return err
 		}
 		if replaced {
-			return 1, nil
+			*out = 1
 		} else {
-			return 0, nil
+			*out = 0
 		}
+		return nil
 	})
 }
 
 //export signal_get_identity_key_callback
-func signal_get_identity_key_callback(storeCtx unsafe.Pointer, public_keyp **C.SignalPublicKey, address *C.const_address) C.int {
+func signal_get_identity_key_callback(storeCtx unsafe.Pointer, public_keyp *C.SignalMutPointerPublicKey, address C.SignalMutPointerProtocolAddress) C.int {
 	return wrapStoreCallback(storeCtx, func(store IdentityKeyStore, ctx context.Context) error {
-		addr := &Address{ptr: (*C.SignalProtocolAddress)(unsafe.Pointer(address))}
+		addr := &Address{ptr: address.raw}
 		theirServiceID, err := addr.NameServiceID()
 		if err != nil {
 			return err
@@ -122,39 +121,42 @@ func signal_get_identity_key_callback(storeCtx unsafe.Pointer, public_keyp **C.S
 		key, err := store.GetIdentityKey(ctx, theirServiceID)
 		if err == nil && key != nil {
 			key.publicKey.CancelFinalizer()
-			*public_keyp = key.publicKey.ptr
+			public_keyp.raw = key.publicKey.ptr
 		}
 		return err
 	})
 }
 
 //export signal_is_trusted_identity_callback
-func signal_is_trusted_identity_callback(storeCtx unsafe.Pointer, address *C.const_address, public_key *C.const_public_key, direction C.uint) C.int {
-	return wrapStoreCallbackCustomReturn(storeCtx, func(store IdentityKeyStore, ctx context.Context) (int, error) {
-		addr := &Address{ptr: (*C.SignalProtocolAddress)(unsafe.Pointer(address))}
+func signal_is_trusted_identity_callback(storeCtx unsafe.Pointer, out *C.bool, address C.SignalMutPointerProtocolAddress, public_key C.SignalMutPointerPublicKey, direction C.uint32_t) C.int {
+	return wrapStoreCallback(storeCtx, func(store IdentityKeyStore, ctx context.Context) error {
+		addr := &Address{ptr: address.raw}
 		theirServiceID, err := addr.NameServiceID()
 		if err != nil {
-			return -1, err
+			return err
 		}
-		trusted, err := store.IsTrustedIdentity(ctx, theirServiceID, &IdentityKey{&PublicKey{ptr: (*C.SignalPublicKey)(unsafe.Pointer(public_key))}}, SignalDirection(direction))
+		trusted, err := store.IsTrustedIdentity(ctx, theirServiceID, &IdentityKey{&PublicKey{ptr: public_key.raw}}, SignalDirection(direction))
 		if err != nil {
-			return -1, err
+			return err
 		}
-		if trusted {
-			return 1, nil
-		} else {
-			return 0, nil
-		}
+		*out = C.bool(trusted)
+		return nil
 	})
+}
+
+//export signal_destroy_identity_key_store_callback
+func signal_destroy_identity_key_store_callback(storeCtx unsafe.Pointer) {
+	// No-op: Go's garbage collector handles cleanup
 }
 
 func (ctx *CallbackContext) wrapIdentityKeyStore(store IdentityKeyStore) C.SignalConstPointerFfiIdentityKeyStoreStruct {
 	return C.SignalConstPointerFfiIdentityKeyStoreStruct{&C.SignalIdentityKeyStore{
-		ctx:                       wrapStore(ctx, store),
-		get_identity_key_pair:     C.SignalGetIdentityKeyPair(C.signal_get_identity_key_pair_callback),
-		get_local_registration_id: C.SignalGetLocalRegistrationId(C.signal_get_local_registration_id_callback),
-		save_identity:             C.SignalSaveIdentityKey(C.signal_save_identity_key_callback),
-		get_identity:              C.SignalGetIdentityKey(C.signal_get_identity_key_callback),
-		is_trusted_identity:       C.SignalIsTrustedIdentity(C.signal_is_trusted_identity_callback),
+		ctx:                            wrapStore(ctx, store),
+		get_local_identity_private_key: C.SignalFfiBridgeIdentityKeyStoreGetLocalIdentityPrivateKey(C.signal_get_identity_key_pair_callback),
+		get_local_registration_id:      C.SignalFfiBridgeIdentityKeyStoreGetLocalRegistrationId(C.signal_get_local_registration_id_callback),
+		get_identity_key:               C.SignalFfiBridgeIdentityKeyStoreGetIdentityKey(C.signal_get_identity_key_callback),
+		save_identity_key:              C.SignalFfiBridgeIdentityKeyStoreSaveIdentityKey(C.signal_save_identity_key_callback),
+		is_trusted_identity:            C.SignalFfiBridgeIdentityKeyStoreIsTrustedIdentity(C.signal_is_trusted_identity_callback),
+		destroy:                        C.SignalFfiBridgeIdentityKeyStoreDestroy(C.signal_destroy_identity_key_store_callback),
 	}}
 }

@@ -407,7 +407,7 @@ class ChatManager final : public Actor {
 
   td_api::object_ptr<td_api::supergroup> get_supergroup_object(ChannelId channel_id) const;
 
-  tl_object_ptr<td_api::supergroupFullInfo> get_supergroup_full_info_object(ChannelId channel_id) const;
+  td_api::object_ptr<td_api::supergroupFullInfo> get_supergroup_full_info_object(ChannelId channel_id) const;
 
   tl_object_ptr<td_api::chatMember> get_chat_member_object(const DialogParticipant &dialog_participant,
                                                            const char *source) const;
@@ -647,6 +647,7 @@ class ChatManager final : public Actor {
     bool has_stargifts_available = false;
     bool has_paid_messages_available = false;
 
+    bool is_photo_changed = true;
     bool is_slow_mode_next_send_date_changed = true;
     bool is_being_updated = false;
     bool is_changed = true;             // have new changes that need to be sent to the client and database
@@ -701,10 +702,10 @@ class ChatManager final : public Actor {
 
   Channel *add_channel(ChannelId channel_id, const char *source);
 
-  const ChannelFull *get_channel_full(ChannelId channel_id) const;
   const ChannelFull *get_channel_full_const(ChannelId channel_id) const;
   ChannelFull *get_channel_full(ChannelId channel_id, bool only_local, const char *source);
-  ChannelFull *get_channel_full_force(ChannelId channel_id, bool only_local, const char *source);
+  ChannelFull *get_channel_full_force(ChannelId channel_id, bool only_local, const char *source,
+                                      bool is_recursive = false);
 
   ChannelFull *add_channel_full(ChannelId channel_id);
 
@@ -840,7 +841,7 @@ class ChatManager final : public Actor {
   static void save_channel_full(const ChannelFull *channel_full, ChannelId channel_id);
   static string get_channel_full_database_key(ChannelId channel_id);
   static string get_channel_full_database_value(const ChannelFull *channel_full);
-  void on_load_channel_full_from_database(ChannelId channel_id, string value, const char *source);
+  void on_load_channel_full_from_database(ChannelId channel_id, string value, const char *source, bool is_recursive);
 
   void update_chat(Chat *c, ChatId chat_id, bool from_binlog = false, bool from_database = false);
   void update_channel(Channel *c, ChannelId channel_id, bool from_binlog = false, bool from_database = false);
@@ -859,8 +860,8 @@ class ChatManager final : public Actor {
 
   static bool is_suitable_created_public_channel(PublicDialogType type, const Channel *c);
 
-  static void return_created_public_dialogs(Promise<td_api::object_ptr<td_api::chats>> &&promise,
-                                            const vector<ChannelId> &channel_ids);
+  void return_created_public_dialogs(Promise<td_api::object_ptr<td_api::chats>> &&promise,
+                                     const vector<ChannelId> &channel_ids);
 
   void finish_get_created_public_dialogs(PublicDialogType type, Result<Unit> &&result);
 
@@ -904,8 +905,12 @@ class ChatManager final : public Actor {
 
   Status can_toggle_channel_aggressive_anti_spam(ChannelId channel_id, const ChannelFull *channel_full) const;
 
-  tl_object_ptr<td_api::supergroupFullInfo> get_supergroup_full_info_object(ChannelId channel_id,
-                                                                            const ChannelFull *channel_full) const;
+  td_api::object_ptr<td_api::supergroupFullInfo> get_supergroup_full_info_object(ChannelId channel_id,
+                                                                                 const ChannelFull *channel_full,
+                                                                                 const Channel *c) const;
+
+  td_api::object_ptr<td_api::updateSupergroupFullInfo> get_update_supergroup_full_info_object(
+      ChannelId channel_id, const ChannelFull *channel_full, const char *source) const;
 
   vector<DialogId> get_dialog_ids(vector<tl_object_ptr<telegram_api::Chat>> &&chats, const char *source);
 

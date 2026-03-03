@@ -84,15 +84,15 @@ func (k *PublicKey) CancelFinalizer() {
 	runtime.SetFinalizer(k, nil)
 }
 
-func (k *PublicKey) Compare(other *PublicKey) (int, error) {
-	var comparison C.int
-	signalFfiError := C.signal_publickey_compare(&comparison, k.constPtr(), other.constPtr())
+func (k *PublicKey) Equal(other *PublicKey) (bool, error) {
+	var comparison C.bool
+	signalFfiError := C.signal_publickey_equals(&comparison, k.constPtr(), other.constPtr())
 	runtime.KeepAlive(k)
 	runtime.KeepAlive(other)
 	if signalFfiError != nil {
-		return 0, wrapError(signalFfiError)
+		return false, wrapError(signalFfiError)
 	}
-	return int(comparison), nil
+	return bool(comparison), nil
 }
 
 func (k *PublicKey) Bytes() ([]byte, error) {

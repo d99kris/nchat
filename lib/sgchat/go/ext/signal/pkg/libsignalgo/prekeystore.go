@@ -20,11 +20,10 @@ package libsignalgo
 /*
 #include "./libsignal-ffi.h"
 
-typedef const SignalPreKeyRecord const_pre_key_record;
-
-extern int signal_load_pre_key_callback(void *store_ctx, SignalPreKeyRecord **recordp, uint32_t id);
-extern int signal_store_pre_key_callback(void *store_ctx, uint32_t id, const_pre_key_record *record);
+extern int signal_load_pre_key_callback(void *store_ctx, SignalMutPointerPreKeyRecord *recordp, uint32_t id);
+extern int signal_store_pre_key_callback(void *store_ctx, uint32_t id, SignalMutPointerPreKeyRecord record);
 extern int signal_remove_pre_key_callback(void *store_ctx, uint32_t id);
+extern void signal_destroy_pre_key_store_callback(void *store_ctx);
 */
 import "C"
 import (
@@ -39,21 +38,21 @@ type PreKeyStore interface {
 }
 
 //export signal_load_pre_key_callback
-func signal_load_pre_key_callback(storeCtx unsafe.Pointer, keyp **C.SignalPreKeyRecord, id C.uint32_t) C.int {
+func signal_load_pre_key_callback(storeCtx unsafe.Pointer, keyp *C.SignalMutPointerPreKeyRecord, id C.uint32_t) C.int {
 	return wrapStoreCallback(storeCtx, func(store PreKeyStore, ctx context.Context) error {
 		key, err := store.LoadPreKey(ctx, uint32(id))
 		if err == nil && key != nil {
 			key.CancelFinalizer()
-			*keyp = key.ptr
+			keyp.raw = key.ptr
 		}
 		return err
 	})
 }
 
 //export signal_store_pre_key_callback
-func signal_store_pre_key_callback(storeCtx unsafe.Pointer, id C.uint32_t, preKeyRecord *C.const_pre_key_record) C.int {
+func signal_store_pre_key_callback(storeCtx unsafe.Pointer, id C.uint32_t, preKeyRecord C.SignalMutPointerPreKeyRecord) C.int {
 	return wrapStoreCallback(storeCtx, func(store PreKeyStore, ctx context.Context) error {
-		record := PreKeyRecord{ptr: (*C.SignalPreKeyRecord)(unsafe.Pointer(preKeyRecord))}
+		record := PreKeyRecord{ptr: preKeyRecord.raw}
 		cloned, err := record.Clone()
 		if err != nil {
 			return err
@@ -69,11 +68,17 @@ func signal_remove_pre_key_callback(storeCtx unsafe.Pointer, id C.uint32_t) C.in
 	})
 }
 
+//export signal_destroy_pre_key_store_callback
+func signal_destroy_pre_key_store_callback(storeCtx unsafe.Pointer) {
+	// No-op: Go's garbage collector handles cleanup
+}
+
 func (ctx *CallbackContext) wrapPreKeyStore(store PreKeyStore) C.SignalConstPointerFfiPreKeyStoreStruct {
 	return C.SignalConstPointerFfiPreKeyStoreStruct{&C.SignalPreKeyStore{
 		ctx:            wrapStore(ctx, store),
-		load_pre_key:   C.SignalLoadPreKey(C.signal_load_pre_key_callback),
-		store_pre_key:  C.SignalStorePreKey(C.signal_store_pre_key_callback),
-		remove_pre_key: C.SignalRemovePreKey(C.signal_remove_pre_key_callback),
+		load_pre_key:   C.SignalFfiBridgePreKeyStoreLoadPreKey(C.signal_load_pre_key_callback),
+		store_pre_key:  C.SignalFfiBridgePreKeyStoreStorePreKey(C.signal_store_pre_key_callback),
+		remove_pre_key: C.SignalFfiBridgePreKeyStoreRemovePreKey(C.signal_remove_pre_key_callback),
+		destroy:        C.SignalFfiBridgePreKeyStoreDestroy(C.signal_destroy_pre_key_store_callback),
 	}}
 }

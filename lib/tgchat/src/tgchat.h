@@ -1,6 +1,6 @@
 // tgchat.h
 //
-// Copyright (c) 2020-2025 Kristofer Berggren
+// Copyright (c) 2020-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -31,6 +31,7 @@ public:
   std::string GetProfileId() const;
   std::string GetProfileDisplayName() const;
   bool HasFeature(ProtocolFeature p_ProtocolFeature) const;
+  bool IsGroupChat(const std::string& p_ChatId) const;
   std::string GetSelfId() const;
 
   bool SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId);

@@ -73,6 +73,8 @@ StarGift::StarGift(Td *td, telegram_api::object_ptr<telegram_api::StarGift> star
       }
     }
     offer_min_star_count_ = StarManager::get_star_count(star_gift->offer_min_stars_);
+    is_burned_ = star_gift->burned_;
+    is_crafted_ = star_gift->crafted_;
     is_theme_available_ = star_gift->theme_available_;
     if (star_gift->released_by_ != nullptr) {
       released_by_dialog_id_ = DialogId(star_gift->released_by_);
@@ -125,6 +127,7 @@ StarGift::StarGift(Td *td, telegram_api::object_ptr<telegram_api::StarGift> star
           UNREACHABLE();
       }
     }
+    craft_chance_permille_ = max(0, star_gift->craft_chance_permille_);
     value_currency_ = std::move(star_gift->value_currency_);
     value_amount_ = star_gift->value_amount_;
     value_usd_amount_ = star_gift->value_usd_amount_;
@@ -238,15 +241,15 @@ td_api::object_ptr<td_api::upgradedGift> StarGift::get_upgraded_gift_object(Td *
   return td_api::make_object<td_api::upgradedGift>(
       id_, regular_gift_id_,
       td->dialog_manager_->get_chat_id_object(released_by_dialog_id_, "upgradedGift released by"), title_, slug_, num_,
-      unique_availability_issued_, unique_availability_total_, is_premium_, is_theme_available_,
-      td->dialog_manager_->get_chat_id_object(theme_dialog_id_, "upgradedGift theme"),
+      unique_availability_issued_, unique_availability_total_, is_burned_, is_crafted_, is_premium_,
+      is_theme_available_, td->dialog_manager_->get_chat_id_object(theme_dialog_id_, "upgradedGift theme"),
       !host_dialog_id_.is_valid() ? nullptr : get_message_sender_object(td, host_dialog_id_, "upgradedGift host"),
       !owner_dialog_id_.is_valid() ? nullptr : get_message_sender_object(td, owner_dialog_id_, "upgradedGift owner"),
       owner_address_, owner_name_, gift_address_, model_.get_upgraded_gift_model_object(td),
       pattern_.get_upgraded_gift_symbol_object(td), backdrop_.get_upgraded_gift_backdrop_object(),
       original_details_.get_upgraded_gift_original_details_object(td),
       peer_color_ == nullptr ? nullptr : peer_color_->get_upgraded_gift_colors_object(), std::move(resale_parameters),
-      offer_min_star_count_ > 0, value_currency_, value_amount_, value_usd_amount_);
+      offer_min_star_count_ > 0, craft_chance_permille_, value_currency_, value_amount_, value_usd_amount_);
 }
 
 td_api::object_ptr<td_api::giftForResale> StarGift::get_gift_for_resale_object(Td *td) const {
@@ -286,7 +289,8 @@ bool operator==(const StarGift &lhs, const StarGift &rhs) {
          lhs.has_colors_ == rhs.has_colors_ && lhs.is_for_birthday_ == rhs.is_for_birthday_ &&
          lhs.is_auction_ == rhs.is_auction_ && lhs.is_unique_ == rhs.is_unique_ &&
          lhs.resale_ton_only_ == rhs.resale_ton_only_ && lhs.is_theme_available_ == rhs.is_theme_available_ &&
-         lhs.model_ == rhs.model_ && lhs.pattern_ == rhs.pattern_ && lhs.backdrop_ == rhs.backdrop_ &&
+         lhs.is_burned_ == rhs.is_burned_ && lhs.is_crafted_ == rhs.is_crafted_ && lhs.model_ == rhs.model_ &&
+         lhs.pattern_ == rhs.pattern_ && lhs.backdrop_ == rhs.backdrop_ &&
          lhs.original_details_ == rhs.original_details_ && lhs.title_ == rhs.title_ && lhs.slug_ == rhs.slug_ &&
          lhs.auction_slug_ == rhs.auction_slug_ && lhs.host_dialog_id_ == rhs.host_dialog_id_ &&
          lhs.owner_dialog_id_ == rhs.owner_dialog_id_ && lhs.owner_address_ == rhs.owner_address_ &&
@@ -296,9 +300,9 @@ bool operator==(const StarGift &lhs, const StarGift &rhs) {
          lhs.resale_star_count_ == rhs.resale_star_count_ && lhs.resale_ton_count_ == rhs.resale_ton_count_ &&
          lhs.offer_min_star_count_ == rhs.offer_min_star_count_ && lhs.regular_gift_id_ == rhs.regular_gift_id_ &&
          lhs.gifts_per_round_ == rhs.gifts_per_round_ && lhs.auction_start_date_ == rhs.auction_start_date_ &&
-         lhs.value_currency_ == rhs.value_currency_ && lhs.value_amount_ == rhs.value_amount_ &&
-         lhs.value_usd_amount_ == rhs.value_usd_amount_ && lhs.theme_dialog_id_ == rhs.theme_dialog_id_ &&
-         lhs.peer_color_ == rhs.peer_color_;
+         lhs.craft_chance_permille_ == rhs.craft_chance_permille_ && lhs.value_currency_ == rhs.value_currency_ &&
+         lhs.value_amount_ == rhs.value_amount_ && lhs.value_usd_amount_ == rhs.value_usd_amount_ &&
+         lhs.theme_dialog_id_ == rhs.theme_dialog_id_ && lhs.peer_color_ == rhs.peer_color_;
 }
 
 StringBuilder &operator<<(StringBuilder &string_builder, const StarGift &star_gift) {

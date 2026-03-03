@@ -1844,6 +1844,7 @@ void UserManager::User::store(StorerT &storer) const {
     STORE_FLAG(has_peer_color_collectible);
     STORE_FLAG(has_bot_forum_view);
     STORE_FLAG(has_live_story);
+    STORE_FLAG(can_bot_create_topics);
     END_STORE_FLAGS();
   }
   store(first_name, storer);
@@ -1994,6 +1995,7 @@ void UserManager::User::parse(ParserT &parser) {
     PARSE_FLAG(has_peer_color_collectible);
     PARSE_FLAG(has_bot_forum_view);
     PARSE_FLAG(has_live_story);
+    PARSE_FLAG(can_bot_create_topics);
     END_PARSE_FLAGS();
   }
   parse(first_name, parser);
@@ -3101,6 +3103,7 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
   bool can_be_added_to_attach_menu = user->bot_attach_menu_;
   bool has_main_app = user->bot_has_main_app_;
   bool has_bot_forum_view = user->bot_forum_view_;
+  bool can_bot_create_topics = has_bot_forum_view && !user->bot_forum_can_manage_topics_;
   bool attach_menu_enabled = user->attach_menu_enabled_;
   bool is_scam = user->scam_;
   bool can_be_edited_bot = user->bot_can_edit_;
@@ -3118,7 +3121,7 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
   auto paid_message_star_count = StarManager::get_star_count(user->send_paid_messages_stars_);
 
   if (!is_bot && (!can_join_groups || can_read_all_group_messages || can_be_added_to_attach_menu || can_be_edited_bot ||
-                  has_main_app || has_bot_forum_view || is_inline_bot || is_business_bot)) {
+                  has_main_app || has_bot_forum_view || can_bot_create_topics || is_inline_bot || is_business_bot)) {
     LOG(ERROR) << "Receive not bot " << user_id << " with bot properties from " << source;
     can_join_groups = true;
     can_read_all_group_messages = false;
@@ -3126,6 +3129,7 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
     can_be_edited_bot = false;
     has_main_app = false;
     has_bot_forum_view = false;
+    can_bot_create_topics = false;
     is_inline_bot = false;
     is_business_bot = false;
   }
@@ -3146,6 +3150,7 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
     can_be_edited_bot = false;
     has_main_app = false;
     has_bot_forum_view = false;
+    can_bot_create_topics = false;
     is_inline_bot = false;
     is_business_bot = false;
     inline_query_placeholder = string();
@@ -3161,7 +3166,7 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
       is_scam != u->is_scam || is_fake != u->is_fake || is_inline_bot != u->is_inline_bot ||
       is_business_bot != u->is_business_bot || inline_query_placeholder != u->inline_query_placeholder ||
       need_location_bot != u->need_location_bot || can_be_added_to_attach_menu != u->can_be_added_to_attach_menu ||
-      has_main_app != u->has_main_app) {
+      has_main_app != u->has_main_app || can_bot_create_topics != u->can_bot_create_topics) {
     if (is_bot != u->is_bot) {
       LOG_IF(ERROR, !is_deleted && !u->is_deleted && u->is_received)
           << "User.is_bot has changed for " << user_id << "/" << u->usernames << " from " << source << " from "
@@ -3181,6 +3186,7 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
     u->need_location_bot = need_location_bot;
     u->can_be_added_to_attach_menu = can_be_added_to_attach_menu;
     u->has_main_app = has_main_app;
+    u->can_bot_create_topics = can_bot_create_topics;
 
     LOG(DEBUG) << "Info has changed for " << user_id;
     u->is_changed = true;
@@ -4899,7 +4905,7 @@ UserManager::User *UserManager::get_user_force(UserId user_id, const char *sourc
     auto user = telegram_api::make_object<telegram_api::user>(
         flags, false, false, false, false, is_bot, false, is_private_bot, is_verified, false, false, false, is_support,
         false, need_apply_min_photo, false, false, false, false, 0, false, false, false, false, false, false, false,
-        false, user_id.get(), 1, first_name, string(), username, phone_number, std::move(profile_photo), nullptr,
+        false, false, user_id.get(), 1, first_name, string(), username, phone_number, std::move(profile_photo), nullptr,
         bot_info_version, Auto(), string(), string(), nullptr,
         vector<telegram_api::object_ptr<telegram_api::username>>(), nullptr, nullptr, nullptr, 0, 0, 0);
     on_get_user(std::move(user), "get_user_force");
@@ -5192,6 +5198,7 @@ Result<UserManager::BotData> UserManager::get_bot_data(UserId user_id) const {
   bot_data.can_read_all_group_messages = u->can_read_all_group_messages;
   bot_data.has_main_app = u->has_main_app;
   bot_data.has_bot_forum_view = u->has_bot_forum_view;
+  bot_data.can_bot_create_topics = u->can_bot_create_topics;
   bot_data.is_inline = u->is_inline_bot;
   bot_data.is_business = u->is_business_bot;
   bot_data.need_location = u->need_location_bot;
@@ -5731,7 +5738,9 @@ void UserManager::set_business_profile_photo(BusinessConnectionId business_conne
 
 void UserManager::set_profile_photo(const td_api::object_ptr<td_api::InputChatPhoto> &input_photo, bool is_fallback,
                                     Promise<Unit> &&promise) {
-  dismiss_suggested_action(SuggestedAction{SuggestedAction::Type::UserpicSetup}, Promise<Unit>());
+  if (!td_->auth_manager_->is_bot()) {
+    dismiss_suggested_action(SuggestedAction{SuggestedAction::Type::UserpicSetup}, Promise<Unit>());
+  }
   set_profile_photo_impl(get_my_id(), input_photo, is_fallback, false, std::move(promise));
 }
 
@@ -6133,6 +6142,9 @@ void UserManager::delete_profile_photo(int64 profile_photo_id, bool is_recursive
         });
     reload_user_full(get_my_id(), std::move(reload_promise), "delete_profile_photo");
     return;
+  }
+  if (td_->auth_manager_->is_bot()) {
+    profile_photo_id = user_full->photo.id.get();
   }
   if (user_full->photo.id.get() == profile_photo_id || user_full->fallback_photo.id.get() == profile_photo_id) {
     td_->create_handler<UpdateProfilePhotoQuery>(std::move(promise))
@@ -7557,8 +7569,7 @@ void UserManager::save_contacts_to_database() {
   }
 
   LOG(INFO) << "Schedule save contacts to database";
-  vector<UserId> user_ids =
-      transform(contacts_hints_.search_empty(100000).second, [](int64 key) { return UserId(key); });
+  auto user_ids = UserId::get_user_ids(contacts_hints_.search_empty(100000).second);
 
   G()->td_db()->get_binlog_pmc()->set("saved_contact_count", to_string(saved_contact_count_));
   G()->td_db()->get_binlog()->force_sync(
@@ -8692,7 +8703,7 @@ void UserManager::on_get_user_full(telegram_api::object_ptr<telegram_api::userFu
     user_full->is_changed = true;
     td_->group_call_manager_->on_update_dialog_about(DialogId(user_id), user_full->about, true);
   }
-  if (is_bot && !td_->auth_manager_->is_bot()) {
+  if (is_bot && (!td_->auth_manager_->is_bot() || user_id == get_my_id())) {
     auto *bot_info = user_full->add_bot_info();
     AdministratorRights group_administrator_rights(user->bot_group_admin_rights_, ChannelType::Megagroup);
     AdministratorRights broadcast_administrator_rights(user->bot_broadcast_admin_rights_, ChannelType::Broadcast);
@@ -9835,8 +9846,9 @@ td_api::object_ptr<td_api::user> UserManager::get_user_object(UserId user_id, co
   } else if (u->is_bot) {
     type = td_api::make_object<td_api::userTypeBot>(
         u->can_be_edited_bot, u->can_join_groups, u->can_read_all_group_messages, u->has_main_app,
-        u->has_bot_forum_view, u->is_inline_bot, u->inline_query_placeholder, u->need_location_bot, u->is_business_bot,
-        u->can_be_added_to_attach_menu, u->bot_active_users);
+        u->has_bot_forum_view, u->has_bot_forum_view && !u->can_bot_create_topics, u->is_inline_bot,
+        u->inline_query_placeholder, u->need_location_bot, u->is_business_bot, u->can_be_added_to_attach_menu,
+        u->bot_active_users);
   } else {
     type = td_api::make_object<td_api::userTypeRegular>();
   }

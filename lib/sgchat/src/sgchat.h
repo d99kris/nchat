@@ -39,6 +39,7 @@ public:
   std::string GetProfileId() const;
   std::string GetProfileDisplayName() const;
   bool HasFeature(ProtocolFeature p_ProtocolFeature) const;
+  bool IsGroupChat(const std::string& p_ChatId) const;
   std::string GetSelfId() const;
 
   bool SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId);
@@ -112,6 +113,7 @@ void SgNewContactsNotify(int p_ConnId, char* p_ChatId, char* p_Name, char* p_Pho
                          int p_Notify);
 void SgNewChatsNotify(int p_ConnId, char* p_ChatId, int p_IsUnread, int p_IsMuted, int p_IsPinned,
                       int p_LastMessageTime);
+void SgNewGroupMembersNotify(int p_ConnId, char* p_ChatId, char* p_MembersJson);
 void SgNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe,
                          char* p_ReplyId, char* p_FileId, char* p_FilePath, int p_FileStatus, int p_TimeSent,
                          int p_IsRead, int p_IsEdited);

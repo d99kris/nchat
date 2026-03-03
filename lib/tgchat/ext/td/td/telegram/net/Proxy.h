@@ -16,13 +16,22 @@
 
 namespace td {
 
+namespace tl {
+template <class Type>
+class unique_ptr;
+}  // namespace tl
+
 namespace td_api {
+template <class Type>
+using object_ptr = ::td::tl::unique_ptr<Type>;
+
+class proxy;
 class ProxyType;
 }  // namespace td_api
 
 class Proxy {
  public:
-  static Result<Proxy> create_proxy(string server, int port, const td_api::ProxyType *proxy_type);
+  static Result<Proxy> create_proxy(const td_api::proxy *proxy);
 
   static Proxy socks5(string server, int32 port, string user, string password) {
     Proxy proxy;
@@ -104,6 +113,8 @@ class Proxy {
     return type() == Proxy::Type::HttpCaching;
   }
 
+  td_api::object_ptr<td_api::proxy> get_proxy_object() const;
+
   template <class StorerT>
   void store(StorerT &storer) const {
     using td::store;
@@ -147,6 +158,8 @@ class Proxy {
   string user_;
   string password_;
   mtproto::ProxySecret secret_;
+
+  static Result<Proxy> create_proxy(string server, int port, const td_api::ProxyType *proxy_type);
 };
 
 inline bool operator==(const Proxy &lhs, const Proxy &rhs) {

@@ -106,8 +106,8 @@ func (group *Group) GetInviteLink() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("couldn't decode invite link password")
 	}
-	inviteLinkContents := signalpb.GroupInviteLink_V1Contents{
-		V1Contents: &signalpb.GroupInviteLink_GroupInviteLinkContentsV1{
+	inviteLinkContents := signalpb.GroupInviteLink_ContentsV1{
+		ContentsV1: &signalpb.GroupInviteLink_GroupInviteLinkContentsV1{
 			GroupMasterKey:     masterKeyBytes[:],
 			InviteLinkPassword: inviteLinkPasswordBytes,
 		},
@@ -226,8 +226,7 @@ func (groupChange *GroupChange) isEmpty() bool {
 		len(groupChange.PromoteRequestingMembers) == 0 &&
 		groupChange.ModifyDescription == nil &&
 		groupChange.ModifyAnnouncementsOnly == nil &&
-		len(groupChange.AddBannedMembers) == 0 &&
-		len(groupChange.DeleteMembers) == 0
+		len(groupChange.AddBannedMembers) == 0
 }
 
 func (groupChange *GroupChange) resolveConflict(group *Group) {
@@ -471,7 +470,7 @@ func decryptGroup(ctx context.Context, encryptedGroup *signalpb.Group, groupMast
 	descriptionBlob, err := decryptGroupPropertyIntoBlob(groupSecretParams, encryptedGroup.Description)
 	if err == nil {
 		// treat a failure in obtaining the description as non-fatal
-		decryptedGroup.Description = cleanupStringProperty(descriptionBlob.GetDescription())
+		decryptedGroup.Description = cleanupStringProperty(descriptionBlob.GetDescriptionText())
 	}
 
 	if encryptedGroup.DisappearingMessagesTimer != nil && len(encryptedGroup.DisappearingMessagesTimer) > 0 {
@@ -483,8 +482,8 @@ func decryptGroup(ctx context.Context, encryptedGroup *signalpb.Group, groupMast
 	}
 
 	// These aren't encrypted
-	decryptedGroup.AvatarPath = encryptedGroup.Avatar
-	decryptedGroup.Revision = encryptedGroup.Revision
+	decryptedGroup.AvatarPath = encryptedGroup.AvatarUrl
+	decryptedGroup.Revision = encryptedGroup.Version
 
 	// Decrypt members
 	for _, member := range encryptedGroup.Members {
@@ -498,7 +497,7 @@ func decryptGroup(ctx context.Context, encryptedGroup *signalpb.Group, groupMast
 		decryptedGroup.Members = append(decryptedGroup.Members, decryptedMember)
 	}
 
-	for _, pendingMember := range encryptedGroup.PendingMembers {
+	for _, pendingMember := range encryptedGroup.MembersPendingProfileKey {
 		if pendingMember == nil {
 			continue
 		}
@@ -510,7 +509,7 @@ func decryptGroup(ctx context.Context, encryptedGroup *signalpb.Group, groupMast
 		decryptedGroup.PendingMembers = append(decryptedGroup.PendingMembers, decryptedPendingMember)
 	}
 
-	for _, requestingMember := range encryptedGroup.RequestingMembers {
+	for _, requestingMember := range encryptedGroup.MembersPendingAdminApproval {
 		if requestingMember == nil {
 			continue
 		}
@@ -521,7 +520,7 @@ func decryptGroup(ctx context.Context, encryptedGroup *signalpb.Group, groupMast
 		decryptedGroup.RequestingMembers = append(decryptedGroup.RequestingMembers, decryptedRequestingMember)
 	}
 
-	for _, bannedMember := range encryptedGroup.BannedMembers {
+	for _, bannedMember := range encryptedGroup.MembersBanned {
 		if bannedMember == nil {
 			continue
 		}
@@ -789,14 +788,14 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 		return nil, err
 	}
 
-	sourceServiceID, err := groupSecretParams.DecryptServiceID(libsignalgo.UUIDCiphertext(encryptedActions.SourceServiceId))
+	sourceServiceID, err := groupSecretParams.DecryptServiceID(libsignalgo.UUIDCiphertext(encryptedActions.SourceUserId))
 	if err != nil {
 		log.Err(err).Msg("Couldn't decrypt source serviceID")
 		return nil, err
 	}
 	decryptedGroupChange := &GroupChange{
 		GroupMasterKey:  groupMasterKey,
-		Revision:        encryptedActions.Revision,
+		Revision:        encryptedActions.Version,
 		SourceServiceID: sourceServiceID,
 	}
 
@@ -816,7 +815,7 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 		descriptionBlob, err := decryptGroupPropertyIntoBlob(groupSecretParams, encryptedActions.ModifyDescription.Description)
 		if err == nil {
 			// treat a failure in obtaining the description as non-fatal
-			newDescription := cleanupStringProperty(descriptionBlob.GetDescription())
+			newDescription := cleanupStringProperty(descriptionBlob.GetDescriptionText())
 			decryptedGroupChange.ModifyDescription = &newDescription
 		}
 	}
@@ -891,7 +890,7 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 		}
 	}
 
-	for _, addPendingMember := range encryptedActions.AddPendingMembers {
+	for _, addPendingMember := range encryptedActions.AddMembersPendingProfileKey {
 		if addPendingMember == nil {
 			continue
 		}
@@ -904,7 +903,7 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 		decryptedGroupChange.AddPendingMembers = append(decryptedGroupChange.AddPendingMembers, decryptedPendingMember)
 	}
 
-	for _, deletePendingMember := range encryptedActions.DeletePendingMembers {
+	for _, deletePendingMember := range encryptedActions.DeleteMembersPendingProfileKey {
 		if deletePendingMember == nil {
 			continue
 		}
@@ -917,7 +916,7 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 		decryptedGroupChange.DeletePendingMembers = append(decryptedGroupChange.DeletePendingMembers, &userID)
 	}
 
-	for _, promotePendingMember := range encryptedActions.PromotePendingMembers {
+	for _, promotePendingMember := range encryptedActions.PromoteMembersPendingProfileKey {
 		if promotePendingMember == nil {
 			continue
 		}
@@ -936,7 +935,7 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 		}
 	}
 
-	for _, promotePendingPniAciMember := range encryptedActions.PromotePendingPniAciMembers {
+	for _, promotePendingPniAciMember := range encryptedActions.PromoteMembersPendingPniAciProfileKey {
 		// TODO: pretending this is a PendingMember should do for mautrix-signal, but we probably want to treat them separately at some point
 		if promotePendingPniAciMember == nil {
 			continue
@@ -966,7 +965,7 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 		}
 	}
 
-	for _, addRequestingMember := range encryptedActions.AddRequestingMembers {
+	for _, addRequestingMember := range encryptedActions.AddMembersPendingAdminApproval {
 		if addRequestingMember == nil {
 			continue
 		}
@@ -982,7 +981,7 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 		}
 	}
 
-	for _, deleteRequestingMember := range encryptedActions.DeleteRequestingMembers {
+	for _, deleteRequestingMember := range encryptedActions.DeleteMembersPendingAdminApproval {
 		if deleteRequestingMember == nil {
 			continue
 		}
@@ -995,7 +994,7 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 		decryptedGroupChange.DeleteRequestingMembers = append(decryptedGroupChange.DeleteRequestingMembers, &serviceID.UUID)
 	}
 
-	for _, promoteRequestingMember := range encryptedActions.PromoteRequestingMembers {
+	for _, promoteRequestingMember := range encryptedActions.PromoteMembersPendingAdminApproval {
 		if promoteRequestingMember == nil {
 			continue
 		}
@@ -1011,7 +1010,7 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 		})
 	}
 
-	for _, addBannedMember := range encryptedActions.AddBannedMembers {
+	for _, addBannedMember := range encryptedActions.AddMembersBanned {
 		if addBannedMember == nil {
 			continue
 		}
@@ -1028,7 +1027,7 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 		})
 	}
 
-	for _, deleteBannedMember := range encryptedActions.DeleteBannedMembers {
+	for _, deleteBannedMember := range encryptedActions.DeleteMembersBanned {
 		if deleteBannedMember == nil {
 			continue
 		}
@@ -1056,8 +1055,8 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 	if encryptedActions.ModifyAnnouncementsOnly != nil {
 		decryptedGroupChange.ModifyAnnouncementsOnly = &encryptedActions.ModifyAnnouncementsOnly.AnnouncementsOnly
 	}
-	if encryptedActions.ModifyDisappearingMessagesTimer != nil && len(encryptedActions.ModifyDisappearingMessagesTimer.Timer) > 0 {
-		timerBlob, err := decryptGroupPropertyIntoBlob(groupSecretParams, encryptedActions.ModifyDisappearingMessagesTimer.Timer)
+	if encryptedActions.ModifyDisappearingMessageTimer != nil && len(encryptedActions.ModifyDisappearingMessageTimer.Timer) > 0 {
+		timerBlob, err := decryptGroupPropertyIntoBlob(groupSecretParams, encryptedActions.ModifyDisappearingMessageTimer.Timer)
 		if err != nil {
 			return nil, err
 		}
@@ -1128,11 +1127,11 @@ func decryptMember(ctx context.Context, member *signalpb.Member, groupSecretPara
 		ACI:              *aci,
 		ProfileKey:       *profileKey,
 		Role:             GroupMemberRole(member.Role),
-		JoinedAtRevision: member.JoinedAtRevision,
+		JoinedAtRevision: member.JoinedAtVersion,
 	}, nil
 }
 
-func decryptPendingMember(ctx context.Context, pendingMember *signalpb.PendingMember, groupSecretParams libsignalgo.GroupSecretParams) (*PendingMember, error) {
+func decryptPendingMember(ctx context.Context, pendingMember *signalpb.MemberPendingProfileKey, groupSecretParams libsignalgo.GroupSecretParams) (*PendingMember, error) {
 	log := zerolog.Ctx(ctx)
 	encryptedUserID := libsignalgo.UUIDCiphertext(pendingMember.Member.UserId)
 	userID, err := groupSecretParams.DecryptServiceID(encryptedUserID)
@@ -1155,7 +1154,7 @@ func decryptPendingMember(ctx context.Context, pendingMember *signalpb.PendingMe
 	}, nil
 }
 
-func decryptRequestingMember(ctx context.Context, requestingMember *signalpb.RequestingMember, groupSecretParams libsignalgo.GroupSecretParams) (*RequestingMember, error) {
+func decryptRequestingMember(ctx context.Context, requestingMember *signalpb.MemberPendingAdminApproval, groupSecretParams libsignalgo.GroupSecretParams) (*RequestingMember, error) {
 	aci, profileKey, err := decryptPKeyAndIDorPresentation(ctx, requestingMember.UserId, requestingMember.ProfileKey, requestingMember.Presentation, groupSecretParams)
 	if err != nil {
 		return nil, err
@@ -1176,7 +1175,7 @@ func (cli *Client) EncryptAndSignGroupChange(ctx context.Context, decryptedGroup
 		log.Err(err).Msg("Could not get groupSecretParams from master key")
 		return nil, err
 	}
-	groupChangeActions := &signalpb.GroupChange_Actions{Revision: decryptedGroupChange.Revision}
+	groupChangeActions := &signalpb.GroupChange_Actions{Version: decryptedGroupChange.Revision}
 	if decryptedGroupChange.ModifyTitle != nil {
 		attributeBlob := signalpb.GroupAttributeBlob{Content: &signalpb.GroupAttributeBlob_Title{Title: *decryptedGroupChange.ModifyTitle}}
 		encryptedTitle, err := encryptBlobIntoGroupProperty(groupSecretParams, &attributeBlob)
@@ -1187,7 +1186,7 @@ func (cli *Client) EncryptAndSignGroupChange(ctx context.Context, decryptedGroup
 		groupChangeActions.ModifyTitle = &signalpb.GroupChange_Actions_ModifyTitleAction{Title: *encryptedTitle}
 	}
 	if decryptedGroupChange.ModifyDescription != nil {
-		attributeBlob := signalpb.GroupAttributeBlob{Content: &signalpb.GroupAttributeBlob_Description{Description: *decryptedGroupChange.ModifyDescription}}
+		attributeBlob := signalpb.GroupAttributeBlob{Content: &signalpb.GroupAttributeBlob_DescriptionText{DescriptionText: *decryptedGroupChange.ModifyDescription}}
 		encryptedDescription, err := encryptBlobIntoGroupProperty(groupSecretParams, &attributeBlob)
 		if err != nil {
 			log.Err(err).Msg("Could not get encrypt description")
@@ -1209,7 +1208,7 @@ func (cli *Client) EncryptAndSignGroupChange(ctx context.Context, decryptedGroup
 				JoinFromInviteLink: addMember.JoinFromInviteLink,
 			})
 		} else {
-			groupChangeActions.AddPendingMembers = append(groupChangeActions.AddPendingMembers, &signalpb.GroupChange_Actions_AddPendingMemberAction{
+			groupChangeActions.AddMembersPendingProfileKey = append(groupChangeActions.AddMembersPendingProfileKey, &signalpb.GroupChange_Actions_AddMemberPendingProfileKeyAction{
 				Added: encryptedPendingMember,
 			})
 		}
@@ -1241,7 +1240,7 @@ func (cli *Client) EncryptAndSignGroupChange(ctx context.Context, decryptedGroup
 			log.Err(err).Msg("Failed to encrypt pendingMember")
 			return nil, err
 		}
-		groupChangeActions.AddPendingMembers = append(groupChangeActions.AddPendingMembers, &signalpb.GroupChange_Actions_AddPendingMemberAction{
+		groupChangeActions.AddMembersPendingProfileKey = append(groupChangeActions.AddMembersPendingProfileKey, &signalpb.GroupChange_Actions_AddMemberPendingProfileKeyAction{
 			Added: encryptedPendingMember,
 		})
 	}
@@ -1251,7 +1250,7 @@ func (cli *Client) EncryptAndSignGroupChange(ctx context.Context, decryptedGroup
 			log.Err(err).Msg("Encrypt UserId error for deletePendingMember")
 			return nil, err
 		}
-		groupChangeActions.DeletePendingMembers = append(groupChangeActions.DeletePendingMembers, &signalpb.GroupChange_Actions_DeletePendingMemberAction{
+		groupChangeActions.DeleteMembersPendingProfileKey = append(groupChangeActions.DeleteMembersPendingProfileKey, &signalpb.GroupChange_Actions_DeleteMemberPendingProfileKeyAction{
 			DeletedUserId: encryptedUserID[:],
 		})
 	}
@@ -1269,7 +1268,7 @@ func (cli *Client) EncryptAndSignGroupChange(ctx context.Context, decryptedGroup
 			log.Err(err).Msg("failed creating expiring profile key credential presentation for addMember")
 			return nil, err
 		}
-		groupChangeActions.PromotePendingMembers = append(groupChangeActions.PromotePendingMembers, &signalpb.GroupChange_Actions_PromotePendingMemberAction{
+		groupChangeActions.PromoteMembersPendingProfileKey = append(groupChangeActions.PromoteMembersPendingProfileKey, &signalpb.GroupChange_Actions_PromoteMemberPendingProfileKeyAction{
 			Presentation: *presentation,
 		})
 	}
@@ -1287,8 +1286,8 @@ func (cli *Client) EncryptAndSignGroupChange(ctx context.Context, decryptedGroup
 			log.Err(err).Msg("failed creating expiring profile key credential presentation for addMember")
 			return nil, err
 		}
-		groupChangeActions.AddRequestingMembers = append(groupChangeActions.AddRequestingMembers, &signalpb.GroupChange_Actions_AddRequestingMemberAction{
-			Added: &signalpb.RequestingMember{
+		groupChangeActions.AddMembersPendingAdminApproval = append(groupChangeActions.AddMembersPendingAdminApproval, &signalpb.GroupChange_Actions_AddMemberPendingAdminApprovalAction{
+			Added: &signalpb.MemberPendingAdminApproval{
 				Presentation: *presentation,
 			},
 		})
@@ -1299,7 +1298,7 @@ func (cli *Client) EncryptAndSignGroupChange(ctx context.Context, decryptedGroup
 			log.Err(err).Msg("Encrypt UserId error for deleteRequestingMember")
 			return nil, err
 		}
-		groupChangeActions.DeleteRequestingMembers = append(groupChangeActions.DeleteRequestingMembers, &signalpb.GroupChange_Actions_DeleteRequestingMemberAction{
+		groupChangeActions.DeleteMembersPendingAdminApproval = append(groupChangeActions.DeleteMembersPendingAdminApproval, &signalpb.GroupChange_Actions_DeleteMemberPendingAdminApprovalAction{
 			DeletedUserId: encryptedUserID[:],
 		})
 	}
@@ -1310,7 +1309,7 @@ func (cli *Client) EncryptAndSignGroupChange(ctx context.Context, decryptedGroup
 			return nil, err
 		}
 
-		groupChangeActions.PromoteRequestingMembers = append(groupChangeActions.PromoteRequestingMembers, &signalpb.GroupChange_Actions_PromoteRequestingMemberAction{
+		groupChangeActions.PromoteMembersPendingAdminApproval = append(groupChangeActions.PromoteMembersPendingAdminApproval, &signalpb.GroupChange_Actions_PromoteMemberPendingAdminApprovalAction{
 			UserId: encryptedUserID[:],
 			Role:   signalpb.Member_Role(promoteRequestingMember.Role),
 		})
@@ -1321,8 +1320,8 @@ func (cli *Client) EncryptAndSignGroupChange(ctx context.Context, decryptedGroup
 			log.Err(err).Msg("Encrypt UserId error for promoteRequestingMember")
 			return nil, err
 		}
-		groupChangeActions.AddBannedMembers = append(groupChangeActions.AddBannedMembers, &signalpb.GroupChange_Actions_AddBannedMemberAction{
-			Added: &signalpb.BannedMember{
+		groupChangeActions.AddMembersBanned = append(groupChangeActions.AddMembersBanned, &signalpb.GroupChange_Actions_AddMemberBannedAction{
+			Added: &signalpb.MemberBanned{
 				UserId:    encryptedUserID[:],
 				Timestamp: addBannedMember.Timestamp,
 			},
@@ -1334,7 +1333,7 @@ func (cli *Client) EncryptAndSignGroupChange(ctx context.Context, decryptedGroup
 			log.Err(err).Msg("Encrypt UserId error for promoteRequestingMember")
 			return nil, err
 		}
-		groupChangeActions.DeleteBannedMembers = append(groupChangeActions.DeleteBannedMembers, &signalpb.GroupChange_Actions_DeleteBannedMemberAction{
+		groupChangeActions.DeleteMembersBanned = append(groupChangeActions.DeleteMembersBanned, &signalpb.GroupChange_Actions_DeleteMemberBannedAction{
 			DeletedUserId: encryptedUserID[:],
 		})
 	}
@@ -1365,7 +1364,7 @@ func (cli *Client) EncryptAndSignGroupChange(ctx context.Context, decryptedGroup
 			log.Err(err).Msg("Could not get encrypt Title")
 			return nil, err
 		}
-		groupChangeActions.ModifyDisappearingMessagesTimer = &signalpb.GroupChange_Actions_ModifyDisappearingMessagesTimerAction{Timer: *encryptedTimer}
+		groupChangeActions.ModifyDisappearingMessageTimer = &signalpb.GroupChange_Actions_ModifyDisappearingMessageTimerAction{Timer: *encryptedTimer}
 	}
 	if decryptedGroupChange.ModifyInviteLinkPassword != nil {
 		inviteLinkPasswordBytes, err := inviteLinkPasswordToBytes(*decryptedGroupChange.ModifyInviteLinkPassword)
@@ -1380,7 +1379,7 @@ func (cli *Client) EncryptAndSignGroupChange(ctx context.Context, decryptedGroup
 	return cli.patchGroup(ctx, groupChangeActions, groupMasterKey, nil)
 }
 
-func (cli *Client) encryptMember(ctx context.Context, member *GroupMember, groupSecretParams *libsignalgo.GroupSecretParams) (*signalpb.Member, *signalpb.PendingMember, error) {
+func (cli *Client) encryptMember(ctx context.Context, member *GroupMember, groupSecretParams *libsignalgo.GroupSecretParams) (*signalpb.Member, *signalpb.MemberPendingProfileKey, error) {
 	log := zerolog.Ctx(ctx)
 	expiringProfileKeyCredential, err := cli.FetchExpiringProfileKeyCredentialById(ctx, member.ACI)
 	if err != nil {
@@ -1408,7 +1407,7 @@ func (cli *Client) encryptMember(ctx context.Context, member *GroupMember, group
 	return &encryptedMember, nil, nil
 }
 
-func (cli *Client) encryptPendingMember(ctx context.Context, pendingMember *PendingMember, groupSecretParams *libsignalgo.GroupSecretParams) (*signalpb.PendingMember, error) {
+func (cli *Client) encryptPendingMember(ctx context.Context, pendingMember *PendingMember, groupSecretParams *libsignalgo.GroupSecretParams) (*signalpb.MemberPendingProfileKey, error) {
 	log := zerolog.Ctx(ctx)
 	encryptedUserID, err := groupSecretParams.EncryptServiceID(pendingMember.ServiceID)
 	if err != nil {
@@ -1420,7 +1419,7 @@ func (cli *Client) encryptPendingMember(ctx context.Context, pendingMember *Pend
 		log.Err(err).Msg("Encrypt AddedByUserId error for addPendingMember")
 		return nil, err
 	}
-	encryptedPendingMember := signalpb.PendingMember{
+	encryptedPendingMember := signalpb.MemberPendingProfileKey{
 		AddedByUserId: encryptedAddedByUserID[:],
 		Member: &signalpb.Member{
 			UserId: encryptedUserID[:],
@@ -1600,12 +1599,12 @@ func (cli *Client) EncryptGroup(ctx context.Context, decryptedGroup *Group, grou
 	encryptedGroup := &signalpb.Group{
 		PublicKey:         groupPublicParams[:],
 		Title:             *encryptedTitle,
-		Avatar:            decryptedGroup.AvatarPath,
+		AvatarUrl:         decryptedGroup.AvatarPath,
 		AnnouncementsOnly: decryptedGroup.AnnouncementsOnly,
-		Revision:          0,
+		Version:           0,
 	}
 	if decryptedGroup.Description != "" {
-		attributeBlob := signalpb.GroupAttributeBlob{Content: &signalpb.GroupAttributeBlob_Description{Description: decryptedGroup.Description}}
+		attributeBlob := signalpb.GroupAttributeBlob{Content: &signalpb.GroupAttributeBlob_DescriptionText{DescriptionText: decryptedGroup.Description}}
 		encryptedDescription, err := encryptBlobIntoGroupProperty(groupSecretParams, &attributeBlob)
 		if err != nil {
 			log.Err(err).Msg("Could not get encrypt Description")
@@ -1631,7 +1630,7 @@ func (cli *Client) EncryptGroup(ctx context.Context, decryptedGroup *Group, grou
 		if encryptedMember != nil {
 			encryptedGroup.Members = append(encryptedGroup.Members, encryptedMember)
 		} else {
-			encryptedGroup.PendingMembers = append(encryptedGroup.PendingMembers, encryptedPendingMember)
+			encryptedGroup.MembersPendingProfileKey = append(encryptedGroup.MembersPendingProfileKey, encryptedPendingMember)
 		}
 	}
 	for _, pendingMember := range decryptedGroup.PendingMembers {
@@ -1640,7 +1639,7 @@ func (cli *Client) EncryptGroup(ctx context.Context, decryptedGroup *Group, grou
 			log.Err(err).Msg("Failed to encrypt pendingMember")
 			return nil, err
 		}
-		encryptedGroup.PendingMembers = append(encryptedGroup.PendingMembers, encryptedPendingMember)
+		encryptedGroup.MembersPendingProfileKey = append(encryptedGroup.MembersPendingProfileKey, encryptedPendingMember)
 	}
 	return encryptedGroup, nil
 }

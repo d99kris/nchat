@@ -20,11 +20,9 @@ package libsignalgo
 /*
 #include "./libsignal-ffi.h"
 
-typedef const SignalSessionRecord const_session_record;
-typedef const SignalProtocolAddress const_address;
-
-extern int signal_load_session_callback(void *store_ctx, SignalSessionRecord **recordp, const_address *address);
-extern int signal_store_session_callback(void *store_ctx, const_address *address, const_session_record *record);
+extern int signal_load_session_callback(void *store_ctx, SignalMutPointerSessionRecord *recordp, SignalMutPointerProtocolAddress address);
+extern int signal_store_session_callback(void *store_ctx, SignalMutPointerProtocolAddress address, SignalMutPointerSessionRecord record);
+extern void signal_destroy_session_store_callback(void *store_ctx);
 */
 import "C"
 import (
@@ -38,33 +36,39 @@ type SessionStore interface {
 }
 
 //export signal_load_session_callback
-func signal_load_session_callback(storeCtx unsafe.Pointer, recordp **C.SignalSessionRecord, address *C.const_address) C.int {
+func signal_load_session_callback(storeCtx unsafe.Pointer, recordp *C.SignalMutPointerSessionRecord, address C.SignalMutPointerProtocolAddress) C.int {
 	return wrapStoreCallback(storeCtx, func(store SessionStore, ctx context.Context) error {
-		record, err := store.LoadSession(ctx, &Address{ptr: (*C.SignalProtocolAddress)(unsafe.Pointer(address))})
+		record, err := store.LoadSession(ctx, &Address{ptr: address.raw})
 		if err == nil && record != nil {
 			record.CancelFinalizer()
-			*recordp = record.ptr
+			recordp.raw = record.ptr
 		}
 		return err
 	})
 }
 
 //export signal_store_session_callback
-func signal_store_session_callback(storeCtx unsafe.Pointer, address *C.const_address, sessionRecord *C.const_session_record) C.int {
+func signal_store_session_callback(storeCtx unsafe.Pointer, address C.SignalMutPointerProtocolAddress, sessionRecord C.SignalMutPointerSessionRecord) C.int {
 	return wrapStoreCallback(storeCtx, func(store SessionStore, ctx context.Context) error {
-		record := SessionRecord{ptr: (*C.SignalSessionRecord)(unsafe.Pointer(sessionRecord))}
+		record := SessionRecord{ptr: sessionRecord.raw}
 		cloned, err := record.Clone()
 		if err != nil {
 			return err
 		}
-		return store.StoreSession(ctx, &Address{ptr: (*C.SignalProtocolAddress)(unsafe.Pointer(address))}, cloned)
+		return store.StoreSession(ctx, &Address{ptr: address.raw}, cloned)
 	})
+}
+
+//export signal_destroy_session_store_callback
+func signal_destroy_session_store_callback(storeCtx unsafe.Pointer) {
+	// No-op: Go's garbage collector handles cleanup
 }
 
 func (ctx *CallbackContext) wrapSessionStore(store SessionStore) C.SignalConstPointerFfiSessionStoreStruct {
 	return C.SignalConstPointerFfiSessionStoreStruct{&C.SignalSessionStore{
 		ctx:           wrapStore(ctx, store),
-		load_session:  C.SignalLoadSession(C.signal_load_session_callback),
-		store_session: C.SignalStoreSession(C.signal_store_session_callback),
+		load_session:  C.SignalFfiBridgeSessionStoreLoadSession(C.signal_load_session_callback),
+		store_session: C.SignalFfiBridgeSessionStoreStoreSession(C.signal_store_session_callback),
+		destroy:       C.SignalFfiBridgeSessionStoreDestroy(C.signal_destroy_session_store_callback),
 	}}
 }
