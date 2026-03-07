@@ -797,6 +797,7 @@ func (handler *WmEventHandler) HandleEvent(rawEvt interface{}) {
 		SetState(handler.connId, Connected)
 		CWmSetStatus(handler.connId, FlagOnline)
 		CWmClearStatus(handler.connId, FlagConnecting)
+		go handler.FetchChatSettings()
 
 	case *events.Disconnected:
 		// disconnected
@@ -891,6 +892,20 @@ func (handler *WmEventHandler) HandleConnected() {
 	}
 }
 
+func (handler *WmEventHandler) FetchChatSettings() {
+	LOG_TRACE(fmt.Sprintf("FetchChatSettings"))
+	var client *whatsmeow.Client = GetClient(handler.connId)
+	ctx := context.TODO()
+	err := client.FetchAppState(ctx, appstate.WAPatchRegularHigh, false, false)
+	if err != nil {
+		LOG_WARNING(fmt.Sprintf("fetch regular_high app state failed %#v", err))
+	}
+	err = client.FetchAppState(ctx, appstate.WAPatchRegularLow, false, false)
+	if err != nil {
+		LOG_WARNING(fmt.Sprintf("fetch regular_low app state failed %#v", err))
+	}
+}
+
 func (handler *WmEventHandler) HandleReceipt(receipt *events.Receipt) {
 	if receipt.Type == events.ReceiptTypeRead || receipt.Type == events.ReceiptTypeReadSelf {
 		LOG_TRACE(fmt.Sprintf("%#v was read by %s at %s", receipt.MessageIDs, receipt.SourceString(), receipt.Timestamp))
@@ -978,15 +993,23 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 			settings, setErr := client.Store.ChatSettings.GetChatSettings(ctx, chatJid)
 			if setErr != nil {
 				LOG_WARNING(fmt.Sprintf("Get chat settings failed %#v", setErr))
-			} else {
-				if settings.Found {
-					mutedUntil := settings.MutedUntil.Unix()
-					isMuted = (mutedUntil == -1) || (mutedUntil > time.Now().Unix())
-					isPinned = settings.Pinned
-					isArchived = isArchived || settings.Archived
-				} else {
-					LOG_DEBUG(fmt.Sprintf("Chat settings not found %s", chatId))
+			}
+			// App state stores settings under LID JID, try that if phone JID lookup missed
+			if !settings.Found && chatJid.Server == types.DefaultUserServer {
+				if lidJid, err := client.Store.LIDs.GetLIDForPN(ctx, chatJid); err == nil && !lidJid.IsEmpty() {
+					settings, setErr = client.Store.ChatSettings.GetChatSettings(ctx, lidJid)
+					if setErr != nil {
+						LOG_WARNING(fmt.Sprintf("Get chat settings by LID failed %#v", setErr))
+					}
 				}
+			}
+			if settings.Found {
+				mutedUntil := settings.MutedUntil.Unix()
+				isMuted = (mutedUntil == -1) || (mutedUntil > time.Now().Unix())
+				isPinned = settings.Pinned
+				isArchived = isArchived || settings.Archived
+			} else {
+				LOG_DEBUG(fmt.Sprintf("Chat settings not found %s", chatId))
 			}
 
 			LOG_TRACE(fmt.Sprintf("Call CWmNewChatsNotify %s muted=%t pinned=%t archived=%t",
@@ -2281,6 +2304,7 @@ func WmInit(path string, proxy string, sendType int) int {
 		LOG_WARNING("client error")
 		return -1
 	}
+	client.EmitAppStateEventsOnFullSync = true
 
 	// set proxy details
 	if len(proxy) > 0 {
