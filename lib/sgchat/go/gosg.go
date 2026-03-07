@@ -1082,6 +1082,8 @@ func (handler *SgEventHandler) HandleEvent(evt events.SignalEvent) bool {
 		return handler.handlePinnedConversationsChanged(e)
 	case *events.ChatMuteChanged:
 		return handler.handleChatMuteChanged(e)
+	case *events.ChatArchivedChanged:
+		return handler.handleChatArchivedChanged(e)
 	case *events.QueueEmpty:
 		LOG_TRACE(fmt.Sprintf("QueueEmpty event"))
 		return true
@@ -1704,6 +1706,42 @@ func (handler *SgEventHandler) handleChatMuteChanged(evt *events.ChatMuteChanged
 	if isMuted != wasMuted {
 		LOG_TRACE(fmt.Sprintf("mute changed %s: %v -> %v", chatId, wasMuted, isMuted))
 		CSgUpdateMuteNotify(connId, chatId, BoolToInt(isMuted))
+	}
+
+	return true
+}
+
+func (handler *SgEventHandler) handleChatArchivedChanged(evt *events.ChatArchivedChanged) bool {
+	LOG_TRACE(fmt.Sprintf("handleChatArchivedChanged %s archived=%v", evt.ChatID, evt.Archived))
+	connId := handler.connId
+	chatId := evt.ChatID
+	isArchived := evt.Archived
+
+	CSgUpdateArchivedNotify(connId, chatId, BoolToInt(isArchived))
+
+	// Persist archived state in backup store so it survives restarts
+	client := GetClient(connId)
+	if client != nil && client.Store.BackupStore != nil {
+		ctx := context.TODO()
+		var backupChat *store.BackupChat
+		var err error
+
+		parsedUUID, uuidErr := uuid.Parse(chatId)
+		if uuidErr == nil {
+			backupChat, err = client.Store.BackupStore.GetBackupChatByUserID(ctx, libsignalgo.NewACIServiceID(parsedUUID))
+		} else {
+			backupChat, err = client.Store.BackupStore.GetBackupChatByGroupID(ctx, types.GroupIdentifier(chatId))
+		}
+
+		if err != nil {
+			LOG_WARNING(fmt.Sprintf("get backup chat for %s error: %v", chatId, err))
+		} else if backupChat != nil {
+			backupChat.Archived = isArchived
+			err = client.Store.BackupStore.UpdateBackupChat(ctx, backupChat.Chat)
+			if err != nil {
+				LOG_WARNING(fmt.Sprintf("update backup chat archived for %s error: %v", chatId, err))
+			}
+		}
 	}
 
 	return true
@@ -2528,8 +2566,9 @@ func SgGetChats(connId int) int {
 				}
 				lastMessageTime := int(chat.LatestMessageID / 1000)
 
-				LOG_TRACE(fmt.Sprintf("Chat %s: unread=%d muted=%d pinned=%d time=%d", chatId, isUnread, isMuted, isPinned, lastMessageTime))
-				CSgNewChatsNotify(connId, chatId, isUnread, isMuted, isPinned, lastMessageTime)
+				isArchived := BoolToInt(chat.GetArchived())
+				LOG_TRACE(fmt.Sprintf("Chat %s: unread=%d muted=%d pinned=%d archived=%d time=%d", chatId, isUnread, isMuted, isPinned, isArchived, lastMessageTime))
+				CSgNewChatsNotify(connId, chatId, isUnread, isMuted, isPinned, isArchived, lastMessageTime)
 			}
 		}
 	}

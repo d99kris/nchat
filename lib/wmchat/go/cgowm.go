@@ -10,7 +10,7 @@ package main
 // #cgo linux LDFLAGS: -Wl,-unresolved-symbols=ignore-all
 // #cgo darwin LDFLAGS: -Wl,-undefined,dynamic_lookup
 // extern void WmNewContactsNotify(int p_ConnId, char* p_ChatId, char* p_Name, char* p_Phone, int p_IsSelf, int p_IsAlias, int p_Notify);
-// extern void WmNewChatsNotify(int p_ConnId, char* p_ChatId, int p_IsUnread, int p_IsMuted, int p_IsPinned, int p_LastMessageTime);
+// extern void WmNewChatsNotify(int p_ConnId, char* p_ChatId, int p_IsUnread, int p_IsMuted, int p_IsPinned, int p_IsArchived, int p_LastMessageTime);
 // extern void WmNewGroupMembersNotify(int p_ConnId, char* p_ChatId, char* p_MembersJson);
 // extern void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe, char* p_QuotedId, char* p_FileId, char* p_FilePath, int p_FileStatus, int p_TimeSent, int p_IsRead, int p_IsEdited);
 // extern void WmNewStatusNotify(int p_ConnId, char* p_UserId, int p_IsOnline, int p_TimeSeen);
@@ -21,6 +21,7 @@ package main
 // extern void WmDeleteChatNotify(int p_ConnId, char* p_ChatId);
 // extern void WmDeleteMessageNotify(int p_ConnId, char* p_ChatId, char* p_MsgId);
 // extern void WmUpdateMuteNotify(int p_ConnId, char* p_ChatId, int p_IsMuted);
+// extern void WmUpdateArchivedNotify(int p_ConnId, char* p_ChatId, int p_IsArchived);
 // extern void WmUpdatePinNotify(int p_ConnId, char* p_ChatId, int p_IsPinned, int p_TimePinned);
 // extern void WmReinit(int p_ConnId);
 // extern void WmSetProtocolUiControl(int p_ConnId, int p_IsTakeControl);
@@ -129,8 +130,8 @@ func CWmNewContactsNotify(connId int, chatId string, name string, phone string, 
 	C.WmNewContactsNotify(C.int(connId), C.CString(chatId), C.CString(name), C.CString(phone), C.int(isSelf), C.int(isAlias), C.int(notify))
 }
 
-func CWmNewChatsNotify(connId int, chatId string, isUnread int, isMuted int, isPinned int, lastMessageTime int) {
-	C.WmNewChatsNotify(C.int(connId), C.CString(chatId), C.int(isUnread), C.int(isMuted), C.int(isPinned), C.int(lastMessageTime))
+func CWmNewChatsNotify(connId int, chatId string, isUnread int, isMuted int, isPinned int, isArchived int, lastMessageTime int) {
+	C.WmNewChatsNotify(C.int(connId), C.CString(chatId), C.int(isUnread), C.int(isMuted), C.int(isPinned), C.int(isArchived), C.int(lastMessageTime))
 }
 
 func CWmNewGroupMembersNotify(connId int, chatId string, membersJson string) {
@@ -171,6 +172,10 @@ func CWmDeleteMessageNotify(connId int, chatId string, msgId string) {
 
 func CWmUpdateMuteNotify(connId int, chatId string, isMuted int) {
 	C.WmUpdateMuteNotify(C.int(connId), C.CString(chatId), C.int(isMuted))
+}
+
+func CWmUpdateArchivedNotify(connId int, chatId string, isArchived int) {
+	C.WmUpdateArchivedNotify(C.int(connId), C.CString(chatId), C.int(isArchived))
 }
 
 func CWmUpdatePinNotify(connId int, chatId string, isPinned int, timePinned int) {

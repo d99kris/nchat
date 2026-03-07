@@ -1599,6 +1599,8 @@ void UiModel::Impl::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMess
 
             m_ChatInfos[profileId][chatInfo.id] = chatInfo;
 
+            if (chatInfo.isArchived) continue;
+
             if (m_ChatSet[profileId].insert(chatInfo.id).second)
             {
               m_ChatVec.push_back(std::make_pair(profileId, chatInfo.id));
@@ -1624,6 +1626,7 @@ void UiModel::Impl::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMess
           bool hasNewMessage = false;
           const std::string& chatId = newMessagesNotify->chatId;
           if (IsChatForceHidden(chatId)) return;
+          if (m_ChatInfos[profileId].count(chatId) && m_ChatInfos[profileId][chatId].isArchived) return;
 
           std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
           std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
@@ -2027,6 +2030,57 @@ void UiModel::Impl::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMess
       }
       break;
 
+    case UpdateArchivedNotifyType:
+      {
+        std::shared_ptr<UpdateArchivedNotify> updateArchivedNotify = std::static_pointer_cast<UpdateArchivedNotify>(
+          p_ServiceMessage);
+        std::string chatId = updateArchivedNotify->chatId;
+        bool isArchived = updateArchivedNotify->isArchived;
+        LOG_TRACE("archived notify %s is %s", chatId.c_str(), (isArchived ? "archived" : "unarchived"));
+        m_ChatInfos[profileId][chatId].isArchived = isArchived;
+        if (isArchived)
+        {
+          m_ChatSet[profileId].erase(chatId);
+          m_ChatVec.erase(
+            std::remove(m_ChatVec.begin(), m_ChatVec.end(), std::make_pair(profileId, chatId)),
+            m_ChatVec.end());
+
+          if ((m_CurrentChat.first == profileId) && (m_CurrentChat.second == chatId))
+          {
+            if (!m_ChatVec.empty())
+            {
+              m_CurrentChat = m_ChatVec.at(NumUtil::Bound(0, m_CurrentChatIndex, ((int)m_ChatVec.size() - 1)));
+            }
+            else
+            {
+              m_CurrentChat = s_ChatNone;
+            }
+            SortChats();
+            OnCurrentChatChanged();
+            SetSelectMessageActive(false);
+          }
+        }
+        else
+        {
+          if (m_ChatSet[profileId].insert(chatId).second)
+          {
+            m_ChatVec.push_back(std::make_pair(profileId, chatId));
+          }
+
+          // request fresh chat details to get correct lastMessageTime
+          std::shared_ptr<GetChatsRequest> getChatsRequest = std::make_shared<GetChatsRequest>();
+          getChatsRequest->chatIds.insert(chatId);
+          SendProtocolRequest(profileId, getChatsRequest);
+
+          // fetch messages so they're available when user selects this chat
+          RequestMessages(profileId, chatId);
+        }
+        SortChats();
+        UpdateList();
+        UpdateStatus();
+      }
+      break;
+
     case NewGroupMembersNotifyType:
       {
         LOG_INFO("NewGroupMembersNotifyType received");
@@ -2315,6 +2369,12 @@ void UiModel::Impl::UpdateChatInfoIsUnread(const std::string& p_ProfileId, const
   std::unordered_map<std::string, ChatInfo>& profileChatInfos = m_ChatInfos[p_ProfileId];
   if (profileChatInfos.count(p_ChatId))
   {
+    if (profileChatInfos[p_ChatId].isArchived)
+    {
+      profileChatInfos[p_ChatId].isUnread = isUnread;
+      return;
+    }
+
     static const bool mutedNotifyUnread = UiConfig::GetBool("muted_notify_unread");
     if (mutedNotifyUnread || !profileChatInfos[p_ChatId].isMuted || hasMention)
     {

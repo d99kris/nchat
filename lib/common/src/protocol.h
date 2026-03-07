@@ -116,6 +116,7 @@ enum MessageType
   FindMessageNotifyType,
   UpdatePinNotifyType,
   NewGroupMembersNotifyType,
+  UpdateArchivedNotifyType,
 };
 
 struct ContactInfo
@@ -134,6 +135,7 @@ struct ChatInfo
   bool isUnreadMention = false; // only required for tgchat
   bool isMuted = false;
   bool isPinned = false;
+  bool isArchived = false;
   int64_t lastMessageTime = -1;
 };
 
@@ -684,4 +686,15 @@ public:
   virtual MessageType GetMessageType() const { return NewGroupMembersNotifyType; }
   std::string chatId;
   std::vector<ContactInfo> contactInfos;
+};
+
+class UpdateArchivedNotify : public ServiceMessage
+{
+public:
+  explicit UpdateArchivedNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
+  virtual MessageType GetMessageType() const { return UpdateArchivedNotifyType; }
+  bool success;
+  std::string chatId;
+  bool isArchived;
 };

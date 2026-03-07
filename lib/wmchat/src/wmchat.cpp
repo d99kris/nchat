@@ -810,7 +810,7 @@ void WmNewContactsNotify(int p_ConnId, char* p_ChatId, char* p_Name, char* p_Pho
 }
 
 void WmNewChatsNotify(int p_ConnId, char* p_ChatId, int p_IsUnread, int p_IsMuted, int p_IsPinned,
-                      int p_LastMessageTime)
+                      int p_IsArchived, int p_LastMessageTime)
 {
   WmChat* instance = WmChat::GetInstance(p_ConnId);
   if (instance != nullptr)
@@ -821,6 +821,7 @@ void WmNewChatsNotify(int p_ConnId, char* p_ChatId, int p_IsUnread, int p_IsMute
     chatInfo.isUnreadMention = false; // not supported in wa
     chatInfo.isMuted = (p_IsMuted == 1);
     chatInfo.isPinned = (p_IsPinned == 1);
+    chatInfo.isArchived = (p_IsArchived == 1);
     chatInfo.lastMessageTime = ((int64_t)p_LastMessageTime) * 1000;
 
     std::shared_ptr<NewChatsNotify> newChatsNotify = std::make_shared<NewChatsNotify>(instance->GetProfileId());
@@ -1140,6 +1141,26 @@ void WmUpdateMuteNotify(int p_ConnId, char* p_ChatId, int p_IsMuted)
     std::shared_ptr<DeferNotifyRequest> deferNotifyRequest =
       std::make_shared<DeferNotifyRequest>();
     deferNotifyRequest->serviceMessage = updateMuteNotify;
+    instance->SendRequest(deferNotifyRequest);
+  }
+
+  free(p_ChatId);
+}
+
+void WmUpdateArchivedNotify(int p_ConnId, char* p_ChatId, int p_IsArchived)
+{
+  WmChat* instance = WmChat::GetInstance(p_ConnId);
+  if (instance != nullptr)
+  {
+    std::shared_ptr<UpdateArchivedNotify> updateArchivedNotify =
+      std::make_shared<UpdateArchivedNotify>(instance->GetProfileId());
+    updateArchivedNotify->success = true;
+    updateArchivedNotify->chatId = std::string(p_ChatId);
+    updateArchivedNotify->isArchived = p_IsArchived;
+
+    std::shared_ptr<DeferNotifyRequest> deferNotifyRequest =
+      std::make_shared<DeferNotifyRequest>();
+    deferNotifyRequest->serviceMessage = updateArchivedNotify;
     instance->SendRequest(deferNotifyRequest);
   }
 

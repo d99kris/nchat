@@ -10,7 +10,7 @@ package main
 // #cgo linux LDFLAGS: -Wl,-unresolved-symbols=ignore-all
 // #cgo darwin LDFLAGS: -Wl,-undefined,dynamic_lookup
 // extern void SgNewContactsNotify(int p_ConnId, char* p_ChatId, char* p_Name, char* p_Phone, int p_IsSelf, int p_IsAlias, int p_Notify);
-// extern void SgNewChatsNotify(int p_ConnId, char* p_ChatId, int p_IsUnread, int p_IsMuted, int p_IsPinned, int p_LastMessageTime);
+// extern void SgNewChatsNotify(int p_ConnId, char* p_ChatId, int p_IsUnread, int p_IsMuted, int p_IsPinned, int p_IsArchived, int p_LastMessageTime);
 // extern void SgNewGroupMembersNotify(int p_ConnId, char* p_ChatId, char* p_MembersJson);
 // extern void SgNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe, char* p_QuotedId, char* p_FileId, char* p_FilePath, int p_FileStatus, int p_TimeSent, int p_IsRead, int p_IsEdited);
 // extern void SgNewHistoryMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe, char* p_QuotedId, char* p_FileId, char* p_FilePath, int p_FileStatus, int p_TimeSent, int p_IsRead, int p_IsEdited, char* p_FromMsgId, int p_Notify);
@@ -22,6 +22,7 @@ package main
 // extern void SgDeleteChatNotify(int p_ConnId, char* p_ChatId);
 // extern void SgDeleteMessageNotify(int p_ConnId, char* p_ChatId, char* p_MsgId);
 // extern void SgUpdateMuteNotify(int p_ConnId, char* p_ChatId, int p_IsMuted);
+// extern void SgUpdateArchivedNotify(int p_ConnId, char* p_ChatId, int p_IsArchived);
 // extern void SgUpdatePinNotify(int p_ConnId, char* p_ChatId, int p_IsPinned, int p_TimePinned);
 // extern void SgReinit(int p_ConnId);
 // extern void SgSetProtocolUiControl(int p_ConnId, int p_IsTakeControl);
@@ -125,8 +126,8 @@ func CSgNewContactsNotify(connId int, chatId string, name string, phone string, 
 	C.SgNewContactsNotify(C.int(connId), C.CString(chatId), C.CString(name), C.CString(phone), C.int(isSelf), C.int(isAlias), C.int(notify))
 }
 
-func CSgNewChatsNotify(connId int, chatId string, isUnread int, isMuted int, isPinned int, lastMessageTime int) {
-	C.SgNewChatsNotify(C.int(connId), C.CString(chatId), C.int(isUnread), C.int(isMuted), C.int(isPinned), C.int(lastMessageTime))
+func CSgNewChatsNotify(connId int, chatId string, isUnread int, isMuted int, isPinned int, isArchived int, lastMessageTime int) {
+	C.SgNewChatsNotify(C.int(connId), C.CString(chatId), C.int(isUnread), C.int(isMuted), C.int(isPinned), C.int(isArchived), C.int(lastMessageTime))
 }
 
 func CSgNewGroupMembersNotify(connId int, chatId string, membersJson string) {
@@ -171,6 +172,10 @@ func CSgDeleteMessageNotify(connId int, chatId string, msgId string) {
 
 func CSgUpdateMuteNotify(connId int, chatId string, isMuted int) {
 	C.SgUpdateMuteNotify(C.int(connId), C.CString(chatId), C.int(isMuted))
+}
+
+func CSgUpdateArchivedNotify(connId int, chatId string, isArchived int) {
+	C.SgUpdateArchivedNotify(C.int(connId), C.CString(chatId), C.int(isArchived))
 }
 
 func CSgUpdatePinNotify(connId int, chatId string, isPinned int, timePinned int) {

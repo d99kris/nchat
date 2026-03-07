@@ -41,6 +41,7 @@ func (*QueueEmpty) isSignalEvent()             {}
 func (*LoggedOut) isSignalEvent()              {}
 func (*PinnedConversationsChanged) isSignalEvent() {}
 func (*ChatMuteChanged) isSignalEvent()            {}
+func (*ChatArchivedChanged) isSignalEvent()        {}
 
 type MessageInfo struct {
 	Sender uuid.UUID
@@ -111,4 +112,9 @@ type PinnedConversationsChanged struct {
 type ChatMuteChanged struct {
 	ChatID              string
 	MutedUntilTimestamp uint64
+}
+
+type ChatArchivedChanged struct {
+	ChatID   string
+	Archived bool
 }

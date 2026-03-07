@@ -1,19 +1,20 @@
-Base-Commit: 93da772584b20ac1975e872e26739b273314b73e
+Base-Commit: 634f7c21caf96913a4b7cf93f5335d8ad25ecbb9
 Base-Branch: 
 diff --git a/pkg/signalmeow/events/message.go b/pkg/signalmeow/events/message.go
-index 7d3732a..86faba7 100644
+index 7d3732a..338c657 100644
 --- a/pkg/signalmeow/events/message.go
 +++ b/pkg/signalmeow/events/message.go
-@@ -39,6 +39,8 @@ func (*DeleteForMe) isSignalEvent()            {}
+@@ -39,6 +39,9 @@ func (*DeleteForMe) isSignalEvent()            {}
  func (*MessageRequestResponse) isSignalEvent() {}
  func (*QueueEmpty) isSignalEvent()             {}
  func (*LoggedOut) isSignalEvent()              {}
 +func (*PinnedConversationsChanged) isSignalEvent() {}
 +func (*ChatMuteChanged) isSignalEvent()            {}
++func (*ChatArchivedChanged) isSignalEvent()        {}
  
  type MessageInfo struct {
  	Sender uuid.UUID
-@@ -101,3 +103,12 @@ type MessageRequestResponse struct {
+@@ -101,3 +104,17 @@ type MessageRequestResponse struct {
  type QueueEmpty struct{}
  
  type LoggedOut struct{ Error error }
@@ -26,11 +27,29 @@ index 7d3732a..86faba7 100644
 +	ChatID              string
 +	MutedUntilTimestamp uint64
 +}
++
++type ChatArchivedChanged struct {
++	ChatID   string
++	Archived bool
++}
 diff --git a/pkg/signalmeow/storageservice.go b/pkg/signalmeow/storageservice.go
-index fcf6848..a91ec6f 100644
+index fcf6848..c52768c 100644
 --- a/pkg/signalmeow/storageservice.go
 +++ b/pkg/signalmeow/storageservice.go
-@@ -121,6 +121,12 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
+@@ -68,6 +68,12 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
+ 			log.Trace().Any("contact_record", data.Contact).Msg("Handling contact record")
+ 			aci, _ := uuid.Parse(data.Contact.Aci)
+ 			pni, _ := uuid.Parse(data.Contact.Pni)
++			if aci == uuid.Nil && len(data.Contact.GetAciBinary()) == 16 {
++				aci, _ = uuid.FromBytes(data.Contact.GetAciBinary())
++			}
++			if pni == uuid.Nil && len(data.Contact.GetPniBinary()) == 16 {
++				pni, _ = uuid.FromBytes(data.Contact.GetPniBinary())
++			}
+ 			if aci == uuid.Nil && pni == uuid.Nil {
+ 				log.Warn().
+ 					Str("raw_aci", data.Contact.Aci).
+@@ -121,6 +127,16 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
  			if topLevelChanged {
  				changedContacts = append(changedContacts, recipient)
  			}
@@ -39,11 +58,15 @@ index fcf6848..a91ec6f 100644
 +					ChatID:              aci.String(),
 +					MutedUntilTimestamp: data.Contact.GetMutedUntilTimestamp(),
 +				})
++				go cli.handleEvent(&events.ChatArchivedChanged{
++					ChatID:   aci.String(),
++					Archived: data.Contact.GetArchived(),
++				})
 +			}
  		case *signalpb.StorageRecord_GroupV2:
  			if len(data.GroupV2.MasterKey) != libsignalgo.GroupMasterKeyLength {
  				log.Warn().Msg("Invalid group master key length")
-@@ -132,6 +138,10 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
+@@ -132,6 +148,14 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
  				return fmt.Errorf("failed to store group master key for %s: %w", groupID, err)
  			}
  			log.Debug().Stringer("group_id", groupID).Msg("Stored group master key from storage service")
@@ -51,10 +74,14 @@ index fcf6848..a91ec6f 100644
 +				ChatID:              string(groupID),
 +				MutedUntilTimestamp: data.GroupV2.GetMutedUntilTimestamp(),
 +			})
++			go cli.handleEvent(&events.ChatArchivedChanged{
++				ChatID:   string(groupID),
++				Archived: data.GroupV2.GetArchived(),
++			})
  		case *signalpb.StorageRecord_Account:
  			log.Trace().Any("account_record", data.Account).Msg("Found account record")
  			cli.Store.AccountRecord = data.Account
-@@ -140,6 +150,9 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
+@@ -140,6 +164,9 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
  				return fmt.Errorf("failed to save device after receiving account record: %w", err)
  			}
  			log.Debug().Msg("Saved device after receiving account record")
@@ -64,6 +91,44 @@ index fcf6848..a91ec6f 100644
  		case *signalpb.StorageRecord_GroupV1, *signalpb.StorageRecord_StoryDistributionList:
  			// irrelevant data
  		default:
+diff --git a/pkg/signalmeow/store/backup_store.go b/pkg/signalmeow/store/backup_store.go
+index e99b110..8ab8db2 100644
+--- a/pkg/signalmeow/store/backup_store.go
++++ b/pkg/signalmeow/store/backup_store.go
+@@ -54,6 +54,7 @@ type BackupStore interface {
+ 	GetBackupChatByGroupID(ctx context.Context, groupID types.GroupIdentifier) (*BackupChat, error)
+ 	GetBackupChats(ctx context.Context) ([]*BackupChat, error)
+ 	GetBackupChatItems(ctx context.Context, chatID uint64, anchor time.Time, forward bool, limit int) ([]*backuppb.ChatItem, error)
++	UpdateBackupChat(ctx context.Context, chat *backuppb.Chat) error
+ 	DeleteBackupChat(ctx context.Context, chatID uint64) error
+ 	DeleteBackupChatItems(ctx context.Context, chatID uint64, minTime time.Time) error
+ }
+@@ -106,6 +107,9 @@ const (
+ 		ORDER BY message_id DESC
+ 		LIMIT $5
+ 	`
++	updateBackupChatQuery = `
++		UPDATE signalmeow_backup_chat SET data=$1 WHERE account_id=$2 AND chat_id=$3
++	`
+ 	deleteBackupChatQuery = `
+ 		DELETE FROM signalmeow_backup_chat WHERE account_id=$1 AND chat_id=$2
+ 	`
+@@ -321,6 +325,15 @@ func (s *sqlStore) GetBackupChatItems(ctx context.Context, chatID uint64, anchor
+ 	return messageScanner.NewRowIter(s.db.Query(ctx, getBackupChatItemsQuery, s.AccountID, chatID, minTS, maxTS, limit)).AsList()
+ }
+ 
++func (s *sqlStore) UpdateBackupChat(ctx context.Context, chat *backuppb.Chat) error {
++	chatData, err := proto.Marshal(chat)
++	if err != nil {
++		return fmt.Errorf("failed to marshal chat %d: %w", chat.Id, err)
++	}
++	_, err = s.db.Exec(ctx, updateBackupChatQuery, chatData, s.AccountID, chat.Id)
++	return err
++}
++
+ func (s *sqlStore) DeleteBackupChatItems(ctx context.Context, chatID uint64, minTime time.Time) error {
+ 	anchorTS := minTime.UnixMilli()
+ 	if minTime.IsZero() {
 diff --git a/pkg/signalmeow/store/group_store.go b/pkg/signalmeow/store/group_store.go
 index 39b4684..640ce35 100644
 --- a/pkg/signalmeow/store/group_store.go

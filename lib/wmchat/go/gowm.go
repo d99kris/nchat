@@ -861,6 +861,10 @@ func (handler *WmEventHandler) HandleEvent(rawEvt interface{}) {
 		LOG_TRACE(fmt.Sprintf("%#v", evt))
 		handler.HandleMute(evt)
 
+	case *events.Archive:
+		LOG_TRACE(fmt.Sprintf("%#v", evt))
+		handler.HandleArchive(evt)
+
 	case *events.Pin:
 		LOG_TRACE(fmt.Sprintf("%#v", evt))
 		handler.HandlePin(evt)
@@ -969,6 +973,7 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 		if hasMessages {
 			isMuted := false
 			isPinned := false
+			isArchived := conversation.GetArchived()
 			ctx := context.TODO()
 			settings, setErr := client.Store.ChatSettings.GetChatSettings(ctx, chatJid)
 			if setErr != nil {
@@ -978,13 +983,15 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 					mutedUntil := settings.MutedUntil.Unix()
 					isMuted = (mutedUntil == -1) || (mutedUntil > time.Now().Unix())
 					isPinned = settings.Pinned
+					isArchived = isArchived || settings.Archived
 				} else {
 					LOG_DEBUG(fmt.Sprintf("Chat settings not found %s", chatId))
 				}
 			}
 
-			LOG_TRACE(fmt.Sprintf("Call CWmNewChatsNotify %s %d %t %t", chatId, len(syncMessages), isMuted, isPinned))
-			CWmNewChatsNotify(handler.connId, chatId, isUnread, BoolToInt(isMuted), BoolToInt(isPinned), lastMessageTime)
+			LOG_TRACE(fmt.Sprintf("Call CWmNewChatsNotify %s muted=%t pinned=%t archived=%t",
+				chatId, isMuted, isPinned, isArchived))
+			CWmNewChatsNotify(handler.connId, chatId, isUnread, BoolToInt(isMuted), BoolToInt(isPinned), BoolToInt(isArchived), lastMessageTime)
 		} else {
 			LOG_TRACE(fmt.Sprintf("Skip CWmNewChatsNotify %s %d", chatId, len(syncMessages)))
 		}
@@ -1122,6 +1129,22 @@ func (handler *WmEventHandler) HandleMute(mute *events.Mute) {
 
 	LOG_TRACE(fmt.Sprintf("Call CWmUpdateMuteNotify %s %s", chatId, strconv.FormatBool(isMuted)))
 	CWmUpdateMuteNotify(connId, chatId, BoolToInt(isMuted))
+}
+
+func (handler *WmEventHandler) HandleArchive(archive *events.Archive) {
+	connId := handler.connId
+	var client *whatsmeow.Client = GetClient(connId)
+	chatId := GetChatId(client, &archive.JID, nil)
+	archiveAction := archive.Action
+	if archiveAction == nil {
+		LOG_WARNING(fmt.Sprintf("archive event missing archive action"))
+		return
+	}
+
+	isArchived := *archiveAction.Archived
+
+	LOG_TRACE(fmt.Sprintf("Call CWmUpdateArchivedNotify %s %d", chatId, isArchived))
+	CWmUpdateArchivedNotify(connId, chatId, BoolToInt(isArchived))
 }
 
 func (handler *WmEventHandler) HandlePin(pin *events.Pin) {

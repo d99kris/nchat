@@ -716,6 +716,7 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
               (tchat->last_message_ != nullptr) ? (std::hash<std::string>{ } (StrUtil::NumToHex(tchat->last_message_->id_)) % 256) : 0;
 
             bool isPinned = false;
+            bool isArchived = false;
             int64_t lastMessageTime = (lastMessageTimeSec * 1000) + lastMessageHash;
             for (auto& position : tchat->positions_)
             {
@@ -727,11 +728,15 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
                 {
                   lastMessageTime = position->order_;
                 }
-                break;
+              }
+              else if (chatList && (chatList->get_id() == td::td_api::chatListArchive::ID))
+              {
+                isArchived = true;
               }
             }
 
             chatInfo.isPinned = isPinned;
+            chatInfo.isArchived = isArchived;
             chatInfo.lastMessageTime = lastMessageTime;
 
             std::vector<ChatInfo> chatInfos;
@@ -2018,7 +2023,31 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
           updatePinNotify->isPinned = isPinned;
           updatePinNotify->timePinned = position->order_;
           CallMessageHandler(updatePinNotify);
+
+          // chat appearing in main list means it's unarchived
+          bool isArchived = false;
+          LOG_TRACE("update archived notify %s %d", chatId.c_str(), isArchived);
+
+          std::shared_ptr<UpdateArchivedNotify> updateArchivedNotify =
+            std::make_shared<UpdateArchivedNotify>(m_ProfileId);
+          updateArchivedNotify->success = true;
+          updateArchivedNotify->chatId = chatId;
+          updateArchivedNotify->isArchived = isArchived;
+          CallMessageHandler(updateArchivedNotify);
         }
+      }
+      else if (chatList && (chatList->get_id() == td::td_api::chatListArchive::ID))
+      {
+        std::string chatId = StrUtil::NumToHex(update_chat_position.chat_id_);
+        bool isArchived = (position->order_ > 0);
+        LOG_TRACE("update archived notify %s %d", chatId.c_str(), isArchived);
+
+        std::shared_ptr<UpdateArchivedNotify> updateArchivedNotify =
+          std::make_shared<UpdateArchivedNotify>(m_ProfileId);
+        updateArchivedNotify->success = true;
+        updateArchivedNotify->chatId = chatId;
+        updateArchivedNotify->isArchived = isArchived;
+        CallMessageHandler(updateArchivedNotify);
       }
     }
   },

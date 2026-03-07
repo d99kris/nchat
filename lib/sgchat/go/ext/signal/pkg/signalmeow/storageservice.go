@@ -68,6 +68,12 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
 			log.Trace().Any("contact_record", data.Contact).Msg("Handling contact record")
 			aci, _ := uuid.Parse(data.Contact.Aci)
 			pni, _ := uuid.Parse(data.Contact.Pni)
+			if aci == uuid.Nil && len(data.Contact.GetAciBinary()) == 16 {
+				aci, _ = uuid.FromBytes(data.Contact.GetAciBinary())
+			}
+			if pni == uuid.Nil && len(data.Contact.GetPniBinary()) == 16 {
+				pni, _ = uuid.FromBytes(data.Contact.GetPniBinary())
+			}
 			if aci == uuid.Nil && pni == uuid.Nil {
 				log.Warn().
 					Str("raw_aci", data.Contact.Aci).
@@ -126,6 +132,10 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
 					ChatID:              aci.String(),
 					MutedUntilTimestamp: data.Contact.GetMutedUntilTimestamp(),
 				})
+				go cli.handleEvent(&events.ChatArchivedChanged{
+					ChatID:   aci.String(),
+					Archived: data.Contact.GetArchived(),
+				})
 			}
 		case *signalpb.StorageRecord_GroupV2:
 			if len(data.GroupV2.MasterKey) != libsignalgo.GroupMasterKeyLength {
@@ -141,6 +151,10 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
 			go cli.handleEvent(&events.ChatMuteChanged{
 				ChatID:              string(groupID),
 				MutedUntilTimestamp: data.GroupV2.GetMutedUntilTimestamp(),
+			})
+			go cli.handleEvent(&events.ChatArchivedChanged{
+				ChatID:   string(groupID),
+				Archived: data.GroupV2.GetArchived(),
 			})
 		case *signalpb.StorageRecord_Account:
 			log.Trace().Any("account_record", data.Account).Msg("Found account record")
