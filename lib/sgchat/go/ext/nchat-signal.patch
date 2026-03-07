@@ -33,7 +33,7 @@ index 7d3732a..338c657 100644
 +	Archived bool
 +}
 diff --git a/pkg/signalmeow/storageservice.go b/pkg/signalmeow/storageservice.go
-index fcf6848..a2c38fa 100644
+index fcf6848..767fc7c 100644
 --- a/pkg/signalmeow/storageservice.go
 +++ b/pkg/signalmeow/storageservice.go
 @@ -31,6 +31,7 @@ import (
@@ -99,7 +99,7 @@ index fcf6848..a2c38fa 100644
  		case *signalpb.StorageRecord_GroupV1, *signalpb.StorageRecord_StoryDistributionList:
  			// irrelevant data
  		default:
-@@ -377,3 +405,172 @@ func (cli *Client) fetchStorageItemsChunk(ctx context.Context, recordKeys [][]by
+@@ -377,3 +405,373 @@ func (cli *Client) fetchStorageItemsChunk(ctx context.Context, recordKeys [][]by
  		return storageItems.GetItems(), nil
  	}
  }
@@ -270,6 +270,207 @@ index fcf6848..a2c38fa 100644
 +	}
 +
 +	log.Debug().Msg("Successfully updated archived state in storage service")
++	return nil
++}
++
++// SetChatPinned adds or removes a chat from the pinned conversations in the storage service.
++func (cli *Client) SetChatPinned(ctx context.Context, chatID string, pinned bool) error {
++	log := cli.Log.With().Str("action", "set chat pinned").Str("chat_id", chatID).Bool("pinned", pinned).Logger()
++	ctx = log.WithContext(ctx)
++
++	storageKey := deriveStorageServiceKey(cli.Store.MasterKey)
++	manifest, err := cli.fetchStorageManifest(ctx, storageKey, 0)
++	if err != nil {
++		return fmt.Errorf("failed to fetch manifest: %w", err)
++	} else if manifest == nil {
++		return fmt.Errorf("no storage manifest found")
++	}
++
++	allKeys := manifestRecordToMap(manifest.GetIdentifiers())
++	allRecords, _, err := cli.fetchStorageRecords(ctx, storageKey, manifest.GetRecordIkm(), allKeys)
++	if err != nil {
++		return fmt.Errorf("failed to fetch records: %w", err)
++	}
++
++	// Find the account record
++	var targetRecord *DecryptedStorageRecord
++	for _, record := range allRecords {
++		if _, ok := record.StorageRecord.GetRecord().(*signalpb.StorageRecord_Account); ok {
++			targetRecord = record
++			break
++		}
++	}
++
++	if targetRecord == nil {
++		return fmt.Errorf("account record not found")
++	}
++
++	accountData := targetRecord.StorageRecord.GetRecord().(*signalpb.StorageRecord_Account)
++
++	// Build the PinnedConversation entry for this chat
++	chatUUID, uuidErr := uuid.Parse(chatID)
++	isContact := uuidErr == nil && chatUUID != uuid.Nil
++
++	// Helper to check if a pinned contact entry matches the chatID
++	pinnedContactMatches := func(contact *signalpb.AccountRecord_PinnedConversation_Contact) bool {
++		serviceId := contact.GetServiceId()
++		if serviceId == "" && len(contact.GetServiceIdBinary()) >= 16 {
++			parsed, err := uuid.FromBytes(contact.GetServiceIdBinary()[:16])
++			if err == nil {
++				serviceId = parsed.String()
++			}
++		}
++		return serviceId == chatID
++	}
++
++	if pinned {
++		// Check if already pinned
++		for _, pc := range accountData.Account.PinnedConversations {
++			switch id := pc.GetIdentifier().(type) {
++			case *signalpb.AccountRecord_PinnedConversation_Contact_:
++				if isContact && pinnedContactMatches(id.Contact) {
++					log.Debug().Msg("Chat already pinned")
++					return nil
++				}
++			case *signalpb.AccountRecord_PinnedConversation_GroupMasterKey:
++				if !isContact {
++					masterKey := libsignalgo.GroupMasterKey(id.GroupMasterKey)
++					gid, err := masterKey.GroupIdentifier()
++					if err == nil && string(types.BytesToGroupIdentifier(gid)) == chatID {
++						log.Debug().Msg("Chat already pinned")
++						return nil
++					}
++				}
++			}
++		}
++
++		// Add new pinned entry
++		var newEntry *signalpb.AccountRecord_PinnedConversation
++		if isContact {
++			newEntry = &signalpb.AccountRecord_PinnedConversation{
++				Identifier: &signalpb.AccountRecord_PinnedConversation_Contact_{
++					Contact: &signalpb.AccountRecord_PinnedConversation_Contact{
++						ServiceId: chatID,
++					},
++				},
++			}
++		} else {
++			// Group: look up master key
++			serializedKey, err := cli.Store.GroupStore.MasterKeyFromGroupIdentifier(ctx, types.GroupIdentifier(chatID))
++			if err != nil {
++				return fmt.Errorf("failed to get master key for group %s: %w", chatID, err)
++			}
++			masterKeyBytes, err := base64.StdEncoding.DecodeString(string(serializedKey))
++			if err != nil {
++				return fmt.Errorf("failed to decode master key for group %s: %w", chatID, err)
++			}
++			newEntry = &signalpb.AccountRecord_PinnedConversation{
++				Identifier: &signalpb.AccountRecord_PinnedConversation_GroupMasterKey{
++					GroupMasterKey: masterKeyBytes,
++				},
++			}
++		}
++		accountData.Account.PinnedConversations = append(accountData.Account.PinnedConversations, newEntry)
++	} else {
++		// Remove from pinned list
++		filtered := make([]*signalpb.AccountRecord_PinnedConversation, 0, len(accountData.Account.PinnedConversations))
++		for _, pc := range accountData.Account.PinnedConversations {
++			keep := true
++			switch id := pc.GetIdentifier().(type) {
++			case *signalpb.AccountRecord_PinnedConversation_Contact_:
++				if isContact && pinnedContactMatches(id.Contact) {
++					keep = false
++				}
++			case *signalpb.AccountRecord_PinnedConversation_GroupMasterKey:
++				if !isContact {
++					masterKey := libsignalgo.GroupMasterKey(id.GroupMasterKey)
++					gid, err := masterKey.GroupIdentifier()
++					if err == nil && string(types.BytesToGroupIdentifier(gid)) == chatID {
++						keep = false
++					}
++				}
++			}
++			if keep {
++				filtered = append(filtered, pc)
++			}
++		}
++		accountData.Account.PinnedConversations = filtered
++	}
++
++	// Serialize modified record
++	recordBytes, err := proto.Marshal(targetRecord.StorageRecord)
++	if err != nil {
++		return fmt.Errorf("failed to marshal updated record: %w", err)
++	}
++
++	// Generate new storage ID for the updated record
++	newStorageID := random.Bytes(16)
++	newStorageIDB64 := base64.StdEncoding.EncodeToString(newStorageID)
++
++	// Encrypt the record with the new ID
++	newItemKey := deriveStorageItemKey(storageKey, manifest.GetRecordIkm(), newStorageID, newStorageIDB64)
++	encryptedRecord, err := encryptBytes(newItemKey, recordBytes)
++	if err != nil {
++		return fmt.Errorf("failed to encrypt record: %w", err)
++	}
++
++	// Build new manifest: replace the old storage ID with the new one
++	oldStorageIDBytes, err := base64.StdEncoding.DecodeString(targetRecord.StorageID)
++	if err != nil {
++		return fmt.Errorf("failed to decode old storage ID: %w", err)
++	}
++
++	newIdentifiers := make([]*signalpb.ManifestRecord_Identifier, 0, len(manifest.GetIdentifiers()))
++	for _, ident := range manifest.GetIdentifiers() {
++		if base64.StdEncoding.EncodeToString(ident.GetRaw()) == targetRecord.StorageID {
++			newIdentifiers = append(newIdentifiers, &signalpb.ManifestRecord_Identifier{
++				Raw:  newStorageID,
++				Type: ident.Type,
++			})
++		} else {
++			newIdentifiers = append(newIdentifiers, ident)
++		}
++	}
++
++	newVersion := manifest.GetVersion() + 1
++	newManifestRecord := &signalpb.ManifestRecord{
++		Version:      newVersion,
++		SourceDevice: uint32(cli.Store.DeviceID),
++		Identifiers:  newIdentifiers,
++		RecordIkm:    manifest.RecordIkm,
++	}
++
++	manifestBytes, err := proto.Marshal(newManifestRecord)
++	if err != nil {
++		return fmt.Errorf("failed to marshal new manifest: %w", err)
++	}
++
++	manifestKey := deriveStorageManifestKey(storageKey, newVersion)
++	encryptedManifest, err := encryptBytes(manifestKey, manifestBytes)
++	if err != nil {
++		return fmt.Errorf("failed to encrypt manifest: %w", err)
++	}
++
++	writeOp := &signalpb.WriteOperation{
++		Manifest: &signalpb.StorageManifest{
++			Version: newVersion,
++			Value:   encryptedManifest,
++		},
++		InsertItem: []*signalpb.StorageItem{
++			{
++				Key:   newStorageID,
++				Value: encryptedRecord,
++			},
++		},
++		DeleteKey: [][]byte{oldStorageIDBytes},
++	}
++
++	err = cli.writeStorageRecords(ctx, writeOp)
++	if err != nil {
++		return fmt.Errorf("failed to write storage: %w", err)
++	}
++
++	log.Debug().Msg("Successfully updated pinned state in storage service")
 +	return nil
 +}
 diff --git a/pkg/signalmeow/store/backup_store.go b/pkg/signalmeow/store/backup_store.go

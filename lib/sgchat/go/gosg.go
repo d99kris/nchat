@@ -1635,6 +1635,12 @@ func (handler *SgEventHandler) handlePinnedConversationsChanged(evt *events.Pinn
 		switch id := pc.GetIdentifier().(type) {
 		case *signalpb.AccountRecord_PinnedConversation_Contact_:
 			serviceId := id.Contact.GetServiceId()
+			if serviceId == "" && len(id.Contact.GetServiceIdBinary()) >= 16 {
+				parsed, err := uuid.FromBytes(id.Contact.GetServiceIdBinary()[:16])
+				if err == nil {
+					serviceId = parsed.String()
+				}
+			}
 			if serviceId != "" {
 				chatId = serviceId
 			}
@@ -2927,6 +2933,72 @@ func SgArchiveChat(connId int, chatId string, isArchived int) int {
 	CSgUpdateArchivedNotify(connId, chatId, isArchived)
 
 	LOG_TRACE(fmt.Sprintf("archive chat ok %s %t", chatId, archived))
+	return 0
+}
+
+func SgPinChat(connId int, chatId string, isPinned int) int {
+	LOG_TRACE("pin chat " + strconv.Itoa(connId) + ", " + chatId + ", " + strconv.Itoa(isPinned))
+
+	client := GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return -1
+	}
+
+	pinned := isPinned != 0
+	ctx := context.TODO()
+
+	// Update local backup store
+	if client.Store.BackupStore != nil {
+		var backupChat *store.BackupChat
+		chatUUID := StringToUUID(chatId)
+		if chatUUID != uuid.Nil {
+			backupChat, _ = client.Store.BackupStore.GetBackupChatByUserID(ctx, libsignalgo.NewACIServiceID(chatUUID))
+		} else {
+			backupChat, _ = client.Store.BackupStore.GetBackupChatByGroupID(ctx, types.GroupIdentifier(chatId))
+		}
+
+		if backupChat != nil {
+			if pinned {
+				pinnedOrder := uint32(1)
+				backupChat.PinnedOrder = &pinnedOrder
+			} else {
+				backupChat.PinnedOrder = nil
+			}
+			err := client.Store.BackupStore.UpdateBackupChat(ctx, backupChat.Chat)
+			if err != nil {
+				LOG_WARNING(fmt.Sprintf("update backup chat pinned for %s error: %v", chatId, err))
+			}
+		}
+	}
+
+	// Update storage service (syncs to other devices / phone)
+	err := client.SetChatPinned(ctx, chatId, pinned)
+	if err != nil {
+		LOG_WARNING(fmt.Sprintf("set chat pinned in storage service for %s error: %v", chatId, err))
+	} else {
+		// Notify other devices to re-fetch the storage manifest
+		fetchType := signalpb.SyncMessage_FetchLatest_STORAGE_MANIFEST
+		result := client.SendMessage(ctx, client.Store.ACIServiceID(), &signalpb.Content{
+			SyncMessage: &signalpb.SyncMessage{
+				FetchLatest: &signalpb.SyncMessage_FetchLatest{
+					Type: &fetchType,
+				},
+			},
+		})
+		if !result.WasSuccessful {
+			LOG_WARNING(fmt.Sprintf("send fetch latest sync for %s error: %v", chatId, result.FailedSendResult.Error))
+		}
+	}
+
+	// Notify UI
+	order := 0
+	if pinned {
+		order = 1
+	}
+	CSgUpdatePinNotify(connId, chatId, isPinned, order)
+
+	LOG_TRACE(fmt.Sprintf("pin chat ok %s %t", chatId, pinned))
 	return 0
 }
 

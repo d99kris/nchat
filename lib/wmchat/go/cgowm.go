@@ -111,6 +111,11 @@ func CWmArchiveChat(connId int, chatId *C.char, isArchived int) int {
 	return WmArchiveChat(connId, C.GoString(chatId), isArchived)
 }
 
+//export CWmPinChat
+func CWmPinChat(connId int, chatId *C.char, isPinned int) int {
+	return WmPinChat(connId, C.GoString(chatId), isPinned)
+}
+
 //export CWmSendTyping
 func CWmSendTyping(connId int, chatId *C.char, isTyping int) int {
 	return WmSendTyping(connId, C.GoString(chatId), isTyping)

@@ -81,6 +81,7 @@ enum MessageType
   DeleteMessageRequestType,
   DeleteChatRequestType,
   ArchiveChatRequestType,
+  PinChatRequestType,
   SendTypingRequestType,
   SetStatusRequestType,
   CreateChatRequestType,
@@ -302,6 +303,14 @@ public:
   virtual MessageType GetMessageType() const { return ArchiveChatRequestType; }
   std::string chatId;
   bool isArchived;
+};
+
+class PinChatRequest : public RequestMessage
+{
+public:
+  virtual MessageType GetMessageType() const { return PinChatRequestType; }
+  std::string chatId;
+  bool isPinned;
 };
 
 class SendTypingRequest : public RequestMessage

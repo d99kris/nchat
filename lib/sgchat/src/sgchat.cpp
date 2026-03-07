@@ -541,6 +541,20 @@ void SgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
       }
       break;
 
+    case PinChatRequestType:
+      {
+        LOG_DEBUG("pin chat");
+        Status::Set(m_ProfileId, Status::FlagUpdating);
+        std::shared_ptr<PinChatRequest> pinChatRequest =
+          std::static_pointer_cast<PinChatRequest>(p_RequestMessage);
+        std::string chatId = pinChatRequest->chatId;
+        int32_t isPinned = pinChatRequest->isPinned ? 1 : 0;
+
+        CSgPinChat(m_ConnId, const_cast<char*>(chatId.c_str()), isPinned);
+        Status::Clear(m_ProfileId, Status::FlagUpdating);
+      }
+      break;
+
     case SendTypingRequestType:
       {
         LOG_DEBUG("send typing");

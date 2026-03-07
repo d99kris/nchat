@@ -3067,6 +3067,30 @@ func WmArchiveChat(connId int, chatId string, isArchived int) int {
 	return 0
 }
 
+func WmPinChat(connId int, chatId string, isPinned int) int {
+
+	LOG_TRACE("pin chat " + strconv.Itoa(connId) + ", " + chatId + ", " + strconv.Itoa(isPinned))
+
+	if connId == -1 {
+		LOG_WARNING("invalid connId")
+		return -1
+	}
+
+	client := GetClient(connId)
+	chatJid, _ := types.ParseJID(chatId)
+	pin := isPinned != 0
+
+	ctx := context.TODO()
+	err := client.SendAppState(ctx, appstate.BuildPin(chatJid, pin))
+	if err != nil {
+		LOG_WARNING(fmt.Sprintf("pin chat error %s %#v", chatId, err))
+		return -1
+	}
+
+	LOG_TRACE(fmt.Sprintf("pin chat ok %s %t", chatId, pin))
+	return 0
+}
+
 func WmSendTyping(connId int, chatId string, isTyping int) int {
 
 	LOG_TRACE("send typing " + strconv.Itoa(connId) + ", " + chatId + ", " + strconv.Itoa(isTyping))

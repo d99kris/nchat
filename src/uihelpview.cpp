@@ -142,6 +142,7 @@ void UiHelpView::Draw()
     AppendHelpItem("up", "SelectMsg", helpItems);
     AppendHelpItem("delete_chat", "DelChat", helpItems);
     AppendHelpItem("archive_chat", "ArcChat", helpItems);
+    AppendHelpItem("pin_chat", "PinChat", helpItems);
 
     helpItems.insert(std::end(helpItems), std::begin(mainPostHelpItems), std::end(mainPostHelpItems));
     return helpItems;

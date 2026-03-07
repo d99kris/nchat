@@ -112,6 +112,11 @@ func CSgArchiveChat(connId int, chatId *C.char, isArchived int) int {
 	return SgArchiveChat(connId, C.GoString(chatId), isArchived)
 }
 
+//export CSgPinChat
+func CSgPinChat(connId int, chatId *C.char, isPinned int) int {
+	return SgPinChat(connId, C.GoString(chatId), isPinned)
+}
+
 //export CSgSendTyping
 func CSgSendTyping(connId int, chatId *C.char, isTyping int) int {
 	return SgSendTyping(connId, C.GoString(chatId), isTyping)

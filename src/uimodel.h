@@ -63,6 +63,7 @@ private:
     void OnKeyDeleteMsg();
     void OnKeyDeleteChat();
     void OnKeyArchiveChat();
+    void OnKeyPinChat();
     void OnKeyOpenMsg();
     bool GetMessageAttachmentPath(std::string& p_FilePath, DownloadFileAction p_DownloadFileAction);
     void OnKeyOpenAttachment(std::string p_FilePath = std::string());
@@ -397,6 +398,7 @@ private:
   void OnKeyDeleteMsg();
   void OnKeyDeleteChat();
   void OnKeyArchiveChat();
+  void OnKeyPinChat();
   void OnKeySaveAttachment();
   void OnKeyEditMsg();
   void OnKeyQuit();

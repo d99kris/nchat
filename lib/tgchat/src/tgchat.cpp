@@ -1207,6 +1207,34 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
       }
       break;
 
+    case PinChatRequestType:
+      {
+        LOG_DEBUG("Pin chat");
+        Status::Set(m_ProfileId, Status::FlagUpdating);
+        std::shared_ptr<PinChatRequest> pinChatRequest =
+          std::static_pointer_cast<PinChatRequest>(
+          p_RequestMessage);
+        int64_t chatId = StrUtil::NumFromHex<int64_t>(pinChatRequest->chatId);
+        bool isPinned = pinChatRequest->isPinned;
+
+        auto toggle_pin = td::td_api::make_object<td::td_api::toggleChatIsPinned>();
+        toggle_pin->chat_id_ = chatId;
+        toggle_pin->is_pinned_ = isPinned;
+        toggle_pin->chat_list_ = td::td_api::make_object<td::td_api::chatListMain>();
+
+        SendQuery(std::move(toggle_pin),
+                  [this, pinChatRequest](Object object)
+        {
+          Status::Clear(m_ProfileId, Status::FlagUpdating);
+
+          if (object->get_id() == td::td_api::error::ID)
+          {
+            LOG_WARNING("Pin chat error");
+          }
+        });
+      }
+      break;
+
     case SendTypingRequestType:
       {
         LOG_DEBUG("Send typing");

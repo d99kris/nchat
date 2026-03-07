@@ -965,6 +965,20 @@ void UiModel::Impl::OnKeyArchiveChat()
   SendProtocolRequest(profileId, archiveChatRequest);
 }
 
+void UiModel::Impl::OnKeyPinChat()
+{
+  AnyUserKeyInput();
+
+  const std::string& profileId = m_CurrentChat.first;
+  const std::string& chatId = m_CurrentChat.second;
+
+  bool isPinned = m_ChatInfos[profileId][chatId].isPinned;
+  std::shared_ptr<PinChatRequest> pinChatRequest = std::make_shared<PinChatRequest>();
+  pinChatRequest->chatId = chatId;
+  pinChatRequest->isPinned = !isPinned;
+  SendProtocolRequest(profileId, pinChatRequest);
+}
+
 void UiModel::Impl::OnKeyOpenMsg()
 {
   AnyUserKeyInput();
@@ -4307,6 +4321,7 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keyDeleteMsg = UiKeyConfig::GetKey("delete_msg");
   static wint_t keyDeleteChat = UiKeyConfig::GetKey("delete_chat");
   static wint_t keyArchiveChat = UiKeyConfig::GetKey("archive_chat");
+  static wint_t keyPinChat = UiKeyConfig::GetKey("pin_chat");
   static wint_t keyEditMsg = UiKeyConfig::GetKey("edit_msg");
   static wint_t keyCancel = UiKeyConfig::GetKey("cancel");
 
@@ -4456,6 +4471,10 @@ void UiModel::KeyHandler(wint_t p_Key)
   else if (p_Key == keyArchiveChat)
   {
     OnKeyArchiveChat();
+  }
+  else if (p_Key == keyPinChat)
+  {
+    OnKeyPinChat();
   }
   else if (p_Key == keyOpen)
   {
@@ -5284,6 +5303,17 @@ void UiModel::OnKeyArchiveChat()
 
   std::unique_lock<owned_mutex> lock(m_ModelMutex);
   GetImpl().OnKeyArchiveChat();
+}
+
+void UiModel::OnKeyPinChat()
+{
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    if (GetImpl().GetSelectMessageActive() || GetImpl().GetEditMessageActive()) return;
+  }
+
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  GetImpl().OnKeyPinChat();
 }
 
 void UiModel::OnKeySaveAttachment()
