@@ -67,10 +67,13 @@ Interactive Commands:
     Ctrl-x      send message
     Ctrl-y      toggle show emojis
     KeyUp       select message
+    Alt-@       insert mention
+    Alt-a       archive current chat
     Alt-d       delete/leave current chat
     Alt-e       external editor compose
     Alt-i       auto-compose reply
     Alt-n       search contacts
+    Alt-p       pin/unpin current chat
     Alt-t       external telephone call
     Alt-/       find in chat
     Alt-?       find next in chat
@@ -196,9 +199,11 @@ Void
 
 **Extra Dependencies**
 
-For Wayland-based systems install `wl-clipboard` to enable clipboard functionality.
+For Wayland-based systems install `wl-clipboard` to enable clipboard
+functionality.
 
-To support pasting and sending images directly from clipboard `libpng-dev` is needed.
+To support pasting images directly from clipboard `libpng-dev` is needed. On
+X11 systems `libxcb1-dev` and `libx11-dev` are needed as well.
 
 **Build**
 
@@ -813,6 +818,7 @@ Specifies the character to suffix chats with unread messages in the chat list.
 ------------------------
 This configuration file holds user interface key bindings. Default content:
 
+    archive_chat=\33\141
     auto_compose=\33\151
     backspace=KEY_BACKSPACE
     backspace_alt=KEY_ALT_BACKSPACE
@@ -854,6 +860,7 @@ This configuration file holds user interface key bindings. Default content:
     open_msg=\33\167
     other_commands_help=KEY_CTRLO
     paste=\33\166
+    pin_chat=\33\160
     prev_chat=KEY_BTAB
     prev_page=KEY_PPAGE
     quit=KEY_CTRLQ
@@ -862,6 +869,7 @@ This configuration file holds user interface key bindings. Default content:
     save=KEY_CTRLR
     select_contact=\33\156
     select_emoji=KEY_CTRLS
+    select_mention=\33\62
     send_msg=KEY_CTRLX
     spell=\33\44
     tab=\33\11

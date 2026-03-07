@@ -29,7 +29,9 @@ endif()
 # Build Go library / C archive
 set(TARGET cgosg)
 set(GOPATH ${OUTPUT_DIR})
-set(SRCS gosg.go cgosg.go)
+set(SRCS gosg.go cgosg.go go.mod go.sum)
+file(GLOB_RECURSE EXT_SRCS ext/*.go)
+list(APPEND SRCS ${EXT_SRCS})
 set(LIB "libcgosg${CMAKE_SHARED_LIBRARY_SUFFIX}")
 
 # Option to build libsignal_ffi from source instead of downloading

@@ -302,7 +302,7 @@ class ArchiveChatRequest : public RequestMessage
 public:
   virtual MessageType GetMessageType() const { return ArchiveChatRequestType; }
   std::string chatId;
-  bool isArchived;
+  bool isArchived = false;
 };
 
 class PinChatRequest : public RequestMessage
@@ -310,7 +310,7 @@ class PinChatRequest : public RequestMessage
 public:
   virtual MessageType GetMessageType() const { return PinChatRequestType; }
   std::string chatId;
-  bool isPinned;
+  bool isPinned = false;
 };
 
 class SendTypingRequest : public RequestMessage
@@ -469,7 +469,7 @@ public:
   explicit NewChatsNotify(const std::string& p_ProfileId)
     : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return NewChatsNotifyType; }
-  bool success;
+  bool success = false;
   std::vector<ChatInfo> chatInfos;
 };
 
@@ -479,7 +479,7 @@ public:
   explicit NewMessagesNotify(const std::string& p_ProfileId)
     : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return NewMessagesNotifyType; }
-  bool success;
+  bool success = false;
   std::string chatId;
   std::vector<ChatMessage> chatMessages;
   std::string fromMsgId;
@@ -493,7 +493,7 @@ public:
   explicit SendMessageNotify(const std::string& p_ProfileId)
     : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return SendMessageNotifyType; }
-  bool success;
+  bool success = false;
   std::string chatId;
   ChatMessage chatMessage;
 };
@@ -504,7 +504,7 @@ public:
   explicit ConnectNotify(const std::string& p_ProfileId)
     : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return ConnectNotifyType; }
-  bool success;
+  bool success = false;
 };
 
 class MarkMessageReadNotify : public ServiceMessage
@@ -513,7 +513,7 @@ public:
   explicit MarkMessageReadNotify(const std::string& p_ProfileId)
     : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return MarkMessageReadNotifyType; }
-  bool success;
+  bool success = false;
   std::string chatId;
   std::string msgId;
 };
@@ -524,7 +524,7 @@ public:
   explicit DeleteMessageNotify(const std::string& p_ProfileId)
     : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return DeleteMessageNotifyType; }
-  bool success;
+  bool success = false;
   std::string chatId;
   std::string msgId;
 };
@@ -535,7 +535,7 @@ public:
   explicit SendTypingNotify(const std::string& p_ProfileId)
     : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return SendTypingNotifyType; }
-  bool success;
+  bool success = false;
   std::string chatId;
   bool isTyping;
 };
@@ -546,7 +546,7 @@ public:
   explicit SetStatusNotify(const std::string& p_ProfileId)
     : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return SetStatusNotifyType; }
-  bool success;
+  bool success = false;
   bool isOnline;
 };
 
@@ -556,7 +556,7 @@ public:
   explicit CreateChatNotify(const std::string& p_ProfileId)
     : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return CreateChatNotifyType; }
-  bool success;
+  bool success = false;
   ChatInfo chatInfo;
 };
 
@@ -568,7 +568,7 @@ public:
   virtual MessageType GetMessageType() const { return ReceiveTypingNotifyType; }
   std::string chatId;
   std::string userId;
-  bool isTyping;
+  bool isTyping = false;
 };
 
 enum TimeSeen
@@ -586,7 +586,7 @@ public:
     : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return ReceiveStatusNotifyType; }
   std::string userId;
-  bool isOnline;
+  bool isOnline = false;
   int64_t timeSeen = -1;
 };
 
@@ -619,7 +619,7 @@ public:
   explicit DeleteChatNotify(const std::string& p_ProfileId)
     : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return DeleteChatNotifyType; }
-  bool success;
+  bool success = false;
   std::string chatId;
 };
 
@@ -629,9 +629,9 @@ public:
   explicit UpdateMuteNotify(const std::string& p_ProfileId)
     : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return UpdateMuteNotifyType; }
-  bool success;
+  bool success = false;
   std::string chatId;
-  bool isMuted;
+  bool isMuted = false;
 };
 
 class ProtocolUiControlNotify : public ServiceMessage
@@ -640,7 +640,7 @@ public:
   explicit ProtocolUiControlNotify(const std::string& p_ProfileId)
     : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return ProtocolUiControlNotifyType; }
-  bool isTakeControl;
+  bool isTakeControl = false;
 };
 
 class RequestAppExitNotify : public ServiceMessage
@@ -679,7 +679,7 @@ public:
   explicit FindMessageNotify(const std::string& p_ProfileId)
     : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return FindMessageNotifyType; }
-  bool success;
+  bool success = false;
   std::string chatId;
   std::string msgId;
 };
@@ -690,9 +690,9 @@ public:
   explicit UpdatePinNotify(const std::string& p_ProfileId)
     : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return UpdatePinNotifyType; }
-  bool success;
+  bool success = false;
   std::string chatId;
-  bool isPinned;
+  bool isPinned = false;
   int64_t timePinned = -1;
 };
 
@@ -712,7 +712,7 @@ public:
   explicit UpdateArchivedNotify(const std::string& p_ProfileId)
     : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return UpdateArchivedNotifyType; }
-  bool success;
+  bool success = false;
   std::string chatId;
-  bool isArchived;
+  bool isArchived = false;
 };
