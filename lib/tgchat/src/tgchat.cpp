@@ -1173,6 +1173,40 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
       }
       break;
 
+    case ArchiveChatRequestType:
+      {
+        LOG_DEBUG("Archive chat");
+        Status::Set(m_ProfileId, Status::FlagUpdating);
+        std::shared_ptr<ArchiveChatRequest> archiveChatRequest =
+          std::static_pointer_cast<ArchiveChatRequest>(
+          p_RequestMessage);
+        int64_t chatId = StrUtil::NumFromHex<int64_t>(archiveChatRequest->chatId);
+        bool isArchived = archiveChatRequest->isArchived;
+
+        auto add_chat_to_list = td::td_api::make_object<td::td_api::addChatToList>();
+        add_chat_to_list->chat_id_ = chatId;
+        if (isArchived)
+        {
+          add_chat_to_list->chat_list_ = td::td_api::make_object<td::td_api::chatListArchive>();
+        }
+        else
+        {
+          add_chat_to_list->chat_list_ = td::td_api::make_object<td::td_api::chatListMain>();
+        }
+
+        SendQuery(std::move(add_chat_to_list),
+                  [this, archiveChatRequest](Object object)
+        {
+          Status::Clear(m_ProfileId, Status::FlagUpdating);
+
+          if (object->get_id() == td::td_api::error::ID)
+          {
+            LOG_WARNING("Archive chat error");
+          }
+        });
+      }
+      break;
+
     case SendTypingRequestType:
       {
         LOG_DEBUG("Send typing");
@@ -2647,15 +2681,22 @@ void TgChat::Impl::CreateChat(Object p_Object)
   }
 
   auto chat = td::move_tl_object_as<td::td_api::chat>(p_Object);
+  int64_t chatId = chat->id_;
 
   ChatInfo chatInfo;
-  chatInfo.id = StrUtil::NumToHex(chat->id_);
+  chatInfo.id = StrUtil::NumToHex(chatId);
 
   std::shared_ptr<CreateChatNotify> createChatNotify = std::make_shared<CreateChatNotify>(m_ProfileId);
   createChatNotify->success = true;
   createChatNotify->chatInfo = chatInfo;
 
   CallMessageHandler(createChatNotify);
+
+  // Ensure the chat is in the main list (unarchives if needed, no-op otherwise)
+  auto add_chat_to_list = td::td_api::make_object<td::td_api::addChatToList>();
+  add_chat_to_list->chat_id_ = chatId;
+  add_chat_to_list->chat_list_ = td::td_api::make_object<td::td_api::chatListMain>();
+  SendQuery(std::move(add_chat_to_list), [](Object) { });
 }
 
 std::string TgChat::Impl::GetRandomString(size_t p_Len)

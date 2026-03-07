@@ -3043,6 +3043,30 @@ func WmDeleteChat(connId int, chatId string) int {
 	return 0
 }
 
+func WmArchiveChat(connId int, chatId string, isArchived int) int {
+
+	LOG_TRACE("archive chat " + strconv.Itoa(connId) + ", " + chatId + ", " + strconv.Itoa(isArchived))
+
+	if connId == -1 {
+		LOG_WARNING("invalid connId")
+		return -1
+	}
+
+	client := GetClient(connId)
+	chatJid, _ := types.ParseJID(chatId)
+	archived := isArchived != 0
+
+	ctx := context.TODO()
+	err := client.SendAppState(ctx, appstate.BuildArchive(chatJid, archived, time.Time{}, nil))
+	if err != nil {
+		LOG_WARNING(fmt.Sprintf("archive chat error %s %#v", chatId, err))
+		return -1
+	}
+
+	LOG_TRACE(fmt.Sprintf("archive chat ok %s %t", chatId, archived))
+	return 0
+}
+
 func WmSendTyping(connId int, chatId string, isTyping int) int {
 
 	LOG_TRACE("send typing " + strconv.Itoa(connId) + ", " + chatId + ", " + strconv.Itoa(isTyping))

@@ -422,6 +422,7 @@ This configuration file holds general user interface settings. Default content:
     auto_select_chat_timeout_sec=1
     call_command=
     chat_picker_sorted_alphabetically=0
+    confirm_archiving=1
     confirm_deletion=1
     confirm_send_pasted_image=1
     desktop_notify_active_current=0
@@ -543,6 +544,10 @@ macOS: `open 'tel://%1' &`
 Specifies whether the chat selection dialog (used when forwarding message)
 should be sorted alphabetically. If not, its order follows the main chat
 list order.
+
+### confirm_archiving
+
+Specifies whether to prompt the user for confirmation when archiving a chat.
 
 ### confirm_deletion
 

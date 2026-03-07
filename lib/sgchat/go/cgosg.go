@@ -107,6 +107,11 @@ func CSgDeleteChat(connId int, chatId *C.char) int {
 	return SgDeleteChat(connId, C.GoString(chatId))
 }
 
+//export CSgArchiveChat
+func CSgArchiveChat(connId int, chatId *C.char, isArchived int) int {
+	return SgArchiveChat(connId, C.GoString(chatId), isArchived)
+}
+
 //export CSgSendTyping
 func CSgSendTyping(connId int, chatId *C.char, isTyping int) int {
 	return SgSendTyping(connId, C.GoString(chatId), isTyping)

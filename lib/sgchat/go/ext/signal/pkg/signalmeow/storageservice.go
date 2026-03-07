@@ -31,6 +31,7 @@ import (
 	"github.com/rs/zerolog"
 	"go.mau.fi/util/exerrors"
 	"go.mau.fi/util/ptr"
+	"go.mau.fi/util/random"
 	"golang.org/x/crypto/hkdf"
 	"golang.org/x/exp/maps"
 	"google.golang.org/protobuf/proto"
@@ -403,4 +404,173 @@ func (cli *Client) fetchStorageItemsChunk(ctx context.Context, recordKeys [][]by
 	} else {
 		return storageItems.GetItems(), nil
 	}
+}
+
+func encryptBytes(key []byte, plaintext []byte) ([]byte, error) {
+	nonce := random.Bytes(NONCE_LENGTH)
+	ciphertext, err := AesgcmEncrypt(key, nonce, plaintext)
+	if err != nil {
+		return nil, err
+	}
+	return append(nonce, ciphertext...), nil
+}
+
+func (cli *Client) writeStorageRecords(ctx context.Context, writeOp *signalpb.WriteOperation) error {
+	storageCreds, err := cli.getStorageCredentials(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to fetch credentials: %w", err)
+	}
+	body, err := proto.Marshal(writeOp)
+	if err != nil {
+		return fmt.Errorf("failed to marshal write operation: %w", err)
+	}
+	resp, err := web.SendHTTPRequest(ctx, web.StorageHostname, http.MethodPut, "/v1/storage", &web.HTTPReqOpt{
+		Username:    &storageCreds.Username,
+		Password:    &storageCreds.Password,
+		Body:        body,
+		ContentType: web.ContentTypeProtobuf,
+	})
+	defer web.CloseBody(resp)
+	if err != nil {
+		return fmt.Errorf("failed to write storage records: %w", err)
+	} else if resp.StatusCode == http.StatusConflict {
+		return fmt.Errorf("storage version conflict (409)")
+	} else if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code %d writing storage records", resp.StatusCode)
+	}
+	return nil
+}
+
+// SetChatArchived sets the archived flag for a contact or group in the storage service.
+func (cli *Client) SetChatArchived(ctx context.Context, chatID string, archived bool) error {
+	log := cli.Log.With().Str("action", "set chat archived").Str("chat_id", chatID).Bool("archived", archived).Logger()
+	ctx = log.WithContext(ctx)
+
+	storageKey := deriveStorageServiceKey(cli.Store.MasterKey)
+	manifest, err := cli.fetchStorageManifest(ctx, storageKey, 0)
+	if err != nil {
+		return fmt.Errorf("failed to fetch manifest: %w", err)
+	} else if manifest == nil {
+		return fmt.Errorf("no storage manifest found")
+	}
+
+	allKeys := manifestRecordToMap(manifest.GetIdentifiers())
+	allRecords, _, err := cli.fetchStorageRecords(ctx, storageKey, manifest.GetRecordIkm(), allKeys)
+	if err != nil {
+		return fmt.Errorf("failed to fetch records: %w", err)
+	}
+
+	// Find the target record
+	var targetRecord *DecryptedStorageRecord
+	for _, record := range allRecords {
+		switch data := record.StorageRecord.GetRecord().(type) {
+		case *signalpb.StorageRecord_Contact:
+			aci, _ := uuid.Parse(data.Contact.Aci)
+			if aci == uuid.Nil && len(data.Contact.GetAciBinary()) == 16 {
+				aci, _ = uuid.FromBytes(data.Contact.GetAciBinary())
+			}
+			if aci != uuid.Nil && aci.String() == chatID {
+				targetRecord = record
+			}
+		case *signalpb.StorageRecord_GroupV2:
+			if len(data.GroupV2.MasterKey) == libsignalgo.GroupMasterKeyLength {
+				masterKey := libsignalgo.GroupMasterKey(data.GroupV2.MasterKey)
+				gid, err := masterKey.GroupIdentifier()
+				if err == nil && string(types.BytesToGroupIdentifier(gid)) == chatID {
+					targetRecord = record
+				}
+			}
+		}
+		if targetRecord != nil {
+			break
+		}
+	}
+
+	if targetRecord == nil {
+		return fmt.Errorf("record not found for chat %s", chatID)
+	}
+
+	// Modify the archived field
+	switch data := targetRecord.StorageRecord.GetRecord().(type) {
+	case *signalpb.StorageRecord_Contact:
+		data.Contact.Archived = archived
+	case *signalpb.StorageRecord_GroupV2:
+		data.GroupV2.Archived = archived
+	}
+
+	// Serialize modified record
+	recordBytes, err := proto.Marshal(targetRecord.StorageRecord)
+	if err != nil {
+		return fmt.Errorf("failed to marshal updated record: %w", err)
+	}
+
+	// Generate new storage ID for the updated record
+	newStorageID := random.Bytes(16)
+	newStorageIDB64 := base64.StdEncoding.EncodeToString(newStorageID)
+
+	// Encrypt the record with the new ID
+	newItemKey := deriveStorageItemKey(storageKey, manifest.GetRecordIkm(), newStorageID, newStorageIDB64)
+	encryptedRecord, err := encryptBytes(newItemKey, recordBytes)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt record: %w", err)
+	}
+
+	// Build new manifest: replace the old storage ID with the new one
+	oldStorageIDBytes, err := base64.StdEncoding.DecodeString(targetRecord.StorageID)
+	if err != nil {
+		return fmt.Errorf("failed to decode old storage ID: %w", err)
+	}
+
+	newIdentifiers := make([]*signalpb.ManifestRecord_Identifier, 0, len(manifest.GetIdentifiers()))
+	for _, ident := range manifest.GetIdentifiers() {
+		if base64.StdEncoding.EncodeToString(ident.GetRaw()) == targetRecord.StorageID {
+			newIdentifiers = append(newIdentifiers, &signalpb.ManifestRecord_Identifier{
+				Raw:  newStorageID,
+				Type: ident.Type,
+			})
+		} else {
+			newIdentifiers = append(newIdentifiers, ident)
+		}
+	}
+
+	newVersion := manifest.GetVersion() + 1
+	newManifestRecord := &signalpb.ManifestRecord{
+		Version:      newVersion,
+		SourceDevice: uint32(cli.Store.DeviceID),
+		Identifiers:  newIdentifiers,
+		RecordIkm:    manifest.RecordIkm,
+	}
+
+	manifestBytes, err := proto.Marshal(newManifestRecord)
+	if err != nil {
+		return fmt.Errorf("failed to marshal new manifest: %w", err)
+	}
+
+	manifestKey := deriveStorageManifestKey(storageKey, newVersion)
+	encryptedManifest, err := encryptBytes(manifestKey, manifestBytes)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt manifest: %w", err)
+	}
+
+	writeOp := &signalpb.WriteOperation{
+		Manifest: &signalpb.StorageManifest{
+			Version: newVersion,
+			Value:   encryptedManifest,
+		},
+		InsertItem: []*signalpb.StorageItem{
+			{
+				Key:   newStorageID,
+				Value: encryptedRecord,
+			},
+		},
+		DeleteKey: [][]byte{oldStorageIDBytes},
+	}
+
+	err = cli.writeStorageRecords(ctx, writeOp)
+	if err != nil {
+		return fmt.Errorf("failed to write storage: %w", err)
+	}
+
+	log.Debug().Msg("Successfully updated archived state in storage service")
+	return nil
 }

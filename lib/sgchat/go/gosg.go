@@ -2873,6 +2873,63 @@ func SgDeleteChat(connId int, chatId string) int {
 	return 0
 }
 
+func SgArchiveChat(connId int, chatId string, isArchived int) int {
+	LOG_TRACE("archive chat " + strconv.Itoa(connId) + ", " + chatId + ", " + strconv.Itoa(isArchived))
+
+	client := GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return -1
+	}
+
+	archived := isArchived != 0
+	ctx := context.TODO()
+
+	// Update local backup store
+	if client.Store.BackupStore != nil {
+		var backupChat *store.BackupChat
+		chatUUID := StringToUUID(chatId)
+		if chatUUID != uuid.Nil {
+			backupChat, _ = client.Store.BackupStore.GetBackupChatByUserID(ctx, libsignalgo.NewACIServiceID(chatUUID))
+		} else {
+			backupChat, _ = client.Store.BackupStore.GetBackupChatByGroupID(ctx, types.GroupIdentifier(chatId))
+		}
+
+		if backupChat != nil {
+			backupChat.Archived = archived
+			err := client.Store.BackupStore.UpdateBackupChat(ctx, backupChat.Chat)
+			if err != nil {
+				LOG_WARNING(fmt.Sprintf("update backup chat archived for %s error: %v", chatId, err))
+			}
+		}
+	}
+
+	// Update storage service (syncs to other devices / phone)
+	err := client.SetChatArchived(ctx, chatId, archived)
+	if err != nil {
+		LOG_WARNING(fmt.Sprintf("set chat archived in storage service for %s error: %v", chatId, err))
+	} else {
+		// Notify other devices to re-fetch the storage manifest
+		fetchType := signalpb.SyncMessage_FetchLatest_STORAGE_MANIFEST
+		result := client.SendMessage(ctx, client.Store.ACIServiceID(), &signalpb.Content{
+			SyncMessage: &signalpb.SyncMessage{
+				FetchLatest: &signalpb.SyncMessage_FetchLatest{
+					Type: &fetchType,
+				},
+			},
+		})
+		if !result.WasSuccessful {
+			LOG_WARNING(fmt.Sprintf("send fetch latest sync for %s error: %v", chatId, result.FailedSendResult.Error))
+		}
+	}
+
+	// Notify UI
+	CSgUpdateArchivedNotify(connId, chatId, isArchived)
+
+	LOG_TRACE(fmt.Sprintf("archive chat ok %s %t", chatId, archived))
+	return 0
+}
+
 func SgSendTyping(connId int, chatId string, isTyping int) int {
 	LOG_TRACE("send typing " + strconv.Itoa(connId) + ", " + chatId + ", " + strconv.Itoa(isTyping))
 

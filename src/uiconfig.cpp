@@ -27,6 +27,7 @@ void UiConfig::Init()
     { "away_status_indication", "0" },
     { "call_command", "" },
     { "chat_picker_sorted_alphabetically", "0" },
+    { "confirm_archiving", "1" },
     { "confirm_deletion", "1" },
     { "confirm_send_pasted_image", "1" },
     { "desktop_notify_active_current", "0" },

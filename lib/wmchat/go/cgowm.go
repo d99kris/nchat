@@ -106,6 +106,11 @@ func CWmDeleteChat(connId int, chatId *C.char) int {
 	return WmDeleteChat(connId, C.GoString(chatId))
 }
 
+//export CWmArchiveChat
+func CWmArchiveChat(connId int, chatId *C.char, isArchived int) int {
+	return WmArchiveChat(connId, C.GoString(chatId), isArchived)
+}
+
 //export CWmSendTyping
 func CWmSendTyping(connId int, chatId *C.char, isTyping int) int {
 	return WmSendTyping(connId, C.GoString(chatId), isTyping)

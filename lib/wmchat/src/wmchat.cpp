@@ -513,6 +513,20 @@ void WmChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
       }
       break;
 
+    case ArchiveChatRequestType:
+      {
+        LOG_DEBUG("archive chat");
+        Status::Set(m_ProfileId, Status::FlagUpdating);
+        std::shared_ptr<ArchiveChatRequest> archiveChatRequest =
+          std::static_pointer_cast<ArchiveChatRequest>(p_RequestMessage);
+        std::string chatId = archiveChatRequest->chatId;
+        int32_t isArchived = archiveChatRequest->isArchived ? 1 : 0;
+
+        CWmArchiveChat(m_ConnId, const_cast<char*>(chatId.c_str()), isArchived);
+        Status::Clear(m_ProfileId, Status::FlagUpdating);
+      }
+      break;
+
     case SendTypingRequestType:
       {
         LOG_DEBUG("send typing");

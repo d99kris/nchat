@@ -951,6 +951,20 @@ void UiModel::Impl::OnKeyDeleteChat()
   SendProtocolRequest(profileId, deleteChatRequest);
 }
 
+void UiModel::Impl::OnKeyArchiveChat()
+{
+  AnyUserKeyInput();
+
+  const std::string& profileId = m_CurrentChat.first;
+  const std::string& chatId = m_CurrentChat.second;
+
+  bool isArchived = m_ChatInfos[profileId][chatId].isArchived;
+  std::shared_ptr<ArchiveChatRequest> archiveChatRequest = std::make_shared<ArchiveChatRequest>();
+  archiveChatRequest->chatId = chatId;
+  archiveChatRequest->isArchived = !isArchived;
+  SendProtocolRequest(profileId, archiveChatRequest);
+}
+
 void UiModel::Impl::OnKeyOpenMsg()
 {
   AnyUserKeyInput();
@@ -1483,6 +1497,14 @@ void UiModel::Impl::OpenCreateChat(const std::pair<std::string, std::string>& p_
   std::unordered_map<std::string, ChatInfo>& profileChatInfos = m_ChatInfos[profileId];
   if (profileChatInfos.count(userId))
   {
+    if (profileChatInfos[userId].isArchived)
+    {
+      std::shared_ptr<ArchiveChatRequest> archiveChatRequest = std::make_shared<ArchiveChatRequest>();
+      archiveChatRequest->chatId = userId;
+      archiveChatRequest->isArchived = false;
+      SendProtocolRequest(profileId, archiveChatRequest);
+    }
+
     m_CurrentChatIndex = 0;
     m_CurrentChat.first = profileId;
     m_CurrentChat.second = userId;
@@ -1939,6 +1961,7 @@ void UiModel::Impl::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMess
         {
           const ChatInfo& chatInfo = createChatNotify->chatInfo;
           LOG_TRACE("chat created %s", chatInfo.id.c_str());
+
           m_ChatInfos[profileId][chatInfo.id] = chatInfo;
           if (m_ChatSet[profileId].insert(chatInfo.id).second)
           {
@@ -4283,6 +4306,7 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keyTransfer = UiKeyConfig::GetKey("transfer");
   static wint_t keyDeleteMsg = UiKeyConfig::GetKey("delete_msg");
   static wint_t keyDeleteChat = UiKeyConfig::GetKey("delete_chat");
+  static wint_t keyArchiveChat = UiKeyConfig::GetKey("archive_chat");
   static wint_t keyEditMsg = UiKeyConfig::GetKey("edit_msg");
   static wint_t keyCancel = UiKeyConfig::GetKey("cancel");
 
@@ -4428,6 +4452,10 @@ void UiModel::KeyHandler(wint_t p_Key)
   else if (p_Key == keyDeleteChat)
   {
     OnKeyDeleteChat();
+  }
+  else if (p_Key == keyArchiveChat)
+  {
+    OnKeyArchiveChat();
   }
   else if (p_Key == keyOpen)
   {
@@ -5235,6 +5263,27 @@ void UiModel::OnKeyDeleteChat()
 
   std::unique_lock<owned_mutex> lock(m_ModelMutex);
   GetImpl().OnKeyDeleteChat();
+}
+
+void UiModel::OnKeyArchiveChat()
+{
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    if (GetImpl().GetSelectMessageActive() || GetImpl().GetEditMessageActive()) return;
+  }
+
+  // Open modal dialog without model mutex held
+  static const bool confirmArchiving = UiConfig::GetBool("confirm_archiving");
+  if (confirmArchiving)
+  {
+    if (!MessageDialog("Confirmation", "Confirm chat archiving?", 0.5, 5))
+    {
+      return;
+    }
+  }
+
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  GetImpl().OnKeyArchiveChat();
 }
 
 void UiModel::OnKeySaveAttachment()
