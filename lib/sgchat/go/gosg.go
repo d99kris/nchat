@@ -2018,6 +2018,9 @@ func SgLogin(connId int) int {
 		CSgClearStatus(connId, FlagSyncing)
 	}
 
+	// Sync storage service (contact names, mute/pin/archive state)
+	client.SyncStorage(ctx)
+
 	// Request contacts sync
 	client.SyncContactsOnConnect = true
 	client.SendContactSyncRequest(ctx)
