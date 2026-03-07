@@ -60,7 +60,7 @@ private:
     void OnStatusUpdate(uint32_t p_Status);
     void DownloadAttachment(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId,
                             const std::string& p_FileId, DownloadFileAction p_DownloadFileAction);
-    void OnKeyDeleteMsg();
+    void OnKeyDeleteMsg(bool p_Revoke = true);
     void OnKeyDeleteChat();
     void OnKeyArchiveChat();
     void OnKeyPinChat();
@@ -395,7 +395,7 @@ private:
   void OnKeyFindNext();
   void OnKeyForwardMsg();
   bool MessageDialog(const std::string& p_Title, const std::string& p_Text, float p_WReq, float p_HReq);
-  void OnKeyDeleteMsg();
+  void OnKeyDeleteMsg(bool p_Revoke = true);
   void OnKeyDeleteChat();
   void OnKeyArchiveChat();
   void OnKeyPinChat();
