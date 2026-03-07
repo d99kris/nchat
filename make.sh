@@ -128,7 +128,7 @@ done
 
 # detect os / distro
 OS="$(uname)"
-if [ "${OS}" == "Linux" ]; then
+if [[ "${OS}" == "Linux" ]]; then
   unset NAME
   eval $(grep "^NAME=" /etc/os-release 2> /dev/null)
   if [[ "${NAME}" != "" ]]; then
@@ -142,7 +142,7 @@ fi
 
 # deps
 if [[ "${DEPS}" == "1" ]]; then
-  if [ "${OS}" == "Linux" ]; then
+  if [[ "${OS}" == "Linux" ]]; then
     # add wl-clipboard package for wayland systems
     WL_CLIPBOARD=$([[ "$XDG_SESSION_TYPE" == "wayland" || -n "$WAYLAND_DISPLAY" ]] && echo "wl-clipboard")
 
@@ -200,7 +200,7 @@ if [[ "${DEPS}" == "1" ]]; then
     else
       exiterr "deps failed (unsupported linux distro ${DISTRO}), exiting."
     fi
-  elif [ "${OS}" == "Darwin" ]; then
+  elif [[ "${OS}" == "Darwin" ]]; then
     if command -v brew &> /dev/null; then
       HOMEBREW_NO_INSTALL_UPGRADE=1 HOMEBREW_NO_AUTO_UPDATE=1 brew install go gperf cmake openssl ncurses ccache readline sqlite libmagic 2> >(grep -vE "already installed|To reinstall|brew reinstall" >&2) || exiterr "deps failed (${OS} brew), exiting."
     elif command -v port &> /dev/null; then
@@ -208,6 +208,8 @@ if [[ "${DEPS}" == "1" ]]; then
     else
       exiterr "deps failed (${OS} missing brew and port), exiting."
     fi
+  elif [[ "${OS}" == "OpenBSD" ]]; then
+    doas pkg_add git cmake ccache gperf sqlite3 libmagic || exiterr "deps failed (${OS}), exiting."
   else
     exiterr "deps failed (unsupported os ${OS}), exiting."
   fi
@@ -270,10 +272,12 @@ fi
 
 # make args
 if [[ "${BUILD}" == "1" ]] || [[ "${DEBUG}" == "1" ]]; then
-  if [ "${OS}" == "Linux" ]; then
+  if [[ "${OS}" == "Linux" ]]; then
     MEM="$(( $(($(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE) / (1000 * 1000 * 1000))) * 1000 ))" # in MB
-  elif [ "${OS}" == "Darwin" ]; then
+  elif [[ "${OS}" == "Darwin" ]]; then
     MEM="$(( $(($(sysctl -n hw.memsize) / (1000 * 1000 * 1000))) * 1000 ))" # in MB
+  elif [[ "${OS}" == "OpenBSD" ]]; then
+    MEM="$(( $(($(sysctl -n hw.physmem) / (1000 * 1000 * 1000))) * 1000 ))" # in MB
   fi
 
   MEM_NEEDED_PER_CORE="3500" # tdlib under g++ needs 3.5 GB
@@ -286,7 +290,7 @@ if [[ "${BUILD}" == "1" ]] || [[ "${DEBUG}" == "1" ]]; then
     MEM_MAX_THREADS="1" # minimum 1 core
   fi
 
-  if [[ "${OS}" == "Darwin" ]]; then
+  if [[ "${OS}" == "Darwin" ]] || [[ "${OS}" == "OpenBSD" ]]; then
     CPU_MAX_THREADS="$(sysctl -n hw.ncpu)"
   else
     CPU_MAX_THREADS="$(nproc)"
@@ -330,7 +334,7 @@ if [[ "${BUILD}" == "1" ]] || [[ "${DEBUG}" == "1" ]]; then
     HITS="$(echo "${CCACHE_STATS}" | grep "Hits:" | head -1 | awk '{print $2}')"
     MISSES="$(echo "${CCACHE_STATS}" | grep "Misses:" | head -1 | awk '{print $2}')"
     TOTAL="$(echo "${CCACHE_STATS}" | grep "Hits:" | head -1 | awk '{print $4}')"
-    if [ -n "${HITS}" ]; then
+    if [[ -n "${HITS}" ]]; then
       echo "-- Ccache stats: ${HITS} hits, ${MISSES} misses, ${TOTAL} total."
     fi
   fi
@@ -364,6 +368,8 @@ if [[ "${INSTALL}" == "1" ]]; then
       if [[ "${GITHUB_ACTIONS}" == "true" ]]; then
         INSTALL_CMD="sudo"
       fi
+    elif [[ "${OS}" == "OpenBSD" ]]; then
+      INSTALL_CMD="doas"
     fi
   fi
 

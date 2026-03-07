@@ -1,6 +1,6 @@
 // fileutil.cpp
 //
-// Copyright (c) 2020-2025 Kristofer Berggren
+// Copyright (c) 2020-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -11,12 +11,16 @@
 #include <fstream>
 
 #include <fnmatch.h>
+#if defined(__OpenBSD__)
+#include <glob.h>
+#else
 #include <wordexp.h>
+#endif
 
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#ifdef __APPLE__
+#if defined(__APPLE__)
 #include <libproc.h>
 #endif
 
@@ -77,6 +81,23 @@ std::string FileUtil::ExpandPath(const std::string& p_Path)
 
   if ((p_Path.at(0) != '~') && ((p_Path.at(0) != '$'))) return p_Path;
 
+#if defined(__OpenBSD__)
+  glob_t gl;
+  std::string rv;
+  if ((glob(p_Path.c_str(), GLOB_TILDE | GLOB_NOCHECK, nullptr, &gl) == 0) && (gl.gl_pathc > 0))
+  {
+    rv = std::string(gl.gl_pathv[0]);
+    for (size_t i = 1; i < gl.gl_pathc; ++i)
+    {
+      rv += " " + std::string(gl.gl_pathv[i]);
+    }
+    globfree(&gl);
+  }
+  else
+  {
+    rv = p_Path;
+  }
+#else
   wordexp_t exp;
   std::string rv;
   if ((wordexp(p_Path.c_str(), &exp, WRDE_NOCMD) == 0) && (exp.we_wordc > 0))
@@ -92,6 +113,7 @@ std::string FileUtil::ExpandPath(const std::string& p_Path)
   {
     rv = p_Path;
   }
+#endif
 
   return rv;
 }

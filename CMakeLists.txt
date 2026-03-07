@@ -76,6 +76,17 @@ elseif (${CMAKE_SYSTEM_NAME} MATCHES "Android")
     message(STATUS "Found termux")
     add_compile_definitions(HAVE_TERMUX)
   endif()
+elseif (${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD")
+  add_definitions(-D_XOPEN_SOURCE_EXTENDED)
+endif()
+
+# OpenBSD restrictions
+if (${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD")
+  set(HAS_WHATSAPP OFF)
+  set(HAS_SIGNAL OFF)
+  set(HAS_SHARED_LIBS OFF)
+  set(HAS_DYNAMICLOAD OFF)
+  message(STATUS "Disabling WhatsApp, Signal, Shared libs, Dynamic load - OpenBSD restrictions")
 endif()
 
 # Config - Components built as shared libraries
@@ -266,13 +277,23 @@ endif()
 add_subdirectory(ext/clip)
 
 # Dependency ncurses
-set(CURSES_NEED_NCURSES TRUE)
-set(CURSES_NEED_WIDE TRUE)
-find_package(Curses REQUIRED)
-include_directories(${CURSES_INCLUDE_DIR})
+if (${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD")
+  target_link_libraries(nchat PUBLIC ncurses)
+else()
+  set(CURSES_NEED_NCURSES TRUE)
+  set(CURSES_NEED_WIDE TRUE)
+  find_package(Curses REQUIRED)
+  include_directories(${CURSES_INCLUDE_DIR})
+  target_compile_options(nchat PUBLIC ${NCURSES_CFLAGS})
+endif()
 
-# Compile options
-target_compile_options(nchat PUBLIC ${NCURSES_CFLAGS})
+# Dependency execinfo
+if (${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD")
+  find_library(EXECINFO_LIBRARY execinfo)
+  if(EXECINFO_LIBRARY)
+    target_link_libraries(nchat PUBLIC ${EXECINFO_LIBRARY})
+  endif()
+endif()
 
 # Linking
 target_link_libraries(nchat PUBLIC ncutil pthread ${CURSES_LIBRARIES} ${CMAKE_DL_LIBS})
