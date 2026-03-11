@@ -2372,13 +2372,15 @@ void TgChat::Impl::OnAuthStateUpdate()
           {
             auto user_ = td::move_tl_object_as<td::td_api::user>(object);
             m_SelfUserId = user_->id_;
-            std::string newProfileId = "Telegram_qr_" + std::to_string(m_SelfUserId);
+            std::string newProfileId = "Telegram_" + user_->phone_number_;
             std::string newProfileDir = apathy::Path(m_ProfileDir).parent().string() + "/" + newProfileId;
+            m_Config.Save();  // flush local_key to disk before rename
             std::rename(m_ProfileDir.c_str(), newProfileDir.c_str());
             MessageCache::AddProfile(newProfileId, true /*p_CheckSequence*/, s_CacheDirVersion,
                                      true /*p_IsSetup*/, true /*p_AllowReadOnly*/);
             m_ProfileId = newProfileId;
             m_ProfileDir = newProfileDir;
+            InitConfig();  // re-point config to new path (reads saved local_key)
           }
           m_Running = false;
         });
