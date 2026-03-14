@@ -1,4 +1,4 @@
-// guiutil.h
+// setuputil.h
 //
 // Copyright (c) 2026 Kristofer Berggren
 // All rights reserved.
@@ -9,9 +9,10 @@
 
 #include <string>
 
-class GuiUtil
+class SetupUtil
 {
 public:
+  static bool GetConfigOrEnvFlag(const std::string& p_EnvName);
   static bool HasGui();
   static void ShowImage(const std::string& p_Path);
 };

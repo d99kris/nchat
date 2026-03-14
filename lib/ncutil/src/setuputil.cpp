@@ -1,20 +1,37 @@
-// guiutil.cpp
+// setuputil.cpp
 //
 // Copyright (c) 2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
 
-#include "guiutil.h"
+#include "setuputil.h"
 
 #include <cstdlib>
 
 #include "appconfig.h"
 #include "log.h"
+#include "strutil.h"
 
-bool GuiUtil::HasGui()
+bool SetupUtil::GetConfigOrEnvFlag(const std::string& p_EnvName)
 {
-  if (AppConfig::GetConfigOrEnvFlag("use_qr_terminal", "USE_QR_TERMINAL"))
+  const std::string configName = StrUtil::ToLower(p_EnvName);
+
+  if (AppConfig::GetBool(configName)) return true;
+
+  const char* envVal = getenv(p_EnvName.c_str());
+  if (envVal != nullptr)
+  {
+    AppConfig::SetBool(configName, true);
+    return true;
+  }
+
+  return false;
+}
+
+bool SetupUtil::HasGui()
+{
+  if (GetConfigOrEnvFlag("USE_QR_TERMINAL"))
   {
     LOG_DEBUG("has gui 0 (use_qr_terminal)");
     return false;
@@ -34,7 +51,7 @@ bool GuiUtil::HasGui()
   return rv;
 }
 
-void GuiUtil::ShowImage(const std::string& p_Path)
+void SetupUtil::ShowImage(const std::string& p_Path)
 {
 #ifdef __APPLE__
   std::string cmd = "open \"" + p_Path + "\" &";

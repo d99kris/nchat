@@ -45,8 +45,8 @@ add_library(ncutil ${LIBRARY_LINKING_TYPE}
   src/emojiutil_view.h
   src/fileutil.cpp
   src/fileutil.h
-  src/guiutil.cpp
-  src/guiutil.h
+  src/setuputil.cpp
+  src/setuputil.h
   src/log.cpp
   src/log.h
   src/messagecache.cpp

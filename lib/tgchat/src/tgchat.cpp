@@ -29,7 +29,7 @@
 
 #include "appconfig.h"
 #include "apputil.h"
-#include "guiutil.h"
+#include "setuputil.h"
 #include "cacheutil.h"
 #include "config.h"
 #include "fileutil.h"
@@ -2436,7 +2436,7 @@ void TgChat::Impl::OnAuthStateUpdate()
   [this](td::td_api::authorizationStateWaitPhoneNumber&)
   {
     LOG_DEBUG("auth wait phone number");
-    if (!AppConfig::GetConfigOrEnvFlag("use_pairing_code", "USE_PAIRING_CODE"))
+    if (!SetupUtil::GetConfigOrEnvFlag("USE_PAIRING_CODE"))
     {
       LOG_DEBUG("requesting QR auth");
       SendQuery(td::td_api::make_object<td::td_api::requestQrCodeAuthentication>(
@@ -2529,12 +2529,12 @@ void TgChat::Impl::OnAuthStateUpdate()
 
     std::cout << "\nOpen Telegram on your phone, go to Settings -> Devices\n";
     std::cout << "and click Link Desktop Device and scan the QR code.\n\n";
-    if (GuiUtil::HasGui())
+    if (SetupUtil::HasGui())
     {
       std::string qrPath = FileUtil::GetTempDir() + "/tg_qr.png";
       if (QrUtil::WritePngFile(state.link_, qrPath))
       {
-        GuiUtil::ShowImage(qrPath);
+        SetupUtil::ShowImage(qrPath);
       }
     }
     else
