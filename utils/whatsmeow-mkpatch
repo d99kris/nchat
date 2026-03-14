@@ -27,15 +27,15 @@ if [[ "${REPOROOT}" == "" ]]; then
   exit 1
 fi
 
-cd "${REPOROOT}"
-
-# Check for uncommitted changes in whatsmeow dir
-git diff --quiet HEAD -- "${TARGET}" || exiterr "whatsmeow dir has uncommitted changes"
-
 # Check external whatsmeow repo
 REPOPARENT=$(dirname "${REPOROOT}")
 SYNCDIR="${REPOPARENT}/${SYNCNAME}"
 [[ -d "${SYNCDIR}" ]] || exiterr "external whatsmeow repo not found at ${SYNCDIR} - run whatsmeow-update first"
+
+# Check for uncommitted changes in external whatsmeow dir
+cd "${SYNCDIR}"
+git diff --quiet HEAD -- "${SYNCDIR}" || exiterr "external whatsmeow dir has uncommitted changes"
+cd "${REPOROOT}"
 
 # Checkout specified commit in external whatsmeow repo
 if [[ "${1}" != "" ]]; then

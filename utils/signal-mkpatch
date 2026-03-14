@@ -27,15 +27,15 @@ if [[ "${REPOROOT}" == "" ]]; then
   exit 1
 fi
 
-cd "${REPOROOT}"
-
-# Check for uncommitted changes in signal dir
-git diff --quiet HEAD -- "${TARGET}" || exiterr "signal dir has uncommitted changes"
-
 # Check external signal repo
 REPOPARENT=$(dirname "${REPOROOT}")
 SYNCDIR="${REPOPARENT}/${SYNCNAME}"
 [[ -d "${SYNCDIR}" ]] || exiterr "external signal repo not found at ${SYNCDIR} - run signal-update first"
+
+# Check for uncommitted changes in external signal dir
+cd "${SYNCDIR}"
+git diff --quiet HEAD -- "${SYNCDIR}" || exiterr "external signal dir has uncommitted changes"
+cd "${REPOROOT}"
 
 # Checkout specified commit in external signal repo
 if [[ "${1}" != "" ]]; then
