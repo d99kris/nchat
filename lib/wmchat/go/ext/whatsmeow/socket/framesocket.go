@@ -71,7 +71,7 @@ func (fs *FrameSocket) Close(code websocket.StatusCode) {
 	if code > 0 {
 		err := fs.conn.Close(code, "")
 		if err != nil {
-			fs.log.Warnf("Error sending close to websocket: %v", err)
+			fs.log.Debugf("Error sending close to websocket: %v", err)
 		}
 	} else {
 		err := fs.conn.CloseNow()

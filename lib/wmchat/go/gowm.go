@@ -621,7 +621,7 @@ func GetChatId(client *whatsmeow.Client, chatJid *types.JID, senderJid *types.JI
 				return userId
 			}
 		} else {
-			LOG_WARNING(fmt.Sprintf("senderJid is nil\n%s", string(debug.Stack())))
+			// @todo: consider if we need to avoid this scenario
 		}
 	} else if chatJid.Server == types.HiddenUserServer {
 		// try map lid chat id to phone number based
@@ -3119,9 +3119,8 @@ func WmSendStatus(connId int, isOnline int) int {
 	// get client
 	client := GetClient(connId)
 
-	// bail out if no push name
+	// bail out if no push name yet
 	if len(client.Store.PushName) == 0 {
-		LOG_WARNING("tmp")
 		return -1
 	}
 
