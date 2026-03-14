@@ -978,15 +978,23 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 			settings, setErr := client.Store.ChatSettings.GetChatSettings(ctx, chatJid)
 			if setErr != nil {
 				LOG_WARNING(fmt.Sprintf("Get chat settings failed %#v", setErr))
-			} else {
-				if settings.Found {
-					mutedUntil := settings.MutedUntil.Unix()
-					isMuted = (mutedUntil == -1) || (mutedUntil > time.Now().Unix())
-					isPinned = settings.Pinned
-					isArchived = isArchived || settings.Archived
-				} else {
-					LOG_DEBUG(fmt.Sprintf("Chat settings not found %s", chatId))
+			}
+			// App state stores settings under LID JID, try that if phone JID lookup missed
+			if !settings.Found && chatJid.Server == types.DefaultUserServer {
+				if lidJid, err := client.Store.LIDs.GetLIDForPN(ctx, chatJid); err == nil && !lidJid.IsEmpty() {
+					settings, setErr = client.Store.ChatSettings.GetChatSettings(ctx, lidJid)
+					if setErr != nil {
+						LOG_WARNING(fmt.Sprintf("Get chat settings by LID failed %#v", setErr))
+					}
 				}
+			}
+			if settings.Found {
+				mutedUntil := settings.MutedUntil.Unix()
+				isMuted = (mutedUntil == -1) || (mutedUntil > time.Now().Unix())
+				isPinned = settings.Pinned
+				isArchived = isArchived || settings.Archived
+			} else {
+				LOG_DEBUG(fmt.Sprintf("Chat settings not found %s", chatId))
 			}
 
 			LOG_TRACE(fmt.Sprintf("Call CWmNewChatsNotify %s muted=%t pinned=%t archived=%t",
