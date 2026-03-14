@@ -34,7 +34,6 @@
 #include "fileutil.h"
 #include "log.h"
 #include "messagecache.h"
-#include "path.hpp"
 #include "protocolutil.h"
 #include "status.h"
 #include "strutil.h"
@@ -360,8 +359,8 @@ bool TgChat::Impl::SetupProfile(const std::string& p_ProfilesDir, std::string& p
   m_ProfileId = m_ProfileId + "_" + m_SetupPhoneNumber;
   m_ProfileDir = p_ProfilesDir + "/" + m_ProfileId;
 
-  apathy::Path::rmdirs(apathy::Path(m_ProfileDir));
-  apathy::Path::makedirs(m_ProfileDir);
+  FileUtil::RmDir(m_ProfileDir);
+  FileUtil::MkDir(m_ProfileDir);
 
   MessageCache::AddProfile(m_ProfileId, true /*p_CheckSequence*/, s_CacheDirVersion, true /*p_IsSetup*/,
                            true /*p_AllowReadOnly*/);
@@ -386,7 +385,7 @@ bool TgChat::Impl::SetupProfile(const std::string& p_ProfilesDir, std::string& p
   }
   else
   {
-    apathy::Path::rmdirs(apathy::Path(m_ProfileDir));
+    FileUtil::RmDir(m_ProfileDir);
   }
 
   return rv;
