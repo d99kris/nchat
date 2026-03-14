@@ -13,8 +13,8 @@
 
 #include <cassert>
 #include <dlfcn.h>
-
-#include <path.hpp>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include "appconfig.h"
 #include "apputil.h"
@@ -211,7 +211,7 @@ int main(int argc, char* argv[])
 
   bool isDirInited = false;
   static const int dirVersion = 1;
-  if (!apathy::Path(FileUtil::GetApplicationDir()).exists())
+  if (!FileUtil::Exists(FileUtil::GetApplicationDir()))
   {
     FileUtil::InitDirVersion(FileUtil::GetApplicationDir(), dirVersion);
     isDirInited = true;
@@ -331,10 +331,9 @@ int main(int argc, char* argv[])
 
   // Load profile(s)
   std::string profilesDir = FileUtil::GetApplicationDir() + "/profiles";
-  const std::vector<apathy::Path>& profilePaths = apathy::Path::listdir(profilesDir);
-  for (auto& profilePath : profilePaths)
+  const std::vector<std::string>& profileNames = FileUtil::ListDirNames(profilesDir);
+  for (auto& profileId : profileNames)
   {
-    std::string profileId = profilePath.filename();
     if (profileId == "version") continue;
 
     std::stringstream ss(profileId);
@@ -495,13 +494,12 @@ void RemoveProfile()
 {
   // Show profiles
   std::string profilesDir = FileUtil::GetApplicationDir() + "/profiles";
-  const std::vector<apathy::Path>& profilePaths = apathy::Path::listdir(profilesDir);
+  const std::vector<std::string>& profileNames = FileUtil::ListDirNames(profilesDir);
   int id = 0;
   std::map<int, std::string> idPath;
   std::cout << "Remove profile:\n";
-  for (auto& profilePath : profilePaths)
+  for (auto& profileId : profileNames)
   {
-    std::string profileId = profilePath.filename();
     if (profileId == "version") continue;
 
     std::stringstream ss(profileId);
@@ -513,7 +511,7 @@ void RemoveProfile()
     }
 
     std::cout << id << ". " << profileId << "\n";
-    idPath[id++] = profilePath.string();
+    idPath[id++] = profilesDir + "/" + profileId;
   }
 
   std::cout << id << ". Cancel removal\n";

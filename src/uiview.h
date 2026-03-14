@@ -68,7 +68,7 @@ private:
   bool m_TopEnabled = true;
   bool m_HelpEnabled = true;
   const bool m_EntryEnabled = true;
-  const bool m_StatusEnabled = true;
+  bool m_StatusEnabled = true;
   bool m_ListEnabled = true;
   const bool m_HistoryEnabled = true;
   int m_ListWidth = 14;

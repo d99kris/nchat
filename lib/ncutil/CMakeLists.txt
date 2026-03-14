@@ -95,16 +95,19 @@ else()
   message(STATUS "Clipboard: Text")
 endif()
 
+# Dependency clip
+add_subdirectory(ext/clip)
+
 # Common
 target_common_config(ncutil)
 
 # Headers
 target_include_directories(ncutil PRIVATE "../ncutil/src" ${MAGIC_INCLUDE_DIR})
 target_include_directories(ncutil PRIVATE "../common/src")
-target_include_directories(ncutil PRIVATE "../../ext/apathy")
-target_include_directories(ncutil PRIVATE "../../ext/sqlite_modern_cpp/hdr")
-target_include_directories(ncutil PRIVATE "../../ext/clip")
-target_include_directories(ncutil PRIVATE "../../ext/cereal/include")
+target_include_directories(ncutil PRIVATE "ext/apathy")
+target_include_directories(ncutil PRIVATE "ext/sqlite_modern_cpp/hdr")
+target_include_directories(ncutil PRIVATE "ext/clip")
+target_include_directories(ncutil PRIVATE "ext/cereal/include")
 
 # Compiler flags
 set_target_properties(ncutil PROPERTIES COMPILE_FLAGS

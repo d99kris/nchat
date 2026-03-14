@@ -45,7 +45,6 @@ target_common_config(tgchat)
 
 # Headers
 target_include_directories(tgchat PRIVATE "ext/qrcodegen")
-target_include_directories(tgchat PRIVATE "../../ext/apathy")
 target_include_directories(tgchat PRIVATE "../common/src")
 target_include_directories(tgchat PRIVATE "../ncutil/src")
 target_include_directories(tgchat PRIVATE "ext/td")
