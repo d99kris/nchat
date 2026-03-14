@@ -416,7 +416,6 @@ func validateMedia(iv, file, macKey, mac []byte) error {
 	return nil
 }
 
-// nchat additions start
 func (cli *Client) DownloadMediaWithUrl(ctx context.Context, url string, mediaKey []byte, appInfo MediaType, fileLength int, fileEncSha256 []byte, fileSha256 []byte) (data []byte, err error) {
 	return cli.downloadAndDecrypt(ctx, url, mediaKey, appInfo, fileLength, fileEncSha256, fileSha256)
 }
@@ -433,4 +432,3 @@ type DownloadableMessageWithURL interface {
 	DownloadableMessage
 	GetUrl() string
 }
-// nchat additions end

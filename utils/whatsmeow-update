@@ -2,7 +2,7 @@
 
 # whatsmeow-update
 #
-# Copyright (c) 2023-2025 Kristofer Berggren
+# Copyright (c) 2023-2026 Kristofer Berggren
 # All rights reserved.
 #
 # whatsmeow-update is distributed under the MIT license.
@@ -63,11 +63,27 @@ else
   popd > /dev/null || exiterr "popd failed"
 fi
 
-# Sync repository
+# Apply customizations to source repo
+PATCHFILE="lib/wmchat/go/ext/nchat-whatsmeow.patch"
+if [[ -f "${PATCHFILE}" ]]; then
+  echo "Patch"
+  pushd "${SYNCDIR}" > /dev/null || exiterr "pushd failed"
+  ${REPOROOT}/utils/cvc apply "${REPOROOT}/${PATCHFILE}" || exiterr "patch apply failed - review ${PATCHFILE}"
+  popd > /dev/null || exiterr "popd failed"
+else
+  exiterr "patch file not found: ${PATCHFILE}"
+fi
+
+# Sync patched repo to nchat
 echo "Sync"
 REPOTARGET="${REPOROOT}/${TARGET}"
 pushd "${REPOTARGET}" > /dev/null || exiterr "pushd failed"
 ${REPOROOT}/utils/cvc sync "${SYNCDIR}" || exiterr "cvc sync failed"
+popd > /dev/null || exiterr "popd failed"
+
+# Restore source repo
+pushd "${SYNCDIR}" > /dev/null || exiterr "pushd failed"
+git checkout . || exiterr "source repo restore failed"
 popd > /dev/null || exiterr "popd failed"
 
 # Remove unwanted files
@@ -76,29 +92,6 @@ if [[ -f "${RMPATH}" ]]; then
   git restore --staged ${RMPATH} || exiterr "git restore ${RMPATH} failed"
   rm ${RMPATH} || exiterr "rm ${RMPATH} failed"
 fi
-
-# Add customizations
-cat <<EOT >> lib/wmchat/go/ext/whatsmeow/download.go
-
-// nchat additions start
-func (cli *Client) DownloadMediaWithUrl(ctx context.Context, url string, mediaKey []byte, appInfo MediaType, fileLength int, fileEncSha256 []byte, fileSha256 []byte) (data []byte, err error) {
-	return cli.downloadAndDecrypt(ctx, url, mediaKey, appInfo, fileLength, fileEncSha256, fileSha256)
-}
-
-func GetDownloadSize(msg DownloadableMessage) int {
-	return getSize(msg)
-}
-
-func GetMMSType(mediaType MediaType) string {
-	return mediaTypeToMMSType[mediaType]
-}
-
-type DownloadableMessageWithURL interface {
-	DownloadableMessage
-	GetUrl() string
-}
-// nchat additions end
-EOT
 
 # Update whatsmeow date
 [[ "$(uname)" == "Linux" ]] && SEDCMD="sed" || SEDCMD="gsed"
