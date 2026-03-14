@@ -592,13 +592,13 @@ func StrFromJid(jid types.JID) string {
 }
 
 // Check if self id
-func IsSelfId(client *whatsmeow.Client, userId string) bool {
+func IsSelfUser(client *whatsmeow.Client, userId string) bool {
 	return (StrFromJid(*client.Store.ID) == userId) || (StrFromJid(client.Store.LID) == userId)
 }
 
-// Get self id - @todo: deprecate and use IsSelfId() instead
-func GetSelfId(client *whatsmeow.Client) string {
-	return StrFromJid(*client.Store.ID)
+// Check if self chat
+func IsSelfChat(client *whatsmeow.Client, chatId string) bool {
+	return (StrFromJid(*client.Store.ID) == chatId)
 }
 
 // Get chat id
@@ -612,7 +612,7 @@ func GetChatId(client *whatsmeow.Client, chatJid *types.JID, senderJid *types.JI
 	} else if chatJid.Server == types.BroadcastServer && chatJid.User != "status" {
 		if senderJid != nil {
 			userId := GetUserId(client, nil, senderJid)
-			if userId == GetSelfId(client) {
+			if userId == StrFromJid(*client.Store.ID) {
 				// place broadcast message from self under the broadcast list chat
 				return StrFromJid(*chatJid)
 			} else {
@@ -1050,7 +1050,7 @@ func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 		// Group member left
 		if (len(groupInfo.Leave) == 1) && ((senderJidStr == "") || (senderJidStr == GetUserId(client, &groupInfo.JID, &groupInfo.Leave[0]))) {
 			senderJidStr = GetUserId(client, &groupInfo.JID, &groupInfo.Leave[0])
-			fromMe := (senderJidStr == GetSelfId(client))
+			fromMe := IsSelfUser(client, senderJidStr)
 			if !fromMe {
 				text = "[Left]"
 			}
@@ -1090,10 +1090,9 @@ func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 	// general
 	timeSent := int(groupInfo.Timestamp.Unix())
 	msgId := strconv.Itoa(timeSent) // group info updates do not have msg id
-	fromMe := (senderJidStr == GetSelfId(client))
+	fromMe := IsSelfUser(client, senderJidStr)
 	senderId := senderJidStr
-	selfId := GetSelfId(client)
-	isSelfChat := (chatId == selfId)
+	isSelfChat := IsSelfChat(client, chatId)
 	isSyncRead := false
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, groupInfo.Timestamp, GetTimeRead(connId, chatId))
 	isEdited := false
@@ -1227,7 +1226,7 @@ func GetGroupDisplayName(connId int, groupInfo *types.GroupInfo) string {
 		}
 
 		userId := StrFromJid(participant.JID)
-		if IsSelfId(client, userId) {
+		if IsSelfUser(client, userId) {
 			continue
 		}
 
@@ -1377,7 +1376,7 @@ func GetContacts(connId int) {
 
 		// propagate regular names
 		for userId, name := range userIdNames {
-			isSelf := IsSelfId(client, userId)
+			isSelf := IsSelfUser(client, userId)
 			if !isSelf {
 				phone := userIdPhones[userId]
 				isAlias := BoolToInt(false)
@@ -1389,7 +1388,7 @@ func GetContacts(connId int) {
 
 		// propagate alias names
 		for userId, name := range aliasUserIdNames {
-			isSelf := IsSelfId(client, userId)
+			isSelf := IsSelfUser(client, userId)
 			if !isSelf {
 				phone := userIdPhones[userId]
 				isAlias := BoolToInt(true)
@@ -1401,7 +1400,7 @@ func GetContacts(connId int) {
 
 		// propagate sender names
 		for userId, name := range senderUserIdNames {
-			isSelf := IsSelfId(client, userId)
+			isSelf := IsSelfUser(client, userId)
 			if !isSelf {
 				phone := userIdPhones[userId]
 				isAlias := BoolToInt(true)
@@ -1589,8 +1588,7 @@ func (handler *WmEventHandler) HandleTextMessage(messageInfo types.MessageInfo, 
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
 	senderId := GetUserId(client, &messageInfo.Chat, &messageInfo.Sender)
-	selfId := GetSelfId(client)
-	isSelfChat := (chatId == selfId)
+	isSelfChat := IsSelfChat(client, chatId)
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 	isEdited := (messageInfo.Edit == "1")
@@ -1643,8 +1641,7 @@ func (handler *WmEventHandler) HandleImageMessage(messageInfo types.MessageInfo,
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
 	senderId := GetUserId(client, &messageInfo.Chat, &messageInfo.Sender)
-	selfId := GetSelfId(client)
-	isSelfChat := (chatId == selfId)
+	isSelfChat := IsSelfChat(client, chatId)
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 
@@ -1696,8 +1693,7 @@ func (handler *WmEventHandler) HandleVideoMessage(messageInfo types.MessageInfo,
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
 	senderId := GetUserId(client, &messageInfo.Chat, &messageInfo.Sender)
-	selfId := GetSelfId(client)
-	isSelfChat := (chatId == selfId)
+	isSelfChat := IsSelfChat(client, chatId)
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 
@@ -1744,8 +1740,7 @@ func (handler *WmEventHandler) HandleAudioMessage(messageInfo types.MessageInfo,
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
 	senderId := GetUserId(client, &messageInfo.Chat, &messageInfo.Sender)
-	selfId := GetSelfId(client)
-	isSelfChat := (chatId == selfId)
+	isSelfChat := IsSelfChat(client, chatId)
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 	isEdited := (messageInfo.Edit == "1")
@@ -1795,8 +1790,7 @@ func (handler *WmEventHandler) HandleDocumentMessage(messageInfo types.MessageIn
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
 	senderId := GetUserId(client, &messageInfo.Chat, &messageInfo.Sender)
-	selfId := GetSelfId(client)
-	isSelfChat := (chatId == selfId)
+	isSelfChat := IsSelfChat(client, chatId)
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 
@@ -1843,8 +1837,7 @@ func (handler *WmEventHandler) HandleStickerMessage(messageInfo types.MessageInf
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
 	senderId := GetUserId(client, &messageInfo.Chat, &messageInfo.Sender)
-	selfId := GetSelfId(client)
-	isSelfChat := (chatId == selfId)
+	isSelfChat := IsSelfChat(client, chatId)
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 	isEdited := (messageInfo.Edit == "1")
@@ -1937,8 +1930,7 @@ func (handler *WmEventHandler) HandleTemplateMessage(messageInfo types.MessageIn
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
 	senderId := GetUserId(client, &messageInfo.Chat, &messageInfo.Sender)
-	selfId := GetSelfId(client)
-	isSelfChat := (chatId == selfId)
+	isSelfChat := IsSelfChat(client, chatId)
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 	isEdited := (messageInfo.Edit == "1")
@@ -2203,8 +2195,7 @@ func (handler *WmEventHandler) HandleUnsupportedMessage(messageInfo types.Messag
 	msgId := messageInfo.ID
 	fromMe := messageInfo.IsFromMe
 	senderId := GetUserId(client, &messageInfo.Chat, &messageInfo.Sender)
-	selfId := GetSelfId(client)
-	isSelfChat := (chatId == selfId)
+	isSelfChat := IsSelfChat(client, chatId)
 	timeSent := int(messageInfo.Timestamp.Unix())
 	isRead := IsRead(isSyncRead, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
 	isEdited := (messageInfo.Edit == "1")
@@ -2884,8 +2875,8 @@ func WmGetStatus(connId int, userId string) int {
 	}
 
 	// ignore presence requests for self
-	selfId := GetSelfId(client)
-	if userId == selfId {
+	isSelfUser := IsSelfUser(client, userId)
+	if isSelfUser {
 		return -1
 	}
 
@@ -2958,9 +2949,8 @@ func WmDeleteMessage(connId int, chatId string, senderId string, msgId string) i
 	senderJid, _ := types.ParseJID(senderId)
 
 	// skip deleting messages sent by others in private chat
-	selfId := GetSelfId(client)
 	isGroup := (chatJid.Server == types.GroupServer)
-	isFromSelf := (senderId == selfId)
+	isFromSelf := IsSelfUser(client, senderId)
 	if !isFromSelf && !isGroup {
 		LOG_TRACE(fmt.Sprintf("delete message isGroup %t isFromSelf %t skip %#v",
 			isGroup, isFromSelf, msgId))
@@ -3081,8 +3071,8 @@ func WmSendTyping(connId int, chatId string, isTyping int) int {
 	client := GetClient(connId)
 
 	// do not send typing to self chat
-	selfId := GetSelfId(client)
-	if chatId == selfId {
+	isSelfChat := IsSelfChat(client, chatId)
+	if isSelfChat {
 		return 0
 	}
 
