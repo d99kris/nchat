@@ -154,6 +154,7 @@ class ChatManager final : public Actor {
   void on_update_chat_add_user(ChatId chat_id, UserId inviter_user_id, UserId user_id, int32 date, int32 version);
   void on_update_chat_description(ChatId chat_id, string &&description);
   void on_update_chat_edit_administrator(ChatId chat_id, UserId user_id, bool is_administrator, int32 version);
+  void on_update_chat_participant_rank(ChatId chat_id, UserId user_id, string &&rank, int32 version);
   void on_update_chat_delete_user(ChatId chat_id, UserId user_id, int32 version);
   void on_update_chat_default_permissions(ChatId chat_id, RestrictedRights default_permissions, int32 version);
   void on_update_chat_pinned_message(ChatId chat_id, MessageId pinned_message_id, int32 version);
@@ -427,9 +428,26 @@ class ChatManager final : public Actor {
     int32 pinned_message_version = -1;
     ChannelId migrated_to_channel_id;
 
-    DialogParticipantStatus status = DialogParticipantStatus::Banned(0);
-    RestrictedRights default_permissions{false, false, false, false, false, false, false, false, false,
-                                         false, false, false, false, false, false, false, false, ChannelType::Unknown};
+    DialogParticipantStatus status = DialogParticipantStatus::Banned(0, string());
+    RestrictedRights default_permissions{false,
+                                         false,
+                                         false,
+                                         false,
+                                         false,
+                                         false,
+                                         false,
+                                         false,
+                                         false,
+                                         false,
+                                         false,
+                                         false,
+                                         false,
+                                         false,
+                                         false,
+                                         false,
+                                         false,
+                                         false,
+                                         ChannelType::Unknown};
 
     static constexpr uint32 CACHE_VERSION = 4;
     uint32 cache_version = 0;
@@ -507,9 +525,26 @@ class ChatManager final : public Actor {
     CustomEmojiId profile_background_custom_emoji_id;
     Usernames usernames;
     vector<RestrictionReason> restriction_reasons;
-    DialogParticipantStatus status = DialogParticipantStatus::Banned(0);
-    RestrictedRights default_permissions{false, false, false, false, false, false, false, false, false,
-                                         false, false, false, false, false, false, false, false, ChannelType::Unknown};
+    DialogParticipantStatus status = DialogParticipantStatus::Banned(0, string());
+    RestrictedRights default_permissions{false,
+                                         false,
+                                         false,
+                                         false,
+                                         false,
+                                         false,
+                                         false,
+                                         false,
+                                         false,
+                                         false,
+                                         false,
+                                         false,
+                                         false,
+                                         false,
+                                         false,
+                                         false,
+                                         false,
+                                         false,
+                                         ChannelType::Unknown};
     int32 date = 0;
     int32 participant_count = 0;
     int32 boost_level = 0;

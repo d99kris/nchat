@@ -9,7 +9,6 @@
 #include "td/telegram/CallDiscardReason.h"
 #include "td/telegram/CallId.h"
 #include "td/telegram/DhConfig.h"
-#include "td/telegram/files/FileUploadId.h"
 #include "td/telegram/net/NetQuery.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
@@ -118,9 +117,9 @@ class CallActor final : public NetQueryCallback {
 
   void on_set_call_rating();
 
-  void send_call_debug_information(string data, Promise<Unit> promise);
+  void on_save_debug_information(bool result);
 
-  void send_call_log(td_api::object_ptr<td_api::InputFile> log_file, Promise<Unit> promise);
+  void on_save_log();
 
   void update_call(tl_object_ptr<telegram_api::PhoneCall> call);
 
@@ -204,20 +203,6 @@ class CallActor final : public NetQueryCallback {
   void on_begin_exchanging_key();
 
   void on_call_discarded(CallDiscardReason reason, bool need_rating, bool need_debug, bool is_video);
-
-  void on_save_debug_query_result(Result<NetQueryPtr> r_net_query);
-
-  void upload_log_file(FileUploadId file_upload_id, Promise<Unit> &&promise);
-
-  void on_upload_log_file(FileUploadId file_upload_id, Promise<Unit> &&promise,
-                          telegram_api::object_ptr<telegram_api::InputFile> input_file);
-
-  void on_upload_log_file_error(FileUploadId file_upload_id, Promise<Unit> &&promise, Status status);
-
-  void do_upload_log_file(FileUploadId file_upload_id, telegram_api::object_ptr<telegram_api::InputFile> &&input_file,
-                          Promise<Unit> &&promise);
-
-  void on_save_log_query_result(FileUploadId file_upload_id, Promise<Unit> promise, Result<NetQueryPtr> r_net_query);
 
   void on_get_call_config_result(Result<NetQueryPtr> r_net_query);
 

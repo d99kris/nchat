@@ -522,6 +522,10 @@ class CliClient final : public Actor {
     return to_integer<int64>(str);
   }
 
+  static int32 as_call_id(Slice str) {
+    return to_integer<int32>(trim(str));
+  }
+
   static int32 as_chat_folder_id(Slice str) {
     return to_integer<int32>(trim(str));
   }
@@ -839,7 +843,34 @@ class CliClient final : public Actor {
   };
 
   void get_args(string &args, CallId &arg) const {
-    arg.call_id = to_integer<int32>(trim(args));
+    arg.call_id = as_call_id(args);
+  }
+
+  struct InputCall {
+    string input_call;
+    bool is_message = false;
+    int64 chat_id = 0;
+    int64 message_id = 0;
+
+    operator td_api::object_ptr<td_api::InputCall>() const {
+      if (input_call.empty()) {
+        return nullptr;
+      }
+      if (is_message) {
+        return td_api::make_object<td_api::inputCallFromMessage>(chat_id, message_id);
+      }
+      return td_api::make_object<td_api::inputCallDiscarded>(as_call_id(input_call));
+    }
+  };
+
+  void get_args(string &args, InputCall &arg) const {
+    arg.input_call = std::move(args);
+    auto message_full_id = autosplit(arg.input_call);
+    if (message_full_id.size() == 2) {
+      arg.is_message = true;
+      arg.chat_id = as_chat_id(message_full_id[0]);
+      arg.message_id = as_message_id(message_full_id[1]);
+    }
   }
 
   struct GroupCallId {
@@ -2306,11 +2337,13 @@ class CliClient final : public Actor {
       bool can_manage_chat, bool can_change_info, bool can_post_messages, bool can_edit_messages,
       bool can_delete_messages, bool can_invite_users, bool can_restrict_members, bool can_pin_messages,
       bool can_manage_topics, bool can_promote_members, bool can_manage_video_chats, bool can_post_stories,
-      bool can_edit_stories, bool can_delete_stories, bool can_manage_direct_messages, bool is_anonymous) {
+      bool can_edit_stories, bool can_delete_stories, bool can_manage_direct_messages, bool can_manage_ranks,
+      bool is_anonymous) {
     return td_api::make_object<td_api::chatAdministratorRights>(
         can_manage_chat, can_change_info, can_post_messages, can_edit_messages, can_delete_messages, can_invite_users,
         can_restrict_members, can_pin_messages, can_manage_topics, can_promote_members, can_manage_video_chats,
-        can_post_stories, can_edit_stories, can_delete_stories, can_manage_direct_messages, is_anonymous);
+        can_post_stories, can_edit_stories, can_delete_stories, can_manage_direct_messages, can_manage_ranks,
+        is_anonymous);
   }
 
   static td_api::object_ptr<td_api::TopChatCategory> as_top_chat_category(MutableSlice category) {
@@ -5096,7 +5129,7 @@ class CliClient final : public Actor {
       get_args(args, call_id, is_disconnected, invite_link);
       send_request(td_api::make_object<td_api::discardCall>(call_id, is_disconnected, invite_link, 0, rand_bool(), 0));
     } else if (op == "scr") {
-      CallId call_id;
+      InputCall call_id;
       int32 rating;
       get_args(args, call_id, rating);
       vector<td_api::object_ptr<td_api::CallProblem>> problems;
@@ -5111,11 +5144,11 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::sendCallRating>(call_id, rating, "Wow, such good call! (TDLib test)",
                                                                std::move(problems)));
     } else if (op == "scdi") {
-      CallId call_id;
+      InputCall call_id;
       get_args(args, call_id);
       send_request(td_api::make_object<td_api::sendCallDebugInformation>(call_id, "{}"));
     } else if (op == "sclog") {
-      CallId call_id;
+      InputCall call_id;
       string log_file;
       get_args(args, call_id, log_file);
       send_request(td_api::make_object<td_api::sendCallLog>(call_id, as_input_file(log_file)));
@@ -5664,6 +5697,13 @@ class CliClient final : public Actor {
       bool has_protected_content;
       get_args(args, chat_id, has_protected_content);
       send_request(td_api::make_object<td_api::toggleChatHasProtectedContent>(chat_id, has_protected_content));
+    } else if (op == "pchpcdr") {
+      ChatId chat_id;
+      MessageId message_id;
+      bool approve;
+      get_args(args, chat_id, message_id, approve);
+      send_request(
+          td_api::make_object<td_api::processChatHasProtectedContentDisableRequest>(chat_id, message_id, approve));
     } else if (op == "tcip" || op == "tcipa" || begins_with(op, "tcip-")) {
       ChatId chat_id;
       bool is_pinned;
@@ -7012,7 +7052,7 @@ class CliClient final : public Actor {
       get_args(args, chat_id, profile_accent_color_id, profile_background_custom_emoji_id);
       send_request(td_api::make_object<td_api::setChatProfileAccentColor>(chat_id, profile_accent_color_id,
                                                                           profile_background_custom_emoji_id));
-    } else if (op == "scmt") {
+    } else if (op == "scmadt") {
       ChatId chat_id;
       int32 auto_delete_time;
       get_args(args, chat_id, auto_delete_time);
@@ -7033,14 +7073,14 @@ class CliClient final : public Actor {
       ChatId chat_id;
       string permissions;
       get_args(args, chat_id, permissions);
-      constexpr size_t EXPECTED_SIZE = 14;
+      constexpr size_t EXPECTED_SIZE = 15;
       if (permissions.size() == EXPECTED_SIZE) {
         auto &s = permissions;
         send_request(td_api::make_object<td_api::setChatPermissions>(
             chat_id, td_api::make_object<td_api::chatPermissions>(s[0] == '1', s[1] == '1', s[2] == '1', s[3] == '1',
                                                                   s[4] == '1', s[5] == '1', s[6] == '1', s[7] == '1',
                                                                   s[8] == '1', s[9] == '1', s[10] == '1', s[11] == '1',
-                                                                  s[12] == '1', s[13] == '1')));
+                                                                  s[12] == '1', s[13] == '1', s[14] == '1')));
       } else {
         LOG(ERROR) << "Wrong permissions size, expected " << EXPECTED_SIZE;
       }
@@ -7142,70 +7182,61 @@ class CliClient final : public Actor {
       } else if (status_str == "banned") {
         status = td_api::make_object<td_api::chatMemberStatusBanned>(std::numeric_limits<int32>::max());
       } else if (status_str == "creator") {
-        status = td_api::make_object<td_api::chatMemberStatusCreator>("", false, true);
-      } else if (status_str == "creatortitle") {
-        status = td_api::make_object<td_api::chatMemberStatusCreator>("owner", false, true);
+        status = td_api::make_object<td_api::chatMemberStatusCreator>(false, true);
       } else if (status_str == "creatoranon") {
-        status = td_api::make_object<td_api::chatMemberStatusCreator>("", true, true);
+        status = td_api::make_object<td_api::chatMemberStatusCreator>(true, true);
       } else if (status_str == "uncreator") {
-        status = td_api::make_object<td_api::chatMemberStatusCreator>("", false, false);
+        status = td_api::make_object<td_api::chatMemberStatusCreator>(false, false);
       } else if (status_str == "anonadmin") {
         status = td_api::make_object<td_api::chatMemberStatusAdministrator>(
-            "anon", true,
-            as_chat_administrator_rights(true, true, true, true, true, true, true, true, true, true, true, true, true,
-                                         true, true, true));
+            true, as_chat_administrator_rights(true, true, true, true, true, true, true, true, true, true, true, true,
+                                               true, true, true, true, true));
       } else if (status_str == "anon") {
         status = td_api::make_object<td_api::chatMemberStatusAdministrator>(
-            "anon", false,
-            as_chat_administrator_rights(false, false, false, false, false, false, false, false, false, false, false,
-                                         false, false, false, false, true));
+            false, as_chat_administrator_rights(false, false, false, false, false, false, false, false, false, false,
+                                                false, false, false, false, false, false, true));
       } else if (status_str == "addadmin") {
         status = td_api::make_object<td_api::chatMemberStatusAdministrator>(
-            "anon", false,
-            as_chat_administrator_rights(false, false, false, false, false, false, false, false, false, true, false,
-                                         false, false, false, false, false));
+            false, as_chat_administrator_rights(false, false, false, false, false, false, false, false, false, true,
+                                                false, false, false, false, false, false, false));
       } else if (status_str == "calladmin") {
         status = td_api::make_object<td_api::chatMemberStatusAdministrator>(
-            "anon", false,
-            as_chat_administrator_rights(false, false, false, false, false, false, false, false, false, false, true,
-                                         false, false, false, false, false));
+            false, as_chat_administrator_rights(false, false, false, false, false, false, false, false, false, false,
+                                                true, false, false, false, false, false, false));
       } else if (status_str == "admin") {
         status = td_api::make_object<td_api::chatMemberStatusAdministrator>(
-            "", true,
-            as_chat_administrator_rights(false, true, true, true, true, true, true, true, true, true, true, true, true,
-                                         true, true, false));
+            true, as_chat_administrator_rights(false, true, true, true, true, true, true, true, true, true, true, true,
+                                               true, true, true, true, false));
       } else if (status_str == "adminq") {
         status = td_api::make_object<td_api::chatMemberStatusAdministrator>(
-            "title", true,
-            as_chat_administrator_rights(false, true, true, true, true, true, true, true, true, true, true, true, true,
-                                         true, true, false));
+            true, as_chat_administrator_rights(false, true, true, true, true, true, true, true, true, true, true, true,
+                                               true, true, true, true, false));
       } else if (status_str == "minadmin") {
         status = td_api::make_object<td_api::chatMemberStatusAdministrator>(
-            "", true,
-            as_chat_administrator_rights(true, false, false, false, false, false, false, false, false, false, false,
-                                         false, false, false, false, false));
+            true, as_chat_administrator_rights(true, false, false, false, false, false, false, false, false, false,
+                                               false, false, false, false, false, false, false));
       } else if (status_str == "unadmin") {
-        status = td_api::make_object<td_api::chatMemberStatusAdministrator>("", true, nullptr);
+        status = td_api::make_object<td_api::chatMemberStatusAdministrator>(true, nullptr);
       } else if (status_str == "rest") {
         status = td_api::make_object<td_api::chatMemberStatusRestricted>(
             true, static_cast<int32>(120 + std::time(nullptr)),
             td_api::make_object<td_api::chatPermissions>(false, false, false, false, false, false, false, false, false,
-                                                         false, false, false, false, false));
+                                                         false, false, false, false, false, false));
       } else if (status_str == "restkick") {
         status = td_api::make_object<td_api::chatMemberStatusRestricted>(
             false, static_cast<int32>(120 + std::time(nullptr)),
             td_api::make_object<td_api::chatPermissions>(true, false, false, false, false, false, false, false, false,
-                                                         false, false, false, false, false));
+                                                         false, false, false, false, false, false));
       } else if (status_str == "restunkick") {
         status = td_api::make_object<td_api::chatMemberStatusRestricted>(
             true, static_cast<int32>(120 + std::time(nullptr)),
             td_api::make_object<td_api::chatPermissions>(true, false, false, false, false, false, false, false, false,
-                                                         false, false, false, false, false));
+                                                         false, false, false, false, false, false));
       } else if (status_str == "unrest") {
         status = td_api::make_object<td_api::chatMemberStatusRestricted>(
             true, 0,
             td_api::make_object<td_api::chatPermissions>(true, true, true, true, true, true, true, true, true, true,
-                                                         true, true, true, true));
+                                                         true, true, true, true, true));
       }
       if (status != nullptr) {
         send_request(
@@ -7213,6 +7244,12 @@ class CliClient final : public Actor {
       } else {
         LOG(ERROR) << "Unknown status \"" << status_str << "\"";
       }
+    } else if (op == "scmt") {
+      ChatId chat_id;
+      UserId user_id;
+      string tag;
+      get_args(args, chat_id, user_id, tag);
+      send_request(td_api::make_object<td_api::setChatMemberTag>(chat_id, user_id, tag));
     } else if (op == "cto") {
       send_request(td_api::make_object<td_api::canTransferOwnership>());
     } else if (op == "transferChatOwnership") {
@@ -8014,9 +8051,27 @@ class CliClient final : public Actor {
     } else if (op == "geli") {
       const string &link = args;
       send_request(td_api::make_object<td_api::getExternalLinkInfo>(link));
-    } else if (op == "gel" || op == "gelw" || op == "gelp") {
+    } else if (op == "gel" || op == "gelw") {
       const string &link = args;
-      send_request(td_api::make_object<td_api::getExternalLink>(link, op == "gelw", op == "gelp"));
+      send_request(td_api::make_object<td_api::getExternalLink>(link, op == "gelw"));
+    } else if (op == "goli") {
+      string link;
+      string in_app_origin;
+      get_args(args, link, in_app_origin);
+      send_request(td_api::make_object<td_api::getOauthLinkInfo>(link, in_app_origin));
+    } else if (op == "cormc") {
+      string link;
+      string match_code;
+      get_args(args, link, match_code);
+      send_request(td_api::make_object<td_api::checkOauthRequestMatchCode>(link, match_code));
+    } else if (op == "aor" || op == "aorw" || op == "aorp") {
+      string link;
+      string match_code;
+      get_args(args, link, match_code);
+      send_request(td_api::make_object<td_api::acceptOauthRequest>(link, match_code, op == "aorw", op == "aorp"));
+    } else if (op == "dor") {
+      const string &link = args;
+      send_request(td_api::make_object<td_api::declineOauthRequest>(link));
     } else if (op == "racm") {
       ChatId chat_id;
       get_args(args, chat_id);

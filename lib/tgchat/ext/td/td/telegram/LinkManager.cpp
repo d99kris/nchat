@@ -407,6 +407,7 @@ static AdministratorRights get_administrator_rights(Slice rights, bool for_chann
   bool can_edit_stories = false;
   bool can_delete_stories = false;
   bool can_manage_direct_messages = false;
+  bool can_manage_ranks = false;
   bool is_anonymous = false;
   for (auto right : full_split(rights, ' ')) {
     if (right == "change_info") {
@@ -437,6 +438,8 @@ static AdministratorRights get_administrator_rights(Slice rights, bool for_chann
       can_delete_stories = true;
     } else if (right == "manage_direct_messages") {
       can_manage_direct_messages = true;
+    } else if (right == "manage_tags") {
+      can_manage_ranks = true;
     } else if (right == "anonymous") {
       is_anonymous = true;
     } else if (right == "manage_chat") {
@@ -446,7 +449,7 @@ static AdministratorRights get_administrator_rights(Slice rights, bool for_chann
   return AdministratorRights(is_anonymous, can_manage_dialog, can_change_info, can_post_messages, can_edit_messages,
                              can_delete_messages, can_invite_users, can_restrict_members, can_pin_messages,
                              can_manage_topics, can_promote_members, can_manage_calls, can_post_stories,
-                             can_edit_stories, can_delete_stories, can_manage_direct_messages,
+                             can_edit_stories, can_delete_stories, can_manage_direct_messages, can_manage_ranks,
                              for_channel ? ChannelType::Broadcast : ChannelType::Megagroup);
 }
 
@@ -493,6 +496,9 @@ static string get_admin_string(AdministratorRights rights) {
   }
   if (rights.can_manage_direct_messages()) {
     admin_rights.emplace_back("manage_direct_messages");
+  }
+  if (rights.can_manage_ranks()) {
+    admin_rights.emplace_back("manage_tags");
   }
   if (rights.is_anonymous()) {
     admin_rights.emplace_back("anonymous");
@@ -948,6 +954,18 @@ class LinkManager::InternalLinkNewGroupChat final : public InternalLink {
 class LinkManager::InternalLinkNewPrivateChat final : public InternalLink {
   td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
     return td_api::make_object<td_api::internalLinkTypeNewPrivateChat>();
+  }
+};
+
+class LinkManager::InternalLinkOauth final : public InternalLink {
+  string url_;
+
+  td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
+    return td_api::make_object<td_api::internalLinkTypeOauth>(url_);
+  }
+
+ public:
+  explicit InternalLinkOauth(string url) : url_(std::move(url)) {
   }
 };
 
@@ -1601,8 +1619,8 @@ class RequestUrlAuthQuery final : public Td::ResultHandler {
       flags |= telegram_api::messages_requestUrlAuth::URL_MASK;
     }
     send_query(G()->net_query_creator().create(telegram_api::messages_requestUrlAuth(
-        flags, std::move(input_peer), message_full_id.get_message_id().get_server_message_id().get(), button_id,
-        url_)));
+        flags, std::move(input_peer), message_full_id.get_message_id().get_server_message_id().get(), button_id, url_,
+        string())));
   }
 
   void on_result(BufferSlice packet) final {
@@ -1621,10 +1639,13 @@ class RequestUrlAuthQuery final : public Td::ResultHandler {
           return on_error(Status::Error(500, "Receive invalid bot_user_id"));
         }
         td_->user_manager_->on_get_user(std::move(request->bot_), "RequestUrlAuthQuery");
+        if (request->request_phone_number_ || !request->browser_.empty() || !request->platform_.empty() ||
+            !request->ip_.empty() || !request->region_.empty() || !request->match_codes_.empty()) {
+          LOG(ERROR) << "Receive invalid login URL details: " << to_string(request);
+        }
         promise_.set_value(td_api::make_object<td_api::loginUrlInfoRequestConfirmation>(
             url_, request->domain_, td_->user_manager_->get_user_id_object(bot_user_id, "RequestUrlAuthQuery"),
-            request->request_write_access_, request->request_phone_number_, request->browser_, request->platform_,
-            request->ip_, request->region_));
+            request->request_write_access_));
         break;
       }
       case telegram_api::urlAuthResultAccepted::ID: {
@@ -1635,6 +1656,8 @@ class RequestUrlAuthQuery final : public Td::ResultHandler {
       case telegram_api::urlAuthResultDefault::ID:
         promise_.set_value(td_api::make_object<td_api::loginUrlInfoOpen>(url_, false));
         break;
+      default:
+        UNREACHABLE();
     }
   }
 
@@ -1650,6 +1673,94 @@ class RequestUrlAuthQuery final : public Td::ResultHandler {
   }
 };
 
+class RequestUrlOauthQuery final : public Td::ResultHandler {
+  Promise<td_api::object_ptr<td_api::oauthLinkInfo>> promise_;
+  string url_;
+
+ public:
+  explicit RequestUrlOauthQuery(Promise<td_api::object_ptr<td_api::oauthLinkInfo>> &&promise)
+      : promise_(std::move(promise)) {
+  }
+
+  void send(string url, const string &in_app_origin) {
+    url_ = std::move(url);
+    int32 flags = telegram_api::messages_requestUrlAuth::URL_MASK;
+    if (!in_app_origin.empty()) {
+      flags |= telegram_api::messages_requestUrlAuth::IN_APP_ORIGIN_MASK;
+    }
+    send_query(G()->net_query_creator().create(
+        telegram_api::messages_requestUrlAuth(flags, nullptr, 0, 0, url_, in_app_origin)));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::messages_requestUrlAuth>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    auto result = result_ptr.move_as_ok();
+    LOG(INFO) << "Receive result for RequestUrlOauthQuery: " << to_string(result);
+    switch (result->get_id()) {
+      case telegram_api::urlAuthResultRequest::ID: {
+        auto request = telegram_api::move_object_as<telegram_api::urlAuthResultRequest>(result);
+        UserId bot_user_id = UserManager::get_user_id(request->bot_);
+        if (!bot_user_id.is_valid()) {
+          return on_error(Status::Error(500, "Receive invalid bot_user_id"));
+        }
+        td_->user_manager_->on_get_user(std::move(request->bot_), "RequestUrlAuthQuery");
+        auto user_id = UserId(request->user_id_hint_);
+        if (user_id != UserId() && !user_id.is_valid()) {
+          LOG(ERROR) << "Receive " << to_string(request);
+          user_id = UserId();
+        }
+        promise_.set_value(td_api::make_object<td_api::oauthLinkInfo>(
+            user_id.get(), url_, request->domain_, td_->user_manager_->get_user_id_object(bot_user_id, "oauthLinkInfo"),
+            request->request_write_access_, request->request_phone_number_, request->browser_, request->platform_,
+            request->ip_, request->region_, request->match_codes_first_, std::move(request->match_codes_)));
+        break;
+      }
+      case telegram_api::urlAuthResultAccepted::ID:
+      case telegram_api::urlAuthResultDefault::ID:
+        return on_error(Status::Error(400, "URL_EXPIRED"));
+      default:
+        UNREACHABLE();
+    }
+  }
+
+  void on_error(Status status) final {
+    LOG(INFO) << "Receive error for RequestUrlOauthQuery: " << status;
+    promise_.set_error(std::move(status));
+  }
+};
+
+class CheckUrlAuthMatchCodeQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+
+ public:
+  explicit CheckUrlAuthMatchCodeQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(string url, const string &match_code) {
+    send_query(G()->net_query_creator().create(telegram_api::messages_checkUrlAuthMatchCode(url, match_code)));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::messages_checkUrlAuthMatchCode>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    if (!result_ptr.ok()) {
+      return on_error(Status::Error(400, "MATCH_CODE_INVALID"));
+    }
+    promise_.set_value(Unit());
+  }
+
+  void on_error(Status status) final {
+    promise_.set_error(std::move(status));
+  }
+};
+
 class AcceptUrlAuthQuery final : public Td::ResultHandler {
   Promise<td_api::object_ptr<td_api::httpUrl>> promise_;
   string url_;
@@ -1660,7 +1771,7 @@ class AcceptUrlAuthQuery final : public Td::ResultHandler {
   }
 
   void send(string url, MessageFullId message_full_id, int32 button_id, bool allow_write_access,
-            bool allow_phone_number_access) {
+            bool allow_phone_number_access, const string &match_code) {
     url_ = std::move(url);
     int32 flags = 0;
     telegram_api::object_ptr<telegram_api::InputPeer> input_peer;
@@ -1674,7 +1785,7 @@ class AcceptUrlAuthQuery final : public Td::ResultHandler {
     }
     send_query(G()->net_query_creator().create(telegram_api::messages_acceptUrlAuth(
         flags, allow_write_access, allow_phone_number_access, std::move(input_peer),
-        message_full_id.get_message_id().get_server_message_id().get(), button_id, url_)));
+        message_full_id.get_message_id().get_server_message_id().get(), button_id, url_, match_code)));
   }
 
   void on_result(BufferSlice packet) final {
@@ -1684,7 +1795,7 @@ class AcceptUrlAuthQuery final : public Td::ResultHandler {
     }
 
     auto result = result_ptr.move_as_ok();
-    LOG(INFO) << "Receive " << to_string(result);
+    LOG(DEBUG) << "Receive result for AcceptUrlAuthQuery: " << to_string(result);
     switch (result->get_id()) {
       case telegram_api::urlAuthResultRequest::ID:
         LOG(ERROR) << "Receive unexpected " << to_string(result);
@@ -1706,6 +1817,32 @@ class AcceptUrlAuthQuery final : public Td::ResultHandler {
       LOG(INFO) << "Receive error for AcceptUrlAuthQuery: " << status;
     }
     promise_.set_error(std::move(status));
+  }
+};
+
+class DeclineUrlAuthQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+
+ public:
+  explicit DeclineUrlAuthQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(string url) {
+    send_query(G()->net_query_creator().create(telegram_api::messages_declineUrlAuth(url)));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::messages_declineUrlAuth>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    promise_.set_value(Unit());
+  }
+
+  void on_error(Status status) final {
+    LOG(INFO) << "Receive error for DeclineUrlAuthQuery: " << status;
+    promise_.set_value(Unit());
   }
 };
 
@@ -2000,7 +2137,8 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_tg_link_query(Slice que
                       << copy_arg("thread") << copy_arg("comment") << copy_arg("t"));
       }
       if (username == "oauth" && has_arg("startapp")) {
-        return nullptr;
+        return td::make_unique<InternalLinkOauth>(PSTRING()
+                                                  << "tg://resolve" << copy_arg("domain") << copy_arg("startapp"));
       }
       for (auto &arg : url_query.args_) {
         if ((arg.first == "voicechat" || arg.first == "videochat" || arg.first == "livestream") &&
@@ -2169,7 +2307,7 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_tg_link_query(Slice que
     return td::make_unique<InternalLinkNewGroupChat>();
   } else if (path.size() == 1 && path[0] == "oauth" && has_arg("token")) {
     // oauth?token=...
-    return nullptr;
+    return td::make_unique<InternalLinkOauth>(PSTRING() << "tg://oauth" << copy_arg("token"));
   } else if (path.size() <= 2 && path[0] == "post") {
     // post[/content-type]
     return td::make_unique<InternalLinkPostStory>(path.size() == 2 ? path[1] : string());
@@ -2726,7 +2864,7 @@ unique_ptr<LinkManager::InternalLink> LinkManager::get_internal_link_message_dra
   } else {
     full_text.text = url.str();
   }
-  if (fix_formatted_text(full_text.text, full_text.entities, false, false, false, true, true).is_error()) {
+  if (fix_formatted_text(full_text.text, full_text.entities, false, false, false, false, true, true).is_error()) {
     return nullptr;
   }
   if (full_text.text[0] == '@') {
@@ -3295,6 +3433,21 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
       }
       return "tg://post";
     }
+    case td_api::internalLinkTypeOauth::ID: {
+      auto link = static_cast<const td_api::internalLinkTypeOauth *>(type_ptr);
+      if (!is_internal) {
+        return Status::Error("HTTP link is unavailable for the link type");
+      }
+      auto parsed_link = parse_internal_link(link->url_);
+      if (parsed_link == nullptr) {
+        return Status::Error(400, "Invalid OAuth URL specified");
+      }
+      auto parsed_object = parsed_link->get_internal_link_type_object();
+      if (parsed_object->get_id() != td_api::internalLinkTypeOauth::ID) {
+        return Status::Error(400, "Invalid OAuth URL specified");
+      }
+      return std::move(static_cast<td_api::internalLinkTypeOauth &>(*parsed_object).url_);
+    }
     case td_api::internalLinkTypePassportDataRequest::ID: {
       auto link = static_cast<const td_api::internalLinkTypePassportDataRequest *>(type_ptr);
       if (!is_internal) {
@@ -3791,17 +3944,6 @@ void LinkManager::get_external_link_info(string &&link, Promise<td_api::object_p
 
   auto r_url = parse_url(link);
   if (r_url.is_error()) {
-    auto info = get_link_info(link);
-    if (info.type_ == LinkType::Tg) {
-      const auto url_query = parse_url_query(info.query_);
-      const auto &path = url_query.path_;
-      if (path.size() == 1 &&
-          ((path[0] == "resolve" && url_query.get_arg("domain") == "oauth" && !url_query.get_arg("startapp").empty()) ||
-           (path[0] == "oauth" && !url_query.get_arg("token").empty()))) {
-        td_->create_handler<RequestUrlAuthQuery>(std::move(promise))->send(link, MessageFullId(), 0);
-        return;
-      }
-    }
     return promise.set_value(std::move(default_result));
   }
 
@@ -3890,13 +4032,42 @@ void LinkManager::get_login_url(MessageFullId message_full_id, int64 button_id, 
                                 Promise<td_api::object_ptr<td_api::httpUrl>> &&promise) {
   TRY_RESULT_PROMISE(promise, url, td_->messages_manager_->get_login_button_url(message_full_id, button_id));
   td_->create_handler<AcceptUrlAuthQuery>(std::move(promise))
-      ->send(std::move(url), message_full_id, narrow_cast<int32>(button_id), allow_write_access, false);
+      ->send(std::move(url), message_full_id, narrow_cast<int32>(button_id), allow_write_access, false, string());
 }
 
-void LinkManager::get_link_login_url(const string &url, bool allow_write_access, bool allow_phone_number_access,
+void LinkManager::get_link_login_url(const string &url, bool allow_write_access,
                                      Promise<td_api::object_ptr<td_api::httpUrl>> &&promise) {
   td_->create_handler<AcceptUrlAuthQuery>(std::move(promise))
-      ->send(url, MessageFullId(), 0, allow_write_access, allow_phone_number_access);
+      ->send(url, MessageFullId(), 0, allow_write_access, false, string());
+}
+
+void LinkManager::check_oauth_request_match_code(const string &url, const string &match_code, Promise<Unit> &&promise) {
+  td_->create_handler<CheckUrlAuthMatchCodeQuery>(std::move(promise))->send(url, match_code);
+}
+
+void LinkManager::accept_oauth_request(const string &url, const string &match_code, bool allow_write_access,
+                                       bool allow_phone_number_access,
+                                       Promise<td_api::object_ptr<td_api::httpUrl>> &&promise) {
+  td_->create_handler<AcceptUrlAuthQuery>(std::move(promise))
+      ->send(url, MessageFullId(), 0, allow_write_access, allow_phone_number_access, match_code);
+}
+
+void LinkManager::decline_oauth_request(const string &url, Promise<Unit> &&promise) {
+  td_->create_handler<DeclineUrlAuthQuery>(std::move(promise))->send(url);
+}
+
+void LinkManager::get_oauth_link_info(string &&link, const string &in_app_origin,
+                                      Promise<td_api::object_ptr<td_api::oauthLinkInfo>> &&promise) {
+  auto parsed_link = parse_internal_link(link);
+  if (parsed_link == nullptr) {
+    return promise.set_error(400, "Invalid OAuth URL specified");
+  }
+  auto parsed_object = parsed_link->get_internal_link_type_object();
+  if (parsed_object->get_id() != td_api::internalLinkTypeOauth::ID) {
+    return promise.set_error(400, "Invalid OAuth URL specified");
+  }
+  link = std::move(static_cast<td_api::internalLinkTypeOauth &>(*parsed_object).url_);
+  td_->create_handler<RequestUrlOauthQuery>(std::move(promise))->send(link, in_app_origin);
 }
 
 Result<string> LinkManager::get_background_url(const string &name,
@@ -4156,34 +4327,41 @@ string LinkManager::get_t_me_url() {
   }
 }
 
-Result<CustomEmojiId> LinkManager::get_link_custom_emoji_id(Slice url) {
-  string lower_cased_url = to_lower(url);
-  url = lower_cased_url;
+Result<Slice> LinkManager::check_tg_url_host(Slice url, Slice host) {
+  size_t min_size = 3 + 2 + host.size() + 1;
+  string lower_cased_url_str = to_lower(url.size() > min_size ? url.substr(0, min_size) : url);
+  Slice lower_cased_url = lower_cased_url_str;
 
   Slice link_scheme("tg:");
-  if (!begins_with(url, link_scheme)) {
-    return Status::Error(400, "Custom emoji URL must have scheme tg");
+  if (!begins_with(lower_cased_url, link_scheme)) {
+    return Status::Error(400, "URL must have scheme tg");
   }
+  lower_cased_url.remove_prefix(link_scheme.size());
   url.remove_prefix(link_scheme.size());
   if (begins_with(url, "//")) {
+    lower_cased_url.remove_prefix(2);
     url.remove_prefix(2);
   }
 
-  Slice host("emoji");
-  if (!begins_with(url, host) || (url.size() > host.size() && Slice("/?#").find(url[host.size()]) == Slice::npos)) {
-    return Status::Error(400, PSLICE() << "Custom emoji URL must have host \"" << host << '"');
+  if (!begins_with(lower_cased_url, host) ||
+      (url.size() > host.size() && Slice("/?#").find(url[host.size()]) == Slice::npos)) {
+    return Status::Error(400, PSLICE() << "URL must have host \"" << host << '"');
   }
   url.remove_prefix(host.size());
   if (begins_with(url, "/")) {
     url.remove_prefix(1);
   }
   if (!begins_with(url, "?")) {
-    return Status::Error(400, "Custom emoji URL must have an emoji identifier");
+    return Status::Error(400, "URL must have parameters");
   }
   url.remove_prefix(1);
   url.truncate(url.find('#'));
+  return std::move(url);
+}
 
-  for (auto parameter : full_split(url, '&')) {
+Result<CustomEmojiId> LinkManager::get_link_custom_emoji_id(Slice url) {
+  TRY_RESULT(query, check_tg_url_host(url, "emoji"));
+  for (auto parameter : full_split(query, '&')) {
     Slice key;
     Slice value;
     std::tie(key, value) = split(parameter, '=');
@@ -4196,6 +4374,30 @@ Result<CustomEmojiId> LinkManager::get_link_custom_emoji_id(Slice url) {
     }
   }
   return Status::Error(400, "Custom emoji URL must have an emoji identifier");
+}
+
+Result<LinkManager::DateFormat> LinkManager::get_link_date_format(Slice url) {
+  TRY_RESULT(query, check_tg_url_host(url, "time"));
+  DateFormat result;
+  for (auto parameter : full_split(query, '&')) {
+    Slice key;
+    Slice value;
+    std::tie(key, value) = split(parameter, '=');
+    if (key == Slice("unix")) {
+      auto r_date = to_integer_safe<int32>(value);
+      if (r_date.is_error() || r_date.ok() <= 0) {
+        return Status::Error(400, "Invalid Unix time specified");
+      }
+      result.date_ = r_date.ok();
+    }
+    if (key == Slice("format")) {
+      result.format_ = value.str();
+    }
+  }
+  if (result.date_ == 0) {
+    return Status::Error(400, "URL must have the corresponding Unix time");
+  }
+  return std::move(result);
 }
 
 Result<DialogBoostLinkInfo> LinkManager::get_dialog_boost_link_info(Slice url) {

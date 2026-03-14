@@ -54,12 +54,16 @@ class MessageEntity {
     Spoiler,
     CustomEmoji,
     ExpandableBlockQuote,
+    FormattedDate,
     Size
   };
+  enum DateFlags : int32 { Relative = 1, ShortTime = 2, LongTime = 4, ShortDate = 8, LongDate = 16, DayOfWeek = 32 };
   Type type = Type::Size;
   int32 offset = -1;
   int32 length = -1;
   int32 media_timestamp = -1;
+  int32 date = 0;
+  int32 date_flags = 0;
   string argument;
   UserId user_id;
   CustomEmojiId custom_emoji_id;
@@ -80,13 +84,17 @@ class MessageEntity {
       : type(type), offset(offset), length(length), custom_emoji_id(custom_emoji_id) {
     CHECK(type == Type::CustomEmoji);
   }
+  MessageEntity(Type type, int32 offset, int32 length, int32 date, int32 date_flags)
+      : type(type), offset(offset), length(length), date(date), date_flags(date_flags) {
+    CHECK(type == Type::FormattedDate);
+  }
 
   tl_object_ptr<td_api::textEntity> get_text_entity_object(const UserManager *user_manager) const;
 
   bool operator==(const MessageEntity &other) const {
     return offset == other.offset && length == other.length && type == other.type &&
-           media_timestamp == other.media_timestamp && argument == other.argument && user_id == other.user_id &&
-           custom_emoji_id == other.custom_emoji_id;
+           media_timestamp == other.media_timestamp && date == other.date && date_flags == other.date_flags &&
+           argument == other.argument && user_id == other.user_id && custom_emoji_id == other.custom_emoji_id;
   }
 
   bool operator<(const MessageEntity &other) const {
@@ -231,8 +239,8 @@ FormattedText get_formatted_text(const UserManager *user_manager,
 void fix_entities(vector<MessageEntity> &entities);
 
 // like clean_input_string but also validates entities
-Status fix_formatted_text(string &text, vector<MessageEntity> &entities, bool allow_empty, bool skip_new_entities,
-                          bool skip_bot_commands, bool skip_media_timestamps, bool skip_trim,
+Status fix_formatted_text(string &text, vector<MessageEntity> &entities, bool allow_empty, bool allow_empty_string,
+                          bool skip_new_entities, bool skip_bot_commands, bool skip_media_timestamps, bool skip_trim,
                           int32 *ltrim_count = nullptr) TD_WARN_UNUSED_RESULT;
 
 FormattedText get_message_text(const UserManager *user_manager, string message_text,

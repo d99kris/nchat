@@ -42,7 +42,7 @@ namespace td {
 
 static td_api::object_ptr<td_api::ChatEventAction> get_chat_event_action_object(
     Td *td, ChannelId channel_id, tl_object_ptr<telegram_api::ChannelAdminLogEventAction> &&action_ptr,
-    DialogId &actor_dialog_id) {
+    DialogId &actor_dialog_id, td_api::object_ptr<td_api::ChatEventAction> &additional_action) {
   CHECK(action_ptr != nullptr);
   switch (action_ptr->get_id()) {
     case telegram_api::channelAdminLogEventActionParticipantJoin::ID:
@@ -84,7 +84,7 @@ static td_api::object_ptr<td_api::ChatEventAction> get_chat_event_action_object(
       }
       return td_api::make_object<td_api::chatEventMemberInvited>(
           td->user_manager_->get_user_id_object(dialog_participant.dialog_id_.get_user_id(), "chatEventMemberInvited"),
-          dialog_participant.status_.get_chat_member_status_object());
+          dialog_participant.status_.get_chat_member_status_object(nullptr));
     }
     case telegram_api::channelAdminLogEventActionParticipantToggleBan::ID: {
       auto action =
@@ -102,8 +102,8 @@ static td_api::object_ptr<td_api::ChatEventAction> get_chat_event_action_object(
       }
       return td_api::make_object<td_api::chatEventMemberRestricted>(
           get_message_sender_object(td, old_dialog_participant.dialog_id_, "chatEventMemberRestricted"),
-          old_dialog_participant.status_.get_chat_member_status_object(),
-          new_dialog_participant.status_.get_chat_member_status_object());
+          old_dialog_participant.status_.get_chat_member_status_object(nullptr),
+          new_dialog_participant.status_.get_chat_member_status_object(nullptr));
     }
     case telegram_api::channelAdminLogEventActionParticipantToggleAdmin::ID: {
       auto action =
@@ -120,11 +120,23 @@ static td_api::object_ptr<td_api::ChatEventAction> get_chat_event_action_object(
         LOG(ERROR) << "Wrong edit administrator: " << old_dialog_participant << " -> " << new_dialog_participant;
         return nullptr;
       }
+      auto user_id = old_dialog_participant.dialog_id_.get_user_id();
+      string old_rank;
+      string new_rank;
+      auto old_chat_member_status = old_dialog_participant.status_.get_chat_member_status_object(&old_rank);
+      auto new_chat_member_status = new_dialog_participant.status_.get_chat_member_status_object(&new_rank);
+      if (old_rank != new_rank) {
+        additional_action = td_api::make_object<td_api::chatEventMemberTagChanged>(
+            td->user_manager_->get_user_id_object(user_id, "chatEventMemberTagChanged"), old_rank, new_rank);
+      }
+      old_dialog_participant.status_.set_rank(string());
+      new_dialog_participant.status_.set_rank(string());
+      if (old_dialog_participant.status_ == new_dialog_participant.status_) {
+        return std::move(additional_action);
+      }
       return td_api::make_object<td_api::chatEventMemberPromoted>(
-          td->user_manager_->get_user_id_object(old_dialog_participant.dialog_id_.get_user_id(),
-                                                "chatEventMemberPromoted"),
-          old_dialog_participant.status_.get_chat_member_status_object(),
-          new_dialog_participant.status_.get_chat_member_status_object());
+          td->user_manager_->get_user_id_object(user_id, "chatEventMemberPromoted"), std::move(old_chat_member_status),
+          std::move(new_chat_member_status));
     }
     case telegram_api::channelAdminLogEventActionChangeTitle::ID: {
       auto action = telegram_api::move_object_as<telegram_api::channelAdminLogEventActionChangeTitle>(action_ptr);
@@ -510,13 +522,25 @@ static td_api::object_ptr<td_api::ChatEventAction> get_chat_event_action_object(
       return td_api::make_object<td_api::chatEventMemberSubscriptionExtended>(
           td->user_manager_->get_user_id_object(old_dialog_participant.dialog_id_.get_user_id(),
                                                 "chatEventMemberSubscriptionExtended"),
-          old_dialog_participant.status_.get_chat_member_status_object(),
-          new_dialog_participant.status_.get_chat_member_status_object());
+          old_dialog_participant.status_.get_chat_member_status_object(nullptr),
+          new_dialog_participant.status_.get_chat_member_status_object(nullptr));
     }
     case telegram_api::channelAdminLogEventActionToggleAutotranslation::ID: {
       auto action =
           telegram_api::move_object_as<telegram_api::channelAdminLogEventActionToggleAutotranslation>(action_ptr);
       return td_api::make_object<td_api::chatEventAutomaticTranslationToggled>(action->new_value_);
+    }
+    case telegram_api::channelAdminLogEventActionParticipantEditRank::ID: {
+      auto action =
+          telegram_api::move_object_as<telegram_api::channelAdminLogEventActionParticipantEditRank>(action_ptr);
+      UserId user_id(action->user_id_);
+      if (!user_id.is_valid() || action->prev_rank_ == action->new_rank_) {
+        LOG(ERROR) << "Receive " << to_string(action);
+        return nullptr;
+      }
+      return td_api::make_object<td_api::chatEventMemberTagChanged>(
+          td->user_manager_->get_user_id_object(user_id, "chatEventMemberTagChanged"), action->prev_rank_,
+          action->new_rank_);
     }
     default:
       UNREACHABLE();
@@ -581,7 +605,9 @@ class GetChannelAdminLogQuery final : public Td::ResultHandler {
       LOG_IF(ERROR, !td_->user_manager_->have_min_user(user_id)) << "Receive unknown " << user_id;
 
       DialogId actor_dialog_id;
-      auto action = get_chat_event_action_object(td_, channel_id_, std::move(event->action_), actor_dialog_id);
+      td_api::object_ptr<td_api::ChatEventAction> additional_action;
+      auto action =
+          get_chat_event_action_object(td_, channel_id_, std::move(event->action_), actor_dialog_id, additional_action);
       if (action == nullptr) {
         continue;
       }
@@ -598,6 +624,11 @@ class GetChannelAdminLogQuery final : public Td::ResultHandler {
       auto actor = get_message_sender_object_const(td_, user_id, actor_dialog_id, "GetChannelAdminLogQuery");
       result->events_.push_back(
           td_api::make_object<td_api::chatEvent>(event->id_, event->date_, std::move(actor), std::move(action)));
+      if (additional_action != nullptr) {
+        actor = get_message_sender_object_const(td_, user_id, actor_dialog_id, "GetChannelAdminLogQuery");
+        result->events_.push_back(td_api::make_object<td_api::chatEvent>(event->id_ - 1, event->date_, std::move(actor),
+                                                                         std::move(additional_action)));
+      }
     }
 
     promise_.set_value(std::move(result));
@@ -619,7 +650,8 @@ static telegram_api::object_ptr<telegram_api::channelAdminLogEventsFilter> get_i
       filters->member_restrictions_, filters->member_restrictions_, filters->member_restrictions_,
       filters->member_promotions_, filters->member_promotions_, filters->info_changes_, filters->setting_changes_,
       filters->message_pins_, filters->message_edits_, filters->message_deletions_, filters->video_chat_changes_,
-      filters->invite_link_changes_, false /*send*/, filters->forum_changes_, filters->subscription_extensions_);
+      filters->invite_link_changes_, false /*send*/, filters->forum_changes_, filters->subscription_extensions_,
+      filters->member_tag_changes_);
 }
 
 void get_dialog_event_log(Td *td, DialogId dialog_id, const string &query, int64 from_event_id, int32 limit,

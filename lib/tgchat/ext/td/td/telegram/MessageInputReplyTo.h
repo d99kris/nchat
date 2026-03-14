@@ -89,8 +89,9 @@ class MessageInputReplyTo {
 
   void add_dependencies(Dependencies &dependencies) const;
 
-  telegram_api::object_ptr<telegram_api::InputReplyTo> get_input_reply_to(Td *td,
-                                                                          const MessageTopic &message_topic) const;
+  telegram_api::object_ptr<telegram_api::InputReplyTo> get_input_reply_to(Td *td, const MessageTopic &message_topic,
+                                                                          DialogId for_dialog_id = DialogId(),
+                                                                          int32 with_flags = 0) const;
 
   // only for draft messages
   td_api::object_ptr<td_api::InputMessageReplyTo> get_input_message_reply_to_object(Td *td) const;

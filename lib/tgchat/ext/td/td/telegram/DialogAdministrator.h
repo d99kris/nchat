@@ -41,6 +41,10 @@ class DialogAdministrator {
     return rank_;
   }
 
+  void set_rank(const string &rank) {
+    rank_ = rank;
+  }
+
   bool is_creator() const {
     return is_creator_;
   }

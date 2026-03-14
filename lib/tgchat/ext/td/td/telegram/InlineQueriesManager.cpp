@@ -382,7 +382,10 @@ void InlineQueriesManager::on_drop_inline_query_result_timeout(int64 query_hash)
   }
 
   auto it = inline_query_results_.find(query_hash);
-  CHECK(it != inline_query_results_.end());
+  if (it == inline_query_results_.end()) {
+    // it has already been deleted
+    return;
+  }
   CHECK(it->second.pending_request_count >= 0);
   if (it->second.pending_request_count == 0) {
     if (it->second.results != nullptr) {

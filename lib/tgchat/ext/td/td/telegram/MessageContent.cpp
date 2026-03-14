@@ -542,7 +542,7 @@ class MessageChatSetTtl final : public MessageContent {
 
 class MessageUnsupported final : public MessageContent {
  public:
-  static constexpr int32 CURRENT_VERSION = 55;
+  static constexpr int32 CURRENT_VERSION = 57;
   int32 version = CURRENT_VERSION;
 
   MessageUnsupported() = default;
@@ -1694,6 +1694,38 @@ class MessageChangeCreator final : public MessageContent {
   }
 };
 
+class MessageNoForwardsToggle final : public MessageContent {
+ public:
+  MessageId request_message_id;
+  bool prev_value = false;
+  bool new_value = false;
+
+  MessageNoForwardsToggle() = default;
+  MessageNoForwardsToggle(MessageId request_message_id, bool prev_value, bool new_value)
+      : request_message_id(request_message_id), prev_value(prev_value), new_value(new_value) {
+  }
+
+  MessageContentType get_type() const final {
+    return MessageContentType::NoForwardsToggle;
+  }
+};
+
+class MessageNoForwardsRequest final : public MessageContent {
+ public:
+  bool is_expired = false;
+  bool prev_value = false;
+  bool new_value = false;
+
+  MessageNoForwardsRequest() = default;
+  MessageNoForwardsRequest(bool is_expired, bool prev_value, bool new_value)
+      : is_expired(is_expired), prev_value(prev_value), new_value(new_value) {
+  }
+
+  MessageContentType get_type() const final {
+    return MessageContentType::NoForwardsRequest;
+  }
+};
+
 template <class StorerT>
 static void store(const MessageContent *content, StorerT &storer) {
   CHECK(content != nullptr);
@@ -2774,6 +2806,28 @@ static void store(const MessageContent *content, StorerT &storer) {
       BEGIN_STORE_FLAGS();
       END_STORE_FLAGS();
       store(m->new_creator_user_id, storer);
+      break;
+    }
+    case MessageContentType::NoForwardsToggle: {
+      const auto *m = static_cast<const MessageNoForwardsToggle *>(content);
+      bool has_request_message_id = m->request_message_id.is_valid();
+      BEGIN_STORE_FLAGS();
+      STORE_FLAG(m->prev_value);
+      STORE_FLAG(m->new_value);
+      STORE_FLAG(has_request_message_id);
+      END_STORE_FLAGS();
+      if (has_request_message_id) {
+        store(m->request_message_id, storer);
+      }
+      break;
+    }
+    case MessageContentType::NoForwardsRequest: {
+      const auto *m = static_cast<const MessageNoForwardsRequest *>(content);
+      BEGIN_STORE_FLAGS();
+      STORE_FLAG(m->is_expired);
+      STORE_FLAG(m->prev_value);
+      STORE_FLAG(m->new_value);
+      END_STORE_FLAGS();
       break;
     }
     default:
@@ -4135,6 +4189,30 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
       content = std::move(m);
       break;
     }
+    case MessageContentType::NoForwardsToggle: {
+      auto m = make_unique<MessageNoForwardsToggle>();
+      bool has_request_message_id;
+      BEGIN_PARSE_FLAGS();
+      PARSE_FLAG(m->prev_value);
+      PARSE_FLAG(m->new_value);
+      PARSE_FLAG(has_request_message_id);
+      END_PARSE_FLAGS();
+      if (has_request_message_id) {
+        parse(m->request_message_id, parser);
+      }
+      content = std::move(m);
+      break;
+    }
+    case MessageContentType::NoForwardsRequest: {
+      auto m = make_unique<MessageNoForwardsRequest>();
+      BEGIN_PARSE_FLAGS();
+      PARSE_FLAG(m->is_expired);
+      PARSE_FLAG(m->prev_value);
+      PARSE_FLAG(m->new_value);
+      END_PARSE_FLAGS();
+      content = std::move(m);
+      break;
+    }
 
     default:
       is_bad = true;
@@ -4962,6 +5040,8 @@ bool can_message_content_have_input_media(const Td *td, const MessageContent *co
     case MessageContentType::StarGiftPurchaseOfferDeclined:
     case MessageContentType::NewCreatorPending:
     case MessageContentType::ChangeCreator:
+    case MessageContentType::NoForwardsToggle:
+    case MessageContentType::NoForwardsRequest:
       return false;
     case MessageContentType::Animation:
     case MessageContentType::Audio:
@@ -5126,6 +5206,8 @@ SecretInputMedia get_message_content_secret_input_media(
     case MessageContentType::StarGiftPurchaseOfferDeclined:
     case MessageContentType::NewCreatorPending:
     case MessageContentType::ChangeCreator:
+    case MessageContentType::NoForwardsToggle:
+    case MessageContentType::NoForwardsRequest:
       break;
     default:
       UNREACHABLE();
@@ -5323,6 +5405,8 @@ static telegram_api::object_ptr<telegram_api::InputMedia> get_message_content_in
     case MessageContentType::StarGiftPurchaseOfferDeclined:
     case MessageContentType::NewCreatorPending:
     case MessageContentType::ChangeCreator:
+    case MessageContentType::NoForwardsToggle:
+    case MessageContentType::NoForwardsRequest:
       break;
     default:
       UNREACHABLE();
@@ -5553,6 +5637,8 @@ void delete_message_content_thumbnail(MessageContent *content, Td *td, int32 med
     case MessageContentType::StarGiftPurchaseOfferDeclined:
     case MessageContentType::NewCreatorPending:
     case MessageContentType::ChangeCreator:
+    case MessageContentType::NoForwardsToggle:
+    case MessageContentType::NoForwardsRequest:
       break;
     default:
       UNREACHABLE();
@@ -5565,7 +5651,7 @@ Status can_send_message_content(DialogId dialog_id, const MessageContent *conten
   RestrictedRights permissions = [&] {
     if (!check_permissions) {
       return RestrictedRights(true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
-                              true, true, ChannelType::Unknown);
+                              true, true, true, ChannelType::Unknown);
     }
     switch (dialog_type) {
       case DialogType::User:
@@ -5816,6 +5902,8 @@ Status can_send_message_content(DialogId dialog_id, const MessageContent *conten
     case MessageContentType::StarGiftPurchaseOfferDeclined:
     case MessageContentType::NewCreatorPending:
     case MessageContentType::ChangeCreator:
+    case MessageContentType::NoForwardsToggle:
+    case MessageContentType::NoForwardsRequest:
       UNREACHABLE();
   }
   return Status::OK();
@@ -6002,6 +6090,8 @@ static int32 get_message_content_media_index_mask(const MessageContent *content,
     case MessageContentType::StarGiftPurchaseOfferDeclined:
     case MessageContentType::NewCreatorPending:
     case MessageContentType::ChangeCreator:
+    case MessageContentType::NoForwardsToggle:
+    case MessageContentType::NoForwardsRequest:
       return 0;
     default:
       UNREACHABLE();
@@ -6144,6 +6234,14 @@ MessageFullId get_message_content_replied_message_id(DialogId dialog_id, const M
       }
 
       return {dialog_id, m->offer_message_id};
+    }
+    case MessageContentType::NoForwardsToggle: {
+      auto *m = static_cast<const MessageNoForwardsToggle *>(content);
+      if (!m->request_message_id.is_valid()) {
+        return MessageFullId();
+      }
+
+      return {dialog_id, m->request_message_id};
     }
     // update getRepliedMessage documentation
     default:
@@ -6408,6 +6506,10 @@ vector<UserId> get_message_content_min_user_ids(const Td *td, const MessageConte
       const auto *content = static_cast<const MessageChangeCreator *>(message_content);
       return {content->new_creator_user_id};
     }
+    case MessageContentType::NoForwardsToggle:
+      break;
+    case MessageContentType::NoForwardsRequest:
+      break;
     default:
       UNREACHABLE();
       break;
@@ -6470,6 +6572,16 @@ UserId get_message_content_deleted_user_id(const MessageContent *content) {
     default:
       return UserId();
   }
+}
+
+telegram_api::object_ptr<telegram_api::inputPhoneCall> get_message_content_input_phone_call(
+    const MessageContent *content) {
+  CHECK(content->get_type() == MessageContentType::Call);
+  auto call = static_cast<const MessageCall *>(content);
+  if (call->call_access_hash == 0) {
+    return nullptr;
+  }
+  return telegram_api::make_object<telegram_api::inputPhoneCall>(call->call_id, call->call_access_hash);
 }
 
 int32 get_message_content_live_location_period(const MessageContent *content) {
@@ -6579,7 +6691,7 @@ void set_message_content_poll_answer(Td *td, const MessageContent *content, Mess
 
 void get_message_content_poll_voters(Td *td, const MessageContent *content, MessageFullId message_full_id,
                                      int32 option_id, int32 offset, int32 limit,
-                                     Promise<td_api::object_ptr<td_api::messageSenders>> &&promise) {
+                                     Promise<td_api::object_ptr<td_api::pollVoters>> &&promise) {
   CHECK(content->get_type() == MessageContentType::Poll);
   td->poll_manager_->get_poll_voters(static_cast<const MessagePoll *>(content)->poll_id, message_full_id, option_id,
                                      offset, limit, std::move(promise));
@@ -6881,6 +6993,8 @@ void merge_message_contents(Td *td, const MessageContent *old_content, MessageCo
     case MessageContentType::StarGiftPurchaseOfferDeclined:
     case MessageContentType::NewCreatorPending:
     case MessageContentType::ChangeCreator:
+    case MessageContentType::NoForwardsToggle:
+    case MessageContentType::NoForwardsRequest:
       break;
     default:
       UNREACHABLE();
@@ -7053,6 +7167,8 @@ bool merge_message_content_file_id(Td *td, MessageContent *message_content, File
     case MessageContentType::StarGiftPurchaseOfferDeclined:
     case MessageContentType::NewCreatorPending:
     case MessageContentType::ChangeCreator:
+    case MessageContentType::NoForwardsToggle:
+    case MessageContentType::NoForwardsRequest:
       LOG(ERROR) << "Receive new file " << new_file_id << " in a sent message of the type " << content_type;
       break;
     default:
@@ -7827,6 +7943,25 @@ void compare_message_contents(Td *td, const MessageContent *old_content, const M
       }
       break;
     }
+    case MessageContentType::NoForwardsToggle: {
+      const auto *lhs = static_cast<const MessageNoForwardsToggle *>(old_content);
+      const auto *rhs = static_cast<const MessageNoForwardsToggle *>(new_content);
+      if (lhs->request_message_id != rhs->request_message_id || lhs->prev_value != rhs->prev_value ||
+          lhs->new_value != rhs->new_value) {
+        need_update = true;
+      }
+      break;
+    }
+    case MessageContentType::NoForwardsRequest: {
+      const auto *lhs = static_cast<const MessageNoForwardsRequest *>(old_content);
+      const auto *rhs = static_cast<const MessageNoForwardsRequest *>(new_content);
+      if (lhs->is_expired != rhs->is_expired) {
+        need_update = true;
+      } else if (lhs->prev_value != rhs->prev_value || lhs->new_value != rhs->new_value) {
+        is_content_changed = true;
+      }
+      break;
+    }
     default:
       UNREACHABLE();
       break;
@@ -7856,7 +7991,7 @@ static bool need_register_message_content_for_bots(MessageContentType content_ty
   return content_type == MessageContentType::Poll;
 }
 
-void register_message_content(Td *td, const MessageContent *content, MessageFullId message_full_id,
+void register_message_content(Td *td, const MessageContent *content, MessageFullId message_full_id, int32 message_date,
                               const char *source) {
   auto content_type = content->get_type();
   if (td->auth_manager_->is_bot() && !need_register_message_content_for_bots(content_type)) {
@@ -7939,13 +8074,20 @@ void register_message_content(Td *td, const MessageContent *content, MessageFull
       td->star_gift_manager_->on_get_star_gift(star_gift->star_gift, false);
       return td->star_gift_manager_->register_gift(message_full_id, source);
     }
+    case MessageContentType::NoForwardsRequest: {
+      auto m = static_cast<const MessageNoForwardsRequest *>(content);
+      if (!m->is_expired) {
+        td->user_manager_->register_noforwards_request(message_full_id, message_date);
+      }
+      return;
+    }
     default:
       return;
   }
 }
 
 void reregister_message_content(Td *td, const MessageContent *old_content, const MessageContent *new_content,
-                                MessageFullId message_full_id, const char *source) {
+                                MessageFullId message_full_id, int32 message_date, const char *source) {
   auto old_content_type = old_content->get_type();
   auto new_content_type = new_content->get_type();
   if (old_content_type == new_content_type) {
@@ -8033,12 +8175,15 @@ void reregister_message_content(Td *td, const MessageContent *old_content, const
           return;
         }
         break;
+      case MessageContentType::NoForwardsRequest:
+        // always need to reregister the message because it depends on the current date
+        break;
       default:
         return;
     }
   }
   unregister_message_content(td, old_content, message_full_id, source);
-  register_message_content(td, new_content, message_full_id, source);
+  register_message_content(td, new_content, message_full_id, message_date, source);
 }
 
 void unregister_message_content(Td *td, const MessageContent *content, MessageFullId message_full_id,
@@ -8109,6 +8254,13 @@ void unregister_message_content(Td *td, const MessageContent *content, MessageFu
       return td->star_gift_manager_->unregister_gift(message_full_id, source);
     case MessageContentType::StarGiftPurchaseOfferDeclined:
       return td->star_gift_manager_->unregister_gift(message_full_id, source);
+    case MessageContentType::NoForwardsRequest: {
+      auto m = static_cast<const MessageNoForwardsRequest *>(content);
+      if (!m->is_expired) {
+        td->user_manager_->unregister_noforwards_request(message_full_id);
+      }
+      return;
+    }
     default:
       return;
   }
@@ -8416,7 +8568,8 @@ unique_ptr<MessageContent> get_secret_message_content(
   }
 
   auto entities = get_message_entities(td, std::move(secret_entities), is_premium, load_data_multipromise);
-  auto status = fix_formatted_text(message_text, entities, true, false, true, td->auth_manager_->is_bot(), false);
+  auto status =
+      fix_formatted_text(message_text, entities, true, false, false, true, td->auth_manager_->is_bot(), false);
   if (status.is_error()) {
     LOG(WARNING) << "Receive error " << status << " while parsing secret message \"" << message_text
                  << "\" with entities " << entities;
@@ -9202,6 +9355,8 @@ unique_ptr<MessageContent> dup_message_content(Td *td, DialogId dialog_id, const
     case MessageContentType::StarGiftPurchaseOfferDeclined:
     case MessageContentType::NewCreatorPending:
     case MessageContentType::ChangeCreator:
+    case MessageContentType::NoForwardsToggle:
+    case MessageContentType::NoForwardsRequest:
       return nullptr;
     default:
       UNREACHABLE();
@@ -9281,6 +9436,8 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
       case telegram_api::messageActionSuggestBirthday::ID:
       case telegram_api::messageActionStarGiftPurchaseOffer::ID:
       case telegram_api::messageActionStarGiftPurchaseOfferDeclined::ID:
+      case telegram_api::messageActionNoForwardsToggle::ID:
+      case telegram_api::messageActionNoForwardsRequest::ID:
         // ok
         break;
       default:
@@ -9305,6 +9462,7 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
     case telegram_api::messageActionSuggestedPostSuccess::ID:
     case telegram_api::messageActionSuggestedPostRefund::ID:
     case telegram_api::messageActionStarGiftPurchaseOfferDeclined::ID:
+    case telegram_api::messageActionNoForwardsToggle::ID:
       // ok
       break;
     default:
@@ -9999,6 +10157,23 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
       }
       return td::make_unique<MessageChangeCreator>(new_creator_user_id);
     }
+    case telegram_api::messageActionNoForwardsToggle::ID: {
+      auto action = telegram_api::move_object_as<telegram_api::messageActionNoForwardsToggle>(action_ptr);
+      auto reply_to_message_id = replied_message_info.get_same_chat_reply_to_message_id(true);
+      if (!reply_to_message_id.is_valid() && reply_to_message_id != MessageId()) {
+        LOG(ERROR) << "Receive protected content toggle with " << reply_to_message_id << " in " << owner_dialog_id;
+        reply_to_message_id = MessageId();
+      }
+      return td::make_unique<MessageNoForwardsToggle>(reply_to_message_id, action->prev_value_, action->new_value_);
+    }
+    case telegram_api::messageActionNoForwardsRequest::ID: {
+      auto action = telegram_api::move_object_as<telegram_api::messageActionNoForwardsRequest>(action_ptr);
+      if (!action->prev_value_ || action->new_value_) {
+        LOG(ERROR) << "Receive " << to_string(action);
+        return td::make_unique<MessageUnsupported>();
+      }
+      return td::make_unique<MessageNoForwardsRequest>(action->expired_, action->prev_value_, action->new_value_);
+    }
     default:
       UNREACHABLE();
   }
@@ -10216,7 +10391,8 @@ td_api::object_ptr<td_api::MessageContent> get_message_content_object(
     }
     case MessageContentType::Call: {
       const auto *m = static_cast<const MessageCall *>(content);
-      return make_tl_object<td_api::messageCall>(m->is_video, get_call_discard_reason_object(m->discard_reason),
+      return make_tl_object<td_api::messageCall>(m->call_access_hash == 0 ? static_cast<int64>(0) : m->call_id,
+                                                 m->is_video, get_call_discard_reason_object(m->discard_reason),
                                                  m->duration);
     }
     case MessageContentType::PaymentSuccessful: {
@@ -10727,6 +10903,17 @@ td_api::object_ptr<td_api::MessageContent> get_message_content_object(
       const auto *m = static_cast<const MessageChangeCreator *>(content);
       return td_api::make_object<td_api::messageChatOwnerChanged>(
           td->user_manager_->get_user_id_object(m->new_creator_user_id, "messageChatOwnerChanged"));
+    }
+    case MessageContentType::NoForwardsToggle: {
+      const auto *m = static_cast<const MessageNoForwardsToggle *>(content);
+      return td_api::make_object<td_api::messageChatHasProtectedContentToggled>(m->request_message_id.get(),
+                                                                                m->prev_value, m->new_value);
+    }
+    case MessageContentType::NoForwardsRequest: {
+      const auto *m = static_cast<const MessageNoForwardsRequest *>(content);
+      auto duration = td->option_manager_->get_option_integer("has_protected_content_disable_request_duration");
+      bool is_expired = m->is_expired || G()->unix_time() >= message_date + duration;
+      return td_api::make_object<td_api::messageChatHasProtectedContentDisableRequested>(is_expired);
     }
     default:
       UNREACHABLE();
@@ -11432,6 +11619,8 @@ string get_message_content_search_text(const Td *td, const MessageContent *conte
     case MessageContentType::StarGiftPurchaseOfferDeclined:
     case MessageContentType::NewCreatorPending:
     case MessageContentType::ChangeCreator:
+    case MessageContentType::NoForwardsToggle:
+    case MessageContentType::NoForwardsRequest:
       return string();
     default:
       UNREACHABLE();
@@ -11968,6 +12157,10 @@ void add_message_content_dependencies(Dependencies &dependencies, const MessageC
       dependencies.add(content->new_creator_user_id);
       break;
     }
+    case MessageContentType::NoForwardsToggle:
+      break;
+    case MessageContentType::NoForwardsRequest:
+      break;
     default:
       UNREACHABLE();
       break;
@@ -11975,15 +12168,23 @@ void add_message_content_dependencies(Dependencies &dependencies, const MessageC
   add_formatted_text_dependencies(dependencies, get_message_content_text(message_content));
 }
 
-void update_forum_topic_info_by_service_message_content(Td *td, const MessageContent *content, DialogId dialog_id,
-                                                        ForumTopicId forum_topic_id) {
-  if (!forum_topic_id.is_valid()) {
-    return;
-  }
+void apply_updates_from_service_message_content(Td *td, const MessageContent *content, DialogId dialog_id,
+                                                ForumTopicId forum_topic_id, DialogId sender_dialog_id) {
   switch (content->get_type()) {
     case MessageContentType::TopicEdit:
-      return td->forum_topic_manager_->on_forum_topic_edited(
-          dialog_id, forum_topic_id, static_cast<const MessageTopicEdit *>(content)->edited_data);
+      if (forum_topic_id.is_valid()) {
+        return td->forum_topic_manager_->on_forum_topic_edited(
+            dialog_id, forum_topic_id, static_cast<const MessageTopicEdit *>(content)->edited_data);
+      }
+      return;
+    case MessageContentType::NoForwardsToggle:
+      if (dialog_id.get_type() == DialogType::User) {
+        bool new_value = static_cast<const MessageNoForwardsToggle *>(content)->new_value;
+        return td->user_manager_->on_update_user_noforwards(dialog_id.get_user_id(),
+                                                            sender_dialog_id == td->dialog_manager_->get_my_dialog_id(),
+                                                            new_value, sender_dialog_id == dialog_id, new_value);
+      }
+      return;
     default:
       // nothing to do
       return;

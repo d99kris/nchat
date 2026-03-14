@@ -14,6 +14,7 @@
 #include "td/telegram/MessageCopyOptions.h"
 #include "td/telegram/MessageFullId.h"
 #include "td/telegram/MessagesManager.h"
+#include "td/telegram/MessageTopic.h"
 #include "td/telegram/OptionManager.h"
 #include "td/telegram/ScheduledServerMessageId.h"
 #include "td/telegram/ServerMessageId.h"
@@ -122,7 +123,7 @@ RepliedMessageInfo::RepliedMessageInfo(Td *td, tl_object_ptr<telegram_api::messa
   todo_item_id_ = max(0, reply_header->todo_item_id_);
 }
 
-RepliedMessageInfo::RepliedMessageInfo(Td *td, const MessageInputReplyTo &input_reply_to) {
+RepliedMessageInfo::RepliedMessageInfo(Td *td, const MessageInputReplyTo &input_reply_to, const MessageTopic &topic) {
   if (!input_reply_to.message_id_.is_valid() && !input_reply_to.message_id_.is_valid_scheduled()) {
     return;
   }
@@ -145,6 +146,17 @@ RepliedMessageInfo::RepliedMessageInfo(Td *td, const MessageInputReplyTo &input_
         quote_ = MessageQuote::create_automatic_quote(td, std::move(*content_text));
       }
       *content_text = FormattedText();
+
+      if (content_->get_type() == MessageContentType::Text) {
+        auto content = get_message_content_object(content_.get(), td, DialogId(), MessageId(), false, true, DialogId(),
+                                                  0, false, true, -1, false, false);
+        if (content->get_id() == td_api::messageText::ID) {
+          const auto *message_text = static_cast<const td_api::messageText *>(content.get());
+          if (message_text->link_preview_ == nullptr && message_text->link_preview_options_ == nullptr) {
+            content_ = nullptr;
+          }
+        }
+      }
     }
     auto origin_message_full_id = origin_.get_message_full_id();
     if (origin_message_full_id.get_message_id().is_valid()) {
@@ -154,6 +166,10 @@ RepliedMessageInfo::RepliedMessageInfo(Td *td, const MessageInputReplyTo &input_
       dialog_id_ = input_reply_to.dialog_id_;
     } else {
       message_id_ = MessageId();
+
+      if (topic.is_forum() && !topic.is_forum_general()) {
+        message_id_ = topic.get_forum_topic_id().to_top_thread_message_id();
+      }
     }
   }
 }
@@ -345,7 +361,7 @@ MessageId RepliedMessageInfo::get_same_chat_reply_to_message_id(bool ignore_exte
   if (message_id_ == MessageId()) {
     return {};
   }
-  if (ignore_external && !origin_.is_empty()) {
+  if (!ignore_external && !origin_.is_empty()) {
     return {};
   }
   return dialog_id_ == DialogId() ? message_id_ : MessageId();

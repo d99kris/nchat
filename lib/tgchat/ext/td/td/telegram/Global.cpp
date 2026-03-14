@@ -102,30 +102,38 @@ Status Global::init(ActorId<Td> td, unique_ptr<TdDb> td_db_ptr) {
     ServerTimeDiff saved_diff;
     unserialize(saved_diff, saved_diff_str).ensure();
 
-    saved_diff_ = saved_diff.diff;
-    saved_system_time_ = saved_diff.system_time;
+    if (saved_diff.diff > 1e10 || saved_diff.diff < -1e10 || saved_diff.system_time > 1e10 ||
+        saved_diff.system_time < 0) {
+      LOG(ERROR) << "Ignore definitely invalid saved server time difference " << saved_diff.diff << ' '
+                 << saved_diff.system_time;
+      server_time_difference_ = default_time_difference;
+    } else {
+      saved_diff_ = saved_diff.diff;
+      saved_system_time_ = saved_diff.system_time;
 
-    double diff = saved_diff.diff + default_time_difference;
-    if (saved_diff.system_time > system_time) {
-      double time_backwards_fix = saved_diff.system_time - system_time;
-      if (time_backwards_fix > 60) {
-        LOG(WARNING) << "Fix system time which went backwards: " << format::as_time(time_backwards_fix) << " "
-                     << tag("saved_system_time", saved_diff.system_time) << tag("system_time", system_time);
+      double diff = saved_diff.diff + default_time_difference;
+      if (saved_diff.system_time > system_time) {
+        double time_backwards_fix = saved_diff.system_time - system_time;
+        if (time_backwards_fix > 60) {
+          LOG(WARNING) << "Fix system time which went backwards: " << format::as_time(time_backwards_fix) << " "
+                       << tag("saved_system_time", saved_diff.system_time) << tag("system_time", system_time);
+        }
+        diff += time_backwards_fix;
+      } else if (saved_diff.system_time != 0) {
+        const double MAX_TIME_FORWARD =
+            367 * 86400;  // if more than 1 year has passed, the session is logged out anyway
+        if (saved_diff.system_time + MAX_TIME_FORWARD < system_time) {
+          double time_forward_fix = system_time - (saved_diff.system_time + MAX_TIME_FORWARD);
+          LOG(WARNING) << "Fix system time which went forward: " << format::as_time(time_forward_fix) << " "
+                       << tag("saved_system_time", saved_diff.system_time) << tag("system_time", system_time);
+          diff -= time_forward_fix;
+        }
+      } else if (saved_diff.diff >= 1500000000 && system_time >= 1500000000) {  // only for saved_diff.system_time == 0
+        diff = default_time_difference;
       }
-      diff += time_backwards_fix;
-    } else if (saved_diff.system_time != 0) {
-      const double MAX_TIME_FORWARD = 367 * 86400;  // if more than 1 year has passed, the session is logged out anyway
-      if (saved_diff.system_time + MAX_TIME_FORWARD < system_time) {
-        double time_forward_fix = system_time - (saved_diff.system_time + MAX_TIME_FORWARD);
-        LOG(WARNING) << "Fix system time which went forward: " << format::as_time(time_forward_fix) << " "
-                     << tag("saved_system_time", saved_diff.system_time) << tag("system_time", system_time);
-        diff -= time_forward_fix;
-      }
-    } else if (saved_diff.diff >= 1500000000 && system_time >= 1500000000) {  // only for saved_diff.system_time == 0
-      diff = default_time_difference;
+      LOG(DEBUG) << "LOAD: " << tag("server_time_difference", diff);
+      server_time_difference_ = diff;
     }
-    LOG(DEBUG) << "LOAD: " << tag("server_time_difference", diff);
-    server_time_difference_ = diff;
   }
   server_time_difference_was_updated_ = false;
   dns_time_difference_ = default_time_difference;

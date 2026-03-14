@@ -186,6 +186,9 @@ class UserManager final : public Actor {
 
   void on_update_user_wallpaper_overridden(UserId user_id, bool wallpaper_overridden);
 
+  void on_update_user_noforwards(UserId user_id, bool update_my, bool noforwards_my_enabled, bool update_peer,
+                                 bool noforwards_peer_enabled);
+
   void on_update_user_note(UserId user_id, FormattedText &&note);
 
   void on_update_bot_menu_button(UserId bot_user_id,
@@ -310,6 +313,14 @@ class UserManager final : public Actor {
   td_api::object_ptr<td_api::emojiStatus> get_user_emoji_status_object(UserId user_id) const;
 
   td_api::object_ptr<td_api::emojiStatus> get_secret_chat_emoji_status_object(SecretChatId secret_chat_id) const;
+
+  bool get_user_has_protected_content_force(UserId user_id);
+
+  bool get_user_has_protected_content(UserId user_id) const;
+
+  bool get_user_has_protected_content_force_by_me(UserId user_id);
+
+  bool get_user_has_protected_content_force_by_other(UserId user_id);
 
   bool get_user_stories_hidden(UserId user_id) const;
 
@@ -533,6 +544,10 @@ class UserManager final : public Actor {
 
   FileSourceId get_user_full_file_source_id(UserId user_id);
 
+  void register_noforwards_request(MessageFullId message_full_id, int32 message_date);
+
+  void unregister_noforwards_request(MessageFullId message_full_id);
+
   void get_web_app_placeholder(UserId user_id, Promise<td_api::object_ptr<td_api::outline>> &&promise);
 
   bool have_secret_chat(SecretChatId secret_chat_id) const;
@@ -730,6 +745,8 @@ class UserManager final : public Actor {
     bool can_pin_messages = true;
     bool need_phone_number_privacy_exception = false;
     bool wallpaper_overridden = false;
+    bool noforwards_my_enabled = false;
+    bool noforwards_peer_enabled = false;
     bool voice_messages_forbidden = false;
     bool has_pinned_stories = false;
     bool read_dates_private = false;
@@ -742,6 +759,7 @@ class UserManager final : public Actor {
     bool is_common_chat_count_changed = true;
     bool is_pending_star_rating_changed = true;
     bool is_first_saved_music_file_id_changed = true;
+    bool is_has_protected_content_changed = false;
     bool is_being_updated = false;
     bool is_changed = true;             // have new changes that need to be sent to the client and database
     bool need_send_update = true;       // have new changes that need only to be sent to the client
@@ -854,6 +872,10 @@ class UserManager final : public Actor {
   static void on_user_rating_timeout_callback(void *user_manager_ptr, int64 user_id_long);
 
   void on_user_rating_timeout(UserId user_id);
+
+  static void on_noforwards_request_timeout_callback(void *user_manager_ptr, int64 request_id_long);
+
+  void on_noforwards_request_timeout(int32 request_id);
 
   void set_my_id(UserId my_id);
 
@@ -975,6 +997,9 @@ class UserManager final : public Actor {
   void on_update_user_full_send_paid_message_stars(UserFull *user_full, int64 send_paid_message_stars) const;
 
   void on_update_user_full_wallpaper_overridden(UserFull *user_full, bool wallpaper_overridden) const;
+
+  void on_update_user_full_noforwards(UserFull *user_full, bool update_my, bool noforwards_my_enabled, bool update_peer,
+                                      bool noforwards_peer_enabled) const;
 
   static void on_update_user_full_menu_button(UserFull *user_full,
                                               telegram_api::object_ptr<telegram_api::BotMenuButton> &&bot_menu_button);
@@ -1189,6 +1214,7 @@ class UserManager final : public Actor {
   UserId support_user_id_;
   int32 my_was_online_local_ = 0;
   double next_set_my_active_users_ = 0.0;
+  int32 current_noforwards_request_id_ = 0;
 
   WaitFreeHashMap<UserId, unique_ptr<User>, UserIdHash> users_;
   WaitFreeHashMap<UserId, unique_ptr<UserFull>, UserIdHash> users_full_;
@@ -1307,6 +1333,9 @@ class UserManager final : public Actor {
 
   FlatHashMap<UserId, int64, UserIdHash> user_full_contact_price_;  // -1 - premium required
 
+  FlatHashMap<MessageFullId, int32, MessageFullIdHash> noforwards_request_ids_;
+  FlatHashMap<int32, MessageFullId> noforwards_request_message_ids_;
+
   WaitFreeHashSet<UserId, UserIdHash> restricted_user_ids_;
 
   int32 freeze_since_date_ = 0;
@@ -1331,6 +1360,7 @@ class UserManager final : public Actor {
   MultiTimeout user_online_timeout_{"UserOnlineTimeout"};
   MultiTimeout user_emoji_status_timeout_{"UserEmojiStatusTimeout"};
   MultiTimeout user_rating_timeout_{"UserRatingTimeout"};
+  MultiTimeout noforwards_request_timeout_{"NoforwardsRequestTimeout"};
 };
 
 }  // namespace td

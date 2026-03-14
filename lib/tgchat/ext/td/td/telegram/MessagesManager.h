@@ -355,7 +355,7 @@ class MessagesManager final : public Actor {
       vector<telegram_api::object_ptr<telegram_api::MessageExtendedMedia>> extended_media);
 
   void on_external_update_message_content(MessageFullId message_full_id, const char *source,
-                                          bool expect_no_message = false);
+                                          bool expect_no_message = false, bool need_reregister = false);
 
   void on_update_message_content(MessageFullId message_full_id);
 
@@ -955,7 +955,7 @@ class MessagesManager final : public Actor {
   void set_poll_answer(MessageFullId message_full_id, vector<int32> &&option_ids, Promise<Unit> &&promise);
 
   void get_poll_voters(MessageFullId message_full_id, int32 option_id, int32 offset, int32 limit,
-                       Promise<td_api::object_ptr<td_api::messageSenders>> &&promise);
+                       Promise<td_api::object_ptr<td_api::pollVoters>> &&promise);
 
   void stop_poll(MessageFullId message_full_id, td_api::object_ptr<td_api::ReplyMarkup> &&reply_markup,
                  Promise<Unit> &&promise);
@@ -982,6 +982,9 @@ class MessagesManager final : public Actor {
   Result<ServerMessageId> get_payment_successful_message_id(MessageFullId message_full_id);
 
   Result<ServerMessageId> get_giveaway_message_id(MessageFullId message_full_id);
+
+  void get_input_phone_call_to_promise(MessageFullId message_full_id,
+                                       Promise<telegram_api::object_ptr<telegram_api::inputPhoneCall>> &&promise);
 
   bool can_set_game_score(MessageFullId message_full_id) const;
 
@@ -1027,6 +1030,7 @@ class MessagesManager final : public Actor {
     telegram_api::object_ptr<telegram_api::messageReactions> reactions;
     telegram_api::object_ptr<telegram_api::factCheck> fact_check;
     telegram_api::object_ptr<telegram_api::suggestedPost> suggested_post;
+    string sender_rank;
     int32 sender_boost_count = 0;
     int32 edit_date = 0;
     vector<RestrictionReason> restriction_reasons;
@@ -1097,6 +1101,7 @@ class MessagesManager final : public Actor {
 
     string author_signature;
     string summary_from_language;
+    string sender_rank;
 
     bool is_channel_post = false;
     bool is_topic_message = false;
@@ -2537,7 +2542,7 @@ class MessagesManager final : public Actor {
 
   void do_set_dialog_folder_id(Dialog *d, FolderId folder_id);
 
-  void set_dialog_reply_markup(Dialog *d, MessageId message_id);
+  void set_dialog_reply_markup(Dialog *d, MessageId message_id, const Message *m);
 
   void try_restore_dialog_reply_markup(Dialog *d, const Message *m);
 

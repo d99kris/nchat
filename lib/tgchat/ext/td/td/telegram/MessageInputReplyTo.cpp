@@ -77,7 +77,7 @@ void MessageInputReplyTo::add_dependencies(Dependencies &dependencies) const {
 }
 
 telegram_api::object_ptr<telegram_api::InputReplyTo> MessageInputReplyTo::get_input_reply_to(
-    Td *td, const MessageTopic &message_topic) const {
+    Td *td, const MessageTopic &message_topic, DialogId for_dialog_id, int32 with_flags) const {
   if (story_full_id_.is_valid()) {
     CHECK(message_topic.is_empty());
     auto dialog_id = story_full_id_.get_dialog_id();
@@ -124,6 +124,9 @@ telegram_api::object_ptr<telegram_api::InputReplyTo> MessageInputReplyTo::get_in
   }
   if (todo_item_id_ != 0) {
     flags |= telegram_api::inputReplyToMessage::TODO_ITEM_ID_MASK;
+  }
+  if (reply_to_message_id != MessageId() && !reply_to_message_id.is_server()) {
+    LOG(FATAL) << *this << " in " << message_topic << " in " << for_dialog_id << " with flags " << with_flags;
   }
   auto result = telegram_api::make_object<telegram_api::inputReplyToMessage>(
       flags, reply_to_message_id.get_server_message_id().get(), top_msg_id, std::move(input_peer), string(), Auto(), 0,

@@ -15,19 +15,19 @@
 namespace td {
 
 class InputGroupCallId {
-  int64 group_call_id = 0;
-  int64 access_hash = 0;
+  int64 group_call_id_ = 0;
+  int64 access_hash_ = 0;
 
  public:
   InputGroupCallId() = default;
 
   explicit InputGroupCallId(const telegram_api::object_ptr<telegram_api::InputGroupCall> &input_group_call);
 
-  InputGroupCallId(int64 group_call_id, int64 access_hash) : group_call_id(group_call_id), access_hash(access_hash) {
+  InputGroupCallId(int64 group_call_id, int64 access_hash) : group_call_id_(group_call_id), access_hash_(access_hash) {
   }
 
   bool operator==(const InputGroupCallId &other) const {
-    return group_call_id == other.group_call_id;
+    return group_call_id_ == other.group_call_id_;
   }
 
   bool operator!=(const InputGroupCallId &other) const {
@@ -35,33 +35,33 @@ class InputGroupCallId {
   }
 
   bool is_identical(const InputGroupCallId &other) const {
-    return group_call_id == other.group_call_id && access_hash == other.access_hash;
+    return group_call_id_ == other.group_call_id_ && access_hash_ == other.access_hash_;
   }
 
   bool is_valid() const {
-    return group_call_id != 0;
+    return group_call_id_ != 0;
   }
 
   uint32 get_hash() const {
-    return Hash<int64>()(group_call_id);
+    return Hash<int64>()(group_call_id_);
   }
 
   int64 get_group_call_id() const {
-    return group_call_id;
+    return group_call_id_;
   }
 
   telegram_api::object_ptr<telegram_api::inputGroupCall> get_input_group_call() const;
 
   template <class StorerT>
   void store(StorerT &storer) const {
-    storer.store_long(group_call_id);
-    storer.store_long(access_hash);
+    storer.store_long(group_call_id_);
+    storer.store_long(access_hash_);
   }
 
   template <class ParserT>
   void parse(ParserT &parser) {
-    group_call_id = parser.fetch_long();
-    access_hash = parser.fetch_long();
+    group_call_id_ = parser.fetch_long();
+    access_hash_ = parser.fetch_long();
   }
 
   friend StringBuilder &operator<<(StringBuilder &string_builder, InputGroupCallId input_group_call_id);

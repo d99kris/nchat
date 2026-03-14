@@ -164,7 +164,7 @@ GroupCallMessage::GroupCallMessage(Td *td, DialogId sender_dialog_id, string jso
     return;
   }
   auto text = r_text.move_as_ok();
-  auto status = fix_formatted_text(text.text, text.entities, false, false, true, true, false);
+  auto status = fix_formatted_text(text.text, text.entities, false, false, false, true, true, false);
   if (status.is_error()) {
     LOG(INFO) << "Ignore invalid formatted text: " << status;
     return;

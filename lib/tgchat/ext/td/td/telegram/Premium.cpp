@@ -127,6 +127,9 @@ static td_api::object_ptr<td_api::PremiumFeature> get_premium_feature_object(Sli
   if (premium_feature == "paid_messages") {
     return td_api::make_object<td_api::premiumFeaturePaidMessages>();
   }
+  if (premium_feature == "pm_noforwards") {
+    return td_api::make_object<td_api::premiumFeatureProtectPrivateChatContent>();
+  }
   if (G()->is_test_dc()) {
     LOG(ERROR) << "Receive unsupported premium feature " << premium_feature;
   }
@@ -1056,6 +1059,8 @@ static string get_premium_source(const td_api::PremiumFeature *feature) {
       return "todo";
     case td_api::premiumFeaturePaidMessages::ID:
       return "paid_messages";
+    case td_api::premiumFeatureProtectPrivateChatContent::ID:
+      return "pm_noforwards";
     default:
       UNREACHABLE();
   }
@@ -1240,11 +1245,11 @@ void get_premium_limit(const td_api::object_ptr<td_api::PremiumLimitType> &limit
 void get_premium_features(Td *td, const td_api::object_ptr<td_api::PremiumSource> &source,
                           Promise<td_api::object_ptr<td_api::premiumFeatures>> &&promise) {
   auto premium_features = full_split(
-      G()->get_option_string(
-          "premium_features",
-          "stories,more_upload,double_limits,business,last_seen,voice_to_text,faster_download,translations,animated_"
-          "emoji,emoji_status,saved_tags,peer_colors,wallpapers,profile_badge,message_privacy,advanced_chat_management,"
-          "no_ads,app_icons,infinite_reactions,animated_userpics,premium_stickers,effects,todo"),
+      G()->get_option_string("premium_features",
+                             "stories,more_upload,double_limits,business,last_seen,voice_to_text,faster_download,"
+                             "translations,animated_emoji,emoji_status,saved_tags,peer_colors,wallpapers,profile_badge,"
+                             "message_privacy,advanced_chat_management,no_ads,app_icons,infinite_reactions,animated_"
+                             "userpics,premium_stickers,effects,todo,paid_messages,pm_noforwards"),
       ',');
   vector<td_api::object_ptr<td_api::PremiumFeature>> features;
   for (const auto &premium_feature : premium_features) {

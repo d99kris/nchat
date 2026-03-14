@@ -39,12 +39,14 @@ class AdministratorRights {
   static constexpr uint64 CAN_EDIT_STORIES = static_cast<uint64>(1) << 49;
   static constexpr uint64 CAN_DELETE_STORIES = static_cast<uint64>(1) << 50;
   static constexpr uint64 CAN_MANAGE_DIRECT_MESSAGES = static_cast<uint64>(1) << 51;
+  static constexpr uint64 CAN_MANAGE_RANKS = static_cast<uint64>(1) << 52;
   static constexpr uint64 IS_ANONYMOUS = 1 << 13;
 
   static constexpr uint64 ALL_ADMINISTRATOR_RIGHTS =
       CAN_CHANGE_INFO_AND_SETTINGS | CAN_POST_MESSAGES | CAN_EDIT_MESSAGES | CAN_DELETE_MESSAGES | CAN_INVITE_USERS |
       CAN_RESTRICT_MEMBERS | CAN_PIN_MESSAGES | CAN_MANAGE_TOPICS | CAN_PROMOTE_MEMBERS | CAN_MANAGE_CALLS |
-      CAN_MANAGE_DIALOG | CAN_POST_STORIES | CAN_EDIT_STORIES | CAN_DELETE_STORIES | CAN_MANAGE_DIRECT_MESSAGES;
+      CAN_MANAGE_DIALOG | CAN_POST_STORIES | CAN_EDIT_STORIES | CAN_DELETE_STORIES | CAN_MANAGE_DIRECT_MESSAGES |
+      CAN_MANAGE_RANKS;
 
   uint64 flags_;
 
@@ -66,7 +68,8 @@ class AdministratorRights {
                       bool can_edit_messages, bool can_delete_messages, bool can_invite_users,
                       bool can_restrict_members, bool can_pin_messages, bool can_manage_topics,
                       bool can_promote_members, bool can_manage_calls, bool can_post_stories, bool can_edit_stories,
-                      bool can_delete_stories, bool can_manage_direct_messages, ChannelType channel_type);
+                      bool can_delete_stories, bool can_manage_direct_messages, bool can_manage_ranks,
+                      ChannelType channel_type);
 
   telegram_api::object_ptr<telegram_api::chatAdminRights> get_chat_admin_rights() const;
 
@@ -132,6 +135,10 @@ class AdministratorRights {
     return (flags_ & CAN_MANAGE_DIRECT_MESSAGES) != 0;
   }
 
+  bool can_manage_ranks() const {
+    return (flags_ & CAN_MANAGE_RANKS) != 0;
+  }
+
   bool is_anonymous() const {
     return (flags_ & IS_ANONYMOUS) != 0;
   }
@@ -182,6 +189,7 @@ class RestrictedRights {
   static constexpr uint64 CAN_INVITE_USERS = 1 << 25;
   static constexpr uint64 CAN_PIN_MESSAGES = 1 << 26;
   static constexpr uint64 CAN_MANAGE_TOPICS = 1 << 12;
+  static constexpr uint64 CAN_EDIT_RANK = static_cast<uint64>(1) << 38;
 
   static constexpr uint64 ALL_ADMIN_PERMISSION_RIGHTS =
       CAN_CHANGE_INFO_AND_SETTINGS | CAN_INVITE_USERS | CAN_PIN_MESSAGES | CAN_MANAGE_TOPICS;
@@ -189,7 +197,7 @@ class RestrictedRights {
   static constexpr uint64 ALL_RESTRICTED_RIGHTS =
       CAN_SEND_MESSAGES | CAN_SEND_STICKERS | CAN_SEND_ANIMATIONS | CAN_SEND_GAMES | CAN_USE_INLINE_BOTS |
       CAN_ADD_WEB_PAGE_PREVIEWS | CAN_SEND_POLLS | ALL_ADMIN_PERMISSION_RIGHTS | CAN_SEND_AUDIOS | CAN_SEND_DOCUMENTS |
-      CAN_SEND_PHOTOS | CAN_SEND_VIDEOS | CAN_SEND_VIDEO_NOTES | CAN_SEND_VOICE_NOTES;
+      CAN_SEND_PHOTOS | CAN_SEND_VIDEOS | CAN_SEND_VIDEO_NOTES | CAN_SEND_VOICE_NOTES | CAN_EDIT_RANK;
 
   uint64 flags_;
 
@@ -207,7 +215,8 @@ class RestrictedRights {
                    bool can_send_videos, bool can_send_video_notes, bool can_send_voice_notes, bool can_send_stickers,
                    bool can_send_animations, bool can_send_games, bool can_use_inline_bots,
                    bool can_add_web_page_previews, bool can_send_polls, bool can_change_info_and_settings,
-                   bool can_invite_users, bool can_pin_messages, bool can_manage_topics, ChannelType channel_type);
+                   bool can_invite_users, bool can_pin_messages, bool can_manage_topics, bool can_edit_rank,
+                   ChannelType channel_type);
 
   td_api::object_ptr<td_api::chatPermissions> get_chat_permissions_object() const;
 
@@ -281,6 +290,10 @@ class RestrictedRights {
     return (flags_ & CAN_SEND_POLLS) != 0;
   }
 
+  bool can_edit_rank() const {
+    return (flags_ & CAN_EDIT_RANK) != 0;
+  }
+
   template <class StorerT>
   void store(StorerT &storer) const {
     td::store(flags_, storer);
@@ -328,7 +341,7 @@ class DialogParticipantStatus {
   mutable Type type_;
   mutable int32 until_date_;  // member, restricted and banned only
   mutable uint64 flags_;
-  string rank_;  // creator and administrator only
+  string rank_;
 
   static int32 fix_until_date(int32 date);
 
@@ -348,17 +361,17 @@ class DialogParticipantStatus {
   static DialogParticipantStatus Administrator(AdministratorRights administrator_rights, string &&rank,
                                                bool can_be_edited);
 
-  static DialogParticipantStatus Member(int32 member_until_date);
+  static DialogParticipantStatus Member(int32 member_until_date, string &&rank);
 
   static DialogParticipantStatus Restricted(RestrictedRights restricted_rights, bool is_member,
-                                            int32 restricted_until_date, ChannelType channel_type);
+                                            int32 restricted_until_date, ChannelType channel_type, string &&rank);
 
   static DialogParticipantStatus Left();
 
-  static DialogParticipantStatus Banned(int32 banned_until_date);
+  static DialogParticipantStatus Banned(int32 banned_until_date, string &&rank);
 
   // legacy rights
-  static DialogParticipantStatus GroupAdministrator(bool is_creator);
+  static DialogParticipantStatus GroupAdministrator(bool is_creator, string &&rank);
 
   // legacy rights
   static DialogParticipantStatus ChannelAdministrator(bool is_creator, bool is_megagroup);
@@ -369,7 +382,7 @@ class DialogParticipantStatus {
 
   // forcely returns a restricted or banned
   DialogParticipantStatus(bool is_member, tl_object_ptr<telegram_api::chatBannedRights> &&banned_rights,
-                          ChannelType channel_type);
+                          ChannelType channel_type, string rank);
 
   bool has_all_administrator_rights(AdministratorRights administrator_rights) const {
     auto flags = administrator_rights.flags_ &
@@ -381,7 +394,7 @@ class DialogParticipantStatus {
 
   DialogParticipantStatus apply_restrictions(RestrictedRights default_restrictions, bool is_booster, bool is_bot) const;
 
-  td_api::object_ptr<td_api::ChatMemberStatus> get_chat_member_status_object() const;
+  td_api::object_ptr<td_api::ChatMemberStatus> get_chat_member_status_object(string *rank) const;
 
   telegram_api::object_ptr<telegram_api::chatAdminRights> get_chat_admin_rights() const;
 
@@ -470,6 +483,10 @@ class DialogParticipantStatus {
     return get_administrator_rights().can_manage_direct_messages();
   }
 
+  bool can_manage_ranks() const {
+    return get_administrator_rights().can_manage_ranks();
+  }
+
   bool can_be_edited() const {
     return (flags_ & CAN_BE_EDITED) != 0;
   }
@@ -530,6 +547,10 @@ class DialogParticipantStatus {
     return get_restricted_rights().can_send_polls();
   }
 
+  bool can_edit_rank() const {
+    return get_restricted_rights().can_edit_rank();
+  }
+
   void set_is_member(bool is_member) {
     if (is_member) {
       flags_ |= IS_MEMBER;
@@ -576,6 +597,14 @@ class DialogParticipantStatus {
 
   const string &get_rank() const {
     return rank_;
+  }
+
+  bool set_rank(string &&rank) {
+    if (rank_ != rank) {
+      rank_ = std::move(rank);
+      return true;
+    }
+    return false;
   }
 
   template <class StorerT>
@@ -664,7 +693,7 @@ struct DialogParticipant {
 
   static DialogParticipant private_member(UserId user_id, UserId other_user_id) {
     auto inviter_user_id = other_user_id.is_valid() ? other_user_id : user_id;
-    return {DialogId(user_id), inviter_user_id, 0, DialogParticipantStatus::Member(0)};
+    return {DialogId(user_id), inviter_user_id, 0, DialogParticipantStatus::Member(0, string())};
   }
 
   bool is_valid() const;

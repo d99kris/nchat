@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 
-project(TDLib VERSION 1.8.61 LANGUAGES CXX C)
+project(TDLib VERSION 1.8.62 LANGUAGES CXX C)
 
 if (NOT DEFINED CMAKE_MODULE_PATH)
   set(CMAKE_MODULE_PATH "")
@@ -478,6 +478,7 @@ set(TDLIB_SOURCE_PART1
   td/telegram/InlineMessageManager.cpp
   td/telegram/InlineQueriesManager.cpp
   td/telegram/InputBusinessChatLink.cpp
+  td/telegram/InputCallId.cpp
   td/telegram/InputDialogId.cpp
   td/telegram/InputGroupCall.cpp
   td/telegram/InputGroupCallId.cpp
@@ -857,6 +858,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/InlineMessageManager.h
   td/telegram/InlineQueriesManager.h
   td/telegram/InputBusinessChatLink.h
+  td/telegram/InputCallId.h
   td/telegram/InputDialogId.h
   td/telegram/InputGroupCall.h
   td/telegram/InputGroupCallId.h

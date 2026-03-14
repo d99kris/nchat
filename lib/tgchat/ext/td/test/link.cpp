@@ -168,11 +168,12 @@ static auto chat_administrator_rights(bool can_manage_chat, bool can_change_info
                                       bool can_restrict_members, bool can_pin_messages, bool can_manage_topics,
                                       bool can_promote_members, bool can_manage_video_chats, bool can_post_stories,
                                       bool can_edit_stories, bool can_delete_stories, bool can_manage_direct_messages,
-                                      bool is_anonymous) {
+                                      bool can_manage_tags, bool is_anonymous) {
   return td::td_api::make_object<td::td_api::chatAdministratorRights>(
       can_manage_chat, can_change_info, can_post_messages, can_edit_messages, can_delete_messages, can_invite_users,
       can_restrict_members, can_pin_messages, can_manage_topics, can_promote_members, can_manage_video_chats,
-      can_post_stories, can_edit_stories, can_delete_stories, can_manage_direct_messages, is_anonymous);
+      can_post_stories, can_edit_stories, can_delete_stories, can_manage_direct_messages, can_manage_tags,
+      is_anonymous);
 }
 
 static auto settings(td::td_api::object_ptr<td::td_api::SettingsSection> section = nullptr) {
@@ -421,6 +422,10 @@ static auto new_story(td::td_api::object_ptr<td::td_api::StoryContentType> conte
   return td::td_api::make_object<td::td_api::internalLinkTypeNewStory>(std::move(content_type));
 }
 
+static auto oauth(const td::string &url) {
+  return td::td_api::make_object<td::td_api::internalLinkTypeOauth>(url);
+}
+
 static auto passport_data_request(td::int32 bot_user_id, const td::string &scope, const td::string &public_key,
                                   const td::string &nonce, const td::string &callback_url) {
   return td::td_api::make_object<td::td_api::internalLinkTypePassportDataRequest>(bot_user_id, scope, public_key, nonce,
@@ -667,10 +672,13 @@ TEST(Link, parse_internal_link_part1) {
   parse_internal_link("tg:resolve?phone=123456&attach=test%30&startattach=*",
                       attachment_menu_bot(nullptr, user_phone_number("123456"), "test0", ""));
 
-  parse_internal_link("tg:resolve?domain=oauth&startapp=12345", nullptr);
+  parse_internal_link("tg:resolve?domain=oauth&startapp=12345", oauth("tg://resolve?domain=oauth&startapp=12345"));
+  parse_internal_link("tg:resolve?domain=oauth&startapp=%312345&token=asd",
+                      oauth("tg://resolve?domain=oauth&startapp=12345"));
   parse_internal_link("tg:resolve?domain=oauth&startapp=", main_web_app("oauth", "", false, false));
   parse_internal_link("tg:resolve?domain=oauth", public_chat("oauth"));
-  parse_internal_link("tg:oauth?token=12345", nullptr);
+  parse_internal_link("tg:oauth?token=12345", oauth("tg://oauth?token=12345"));
+  parse_internal_link("tg:oauth?token=%312345&startapp=1231", oauth("tg://oauth?token=12345"));
   parse_internal_link("tg:oauth?token=", unknown_deep_link("tg://oauth?token="));
 
   parse_internal_link("tg:contact?token=1", user_token("1"));
@@ -1487,31 +1495,32 @@ TEST(Link, parse_internal_link_part3) {
       "tg:resolve?domain=username&startgroup=1&admin=delete_messages+anonymous",
       bot_start_in_group("username", "1",
                          chat_administrator_rights(true, false, false, false, true, false, false, false, false, false,
-                                                   false, false, false, false, false, true)));
+                                                   false, false, false, false, false, false, true)));
   parse_internal_link(
       "tg:resolve?domain=username&startgroup&admin=manage_chat+change_info+post_messages+edit_messages+delete_messages+"
       "invite_users+restrict_members+pin_messages+manage_topics+promote_members+manage_video_chats+post_stories+edit_"
-      "stories+delete_stories+anonymous+manage_direct_messages",
+      "stories+delete_stories+anonymous+manage_direct_messages+manage_tags",
       bot_start_in_group("username", "",
                          chat_administrator_rights(true, true, false, false, true, true, true, true, true, true, true,
-                                                   true, true, true, false, true)));
+                                                   true, true, true, false, true, true)));
 
   parse_internal_link("tg:resolve?domain=username&startchannel", public_chat("username"));
   parse_internal_link("tg:resolve?domain=username&startchannel&admin=", public_chat("username"));
-  parse_internal_link(
-      "tg:resolve?domain=username&startchannel&admin=post_messages+manage_direct_messages",
-      bot_add_to_channel("username", chat_administrator_rights(true, false, true, false, false, false, false, false,
-                                                               false, false, false, false, false, false, true, false)));
+  parse_internal_link("tg:resolve?domain=username&startchannel&admin=post_messages+manage_direct_messages",
+                      bot_add_to_channel("username", chat_administrator_rights(true, false, true, false, false, false,
+                                                                               false, false, false, false, false, false,
+                                                                               false, false, true, false, false)));
   parse_internal_link(
       "tg:resolve?domain=username&startchannel&admin=post_messages+manage_direct_messages+restrict_members",
-      bot_add_to_channel("username", chat_administrator_rights(true, false, true, false, false, false, true, false,
-                                                               false, false, false, false, false, false, true, false)));
+      bot_add_to_channel("username",
+                         chat_administrator_rights(true, false, true, false, false, false, true, false, false, false,
+                                                   false, false, false, false, true, false, false)));
   parse_internal_link(
       "tg:resolve?domain=username&startchannel&admin=manage_chat+change_info+post_messages+edit_messages+delete_"
       "messages+invite_users+restrict_members+pin_messages+manage_topics+promote_members+manage_video_chats+anonymous+"
-      "manage_direct_messages",
+      "manage_direct_messages+manage_tags",
       bot_add_to_channel("username", chat_administrator_rights(true, true, true, true, true, true, true, false, false,
-                                                               true, true, false, false, false, true, false)));
+                                                               true, true, false, false, false, true, false, false)));
 
   parse_internal_link("t.me/username/0/a//s/as?startgroup=", bot_start_in_group("username", "", nullptr));
   parse_internal_link("t.me/username/aasdas/2?test=1&startgroup=#12312", bot_start_in_group("username", "", nullptr));
@@ -1530,29 +1539,29 @@ TEST(Link, parse_internal_link_part3) {
       "t.me/username?startgroup=1&admin=delete_messages+anonymous",
       bot_start_in_group("username", "1",
                          chat_administrator_rights(true, false, false, false, true, false, false, false, false, false,
-                                                   false, false, false, false, false, true)));
+                                                   false, false, false, false, false, false, true)));
   parse_internal_link(
       "t.me/"
       "username?startgroup&admin=manage_chat+change_info+post_messages+edit_messages+delete_messages+invite_users+"
       "restrict_members+pin_messages+manage_topics+promote_members+manage_video_chats+post_stories+edit_stories+delete_"
-      "stories+anonymous+manage_direct_messages",
+      "stories+anonymous+manage_direct_messages+manage_tags",
       bot_start_in_group("username", "",
                          chat_administrator_rights(true, true, false, false, true, true, true, true, true, true, true,
-                                                   true, true, true, false, true)));
+                                                   true, true, true, false, true, true)));
 
   parse_internal_link("t.me/username?startchannel", public_chat("username"));
   parse_internal_link("t.me/username?startchannel&admin=", public_chat("username"));
   parse_internal_link("t.me/username?startchannel&admin=post_messages",
                       bot_add_to_channel("username", chat_administrator_rights(true, false, true, false, false, false,
                                                                                false, false, false, false, false, false,
-                                                                               false, false, false, false)));
+                                                                               false, false, false, false, false)));
   parse_internal_link(
       "t.me/"
       "username?startchannel&admin=manage_chat+change_info+post_messages+edit_messages+delete_messages+invite_users+"
       "restrict_members+pin_messages+manage_topics+promote_members+manage_video_chats+post_stories+edit_stories+delete_"
-      "stories+anonymous+manage_direct_messages",
+      "stories+anonymous+manage_direct_messages+manage_tags",
       bot_add_to_channel("username", chat_administrator_rights(true, true, true, true, true, true, true, false, false,
-                                                               true, true, true, true, true, true, false)));
+                                                               true, true, true, true, true, true, false, false)));
 }
 
 TEST(Link, parse_internal_link_part4) {

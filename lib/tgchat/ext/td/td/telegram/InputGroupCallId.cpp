@@ -17,16 +17,16 @@ InputGroupCallId::InputGroupCallId(const telegram_api::object_ptr<telegram_api::
     return;
   }
   auto group_call = static_cast<const telegram_api::inputGroupCall *>(input_group_call.get());
-  group_call_id = group_call->id_;
-  access_hash = group_call->access_hash_;
+  group_call_id_ = group_call->id_;
+  access_hash_ = group_call->access_hash_;
 }
 
 telegram_api::object_ptr<telegram_api::inputGroupCall> InputGroupCallId::get_input_group_call() const {
-  return telegram_api::make_object<telegram_api::inputGroupCall>(group_call_id, access_hash);
+  return telegram_api::make_object<telegram_api::inputGroupCall>(group_call_id_, access_hash_);
 }
 
 StringBuilder &operator<<(StringBuilder &string_builder, InputGroupCallId input_group_call_id) {
-  return string_builder << "input group call " << input_group_call_id.group_call_id;
+  return string_builder << "input group call " << input_group_call_id.group_call_id_;
 }
 
 }  // namespace td

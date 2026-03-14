@@ -105,7 +105,7 @@ void TranslationManager::translate_text(td_api::object_ptr<td_api::formattedText
   }
 
   TRY_RESULT_PROMISE(promise, entities, get_message_entities(td_->user_manager_.get(), std::move(text->entities_)));
-  TRY_STATUS_PROMISE(promise, fix_formatted_text(text->text_, entities, true, true, true, true, true));
+  TRY_STATUS_PROMISE(promise, fix_formatted_text(text->text_, entities, true, true, true, true, true, true));
 
   translate_text(FormattedText{std::move(text->text_), std::move(entities)}, skip_bot_commands, max_media_timestamp,
                  MessageFullId(), to_language_code, std::move(promise));

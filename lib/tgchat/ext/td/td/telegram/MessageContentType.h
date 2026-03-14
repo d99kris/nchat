@@ -101,7 +101,9 @@ enum class MessageContentType : int32 {
   StarGiftPurchaseOffer,
   StarGiftPurchaseOfferDeclined,
   NewCreatorPending,
-  ChangeCreator
+  ChangeCreator,
+  NoForwardsToggle,
+  NoForwardsRequest
 };
 // increase MessageUnsupported::CURRENT_VERSION each time a new message content type is added
 

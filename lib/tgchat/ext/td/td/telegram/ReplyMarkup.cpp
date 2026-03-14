@@ -417,7 +417,8 @@ unique_ptr<ReplyMarkup> get_reply_markup(tl_object_ptr<telegram_api::ReplyMarkup
         buttons.reserve(row->buttons_.size());
         for (auto &button : row->buttons_) {
           buttons.push_back(get_keyboard_button(std::move(button)));
-          if (buttons.back().text.empty() && !buttons.back().style.get_icon_custom_emoji_id().is_valid()) {
+          if (buttons.back().text.empty() && (buttons.back().type == KeyboardButton::Type::Text ||
+                                              !buttons.back().style.get_icon_custom_emoji_id().is_valid())) {
             buttons.pop_back();
           }
         }

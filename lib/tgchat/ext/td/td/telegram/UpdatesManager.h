@@ -555,6 +555,7 @@ class UpdatesManager final : public Actor {
   void on_update(tl_object_ptr<telegram_api::updateChatParticipantAdd> update, Promise<Unit> &&promise);
   void on_update(tl_object_ptr<telegram_api::updateChatParticipantAdmin> update, Promise<Unit> &&promise);
   void on_update(tl_object_ptr<telegram_api::updateChatParticipantDelete> update, Promise<Unit> &&promise);
+  void on_update(tl_object_ptr<telegram_api::updateChatParticipantRank> update, Promise<Unit> &&promise);
 
   void on_update(tl_object_ptr<telegram_api::updateChatDefaultBannedRights> update, Promise<Unit> &&promise);
 

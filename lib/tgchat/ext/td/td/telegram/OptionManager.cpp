@@ -208,6 +208,7 @@ OptionManager::OptionManager(Td *td)
   set_default_integer_option("login_passkey_count_max", 5);
   set_default_integer_option("stake_dice_stake_amount_max", 50000000000);
   set_default_integer_option("stake_dice_stake_amount_min", 100000000);
+  set_default_integer_option("has_protected_content_disable_request_duration", is_test_dc ? 300 : 86400);
 
   if (options.isset("my_phone_number") || !options.isset("my_id")) {
     update_premium_options();
@@ -464,6 +465,7 @@ bool OptionManager::is_internal_option(Slice name) {
                                                               "group_profile_bg_icon_level_min",
                                                               "group_transcribe_level_min",
                                                               "group_wallpaper_level_min",
+                                                              "has_protected_content_disable_request_duration",
                                                               "hidden_members_group_size_min",
                                                               "ignored_restriction_reasons",
                                                               "language_pack_version",
@@ -772,7 +774,7 @@ td_api::object_ptr<td_api::OptionValue> OptionManager::get_option_synchronously(
       break;
     case 'v':
       if (name == "version") {
-        return td_api::make_object<td_api::optionValueString>("1.8.61");
+        return td_api::make_object<td_api::optionValueString>("1.8.62");
       }
       break;
   }

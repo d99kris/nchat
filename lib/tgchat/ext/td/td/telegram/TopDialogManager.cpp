@@ -397,8 +397,12 @@ void TopDialogManager::normalize_rating() {
 }
 
 bool TopDialogManager::need_dialog_stories(TopDialogCategory category, DialogId dialog_id, double rating) {
-  return category == TopDialogCategory::Correspondent && dialog_id.get_type() == DialogType::User &&
-         rating >= MIN_STORY_RATING;
+  if (category == TopDialogCategory::Correspondent && dialog_id.get_type() == DialogType::User &&
+      rating >= MIN_STORY_RATING) {
+    LOG(DEBUG) << "Show stories of " << dialog_id << ", because it has rating " << rating;
+    return true;
+  }
+  return false;
 }
 
 void TopDialogManager::on_need_dialog_stories_changed(DialogId dialog_id) {

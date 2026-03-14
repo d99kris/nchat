@@ -3124,6 +3124,16 @@ Status NotificationManager::process_push_notification_payload(string payload, bo
     LOG(ERROR) << "Have non-empty announcement message text with loc_key = " << loc_key;
   }
 
+  if (loc_key == "OAUTH_REQUEST") {
+    TRY_RESULT(data_url, custom.get_required_string_field("data_url"));
+    if (data_url.empty() || loc_args.size() < 2) {
+      return Status::Error(200, "Receive invalid OAuth push notification");
+    }
+    send_closure(G()->td(), &Td::send_update,
+                 td_api::make_object<td_api::updateNewOauthRequest>(loc_args[0], loc_args[1], data_url));
+    return Status::OK();
+  }
+
   if (loc_key == "DC_UPDATE") {
     TRY_RESULT(dc_id, custom.get_required_int_field("dc"));
     TRY_RESULT(addr, custom.get_required_string_field("addr"));

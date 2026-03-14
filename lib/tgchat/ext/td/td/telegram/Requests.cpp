@@ -3401,8 +3401,39 @@ void Requests::on_request(uint64 id, td_api::getExternalLink &request) {
   CHECK_IS_USER();
   CLEAN_INPUT_STRING(request.link_);
   CREATE_REQUEST_PROMISE();
-  td_->link_manager_->get_link_login_url(request.link_, request.allow_write_access_, request.allow_phone_number_access_,
-                                         std::move(promise));
+  td_->link_manager_->get_link_login_url(request.link_, request.allow_write_access_, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::getOauthLinkInfo &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.url_);
+  CLEAN_INPUT_STRING(request.in_app_origin_);
+  CREATE_REQUEST_PROMISE();
+  td_->link_manager_->get_oauth_link_info(std::move(request.url_), request.in_app_origin_, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::checkOauthRequestMatchCode &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.url_);
+  CLEAN_INPUT_STRING(request.match_code_);
+  CREATE_OK_REQUEST_PROMISE();
+  td_->link_manager_->check_oauth_request_match_code(request.url_, request.match_code_, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::acceptOauthRequest &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.url_);
+  CLEAN_INPUT_STRING(request.match_code_);
+  CREATE_REQUEST_PROMISE();
+  td_->link_manager_->accept_oauth_request(request.url_, request.match_code_, request.allow_write_access_,
+                                           request.allow_phone_number_access_, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::declineOauthRequest &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.url_);
+  CREATE_OK_REQUEST_PROMISE();
+  td_->link_manager_->decline_oauth_request(request.url_, std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::getChatHistory &request) {
@@ -4758,7 +4789,7 @@ void Requests::on_request(uint64 id, td_api::sendCallRating &request) {
   CHECK_IS_USER();
   CLEAN_INPUT_STRING(request.comment_);
   CREATE_OK_REQUEST_PROMISE();
-  send_closure(G()->call_manager(), &CallManager::rate_call, CallId(request.call_id_), request.rating_,
+  send_closure(G()->call_manager(), &CallManager::rate_call, std::move(request.call_id_), request.rating_,
                std::move(request.comment_), std::move(request.problems_), std::move(promise));
 }
 
@@ -4766,15 +4797,15 @@ void Requests::on_request(uint64 id, td_api::sendCallDebugInformation &request) 
   CHECK_IS_USER();
   CLEAN_INPUT_STRING(request.debug_information_);
   CREATE_OK_REQUEST_PROMISE();
-  send_closure(G()->call_manager(), &CallManager::send_call_debug_information, CallId(request.call_id_),
+  send_closure(G()->call_manager(), &CallManager::send_call_debug_information, std::move(request.call_id_),
                std::move(request.debug_information_), std::move(promise));
 }
 
 void Requests::on_request(uint64 id, td_api::sendCallLog &request) {
   CHECK_IS_USER();
   CREATE_OK_REQUEST_PROMISE();
-  send_closure(G()->call_manager(), &CallManager::send_call_log, CallId(request.call_id_), std::move(request.log_file_),
-               std::move(promise));
+  send_closure(G()->call_manager(), &CallManager::send_call_log, std::move(request.call_id_),
+               std::move(request.log_file_), std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::getVideoChatAvailableParticipants &request) {
@@ -5482,8 +5513,15 @@ void Requests::on_request(uint64 id, td_api::setChatDraftMessage &request) {
 void Requests::on_request(uint64 id, const td_api::toggleChatHasProtectedContent &request) {
   CHECK_IS_USER();
   CREATE_OK_REQUEST_PROMISE();
-  td_->dialog_manager_->toggle_dialog_has_protected_content(DialogId(request.chat_id_), request.has_protected_content_,
-                                                            std::move(promise));
+  td_->dialog_manager_->toggle_dialog_has_protected_content(DialogId(request.chat_id_), MessageId(), false,
+                                                            request.has_protected_content_, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::processChatHasProtectedContentDisableRequest &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->dialog_manager_->toggle_dialog_has_protected_content(
+      DialogId(request.chat_id_), MessageId(request.request_message_id_), true, !request.approve_, std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::toggleChatIsPinned &request) {
@@ -5788,8 +5826,7 @@ void Requests::on_request(uint64 id, const td_api::leaveChat &request) {
         return promise.set_value(Unit());
       }
 
-      new_status =
-          td_api::make_object<td_api::chatMemberStatusCreator>(status.get_rank(), status.is_anonymous(), false);
+      new_status = td_api::make_object<td_api::chatMemberStatusCreator>(status.is_anonymous(), false);
     }
   }
   td_->dialog_participant_manager_->set_dialog_participant_status(dialog_id, td_->dialog_manager_->get_my_dialog_id(),
@@ -5816,6 +5853,13 @@ void Requests::on_request(uint64 id, td_api::setChatMemberStatus &request) {
                      get_message_sender_dialog_id(td_, request.member_id_, false, false));
   td_->dialog_participant_manager_->set_dialog_participant_status(DialogId(request.chat_id_), participant_dialog_id,
                                                                   std::move(request.status_), std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::setChatMemberTag &request) {
+  CLEAN_INPUT_STRING(request.tag_);
+  CREATE_OK_REQUEST_PROMISE();
+  td_->dialog_participant_manager_->set_dialog_participant_rank(DialogId(request.chat_id_), UserId(request.user_id_),
+                                                                std::move(request.tag_), std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::banChatMember &request) {
