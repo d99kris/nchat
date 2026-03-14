@@ -241,19 +241,27 @@ code. Example:
     4. Exit setup
     Select protocol (3): 1
     Enter phone number (ex. +6511111111): +6511111111
-    Enter authentication code: xxxxx
+
+    Open Telegram on your phone, go to Settings -> Devices
+    and click Link Desktop Device and scan the QR code.
+    ...
     Succesfully set up profile Telegram_+6511111111
 
-If unsure of what phone number to enter, open the Telegram app on the phone
-and press the menu button and use the number displayed there (omitting spaces,
-so for the below screenshot the number to enter is +6511111111).
+By default, nchat uses QR code authentication. The QR code should be scanned
+using the official app on the primary device. To use authentication code
+instead, set the `USE_PAIRING_CODE` environment variable (see FAQ below).
+
+If unsure of what phone number to enter, open the official app on the phone
+and look for the phone number under Settings or Profile section, and use
+the number displayed there (omitting spaces, so for the below screenshot
+the number to enter is `+6511111111`).
 
 ![screenshot telegram phone](/doc/screenshot-phone.png)
 
 Once the setup process is completed, the main UI of nchat will be loaded.
 
 In order to set up multiple protocols/profiles, exit nchat and perform the
-setup step again.
+setup step again. To remove a protocol account, use `nchat --remove`.
 
 
 Troubleshooting
@@ -401,13 +409,14 @@ format:
 ### use_pairing_code
 
 Stores the environment variable flag `USE_PAIRING_CODE` if set during setup.
-It specifies whether to use pairing code instead of QR code (WhatsApp only).
+It specifies whether to use pairing code / authentication code instead of
+QR code (Telegram/WhatsApp).
 
 ### use_qr_terminal
 
 Stores the environment variable flag `USE_QR_TERMINAL` if set during setup.
 It specifies whether to display QR code in the terminal, disabling detection
-of GUI capability for displaying images (WhatsApp/Signal only).
+of GUI capability for displaying images.
 
 ### version_used
 
@@ -1165,16 +1174,16 @@ after initial sync:
 
     nchat -s
 
-### 6. How to set up WhatsApp without scanning a QR code?
+### 6. How to set up Telegram / WhatsApp without scanning a QR code?
 
-By default setting up a WhatsApp account will display a QR code to be scanned
-using the WhatsApp mobile application on the primary device. As an alternative
-one can set an environment flag to have nchat display a pairing code, to be
-entered in WhatsApp on the primary device:
+By default setting up a Telegram or WhatsApp account will display a QR code
+to be scanned using the mobile application on the primary device. As an
+alternative one can set an environment flag to use authentication code
+(Telegram) or pairing code (WhatsApp) instead:
 
     USE_PAIRING_CODE=1 nchat -s
 
-### 7. No QR code is shown when setting up WhatsApp / Signal?
+### 7. No QR code is shown when setting up Telegram / WhatsApp / Signal?
 
 By default nchat will attempt to detect if the system is capable of viewing
 images using a GUI image viewer, and if detected (indicated by "has gui" in
@@ -1286,9 +1295,17 @@ includes the source code of the following third-party libraries:
   Copyright 2015 David Capello -
   [MIT License](/ext/clip/LICENSE.txt)
 
+- [QR-Code-generator](https://github.com/nayuki/QR-Code-generator) -
+  Copyright 2022 Project Nayuki -
+  [MIT License](/ext/QR-Code-generator/Readme.markdown)
+
 - [mautrix-signal](https://github.com/mautrix/signal) -
   Copyright 2020 Tulir Asokan -
   [AGPL License](/lib/sgchat/go/ext/signal/LICENSE)
+
+- [stb](https://github.com/nothings/stb) -
+  Copyright 2017 Sean Barrett -
+  [MIT License](/ext/stb/LICENSE)
 
 - [sqlite_modern_cpp](https://github.com/SqliteModernCpp/sqlite_modern_cpp) -
   Copyright 2017 aminroosta -

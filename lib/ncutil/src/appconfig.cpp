@@ -7,6 +7,7 @@
 
 #include "appconfig.h"
 
+#include <cstdlib>
 #include <map>
 
 #include "fileutil.h"
@@ -51,6 +52,20 @@ void AppConfig::Cleanup()
 {
   m_Config->Save();
   m_Config.reset();
+}
+
+bool AppConfig::GetConfigOrEnvFlag(const std::string& p_ConfigName, const std::string& p_EnvName)
+{
+  if (GetBool(p_ConfigName)) return true;
+
+  const char* envVal = getenv(p_EnvName.c_str());
+  if (envVal != nullptr)
+  {
+    SetBool(p_ConfigName, true);
+    return true;
+  }
+
+  return false;
 }
 
 bool AppConfig::GetBool(const std::string& p_Param)

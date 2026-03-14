@@ -1,6 +1,6 @@
 // appconfig.h
 //
-// Copyright (c) 2021-2025 Kristofer Berggren
+// Copyright (c) 2021-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -35,6 +35,7 @@ public:
   static void SetBool(const std::string& p_Param, const bool& p_Value);
   static int GetNum(const std::string& p_Param);
   static void SetNum(const std::string& p_Param, const int& p_Value);
+  static bool GetConfigOrEnvFlag(const std::string& p_ConfigName, const std::string& p_EnvName);
   static std::string GetStr(const std::string& p_Param);
   static void SetStr(const std::string& p_Param, const std::string& p_Value);
 
