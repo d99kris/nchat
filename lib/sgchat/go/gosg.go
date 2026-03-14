@@ -77,6 +77,11 @@ type recentMessage struct {
 	timestamp uint64
 }
 
+// keep in sync with enum AttachmentSendType in appconfig.h
+var AttachmentSendAsDocument = 0
+var AttachmentSendAsType = 1
+var AttachmentSendAsSticker = 2
+
 // keep in sync with enum FileStatus in protocol.h
 var FileStatusNone = -1
 var FileStatusNotDownloaded = 0
@@ -1150,7 +1155,16 @@ func (handler *SgEventHandler) handleDataMessage(chatId string, senderId string,
 	// Unsupported message type placeholders
 	placeholder := ""
 	if msg.GetSticker() != nil {
-		placeholder = "[Sticker]"
+		sticker := msg.GetSticker()
+		if sticker.GetData() != nil {
+			// Treat sticker data as a regular attachment for download
+			msg.Attachments = []*signalpb.AttachmentPointer{sticker.GetData()}
+		}
+		if sticker.GetEmoji() != "" {
+			placeholder = sticker.GetEmoji()
+		} else {
+			placeholder = "[Sticker]"
+		}
 	} else if len(msg.GetContact()) > 0 {
 		placeholder = "[Contact]"
 	} else if msg.GetPayment() != nil {
@@ -2244,8 +2258,45 @@ func SgGetMessages(connId int, chatId string, limit int, fromMsgId string, owner
 					}
 				}
 			}
+		case *backuppb.ChatItem_StickerMessage:
+			sticker := msg.StickerMessage.GetSticker()
+			if sticker != nil {
+				if sticker.GetEmoji() != "" {
+					text = sticker.GetEmoji()
+				} else {
+					text = "[Sticker]"
+				}
+				fp := sticker.GetData()
+				if fp != nil {
+					loc := fp.GetLocatorInfo()
+					if loc != nil && loc.GetTransitCdnKey() != "" {
+						ext := ExtensionByType(fp.GetContentType(), ".webp")
+						fileName := fmt.Sprintf("%d%s", item.DateSent, ext)
+						tmpPath := GetPath(connId) + "/tmp"
+						targetPath := fmt.Sprintf("%s/%s", tmpPath, fileName)
+
+						dlInfo := DownloadInfo{
+							Version:       downloadInfoVersion,
+							TargetPath:    targetPath,
+							Key:           loc.GetKey(),
+							Digest:        loc.GetEncryptedDigest(),
+							PlaintextHash: loc.GetPlaintextHash(),
+							Size:          loc.GetSize(),
+							CdnKey:        loc.GetTransitCdnKey(),
+							CdnNumber:     loc.GetTransitCdnNumber(),
+						}
+
+						bytes, jsonErr := json.Marshal(dlInfo)
+						if jsonErr == nil {
+							fileId = string(bytes)
+							filePath = targetPath
+							fileStatus = FileStatusNotDownloaded
+						}
+					}
+				}
+			}
 		default:
-			// Skip non-standard messages (stickers, updates, etc.)
+			// Skip unsupported messages (updates, etc.)
 			if notify == NotifySendCached {
 				// Still need to send the batch even if last item is skipped
 				CSgNewHistoryMessagesNotify(connId, chatId, "", "", "", 0, "", "", "", FileStatusNone, 0, 1, 0, fromMsgId, NotifySendCached)
@@ -2265,7 +2316,7 @@ func SgGetMessages(connId int, chatId string, limit int, fromMsgId string, owner
 }
 
 func SgSendMessage(connId int, chatId string, text string, quotedId string, quotedText string, quotedSender string, filePath string, fileType string, editMsgId string, editMsgSent int, mentionsJson string) int {
-	LOG_TRACE("send message " + strconv.Itoa(connId) + ", " + chatId + ", " + text + ", " + quotedId + ", " + filePath + ", " + editMsgId)
+	LOG_TRACE("send message " + strconv.Itoa(connId) + ", " + chatId + ", " + text + ", " + quotedId + ", " + filePath + ", " + fileType + ", " + editMsgId)
 
 	// sanity check arg
 	if connId == -1 {
@@ -2384,7 +2435,35 @@ func SgSendMessage(connId int, chatId string, text string, quotedId string, quot
 						attachment.ContentType = proto.String(fileType)
 					}
 					attachment.FileName = proto.String(filepath.Base(filePath))
-					dataMsg.Attachments = []*signalpb.AttachmentPointer{attachment}
+
+					sendType := CSgAppConfigGetNum("attachment_send_type")
+					hasText := (text != "")
+					hasQuote := (quotedId != "")
+					isSendAsSpecial := (sendType == AttachmentSendAsSticker) && !hasText && !hasQuote
+
+					mimeParts := strings.Split(fileType, "/")
+					mimeSubType := ""
+					if len(mimeParts) > 1 {
+						mimeSubType = mimeParts[1]
+					}
+					LOG_TRACE(fmt.Sprintf("attachment sendType=%d mimeSubType=%s isSendAsSpecial=%t", sendType, mimeSubType, isSendAsSpecial))
+
+					if isSendAsSpecial && (mimeSubType == "webp") {
+						LOG_TRACE("send sticker " + fileType)
+						attachment.Flags = proto.Uint32(uint32(signalpb.AttachmentPointer_BORDERLESS))
+						dataMsg.Sticker = &signalpb.DataMessage_Sticker{
+							PackId:    make([]byte, 16),
+							PackKey:   make([]byte, 32),
+							StickerId: proto.Uint32(0),
+							Data:      attachment,
+						}
+					} else if isSendAsSpecial && (mimeSubType == "mp4" || mimeSubType == "x-m4v" || mimeSubType == "gif") {
+						LOG_TRACE("send gif " + fileType)
+						attachment.Flags = proto.Uint32(uint32(signalpb.AttachmentPointer_GIF) | uint32(signalpb.AttachmentPointer_BORDERLESS))
+						dataMsg.Attachments = []*signalpb.AttachmentPointer{attachment}
+					} else {
+						dataMsg.Attachments = []*signalpb.AttachmentPointer{attachment}
+					}
 				}
 			} else {
 				LOG_WARNING(fmt.Sprintf("file not found: %s", filePath))
@@ -2420,7 +2499,12 @@ func SgSendMessage(connId int, chatId string, text string, quotedId string, quot
 			echoFileId = AttachmentToFileId(dataMsg.GetAttachments()[0], filePath)
 			echoFilePath = filePath
 			echoFileStatus = FileStatusDownloaded
+		} else if dataMsg.GetSticker() != nil && dataMsg.GetSticker().GetData() != nil {
+			echoFileId = AttachmentToFileId(dataMsg.GetSticker().GetData(), filePath)
+			echoFilePath = filePath
+			echoFileStatus = FileStatusDownloaded
 		}
+		LOG_TRACE(fmt.Sprintf("echo fileId=%s filePath=%s fileStatus=%d", echoFileId, echoFilePath, echoFileStatus))
 		CSgNewMessagesNotify(connId, chatId, strconv.FormatUint(timestamp, 10), selfId, text, 1, quotedId, echoFileId, echoFilePath, echoFileStatus, timeSent, 0, 0)
 		TrackRecentMessage(connId, chatId, selfId, timestamp)
 	}

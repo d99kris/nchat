@@ -1314,7 +1314,7 @@ void SgClearStatus(int p_ConnId, int p_Flags)
 
 int SgAppConfigGetNum(char* p_Param)
 {
-  int value = AppConfig::GetBool(std::string(p_Param)) ? 1 : 0;
+  int value = AppConfig::GetNum(std::string(p_Param));
   free(p_Param);
   return value;
 }

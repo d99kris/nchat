@@ -83,6 +83,11 @@ var (
 	namesSynced map[int]bool                 = make(map[int]bool)
 )
 
+// keep in sync with enum AttachmentSendType in appconfig.h
+var AttachmentSendAsDocument = 0
+var AttachmentSendAsType = 1
+var AttachmentSendAsSticker = 2
+
 // keep in sync with enum FileStatus in protocol.h
 var FileStatusNone = -1
 var FileStatusNotDownloaded = 0
@@ -2568,10 +2573,79 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 	} else {
 
-		var isSendType bool = IntToBool(GetSendType(connId))
-		mimeType := strings.Split(fileType, "/")[0] // image, text, application, etc.
+		var sendType int = GetSendType(connId)
+		mimeParts := strings.Split(fileType, "/")
+		mimeType := mimeParts[0] // image, text, application, video, etc.
+		mimeSubType := ""
+		if len(mimeParts) > 1 {
+			mimeSubType = mimeParts[1] // webp, mp4, png, etc.
+		}
 
-		if isSendType && (mimeType == "audio") {
+		// sendType == AttachmentSendAsSticker: special handling for sticker/gif formats when no text/quote
+		hasQuote := (contextInfo.QuotedMessage != nil)
+		hasText := (len(text) > 0)
+		isSendAsSpecial := (sendType == AttachmentSendAsSticker) && !hasText && !hasQuote
+
+		if isSendAsSpecial && (mimeSubType == "webp") {
+
+			LOG_TRACE("send sticker " + fileType)
+			data, err := os.ReadFile(filePath)
+			if err != nil {
+				LOG_WARNING(fmt.Sprintf("read file %s err %#v", filePath, err))
+				return -1
+			}
+
+			uploaded, upErr := client.Upload(context.Background(), data, whatsmeow.MediaImage)
+			if upErr != nil {
+				LOG_WARNING(fmt.Sprintf("upload error %#v", upErr))
+				return -1
+			}
+
+			stickerMessage := waE2E.StickerMessage{
+				URL:           proto.String(uploaded.URL),
+				DirectPath:    proto.String(uploaded.DirectPath),
+				MediaKey:      uploaded.MediaKey,
+				Mimetype:      proto.String(fileType),
+				FileEncSHA256: uploaded.FileEncSHA256,
+				FileSHA256:    uploaded.FileSHA256,
+				FileLength:    proto.Uint64(uint64(len(data))),
+				ContextInfo:   &contextInfo,
+			}
+
+			message.StickerMessage = &stickerMessage
+			isSend = true
+
+		} else if isSendAsSpecial && (mimeSubType == "mp4" || mimeSubType == "x-m4v") {
+
+			LOG_TRACE("send gif " + fileType)
+			data, err := os.ReadFile(filePath)
+			if err != nil {
+				LOG_WARNING(fmt.Sprintf("read file %s err %#v", filePath, err))
+				return -1
+			}
+
+			uploaded, upErr := client.Upload(context.Background(), data, whatsmeow.MediaVideo)
+			if upErr != nil {
+				LOG_WARNING(fmt.Sprintf("upload error %#v", upErr))
+				return -1
+			}
+
+			videoMessage := waE2E.VideoMessage{
+				URL:           proto.String(uploaded.URL),
+				DirectPath:    proto.String(uploaded.DirectPath),
+				MediaKey:      uploaded.MediaKey,
+				Mimetype:      proto.String(fileType),
+				FileEncSHA256: uploaded.FileEncSHA256,
+				FileSHA256:    uploaded.FileSHA256,
+				FileLength:    proto.Uint64(uint64(len(data))),
+				GifPlayback:   proto.Bool(true),
+				ContextInfo:   &contextInfo,
+			}
+
+			message.VideoMessage = &videoMessage
+			isSend = true
+
+		} else if (sendType >= AttachmentSendAsType) && (mimeType == "audio") {
 
 			LOG_TRACE("send audio " + fileType)
 			data, err := os.ReadFile(filePath)
@@ -2600,7 +2674,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 			message.AudioMessage = &audioMessage
 			isSend = true
 
-		} else if isSendType && (mimeType == "video") {
+		} else if (sendType >= AttachmentSendAsType) && (mimeType == "video") {
 
 			videoMessage := waE2E.VideoMessage{}
 
@@ -2643,7 +2717,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 			message.VideoMessage = &videoMessage
 			isSend = true
 
-		} else if isSendType && (mimeType == "image") {
+		} else if (sendType >= AttachmentSendAsType) && (mimeType == "image") {
 
 			imageMessage := waE2E.ImageMessage{}
 

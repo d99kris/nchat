@@ -101,7 +101,7 @@ bool WmChat::SetupProfile(const std::string& p_ProfilesDir, std::string& p_Profi
   p_ProfileId = m_ProfileId;
 
   std::string proxyUrl = GetProxyUrl();
-  int32_t sendType = AppConfig::GetBool("attachment_send_type") ? 1 : 0;
+  int32_t sendType = AppConfig::GetNum("attachment_send_type");
   int connId = CWmInit(const_cast<char*>(profileDir.c_str()), const_cast<char*>(proxyUrl.c_str()), sendType);
   if (connId == -1)
   {
@@ -150,7 +150,7 @@ bool WmChat::LoadProfile(const std::string& p_ProfilesDir, const std::string& p_
   }
 
   std::string proxyUrl = GetProxyUrl();
-  int32_t sendType = AppConfig::GetBool("attachment_send_type") ? 1 : 0;
+  int32_t sendType = AppConfig::GetNum("attachment_send_type");
   m_ConnId = CWmInit(const_cast<char*>(m_ProfileDir.c_str()), const_cast<char*>(proxyUrl.c_str()), sendType);
   if (m_ConnId == -1) return false;
 

@@ -930,11 +930,30 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
             }
           }
 
-          static const bool attachmentSendType = AppConfig::GetBool("attachment_send_type");
+          static const int attachmentSendType = AppConfig::GetNum("attachment_send_type");
           FileInfo fileInfo =
             ProtocolUtil::FileInfoFromHex(sendMessageRequest->chatMessage.fileInfo);
-          std::string mimeType = StrUtil::Split(fileInfo.fileType, '/').at(0);
-          if (attachmentSendType && (mimeType == "audio"))
+          std::vector<std::string> mimeParts = StrUtil::Split(fileInfo.fileType, '/');
+          std::string mimeType = mimeParts.at(0);
+          std::string mimeSubType = (mimeParts.size() > 1) ? mimeParts.at(1) : "";
+
+          bool hasText = !processedText.empty();
+          bool hasQuote = !sendMessageRequest->chatMessage.quotedId.empty();
+          bool isSendAsSpecial = (attachmentSendType >= AttachmentSendAsSticker) && !hasText && !hasQuote;
+
+          if (isSendAsSpecial && (mimeSubType == "webp"))
+          {
+            auto message_content = td::td_api::make_object<td::td_api::inputMessageSticker>();
+            message_content->sticker_ = td::td_api::make_object<td::td_api::inputFileLocal>(fileInfo.filePath);
+            send_message->input_message_content_ = std::move(message_content);
+          }
+          else if (isSendAsSpecial && (mimeSubType == "mp4" || mimeSubType == "x-m4v" || mimeSubType == "gif"))
+          {
+            auto message_content = td::td_api::make_object<td::td_api::inputMessageAnimation>();
+            message_content->animation_ = td::td_api::make_object<td::td_api::inputFileLocal>(fileInfo.filePath);
+            send_message->input_message_content_ = std::move(message_content);
+          }
+          else if (attachmentSendType && (mimeType == "audio"))
           {
             auto message_content = td::td_api::make_object<td::td_api::inputMessageAudio>();
             message_content->audio_ = td::td_api::make_object<td::td_api::inputFileLocal>(fileInfo.filePath);

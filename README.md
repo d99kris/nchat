@@ -325,9 +325,12 @@ intended for debugging.
 
 ### attachment_send_type
 
-Specifies whether to detect file type (audio, video, image, document) and send
-attachments as those types, instead of sending all attachments as document
-type (which typically leaves original file content intact).
+Specifies how attachments are sent:
+
+    0 = send all attachments as document type (typically preserves file content)
+    1 = detect file type (audio, video, image, document) and send as that type <- default
+    2 = like 1, but when sending just a file (no text or quote), webp files are
+        sent as stickers and mp4/m4v files as borderless auto-playing "GIFs"
 
 ### attachment_prefetch
 

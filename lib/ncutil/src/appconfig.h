@@ -19,6 +19,14 @@ enum AttachmentPrefetchType
   AttachmentPrefetchAll = 2,
 };
 
+// Keep in sync with AttachmentSendType constants in gowm.go / gosg.go
+enum AttachmentSendType
+{
+  AttachmentSendAsDocument = 0,
+  AttachmentSendAsType = 1,
+  AttachmentSendAsSticker = 2,
+};
+
 enum MessageDeleteType
 {
   MessageDeleteErase = 1,
