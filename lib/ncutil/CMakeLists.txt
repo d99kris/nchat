@@ -61,7 +61,6 @@ add_library(ncutil ${LIBRARY_LINKING_TYPE}
   src/protocolutil.h
   src/qrutil.cpp
   src/qrutil.h
-  ext/QR-Code-generator/cpp/qrcodegen.cpp
   src/scopeddirlock.cpp
   src/scopeddirlock.h
   src/serialization.h
@@ -100,10 +99,9 @@ else()
   message(STATUS "Clipboard: Text")
 endif()
 
-# External source warning suppression
-set_source_files_properties(ext/QR-Code-generator/cpp/qrcodegen.cpp PROPERTIES COMPILE_FLAGS "-w")
-
-# Dependency clip
+# External dependencies
+add_subdirectory(ext/QR-Code-generator/cpp)
+add_subdirectory(ext/stb)
 add_subdirectory(ext/clip)
 
 # Common
@@ -116,8 +114,6 @@ target_include_directories(ncutil PRIVATE "ext/apathy")
 target_include_directories(ncutil PRIVATE "ext/sqlite_modern_cpp/hdr")
 target_include_directories(ncutil PRIVATE "ext/clip")
 target_include_directories(ncutil PRIVATE "ext/cereal/include")
-target_include_directories(ncutil PRIVATE "ext/QR-Code-generator/cpp")
-target_include_directories(ncutil PRIVATE "ext/stb")
 
 # Compiler flags
 set_target_properties(ncutil PROPERTIES COMPILE_FLAGS
@@ -127,4 +123,4 @@ set_target_properties(ncutil PROPERTIES COMPILE_FLAGS
                        -Wcast-align")
 
 # Linking
-target_link_libraries(ncutil PUBLIC ${MAGIC_LIBRARY} SQLite::SQLite3 clip ${WORDEXP_LIBRARY})
+target_link_libraries(ncutil PUBLIC ${MAGIC_LIBRARY} SQLite::SQLite3 clip qrcodegen stb ${WORDEXP_LIBRARY})

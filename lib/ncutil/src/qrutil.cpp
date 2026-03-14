@@ -13,18 +13,7 @@
 #include "fileutil.h"
 #include "log.h"
 #include "qrcodegen.hpp"
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wsign-compare"
-#pragma GCC diagnostic ignored "-Wunused-function"
-#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-#pragma GCC diagnostic ignored "-Wcast-qual"
-#pragma GCC diagnostic ignored "-Wundef"
-#pragma GCC diagnostic ignored "-Wswitch-default"
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
-#pragma GCC diagnostic pop
 
 std::string QrUtil::ToTerminalString(const std::string& p_Text)
 {
