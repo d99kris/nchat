@@ -111,7 +111,7 @@ if [[ -n "${LIBSIGNAL_VERSION}" ]]; then
       echo "Updated LIBSIGNAL_BUILD_REF to ${LIBSIGNAL_BUILD_REF}"
     else
       echo "Warning: No matching libsignal build found for ${LIBSIGNAL_VERSION}"
-      echo "Consider using -DBUILD_LIBSIGNAL=ON to build from source"
+      echo "Consider using -DDOWNLOAD_LIBSIGNAL=OFF to build from source"
     fi
   else
     echo "Warning: Could not query GitLab API for build pipelines"
