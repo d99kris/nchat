@@ -313,6 +313,17 @@ bool FileUtil::IsDir(const std::string& p_Path)
   return apathy::Path(p_Path).is_directory();
 }
 
+std::vector<std::string> FileUtil::ListDirNames(const std::string& p_Folder)
+{
+  std::vector<std::string> names;
+  const std::vector<apathy::Path>& paths = apathy::Path::listdir(p_Folder);
+  for (auto& path : paths)
+  {
+    names.push_back(path.filename());
+  }
+  return names;
+}
+
 std::set<DirEntry, DirEntryCompare> FileUtil::ListPaths(const std::string& p_Folder)
 {
   std::set<DirEntry, DirEntryCompare> fileinfos;

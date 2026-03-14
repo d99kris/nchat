@@ -466,6 +466,7 @@ This configuration file holds general user interface settings. Default content:
     reactions_enabled=1
     spell_check_command=
     status_broadcast=1
+    status_enabled=1
     syncing_indicator=⇄
     tab_size=4
     terminal_bell_active=0
@@ -764,6 +765,10 @@ Specifies (WhatsApp) Status Updates chat level of visibility:
     0 = hidden
     1 = visible and muted  <- default
     2 = visible
+
+### status_enabled
+
+Specifies whether to display status bar.
 
 ### syncing_indicator
 

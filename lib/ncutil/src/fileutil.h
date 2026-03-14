@@ -9,6 +9,7 @@
 
 #include <set>
 #include <string>
+#include <vector>
 
 #include <sys/types.h>
 
@@ -84,6 +85,7 @@ public:
   static void InitDirVersion(const std::string& p_Dir, int p_Version);
   static void InitTempDir();
   static bool IsDir(const std::string& p_Path);
+  static std::vector<std::string> ListDirNames(const std::string& p_Folder);
   static std::set<DirEntry, DirEntryCompare> ListPaths(const std::string& p_Folder);
   static void MkDir(const std::string& p_Path);
   static void Move(const std::string& p_From, const std::string& p_To);

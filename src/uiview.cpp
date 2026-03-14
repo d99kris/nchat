@@ -26,6 +26,7 @@ UiView::UiView(UiModel* p_UiModel)
   m_EmojiEnabled = UiConfig::GetBool("emoji_enabled");
   m_HelpEnabled = UiConfig::GetBool("help_enabled");
   m_ListEnabled = UiConfig::GetBool("list_enabled");
+  m_StatusEnabled = UiConfig::GetBool("status_enabled");
   m_TopEnabled = UiConfig::GetBool("top_enabled");
   m_ListWidth = UiConfig::GetNum("list_width");
   m_EntryHeight = std::max(1, UiConfig::GetNum("entry_height"));

@@ -27,6 +27,8 @@
 
 #include <td/telegram/Client.h>
 
+#include "qrcodegen.hpp"
+
 #include "appconfig.h"
 #include "apputil.h"
 #include "cacheutil.h"
@@ -34,7 +36,6 @@
 #include "fileutil.h"
 #include "log.h"
 #include "messagecache.h"
-#include "path.hpp"
 #include "protocolutil.h"
 #include "status.h"
 #include "strutil.h"
@@ -213,6 +214,7 @@ private:
 private:
   std::thread m_ServiceThread;
   std::string m_SetupPhoneNumber;
+  bool m_UseQrAuth = false;
   Config m_Config;
   std::unique_ptr<td::ClientManager> m_ClientManager;
   std::int32_t m_ClientId = 0;
@@ -355,13 +357,25 @@ std::string TgChat::Impl::GetSelfId() const
 
 bool TgChat::Impl::SetupProfile(const std::string& p_ProfilesDir, std::string& p_ProfileId)
 {
-  m_SetupPhoneNumber = StrUtil::GetPhoneNumber();
+  std::cout << "Login method:\n";
+  std::cout << "  1. Phone number\n";
+  std::cout << "  2. QR code (scan from another Telegram device)\n";
+  std::cout << "Enter choice [1/2]: ";
+  std::string choice;
+  std::getline(std::cin, choice);
 
-  m_ProfileId = m_ProfileId + "_" + m_SetupPhoneNumber;
+  if (choice == "2") {
+    m_UseQrAuth = true;
+    m_ProfileId = m_ProfileId + "_qr_pending";
+  } else {
+    m_SetupPhoneNumber = StrUtil::GetPhoneNumber();
+    m_ProfileId = m_ProfileId + "_" + m_SetupPhoneNumber;
+  }
+
   m_ProfileDir = p_ProfilesDir + "/" + m_ProfileId;
 
-  apathy::Path::rmdirs(apathy::Path(m_ProfileDir));
-  apathy::Path::makedirs(m_ProfileDir);
+  FileUtil::RmDir(m_ProfileDir);
+  FileUtil::MkDir(m_ProfileDir);
 
   MessageCache::AddProfile(m_ProfileId, true /*p_CheckSequence*/, s_CacheDirVersion, true /*p_IsSetup*/,
                            true /*p_AllowReadOnly*/);
@@ -374,6 +388,7 @@ bool TgChat::Impl::SetupProfile(const std::string& p_ProfilesDir, std::string& p
   Init();
 
   ProcessService();
+  p_ProfileId = m_ProfileId;  // pick up any QR profile rename
   StopAuthInput();
 
   Cleanup();
@@ -386,7 +401,7 @@ bool TgChat::Impl::SetupProfile(const std::string& p_ProfilesDir, std::string& p
   }
   else
   {
-    apathy::Path::rmdirs(apathy::Path(m_ProfileDir));
+    FileUtil::RmDir(m_ProfileDir);
   }
 
   return rv;
@@ -2303,6 +2318,27 @@ void TgChat::Impl::ProcessStatusUpdate(int64_t p_UserId,
   CallMessageHandler(receiveStatusNotify);
 }
 
+static void PrintQrCode(const std::string& url)
+{
+  using namespace qrcodegen;
+  QrCode qr = QrCode::encodeText(url.c_str(), QrCode::Ecc::MEDIUM);
+  int border = 2;
+  int size = qr.getSize();
+  for (int y = -border; y < size + border; y += 2)
+  {
+    for (int x = -border; x < size + border; x++)
+    {
+      bool top = (y >= 0 && y < size) ? qr.getModule(x, y) : false;
+      bool bot = (y + 1 >= 0 && y + 1 < size) ? qr.getModule(x, y + 1) : false;
+      if (top && bot)        std::cout << "\u2588"; // █
+      else if (top && !bot)  std::cout << "\u2580"; // ▀
+      else if (!top && bot)  std::cout << "\u2584"; // ▄
+      else                   std::cout << " ";
+    }
+    std::cout << "\n";
+  }
+}
+
 std::function<void(TgChat::Impl::Object)> TgChat::Impl::CreateAuthQueryHandler()
 {
   return [this, id = m_AuthQueryId](Object object)
@@ -2326,7 +2362,32 @@ void TgChat::Impl::OnAuthStateUpdate()
     m_WasAuthorized = true;
     if (m_IsSetup)
     {
-      m_Running = false;
+      if (m_UseQrAuth)
+      {
+        SendQuery(td::td_api::make_object<td::td_api::getMe>(),
+        [this](Object object)
+        {
+          if (object->get_id() != td::td_api::error::ID)
+          {
+            auto user_ = td::move_tl_object_as<td::td_api::user>(object);
+            m_SelfUserId = user_->id_;
+            std::string newProfileId = "Telegram_" + user_->phone_number_;
+            std::string newProfileDir = apathy::Path(m_ProfileDir).parent().string() + "/" + newProfileId;
+            m_Config.Save();  // flush local_key to disk before rename
+            std::rename(m_ProfileDir.c_str(), newProfileDir.c_str());
+            MessageCache::AddProfile(newProfileId, true /*p_CheckSequence*/, s_CacheDirVersion,
+                                     true /*p_IsSetup*/, true /*p_AllowReadOnly*/);
+            m_ProfileId = newProfileId;
+            m_ProfileDir = newProfileDir;
+            InitConfig();  // re-point config to new path (reads saved local_key)
+          }
+          m_Running = false;
+        });
+      }
+      else
+      {
+        m_Running = false;
+      }
     }
     else
     {
@@ -2435,27 +2496,37 @@ void TgChat::Impl::OnAuthStateUpdate()
   [this](td::td_api::authorizationStateWaitPhoneNumber&)
   {
     LOG_DEBUG("auth wait phone number");
-    std::string phone_number;
-    if (m_IsSetup)
+    if (m_UseQrAuth)
     {
-      LOG_DEBUG("fresh number");
-      phone_number = m_SetupPhoneNumber;
+      LOG_DEBUG("requesting QR auth");
+      SendQuery(td::td_api::make_object<td::td_api::requestQrCodeAuthentication>(
+                  std::vector<int64_t>{}),
+                CreateAuthQueryHandler());
     }
     else
     {
-      LOG_DEBUG("reinit number");
-      phone_number = GetProfilePhoneNumber();
-      if (!m_IsReinit)
+      std::string phone_number;
+      if (m_IsSetup)
       {
-        m_IsReinit = true;
-        SetProtocolUiControl(true);
-        std::cout << "Telegram reauthentication for " << phone_number << " required\n\n";
+        LOG_DEBUG("fresh number");
+        phone_number = m_SetupPhoneNumber;
       }
-    }
+      else
+      {
+        LOG_DEBUG("reinit number");
+        phone_number = GetProfilePhoneNumber();
+        if (!m_IsReinit)
+        {
+          m_IsReinit = true;
+          SetProtocolUiControl(true);
+          std::cout << "Telegram reauthentication for " << phone_number << " required\n\n";
+        }
+      }
 
-    SendQuery(td::td_api::make_object<td::td_api::setAuthenticationPhoneNumber>(phone_number,
-                                                                                nullptr),
-              CreateAuthQueryHandler());
+      SendQuery(td::td_api::make_object<td::td_api::setAuthenticationPhoneNumber>(phone_number,
+                                                                                  nullptr),
+                CreateAuthQueryHandler());
+    }
   },
   [this](td::td_api::authorizationStateWaitTdlibParameters&)
   {
@@ -2509,7 +2580,10 @@ void TgChat::Impl::OnAuthStateUpdate()
   [](td::td_api::authorizationStateWaitOtherDeviceConfirmation& state)
   {
     LOG_DEBUG("auth wait other device link");
-    std::cout << "Confirm this login link on another device:\n" << state.link_ << "\n";
+    std::cout << "\nScan this QR code with Telegram on another device:\n\n";
+    PrintQrCode(state.link_);
+    std::cout << "\nOr open this link manually:\n" << state.link_ << "\n\n";
+    std::cout << "Waiting for confirmation... (code refreshes automatically)\n";
   },
   [this](auto& anystate)
   {

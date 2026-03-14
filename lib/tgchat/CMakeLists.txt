@@ -36,6 +36,7 @@ endif()
 add_library(tgchat ${LIBRARY_LINKING_TYPE}
   src/tgchat.cpp
   src/tgchat.h
+  ext/qrcodegen/qrcodegen.cpp
 )
 install(TARGETS tgchat DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
@@ -43,7 +44,7 @@ install(TARGETS tgchat DESTINATION ${CMAKE_INSTALL_LIBDIR})
 target_common_config(tgchat)
 
 # Headers
-target_include_directories(tgchat PRIVATE "../../ext/apathy")
+target_include_directories(tgchat PRIVATE "ext/qrcodegen")
 target_include_directories(tgchat PRIVATE "../common/src")
 target_include_directories(tgchat PRIVATE "../ncutil/src")
 target_include_directories(tgchat PRIVATE "ext/td")
@@ -64,6 +65,9 @@ target_link_libraries(tgchat PUBLIC ncutil ${TDLIBNAME})
 if (USE_LIBATOMIC)
   set_target_properties(tgchat PROPERTIES LINK_FLAGS "-latomic")
 endif()
+
+# Suppress warnings for external qrcodegen library
+set_source_files_properties(ext/qrcodegen/qrcodegen.cpp PROPERTIES COMPILE_FLAGS "-w")
 
 # Compiler flags
 set_target_properties(tgchat PROPERTIES COMPILE_FLAGS

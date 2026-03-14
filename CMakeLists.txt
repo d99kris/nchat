@@ -187,7 +187,6 @@ endif()
 
 # Application
 add_executable(nchat
-  ext/apathy/path.hpp
   src/main.cpp
   src/ui.cpp
   src/ui.h
@@ -247,7 +246,6 @@ add_executable(nchat
 install(TARGETS nchat DESTINATION bin)
 
 # Headers
-target_include_directories(nchat PRIVATE "ext/apathy")
 target_include_directories(nchat PRIVATE "lib/common/src")
 target_include_directories(nchat PRIVATE "lib/ncutil/src")
 
@@ -272,9 +270,6 @@ endif()
 if(HAS_SIGNAL)
   add_subdirectory(lib/sgchat)
 endif()
-
-# Dependency clip
-add_subdirectory(ext/clip)
 
 # Dependency ncurses
 if (${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD")
@@ -429,14 +424,12 @@ endif()
 if(CMAKE_BUILD_TYPE MATCHES "Debug")
   message(STATUS "Building dev application.")
   add_executable(devnchat
-    ext/apathy/path.hpp
     src/main.cpp
     dev/ui.cpp
     dev/ui.h
   )
 
   # Headers
-  target_include_directories(devnchat PRIVATE "ext/apathy")
   target_include_directories(devnchat PRIVATE "lib/common/src")
   target_include_directories(devnchat PRIVATE "lib/ncutil/src")
 
