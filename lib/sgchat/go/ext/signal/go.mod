@@ -16,15 +16,15 @@ require (
 	github.com/tidwall/gjson v1.18.0
 	go.mau.fi/util v0.9.6
 	golang.org/x/crypto v0.48.0
-	golang.org/x/exp v0.0.0-20260212183809-81e46e3db34a
+	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa
 	golang.org/x/net v0.50.0
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/yaml.v3 v3.0.1
-	maunium.net/go/mautrix v0.26.3
+	maunium.net/go/mautrix v0.26.4-0.20260307142642-c107c25d078e
 )
 
 require (
-	filippo.io/edwards25519 v1.1.0 // indirect
+	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.6.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/kr/pretty v0.3.1 // indirect

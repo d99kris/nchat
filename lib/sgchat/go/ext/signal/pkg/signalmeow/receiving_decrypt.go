@@ -50,13 +50,10 @@ type DecryptionResult struct {
 func (cli *Client) decryptEnvelope(
 	ctx context.Context,
 	envelope *signalpb.Envelope,
+	sourceServiceID, destinationServiceID libsignalgo.ServiceID,
 ) DecryptionResult {
-	log := zerolog.Ctx(ctx)
-
-	destinationServiceID, err := libsignalgo.ServiceIDFromString(envelope.GetDestinationServiceId())
-	if err != nil {
-		log.Err(err).Str("destination_service_id", envelope.GetDestinationServiceId()).Msg("Failed to parse destination service ID")
-		return DecryptionResult{Err: fmt.Errorf("failed to parse destination service ID: %w", err)}
+	if destinationServiceID.IsEmpty() {
+		return DecryptionResult{Err: fmt.Errorf("envelope missing destination service ID")}
 	}
 
 	switch *envelope.Type {
@@ -68,10 +65,7 @@ func (cli *Client) decryptEnvelope(
 		return result
 
 	case signalpb.Envelope_PREKEY_BUNDLE, signalpb.Envelope_CIPHERTEXT:
-		sender, err := libsignalgo.NewUUIDAddressFromString(
-			*envelope.SourceServiceId,
-			uint(*envelope.SourceDevice),
-		)
+		sender, err := sourceServiceID.Address(uint(envelope.GetSourceDevice()))
 		if err != nil {
 			return DecryptionResult{Err: fmt.Errorf("failed to wrap address: %v", err)}
 		}
@@ -96,7 +90,7 @@ func (cli *Client) decryptEnvelope(
 		return *result
 
 	case signalpb.Envelope_PLAINTEXT_CONTENT:
-		addr, err := libsignalgo.NewUUIDAddressFromString(envelope.GetSourceServiceId(), uint(envelope.GetSourceDevice()))
+		addr, err := sourceServiceID.Address(uint(envelope.GetSourceDevice()))
 		if err != nil {
 			return DecryptionResult{Err: fmt.Errorf("failed to wrap address: %v", err)}
 		}

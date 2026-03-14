@@ -22,7 +22,9 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -76,6 +78,7 @@ func CanConvertSignal(dm *signalpb.DataMessage) bool {
 }
 
 const ViewOnceDisappearTimer = 5 * time.Minute
+const matrixTextMaxLength = 30000 // approximate value to avoid hitting 64 KiB PDU size limit with HTML duplication
 
 func (mc *MessageConverter) ToMatrix(
 	ctx context.Context,
@@ -123,7 +126,7 @@ func (mc *MessageConverter) ToMatrix(
 		return cm
 	}
 	for i, att := range dm.GetAttachments() {
-		if att.GetContentType() != "text/x-signal-plain" {
+		if att.GetContentType() != "text/x-signal-plain" || att.GetSize() > matrixTextMaxLength {
 			cm.Parts = append(cm.Parts, mc.convertAttachmentToMatrix(ctx, i, att, attMap))
 		} else {
 			longBody, err := mc.downloadSignalLongText(ctx, att, attMap)
@@ -174,7 +177,7 @@ func (mc *MessageConverter) ToMatrix(
 		}
 	}
 	if dm.Quote != nil {
-		authorACI, err := uuid.Parse(dm.Quote.GetAuthorAci())
+		authorACI, err := signalmeow.ParseStringOrBinaryUUID(dm.Quote.GetAuthorAci(), dm.Quote.GetAuthorAciBinary())
 		if err != nil {
 			zerolog.Ctx(ctx).Err(err).Str("author_aci", dm.Quote.GetAuthorAci()).Msg("Failed to parse quote author ACI")
 		} else {
@@ -337,7 +340,7 @@ func (mc *MessageConverter) convertContactToVCard(ctx context.Context, contact *
 		card.Add(vcard.FieldTelephone, &field)
 	}
 	if contact.GetAvatar().GetAvatar() != nil {
-		avatarData, err := mc.downloadAttachment(ctx, contact.GetAvatar().GetAvatar(), attMap)
+		avatarData, err := mc.downloadAttachment(ctx, contact.GetAvatar().GetAvatar(), attMap, nil)
 		if err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("Failed to download contact avatar")
 		} else {
@@ -480,7 +483,7 @@ func (mc *MessageConverter) convertStickerToMatrix(ctx context.Context, sticker 
 }
 
 func (mc *MessageConverter) downloadSignalLongText(ctx context.Context, att *signalpb.AttachmentPointer, attMap AttachmentMap) (*string, error) {
-	data, err := mc.downloadAttachment(ctx, att, attMap)
+	data, err := mc.downloadAttachment(ctx, att, attMap, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -506,7 +509,9 @@ func checkIfAttachmentExists(att *signalpb.AttachmentPointer, attMap AttachmentM
 	return nil
 }
 
-func (mc *MessageConverter) downloadAttachment(ctx context.Context, att *signalpb.AttachmentPointer, attMap AttachmentMap) ([]byte, error) {
+func (mc *MessageConverter) downloadAttachment(
+	ctx context.Context, att *signalpb.AttachmentPointer, attMap AttachmentMap, into *os.File,
+) ([]byte, error) {
 	if err := checkIfAttachmentExists(att, attMap); err != nil {
 		return nil, err
 	}
@@ -517,19 +522,19 @@ func (mc *MessageConverter) downloadAttachment(ctx context.Context, att *signalp
 			plaintextHash = target.GetPlaintextHash()
 		}
 	}
-	return signalmeow.DownloadAttachmentWithPointer(ctx, att, plaintextHash)
+	return signalmeow.DownloadAttachmentWithPointer(ctx, att, plaintextHash, into)
 }
 
 func (mc *MessageConverter) reuploadAttachment(ctx context.Context, att *signalpb.AttachmentPointer, attMap AttachmentMap) (*bridgev2.ConvertedMessagePart, error) {
-	fileName := att.GetFileName()
 	content := &event.MessageEventContent{
+		Body: att.GetFileName(),
 		Info: &event.FileInfo{
-			Width:  int(att.GetWidth()),
-			Height: int(att.GetHeight()),
-			Size:   int(att.GetSize()),
+			MimeType: att.GetContentType(),
+			Width:    int(att.GetWidth()),
+			Height:   int(att.GetHeight()),
+			Size:     int(att.GetSize()),
 		},
 	}
-	mimeType := att.GetContentType()
 	if err := checkIfAttachmentExists(att, attMap); err != nil {
 		return nil, err
 	} else if mc.DirectMedia {
@@ -556,25 +561,7 @@ func (mc *MessageConverter) reuploadAttachment(ctx context.Context, att *signalp
 		}
 		content.URL, err = mc.Bridge.Matrix.GenerateContentURI(ctx, mediaID)
 	} else {
-		data, err := mc.downloadAttachment(ctx, att, attMap)
-		if err != nil {
-			return nil, err
-		}
-		if mimeType == "" {
-			mimeType = http.DetectContentType(data)
-		}
-		if att.GetFlags()&uint32(signalpb.AttachmentPointer_VOICE_MESSAGE) != 0 && ffmpeg.Supported() {
-			data, err = ffmpeg.ConvertBytes(ctx, data, ".ogg", []string{}, []string{"-c:a", "libopus"}, mimeType)
-			if err != nil {
-				return nil, fmt.Errorf("failed to convert audio to ogg/opus: %w", err)
-			}
-			fileName += ".ogg"
-			mimeType = "audio/ogg"
-			content.MSC3245Voice = &event.MSC3245Voice{}
-			// TODO include duration here (and in info) if there's some easy way to extract it with ffmpeg
-			//content.MSC1767Audio = &event.MSC1767Audio{}
-		}
-		content.URL, content.File, err = getIntent(ctx).UploadMedia(ctx, getPortal(ctx).MXID, data, fileName, mimeType)
+		err = mc.actuallyReuploadAttachment(ctx, content, att, attMap)
 		if err != nil {
 			return nil, err
 		}
@@ -583,7 +570,7 @@ func (mc *MessageConverter) reuploadAttachment(ctx context.Context, att *signalp
 		content.Info.Blurhash = att.GetBlurHash()
 		content.Info.AnoaBlurhash = att.GetBlurHash()
 	}
-	switch strings.Split(mimeType, "/")[0] {
+	switch strings.Split(content.Info.MimeType, "/")[0] {
 	case "image":
 		content.MsgType = event.MsgImage
 	case "video":
@@ -605,16 +592,71 @@ func (mc *MessageConverter) reuploadAttachment(ctx context.Context, att *signalp
 			},
 		}
 	}
-	content.Body = fileName
-	content.Info.MimeType = mimeType
 	if content.Body == "" {
-		content.Body = strings.TrimPrefix(string(content.MsgType), "m.") + exmime.ExtensionFromMimetype(mimeType)
+		content.Body = strings.TrimPrefix(string(content.MsgType), "m.") + exmime.ExtensionFromMimetype(content.Info.MimeType)
 	}
 	return &bridgev2.ConvertedMessagePart{
 		Type:    event.EventMessage,
 		Content: content,
 		Extra:   extra,
 	}, nil
+}
+
+func (mc *MessageConverter) actuallyReuploadAttachment(
+	ctx context.Context,
+	content *event.MessageEventContent,
+	att *signalpb.AttachmentPointer,
+	attMap AttachmentMap,
+) (err error) {
+	convertVoice := att.GetFlags()&uint32(signalpb.AttachmentPointer_VOICE_MESSAGE) != 0 && ffmpeg.Supported()
+	requireFile := convertVoice
+	content.URL, content.File, err = getIntent(ctx).UploadMediaStream(ctx, getPortal(ctx).MXID, int64(att.GetSize()), requireFile, func(file io.Writer) (*bridgev2.FileStreamResult, error) {
+		osFile, ok := file.(*os.File)
+		inMemData, err := mc.downloadAttachment(ctx, att, attMap, osFile)
+		if err != nil {
+			return nil, err
+		} else if !ok {
+			if content.Info.MimeType == "" {
+				content.Info.MimeType = http.DetectContentType(inMemData)
+			}
+			_, err = file.Write(inMemData)
+			return &bridgev2.FileStreamResult{
+				FileName: content.Body,
+				MimeType: content.Info.MimeType,
+			}, err
+		}
+		if content.Info.MimeType == "" {
+			header := make([]byte, 512)
+			_, err = osFile.ReadAt(header, 0)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read file header for MIME type detection: %w", err)
+			} else {
+				content.Info.MimeType = http.DetectContentType(header)
+			}
+		}
+		var replFile string
+		if att.GetFlags()&uint32(signalpb.AttachmentPointer_VOICE_MESSAGE) != 0 && ffmpeg.Supported() {
+			replFile, err = ffmpeg.ConvertPath(ctx, osFile.Name(), ".ogg", []string{}, []string{"-c:a", "libopus"}, true)
+			if err != nil {
+				return nil, fmt.Errorf("failed to convert audio to ogg/opus: %w", err)
+			}
+			if content.Body == "" {
+				content.Body = "Voice message.ogg"
+			} else {
+				content.Body += ".ogg"
+			}
+			content.Info.MimeType = "audio/ogg"
+			content.MSC3245Voice = &event.MSC3245Voice{}
+			// TODO include duration here (and in info) if there's some easy way to extract it with ffmpeg
+			//content.MSC1767Audio = &event.MSC1767Audio{}
+		}
+		return &bridgev2.FileStreamResult{
+			ReplacementFile: replFile,
+			FileName:        content.Body,
+			MimeType:        content.Info.MimeType,
+		}, nil
+	})
+	return
 }
 
 func (mc *MessageConverter) convertPollCreateToMatrix(create *signalpb.DataMessage_PollCreate) *bridgev2.ConvertedMessagePart {

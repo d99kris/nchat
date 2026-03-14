@@ -18,7 +18,10 @@ package signalmeow
 
 import (
 	_ "embed"
+	"errors"
+	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"go.mau.fi/util/exerrors"
 
@@ -75,4 +78,29 @@ var prodServerPublicParams *libsignalgo.ServerPublicParams
 
 func init() {
 	prodServerPublicParams = exerrors.Must(libsignalgo.DeserializeServerPublicParams(prodServerPublicParamsSlice))
+}
+
+var ErrEmptyUUIDInput = errors.New("both input variables are empty")
+
+func ParseStringOrBinaryServiceID(str string, bytes []byte) (libsignalgo.ServiceID, error) {
+	if str != "" {
+		return libsignalgo.ServiceIDFromString(str)
+	}
+	if bytes != nil {
+		return libsignalgo.ServiceIDFromBytes(bytes)
+	}
+	return libsignalgo.EmptyServiceID, ErrEmptyUUIDInput
+}
+
+func ParseStringOrBinaryUUID(str string, bytes []byte) (uuid.UUID, error) {
+	if str != "" {
+		return uuid.Parse(str)
+	}
+	if bytes != nil {
+		if len(bytes) != 16 {
+			return uuid.Nil, fmt.Errorf("invalid UUID length %d (expected 16)", len(bytes))
+		}
+		return uuid.UUID(bytes), nil
+	}
+	return uuid.Nil, ErrEmptyUUIDInput
 }

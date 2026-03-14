@@ -60,9 +60,9 @@ func (mc *MessageConverter) ToSignal(
 		authorACI, messageID, err := signalid.ParseMessageID(replyTo.ID)
 		if err == nil {
 			dm.Quote = &signalpb.DataMessage_Quote{
-				Id:        proto.Uint64(messageID),
-				AuthorAci: proto.String(authorACI.String()),
-				Type:      signalpb.DataMessage_Quote_NORMAL.Enum(),
+				Id:              proto.Uint64(messageID),
+				AuthorAciBinary: authorACI[:],
+				Type:            signalpb.DataMessage_Quote_NORMAL.Enum(),
 			}
 			if replyTo.Metadata.(*signalid.MessageMetadata).ContainsAttachments {
 				dm.Quote.Attachments = make([]*signalpb.DataMessage_Quote_QuotedAttachment, 1)

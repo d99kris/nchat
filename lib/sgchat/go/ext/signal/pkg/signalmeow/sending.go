@@ -306,8 +306,8 @@ func syncMessageFromGroupDataMessage(dataMessage *signalpb.DataMessage, results 
 	unidentifiedStatuses := []*signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{}
 	for _, result := range results {
 		unidentifiedStatuses = append(unidentifiedStatuses, &signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{
-			DestinationServiceId: proto.String(result.Recipient.String()),
-			Unidentified:         &result.Unidentified,
+			DestinationServiceIdBinary: result.Recipient.Bytes(),
+			Unidentified:               &result.Unidentified,
 		})
 	}
 	return &signalpb.Content{
@@ -325,8 +325,8 @@ func syncMessageFromGroupEditMessage(editMessage *signalpb.EditMessage, results 
 	unidentifiedStatuses := []*signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{}
 	for _, result := range results {
 		unidentifiedStatuses = append(unidentifiedStatuses, &signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{
-			DestinationServiceId: proto.String(result.Recipient.String()),
-			Unidentified:         &result.Unidentified,
+			DestinationServiceIdBinary: result.Recipient.Bytes(),
+			Unidentified:               &result.Unidentified,
 		})
 	}
 	return &signalpb.Content{
@@ -345,16 +345,16 @@ func syncMessageFromSoloDataMessage(dataMessage *signalpb.DataMessage, result Su
 	return &signalpb.Content{
 		SyncMessage: &signalpb.SyncMessage{
 			Sent: &signalpb.SyncMessage_Sent{
-				Message:                  dataMessage,
-				DestinationE164:          result.RecipientE164,
-				DestinationServiceId:     proto.String(result.Recipient.String()),
-				Timestamp:                dataMessage.Timestamp,
-				ExpirationStartTimestamp: ptr.Ptr(uint64(time.Now().UnixMilli())),
+				Message:                    dataMessage,
+				DestinationE164:            result.RecipientE164,
+				DestinationServiceIdBinary: result.Recipient.Bytes(),
+				Timestamp:                  dataMessage.Timestamp,
+				ExpirationStartTimestamp:   ptr.Ptr(uint64(time.Now().UnixMilli())),
 				UnidentifiedStatus: []*signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{
 					{
-						DestinationServiceId:      proto.String(result.Recipient.String()),
-						Unidentified:              &result.Unidentified,
-						DestinationPniIdentityKey: result.DestinationPNIIdentityKey.TrySerialize(),
+						DestinationServiceIdBinary: result.Recipient.Bytes(),
+						Unidentified:               &result.Unidentified,
+						DestinationPniIdentityKey:  result.DestinationPNIIdentityKey.TrySerialize(),
 					},
 				},
 			},
@@ -366,16 +366,16 @@ func syncMessageFromSoloEditMessage(editMessage *signalpb.EditMessage, result Su
 	return &signalpb.Content{
 		SyncMessage: &signalpb.SyncMessage{
 			Sent: &signalpb.SyncMessage_Sent{
-				EditMessage:              editMessage,
-				DestinationE164:          result.RecipientE164,
-				DestinationServiceId:     proto.String(result.Recipient.String()),
-				Timestamp:                editMessage.DataMessage.Timestamp,
-				ExpirationStartTimestamp: ptr.Ptr(uint64(time.Now().UnixMilli())),
+				EditMessage:                editMessage,
+				DestinationE164:            result.RecipientE164,
+				DestinationServiceIdBinary: result.Recipient.Bytes(),
+				Timestamp:                  editMessage.DataMessage.Timestamp,
+				ExpirationStartTimestamp:   ptr.Ptr(uint64(time.Now().UnixMilli())),
 				UnidentifiedStatus: []*signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{
 					{
-						DestinationServiceId:      proto.String(result.Recipient.String()),
-						Unidentified:              &result.Unidentified,
-						DestinationPniIdentityKey: result.DestinationPNIIdentityKey.TrySerialize(),
+						DestinationServiceIdBinary: result.Recipient.Bytes(),
+						Unidentified:               &result.Unidentified,
+						DestinationPniIdentityKey:  result.DestinationPNIIdentityKey.TrySerialize(),
 					},
 				},
 			},

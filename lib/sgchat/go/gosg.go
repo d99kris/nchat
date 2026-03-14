@@ -44,7 +44,7 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
-var signalDate int = 20260216
+var signalDate int = 20260309
 
 type State int64
 
@@ -323,7 +323,7 @@ func DownloadFromFileId(connId int, fileId string) (string, int) {
 			attachmentPointer.AttachmentIdentifier = &signalpb.AttachmentPointer_CdnKey{CdnKey: info.CdnKey}
 		}
 
-		data, err := signalmeow.DownloadAttachmentWithPointer(ctx, attachmentPointer, info.PlaintextHash)
+		data, err := signalmeow.DownloadAttachmentWithPointer(ctx, attachmentPointer, info.PlaintextHash, nil)
 		if err != nil {
 			LOG_WARNING(fmt.Sprintf("download error %#v", err))
 			fileStatus = FileStatusDownloadFailed

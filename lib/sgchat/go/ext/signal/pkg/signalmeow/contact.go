@@ -36,7 +36,7 @@ import (
 )
 
 func (cli *Client) StoreContactDetailsAsContact(ctx context.Context, contactDetails *signalpb.ContactDetails, avatar *[]byte) (*types.Recipient, error) {
-	parsedUUID, err := uuid.Parse(contactDetails.GetAci())
+	parsedUUID, err := ParseStringOrBinaryUUID(contactDetails.GetAci(), contactDetails.GetAciBinary())
 	if err != nil {
 		return nil, err
 	}

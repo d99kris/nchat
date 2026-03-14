@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"os"
 
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/networkid"
@@ -41,18 +42,15 @@ func (s *SignalConnector) Download(ctx context.Context, mediaID networkid.MediaI
 			Uint32("size", info.Size).
 			Msg("Direct downloading attachment")
 
-		return &mediaproxy.GetMediaResponseCallback{
-			Callback: func(w io.Writer) (int64, error) {
-				data, err := signalmeow.DownloadAttachment(
-					ctx, info.CDNID, info.CDNKey, info.CDNNumber, info.Key, info.Digest, info.PlaintextDigest, info.Size,
+		return &mediaproxy.GetMediaResponseFile{
+			Callback: func(w *os.File) (*mediaproxy.FileMeta, error) {
+				_, err := signalmeow.DownloadAttachment(
+					ctx, info.CDNID, info.CDNKey, info.CDNNumber, info.Key, info.Digest, info.PlaintextDigest, info.Size, w,
 				)
 				if err != nil {
-					log.Err(err).Msg("Direct download failed")
-					return 0, err
+					return nil, err
 				}
-
-				_, err = w.Write(data)
-				return int64(info.Size), err
+				return &mediaproxy.FileMeta{}, nil
 			},
 		}, nil
 	case *signalid.DirectMediaGroupAvatar:

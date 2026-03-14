@@ -248,11 +248,7 @@ func backupToSignalBodyRange(from *backuppb.BodyRange) *signalpb.BodyRange {
 	out.Length = &from.Length
 	switch av := from.AssociatedValue.(type) {
 	case *backuppb.BodyRange_MentionAci:
-		// TODO confirm this is correct
-		if len(av.MentionAci) != 16 {
-			return nil
-		}
-		out.AssociatedValue = &signalpb.BodyRange_MentionAci{MentionAci: uuid.UUID(av.MentionAci).String()}
+		out.AssociatedValue = &signalpb.BodyRange_MentionAciBinary{MentionAciBinary: av.MentionAci}
 	case *backuppb.BodyRange_Style_:
 		out.AssociatedValue = &signalpb.BodyRange_Style_{Style: signalpb.BodyRange_Style(av.Style)}
 	}

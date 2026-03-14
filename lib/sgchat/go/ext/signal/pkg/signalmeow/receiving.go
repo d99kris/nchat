@@ -361,17 +361,21 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		Uint64("server_timestamp", envelope.GetServerTimestamp()).
 		Logger()
 	ctx = log.WithContext(ctx)
-	destinationServiceID, err := libsignalgo.ServiceIDFromString(envelope.GetDestinationServiceId())
+	destinationServiceID, _ := ParseStringOrBinaryServiceID(envelope.GetDestinationServiceId(), envelope.GetDestinationServiceIdBinary())
+	sourceServiceID, _ := ParseStringOrBinaryServiceID(envelope.GetSourceServiceId(), envelope.GetSourceServiceIdBinary())
 	log.Debug().
 		Str("destination_service_id", envelope.GetDestinationServiceId()).
 		Str("source_service_id", envelope.GetSourceServiceId()).
+		Hex("destination_service_id_bytes", envelope.GetDestinationServiceIdBinary()).
+		Hex("source_service_id_bytes", envelope.GetSourceServiceIdBinary()).
 		Uint32("source_device_id", envelope.GetSourceDevice()).
 		Object("parsed_destination_service_id", destinationServiceID).
+		Object("parsed_source_service_id", sourceServiceID).
 		Int32("envelope_type_id", int32(envelope.GetType())).
 		Str("envelope_type", signalpb.Envelope_Type_name[int32(envelope.GetType())]).
 		Msg("Received envelope")
 
-	result := cli.decryptEnvelope(ctx, envelope)
+	result := cli.decryptEnvelope(ctx, envelope, sourceServiceID, destinationServiceID)
 
 	err = cli.handleDecryptedResult(ctx, result, envelope, destinationServiceID)
 	if err != nil {
@@ -710,37 +714,39 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 	}
 	syncSent := msg.GetSent()
 	if syncSent.GetMessage() != nil || syncSent.GetEditMessage() != nil {
-		destination := syncSent.DestinationServiceId
-		var syncDestinationServiceID libsignalgo.ServiceID
-		if destination != nil {
-			var err error
-			syncDestinationServiceID, err = libsignalgo.ServiceIDFromString(*destination)
+		syncDestinationServiceID, err := ParseStringOrBinaryServiceID(syncSent.GetDestinationServiceId(), syncSent.GetDestinationServiceIdBinary())
+		if err != nil && !errors.Is(err, ErrEmptyUUIDInput) {
+			log.Err(err).Msg("Sync message destination parse error")
+		}
+		if syncSent.GetDestinationE164() != "" && !syncDestinationServiceID.IsEmpty() {
+			aci, pni := syncDestinationServiceID.ToACIAndPNI()
+			_, err = cli.Store.RecipientStore.UpdateRecipientE164(ctx, aci, pni, syncSent.GetDestinationE164())
 			if err != nil {
-				log.Err(err).Msg("Sync message destination parse error")
-				return
-			}
-			if syncSent.GetDestinationE164() != "" {
-				aci, pni := syncDestinationServiceID.ToACIAndPNI()
-				_, err = cli.Store.RecipientStore.UpdateRecipientE164(ctx, aci, pni, syncSent.GetDestinationE164())
-				if err != nil {
-					log.Err(err).Msg("Failed to update recipient E164 after receiving sync message")
-				}
+				log.Err(err).Msg("Failed to update recipient E164 after receiving sync message")
 			}
 		}
 		for _, unident := range syncSent.GetUnidentifiedStatus() {
-			changed, err := cli.saveSyncPNIIdentityKey(ctx, unident.GetDestinationServiceId(), unident.GetDestinationPniIdentityKey())
+			serviceID, err := ParseStringOrBinaryServiceID(unident.GetDestinationServiceId(), unident.GetDestinationServiceIdBinary())
 			if err != nil {
 				log.Err(err).
 					Str("destination_service_id", unident.GetDestinationServiceId()).
+					Hex("destination_service_id_bytes", unident.GetDestinationServiceIdBinary()).
+					Msg("Failed to parse destination service ID of unidentified send")
+				continue
+			}
+			changed, err := cli.saveSyncPNIIdentityKey(ctx, serviceID, unident.GetDestinationPniIdentityKey())
+			if err != nil {
+				log.Err(err).
+					Stringer("destination_service_id", serviceID).
 					Msg("Failed to save PNI identity key from sync message")
 			} else if changed {
 				log.Debug().
-					Str("destination_service_id", unident.GetDestinationServiceId()).
+					Stringer("destination_service_id", serviceID).
 					Msg("Saved new PNI identity key from sync message")
 			}
 		}
 
-		if destination == nil && syncSent.GetMessage().GetGroupV2() == nil && syncSent.GetEditMessage().GetDataMessage().GetGroupV2() == nil {
+		if syncDestinationServiceID.IsEmpty() && syncSent.GetMessage().GetGroupV2() == nil && syncSent.GetEditMessage().GetDataMessage().GetGroupV2() == nil {
 			log.Warn().Msg("sync message sent destination is nil")
 		} else if msg.Sent.Message != nil {
 			// TODO handle expiration start ts, and maybe the sync message ts?
@@ -753,7 +759,8 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 		log.Debug().Msg("Recieved sync message contacts")
 		blob := msg.Contacts.Blob
 		if blob != nil {
-			contactsBytes, err := DownloadAttachmentWithPointer(ctx, blob, nil)
+			// TODO roundtrip via disk to save memory
+			contactsBytes, err := DownloadAttachmentWithPointer(ctx, blob, nil, nil)
 			if err != nil {
 				log.Err(err).Msg("Contacts Sync DownloadAttachment error")
 			}
@@ -803,7 +810,7 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 		})
 	}
 	if msg.MessageRequestResponse != nil {
-		aciUUID, _ := uuid.Parse(msg.MessageRequestResponse.GetThreadAci())
+		aciUUID, _ := ParseStringOrBinaryUUID(msg.MessageRequestResponse.GetThreadAci(), msg.MessageRequestResponse.GetThreadAciBinary())
 		if aciUUID != uuid.Nil && msg.MessageRequestResponse.GetType() == signalpb.SyncMessage_MessageRequestResponse_ACCEPT {
 			_, err := cli.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aciUUID, uuid.Nil, func(recipient *types.Recipient) (changed bool, err error) {
 				changed = !ptr.Val(recipient.Whitelisted) || recipient.NeedsPNISignature
@@ -830,19 +837,13 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 	return
 }
 
-func (cli *Client) saveSyncPNIIdentityKey(ctx context.Context, serviceIDString string, identityKeyBytes []byte) (bool, error) {
-	if identityKeyBytes == nil {
+func (cli *Client) saveSyncPNIIdentityKey(ctx context.Context, serviceID libsignalgo.ServiceID, identityKeyBytes []byte) (bool, error) {
+	if identityKeyBytes == nil || serviceID.Type != libsignalgo.ServiceIDTypePNI {
 		return false, nil
 	}
 	identityKey, err := libsignalgo.DeserializeIdentityKey(identityKeyBytes)
 	if err != nil {
 		return false, fmt.Errorf("failed to deserialize PNI identity key: %w", err)
-	}
-	serviceID, err := libsignalgo.ServiceIDFromString(serviceIDString)
-	if err != nil {
-		return false, fmt.Errorf("failed to parse PNI service ID: %w", err)
-	} else if serviceID.Type != libsignalgo.ServiceIDTypePNI {
-		return false, nil
 	}
 	changed, err := cli.Store.IdentityKeyStore.SaveIdentityKey(ctx, serviceID, identityKey)
 	if err != nil {

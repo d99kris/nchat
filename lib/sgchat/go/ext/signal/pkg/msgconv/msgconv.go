@@ -78,7 +78,7 @@ func NewMessageConverter(br *bridgev2.Bridge) *MessageConverter {
 			GetUUIDFromMXID: func(ctx context.Context, userID id.UserID) uuid.UUID {
 				parsed, ok := br.Matrix.ParseGhostMXID(userID)
 				if ok {
-					u, _ := uuid.Parse(string(parsed))
+					u, _ := signalid.ParseUserID(parsed)
 					return u
 				}
 				user, _ := br.GetExistingUserByMXID(ctx, userID)
@@ -86,7 +86,7 @@ func NewMessageConverter(br *bridgev2.Bridge) *MessageConverter {
 				if user != nil {
 					preferredLogin, _, _ := getPortal(ctx).FindPreferredLogin(ctx, user, true)
 					if preferredLogin != nil {
-						u, _ := uuid.Parse(string(preferredLogin.ID))
+						u, _ := signalid.ParseUserLoginID(preferredLogin.ID)
 						return u
 					}
 				}

@@ -75,7 +75,7 @@ func (qr *QRLogin) Start(ctx context.Context) (*bridgev2.LoginStep, error) {
 		Str("action", "login").
 		Stringer("user_id", qr.User.MXID).
 		Logger()
-	provCtx, cancel := context.WithCancel(log.WithContext(context.Background()))
+	provCtx, cancel := context.WithCancel(log.WithContext(qr.Main.Bridge.BackgroundCtx))
 	qr.cancelChan = cancel
 	// Don't use the start context here: the channel will outlive the start request.
 	qr.ProvChan = signalmeow.PerformProvisioning(

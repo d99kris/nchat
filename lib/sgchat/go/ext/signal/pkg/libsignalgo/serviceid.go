@@ -87,6 +87,9 @@ func (s ServiceID) IsEmpty() bool {
 }
 
 func (s ServiceID) Address(deviceID uint) (*Address, error) {
+	if s.IsEmpty() {
+		return nil, fmt.Errorf("cannot create address from empty ServiceID")
+	}
 	return newAddress(s.String(), deviceID)
 }
 
@@ -156,6 +159,18 @@ func ServiceIDFromString(val string) (ServiceID, error) {
 		}
 		return NewACIServiceID(parsed), nil
 	}
+}
+
+func ServiceIDFromBytes(bytes []byte) (ServiceID, error) {
+	if len(bytes) == 16 {
+		return NewACIServiceID(uuid.UUID(bytes)), nil
+	} else if len(bytes) == 17 {
+		return ServiceID{
+			Type: ServiceIDType(bytes[0]),
+			UUID: uuid.UUID(bytes[1:]),
+		}, nil
+	}
+	return EmptyServiceID, fmt.Errorf("invalid ServiceID byte length: %d (expected 16 or 17)", len(bytes))
 }
 
 func ServiceIDFromCFixedBytes(serviceID *C.SignalServiceIdFixedWidthBinaryBytes) ServiceID {
