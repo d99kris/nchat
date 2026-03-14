@@ -45,6 +45,8 @@ add_library(ncutil ${LIBRARY_LINKING_TYPE}
   src/emojiutil_view.h
   src/fileutil.cpp
   src/fileutil.h
+  src/guiutil.cpp
+  src/guiutil.h
   src/log.cpp
   src/log.h
   src/messagecache.cpp
@@ -57,6 +59,9 @@ add_library(ncutil ${LIBRARY_LINKING_TYPE}
   src/profiles.h
   src/protocolutil.cpp
   src/protocolutil.h
+  src/qrutil.cpp
+  src/qrutil.h
+  ext/QR-Code-generator/cpp/qrcodegen.cpp
   src/scopeddirlock.cpp
   src/scopeddirlock.h
   src/serialization.h
@@ -95,6 +100,9 @@ else()
   message(STATUS "Clipboard: Text")
 endif()
 
+# External source warning suppression
+set_source_files_properties(ext/QR-Code-generator/cpp/qrcodegen.cpp PROPERTIES COMPILE_FLAGS "-w")
+
 # Dependency clip
 add_subdirectory(ext/clip)
 
@@ -108,6 +116,8 @@ target_include_directories(ncutil PRIVATE "ext/apathy")
 target_include_directories(ncutil PRIVATE "ext/sqlite_modern_cpp/hdr")
 target_include_directories(ncutil PRIVATE "ext/clip")
 target_include_directories(ncutil PRIVATE "ext/cereal/include")
+target_include_directories(ncutil PRIVATE "ext/QR-Code-generator/cpp")
+target_include_directories(ncutil PRIVATE "ext/stb")
 
 # Compiler flags
 set_target_properties(ncutil PROPERTIES COMPILE_FLAGS
