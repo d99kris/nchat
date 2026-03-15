@@ -10,6 +10,8 @@
 #include <algorithm>
 
 #include <ncurses.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
 
 #include "appconfig.h"
 #include "messagecache.h"
@@ -81,6 +83,38 @@ void UiModel::Impl::TerminalResize()
 {
   SetHelpOffset(0);
   ReinitView();
+}
+
+void UiModel::Impl::TerminalControlPause()
+{
+  m_TermLines = LINES;
+  m_TermCols = COLS;
+  printf("\033[?1004l"); // disable terminal focus in/out event
+  fflush(stdout);
+  endwin();
+}
+
+void UiModel::Impl::TerminalControlResume()
+{
+  refresh();
+  printf("\033[?1004h"); // enable terminal focus in/out event
+  fflush(stdout);
+  wint_t key = 0;
+  while (UiKeyInput::GetWch(&key) != ERR)
+  {
+    // Discard any remaining input
+  }
+
+  // check if terminal was resized while controlled by external program
+  struct winsize ws;
+  if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0)
+  {
+    if (ws.ws_row != m_TermLines || ws.ws_col != m_TermCols)
+    {
+      resizeterm(ws.ws_row, ws.ws_col);
+      TerminalResize();
+    }
+  }
 }
 
 void UiModel::Impl::OnKeyDecreaseListWidth()
@@ -1007,7 +1041,7 @@ void UiModel::Impl::OnKeyOpenMsg()
   const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
   const ChatMessage& chatMessage = messages.at(messageId);
 
-  endwin();
+  TerminalControlPause();
   std::string tempPath = FileUtil::GetTempDir() + "/view.txt";
   FileUtil::WriteFile(tempPath, chatMessage.text);
 
@@ -1024,12 +1058,7 @@ void UiModel::Impl::OnKeyOpenMsg()
   }
 
   FileUtil::RmFile(tempPath);
-  refresh();
-  wint_t key = 0;
-  while (UiKeyInput::GetWch(&key) != ERR)
-  {
-    // Discard any remaining input
-  }
+  TerminalControlResume();
 }
 
 bool UiModel::Impl::GetMessageAttachmentPath(std::string& p_FilePath, DownloadFileAction p_DownloadFileAction)
@@ -1156,7 +1185,7 @@ void UiModel::Impl::RunProgram(const std::string& p_Cmd)
 
   if (!isBackground)
   {
-    endwin();
+    TerminalControlPause();
   }
 
   // run command
@@ -1169,12 +1198,7 @@ void UiModel::Impl::RunProgram(const std::string& p_Cmd)
 
   if (!isBackground)
   {
-    refresh();
-    wint_t key = 0;
-    while (UiKeyInput::GetWch(&key) != ERR)
-    {
-      // Discard any remaining input
-    }
+    TerminalControlResume();
   }
 }
 
@@ -3582,7 +3606,7 @@ void UiModel::Impl::CallExternalEdit(const std::string& p_EditorCmd)
   std::wstring& entryStr = m_EntryStr[profileId][chatId];
   int& entryPos = m_EntryPos[profileId][chatId];
 
-  endwin();
+  TerminalControlPause();
   std::string tempPath = FileUtil::GetTempDir() + "/compose.txt";
   std::string composeStr = StrUtil::ToString(entryStr);
   FileUtil::WriteFile(tempPath, composeStr);
@@ -3609,13 +3633,7 @@ void UiModel::Impl::CallExternalEdit(const std::string& p_EditorCmd)
   }
 
   FileUtil::RmFile(tempPath);
-  refresh();
-  wint_t key = 0;
-  while (UiKeyInput::GetWch(&key) != ERR)
-  {
-    // Discard any remaining input
-  }
-
+  TerminalControlResume();
   UpdateEntry();
 }
 
@@ -4946,7 +4964,10 @@ std::vector<std::string> UiModel::SelectFile()
   static const std::string filePickerCommand = UiConfig::GetStr("file_picker_command");
   if (!filePickerCommand.empty())
   {
-    endwin();
+    {
+      std::unique_lock<owned_mutex> lock(m_ModelMutex);
+      GetImpl().TerminalControlPause();
+    }
     std::string outPath = FileUtil::GetTempDir() + "/filepicker.txt";
     std::string cmd = "2>&1 " + filePickerCommand;
     StrUtil::ReplaceString(cmd, "%1", outPath);
@@ -4972,11 +4993,9 @@ std::vector<std::string> UiModel::SelectFile()
 
     FileUtil::RmFile(outPath);
 
-    refresh();
-    wint_t key = 0;
-    while (UiKeyInput::GetWch(&key) != ERR)
     {
-      // Discard any remaining input
+      std::unique_lock<owned_mutex> lock(m_ModelMutex);
+      GetImpl().TerminalControlResume();
     }
   }
   else

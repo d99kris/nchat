@@ -159,6 +159,8 @@ private:
 
     void Draw();
     void ReinitView();
+    void TerminalControlPause();
+    void TerminalControlResume();
 
     void OnKeyQuit();
     void OnKeyExtEdit();
@@ -232,6 +234,8 @@ private:
   private:
     bool m_Running = true;
     std::shared_ptr<UiView> m_View;
+    int m_TermLines = 0;
+    int m_TermCols = 0;
 
     std::unordered_map<std::string, std::shared_ptr<Protocol>> m_Protocols;
 
