@@ -7,8 +7,10 @@
 
 #include "sysutil.h"
 
+#include <cerrno>
 #include <sstream>
 
+#include <signal.h>
 #include <unistd.h>
 
 #include <sys/wait.h>
@@ -161,15 +163,52 @@ int SysUtil::System(const std::string& p_Cmd)
   static const std::string shPath = "/bin/sh";
 #endif
 
+  // Block SIGCHLD and ignore SIGINT/SIGQUIT in parent per POSIX system() spec
+  struct sigaction saIgnore;
+  struct sigaction saOrigInt;
+  struct sigaction saOrigQuit;
+  saIgnore.sa_handler = SIG_IGN;
+  sigemptyset(&saIgnore.sa_mask);
+  saIgnore.sa_flags = 0;
+  sigaction(SIGINT, &saIgnore, &saOrigInt);
+  sigaction(SIGQUIT, &saIgnore, &saOrigQuit);
+
+  sigset_t blockChld;
+  sigset_t origMask;
+  sigemptyset(&blockChld);
+  sigaddset(&blockChld, SIGCHLD);
+  sigprocmask(SIG_BLOCK, &blockChld, &origMask);
+
   pid_t pid = fork();
   if (pid == 0)
   {
+    // Child: restore original signal dispositions and mask
+    sigaction(SIGINT, &saOrigInt, nullptr);
+    sigaction(SIGQUIT, &saOrigQuit, nullptr);
+    sigprocmask(SIG_SETMASK, &origMask, nullptr);
+
     execl(shPath.c_str(), "sh", "-c", p_Cmd.c_str(), (char*)nullptr);
     _exit(127);
   }
 
-  if (pid < 0) return -1;
+  int status = -1;
+  if (pid > 0)
+  {
+    // Retry waitpid on EINTR (e.g. from SIGWINCH during terminal resize)
+    while (waitpid(pid, &status, 0) < 0)
+    {
+      if (errno != EINTR)
+      {
+        status = -1;
+        break;
+      }
+    }
+  }
 
-  int status = 0;
-  return (waitpid(pid, &status, 0) < 0) ? -1 : status;
+  // Restore original signal dispositions and mask
+  sigaction(SIGINT, &saOrigInt, nullptr);
+  sigaction(SIGQUIT, &saOrigQuit, nullptr);
+  sigprocmask(SIG_SETMASK, &origMask, nullptr);
+
+  return status;
 }
