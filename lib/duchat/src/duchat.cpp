@@ -263,9 +263,13 @@ void DuChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
           { "No Space",
             "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"
             "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz" },
-          { "Emoji",
+          { "Emoji 🌍",
             "📃📃📃📃📃 📃📃📃📃📃. 📃📃📃📃📃 📃📃📃📃📃. 📃📃📃📃📃 📃📃📃📃📃. "
             "📃📃📃📃📃 📃📃📃📃📃. 📃📃📃📃📃 📃📃📃📃📃." },
+          { "Emoji ❤️",
+            "👍😊😘😄😅😔😂🎉🙂❤💪🙏🔔🤗👌😮🤔😱👼😍😻😢😬😋🍺😁😛🤞🤣😴😎🍻🖤😇"
+            "🤓😝😜😓🪥🎂🥣🎄🥶🌍💚🥪⛈📘🚙💼👏🔐😰🥟😳🍔🎧🗾🍋📝👱🛟😆🐍💬☎📞❌ "
+            "💯🥇🥈🥉🎱🧮🛫⏰" },
         };
 
         static std::vector<std::pair<std::string, std::string>> groupMessages =
