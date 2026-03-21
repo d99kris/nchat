@@ -290,6 +290,7 @@ public:
   std::string chatId;
   std::string senderId; // only required for wmchat
   std::string msgId;
+  bool revoke = true;
 };
 
 class DeleteChatRequest : public RequestMessage
