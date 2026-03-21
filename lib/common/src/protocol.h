@@ -127,7 +127,7 @@ struct ContactInfo
 {
   std::string id;
   std::string name;
-  std::string phone;
+  std::string phone; // without leading '+' prefix (added by UI layer)
   bool isSelf = false;
   bool isAlias = false; // only used by wmchat
 };

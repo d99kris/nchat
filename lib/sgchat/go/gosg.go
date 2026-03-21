@@ -1580,7 +1580,7 @@ func (handler *SgEventHandler) handleContactList(evt *events.ContactList) bool {
 		if name == "" {
 			continue
 		}
-		phone := contact.E164
+		phone := strings.TrimPrefix(contact.E164, "+")
 		isSelf := false
 		isAlias := false
 
@@ -1591,7 +1591,7 @@ func (handler *SgEventHandler) handleContactList(evt *events.ContactList) bool {
 
 	// Add self as contact
 	selfName := "You"
-	selfPhone := device.Number
+	selfPhone := strings.TrimPrefix(device.Number, "+")
 	isSelf := BoolToInt(true)
 	isAlias := BoolToInt(false)
 	//notify = NotifySendCached
