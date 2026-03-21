@@ -1156,6 +1156,28 @@ func (handler *SgEventHandler) handleChatEvent(evt *events.ChatEvent) bool {
 	fromMe := (senderId == selfId)
 	timeSent := int(info.ServerTimestamp / 1000) // Convert ms to seconds
 
+	// Resolve chat name if not already known
+	if !HasContact(connId, chatId) {
+		ctx := context.TODO()
+		chatUUID := StringToUUID(chatId)
+		if chatUUID != uuid.Nil {
+			// 1:1 chat: fetch profile name
+			profile, err := client.RetrieveProfileByID(ctx, chatUUID, 0)
+			if err == nil && profile != nil && profile.Name != "" {
+				AddContactName(connId, chatId, profile.Name)
+				CSgNewContactsNotify(connId, chatId, profile.Name, "", BoolToInt(false), BoolToInt(false), NotifyDirect)
+			}
+		} else {
+			// Group chat: fetch group title
+			groupID := types.GroupIdentifier(chatId)
+			group, _, err := client.RetrieveGroupByID(ctx, groupID, 0)
+			if err == nil && group != nil && group.Title != "" {
+				AddContactName(connId, chatId, group.Title)
+				CSgNewContactsNotify(connId, chatId, group.Title, "", BoolToInt(false), BoolToInt(false), NotifyDirect)
+			}
+		}
+	}
+
 	switch content := evt.Event.(type) {
 	case *signalpb.DataMessage:
 		handler.handleDataMessage(chatId, senderId, fromMe, timeSent, content)
@@ -2146,15 +2168,16 @@ func SgGetMessages(connId int, chatId string, limit int, fromMsgId string, owner
 	device := GetDevice(connId)
 	selfACI := device.ACI
 
-	// Resolve chatId (UUID string) to backup store chat
+	// Resolve chatId to backup store chat (UUID for 1:1, GroupIdentifier for groups)
+	var backupChat *store.BackupChat
+	var err error
 	chatUUID := StringToUUID(chatId)
-	if chatUUID == uuid.Nil {
-		LOG_WARNING(fmt.Sprintf("invalid chat UUID: %s", chatId))
-		return -1
+	if chatUUID != uuid.Nil {
+		serviceID := libsignalgo.NewACIServiceID(chatUUID)
+		backupChat, err = client.Store.BackupStore.GetBackupChatByUserID(ctx, serviceID)
+	} else {
+		backupChat, err = client.Store.BackupStore.GetBackupChatByGroupID(ctx, types.GroupIdentifier(chatId))
 	}
-
-	serviceID := libsignalgo.NewACIServiceID(chatUUID)
-	backupChat, err := client.Store.BackupStore.GetBackupChatByUserID(ctx, serviceID)
 	if err != nil {
 		LOG_WARNING(fmt.Sprintf("get backup chat error: %v", err))
 		return -1
@@ -2679,6 +2702,13 @@ func SgGetChats(connId int) int {
 					if snapshot := dest.Group.GetSnapshot(); snapshot != nil {
 						if titleBlob := snapshot.GetTitle(); titleBlob != nil {
 							chatName = titleBlob.GetTitle()
+						}
+					}
+					// Fallback: fetch group name from server if not in snapshot
+					if chatName == "" {
+						group, _, grpErr := client.RetrieveGroupByID(ctx, groupID, 0)
+						if grpErr == nil && group != nil {
+							chatName = group.Title
 						}
 					}
 				default:
