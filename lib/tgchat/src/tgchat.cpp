@@ -345,7 +345,9 @@ bool TgChat::Impl::HasFeature(ProtocolFeature p_ProtocolFeature) const
     FeatureEditMessagesWithinTwoDays |
     FeatureLimitedReactions |
     FeatureMarkReadEveryView |
-    FeatureAutoGetContactsOnLogin;
+    FeatureAutoGetContactsOnLogin |
+    FeaturePinChat |
+    FeatureArchiveChat;
   return (p_ProtocolFeature & customFeatures);
 }
 

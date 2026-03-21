@@ -62,7 +62,9 @@ bool WmChat::HasFeature(ProtocolFeature p_ProtocolFeature) const
 {
   static int customFeatures =
     FeatureEditMessagesWithinFifteenMins |
-    FeatureAutoGetContactsOnLogin;
+    FeatureAutoGetContactsOnLogin |
+    FeaturePinChat |
+    FeatureArchiveChat;
   return (p_ProtocolFeature & customFeatures);
 }
 

@@ -1739,31 +1739,6 @@ func (handler *SgEventHandler) handleChatArchivedChanged(evt *events.ChatArchive
 
 	CSgUpdateArchivedNotify(connId, chatId, BoolToInt(isArchived))
 
-	// Persist archived state in backup store so it survives restarts
-	client := GetClient(connId)
-	if client != nil && client.Store.BackupStore != nil {
-		ctx := context.TODO()
-		var backupChat *store.BackupChat
-		var err error
-
-		parsedUUID, uuidErr := uuid.Parse(chatId)
-		if uuidErr == nil {
-			backupChat, err = client.Store.BackupStore.GetBackupChatByUserID(ctx, libsignalgo.NewACIServiceID(parsedUUID))
-		} else {
-			backupChat, err = client.Store.BackupStore.GetBackupChatByGroupID(ctx, types.GroupIdentifier(chatId))
-		}
-
-		if err != nil {
-			LOG_WARNING(fmt.Sprintf("get backup chat for %s error: %v", chatId, err))
-		} else if backupChat != nil {
-			backupChat.Archived = isArchived
-			err = client.Store.BackupStore.UpdateBackupChat(ctx, backupChat.Chat)
-			if err != nil {
-				LOG_WARNING(fmt.Sprintf("update backup chat archived for %s error: %v", chatId, err))
-			}
-		}
-	}
-
 	return true
 }
 
@@ -2619,6 +2594,7 @@ func SgGetChats(connId int) int {
 				}
 
 				var chatId string
+				var chatName string
 				switch dest := recipient.Destination.(type) {
 				case *backuppb.Recipient_Contact:
 					aciBytes := dest.Contact.GetAci()
@@ -2626,6 +2602,18 @@ func SgGetChats(connId int) int {
 						continue
 					}
 					chatId = UUIDToString(uuid.UUID(aciBytes))
+					// Resolve contact name: nickname > profile name > e164
+					if nick := dest.Contact.GetNickname(); nick != nil {
+						chatName = strings.TrimSpace(nick.GetGiven() + " " + nick.GetFamily())
+					}
+					if chatName == "" {
+						given := dest.Contact.GetProfileGivenName()
+						family := dest.Contact.GetProfileFamilyName()
+						chatName = strings.TrimSpace(given + " " + family)
+					}
+					if chatName == "" && dest.Contact.GetE164() != 0 {
+						chatName = fmt.Sprintf("+%d", dest.Contact.GetE164())
+					}
 				case *backuppb.Recipient_Self:
 					chatId = UUIDToString(selfACI)
 				case *backuppb.Recipient_Group:
@@ -2640,6 +2628,12 @@ func SgGetChats(connId int) int {
 						continue
 					}
 					chatId = string(groupID)
+					// Resolve group name from snapshot title
+					if snapshot := dest.Group.GetSnapshot(); snapshot != nil {
+						if titleBlob := snapshot.GetTitle(); titleBlob != nil {
+							chatName = titleBlob.GetTitle()
+						}
+					}
 				default:
 					continue
 				}
@@ -2648,41 +2642,38 @@ func SgGetChats(connId int) int {
 					continue
 				}
 
+				// Set name from backup data if not already known
+				if chatName != "" && !HasContact(connId, chatId) {
+					AddContactName(connId, chatId, chatName)
+					CSgNewContactsNotify(connId, chatId, chatName, "", BoolToInt(false), BoolToInt(false), NotifyDirect)
+				}
+
+				lastMessageTime := int(chat.LatestMessageID / 1000)
+				if lastMessageTime == 0 {
+					LOG_TRACE(fmt.Sprintf("Chat %s: skip (no timestamp)", chatId));
+					continue;
+				}
+
+				messageCount := chat.TotalMessages
+				if messageCount == 0 {
+					LOG_TRACE(fmt.Sprintf("Chat %s: skip (no messages)", chatId));
+					continue;
+				}
+
 				isUnread := BoolToInt(chat.GetMarkedUnread())
 				isMuted := 0
 				if chat.GetMuteUntilMs() > 0 {
 					isMuted = 1
 				}
+
 				isPinned := 0
 				if chat.GetPinnedOrder() > 0 {
 					isPinned = 1
 				}
-				lastMessageTime := int(chat.LatestMessageID / 1000)
 
 				isArchived := BoolToInt(chat.GetArchived())
-				LOG_TRACE(fmt.Sprintf("Chat %s: unread=%d muted=%d pinned=%d archived=%d time=%d", chatId, isUnread, isMuted, isPinned, isArchived, lastMessageTime))
+				LOG_TRACE(fmt.Sprintf("Chat %s: name=%q unread=%d muted=%d pinned=%d archived=%d time=%d", chatId, chatName, isUnread, isMuted, isPinned, isArchived, lastMessageTime))
 				CSgNewChatsNotify(connId, chatId, isUnread, isMuted, isPinned, isArchived, lastMessageTime)
-			}
-		}
-	}
-
-	// Fetch group names from server for all known groups
-	groupIDs, err := client.Store.GroupStore.AllGroupIdentifiers(ctx)
-	if err != nil {
-		LOG_WARNING(fmt.Sprintf("get all group identifiers error: %v", err))
-	} else {
-		LOG_DEBUG(fmt.Sprintf("got %d groups", len(groupIDs)))
-		for _, gid := range groupIDs {
-			group, _, err := client.RetrieveGroupByID(ctx, gid, 0)
-			if err != nil {
-				LOG_WARNING(fmt.Sprintf("retrieve group %s error: %v", gid, err))
-				continue
-			}
-			if group != nil && group.Title != "" {
-				chatId := string(gid)
-				LOG_TRACE(fmt.Sprintf("Group %s: %s", chatId, group.Title))
-				CSgNewContactsNotify(connId, chatId, group.Title, "", BoolToInt(false), BoolToInt(false), NotifyDirect)
-				AddContactName(connId, chatId, group.Title)
 			}
 		}
 	}
@@ -2973,48 +2964,11 @@ func SgArchiveChat(connId int, chatId string, isArchived int) int {
 	}
 
 	archived := isArchived != 0
-	ctx := context.TODO()
-
-	// Update local backup store
-	if client.Store.BackupStore != nil {
-		var backupChat *store.BackupChat
-		chatUUID := StringToUUID(chatId)
-		if chatUUID != uuid.Nil {
-			backupChat, _ = client.Store.BackupStore.GetBackupChatByUserID(ctx, libsignalgo.NewACIServiceID(chatUUID))
-		} else {
-			backupChat, _ = client.Store.BackupStore.GetBackupChatByGroupID(ctx, types.GroupIdentifier(chatId))
-		}
-
-		if backupChat != nil {
-			backupChat.Archived = archived
-			err := client.Store.BackupStore.UpdateBackupChat(ctx, backupChat.Chat)
-			if err != nil {
-				LOG_WARNING(fmt.Sprintf("update backup chat archived for %s error: %v", chatId, err))
-			}
-		}
-	}
-
-	// Update storage service (syncs to other devices / phone)
-	err := client.SetChatArchived(ctx, chatId, archived)
-	if err != nil {
-		LOG_WARNING(fmt.Sprintf("set chat archived in storage service for %s error: %v", chatId, err))
-	} else {
-		// Notify other devices to re-fetch the storage manifest
-		fetchType := signalpb.SyncMessage_FetchLatest_STORAGE_MANIFEST
-		result := client.SendMessage(ctx, client.Store.ACIServiceID(), &signalpb.Content{
-			SyncMessage: &signalpb.SyncMessage{
-				FetchLatest: &signalpb.SyncMessage_FetchLatest{
-					Type: &fetchType,
-				},
-			},
-		})
-		if !result.WasSuccessful {
-			LOG_WARNING(fmt.Sprintf("send fetch latest sync for %s error: %v", chatId, result.FailedSendResult.Error))
-		}
-	}
 
 	// Notify UI
 	CSgUpdateArchivedNotify(connId, chatId, isArchived)
+
+	// @todo: notify service about archived chat
 
 	LOG_TRACE(fmt.Sprintf("archive chat ok %s %t", chatId, archived))
 	return 0
@@ -3030,50 +2984,8 @@ func SgPinChat(connId int, chatId string, isPinned int) int {
 	}
 
 	pinned := isPinned != 0
-	ctx := context.TODO()
 
-	// Update local backup store
-	if client.Store.BackupStore != nil {
-		var backupChat *store.BackupChat
-		chatUUID := StringToUUID(chatId)
-		if chatUUID != uuid.Nil {
-			backupChat, _ = client.Store.BackupStore.GetBackupChatByUserID(ctx, libsignalgo.NewACIServiceID(chatUUID))
-		} else {
-			backupChat, _ = client.Store.BackupStore.GetBackupChatByGroupID(ctx, types.GroupIdentifier(chatId))
-		}
-
-		if backupChat != nil {
-			if pinned {
-				pinnedOrder := uint32(1)
-				backupChat.PinnedOrder = &pinnedOrder
-			} else {
-				backupChat.PinnedOrder = nil
-			}
-			err := client.Store.BackupStore.UpdateBackupChat(ctx, backupChat.Chat)
-			if err != nil {
-				LOG_WARNING(fmt.Sprintf("update backup chat pinned for %s error: %v", chatId, err))
-			}
-		}
-	}
-
-	// Update storage service (syncs to other devices / phone)
-	err := client.SetChatPinned(ctx, chatId, pinned)
-	if err != nil {
-		LOG_WARNING(fmt.Sprintf("set chat pinned in storage service for %s error: %v", chatId, err))
-	} else {
-		// Notify other devices to re-fetch the storage manifest
-		fetchType := signalpb.SyncMessage_FetchLatest_STORAGE_MANIFEST
-		result := client.SendMessage(ctx, client.Store.ACIServiceID(), &signalpb.Content{
-			SyncMessage: &signalpb.SyncMessage{
-				FetchLatest: &signalpb.SyncMessage_FetchLatest{
-					Type: &fetchType,
-				},
-			},
-		})
-		if !result.WasSuccessful {
-			LOG_WARNING(fmt.Sprintf("send fetch latest sync for %s error: %v", chatId, result.FailedSendResult.Error))
-		}
-	}
+	// @todo: notify service about pinned chat
 
 	// Notify UI
 	order := 0

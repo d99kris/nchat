@@ -79,6 +79,7 @@ private:
     void RequestGroupMembers(const std::string& p_ProfileId, const std::string& p_ChatId);
     std::vector<std::string> GetGroupMembers(const std::string& p_ProfileId, const std::string& p_ChatId);
     bool GetChatInfoIsGroup(const std::string& p_ProfileId, const std::string& p_ChatId);
+    bool HasProtocolFeature(const std::string& p_ProfileId, ProtocolFeature p_ProtocolFeature);
     std::map<std::string, std::string> ParseMentions(const std::string& p_ProfileId, const std::string& p_ChatId,
                                                      const std::string& p_Text);
     void OpenCreateChat(const std::pair<std::string, std::string>& p_Chat);
@@ -221,7 +222,6 @@ private:
     void CallExternalEdit(const std::string& p_EditorCmd);
     const std::pair<std::string, std::string>& GetNextChat();
     void SendProtocolRequest(const std::string& p_ProfileId, std::shared_ptr<RequestMessage> p_Request);
-    bool HasProtocolFeature(const std::string& p_ProfileId, ProtocolFeature p_ProtocolFeature);
     std::string GetSelfId(const std::string& p_ProfileId);
     void Quit();
     void EntryConvertEmojiEnabled();

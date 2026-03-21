@@ -2063,6 +2063,8 @@ void UiModel::Impl::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMess
         bool isMuted = updateMuteNotify->isMuted;
         std::string chatId = updateMuteNotify->chatId;
         LOG_TRACE("mute notify %s is %s", chatId.c_str(), (isMuted ? "muted" : "unmuted"));
+        if (!m_ChatInfos[profileId].count(chatId)) break;
+
         m_ChatInfos[profileId][chatId].isMuted = isMuted;
         UpdateChatInfoLastMessageTime(profileId, chatId);
         SortChats();
@@ -2079,6 +2081,8 @@ void UiModel::Impl::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMess
         bool isPinned = updatePinNotify->isPinned;
         int64_t lastMessageTime = updatePinNotify->timePinned;
         LOG_TRACE("pin notify %s is %s", chatId.c_str(), (isPinned ? "pinned" : "unpinned"));
+        if (!m_ChatInfos[profileId].count(chatId)) break;
+
         m_ChatInfos[profileId][chatId].isPinned = isPinned;
         if (isPinned)
         {
@@ -2098,6 +2102,8 @@ void UiModel::Impl::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMess
         std::string chatId = updateArchivedNotify->chatId;
         bool isArchived = updateArchivedNotify->isArchived;
         LOG_TRACE("archived notify %s is %s", chatId.c_str(), (isArchived ? "archived" : "unarchived"));
+        if (!m_ChatInfos[profileId].count(chatId)) break;
+
         m_ChatInfos[profileId][chatId].isArchived = isArchived;
         if (isArchived)
         {
@@ -5305,9 +5311,19 @@ void UiModel::OnKeyDeleteChat()
 
 void UiModel::OnKeyArchiveChat()
 {
+  bool hasFeature = false;
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     if (GetImpl().GetSelectMessageActive() || GetImpl().GetEditMessageActive()) return;
+
+    const std::string& profileId = GetImpl().GetCurrentChat().first;
+    hasFeature = GetImpl().HasProtocolFeature(profileId, FeatureArchiveChat);
+  }
+
+  if (!hasFeature)
+  {
+    MessageDialog("Warning", "Protocol does not support archiving.", 0.7, 5);
+    return;
   }
 
   // Open modal dialog without model mutex held
@@ -5326,9 +5342,19 @@ void UiModel::OnKeyArchiveChat()
 
 void UiModel::OnKeyPinChat()
 {
+  bool hasFeature = false;
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     if (GetImpl().GetSelectMessageActive() || GetImpl().GetEditMessageActive()) return;
+
+    const std::string& profileId = GetImpl().GetCurrentChat().first;
+    hasFeature = GetImpl().HasProtocolFeature(profileId, FeaturePinChat);
+  }
+
+  if (!hasFeature)
+  {
+    MessageDialog("Warning", "Protocol does not support pinning.", 0.7, 5);
+    return;
   }
 
   std::unique_lock<owned_mutex> lock(m_ModelMutex);

@@ -54,7 +54,6 @@ type BackupStore interface {
 	GetBackupChatByGroupID(ctx context.Context, groupID types.GroupIdentifier) (*BackupChat, error)
 	GetBackupChats(ctx context.Context) ([]*BackupChat, error)
 	GetBackupChatItems(ctx context.Context, chatID uint64, anchor time.Time, forward bool, limit int) ([]*backuppb.ChatItem, error)
-	UpdateBackupChat(ctx context.Context, chat *backuppb.Chat) error
 	DeleteBackupChat(ctx context.Context, chatID uint64) error
 	DeleteBackupChatItems(ctx context.Context, chatID uint64, minTime time.Time) error
 }
@@ -106,9 +105,6 @@ const (
 		WHERE account_id=$1 AND chat_id=$2 AND message_id > $3 AND message_id < $4
 		ORDER BY message_id DESC
 		LIMIT $5
-	`
-	updateBackupChatQuery = `
-		UPDATE signalmeow_backup_chat SET data=$1 WHERE account_id=$2 AND chat_id=$3
 	`
 	deleteBackupChatQuery = `
 		DELETE FROM signalmeow_backup_chat WHERE account_id=$1 AND chat_id=$2
@@ -323,15 +319,6 @@ func (s *sqlStore) GetBackupChatItems(ctx context.Context, chatID uint64, anchor
 		maxTS = anchor.UnixMilli()
 	}
 	return messageScanner.NewRowIter(s.db.Query(ctx, getBackupChatItemsQuery, s.AccountID, chatID, minTS, maxTS, limit)).AsList()
-}
-
-func (s *sqlStore) UpdateBackupChat(ctx context.Context, chat *backuppb.Chat) error {
-	chatData, err := proto.Marshal(chat)
-	if err != nil {
-		return fmt.Errorf("failed to marshal chat %d: %w", chat.Id, err)
-	}
-	_, err = s.db.Exec(ctx, updateBackupChatQuery, chatData, s.AccountID, chat.Id)
-	return err
 }
 
 func (s *sqlStore) DeleteBackupChatItems(ctx context.Context, chatID uint64, minTime time.Time) error {

@@ -37,12 +37,10 @@ type dbGroup struct {
 type GroupStore interface {
 	MasterKeyFromGroupIdentifier(ctx context.Context, groupID types.GroupIdentifier) (types.SerializedGroupMasterKey, error)
 	StoreMasterKey(ctx context.Context, groupID types.GroupIdentifier, key types.SerializedGroupMasterKey) error
-	AllGroupIdentifiers(ctx context.Context) ([]types.GroupIdentifier, error)
 }
 
 const (
 	getGroupByIDQuery         = `SELECT account_id, group_identifier, master_key FROM signalmeow_groups WHERE account_id=$1 AND group_identifier=$2`
-	getAllGroupIDsQuery       = `SELECT group_identifier FROM signalmeow_groups WHERE account_id=$1`
 	upsertGroupMasterKeyQuery = `
 		INSERT INTO signalmeow_groups (account_id, group_identifier, master_key)
 		VALUES ($1, $2, $3)
@@ -74,21 +72,4 @@ func (s *sqlStore) MasterKeyFromGroupIdentifier(ctx context.Context, groupID typ
 func (s *sqlStore) StoreMasterKey(ctx context.Context, groupID types.GroupIdentifier, key types.SerializedGroupMasterKey) error {
 	_, err := s.db.Exec(ctx, upsertGroupMasterKeyQuery, s.AccountID, groupID, key)
 	return err
-}
-
-func (s *sqlStore) AllGroupIdentifiers(ctx context.Context) ([]types.GroupIdentifier, error) {
-	rows, err := s.db.Query(ctx, getAllGroupIDsQuery, s.AccountID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var groups []types.GroupIdentifier
-	for rows.Next() {
-		var gid types.GroupIdentifier
-		if err := rows.Scan(&gid); err != nil {
-			return nil, err
-		}
-		groups = append(groups, gid)
-	}
-	return groups, rows.Err()
 }

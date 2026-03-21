@@ -29,6 +29,8 @@ enum ProtocolFeature
   FeatureLimitedReactions = (1 << 4),
   FeatureMarkReadEveryView = (1 << 5),
   FeatureAutoGetContactsOnLogin = (1 << 6),
+  FeaturePinChat = (1 << 7),
+  FeatureArchiveChat = (1 << 8),
 };
 
 class Protocol
