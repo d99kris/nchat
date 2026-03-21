@@ -1030,12 +1030,16 @@ and can be used by copying to `~/.config/nchat/`.
 be used to generate themes for nchat. The following themes generated using
 iTerm2 Color Schemes are available in `$(dirname $(which nchat))/../share/nchat/themes`:
 
+- Ayu Dark:
+  `cp $(dirname $(which nchat))/../share/nchat/themes/ayu-dark/* ~/.config/nchat/`
 - Catppuccin Mocha:
   `cp $(dirname $(which nchat))/../share/nchat/themes/catppuccin-mocha/* ~/.config/nchat/`
 - Espresso:
   `cp $(dirname $(which nchat))/../share/nchat/themes/espresso/* ~/.config/nchat/`
 - Gruvbox Dark:
   `cp $(dirname $(which nchat))/../share/nchat/themes/gruvbox-dark/* ~/.config/nchat/`
+- Gruvbox Dark Hard:
+  `cp $(dirname $(which nchat))/../share/nchat/themes/gruvbox-dark-hard/* ~/.config/nchat/`
 - Solarized Dark Higher Contrast:
   `cp $(dirname $(which nchat))/../share/nchat/themes/solarized-dark-higher-contrast/* ~/.config/nchat/`
 - Tokyo Night:
