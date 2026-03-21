@@ -21,10 +21,10 @@ set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 # Build type (Debug, Release, RelWithDebInfo)
 set(DEFAULT_BUILD_TYPE "Release")
 if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  message(STATUS "Using build type '${DEFAULT_BUILD_TYPE}' (default).")
+  message(STATUS "Using build type '${DEFAULT_BUILD_TYPE}' (default)")
   set(CMAKE_BUILD_TYPE "${DEFAULT_BUILD_TYPE}")
 else()
-  message(STATUS "Using build type '${CMAKE_BUILD_TYPE}'.")
+  message(STATUS "Using build type '${CMAKE_BUILD_TYPE}'")
 endif()
 
 # Platform specifics
@@ -184,7 +184,7 @@ message(STATUS "Static Go: ${HAS_STATICGOLIB}")
 set(GO_VERSION_MIN 1.23)
 execute_process(COMMAND bash "-c" "go version 2> /dev/null | cut -c14- | cut -d' ' -f1 | tr -d '\n'" OUTPUT_VARIABLE GO_VERSION)
 if((HAS_WHATSAPP OR HAS_SIGNAL) AND (NOT GO_VERSION VERSION_GREATER_EQUAL GO_VERSION_MIN))
-  message(FATAL_ERROR "Go version ${GO_VERSION} (need >= ${GO_VERSION_MIN} to build WhatsApp or Signal).")
+  message(FATAL_ERROR "Go version ${GO_VERSION} (need >= ${GO_VERSION_MIN} to build WhatsApp or Signal)")
 endif()
 
 # Check Little/Big Endian for tdlib requirement
@@ -192,7 +192,7 @@ test_big_endian(IS_BIG_ENDIAN)
 if(IS_BIG_ENDIAN)
   message(STATUS "Endian: Big")
   if(HAS_TELEGRAM)
-    message(WARNING "Telegram requires little endian, auto-disabling.")
+    message(WARNING "Telegram requires little endian, auto-disabling")
 	set(HAS_TELEGRAM OFF)
   endif()
 else()
@@ -467,7 +467,7 @@ endif()
 
 # Dev Application
 if(CMAKE_BUILD_TYPE MATCHES "Debug")
-  message(STATUS "Building dev application.")
+  message(STATUS "Building dev application")
   add_executable(devnchat
     src/main.cpp
     dev/ui.cpp

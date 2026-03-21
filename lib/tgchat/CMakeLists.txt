@@ -26,10 +26,10 @@ set(ATOMIC_TEST_SOURCE
   ")
 check_cxx_source_compiles("${ATOMIC_TEST_SOURCE}" HAVE_BUILTIN_ATOMIC)
 if (NOT HAVE_BUILTIN_ATOMIC)
-  message(STATUS "No built-in atomic, using libatomic.")
+  message(STATUS "No built-in atomic, using libatomic")
   set (USE_LIBATOMIC TRUE)
 else()
-  message(STATUS "Using built-in atomic.")
+  message(STATUS "Using built-in atomic")
 endif()
 
 # Library
