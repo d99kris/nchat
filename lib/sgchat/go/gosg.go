@@ -3084,6 +3084,12 @@ func SgSendTyping(connId int, chatId string, isTyping int) int {
 		return -1
 	}
 
+	// Skip typing indicator for self-chat (Note to Self / Saved Messages)
+	device := GetDevice(connId)
+	if chatId == UUIDToString(device.ACI) {
+		return 0
+	}
+
 	ctx := context.TODO()
 
 	// Create typing message
