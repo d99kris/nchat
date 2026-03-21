@@ -1630,6 +1630,27 @@ func (handler *SgEventHandler) handleDeleteForMe(evt *events.DeleteForMe) bool {
 			continue
 		}
 
+		// Delete from local backup store
+		client := GetClient(connId)
+		if client != nil && client.Store.BackupStore != nil {
+			ctx := context.TODO()
+			var backupChat *store.BackupChat
+			chatUUID := StringToUUID(chatIdStr)
+			if chatUUID != uuid.Nil {
+				backupChat, _ = client.Store.BackupStore.GetBackupChatByUserID(ctx, libsignalgo.NewACIServiceID(chatUUID))
+			} else {
+				backupChat, _ = client.Store.BackupStore.GetBackupChatByGroupID(ctx, types.GroupIdentifier(chatIdStr))
+			}
+			if backupChat != nil {
+				for _, msg := range msgDelete.GetMessages() {
+					err := client.Store.BackupStore.DeleteBackupChatItem(ctx, backupChat.Id, msg.GetSentTimestamp())
+					if err != nil {
+						LOG_WARNING(fmt.Sprintf("delete backup chat item failed: %v", err))
+					}
+				}
+			}
+		}
+
 		for _, msg := range msgDelete.GetMessages() {
 			msgId := fmt.Sprintf("%d", msg.GetSentTimestamp())
 			LOG_TRACE(fmt.Sprintf("Call CSgDeleteMessageNotify %s %s", chatIdStr, msgId))
@@ -2915,6 +2936,23 @@ func SgDeleteMessage(connId int, chatId string, senderId string, msgId string) i
 	if !result.WasSuccessful {
 		LOG_WARNING("send delete message sync failed")
 		return -1
+	}
+
+	// Delete from local backup store so the message doesn't reappear on restart
+	if client.Store.BackupStore != nil {
+		var backupChat *store.BackupChat
+		chatUUID := StringToUUID(chatId)
+		if chatUUID != uuid.Nil {
+			backupChat, _ = client.Store.BackupStore.GetBackupChatByUserID(ctx, libsignalgo.NewACIServiceID(chatUUID))
+		} else {
+			backupChat, _ = client.Store.BackupStore.GetBackupChatByGroupID(ctx, types.GroupIdentifier(chatId))
+		}
+		if backupChat != nil {
+			err := client.Store.BackupStore.DeleteBackupChatItem(ctx, backupChat.Id, timestamp)
+			if err != nil {
+				LOG_WARNING(fmt.Sprintf("delete backup chat item failed: %v", err))
+			}
+		}
 	}
 
 	return 0

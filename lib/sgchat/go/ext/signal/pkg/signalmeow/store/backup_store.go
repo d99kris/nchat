@@ -55,6 +55,7 @@ type BackupStore interface {
 	GetBackupChats(ctx context.Context) ([]*BackupChat, error)
 	GetBackupChatItems(ctx context.Context, chatID uint64, anchor time.Time, forward bool, limit int) ([]*backuppb.ChatItem, error)
 	DeleteBackupChat(ctx context.Context, chatID uint64) error
+	DeleteBackupChatItem(ctx context.Context, chatID uint64, messageID uint64) error
 	DeleteBackupChatItems(ctx context.Context, chatID uint64, minTime time.Time) error
 }
 
@@ -108,6 +109,9 @@ const (
 	`
 	deleteBackupChatQuery = `
 		DELETE FROM signalmeow_backup_chat WHERE account_id=$1 AND chat_id=$2
+	`
+	deleteBackupChatItemQuery = `
+		DELETE FROM signalmeow_backup_message WHERE account_id=$1 AND chat_id=$2 AND message_id=$3
 	`
 	deleteBackupChatItemsQuery = `
 		DELETE FROM signalmeow_backup_message WHERE account_id=$1 AND chat_id=$2 AND message_id >= $3
@@ -327,6 +331,11 @@ func (s *sqlStore) DeleteBackupChatItems(ctx context.Context, chatID uint64, min
 		anchorTS = 0
 	}
 	_, err := s.db.Exec(ctx, deleteBackupChatItemsQuery, s.AccountID, chatID, anchorTS)
+	return err
+}
+
+func (s *sqlStore) DeleteBackupChatItem(ctx context.Context, chatID uint64, messageID uint64) error {
+	_, err := s.db.Exec(ctx, deleteBackupChatItemQuery, s.AccountID, chatID, messageID)
 	return err
 }
 
