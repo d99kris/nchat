@@ -671,6 +671,9 @@ func ProcessFormattedText(connId int, text string, bodyRanges []*signalpb.BodyRa
 
 	// Apply back-to-front
 	for _, op := range ops {
+		if op.bytePos > len(text) || op.bytePos+op.byteLen > len(text) {
+			continue
+		}
 		text = text[:op.bytePos] + op.insertText + text[op.bytePos+op.byteLen:]
 	}
 
@@ -723,6 +726,9 @@ func ProcessBackupFormattedText(connId int, text string, bodyRanges []*backuppb.
 	})
 
 	for _, op := range ops {
+		if op.bytePos > len(text) || op.bytePos+op.byteLen > len(text) {
+			continue
+		}
 		text = text[:op.bytePos] + op.insertText + text[op.bytePos+op.byteLen:]
 	}
 
