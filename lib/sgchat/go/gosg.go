@@ -68,6 +68,7 @@ var (
 	pinnedChats map[int]map[string]bool                        = make(map[int]map[string]bool)
 	mutedChats  map[int]map[string]bool                        = make(map[int]map[string]bool)
 	recentMsgs  map[int]map[string][]recentMessage             = make(map[int]map[string][]recentMessage)
+	stateStore  map[int]map[string]string                      = make(map[int]map[string]string)
 )
 
 const maxRecentMessages = 5
@@ -105,6 +106,42 @@ var NotifyDirect = 0
 var NotifyCache = 1
 var NotifySendCached = 2
 
+func SaveMap(path string, m map[string]string) error {
+	data, err := json.Marshal(m)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0600)
+}
+
+func LoadMap(path string) (map[string]string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return make(map[string]string), err
+	}
+	var m map[string]string
+	if err := json.Unmarshal(data, &m); err != nil {
+		return make(map[string]string), err
+	}
+	return m, nil
+}
+
+func GetStateStorePath(connPath string) string {
+	return connPath + "/state.dat"
+}
+
+func GetChatsSynced(connId int) bool {
+	mx.Lock()
+	defer mx.Unlock()
+	return stateStore[connId]["chats_synced"] == "1"
+}
+
+func SetChatsSynced(connId int, isChatsSynced bool) {
+	mx.Lock()
+	defer mx.Unlock()
+	stateStore[connId]["chats_synced"] = strconv.Itoa(BoolToInt(isChatsSynced))
+}
+
 func AddConn(client *signalmeow.Client, device *store.Device, container *store.Container, path string) int {
 	mx.Lock()
 	var connId int = len(clients)
@@ -119,12 +156,14 @@ func AddConn(client *signalmeow.Client, device *store.Device, container *store.C
 	pinnedChats[connId] = make(map[string]bool)
 	mutedChats[connId] = make(map[string]bool)
 	recentMsgs[connId] = make(map[string][]recentMessage)
+	stateStore[connId], _ = LoadMap(GetStateStorePath(path))
 	mx.Unlock()
 	return connId
 }
 
 func RemoveConn(connId int) {
 	mx.Lock()
+	SaveMap(GetStateStorePath(paths[connId]), stateStore[connId])
 	delete(clients, connId)
 	delete(devices, connId)
 	delete(containers, connId)
@@ -136,6 +175,7 @@ func RemoveConn(connId int) {
 	delete(pinnedChats, connId)
 	delete(mutedChats, connId)
 	delete(recentMsgs, connId)
+	delete(stateStore, connId)
 	mx.Unlock()
 }
 
@@ -2016,6 +2056,13 @@ func SgLogin(connId int) int {
 	// Sync storage service (contact names, mute/pin/archive state)
 	client.SyncStorage(ctx)
 
+	// Sync backup chats once (first login only)
+	if !GetChatsSynced(connId) {
+		LOG_DEBUG("first sync: sending backup chats")
+		SgGetChats(connId)
+		SetChatsSynced(connId, true)
+	}
+
 	// Request contacts sync
 	client.SyncContactsOnConnect = true
 	client.SendContactSyncRequest(ctx)
@@ -2650,14 +2697,14 @@ func SgGetChats(connId int) int {
 
 				lastMessageTime := int(chat.LatestMessageID / 1000)
 				if lastMessageTime == 0 {
-					LOG_TRACE(fmt.Sprintf("Chat %s: skip (no timestamp)", chatId));
-					continue;
+					LOG_TRACE(fmt.Sprintf("Chat %s: skip (no timestamp)", chatId))
+					continue
 				}
 
 				messageCount := chat.TotalMessages
 				if messageCount == 0 {
-					LOG_TRACE(fmt.Sprintf("Chat %s: skip (no messages)", chatId));
-					continue;
+					LOG_TRACE(fmt.Sprintf("Chat %s: skip (no messages)", chatId))
+					continue
 				}
 
 				isUnread := BoolToInt(chat.GetMarkedUnread())

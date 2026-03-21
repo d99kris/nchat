@@ -347,7 +347,6 @@ void SgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
         std::shared_ptr<GetChatsRequest> getChatsRequest =
           std::static_pointer_cast<GetChatsRequest>(p_RequestMessage);
         MessageCache::FetchChats(m_ProfileId, getChatsRequest->chatIds);
-        CSgGetChats(m_ConnId);
       }
       break;
 
