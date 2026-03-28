@@ -220,8 +220,7 @@ std::string FileUtil::GetMimeType(const std::string& p_Path)
   std::string mime;
   if (magic_load(cookie, NULL) == 0)
   {
-    std::string buf = ReadFile(p_Path);
-    const char* rv = magic_buffer(cookie, buf.c_str(), buf.size());
+    const char* rv = magic_file(cookie, p_Path.c_str());
     if (rv != NULL)
     {
       mime = std::string(rv);
