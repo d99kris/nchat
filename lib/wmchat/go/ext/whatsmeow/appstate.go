@@ -160,6 +160,14 @@ func (cli *Client) applyAppStatePatches(
 	if err != nil {
 		if errors.Is(err, appstate.ErrKeyNotFound) {
 			go cli.requestMissingAppStateKeys(context.WithoutCancel(ctx), patches)
+		} else if errors.Is(err, appstate.ErrMismatchingLTHash) {
+			cli.Log.Warnf("LTHash mismatch for %s, requesting recovery", name)
+			go func() {
+				_, errReq := cli.SendPeerMessage(context.WithoutCancel(ctx), BuildAppStateRecoveryRequest(name))
+				if errReq != nil {
+					cli.Log.Errorf("Failed to send app state recovery request for %s: %v", name, errReq)
+				}
+			}()
 		} else {
 			cli.dispatchEvent(&events.AppStateSyncError{Name: name, FullSync: fullSync, Error: err})
 		}
