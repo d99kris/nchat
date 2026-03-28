@@ -1,5 +1,24 @@
 Base-Commit: fc65416c22c47e15be1daf2e2d62deaba6881591
 Base-Branch: 
+diff --git a/appstate.go b/appstate.go
+index beacc44..4188264 100644
+--- a/appstate.go
++++ b/appstate.go
+@@ -161,6 +161,14 @@ func (cli *Client) applyAppStatePatches(
+ 	if err != nil {
+ 		if errors.Is(err, appstate.ErrKeyNotFound) {
+ 			go cli.requestMissingAppStateKeys(context.WithoutCancel(ctx), patches)
++		} else if errors.Is(err, appstate.ErrMismatchingLTHash) {
++			cli.Log.Warnf("LTHash mismatch for %s, requesting recovery", name)
++			go func() {
++				_, errReq := cli.SendPeerMessage(context.WithoutCancel(ctx), BuildAppStateRecoveryRequest(name))
++				if errReq != nil {
++					cli.Log.Errorf("Failed to send app state recovery request for %s: %v", name, errReq)
++				}
++			}()
+ 		}
+ 		return state, fmt.Errorf("failed to decode app state %s patches: %w", name, err)
+ 	}
 diff --git a/download.go b/download.go
 index 16b6108..6bdbd32 100644
 --- a/download.go
