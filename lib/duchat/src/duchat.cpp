@@ -282,7 +282,7 @@ void DuChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
           { "Michael",
             "Pam, what you don't understand is that at my level you just don't "
             "look in the want-ads for a job. You are head-hunted." },
-          { "Jim", "You've called any headhunters?" },
+          { "Jim", "You've called any headhunters? 🤔" },
           { "Michael", "Any good headhunter knows I am available." },
           { "Dwight",
             "Any really good headhunter would storm your village at sunset with "

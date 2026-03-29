@@ -419,27 +419,6 @@ install(FILES src/nchat.1 DESTINATION "${CMAKE_INSTALL_MANDIR}/man1")
 configure_file(src/compose ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_INSTALL_LIBEXECDIR}/nchat/compose COPYONLY)
 install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_INSTALL_LIBEXECDIR}/nchat/compose DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}/nchat)
 
-# Themes
-macro(add_theme themedir)
-  configure_file(themes/${themedir}/color.conf ${CMAKE_CURRENT_BINARY_DIR}/share/nchat/themes/${themedir}/color.conf COPYONLY)
-  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/share/nchat/themes/${themedir}/color.conf DESTINATION share/nchat/themes/${themedir})
-  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/themes/${themedir}/usercolor.conf")
-    configure_file(themes/${themedir}/usercolor.conf ${CMAKE_CURRENT_BINARY_DIR}/share/nchat/themes/${themedir}/usercolor.conf COPYONLY)
-    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/share/nchat/themes/${themedir}/usercolor.conf DESTINATION share/nchat/themes/${themedir})
-  endif()
-endmacro()
-add_theme("default")
-add_theme("basic-color")
-add_theme("dracula")
-add_theme("catppuccin-mocha")
-add_theme("espresso")
-add_theme("gruvbox-dark")
-add_theme("solarized-dark-higher-contrast")
-add_theme("tokyo-night")
-add_theme("tomorrow-night")
-add_theme("zenbones-dark")
-add_theme("zenburned")
-
 # Uninstall
 if(HAS_SHARED_LIBS)
   add_custom_target(uninstall
@@ -451,7 +430,6 @@ if(HAS_SHARED_LIBS)
     COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libduchat${CMAKE_SHARED_LIBRARY_SUFFIX}"
     COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libwmchat${CMAKE_SHARED_LIBRARY_SUFFIX}"
     COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libsgchat${CMAKE_SHARED_LIBRARY_SUFFIX}"
-    COMMAND "${CMAKE_COMMAND}" -E remove_directory "${CMAKE_INSTALL_PREFIX}/share/nchat"
     COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBEXECDIR}/nchat/compose"
     COMMAND "${CMAKE_COMMAND}" -E remove_directory "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBEXECDIR}/nchat"
   )
@@ -459,7 +437,6 @@ else()
   add_custom_target(uninstall
     COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/bin/nchat"
     COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_MANDIR}/man1/nchat.1"
-    COMMAND "${CMAKE_COMMAND}" -E remove_directory "${CMAKE_INSTALL_PREFIX}/share/nchat"
     COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBEXECDIR}/nchat/compose"
     COMMAND "${CMAKE_COMMAND}" -E remove_directory "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBEXECDIR}/nchat"
   )

@@ -1003,52 +1003,46 @@ used to pick a color from the list in `~/.config/nchat/usercolor.conf`.
 
 Themes
 ------
-Example color config files are provided in `$(dirname $(which nchat))/../share/nchat/themes`
+Color themes are available in the source package under the `themes` directory
 and can be used by copying to `~/.config/nchat/`.
 
-### Default Theme
+Available themes:
 
-    cp $(dirname $(which nchat))/../share/nchat/themes/default/* ~/.config/nchat/
+    basic-color
+    catppuccin-mocha
+    default
+    dracula
+    espresso
+    gruvbox-dark
+    solarized-dark-higher-contrast
+    tokyo-night
+    tomorrow-night
+    zenbones-dark
+    zenburned
 
-![screenshot nchat](/doc/screenshot-nchat.png)
+See the [Themes wiki-page](https://github.com/d99kris/nchat/wiki/Themes) for
+example screenshots.
 
-### Basic Color Theme
+### Installing theme from source
 
-    cp $(dirname $(which nchat))/../share/nchat/themes/basic-color/* ~/.config/nchat/
+With a source code copy, simply copy the theme files to the config directory
+(while nchat is not running). Example installing `dracula` theme:
 
-![screenshot nchat](/doc/screenshot-nchat-basic-color.png)
+    cp themes/dracula/* ~/.config/nchat/
 
-### Dracula Theme
+### Installing theme from web
 
-    cp $(dirname $(which nchat))/../share/nchat/themes/dracula/* ~/.config/nchat/
+One can fetch current `master` copy of a theme from the github repository and
+download to the config directory (while nchat is not running). Example
+installing `dracula` theme:
 
-![screenshot nchat](/doc/screenshot-nchat-dracula.png)
+    THEME="dracula" ; curl -L "https://raw.githubusercontent.com/d99kris/nchat/refs/heads/master/themes/${THEME}/{color.conf,usercolor.conf}" -o ~/.config/nchat/#1
 
-### iTerm2-Color-Schemes Themes
+### Generating theme from iTerm2-Color-Schemes
 
-[iTerm2 Color Schemes](https://github.com/mbadolato/iTerm2-Color-Schemes) can
-be used to generate themes for nchat. The following themes generated using
-iTerm2 Color Schemes are available in `$(dirname $(which nchat))/../share/nchat/themes`:
-
-- Catppuccin Mocha:
-  `cp $(dirname $(which nchat))/../share/nchat/themes/catppuccin-mocha/* ~/.config/nchat/`
-- Espresso:
-  `cp $(dirname $(which nchat))/../share/nchat/themes/espresso/* ~/.config/nchat/`
-- Gruvbox Dark:
-  `cp $(dirname $(which nchat))/../share/nchat/themes/gruvbox-dark/* ~/.config/nchat/`
-- Solarized Dark Higher Contrast:
-  `cp $(dirname $(which nchat))/../share/nchat/themes/solarized-dark-higher-contrast/* ~/.config/nchat/`
-- Tokyo Night:
-  `cp $(dirname $(which nchat))/../share/nchat/themes/tokyo-night/* ~/.config/nchat/`
-- Tomorrow Night:
-  `cp $(dirname $(which nchat))/../share/nchat/themes/tomorrow-night/* ~/.config/nchat/`
-- Zenbones Dark:
-  `cp $(dirname $(which nchat))/../share/nchat/themes/zenbones-dark/* ~/.config/nchat/`
-- Zenburned:
-  `cp $(dirname $(which nchat))/../share/nchat/themes/zenburned/* ~/.config/nchat/`
-
-To generate additional nchat themes and install for use with `nchat`, refer to
-[Generating nchat themes from iTerm2 Color Schemes](/themes/templates/iterm2-color-schemes/README.md).
+To generate nchat themes based on
+[iTerm2 Color Schemes](https://github.com/mbadolato/iTerm2-Color-Schemes)
+refer to [Generating nchat themes from iTerm2 Color Schemes](/themes/templates/iterm2-color-schemes/README.md).
 
 General
 -------
