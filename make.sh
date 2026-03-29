@@ -379,7 +379,7 @@ if [[ "${INSTALL}" == "1" ]]; then
     cd build && ${INSTALL_CMD} make install && cd .. || exiterr "install failed (${OS}), exiting."
   else
     echo "-- Using make install"
-    cd build &&  make install && cd .. || exiterr "install failed (${OS}), exiting."
+    cd build && make install && cd .. || exiterr "install failed (${OS}), exiting."
   fi
 fi
 
