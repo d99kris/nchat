@@ -123,4 +123,4 @@ set_target_properties(ncutil PROPERTIES COMPILE_FLAGS
                        -Wcast-align")
 
 # Linking
-target_link_libraries(ncutil PUBLIC ${MAGIC_LIBRARY} SQLite::SQLite3 clip qrcodegen stb ${WORDEXP_LIBRARY})
+target_link_libraries(ncutil PUBLIC ${MAGIC_LIBRARY} ${SQLite3_LIBRARIES} clip qrcodegen stb ${WORDEXP_LIBRARY})
