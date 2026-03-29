@@ -1008,12 +1008,14 @@ and can be used by copying to `~/.config/nchat/`.
 
 Available themes:
 
+    ayu-dark
     basic-color
     catppuccin-mocha
     default
     dracula
     espresso
     gruvbox-dark
+    gruvbox-dark-hard
     solarized-dark-higher-contrast
     tokyo-night
     tomorrow-night
