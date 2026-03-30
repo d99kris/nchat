@@ -89,8 +89,10 @@ void UiHistoryView::Draw()
 
   bool firstMessage = true;
   int y = m_PaddedH - 1;
+  int minPadding = m_PaddedW / 4;
   for (auto it = std::next(messageVec.begin(), messageOffset); it != messageVec.end(); ++it)
   {
+    int padding = 0;
     bool isSelectedMessage = firstMessage && m_Model->GetSelectMessageActiveLocked();
 
     auto msgIt = messages.find(*it);
@@ -131,7 +133,37 @@ void UiHistoryView::Draw()
         text = StrUtil::Textize(text);
       }
 
-      wlines = StrUtil::WordWrap(StrUtil::ToWString(text), m_PaddedW, false, false, false, 2);
+      if (text.length() >= static_cast<size_t>(m_PaddedW)) 
+      {
+          padding = minPadding;
+      }
+      else
+      {
+          padding = std::max(static_cast<size_t>(minPadding), m_PaddedW - text.length() - 1);
+      }
+      if (msg.isOutgoing) {
+          wlines = StrUtil::WordWrap(StrUtil::ToWString(text), m_PaddedW - padding, false, false, false, 2);
+          padding = [&]()
+          {
+              size_t maxWidth = 0;
+              for (auto wline = wlines.rbegin(); wline != wlines.rend(); ++wline)
+              {
+                  maxWidth = wline->length() > maxWidth ? wline->length() : maxWidth;
+              }
+              int newPadding = std::max(padding, static_cast<int>(m_PaddedW - maxWidth));
+              // return static_cast<int>(maxWidth); // this is a safe cast because necessarily maxWidth < m_PaddedW
+              return newPadding;
+          }();
+          for (auto wline = wlines.rbegin(); wline != wlines.rend(); ++wline)
+          {
+              std::wstring leftPad = StrUtil::ToWString(std::string(padding, ' '));
+              wline->insert(0, leftPad);
+          }
+      }
+      else 
+      {
+          wlines = StrUtil::WordWrap(StrUtil::ToWString(text), m_PaddedW - padding, false, false, false, 2);
+      }
     }
 
     // Quoted message
@@ -415,6 +447,11 @@ void UiHistoryView::Draw()
         L" user " + StrUtil::ToWString(msg.senderId);
     }
 
+    if (msg.isOutgoing)
+    {
+        int headerPadding = std::min(static_cast<size_t>(padding), m_PaddedW - wheader.length() - 1);
+        wheader.insert(0, StrUtil::ToWString(std::string(headerPadding, ' ')));
+    }
     std::wstring wdisp = StrUtil::TrimPadWString(wheader, m_PaddedW);
     mvwaddnwstr(m_PaddedWin, y, 0, wdisp.c_str(), std::min((int)wdisp.size(), m_PaddedW));
 
