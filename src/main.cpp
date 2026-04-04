@@ -7,6 +7,7 @@
 
 #include <iostream>
 #include <map>
+#include <memory>
 #include <regex>
 #include <set>
 #include <string>
@@ -332,6 +333,7 @@ int main(int argc, char* argv[])
   // Load profile(s)
   std::string profilesDir = FileUtil::GetApplicationDir() + "/profiles";
   const std::vector<std::string>& profileNames = FileUtil::ListDirNames(profilesDir);
+  std::vector<std::unique_ptr<ScopedDirLock>> profileDirLocks;
   for (auto& profileId : profileNames)
   {
     if (profileId == "version") continue;
@@ -351,6 +353,16 @@ int main(int argc, char* argv[])
       continue;
     }
 #endif
+
+    std::string profileDir = profilesDir + "/" + profileId;
+    profileDirLocks.push_back(std::make_unique<ScopedDirLock>(profileDir));
+    if (!profileDirLocks.back()->IsLocked())
+    {
+      LOG_WARNING("unable to acquire lock for %s, skipping", profileDir.c_str());
+      std::cerr << "warning: unable to acquire lock for " << profileDir << ", skipping.\n";
+      profileDirLocks.pop_back();
+      continue;
+    }
 
     if (setupProtocol && (setupProtocol->GetProfileId() == profileId))
     {
