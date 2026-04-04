@@ -57,6 +57,7 @@ const (
 
 var (
 	mx          sync.Mutex
+	nextConnId  int                                            = 0
 	clients     map[int]*signalmeow.Client                     = make(map[int]*signalmeow.Client)
 	devices     map[int]*store.Device                          = make(map[int]*store.Device)
 	containers  map[int]*store.Container                       = make(map[int]*store.Container)
@@ -144,7 +145,8 @@ func SetChatsSynced(connId int, isChatsSynced bool) {
 
 func AddConn(client *signalmeow.Client, device *store.Device, container *store.Container, path string) int {
 	mx.Lock()
-	var connId int = len(clients)
+	var connId int = nextConnId
+	nextConnId++
 	clients[connId] = client
 	devices[connId] = device
 	containers[connId] = container
@@ -337,7 +339,10 @@ func AttachmentToFileId(attachment *signalpb.AttachmentPointer, targetPath strin
 func DownloadFromFileId(connId int, fileId string) (string, int) {
 	LOG_TRACE(fmt.Sprintf("fileId %s", fileId))
 	var info DownloadInfo
-	json.Unmarshal([]byte(fileId), &info)
+	if err := json.Unmarshal([]byte(fileId), &info); err != nil {
+		LOG_WARNING(fmt.Sprintf("unmarshal fileId failed: %v", err))
+		return "", FileStatusDownloadFailed
+	}
 	if info.Version != downloadInfoVersion {
 		LOG_WARNING(fmt.Sprintf("unsupported version %d", info.Version))
 		return "", FileStatusDownloadFailed
@@ -1158,6 +1163,10 @@ func (handler *SgEventHandler) handleChatEvent(evt *events.ChatEvent) bool {
 	senderUUID := info.Sender
 	senderId := UUIDToString(senderUUID)
 	device := GetDevice(connId)
+	if device == nil {
+		LOG_WARNING("device is nil")
+		return true
+	}
 	selfId := UUIDToString(device.ACI)
 	fromMe := (senderId == selfId)
 	timeSent := int(info.ServerTimestamp / 1000) // Convert ms to seconds
@@ -2186,13 +2195,17 @@ func SgGetMessages(connId int, chatId string, limit int, fromMsgId string, owner
 		return -1
 	}
 
-	if client.Store.BackupStore == nil {
+	if client.Store == nil || client.Store.BackupStore == nil {
 		LOG_DEBUG("backup store not available")
 		return -1
 	}
 
 	ctx := context.TODO()
 	device := GetDevice(connId)
+	if device == nil {
+		LOG_WARNING("device is nil")
+		return -1
+	}
 	selfACI := device.ACI
 
 	// Resolve chatId to backup store chat (UUID for 1:1, GroupIdentifier for groups)
@@ -2462,6 +2475,10 @@ func SgSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 		// Echo edited message back to self
 		device := GetDevice(connId)
+		if device == nil {
+			LOG_WARNING("device is nil")
+			return -1
+		}
 		selfId := UUIDToString(device.ACI)
 		timeSent := int(timestamp / 1000)
 		CSgNewMessagesNotify(connId, chatId, strconv.FormatUint(timestamp, 10), selfId, text, 1, quotedId, "", "", 0, timeSent, 1, 1)
@@ -2562,6 +2579,10 @@ func SgSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 		// Echo sent message back to self
 		device := GetDevice(connId)
+		if device == nil {
+			LOG_WARNING("device is nil")
+			return -1
+		}
 		selfId := UUIDToString(device.ACI)
 		timeSent := int(timestamp / 1000)
 		echoFileId := ""
@@ -2670,10 +2691,14 @@ func SgGetChats(connId int) int {
 	defer CSgClearStatus(connId, FlagFetching)
 
 	device := GetDevice(connId)
+	if device == nil {
+		LOG_WARNING("device is nil")
+		return -1
+	}
 	selfACI := device.ACI
 
 	// Fetch chats from backup store (1:1 and group chats)
-	if client.Store.BackupStore != nil {
+	if client.Store != nil && client.Store.BackupStore != nil {
 		chats, err := client.Store.BackupStore.GetBackupChats(ctx)
 		if err != nil {
 			LOG_WARNING(fmt.Sprintf("get backup chats error: %v", err))
@@ -2877,6 +2902,10 @@ func SgDeleteMessage(connId int, chatId string, senderId string, msgId string) i
 
 	ctx := context.TODO()
 	device := GetDevice(connId)
+	if device == nil {
+		LOG_WARNING("device is nil")
+		return -1
+	}
 	selfACI := device.ACI
 	selfServiceID := libsignalgo.NewACIServiceID(selfACI)
 
@@ -2974,12 +3003,16 @@ func SgDeleteChat(connId int, chatId string) int {
 
 	ctx := context.TODO()
 	device := GetDevice(connId)
+	if device == nil {
+		LOG_WARNING("device is nil")
+		return -1
+	}
 	selfACI := device.ACI
 
 	// Fetch up to 5 most recent messages as anchor points for the receiving device
 	var mostRecentMessages []*signalpb.AddressableMessage
 	var backupChat *store.BackupChat
-	if client.Store.BackupStore != nil {
+	if client.Store != nil && client.Store.BackupStore != nil {
 		chatUUID := StringToUUID(chatId)
 		if chatUUID != uuid.Nil {
 			backupChat, _ = client.Store.BackupStore.GetBackupChatByUserID(ctx, libsignalgo.NewACIServiceID(chatUUID))
@@ -3061,7 +3094,7 @@ func SgDeleteChat(connId int, chatId string) int {
 	}
 
 	// Delete chat and its messages from local BackupStore
-	if client.Store.BackupStore != nil && backupChat != nil {
+	if client.Store != nil && client.Store.BackupStore != nil && backupChat != nil {
 		err := client.Store.BackupStore.DeleteBackupChatItems(ctx, backupChat.Id, time.Time{})
 		if err != nil {
 			LOG_WARNING(fmt.Sprintf("delete backup chat items failed: %v", err))
@@ -3130,6 +3163,10 @@ func SgSendTyping(connId int, chatId string, isTyping int) int {
 
 	// Skip typing indicator for self-chat (Note to Self / Saved Messages)
 	device := GetDevice(connId)
+	if device == nil {
+		LOG_WARNING("device is nil")
+		return -1
+	}
 	if chatId == UUIDToString(device.ACI) {
 		return 0
 	}
@@ -3254,6 +3291,10 @@ func SgSendReaction(connId int, chatId string, senderId string, msgId string, em
 
 	// Echo reaction back to self
 	device := GetDevice(connId)
+	if device == nil {
+		LOG_WARNING("device is nil")
+		return -1
+	}
 	selfId := UUIDToString(device.ACI)
 	CSgNewMessageReactionNotify(connId, chatId, msgId, selfId, emoji, 1)
 
