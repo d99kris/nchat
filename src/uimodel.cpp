@@ -2483,9 +2483,10 @@ void UiModel::Impl::UpdateChatInfoIsUnread(const std::string& p_ProfileId, const
 
           if (desktopNotify)
           {
-            const std::string name = (chatMessage.senderId == p_ChatId)
+            const std::string name = ((chatMessage.senderId == p_ChatId)
               ? GetContactName(p_ProfileId, chatMessage.senderId)
-              : GetContactName(p_ProfileId, p_ChatId) + " - " + GetContactName(p_ProfileId, chatMessage.senderId);
+              : GetContactName(p_ProfileId, p_ChatId) + " - " + GetContactName(p_ProfileId, chatMessage.senderId))
+              + GetProfileSuffix(p_ProfileId);
             DesktopNotify(name, chatMessage.text);
           }
         }
@@ -3765,6 +3766,11 @@ std::string UiModel::Impl::GetProfileDisplayName(const std::string& p_ProfileId)
   return s_DisplayNames[p_ProfileId];
 }
 
+std::string UiModel::Impl::GetProfileSuffix(const std::string& p_ProfileId)
+{
+  return IsMultipleProfiles() ? " @ " + GetProfileDisplayName(p_ProfileId) : "";
+}
+
 void UiModel::Impl::OnKeyQuit()
 {
   AnyUserKeyInput();
@@ -4697,6 +4703,12 @@ std::string UiModel::GetProfileDisplayName(const std::string& p_ProfileId)
   return GetImpl().GetProfileDisplayName(p_ProfileId);
 }
 
+std::string UiModel::GetProfileSuffix(const std::string& p_ProfileId)
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  return GetImpl().GetProfileSuffix(p_ProfileId);
+}
+
 int64_t UiModel::GetContactInfosUpdateTime()
 {
   std::unique_lock<owned_mutex> lock(m_ModelMutex);
@@ -4895,6 +4907,12 @@ std::string UiModel::GetProfileDisplayNameLocked(const std::string& p_ProfileId)
 {
   nc_assert(m_ModelMutex.owns_lock());
   return GetImpl().GetProfileDisplayName(p_ProfileId);
+}
+
+std::string UiModel::GetProfileSuffixLocked(const std::string& p_ProfileId)
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetProfileSuffix(p_ProfileId);
 }
 
 bool UiModel::GetSelectMessageActiveLocked()

@@ -100,9 +100,7 @@ void UiContactListDialog::UpdateList()
       if (m_FilterStr.empty() ||
           (StrUtil::ToLower(name).find(StrUtil::ToLower(StrUtil::ToString(m_FilterStr))) != std::string::npos))
       {
-        static const bool isMultipleProfiles = m_Model->IsMultipleProfiles();
-        std::string displayName = name +
-          (isMultipleProfiles ? " @ " + m_Model->GetProfileDisplayName(profileId) : "");
+        std::string displayName = name + m_Model->GetProfileSuffix(profileId);
 
         if (!emojiEnabled)
         {

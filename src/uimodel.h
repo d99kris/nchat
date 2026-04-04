@@ -155,6 +155,7 @@ private:
 
     bool IsMultipleProfiles();
     std::string GetProfileDisplayName(const std::string& p_ProfileId);
+    std::string GetProfileSuffix(const std::string& p_ProfileId);
     void GetAvailableEmojis(std::set<std::string>& p_AvailableEmojis, bool& p_Pending);
     void OnKeyJumpQuoted();
 
@@ -308,6 +309,7 @@ public:
   void AddProtocol(std::shared_ptr<Protocol> p_Protocol);
   std::unordered_map<std::string, std::shared_ptr<Protocol>> GetProtocols();
   bool IsMultipleProfiles();
+  std::string GetProfileSuffix(const std::string& p_ProfileId);
 
   void Draw();
   void KeyHandler(wint_t p_Key);
@@ -362,6 +364,7 @@ public:
                                                                   const std::string& p_ChatId);
   std::vector<std::string>& GetMessageVecLocked(const std::string& p_ProfileId, const std::string& p_ChatId);
   std::string GetProfileDisplayNameLocked(const std::string& p_ProfileId);
+  std::string GetProfileSuffixLocked(const std::string& p_ProfileId);
   bool GetSelectMessageActiveLocked();
 
   void DownloadAttachmentLocked(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId,

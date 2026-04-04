@@ -48,9 +48,7 @@ void UiStatusView::Draw()
   }
   else
   {
-    static bool isMultipleProfiles = m_Model->IsMultipleProfilesLocked();
-    std::string profileDisplayName = isMultipleProfiles ? " @ " +
-      m_Model->GetProfileDisplayNameLocked(currentChat.first) : "";
+    std::string profileDisplayName = m_Model->GetProfileSuffixLocked(currentChat.first);
 
     std::string chatStatus = m_Model->GetChatStatusLocked(currentChat.first, currentChat.second);
     wstatus = std::wstring(statusVPad, ' ') +
