@@ -1,3 +1,9 @@
+# v26.03
+
+* Switched to sending binary service ID fields in outgoing messages.
+* Added support for roundtripping large attachments via disk to avoid keeping
+  the entire file in memory during en/decryption.
+
 # v26.02.2
 
 * Added support for more new binary service ID fields.

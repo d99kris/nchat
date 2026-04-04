@@ -773,7 +773,7 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 			convertedContacts := make([]*types.Recipient, 0, len(contacts))
 			err = cli.Store.DoContactTxn(ctx, func(ctx context.Context) error {
 				for i, signalContact := range contacts {
-					if signalContact.Aci == nil || *signalContact.Aci == "" {
+					if (signalContact.Aci == nil || *signalContact.Aci == "") && len(signalContact.AciBinary) != 16 {
 						// TODO lookup PNI via CDSI and store that when ACI is missing?
 						log.Info().
 							Any("contact", signalContact).

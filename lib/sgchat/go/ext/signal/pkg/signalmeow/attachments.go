@@ -93,9 +93,15 @@ func DownloadAttachment(
 
 	var body []byte
 	var downloadedSize int64
-	if into == nil || resp.StatusCode > 400 {
-		body = make([]byte, resp.ContentLength)
-		_, err = io.ReadFull(resp.Body, body)
+	if resp.StatusCode > 400 {
+		body, err = io.ReadAll(io.LimitReader(resp.Body, 4096))
+	} else if into == nil {
+		if resp.ContentLength > 0 {
+			body = make([]byte, resp.ContentLength)
+			_, err = io.ReadFull(resp.Body, body)
+		} else {
+			body, err = io.ReadAll(http.MaxBytesReader(nil, resp.Body, max(int64(size), 32*1024)*2))
+		}
 	} else {
 		err = fallocate.Fallocate(into, int(resp.ContentLength))
 		if err != nil {

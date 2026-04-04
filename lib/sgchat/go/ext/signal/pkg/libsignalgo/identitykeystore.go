@@ -20,7 +20,7 @@ package libsignalgo
 /*
 #include "./libsignal-ffi.h"
 
-extern int signal_get_identity_key_pair_callback(void *store_ctx, SignalMutPointerPrivateKey *keyp);
+extern int signal_get_identity_key_pair_callback(void *store_ctx, SignalPairOfMutPointerPrivateKeyMutPointerPublicKey *keyp);
 extern int signal_get_local_registration_id_callback(void *store_ctx, uint32_t *idp);
 extern int signal_save_identity_key_callback(void *store_ctx, uint8_t *out, SignalMutPointerProtocolAddress address, SignalMutPointerPublicKey public_key);
 extern int signal_get_identity_key_callback(void *store_ctx, SignalMutPointerPublicKey *public_keyp, SignalMutPointerProtocolAddress address);
@@ -49,22 +49,29 @@ type IdentityKeyStore interface {
 }
 
 //export signal_get_identity_key_pair_callback
-func signal_get_identity_key_pair_callback(storeCtx unsafe.Pointer, keyp *C.SignalMutPointerPrivateKey) C.int {
+func signal_get_identity_key_pair_callback(storeCtx unsafe.Pointer, keyp *C.SignalPairOfMutPointerPrivateKeyMutPointerPublicKey) C.int {
 	return wrapStoreCallback(storeCtx, func(store IdentityKeyStore, ctx context.Context) error {
 		key, err := store.GetIdentityKeyPair(ctx)
 		if err != nil {
 			return err
 		}
 		if key == nil {
-			keyp.raw = nil
-		} else {
-			clone, err := key.privateKey.Clone()
-			if err != nil {
-				return err
-			}
-			clone.CancelFinalizer()
-			keyp.raw = clone.ptr
+			keyp.first.raw = nil
+			keyp.second.raw = nil
+			return nil
 		}
+		privClone, err := key.privateKey.Clone()
+		if err != nil {
+			return err
+		}
+		pubClone, err := key.publicKey.Clone()
+		if err != nil {
+			return err
+		}
+		privClone.CancelFinalizer()
+		pubClone.CancelFinalizer()
+		keyp.first.raw = privClone.ptr
+		keyp.second.raw = pubClone.ptr
 		return err
 	})
 }
@@ -151,12 +158,12 @@ func signal_destroy_identity_key_store_callback(storeCtx unsafe.Pointer) {
 
 func (ctx *CallbackContext) wrapIdentityKeyStore(store IdentityKeyStore) C.SignalConstPointerFfiIdentityKeyStoreStruct {
 	return C.SignalConstPointerFfiIdentityKeyStoreStruct{&C.SignalIdentityKeyStore{
-		ctx:                            wrapStore(ctx, store),
-		get_local_identity_private_key: C.SignalFfiBridgeIdentityKeyStoreGetLocalIdentityPrivateKey(C.signal_get_identity_key_pair_callback),
-		get_local_registration_id:      C.SignalFfiBridgeIdentityKeyStoreGetLocalRegistrationId(C.signal_get_local_registration_id_callback),
-		get_identity_key:               C.SignalFfiBridgeIdentityKeyStoreGetIdentityKey(C.signal_get_identity_key_callback),
-		save_identity_key:              C.SignalFfiBridgeIdentityKeyStoreSaveIdentityKey(C.signal_save_identity_key_callback),
-		is_trusted_identity:            C.SignalFfiBridgeIdentityKeyStoreIsTrustedIdentity(C.signal_is_trusted_identity_callback),
-		destroy:                        C.SignalFfiBridgeIdentityKeyStoreDestroy(C.signal_destroy_identity_key_store_callback),
+		ctx:                         wrapStore(ctx, store),
+		get_local_identity_key_pair: C.SignalFfiBridgeIdentityKeyStoreGetLocalIdentityKeyPair(C.signal_get_identity_key_pair_callback),
+		get_local_registration_id:   C.SignalFfiBridgeIdentityKeyStoreGetLocalRegistrationId(C.signal_get_local_registration_id_callback),
+		get_identity_key:            C.SignalFfiBridgeIdentityKeyStoreGetIdentityKey(C.signal_get_identity_key_callback),
+		save_identity_key:           C.SignalFfiBridgeIdentityKeyStoreSaveIdentityKey(C.signal_save_identity_key_callback),
+		is_trusted_identity:         C.SignalFfiBridgeIdentityKeyStoreIsTrustedIdentity(C.signal_is_trusted_identity_callback),
+		destroy:                     C.SignalFfiBridgeIdentityKeyStoreDestroy(C.signal_destroy_identity_key_store_callback),
 	}}
 }
