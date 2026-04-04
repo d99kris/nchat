@@ -2797,11 +2797,16 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 				return -1
 			}
 
+			audioMime := fileType
+			if fileType == "audio/ogg" {
+				audioMime = "audio/ogg; codecs=opus"
+			}
+
 			audioMessage := waE2E.AudioMessage{
 				URL:           proto.String(uploaded.URL),
 				DirectPath:    proto.String(uploaded.DirectPath),
 				MediaKey:      uploaded.MediaKey,
-				Mimetype:      proto.String(fileType),
+				Mimetype:      proto.String(audioMime),
 				FileEncSHA256: uploaded.FileEncSHA256,
 				FileSHA256:    uploaded.FileSHA256,
 				FileLength:    proto.Uint64(uint64(len(data))),
