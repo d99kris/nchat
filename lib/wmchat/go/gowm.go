@@ -71,6 +71,7 @@ const (
 
 var (
 	mx          sync.Mutex
+	nextConnId  int                          = 0
 	clients     map[int]*whatsmeow.Client    = make(map[int]*whatsmeow.Client)
 	paths       map[int]string               = make(map[int]string)
 	contacts    map[int]map[string]string    = make(map[int]map[string]string)
@@ -143,7 +144,8 @@ func GetSendersStorePath(connPath string) string {
 
 func AddConn(conn *whatsmeow.Client, path string, sendType int) int {
 	mx.Lock()
-	var connId int = len(clients)
+	var connId int = nextConnId
+	nextConnId++
 	clients[connId] = conn
 	paths[connId] = path
 	contacts[connId], _ = LoadMap(GetContactsStorePath(path))
@@ -239,6 +241,9 @@ func HasContact(connId int, id string) bool {
 
 func AddContactName(connId int, id string, name string) {
 	mx.Lock()
+	if contacts[connId] == nil {
+		contacts[connId] = make(map[string]string)
+	}
 	contacts[connId][id] = name
 	mx.Unlock()
 }
@@ -265,6 +270,9 @@ func HasSender(connId int, id string) bool {
 
 func AddSender(connId int, id string, name string) {
 	mx.Lock()
+	if senders[connId] == nil {
+		senders[connId] = make(map[string]string)
+	}
 	senders[connId][id] = name
 	mx.Unlock()
 }
@@ -279,7 +287,9 @@ func GetAllSenders(connId int) map[string]string {
 
 func RemoveSender(connId int, id string) {
 	mx.Lock()
-	delete(senders[connId], id)
+	if senders[connId] != nil {
+		delete(senders[connId], id)
+	}
 	mx.Unlock()
 }
 
@@ -297,6 +307,9 @@ func GetTimeRead(connId int, chatId string) time.Time {
 
 func SetTimeRead(connId int, chatId string, timeRead time.Time) {
 	mx.Lock()
+	if timeReads[connId] == nil {
+		timeReads[connId] = make(map[string]time.Time)
+	}
 	timeReads[connId][chatId] = timeRead
 	mx.Unlock()
 }
@@ -315,6 +328,9 @@ func GetExpiration(connId int, chatId string) uint32 {
 
 func SetExpiration(connId int, chatId string, expiration uint32) {
 	mx.Lock()
+	if expirations[connId] == nil {
+		expirations[connId] = make(map[string]uint32)
+	}
 	expirations[connId][chatId] = expiration
 	mx.Unlock()
 }
@@ -377,7 +393,10 @@ func DownloadableMessageToFileId(client *whatsmeow.Client, msg whatsmeow.Downloa
 func DownloadFromFileId(connId int, fileId string) (string, int) {
 	LOG_TRACE(fmt.Sprintf("fileId %s", fileId))
 	var info DownloadInfo
-	json.Unmarshal([]byte(fileId), &info)
+	if err := json.Unmarshal([]byte(fileId), &info); err != nil {
+		LOG_WARNING(fmt.Sprintf("unmarshal fileId failed: %v", err))
+		return "", FileStatusDownloadFailed
+	}
 	if info.Version != downloadInfoVersion {
 		LOG_WARNING(fmt.Sprintf("unsupported version %d", info.Version))
 		return "", FileStatusDownloadFailed
@@ -387,6 +406,10 @@ func DownloadFromFileId(connId int, fileId string) (string, int) {
 
 	// get client
 	client := GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return "", FileStatusDownloadFailed
+	}
 
 	targetPath := info.TargetPath
 	filePath := ""
@@ -403,11 +426,11 @@ func DownloadFromFileId(connId int, fileId string) (string, int) {
 			fileStatus = FileStatusDownloadFailed
 		} else {
 			file, err := os.Create(targetPath)
-			defer file.Close()
 			if err != nil {
 				LOG_WARNING(fmt.Sprintf("create error %#v", err))
 				fileStatus = FileStatusDownloadFailed
 			} else {
+				defer file.Close()
 				_, err = file.Write(data)
 				if err != nil {
 					LOG_WARNING(fmt.Sprintf("write error %#v", err))
@@ -598,11 +621,17 @@ func StrFromJid(jid types.JID) string {
 
 // Check if self id
 func IsSelfUser(client *whatsmeow.Client, userId string) bool {
+	if client == nil || client.Store.ID == nil {
+		return false
+	}
 	return (StrFromJid(*client.Store.ID) == userId) || (StrFromJid(client.Store.LID) == userId)
 }
 
 // Check if self chat
 func IsSelfChat(client *whatsmeow.Client, chatId string) bool {
+	if client == nil || client.Store.ID == nil {
+		return false
+	}
 	return (StrFromJid(*client.Store.ID) == chatId)
 }
 
@@ -617,7 +646,7 @@ func GetChatId(client *whatsmeow.Client, chatJid *types.JID, senderJid *types.JI
 	} else if chatJid.Server == types.BroadcastServer && chatJid.User != "status" {
 		if senderJid != nil {
 			userId := GetUserId(client, nil, senderJid)
-			if userId == StrFromJid(*client.Store.ID) {
+			if client.Store.ID != nil && userId == StrFromJid(*client.Store.ID) {
 				// place broadcast message from self under the broadcast list chat
 				return StrFromJid(*chatJid)
 			} else {
@@ -890,6 +919,10 @@ func (handler *WmEventHandler) HandleEvent(rawEvt interface{}) {
 func (handler *WmEventHandler) HandleConnected() {
 	LOG_TRACE(fmt.Sprintf("HandleConnected"))
 	var client *whatsmeow.Client = GetClient(handler.connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return
+	}
 
 	if len(client.Store.PushName) == 0 {
 		return
@@ -901,6 +934,10 @@ func (handler *WmEventHandler) HandleReceipt(receipt *events.Receipt) {
 		LOG_TRACE(fmt.Sprintf("%#v was read by %s at %s", receipt.MessageIDs, receipt.SourceString(), receipt.Timestamp))
 		connId := handler.connId
 		var client *whatsmeow.Client = GetClient(connId)
+		if client == nil {
+			LOG_WARNING("client is nil")
+			return
+		}
 		chatId := GetChatId(client, &receipt.MessageSource.Chat, nil)
 		isRead := true
 		for _, msgId := range receipt.MessageIDs {
@@ -914,6 +951,10 @@ func (handler *WmEventHandler) HandlePresence(presence *events.Presence) {
 	if presence.From.Server != types.GroupServer {
 		connId := handler.connId
 		var client *whatsmeow.Client = GetClient(connId)
+		if client == nil {
+			LOG_WARNING("client is nil")
+			return
+		}
 		userId := GetUserId(client, nil, &presence.From)
 		isOnline := !presence.Unavailable
 		timeSeen := int(presence.LastSeen.Unix())
@@ -925,6 +966,10 @@ func (handler *WmEventHandler) HandlePresence(presence *events.Presence) {
 func (handler *WmEventHandler) HandleChatPresence(chatPresence *events.ChatPresence) {
 	connId := handler.connId
 	var client *whatsmeow.Client = GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return
+	}
 	chatId := GetChatId(client, &chatPresence.MessageSource.Chat, &chatPresence.MessageSource.Sender)
 	userId := GetUserId(client, &chatPresence.MessageSource.Chat, &chatPresence.MessageSource.Sender)
 	isTyping := (chatPresence.State == types.ChatPresenceComposing)
@@ -934,10 +979,14 @@ func (handler *WmEventHandler) HandleChatPresence(chatPresence *events.ChatPrese
 
 func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync) {
 	var client *whatsmeow.Client = GetClient(handler.connId)
+	if client == nil || client.Store.ID == nil {
+		LOG_WARNING("client or Store.ID is nil")
+		return
+	}
 	selfJid := *client.Store.ID
 
 	LOG_TRACE(fmt.Sprintf("HandleHistorySync SyncType %s Progress %d",
-		(*historySync.Data.SyncType).String(), historySync.Data.GetProgress()))
+		historySync.Data.GetSyncType().String(), historySync.Data.GetProgress()))
 
 	if historySync.Data.GetProgress() < 98 {
 		LOG_TRACE("Set Syncing")
@@ -1020,6 +1069,10 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 	connId := handler.connId
 	client := GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return
+	}
 	chatId := GetChatId(client, &groupInfo.JID, nil)
 	userId := GetUserId(client, &groupInfo.JID, groupInfo.Sender)
 
@@ -1121,6 +1174,10 @@ func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 func (handler *WmEventHandler) HandleDeleteChat(deleteChat *events.DeleteChat) {
 	connId := handler.connId
 	var client *whatsmeow.Client = GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return
+	}
 	chatId := GetChatId(client, &deleteChat.JID, nil)
 
 	LOG_TRACE(fmt.Sprintf("Call CWmDeleteChatNotify %s", chatId))
@@ -1130,6 +1187,10 @@ func (handler *WmEventHandler) HandleDeleteChat(deleteChat *events.DeleteChat) {
 func (handler *WmEventHandler) HandleMute(mute *events.Mute) {
 	connId := handler.connId
 	var client *whatsmeow.Client = GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return
+	}
 	chatId := GetChatId(client, &mute.JID, nil)
 	muteAction := mute.Action
 	if muteAction == nil {
@@ -1137,7 +1198,7 @@ func (handler *WmEventHandler) HandleMute(mute *events.Mute) {
 		return
 	}
 
-	isMuted := *muteAction.Muted
+	isMuted := muteAction.GetMuted()
 
 	LOG_TRACE(fmt.Sprintf("Call CWmUpdateMuteNotify %s %s", chatId, strconv.FormatBool(isMuted)))
 	CWmUpdateMuteNotify(connId, chatId, BoolToInt(isMuted))
@@ -1146,6 +1207,10 @@ func (handler *WmEventHandler) HandleMute(mute *events.Mute) {
 func (handler *WmEventHandler) HandleArchive(archive *events.Archive) {
 	connId := handler.connId
 	var client *whatsmeow.Client = GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return
+	}
 	chatId := GetChatId(client, &archive.JID, nil)
 	archiveAction := archive.Action
 	if archiveAction == nil {
@@ -1153,7 +1218,7 @@ func (handler *WmEventHandler) HandleArchive(archive *events.Archive) {
 		return
 	}
 
-	isArchived := *archiveAction.Archived
+	isArchived := archiveAction.GetArchived()
 
 	LOG_TRACE(fmt.Sprintf("Call CWmUpdateArchivedNotify %s %d", chatId, isArchived))
 	CWmUpdateArchivedNotify(connId, chatId, BoolToInt(isArchived))
@@ -1162,6 +1227,10 @@ func (handler *WmEventHandler) HandleArchive(archive *events.Archive) {
 func (handler *WmEventHandler) HandlePin(pin *events.Pin) {
 	connId := handler.connId
 	var client *whatsmeow.Client = GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return
+	}
 	chatId := GetChatId(client, &pin.JID, nil)
 	pinAction := pin.Action
 	if pinAction == nil {
@@ -1169,7 +1238,7 @@ func (handler *WmEventHandler) HandlePin(pin *events.Pin) {
 		return
 	}
 
-	isPinned := *pinAction.Pinned
+	isPinned := pinAction.GetPinned()
 	timePinned := int(pin.Timestamp.Unix())
 
 	LOG_TRACE(fmt.Sprintf("Call CWmUpdatePinNotify %s %s %d", chatId, strconv.FormatBool(isPinned), timePinned))
@@ -1185,6 +1254,10 @@ func (handler *WmEventHandler) HandleClientOutdated() {
 func (handler *WmEventHandler) HandleDeleteForMe(deleteForMe *events.DeleteForMe) {
 	connId := handler.connId
 	client := GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return
+	}
 	chatId := GetChatId(client, &deleteForMe.ChatJID, nil)
 	msgId := deleteForMe.MessageID
 	LOG_TRACE(fmt.Sprintf("Call CWmDeleteMessageNotify %s %s", chatId, msgId))
@@ -1233,6 +1306,9 @@ func GetGroupDisplayName(connId int, groupInfo *types.GroupInfo) string {
 	const maxParticipants = 6
 	names := []string{}
 	client := GetClient(connId)
+	if client == nil {
+		return "Unnamed Group"
+	}
 	for _, participant := range groupInfo.Participants {
 		if len(names) >= maxParticipants {
 			break
@@ -1286,6 +1362,11 @@ func GetContacts(connId int) {
 	CWmSetStatus(connId, FlagFetching)
 
 	var client *whatsmeow.Client = GetClient(connId)
+	if client == nil || client.Store.ID == nil {
+		LOG_WARNING("client or Store.ID is nil")
+		CWmClearStatus(connId, FlagFetching)
+		return
+	}
 
 	// common
 	var notify int = NotifyCache // defer notification until last contact
@@ -1545,8 +1626,12 @@ func (handler *WmEventHandler) ProcessContextInfo(contextInfo *waE2E.ContextInfo
 func (handler *WmEventHandler) ProcessMessageInfo(messageInfo types.MessageInfo) {
 	connId := handler.connId
 	var client *whatsmeow.Client = GetClient(connId)
+	if client == nil {
+		return
+	}
 	userId := GetUserId(client, &messageInfo.Chat, &messageInfo.Sender)
 	if messageInfo.Sender.Server != types.HiddenUserServer {
+		LOG_WARNING("client is nil")
 		return
 	}
 
@@ -1579,6 +1664,10 @@ func (handler *WmEventHandler) HandleTextMessage(messageInfo types.MessageInfo, 
 
 	connId := handler.connId
 	var client *whatsmeow.Client = GetClient(handler.connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return
+	}
 	text := ""
 
 	// text
@@ -1619,6 +1708,10 @@ func (handler *WmEventHandler) HandleImageMessage(messageInfo types.MessageInfo,
 
 	connId := handler.connId
 	var client *whatsmeow.Client = GetClient(handler.connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return
+	}
 
 	// get image part
 	img := msg.GetImageMessage()
@@ -1671,6 +1764,10 @@ func (handler *WmEventHandler) HandleVideoMessage(messageInfo types.MessageInfo,
 
 	connId := handler.connId
 	var client *whatsmeow.Client = GetClient(handler.connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return
+	}
 
 	// get video part
 	vid := msg.GetVideoMessage()
@@ -1723,6 +1820,10 @@ func (handler *WmEventHandler) HandleAudioMessage(messageInfo types.MessageInfo,
 
 	connId := handler.connId
 	var client *whatsmeow.Client = GetClient(handler.connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return
+	}
 
 	// get audio part
 	aud := msg.GetAudioMessage()
@@ -1771,6 +1872,10 @@ func (handler *WmEventHandler) HandleDocumentMessage(messageInfo types.MessageIn
 
 	connId := handler.connId
 	var client *whatsmeow.Client = GetClient(handler.connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return
+	}
 
 	// get doc part
 	doc := msg.GetDocumentMessage()
@@ -1794,7 +1899,7 @@ func (handler *WmEventHandler) HandleDocumentMessage(messageInfo types.MessageIn
 	fileStatus := FileStatusNotDownloaded
 	if !isEdited {
 		var tmpPath string = GetPath(connId) + "/tmp"
-		filePath = fmt.Sprintf("%s/%s-%s", tmpPath, messageInfo.ID, *doc.FileName)
+		filePath = fmt.Sprintf("%s/%s-%s", tmpPath, messageInfo.ID, doc.GetFileName())
 		fileId = DownloadableMessageToFileId(client, doc, filePath)
 	}
 
@@ -1820,6 +1925,10 @@ func (handler *WmEventHandler) HandleStickerMessage(messageInfo types.MessageInf
 
 	connId := handler.connId
 	var client *whatsmeow.Client = GetClient(handler.connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return
+	}
 
 	// get sticker part
 	sticker := msg.GetStickerMessage()
@@ -1868,6 +1977,10 @@ func (handler *WmEventHandler) HandleTemplateMessage(messageInfo types.MessageIn
 
 	connId := handler.connId
 	var client *whatsmeow.Client = GetClient(handler.connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return
+	}
 
 	// get template part
 	tpl := msg.GetTemplateMessage()
@@ -1961,6 +2074,10 @@ func (handler *WmEventHandler) HandleReactionMessage(messageInfo types.MessageIn
 
 	connId := handler.connId
 	client := GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return
+	}
 
 	// get reaction part
 	reaction := msg.GetReactionMessage()
@@ -1974,7 +2091,7 @@ func (handler *WmEventHandler) HandleReactionMessage(messageInfo types.MessageIn
 	fromMe := messageInfo.IsFromMe
 	senderId := GetUserId(client, &messageInfo.Chat, &messageInfo.Sender)
 	text := reaction.GetText()
-	msgId := *reaction.Key.ID
+	msgId := reaction.GetKey().GetID()
 
 	CWmNewMessageReactionNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe))
 
@@ -2007,6 +2124,10 @@ func (handler *WmEventHandler) HandleProtocolMessage(messageInfo types.MessageIn
 		// handle message revoke
 		connId := handler.connId
 		var client *whatsmeow.Client = GetClient(connId)
+		if client == nil {
+			LOG_WARNING("client is nil")
+			return
+		}
 		chatId := GetChatId(client, &messageInfo.Chat, &messageInfo.Sender)
 		msgId := protocol.GetKey().GetID()
 		LOG_TRACE(fmt.Sprintf("Call CWmDeleteMessageNotify %s %s", chatId, msgId))
@@ -2191,6 +2312,10 @@ func (handler *WmEventHandler) HandleUnsupportedMessage(messageInfo types.Messag
 
 	connId := handler.connId
 	var client *whatsmeow.Client = GetClient(handler.connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return
+	}
 
 	// text
 	text := "[" + msgType + "]"
@@ -2312,6 +2437,10 @@ func WmLogin(connId int) int {
 	// get path and conn
 	var path string = GetPath(connId)
 	var cli *whatsmeow.Client = GetClient(connId)
+	if cli == nil {
+		LOG_WARNING("client is nil")
+		return -1
+	}
 
 	// authenticate if needed, otherwise just connect
 	SetState(connId, Connecting)
@@ -2452,6 +2581,10 @@ func WmLogout(connId int) int {
 
 	// get client
 	var client *whatsmeow.Client = GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return -1
+	}
 
 	// disconnect
 	client.Disconnect()
@@ -2492,6 +2625,10 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 	// get conn
 	var client *whatsmeow.Client = GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return -1
+	}
 
 	// local vars
 	var sendErr error
@@ -2833,7 +2970,9 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 		var messageInfo types.MessageInfo
 		messageInfo.Chat = chatJid
 		messageInfo.IsFromMe = true
-		messageInfo.Sender = *client.Store.ID
+		if client.Store.ID != nil {
+			messageInfo.Sender = *client.Store.ID
+		}
 		if isEdited {
 			messageInfo.Edit = "1"
 		}
@@ -2866,6 +3005,10 @@ func WmGetGroupMembers(connId int, chatId string) int {
 
 	// get client
 	var client *whatsmeow.Client = GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return -1
+	}
 
 	// parse chat JID
 	chatJid, jidErr := types.ParseJID(chatId)
@@ -2919,6 +3062,10 @@ func WmGetContacts(connId int) int {
 
 	// get client
 	client := GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return -1
+	}
 
 	// sync contacts
 	err := client.FetchAppState(context.TODO(), appstate.WAPatchCriticalUnblockLow, true, false)
@@ -2944,6 +3091,10 @@ func WmGetStatus(connId int, userId string) int {
 
 	// get client
 	client := GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return -1
+	}
 
 	// ignore presence requests before connected
 	if GetState(connId) != Connected {
@@ -2989,6 +3140,10 @@ func WmMarkMessageRead(connId int, chatId string, senderId string, msgId string)
 
 	// get client
 	client := GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return -1
+	}
 
 	// mark read
 	msgIds := []types.MessageID{
@@ -3026,6 +3181,10 @@ func WmDeleteMessage(connId int, chatId string, senderId string, msgId string) i
 
 	// get client
 	client := GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return -1
+	}
 
 	chatJid, _ := types.ParseJID(chatId)
 	senderJid, _ := types.ParseJID(senderId)
@@ -3066,6 +3225,10 @@ func WmDeleteChat(connId int, chatId string) int {
 
 	// get client
 	client := GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return -1
+	}
 
 	// get chat jid
 	chatJid, _ := types.ParseJID(chatId)
@@ -3101,6 +3264,10 @@ func WmArchiveChat(connId int, chatId string, isArchived int) int {
 	}
 
 	client := GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return -1
+	}
 	chatJid, _ := types.ParseJID(chatId)
 	archived := isArchived != 0
 
@@ -3125,6 +3292,10 @@ func WmPinChat(connId int, chatId string, isPinned int) int {
 	}
 
 	client := GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return -1
+	}
 	chatJid, _ := types.ParseJID(chatId)
 	pin := isPinned != 0
 
@@ -3151,6 +3322,10 @@ func WmSendTyping(connId int, chatId string, isTyping int) int {
 
 	// get client
 	client := GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return -1
+	}
 
 	// do not send typing to self chat
 	isSelfChat := IsSelfChat(client, chatId)
@@ -3192,6 +3367,10 @@ func WmSendStatus(connId int, isOnline int) int {
 
 	// get client
 	client := GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return -1
+	}
 
 	// bail out if no push name yet
 	if len(client.Store.PushName) == 0 {
@@ -3251,6 +3430,10 @@ func WmSendReaction(connId int, chatId string, senderId string, msgId string, em
 
 	// get client
 	client := GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return -1
+	}
 
 	// send reaction
 	chatJid, _ := types.ParseJID(chatId)
