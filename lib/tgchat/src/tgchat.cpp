@@ -2180,6 +2180,11 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
       markMessageReadRequest->readAllReactions = true;
       SendRequest(markMessageReadRequest);
     }
+    else
+    {
+      newMessageReactionsNotify->reactions.needConsolidationWithCache = true;
+      newMessageReactionsNotify->reactions.replaceCount = true;
+    }
 
     CallMessageHandler(newMessageReactionsNotify);
   },
