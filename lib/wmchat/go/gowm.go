@@ -1631,7 +1631,6 @@ func (handler *WmEventHandler) ProcessMessageInfo(messageInfo types.MessageInfo)
 	}
 	userId := GetUserId(client, &messageInfo.Chat, &messageInfo.Sender)
 	if messageInfo.Sender.Server != types.HiddenUserServer {
-		LOG_WARNING("client is nil")
 		return
 	}
 
