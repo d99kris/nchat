@@ -2139,11 +2139,16 @@ void UiModel::Impl::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMess
           getChatsRequest->chatIds.insert(chatId);
           SendProtocolRequest(profileId, getChatsRequest);
 
+          // clear previously requested message ids, as prior requests may have been
+          // silently dropped by NewMessagesNotify handler when chat was still archived
+          m_MsgFromIdsRequested[profileId][chatId].clear();
+
           // fetch messages so they're available when user selects this chat
           RequestMessages(profileId, chatId);
         }
         SortChats();
         UpdateList();
+        UpdateHistory();
         UpdateStatus();
       }
       break;
