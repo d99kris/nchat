@@ -341,6 +341,7 @@ public:
   void SetTerminalActive(bool p_TerminalActive);
 
   // Locked methods require caller to hold model mutex (intended for Ui*View classes)
+  bool GetChatInfoIsGroupLocked(const std::string& p_ProfileId, const std::string& p_ChatId);
   bool GetChatIsUnreadLocked(const std::string& p_ProfileId, const std::string& p_ChatId);
   std::string GetChatStatusLocked(const std::string& p_ProfileId, const std::string& p_ChatId);
   std::vector<std::pair<std::string, std::string>>& GetChatVecLocked();
