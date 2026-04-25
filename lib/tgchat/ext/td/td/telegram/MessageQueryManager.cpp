@@ -17,7 +17,6 @@
 #include "td/telegram/DialogParticipantManager.h"
 #include "td/telegram/FactCheck.h"
 #include "td/telegram/files/FileManager.h"
-#include "td/telegram/files/FileType.h"
 #include "td/telegram/FolderId.h"
 #include "td/telegram/ForumTopicManager.h"
 #include "td/telegram/Global.h"
@@ -55,6 +54,7 @@
 #include "td/utils/buffer.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
+#include "td/utils/Random.h"
 #include "td/utils/SliceBuilder.h"
 #include "td/utils/Status.h"
 #include "td/utils/Time.h"
@@ -70,7 +70,7 @@ class UploadCoverQuery final : public Td::ResultHandler {
   Promise<Unit> promise_;
   BusinessConnectionId business_connection_id_;
   DialogId dialog_id_;
-  Photo photo_;
+  MessageCover cover_;
   FileUploadId file_upload_id_;
   bool was_uploaded_ = false;
 
@@ -78,12 +78,12 @@ class UploadCoverQuery final : public Td::ResultHandler {
   explicit UploadCoverQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
   }
 
-  void send(BusinessConnectionId business_connection_id, DialogId dialog_id, Photo &&photo, FileUploadId file_upload_id,
-            telegram_api::object_ptr<telegram_api::InputMedia> &&input_media) {
+  void send(BusinessConnectionId business_connection_id, DialogId dialog_id, MessageCover &&cover,
+            FileUploadId file_upload_id, telegram_api::object_ptr<telegram_api::InputMedia> &&input_media) {
     CHECK(input_media != nullptr);
     business_connection_id_ = business_connection_id;
     dialog_id_ = dialog_id;
-    photo_ = std::move(photo);
+    cover_ = std::move(cover);
     file_upload_id_ = file_upload_id;
     was_uploaded_ = FileManager::extract_was_uploaded(input_media);
 
@@ -113,7 +113,7 @@ class UploadCoverQuery final : public Td::ResultHandler {
 
     auto ptr = result_ptr.move_as_ok();
     LOG(INFO) << "Receive result for UploadCoverQuery: " << to_string(ptr);
-    td_->message_query_manager_->complete_upload_message_cover(business_connection_id_, dialog_id_, std::move(photo_),
+    td_->message_query_manager_->complete_upload_message_cover(business_connection_id_, dialog_id_, std::move(cover_),
                                                                file_upload_id_, std::move(ptr), std::move(promise_));
   }
 
@@ -123,7 +123,7 @@ class UploadCoverQuery final : public Td::ResultHandler {
     if (was_uploaded_) {
       auto bad_parts = FileManager::get_missing_file_parts(status);
       if (!bad_parts.empty()) {
-        td_->message_query_manager_->upload_message_cover(business_connection_id_, dialog_id_, std::move(photo_),
+        td_->message_query_manager_->upload_message_cover(business_connection_id_, dialog_id_, std::move(cover_),
                                                           file_upload_id_, std::move(promise_), std::move(bad_parts));
         return;
       } else {
@@ -172,9 +172,18 @@ class SendBotRequestedPeerQuery final : public Td::ResultHandler {
   explicit SendBotRequestedPeerQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
   }
 
-  void send(MessageFullId message_full_id, int32 button_id, vector<DialogId> &&requested_dialog_ids) {
+  void send(MessageFullId message_full_id, UserId bot_user_id, const string &request_id, int32 button_id,
+            vector<DialogId> &&requested_dialog_ids) {
     auto dialog_id = message_full_id.get_dialog_id();
-    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Write);
+    int32 flags = 0;
+    telegram_api::object_ptr<telegram_api::InputPeer> input_peer;
+    if (bot_user_id == UserId() && request_id.empty()) {
+      input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Write);
+      flags |= telegram_api::messages_sendBotRequestedPeer::MSG_ID_MASK;
+    } else {
+      input_peer = td_->dialog_manager_->get_input_peer(DialogId(bot_user_id), AccessRights::Write);
+      flags |= telegram_api::messages_sendBotRequestedPeer::WEBAPP_REQ_ID_MASK;
+    }
     if (input_peer == nullptr) {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
@@ -188,9 +197,9 @@ class SendBotRequestedPeerQuery final : public Td::ResultHandler {
     }
 
     send_query(G()->net_query_creator().create(
-        telegram_api::messages_sendBotRequestedPeer(std::move(input_peer),
+        telegram_api::messages_sendBotRequestedPeer(flags, std::move(input_peer),
                                                     message_full_id.get_message_id().get_server_message_id().get(),
-                                                    button_id, std::move(requested_peers)),
+                                                    request_id, button_id, std::move(requested_peers)),
         {{dialog_id, MessageContentType::Text}}));
   }
 
@@ -783,6 +792,8 @@ class GetMessagePositionQuery final : public Td::ResultHandler {
   }
 
   void on_result(BufferSlice packet) final {
+    static_assert(std::is_same<telegram_api::messages_getSavedHistory::ReturnType,
+                               telegram_api::messages_search::ReturnType>::value);
     auto result_ptr = fetch_result<telegram_api::messages_search>(packet);
     if (result_ptr.is_error()) {
       return on_error(result_ptr.move_as_error());
@@ -836,6 +847,55 @@ class GetMessagePositionQuery final : public Td::ResultHandler {
   void on_error(Status status) final {
     td_->messages_manager_->on_get_message_error(dialog_id_, message_id_, status, "GetMessagePositionQuery");
     promise_.set_error(std::move(status));
+  }
+};
+
+class ReportMusicListenQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+
+ public:
+  explicit ReportMusicListenQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(telegram_api::object_ptr<telegram_api::inputDocument> input_document, int32 duration) {
+    send_query(
+        G()->net_query_creator().create(telegram_api::messages_reportMusicListen(std::move(input_document), duration)));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::messages_reportMusicListen>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    promise_.set_value(Unit());
+  }
+
+  void on_error(Status status) final {
+    promise_.set_error(std::move(status));
+  }
+};
+
+class ReportReadMetricsQuery final : public Td::ResultHandler {
+ public:
+  void send(DialogId dialog_id,
+            vector<telegram_api::object_ptr<telegram_api::inputMessageReadMetric>> &&input_metrics) {
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Read);
+    if (input_peer == nullptr) {
+      return;
+    }
+    send_query(G()->net_query_creator().create(
+        telegram_api::messages_reportReadMetrics(std::move(input_peer), std::move(input_metrics))));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::messages_reportReadMetrics>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+  }
+
+  void on_error(Status status) final {
   }
 };
 
@@ -1027,17 +1087,23 @@ class SummarizeTextQuery final : public Td::ResultHandler {
       : promise_(std::move(promise)) {
   }
 
-  void send(DialogId dialog_id, MessageId message_id, const string &to_language_code) {
+  void send(DialogId dialog_id, MessageId message_id, const string &to_language_code, string tone) {
     int32 flags = 0;
     if (!to_language_code.empty()) {
       flags |= telegram_api::messages_summarizeText::TO_LANG_MASK;
+    }
+    if (tone == "neutral") {
+      tone.clear();
+    }
+    if (!tone.empty()) {
+      flags |= telegram_api::messages_summarizeText::TONE_MASK;
     }
     auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Read);
     if (input_peer == nullptr) {
       return promise_.set_error(400, "Chat is not accessible");
     }
     send_query(G()->net_query_creator().create(telegram_api::messages_summarizeText(
-        flags, std::move(input_peer), message_id.get_server_message_id().get(), to_language_code)));
+        flags, std::move(input_peer), message_id.get_server_message_id().get(), to_language_code, tone)));
   }
 
   void on_result(BufferSlice packet) final {
@@ -1674,6 +1740,46 @@ class ReadReactionsQuery final : public Td::ResultHandler {
   }
 };
 
+class ReadPollVotesQuery final : public Td::ResultHandler {
+  Promise<AffectedHistory> promise_;
+  DialogId dialog_id_;
+  ForumTopicId forum_topic_id_;
+
+ public:
+  explicit ReadPollVotesQuery(Promise<AffectedHistory> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(DialogId dialog_id, ForumTopicId forum_topic_id) {
+    dialog_id_ = dialog_id;
+
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Read);
+    if (input_peer == nullptr) {
+      return promise_.set_error(400, "Chat is not accessible");
+    }
+
+    int32 flags = 0;
+    if (forum_topic_id.is_valid()) {
+      flags |= telegram_api::messages_readPollVotes::TOP_MSG_ID_MASK;
+    }
+    send_query(G()->net_query_creator().create(
+        telegram_api::messages_readPollVotes(flags, std::move(input_peer), forum_topic_id.get()), {{dialog_id}}));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::messages_readPollVotes>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    promise_.set_value(AffectedHistory(result_ptr.move_as_ok()));
+  }
+
+  void on_error(Status status) final {
+    td_->forum_topic_manager_->on_get_forum_topic_error(dialog_id_, forum_topic_id_, status, "ReadPollVotesQuery");
+    promise_.set_error(std::move(status));
+  }
+};
+
 class ReadMessagesContentsQuery final : public Td::ResultHandler {
   Promise<Unit> promise_;
 
@@ -1818,6 +1924,9 @@ class MessageQueryManager::UploadCoverCallback final : public FileManager::Uploa
 
 MessageQueryManager::MessageQueryManager(Td *td, ActorShared<> parent) : td_(td), parent_(std::move(parent)) {
   upload_cover_callback_ = std::make_shared<UploadCoverCallback>();
+
+  send_message_view_metrics_timeout_.set_callback(on_send_message_view_metrics_timeout_callback);
+  send_message_view_metrics_timeout_.set_callback_data(static_cast<void *>(this));
 }
 
 void MessageQueryManager::tear_down() {
@@ -1872,32 +1981,31 @@ void MessageQueryManager::on_get_affected_history(DialogId dialog_id, AffectedHi
 }
 
 void MessageQueryManager::upload_message_covers(BusinessConnectionId business_connection_id, DialogId dialog_id,
-                                                vector<const Photo *> covers, Promise<Unit> &&promise) {
+                                                vector<MessageCover> covers, Promise<Unit> &&promise) {
   TRY_STATUS_PROMISE(promise, G()->close_status());
   CHECK(!covers.empty());
   MultiPromiseActorSafe mpas{"UploadMessageCoversMultiPromiseActor"};
   mpas.add_promise(std::move(promise));
   auto lock = mpas.get_promise();
-  for (const Photo *cover : covers) {
-    CHECK(cover != nullptr);
-    auto file_upload_id = FileUploadId(get_photo_any_file_id(*cover), FileManager::get_internal_upload_id());
-    upload_message_cover(business_connection_id, dialog_id, *cover, file_upload_id, mpas.get_promise());
+  for (const MessageCover &cover : covers) {
+    CHECK(!cover.is_empty());
+    auto file_upload_id = FileUploadId(cover.get_any_file_id(), FileManager::get_internal_upload_id());
+    upload_message_cover(business_connection_id, dialog_id, cover, file_upload_id, mpas.get_promise());
   }
   lock.set_value(Unit());
 }
 
 void MessageQueryManager::upload_message_cover(BusinessConnectionId business_connection_id, DialogId dialog_id,
-                                               Photo photo, FileUploadId file_upload_id, Promise<Unit> &&promise,
-                                               vector<int> bad_parts) {
+                                               MessageCover message_cover, FileUploadId file_upload_id,
+                                               Promise<Unit> &&promise, vector<int> bad_parts) {
   TRY_STATUS_PROMISE(promise, G()->close_status());
   BeingUploadedCover cover;
   cover.business_connection_id_ = business_connection_id;
   cover.dialog_id_ = dialog_id;
-  cover.photo_ = std::move(photo);
+  cover.cover_ = std::move(message_cover);
   cover.promise_ = std::move(promise);
 
-  auto input_media = photo_get_cover_input_media(td_->file_manager_.get(), cover.photo_,
-                                                 td_->auth_manager_->is_bot() && bad_parts.empty(), true);
+  auto input_media = cover.cover_.get_cover_input_media(td_, td_->auth_manager_->is_bot() && bad_parts.empty(), true);
   if (input_media != nullptr && bad_parts.empty()) {
     return do_upload_cover(file_upload_id, std::move(cover));
   }
@@ -1939,39 +2047,23 @@ void MessageQueryManager::do_upload_cover(FileUploadId file_upload_id, BeingUplo
   bool have_input_file = input_file != nullptr;
   LOG(INFO) << "Do upload cover " << file_upload_id << ", have_input_file = " << have_input_file;
 
-  auto input_media =
-      photo_get_input_media(td_->file_manager_.get(), being_uploaded_cover.photo_, std::move(input_file), 0, false);
+  auto input_media = being_uploaded_cover.cover_.get_input_media(td_, std::move(input_file));
   CHECK(input_media != nullptr);
   if (is_uploaded_input_media(input_media)) {
     return being_uploaded_cover.promise_.set_value(Unit());
   } else {
     td_->create_handler<UploadCoverQuery>(std::move(being_uploaded_cover.promise_))
         ->send(being_uploaded_cover.business_connection_id_, being_uploaded_cover.dialog_id_,
-               std::move(being_uploaded_cover.photo_), file_upload_id, std::move(input_media));
+               std::move(being_uploaded_cover.cover_), file_upload_id, std::move(input_media));
   }
 }
 
 void MessageQueryManager::complete_upload_message_cover(
-    BusinessConnectionId business_connection_id, DialogId dialog_id, Photo photo, FileUploadId file_upload_id,
+    BusinessConnectionId business_connection_id, DialogId dialog_id, MessageCover cover, FileUploadId file_upload_id,
     telegram_api::object_ptr<telegram_api::MessageMedia> &&media_ptr, Promise<Unit> &&promise) {
   send_closure_later(G()->file_manager(), &FileManager::cancel_upload, file_upload_id);
-
-  if (media_ptr->get_id() != telegram_api::messageMediaPhoto::ID) {
-    return promise.set_error(500, "Receive invalid response");
-  }
-  auto media = telegram_api::move_object_as<telegram_api::messageMediaPhoto>(media_ptr);
-  if (media->photo_ == nullptr || media->ttl_seconds_ != 0) {
-    return promise.set_error(500, "Receive invalid response without photo");
-  }
-  auto new_photo = get_photo(td_, std::move(media->photo_), dialog_id, FileType::Photo);
-  if (new_photo.is_empty()) {
-    return promise.set_error(500, "Receive invalid photo in response");
-  }
-  bool is_content_changed = false;
-  bool need_update = false;
-  merge_photos(td_, &photo, &new_photo, dialog_id, true, is_content_changed, need_update);
-
-  auto input_media = photo_get_cover_input_media(td_->file_manager_.get(), photo, true, true);
+  TRY_STATUS_PROMISE(promise, cover.merge_with_media(td_, dialog_id, std::move(media_ptr)));
+  auto input_media = cover.get_cover_input_media(td_, true, true);
   if (input_media == nullptr) {
     return promise.set_error(500, "Failed to upload file");
   }
@@ -1985,10 +2077,11 @@ void MessageQueryManager::report_message_delivery(MessageFullId message_full_id,
   td_->create_handler<ReportMessageDeliveryQuery>()->send(message_full_id, from_push);
 }
 
-void MessageQueryManager::send_bot_requested_peer(MessageFullId message_full_id, int32 button_id,
+void MessageQueryManager::send_bot_requested_peer(MessageFullId message_full_id, UserId user_id,
+                                                  const string &request_id, int32 button_id,
                                                   vector<DialogId> shared_dialog_ids, Promise<Unit> &&promise) {
   td_->create_handler<SendBotRequestedPeerQuery>(std::move(promise))
-      ->send(message_full_id, button_id, std::move(shared_dialog_ids));
+      ->send(message_full_id, user_id, request_id, button_id, std::move(shared_dialog_ids));
 }
 
 void MessageQueryManager::reload_message_extended_media(DialogId dialog_id, vector<MessageId> message_ids) {
@@ -2081,8 +2174,8 @@ void MessageQueryManager::search_messages(DialogListId dialog_list_id, bool igno
 
   CHECK(filter != MessageSearchFilter::Call && filter != MessageSearchFilter::MissedCall);
   if (filter == MessageSearchFilter::Mention || filter == MessageSearchFilter::UnreadMention ||
-      filter == MessageSearchFilter::UnreadReaction || filter == MessageSearchFilter::FailedToSend ||
-      filter == MessageSearchFilter::Pinned) {
+      filter == MessageSearchFilter::UnreadReaction || filter == MessageSearchFilter::UnreadPollVote ||
+      filter == MessageSearchFilter::FailedToSend || filter == MessageSearchFilter::Pinned) {
     return promise.set_error(400, "The filter is not supported");
   }
 
@@ -2354,11 +2447,105 @@ void MessageQueryManager::get_dialog_message_position_from_server(DialogId dialo
                                                                   MessageSearchFilter filter, MessageId message_id,
                                                                   Promise<int32> &&promise) {
   if (filter == MessageSearchFilter::UnreadMention || filter == MessageSearchFilter::UnreadReaction ||
-      filter == MessageSearchFilter::FailedToSend) {
+      filter == MessageSearchFilter::UnreadPollVote || filter == MessageSearchFilter::FailedToSend) {
     return promise.set_error(400, "The filter is not supported");
   }
 
   td_->create_handler<GetMessagePositionQuery>(std::move(promise))->send(dialog_id, message_id, filter, message_topic);
+}
+
+void MessageQueryManager::report_music_listen(FileId file_id, int32 duration, Promise<Unit> &&promise) {
+  if (duration < 0) {
+    return promise.set_error(400, "Invalid duration specified");
+  }
+  if (!file_id.is_valid()) {
+    return promise.set_error(400, "Invalid file identifier specified");
+  }
+  auto file_view = td_->file_manager_->get_file_view(file_id);
+  if (file_view.is_encrypted()) {
+    return promise.set_value(Unit());
+  }
+  const auto *main_remote_location = file_view.get_main_remote_location();
+  if (main_remote_location == nullptr || main_remote_location->is_web() || !main_remote_location->is_document()) {
+    return promise.set_value(Unit());
+  }
+  if (duration < 3) {
+    return promise.set_value(Unit());
+  }
+  td_->create_handler<ReportMusicListenQuery>(std::move(promise))
+      ->send(main_remote_location->as_input_document(), duration);
+}
+
+void MessageQueryManager::send_message_view_metrics(DialogId dialog_id, MessageId message_id, int32 time_in_view_ms,
+                                                    int32 active_time_in_view_ms,
+                                                    int32 height_to_viewport_ratio_per_mille,
+                                                    int32 seen_range_ratio_per_mille, Promise<Unit> &&promise) {
+  TRY_STATUS_PROMISE(promise, td_->dialog_manager_->check_dialog_access(dialog_id, true, AccessRights::Read,
+                                                                        "send_message_view_metrics"));
+  if (time_in_view_ms < 0 || time_in_view_ms > 1000000000 || active_time_in_view_ms < 0 ||
+      active_time_in_view_ms > 1000000000 || height_to_viewport_ratio_per_mille < 0 || seen_range_ratio_per_mille < 0 ||
+      seen_range_ratio_per_mille > 1000) {
+    return promise.set_error(400, "Invalid metrics specified");
+  }
+  if (dialog_id.get_type() == DialogType::SecretChat || !message_id.is_server() || time_in_view_ms < 300 ||
+      !td_->messages_manager_->have_message_force({dialog_id, message_id}, "send_message_view_metrics")) {
+    return promise.set_value(Unit());
+  }
+  MessageViewMetrics metrics;
+  metrics.message_id_ = message_id;
+  metrics.time_in_view_ms_ = time_in_view_ms;
+  metrics.active_time_in_view_ms_ = active_time_in_view_ms;
+  metrics.height_to_viewport_ratio_per_mille_ = height_to_viewport_ratio_per_mille;
+  metrics.seen_range_ratio_per_mille_ = seen_range_ratio_per_mille;
+
+  pending_message_view_metrics_[dialog_id].push_back(std::move(metrics));
+  send_message_view_metrics_timeout_.add_timeout_in(dialog_id.get(), 5.0);
+
+  promise.set_value(Unit());
+}
+
+void MessageQueryManager::on_send_message_view_metrics_timeout_callback(void *message_query_manager_ptr,
+                                                                        int64 dialog_id_int) {
+  if (G()->close_flag()) {
+    return;
+  }
+
+  auto message_query_manager = static_cast<MessageQueryManager *>(message_query_manager_ptr);
+  send_closure_later(message_query_manager->actor_id(message_query_manager),
+                     &MessageQueryManager::send_message_view_metrics_timeout, DialogId(dialog_id_int));
+}
+
+void MessageQueryManager::send_message_view_metrics_timeout(DialogId dialog_id) {
+  if (G()->close_flag()) {
+    return;
+  }
+
+  auto it = pending_message_view_metrics_.find(dialog_id);
+  if (it == pending_message_view_metrics_.end()) {
+    return;
+  }
+  FlatHashMap<MessageId, MessageViewMetrics, MessageIdHash> metrics;
+  for (const auto &input_metric : it->second) {
+    auto &metric = metrics[input_metric.message_id_];
+    metric.message_id_ = input_metric.message_id_;
+    metric.time_in_view_ms_ += input_metric.time_in_view_ms_;
+    metric.active_time_in_view_ms_ += input_metric.active_time_in_view_ms_;
+    metric.height_to_viewport_ratio_per_mille_ =
+        max(metric.height_to_viewport_ratio_per_mille_, input_metric.height_to_viewport_ratio_per_mille_);
+    metric.seen_range_ratio_per_mille_ =
+        max(metric.seen_range_ratio_per_mille_, input_metric.seen_range_ratio_per_mille_);
+  }
+  pending_message_view_metrics_.erase(it);
+
+  vector<telegram_api::object_ptr<telegram_api::inputMessageReadMetric>> input_metrics;
+  for (const auto &metric_it : metrics) {
+    const auto &metric = metric_it.second;
+    input_metrics.push_back(telegram_api::make_object<telegram_api::inputMessageReadMetric>(
+        metric.message_id_.get_server_message_id().get(), Random::secure_int64(), metric.time_in_view_ms_,
+        metric.active_time_in_view_ms_, metric.height_to_viewport_ratio_per_mille_,
+        metric.seen_range_ratio_per_mille_));
+  }
+  td_->create_handler<ReportReadMetricsQuery>()->send(dialog_id, std::move(input_metrics));
 }
 
 void MessageQueryManager::get_message_read_date_from_server(
@@ -2577,6 +2764,7 @@ void MessageQueryManager::do_get_paid_message_reaction_senders(
 }
 
 void MessageQueryManager::summarize_message_text(MessageFullId message_full_id, const string &to_language_code,
+                                                 const string &tone,
                                                  Promise<td_api::object_ptr<td_api::formattedText>> &&promise) {
   auto dialog_id = message_full_id.get_dialog_id();
   TRY_STATUS_PROMISE(promise, td_->dialog_manager_->check_dialog_access(dialog_id, false, AccessRights::Read,
@@ -2584,11 +2772,14 @@ void MessageQueryManager::summarize_message_text(MessageFullId message_full_id, 
   if (!td_->messages_manager_->have_message_force(message_full_id, "summarize_message_text")) {
     return promise.set_error(400, "Message not found");
   }
+  if (tone != string() && tone != "formal" && tone != "neutral" && tone != "casual") {
+    return promise.set_error(400, "Invalid tone specified");
+  }
   auto message_id = message_full_id.get_message_id();
   if (!message_id.is_server()) {
     return promise.set_error(400, "Message can't be summarized");
   }
-  td_->create_handler<SummarizeTextQuery>(std::move(promise))->send(dialog_id, message_id, to_language_code);
+  td_->create_handler<SummarizeTextQuery>(std::move(promise))->send(dialog_id, message_id, to_language_code, tone);
 }
 
 void MessageQueryManager::add_to_do_list_tasks(MessageFullId message_full_id,
@@ -3344,6 +3535,57 @@ void MessageQueryManager::read_all_dialog_reactions_on_server(DialogId dialog_id
                                             get_erase_log_event_promise(log_event_id, std::move(promise)));
 }
 
+class MessageQueryManager::ReadAllPollVotesOnServerLogEvent {
+ public:
+  DialogId dialog_id_;
+  ForumTopicId forum_topic_id_;
+
+  template <class StorerT>
+  void store(StorerT &storer) const {
+    bool has_forum_topic_id = forum_topic_id_.is_valid();
+    BEGIN_STORE_FLAGS();
+    STORE_FLAG(has_forum_topic_id);
+    END_STORE_FLAGS();
+    td::store(dialog_id_, storer);
+    if (has_forum_topic_id) {
+      td::store(forum_topic_id_, storer);
+    }
+  }
+
+  template <class ParserT>
+  void parse(ParserT &parser) {
+    bool has_forum_topic_id;
+    BEGIN_PARSE_FLAGS();
+    PARSE_FLAG(has_forum_topic_id);
+    END_PARSE_FLAGS();
+    td::parse(dialog_id_, parser);
+    if (has_forum_topic_id) {
+      td::parse(forum_topic_id_, parser);
+    }
+  }
+};
+
+uint64 MessageQueryManager::save_read_all_dialog_poll_votes_on_server_log_event(DialogId dialog_id,
+                                                                                ForumTopicId forum_topic_id) {
+  ReadAllPollVotesOnServerLogEvent log_event{dialog_id, forum_topic_id};
+  return binlog_add(G()->td_db()->get_binlog(), LogEvent::HandlerType::ReadAllPollVotesOnServer,
+                    get_log_event_storer(log_event));
+}
+
+void MessageQueryManager::read_all_dialog_poll_votes_on_server(DialogId dialog_id, ForumTopicId forum_topic_id,
+                                                               uint64 log_event_id, Promise<Unit> &&promise) {
+  if (log_event_id == 0 && G()->use_message_database()) {
+    log_event_id = save_read_all_dialog_poll_votes_on_server_log_event(dialog_id, forum_topic_id);
+  }
+
+  AffectedHistoryQuery query = [td = td_, forum_topic_id](DialogId dialog_id,
+                                                          Promise<AffectedHistory> &&query_promise) {
+    td->create_handler<ReadPollVotesQuery>(std::move(query_promise))->send(dialog_id, forum_topic_id);
+  };
+  run_affected_history_query_until_complete(dialog_id, std::move(query), false,
+                                            get_erase_log_event_promise(log_event_id, std::move(promise)));
+}
+
 void MessageQueryManager::unpin_all_topic_messages_on_server(DialogId dialog_id, ForumTopicId forum_topic_id,
                                                              SavedMessagesTopicId saved_messages_topic_id,
                                                              uint64 log_event_id, Promise<Unit> &&promise) {
@@ -3453,6 +3695,46 @@ void MessageQueryManager::on_read_message_reactions(DialogId dialog_id, vector<M
     if (result.is_error()) {
       queue_message_reactions_reload(message_full_id);
     }
+  }
+}
+
+bool MessageQueryManager::has_message_pending_read_poll_votes(MessageFullId message_full_id) const {
+  return pending_read_poll_votes_.count(message_full_id) > 0;
+}
+
+void MessageQueryManager::read_message_poll_votes_on_server(DialogId dialog_id, vector<MessageId> message_ids) {
+  for (auto message_id : message_ids) {
+    pending_read_poll_votes_[{dialog_id, message_id}]++;
+  }
+  auto promise =
+      PromiseCreator::lambda([actor_id = actor_id(this), dialog_id, message_ids](Result<Unit> &&result) mutable {
+        send_closure(actor_id, &MessageQueryManager::on_read_message_poll_votes, dialog_id, std::move(message_ids),
+                     std::move(result));
+      });
+  read_message_contents_on_server(dialog_id, std::move(message_ids), 0, std::move(promise));
+}
+
+void MessageQueryManager::on_read_message_poll_votes(DialogId dialog_id, vector<MessageId> &&message_ids,
+                                                     Result<Unit> &&result) {
+  vector<MessageFullId> message_full_ids;
+  for (auto message_id : message_ids) {
+    MessageFullId message_full_id{dialog_id, message_id};
+    auto it = pending_read_poll_votes_.find(message_full_id);
+    CHECK(it != pending_read_poll_votes_.end());
+    if (--it->second == 0) {
+      pending_read_poll_votes_.erase(it);
+    }
+
+    if (!td_->messages_manager_->have_message_force(message_full_id, "on_read_message_poll_votes")) {
+      continue;
+    }
+    if (result.is_error()) {
+      message_full_ids.push_back(message_full_id);
+    }
+  }
+  if (!message_full_ids.empty()) {
+    td_->messages_manager_->get_messages_from_server(std::move(message_full_ids), Promise<Unit>(),
+                                                     "on_read_message_poll_votes");
   }
 }
 
@@ -3678,7 +3960,7 @@ void MessageQueryManager::on_binlog_events(vector<BinlogEvent> &&events) {
 
         auto dialog_id = log_event.dialog_id_;
         if (!td_->dialog_manager_->have_dialog_force(dialog_id, "ReadAllDialogMentionsOnServerLogEvent") ||
-            !td_->dialog_manager_->have_input_peer(dialog_id, true, AccessRights::Read)) {
+            !td_->dialog_manager_->have_input_peer(dialog_id, false, AccessRights::Read)) {
           binlog_erase(G()->td_db()->get_binlog(), event.id_);
           break;
         }
@@ -3697,12 +3979,31 @@ void MessageQueryManager::on_binlog_events(vector<BinlogEvent> &&events) {
 
         auto dialog_id = log_event.dialog_id_;
         if (!td_->dialog_manager_->have_dialog_force(dialog_id, "ReadAllDialogReactionsOnServerLogEvent") ||
-            !td_->dialog_manager_->have_input_peer(dialog_id, true, AccessRights::Read)) {
+            !td_->dialog_manager_->have_input_peer(dialog_id, false, AccessRights::Read)) {
           binlog_erase(G()->td_db()->get_binlog(), event.id_);
           break;
         }
 
         read_all_dialog_reactions_on_server(dialog_id, event.id_, Promise<Unit>());
+        break;
+      }
+      case LogEvent::HandlerType::ReadAllPollVotesOnServer: {
+        if (!have_old_message_database) {
+          binlog_erase(G()->td_db()->get_binlog(), event.id_);
+          break;
+        }
+
+        ReadAllPollVotesOnServerLogEvent log_event;
+        log_event_parse(log_event, event.get_data()).ensure();
+
+        auto dialog_id = log_event.dialog_id_;
+        if (!td_->dialog_manager_->have_dialog_force(dialog_id, "ReadAllPollVotesOnServerLogEvent") ||
+            !td_->dialog_manager_->have_input_peer(dialog_id, false, AccessRights::Read)) {
+          binlog_erase(G()->td_db()->get_binlog(), event.id_);
+          break;
+        }
+
+        read_all_dialog_poll_votes_on_server(dialog_id, log_event.forum_topic_id_, event.id_, Promise<Unit>());
         break;
       }
       case LogEvent::HandlerType::ReadMessageContentsOnServer: {

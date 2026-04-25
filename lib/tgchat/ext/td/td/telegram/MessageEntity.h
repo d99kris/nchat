@@ -176,11 +176,19 @@ td_api::object_ptr<td_api::formattedText> get_formatted_text_object(const UserMa
                                                                     const FormattedText &text, bool skip_bot_commands,
                                                                     int32 max_media_timestamp);
 
+bool is_allowed_quote_entity_type(MessageEntity::Type type);
+
 bool keep_only_custom_emoji(FormattedText &text);
 
 void remove_premium_custom_emoji_entities(const Td *td, vector<MessageEntity> &entities, bool remove_unknown);
 
 void remove_unallowed_entities(const Td *td, FormattedText &text, DialogId dialog_id);
+
+bool remove_unallowed_quote_entities(FormattedText &text);
+
+bool remove_unallowed_quote_user_entities(FormattedText &text, bool skip_bot_commands, bool skip_media_timestamps);
+
+bool is_found_entity_type(MessageEntity::Type type, bool skip_bot_commands, bool skip_media_timestamps);
 
 vector<MessageEntity> find_entities(Slice text, bool skip_bot_commands, bool skip_media_timestamps);
 

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 
-project(TDLib VERSION 1.8.62 LANGUAGES CXX C)
+project(TDLib VERSION 1.8.63 LANGUAGES CXX C)
 
 if (NOT DEFINED CMAKE_MODULE_PATH)
   set(CMAKE_MODULE_PATH "")
@@ -422,6 +422,7 @@ set(TDLIB_SOURCE_PART1
   td/telegram/DialogParticipantManager.cpp
   td/telegram/DialogPhoto.cpp
   td/telegram/DialogSource.cpp
+  td/telegram/DiffText.cpp
   td/telegram/Dimensions.cpp
   td/telegram/DisallowedGiftsSettings.cpp
   td/telegram/Document.cpp
@@ -496,6 +497,7 @@ set(TDLIB_SOURCE_PART1
   td/telegram/MessageContent.cpp
   td/telegram/MessageContentType.cpp
   td/telegram/MessageCopyOptions.cpp
+  td/telegram/MessageCover.cpp
   td/telegram/MessageDb.cpp
   td/telegram/MessageEntity.cpp
   td/telegram/MessageExtendedMedia.cpp
@@ -540,6 +542,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/net/NetQueryVerifier.cpp
   td/telegram/net/NetStatsManager.cpp
   td/telegram/net/Proxy.cpp
+  td/telegram/net/ProxyChecker.cpp
   td/telegram/net/PublicRsaKeySharedCdn.cpp
   td/telegram/net/PublicRsaKeySharedMain.cpp
   td/telegram/net/PublicRsaKeyWatchdog.cpp
@@ -571,6 +574,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/PhotoSize.cpp
   td/telegram/PhotoSizeSource.cpp
   td/telegram/PollManager.cpp
+  td/telegram/PollOption.cpp
   td/telegram/Premium.cpp
   td/telegram/PremiumGiftOption.cpp
   td/telegram/PrivacyManager.cpp
@@ -789,6 +793,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/DialogParticipantManager.h
   td/telegram/DialogPhoto.h
   td/telegram/DialogSource.h
+  td/telegram/DiffText.h
   td/telegram/Dimensions.h
   td/telegram/DisallowedGiftsSettings.h
   td/telegram/Document.h
@@ -879,6 +884,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/MessageContent.h
   td/telegram/MessageContentType.h
   td/telegram/MessageCopyOptions.h
+  td/telegram/MessageCover.h
   td/telegram/MessageDb.h
   td/telegram/MessageEffectId.h
   td/telegram/MessageEntity.h
@@ -931,6 +937,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/net/NetStatsManager.h
   td/telegram/net/NetType.h
   td/telegram/net/Proxy.h
+  td/telegram/net/ProxyChecker.h
   td/telegram/net/PublicRsaKeySharedCdn.h
   td/telegram/net/PublicRsaKeySharedMain.h
   td/telegram/net/PublicRsaKeyWatchdog.h
@@ -974,6 +981,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/PhotoSizeType.h
   td/telegram/PollId.h
   td/telegram/PollManager.h
+  td/telegram/PollOption.h
   td/telegram/Premium.h
   td/telegram/PremiumGiftOption.h
   td/telegram/PrivacyManager.h
@@ -1186,6 +1194,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/PhotoSizeType.hpp
   td/telegram/PollId.hpp
   td/telegram/PollManager.hpp
+  td/telegram/PollOption.hpp
   td/telegram/PremiumGiftOption.hpp
   td/telegram/ReactionManager.hpp
   td/telegram/ReactionNotificationSettings.hpp

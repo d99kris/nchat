@@ -12,7 +12,6 @@
 #include "td/telegram/OptionManager.h"
 #include "td/telegram/Td.h"
 
-#include "td/utils/algorithm.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/SliceBuilder.h"
@@ -55,25 +54,7 @@ telegram_api::object_ptr<telegram_api::todoItem> ToDoItem::get_input_todo_item(c
 }
 
 bool ToDoItem::remove_unsupported_entities(FormattedText &text) {
-  return td::remove_if(text.entities, [&](const MessageEntity &entity) {
-    switch (entity.type) {
-      case MessageEntity::Type::Bold:
-      case MessageEntity::Type::Italic:
-      case MessageEntity::Type::Underline:
-      case MessageEntity::Type::Strikethrough:
-      case MessageEntity::Type::Spoiler:
-      case MessageEntity::Type::CustomEmoji:
-      case MessageEntity::Type::Url:
-      case MessageEntity::Type::EmailAddress:
-      case MessageEntity::Type::Mention:
-      case MessageEntity::Type::Hashtag:
-      case MessageEntity::Type::Cashtag:
-      case MessageEntity::Type::PhoneNumber:
-        return false;
-      default:
-        return true;
-    }
-  });
+  return remove_unallowed_quote_user_entities(text, true, true);
 }
 
 void ToDoItem::validate(const char *source) {
