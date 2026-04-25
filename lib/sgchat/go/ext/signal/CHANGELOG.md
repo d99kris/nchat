@@ -1,3 +1,12 @@
+# v26.04
+
+* Updated libsignal to v0.92.1
+* Added support for admin message deletes from Signal.
+* Added support for binary service IDs in storage service.
+* Fixed `private_chat_portal_meta` option not setting DM room names correctly.
+* Fixed panic if user is logged out during initial chat sync.
+* Fixed avatar upload failing when creating new Signal group.
+
 # v26.03
 
 * Switched to sending binary service ID fields in outgoing messages.

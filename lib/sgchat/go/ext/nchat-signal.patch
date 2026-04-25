@@ -1,4 +1,4 @@
-Base-Commit: 01b06408ab5d36a1fc2e69a370acfe13251ccf07
+Base-Commit: 1f45d1af1a64a96265647ee74a80aa454b0b7296
 Base-Branch: 
 diff --git a/pkg/signalmeow/events/message.go b/pkg/signalmeow/events/message.go
 index 7d3732a..338c657 100644
@@ -33,13 +33,13 @@ index 7d3732a..338c657 100644
 +	Archived bool
 +}
 diff --git a/pkg/signalmeow/storageservice.go b/pkg/signalmeow/storageservice.go
-index fcf6848..c52768c 100644
+index 899c54b..e02b04b 100644
 --- a/pkg/signalmeow/storageservice.go
 +++ b/pkg/signalmeow/storageservice.go
 @@ -68,6 +68,12 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
  			log.Trace().Any("contact_record", data.Contact).Msg("Handling contact record")
- 			aci, _ := uuid.Parse(data.Contact.Aci)
- 			pni, _ := uuid.Parse(data.Contact.Pni)
+ 			aci, _ := ParseStringOrBinaryUUID(data.Contact.Aci, data.Contact.AciBinary)
+ 			pni, _ := ParseStringOrBinaryUUID(data.Contact.Pni, data.Contact.PniBinary)
 +			if aci == uuid.Nil && len(data.Contact.GetAciBinary()) == 16 {
 +				aci, _ = uuid.FromBytes(data.Contact.GetAciBinary())
 +			}
@@ -49,7 +49,7 @@ index fcf6848..c52768c 100644
  			if aci == uuid.Nil && pni == uuid.Nil {
  				log.Warn().
  					Str("raw_aci", data.Contact.Aci).
-@@ -121,6 +127,16 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
+@@ -123,6 +129,16 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
  			if topLevelChanged {
  				changedContacts = append(changedContacts, recipient)
  			}
@@ -66,7 +66,7 @@ index fcf6848..c52768c 100644
  		case *signalpb.StorageRecord_GroupV2:
  			if len(data.GroupV2.MasterKey) != libsignalgo.GroupMasterKeyLength {
  				log.Warn().Msg("Invalid group master key length")
-@@ -132,6 +148,14 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
+@@ -134,6 +150,14 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
  				return fmt.Errorf("failed to store group master key for %s: %w", groupID, err)
  			}
  			log.Debug().Stringer("group_id", groupID).Msg("Stored group master key from storage service")
@@ -81,7 +81,7 @@ index fcf6848..c52768c 100644
  		case *signalpb.StorageRecord_Account:
  			log.Trace().Any("account_record", data.Account).Msg("Found account record")
  			cli.Store.AccountRecord = data.Account
-@@ -140,6 +164,9 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
+@@ -142,6 +166,9 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
  				return fmt.Errorf("failed to save device after receiving account record: %w", err)
  			}
  			log.Debug().Msg("Saved device after receiving account record")

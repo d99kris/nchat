@@ -21,6 +21,7 @@ package libsignalgo
 
 extern void signal_log_callback(void *ctx, SignalLogLevel level, char *file, uint32_t line, char *message);
 extern void signal_log_flush_callback(void *ctx);
+extern void signal_log_destroy_callback(void *ctx);
 */
 import "C"
 import (
@@ -40,6 +41,11 @@ func signal_log_flush_callback(ctx unsafe.Pointer) {
 	ffiLogger.Flush()
 }
 
+//export signal_log_destroy_callback
+func signal_log_destroy_callback(ctx unsafe.Pointer) {
+	ffiLogger.Destroy()
+}
+
 type LogLevel int
 
 const (
@@ -53,12 +59,14 @@ const (
 type Logger interface {
 	Log(level LogLevel, file string, line uint, message string)
 	Flush()
+	Destroy()
 }
 
 func InitLogger(level LogLevel, logger Logger) {
 	ffiLogger = logger
-	C.signal_init_logger(C.SignalLogLevel(level), C.SignalFfiLogger{
-		log:   C.SignalLogCallback(C.signal_log_callback),
-		flush: C.SignalLogFlushCallback(C.signal_log_flush_callback),
+	C.signal_init_logger(C.SignalLogLevel(level), C.SignalFfiLoggerStruct{
+		log:     C.SignalFfiLoggerLog(C.signal_log_callback),
+		flush:   C.SignalFfiLoggerFlush(C.signal_log_flush_callback),
+		destroy: C.SignalFfiLoggerDestroy(C.signal_log_destroy_callback),
 	})
 }

@@ -187,7 +187,7 @@ func (s *SignalClient) FetchMessages(ctx context.Context, params bridgev2.FetchM
 		CompleteCallback: func() {
 			// When reaching the last backwards backfill batch, delete the chat from the backup store.
 			// If backwards backfilling isn't enabled, delete immediately after the first backfill request.
-			if (!params.Forward && len(items) < params.Count) || (!s.Main.Bridge.Config.Backfill.Queue.Enabled && !s.Main.Bridge.Config.Backfill.WillPaginateManually) {
+			if (!params.Forward && len(items) < params.Count) || !s.Main.Bridge.Config.Backfill.Queue.AnyEnabled() {
 				err := s.Client.Store.BackupStore.DeleteBackupChat(ctx, chat.Id)
 				if err != nil {
 					zerolog.Ctx(ctx).Err(err).Msg("Failed to delete chat from backup store")

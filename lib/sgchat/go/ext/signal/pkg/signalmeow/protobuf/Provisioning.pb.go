@@ -199,7 +199,6 @@ type ProvisionMessage struct {
 	ProfileKey            []byte                 `protobuf:"bytes,6,opt,name=profileKey" json:"profileKey,omitempty"`
 	ReadReceipts          *bool                  `protobuf:"varint,7,opt,name=readReceipts" json:"readReceipts,omitempty"`
 	ProvisioningVersion   *uint32                `protobuf:"varint,9,opt,name=provisioningVersion" json:"provisioningVersion,omitempty"`
-	MasterKey             []byte                 `protobuf:"bytes,13,opt,name=masterKey" json:"masterKey,omitempty"`                   // Deprecated, but required by linked devices
 	EphemeralBackupKey    []byte                 `protobuf:"bytes,14,opt,name=ephemeralBackupKey" json:"ephemeralBackupKey,omitempty"` // 32 bytes
 	AccountEntropyPool    *string                `protobuf:"bytes,15,opt,name=accountEntropyPool" json:"accountEntropyPool,omitempty"`
 	MediaRootBackupKey    []byte                 `protobuf:"bytes,16,opt,name=mediaRootBackupKey" json:"mediaRootBackupKey,omitempty"` // 32-bytes
@@ -323,13 +322,6 @@ func (x *ProvisionMessage) GetProvisioningVersion() uint32 {
 	return 0
 }
 
-func (x *ProvisionMessage) GetMasterKey() []byte {
-	if x != nil {
-		return x.MasterKey
-	}
-	return nil
-}
-
 func (x *ProvisionMessage) GetEphemeralBackupKey() []byte {
 	if x != nil {
 		return x.EphemeralBackupKey
@@ -374,7 +366,7 @@ const file_Provisioning_proto_rawDesc = "" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\"E\n" +
 	"\x11ProvisionEnvelope\x12\x1c\n" +
 	"\tpublicKey\x18\x01 \x01(\fR\tpublicKey\x12\x12\n" +
-	"\x04body\x18\x02 \x01(\fR\x04body\"\xcc\x05\n" +
+	"\x04body\x18\x02 \x01(\fR\x04body\"\xb4\x05\n" +
 	"\x10ProvisionMessage\x122\n" +
 	"\x14aciIdentityKeyPublic\x18\x01 \x01(\fR\x14aciIdentityKeyPublic\x124\n" +
 	"\x15aciIdentityKeyPrivate\x18\x02 \x01(\fR\x15aciIdentityKeyPrivate\x122\n" +
@@ -390,13 +382,12 @@ const file_Provisioning_proto_rawDesc = "" +
 	"profileKey\x18\x06 \x01(\fR\n" +
 	"profileKey\x12\"\n" +
 	"\freadReceipts\x18\a \x01(\bR\freadReceipts\x120\n" +
-	"\x13provisioningVersion\x18\t \x01(\rR\x13provisioningVersion\x12\x1c\n" +
-	"\tmasterKey\x18\r \x01(\fR\tmasterKey\x12.\n" +
+	"\x13provisioningVersion\x18\t \x01(\rR\x13provisioningVersion\x12.\n" +
 	"\x12ephemeralBackupKey\x18\x0e \x01(\fR\x12ephemeralBackupKey\x12.\n" +
 	"\x12accountEntropyPool\x18\x0f \x01(\tR\x12accountEntropyPool\x12.\n" +
 	"\x12mediaRootBackupKey\x18\x10 \x01(\fR\x12mediaRootBackupKey\x12\x1c\n" +
 	"\taciBinary\x18\x11 \x01(\fR\taciBinary\x12\x1c\n" +
-	"\tpniBinary\x18\x12 \x01(\fR\tpniBinary*G\n" +
+	"\tpniBinary\x18\x12 \x01(\fR\tpniBinaryJ\x04\b\r\x10\x0e*G\n" +
 	"\x13ProvisioningVersion\x12\v\n" +
 	"\aINITIAL\x10\x00\x12\x12\n" +
 	"\x0eTABLET_SUPPORT\x10\x01\x12\v\n" +

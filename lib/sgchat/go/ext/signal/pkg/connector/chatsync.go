@@ -32,10 +32,19 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
-func (s *SignalClient) syncChats(ctx context.Context) {
+func (s *SignalClient) stopChatSync() {
+	if cancel := s.cancelChatSync.Swap(nil); cancel != nil {
+		(*cancel)()
+	}
+}
+
+func (s *SignalClient) syncChats(ctx context.Context, cancel context.CancelFunc) {
+	defer cancel()
+
 	if s.UserLogin.Metadata.(*signalid.UserLoginMetadata).ChatsSynced {
 		return
 	}
+
 	if s.Client.Store.EphemeralBackupKey != nil {
 		zerolog.Ctx(ctx).Info().Msg("Fetching transfer archive before syncing chats")
 		meta, err := s.Client.WaitForTransfer(ctx)
@@ -65,9 +74,21 @@ func (s *SignalClient) syncChats(ctx context.Context) {
 	}
 	zerolog.Ctx(ctx).Info().Int("chat_count", len(chats)).Msg("Fetched chats to sync from database")
 	for _, chat := range chats {
+		if ctx.Err() != nil {
+			zerolog.Ctx(ctx).Debug().
+				AnErr("ctx_err", ctx.Err()).
+				Msg("Context cancelled while syncing chats, stopping")
+			return
+		}
 		recipient, err := s.Client.Store.BackupStore.GetBackupRecipient(ctx, chat.RecipientId)
 		if err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("Failed to get recipient for chat")
+			continue
+		} else if recipient == nil {
+			zerolog.Ctx(ctx).Warn().
+				Uint64("backup_chat_id", chat.Id).
+				Uint64("backup_recipient_id", chat.RecipientId).
+				Msg("No recipient found for chat")
 			continue
 		}
 		resyncEvt := &simplevent.ChatResync{

@@ -26,7 +26,7 @@ import (
 	"runtime"
 )
 
-func DecryptPreKey(ctx context.Context, preKeyMessage *PreKeyMessage, fromAddress *Address, sessionStore SessionStore, identityStore IdentityKeyStore, preKeyStore PreKeyStore, signedPreKeyStore SignedPreKeyStore, kyberPreKeyStore KyberPreKeyStore) ([]byte, error) {
+func DecryptPreKey(ctx context.Context, preKeyMessage *PreKeyMessage, fromAddress, localAddress *Address, sessionStore SessionStore, identityStore IdentityKeyStore, preKeyStore PreKeyStore, signedPreKeyStore SignedPreKeyStore, kyberPreKeyStore KyberPreKeyStore) ([]byte, error) {
 	callbackCtx := NewCallbackContext(ctx)
 	defer callbackCtx.Unref()
 	var decrypted C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
@@ -34,6 +34,7 @@ func DecryptPreKey(ctx context.Context, preKeyMessage *PreKeyMessage, fromAddres
 		&decrypted,
 		preKeyMessage.constPtr(),
 		fromAddress.constPtr(),
+		localAddress.constPtr(),
 		callbackCtx.wrapSessionStore(sessionStore),
 		callbackCtx.wrapIdentityKeyStore(identityStore),
 		callbackCtx.wrapPreKeyStore(preKeyStore),

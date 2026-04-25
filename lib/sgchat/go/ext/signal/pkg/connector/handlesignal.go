@@ -184,7 +184,7 @@ func (evt *Bv2ChatEvent) GetType() bridgev2.RemoteEventType {
 				return bridgev2.RemoteEventReactionRemove
 			}
 			return bridgev2.RemoteEventReaction
-		case innerEvt.Delete != nil:
+		case innerEvt.Delete != nil, innerEvt.AdminDelete != nil:
 			return bridgev2.RemoteEventMessageRemove
 		case innerEvt.GetGroupV2().GetGroupChange() != nil:
 			return bridgev2.RemoteEventChatInfoChange
@@ -303,6 +303,11 @@ func (evt *Bv2ChatEvent) GetTargetMessage() networkid.MessageID {
 			targetSentTS = innerEvt.Reaction.GetTargetSentTimestamp()
 		case innerEvt.Delete != nil:
 			targetSentTS = innerEvt.Delete.GetTargetSentTimestamp()
+		case innerEvt.AdminDelete != nil:
+			if len(innerEvt.AdminDelete.GetTargetAuthorAciBinary()) == 16 {
+				targetAuthorACI = uuid.UUID(innerEvt.AdminDelete.GetTargetAuthorAciBinary())
+			}
+			targetSentTS = innerEvt.AdminDelete.GetTargetSentTimestamp()
 		default:
 			return ""
 		}
@@ -421,7 +426,7 @@ func (b *Bv2Receipt) GetReadUpTo() time.Time {
 	return time.Time{}
 }
 
-var _ bridgev2.RemoteReceipt = (*Bv2Receipt)(nil)
+var _ bridgev2.RemoteReadReceipt = (*Bv2Receipt)(nil)
 
 func convertReceipts[T any](ctx context.Context, input []T, getMessageFunc func(ctx context.Context, msgID T) (*database.Message, error)) map[networkid.PortalKey]*Bv2Receipt {
 	log := zerolog.Ctx(ctx)
@@ -467,7 +472,7 @@ func (s *SignalClient) handleSignalReceipt(evt *events.Receipt) bool {
 		Stringer("sender_id", evt.Sender).
 		Stringer("receipt_type", evt.Content.GetType()).
 		Logger()
-	ctx := log.WithContext(context.TODO())
+	ctx := log.WithContext(s.Main.Bridge.BackgroundCtx)
 	receipts := convertReceipts(ctx, evt.Content.Timestamp, func(ctx context.Context, msgTS uint64) (*database.Message, error) {
 		return s.Main.Bridge.DB.Message.GetFirstPartByID(ctx, s.UserLogin.ID, signalid.MakeMessageID(s.Client.Store.ACI, msgTS))
 	})
@@ -478,7 +483,7 @@ func (s *SignalClient) handleSignalReadSelf(evt *events.ReadSelf) bool {
 	log := s.UserLogin.Log.With().
 		Str("action", "handle signal read self").
 		Logger()
-	ctx := log.WithContext(context.TODO())
+	ctx := log.WithContext(s.Main.Bridge.BackgroundCtx)
 	receipts := convertReceipts(ctx, evt.Messages, func(ctx context.Context, msgInfo *signalpb.SyncMessage_Read) (*database.Message, error) {
 		aciUUID, err := signalmeow.ParseStringOrBinaryUUID(msgInfo.GetSenderAci(), msgInfo.GetSenderAciBinary())
 		if err != nil {
@@ -688,7 +693,7 @@ func (s *SignalClient) handleSignalACIFound(evt *events.ACIFound) {
 		Stringer("aci", evt.ACI).
 		Stringer("pni", evt.PNI).
 		Logger()
-	ctx := log.WithContext(context.TODO())
+	ctx := log.WithContext(s.Main.Bridge.BackgroundCtx)
 	pniPortalKey := s.makeDMPortalKey(evt.PNI)
 	aciPortalKey := s.makeDMPortalKey(evt.ACI)
 	result, portal, err := s.Main.Bridge.ReIDPortal(ctx, pniPortalKey, aciPortalKey)
@@ -708,7 +713,7 @@ func (s *SignalClient) handleSignalACIFound(evt *events.ACIFound) {
 
 func (s *SignalClient) handleSignalContactList(evt *events.ContactList) {
 	log := s.UserLogin.Log.With().Str("action", "handle contact list").Logger()
-	ctx := log.WithContext(context.TODO())
+	ctx := log.WithContext(s.Main.Bridge.BackgroundCtx)
 	for _, contact := range evt.Contacts {
 		if contact.ACI == uuid.Nil {
 			continue

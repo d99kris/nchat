@@ -19,10 +19,12 @@ package signalmeow
 import (
 	"context"
 	"fmt"
+	"math/rand/v2"
 	"slices"
 	"time"
 
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/random"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
@@ -63,7 +65,9 @@ func (cli *Client) sendRetryRequest(ctx context.Context, result DecryptionResult
 		return fmt.Errorf("failed to create ciphertext message from plaintext content: %w", err)
 	}
 	_, err = cli.sendContent(ctx, serviceID, uint64(time.Now().UnixMilli()), &signalpb.Content{
-		DecryptionErrorMessage: demBytes,
+		Content: &signalpb.Content_DecryptionErrorMessage{
+			DecryptionErrorMessage: demBytes,
+		},
 	}, 0, true, result.GroupID, ctm)
 	if err != nil {
 		return fmt.Errorf("failed to send decryption error message: %w", err)
@@ -182,7 +186,11 @@ func (cli *Client) handleRetryRequest(
 				Msg("Not responding to decryption error message")
 			return nil
 		}
-		retryContent.NullMessage = &signalpb.NullMessage{}
+		retryContent.Content = &signalpb.Content_NullMessage{
+			NullMessage: &signalpb.NullMessage{
+				Padding: random.Bytes(rand.IntN(511) + 1),
+			},
+		}
 	}
 	responseTimestamp := uint64(time.Now().UnixMilli())
 	if cacheHit {

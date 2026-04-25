@@ -498,6 +498,7 @@ type AccessControl struct {
 	Attributes        AccessControl_AccessRequired `protobuf:"varint,1,opt,name=attributes,proto3,enum=signal.AccessControl_AccessRequired" json:"attributes,omitempty"`
 	Members           AccessControl_AccessRequired `protobuf:"varint,2,opt,name=members,proto3,enum=signal.AccessControl_AccessRequired" json:"members,omitempty"`
 	AddFromInviteLink AccessControl_AccessRequired `protobuf:"varint,3,opt,name=addFromInviteLink,proto3,enum=signal.AccessControl_AccessRequired" json:"addFromInviteLink,omitempty"`
+	MemberLabel       AccessControl_AccessRequired `protobuf:"varint,4,opt,name=memberLabel,proto3,enum=signal.AccessControl_AccessRequired" json:"memberLabel,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -553,6 +554,13 @@ func (x *AccessControl) GetAddFromInviteLink() AccessControl_AccessRequired {
 	return AccessControl_UNKNOWN
 }
 
+func (x *AccessControl) GetMemberLabel() AccessControl_AccessRequired {
+	if x != nil {
+		return x.MemberLabel
+	}
+	return AccessControl_UNKNOWN
+}
+
 type Group struct {
 	state       protoimpl.MessageState `protogen:"open.v1"`
 	PublicKey   []byte                 `protobuf:"bytes,1,opt,name=publicKey,proto3" json:"publicKey,omitempty"`
@@ -569,7 +577,8 @@ type Group struct {
 	MembersPendingAdminApproval []*MemberPendingAdminApproval `protobuf:"bytes,9,rep,name=membersPendingAdminApproval,proto3" json:"membersPendingAdminApproval,omitempty"`
 	InviteLinkPassword          []byte                        `protobuf:"bytes,10,opt,name=inviteLinkPassword,proto3" json:"inviteLinkPassword,omitempty"`
 	AnnouncementsOnly           bool                          `protobuf:"varint,12,opt,name=announcements_only,json=announcementsOnly,proto3" json:"announcements_only,omitempty"`
-	MembersBanned               []*MemberBanned               `protobuf:"bytes,13,rep,name=members_banned,json=membersBanned,proto3" json:"members_banned,omitempty"` // next: 14
+	MembersBanned               []*MemberBanned               `protobuf:"bytes,13,rep,name=members_banned,json=membersBanned,proto3" json:"members_banned,omitempty"`
+	Terminated                  bool                          `protobuf:"varint,14,opt,name=terminated,proto3" json:"terminated,omitempty"` // next: 15
 	unknownFields               protoimpl.UnknownFields
 	sizeCache                   protoimpl.SizeCache
 }
@@ -693,6 +702,13 @@ func (x *Group) GetMembersBanned() []*MemberBanned {
 		return x.MembersBanned
 	}
 	return nil
+}
+
+func (x *Group) GetTerminated() bool {
+	if x != nil {
+		return x.Terminated
+	}
+	return false
 }
 
 type GroupAttributeBlob struct {
@@ -1317,6 +1333,8 @@ type GroupChange_Actions struct {
 	DeleteMembersBanned                   []*GroupChange_Actions_DeleteMemberBannedAction                   `protobuf:"bytes,23,rep,name=delete_members_banned,json=deleteMembersBanned,proto3" json:"delete_members_banned,omitempty"`                                                               // change epoch = 4
 	PromoteMembersPendingPniAciProfileKey []*GroupChange_Actions_PromoteMemberPendingPniAciProfileKeyAction `protobuf:"bytes,24,rep,name=promote_members_pending_pni_aci_profile_key,json=promoteMembersPendingPniAciProfileKey,proto3" json:"promote_members_pending_pni_aci_profile_key,omitempty"` // change epoch = 5
 	ModifyMemberLabels                    []*GroupChange_Actions_ModifyMemberLabelAction                    `protobuf:"bytes,26,rep,name=modifyMemberLabels,proto3" json:"modifyMemberLabels,omitempty"`                                                                                              // change epoch = 6;
+	ModifyMemberLabelAccess               *GroupChange_Actions_ModifyMemberLabelAccessControlAction         `protobuf:"bytes,27,opt,name=modifyMemberLabelAccess,proto3" json:"modifyMemberLabelAccess,omitempty"`                                                                                    // change epoch = 6
+	TerminateGroup                        *GroupChange_Actions_TerminateGroupAction                         `protobuf:"bytes,28,opt,name=terminate_group,json=terminateGroup,proto3" json:"terminate_group,omitempty"`                                                                                // change epoch = 7
 	unknownFields                         protoimpl.UnknownFields
 	sizeCache                             protoimpl.SizeCache
 }
@@ -1529,6 +1547,20 @@ func (x *GroupChange_Actions) GetPromoteMembersPendingPniAciProfileKey() []*Grou
 func (x *GroupChange_Actions) GetModifyMemberLabels() []*GroupChange_Actions_ModifyMemberLabelAction {
 	if x != nil {
 		return x.ModifyMemberLabels
+	}
+	return nil
+}
+
+func (x *GroupChange_Actions) GetModifyMemberLabelAccess() *GroupChange_Actions_ModifyMemberLabelAccessControlAction {
+	if x != nil {
+		return x.ModifyMemberLabelAccess
+	}
+	return nil
+}
+
+func (x *GroupChange_Actions) GetTerminateGroup() *GroupChange_Actions_TerminateGroupAction {
+	if x != nil {
+		return x.TerminateGroup
 	}
 	return nil
 }
@@ -2553,6 +2585,50 @@ func (x *GroupChange_Actions_ModifyAddFromInviteLinkAccessControlAction) GetAddF
 	return AccessControl_UNKNOWN
 }
 
+type GroupChange_Actions_ModifyMemberLabelAccessControlAction struct {
+	state             protoimpl.MessageState       `protogen:"open.v1"`
+	MemberLabelAccess AccessControl_AccessRequired `protobuf:"varint,1,opt,name=memberLabelAccess,proto3,enum=signal.AccessControl_AccessRequired" json:"memberLabelAccess,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *GroupChange_Actions_ModifyMemberLabelAccessControlAction) Reset() {
+	*x = GroupChange_Actions_ModifyMemberLabelAccessControlAction{}
+	mi := &file_Groups_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GroupChange_Actions_ModifyMemberLabelAccessControlAction) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GroupChange_Actions_ModifyMemberLabelAccessControlAction) ProtoMessage() {}
+
+func (x *GroupChange_Actions_ModifyMemberLabelAccessControlAction) ProtoReflect() protoreflect.Message {
+	mi := &file_Groups_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GroupChange_Actions_ModifyMemberLabelAccessControlAction.ProtoReflect.Descriptor instead.
+func (*GroupChange_Actions_ModifyMemberLabelAccessControlAction) Descriptor() ([]byte, []int) {
+	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 21}
+}
+
+func (x *GroupChange_Actions_ModifyMemberLabelAccessControlAction) GetMemberLabelAccess() AccessControl_AccessRequired {
+	if x != nil {
+		return x.MemberLabelAccess
+	}
+	return AccessControl_UNKNOWN
+}
+
 type GroupChange_Actions_ModifyInviteLinkPasswordAction struct {
 	state              protoimpl.MessageState `protogen:"open.v1"`
 	InviteLinkPassword []byte                 `protobuf:"bytes,1,opt,name=inviteLinkPassword,proto3" json:"inviteLinkPassword,omitempty"`
@@ -2562,7 +2638,7 @@ type GroupChange_Actions_ModifyInviteLinkPasswordAction struct {
 
 func (x *GroupChange_Actions_ModifyInviteLinkPasswordAction) Reset() {
 	*x = GroupChange_Actions_ModifyInviteLinkPasswordAction{}
-	mi := &file_Groups_proto_msgTypes[38]
+	mi := &file_Groups_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2574,7 +2650,7 @@ func (x *GroupChange_Actions_ModifyInviteLinkPasswordAction) String() string {
 func (*GroupChange_Actions_ModifyInviteLinkPasswordAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_ModifyInviteLinkPasswordAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[38]
+	mi := &file_Groups_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2587,7 +2663,7 @@ func (x *GroupChange_Actions_ModifyInviteLinkPasswordAction) ProtoReflect() prot
 
 // Deprecated: Use GroupChange_Actions_ModifyInviteLinkPasswordAction.ProtoReflect.Descriptor instead.
 func (*GroupChange_Actions_ModifyInviteLinkPasswordAction) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 21}
+	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 22}
 }
 
 func (x *GroupChange_Actions_ModifyInviteLinkPasswordAction) GetInviteLinkPassword() []byte {
@@ -2606,7 +2682,7 @@ type GroupChange_Actions_ModifyAnnouncementsOnlyAction struct {
 
 func (x *GroupChange_Actions_ModifyAnnouncementsOnlyAction) Reset() {
 	*x = GroupChange_Actions_ModifyAnnouncementsOnlyAction{}
-	mi := &file_Groups_proto_msgTypes[39]
+	mi := &file_Groups_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2618,7 +2694,7 @@ func (x *GroupChange_Actions_ModifyAnnouncementsOnlyAction) String() string {
 func (*GroupChange_Actions_ModifyAnnouncementsOnlyAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_ModifyAnnouncementsOnlyAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[39]
+	mi := &file_Groups_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2631,7 +2707,7 @@ func (x *GroupChange_Actions_ModifyAnnouncementsOnlyAction) ProtoReflect() proto
 
 // Deprecated: Use GroupChange_Actions_ModifyAnnouncementsOnlyAction.ProtoReflect.Descriptor instead.
 func (*GroupChange_Actions_ModifyAnnouncementsOnlyAction) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 22}
+	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 23}
 }
 
 func (x *GroupChange_Actions_ModifyAnnouncementsOnlyAction) GetAnnouncementsOnly() bool {
@@ -2639,6 +2715,42 @@ func (x *GroupChange_Actions_ModifyAnnouncementsOnlyAction) GetAnnouncementsOnly
 		return x.AnnouncementsOnly
 	}
 	return false
+}
+
+type GroupChange_Actions_TerminateGroupAction struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GroupChange_Actions_TerminateGroupAction) Reset() {
+	*x = GroupChange_Actions_TerminateGroupAction{}
+	mi := &file_Groups_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GroupChange_Actions_TerminateGroupAction) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GroupChange_Actions_TerminateGroupAction) ProtoMessage() {}
+
+func (x *GroupChange_Actions_TerminateGroupAction) ProtoReflect() protoreflect.Message {
+	mi := &file_Groups_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GroupChange_Actions_TerminateGroupAction.ProtoReflect.Descriptor instead.
+func (*GroupChange_Actions_TerminateGroupAction) Descriptor() ([]byte, []int) {
+	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 24}
 }
 
 type GroupChanges_GroupChangeState struct {
@@ -2651,7 +2763,7 @@ type GroupChanges_GroupChangeState struct {
 
 func (x *GroupChanges_GroupChangeState) Reset() {
 	*x = GroupChanges_GroupChangeState{}
-	mi := &file_Groups_proto_msgTypes[40]
+	mi := &file_Groups_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2663,7 +2775,7 @@ func (x *GroupChanges_GroupChangeState) String() string {
 func (*GroupChanges_GroupChangeState) ProtoMessage() {}
 
 func (x *GroupChanges_GroupChangeState) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[40]
+	mi := &file_Groups_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2737,20 +2849,21 @@ const file_Groups_proto_rawDesc = "" +
 	"\ttimestamp\x18\x04 \x01(\x04R\ttimestamp\"D\n" +
 	"\fMemberBanned\x12\x16\n" +
 	"\x06userId\x18\x01 \x01(\fR\x06userId\x12\x1c\n" +
-	"\ttimestamp\x18\x02 \x01(\x04R\ttimestamp\"\xc3\x02\n" +
+	"\ttimestamp\x18\x02 \x01(\x04R\ttimestamp\"\x8b\x03\n" +
 	"\rAccessControl\x12D\n" +
 	"\n" +
 	"attributes\x18\x01 \x01(\x0e2$.signal.AccessControl.AccessRequiredR\n" +
 	"attributes\x12>\n" +
 	"\amembers\x18\x02 \x01(\x0e2$.signal.AccessControl.AccessRequiredR\amembers\x12R\n" +
-	"\x11addFromInviteLink\x18\x03 \x01(\x0e2$.signal.AccessControl.AccessRequiredR\x11addFromInviteLink\"X\n" +
+	"\x11addFromInviteLink\x18\x03 \x01(\x0e2$.signal.AccessControl.AccessRequiredR\x11addFromInviteLink\x12F\n" +
+	"\vmemberLabel\x18\x04 \x01(\x0e2$.signal.AccessControl.AccessRequiredR\vmemberLabel\"X\n" +
 	"\x0eAccessRequired\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\a\n" +
 	"\x03ANY\x10\x01\x12\n" +
 	"\n" +
 	"\x06MEMBER\x10\x02\x12\x11\n" +
 	"\rADMINISTRATOR\x10\x03\x12\x11\n" +
-	"\rUNSATISFIABLE\x10\x04\"\x99\x05\n" +
+	"\rUNSATISFIABLE\x10\x04\"\xb9\x05\n" +
 	"\x05Group\x12\x1c\n" +
 	"\tpublicKey\x18\x01 \x01(\fR\tpublicKey\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\fR\x05title\x12 \n" +
@@ -2765,7 +2878,10 @@ const file_Groups_proto_rawDesc = "" +
 	"\x12inviteLinkPassword\x18\n" +
 	" \x01(\fR\x12inviteLinkPassword\x12-\n" +
 	"\x12announcements_only\x18\f \x01(\bR\x11announcementsOnly\x12;\n" +
-	"\x0emembers_banned\x18\r \x03(\v2\x14.signal.MemberBannedR\rmembersBanned\"\xc3\x01\n" +
+	"\x0emembers_banned\x18\r \x03(\v2\x14.signal.MemberBannedR\rmembersBanned\x12\x1e\n" +
+	"\n" +
+	"terminated\x18\x0e \x01(\bR\n" +
+	"terminated\"\xc3\x01\n" +
 	"\x12GroupAttributeBlob\x12\x16\n" +
 	"\x05title\x18\x01 \x01(\tH\x00R\x05title\x12\x18\n" +
 	"\x06avatar\x18\x02 \x01(\fH\x00R\x06avatar\x12D\n" +
@@ -2789,11 +2905,11 @@ const file_Groups_proto_rawDesc = "" +
 	"\vmemberCount\x18\x04 \x01(\rR\vmemberCount\x12R\n" +
 	"\x11addFromInviteLink\x18\x05 \x01(\x0e2$.signal.AccessControl.AccessRequiredR\x11addFromInviteLink\x12\x18\n" +
 	"\aversion\x18\x06 \x01(\rR\aversion\x122\n" +
-	"\x14pendingAdminApproval\x18\a \x01(\bR\x14pendingAdminApproval\"\xbb'\n" +
+	"\x14pendingAdminApproval\x18\a \x01(\bR\x14pendingAdminApproval\"\xa6*\n" +
 	"\vGroupChange\x12\x18\n" +
 	"\aactions\x18\x01 \x01(\fR\aactions\x12(\n" +
 	"\x0fserverSignature\x18\x02 \x01(\fR\x0fserverSignature\x12 \n" +
-	"\vchangeEpoch\x18\x03 \x01(\rR\vchangeEpoch\x1a\xc5&\n" +
+	"\vchangeEpoch\x18\x03 \x01(\rR\vchangeEpoch\x1a\xb0)\n" +
 	"\aActions\x12\"\n" +
 	"\fsourceUserId\x18\x01 \x01(\fR\fsourceUserId\x12\x19\n" +
 	"\bgroup_id\x18\x19 \x01(\fR\agroupId\x12\x18\n" +
@@ -2823,7 +2939,9 @@ const file_Groups_proto_rawDesc = "" +
 	"\x12add_members_banned\x18\x16 \x03(\v21.signal.GroupChange.Actions.AddMemberBannedActionR\x10addMembersBanned\x12h\n" +
 	"\x15delete_members_banned\x18\x17 \x03(\v24.signal.GroupChange.Actions.DeleteMemberBannedActionR\x13deleteMembersBanned\x12\xa2\x01\n" +
 	"+promote_members_pending_pni_aci_profile_key\x18\x18 \x03(\v2F.signal.GroupChange.Actions.PromoteMemberPendingPniAciProfileKeyActionR%promoteMembersPendingPniAciProfileKey\x12c\n" +
-	"\x12modifyMemberLabels\x18\x1a \x03(\v23.signal.GroupChange.Actions.ModifyMemberLabelActionR\x12modifyMemberLabels\x1ag\n" +
+	"\x12modifyMemberLabels\x18\x1a \x03(\v23.signal.GroupChange.Actions.ModifyMemberLabelActionR\x12modifyMemberLabels\x12z\n" +
+	"\x17modifyMemberLabelAccess\x18\x1b \x01(\v2@.signal.GroupChange.Actions.ModifyMemberLabelAccessControlActionR\x17modifyMemberLabelAccess\x12Y\n" +
+	"\x0fterminate_group\x18\x1c \x01(\v20.signal.GroupChange.Actions.TerminateGroupActionR\x0eterminateGroup\x1ag\n" +
 	"\x0fAddMemberAction\x12$\n" +
 	"\x05added\x18\x01 \x01(\v2\x0e.signal.MemberR\x05added\x12.\n" +
 	"\x12joinFromInviteLink\x18\x02 \x01(\bR\x12joinFromInviteLink\x1a:\n" +
@@ -2882,11 +3000,14 @@ const file_Groups_proto_rawDesc = "" +
 	" ModifyMembersAccessControlAction\x12J\n" +
 	"\rmembersAccess\x18\x01 \x01(\x0e2$.signal.AccessControl.AccessRequiredR\rmembersAccess\x1a\x8c\x01\n" +
 	"*ModifyAddFromInviteLinkAccessControlAction\x12^\n" +
-	"\x17addFromInviteLinkAccess\x18\x01 \x01(\x0e2$.signal.AccessControl.AccessRequiredR\x17addFromInviteLinkAccess\x1aP\n" +
+	"\x17addFromInviteLinkAccess\x18\x01 \x01(\x0e2$.signal.AccessControl.AccessRequiredR\x17addFromInviteLinkAccess\x1az\n" +
+	"$ModifyMemberLabelAccessControlAction\x12R\n" +
+	"\x11memberLabelAccess\x18\x01 \x01(\x0e2$.signal.AccessControl.AccessRequiredR\x11memberLabelAccess\x1aP\n" +
 	"\x1eModifyInviteLinkPasswordAction\x12.\n" +
 	"\x12inviteLinkPassword\x18\x01 \x01(\fR\x12inviteLinkPassword\x1aN\n" +
 	"\x1dModifyAnnouncementsOnlyAction\x12-\n" +
-	"\x12announcements_only\x18\x01 \x01(\bR\x11announcementsOnly\"/\n" +
+	"\x12announcements_only\x18\x01 \x01(\bR\x11announcementsOnly\x1a\x16\n" +
+	"\x14TerminateGroupAction\"/\n" +
 	"\x17ExternalGroupCredential\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\"}\n" +
 	"\rGroupResponse\x12#\n" +
@@ -2918,7 +3039,7 @@ func file_Groups_proto_rawDescGZIP() []byte {
 }
 
 var file_Groups_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_Groups_proto_msgTypes = make([]protoimpl.MessageInfo, 41)
+var file_Groups_proto_msgTypes = make([]protoimpl.MessageInfo, 43)
 var file_Groups_proto_goTypes = []any{
 	(Member_Role)(0),                                                       // 0: signal.Member.Role
 	(AccessControl_AccessRequired)(0),                                      // 1: signal.AccessControl.AccessRequired
@@ -2960,9 +3081,11 @@ var file_Groups_proto_goTypes = []any{
 	(*GroupChange_Actions_ModifyAttributesAccessControlAction)(nil),        // 37: signal.GroupChange.Actions.ModifyAttributesAccessControlAction
 	(*GroupChange_Actions_ModifyMembersAccessControlAction)(nil),           // 38: signal.GroupChange.Actions.ModifyMembersAccessControlAction
 	(*GroupChange_Actions_ModifyAddFromInviteLinkAccessControlAction)(nil), // 39: signal.GroupChange.Actions.ModifyAddFromInviteLinkAccessControlAction
-	(*GroupChange_Actions_ModifyInviteLinkPasswordAction)(nil),             // 40: signal.GroupChange.Actions.ModifyInviteLinkPasswordAction
-	(*GroupChange_Actions_ModifyAnnouncementsOnlyAction)(nil),              // 41: signal.GroupChange.Actions.ModifyAnnouncementsOnlyAction
-	(*GroupChanges_GroupChangeState)(nil),                                  // 42: signal.GroupChanges.GroupChangeState
+	(*GroupChange_Actions_ModifyMemberLabelAccessControlAction)(nil),       // 40: signal.GroupChange.Actions.ModifyMemberLabelAccessControlAction
+	(*GroupChange_Actions_ModifyInviteLinkPasswordAction)(nil),             // 41: signal.GroupChange.Actions.ModifyInviteLinkPasswordAction
+	(*GroupChange_Actions_ModifyAnnouncementsOnlyAction)(nil),              // 42: signal.GroupChange.Actions.ModifyAnnouncementsOnlyAction
+	(*GroupChange_Actions_TerminateGroupAction)(nil),                       // 43: signal.GroupChange.Actions.TerminateGroupAction
+	(*GroupChanges_GroupChangeState)(nil),                                  // 44: signal.GroupChanges.GroupChangeState
 }
 var file_Groups_proto_depIdxs = []int32{
 	0,  // 0: signal.Member.role:type_name -> signal.Member.Role
@@ -2970,55 +3093,59 @@ var file_Groups_proto_depIdxs = []int32{
 	1,  // 2: signal.AccessControl.attributes:type_name -> signal.AccessControl.AccessRequired
 	1,  // 3: signal.AccessControl.members:type_name -> signal.AccessControl.AccessRequired
 	1,  // 4: signal.AccessControl.addFromInviteLink:type_name -> signal.AccessControl.AccessRequired
-	7,  // 5: signal.Group.accessControl:type_name -> signal.AccessControl
-	3,  // 6: signal.Group.members:type_name -> signal.Member
-	4,  // 7: signal.Group.membersPendingProfileKey:type_name -> signal.MemberPendingProfileKey
-	5,  // 8: signal.Group.membersPendingAdminApproval:type_name -> signal.MemberPendingAdminApproval
-	6,  // 9: signal.Group.members_banned:type_name -> signal.MemberBanned
-	17, // 10: signal.GroupInviteLink.contentsV1:type_name -> signal.GroupInviteLink.GroupInviteLinkContentsV1
-	1,  // 11: signal.GroupJoinInfo.addFromInviteLink:type_name -> signal.AccessControl.AccessRequired
-	8,  // 12: signal.GroupResponse.group:type_name -> signal.Group
-	42, // 13: signal.GroupChanges.groupChanges:type_name -> signal.GroupChanges.GroupChangeState
-	12, // 14: signal.GroupChangeResponse.group_change:type_name -> signal.GroupChange
-	19, // 15: signal.GroupChange.Actions.addMembers:type_name -> signal.GroupChange.Actions.AddMemberAction
-	20, // 16: signal.GroupChange.Actions.deleteMembers:type_name -> signal.GroupChange.Actions.DeleteMemberAction
-	21, // 17: signal.GroupChange.Actions.modifyMemberRoles:type_name -> signal.GroupChange.Actions.ModifyMemberRoleAction
-	23, // 18: signal.GroupChange.Actions.modifyMemberProfileKeys:type_name -> signal.GroupChange.Actions.ModifyMemberProfileKeyAction
-	24, // 19: signal.GroupChange.Actions.addMembersPendingProfileKey:type_name -> signal.GroupChange.Actions.AddMemberPendingProfileKeyAction
-	25, // 20: signal.GroupChange.Actions.deleteMembersPendingProfileKey:type_name -> signal.GroupChange.Actions.DeleteMemberPendingProfileKeyAction
-	26, // 21: signal.GroupChange.Actions.promoteMembersPendingProfileKey:type_name -> signal.GroupChange.Actions.PromoteMemberPendingProfileKeyAction
-	33, // 22: signal.GroupChange.Actions.modifyTitle:type_name -> signal.GroupChange.Actions.ModifyTitleAction
-	35, // 23: signal.GroupChange.Actions.modifyAvatar:type_name -> signal.GroupChange.Actions.ModifyAvatarAction
-	36, // 24: signal.GroupChange.Actions.modifyDisappearingMessageTimer:type_name -> signal.GroupChange.Actions.ModifyDisappearingMessageTimerAction
-	37, // 25: signal.GroupChange.Actions.modifyAttributesAccess:type_name -> signal.GroupChange.Actions.ModifyAttributesAccessControlAction
-	38, // 26: signal.GroupChange.Actions.modifyMemberAccess:type_name -> signal.GroupChange.Actions.ModifyMembersAccessControlAction
-	39, // 27: signal.GroupChange.Actions.modifyAddFromInviteLinkAccess:type_name -> signal.GroupChange.Actions.ModifyAddFromInviteLinkAccessControlAction
-	28, // 28: signal.GroupChange.Actions.addMembersPendingAdminApproval:type_name -> signal.GroupChange.Actions.AddMemberPendingAdminApprovalAction
-	29, // 29: signal.GroupChange.Actions.deleteMembersPendingAdminApproval:type_name -> signal.GroupChange.Actions.DeleteMemberPendingAdminApprovalAction
-	30, // 30: signal.GroupChange.Actions.promoteMembersPendingAdminApproval:type_name -> signal.GroupChange.Actions.PromoteMemberPendingAdminApprovalAction
-	40, // 31: signal.GroupChange.Actions.modifyInviteLinkPassword:type_name -> signal.GroupChange.Actions.ModifyInviteLinkPasswordAction
-	34, // 32: signal.GroupChange.Actions.modifyDescription:type_name -> signal.GroupChange.Actions.ModifyDescriptionAction
-	41, // 33: signal.GroupChange.Actions.modify_announcements_only:type_name -> signal.GroupChange.Actions.ModifyAnnouncementsOnlyAction
-	31, // 34: signal.GroupChange.Actions.add_members_banned:type_name -> signal.GroupChange.Actions.AddMemberBannedAction
-	32, // 35: signal.GroupChange.Actions.delete_members_banned:type_name -> signal.GroupChange.Actions.DeleteMemberBannedAction
-	27, // 36: signal.GroupChange.Actions.promote_members_pending_pni_aci_profile_key:type_name -> signal.GroupChange.Actions.PromoteMemberPendingPniAciProfileKeyAction
-	22, // 37: signal.GroupChange.Actions.modifyMemberLabels:type_name -> signal.GroupChange.Actions.ModifyMemberLabelAction
-	3,  // 38: signal.GroupChange.Actions.AddMemberAction.added:type_name -> signal.Member
-	0,  // 39: signal.GroupChange.Actions.ModifyMemberRoleAction.role:type_name -> signal.Member.Role
-	4,  // 40: signal.GroupChange.Actions.AddMemberPendingProfileKeyAction.added:type_name -> signal.MemberPendingProfileKey
-	5,  // 41: signal.GroupChange.Actions.AddMemberPendingAdminApprovalAction.added:type_name -> signal.MemberPendingAdminApproval
-	0,  // 42: signal.GroupChange.Actions.PromoteMemberPendingAdminApprovalAction.role:type_name -> signal.Member.Role
-	6,  // 43: signal.GroupChange.Actions.AddMemberBannedAction.added:type_name -> signal.MemberBanned
-	1,  // 44: signal.GroupChange.Actions.ModifyAttributesAccessControlAction.attributesAccess:type_name -> signal.AccessControl.AccessRequired
-	1,  // 45: signal.GroupChange.Actions.ModifyMembersAccessControlAction.membersAccess:type_name -> signal.AccessControl.AccessRequired
-	1,  // 46: signal.GroupChange.Actions.ModifyAddFromInviteLinkAccessControlAction.addFromInviteLinkAccess:type_name -> signal.AccessControl.AccessRequired
-	12, // 47: signal.GroupChanges.GroupChangeState.groupChange:type_name -> signal.GroupChange
-	8,  // 48: signal.GroupChanges.GroupChangeState.groupState:type_name -> signal.Group
-	49, // [49:49] is the sub-list for method output_type
-	49, // [49:49] is the sub-list for method input_type
-	49, // [49:49] is the sub-list for extension type_name
-	49, // [49:49] is the sub-list for extension extendee
-	0,  // [0:49] is the sub-list for field type_name
+	1,  // 5: signal.AccessControl.memberLabel:type_name -> signal.AccessControl.AccessRequired
+	7,  // 6: signal.Group.accessControl:type_name -> signal.AccessControl
+	3,  // 7: signal.Group.members:type_name -> signal.Member
+	4,  // 8: signal.Group.membersPendingProfileKey:type_name -> signal.MemberPendingProfileKey
+	5,  // 9: signal.Group.membersPendingAdminApproval:type_name -> signal.MemberPendingAdminApproval
+	6,  // 10: signal.Group.members_banned:type_name -> signal.MemberBanned
+	17, // 11: signal.GroupInviteLink.contentsV1:type_name -> signal.GroupInviteLink.GroupInviteLinkContentsV1
+	1,  // 12: signal.GroupJoinInfo.addFromInviteLink:type_name -> signal.AccessControl.AccessRequired
+	8,  // 13: signal.GroupResponse.group:type_name -> signal.Group
+	44, // 14: signal.GroupChanges.groupChanges:type_name -> signal.GroupChanges.GroupChangeState
+	12, // 15: signal.GroupChangeResponse.group_change:type_name -> signal.GroupChange
+	19, // 16: signal.GroupChange.Actions.addMembers:type_name -> signal.GroupChange.Actions.AddMemberAction
+	20, // 17: signal.GroupChange.Actions.deleteMembers:type_name -> signal.GroupChange.Actions.DeleteMemberAction
+	21, // 18: signal.GroupChange.Actions.modifyMemberRoles:type_name -> signal.GroupChange.Actions.ModifyMemberRoleAction
+	23, // 19: signal.GroupChange.Actions.modifyMemberProfileKeys:type_name -> signal.GroupChange.Actions.ModifyMemberProfileKeyAction
+	24, // 20: signal.GroupChange.Actions.addMembersPendingProfileKey:type_name -> signal.GroupChange.Actions.AddMemberPendingProfileKeyAction
+	25, // 21: signal.GroupChange.Actions.deleteMembersPendingProfileKey:type_name -> signal.GroupChange.Actions.DeleteMemberPendingProfileKeyAction
+	26, // 22: signal.GroupChange.Actions.promoteMembersPendingProfileKey:type_name -> signal.GroupChange.Actions.PromoteMemberPendingProfileKeyAction
+	33, // 23: signal.GroupChange.Actions.modifyTitle:type_name -> signal.GroupChange.Actions.ModifyTitleAction
+	35, // 24: signal.GroupChange.Actions.modifyAvatar:type_name -> signal.GroupChange.Actions.ModifyAvatarAction
+	36, // 25: signal.GroupChange.Actions.modifyDisappearingMessageTimer:type_name -> signal.GroupChange.Actions.ModifyDisappearingMessageTimerAction
+	37, // 26: signal.GroupChange.Actions.modifyAttributesAccess:type_name -> signal.GroupChange.Actions.ModifyAttributesAccessControlAction
+	38, // 27: signal.GroupChange.Actions.modifyMemberAccess:type_name -> signal.GroupChange.Actions.ModifyMembersAccessControlAction
+	39, // 28: signal.GroupChange.Actions.modifyAddFromInviteLinkAccess:type_name -> signal.GroupChange.Actions.ModifyAddFromInviteLinkAccessControlAction
+	28, // 29: signal.GroupChange.Actions.addMembersPendingAdminApproval:type_name -> signal.GroupChange.Actions.AddMemberPendingAdminApprovalAction
+	29, // 30: signal.GroupChange.Actions.deleteMembersPendingAdminApproval:type_name -> signal.GroupChange.Actions.DeleteMemberPendingAdminApprovalAction
+	30, // 31: signal.GroupChange.Actions.promoteMembersPendingAdminApproval:type_name -> signal.GroupChange.Actions.PromoteMemberPendingAdminApprovalAction
+	41, // 32: signal.GroupChange.Actions.modifyInviteLinkPassword:type_name -> signal.GroupChange.Actions.ModifyInviteLinkPasswordAction
+	34, // 33: signal.GroupChange.Actions.modifyDescription:type_name -> signal.GroupChange.Actions.ModifyDescriptionAction
+	42, // 34: signal.GroupChange.Actions.modify_announcements_only:type_name -> signal.GroupChange.Actions.ModifyAnnouncementsOnlyAction
+	31, // 35: signal.GroupChange.Actions.add_members_banned:type_name -> signal.GroupChange.Actions.AddMemberBannedAction
+	32, // 36: signal.GroupChange.Actions.delete_members_banned:type_name -> signal.GroupChange.Actions.DeleteMemberBannedAction
+	27, // 37: signal.GroupChange.Actions.promote_members_pending_pni_aci_profile_key:type_name -> signal.GroupChange.Actions.PromoteMemberPendingPniAciProfileKeyAction
+	22, // 38: signal.GroupChange.Actions.modifyMemberLabels:type_name -> signal.GroupChange.Actions.ModifyMemberLabelAction
+	40, // 39: signal.GroupChange.Actions.modifyMemberLabelAccess:type_name -> signal.GroupChange.Actions.ModifyMemberLabelAccessControlAction
+	43, // 40: signal.GroupChange.Actions.terminate_group:type_name -> signal.GroupChange.Actions.TerminateGroupAction
+	3,  // 41: signal.GroupChange.Actions.AddMemberAction.added:type_name -> signal.Member
+	0,  // 42: signal.GroupChange.Actions.ModifyMemberRoleAction.role:type_name -> signal.Member.Role
+	4,  // 43: signal.GroupChange.Actions.AddMemberPendingProfileKeyAction.added:type_name -> signal.MemberPendingProfileKey
+	5,  // 44: signal.GroupChange.Actions.AddMemberPendingAdminApprovalAction.added:type_name -> signal.MemberPendingAdminApproval
+	0,  // 45: signal.GroupChange.Actions.PromoteMemberPendingAdminApprovalAction.role:type_name -> signal.Member.Role
+	6,  // 46: signal.GroupChange.Actions.AddMemberBannedAction.added:type_name -> signal.MemberBanned
+	1,  // 47: signal.GroupChange.Actions.ModifyAttributesAccessControlAction.attributesAccess:type_name -> signal.AccessControl.AccessRequired
+	1,  // 48: signal.GroupChange.Actions.ModifyMembersAccessControlAction.membersAccess:type_name -> signal.AccessControl.AccessRequired
+	1,  // 49: signal.GroupChange.Actions.ModifyAddFromInviteLinkAccessControlAction.addFromInviteLinkAccess:type_name -> signal.AccessControl.AccessRequired
+	1,  // 50: signal.GroupChange.Actions.ModifyMemberLabelAccessControlAction.memberLabelAccess:type_name -> signal.AccessControl.AccessRequired
+	12, // 51: signal.GroupChanges.GroupChangeState.groupChange:type_name -> signal.GroupChange
+	8,  // 52: signal.GroupChanges.GroupChangeState.groupState:type_name -> signal.Group
+	53, // [53:53] is the sub-list for method output_type
+	53, // [53:53] is the sub-list for method input_type
+	53, // [53:53] is the sub-list for extension type_name
+	53, // [53:53] is the sub-list for extension extendee
+	0,  // [0:53] is the sub-list for field type_name
 }
 
 func init() { file_Groups_proto_init() }
@@ -3041,7 +3168,7 @@ func file_Groups_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_Groups_proto_rawDesc), len(file_Groups_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   41,
+			NumMessages:   43,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

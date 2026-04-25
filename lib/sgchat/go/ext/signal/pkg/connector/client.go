@@ -19,6 +19,7 @@ package connector
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -39,6 +40,7 @@ type SignalClient struct {
 	Ghost     *bridgev2.Ghost
 
 	queueEmptyWaiter *exsync.Event
+	cancelChatSync   atomic.Pointer[context.CancelFunc]
 }
 
 var (
@@ -78,6 +80,7 @@ func (s *SignalClient) LogoutRemote(ctx context.Context) {
 	if s.Client == nil {
 		return
 	}
+	s.stopChatSync()
 	err := s.Client.Unlink(ctx)
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("Failed to unlink device")
@@ -176,6 +179,7 @@ func (s *SignalClient) bridgeStateLoop(statusChan <-chan signalmeow.SignalConnec
 			}
 
 		case signalmeow.SignalConnectionEventLoggedOut:
+			s.stopChatSync()
 			s.UserLogin.Log.Debug().Msg("Sending BadCredentials BridgeState")
 			if err == nil {
 				s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You have been logged out of Signal, please reconnect"})
@@ -274,6 +278,7 @@ func (s *SignalClient) Disconnect() {
 	if s.Client == nil {
 		return
 	}
+	s.stopChatSync()
 	err := s.Client.StopReceiveLoops()
 	if err != nil {
 		s.UserLogin.Log.Err(err).Msg("Failed to stop receive loops")
@@ -281,25 +286,18 @@ func (s *SignalClient) Disconnect() {
 }
 
 func (s *SignalClient) postLoginConnect() {
-	ctx := s.UserLogin.Log.WithContext(context.Background())
-	// TODO it would be more proper to only connect after syncing,
-	//      but currently syncing will fetch group info online, so it has to be connected.
+	ctx := s.UserLogin.Log.WithContext(s.Main.Bridge.BackgroundCtx)
 	s.tryConnect(ctx, 0, false)
-	if s.Client.Store.EphemeralBackupKey != nil {
-		go func() {
-			if s.Client.Store.MasterKey != nil {
-				s.Client.SyncStorage(ctx)
-			} else {
-				s.UserLogin.Log.Warn().Msg("No master key for storage sync before backup sync")
-			}
-			s.syncChats(ctx)
-		}()
-	} else if s.Client.Store.MasterKey != nil {
-		go s.Client.SyncStorage(ctx)
-	}
 }
 
-func (s *SignalClient) tryConnect(ctx context.Context, retryCount int, doSync bool) {
+func (s *SignalClient) tryConnect(ctx context.Context, retryCount int, noLoginSync bool) {
+	if ctx.Err() != nil {
+		zerolog.Ctx(ctx).Debug().
+			Int("retry_count", retryCount).
+			AnErr("ctx_err", ctx.Err()).
+			Msg("Context is canceled, not trying to connect")
+		return
+	}
 	if retryCount == 0 {
 		s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnecting})
 	}
@@ -318,11 +316,33 @@ func (s *SignalClient) tryConnect(ctx context.Context, retryCount int, doSync bo
 			zerolog.Ctx(ctx).Info().Msg("Context canceled, exit tryConnect")
 			return
 		}
-		s.tryConnect(ctx, retryCount+1, doSync)
+		s.tryConnect(ctx, retryCount+1, noLoginSync)
+		return
+	}
+	syncCtx, cancel := context.WithCancel(ctx)
+	if oldCancel := s.cancelChatSync.Swap(&cancel); oldCancel != nil {
+		(*oldCancel)()
+	}
+	go s.bridgeStateLoop(ch)
+	if noLoginSync {
+		go s.syncChats(syncCtx, cancel)
 	} else {
-		go s.bridgeStateLoop(ch)
-		if doSync {
-			go s.syncChats(ctx)
+		// TODO it would be more proper to only connect after syncing,
+		//      but currently syncing will fetch group info online, so it has to be connected.
+		if s.Client.Store.EphemeralBackupKey != nil {
+			go func() {
+				if s.Client.Store.MasterKey != nil {
+					s.Client.SyncStorage(ctx)
+				} else {
+					s.UserLogin.Log.Warn().Msg("No master key for storage sync before backup sync")
+				}
+				s.syncChats(syncCtx, cancel)
+			}()
+		} else {
+			cancel()
+			if s.Client.Store.MasterKey != nil {
+				go s.Client.SyncStorage(ctx)
+			}
 		}
 	}
 }

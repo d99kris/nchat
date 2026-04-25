@@ -1,8 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-ANDROID_GIT_REVISION=${1:-bc6114f6e0d3a4b1dcdc472331505f2644185264}
-DESKTOP_GIT_REVISION=${1:-a9063ec0c3c1079072c1e30e0749c1ae8be5500a}
+ANDROID_GIT_REVISION=${1:-dfd2f7baf96825834f784900ce644e9ead8a9a89}
+DESKTOP_GIT_REVISION=${1:-60a1e125452ee672d8747564d0055d5bfec9f679}
 
 update_proto() {
   case "$1" in
@@ -11,9 +11,9 @@ update_proto() {
       prefix="lib/libsignal-service/src/main/protowire/"
       GIT_REVISION=$ANDROID_GIT_REVISION
       ;;
-    Signal-Android-App)
+    Signal-Android-Archive)
       REPO="Signal-Android"
-      prefix="app/src/main/protowire/"
+      prefix="lib/archive/src/main/protowire/"
       GIT_REVISION=$ANDROID_GIT_REVISION
       ;;
     Signal-Desktop)
@@ -34,11 +34,10 @@ update_proto Signal-Android StickerResources.proto
 update_proto Signal-Android WebSocketResources.proto
 update_proto Signal-Android StorageService.proto
 
-update_proto Signal-Android-App Backup.proto
+update_proto Signal-Android-Archive Backup.proto
 mv Backup.proto backuppb/Backup.proto
 
 update_proto Signal-Desktop DeviceName.proto
-# TODO this was moved to libsignal only
+# TODO these were moved to libsignal only
 #update_proto Signal-Desktop UnidentifiedDelivery.proto
-# Android has CDSI.proto too, but the types have more generic names (since android uses a different package name)
-update_proto Signal-Desktop ContactDiscovery.proto
+#update_proto Signal-Desktop ContactDiscovery.proto

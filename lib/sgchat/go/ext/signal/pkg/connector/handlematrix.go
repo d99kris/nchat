@@ -137,7 +137,7 @@ func (s *SignalClient) doSendMessage(
 	}
 	msgID := signalid.MakeMessageID(s.Client.Store.ACI, ts)
 	msg.AddPendingToIgnore(networkid.TransactionID(msgID))
-	err := s.sendMessage(ctx, msg.Portal.ID, &signalpb.Content{DataMessage: converted})
+	err := s.sendMessage(ctx, msg.Portal.ID, signalmeow.WrapDataMessage(converted))
 	if err != nil {
 		return nil, bridgev2.WrapErrorInStatus(err).WithSendNotice(true)
 	}
@@ -173,10 +173,10 @@ func (s *SignalClient) HandleMatrixEdit(ctx context.Context, msg *bridgev2.Matri
 	}
 	ts := getTimestampForEvent(msg.InputTransactionID, msg.Event, msg.OrigSender)
 	converted.Timestamp = &ts
-	err = s.sendMessage(ctx, msg.Portal.ID, &signalpb.Content{EditMessage: &signalpb.EditMessage{
+	err = s.sendMessage(ctx, msg.Portal.ID, signalmeow.WrapEditMessage(&signalpb.EditMessage{
 		TargetSentTimestamp: proto.Uint64(targetSentTimestamp),
 		DataMessage:         converted,
-	}})
+	}))
 	if err != nil {
 		return bridgev2.WrapErrorInStatus(err).WithSendNotice(true)
 	}
@@ -200,19 +200,16 @@ func (s *SignalClient) HandleMatrixReaction(ctx context.Context, msg *bridgev2.M
 		return nil, fmt.Errorf("failed to parse target message ID: %w", err)
 	}
 	ts := getTimestampForEvent(msg.InputTransactionID, msg.Event, msg.OrigSender)
-	wrappedContent := &signalpb.Content{
-		DataMessage: &signalpb.DataMessage{
-			Timestamp:               proto.Uint64(ts),
-			RequiredProtocolVersion: proto.Uint32(uint32(signalpb.DataMessage_REACTIONS)),
-			Reaction: &signalpb.DataMessage_Reaction{
-				Emoji:                 proto.String(msg.PreHandleResp.Emoji),
-				Remove:                proto.Bool(false),
-				TargetAuthorAciBinary: targetAuthorACI[:],
-				TargetSentTimestamp:   proto.Uint64(targetSentTimestamp),
-			},
+	err = s.sendMessage(ctx, msg.Portal.ID, signalmeow.WrapDataMessage(&signalpb.DataMessage{
+		Timestamp:               proto.Uint64(ts),
+		RequiredProtocolVersion: proto.Uint32(uint32(signalpb.DataMessage_REACTIONS)),
+		Reaction: &signalpb.DataMessage_Reaction{
+			Emoji:                 proto.String(msg.PreHandleResp.Emoji),
+			Remove:                proto.Bool(false),
+			TargetAuthorAciBinary: targetAuthorACI[:],
+			TargetSentTimestamp:   proto.Uint64(targetSentTimestamp),
 		},
-	}
-	err = s.sendMessage(ctx, msg.Portal.ID, wrappedContent)
+	}))
 	if err != nil {
 		return nil, err
 	}
@@ -225,19 +222,16 @@ func (s *SignalClient) HandleMatrixReactionRemove(ctx context.Context, msg *brid
 		return fmt.Errorf("failed to parse target message ID: %w", err)
 	}
 	ts := getTimestampForEvent(msg.InputTransactionID, msg.Event, msg.OrigSender)
-	wrappedContent := &signalpb.Content{
-		DataMessage: &signalpb.DataMessage{
-			Timestamp:               proto.Uint64(ts),
-			RequiredProtocolVersion: proto.Uint32(uint32(signalpb.DataMessage_REACTIONS)),
-			Reaction: &signalpb.DataMessage_Reaction{
-				Emoji:                 proto.String(msg.TargetReaction.Emoji),
-				Remove:                proto.Bool(true),
-				TargetAuthorAciBinary: targetAuthorACI[:],
-				TargetSentTimestamp:   proto.Uint64(targetSentTimestamp),
-			},
+	err = s.sendMessage(ctx, msg.Portal.ID, signalmeow.WrapDataMessage(&signalpb.DataMessage{
+		Timestamp:               proto.Uint64(ts),
+		RequiredProtocolVersion: proto.Uint32(uint32(signalpb.DataMessage_REACTIONS)),
+		Reaction: &signalpb.DataMessage_Reaction{
+			Emoji:                 proto.String(msg.TargetReaction.Emoji),
+			Remove:                proto.Bool(true),
+			TargetAuthorAciBinary: targetAuthorACI[:],
+			TargetSentTimestamp:   proto.Uint64(targetSentTimestamp),
 		},
-	}
-	err = s.sendMessage(ctx, msg.Portal.ID, wrappedContent)
+	}))
 	if err != nil {
 		return err
 	}
@@ -252,15 +246,12 @@ func (s *SignalClient) HandleMatrixMessageRemove(ctx context.Context, msg *bridg
 		return fmt.Errorf("cannot delete other people's messages")
 	}
 	ts := getTimestampForEvent(msg.InputTransactionID, msg.Event, msg.OrigSender)
-	wrappedContent := &signalpb.Content{
-		DataMessage: &signalpb.DataMessage{
-			Timestamp: proto.Uint64(ts),
-			Delete: &signalpb.DataMessage_Delete{
-				TargetSentTimestamp: proto.Uint64(targetSentTimestamp),
-			},
+	err = s.sendMessage(ctx, msg.Portal.ID, signalmeow.WrapDataMessage(&signalpb.DataMessage{
+		Timestamp: proto.Uint64(ts),
+		Delete: &signalpb.DataMessage_Delete{
+			TargetSentTimestamp: proto.Uint64(targetSentTimestamp),
 		},
-	}
-	err = s.sendMessage(ctx, msg.Portal.ID, wrappedContent)
+	}))
 	if err != nil {
 		return err
 	}
@@ -387,7 +378,7 @@ func (s *SignalClient) HandleMatrixRoomAvatar(ctx context.Context, msg *bridgev2
 			return false, fmt.Errorf("failed to download avatar: %w", err)
 		}
 		avatarHash = sha256.Sum256(data)
-		avatarPath, err = s.Client.UploadGroupAvatar(ctx, data, groupID)
+		avatarPath, err = s.Client.UploadGroupAvatar(ctx, data, groupID, "")
 		if err != nil {
 			return false, fmt.Errorf("failed to reupload avatar: %w", err)
 		}
@@ -407,6 +398,9 @@ func (s *SignalClient) HandleMatrixRoomTopic(ctx context.Context, msg *bridgev2.
 }
 
 func (s *SignalClient) HandleMatrixMembership(ctx context.Context, msg *bridgev2.MatrixMembershipChange) (*bridgev2.MatrixMembershipResult, error) {
+	if msg.Type.IsSelf && msg.OrigSender != nil {
+		return nil, nil
+	}
 	var targetIntent bridgev2.MatrixAPI
 	var targetSignalID libsignalgo.ServiceID
 	var err error
@@ -685,13 +679,11 @@ func (s *SignalClient) HandleMatrixDisappearingTimer(ctx context.Context, msg *b
 		})
 	} else {
 		ts := getTimestampForEvent(msg.InputTransactionID, msg.Event, msg.OrigSender)
-		res := s.Client.SendMessage(ctx, userID, &signalpb.Content{
-			DataMessage: &signalpb.DataMessage{
-				Timestamp:   ptr.Ptr(ts),
-				Flags:       ptr.Ptr(uint32(signalpb.DataMessage_EXPIRATION_TIMER_UPDATE)),
-				ExpireTimer: ptr.Ptr(uint32(msg.Content.Timer.Seconds())),
-			},
-		})
+		res := s.Client.SendMessage(ctx, userID, signalmeow.WrapDataMessage(&signalpb.DataMessage{
+			Timestamp:   ptr.Ptr(ts),
+			Flags:       ptr.Ptr(uint32(signalpb.DataMessage_EXPIRATION_TIMER_UPDATE)),
+			ExpireTimer: ptr.Ptr(uint32(msg.Content.Timer.Seconds())),
+		}))
 		if !res.WasSuccessful {
 			return false, res.Error
 		}
@@ -770,8 +762,8 @@ func (s *SignalClient) HandleMatrixDeleteChat(ctx context.Context, msg *bridgev2
 
 	recipientID := s.Client.Store.ACIServiceID()
 	// Send DeleteForMe sync message to self
-	result := s.Client.SendMessage(ctx, recipientID, &signalpb.Content{
-		SyncMessage: &signalpb.SyncMessage{
+	result := s.Client.SendMessage(ctx, recipientID, signalmeow.WrapSyncMessage(&signalpb.SyncMessage{
+		Content: &signalpb.SyncMessage_DeleteForMe_{
 			DeleteForMe: &signalpb.SyncMessage_DeleteForMe{
 				ConversationDeletes: []*signalpb.SyncMessage_DeleteForMe_ConversationDelete{{
 					Conversation:       conversationID,
@@ -780,7 +772,7 @@ func (s *SignalClient) HandleMatrixDeleteChat(ctx context.Context, msg *bridgev2
 				}},
 			},
 		},
-	})
+	}))
 
 	zerolog.Ctx(ctx).Debug().
 		Str("portal_id", string(msg.Portal.ID)).
@@ -865,11 +857,11 @@ func (s *SignalClient) syncMessageRequestResponse(
 	} else {
 		return fmt.Errorf("invalid portal ID for message request response: %s", portal.ID)
 	}
-	res := s.Client.SendMessage(ctx, libsignalgo.NewACIServiceID(s.Client.Store.ACI), &signalpb.Content{
-		SyncMessage: &signalpb.SyncMessage{
+	res := s.Client.SendMessage(ctx, libsignalgo.NewACIServiceID(s.Client.Store.ACI), signalmeow.WrapSyncMessage(&signalpb.SyncMessage{
+		Content: &signalpb.SyncMessage_MessageRequestResponse_{
 			MessageRequestResponse: accept,
 		},
-	})
+	}))
 	if !res.WasSuccessful {
 		return res.Error
 	}
@@ -902,13 +894,13 @@ func (s *SignalClient) HandleMatrixAcceptMessageRequest(ctx context.Context, msg
 			}
 		}
 		res := s.Client.SendMessage(ctx, userID, &signalpb.Content{
-			DataMessage: &signalpb.DataMessage{
+			Content: &signalpb.Content_DataMessage{DataMessage: &signalpb.DataMessage{
 				Flags:      proto.Uint32(uint32(signalpb.DataMessage_PROFILE_KEY_UPDATE)),
 				ProfileKey: profileKey.Slice(),
 				Timestamp:  proto.Uint64(getTimestampForEvent(msg.InputTransactionID, msg.Event, msg.OrigSender)),
 
 				RequiredProtocolVersion: proto.Uint32(0),
-			},
+			}},
 			PniSignatureMessage: pniSig,
 		})
 		if !res.WasSuccessful {

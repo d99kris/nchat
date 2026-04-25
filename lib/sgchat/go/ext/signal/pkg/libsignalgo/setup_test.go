@@ -54,6 +54,8 @@ func (FFILogger) Log(level libsignalgo.LogLevel, file string, line uint, message
 
 func (FFILogger) Flush() {}
 
+func (FFILogger) Destroy() {}
+
 var loggingSetup = false
 
 func setupLogging() {

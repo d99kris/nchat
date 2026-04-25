@@ -136,7 +136,7 @@ func TestSessionCipher(t *testing.T) {
 
 	alicePlaintext := []byte{8, 6, 7, 5, 3, 0, 9}
 
-	aliceCiphertext, err := libsignalgo.Encrypt(ctx, alicePlaintext, bobAddress, aliceStore, aliceStore)
+	aliceCiphertext, err := libsignalgo.Encrypt(ctx, alicePlaintext, bobAddress, aliceAddress, aliceStore, aliceStore)
 	assert.NoError(t, err)
 	aliceCiphertextMessageType, err := aliceCiphertext.MessageType()
 	assert.NoError(t, err)
@@ -147,13 +147,13 @@ func TestSessionCipher(t *testing.T) {
 	bobCiphertext, err := libsignalgo.DeserializePreKeyMessage(aliceCiphertextSerialized)
 	assert.NoError(t, err)
 
-	bobPlaintext, err := libsignalgo.DecryptPreKey(ctx, bobCiphertext, aliceAddress, bobStore, bobStore, bobStore, bobStore, bobStore)
+	bobPlaintext, err := libsignalgo.DecryptPreKey(ctx, bobCiphertext, aliceAddress, bobAddress, bobStore, bobStore, bobStore, bobStore, bobStore)
 	assert.NoError(t, err)
 	assert.Equal(t, alicePlaintext, bobPlaintext)
 
 	bobPlaintext2 := []byte{23}
 
-	bobCiphertext2, err := libsignalgo.Encrypt(ctx, bobPlaintext2, aliceAddress, bobStore, bobStore)
+	bobCiphertext2, err := libsignalgo.Encrypt(ctx, bobPlaintext2, aliceAddress, bobAddress, bobStore, bobStore)
 	assert.NoError(t, err)
 	bobCiphertext2MessageType, err := bobCiphertext2.MessageType()
 	assert.NoError(t, err)
@@ -187,7 +187,7 @@ func TestSessionCipherWithBadStore(t *testing.T) {
 
 	alicePlaintext := []byte{8, 6, 7, 5, 3, 0, 9}
 
-	aliceCiphertext, err := libsignalgo.Encrypt(ctx, alicePlaintext, bobAddress, aliceStore, aliceStore)
+	aliceCiphertext, err := libsignalgo.Encrypt(ctx, alicePlaintext, bobAddress, aliceAddress, aliceStore, aliceStore)
 	assert.NoError(t, err)
 	aliceCiphertextMessageType, err := aliceCiphertext.MessageType()
 	assert.NoError(t, err)
@@ -198,7 +198,7 @@ func TestSessionCipherWithBadStore(t *testing.T) {
 	bobCiphertext, err := libsignalgo.DeserializePreKeyMessage(aliceCiphertextSerialized)
 	assert.NoError(t, err)
 	t.Skip("This test is broken") // TODO fix
-	_, err = libsignalgo.DecryptPreKey(ctx, bobCiphertext, aliceAddress, bobStore, bobStore, bobStore, bobStore, bobStore)
+	_, err = libsignalgo.DecryptPreKey(ctx, bobCiphertext, aliceAddress, bobAddress, bobStore, bobStore, bobStore, bobStore, bobStore)
 	require.Error(t, err)
 	assert.Equal(t, "Test error", err.Error())
 }
@@ -241,7 +241,7 @@ func TestSealedSenderEncrypt_Repeated(t *testing.T) {
 	}()
 	for i := 0; i < 100; i++ {
 		message := []byte(fmt.Sprintf("%04d vision", i))
-		ciphertext, err := libsignalgo.SealedSenderEncryptPlaintext(ctx, message, libsignalgo.UnidentifiedSenderMessageContentHintDefault, bobAddress, senderCert, aliceStore, aliceStore, nil)
+		ciphertext, err := libsignalgo.SealedSenderEncryptPlaintext(ctx, message, libsignalgo.UnidentifiedSenderMessageContentHintDefault, bobAddress, aliceAddress, senderCert, aliceStore, aliceStore, nil)
 		require.NoError(t, err)
 		assert.NotNil(t, ciphertext)
 	}

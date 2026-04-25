@@ -282,7 +282,11 @@ func (cli *Client) WaitForTransfer(ctx context.Context) (*TransferArchiveMetadat
 		}
 		reqDuration := time.Since(reqStart)
 		if reqDuration < reqTimeout-10*time.Second {
-			time.Sleep(15 * time.Second)
+			select {
+			case <-time.After(15 * time.Second):
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
 		}
 	}
 }

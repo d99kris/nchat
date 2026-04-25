@@ -18,7 +18,6 @@ package signalmeow
 
 import (
 	"context"
-	"crypto/hmac"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -166,24 +165,19 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 			DeviceID:           deviceId,
 			Number:             *provisioningMessage.Number,
 			Password:           password,
-			MasterKey:          provisioningMessage.GetMasterKey(),
 			AccountEntropyPool: libsignalgo.AccountEntropyPool(provisioningMessage.GetAccountEntropyPool()),
 			EphemeralBackupKey: libsignalgo.BytesToBackupKey(provisioningMessage.GetEphemeralBackupKey()),
 			MediaRootBackupKey: libsignalgo.BytesToBackupKey(provisioningMessage.GetMediaRootBackupKey()),
 		}
 		if provisioningMessage.GetAccountEntropyPool() != "" {
-			var masterKey []byte
-			masterKey, err = libsignalgo.AccountEntropyPool(provisioningMessage.GetAccountEntropyPool()).DeriveSVRKey()
+			data.MasterKey, err = libsignalgo.AccountEntropyPool(provisioningMessage.GetAccountEntropyPool()).DeriveSVRKey()
 			if err != nil {
 				log.Err(err).Msg("Failed to derive master key from account entropy pool")
 			} else {
 				log.Debug().Msg("Derived master key from account entropy pool")
 			}
-			if data.MasterKey == nil {
-				data.MasterKey = masterKey
-			} else if !hmac.Equal(data.MasterKey, masterKey) {
-				log.Warn().Msg("Master key mismatch")
-			}
+		} else {
+			log.Warn().Msg("No account entropy pool in provisioning message")
 		}
 
 		// Store the provisioning data

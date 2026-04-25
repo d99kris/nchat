@@ -332,7 +332,7 @@ func (s *SignalClient) CreateGroup(ctx context.Context, params *bridgev2.GroupCr
 		if err != nil {
 			return nil, fmt.Errorf("failed to download avatar: %w", err)
 		}
-		group.AvatarPath, err = s.Client.UploadGroupAvatar(ctx, avatarBytes, group.GroupIdentifier)
+		group.AvatarPath, err = s.Client.UploadGroupAvatar(ctx, avatarBytes, group.GroupIdentifier, group.GroupMasterKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to upload avatar: %w", err)
 		}
@@ -362,7 +362,7 @@ func (s *SignalClient) CreateGroup(ctx context.Context, params *bridgev2.GroupCr
 			return nil, fmt.Errorf("failed to set portal room ID: %w", err)
 		}
 	}
-	resp, err := s.Client.CreateGroup(ctx, group, avatarBytes)
+	resp, err := s.Client.CreateGroup(ctx, group)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create group: %w", err)
 	}
@@ -414,7 +414,7 @@ func (s *SignalClient) GetContactList(ctx context.Context) ([]*bridgev2.ResolveI
 }
 
 func (s *SignalClient) makeCreateDMResponse(ctx context.Context, recipient *types.Recipient, backupChat *store.BackupChat) *bridgev2.CreateChatResponse {
-	name := ""
+	namePtr := bridgev2.DefaultChatName
 	topic := PrivateChatTopic
 	selfUser := s.makeEventSender(s.Client.Store.ACI)
 	members := &bridgev2.ChatMemberList{
@@ -441,7 +441,7 @@ func (s *SignalClient) makeCreateDMResponse(ctx context.Context, recipient *type
 	var serviceID libsignalgo.ServiceID
 	var avatar *bridgev2.Avatar
 	if recipient.ACI == uuid.Nil {
-		name = s.Main.Config.FormatDisplayname(recipient)
+		namePtr = ptr.Ptr(s.Main.Config.FormatDisplayname(recipient))
 		serviceID = libsignalgo.NewPNIServiceID(recipient.PNI)
 	} else {
 		if backupChat == nil {
@@ -453,7 +453,7 @@ func (s *SignalClient) makeCreateDMResponse(ctx context.Context, recipient *type
 		}
 		members.OtherUserID = signalid.MakeUserID(recipient.ACI)
 		if recipient.ACI == s.Client.Store.ACI {
-			name = NoteToSelfName
+			namePtr = ptr.Ptr(NoteToSelfName)
 			avatar = &bridgev2.Avatar{
 				ID:     networkid.AvatarID(s.Main.Config.NoteToSelfAvatar),
 				Remove: len(s.Main.Config.NoteToSelfAvatar) == 0,
@@ -474,7 +474,7 @@ func (s *SignalClient) makeCreateDMResponse(ctx context.Context, recipient *type
 	return &bridgev2.CreateChatResponse{
 		PortalKey: s.makeDMPortalKey(serviceID),
 		PortalInfo: &bridgev2.ChatInfo{
-			Name:    &name,
+			Name:    namePtr,
 			Avatar:  avatar,
 			Topic:   &topic,
 			Members: members,

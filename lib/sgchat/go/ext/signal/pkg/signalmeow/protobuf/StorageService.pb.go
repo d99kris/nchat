@@ -1598,6 +1598,7 @@ type AccountRecord struct {
 	NotificationProfileManualOverride *AccountRecord_NotificationProfileManualOverride `protobuf:"bytes,44,opt,name=notificationProfileManualOverride,proto3" json:"notificationProfileManualOverride,omitempty"`
 	NotificationProfileSyncDisabled   bool                                             `protobuf:"varint,45,opt,name=notificationProfileSyncDisabled,proto3" json:"notificationProfileSyncDisabled,omitempty"`
 	AutomaticKeyVerificationDisabled  bool                                             `protobuf:"varint,46,opt,name=automaticKeyVerificationDisabled,proto3" json:"automaticKeyVerificationDisabled,omitempty"`
+	HasSeenAdminDeleteEducationDialog bool                                             `protobuf:"varint,47,opt,name=hasSeenAdminDeleteEducationDialog,proto3" json:"hasSeenAdminDeleteEducationDialog,omitempty"`
 	unknownFields                     protoimpl.UnknownFields
 	sizeCache                         protoimpl.SizeCache
 }
@@ -1905,6 +1906,13 @@ func (x *AccountRecord) GetAutomaticKeyVerificationDisabled() bool {
 	return false
 }
 
+func (x *AccountRecord) GetHasSeenAdminDeleteEducationDialog() bool {
+	if x != nil {
+		return x.HasSeenAdminDeleteEducationDialog
+	}
+	return false
+}
+
 type StoryDistributionListRecord struct {
 	state                     protoimpl.MessageState `protogen:"open.v1"`
 	Identifier                []byte                 `protobuf:"bytes,1,opt,name=identifier,proto3" json:"identifier,omitempty"`
@@ -2002,7 +2010,6 @@ type CallLinkRecord struct {
 	RootKey              []byte                 `protobuf:"bytes,1,opt,name=rootKey,proto3" json:"rootKey,omitempty"`
 	AdminPasskey         []byte                 `protobuf:"bytes,2,opt,name=adminPasskey,proto3" json:"adminPasskey,omitempty"`
 	DeletedAtTimestampMs uint64                 `protobuf:"varint,3,opt,name=deletedAtTimestampMs,proto3" json:"deletedAtTimestampMs,omitempty"`
-	Epoch                []byte                 `protobuf:"bytes,4,opt,name=epoch,proto3,oneof" json:"epoch,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -2056,13 +2063,6 @@ func (x *CallLinkRecord) GetDeletedAtTimestampMs() uint64 {
 		return x.DeletedAtTimestampMs
 	}
 	return 0
-}
-
-func (x *CallLinkRecord) GetEpoch() []byte {
-	if x != nil {
-		return x.Epoch
-	}
-	return nil
 }
 
 type Recipient struct {
@@ -3216,7 +3216,7 @@ const file_StorageService_proto_rawDesc = "" +
 	"\">\n" +
 	"\bPayments\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x18\n" +
-	"\aentropy\x18\x02 \x01(\fR\aentropy\"\xcb\x1c\n" +
+	"\aentropy\x18\x02 \x01(\fR\aentropy\"\x99\x1d\n" +
 	"\rAccountRecord\x12\x1e\n" +
 	"\n" +
 	"profileKey\x18\x01 \x01(\fR\n" +
@@ -3263,7 +3263,8 @@ const file_StorageService_proto_rawDesc = "" +
 	"\x11backupTierHistory\x18+ \x01(\v2..signalservice.AccountRecord.BackupTierHistoryR\x11backupTierHistory\x12\x8c\x01\n" +
 	"!notificationProfileManualOverride\x18, \x01(\v2>.signalservice.AccountRecord.NotificationProfileManualOverrideR!notificationProfileManualOverride\x12H\n" +
 	"\x1fnotificationProfileSyncDisabled\x18- \x01(\bR\x1fnotificationProfileSyncDisabled\x12J\n" +
-	" automaticKeyVerificationDisabled\x18. \x01(\bR automaticKeyVerificationDisabled\x1a\xb0\x02\n" +
+	" automaticKeyVerificationDisabled\x18. \x01(\bR automaticKeyVerificationDisabled\x12L\n" +
+	"!hasSeenAdminDeleteEducationDialog\x18/ \x01(\bR!hasSeenAdminDeleteEducationDialog\x1a\xb0\x02\n" +
 	"\x12PinnedConversation\x12S\n" +
 	"\acontact\x18\x01 \x01(\v27.signalservice.AccountRecord.PinnedConversation.ContactH\x00R\acontact\x12&\n" +
 	"\rlegacyGroupId\x18\x03 \x01(\fH\x00R\rlegacyGroupId\x12(\n" +
@@ -3329,13 +3330,11 @@ const file_StorageService_proto_rawDesc = "" +
 	"\x12deletedAtTimestamp\x18\x04 \x01(\x04R\x12deletedAtTimestamp\x12$\n" +
 	"\rallowsReplies\x18\x05 \x01(\bR\rallowsReplies\x12 \n" +
 	"\visBlockList\x18\x06 \x01(\bR\visBlockList\x12<\n" +
-	"\x19recipientServiceIdsBinary\x18\a \x03(\fR\x19recipientServiceIdsBinary\"\xa7\x01\n" +
+	"\x19recipientServiceIdsBinary\x18\a \x03(\fR\x19recipientServiceIdsBinary\"\x88\x01\n" +
 	"\x0eCallLinkRecord\x12\x18\n" +
 	"\arootKey\x18\x01 \x01(\fR\arootKey\x12\"\n" +
 	"\fadminPasskey\x18\x02 \x01(\fR\fadminPasskey\x122\n" +
-	"\x14deletedAtTimestampMs\x18\x03 \x01(\x04R\x14deletedAtTimestampMs\x12\x19\n" +
-	"\x05epoch\x18\x04 \x01(\fH\x00R\x05epoch\x88\x01\x01B\b\n" +
-	"\x06_epoch\"\x90\x02\n" +
+	"\x14deletedAtTimestampMs\x18\x03 \x01(\x04R\x14deletedAtTimestampMsJ\x04\b\x04\x10\x05\"\x90\x02\n" +
 	"\tRecipient\x12<\n" +
 	"\acontact\x18\x01 \x01(\v2 .signalservice.Recipient.ContactH\x00R\acontact\x12&\n" +
 	"\rlegacyGroupId\x18\x02 \x01(\fH\x00R\rlegacyGroupId\x12(\n" +
@@ -3531,7 +3530,6 @@ func file_StorageService_proto_init() {
 	file_StorageService_proto_msgTypes[7].OneofWrappers = []any{}
 	file_StorageService_proto_msgTypes[9].OneofWrappers = []any{}
 	file_StorageService_proto_msgTypes[11].OneofWrappers = []any{}
-	file_StorageService_proto_msgTypes[13].OneofWrappers = []any{}
 	file_StorageService_proto_msgTypes[14].OneofWrappers = []any{
 		(*Recipient_Contact_)(nil),
 		(*Recipient_LegacyGroupId)(nil),

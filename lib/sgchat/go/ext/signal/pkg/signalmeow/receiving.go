@@ -357,7 +357,7 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		return nil, err
 	}
 	log = log.With().
-		Uint64("envelope_timestamp", envelope.GetTimestamp()).
+		Uint64("envelope_timestamp", envelope.GetClientTimestamp()).
 		Uint64("server_timestamp", envelope.GetServerTimestamp()).
 		Logger()
 	ctx = log.WithContext(ctx)
@@ -368,7 +368,7 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		Str("source_service_id", envelope.GetSourceServiceId()).
 		Hex("destination_service_id_bytes", envelope.GetDestinationServiceIdBinary()).
 		Hex("source_service_id_bytes", envelope.GetSourceServiceIdBinary()).
-		Uint32("source_device_id", envelope.GetSourceDevice()).
+		Uint32("source_device_id", envelope.GetSourceDeviceId()).
 		Object("parsed_destination_service_id", destinationServiceID).
 		Object("parsed_source_service_id", sourceServiceID).
 		Int32("envelope_type_id", int32(envelope.GetType())).
@@ -436,20 +436,20 @@ func (cli *Client) handleDecryptedResult(
 			Bool("urgent", envelope.GetUrgent()).
 			Stringer("content_hint", result.ContentHint).
 			Uint64("server_ts", envelope.GetServerTimestamp()).
-			Uint64("client_ts", envelope.GetTimestamp()).
+			Uint64("client_ts", envelope.GetClientTimestamp()).
 			Msg("No sender address received")
 		return nil
 	} else if theirServiceID, err = result.SenderAddress.NameServiceID(); err != nil {
 		log.Warn().
 			Uint64("server_ts", envelope.GetServerTimestamp()).
-			Uint64("client_ts", envelope.GetTimestamp()).
+			Uint64("client_ts", envelope.GetClientTimestamp()).
 			Msg("Failed to get sender name as service ID")
 		return fmt.Errorf("failed to get sender name as service ID: %w", err)
 	} else if theirServiceID.Type != libsignalgo.ServiceIDTypeACI {
 		log.Warn().
 			Any("their_service_id", theirServiceID).
 			Uint64("server_ts", envelope.GetServerTimestamp()).
-			Uint64("client_ts", envelope.GetTimestamp()).
+			Uint64("client_ts", envelope.GetClientTimestamp()).
 			Msg("Dropping message from non-ACI sender")
 		return nil
 	}
@@ -469,7 +469,7 @@ func (cli *Client) handleDecryptedResult(
 				Bool("urgent", envelope.GetUrgent()).
 				Stringer("content_hint", result.ContentHint).
 				Uint64("server_ts", envelope.GetServerTimestamp()).
-				Uint64("client_ts", envelope.GetTimestamp()).
+				Uint64("client_ts", envelope.GetClientTimestamp()).
 				Stringer("sender", theirServiceID).
 				Msg("Ignoring already processed event")
 			return nil
@@ -478,7 +478,7 @@ func (cli *Client) handleDecryptedResult(
 			Bool("urgent", envelope.GetUrgent()).
 			Stringer("content_hint", result.ContentHint).
 			Uint64("server_ts", envelope.GetServerTimestamp()).
-			Uint64("client_ts", envelope.GetTimestamp()).
+			Uint64("client_ts", envelope.GetClientTimestamp()).
 			Stringer("sender", theirServiceID).
 			Msg("Decryption error with known sender")
 		// Only send decryption error event if the message was urgent,
@@ -489,12 +489,12 @@ func (cli *Client) handleDecryptedResult(
 			handlerSuccess = cli.handleEvent(&events.DecryptionError{
 				Sender:    theirServiceID.UUID,
 				Err:       result.Err,
-				Timestamp: envelope.GetTimestamp(),
+				Timestamp: envelope.GetClientTimestamp(),
 			})
 		}
 		if result.Retriable {
 			go func() {
-				err := cli.sendRetryRequest(ctx, result, envelope.GetTimestamp())
+				err := cli.sendRetryRequest(ctx, result, envelope.GetClientTimestamp())
 				if err != nil {
 					log.Err(err).Msg("Failed to send retry request in background")
 				}
@@ -506,15 +506,15 @@ func (cli *Client) handleDecryptedResult(
 		return nil
 	}
 
-	content := result.Content
-	if content == nil {
+	rawContent := result.Content
+	if rawContent == nil {
 		log.Warn().Msg("Decrypted content is nil")
 		return nil
 	}
 
 	deviceID, _ := result.SenderAddress.DeviceID()
 	log.Trace().
-		Any("raw_data", content).
+		Any("raw_data", rawContent).
 		Stringer("sender", theirServiceID).
 		Uint("sender_device", deviceID).
 		Msg("Raw event data")
@@ -531,9 +531,10 @@ func (cli *Client) handleDecryptedResult(
 	}
 	logEvt.Bool("unencrypted", result.Unencrypted).Msg("Decrypted message")
 
-	if content.DecryptionErrorMessage != nil {
+	// Handle unencrypted types early and refuse any other unencrypted message
+	if rawContent.GetDecryptionErrorMessage() != nil {
 		handlerSuccess = true
-		dem, err := libsignalgo.DeserializeDecryptionErrorMessage(content.DecryptionErrorMessage)
+		dem, err := libsignalgo.DeserializeDecryptionErrorMessage(rawContent.GetDecryptionErrorMessage())
 		if err != nil {
 			log.Warn().Err(err).Msg("Failed to unmarshal decryption error message")
 		} else {
@@ -551,9 +552,9 @@ func (cli *Client) handleDecryptedResult(
 	}
 
 	// If there's a sender key distribution message, process it
-	if content.GetSenderKeyDistributionMessage() != nil {
+	if rawContent.SenderKeyDistributionMessage != nil {
 		log.Debug().Msg("content includes sender key distribution message")
-		skdm, err := libsignalgo.DeserializeSenderKeyDistributionMessage(content.GetSenderKeyDistributionMessage())
+		skdm, err := libsignalgo.DeserializeSenderKeyDistributionMessage(rawContent.SenderKeyDistributionMessage)
 		if err != nil {
 			log.Err(err).Msg("DeserializeSenderKeyDistributionMessage error")
 			return err
@@ -570,6 +571,7 @@ func (cli *Client) handleDecryptedResult(
 		}
 	}
 
+	// If we're getting a message to our PNI, mark it as needing a PNI signature message on the next send
 	if destinationServiceID == cli.Store.PNIServiceID() {
 		_, err = cli.Store.RecipientStore.LoadAndUpdateRecipient(ctx, theirServiceID.UUID, uuid.Nil, func(recipient *types.Recipient) (changed bool, err error) {
 			if recipient.Whitelisted == nil {
@@ -589,20 +591,16 @@ func (cli *Client) handleDecryptedResult(
 		}
 	}
 
-	if content.PniSignatureMessage != nil {
+	// If we receive a PNI signature message (because we sent to a PNI earlier), process it
+	if rawContent.PniSignatureMessage != nil {
 		log.Debug().Msg("Content includes PNI signature message")
-		err = cli.handlePNISignatureMessage(ctx, theirServiceID, content.PniSignatureMessage)
+		err = cli.handlePNISignatureMessage(ctx, theirServiceID, rawContent.PniSignatureMessage)
 		if err != nil {
 			log.Err(err).
-				Hex("pni_raw", content.PniSignatureMessage.GetPni()).
+				Hex("pni_raw", rawContent.PniSignatureMessage.GetPni()).
 				Stringer("aci", theirServiceID.UUID).
 				Msg("Failed to verify ACI-PNI mapping")
 		}
-	}
-
-	if content.SyncMessage != nil && theirServiceID == cli.Store.ACIServiceID() {
-		handlerSuccess = cli.handleSyncMessage(ctx, content.SyncMessage, envelope)
-		return nil
 	}
 
 	isBlocked, err := cli.Store.RecipientStore.IsBlocked(ctx, theirServiceID.UUID)
@@ -611,64 +609,82 @@ func (cli *Client) handleDecryptedResult(
 	}
 
 	var sendDeliveryReceipt bool
-	if content.DataMessage != nil {
+	var deliveryReceiptTS uint64
+	switch content := rawContent.Content.(type) {
+	case *signalpb.Content_SyncMessage:
+		if theirServiceID == cli.Store.ACIServiceID() {
+			handlerSuccess = cli.handleSyncMessage(ctx, content.SyncMessage, envelope)
+		}
+		return nil
+	case *signalpb.Content_DataMessage:
 		handlerSuccess, sendDeliveryReceipt = cli.incomingDataMessage(
 			ctx, content.DataMessage, theirServiceID.UUID, theirServiceID, envelope.GetServerTimestamp(), isBlocked,
 		)
-	} else if content.EditMessage != nil {
+		deliveryReceiptTS = content.DataMessage.GetTimestamp()
+	case *signalpb.Content_EditMessage:
 		handlerSuccess, sendDeliveryReceipt = cli.incomingEditMessage(
 			ctx, content.EditMessage, theirServiceID.UUID, theirServiceID, envelope.GetServerTimestamp(), isBlocked,
 		)
-	}
-	if sendDeliveryReceipt && handlerSuccess {
-		err = cli.sendDeliveryReceipts(ctx, []uint64{content.DataMessage.GetTimestamp()}, theirServiceID.UUID)
-		if err != nil {
-			log.Err(err).Msg("sendDeliveryReceipts error")
-		}
-	}
-
-	if content.TypingMessage != nil && (!isBlocked || content.TypingMessage.GetGroupId() != nil) {
-		var groupID types.GroupIdentifier
-		if content.TypingMessage.GetGroupId() != nil {
-			gidBytes := content.TypingMessage.GetGroupId()
-			groupID = types.GroupIdentifier(base64.StdEncoding.EncodeToString(gidBytes))
-		}
-		// No handler success check here, nobody cares if typing notifications are dropped
-		cli.handleEvent(&events.ChatEvent{
-			Info: events.MessageInfo{
-				Sender:          theirServiceID.UUID,
-				ChatID:          groupOrUserID(groupID, theirServiceID),
-				ServerTimestamp: envelope.GetServerTimestamp(),
-			},
-			Event: content.TypingMessage,
-		})
-	}
-
-	// DM call message (group call is an opaque callMessage and a groupCallUpdate in a dataMessage)
-	if content.CallMessage != nil && (content.CallMessage.Offer != nil || content.CallMessage.Hangup != nil) && !isBlocked {
-		handlerSuccess = cli.handleEvent(&events.Call{
-			Info: events.MessageInfo{
-				Sender:          theirServiceID.UUID,
-				ChatID:          theirServiceID.String(),
-				ServerTimestamp: envelope.GetServerTimestamp(),
-			},
-			// CallMessage doesn't have its own timestamp, use one from the envelope
-			Timestamp: envelope.GetTimestamp(),
-			IsRinging: content.CallMessage.Offer != nil,
-		}) && handlerSuccess
-	}
-
-	// Read and delivery receipts
-	if content.ReceiptMessage != nil {
-		if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_DELIVERY && theirServiceID == cli.Store.ACIServiceID() {
+		deliveryReceiptTS = content.EditMessage.GetDataMessage().GetTimestamp()
+	case *signalpb.Content_ReceiptMessage:
+		if content.ReceiptMessage.GetType() == signalpb.ReceiptMessage_DELIVERY && theirServiceID == cli.Store.ACIServiceID() {
 			// Ignore delivery receipts from other own devices
 			return nil
 		}
 		handlerSuccess = cli.handleEvent(&events.Receipt{
 			Sender:  theirServiceID.UUID,
 			Content: content.ReceiptMessage,
-		}) && handlerSuccess
+		})
+	case *signalpb.Content_TypingMessage:
+		var groupID types.GroupIdentifier
+		if content.TypingMessage.GetGroupId() != nil {
+			gidBytes := content.TypingMessage.GetGroupId()
+			groupID = types.GroupIdentifier(base64.StdEncoding.EncodeToString(gidBytes))
+		}
+		if !isBlocked || groupID != "" {
+			// No handler success check here, nobody cares if typing notifications are dropped
+			cli.handleEvent(&events.ChatEvent{
+				Info: events.MessageInfo{
+					Sender:          theirServiceID.UUID,
+					ChatID:          groupOrUserID(groupID, theirServiceID),
+					ServerTimestamp: envelope.GetServerTimestamp(),
+				},
+				Event: content.TypingMessage,
+			})
+		}
+	case *signalpb.Content_CallMessage:
+		if !isBlocked && (content.CallMessage.Offer != nil || content.CallMessage.Hangup != nil) {
+			handlerSuccess = cli.handleEvent(&events.Call{
+				Info: events.MessageInfo{
+					Sender:          theirServiceID.UUID,
+					ChatID:          theirServiceID.String(),
+					ServerTimestamp: envelope.GetServerTimestamp(),
+				},
+				// CallMessage doesn't have its own timestamp, use one from the envelope
+				Timestamp: envelope.GetClientTimestamp(),
+				IsRinging: content.CallMessage.Offer != nil,
+			})
+		}
+	case *signalpb.Content_DecryptionErrorMessage:
+		// These should've been handled earlier
+		log.Warn().Msg("Unexpected decryption error message content in decrypted message")
+	case *signalpb.Content_NullMessage:
+		// This is intentionally ignored
+	case *signalpb.Content_StoryMessage:
+		// This is also ignored for now
+	default:
+		if rawContent.PniSignatureMessage == nil && rawContent.SenderKeyDistributionMessage == nil {
+			log.Warn().Type("content_type", content).Msg("Unrecognized message content type")
+		}
 	}
+
+	if sendDeliveryReceipt && handlerSuccess {
+		err = cli.sendDeliveryReceipts(ctx, []uint64{deliveryReceiptTS}, theirServiceID.UUID)
+		if err != nil {
+			log.Err(err).Msg("sendDeliveryReceipts error")
+		}
+	}
+
 	return nil
 }
 
@@ -683,9 +699,9 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 	// TODO: handle more sync messages
 	handlerSuccess = true
 	log := zerolog.Ctx(ctx)
-	if msg.Keys != nil {
-		aep := libsignalgo.AccountEntropyPool(msg.Keys.GetAccountEntropyPool())
-		cli.Store.MasterKey = msg.Keys.GetMaster()
+	switch content := msg.Content.(type) {
+	case *signalpb.SyncMessage_Keys_:
+		aep := libsignalgo.AccountEntropyPool(content.Keys.GetAccountEntropyPool())
 		if aep != "" {
 			aepMasterKey, err := aep.DeriveSVRKey()
 			if err != nil {
@@ -708,59 +724,65 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 			log.Info().Msg("Received master key")
 			go cli.SyncStorage(ctx)
 		}
-	} else if msg.GetFetchLatest().GetType() == signalpb.SyncMessage_FetchLatest_STORAGE_MANIFEST {
-		log.Debug().Msg("Received storage manifest fetch latest notice")
-		go cli.SyncStorage(ctx)
-	}
-	syncSent := msg.GetSent()
-	if syncSent.GetMessage() != nil || syncSent.GetEditMessage() != nil {
-		syncDestinationServiceID, err := ParseStringOrBinaryServiceID(syncSent.GetDestinationServiceId(), syncSent.GetDestinationServiceIdBinary())
-		if err != nil && !errors.Is(err, ErrEmptyUUIDInput) {
-			log.Err(err).Msg("Sync message destination parse error")
+	case *signalpb.SyncMessage_FetchLatest_:
+		switch content.FetchLatest.GetType() {
+		case signalpb.SyncMessage_FetchLatest_STORAGE_MANIFEST:
+			log.Debug().Msg("Received storage manifest fetch latest notice")
+			go cli.SyncStorage(ctx)
+		default:
+			log.Debug().
+				Stringer("fetch_latest_type", content.FetchLatest.GetType()).
+				Msg("Received unknown fetch latest notice")
 		}
-		if syncSent.GetDestinationE164() != "" && !syncDestinationServiceID.IsEmpty() {
-			aci, pni := syncDestinationServiceID.ToACIAndPNI()
-			_, err = cli.Store.RecipientStore.UpdateRecipientE164(ctx, aci, pni, syncSent.GetDestinationE164())
-			if err != nil {
-				log.Err(err).Msg("Failed to update recipient E164 after receiving sync message")
+	case *signalpb.SyncMessage_Sent_:
+		syncSent := content.Sent
+		if syncSent.GetMessage() != nil || syncSent.GetEditMessage() != nil {
+			syncDestinationServiceID, err := ParseStringOrBinaryServiceID(syncSent.GetDestinationServiceId(), syncSent.GetDestinationServiceIdBinary())
+			if err != nil && !errors.Is(err, ErrEmptyUUIDInput) {
+				log.Err(err).Msg("Sync message destination parse error")
 			}
-		}
-		for _, unident := range syncSent.GetUnidentifiedStatus() {
-			serviceID, err := ParseStringOrBinaryServiceID(unident.GetDestinationServiceId(), unident.GetDestinationServiceIdBinary())
-			if err != nil {
-				log.Err(err).
-					Str("destination_service_id", unident.GetDestinationServiceId()).
-					Hex("destination_service_id_bytes", unident.GetDestinationServiceIdBinary()).
-					Msg("Failed to parse destination service ID of unidentified send")
-				continue
+			if syncSent.GetDestinationE164() != "" && !syncDestinationServiceID.IsEmpty() {
+				aci, pni := syncDestinationServiceID.ToACIAndPNI()
+				_, err = cli.Store.RecipientStore.UpdateRecipientE164(ctx, aci, pni, syncSent.GetDestinationE164())
+				if err != nil {
+					log.Err(err).Msg("Failed to update recipient E164 after receiving sync message")
+				}
 			}
-			changed, err := cli.saveSyncPNIIdentityKey(ctx, serviceID, unident.GetDestinationPniIdentityKey())
-			if err != nil {
-				log.Err(err).
-					Stringer("destination_service_id", serviceID).
-					Msg("Failed to save PNI identity key from sync message")
-			} else if changed {
-				log.Debug().
-					Stringer("destination_service_id", serviceID).
-					Msg("Saved new PNI identity key from sync message")
+			for _, unident := range syncSent.GetUnidentifiedStatus() {
+				serviceID, err := ParseStringOrBinaryServiceID(unident.GetDestinationServiceId(), unident.GetDestinationServiceIdBinary())
+				if err != nil {
+					log.Err(err).
+						Str("destination_service_id", unident.GetDestinationServiceId()).
+						Hex("destination_service_id_bytes", unident.GetDestinationServiceIdBinary()).
+						Msg("Failed to parse destination service ID of unidentified send")
+					continue
+				}
+				changed, err := cli.saveSyncPNIIdentityKey(ctx, serviceID, unident.GetDestinationPniIdentityKey())
+				if err != nil {
+					log.Err(err).
+						Stringer("destination_service_id", serviceID).
+						Msg("Failed to save PNI identity key from sync message")
+				} else if changed {
+					log.Debug().
+						Stringer("destination_service_id", serviceID).
+						Msg("Saved new PNI identity key from sync message")
+				}
 			}
-		}
 
-		if syncDestinationServiceID.IsEmpty() && syncSent.GetMessage().GetGroupV2() == nil && syncSent.GetEditMessage().GetDataMessage().GetGroupV2() == nil {
-			log.Warn().Msg("sync message sent destination is nil")
-		} else if msg.Sent.Message != nil {
-			// TODO handle expiration start ts, and maybe the sync message ts?
-			cli.incomingDataMessage(ctx, msg.Sent.Message, cli.Store.ACI, syncDestinationServiceID, envelope.GetServerTimestamp(), false)
-		} else if msg.Sent.EditMessage != nil {
-			cli.incomingEditMessage(ctx, msg.Sent.EditMessage, cli.Store.ACI, syncDestinationServiceID, envelope.GetServerTimestamp(), false)
+			if syncDestinationServiceID.IsEmpty() && syncSent.GetMessage().GetGroupV2() == nil && syncSent.GetEditMessage().GetDataMessage().GetGroupV2() == nil {
+				log.Warn().Msg("sync message sent destination is nil")
+			} else if syncSent.Message != nil {
+				// TODO handle expiration start ts, and maybe the sync message ts?
+				cli.incomingDataMessage(ctx, syncSent.Message, cli.Store.ACI, syncDestinationServiceID, envelope.GetServerTimestamp(), false)
+			} else if syncSent.EditMessage != nil {
+				cli.incomingEditMessage(ctx, syncSent.EditMessage, cli.Store.ACI, syncDestinationServiceID, envelope.GetServerTimestamp(), false)
+			}
 		}
-	}
-	if msg.Contacts != nil {
+	case *signalpb.SyncMessage_Contacts_:
 		log.Debug().Msg("Recieved sync message contacts")
-		blob := msg.Contacts.Blob
-		if blob != nil {
+		if content.Contacts.Blob != nil {
 			// TODO roundtrip via disk to save memory
-			contactsBytes, err := DownloadAttachmentWithPointer(ctx, blob, nil, nil)
+			contactsBytes, err := DownloadAttachmentWithPointer(ctx, content.Contacts.Blob, nil, nil)
 			if err != nil {
 				log.Err(err).Msg("Contacts Sync DownloadAttachment error")
 			}
@@ -796,22 +818,14 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 				})
 			}
 		}
-	}
-	if msg.Read != nil {
-		handlerSuccess = cli.handleEvent(&events.ReadSelf{
-			Timestamp: envelope.GetTimestamp(),
-			Messages:  msg.GetRead(),
-		})
-	}
-	if msg.DeleteForMe != nil {
+	case *signalpb.SyncMessage_DeleteForMe_:
 		handlerSuccess = cli.handleEvent(&events.DeleteForMe{
-			Timestamp:               envelope.GetTimestamp(),
-			SyncMessage_DeleteForMe: msg.DeleteForMe,
+			Timestamp:               envelope.GetClientTimestamp(),
+			SyncMessage_DeleteForMe: content.DeleteForMe,
 		})
-	}
-	if msg.MessageRequestResponse != nil {
-		aciUUID, _ := ParseStringOrBinaryUUID(msg.MessageRequestResponse.GetThreadAci(), msg.MessageRequestResponse.GetThreadAciBinary())
-		if aciUUID != uuid.Nil && msg.MessageRequestResponse.GetType() == signalpb.SyncMessage_MessageRequestResponse_ACCEPT {
+	case *signalpb.SyncMessage_MessageRequestResponse_:
+		aciUUID, _ := ParseStringOrBinaryUUID(content.MessageRequestResponse.GetThreadAci(), content.MessageRequestResponse.GetThreadAciBinary())
+		if aciUUID != uuid.Nil && content.MessageRequestResponse.GetType() == signalpb.SyncMessage_MessageRequestResponse_ACCEPT {
 			_, err := cli.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aciUUID, uuid.Nil, func(recipient *types.Recipient) (changed bool, err error) {
 				changed = !ptr.Val(recipient.Whitelisted) || recipient.NeedsPNISignature
 				recipient.Whitelisted = ptr.Ptr(true)
@@ -823,16 +837,23 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 			}
 		}
 		var groupID *libsignalgo.GroupIdentifier
-		if len(msg.MessageRequestResponse.GroupId) == libsignalgo.GroupIdentifierLength {
-			groupID = (*libsignalgo.GroupIdentifier)(msg.MessageRequestResponse.GroupId)
+		if len(content.MessageRequestResponse.GroupId) == libsignalgo.GroupIdentifierLength {
+			groupID = (*libsignalgo.GroupIdentifier)(content.MessageRequestResponse.GroupId)
 		}
 		handlerSuccess = cli.handleEvent(&events.MessageRequestResponse{
-			Timestamp: envelope.GetTimestamp(),
+			Timestamp: envelope.GetClientTimestamp(),
 			ThreadACI: aciUUID,
 			GroupID:   groupID,
-			Type:      msg.MessageRequestResponse.GetType(),
-			Raw:       msg.MessageRequestResponse,
+			Type:      content.MessageRequestResponse.GetType(),
+			Raw:       content.MessageRequestResponse,
 		})
+	default:
+		if msg.Read != nil {
+			handlerSuccess = cli.handleEvent(&events.ReadSelf{
+				Timestamp: envelope.GetClientTimestamp(),
+				Messages:  msg.Read,
+			})
+		}
 	}
 	return
 }

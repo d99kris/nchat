@@ -44,7 +44,7 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
-var signalDate int = 20260324
+var signalDate int = 20260416
 
 type State int64
 
@@ -2456,7 +2456,9 @@ func SgSendMessage(connId int, chatId string, text string, quotedId string, quot
 		}
 
 		content := &signalpb.Content{
-			EditMessage: editMsg,
+			Content: &signalpb.Content_EditMessage{
+				EditMessage: editMsg,
+			},
 		}
 
 		if isGroup {
@@ -2560,7 +2562,9 @@ func SgSendMessage(connId int, chatId string, text string, quotedId string, quot
 		}
 
 		content := &signalpb.Content{
-			DataMessage: dataMsg,
+			Content: &signalpb.Content_DataMessage{
+				DataMessage: dataMsg,
+			},
 		}
 
 		if isGroup {
@@ -2844,7 +2848,9 @@ func SgMarkMessageRead(connId int, chatId string, senderId string, msgId string)
 	}
 
 	content := &signalpb.Content{
-		ReceiptMessage: receipt,
+		Content: &signalpb.Content_ReceiptMessage{
+			ReceiptMessage: receipt,
+		},
 	}
 
 	result := client.SendMessage(ctx, senderServiceID, content)
@@ -2915,10 +2921,12 @@ func SgDeleteMessage(connId int, chatId string, senderId string, msgId string) i
 	if senderId == UUIDToString(selfACI) && ageMs <= 24*60*60*1000 {
 		LOG_TRACE("delete for everyone: own message")
 		deleteContent := &signalpb.Content{
-			DataMessage: &signalpb.DataMessage{
-				Timestamp: proto.Uint64(uint64(time.Now().UnixMilli())),
-				Delete: &signalpb.DataMessage_Delete{
-					TargetSentTimestamp: proto.Uint64(timestamp),
+			Content: &signalpb.Content_DataMessage{
+				DataMessage: &signalpb.DataMessage{
+					Timestamp: proto.Uint64(uint64(time.Now().UnixMilli())),
+					Delete: &signalpb.DataMessage_Delete{
+						TargetSentTimestamp: proto.Uint64(timestamp),
+					},
 				},
 			},
 		}
@@ -2942,17 +2950,21 @@ func SgDeleteMessage(connId int, chatId string, senderId string, msgId string) i
 
 	// Also send "delete for me" sync to own devices
 	syncContent := &signalpb.Content{
-		SyncMessage: &signalpb.SyncMessage{
-			DeleteForMe: &signalpb.SyncMessage_DeleteForMe{
-				MessageDeletes: []*signalpb.SyncMessage_DeleteForMe_MessageDeletes{
-					{
-						Conversation: conv,
-						Messages: []*signalpb.AddressableMessage{
+		Content: &signalpb.Content_SyncMessage{
+			SyncMessage: &signalpb.SyncMessage{
+				Content: &signalpb.SyncMessage_DeleteForMe_{
+					DeleteForMe: &signalpb.SyncMessage_DeleteForMe{
+						MessageDeletes: []*signalpb.SyncMessage_DeleteForMe_MessageDeletes{
 							{
-								Author: &signalpb.AddressableMessage_AuthorServiceId{
-									AuthorServiceId: senderId,
+								Conversation: conv,
+								Messages: []*signalpb.AddressableMessage{
+									{
+										Author: &signalpb.AddressableMessage_AuthorServiceId{
+											AuthorServiceId: senderId,
+										},
+										SentTimestamp: proto.Uint64(timestamp),
+									},
 								},
-								SentTimestamp: proto.Uint64(timestamp),
 							},
 						},
 					},
@@ -3073,13 +3085,17 @@ func SgDeleteChat(connId int, chatId string) int {
 	LOG_TRACE(fmt.Sprintf("delete chat %s with %d anchor messages", chatId, len(mostRecentMessages)))
 
 	content := &signalpb.Content{
-		SyncMessage: &signalpb.SyncMessage{
-			DeleteForMe: &signalpb.SyncMessage_DeleteForMe{
-				ConversationDeletes: []*signalpb.SyncMessage_DeleteForMe_ConversationDelete{
-					{
-						Conversation:       conv,
-						MostRecentMessages: mostRecentMessages,
-						IsFullDelete:       proto.Bool(true),
+		Content: &signalpb.Content_SyncMessage{
+			SyncMessage: &signalpb.SyncMessage{
+				Content: &signalpb.SyncMessage_DeleteForMe_{
+					DeleteForMe: &signalpb.SyncMessage_DeleteForMe{
+						ConversationDeletes: []*signalpb.SyncMessage_DeleteForMe_ConversationDelete{
+							{
+								Conversation:       conv,
+								MostRecentMessages: mostRecentMessages,
+								IsFullDelete:       proto.Bool(true),
+							},
+						},
 					},
 				},
 			},
@@ -3185,7 +3201,9 @@ func SgSendTyping(connId int, chatId string, isTyping int) int {
 	}
 
 	content := &signalpb.Content{
-		TypingMessage: typingMsg,
+		Content: &signalpb.Content_TypingMessage{
+			TypingMessage: typingMsg,
+		},
 	}
 
 	// Determine if DM or group
@@ -3266,7 +3284,9 @@ func SgSendReaction(connId int, chatId string, senderId string, msgId string, em
 	}
 
 	content := &signalpb.Content{
-		DataMessage: dataMsg,
+		Content: &signalpb.Content_DataMessage{
+			DataMessage: dataMsg,
+		},
 	}
 
 	// Determine if DM or group

@@ -69,6 +69,8 @@ func (l FFILogger) Log(level libsignalgo.LogLevel, file string, line uint, messa
 
 func (FFILogger) Flush() {}
 
+func (FFILogger) Destroy() {}
+
 // Ensure FFILogger implements the Logger interface
 var _ libsignalgo.Logger = FFILogger{}
 

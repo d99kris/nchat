@@ -7,10 +7,11 @@ type: Bug
 
 ---
 
-<!--
-Remember to include relevant logs, the bridge version and any other details.
+<!-- Include relevant logs, the bridge version and other important details here -->
 
-It's always best to ask in the Matrix room first, especially if you aren't sure
-what details are needed. Issues with insufficient detail will likely just be
-ignored or closed immediately.
--->
+### Checklist
+
+<!-- Both items below are mandatory. Issues not following the rules may be closed without comment. -->
+
+* [ ] This is an actual bug, not just a setup issue (see the [troubleshooting docs](https://docs.mau.fi/bridges/general/troubleshooting.html) or ask in the Matrix room for setup help).
+* [ ] I am certain that sufficient information is included. Ask in the Matrix room first if not.

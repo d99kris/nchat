@@ -619,7 +619,7 @@ func (cli *Client) fetchGroupByID(ctx context.Context, gid types.GroupIdentifier
 		return nil, fmt.Errorf("failed to get group master key: %w", err)
 	}
 	if groupMasterKey == "" {
-		return nil, fmt.Errorf("No group master key found for group identifier %s", gid)
+		return nil, fmt.Errorf("%w for %s", ErrGroupMasterKeyNotFound, gid)
 	}
 	return cli.fetchGroupWithMasterKey(ctx, groupMasterKey)
 }
@@ -1513,11 +1513,15 @@ func (cli *Client) patchGroup(ctx context.Context, groupChange *signalpb.GroupCh
 	return &changeResp, nil
 }
 
+var ErrGroupMasterKeyNotFound = errors.New("group master key not found in store")
+
 func (cli *Client) UpdateGroup(ctx context.Context, groupChange *GroupChange, gid types.GroupIdentifier) (uint32, error) {
 	log := zerolog.Ctx(ctx).With().Str("action", "UpdateGroup").Logger()
 	groupMasterKey, err := cli.Store.GroupStore.MasterKeyFromGroupIdentifier(ctx, gid)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get master key for group: %w", err)
+	} else if groupMasterKey == "" {
+		return 0, ErrGroupMasterKeyNotFound
 	}
 	groupChange.GroupMasterKey = groupMasterKey
 	masterKeyBytes := masterKeyToBytes(groupMasterKey)
@@ -1662,7 +1666,7 @@ func PrepareGroupCreation(decryptedGroup *Group) (libsignalgo.GroupMasterKey, er
 	return masterKeyBytes, nil
 }
 
-func (cli *Client) createGroupOnServer(ctx context.Context, decryptedGroup *Group, avatarBytes []byte) (*Group, error) {
+func (cli *Client) createGroupOnServer(ctx context.Context, decryptedGroup *Group) (*Group, error) {
 	log := zerolog.Ctx(ctx).With().Str("action", "CreateGroupOnServer").Logger()
 	masterKeyBytes, err := PrepareGroupCreation(decryptedGroup)
 	if err != nil {
@@ -1676,14 +1680,6 @@ func (cli *Client) createGroupOnServer(ctx context.Context, decryptedGroup *Grou
 	if err != nil {
 		log.Err(err).Msg("DeriveGroupSecretParamsFromMasterKey error")
 		return nil, err
-	}
-	if len(avatarBytes) > 0 {
-		avatarPath, err := cli.UploadGroupAvatar(ctx, avatarBytes, decryptedGroup.GroupIdentifier)
-		if err != nil {
-			log.Err(err).Msg("Failed to upload group avatar")
-			return nil, err
-		}
-		decryptedGroup.AvatarPath = avatarPath
 	}
 	encryptedGroup, err := cli.EncryptGroup(ctx, decryptedGroup, groupSecretParams)
 	if err != nil {
@@ -1735,9 +1731,9 @@ func GenerateInviteLinkPassword() types.SerializedInviteLinkPassword {
 	return InviteLinkPasswordFromBytes(random.Bytes(16))
 }
 
-func (cli *Client) CreateGroup(ctx context.Context, decryptedGroup *Group, avatarBytes []byte) (*Group, error) {
+func (cli *Client) CreateGroup(ctx context.Context, decryptedGroup *Group) (*Group, error) {
 	log := zerolog.Ctx(ctx).With().Str("action", "CreateGroup").Logger()
-	group, err := cli.createGroupOnServer(ctx, decryptedGroup, avatarBytes)
+	group, err := cli.createGroupOnServer(ctx, decryptedGroup)
 	if err != nil {
 		log.Err(err).Msg("Error creating group on server")
 		return nil, err
@@ -1760,7 +1756,7 @@ func (cli *Client) GetGroupHistoryPage(ctx context.Context, gid types.GroupIdent
 		return nil, err
 	}
 	if groupMasterKey == "" {
-		return nil, fmt.Errorf("No group master key found for group identifier %s", gid)
+		return nil, ErrGroupMasterKeyNotFound
 	}
 	masterKeyBytes := masterKeyToBytes(groupMasterKey)
 	groupAuth, err := cli.GetAuthorizationForToday(ctx, masterKeyBytes)

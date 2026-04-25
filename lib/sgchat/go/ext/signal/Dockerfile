@@ -1,6 +1,6 @@
 # -- Build libsignal (with Rust) --
 FROM rust:1-alpine AS rust-builder
-RUN apk add --no-cache git make cmake protoc musl-dev g++ clang-dev
+RUN apk add --no-cache git make cmake protoc musl-dev g++ clang-dev protobuf-dev
 
 WORKDIR /build
 # Copy all files needed for Rust build, and no Go files

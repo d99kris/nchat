@@ -369,12 +369,17 @@ func (cli *Client) uploadAttachmentTUS(
 	return nil
 }
 
-func (cli *Client) UploadGroupAvatar(ctx context.Context, avatarBytes []byte, gid types.GroupIdentifier) (string, error) {
+func (cli *Client) UploadGroupAvatar(ctx context.Context, avatarBytes []byte, gid types.GroupIdentifier, groupMasterKey types.SerializedGroupMasterKey) (string, error) {
 	log := zerolog.Ctx(ctx)
-	groupMasterKey, err := cli.Store.GroupStore.MasterKeyFromGroupIdentifier(ctx, gid)
-	if err != nil {
-		log.Err(err).Msg("Could not get master key from group id")
-		return "", err
+	if groupMasterKey == "" {
+		var err error
+		groupMasterKey, err = cli.Store.GroupStore.MasterKeyFromGroupIdentifier(ctx, gid)
+		if err != nil {
+			log.Err(err).Msg("Could not get master key from group id")
+			return "", err
+		} else if groupMasterKey == "" {
+			return "", fmt.Errorf("no master key found for group %s", gid)
+		}
 	}
 	groupAuth, err := cli.GetAuthorizationForToday(ctx, masterKeyToBytes(groupMasterKey))
 	if err != nil {
