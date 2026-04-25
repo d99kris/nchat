@@ -13,7 +13,8 @@ jobs:
     runs-on: macos-latest
     steps:
     - name: Checkout
-      uses: actions/checkout@v4
+      # Check https://github.com/actions/checkout/releases for newer major versions.
+      uses: actions/checkout@v5
     - name: Setup ccache
       uses: ./.github/actions/setup-ccache
     - name: Build macOS
