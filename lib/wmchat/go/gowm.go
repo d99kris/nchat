@@ -845,6 +845,10 @@ func (handler *WmEventHandler) HandleEvent(rawEvt interface{}) {
 		LOG_TRACE(fmt.Sprintf("%#v", evt))
 		handler.HandleMessage(evt.Info, evt.Message, false /*isSyncRead*/)
 
+	case *events.UndecryptableMessage:
+		LOG_TRACE(fmt.Sprintf("%#v", evt))
+		handler.HandleUndecryptableMessage(evt)
+
 	case *events.Receipt:
 		LOG_TRACE(fmt.Sprintf("%#v", evt))
 		handler.HandleReceipt(evt)
@@ -944,7 +948,54 @@ func (handler *WmEventHandler) HandleReceipt(receipt *events.Receipt) {
 			LOG_TRACE(fmt.Sprintf("Call CWmNewMessageStatusNotify"))
 			CWmNewMessageStatusNotify(connId, chatId, msgId, BoolToInt(isRead))
 		}
+	} else if receipt.Type == types.ReceiptTypePlayed || receipt.Type == types.ReceiptTypePlayedSelf {
+		// played receipts are sent for view-once media and for voice notes; treat both as read.
+		connId := handler.connId
+		var client *whatsmeow.Client = GetClient(connId)
+		if client == nil {
+			LOG_WARNING("client is nil")
+			return
+		}
+		chatId := GetChatId(client, &receipt.MessageSource.Chat, nil)
+		isRead := true
+		for _, msgId := range receipt.MessageIDs {
+			LOG_TRACE(fmt.Sprintf("Call CWmNewMessageStatusNotify"))
+			CWmNewMessageStatusNotify(connId, chatId, msgId, BoolToInt(isRead))
+		}
 	}
+}
+
+func (handler *WmEventHandler) HandleUndecryptableMessage(evt *events.UndecryptableMessage) {
+	if evt.UnavailableType != events.UnavailableTypeViewOnce {
+		LOG_TRACE(fmt.Sprintf("UndecryptableMessage type %q ignore", evt.UnavailableType))
+		return
+	}
+
+	connId := handler.connId
+	var client *whatsmeow.Client = GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return
+	}
+
+	messageInfo := evt.Info
+	chatId := GetChatId(client, &messageInfo.Chat, &messageInfo.Sender)
+	msgId := messageInfo.ID
+	fromMe := messageInfo.IsFromMe
+	senderId := GetUserId(client, &messageInfo.Chat, &messageInfo.Sender)
+	isSelfChat := IsSelfChat(client, chatId)
+	timeSent := int(messageInfo.Timestamp.Unix())
+	isRead := IsRead(false /*isSyncRead*/, isSelfChat, fromMe, messageInfo.Timestamp, GetTimeRead(connId, chatId))
+
+	// WhatsApp does not relay view-once content to companion devices; show an informational
+	// message similar to WhatsApp Web's so the user knows what arrived and where to view it.
+	text := "[View once restricted to phone]"
+
+	handler.ProcessMessageInfo(messageInfo)
+
+	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: view once placeholder", chatId))
+	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), "" /*quotedId*/, "" /*fileId*/, "" /*filePath*/, FileStatusNone, timeSent,
+		BoolToInt(isRead), BoolToInt(false) /*isEdited*/)
 }
 
 func (handler *WmEventHandler) HandlePresence(presence *events.Presence) {

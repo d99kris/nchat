@@ -3461,6 +3461,14 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
   {
     p_Text = "[ChatSetMessageAutoDeleteTime]";
   }
+  else if (p_TdMessageContent.get_id() == td::td_api::messageExpiredPhoto::ID)
+  {
+    p_Text = "[Expired photo]";
+  }
+  else if (p_TdMessageContent.get_id() == td::td_api::messageExpiredVideo::ID)
+  {
+    p_Text = "[Expired video]";
+  }
   else if (p_TdMessageContent.get_id() == td::td_api::messageUnsupported::ID)
   {
     p_Text = "[UnsupportedByCurrentTdlibVersion]";
