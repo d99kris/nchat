@@ -229,8 +229,8 @@ void UiHistoryView::Draw()
       wlines.insert(wlines.begin(), fileStr);
 
       // Transcription (if audio file and transcription available)
-      static const bool transcribeInline = UiConfig::GetBool("audio_transcribe_inline");
-      if (transcribeInline)
+      static const bool transcribeEnabled = UiConfig::GetBool("audio_transcribe_enabled");
+      if (transcribeEnabled)
       {
         std::string ext = FileUtil::GetFileExt(fileInfo.filePath);
         
