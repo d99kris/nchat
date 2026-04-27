@@ -4279,7 +4279,7 @@ bool UiModel::Impl::AutoCompose()
   return rv;
 }
 
-bool UiModel::Impl::TranscribeAudio(bool p_ForceRetranscribe)
+bool UiModel::Impl::TranscribeAudio()
 {
   AnyUserKeyInput();
 
@@ -4348,19 +4348,6 @@ bool UiModel::Impl::TranscribeAudio(bool p_ForceRetranscribe)
     return false;
   }
 
-  // Check cache unless forcing retranscription
-  static const bool useCache = UiConfig::GetBool("audio_transcribe_cache");
-  if (!p_ForceRetranscribe && useCache)
-  {
-    std::string cachedTranscription = MessageCache::GetTranscription(profileId, chatId, msgId);
-    if (!cachedTranscription.empty())
-    {
-      LOG_DEBUG("using cached transcription");
-      UpdateHistory();
-      return true;
-    }
-  }
-
   // Get transcribe command
   static const std::string cmdTemplate = []()
   {
@@ -4404,18 +4391,13 @@ bool UiModel::Impl::TranscribeAudio(bool p_ForceRetranscribe)
     cmd += " -l " + language;
   }
 
-  static const int timeout = UiConfig::GetNum("audio_transcribe_timeout");
   LOG_TRACE("transcribe cmd \"%s\" start", cmd.c_str());
 
   const bool rv = RunCommand(cmd, &transcription);
 
   if (rv && !transcription.empty())
   {
-    // Store in cache
-    if (useCache)
-    {
-      MessageCache::StoreTranscription(profileId, chatId, msgId, transcription, language);
-    }
+    MessageCache::StoreTranscription(profileId, chatId, msgId, transcription);
 
     // Update UI
     UpdateHistory();
@@ -4572,7 +4554,6 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keyAutoCompose = UiKeyConfig::GetKey("auto_compose");
   static wint_t keySelectMention = UiKeyConfig::GetKey("select_mention");
   static wint_t keyTranscribeAudio = UiKeyConfig::GetKey("transcribe_audio");
-  static wint_t keyRetranscribeAudio = UiKeyConfig::GetKey("retranscribe_audio");
   static wint_t keySetTranscriptionLang = UiKeyConfig::GetKey("set_transcription_lang");
 
   if (p_Key == keyTerminalResize)
@@ -4801,11 +4782,6 @@ void UiModel::KeyHandler(wint_t p_Key)
   {
     LOG_DEBUG("transcribe_audio key pressed");
     OnKeyTranscribeAudio();
-  }
-  else if (p_Key == keyRetranscribeAudio)
-  {
-    LOG_DEBUG("retranscribe_audio key pressed");
-    OnKeyRetranscribeAudio();
   }
   else if (p_Key == keySetTranscriptionLang)
   {
@@ -5766,50 +5742,12 @@ void UiModel::OnKeyTranscribeAudio()
   bool rv = false;
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
-    rv = GetImpl().TranscribeAudio(false /* forceRetranscribe */);
+    rv = GetImpl().TranscribeAudio();
   }
 
   if (!rv)
   {
     MessageDialog("Warning", "Transcription failed.", 0.7, 5);
-  }
-}
-
-void UiModel::OnKeyRetranscribeAudio()
-{
-  // Check if transcription is enabled (check every time, not static)
-  bool transcribeEnabled = UiConfig::GetBool("audio_transcribe_enabled");
-
-  if (!transcribeEnabled)
-  {
-    MessageDialog("Warning", "Audio transcription not enabled.", 0.7, 5);
-    return;
-  }
-
-  // Pre-req
-  {
-    std::unique_lock<owned_mutex> lock(m_ModelMutex);
-    if (!GetImpl().GetSelectMessageActive())
-    {
-      MessageDialog("Info", "Please select a message first (press Up arrow).", 0.7, 5);
-      return;
-    }
-    if (GetImpl().GetEditMessageActive())
-    {
-      MessageDialog("Info", "Cannot transcribe while editing a message.", 0.7, 5);
-      return;
-    }
-  }
-
-  bool rv = false;
-  {
-    std::unique_lock<owned_mutex> lock(m_ModelMutex);
-    rv = GetImpl().TranscribeAudio(true /* forceRetranscribe */);
-  }
-
-  if (!rv)
-  {
-    MessageDialog("Warning", "Re-transcription failed.", 0.7, 5);
   }
 }
 

@@ -126,7 +126,6 @@ void UiHelpView::Draw()
     AppendHelpItem("open_link", "OpenLink", helpItems);
 
     AppendHelpItem("transcribe_audio", "Transcribe", helpItems);
-    AppendHelpItem("retranscribe_audio", "ReTrans", helpItems);
     AppendHelpItem("set_transcription_lang", "SetLang", helpItems);
 
     AppendHelpItem("jump_quoted", "JumpQuoted", helpItems);

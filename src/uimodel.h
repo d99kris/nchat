@@ -190,7 +190,7 @@ private:
     void HandleProtocolUiControlStart();
     void HandleProtocolUiControlEnd();
     bool AutoCompose();
-    bool TranscribeAudio(bool p_ForceRetranscribe);
+    bool TranscribeAudio();
     std::string GetCurrentTranscriptionLanguage(const std::string& p_ProfileId, const std::string& p_ChatId);
     void UpdateCurrentTranscriptionLanguage(const std::string& p_ProfileId, const std::string& p_ChatId,
                                             const std::string& p_Language);
@@ -420,7 +420,6 @@ private:
   void OnKeyCopy();
   void OnKeyPaste();
   void OnKeyTranscribeAudio();
-  void OnKeyRetranscribeAudio();
   void OnKeySetTranscriptionLang();
 
 private:
