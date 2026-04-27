@@ -45,6 +45,25 @@ Press `Alt-u` on any voice message. The text appears below it:
 └─────────────────────────────────────────────┘
 ```
 
+### UI Example
+
+After pressing `Alt-u` on a voice message, the transcription appears inline with the `[Transcribed]` indicator at the start of each transcribed line:
+
+```
+ ┌───────────────────────────────────────────────────────────┐
+ │ Bob [14:22]                                               │
+ │   PTT-20250115-WA0012.opus                                │
+ │   [Transcribed] Hey, are you coming to the meeting       │
+ │                 at three? Let me know if you need the    │
+ │                 dial-in link.                             │
+ │                                                           │
+ │ Alice [14:23]                                             │
+ │   Sure, I'll be there!                                    │
+ └───────────────────────────────────────────────────────────┘
+```
+
+Long transcriptions are truncated to `audio_transcribe_max_lines` lines (default: 15); the last visible line shows how many lines were hidden.
+
 Use `Alt-Shift-u` to re-transcribe if you want to ignore the cache (like if the first try messed up).
 
 Supports: `.ogg`, `.opus`, `.mp3`, `.m4a`, `.wav`, `.flac`
