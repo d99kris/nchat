@@ -473,7 +473,27 @@ void MessageCache::AddProfile(const std::string& p_ProfileId, bool p_CheckSequen
         "SET schema = ?;" << schemaVersion;
     }
 
-    static const int64_t s_SchemaVersion = 11;
+    if (schemaVersion == 11)
+    {
+      LOG_INFO("update db schema 11 to 12");
+
+      *m_Dbs[p_ProfileId] << "ALTER TABLE messages ADD COLUMN transcription TEXT DEFAULT '';";
+
+      // Migrate existing transcriptions into messages table
+      *m_Dbs[p_ProfileId] <<
+        "UPDATE messages SET transcription = ("
+        "  SELECT t.transcription FROM transcriptions t"
+        "  WHERE t.chatId = messages.chatId AND t.msgId = messages.id"
+        ") WHERE EXISTS ("
+        "  SELECT 1 FROM transcriptions t"
+        "  WHERE t.chatId = messages.chatId AND t.msgId = messages.id"
+        ");";
+
+      schemaVersion = 12;
+      *m_Dbs[p_ProfileId] << "UPDATE version SET schema = ?;" << schemaVersion;
+    }
+
+    static const int64_t s_SchemaVersion = 12;
     if (schemaVersion > s_SchemaVersion)
     {
       LOG_WARNING("cache db schema %d from newer nchat version detected, if cache issues are encountered "
@@ -2124,8 +2144,7 @@ void MessageCache::CallMessageHandler(std::shared_ptr<ServiceMessage> p_ServiceM
 }
 
 bool MessageCache::StoreTranscription(const std::string& p_ProfileId, const std::string& p_ChatId,
-                                     const std::string& p_MsgId, const std::string& p_Transcription,
-                                     const std::string& p_Language, const std::string& p_Service)
+                                      const std::string& p_MsgId, const std::string& p_Transcription)
 {
   if (!m_CacheEnabled) return false;
 
@@ -2135,13 +2154,9 @@ bool MessageCache::StoreTranscription(const std::string& p_ProfileId, const std:
 
   try
   {
-    int64_t timestamp = TimeUtil::GetCurrentTimeMSec() / 1000;
-
-    *m_Dbs[p_ProfileId] << "INSERT OR REPLACE INTO transcriptions "
-      "(chatId, msgId, transcription, language, service, timestamp) "
-      "VALUES (?, ?, ?, ?, ?, ?);"
-      << p_ChatId << p_MsgId << p_Transcription << p_Language << p_Service << timestamp;
-
+    *m_Dbs[p_ProfileId] <<
+      "UPDATE messages SET transcription = ? WHERE chatId = ? AND id = ?;"
+      << p_Transcription << p_ChatId << p_MsgId;
     return true;
   }
   catch (const sqlite::sqlite_exception& ex)
@@ -2152,7 +2167,7 @@ bool MessageCache::StoreTranscription(const std::string& p_ProfileId, const std:
 }
 
 std::string MessageCache::GetTranscription(const std::string& p_ProfileId, const std::string& p_ChatId,
-                                          const std::string& p_MsgId)
+                                           const std::string& p_MsgId)
 {
   if (!m_CacheEnabled) return "";
 
@@ -2163,17 +2178,15 @@ std::string MessageCache::GetTranscription(const std::string& p_ProfileId, const
   try
   {
     std::string transcription;
-
     // *INDENT-OFF*
-    *m_Dbs[p_ProfileId] << "SELECT transcription FROM transcriptions "
-      "WHERE chatId = ? AND msgId = ?;"
+    *m_Dbs[p_ProfileId] <<
+      "SELECT transcription FROM messages WHERE chatId = ? AND id = ?;"
       << p_ChatId << p_MsgId >>
       [&](const std::string& p_Transcription)
       {
         transcription = p_Transcription;
       };
     // *INDENT-ON*
-
     return transcription;
   }
   catch (const sqlite::sqlite_exception& ex)
@@ -2184,7 +2197,7 @@ std::string MessageCache::GetTranscription(const std::string& p_ProfileId, const
 }
 
 bool MessageCache::HasTranscription(const std::string& p_ProfileId, const std::string& p_ChatId,
-                                   const std::string& p_MsgId)
+                                    const std::string& p_MsgId)
 {
   if (!m_CacheEnabled) return false;
 
@@ -2195,17 +2208,15 @@ bool MessageCache::HasTranscription(const std::string& p_ProfileId, const std::s
   try
   {
     bool hasTranscription = false;
-
     // *INDENT-OFF*
-    *m_Dbs[p_ProfileId] << "SELECT 1 FROM transcriptions "
-      "WHERE chatId = ? AND msgId = ? LIMIT 1;"
+    *m_Dbs[p_ProfileId] <<
+      "SELECT 1 FROM messages WHERE chatId = ? AND id = ? AND transcription != '' LIMIT 1;"
       << p_ChatId << p_MsgId >>
       [&](int)
       {
         hasTranscription = true;
       };
     // *INDENT-ON*
-
     return hasTranscription;
   }
   catch (const sqlite::sqlite_exception& ex)
@@ -2216,7 +2227,7 @@ bool MessageCache::HasTranscription(const std::string& p_ProfileId, const std::s
 }
 
 void MessageCache::DeleteTranscription(const std::string& p_ProfileId, const std::string& p_ChatId,
-                                      const std::string& p_MsgId)
+                                       const std::string& p_MsgId)
 {
   if (!m_CacheEnabled) return;
 
@@ -2226,8 +2237,8 @@ void MessageCache::DeleteTranscription(const std::string& p_ProfileId, const std
 
   try
   {
-    *m_Dbs[p_ProfileId] << "DELETE FROM transcriptions "
-      "WHERE chatId = ? AND msgId = ?;"
+    *m_Dbs[p_ProfileId] <<
+      "UPDATE messages SET transcription = '' WHERE chatId = ? AND id = ?;"
       << p_ChatId << p_MsgId;
   }
   catch (const sqlite::sqlite_exception& ex)

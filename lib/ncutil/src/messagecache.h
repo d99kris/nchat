@@ -282,8 +282,7 @@ public:
 
   // Transcription methods
   static bool StoreTranscription(const std::string& p_ProfileId, const std::string& p_ChatId,
-                                 const std::string& p_MsgId, const std::string& p_Transcription,
-                                 const std::string& p_Language = "", const std::string& p_Service = "");
+                                 const std::string& p_MsgId, const std::string& p_Transcription);
   static std::string GetTranscription(const std::string& p_ProfileId, const std::string& p_ChatId,
                                       const std::string& p_MsgId);
   static bool HasTranscription(const std::string& p_ProfileId, const std::string& p_ChatId,
