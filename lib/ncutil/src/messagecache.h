@@ -48,6 +48,7 @@ private:
     UpdateArchivedRequestType,
     AddGroupMembersRequestType,
     FetchGroupMembersRequestType,
+    UpdateTranscriptionLanguageRequestType,
   };
 
   class Request
@@ -223,6 +224,15 @@ private:
     std::string chatId;
   };
 
+  class UpdateTranscriptionLanguageRequest : public Request
+  {
+  public:
+    virtual RequestType GetRequestType() const { return UpdateTranscriptionLanguageRequestType; }
+    std::string profileId;
+    std::string chatId;
+    std::string transcriptionLanguage;
+  };
+
 public:
   static void Init();
   static void Cleanup();
@@ -266,7 +276,19 @@ public:
                               const std::vector<std::string>& p_MemberIds);
   static void FetchGroupMembers(const std::string& p_ProfileId, const std::string& p_ChatId);
   static std::vector<ContactInfo> FetchGroupMembersSync(const std::string& p_ProfileId, const std::string& p_ChatId);
+  static void UpdateTranscriptionLanguage(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                          const std::string& p_TranscriptionLanguage);
   static void Export(const std::string& p_ExportDir);
+
+  // Transcription methods
+  static bool StoreTranscription(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                 const std::string& p_MsgId, const std::string& p_Transcription);
+  static std::string GetTranscription(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                      const std::string& p_MsgId);
+  static bool HasTranscription(const std::string& p_ProfileId, const std::string& p_ChatId,
+                               const std::string& p_MsgId);
+  static void DeleteTranscription(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                  const std::string& p_MsgId);
 
 private:
   static void Process();

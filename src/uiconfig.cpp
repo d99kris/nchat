@@ -20,6 +20,10 @@ void UiConfig::Init()
   {
     { "attachment_indicator", "\xF0\x9F\x93\x8E" },
     { "attachment_open_command", "" },
+    { "audio_transcribe_command", "" },
+    { "audio_transcribe_enabled", "0" },
+    { "audio_transcribe_language", "auto" },
+    { "audio_transcribe_max_lines", "15" },
     { "auto_compose_command", "" },
     { "auto_compose_enabled", "0" },
     { "auto_compose_history_count", "25" },

@@ -190,6 +190,10 @@ private:
     void HandleProtocolUiControlStart();
     void HandleProtocolUiControlEnd();
     bool AutoCompose();
+    bool TranscribeAudio();
+    std::string GetCurrentTranscriptionLanguage(const std::string& p_ProfileId, const std::string& p_ChatId);
+    void UpdateCurrentTranscriptionLanguage(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                            const std::string& p_Language);
 
     static bool IsAttachmentDownloaded(const FileInfo& p_FileInfo);
     static bool IsAttachmentDownloadable(const FileInfo& p_FileInfo);
@@ -415,6 +419,8 @@ private:
   void OnKeyCut();
   void OnKeyCopy();
   void OnKeyPaste();
+  void OnKeyTranscribeAudio();
+  void OnKeySetTranscriptionLang();
 
 private:
   Impl m_Impl;

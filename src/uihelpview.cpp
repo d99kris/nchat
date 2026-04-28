@@ -125,6 +125,9 @@ void UiHelpView::Draw()
     AppendHelpItem("save", "SaveFile", helpItems);
     AppendHelpItem("open_link", "OpenLink", helpItems);
 
+    AppendHelpItem("transcribe_audio", "Transcribe", helpItems);
+    AppendHelpItem("set_transcription_lang", "SetLang", helpItems);
+
     AppendHelpItem("jump_quoted", "JumpQuoted", helpItems);
     AppendHelpItem("react", "AddReact", helpItems);
     AppendHelpItem("open_msg", "ExtView", helpItems);
