@@ -64,9 +64,9 @@ After pressing `Alt-u` on a voice message, the transcription appears inline with
 
 Long transcriptions are truncated to `audio_transcribe_max_lines` lines (default: 15); the last visible line shows how many lines were hidden.
 
-Use `Alt-Shift-u` to re-transcribe if you want to ignore the cache (like if the first try messed up).
+Press `Alt-u` again on the same message to re-transcribe.
 
-Supports: `.ogg`, `.opus`, `.mp3`, `.m4a`, `.wav`, `.flac`
+Supports: `.ogg`, `.opus`, `.mp3`, `.m4a`, `.wav`, `.flac`, `.webm`
 
 ## Configuration
 
@@ -74,13 +74,9 @@ Edit `~/.config/nchat/ui.conf`:
 
 ```conf
 audio_transcribe_enabled=1          # Turn it on/off
-audio_transcribe_cache=1             # Cache results (saves API costs)
-audio_transcribe_inline=1            # Show text below message
-audio_transcribe_auto=0              # Don't auto-transcribe (costs $$$)
-audio_transcribe_timeout=30          # Wait max 30 seconds
 ```
 
-The command that does the work:
+The command that does the work (defaults to the bundled `transcribe` script):
 ```conf
 audio_transcribe_command=/usr/local/libexec/nchat/transcribe -f '%1'
 ```
@@ -116,9 +112,8 @@ Supports 90+ languages (en, es, fr, de, it, pt, ru, zh, ja, ko, etc.)
 
 ## Keyboard Shortcuts
 
-- `Alt-u` - Transcribe message
-- `Alt-Shift-u` - Re-transcribe (ignore cache)
-- `Ctrl-t` - Toggle visibility
+- `Alt-u` - Transcribe (or re-transcribe) message
+- `Alt-l` - Set per-chat transcription language
 
 Change them in `~/.config/nchat/key.conf` if you want (see nchat docs for the escape codes).
 
@@ -131,10 +126,7 @@ export OPENAI_API_KEY='sk-...'  # Add to ~/.bashrc or ~/.zshrc
 
 **"Timeout"**
 
-Bump the timeout or use a faster service:
-```conf
-audio_transcribe_timeout=60
-```
+Switch to a faster service or use a smaller local model. See [TRANSCRIPTION-SETUP.md](TRANSCRIPTION-SETUP.md).
 
 **"Audio format not supported"**
 
@@ -155,7 +147,7 @@ Or use a bigger model (local) or switch to OpenAI API.
 
 **API costs too high**
 
-Turn off auto-transcribe (`audio_transcribe_auto=0`) and use local Whisper instead (see [TRANSCRIPTION-SETUP.md](TRANSCRIPTION-SETUP.md)).
+Use local Whisper instead (see [TRANSCRIPTION-SETUP.md](TRANSCRIPTION-SETUP.md)).
 
 ## Privacy
 
@@ -165,20 +157,18 @@ Turn off auto-transcribe (`audio_transcribe_auto=0`) and use local Whisper inste
 
 ## Cache Management
 
-Transcriptions are cached in `~/.config/nchat/db.sqlite`.
+Transcriptions are stored per-profile in `~/.config/nchat/history/<profileId>/db.sqlite`.
 
-Clear cache if needed:
+Clear cached transcriptions if needed:
 ```bash
-sqlite3 ~/.config/nchat/db.sqlite "DELETE FROM transcriptions;"
+sqlite3 ~/.config/nchat/history/<profileId>/db.sqlite "UPDATE messages SET transcription = '' WHERE transcription != '';"
 ```
 
 ## Tips
 
 - OpenAI API is fastest (2-3 sec/message)
-- Keep caching enabled to save money
 - Specify language for better accuracy
 - Use local for privacy, API for speed
-- Don't enable auto-transcribe unless you hate money
 
 ## FAQ
 

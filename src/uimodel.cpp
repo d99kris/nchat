@@ -4338,13 +4338,13 @@ bool UiModel::Impl::TranscribeAudio()
   }
   
   static const std::set<std::string> audioExtensions = {
-    "ogg", "opus", "mp3", "m4a", "aac", "wav", "flac", "oga"
+    "ogg", "opus", "mp3", "m4a", "wav", "flac", "oga", "webm"
   };
 
   if (audioExtensions.find(ext) == audioExtensions.end())
   {
     LOG_DEBUG("file is not an audio file: %s", ext.c_str());
-    LOG_WARNING("File is not an audio file (extension: %s). Supported: ogg, opus, mp3, m4a, aac, wav, flac, oga", ext.c_str());
+    LOG_WARNING("File is not an audio file (extension: %s). Supported: ogg, opus, mp3, m4a, wav, flac, oga, webm", ext.c_str());
     return false;
   }
 
@@ -4364,9 +4364,17 @@ bool UiModel::Impl::TranscribeAudio()
   // Build and execute command
   std::string transcription;
   std::string cmd = cmdTemplate;
-  StrUtil::ReplaceString(cmd, "%1", filePath);
 
-  // Add language parameter if specified
+  // Escape single quotes in filePath before substituting into shell command
+  std::string escapedFilePath;
+  escapedFilePath.reserve(filePath.size() + 4);
+  for (char c : filePath)
+  {
+    if (c == '\'') { escapedFilePath += "'\\''"; }
+    else { escapedFilePath += c; }
+  }
+  StrUtil::ReplaceString(cmd, "%1", escapedFilePath);
+
   // First check per-chat language setting, then fall back to global setting
   std::string language;
   if (m_ChatInfos.count(profileId) && m_ChatInfos[profileId].count(chatId))
@@ -4374,15 +4382,25 @@ bool UiModel::Impl::TranscribeAudio()
     language = m_ChatInfos[profileId][chatId].transcriptionLanguage;
   }
 
-  // Fall back to global setting if per-chat language is not set
   if (language.empty())
   {
     language = UiConfig::GetStr("audio_transcribe_language");
   }
 
-  // Default to auto if still empty
   if (language.empty())
   {
+    language = "auto";
+  }
+
+  // Validate language: only allow ISO 639 codes, "auto", or safe variants (no shell metacharacters)
+  const bool languageSafe = language.size() <= 20 &&
+    std::all_of(language.begin(), language.end(), [](char c) {
+      return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+             (c >= '0' && c <= '9') || c == '-' || c == '_';
+    });
+  if (!languageSafe)
+  {
+    LOG_WARNING("invalid transcription language '%s', ignoring", language.c_str());
     language = "auto";
   }
 
@@ -4397,7 +4415,10 @@ bool UiModel::Impl::TranscribeAudio()
 
   if (rv && !transcription.empty())
   {
-    MessageCache::StoreTranscription(profileId, chatId, msgId, transcription);
+    if (!MessageCache::StoreTranscription(profileId, chatId, msgId, transcription))
+    {
+      LOG_WARNING("failed to store transcription for msg %s (cache disabled?)", msgId.c_str());
+    }
 
     // Update UI
     UpdateHistory();

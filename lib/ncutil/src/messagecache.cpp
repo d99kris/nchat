@@ -489,6 +489,10 @@ void MessageCache::AddProfile(const std::string& p_ProfileId, bool p_CheckSequen
         "  WHERE t.chatId = messages.chatId AND t.msgId = messages.id"
         ");";
 
+      // Drop the now-unused transcriptions table
+      *m_Dbs[p_ProfileId] << "DROP INDEX IF EXISTS idx_transcriptions_timestamp;";
+      *m_Dbs[p_ProfileId] << "DROP TABLE IF EXISTS transcriptions;";
+
       schemaVersion = 12;
       *m_Dbs[p_ProfileId] << "UPDATE version SET schema = ?;" << schemaVersion;
     }
@@ -2022,10 +2026,9 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
 
         try
         {
-          *m_Dbs[profileId] << "INSERT INTO " + s_TableChats + " "
-            "(id, transcriptionLanguage) VALUES "
-            "(?, ?) ON CONFLICT(id) DO UPDATE SET transcriptionLanguage=?;" <<
-            chatId << transcriptionLanguage << transcriptionLanguage;
+          *m_Dbs[profileId] << "UPDATE " + s_TableChats + " "
+            "SET transcriptionLanguage = ? WHERE id = ?;" <<
+            transcriptionLanguage << chatId;
         }
         catch (const sqlite::sqlite_exception& ex)
         {

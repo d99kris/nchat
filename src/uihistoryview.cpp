@@ -241,7 +241,7 @@ void UiHistoryView::Draw()
         }
         
         static const std::set<std::string> audioExtensions = {
-          "ogg", "opus", "mp3", "m4a", "aac", "wav", "flac", "oga"
+          "ogg", "opus", "mp3", "m4a", "wav", "flac", "oga", "webm"
         };
 
         if (audioExtensions.find(ext) != audioExtensions.end())
@@ -255,8 +255,9 @@ void UiHistoryView::Draw()
               transcription = StrUtil::Textize(transcription);
             }
 
+            const unsigned transcriptionWrapWidth = (m_PaddedW > 2) ? static_cast<unsigned>(m_PaddedW - 2) : 1u;
             std::vector<std::wstring> transcriptionWLines =
-              StrUtil::WordWrap(StrUtil::ToWString(transcription), m_PaddedW - 2, false, false, false, 2);
+              StrUtil::WordWrap(StrUtil::ToWString(transcription), transcriptionWrapWidth, false, false, false, 2);
 
             // Check if transcription exceeds max lines limit
             static const int maxTranscriptionLines = UiConfig::GetNum("audio_transcribe_max_lines");
@@ -387,7 +388,7 @@ void UiHistoryView::Draw()
       
       // Transcription lines are at positions 1 to (1 + transcriptionLines - 1) in forward iteration
       // In reverse, calculate the position from the end
-      size_t posFromEnd = std::distance(wline, wlines.rbegin());
+      size_t posFromEnd = std::distance(wlines.rbegin(), wline);
       size_t vectorSize = wlines.size();
       size_t posFromBegin = vectorSize - 1 - posFromEnd;
       bool isTranscription = (transcriptionLines > 0) && (posFromBegin >= 1) && (posFromBegin < 1 + static_cast<size_t>(transcriptionLines));
