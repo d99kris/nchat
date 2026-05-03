@@ -158,6 +158,7 @@ private:
     std::string GetProfileSuffix(const std::string& p_ProfileId);
     void GetAvailableEmojis(std::set<std::string>& p_AvailableEmojis, bool& p_Pending);
     void OnKeyJumpQuoted();
+    void OnKeyJumpPinned();
 
     void Draw();
     void ReinitView();

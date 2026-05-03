@@ -483,6 +483,7 @@ This configuration file holds general user interface settings. Default content:
     online_status_share=1
     online_status_dynamic=1
     phone_number_indicator=
+    pinned_indicator=⚲
     proxy_indicator=🔒
     read_indicator=✓
     reactions_enabled=1
@@ -767,6 +768,11 @@ Specifies status bar text to indicate phone number of the current chat is
 available. This field may contain `%1` which will be replaced with the actual
 phone number of the contact. Other examples: `🎧`
 
+### pinned_indicator
+
+Specifies text to suffix message header in message view for messages that have
+been pinned.
+
 ### proxy_indicator
 
 Specifies top bar text to indicate proxy is enabled.
@@ -880,6 +886,7 @@ This configuration file holds user interface key bindings. Default content:
     goto_chat=KEY_CTRLN
     home=KEY_HOME
     increase_list_width=\33\56
+    jump_pinned=KEY_CTRLP
     jump_quoted=\33\161
     kill_word=
     left=KEY_LEFT
@@ -911,7 +918,7 @@ This configuration file holds user interface key bindings. Default content:
     toggle_emoji=KEY_CTRLY
     toggle_help=KEY_CTRLG
     toggle_list=KEY_CTRLL
-    toggle_top=KEY_CTRLP
+    toggle_top=KEY_NONE
     transfer=KEY_CTRLT
     unread_chat=KEY_CTRLF
     up=KEY_UP

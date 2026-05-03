@@ -1632,7 +1632,8 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
                                   findMessageRequest->fromMsgId,
                                   findMessageRequest->lastMsgId,
                                   findMessageRequest->findText,
-                                  findMessageRequest->findMsgId);
+                                  findMessageRequest->findMsgId,
+                                  findMessageRequest->findPinned);
       }
       break;
 
@@ -2076,6 +2077,17 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
     getMessageRequest->msgId = StrUtil::NumToHex(msgId);
     getMessageRequest->cached = false;
     SendRequest(getMessageRequest);
+  },
+  [this](td::td_api::updateMessageIsPinned& update_message_is_pinned)
+  {
+    LOG_TRACE("update message is pinned");
+
+    std::shared_ptr<NewMessageIsPinnedNotify> newMessageIsPinnedNotify =
+      std::make_shared<NewMessageIsPinnedNotify>(m_ProfileId);
+    newMessageIsPinnedNotify->chatId = StrUtil::NumToHex(update_message_is_pinned.chat_id_);
+    newMessageIsPinnedNotify->msgId = StrUtil::NumToHex(update_message_is_pinned.message_id_);
+    newMessageIsPinnedNotify->isPinned = update_message_is_pinned.is_pinned_;
+    CallMessageHandler(newMessageIsPinnedNotify);
   },
   [this](td::td_api::updateChatPosition& update_chat_position)
   {
@@ -3495,6 +3507,7 @@ void TgChat::Impl::TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessag
   p_ChatMessage.isOutgoing = p_TdMessage.is_outgoing_;
   p_ChatMessage.timeSent = (((int64_t)p_TdMessage.date_) * 1000) + (std::hash<std::string>{ }(p_ChatMessage.id) % 256);
   p_ChatMessage.isEdited = (p_TdMessage.edit_date_ > 0);
+  p_ChatMessage.isPinned = p_TdMessage.is_pinned_;
 
   if (p_TdMessage.reply_to_ && (p_TdMessage.reply_to_->get_id() == td::td_api::messageReplyToMessage::ID))
   {

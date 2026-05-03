@@ -41,6 +41,7 @@ private:
     DeleteOneMessageRequestType,
     DeleteOneChatRequestType,
     UpdateMessageIsReadRequestType,
+    UpdateMessageIsPinnedRequestType,
     UpdateMessageFileInfoRequestType,
     UpdateMessageReactionsRequestType,
     UpdateMuteRequestType,
@@ -129,6 +130,7 @@ private:
     std::string lastMsgId;
     std::string findText;
     std::string findMsgId;
+    bool findPinned = false;
   };
 
   class DeleteOneMessageRequest : public Request
@@ -156,6 +158,16 @@ private:
     std::string chatId;
     std::string msgId;
     bool isRead = false;
+  };
+
+  class UpdateMessageIsPinnedRequest : public Request
+  {
+  public:
+    virtual RequestType GetRequestType() const { return UpdateMessageIsPinnedRequestType; }
+    std::string profileId;
+    std::string chatId;
+    std::string msgId;
+    bool isPinned = false;
   };
 
   class UpdateMessageFileInfoRequest : public Request
@@ -248,12 +260,15 @@ public:
                             const std::string& p_MsgId, std::vector<ChatMessage>& p_ChatMessages);
   static void FindMessage(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_FromMsgId,
                           const std::string& p_LastMsgId, const std::string& p_FindText,
-                          const std::string& p_FindMsgId);
+                          const std::string& p_FindMsgId, bool p_FindPinned);
   static void DeleteOneMessage(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId);
   static void DeleteChat(const std::string& p_ProfileId, const std::string& p_ChatId);
   static void UpdateMessageIsRead(const std::string& p_ProfileId, const std::string& p_ChatId,
                                   const std::string& p_MsgId,
                                   bool p_IsRead);
+  static void UpdateMessageIsPinned(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                    const std::string& p_MsgId,
+                                    bool p_IsPinned);
   static void UpdateMessageFileInfo(const std::string& p_ProfileId, const std::string& p_ChatId,
                                     const std::string& p_MsgId, const std::string& p_FileInfo);
   static void UpdateMessageReactions(const std::string& p_ProfileId, const std::string& p_ChatId,

@@ -1640,9 +1640,36 @@ func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg 
 	case msg.ProtocolMessage != nil:
 		handler.HandleProtocolMessage(messageInfo, msg, isSyncRead)
 
+	case msg.PinInChatMessage != nil:
+		handler.HandlePinInChatMessage(messageInfo, msg)
+
 	default:
 		handler.HandleUnsupportedMessage(messageInfo, msg, isSyncRead)
 	}
+}
+
+func (handler *WmEventHandler) HandlePinInChatMessage(messageInfo types.MessageInfo, msg *waE2E.Message) {
+	LOG_TRACE(fmt.Sprintf("PinInChatMessage"))
+
+	connId := handler.connId
+	client := GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return
+	}
+
+	pin := msg.GetPinInChatMessage()
+	if pin == nil {
+		LOG_WARNING("get pin in chat message failed")
+		return
+	}
+
+	chatId := GetChatId(client, &messageInfo.Chat, &messageInfo.Sender)
+	msgId := pin.GetKey().GetID()
+	isPinned := (pin.GetType() == waE2E.PinInChatMessage_PIN_FOR_ALL)
+
+	LOG_TRACE(fmt.Sprintf("Call CWmNewMessageIsPinnedNotify %s %s %t", chatId, msgId, isPinned))
+	CWmNewMessageIsPinnedNotify(connId, chatId, msgId, BoolToInt(isPinned))
 }
 
 func (handler *WmEventHandler) ProcessContextInfo(contextInfo *waE2E.ContextInfo, quotedId *string, text *string) {

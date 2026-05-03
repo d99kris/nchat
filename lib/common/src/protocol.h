@@ -110,6 +110,7 @@ enum MessageType
   ReceiveTypingNotifyType,
   ReceiveStatusNotifyType,
   NewMessageStatusNotifyType,
+  NewMessageIsPinnedNotifyType,
   NewMessageFileNotifyType,
   DeleteChatNotifyType,
   UpdateMuteNotifyType,
@@ -202,6 +203,7 @@ struct ChatMessage
   bool isRead = false;
   bool isEdited = false;
   bool isDeleted = false;
+  bool isPinned = false;
   bool hasMention = false; // only required for tgchat, not db cached
 };
 
@@ -437,6 +439,7 @@ public:
   std::string lastMsgId;
   std::string findText;
   std::string findMsgId;
+  bool findPinned = false;
 };
 
 class GetGroupMembersRequest : public RequestMessage
@@ -604,6 +607,17 @@ public:
   std::string chatId;
   std::string msgId;
   bool isRead = false;
+};
+
+class NewMessageIsPinnedNotify : public ServiceMessage
+{
+public:
+  explicit NewMessageIsPinnedNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
+  virtual MessageType GetMessageType() const { return NewMessageIsPinnedNotifyType; }
+  std::string chatId;
+  std::string msgId;
+  bool isPinned = false;
 };
 
 class NewMessageFileNotify : public ServiceMessage

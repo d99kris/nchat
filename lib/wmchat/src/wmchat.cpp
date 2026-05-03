@@ -668,7 +668,8 @@ void WmChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
                                   findMessageRequest->fromMsgId,
                                   findMessageRequest->lastMsgId,
                                   findMessageRequest->findText,
-                                  findMessageRequest->findMsgId);
+                                  findMessageRequest->findMsgId,
+                                  findMessageRequest->findPinned);
       }
       break;
 
@@ -1015,6 +1016,26 @@ void WmNewMessageStatusNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p
 
     std::shared_ptr<DeferNotifyRequest> deferNotifyRequest = std::make_shared<DeferNotifyRequest>();
     deferNotifyRequest->serviceMessage = newMessageStatusNotify;
+    instance->SendRequest(deferNotifyRequest);
+  }
+
+  free(p_ChatId);
+  free(p_MsgId);
+}
+
+void WmNewMessageIsPinnedNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsPinned)
+{
+  WmChat* instance = WmChat::GetInstance(p_ConnId);
+  if (instance != nullptr)
+  {
+    std::shared_ptr<NewMessageIsPinnedNotify> newMessageIsPinnedNotify =
+      std::make_shared<NewMessageIsPinnedNotify>(instance->GetProfileId());
+    newMessageIsPinnedNotify->chatId = std::string(p_ChatId);
+    newMessageIsPinnedNotify->msgId = std::string(p_MsgId);
+    newMessageIsPinnedNotify->isPinned = (p_IsPinned == 1);
+
+    std::shared_ptr<DeferNotifyRequest> deferNotifyRequest = std::make_shared<DeferNotifyRequest>();
+    deferNotifyRequest->serviceMessage = newMessageIsPinnedNotify;
     instance->SendRequest(deferNotifyRequest);
   }
 

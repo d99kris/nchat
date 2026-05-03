@@ -1909,6 +1909,25 @@ void UiModel::Impl::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMess
       }
       break;
 
+    case NewMessageIsPinnedNotifyType:
+      {
+        std::shared_ptr<NewMessageIsPinnedNotify> newMessageIsPinnedNotify =
+          std::static_pointer_cast<NewMessageIsPinnedNotify>(p_ServiceMessage);
+        std::string chatId = newMessageIsPinnedNotify->chatId;
+        std::string msgId = newMessageIsPinnedNotify->msgId;
+        bool isPinned = newMessageIsPinnedNotify->isPinned;
+        LOG_TRACE("new pin status %s is %s", msgId.c_str(), (isPinned ? "pinned" : "unpinned"));
+        std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
+        auto mit = messages.find(msgId);
+        if (mit != messages.end())
+        {
+          mit->second.isPinned = isPinned;
+        }
+
+        UpdateHistory();
+      }
+      break;
+
     case NewMessageFileNotifyType:
       {
         std::shared_ptr<NewMessageFileNotify> newMessageFileNotify = std::static_pointer_cast<NewMessageFileNotify>(
@@ -4001,6 +4020,34 @@ void UiModel::Impl::OnKeyJumpQuoted()
   SendProtocolRequest(profileId, findMessageRequest);
 }
 
+void UiModel::Impl::OnKeyJumpPinned()
+{
+  AnyUserKeyInput();
+
+  const std::string profileId = m_CurrentChat.first;
+  const std::string chatId = m_CurrentChat.second;
+  std::string& oldestMessageId = m_OldestMessageId[profileId][chatId];
+
+  std::string fromMsgId;
+  if (GetSelectMessageActive())
+  {
+    const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
+    const int messageOffset = m_MessageOffset[profileId][chatId];
+    auto it = std::next(messageVec.begin(), messageOffset);
+    if (it != messageVec.end())
+    {
+      fromMsgId = *it;
+    }
+  }
+
+  std::shared_ptr<FindMessageRequest> findMessageRequest = std::make_shared<FindMessageRequest>();
+  findMessageRequest->chatId = chatId;
+  findMessageRequest->fromMsgId = fromMsgId;
+  findMessageRequest->lastMsgId = oldestMessageId;
+  findMessageRequest->findPinned = true;
+  SendProtocolRequest(profileId, findMessageRequest);
+}
+
 void UiModel::Impl::Find(const std::string& p_FindText)
 {
   if (!p_FindText.empty())
@@ -4384,6 +4431,7 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keySpell = UiKeyConfig::GetKey("spell");
 
   static wint_t keyJumpQuoted = UiKeyConfig::GetKey("jump_quoted");
+  static wint_t keyJumpPinned = UiKeyConfig::GetKey("jump_pinned");
   static wint_t keyFind = UiKeyConfig::GetKey("find");
   static wint_t keyFindNext = UiKeyConfig::GetKey("find_next");
 
@@ -4606,6 +4654,11 @@ void UiModel::KeyHandler(wint_t p_Key)
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().OnKeyJumpQuoted();
+  }
+  else if (p_Key == keyJumpPinned)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeyJumpPinned();
   }
   else if (p_Key == keyFind)
   {

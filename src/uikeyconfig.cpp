@@ -226,12 +226,13 @@ void UiKeyConfig::Init(bool p_MapKeys)
     { "react", "\\33\\163" }, // alt/opt-s
     { "spell", "\\33\\44" }, // alt/opt-$
     { "jump_quoted", "\\33\\161" }, // alt/opt-q
+    { "jump_pinned", "KEY_CTRLP" },
     { "find", "\\33\\57" }, // alt/opt-/
     { "find_next", "\\33\\77" }, // alt/opt-?
     { "toggle_emoji", "KEY_CTRLY" },
     { "toggle_help", "KEY_CTRLG" },
     { "toggle_list", "KEY_CTRLL" },
-    { "toggle_top", "KEY_CTRLP" },
+    { "toggle_top", "KEY_NONE" },
     { "next_chat", "KEY_TAB" },
     { "prev_chat", "KEY_BTAB" },
     { "unread_chat", "KEY_CTRLF" },
