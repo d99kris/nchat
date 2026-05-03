@@ -2693,7 +2693,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 	}
 
 	isSend := false
-	isEdited := false
+	isEdited := (len(editMsgId) > 0)
 
 	// quote context
 	contextInfo := waE2E.ContextInfo{}

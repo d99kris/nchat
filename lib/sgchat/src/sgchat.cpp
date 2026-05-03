@@ -931,6 +931,7 @@ void SgNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_Se
     chatMessage.quotedId = std::string(p_ReplyId);
     chatMessage.timeSent = (((int64_t)p_TimeSent) * 1000) + (std::hash<std::string>{ }(chatMessage.id) % 256);
     chatMessage.isRead = (p_IsRead == 1);
+    chatMessage.isEdited = (p_IsEdited == 1);
 
     if (p_IsEdited)
     {
@@ -983,7 +984,6 @@ void SgNewHistoryMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, cha
                                 int p_FromMe, char* p_QuotedId, char* p_FileId, char* p_FilePath, int p_FileStatus,
                                 int p_TimeSent, int p_IsRead, int p_IsEdited, char* p_FromMsgId, int p_Notify)
 {
-  (void)p_IsEdited;
   SgChat* instance = SgChat::GetInstance(p_ConnId);
   if (instance != nullptr)
   {
@@ -999,6 +999,7 @@ void SgNewHistoryMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, cha
       chatMessage.quotedId = std::string(p_QuotedId);
       chatMessage.timeSent = (((int64_t)p_TimeSent) * 1000) + (std::hash<std::string>{ }(chatMessage.id) % 256);
       chatMessage.isRead = (p_IsRead == 1);
+      chatMessage.isEdited = (p_IsEdited == 1);
 
       std::string fileId = std::string(p_FileId);
       if (!fileId.empty())
@@ -1022,6 +1023,7 @@ void SgNewHistoryMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, cha
       chatMessage.quotedId = std::string(p_QuotedId);
       chatMessage.timeSent = (((int64_t)p_TimeSent) * 1000) + (std::hash<std::string>{ }(chatMessage.id) % 256);
       chatMessage.isRead = (p_IsRead == 1);
+      chatMessage.isEdited = (p_IsEdited == 1);
 
       std::string fileId = std::string(p_FileId);
       if (!fileId.empty())

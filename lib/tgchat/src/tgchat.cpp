@@ -3490,6 +3490,7 @@ void TgChat::Impl::TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessag
   p_ChatMessage.senderId = StrUtil::NumToHex(senderId);
   p_ChatMessage.isOutgoing = p_TdMessage.is_outgoing_;
   p_ChatMessage.timeSent = (((int64_t)p_TdMessage.date_) * 1000) + (std::hash<std::string>{ }(p_ChatMessage.id) % 256);
+  p_ChatMessage.isEdited = (p_TdMessage.edit_date_ > 0);
 
   if (p_TdMessage.reply_to_ && (p_TdMessage.reply_to_->get_id() == td::td_api::messageReplyToMessage::ID))
   {

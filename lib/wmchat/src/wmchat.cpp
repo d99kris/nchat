@@ -903,6 +903,7 @@ void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_Se
     chatMessage.quotedId = std::string(p_QuotedId);
     chatMessage.timeSent = (((int64_t)p_TimeSent) * 1000) + (std::hash<std::string>{ }(chatMessage.id) % 256);
     chatMessage.isRead = (p_IsRead == 1);
+    chatMessage.isEdited = (p_IsEdited == 1);
 
     if (p_IsEdited)
     {
@@ -910,9 +911,10 @@ void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_Se
       if (MessageCache::GetOneMessage(instance->GetProfileId(), std::string(p_ChatId), std::string(p_MsgId),
                                       chatMessages))
       {
-        // retain original sent time and file info
+        // retain original sent time, file info, and read state
         chatMessage.timeSent = chatMessages.at(0).timeSent;
         chatMessage.fileInfo = chatMessages.at(0).fileInfo;
+        chatMessage.isRead = chatMessages.at(0).isRead;
       }
     }
     else

@@ -2482,9 +2482,9 @@ func SgSendMessage(connId int, chatId string, text string, quotedId string, quot
 			return -1
 		}
 		selfId := UUIDToString(device.ACI)
-		timeSent := int(timestamp / 1000)
-		CSgNewMessagesNotify(connId, chatId, strconv.FormatUint(timestamp, 10), selfId, text, 1, quotedId, "", "", 0, timeSent, 1, 1)
-		TrackRecentMessage(connId, chatId, selfId, timestamp)
+		timeSent := int(targetTimestamp / 1000)
+		CSgNewMessagesNotify(connId, chatId, editMsgId, selfId, text, 1, quotedId, "", "", 0, timeSent, 1, 1)
+		TrackRecentMessage(connId, chatId, selfId, targetTimestamp)
 	} else {
 		// Set body
 		if text != "" {

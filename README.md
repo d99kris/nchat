@@ -449,6 +449,7 @@ This configuration file holds general user interface settings. Default content:
     desktop_notify_enabled=0
     desktop_notify_inactive=1
     downloadable_indicator=+
+    edited_indicator=✎
     emoji_enabled=1
     entry_height=4
     failed_indicator=✗
@@ -618,6 +619,11 @@ terminal window is inactive.
 
 Specifies text to suffix attachment filenames in message view for attachments
 not yet downloaded. This is only shown for `attachment_prefetch` < 2.
+
+### edited_indicator
+
+Specifies text to suffix message header in message view for messages that have
+been edited.
 
 ### emoji_enabled
 

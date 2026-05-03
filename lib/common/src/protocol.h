@@ -200,6 +200,7 @@ struct ChatMessage
   int64_t timeSent = -1;
   bool isOutgoing = true;
   bool isRead = false;
+  bool isEdited = false;
   bool hasMention = false; // only required for tgchat, not db cached
 };
 

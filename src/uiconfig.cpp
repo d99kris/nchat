@@ -37,6 +37,7 @@ void UiConfig::Init()
     { "desktop_notify_enabled", "0" },
     { "desktop_notify_inactive", "1" },
     { "downloadable_indicator", "+" },
+    { "edited_indicator", "\xe2\x9c\x8e" },
     { "emoji_enabled", "1" },
     { "entry_height", "4" },
     { "failed_indicator", "\xe2\x9c\x97" },
