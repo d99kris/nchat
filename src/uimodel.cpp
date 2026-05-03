@@ -1029,6 +1029,39 @@ void UiModel::Impl::OnKeyPinChat()
   SendProtocolRequest(profileId, pinChatRequest);
 }
 
+void UiModel::Impl::OnKeyPinMsg()
+{
+  AnyUserKeyInput();
+
+  const std::string& profileId = m_CurrentChat.first;
+  const std::string& chatId = m_CurrentChat.second;
+  const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
+  const int messageOffset = m_MessageOffset[profileId][chatId];
+
+  auto it = std::next(messageVec.begin(), messageOffset);
+  if (it == messageVec.end())
+  {
+    LOG_WARNING("error finding message id to pin");
+    return;
+  }
+
+  const std::string msgId = *it;
+  const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
+  auto mit = messages.find(msgId);
+  if (mit == messages.end())
+  {
+    LOG_WARNING("error finding message");
+    return;
+  }
+
+  std::shared_ptr<PinMessageRequest> pinMessageRequest = std::make_shared<PinMessageRequest>();
+  pinMessageRequest->chatId = chatId;
+  pinMessageRequest->senderId = mit->second.senderId;
+  pinMessageRequest->msgId = msgId;
+  pinMessageRequest->isPinned = !mit->second.isPinned;
+  SendProtocolRequest(profileId, pinMessageRequest);
+}
+
 void UiModel::Impl::OnKeyOpenMsg()
 {
   AnyUserKeyInput();
@@ -4414,7 +4447,7 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keyDeleteMsg = UiKeyConfig::GetKey("delete_msg");
   static wint_t keyDeleteChat = UiKeyConfig::GetKey("delete_chat");
   static wint_t keyArchiveChat = UiKeyConfig::GetKey("archive_chat");
-  static wint_t keyPinChat = UiKeyConfig::GetKey("pin_chat");
+  static wint_t keyPin = UiKeyConfig::GetKey("pin");
   static wint_t keyEditMsg = UiKeyConfig::GetKey("edit_msg");
   static wint_t keyCancel = UiKeyConfig::GetKey("cancel");
 
@@ -4566,9 +4599,9 @@ void UiModel::KeyHandler(wint_t p_Key)
   {
     OnKeyArchiveChat();
   }
-  else if (p_Key == keyPinChat)
+  else if (p_Key == keyPin)
   {
-    OnKeyPinChat();
+    OnKeyPin();
   }
   else if (p_Key == keyOpen)
   {
@@ -5427,25 +5460,52 @@ void UiModel::OnKeyArchiveChat()
   GetImpl().OnKeyArchiveChat();
 }
 
-void UiModel::OnKeyPinChat()
+void UiModel::OnKeyPin()
 {
-  bool hasFeature = false;
+  bool pinMessage = false;
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
-    if (GetImpl().GetSelectMessageActive() || GetImpl().GetEditMessageActive()) return;
+    if (GetImpl().GetEditMessageActive()) return;
 
-    const std::string& profileId = GetImpl().GetCurrentChat().first;
-    hasFeature = GetImpl().HasProtocolFeature(profileId, FeaturePinChat);
+    pinMessage = GetImpl().GetSelectMessageActive();
   }
 
-  if (!hasFeature)
+  if (pinMessage)
   {
-    MessageDialog("Warning", "Protocol does not support pinning.", 0.7, 5);
-    return;
-  }
+    bool hasFeature = false;
+    {
+      std::unique_lock<owned_mutex> lock(m_ModelMutex);
+      const std::string& profileId = GetImpl().GetCurrentChat().first;
+      hasFeature = GetImpl().HasProtocolFeature(profileId, FeaturePinMessage);
+    }
 
-  std::unique_lock<owned_mutex> lock(m_ModelMutex);
-  GetImpl().OnKeyPinChat();
+    if (!hasFeature)
+    {
+      MessageDialog("Warning", "Protocol does not support message pinning.", 0.7, 5);
+      return;
+    }
+
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeyPinMsg();
+  }
+  else
+  {
+    bool hasFeature = false;
+    {
+      std::unique_lock<owned_mutex> lock(m_ModelMutex);
+      const std::string& profileId = GetImpl().GetCurrentChat().first;
+      hasFeature = GetImpl().HasProtocolFeature(profileId, FeaturePinChat);
+    }
+
+    if (!hasFeature)
+    {
+      MessageDialog("Warning", "Protocol does not support chat pinning.", 0.7, 5);
+      return;
+    }
+
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeyPinChat();
+  }
 }
 
 void UiModel::OnKeySaveAttachment()

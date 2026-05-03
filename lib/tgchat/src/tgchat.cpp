@@ -348,7 +348,8 @@ bool TgChat::Impl::HasFeature(ProtocolFeature p_ProtocolFeature) const
     FeatureMarkReadEveryView |
     FeatureAutoGetContactsOnLogin |
     FeaturePinChat |
-    FeatureArchiveChat;
+    FeatureArchiveChat |
+    FeaturePinMessage;
   return (p_ProtocolFeature & customFeatures);
 }
 
@@ -1256,6 +1257,54 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
             LOG_WARNING("Pin chat error");
           }
         });
+      }
+      break;
+
+    case PinMessageRequestType:
+      {
+        LOG_DEBUG("Pin message");
+        Status::Set(m_ProfileId, Status::FlagUpdating);
+        std::shared_ptr<PinMessageRequest> pinMessageRequest =
+          std::static_pointer_cast<PinMessageRequest>(p_RequestMessage);
+        int64_t chatId = StrUtil::NumFromHex<int64_t>(pinMessageRequest->chatId);
+        int64_t msgId = StrUtil::NumFromHex<int64_t>(pinMessageRequest->msgId);
+
+        if (pinMessageRequest->isPinned)
+        {
+          auto pin_message = td::td_api::make_object<td::td_api::pinChatMessage>();
+          pin_message->chat_id_ = chatId;
+          pin_message->message_id_ = msgId;
+          pin_message->disable_notification_ = false;
+          pin_message->only_for_self_ = false;
+
+          SendQuery(std::move(pin_message),
+                    [this](Object object)
+          {
+            Status::Clear(m_ProfileId, Status::FlagUpdating);
+
+            if (object->get_id() == td::td_api::error::ID)
+            {
+              LOG_WARNING("Pin message error");
+            }
+          });
+        }
+        else
+        {
+          auto unpin_message = td::td_api::make_object<td::td_api::unpinChatMessage>();
+          unpin_message->chat_id_ = chatId;
+          unpin_message->message_id_ = msgId;
+
+          SendQuery(std::move(unpin_message),
+                    [this](Object object)
+          {
+            Status::Clear(m_ProfileId, Status::FlagUpdating);
+
+            if (object->get_id() == td::td_api::error::ID)
+            {
+              LOG_WARNING("Unpin message error");
+            }
+          });
+        }
       }
       break;
 

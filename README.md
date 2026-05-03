@@ -899,7 +899,7 @@ This configuration file holds user interface key bindings. Default content:
     open_msg=\33\167
     other_commands_help=KEY_CTRLO
     paste=\33\166
-    pin_chat=\33\160
+    pin=\33\160
     prev_chat=KEY_BTAB
     prev_page=KEY_PPAGE
     quit=KEY_CTRLQ

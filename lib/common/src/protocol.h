@@ -31,6 +31,7 @@ enum ProtocolFeature
   FeatureAutoGetContactsOnLogin = (1 << 6),
   FeaturePinChat = (1 << 7),
   FeatureArchiveChat = (1 << 8),
+  FeaturePinMessage = (1 << 9),
 };
 
 class Protocol
@@ -84,6 +85,7 @@ enum MessageType
   DeleteChatRequestType,
   ArchiveChatRequestType,
   PinChatRequestType,
+  PinMessageRequestType,
   SendTypingRequestType,
   SetStatusRequestType,
   CreateChatRequestType,
@@ -316,6 +318,16 @@ class PinChatRequest : public RequestMessage
 public:
   virtual MessageType GetMessageType() const { return PinChatRequestType; }
   std::string chatId;
+  bool isPinned = false;
+};
+
+class PinMessageRequest : public RequestMessage
+{
+public:
+  virtual MessageType GetMessageType() const { return PinMessageRequestType; }
+  std::string chatId;
+  std::string senderId; // only required for wmchat
+  std::string msgId;
   bool isPinned = false;
 };
 

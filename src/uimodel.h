@@ -159,6 +159,7 @@ private:
     void GetAvailableEmojis(std::set<std::string>& p_AvailableEmojis, bool& p_Pending);
     void OnKeyJumpQuoted();
     void OnKeyJumpPinned();
+    void OnKeyPinMsg();
 
     void Draw();
     void ReinitView();
@@ -406,7 +407,7 @@ private:
   void OnKeyDeleteMsg();
   void OnKeyDeleteChat();
   void OnKeyArchiveChat();
-  void OnKeyPinChat();
+  void OnKeyPin();
   void OnKeySaveAttachment();
   void OnKeyEditMsg();
   void OnKeyQuit();
