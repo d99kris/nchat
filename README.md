@@ -381,11 +381,20 @@ Specifies whether to use bracket quoting for display-name mentions with spaces.
 
 ### message_delete
 
-Specifies handling of message deletion by other users (WhatsApp only):
+Specifies handling of message deletion by other users:
 
     1 = erase message <- default
-    2 = replace message with [Deleted] text
-    3 = prefix message with [Deleted] text
+    2 = replace message text with placeholder
+    3 = prefix message text with placeholder
+
+For modes 2 and 3 the placeholder text is `[This message was deleted]`.
+Messages deleted by oneself are always erased locally regardless of this
+setting. Pressing the delete-message key on a message that is already marked
+deleted erases it locally without contacting the server.
+
+**Note:** Modes 2 and 3 are stable on WhatsApp and Signal, experimental on
+Telegram (history paging may stall when scrolling past a long stretch of
+deleted messages).
 
 ### proxy_
 

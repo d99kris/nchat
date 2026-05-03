@@ -20,7 +20,7 @@ package main
 // extern void SgNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_FilePath, int p_FileStatus, int p_Action);
 // extern void SgNewMessageReactionNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe);
 // extern void SgDeleteChatNotify(int p_ConnId, char* p_ChatId);
-// extern void SgDeleteMessageNotify(int p_ConnId, char* p_ChatId, char* p_MsgId);
+// extern void SgDeleteMessageNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsOutgoing);
 // extern void SgUpdateMuteNotify(int p_ConnId, char* p_ChatId, int p_IsMuted);
 // extern void SgUpdateArchivedNotify(int p_ConnId, char* p_ChatId, int p_IsArchived);
 // extern void SgUpdatePinNotify(int p_ConnId, char* p_ChatId, int p_IsPinned, int p_TimePinned);
@@ -176,8 +176,8 @@ func CSgDeleteChatNotify(connId int, chatId string) {
 	C.SgDeleteChatNotify(C.int(connId), C.CString(chatId))
 }
 
-func CSgDeleteMessageNotify(connId int, chatId string, msgId string) {
-	C.SgDeleteMessageNotify(C.int(connId), C.CString(chatId), C.CString(msgId))
+func CSgDeleteMessageNotify(connId int, chatId string, msgId string, isOutgoing int) {
+	C.SgDeleteMessageNotify(C.int(connId), C.CString(chatId), C.CString(msgId), C.int(isOutgoing))
 }
 
 func CSgUpdateMuteNotify(connId int, chatId string, isMuted int) {

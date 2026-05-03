@@ -1312,7 +1312,7 @@ func (handler *WmEventHandler) HandleDeleteForMe(deleteForMe *events.DeleteForMe
 	chatId := GetChatId(client, &deleteForMe.ChatJID, nil)
 	msgId := deleteForMe.MessageID
 	LOG_TRACE(fmt.Sprintf("Call CWmDeleteMessageNotify %s %s", chatId, msgId))
-	CWmDeleteMessageNotify(connId, chatId, msgId)
+	CWmDeleteMessageNotify(connId, chatId, msgId, BoolToInt(true))
 }
 
 func (handler *WmEventHandler) HandleLoggedOut() {
@@ -2181,7 +2181,7 @@ func (handler *WmEventHandler) HandleProtocolMessage(messageInfo types.MessageIn
 		chatId := GetChatId(client, &messageInfo.Chat, &messageInfo.Sender)
 		msgId := protocol.GetKey().GetID()
 		LOG_TRACE(fmt.Sprintf("Call CWmDeleteMessageNotify %s %s", chatId, msgId))
-		CWmDeleteMessageNotify(connId, chatId, msgId)
+		CWmDeleteMessageNotify(connId, chatId, msgId, BoolToInt(messageInfo.IsFromMe))
 	} else {
 		LOG_TRACE(fmt.Sprintf("ProtocolMessage %#v ignore", protocol.GetType()))
 	}

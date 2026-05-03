@@ -504,6 +504,7 @@ void SgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
         deleteMessageNotify->success = true;
         deleteMessageNotify->chatId = deleteMessageRequest->chatId;
         deleteMessageNotify->msgId = deleteMessageRequest->msgId;
+        deleteMessageNotify->isOutgoing = true;
         CallMessageHandler(deleteMessageNotify);
       }
       break;
@@ -1202,20 +1203,64 @@ void SgDeleteChatNotify(int p_ConnId, char* p_ChatId)
   free(p_ChatId);
 }
 
-void SgDeleteMessageNotify(int p_ConnId, char* p_ChatId, char* p_MsgId)
+void SgDeleteMessageNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsOutgoing)
 {
   SgChat* instance = SgChat::GetInstance(p_ConnId);
   if (instance != nullptr)
   {
-    std::shared_ptr<DeleteMessageNotify> deleteMessageNotify =
-      std::make_shared<DeleteMessageNotify>(instance->GetProfileId());
-    deleteMessageNotify->success = true;
-    deleteMessageNotify->chatId = std::string(p_ChatId);
-    deleteMessageNotify->msgId = std::string(p_MsgId);
+    static const int messageDelete = AppConfig::GetNum("message_delete");
+    const bool isOutgoing = (p_IsOutgoing != 0);
 
-    std::shared_ptr<DeferNotifyRequest> deferNotifyRequest = std::make_shared<DeferNotifyRequest>();
-    deferNotifyRequest->serviceMessage = deleteMessageNotify;
-    instance->SendRequest(deferNotifyRequest);
+    if (!isOutgoing &&
+        ((messageDelete == MessageDeleteReplace) || (messageDelete == MessageDeletePrefix)))
+    {
+      std::vector<ChatMessage> chatMessages;
+      if (MessageCache::GetOneMessage(instance->GetProfileId(), std::string(p_ChatId), std::string(p_MsgId),
+                                      chatMessages))
+      {
+        ChatMessage chatMessage = chatMessages.front();
+        chatMessage.isRead = true;
+        chatMessage.isDeleted = true;
+
+        if (messageDelete == MessageDeleteReplace)
+        {
+          chatMessage.text = std::string("[This message was deleted]");
+          chatMessage.fileInfo.clear();
+        }
+        else // MessageDeletePrefix
+        {
+          if (!StrUtil::StartsWith(chatMessage.text, "[This message was deleted]"))
+          {
+            chatMessage.text = std::string("[This message was deleted]\n") + chatMessage.text;
+          }
+        }
+
+        std::shared_ptr<NewMessagesNotify> newMessagesNotify =
+          std::make_shared<NewMessagesNotify>(instance->GetProfileId());
+        newMessagesNotify->success = true;
+        newMessagesNotify->chatId = std::string(p_ChatId);
+        newMessagesNotify->chatMessages = std::vector<ChatMessage>({ chatMessage });
+        newMessagesNotify->cached = false;
+        newMessagesNotify->sequence = true;
+
+        std::shared_ptr<DeferNotifyRequest> deferNotifyRequest = std::make_shared<DeferNotifyRequest>();
+        deferNotifyRequest->serviceMessage = newMessagesNotify;
+        instance->SendRequest(deferNotifyRequest);
+      }
+    }
+    else // erase: mode 1, or any self-deletion
+    {
+      std::shared_ptr<DeleteMessageNotify> deleteMessageNotify =
+        std::make_shared<DeleteMessageNotify>(instance->GetProfileId());
+      deleteMessageNotify->success = true;
+      deleteMessageNotify->chatId = std::string(p_ChatId);
+      deleteMessageNotify->msgId = std::string(p_MsgId);
+      deleteMessageNotify->isOutgoing = isOutgoing;
+
+      std::shared_ptr<DeferNotifyRequest> deferNotifyRequest = std::make_shared<DeferNotifyRequest>();
+      deferNotifyRequest->serviceMessage = deleteMessageNotify;
+      instance->SendRequest(deferNotifyRequest);
+    }
   }
 
   free(p_ChatId);

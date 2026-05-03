@@ -493,6 +493,7 @@ void WmChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
         deleteMessageNotify->success = true; // ignore actual result, as message may have been deleted on server already
         deleteMessageNotify->chatId = deleteMessageRequest->chatId;
         deleteMessageNotify->msgId = deleteMessageRequest->msgId;
+        deleteMessageNotify->isOutgoing = true;
         CallMessageHandler(deleteMessageNotify);
       }
       break;
@@ -1098,14 +1099,16 @@ void WmDeleteChatNotify(int p_ConnId, char* p_ChatId)
   free(p_ChatId);
 }
 
-void WmDeleteMessageNotify(int p_ConnId, char* p_ChatId, char* p_MsgId)
+void WmDeleteMessageNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsOutgoing)
 {
   WmChat* instance = WmChat::GetInstance(p_ConnId);
   if (instance != nullptr)
   {
     static const int messageDelete = AppConfig::GetNum("message_delete");
+    const bool isOutgoing = (p_IsOutgoing != 0);
 
-    if ((messageDelete == MessageDeleteReplace) || (messageDelete == MessageDeletePrefix))
+    if (!isOutgoing &&
+        ((messageDelete == MessageDeleteReplace) || (messageDelete == MessageDeletePrefix)))
     {
       std::vector<ChatMessage> chatMessages;
       if (MessageCache::GetOneMessage(instance->GetProfileId(), std::string(p_ChatId), std::string(p_MsgId),
@@ -1113,16 +1116,18 @@ void WmDeleteMessageNotify(int p_ConnId, char* p_ChatId, char* p_MsgId)
       {
         ChatMessage chatMessage = chatMessages.front();
         chatMessage.isRead = true;
+        chatMessage.isDeleted = true;
 
         if (messageDelete == MessageDeleteReplace)
         {
-          chatMessage.text = std::string("[Deleted]");
+          chatMessage.text = std::string("[This message was deleted]");
+          chatMessage.fileInfo.clear();
         }
-        else
+        else // MessageDeletePrefix
         {
-          if (!StrUtil::StartsWith(chatMessage.text, "[Deleted]"))
+          if (!StrUtil::StartsWith(chatMessage.text, "[This message was deleted]"))
           {
-            chatMessage.text = std::string("[Deleted]\n") + chatMessage.text;
+            chatMessage.text = std::string("[This message was deleted]\n") + chatMessage.text;
           }
         }
 
@@ -1140,13 +1145,14 @@ void WmDeleteMessageNotify(int p_ConnId, char* p_ChatId, char* p_MsgId)
         instance->SendRequest(deferNotifyRequest);
       }
     }
-    else // (messageDelete == MessageDeleteErase)
+    else // erase: mode 1, or any self-deletion
     {
       std::shared_ptr<DeleteMessageNotify> deleteMessageNotify =
         std::make_shared<DeleteMessageNotify>(instance->GetProfileId());
       deleteMessageNotify->success = true;
       deleteMessageNotify->chatId = std::string(p_ChatId);
       deleteMessageNotify->msgId = std::string(p_MsgId);
+      deleteMessageNotify->isOutgoing = isOutgoing;
 
       std::shared_ptr<DeferNotifyRequest> deferNotifyRequest =
         std::make_shared<DeferNotifyRequest>();

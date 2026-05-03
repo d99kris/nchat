@@ -19,7 +19,7 @@ package main
 // extern void WmNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_FilePath, int p_FileStatus, int p_Action);
 // extern void WmNewMessageReactionNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe);
 // extern void WmDeleteChatNotify(int p_ConnId, char* p_ChatId);
-// extern void WmDeleteMessageNotify(int p_ConnId, char* p_ChatId, char* p_MsgId);
+// extern void WmDeleteMessageNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsOutgoing);
 // extern void WmUpdateMuteNotify(int p_ConnId, char* p_ChatId, int p_IsMuted);
 // extern void WmUpdateArchivedNotify(int p_ConnId, char* p_ChatId, int p_IsArchived);
 // extern void WmUpdatePinNotify(int p_ConnId, char* p_ChatId, int p_IsPinned, int p_TimePinned);
@@ -176,8 +176,8 @@ func CWmDeleteChatNotify(connId int, chatId string) {
 	C.WmDeleteChatNotify(C.int(connId), C.CString(chatId))
 }
 
-func CWmDeleteMessageNotify(connId int, chatId string, msgId string) {
-	C.WmDeleteMessageNotify(C.int(connId), C.CString(chatId), C.CString(msgId))
+func CWmDeleteMessageNotify(connId int, chatId string, msgId string, isOutgoing int) {
+	C.WmDeleteMessageNotify(C.int(connId), C.CString(chatId), C.CString(msgId), C.int(isOutgoing))
 }
 
 func CWmUpdateMuteNotify(connId int, chatId string, isMuted int) {

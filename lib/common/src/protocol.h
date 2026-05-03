@@ -201,6 +201,7 @@ struct ChatMessage
   bool isOutgoing = true;
   bool isRead = false;
   bool isEdited = false;
+  bool isDeleted = false;
   bool hasMention = false; // only required for tgchat, not db cached
 };
 
@@ -530,6 +531,7 @@ public:
   bool success = false;
   std::string chatId;
   std::string msgId;
+  bool isOutgoing = false; // true if local user issued the deletion
 };
 
 class SendTypingNotify : public ServiceMessage

@@ -954,16 +954,32 @@ void UiModel::Impl::OnKeyDeleteMsg()
   }
 
   std::string senderId;
+  bool alreadyDeleted = false;
   const std::string msgId = *it;
   const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
   auto mit = messages.find(msgId);
   if (mit != messages.end())
   {
     senderId = mit->second.senderId;
+    alreadyDeleted = mit->second.isDeleted;
   }
   else
   {
     LOG_WARNING("error finding message");
+  }
+
+  if (alreadyDeleted)
+  {
+    // Message already marked deleted (by other user). Skip protocol-level delete and remove locally only.
+    MessageCache::DeleteOneMessage(profileId, chatId, msgId);
+
+    std::shared_ptr<DeleteMessageNotify> deleteMessageNotify = std::make_shared<DeleteMessageNotify>(profileId);
+    deleteMessageNotify->success = true;
+    deleteMessageNotify->chatId = chatId;
+    deleteMessageNotify->msgId = msgId;
+    deleteMessageNotify->isOutgoing = true;
+    MessageHandler(deleteMessageNotify);
+    return;
   }
 
   std::shared_ptr<DeleteMessageRequest> deleteMessageRequest = std::make_shared<DeleteMessageRequest>();

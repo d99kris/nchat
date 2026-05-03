@@ -41,6 +41,7 @@
 #include "strutil.h"
 #include "timeutil.h"
 
+#define CUSTOM_MESSAGE_DELETE_SUPPORT
 // #define SIMULATED_SPONSORED_MESSAGES
 
 static const int s_TdlibDate = 20260403;
@@ -1159,6 +1160,7 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
           deleteMessageNotify->success = (object->get_id() != td::td_api::error::ID);
           deleteMessageNotify->chatId = deleteMessageRequest->chatId;
           deleteMessageNotify->msgId = deleteMessageRequest->msgId;
+          deleteMessageNotify->isOutgoing = true;
           CallMessageHandler(deleteMessageNotify);
         });
       }
@@ -1969,7 +1971,7 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
     std::vector<std::int64_t> msgIds = delete_messages.message_ids_;
     for (const auto& msgId : msgIds)
     {
-#ifdef HAS_TELEGRAM_CUSTOM_MESSAGE_DELETE_HANDLING
+#ifdef CUSTOM_MESSAGE_DELETE_SUPPORT
       static const int messageDelete = AppConfig::GetNum("message_delete");
 #else
       static const int messageDelete = MessageDeleteErase;
@@ -1982,16 +1984,18 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
         {
           ChatMessage chatMessage = chatMessages.front();
           chatMessage.isRead = true;
+          chatMessage.isDeleted = true;
 
           if (messageDelete == MessageDeleteReplace)
           {
-            chatMessage.text = std::string("[Deleted]");
+            chatMessage.text = std::string("[This message was deleted]");
+            chatMessage.fileInfo.clear();
           }
-          else
+          else // MessageDeletePrefix
           {
-            if (!StrUtil::StartsWith(chatMessage.text, "[Deleted]"))
+            if (!StrUtil::StartsWith(chatMessage.text, "[This message was deleted]"))
             {
-              chatMessage.text = std::string("[Deleted]\n") + chatMessage.text;
+              chatMessage.text = std::string("[This message was deleted]\n") + chatMessage.text;
             }
           }
 
