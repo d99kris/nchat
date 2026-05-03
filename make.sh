@@ -50,7 +50,7 @@ INSTALL="0"
 SRC="0"
 BUMP="0"
 YES=""
-CMAKEARGS="${NCHAT_CMAKEARGS:-}"
+CMAKEARGS="${DEV_CMAKEARGS:-} ${NCHAT_CMAKEARGS:-}"
 
 if [[ "${#}" == "0" ]]; then
   show_usage
