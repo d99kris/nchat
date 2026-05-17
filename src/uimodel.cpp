@@ -3682,7 +3682,7 @@ void UiModel::Impl::CallExternalEdit(const std::string& p_EditorCmd)
   int& entryPos = m_EntryPos[profileId][chatId];
 
   TerminalControlPause();
-  std::string tempPath = FileUtil::GetTempDir() + "/compose.txt";
+  std::string tempPath = FileUtil::GetTempDir() + "/compose.md";
   std::string composeStr = StrUtil::ToString(entryStr);
   FileUtil::WriteFile(tempPath, composeStr);
   const std::string cmd = p_EditorCmd + " " + tempPath;
