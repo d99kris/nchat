@@ -85,6 +85,15 @@ std::string StrUtil::EscapeRawUrls(const std::string& p_Str)
   return rv;
 }
 
+std::string StrUtil::EscapeSingleQuote(const std::string& p_Str)
+{
+  // Make a string safe for use inside a single-quoted shell argument by
+  // replacing each ' with the sequence '\'' (close quote, escaped quote, reopen quote).
+  std::string str = p_Str;
+  ReplaceString(str, "'", "'\\''");
+  return str;
+}
+
 std::string StrUtil::ExtractString(const std::string& p_Str, const std::string& p_Prefix, const std::string& p_Suffix)
 {
   std::size_t prefixPos = p_Str.find(p_Prefix);

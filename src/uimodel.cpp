@@ -1193,7 +1193,7 @@ void UiModel::Impl::OpenLink(const std::string& p_Url)
   }();
 
   std::string cmd = cmdTemplate;
-  StrUtil::ReplaceString(cmd, "%1", p_Url);
+  StrUtil::ReplaceString(cmd, "%1", StrUtil::EscapeSingleQuote(p_Url));
 
   RunProgram(cmd);
 }
@@ -1216,7 +1216,7 @@ void UiModel::Impl::OpenAttachment(const std::string& p_Path)
   }();
 
   std::string cmd = cmdTemplate;
-  StrUtil::ReplaceString(cmd, "%1", p_Path);
+  StrUtil::ReplaceString(cmd, "%1", StrUtil::EscapeSingleQuote(p_Path));
 
   RunProgram(cmd);
 }
@@ -3752,7 +3752,7 @@ void UiModel::Impl::StartExtCall(const std::string& p_Phone)
   }();
 
   std::string cmd = cmdTemplate;
-  StrUtil::ReplaceString(cmd, "%1", p_Phone);
+  StrUtil::ReplaceString(cmd, "%1", StrUtil::EscapeSingleQuote(p_Phone));
 
   RunProgram(cmd);
 }
