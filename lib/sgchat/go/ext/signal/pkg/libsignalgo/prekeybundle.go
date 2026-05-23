@@ -27,13 +27,14 @@ import (
 	"time"
 )
 
-func ProcessPreKeyBundle(ctx context.Context, bundle *PreKeyBundle, forAddress *Address, sessionStore SessionStore, identityStore IdentityKeyStore) error {
+func ProcessPreKeyBundle(ctx context.Context, bundle *PreKeyBundle, forAddress, localAddress *Address, sessionStore SessionStore, identityStore IdentityKeyStore) error {
 	callbackCtx := NewCallbackContext(ctx)
 	defer callbackCtx.Unref()
 	var now C.uint64_t = C.uint64_t(time.Now().Unix())
 	signalFfiError := C.signal_process_prekey_bundle(
 		bundle.constPtr(),
 		forAddress.constPtr(),
+		localAddress.constPtr(),
 		callbackCtx.wrapSessionStore(sessionStore),
 		callbackCtx.wrapIdentityKeyStore(identityStore),
 		now,

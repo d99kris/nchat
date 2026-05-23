@@ -159,11 +159,11 @@ func signal_destroy_identity_key_store_callback(storeCtx unsafe.Pointer) {
 func (ctx *CallbackContext) wrapIdentityKeyStore(store IdentityKeyStore) C.SignalConstPointerFfiIdentityKeyStoreStruct {
 	return C.SignalConstPointerFfiIdentityKeyStoreStruct{&C.SignalIdentityKeyStore{
 		ctx:                         wrapStore(ctx, store),
-		get_local_identity_key_pair: C.SignalFfiBridgeIdentityKeyStoreGetLocalIdentityKeyPair(C.signal_get_identity_key_pair_callback),
-		get_local_registration_id:   C.SignalFfiBridgeIdentityKeyStoreGetLocalRegistrationId(C.signal_get_local_registration_id_callback),
-		get_identity_key:            C.SignalFfiBridgeIdentityKeyStoreGetIdentityKey(C.signal_get_identity_key_callback),
-		save_identity_key:           C.SignalFfiBridgeIdentityKeyStoreSaveIdentityKey(C.signal_save_identity_key_callback),
-		is_trusted_identity:         C.SignalFfiBridgeIdentityKeyStoreIsTrustedIdentity(C.signal_is_trusted_identity_callback),
-		destroy:                     C.SignalFfiBridgeIdentityKeyStoreDestroy(C.signal_destroy_identity_key_store_callback),
+		get_local_identity_key_pair: C.SignalFfiIdentityKeyStoreGetLocalIdentityKeyPair(C.signal_get_identity_key_pair_callback),
+		get_local_registration_id:   C.SignalFfiIdentityKeyStoreGetLocalRegistrationId(C.signal_get_local_registration_id_callback),
+		get_identity_key:            C.SignalFfiIdentityKeyStoreGetIdentityKey(C.signal_get_identity_key_callback),
+		save_identity_key:           C.SignalFfiIdentityKeyStoreSaveIdentityKey(C.signal_save_identity_key_callback),
+		is_trusted_identity:         C.SignalFfiIdentityKeyStoreIsTrustedIdentity(C.signal_is_trusted_identity_callback),
+		destroy:                     C.SignalFfiIdentityKeyStoreDestroy(C.signal_destroy_identity_key_store_callback),
 	}}
 }

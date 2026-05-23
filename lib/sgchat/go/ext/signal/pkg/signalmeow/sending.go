@@ -384,15 +384,7 @@ func syncMessageFromSoloEditMessage(editMessage *signalpb.EditMessage, result Su
 }
 
 func syncMessageFromReadReceiptMessage(ctx context.Context, receiptMessage *signalpb.ReceiptMessage, messageSender libsignalgo.ServiceID) *signalpb.Content {
-	if *receiptMessage.Type != signalpb.ReceiptMessage_READ {
-		zerolog.Ctx(ctx).Warn().
-			Any("receipt_message_type", receiptMessage.Type).
-			Msg("syncMessageFromReadReceiptMessage called with non-read receipt message")
-		return nil
-	} else if messageSender.Type != libsignalgo.ServiceIDTypeACI {
-		zerolog.Ctx(ctx).Warn().
-			Stringer("message_sender", messageSender).
-			Msg("syncMessageFromReadReceiptMessage called with non-ACI message sender")
+	if *receiptMessage.Type != signalpb.ReceiptMessage_READ || messageSender.Type != libsignalgo.ServiceIDTypeACI {
 		return nil
 	}
 	read := []*signalpb.SyncMessage_Read{}

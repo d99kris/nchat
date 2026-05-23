@@ -35,6 +35,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"go.mau.fi/util/fallocate"
+	"go.mau.fi/util/pkcs7"
 	"go.mau.fi/util/random"
 	"google.golang.org/protobuf/proto"
 
@@ -136,6 +137,15 @@ func DownloadAttachment(
 const MACLength = 32
 const IVLength = 16
 
+func macAndAESDecrypt(body, key []byte) ([]byte, error) {
+	l := len(body) - MACLength
+	if !verifyMAC(key[MACLength:], body[:l], body[l:]) {
+		return nil, ErrInvalidMACForAttachment
+	}
+
+	return aesDecrypt(key[:MACLength], body[:l])
+}
+
 func decryptAttachment(body, key, digest []byte, plaintextDigest bool, size uint32) ([]byte, error) {
 	if !plaintextDigest {
 		hash := sha256.Sum256(body)
@@ -143,12 +153,7 @@ func decryptAttachment(body, key, digest []byte, plaintextDigest bool, size uint
 			return nil, ErrInvalidDigestForAttachment
 		}
 	}
-	l := len(body) - MACLength
-	if !verifyMAC(key[MACLength:], body[:l], body[l:]) {
-		return nil, ErrInvalidMACForAttachment
-	}
-
-	decrypted, err := aesDecrypt(key[:MACLength], body[:l])
+	decrypted, err := macAndAESDecrypt(body, key)
 	if err != nil {
 		return nil, err
 	}
@@ -240,6 +245,14 @@ func extend(data []byte, paddedLen int) []byte {
 	}
 }
 
+func macAndAESEncrypt(keys, plaintext []byte) ([]byte, error) {
+	encrypted, err := aesEncrypt(keys[:32], plaintext)
+	if err != nil {
+		return nil, err
+	}
+	return appendMAC(keys[32:], encrypted), nil
+}
+
 func (cli *Client) UploadAttachment(ctx context.Context, body []byte) (*signalpb.AttachmentPointer, error) {
 	log := zerolog.Ctx(ctx).With().Str("func", "upload attachment").Logger()
 	keys := random.Bytes(64) // combined AES and MAC keys
@@ -255,11 +268,10 @@ func (cli *Client) UploadAttachment(ctx context.Context, body []byte) (*signalpb
 	}
 	body = extend(body, paddedLen)
 
-	encrypted, err := aesEncrypt(keys[:32], body)
+	encryptedWithMAC, err := macAndAESEncrypt(keys, body)
 	if err != nil {
 		return nil, err
 	}
-	encryptedWithMAC := appendMAC(keys[32:], encrypted)
 
 	// Get upload attributes from Signal server
 	attributesPath := "/v4/attachments/form/upload"
@@ -467,13 +479,10 @@ func aesDecrypt(key, ciphertext []byte) ([]byte, error) {
 	}
 
 	iv := ciphertext[:IVLength]
+	ciphertext = ciphertext[IVLength:]
 	mode := cipher.NewCBCDecrypter(block, iv)
 	mode.CryptBlocks(ciphertext, ciphertext)
-	pad := ciphertext[len(ciphertext)-1]
-	if pad > aes.BlockSize {
-		return nil, fmt.Errorf("pad value (%d) larger than AES blocksize (%d)", pad, aes.BlockSize)
-	}
-	return ciphertext[aes.BlockSize : len(ciphertext)-int(pad)], nil
+	return pkcs7.Unpad(ciphertext)
 }
 
 func aesDecryptFile(key []byte, file *os.File, downloadedSize int64) (int64, error) {
@@ -533,14 +542,11 @@ func aesEncrypt(key, plaintext []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	pad := aes.BlockSize - len(plaintext)%aes.BlockSize
-	plaintext = append(plaintext, bytes.Repeat([]byte{byte(pad)}, pad)...)
-
-	ciphertext := make([]byte, len(plaintext))
+	plaintext = pkcs7.Pad(plaintext, aes.BlockSize)
 	iv := random.Bytes(16)
 
 	mode := cipher.NewCBCEncrypter(block, iv)
-	mode.CryptBlocks(ciphertext, plaintext)
+	mode.CryptBlocks(plaintext, plaintext)
 
-	return append(iv, ciphertext...), nil
+	return append(iv, plaintext...), nil
 }

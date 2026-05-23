@@ -77,9 +77,9 @@ func signal_destroy_kyber_pre_key_store_callback(storeCtx unsafe.Pointer) {
 func (ctx *CallbackContext) wrapKyberPreKeyStore(store KyberPreKeyStore) C.SignalConstPointerFfiKyberPreKeyStoreStruct {
 	return C.SignalConstPointerFfiKyberPreKeyStoreStruct{&C.SignalKyberPreKeyStore{
 		ctx:                     wrapStore(ctx, store),
-		load_kyber_pre_key:      C.SignalFfiBridgeKyberPreKeyStoreLoadKyberPreKey(C.signal_load_kyber_pre_key_callback),
-		store_kyber_pre_key:     C.SignalFfiBridgeKyberPreKeyStoreStoreKyberPreKey(C.signal_store_kyber_pre_key_callback),
-		mark_kyber_pre_key_used: C.SignalFfiBridgeKyberPreKeyStoreMarkKyberPreKeyUsed(C.signal_mark_kyber_pre_key_used_callback),
-		destroy:                 C.SignalFfiBridgeKyberPreKeyStoreDestroy(C.signal_destroy_kyber_pre_key_store_callback),
+		load_kyber_pre_key:      C.SignalFfiKyberPreKeyStoreLoadKyberPreKey(C.signal_load_kyber_pre_key_callback),
+		store_kyber_pre_key:     C.SignalFfiKyberPreKeyStoreStoreKyberPreKey(C.signal_store_kyber_pre_key_callback),
+		mark_kyber_pre_key_used: C.SignalFfiKyberPreKeyStoreMarkKyberPreKeyUsed(C.signal_mark_kyber_pre_key_used_callback),
+		destroy:                 C.SignalFfiKyberPreKeyStoreDestroy(C.signal_destroy_kyber_pre_key_store_callback),
 	}}
 }

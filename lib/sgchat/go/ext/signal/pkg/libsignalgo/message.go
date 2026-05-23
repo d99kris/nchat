@@ -49,7 +49,7 @@ func Encrypt(ctx context.Context, plaintext []byte, forAddress, localAddress *Ad
 	return wrapCiphertextMessage(ciphertextMessage.raw), nil
 }
 
-func Decrypt(ctx context.Context, message *Message, fromAddress *Address, sessionStore SessionStore, identityStore IdentityKeyStore) ([]byte, error) {
+func Decrypt(ctx context.Context, message *Message, fromAddress, localAddress *Address, sessionStore SessionStore, identityStore IdentityKeyStore) ([]byte, error) {
 	callbackCtx := NewCallbackContext(ctx)
 	defer callbackCtx.Unref()
 	var decrypted C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
@@ -57,6 +57,7 @@ func Decrypt(ctx context.Context, message *Message, fromAddress *Address, sessio
 		&decrypted,
 		message.constPtr(),
 		fromAddress.constPtr(),
+		localAddress.constPtr(),
 		callbackCtx.wrapSessionStore(sessionStore),
 		callbackCtx.wrapIdentityKeyStore(identityStore),
 	)

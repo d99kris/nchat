@@ -468,20 +468,16 @@ func (mc *MessageConverter) convertStickerToMatrix(ctx context.Context, sticker 
 		converted.Content.Info.Height = 200
 	}
 	converted.Content.Body = sticker.GetEmoji()
+	if len(sticker.GetPackId()) == PackIDLength && len(sticker.GetPackKey()) == PackKeyLength && !bytes.Equal(sticker.GetPackId(), zeroPackID) {
+		converted.Content.Info.BridgedSticker = &event.BridgedSticker{
+			Network: StickerSourceID,
+			ID:      strconv.FormatUint(uint64(sticker.GetStickerId()), 10),
+			Emoji:   sticker.GetEmoji(),
+			PackURL: fmt.Sprintf(PackURLFormat, sticker.GetPackId(), sticker.GetPackKey()),
+		}
+	}
 	converted.Type = event.EventSticker
 	converted.Content.MsgType = ""
-	if converted.Extra == nil {
-		converted.Extra = map[string]any{}
-	}
-	// TODO fetch full pack metadata like the old bridge did?
-	converted.Extra["fi.mau.signal.sticker"] = map[string]any{
-		"id":    sticker.GetStickerId(),
-		"emoji": sticker.GetEmoji(),
-		"pack": map[string]any{
-			"id":  sticker.GetPackId(),
-			"key": sticker.GetPackKey(),
-		},
-	}
 	return converted
 }
 

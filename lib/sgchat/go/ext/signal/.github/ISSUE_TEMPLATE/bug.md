@@ -11,7 +11,8 @@ type: Bug
 
 ### Checklist
 
-<!-- Both items below are mandatory. Issues not following the rules may be closed without comment. -->
+<!-- All items below are mandatory. Issues not following the rules may be closed without comment. -->
 
 * [ ] This is an actual bug, not just a setup issue (see the [troubleshooting docs](https://docs.mau.fi/bridges/general/troubleshooting.html) or ask in the Matrix room for setup help).
 * [ ] I am certain that sufficient information is included. Ask in the Matrix room first if not.
+* [ ] The bug is still present on the main branch. The `!signal version` command output is: ``

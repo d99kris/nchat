@@ -67,8 +67,8 @@ func signal_destroy_signed_pre_key_store_callback(storeCtx unsafe.Pointer) {
 func (ctx *CallbackContext) wrapSignedPreKeyStore(store SignedPreKeyStore) C.SignalConstPointerFfiSignedPreKeyStoreStruct {
 	return C.SignalConstPointerFfiSignedPreKeyStoreStruct{&C.SignalSignedPreKeyStore{
 		ctx:                  wrapStore(ctx, store),
-		load_signed_pre_key:  C.SignalFfiBridgeSignedPreKeyStoreLoadSignedPreKey(C.signal_load_signed_pre_key_callback),
-		store_signed_pre_key: C.SignalFfiBridgeSignedPreKeyStoreStoreSignedPreKey(C.signal_store_signed_pre_key_callback),
-		destroy:              C.SignalFfiBridgeSignedPreKeyStoreDestroy(C.signal_destroy_signed_pre_key_store_callback),
+		load_signed_pre_key:  C.SignalFfiSignedPreKeyStoreLoadSignedPreKey(C.signal_load_signed_pre_key_callback),
+		store_signed_pre_key: C.SignalFfiSignedPreKeyStoreStoreSignedPreKey(C.signal_store_signed_pre_key_callback),
+		destroy:              C.SignalFfiSignedPreKeyStoreDestroy(C.signal_destroy_signed_pre_key_store_callback),
 	}}
 }

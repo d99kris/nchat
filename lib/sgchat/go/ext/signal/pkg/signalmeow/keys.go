@@ -413,6 +413,10 @@ func (cli *Client) FetchAndProcessPreKey(ctx context.Context, theirServiceID lib
 	if cli.Store.RecipientStore.IsUnregistered(ctx, theirServiceID) {
 		return fmt.Errorf("%w (cached)", ErrUnregisteredUser)
 	}
+	localAddress, err := cli.Store.ACIServiceID().Address(uint(cli.Store.DeviceID))
+	if err != nil {
+		return fmt.Errorf("failed to get own address: %w", err)
+	}
 	// Fetch prekey
 	deviceIDPath := "/*"
 	if specificDeviceID >= 0 {
@@ -518,6 +522,7 @@ func (cli *Client) FetchAndProcessPreKey(ctx context.Context, theirServiceID lib
 			ctx,
 			preKeyBundle,
 			address,
+			localAddress,
 			cli.Store.ACISessionStore,
 			cli.Store.ACIIdentityStore,
 		)
