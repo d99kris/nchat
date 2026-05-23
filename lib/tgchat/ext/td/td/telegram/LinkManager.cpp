@@ -89,6 +89,10 @@ static bool is_valid_game_name(Slice name) {
   return name.size() >= 3 && is_valid_username(name);
 }
 
+static bool is_valid_text_composition_style_name(CSlice name) {
+  return name.size() >= 8u && is_base64url_characters(name);
+}
+
 static bool is_valid_theme_name(CSlice name) {
   return !name.empty() && check_utf8(name);
 }
@@ -1117,6 +1121,12 @@ class LinkManager::InternalLinkRequestManagedBot final : public InternalLink {
   string bot_name_;
 
   td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
+    auto size = bot_username_.size();
+    if (size < 3u || to_lower(bot_username_[size - 3]) != 'b' || to_lower(bot_username_[size - 2]) != 'o' ||
+        to_lower(bot_username_[size - 1]) != 't') {
+      return td_api::make_object<td_api::internalLinkTypeRequestManagedBot>(
+          manager_bot_username_, PSTRING() << bot_username_ << "bot", bot_name_);
+    }
     return td_api::make_object<td_api::internalLinkTypeRequestManagedBot>(manager_bot_username_, bot_username_,
                                                                           bot_name_);
   }
@@ -1371,6 +1381,18 @@ class LinkManager::InternalLinkStoryAlbum final : public InternalLink {
  public:
   InternalLinkStoryAlbum(string story_album_owner_username, StoryAlbumId story_album_id)
       : story_album_owner_username_(std::move(story_album_owner_username)), story_album_id_(story_album_id) {
+  }
+};
+
+class LinkManager::InternalLinkTextCompositionStyle final : public InternalLink {
+  string style_name_;
+
+  td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
+    return td_api::make_object<td_api::internalLinkTypeTextCompositionStyle>(style_name_);
+  }
+
+ public:
+  explicit InternalLinkTextCompositionStyle(string &&style_name) : style_name_(std::move(style_name)) {
   }
 };
 
@@ -2011,9 +2033,9 @@ LinkManager::LinkInfo LinkManager::get_link_info(Slice link) {
     if (ends_with(host, ".t.me") && host.size() >= 9 && host.find('.') == host.size() - 5) {
       Slice subdomain(&host[0], host.size() - 5);
       static const FlatHashSet<Slice, SliceHash> disallowed_subdomains(
-          {"addemoji",     "addlist",     "addstickers", "addtheme", "auction",  "auth",  "boost", "call",
-           "confirmphone", "contact",     "giftcode",    "invoice",  "joinchat", "login", "m",     "nft",
-           "proxy",        "setlanguage", "share",       "socks",    "web",      "a",     "k",     "z"});
+          {"addemoji",     "addlist", "addstickers", "addstyle", "addtheme", "auction", "auth", "boost", "call",
+           "confirmphone", "contact", "giftcode",    "invoice",  "joinchat", "login",   "m",    "nft",   "proxy",
+           "setlanguage",  "share",   "socks",       "web",      "a",        "k",       "z"});
       if (is_valid_username(subdomain) && disallowed_subdomains.count(subdomain) == 0) {
         result.type_ = LinkType::TMe;
         result.query_ = PSTRING() << '/' << subdomain << http_url.query_;
@@ -2151,9 +2173,10 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_tg_link_query(Slice que
     if (is_valid_username(username)) {
       if (has_arg("post")) {
         // resolve?domain=<username>&post=12345&single&thread=<thread_id>&comment=<message_id>&t=<media_timestamp>
-        return td::make_unique<InternalLinkMessage>(
-            PSTRING() << "tg://resolve" << copy_arg("domain") << copy_arg("post") << copy_arg("single")
-                      << copy_arg("thread") << copy_arg("comment") << copy_arg("t"));
+        return td::make_unique<InternalLinkMessage>(PSTRING()
+                                                    << "tg://resolve" << copy_arg("domain") << copy_arg("post")
+                                                    << copy_arg("single") << copy_arg("thread") << copy_arg("comment")
+                                                    << copy_arg("t") << copy_arg("task") << copy_arg("option"));
       }
       if (username == "oauth" && has_arg("startapp")) {
         return td::make_unique<InternalLinkOauth>(PSTRING()
@@ -2419,6 +2442,12 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_tg_link_query(Slice que
     if (is_valid_language_pack_id(language_pack_id)) {
       return td::make_unique<InternalLinkLanguage>(std::move(language_pack_id));
     }
+  } else if (path.size() == 1 && path[0] == "addstyle") {
+    // addstyle?slug=<name>
+    auto style_name = get_arg("slug");
+    if (is_valid_text_composition_style_name(style_name)) {
+      return td::make_unique<InternalLinkTextCompositionStyle>(std::move(style_name));
+    }
   } else if (path.size() == 1 && path[0] == "addtheme") {
     // addtheme?slug=<name>
     auto theme_name = get_arg("slug");
@@ -2460,9 +2489,10 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_tg_link_query(Slice que
   } else if (path.size() == 1 && path[0] == "privatepost") {
     // privatepost?channel=123456789&post=12345&single&thread=<thread_id>&comment=<message_id>&t=<media_timestamp>
     if (has_arg("channel") && has_arg("post")) {
-      return td::make_unique<InternalLinkMessage>(
-          PSTRING() << "tg://privatepost" << copy_arg("channel") << copy_arg("post") << copy_arg("single")
-                    << copy_arg("thread") << copy_arg("comment") << copy_arg("t"));
+      return td::make_unique<InternalLinkMessage>(PSTRING()
+                                                  << "tg://privatepost" << copy_arg("channel") << copy_arg("post")
+                                                  << copy_arg("single") << copy_arg("thread") << copy_arg("comment")
+                                                  << copy_arg("t") << copy_arg("task") << copy_arg("option"));
     }
   } else if (path.size() == 1 && path[0] == "boost") {
     // boost?domain=channel_username
@@ -2528,7 +2558,7 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_tg_link_query(Slice que
     // newbot?manager=<manager_bot_username>&username=<new_bot_username>&name=<new_bot_name>
     auto manager_bot_username = get_arg("manager");
     auto new_bot_username = get_arg("username");
-    if (is_valid_username(manager_bot_username) && is_valid_username(new_bot_username)) {
+    if (is_valid_username(manager_bot_username) && (new_bot_username.empty() || is_valid_username(new_bot_username))) {
       return td::make_unique<InternalLinkRequestManagedBot>(std::move(manager_bot_username),
                                                             std::move(new_bot_username), get_arg("name"));
     }
@@ -2572,7 +2602,8 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_t_me_link_query(Slice q
       }
       return td::make_unique<InternalLinkMessage>(PSTRING() << "tg://privatepost?channel=" << to_integer<int64>(path[1])
                                                             << "&post=" << post << copy_arg("single") << thread
-                                                            << copy_arg("comment") << copy_arg("t"));
+                                                            << copy_arg("comment") << copy_arg("t") << copy_arg("task")
+                                                            << copy_arg("option"));
     } else if (path.size() >= 2 && to_integer<int64>(path[1]) > 0 && url_query.has_arg("boost")) {
       // /c/123456789?boost
       return td::make_unique<InternalLinkDialogBoost>(PSTRING() << "tg://boost?channel=" << to_integer<int64>(path[1]));
@@ -2655,6 +2686,12 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_t_me_link_query(Slice q
       // /setlanguage/<name>
       auto language_pack_id = path[1];
       return td::make_unique<InternalLinkLanguage>(std::move(language_pack_id));
+    }
+  } else if (path[0] == "addstyle") {
+    if (path.size() >= 2 && is_valid_text_composition_style_name(path[1])) {
+      // /addstyle/<name>
+      auto style_name = path[1];
+      return td::make_unique<InternalLinkTextCompositionStyle>(std::move(style_name));
     }
   } else if (path[0] == "addtheme") {
     if (path.size() >= 2 && is_valid_theme_name(path[1])) {
@@ -2741,9 +2778,13 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_t_me_link_query(Slice q
       return td::make_unique<InternalLinkInstantView>(
           PSTRING() << get_t_me_url() << "iv" << copy_arg("url") << copy_arg("rhash"), get_arg("url"));
     }
-  } else if (path.size() >= 3u && path[0] == "newbot" && is_valid_username(path[1]) && is_valid_username(path[2])) {
+  } else if (path.size() >= 3u && path[0] == "newbot" && is_valid_username(path[1]) &&
+             (path[2].empty() || is_valid_username(path[2]))) {
     // /newbot/<manager_bot_username>/<new_bot_username>?name=<new_bot_name>
     return td::make_unique<InternalLinkRequestManagedBot>(string(path[1]), string(path[2]), get_arg("name"));
+  } else if (path.size() == 2u && path[0] == "newbot" && is_valid_username(path[1])) {
+    // /newbot/<manager_bot_username>?name=<new_bot_name>
+    return td::make_unique<InternalLinkRequestManagedBot>(string(path[1]), string(), get_arg("name"));
   } else if (is_valid_username(path[0]) && path[0] != "i") {
     if (path.size() >= 2 && to_integer<int64>(path[1]) > 0) {
       // /<username>/12345?single&thread=<thread_id>&comment=<message_id>&t=<media_timestamp>
@@ -2755,9 +2796,9 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_t_me_link_query(Slice q
         thread = PSTRING() << "&thread=" << post;
         post = to_integer<int64>(path[2]);
       }
-      return td::make_unique<InternalLinkMessage>(PSTRING() << "tg://resolve?domain=" << url_encode(path[0])
-                                                            << "&post=" << post << copy_arg("single") << thread
-                                                            << copy_arg("comment") << copy_arg("t"));
+      return td::make_unique<InternalLinkMessage>(
+          PSTRING() << "tg://resolve?domain=" << url_encode(path[0]) << "&post=" << post << copy_arg("single") << thread
+                    << copy_arg("comment") << copy_arg("t") << copy_arg("task") << copy_arg("option"));
     }
     auto username = path[0];
     if (to_lower(username) == "boost") {
@@ -3798,6 +3839,17 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
                          << "&album=" << link->story_album_id_;
       } else {
         return PSTRING() << get_t_me_url() << link->story_album_owner_username_ << "/a/" << link->story_album_id_;
+      }
+    }
+    case td_api::internalLinkTypeTextCompositionStyle::ID: {
+      auto link = static_cast<const td_api::internalLinkTypeTextCompositionStyle *>(type_ptr);
+      if (!is_valid_text_composition_style_name(link->style_name_)) {
+        return Status::Error(400, "Invalid style name specified");
+      }
+      if (is_internal) {
+        return PSTRING() << "tg://addstyle?slug=" << url_encode(link->style_name_);
+      } else {
+        return PSTRING() << get_t_me_url() << "addstyle/" << url_encode(link->style_name_);
       }
     }
     case td_api::internalLinkTypeTheme::ID: {

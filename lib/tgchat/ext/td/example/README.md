@@ -82,6 +82,9 @@ See also the source code of [DIBgram](https://github.com/DIBgram/DIBgram) - an u
 TDLib can be used also from NativeScript through the [JSON](https://github.com/tdlib/td#using-json) interface.
 See [nativescript-tglib](https://github.com/arpit2438735/nativescript-tglib) as an example of a NativeScript library for building Telegram clients.
 
+TDLib can also be used from React Native on iOS and Android.
+See [react-native-tdlib](https://github.com/vladlenskiy/react-native-tdlib) as an example of a React Native library for building Telegram clients.
+
 <a name="go"></a>
 ## Using TDLib in Go projects
 
@@ -107,9 +110,11 @@ See [example/android](https://github.com/tdlib/td/tree/master/example/android) f
 
 TDLib can be used from the Kotlin/JVM programming language through same way as in [Java](#java).
 
-You can also use [ktd](https://github.com/whyoleg/ktd) library with Kotlin-specific bindings.
+See [tdl-coroutines](https://github.com/g000sha256/tdl-coroutines) - Kotlin Multiplatform coroutine-based wrapper for TDLib.
 
 See also [td-ktx](https://github.com/tdlibx/td-ktx) - Kotlin coroutines wrapper for TDLib.
+
+You can also use [ktd](https://github.com/whyoleg/ktd) library with Kotlin-specific bindings.
 
 Also, see [Monogram](https://github.com/monogram-android/monogram), which is an unofficial Telegram client for Android built with Jetpack Compose and Material Design 3.
 

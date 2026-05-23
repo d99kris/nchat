@@ -68,8 +68,9 @@ class MessageQueryManager final : public Actor {
 
   void report_message_delivery(MessageFullId message_full_id, int32 until_date, bool from_push);
 
-  void send_bot_requested_peer(MessageFullId message_full_id, UserId user_id, const string &request_id, int32 button_id,
-                               vector<DialogId> shared_dialog_ids, Promise<Unit> &&promise);
+  void share_dialogs_with_bot(const td_api::object_ptr<td_api::KeyboardButtonSource> &source_ptr, int32 button_id,
+                              vector<DialogId> shared_dialog_ids, bool expect_user, bool only_check,
+                              Promise<Unit> &&promise);
 
   void reload_message_extended_media(DialogId dialog_id, vector<MessageId> message_ids);
 
@@ -202,6 +203,13 @@ class MessageQueryManager final : public Actor {
                                            Promise<Unit> &&promise);
 
   void delete_topic_history(DialogId dialog_id, ForumTopicId forum_topic_id, Promise<Unit> &&promise);
+
+  void delete_reactions_by_sender(DialogId dialog_id, DialogId sender_dialog_id, Promise<Unit> &&promise);
+
+  void delete_reaction_by_sender(DialogId dialog_id, MessageId message_id, DialogId sender_dialog_id,
+                                 Promise<Unit> &&promise);
+
+  void get_personal_chat_history(UserId user_id, int32 limit, Promise<td_api::object_ptr<td_api::messages>> &&promise);
 
   void read_all_dialog_mentions_on_server(DialogId dialog_id, uint64 log_event_id, Promise<Unit> &&promise);
 

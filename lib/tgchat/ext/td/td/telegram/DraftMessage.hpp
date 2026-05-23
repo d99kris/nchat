@@ -82,6 +82,11 @@ void DraftMessage::parse(ParserT &parser) {
   }
   if (has_message_input_reply_to) {
     td::parse(message_input_reply_to_, parser);
+
+    auto message_id = message_input_reply_to_.get_same_chat_reply_to_message_id();
+    if (message_id.is_valid() && message_id.is_yet_unsent()) {
+      message_input_reply_to_ = {};
+    }
   }
   if (has_local_content) {
     parse_draft_message_content(local_content_, parser);

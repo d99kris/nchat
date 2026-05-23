@@ -189,6 +189,7 @@ class LinkManager final : public Actor {
   class InternalLinkStarGiftCollection;
   class InternalLinkStory;
   class InternalLinkStoryAlbum;
+  class InternalLinkTextCompositionStyle;
   class InternalLinkTheme;
   class InternalLinkUnknownDeepLink;
   class InternalLinkUpgradedGift;

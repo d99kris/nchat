@@ -50,7 +50,7 @@
 // For development testing of sponsored messages only
 // #define SIMULATED_SPONSORED_MESSAGES
 
-static const int s_TdlibDate = 20260403;
+static const int s_TdlibDate = 20260508;
 
 namespace detail
 {
@@ -1789,7 +1789,8 @@ void TgChat::Impl::InitProxy()
       auto proxyType = (!proxyUser.empty()) ? td::make_tl_object<td::td_api::proxyTypeSocks5>(proxyUser, proxyPass)
                                             : td::td_api::make_object<td::td_api::proxyTypeSocks5>();
       SendQuery(td::td_api::make_object<td::td_api::addProxy>(
-                  td::td_api::make_object<td::td_api::proxy>(proxyHost, proxyPort, std::move(proxyType)), proxyEnable),
+                  td::td_api::make_object<td::td_api::proxy>(proxyHost, proxyPort, std::move(proxyType)), proxyEnable,
+                  std::string()),
                 [](Object object)
       {
         if (object->get_id() == td::td_api::error::ID)

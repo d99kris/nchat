@@ -10,6 +10,7 @@
 #include "td/telegram/AudiosManager.h"
 #include "td/telegram/AuthManager.h"
 #include "td/telegram/ChatManager.h"
+#include "td/telegram/CustomEmojiId.h"
 #include "td/telegram/Dependencies.h"
 #include "td/telegram/DialogManager.h"
 #include "td/telegram/DialogPhoto.h"
@@ -262,6 +263,7 @@ class WebPagesManager::WebPage {
   vector<StoryFullId> story_full_ids_;
   vector<FileId> sticker_ids_;
   vector<StarGift> star_gifts_;
+  vector<CustomEmojiId> custom_emoji_ids_;
   WebPageInstantView instant_view_;
   int32 auction_end_date_ = 0;
   unique_ptr<StarGiftBackground> gift_background_;
@@ -293,6 +295,7 @@ class WebPagesManager::WebPage {
     bool has_star_gifts = !star_gifts_.empty();
     bool has_auction_end_date = auction_end_date_ != 0;
     bool has_gift_background = gift_background_ != nullptr;
+    bool has_custom_emoji_ids = !custom_emoji_ids_.empty();
     BEGIN_STORE_FLAGS();
     STORE_FLAG(has_type);
     STORE_FLAG(has_site_name);
@@ -316,6 +319,7 @@ class WebPagesManager::WebPage {
     STORE_FLAG(video_cover_photo_);
     STORE_FLAG(has_auction_end_date);
     STORE_FLAG(has_gift_background);
+    STORE_FLAG(has_custom_emoji_ids);
     END_STORE_FLAGS();
 
     store(url_, storer);
@@ -376,6 +380,9 @@ class WebPagesManager::WebPage {
     if (has_gift_background) {
       store(gift_background_, storer);
     }
+    if (has_custom_emoji_ids) {
+      store(custom_emoji_ids_, storer);
+    }
   }
 
   template <class ParserT>
@@ -401,6 +408,7 @@ class WebPagesManager::WebPage {
     bool has_star_gifts;
     bool has_auction_end_date;
     bool has_gift_background;
+    bool has_custom_emoji_ids;
     BEGIN_PARSE_FLAGS();
     PARSE_FLAG(has_type);
     PARSE_FLAG(has_site_name);
@@ -424,6 +432,7 @@ class WebPagesManager::WebPage {
     PARSE_FLAG(video_cover_photo_);
     PARSE_FLAG(has_auction_end_date);
     PARSE_FLAG(has_gift_background);
+    PARSE_FLAG(has_custom_emoji_ids);
     END_PARSE_FLAGS();
 
     parse(url_, parser);
@@ -493,6 +502,9 @@ class WebPagesManager::WebPage {
     if (has_gift_background) {
       parse(gift_background_, parser);
     }
+    if (has_custom_emoji_ids) {
+      parse(custom_emoji_ids_, parser);
+    }
 
     if (has_instant_view) {
       instant_view_.is_empty_ = false;
@@ -513,6 +525,7 @@ class WebPagesManager::WebPage {
            lhs.theme_settings_ == rhs.theme_settings_ && lhs.story_full_ids_ == rhs.story_full_ids_ &&
            lhs.sticker_ids_ == rhs.sticker_ids_ && lhs.star_gifts_ == rhs.star_gifts_ &&
            lhs.auction_end_date_ == rhs.auction_end_date_ && lhs.gift_background_ == rhs.gift_background_ &&
+           lhs.custom_emoji_ids_ == rhs.custom_emoji_ids_ &&
            lhs.instant_view_.is_empty_ == rhs.instant_view_.is_empty_ &&
            lhs.instant_view_.is_v2_ == rhs.instant_view_.is_v2_;
   }
@@ -752,6 +765,19 @@ WebPageId WebPagesManager::on_get_web_page(tl_object_ptr<telegram_api::WebPage> 
             page->auction_end_date_ = attribute->end_date_;
             if (page->type_ != "telegram_auction") {
               LOG(ERROR) << "Receive webPageAttributeStarGiftAuction for " << page->type_;
+            }
+            break;
+          }
+          case telegram_api::webPageAttributeAiComposeTone::ID: {
+            auto attribute = telegram_api::move_object_as<telegram_api::webPageAttributeAiComposeTone>(attribute_ptr);
+            auto custom_emoji_id = CustomEmojiId(attribute->emoji_id_);
+            if (!custom_emoji_id.is_valid()) {
+              LOG(ERROR) << "Receive " << to_string(attribute);
+              break;
+            }
+            page->custom_emoji_ids_.push_back(custom_emoji_id);
+            if (page->type_ != "telegram_aicomposetone") {
+              LOG(ERROR) << "Receive webPageAttributeAiComposeTone for " << page->type_;
             }
             break;
           }
@@ -1538,6 +1564,17 @@ td_api::object_ptr<td_api::LinkPreviewType> WebPagesManager::get_link_preview_ty
   }
   if (begins_with(web_page->type_, "telegram_")) {
     Slice type = Slice(web_page->type_).substr(9);
+    if (type == "aicomposetone") {
+      LOG_IF(ERROR, !web_page->photo_.is_empty()) << "Receive photo for " << web_page->url_;
+      LOG_IF(ERROR, web_page->document_.type != Document::Type::Unknown) << "Receive file for " << web_page->url_;
+      CustomEmojiId custom_emoji_id;
+      if (web_page->custom_emoji_ids_.size() == 1) {
+        custom_emoji_id = web_page->custom_emoji_ids_[0];
+      } else {
+        need_reload = true;
+      }
+      return td_api::make_object<td_api::linkPreviewTypeTextCompositionStyle>(custom_emoji_id.get());
+    }
     if (type == "auction") {
       if (web_page->star_gifts_.size() == 1) {
         return td_api::make_object<td_api::linkPreviewTypeGiftAuction>(

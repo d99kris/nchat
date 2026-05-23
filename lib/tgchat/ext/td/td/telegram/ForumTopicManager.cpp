@@ -845,7 +845,7 @@ void ForumTopicManager::on_get_forum_topic(DialogId dialog_id, ForumTopicId expe
                                            telegram_api::object_ptr<telegram_api::ForumTopic> &&topic,
                                            Promise<td_api::object_ptr<td_api::forumTopic>> &&promise) {
   TRY_STATUS_PROMISE(promise, is_forum(dialog_id, true));
-  td_->messages_manager_->on_get_messages(dialog_id, std::move(info.messages), false, false, Promise<Unit>(),
+  td_->messages_manager_->on_get_messages(dialog_id, std::move(info.messages), false, Promise<Unit>(),
                                           "on_get_forum_topic");
 
   auto forum_topic_id = on_get_forum_topic_impl(dialog_id, std::move(topic));
@@ -905,7 +905,7 @@ void ForumTopicManager::on_get_forum_topics(DialogId dialog_id, bool order_by_cr
                                             vector<telegram_api::object_ptr<telegram_api::ForumTopic>> &&topics,
                                             Promise<td_api::object_ptr<td_api::forumTopics>> &&promise) {
   TRY_STATUS_PROMISE(promise, is_forum(dialog_id, true));
-  td_->messages_manager_->on_get_messages(dialog_id, std::move(info.messages), false, false, Promise<Unit>(),
+  td_->messages_manager_->on_get_messages(dialog_id, std::move(info.messages), false, Promise<Unit>(),
                                           "on_get_forum_topics");
   vector<td_api::object_ptr<td_api::forumTopic>> forum_topics;
   int32 next_offset_date = 0;

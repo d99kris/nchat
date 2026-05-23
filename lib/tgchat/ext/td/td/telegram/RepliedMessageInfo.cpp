@@ -154,8 +154,8 @@ RepliedMessageInfo::RepliedMessageInfo(Td *td, const MessageInputReplyTo &input_
       *content_text = FormattedText();
 
       if (content_->get_type() == MessageContentType::Text) {
-        auto content = get_message_content_object(content_.get(), td, DialogId(), MessageId(), false, true, DialogId(),
-                                                  0, false, true, -1, false, false);
+        auto content = get_message_content_object(content_.get(), td, DialogId(), MessageId(), DialogId(), false, false,
+                                                  true, DialogId(), 0, 0, false, true, -1, false, false);
         if (content->get_id() == td_api::messageText::ID) {
           const auto *message_text = static_cast<const td_api::messageText *>(content.get());
           if (message_text->link_preview_ == nullptr && message_text->link_preview_options_ == nullptr) {
@@ -340,8 +340,8 @@ td_api::object_ptr<td_api::messageReplyToMessage> RepliedMessageInfo::get_messag
 
   td_api::object_ptr<td_api::MessageContent> content;
   if (content_ != nullptr) {
-    content = get_message_content_object(content_.get(), td, DialogId(), message_id, false, true, DialogId(), 0, false,
-                                         true, -1, false, false);
+    content = get_message_content_object(content_.get(), td, DialogId(), message_id, DialogId(), false, false, true,
+                                         DialogId(), 0, 0, false, true, -1, false, false);
     switch (content->get_id()) {
       case td_api::messageUnsupported::ID:
         content = nullptr;
@@ -367,7 +367,8 @@ td_api::object_ptr<td_api::messageReplyToMessage> RepliedMessageInfo::get_messag
 MessageInputReplyTo RepliedMessageInfo::get_message_input_reply_to() const {
   CHECK(!is_external());
   if (message_id_.is_valid() || message_id_.is_valid_scheduled()) {
-    return MessageInputReplyTo(message_id_, dialog_id_, quote_.clone(true), todo_item_id_, poll_option_id_);
+    return MessageInputReplyTo(message_id_, dialog_id_, quote_.clone(true), todo_item_id_, poll_option_id_,
+                               "RepliedMessageInfo");
   }
   return {};
 }

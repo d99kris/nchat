@@ -351,6 +351,16 @@ bool is_allowed_poll_option_content(MessageContentType content_type) {
   }
 }
 
+bool can_message_content_have_multiple_files(MessageContentType content_type) {
+  switch (content_type) {
+    case MessageContentType::PaidMedia:
+    case MessageContentType::Poll:
+      return true;
+    default:
+      return false;
+  }
+}
+
 bool can_be_secret_message_content(MessageContentType content_type) {
   switch (content_type) {
     case MessageContentType::Animation:

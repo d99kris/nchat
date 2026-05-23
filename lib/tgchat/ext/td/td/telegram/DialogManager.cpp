@@ -758,9 +758,9 @@ class GetBlockedDialogsQuery final : public Td::ResultHandler {
 
         td_->user_manager_->on_get_users(std::move(blocked_peers->users_), "GetBlockedDialogsQuery");
         td_->chat_manager_->on_get_chats(std::move(blocked_peers->chats_), "GetBlockedDialogsQuery");
-        td_->dialog_manager_->on_get_blocked_dialogs(offset_, limit_,
-                                                     narrow_cast<int32>(blocked_peers->blocked_.size()),
-                                                     std::move(blocked_peers->blocked_), std::move(promise_));
+        auto total_count = narrow_cast<int32>(blocked_peers->blocked_.size());
+        td_->dialog_manager_->on_get_blocked_dialogs(offset_, limit_, total_count, std::move(blocked_peers->blocked_),
+                                                     std::move(promise_));
         break;
       }
       case telegram_api::contacts_blockedSlice::ID: {
@@ -2151,7 +2151,7 @@ RestrictedRights DialogManager::get_dialog_default_permissions(DialogId dialog_i
     default:
       UNREACHABLE();
       return RestrictedRights(false, false, false, false, false, false, false, false, false, false, false, false, false,
-                              false, false, false, false, false, ChannelType::Unknown);
+                              false, false, false, false, false, false, ChannelType::Unknown);
   }
 }
 
@@ -3014,10 +3014,10 @@ void DialogManager::check_dialog_username(DialogId dialog_id, const string &user
       if (error.message() == "USERNAME_INVALID") {
         return promise.set_value(CheckDialogUsernameResult::Invalid);
       }
+      if (error.message() == "USERNAME_OCCUPIED") {
+        return promise.set_value(CheckDialogUsernameResult::Occupied);
+      }
       if (error.message() == "USERNAME_PURCHASE_AVAILABLE") {
-        if (begins_with(G()->get_option_string("my_phone_number"), "1")) {
-          return promise.set_value(CheckDialogUsernameResult::Invalid);
-        }
         return promise.set_value(CheckDialogUsernameResult::Purchasable);
       }
       return promise.set_error(std::move(error));

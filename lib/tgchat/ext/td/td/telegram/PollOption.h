@@ -16,6 +16,7 @@
 #include "td/telegram/UserId.h"
 
 #include "td/utils/common.h"
+#include "td/utils/Status.h"
 
 #include <utility>
 
@@ -28,19 +29,26 @@ class Td;
 struct PollOption {
   FormattedText text_;
   unique_ptr<MessageContent> media_;
-  string data_;
   DialogId added_by_dialog_id_;
   vector<DialogId> recent_voter_dialog_ids_;
   int32 added_date_ = 0;
   int32 voter_count_ = 0;
   bool is_chosen_ = false;
 
+  friend bool operator==(const PollOption &lhs, const PollOption &rhs);
+
   PollOption() = default;
 
-  PollOption(FormattedText &&text, unique_ptr<MessageContent> &&media, int32 pos);
+  PollOption(FormattedText &&text, unique_ptr<MessageContent> &&media);
 
   PollOption(Td *td, telegram_api::object_ptr<telegram_api::PollAnswer> &&poll_answer_ptr,
              vector<std::pair<ChannelId, MinChannel>> &min_channels);
+
+  static Result<PollOption> get_poll_option(Td *td, DialogId dialog_id,
+                                            td_api::object_ptr<td_api::inputPollOption> &&input_poll_option);
+
+  static Result<vector<PollOption>> get_poll_options(
+      Td *td, DialogId dialog_id, vector<td_api::object_ptr<td_api::inputPollOption>> &&input_poll_options);
 
   const string &get_data() const {
     return data_;
@@ -54,11 +62,14 @@ struct PollOption {
     return added_date_;
   }
 
+  PollOption dup_option(Td *td, DialogId dialog_id) const;
+
   void append_file_ids(const Td *td, vector<FileId> &file_ids) const;
 
   td_api::object_ptr<td_api::pollOption> get_poll_option_object(Td *td) const;
 
-  telegram_api::object_ptr<telegram_api::PollAnswer> get_input_poll_answer() const;
+  telegram_api::object_ptr<telegram_api::PollAnswer> get_input_poll_answer(
+      telegram_api::object_ptr<telegram_api::InputMedia> &&input_media) const;
 
   static vector<PollOption> get_poll_options(Td *td,
                                              vector<telegram_api::object_ptr<telegram_api::PollAnswer>> &&poll_answers,
@@ -71,6 +82,9 @@ struct PollOption {
 
   template <class ParserT>
   void parse(ParserT &parser);
+
+ private:
+  string data_;
 };
 
 bool operator==(const PollOption &lhs, const PollOption &rhs);

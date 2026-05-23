@@ -33,7 +33,6 @@
 #include "td/telegram/TdDb.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/TranscriptionManager.h"
-#include "td/telegram/TranslationManager.h"
 #include "td/telegram/UserId.h"
 #include "td/telegram/UserManager.h"
 
@@ -268,9 +267,10 @@ ActorOwn<> get_simple_config_firebase_remote_config(Promise<SimpleConfigResult> 
   }
 
   static const string payload = generate_firebase_remote_config_payload();
-  string url =
-      "https://firebaseremoteconfig.googleapis.com/v1/projects/peak-vista-421/namespaces/"
-      "firebase:fetch?key=AIzaSyC2-kAkpDsroixRXw-sTw-Wfqo4NxjMwwM";
+  auto url =
+      PSTRING()
+      << "https://firebaseremoteconfig.googleapis.com/v1/projects/peak-vista-421/namespaces/firebase:fetch?key="
+      << hex_decode("41497a61537943322d6b416b704473726f69785258772d7354772d5766716f344e786a4d77774d").move_as_ok();
   auto get_config = [](HttpQuery &http_query) -> Result<string> {
     TRY_RESULT(json, json_decode(http_query.get_arg("entries")));
     if (json.type() != JsonValue::Type::Object) {
@@ -1363,7 +1363,6 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
   string ton_stakedice_stake_suggested_amounts;
   string gift_craft_probabilities;
   string music_search_username;
-  vector<string> ai_compose_styles;
 
   // {"stories_all_hidden", "archive_all_stories"}
   static const FlatHashMap<Slice, Slice, SliceHash> bool_keys = {
@@ -1379,6 +1378,9 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
       {"video_ignore_alt_documents", ""}};
 
   static const FlatHashMap<Slice, Slice, SliceHash> integer_keys = {
+      {"aicompose_tone_examples_num", "text_composition_style_example_count"},
+      {"aicompose_tone_prompt_length_max", "text_composition_style_prompt_length_max"},
+      {"aicompose_tone_title_length_max", "text_composition_style_title_length_max"},
       {"authorization_autoconfirm_period", ""},
       {"boosts_channel_level_max", "chat_boost_level_max"},
       {"boosts_per_sent_gift", "premium_gift_boost_count"},
@@ -1420,6 +1422,7 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
       {"poll_answer_delete_period", ""},
       {"poll_answers_max", "poll_answer_count_max"},
       {"poll_close_period_max", "poll_open_period_max"},
+      {"poll_countries_max", "poll_country_count_max"},
       {"quick_replies_limit", "quick_reply_shortcut_count_max"},
       {"quick_reply_messages_limit", "quick_reply_shortcut_message_count_max"},
       {"quote_length_max", "message_reply_quote_length_max"},
@@ -2043,29 +2046,8 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
         music_search_username = get_json_value_string(std::move(key_value->value_), key);
         continue;
       }
-      if (key == "ai_compose_styles") {
-        if (value->get_id() == telegram_api::jsonArray::ID) {
-          auto styles = std::move(static_cast<telegram_api::jsonArray *>(value)->value_);
-          for (auto &style : styles) {
-            if (style->get_id() == telegram_api::jsonArray::ID) {
-              auto style_value = std::move(static_cast<telegram_api::jsonArray *>(style.get())->value_);
-              if (style_value.size() != 3u || style_value[0]->get_id() != telegram_api::jsonString::ID ||
-                  style_value[1]->get_id() != telegram_api::jsonString::ID ||
-                  style_value[2]->get_id() != telegram_api::jsonString::ID) {
-                LOG(ERROR) << "Receive invalid style " << to_string(style_value);
-              } else {
-                ai_compose_styles.push_back(get_json_value_string(std::move(style_value[0]), Slice()));
-                ai_compose_styles.push_back(get_json_value_string(std::move(style_value[1]), Slice()));
-                ai_compose_styles.push_back(get_json_value_string(std::move(style_value[2]), Slice()));
-              }
-            } else {
-              LOG(ERROR) << "Receive unexpected style " << to_string(style);
-              break;
-            }
-          }
-        } else {
-          LOG(ERROR) << "Receive unexpected ai_compose_styles " << to_string(*value);
-        }
+      if (key == "phone_country_iso2") {
+        G()->set_option_string("phone_country_iso2", get_json_value_string(std::move(key_value->value_), key));
         continue;
       }
 
@@ -2082,9 +2064,6 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
   send_closure(G()->transcription_manager(), &TranscriptionManager::on_update_trial_parameters,
                transcribe_audio_trial_weekly_number, transcribe_audio_trial_duration_max,
                transcribe_audio_trial_cooldown_until);
-
-  send_closure(G()->translation_manager(), &TranslationManager::on_update_ai_compose_styles,
-               std::move(ai_compose_styles));
 
   send_closure(G()->user_manager(), &UserManager::on_update_freeze_state, freeze_since_date, freeze_until_date,
                std::move(freeze_appeal_url));

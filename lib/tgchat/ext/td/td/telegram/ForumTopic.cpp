@@ -67,7 +67,7 @@ bool ForumTopic::update_last_read_inbox_message_id(MessageId last_read_inbox_mes
 bool ForumTopic::update_unread_mention_count(int32 count, bool is_relative) {
   auto new_unread_mention_count = is_relative ? unread_mention_count_ + count : count;
   if (new_unread_mention_count < 0) {
-    LOG(ERROR) << "Tried to change unread mention count to " << new_unread_mention_count;
+    LOG(INFO) << "Tried to change unread mention count to " << new_unread_mention_count;
     new_unread_mention_count = 0;
   }
   if (unread_mention_count_ == new_unread_mention_count) {
@@ -80,7 +80,7 @@ bool ForumTopic::update_unread_mention_count(int32 count, bool is_relative) {
 bool ForumTopic::update_unread_reaction_count(int32 count, bool is_relative) {
   auto new_unread_reaction_count = is_relative ? unread_reaction_count_ + count : count;
   if (new_unread_reaction_count < 0) {
-    LOG(ERROR) << "Tried to change unread reaction count to " << new_unread_reaction_count;
+    LOG(INFO) << "Tried to change unread reaction count to " << new_unread_reaction_count;
     new_unread_reaction_count = 0;
   }
   if (unread_reaction_count_ == new_unread_reaction_count) {
@@ -93,7 +93,7 @@ bool ForumTopic::update_unread_reaction_count(int32 count, bool is_relative) {
 bool ForumTopic::update_unread_poll_vote_count(int32 count, bool is_relative) {
   auto new_unread_poll_vote_count = is_relative ? unread_poll_vote_count_ + count : count;
   if (new_unread_poll_vote_count < 0) {
-    LOG(ERROR) << "Tried to change unread poll vote count to " << new_unread_poll_vote_count;
+    LOG(INFO) << "Tried to change unread poll vote count to " << new_unread_poll_vote_count;
     new_unread_poll_vote_count = 0;
   }
   if (unread_poll_vote_count_ == new_unread_poll_vote_count) {

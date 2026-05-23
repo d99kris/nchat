@@ -289,11 +289,16 @@ class CliClient final : public Actor {
   }
 
   FlatHashMap<string, int64> username_to_supergroup_id_;
+  FlatHashSet<int64> channel_ids_;
+
   void register_supergroup(const td_api::supergroup &supergroup) {
     if (supergroup.usernames_ != nullptr) {
       for (auto &username : supergroup.usernames_->active_usernames_) {
         username_to_supergroup_id_[to_lower(username)] = supergroup.id_;
       }
+    }
+    if (supergroup.is_channel_) {
+      channel_ids_.insert(supergroup.id_);
     }
   }
 
@@ -2097,9 +2102,11 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::getNetworkStatistics>());
       send_request(td_api::make_object<td_api::getCountryCode>());
       send_request(td_api::make_object<td_api::addProxy>(
-          td_api::make_object<td_api::proxy>("1.1.1.1", 1111, td_api::make_object<td_api::proxyTypeSocks5>()), true));
+          td_api::make_object<td_api::proxy>("1.1.1.1", 1111, td_api::make_object<td_api::proxyTypeSocks5>()), true,
+          "1111"));
       send_request(td_api::make_object<td_api::addProxy>(
-          td_api::make_object<td_api::proxy>("1.1.1.1", 1112, td_api::make_object<td_api::proxyTypeSocks5>()), false));
+          td_api::make_object<td_api::proxy>("1.1.1.1", 1112, td_api::make_object<td_api::proxyTypeSocks5>()), false,
+          "1112"));
       send_request(td_api::make_object<td_api::pingProxy>(nullptr));
 
       auto bad_request = td_api::make_object<td_api::setTdlibParameters>();
@@ -2412,6 +2419,8 @@ class CliClient final : public Actor {
       return td_api::make_object<td_api::topChatCategoryChannels>();
     } else if (category == "inline") {
       return td_api::make_object<td_api::topChatCategoryInlineBots>();
+    } else if (category == "guest") {
+      return td_api::make_object<td_api::topChatCategoryGuestBots>();
     } else if (category == "app") {
       return td_api::make_object<td_api::topChatCategoryWebAppBots>();
     } else if (category == "call") {
@@ -2909,10 +2918,12 @@ class CliClient final : public Actor {
       send_request(
           td_api::make_object<td_api::setAuthenticationPhoneNumber>(args, as_phone_number_authentication_settings()));
     } else if (op == "capp") {
+      int32 premium_day_count;
       string currency;
       int64 amount;
-      get_args(args, currency, amount);
-      send_request(td_api::make_object<td_api::checkAuthenticationPremiumPurchase>(currency, amount));
+      get_args(args, premium_day_count, currency, amount);
+      send_request(
+          td_api::make_object<td_api::checkAuthenticationPremiumPurchase>(premium_day_count, currency, amount));
     } else if (op == "sae" || op == "saea") {
       send_request(td_api::make_object<td_api::setAuthenticationEmailAddress>(args));
     } else if (op == "rac") {
@@ -3729,6 +3740,19 @@ class CliClient final : public Actor {
       string reaction;
       get_args(args, chat_id, message_id, reaction);
       send_request(td_api::make_object<td_api::removeMessageReaction>(chat_id, message_id, as_reaction_type(reaction)));
+    } else if (op == "darmrfs") {
+      ChatId chat_id;
+      string sender_id;
+      get_args(args, chat_id, sender_id);
+      send_request(td_api::make_object<td_api::deleteAllRecentMessageReactionsFromSender>(
+          chat_id, as_message_sender(sender_id)));
+    } else if (op == "dmrfs") {
+      ChatId chat_id;
+      MessageId message_id;
+      string sender_id;
+      get_args(args, chat_id, message_id, sender_id);
+      send_request(td_api::make_object<td_api::deleteMessageReactionsFromSender>(chat_id, message_id,
+                                                                                 as_message_sender(sender_id)));
     } else if (op == "reactbot" || op == "reactbotbig") {
       ChatId chat_id;
       MessageId message_id;
@@ -4082,9 +4106,12 @@ class CliClient final : public Actor {
       get_args(args, file_id);
       send_request(td_api::make_object<td_api::isProfileAudio>(as_file_id(file_id)));
     } else if (op == "apa") {
-      string file_id;
-      get_args(args, file_id);
-      send_request(td_api::make_object<td_api::addProfileAudio>(as_file_id(file_id)));
+      string audio;
+      int32 duration;
+      string title;
+      string performer;
+      get_args(args, audio, duration, title, performer);
+      send_request(td_api::make_object<td_api::addProfileAudio>(as_input_file(audio), duration, title, performer));
     } else if (op == "spap") {
       string file_id;
       string after_file_id;
@@ -4982,6 +5009,42 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::getMessageEmbeddingCode>(chat_id, message_id, for_album));
     } else if (op == "gmli") {
       send_request(td_api::make_object<td_api::getMessageLinkInfo>(args));
+    } else if (op == "ctcs" || op == "ctcsp") {
+      string title;
+      int64 custom_emoji_id;
+      string prompt;
+      get_args(args, title, custom_emoji_id, prompt);
+      send_request(
+          td_api::make_object<td_api::createTextCompositionStyle>(title, custom_emoji_id, prompt, op == "ctcsp"));
+    } else if (op == "etcs" || op == "etcsp") {
+      string name;
+      string title;
+      int64 custom_emoji_id;
+      string prompt;
+      get_args(args, name, title, custom_emoji_id, prompt);
+      send_request(
+          td_api::make_object<td_api::editTextCompositionStyle>(name, title, custom_emoji_id, prompt, op == "etcsp"));
+    } else if (op == "dtcs") {
+      string name;
+      get_args(args, name);
+      send_request(td_api::make_object<td_api::deleteTextCompositionStyle>(name));
+    } else if (op == "stcs") {
+      string name;
+      get_args(args, name);
+      send_request(td_api::make_object<td_api::searchTextCompositionStyle>(name));
+    } else if (op == "gtcse") {
+      string name;
+      int32 example_number;
+      get_args(args, name, example_number);
+      send_request(td_api::make_object<td_api::getTextCompositionStyleExample>(name, example_number));
+    } else if (op == "atcs") {
+      string name;
+      get_args(args, name);
+      send_request(td_api::make_object<td_api::addTextCompositionStyle>(name));
+    } else if (op == "rtcs") {
+      string name;
+      get_args(args, name);
+      send_request(td_api::make_object<td_api::removeTextCompositionStyle>(name));
     } else if (op == "tt" || op == "ttf" || op == "ttc" || op == "ttn") {
       string text;
       string to_language_code;
@@ -6785,7 +6848,7 @@ class CliClient final : public Actor {
       string question;
       get_args(args, chat_id, question, args);
       auto options = transform(autosplit_str(args), [](const string &option) {
-        return td_api::make_object<td_api::inputPollOption>(as_formatted_text(option));
+        return td_api::make_object<td_api::inputPollOption>(as_formatted_text(option), nullptr);
       });
       td_api::object_ptr<td_api::InputPollType> poll_type;
       if (op == "squiz") {
@@ -6795,13 +6858,19 @@ class CliClient final : public Actor {
           correct_option_ids.push_back(narrow_cast<int32>(options.size() - 1));
         }
         poll_type = td_api::make_object<td_api::inputPollTypeQuiz>(std::move(correct_option_ids),
-                                                                   as_formatted_text("_te*st*_"));
+                                                                   as_formatted_text("_te*st*_"), nullptr);
       } else {
-        poll_type = td_api::make_object<td_api::inputPollTypeRegular>(rand_bool());
+        poll_type = td_api::make_object<td_api::inputPollTypeRegular>(rand_bool() && op == "spollp");
+      }
+      auto can_restrict = channel_ids_.count(chat_id) > 0;
+      vector<string> country_codes;
+      if (rand_bool() && can_restrict) {
+        country_codes.push_back("US");
       }
       send_message(chat_id, td_api::make_object<td_api::inputMessagePoll>(
-                                as_formatted_text(question), std::move(options), get_caption(), op != "spollp",
-                                rand_bool(), rand_bool(), rand_bool(), rand_bool(), std::move(poll_type), 0, 0, false));
+                                as_formatted_text(question), std::move(options), get_caption(), nullptr, op != "spollp",
+                                rand_bool(), rand_bool(), rand_bool() && can_restrict, std::move(country_codes),
+                                rand_bool(), rand_bool(), std::move(poll_type), 0, 0, false));
     } else if (op == "schl") {
       ChatId chat_id;
       InputChecklist checklist;
@@ -7163,14 +7232,14 @@ class CliClient final : public Actor {
       ChatId chat_id;
       string permissions;
       get_args(args, chat_id, permissions);
-      constexpr size_t EXPECTED_SIZE = 15;
+      constexpr size_t EXPECTED_SIZE = 16;
       if (permissions.size() == EXPECTED_SIZE) {
         auto &s = permissions;
         send_request(td_api::make_object<td_api::setChatPermissions>(
-            chat_id, td_api::make_object<td_api::chatPermissions>(s[0] == '1', s[1] == '1', s[2] == '1', s[3] == '1',
-                                                                  s[4] == '1', s[5] == '1', s[6] == '1', s[7] == '1',
-                                                                  s[8] == '1', s[9] == '1', s[10] == '1', s[11] == '1',
-                                                                  s[12] == '1', s[13] == '1', s[14] == '1')));
+            chat_id, td_api::make_object<td_api::chatPermissions>(
+                         s[0] == '1', s[1] == '1', s[2] == '1', s[3] == '1', s[4] == '1', s[5] == '1', s[6] == '1',
+                         s[7] == '1', s[8] == '1', s[9] == '1', s[10] == '1', s[11] == '1', s[12] == '1', s[13] == '1',
+                         s[14] == '1', s[15] == '1')));
       } else {
         LOG(ERROR) << "Wrong permissions size, expected " << EXPECTED_SIZE;
       }
@@ -7220,7 +7289,7 @@ class CliClient final : public Actor {
       string text;
       get_args(args, chat_id, message_id, text);
       send_request(td_api::make_object<td_api::addPollOption>(
-          chat_id, message_id, td_api::make_object<td_api::inputPollOption>(as_formatted_text(text))));
+          chat_id, message_id, td_api::make_object<td_api::inputPollOption>(as_formatted_text(text), nullptr)));
     } else if (op == "dpo") {
       ChatId chat_id;
       MessageId message_id;
@@ -7241,6 +7310,12 @@ class CliClient final : public Actor {
       string limit;
       get_args(args, chat_id, message_id, option_id, offset, limit);
       send_request(td_api::make_object<td_api::getPollVoters>(chat_id, message_id, option_id, offset, as_limit(limit)));
+    } else if (op == "gpvst") {
+      ChatId chat_id;
+      MessageId message_id;
+      bool is_dark;
+      get_args(args, chat_id, message_id, is_dark);
+      send_request(td_api::make_object<td_api::getPollVoteStatistics>(chat_id, message_id, is_dark));
     } else if (op == "stoppoll") {
       ChatId chat_id;
       MessageId message_id;
@@ -7324,22 +7399,22 @@ class CliClient final : public Actor {
         status = td_api::make_object<td_api::chatMemberStatusRestricted>(
             true, static_cast<int32>(120 + std::time(nullptr)),
             td_api::make_object<td_api::chatPermissions>(false, false, false, false, false, false, false, false, false,
-                                                         false, false, false, false, false, false));
+                                                         false, false, false, false, false, false, false));
       } else if (status_str == "restkick") {
         status = td_api::make_object<td_api::chatMemberStatusRestricted>(
             false, static_cast<int32>(120 + std::time(nullptr)),
             td_api::make_object<td_api::chatPermissions>(true, false, false, false, false, false, false, false, false,
-                                                         false, false, false, false, false, false));
+                                                         false, false, false, false, false, false, false));
       } else if (status_str == "restunkick") {
         status = td_api::make_object<td_api::chatMemberStatusRestricted>(
             true, static_cast<int32>(120 + std::time(nullptr)),
             td_api::make_object<td_api::chatPermissions>(true, false, false, false, false, false, false, false, false,
-                                                         false, false, false, false, false, false));
+                                                         false, false, false, false, false, false, false));
       } else if (status_str == "unrest") {
         status = td_api::make_object<td_api::chatMemberStatusRestricted>(
             true, 0,
             td_api::make_object<td_api::chatPermissions>(true, true, true, true, true, true, true, true, true, true,
-                                                         true, true, true, true, true));
+                                                         true, true, true, true, true, true));
       }
       if (status != nullptr) {
         send_request(
@@ -8043,10 +8118,6 @@ class CliClient final : public Actor {
       string username;
       get_args(args, manager_bot_user_id, name, username);
       send_request(td_api::make_object<td_api::createBot>(manager_bot_user_id, name, username, op == "cbl"));
-    } else if (op == "gbt" || op == "gbtr") {
-      UserId bot_user_id;
-      get_args(args, bot_user_id);
-      send_request(td_api::make_object<td_api::getBotToken>(bot_user_id, op == "gbtr"));
     } else if (op == "gbi") {
       UserId bot_user_id;
       string language_code;
@@ -8521,14 +8592,18 @@ class CliClient final : public Actor {
         }
       }
       auto proxy = td_api::make_object<td_api::proxy>(server, port, std::move(type));
+      string comment;
+      if (rand_bool()) {
+        comment = to_string(Random::fast(0, 10));
+      }
       if (op[0] == 'e') {
-        send_request(td_api::make_object<td_api::editProxy>(as_proxy_id(proxy_id), std::move(proxy), enable));
+        send_request(td_api::make_object<td_api::editProxy>(as_proxy_id(proxy_id), std::move(proxy), enable, comment));
       } else if (op == "pproxy" || op == "pproxyp") {
         send_request(td_api::make_object<td_api::pingProxy>(std::move(proxy)));
       } else if (op == "tproxy") {
         send_request(td_api::make_object<td_api::testProxy>(std::move(proxy), 2, 10.0));
       } else {
-        send_request(td_api::make_object<td_api::addProxy>(std::move(proxy), enable));
+        send_request(td_api::make_object<td_api::addProxy>(std::move(proxy), enable, comment));
       }
     } else if (op == "ping") {
       send_request(td_api::make_object<td_api::pingProxy>());
