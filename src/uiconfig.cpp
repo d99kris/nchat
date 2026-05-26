@@ -43,6 +43,7 @@ void UiConfig::Init()
     { "failed_indicator", "\xe2\x9c\x97" },
     { "file_picker_command", "" },
     { "file_picker_persist_dir", "1" },
+    { "file_picker_sort_mode", "0" },
     { "help_enabled", "1" },
     { "home_fetch_all", "0" },
     { "linefeed_on_enter", "1" },
