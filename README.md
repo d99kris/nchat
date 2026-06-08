@@ -499,6 +499,7 @@ This configuration file holds general user interface settings. Default content:
     typing_status_share=1
     undo_clear_input=1
     unread_indicator=*
+    vim_mode=0
 
 ### attachment_indicator
 
@@ -849,6 +850,27 @@ is enabled.
 ### unread_indicator
 
 Specifies the character to suffix chats with unread messages in the chat list.
+
+### vim_mode
+
+Specifies whether to enable vim-style modal editing in the message compose
+entry. Default `0` (disabled). When enabled, the entry starts in insert mode;
+press `Esc` for normal mode. The current mode is shown as a colored badge in
+the status bar (configurable via the `vim_*_color` / `vim_*_attr` keys in
+`color.conf`) and as a cursor shape (bar in insert, block in normal).
+
+Supported commands in normal mode:
+
+| Group | Commands |
+| ----- | -------- |
+| Motions | `h l 0 ^ $`, `w e b W E B`, `( )` (sentence), `{ }` (paragraph), `j k`, `gg G`, `f F t T` |
+| Operators | `d c y` + any motion; `dd cc yy` (line); `D C` (to end of line) |
+| Edit | `x X`, `s S` (substitute), `o O` (open line), `p P` (paste) |
+| Modes | `i a A I` (insert), `v` (visual), `Esc` (normal) |
+| Counts | e.g. `3w`, `d3w`, `2dd` |
+
+Visual mode (`v`) highlights the selection and applies `d c y x` to it.
+When `vim_mode=0` there is no behavioral change and zero overhead.
 
 ~/.config/nchat/key.conf
 ------------------------

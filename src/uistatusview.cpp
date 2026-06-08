@@ -41,17 +41,31 @@ void UiStatusView::Draw()
   wbkgd(m_Win, attribute | colorPair | ' ');
   wattron(m_Win, attribute | colorPair);
 
+  std::wstring vimBadge;
+  if (m_Model->GetVimModeLocked())
+  {
+    if (m_Model->GetVimVisualLocked())
+    {
+      vimBadge = L" VISUAL ";
+    }
+    else
+    {
+      vimBadge = m_Model->GetVimInsertModeLocked() ? L" INSERT " : L" NORMAL ";
+    }
+  }
+  std::wstring vimPad(vimBadge.size(), L' ');
+
   std::wstring wstatus;
   if (currentChat.first.empty() && currentChat.second.empty())
   {
-    // Empty status bar until current chat is set
+    wstatus = vimPad;
   }
   else
   {
     std::string profileDisplayName = m_Model->GetProfileSuffixLocked(currentChat.first);
 
     std::string chatStatus = m_Model->GetChatStatusLocked(currentChat.first, currentChat.second);
-    wstatus = std::wstring(statusVPad, ' ') +
+    wstatus = vimPad + std::wstring(statusVPad, ' ') +
       StrUtil::ToWString(name).substr(0, m_W / 2) +
       StrUtil::ToWString(profileDisplayName) +
       StrUtil::ToWString(chatStatus);
@@ -93,5 +107,19 @@ void UiStatusView::Draw()
   mvwaddnwstr(m_Win, 0, 0, wstatus.c_str(), wstatus.size());
 
   wattroff(m_Win, attribute | colorPair);
+
+  // Overdraw vim mode badge at column 0 with its own color
+  if (!vimBadge.empty())
+  {
+    std::string badgeKey = "vim_normal";
+    if (m_Model->GetVimVisualLocked()) badgeKey = "vim_visual";
+    else if (m_Model->GetVimInsertModeLocked()) badgeKey = "vim_insert";
+    int badgePair = UiColorConfig::GetColorPair(badgeKey + "_color");
+    int badgeAttr = UiColorConfig::GetAttribute(badgeKey + "_attr");
+    wattron(m_Win, badgeAttr | badgePair);
+    mvwaddnwstr(m_Win, 0, 0, vimBadge.c_str(), vimBadge.size());
+    wattroff(m_Win, badgeAttr | badgePair);
+  }
+
   wrefresh(m_Win);
 }

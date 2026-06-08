@@ -44,6 +44,20 @@ private:
     void SendMessage();
     void OnKeyOtherCommandsHelp();
     void EntryKeyHandler(wint_t p_Key);
+    void VimKeyHandler(wint_t p_Key);
+    void VimNormalKey(wint_t p_Key);
+    void SetVimInsertMode(bool p_Insert);
+    bool GetVimInsertMode() const { return m_VimInsertMode; }
+    bool GetVimMode() const { return m_VimMode; }
+    bool GetVimVisual() const { return m_VimVisual; }
+    int GetVimVisualAnchor() const { return m_VimVisualAnchor; }
+    // Motion engine: returns target index for a motion; sets p_Inclusive/p_Linewise.
+    // p_Valid=false means motion failed (e.g. find char not found) — abort operator.
+    int VimComputeMotion(wint_t p_Motion, wint_t p_FindChar, int p_Count,
+                         bool& p_Inclusive, bool& p_Linewise, bool& p_Valid);
+    bool VimIsMotionKey(wint_t p_Key);
+    void VimApplyOperator(wint_t p_Op, int p_From, int p_To, bool p_Inclusive, bool p_Linewise);
+    void VimExpandLinewise(int& p_From, int& p_To);
     void SetTyping(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_IsTyping);
 
     void OnKeyNextChat();
@@ -298,6 +312,17 @@ private:
     bool m_HistoryInteraction = false;
 
     int m_HelpOffset = 0;
+
+    bool m_VimMode = false;
+    bool m_VimInsertMode = true;
+    wint_t m_VimPendingKey = 0;   // pending operator: 'd' 'c' 'y' or 'g'
+    wint_t m_VimPendingFind = 0;  // pending find: 'f' 'F' 't' 'T' (awaiting target char)
+    int m_VimCount = 0;
+    bool m_VimVisual = false;      // visual mode active
+    int m_VimVisualAnchor = 0;     // selection anchor pos
+    std::wstring m_VimRegister;    // yank/delete register for p/P
+    wint_t m_VimLastFindKey = 0;   // for ; and ,
+    wint_t m_VimLastFindChar = 0;
   };
 
 public:
@@ -356,6 +381,10 @@ public:
   bool GetEmojiEnabledLocked();
   int GetEntryPosLocked();
   std::wstring GetEntryStrLocked();
+  bool GetVimInsertModeLocked();
+  bool GetVimModeLocked();
+  bool GetVimVisualLocked();
+  int GetVimVisualAnchorLocked();
   int GetHelpOffsetLocked();
   int64_t GetLastMessageTimeLocked(const std::string& p_ProfileId, const std::string& p_ChatId);
   bool GetListDialogActiveLocked();

@@ -8,6 +8,8 @@
 #include "uimodel.h"
 
 #include <algorithm>
+#include <cstdio>
+#include <cwctype>
 
 #include <ncurses.h>
 #include <sys/ioctl.h>
@@ -41,6 +43,238 @@
 #include "uiview.h"
 
 // ---------------------------------------------------------------------
+// Vim motion helpers (pure, operate on raw wstring indices)
+// ---------------------------------------------------------------------
+namespace
+{
+  // 0 = whitespace, 1 = word char (alnum/_), 2 = punctuation
+  int VimCharClass(wchar_t c)
+  {
+    if ((c == L' ') || (c == L'\t') || (c == L'\n')) return 0;
+    if (iswalnum((wint_t)c) || (c == L'_')) return 1;
+    return 2;
+  }
+
+  int VimLineStart(const std::wstring& s, int p)
+  {
+    while ((p > 0) && (s[p - 1] != L'\n'))
+    {
+      --p;
+    }
+    return p;
+  }
+
+  int VimLineEnd(const std::wstring& s, int p)
+  {
+    int n = (int)s.size();
+    while ((p < n) && (s[p] != L'\n'))
+    {
+      ++p;
+    }
+    return p;
+  }
+
+  int VimFirstNonBlank(const std::wstring& s, int p)
+  {
+    int b = VimLineStart(s, p);
+    int e = VimLineEnd(s, p);
+    while ((b < e) && ((s[b] == L' ') || (s[b] == L'\t')))
+    {
+      ++b;
+    }
+    return b;
+  }
+
+  // w: start of next word
+  int VimWordFwd(const std::wstring& s, int p)
+  {
+    int n = (int)s.size();
+    if (p >= n) return n;
+    int cls = VimCharClass(s[p]);
+    if (cls != 0)
+    {
+      while ((p < n) && (VimCharClass(s[p]) == cls))
+      {
+        ++p;
+      }
+    }
+    while ((p < n) && (VimCharClass(s[p]) == 0))
+    {
+      ++p;
+    }
+    return p;
+  }
+
+  // e: end of next word (target char inclusive)
+  int VimWordEnd(const std::wstring& s, int p)
+  {
+    int n = (int)s.size();
+    if (p >= n - 1) return n > 0 ? n - 1 : 0;
+    ++p;
+    while ((p < n) && (VimCharClass(s[p]) == 0))
+    {
+      ++p;
+    }
+    if (p >= n) return n - 1;
+    int cls = VimCharClass(s[p]);
+    while ((p + 1 < n) && (VimCharClass(s[p + 1]) == cls))
+    {
+      ++p;
+    }
+    return p;
+  }
+
+  // b: start of previous word
+  int VimWordBack(const std::wstring& s, int p)
+  {
+    if (p <= 0) return 0;
+    --p;
+    while ((p > 0) && (VimCharClass(s[p]) == 0))
+    {
+      --p;
+    }
+    if (p <= 0) return 0;
+    int cls = VimCharClass(s[p]);
+    while ((p > 0) && (VimCharClass(s[p - 1]) == cls))
+    {
+      --p;
+    }
+    return p;
+  }
+
+  // f/t forward: find char c after p. till=true -> stop one before.
+  // returns -1 if not found.
+  int VimFindFwd(const std::wstring& s, int p, wchar_t c, bool till)
+  {
+    int n = (int)s.size();
+    for (int i = p + 1; i < n; ++i)
+    {
+      if (s[i] == L'\n') break; // motions stay on current line
+      if (s[i] == c) return till ? i - 1 : i;
+    }
+    return -1;
+  }
+
+  int VimFindBack(const std::wstring& s, int p, wchar_t c, bool till)
+  {
+    for (int i = p - 1; i >= 0; --i)
+    {
+      if (s[i] == L'\n') break;
+      if (s[i] == c)
+      {
+        if (till) return i + 1;
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  // ): start of next sentence (after . ! ? followed by space/newline)
+  int VimSentenceFwd(const std::wstring& s, int p)
+  {
+    int n = (int)s.size();
+    int i = p;
+    while (i < n)
+    {
+      wchar_t c = s[i];
+      if ((c == L'.') || (c == L'!') || (c == L'?'))
+      {
+        ++i;
+        while ((i < n) && ((s[i] == L' ') || (s[i] == L'\t') || (s[i] == L'\n')))
+        {
+          ++i;
+        }
+        if (i > p) return i;
+      }
+      else
+      {
+        ++i;
+      }
+    }
+    return n;
+  }
+
+  // (: start of current/previous sentence
+  int VimSentenceBack(const std::wstring& s, int p)
+  {
+    int i = p - 1;
+    while ((i > 0) && ((s[i] == L' ') || (s[i] == L'\t') || (s[i] == L'\n')))
+    {
+      --i;
+    }
+    while (i > 0)
+    {
+      wchar_t c = s[i - 1];
+      if ((c == L'.') || (c == L'!') || (c == L'?'))
+      {
+        int j = i;
+        while ((j < (int)s.size()) && ((s[j] == L' ') || (s[j] == L'\t') || (s[j] == L'\n')))
+        {
+          ++j;
+        }
+        if (j < p) return j;
+      }
+      --i;
+    }
+    return 0;
+  }
+
+  // }: next blank line (paragraph boundary)
+  int VimParaFwd(const std::wstring& s, int p)
+  {
+    int n = (int)s.size();
+    int i = VimLineEnd(s, p);
+    while (i < n)
+    {
+      if ((s[i] == L'\n') && (i + 1 < n) && (s[i + 1] == L'\n')) return i + 1;
+      ++i;
+    }
+    return n;
+  }
+
+  // {: previous blank line
+  int VimParaBack(const std::wstring& s, int p)
+  {
+    int i = VimLineStart(s, p);
+    if (i > 0) i -= 1; // step onto preceding newline
+    while (i > 0)
+    {
+      if ((s[i] == L'\n') && (s[i - 1] == L'\n')) return i;
+      --i;
+    }
+    return 0;
+  }
+
+  int VimLineDown(const std::wstring& s, int p, int count)
+  {
+    int col = p - VimLineStart(s, p);
+    for (int k = 0; k < count; ++k)
+    {
+      int le = VimLineEnd(s, p);
+      if (le >= (int)s.size()) break;
+      p = le + 1;
+    }
+    int ls = VimLineStart(s, p);
+    int le = VimLineEnd(s, p);
+    return std::min(ls + col, le);
+  }
+
+  int VimLineUp(const std::wstring& s, int p, int count)
+  {
+    int col = p - VimLineStart(s, p);
+    for (int k = 0; k < count; ++k)
+    {
+      int ls = VimLineStart(s, p);
+      if (ls <= 0) break;
+      p = ls - 1;
+    }
+    int ls = VimLineStart(s, p);
+    int le = VimLineEnd(s, p);
+    return std::min(ls + col, le);
+  }
+}
+
+// ---------------------------------------------------------------------
 // UiModel::Impl
 // ---------------------------------------------------------------------
 
@@ -58,10 +292,22 @@ UiModel::Impl::~Impl()
 void UiModel::Impl::Init()
 {
   m_View->Init();
+  m_VimMode = (UiConfig::GetNum("vim_mode") == 1);
+  m_VimInsertMode = true; // start in insert mode (type immediately, ESC for normal)
+  if (m_VimMode)
+  {
+    fputs("\033[6 q", stdout); // steady bar cursor: start in insert mode
+    fflush(stdout);
+  }
 }
 
 void UiModel::Impl::Cleanup()
 {
+  if (m_VimMode)
+  {
+    fputs("\033[0 q", stdout); // restore terminal default cursor
+    fflush(stdout);
+  }
 }
 
 void UiModel::Impl::AnyUserKeyInput()
@@ -462,6 +708,460 @@ void UiModel::Impl::EntryKeyHandler(wint_t p_Key)
   }
 
   UpdateEntry();
+}
+
+void UiModel::Impl::SetVimInsertMode(bool p_Insert)
+{
+  m_VimInsertMode = p_Insert;
+  m_VimCount = 0;
+  m_VimPendingKey = 0;
+  // DECSCUSR: steady bar in insert, steady block in normal
+  fputs(p_Insert ? "\033[6 q" : "\033[2 q", stdout);
+  fflush(stdout);
+  m_View->SetStatusDirty(true);
+}
+
+bool UiModel::Impl::VimIsMotionKey(wint_t p_Key)
+{
+  switch (p_Key)
+  {
+    case L'h': case L'l': case L'0': case L'^': case L'$':
+    case L'w': case L'W': case L'e': case L'E': case L'b': case L'B':
+    case L'(': case L')': case L'{': case L'}':
+    case L'j': case L'k': case L'G':
+      return true;
+    default:
+      return false;
+  }
+}
+
+int UiModel::Impl::VimComputeMotion(wint_t p_Motion, wint_t p_FindChar, int p_Count,
+                                    bool& p_Inclusive, bool& p_Linewise, bool& p_Valid)
+{
+  std::wstring& s = m_EntryStr[m_CurrentChat.first][m_CurrentChat.second];
+  int pos = m_EntryPos[m_CurrentChat.first][m_CurrentChat.second];
+  int n = (int)s.size();
+  p_Inclusive = false;
+  p_Linewise = false;
+  p_Valid = true;
+  int t = pos;
+  int reps = (p_Count > 0) ? p_Count : 1;
+
+  switch (p_Motion)
+  {
+    case L'h': t = std::max(0, pos - reps); break;
+    case L'l': t = std::min(n, pos + reps); break;
+    case L'0': t = VimLineStart(s, pos); break;
+    case L'^': t = VimFirstNonBlank(s, pos); break;
+    case L'$':
+      t = pos;
+      for (int i = 1; i < reps; ++i)
+      {
+        int le = VimLineEnd(s, t); if (le >= n)
+          break;
+        t = le + 1;
+      }
+      t = VimLineEnd(s, t);
+      p_Inclusive = true;
+      break;
+    case L'w': case L'W': t = pos; for (int i = 0; i < reps; ++i)
+      {
+        t = VimWordFwd(s, t);
+      }
+      break;
+    case L'e': case L'E': t = pos; for (int i = 0; i < reps; ++i)
+      {
+        t = VimWordEnd(s, t);
+      }
+      p_Inclusive = true; break;
+    case L'b': case L'B': t = pos; for (int i = 0; i < reps; ++i)
+      {
+        t = VimWordBack(s, t);
+      }
+      break;
+    case L'f': t = VimFindFwd(s, pos, (wchar_t)p_FindChar, false); p_Inclusive = true; break;
+    case L'F': t = VimFindBack(s, pos, (wchar_t)p_FindChar, false); break;
+    case L't': t = VimFindFwd(s, pos, (wchar_t)p_FindChar, true); p_Inclusive = true; break;
+    case L'T': t = VimFindBack(s, pos, (wchar_t)p_FindChar, true); break;
+    case L')': t = pos; for (int i = 0; i < reps; ++i)
+      {
+        t = VimSentenceFwd(s, t);
+      }
+      break;
+    case L'(': t = pos; for (int i = 0; i < reps; ++i)
+      {
+        t = VimSentenceBack(s, t);
+      }
+      break;
+    case L'}': t = pos; for (int i = 0; i < reps; ++i)
+      {
+        t = VimParaFwd(s, t);
+      }
+      break;
+    case L'{': t = pos; for (int i = 0; i < reps; ++i)
+      {
+        t = VimParaBack(s, t);
+      }
+      break;
+    case L'j': t = VimLineDown(s, pos, reps); p_Linewise = true; break;
+    case L'k': t = VimLineUp(s, pos, reps); p_Linewise = true; break;
+    case L'G': t = VimLineStart(s, n); p_Linewise = true; break;
+    default: p_Valid = false; break;
+  }
+
+  if (t < 0) { p_Valid = false; t = pos; }
+  return t;
+}
+
+void UiModel::Impl::VimExpandLinewise(int& p_From, int& p_To)
+{
+  std::wstring& s = m_EntryStr[m_CurrentChat.first][m_CurrentChat.second];
+  int n = (int)s.size();
+  p_From = VimLineStart(s, p_From);
+  p_To = VimLineEnd(s, p_To);
+  if (p_To < n) ++p_To;             // include trailing newline
+  else if (p_From > 0) --p_From;    // last line: consume preceding newline
+}
+
+void UiModel::Impl::VimApplyOperator(wint_t p_Op, int p_From, int p_To, bool p_Inclusive, bool p_Linewise)
+{
+  std::wstring& s = m_EntryStr[m_CurrentChat.first][m_CurrentChat.second];
+  int& pos = m_EntryPos[m_CurrentChat.first][m_CurrentChat.second];
+  int n = (int)s.size();
+
+  int lo = std::min(p_From, p_To);
+  int hi = std::max(p_From, p_To);
+  if (p_Linewise)
+  {
+    VimExpandLinewise(lo, hi);
+  }
+  else if (p_Inclusive)
+  {
+    hi = std::min(n, hi + 1);
+  }
+  lo = std::max(0, lo);
+  hi = std::min(n, hi);
+  if (hi <= lo) return;
+
+  m_VimRegister = s.substr(lo, hi - lo);
+
+  if ((p_Op == L'd') || (p_Op == L'c'))
+  {
+    s.erase(lo, hi - lo);
+    pos = lo;
+    SetTyping(m_CurrentChat.first, m_CurrentChat.second, true);
+    if (p_Op == L'c') SetVimInsertMode(true);
+  }
+  else if (p_Op == L'y')
+  {
+    pos = lo;
+  }
+  UpdateEntry();
+}
+
+void UiModel::Impl::VimKeyHandler(wint_t p_Key)
+{
+  if (!m_VimMode)
+  {
+    EntryKeyHandler(p_Key);
+    return;
+  }
+
+  const wint_t ESC = 27;
+
+  if (m_VimInsertMode)
+  {
+    if (p_Key == ESC)
+    {
+      SetVimInsertMode(false);
+    }
+    else
+    {
+      EntryKeyHandler(p_Key);
+    }
+    return;
+  }
+
+  VimNormalKey(p_Key);
+}
+
+void UiModel::Impl::VimNormalKey(wint_t p_Key)
+{
+  static wint_t keyLeft = UiKeyConfig::GetKey("left");
+  static wint_t keyRight = UiKeyConfig::GetKey("right");
+  static wint_t keyUp = UiKeyConfig::GetKey("up");
+  static wint_t keyDown = UiKeyConfig::GetKey("down");
+
+  const wint_t ESC = 27;
+  std::wstring& entryStr = m_EntryStr[m_CurrentChat.first][m_CurrentChat.second];
+  int& entryPos = m_EntryPos[m_CurrentChat.first][m_CurrentChat.second];
+  int n = (int)entryStr.size();
+
+  // ESC: clear pending state / exit visual
+  if (p_Key == ESC)
+  {
+    m_VimPendingKey = 0;
+    m_VimPendingFind = 0;
+    m_VimCount = 0;
+    if (m_VimVisual) { m_VimVisual = false; m_View->SetStatusDirty(true); UpdateEntry(); }
+    return;
+  }
+
+  // Resolve a pending find (f/F/t/T) — this key is the target char
+  if (m_VimPendingFind != 0)
+  {
+    wint_t findKey = m_VimPendingFind;
+    m_VimPendingFind = 0;
+    m_VimLastFindKey = findKey;
+    m_VimLastFindChar = p_Key;
+    int count = (m_VimCount > 0) ? m_VimCount : 1;
+    m_VimCount = 0;
+    bool incl, lw, valid;
+    int target = VimComputeMotion(findKey, p_Key, count, incl, lw, valid);
+    if (!valid) { m_VimPendingKey = 0; return; }
+    if (m_VimPendingKey != 0)
+    {
+      VimApplyOperator(m_VimPendingKey, entryPos, target, incl, lw);
+      m_VimPendingKey = 0;
+    }
+    else
+    {
+      entryPos = NumUtil::Bound(0, target, n);
+      UpdateEntry();
+    }
+    return;
+  }
+
+  // 'g' prefix (gg)
+  if (m_VimPendingKey == L'g')
+  {
+    m_VimPendingKey = 0;
+    if (p_Key == L'g')
+    {
+      entryPos = 0; // gg → buffer start
+      UpdateEntry();
+    }
+    return;
+  }
+
+  // Count prefix (leading 0 stays a motion)
+  if ((p_Key >= L'1' && p_Key <= L'9') || (p_Key == L'0' && m_VimCount > 0))
+  {
+    m_VimCount = (m_VimCount * 10) + (int)(p_Key - L'0');
+    if (m_VimCount > 100000) m_VimCount = 100000;
+    return;
+  }
+
+  int count = (m_VimCount > 0) ? m_VimCount : 1;
+  bool haveOp = (m_VimPendingKey == L'd') || (m_VimPendingKey == L'c') || (m_VimPendingKey == L'y');
+
+  // Arrow keys: move (clear any pending op for safety)
+  if ((p_Key == keyLeft) || (p_Key == keyRight) || (p_Key == keyUp) || (p_Key == keyDown))
+  {
+    m_VimPendingKey = 0;
+    m_VimCount = 0;
+    for (int i = 0; i < count; ++i)
+    {
+      EntryKeyHandler(p_Key);
+    }
+    return;
+  }
+
+  // Find prefix
+  if ((p_Key == L'f') || (p_Key == L'F') || (p_Key == L't') || (p_Key == L'T'))
+  {
+    m_VimPendingFind = p_Key; // op (if any) stays pending; count stays
+    return;
+  }
+
+  // Visual mode: operator acts on [anchor, cursor] immediately
+  if (m_VimVisual && ((p_Key == L'd') || (p_Key == L'x') || (p_Key == L'y') || (p_Key == L'c')))
+  {
+    wint_t op = (p_Key == L'x') ? L'd' : p_Key;
+    m_VimCount = 0;
+    m_VimVisual = false;
+    VimApplyOperator(op, m_VimVisualAnchor, entryPos, true /*inclusive*/, false);
+    m_View->SetStatusDirty(true);
+    return;
+  }
+
+  // Operators
+  if ((p_Key == L'd') || (p_Key == L'c') || (p_Key == L'y'))
+  {
+    if (haveOp && (p_Key == m_VimPendingKey))
+    {
+      // doubled operator → linewise on current line(s): dd/cc/yy
+      m_VimCount = 0;
+      int from = entryPos, to = entryPos;
+      for (int i = 1; i < count; ++i)
+      {
+        int le = VimLineEnd(entryStr, to); if (le >= (int)entryStr.size())
+          break;
+        to = le + 1;
+      }
+      VimApplyOperator(p_Key, from, to, false, true);
+      m_VimPendingKey = 0;
+      return;
+    }
+    m_VimPendingKey = p_Key; // await motion
+    return;
+  }
+
+  // 'g' prefix start
+  if (p_Key == L'g')
+  {
+    m_VimPendingKey = L'g';
+    return;
+  }
+
+  // Motions (operator target or cursor move)
+  if (VimIsMotionKey(p_Key))
+  {
+    bool incl, lw, valid;
+    int target = VimComputeMotion(p_Key, 0, count, incl, lw, valid);
+    m_VimCount = 0;
+    if (!valid) { m_VimPendingKey = 0; return; }
+    if (haveOp)
+    {
+      VimApplyOperator(m_VimPendingKey, entryPos, target, incl, lw);
+      m_VimPendingKey = 0;
+    }
+    else
+    {
+      entryPos = NumUtil::Bound(0, target, n);
+      UpdateEntry();
+    }
+    return;
+  }
+
+  // Past here: non-motion commands. A dangling operator is cancelled.
+  m_VimPendingKey = 0;
+  m_VimCount = 0;
+
+  switch (p_Key)
+  {
+    case L'\r': case L'\n':
+      for (int i = 0; i < count; ++i)
+      {
+        EntryKeyHandler(keyDown);
+      }
+      break;
+    case L'x':
+      for (int i = 0; i < count; ++i)
+      {
+        EntryKeyHandler(UiKeyConfig::GetKey("delete"));
+      }
+      break;
+    case L'X':
+      for (int i = 0; i < count; ++i)
+      {
+        EntryKeyHandler(UiKeyConfig::GetKey("backspace"));
+      }
+      break;
+    case L'D': // delete to end of line
+      {
+        bool incl, lw, valid;
+        int target = VimComputeMotion(L'$', 0, 1, incl, lw, valid);
+        if (valid) VimApplyOperator(L'd', entryPos, target, incl, lw);
+        break;
+      }
+    case L'C': // change to end of line
+      {
+        bool incl, lw, valid;
+        int target = VimComputeMotion(L'$', 0, 1, incl, lw, valid);
+        if (valid) VimApplyOperator(L'c', entryPos, target, incl, lw);
+        break;
+      }
+    case L'p': // paste register after cursor
+      if (!m_VimRegister.empty())
+      {
+        int ins = std::min(n, entryPos + 1);
+        entryStr.insert(ins, m_VimRegister);
+        entryPos = ins + (int)m_VimRegister.size() - 1;
+        SetTyping(m_CurrentChat.first, m_CurrentChat.second, true);
+        UpdateEntry();
+      }
+      break;
+    case L'P': // paste register before cursor
+      if (!m_VimRegister.empty())
+      {
+        entryStr.insert(entryPos, m_VimRegister);
+        entryPos = entryPos + (int)m_VimRegister.size() - 1;
+        SetTyping(m_CurrentChat.first, m_CurrentChat.second, true);
+        UpdateEntry();
+      }
+      break;
+    case L'v':
+      m_VimVisual = !m_VimVisual;
+      m_VimVisualAnchor = entryPos;
+      m_View->SetStatusDirty(true);
+      UpdateEntry();
+      break;
+    case L'i':
+      SetVimInsertMode(true);
+      UpdateEntry();
+      break;
+    case L'a':
+      entryPos = std::min(n, entryPos + 1);
+      SetVimInsertMode(true);
+      UpdateEntry();
+      break;
+    case L'A':
+      entryPos = VimLineEnd(entryStr, entryPos);
+      SetVimInsertMode(true);
+      UpdateEntry();
+      break;
+    case L'I':
+      entryPos = VimFirstNonBlank(entryStr, entryPos);
+      SetVimInsertMode(true);
+      UpdateEntry();
+      break;
+    case L'o': // open line below + insert
+      entryPos = VimLineEnd(entryStr, entryPos);
+      entryStr.insert(entryPos, 1, L'\n');
+      entryPos += 1;
+      SetTyping(m_CurrentChat.first, m_CurrentChat.second, true);
+      SetVimInsertMode(true);
+      UpdateEntry();
+      break;
+    case L'O': // open line above + insert
+      entryPos = VimLineStart(entryStr, entryPos);
+      entryStr.insert(entryPos, 1, L'\n');
+      SetTyping(m_CurrentChat.first, m_CurrentChat.second, true);
+      SetVimInsertMode(true);
+      UpdateEntry();
+      break;
+    case L's': // substitute char(s): delete count chars under cursor + insert
+      {
+        int del = std::min(count, n - entryPos);
+        if (del > 0)
+        {
+          m_VimRegister = entryStr.substr(entryPos, del);
+          entryStr.erase(entryPos, del);
+          SetTyping(m_CurrentChat.first, m_CurrentChat.second, true);
+        }
+        SetVimInsertMode(true);
+        UpdateEntry();
+        break;
+      }
+    case L'S': // substitute line: clear current line content + insert (like cc)
+      {
+        int ls = VimLineStart(entryStr, entryPos);
+        int le = VimLineEnd(entryStr, entryPos);
+        if (le > ls)
+        {
+          m_VimRegister = entryStr.substr(ls, le - ls);
+          entryStr.erase(ls, le - ls);
+        }
+        entryPos = ls;
+        SetTyping(m_CurrentChat.first, m_CurrentChat.second, true);
+        SetVimInsertMode(true);
+        UpdateEntry();
+        break;
+      }
+    default:
+      break;
+  }
 }
 
 void UiModel::Impl::SetTyping(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_IsTyping)
@@ -4720,7 +5420,7 @@ void UiModel::KeyHandler(wint_t p_Key)
   else
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
-    GetImpl().EntryKeyHandler(p_Key);
+    GetImpl().VimKeyHandler(p_Key);
   }
 }
 
@@ -4954,6 +5654,30 @@ std::wstring UiModel::GetEntryStrLocked()
 {
   nc_assert(m_ModelMutex.owns_lock());
   return GetImpl().GetEntryStr();
+}
+
+bool UiModel::GetVimInsertModeLocked()
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetVimInsertMode();
+}
+
+bool UiModel::GetVimModeLocked()
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetVimMode();
+}
+
+bool UiModel::GetVimVisualLocked()
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetVimVisual();
+}
+
+int UiModel::GetVimVisualAnchorLocked()
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetVimVisualAnchor();
 }
 
 int UiModel::GetHelpOffsetLocked()
