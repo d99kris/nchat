@@ -872,6 +872,12 @@ Supported commands in normal mode:
 Visual mode (`v`) highlights the selection and applies `d c y x` to it.
 When `vim_mode=0` there is no behavioral change and zero overhead.
 
+### send_on_double_enter
+
+Set `send_on_double_enter=1` in `ui.conf` (default `0`) to make a single
+`Enter` insert a newline and a second consecutive `Enter` send the message
+(dropping the just-typed newline). The existing `send_msg` key still works.
+
 ~/.config/nchat/key.conf
 ------------------------
 This configuration file holds user interface key bindings. Default content:

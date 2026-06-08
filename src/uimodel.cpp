@@ -674,9 +674,19 @@ void UiModel::Impl::EntryKeyHandler(wint_t p_Key)
   }
   else if (p_Key == keyLinebreak)
   {
+    static const bool sendOnDoubleEnter = (UiConfig::GetNum("send_on_double_enter") == 1);
     wint_t keyLF = 0xA;
-    entryStr.insert(entryPos++, 1, keyLF);
-    SetTyping(profileId, chatId, true);
+    if (sendOnDoubleEnter && (entryPos > 0) && (entryStr.at(entryPos - 1) == keyLF))
+    {
+      // Second consecutive Enter: drop the just-typed newline and send.
+      entryStr.erase(--entryPos, 1);
+      SendMessage();
+    }
+    else
+    {
+      entryStr.insert(entryPos++, 1, keyLF);
+      SetTyping(profileId, chatId, true);
+    }
   }
   else if (p_Key == keyTab)
   {
