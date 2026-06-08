@@ -1014,6 +1014,14 @@ This configuration file holds user interface color settings. Default content:
     top_color_bg=
     top_color_fg=
 
+Vim mode badge colors (`vim_*_color_bg`, `vim_*_color_fg`, `vim_*_attr`):
+
+| Prefix | Default badge |
+| ------ | ------------- |
+| `vim_normal_*` | white bg / black fg / bold |
+| `vim_insert_*` | yellow bg / black fg / bold |
+| `vim_visual_*` | red bg / white fg / bold |
+
 Supported text attributes `_attr` (defaults to `normal` if not specified):
 
     normal
