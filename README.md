@@ -1018,9 +1018,11 @@ Vim mode badge colors (`vim_*_color_bg`, `vim_*_color_fg`, `vim_*_attr`):
 
 | Prefix | Default badge |
 | ------ | ------------- |
-| `vim_normal_*` | white bg / black fg / bold |
-| `vim_insert_*` | yellow bg / black fg / bold |
-| `vim_visual_*` | red bg / white fg / bold |
+| `vim_normal_*` | bright-blue bg / black fg (bold) |
+| `vim_insert_*` | bright-green bg / black fg (bold) |
+| `vim_visual_*` | bright-yellow bg / black fg (bold) |
+
+Conventional vim/airline mode colors. Configurable via `vim_normal_*` / `vim_insert_*` / `vim_visual_*` in `color.conf`.
 
 Supported text attributes `_attr` (defaults to `normal` if not specified):
 

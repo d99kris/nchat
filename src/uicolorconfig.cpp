@@ -46,17 +46,16 @@ void UiColorConfig::Init()
     { "status_attr", "reverse" },
     { "status_color_bg", "" },
     { "status_color_fg", "" },
-    // High-contrast badges that stand out from the protocol-tinted status bar
-    // (protocols use blue/green/magenta, so badges avoid those hues).
+    // Conventional vim/airline mode colors (NORMAL blue, INSERT green, VISUAL yellow).
     { "vim_normal_attr", "bold" },
-    { "vim_normal_color_bg", "white" },
+    { "vim_normal_color_bg", "bright_blue" },
     { "vim_normal_color_fg", "black" },
     { "vim_insert_attr", "bold" },
-    { "vim_insert_color_bg", "yellow" },
+    { "vim_insert_color_bg", "bright_green" },
     { "vim_insert_color_fg", "black" },
     { "vim_visual_attr", "bold" },
-    { "vim_visual_color_bg", "red" },
-    { "vim_visual_color_fg", "white" },
+    { "vim_visual_color_bg", "bright_yellow" },
+    { "vim_visual_color_fg", "black" },
     { "list_attr", "" },
     { "list_attr_selected", "reverse" },
     { "list_color_bg", "" },

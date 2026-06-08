@@ -108,7 +108,7 @@ void UiStatusView::Draw()
 
   wattroff(m_Win, attribute | colorPair);
 
-  // Overdraw vim mode badge at column 0 with its own color
+  // Overdraw vim mode badge at column 0 with its own (conventional) color.
   if (!vimBadge.empty())
   {
     std::string badgeKey = "vim_normal";
