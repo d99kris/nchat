@@ -635,6 +635,60 @@ void UiModel::Impl::OnKeyUnreadChat()
   }
 }
 
+void UiModel::Impl::OnKeyUnreadChatReverse()
+{
+  AnyUserKeyInput();
+
+  if (GetEditMessageActive()) return;
+
+  if (m_ChatVec.empty()) return;
+
+  std::vector<int> unreadVec;
+  bool unreadIsSelected = false;
+
+  // Populating from oldest to newest
+  for (ssize_t i = (ssize_t)m_ChatVec.size() - 1; i >= 0; --i)
+  {
+    const std::pair<std::string, std::string>& chat = m_ChatVec.at(i);
+    const bool isUnread = GetChatIsUnread(chat.first, chat.second);
+    if (isUnread)
+    {
+      unreadVec.push_back(i);
+      if (m_CurrentChatIndex == (int)i)
+      {
+        unreadIsSelected = true;
+      }
+    }
+  }
+
+  if (!unreadVec.empty())
+  {
+    if (!unreadIsSelected)
+    {
+      m_CurrentChatIndex = unreadVec.at(0);
+    }
+    else if (unreadVec.size() > 1)
+    {
+      auto it = std::find(unreadVec.begin(), unreadVec.end(), m_CurrentChatIndex);
+      if (it != unreadVec.end())
+      {
+        size_t idx = std::distance(unreadVec.begin(), it);
+        ++idx;
+        if (idx >= unreadVec.size())
+        {
+          idx = 0;
+        }
+
+        m_CurrentChatIndex = unreadVec.at(idx);
+      }
+    }
+
+    m_CurrentChat = m_ChatVec.at(m_CurrentChatIndex);
+    OnCurrentChatChanged();
+    SetSelectMessageActive(false);
+  }
+}
+
 void UiModel::Impl::OnKeyPrevPage()
 {
   AnyUserKeyInput();
@@ -4439,6 +4493,7 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keyNextChat = UiKeyConfig::GetKey("next_chat");
   static wint_t keyPrevChat = UiKeyConfig::GetKey("prev_chat");
   static wint_t keyUnreadChat = UiKeyConfig::GetKey("unread_chat");
+  static wint_t keyUnreadChatReverse = UiKeyConfig::GetKey("unread_chat_reverse");
 
   static wint_t keyQuit = UiKeyConfig::GetKey("quit");
   static wint_t keySelectEmoji = UiKeyConfig::GetKey("select_emoji");
@@ -4539,6 +4594,11 @@ void UiModel::KeyHandler(wint_t p_Key)
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().OnKeyUnreadChat();
+  }
+  else if (p_Key == keyUnreadChatReverse)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeyUnreadChatReverse();
   }
   else if (p_Key == keyPrevPage)
   {
