@@ -1011,6 +1011,7 @@ void UiModel::Impl::VimApplyOperator(wint_t p_Op, int p_From, int p_To, bool p_I
   if (hi <= lo) return;
 
   m_VimRegister = s.substr(lo, hi - lo);
+  Clipboard::SetText(StrUtil::ToString(m_VimRegister));
 
   if ((p_Op == L'd') || (p_Op == L'c'))
   {
@@ -1042,6 +1043,13 @@ void UiModel::Impl::VimRepeatLast(int p_Count)
     case L'X':
       for (int i = 0; i < count; ++i) EntryKeyHandler(UiKeyConfig::GetKey("backspace"));
       break;
+    case L'C':
+    {
+      bool incl, lw, valid;
+      int t = VimComputeMotion(L'$', 0, 1, incl, lw, valid);
+      if (valid) VimApplyOperator(L'c', pos, t, incl, lw);
+      break;
+    }
     case L'D':
     {
       bool incl, lw, valid;
@@ -1092,26 +1100,35 @@ void UiModel::Impl::VimRepeatLast(int p_Count)
       }
       break;
     case L'p':
-      if (!m_VimRegister.empty())
-        for (int i = 0; i < count; ++i)
-        {
-          int ins = std::min((int)s.size(), pos + 1);
-          s.insert(ins, m_VimRegister);
-          pos = ins + (int)m_VimRegister.size() - 1;
-        }
-      SetTyping(m_CurrentChat.first, m_CurrentChat.second, true);
-      UpdateEntry();
-      break;
+      {
+        std::wstring clip = StrUtil::ToWString(Clipboard::GetText());
+        if (!clip.empty()) m_VimRegister = clip;
+        if (!m_VimRegister.empty())
+          for (int i = 0; i < count; ++i)
+          {
+            int ins = std::min((int)s.size(), pos + 1);
+            s.insert(ins, m_VimRegister);
+            pos = ins + (int)m_VimRegister.size() - 1;
+          }
+        SetTyping(m_CurrentChat.first, m_CurrentChat.second, true);
+        UpdateEntry();
+        break;
+      }
     case L'P':
-      if (!m_VimRegister.empty())
-        for (int i = 0; i < count; ++i)
-        {
-          s.insert(pos, m_VimRegister);
-          pos = pos + (int)m_VimRegister.size() - 1;
-        }
-      SetTyping(m_CurrentChat.first, m_CurrentChat.second, true);
-      UpdateEntry();
-      break;
+      {
+        std::wstring clip = StrUtil::ToWString(Clipboard::GetText());
+        if (!clip.empty()) m_VimRegister = clip;
+        if (!m_VimRegister.empty())
+          for (int i = 0; i < count; ++i)
+          {
+            s.insert(pos, m_VimRegister);
+            pos = pos + (int)m_VimRegister.size() - 1;
+          }
+        SetTyping(m_CurrentChat.first, m_CurrentChat.second, true);
+        UpdateEntry();
+        break;
+      }
+    case L'c':
     case L'd':
     case L'y':
       if (lc.textObjPrefix != 0)
@@ -1225,15 +1242,16 @@ void UiModel::Impl::VimNormalKey(wint_t p_Key)
     return;
   }
 
-  // Resolve pending text-object ('iX'/'aX' after d/c/y operator)
+  // Resolve pending text-object ('iX'/'aX' after d/c/y operator, or in visual mode)
   if (m_VimPendingTextObj != 0)
   {
     bool around = (m_VimPendingTextObj == L'a');
     wint_t op = m_VimPendingKey;
+    bool wasVisual = m_VimVisual;
     m_VimPendingTextObj = 0;
     m_VimPendingKey = 0;
     m_VimCount = 0;
-    if (op == 0) return;
+    if (op == 0 && !wasVisual) return;
     int lo = -1, hi = -1; bool ok = false;
     switch (p_Key)
     {
@@ -1266,10 +1284,20 @@ void UiModel::Impl::VimNormalKey(wint_t p_Key)
     }
     if (ok)
     {
-      VimApplyOperator(op, lo, hi - 1, true /*inclusive*/, false);
-      if ((op == L'd') || (op == L'y'))
+      if (wasVisual)
       {
-        m_VimLast = VimLastChange{op, 1, 0, 0, 0, false, around ? L'a' : L'i', p_Key};
+        m_VimVisualAnchor = lo;
+        entryPos = hi - 1;
+        m_View->SetStatusDirty(true);
+        UpdateEntry();
+      }
+      else
+      {
+        VimApplyOperator(op, lo, hi - 1, true /*inclusive*/, false);
+        if ((op == L'd') || (op == L'c') || (op == L'y'))
+        {
+          m_VimLast = VimLastChange{op, 1, 0, 0, 0, false, around ? L'a' : L'i', p_Key};
+        }
       }
     }
     return;
@@ -1416,8 +1444,8 @@ void UiModel::Impl::VimNormalKey(wint_t p_Key)
     return;
   }
 
-  // Text-object prefix 'i'/'a' after an operator (ciw/caw/diw/daw/yiw/yaw)
-  if (haveOp && ((p_Key == L'i') || (p_Key == L'a')))
+  // Text-object prefix 'i'/'a' after an operator or in visual mode
+  if ((haveOp || m_VimVisual) && ((p_Key == L'i') || (p_Key == L'a')))
   {
     m_VimPendingTextObj = p_Key;
     return;
@@ -1504,6 +1532,7 @@ void UiModel::Impl::VimNormalKey(wint_t p_Key)
         bool incl, lw, valid;
         int target = VimComputeMotion(L'$', 0, 1, incl, lw, valid);
         if (valid) VimApplyOperator(L'c', entryPos, target, incl, lw);
+        m_VimLast = VimLastChange{L'C', 1, 0, 0, 0, false, 0, 0};
         break;
       }
     case L'Y': // yank to end of line (matches D/C symmetry)
@@ -1544,26 +1573,34 @@ void UiModel::Impl::VimNormalKey(wint_t p_Key)
       m_VimLast = VimLastChange{L'~', count, 0, 0, 0, false, 0, 0};
       break;
     case L'p': // paste register after cursor
-      if (!m_VimRegister.empty())
       {
-        int ins = std::min(n, entryPos + 1);
-        entryStr.insert(ins, m_VimRegister);
-        entryPos = ins + (int)m_VimRegister.size() - 1;
-        SetTyping(m_CurrentChat.first, m_CurrentChat.second, true);
-        UpdateEntry();
+        std::wstring clip = StrUtil::ToWString(Clipboard::GetText());
+        if (!clip.empty()) m_VimRegister = clip;
+        if (!m_VimRegister.empty())
+        {
+          int ins = std::min(n, entryPos + 1);
+          entryStr.insert(ins, m_VimRegister);
+          entryPos = ins + (int)m_VimRegister.size() - 1;
+          SetTyping(m_CurrentChat.first, m_CurrentChat.second, true);
+          UpdateEntry();
+        }
+        m_VimLast = VimLastChange{L'p', count, 0, 0, 0, false, 0, 0};
+        break;
       }
-      m_VimLast = VimLastChange{L'p', count, 0, 0, 0, false, 0, 0};
-      break;
     case L'P': // paste register before cursor
-      if (!m_VimRegister.empty())
       {
-        entryStr.insert(entryPos, m_VimRegister);
-        entryPos = entryPos + (int)m_VimRegister.size() - 1;
-        SetTyping(m_CurrentChat.first, m_CurrentChat.second, true);
-        UpdateEntry();
+        std::wstring clip = StrUtil::ToWString(Clipboard::GetText());
+        if (!clip.empty()) m_VimRegister = clip;
+        if (!m_VimRegister.empty())
+        {
+          entryStr.insert(entryPos, m_VimRegister);
+          entryPos = entryPos + (int)m_VimRegister.size() - 1;
+          SetTyping(m_CurrentChat.first, m_CurrentChat.second, true);
+          UpdateEntry();
+        }
+        m_VimLast = VimLastChange{L'P', count, 0, 0, 0, false, 0, 0};
+        break;
       }
-      m_VimLast = VimLastChange{L'P', count, 0, 0, 0, false, 0, 0};
-      break;
     case L'v':
       m_VimVisual = !m_VimVisual;
       m_VimVisualLinewise = false;

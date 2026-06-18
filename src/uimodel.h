@@ -330,7 +330,7 @@ private:
     // Last-change record for '.' repeat (normal-mode mutations only — never c/s/i/a/o etc.)
     struct VimLastChange
     {
-      wint_t kind = 0;          // 'x' 'X' 'D' 'Y' 'J' '~' 'p' 'P' 'r' 'd' 'y'
+      wint_t kind = 0;          // 'x' 'X' 'C' 'D' 'Y' 'J' '~' 'p' 'P' 'r' 'c' 'd' 'y'
       int count = 1;
       wint_t replaceChar = 0;   // for kind='r'
       wint_t motion = 0;        // for kind='d'/'y' with motion (0 if text-object or linewise)
