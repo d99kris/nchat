@@ -605,6 +605,8 @@ class UpdatesManager final : public Actor {
   void on_update(tl_object_ptr<telegram_api::updateDialogFilters> update, Promise<Unit> &&promise);
   void on_update(tl_object_ptr<telegram_api::updateDialogFilterOrder> update, Promise<Unit> &&promise);
 
+  void on_update(tl_object_ptr<telegram_api::updateJoinChatWebViewDecision> update, Promise<Unit> &&promise);
+
   void on_update(tl_object_ptr<telegram_api::updateBotInlineQuery> update, Promise<Unit> &&promise);
   void on_update(tl_object_ptr<telegram_api::updateBotInlineSend> update, Promise<Unit> &&promise);
 
@@ -724,6 +726,8 @@ class UpdatesManager final : public Actor {
 
   void on_update(tl_object_ptr<telegram_api::updateNewAuthorization> update, Promise<Unit> &&promise);
 
+  void on_update(tl_object_ptr<telegram_api::updateNewBotConnection> update, Promise<Unit> &&promise);
+
   void on_update(tl_object_ptr<telegram_api::updateSmsJob> update, Promise<Unit> &&promise);
 
   void on_update(tl_object_ptr<telegram_api::updateQuickReplies> update, Promise<Unit> &&promise);
@@ -749,6 +753,10 @@ class UpdatesManager final : public Actor {
   void on_update(tl_object_ptr<telegram_api::updateStarsRevenueStatus> update, Promise<Unit> &&promise);
 
   void on_update(tl_object_ptr<telegram_api::updateAiComposeTones> update, Promise<Unit> &&promise);
+
+  void on_update(tl_object_ptr<telegram_api::updateWebBrowserSettings> update, Promise<Unit> &&promise);
+
+  void on_update(tl_object_ptr<telegram_api::updateWebBrowserException> update, Promise<Unit> &&promise);
 
   // unsupported updates
 

@@ -136,6 +136,8 @@ class Requests {
 
   void on_request(uint64 id, td_api::checkAuthenticationPasskey &request);
 
+  void on_request(uint64 id, td_api::checkAuthenticationWebToken &request);
+
   void on_request(uint64 id, const td_api::resetAuthenticationEmailAddress &request);
 
   void on_request(uint64 id, td_api::checkAuthenticationPassword &request);
@@ -286,6 +288,8 @@ class Requests {
 
   void on_request(uint64 id, const td_api::getMessages &request);
 
+  void on_request(uint64 id, const td_api::getFullRichMessage &request);
+
   void on_request(uint64 id, const td_api::getMessageProperties &request);
 
   void on_request(uint64 id, const td_api::getPollOptionProperties &request);
@@ -375,6 +379,14 @@ class Requests {
   void on_request(uint64 id, td_api::setAutosaveSettings &request);
 
   void on_request(uint64 id, const td_api::clearAutosaveSettingsExceptions &request);
+
+  void on_request(uint64 id, const td_api::changeWebBrowserSettings &request);
+
+  void on_request(uint64 id, td_api::addWebBrowserSettingsException &request);
+
+  void on_request(uint64 id, td_api::removeWebBrowserSettingsException &request);
+
+  void on_request(uint64 id, const td_api::removeAllWebBrowserSettingsExceptions &request);
 
   void on_request(uint64 id, const td_api::getRecommendedChats &request);
 
@@ -487,6 +499,8 @@ class Requests {
   void on_request(uint64 id, td_api::getExternalLinkInfo &request);
 
   void on_request(uint64 id, td_api::getExternalLink &request);
+
+  void on_request(uint64 id, td_api::getLinkWebBrowserType &request);
 
   void on_request(uint64 id, td_api::getOauthLinkInfo &request);
 
@@ -807,6 +821,8 @@ class Requests {
   void on_request(uint64 id, td_api::sendChatAction &request);
 
   void on_request(uint64 id, td_api::sendTextMessageDraft &request);
+
+  void on_request(uint64 id, td_api::sendRichMessageDraft &request);
 
   void on_request(uint64 id, td_api::forwardMessages &request);
 
@@ -1424,6 +1440,8 @@ class Requests {
 
   void on_request(uint64 id, td_api::setBusinessConnectedBot &request);
 
+  void on_request(uint64 id, const td_api::confirmBusinessConnectedBot &request);
+
   void on_request(uint64 id, const td_api::deleteBusinessConnectedBot &request);
 
   void on_request(uint64 id, const td_api::toggleBusinessConnectedBotChatIsPaused &request);
@@ -1742,6 +1760,8 @@ class Requests {
 
   void on_request(uint64 id, td_api::checkWebAppFileDownload &request);
 
+  void on_request(uint64 id, td_api::answerChatJoinRequestQuery &request);
+
   void on_request(uint64 id, td_api::getCallbackQueryAnswer &request);
 
   void on_request(uint64 id, td_api::answerCallbackQuery &request);
@@ -1973,6 +1993,8 @@ class Requests {
   void on_request(uint64 id, td_api::acceptTermsOfService &request);
 
   void on_request(uint64 id, const td_api::getCountries &request);
+
+  void on_request(uint64 id, const td_api::getCountry &request);
 
   void on_request(uint64 id, const td_api::getCountryCode &request);
 

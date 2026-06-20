@@ -57,8 +57,7 @@ class CreateBotQuery final : public Td::ResultHandler {
 
     auto ptr = result_ptr.move_as_ok();
     LOG(INFO) << "Receive result for CreateBotQuery: " << to_string(ptr);
-    auto user_id = UserManager::get_user_id(ptr);
-    td_->user_manager_->on_get_user(std::move(ptr), "CreateBotQuery");
+    auto user_id = td_->user_manager_->on_get_user(std::move(ptr), "CreateBotQuery");
     promise_.set_value(td_->user_manager_->get_user_object(user_id));
   }
 
@@ -138,13 +137,7 @@ class EditAccessSettingsQuery final : public Td::ResultHandler {
   }
 
   void send(UserId bot_user_id, const BotAccessSettings &settings) {
-    vector<telegram_api::object_ptr<telegram_api::InputUser>> input_users;
-    for (auto user_id : settings.get_added_user_ids()) {
-      auto r_input_user = td_->user_manager_->get_input_user(user_id);
-      if (r_input_user.is_ok()) {
-        input_users.push_back(r_input_user.move_as_ok());
-      }
-    }
+    auto input_users = td_->user_manager_->get_input_users_force(settings.get_added_user_ids());
     auto r_input_user = td_->user_manager_->get_input_user(bot_user_id);
     if (r_input_user.is_error()) {
       return on_error(r_input_user.move_as_error());
@@ -409,8 +402,7 @@ class BotInfoManager::AddPreviewMediaQuery final : public Td::ResultHandler {
 
   void on_result(BufferSlice packet) final {
     static_assert(std::is_same<telegram_api::bots_addPreviewMedia::ReturnType,
-                               telegram_api::bots_editPreviewMedia::ReturnType>::value,
-                  "");
+                               telegram_api::bots_editPreviewMedia::ReturnType>::value);
     auto result_ptr = fetch_result<telegram_api::bots_addPreviewMedia>(packet);
     if (result_ptr.is_error()) {
       return on_error(result_ptr.move_as_error());

@@ -53,7 +53,7 @@ class IntermediateTransport {
 class OldTransport final : public IStreamTransport {
  public:
   OldTransport() = default;
-  Result<size_t> read_next(BufferSlice *message, uint32 *quick_ack) final TD_WARN_UNUSED_RESULT {
+  Result<size_t> read_next(BufferSlice *message, uint32 *quick_ack, int32 *error_code) final TD_WARN_UNUSED_RESULT {
     return impl_.read_from_stream(input_, message, quick_ack);
   }
   bool support_quick_ack() const final {
@@ -103,7 +103,7 @@ class ObfuscatedTransport final : public IStreamTransport {
       : dc_id_(dc_id), secret_(std::move(secret)), impl_(secret_.use_random_padding()) {
   }
 
-  Result<size_t> read_next(BufferSlice *message, uint32 *quick_ack) final TD_WARN_UNUSED_RESULT;
+  Result<size_t> read_next(BufferSlice *message, uint32 *quick_ack, int32 *error_code) final TD_WARN_UNUSED_RESULT;
 
   bool support_quick_ack() const final {
     return true;

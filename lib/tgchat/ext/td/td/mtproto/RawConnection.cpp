@@ -163,7 +163,8 @@ class RawConnectionDefault final : public RawConnection {
     while (transport_->can_read()) {
       BufferSlice packet;
       uint32 quick_ack = 0;
-      TRY_RESULT(wait_size, transport_->read_next(&packet, &quick_ack));
+      int32 error_code = 0;
+      TRY_RESULT(wait_size, transport_->read_next(&packet, &quick_ack, &error_code));
       if (wait_size != 0) {
         constexpr size_t MAX_PACKET_SIZE = (1 << 22) + 1024;
         if (wait_size > MAX_PACKET_SIZE) {
@@ -189,7 +190,7 @@ class RawConnectionDefault final : public RawConnection {
       PacketInfo packet_info;
       packet_info.version = 2;
 
-      TRY_RESULT(read_result, Transport::read(packet.as_mutable_slice(), auth_key, &packet_info));
+      TRY_RESULT(read_result, Transport::read(packet.as_mutable_slice(), error_code, auth_key, &packet_info));
       switch (read_result.type()) {
         case Transport::ReadResult::Quickack:
           TRY_STATUS(on_quick_ack(read_result.quick_ack(), callback));
@@ -283,7 +284,7 @@ class RawConnectionHttp final : public RawConnection {
   RawConnectionHttp(IPAddress ip_address, unique_ptr<StatsCallback> stats_callback)
       : ip_address_(std::move(ip_address)), stats_callback_(std::move(stats_callback)) {
     LOG(DEBUG) << "Create raw connection " << this;
-    answers_ = std::make_shared<MpscPollableQueue<Result<BufferSlice>>>();
+    answers_ = std::make_shared<MpscPollableQueue<Result<std::pair<int32, BufferSlice>>>>();
     answers_->init();
   }
 
@@ -369,7 +370,7 @@ class RawConnectionHttp final : public RawConnection {
   unique_ptr<StatsCallback> stats_callback_;
 
   ConnectionManager::ConnectionToken connection_token_;
-  std::shared_ptr<MpscPollableQueue<Result<BufferSlice>>> answers_;
+  std::shared_ptr<MpscPollableQueue<Result<std::pair<int32, BufferSlice>>>> answers_;
   std::vector<BufferSlice> to_send_;
 
   void on_read(size_t size, Callback &callback) {
@@ -396,7 +397,9 @@ class RawConnectionHttp final : public RawConnection {
         break;
       }
       for (int i = 0; i < packets_n; i++) {
-        TRY_RESULT(packet, answers_->reader_get_unsafe());
+        TRY_RESULT(answer, answers_->reader_get_unsafe());
+        auto error_code = answer.first;
+        auto packet = std::move(answer.second);
         on_read(packet.size(), callback);
         CHECK(mode_ == Receive);
         mode_ = Send;
@@ -404,11 +407,10 @@ class RawConnectionHttp final : public RawConnection {
         PacketInfo packet_info;
         packet_info.version = 2;
 
-        TRY_RESULT(read_result, Transport::read(packet.as_mutable_slice(), auth_key, &packet_info));
+        TRY_RESULT(read_result, Transport::read(packet.as_mutable_slice(), error_code, auth_key, &packet_info));
         switch (read_result.type()) {
-          case Transport::ReadResult::Quickack: {
+          case Transport::ReadResult::Quickack:
             break;
-          }
           case Transport::ReadResult::Error: {
             TRY_STATUS(on_read_mtproto_error(read_result.error()));
             break;

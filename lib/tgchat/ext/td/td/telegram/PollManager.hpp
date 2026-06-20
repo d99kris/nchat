@@ -360,11 +360,6 @@ PollId PollManager::parse_poll(ParserT &parser) {
           correct_option_ids.push_back(correct_option_id);
         }
       }
-      auto status = check_quiz_correct_option_ids(correct_option_ids, option_texts.size(), false);
-      if (status.is_error()) {
-        parser.set_error(status.message().str());
-        return PollId();
-      }
     }
     if (has_open_period) {
       parse(open_period, parser);
@@ -399,6 +394,13 @@ PollId PollManager::parse_poll(ParserT &parser) {
       CHECK(option_entities.size() == option_texts.size());
       for (size_t i = 0; i < option_texts.size(); i++) {
         options.emplace_back(FormattedText{std::move(option_texts[i]), std::move(option_entities[i])}, nullptr);
+      }
+    }
+    if (is_quiz) {
+      auto status = check_quiz_correct_option_ids(correct_option_ids, options.size(), false);
+      if (status.is_error()) {
+        parser.set_error(status.message().str());
+        return PollId();
       }
     }
 
