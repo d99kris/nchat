@@ -12,17 +12,21 @@ Telegram, WhatsApp and Signal (opt-in).
 
 Features
 --------
-- Customizable color schemes and key bindings
-- Jump to unread chat
-- Message history cache with support for text export
-- Message read receipt
-- Receive / send markdown formatted messages
-- Reply / delete / edit / forward / send messages
-- List dialogs for selecting chats, contacts, emojis, files
+- Send and receive markdown formatted messages
+- Reply, delete, edit and forward messages
+- Mention users in group chats
+- Send and display message reactions
+- View and save media (documents, photos, videos)
+- Show message read and edited indicators
 - Show user status (online, away, typing)
-- Toggle to view textized emojis vs. graphical
-- View / save media files (documents, photos, videos)
-- Send and display reactions
+- Jump to next unread chat
+- Archive, pin and delete chats
+- Search messages within a chat
+- List dialogs for chats, contacts, emojis, files
+- Message history cache with text export
+- Desktop notifications for new messages
+- Toggle textized vs. graphical emojis
+- Customizable [themes](https://github.com/d99kris/nchat/wiki/Themes) and key bindings
 
 
 Optional Features
