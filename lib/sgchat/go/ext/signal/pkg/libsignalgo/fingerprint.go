@@ -92,7 +92,7 @@ func (f *Fingerprint) ScannableEncoding() ([]byte, error) {
 }
 
 func (f *Fingerprint) DisplayString() (string, error) {
-	var displayString *C.char
+	var displayString C.SignalCStringPtr
 	signalFfiError := C.signal_fingerprint_display_string(&displayString, f.constPtr())
 	runtime.KeepAlive(f)
 	if signalFfiError != nil {

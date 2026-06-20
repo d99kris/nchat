@@ -314,7 +314,6 @@ func (CallMessage_Opaque_Urgency) EnumDescriptor() ([]byte, []int) {
 type DataMessage_Flags int32
 
 const (
-	DataMessage_END_SESSION             DataMessage_Flags = 1
 	DataMessage_EXPIRATION_TIMER_UPDATE DataMessage_Flags = 2
 	DataMessage_PROFILE_KEY_UPDATE      DataMessage_Flags = 4
 	DataMessage_FORWARD                 DataMessage_Flags = 8
@@ -323,13 +322,11 @@ const (
 // Enum value maps for DataMessage_Flags.
 var (
 	DataMessage_Flags_name = map[int32]string{
-		1: "END_SESSION",
 		2: "EXPIRATION_TIMER_UPDATE",
 		4: "PROFILE_KEY_UPDATE",
 		8: "FORWARD",
 	}
 	DataMessage_Flags_value = map[string]int32{
-		"END_SESSION":             1,
 		"EXPIRATION_TIMER_UPDATE": 2,
 		"PROFILE_KEY_UPDATE":      4,
 		"FORWARD":                 8,
@@ -3085,6 +3082,7 @@ type SyncMessage struct {
 	//	*SyncMessage_DeviceNameChange_
 	//	*SyncMessage_AttachmentBackfillRequest_
 	//	*SyncMessage_AttachmentBackfillResponse_
+	//	*SyncMessage_UsernameChange_
 	Content isSyncMessage_Content `protobuf_oneof:"content"`
 	// Protobufs don't allow `repeated` fields to be inside of `oneof` so while
 	// the fields below are mutually exclusive with the rest of the values above
@@ -3305,6 +3303,15 @@ func (x *SyncMessage) GetAttachmentBackfillResponse() *SyncMessage_AttachmentBac
 	return nil
 }
 
+func (x *SyncMessage) GetUsernameChange() *SyncMessage_UsernameChange {
+	if x != nil {
+		if x, ok := x.Content.(*SyncMessage_UsernameChange_); ok {
+			return x.UsernameChange
+		}
+	}
+	return nil
+}
+
 func (x *SyncMessage) GetRead() []*SyncMessage_Read {
 	if x != nil {
 		return x.Read
@@ -3413,6 +3420,10 @@ type SyncMessage_AttachmentBackfillResponse_ struct {
 	AttachmentBackfillResponse *SyncMessage_AttachmentBackfillResponse `protobuf:"bytes,25,opt,name=attachmentBackfillResponse,oneof"`
 }
 
+type SyncMessage_UsernameChange_ struct {
+	UsernameChange *SyncMessage_UsernameChange `protobuf:"bytes,26,opt,name=usernameChange,oneof"`
+}
+
 func (*SyncMessage_Sent_) isSyncMessage_Content() {}
 
 func (*SyncMessage_Contacts_) isSyncMessage_Content() {}
@@ -3450,6 +3461,8 @@ func (*SyncMessage_DeviceNameChange_) isSyncMessage_Content() {}
 func (*SyncMessage_AttachmentBackfillRequest_) isSyncMessage_Content() {}
 
 func (*SyncMessage_AttachmentBackfillResponse_) isSyncMessage_Content() {}
+
+func (*SyncMessage_UsernameChange_) isSyncMessage_Content() {}
 
 type AttachmentPointer struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -7925,6 +7938,42 @@ func (*SyncMessage_AttachmentBackfillResponse_Attachments) isSyncMessage_Attachm
 func (*SyncMessage_AttachmentBackfillResponse_Error_) isSyncMessage_AttachmentBackfillResponse_Data() {
 }
 
+type SyncMessage_UsernameChange struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SyncMessage_UsernameChange) Reset() {
+	*x = SyncMessage_UsernameChange{}
+	mi := &file_SignalService_proto_msgTypes[77]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SyncMessage_UsernameChange) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SyncMessage_UsernameChange) ProtoMessage() {}
+
+func (x *SyncMessage_UsernameChange) ProtoReflect() protoreflect.Message {
+	mi := &file_SignalService_proto_msgTypes[77]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SyncMessage_UsernameChange.ProtoReflect.Descriptor instead.
+func (*SyncMessage_UsernameChange) Descriptor() ([]byte, []int) {
+	return file_SignalService_proto_rawDescGZIP(), []int{11, 22}
+}
+
 type SyncMessage_Sent_UnidentifiedDeliveryStatus struct {
 	state                      protoimpl.MessageState `protogen:"open.v1"`
 	DestinationServiceId       *string                `protobuf:"bytes,3,opt,name=destinationServiceId" json:"destinationServiceId,omitempty"`
@@ -7937,7 +7986,7 @@ type SyncMessage_Sent_UnidentifiedDeliveryStatus struct {
 
 func (x *SyncMessage_Sent_UnidentifiedDeliveryStatus) Reset() {
 	*x = SyncMessage_Sent_UnidentifiedDeliveryStatus{}
-	mi := &file_SignalService_proto_msgTypes[77]
+	mi := &file_SignalService_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7949,7 +7998,7 @@ func (x *SyncMessage_Sent_UnidentifiedDeliveryStatus) String() string {
 func (*SyncMessage_Sent_UnidentifiedDeliveryStatus) ProtoMessage() {}
 
 func (x *SyncMessage_Sent_UnidentifiedDeliveryStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[77]
+	mi := &file_SignalService_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8005,7 +8054,7 @@ type SyncMessage_Sent_StoryMessageRecipient struct {
 
 func (x *SyncMessage_Sent_StoryMessageRecipient) Reset() {
 	*x = SyncMessage_Sent_StoryMessageRecipient{}
-	mi := &file_SignalService_proto_msgTypes[78]
+	mi := &file_SignalService_proto_msgTypes[79]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8017,7 +8066,7 @@ func (x *SyncMessage_Sent_StoryMessageRecipient) String() string {
 func (*SyncMessage_Sent_StoryMessageRecipient) ProtoMessage() {}
 
 func (x *SyncMessage_Sent_StoryMessageRecipient) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[78]
+	mi := &file_SignalService_proto_msgTypes[79]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8077,7 +8126,7 @@ type SyncMessage_OutgoingPayment_MobileCoin struct {
 
 func (x *SyncMessage_OutgoingPayment_MobileCoin) Reset() {
 	*x = SyncMessage_OutgoingPayment_MobileCoin{}
-	mi := &file_SignalService_proto_msgTypes[79]
+	mi := &file_SignalService_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8089,7 +8138,7 @@ func (x *SyncMessage_OutgoingPayment_MobileCoin) String() string {
 func (*SyncMessage_OutgoingPayment_MobileCoin) ProtoMessage() {}
 
 func (x *SyncMessage_OutgoingPayment_MobileCoin) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[79]
+	mi := &file_SignalService_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8171,7 +8220,7 @@ type SyncMessage_DeleteForMe_MessageDeletes struct {
 
 func (x *SyncMessage_DeleteForMe_MessageDeletes) Reset() {
 	*x = SyncMessage_DeleteForMe_MessageDeletes{}
-	mi := &file_SignalService_proto_msgTypes[80]
+	mi := &file_SignalService_proto_msgTypes[81]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8183,7 +8232,7 @@ func (x *SyncMessage_DeleteForMe_MessageDeletes) String() string {
 func (*SyncMessage_DeleteForMe_MessageDeletes) ProtoMessage() {}
 
 func (x *SyncMessage_DeleteForMe_MessageDeletes) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[80]
+	mi := &file_SignalService_proto_msgTypes[81]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8229,7 +8278,7 @@ type SyncMessage_DeleteForMe_AttachmentDelete struct {
 
 func (x *SyncMessage_DeleteForMe_AttachmentDelete) Reset() {
 	*x = SyncMessage_DeleteForMe_AttachmentDelete{}
-	mi := &file_SignalService_proto_msgTypes[81]
+	mi := &file_SignalService_proto_msgTypes[82]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8241,7 +8290,7 @@ func (x *SyncMessage_DeleteForMe_AttachmentDelete) String() string {
 func (*SyncMessage_DeleteForMe_AttachmentDelete) ProtoMessage() {}
 
 func (x *SyncMessage_DeleteForMe_AttachmentDelete) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[81]
+	mi := &file_SignalService_proto_msgTypes[82]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8304,7 +8353,7 @@ type SyncMessage_DeleteForMe_ConversationDelete struct {
 
 func (x *SyncMessage_DeleteForMe_ConversationDelete) Reset() {
 	*x = SyncMessage_DeleteForMe_ConversationDelete{}
-	mi := &file_SignalService_proto_msgTypes[82]
+	mi := &file_SignalService_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8316,7 +8365,7 @@ func (x *SyncMessage_DeleteForMe_ConversationDelete) String() string {
 func (*SyncMessage_DeleteForMe_ConversationDelete) ProtoMessage() {}
 
 func (x *SyncMessage_DeleteForMe_ConversationDelete) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[82]
+	mi := &file_SignalService_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8369,7 +8418,7 @@ type SyncMessage_DeleteForMe_LocalOnlyConversationDelete struct {
 
 func (x *SyncMessage_DeleteForMe_LocalOnlyConversationDelete) Reset() {
 	*x = SyncMessage_DeleteForMe_LocalOnlyConversationDelete{}
-	mi := &file_SignalService_proto_msgTypes[83]
+	mi := &file_SignalService_proto_msgTypes[84]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8381,7 +8430,7 @@ func (x *SyncMessage_DeleteForMe_LocalOnlyConversationDelete) String() string {
 func (*SyncMessage_DeleteForMe_LocalOnlyConversationDelete) ProtoMessage() {}
 
 func (x *SyncMessage_DeleteForMe_LocalOnlyConversationDelete) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[83]
+	mi := &file_SignalService_proto_msgTypes[84]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8417,7 +8466,7 @@ type SyncMessage_AttachmentBackfillResponse_AttachmentData struct {
 
 func (x *SyncMessage_AttachmentBackfillResponse_AttachmentData) Reset() {
 	*x = SyncMessage_AttachmentBackfillResponse_AttachmentData{}
-	mi := &file_SignalService_proto_msgTypes[84]
+	mi := &file_SignalService_proto_msgTypes[85]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8429,7 +8478,7 @@ func (x *SyncMessage_AttachmentBackfillResponse_AttachmentData) String() string 
 func (*SyncMessage_AttachmentBackfillResponse_AttachmentData) ProtoMessage() {}
 
 func (x *SyncMessage_AttachmentBackfillResponse_AttachmentData) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[84]
+	mi := &file_SignalService_proto_msgTypes[85]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8498,7 +8547,7 @@ type SyncMessage_AttachmentBackfillResponse_AttachmentDataList struct {
 
 func (x *SyncMessage_AttachmentBackfillResponse_AttachmentDataList) Reset() {
 	*x = SyncMessage_AttachmentBackfillResponse_AttachmentDataList{}
-	mi := &file_SignalService_proto_msgTypes[85]
+	mi := &file_SignalService_proto_msgTypes[86]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8510,7 +8559,7 @@ func (x *SyncMessage_AttachmentBackfillResponse_AttachmentDataList) String() str
 func (*SyncMessage_AttachmentBackfillResponse_AttachmentDataList) ProtoMessage() {}
 
 func (x *SyncMessage_AttachmentBackfillResponse_AttachmentDataList) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[85]
+	mi := &file_SignalService_proto_msgTypes[86]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8550,7 +8599,7 @@ type ContactDetails_Avatar struct {
 
 func (x *ContactDetails_Avatar) Reset() {
 	*x = ContactDetails_Avatar{}
-	mi := &file_SignalService_proto_msgTypes[86]
+	mi := &file_SignalService_proto_msgTypes[87]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8562,7 +8611,7 @@ func (x *ContactDetails_Avatar) String() string {
 func (*ContactDetails_Avatar) ProtoMessage() {}
 
 func (x *ContactDetails_Avatar) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[86]
+	mi := &file_SignalService_proto_msgTypes[87]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8602,7 +8651,7 @@ type PaymentAddress_MobileCoin struct {
 
 func (x *PaymentAddress_MobileCoin) Reset() {
 	*x = PaymentAddress_MobileCoin{}
-	mi := &file_SignalService_proto_msgTypes[87]
+	mi := &file_SignalService_proto_msgTypes[88]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8614,7 +8663,7 @@ func (x *PaymentAddress_MobileCoin) String() string {
 func (*PaymentAddress_MobileCoin) ProtoMessage() {}
 
 func (x *PaymentAddress_MobileCoin) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[87]
+	mi := &file_SignalService_proto_msgTypes[88]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8732,7 +8781,7 @@ const file_SignalService_proto_rawDesc = "" +
 	"\aurgency\x18\x02 \x01(\x0e2).signalservice.CallMessage.Opaque.UrgencyR\aurgency\"0\n" +
 	"\aUrgency\x12\r\n" +
 	"\tDROPPABLE\x10\x00\x12\x16\n" +
-	"\x12HANDLE_IMMEDIATELY\x10\x01J\x04\b\x04\x10\x05J\x04\b\x06\x10\aJ\x04\b\b\x10\t\"\x8b.\n" +
+	"\x12HANDLE_IMMEDIATELY\x10\x01J\x04\b\x04\x10\x05J\x04\b\x06\x10\aJ\x04\b\b\x10\t\"\x80.\n" +
 	"\vDataMessage\x12\x12\n" +
 	"\x04body\x18\x01 \x01(\tR\x04body\x12B\n" +
 	"\vattachments\x18\x02 \x03(\v2 .signalservice.AttachmentPointerR\vattachments\x127\n" +
@@ -8926,12 +8975,11 @@ const file_SignalService_proto_rawDesc = "" +
 	"\x13targetSentTimestamp\x18\x02 \x01(\x04R\x13targetSentTimestamp\x1au\n" +
 	"\vAdminDelete\x124\n" +
 	"\x15targetAuthorAciBinary\x18\x01 \x01(\fR\x15targetAuthorAciBinary\x120\n" +
-	"\x13targetSentTimestamp\x18\x02 \x01(\x04R\x13targetSentTimestamp\"Z\n" +
-	"\x05Flags\x12\x0f\n" +
-	"\vEND_SESSION\x10\x01\x12\x1b\n" +
+	"\x13targetSentTimestamp\x18\x02 \x01(\x04R\x13targetSentTimestamp\"O\n" +
+	"\x05Flags\x12\x1b\n" +
 	"\x17EXPIRATION_TIMER_UPDATE\x10\x02\x12\x16\n" +
 	"\x12PROFILE_KEY_UPDATE\x10\x04\x12\v\n" +
-	"\aFORWARD\x10\b\"\xbb\x01\n" +
+	"\aFORWARD\x10\b\"\x04\b\x01\x10\x01\"\xbb\x01\n" +
 	"\x0fProtocolVersion\x12\v\n" +
 	"\aINITIAL\x10\x00\x12\x12\n" +
 	"\x0eMESSAGE_TIMERS\x10\x01\x12\r\n" +
@@ -9015,7 +9063,7 @@ const file_SignalService_proto_rawDesc = "" +
 	"\aDEFAULT\x10\x00\x12\f\n" +
 	"\bVERIFIED\x10\x01\x12\x0e\n" +
 	"\n" +
-	"UNVERIFIED\x10\x02J\x04\b\x01\x10\x02\"\xf1F\n" +
+	"UNVERIFIED\x10\x02J\x04\b\x01\x10\x02\"\xd8G\n" +
 	"\vSyncMessage\x125\n" +
 	"\x04sent\x18\x01 \x01(\v2\x1f.signalservice.SyncMessage.SentH\x00R\x04sent\x12A\n" +
 	"\bcontacts\x18\x02 \x01(\v2#.signalservice.SyncMessage.ContactsH\x00R\bcontacts\x12>\n" +
@@ -9035,7 +9083,8 @@ const file_SignalService_proto_rawDesc = "" +
 	"\vdeleteForMe\x18\x16 \x01(\v2&.signalservice.SyncMessage.DeleteForMeH\x00R\vdeleteForMe\x12Y\n" +
 	"\x10deviceNameChange\x18\x17 \x01(\v2+.signalservice.SyncMessage.DeviceNameChangeH\x00R\x10deviceNameChange\x12t\n" +
 	"\x19attachmentBackfillRequest\x18\x18 \x01(\v24.signalservice.SyncMessage.AttachmentBackfillRequestH\x00R\x19attachmentBackfillRequest\x12w\n" +
-	"\x1aattachmentBackfillResponse\x18\x19 \x01(\v25.signalservice.SyncMessage.AttachmentBackfillResponseH\x00R\x1aattachmentBackfillResponse\x123\n" +
+	"\x1aattachmentBackfillResponse\x18\x19 \x01(\v25.signalservice.SyncMessage.AttachmentBackfillResponseH\x00R\x1aattachmentBackfillResponse\x12S\n" +
+	"\x0eusernameChange\x18\x1a \x01(\v2).signalservice.SyncMessage.UsernameChangeH\x00R\x0eusernameChange\x123\n" +
 	"\x04read\x18\x05 \x03(\v2\x1f.signalservice.SyncMessage.ReadR\x04read\x12c\n" +
 	"\x14stickerPackOperation\x18\n" +
 	" \x03(\v2/.signalservice.SyncMessage.StickerPackOperationR\x14stickerPackOperation\x129\n" +
@@ -9254,7 +9303,8 @@ const file_SignalService_proto_rawDesc = "" +
 	"\blongText\x18\x02 \x01(\v2D.signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentDataR\blongText\"\x1e\n" +
 	"\x05Error\x12\x15\n" +
 	"\x11MESSAGE_NOT_FOUND\x10\x00B\x06\n" +
-	"\x04dataB\t\n" +
+	"\x04data\x1a\x10\n" +
+	"\x0eUsernameChangeB\t\n" +
 	"\acontentJ\x04\b\x03\x10\x04J\x04\b\x11\x10\x12\"\xe7\x04\n" +
 	"\x11AttachmentPointer\x12\x16\n" +
 	"\x05cdnId\x18\x01 \x01(\x06H\x00R\x05cdnId\x12\x18\n" +
@@ -9371,7 +9421,7 @@ func file_SignalService_proto_rawDescGZIP() []byte {
 }
 
 var file_SignalService_proto_enumTypes = make([]protoimpl.EnumInfo, 28)
-var file_SignalService_proto_msgTypes = make([]protoimpl.MessageInfo, 88)
+var file_SignalService_proto_msgTypes = make([]protoimpl.MessageInfo, 89)
 var file_SignalService_proto_goTypes = []any{
 	(Envelope_Type)(0),                                                // 0: signalservice.Envelope.Type
 	(CallMessage_Offer_Type)(0),                                       // 1: signalservice.CallMessage.Offer.Type
@@ -9478,17 +9528,18 @@ var file_SignalService_proto_goTypes = []any{
 	(*SyncMessage_DeviceNameChange)(nil),                              // 102: signalservice.SyncMessage.DeviceNameChange
 	(*SyncMessage_AttachmentBackfillRequest)(nil),                     // 103: signalservice.SyncMessage.AttachmentBackfillRequest
 	(*SyncMessage_AttachmentBackfillResponse)(nil),                    // 104: signalservice.SyncMessage.AttachmentBackfillResponse
-	(*SyncMessage_Sent_UnidentifiedDeliveryStatus)(nil),               // 105: signalservice.SyncMessage.Sent.UnidentifiedDeliveryStatus
-	(*SyncMessage_Sent_StoryMessageRecipient)(nil),                    // 106: signalservice.SyncMessage.Sent.StoryMessageRecipient
-	(*SyncMessage_OutgoingPayment_MobileCoin)(nil),                    // 107: signalservice.SyncMessage.OutgoingPayment.MobileCoin
-	(*SyncMessage_DeleteForMe_MessageDeletes)(nil),                    // 108: signalservice.SyncMessage.DeleteForMe.MessageDeletes
-	(*SyncMessage_DeleteForMe_AttachmentDelete)(nil),                  // 109: signalservice.SyncMessage.DeleteForMe.AttachmentDelete
-	(*SyncMessage_DeleteForMe_ConversationDelete)(nil),                // 110: signalservice.SyncMessage.DeleteForMe.ConversationDelete
-	(*SyncMessage_DeleteForMe_LocalOnlyConversationDelete)(nil),       // 111: signalservice.SyncMessage.DeleteForMe.LocalOnlyConversationDelete
-	(*SyncMessage_AttachmentBackfillResponse_AttachmentData)(nil),     // 112: signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentData
-	(*SyncMessage_AttachmentBackfillResponse_AttachmentDataList)(nil), // 113: signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentDataList
-	(*ContactDetails_Avatar)(nil),                                     // 114: signalservice.ContactDetails.Avatar
-	(*PaymentAddress_MobileCoin)(nil),                                 // 115: signalservice.PaymentAddress.MobileCoin
+	(*SyncMessage_UsernameChange)(nil),                                // 105: signalservice.SyncMessage.UsernameChange
+	(*SyncMessage_Sent_UnidentifiedDeliveryStatus)(nil),               // 106: signalservice.SyncMessage.Sent.UnidentifiedDeliveryStatus
+	(*SyncMessage_Sent_StoryMessageRecipient)(nil),                    // 107: signalservice.SyncMessage.Sent.StoryMessageRecipient
+	(*SyncMessage_OutgoingPayment_MobileCoin)(nil),                    // 108: signalservice.SyncMessage.OutgoingPayment.MobileCoin
+	(*SyncMessage_DeleteForMe_MessageDeletes)(nil),                    // 109: signalservice.SyncMessage.DeleteForMe.MessageDeletes
+	(*SyncMessage_DeleteForMe_AttachmentDelete)(nil),                  // 110: signalservice.SyncMessage.DeleteForMe.AttachmentDelete
+	(*SyncMessage_DeleteForMe_ConversationDelete)(nil),                // 111: signalservice.SyncMessage.DeleteForMe.ConversationDelete
+	(*SyncMessage_DeleteForMe_LocalOnlyConversationDelete)(nil),       // 112: signalservice.SyncMessage.DeleteForMe.LocalOnlyConversationDelete
+	(*SyncMessage_AttachmentBackfillResponse_AttachmentData)(nil),     // 113: signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentData
+	(*SyncMessage_AttachmentBackfillResponse_AttachmentDataList)(nil), // 114: signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentDataList
+	(*ContactDetails_Avatar)(nil),                                     // 115: signalservice.ContactDetails.Avatar
+	(*PaymentAddress_MobileCoin)(nil),                                 // 116: signalservice.PaymentAddress.MobileCoin
 }
 var file_SignalService_proto_depIdxs = []int32{
 	0,   // 0: signalservice.Envelope.type:type_name -> signalservice.Envelope.Type
@@ -9556,78 +9607,79 @@ var file_SignalService_proto_depIdxs = []int32{
 	102, // 62: signalservice.SyncMessage.deviceNameChange:type_name -> signalservice.SyncMessage.DeviceNameChange
 	103, // 63: signalservice.SyncMessage.attachmentBackfillRequest:type_name -> signalservice.SyncMessage.AttachmentBackfillRequest
 	104, // 64: signalservice.SyncMessage.attachmentBackfillResponse:type_name -> signalservice.SyncMessage.AttachmentBackfillResponse
-	87,  // 65: signalservice.SyncMessage.read:type_name -> signalservice.SyncMessage.Read
-	90,  // 66: signalservice.SyncMessage.stickerPackOperation:type_name -> signalservice.SyncMessage.StickerPackOperation
-	88,  // 67: signalservice.SyncMessage.viewed:type_name -> signalservice.SyncMessage.Viewed
-	114, // 68: signalservice.ContactDetails.avatar:type_name -> signalservice.ContactDetails.Avatar
-	115, // 69: signalservice.PaymentAddress.mobileCoin:type_name -> signalservice.PaymentAddress.MobileCoin
-	31,  // 70: signalservice.EditMessage.dataMessage:type_name -> signalservice.DataMessage
-	27,  // 71: signalservice.BodyRange.style:type_name -> signalservice.BodyRange.Style
-	1,   // 72: signalservice.CallMessage.Offer.type:type_name -> signalservice.CallMessage.Offer.Type
-	2,   // 73: signalservice.CallMessage.Hangup.type:type_name -> signalservice.CallMessage.Hangup.Type
-	3,   // 74: signalservice.CallMessage.Opaque.urgency:type_name -> signalservice.CallMessage.Opaque.Urgency
-	72,  // 75: signalservice.DataMessage.Payment.notification:type_name -> signalservice.DataMessage.Payment.Notification
-	73,  // 76: signalservice.DataMessage.Payment.activation:type_name -> signalservice.DataMessage.Payment.Activation
-	76,  // 77: signalservice.DataMessage.Quote.attachments:type_name -> signalservice.DataMessage.Quote.QuotedAttachment
-	47,  // 78: signalservice.DataMessage.Quote.bodyRanges:type_name -> signalservice.BodyRange
-	7,   // 79: signalservice.DataMessage.Quote.type:type_name -> signalservice.DataMessage.Quote.Type
-	77,  // 80: signalservice.DataMessage.Contact.name:type_name -> signalservice.DataMessage.Contact.Name
-	78,  // 81: signalservice.DataMessage.Contact.number:type_name -> signalservice.DataMessage.Contact.Phone
-	79,  // 82: signalservice.DataMessage.Contact.email:type_name -> signalservice.DataMessage.Contact.Email
-	80,  // 83: signalservice.DataMessage.Contact.address:type_name -> signalservice.DataMessage.Contact.PostalAddress
-	81,  // 84: signalservice.DataMessage.Contact.avatar:type_name -> signalservice.DataMessage.Contact.Avatar
-	40,  // 85: signalservice.DataMessage.Sticker.data:type_name -> signalservice.AttachmentPointer
-	74,  // 86: signalservice.DataMessage.Payment.Amount.mobileCoin:type_name -> signalservice.DataMessage.Payment.Amount.MobileCoin
-	75,  // 87: signalservice.DataMessage.Payment.Notification.mobileCoin:type_name -> signalservice.DataMessage.Payment.Notification.MobileCoin
-	6,   // 88: signalservice.DataMessage.Payment.Activation.type:type_name -> signalservice.DataMessage.Payment.Activation.Type
-	40,  // 89: signalservice.DataMessage.Quote.QuotedAttachment.thumbnail:type_name -> signalservice.AttachmentPointer
-	8,   // 90: signalservice.DataMessage.Contact.Phone.type:type_name -> signalservice.DataMessage.Contact.Phone.Type
-	9,   // 91: signalservice.DataMessage.Contact.Email.type:type_name -> signalservice.DataMessage.Contact.Email.Type
-	10,  // 92: signalservice.DataMessage.Contact.PostalAddress.type:type_name -> signalservice.DataMessage.Contact.PostalAddress.Type
-	40,  // 93: signalservice.DataMessage.Contact.Avatar.avatar:type_name -> signalservice.AttachmentPointer
-	31,  // 94: signalservice.SyncMessage.Sent.message:type_name -> signalservice.DataMessage
-	105, // 95: signalservice.SyncMessage.Sent.unidentifiedStatus:type_name -> signalservice.SyncMessage.Sent.UnidentifiedDeliveryStatus
-	35,  // 96: signalservice.SyncMessage.Sent.storyMessage:type_name -> signalservice.StoryMessage
-	106, // 97: signalservice.SyncMessage.Sent.storyMessageRecipients:type_name -> signalservice.SyncMessage.Sent.StoryMessageRecipient
-	46,  // 98: signalservice.SyncMessage.Sent.editMessage:type_name -> signalservice.EditMessage
-	40,  // 99: signalservice.SyncMessage.Contacts.blob:type_name -> signalservice.AttachmentPointer
-	15,  // 100: signalservice.SyncMessage.Request.type:type_name -> signalservice.SyncMessage.Request.Type
-	16,  // 101: signalservice.SyncMessage.StickerPackOperation.type:type_name -> signalservice.SyncMessage.StickerPackOperation.Type
-	17,  // 102: signalservice.SyncMessage.FetchLatest.type:type_name -> signalservice.SyncMessage.FetchLatest.Type
-	18,  // 103: signalservice.SyncMessage.MessageRequestResponse.type:type_name -> signalservice.SyncMessage.MessageRequestResponse.Type
-	107, // 104: signalservice.SyncMessage.OutgoingPayment.mobileCoin:type_name -> signalservice.SyncMessage.OutgoingPayment.MobileCoin
-	19,  // 105: signalservice.SyncMessage.CallEvent.type:type_name -> signalservice.SyncMessage.CallEvent.Type
-	20,  // 106: signalservice.SyncMessage.CallEvent.direction:type_name -> signalservice.SyncMessage.CallEvent.Direction
-	21,  // 107: signalservice.SyncMessage.CallEvent.event:type_name -> signalservice.SyncMessage.CallEvent.Event
-	22,  // 108: signalservice.SyncMessage.CallLinkUpdate.type:type_name -> signalservice.SyncMessage.CallLinkUpdate.Type
-	23,  // 109: signalservice.SyncMessage.CallLogEvent.type:type_name -> signalservice.SyncMessage.CallLogEvent.Type
-	108, // 110: signalservice.SyncMessage.DeleteForMe.messageDeletes:type_name -> signalservice.SyncMessage.DeleteForMe.MessageDeletes
-	110, // 111: signalservice.SyncMessage.DeleteForMe.conversationDeletes:type_name -> signalservice.SyncMessage.DeleteForMe.ConversationDelete
-	111, // 112: signalservice.SyncMessage.DeleteForMe.localOnlyConversationDeletes:type_name -> signalservice.SyncMessage.DeleteForMe.LocalOnlyConversationDelete
-	109, // 113: signalservice.SyncMessage.DeleteForMe.attachmentDeletes:type_name -> signalservice.SyncMessage.DeleteForMe.AttachmentDelete
-	48,  // 114: signalservice.SyncMessage.AttachmentBackfillRequest.targetMessage:type_name -> signalservice.AddressableMessage
-	49,  // 115: signalservice.SyncMessage.AttachmentBackfillRequest.targetConversation:type_name -> signalservice.ConversationIdentifier
-	48,  // 116: signalservice.SyncMessage.AttachmentBackfillResponse.targetMessage:type_name -> signalservice.AddressableMessage
-	49,  // 117: signalservice.SyncMessage.AttachmentBackfillResponse.targetConversation:type_name -> signalservice.ConversationIdentifier
-	113, // 118: signalservice.SyncMessage.AttachmentBackfillResponse.attachments:type_name -> signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentDataList
-	24,  // 119: signalservice.SyncMessage.AttachmentBackfillResponse.error:type_name -> signalservice.SyncMessage.AttachmentBackfillResponse.Error
-	49,  // 120: signalservice.SyncMessage.DeleteForMe.MessageDeletes.conversation:type_name -> signalservice.ConversationIdentifier
-	48,  // 121: signalservice.SyncMessage.DeleteForMe.MessageDeletes.messages:type_name -> signalservice.AddressableMessage
-	49,  // 122: signalservice.SyncMessage.DeleteForMe.AttachmentDelete.conversation:type_name -> signalservice.ConversationIdentifier
-	48,  // 123: signalservice.SyncMessage.DeleteForMe.AttachmentDelete.targetMessage:type_name -> signalservice.AddressableMessage
-	49,  // 124: signalservice.SyncMessage.DeleteForMe.ConversationDelete.conversation:type_name -> signalservice.ConversationIdentifier
-	48,  // 125: signalservice.SyncMessage.DeleteForMe.ConversationDelete.mostRecentMessages:type_name -> signalservice.AddressableMessage
-	48,  // 126: signalservice.SyncMessage.DeleteForMe.ConversationDelete.mostRecentNonExpiringMessages:type_name -> signalservice.AddressableMessage
-	49,  // 127: signalservice.SyncMessage.DeleteForMe.LocalOnlyConversationDelete.conversation:type_name -> signalservice.ConversationIdentifier
-	40,  // 128: signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentData.attachment:type_name -> signalservice.AttachmentPointer
-	25,  // 129: signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentData.status:type_name -> signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentData.Status
-	112, // 130: signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentDataList.attachments:type_name -> signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentData
-	112, // 131: signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentDataList.longText:type_name -> signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentData
-	132, // [132:132] is the sub-list for method output_type
-	132, // [132:132] is the sub-list for method input_type
-	132, // [132:132] is the sub-list for extension type_name
-	132, // [132:132] is the sub-list for extension extendee
-	0,   // [0:132] is the sub-list for field type_name
+	105, // 65: signalservice.SyncMessage.usernameChange:type_name -> signalservice.SyncMessage.UsernameChange
+	87,  // 66: signalservice.SyncMessage.read:type_name -> signalservice.SyncMessage.Read
+	90,  // 67: signalservice.SyncMessage.stickerPackOperation:type_name -> signalservice.SyncMessage.StickerPackOperation
+	88,  // 68: signalservice.SyncMessage.viewed:type_name -> signalservice.SyncMessage.Viewed
+	115, // 69: signalservice.ContactDetails.avatar:type_name -> signalservice.ContactDetails.Avatar
+	116, // 70: signalservice.PaymentAddress.mobileCoin:type_name -> signalservice.PaymentAddress.MobileCoin
+	31,  // 71: signalservice.EditMessage.dataMessage:type_name -> signalservice.DataMessage
+	27,  // 72: signalservice.BodyRange.style:type_name -> signalservice.BodyRange.Style
+	1,   // 73: signalservice.CallMessage.Offer.type:type_name -> signalservice.CallMessage.Offer.Type
+	2,   // 74: signalservice.CallMessage.Hangup.type:type_name -> signalservice.CallMessage.Hangup.Type
+	3,   // 75: signalservice.CallMessage.Opaque.urgency:type_name -> signalservice.CallMessage.Opaque.Urgency
+	72,  // 76: signalservice.DataMessage.Payment.notification:type_name -> signalservice.DataMessage.Payment.Notification
+	73,  // 77: signalservice.DataMessage.Payment.activation:type_name -> signalservice.DataMessage.Payment.Activation
+	76,  // 78: signalservice.DataMessage.Quote.attachments:type_name -> signalservice.DataMessage.Quote.QuotedAttachment
+	47,  // 79: signalservice.DataMessage.Quote.bodyRanges:type_name -> signalservice.BodyRange
+	7,   // 80: signalservice.DataMessage.Quote.type:type_name -> signalservice.DataMessage.Quote.Type
+	77,  // 81: signalservice.DataMessage.Contact.name:type_name -> signalservice.DataMessage.Contact.Name
+	78,  // 82: signalservice.DataMessage.Contact.number:type_name -> signalservice.DataMessage.Contact.Phone
+	79,  // 83: signalservice.DataMessage.Contact.email:type_name -> signalservice.DataMessage.Contact.Email
+	80,  // 84: signalservice.DataMessage.Contact.address:type_name -> signalservice.DataMessage.Contact.PostalAddress
+	81,  // 85: signalservice.DataMessage.Contact.avatar:type_name -> signalservice.DataMessage.Contact.Avatar
+	40,  // 86: signalservice.DataMessage.Sticker.data:type_name -> signalservice.AttachmentPointer
+	74,  // 87: signalservice.DataMessage.Payment.Amount.mobileCoin:type_name -> signalservice.DataMessage.Payment.Amount.MobileCoin
+	75,  // 88: signalservice.DataMessage.Payment.Notification.mobileCoin:type_name -> signalservice.DataMessage.Payment.Notification.MobileCoin
+	6,   // 89: signalservice.DataMessage.Payment.Activation.type:type_name -> signalservice.DataMessage.Payment.Activation.Type
+	40,  // 90: signalservice.DataMessage.Quote.QuotedAttachment.thumbnail:type_name -> signalservice.AttachmentPointer
+	8,   // 91: signalservice.DataMessage.Contact.Phone.type:type_name -> signalservice.DataMessage.Contact.Phone.Type
+	9,   // 92: signalservice.DataMessage.Contact.Email.type:type_name -> signalservice.DataMessage.Contact.Email.Type
+	10,  // 93: signalservice.DataMessage.Contact.PostalAddress.type:type_name -> signalservice.DataMessage.Contact.PostalAddress.Type
+	40,  // 94: signalservice.DataMessage.Contact.Avatar.avatar:type_name -> signalservice.AttachmentPointer
+	31,  // 95: signalservice.SyncMessage.Sent.message:type_name -> signalservice.DataMessage
+	106, // 96: signalservice.SyncMessage.Sent.unidentifiedStatus:type_name -> signalservice.SyncMessage.Sent.UnidentifiedDeliveryStatus
+	35,  // 97: signalservice.SyncMessage.Sent.storyMessage:type_name -> signalservice.StoryMessage
+	107, // 98: signalservice.SyncMessage.Sent.storyMessageRecipients:type_name -> signalservice.SyncMessage.Sent.StoryMessageRecipient
+	46,  // 99: signalservice.SyncMessage.Sent.editMessage:type_name -> signalservice.EditMessage
+	40,  // 100: signalservice.SyncMessage.Contacts.blob:type_name -> signalservice.AttachmentPointer
+	15,  // 101: signalservice.SyncMessage.Request.type:type_name -> signalservice.SyncMessage.Request.Type
+	16,  // 102: signalservice.SyncMessage.StickerPackOperation.type:type_name -> signalservice.SyncMessage.StickerPackOperation.Type
+	17,  // 103: signalservice.SyncMessage.FetchLatest.type:type_name -> signalservice.SyncMessage.FetchLatest.Type
+	18,  // 104: signalservice.SyncMessage.MessageRequestResponse.type:type_name -> signalservice.SyncMessage.MessageRequestResponse.Type
+	108, // 105: signalservice.SyncMessage.OutgoingPayment.mobileCoin:type_name -> signalservice.SyncMessage.OutgoingPayment.MobileCoin
+	19,  // 106: signalservice.SyncMessage.CallEvent.type:type_name -> signalservice.SyncMessage.CallEvent.Type
+	20,  // 107: signalservice.SyncMessage.CallEvent.direction:type_name -> signalservice.SyncMessage.CallEvent.Direction
+	21,  // 108: signalservice.SyncMessage.CallEvent.event:type_name -> signalservice.SyncMessage.CallEvent.Event
+	22,  // 109: signalservice.SyncMessage.CallLinkUpdate.type:type_name -> signalservice.SyncMessage.CallLinkUpdate.Type
+	23,  // 110: signalservice.SyncMessage.CallLogEvent.type:type_name -> signalservice.SyncMessage.CallLogEvent.Type
+	109, // 111: signalservice.SyncMessage.DeleteForMe.messageDeletes:type_name -> signalservice.SyncMessage.DeleteForMe.MessageDeletes
+	111, // 112: signalservice.SyncMessage.DeleteForMe.conversationDeletes:type_name -> signalservice.SyncMessage.DeleteForMe.ConversationDelete
+	112, // 113: signalservice.SyncMessage.DeleteForMe.localOnlyConversationDeletes:type_name -> signalservice.SyncMessage.DeleteForMe.LocalOnlyConversationDelete
+	110, // 114: signalservice.SyncMessage.DeleteForMe.attachmentDeletes:type_name -> signalservice.SyncMessage.DeleteForMe.AttachmentDelete
+	48,  // 115: signalservice.SyncMessage.AttachmentBackfillRequest.targetMessage:type_name -> signalservice.AddressableMessage
+	49,  // 116: signalservice.SyncMessage.AttachmentBackfillRequest.targetConversation:type_name -> signalservice.ConversationIdentifier
+	48,  // 117: signalservice.SyncMessage.AttachmentBackfillResponse.targetMessage:type_name -> signalservice.AddressableMessage
+	49,  // 118: signalservice.SyncMessage.AttachmentBackfillResponse.targetConversation:type_name -> signalservice.ConversationIdentifier
+	114, // 119: signalservice.SyncMessage.AttachmentBackfillResponse.attachments:type_name -> signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentDataList
+	24,  // 120: signalservice.SyncMessage.AttachmentBackfillResponse.error:type_name -> signalservice.SyncMessage.AttachmentBackfillResponse.Error
+	49,  // 121: signalservice.SyncMessage.DeleteForMe.MessageDeletes.conversation:type_name -> signalservice.ConversationIdentifier
+	48,  // 122: signalservice.SyncMessage.DeleteForMe.MessageDeletes.messages:type_name -> signalservice.AddressableMessage
+	49,  // 123: signalservice.SyncMessage.DeleteForMe.AttachmentDelete.conversation:type_name -> signalservice.ConversationIdentifier
+	48,  // 124: signalservice.SyncMessage.DeleteForMe.AttachmentDelete.targetMessage:type_name -> signalservice.AddressableMessage
+	49,  // 125: signalservice.SyncMessage.DeleteForMe.ConversationDelete.conversation:type_name -> signalservice.ConversationIdentifier
+	48,  // 126: signalservice.SyncMessage.DeleteForMe.ConversationDelete.mostRecentMessages:type_name -> signalservice.AddressableMessage
+	48,  // 127: signalservice.SyncMessage.DeleteForMe.ConversationDelete.mostRecentNonExpiringMessages:type_name -> signalservice.AddressableMessage
+	49,  // 128: signalservice.SyncMessage.DeleteForMe.LocalOnlyConversationDelete.conversation:type_name -> signalservice.ConversationIdentifier
+	40,  // 129: signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentData.attachment:type_name -> signalservice.AttachmentPointer
+	25,  // 130: signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentData.status:type_name -> signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentData.Status
+	113, // 131: signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentDataList.attachments:type_name -> signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentData
+	113, // 132: signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentDataList.longText:type_name -> signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentData
+	133, // [133:133] is the sub-list for method output_type
+	133, // [133:133] is the sub-list for method input_type
+	133, // [133:133] is the sub-list for extension type_name
+	133, // [133:133] is the sub-list for extension extendee
+	0,   // [0:133] is the sub-list for field type_name
 }
 
 func init() { file_SignalService_proto_init() }
@@ -9674,6 +9726,7 @@ func file_SignalService_proto_init() {
 		(*SyncMessage_DeviceNameChange_)(nil),
 		(*SyncMessage_AttachmentBackfillRequest_)(nil),
 		(*SyncMessage_AttachmentBackfillResponse_)(nil),
+		(*SyncMessage_UsernameChange_)(nil),
 	}
 	file_SignalService_proto_msgTypes[12].OneofWrappers = []any{
 		(*AttachmentPointer_CdnId)(nil),
@@ -9719,7 +9772,7 @@ func file_SignalService_proto_init() {
 		(*SyncMessage_AttachmentBackfillResponse_Attachments)(nil),
 		(*SyncMessage_AttachmentBackfillResponse_Error_)(nil),
 	}
-	file_SignalService_proto_msgTypes[84].OneofWrappers = []any{
+	file_SignalService_proto_msgTypes[85].OneofWrappers = []any{
 		(*SyncMessage_AttachmentBackfillResponse_AttachmentData_Attachment)(nil),
 		(*SyncMessage_AttachmentBackfillResponse_AttachmentData_Status_)(nil),
 	}
@@ -9729,7 +9782,7 @@ func file_SignalService_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_SignalService_proto_rawDesc), len(file_SignalService_proto_rawDesc)),
 			NumEnums:      28,
-			NumMessages:   88,
+			NumMessages:   89,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

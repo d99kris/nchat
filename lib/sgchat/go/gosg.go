@@ -44,7 +44,7 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
-var signalDate int = 20260519
+var signalDate int = 20260609
 
 type State int64
 
@@ -1260,8 +1260,6 @@ func (handler *SgEventHandler) handleDataMessage(chatId string, senderId string,
 		placeholder = "[PollTerminate]"
 	} else if msg.GetFlags()&uint32(signalpb.DataMessage_EXPIRATION_TIMER_UPDATE) != 0 {
 		placeholder = "[ExpirationTimerUpdate]"
-	} else if msg.GetFlags()&uint32(signalpb.DataMessage_END_SESSION) != 0 {
-		placeholder = "[EndSession]"
 	} else if msg.GetFlags()&uint32(signalpb.DataMessage_PROFILE_KEY_UPDATE) != 0 {
 		return // silent, no need to display
 	}

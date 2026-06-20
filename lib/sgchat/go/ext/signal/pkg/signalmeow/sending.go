@@ -960,7 +960,6 @@ func (cli *Client) sendContent(
 		Uint64("response_id", *response.Id).
 		Uint32("response_status", *response.Status).
 		Logger()
-	ctx = log.WithContext(ctx)
 	if json.Valid(response.GetBody()) {
 		log.Debug().RawJSON("response_body", response.GetBody()).Msg("DEBUG: message send response data")
 	} else {

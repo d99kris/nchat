@@ -19,7 +19,7 @@ package libsignalgo
 /*
 #include <./libsignal-ffi.h>
 
-extern void signal_log_callback(void *ctx, SignalLogLevel level, char *file, uint32_t line, char *message);
+extern void signal_log_callback(void *ctx, SignalLogLevel level, SignalCStringPtr file, uint32_t line, SignalCStringPtr message);
 extern void signal_log_flush_callback(void *ctx);
 extern void signal_log_destroy_callback(void *ctx);
 */
@@ -32,7 +32,7 @@ import (
 var ffiLogger Logger
 
 //export signal_log_callback
-func signal_log_callback(ctx unsafe.Pointer, level C.SignalLogLevel, file *C.char, line C.uint32_t, message *C.char) {
+func signal_log_callback(ctx unsafe.Pointer, level C.SignalLogLevel, file C.SignalCStringPtr, line C.uint32_t, message C.SignalCStringPtr) {
 	ffiLogger.Log(LogLevel(int(level)), C.GoString(file), uint(line), C.GoString(message))
 }
 

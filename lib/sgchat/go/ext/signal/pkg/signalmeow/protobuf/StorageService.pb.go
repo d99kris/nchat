@@ -1566,49 +1566,52 @@ func (x *Payments) GetEntropy() []byte {
 }
 
 type AccountRecord struct {
-	state                             protoimpl.MessageState                           `protogen:"open.v1"`
-	ProfileKey                        []byte                                           `protobuf:"bytes,1,opt,name=profileKey,proto3" json:"profileKey,omitempty"`
-	GivenName                         string                                           `protobuf:"bytes,2,opt,name=givenName,proto3" json:"givenName,omitempty"`
-	FamilyName                        string                                           `protobuf:"bytes,3,opt,name=familyName,proto3" json:"familyName,omitempty"`
-	AvatarUrlPath                     string                                           `protobuf:"bytes,4,opt,name=avatarUrlPath,proto3" json:"avatarUrlPath,omitempty"`
-	NoteToSelfArchived                bool                                             `protobuf:"varint,5,opt,name=noteToSelfArchived,proto3" json:"noteToSelfArchived,omitempty"`
-	ReadReceipts                      bool                                             `protobuf:"varint,6,opt,name=readReceipts,proto3" json:"readReceipts,omitempty"`
-	SealedSenderIndicators            bool                                             `protobuf:"varint,7,opt,name=sealedSenderIndicators,proto3" json:"sealedSenderIndicators,omitempty"`
-	TypingIndicators                  bool                                             `protobuf:"varint,8,opt,name=typingIndicators,proto3" json:"typingIndicators,omitempty"`
-	NoteToSelfMarkedUnread            bool                                             `protobuf:"varint,10,opt,name=noteToSelfMarkedUnread,proto3" json:"noteToSelfMarkedUnread,omitempty"`
-	LinkPreviews                      bool                                             `protobuf:"varint,11,opt,name=linkPreviews,proto3" json:"linkPreviews,omitempty"`
-	PhoneNumberSharingMode            AccountRecord_PhoneNumberSharingMode             `protobuf:"varint,12,opt,name=phoneNumberSharingMode,proto3,enum=signalservice.AccountRecord_PhoneNumberSharingMode" json:"phoneNumberSharingMode,omitempty"`
-	UnlistedPhoneNumber               bool                                             `protobuf:"varint,13,opt,name=unlistedPhoneNumber,proto3" json:"unlistedPhoneNumber,omitempty"`
-	PinnedConversations               []*AccountRecord_PinnedConversation              `protobuf:"bytes,14,rep,name=pinnedConversations,proto3" json:"pinnedConversations,omitempty"`
-	PreferContactAvatars              bool                                             `protobuf:"varint,15,opt,name=preferContactAvatars,proto3" json:"preferContactAvatars,omitempty"`
-	Payments                          *Payments                                        `protobuf:"bytes,16,opt,name=payments,proto3" json:"payments,omitempty"`
-	UniversalExpireTimer              uint32                                           `protobuf:"varint,17,opt,name=universalExpireTimer,proto3" json:"universalExpireTimer,omitempty"`
-	PrimarySendsSms                   bool                                             `protobuf:"varint,18,opt,name=primarySendsSms,proto3" json:"primarySendsSms,omitempty"`
-	PreferredReactionEmoji            []string                                         `protobuf:"bytes,20,rep,name=preferredReactionEmoji,proto3" json:"preferredReactionEmoji,omitempty"`
-	SubscriberId                      []byte                                           `protobuf:"bytes,21,opt,name=subscriberId,proto3" json:"subscriberId,omitempty"`
-	SubscriberCurrencyCode            string                                           `protobuf:"bytes,22,opt,name=subscriberCurrencyCode,proto3" json:"subscriberCurrencyCode,omitempty"`
-	DisplayBadgesOnProfile            bool                                             `protobuf:"varint,23,opt,name=displayBadgesOnProfile,proto3" json:"displayBadgesOnProfile,omitempty"`
-	SubscriptionManuallyCancelled     bool                                             `protobuf:"varint,24,opt,name=subscriptionManuallyCancelled,proto3" json:"subscriptionManuallyCancelled,omitempty"`
-	KeepMutedChatsArchived            bool                                             `protobuf:"varint,25,opt,name=keepMutedChatsArchived,proto3" json:"keepMutedChatsArchived,omitempty"`
-	HasSetMyStoriesPrivacy            bool                                             `protobuf:"varint,26,opt,name=hasSetMyStoriesPrivacy,proto3" json:"hasSetMyStoriesPrivacy,omitempty"`
-	HasViewedOnboardingStory          bool                                             `protobuf:"varint,27,opt,name=hasViewedOnboardingStory,proto3" json:"hasViewedOnboardingStory,omitempty"`
-	StoriesDisabled                   bool                                             `protobuf:"varint,29,opt,name=storiesDisabled,proto3" json:"storiesDisabled,omitempty"`
-	StoryViewReceiptsEnabled          OptionalBool                                     `protobuf:"varint,30,opt,name=storyViewReceiptsEnabled,proto3,enum=signalservice.OptionalBool" json:"storyViewReceiptsEnabled,omitempty"`
-	HasSeenGroupStoryEducationSheet   bool                                             `protobuf:"varint,32,opt,name=hasSeenGroupStoryEducationSheet,proto3" json:"hasSeenGroupStoryEducationSheet,omitempty"`
-	Username                          string                                           `protobuf:"bytes,33,opt,name=username,proto3" json:"username,omitempty"`
-	HasCompletedUsernameOnboarding    bool                                             `protobuf:"varint,34,opt,name=hasCompletedUsernameOnboarding,proto3" json:"hasCompletedUsernameOnboarding,omitempty"`
-	UsernameLink                      *AccountRecord_UsernameLink                      `protobuf:"bytes,35,opt,name=usernameLink,proto3" json:"usernameLink,omitempty"`
-	HasBackup                         *bool                                            `protobuf:"varint,39,opt,name=hasBackup,proto3,oneof" json:"hasBackup,omitempty"`   // Set to true after backups are enabled and one is uploaded.
-	BackupTier                        *uint64                                          `protobuf:"varint,40,opt,name=backupTier,proto3,oneof" json:"backupTier,omitempty"` // See zkgroup for integer particular values. Unset if backups are not enabled.
-	BackupSubscriberData              *AccountRecord_IAPSubscriberData                 `protobuf:"bytes,41,opt,name=backupSubscriberData,proto3" json:"backupSubscriberData,omitempty"`
-	AvatarColor                       *AvatarColor                                     `protobuf:"varint,42,opt,name=avatarColor,proto3,enum=signalservice.AvatarColor,oneof" json:"avatarColor,omitempty"`
-	BackupTierHistory                 *AccountRecord_BackupTierHistory                 `protobuf:"bytes,43,opt,name=backupTierHistory,proto3" json:"backupTierHistory,omitempty"`
-	NotificationProfileManualOverride *AccountRecord_NotificationProfileManualOverride `protobuf:"bytes,44,opt,name=notificationProfileManualOverride,proto3" json:"notificationProfileManualOverride,omitempty"`
-	NotificationProfileSyncDisabled   bool                                             `protobuf:"varint,45,opt,name=notificationProfileSyncDisabled,proto3" json:"notificationProfileSyncDisabled,omitempty"`
-	AutomaticKeyVerificationDisabled  bool                                             `protobuf:"varint,46,opt,name=automaticKeyVerificationDisabled,proto3" json:"automaticKeyVerificationDisabled,omitempty"`
-	HasSeenAdminDeleteEducationDialog bool                                             `protobuf:"varint,47,opt,name=hasSeenAdminDeleteEducationDialog,proto3" json:"hasSeenAdminDeleteEducationDialog,omitempty"`
-	unknownFields                     protoimpl.UnknownFields
-	sizeCache                         protoimpl.SizeCache
+	state                               protoimpl.MessageState                           `protogen:"open.v1"`
+	ProfileKey                          []byte                                           `protobuf:"bytes,1,opt,name=profileKey,proto3" json:"profileKey,omitempty"`
+	GivenName                           string                                           `protobuf:"bytes,2,opt,name=givenName,proto3" json:"givenName,omitempty"`
+	FamilyName                          string                                           `protobuf:"bytes,3,opt,name=familyName,proto3" json:"familyName,omitempty"`
+	AvatarUrlPath                       string                                           `protobuf:"bytes,4,opt,name=avatarUrlPath,proto3" json:"avatarUrlPath,omitempty"`
+	NoteToSelfArchived                  bool                                             `protobuf:"varint,5,opt,name=noteToSelfArchived,proto3" json:"noteToSelfArchived,omitempty"`
+	ReadReceipts                        bool                                             `protobuf:"varint,6,opt,name=readReceipts,proto3" json:"readReceipts,omitempty"`
+	SealedSenderIndicators              bool                                             `protobuf:"varint,7,opt,name=sealedSenderIndicators,proto3" json:"sealedSenderIndicators,omitempty"`
+	TypingIndicators                    bool                                             `protobuf:"varint,8,opt,name=typingIndicators,proto3" json:"typingIndicators,omitempty"`
+	NoteToSelfMarkedUnread              bool                                             `protobuf:"varint,10,opt,name=noteToSelfMarkedUnread,proto3" json:"noteToSelfMarkedUnread,omitempty"`
+	LinkPreviews                        bool                                             `protobuf:"varint,11,opt,name=linkPreviews,proto3" json:"linkPreviews,omitempty"`
+	PhoneNumberSharingMode              AccountRecord_PhoneNumberSharingMode             `protobuf:"varint,12,opt,name=phoneNumberSharingMode,proto3,enum=signalservice.AccountRecord_PhoneNumberSharingMode" json:"phoneNumberSharingMode,omitempty"`
+	UnlistedPhoneNumber                 bool                                             `protobuf:"varint,13,opt,name=unlistedPhoneNumber,proto3" json:"unlistedPhoneNumber,omitempty"`
+	PinnedConversations                 []*AccountRecord_PinnedConversation              `protobuf:"bytes,14,rep,name=pinnedConversations,proto3" json:"pinnedConversations,omitempty"`
+	PreferContactAvatars                bool                                             `protobuf:"varint,15,opt,name=preferContactAvatars,proto3" json:"preferContactAvatars,omitempty"`
+	Payments                            *Payments                                        `protobuf:"bytes,16,opt,name=payments,proto3" json:"payments,omitempty"`
+	UniversalExpireTimer                uint32                                           `protobuf:"varint,17,opt,name=universalExpireTimer,proto3" json:"universalExpireTimer,omitempty"`
+	PrimarySendsSms                     bool                                             `protobuf:"varint,18,opt,name=primarySendsSms,proto3" json:"primarySendsSms,omitempty"`
+	PreferredReactionEmoji              []string                                         `protobuf:"bytes,20,rep,name=preferredReactionEmoji,proto3" json:"preferredReactionEmoji,omitempty"`
+	SubscriberId                        []byte                                           `protobuf:"bytes,21,opt,name=subscriberId,proto3" json:"subscriberId,omitempty"`
+	SubscriberCurrencyCode              string                                           `protobuf:"bytes,22,opt,name=subscriberCurrencyCode,proto3" json:"subscriberCurrencyCode,omitempty"`
+	DisplayBadgesOnProfile              bool                                             `protobuf:"varint,23,opt,name=displayBadgesOnProfile,proto3" json:"displayBadgesOnProfile,omitempty"`
+	SubscriptionManuallyCancelled       bool                                             `protobuf:"varint,24,opt,name=subscriptionManuallyCancelled,proto3" json:"subscriptionManuallyCancelled,omitempty"`
+	KeepMutedChatsArchived              bool                                             `protobuf:"varint,25,opt,name=keepMutedChatsArchived,proto3" json:"keepMutedChatsArchived,omitempty"`
+	HasSetMyStoriesPrivacy              bool                                             `protobuf:"varint,26,opt,name=hasSetMyStoriesPrivacy,proto3" json:"hasSetMyStoriesPrivacy,omitempty"`
+	HasViewedOnboardingStory            bool                                             `protobuf:"varint,27,opt,name=hasViewedOnboardingStory,proto3" json:"hasViewedOnboardingStory,omitempty"`
+	StoriesDisabled                     bool                                             `protobuf:"varint,29,opt,name=storiesDisabled,proto3" json:"storiesDisabled,omitempty"`
+	StoryViewReceiptsEnabled            OptionalBool                                     `protobuf:"varint,30,opt,name=storyViewReceiptsEnabled,proto3,enum=signalservice.OptionalBool" json:"storyViewReceiptsEnabled,omitempty"`
+	HasSeenGroupStoryEducationSheet     bool                                             `protobuf:"varint,32,opt,name=hasSeenGroupStoryEducationSheet,proto3" json:"hasSeenGroupStoryEducationSheet,omitempty"`
+	Username                            string                                           `protobuf:"bytes,33,opt,name=username,proto3" json:"username,omitempty"`
+	HasCompletedUsernameOnboarding      bool                                             `protobuf:"varint,34,opt,name=hasCompletedUsernameOnboarding,proto3" json:"hasCompletedUsernameOnboarding,omitempty"`
+	UsernameLink                        *AccountRecord_UsernameLink                      `protobuf:"bytes,35,opt,name=usernameLink,proto3" json:"usernameLink,omitempty"`
+	BackupTier                          *uint64                                          `protobuf:"varint,40,opt,name=backupTier,proto3,oneof" json:"backupTier,omitempty"` // See zkgroup for integer particular values. Unset if backups are not enabled.
+	BackupSubscriberData                *AccountRecord_IAPSubscriberData                 `protobuf:"bytes,41,opt,name=backupSubscriberData,proto3" json:"backupSubscriberData,omitempty"`
+	AvatarColor                         *AvatarColor                                     `protobuf:"varint,42,opt,name=avatarColor,proto3,enum=signalservice.AvatarColor,oneof" json:"avatarColor,omitempty"`
+	BackupTierHistory                   *AccountRecord_BackupTierHistory                 `protobuf:"bytes,43,opt,name=backupTierHistory,proto3" json:"backupTierHistory,omitempty"`
+	NotificationProfileManualOverride   *AccountRecord_NotificationProfileManualOverride `protobuf:"bytes,44,opt,name=notificationProfileManualOverride,proto3" json:"notificationProfileManualOverride,omitempty"`
+	NotificationProfileSyncDisabled     bool                                             `protobuf:"varint,45,opt,name=notificationProfileSyncDisabled,proto3" json:"notificationProfileSyncDisabled,omitempty"`
+	AutomaticKeyVerificationDisabled    bool                                             `protobuf:"varint,46,opt,name=automaticKeyVerificationDisabled,proto3" json:"automaticKeyVerificationDisabled,omitempty"`
+	HasSeenAdminDeleteEducationDialog   bool                                             `protobuf:"varint,47,opt,name=hasSeenAdminDeleteEducationDialog,proto3" json:"hasSeenAdminDeleteEducationDialog,omitempty"`
+	ReleaseNotesChatArchived            *bool                                            `protobuf:"varint,48,opt,name=releaseNotesChatArchived,proto3,oneof" json:"releaseNotesChatArchived,omitempty"`
+	ReleaseNotesChatMutedUntilTimestamp *uint64                                          `protobuf:"varint,49,opt,name=releaseNotesChatMutedUntilTimestamp,proto3,oneof" json:"releaseNotesChatMutedUntilTimestamp,omitempty"`
+	ReleaseNotesChatBlocked             *bool                                            `protobuf:"varint,50,opt,name=releaseNotesChatBlocked,proto3,oneof" json:"releaseNotesChatBlocked,omitempty"`
+	ReleaseNotesChatMarkedUnread        *bool                                            `protobuf:"varint,51,opt,name=releaseNotesChatMarkedUnread,proto3,oneof" json:"releaseNotesChatMarkedUnread,omitempty"`
+	unknownFields                       protoimpl.UnknownFields
+	sizeCache                           protoimpl.SizeCache
 }
 
 func (x *AccountRecord) Reset() {
@@ -1858,13 +1861,6 @@ func (x *AccountRecord) GetUsernameLink() *AccountRecord_UsernameLink {
 	return nil
 }
 
-func (x *AccountRecord) GetHasBackup() bool {
-	if x != nil && x.HasBackup != nil {
-		return *x.HasBackup
-	}
-	return false
-}
-
 func (x *AccountRecord) GetBackupTier() uint64 {
 	if x != nil && x.BackupTier != nil {
 		return *x.BackupTier
@@ -1917,6 +1913,34 @@ func (x *AccountRecord) GetAutomaticKeyVerificationDisabled() bool {
 func (x *AccountRecord) GetHasSeenAdminDeleteEducationDialog() bool {
 	if x != nil {
 		return x.HasSeenAdminDeleteEducationDialog
+	}
+	return false
+}
+
+func (x *AccountRecord) GetReleaseNotesChatArchived() bool {
+	if x != nil && x.ReleaseNotesChatArchived != nil {
+		return *x.ReleaseNotesChatArchived
+	}
+	return false
+}
+
+func (x *AccountRecord) GetReleaseNotesChatMutedUntilTimestamp() uint64 {
+	if x != nil && x.ReleaseNotesChatMutedUntilTimestamp != nil {
+		return *x.ReleaseNotesChatMutedUntilTimestamp
+	}
+	return 0
+}
+
+func (x *AccountRecord) GetReleaseNotesChatBlocked() bool {
+	if x != nil && x.ReleaseNotesChatBlocked != nil {
+		return *x.ReleaseNotesChatBlocked
+	}
+	return false
+}
+
+func (x *AccountRecord) GetReleaseNotesChatMarkedUnread() bool {
+	if x != nil && x.ReleaseNotesChatMarkedUnread != nil {
+		return *x.ReleaseNotesChatMarkedUnread
 	}
 	return false
 }
@@ -2546,6 +2570,7 @@ type AccountRecord_PinnedConversation struct {
 	//	*AccountRecord_PinnedConversation_Contact_
 	//	*AccountRecord_PinnedConversation_LegacyGroupId
 	//	*AccountRecord_PinnedConversation_GroupMasterKey
+	//	*AccountRecord_PinnedConversation_ReleaseNotes_
 	Identifier    isAccountRecord_PinnedConversation_Identifier `protobuf_oneof:"identifier"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2615,6 +2640,15 @@ func (x *AccountRecord_PinnedConversation) GetGroupMasterKey() []byte {
 	return nil
 }
 
+func (x *AccountRecord_PinnedConversation) GetReleaseNotes() *AccountRecord_PinnedConversation_ReleaseNotes {
+	if x != nil {
+		if x, ok := x.Identifier.(*AccountRecord_PinnedConversation_ReleaseNotes_); ok {
+			return x.ReleaseNotes
+		}
+	}
+	return nil
+}
+
 type isAccountRecord_PinnedConversation_Identifier interface {
 	isAccountRecord_PinnedConversation_Identifier()
 }
@@ -2631,12 +2665,19 @@ type AccountRecord_PinnedConversation_GroupMasterKey struct {
 	GroupMasterKey []byte `protobuf:"bytes,4,opt,name=groupMasterKey,proto3,oneof"`
 }
 
+type AccountRecord_PinnedConversation_ReleaseNotes_ struct {
+	ReleaseNotes *AccountRecord_PinnedConversation_ReleaseNotes `protobuf:"bytes,5,opt,name=releaseNotes,proto3,oneof"`
+}
+
 func (*AccountRecord_PinnedConversation_Contact_) isAccountRecord_PinnedConversation_Identifier() {}
 
 func (*AccountRecord_PinnedConversation_LegacyGroupId) isAccountRecord_PinnedConversation_Identifier() {
 }
 
 func (*AccountRecord_PinnedConversation_GroupMasterKey) isAccountRecord_PinnedConversation_Identifier() {
+}
+
+func (*AccountRecord_PinnedConversation_ReleaseNotes_) isAccountRecord_PinnedConversation_Identifier() {
 }
 
 type AccountRecord_UsernameLink struct {
@@ -2990,6 +3031,42 @@ func (x *AccountRecord_PinnedConversation_Contact) GetServiceIdBinary() []byte {
 	return nil
 }
 
+type AccountRecord_PinnedConversation_ReleaseNotes struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AccountRecord_PinnedConversation_ReleaseNotes) Reset() {
+	*x = AccountRecord_PinnedConversation_ReleaseNotes{}
+	mi := &file_StorageService_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AccountRecord_PinnedConversation_ReleaseNotes) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AccountRecord_PinnedConversation_ReleaseNotes) ProtoMessage() {}
+
+func (x *AccountRecord_PinnedConversation_ReleaseNotes) ProtoReflect() protoreflect.Message {
+	mi := &file_StorageService_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AccountRecord_PinnedConversation_ReleaseNotes.ProtoReflect.Descriptor instead.
+func (*AccountRecord_PinnedConversation_ReleaseNotes) Descriptor() ([]byte, []int) {
+	return file_StorageService_proto_rawDescGZIP(), []int{11, 0, 1}
+}
+
 type AccountRecord_NotificationProfileManualOverride_ManuallyEnabled struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Id    []byte                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -3001,7 +3078,7 @@ type AccountRecord_NotificationProfileManualOverride_ManuallyEnabled struct {
 
 func (x *AccountRecord_NotificationProfileManualOverride_ManuallyEnabled) Reset() {
 	*x = AccountRecord_NotificationProfileManualOverride_ManuallyEnabled{}
-	mi := &file_StorageService_proto_msgTypes[25]
+	mi := &file_StorageService_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3013,7 +3090,7 @@ func (x *AccountRecord_NotificationProfileManualOverride_ManuallyEnabled) String
 func (*AccountRecord_NotificationProfileManualOverride_ManuallyEnabled) ProtoMessage() {}
 
 func (x *AccountRecord_NotificationProfileManualOverride_ManuallyEnabled) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[25]
+	mi := &file_StorageService_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3054,7 +3131,7 @@ type Recipient_Contact struct {
 
 func (x *Recipient_Contact) Reset() {
 	*x = Recipient_Contact{}
-	mi := &file_StorageService_proto_msgTypes[26]
+	mi := &file_StorageService_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3066,7 +3143,7 @@ func (x *Recipient_Contact) String() string {
 func (*Recipient_Contact) ProtoMessage() {}
 
 func (x *Recipient_Contact) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[26]
+	mi := &file_StorageService_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3225,7 +3302,7 @@ const file_StorageService_proto_rawDesc = "" +
 	"\">\n" +
 	"\bPayments\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x18\n" +
-	"\aentropy\x18\x02 \x01(\fR\aentropy\"\x99\x1d\n" +
+	"\aentropy\x18\x02 \x01(\fR\aentropy\"\x84!\n" +
 	"\rAccountRecord\x12\x1e\n" +
 	"\n" +
 	"profileKey\x18\x01 \x01(\fR\n" +
@@ -3262,26 +3339,31 @@ const file_StorageService_proto_rawDesc = "" +
 	"\x1fhasSeenGroupStoryEducationSheet\x18  \x01(\bR\x1fhasSeenGroupStoryEducationSheet\x12\x1a\n" +
 	"\busername\x18! \x01(\tR\busername\x12F\n" +
 	"\x1ehasCompletedUsernameOnboarding\x18\" \x01(\bR\x1ehasCompletedUsernameOnboarding\x12M\n" +
-	"\fusernameLink\x18# \x01(\v2).signalservice.AccountRecord.UsernameLinkR\fusernameLink\x12!\n" +
-	"\thasBackup\x18' \x01(\bH\x00R\thasBackup\x88\x01\x01\x12#\n" +
+	"\fusernameLink\x18# \x01(\v2).signalservice.AccountRecord.UsernameLinkR\fusernameLink\x12#\n" +
 	"\n" +
-	"backupTier\x18( \x01(\x04H\x01R\n" +
+	"backupTier\x18( \x01(\x04H\x00R\n" +
 	"backupTier\x88\x01\x01\x12b\n" +
 	"\x14backupSubscriberData\x18) \x01(\v2..signalservice.AccountRecord.IAPSubscriberDataR\x14backupSubscriberData\x12A\n" +
-	"\vavatarColor\x18* \x01(\x0e2\x1a.signalservice.AvatarColorH\x02R\vavatarColor\x88\x01\x01\x12\\\n" +
+	"\vavatarColor\x18* \x01(\x0e2\x1a.signalservice.AvatarColorH\x01R\vavatarColor\x88\x01\x01\x12\\\n" +
 	"\x11backupTierHistory\x18+ \x01(\v2..signalservice.AccountRecord.BackupTierHistoryR\x11backupTierHistory\x12\x8c\x01\n" +
 	"!notificationProfileManualOverride\x18, \x01(\v2>.signalservice.AccountRecord.NotificationProfileManualOverrideR!notificationProfileManualOverride\x12H\n" +
 	"\x1fnotificationProfileSyncDisabled\x18- \x01(\bR\x1fnotificationProfileSyncDisabled\x12J\n" +
 	" automaticKeyVerificationDisabled\x18. \x01(\bR automaticKeyVerificationDisabled\x12L\n" +
-	"!hasSeenAdminDeleteEducationDialog\x18/ \x01(\bR!hasSeenAdminDeleteEducationDialog\x1a\xb0\x02\n" +
+	"!hasSeenAdminDeleteEducationDialog\x18/ \x01(\bR!hasSeenAdminDeleteEducationDialog\x12?\n" +
+	"\x18releaseNotesChatArchived\x180 \x01(\bH\x02R\x18releaseNotesChatArchived\x88\x01\x01\x12U\n" +
+	"#releaseNotesChatMutedUntilTimestamp\x181 \x01(\x04H\x03R#releaseNotesChatMutedUntilTimestamp\x88\x01\x01\x12=\n" +
+	"\x17releaseNotesChatBlocked\x182 \x01(\bH\x04R\x17releaseNotesChatBlocked\x88\x01\x01\x12G\n" +
+	"\x1creleaseNotesChatMarkedUnread\x183 \x01(\bH\x05R\x1creleaseNotesChatMarkedUnread\x88\x01\x01\x1a\xa4\x03\n" +
 	"\x12PinnedConversation\x12S\n" +
 	"\acontact\x18\x01 \x01(\v27.signalservice.AccountRecord.PinnedConversation.ContactH\x00R\acontact\x12&\n" +
 	"\rlegacyGroupId\x18\x03 \x01(\fH\x00R\rlegacyGroupId\x12(\n" +
-	"\x0egroupMasterKey\x18\x04 \x01(\fH\x00R\x0egroupMasterKey\x1ae\n" +
+	"\x0egroupMasterKey\x18\x04 \x01(\fH\x00R\x0egroupMasterKey\x12b\n" +
+	"\freleaseNotes\x18\x05 \x01(\v2<.signalservice.AccountRecord.PinnedConversation.ReleaseNotesH\x00R\freleaseNotes\x1ae\n" +
 	"\aContact\x12\x1c\n" +
 	"\tserviceId\x18\x01 \x01(\tR\tserviceId\x12\x12\n" +
 	"\x04e164\x18\x02 \x01(\tR\x04e164\x12(\n" +
-	"\x0fserviceIdBinary\x18\x03 \x01(\fR\x0fserviceIdBinaryB\f\n" +
+	"\x0fserviceIdBinary\x18\x03 \x01(\fR\x0fserviceIdBinary\x1a\x0e\n" +
+	"\fReleaseNotesB\f\n" +
 	"\n" +
 	"identifier\x1a\xf8\x01\n" +
 	"\fUsernameLink\x12\x18\n" +
@@ -3324,12 +3406,14 @@ const file_StorageService_proto_rawDesc = "" +
 	"\aUNKNOWN\x10\x00\x12\r\n" +
 	"\tEVERYBODY\x10\x01\x12\n" +
 	"\n" +
-	"\x06NOBODY\x10\x02B\f\n" +
-	"\n" +
-	"_hasBackupB\r\n" +
+	"\x06NOBODY\x10\x02B\r\n" +
 	"\v_backupTierB\x0e\n" +
-	"\f_avatarColorJ\x04\b\t\x10\n" +
-	"J\x04\b\x13\x10\x14J\x04\b\x1c\x10\x1dJ\x04\b\x1f\x10 J\x04\b$\x10%J\x04\b%\x10&J\x04\b&\x10'\"\xb9\x02\n" +
+	"\f_avatarColorB\x1b\n" +
+	"\x19_releaseNotesChatArchivedB&\n" +
+	"$_releaseNotesChatMutedUntilTimestampB\x1a\n" +
+	"\x18_releaseNotesChatBlockedB\x1f\n" +
+	"\x1d_releaseNotesChatMarkedUnreadJ\x04\b\t\x10\n" +
+	"J\x04\b\x13\x10\x14J\x04\b\x1c\x10\x1dJ\x04\b\x1f\x10 J\x04\b$\x10%J\x04\b%\x10&J\x04\b&\x10'J\x04\b'\x10(\"\xb9\x02\n" +
 	"\x1bStoryDistributionListRecord\x12\x1e\n" +
 	"\n" +
 	"identifier\x18\x01 \x01(\fR\n" +
@@ -3438,7 +3522,7 @@ func file_StorageService_proto_rawDescGZIP() []byte {
 }
 
 var file_StorageService_proto_enumTypes = make([]protoimpl.EnumInfo, 9)
-var file_StorageService_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
+var file_StorageService_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
 var file_StorageService_proto_goTypes = []any{
 	(OptionalBool)(0),                                       // 0: signalservice.OptionalBool
 	(AvatarColor)(0),                                        // 1: signalservice.AvatarColor
@@ -3474,8 +3558,9 @@ var file_StorageService_proto_goTypes = []any{
 	(*AccountRecord_BackupTierHistory)(nil),                 // 31: signalservice.AccountRecord.BackupTierHistory
 	(*AccountRecord_NotificationProfileManualOverride)(nil), // 32: signalservice.AccountRecord.NotificationProfileManualOverride
 	(*AccountRecord_PinnedConversation_Contact)(nil),        // 33: signalservice.AccountRecord.PinnedConversation.Contact
-	(*AccountRecord_NotificationProfileManualOverride_ManuallyEnabled)(nil), // 34: signalservice.AccountRecord.NotificationProfileManualOverride.ManuallyEnabled
-	(*Recipient_Contact)(nil), // 35: signalservice.Recipient.Contact
+	(*AccountRecord_PinnedConversation_ReleaseNotes)(nil),   // 34: signalservice.AccountRecord.PinnedConversation.ReleaseNotes
+	(*AccountRecord_NotificationProfileManualOverride_ManuallyEnabled)(nil), // 35: signalservice.AccountRecord.NotificationProfileManualOverride.ManuallyEnabled
+	(*Recipient_Contact)(nil), // 36: signalservice.Recipient.Contact
 }
 var file_StorageService_proto_depIdxs = []int32{
 	10, // 0: signalservice.StorageItems.items:type_name -> signalservice.StorageItem
@@ -3504,7 +3589,7 @@ var file_StorageService_proto_depIdxs = []int32{
 	1,  // 23: signalservice.AccountRecord.avatarColor:type_name -> signalservice.AvatarColor
 	31, // 24: signalservice.AccountRecord.backupTierHistory:type_name -> signalservice.AccountRecord.BackupTierHistory
 	32, // 25: signalservice.AccountRecord.notificationProfileManualOverride:type_name -> signalservice.AccountRecord.NotificationProfileManualOverride
-	35, // 26: signalservice.Recipient.contact:type_name -> signalservice.Recipient.Contact
+	36, // 26: signalservice.Recipient.contact:type_name -> signalservice.Recipient.Contact
 	7,  // 27: signalservice.ChatFolderRecord.folderType:type_name -> signalservice.ChatFolderRecord.FolderType
 	23, // 28: signalservice.ChatFolderRecord.includedRecipients:type_name -> signalservice.Recipient
 	23, // 29: signalservice.ChatFolderRecord.excludedRecipients:type_name -> signalservice.Recipient
@@ -3512,13 +3597,14 @@ var file_StorageService_proto_depIdxs = []int32{
 	8,  // 31: signalservice.NotificationProfile.scheduleDaysEnabled:type_name -> signalservice.NotificationProfile.DayOfWeek
 	2,  // 32: signalservice.ManifestRecord.Identifier.type:type_name -> signalservice.ManifestRecord.Identifier.Type
 	33, // 33: signalservice.AccountRecord.PinnedConversation.contact:type_name -> signalservice.AccountRecord.PinnedConversation.Contact
-	6,  // 34: signalservice.AccountRecord.UsernameLink.color:type_name -> signalservice.AccountRecord.UsernameLink.Color
-	34, // 35: signalservice.AccountRecord.NotificationProfileManualOverride.enabled:type_name -> signalservice.AccountRecord.NotificationProfileManualOverride.ManuallyEnabled
-	36, // [36:36] is the sub-list for method output_type
-	36, // [36:36] is the sub-list for method input_type
-	36, // [36:36] is the sub-list for extension type_name
-	36, // [36:36] is the sub-list for extension extendee
-	0,  // [0:36] is the sub-list for field type_name
+	34, // 34: signalservice.AccountRecord.PinnedConversation.releaseNotes:type_name -> signalservice.AccountRecord.PinnedConversation.ReleaseNotes
+	6,  // 35: signalservice.AccountRecord.UsernameLink.color:type_name -> signalservice.AccountRecord.UsernameLink.Color
+	35, // 36: signalservice.AccountRecord.NotificationProfileManualOverride.enabled:type_name -> signalservice.AccountRecord.NotificationProfileManualOverride.ManuallyEnabled
+	37, // [37:37] is the sub-list for method output_type
+	37, // [37:37] is the sub-list for method input_type
+	37, // [37:37] is the sub-list for extension type_name
+	37, // [37:37] is the sub-list for extension extendee
+	0,  // [0:37] is the sub-list for field type_name
 }
 
 func init() { file_StorageService_proto_init() }
@@ -3549,6 +3635,7 @@ func file_StorageService_proto_init() {
 		(*AccountRecord_PinnedConversation_Contact_)(nil),
 		(*AccountRecord_PinnedConversation_LegacyGroupId)(nil),
 		(*AccountRecord_PinnedConversation_GroupMasterKey)(nil),
+		(*AccountRecord_PinnedConversation_ReleaseNotes_)(nil),
 	}
 	file_StorageService_proto_msgTypes[21].OneofWrappers = []any{
 		(*AccountRecord_IAPSubscriberData_PurchaseToken)(nil),
@@ -3565,7 +3652,7 @@ func file_StorageService_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_StorageService_proto_rawDesc), len(file_StorageService_proto_rawDesc)),
 			NumEnums:      9,
-			NumMessages:   27,
+			NumMessages:   28,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
