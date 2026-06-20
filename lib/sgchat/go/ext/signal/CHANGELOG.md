@@ -1,6 +1,11 @@
+# v26.05
+
+* Updated libsignal to v0.93.2.
+* Added support for importing sticker packs from Signal.
+
 # v26.04
 
-* Updated libsignal to v0.92.1
+* Updated libsignal to v0.92.1.
 * Added support for admin message deletes from Signal.
 * Added support for binary service IDs in storage service.
 * Fixed `private_chat_portal_meta` option not setting DM room names correctly.

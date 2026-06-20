@@ -226,12 +226,13 @@ void UiKeyConfig::Init(bool p_MapKeys)
     { "react", "\\33\\163" }, // alt/opt-s
     { "spell", "\\33\\44" }, // alt/opt-$
     { "jump_quoted", "\\33\\161" }, // alt/opt-q
+    { "jump_pinned", "KEY_CTRLP" },
     { "find", "\\33\\57" }, // alt/opt-/
     { "find_next", "\\33\\77" }, // alt/opt-?
     { "toggle_emoji", "KEY_CTRLY" },
     { "toggle_help", "KEY_CTRLG" },
     { "toggle_list", "KEY_CTRLL" },
-    { "toggle_top", "KEY_CTRLP" },
+    { "toggle_top", "KEY_NONE" },
     { "transcribe_audio", "\\33\\165" }, // alt/opt-u
     { "set_transcription_lang", "\\33\\154" }, // alt/opt-l
     { "next_chat", "KEY_TAB" },
@@ -241,7 +242,7 @@ void UiKeyConfig::Init(bool p_MapKeys)
     { "delete_msg", "KEY_CTRLD" },
     { "delete_chat", "\\33\\144" }, // alt/opt-d
     { "archive_chat", "\\33\\141" }, // alt/opt-a
-    { "pin_chat", "\\33\\160" }, // alt/opt-p
+    { "pin", "\\33\\160" }, // alt/opt-p
     { "open", "KEY_CTRLV" },
     { "open_link", "KEY_CTRLW" },
     { "open_msg", "\\33\\167" }, // alt/opt-w

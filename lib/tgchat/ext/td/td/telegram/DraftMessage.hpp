@@ -11,6 +11,7 @@
 #include "td/telegram/InputMessageText.hpp"
 #include "td/telegram/MessageId.h"
 #include "td/telegram/MessageInputReplyTo.hpp"
+#include "td/telegram/RichMessage.hpp"
 #include "td/telegram/SuggestedPost.hpp"
 #include "td/telegram/Version.h"
 
@@ -31,6 +32,7 @@ void DraftMessage::store(StorerT &storer) const {
   STORE_FLAG(has_local_content);
   STORE_FLAG(has_message_effect_id);
   STORE_FLAG(has_suggested_post);
+  STORE_FLAG(is_rich_);
   END_STORE_FLAGS();
   td::store(date_, storer);
   if (has_input_message_text) {
@@ -47,6 +49,9 @@ void DraftMessage::store(StorerT &storer) const {
   }
   if (has_suggested_post) {
     td::store(suggested_post_, storer);
+  }
+  if (is_rich_) {
+    td::store(rich_message_, storer);
   }
 }
 
@@ -66,6 +71,7 @@ void DraftMessage::parse(ParserT &parser) {
     PARSE_FLAG(has_local_content);
     PARSE_FLAG(has_message_effect_id);
     PARSE_FLAG(has_suggested_post);
+    PARSE_FLAG(is_rich_);
     END_PARSE_FLAGS();
   } else {
     has_legacy_reply_to_message_id = true;
@@ -82,6 +88,11 @@ void DraftMessage::parse(ParserT &parser) {
   }
   if (has_message_input_reply_to) {
     td::parse(message_input_reply_to_, parser);
+
+    auto message_id = message_input_reply_to_.get_same_chat_reply_to_message_id();
+    if (message_id.is_valid() && (message_id.is_yet_unsent() || message_id.is_local())) {
+      message_input_reply_to_ = {};
+    }
   }
   if (has_local_content) {
     parse_draft_message_content(local_content_, parser);
@@ -91,6 +102,9 @@ void DraftMessage::parse(ParserT &parser) {
   }
   if (has_suggested_post) {
     td::parse(suggested_post_, parser);
+  }
+  if (is_rich_) {
+    td::parse(rich_message_, parser);
   }
 }
 

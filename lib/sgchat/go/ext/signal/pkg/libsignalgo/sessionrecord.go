@@ -105,6 +105,7 @@ func (sr *SessionRecord) HasCurrentState() (bool, error) {
 	signalFfiError := C.signal_session_record_has_usable_sender_chain(
 		&result,
 		sr.constPtr(),
+		C.double(0.0),
 		C.uint64_t(time.Now().Unix()),
 	)
 	runtime.KeepAlive(sr)

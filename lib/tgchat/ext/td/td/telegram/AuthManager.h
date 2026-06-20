@@ -41,10 +41,10 @@ class AuthManager final : public NetActor {
   void set_phone_number(uint64 query_id, string phone_number,
                         td_api::object_ptr<td_api::phoneNumberAuthenticationSettings> settings);
 
-  void check_premium_purchase(uint64 query_id, string currency, int64 amount);
+  void check_premium_purchase(uint64 query_id, int32 premium_day_count, string currency, int64 amount);
 
   void set_premium_purchase_transaction(uint64 query_id, td_api::object_ptr<td_api::StoreTransaction> &&transaction,
-                                        bool is_restore, string currency, int64 amount);
+                                        bool is_restore, int32 premium_day_count, string currency, int64 amount);
 
   void set_firebase_token(uint64 query_id, string token);
 
@@ -68,6 +68,8 @@ class AuthManager final : public NetActor {
 
   void finish_passkey_login(uint64 query_id, const string &passkey_id, const string &client_data,
                             const string &authenticator_data, const string &signature, const string &user_handle);
+
+  void import_web_token_authorization(uint64 query_id, const string &token, int32 dc_id);
 
   void check_bot_token(uint64 query_id, string bot_token);
 
@@ -126,6 +128,7 @@ class AuthManager final : public NetActor {
     RequestQrCode,
     ImportQrCode,
     FinishPasskeyLogin,
+    ImportWebTokenAuthorization,
     GetPassword,
     CheckPassword,
     RequestPasswordRecovery,
@@ -190,6 +193,7 @@ class AuthManager final : public NetActor {
   string store_product_id_;
   string support_email_address_;
   string support_email_subject_;
+  int32 premium_day_count_ = 0;
 
   // State::WaitEmailAddress
   bool allow_apple_id_ = false;
@@ -235,6 +239,7 @@ class AuthManager final : public NetActor {
   bool checking_password_ = false;
   bool was_qr_code_request_ = false;
   bool was_passkey_login_request_ = false;
+  bool was_web_token_login_request_ = false;
   bool was_check_bot_token_ = false;
   bool is_bot_ = false;
   uint64 net_query_id_ = 0;
@@ -243,6 +248,9 @@ class AuthManager final : public NetActor {
   PasskeyParameters passkey_parameters_;
   int32 passkey_dc_id_ = 0;
   int64 passkey_auth_key_id_ = 0;
+
+  string web_token_;
+  int32 web_token_dc_id_ = 0;
 
   vector<uint64> pending_get_authorization_state_requests_;
 
@@ -264,6 +272,8 @@ class AuthManager final : public NetActor {
 
   void send_finish_passkey_login_query();
 
+  void send_import_web_token_authorization_query();
+
   void on_account_banned() const;
 
   void on_sent_code(telegram_api::object_ptr<telegram_api::auth_SentCode> &&sent_code_ptr);
@@ -276,6 +286,7 @@ class AuthManager final : public NetActor {
   void on_reset_email_address_result(NetQueryPtr &&net_query);
   void on_request_qr_code_result(NetQueryPtr &&net_query, bool is_import);
   void on_finish_passkey_login_result(NetQueryPtr &&net_query);
+  void on_import_web_token_authorization_result(NetQueryPtr &&net_query);
   void on_get_password_result(NetQueryPtr &&net_query);
   void on_request_password_recovery_result(NetQueryPtr &&net_query);
   void on_check_password_recovery_code_result(NetQueryPtr &&net_query);

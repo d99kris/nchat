@@ -478,6 +478,55 @@ class ResetContactsQuery final : public Td::ResultHandler {
   }
 };
 
+class UploadSavedMusicFileQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+  FileUploadId file_upload_id_;
+  bool is_url_ = false;
+  bool was_uploaded_ = false;
+
+ public:
+  explicit UploadSavedMusicFileQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(telegram_api::object_ptr<telegram_api::InputPeer> &&input_peer, FileUploadId file_upload_id, bool is_url,
+            telegram_api::object_ptr<telegram_api::InputMedia> &&input_media) {
+    CHECK(input_peer != nullptr);
+    CHECK(input_media != nullptr);
+    file_upload_id_ = file_upload_id;
+    is_url_ = is_url;
+    was_uploaded_ = FileManager::extract_was_uploaded(input_media);
+    send_query(G()->net_query_creator().create(
+        telegram_api::messages_uploadMedia(0, string(), std::move(input_peer), std::move(input_media))));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::messages_uploadMedia>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    td_->user_manager_->on_uploaded_saved_music_file(file_upload_id_, is_url_, result_ptr.move_as_ok(),
+                                                     std::move(promise_));
+  }
+
+  void on_error(Status status) final {
+    if (was_uploaded_) {
+      CHECK(file_upload_id_.is_valid());
+      auto bad_parts = FileManager::get_missing_file_parts(status);
+      if (!bad_parts.empty()) {
+        // TODO td_->user_manager_->on_upload_saved_music_file_parts_missing(file_upload_id_, std::move(bad_parts));
+        // return;
+      } else {
+        td_->file_manager_->delete_partial_remote_location_if_needed(file_upload_id_, status);
+      }
+    } else if (FileReferenceManager::is_file_reference_error(status)) {
+      LOG(ERROR) << "Receive file reference error for UploadStickerFileQuery";
+    }
+    td_->file_manager_->cancel_upload(file_upload_id_);
+    promise_.set_error(std::move(status));
+  }
+};
+
 class UploadProfilePhotoQuery final : public Td::ResultHandler {
   Promise<Unit> promise_;
   UserId user_id_;
@@ -500,14 +549,11 @@ class UploadProfilePhotoQuery final : public Td::ResultHandler {
     only_suggest_ = only_suggest;
 
     static_assert(static_cast<int32>(telegram_api::photos_uploadProfilePhoto::VIDEO_MASK) ==
-                      static_cast<int32>(telegram_api::photos_uploadContactProfilePhoto::VIDEO_MASK),
-                  "");
+                  static_cast<int32>(telegram_api::photos_uploadContactProfilePhoto::VIDEO_MASK));
     static_assert(static_cast<int32>(telegram_api::photos_uploadProfilePhoto::VIDEO_START_TS_MASK) ==
-                      static_cast<int32>(telegram_api::photos_uploadContactProfilePhoto::VIDEO_START_TS_MASK),
-                  "");
+                  static_cast<int32>(telegram_api::photos_uploadContactProfilePhoto::VIDEO_START_TS_MASK));
     static_assert(static_cast<int32>(telegram_api::photos_uploadProfilePhoto::FILE_MASK) ==
-                      static_cast<int32>(telegram_api::photos_uploadContactProfilePhoto::FILE_MASK),
-                  "");
+                  static_cast<int32>(telegram_api::photos_uploadContactProfilePhoto::FILE_MASK));
 
     int32 flags = 0;
     telegram_api::object_ptr<telegram_api::InputFile> photo_input_file;
@@ -587,8 +633,7 @@ class UploadProfilePhotoQuery final : public Td::ResultHandler {
 
   void on_result(BufferSlice packet) final {
     static_assert(std::is_same<telegram_api::photos_uploadProfilePhoto::ReturnType,
-                               telegram_api::photos_uploadContactProfilePhoto::ReturnType>::value,
-                  "");
+                               telegram_api::photos_uploadContactProfilePhoto::ReturnType>::value);
     auto result_ptr = fetch_result<telegram_api::photos_uploadProfilePhoto>(packet);
     if (result_ptr.is_error()) {
       return on_error(result_ptr.move_as_error());
@@ -1719,9 +1764,7 @@ class GetSupportUserQuery final : public Td::ResultHandler {
     auto ptr = result_ptr.move_as_ok();
     LOG(INFO) << "Receive result for GetSupportUserQuery: " << to_string(ptr);
 
-    auto user_id = UserManager::get_user_id(ptr->user_);
-    td_->user_manager_->on_get_user(std::move(ptr->user_), "GetSupportUserQuery");
-
+    auto user_id = td_->user_manager_->on_get_user(std::move(ptr->user_), "GetSupportUserQuery");
     promise_.set_value(std::move(user_id));
   }
 
@@ -1840,6 +1883,8 @@ void UserManager::User::store(StorerT &storer) const {
     STORE_FLAG(has_live_story);
     STORE_FLAG(can_bot_create_topics);
     STORE_FLAG(can_manage_bots);  // 20
+    STORE_FLAG(is_guestchat_bot);
+    STORE_FLAG(is_guard_bot);
     END_STORE_FLAGS();
   }
   store(first_name, storer);
@@ -1992,6 +2037,8 @@ void UserManager::User::parse(ParserT &parser) {
     PARSE_FLAG(has_live_story);
     PARSE_FLAG(can_bot_create_topics);
     PARSE_FLAG(can_manage_bots);
+    PARSE_FLAG(is_guestchat_bot);
+    PARSE_FLAG(is_guard_bot);
     END_PARSE_FLAGS();
   }
   parse(first_name, parser);
@@ -2658,8 +2705,21 @@ class UserManager::UploadProfilePhotoCallback final : public FileManager::Upload
   }
 };
 
+class UserManager::UploadSavedMusicCallback final : public FileManager::UploadCallback {
+ public:
+  void on_upload_ok(FileUploadId file_upload_id, telegram_api::object_ptr<telegram_api::InputFile> input_file) final {
+    send_closure_later(G()->user_manager(), &UserManager::on_upload_saved_music, file_upload_id, std::move(input_file));
+  }
+
+  void on_upload_error(FileUploadId file_upload_id, Status error) final {
+    send_closure_later(G()->user_manager(), &UserManager::on_upload_saved_music_error, file_upload_id,
+                       std::move(error));
+  }
+};
+
 UserManager::UserManager(Td *td, ActorShared<> parent) : td_(td), parent_(std::move(parent)) {
   upload_profile_photo_callback_ = std::make_shared<UploadProfilePhotoCallback>();
+  upload_saved_music_callback_ = std::make_shared<UploadSavedMusicCallback>();
 
   my_id_ = load_my_id();
 
@@ -2856,8 +2916,8 @@ void UserManager::on_noforwards_request_timeout(int32 request_id) {
     return;
   }
 
-  auto it = noforwards_request_message_ids_.find(request_id);
-  if (it == noforwards_request_message_ids_.end()) {
+  auto it = noforwards_request_message_full_ids_.find(request_id);
+  if (it == noforwards_request_message_full_ids_.end()) {
     return;
   }
   auto message_full_id = it->second;
@@ -2883,13 +2943,8 @@ vector<UserId> UserManager::get_user_ids(vector<telegram_api::object_ptr<telegra
                                          const char *source) {
   vector<UserId> user_ids;
   for (auto &user : users) {
-    auto user_id = get_user_id(user);
-    if (!user_id.is_valid()) {
-      LOG(ERROR) << "Receive invalid " << user_id << " from " << source << " in " << to_string(user);
-      continue;
-    }
-    on_get_user(std::move(user), source);
-    if (have_min_user(user_id)) {
+    auto user_id = on_get_user(std::move(user), source);
+    if (user_id.is_valid()) {
       user_ids.push_back(user_id);
     }
   }
@@ -3048,7 +3103,7 @@ void UserManager::set_my_online_status(bool is_online, bool send_update, bool is
   }
 }
 
-void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&user_ptr, const char *source) {
+UserId UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&user_ptr, const char *source) {
   LOG(DEBUG) << "Receive from " << source << ' ' << to_string(user_ptr);
   CHECK(user_ptr != nullptr);
   int32 constructor_id = user_ptr->get_id();
@@ -3057,7 +3112,7 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
     UserId user_id(user->id_);
     if (!user_id.is_valid()) {
       LOG(ERROR) << "Receive invalid " << user_id << " from " << source;
-      return;
+      return UserId();
     }
     LOG(INFO) << "Receive empty " << user_id << " from " << source;
 
@@ -3066,7 +3121,7 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
       // userEmpty should be received only through getUsers for nonexistent users
       LOG(ERROR) << "Have no information about " << user_id << ", but received userEmpty from " << source;
     }
-    return;
+    return user_id;
   }
 
   CHECK(constructor_id == telegram_api::user::ID);
@@ -3074,7 +3129,7 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
   UserId user_id(user->id_);
   if (!user_id.is_valid()) {
     LOG(ERROR) << "Receive invalid " << user_id;
-    return;
+    return UserId();
   }
 
   LOG(INFO) << "Receive " << user_id << " from " << source;
@@ -3104,7 +3159,7 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
         u = add_user(user_id);
       }
     } else if (is_contact && !are_contacts_loaded_) {
-      // preload contact users from database to know that is_contact didn't changed
+      // preload contact users from database to know that is_contact didn't change
       // and the list of contacts doesn't need to be saved to the database
       u = get_user_force(user_id, "on_get_user 3");
       if (u == nullptr) {
@@ -3120,7 +3175,7 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
     }
   } else if (is_deleted && !is_received && user_id == get_my_id()) {
     LOG(INFO) << "Ignore self as frozen min-user";
-    return;
+    return user_id;
   }
 
   if (have_access_hash) {  // access_hash must be updated before photo
@@ -3149,7 +3204,9 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
   bool is_scam = user->scam_;
   bool can_be_edited_bot = user->bot_can_edit_;
   bool is_inline_bot = (flags & telegram_api::user::BOT_INLINE_PLACEHOLDER_MASK) != 0;
+  bool is_guestchat_bot = user->bot_guestchat_;
   bool is_business_bot = user->bot_business_;
+  bool is_guard_bot = user->bot_guard_;
   string inline_query_placeholder = std::move(user->bot_inline_placeholder_);
   int32 bot_active_users = user->bot_active_users_;
   bool need_location_bot = user->bot_inline_geo_;
@@ -3163,7 +3220,7 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
 
   if (!is_bot && (!can_join_groups || can_read_all_group_messages || can_be_added_to_attach_menu || can_be_edited_bot ||
                   has_main_app || has_bot_forum_view || can_bot_create_topics || can_manage_bots || is_inline_bot ||
-                  is_business_bot)) {
+                  is_business_bot || is_guestchat_bot || is_guard_bot)) {
     LOG(ERROR) << "Receive not bot " << user_id << " with bot properties from " << source;
     can_join_groups = true;
     can_read_all_group_messages = false;
@@ -3175,6 +3232,8 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
     can_manage_bots = false;
     is_inline_bot = false;
     is_business_bot = false;
+    is_guestchat_bot = false;
+    is_guard_bot = false;
   }
   if (need_location_bot && !is_inline_bot) {
     LOG(ERROR) << "Receive not inline bot " << user_id << " which needs user location from " << source;
@@ -3196,7 +3255,9 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
     can_bot_create_topics = false;
     can_manage_bots = false;
     is_inline_bot = false;
+    is_guestchat_bot = false;
     is_business_bot = false;
+    is_guard_bot = false;
     inline_query_placeholder = string();
     bot_active_users = 0;
     need_location_bot = false;
@@ -3211,7 +3272,8 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
       is_business_bot != u->is_business_bot || inline_query_placeholder != u->inline_query_placeholder ||
       need_location_bot != u->need_location_bot || can_be_added_to_attach_menu != u->can_be_added_to_attach_menu ||
       has_main_app != u->has_main_app || can_bot_create_topics != u->can_bot_create_topics ||
-      can_manage_bots != u->can_manage_bots) {
+      can_manage_bots != u->can_manage_bots || is_guestchat_bot != u->is_guestchat_bot ||
+      is_guard_bot != u->is_guard_bot) {
     if (is_bot != u->is_bot) {
       LOG_IF(ERROR, !is_deleted && !u->is_deleted && u->is_received)
           << "User.is_bot has changed for " << user_id << "/" << u->usernames << " from " << source << " from "
@@ -3233,6 +3295,8 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
     u->has_main_app = has_main_app;
     u->can_bot_create_topics = can_bot_create_topics;
     u->can_manage_bots = can_manage_bots;
+    u->is_guestchat_bot = is_guestchat_bot;
+    u->is_guard_bot = is_guard_bot;
 
     LOG(DEBUG) << "Info has changed for " << user_id;
     u->is_changed = true;
@@ -3362,6 +3426,7 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
   }
   u->is_received_from_server = true;
   update_user(u, user_id);
+  return user_id;
 }
 
 void UserManager::on_get_users(vector<telegram_api::object_ptr<telegram_api::User>> &&users, const char *source) {
@@ -4986,8 +5051,8 @@ UserManager::User *UserManager::get_user_force(UserId user_id, const char *sourc
     auto user = telegram_api::make_object<telegram_api::user>(
         flags, false, false, false, false, is_bot, false, is_private_bot, is_verified, false, false, false, is_support,
         false, need_apply_min_photo, false, false, false, false, 0, false, false, false, false, false, false, false,
-        false, false, false, user_id.get(), 1, first_name, string(), username, phone_number, std::move(profile_photo),
-        nullptr, bot_info_version, Auto(), string(), string(), nullptr,
+        false, false, false, false, false, user_id.get(), 1, first_name, string(), username, phone_number,
+        std::move(profile_photo), nullptr, bot_info_version, Auto(), string(), string(), nullptr,
         vector<telegram_api::object_ptr<telegram_api::username>>(), nullptr, nullptr, nullptr, 0, 0, 0);
     on_get_user(std::move(user), "get_user_force");
     u = get_user(user_id);
@@ -5112,6 +5177,17 @@ Result<telegram_api::object_ptr<telegram_api::InputUser>> UserManager::get_input
   return telegram_api::make_object<telegram_api::inputUser>(user_id.get(), u->access_hash);
 }
 
+Result<vector<telegram_api::object_ptr<telegram_api::InputUser>>> UserManager::get_input_users(
+    const vector<UserId> &user_ids) const {
+  vector<telegram_api::object_ptr<telegram_api::InputUser>> input_users;
+  input_users.reserve(user_ids.size());
+  for (auto user_id : user_ids) {
+    TRY_RESULT(input_user, get_input_user(user_id));
+    input_users.push_back(std::move(input_user));
+  }
+  return std::move(input_users);
+}
+
 telegram_api::object_ptr<telegram_api::InputUser> UserManager::get_input_user_force(UserId user_id) const {
   auto r_input_user = get_input_user(user_id);
   if (r_input_user.is_error()) {
@@ -5119,6 +5195,19 @@ telegram_api::object_ptr<telegram_api::InputUser> UserManager::get_input_user_fo
     return telegram_api::make_object<telegram_api::inputUser>(user_id.get(), 0);
   }
   return r_input_user.move_as_ok();
+}
+
+vector<telegram_api::object_ptr<telegram_api::InputUser>> UserManager::get_input_users_force(
+    const vector<UserId> &user_ids) const {
+  vector<telegram_api::object_ptr<telegram_api::InputUser>> input_users;
+  input_users.reserve(user_ids.size());
+  for (auto user_id : user_ids) {
+    auto r_input_user = get_input_user(user_id);
+    if (r_input_user.is_ok()) {
+      input_users.push_back(r_input_user.move_as_ok());
+    }
+  }
+  return input_users;
 }
 
 bool UserManager::have_input_peer_user(UserId user_id, AccessRights access_rights) const {
@@ -5282,7 +5371,9 @@ Result<UserManager::BotData> UserManager::get_bot_data(UserId user_id) const {
   bot_data.can_bot_create_topics = u->can_bot_create_topics;
   bot_data.can_manage_bots = u->can_manage_bots;
   bot_data.is_inline = u->is_inline_bot;
+  bot_data.is_guestchat = u->is_guestchat_bot;
   bot_data.is_business = u->is_business_bot;
+  bot_data.is_guard = u->is_guard_bot;
   bot_data.need_location = u->need_location_bot;
   bot_data.can_be_added_to_attach_menu = u->can_be_added_to_attach_menu;
   return bot_data;
@@ -5466,21 +5557,19 @@ RestrictedRights UserManager::get_user_default_permissions(UserId user_id) const
   auto u = get_user(user_id);
   if ((u == nullptr && user_id != get_my_id()) || user_id == get_replies_bot_user_id() ||
       user_id == get_verification_codes_bot_user_id()) {
-    return RestrictedRights(false, false, false, false, false, false, false, false, false, false, false, false, false,
-                            false, false, u != nullptr, false, false, ChannelType::Unknown);
+    return RestrictedRights::restrict_all();
   }
   return RestrictedRights(true, true, true, true, true, true, true, true, true, true, true, true, true, false, false,
-                          true, false, false, ChannelType::Unknown);
+                          true, false, false, true, ChannelType::Unknown);
 }
 
 RestrictedRights UserManager::get_secret_chat_default_permissions(SecretChatId secret_chat_id) const {
   auto c = get_secret_chat(secret_chat_id);
   if (c == nullptr) {
-    return RestrictedRights(false, false, false, false, false, false, false, false, false, false, false, false, false,
-                            false, false, false, false, false, ChannelType::Unknown);
+    return RestrictedRights::restrict_all();
   }
   return RestrictedRights(true, true, true, true, true, true, true, true, true, true, true, true, true, false, false,
-                          false, false, false, ChannelType::Unknown);
+                          false, false, false, false, ChannelType::Unknown);
 }
 
 td_api::object_ptr<td_api::emojiStatus> UserManager::get_user_emoji_status_object(UserId user_id) const {
@@ -7023,6 +7112,137 @@ void UserManager::check_is_saved_music(FileId file_id, Promise<Unit> &&promise) 
   return promise.set_value(Unit());
 }
 
+void UserManager::add_new_saved_music(const td_api::object_ptr<td_api::InputFile> &audio, int32 duration,
+                                      const string &title, const string &performer, Promise<Unit> &&promise) {
+  TRY_RESULT_PROMISE(promise, file_id,
+                     td_->file_manager_->get_input_file_id(FileType::Audio, audio, DialogId(), false, false));
+  CHECK(file_id.is_valid());
+
+  FileView file_view = td_->file_manager_->get_file_view(file_id);
+  if (file_view.is_encrypted()) {
+    return promise.set_error(400, "Can't use encrypted file");
+  }
+
+  const auto *main_remote_location = file_view.get_main_remote_location();
+  if (main_remote_location != nullptr && main_remote_location->is_web()) {
+    return promise.set_error(400, "Can't use web file to create a profile audio");
+  }
+
+  if (main_remote_location != nullptr) {
+    return add_saved_music(file_id, FileId(), std::move(promise));
+  }
+
+  td_->audios_manager_->create_audio(file_id, string(), PhotoSize(), string(), string(), duration, title, performer, 0,
+                                     false);
+  auto upload_promise = PromiseCreator::lambda(
+      [actor_id = actor_id(this), file_id, promise = std::move(promise)](Result<Unit> &&result) mutable {
+        if (result.is_error()) {
+          return promise.set_error(result.move_as_error());
+        }
+        send_closure(actor_id, &UserManager::add_saved_music, file_id, FileId(), std::move(promise));
+      });
+  if (file_view.has_url()) {
+    do_upload_saved_music({file_id, FileManager::get_internal_upload_id()}, nullptr, std::move(upload_promise));
+  } else {
+    upload_saved_music(file_id, std::move(upload_promise));
+  }
+}
+
+void UserManager::upload_saved_music(FileId file_id, Promise<Unit> &&promise) {
+  CHECK(td_->audios_manager_->get_input_media(file_id, nullptr, nullptr) == nullptr);
+
+  FileUploadId file_upload_id{file_id, FileManager::get_internal_upload_id()};
+  CHECK(file_upload_id.is_valid());
+  being_uploaded_saved_music_files_[file_upload_id] = std::move(promise);
+  LOG(INFO) << "Ask to upload profile audio " << file_upload_id;
+  td_->file_manager_->upload(file_upload_id, upload_saved_music_callback_, 2, 0);
+}
+
+void UserManager::on_upload_saved_music(FileUploadId file_upload_id,
+                                        telegram_api::object_ptr<telegram_api::InputFile> input_file) {
+  LOG(INFO) << "Profile audio " << file_upload_id << " has been uploaded";
+
+  auto it = being_uploaded_saved_music_files_.find(file_upload_id);
+  CHECK(it != being_uploaded_saved_music_files_.end());
+  auto promise = std::move(it->second);
+  being_uploaded_saved_music_files_.erase(it);
+
+  do_upload_saved_music(file_upload_id, std::move(input_file), std::move(promise));
+}
+
+void UserManager::on_upload_saved_music_error(FileUploadId file_upload_id, Status status) {
+  if (G()->close_flag()) {
+    // do not fail upload if closing
+    return;
+  }
+
+  LOG(WARNING) << "Profile audio " << file_upload_id << " has upload error " << status;
+  CHECK(status.is_error());
+
+  auto it = being_uploaded_saved_music_files_.find(file_upload_id);
+  CHECK(it != being_uploaded_saved_music_files_.end());
+  auto promise = std::move(it->second);
+  being_uploaded_saved_music_files_.erase(it);
+
+  promise.set_error(status.code() > 0 ? status.code() : 500,
+                    status.message());  // TODO CHECK that status has always a code
+}
+
+void UserManager::do_upload_saved_music(FileUploadId file_upload_id,
+                                        telegram_api::object_ptr<telegram_api::InputFile> &&input_file,
+                                        Promise<Unit> &&promise) {
+  TRY_STATUS_PROMISE(promise, G()->close_status());
+
+  bool had_input_file = input_file != nullptr;
+  auto input_media =
+      td_->audios_manager_->get_input_media(file_upload_id.get_file_id(), std::move(input_file), nullptr);
+  CHECK(input_media != nullptr);
+  if (had_input_file && !FileManager::extract_was_uploaded(input_media)) {
+    // if we had InputFile, but has failed to use it for input_media, then we need to immediately cancel file upload
+    // so the next upload with the same file can succeed
+    td_->file_manager_->cancel_upload(file_upload_id);
+  }
+
+  td_->create_handler<UploadSavedMusicFileQuery>(std::move(promise))
+      ->send(telegram_api::make_object<telegram_api::inputPeerSelf>(), file_upload_id, !had_input_file,
+             std::move(input_media));
+}
+
+void UserManager::on_uploaded_saved_music_file(FileUploadId file_upload_id, bool is_url,
+                                               telegram_api::object_ptr<telegram_api::MessageMedia> media,
+                                               Promise<Unit> &&promise) {
+  CHECK(media != nullptr);
+  LOG(INFO) << "Receive uploaded profile audio file " << to_string(media);
+  if (media->get_id() != telegram_api::messageMediaDocument::ID) {
+    td_->file_manager_->delete_partial_remote_location(file_upload_id);
+    return promise.set_error(400, "Can't upload profile audio file: wrong file type");
+  }
+
+  auto message_document = telegram_api::move_object_as<telegram_api::messageMediaDocument>(media);
+  auto document_ptr = std::move(message_document->document_);
+  int32 document_id = document_ptr->get_id();
+  if (document_id == telegram_api::documentEmpty::ID) {
+    td_->file_manager_->delete_partial_remote_location(file_upload_id);
+    return promise.set_error(400, "Can't upload profile audio file: empty file");
+  }
+  CHECK(document_id == telegram_api::document::ID);
+
+  auto parsed_document = td_->documents_manager_->on_get_document(
+      telegram_api::move_object_as<telegram_api::document>(document_ptr), DialogId(), false, false);
+  if (parsed_document.type != Document::Type::Audio) {
+    td_->file_manager_->delete_partial_remote_location(file_upload_id);
+    return promise.set_error(400, "Wrong file type");
+  }
+
+  auto file_id = file_upload_id.get_file_id();
+  if (parsed_document.file_id != file_id) {
+    // must not delete the old audio, because the file_id could be used for simultaneous URL uploads
+    td_->audios_manager_->merge_audios(parsed_document.file_id, file_id);
+  }
+  td_->file_manager_->cancel_upload(file_upload_id);
+  promise.set_value(Unit());
+}
+
 void UserManager::add_saved_music(FileId file_id, FileId after_file_id, Promise<Unit> &&promise) {
   TRY_RESULT_PROMISE(promise, input_document, check_saved_music_file_id(file_id, false));
   TRY_RESULT_PROMISE(promise, after_input_document, check_saved_music_file_id(after_file_id, true));
@@ -8043,14 +8263,12 @@ void UserManager::remove_contacts(const vector<UserId> &user_ids, Promise<Unit> 
     return;
   }
 
-  vector<UserId> to_delete_user_ids;
   vector<telegram_api::object_ptr<telegram_api::InputUser>> input_users;
   for (auto &user_id : user_ids) {
     const User *u = get_user(user_id);
     if (u != nullptr && u->is_contact) {
       auto r_input_user = get_input_user(user_id);
       if (r_input_user.is_ok()) {
-        to_delete_user_ids.push_back(user_id);
         input_users.push_back(r_input_user.move_as_ok());
       }
     }
@@ -8757,7 +8975,7 @@ void UserManager::on_get_user_full(telegram_api::object_ptr<telegram_api::userFu
   auto can_view_revenue = user->can_view_revenue_;
   auto bot_verification = BotVerification::get_bot_verification(std::move(user->bot_verification_));
   auto gift_settings = StarGiftSettings(user->display_gifts_button_, std::move(user->disallowed_gifts_));
-  if (u->is_deleted) {
+  if (u->is_deleted || u->is_bot) {
     gift_settings = StarGiftSettings::allow_nothing();
   }
   auto star_rating = StarRating::get_star_rating(std::move(user->stars_rating_));
@@ -9152,7 +9370,7 @@ void UserManager::register_noforwards_request(MessageFullId message_full_id, int
     auto &request_id = noforwards_request_ids_[message_full_id];
     CHECK(request_id == 0);
     request_id = ++current_noforwards_request_id_;
-    noforwards_request_message_ids_[request_id] = message_full_id;
+    noforwards_request_message_full_ids_[request_id] = message_full_id;
     noforwards_request_timeout_.set_timeout_in(request_id, static_cast<double>(left_time) + 1);
   }
 }
@@ -9165,7 +9383,7 @@ void UserManager::unregister_noforwards_request(MessageFullId message_full_id) {
   auto request_id = it->second;
   CHECK(request_id != 0);
   noforwards_request_ids_.erase(it);
-  noforwards_request_message_ids_.erase(request_id);
+  noforwards_request_message_full_ids_.erase(request_id);
   noforwards_request_timeout_.cancel_timeout(request_id);
 }
 
@@ -10022,8 +10240,8 @@ td_api::object_ptr<td_api::user> UserManager::get_user_object(UserId user_id, co
     type = td_api::make_object<td_api::userTypeBot>(
         u->can_be_edited_bot, u->can_join_groups, u->can_read_all_group_messages, u->has_main_app,
         u->has_bot_forum_view, u->has_bot_forum_view && !u->can_bot_create_topics, u->can_manage_bots, u->is_inline_bot,
-        u->inline_query_placeholder, u->need_location_bot, u->is_business_bot, u->can_be_added_to_attach_menu,
-        u->bot_active_users);
+        u->inline_query_placeholder, u->is_guestchat_bot, u->is_guard_bot, u->need_location_bot, u->is_business_bot,
+        u->can_be_added_to_attach_menu, u->bot_active_users);
   } else {
     type = td_api::make_object<td_api::userTypeRegular>();
   }

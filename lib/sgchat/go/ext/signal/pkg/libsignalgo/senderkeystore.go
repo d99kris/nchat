@@ -70,8 +70,8 @@ func signal_destroy_sender_key_store_callback(storeCtx unsafe.Pointer) {
 func (ctx *CallbackContext) wrapSenderKeyStore(store SenderKeyStore) C.SignalConstPointerFfiSenderKeyStoreStruct {
 	return C.SignalConstPointerFfiSenderKeyStoreStruct{&C.SignalSenderKeyStore{
 		ctx:              wrapStore(ctx, store),
-		load_sender_key:  C.SignalFfiBridgeSenderKeyStoreLoadSenderKey(C.signal_load_sender_key_callback),
-		store_sender_key: C.SignalFfiBridgeSenderKeyStoreStoreSenderKey(C.signal_store_sender_key_callback),
-		destroy:          C.SignalFfiBridgeSenderKeyStoreDestroy(C.signal_destroy_sender_key_store_callback),
+		load_sender_key:  C.SignalFfiSenderKeyStoreLoadSenderKey(C.signal_load_sender_key_callback),
+		store_sender_key: C.SignalFfiSenderKeyStoreStoreSenderKey(C.signal_store_sender_key_callback),
+		destroy:          C.SignalFfiSenderKeyStoreDestroy(C.signal_destroy_sender_key_store_callback),
 	}}
 }

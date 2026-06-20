@@ -106,7 +106,8 @@ enum class MessageContentType : int32 {
   NoForwardsRequest,
   ManagedBotCreated,
   PollAppendAnswer,
-  PollDeleteAnswer
+  PollDeleteAnswer,
+  RichText
 };
 // increase MessageUnsupported::CURRENT_VERSION each time a new message content type is added
 
@@ -121,6 +122,8 @@ bool is_homogenous_media_group_content(MessageContentType content_type);
 bool is_allowed_poll_content(MessageContentType content_type);
 
 bool is_allowed_poll_option_content(MessageContentType content_type);
+
+bool can_message_content_have_multiple_files(MessageContentType content_type);
 
 bool can_be_secret_message_content(MessageContentType content_type);
 

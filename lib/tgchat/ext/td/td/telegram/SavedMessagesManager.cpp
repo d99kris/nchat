@@ -263,7 +263,7 @@ class GetSavedMessageByDateQuery final : public Td::ResultHandler {
       auto message_date = MessagesManager::get_message_date(message);
       if (message_date != 0 && message_date <= date_) {
         auto message_full_id = td_->messages_manager_->on_get_message(dialog_id_, std::move(message), false, false,
-                                                                      false, "GetSavedMessageByDateQuery");
+                                                                      "GetSavedMessageByDateQuery");
         if (message_full_id != MessageFullId()) {
           // TODO check message topic_id
           return promise_.set_value(
@@ -536,8 +536,7 @@ class GetMessageAuthorQuery final : public Td::ResultHandler {
 
     auto ptr = result_ptr.move_as_ok();
     LOG(INFO) << "Receive result for GetMessageAuthorQuery: " << to_string(ptr);
-    auto user_id = UserManager::get_user_id(ptr);
-    td_->user_manager_->on_get_user(std::move(ptr), "GetMessageAuthorQuery");
+    auto user_id = td_->user_manager_->on_get_user(std::move(ptr), "GetMessageAuthorQuery");
     promise_.set_value(td_->user_manager_->get_user_object(user_id));
   }
 
@@ -1307,7 +1306,7 @@ void SavedMessagesManager::repair_topic_unread_reaction_count(DialogId dialog_id
     return;
   }
   if (topic->dialog_id_ != dialog_id) {
-    LOG(ERROR) << "Save Messages must not have unread reactions";
+    LOG(ERROR) << "Saves Messages must not have unread reactions";
     return;
   }
 
@@ -1708,7 +1707,7 @@ void SavedMessagesManager::process_saved_messages_topics(
       }
       auto message_full_id = td_->messages_manager_->on_get_message(
           is_saved_messages ? td_->dialog_manager_->get_my_dialog_id() : dialog_id, std::move(it->second), false, false,
-          false, "on_get_saved_messages_topics");
+          "on_get_saved_messages_topics");
       message_id_to_message.erase(it);
 
       auto message_id = message_full_id.get_message_id();
@@ -2227,8 +2226,8 @@ void SavedMessagesManager::on_get_topic_history(DialogId dialog_id, uint32 gener
   bool have_next = false;
   for (auto &message : info.messages) {
     auto message_date = MessagesManager::get_message_date(message);
-    auto message_full_id = td_->messages_manager_->on_get_message(dialog_id, std::move(message), false, false, false,
-                                                                  "on_get_topic_history");
+    auto message_full_id =
+        td_->messages_manager_->on_get_message(dialog_id, std::move(message), false, false, "on_get_topic_history");
     auto message_id = message_full_id.get_message_id();
     if (message_id == MessageId()) {
       info.total_count--;
@@ -2512,9 +2511,9 @@ void SavedMessagesManager::read_all_monoforum_topic_reactions(DialogId dialog_id
     return promise.set_error(400, "Topic messages can't have reactions");
   }
 
+  do_set_topic_unread_reaction_count(topic, 0);
   td_->messages_manager_->read_all_local_dialog_reactions(dialog_id, ForumTopicId(), saved_messages_topic_id);
 
-  do_set_topic_unread_reaction_count(topic, 0);
   if (!topic->is_changed_) {
     return promise.set_value(Unit());
   }

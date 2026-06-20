@@ -52,7 +52,7 @@ auto http_post(CSlice url, Slice data) {
   return request;
 }
 
-void http_send(NSURLRequest *request, Promise<BufferSlice> promise) {
+void http_send(NSURLRequest *request, Promise<std::pair<int32, BufferSlice>> promise) {
   __block auto callback = std::move(promise);
   NSURLSessionDataTask *dataTask =
     [getSession()
@@ -60,7 +60,12 @@ void http_send(NSURLRequest *request, Promise<BufferSlice> promise) {
       completionHandler:
         ^(NSData *data, NSURLResponse *response, NSError *error) {
           if (error == nil) {
-            callback.set_value(BufferSlice(Slice((const char *)([data bytes]), [data length])));
+            int32 statusCode = 0;
+            if ([response isKindOfClass:[NSHTTPURLResponse class]]) {
+              NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
+              statusCode = static_cast<int32>(httpResponse.statusCode);
+            }
+            callback.set_value(std::make_pair(statusCode, BufferSlice(Slice((const char *)([data bytes]), [data length]))));
           } else {
             callback.set_error(static_cast<int32>([error code]), "HTTP request failed");
           }
@@ -69,11 +74,11 @@ void http_send(NSURLRequest *request, Promise<BufferSlice> promise) {
 }
 }  // namespace
 
-void DarwinHttp::get(CSlice url, Promise<BufferSlice> promise) {
+void DarwinHttp::get(CSlice url, Promise<std::pair<int32, BufferSlice>> promise) {
   return http_send(http_get(url), std::move(promise));
 }
 
-void DarwinHttp::post(CSlice url, Slice data, Promise<BufferSlice> promise) {
+void DarwinHttp::post(CSlice url, Slice data, Promise<std::pair<int32, BufferSlice>> promise) {
   return http_send(http_post(url, data), std::move(promise));
 }
 

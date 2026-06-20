@@ -33,7 +33,6 @@
 #include "td/telegram/TdDb.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/TranscriptionManager.h"
-#include "td/telegram/TranslationManager.h"
 #include "td/telegram/UserId.h"
 #include "td/telegram/UserManager.h"
 
@@ -268,9 +267,10 @@ ActorOwn<> get_simple_config_firebase_remote_config(Promise<SimpleConfigResult> 
   }
 
   static const string payload = generate_firebase_remote_config_payload();
-  string url =
-      "https://firebaseremoteconfig.googleapis.com/v1/projects/peak-vista-421/namespaces/"
-      "firebase:fetch?key=AIzaSyC2-kAkpDsroixRXw-sTw-Wfqo4NxjMwwM";
+  auto url =
+      PSTRING()
+      << "https://firebaseremoteconfig.googleapis.com/v1/projects/peak-vista-421/namespaces/firebase:fetch?key="
+      << hex_decode("41497a61537943322d6b416b704473726f69785258772d7354772d5766716f344e786a4d77774d").move_as_ok();
   auto get_config = [](HttpQuery &http_query) -> Result<string> {
     TRY_RESULT(json, json_decode(http_query.get_arg("entries")));
     if (json.type() != JsonValue::Type::Object) {
@@ -936,11 +936,11 @@ void ConfigManager::lazy_request_config() {
   set_timeout_at(expire_time_.at());
 }
 
-void ConfigManager::reget_config(Promise<Unit> &&promise) {
+void ConfigManager::reload_config(Promise<Unit> &&promise) {
   TRY_STATUS_PROMISE(promise, G()->close_status());
 
-  reget_config_queries_.push_back(std::move(promise));
-  if (reget_config_queries_.size() != 1) {
+  reload_config_queries_.push_back(std::move(promise));
+  if (reload_config_queries_.size() != 1) {
     return;
   }
 
@@ -948,7 +948,7 @@ void ConfigManager::reget_config(Promise<Unit> &&promise) {
 }
 
 void ConfigManager::try_request_app_config() {
-  if (get_app_config_queries_.size() + reget_app_config_queries_.size() != 1) {
+  if (get_app_config_queries_.size() + reload_app_config_queries_.size() != 1) {
     return;
   }
 
@@ -969,7 +969,7 @@ void ConfigManager::get_app_config(Promise<td_api::object_ptr<td_api::JsonValue>
   try_request_app_config();
 }
 
-void ConfigManager::reget_app_config(Promise<Unit> &&promise) {
+void ConfigManager::reload_app_config(Promise<Unit> &&promise) {
   TRY_STATUS_PROMISE(promise, G()->close_status());
 
   auto auth_manager = G()->td().get_actor_unsafe()->auth_manager_.get();
@@ -977,7 +977,7 @@ void ConfigManager::reget_app_config(Promise<Unit> &&promise) {
     return promise.set_value(Unit());
   }
 
-  reget_app_config_queries_.push_back(std::move(promise));
+  reload_app_config_queries_.push_back(std::move(promise));
   try_request_app_config();
 }
 
@@ -1036,7 +1036,7 @@ void ConfigManager::do_set_ignore_sensitive_content_restrictions(bool ignore_sen
     return;
   }
   G()->set_option_boolean("ignore_sensitive_content_restrictions", ignore_sensitive_content_restrictions);
-  reget_app_config(Auto());
+  reload_app_config(Auto());
 }
 
 void ConfigManager::on_result(NetQueryPtr net_query) {
@@ -1082,8 +1082,8 @@ void ConfigManager::on_result(NetQueryPtr net_query) {
   if (token == 1) {
     auto promises = std::move(get_app_config_queries_);
     get_app_config_queries_.clear();
-    auto unit_promises = std::move(reget_app_config_queries_);
-    reget_app_config_queries_.clear();
+    auto unit_promises = std::move(reload_app_config_queries_);
+    reload_app_config_queries_.clear();
     CHECK(!promises.empty() || !unit_promises.empty());
     auto result_ptr = fetch_result<telegram_api::help_getAppConfig>(std::move(net_query));
     if (result_ptr.is_error()) {
@@ -1129,7 +1129,7 @@ void ConfigManager::on_result(NetQueryPtr net_query) {
       expire_time_ = Timestamp::in(60.0);  // try again in a minute
       set_timeout_in(expire_time_.in());
     }
-    fail_promises(reget_config_queries_, r_config.move_as_error());
+    fail_promises(reload_config_queries_, r_config.move_as_error());
   } else {
     on_dc_options_update(DcOptions());
     process_config(r_config.move_as_ok());
@@ -1137,7 +1137,7 @@ void ConfigManager::on_result(NetQueryPtr net_query) {
       G()->net_query_dispatcher().update_mtproto_header();
       reopen_sessions_after_get_config_ = false;
     }
-    set_promises(reget_config_queries_);
+    set_promises(reload_config_queries_);
   }
 }
 
@@ -1312,7 +1312,7 @@ void ConfigManager::process_config(tl_object_ptr<telegram_api::config> config) {
   //  options.set_option_integer("push_chat_limit", config->push_chat_limit_);
 
   if (is_from_main_dc) {
-    reget_app_config(Auto());
+    reload_app_config(Auto());
     if (!options.have_option("can_ignore_sensitive_content_restrictions") ||
         !options.have_option("ignore_sensitive_content_restrictions")) {
       get_content_settings(Auto());
@@ -1335,7 +1335,6 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
   FlatHashMap<string, size_t> dice_emoji_index;
   FlatHashMap<string, string> dice_emoji_success_value;
   vector<string> emoji_sounds;
-  string animation_search_provider;
   string animation_search_emojis;
   double animated_emoji_zoom = 0.0;
   vector<string> premium_features;
@@ -1348,7 +1347,6 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
   int32 transcribe_audio_trial_duration_max = 0;
   int32 transcribe_audio_trial_cooldown_until = 0;
   vector<string> business_features;
-  string premium_manage_subscription_url;
   bool need_premium_for_new_chat_privacy = true;
   vector<string> starref_start_param_prefixes;
   int32 freeze_since_date = 0;
@@ -1362,8 +1360,6 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
   string whitelisted_bots;
   string ton_stakedice_stake_suggested_amounts;
   string gift_craft_probabilities;
-  string music_search_username;
-  vector<string> ai_compose_styles;
 
   // {"stories_all_hidden", "archive_all_stories"}
   static const FlatHashMap<Slice, Slice, SliceHash> bool_keys = {
@@ -1379,6 +1375,9 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
       {"video_ignore_alt_documents", ""}};
 
   static const FlatHashMap<Slice, Slice, SliceHash> integer_keys = {
+      {"aicompose_tone_examples_num", "text_composition_style_example_count"},
+      {"aicompose_tone_prompt_length_max", "text_composition_style_prompt_length_max"},
+      {"aicompose_tone_title_length_max", "text_composition_style_title_length_max"},
       {"authorization_autoconfirm_period", ""},
       {"boosts_channel_level_max", "chat_boost_level_max"},
       {"boosts_per_sent_gift", "premium_gift_boost_count"},
@@ -1420,6 +1419,7 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
       {"poll_answer_delete_period", ""},
       {"poll_answers_max", "poll_answer_count_max"},
       {"poll_close_period_max", "poll_open_period_max"},
+      {"poll_countries_max", "poll_country_count_max"},
       {"quick_replies_limit", "quick_reply_shortcut_count_max"},
       {"quick_reply_messages_limit", "quick_reply_shortcut_message_count_max"},
       {"quote_length_max", "message_reply_quote_length_max"},
@@ -1427,6 +1427,11 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
       {"reactions_uniq_max", ""},
       {"reactions_user_max_default", ""},
       {"reactions_user_max_premium", ""},
+      {"rich_message_length_limit", "rich_message_text_length_max"},
+      {"rich_message_max_blocks", "rich_message_block_count_max"},
+      {"rich_message_max_depth", "rich_message_depth_max"},
+      {"rich_message_max_media", "rich_message_media_count_max"},
+      {"rich_message_max_table_cols", "rich_message_table_column_count_max"},
       {"ringtone_duration_max", "notification_sound_duration_max"},
       {"ringtone_saved_count_max", "notification_sound_count_max"},
       {"ringtone_size_max", "notification_sound_size_max"},
@@ -1482,6 +1487,16 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
       {"telegram_antispam_user_id", "anti_spam_bot_user_id"},
       {"ton_stakedice_stake_amount_max", "stake_dice_stake_amount_max"},
       {"ton_stakedice_stake_amount_min", "stake_dice_stake_amount_min"}};
+  static const FlatHashMap<Slice, Slice, SliceHash> string_keys = {
+      {"gif_search_branding", "animation_search_provider"},
+      {"music_search_username", "audio_search_bot_username"},
+      {"phone_country_iso2", ""},
+      {"premium_manage_subscription_url", ""},
+      {"stories_venue_search_username", "venue_search_bot_username"},
+      {"ton_blockchain_explorer_url", ""},
+      {"ton_proxy_address", ""},
+      {"ton_topup_url", "toncoin_top_up_url"},
+      {"weather_search_username", "weather_bot_username"}};
   static const FlatHashSet<Slice, SliceHash> ignored_options(
       {"channel_color_level_min", "default_emoji_statuses_stickerset_id", "dialog_filters_enabled",
        "dialog_filters_tooltip", "forum_upgrade_participants_min", "getfile_experimental_params",
@@ -1516,6 +1531,14 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
         if (it != long_keys.end()) {
           G()->set_option_integer(it->second.empty() ? key : it->second,
                                   max(static_cast<int64>(0), get_json_value_long(std::move(key_value->value_), key)));
+          continue;
+        }
+      }
+      {
+        auto it = string_keys.find(key);
+        if (it != string_keys.end()) {
+          G()->set_option_string(it->second.empty() ? key : it->second,
+                                 get_json_value_string(std::move(key_value->value_), key));
           continue;
         }
       }
@@ -1654,10 +1677,6 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
         } else {
           LOG(ERROR) << "Receive unexpected emojies_sounds " << to_string(*value);
         }
-        continue;
-      }
-      if (key == "gif_search_branding") {
-        animation_search_provider = get_json_value_string(std::move(key_value->value_), key);
         continue;
       }
       if (key == "gif_search_emojies") {
@@ -1808,10 +1827,6 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
         }
         continue;
       }
-      if (key == "stories_venue_search_username") {
-        G()->set_option_string("venue_search_bot_username", get_json_value_string(std::move(key_value->value_), key));
-        continue;
-      }
       if (key == "stories_entities") {
         G()->set_option_boolean("need_premium_for_story_caption_entities",
                                 get_json_value_string(std::move(key_value->value_), key) == "premium");
@@ -1847,10 +1862,6 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
         need_premium_for_new_chat_privacy = !get_json_value_bool(std::move(key_value->value_), key);
         continue;
       }
-      if (key == "premium_manage_subscription_url") {
-        premium_manage_subscription_url = get_json_value_string(std::move(key_value->value_), key);
-        continue;
-      }
       if (key == "web_app_allowed_protocols") {
         if (value->get_id() == telegram_api::jsonArray::ID) {
           vector<string> protocol_names;
@@ -1867,14 +1878,6 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
         }
         continue;
       }
-      if (key == "weather_search_username") {
-        G()->set_option_string("weather_bot_username", get_json_value_string(std::move(key_value->value_), key));
-        continue;
-      }
-      if (key == "ton_proxy_address") {
-        G()->set_option_string("ton_proxy_address", get_json_value_string(std::move(key_value->value_), key));
-        continue;
-      }
       if (key == "starref_start_param_prefixes") {
         if (value->get_id() == telegram_api::jsonArray::ID) {
           auto prefixes = std::move(static_cast<telegram_api::jsonArray *>(value)->value_);
@@ -1889,10 +1892,6 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
         } else {
           LOG(ERROR) << "Receive unexpected starref_start_param_prefixes " << to_string(*value);
         }
-        continue;
-      }
-      if (key == "ton_blockchain_explorer_url") {
-        G()->set_option_string("ton_blockchain_explorer_url", get_json_value_string(std::move(key_value->value_), key));
         continue;
       }
       if (key == "freeze_since_date") {
@@ -1934,10 +1933,6 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
       if (key == "ton_usd_rate") {
         G()->set_option_integer("million_toncoin_to_usd_rate",
                                 static_cast<int64>(get_json_value_double(std::move(key_value->value_), key) * 1000000));
-        continue;
-      }
-      if (key == "ton_topup_url") {
-        G()->set_option_string("toncoin_top_up_url", get_json_value_string(std::move(key_value->value_), key));
         continue;
       }
       if (key == "need_age_video_verification") {
@@ -2039,35 +2034,6 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
         }
         continue;
       }
-      if (key == "music_search_username") {
-        music_search_username = get_json_value_string(std::move(key_value->value_), key);
-        continue;
-      }
-      if (key == "ai_compose_styles") {
-        if (value->get_id() == telegram_api::jsonArray::ID) {
-          auto styles = std::move(static_cast<telegram_api::jsonArray *>(value)->value_);
-          for (auto &style : styles) {
-            if (style->get_id() == telegram_api::jsonArray::ID) {
-              auto style_value = std::move(static_cast<telegram_api::jsonArray *>(style.get())->value_);
-              if (style_value.size() != 3u || style_value[0]->get_id() != telegram_api::jsonString::ID ||
-                  style_value[1]->get_id() != telegram_api::jsonString::ID ||
-                  style_value[2]->get_id() != telegram_api::jsonString::ID) {
-                LOG(ERROR) << "Receive invalid style " << to_string(style_value);
-              } else {
-                ai_compose_styles.push_back(get_json_value_string(std::move(style_value[0]), Slice()));
-                ai_compose_styles.push_back(get_json_value_string(std::move(style_value[1]), Slice()));
-                ai_compose_styles.push_back(get_json_value_string(std::move(style_value[2]), Slice()));
-              }
-            } else {
-              LOG(ERROR) << "Receive unexpected style " << to_string(style);
-              break;
-            }
-          }
-        } else {
-          LOG(ERROR) << "Receive unexpected ai_compose_styles " << to_string(*value);
-        }
-        continue;
-      }
 
       new_values.push_back(std::move(key_value));
     }
@@ -2082,9 +2048,6 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
   send_closure(G()->transcription_manager(), &TranscriptionManager::on_update_trial_parameters,
                transcribe_audio_trial_weekly_number, transcribe_audio_trial_duration_max,
                transcribe_audio_trial_cooldown_until);
-
-  send_closure(G()->translation_manager(), &TranslationManager::on_update_ai_compose_styles,
-               std::move(ai_compose_styles));
 
   send_closure(G()->user_manager(), &UserManager::on_update_freeze_state, freeze_since_date, freeze_until_date,
                std::move(freeze_appeal_url));
@@ -2117,12 +2080,6 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
   }
   options.set_option_string("whitelisted_bots", whitelisted_bots);
 
-  if (music_search_username.empty()) {
-    options.set_option_empty("audio_search_bot_username");
-  } else {
-    G()->set_option_string("audio_search_bot_username", music_search_username);
-  }
-
   if (!dice_emojis.empty()) {
     vector<string> dice_success_values(dice_emojis.size());
     for (auto &it : dice_emoji_success_value) {
@@ -2151,11 +2108,6 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
     options.set_option_empty("animated_emoji_zoom");
   } else {
     options.set_option_integer("animated_emoji_zoom", static_cast<int64>(animated_emoji_zoom * 1e9));
-  }
-  if (animation_search_provider.empty()) {
-    options.set_option_empty("animation_search_provider");
-  } else {
-    options.set_option_string("animation_search_provider", animation_search_provider);
   }
   if (animation_search_emojis.empty()) {
     options.set_option_empty("animation_search_emojis");
@@ -2198,12 +2150,6 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
   options.set_option_empty("default_ton_blockchain_config");
   options.set_option_empty("default_ton_blockchain_name");
   options.set_option_empty("story_viewers_expire_period");
-
-  if (premium_manage_subscription_url.empty()) {
-    G()->set_option_empty("premium_manage_subscription_url");
-  } else {
-    G()->set_option_string("premium_manage_subscription_url", premium_manage_subscription_url);
-  }
 }
 
 }  // namespace td

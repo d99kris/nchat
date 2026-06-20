@@ -67,8 +67,8 @@ func signal_destroy_session_store_callback(storeCtx unsafe.Pointer) {
 func (ctx *CallbackContext) wrapSessionStore(store SessionStore) C.SignalConstPointerFfiSessionStoreStruct {
 	return C.SignalConstPointerFfiSessionStoreStruct{&C.SignalSessionStore{
 		ctx:           wrapStore(ctx, store),
-		load_session:  C.SignalFfiBridgeSessionStoreLoadSession(C.signal_load_session_callback),
-		store_session: C.SignalFfiBridgeSessionStoreStoreSession(C.signal_store_session_callback),
-		destroy:       C.SignalFfiBridgeSessionStoreDestroy(C.signal_destroy_session_store_callback),
+		load_session:  C.SignalFfiSessionStoreLoadSession(C.signal_load_session_callback),
+		store_session: C.SignalFfiSessionStoreStoreSession(C.signal_store_session_callback),
+		destroy:       C.SignalFfiSessionStoreDestroy(C.signal_destroy_session_store_callback),
 	}}
 }

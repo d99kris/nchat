@@ -414,8 +414,12 @@ func (cli *Client) handleDecryptedResult(
 		return ctx.Err()
 	}
 	log := zerolog.Ctx(ctx)
-	if result.CiphertextHash != nil {
-		defer func() {
+	handlerSuccess := true
+	defer func() {
+		if retErr == nil && !handlerSuccess {
+			retErr = ErrHandlerFailed
+		}
+		if result.CiphertextHash != nil && handlerSuccess {
 			err := cli.Store.EventBuffer.ClearBufferedEventPlaintext(ctx, *result.CiphertextHash)
 			if err != nil {
 				log.Err(err).
@@ -426,8 +430,10 @@ func (cli *Client) handleDecryptedResult(
 					Hex("ciphertext_hash", result.CiphertextHash[:]).
 					Msg("Deleted event plaintext from buffer")
 			}
-		}()
-	}
+		} else if result.CiphertextHash != nil {
+			log.Warn().Msg("Not clearing buffered event plaintext due to handler failure")
+		}
+	}()
 
 	var theirServiceID libsignalgo.ServiceID
 	var err error
@@ -455,12 +461,6 @@ func (cli *Client) handleDecryptedResult(
 	}
 	cli.Store.RecipientStore.MarkUnregistered(ctx, theirServiceID, false)
 
-	handlerSuccess := true
-	defer func() {
-		if retErr == nil && !handlerSuccess {
-			retErr = ErrHandlerFailed
-		}
-	}()
 	// result.Err is set if there was an error during decryption and we
 	// should notifiy the user that the message could not be decrypted
 	if result.Err != nil {

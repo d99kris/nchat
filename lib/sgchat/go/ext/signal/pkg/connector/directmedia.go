@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"io"
 	"os"
 
 	"maunium.net/go/mautrix/bridgev2"
@@ -30,6 +29,7 @@ func (s *SignalConnector) Download(ctx context.Context, mediaID networkid.MediaI
 		return nil, fmt.Errorf("failed to parse direct media id: %w", err)
 	}
 
+	var rawDataResp []byte
 	switch info := info.(type) {
 	case *signalid.DirectMediaAttachment:
 		log.Info().
@@ -76,18 +76,11 @@ func (s *SignalConnector) Download(ctx context.Context, mediaID networkid.MediaI
 			return nil, fmt.Errorf("failed to to get group master key: %w", err)
 		}
 
-		return &mediaproxy.GetMediaResponseCallback{
-			Callback: func(w io.Writer) (int64, error) {
-				data, err := client.Client.DownloadGroupAvatar(ctx, info.GroupAvatarPath, groupMasterKey)
-				if err != nil {
-					log.Err(err).Msg("Direct download failed")
-					return 0, err
-				}
-
-				_, err = w.Write(data)
-				return int64(len(data)), err
-			},
-		}, nil
+		rawDataResp, err = client.Client.DownloadGroupAvatar(ctx, info.GroupAvatarPath, groupMasterKey)
+		if err != nil {
+			log.Err(err).Msg("Direct download failed")
+			return nil, err
+		}
 	case *signalid.DirectMediaProfileAvatar:
 		log.Info().
 			Stringer("user_id", info.UserID).
@@ -111,19 +104,27 @@ func (s *SignalConnector) Download(ctx context.Context, mediaID networkid.MediaI
 			return nil, fmt.Errorf("profile key not found")
 		}
 
-		return &mediaproxy.GetMediaResponseCallback{
-			Callback: func(w io.Writer) (int64, error) {
-				data, err := client.Client.DownloadUserAvatar(ctx, info.ProfileAvatarPath, *profileKey)
-				if err != nil {
-					log.Err(err).Msg("Direct download failed")
-					return 0, err
-				}
+		rawDataResp, err = client.Client.DownloadUserAvatar(ctx, info.ProfileAvatarPath, *profileKey)
+		if err != nil {
+			log.Err(err).Msg("Direct download failed")
+			return nil, err
+		}
+	case *signalid.DirectMediaSticker:
+		log.Info().
+			Hex("pack_id", info.PackID).
+			Uint32("sticker_id", info.StickerID).
+			Msg("Direct downloading sticker")
 
-				_, err = w.Write(data)
-				return int64(len(data)), err
-			},
-		}, nil
+		rawDataResp, err = signalmeow.DownloadStickerPackItem(ctx, info.PackID, info.PackKey, info.StickerID)
+		if err != nil {
+			log.Err(err).Msg("Direct download failed")
+			return nil, err
+		}
 	default:
 		return nil, fmt.Errorf("no downloader for direct media type: %T", info)
 	}
+	if rawDataResp == nil {
+		return nil, fmt.Errorf("unexpected fallthrough with no data")
+	}
+	return mediaproxy.GetMediaResponseRawData(rawDataResp), nil
 }

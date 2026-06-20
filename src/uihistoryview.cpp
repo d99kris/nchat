@@ -486,8 +486,12 @@ void UiHistoryView::Draw()
     m_Model->MarkReadLocked(currentChat.first, currentChat.second, *it, (!msg.isOutgoing && !msg.isRead));
 
     static const std::string readIndicator = " " + UiConfig::GetStr("read_indicator");
+    static const std::string editedIndicator = " " + UiConfig::GetStr("edited_indicator");
+    static const std::string pinnedIndicator = " " + UiConfig::GetStr("pinned_indicator");
     std::wstring wreceipt = StrUtil::ToWString(msg.isRead ? readIndicator : "");
-    std::wstring wheader = wsender + wtime + wreceipt;
+    std::wstring wedited = StrUtil::ToWString(msg.isEdited ? editedIndicator : "");
+    std::wstring wpinned = StrUtil::ToWString(msg.isPinned ? pinnedIndicator : "");
+    std::wstring wheader = wsender + wtime + wedited + wpinned + wreceipt;
 
     if (developerMode)
     {

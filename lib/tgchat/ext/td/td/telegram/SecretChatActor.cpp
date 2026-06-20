@@ -788,7 +788,7 @@ Result<std::tuple<uint64, BufferSlice, int32>> SecretChatActor::decrypt(BufferSl
     mtproto_version = versions[i];
     packet_info.version = mtproto_version;
     packet_info.is_creator = auth_state_.x == 0;
-    r_read_result = mtproto::Transport::read(data, *auth_key, &packet_info);
+    r_read_result = mtproto::Transport::read(data, 0, *auth_key, &packet_info);
     if (i + 1 != versions.size() && r_read_result.is_error()) {
       if (config_state_.his_layer >= static_cast<int32>(SecretChatLayer::Mtproto2)) {
         LOG(WARNING) << tag("mtproto", mtproto_version) << " decryption failed " << r_read_result.error();
@@ -1624,8 +1624,8 @@ void SecretChatActor::on_outbound_send_message_error(uint64 state_id, Status err
       need_sync = true;
     }
   } else if (error.code() != 429) {
-    return on_fatal_error(std::move(error),
-                          (error.code() == 400 && error.message() == "ENCRYPTION_DECLINED") || error.code() == 403);
+    auto is_expected = (error.code() == 400 && error.message() == "ENCRYPTION_DECLINED") || error.code() == 403;
+    return on_fatal_error(std::move(error), is_expected);
   }
   auto query = create_net_query(*state->message);
   state->net_query_id = query->id();
@@ -1800,8 +1800,7 @@ Status SecretChatActor::on_update_chat(telegram_api::encryptedChatDiscarded &upd
 
 Status SecretChatActor::on_update_chat(NetQueryPtr query) {
   static_assert(std::is_same<telegram_api::messages_requestEncryption::ReturnType,
-                             telegram_api::messages_acceptEncryption::ReturnType>::value,
-                "");
+                             telegram_api::messages_acceptEncryption::ReturnType>::value);
   TRY_RESULT(config, fetch_result<telegram_api::messages_requestEncryption>(std::move(query)));
   TRY_STATUS(on_update_chat(std::move(config)));
   if (auth_state_.state == State::WaitRequestResponse) {

@@ -41,9 +41,16 @@
 #include "strutil.h"
 #include "timeutil.h"
 
+// TDLib's history view (consulted on startup) has the message erased, so the
+// modified copy becomes an orphan that's either invisible after restart or
+// resurfaces inconsistently during scrollback. Only MessageDeleteErase is
+// supported for Telegram for now.
+// #define CUSTOM_MESSAGE_DELETE_SUPPORT
+
+// For development testing of sponsored messages only
 // #define SIMULATED_SPONSORED_MESSAGES
 
-static const int s_TdlibDate = 20260403;
+static const int s_TdlibDate = 20260611;
 
 namespace detail
 {
@@ -347,7 +354,8 @@ bool TgChat::Impl::HasFeature(ProtocolFeature p_ProtocolFeature) const
     FeatureMarkReadEveryView |
     FeatureAutoGetContactsOnLogin |
     FeaturePinChat |
-    FeatureArchiveChat;
+    FeatureArchiveChat |
+    FeaturePinMessage;
   return (p_ProtocolFeature & customFeatures);
 }
 
@@ -952,34 +960,44 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
           else if (isSendAsSpecial && (mimeSubType == "mp4" || mimeSubType == "x-m4v" || mimeSubType == "gif"))
           {
             auto message_content = td::td_api::make_object<td::td_api::inputMessageAnimation>();
-            message_content->animation_ = td::td_api::make_object<td::td_api::inputFileLocal>(fileInfo.filePath);
+            message_content->animation_ = td::td_api::make_object<td::td_api::inputAnimation>();
+            message_content->animation_->animation_ =
+              td::td_api::make_object<td::td_api::inputFileLocal>(fileInfo.filePath);
             send_message->input_message_content_ = std::move(message_content);
           }
           else if (attachmentSendType && (mimeType == "audio"))
           {
             auto message_content = td::td_api::make_object<td::td_api::inputMessageAudio>();
-            message_content->audio_ = td::td_api::make_object<td::td_api::inputFileLocal>(fileInfo.filePath);
+            message_content->audio_ = td::td_api::make_object<td::td_api::inputAudio>();
+            message_content->audio_->audio_ =
+              td::td_api::make_object<td::td_api::inputFileLocal>(fileInfo.filePath);
             message_content->caption_ = std::move(formatted_text);
             send_message->input_message_content_ = std::move(message_content);
           }
           else if (attachmentSendType && (mimeType == "video"))
           {
             auto message_content = td::td_api::make_object<td::td_api::inputMessageVideo>();
-            message_content->video_ = td::td_api::make_object<td::td_api::inputFileLocal>(fileInfo.filePath);
+            message_content->video_ = td::td_api::make_object<td::td_api::inputVideo>();
+            message_content->video_->video_ =
+              td::td_api::make_object<td::td_api::inputFileLocal>(fileInfo.filePath);
             message_content->caption_ = std::move(formatted_text);
             send_message->input_message_content_ = std::move(message_content);
           }
           else if (attachmentSendType && (mimeType == "image"))
           {
             auto message_content = td::td_api::make_object<td::td_api::inputMessagePhoto>();
-            message_content->photo_ = td::td_api::make_object<td::td_api::inputFileLocal>(fileInfo.filePath);
+            message_content->photo_ = td::td_api::make_object<td::td_api::inputPhoto>();
+            message_content->photo_->photo_ =
+              td::td_api::make_object<td::td_api::inputFileLocal>(fileInfo.filePath);
             message_content->caption_ = std::move(formatted_text);
             send_message->input_message_content_ = std::move(message_content);
           }
           else
           {
             auto message_content = td::td_api::make_object<td::td_api::inputMessageDocument>();
-            message_content->document_ = td::td_api::make_object<td::td_api::inputFileLocal>(fileInfo.filePath);
+            message_content->document_ = td::td_api::make_object<td::td_api::inputDocument>();
+            message_content->document_->document_ =
+              td::td_api::make_object<td::td_api::inputFileLocal>(fileInfo.filePath);
             message_content->caption_ = std::move(formatted_text);
             send_message->input_message_content_ = std::move(message_content);
           }
@@ -1159,6 +1177,7 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
           deleteMessageNotify->success = (object->get_id() != td::td_api::error::ID);
           deleteMessageNotify->chatId = deleteMessageRequest->chatId;
           deleteMessageNotify->msgId = deleteMessageRequest->msgId;
+          deleteMessageNotify->isOutgoing = true;
           CallMessageHandler(deleteMessageNotify);
         });
       }
@@ -1254,6 +1273,54 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
             LOG_WARNING("Pin chat error");
           }
         });
+      }
+      break;
+
+    case PinMessageRequestType:
+      {
+        LOG_DEBUG("Pin message");
+        Status::Set(m_ProfileId, Status::FlagUpdating);
+        std::shared_ptr<PinMessageRequest> pinMessageRequest =
+          std::static_pointer_cast<PinMessageRequest>(p_RequestMessage);
+        int64_t chatId = StrUtil::NumFromHex<int64_t>(pinMessageRequest->chatId);
+        int64_t msgId = StrUtil::NumFromHex<int64_t>(pinMessageRequest->msgId);
+
+        if (pinMessageRequest->isPinned)
+        {
+          auto pin_message = td::td_api::make_object<td::td_api::pinChatMessage>();
+          pin_message->chat_id_ = chatId;
+          pin_message->message_id_ = msgId;
+          pin_message->disable_notification_ = false;
+          pin_message->only_for_self_ = false;
+
+          SendQuery(std::move(pin_message),
+                    [this](Object object)
+          {
+            Status::Clear(m_ProfileId, Status::FlagUpdating);
+
+            if (object->get_id() == td::td_api::error::ID)
+            {
+              LOG_WARNING("Pin message error");
+            }
+          });
+        }
+        else
+        {
+          auto unpin_message = td::td_api::make_object<td::td_api::unpinChatMessage>();
+          unpin_message->chat_id_ = chatId;
+          unpin_message->message_id_ = msgId;
+
+          SendQuery(std::move(unpin_message),
+                    [this](Object object)
+          {
+            Status::Clear(m_ProfileId, Status::FlagUpdating);
+
+            if (object->get_id() == td::td_api::error::ID)
+            {
+              LOG_WARNING("Unpin message error");
+            }
+          });
+        }
       }
       break;
 
@@ -1630,7 +1697,8 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
                                   findMessageRequest->fromMsgId,
                                   findMessageRequest->lastMsgId,
                                   findMessageRequest->findText,
-                                  findMessageRequest->findMsgId);
+                                  findMessageRequest->findMsgId,
+                                  findMessageRequest->findPinned);
       }
       break;
 
@@ -1731,7 +1799,8 @@ void TgChat::Impl::InitProxy()
       auto proxyType = (!proxyUser.empty()) ? td::make_tl_object<td::td_api::proxyTypeSocks5>(proxyUser, proxyPass)
                                             : td::td_api::make_object<td::td_api::proxyTypeSocks5>();
       SendQuery(td::td_api::make_object<td::td_api::addProxy>(
-                  td::td_api::make_object<td::td_api::proxy>(proxyHost, proxyPort, std::move(proxyType)), proxyEnable),
+                  td::td_api::make_object<td::td_api::proxy>(proxyHost, proxyPort, std::move(proxyType)), proxyEnable,
+                  std::string()),
                 [](Object object)
       {
         if (object->get_id() == td::td_api::error::ID)
@@ -1969,7 +2038,7 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
     std::vector<std::int64_t> msgIds = delete_messages.message_ids_;
     for (const auto& msgId : msgIds)
     {
-#ifdef HAS_TELEGRAM_CUSTOM_MESSAGE_DELETE_HANDLING
+#ifdef CUSTOM_MESSAGE_DELETE_SUPPORT
       static const int messageDelete = AppConfig::GetNum("message_delete");
 #else
       static const int messageDelete = MessageDeleteErase;
@@ -1982,16 +2051,18 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
         {
           ChatMessage chatMessage = chatMessages.front();
           chatMessage.isRead = true;
+          chatMessage.isDeleted = true;
 
           if (messageDelete == MessageDeleteReplace)
           {
-            chatMessage.text = std::string("[Deleted]");
+            chatMessage.text = std::string("[This message was deleted]");
+            chatMessage.fileInfo.clear();
           }
-          else
+          else // MessageDeletePrefix
           {
-            if (!StrUtil::StartsWith(chatMessage.text, "[Deleted]"))
+            if (!StrUtil::StartsWith(chatMessage.text, "[This message was deleted]"))
             {
-              chatMessage.text = std::string("[Deleted]\n") + chatMessage.text;
+              chatMessage.text = std::string("[This message was deleted]\n") + chatMessage.text;
             }
           }
 
@@ -2072,6 +2143,17 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
     getMessageRequest->msgId = StrUtil::NumToHex(msgId);
     getMessageRequest->cached = false;
     SendRequest(getMessageRequest);
+  },
+  [this](td::td_api::updateMessageIsPinned& update_message_is_pinned)
+  {
+    LOG_TRACE("update message is pinned");
+
+    std::shared_ptr<NewMessageIsPinnedNotify> newMessageIsPinnedNotify =
+      std::make_shared<NewMessageIsPinnedNotify>(m_ProfileId);
+    newMessageIsPinnedNotify->chatId = StrUtil::NumToHex(update_message_is_pinned.chat_id_);
+    newMessageIsPinnedNotify->msgId = StrUtil::NumToHex(update_message_is_pinned.message_id_);
+    newMessageIsPinnedNotify->isPinned = update_message_is_pinned.is_pinned_;
+    CallMessageHandler(newMessageIsPinnedNotify);
   },
   [this](td::td_api::updateChatPosition& update_chat_position)
   {
@@ -3228,15 +3310,11 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
   }
   else if (p_TdMessageContent.get_id() == td::td_api::messageLocation::ID)
   {
-    auto& messageLocation = static_cast<td::td_api::messageLocation&>(p_TdMessageContent);
-    if (messageLocation.live_period_ == 0)
-    {
-      p_Text = "[Location]";
-    }
-    else
-    {
-      p_Text = "[LiveLocation]";
-    }
+    p_Text = "[Location]";
+  }
+  else if (p_TdMessageContent.get_id() == td::td_api::messageLiveLocation::ID)
+  {
+    p_Text = "[LiveLocation]";
   }
   else if (p_TdMessageContent.get_id() == td::td_api::messageContactRegistered::ID)
   {
@@ -3490,6 +3568,8 @@ void TgChat::Impl::TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessag
   p_ChatMessage.senderId = StrUtil::NumToHex(senderId);
   p_ChatMessage.isOutgoing = p_TdMessage.is_outgoing_;
   p_ChatMessage.timeSent = (((int64_t)p_TdMessage.date_) * 1000) + (std::hash<std::string>{ }(p_ChatMessage.id) % 256);
+  p_ChatMessage.isEdited = (p_TdMessage.edit_date_ > 0);
+  p_ChatMessage.isPinned = p_TdMessage.is_pinned_;
 
   if (p_TdMessage.reply_to_ && (p_TdMessage.reply_to_->get_id() == td::td_api::messageReplyToMessage::ID))
   {

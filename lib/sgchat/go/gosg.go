@@ -44,7 +44,7 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
-var signalDate int = 20260416
+var signalDate int = 20260609
 
 type State int64
 
@@ -1219,7 +1219,7 @@ func (handler *SgEventHandler) handleDataMessage(chatId string, senderId string,
 	if msg.GetDelete() != nil {
 		targetMsgId := fmt.Sprintf("%d", msg.GetDelete().GetTargetSentTimestamp())
 		LOG_TRACE(fmt.Sprintf("handleDataMessage delete %s %s", chatId, targetMsgId))
-		CSgDeleteMessageNotify(connId, chatId, targetMsgId)
+		CSgDeleteMessageNotify(connId, chatId, targetMsgId, BoolToInt(fromMe))
 		return
 	}
 
@@ -1260,8 +1260,6 @@ func (handler *SgEventHandler) handleDataMessage(chatId string, senderId string,
 		placeholder = "[PollTerminate]"
 	} else if msg.GetFlags()&uint32(signalpb.DataMessage_EXPIRATION_TIMER_UPDATE) != 0 {
 		placeholder = "[ExpirationTimerUpdate]"
-	} else if msg.GetFlags()&uint32(signalpb.DataMessage_END_SESSION) != 0 {
-		placeholder = "[EndSession]"
 	} else if msg.GetFlags()&uint32(signalpb.DataMessage_PROFILE_KEY_UPDATE) != 0 {
 		return // silent, no need to display
 	}
@@ -1663,7 +1661,7 @@ func (handler *SgEventHandler) handleDeleteForMe(evt *events.DeleteForMe) bool {
 		for _, msg := range msgDelete.GetMessages() {
 			msgId := fmt.Sprintf("%d", msg.GetSentTimestamp())
 			LOG_TRACE(fmt.Sprintf("Call CSgDeleteMessageNotify %s %s", chatIdStr, msgId))
-			CSgDeleteMessageNotify(connId, chatIdStr, msgId)
+			CSgDeleteMessageNotify(connId, chatIdStr, msgId, BoolToInt(true))
 		}
 	}
 
@@ -2482,9 +2480,9 @@ func SgSendMessage(connId int, chatId string, text string, quotedId string, quot
 			return -1
 		}
 		selfId := UUIDToString(device.ACI)
-		timeSent := int(timestamp / 1000)
-		CSgNewMessagesNotify(connId, chatId, strconv.FormatUint(timestamp, 10), selfId, text, 1, quotedId, "", "", 0, timeSent, 1, 1)
-		TrackRecentMessage(connId, chatId, selfId, timestamp)
+		timeSent := int(targetTimestamp / 1000)
+		CSgNewMessagesNotify(connId, chatId, editMsgId, selfId, text, 1, quotedId, "", "", 0, timeSent, 1, 1)
+		TrackRecentMessage(connId, chatId, selfId, targetTimestamp)
 	} else {
 		// Set body
 		if text != "" {

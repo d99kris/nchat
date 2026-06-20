@@ -34,6 +34,7 @@ const (
 	directMediaTypeGroupAvatar               directMediaType = 1
 	directMediaTypeProfileAvatar             directMediaType = 2
 	directMediaTypePlaintextDigestAttachment directMediaType = 3
+	directMediaTypeSticker                   directMediaType = 4
 )
 
 type DirectMediaInfo interface {
@@ -44,6 +45,7 @@ var (
 	_ DirectMediaInfo = (*DirectMediaAttachment)(nil)
 	_ DirectMediaInfo = (*DirectMediaGroupAvatar)(nil)
 	_ DirectMediaInfo = (*DirectMediaProfileAvatar)(nil)
+	_ DirectMediaInfo = (*DirectMediaSticker)(nil)
 )
 
 type DirectMediaAttachment struct {
@@ -127,6 +129,30 @@ func (m DirectMediaProfileAvatar) AsMediaID() (mediaID networkid.MediaID, err er
 	return networkid.MediaID(buf.Bytes()), nil
 }
 
+type DirectMediaSticker struct {
+	PackID    []byte
+	PackKey   []byte
+	StickerID uint32
+}
+
+const packIDLen = 16
+const packKeyLen = 32
+const directMediaStickerLen = 1 + packIDLen + packKeyLen + 4
+
+func (m DirectMediaSticker) AsMediaID() (mediaID networkid.MediaID, err error) {
+	if len(m.PackID) != packIDLen {
+		return nil, fmt.Errorf("invalid pack ID length: %d", len(m.PackID))
+	} else if len(m.PackKey) != packKeyLen {
+		return nil, fmt.Errorf("invalid pack key length: %d", len(m.PackKey))
+	}
+	mediaID = make(networkid.MediaID, directMediaStickerLen)
+	mediaID[0] = byte(directMediaTypeSticker)
+	copy(mediaID[1:], m.PackID)
+	copy(mediaID[1+packIDLen:], m.PackKey)
+	binary.BigEndian.PutUint32(mediaID[1+packIDLen+packKeyLen:], m.StickerID)
+	return mediaID, nil
+}
+
 func ParseDirectMediaInfo(mediaID networkid.MediaID) (_ DirectMediaInfo, err error) {
 	mediaIDLen := len(mediaID)
 	if mediaIDLen == 0 {
@@ -199,6 +225,15 @@ func ParseDirectMediaInfo(mediaID networkid.MediaID) (_ DirectMediaInfo, err err
 		} else {
 			info.ProfileAvatarPath = string(profileAvatarPath)
 		}
+		return &info, nil
+	case directMediaTypeSticker:
+		var info DirectMediaSticker
+		if len(mediaID) != directMediaStickerLen {
+			return info, fmt.Errorf("invalid media ID length for sticker: %d", len(mediaID))
+		}
+		info.PackID = mediaID[1 : 1+packIDLen]
+		info.PackKey = mediaID[1+packIDLen : 1+packIDLen+packKeyLen]
+		info.StickerID = binary.BigEndian.Uint32(mediaID[1+packIDLen+packKeyLen:])
 		return &info, nil
 	}
 

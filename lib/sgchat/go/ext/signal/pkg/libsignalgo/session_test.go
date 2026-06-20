@@ -30,7 +30,7 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 )
 
-func initializeSessions(t *testing.T, aliceStore, bobStore *InMemorySignalProtocolStore, bobAddress *libsignalgo.Address) {
+func initializeSessions(t *testing.T, aliceStore, bobStore *InMemorySignalProtocolStore, bobAddress, aliceAddress *libsignalgo.Address) {
 	ctx := context.TODO()
 
 	bobPreKey, err := libsignalgo.GeneratePrivateKey()
@@ -86,7 +86,7 @@ func initializeSessions(t *testing.T, aliceStore, bobStore *InMemorySignalProtoc
 	assert.NoError(t, err)
 
 	// Alice processes the bundle
-	err = libsignalgo.ProcessPreKeyBundle(ctx, bobBundle, bobAddress, aliceStore, aliceStore)
+	err = libsignalgo.ProcessPreKeyBundle(ctx, bobBundle, bobAddress, aliceAddress, aliceStore, aliceStore)
 	assert.NoError(t, err)
 
 	record, err := aliceStore.LoadSession(ctx, bobAddress)
@@ -132,7 +132,7 @@ func TestSessionCipher(t *testing.T) {
 	aliceStore := NewInMemorySignalProtocolStore()
 	bobStore := NewInMemorySignalProtocolStore()
 
-	initializeSessions(t, aliceStore, bobStore, bobAddress)
+	initializeSessions(t, aliceStore, bobStore, bobAddress, aliceAddress)
 
 	alicePlaintext := []byte{8, 6, 7, 5, 3, 0, 9}
 
@@ -163,7 +163,7 @@ func TestSessionCipher(t *testing.T) {
 	assert.NoError(t, err)
 	aliceCiphertext2, err := libsignalgo.DeserializeMessage(bobCiphertext2Serialized)
 	assert.NoError(t, err)
-	alicePlaintext2, err := libsignalgo.Decrypt(ctx, aliceCiphertext2, bobAddress, aliceStore, aliceStore)
+	alicePlaintext2, err := libsignalgo.Decrypt(ctx, aliceCiphertext2, bobAddress, aliceAddress, aliceStore, aliceStore)
 	assert.NoError(t, err)
 	assert.Equal(t, bobPlaintext2, alicePlaintext2)
 }
@@ -183,7 +183,7 @@ func TestSessionCipherWithBadStore(t *testing.T) {
 	aliceStore := NewInMemorySignalProtocolStore()
 	bobStore := &BadInMemorySignalProtocolStore{NewInMemorySignalProtocolStore()}
 
-	initializeSessions(t, aliceStore, bobStore.InMemorySignalProtocolStore, bobAddress)
+	initializeSessions(t, aliceStore, bobStore.InMemorySignalProtocolStore, bobAddress, aliceAddress)
 
 	alicePlaintext := []byte{8, 6, 7, 5, 3, 0, 9}
 
@@ -216,7 +216,7 @@ func TestSealedSenderEncrypt_Repeated(t *testing.T) {
 	aliceStore := NewInMemorySignalProtocolStore()
 	bobStore := NewInMemorySignalProtocolStore()
 
-	initializeSessions(t, aliceStore, bobStore, bobAddress)
+	initializeSessions(t, aliceStore, bobStore, bobAddress, aliceAddress)
 
 	trustRoot, err := libsignalgo.GenerateIdentityKeyPair()
 	assert.NoError(t, err)
@@ -252,15 +252,18 @@ func TestArchiveSession(t *testing.T) {
 	ctx := context.TODO()
 	setupLogging()
 
+	aliceACI := uuid.New()
 	bobACI := uuid.New()
 
+	aliceAddress, err := libsignalgo.NewACIServiceID(aliceACI).Address(1)
+	assert.NoError(t, err)
 	bobAddress, err := libsignalgo.NewACIServiceID(bobACI).Address(1)
 	assert.NoError(t, err)
 
 	aliceStore := NewInMemorySignalProtocolStore()
 	bobStore := NewInMemorySignalProtocolStore()
 
-	initializeSessions(t, aliceStore, bobStore, bobAddress)
+	initializeSessions(t, aliceStore, bobStore, bobAddress, aliceAddress)
 
 	session, err := aliceStore.LoadSession(ctx, bobAddress)
 	assert.NoError(t, err)
@@ -315,7 +318,7 @@ func TestSealedSenderGroupCipher(t *testing.T) {
 
 	bobStore := NewInMemorySignalProtocolStore()
 
-	initializeSessions(t, aliceStore, bobStore, bobAddress)
+	initializeSessions(t, aliceStore, bobStore, bobAddress, aliceAddress)
 
 	trustRoot, err := libsignalgo.GenerateIdentityKeyPair()
 	assert.NoError(t, err)

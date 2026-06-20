@@ -50,7 +50,7 @@ INSTALL="0"
 SRC="0"
 BUMP="0"
 YES=""
-CMAKEARGS="${NCHAT_CMAKEARGS:-}"
+CMAKEARGS="${DEV_CMAKEARGS:-} ${NCHAT_CMAKEARGS:-}"
 
 if [[ "${#}" == "0" ]]; then
   show_usage
@@ -150,10 +150,10 @@ if [[ "${DEPS}" == "1" ]]; then
       sudo apt update && sudo apt ${YES} install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev ${WL_CLIPBOARD} || exiterr "deps failed (${DISTRO}), exiting."
       sudo apt ${YES} install golang-1.23 || exiterr "deps failed (${DISTRO} apt golang), exiting."
       sudo update-alternatives --install /usr/bin/go go /usr/lib/go-1.23/bin/go 123 || exiterr "deps failed (${DISTRO} select golang), exiting."
-    elif [[ "${DISTRO}" == "Debian GNU/Linux" ]]; then
+    elif [[ "${DISTRO}" == "Debian GNU/Linux" ]] || [[ "${DISTRO}" == "Devuan GNU/Linux" ]]; then
       sudo apt update && sudo apt ${YES} install ccache cmake build-essential gperf help2man libreadline-dev libssl-dev libncurses-dev libncursesw5-dev ncurses-doc zlib1g-dev libsqlite3-dev libmagic-dev ${WL_CLIPBOARD} || exiterr "deps failed (${DISTRO}), exiting."
       RELEASE=$(lsb_release -a | grep 'Codename:' | awk -F':' '{print $2}' | awk '{$1=$1;print}')
-      if [[ "${RELEASE}" == "trixie" ]]; then
+      if [[ "${RELEASE}" == "trixie" ]] || [[ "${RELEASE}" == "excalibur" ]]; then
         sudo apt ${YES} install golang-go || exiterr "deps failed (${DISTRO} ${RELEASE}), exiting."
       elif [[ "${RELEASE}" == "bookworm" ]]; then
         sudo apt install ${YES} -t bookworm-backports golang-1.23

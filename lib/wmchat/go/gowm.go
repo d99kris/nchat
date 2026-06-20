@@ -49,7 +49,7 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
-var whatsmeowDate int = 20260416
+var whatsmeowDate int = 20260611
 
 type JSONMessage []json.RawMessage
 type JSONMessageType string
@@ -336,7 +336,7 @@ func SetExpiration(connId int, chatId string, expiration uint32) {
 }
 
 // download info
-var downloadInfoVersion = 1 // bump version upon any struct change
+var downloadInfoVersion = 2 // bump version upon any struct change
 type DownloadInfo struct {
 	Version    int    `json:"Version_int"`
 	Url        string `json:"Url_string"`
@@ -345,7 +345,6 @@ type DownloadInfo struct {
 	TargetPath string              `json:"TargetPath_string"`
 	MediaKey   []byte              `json:"MediaKey_arraybyte"`
 	MediaType  whatsmeow.MediaType `json:"MediaType_MediaType"`
-	Size       int                 `json:"Size_int"`
 
 	FileEncSha256 []byte `json:"FileEncSha256_arraybyte"`
 	FileSha256    []byte `json:"FileSha256_arraybyte"`
@@ -357,7 +356,6 @@ func DownloadableMessageToFileId(client *whatsmeow.Client, msg whatsmeow.Downloa
 
 	info.TargetPath = targetPath
 	info.MediaKey = msg.GetMediaKey()
-	info.Size = whatsmeow.GetDownloadSize(msg)
 	info.FileEncSha256 = msg.GetFileEncSHA256()
 	info.FileSha256 = msg.GetFileSHA256()
 
@@ -456,10 +454,10 @@ func DownloadFromFileInfo(client *whatsmeow.Client, info DownloadInfo) ([]byte, 
 	ctx := context.TODO()
 	if len(info.Url) > 0 {
 		LOG_TRACE(fmt.Sprintf("download url: %s", info.Url))
-		return client.DownloadMediaWithUrl(ctx, info.Url, info.MediaKey, info.MediaType, info.Size, info.FileEncSha256, info.FileSha256)
+		return client.DownloadMediaWithUrl(ctx, info.Url, info.MediaKey, info.MediaType, info.FileEncSha256, info.FileSha256)
 	} else if len(info.DirectPath) > 0 {
 		LOG_TRACE(fmt.Sprintf("download directpath: %s", info.DirectPath))
-		return client.DownloadMediaWithPath(ctx, info.DirectPath, info.FileEncSha256, info.FileSha256, info.MediaKey, info.Size, info.MediaType, whatsmeow.GetMMSType(info.MediaType))
+		return client.DownloadMediaWithPath(ctx, info.DirectPath, info.FileEncSha256, info.FileSha256, info.MediaKey, info.MediaType, whatsmeow.GetMMSType(info.MediaType), false)
 	} else {
 		LOG_WARNING(fmt.Sprintf("url and path not present"))
 		return nil, whatsmeow.ErrNoURLPresent
@@ -1312,7 +1310,7 @@ func (handler *WmEventHandler) HandleDeleteForMe(deleteForMe *events.DeleteForMe
 	chatId := GetChatId(client, &deleteForMe.ChatJID, nil)
 	msgId := deleteForMe.MessageID
 	LOG_TRACE(fmt.Sprintf("Call CWmDeleteMessageNotify %s %s", chatId, msgId))
-	CWmDeleteMessageNotify(connId, chatId, msgId)
+	CWmDeleteMessageNotify(connId, chatId, msgId, BoolToInt(true))
 }
 
 func (handler *WmEventHandler) HandleLoggedOut() {
@@ -1640,9 +1638,36 @@ func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg 
 	case msg.ProtocolMessage != nil:
 		handler.HandleProtocolMessage(messageInfo, msg, isSyncRead)
 
+	case msg.PinInChatMessage != nil:
+		handler.HandlePinInChatMessage(messageInfo, msg)
+
 	default:
 		handler.HandleUnsupportedMessage(messageInfo, msg, isSyncRead)
 	}
+}
+
+func (handler *WmEventHandler) HandlePinInChatMessage(messageInfo types.MessageInfo, msg *waE2E.Message) {
+	LOG_TRACE(fmt.Sprintf("PinInChatMessage"))
+
+	connId := handler.connId
+	client := GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return
+	}
+
+	pin := msg.GetPinInChatMessage()
+	if pin == nil {
+		LOG_WARNING("get pin in chat message failed")
+		return
+	}
+
+	chatId := GetChatId(client, &messageInfo.Chat, &messageInfo.Sender)
+	msgId := pin.GetKey().GetID()
+	isPinned := (pin.GetType() == waE2E.PinInChatMessage_PIN_FOR_ALL)
+
+	LOG_TRACE(fmt.Sprintf("Call CWmNewMessageIsPinnedNotify %s %s %t", chatId, msgId, isPinned))
+	CWmNewMessageIsPinnedNotify(connId, chatId, msgId, BoolToInt(isPinned))
 }
 
 func (handler *WmEventHandler) ProcessContextInfo(contextInfo *waE2E.ContextInfo, quotedId *string, text *string) {
@@ -2181,7 +2206,7 @@ func (handler *WmEventHandler) HandleProtocolMessage(messageInfo types.MessageIn
 		chatId := GetChatId(client, &messageInfo.Chat, &messageInfo.Sender)
 		msgId := protocol.GetKey().GetID()
 		LOG_TRACE(fmt.Sprintf("Call CWmDeleteMessageNotify %s %s", chatId, msgId))
-		CWmDeleteMessageNotify(connId, chatId, msgId)
+		CWmDeleteMessageNotify(connId, chatId, msgId, BoolToInt(messageInfo.IsFromMe))
 	} else {
 		LOG_TRACE(fmt.Sprintf("ProtocolMessage %#v ignore", protocol.GetType()))
 	}
@@ -2693,7 +2718,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 	}
 
 	isSend := false
-	isEdited := false
+	isEdited := (len(editMsgId) > 0)
 
 	// quote context
 	contextInfo := waE2E.ContextInfo{}

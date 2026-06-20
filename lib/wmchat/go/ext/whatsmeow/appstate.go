@@ -235,6 +235,19 @@ func (cli *Client) dispatchAppState(ctx context.Context, name appstate.WAPatchNa
 	}
 	logEvt.Msg("Received app state mutation")
 
+	if len(mutation.Index) == 1 && mutation.Index[0] == appstate.IndexNCTSaltSync {
+		var err error
+		if mutation.Operation == waServerSync.SyncdMutation_SET {
+			err = cli.storeNCTSalt(ctx, mutation.Action.GetNctSaltSyncAction().GetSalt())
+		} else if mutation.Operation == waServerSync.SyncdMutation_REMOVE {
+			err = cli.clearNCTSalt(ctx)
+		}
+		if err != nil {
+			cli.Log.Warnf("Failed to update NCT salt from app state mutation: %v", err)
+		}
+		return
+	}
+
 	if mutation.Operation != waServerSync.SyncdMutation_SET {
 		return
 	}
@@ -552,9 +565,9 @@ func (cli *Client) sendAppState(ctx context.Context, patch appstate.PatchInfo, a
 	if respCollectionAttr.OptionalString("type") == "error" {
 		errorTag, ok := respCollection.GetOptionalChildByTag("error")
 
-		mainErr := fmt.Errorf("%w: %s", ErrAppStateUpdate, respCollection.XMLString())
+		mainErr := fmt.Errorf("%w: %s", ErrAppStateUpdate, &respCollection)
 		if ok {
-			mainErr = fmt.Errorf("%w (%s): %s", ErrAppStateUpdate, patch.Type, errorTag.XMLString())
+			mainErr = fmt.Errorf("%w (%s): %s", ErrAppStateUpdate, patch.Type, &errorTag)
 		}
 		if ok && errorTag.AttrGetter().Int("code") == 409 && allowRetry {
 			zerolog.Ctx(ctx).Warn().Err(mainErr).Msg("Failed to update app state, trying to apply conflicts and retry")

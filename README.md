@@ -6,23 +6,27 @@ nchat
 | [![Linux](https://github.com/d99kris/nchat/workflows/Linux/badge.svg)](https://github.com/d99kris/nchat/actions?query=workflow%3ALinux) | [![macOS](https://github.com/d99kris/nchat/workflows/macOS/badge.svg)](https://github.com/d99kris/nchat/actions?query=workflow%3AmacOS) |
 
 nchat is a multi-protocol terminal-based messaging client for Linux and macOS with support for
-Telegram, WhatsApp and Signal.
+Telegram, WhatsApp and Signal (opt-in).
 
 ![screenshot nchat](/doc/screenshot-nchat.png)
 
 Features
 --------
-- Customizable color schemes and key bindings
-- Jump to unread chat
-- Message history cache with support for text export
-- Message read receipt
-- Receive / send markdown formatted messages
-- Reply / delete / edit / forward / send messages
-- List dialogs for selecting chats, contacts, emojis, files
+- Send and receive markdown formatted messages
+- Reply, delete, edit and forward messages
+- Mention users in group chats
+- Send and display message reactions
+- View and save media (documents, photos, videos)
+- Show message read and edited indicators
 - Show user status (online, away, typing)
-- Toggle to view textized emojis vs. graphical
-- View / save media files (documents, photos, videos)
-- Send and display reactions
+- Jump to next unread chat
+- Archive, pin and delete chats
+- Search messages within a chat
+- List dialogs for chats, contacts, emojis, files
+- Message history cache with text export
+- Desktop notifications for new messages
+- Toggle textized vs. graphical emojis
+- Customizable [themes](https://github.com/d99kris/nchat/wiki/Themes) and key bindings
 
 
 Optional Features
@@ -381,11 +385,14 @@ Specifies whether to use bracket quoting for display-name mentions with spaces.
 
 ### message_delete
 
-Specifies handling of message deletion by other users (WhatsApp only):
+Specifies handling of message deletion by other users (WhatsApp and Signal):
 
     1 = erase message <- default
-    2 = replace message with [Deleted] text
-    3 = prefix message with [Deleted] text
+    2 = replace message text with `[This message was deleted]`
+    3 = prefix message text with `[This message was deleted]`
+
+Messages deleted by oneself are always erased locally regardless of this
+setting. Deleting messages already marked deleted erases them locally.
 
 ### proxy_
 
@@ -449,6 +456,7 @@ This configuration file holds general user interface settings. Default content:
     desktop_notify_enabled=0
     desktop_notify_inactive=1
     downloadable_indicator=+
+    edited_indicator=✎
     emoji_enabled=1
     entry_height=4
     failed_indicator=✗
@@ -473,6 +481,7 @@ This configuration file holds general user interface settings. Default content:
     online_status_share=1
     online_status_dynamic=1
     phone_number_indicator=
+    pinned_indicator=⚲
     proxy_indicator=🔒
     read_indicator=✓
     reactions_enabled=1
@@ -619,6 +628,11 @@ terminal window is inactive.
 Specifies text to suffix attachment filenames in message view for attachments
 not yet downloaded. This is only shown for `attachment_prefetch` < 2.
 
+### edited_indicator
+
+Specifies text to suffix message header in message view for messages that have
+been edited.
+
 ### emoji_enabled
 
 Specifies whether to display emojis. Controlled by Ctrl-y in run-time.
@@ -752,6 +766,11 @@ Specifies status bar text to indicate phone number of the current chat is
 available. This field may contain `%1` which will be replaced with the actual
 phone number of the contact. Other examples: `🎧`
 
+### pinned_indicator
+
+Specifies text to suffix message header in message view for messages that have
+been pinned.
+
 ### proxy_indicator
 
 Specifies top bar text to indicate proxy is enabled.
@@ -865,6 +884,7 @@ This configuration file holds user interface key bindings. Default content:
     goto_chat=KEY_CTRLN
     home=KEY_HOME
     increase_list_width=\33\56
+    jump_pinned=KEY_CTRLP
     jump_quoted=\33\161
     kill_word=
     left=KEY_LEFT
@@ -877,7 +897,7 @@ This configuration file holds user interface key bindings. Default content:
     open_msg=\33\167
     other_commands_help=KEY_CTRLO
     paste=\33\166
-    pin_chat=\33\160
+    pin=\33\160
     prev_chat=KEY_BTAB
     prev_page=KEY_PPAGE
     quit=KEY_CTRLQ
@@ -896,7 +916,7 @@ This configuration file holds user interface key bindings. Default content:
     toggle_emoji=KEY_CTRLY
     toggle_help=KEY_CTRLG
     toggle_list=KEY_CTRLL
-    toggle_top=KEY_CTRLP
+    toggle_top=KEY_NONE
     transfer=KEY_CTRLT
     unread_chat=KEY_CTRLF
     up=KEY_UP

@@ -31,6 +31,7 @@ enum ProtocolFeature
   FeatureAutoGetContactsOnLogin = (1 << 6),
   FeaturePinChat = (1 << 7),
   FeatureArchiveChat = (1 << 8),
+  FeaturePinMessage = (1 << 9),
 };
 
 class Protocol
@@ -84,6 +85,7 @@ enum MessageType
   DeleteChatRequestType,
   ArchiveChatRequestType,
   PinChatRequestType,
+  PinMessageRequestType,
   SendTypingRequestType,
   SetStatusRequestType,
   CreateChatRequestType,
@@ -110,6 +112,7 @@ enum MessageType
   ReceiveTypingNotifyType,
   ReceiveStatusNotifyType,
   NewMessageStatusNotifyType,
+  NewMessageIsPinnedNotifyType,
   NewMessageFileNotifyType,
   DeleteChatNotifyType,
   UpdateMuteNotifyType,
@@ -201,6 +204,9 @@ struct ChatMessage
   int64_t timeSent = -1;
   bool isOutgoing = true;
   bool isRead = false;
+  bool isEdited = false;
+  bool isDeleted = false;
+  bool isPinned = false;
   bool hasMention = false; // only required for tgchat, not db cached
 };
 
@@ -313,6 +319,16 @@ class PinChatRequest : public RequestMessage
 public:
   virtual MessageType GetMessageType() const { return PinChatRequestType; }
   std::string chatId;
+  bool isPinned = false;
+};
+
+class PinMessageRequest : public RequestMessage
+{
+public:
+  virtual MessageType GetMessageType() const { return PinMessageRequestType; }
+  std::string chatId;
+  std::string senderId; // only required for wmchat
+  std::string msgId;
   bool isPinned = false;
 };
 
@@ -436,6 +452,7 @@ public:
   std::string lastMsgId;
   std::string findText;
   std::string findMsgId;
+  bool findPinned = false;
 };
 
 class GetGroupMembersRequest : public RequestMessage
@@ -530,6 +547,7 @@ public:
   bool success = false;
   std::string chatId;
   std::string msgId;
+  bool isOutgoing = false; // true if local user issued the deletion
 };
 
 class SendTypingNotify : public ServiceMessage
@@ -602,6 +620,17 @@ public:
   std::string chatId;
   std::string msgId;
   bool isRead = false;
+};
+
+class NewMessageIsPinnedNotify : public ServiceMessage
+{
+public:
+  explicit NewMessageIsPinnedNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
+  virtual MessageType GetMessageType() const { return NewMessageIsPinnedNotifyType; }
+  std::string chatId;
+  std::string msgId;
+  bool isPinned = false;
 };
 
 class NewMessageFileNotify : public ServiceMessage

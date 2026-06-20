@@ -243,11 +243,16 @@ func (cli *Client) decryptCiphertextEnvelope(
 	if identityStore == nil {
 		return nil, fmt.Errorf("no identity store for destination service ID %s", destinationServiceID)
 	}
+	destinationAddress, err := destinationServiceID.Address(uint(cli.Store.DeviceID))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get own address: %w", err)
+	}
 	plaintext, ciphertextHash, err := cli.bufferedDecryptTxn(ctx, ciphertext, serverTimestamp, func(ctx context.Context) ([]byte, error) {
 		return libsignalgo.Decrypt(
 			ctx,
 			message,
 			senderAddress,
+			destinationAddress,
 			sessionStore,
 			identityStore,
 		)

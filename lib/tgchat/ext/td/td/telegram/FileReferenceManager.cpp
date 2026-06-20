@@ -62,19 +62,41 @@ FileReferenceManager::FileReferenceErrorSource FileReferenceManager::get_file_re
   }
   auto offset = Slice("FILE_REFERENCE_").size();
   Slice message = error.message();
-  if (message.size() <= offset) {
-    return {0, false};
-  }
   message = message.substr(offset);
-  if (!is_digit(message[0])) {
-    if (message[0] == '_') {
-      message = message.substr(1);
+  size_t pos = 0;
+  if (begins_with(message, "ATTACH_")) {
+    pos = 1;
+    message = message.substr(7);
+  } else if (begins_with(message, "SOLUTION_")) {
+    pos = 2;
+    message = message.substr(9);
+  } else if (begins_with(message, "ANSWER_")) {
+    message = message.substr(7);
+    if (message.empty() || !is_digit(message[0])) {
+      // add poll answer
+      pos = 1;
+    } else {
+      pos = 3 + to_integer<size_t>(message);
+      auto underscore_pos = message.find('_');
+      if (underscore_pos == Slice::npos) {
+        message = Slice();
+      } else {
+        message = message.substr(underscore_pos + 1);
+      }
     }
-    return {0, begins_with(message, "COVER_")};
+  } else if (!message.empty() || is_digit(message[0])) {
+    pos = 1 + to_integer<size_t>(message);
+    auto underscore_pos = message.find('_');
+    if (underscore_pos == Slice::npos) {
+      message = Slice();
+    } else {
+      message = message.substr(underscore_pos + 1);
+    }
   }
-  auto underscore_pos = message.find('_');
-  auto is_cover = underscore_pos != Slice::npos && begins_with(message.substr(underscore_pos + 1), "COVER_");
-  return {to_integer<size_t>(message) + 1, is_cover};
+  if (!message.empty() && message[0] == '_') {
+    message = message.substr(1);
+  }
+  return {pos, begins_with(message, "COVER_")};
 }
 
 /*
@@ -419,7 +441,7 @@ void FileReferenceManager::send_query(Destination dest, FileSourceId file_source
                            std::move(promise), "FileSourceChannelFull");
       },
       [&](const FileSourceAppConfig &source) {
-        send_closure_later(G()->config_manager(), &ConfigManager::reget_app_config, std::move(promise));
+        send_closure_later(G()->config_manager(), &ConfigManager::reload_app_config, std::move(promise));
       },
       [&](const FileSourceSavedRingtones &source) {
         send_closure_later(G()->notification_settings_manager(), &NotificationSettingsManager::repair_saved_ringtones,

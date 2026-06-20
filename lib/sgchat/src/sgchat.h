@@ -128,7 +128,7 @@ void SgNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p
 void SgNewMessageReactionNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text,
                                 int p_FromMe);
 void SgDeleteChatNotify(int p_ConnId, char* p_ChatId);
-void SgDeleteMessageNotify(int p_ConnId, char* p_ChatId, char* p_MsgId);
+void SgDeleteMessageNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsOutgoing);
 void SgUpdateMuteNotify(int p_ConnId, char* p_ChatId, int p_IsMuted);
 void SgUpdateArchivedNotify(int p_ConnId, char* p_ChatId, int p_IsArchived);
 void SgUpdatePinNotify(int p_ConnId, char* p_ChatId, int p_IsPinned, int p_TimePinned);

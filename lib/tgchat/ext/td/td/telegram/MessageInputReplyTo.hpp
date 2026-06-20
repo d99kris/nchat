@@ -76,6 +76,7 @@ void MessageInputReplyTo::parse(ParserT &parser) {
   END_PARSE_FLAGS();
   if (has_message_id) {
     td::parse(message_id_, parser);
+    debug_source_ = "binlog";
   }
   if (has_story_full_id) {
     td::parse(story_full_id_, parser);

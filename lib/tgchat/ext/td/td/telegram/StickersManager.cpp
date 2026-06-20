@@ -92,11 +92,9 @@ class GetAllStickersQuery final : public Td::ResultHandler {
 
   void on_result(BufferSlice packet) final {
     static_assert(std::is_same<telegram_api::messages_getMaskStickers::ReturnType,
-                               telegram_api::messages_getAllStickers::ReturnType>::value,
-                  "");
+                               telegram_api::messages_getAllStickers::ReturnType>::value);
     static_assert(std::is_same<telegram_api::messages_getEmojiStickers::ReturnType,
-                               telegram_api::messages_getAllStickers::ReturnType>::value,
-                  "");
+                               telegram_api::messages_getAllStickers::ReturnType>::value);
     auto result_ptr = fetch_result<telegram_api::messages_getAllStickers>(packet);
     if (result_ptr.is_error()) {
       return on_error(result_ptr.move_as_error());
@@ -370,8 +368,7 @@ class GetFeaturedStickerSetsQuery final : public Td::ResultHandler {
 
   void on_result(BufferSlice packet) final {
     static_assert(std::is_same<telegram_api::messages_getFeaturedStickers::ReturnType,
-                               telegram_api::messages_getFeaturedEmojiStickers::ReturnType>::value,
-                  "");
+                               telegram_api::messages_getFeaturedEmojiStickers::ReturnType>::value);
     auto result_ptr = fetch_result<telegram_api::messages_getFeaturedStickers>(packet);
     if (result_ptr.is_error()) {
       return on_error(result_ptr.move_as_error());
@@ -789,7 +786,7 @@ class GetStickerSetNameQuery final : public Td::ResultHandler {
   }
 
   void on_error(Status status) final {
-    td_->stickers_manager_->on_get_sticker_set_name(sticker_set_id_, nullptr);
+    td_->stickers_manager_->on_get_sticker_set_name(sticker_set_id_, std::move(status));
   }
 };
 
@@ -858,8 +855,7 @@ class SearchStickerSetsQuery final : public Td::ResultHandler {
 
   void on_result(BufferSlice packet) final {
     static_assert(std::is_same<telegram_api::messages_searchStickerSets::ReturnType,
-                               telegram_api::messages_searchEmojiStickerSets::ReturnType>::value,
-                  "");
+                               telegram_api::messages_searchEmojiStickerSets::ReturnType>::value);
     auto result_ptr = fetch_result<telegram_api::messages_searchStickerSets>(packet);
     if (result_ptr.is_error()) {
       return on_error(result_ptr.move_as_error());
@@ -1137,8 +1133,7 @@ class AddStickerToSetQuery final : public Td::ResultHandler {
 
   void on_result(BufferSlice packet) final {
     static_assert(std::is_same<telegram_api::stickers_addStickerToSet::ReturnType,
-                               telegram_api::stickers_replaceSticker::ReturnType>::value,
-                  "");
+                               telegram_api::stickers_replaceSticker::ReturnType>::value);
     auto result_ptr = fetch_result<telegram_api::stickers_addStickerToSet>(packet);
     if (result_ptr.is_error()) {
       return on_error(result_ptr.move_as_error());
@@ -1491,14 +1486,11 @@ class GetEmojiGroupsQuery final : public Td::ResultHandler {
 
   void on_result(BufferSlice packet) final {
     static_assert(std::is_same<telegram_api::messages_getEmojiGroups::ReturnType,
-                               telegram_api::messages_getEmojiStatusGroups::ReturnType>::value,
-                  "");
+                               telegram_api::messages_getEmojiStatusGroups::ReturnType>::value);
     static_assert(std::is_same<telegram_api::messages_getEmojiGroups::ReturnType,
-                               telegram_api::messages_getEmojiProfilePhotoGroups::ReturnType>::value,
-                  "");
+                               telegram_api::messages_getEmojiProfilePhotoGroups::ReturnType>::value);
     static_assert(std::is_same<telegram_api::messages_getEmojiGroups::ReturnType,
-                               telegram_api::messages_getEmojiStickerGroups::ReturnType>::value,
-                  "");
+                               telegram_api::messages_getEmojiStickerGroups::ReturnType>::value);
     auto result_ptr = fetch_result<telegram_api::messages_getEmojiGroups>(packet);
     if (result_ptr.is_error()) {
       return on_error(result_ptr.move_as_error());
@@ -1542,14 +1534,11 @@ class GetDefaultDialogPhotoEmojisQuery final : public Td::ResultHandler {
 
   void on_result(BufferSlice packet) final {
     static_assert(std::is_same<telegram_api::account_getDefaultProfilePhotoEmojis::ReturnType,
-                               telegram_api::account_getDefaultGroupPhotoEmojis::ReturnType>::value,
-                  "");
+                               telegram_api::account_getDefaultGroupPhotoEmojis::ReturnType>::value);
     static_assert(std::is_same<telegram_api::account_getDefaultBackgroundEmojis::ReturnType,
-                               telegram_api::account_getDefaultGroupPhotoEmojis::ReturnType>::value,
-                  "");
+                               telegram_api::account_getDefaultGroupPhotoEmojis::ReturnType>::value);
     static_assert(std::is_same<telegram_api::account_getChannelRestrictedStatusEmojis::ReturnType,
-                               telegram_api::account_getDefaultGroupPhotoEmojis::ReturnType>::value,
-                  "");
+                               telegram_api::account_getDefaultGroupPhotoEmojis::ReturnType>::value);
     auto result_ptr = fetch_result<telegram_api::account_getDefaultGroupPhotoEmojis>(packet);
     if (result_ptr.is_error()) {
       return on_error(result_ptr.move_as_error());
@@ -4000,13 +3989,19 @@ void StickersManager::update_load_request(uint32 load_request_id, const Status &
   }
 }
 
-void StickersManager::on_get_sticker_set_name(StickerSetId sticker_set_id,
-                                              telegram_api::object_ptr<telegram_api::messages_StickerSet> &&set_ptr) {
+void StickersManager::on_get_sticker_set_name(
+    StickerSetId sticker_set_id, Result<telegram_api::object_ptr<telegram_api::messages_StickerSet>> &&r_set_ptr) {
   auto it = sticker_set_name_load_queries_.find(sticker_set_id);
   CHECK(it != sticker_set_name_load_queries_.end());
   auto promises = std::move(it->second);
   sticker_set_name_load_queries_.erase(it);
-  if (set_ptr == nullptr || set_ptr->get_id() != telegram_api::messages_stickerSet::ID) {
+  if (r_set_ptr.is_error()) {
+    return fail_promises(promises, r_set_ptr.move_as_error());
+  }
+  auto set_ptr = r_set_ptr.move_as_ok();
+  CHECK(set_ptr != nullptr);
+  if (set_ptr->get_id() != telegram_api::messages_stickerSet::ID) {
+    LOG(ERROR) << "Expected " << sticker_set_id << ", but receive " << to_string(set_ptr);
     return fail_promises(promises, Status::Error(500, "Failed to get sticker set name"));
   }
   auto set = telegram_api::move_object_as<telegram_api::messages_stickerSet>(set_ptr);
@@ -5990,7 +5985,7 @@ void StickersManager::register_dice(const string &emoji, int32 value, MessageFul
     if (quick_reply_message_full_id.is_valid() ||
         (message_full_id.get_message_id().is_any_server() &&
          message_full_id.get_dialog_id().get_type() != DialogType::SecretChat)) {
-      send_closure(G()->config_manager(), &ConfigManager::reget_app_config, Promise<Unit>());
+      send_closure(G()->config_manager(), &ConfigManager::reload_app_config, Promise<Unit>());
     }
     return;
   }
@@ -8260,10 +8255,13 @@ void StickersManager::do_upload_sticker_file(UserId user_id, FileUploadId file_u
   FileType file_type = file_view.get_type();
 
   bool had_input_file = input_file != nullptr;
-  auto input_media =
-      file_type == FileType::Sticker
-          ? get_input_media(file_upload_id.get_file_id(), std::move(input_file), nullptr, string())
-          : td_->documents_manager_->get_input_media(file_upload_id.get_file_id(), std::move(input_file), nullptr);
+  auto input_media = [&] {
+    if (file_type == FileType::Sticker) {
+      return get_input_media(file_upload_id.get_file_id(), std::move(input_file), nullptr, string());
+    } else {
+      return td_->documents_manager_->get_input_media(file_upload_id.get_file_id(), std::move(input_file), nullptr);
+    }
+  }();
   CHECK(input_media != nullptr);
   if (had_input_file && !FileManager::extract_was_uploaded(input_media)) {
     // if we had InputFile, but has failed to use it for input_media, then we need to immediately cancel file upload

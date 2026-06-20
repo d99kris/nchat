@@ -35,12 +35,14 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
-	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf/cds2pb"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
 
+// ProdContactDiscoveryMrenclave should always match ENCLAVE_ID_CDSI_PROD from libsignal
+// https://github.com/signalapp/libsignal/blob/main/rust/attest/src/constants.rs#L69
+const ProdContactDiscoveryMrenclave = "15637fa1e54fe655176d3df1a9f94b87c01ed377acaa570682dc5d72c95ef07b"
 const ProdContactDiscoveryServer = "cdsi.signal.org"
-const ProdContactDiscoveryMrenclave = "ee9503070127120074612b6688e593b67e486b1541449f54d71e387484eb40a3"
 const ContactDiscoveryAuthTTL = 23 * time.Hour
 
 const rateLimitCloseCode = websocket.StatusCode(4008)
@@ -81,7 +83,7 @@ func (cli *Client) LookupPhone(ctx context.Context, e164s ...uint64) (ContactDis
 	}
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	resp, token, err := cli.doContactDiscovery(ctx, &signalpb.CDSClientRequest{
+	resp, token, err := cli.doContactDiscovery(ctx, &cds2pb.ClientRequest{
 		// TODO figure out if tokens are useful
 		//      (it's meant for old_e164s)
 		//Token:    cli.cdToken,
@@ -93,7 +95,7 @@ func (cli *Client) LookupPhone(ctx context.Context, e164s ...uint64) (ContactDis
 	return resp, err
 }
 
-func (cli *Client) doContactDiscovery(ctx context.Context, req *signalpb.CDSClientRequest) (ContactDiscoveryResponse, []byte, error) {
+func (cli *Client) doContactDiscovery(ctx context.Context, req *cds2pb.ClientRequest) (ContactDiscoveryResponse, []byte, error) {
 	creds, err := cli.getContactDiscoveryCredentials(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch contact discovery auth: %w", err)
@@ -185,7 +187,7 @@ func (cdc *ContactDiscoveryClient) Handshake(ctx context.Context) error {
 	return nil
 }
 
-func (cdc *ContactDiscoveryClient) SendRequest(ctx context.Context, req *signalpb.CDSClientRequest) error {
+func (cdc *ContactDiscoveryClient) SendRequest(ctx context.Context, req *cds2pb.ClientRequest) error {
 	plaintext, err := proto.Marshal(req)
 	if err != nil {
 		return fmt.Errorf("failed to marshal request: %w", err)
@@ -222,15 +224,15 @@ func (cdc *ContactDiscoveryClient) handleResponse(ctx context.Context, msg []byt
 	if err != nil {
 		return fmt.Errorf("failed to decrypt message: %w", err)
 	}
-	var cdsClientResp signalpb.CDSClientResponse
+	var cdsClientResp cds2pb.ClientResponse
 	err = proto.Unmarshal(decrypted, &cdsClientResp)
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal message: %w", err)
 	}
 	if cdsClientResp.Token != nil {
 		cdc.Token = cdsClientResp.Token
-		err = cdc.SendRequest(ctx, &signalpb.CDSClientRequest{
-			TokenAck: proto.Bool(true),
+		err = cdc.SendRequest(ctx, &cds2pb.ClientRequest{
+			TokenAck: true,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to send token ack request: %w", err)

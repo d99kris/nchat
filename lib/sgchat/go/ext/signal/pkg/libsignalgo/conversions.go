@@ -22,7 +22,7 @@ package libsignalgo
 import "C"
 import "unsafe"
 
-func CopyCStringToString(cString *C.char) (s string) {
+func CopyCStringToString(cString C.SignalCStringPtr) (s string) {
 	s = C.GoString(cString)
 	C.signal_free_string(cString)
 	return

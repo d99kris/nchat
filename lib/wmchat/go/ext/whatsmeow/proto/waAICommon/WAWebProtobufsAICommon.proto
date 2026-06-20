@@ -74,6 +74,13 @@ enum BotSessionSource {
 	AI_HOME_SESSION = 7;
 }
 
+enum AISubscriptionRequestType {
+	UNSPECIFIED = 0;
+	THINK_HARD = 1;
+	IMAGE_GEN = 2;
+	VIDEO_GEN = 3;
+}
+
 enum SessionTransparencyType {
 	UNKNOWN_TYPE = 0;
 	NY_AI_SAFETY_DISCLAIMER = 1;
@@ -120,6 +127,7 @@ message BotSignatureVerificationUseCaseProof {
 		UNSPECIFIED = 0;
 		WA_BOT_MSG = 1;
 		WA_TEE_BOT_MSG = 2;
+		P2P_PILLS = 3;
 	}
 
 	optional int32 version = 1;
@@ -316,6 +324,10 @@ message BotCapabilityMetadata {
 		AI_TAB_FORCE_CLIPPY = 59;
 		UNIFIED_RESPONSE_EMBEDDED_SCREENS = 60;
 		AI_SUBSCRIPTION_ENABLED = 61;
+		UNIFIED_RESPONSE_AI_CONTENT_SEARCH_ENABLED = 62;
+		UNIFIED_RESPONSE_MARKDOWN_LINKS_ENABLED = 63;
+		AI_RICH_RESPONSE_MAPS_V2_ENABLED = 64;
+		AI_SUBSCRIPTION_METERING_ENABLED = 65;
 	}
 
 	repeated BotCapabilityType capabilities = 1;
@@ -538,6 +550,7 @@ message AIHomeState {
 			ANIMATE_PHOTO = 2;
 			ANALYZE_FILE = 3;
 			COLLABORATE = 4;
+			OPEN_GREETING_CARD = 5;
 		}
 
 		optional AIHomeActionType type = 1;
@@ -696,10 +709,29 @@ message AIMediaCollectionMessage {
 	optional bool hasGlobalCaption = 3;
 }
 
+message HatchMetadataSync {
+	optional bytes data = 1;
+	optional int64 timestampMS = 2;
+	optional string requestID = 3;
+}
+
+message AIMetadataOperation {
+	optional HatchMetadataSync hatchMetadataSync = 1;
+}
+
 message BotCommandMetadata {
 	optional string commandName = 1;
 	optional string commandDescription = 2;
 	optional string commandPrompt = 3;
+}
+
+message BotResolvedToolCallMetadata {
+	optional string toolCallID = 1;
+	optional string resolutionDataSerialized = 2;
+}
+
+message BotPttPromptMetadata {
+	optional string transcript = 1;
 }
 
 message BotMetadata {
@@ -741,7 +773,14 @@ message BotMetadata {
 	optional BotInfrastructureDiagnostics botInfrastructureDiagnostics = 37;
 	optional AIMediaCollectionMetadata aiMediaCollectionMetadata = 38;
 	optional BotCommandMetadata commandMetadata = 39;
+	optional BotResolvedToolCallMetadata resolvedToolCallMetadata = 40;
+	optional AISubscriptionUpsellMetadata subscriptionUpsellMetadata = 41;
+	optional BotPttPromptMetadata pttPromptMetadata = 42;
 	optional bytes internalMetadata = 999;
+}
+
+message AISubscriptionUpsellMetadata {
+	optional AISubscriptionRequestType requestType = 1;
 }
 
 message BotGroupMetadata {

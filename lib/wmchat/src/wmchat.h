@@ -113,6 +113,7 @@ void WmNewGroupMembersNotify(int p_ConnId, char* p_ChatId, char* p_MembersJson);
 void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe,
                          char* p_ReplyId, char* p_FileId, char* p_FilePath, int p_FileStatus, int p_TimeSent,
                          int p_IsRead, int p_IsEdited);
+void WmNewMessageIsPinnedNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsPinned);
 void WmNewStatusNotify(int p_ConnId, char* p_UserId, int p_IsOnline, int p_TimeSeen);
 void WmNewTypingNotify(int p_ConnId, char* p_ChatId, char* p_UserId, int p_IsTyping);
 void WmNewMessageStatusNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsRead);
@@ -121,7 +122,7 @@ void WmNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p
 void WmNewMessageReactionNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text,
                                 int p_FromMe);
 void WmDeleteChatNotify(int p_ConnId, char* p_ChatId);
-void WmDeleteMessageNotify(int p_ConnId, char* p_ChatId, char* p_MsgId);
+void WmDeleteMessageNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsOutgoing);
 void WmUpdateMuteNotify(int p_ConnId, char* p_ChatId, int p_IsMuted);
 void WmUpdateArchivedNotify(int p_ConnId, char* p_ChatId, int p_IsArchived);
 void WmUpdatePinNotify(int p_ConnId, char* p_ChatId, int p_IsPinned, int p_TimePinned);

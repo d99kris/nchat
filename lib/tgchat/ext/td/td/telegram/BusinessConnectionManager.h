@@ -88,8 +88,7 @@ class BusinessConnectionManager final : public Actor {
 
   void edit_business_message_live_location(BusinessConnectionId business_connection_id, DialogId dialog_id,
                                            MessageId message_id, td_api::object_ptr<td_api::ReplyMarkup> &&reply_markup,
-                                           td_api::object_ptr<td_api::location> &&input_location, int32 live_period,
-                                           int32 heading, int32 proximity_alert_radius,
+                                           td_api::object_ptr<td_api::liveLocation> &&input_location,
                                            Promise<td_api::object_ptr<td_api::businessMessage>> &&promise);
 
   void edit_business_message_to_do_list(BusinessConnectionId business_connection_id, DialogId dialog_id,
@@ -170,8 +169,8 @@ class BusinessConnectionManager final : public Actor {
     size_t finished_count_ = 0;
     vector<Result<UploadMediaResult>> upload_results_;
     Promise<td_api::object_ptr<td_api::businessMessages>> promise_;
-    unique_ptr<PendingMessage> paid_media_message_;
-    Promise<td_api::object_ptr<td_api::businessMessage>> paid_media_promise_;
+    unique_ptr<PendingMessage> internal_media_message_;
+    Promise<td_api::object_ptr<td_api::businessMessage>> internal_media_promise_;
   };
 
   void tear_down() final;
@@ -236,7 +235,7 @@ class BusinessConnectionManager final : public Actor {
   void process_sent_business_message_album(telegram_api::object_ptr<telegram_api::Updates> &&updates_ptr,
                                            Promise<td_api::object_ptr<td_api::businessMessages>> &&promise);
 
-  void on_upload_message_paid_media(int64 request_id, size_t media_pos, Result<UploadMediaResult> &&result);
+  void on_upload_message_internal_media(int64 request_id, size_t media_pos, Result<UploadMediaResult> &&result);
 
   void on_fail_send_message(unique_ptr<PendingMessage> &&message, const Status &error);
 

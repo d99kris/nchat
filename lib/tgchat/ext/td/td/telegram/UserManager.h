@@ -85,8 +85,6 @@ class UserManager final : public Actor {
   UserManager &operator=(UserManager &&) = delete;
   ~UserManager() final;
 
-  static UserId get_user_id(const telegram_api::object_ptr<telegram_api::User> &user);
-
   vector<UserId> get_user_ids(vector<telegram_api::object_ptr<telegram_api::User>> &&users, const char *source);
 
   static UserId load_my_id();
@@ -121,7 +119,7 @@ class UserManager final : public Actor {
 
   void set_my_online_status(bool is_online, bool send_update, bool is_local);
 
-  void on_get_user(telegram_api::object_ptr<telegram_api::User> &&user, const char *source);
+  UserId on_get_user(telegram_api::object_ptr<telegram_api::User> &&user, const char *source);
 
   void on_get_users(vector<telegram_api::object_ptr<telegram_api::User>> &&users, const char *source);
 
@@ -228,7 +226,12 @@ class UserManager final : public Actor {
 
   Result<telegram_api::object_ptr<telegram_api::InputUser>> get_input_user(UserId user_id) const;
 
+  Result<vector<telegram_api::object_ptr<telegram_api::InputUser>>> get_input_users(
+      const vector<UserId> &user_ids) const;
+
   telegram_api::object_ptr<telegram_api::InputUser> get_input_user_force(UserId user_id) const;
+
+  vector<telegram_api::object_ptr<telegram_api::InputUser>> get_input_users_force(const vector<UserId> &user_ids) const;
 
   bool have_input_peer_user(UserId user_id, AccessRights access_rights) const;
 
@@ -262,7 +265,9 @@ class UserManager final : public Actor {
     bool can_bot_create_topics = false;
     bool can_manage_bots = false;
     bool is_inline = false;
+    bool is_guestchat = false;
     bool is_business = false;
+    bool is_guard = false;
     bool need_location = false;
     bool can_be_added_to_attach_menu = false;
   };
@@ -452,6 +457,13 @@ class UserManager final : public Actor {
 
   void is_saved_music(FileId file_id, Promise<Unit> &&promise);
 
+  void add_new_saved_music(const td_api::object_ptr<td_api::InputFile> &audio, int32 duration, const string &title,
+                           const string &performer, Promise<Unit> &&promise);
+
+  void on_uploaded_saved_music_file(FileUploadId file_upload_id, bool is_url,
+                                    telegram_api::object_ptr<telegram_api::MessageMedia> media,
+                                    Promise<Unit> &&promise);
+
   void add_saved_music(FileId file_id, FileId after_file_id, Promise<Unit> &&promise);
 
   void on_add_saved_music(FileId file_id, FileId after_file_id, Promise<Unit> &&promise);
@@ -633,7 +645,9 @@ class UserManager final : public Actor {
     bool can_bot_create_topics = false;
     bool can_manage_bots = false;
     bool is_inline_bot = false;
+    bool is_guestchat_bot = false;
     bool is_business_bot = false;
+    bool is_guard_bot = false;
     bool need_location_bot = false;
     bool is_scam = false;
     bool is_fake = false;
@@ -881,6 +895,8 @@ class UserManager final : public Actor {
 
   void on_noforwards_request_timeout(int32 request_id);
 
+  static UserId get_user_id(const telegram_api::object_ptr<telegram_api::User> &user);
+
   void set_my_id(UserId my_id);
 
   const User *get_user(UserId user_id) const;
@@ -1072,6 +1088,15 @@ class UserManager final : public Actor {
   UserPhotos *add_user_photos(UserId user_id);
 
   void apply_pending_user_photo(User *u, UserId user_id, const char *source);
+
+  void upload_saved_music(FileId file_id, Promise<Unit> &&promise);
+
+  void on_upload_saved_music(FileUploadId file_upload_id, telegram_api::object_ptr<telegram_api::InputFile> input_file);
+
+  void on_upload_saved_music_error(FileUploadId file_upload_id, Status status);
+
+  void do_upload_saved_music(FileUploadId file_upload_id,
+                             telegram_api::object_ptr<telegram_api::InputFile> &&input_file, Promise<Unit> &&promise);
 
   void send_get_user_saved_music_query(UserId user_id, const UserSavedMusic *user_saved_music,
                                        const vector<PendingGetSavedMusicRequest> &requests);
@@ -1279,6 +1304,7 @@ class UserManager final : public Actor {
   QueryMerger get_is_premium_required_to_contact_queries_{"GetIsPremiumRequiredToContactMerger", 3, 100};
 
   QueryCombiner get_user_full_queries_{"GetUserFullCombiner", 2.0};
+
   class UploadProfilePhotoCallback;
   std::shared_ptr<UploadProfilePhotoCallback> upload_profile_photo_callback_;
 
@@ -1303,6 +1329,11 @@ class UserManager final : public Actor {
     }
   };
   FlatHashMap<FileUploadId, UploadedProfilePhoto, FileUploadIdHash> being_uploaded_profile_photos_;
+
+  class UploadSavedMusicCallback;
+  std::shared_ptr<UploadSavedMusicCallback> upload_saved_music_callback_;
+
+  FlatHashMap<FileUploadId, Promise<Unit>, FileUploadIdHash> being_uploaded_saved_music_files_;
 
   struct ImportContactsTask {
     Promise<Unit> promise_;
@@ -1338,7 +1369,7 @@ class UserManager final : public Actor {
   FlatHashMap<UserId, int64, UserIdHash> user_full_contact_price_;  // -1 - premium required
 
   FlatHashMap<MessageFullId, int32, MessageFullIdHash> noforwards_request_ids_;
-  FlatHashMap<int32, MessageFullId> noforwards_request_message_ids_;
+  FlatHashMap<int32, MessageFullId> noforwards_request_message_full_ids_;
 
   WaitFreeHashSet<UserId, UserIdHash> restricted_user_ids_;
 

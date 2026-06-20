@@ -37,7 +37,8 @@ class ToDoList {
  public:
   ToDoList() = default;
 
-  ToDoList(const UserManager *user_manager, telegram_api::object_ptr<telegram_api::todoList> &&list);
+  ToDoList(const UserManager *user_manager, telegram_api::object_ptr<telegram_api::todoList> &&list,
+           int32 message_date);
 
   static Result<ToDoList> get_to_do_list(const Td *td, DialogId dialog_id,
                                          td_api::object_ptr<td_api::inputChecklist> &&list);
@@ -56,7 +57,7 @@ class ToDoList {
 
   td_api::object_ptr<td_api::checklist> get_checklist_object(Td *td, const vector<ToDoCompletion> &completions,
                                                              DialogId dialog_id, MessageId message_id, bool is_outgoing,
-                                                             bool is_forward) const;
+                                                             bool is_forward, bool is_real_message_content) const;
 
   telegram_api::object_ptr<telegram_api::inputMediaTodo> get_input_media_todo(const UserManager *user_manager) const;
 

@@ -142,7 +142,7 @@ void ObfuscatedTransport::init(ChainBufferReader *input, ChainBufferWriter *outp
   MutableSlice(header_).substr(56).copy_from(header_slice.substr(56));
 }
 
-Result<size_t> ObfuscatedTransport::read_next(BufferSlice *message, uint32 *quick_ack) {
+Result<size_t> ObfuscatedTransport::read_next(BufferSlice *message, uint32 *quick_ack, int32 *error_code) {
   if (secret_.emulate_tls()) {
     tls_reader_byte_flow_.wakeup();
   } else {

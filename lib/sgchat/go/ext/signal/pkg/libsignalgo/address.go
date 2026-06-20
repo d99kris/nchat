@@ -81,7 +81,7 @@ func (pa *Address) CancelFinalizer() {
 }
 
 func (pa *Address) Name() (string, error) {
-	var name *C.char
+	var name C.SignalCStringPtr
 	signalFfiError := C.signal_address_get_name(&name, pa.constPtr())
 	runtime.KeepAlive(pa)
 	if signalFfiError != nil {

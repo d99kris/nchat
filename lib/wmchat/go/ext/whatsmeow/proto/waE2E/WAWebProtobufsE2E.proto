@@ -405,6 +405,7 @@ message InteractiveMessage {
 		optional string uuid = 1;
 		optional string data = 2;
 		optional string type = 3;
+		optional string fallback = 4;
 	}
 
 	message Footer {
@@ -553,6 +554,46 @@ message StatusQuotedMessage {
 	optional string text = 2;
 	optional bytes thumbnail = 3;
 	optional WACommon.MessageKey originalStatusID = 4;
+}
+
+message SplitPaymentParticipant {
+	enum SplitPaymentStatus {
+		PENDING = 0;
+		PAID = 1;
+	}
+
+	optional string JID = 1;
+	optional Money amount = 2;
+	optional SplitPaymentStatus status = 3;
+}
+
+message PaymentReminderMessage {
+	enum ReminderStatus {
+		REMINDER_STATUS_UNKNOWN = 0;
+		ACTIVE = 1;
+		CANCELLED_BY_CREATOR = 2;
+		STOPPED_BY_RECEIVER = 3;
+		EXPIRED = 4;
+		PAID = 5;
+	}
+
+	enum ReminderFrequency {
+		REMINDER_FREQUENCY_UNKNOWN = 0;
+		WEEKLY = 1;
+		BI_WEEKLY = 2;
+		MONTHLY = 3;
+		QUARTERLY = 4;
+	}
+
+	optional string reminderID = 1;
+	optional string instanceID = 2;
+	optional string description = 3;
+	optional ReminderFrequency frequency = 4;
+	optional ReminderStatus status = 5;
+	optional string payeeVpa = 6;
+	optional string payeeJID = 7;
+	optional string payerJID = 8;
+	optional Money amount = 9;
 }
 
 message PaymentInviteMessage {
@@ -895,6 +936,8 @@ message ProtocolMessage {
 		GROUP_MEMBER_LABEL_CHANGE = 30;
 		AI_MEDIA_COLLECTION_MESSAGE = 31;
 		MESSAGE_UNSCHEDULE = 32;
+		CHAT_THEME_SETTING = 34;
+		AI_METADATA_OPERATION = 35;
 	}
 
 	optional WACommon.MessageKey key = 1;
@@ -923,6 +966,8 @@ message ProtocolMessage {
 	optional MemberLabel memberLabel = 27;
 	optional WAWebProtobufsAICommon.AIMediaCollectionMessage aiMediaCollectionMessage = 28;
 	optional uint32 afterReadDuration = 29;
+	optional ChatThemeSetting chatThemeSetting = 30;
+	optional WAWebProtobufsAICommon.AIMetadataOperation aiMetadataOperation = 31;
 }
 
 message CloudAPIThreadControlNotification {
@@ -1169,6 +1214,12 @@ message ImageMessage {
 }
 
 message ContextInfo {
+	enum CrossAppSource {
+		CROSS_APP_SOURCE_UNKNOWN = 0;
+		CROSS_APP_SOURCE_INSTAGRAM = 1;
+		CROSS_APP_SOURCE_FACEBOOK = 2;
+	}
+
 	enum QuotedType {
 		EXPLICIT = 0;
 		AUTO = 1;
@@ -1210,6 +1261,49 @@ message ContextInfo {
 		RESHARED_FROM_POST = 2;
 		RESHARED_FROM_POST_MANY_TIMES = 3;
 		FORWARDED_FROM_STATUS = 4;
+	}
+
+	message BusinessInteractionPills {
+		enum EntryPoint {
+			ENTRY_POINT_UNKNOWN = 0;
+			P2P_LINK_SHARE = 1;
+			CONTACT_CARD_SHARING = 2;
+			PHONE_NUMBER = 3;
+			STATUS = 4;
+			IN_THREAD_CONTEXT_CARD = 5;
+		}
+
+		enum PillType {
+			UNKNOWN = 0;
+			VIEW_BUSINESS = 1;
+			CHAT = 2;
+			CALL = 3;
+			CATALOG = 4;
+			CHANNEL = 5;
+			BOOK_APPOINTMENT = 6;
+			OFFERS = 7;
+			BESTSELLERS = 8;
+			MENU = 9;
+			ABOUT = 10;
+			SHOP = 11;
+			ORDER = 12;
+		}
+
+		message SignedPayload {
+			optional string verifiedName = 1;
+			repeated Pill pills = 2;
+		}
+
+		message Pill {
+			optional PillType pillType = 1;
+			optional string actionURL = 2;
+		}
+
+		optional string businessJID = 1;
+		repeated Pill pills = 2;
+		optional EntryPoint entryPoint = 3;
+		optional bytes signedPayload = 4;
+		optional WAWebProtobufsAICommon.BotSignatureVerificationMetadata signatureEnvelope = 5;
 	}
 
 	message StatusAudienceMetadata {
@@ -1403,6 +1497,9 @@ message ContextInfo {
 	optional MediaDomainInfo mediaDomainInfo = 74;
 	optional PartiallySelectedContent partiallySelectedContent = 75;
 	optional uint32 afterReadDuration = 76;
+	optional CrossAppSource crossAppSource = 77;
+	optional BusinessInteractionPills businessInteractionPills = 78;
+	optional string posterStatusID = 79;
 }
 
 message MessageAssociation {
@@ -1695,6 +1792,10 @@ message Message {
 	optional PollAddOptionMessage pollAddOptionMessage = 121;
 	optional EventInviteMessage eventInviteMessage = 122;
 	optional GroupRootKeyShare groupRootKeyShare = 123;
+	optional PaymentReminderMessage paymentReminderMessage = 124;
+	optional SplitPaymentMessage splitPaymentMessage = 125;
+	optional FutureProofMessage newsletterAdminProfileStatusMessage = 126;
+	optional RootSecretDistributeMessage rootSecretDistributeMessage = 127;
 }
 
 message AlbumMessage {
@@ -1796,6 +1897,7 @@ message PollResultSnapshotMessage {
 message PollAddOptionMessage {
 	optional WACommon.MessageKey pollCreationMessageKey = 1;
 	optional PollCreationMessage.Option addOption = 2;
+	optional PollUpdateMessageMetadata metadata = 3;
 }
 
 message PollVoteMessage {
@@ -1808,6 +1910,8 @@ message PollEncValue {
 }
 
 message PollUpdateMessageMetadata {
+	optional bytes pollNameHash = 1;
+	optional string lastEditStanzaID = 2;
 }
 
 message PollUpdateMessage {
@@ -1871,6 +1975,8 @@ message EventInviteMessage {
 	optional int64 startTime = 5;
 	optional string caption = 6;
 	optional bool isCanceled = 7;
+	optional int64 endTime = 8;
+	optional string callLink = 9;
 }
 
 message NewsletterFollowerInviteMessage {
@@ -2008,6 +2114,16 @@ message LiveLocationMessage {
 	optional ContextInfo contextInfo = 17;
 }
 
+message SplitPaymentMessage {
+	optional string splitID = 1;
+	optional Money totalAmount = 2;
+	optional string description = 3;
+	optional string requesterJID = 4;
+	repeated SplitPaymentParticipant participants = 5;
+	optional int64 createdAtMS = 6;
+	optional ContextInfo contextInfo = 17;
+}
+
 message CancelPaymentRequestMessage {
 	optional WACommon.MessageKey key = 1;
 }
@@ -2108,6 +2224,42 @@ message HistorySyncNotification {
 
 message HistorySyncMessageAccessStatus {
 	optional bool completeAccessGranted = 1;
+}
+
+message ChatStockImageWallpaper {
+	optional string stockImageID = 1;
+	optional float dimLevel = 2;
+}
+
+message ChatSolidColorWallpaper {
+	optional string colorLight = 1;
+	optional string colorDark = 2;
+	optional bool isDoodleEnabled = 3;
+}
+
+message ChatDefaultWallpaper {
+	optional bool isDoodleEnabled = 1;
+}
+
+message ChatCustomImageWallpaper {
+	optional string directPath = 1;
+	optional bytes mediaKey = 2;
+	optional bytes fileEncSHA256 = 3;
+	optional bytes fileSHA256 = 4;
+	optional float dimLevel = 5;
+}
+
+message ChatThemeSetting {
+	oneof wallpaper {
+		ChatDefaultWallpaper defaultWallpaper = 10;
+		ChatSolidColorWallpaper solidColor = 11;
+		ChatStockImageWallpaper stockImage = 12;
+		ChatCustomImageWallpaper customImage = 13;
+	}
+
+	optional int64 settingTimestampMS = 1;
+	optional bool clearTheme = 2;
+	optional string colorSchemeID = 3;
 }
 
 message Chat {
@@ -2211,6 +2363,10 @@ message ContactMessage {
 	optional string vcard = 16;
 	optional ContextInfo contextInfo = 17;
 	optional bool isSelfContact = 18;
+}
+
+message RootSecretDistributeMessage {
+	optional string chatJID = 1;
 }
 
 message SenderKeyDistributionMessage {
@@ -2382,4 +2538,5 @@ message GroupRootKeyShareEntry {
 	optional bytes groupRootKey = 1;
 	optional string keyID = 2;
 	optional int64 expiryTimestampMS = 3;
+	optional int64 createdTimestampMS = 4;
 }

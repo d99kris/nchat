@@ -7,15 +7,18 @@
 #pragma once
 
 #include "td/utils/buffer.h"
+#include "td/utils/common.h"
 #include "td/utils/Promise.h"
 #include "td/utils/Slice.h"
+
+#include <utility>
 
 namespace td {
 
 class DarwinHttp {
  public:
-  static void get(CSlice url, Promise<BufferSlice> promise);
-  static void post(CSlice url, Slice data, Promise<BufferSlice> promise);
+  static void get(CSlice url, Promise<std::pair<int32, BufferSlice>> promise);
+  static void post(CSlice url, Slice data, Promise<std::pair<int32, BufferSlice>> promise);
 };
 
 }  // namespace td
