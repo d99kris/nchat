@@ -1,20 +1,16 @@
-Base-Commit: fc65416c22c47e15be1daf2e2d62deaba6881591
+Base-Commit: 089932318bc2cb833dba4176db44f78fccf05730
 Base-Branch: 
 diff --git a/download.go b/download.go
-index 16b6108..6bdbd32 100644
+index 0777de8..4f31c30 100644
 --- a/download.go
 +++ b/download.go
-@@ -415,3 +415,20 @@ func validateMedia(iv, file, macKey, mac []byte) error {
+@@ -409,3 +409,16 @@ func validateMedia(iv, file, macKey, mac []byte) error {
  	}
  	return nil
  }
 +
-+func (cli *Client) DownloadMediaWithUrl(ctx context.Context, url string, mediaKey []byte, appInfo MediaType, fileLength int, fileEncSha256 []byte, fileSha256 []byte) (data []byte, err error) {
-+	return cli.downloadAndDecrypt(ctx, url, mediaKey, appInfo, fileLength, fileEncSha256, fileSha256)
-+}
-+
-+func GetDownloadSize(msg DownloadableMessage) int {
-+	return getSize(msg)
++func (cli *Client) DownloadMediaWithUrl(ctx context.Context, url string, mediaKey []byte, appInfo MediaType, fileEncSha256 []byte, fileSha256 []byte) (data []byte, err error) {
++	return cli.downloadAndDecrypt(ctx, url, mediaKey, appInfo, fileEncSha256, fileSha256)
 +}
 +
 +func GetMMSType(mediaType MediaType) string {
@@ -26,15 +22,15 @@ index 16b6108..6bdbd32 100644
 +	GetUrl() string
 +}
 diff --git a/socket/framesocket.go b/socket/framesocket.go
-index ee725da..6371ebe 100644
+index 37837c5..c046109 100644
 --- a/socket/framesocket.go
 +++ b/socket/framesocket.go
-@@ -71,7 +71,7 @@ func (fs *FrameSocket) Close(code websocket.StatusCode) {
+@@ -73,7 +73,7 @@ func (fs *FrameSocket) Close(code websocket.StatusCode) {
  	if code > 0 {
- 		err := fs.conn.Close(code, "")
+ 		err := conn.Close(code, "")
  		if err != nil {
 -			fs.log.Warnf("Error sending close to websocket: %v", err)
 +			fs.log.Debugf("Error sending close to websocket: %v", err)
  		}
  	} else {
- 		err := fs.conn.CloseNow()
+ 		err := conn.CloseNow()
