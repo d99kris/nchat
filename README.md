@@ -6,7 +6,7 @@ nchat
 | [![Linux](https://github.com/d99kris/nchat/workflows/Linux/badge.svg)](https://github.com/d99kris/nchat/actions?query=workflow%3ALinux) | [![macOS](https://github.com/d99kris/nchat/workflows/macOS/badge.svg)](https://github.com/d99kris/nchat/actions?query=workflow%3AmacOS) |
 
 nchat is a multi-protocol terminal-based messaging client for Linux and macOS with support for
-Telegram, WhatsApp and Signal.
+Telegram, WhatsApp and Signal (opt-in).
 
 ![screenshot nchat](/doc/screenshot-nchat.png)
 
