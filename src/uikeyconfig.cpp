@@ -257,6 +257,7 @@ void UiKeyConfig::Init(bool p_MapKeys)
     { "terminal_focus_out", "KEY_FOCUS_OUT" },
     { "terminal_resize", "KEY_RESIZE" },
     { "auto_compose", "\\33\\151" }, // alt/opt-i
+    { "describe_image", "\\33\\165" }, // alt/opt-u
     { "select_mention", "\\33\\62" }, // alt/opt-2
     { "tab", "\\33\\11" }, // alt/opt-tab
   };

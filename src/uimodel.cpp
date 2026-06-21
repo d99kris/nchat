@@ -5591,6 +5591,81 @@ bool UiModel::Impl::AutoCompose()
   return rv;
 }
 
+bool UiModel::Impl::DescribeImage()
+{
+  AnyUserKeyInput();
+
+  if (!GetSelectMessageActive()) return false;
+
+  const std::string& profileId = m_CurrentChat.first;
+  const std::string& chatId = m_CurrentChat.second;
+  const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
+  const int messageOffset = m_MessageOffset[profileId][chatId];
+  auto msgIt = std::next(messageVec.begin(), messageOffset);
+  if (msgIt == messageVec.end()) return false;
+
+  const std::string imageMsgId = *msgIt;
+  auto& messages = m_Messages[profileId][chatId];
+  auto srcIt = messages.find(imageMsgId);
+  if (srcIt == messages.end()) return false;
+  const int64_t imageTimeSent = srcIt->second.timeSent;
+
+  std::string filePath;
+  if (!GetMessageAttachmentPath(filePath, DownloadFileActionNone))
+  {
+    LOG_WARNING("no downloaded image attachment on current message");
+    return false;
+  }
+
+  static const std::string cmdTemplate = []()
+  {
+    std::string describeImageCommand = UiConfig::GetStr("describe_image_command");
+    if (describeImageCommand.empty())
+    {
+      describeImageCommand = FileUtil::DirName(FileUtil::GetSelfPath()) +
+        "/../" CMAKE_INSTALL_LIBEXECDIR "/nchat/describe -i '%1'";
+    }
+
+    return describeImageCommand;
+  }();
+
+  std::string str;
+  std::string cmd = cmdTemplate;
+  StrUtil::ReplaceString(cmd, "%1", StrUtil::EscapeSingleQuote(filePath));
+  const bool rv = RunCommand(cmd, &str);
+  if (rv)
+  {
+    if (!str.empty() && str.back() == '\n') str.pop_back();
+
+    const std::string localId = "local-desc:" + imageMsgId;
+    ChatMessage localMsg;
+    localMsg.id = localId;
+    localMsg.senderId = "AI";
+    localMsg.text = "[AI] " + str;
+    localMsg.timeSent = imageTimeSent + 1;
+    localMsg.isOutgoing = false;
+    localMsg.isRead = true;
+
+    std::vector<std::string>& msgVec = m_MessageVec[profileId][chatId];
+    auto existingIt = messages.find(localId);
+    if (existingIt == messages.end())
+    {
+      msgVec.push_back(localId);
+    }
+    messages[localId] = localMsg;
+
+    std::sort(msgVec.begin(), msgVec.end(),
+              [&](const std::string& lhs, const std::string& rhs) -> bool
+    {
+      return messages.at(lhs).timeSent > messages.at(rhs).timeSent;
+    });
+
+    UpdateHistory();
+  }
+
+  return rv;
+}
+
 // ---------------------------------------------------------------------
 // UiModel
 // ---------------------------------------------------------------------
@@ -5706,6 +5781,7 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keyTerminalResize = UiKeyConfig::GetKey("terminal_resize");
 
   static wint_t keyAutoCompose = UiKeyConfig::GetKey("auto_compose");
+  static wint_t keyDescribeImage = UiKeyConfig::GetKey("describe_image");
   static wint_t keySelectMention = UiKeyConfig::GetKey("select_mention");
 
   if (p_Key == keyTerminalResize)
@@ -5934,6 +6010,10 @@ void UiModel::KeyHandler(wint_t p_Key)
   else if (p_Key == keyAutoCompose)
   {
     OnKeyAutoCompose();
+  }
+  else if (p_Key == keyDescribeImage)
+  {
+    OnKeyDescribeImage();
   }
   else
   {
@@ -6850,6 +6930,20 @@ void UiModel::OnKeyAutoCompose()
   if (!rv)
   {
     MessageDialog("Warning", "Auto-compose failed.", 0.7, 5);
+  }
+}
+
+void UiModel::OnKeyDescribeImage()
+{
+  bool rv = false;
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    rv = GetImpl().DescribeImage();
+  }
+
+  if (!rv)
+  {
+    MessageDialog("Warning", "Describe image failed. Ensure the message has a downloaded image attachment.", 0.7, 5);
   }
 }
 

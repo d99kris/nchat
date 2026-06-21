@@ -207,6 +207,7 @@ private:
     void HandleProtocolUiControlStart();
     void HandleProtocolUiControlEnd();
     bool AutoCompose();
+    bool DescribeImage();
 
     static bool IsAttachmentDownloaded(const FileInfo& p_FileInfo);
     static bool IsAttachmentDownloadable(const FileInfo& p_FileInfo);
@@ -458,6 +459,7 @@ private:
   void OnKeyQuit();
   void OnKeyExtCall();
   void OnKeyAutoCompose();
+  void OnKeyDescribeImage();
   void OnKeySelectMention();
   void OnKeyCut();
   void OnKeyCopy();
