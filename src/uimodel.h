@@ -48,8 +48,8 @@ private:
 
     void OnKeyNextChat();
     void OnKeyPrevChat();
-    void OnKeyUnreadChat();
-    void OnKeyUnreadChatReverse();
+    void OnKeyNextUnreadChat();
+    void OnKeyPrevUnreadChat();
     void OnKeyPrevPage();
     void OnKeyNextPage();
     bool OnKeyHomeFetchCache();

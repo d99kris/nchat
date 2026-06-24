@@ -321,8 +321,8 @@ const file_WebSocketResources_proto_rawDesc = "" +
 	"\x04Type\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\v\n" +
 	"\aREQUEST\x10\x01\x12\f\n" +
-	"\bRESPONSE\x10\x02BF\n" +
-	"3org.whispersystems.signalservice.internal.websocketB\x0fWebSocketProtos"
+	"\bRESPONSE\x10\x02B/\n" +
+	"\x1corg.signal.network.websocketB\x0fWebSocketProtos"
 
 var (
 	file_WebSocketResources_proto_rawDescOnce sync.Once

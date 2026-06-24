@@ -152,7 +152,7 @@ func wrapError(signalError *C.SignalFfiError) error {
 }
 
 func wrapSignalError(signalError *C.SignalFfiError, errorType C.uint32_t) error {
-	var messageBytes *C.char
+	var messageBytes C.SignalCStringPtr
 	getMessageError := C.signal_error_get_message(&messageBytes, signalError)
 	if getMessageError != nil {
 		// Ignore any errors from this, it will just end up being an empty string.

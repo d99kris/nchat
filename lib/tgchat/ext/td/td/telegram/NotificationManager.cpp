@@ -332,7 +332,8 @@ void NotificationManager::save_announcement_ids() {
     return;
   }
 
-  auto notification_announcement_ids_string = implode(transform(stored_ids, to_string<int32>));
+  auto notification_announcement_ids_string =
+      implode(transform(stored_ids, [](int32 stored_id) { return to_string(stored_id); }));
   G()->td_db()->get_binlog_pmc()->set("notification_announcement_ids", notification_announcement_ids_string);
 }
 
@@ -2928,7 +2929,7 @@ void NotificationManager::add_push_notification_user(
   auto user_name = sender_user_id.get() == 136817688 ? "Channel" : sender_name;
   auto user = telegram_api::make_object<telegram_api::user>(
       flags, false, false, false, false, false, false, false, false, false, true /*min*/, false, false, false, false,
-      false, false, false, false, 0, false, false, false, false, false, false, false, false, false, false, false,
+      false, false, false, false, 0, false, false, false, false, false, false, false, false, false, false, false, false,
       sender_user_id.get(), sender_access_hash, user_name, string(), string(), string(), std::move(sender_photo),
       nullptr, 0, Auto(), string(), string(), nullptr, vector<telegram_api::object_ptr<telegram_api::username>>(),
       nullptr, nullptr, nullptr, 0, 0, 0);
@@ -2993,7 +2994,7 @@ Status NotificationManager::parse_push_notification_attach(DialogId dialog_id, s
         attached_document =
             td_->documents_manager_->on_get_document(telegram_api::move_object_as<telegram_api::document>(result),
                                                      dialog_id, false, ends_with(loc_key, "MESSAGE_LIVE_PHOTO"));
-        if (!attached_document.empty()) {
+        if (!attached_document.is_empty()) {
           if (ends_with(loc_key, "_NOTE")) {
             loc_key.resize(loc_key.rfind('_'));
           }
@@ -3575,7 +3576,7 @@ class NotificationManager::AddMessagePushNotificationLogEvent {
     bool has_sender_name = !sender_name_.empty();
     bool has_arg = !arg_.empty();
     bool has_photo = !photo_.is_empty();
-    bool has_document = !document_.empty();
+    bool has_document = !document_.is_empty();
     bool has_sender_dialog_id = sender_dialog_id_.is_valid();
     bool has_ringtone_id = !disable_notification_ && ringtone_id_ != -1;
     BEGIN_STORE_FLAGS();
@@ -3812,7 +3813,7 @@ class NotificationManager::EditMessagePushNotificationLogEvent {
     bool has_message_id = message_id_.is_valid();
     bool has_arg = !arg_.empty();
     bool has_photo = !photo_.is_empty();
-    bool has_document = !document_.empty();
+    bool has_document = !document_.is_empty();
     BEGIN_STORE_FLAGS();
     STORE_FLAG(has_message_id);
     STORE_FLAG(has_arg);
@@ -3997,7 +3998,7 @@ Result<string> NotificationManager::decrypt_push_payload(int64 encryption_key_id
   packet_info.is_creator = true;
   packet_info.check_mod4 = false;
 
-  TRY_RESULT(result, mtproto::Transport::read(payload, auth_key, &packet_info));
+  TRY_RESULT(result, mtproto::Transport::read(payload, 0, auth_key, &packet_info));
   if (result.type() != mtproto::Transport::ReadResult::Packet) {
     return Status::Error(400, "Wrong packet type");
   }

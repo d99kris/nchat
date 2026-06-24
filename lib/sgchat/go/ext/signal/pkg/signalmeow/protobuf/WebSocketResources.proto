@@ -7,7 +7,7 @@ syntax = "proto2";
 
 package signalservice;
 
-option java_package         = "org.whispersystems.signalservice.internal.websocket";
+option java_package         = "org.signal.network.websocket";
 option java_outer_classname = "WebSocketProtos";
 
 message WebSocketRequestMessage {

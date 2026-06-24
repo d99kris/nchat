@@ -12,4 +12,8 @@ protoc --go_out=. \
 	--go_opt=Mbackuppb/Backup.proto=$PKG_IMPORT_PATH/backuppb \
 	--go_opt=paths=source_relative \
 	backuppb/Backup.proto
+protoc --go_out=. \
+	--go_opt=Mcds2pb/cds2.proto=$PKG_IMPORT_PATH/cds2pb \
+	--go_opt=paths=source_relative \
+	cds2pb/cds2.proto
 pre-commit run -a

@@ -156,22 +156,3 @@ func (m *Message) GetCounter() (uint32, error) {
 	}
 	return uint32(counter), nil
 }
-
-func (m *Message) VerifyMAC(sender, receiver *PublicKey, macKey []byte) (bool, error) {
-	var result C.bool
-	signalFfiError := C.signal_message_verify_mac(
-		&result,
-		m.constPtr(),
-		sender.constPtr(),
-		receiver.constPtr(),
-		BytesToBuffer(macKey),
-	)
-	runtime.KeepAlive(m)
-	runtime.KeepAlive(sender)
-	runtime.KeepAlive(receiver)
-	runtime.KeepAlive(macKey)
-	if signalFfiError != nil {
-		return false, wrapError(signalFfiError)
-	}
-	return bool(result), nil
-}

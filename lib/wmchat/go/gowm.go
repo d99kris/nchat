@@ -49,7 +49,7 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
-var whatsmeowDate int = 20260516
+var whatsmeowDate int = 20260611
 
 type JSONMessage []json.RawMessage
 type JSONMessageType string
@@ -336,7 +336,7 @@ func SetExpiration(connId int, chatId string, expiration uint32) {
 }
 
 // download info
-var downloadInfoVersion = 1 // bump version upon any struct change
+var downloadInfoVersion = 2 // bump version upon any struct change
 type DownloadInfo struct {
 	Version    int    `json:"Version_int"`
 	Url        string `json:"Url_string"`
@@ -345,7 +345,6 @@ type DownloadInfo struct {
 	TargetPath string              `json:"TargetPath_string"`
 	MediaKey   []byte              `json:"MediaKey_arraybyte"`
 	MediaType  whatsmeow.MediaType `json:"MediaType_MediaType"`
-	Size       int                 `json:"Size_int"`
 
 	FileEncSha256 []byte `json:"FileEncSha256_arraybyte"`
 	FileSha256    []byte `json:"FileSha256_arraybyte"`
@@ -357,7 +356,6 @@ func DownloadableMessageToFileId(client *whatsmeow.Client, msg whatsmeow.Downloa
 
 	info.TargetPath = targetPath
 	info.MediaKey = msg.GetMediaKey()
-	info.Size = whatsmeow.GetDownloadSize(msg)
 	info.FileEncSha256 = msg.GetFileEncSHA256()
 	info.FileSha256 = msg.GetFileSHA256()
 
@@ -456,10 +454,10 @@ func DownloadFromFileInfo(client *whatsmeow.Client, info DownloadInfo) ([]byte, 
 	ctx := context.TODO()
 	if len(info.Url) > 0 {
 		LOG_TRACE(fmt.Sprintf("download url: %s", info.Url))
-		return client.DownloadMediaWithUrl(ctx, info.Url, info.MediaKey, info.MediaType, info.Size, info.FileEncSha256, info.FileSha256)
+		return client.DownloadMediaWithUrl(ctx, info.Url, info.MediaKey, info.MediaType, info.FileEncSha256, info.FileSha256)
 	} else if len(info.DirectPath) > 0 {
 		LOG_TRACE(fmt.Sprintf("download directpath: %s", info.DirectPath))
-		return client.DownloadMediaWithPath(ctx, info.DirectPath, info.FileEncSha256, info.FileSha256, info.MediaKey, info.Size, info.MediaType, whatsmeow.GetMMSType(info.MediaType))
+		return client.DownloadMediaWithPath(ctx, info.DirectPath, info.FileEncSha256, info.FileSha256, info.MediaKey, info.MediaType, whatsmeow.GetMMSType(info.MediaType), false)
 	} else {
 		LOG_WARNING(fmt.Sprintf("url and path not present"))
 		return nil, whatsmeow.ErrNoURLPresent

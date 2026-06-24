@@ -41,6 +41,7 @@
 #include "td/telegram/UpdatesManager.h"
 #include "td/telegram/UserManager.h"
 #include "td/telegram/Version.h"
+#include "td/telegram/WebBrowserManager.h"
 
 #include "td/utils/base64.h"
 #include "td/utils/buffer.h"
@@ -462,7 +463,8 @@ void AuthManager::check_bot_token(uint64 query_id, string bot_token) {
   if (state_ != State::WaitPhoneNumber) {
     return on_query_error(query_id, Status::Error(400, "Call to checkAuthenticationBotToken unexpected"));
   }
-  if (!send_code_helper_.get_phone_number().empty() || was_qr_code_request_ || was_passkey_login_request_) {
+  if (!send_code_helper_.get_phone_number().empty() || was_qr_code_request_ || was_passkey_login_request_ ||
+      was_web_token_login_request_) {
     return on_query_error(
         query_id, Status::Error(400, "Cannot set bot token after authentication began. You must log out first"));
   }
@@ -504,6 +506,7 @@ void AuthManager::request_qr_code_authentication(uint64 query_id, vector<UserId>
   send_code_helper_ = SendCodeHelper();
   terms_of_service_ = TermsOfService();
   passkey_parameters_ = {};
+  web_token_ = {};
   was_qr_code_request_ = true;
 
   on_new_query(query_id);
@@ -572,6 +575,7 @@ void AuthManager::finish_passkey_login(uint64 query_id, const string &passkey_id
   send_code_helper_ = SendCodeHelper();
   terms_of_service_ = TermsOfService();
   passkey_parameters_ = PasskeyParameters(passkey_id, client_data, authenticator_data, signature, user_handle);
+  web_token_ = {};
   was_passkey_login_request_ = true;
 
   on_new_query(query_id);
@@ -593,6 +597,40 @@ void AuthManager::send_finish_passkey_login_query() {
   start_net_query(NetQueryType::FinishPasskeyLogin,
                   G()->net_query_creator().create_unauth(telegram_api::auth_finishPasskeyLogin(
                       flags, std::move(credential), passkey_dc_id_, passkey_auth_key_id_)));
+}
+
+void AuthManager::import_web_token_authorization(uint64 query_id, const string &token, int32 dc_id) {
+  if (state_ != State::WaitPhoneNumber && state_ != State::WaitQrCodeConfirmation) {
+    return on_query_error(query_id, Status::Error(400, "Call to checkAuthenticationWebToken unexpected"));
+  }
+  if (!DcId::is_valid(dc_id)) {
+    return on_query_error(query_id, Status::Error(400, "Invalid DC identifier specified"));
+  }
+  if (was_check_bot_token_) {
+    return on_query_error(
+        query_id,
+        Status::Error(400,
+                      "Cannot request web token authentication after bot token was entered. You must log out first"));
+  }
+
+  other_user_ids_ = {};
+  send_code_helper_ = SendCodeHelper();
+  terms_of_service_ = TermsOfService();
+  passkey_parameters_ = {};
+  web_token_ = token;
+  web_token_dc_id_ = dc_id;
+  was_web_token_login_request_ = false;
+
+  on_new_query(query_id);
+
+  send_import_web_token_authorization_query();
+}
+
+void AuthManager::send_import_web_token_authorization_query() {
+  start_net_query(NetQueryType::ImportWebTokenAuthorization,
+                  G()->net_query_creator().create_unauth(
+                      telegram_api::auth_importWebTokenAuthorization(api_id_, api_hash_, web_token_),
+                      DcId::internal(web_token_dc_id_)));
 }
 
 void AuthManager::on_update_sent_code(telegram_api::object_ptr<telegram_api::auth_SentCode> &&sent_code_ptr) {
@@ -628,6 +666,7 @@ void AuthManager::set_phone_number(uint64 query_id, string phone_number,
   other_user_ids_.clear();
   was_qr_code_request_ = false;
   was_passkey_login_request_ = false;
+  was_web_token_login_request_ = false;
 
   store_product_id_.clear();
   support_email_address_.clear();
@@ -646,6 +685,7 @@ void AuthManager::set_phone_number(uint64 query_id, string phone_number,
     send_code_helper_ = SendCodeHelper();
     terms_of_service_ = TermsOfService();
     passkey_parameters_ = {};
+    web_token_ = {};
   }
 
   on_new_query(query_id);
@@ -1086,8 +1126,7 @@ void AuthManager::on_send_code_result(NetQueryPtr &&net_query) {
 
 void AuthManager::on_set_premium_purchase_transaction_result(NetQueryPtr &&net_query) {
   static_assert(std::is_same<telegram_api::payments_assignAppStoreTransaction::ReturnType,
-                             telegram_api::payments_assignPlayMarketTransaction::ReturnType>::value,
-                "");
+                             telegram_api::payments_assignPlayMarketTransaction::ReturnType>::value);
   auto result = fetch_result<telegram_api::payments_assignPlayMarketTransaction>(std::move(net_query));
   if (result.is_error()) {
     return on_current_query_error(result.move_as_error());
@@ -1233,6 +1272,16 @@ void AuthManager::on_finish_passkey_login_result(NetQueryPtr &&net_query) {
   if (r_authorization.is_error()) {
     return on_current_query_error(r_authorization.move_as_error());
   }
+  on_get_authorization(r_authorization.move_as_ok());
+}
+
+void AuthManager::on_import_web_token_authorization_result(NetQueryPtr &&net_query) {
+  auto dc_id = net_query->dc_id();
+  auto r_authorization = fetch_result<telegram_api::auth_importWebTokenAuthorization>(std::move(net_query));
+  if (r_authorization.is_error()) {
+    return on_current_query_error(r_authorization.move_as_error());
+  }
+  G()->net_query_dispatcher().set_main_dc_id(dc_id.get_value());
   on_get_authorization(r_authorization.move_as_ok());
 }
 
@@ -1502,6 +1551,7 @@ void AuthManager::on_get_authorization(tl_object_ptr<telegram_api::auth_Authoriz
   td_->top_dialog_manager_->init();
   td_->translation_manager_->on_authorization_success();
   td_->updates_manager_->get_difference("on_get_authorization");
+  td_->web_browser_manager_->on_authorization_success();
   if (!is_bot()) {
     G()->td_db()->get_binlog_pmc()->set("fetched_marks_as_unread", "1");
   }
@@ -1543,15 +1593,18 @@ void AuthManager::on_result(NetQueryPtr net_query) {
             send_code_helper_ = SendCodeHelper();
             terms_of_service_ = TermsOfService();
             passkey_parameters_ = {};
+            web_token_ = {};
             was_qr_code_request_ = false;
             was_passkey_login_request_ = false;
+            was_web_token_login_request_ = false;
             was_check_bot_token_ = false;
           }
           on_current_query_error(net_query->move_as_error());
           return;
         }
         if (type != NetQueryType::RequestQrCode && type != NetQueryType::ImportQrCode &&
-            type != NetQueryType::GetPassword && type != NetQueryType::FinishPasskeyLogin) {
+            type != NetQueryType::GetPassword && type != NetQueryType::FinishPasskeyLogin &&
+            type != NetQueryType::ImportWebTokenAuthorization) {
           LOG(INFO) << "Ignore error for net query of type " << static_cast<int32>(type);
           type = NetQueryType::None;
         }
@@ -1600,6 +1653,9 @@ void AuthManager::on_result(NetQueryPtr net_query) {
       break;
     case NetQueryType::FinishPasskeyLogin:
       on_finish_passkey_login_result(std::move(net_query));
+      break;
+    case NetQueryType::ImportWebTokenAuthorization:
+      on_import_web_token_authorization_result(std::move(net_query));
       break;
     case NetQueryType::GetPassword:
       on_get_password_result(std::move(net_query));

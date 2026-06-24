@@ -50,7 +50,7 @@
 // For development testing of sponsored messages only
 // #define SIMULATED_SPONSORED_MESSAGES
 
-static const int s_TdlibDate = 20260508;
+static const int s_TdlibDate = 20260611;
 
 namespace detail
 {
@@ -960,34 +960,44 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
           else if (isSendAsSpecial && (mimeSubType == "mp4" || mimeSubType == "x-m4v" || mimeSubType == "gif"))
           {
             auto message_content = td::td_api::make_object<td::td_api::inputMessageAnimation>();
-            message_content->animation_ = td::td_api::make_object<td::td_api::inputFileLocal>(fileInfo.filePath);
+            message_content->animation_ = td::td_api::make_object<td::td_api::inputAnimation>();
+            message_content->animation_->animation_ =
+              td::td_api::make_object<td::td_api::inputFileLocal>(fileInfo.filePath);
             send_message->input_message_content_ = std::move(message_content);
           }
           else if (attachmentSendType && (mimeType == "audio"))
           {
             auto message_content = td::td_api::make_object<td::td_api::inputMessageAudio>();
-            message_content->audio_ = td::td_api::make_object<td::td_api::inputFileLocal>(fileInfo.filePath);
+            message_content->audio_ = td::td_api::make_object<td::td_api::inputAudio>();
+            message_content->audio_->audio_ =
+              td::td_api::make_object<td::td_api::inputFileLocal>(fileInfo.filePath);
             message_content->caption_ = std::move(formatted_text);
             send_message->input_message_content_ = std::move(message_content);
           }
           else if (attachmentSendType && (mimeType == "video"))
           {
             auto message_content = td::td_api::make_object<td::td_api::inputMessageVideo>();
-            message_content->video_ = td::td_api::make_object<td::td_api::inputFileLocal>(fileInfo.filePath);
+            message_content->video_ = td::td_api::make_object<td::td_api::inputVideo>();
+            message_content->video_->video_ =
+              td::td_api::make_object<td::td_api::inputFileLocal>(fileInfo.filePath);
             message_content->caption_ = std::move(formatted_text);
             send_message->input_message_content_ = std::move(message_content);
           }
           else if (attachmentSendType && (mimeType == "image"))
           {
             auto message_content = td::td_api::make_object<td::td_api::inputMessagePhoto>();
-            message_content->photo_ = td::td_api::make_object<td::td_api::inputFileLocal>(fileInfo.filePath);
+            message_content->photo_ = td::td_api::make_object<td::td_api::inputPhoto>();
+            message_content->photo_->photo_ =
+              td::td_api::make_object<td::td_api::inputFileLocal>(fileInfo.filePath);
             message_content->caption_ = std::move(formatted_text);
             send_message->input_message_content_ = std::move(message_content);
           }
           else
           {
             auto message_content = td::td_api::make_object<td::td_api::inputMessageDocument>();
-            message_content->document_ = td::td_api::make_object<td::td_api::inputFileLocal>(fileInfo.filePath);
+            message_content->document_ = td::td_api::make_object<td::td_api::inputDocument>();
+            message_content->document_->document_ =
+              td::td_api::make_object<td::td_api::inputFileLocal>(fileInfo.filePath);
             message_content->caption_ = std::move(formatted_text);
             send_message->input_message_content_ = std::move(message_content);
           }
@@ -3300,15 +3310,11 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
   }
   else if (p_TdMessageContent.get_id() == td::td_api::messageLocation::ID)
   {
-    auto& messageLocation = static_cast<td::td_api::messageLocation&>(p_TdMessageContent);
-    if (messageLocation.live_period_ == 0)
-    {
-      p_Text = "[Location]";
-    }
-    else
-    {
-      p_Text = "[LiveLocation]";
-    }
+    p_Text = "[Location]";
+  }
+  else if (p_TdMessageContent.get_id() == td::td_api::messageLiveLocation::ID)
+  {
+    p_Text = "[LiveLocation]";
   }
   else if (p_TdMessageContent.get_id() == td::td_api::messageContactRegistered::ID)
   {

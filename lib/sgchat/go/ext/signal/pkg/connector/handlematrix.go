@@ -538,7 +538,7 @@ func (s *SignalClient) HandleMatrixMembership(ctx context.Context, msg *bridgev2
 	if err != nil {
 		return nil, err
 	}
-	if msg.Type == bridgev2.Invite && targetSignalID.Type != libsignalgo.ServiceIDTypePNI {
+	if (msg.Type == bridgev2.Invite || msg.Type == bridgev2.AcceptKnock) && targetSignalID.Type != libsignalgo.ServiceIDTypePNI {
 		err = targetIntent.EnsureJoined(ctx, msg.Portal.MXID)
 		if err != nil {
 			return nil, err

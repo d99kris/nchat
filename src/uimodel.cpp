@@ -582,7 +582,7 @@ void UiModel::Impl::OnKeyPrevChat()
   SetSelectMessageActive(false);
 }
 
-void UiModel::Impl::OnKeyUnreadChat()
+void UiModel::Impl::OnKeyNextUnreadChat()
 {
   AnyUserKeyInput();
 
@@ -635,7 +635,7 @@ void UiModel::Impl::OnKeyUnreadChat()
   }
 }
 
-void UiModel::Impl::OnKeyUnreadChatReverse()
+void UiModel::Impl::OnKeyPrevUnreadChat()
 {
   AnyUserKeyInput();
 
@@ -4492,8 +4492,8 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keySendMsg = UiKeyConfig::GetKey("send_msg");
   static wint_t keyNextChat = UiKeyConfig::GetKey("next_chat");
   static wint_t keyPrevChat = UiKeyConfig::GetKey("prev_chat");
-  static wint_t keyUnreadChat = UiKeyConfig::GetKey("unread_chat");
-  static wint_t keyUnreadChatReverse = UiKeyConfig::GetKey("unread_chat_reverse");
+  static wint_t keyNextUnreadChat = UiKeyConfig::GetKey("next_unread_chat");
+  static wint_t keyPrevUnreadChat = UiKeyConfig::GetKey("prev_unread_chat");
 
   static wint_t keyQuit = UiKeyConfig::GetKey("quit");
   static wint_t keySelectEmoji = UiKeyConfig::GetKey("select_emoji");
@@ -4590,15 +4590,15 @@ void UiModel::KeyHandler(wint_t p_Key)
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().OnKeyPrevChat();
   }
-  else if (p_Key == keyUnreadChat)
+  else if (p_Key == keyNextUnreadChat)
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
-    GetImpl().OnKeyUnreadChat();
+    GetImpl().OnKeyNextUnreadChat();
   }
-  else if (p_Key == keyUnreadChatReverse)
+  else if (p_Key == keyPrevUnreadChat)
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
-    GetImpl().OnKeyUnreadChatReverse();
+    GetImpl().OnKeyPrevUnreadChat();
   }
   else if (p_Key == keyPrevPage)
   {

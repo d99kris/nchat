@@ -6,23 +6,27 @@ nchat
 | [![Linux](https://github.com/d99kris/nchat/workflows/Linux/badge.svg)](https://github.com/d99kris/nchat/actions?query=workflow%3ALinux) | [![macOS](https://github.com/d99kris/nchat/workflows/macOS/badge.svg)](https://github.com/d99kris/nchat/actions?query=workflow%3AmacOS) |
 
 nchat is a multi-protocol terminal-based messaging client for Linux and macOS with support for
-Telegram, WhatsApp and Signal.
+Telegram, WhatsApp and Signal (opt-in).
 
 ![screenshot nchat](/doc/screenshot-nchat.png)
 
 Features
 --------
-- Customizable color schemes and key bindings
-- Jump to unread chat
-- Message history cache with support for text export
-- Message read receipt
-- Receive / send markdown formatted messages
-- Reply / delete / edit / forward / send messages
-- List dialogs for selecting chats, contacts, emojis, files
+- Send and receive markdown formatted messages
+- Reply, delete, edit and forward messages
+- Mention users in group chats
+- Send and display message reactions
+- View and save media (documents, photos, videos)
+- Show message read and edited indicators
 - Show user status (online, away, typing)
-- Toggle to view textized emojis vs. graphical
-- View / save media files (documents, photos, videos)
-- Send and display reactions
+- Jump to next or previous unread chat
+- Archive, pin and delete chats
+- Search messages within a chat
+- List dialogs for chats, contacts, emojis, files
+- Message history cache with text export
+- Desktop notifications for new messages
+- Toggle textized vs. graphical emojis
+- Customizable [themes](https://github.com/d99kris/nchat/wiki/Themes) and key bindings
 
 
 Optional Features
@@ -56,7 +60,6 @@ Interactive Commands:
     PageUp      history previous page
     Tab         next chat
     Sh-Tab      previous chat
-    Ctrl-f      jump to unread chat
     Ctrl-g      toggle show help bar
     Ctrl-l      toggle show contact list
     Ctrl-n      goto chat
@@ -73,8 +76,10 @@ Interactive Commands:
     Alt-e       external editor compose
     Alt-i       auto-compose reply
     Alt-n       search contacts
+    Alt-o       jump to previous unread chat
     Alt-p       pin/unpin current chat
     Alt-t       external telephone call
+    Alt-y       jump to next unread chat
     Alt-/       find in chat
     Alt-?       find next in chat
     Alt-$       external spell check
@@ -887,6 +892,7 @@ This configuration file holds user interface key bindings. Default content:
     linebreak=KEY_RETURN
     next_chat=KEY_TAB
     next_page=KEY_NPAGE
+    next_unread_chat=\33\171
     ok=KEY_RETURN
     open=KEY_CTRLV
     open_link=KEY_CTRLW
@@ -896,6 +902,7 @@ This configuration file holds user interface key bindings. Default content:
     pin=\33\160
     prev_chat=KEY_BTAB
     prev_page=KEY_PPAGE
+    prev_unread_chat=\33\157
     quit=KEY_CTRLQ
     react=\33\163
     right=KEY_RIGHT
@@ -914,7 +921,6 @@ This configuration file holds user interface key bindings. Default content:
     toggle_list=KEY_CTRLL
     toggle_top=KEY_NONE
     transfer=KEY_CTRLT
-    unread_chat=KEY_CTRLF
     up=KEY_UP
 
 The key bindings may be specified in the following formats:

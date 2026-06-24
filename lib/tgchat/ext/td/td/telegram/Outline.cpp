@@ -349,7 +349,7 @@ string get_outline_svg_path(CSlice path, double zoom, Slice source) {
       skip_commas();
       if (path[pos] == '\0') {
         LOG(ERROR) << "Receive unclosed path " << path << " from " << source;
-        return nullptr;
+        return string();
       }
       if (is_alpha(path[pos])) {
         command = path[pos++];
@@ -437,7 +437,7 @@ string get_outline_svg_path(CSlice path, double zoom, Slice source) {
         default:
           LOG(ERROR) << "Receive invalid command " << command << " at pos " << pos << " from " << source << ": "
                      << path;
-          return nullptr;
+          return string();
       }
     }
   }

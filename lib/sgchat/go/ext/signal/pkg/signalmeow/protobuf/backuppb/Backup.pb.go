@@ -2406,7 +2406,6 @@ type AccountData struct {
 	AndroidSpecificSettings *AccountData_AndroidSpecificSettings `protobuf:"bytes,12,opt,name=androidSpecificSettings,proto3" json:"androidSpecificSettings,omitempty"`
 	BioText                 string                               `protobuf:"bytes,13,opt,name=bioText,proto3" json:"bioText,omitempty"`
 	BioEmoji                string                               `protobuf:"bytes,14,opt,name=bioEmoji,proto3" json:"bioEmoji,omitempty"`
-	KeyTransparencyData     []byte                               `protobuf:"bytes,15,opt,name=keyTransparencyData,proto3,oneof" json:"keyTransparencyData,omitempty"`
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
@@ -2530,13 +2529,6 @@ func (x *AccountData) GetBioEmoji() string {
 		return x.BioEmoji
 	}
 	return ""
-}
-
-func (x *AccountData) GetKeyTransparencyData() []byte {
-	if x != nil {
-		return x.KeyTransparencyData
-	}
-	return nil
 }
 
 type Recipient struct {
@@ -12264,7 +12256,7 @@ const file_backuppb_Backup_proto_rawDesc = "" +
 	"\n" +
 	"chatFolder\x18\b \x01(\v2\x19.signal.backup.ChatFolderH\x00R\n" +
 	"chatFolderB\x06\n" +
-	"\x04item\"\xc7#\n" +
+	"\x04item\"\xfe\"\n" +
 	"\vAccountData\x12\x1e\n" +
 	"\n" +
 	"profileKey\x18\x01 \x01(\fR\n" +
@@ -12283,8 +12275,7 @@ const file_backuppb_Backup_proto_rawDesc = "" +
 	"\x06svrPin\x18\v \x01(\tR\x06svrPin\x12l\n" +
 	"\x17androidSpecificSettings\x18\f \x01(\v22.signal.backup.AccountData.AndroidSpecificSettingsR\x17androidSpecificSettings\x12\x18\n" +
 	"\abioText\x18\r \x01(\tR\abioText\x12\x1a\n" +
-	"\bbioEmoji\x18\x0e \x01(\tR\bbioEmoji\x125\n" +
-	"\x13keyTransparencyData\x18\x0f \x01(\fH\x01R\x13keyTransparencyData\x88\x01\x01\x1a\xf6\x01\n" +
+	"\bbioEmoji\x18\x0e \x01(\tR\bbioEmoji\x1a\xf6\x01\n" +
 	"\fUsernameLink\x12\x18\n" +
 	"\aentropy\x18\x01 \x01(\fR\aentropy\x12\x1a\n" +
 	"\bserverId\x18\x02 \x01(\fR\bserverId\x12C\n" +
@@ -12387,8 +12378,7 @@ const file_backuppb_Backup_proto_rawDesc = "" +
 	"\x05NEVER\x10\x01\x12\x14\n" +
 	"\x10MOBILE_DATA_ONLY\x10\x02\x12\x18\n" +
 	"\x14WIFI_AND_MOBILE_DATA\x10\x03B\v\n" +
-	"\t_usernameB\x16\n" +
-	"\x14_keyTransparencyDataJ\x04\b\b\x10\t\"\x84\x03\n" +
+	"\t_usernameJ\x04\b\b\x10\tJ\x04\b\x0f\x10\x10\"\x84\x03\n" +
 	"\tRecipient\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x122\n" +
 	"\acontact\x18\x02 \x01(\v2\x16.signal.backup.ContactH\x00R\acontact\x12,\n" +

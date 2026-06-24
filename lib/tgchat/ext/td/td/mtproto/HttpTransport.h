@@ -27,23 +27,31 @@ class Transport final : public IStreamTransport {
   explicit Transport(string secret) : secret_(std::move(secret)) {
   }
 
-  Result<size_t> read_next(BufferSlice *message, uint32 *quick_ack) final TD_WARN_UNUSED_RESULT;
+  Result<size_t> read_next(BufferSlice *message, uint32 *quick_ack, int32 *error_code) final TD_WARN_UNUSED_RESULT;
+
   bool support_quick_ack() const final {
     return false;
   }
+
   void write(BufferWriter &&message, bool quick_ack) final;
+
   bool can_read() const final;
+
   bool can_write() const final;
+
   void init(ChainBufferReader *input, ChainBufferWriter *output) final {
     reader_.init(input);
     output_ = output;
   }
 
   size_t max_prepend_size() const final;
+
   size_t max_append_size() const final;
+
   TransportType get_type() const final {
     return {TransportType::Http, 0, ProxySecret::from_raw(secret_)};
   }
+
   bool use_random_padding() const final;
 
  private:
