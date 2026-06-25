@@ -4516,6 +4516,9 @@ bool UiModel::Impl::TranscribeAudio()
       LOG_WARNING("failed to store transcription for msg %s (cache disabled?)", msgId.c_str());
     }
 
+    // Update in-memory model so the transcription renders without a cache re-fetch
+    m_Messages[profileId][chatId][msgId].transcription = transcription;
+
     // Update UI
     UpdateHistory();
     return true;

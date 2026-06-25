@@ -198,6 +198,7 @@ struct ChatMessage
   std::string quotedText;
   std::string quotedSender;
   std::string fileInfo;
+  std::string transcription; // audio transcription text, db cached
   std::string link; // only required for tgchat, sponsored msg, not db cached
   std::map<std::string, std::string> mentions; // displayName -> userId, not db cached
   Reactions reactions;

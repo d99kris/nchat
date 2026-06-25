@@ -47,12 +47,13 @@ class TranscriptionService(ABC):
 class OpenAIWhisperService(TranscriptionService):
     """OpenAI Whisper API service"""
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, timeout: int = 30):
         """
         Initialize OpenAI service.
 
         Args:
             api_key: OpenAI API key (defaults to OPENAI_API_KEY env var)
+            timeout: Request timeout in seconds
 
         Raises:
             RuntimeError: If API key is not provided
@@ -63,7 +64,7 @@ class OpenAIWhisperService(TranscriptionService):
 
         try:
             from openai import OpenAI
-            self.client = OpenAI(api_key=self.api_key)
+            self.client = OpenAI(api_key=self.api_key, timeout=timeout)
         except ImportError:
             raise RuntimeError("OpenAI package not installed. Install with: pip install openai")
 
@@ -118,14 +119,16 @@ class OpenAIWhisperService(TranscriptionService):
 class WhisperCppService(TranscriptionService):
     """whisper.cpp HTTP server service"""
 
-    def __init__(self, server_url: Optional[str] = None):
+    def __init__(self, server_url: Optional[str] = None, timeout: int = 30):
         """
         Initialize whisper.cpp service.
 
         Args:
             server_url: URL of whisper.cpp server (defaults to WHISPER_CPP_SERVER env var or http://localhost:8080)
+            timeout: Request timeout in seconds
         """
         self.server_url = server_url or os.getenv('WHISPER_CPP_SERVER', 'http://localhost:8080')
+        self.timeout = timeout
 
         try:
             import requests
@@ -164,7 +167,7 @@ class WhisperCppService(TranscriptionService):
                     f"{self.server_url}/inference",
                     files=files,
                     data=data,
-                    timeout=30
+                    timeout=self.timeout
                 )
 
                 if response.status_code != 200:
@@ -342,13 +345,14 @@ def validate_audio_file(file_path: str) -> bool:
     return True
 
 
-def create_service(service_name: str, model: str = "base") -> TranscriptionService:
+def create_service(service_name: str, model: str = "base", timeout: int = 30) -> TranscriptionService:
     """
     Factory method to create transcription service.
 
     Args:
         service_name: Service to create (openai, whisper-cpp, whisper-local)
         model: Model size for local services (tiny, base, small, medium, large)
+        timeout: Request timeout in seconds for network-based services
 
     Returns:
         Transcription service instance
@@ -358,9 +362,9 @@ def create_service(service_name: str, model: str = "base") -> TranscriptionServi
         RuntimeError: If service initialization fails
     """
     if service_name == "openai":
-        return OpenAIWhisperService()
+        return OpenAIWhisperService(timeout=timeout)
     elif service_name == "whisper-cpp":
-        return WhisperCppService()
+        return WhisperCppService(timeout=timeout)
     elif service_name == "whisper-local":
         return WhisperLocalService(model_size=model)
     else:
@@ -426,7 +430,7 @@ def main():
             service_name = detect_service()
 
         # Create service instance
-        service = create_service(service_name, args.model)
+        service = create_service(service_name, args.model, args.timeout)
 
         # Perform transcription
         transcription = service.transcribe(args.file, args.language)

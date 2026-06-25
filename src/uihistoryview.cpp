@@ -246,7 +246,7 @@ void UiHistoryView::Draw()
 
         if (audioExtensions.find(ext) != audioExtensions.end())
         {
-          std::string transcription = MessageCache::GetTranscription(currentChat.first, currentChat.second, msg.id);
+          std::string transcription = msg.transcription;
           if (!transcription.empty())
           {
             StrUtil::SanitizeMessageStr(transcription);

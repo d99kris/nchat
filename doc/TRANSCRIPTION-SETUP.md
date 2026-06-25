@@ -51,7 +51,6 @@ chmod +x ~/.config/nchat/transcribe.sh
 ```conf
 audio_transcribe_enabled=1
 audio_transcribe_command=~/.config/nchat/transcribe.sh '%1'
-audio_transcribe_cache=1
 ```
 
 **Test:**
@@ -94,7 +93,6 @@ Free, private, simple. Uses Python. Slower than whisper.cpp, uses more RAM.
    ```conf
    audio_transcribe_enabled=1
    audio_transcribe_command=~/.config/nchat/.venv/bin/python /usr/local/libexec/nchat/transcribe -f '%1' -s whisper-local -m base
-   audio_transcribe_cache=1
    ```
 
 4. Test:
@@ -162,7 +160,7 @@ Cloud-based, easiest. Fast (2-3 sec), accurate. Costs $0.006/min. Audio goes to 
 4. Configure nchat (`~/.config/nchat/ui.conf`):
    ```conf
    audio_transcribe_enabled=1
-   audio_transcribe_cache=1
+   audio_transcribe_command=~/.config/nchat/.venv/bin/python /usr/local/libexec/nchat/transcribe -f '%1' -s openai
    ```
 
 5. Test:
@@ -225,8 +223,10 @@ which whisper-cli  # Check if installed
 ```
 
 **Timeouts**
+
+Pass `--timeout` to the transcribe script (network-based backends only) via `audio_transcribe_command`:
 ```conf
-audio_transcribe_timeout=60  # Increase in ui.conf
+audio_transcribe_command=/usr/local/libexec/nchat/transcribe -f '%1' -s whisper-cpp --timeout 60
 ```
 
 **Need ffmpeg**
