@@ -273,11 +273,11 @@ fi
 # make args
 if [[ "${BUILD}" == "1" ]] || [[ "${DEBUG}" == "1" ]]; then
   if [[ "${OS}" == "Linux" ]]; then
-    MEM="$(( $(($(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE) / (1000 * 1000 * 1000))) * 1000 ))" # in MB
+    MEM=$(( $(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE) / 1000 / 1000 )) # in MB
   elif [[ "${OS}" == "Darwin" ]]; then
-    MEM="$(( $(($(sysctl -n hw.memsize) / (1000 * 1000 * 1000))) * 1000 ))" # in MB
+    MEM=$(( $(sysctl -n hw.memsize) / 1000 / 1000 )) # in MB
   elif [[ "${OS}" == "OpenBSD" ]]; then
-    MEM="$(( $(($(sysctl -n hw.physmem) / (1000 * 1000 * 1000))) * 1000 ))" # in MB
+    MEM=$(( $(sysctl -n hw.physmem) / 1000 / 1000 )) # in MB
   fi
 
   MEM_NEEDED_PER_CORE="3500" # tdlib under g++ needs 3.5 GB
