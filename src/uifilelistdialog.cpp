@@ -7,8 +7,11 @@
 
 #include "uifilelistdialog.h"
 
+#include <algorithm>
+
 #include "fileutil.h"
 #include "strutil.h"
+#include "uiconfig.h"
 #include "uimodel.h"
 
 UiFileListDialog::UiFileListDialog(const UiDialogParams& p_Params, const std::string& p_CurrentDir)
@@ -16,7 +19,9 @@ UiFileListDialog::UiFileListDialog(const UiDialogParams& p_Params, const std::st
   , m_CurrentDir(p_CurrentDir)
 {
   m_Model->SetFileListDialogActive(true);
-  m_DirEntrys = FileUtil::ListPaths(m_CurrentDir);
+  std::set<DirEntry, DirEntryCompare> dirEntrys = FileUtil::ListPaths(m_CurrentDir);
+  m_DirEntrys = std::vector<DirEntry>(dirEntrys.begin(), dirEntrys.end());
+  SortDirEntrys();
   UpdateList();
 }
 
@@ -41,11 +46,13 @@ void UiFileListDialog::OnSelect()
 
   if (m_Index < (int)m_CurrentDirEntrys.size())
   {
-    const DirEntry& dirEntry = *std::next(m_CurrentDirEntrys.begin(), m_Index);
+    const DirEntry& dirEntry = m_CurrentDirEntrys[m_Index];
     if (dirEntry.IsDir())
     {
       m_CurrentDir = FileUtil::AbsolutePath(m_CurrentDir + "/" + dirEntry.name);
-      m_DirEntrys = FileUtil::ListPaths(m_CurrentDir);
+      std::set<DirEntry, DirEntryCompare> dirEntrys = FileUtil::ListPaths(m_CurrentDir);
+      m_DirEntrys = std::vector<DirEntry>(dirEntrys.begin(), dirEntrys.end());
+      SortDirEntrys();
       m_FilterStr.clear();
       UpdateList();
       UpdateFooter();
@@ -62,7 +69,9 @@ void UiFileListDialog::OnSelect()
 void UiFileListDialog::OnBack()
 {
   m_CurrentDir = FileUtil::AbsolutePath(m_CurrentDir + "/..");
-  m_DirEntrys = FileUtil::ListPaths(m_CurrentDir);
+  std::set<DirEntry, DirEntryCompare> dirEntrys = FileUtil::ListPaths(m_CurrentDir);
+  m_DirEntrys = std::vector<DirEntry>(dirEntrys.begin(), dirEntrys.end());
+  SortDirEntrys();
   m_FilterStr.clear();
   UpdateList();
   UpdateFooter();
@@ -71,6 +80,45 @@ void UiFileListDialog::OnBack()
 bool UiFileListDialog::OnTimer()
 {
   return false;
+}
+
+void UiFileListDialog::SortDirEntrys()
+{
+  int sortMode = UiConfig::GetNum("file_picker_sort_mode");
+  
+  if (sortMode == 0)
+  {
+    // Default: dirs first, then by name (already sorted by ListPaths)
+    return;
+  }
+  else if (sortMode == 1)
+  {
+    // Dirs first, then by mtime (newest first)
+    std::sort(m_DirEntrys.begin(), m_DirEntrys.end(), 
+      [](const DirEntry& a, const DirEntry& b) {
+        if (a.IsHidden() != b.IsHidden())
+          return a.IsHidden() < b.IsHidden();
+        else if (a.IsDir() != b.IsDir())
+          return a.IsDir() > b.IsDir();
+        else if (a.mtime != b.mtime)
+          return a.mtime > b.mtime; // newest first
+        else
+          return a.name < b.name;
+      });
+  }
+  else if (sortMode == 2)
+  {
+    // All by mtime (newest first), dirs and files mixed
+    std::sort(m_DirEntrys.begin(), m_DirEntrys.end(), 
+      [](const DirEntry& a, const DirEntry& b) {
+        if (a.IsHidden() != b.IsHidden())
+          return a.IsHidden() < b.IsHidden();
+        else if (a.mtime != b.mtime)
+          return a.mtime > b.mtime; // newest first
+        else
+          return a.name < b.name;
+      });
+  }
 }
 
 void UiFileListDialog::UpdateList()
@@ -86,7 +134,7 @@ void UiFileListDialog::UpdateList()
     {
       if (StrUtil::ToLower(dirEntry.name).find(StrUtil::ToLower(StrUtil::ToString(m_FilterStr))) != std::string::npos)
       {
-        m_CurrentDirEntrys.insert(dirEntry);
+        m_CurrentDirEntrys.push_back(dirEntry);
       }
     }
   }
