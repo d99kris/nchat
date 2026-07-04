@@ -38,17 +38,45 @@ bool SetupUtil::HasGui()
   }
 
 #ifdef __APPLE__
-  bool rv = true;
-  LOG_DEBUG("has gui %d (macOS)", rv);
+  LOG_DEBUG("has gui 1 (macOS)");
+  return true;
 #elif defined(__linux__)
-  bool rv = (getenv("DISPLAY") != nullptr) || (getenv("WAYLAND_DISPLAY") != nullptr);
-  LOG_DEBUG("has gui %d (linux)", rv);
-#else
-  bool rv = false;
-  LOG_DEBUG("has gui %d (other)", rv);
-#endif
+  if (!IsCommandAvailable("xdg-open"))
+  {
+    LOG_DEBUG("has gui 0 (no xdg-open)");
+    return false;
+  }
 
-  return rv;
+  if (IsCommandAvailable("xset"))
+  {
+    const std::string xsetCmd =
+      IsCommandAvailable("timeout") ? "timeout 1s xset q" : "xset q";
+    if (system((xsetCmd + " > /dev/null 2>&1").c_str()) == 0)
+    {
+      LOG_DEBUG("has gui 1 (%s ok)", xsetCmd.c_str());
+      return true;
+    }
+
+    // x11 not reachable, gui may still be present on a wayland-only session
+    bool hasWayland = (getenv("WAYLAND_DISPLAY") != nullptr);
+    LOG_DEBUG("has gui %d (%s failed)", hasWayland, xsetCmd.c_str());
+    return hasWayland;
+  }
+
+  // xset not available for probing, fall back to environment check
+  bool hasDisplay = (getenv("DISPLAY") != nullptr) || (getenv("WAYLAND_DISPLAY") != nullptr);
+  LOG_DEBUG("has gui %d (env)", hasDisplay);
+  return hasDisplay;
+#else
+  LOG_DEBUG("has gui 0 (other)");
+  return false;
+#endif
+}
+
+bool SetupUtil::IsCommandAvailable(const std::string& p_Cmd)
+{
+  const std::string cmd = "command -v " + p_Cmd + " > /dev/null 2>&1";
+  return (system(cmd.c_str()) == 0);
 }
 
 void SetupUtil::ShowImage(const std::string& p_Path)

@@ -30,6 +30,7 @@ package main
 // extern void WmClearStatus(int p_ConnId, int p_Flags);
 // extern int WmAppConfigGetNum(char* p_Param);
 // extern void WmAppConfigSetNum(char* p_Param, int p_Value);
+// extern int WmHasGui();
 // extern void WmLogTrace(char* p_Filename, int p_LineNo, char* p_Message);
 // extern void WmLogDebug(char* p_Filename, int p_LineNo, char* p_Message);
 // extern void WmLogInfo(char* p_Filename, int p_LineNo, char* p_Message);
@@ -219,6 +220,10 @@ func CWmAppConfigGetNum(param string) int {
 
 func CWmAppConfigSetNum(param string, value int) {
 	C.WmAppConfigSetNum(C.CString(param), C.int(value))
+}
+
+func CWmHasGui() int {
+	return int(C.WmHasGui())
 }
 
 func LOG_TRACE(message string) {

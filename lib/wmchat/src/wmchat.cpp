@@ -17,6 +17,7 @@
 #include "log.h"
 #include "messagecache.h"
 #include "protocolutil.h"
+#include "setuputil.h"
 #include "status.h"
 #include "strutil.h"
 #include "timeutil.h"
@@ -1296,6 +1297,11 @@ void WmAppConfigSetNum(char* p_Param, int p_Value)
 {
   AppConfig::SetNum(std::string(p_Param), p_Value);
   free(p_Param);
+}
+
+int WmHasGui()
+{
+  return SetupUtil::HasGui() ? 1 : 0;
 }
 
 void WmLogTrace(char* p_Filename, int p_LineNo, char* p_Message)

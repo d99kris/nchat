@@ -13,7 +13,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"mime"
 	"os"
 	"os/exec"
@@ -434,87 +433,8 @@ func GetDeviceName() string {
 	return "nchat (" + GetOSName() + ")"
 }
 
-func GetConfigOrEnvFlag(envVarName string) bool {
-	configParamName := strings.ToLower(envVarName)
-	isConfigSet := CSgAppConfigGetNum(configParamName)
-	if IntToBool(isConfigSet) {
-		return true
-	}
-
-	_, isEnvSet := os.LookupEnv(envVarName)
-	if isEnvSet {
-		CSgAppConfigSetNum(configParamName, 1)
-		return true
-	}
-
-	return false
-}
-
 func HasGUI() bool {
-	useQrTerminal := GetConfigOrEnvFlag("USE_QR_TERMINAL")
-	if useQrTerminal {
-		return false
-	}
-
-	switch runtime.GOOS {
-	case "darwin":
-		LOG_INFO(fmt.Sprintf("has gui"))
-		LOG_DEBUG(fmt.Sprintf("gui check: [darwin default true]"))
-		return true
-
-	case "linux":
-		_, isDisplaySet := os.LookupEnv("DISPLAY")
-		file, err := os.CreateTemp("/tmp", "nchat-x11check.*.sh")
-		if err != nil {
-			LOG_WARNING(fmt.Sprintf("create file failed %#v", err))
-			return isDisplaySet
-		}
-
-		defer os.Remove(file.Name())
-		content := "#!/usr/bin/env bash\n\n" +
-			"if command -v timeout &> /dev/null; then\n" +
-			"  CMD=\"timeout 1s xset q\"\n" +
-			"else\n" +
-			"  CMD=\"xset q\"\n" +
-			"fi\n" +
-			"echo \"${CMD}\"\n" +
-			"${CMD} > /dev/null\n" +
-			"exit ${?}\n"
-
-		_, err = io.WriteString(file, content)
-		if err != nil {
-			LOG_WARNING(fmt.Sprintf("write file failed %#v", err))
-			return isDisplaySet
-		}
-
-		err = file.Close()
-		if err != nil {
-			LOG_WARNING(fmt.Sprintf("close file failed %#v", err))
-			return isDisplaySet
-		}
-
-		err = os.Chmod(file.Name(), 0777)
-		if err != nil {
-			LOG_WARNING(fmt.Sprintf("chmod file failed %#v", err))
-			return isDisplaySet
-		}
-
-		cmdout, err := exec.Command(file.Name()).CombinedOutput()
-		if err == nil {
-			LOG_INFO(fmt.Sprintf("has gui"))
-			LOG_DEBUG(fmt.Sprintf("gui check: %s", strings.TrimSuffix(string(cmdout), "\n")))
-			return true
-		} else {
-			LOG_INFO(fmt.Sprintf("no gui"))
-			LOG_DEBUG(fmt.Sprintf("gui check: %s", strings.TrimSuffix(string(cmdout), "\n")))
-			return false
-		}
-
-	default:
-		LOG_INFO(fmt.Sprintf("no gui"))
-		LOG_DEBUG(fmt.Sprintf("gui check: [other \"%s\" default false]", runtime.GOOS))
-		return false
-	}
+	return IntToBool(CSgHasGui())
 }
 
 func BoolToInt(b bool) int {

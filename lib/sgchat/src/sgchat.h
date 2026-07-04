@@ -138,6 +138,7 @@ void SgSetStatus(int p_ConnId, int p_Flags);
 void SgClearStatus(int p_ConnId, int p_Flags);
 int SgAppConfigGetNum(char* p_Param);
 void SgAppConfigSetNum(char* p_Param, int p_Value);
+int SgHasGui();
 void SgLogTrace(char* p_Filename, int p_LineNo, char* p_Message);
 void SgLogDebug(char* p_Filename, int p_LineNo, char* p_Message);
 void SgLogInfo(char* p_Filename, int p_LineNo, char* p_Message);

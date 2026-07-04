@@ -14,5 +14,6 @@ class SetupUtil
 public:
   static bool GetConfigOrEnvFlag(const std::string& p_EnvName);
   static bool HasGui();
+  static bool IsCommandAvailable(const std::string& p_Cmd);
   static void ShowImage(const std::string& p_Path);
 };

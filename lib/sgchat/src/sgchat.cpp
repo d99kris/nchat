@@ -18,6 +18,7 @@
 #include "log.h"
 #include "messagecache.h"
 #include "protocolutil.h"
+#include "setuputil.h"
 #include "status.h"
 #include "strutil.h"
 #include "timeutil.h"
@@ -1370,6 +1371,11 @@ void SgAppConfigSetNum(char* p_Param, int p_Value)
 {
   AppConfig::SetBool(std::string(p_Param), (p_Value != 0));
   free(p_Param);
+}
+
+int SgHasGui()
+{
+  return SetupUtil::HasGui() ? 1 : 0;
 }
 
 void SgLogTrace(char* p_Filename, int p_LineNo, char* p_Message)

@@ -30,6 +30,7 @@ package main
 // extern void SgClearStatus(int p_ConnId, int p_Flags);
 // extern int SgAppConfigGetNum(char* p_Param);
 // extern void SgAppConfigSetNum(char* p_Param, int p_Value);
+// extern int SgHasGui();
 // extern void SgLogTrace(char* p_Filename, int p_LineNo, char* p_Message);
 // extern void SgLogDebug(char* p_Filename, int p_LineNo, char* p_Message);
 // extern void SgLogInfo(char* p_Filename, int p_LineNo, char* p_Message);
@@ -214,6 +215,10 @@ func CSgAppConfigGetNum(param string) int {
 
 func CSgAppConfigSetNum(param string, value int) {
 	C.SgAppConfigSetNum(C.CString(param), C.int(value))
+}
+
+func CSgHasGui() int {
+	return int(C.SgHasGui())
 }
 
 func LOG_TRACE(message string) {
