@@ -8,11 +8,13 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"mime"
 	"os"
@@ -80,6 +82,7 @@ var (
 	handlers    map[int]*WmEventHandler      = make(map[int]*WmEventHandler)
 	sendTypes   map[int]int                  = make(map[int]int)
 	namesSynced map[int]bool                 = make(map[int]bool)
+	passkeyWait map[int]bool                 = make(map[int]bool)
 )
 
 // keep in sync with enum AttachmentSendType in appconfig.h
@@ -214,6 +217,19 @@ func SetState(connId int, status State) {
 	mx.Lock()
 	states[connId] = status
 	mx.Unlock()
+}
+
+func SetPasskeyWait(connId int, isWait bool) {
+	mx.Lock()
+	passkeyWait[connId] = isWait
+	mx.Unlock()
+}
+
+func GetPasskeyWait(connId int) bool {
+	mx.Lock()
+	var isWait bool = passkeyWait[connId]
+	mx.Unlock()
+	return isWait
 }
 
 func GetNamesSynced(connId int) bool {
@@ -2434,6 +2450,95 @@ func WmInit(path string, proxy string, sendType int) int {
 	return connId
 }
 
+// ReadPastedJson reads lines from r until the accumulated content parses as a
+// complete JSON value. This allows the user to paste either a single-line or a
+// pretty-printed JSON document. It returns an error on EOF or if only blank
+// input is provided.
+func ReadPastedJson(r io.Reader) ([]byte, error) {
+	reader := bufio.NewReader(r)
+	var buf strings.Builder
+	for {
+		line, err := reader.ReadString('\n')
+		buf.WriteString(line)
+		trimmed := strings.TrimSpace(buf.String())
+		if (len(trimmed) > 0) && json.Valid([]byte(trimmed)) {
+			return []byte(trimmed), nil
+		}
+		if err != nil {
+			if len(trimmed) == 0 {
+				return nil, fmt.Errorf("no passkey response provided")
+			}
+			return nil, fmt.Errorf("incomplete or invalid passkey response json")
+		}
+	}
+}
+
+// GetPasskeyResponse handles an *events.PairPasskeyRequest by asking the user to
+// produce a WebAuthn assertion for the given challenge and reading the resulting
+// response json from stdin.
+//
+// WhatsApp passkey-locked accounts require an assertion signed by the account
+// owner's own authenticator, bound to the web.whatsapp.com origin. This cannot
+// be produced by nchat itself, so the user must run navigator.credentials.get()
+// in a signed-in web.whatsapp.com browser tab and paste the result back here.
+// See doc/WMPASSKEY.md for details.
+func GetPasskeyResponse(publicKey *types.WebAuthnPublicKey) (*types.WebAuthnResponse, error) {
+	pubKeyJson, err := json.Marshal(publicKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal passkey request options: %w", err)
+	}
+
+	fmt.Printf("\n")
+	fmt.Printf("This WhatsApp account requires passkey authentication to link a new device.\n")
+	fmt.Printf("nchat cannot access your passkey directly, so please complete these steps:\n")
+	fmt.Printf("\n")
+	fmt.Printf("1. In a browser, open https://web.whatsapp.com signed in to (or able to\n")
+	fmt.Printf("   authenticate with the passkey of) this WhatsApp account.\n")
+	fmt.Printf("2. Open the browser developer console (F12 / Cmd-Opt-J) and run:\n")
+	fmt.Printf("\n")
+	fmt.Printf("   const opts = PublicKeyCredential.parseRequestOptionsFromJSON(%s);\n", string(pubKeyJson))
+	fmt.Printf("   const cred = await navigator.credentials.get({ publicKey: opts });\n")
+	fmt.Printf("   console.log(JSON.stringify(cred.toJSON()));\n")
+	fmt.Printf("\n")
+	fmt.Printf("3. Approve the passkey prompt, then copy the single JSON line it prints.\n")
+	fmt.Printf("4. Paste that JSON below and press Enter (or press CTRL-C to abort):\n")
+	fmt.Printf("\n")
+
+	respJson, err := ReadPastedJson(os.Stdin)
+	if err != nil {
+		return nil, err
+	}
+
+	var resp types.WebAuthnResponse
+	if err := json.Unmarshal(respJson, &resp); err != nil {
+		return nil, fmt.Errorf("failed to parse pasted passkey response: %w", err)
+	}
+
+	return &resp, nil
+}
+
+// ConfirmPasskeyHandoff handles an *events.PairPasskeyConfirmation with
+// SkipHandoffUX set to false by showing the pairing code and asking the user to
+// verify it matches the code shown on their phone before completing pairing.
+// When SkipHandoffUX is true the QR channel confirms automatically and this is
+// not reached.
+func ConfirmPasskeyHandoff(connId int, cli *whatsmeow.Client, confirmation *events.PairPasskeyConfirmation) {
+	fmt.Printf("\n")
+	fmt.Printf("Verify that your phone shows the following pairing code:\n")
+	fmt.Printf("\n")
+	fmt.Printf("    %s\n", confirmation.Code)
+	fmt.Printf("\n")
+	fmt.Printf("Press Enter to confirm the codes match (or press CTRL-C to abort):\n")
+
+	reader := bufio.NewReader(os.Stdin)
+	_, _ = reader.ReadString('\n')
+
+	if err := cli.SendPasskeyConfirmation(context.TODO()); err != nil {
+		LOG_WARNING(fmt.Sprintf("send passkey confirmation error %#v", err))
+		SetState(connId, Disconnected)
+	}
+}
+
 func WmLogin(connId int) int {
 
 	LOG_DEBUG("login " + strconv.Itoa(connId) + " whatsmeow " + strconv.Itoa(whatsmeowDate))
@@ -2488,8 +2593,15 @@ func WmLogin(connId int) int {
 				fmt.Printf("Scan the Qr code to authenticate, or press CTRL-C to abort.\n")
 			}
 
+			passkeyRequired := false
 			for evt := range ch {
 				if evt.Event == whatsmeow.QRChannelEventCode {
+					if passkeyRequired {
+						// Passkey-locked accounts keep emitting QR codes that can
+						// never complete pairing, so ignore them once a passkey
+						// response has been requested.
+						continue
+					}
 					if usePairingCode {
 						ctx := context.TODO()
 						phoneNumber := GetPhoneNumberFromPath(path)
@@ -2511,6 +2623,25 @@ func WmLogin(connId int) int {
 							qrterminal.GenerateHalfBlock(evt.Code, qrterminal.L, os.Stdout)
 						}
 					}
+				} else if evt.Event == whatsmeow.QRChannelEventPasskeyRequest {
+					passkeyRequired = true
+					SetPasskeyWait(connId, true)
+					resp, respErr := GetPasskeyResponse(evt.PasskeyRequest.PublicKey)
+					SetPasskeyWait(connId, false)
+					if respErr != nil {
+						LOG_WARNING(fmt.Sprintf("get passkey response error %#v", respErr))
+						SetState(connId, Disconnected)
+					} else if sendErr := cli.SendPasskeyResponse(context.TODO(), resp); sendErr != nil {
+						LOG_WARNING(fmt.Sprintf("send passkey response error %#v", sendErr))
+						SetState(connId, Disconnected)
+					} else {
+						fmt.Printf("\n")
+						fmt.Printf("Passkey response sent, completing pairing...\n")
+					}
+				} else if evt.Event == whatsmeow.QRChannelEventPasskeyResponse {
+					// Reached only when SkipHandoffUX is false; otherwise the QR
+					// channel sends the confirmation automatically.
+					ConfirmPasskeyHandoff(connId, cli, evt.PasskeyConfirmation)
 				} else if evt == whatsmeow.QRChannelSuccess {
 					LOG_DEBUG("qr channel event success")
 				} else if evt == whatsmeow.QRChannelClientOutdated {
@@ -2541,7 +2672,14 @@ func WmLogin(connId int) int {
 	// wait for result (up to timeout, 100 ms at a time)
 	LOG_DEBUG("wait start")
 	waitedMs := 0
-	for (waitedMs < timeoutMs) && (GetState(connId) == Connecting) {
+	for GetState(connId) == Connecting {
+		if GetPasskeyWait(connId) {
+			// Suspend the pairing timeout while awaiting an interactive passkey
+			// response, as that involves a manual browser step by the user.
+			waitedMs = 0
+		} else if waitedMs >= timeoutMs {
+			break
+		}
 		time.Sleep(100 * time.Millisecond)
 		waitedMs += 100
 	}
