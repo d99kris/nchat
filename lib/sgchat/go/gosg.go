@@ -2054,6 +2054,8 @@ func SgLogin(connId int) int {
 				}
 				CSgClearStatus(connId, FlagConnecting)
 				SetState(connId, Disconnected)
+				LOG_TRACE(fmt.Sprintf("Call CSgReinit"))
+				CSgReinit(connId)
 				return -1
 			} else if status.Event == signalmeow.SignalConnectionEventError ||
 				status.Event == signalmeow.SignalConnectionEventFatalError {
@@ -2138,13 +2140,15 @@ func monitorConnectionStatus(connId int, statusChan chan signalmeow.SignalConnec
 			LOG_DEBUG("websocket reconnected")
 			CSgSetStatus(connId, FlagOnline)
 		case signalmeow.SignalConnectionEventLoggedOut:
-			LOG_WARNING("logged out while connected")
+			LOG_WARNING("logged out while connected, reinit")
 			CSgClearStatus(connId, FlagOnline)
 			ctx := context.TODO()
 			client := GetClient(connId)
 			if client != nil {
 				client.ClearKeysAndDisconnect(ctx)
 			}
+			LOG_TRACE(fmt.Sprintf("Call CSgReinit"))
+			CSgReinit(connId)
 			return
 		case signalmeow.SignalConnectionEventFatalError:
 			LOG_WARNING(fmt.Sprintf("fatal connection error: %v", status.Err))
