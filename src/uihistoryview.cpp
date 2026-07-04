@@ -410,7 +410,7 @@ void UiHistoryView::Draw()
     std::wstring wreceipt = StrUtil::ToWString(msg.isRead ? readIndicator : "");
     std::wstring wedited = StrUtil::ToWString(msg.isEdited ? editedIndicator : "");
     std::wstring wpinned = StrUtil::ToWString(msg.isPinned ? pinnedIndicator : "");
-    std::wstring wheader = wsender + wtime + wedited + wpinned + wreceipt;
+    std::wstring wheader = wsender + wtime + wreceipt + wedited + wpinned;
 
     if (developerMode)
     {
