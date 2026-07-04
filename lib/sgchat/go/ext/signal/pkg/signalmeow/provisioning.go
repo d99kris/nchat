@@ -268,7 +268,7 @@ func startProvisioning(ctx context.Context, ws *websocket.Conn, provisioningCiph
 		return "", fmt.Errorf("failed to unmarshal provisioning UUID: %w", err)
 	}
 
-	linkCapabilities := []string{"backup4,backup5"}
+	linkCapabilities := []string{"backup5"}
 	if !allowBackup {
 		linkCapabilities = []string{}
 	}
@@ -328,8 +328,9 @@ func continueProvisioning(ctx context.Context, ws *websocket.Conn, provisioningC
 }
 
 var signalCapabilities = map[string]any{
-	"attachmentBackfill": true,
-	"spqr":               true,
+	"attachmentBackfill":        true,
+	"spqr":                      true,
+	"usernameChangeSyncMessage": true,
 }
 
 var signalCapabilitiesBody = exerrors.Must(json.Marshal(signalCapabilities))

@@ -1,3 +1,9 @@
+# v26.06
+
+* Updated libsignal to v0.94.4
+* Updated mrenclave to fix looking up phone numbers.
+* Changed knock accept handling to auto-join the ghost user afterwards.
+
 # v26.05
 
 * Updated libsignal to v0.93.2.

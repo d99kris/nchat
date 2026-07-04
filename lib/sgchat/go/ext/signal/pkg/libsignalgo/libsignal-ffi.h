@@ -948,6 +948,14 @@ typedef struct {
   const SignalDecryptionErrorMessage *raw;
 } SignalConstPointerDecryptionErrorMessage;
 
+typedef struct {
+  const SignalServerSecretParams *raw;
+} SignalConstPointerServerSecretParams;
+
+typedef struct {
+  const SignalServerPublicParams *raw;
+} SignalConstPointerServerPublicParams;
+
 /**
  * Like [`std::panic::AssertUnwindSafe`], but FFI-compatible.
  */
@@ -1088,17 +1096,9 @@ typedef struct {
 } SignalConstPointerFfiSenderKeyStoreStruct;
 
 typedef struct {
-  const SignalServerSecretParams *raw;
-} SignalConstPointerServerSecretParams;
-
-typedef struct {
   const SignalBorrowedBuffer *base;
   size_t length;
 } SignalBorrowedSliceOfBuffers;
-
-typedef struct {
-  const SignalServerPublicParams *raw;
-} SignalConstPointerServerPublicParams;
 
 typedef struct {
   SignalHsmEnclaveClient *raw;
@@ -1805,6 +1805,36 @@ SignalFfiError *signal_authenticated_chat_connection_send_raw_grpc(SignalCPromis
 
 SignalFfiError *signal_authenticated_chat_connection_send_sync_message(SignalCPromisebool *promise, SignalConstPointerTokioAsyncContext async_runtime, SignalConstPointerAuthenticatedChatConnection chat, uint64_t timestamp, SignalBorrowedSliceOfu32 device_ids, SignalBorrowedSliceOfu32 registration_ids, SignalBorrowedSliceOfConstPointerCiphertextMessage contents, bool is_urgent);
 
+SignalFfiError *signal_avatar_upload_credential_check_valid_contents(SignalBorrowedBuffer credential_bytes);
+
+SignalFfiError *signal_avatar_upload_credential_get_cm(uint8_t (*out)[32], SignalBorrowedBuffer credential_bytes);
+
+SignalFfiError *signal_avatar_upload_credential_get_redemption_time(uint64_t *out, SignalBorrowedBuffer credential_bytes);
+
+SignalFfiError *signal_avatar_upload_credential_present_deterministic(SignalOwnedBuffer *out, SignalBorrowedBuffer credential_bytes, SignalBorrowedBuffer server_params_bytes, const uint8_t (*randomness)[SignalRANDOMNESS_LEN]);
+
+SignalFfiError *signal_avatar_upload_credential_presentation_check_valid_contents(SignalBorrowedBuffer presentation_bytes);
+
+SignalFfiError *signal_avatar_upload_credential_presentation_get_cm(uint8_t (*out)[32], SignalBorrowedBuffer presentation_bytes);
+
+SignalFfiError *signal_avatar_upload_credential_presentation_get_redemption_time(uint64_t *out, SignalBorrowedBuffer presentation_bytes);
+
+SignalFfiError *signal_avatar_upload_credential_presentation_verify(SignalBorrowedBuffer presentation_bytes, uint64_t current_time, SignalBorrowedBuffer server_params_bytes);
+
+SignalFfiError *signal_avatar_upload_credential_request_check_valid_contents(SignalBorrowedBuffer request_bytes);
+
+SignalFfiError *signal_avatar_upload_credential_request_context_check_valid_contents(SignalBorrowedBuffer context_bytes);
+
+SignalFfiError *signal_avatar_upload_credential_request_context_get_request(SignalOwnedBuffer *out, SignalBorrowedBuffer context_bytes);
+
+SignalFfiError *signal_avatar_upload_credential_request_context_new(SignalOwnedBuffer *out, const SignalServiceIdFixedWidthBinaryBytes *aci, SignalBorrowedBuffer zk_credential_key_pair_bytes, uint64_t rotation_id, const uint8_t (*randomness)[SignalRANDOMNESS_LEN]);
+
+SignalFfiError *signal_avatar_upload_credential_request_context_receive_response(SignalOwnedBuffer *out, SignalBorrowedBuffer context_bytes, SignalBorrowedBuffer response_bytes, uint64_t current_time, SignalBorrowedBuffer params_bytes);
+
+SignalFfiError *signal_avatar_upload_credential_request_issue_deterministic(SignalOwnedBuffer *out, SignalBorrowedBuffer request_bytes, const SignalServiceIdFixedWidthBinaryBytes *aci, SignalBorrowedBuffer zk_credential_key_pub_bytes, uint64_t rotation_id, uint64_t redemption_time, SignalBorrowedBuffer params_bytes, const uint8_t (*randomness)[SignalRANDOMNESS_LEN]);
+
+SignalFfiError *signal_avatar_upload_credential_response_check_valid_contents(SignalBorrowedBuffer response_bytes);
+
 SignalFfiError *signal_backup_auth_credential_check_valid_contents(SignalBorrowedBuffer params_bytes);
 
 SignalFfiError *signal_backup_auth_credential_get_backup_id(uint8_t (*out)[16], SignalBorrowedBuffer credential_bytes);
@@ -1992,6 +2022,38 @@ SignalFfiError *signal_device_transfer_generate_certificate(SignalOwnedBuffer *o
 SignalFfiError *signal_device_transfer_generate_private_key(SignalOwnedBuffer *out);
 
 SignalFfiError *signal_device_transfer_generate_private_key_with_format(SignalOwnedBuffer *out, uint8_t key_format);
+
+SignalFfiError *signal_donation_permit_check_valid_contents(SignalBorrowedBuffer buffer);
+
+SignalFfiError *signal_donation_permit_derived_key_pair_check_valid_contents(SignalBorrowedBuffer buffer);
+
+SignalFfiError *signal_donation_permit_derived_key_pair_for_expiration(SignalOwnedBuffer *out, uint64_t timestamp, SignalConstPointerServerSecretParams root);
+
+SignalFfiError *signal_donation_permit_expiration(uint64_t *out, SignalBorrowedBuffer donation_permit);
+
+SignalFfiError *signal_donation_permit_request_check_valid_contents(SignalBorrowedBuffer buffer);
+
+SignalFfiError *signal_donation_permit_request_context_check_valid_contents(SignalBorrowedBuffer buffer);
+
+SignalFfiError *signal_donation_permit_request_context_new_deterministic(SignalOwnedBuffer *out, int32_t count, const uint8_t (*randomness)[SignalRANDOMNESS_LEN]);
+
+SignalFfiError *signal_donation_permit_request_context_receive(SignalBytestringArray *out, SignalBorrowedBuffer context, SignalBorrowedBuffer response, SignalConstPointerServerPublicParams public_params, uint64_t now);
+
+SignalFfiError *signal_donation_permit_request_context_request(SignalOwnedBuffer *out, SignalBorrowedBuffer ctx);
+
+SignalFfiError *signal_donation_permit_request_len(int32_t *out, SignalBorrowedBuffer donation_permit_request);
+
+SignalFfiError *signal_donation_permit_response_check_valid_contents(SignalBorrowedBuffer buffer);
+
+SignalFfiError *signal_donation_permit_response_default_expiration(uint64_t *out, uint64_t current_time);
+
+SignalFfiError *signal_donation_permit_response_get_expiration(uint64_t *out, SignalBorrowedBuffer response);
+
+SignalFfiError *signal_donation_permit_response_issue_deterministic(SignalOwnedBuffer *out, SignalBorrowedBuffer request, SignalBorrowedBuffer key_pair, const uint8_t (*seed)[SignalRANDOMNESS_LEN]);
+
+SignalFfiError *signal_donation_permit_spend_id(SignalOwnedBuffer *out, SignalBorrowedBuffer donation_permit);
+
+SignalFfiError *signal_donation_permit_verify(SignalBorrowedBuffer permit, uint64_t now, SignalBorrowedBuffer key_pair);
 
 SignalFfiError *signal_encrypt_message(SignalMutPointerCiphertextMessage *out, SignalBorrowedBuffer ptext, SignalConstPointerProtocolAddress protocol_address, SignalConstPointerProtocolAddress local_address, SignalConstPointerFfiSessionStoreStruct session_store, SignalConstPointerFfiIdentityKeyStoreStruct identity_key_store, uint64_t now);
 
@@ -2909,5 +2971,13 @@ SignalFfiError *signal_validating_mac_initialize(SignalMutPointerValidatingMac *
 SignalFfiError *signal_validating_mac_update(int32_t *out, SignalMutPointerValidatingMac mac, SignalBorrowedBuffer bytes, uint32_t offset, uint32_t length);
 
 SignalFfiError *signal_webp_sanitizer_sanitize(SignalConstPointerFfiSyncInputStreamStruct input);
+
+SignalFfiError *signal_zk_credential_key_pair_check_valid_contents(SignalBorrowedBuffer key_pair_bytes);
+
+SignalFfiError *signal_zk_credential_key_pair_generate_deterministic(SignalOwnedBuffer *out, const uint8_t (*randomness)[SignalRANDOMNESS_LEN]);
+
+SignalFfiError *signal_zk_credential_key_pair_get_public_key(SignalOwnedBuffer *out, SignalBorrowedBuffer key_pair_bytes);
+
+SignalFfiError *signal_zk_credential_public_key_check_valid_contents(SignalBorrowedBuffer public_key_bytes);
 
 #endif  /* SIGNAL_FFI_H_ */
