@@ -49,7 +49,7 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
-var whatsmeowDate int = 20260611
+var whatsmeowDate int = 20260622
 
 type JSONMessage []json.RawMessage
 type JSONMessageType string
