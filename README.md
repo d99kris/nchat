@@ -1338,6 +1338,22 @@ includes the source code of the following third-party libraries:
   Copyright 2022 Tulir Asokan -
   [MPL License](/lib/wmchat/go/ext/whatsmeow/LICENSE)
 
+Binary distributions of nchat bundle these libraries, and for static builds
+their statically linked system dependencies (OpenSSL, ncurses, zlib, ...)
+directly in the executable. Such distributions therefore carry the full
+license texts in a combined `THIRD_PARTY_LICENSES` file installed to
+`share/doc/nchat/` (and copied to the archive top level for visibility). That
+file is assembled at build time from per-component fragments so its content
+matches the protocols the binary was built with (Telegram / WhatsApp / Signal)
+and whether system libraries were linked statically; its preamble states the
+combined-work license. That license is MIT for a Telegram-only build, GNU GPL
+v3 when WhatsApp support is compiled in (whatsmeow links the GPL-3.0 libsignal
+library), and GNU AGPL v3 when Signal support is compiled in, the same rule
+`nchat --version` reports. The Go-dependency fragments
+(`lib/wmchat/THIRD_PARTY_LICENSES`, `lib/sgchat/THIRD_PARTY_LICENSES`) are
+regenerated with `utils/dist/gen-third-party-licenses`; the remaining fragments
+are maintained by hand.
+
 The [tdlib](https://github.com/tdlib/td),
 [whatsmeow](https://github.com/tulir/whatsmeow) and
 [signal](https://github.com/mautrix/signal)

@@ -123,6 +123,18 @@ fi
 # Perform go mod tidy
 pushd lib/sgchat/go > /dev/null && go mod tidy && popd > /dev/null
 
+# Regenerate the Signal third-party license fragment so the attribution for the
+# Go module tree lands in the same commit as the dependency bump.
+echo "Third-party licenses"
+if command -v go-licenses > /dev/null 2>&1; then
+  ${REPOROOT}/utils/dist/gen-third-party-licenses sgchat || \
+    echo "WARNING: license regen failed; refresh lib/sgchat/THIRD_PARTY_LICENSES by hand"
+else
+  echo "NOTE: go-licenses not on PATH; after 'go install github.com/google/go-licenses@latest'"
+  echo "      run './utils/dist/gen-third-party-licenses sgchat' to refresh"
+  echo "      lib/sgchat/THIRD_PARTY_LICENSES"
+fi
+
 # Complete
 echo "Done"
 echo "Proceed to bump project version and build:"

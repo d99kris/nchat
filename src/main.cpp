@@ -712,8 +712,10 @@ void ShowVersion()
     "\n"
     "Copyright (c) 2019-2026 Kristofer Berggren\n"
     "\n"
-#ifdef HAS_SIGNAL
+#if defined(HAS_SIGNAL)
     "Combined distribution subject to GNU AGPL v3 license.\n"
+#elif defined(HAS_WHATSAPP)
+    "Combined distribution subject to GNU GPL v3 license.\n"
 #else
     "Combined distribution subject to MIT license.\n"
 #endif

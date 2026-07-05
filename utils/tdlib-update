@@ -107,6 +107,12 @@ ${SEDCMD} -E -i -e "s/^static const int s_TdlibDate.*$/static const int s_TdlibD
 ${SEDCMD} -E -i -e "s/^cmake_minimum_required\(VERSION 3\.0.*$/cmake_minimum_required\(VERSION 3.16 FATAL_ERROR\)/g" lib/tgchat/ext/td/CMakeLists.txt
 ${SEDCMD} -E -i -e "s/^cmake_minimum_required\(VERSION 3\.0.*$/cmake_minimum_required\(VERSION 3.16 FATAL_ERROR\)/g" lib/tgchat/ext/td/td/generate/tl-parser/CMakeLists.txt
 
+# Reminder: the Telegram third-party license fragment is hand-maintained (the
+# Boost license text is stable); only its version line needs a bump.
+echo "Third-party licenses"
+echo "NOTE: update the tdlib version line in lib/tgchat/THIRD_PARTY_LICENSES"
+echo "      to ${NEWVERSION} (${NEWDATE}) if it changed"
+
 # Complete
 echo "Done"
 echo "Proceed to bump project version and build:"

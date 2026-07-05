@@ -76,7 +76,9 @@ cmake --build "${BUILD_DIR}" -j "${JOBS}"
 rm -rf "${STAGE_DIR}"
 DESTDIR="${STAGE_DIR}" cmake --install "${BUILD_DIR}" --strip
 rm -rf "${STAGE_DIR}/lib"
-cp "${SRC}/LICENSE" "${STAGE_DIR}/LICENSE"
+# LICENSE and the combined THIRD_PARTY_LICENSES are installed under
+# share/doc/nchat/ by the CMake install rule; package.sh also surfaces them at
+# the archive top level.
 
 BIN="${STAGE_DIR}/bin/nchat"
 file "${BIN}"

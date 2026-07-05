@@ -100,6 +100,18 @@ ${SEDCMD} -E -i -e "s/^var whatsmeowDate int.*$/var whatsmeowDate int = ${NEWVER
 # Perform go mod tidy
 pushd lib/wmchat/go > /dev/null && go mod tidy && popd > /dev/null
 
+# Regenerate the WhatsApp third-party license fragment so the attribution for
+# the Go module tree lands in the same commit as the dependency bump.
+echo "Third-party licenses"
+if command -v go-licenses > /dev/null 2>&1; then
+  ${REPOROOT}/utils/dist/gen-third-party-licenses wmchat || \
+    echo "WARNING: license regen failed; refresh lib/wmchat/THIRD_PARTY_LICENSES by hand"
+else
+  echo "NOTE: go-licenses not on PATH; after 'go install github.com/google/go-licenses@latest'"
+  echo "      run './utils/dist/gen-third-party-licenses wmchat' to refresh"
+  echo "      lib/wmchat/THIRD_PARTY_LICENSES"
+fi
+
 # Complete
 echo "Done"
 echo "Proceed to bump project version and build:"

@@ -103,6 +103,12 @@ for target in "${targets[@]}"; do
   work="$(mktemp -d)"
   trap 'rm -rf "${work}"' EXIT
   cp -R "${stage}" "${work}/${pkg}"
+  # Surface the license notices at the archive top level for visibility; they
+  # are also installed under share/doc/nchat/ by the CMake install rule.
+  docdir="${work}/${pkg}/share/doc/nchat"
+  for f in LICENSE THIRD_PARTY_LICENSES; do
+    [[ -f "${docdir}/${f}" ]] && cp "${docdir}/${f}" "${work}/${pkg}/${f}"
+  done
   tar -czf "${DIST_DIR}/${tarball}" -C "${work}" "${pkg}"
   rm -rf "${work}"
   trap - EXIT
