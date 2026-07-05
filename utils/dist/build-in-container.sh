@@ -31,19 +31,17 @@ if [[ -z "${JOBS:-}" ]]; then
   [[ ${JOBS} -gt $(nproc) ]] && JOBS=$(nproc)
 fi
 
-# musl cannot host nchat's cgo/Go protocols: the Go c-archive runtime
-# faults during bringup under a static musl link (nchat issue #204), so a
-# musl binary with WhatsApp/Signal segfaults at startup. Disable the Go
-# protocols for musl and build a Telegram-only (plus dummy) static binary.
+# musl: the image's Go toolchain carries the vendored Go PR #69325 patch
+# (see Dockerfile.alpine / doc/MUSLGO.md), fixing the Go c-archive startup
+# crash on musl (nchat issue #204). Pass -DHAS_MUSL_GO_PATCHED=ON so CMake
+# keeps WhatsApp enabled (it auto-disables on musl otherwise). Signal stays
+# OFF on musl (deferred; the glibc dist does not enable it either).
 # glibc keeps WhatsApp and points CMake at the source-built static deps in
 # /opt/nchat-deps (see Dockerfile.manylinux); only libc stays dynamic.
 EXTRA_CMAKE_ARGS=()
 LINKER_FLAGS=""
 if [[ "${LIBC}" == "musl" ]]; then
-  echo "$0: WARNING: musl target does not support cgo/Go protocols (issue" >&2
-  echo "$0:          #204); disabling WhatsApp and Signal. The resulting" >&2
-  echo "$0:          static binary supports Telegram and dummy only." >&2
-  EXTRA_CMAKE_ARGS+=(-DHAS_WHATSAPP=OFF -DHAS_SIGNAL=OFF)
+  EXTRA_CMAKE_ARGS+=(-DHAS_MUSL_GO_PATCHED=ON)
   # -static for a fully static link; -no-pie avoids static-pie edge cases
   LINKER_FLAGS="-static -no-pie"
 elif [[ "${LIBC}" == "glibc" ]]; then

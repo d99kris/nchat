@@ -9,7 +9,7 @@
 FROM alpine:3.24
 
 RUN apk add --no-cache \
-    bash build-base ccache cmake git go gperf linux-headers pkgconf samurai \
+    bash build-base ccache cmake git gperf linux-headers patch pkgconf samurai \
     ncurses-dev ncurses-static \
     sqlite-dev sqlite-static \
     openssl-dev openssl-libs-static \
@@ -17,6 +17,28 @@ RUN apk add --no-cache \
     libpng-dev libpng-static \
     file-dev libmagic-static \
     libxcb-dev libxcb-static libxau-dev libxdmcp-dev xorgproto
+
+# Go from the official tarball (its binaries are statically linked, so they
+# run on musl), patched with Go PR #69325 so c-archives do not segfault at
+# startup on musl (nchat issue #204; see doc/MUSLGO.md). Pinned to the tag
+# the vendored patch was rebased onto — bump both together. GOTOOLCHAIN=local
+# keeps go from auto-downloading an unpatched toolchain to satisfy go.mod.
+ARG GO_VERSION=1.26.3
+COPY patches/go-pr69325-musl-argv.patch /tmp/go-musl-argv.patch
+RUN set -eu; \
+    case "$(uname -m)" in \
+      aarch64) goarch=arm64 ;; \
+      x86_64)  goarch=amd64 ;; \
+      *) echo "unsupported arch $(uname -m)" >&2; exit 1 ;; \
+    esac; \
+    wget -q "https://go.dev/dl/go${GO_VERSION}.linux-${goarch}.tar.gz" \
+      -O /tmp/go.tar.gz && \
+    tar -C /usr/local -xzf /tmp/go.tar.gz && \
+    patch -p1 -d /usr/local/go < /tmp/go-musl-argv.patch && \
+    rm /tmp/go.tar.gz /tmp/go-musl-argv.patch && \
+    /usr/local/go/bin/go version
+ENV PATH=/usr/local/go/bin:${PATH} \
+    GOTOOLCHAIN=local
 
 # Alpine ships no libXau.a; build it from source so static libxcb can link
 ARG LIBXAU_VERSION=1.0.12

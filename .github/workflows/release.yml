@@ -1,0 +1,206 @@
+name: Release
+
+# Builds the portable, statically linked nchat distribution artifacts and,
+# on a version tag, publishes them to a GitHub Release. Each job just runs
+# the self-contained scripts under utils/dist/ (the same ones used for
+# local dist builds), so the release is reproducible from the public repo.
+#
+# Triggers:
+#   - push of a `v*` tag  -> build every target, smoke-test, publish release
+#   - workflow_dispatch    -> build + smoke-test only (no release), a dry run
+#
+# Cache warming: GitHub Actions caches are isolated per tag -- one tag's run
+# cannot restore another tag's cache; the only shared scope is the default
+# branch. So before tagging a release, run this workflow via workflow_dispatch
+# on `master` (a no-publish dry run) to populate master-scoped ccache / Go /
+# dep / image caches. The subsequent tag run inherits them and skips the cold
+# tdlib compile (otherwise every release rebuilds from scratch, ~1.5 h). Check
+# the tag run's "Cache restored from key" log line to confirm the hit.
+#
+# Runners are native-arch (no cross-compilation / emulation). For the Linux
+# jobs the glibc compatibility floor comes from the build container images, not
+# the runner OS, so runner-image aging is a non-issue there; the macOS job
+# builds on the bare runner, but its floor is pinned via
+# MACOSX_DEPLOYMENT_TARGET (12.0) in build-macos.sh.
+
+on:
+  workflow_dispatch:
+  # Comment out below lines to disable release builds and publishing for v tags
+  push:
+    tags:
+      - 'v*'
+
+# Serialize runs for the same ref; never cancel a publishing run midway.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  linux:
+    name: linux-${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    env:
+      # tdlib compilation units need 2-4 GB each; cap parallelism so a cold
+      # ccache (first run / Dockerfile change) does not OOM the runner.
+      JOBS: 2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          # Full history + tags so package.sh can resolve the release version
+          # from the tag pointing at HEAD (git describe --tags --exact-match).
+          fetch-depth: 0
+
+      - name: Cache ccache + Go build/mod caches
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/nchat-dist
+          key: nchat-dist-${{ matrix.arch }}-${{ github.run_id }}
+          restore-keys: |
+            nchat-dist-${{ matrix.arch }}-
+
+      # The manylinux (glibc) image compiles ~a dozen deps from source (~15-20
+      # min); cache the built image so only a Dockerfile change rebuilds it.
+      # The musl (alpine) image is cheap to build, so it is not cached.
+      - name: Cache glibc build image
+        id: glibc-image
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/nchat-images
+          key: nchat-image-glibc-${{ matrix.arch }}-${{ hashFiles('utils/dist/Dockerfile.manylinux') }}
+
+      - name: Load cached glibc build image
+        if: steps.glibc-image.outputs.cache-hit == 'true'
+        run: docker load -i ~/.cache/nchat-images/glibc.tar
+
+      - name: Build musl (fully static)
+        run: ./utils/dist/build-linux.sh musl
+
+      - name: Build glibc (mostly static)
+        env:
+          NCHAT_DIST_SKIP_IMAGE_BUILD: ${{ steps.glibc-image.outputs.cache-hit == 'true' && '1' || '' }}
+        run: ./utils/dist/build-linux.sh glibc
+
+      - name: Save glibc build image for cache
+        if: steps.glibc-image.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/.cache/nchat-images
+          docker save "nchat-dist-glibc-${{ matrix.arch }}" -o ~/.cache/nchat-images/glibc.tar
+
+      - name: Package tarballs + checksums
+        run: ./utils/dist/package.sh
+
+      - name: Smoke-test artifacts in clean containers
+        run: ./utils/dist/smoke.sh
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: dist-linux-${{ matrix.arch }}
+          # Versioned artifacts only: tarball and its .sha256 sidecar. The
+          # [0-9] anchor (version always starts with a digit) excludes the
+          # unversioned staged trees dist/nchat-<target>/, whose name has a
+          # letter right after "nchat-".
+          path: |
+            dist/nchat-[0-9]*
+          if-no-files-found: error
+
+  macos:
+    name: macos-arm64
+    runs-on: macos-latest # arm64
+    env:
+      # macos-latest is a smaller runner; keep tdlib parallelism modest.
+      JOBS: 2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      # macos-latest does not reliably ship Go on PATH; the Linux jobs get Go
+      # from the build container images (Dockerfile.manylinux pins GO_VERSION),
+      # so pin the same version here to keep the cgo build reproducible.
+      # cache: false -- we persist GOCACHE/GOMODCACHE ourselves under
+      # ~/.cache/nchat-dist below; setup-go's own module cache otherwise warns
+      # (nchat's go.mod files are nested under lib/*/go, not at the repo root).
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.1'
+          cache: false
+
+      - name: Install ccache
+        run: HOMEBREW_NO_AUTO_UPDATE=1 brew install ccache
+
+      # Single rolling cache for the dep prefix, ccache and the Go build/mod
+      # caches -- keyed on the run id so every run saves a fresh snapshot and
+      # the next run restores the latest via the restore-key prefix. This
+      # mirrors the Linux jobs. Do NOT route ccache through the shared
+      # setup-ccache action here: its key is static (compiler + CMakeLists
+      # hash), so once written it is never re-saved ("Cache hit occurred on
+      # the primary key, not saving cache"), leaving the release build to
+      # recompile tdlib from a stale, flag-mismatched cache every run.
+      - name: Cache dep prefix + ccache + Go caches
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/nchat-dist
+          key: nchat-dist-macos-arm64-${{ github.run_id }}
+          restore-keys: |
+            nchat-dist-macos-arm64-
+
+      - name: Build macOS (static third-party libs)
+        run: |
+          export CCACHE_DIR="${HOME}/.cache/nchat-dist/ccache-macos-arm64"
+          export GOCACHE="${HOME}/.cache/nchat-dist/go-macos-arm64/build"
+          export GOMODCACHE="${HOME}/.cache/nchat-dist/go-macos-arm64/mod"
+          ccache --max-size=1G
+          ./utils/dist/build-macos.sh
+
+      - name: Package tarball + checksum
+        run: ./utils/dist/package.sh
+
+      - name: Smoke-test artifact on host
+        run: ./utils/dist/smoke.sh
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: dist-macos-arm64
+          # Versioned artifacts only (see the linux job for the [0-9] rationale).
+          path: |
+            dist/nchat-[0-9]*
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: [linux, macos]
+    # Only publish for an actual version tag; workflow_dispatch is a dry run.
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v7
+        with:
+          pattern: dist-*
+          merge-multiple: true
+          path: dist
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          # Tarballs and their .sha256 sidecars (the merged download dir
+          # holds only versioned files, so the glob is unambiguous).
+          files: |
+            dist/nchat-[0-9]*
+          fail_on_unmatched_files: true
+          generate_release_notes: true

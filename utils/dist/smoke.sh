@@ -13,6 +13,14 @@
 # exiting." — exercising ncurses/terminfo and a full clean lifecycle without
 # any interactive input. macOS tarballs are checked natively on the host.
 #
+# musl tarballs additionally get a WhatsApp setup probe (once per tarball,
+# in the alpine image): it drives `nchat -s` up to the QR pairing screen,
+# exercising the Go c-archive runtime bring-up that segfaulted on musl
+# before the patched-Go toolchain (issue #204, doc/MUSLGO.md). Reaching
+# the QR banner is fatal-on-failure; actually receiving a QR code from
+# WhatsApp servers additionally proves DNS/TLS from the static binary and
+# is reported non-fatally (qr:ok / qr:WARN) since it needs network.
+#
 # Only artifacts whose architecture matches the host are tested (no
 # emulation); run this on a host of each target arch. Containers require
 # docker; a glibc artifact skips the musl-only alpine image.
@@ -26,6 +34,8 @@
 #   NCHAT_SMOKE_CONTAINERS  space-separated docker images (override matrix)
 #   NCHAT_SMOKE_TERM        TERM for the TUI-init probe (default xterm-256color)
 #   NCHAT_SMOKE_TUI=0       skip the TUI-init probe
+#   NCHAT_SMOKE_WA=0        skip the WhatsApp setup probe (musl tarballs)
+#   NCHAT_SMOKE_WA_IMAGE    image for the WhatsApp probe (default alpine:latest)
 #
 # nchat is distributed under the MIT license, see LICENSE for details.
 
@@ -50,6 +60,8 @@ else
 fi
 SMOKE_TERM="${NCHAT_SMOKE_TERM:-xterm-256color}"
 TUI_PROBE="${NCHAT_SMOKE_TUI:-1}"
+WA_PROBE="${NCHAT_SMOKE_WA:-1}"
+WA_IMAGE="${NCHAT_SMOKE_WA_IMAGE:-alpine:latest}"
 
 # The "no profiles" clean-exit sentinel printed after initscr()/endwin().
 SENTINEL="No profiles setup, exiting."
@@ -149,6 +161,46 @@ run_tui_linux() {
   [[ "${out}" == *"${SENTINEL}"* ]]
 }
 
+# run_wa_linux <image> <platform> <pkg-root> — WhatsApp setup probe (musl).
+# Drives `nchat -s` up to the QR pairing screen and prints a result token:
+#   qr      QR code received from WhatsApp servers (DNS/TLS path proven)
+#   init    QR banner reached (Go runtime + client init OK), no QR (network?)
+#   none    binary has no WhatsApp protocol compiled in
+#   crash   setup died before the QR banner (the #204 failure mode)
+run_wa_linux() {
+  local image="$1" platform="$2" root="$3" out idx
+  # Enumerate protocols: with stdin at EOF the selector aborts cleanly.
+  out="$(docker run --rm --platform "${platform}" \
+    -e HOME=/tmp/h -v "${root}:/opt/nchat:ro" "${image}" /bin/sh -c '
+      mkdir -p /tmp/h
+      /opt/nchat/bin/nchat -s </dev/null 2>&1
+    ' 2>&1)" || true
+  idx="$(printf '%s\n' "${out}" | sed -n 's/^\([0-9][0-9]*\)\. WhatsAppMd$/\1/p' | head -n1)"
+  if [[ -z "${idx}" ]]; then
+    echo "none"; return 0
+  fi
+  # Select WhatsApp, feed a dummy phone number, and let the Go client run up
+  # to (and briefly into) the QR wait loop. The timeout must run inside the
+  # container: timing out the docker client would leave the container behind.
+  out="$(docker run --rm --platform "${platform}" \
+    -e HOME=/tmp/h -v "${root}:/opt/nchat:ro" "${image}" /bin/sh -c "
+      mkdir -p /tmp/h
+      printf '%s\n%s\n' '${idx}' '+15551234567' |
+        timeout 45 /opt/nchat/bin/nchat -s 2>&1
+    " 2>&1)" || true
+  # A rendered QR is made of half-block glyphs; the banner alone still proves
+  # the Go c-archive runtime and whatsmeow/sqlite client init came up.
+  if [[ "${out}" == *"▄"* || "${out}" == *"▀"* || "${out}" == *"█"* ]]; then
+    echo "qr"
+  elif [[ "${out}" == *"Scan the Qr code"* ]]; then
+    echo "init"
+  else
+    printf '%s\n' "${out}" | tail -n 15 | sed 's/^/      /' >&2
+    echo "crash"
+  fi
+  return 0
+}
+
 smoke_linux() {
   local tarball="$1" target="$2" arch="$3"
   local platform
@@ -204,6 +256,26 @@ smoke_linux() {
       record "FAIL ${target} @ ${image}"; FAIL=$((FAIL + 1))
     fi
   done
+
+  # WhatsApp setup probe, musl tarballs only (see header): the Go c-archive
+  # runtime used to segfault at startup on musl (#204); reaching the QR
+  # banner is the fatal pass bar, an actual QR additionally proves network.
+  if [[ ${is_musl} -eq 1 && "${WA_PROBE}" != "0" ]]; then
+    case "$(run_wa_linux "${WA_IMAGE}" "${platform}" "${root}")" in
+      qr)
+        echo "  PASS ${target} wa-setup @ ${WA_IMAGE}  (qr:ok)"
+        record "PASS ${target} wa-setup @ ${WA_IMAGE} qr:ok"; PASS=$((PASS + 1)) ;;
+      init)
+        echo "  PASS ${target} wa-setup @ ${WA_IMAGE}  (qr:WARN no QR received; no network?)"
+        record "PASS ${target} wa-setup @ ${WA_IMAGE} qr:WARN"; PASS=$((PASS + 1)) ;;
+      none)
+        echo "  SKIP ${target} wa-setup: no WhatsApp protocol in binary"
+        record "SKIP ${target} wa-setup (no WhatsApp)"; SKIP=$((SKIP + 1)) ;;
+      *)
+        echo "  FAIL ${target} wa-setup @ ${WA_IMAGE} (died before QR banner — see doc/MUSLGO.md / #204)"
+        record "FAIL ${target} wa-setup @ ${WA_IMAGE}"; FAIL=$((FAIL + 1)) ;;
+    esac
+  fi
 
   rm -rf "${tree}"
 }

@@ -16,8 +16,8 @@
 #   dist/nchat-<version>-<target>.sha256          (checksum sidecar)
 #
 # The bare binary is a lower-friction, drop-into-a-bin-dir convenience: it
-# carries no LICENSE or man page. musl bare binaries are Telegram-only,
-# same as their tarball.
+# carries no LICENSE or man page. musl bare binaries support Telegram and
+# WhatsApp (Signal not supported), same as their tarball.
 #
 # Version is derived from the git tag at HEAD (leading "v" stripped),
 # falling back to NCHAT_VERSION in lib/common/src/version.h (so the

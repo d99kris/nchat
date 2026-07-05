@@ -1,0 +1,284 @@
+runtime: fix segfault due to missing argv on musl-linux c-archive
+
+Upstream: Go PR #69325 <https://github.com/golang/go/pull/69325>
+          (Gerrit CL for Go issue #13492); not yet merged upstream.
+Context:  nchat issue #204 <https://github.com/d99kris/nchat/issues/204>,
+          see doc/MUSLGO.md.
+
+Rebased onto go1.26.3 (the Go shipped by alpine:3.24, used by
+Dockerfile.alpine). Apply with: patch -p1 -d "$GOROOT" < this-file
+
+Local deviations from the upstream PR (both required on go >= 1.26):
+1. getGodebugEarly() now returns (string, bool) and strips the
+   "GODEBUG=" prefix; the musl branch is adapted accordingly.
+2. getGodebugEarly() is called before mallocinit() in schedinit(), so
+   the upstream musl branch (which allocates via append/make in
+   readNullTerminatedStringsFromFile) crashes in mallocgc. The early
+   lookup is replaced by getGodebugEarlyFromProc(), which reads
+   /proc/self/environ into a static buffer and returns a no-copy
+   string. goargs()/goenvs() run after mallocinit() and keep the
+   upstream approach.
+
+Runtime requirement: /proc must be mounted (values are read from
+/proc/self/cmdline and /proc/self/environ on musl).
+
+--- /dev/null
++++ b/src/runtime/cgo/callbacks_musl_linux.go
+@@ -0,0 +1,17 @@
++// Copyright 2024 The Go Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style
++// license that can be found in the LICENSE file.
++
++//go:build linux
++
++package cgo
++
++import _ "unsafe" // for go:linkname
++
++// x_cgo_is_musl returns 1 if the C library is musl.
++
++//go:cgo_import_static x_cgo_is_musl
++//go:linkname x_cgo_is_musl x_cgo_is_musl
++//go:linkname _cgo_is_musl _cgo_is_musl
++var x_cgo_is_musl byte
++var _cgo_is_musl = &x_cgo_is_musl
+--- /dev/null
++++ b/src/runtime/cgo/gcc_musl_linux.c
+@@ -0,0 +1,14 @@
++// Copyright 2024 The Go Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style
++// license that can be found in the LICENSE file.
++
++//go:build linux
++
++// x_cgo_is_musl reports whether the C library is musl.
++int x_cgo_is_musl() {
++	#if defined(__GLIBC__) || defined(__UCLIBC__)
++		return 0;
++	#else
++		return 1;
++	#endif
++}
+--- a/src/runtime/os_linux.go
++++ b/src/runtime/os_linux.go
+@@ -237,21 +237,25 @@
+ func sysargs(argc int32, argv **byte) {
+ 	n := argc + 1
+ 
+-	// skip over argv, envp to get to auxv
+-	for argv_index(argv, n) != nil {
++	// auxv on argv is not available on musl library/archive.
++	if !libmusl {
++		// skip over argv, envp to get to auxv
++		for argv_index(argv, n) != nil {
++			n++
++		}
++
++		// skip NULL separator
+ 		n++
+-	}
+ 
+-	// skip NULL separator
+-	n++
++		// now argv+n is auxv
++		auxvp := (*[1 << 28]uintptr)(add(unsafe.Pointer(argv), uintptr(n)*goarch.PtrSize))
+ 
+-	// now argv+n is auxv
+-	auxvp := (*[1 << 28]uintptr)(add(unsafe.Pointer(argv), uintptr(n)*goarch.PtrSize))
+-
+-	if pairs := sysauxv(auxvp[:]); pairs != 0 {
+-		auxv = auxvp[: pairs*2 : pairs*2]
+-		return
++		if pairs := sysauxv(auxvp[:]); pairs != 0 {
++			auxv = auxvp[: pairs*2 : pairs*2]
++			return
++		}
+ 	}
++
+ 	// In some situations we don't get a loader-provided
+ 	// auxv, such as when loaded as a library on Android.
+ 	// Fall back to /proc/self/auxv.
+@@ -369,9 +373,17 @@
+ }
+ 
+ func goenvs() {
++	if libmusl {
++		// Read envs from /proc/self/environ instead
++		envs = readNullTerminatedStringsFromFile(procEnviron)
++		return
++	}
+ 	goenvs_unix()
+ }
+ 
++//go:linkname _cgo_is_musl _cgo_is_musl
++var _cgo_is_musl unsafe.Pointer
++
+ // Called to do synchronous initialization of Go code built with
+ // -buildmode=c-archive or -buildmode=c-shared.
+ // None of the Go runtime is initialized.
+@@ -379,6 +391,7 @@
+ //go:nosplit
+ //go:nowritebarrierrec
+ func libpreinit() {
++	libmusl = asmcgocall(_cgo_is_musl, nil) == 1
+ 	initsig(true)
+ }
+ 
+--- a/src/runtime/proc.go
++++ b/src/runtime/proc.go
+@@ -798,6 +798,14 @@
+ 		// Similar to goenv_unix but extracts the environment value for
+ 		// GODEBUG directly.
+ 		// TODO(moehrmann): remove when general goenvs() can be called before cpuinit()
++
++		// On musl, argv/envp were not passed to the c-archive/c-shared
++		// entry point, so read GODEBUG from /proc/self/environ instead.
++		// This runs before mallocinit, so it must not allocate.
++		if libmusl {
++			return getGodebugEarlyFromProc(), true
++		}
++
+ 		n := int32(0)
+ 		for argv_index(argv, argc+1+n) != nil {
+ 			n++
+--- a/src/runtime/runtime1.go
++++ b/src/runtime/runtime1.go
+@@ -26,6 +26,9 @@
+ var traceback_cache uint32 = 2 << tracebackShift
+ var traceback_env uint32
+ 
++var procCmdline = []byte("/proc/self/cmdline\x00")
++var procEnviron = []byte("/proc/self/environ\x00")
++
+ // gotraceback returns the current traceback settings.
+ //
+ // If level is 0, suppress all tracebacks.
+@@ -74,6 +77,13 @@
+ 	if GOOS == "windows" {
+ 		return
+ 	}
++
++	// musl-linux library: Read argv from /proc/self/cmdline instead
++	if libmusl {
++		argslice = readNullTerminatedStringsFromFile(procCmdline)
++		return
++	}
++
+ 	argslice = make([]string, argc)
+ 	for i := int32(0); i < argc; i++ {
+ 		argslice[i] = gostringnocopy(argv_index(argv, i))
+@@ -93,6 +103,102 @@
+ 	for i := int32(0); i < n; i++ {
+ 		envs[i] = gostring(argv_index(argv, argc+1+i))
+ 	}
++}
++
++// readNullTerminatedStringsFromFile reads a file specified by the given path
++// and returns a slice of strings. Each string in the slice is null-terminated
++// in the file.
++//
++// Parameters:
++// - path: A null-terminated byte slice representing the file path.
++//
++// Returns:
++// - A slice of strings read from the file, where each string is null-terminated.
++//
++// It opens the file, reads its contents in chunks,
++// and parses the data into a slice of strings based on null-termination.
++//
++// Note: This function will return nil if the file cannot be opened.
++func readNullTerminatedStringsFromFile(path []byte) []string {
++	fd := open(&path[0], _O_RDONLY, 0)
++	if fd <= 0 {
++		return nil
++	}
++
++	// Read the file.
++	var data []byte
++	var buf [1024]byte
++	for {
++		n := read(fd, noescape(unsafe.Pointer(&buf[0])), int32(unsafe.Sizeof(buf)))
++		if n <= 0 { // EOF
++			break
++		}
++		data = append(data, buf[:n]...)
++	}
++
++	// Parse the data into a slice of strings.
++	var start int
++	var result = make([]string, 0, 8)
++	for i := 0; i < len(data); i++ {
++		if data[i] == 0 { // null-termination
++			result = append(result, gostring(&data[start:i][0]))
++			start = i + 1
++		}
++	}
++
++	closefd(fd)
++	return result
++}
++
++// godebugEnvBuf holds the contents of /proc/self/environ for the early
++// GODEBUG lookup on musl. It must be a global: getGodebugEarlyFromProc
++// runs before mallocinit, so the returned string aliases this buffer
++// instead of being heap-allocated.
++var godebugEnvBuf [16 << 10]byte
++
++// getGodebugEarlyFromProc returns the value of the GODEBUG environment
++// variable by reading /proc/self/environ, for musl-linux archive/library
++// builds where envp was not passed to the entry point. It is called
++// before mallocinit and therefore must not allocate.
++func getGodebugEarlyFromProc() string {
++	const prefix = "GODEBUG="
++	fd := open(&procEnviron[0], _O_RDONLY, 0)
++	if fd <= 0 {
++		return ""
++	}
++	total := 0
++	for total < len(godebugEnvBuf) {
++		n := read(fd, noescape(unsafe.Pointer(&godebugEnvBuf[total])), int32(len(godebugEnvBuf)-total))
++		if n <= 0 { // EOF
++			break
++		}
++		total += int(n)
++	}
++	closefd(fd)
++
++	buf := godebugEnvBuf[:total]
++	start := 0
++	for i := 0; i < len(buf); i++ {
++		if buf[i] == 0 { // null-termination
++			s := buf[start:i]
++			if len(s) > len(prefix) {
++				match := true
++				for j := 0; j < len(prefix); j++ {
++					if s[j] != prefix[j] {
++						match = false
++						break
++					}
++				}
++				if match {
++					// Null-terminated in buf, and buf is global,
++					// so a no-copy string is safe here.
++					return gostringnocopy(&buf[start+len(prefix)])
++				}
++			}
++			start = i + 1
++		}
++	}
++	return ""
+ }
+ 
+ func environ() []string {
+--- a/src/runtime/runtime2.go
++++ b/src/runtime/runtime2.go
+@@ -1501,6 +1501,9 @@
+ 	isarchive bool // -buildmode=c-archive
+ )
+ 
++// libmusl is set if the Go archive/library is linked against linux musl libc.
++var libmusl bool  // set by os_linux libpreinit
++
+ // Must agree with internal/buildcfg.FramePointerEnabled.
+ const framepointer_enabled = GOARCH == "amd64" || GOARCH == "arm64"
+ 

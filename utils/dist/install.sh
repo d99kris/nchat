@@ -18,8 +18,9 @@
 #   NCHAT_REPO      GitHub owner/name to fetch from; default: d99kris/nchat
 #
 # On glibc Linux the glibc build is selected; on musl Linux the musl build
-# (Telegram-only — no WhatsApp/Signal, see issue #204); on macOS the arm64
-# build. The full tarball is fetched (so the man page comes along).
+# (Telegram and WhatsApp — Signal not supported on musl; WhatsApp needs /proc
+# mounted, see doc/MUSLGO.md); on macOS the arm64 build. The full tarball is
+# fetched (so the man page comes along).
 #
 # nchat is distributed under the MIT license, see LICENSE for details.
 
@@ -141,7 +142,7 @@ main() {
       libc="$(detect_libc)"
       target="linux-${arch}-${libc}"
       if [[ "${libc}" == "musl" ]]; then
-        warn "musl system — this build is Telegram-only (no WhatsApp/Signal, issue #204)"
+        warn "musl system — Signal not supported (Telegram and WhatsApp work); WhatsApp requires /proc mounted, see doc/MUSLGO.md"
       fi
       ;;
   esac
@@ -221,7 +222,7 @@ main() {
   fi
 
   info "installed nchat ${version} to ${bindir}/nchat"
-  [[ "${target}" == *-musl ]] && info "musl build: Telegram only (no WhatsApp/Signal)"
+  [[ "${target}" == *-musl ]] && info "musl build: Telegram and WhatsApp (Signal not supported; WhatsApp needs /proc mounted)"
 
   case ":${PATH}:" in
     *":${bindir}:"*) ;;

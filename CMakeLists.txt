@@ -171,6 +171,24 @@ message(STATUS "WhatsApp: ${HAS_WHATSAPP}")
 option(HAS_SIGNAL "Signal" OFF)
 message(STATUS "Signal: ${HAS_SIGNAL}")
 
+# musl restrictions - Go c-archives built with a stock Go toolchain segfault
+# at startup on musl (nchat issue #204 / Go PR #69325), so on musl WhatsApp
+# requires a patched Go toolchain, asserted via -DHAS_MUSL_GO_PATCHED=ON
+# (see doc/MUSLGO.md). Signal on musl is not supported and stays off regardless.
+option(HAS_MUSL_GO_PATCHED "Musl Go Patched" OFF)
+execute_process(COMMAND ${CMAKE_CXX_COMPILER} -dumpmachine
+                OUTPUT_VARIABLE TARGET_TRIPLE ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE)
+if (TARGET_TRIPLE MATCHES "musl")
+  if (HAS_WHATSAPP AND NOT HAS_MUSL_GO_PATCHED)
+    set(HAS_WHATSAPP OFF)
+    message(STATUS "WhatsApp: ${HAS_WHATSAPP} (Forced - musl needs a Go toolchain patched with Go PR #69325, then pass -DHAS_MUSL_GO_PATCHED=ON; see doc/MUSLGO.md)")
+  endif()
+  if (HAS_SIGNAL)
+    set(HAS_SIGNAL OFF)
+    message(STATUS "Signal: ${HAS_SIGNAL} (Forced - not supported on musl)")
+  endif()
+endif()
+
 # Feature - Dynamic library load
 option(HAS_DYNAMICLOAD "Dynamic Load" ON)
 if(HAS_DYNAMICLOAD AND NOT HAS_SHARED_LIBS)
