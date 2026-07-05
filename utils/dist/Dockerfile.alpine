@@ -1,0 +1,30 @@
+# Dockerfile.alpine
+#
+# Build environment for fully static (musl) nchat Linux binaries.
+# Multi-arch: usable on x86_64 and arm64 hosts (native arch only).
+# See utils/dist/build-linux.sh for usage.
+#
+# nchat is distributed under the MIT license, see LICENSE for details.
+
+FROM alpine:3.24
+
+RUN apk add --no-cache \
+    bash build-base ccache cmake git go gperf linux-headers pkgconf samurai \
+    ncurses-dev ncurses-static \
+    sqlite-dev sqlite-static \
+    openssl-dev openssl-libs-static \
+    zlib-dev zlib-static \
+    libpng-dev libpng-static \
+    file-dev libmagic-static \
+    libxcb-dev libxcb-static libxau-dev libxdmcp-dev xorgproto
+
+# Alpine ships no libXau.a; build it from source so static libxcb can link
+ARG LIBXAU_VERSION=1.0.12
+RUN wget -q "https://www.x.org/releases/individual/lib/libXau-${LIBXAU_VERSION}.tar.xz" \
+      -O /tmp/libXau.tar.xz && \
+    tar -xf /tmp/libXau.tar.xz -C /tmp && \
+    cd "/tmp/libXau-${LIBXAU_VERSION}" && \
+    ./configure --prefix=/usr --enable-static --disable-shared && \
+    make -j"$(nproc)" && \
+    make install && \
+    rm -rf /tmp/libXau*

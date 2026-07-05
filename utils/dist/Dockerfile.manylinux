@@ -1,0 +1,163 @@
+# Dockerfile.manylinux
+#
+# Build environment for mostly-static (glibc >= 2.28) nchat Linux binaries.
+# Based on the manylinux_2_28 images (AlmaLinux 8, gcc-toolset targeting
+# glibc 2.28) which are maintained for years past that distro's EOL. Only
+# libc/libm/libpthread/libdl stay dynamic; every third-party library is
+# built static from source into /opt/nchat-deps below.
+#
+# Arch is selected by the BASEIMAGE arg (native-arch only, no cross):
+#   x86_64 -> quay.io/pypa/manylinux_2_28_x86_64
+#   arm64  -> quay.io/pypa/manylinux_2_28_aarch64
+# See utils/dist/build-linux.sh for usage.
+#
+# nchat is distributed under the MIT license, see LICENSE for details.
+
+ARG BASEIMAGE=quay.io/pypa/manylinux_2_28_aarch64
+FROM ${BASEIMAGE}
+
+SHELL ["/bin/bash", "-c"]
+
+# Prefix that holds every source-built static dependency.
+ENV DEPS=/opt/nchat-deps
+ENV PATH=${DEPS}/bin:/usr/local/go/bin:${PATH} \
+    PKG_CONFIG_PATH=${DEPS}/lib/pkgconfig:${DEPS}/lib64/pkgconfig:${DEPS}/share/pkgconfig \
+    ACLOCAL_PATH=${DEPS}/share/aclocal \
+    CPPFLAGS=-I${DEPS}/include \
+    LDFLAGS=-L${DEPS}/lib
+
+# Build tooling not present in the base image (ninja/gperf via EPEL). gcc 14
+# (gcc-toolset) and cmake ship in the base and are already on PATH.
+RUN dnf install -y epel-release && \
+    dnf install -y ninja-build gperf patch diffutils which xz bzip2 file-libs \
+      perl-IPC-Cmd perl-Data-Dumper && \
+    dnf clean all
+
+# Go from the official (glibc-linked) tarball, for the whatsmeow c-archive.
+ARG GO_VERSION=1.25.1
+RUN set -euo pipefail; \
+    case "$(uname -m)" in \
+      aarch64) goarch=arm64 ;; \
+      x86_64)  goarch=amd64 ;; \
+      *) echo "unsupported arch $(uname -m)" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${goarch}.tar.gz" \
+      | tar -C /usr/local -xz
+
+# --- Static dependency builds (one layer each for docker-cache reuse) ---
+
+# zlib: needed by libpng, libmagic, tdlib.
+ARG ZLIB_VERSION=1.3.1
+RUN set -euo pipefail; \
+    curl -fsSL "https://zlib.net/fossils/zlib-${ZLIB_VERSION}.tar.gz" | tar xz; \
+    cd "zlib-${ZLIB_VERSION}"; \
+    ./configure --prefix="${DEPS}" --static; \
+    make -j"$(nproc)"; make install; \
+    cd ..; rm -rf "zlib-${ZLIB_VERSION}"
+
+# openssl: needed by tdlib (OPENSSL_USE_STATIC_LIBS). --libdir=lib keeps it
+# out of lib64 so a single -L covers everything.
+ARG OPENSSL_VERSION=3.0.16
+RUN set -euo pipefail; \
+    curl -fsSL "https://github.com/openssl/openssl/releases/download/openssl-${OPENSSL_VERSION}/openssl-${OPENSSL_VERSION}.tar.gz" | tar xz; \
+    cd "openssl-${OPENSSL_VERSION}"; \
+    ./Configure --prefix="${DEPS}" --libdir=lib no-shared no-tests; \
+    make -j"$(nproc)"; make install_sw; \
+    cd ..; rm -rf "openssl-${OPENSSL_VERSION}"
+
+# bzip2 / xz / zstd: libmagic's decompression backends.
+ARG BZIP2_VERSION=1.0.8
+RUN set -euo pipefail; \
+    curl -fsSL "https://sourceware.org/pub/bzip2/bzip2-${BZIP2_VERSION}.tar.gz" | tar xz; \
+    cd "bzip2-${BZIP2_VERSION}"; \
+    make -j"$(nproc)" libbz2.a; make install PREFIX="${DEPS}"; \
+    cd ..; rm -rf "bzip2-${BZIP2_VERSION}"
+
+ARG XZ_VERSION=5.4.7
+RUN set -euo pipefail; \
+    curl -fsSL "https://github.com/tukaani-project/xz/releases/download/v${XZ_VERSION}/xz-${XZ_VERSION}.tar.gz" | tar xz; \
+    cd "xz-${XZ_VERSION}"; \
+    ./configure --prefix="${DEPS}" --disable-shared --enable-static \
+      --disable-xzdec --disable-lzmadec --disable-lzmainfo --disable-scripts --disable-doc; \
+    make -j"$(nproc)"; make install; \
+    cd ..; rm -rf "xz-${XZ_VERSION}"
+
+ARG ZSTD_VERSION=1.5.6
+RUN set -euo pipefail; \
+    curl -fsSL "https://github.com/facebook/zstd/releases/download/v${ZSTD_VERSION}/zstd-${ZSTD_VERSION}.tar.gz" | tar xz; \
+    cd "zstd-${ZSTD_VERSION}"; \
+    make -j"$(nproc)" -C lib install-static install-includes install-pc PREFIX="${DEPS}"; \
+    cd ..; rm -rf "zstd-${ZSTD_VERSION}"
+
+# libmagic (file): mime/type detection in lib/ncutil. Also ships magic.mgc.
+ARG FILE_VERSION=5.46
+RUN set -euo pipefail; \
+    curl -fsSL "https://astron.com/pub/file/file-${FILE_VERSION}.tar.gz" | tar xz; \
+    cd "file-${FILE_VERSION}"; \
+    ./configure --prefix="${DEPS}" --disable-shared --enable-static --disable-libseccomp; \
+    make -j"$(nproc)"; make install; \
+    cd ..; rm -rf "file-${FILE_VERSION}"
+
+# ncursesw (+ tinfow). Compile in terminfo fallbacks and a broad search path
+# so the static binary renders on distros with differing terminfo locations.
+ARG NCURSES_VERSION=6.5
+RUN set -euo pipefail; \
+    curl -fsSL "https://ftp.gnu.org/gnu/ncurses/ncurses-${NCURSES_VERSION}.tar.gz" | tar xz; \
+    cd "ncurses-${NCURSES_VERSION}"; \
+    ./configure --prefix="${DEPS}" \
+      --without-shared --without-debug --without-ada --without-tests --without-manpages \
+      --enable-widec --with-termlib --enable-pc-files \
+      --with-pkg-config-libdir="${DEPS}/lib/pkgconfig" \
+      --with-default-terminfo-dir=/usr/share/terminfo \
+      --with-terminfo-dirs="/etc/terminfo:/lib/terminfo:/usr/share/terminfo:/usr/lib/terminfo" \
+      --with-fallbacks="xterm,xterm-256color,tmux-256color,screen-256color,linux,vt100"; \
+    make -j"$(nproc)"; make install; \
+    cd ..; rm -rf "ncurses-${NCURSES_VERSION}"
+
+# sqlite3: message cache backend in lib/ncutil.
+ARG SQLITE_URL=https://www.sqlite.org/2024/sqlite-autoconf-3470200.tar.gz
+RUN set -euo pipefail; \
+    curl -fsSL "${SQLITE_URL}" | tar xz; \
+    cd sqlite-autoconf-*; \
+    ./configure --prefix="${DEPS}" --disable-shared --enable-static; \
+    make -j"$(nproc)"; make install; \
+    cd ..; rm -rf sqlite-autoconf-*
+
+# libpng: image clipboard support in ext/clip (needs zlib above).
+ARG LIBPNG_VERSION=1.6.44
+RUN set -euo pipefail; \
+    curl -fsSL "https://download.sourceforge.net/libpng/libpng-${LIBPNG_VERSION}.tar.gz" | tar xz; \
+    cd "libpng-${LIBPNG_VERSION}"; \
+    ./configure --prefix="${DEPS}" --disable-shared --enable-static; \
+    make -j"$(nproc)"; make install; \
+    cd ..; rm -rf "libpng-${LIBPNG_VERSION}"
+
+# X11 clipboard stack for ext/clip: xcb + Xau + Xdmcp, all static. Without
+# these clip degrades to an internal-only clipboard (graceful), but the
+# recommended glibc build keeps parity with the source build.
+ARG UTIL_MACROS_VERSION=1.20.2
+ARG XORGPROTO_VERSION=2024.1
+ARG XCBPROTO_VERSION=1.17.0
+ARG PTHREAD_STUBS_VERSION=0.5
+ARG LIBXAU_VERSION=1.0.12
+ARG LIBXDMCP_VERSION=1.1.5
+ARG LIBXCB_VERSION=1.17.0
+RUN set -euo pipefail; \
+    xbuild() { \
+      local url="$1"; shift; \
+      local tarball="${url##*/}"; local dir="${tarball%.tar.*}"; \
+      curl -fsSL "$url" -o "/tmp/${tarball}"; \
+      tar -C /tmp -xf "/tmp/${tarball}"; \
+      ( cd "/tmp/${dir}" && ./configure --prefix="${DEPS}" "$@" && make -j"$(nproc)" && make install ); \
+      rm -rf "/tmp/${tarball}" "/tmp/${dir}"; \
+    }; \
+    xbuild "https://www.x.org/releases/individual/util/util-macros-${UTIL_MACROS_VERSION}.tar.xz"; \
+    xbuild "https://www.x.org/releases/individual/proto/xorgproto-${XORGPROTO_VERSION}.tar.xz"; \
+    xbuild "https://www.x.org/releases/individual/xcb/xcb-proto-${XCBPROTO_VERSION}.tar.xz"; \
+    xbuild "https://www.x.org/releases/individual/xcb/libpthread-stubs-${PTHREAD_STUBS_VERSION}.tar.xz"; \
+    xbuild "https://www.x.org/releases/individual/lib/libXau-${LIBXAU_VERSION}.tar.xz" --disable-shared --enable-static; \
+    xbuild "https://www.x.org/releases/individual/lib/libXdmcp-${LIBXDMCP_VERSION}.tar.xz" --disable-shared --enable-static; \
+    xbuild "https://www.x.org/releases/individual/xcb/libxcb-${LIBXCB_VERSION}.tar.xz" --disable-shared --enable-static
+
+# ccache lives in EPEL; used via CMAKE_*_COMPILER_LAUNCHER during the build.
+RUN dnf install -y ccache && dnf clean all
