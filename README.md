@@ -1035,6 +1035,7 @@ Available themes:
     espresso
     gruvbox-dark
     gruvbox-dark-hard
+    purple-light
     solarized-dark-higher-contrast
     tokyo-night
     tomorrow-night
