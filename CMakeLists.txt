@@ -134,6 +134,18 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD")
   message(STATUS "Disabling WhatsApp, Signal, Shared libs, Dynamic load - OpenBSD restrictions")
 endif()
 
+# Config - Static linking of external library dependencies
+option(HAS_STATIC_EXTLIBS "Static Ext Libs" OFF)
+message(STATUS "Static Ext Libs: ${HAS_STATIC_EXTLIBS}")
+if(HAS_STATIC_EXTLIBS)
+  set(HAS_SHARED_LIBS OFF)
+  set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
+  set(OPENSSL_USE_STATIC_LIBS TRUE)
+  if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    add_link_options(-static-libstdc++ -static-libgcc)
+  endif()
+endif()
+
 # Config - Components built as shared libraries
 option(HAS_SHARED_LIBS "Shared Libs" ON)
 message(STATUS "Shared Libs: ${HAS_SHARED_LIBS}")
@@ -323,6 +335,13 @@ else()
   set(CURSES_NEED_NCURSES TRUE)
   set(CURSES_NEED_WIDE TRUE)
   find_package(Curses REQUIRED)
+  if(HAS_STATIC_EXTLIBS)
+    # static ncursesw does not bundle terminfo routines on some distros
+    find_library(TINFO_LIBRARY NAMES tinfow tinfo)
+    if(TINFO_LIBRARY)
+      list(APPEND CURSES_LIBRARIES ${TINFO_LIBRARY})
+    endif()
+  endif()
   include_directories(${CURSES_INCLUDE_DIR})
   target_compile_options(nchat PUBLIC ${NCURSES_CFLAGS})
 endif()
@@ -387,7 +406,7 @@ if(HAS_COREDUMP)
     set(SIGNSCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/utils/sign")
     set(ENTITLEMENTS "${CMAKE_CURRENT_SOURCE_DIR}/src/nchat.entitlements")
     install(CODE "execute_process(COMMAND
-      \"${SIGNSCRIPT}\" \"${ENTITLEMENTS}\" \"${CMAKE_INSTALL_PREFIX}/bin/nchat\"
+      \"${SIGNSCRIPT}\" \"${ENTITLEMENTS}\" \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/nchat\"
       )" COMPONENT Runtime)
   endif()
 endif()

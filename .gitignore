@@ -1,2 +1,4 @@
-build
-dbgbuild
+/build
+/build-static
+/build-static-ext
+/dbgbuild

@@ -16,6 +16,15 @@ find_path(MAGIC_INCLUDE_DIR magic.h
   /usr/local/include
   /usr/include
 )
+if(HAS_STATIC_EXTLIBS)
+  # static libmagic needs its compression backends
+  foreach(MAGIC_DEP z bz2 lzma zstd)
+    find_library(MAGIC_DEP_LIBRARY_${MAGIC_DEP} ${MAGIC_DEP})
+    if(MAGIC_DEP_LIBRARY_${MAGIC_DEP})
+      list(APPEND MAGIC_LIBRARY ${MAGIC_DEP_LIBRARY_${MAGIC_DEP}})
+    endif()
+  endforeach()
+endif()
 find_package(SQLite3 REQUIRED)
 
 # Platform specifics
@@ -103,6 +112,18 @@ endif()
 add_subdirectory(ext/QR-Code-generator/cpp)
 add_subdirectory(ext/stb)
 add_subdirectory(ext/clip)
+if(HAS_STATIC_EXTLIBS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+  # static libxcb needs libXau and libXdmcp
+  find_library(XAU_LIBRARY Xau)
+  find_library(XDMCP_LIBRARY Xdmcp)
+  if(XAU_LIBRARY AND XDMCP_LIBRARY)
+    target_link_libraries(clip ${XAU_LIBRARY} ${XDMCP_LIBRARY})
+  endif()
+  # static libpng needs zlib after it on the link line
+  if(FOUND_PNG_H)
+    target_link_libraries(clip ${PNG_LIBRARIES})
+  endif()
+endif()
 
 # Common
 target_common_config(ncutil)

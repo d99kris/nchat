@@ -21,9 +21,11 @@ endif ()
 if (HAS_STATICGOLIB)
   set(BUILDMODE c-archive)
   set(OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR})
+  set(LIBSUFFIX ${CMAKE_STATIC_LIBRARY_SUFFIX})
 else()
   set(BUILDMODE c-shared)
   set(OUTPUT_DIR ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
+  set(LIBSUFFIX ${CMAKE_SHARED_LIBRARY_SUFFIX})
 endif()
 
 # Build Go library / C archive
@@ -32,7 +34,7 @@ set(GOPATH ${OUTPUT_DIR})
 set(SRCS gosg.go cgosg.go go.mod go.sum)
 file(GLOB_RECURSE EXT_SRCS ext/*.go)
 list(APPEND SRCS ${EXT_SRCS})
-set(LIB "libcgosg${CMAKE_SHARED_LIBRARY_SUFFIX}")
+set(LIB "libcgosg${LIBSUFFIX}")
 
 # Option to download pre-built libsignal_ffi instead of building from source
 option(DOWNLOAD_LIBSIGNAL "Download pre-built libsignal_ffi (falls back to building from source if unavailable)" ON)
@@ -167,8 +169,12 @@ add_custom_command(OUTPUT ${OUTPUT_DIR}/${LIB}
   COMMENT "Building Go library")
 add_custom_target(${TARGET} DEPENDS ${OUTPUT_DIR}/${LIB} ${HEADER})
 
-# Build shared library
-add_library(ref-cgosg SHARED IMPORTED GLOBAL)
+# Reference Go library (c-archive is a static library, link it by path)
+if (HAS_STATICGOLIB)
+  add_library(ref-cgosg STATIC IMPORTED GLOBAL)
+else()
+  add_library(ref-cgosg SHARED IMPORTED GLOBAL)
+endif()
 add_dependencies(ref-cgosg ${TARGET})
 set_target_properties(ref-cgosg
   PROPERTIES
