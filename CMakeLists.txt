@@ -159,7 +159,7 @@ option(HAS_ASAN "ASAN" OFF)
 message(STATUS "ASAN: ${HAS_ASAN}")
 
 # Optional component - Dummy Protocol
-option(HAS_DUMMY "Dummy" ON)
+option(HAS_DUMMY "Dummy" OFF)
 message(STATUS "Dummy: ${HAS_DUMMY}")
 
 # Optional component - Telegram
