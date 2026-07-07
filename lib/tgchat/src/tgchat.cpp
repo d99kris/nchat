@@ -3427,6 +3427,21 @@ void TgChat::Impl::AppendPageBlock(const td::td_api::PageBlock& p_Block, std::os
         p_Oss << p_Indent << caption << "\n";
       }
 
+      // Compute display width of a UTF-8 string (handles accents, emoji, wide chars)
+      auto displayWidth = [](const std::string& s) -> int
+      {
+        std::wstring ws = StrUtil::ToWString(s);
+        return StrUtil::WStringWidth(ws);
+      };
+
+      // Pad a string to a given display width with spaces on the right
+      auto padRight = [&](const std::string& s, int width) -> std::string
+      {
+        int dw = displayWidth(s);
+        if (dw >= width) return s;
+        return s + std::string(width - dw, ' ');
+      };
+
       std::vector<std::vector<std::string>> rows;
       size_t maxCols = 0;
       for (const auto& row : table.cells_)
@@ -3447,24 +3462,25 @@ void TgChat::Impl::AppendPageBlock(const td::td_api::PageBlock& p_Block, std::os
 
       if (rows.empty() || maxCols == 0) break;
 
-      std::vector<size_t> colWidths(maxCols, 0);
+      // Calculate column widths using display width (not byte length)
+      std::vector<int> colWidths(maxCols, 0);
       for (const auto& row : rows)
       {
         for (size_t i = 0; i < row.size(); ++i)
         {
-          colWidths[i] = std::max(colWidths[i], row[i].size());
+          colWidths[i] = std::max(colWidths[i], displayWidth(row[i]));
         }
       }
 
+      // Separator line: +---+---+---+
       auto separator = [&]()
       {
         p_Oss << p_Indent;
         for (size_t i = 0; i < maxCols; ++i)
         {
-          p_Oss << std::string(colWidths[i] + 2, '-');
-          if (i + 1 < maxCols) p_Oss << "+";
+          p_Oss << "+" << std::string(colWidths[i] + 2, '-');
         }
-        p_Oss << "\n";
+        p_Oss << "+\n";
       };
 
       bool drawBorder = table.is_bordered_;
@@ -3476,10 +3492,9 @@ void TgChat::Impl::AppendPageBlock(const td::td_api::PageBlock& p_Block, std::os
         for (size_t i = 0; i < maxCols; ++i)
         {
           const std::string& cell = (i < rows[r].size()) ? rows[r][i] : "";
-          p_Oss << " " << cell << std::string(colWidths[i] - cell.size(), ' ') << " ";
-          if (i + 1 < maxCols) p_Oss << "|";
+          p_Oss << "| " << padRight(cell, colWidths[i]) << " ";
         }
-        p_Oss << "\n";
+        p_Oss << "|\n";
         if (drawBorder && r == 0) separator();
       }
       if (drawBorder) separator();
