@@ -687,6 +687,7 @@ void ShowHelp()
     "    Alt-q       jump to quoted/replied message\n"
     "    Alt-r       forward selected message\n"
     "    Alt-s       add/remove reaction on selected message\n"
+    "    Alt-u       transcribe selected audio message\n"
     "    Alt-w       external message viewer\n"
     "\n"
     "Interactive Commands for Text Input:\n"
