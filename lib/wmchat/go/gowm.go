@@ -1597,7 +1597,7 @@ func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg 
 		displayName := msg.ContactMessage.GetDisplayName()
 		vcard := msg.ContactMessage.GetVcard()
 
-		reTel := regexp.MustCompile(`(?m)^TEL[^:]*:(.+)`)
+		reTel := regexp.MustCompile(`(?i)TEL[^:]*:(.+)`)
 		telMatches := reTel.FindAllStringSubmatch(vcard, -1)
 
 		var phones []string
@@ -1608,7 +1608,7 @@ func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg 
 			}
 		}
 
-		reEmail := regexp.MustCompile(`(?m)^EMAIL[^:]*:(.+)`)
+		reEmail := regexp.MustCompile(`(?i)EMAIL[^:]*:(.+)`)
 		emailMatches := reEmail.FindAllStringSubmatch(vcard, -1)
 
 		var emails []string
@@ -1647,7 +1647,7 @@ func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg 
 			}
 
 			// Parse phone numbers from this specific contact's vcard
-			reTel := regexp.MustCompile(`(?m)^TEL[^:]*:(.+)`)
+			reTel := regexp.MustCompile(`(?i)TEL[^:]*:(.+)`)
 			telMatches := reTel.FindAllStringSubmatch(vcard, -1)
 			var phones []string
 			for _, match := range telMatches {
@@ -1657,7 +1657,7 @@ func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg 
 			}
 
 			// Parse emails from this specific contact's vcard
-			reEmail := regexp.MustCompile(`(?m)^EMAIL[^:]*:(.+)`)
+			reEmail := regexp.MustCompile(`(?i)EMAIL[^:]*:(.+)`)
 			emailMatches := reEmail.FindAllStringSubmatch(vcard, -1)
 			var emails []string
 			for _, match := range emailMatches {
