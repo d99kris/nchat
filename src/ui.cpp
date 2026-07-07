@@ -55,6 +55,7 @@ void Ui::Init()
   cbreak();
   UiConfig::GetBool("linefeed_on_enter") ? nl() : nonl();
   keypad(stdscr, TRUE);
+  set_escdelay(25); // minimize lag on bare ESC (vim_mode mode switch)
   curs_set(0);
   timeout(0);
   EmojiList::Init();

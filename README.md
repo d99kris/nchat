@@ -498,6 +498,7 @@ This configuration file holds general user interface settings. Default content:
     typing_status_share=1
     undo_clear_input=1
     unread_indicator=*
+    vim_mode=0
 
 ### attachment_indicator
 
@@ -849,6 +850,33 @@ is enabled.
 
 Specifies the character to suffix chats with unread messages in the chat list.
 
+### vim_mode
+
+Specifies whether to enable vim-style modal editing in the message compose
+entry. Default `0` (disabled). When enabled, the entry starts in insert mode;
+press `Esc` for normal mode. The current mode is shown as a colored badge in
+the status bar (configurable via the `vim_*_color` / `vim_*_attr` keys in
+`color.conf`) and as a cursor shape (bar in insert, block in normal).
+
+Supported commands in normal mode:
+
+| Group | Commands |
+| ----- | -------- |
+| Motions | `h l 0 ^ $`, `w e b W E B`, `( )` (sentence), `{ }` (paragraph), `j k`, `gg G`, `f F t T` |
+| Operators | `d c y` + any motion; `dd cc yy` (line); `D C` (to end of line) |
+| Edit | `x X`, `s S` (substitute), `o O` (open line), `p P` (paste) |
+| Modes | `i a A I` (insert), `v` (visual), `Esc` (normal) |
+| Counts | e.g. `3w`, `d3w`, `2dd` |
+
+Visual mode (`v`) highlights the selection and applies `d c y x` to it.
+When `vim_mode=0` there is no behavioral change and zero overhead.
+
+### send_on_double_enter
+
+Set `send_on_double_enter=1` in `ui.conf` (default `0`) to make a single
+`Enter` insert a newline and a second consecutive `Enter` send the message
+(dropping the just-typed newline). The existing `send_msg` key still works.
+
 ~/.config/nchat/key.conf
 ------------------------
 This configuration file holds user interface key bindings. Default content:
@@ -984,6 +1012,16 @@ This configuration file holds user interface color settings. Default content:
     top_attr=reverse
     top_color_bg=
     top_color_fg=
+
+Vim mode badge colors (`vim_*_color_bg`, `vim_*_color_fg`, `vim_*_attr`):
+
+| Prefix | Default badge |
+| ------ | ------------- |
+| `vim_normal_*` | bright-blue bg / black fg (bold) |
+| `vim_insert_*` | bright-green bg / black fg (bold) |
+| `vim_visual_*` | bright-yellow bg / black fg (bold) |
+
+Conventional vim/airline mode colors. Configurable via `vim_normal_*` / `vim_insert_*` / `vim_visual_*` in `color.conf`.
 
 Supported text attributes `_attr` (defaults to `normal` if not specified):
 

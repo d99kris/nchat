@@ -62,6 +62,7 @@ void UiConfig::Init()
     { "online_status_share", "1" },
     { "online_status_dynamic", "1" },
     { "phone_number_indicator", "" },
+    { "send_on_double_enter", "0" },
     { "pinned_indicator", "\xe2\x9a\xb2" },
     { "proxy_indicator", "\xF0\x9F\x94\x92" },
     { "read_indicator", "\xe2\x9c\x93" },
@@ -80,6 +81,7 @@ void UiConfig::Init()
     { "typing_status_share", "1" },
     { "undo_clear_input", "1" },
     { "unread_indicator", "*" },
+    { "vim_mode", "0" },
   };
 
   const std::string configPath(FileUtil::GetApplicationDir() + std::string("/ui.conf"));
