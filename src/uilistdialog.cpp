@@ -180,6 +180,8 @@ void UiListDialog::Draw()
   static int shadedColorPair = UiColorConfig::GetColorPair("dialog_shaded_color");
   static int attribute = UiColorConfig::GetAttribute("dialog_attr");
   static int attributeSelected = UiColorConfig::GetAttribute("dialog_attr_selected");
+  static bool hasColorSelected = UiColorConfig::HasColor("dialog_color_selected");
+  static int colorPairSelected = hasColorSelected ? UiColorConfig::GetColorPair("dialog_color_selected") : colorPair;
   static std::wstring hiddenIndicator = L".";
 
   werase(m_Win);
@@ -190,7 +192,9 @@ void UiListDialog::Draw()
   for (int i = offset; i < std::min((offset + m_H), (int)m_Items.size()); ++i)
   {
     const std::wstring& wdisp = m_Items.at(i);
-    const bool isShaded = m_ShadeHidden && (wdisp.rfind(hiddenIndicator, 0) == 0);
+    // selected color takes precedence over shaded color for the highlighted item
+    const bool isSelectedColor = (i == m_Index) && hasColorSelected;
+    const bool isShaded = m_ShadeHidden && !isSelectedColor && (wdisp.rfind(hiddenIndicator, 0) == 0);
 
     if (isShaded)
     {
@@ -202,6 +206,11 @@ void UiListDialog::Draw()
     {
       wattroff(m_Win, attribute);
       wattron(m_Win, attributeSelected);
+      if (isSelectedColor)
+      {
+        wattroff(m_Win, colorPair);
+        wattron(m_Win, colorPairSelected);
+      }
     }
 
     mvwaddnwstr(m_Win, (i - offset), 0, wdisp.c_str(), std::min((int)wdisp.size(), m_W));
@@ -210,6 +219,11 @@ void UiListDialog::Draw()
     {
       wattroff(m_Win, attributeSelected);
       wattron(m_Win, attribute);
+      if (isSelectedColor)
+      {
+        wattroff(m_Win, colorPairSelected);
+        wattron(m_Win, colorPair);
+      }
     }
 
     if (isShaded)

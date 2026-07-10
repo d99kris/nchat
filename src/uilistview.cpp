@@ -52,6 +52,8 @@ void UiListView::Draw()
   static int attribute = UiColorConfig::GetAttribute("list_attr");
   static int attributeSelected = UiColorConfig::GetAttribute("list_attr_selected");
   static int colorPairUnread = UiColorConfig::GetColorPair("list_color_unread");
+  static bool hasColorSelected = UiColorConfig::HasColor("list_color_selected");
+  static int colorPairSelected = hasColorSelected ? UiColorConfig::GetColorPair("list_color_selected") : colorPair;
 
   int index = std::max(0, m_Model->GetCurrentChatIndexLocked());
   const std::vector<std::pair<std::string, std::string>>& p_ChatVec = m_Model->GetChatVecLocked();
@@ -84,6 +86,11 @@ void UiListView::Draw()
       {
         wattroff(m_PaddedWin, attribute);
         wattron(m_PaddedWin, attributeSelected);
+        if (hasColorSelected)
+        {
+          wattroff(m_PaddedWin, colorPair);
+          wattron(m_PaddedWin, colorPairSelected);
+        }
       }
 
       int y = i - offset;
@@ -96,8 +103,11 @@ void UiListView::Draw()
       std::wstring wname = StrUtil::ToWString(name).substr(0, m_PaddedW);
       wname = StrUtil::TrimPadWString(wname, m_PaddedW);
 
-      if (unreads[i])
+      // selected color takes precedence over unread color for the highlighted row
+      const bool useUnreadColor = unreads[i] && !((i == index) && hasColorSelected);
+      if (useUnreadColor)
       {
+        wattroff(m_PaddedWin, colorPair);
         wattron(m_PaddedWin, colorPairUnread);
       }
 
@@ -108,7 +118,11 @@ void UiListView::Draw()
         static const std::string unreadIndicator = " " + UiConfig::GetStr("unread_indicator");
         static const std::wstring wunread = StrUtil::ToWString(unreadIndicator);
         mvwaddnwstr(m_PaddedWin, y, (m_PaddedW - StrUtil::WStringWidth(wunread)), wunread.c_str(), wunread.size());
+      }
 
+      if (useUnreadColor)
+      {
+        wattroff(m_PaddedWin, colorPairUnread);
         wattron(m_PaddedWin, colorPair);
       }
 
@@ -116,6 +130,11 @@ void UiListView::Draw()
       {
         wattroff(m_PaddedWin, attributeSelected);
         wattron(m_PaddedWin, attribute);
+        if (hasColorSelected)
+        {
+          wattroff(m_PaddedWin, colorPairSelected);
+          wattron(m_PaddedWin, colorPair);
+        }
       }
     }
   }
