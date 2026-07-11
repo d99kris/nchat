@@ -112,7 +112,7 @@ Interactive Commands for Text Input:
     Alt-Delete  delete next word
     Alt-Tab     insert tab (four spaces)
     Alt-c       copy input buffer to clipboard (if no message selected)
-    Alt-v       paste into input buffer from clipboard
+    Alt-v       paste text or attach image from clipboard
     Alt-x       cut input buffer to clipboard
 
 
@@ -583,7 +583,9 @@ or a chat.
 ### confirm_send_pasted_image
 
 Specifies whether to prompt the user for confirmation when pasting an image
-to a chat.
+to a chat. Pasted images are attached to the current chat and sent when the
+message is sent; existing input text is used as caption when transfer captions
+are enabled.
 
 ### desktop_notify_active_current
 

@@ -700,7 +700,7 @@ void ShowHelp()
     "    Alt-Backsp  delete previous word\n"
     "    Alt-Delete  delete next word\n"
     "    Alt-c       copy input buffer to clipboard (if no message selected)\n"
-    "    Alt-v       paste into input buffer from clipboard\n"
+    "    Alt-v       paste text or attach image from clipboard\n"
     "    Alt-x       cut input buffer to clipboard\n"
     "\n"
     "Report bugs at https://github.com/d99kris/nchat\n"

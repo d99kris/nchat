@@ -183,6 +183,16 @@ void UiModel::Impl::SendMessage()
   std::string chatId = m_CurrentChat.second;
   std::wstring& entryStr = m_EntryStr[profileId][chatId];
   int& entryPos = m_EntryPos[profileId][chatId];
+  std::vector<std::string>& pendingFilePaths = GetPendingFilePaths(profileId, chatId);
+
+  if (!pendingFilePaths.empty())
+  {
+    std::vector<std::string> filePaths = pendingFilePaths;
+    pendingFilePaths.clear();
+    TransferFile(filePaths);
+    FileUtil::RmFilesByAge(FileUtil::GetTempDir(), "clipboard-*.png", 3600);
+    return;
+  }
 
   if (entryStr.empty()) return;
 
@@ -1388,6 +1398,12 @@ void UiModel::Impl::TransferFile(const std::vector<std::string>& p_FilePaths)
   ReinitView();
   ResetMessageOffset();
   SetHistoryInteraction(true);
+}
+
+std::vector<std::string>& UiModel::Impl::GetPendingFilePaths(const std::string& p_ProfileId,
+                                                             const std::string& p_ChatId)
+{
+  return m_PendingFilePaths[p_ProfileId][p_ChatId];
 }
 
 void UiModel::Impl::InsertEmoji(const std::wstring& p_Emoji)
@@ -5627,6 +5643,12 @@ void UiModel::OnKeyPaste()
 {
   if (Clipboard::HasImage())
   {
+    {
+      std::unique_lock<owned_mutex> lock(m_ModelMutex);
+      if (GetImpl().GetEditMessageActive()) return;
+      GetImpl().AnyUserKeyInput();
+    }
+
     // Open modal dialog without model mutex held
     static const bool confirmSendPastedImage = UiConfig::GetBool("confirm_send_pasted_image");
     if (confirmSendPastedImage)
@@ -5638,23 +5660,31 @@ void UiModel::OnKeyPaste()
     }
 
     static int index = 0;
-    ++index;
-    const std::string tempPath = FileUtil::GetTempDir() + "/clipboard-" + std::to_string(index) + ".png";
+    const std::string tempDir = FileUtil::GetTempDir();
+    std::string tempPath;
+    do
+    {
+      tempPath = tempDir + "/clipboard-" + std::to_string(getpid()) + "-" +
+        std::to_string(TimeUtil::GetCurrentTimeMSec()) + "-" + std::to_string(++index) + ".png";
+    } while (FileUtil::Exists(tempPath));
+
     if (!Clipboard::GetImage(tempPath))
     {
       MessageDialog("Warning", "Failed getting clipboard image.", 0.7, 5);
+      FileUtil::RmFile(tempPath);
       return;
     }
 
-    const std::vector<std::string> tempPaths = { tempPath };
-
     {
       std::unique_lock<owned_mutex> lock(m_ModelMutex);
-      GetImpl().TransferFile(tempPaths);
+      std::pair<std::string, std::string>& currentChat = GetImpl().GetCurrentChat();
+      GetImpl().GetPendingFilePaths(currentChat.first, currentChat.second).push_back(tempPath);
     }
 
-    // Delete temp clipboard images after some time, allowing for it to be sent async
-    FileUtil::RmFilesByAge(FileUtil::GetTempDir(), "clipboard-*.png", 60);
+    MessageDialog("Info", "Image attached. Press send to send it.", 0.6, 5);
+
+    // Delete stale temp clipboard images, keeping recent staged/sending files available.
+    FileUtil::RmFilesByAge(tempDir, "clipboard-*.png", 3600);
   }
   else
   {
