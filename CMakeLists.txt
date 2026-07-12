@@ -231,6 +231,7 @@ option(HAS_MUSL_GO_PATCHED "Musl Go Patched" OFF)
 execute_process(COMMAND ${CMAKE_CXX_COMPILER} -dumpmachine
                 OUTPUT_VARIABLE TARGET_TRIPLE ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE)
 if (TARGET_TRIPLE MATCHES "musl")
+  set(NCHAT_BUILD_MUSL 1)
   if (HAS_WHATSAPP AND NOT HAS_MUSL_GO_PATCHED)
     set(HAS_WHATSAPP OFF)
     message(STATUS "WhatsApp: ${HAS_WHATSAPP} (Forced - musl needs a Go toolchain patched with Go PR #69325, then pass -DHAS_MUSL_GO_PATCHED=ON; see doc/MUSLGO.md)")
@@ -304,6 +305,9 @@ function(target_common_config target)
   # commit does not force a full rebuild of every target.
   if(HAS_STATIC_EXTLIBS)
     target_compile_definitions(${target} PRIVATE NCHAT_BUILD_STATIC_EXTLIBS=1)
+  endif()
+  if(NCHAT_BUILD_MUSL)
+    target_compile_definitions(${target} PRIVATE NCHAT_BUILD_MUSL=1)
   endif()
 
   # Compile options

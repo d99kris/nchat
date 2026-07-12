@@ -259,11 +259,11 @@ int main(int argc, char* argv[])
   Log::Init(logPath);
   std::string appNameVersion = AppUtil::GetAppName(true /*p_WithVersion*/, true /*p_WithBranch*/);
   LOG_INFO("%s", appNameVersion.c_str());
-  std::string osArch = SysUtil::GetOsArch();
+  std::string osArch = SysUtil::GetOsArch(false /*p_Verbose*/);
   LOG_INFO("%s", osArch.c_str());
   std::string buildInfo = SysUtil::GetBuildInfo();
   LOG_INFO("%s", buildInfo.c_str());
-  std::string compiler = SysUtil::GetCompiler();
+  std::string compiler = SysUtil::GetCompiler(false /*p_Verbose*/);
   LOG_INFO("%s", compiler.c_str());
   std::string go = SysUtil::GetGo(GO_VERSION);
   LOG_INFO("%s", go.c_str());

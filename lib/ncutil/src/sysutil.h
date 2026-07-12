@@ -18,9 +18,9 @@ public:
   static std::string GetBuildGitSha();
   static std::string GetBuildInfo();
   static std::string GetBuildOrigin();
-  static std::string GetCompiler();
+  static std::string GetCompiler(bool p_Verbose);
   static std::string GetGo(const std::string& p_GoVersion);
-  static std::string GetOsArch();
+  static std::string GetOsArch(bool p_Verbose);
   static bool IsSupportedLibc();
   static bool RunCommand(const std::string& p_Cmd, std::string* p_StdOut = nullptr);
   static int System(const std::string& p_Cmd);
