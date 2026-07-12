@@ -9,9 +9,6 @@ include(TestBigEndian)
 if (NOT DEFINED CMAKE_INSTALL_LIBDIR)
   set(CMAKE_INSTALL_LIBDIR "lib")
 endif()
-if (NOT DEFINED CMAKE_INSTALL_LIBEXECDIR)
-  set(CMAKE_INSTALL_LIBEXECDIR "libexec")
-endif()
 if (NOT DEFINED CMAKE_INSTALL_DATADIR)
   set(CMAKE_INSTALL_DATADIR "share")
 endif()
@@ -263,8 +260,24 @@ else()
   set(LIBRARY_LINKING_TYPE STATIC)
 endif()
 
+# Embedded compose script - bundled in the executable and extracted to the
+# temp dir at runtime, so no separate libexec install is needed.
+set(COMPOSE_SCRIPT_HEADER "${CMAKE_CURRENT_BINARY_DIR}/generated/composescript.h")
+add_custom_command(
+  OUTPUT "${COMPOSE_SCRIPT_HEADER}"
+  COMMAND "${CMAKE_COMMAND}"
+          -DIN_FILE=${CMAKE_CURRENT_SOURCE_DIR}/src/compose
+          -DOUT_FILE=${COMPOSE_SCRIPT_HEADER}
+          -DVAR_NAME=ComposeScript
+          -P ${CMAKE_CURRENT_SOURCE_DIR}/utils/embedfile.cmake
+  DEPENDS src/compose utils/embedfile.cmake
+  COMMENT "Embedding compose script"
+  VERBATIM
+)
+
 # Application
 add_executable(nchat
+  ${COMPOSE_SCRIPT_HEADER}
   src/main.cpp
   src/ui.cpp
   src/ui.h
@@ -326,6 +339,7 @@ install(TARGETS nchat DESTINATION bin)
 # Headers
 target_include_directories(nchat PRIVATE "lib/common/src")
 target_include_directories(nchat PRIVATE "lib/ncutil/src")
+target_include_directories(nchat PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
 
 # Compiler flags
 set_target_properties(nchat PROPERTIES COMPILE_FLAGS
@@ -436,7 +450,6 @@ endif()
 target_common_config(nchat)
 target_compile_definitions(nchat PRIVATE
                            CMAKE_INSTALL_LIBDIR="${CMAKE_INSTALL_LIBDIR}"
-                           CMAKE_INSTALL_LIBEXECDIR="${CMAKE_INSTALL_LIBEXECDIR}"
                            GO_VERSION="${GO_VERSION}"
                            GO_VERSION_MIN="${GO_VERSION_MIN}")
 
@@ -507,10 +520,6 @@ endif()
 # Manual
 install(FILES src/nchat.1 DESTINATION "${CMAKE_INSTALL_MANDIR}/man1")
 
-# Utils
-configure_file(src/compose ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_INSTALL_LIBEXECDIR}/nchat/compose COPYONLY)
-install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_INSTALL_LIBEXECDIR}/nchat/compose DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}/nchat)
-
 # Uninstall
 if(HAS_SHARED_LIBS)
   add_custom_target(uninstall
@@ -522,8 +531,6 @@ if(HAS_SHARED_LIBS)
     COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libduchat${CMAKE_SHARED_LIBRARY_SUFFIX}"
     COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libwmchat${CMAKE_SHARED_LIBRARY_SUFFIX}"
     COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libsgchat${CMAKE_SHARED_LIBRARY_SUFFIX}"
-    COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBEXECDIR}/nchat/compose"
-    COMMAND "${CMAKE_COMMAND}" -E remove_directory "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBEXECDIR}/nchat"
     COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/doc/nchat/THIRD_PARTY_LICENSES"
     COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/doc/nchat/LICENSE"
     COMMAND "${CMAKE_COMMAND}" -E remove_directory "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/doc/nchat"
@@ -532,8 +539,6 @@ else()
   add_custom_target(uninstall
     COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/bin/nchat"
     COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_MANDIR}/man1/nchat.1"
-    COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBEXECDIR}/nchat/compose"
-    COMMAND "${CMAKE_COMMAND}" -E remove_directory "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBEXECDIR}/nchat"
     COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/doc/nchat/THIRD_PARTY_LICENSES"
     COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/doc/nchat/LICENSE"
     COMMAND "${CMAKE_COMMAND}" -E remove_directory "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/doc/nchat"

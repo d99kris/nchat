@@ -13,8 +13,8 @@
 #   NCHAT_VERSION   install a specific release instead of the latest
 #                   (accepts "5.4.3" or "v5.4.3"); default: latest release
 #   PREFIX          install prefix; default: ~/.local (installs $PREFIX/bin,
-#                   $PREFIX/share/man, $PREFIX/libexec). A non-writable prefix
-#                   self-elevates with sudo.
+#                   $PREFIX/share/man). A non-writable prefix self-elevates
+#                   with sudo.
 #   NCHAT_REPO      GitHub owner/name to fetch from; default: d99kris/nchat
 #
 # On glibc Linux the glibc build is selected; on musl Linux the musl build
@@ -177,7 +177,7 @@ main() {
   srcdir="${tmp}/nchat-${version}-${target}"
   [[ -x "${srcdir}/bin/nchat" ]] || die "unexpected archive layout: ${srcdir}/bin/nchat missing"
 
-  local prefix bindir mandir libexecdir
+  local prefix bindir mandir
   if [[ -n "${PREFIX:-}" ]]; then
     prefix="${PREFIX%/}"
   else
@@ -185,7 +185,6 @@ main() {
   fi
   bindir="${prefix}/bin"
   mandir="${prefix}/share/man"
-  libexecdir="${prefix}/libexec"
 
   if ! target_writable "${prefix}"; then
     if have sudo; then
@@ -204,14 +203,6 @@ main() {
   if [[ -f "${srcdir}/share/man/man1/nchat.1" ]]; then
     run_priv cp "${srcdir}/share/man/man1/nchat.1" "${mandir}/man1/nchat.1"
     run_priv chmod 0644 "${mandir}/man1/nchat.1"
-  fi
-
-  # The binary invokes the auto-compose helper at <bin>/../libexec/nchat/compose;
-  # install it too so that optional feature works from the installed prefix.
-  if [[ -f "${srcdir}/libexec/nchat/compose" ]]; then
-    run_priv mkdir -p "${libexecdir}/nchat"
-    run_priv cp "${srcdir}/libexec/nchat/compose" "${libexecdir}/nchat/compose"
-    run_priv chmod 0755 "${libexecdir}/nchat/compose"
   fi
 
   # A curl/tar install sets no quarantine attribute and the binary is already

@@ -17,6 +17,7 @@
 #include "messagecache.h"
 #include "apputil.h"
 #include "clipboard.h"
+#include "composescript.h"
 #include "fileutil.h"
 #include "log.h"
 #include "numutil.h"
@@ -4385,20 +4386,17 @@ bool UiModel::Impl::AutoCompose()
   std::string tempPath = FileUtil::GetTempDir() + "/history.txt";
   FileUtil::WriteFile(tempPath, historyStr);
 
-  static const std::string cmdTemplate = []()
+  static const std::string autoComposeCommand = UiConfig::GetStr("auto_compose_command");
+  std::string cmd = autoComposeCommand;
+  if (cmd.empty())
   {
-    std::string autoComposeCommand = UiConfig::GetStr("auto_compose_command");
-    if (autoComposeCommand.empty())
-    {
-      autoComposeCommand = FileUtil::DirName(FileUtil::GetSelfPath()) +
-        "/../" CMAKE_INSTALL_LIBEXECDIR "/nchat/compose -c '%1'";
-    }
-
-    return autoComposeCommand;
-  }();
+    // use bundled compose script, extracted on each use as the temp dir is transient
+    const std::string scriptPath = FileUtil::GetTempDir() + "/compose";
+    FileUtil::WriteFile(scriptPath, std::string((const char*)ComposeScript, sizeof(ComposeScript)));
+    cmd = "python3 '" + scriptPath + "' -c '%1'";
+  }
 
   std::string str;
-  std::string cmd = cmdTemplate;
   StrUtil::ReplaceString(cmd, "%1", tempPath);
   const bool rv = RunCommand(cmd, &str);
   if (rv)
