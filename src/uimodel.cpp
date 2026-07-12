@@ -2891,6 +2891,53 @@ void UiModel::Impl::SetStatusOnline(const std::string& p_ProfileId, bool p_IsOnl
   setStatusRequest->isOnline = p_IsOnline;
   LOG_TRACE("set status %s online %d", p_ProfileId.c_str(), (int)p_IsOnline);
   SendProtocolRequest(p_ProfileId, setStatusRequest);
+
+  if (!p_IsOnline && HasProtocolFeature(p_ProfileId, FeaturePresenceRequiresOnline))
+  {
+    // For protocols that only deliver contact presence while we are marked online,
+    // announcing offline (going away) stops further presence updates, so any typing
+    // or online indicator we last received would get stuck showing. Reset that stale
+    // live activity for this profile. (Protocols that keep streaming presence while
+    // offline, e.g. Telegram, must not do this or they would show stale data.)
+    bool statusChanged = false;
+
+    auto typingIt = m_UsersTyping.find(p_ProfileId);
+    if ((typingIt != m_UsersTyping.end()) && !typingIt->second.empty())
+    {
+      typingIt->second.clear();
+      statusChanged = true;
+    }
+
+    // Clear online flags so the chat status degrades from "online" to "away" / "seen
+    // ..." rather than a stale "online" we can no longer confirm.
+    auto onlineIt = m_UserOnline.find(p_ProfileId);
+    if (onlineIt != m_UserOnline.end())
+    {
+      auto& profileTimeSeen = m_UserTimeSeen[p_ProfileId];
+      for (auto& userOnline : onlineIt->second)
+      {
+        if (userOnline.second)
+        {
+          userOnline.second = false;
+          statusChanged = true;
+
+          // A peer flagged online was active right up to now, so refresh last-seen -
+          // but only if we already hold a real timestamp for them (i.e. they share
+          // last-seen). Fabricating one would disclose a last-seen they chose to hide.
+          auto timeSeenIt = profileTimeSeen.find(userOnline.first);
+          if (timeSeenIt != profileTimeSeen.end())
+          {
+            timeSeenIt->second = TimeUtil::GetCurrentTimeMSec();
+          }
+        }
+      }
+    }
+
+    if (statusChanged)
+    {
+      UpdateStatus();
+    }
+  }
 }
 
 int UiModel::Impl::GetHistoryLines()
