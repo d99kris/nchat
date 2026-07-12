@@ -94,8 +94,8 @@ BIN="${STAGE_DIR}/bin/nchat"
 # what a plain Release build produced. Only nchat's own frames carry DWARF
 # (HAS_DEBUG_SYMBOLS scopes -g1 to nchat's targets; tdlib, the Go c-archive and
 # the strip -S'd static deps are DWARF-free). package.sh ships the .dSYM in a
-# separate symbols tarball; install.sh --debug drops it back next to the
-# installed binary (use lldb on macOS — gdb is unsupported on Apple Silicon).
+# separate symbols tarball; extract it next to the installed binary and lldb
+# matches it by LC_UUID (use lldb on macOS — gdb is unsupported on Apple Silicon).
 dsymutil "${BIN}" -o "${BIN}.dSYM"
 
 # Strip local symbols only (a full strip is not valid for a cgo binary),

@@ -65,7 +65,7 @@ fi
 
 # Stamp a build-id so the detached nchat.debug can also be matched to the binary
 # by hash (and is debuginfod-ready); harmless alongside the .gnu_debuglink path
-# that install.sh --debug actually relies on.
+# a debugger uses when nchat.debug sits beside the installed binary.
 LINKER_FLAGS="${LINKER_FLAGS} -Wl,--build-id=sha1"
 
 # Configure from a clean build dir so dist builds are reproducible and no
@@ -102,8 +102,8 @@ BIN="${STAGE_DIR}/bin/nchat"
 # codegen, so the stripped binary is byte-for-byte what a plain Release build
 # produced. Only nchat's own frames carry DWARF (HAS_DEBUG_SYMBOLS scopes -g1 to
 # nchat's targets; tdlib, the Go c-archive and the static deps are DWARF-free).
-# package.sh ships nchat.debug in a separate symbols tarball; install.sh --debug
-# drops it back next to the installed binary.
+# package.sh ships nchat.debug in a separate symbols tarball; extract it next to
+# the installed binary and gdb auto-loads it via the .gnu_debuglink recorded below.
 objcopy --only-keep-debug "${BIN}" "${BIN}.debug"
 chmod 0644 "${BIN}.debug"
 strip --strip-all "${BIN}"

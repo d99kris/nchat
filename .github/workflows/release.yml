@@ -211,9 +211,9 @@ jobs:
       # in a separate job and uploads its own symbols, which are gathered here.
       # Once folded in, they are deleted so the release publishes a SINGLE
       # symbols asset (small enough that one tarball beats several).
-      # install.sh --debug fetches the combined and extracts just the running
-      # target's subdir. The delete glob keeps the same '-' guard so it never
-      # removes the combined tarball itself.
+      # to symbolise a crash, download the combined tarball and extract the
+      # running target's subdir beside the binary. The delete glob keeps the
+      # same '-' guard so it never removes the combined tarball itself.
       - name: Assemble combined symbols tarball
         run: |
           cd dist

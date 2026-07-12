@@ -15,8 +15,8 @@
 # tarball stays lean. That per-target tarball is an intermediate: each build job
 # uploads its own, and the release workflow folds them into one cross-platform
 # symbols-<version>.tar.gz (a <target>/ subdir per build) and publishes only
-# that single combined tarball — install.sh --debug fetches it and extracts the
-# running target's symbols. The symbols- prefix sorts it last on the release
+# that single combined tarball — download it and extract the matching target's
+# symbols beside the installed binary. The symbols- prefix sorts it last on the release
 # page (after every nchat-* asset and sha256sums.txt) — an obvious "not for
 # regular users" bucket.
 #
