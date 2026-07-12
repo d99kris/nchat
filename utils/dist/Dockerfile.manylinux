@@ -161,3 +161,24 @@ RUN set -euo pipefail; \
 
 # ccache lives in EPEL; used via CMAKE_*_COMPILER_LAUNCHER during the build.
 RUN dnf install -y ccache && dnf clean all
+
+# Strip DWARF from the static dependency archives now that they are all built.
+# Autotools defaults CFLAGS/CXXFLAGS to "-g -O2", so every source-built .a in
+# ${DEPS} above carries full debug info, which the static link folds into nchat
+# and `objcopy --only-keep-debug` would then harvest into nchat.debug, dwarfing
+# nchat's own frames. `--strip-debug` drops .debug_* but keeps the archive
+# symbol table, so the static link is unaffected.
+#
+# This MUST run here, as root at image-build time. The build container
+# (utils/dist/build-in-container.sh) runs as a non-root --user that cannot
+# rewrite these root-owned archives: an in-container strip fails "Permission
+# denied" and would silently leave the DWARF in place. As root the strip must
+# succeed, so no error is masked. Recurse over the whole prefix so it covers
+# both lib/ and lib64/ (manylinux is Red Hat-based; autotools install to lib64
+# on aarch64). Also strip the toolchain's static libstdc++/libgcc that the
+# -static-libstdc++/-static-libgcc link folds into nchat (a no-op while
+# gcc-toolset ships them DWARF-free, but guards a future toolchain that does not).
+RUN set -euo pipefail; \
+    find "${DEPS}" -name '*.a' -exec strip --strip-debug {} +; \
+    strip --strip-debug "$(gcc -print-file-name=libstdc++.a)"; \
+    strip --strip-debug "$(gcc -print-file-name=libgcc.a)"

@@ -9,6 +9,15 @@
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/d99kris/nchat/master/utils/dist/install.sh | bash
 #
+# Options (pass through the pipe with `| bash -s -- <opt>`):
+#   --debug   also fetch the combined debug-symbols tarball and drop the detached
+#             symbols next to the installed binary (nchat.debug beside it on
+#             Linux, nchat.dSYM on macOS), so a debugger auto-loads them:
+#             `gdb nchat` on Linux, `lldb nchat` on macOS (gdb is unsupported on
+#             Apple Silicon). Only nchat's own frames symbolise; tdlib, the
+#             WhatsApp Go archive and the static third-party libs are built
+#             without debug info.
+#
 # Env:
 #   NCHAT_VERSION   install a specific release instead of the latest
 #                   (accepts "5.4.3" or "v5.4.3"); default: latest release
@@ -100,12 +109,19 @@ detect_libc() {
 
 # --- checksum --------------------------------------------------------------
 
-verify_checksum() { # <dir> <file>  (expects <file>.sha256 alongside)
-  local dir="$1" file="$2"
+verify_checksum() { # <dir> <file>  (expects an aggregate sha256sums.txt alongside)
+  local dir="$1" file="$2" line
+  # The release ships one sha256sums.txt covering every target's tarball. Pull
+  # just this asset's line so verification does not fail over the other
+  # targets' tarballs, which we did not download. $NF is the filename field;
+  # strip a leading '*' (sha256sum's binary-mode marker) before matching.
+  line="$(awk -v a="${file}" '{ n = $NF; sub(/^\*/, "", n); if (n == a) print }' \
+    "${dir}/sha256sums.txt")"
+  [[ -n "${line}" ]] || die "no checksum entry for ${file} in sha256sums.txt"
   if have sha256sum; then
-    ( cd "${dir}" && sha256sum -c "${file}.sha256" >/dev/null )
+    ( cd "${dir}" && printf '%s\n' "${line}" | sha256sum -c - >/dev/null )
   elif have shasum; then
-    ( cd "${dir}" && shasum -a 256 -c "${file}.sha256" >/dev/null )
+    ( cd "${dir}" && printf '%s\n' "${line}" | shasum -a 256 -c - >/dev/null )
   else
     die "no sha256 tool available (need sha256sum or shasum) to verify the download"
   fi
@@ -128,7 +144,16 @@ run_priv() {
 # --- main ------------------------------------------------------------------
 
 main() {
-  local os arch libc target version tag
+  local os arch libc target version tag want_debug=0 arg
+  for arg in "$@"; do
+    case "${arg}" in
+      --debug) want_debug=1 ;;
+      -h|--help)
+        info "usage: install.sh [--debug]  (see the header comment for env vars)"
+        return 0 ;;
+      *) die "unknown argument: ${arg} (supported: --debug)" ;;
+    esac
+  done
   os="$(detect_os)" || die "unsupported OS: $(uname -s)"
   arch="$(detect_arch)" || die "unsupported architecture: $(uname -m)"
 
@@ -167,8 +192,8 @@ main() {
   info "downloading ${asset}"
   fetch_file "${base}/${asset}" "${tmp}/${asset}" \
     || die "download failed (no ${asset} in release ${tag}?): ${base}/${asset}"
-  fetch_file "${base}/${asset}.sha256" "${tmp}/${asset}.sha256" \
-    || die "download failed: ${base}/${asset}.sha256"
+  fetch_file "${base}/sha256sums.txt" "${tmp}/sha256sums.txt" \
+    || die "download failed: ${base}/sha256sums.txt"
 
   info "verifying checksum"
   verify_checksum "${tmp}" "${asset}" || die "checksum verification failed for ${asset}"
@@ -212,7 +237,46 @@ main() {
     run_priv xattr -dr com.apple.quarantine "${bindir}/nchat" 2>/dev/null || true
   fi
 
+  # --debug: fetch the combined detached-symbols tarball and drop this target's
+  # symbols beside the binary. On Linux the stripped binary's .gnu_debuglink
+  # points gdb at nchat.debug; on macOS lldb matches nchat.dSYM by the binary's
+  # LC_UUID.
+  if [[ "${want_debug}" == "1" ]]; then
+    local dbgasset dbgdir symname
+    # The release ships one combined symbols tarball covering every target; it
+    # holds a <target>/ subdir per build (nchat.debug on Linux, nchat.dSYM on
+    # macOS). Fetch it and pull out just this target's symbols. It is larger than
+    # a single target's symbols, but --debug is a rare crash-analysis step, so
+    # the extra download is a fair trade for a single release asset.
+    dbgasset="symbols-${version}.tar.gz"
+    [[ "${os}" == "macos" ]] && symname="nchat.dSYM" || symname="nchat.debug"
+
+    info "downloading ${dbgasset}"
+    fetch_file "${base}/${dbgasset}" "${tmp}/${dbgasset}" \
+      || die "download failed (no ${dbgasset} in release ${tag}?): ${base}/${dbgasset}"
+    info "verifying checksum"
+    verify_checksum "${tmp}" "${dbgasset}" || die "checksum verification failed for ${dbgasset}"
+
+    tar -xzf "${tmp}/${dbgasset}" -C "${tmp}"
+    dbgdir="${tmp}/symbols-${version}/${target}"
+    [[ -e "${dbgdir}/${symname}" ]] \
+      || die "unexpected debug archive layout: ${dbgdir}/${symname} missing"
+
+    info "installing debug symbols to ${bindir}/${symname}"
+    run_priv rm -rf "${bindir}/${symname}"
+    run_priv cp -R "${dbgdir}/${symname}" "${bindir}/${symname}"
+  fi
+
   info "installed nchat ${version} to ${bindir}/nchat"
+  if [[ "${want_debug}" == "1" ]]; then
+    if [[ "${os}" == "macos" ]]; then
+      info "debug symbols installed; symbolise with lldb (gdb is unsupported on Apple Silicon):"
+      info "  lldb ${bindir}/nchat"
+    else
+      info "debug symbols installed; a debugger auto-loads them via .gnu_debuglink:"
+      info "  gdb ${bindir}/nchat"
+    fi
+  fi
   [[ "${target}" == *-musl ]] && info "musl build: Telegram and WhatsApp (Signal not supported; WhatsApp needs /proc mounted)"
 
   case ":${PATH}:" in

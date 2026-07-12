@@ -288,6 +288,21 @@ if(HAS_ASAN)
   set(NCHAT_LDFLAGS -fsanitize=address)
 endif()
 
+# Detached debug symbols (enabled by the dist/release build scripts). When on,
+# nchat's own translation units are compiled with -g1 so the DWARF can be split
+# into a detached nchat.debug / .dSYM after the build. Applied via
+# target_common_config() below, so it is scoped to nchat's own targets (the
+# nchat executable and the ncutil / *chat libraries) and deliberately excludes
+# the heavy vendored subbuilds — tdlib and the whatsmeow/signalmeow Go
+# c-archives — so only nchat's own frames land in the shipped symbols artifacts
+# (the Go archives are additionally built -ldflags=-w; see lib/*/go/CMakeLists).
+# -g1 emits function + line tables (enough to resolve a backtrace to
+# function + file:line) but omits the local-variable/type DWARF that dominates
+# -g2's size. -g1 does not change codegen, so the stripped release binary stays
+# byte-for-byte a plain Release build.
+option(HAS_DEBUG_SYMBOLS "Emit detached debug symbols for nchat" OFF)
+message(STATUS "Debug symbols: ${HAS_DEBUG_SYMBOLS}")
+
 # Helper function for applying common target properties
 function(target_common_config target)
   # Build type specifics
@@ -312,6 +327,13 @@ function(target_common_config target)
 
   # Compile options
   target_compile_options(${target} PUBLIC ${NCHAT_CFLAGS})
+
+  # Detached debug symbols (see HAS_DEBUG_SYMBOLS). Scoped here so only nchat's
+  # own code contributes DWARF to the detached nchat.debug / .dSYM; -g1 keeps
+  # function + line tables for backtrace symbolication.
+  if(HAS_DEBUG_SYMBOLS)
+    target_compile_options(${target} PRIVATE -g1)
+  endif()
 
   # Linking
   target_link_libraries(${target} PUBLIC ${NCHAT_LDFLAGS})

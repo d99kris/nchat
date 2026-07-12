@@ -36,6 +36,16 @@ STAGE_DIR="${REPO_DIR}/dist/nchat-${TARGET}"
 
 "${REPO_DIR}/utils/dist/build-deps-macos.sh"
 
+# The static deps are built by autotools with debug info (autotools defaults
+# CFLAGS/CXXFLAGS to "-g -O2"), so their .a archives carry DWARF. dsymutil would
+# otherwise harvest all of it into nchat.dSYM via the debug map, dwarfing
+# nchat's own frames. strip -S drops the debug map/DWARF but keeps the external
+# symbol table, so the static link is unaffected and only nchat's own frames end
+# up in the detached symbols. Idempotent; runs against the cached prefix each
+# build. (openssl uses --libdir=lib and the rest default to lib on macOS, so a
+# single lib/ sweep covers them.)
+find "${DEPS}/lib" -name '*.a' -exec strip -S {} + 2>/dev/null || true
+
 # tdlib compilation units need 2-4 GB each; cap jobs by physical memory
 if [[ -z "${JOBS:-}" ]]; then
   MEM_GB=$(( $(sysctl -n hw.memsize) / 1073741824 ))
@@ -57,6 +67,7 @@ rm -rf "${BUILD_DIR}"
 cmake -S "${REPO_DIR}" -B "${BUILD_DIR}" "${GENERATOR[@]}" \
   -DCMAKE_BUILD_TYPE=Release \
   -DHAS_STATIC_EXTLIBS=ON \
+  -DHAS_DEBUG_SYMBOLS=ON \
   -DCMAKE_OSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET}" \
   -DCMAKE_PREFIX_PATH="${DEPS}" \
   -DNCURSES_ROOT_DIR="${DEPS}" \
@@ -75,6 +86,17 @@ rm -rf "${STAGE_DIR}/lib"
 # the archive top level.
 
 BIN="${STAGE_DIR}/bin/nchat"
+
+# Collect DWARF into a detached .dSYM bundle before stripping. dsymutil reads the
+# debug map in the binary plus the .o files still present in BUILD_DIR, and the
+# bundle is matched to the binary by LC_UUID (which strip -x and the re-sign
+# below both preserve). -g1 does not change codegen, so the stripped binary is
+# what a plain Release build produced. Only nchat's own frames carry DWARF
+# (HAS_DEBUG_SYMBOLS scopes -g1 to nchat's targets; tdlib, the Go c-archive and
+# the strip -S'd static deps are DWARF-free). package.sh ships the .dSYM in a
+# separate symbols tarball; install.sh --debug drops it back next to the
+# installed binary (use lldb on macOS — gdb is unsupported on Apple Silicon).
+dsymutil "${BIN}" -o "${BIN}.dSYM"
 
 # Strip local symbols only (a full strip is not valid for a cgo binary),
 # then re-sign: stripping invalidates the signature applied at install.

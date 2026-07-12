@@ -105,12 +105,16 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: dist-linux-${{ matrix.arch }}
-          # Versioned artifacts only: tarball and its .sha256 sidecar. The
-          # [0-9] anchor (version always starts with a digit) excludes the
-          # unversioned staged trees dist/nchat-<target>/, whose name has a
-          # letter right after "nchat-".
+          # Versioned tarballs only -- the main nchat-<ver>-<target>.tar.gz and
+          # its detached symbols-<ver>-<target>.tar.gz. The [0-9] anchor (version
+          # always starts with a digit) excludes the unversioned staged trees
+          # dist/nchat-<target>/ (a letter follows "nchat-") and package.sh's
+          # local sha256sums.txt; the publish job recreates a release-wide
+          # sha256sums.txt and the combined symbols tarball across every job's
+          # tarballs.
           path: |
             dist/nchat-[0-9]*
+            dist/symbols-[0-9]*
           if-no-files-found: error
 
   macos:
@@ -174,9 +178,11 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: dist-macos-arm64
-          # Versioned artifacts only (see the linux job for the [0-9] rationale).
+          # Versioned artifacts only -- main tarball plus its symbols-* tarball
+          # (see the linux job for the [0-9] rationale).
           path: |
             dist/nchat-[0-9]*
+            dist/symbols-[0-9]*
           if-no-files-found: error
 
   release:
@@ -195,12 +201,69 @@ jobs:
           merge-multiple: true
           path: dist
 
+      # Fold every job's per-target symbols-<ver>-<target>.tar.gz into one
+      # cross-platform symbols-<ver>.tar.gz (top dir symbols-<ver>/, one
+      # <target>/ subdir per build carrying nchat.debug or nchat.dSYM). This can
+      # only happen here, where all jobs' artifacts converge. The glob requires a
+      # '-' after <ver>, so it never re-ingests the combined symbols-<ver>.tar.gz.
+      #
+      # The per-target tarballs are intermediate only: each arch/libc/os builds
+      # in a separate job and uploads its own symbols, which are gathered here.
+      # Once folded in, they are deleted so the release publishes a SINGLE
+      # symbols asset (small enough that one tarball beats several).
+      # install.sh --debug fetches the combined and extracts just the running
+      # target's subdir. The delete glob keeps the same '-' guard so it never
+      # removes the combined tarball itself.
+      - name: Assemble combined symbols tarball
+        run: |
+          cd dist
+          ver="${GITHUB_REF_NAME#v}"
+          outdir="symbols-${ver}"
+          rm -rf "${outdir}" "${outdir}.tar.gz"
+          mkdir -p "${outdir}"
+          for sym in symbols-${ver}-*.tar.gz; do
+            [ -e "${sym}" ] || continue
+            base="$(basename "${sym}" .tar.gz)"   # symbols-<ver>-<target>
+            target="${base#symbols-${ver}-}"
+            tmp="$(mktemp -d)"
+            tar -xzf "${sym}" -C "${tmp}"
+            mkdir -p "${outdir}/${target}"
+            cp -R "${tmp}/${base}/bin/." "${outdir}/${target}/"
+            rm -rf "${tmp}"
+          done
+          tar -czf "${outdir}.tar.gz" "${outdir}"
+          rm -rf "${outdir}"
+          # Drop the per-target symbols now that they are folded in, so only the
+          # combined symbols-<ver>.tar.gz is checksummed and published below.
+          rm -f symbols-${ver}-*.tar.gz
+          echo "assembled dist/${outdir}.tar.gz:"
+          tar -tzf "${outdir}.tar.gz" | sed 's/^/  /'
+
+      # Recreate the single aggregate sha256sums.txt over the full set of
+      # published tarballs (the main nchat-* tarballs and the combined
+      # symbols-<ver>.tar.gz assembled above -- the per-target symbols were
+      # deleted in that step, so the symbols-[0-9]* glob now matches only the
+      # combined one). package.sh writes one per build job (covering only that
+      # job's targets), so the release-wide file is built here instead; it is
+      # byte-identical in format to package.sh's local sha256sums.txt
+      # (`sha256sum -c`, bare names, sorted by filename).
+      - name: Aggregate checksums
+        run: |
+          cd dist
+          sha256sum nchat-[0-9]*.tar.gz symbols-[0-9]*.tar.gz | sort -k2 > sha256sums.txt
+          echo "sha256sums.txt:"
+          cat sha256sums.txt
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          # Tarballs and their .sha256 sidecars (the merged download dir
-          # holds only versioned files, so the glob is unambiguous).
+          # The main nchat-* tarballs, the single combined symbols-<ver>.tar.gz
+          # (the per-target symbols were folded into it and deleted, so the
+          # symbols-[0-9]* glob matches only the combined one), plus the single
+          # aggregate sha256sums.txt (the per-job sidecars were folded into it).
           files: |
-            dist/nchat-[0-9]*
+            dist/nchat-[0-9]*.tar.gz
+            dist/symbols-[0-9]*.tar.gz
+            dist/sha256sums.txt
           fail_on_unmatched_files: true
           generate_release_notes: true

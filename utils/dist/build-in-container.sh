@@ -56,6 +56,11 @@ elif [[ "${LIBC}" == "glibc" ]]; then
   LINKER_FLAGS="-L${DEPS}/lib"
 fi
 
+# Stamp a build-id so the detached nchat.debug can also be matched to the binary
+# by hash (and is debuginfod-ready); harmless alongside the .gnu_debuglink path
+# that install.sh --debug actually relies on.
+LINKER_FLAGS="${LINKER_FLAGS} -Wl,--build-id=sha1"
+
 # Configure from a clean build dir so dist builds are reproducible and no
 # stale CMake cache entry leaks across runs (the repo is bind-mounted, so
 # ${BUILD_DIR} otherwise persists). ccache still accelerates recompiles.
@@ -66,6 +71,7 @@ rm -rf "${BUILD_DIR}"
 cmake -S "${SRC}" -B "${BUILD_DIR}" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
   -DHAS_STATIC_EXTLIBS=ON \
+  -DHAS_DEBUG_SYMBOLS=ON \
   -DCMAKE_EXE_LINKER_FLAGS="${LINKER_FLAGS}" \
   "${EXTRA_CMAKE_ARGS[@]}" \
   -DCMAKE_INSTALL_PREFIX="/" \
@@ -74,13 +80,28 @@ cmake -S "${SRC}" -B "${BUILD_DIR}" -G Ninja \
 cmake --build "${BUILD_DIR}" -j "${JOBS}"
 
 rm -rf "${STAGE_DIR}"
-DESTDIR="${STAGE_DIR}" cmake --install "${BUILD_DIR}" --strip
+DESTDIR="${STAGE_DIR}" cmake --install "${BUILD_DIR}"
 rm -rf "${STAGE_DIR}/lib"
 # LICENSE and the combined THIRD_PARTY_LICENSES are installed under
 # share/doc/nchat/ by the CMake install rule; package.sh also surfaces them at
 # the archive top level.
 
 BIN="${STAGE_DIR}/bin/nchat"
+
+# Split debug info out of the release binary: copy the DWARF into a detached
+# nchat.debug sibling, strip the shipped binary to its release form (matching
+# the former `cmake --install --strip`), then record a .gnu_debuglink so gdb
+# auto-loads nchat.debug whenever it sits beside the binary. -g1 does not change
+# codegen, so the stripped binary is byte-for-byte what a plain Release build
+# produced. Only nchat's own frames carry DWARF (HAS_DEBUG_SYMBOLS scopes -g1 to
+# nchat's targets; tdlib, the Go c-archive and the static deps are DWARF-free).
+# package.sh ships nchat.debug in a separate symbols tarball; install.sh --debug
+# drops it back next to the installed binary.
+objcopy --only-keep-debug "${BIN}" "${BIN}.debug"
+chmod 0644 "${BIN}.debug"
+strip --strip-all "${BIN}"
+( cd "${STAGE_DIR}/bin" && objcopy --add-gnu-debuglink="nchat.debug" "nchat" )
+
 file "${BIN}"
 
 # glibc target: verify the "mostly static" contract holds — nothing imports
