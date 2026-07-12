@@ -59,14 +59,16 @@ stamp() {
 # fetch <url>: download and extract a release tarball in ${WORK}
 fetch() {
   local url="$1" tarball="${1##*/}"
-  curl -fsSL "${url}" -o "${tarball}"
+  curl -fsSL --retry 3 --retry-delay 2 "${url}" -o "${tarball}"
   tar xf "${tarball}"
 }
 
-# zlib: needed by libpng, libmagic, tdlib.
+# zlib: needed by libpng, libmagic, tdlib. Fetched from the madler/zlib GitHub
+# release (byte-identical to upstream) rather than zlib.net/fossils/, whose host
+# intermittently rejects CI/datacenter requests with HTTP 415.
 ZLIB_VERSION=1.3.1
 if ! built "zlib-${ZLIB_VERSION}"; then
-  fetch "https://zlib.net/fossils/zlib-${ZLIB_VERSION}.tar.gz"
+  fetch "https://github.com/madler/zlib/releases/download/v${ZLIB_VERSION}/zlib-${ZLIB_VERSION}.tar.gz"
   ( cd "zlib-${ZLIB_VERSION}" &&
     ./configure --prefix="${DEPS}" --static &&
     make -j"${JOBS}" && make install )

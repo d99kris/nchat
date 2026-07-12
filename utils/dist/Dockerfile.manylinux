@@ -46,10 +46,12 @@ RUN set -euo pipefail; \
 
 # --- Static dependency builds (one layer each for docker-cache reuse) ---
 
-# zlib: needed by libpng, libmagic, tdlib.
+# zlib: needed by libpng, libmagic, tdlib. Fetched from the madler/zlib GitHub
+# release (byte-identical to upstream) rather than zlib.net/fossils/, whose host
+# intermittently rejects CI/datacenter requests with HTTP 415.
 ARG ZLIB_VERSION=1.3.1
 RUN set -euo pipefail; \
-    curl -fsSL "https://zlib.net/fossils/zlib-${ZLIB_VERSION}.tar.gz" | tar xz; \
+    curl -fsSL "https://github.com/madler/zlib/releases/download/v${ZLIB_VERSION}/zlib-${ZLIB_VERSION}.tar.gz" | tar xz; \
     cd "zlib-${ZLIB_VERSION}"; \
     ./configure --prefix="${DEPS}" --static; \
     make -j"$(nproc)"; make install; \
