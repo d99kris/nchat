@@ -42,7 +42,14 @@ EXTRA_CMAKE_ARGS=()
 LINKER_FLAGS=""
 if [[ "${LIBC}" == "musl" ]]; then
   EXTRA_CMAKE_ARGS+=(-DHAS_MUSL_GO_PATCHED=ON)
-  # -static for a fully static link; -no-pie avoids static-pie edge cases
+  # -static: fully static (musl) link. -no-pie: link a classic non-PIE
+  # executable so its code sits at fixed link-time addresses (also avoids
+  # static-pie edge cases). That lets the musl crash handler's frame-pointer
+  # backtrace (lib/ncutil/src/apputil.cpp) log absolute addresses that resolve
+  # directly with `addr2line -e nchat.debug <addr>`, with no ASLR load-base
+  # rebasing. Alpine's toolchain defaults to -pie, which under -static would
+  # otherwise yield a static-PIE binary with ASLR-shifted, unresolvable
+  # addresses. Pairs with -fno-omit-frame-pointer (CMakeLists.txt).
   LINKER_FLAGS="-static -no-pie"
 elif [[ "${LIBC}" == "glibc" ]]; then
   DEPS="/opt/nchat-deps"

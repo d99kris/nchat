@@ -323,6 +323,18 @@ function(target_common_config target)
   endif()
   if(NCHAT_BUILD_MUSL)
     target_compile_definitions(${target} PRIVATE NCHAT_BUILD_MUSL=1)
+    # musl has no execinfo/backtrace() and libgcc's _Unwind_Backtrace cannot step
+    # past musl's signal trampoline, so the crash handler walks the frame-pointer
+    # chain seeded from the signal ucontext (see AppUtil::SignalHandler /
+    # FramePointerBacktrace in lib/ncutil/src/apputil.cpp). That walk needs a
+    # maintained frame pointer in nchat's own frames, which -O2 otherwise omits.
+    # Applied via target_common_config(), so it is scoped to nchat's own targets
+    # (the nchat executable and the ncutil / *chat libraries) and to musl only --
+    # the glibc/macOS builds use backtrace() and are unaffected. Paired with
+    # -no-pie on the musl link line (utils/dist/build-in-container.sh) so the
+    # logged addresses are absolute and resolve directly with
+    # `addr2line -e nchat.debug`.
+    target_compile_options(${target} PRIVATE -fno-omit-frame-pointer)
   endif()
 
   # Compile options
