@@ -238,11 +238,12 @@ code. Example:
 
     $ nchat --setup
     Protocols:
-    0. Telegram
-    1. WhatsAppMd
-    2. Signal
-    3. Exit setup
-    Select protocol (3): 0
+    0. Dummy
+    1. Telegram
+    2. WhatsAppMd
+    3. Signal
+    4. Exit setup
+    Select protocol (4): 1
     Enter phone number (ex. +6511111111): +6511111111
 
     Open Telegram on your phone, go to Settings -> Devices
