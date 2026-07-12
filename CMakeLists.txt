@@ -27,6 +27,58 @@ else()
   message(STATUS "Using build type '${CMAKE_BUILD_TYPE}'")
 endif()
 
+# Build origin (github / local, or packager-provided e.g. debian via
+# -DNCHAT_BUILD_ORIGIN=debian). Auto-detected as "github" under GitHub Actions.
+if(NOT DEFINED NCHAT_BUILD_ORIGIN)
+  if(DEFINED ENV{GITHUB_ACTIONS})
+    set(NCHAT_BUILD_ORIGIN "github")
+  else()
+    set(NCHAT_BUILD_ORIGIN "local")
+  endif()
+endif()
+message(STATUS "Build origin: ${NCHAT_BUILD_ORIGIN}")
+
+# Build git sha/branch, resolved at configure time from the source checkout.
+# Guarded on a top-level .git so source-tarball builds (no repo) resolve to sha
+# "unknown" / empty branch, without picking up an enclosing repo if the tarball
+# is unpacked inside one.
+set(NCHAT_BUILD_GIT_SHA "unknown")
+set(NCHAT_BUILD_GIT_BRANCH "")
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
+  # Short sha, fixed to 7 chars (git's --short auto-grows the abbreviation to
+  # stay unique, so a plain --short can yield 8+ chars in larger clones such as
+  # GitHub's). Suffixed "+" when tracked files have local changes.
+  execute_process(COMMAND git rev-parse --short=7 HEAD
+                  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                  OUTPUT_VARIABLE GIT_SHA
+                  OUTPUT_STRIP_TRAILING_WHITESPACE
+                  ERROR_QUIET)
+  if(GIT_SHA)
+    execute_process(COMMAND git status --porcelain --untracked-files=no
+                    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                    OUTPUT_VARIABLE GIT_DIRTY
+                    OUTPUT_STRIP_TRAILING_WHITESPACE
+                    ERROR_QUIET)
+    if(GIT_DIRTY)
+      set(GIT_SHA "${GIT_SHA}+")
+    endif()
+    set(NCHAT_BUILD_GIT_SHA "${GIT_SHA}")
+  endif()
+
+  # Branch name, left empty for detached HEAD (e.g. release-tag builds) so it is
+  # only appended to the app name for actual working branches.
+  execute_process(COMMAND git rev-parse --abbrev-ref HEAD
+                  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                  OUTPUT_VARIABLE GIT_BRANCH
+                  OUTPUT_STRIP_TRAILING_WHITESPACE
+                  ERROR_QUIET)
+  if(GIT_BRANCH AND NOT GIT_BRANCH STREQUAL "HEAD")
+    set(NCHAT_BUILD_GIT_BRANCH "${GIT_BRANCH}")
+  endif()
+endif()
+message(STATUS "Build git sha: ${NCHAT_BUILD_GIT_SHA}")
+message(STATUS "Build git branch: ${NCHAT_BUILD_GIT_BRANCH}")
+
 # Platform specifics
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   add_definitions(-D_XOPEN_SOURCE_EXTENDED)
@@ -244,6 +296,14 @@ function(target_common_config target)
     target_compile_definitions(${target} PRIVATE NCHAT_BUILD_RELWITHDEBINFO=1)
   elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_compile_definitions(${target} PRIVATE NCHAT_BUILD_DEBUG=1)
+  endif()
+
+  # Build origin/sha/branch are consumed only by lib/ncutil (SysUtil build-info
+  # accessors) via a generated buildinfo.h -- see lib/ncutil/CMakeLists.txt --
+  # rather than defined target-wide here, so a git sha/branch change on every
+  # commit does not force a full rebuild of every target.
+  if(HAS_STATIC_EXTLIBS)
+    target_compile_definitions(${target} PRIVATE NCHAT_BUILD_STATIC_EXTLIBS=1)
   endif()
 
   # Compile options

@@ -1,0 +1,18 @@
+// buildinfo.h - generated from buildinfo.h.in by CMake, do not edit
+//
+// Copyright (c) 2026 Kristofer Berggren
+// All rights reserved.
+//
+// nchat is distributed under the MIT license, see LICENSE for details.
+//
+// Volatile build metadata (git sha/branch change on every commit) is kept in
+// this generated header, included only by buildinfo.cpp, rather than passed
+// target-wide via target_compile_definitions(). That stops a git sha/branch
+// change from recompiling all of lib/ncutil; CMake's configure_file only
+// rewrites this file when a value actually changes.
+
+#pragma once
+
+#define NCHAT_BUILD_ORIGIN "@NCHAT_BUILD_ORIGIN@"
+#define NCHAT_BUILD_GIT_SHA "@NCHAT_BUILD_GIT_SHA@"
+#define NCHAT_BUILD_GIT_BRANCH "@NCHAT_BUILD_GIT_BRANCH@"

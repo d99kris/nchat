@@ -38,6 +38,7 @@ add_library(ncutil ${LIBRARY_LINKING_TYPE}
   src/appconfig.h
   src/apputil.cpp
   src/apputil.h
+  src/buildinfo.cpp
   src/cacheutil.cpp
   src/cacheutil.h
   src/clipboard.cpp
@@ -85,6 +86,15 @@ add_library(ncutil ${LIBRARY_LINKING_TYPE}
   src/timeutil.h
 )
 install(TARGETS ncutil DESTINATION ${CMAKE_INSTALL_LIBDIR})
+
+# Volatile build metadata (git sha/branch/origin, resolved by the top-level
+# CMakeLists and inherited here) is written to a generated header included only
+# by buildinfo.cpp, rather than passed target-wide via target_compile_definitions,
+# so a commit-to-commit sha/branch change recompiles only buildinfo.cpp instead of
+# all of ncutil. configure_file rewrites the header only when a value changes.
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/src/buildinfo.h.in"
+               "${CMAKE_CURRENT_BINARY_DIR}/generated/buildinfo.h" @ONLY)
+target_include_directories(ncutil PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
 
 # Optional dependencies
 check_include_file_cxx(execinfo.h FOUND_EXECINFO_H)

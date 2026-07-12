@@ -18,7 +18,7 @@ class AppUtil
 {
 public:
   static void AssertionFailed();
-  static std::string GetAppName(bool p_WithVersion);
+  static std::string GetAppName(bool p_WithVersion, bool p_WithBranch = false);
   static std::string GetAppVersion();
   static void SetDeveloperMode(bool p_DeveloperMode);
   static bool GetDeveloperMode();

@@ -45,9 +45,24 @@ void AppUtil::AssertionFailed()
   }
 }
 
-std::string AppUtil::GetAppName(bool p_WithVersion)
+std::string AppUtil::GetAppName(bool p_WithVersion, bool p_WithBranch /*= false*/)
 {
-  return std::string("nchat") + (p_WithVersion ? (" " + GetAppVersion()) : "");
+  std::string name = "nchat";
+  if (p_WithVersion)
+  {
+    name += " " + GetAppVersion();
+  }
+
+  if (p_WithBranch)
+  {
+    const std::string branch = SysUtil::GetBuildGitBranch();
+    if (!branch.empty() && (branch != "master"))
+    {
+      name += " " + branch;
+    }
+  }
+
+  return name;
 }
 
 std::string AppUtil::GetAppVersion()

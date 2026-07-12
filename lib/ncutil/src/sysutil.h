@@ -14,6 +14,10 @@
 class SysUtil
 {
 public:
+  static std::string GetBuildGitBranch();
+  static std::string GetBuildGitSha();
+  static std::string GetBuildInfo();
+  static std::string GetBuildOrigin();
   static std::string GetCompiler();
   static std::string GetGo(const std::string& p_GoVersion);
   static std::string GetOsArch();

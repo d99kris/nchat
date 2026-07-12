@@ -70,6 +70,16 @@ fi
 
 mkdir -p "${CACHE_DIR}/ccache-${TARGET}" "${CACHE_DIR}/go-${TARGET}"
 
+# Forward the CI signal so the in-container CMake auto-detects build origin
+# "github" (CMakeLists checks DEFINED ENV{GITHUB_ACTIONS}); docker run does not
+# inherit the host environment. Pass it only when actually set -- an empty
+# `-e GITHUB_ACTIONS=` still reads as DEFINED to CMake, which would mislabel
+# local dist builds as "github".
+RUN_ENV=()
+if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
+  RUN_ENV+=(-e "GITHUB_ACTIONS=${GITHUB_ACTIONS}")
+fi
+
 docker run --rm --platform "${PLATFORM}" \
   --user "$(id -u):$(id -g)" \
   -e HOME=/tmp \
@@ -77,6 +87,7 @@ docker run --rm --platform "${PLATFORM}" \
   -e GOCACHE=/cache/go/build \
   -e GOMODCACHE=/cache/go/mod \
   -e JOBS="${JOBS:-}" \
+  "${RUN_ENV[@]}" \
   -v "${REPO_DIR}:/src" \
   -v "${CACHE_DIR}/ccache-${TARGET}:/cache/ccache" \
   -v "${CACHE_DIR}/go-${TARGET}:/cache/go" \

@@ -19,6 +19,37 @@
 #include "log.h"
 #include "strutil.h"
 
+std::string SysUtil::GetBuildInfo()
+{
+  // Build origin (github / local, or packager-provided). Sourced from the
+  // buildinfo.cpp accessor so the volatile generated buildinfo.h stays out of
+  // this translation unit -- a git sha/branch change recompiles only buildinfo.cpp.
+  std::string origin = GetBuildOrigin();
+
+  // Build type
+#if defined(NCHAT_BUILD_RELEASE)
+  std::string type = "release";
+#elif defined(NCHAT_BUILD_DEBUG)
+  std::string type = "debug";
+#elif defined(NCHAT_BUILD_RELWITHDEBINFO)
+  std::string type = "reldbg";
+#else
+  std::string type = "unknown";
+#endif
+
+  // External linkage
+#if defined(NCHAT_BUILD_STATIC_EXTLIBS)
+  std::string linkage = "static";
+#else
+  std::string linkage = "dynamic";
+#endif
+
+  // Build git sha (from the buildinfo.cpp accessor, see origin note above)
+  std::string sha = GetBuildGitSha();
+
+  return StrUtil::ToLower(origin + " " + type + " " + linkage + " " + sha);
+}
+
 std::string SysUtil::GetCompiler()
 {
 #if defined(__VERSION__)
