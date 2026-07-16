@@ -93,7 +93,13 @@ void Config::Save(const std::string& p_Path) const
 
 std::string Config::Get(const std::string& p_Param) const
 {
-  return m_Map.at(p_Param);
+  auto it = m_Map.find(p_Param);
+  if (it != m_Map.end())
+  {
+    return it->second;
+  }
+  LOG_WARNING("config param \"%s\" not found, returning empty string", p_Param.c_str());
+  return "";
 }
 
 void Config::Set(const std::string& p_Param, const std::string& p_Value)
