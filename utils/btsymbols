@@ -1,0 +1,567 @@
+#!/usr/bin/env python3
+
+# btsymbols v1.00
+#
+# Copyright (c) 2024-2026 Kristofer Berggren
+# All rights reserved.
+#
+# btsymbols is distributed under the MIT license.
+#
+# Detects callstacks in an nmail/nchat log file, resolves each frame to a
+# function name and source file:line using the matching debug symbols, and
+# prints the symbolicated callstacks.
+#
+# Implemented: Linux (glibc and musl callstack formats, resolved with
+# addr2line) and macOS (atos frame format, resolved with atos).
+#
+# Usage:
+#   btsymbols <logfile> --symbols <symbolsfile> [--exe <executable>]
+#
+#   Linux: btsymbols <app>-log.txt --symbols <app>.debug --exe bin/<app>
+#   macOS: btsymbols <app>-log.txt \
+#            --symbols <app>.dSYM/Contents/Resources/DWARF/<app> --exe bin/<app>
+#
+# where <app> is the program that produced the log (e.g. nmail or nchat). The
+# same argument set works on all platforms: --symbols is the debug-info file
+# (Linux <app>.debug, or the DWARF binary inside the macOS .dSYM) and --exe is
+# the executable that produced the log.
+#
+# RESOLVING
+# ---------
+# Three callstack formats are emitted by the crash handler
+# (Log::WriteCallstackToFd):
+#
+#   glibc  - backtrace_symbols_fd() output, one frame per line:
+#              object(symbol+off) [0xADDR]
+#              object(+off) [0xADDR]
+#              object() [0xADDR]
+#              object [0xADDR]          (no symbol -- parentheses omitted)
+#            The main executable is linked -no-pie (ET_EXEC), so its bracketed
+#            absolute address maps directly onto the debug symbols. Shared
+#            library frames (libc, vdso, ...) carry a runtime address and are
+#            resolved best-effort against the on-system .so via the in-library
+#            offset. Resolution is `addr2line -C -f -p -i -e <file> <addr>`.
+#
+#   musl   - frame-pointer walk output, a bare absolute address per line:
+#              0xADDR
+#            The whole binary is statically linked -no-pie, so every address
+#            maps directly onto the debug symbols (addr2line, as above).
+#
+#   macos  - backtrace_symbols_fd() output, one frame per line:
+#              <idx>  <object>  0xADDR  <mangled-symbol> + <decimal-offset>
+#            The Mach-O binary is position-independent (PIE), so the logged
+#            absolute address carries the ASLR slide and can't be fed to atos
+#            directly. Instead the frame's own "symbol + offset" is turned back
+#            into a static (link-time) address via `nm` -- static = nm(symbol)
+#            + offset -- which atos resolves against the .dSYM with
+#            `atos -o <file> <static>` and needs no knowledge of the runtime
+#            slide. System-library frames live in the dyld shared cache (no
+#            on-disk file) and fall back to the demangled symbol the log
+#            already carries.
+
+import argparse
+import os
+import re
+import shutil
+import subprocess
+import sys
+
+
+# --- frame line patterns ----------------------------------------------------
+
+# musl: a bare hex address on its own line, e.g. "0xb5c1e8".
+RE_MUSL = re.compile(r"^0x([0-9a-fA-F]+)$")
+
+# glibc backtrace_symbols: "object(sym+off) [0xADDR]", where the "(sym+off)"
+# part may be empty "()", offset-only "(+0xNN)" or "(name+0xNN)". When no
+# symbol at all is available glibc drops the parentheses entirely and emits
+# just "object [0xADDR]", so the "(...)" group is optional here.
+RE_GLIBC = re.compile(
+    r"^(?P<obj>\S.*?)(?:\((?P<sym>[^)]*)\))?\s*\[0x(?P<addr>[0-9a-fA-F]+)\]\s*$")
+
+# macOS atos frames start with a frame index, e.g.
+# "0   libncutil.dylib   0x00000001... _ZN7AppUtil13SignalHandlerEi + 244".
+# The offset after '+' is decimal (unlike glibc's hex "+0xNN"), and the symbol
+# carries no leading Mach-O underscore (nm adds one -- see nm_symaddr).
+RE_MACOS = re.compile(
+    r"^\s*\d+\s+(?P<obj>\S+)\s+0x(?P<addr>[0-9a-fA-F]+)\s+"
+    r"(?P<sym>\S+)\s*\+\s*(?P<off>\d+)\s*$")
+
+# "unexpected termination <signal>" precedes signal-path callstacks.
+RE_SIGNAL = re.compile(r"^unexpected termination\s+(\d+)\s*$")
+
+
+class Frame:
+    def __init__(self):
+        self.addr = 0          # absolute address parsed from the log
+        self.obj = None        # object/module name as it appeared in the log
+        self.sym = None        # symbol name (may be None)
+        self.sym_off = 0       # offset past the symbol (glibc sym+off)
+        self.is_main = False   # frame belongs to the main executable
+        self.raw = ""          # original log line
+
+
+class Callstack:
+    def __init__(self):
+        self.fmt = None        # "musl" | "glibc" | "macos"
+        self.signal = None     # signal number if a signal-path crash
+        self.frames = []
+
+
+def eprint(*args):
+    print(*args, file=sys.stderr)
+
+
+# --- log parsing ------------------------------------------------------------
+
+def classify_line(line):
+    """Return (fmt, match) for a frame line, or (None, None) if not a frame."""
+    m = RE_MUSL.match(line)
+    if m:
+        return "musl", m
+    m = RE_GLIBC.match(line)
+    if m:
+        return "glibc", m
+    m = RE_MACOS.match(line)
+    if m:
+        return "macos", m
+    return None, None
+
+
+def parse_glibc_sym(sym):
+    """Split a glibc "(sym+off)" body into (name, offset). `sym` is None when
+    the frame had no parentheses at all ("object [0xADDR]")."""
+    if sym is None:
+        return None, 0
+    sym = sym.strip()
+    if not sym:
+        return None, 0
+    # Split on the last '+' so symbol names containing '+' (rare) survive.
+    if "+" in sym:
+        name, _, off = sym.rpartition("+")
+        name = name.strip()
+        try:
+            return (name or None), int(off, 0)
+        except ValueError:
+            return (sym or None), 0
+    return sym, 0
+
+
+def parse_log(path):
+    """Scan a log file and return a list of Callstack objects."""
+    with open(path, "r", errors="replace") as f:
+        lines = [ln.rstrip("\n") for ln in f]
+
+    stacks = []
+    i = 0
+    last_signal = None
+    while i < len(lines):
+        line = lines[i]
+
+        sigm = RE_SIGNAL.match(line.strip())
+        if sigm:
+            last_signal = int(sigm.group(1))
+
+        if line.strip() == "callstack:":
+            stack = Callstack()
+            stack.signal = last_signal
+            last_signal = None
+            i += 1
+            # Collect consecutive frame lines.
+            while i < len(lines):
+                fmt, m = classify_line(lines[i].strip())
+                if fmt is None:
+                    break
+                if stack.fmt is None:
+                    stack.fmt = fmt
+                elif stack.fmt != fmt:
+                    # Mixed formats within one block: stop the block here.
+                    break
+                stack.frames.append(_make_frame(fmt, m, lines[i].strip()))
+                i += 1
+            if stack.frames:
+                stacks.append(stack)
+            continue
+
+        i += 1
+
+    return stacks
+
+
+def _make_frame(fmt, m, raw):
+    fr = Frame()
+    fr.raw = raw
+    if fmt == "musl":
+        fr.addr = int(m.group(1), 16)
+    elif fmt == "glibc":
+        fr.obj = m.group("obj").strip()
+        fr.sym, fr.sym_off = parse_glibc_sym(m.group("sym"))
+        fr.addr = int(m.group("addr"), 16)
+    elif fmt == "macos":
+        fr.obj = m.group("obj")
+        fr.sym = m.group("sym")
+        fr.sym_off = int(m.group("off"))   # macOS logs a decimal offset
+        fr.addr = int(m.group("addr"), 16)
+    return fr
+
+
+# --- resolution -------------------------------------------------------------
+
+class Resolver:
+    def __init__(self, addr2line, atos, symbols, exe):
+        self.addr2line = addr2line  # Linux resolver (may be None)
+        self.atos = atos            # macOS resolver (may be None)
+        self.symbols = symbols      # debug symbols file for the main exe
+        self.exe = exe              # main executable (for ldd/otool / basename)
+        self.nm = shutil.which("nm")
+        self.cxxfilt = shutil.which("c++filt")
+        self.main_names = self._main_names()
+        self.lib_cache = {}         # basename -> resolved lib path or None
+        self.nm_cache = {}          # (file, sym) -> address or None
+        self.ldd_map = None
+        self.otool_map = None
+
+    def _main_names(self):
+        """Basenames that identify a main-executable frame in glibc logs."""
+        names = set()
+        if self.exe:
+            names.add(os.path.basename(self.exe))
+        if self.symbols:
+            base = os.path.basename(self.symbols)
+            names.add(base)
+            for suf in (".debug", ".dbg", ".sym", ".symbols"):
+                if base.endswith(suf):
+                    names.add(base[: -len(suf)])
+        return names
+
+    def main_target(self):
+        """File to resolve main-executable frames against."""
+        return self.symbols or self.exe
+
+    def is_main_frame(self, frame):
+        if frame.obj is None:  # musl: every frame is the static main binary
+            return True
+        return os.path.basename(frame.obj) in self.main_names
+
+    def addr2line_lookup(self, objfile, addr):
+        """Run addr2line; return output text or None if fully unresolved."""
+        if not objfile or not os.path.isfile(objfile):
+            return None
+        try:
+            out = subprocess.run(
+                [self.addr2line, "-C", "-f", "-p", "-i", "-e", objfile,
+                 "0x%x" % addr],
+                capture_output=True, text=True, check=False).stdout.strip()
+        except OSError as e:
+            eprint("btsymbols: failed to run %s: %s" % (self.addr2line, e))
+            return None
+        if not out or out.splitlines()[0].startswith("??"):
+            return None
+        return out
+
+    def atos_lookup(self, objfile, addr):
+        """Run atos; return output text or None if unresolved. atos echoes the
+        bare "0xADDR" back when it can't resolve, so any output that still
+        starts with "0x" is treated as a miss."""
+        if not self.atos or not objfile or not os.path.exists(objfile):
+            return None
+        try:
+            out = subprocess.run(
+                [self.atos, "-o", objfile, "0x%x" % addr],
+                capture_output=True, text=True, check=False).stdout.strip()
+        except OSError as e:
+            eprint("btsymbols: failed to run %s: %s" % (self.atos, e))
+            return None
+        if not out or out.startswith("0x"):
+            return None
+        return out
+
+    def demangle(self, sym):
+        """Best-effort demangle a log-form symbol (no leading Mach-O '_')."""
+        if not sym or not self.cxxfilt:
+            return sym
+        if not (sym.startswith("_Z") or sym.startswith("__Z")):
+            return sym  # not an Itanium-mangled name; leave as-is
+        try:
+            out = subprocess.run(
+                [self.cxxfilt, "--no-strip-underscore", sym],
+                capture_output=True, text=True, check=False).stdout.strip()
+        except OSError:
+            return sym
+        return out or sym
+
+    def _ldd(self):
+        if self.ldd_map is not None:
+            return self.ldd_map
+        self.ldd_map = {}
+        if not self.exe or not shutil.which("ldd"):
+            return self.ldd_map
+        try:
+            out = subprocess.run(["ldd", self.exe], capture_output=True,
+                                 text=True, check=False).stdout
+        except OSError:
+            return self.ldd_map
+        for ln in out.splitlines():
+            # "libfoo.so => /path/to/libfoo.so (0x...)"
+            m = re.match(r"\s*(\S+)\s+=>\s+(\S+)", ln)
+            if m and os.path.isfile(m.group(2)):
+                self.ldd_map[os.path.basename(m.group(1))] = m.group(2)
+        return self.ldd_map
+
+    def _otool(self):
+        """macOS analog of _ldd: map each linked dylib basename to an on-disk
+        path via `otool -L`, expanding @rpath to <exe>/../lib. System dylibs
+        live in the dyld shared cache with no on-disk file and are skipped."""
+        if self.otool_map is not None:
+            return self.otool_map
+        self.otool_map = {}
+        if not self.exe or not shutil.which("otool"):
+            return self.otool_map
+        try:
+            out = subprocess.run(["otool", "-L", self.exe], capture_output=True,
+                                 text=True, check=False).stdout
+        except OSError:
+            return self.otool_map
+        rpath = os.path.join(os.path.dirname(os.path.abspath(self.exe)),
+                             "..", "lib")
+        for ln in out.splitlines():
+            # "\t/path/to/libfoo.dylib (compatibility version ...)"
+            m = re.match(r"\s+(\S+)\s+\(compatibility", ln)
+            if not m:
+                continue
+            path = m.group(1)
+            if path.startswith("@rpath"):
+                path = path.replace("@rpath", rpath, 1)
+            if os.path.isfile(path):
+                self.otool_map[os.path.basename(path)] = path
+        return self.otool_map
+
+    def locate_lib(self, obj):
+        """Best-effort resolve a shared-library object name to a real path."""
+        base = os.path.basename(obj)
+        if base in self.lib_cache:
+            return self.lib_cache[base]
+        path = None
+        if os.path.isabs(obj) and os.path.isfile(obj):
+            path = obj
+        elif base in self._ldd():
+            path = self._ldd()[base]
+        elif base in self._otool():
+            path = self._otool()[base]
+        self.lib_cache[base] = path
+        return path
+
+    def nm_symaddr(self, objfile, sym, macho=False):
+        """Look up a symbol's link-time address in an object file. On Mach-O
+        (macho=True) nm reports symbols with a leading '_' that the log/atos
+        form omits, so we match against "_<sym>" and skip the GNU-only flags."""
+        key = (objfile, sym)
+        if key in self.nm_cache:
+            return self.nm_cache[key]
+        addr = None
+        if self.nm:
+            want = ("_" + sym) if macho else sym
+            variants = ([[]] if macho else [["-D", "--defined-only"], []])
+            for extra in variants:
+                try:
+                    out = subprocess.run([self.nm] + extra + [objfile],
+                                         capture_output=True, text=True,
+                                         check=False).stdout
+                except OSError:
+                    break
+                for ln in out.splitlines():
+                    parts = ln.split()
+                    if len(parts) >= 3 and parts[-1] == want:
+                        try:
+                            addr = int(parts[0], 16)
+                        except ValueError:
+                            addr = None
+                        break
+                if addr is not None:
+                    break
+        self.nm_cache[key] = addr
+        return addr
+
+    def lib_bases(self, frames):
+        """Compute each shared library's load base from its offset-only frames.
+
+        A "(+off)" frame gives the raw module offset, so base = abs - off. The
+        base is consistent across every frame of that library, which lets us
+        resolve its "(sym+off)" frames (whose off is symbol-relative, not
+        module-relative) by the same abs - base arithmetic -- no reliance on
+        nm, which a stripped libc defeats."""
+        bases = {}
+        for frame in frames:
+            if frame.obj is None or self.is_main_frame(frame):
+                continue
+            if frame.sym is None and frame.sym_off:  # offset-only "(+off)"
+                base = frame.addr - frame.sym_off
+                bases.setdefault(os.path.basename(frame.obj), base)
+        return bases
+
+    def resolve(self, frame, adjust, bases, fmt):
+        """Return resolved text for a frame. `adjust` is subtracted from the
+        address before lookup (1 for return addresses, 0 for the exact
+        faulting PC). `bases` maps a library basename to its load base."""
+        if fmt == "macos":
+            return self._resolve_macos(frame, adjust)
+
+        lookup_addr = frame.addr - adjust
+
+        if self.is_main_frame(frame):
+            res = self.addr2line_lookup(self.main_target(), lookup_addr)
+            if res:
+                return res
+            return self._fallback(frame)
+
+        # Shared-library frame (glibc only) -- best effort.
+        so = self.locate_lib(frame.obj)
+        if so:
+            base = bases.get(os.path.basename(frame.obj))
+            if base is not None:
+                # Known load base: abs - base is the in-library offset for
+                # every frame of this library, symbol or not.
+                res = self.addr2line_lookup(so, frame.addr - base - adjust)
+                if res:
+                    return res + "  [in %s]" % os.path.basename(so)
+            elif frame.sym:
+                base = self.nm_symaddr(so, frame.sym)
+                if base is not None:
+                    res = self.addr2line_lookup(so, base + frame.sym_off - adjust)
+                    if res:
+                        return res + "  [in %s]" % os.path.basename(so)
+            else:
+                # "(+off)" -- off is the in-library offset addr2line wants.
+                res = self.addr2line_lookup(so, frame.sym_off - adjust)
+                if res:
+                    return res + "  [in %s]" % os.path.basename(so)
+        return self._fallback(frame)
+
+    def _resolve_macos(self, frame, adjust):
+        """Resolve a macOS (atos) frame. The logged absolute address carries
+        the ASLR slide (PIE), so reconstruct the static address from the
+        frame's own "symbol + offset" via nm and hand that to atos -- no slide
+        needed. Main-exe frames resolve against the .dSYM (--symbols) or exe;
+        shared-cache system libs have no on-disk file and fall back."""
+        if self.is_main_frame(frame):
+            target = self.main_target()
+        else:
+            target = self.locate_lib(frame.obj)
+
+        if target and frame.sym:
+            base = self.nm_symaddr(target, frame.sym, macho=True)
+            if base is not None:
+                res = self.atos_lookup(target, base + frame.sym_off - adjust)
+                if res:
+                    if not self.is_main_frame(frame):
+                        res += "  [in %s]" % os.path.basename(frame.obj)
+                    return res
+        return self._fallback(frame)
+
+    def _fallback(self, frame):
+        if frame.obj is None:
+            return "?? [0x%x] in %s" % (
+                frame.addr, os.path.basename(self.main_target() or "?"))
+        sym = self.demangle(frame.sym) if frame.sym else "??"
+        off = "+0x%x" % frame.sym_off if frame.sym_off else ""
+        return "%s%s in %s [0x%x]" % (sym, off, frame.obj, frame.addr)
+
+
+# --- output -----------------------------------------------------------------
+
+def indent_inlines(text):
+    """addr2line -i emits ' (inlined by) ...' continuation lines; indent them
+    a little more so the frame reads as one unit."""
+    out = []
+    for j, ln in enumerate(text.splitlines()):
+        out.append(ln if j == 0 else "      " + ln.strip())
+    return "\n".join(out)
+
+
+def print_stack(idx, stack, resolver):
+    sig = " signal %d" % stack.signal if stack.signal is not None else ""
+    print("callstack #%d  (format=%s%s, %d frames)"
+          % (idx, stack.fmt, sig, len(stack.frames)))
+
+    # A signal-path musl frame 0 is the exact faulting PC (do not adjust);
+    # every other frame is a return address (adjust by 1 to land in the call).
+    # glibc/macOS use backtrace() from inside the handler, so every frame
+    # (including frame 0) is a return address.
+    signal_path = stack.signal is not None
+    bases = resolver.lib_bases(stack.frames)
+    for k, frame in enumerate(stack.frames):
+        exact = (stack.fmt == "musl" and signal_path and k == 0)
+        adjust = 0 if exact else 1
+        resolved = resolver.resolve(frame, adjust, bases, stack.fmt)
+        print("  #%-2d %s" % (k, indent_inlines(resolved)))
+    print()
+
+
+# --- main -------------------------------------------------------------------
+
+def main():
+    ap = argparse.ArgumentParser(
+        prog="btsymbols",
+        description="Resolve callstacks found in an nmail/nchat log file.")
+    ap.add_argument("logfile", help="path to the log file to symbolicate")
+    ap.add_argument("-s", "--symbols",
+                    help="path to the debug symbols file (Linux <app>.debug, or "
+                         "the DWARF binary inside the macOS <app>.dSYM)")
+    ap.add_argument("-e", "--exe",
+                    help="path to the executable that produced the log")
+    ap.add_argument("--addr2line", default=os.environ.get("ADDR2LINE"),
+                    help="addr2line binary to use on Linux (default: auto-detect)")
+    ap.add_argument("--atos", default=os.environ.get("ATOS"),
+                    help="atos binary to use on macOS (default: auto-detect)")
+    args = ap.parse_args()
+
+    if not os.path.isfile(args.logfile):
+        eprint("btsymbols: no such log file: %s" % args.logfile)
+        return 1
+    if not args.symbols and not args.exe:
+        eprint("btsymbols: at least one of --symbols or --exe is required")
+        return 1
+    for label, p in (("symbols", args.symbols), ("exe", args.exe)):
+        if p and not os.path.isfile(p):
+            eprint("btsymbols: no such %s file: %s" % (label, p))
+            return 1
+
+    stacks = parse_log(args.logfile)
+    if not stacks:
+        eprint("btsymbols: no callstacks found in %s" % args.logfile)
+        return 1
+
+    # Only require the resolver a log's formats actually use: Linux logs need
+    # addr2line, macOS logs need atos. A macOS-only log must not fail for lack
+    # of addr2line (which isn't shipped on macOS), and vice versa.
+    formats = {stack.fmt for stack in stacks}
+
+    addr2line = None
+    if formats & {"glibc", "musl"}:
+        addr2line = args.addr2line
+        if not addr2line:
+            for cand in ("addr2line", "llvm-addr2line", "eu-addr2line"):
+                if shutil.which(cand):
+                    addr2line = cand
+                    break
+        if not addr2line or not shutil.which(addr2line):
+            eprint("btsymbols: addr2line not found (install binutils, or pass "
+                   "--addr2line)")
+            return 1
+
+    atos = None
+    if "macos" in formats:
+        atos = args.atos or "atos"
+        if not shutil.which(atos):
+            eprint("btsymbols: atos not found (install the Xcode command line "
+                   "tools, or pass --atos)")
+            return 1
+
+    resolver = Resolver(addr2line, atos, args.symbols, args.exe)
+    for idx, stack in enumerate(stacks, 1):
+        print_stack(idx, stack, resolver)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -7,6 +7,16 @@ execute_process(COMMAND bash "-c" "go version | cut -c14- | cut -d' ' -f1 | tr -
 message(STATUS "Go version ${GO_VERSION}.")
 set(CUSTOM_GO_FLAGS -modcacherw -buildvcs=false)
 
+# Detached debug symbols: when the dist/release build splits nchat's own DWARF
+# into a detached nchat.debug / .dSYM (HAS_DEBUG_SYMBOLS, top-level CMakeLists),
+# omit this c-archive's Go DWARF with -ldflags=-w. A c-archive linked into
+# nchat would otherwise fold whatsmeow's Go DWARF into the detached symbols,
+# dwarfing nchat's own frames. -w drops the DWARF only (the archive's symbol
+# table, needed by the final link, stays), so codegen and linking are unaffected.
+if(HAS_DEBUG_SYMBOLS)
+  list(APPEND CUSTOM_GO_FLAGS -ldflags=-w)
+endif()
+
 # Check Go package
 execute_process(COMMAND bash "-c" "go version | grep -v -q gccgo" RESULT_VARIABLE GO_GCC)
 if (GO_GCC EQUAL "1")

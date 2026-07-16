@@ -9,6 +9,8 @@
 
 #include <string>
 
+#include <signal.h>
+
 #include "log.h"
 
 #define nc_assert(cond) \
@@ -18,13 +20,14 @@ class AppUtil
 {
 public:
   static void AssertionFailed();
-  static std::string GetAppName(bool p_WithVersion);
+  static std::string GetAppName(bool p_WithVersion, bool p_WithBranch = false);
   static std::string GetAppVersion();
   static void SetDeveloperMode(bool p_DeveloperMode);
   static bool GetDeveloperMode();
   static void InitCoredump();
   static void InitSignalHandler();
-  static void SignalHandler(int p_Signal);
+  static void SignalHandler(int p_Signal, siginfo_t* p_SigInfo, void* p_Context);
+  static int GetCallstack(void** p_Callstack, int p_MaxSize, void* p_Context);
 
 private:
   static bool m_DeveloperMode;

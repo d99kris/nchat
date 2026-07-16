@@ -238,11 +238,12 @@ code. Example:
 
     $ nchat --setup
     Protocols:
-    0. Telegram
-    1. WhatsAppMd
-    2. Signal
-    3. Exit setup
-    Select protocol (3): 0
+    0. Dummy
+    1. Telegram
+    2. WhatsAppMd
+    3. Signal
+    4. Exit setup
+    Select protocol (4): 1
     Enter phone number (ex. +6511111111): +6511111111
 
     Open Telegram on your phone, go to Settings -> Devices
@@ -528,10 +529,11 @@ when the terminal is inactive (assuming `online_status_share=1` and
 
 Specifies a custom command to use to auto-compose message reply. The
 command shall include `%1` which will be replaced by the path of a temporary
-text file with message history. If not specified, the following default
-command is used:
+text file with message history. If not specified, nchat extracts its bundled
+[compose](/src/compose) script to a temporary location and uses the following
+default command:
 
-    (prefix)/libexec/nchat/compose -c '%1'
+    python3 '(tempdir)/compose' -c '%1'
 
 Refer to [Auto-Compose](/doc/AUTOCOMPOSE.md) for details.
 

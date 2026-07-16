@@ -19,7 +19,67 @@
 #include "log.h"
 #include "strutil.h"
 
-std::string SysUtil::GetCompiler()
+namespace
+{
+  // Removes any "(...)" groups, including a single space preceding an opening
+  // parenthesis, e.g. "debian gnu/linux 12 (bookworm) arm64" -> "debian gnu/linux 12 arm64".
+  std::string StripParentheses(const std::string& p_Str)
+  {
+    std::string result = p_Str;
+    size_t open = std::string::npos;
+    while ((open = result.find('(')) != std::string::npos)
+    {
+      const size_t close = result.find(')', open);
+      if (close == std::string::npos)
+      {
+        break;
+      }
+
+      size_t start = open;
+      if ((start > 0) && (result[start - 1] == ' '))
+      {
+        --start;
+      }
+
+      result.erase(start, close - start + 1);
+    }
+
+    return result;
+  }
+}
+
+std::string SysUtil::GetBuildInfo()
+{
+  // Build origin (github / local, or packager-provided). Sourced from the
+  // buildinfo.cpp accessor so the volatile generated buildinfo.h stays out of
+  // this translation unit -- a git sha/branch change recompiles only buildinfo.cpp.
+  std::string origin = GetBuildOrigin();
+
+  // Build type
+#if defined(NCHAT_BUILD_RELEASE)
+  std::string type = "release";
+#elif defined(NCHAT_BUILD_DEBUG)
+  std::string type = "debug";
+#elif defined(NCHAT_BUILD_RELWITHDEBINFO)
+  std::string type = "reldbg";
+#else
+  std::string type = "unknown";
+#endif
+
+  // External linkage
+#if defined(NCHAT_BUILD_STATIC_EXTLIBS)
+  std::string linkage = "static";
+#else
+  std::string linkage = "dynamic";
+#endif
+
+  // Build git sha (from the buildinfo.cpp accessor, see origin note above)
+  std::string sha = GetBuildGitSha();
+
+  return StrUtil::ToLower(origin + " " + type + " " + linkage + " " + sha);
+}
+
+std::string SysUtil::GetCompiler(bool p_Verbose)
 {
 #if defined(__VERSION__)
 #if !defined(__clang__) && defined(__GNUC__)
@@ -36,14 +96,27 @@ std::string SysUtil::GetCompiler()
   std::stringstream sslibc;
   sslibc << "glibc " << __GLIBC__ << "." << __GLIBC_MINOR__;
   std::string libc = sslibc.str();
+#elif defined(NCHAT_BUILD_MUSL)
+  // musl provides no version macro; NCHAT_BUILD_MUSL is set by CMake from the
+  // compiler target triple (see CMakeLists.txt).
+  std::string libc = "musl";
+#elif defined(__ANDROID__)
+  std::string libc = "bionic";
 #else
-  std::string libc = "non-glibc";
+  std::string libc = "unknown";
 #endif
 #else
+  // macOS libc (part of libSystem) has no conventional short name; leave empty.
   std::string libc;
 #endif
 
-  return StrUtil::ToLower(compiler + (!libc.empty() ? " " + libc : ""));
+  std::string compilerLibc = compiler + (!libc.empty() ? " " + libc : "");
+  if (!p_Verbose)
+  {
+    compilerLibc = StripParentheses(compilerLibc);
+  }
+
+  return StrUtil::ToLower(compilerLibc);
 }
 
 std::string SysUtil::GetGo(const std::string& p_GoVersion)
@@ -51,7 +124,7 @@ std::string SysUtil::GetGo(const std::string& p_GoVersion)
   return StrUtil::ToLower("go " + (p_GoVersion.empty() ? "n/a" : p_GoVersion));
 }
 
-std::string SysUtil::GetOsArch()
+std::string SysUtil::GetOsArch(bool p_Verbose)
 {
   static const std::string os = []()
   {
@@ -84,7 +157,12 @@ std::string SysUtil::GetOsArch()
 #endif
   }();
 
-  static const std::string osArch = os + " " + arch;
+  std::string osArch = os + " " + arch;
+  if (!p_Verbose)
+  {
+    osArch = StripParentheses(osArch);
+  }
+
   return StrUtil::ToLower(osArch);
 }
 

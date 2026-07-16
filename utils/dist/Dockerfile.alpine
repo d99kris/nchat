@@ -50,3 +50,17 @@ RUN wget -q "https://www.x.org/releases/individual/lib/libXau-${LIBXAU_VERSION}.
     make -j"$(nproc)" && \
     make install && \
     rm -rf /tmp/libXau*
+
+# Strip DWARF from the static dependency archives (same rationale as
+# Dockerfile.manylinux). The source-built libXau above compiles at autotools'
+# default "-g -O2" and installs into /usr/lib, so its .a carries full debug info
+# that the static link folds into nchat and `objcopy --only-keep-debug` would
+# then harvest into nchat.debug. Done here as root at image-build time, because
+# the build container (build-in-container.sh) runs as a non-root --user that
+# cannot rewrite these root-owned archives. `--strip-debug` keeps the archive
+# symbol table so the static link is unaffected. Recursing over /usr/lib also
+# covers the toolchain's static libstdc++/libgcc under /usr/lib/gcc that the
+# -static link folds in; Alpine's own *-static packages ship already stripped
+# (no-op). build-base provides GNU binutils strip (not busybox), which
+# understands the ELF .debug_* sections.
+RUN set -eu; find /usr/lib -name '*.a' -exec strip --strip-debug {} +

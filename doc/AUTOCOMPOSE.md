@@ -53,19 +53,22 @@ Configuring Custom Service / Model
 ----------------------------------
 Edit `ui.conf` to match the desired compose path and usage.
 
-Determine the path of `compose` based on nchat install path:
+The `compose` script is bundled inside the nchat executable and extracted to
+a temporary location at runtime, so there is no installed copy to reference.
+To use custom arguments, copy [compose](/src/compose) from the source tree
+(or download it) to a location of your choice, e.g:
 
-    realpath $(dirname $(which nchat))/../libexec/nchat/compose
+    cp src/compose ~/.local/bin/compose
 
 Example usage with Google Gemini and custom model:
 
-    auto_compose_command=/usr/local/libexec/nchat/compose -s gemini -m gemini-2.0-flash -c '%1'
+    auto_compose_command=python3 ~/.local/bin/compose -s gemini -m gemini-2.0-flash -c '%1'
 
 Example usage with OpenAI and custom model and longer timeout of 60 secs:
 
-    auto_compose_command=/usr/local/libexec/nchat/compose -s openai -m gpt-5-nano -T 60 -c '%1'
+    auto_compose_command=python3 ~/.local/bin/compose -s openai -m gpt-5-nano -T 60 -c '%1'
 
 Example usage with custom prompt and max token limit of 100:
 
-    auto_compose_command=/usr/local/libexec/nchat/compose -p "Suggest {your_name}'s next reply in a joking manner." -M 100 -c '%1'
+    auto_compose_command=python3 ~/.local/bin/compose -p "Suggest {your_name}'s next reply in a joking manner." -M 100 -c '%1'
 

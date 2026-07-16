@@ -123,13 +123,39 @@ void Log::Callstack(void* const* p_Callstack, int p_Size, const char* p_LogMsg)
   if (m_LogFd != -1)
   {
     UNUSED(write(m_LogFd, p_LogMsg, strlen(p_LogMsg)));
-#ifdef HAVE_EXECINFO_H
-    backtrace_symbols_fd(p_Callstack, p_Size, m_LogFd);
-#else
-    (void)p_Callstack;
-    (void)p_Size;
-#endif
+    WriteCallstackToFd(m_LogFd, p_Callstack, p_Size);
   }
+}
+
+void Log::WriteCallstackToFd(int p_Fd, void* const* p_Callstack, int p_Size)
+{
+  if (p_Fd == -1) return;
+
+#if defined(HAVE_EXECINFO_H)
+  // glibc/macOS: symbolicate inline against the (dynamic) symbol table.
+  backtrace_symbols_fd(p_Callstack, p_Size, p_Fd);
+#elif defined(NCHAT_BUILD_MUSL)
+  // musl: no backtrace_symbols; the static binary is stripped and carries no
+  // symbol table to resolve against anyway. Emit raw addresses (absolute, since
+  // the musl binary is linked -no-pie) for offline `addr2line -e nchat.debug`.
+  for (int i = 0; i < p_Size; ++i)
+  {
+    char line[24]; // "0x" + up to 16 hex digits + "\n" + nul
+    const int len = snprintf(line, sizeof(line), "%p\n", p_Callstack[i]);
+    if (len > 0)
+    {
+      UNUSED(write(p_Fd, line, (size_t)len));
+    }
+  }
+#else
+  // Other execinfo-less platforms (Termux/Android, OpenBSD, ...): the frame-pointer
+  // walk in AppUtil::GetCallstack is scoped to musl only, so no callstack is
+  // captured here. Emit an explicit marker so the empty output is self-explanatory.
+  UNUSED(p_Callstack);
+  UNUSED(p_Size);
+  static const char unsupportedMsg[] = "(unsupported platform)\n";
+  UNUSED(write(p_Fd, unsupportedMsg, sizeof(unsupportedMsg) - 1));
+#endif
 }
 
 void Log::Write(const char* p_Filename, int p_LineNo, const char* p_Level,
