@@ -186,6 +186,28 @@ void UiModel::Impl::SendMessage()
 
   if (entryStr.empty()) return;
 
+  // --- COOLDOWN MECHANISM START ---
+  using Clock = std::chrono::steady_clock;
+  static Clock::time_point lastSendTime;
+  static std::wstring lastEntryStr;
+  static std::string lastChatId;
+
+  Clock::time_point now = Clock::now();
+  auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - lastSendTime).count();
+
+  // Block only if it's the exact same message to the same chat within 5 seconds
+  if (chatId == lastChatId && entryStr == lastEntryStr && elapsed < 5)
+  {
+    LOG_TRACE("SendMessage: Skipped identical message within 5-second cooldown.");
+    return;
+  }
+
+  // Update tracking state for this valid transmission
+  lastSendTime = now;
+  lastEntryStr = entryStr;
+  lastChatId = chatId;
+  // --- COOLDOWN MECHANISM END ---
+
   std::shared_ptr<SendMessageRequest> sendMessageRequest = std::make_shared<SendMessageRequest>();
   sendMessageRequest->chatId = chatId;
   sendMessageRequest->chatMessage.text = EntryStrToSendStr(entryStr);
