@@ -151,6 +151,21 @@ Arch Linux
 
     yay -S nchat
 
+
+Install Pre-built Binary
+========================
+Experimental support for Linux (glibc >= 2.28 or musl) x86_64 and arm64, as
+well as macOS arm64.
+
+Install to `~/.local/{bin,share}` (set NCHAT_PREFIX for custom prefix):
+
+    curl -fsSL https://raw.githubusercontent.com/d99kris/nchat/master/utils/install.sh | bash
+
+Uninstall:
+
+    curl -fsSL https://raw.githubusercontent.com/d99kris/nchat/master/utils/uninstall.sh | bash
+
+
 Build from Source
 =================
 nchat consists of a large code-base (mainly the Telegram library tdlib), so be
