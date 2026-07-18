@@ -353,6 +353,15 @@ function(target_common_config target)
     target_compile_options(${target} PRIVATE -fno-omit-frame-pointer)
   endif()
 
+  # On musl, WhatsApp and Signal (Go/cgo) are only built when the Go toolchain
+  # carries the PR #69325 patch, asserted via -DHAS_MUSL_GO_PATCHED=ON (see
+  # doc/MUSLGO.md). Propagate that to the C++ side so SysUtil::IsSupportedLibc()
+  # treats such builds -- the official musl release binaries -- as supported and
+  # does not print the "unsupported platform" WhatsApp/Signal setup warning.
+  if(HAS_MUSL_GO_PATCHED)
+    target_compile_definitions(${target} PRIVATE NCHAT_MUSL_GO_PATCHED=1)
+  endif()
+
   # Compile options
   target_compile_options(${target} PUBLIC ${NCHAT_CFLAGS})
 

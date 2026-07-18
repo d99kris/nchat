@@ -20,10 +20,9 @@
 #
 # On glibc Linux (>= 2.28) the glibc build is selected; on musl Linux, on a
 # glibc older than 2.28, or when the glibc version cannot be determined, the
-# musl build; on macOS the arm64 build. The musl build supports Telegram and
-# WhatsApp but NOT Signal, and WhatsApp requires /proc mounted (see
-# doc/MUSLGO.md) -- so an old-glibc fallback to musl loses Signal support. The
-# full tarball is fetched so the man page comes along.
+# musl build; on macOS the arm64 build. The musl build supports Telegram,
+# WhatsApp and Signal, but WhatsApp and Signal require /proc mounted (see
+# doc/MUSLGO.md). The full tarball is fetched so the man page comes along.
 #
 # nchat is distributed under the MIT license, see LICENSE for details.
 
@@ -178,7 +177,8 @@ detect_libc() {
   # at all -- fall back to the fully static musl build, which bundles its own
   # libc and runs on any Linux. No positive musl detection is needed for this:
   # the musl artifact is the safe default whenever the glibc build might not
-  # load. (nchat's musl build drops Signal support, hence the warning below.)
+  # load. (nchat's musl build needs /proc for WhatsApp and Signal, hence the
+  # note printed after install when /proc is missing.)
   local v major minor
   v="$(glibc_version)"
   if [[ -z "${v}" ]]; then
@@ -250,9 +250,6 @@ main() {
       libc="${DETECTED_LIBC}"
       [[ -n "${LIBC_NOTE}" ]] && info "note: ${LIBC_NOTE}"
       target="linux-${arch}-${libc}"
-      if [[ "${libc}" == "musl" ]]; then
-        warn "musl build: Signal not supported (Telegram and WhatsApp work); WhatsApp requires /proc mounted, see doc/MUSLGO.md"
-      fi
       ;;
   esac
 
@@ -341,7 +338,12 @@ main() {
   fi
 
   info "successfully installed nchat"
-  [[ "${target}" == *-musl ]] && info "musl build: Telegram and WhatsApp (Signal not supported; WhatsApp needs /proc mounted)"
+  # The musl build's WhatsApp and Signal support needs /proc mounted (see
+  # doc/MUSLGO.md); flag it only when /proc is actually missing. /proc/self is a
+  # symlink into the mounted procfs, so -e is false when /proc is not mounted.
+  if [[ "${target}" == *-musl ]] && [[ ! -e /proc/self ]]; then
+    info "note: musl build requires /proc for whatsapp and signal"
+  fi
 
   case ":${PATH}:" in
     *":${bindir}:"*) ;;

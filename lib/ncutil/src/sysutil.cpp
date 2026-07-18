@@ -168,7 +168,12 @@ std::string SysUtil::GetOsArch(bool p_Verbose)
 
 bool SysUtil::IsSupportedLibc()
 {
-#if defined(__APPLE__) || defined(__GLIBC__)
+  // glibc and macOS are always supported. On musl the Go-based protocols crash
+  // with a stock Go toolchain (nchat issue #204 / Go PR #69325), so they are
+  // only built with a patched toolchain; NCHAT_MUSL_GO_PATCHED (set by CMake
+  // when -DHAS_MUSL_GO_PATCHED=ON, as in the official musl release builds)
+  // marks such a build as supported. See doc/MUSLGO.md.
+#if defined(__APPLE__) || defined(__GLIBC__) || defined(NCHAT_MUSL_GO_PATCHED)
   return true;
 #else
   return false;
