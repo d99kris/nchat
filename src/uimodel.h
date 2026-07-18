@@ -74,6 +74,7 @@ private:
     void OnKeyOpenLink();
     std::string OnKeySaveAttachment(std::string p_FilePath = std::string());
     void TransferFile(const std::vector<std::string>& p_FilePaths);
+    std::vector<std::string>& GetPendingFilePaths(const std::string& p_ProfileId, const std::string& p_ChatId);
     void InsertEmoji(const std::wstring& p_Emoji);
     void InsertText(const std::wstring& p_Text);
     void RequestGroupMembers(const std::string& p_ProfileId, const std::string& p_ChatId);
@@ -271,6 +272,7 @@ private:
 
     std::unordered_map<std::string, std::unordered_map<std::string, std::wstring>> m_EntryStr;
     std::unordered_map<std::string, std::unordered_map<std::string, int>> m_EntryPos;
+    std::unordered_map<std::string, std::unordered_map<std::string, std::vector<std::string>>> m_PendingFilePaths;
 
     std::unordered_map<std::string, std::unordered_map<std::string, std::wstring>> m_EntryStrCleared;
     std::unordered_map<std::string, std::unordered_map<std::string, int>> m_EntryPosCleared;

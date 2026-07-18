@@ -1,8 +1,16 @@
 Clipboard
 =========
 On supported platforms (macOS, X11, Wayland) nchat uses the system
-clipboard. For other platforms, or custom behavior, one may configure below
-parameters in `app.conf`.
+clipboard. Text paste inserts clipboard text into the input buffer. Image
+paste attaches the clipboard image to the current chat after optional
+confirmation. The attached image is sent when the message is sent.
+
+For other platforms, or custom behavior, one may configure below parameters in
+`app.conf`.
+
+Image paste requires nchat to be built with `libpng` support. Wayland image
+paste uses `wl-clipboard` by default. X11 and macOS use the bundled clipboard
+backend when no custom image commands are configured.
 
 **Note:** The examples provided below are mainly for reference, not useful
 as actual configuration values (except the `File-based` examples), as the
@@ -44,9 +52,11 @@ Examples:
 ### clipboard_paste_image_command
 
 Specifies a custom image paste command to be used instead of system clipboard.
+The command shall write PNG image bytes to stdout. nchat redirects stdout to a
+temporary `.png` file and verifies that the result is non-empty PNG data before
+sending it.
 Examples:
 
 | Platform    | Command                                                   |
 |-------------|-----------------------------------------------------------|
 | Wayland     | `wl-paste --type image/png`                               |
-
