@@ -183,7 +183,6 @@ void UiModel::Impl::SendMessage()
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
   std::wstring& entryStr = m_EntryStr[profileId][chatId];
-  int& entryPos = m_EntryPos[profileId][chatId];
 
   if (entryStr.empty()) return;
 
@@ -201,10 +200,6 @@ void UiModel::Impl::SendMessage()
 
   SendProtocolRequest(profileId, sendMessageRequest);
 
-  entryStr.clear();
-  entryPos = 0;
-
-  UpdateEntry();
   ResetMessageOffset();
   SetHistoryInteraction(true);
 }
@@ -1853,7 +1848,20 @@ void UiModel::Impl::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMess
       {
         std::shared_ptr<SendMessageNotify> sendMessageNotify = std::static_pointer_cast<SendMessageNotify>(
           p_ServiceMessage);
-        LOG_TRACE(sendMessageNotify->success ? "send ok" : "send failed");
+
+        std::string chatId = sendMessageNotify->chatId;
+
+        if (sendMessageNotify->success)
+        {
+          LOG_TRACE("send ok");
+          m_EntryStr[profileId][chatId].clear();
+          m_EntryPos[profileId][chatId] = 0;
+          UpdateEntry();
+        }
+        else
+        {
+          LOG_TRACE("send failed");
+        }
       }
       break;
 
