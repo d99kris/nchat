@@ -3648,16 +3648,16 @@ void UiModel::Impl::OnKeyCancel()
 
 std::string UiModel::Impl::EntryStrToSendStr(const std::wstring& p_EntryStr)
 {
+  std::wstring wstr = p_EntryStr;
+  wstr.erase(std::remove(wstr.begin(), wstr.end(), EMOJI_PAD), wstr.end());
+
   std::string str;
   if (m_View->GetEmojiEnabled())
   {
-    std::wstring wstr = p_EntryStr;
-    wstr.erase(std::remove(wstr.begin(), wstr.end(), EMOJI_PAD), wstr.end());
     str = StrUtil::ToString(wstr);
   }
   else
   {
-    std::wstring wstr = p_EntryStr;
     str = StrUtil::Emojize(StrUtil::ToString(wstr));
   }
 
