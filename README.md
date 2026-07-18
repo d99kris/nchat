@@ -145,6 +145,10 @@ Arch Linux
 
     yay -S nchat
 
+**Install Pre-built Binary**
+
+    yay -S nchat-bin
+
 
 Install Pre-built Binary
 ========================
