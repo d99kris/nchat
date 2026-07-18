@@ -90,7 +90,7 @@ popd > /dev/null || exiterr "popd failed"
 [[ "$(uname)" == "Linux" ]] && SEDCMD="sed" || SEDCMD="gsed"
 ${SEDCMD} -E -i -e "s/^var signalDate int.*$/var signalDate int = ${NEWVERSION}/g" lib/sgchat/go/gosg.go
 
-# Update LIBSIGNAL_BUILD_REF in CMakeLists.txt
+# Update LIBSIGNAL_BUILD_REF in libsignal.cmake
 echo "Determine libsignal build ref"
 LIBSIGNAL_VERSION=$(grep 'const Version' "${REPOTARGET}/pkg/libsignalgo/version.go" | cut -d'"' -f2)
 if [[ -n "${LIBSIGNAL_VERSION}" ]]; then
@@ -107,7 +107,7 @@ if [[ -n "${LIBSIGNAL_VERSION}" ]]; then
       fi
     done
     if [[ -n "${LIBSIGNAL_BUILD_REF}" ]]; then
-      ${SEDCMD} -E -i "s|^set\\(LIBSIGNAL_BUILD_REF \"[^\"]*\"|set(LIBSIGNAL_BUILD_REF \"${LIBSIGNAL_BUILD_REF}\"|" lib/sgchat/go/CMakeLists.txt
+      ${SEDCMD} -E -i "s|^set\\(LIBSIGNAL_BUILD_REF \"[^\"]*\"|set(LIBSIGNAL_BUILD_REF \"${LIBSIGNAL_BUILD_REF}\"|" lib/sgchat/go/libsignal.cmake
       echo "Updated LIBSIGNAL_BUILD_REF to ${LIBSIGNAL_BUILD_REF}"
     else
       echo "Warning: No matching libsignal build found for ${LIBSIGNAL_VERSION}"

@@ -224,9 +224,9 @@ option(HAS_SIGNAL "Signal" OFF)
 message(STATUS "Signal: ${HAS_SIGNAL}")
 
 # musl restrictions - Go c-archives built with a stock Go toolchain segfault
-# at startup on musl (nchat issue #204 / Go PR #69325), so on musl WhatsApp
-# requires a patched Go toolchain, asserted via -DHAS_MUSL_GO_PATCHED=ON
-# (see doc/MUSLGO.md). Signal on musl is not supported and stays off regardless.
+# at startup on musl (nchat issue #204 / Go PR #69325), so on musl WhatsApp and
+# Signal (both Go/cgo) require a patched Go toolchain, asserted via
+# -DHAS_MUSL_GO_PATCHED=ON (see doc/MUSLGO.md).
 option(HAS_MUSL_GO_PATCHED "Musl Go Patched" OFF)
 execute_process(COMMAND ${CMAKE_CXX_COMPILER} -dumpmachine
                 OUTPUT_VARIABLE TARGET_TRIPLE ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -236,9 +236,9 @@ if (TARGET_TRIPLE MATCHES "musl")
     set(HAS_WHATSAPP OFF)
     message(STATUS "WhatsApp: ${HAS_WHATSAPP} (Forced - musl needs a Go toolchain patched with Go PR #69325, then pass -DHAS_MUSL_GO_PATCHED=ON; see doc/MUSLGO.md)")
   endif()
-  if (HAS_SIGNAL)
+  if (HAS_SIGNAL AND NOT HAS_MUSL_GO_PATCHED)
     set(HAS_SIGNAL OFF)
-    message(STATUS "Signal: ${HAS_SIGNAL} (Forced - not supported on musl)")
+    message(STATUS "Signal: ${HAS_SIGNAL} (Forced - musl needs a Go toolchain patched with Go PR #69325, then pass -DHAS_MUSL_GO_PATCHED=ON; see doc/MUSLGO.md)")
   endif()
 endif()
 
@@ -262,6 +262,22 @@ message(STATUS "Core Dump: ${HAS_COREDUMP}")
 # Feature - Static Go library
 option(HAS_STATICGOLIB "Static Go" ON)
 message(STATUS "Static Go: ${HAS_STATICGOLIB}")
+
+# Feature - Combined Go library (single c-archive hosting both WhatsApp and Signal)
+# When the internal protocol libraries are static (NOT HAS_SHARED_LIBS), their Go
+# c-archives are pulled into nchat's single final link. Two independent Go
+# c-archives cannot co-link there (duplicate embedded runtime and mattn/go-sqlite3
+# cgo-export symbols). So when both WhatsApp and Signal are enabled in a static,
+# static-Go build, assemble them into one c-archive (one runtime) via lib/gostat.
+# Shared-library builds (incl. the default dynamic-load build) keep the separate
+# per-protocol libraries — each its own loaded object, so no collision — and never
+# trigger this.
+if(HAS_WHATSAPP AND HAS_SIGNAL AND HAS_STATICGOLIB AND NOT HAS_SHARED_LIBS)
+  set(HAS_COMBINED_GOLIB ON)
+else()
+  set(HAS_COMBINED_GOLIB OFF)
+endif()
+message(STATUS "Combined Go library: ${HAS_COMBINED_GOLIB}")
 
 # Check Golang version for whatsmeow minimum requirement
 set(GO_VERSION_MIN 1.23)
@@ -453,6 +469,12 @@ if(HAS_DUMMY)
 endif()
 if(HAS_TELEGRAM)
   add_subdirectory(lib/tgchat)
+endif()
+if(HAS_COMBINED_GOLIB)
+  # Combined WhatsApp+Signal c-archive; added before the protocol dirs so its
+  # ref-cgogostat target and LIBSIGNAL_FFI_PATH / GO_LIBRARIES are available when
+  # lib/wmchat and lib/sgchat configure.
+  add_subdirectory(lib/gostat)
 endif()
 if(HAS_WHATSAPP)
   add_subdirectory(lib/wmchat)

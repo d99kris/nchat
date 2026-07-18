@@ -20,8 +20,15 @@ install(TARGETS sgchat DESTINATION ${CMAKE_INSTALL_LIBDIR})
 target_common_config(sgchat)
 
 # Dependency libraries
-add_subdirectory(go)
-add_dependencies(sgchat ref-cgosg)
+if(HAS_COMBINED_GOLIB)
+  # Combined WhatsApp+Signal c-archive built in lib/gostat (which also provides
+  # LIBSIGNAL_FFI_PATH); the per-protocol Go library is not built here.
+  set(SGCHAT_GOLIB ref-cgogostat)
+else()
+  add_subdirectory(go)
+  set(SGCHAT_GOLIB ref-cgosg)
+endif()
+add_dependencies(sgchat ${SGCHAT_GOLIB})
 
 # Platform specifics
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
@@ -45,11 +52,11 @@ set_target_properties(sgchat PROPERTIES COMPILE_FLAGS
 # Linking
 message(STATUS "Go libraries: ${GO_LIBRARIES}")
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-  target_link_libraries(sgchat PUBLIC ref-cgosg ncutil ${GO_LIBRARIES}
+  target_link_libraries(sgchat PUBLIC ${SGCHAT_GOLIB} ncutil ${GO_LIBRARIES}
     -Wl,-w -Wl,-force_load,${LIBSIGNAL_FFI_PATH}
     -lm -lz)
 else()
-  target_link_libraries(sgchat PUBLIC ref-cgosg ncutil ${GO_LIBRARIES}
+  target_link_libraries(sgchat PUBLIC ${SGCHAT_GOLIB} ncutil ${GO_LIBRARIES}
     -Wl,--whole-archive ${LIBSIGNAL_FFI_PATH} -Wl,--no-whole-archive
     -ldl -lm -lz)
 endif()

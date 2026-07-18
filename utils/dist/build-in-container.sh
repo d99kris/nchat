@@ -34,8 +34,9 @@ fi
 # musl: the image's Go toolchain carries the vendored Go PR #69325 patch
 # (see Dockerfile.alpine / doc/MUSLGO.md), fixing the Go c-archive startup
 # crash on musl (nchat issue #204). Pass -DHAS_MUSL_GO_PATCHED=ON so CMake
-# keeps WhatsApp enabled (it auto-disables on musl otherwise). Signal stays
-# OFF on musl (deferred; the glibc dist does not enable it either).
+# keeps WhatsApp and Signal enabled on musl (both are Go/cgo and auto-disable
+# there without the patch; Signal itself is opted in for all dist targets via
+# -DHAS_SIGNAL=ON at the cmake call below).
 # glibc keeps WhatsApp and points CMake at the source-built static deps in
 # /opt/nchat-deps (see Dockerfile.manylinux); only libc stays dynamic.
 EXTRA_CMAKE_ARGS=()
@@ -74,10 +75,16 @@ LINKER_FLAGS="${LINKER_FLAGS} -Wl,--build-id=sha1"
 # Note: ccache is wired in by lib/ncutil/CMakeLists.txt via a global
 # RULE_LAUNCH_COMPILE; do NOT also set CMAKE_*_COMPILER_LAUNCHER here or
 # ccache 4.x aborts with "Recursive invocation" (ccache ccache <compiler>).
+# -DHAS_SIGNAL=ON: Signal defaults OFF (heavy Go/Rust build, few users) so
+# plain local `make.sh` builds stay light; the dist/release builds opt in so
+# the published static binaries carry it. With WhatsApp also on in this static,
+# static-Go build, CMake links both protocols into one combined gostat
+# c-archive (HAS_COMBINED_GOLIB) rather than two colliding runtimes.
 rm -rf "${BUILD_DIR}"
 cmake -S "${SRC}" -B "${BUILD_DIR}" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
   -DHAS_STATIC_EXTLIBS=ON \
+  -DHAS_SIGNAL=ON \
   -DHAS_DEBUG_SYMBOLS=ON \
   -DCMAKE_EXE_LINKER_FLAGS="${LINKER_FLAGS}" \
   "${EXTRA_CMAKE_ARGS[@]}" \
