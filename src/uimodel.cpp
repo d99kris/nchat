@@ -183,9 +183,30 @@ void UiModel::Impl::SendMessage()
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
   std::wstring& entryStr = m_EntryStr[profileId][chatId];
-  int& entryPos = m_EntryPos[profileId][chatId];
 
   if (entryStr.empty()) return;
+
+  // --- COOLDOWN MECHANISM START ---
+  using Clock = std::chrono::steady_clock;
+  static Clock::time_point lastSendTime;
+  static std::wstring lastEntryStr;
+  static std::string lastChatId;
+
+  Clock::time_point now = Clock::now();
+  auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - lastSendTime).count();
+
+  // Block only if it's the exact same message to the same chat within 5 seconds
+  if (chatId == lastChatId && entryStr == lastEntryStr && elapsed < 5)
+  {
+    LOG_TRACE("SendMessage: Skipped identical message within 5-second cooldown.");
+    return;
+  }
+
+  // Update tracking state for this valid transmission
+  lastSendTime = now;
+  lastEntryStr = entryStr;
+  lastChatId = chatId;
+  // --- COOLDOWN MECHANISM END ---
 
   std::shared_ptr<SendMessageRequest> sendMessageRequest = std::make_shared<SendMessageRequest>();
   sendMessageRequest->chatId = chatId;
@@ -201,10 +222,6 @@ void UiModel::Impl::SendMessage()
 
   SendProtocolRequest(profileId, sendMessageRequest);
 
-  entryStr.clear();
-  entryPos = 0;
-
-  UpdateEntry();
   ResetMessageOffset();
   SetHistoryInteraction(true);
 }
@@ -1853,7 +1870,20 @@ void UiModel::Impl::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMess
       {
         std::shared_ptr<SendMessageNotify> sendMessageNotify = std::static_pointer_cast<SendMessageNotify>(
           p_ServiceMessage);
-        LOG_TRACE(sendMessageNotify->success ? "send ok" : "send failed");
+
+        std::string chatId = sendMessageNotify->chatId;
+
+        if (sendMessageNotify->success)
+        {
+          LOG_TRACE("send ok");
+          m_EntryStr[profileId][chatId].clear();
+          m_EntryPos[profileId][chatId] = 0;
+          UpdateEntry();
+        }
+        else
+        {
+          LOG_TRACE("send failed");
+        }
       }
       break;
 
