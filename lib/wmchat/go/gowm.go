@@ -1568,7 +1568,7 @@ func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg 
 	case msg.ImageMessage != nil:
 		handler.HandleImageMessage(messageInfo, msg, isSyncRead)
 
-	case msg.VideoMessage != nil:
+	case msg.VideoMessage != nil || msg.PtvMessage != nil:
 		handler.HandleVideoMessage(messageInfo, msg, isSyncRead)
 
 	case msg.AudioMessage != nil:
@@ -1797,6 +1797,10 @@ func (handler *WmEventHandler) HandleVideoMessage(messageInfo types.MessageInfo,
 
 	// get video part
 	vid := msg.GetVideoMessage()
+	if vid == nil {
+		// video note / ptv
+		vid = msg.GetPtvMessage()
+	}
 	if vid == nil {
 		LOG_WARNING(fmt.Sprintf("get video message failed"))
 		return
