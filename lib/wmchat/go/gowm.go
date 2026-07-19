@@ -379,12 +379,16 @@ func DownloadableMessageToFileId(client *whatsmeow.Client, msg whatsmeow.Downloa
 		return ""
 	}
 
+	// store both url and direct path when available; media urls expire, so the direct path is
+	// needed to re-download long after receipt (ex: after the profile tmp dir is cleared).
 	urlable, ok := msg.(whatsmeow.DownloadableMessageWithURL)
 	if ok && len(urlable.GetUrl()) > 0 {
 		info.Url = urlable.GetUrl()
-	} else if len(msg.GetDirectPath()) > 0 {
+	}
+	if len(msg.GetDirectPath()) > 0 {
 		info.DirectPath = msg.GetDirectPath()
-	} else {
+	}
+	if len(info.Url) == 0 && len(info.DirectPath) == 0 {
 		LOG_WARNING(fmt.Sprintf("url and path not present"))
 		return ""
 	}
@@ -466,16 +470,22 @@ func DownloadFromFileId(connId int, fileId string) (string, int) {
 
 func DownloadFromFileInfo(client *whatsmeow.Client, info DownloadInfo) ([]byte, error) {
 	ctx := context.TODO()
+	var err error = whatsmeow.ErrNoURLPresent
 	if len(info.Url) > 0 {
 		LOG_TRACE(fmt.Sprintf("download url: %s", info.Url))
-		return client.DownloadMediaWithUrl(ctx, info.Url, info.MediaKey, info.MediaType, info.FileEncSha256, info.FileSha256)
-	} else if len(info.DirectPath) > 0 {
+		var data []byte
+		data, err = client.DownloadMediaWithUrl(ctx, info.Url, info.MediaKey, info.MediaType, info.FileEncSha256, info.FileSha256)
+		if err == nil {
+			return data, nil
+		}
+		// media urls expire; fall through to direct path if available
+		LOG_WARNING(fmt.Sprintf("download url error %#v", err))
+	}
+	if len(info.DirectPath) > 0 {
 		LOG_TRACE(fmt.Sprintf("download directpath: %s", info.DirectPath))
 		return client.DownloadMediaWithPath(ctx, info.DirectPath, info.FileEncSha256, info.FileSha256, info.MediaKey, info.MediaType, whatsmeow.GetMMSType(info.MediaType), false)
-	} else {
-		LOG_WARNING(fmt.Sprintf("url and path not present"))
-		return nil, whatsmeow.ErrNoURLPresent
 	}
+	return nil, err
 }
 
 // utils
@@ -3569,8 +3579,9 @@ func WmDownloadFile(connId int, chatId string, msgId string, fileId string, acti
 	// download file
 	filePath, fileStatus := DownloadFromFileId(connId, fileId)
 
-	// notify result
-	CWmNewMessageFileNotify(connId, chatId, msgId, filePath, fileStatus, action)
+	// notify result (pass fileId back so the attachment stays re-downloadable if its file is
+	// later removed, ex: when the profile tmp dir is cleared between sessions)
+	CWmNewMessageFileNotify(connId, chatId, msgId, fileId, filePath, fileStatus, action)
 
 	return 0
 }

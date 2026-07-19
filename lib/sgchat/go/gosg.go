@@ -3156,8 +3156,10 @@ func SgDownloadFile(connId int, chatId string, msgId string, fileId string, acti
 
 	filePath, fileStatus := DownloadFromFileId(connId, fileId)
 
+	// notify result (pass fileId back so the attachment stays re-downloadable if its file is
+	// later removed, ex: when the profile tmp dir is cleared between sessions)
 	LOG_TRACE(fmt.Sprintf("Call CSgNewMessageFileNotify"))
-	CSgNewMessageFileNotify(connId, chatId, msgId, filePath, fileStatus, action)
+	CSgNewMessageFileNotify(connId, chatId, msgId, fileId, filePath, fileStatus, action)
 
 	return 0
 }

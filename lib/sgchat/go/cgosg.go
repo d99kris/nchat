@@ -17,7 +17,7 @@ package main
 // extern void SgNewStatusNotify(int p_ConnId, char* p_UserId, int p_IsOnline, int p_TimeSeen);
 // extern void SgNewTypingNotify(int p_ConnId, char* p_ChatId, char* p_UserId, int p_IsTyping);
 // extern void SgNewMessageStatusNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsRead);
-// extern void SgNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_FilePath, int p_FileStatus, int p_Action);
+// extern void SgNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_FileId, char* p_FilePath, int p_FileStatus, int p_Action);
 // extern void SgNewMessageReactionNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe);
 // extern void SgDeleteChatNotify(int p_ConnId, char* p_ChatId);
 // extern void SgDeleteMessageNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsOutgoing);
@@ -165,8 +165,8 @@ func CSgNewMessageStatusNotify(connId int, chatId string, msgId string, isRead i
 	C.SgNewMessageStatusNotify(C.int(connId), C.CString(chatId), C.CString(msgId), C.int(isRead))
 }
 
-func CSgNewMessageFileNotify(connId int, chatId string, msgId string, filePath string, fileStatus int, action int) {
-	C.SgNewMessageFileNotify(C.int(connId), C.CString(chatId), C.CString(msgId), C.CString(filePath), C.int(fileStatus), C.int(action))
+func CSgNewMessageFileNotify(connId int, chatId string, msgId string, fileId string, filePath string, fileStatus int, action int) {
+	C.SgNewMessageFileNotify(C.int(connId), C.CString(chatId), C.CString(msgId), C.CString(fileId), C.CString(filePath), C.int(fileStatus), C.int(action))
 }
 
 func CSgNewMessageReactionNotify(connId int, chatId string, msgId string, senderId string, text string, fromMe int) {

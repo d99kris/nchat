@@ -1129,14 +1129,17 @@ void SgNewMessageStatusNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p
   free(p_MsgId);
 }
 
-void SgNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_FilePath, int p_FileStatus,
-                            int p_Action)
+void SgNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_FileId, char* p_FilePath,
+                            int p_FileStatus, int p_Action)
 {
   SgChat* instance = SgChat::GetInstance(p_ConnId);
   if (instance != nullptr)
   {
     FileInfo fileInfo;
     fileInfo.fileStatus = static_cast<FileStatus>(p_FileStatus);
+    // retain file id (provided by the caller) so the attachment can be downloaded again if its
+    // file is later removed, ex: when user clears the profile tmp dir between sessions.
+    fileInfo.fileId = std::string(p_FileId);
     fileInfo.filePath = std::string(p_FilePath);
 
     std::shared_ptr<NewMessageFileNotify> newMessageFileNotify =
@@ -1153,6 +1156,7 @@ void SgNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p
 
   free(p_ChatId);
   free(p_MsgId);
+  free(p_FileId);
   free(p_FilePath);
 }
 
