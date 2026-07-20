@@ -192,6 +192,9 @@ private:
   void AddMentionEntities(td::td_api::object_ptr<td::td_api::formattedText>& p_FormattedText,
                           const std::vector<MentionInfo>& p_MentionInfos);
   std::string GetText(td::td_api::object_ptr<td::td_api::formattedText>&& p_FormattedText);
+  std::string GetRichText(const td::td_api::RichText* p_RichText);
+  void AppendPageBlock(const td::td_api::PageBlock& p_Block, std::ostringstream& p_Oss, const std::string& p_Indent);
+  std::string GetRichMessageText(const td::td_api::richMessage& p_RichMessage);
   void TdMessageContentConvert(td::td_api::MessageContent& p_TdMessageContent, int64_t p_SenderId,
                                std::string& p_Text, std::string& p_FileInfo);
   void TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessage& p_ChatMessage);
@@ -3239,6 +3242,315 @@ std::string TgChat::Impl::GetText(td::td_api::object_ptr<td::td_api::formattedTe
   return text;
 }
 
+std::string TgChat::Impl::GetRichText(const td::td_api::RichText* p_RichText)
+{
+  if (!p_RichText) return "";
+
+  switch (p_RichText->get_id())
+  {
+    case td::td_api::richTextPlain::ID:
+      return static_cast<const td::td_api::richTextPlain*>(p_RichText)->text_;
+    case td::td_api::richTextCustomEmoji::ID:
+      return static_cast<const td::td_api::richTextCustomEmoji*>(p_RichText)->alternative_text_;
+    case td::td_api::richTextMathematicalExpression::ID:
+      return static_cast<const td::td_api::richTextMathematicalExpression*>(p_RichText)->expression_;
+    case td::td_api::richTextIcon::ID:
+    case td::td_api::richTextAnchor::ID:
+      return "";
+    case td::td_api::richTexts::ID:
+    {
+      std::string text;
+      for (const auto& sub : static_cast<const td::td_api::richTexts*>(p_RichText)->texts_)
+      {
+        text += GetRichText(sub.get());
+      }
+      return text;
+    }
+    case td::td_api::richTextBold::ID:
+      return GetRichText(static_cast<const td::td_api::richTextBold*>(p_RichText)->text_.get());
+    case td::td_api::richTextItalic::ID:
+      return GetRichText(static_cast<const td::td_api::richTextItalic*>(p_RichText)->text_.get());
+    case td::td_api::richTextUnderline::ID:
+      return GetRichText(static_cast<const td::td_api::richTextUnderline*>(p_RichText)->text_.get());
+    case td::td_api::richTextStrikethrough::ID:
+      return GetRichText(static_cast<const td::td_api::richTextStrikethrough*>(p_RichText)->text_.get());
+    case td::td_api::richTextSpoiler::ID:
+      return GetRichText(static_cast<const td::td_api::richTextSpoiler*>(p_RichText)->text_.get());
+    case td::td_api::richTextSubscript::ID:
+      return GetRichText(static_cast<const td::td_api::richTextSubscript*>(p_RichText)->text_.get());
+    case td::td_api::richTextSuperscript::ID:
+      return GetRichText(static_cast<const td::td_api::richTextSuperscript*>(p_RichText)->text_.get());
+    case td::td_api::richTextMarked::ID:
+      return GetRichText(static_cast<const td::td_api::richTextMarked*>(p_RichText)->text_.get());
+    case td::td_api::richTextFixed::ID:
+      return GetRichText(static_cast<const td::td_api::richTextFixed*>(p_RichText)->text_.get());
+    case td::td_api::richTextDateTime::ID:
+      return GetRichText(static_cast<const td::td_api::richTextDateTime*>(p_RichText)->text_.get());
+    case td::td_api::richTextMention::ID:
+      return GetRichText(static_cast<const td::td_api::richTextMention*>(p_RichText)->text_.get());
+    case td::td_api::richTextHashtag::ID:
+      return GetRichText(static_cast<const td::td_api::richTextHashtag*>(p_RichText)->text_.get());
+    case td::td_api::richTextCashtag::ID:
+      return GetRichText(static_cast<const td::td_api::richTextCashtag*>(p_RichText)->text_.get());
+    case td::td_api::richTextBotCommand::ID:
+      return GetRichText(static_cast<const td::td_api::richTextBotCommand*>(p_RichText)->text_.get());
+    case td::td_api::richTextMentionName::ID:
+      return GetRichText(static_cast<const td::td_api::richTextMentionName*>(p_RichText)->text_.get());
+    case td::td_api::richTextUrl::ID:
+      return GetRichText(static_cast<const td::td_api::richTextUrl*>(p_RichText)->text_.get());
+    case td::td_api::richTextEmailAddress::ID:
+      return GetRichText(static_cast<const td::td_api::richTextEmailAddress*>(p_RichText)->text_.get());
+    case td::td_api::richTextPhoneNumber::ID:
+      return GetRichText(static_cast<const td::td_api::richTextPhoneNumber*>(p_RichText)->text_.get());
+    case td::td_api::richTextBankCardNumber::ID:
+      return GetRichText(static_cast<const td::td_api::richTextBankCardNumber*>(p_RichText)->text_.get());
+    case td::td_api::richTextAnchorLink::ID:
+      return GetRichText(static_cast<const td::td_api::richTextAnchorLink*>(p_RichText)->text_.get());
+    case td::td_api::richTextReferenceLink::ID:
+      return GetRichText(static_cast<const td::td_api::richTextReferenceLink*>(p_RichText)->text_.get());
+    case td::td_api::richTextReference::ID:
+      return GetRichText(static_cast<const td::td_api::richTextReference*>(p_RichText)->text_.get());
+    default:
+      return "";
+  }
+}
+
+void TgChat::Impl::AppendPageBlock(const td::td_api::PageBlock& p_Block, std::ostringstream& p_Oss,
+                                   const std::string& p_Indent)
+{
+  switch (p_Block.get_id())
+  {
+    case td::td_api::pageBlockTitle::ID:
+      p_Oss << p_Indent << GetRichText(static_cast<const td::td_api::pageBlockTitle&>(p_Block).title_.get()) << "\n";
+      break;
+    case td::td_api::pageBlockSubtitle::ID:
+      p_Oss << p_Indent << GetRichText(static_cast<const td::td_api::pageBlockSubtitle&>(p_Block).subtitle_.get()) << "\n";
+      break;
+    case td::td_api::pageBlockAuthorDate::ID:
+      p_Oss << p_Indent << GetRichText(static_cast<const td::td_api::pageBlockAuthorDate&>(p_Block).author_.get()) << "\n";
+      break;
+    case td::td_api::pageBlockHeader::ID:
+      p_Oss << p_Indent << GetRichText(static_cast<const td::td_api::pageBlockHeader&>(p_Block).header_.get()) << "\n";
+      break;
+    case td::td_api::pageBlockSubheader::ID:
+      p_Oss << p_Indent << GetRichText(static_cast<const td::td_api::pageBlockSubheader&>(p_Block).subheader_.get()) << "\n";
+      break;
+    case td::td_api::pageBlockSectionHeading::ID:
+      p_Oss << p_Indent << GetRichText(static_cast<const td::td_api::pageBlockSectionHeading&>(p_Block).text_.get()) << "\n";
+      break;
+    case td::td_api::pageBlockKicker::ID:
+      p_Oss << p_Indent << GetRichText(static_cast<const td::td_api::pageBlockKicker&>(p_Block).kicker_.get()) << "\n";
+      break;
+    case td::td_api::pageBlockParagraph::ID:
+      p_Oss << p_Indent << GetRichText(static_cast<const td::td_api::pageBlockParagraph&>(p_Block).text_.get()) << "\n";
+      break;
+    case td::td_api::pageBlockFooter::ID:
+      p_Oss << p_Indent << GetRichText(static_cast<const td::td_api::pageBlockFooter&>(p_Block).footer_.get()) << "\n";
+      break;
+    case td::td_api::pageBlockPreformatted::ID:
+    {
+      const auto& block = static_cast<const td::td_api::pageBlockPreformatted&>(p_Block);
+      std::string code = GetRichText(block.text_.get());
+      std::string line;
+      for (char c : code)
+      {
+        if (c == '\n')
+        {
+          p_Oss << p_Indent << line << "\n";
+          line.clear();
+        }
+        else
+        {
+          line += c;
+        }
+      }
+      if (!line.empty())
+      {
+        p_Oss << p_Indent << line << "\n";
+      }
+      break;
+    }
+    case td::td_api::pageBlockDivider::ID:
+      p_Oss << p_Indent << "---\n";
+      break;
+    case td::td_api::pageBlockMathematicalExpression::ID:
+      p_Oss << p_Indent << static_cast<const td::td_api::pageBlockMathematicalExpression&>(p_Block).expression_ << "\n";
+      break;
+    case td::td_api::pageBlockList::ID:
+    {
+      const auto& list = static_cast<const td::td_api::pageBlockList&>(p_Block);
+      for (const auto& item : list.items_)
+      {
+        if (!item) continue;
+        std::string label = item->label_.empty() ? std::string("-") : item->label_;
+        p_Oss << p_Indent << label << " ";
+        std::string itemIndent = p_Indent + std::string(label.size() + 1, ' ');
+        for (const auto& sub : item->blocks_)
+        {
+          if (sub) AppendPageBlock(*sub, p_Oss, itemIndent);
+        }
+      }
+      break;
+    }
+    case td::td_api::pageBlockBlockQuote::ID:
+    {
+      const auto& quote = static_cast<const td::td_api::pageBlockBlockQuote&>(p_Block);
+      for (const auto& sub : quote.blocks_)
+      {
+        if (sub) AppendPageBlock(*sub, p_Oss, p_Indent + "> ");
+      }
+      std::string credit = GetRichText(quote.credit_.get());
+      if (!credit.empty())
+      {
+        p_Oss << p_Indent << "> - " << credit << "\n";
+      }
+      break;
+    }
+    case td::td_api::pageBlockPullQuote::ID:
+    {
+      const auto& quote = static_cast<const td::td_api::pageBlockPullQuote&>(p_Block);
+      std::string text = GetRichText(quote.text_.get());
+      p_Oss << p_Indent << "\"" << text << "\"\n";
+      std::string credit = GetRichText(quote.credit_.get());
+      if (!credit.empty())
+      {
+        p_Oss << p_Indent << "- " << credit << "\n";
+      }
+      break;
+    }
+    case td::td_api::pageBlockTable::ID:
+    {
+      const auto& table = static_cast<const td::td_api::pageBlockTable&>(p_Block);
+      std::string caption = GetRichText(table.caption_.get());
+      if (!caption.empty())
+      {
+        p_Oss << p_Indent << caption << "\n";
+      }
+
+      // Compute display width of a UTF-8 string (handles accents, emoji, wide chars)
+      auto displayWidth = [](const std::string& s) -> int
+      {
+        std::wstring ws = StrUtil::ToWString(s);
+        return StrUtil::WStringWidth(ws);
+      };
+
+      // Pad a string to a given display width with spaces on the right
+      auto padRight = [&](const std::string& s, int width) -> std::string
+      {
+        int dw = displayWidth(s);
+        if (dw >= width) return s;
+        return s + std::string(width - dw, ' ');
+      };
+
+      std::vector<std::vector<std::string>> rows;
+      size_t maxCols = 0;
+      for (const auto& row : table.cells_)
+      {
+        std::vector<std::string> cells;
+        for (const auto& cell : row)
+        {
+          std::string cellText = GetRichText(cell->text_.get());
+          for (char& c : cellText)
+          {
+            if (c == '\n') c = ' ';
+          }
+          cells.push_back(std::move(cellText));
+        }
+        maxCols = std::max(maxCols, cells.size());
+        rows.push_back(std::move(cells));
+      }
+
+      if (rows.empty() || maxCols == 0) break;
+
+      // Calculate column widths using display width (not byte length)
+      std::vector<int> colWidths(maxCols, 0);
+      for (const auto& row : rows)
+      {
+        for (size_t i = 0; i < row.size(); ++i)
+        {
+          colWidths[i] = std::max(colWidths[i], displayWidth(row[i]));
+        }
+      }
+
+      // Separator line: +---+---+---+
+      auto separator = [&]()
+      {
+        p_Oss << p_Indent;
+        for (size_t i = 0; i < maxCols; ++i)
+        {
+          p_Oss << "+" << std::string(colWidths[i] + 2, '-');
+        }
+        p_Oss << "+\n";
+      };
+
+      bool drawBorder = table.is_bordered_;
+      if (drawBorder) separator();
+
+      for (size_t r = 0; r < rows.size(); ++r)
+      {
+        p_Oss << p_Indent;
+        for (size_t i = 0; i < maxCols; ++i)
+        {
+          const std::string& cell = (i < rows[r].size()) ? rows[r][i] : "";
+          p_Oss << "| " << padRight(cell, colWidths[i]) << " ";
+        }
+        p_Oss << "|\n";
+        if (drawBorder && r == 0) separator();
+      }
+      if (drawBorder) separator();
+      break;
+    }
+    case td::td_api::pageBlockDetails::ID:
+    {
+      const auto& details = static_cast<const td::td_api::pageBlockDetails&>(p_Block);
+      std::string header = GetRichText(details.header_.get());
+      p_Oss << p_Indent << (details.is_open_ ? "v " : "> ") << header << "\n";
+      for (const auto& sub : details.blocks_)
+      {
+        if (sub) AppendPageBlock(*sub, p_Oss, p_Indent + "  ");
+      }
+      break;
+    }
+    case td::td_api::pageBlockCover::ID:
+    {
+      const auto& cover = static_cast<const td::td_api::pageBlockCover&>(p_Block);
+      if (cover.cover_) AppendPageBlock(*cover.cover_, p_Oss, p_Indent);
+      break;
+    }
+    case td::td_api::pageBlockCollage::ID:
+    case td::td_api::pageBlockSlideshow::ID:
+    case td::td_api::pageBlockEmbeddedPost::ID:
+    {
+      const auto& blocks = static_cast<const td::td_api::pageBlockCollage&>(p_Block).blocks_;
+      for (const auto& sub : blocks)
+      {
+        if (sub) AppendPageBlock(*sub, p_Oss, p_Indent);
+      }
+      break;
+    }
+    case td::td_api::pageBlockAnchor::ID:
+    case td::td_api::pageBlockThinking::ID:
+    default:
+      break;
+  }
+}
+
+std::string TgChat::Impl::GetRichMessageText(const td::td_api::richMessage& p_RichMessage)
+{
+  std::ostringstream oss;
+  for (const auto& block : p_RichMessage.blocks_)
+  {
+    if (block) AppendPageBlock(*block, oss, "");
+  }
+
+  std::string result = oss.str();
+  while (!result.empty() && (result.back() == '\n' || result.back() == ' '))
+  {
+    result.pop_back();
+  }
+  return result;
+}
+
 void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessageContent, int64_t p_SenderId,
                                            std::string& p_Text, std::string& p_FileInfo)
 {
@@ -3550,6 +3862,14 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
   else if (p_TdMessageContent.get_id() == td::td_api::messageUnsupported::ID)
   {
     p_Text = "[UnsupportedByCurrentTdlibVersion]";
+  }
+  else if (p_TdMessageContent.get_id() == td::td_api::messageRichMessage::ID)
+  {
+    auto& messageRichMessage = static_cast<td::td_api::messageRichMessage&>(p_TdMessageContent);
+    if (messageRichMessage.message_)
+    {
+      p_Text = GetRichMessageText(*messageRichMessage.message_);
+    }
   }
   else
   {
