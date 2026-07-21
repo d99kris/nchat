@@ -19,7 +19,7 @@ Features
 - View and save media (documents, photos, videos)
 - Show message read and edited indicators
 - Show user status (online, away, typing)
-- Jump to next unread chat
+- Jump to next or previous unread chat
 - Archive, pin and delete chats
 - Search messages within a chat
 - List dialogs for chats, contacts, emojis, files
@@ -54,7 +54,6 @@ Interactive Commands:
     PageUp      history previous page
     Tab         next chat
     Sh-Tab      previous chat
-    Ctrl-f      jump to unread chat
     Ctrl-g      toggle show help bar
     Ctrl-l      toggle show contact list
     Ctrl-n      goto chat
@@ -71,8 +70,10 @@ Interactive Commands:
     Alt-e       external editor compose
     Alt-i       auto-compose reply
     Alt-n       search contacts
+    Alt-o       jump to previous unread chat
     Alt-p       pin/unpin current chat
     Alt-t       external telephone call
+    Alt-y       jump to next unread chat
     Alt-/       find in chat
     Alt-?       find next in chat
     Alt-$       external spell check
@@ -921,6 +922,7 @@ This configuration file holds user interface key bindings. Default content:
     linebreak=KEY_RETURN
     next_chat=KEY_TAB
     next_page=KEY_NPAGE
+    next_unread_chat=\33\171
     ok=KEY_RETURN
     open=KEY_CTRLV
     open_link=KEY_CTRLW
@@ -930,6 +932,7 @@ This configuration file holds user interface key bindings. Default content:
     pin=\33\160
     prev_chat=KEY_BTAB
     prev_page=KEY_PPAGE
+    prev_unread_chat=\33\157
     quit=KEY_CTRLQ
     react=\33\163
     right=KEY_RIGHT
@@ -948,7 +951,6 @@ This configuration file holds user interface key bindings. Default content:
     toggle_list=KEY_CTRLL
     toggle_top=KEY_NONE
     transfer=KEY_CTRLT
-    unread_chat=KEY_CTRLF
     up=KEY_UP
 
 The key bindings may be specified in the following formats:
