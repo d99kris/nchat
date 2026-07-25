@@ -50,7 +50,7 @@
 // For development testing of sponsored messages only
 // #define SIMULATED_SPONSORED_MESSAGES
 
-static const int s_TdlibDate = 20260611;
+static const int s_TdlibDate = 20260714;
 
 namespace detail
 {
@@ -954,7 +954,9 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
           if (isSendAsSpecial && (mimeSubType == "webp"))
           {
             auto message_content = td::td_api::make_object<td::td_api::inputMessageSticker>();
-            message_content->sticker_ = td::td_api::make_object<td::td_api::inputFileLocal>(fileInfo.filePath);
+            message_content->sticker_ = td::td_api::make_object<td::td_api::inputSticker>();
+            message_content->sticker_->sticker_ =
+              td::td_api::make_object<td::td_api::inputFileLocal>(fileInfo.filePath);
             send_message->input_message_content_ = std::move(message_content);
           }
           else if (isSendAsSpecial && (mimeSubType == "mp4" || mimeSubType == "x-m4v" || mimeSubType == "gif"))

@@ -19,6 +19,7 @@
 #include "td/telegram/files/FileType.h"
 #include "td/telegram/files/FileUploadId.h"
 #include "td/telegram/files/FileUploadManager.h"
+#include "td/telegram/InputMedia.h"
 #include "td/telegram/Location.h"
 #include "td/telegram/PhotoSizeSource.h"
 #include "td/telegram/td_api.h"
@@ -582,6 +583,18 @@ class FileManager final : public Actor {
 
   vector<tl_object_ptr<telegram_api::InputDocument>> get_input_documents(const vector<FileId> &file_ids) const;
 
+  static bool extract_was_uploaded(const InputMedia &input_media);
+
+  static bool extract_was_thumbnail_uploaded(const InputMedia &input_media);
+
+  static string extract_file_reference(const InputMedia &input_media);
+
+  static vector<string> extract_file_references(const InputMedia &input_media);
+
+  static string extract_cover_file_reference(const InputMedia &input_media);
+
+  static vector<string> extract_cover_file_references(const InputMedia &input_media);
+
   static bool extract_was_uploaded(const telegram_api::object_ptr<telegram_api::InputMedia> &input_media);
 
   static bool extract_was_thumbnail_uploaded(const telegram_api::object_ptr<telegram_api::InputMedia> &input_media);
@@ -594,6 +607,23 @@ class FileManager final : public Actor {
 
   static vector<string> extract_cover_file_references(
       const telegram_api::object_ptr<telegram_api::InputMedia> &input_media);
+
+  static bool extract_was_uploaded(const telegram_api::object_ptr<telegram_api::InputRichMessage> &input_rich_message);
+
+  static bool extract_was_thumbnail_uploaded(
+      const telegram_api::object_ptr<telegram_api::InputRichMessage> &input_rich_message);
+
+  static string extract_file_reference(
+      const telegram_api::object_ptr<telegram_api::InputRichMessage> &input_rich_message);
+
+  static vector<string> extract_file_references(
+      const telegram_api::object_ptr<telegram_api::InputRichMessage> &input_rich_message);
+
+  static string extract_cover_file_reference(
+      const telegram_api::object_ptr<telegram_api::InputRichMessage> &input_rich_message);
+
+  static vector<string> extract_cover_file_references(
+      const telegram_api::object_ptr<telegram_api::InputRichMessage> &input_rich_message);
 
   static string extract_file_reference(const telegram_api::object_ptr<telegram_api::InputDocument> &input_document);
 
@@ -979,6 +1009,9 @@ class FileManager final : public Actor {
   static bool extract_was_thumbnail_uploaded(const telegram_api::InputMedia *input_media);
 
   static string extract_file_reference(const telegram_api::InputMedia *input_media);
+
+  static vector<string> extract_file_references(
+      const vector<telegram_api::object_ptr<telegram_api::InputRichFile>> &input_rich_files);
 
   static string extract_cover_file_reference(const telegram_api::InputMedia *input_media);
 

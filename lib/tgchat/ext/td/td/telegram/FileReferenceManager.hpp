@@ -13,10 +13,13 @@
 #include "td/telegram/ChannelId.h"
 #include "td/telegram/ChatId.h"
 #include "td/telegram/ChatManager.h"
+#include "td/telegram/DraftMessageManager.h"
 #include "td/telegram/FileReferenceManager.h"
 #include "td/telegram/files/FileSourceId.h"
 #include "td/telegram/MessageFullId.h"
+#include "td/telegram/MessageQueryManager.h"
 #include "td/telegram/MessagesManager.h"
+#include "td/telegram/MessageTopic.hpp"
 #include "td/telegram/NotificationSettingsManager.h"
 #include "td/telegram/QuickReplyManager.h"
 #include "td/telegram/QuickReplyMessageFullId.h"
@@ -84,7 +87,12 @@ void FileReferenceManager::store_file_source(FileSourceId file_source_id, Storer
                             td::store(source.user_id, storer);
                             td::store(source.document_id, storer);
                             td::store(source.access_hash, storer);
-                          }));
+                          },
+                          [&](const FileSourceDraftMessage &source) {
+                            td::store(source.dialog_id, storer);
+                            td::store(source.topic, storer);
+                          },
+                          [&](const FileSourceRichMessage &source) { td::store(source.message_full_id, storer); }));
 }
 
 template <class ParserT>
@@ -211,6 +219,18 @@ FileSourceId FileReferenceManager::parse_file_source(Td *td, ParserT &parser) {
       td::parse(document_id, parser);
       td::parse(access_hash, parser);
       return td->user_manager_->get_user_saved_music_file_source_id(user_id, document_id, access_hash);
+    }
+    case 24: {
+      DialogId dialog_id;
+      MessageTopic topic;
+      td::parse(dialog_id, parser);
+      td::parse(topic, parser);
+      return td->draft_message_manager_->get_draft_message_file_source_id(dialog_id, topic);
+    }
+    case 25: {
+      MessageFullId message_full_id;
+      td::parse(message_full_id, parser);
+      return td->message_query_manager_->get_rich_message_file_source_id(message_full_id);
     }
     default:
       parser.set_error("Invalid type in FileSource");

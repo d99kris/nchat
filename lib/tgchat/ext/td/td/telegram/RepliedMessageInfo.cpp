@@ -9,7 +9,9 @@
 #include "td/telegram/AuthManager.h"
 #include "td/telegram/Dependencies.h"
 #include "td/telegram/DialogManager.h"
+#include "td/telegram/EphemeralMessageId.h"
 #include "td/telegram/MessageContent.h"
+#include "td/telegram/MessageContentDupType.h"
 #include "td/telegram/MessageContentType.h"
 #include "td/telegram/MessageCopyOptions.h"
 #include "td/telegram/MessageFullId.h"
@@ -69,6 +71,15 @@ RepliedMessageInfo::RepliedMessageInfo(Td *td, tl_object_ptr<telegram_api::messa
       LOG(ERROR) << "Receive reply from other chat " << to_string(reply_header) << " in "
                  << MessageFullId{dialog_id, message_id};
     }
+  } else if (reply_header->reply_to_ephemeral_) {
+    if (reply_header->reply_to_msg_id_ == 0 || reply_header->reply_to_peer_id_ != nullptr ||
+        reply_header->reply_from_ != nullptr || reply_header->reply_media_ != nullptr ||
+        reply_header->todo_item_id_ != 0 || !reply_header->poll_option_.empty()) {
+      LOG(ERROR) << "Receive " << to_string(reply_header) << " in " << MessageFullId{dialog_id, message_id};
+    } else {
+      message_id_ = td->messages_manager_->get_message_id_of_ephemeral_message_id(
+          dialog_id, EphemeralMessageId(reply_header->reply_to_msg_id_));
+    }
   } else {
     if (reply_header->reply_to_msg_id_ != 0) {
       message_id_ = MessageId(ServerMessageId(reply_header->reply_to_msg_id_));
@@ -84,7 +95,7 @@ RepliedMessageInfo::RepliedMessageInfo(Td *td, tl_object_ptr<telegram_api::messa
         LOG(ERROR) << "Receive " << to_string(reply_header) << " in " << MessageFullId{dialog_id, message_id};
         message_id_ = MessageId();
         dialog_id_ = DialogId();
-      } else if (!message_id.is_scheduled() && !dialog_id_.is_valid() &&
+      } else if (!message_id.is_scheduled() && message_id != MessageId() && !dialog_id_.is_valid() &&
                  ((message_id_ > message_id && !has_qts_messages(td, dialog_id)) || message_id_ == message_id)) {
         LOG(ERROR) << "Receive reply to " << message_id_ << " in " << MessageFullId{dialog_id, message_id};
         message_id_ = MessageId();
@@ -128,8 +139,13 @@ RepliedMessageInfo::RepliedMessageInfo(Td *td, tl_object_ptr<telegram_api::messa
   }
 }
 
-RepliedMessageInfo::RepliedMessageInfo(Td *td, const MessageInputReplyTo &input_reply_to, const MessageTopic &topic) {
+RepliedMessageInfo::RepliedMessageInfo(Td *td, const MessageInputReplyTo &input_reply_to, DialogId dialog_id,
+                                       const MessageTopic &topic) {
   if (!input_reply_to.message_id_.is_valid() && !input_reply_to.message_id_.is_valid_scheduled()) {
+    if (input_reply_to.ephemeral_message_id_.is_valid()) {
+      message_id_ = td->messages_manager_->get_message_id_of_ephemeral_message_id(dialog_id,
+                                                                                  input_reply_to.ephemeral_message_id_);
+    }
     return;
   }
   message_id_ = input_reply_to.message_id_;
@@ -154,8 +170,9 @@ RepliedMessageInfo::RepliedMessageInfo(Td *td, const MessageInputReplyTo &input_
       *content_text = FormattedText();
 
       if (content_->get_type() == MessageContentType::Text) {
-        auto content = get_message_content_object(content_.get(), td, DialogId(), MessageId(), DialogId(), false, false,
-                                                  true, DialogId(), 0, 0, false, true, -1, false, false);
+        auto content =
+            get_message_content_object(content_.get(), td, DialogId(), MessageId(), DialogId(), false, false, true,
+                                       DialogId(), 0, 0, false, true, -1, false, false, "RepliedMessageInfo");
         if (content->get_id() == td_api::messageText::ID) {
           const auto *message_text = static_cast<const td_api::messageText *>(content.get());
           if (message_text->link_preview_ == nullptr && message_text->link_preview_options_ == nullptr) {
@@ -206,6 +223,10 @@ bool RepliedMessageInfo::need_reply_changed_warning(
     const Td *td, const RepliedMessageInfo &old_info, const RepliedMessageInfo &new_info,
     MessageId old_top_thread_message_id, bool is_yet_unsent,
     std::function<bool(const RepliedMessageInfo &info)> is_reply_to_deleted_message) {
+  if (is_yet_unsent && old_info.is_empty() && new_info.message_id_.is_valid() && new_info.message_id_.is_local()) {
+    // reply to a previously unknown ephemeral message
+    return true;
+  }
   if (old_info.origin_date_ != new_info.origin_date_ && old_info.origin_date_ != 0 && new_info.origin_date_ != 0) {
     // date of the original message can't change
     return true;
@@ -343,7 +364,8 @@ td_api::object_ptr<td_api::messageReplyToMessage> RepliedMessageInfo::get_messag
   td_api::object_ptr<td_api::MessageContent> content;
   if (content_ != nullptr) {
     content = get_message_content_object(content_.get(), td, DialogId(), message_id, DialogId(), false, false, true,
-                                         DialogId(), 0, 0, false, true, -1, false, false);
+                                         DialogId(), 0, 0, false, true, -1, false, false,
+                                         "get_message_reply_to_message_object");
     switch (content->get_id()) {
       case td_api::messageUnsupported::ID:
         content = nullptr;
@@ -369,8 +391,8 @@ td_api::object_ptr<td_api::messageReplyToMessage> RepliedMessageInfo::get_messag
 MessageInputReplyTo RepliedMessageInfo::get_message_input_reply_to() const {
   CHECK(!is_external());
   if (message_id_.is_valid() || message_id_.is_valid_scheduled()) {
-    return MessageInputReplyTo(message_id_, dialog_id_, quote_.clone(true), todo_item_id_, poll_option_id_,
-                               "RepliedMessageInfo");
+    return MessageInputReplyTo{message_id_,         {}, dialog_id_, quote_.clone(true), todo_item_id_, poll_option_id_,
+                               "RepliedMessageInfo"};
   }
   return {};
 }

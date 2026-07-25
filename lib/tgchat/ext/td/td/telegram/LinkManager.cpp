@@ -453,7 +453,7 @@ static AdministratorRights get_administrator_rights(Slice rights, bool for_chann
   return AdministratorRights(is_anonymous, can_manage_dialog, can_change_info, can_post_messages, can_edit_messages,
                              can_delete_messages, can_invite_users, can_restrict_members, can_pin_messages,
                              can_manage_topics, can_promote_members, can_manage_calls, can_post_stories,
-                             can_edit_stories, can_delete_stories, can_manage_direct_messages, can_manage_ranks,
+                             can_edit_stories, can_delete_stories, can_manage_direct_messages, can_manage_ranks, false,
                              for_channel ? ChannelType::Broadcast : ChannelType::Megagroup);
 }
 
@@ -1315,8 +1315,8 @@ class LinkManager::InternalLinkSettings final : public InternalLink {
       if (path_[0] == "themes") {
         return td_api::make_object<td_api::settingsSectionAppearance>();
       }
-      if (path_[0] == "ton") {
-        return td_api::make_object<td_api::settingsSectionMyToncoins>();
+      if (path_[0] == "grams" || path_[0] == "ton") {
+        return td_api::make_object<td_api::settingsSectionMyGrams>();
       }
       return nullptr;
     }();
@@ -2406,9 +2406,9 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_tg_link_query(Slice que
   } else if (!path.empty() && path[0] == "stars") {
     // stars
     return td::make_unique<InternalLinkSettings>(vector<string>{"stars"});
-  } else if (!path.empty() && path[0] == "ton") {
-    // ton
-    return td::make_unique<InternalLinkSettings>(vector<string>{"ton"});
+  } else if (!path.empty() && (path[0] == "ton" || path[0] == "grams")) {
+    // grams
+    return td::make_unique<InternalLinkSettings>(vector<string>{"grams"});
   } else if (path.size() == 1 && path[0] == "addlist") {
     auto slug = get_url_query_slug(true, url_query, "addlist");
     if (!slug.empty() && is_base64url_characters(slug)) {
@@ -3723,7 +3723,7 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
           }
           return "tg://stars";
         }
-        case td_api::settingsSectionMyToncoins::ID:
+        case td_api::settingsSectionMyGrams::ID:
           return "tg://ton";
         case td_api::settingsSectionNotifications::ID: {
           const auto &subsection = static_cast<const td_api::settingsSectionNotifications *>(section_ptr)->subsection_;
