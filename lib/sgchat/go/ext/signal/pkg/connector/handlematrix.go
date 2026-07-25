@@ -811,7 +811,8 @@ func (s *SignalClient) HandleMatrixPollVote(ctx context.Context, msg *bridgev2.M
 	if err != nil {
 		return nil, err
 	}
-	mxOptions := msg.VoteTo.Metadata.(*signalid.MessageMetadata).MatrixPollOptionIDs
+	meta := msg.VoteTo.Metadata.(*signalid.MessageMetadata)
+	mxOptions := meta.MatrixPollOptionIDs
 	optionIndexes := make([]uint32, len(msg.Content.Response.Answers))
 	for i, answer := range msg.Content.Response.Answers {
 		if idx := slices.Index(mxOptions, answer); idx >= 0 {
@@ -822,12 +823,20 @@ func (s *SignalClient) HandleMatrixPollVote(ctx context.Context, msg *bridgev2.M
 			return nil, fmt.Errorf("unknown poll answer ID: %s", answer)
 		}
 	}
+	if meta.VoteCount == nil {
+		meta.VoteCount = make(map[string]uint32)
+	}
+	meta.VoteCount[s.Client.Store.ACI.String()]++
+	err = s.Main.Bridge.DB.Message.Update(ctx, msg.VoteTo)
+	if err != nil {
+		zerolog.Ctx(ctx).Warn().Err(err).Msg("Failed to update poll message with new vote count")
+	}
 	converted := &signalpb.DataMessage{
 		PollVote: &signalpb.DataMessage_PollVote{
 			TargetAuthorAciBinary: senderACI[:],
 			TargetSentTimestamp:   &msgTS,
 			OptionIndexes:         optionIndexes,
-			VoteCount:             proto.Uint32(1), // TODO
+			VoteCount:             proto.Uint32(meta.VoteCount[s.Client.Store.ACI.String()]),
 		},
 		RequiredProtocolVersion: proto.Uint32(0),
 	}

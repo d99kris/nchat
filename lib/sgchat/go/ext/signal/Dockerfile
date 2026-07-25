@@ -10,7 +10,7 @@ COPY build-rust.sh .
 RUN ./build-rust.sh
 
 # -- Build mautrix-signal (with Go) --
-FROM golang:1-alpine3.23 AS go-builder
+FROM golang:1-alpine3.24 AS go-builder
 RUN apk add --no-cache git ca-certificates build-base olm-dev zlib-dev
 
 WORKDIR /build
@@ -32,7 +32,7 @@ EOF
 RUN ./build-go.sh
 
 # -- Run mautrix-signal --
-FROM alpine:3.23
+FROM alpine:3.24
 
 ENV UID=1337 \
     GID=1337

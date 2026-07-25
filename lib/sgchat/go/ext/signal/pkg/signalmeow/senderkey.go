@@ -180,6 +180,14 @@ func (cli *Client) sendToGroupWithSenderKey(
 	}
 	ssCiphertext, err := cli.encryptWithSenderKey(ctx, groupID, ski.DistributionID, myAddress, senderKeyRecipients, content)
 	if err != nil {
+		if errors.Is(err, libsignalgo.ErrorCodeSessionNotFound) {
+			log.Warn().Err(err).Msg("Got session not found error for group send from libsignal, resetting session and retrying")
+			if err = cli.Store.SenderKeyStore.DeleteSenderKeyInfo(ctx, groupIDStr); err != nil {
+				return nil, fmt.Errorf("failed to delete sender key info: %w", err)
+			}
+			doUnlock()
+			return cli.sendToGroupWithSenderKey(ctx, groupID, allRecipients, sec, content, messageTimestamp, retries+1)
+		}
 		return nil, err
 	}
 	for recipientID := range ski.SharedWith {
