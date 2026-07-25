@@ -182,21 +182,36 @@ func (cli *Client) IsOnWhatsApp(ctx context.Context, phones []string) ([]types.I
 		jids[i] = types.NewJID(phones[i], types.LegacyUserServer)
 	}
 	list, err := cli.usync(ctx, jids, "query", "interactive", []waBinary.Node{
+		{Tag: "contact", Attrs: waBinary.Attrs{"addressing_mode": "lid"}},
 		{Tag: "business", Content: []waBinary.Node{{Tag: "verified_name"}}},
-		{Tag: "contact"},
+		{Tag: "disappearing_mode"},
+		{Tag: "username"},
 	})
 	if err != nil {
 		return nil, err
 	}
 	output := make([]types.IsOnWhatsAppResponse, 0, len(jids))
+	lidEntries := make([]store.LIDMapping, 0, len(jids))
 	querySuffix := "@" + types.LegacyUserServer
 	for _, child := range list.GetChildren() {
-		jid, jidOK := child.Attrs["jid"].(types.JID)
-		if child.Tag != "user" || !jidOK {
+		ag := child.AttrGetter()
+		jid := ag.OptionalJIDOrEmpty("jid")
+		pnJID := ag.OptionalJIDOrEmpty("pn_jid")
+		if child.Tag != "user" || (jid.IsEmpty() && pnJID.IsEmpty()) {
 			continue
 		}
 		var info types.IsOnWhatsAppResponse
 		info.JID = jid
+		if jid.IsEmpty() {
+			info.JID = pnJID
+		}
+		info.PhoneNumber = pnJID
+		if info.JID.Server == types.HiddenUserServer && info.PhoneNumber.Server == types.DefaultUserServer {
+			lidEntries = append(lidEntries, store.LIDMapping{
+				LID: info.JID,
+				PN:  info.PhoneNumber,
+			})
+		}
 		info.VerifiedName, err = parseVerifiedName(child.GetChildByTag("business"))
 		if err != nil {
 			cli.Log.Warnf("Failed to parse %s's verified name details: %v", jid, err)
@@ -206,6 +221,12 @@ func (cli *Client) IsOnWhatsApp(ctx context.Context, phones []string) ([]types.I
 		contactQuery, _ := contactNode.Content.([]byte)
 		info.Query = strings.TrimSuffix(string(contactQuery), querySuffix)
 		output = append(output, info)
+	}
+	if len(lidEntries) > 0 {
+		err = cli.Store.LIDs.PutManyLIDMappings(ctx, lidEntries)
+		if err != nil {
+			return output, fmt.Errorf("failed to store LID mappings: %w", err)
+		}
 	}
 	return output, nil
 }
@@ -743,9 +764,16 @@ func parseVerifiedNameContent(verifiedNameNode waBinary.Node) (*types.VerifiedNa
 	if err != nil {
 		return nil, err
 	}
+	ag := verifiedNameNode.AttrGetter()
 	return &types.VerifiedName{
 		Certificate: &cert,
 		Details:     &certDetails,
+
+		VerifiedLevel: ag.String("verified_level"),
+		Version:       ag.Int("v"),
+		HostStorage:   ag.Int("host_storage"),
+		ActualActors:  ag.Int("actual_actors"),
+		PrivacyModeTS: ag.UnixTime("privacy_mode_ts"),
 	}, nil
 }
 

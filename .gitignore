@@ -4,3 +4,4 @@
 /build-static-ext
 /dbgbuild
 /dist
+/.gotools

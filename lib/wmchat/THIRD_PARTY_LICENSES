@@ -184,8 +184,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 
 --------------------------------------------------------------------------------
-github.com/mattn/go-sqlite3  v1.14.45  (MIT)
-https://github.com/mattn/go-sqlite3/blob/v1.14.45/LICENSE
+github.com/mattn/go-sqlite3  v1.14.48  (MIT)
+https://github.com/mattn/go-sqlite3/blob/v1.14.48/LICENSE
 --------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -238,8 +238,8 @@ SOFTWARE.
 
 
 --------------------------------------------------------------------------------
-github.com/petermattis/goid  v0.0.0-20260330135022-df67b199bc81  (Apache-2.0)
-https://github.com/petermattis/goid/blob/df67b199bc81/LICENSE
+github.com/petermattis/goid  v0.0.0-20260713124913-97594f28f5ca  (Apache-2.0)
+https://github.com/petermattis/goid/blob/97594f28f5ca/LICENSE
 --------------------------------------------------------------------------------
 
 Apache License
@@ -1207,8 +1207,8 @@ Public License instead of this License.  But first, please read
 
 
 --------------------------------------------------------------------------------
-go.mau.fi/util  v0.9.10  (MPL-2.0)
-https://github.com/mautrix/go-util.git/blob/v0.9.10/LICENSE
+go.mau.fi/util  v0.9.12-0.20260717235539-f9ffa7eca58d  (MPL-2.0)
+https://github.com/mautrix/go-util.git/blob/f9ffa7eca58d/LICENSE
 --------------------------------------------------------------------------------
 
 Mozilla Public License Version 2.0
@@ -1587,7 +1587,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 
 
 --------------------------------------------------------------------------------
-go.mau.fi/whatsmeow  20260630  (MPL-2.0)
+go.mau.fi/whatsmeow  20260718  (MPL-2.0)
 https://github.com/tulir/whatsmeow
 --------------------------------------------------------------------------------
 
@@ -1968,8 +1968,8 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 
 
 --------------------------------------------------------------------------------
-golang.org/x/crypto  v0.53.0  (BSD-3-Clause)
-https://cs.opensource.google/go/x/crypto/+/v0.53.0:LICENSE
+golang.org/x/crypto  v0.54.0  (BSD-3-Clause)
+https://cs.opensource.google/go/x/crypto/+/v0.54.0:LICENSE
 --------------------------------------------------------------------------------
 
 Copyright 2009 The Go Authors.
@@ -2002,8 +2002,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 --------------------------------------------------------------------------------
-golang.org/x/exp/constraints  v0.0.0-20260611194520-c48552f49976  (BSD-3-Clause)
-https://cs.opensource.google/go/x/exp/+/c48552f4:LICENSE
+golang.org/x/exp/constraints  v0.0.0-20260709172345-9ea1abe57597  (BSD-3-Clause)
+https://cs.opensource.google/go/x/exp/+/9ea1abe5:LICENSE
 --------------------------------------------------------------------------------
 
 Copyright 2009 The Go Authors.
@@ -2036,8 +2036,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 --------------------------------------------------------------------------------
-golang.org/x/net  v0.56.0  (BSD-3-Clause)
-https://cs.opensource.google/go/x/net/+/v0.56.0:LICENSE
+golang.org/x/net  v0.57.0  (BSD-3-Clause)
+https://cs.opensource.google/go/x/net/+/v0.57.0:LICENSE
 --------------------------------------------------------------------------------
 
 Copyright 2009 The Go Authors.
@@ -2070,8 +2070,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 --------------------------------------------------------------------------------
-golang.org/x/sync/semaphore  v0.21.0  (BSD-3-Clause)
-https://cs.opensource.google/go/x/sync/+/v0.21.0:LICENSE
+golang.org/x/sync/semaphore  v0.22.0  (BSD-3-Clause)
+https://cs.opensource.google/go/x/sync/+/v0.22.0:LICENSE
 --------------------------------------------------------------------------------
 
 Copyright 2009 The Go Authors.
@@ -2104,8 +2104,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 --------------------------------------------------------------------------------
-golang.org/x/sys/unix  v0.46.0  (BSD-3-Clause)
-https://cs.opensource.google/go/x/sys/+/v0.46.0:LICENSE
+golang.org/x/sys/unix  v0.47.0  (BSD-3-Clause)
+https://cs.opensource.google/go/x/sys/+/v0.47.0:LICENSE
 --------------------------------------------------------------------------------
 
 Copyright 2009 The Go Authors.
@@ -2138,8 +2138,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 --------------------------------------------------------------------------------
-golang.org/x/text  v0.38.0  (BSD-3-Clause)
-https://cs.opensource.google/go/x/text/+/v0.38.0:LICENSE
+golang.org/x/text  v0.40.0  (BSD-3-Clause)
+https://cs.opensource.google/go/x/text/+/v0.40.0:LICENSE
 --------------------------------------------------------------------------------
 
 Copyright 2009 The Go Authors.
