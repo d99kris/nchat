@@ -1591,6 +1591,13 @@ void UiModel::Impl::OpenCreateChat(const std::pair<std::string, std::string>& p_
       archiveChatRequest->chatId = userId;
       archiveChatRequest->isArchived = false;
       SendProtocolRequest(profileId, archiveChatRequest);
+
+      // unarchive locally right away, as the protocol notify may arrive after requested messages
+      profileChatInfos[userId].isArchived = false;
+      if (m_ChatSet[profileId].insert(userId).second)
+      {
+        m_ChatVec.push_back(std::make_pair(profileId, userId));
+      }
     }
 
     m_CurrentChatIndex = 0;

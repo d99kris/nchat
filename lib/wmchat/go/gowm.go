@@ -1230,7 +1230,7 @@ func (handler *WmEventHandler) HandleArchive(archive *events.Archive) {
 
 	isArchived := archiveAction.GetArchived()
 
-	LOG_TRACE(fmt.Sprintf("Call CWmUpdateArchivedNotify %s %d", chatId, isArchived))
+	LOG_TRACE(fmt.Sprintf("Call CWmUpdateArchivedNotify %s %t", chatId, isArchived))
 	CWmUpdateArchivedNotify(connId, chatId, BoolToInt(isArchived))
 }
 
