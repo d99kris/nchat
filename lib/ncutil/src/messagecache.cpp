@@ -310,6 +310,12 @@ void MessageCache::AddProfile(const std::string& p_ProfileId, bool p_CheckSequen
     *m_Dbs[p_ProfileId] << "PRAGMA synchronous = FULL";
     *m_Dbs[p_ProfileId] << "PRAGMA journal_mode = DELETE";
 
+    // Custom function used by find, as sqlite's built-in lower() only handles ascii
+    m_Dbs[p_ProfileId]->define("ncfold", [](std::string p_Str) -> std::string
+    {
+      return StrUtil::ToFold(p_Str);
+    });
+
     // note: use actual table names instead if variables during schema setup / update
 
     // fresh database will get version 0
@@ -1548,8 +1554,8 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
               "LEFT JOIN " + s_TableContacts + " "
               "ON " + s_TableMessages + ".senderId = " + s_TableContacts + ".id "
               "WHERE chatId = ? AND timeSent < ? "
-              "AND ((instr(lower(text), lower(?)) > 0) OR "
-              "     (instr(lower(CASE WHEN isSelf THEN 'You' ELSE name END), lower(?)) > 0)) "
+              "AND ((instr(ncfold(text), ncfold(?)) > 0) OR "
+              "     (instr(ncfold(CASE WHEN isSelf THEN 'You' ELSE name END), ncfold(?)) > 0)) "
               "ORDER BY timeSent DESC LIMIT 1;"
               << chatId << findFromMsgIdTimeSent << findText << findText >>
               [&](const std::string& id, const int64_t& timeSent)

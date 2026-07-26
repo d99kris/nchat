@@ -7,8 +7,10 @@
 
 #include "strutil.h"
 
+#include <algorithm>
 #include <codecvt>
 #include <cstring>
+#include <cwctype>
 #include <fstream>
 #include <iostream>
 #include <locale>
@@ -356,23 +358,87 @@ std::string StrUtil::Textize(const std::string& p_Str)
   return EmojiUtil::Textize(p_Str);
 }
 
+// Base letter folding table for Latin-1 Supplement (U+00C0 - U+00FF) and Latin Extended-A
+// (U+0100 - U+017F), mapping each code point to its lowercase ascii base letter(s). Empty
+// string means the code point is left as-is (the two math symbols in the range). Limited to
+// these two blocks by design, leaving cjk, greek, cyrillic, etc untouched by base folding.
+static const char* const s_LatinFold[] =
+{
+  // U+00C0 - U+00DF
+  "a", "a", "a", "a", "a", "a", "ae", "c", "e", "e", "e", "e", "i", "i", "i", "i",
+  "d", "n", "o", "o", "o", "o", "o", "", "o", "u", "u", "u", "u", "y", "th", "ss",
+  // U+00E0 - U+00FF
+  "a", "a", "a", "a", "a", "a", "ae", "c", "e", "e", "e", "e", "i", "i", "i", "i",
+  "d", "n", "o", "o", "o", "o", "o", "", "o", "u", "u", "u", "u", "y", "th", "y",
+  // U+0100 - U+011F
+  "a", "a", "a", "a", "a", "a", "c", "c", "c", "c", "c", "c", "c", "c", "d", "d",
+  "d", "d", "e", "e", "e", "e", "e", "e", "e", "e", "e", "e", "g", "g", "g", "g",
+  // U+0120 - U+013F
+  "g", "g", "g", "g", "h", "h", "h", "h", "i", "i", "i", "i", "i", "i", "i", "i",
+  "i", "i", "ij", "ij", "j", "j", "k", "k", "k", "l", "l", "l", "l", "l", "l", "l",
+  // U+0140 - U+015F
+  "l", "l", "l", "n", "n", "n", "n", "n", "n", "n", "n", "n", "o", "o", "o", "o",
+  "o", "o", "oe", "oe", "r", "r", "r", "r", "r", "r", "s", "s", "s", "s", "s", "s",
+  // U+0160 - U+017F
+  "s", "s", "t", "t", "t", "t", "t", "t", "u", "u", "u", "u", "u", "u", "u", "u",
+  "u", "u", "u", "u", "w", "w", "y", "y", "y", "z", "z", "z", "z", "z", "z", "s",
+};
+
+std::string StrUtil::ToFold(const std::string& p_Str)
+{
+  static const wchar_t foldFirst = 0x00C0;
+  static const wchar_t foldLast = foldFirst + (sizeof(s_LatinFold) / sizeof(*s_LatinFold)) - 1;
+
+  // Fast path for ascii-only strings, which need neither decoding nor base letter folding
+  if (std::none_of(p_Str.begin(), p_Str.end(),
+                   [](char ch) { return static_cast<unsigned char>(ch) >= 0x80; }))
+  {
+    return ToLower(p_Str);
+  }
+
+  const std::wstring wstr = ToWString(p_Str);
+  std::wstring fold;
+  fold.reserve(wstr.size());
+  for (const wchar_t wch : wstr)
+  {
+    if ((wch >= foldFirst) && (wch <= foldLast) && (s_LatinFold[wch - foldFirst][0] != '\0'))
+    {
+      for (const char* base = s_LatinFold[wch - foldFirst]; *base != '\0'; ++base)
+      {
+        fold += static_cast<wchar_t>(*base);
+      }
+    }
+    else
+    {
+      // Handles case folding for scripts outside the table (greek, cyrillic, etc), based on
+      // the locale set up by the ui. Code points without case mapping are left as-is.
+      fold += static_cast<wchar_t>(towlower(static_cast<wint_t>(wch)));
+    }
+  }
+
+  return ToString(fold);
+}
+
 long StrUtil::ToInteger(const std::string& p_Str)
 {
   // positive integers only
   return strtol(p_Str.c_str(), NULL, 10);
 }
 
+// Ascii-only, as it operates on single bytes / code points. Use ToFold() for search matching.
 std::string StrUtil::ToLower(const std::string& p_Str)
 {
   std::string lower = p_Str;
-  std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+  std::transform(lower.begin(), lower.end(), lower.begin(),
+                 [](char ch) { return static_cast<char>(::tolower(static_cast<unsigned char>(ch))); });
   return lower;
 }
 
 std::wstring StrUtil::ToLower(const std::wstring& p_WStr)
 {
   std::wstring lower = p_WStr;
-  std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+  std::transform(lower.begin(), lower.end(), lower.begin(),
+                 [](wchar_t wch) { return static_cast<wchar_t>(towlower(static_cast<wint_t>(wch))); });
   return lower;
 }
 

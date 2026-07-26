@@ -1,6 +1,6 @@
 // uifilelistdialog.cpp
 //
-// Copyright (c) 2019-2024 Kristofer Berggren
+// Copyright (c) 2019-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -84,7 +84,7 @@ void UiFileListDialog::UpdateList()
     m_CurrentDirEntrys.clear();
     for (const auto& dirEntry : m_DirEntrys)
     {
-      if (StrUtil::ToLower(dirEntry.name).find(StrUtil::ToLower(StrUtil::ToString(m_FilterStr))) != std::string::npos)
+      if (StrUtil::ToFold(dirEntry.name).find(StrUtil::ToFold(StrUtil::ToString(m_FilterStr))) != std::string::npos)
       {
         m_CurrentDirEntrys.insert(dirEntry);
       }

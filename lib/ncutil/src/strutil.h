@@ -1,6 +1,6 @@
 // strutil.h
 //
-// Copyright (c) 2020-2025 Kristofer Berggren
+// Copyright (c) 2020-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -43,6 +43,7 @@ public:
   static std::string StrFromOct(const std::string& p_String);
   static std::string StrToHex(const std::string& p_String);
   static std::string Textize(const std::string& p_Str);
+  static std::string ToFold(const std::string& p_Str);
   static long ToInteger(const std::string& p_Str);
   static std::string ToLower(const std::string& p_Str);
   static std::wstring ToLower(const std::wstring& p_WStr);
