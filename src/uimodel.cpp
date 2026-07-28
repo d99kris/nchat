@@ -221,6 +221,7 @@ void UiModel::Impl::SendMessage()
   }
 
   SendProtocolRequest(profileId, sendMessageRequest);
+  m_PendingTextSend[profileId][chatId] = true;
 
   ResetMessageOffset();
   SetHistoryInteraction(true);
@@ -1876,9 +1877,13 @@ void UiModel::Impl::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMess
         if (sendMessageNotify->success)
         {
           LOG_TRACE("send ok");
-          m_EntryStr[profileId][chatId].clear();
-          m_EntryPos[profileId][chatId] = 0;
-          UpdateEntry();
+          if (m_PendingTextSend[profileId][chatId])
+          {
+            m_EntryStr[profileId][chatId].clear();
+            m_EntryPos[profileId][chatId] = 0;
+            UpdateEntry();
+            m_PendingTextSend[profileId][chatId] = false;
+          }
         }
         else
         {
