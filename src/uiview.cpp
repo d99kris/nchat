@@ -19,6 +19,7 @@
 #include "uistatusview.h"
 #include "uitopview.h"
 #include "uiviewbase.h"
+#include "uimodel.h"
 
 UiView::UiView(UiModel* p_UiModel)
   : m_UiModel(p_UiModel)
@@ -121,7 +122,7 @@ void UiView::Draw()
   m_UiListBorderView->Draw();
   m_UiHistoryView->Draw();
   m_UiEntryView->Draw();
-  curs_set(1);
+  curs_set(m_UiModel->IsEntryFocusedLocked() ? 1 : 0);
 }
 
 void UiView::TerminalBell()

@@ -90,6 +90,16 @@ void UiStatusView::Draw()
     wstatus = StrUtil::TrimPadWString(wstatus, m_W);
   }
 
+  std::string focusName = m_Model->GetFocusedFrameNameLocked();
+  if (!focusName.empty())
+  {
+    std::wstring wfocus = StrUtil::ToWString(focusName);
+    if ((int)wfocus.size() <= m_W)
+    {
+      wstatus = wfocus + StrUtil::TrimPadWString(wstatus, m_W - (int)wfocus.size());
+    }
+  }
+
   mvwaddnwstr(m_Win, 0, 0, wstatus.c_str(), wstatus.size());
 
   wattroff(m_Win, attribute | colorPair);
