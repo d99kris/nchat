@@ -14,6 +14,8 @@
 #include <stdexcept>
 #include <vector>
 
+#include <sys/stat.h>
+
 #ifdef HAVE_PNG_H
 #include <png.h>
 #endif
@@ -61,6 +63,31 @@ bool IsDisplayServer(DisplayServer p_DisplayServer)
 #endif
   }();
   return (p_DisplayServer == displayServer);
+}
+
+static std::string ShellQuote(const std::string& p_Str)
+{
+  std::string quoted = "'";
+  for (char c : p_Str)
+  {
+    if (c == '\'')
+    {
+      quoted += "'\\''";
+    }
+    else
+    {
+      quoted += c;
+    }
+  }
+
+  quoted += "'";
+  return quoted;
+}
+
+static bool IsNonEmptyFile(const std::string& p_Path)
+{
+  struct stat sb;
+  return (stat(p_Path.c_str(), &sb) == 0) && S_ISREG(sb.st_mode) && (sb.st_size > 0);
 }
 
 #ifdef HAVE_PNG_H
@@ -222,7 +249,7 @@ void Clipboard::SetText(const std::string& p_Text)
   {
     const std::string tempPath = FileUtil::GetTempDir() + "/clipboard.txt";
     FileUtil::WriteFile(tempPath, p_Text);
-    const std::string cmd = "cat " + tempPath + " | " + clipboardCopyCommand;
+    const std::string cmd = "cat " + ShellQuote(tempPath) + " | " + clipboardCopyCommand;
     SysUtil::RunCommand(cmd);
     FileUtil::RmFile(tempPath);
   }
@@ -300,9 +327,26 @@ bool Clipboard::GetImage(const std::string& p_Path)
 
   if (!clipboardPasteImageCommand.empty())
   {
-    std::string command = clipboardPasteImageCommand + " | tee " + p_Path;
-    bool rv = SysUtil::RunCommand(command);
-    return rv;
+    const std::string command = clipboardPasteImageCommand + " > " + ShellQuote(p_Path);
+    if (!SysUtil::RunCommand(command))
+    {
+      return false;
+    }
+
+    if (!IsNonEmptyFile(p_Path))
+    {
+      LOG_WARNING("clipboard image output is empty");
+      return false;
+    }
+
+    std::string mimeType = FileUtil::GetMimeType(p_Path);
+    if (!mimeType.empty() && (mimeType != "image/png"))
+    {
+      LOG_WARNING("clipboard image output is not png: %s", mimeType.c_str());
+      return false;
+    }
+
+    return true;
   }
   else
   {
