@@ -76,6 +76,15 @@ type ProvisioningResponse struct {
 	Err              error
 }
 
+type DeviceLinkError struct {
+	StatusCode int
+	Message    string
+}
+
+func (dle DeviceLinkError) Error() string {
+	return fmt.Sprintf("non-200 status code (%d) from devices response: %s", dle.StatusCode, dle.Message)
+}
+
 func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, deviceName string, allowBackup bool) chan ProvisioningResponse {
 	log := zerolog.Ctx(ctx).With().Str("action", "perform provisioning").Logger()
 	c := make(chan ProvisioningResponse, 4)
@@ -441,9 +450,9 @@ func confirmDevice(
 		return nil, fmt.Errorf("failed to read from websocket after devices call: %w", err)
 	}
 
-	status := int(*receivedMsg.Response.Status)
+	status := int(receivedMsg.GetResponse().GetStatus())
 	if status < 200 || status >= 300 {
-		return nil, fmt.Errorf("non-200 status code (%d) from devices response: %s", status, *receivedMsg.Response.Message)
+		return nil, DeviceLinkError{StatusCode: status, Message: receivedMsg.GetResponse().GetMessage()}
 	}
 
 	// unmarshal JSON response into ConfirmDeviceResponse

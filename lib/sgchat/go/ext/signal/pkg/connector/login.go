@@ -18,9 +18,12 @@ package connector
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/google/uuid"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
@@ -70,6 +73,75 @@ const (
 	LoginStepComplete = "fi.mau.signal.login.complete"
 )
 
+const (
+	qrRefreshInterval = 45 * time.Second
+	maxQRRefreshes    = 20
+)
+
+var (
+	ErrLoginTimedOut = bridgev2.RespError{
+		ErrCode:    "FI.MAU.BRIDGE.LOGIN_TIMED_OUT",
+		Err:        "The QR code wasn't scanned in time, please start a new login",
+		StatusCode: http.StatusGone,
+	}
+	ErrLoginCancelled = bridgev2.RespError{
+		ErrCode:    "FI.MAU.BRIDGE.LOGIN_CANCELLED",
+		Err:        "Login process was cancelled",
+		StatusCode: http.StatusGone,
+	}
+	ErrDeviceLinkMissingCapability = bridgev2.RespError{
+		ErrCode:    "FI.MAU.SIGNAL.DEVICE_LINK_MISSING_CAPABILITY",
+		Err:        "Signal rejected linking because the bridge is missing a capability required by your account's other devices. Please try again later",
+		StatusCode: http.StatusConflict,
+	}
+	ErrDeviceLimitReached = bridgev2.RespError{
+		ErrCode:    "FI.MAU.SIGNAL.DEVICE_LIMIT_REACHED",
+		Err:        "Your Signal account already has the maximum number of linked devices. Remove one in the Signal app and try again",
+		StatusCode: http.StatusBadRequest,
+	}
+	ErrDeviceLinkCodeInvalid = bridgev2.RespError{
+		ErrCode:    "FI.MAU.SIGNAL.DEVICE_LINK_CODE_INVALID",
+		Err:        "The scanned QR code was invalid or already used, please start a new login",
+		StatusCode: http.StatusForbidden,
+	}
+	ErrDeviceLinkRateLimited = bridgev2.RespError{
+		ErrCode:    "FI.MAU.SIGNAL.DEVICE_LINK_RATE_LIMITED",
+		Err:        "Signal rate-limited the linking attempt, please wait a few minutes and try again",
+		StatusCode: http.StatusTooManyRequests,
+	}
+	ErrDeviceLinkRejected = bridgev2.RespError{
+		ErrCode:    "FI.MAU.SIGNAL.DEVICE_LINK_REJECTED",
+		Err:        "Signal rejected linking the device",
+		StatusCode: http.StatusBadRequest,
+	}
+)
+
+// Statuses of PUT /v1/devices/link, per Signal-Server's DeviceController
+func wrapProvisioningError(err error) error {
+	var linkErr signalmeow.DeviceLinkError
+	if errors.As(err, &linkErr) {
+		switch linkErr.StatusCode {
+		case http.StatusConflict:
+			return ErrDeviceLinkMissingCapability
+		case http.StatusLengthRequired:
+			return ErrDeviceLimitReached
+		case http.StatusForbidden:
+			return ErrDeviceLinkCodeInvalid
+		case http.StatusTooManyRequests:
+			return ErrDeviceLinkRateLimited
+		default:
+			if linkErr.Message != "" {
+				return ErrDeviceLinkRejected.AppendMessage(" (HTTP %d: %s)", linkErr.StatusCode, linkErr.Message)
+			}
+			return ErrDeviceLinkRejected.AppendMessage(" (HTTP %d)", linkErr.StatusCode)
+		}
+	}
+	if websocket.CloseStatus(err) == websocket.StatusGoingAway {
+		return ErrLoginTimedOut
+	}
+	return err
+}
+
 func (qr *QRLogin) Start(ctx context.Context) (*bridgev2.LoginStep, error) {
 	log := qr.Main.Bridge.Log.With().
 		Str("action", "login").
@@ -85,14 +157,16 @@ func (qr *QRLogin) Start(ctx context.Context) (*bridgev2.LoginStep, error) {
 	select {
 	case resp = <-qr.ProvChan:
 		if resp.Err != nil {
-			return nil, resp.Err
+			return nil, wrapProvisioningError(resp.Err)
 		} else if resp.State != signalmeow.StateProvisioningURLReceived {
 			return nil, fmt.Errorf("unexpected state %v", resp.State)
 		}
 	case <-ctx.Done():
 		cancel()
-		return nil, ctx.Err()
-		// TODO separate timeout here?
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return nil, ErrLoginTimedOut
+		}
+		return nil, ErrLoginCancelled
 	}
 	return &bridgev2.LoginStep{
 		Type:         bridgev2.LoginStepTypeDisplayAndWait,
@@ -114,7 +188,7 @@ func (qr *QRLogin) Wait(ctx context.Context) (*bridgev2.LoginStep, error) {
 	case resp := <-qr.ProvChan:
 		if resp.Err != nil {
 			qr.cancelChan()
-			return nil, resp.Err
+			return nil, wrapProvisioningError(resp.Err)
 		} else if resp.State != signalmeow.StateProvisioningDataReceived {
 			qr.cancelChan()
 			return nil, fmt.Errorf("unexpected state %v", resp.State)
@@ -126,17 +200,20 @@ func (qr *QRLogin) Wait(ctx context.Context) (*bridgev2.LoginStep, error) {
 
 	// Server will timeout the request after 60 seconds, but Signal Desktop opens
 	// a new socket and gets a new QR code after 45 seconds. We should do the same.
-	case <-time.After(45 * time.Second):
+	case <-time.After(qrRefreshInterval):
 		qr.cancelChan()
 		qr.newQRCount++
-		if qr.newQRCount >= 6 {
-			return nil, fmt.Errorf("too many QR code refreshes")
+		if qr.newQRCount >= maxQRRefreshes {
+			return nil, ErrLoginTimedOut
 		}
 		return qr.Start(ctx)
 
 	case <-ctx.Done():
 		qr.cancelChan()
-		return nil, ctx.Err()
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return nil, ErrLoginTimedOut
+		}
+		return nil, ErrLoginCancelled
 	}
 }
 
