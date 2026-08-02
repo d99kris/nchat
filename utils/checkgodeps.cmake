@@ -6,8 +6,8 @@
 # nchat is distributed under the MIT license, see LICENSE for details.
 #
 # Reports Go dependencies which the WhatsApp and Signal modules pin to different
-# versions. Such a divergence builds fine per protocol, but breaks the combined
-# c-archive of a fully static build (see lib/gostat).
+# versions. Such a divergence builds fine per protocol, but may break the
+# combined c-archive of a fully static build (see lib/gostat).
 # Usage:
 #   cmake -DWM_GO_MOD=<path> -DSG_GO_MOD=<path> -P checkgodeps.cmake
 
@@ -44,9 +44,8 @@ macro(shorten_version OUT VERSION)
 endmacro()
 
 # As above but keeping an abbreviated commit, i.e. v0.9.12-f9ffa7e. Used only
-# where the base versions are equal, which two pseudo-versions of different
-# commits are - as is a pseudo-version and the release it precedes - and which
-# would otherwise be reported as a mismatch between two identical strings.
+# for untagged modules, whose base version says nothing about which commit is
+# pinned, and which would otherwise be reported as two identical strings.
 set(HEX7 "[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]") # cmake regex has no {7}
 macro(shorten_version_with_commit OUT VERSION)
   string(REGEX REPLACE "-([0-9A-Za-z.]+\\.)?[0-9]+-(${HEX7})[0-9a-f]*$" "-\\2" ${OUT} "${VERSION}")
@@ -55,15 +54,22 @@ endmacro()
 read_go_modules("${WM_GO_MOD}" WM)
 read_go_modules("${SG_GO_MOD}" SG)
 
+# Only the base versions are compared, as differing commits within one base
+# version - two pseudo-versions of the same upstream release, or a
+# pseudo-version and the release it precedes - are the same API and build fine
+# combined. The exception is v0.0.0, the base version of an untagged module,
+# which carries no API information at all; there the commits are compared.
 foreach(MODULE IN LISTS WM_MODULES)
-  if(DEFINED SG_${MODULE} AND NOT "${WM_${MODULE}}" STREQUAL "${SG_${MODULE}}")
+  if(DEFINED SG_${MODULE})
     shorten_version(WM_VERSION "${WM_${MODULE}}")
     shorten_version(SG_VERSION "${SG_${MODULE}}")
-    if("${WM_VERSION}" STREQUAL "${SG_VERSION}")
+    if("${WM_VERSION}" STREQUAL "v0.0.0" AND "${SG_VERSION}" STREQUAL "v0.0.0")
       shorten_version_with_commit(WM_VERSION "${WM_${MODULE}}")
       shorten_version_with_commit(SG_VERSION "${SG_${MODULE}}")
     endif()
-    message(STATUS "Common go dependency mismatch ${MODULE}: "
-            "wmchat ${WM_VERSION} != sgchat ${SG_VERSION}")
+    if(NOT "${WM_VERSION}" STREQUAL "${SG_VERSION}")
+      message(STATUS "Common go dependency mismatch ${MODULE}: "
+              "wmchat ${WM_VERSION} != sgchat ${SG_VERSION}")
+    endif()
   endif()
 endforeach()
