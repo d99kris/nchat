@@ -736,3 +736,26 @@ if(CMAKE_BUILD_TYPE MATCHES "Debug")
                              GO_VERSION="${GO_VERSION}" GO_VERSION_MIN="${GO_VERSION_MIN}")
 
 endif()
+
+# Common Go dependency check
+#
+# A fully static build merges the WhatsApp and Signal Go modules into one
+# (HAS_COMBINED_GOLIB, see lib/gostat), where minimal version selection picks the
+# higher version of every shared dependency for both protocols. Thus a version
+# mismatch between the two protocol dependencies may cause the fully static build
+# to fail, so output a warning here as a heads-up.
+if(HAS_WHATSAPP AND HAS_SIGNAL)
+  add_custom_target(checkgodeps ALL
+    COMMAND "${CMAKE_COMMAND}" -DWM_GO_MOD=${CMAKE_CURRENT_SOURCE_DIR}/lib/wmchat/go/go.mod
+                               -DSG_GO_MOD=${CMAKE_CURRENT_SOURCE_DIR}/lib/sgchat/go/go.mod
+                               -P ${CMAKE_CURRENT_SOURCE_DIR}/utils/checkgodeps.cmake
+    VERBATIM)
+  # Order the check after every end product. Depending on nchat alone is not
+  # enough - in a dynamic-load build it does not depend on the protocol libraries,
+  # so the check would then run in the middle of the build output.
+  foreach(NCHAT_TARGET nchat devnchat duchat tgchat wmchat sgchat)
+    if(TARGET ${NCHAT_TARGET})
+      add_dependencies(checkgodeps ${NCHAT_TARGET})
+    endif()
+  endforeach()
+endif()
