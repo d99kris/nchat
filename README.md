@@ -972,6 +972,8 @@ This configuration file holds user interface color settings. Default content:
     dialog_attr_selected=reverse
     dialog_color_bg=
     dialog_color_fg=
+    dialog_color_selected_bg=
+    dialog_color_selected_fg=
     entry_attr=
     entry_color_bg=
     entry_color_fg=
@@ -980,6 +982,8 @@ This configuration file holds user interface color settings. Default content:
     help_color_fg=white
     history_name_attr=bold
     history_name_attr_selected=reverse
+    history_name_color_selected_bg=
+    history_name_color_selected_fg=
     history_name_recv_color_bg=
     history_name_recv_color_fg=
     history_name_recv_group_color_bg=
@@ -990,6 +994,8 @@ This configuration file holds user interface color settings. Default content:
     history_text_attachment_color_fg=gray
     history_text_attr=
     history_text_attr_selected=reverse
+    history_text_color_selected_bg=
+    history_text_color_selected_fg=
     history_text_quoted_color_bg=
     history_text_quoted_color_fg=gray
     history_text_reaction_color_bg=
@@ -1004,6 +1010,8 @@ This configuration file holds user interface color settings. Default content:
     list_attr_selected=reverse
     list_color_bg=
     list_color_fg=
+    list_color_selected_bg=
+    list_color_selected_fg=
     list_color_unread_bg=
     list_color_unread_fg=
     listborder_attr=
@@ -1050,6 +1058,12 @@ The `history_name_recv_group_color` and `history_text_recv_group_color`
 parameters also supports the special value `usercolor`. When set, nchat will
 determine which color to use for a user, based on a hash of their user id
 used to pick a color from the list in `~/.config/nchat/usercolor.conf`.
+
+The `list_color_selected`, `dialog_color_selected`, `history_name_color_selected`
+and `history_text_color_selected` parameters allow specifying explicit colors
+for the currently selected item, instead of (or in addition to) the
+corresponding `_attr_selected` attribute. When left empty (default), only the
+attribute styling is applied, preserving previous behavior.
 
 Themes
 ------
