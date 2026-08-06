@@ -12,7 +12,7 @@ require (
 	github.com/mdp/qrterminal v1.0.1
 	github.com/rs/zerolog v1.35.1
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
-	go.mau.fi/util v0.9.11
+	go.mau.fi/util v0.9.12-0.20260719092501-f9c03d846391
 	google.golang.org/protobuf v1.36.11
 )
 

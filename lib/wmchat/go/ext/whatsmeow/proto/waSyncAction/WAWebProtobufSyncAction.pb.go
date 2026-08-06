@@ -1245,12 +1245,13 @@ func (AvatarUpdatedAction_AvatarEventType) EnumDescriptor() ([]byte, []int) {
 type BizAISettingsNudgeAction_BizAISettingsCategory int32
 
 const (
-	BizAISettingsNudgeAction_UNKNOWN           BizAISettingsNudgeAction_BizAISettingsCategory = 0
-	BizAISettingsNudgeAction_INSTRUCTIONS      BizAISettingsNudgeAction_BizAISettingsCategory = 1
-	BizAISettingsNudgeAction_RESPONSE_SETTINGS BizAISettingsNudgeAction_BizAISettingsCategory = 2
-	BizAISettingsNudgeAction_EXAMPLE_RESPONSES BizAISettingsNudgeAction_BizAISettingsCategory = 3
-	BizAISettingsNudgeAction_KNOWLEDGE         BizAISettingsNudgeAction_BizAISettingsCategory = 4
-	BizAISettingsNudgeAction_LEAD_GEN          BizAISettingsNudgeAction_BizAISettingsCategory = 5
+	BizAISettingsNudgeAction_UNKNOWN                BizAISettingsNudgeAction_BizAISettingsCategory = 0
+	BizAISettingsNudgeAction_INSTRUCTIONS           BizAISettingsNudgeAction_BizAISettingsCategory = 1
+	BizAISettingsNudgeAction_RESPONSE_SETTINGS      BizAISettingsNudgeAction_BizAISettingsCategory = 2
+	BizAISettingsNudgeAction_EXAMPLE_RESPONSES      BizAISettingsNudgeAction_BizAISettingsCategory = 3
+	BizAISettingsNudgeAction_KNOWLEDGE              BizAISettingsNudgeAction_BizAISettingsCategory = 4
+	BizAISettingsNudgeAction_LEAD_GEN               BizAISettingsNudgeAction_BizAISettingsCategory = 5
+	BizAISettingsNudgeAction_HANDOFF_REMOVAL_TIMING BizAISettingsNudgeAction_BizAISettingsCategory = 6
 )
 
 // Enum value maps for BizAISettingsNudgeAction_BizAISettingsCategory.
@@ -1262,14 +1263,16 @@ var (
 		3: "EXAMPLE_RESPONSES",
 		4: "KNOWLEDGE",
 		5: "LEAD_GEN",
+		6: "HANDOFF_REMOVAL_TIMING",
 	}
 	BizAISettingsNudgeAction_BizAISettingsCategory_value = map[string]int32{
-		"UNKNOWN":           0,
-		"INSTRUCTIONS":      1,
-		"RESPONSE_SETTINGS": 2,
-		"EXAMPLE_RESPONSES": 3,
-		"KNOWLEDGE":         4,
-		"LEAD_GEN":          5,
+		"UNKNOWN":                0,
+		"INSTRUCTIONS":           1,
+		"RESPONSE_SETTINGS":      2,
+		"EXAMPLE_RESPONSES":      3,
+		"KNOWLEDGE":              4,
+		"LEAD_GEN":               5,
+		"HANDOFF_REMOVAL_TIMING": 6,
 	}
 )
 
@@ -1907,6 +1910,7 @@ const (
 	LabelEditAction_LOCKED          LabelEditAction_ListType = 13
 	LabelEditAction_INVITES         LabelEditAction_ListType = 14
 	LabelEditAction_THIRD_PARTY     LabelEditAction_ListType = 15
+	LabelEditAction_LEAD            LabelEditAction_ListType = 16
 )
 
 // Enum value maps for LabelEditAction_ListType.
@@ -1928,6 +1932,7 @@ var (
 		13: "LOCKED",
 		14: "INVITES",
 		15: "THIRD_PARTY",
+		16: "LEAD",
 	}
 	LabelEditAction_ListType_value = map[string]int32{
 		"NONE":            0,
@@ -1946,6 +1951,7 @@ var (
 		"LOCKED":          13,
 		"INVITES":         14,
 		"THIRD_PARTY":     15,
+		"LEAD":            16,
 	}
 )
 
@@ -8586,18 +8592,19 @@ const file_waSyncAction_WAWebProtobufSyncAction_proto_rawDesc = "" +
 	"\x0fAvatarEventType\x12\v\n" +
 	"\aUPDATED\x10\x00\x12\v\n" +
 	"\aCREATED\x10\x01\x12\v\n" +
-	"\aDELETED\x10\x02\"\xbf\x02\n" +
+	"\aDELETED\x10\x02\"\xdb\x02\n" +
 	"\x18BizAISettingsNudgeAction\x12c\n" +
 	"\bcategory\x18\x01 \x01(\x0e2G.WAWebProtobufSyncAction.BizAISettingsNudgeAction.BizAISettingsCategoryR\bcategory\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\x03R\aversion\x12 \n" +
-	"\vupdatedAtMS\x18\x03 \x01(\x03R\vupdatedAtMS\"\x81\x01\n" +
+	"\vupdatedAtMS\x18\x03 \x01(\x03R\vupdatedAtMS\"\x9d\x01\n" +
 	"\x15BizAISettingsCategory\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\x10\n" +
 	"\fINSTRUCTIONS\x10\x01\x12\x15\n" +
 	"\x11RESPONSE_SETTINGS\x10\x02\x12\x15\n" +
 	"\x11EXAMPLE_RESPONSES\x10\x03\x12\r\n" +
 	"\tKNOWLEDGE\x10\x04\x12\f\n" +
-	"\bLEAD_GEN\x10\x05\"\x89\x03\n" +
+	"\bLEAD_GEN\x10\x05\x12\x1a\n" +
+	"\x16HANDOFF_REMOVAL_TIMING\x10\x06\"\x89\x03\n" +
 	"\x1cMaibaAIFeaturesControlAction\x12t\n" +
 	"\x0faiFeatureStatus\x18\x01 \x01(\x0e2J.WAWebProtobufSyncAction.MaibaAIFeaturesControlAction.MaibaAIFeatureStatusR\x0faiFeatureStatus\x12h\n" +
 	"\vaiReplyMode\x18\x02 \x01(\x0e2F.WAWebProtobufSyncAction.MaibaAIFeaturesControlAction.MaibaAIReplyModeR\vaiReplyMode\"<\n" +
@@ -8688,7 +8695,7 @@ const file_waSyncAction_WAWebProtobufSyncAction_proto_rawDesc = "" +
 	"\rchatStartMode\x18\x01 \x01(\x0e2B.WAWebProtobufSyncAction.UsernameChatStartModeAction.ChatStartModeR\rchatStartMode\" \n" +
 	"\rChatStartMode\x12\a\n" +
 	"\x03LID\x10\x01\x12\x06\n" +
-	"\x02PN\x10\x02\"\xb8\x04\n" +
+	"\x02PN\x10\x02\"\xc2\x04\n" +
 	"\x0fLabelEditAction\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05color\x18\x02 \x01(\x05R\x05color\x12\"\n" +
@@ -8700,7 +8707,7 @@ const file_waSyncAction_WAWebProtobufSyncAction_proto_rawDesc = "" +
 	"\bisActive\x18\x06 \x01(\bR\bisActive\x12E\n" +
 	"\x04type\x18\a \x01(\x0e21.WAWebProtobufSyncAction.LabelEditAction.ListTypeR\x04type\x12 \n" +
 	"\visImmutable\x18\b \x01(\bR\visImmutable\x12$\n" +
-	"\rmuteEndTimeMS\x18\t \x01(\x03R\rmuteEndTimeMS\"\xf1\x01\n" +
+	"\rmuteEndTimeMS\x18\t \x01(\x03R\rmuteEndTimeMS\"\xfb\x01\n" +
 	"\bListType\x12\b\n" +
 	"\x04NONE\x10\x00\x12\n" +
 	"\n" +
@@ -8724,7 +8731,8 @@ const file_waSyncAction_WAWebProtobufSyncAction_proto_rawDesc = "" +
 	"\n" +
 	"\x06LOCKED\x10\r\x12\v\n" +
 	"\aINVITES\x10\x0e\x12\x0f\n" +
-	"\vTHIRD_PARTY\x10\x0f\"\xa3\x05\n" +
+	"\vTHIRD_PARTY\x10\x0f\x12\b\n" +
+	"\x04LEAD\x10\x10\"\xa3\x05\n" +
 	"\x0ePatchDebugData\x12$\n" +
 	"\rcurrentLthash\x18\x01 \x01(\fR\rcurrentLthash\x12\x1c\n" +
 	"\tnewLthash\x18\x02 \x01(\fR\tnewLthash\x12\"\n" +

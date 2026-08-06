@@ -22,15 +22,13 @@ import (
 	"go.mau.fi/util/dbutil"
 )
 
-func init() {
-	Table.Register(-1, 20, 13, "Add missing columns for backup chat table", dbutil.TxnModeOn, func(ctx context.Context, db *dbutil.Database) (err error) {
-		var exists bool
-		if exists, err = db.ColumnExists(ctx, "signalmeow_backup_chat", "latest_message_id"); err == nil && !exists {
-			_, err = db.Exec(ctx, `
-				ALTER TABLE signalmeow_backup_chat ADD COLUMN latest_message_id BIGINT;
-				ALTER TABLE signalmeow_backup_chat ADD COLUMN total_message_count INTEGER;
-			`)
-		}
-		return
-	})
-}
+var upgradeV20 = dbutil.WrapUpgrade(-1, 20, 13, "Add missing columns for backup chat table", dbutil.TxnModeOn, func(ctx context.Context, db *dbutil.Database) (err error) {
+	var exists bool
+	if exists, err = db.ColumnExists(ctx, "signalmeow_backup_chat", "latest_message_id"); err == nil && !exists {
+		_, err = db.Exec(ctx, `
+			ALTER TABLE signalmeow_backup_chat ADD COLUMN latest_message_id BIGINT;
+			ALTER TABLE signalmeow_backup_chat ADD COLUMN total_message_count INTEGER;
+		`)
+	}
+	return
+})

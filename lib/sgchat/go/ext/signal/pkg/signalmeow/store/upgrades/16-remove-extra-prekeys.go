@@ -58,24 +58,22 @@ func deleteExtraPrekeys(ctx context.Context, db *dbutil.Database, selectQuery, d
 	return nil
 }
 
-func init() {
-	Table.Register(-1, 16, 13, "Remove extra prekeys", dbutil.TxnModeOn, func(ctx context.Context, db *dbutil.Database) error {
-		err := deleteExtraPrekeys(ctx, db, `
-			SELECT account_id, service_id, COUNT(*), MAX(key_id) FROM signalmeow_pre_keys WHERE is_signed=false GROUP BY 1, 2
-		`, `
-			DELETE FROM signalmeow_pre_keys WHERE account_id=$1 AND service_id=$2 AND is_signed=false AND key_id<$3
-		`)
-		if err != nil {
-			return fmt.Errorf("failed to process EC: %w", err)
-		}
-		err = deleteExtraPrekeys(ctx, db, `
-			SELECT account_id, service_id, COUNT(*), MAX(key_id) FROM signalmeow_kyber_pre_keys WHERE is_last_resort=false GROUP BY 1, 2
-		`, `
-			DELETE FROM signalmeow_kyber_pre_keys WHERE account_id=$1 AND service_id=$2 AND is_last_resort=false AND key_id<$3
-		`)
-		if err != nil {
-			return fmt.Errorf("failed to process kyber: %w", err)
-		}
-		return nil
-	})
-}
+var upgradeV16 = dbutil.WrapUpgrade(-1, 16, 13, "Remove extra prekeys", dbutil.TxnModeOn, func(ctx context.Context, db *dbutil.Database) error {
+	err := deleteExtraPrekeys(ctx, db, `
+		SELECT account_id, service_id, COUNT(*), MAX(key_id) FROM signalmeow_pre_keys WHERE is_signed=false GROUP BY 1, 2
+	`, `
+		DELETE FROM signalmeow_pre_keys WHERE account_id=$1 AND service_id=$2 AND is_signed=false AND key_id<$3
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to process EC: %w", err)
+	}
+	err = deleteExtraPrekeys(ctx, db, `
+		SELECT account_id, service_id, COUNT(*), MAX(key_id) FROM signalmeow_kyber_pre_keys WHERE is_last_resort=false GROUP BY 1, 2
+	`, `
+		DELETE FROM signalmeow_kyber_pre_keys WHERE account_id=$1 AND service_id=$2 AND is_last_resort=false AND key_id<$3
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to process kyber: %w", err)
+	}
+	return nil
+})

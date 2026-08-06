@@ -532,7 +532,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 --------------------------------------------------------------------------------
-go.mau.fi/mautrix-signal/pkg  20260716  (AGPL-3.0)
+go.mau.fi/mautrix-signal/pkg  20260723  (AGPL-3.0)
 https://github.com/mautrix/signal
 --------------------------------------------------------------------------------
 
@@ -1200,8 +1200,8 @@ For more information on this, and how to apply and follow the GNU AGPL, see
 
 
 --------------------------------------------------------------------------------
-go.mau.fi/util  v0.9.11  (MPL-2.0)
-https://github.com/mautrix/go-util.git/blob/v0.9.11/LICENSE
+go.mau.fi/util  v0.9.12-0.20260719092501-f9c03d846391  (MPL-2.0)
+https://github.com/mautrix/go-util.git/blob/f9c03d846391/LICENSE
 --------------------------------------------------------------------------------
 
 Mozilla Public License Version 2.0

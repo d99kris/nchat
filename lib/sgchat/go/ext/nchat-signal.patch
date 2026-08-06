@@ -1,4 +1,4 @@
-Base-Commit: 1f45d1af1a64a96265647ee74a80aa454b0b7296
+Base-Commit: 6e57bf3956e96a4e1664bb60c76972f7e92c85a8
 Base-Branch: 
 diff --git a/pkg/signalmeow/events/message.go b/pkg/signalmeow/events/message.go
 index 7d3732a..338c657 100644
