@@ -4619,6 +4619,11 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keyVimNavigationReact = UiKeyConfig::GetKey("vim_navigation_react");
   static wint_t keyVimNavigationOpenMsg = UiKeyConfig::GetKey("vim_navigation_open_msg");
   static wint_t keyVimNavigationEnter = UiKeyConfig::GetKey("ok");
+  static wint_t keyVimNavigationEnd = UiKeyConfig::GetKey("vim_navigation_end");
+  static wint_t keyVimNavigationFocusEntry = UiKeyConfig::GetKey("vim_navigation_focus_entry");
+  static wint_t keyVimNavigationFocusHistory = UiKeyConfig::GetKey("vim_navigation_focus_history");
+  static wint_t keyVimNavigationFocusList = UiKeyConfig::GetKey("vim_navigation_focus_list");
+  static wint_t keyVimNavigationQuit = UiKeyConfig::GetKey("vim_navigation_quit");
 
   bool isListFocused = false;
   bool isHistoryFocused = false;
@@ -4720,12 +4725,22 @@ void UiModel::KeyHandler(wint_t p_Key)
       GetImpl().OnKeyHomeFetchNext();
     }
   }
-  else if (p_Key == keyEnd)
+  else if (p_Key == keyEnd || (isListFocused && p_Key == keyVimNavigationEnd) || (isHistoryFocused && p_Key == keyVimNavigationEnd))
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().OnKeyEnd();
+    if (isHistoryFocused)
+    {
+      GetImpl().OnKeyNextFrame();
+      return;
+    }
+    else if (isListFocused)
+    {
+      GetImpl().OnKeyPrevFrame();
+      return;
+    }
   }
-  else if (p_Key == keyQuit)
+  else if (p_Key == keyQuit || (isListFocused && p_Key == keyVimNavigationQuit) || (isHistoryFocused && p_Key == keyVimNavigationQuit))
   {
     OnKeyQuit();
   }
@@ -4884,10 +4899,40 @@ void UiModel::KeyHandler(wint_t p_Key)
         static wint_t keyUp = UiKeyConfig::GetKey("up");
         GetImpl().EntryKeyHandler(keyUp);
       }
+      else if (p_Key == keyVimNavigationFocusEntry)
+      {
+        GetImpl().OnKeyNextFrame();
+      }
+      else if (p_Key == keyVimNavigationFocusList)
+      {
+        GetImpl().OnKeyPrevFrame();
+      }
+    }
+    else if (isListFocused)
+    {
+      if (p_Key == keyVimNavigationFocusEntry)
+      {
+        GetImpl().OnKeyPrevFrame();
+      }
+      else if (p_Key == keyVimNavigationFocusHistory)
+      {
+        GetImpl().OnKeyNextFrame();
+      }
     }
     else if (isEntryFocused)
     {
-      GetImpl().EntryKeyHandler(p_Key);
+      if (p_Key == keyVimNavigationFocusList)
+      {
+        GetImpl().OnKeyNextFrame();
+      }
+      else if (p_Key == keyVimNavigationFocusHistory)
+      {
+        GetImpl().OnKeyPrevFrame();
+      }
+      else
+      {
+        GetImpl().EntryKeyHandler(p_Key);
+      }
     }
   }
 }
