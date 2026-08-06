@@ -216,6 +216,63 @@ void UiModel::Impl::OnKeyOtherCommandsHelp()
   m_View->Draw();
 }
 
+void UiModel::Impl::OnKeyNextFrame()
+{
+  switch (m_Focus)
+  {
+    case Focus::List:    m_Focus = Focus::History; break;
+    case Focus::History: m_Focus = Focus::Entry;   break;
+    case Focus::Entry:   m_Focus = Focus::List;    break;
+    default: break;
+  }
+  m_View->SetStatusDirty(true);
+}
+
+void UiModel::Impl::OnKeyPrevFrame()
+{
+  switch (m_Focus)
+  {
+    case Focus::List:    m_Focus = Focus::Entry;   break;
+    case Focus::History: m_Focus = Focus::List;    break;
+    case Focus::Entry:   m_Focus = Focus::History; break;
+    default: break;
+  }
+  m_View->SetStatusDirty(true);
+}
+
+std::string UiModel::Impl::GetFocusName()
+{
+  switch (m_Focus)
+  {
+    case Focus::List:    return UiConfig::GetStr("frame_list_indicator");
+    case Focus::History: return UiConfig::GetStr("frame_history_indicator");
+    case Focus::Entry:   return UiConfig::GetStr("frame_entry_indicator");
+    default:              return "";
+  }
+}
+
+bool UiModel::Impl::IsListFocused()
+{
+  return (m_Focus == Focus::List);
+}
+
+
+bool UiModel::Impl::IsHistoryFocused()
+{
+  return (m_Focus == Focus::History);
+}
+
+bool UiModel::Impl::IsEntryFocused()
+{
+  return (m_Focus == Focus::Entry);
+}
+
+bool UiModel::IsEntryFocusedLocked()
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().IsEntryFocused();
+}
+
 void UiModel::Impl::EntryKeyHandler(wint_t p_Key)
 {
   AnyUserKeyInput();
@@ -4546,7 +4603,51 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keyAutoCompose = UiKeyConfig::GetKey("auto_compose");
   static wint_t keySelectMention = UiKeyConfig::GetKey("select_mention");
 
-  if (p_Key == keyTerminalResize)
+  static wint_t keyNextFrame = UiKeyConfig::GetKey("vim_navigation_next_frame");
+  static wint_t keyPrevFrame = UiKeyConfig::GetKey("vim_navigation_prev_frame");
+  static wint_t keyVimNavigationNext = UiKeyConfig::GetKey("vim_navigation_next");
+  static wint_t keyVimNavigationPrev = UiKeyConfig::GetKey("vim_navigation_prev");
+  static wint_t keyVimNavigationUnread = UiKeyConfig::GetKey("vim_navigation_unread");
+  static wint_t keyVimNavigationDeleteMsg = UiKeyConfig::GetKey("vim_navigation_delete_msg");
+  static wint_t keyVimNavigationSave = UiKeyConfig::GetKey("vim_navigation_save");
+  static wint_t keyVimNavigationOpen = UiKeyConfig::GetKey("vim_navigation_open");
+  static wint_t keyVimNavigationOpenLink = UiKeyConfig::GetKey("vim_navigation_open_link");
+  static wint_t keyVimNavigationEditMsg = UiKeyConfig::GetKey("vim_navigation_edit_msg");
+  static wint_t keyVimNavigationCopy = UiKeyConfig::GetKey("vim_navigation_copy");
+  static wint_t keyVimNavigationJumpQuoted = UiKeyConfig::GetKey("vim_navigation_jump_quoted");
+  static wint_t keyVimNavigationForwardMsg = UiKeyConfig::GetKey("vim_navigation_forward_msg");
+  static wint_t keyVimNavigationReact = UiKeyConfig::GetKey("vim_navigation_react");
+  static wint_t keyVimNavigationOpenMsg = UiKeyConfig::GetKey("vim_navigation_open_msg");
+  static wint_t keyVimNavigationEnter = UiKeyConfig::GetKey("ok");
+  static wint_t keyVimNavigationEnd = UiKeyConfig::GetKey("vim_navigation_end");
+  static wint_t keyVimNavigationFocusEntry = UiKeyConfig::GetKey("vim_navigation_focus_entry");
+  static wint_t keyVimNavigationFocusHistory = UiKeyConfig::GetKey("vim_navigation_focus_history");
+  static wint_t keyVimNavigationFocusList = UiKeyConfig::GetKey("vim_navigation_focus_list");
+  static wint_t keyVimNavigationQuit = UiKeyConfig::GetKey("vim_navigation_quit");
+
+  bool isListFocused = false;
+  bool isHistoryFocused = false;
+  bool isEntryFocused = false;
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    isListFocused = GetImpl().IsListFocused();
+    isHistoryFocused = GetImpl().IsHistoryFocused();
+    isEntryFocused = GetImpl().IsEntryFocused();
+  }
+
+  if (p_Key == keyNextFrame)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeyNextFrame();
+    return;
+  }
+  else if (p_Key == keyPrevFrame || (isListFocused && p_Key == keyVimNavigationEnter))
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeyPrevFrame();
+    return;
+  }
+  else if (p_Key == keyTerminalResize)
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().TerminalResize();
@@ -4581,17 +4682,17 @@ void UiModel::KeyHandler(wint_t p_Key)
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().OnKeyToggleEmoji();
   }
-  else if (p_Key == keyNextChat)
+  else if (p_Key == keyNextChat || (isListFocused && p_Key == keyVimNavigationNext))
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().OnKeyNextChat();
   }
-  else if (p_Key == keyPrevChat)
+  else if (p_Key == keyPrevChat || (isListFocused && p_Key == keyVimNavigationPrev))
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().OnKeyPrevChat();
   }
-  else if (p_Key == keyUnreadChat)
+  else if (p_Key == keyUnreadChat || (isListFocused && p_Key == keyVimNavigationUnread))
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().OnKeyUnreadChat();
@@ -4624,12 +4725,22 @@ void UiModel::KeyHandler(wint_t p_Key)
       GetImpl().OnKeyHomeFetchNext();
     }
   }
-  else if (p_Key == keyEnd)
+  else if (p_Key == keyEnd || (isListFocused && p_Key == keyVimNavigationEnd) || (isHistoryFocused && p_Key == keyVimNavigationEnd))
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().OnKeyEnd();
+    if (isHistoryFocused)
+    {
+      GetImpl().OnKeyNextFrame();
+      return;
+    }
+    else if (isListFocused)
+    {
+      GetImpl().OnKeyPrevFrame();
+      return;
+    }
   }
-  else if (p_Key == keyQuit)
+  else if (p_Key == keyQuit || (isListFocused && p_Key == keyVimNavigationQuit) || (isHistoryFocused && p_Key == keyVimNavigationQuit))
   {
     OnKeyQuit();
   }
@@ -4643,7 +4754,7 @@ void UiModel::KeyHandler(wint_t p_Key)
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().OnKeyExtEdit();
   }
-  else if (p_Key == keyDeleteMsg)
+  else if (p_Key == keyDeleteMsg || (isHistoryFocused && p_Key == keyVimNavigationDeleteMsg))
   {
     OnKeyDeleteMsg();
   }
@@ -4659,17 +4770,17 @@ void UiModel::KeyHandler(wint_t p_Key)
   {
     OnKeyPin();
   }
-  else if (p_Key == keyOpen)
+  else if (p_Key == keyOpen || (isHistoryFocused && p_Key == keyVimNavigationOpen))
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().OnKeyOpenAttachment();
   }
-  else if (p_Key == keyOpenLink)
+  else if (p_Key == keyOpenLink || (isHistoryFocused && p_Key == keyVimNavigationOpenLink))
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().OnKeyOpenLink();
   }
-  else if (p_Key == keySave)
+  else if (p_Key == keySave || (isHistoryFocused && p_Key == keyVimNavigationSave))
   {
     OnKeySaveAttachment();
   }
@@ -4694,7 +4805,7 @@ void UiModel::KeyHandler(wint_t p_Key)
   {
     OnKeyCut();
   }
-  else if (p_Key == keyCopy)
+  else if (p_Key == keyCopy || (isHistoryFocused && p_Key == keyVimNavigationCopy))
   {
     OnKeyCopy();
   }
@@ -4702,7 +4813,7 @@ void UiModel::KeyHandler(wint_t p_Key)
   {
     OnKeyPaste();
   }
-  else if (p_Key == keyReact)
+  else if (p_Key == keyReact || (isHistoryFocused && p_Key == keyVimNavigationReact))
   {
     OnKeyReact();
   }
@@ -4711,7 +4822,7 @@ void UiModel::KeyHandler(wint_t p_Key)
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().OnKeySpell();
   }
-  else if (p_Key == keyEditMsg)
+  else if (p_Key == keyEditMsg || (isHistoryFocused && p_Key == keyVimNavigationEditMsg))
   {
     OnKeyEditMsg();
   }
@@ -4730,7 +4841,7 @@ void UiModel::KeyHandler(wint_t p_Key)
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().OnKeyIncreaseListWidth();
   }
-  else if (p_Key == keyOpenMsg)
+  else if (p_Key == keyOpenMsg || (isHistoryFocused && p_Key == keyVimNavigationOpenMsg))
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().OnKeyOpenMsg();
@@ -4739,7 +4850,7 @@ void UiModel::KeyHandler(wint_t p_Key)
   {
     OnKeyExtCall();
   }
-  else if (p_Key == keyJumpQuoted)
+  else if (p_Key == keyJumpQuoted || (isHistoryFocused && p_Key == keyVimNavigationJumpQuoted))
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().OnKeyJumpQuoted();
@@ -4757,7 +4868,7 @@ void UiModel::KeyHandler(wint_t p_Key)
   {
     OnKeyFindNext();
   }
-  else if (p_Key == keyForwardMsg)
+  else if (p_Key == keyForwardMsg || (isHistoryFocused && p_Key == keyVimNavigationForwardMsg))
   {
     OnKeyForwardMsg();
   }
@@ -4776,7 +4887,53 @@ void UiModel::KeyHandler(wint_t p_Key)
   else
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
-    GetImpl().EntryKeyHandler(p_Key);
+    if (isHistoryFocused)
+    {
+      if (p_Key == keyVimNavigationNext)
+      {
+        static wint_t keyDown = UiKeyConfig::GetKey("down");
+        GetImpl().EntryKeyHandler(keyDown);
+      }
+      else if (p_Key == keyVimNavigationPrev)
+      {
+        static wint_t keyUp = UiKeyConfig::GetKey("up");
+        GetImpl().EntryKeyHandler(keyUp);
+      }
+      else if (p_Key == keyVimNavigationFocusEntry)
+      {
+        GetImpl().OnKeyNextFrame();
+      }
+      else if (p_Key == keyVimNavigationFocusList)
+      {
+        GetImpl().OnKeyPrevFrame();
+      }
+    }
+    else if (isListFocused)
+    {
+      if (p_Key == keyVimNavigationFocusEntry)
+      {
+        GetImpl().OnKeyPrevFrame();
+      }
+      else if (p_Key == keyVimNavigationFocusHistory)
+      {
+        GetImpl().OnKeyNextFrame();
+      }
+    }
+    else if (isEntryFocused)
+    {
+      if (p_Key == keyVimNavigationFocusList)
+      {
+        GetImpl().OnKeyNextFrame();
+      }
+      else if (p_Key == keyVimNavigationFocusHistory)
+      {
+        GetImpl().OnKeyPrevFrame();
+      }
+      else
+      {
+        GetImpl().EntryKeyHandler(p_Key);
+      }
+    }
   }
 }
 
@@ -4949,6 +5106,12 @@ std::string UiModel::GetChatStatusLocked(const std::string& p_ProfileId, const s
 {
   nc_assert(m_ModelMutex.owns_lock());
   return GetImpl().GetChatStatus(p_ProfileId, p_ChatId);
+}
+
+std::string UiModel::GetFocusedFrameNameLocked()
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetFocusName();
 }
 
 std::vector<std::pair<std::string, std::string>>& UiModel::GetChatVecLocked()

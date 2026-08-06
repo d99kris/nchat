@@ -80,6 +80,9 @@ void UiConfig::Init()
     { "typing_status_share", "1" },
     { "undo_clear_input", "1" },
     { "unread_indicator", "*" },
+    { "frame_list_indicator", "" },
+    { "frame_history_indicator", "" },
+    { "frame_entry_indicator", "" },
   };
 
   const std::string configPath(FileUtil::GetApplicationDir() + std::string("/ui.conf"));
