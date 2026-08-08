@@ -700,7 +700,7 @@ Specifies whether to display help bar. Controlled by Ctrl-g in run-time.
 ### help_prefix_ctrl
 
 Specifies the prefix used in the help bar for control key combinations,
-i.e. `^` results in `^g` being displayed for Ctrl-g. Users on macOS may
+i.e. `^` results in `^X` being displayed for Ctrl-X. Users on macOS may
 prefer the Apple modifier symbol `⌃` here.
 
 ### help_prefix_meta
