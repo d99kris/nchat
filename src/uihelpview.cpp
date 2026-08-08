@@ -270,14 +270,22 @@ std::string UiHelpView::GetKeyDisplay(const std::string& p_Func)
   const std::string keyName = UiKeyConfig::GetStr(p_Func);
   if ((keyName.size() == 9) && (keyName >= "KEY_CTRLA") && (keyName <= "KEY_CTRLZ"))
   {
-    return "^" + keyName.substr(8, 1);
+#if defined(__APPLE__)
+    return "\xe2\x8c\x83" + keyName.substr(8, 1); // ⌃<key>
+#else
+    return "^" + keyName.substr(8, 1);            // ^<key>
+#endif
   }
   else if (std::count(keyName.begin(), keyName.end(), '\\') == 2)
   {
     const std::string keyStr = StrUtil::StrFromOct(keyName);
     if ((keyStr.size() == 2) && (keyStr.at(0) == '\33') && StrUtil::IsValidTextKey(keyStr.at(1)))
     {
-      return "M-" + keyStr.substr(1);
+#if defined(__APPLE__)
+      return "\xe2\x8c\xa5" + keyStr.substr(1); // ⌥<key>
+#else
+      return "M-" + keyStr.substr(1);            // M-<key>
+#endif
     }
   }
   else if (keyName == "KEY_RETURN")
