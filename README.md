@@ -492,6 +492,8 @@ This configuration file holds general user interface settings. Default content:
     file_picker_command=
     file_picker_persist_dir=1
     help_enabled=1
+    help_prefix_ctrl=^
+    help_prefix_meta=M-
     home_fetch_all=0
     linefeed_on_enter=1
     link_open_command=
@@ -694,6 +696,22 @@ last selected file.
 ### help_enabled
 
 Specifies whether to display help bar. Controlled by Ctrl-g in run-time.
+
+### help_prefix_ctrl
+
+Specifies the prefix used in the help bar for control key combinations,
+i.e. `^` results in `^g` being displayed for Ctrl-g. Users on macOS may
+prefer the Apple modifier symbol `⌃` here.
+
+### help_prefix_meta
+
+Specifies the prefix used in the help bar for meta / alt key combinations,
+i.e. `M-` results in `M-/` being displayed for Alt-/. Users on macOS may
+prefer the Apple modifier symbol `⌥` here. Other alternatives include
+`A-` and `Alt-`.
+
+Note that these prefixes are only cosmetic, the actual key bindings are
+configured in `key.conf`.
 
 ### home_fetch_all
 
