@@ -100,6 +100,8 @@ private:
     std::string GetContactListName(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_AllowId,
                                    bool p_AllowAlias);
     std::string GetContactPhone(const std::string& p_ProfileId, const std::string& p_ChatId);
+    std::string FindContactIdByPhone(const std::string& p_ProfileId, const std::string& p_Phone);
+    std::string FindExistingChatByPhone(const std::string& p_ProfileId, const std::string& p_Phone);
     bool IsContactSelf(const std::string& p_ProfileId, const std::string& p_ContactId);
     int64_t GetLastMessageTime(const std::string& p_ProfileId, const std::string& p_ChatId);
     bool GetChatIsUnread(const std::string& p_ProfileId, const std::string& p_ChatId);
@@ -350,6 +352,8 @@ public:
                                        bool p_AllowAlias);
   std::string GetContactNameLocked(const std::string& p_ProfileId, const std::string& p_ChatId);
   std::string GetContactPhoneLocked(const std::string& p_ProfileId, const std::string& p_ChatId);
+  std::string FindContactIdByPhoneLocked(const std::string& p_ProfileId, const std::string& p_Phone);
+  std::string FindExistingChatByPhoneLocked(const std::string& p_ProfileId, const std::string& p_Phone);
   int GetCurrentChatIndexLocked();
   std::pair<std::string, std::string>& GetCurrentChatLocked();
   bool GetEditMessageActiveLocked();
@@ -399,6 +403,7 @@ private:
   void OnKeyTransfer();
   void OnKeySelectEmoji();
   void OnKeySelectContact();
+  void OnKeyNewContact();
   void OnKeyReact();
   void OnKeyFind();
   void OnKeyFindNext();

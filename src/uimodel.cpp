@@ -1176,6 +1176,89 @@ void UiModel::Impl::OnKeyOpenAttachment(std::string p_FilePath /*= std::string()
   OpenAttachment(p_FilePath);
 }
 
+void UiModel::OnKeyNewContact()
+{
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    if (GetImpl().GetEditMessageActive()) return;
+  }
+  static std::string s_LastPhoneNumber;
+  UiDialogParams params(this, "New Chat by Number", 0.5, 5);
+  UiTextInputDialog textInputDialog(params, "Phone: ", s_LastPhoneNumber);
+  if (textInputDialog.Run())
+  {
+    s_LastPhoneNumber = textInputDialog.GetInput();
+    std::string profileId;
+    {
+      std::unique_lock<owned_mutex> lock(m_ModelMutex);
+      profileId = GetImpl().GetCurrentChat().first;
+    }
+    if (profileId.empty())
+    {
+      MessageDialog("Warning", "No active chat/profile to create a new chat in.", 0.7, 5);
+      return;
+    }
+
+    std::string digitsOnly;
+    for (char c : s_LastPhoneNumber)
+    {
+      if (isdigit((unsigned char)c))
+      {
+        digitsOnly += c;
+      }
+    }
+
+    // 1. Already chatting with this number? Go straight there.
+    std::string existingChatId;
+    {
+      std::unique_lock<owned_mutex> lock(m_ModelMutex);
+      existingChatId = GetImpl().FindExistingChatByPhone(profileId, digitsOnly);
+    }
+    if (!existingChatId.empty())
+    {
+      std::pair<std::string, std::string> existingChat = std::make_pair(profileId, existingChatId);
+      std::unique_lock<owned_mutex> lock(m_ModelMutex);
+      GetImpl().GotoChat(existingChat);
+      return;
+    }
+
+    // 2. Known contact, no chat yet? Reuse their id (skips the network check).
+    std::string userId;
+    {
+      std::unique_lock<owned_mutex> lock(m_ModelMutex);
+      userId = GetImpl().FindContactIdByPhone(profileId, digitsOnly);
+    }
+
+    // 3. Otherwise, resolve/validate against WhatsApp directly.
+    if (userId.empty())
+    {
+      std::unordered_map<std::string, std::shared_ptr<Protocol>> protocols = GetProtocols();
+      auto protocolIt = protocols.find(profileId);
+      if (protocolIt != protocols.end() && protocolIt->second)
+      {
+        userId = protocolIt->second->CheckPhoneNumber(s_LastPhoneNumber);
+      }
+    }
+
+    if (userId.empty())
+    {
+      MessageDialog("Warning", "Number is not registered on WhatsApp.", 0.7, 5);
+      std::unique_lock<owned_mutex> lock(m_ModelMutex);
+      GetImpl().ReinitView();
+      return;
+    }
+
+    std::pair<std::string, std::string> newChat = std::make_pair(profileId, userId);
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OpenCreateChat(newChat);
+  }
+  else
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().ReinitView();
+  }
+}
+
 void UiModel::Impl::OpenLink(const std::string& p_Url)
 {
   static const std::string cmdTemplate = []()
@@ -2638,6 +2721,49 @@ std::string UiModel::Impl::GetContactPhone(const std::string& p_ProfileId, const
 bool UiModel::Impl::IsContactSelf(const std::string& p_ProfileId, const std::string& p_ContactId)
 {
   return m_ContactInfos[p_ProfileId][p_ContactId].isSelf;
+}
+
+std::string UiModel::Impl::FindContactIdByPhone(const std::string& p_ProfileId, const std::string& p_Phone)
+{
+  auto profileIt = m_ContactInfos.find(p_ProfileId);
+  if (profileIt != m_ContactInfos.end())
+  {
+    for (const auto& contactPair : profileIt->second)
+    {
+      if (!contactPair.second.phone.empty() && (contactPair.second.phone == p_Phone))
+      {
+        return contactPair.first;
+      }
+    }
+  }
+  return "";
+}
+
+std::string UiModel::FindContactIdByPhoneLocked(const std::string& p_ProfileId, const std::string& p_Phone)
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().FindContactIdByPhone(p_ProfileId, p_Phone);
+}
+
+std::string UiModel::Impl::FindExistingChatByPhone(const std::string& p_ProfileId, const std::string& p_Phone)
+{
+  for (const auto& chat : m_ChatVec)
+  {
+    if (chat.first != p_ProfileId) continue;
+
+    std::string phone = GetContactPhone(chat.first, chat.second);
+    if (!phone.empty() && (phone == ("+" + p_Phone)))
+    {
+      return chat.second;
+    }
+  }
+  return "";
+}
+
+std::string UiModel::FindExistingChatByPhoneLocked(const std::string& p_ProfileId, const std::string& p_Phone)
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().FindExistingChatByPhone(p_ProfileId, p_Phone);
 }
 
 int64_t UiModel::Impl::GetLastMessageTime(const std::string& p_ProfileId, const std::string& p_ChatId)
@@ -4495,6 +4621,7 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keyNextChat = UiKeyConfig::GetKey("next_chat");
   static wint_t keyPrevChat = UiKeyConfig::GetKey("prev_chat");
   static wint_t keyUnreadChat = UiKeyConfig::GetKey("unread_chat");
+  static wint_t keyNewContact = UiKeyConfig::GetKey("new_contact");
 
   static wint_t keyQuit = UiKeyConfig::GetKey("quit");
   static wint_t keySelectEmoji = UiKeyConfig::GetKey("select_emoji");
@@ -4595,6 +4722,10 @@ void UiModel::KeyHandler(wint_t p_Key)
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().OnKeyUnreadChat();
+  }
+  else if (p_Key == keyNewContact)
+  {
+    OnKeyNewContact();
   }
   else if (p_Key == keyPrevPage)
   {

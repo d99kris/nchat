@@ -237,6 +237,7 @@ void UiKeyConfig::Init(bool p_MapKeys)
     { "prev_chat", "KEY_BTAB" },
     { "unread_chat", "KEY_CTRLF" },
     { "send_msg", "KEY_CTRLX" },
+    { "new_contact", "" },
     { "delete_msg", "KEY_CTRLD" },
     { "delete_chat", "\\33\\144" }, // alt/opt-d
     { "archive_chat", "\\33\\141" }, // alt/opt-a
