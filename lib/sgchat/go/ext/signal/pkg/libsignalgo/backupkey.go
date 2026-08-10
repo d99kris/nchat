@@ -97,10 +97,12 @@ func (bk *BackupKey) DeriveLocalBackupMetadataKey() (*BackupMetadataKey, error) 
 
 func (bk *BackupKey) DeriveMediaID(mediaName string) (*BackupMediaID, error) {
 	var out BackupMediaID
+	mediaNameStr, mediaNameFree := GoStringToCString(mediaName)
+	defer mediaNameFree()
 	signalFfiError := C.signal_backup_key_derive_media_id(
 		(*[C.SignalMEDIA_ID_LEN]C.uint8_t)(unsafe.Pointer(&out)),
 		(*[C.SignalBACKUP_KEY_LEN]C.uint8_t)(unsafe.Pointer(bk)),
-		C.CString(mediaName),
+		mediaNameStr,
 	)
 	runtime.KeepAlive(bk)
 	if signalFfiError != nil {

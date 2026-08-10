@@ -43,7 +43,9 @@ func (dtk *DeviceTransferKey) PrivateKeyMaterial() []byte {
 
 func (dtk *DeviceTransferKey) GenerateCertificate(name string, days int) ([]byte, error) {
 	var resp C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
-	signalFfiError := C.signal_device_transfer_generate_certificate(&resp, BytesToBuffer(dtk.privateKey), C.CString(name), C.uint32_t(days))
+	nameStr, freeNameStr := GoStringToCString(name)
+	defer freeNameStr()
+	signalFfiError := C.signal_device_transfer_generate_certificate(&resp, BytesToBuffer(dtk.privateKey), nameStr, C.uint32_t(days))
 	runtime.KeepAlive(dtk)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)

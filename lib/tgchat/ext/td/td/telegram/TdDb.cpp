@@ -85,6 +85,9 @@ Status init_binlog(Binlog &binlog, string path, BinlogKeyValue<Binlog> &binlog_p
       case LogEvent::HandlerType::SecretChatInfos:
         events.secret_chat_events.push_back(event.clone());
         break;
+      case LogEvent::HandlerType::Communities:
+        events.community_events.push_back(event.clone());
+        break;
       case LogEvent::HandlerType::WebPages:
         events.web_page_events.push_back(event.clone());
         break;
@@ -114,6 +117,7 @@ Status init_binlog(Binlog &binlog, string path, BinlogKeyValue<Binlog> &binlog_p
       case LogEvent::HandlerType::ReadMessageContentsOnServer:
       case LogEvent::HandlerType::UnpinAllDialogMessagesOnServer:
       case LogEvent::HandlerType::ReadAllPollVotesOnServer:
+      case LogEvent::HandlerType::DeleteEphemeralMessageOnServer:
         events.to_message_query_manager.push_back(event.clone());
         break;
       case LogEvent::HandlerType::SendMessage:

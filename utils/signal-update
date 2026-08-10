@@ -90,7 +90,7 @@ popd > /dev/null || exiterr "popd failed"
 [[ "$(uname)" == "Linux" ]] && SEDCMD="sed" || SEDCMD="gsed"
 ${SEDCMD} -E -i -e "s/^var signalDate int.*$/var signalDate int = ${NEWVERSION}/g" lib/sgchat/go/gosg.go
 
-# Update LIBSIGNAL_BUILD_REF in CMakeLists.txt
+# Update LIBSIGNAL_BUILD_REF in libsignal.cmake
 echo "Determine libsignal build ref"
 LIBSIGNAL_VERSION=$(grep 'const Version' "${REPOTARGET}/pkg/libsignalgo/version.go" | cut -d'"' -f2)
 if [[ -n "${LIBSIGNAL_VERSION}" ]]; then
@@ -107,7 +107,7 @@ if [[ -n "${LIBSIGNAL_VERSION}" ]]; then
       fi
     done
     if [[ -n "${LIBSIGNAL_BUILD_REF}" ]]; then
-      ${SEDCMD} -E -i "s|^set\\(LIBSIGNAL_BUILD_REF \"[^\"]*\"|set(LIBSIGNAL_BUILD_REF \"${LIBSIGNAL_BUILD_REF}\"|" lib/sgchat/go/CMakeLists.txt
+      ${SEDCMD} -E -i "s|^set\\(LIBSIGNAL_BUILD_REF \"[^\"]*\"|set(LIBSIGNAL_BUILD_REF \"${LIBSIGNAL_BUILD_REF}\"|" lib/sgchat/go/libsignal.cmake
       echo "Updated LIBSIGNAL_BUILD_REF to ${LIBSIGNAL_BUILD_REF}"
     else
       echo "Warning: No matching libsignal build found for ${LIBSIGNAL_VERSION}"
@@ -126,20 +126,17 @@ pushd lib/sgchat/go > /dev/null && go mod tidy && popd > /dev/null
 # Regenerate the Signal third-party license fragment so the attribution for the
 # Go module tree lands in the same commit as the dependency bump.
 echo "Third-party licenses"
-if command -v go-licenses > /dev/null 2>&1; then
-  ${REPOROOT}/utils/dist/gen-third-party-licenses sgchat || \
-    echo "WARNING: license regen failed; refresh lib/sgchat/THIRD_PARTY_LICENSES by hand"
-else
-  echo "NOTE: go-licenses not on PATH; after 'go install github.com/google/go-licenses@latest'"
-  echo "      run './utils/dist/gen-third-party-licenses sgchat' to refresh"
-  echo "      lib/sgchat/THIRD_PARTY_LICENSES"
-fi
+${REPOROOT}/utils/dist/gen-third-party-licenses sgchat || \
+  echo "WARNING: license regen failed; refresh lib/sgchat/THIRD_PARTY_LICENSES by hand"
 
 # Complete
 echo "Done"
 echo "Proceed to bump project version and build:"
 echo "./make.sh bump"
 echo "./make.sh doc"
+echo ""
+echo "If signalmeow changes were needed, run:"
+echo "./utils/signal-mkpatch"
 echo ""
 echo "If succesful proceed to commit the changes:"
 echo "git add -u"

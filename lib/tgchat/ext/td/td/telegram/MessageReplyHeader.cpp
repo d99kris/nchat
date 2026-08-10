@@ -24,8 +24,8 @@ MessageReplyHeader::MessageReplyHeader(Td *td, tl_object_ptr<telegram_api::Messa
     auto reply_header = telegram_api::move_object_as<telegram_api::messageReplyStoryHeader>(reply_header_ptr);
     DialogId story_dialog_id(reply_header->peer_);
     StoryId story_id(reply_header->story_id_);
-    if (!story_dialog_id.is_valid() || !story_id.is_server()) {
-      LOG(ERROR) << "Receive " << to_string(reply_header);
+    if (!story_dialog_id.is_valid() || !story_id.is_server() || message_id == MessageId()) {
+      LOG(ERROR) << "Receive in " << dialog_id << ": " << to_string(reply_header);
     } else {
       story_full_id_ = {story_dialog_id, story_id};
     }
@@ -41,6 +41,7 @@ MessageReplyHeader::MessageReplyHeader(Td *td, tl_object_ptr<telegram_api::Messa
         reply_header->reply_to_peer_id_ == nullptr && reply_header->reply_to_msg_id_ != 0) {
       reply_header->reply_to_top_id_ = reply_header->reply_to_msg_id_;
       reply_header->reply_to_msg_id_ = 0;
+      reply_header->reply_to_ephemeral_ = false;
     }
     if (reply_header->reply_to_top_id_ != 0) {
       top_thread_message_id_ = MessageId(ServerMessageId(reply_header->reply_to_top_id_));
@@ -58,14 +59,13 @@ MessageReplyHeader::MessageReplyHeader(Td *td, tl_object_ptr<telegram_api::Messa
   if (!message_id.is_scheduled() && can_have_thread && dialog_id.get_type() == DialogType::Channel) {
     if (!top_thread_message_id_.is_valid()) {
       auto same_chat_reply_to_message_id = replied_message_info_.get_same_chat_reply_to_message_id(false);
-      if (same_chat_reply_to_message_id.is_valid()) {
-        CHECK(same_chat_reply_to_message_id.is_server());
+      if (same_chat_reply_to_message_id.is_server()) {
         top_thread_message_id_ = same_chat_reply_to_message_id;
       } else {
         is_topic_message_ = false;
       }
     }
-    if (top_thread_message_id_ >= message_id) {
+    if (top_thread_message_id_ >= message_id && message_id != MessageId()) {
       LOG(ERROR) << "Receive top thread " << top_thread_message_id_ << " in " << message_id << " in " << dialog_id;
       top_thread_message_id_ = MessageId();
     }

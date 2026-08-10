@@ -38,9 +38,11 @@ func wrapMessageBackupKey(ptr *C.SignalMessageBackupKey) *MessageBackupKey {
 
 func MessageBackupKeyFromAccountEntropyPool(aep AccountEntropyPool, aci ServiceID) (*MessageBackupKey, error) {
 	var bk C.SignalMutPointerMessageBackupKey
+	aepC, free := GoStringToCString(string(aep))
+	defer free()
 	signalFfiError := C.signal_message_backup_key_from_account_entropy_pool(
 		&bk,
-		C.CString(string(aep)),
+		aepC,
 		aci.CFixedBytes(),
 		nil, // TODO what's a forward secrecy token?
 	)

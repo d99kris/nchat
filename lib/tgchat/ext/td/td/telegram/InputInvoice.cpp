@@ -17,7 +17,6 @@
 #include "td/telegram/Td.h"
 #include "td/telegram/telegram_api.h"
 
-#include "td/utils/algorithm.h"
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
 #include "td/utils/HttpUrl.h"
@@ -172,25 +171,9 @@ Result<InputInvoice> InputInvoice::process_input_message_invoice(
   result.start_parameter_ = std::move(input_invoice->start_parameter_);
 
   result.invoice_.currency_ = std::move(input_invoice->invoice_->currency_);
-  result.invoice_.price_parts_.reserve(input_invoice->invoice_->price_parts_.size());
-  int64 total_amount = 0;
-  for (auto &price : input_invoice->invoice_->price_parts_) {
-    if (!clean_input_string(price->label_)) {
-      return Status::Error(400, "Invoice price label must be encoded in UTF-8");
-    }
-    if (!check_currency_amount(price->amount_)) {
-      return Status::Error(400, "Too big amount of the currency specified");
-    }
-    result.invoice_.price_parts_.emplace_back(std::move(price->label_), price->amount_);
-    total_amount += price->amount_;
-  }
-  if (total_amount <= 0) {
-    return Status::Error(400, "Total price must be positive");
-  }
-  if (!check_currency_amount(total_amount)) {
-    return Status::Error(400, "Total price is too big");
-  }
-  result.total_amount_ = total_amount;
+  TRY_RESULT_ASSIGN(result.invoice_.price_parts_,
+                    LabeledPricePart::get_labeled_price_parts(std::move(input_invoice->invoice_->price_parts_),
+                                                              &result.total_amount_));
   result.invoice_.subscription_period_ = max(input_invoice->invoice_->subscription_period_, 0);
 
   if (input_invoice->invoice_->max_tip_amount_ < 0 ||
@@ -284,13 +267,11 @@ tl_object_ptr<telegram_api::invoice> InputInvoice::Invoice::get_input_invoice() 
     terms_of_service_url = terms_of_service_url_;
   }
 
-  auto prices = transform(price_parts_, [](const LabeledPricePart &price) {
-    return telegram_api::make_object<telegram_api::labeledPrice>(price.label, price.amount);
-  });
   return telegram_api::make_object<telegram_api::invoice>(
       flags, is_test_, need_name_, need_phone_number_, need_email_address_, need_shipping_address_, is_flexible_,
-      send_phone_number_to_provider_, send_email_address_to_provider_, is_recurring, currency_, std::move(prices),
-      max_tip_amount_, vector<int64>(suggested_tip_amounts_), terms_of_service_url, subscription_period_);
+      send_phone_number_to_provider_, send_email_address_to_provider_, is_recurring, currency_,
+      LabeledPricePart::get_input_labeled_prices(price_parts_), max_tip_amount_, vector<int64>(suggested_tip_amounts_),
+      terms_of_service_url, subscription_period_);
 }
 
 static telegram_api::object_ptr<telegram_api::inputWebDocument> get_input_web_document(const FileManager *file_manager,

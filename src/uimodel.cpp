@@ -1149,7 +1149,7 @@ bool UiModel::Impl::GetMessageAttachmentPath(std::string& p_FilePath, DownloadFi
     p_FilePath = fileInfo.filePath;
     return true;
   }
-  else if (UiModel::Impl::IsAttachmentDownloadable(fileInfo))
+  else if (UiModel::Impl::IsAttachmentDownloadable(fileInfo, true /*p_AllowRetryFailed*/))
   {
     DownloadAttachment(profileId, chatId, msgId, fileInfo.fileId, p_DownloadFileAction);
     UpdateHistory();
@@ -1591,6 +1591,13 @@ void UiModel::Impl::OpenCreateChat(const std::pair<std::string, std::string>& p_
       archiveChatRequest->chatId = userId;
       archiveChatRequest->isArchived = false;
       SendProtocolRequest(profileId, archiveChatRequest);
+
+      // unarchive locally right away, as the protocol notify may arrive after requested messages
+      profileChatInfos[userId].isArchived = false;
+      if (m_ChatSet[profileId].insert(userId).second)
+      {
+        m_ChatVec.push_back(std::make_pair(profileId, userId));
+      }
     }
 
     m_CurrentChatIndex = 0;
@@ -3330,7 +3337,7 @@ bool UiModel::Impl::IsAttachmentDownloaded(const FileInfo& p_FileInfo)
   return false;
 }
 
-bool UiModel::Impl::IsAttachmentDownloadable(const FileInfo& p_FileInfo)
+bool UiModel::Impl::IsAttachmentDownloadable(const FileInfo& p_FileInfo, bool p_AllowRetryFailed)
 {
   const bool hasFileId = !p_FileInfo.fileId.empty();
 
@@ -3346,8 +3353,12 @@ bool UiModel::Impl::IsAttachmentDownloadable(const FileInfo& p_FileInfo)
   }
   else if (p_FileInfo.fileStatus == FileStatusDownloadFailed)
   {
-    LOG_WARNING("message attachment download failed");
-    return false;
+    // a failed download (ex: expired media url, transient network error) may be retried as long
+    // as the download info is still available. only allow retry for user-initiated downloads, to
+    // avoid a permanently-failing attachment being retried repeatedly by automatic prefetch.
+    const bool canRetry = p_AllowRetryFailed && hasFileId;
+    LOG_WARNING("message attachment download failed, retry %d", canRetry);
+    return canRetry;
   }
   else if (p_FileInfo.fileStatus == FileStatusNotDownloaded)
   {
@@ -3648,16 +3659,16 @@ void UiModel::Impl::OnKeyCancel()
 
 std::string UiModel::Impl::EntryStrToSendStr(const std::wstring& p_EntryStr)
 {
+  std::wstring wstr = p_EntryStr;
+  wstr.erase(std::remove(wstr.begin(), wstr.end(), EMOJI_PAD), wstr.end());
+
   std::string str;
   if (m_View->GetEmojiEnabled())
   {
-    std::wstring wstr = p_EntryStr;
-    wstr.erase(std::remove(wstr.begin(), wstr.end(), EMOJI_PAD), wstr.end());
     str = StrUtil::ToString(wstr);
   }
   else
   {
-    std::wstring wstr = p_EntryStr;
     str = StrUtil::Emojize(StrUtil::ToString(wstr));
   }
 
@@ -5713,7 +5724,7 @@ bool UiModel::IsAttachmentDownloaded(const FileInfo& p_FileInfo)
   return UiModel::Impl::IsAttachmentDownloaded(p_FileInfo);
 }
 
-bool UiModel::IsAttachmentDownloadable(const FileInfo& p_FileInfo)
+bool UiModel::IsAttachmentDownloadable(const FileInfo& p_FileInfo, bool p_AllowRetryFailed)
 {
-  return UiModel::Impl::IsAttachmentDownloadable(p_FileInfo);
+  return UiModel::Impl::IsAttachmentDownloadable(p_FileInfo, p_AllowRetryFailed);
 }

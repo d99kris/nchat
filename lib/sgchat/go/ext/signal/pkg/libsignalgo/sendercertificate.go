@@ -44,10 +44,14 @@ func wrapSenderCertificate(ptr *C.SignalSenderCertificate) *SenderCertificate {
 // the Swift bindings).
 func NewSenderCertificate(sender *SealedSenderAddress, publicKey *PublicKey, expiration time.Time, signerCertificate *ServerCertificate, signerKey *PrivateKey) (*SenderCertificate, error) {
 	var sc C.SignalMutPointerSenderCertificate
+	senderUUIDStr, freeSenderUUIDStr := GoStringToCString(sender.UUID.String())
+	defer freeSenderUUIDStr()
+	senderE164Str, freeSenderE164Str := GoStringToCString(sender.E164)
+	defer freeSenderE164Str()
 	signalFfiError := C.signal_sender_certificate_new(
 		&sc,
-		C.CString(sender.UUID.String()),
-		C.CString(sender.E164),
+		senderUUIDStr,
+		senderE164Str,
 		C.uint32_t(sender.DeviceID),
 		publicKey.constPtr(),
 		C.uint64_t(expiration.UnixMilli()),

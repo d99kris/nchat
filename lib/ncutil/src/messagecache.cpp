@@ -310,6 +310,12 @@ void MessageCache::AddProfile(const std::string& p_ProfileId, bool p_CheckSequen
     *m_Dbs[p_ProfileId] << "PRAGMA synchronous = FULL";
     *m_Dbs[p_ProfileId] << "PRAGMA journal_mode = DELETE";
 
+    // Custom function used by find, as sqlite's built-in lower() only handles ascii
+    m_Dbs[p_ProfileId]->define("ncfold", [](std::string p_Str) -> std::string
+    {
+      return StrUtil::ToFold(p_Str);
+    });
+
     // note: use actual table names instead if variables during schema setup / update
 
     // fresh database will get version 0
@@ -1548,8 +1554,8 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
               "LEFT JOIN " + s_TableContacts + " "
               "ON " + s_TableMessages + ".senderId = " + s_TableContacts + ".id "
               "WHERE chatId = ? AND timeSent < ? "
-              "AND ((instr(lower(text), lower(?)) > 0) OR "
-              "     (instr(lower(CASE WHEN isSelf THEN 'You' ELSE name END), lower(?)) > 0)) "
+              "AND ((instr(ncfold(text), ncfold(?)) > 0) OR "
+              "     (instr(ncfold(CASE WHEN isSelf THEN 'You' ELSE name END), ncfold(?)) > 0)) "
               "ORDER BY timeSent DESC LIMIT 1;"
               << chatId << findFromMsgIdTimeSent << findText << findText >>
               [&](const std::string& id, const int64_t& timeSent)
@@ -2054,6 +2060,24 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
   }
 }
 
+// A failed attachment download is not a terminal state. When loading a message from the cache (ex:
+// on startup) reset a failed download back to not-downloaded, so it may be re-attempted in the new
+// session (ex: after connectivity is restored). Only reset when the download info (fileId) is still
+// available, otherwise the attachment cannot be re-downloaded and is left marked as failed.
+static std::string ResetFailedDownloadFileInfo(const std::string& p_FileInfo)
+{
+  if (p_FileInfo.empty()) return p_FileInfo;
+
+  FileInfo fileInfo = ProtocolUtil::FileInfoFromHex(p_FileInfo);
+  if ((fileInfo.fileStatus == FileStatusDownloadFailed) && !fileInfo.fileId.empty())
+  {
+    fileInfo.fileStatus = FileStatusNotDownloaded;
+    return ProtocolUtil::FileInfoToHex(fileInfo);
+  }
+
+  return p_FileInfo;
+}
+
 void MessageCache::PerformFetchMessagesFrom(const std::string& p_ProfileId, const std::string& p_ChatId,
                                             const int64_t p_FromMsgIdTimeSent, const int p_Limit,
                                             std::vector<ChatMessage>& p_ChatMessages)
@@ -2079,7 +2103,7 @@ void MessageCache::PerformFetchMessagesFrom(const std::string& p_ProfileId, cons
         chatMessage.quotedId = quotedId;
         chatMessage.quotedText = quotedText;
         chatMessage.quotedSender = quotedSender;
-        chatMessage.fileInfo = fileInfo;
+        chatMessage.fileInfo = ResetFailedDownloadFileInfo(fileInfo);
         chatMessage.timeSent = timeSent;
         chatMessage.isOutgoing = isOutgoing;
         chatMessage.isRead = isRead;
@@ -2126,7 +2150,7 @@ void MessageCache::PerformFetchOneMessage(const std::string& p_ProfileId, const 
         chatMessage.quotedId = quotedId;
         chatMessage.quotedText = quotedText;
         chatMessage.quotedSender = quotedSender;
-        chatMessage.fileInfo = fileInfo;
+        chatMessage.fileInfo = ResetFailedDownloadFileInfo(fileInfo);
         chatMessage.timeSent = timeSent;
         chatMessage.isOutgoing = isOutgoing;
         chatMessage.isRead = isRead;

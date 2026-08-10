@@ -105,6 +105,13 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: dist-linux-${{ matrix.arch }}
+          # Intra-workflow transport only: the publish job downloads these minutes
+          # later, and the durable copy of anything worth keeping is the Release
+          # asset (release assets are not Actions storage and are not billed).
+          # This repo is private, so artifacts here draw on the account's 0.5 GB
+          # Actions storage quota; at the 90-day default each run's ~105 MB is held
+          # for a quarter, which a single week of iteration alone blew past.
+          retention-days: 1
           # Versioned tarballs only -- the main nchat-<ver>-<target>.tar.gz and
           # its detached symbols-<ver>-<target>.tar.gz. The [0-9] anchor (version
           # always starts with a digit) excludes the unversioned staged trees
@@ -178,6 +185,8 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: dist-macos-arm64
+          # Transport only; see the linux job for the retention rationale.
+          retention-days: 1
           # Versioned artifacts only -- main tarball plus its symbols-* tarball
           # (see the linux job for the [0-9] rationale).
           path: |

@@ -14,6 +14,15 @@ exiterr()
   exit 1
 }
 
+# target_writable - true if the dir, or its nearest existing ancestor, is
+# writable by the current user (used to decide whether install needs sudo/doas)
+target_writable()
+{
+  local d="${1}"
+  while [[ ! -e "${d}" ]]; do d="$(dirname "${d}")"; done
+  [[ -w "${d}" ]]
+}
+
 show_usage()
 {
   echo "usage: make.sh [OPTIONS] ACTION"
@@ -33,6 +42,10 @@ show_usage()
   echo "  all             - perform deps, build, tests, doc and install"
   echo "  src             - perform source code reformatting"
   echo "  bump            - perform version bump"
+  echo ""
+  echo "Env:"
+  echo "  NCHAT_PREFIX    - install prefix (default: /usr/local). A user-writable"
+  echo "                    prefix such as ~/.local installs without sudo/doas."
   echo ""
 }
 
@@ -268,6 +281,13 @@ if [[ "${BUILD}" == "1" ]] || [[ "${DEBUG}" == "1" ]]; then
     export CC="clang"
     export CXX="clang++"
   fi
+
+  # NCHAT_PREFIX: first-class install-prefix override, matching utils/install.sh.
+  # Appended last so it wins over cmake's default and any prefix carried in
+  # DEV_CMAKEARGS / NCHAT_CMAKEARGS / the Termux default above.
+  if [[ -n "${NCHAT_PREFIX:-}" ]]; then
+    CMAKEARGS="${CMAKEARGS} -DCMAKE_INSTALL_PREFIX=${NCHAT_PREFIX%/}"
+  fi
 fi
 
 # make args
@@ -362,7 +382,13 @@ if [[ "${INSTALL}" == "1" ]]; then
   if [[ -z ${INSTALL_CMD+x} ]]; then
     if [[ "${OS}" == "Linux" ]]; then
       if [[ "${DISTRO}" != "Termux" ]]; then
-        INSTALL_CMD="$(basename $(which sudo doas | head -1))"
+        # only elevate when the install prefix is not writable by the current
+        # user -- a user-writable prefix (e.g. NCHAT_PREFIX=~/.local) needs no
+        # sudo/doas.
+        INSTALL_PREFIX="${NCHAT_PREFIX:-/usr/local}"
+        if ! target_writable "${INSTALL_PREFIX%/}"; then
+          INSTALL_CMD="$(basename $(which sudo doas | head -1))"
+        fi
       fi
     elif [[ "${OS}" == "Darwin" ]]; then
       if [[ "${GITHUB_ACTIONS}" == "true" ]]; then

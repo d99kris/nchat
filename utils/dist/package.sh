@@ -26,8 +26,8 @@
 #   dist/nchat-<version>-<target>          (the bare stripped bin/nchat)
 #
 # The bare binary is a lower-friction, drop-into-a-bin-dir convenience: it
-# carries no LICENSE or man page. musl bare binaries support Telegram and
-# WhatsApp (Signal not supported), same as their tarball.
+# carries no LICENSE or man page. It supports the same protocols as its
+# tarball (Telegram, WhatsApp and Signal).
 #
 # Alongside the artifacts it writes one aggregate checksum file covering
 # everything packaged in the run (rewritten each run, `sha256sum -c` format

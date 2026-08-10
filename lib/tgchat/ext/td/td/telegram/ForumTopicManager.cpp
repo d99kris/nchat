@@ -12,6 +12,7 @@
 #include "td/telegram/ChatManager.h"
 #include "td/telegram/CustomEmojiId.h"
 #include "td/telegram/DialogManager.h"
+#include "td/telegram/DraftMessageManager.h"
 #include "td/telegram/ForumTopic.h"
 #include "td/telegram/ForumTopic.hpp"
 #include "td/telegram/ForumTopicIcon.h"
@@ -687,8 +688,11 @@ void ForumTopicManager::on_update_forum_topic_draft_message(DialogId dialog_id, 
     LOG(DEBUG) << "Ignore update about unknown " << forum_topic_id << " in " << dialog_id;
     return;
   }
+  auto old_file_ids = get_topic_file_ids(topic);
   if (topic->topic_->set_draft_message(std::move(draft_message), true)) {
     on_forum_topic_changed(dialog_id, topic);
+    td_->draft_message_manager_->change_draft_message_files(dialog_id, MessageTopic::forum(dialog_id, forum_topic_id),
+                                                            old_file_ids, get_topic_file_ids(topic), true);
   }
 }
 
@@ -710,8 +714,11 @@ void ForumTopicManager::clear_forum_topic_draft_by_sent_message(DialogId dialog_
       return;
     }
   }
+  auto old_file_ids = get_topic_file_ids(topic);
   if (topic->topic_->set_draft_message(nullptr, false)) {
     on_forum_topic_changed(dialog_id, topic);
+    td_->draft_message_manager_->change_draft_message_files(dialog_id, MessageTopic::forum(dialog_id, forum_topic_id),
+                                                            old_file_ids, get_topic_file_ids(topic), false);
   }
 }
 
@@ -811,11 +818,11 @@ Status ForumTopicManager::set_forum_topic_draft_message(DialogId dialog_id, Foru
   TRY_STATUS(can_be_forum_topic_id(forum_topic_id));
   auto topic = get_topic(dialog_id, forum_topic_id);
   if (topic == nullptr || topic->topic_ == nullptr) {
-    save_draft_message(td_, dialog_id, MessageTopic::forum(dialog_id, forum_topic_id), std::move(draft_message),
-                       Promise<Unit>());
+    td_->draft_message_manager_->save_draft_message(dialog_id, MessageTopic::forum(dialog_id, forum_topic_id),
+                                                    std::move(draft_message), Promise<Unit>());
   } else if (topic->topic_->set_draft_message(std::move(draft_message), false)) {
-    save_draft_message(td_, dialog_id, MessageTopic::forum(dialog_id, forum_topic_id),
-                       topic->topic_->get_draft_message(), Promise<Unit>());
+    td_->draft_message_manager_->save_draft_message(dialog_id, MessageTopic::forum(dialog_id, forum_topic_id),
+                                                    topic->topic_->get_draft_message(), Promise<Unit>());
     on_forum_topic_changed(dialog_id, topic);
   }
   return Status::OK();
@@ -838,6 +845,21 @@ void ForumTopicManager::get_forum_topic(DialogId dialog_id, ForumTopicId forum_t
   }
 
   td_->create_handler<GetForumTopicQuery>(std::move(promise))->send(dialog_id, forum_topic_id);
+}
+
+void ForumTopicManager::reload_forum_topic(DialogId dialog_id, ForumTopicId forum_topic_id, Promise<Unit> &&promise) {
+  TRY_STATUS_PROMISE(promise, is_forum(dialog_id, true));
+  TRY_STATUS_PROMISE(promise, can_be_forum_topic_id(forum_topic_id));
+
+  auto query_promise = PromiseCreator::lambda(
+      [promise = std::move(promise)](Result<td_api::object_ptr<td_api::forumTopic>> r_forum_topic) mutable {
+        if (r_forum_topic.is_error()) {
+          promise.set_error(r_forum_topic.move_as_error());
+        } else {
+          promise.set_value(Unit());
+        }
+      });
+  td_->create_handler<GetForumTopicQuery>(std::move(query_promise))->send(dialog_id, forum_topic_id);
 }
 
 void ForumTopicManager::on_get_forum_topic(DialogId dialog_id, ForumTopicId expected_forum_topic_id,
@@ -1022,6 +1044,7 @@ void ForumTopicManager::on_delete_forum_topic(DialogId dialog_id, ForumTopicId f
   TRY_STATUS_PROMISE(promise, G()->close_status());
   auto *dialog_topics = dialog_topics_.get_pointer(dialog_id);
   if (dialog_topics != nullptr) {
+    CHECK(forum_topic_id.is_valid());
     dialog_topics->topics_.erase(forum_topic_id);
     dialog_topics->deleted_topic_ids_.insert(forum_topic_id);
   }
@@ -1155,8 +1178,11 @@ ForumTopicId ForumTopicManager::on_get_forum_topic_impl(DialogId dialog_id,
         return ForumTopicId();
       }
       if (topic->topic_ == nullptr || true) {
+        auto old_file_ids = get_topic_file_ids(topic);
         topic->topic_ = std::move(forum_topic_full);
         topic->need_save_to_database_ = true;  // TODO temporary
+        td_->draft_message_manager_->change_draft_message_files(
+            dialog_id, MessageTopic::forum(dialog_id, forum_topic_id), old_file_ids, get_topic_file_ids(topic), true);
       }
       topic->receive_date_ = G()->unix_time();
       set_topic_info(dialog_id, topic, std::move(forum_topic_info));
@@ -1168,6 +1194,13 @@ ForumTopicId ForumTopicManager::on_get_forum_topic_impl(DialogId dialog_id,
       UNREACHABLE();
       return ForumTopicId();
   }
+}
+
+vector<FileId> ForumTopicManager::get_topic_file_ids(const Topic *topic) const {
+  if (topic == nullptr || topic->topic_ == nullptr) {
+    return {};
+  }
+  return get_draft_message_file_ids(td_, topic->topic_->get_draft_message());
 }
 
 int32 ForumTopicManager::get_forum_topic_id_object(DialogId dialog_id, ForumTopicId forum_topic_id) {
@@ -1276,6 +1309,7 @@ ForumTopicManager::Topic *ForumTopicManager::add_topic(DialogTopics *dialog_topi
     }
     auto new_topic = make_unique<Topic>();
     topic = new_topic.get();
+    CHECK(forum_topic_id.is_valid());
     dialog_topics->topics_.set(forum_topic_id, std::move(new_topic));
   }
   return topic;

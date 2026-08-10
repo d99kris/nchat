@@ -101,7 +101,7 @@ struct CountryInfoManager::CountryInfo {
 
   td_api::object_ptr<td_api::countryInfo> get_country_info_object() const {
     return td_api::make_object<td_api::countryInfo>(
-        country_code, name.empty() ? default_name : name, default_name, is_hidden,
+        country_code, name.empty() ? default_name : name, default_name, get_country_flag_emoji(country_code), is_hidden,
         transform(calling_codes, [](const CallingCodeInfo &info) { return info.calling_code; }));
   }
 };
@@ -634,7 +634,7 @@ string CountryInfoManager::get_country_flag_emoji(const string &country_code) {
   char first = to_upper(country_code[0]);
   char second = to_upper(country_code[1]);
   if (first == 'Y' && second == 'L') {
-    return string();
+    return "\xF0\x9F\x94\xAE";  // crystal ball
   }
   if (first == 'F' && second == 'T') {
     return "\xF0\x9F\x8F\xB4\xE2\x80\x8D\xE2\x98\xA0\xEF\xB8\x8F";  // pirate flag

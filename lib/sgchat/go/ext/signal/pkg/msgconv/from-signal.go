@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"os"
 	"strconv"
@@ -114,7 +115,7 @@ func (mc *MessageConverter) ToMatrix(
 		return cm
 	}
 	if dm.PollVote != nil {
-		cm.Parts = append(cm.Parts, mc.convertPollVoteToMatrix(ctx, dm.PollVote))
+		cm.Parts = append(cm.Parts, mc.convertPollVoteToMatrix(ctx, sender, dm.PollVote))
 		return cm
 	}
 	if dm.PollCreate != nil {
@@ -569,15 +570,20 @@ func (mc *MessageConverter) reuploadAttachment(ctx context.Context, att *signalp
 		content.Info.Blurhash = att.GetBlurHash()
 		content.Info.AnoaBlurhash = att.GetBlurHash()
 	}
-	switch strings.Split(content.Info.MimeType, "/")[0] {
-	case "image":
+	plainMime, _, _ := mime.ParseMediaType(content.Info.MimeType)
+	// Supported mime types from https://github.com/signalapp/Signal-Desktop/blob/main/ts/util/GoogleChrome.std.ts
+	switch plainMime {
+	case "image/avif", "image/bmp", "image/gif", "image/jpeg", "image/webp", "image/x-xbitmap",
+		"image/vnd.microsoft.icon", "image/ico", "image/icon", "image/x-icon", "image/png", "image/apng":
 		content.MsgType = event.MsgImage
-	case "video":
+	case "video/mp4", "video/ogg", "video/webm":
 		content.MsgType = event.MsgVideo
-	case "audio":
-		content.MsgType = event.MsgAudio
 	default:
-		content.MsgType = event.MsgFile
+		if strings.HasPrefix(plainMime, "audio/") && !strings.HasSuffix(plainMime, "aiff") {
+			content.MsgType = event.MsgAudio
+		} else {
+			content.MsgType = event.MsgFile
+		}
 	}
 	var extra map[string]any
 	if att.GetFlags()&uint32(signalpb.AttachmentPointer_GIF) != 0 {
@@ -743,7 +749,7 @@ var invalidPollVote = &bridgev2.ConvertedMessagePart{
 	DontBridge: true,
 }
 
-func (mc *MessageConverter) convertPollVoteToMatrix(ctx context.Context, vote *signalpb.DataMessage_PollVote) *bridgev2.ConvertedMessagePart {
+func (mc *MessageConverter) convertPollVoteToMatrix(ctx context.Context, senderACI uuid.UUID, vote *signalpb.DataMessage_PollVote) *bridgev2.ConvertedMessagePart {
 	if len(vote.GetTargetAuthorAciBinary()) != 16 {
 		zerolog.Ctx(ctx).Debug().
 			Str("author_aci_b64", base64.StdEncoding.EncodeToString(vote.GetTargetAuthorAciBinary())).
@@ -759,7 +765,24 @@ func (mc *MessageConverter) convertPollVoteToMatrix(ctx context.Context, vote *s
 		zerolog.Ctx(ctx).Warn().Msg("Poll vote target message not found")
 		return invalidPollVote
 	}
-	mxOptionIDs := pollMessage.Metadata.(*signalid.MessageMetadata).MatrixPollOptionIDs
+	meta := pollMessage.Metadata.(*signalid.MessageMetadata)
+	if prevCount, ok := meta.VoteCount[senderACI.String()]; ok && vote.GetVoteCount() <= prevCount {
+		zerolog.Ctx(ctx).Debug().
+			Stringer("sender_aci", senderACI).
+			Uint32("vote_count", vote.GetVoteCount()).
+			Uint32("previous_vote_count", prevCount).
+			Msg("Ignoring poll vote with lower vote count")
+		return invalidPollVote
+	}
+	if meta.VoteCount == nil {
+		meta.VoteCount = make(map[string]uint32)
+	}
+	meta.VoteCount[senderACI.String()] = vote.GetVoteCount()
+	err = mc.Bridge.DB.Message.Update(ctx, pollMessage)
+	if err != nil {
+		zerolog.Ctx(ctx).Warn().Err(err).Msg("Failed to update poll message with new vote count")
+	}
+	mxOptionIDs := meta.MatrixPollOptionIDs
 	optionIDs := make([]string, len(vote.GetOptionIndexes()))
 	for i, optionIndex := range vote.GetOptionIndexes() {
 		if int(optionIndex) < len(mxOptionIDs) {

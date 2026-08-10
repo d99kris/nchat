@@ -10,6 +10,8 @@
 #include "td/telegram/DialogId.h"
 #include "td/telegram/DialogParticipant.h"
 #include "td/telegram/files/FileId.h"
+#include "td/telegram/MessageContentDupType.h"
+#include "td/telegram/RichMessageMedia.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/UserId.h"
@@ -24,7 +26,7 @@
 namespace td {
 
 class Dependencies;
-
+class MessageContent;
 class Td;
 
 class RichMessage {
@@ -36,9 +38,14 @@ class RichMessage {
 
   bool noautolink_ = false;
   InputType input_type_ = InputType::None;
+  vector<RichMessageMedia> media_;
   string source_;
 
   friend bool operator==(const RichMessage &lhs, const RichMessage &rhs);
+
+  vector<telegram_api::object_ptr<telegram_api::InputRichFile>> get_input_rich_files(
+      const Td *td, bool with_input_media,
+      vector<telegram_api::object_ptr<telegram_api::InputMedia>> input_media) const;
 
  public:
   RichMessage() = default;
@@ -60,6 +67,10 @@ class RichMessage {
     return is_full_;
   }
 
+  vector<FileId> get_any_file_ids() const;
+
+  vector<FileId> get_cover_any_file_ids() const;
+
   void append_file_ids(const Td *td, vector<FileId> &file_ids) const;
 
   void add_dependencies(Dependencies &dependencies) const;
@@ -78,11 +89,25 @@ class RichMessage {
 
   int32 get_index_mask() const;
 
-  telegram_api::object_ptr<telegram_api::InputRichMessage> get_input_rich_message(const Td *td) const;
+  telegram_api::object_ptr<telegram_api::InputRichMessage> get_input_rich_message(
+      const Td *td, bool with_input_media = false,
+      vector<telegram_api::object_ptr<telegram_api::InputMedia>> input_media = {}) const;
 
   td_api::object_ptr<td_api::richMessage> get_rich_message_object(Td *td, bool skip_bot_commands) const;
 
-  RichMessage clone() const;
+  RichMessage clone(Td *td, DialogId dialog_id, const MessageContentDupType &type) const;
+
+  vector<unique_ptr<MessageContent>> get_individual_message_contents(Td *td) const;
+
+  vector<MessageContent *> get_individual_message_content_refs();
+
+  vector<const MessageContent *> get_individual_message_content_refs() const;
+
+  const MessageContent *get_individual_message_content_ref(int32 media_pos) const;
+
+  unique_ptr<MessageContent> &get_individual_message_content(int32 media_pos);
+
+  static void compare(Td *td, const RichMessage &lhs, const RichMessage &rhs, bool &is_changed, bool &need_update);
 
   template <class StorerT>
   void store(StorerT &storer) const;

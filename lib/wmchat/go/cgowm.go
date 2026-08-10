@@ -17,7 +17,7 @@ package main
 // extern void WmNewTypingNotify(int p_ConnId, char* p_ChatId, char* p_UserId, int p_IsTyping);
 // extern void WmNewMessageStatusNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsRead);
 // extern void WmNewMessageIsPinnedNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsPinned);
-// extern void WmNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_FilePath, int p_FileStatus, int p_Action);
+// extern void WmNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_FileId, char* p_FilePath, int p_FileStatus, int p_Action);
 // extern void WmNewMessageReactionNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe);
 // extern void WmDeleteChatNotify(int p_ConnId, char* p_ChatId);
 // extern void WmDeleteMessageNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsOutgoing);
@@ -170,8 +170,8 @@ func CWmNewMessageIsPinnedNotify(connId int, chatId string, msgId string, isPinn
 	C.WmNewMessageIsPinnedNotify(C.int(connId), C.CString(chatId), C.CString(msgId), C.int(isPinned))
 }
 
-func CWmNewMessageFileNotify(connId int, chatId string, msgId string, filePath string, fileStatus int, action int) {
-	C.WmNewMessageFileNotify(C.int(connId), C.CString(chatId), C.CString(msgId), C.CString(filePath), C.int(fileStatus), C.int(action))
+func CWmNewMessageFileNotify(connId int, chatId string, msgId string, fileId string, filePath string, fileStatus int, action int) {
+	C.WmNewMessageFileNotify(C.int(connId), C.CString(chatId), C.CString(msgId), C.CString(fileId), C.CString(filePath), C.int(fileStatus), C.int(action))
 }
 
 func CWmNewMessageReactionNotify(connId int, chatId string, msgId string, senderId string, text string, fromMe int) {

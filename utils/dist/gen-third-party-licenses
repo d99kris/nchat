@@ -16,10 +16,15 @@
 # signal-update scripts print a reminder) and commit the regenerated fragment
 # in the same change, so attribution stays in sync with the vendored trees.
 #
-# Requirements: go and go-licenses on PATH. Install go-licenses with:
-#   go install github.com/google/go-licenses@latest
+# Requirements: go on PATH. go-licenses is fetched and run on demand via
+# "go run" at a pinned version (see GOLICENSES_VERSION below) — no separate
+# install step, and nothing is written to the developer's ~/go: GOPATH is
+# redirected to a repo-local, gitignored cache (mirroring how the CGo build in
+# CMakeLists.txt sets GOPATH to its build dir). The first run per machine
+# compiles go-licenses; subsequent runs reuse the Go build cache.
 #
-# Output is deterministic: modules are listed alphabetically and only verbatim
+# Output is deterministic: the pinned go-licenses version keeps results stable
+# across developers, modules are listed alphabetically, and only verbatim
 # license texts (no absolute module-cache paths) are emitted, so regenerating
 # from an unchanged dependency set produces a byte-identical file.
 #
@@ -38,12 +43,28 @@ usage() {
 REPO_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 SUPPLEMENTS_DIR="${REPO_DIR}/utils/licenses/supplements"
 
-if ! command -v go-licenses >/dev/null 2>&1; then
-  echo "$0: go-licenses not found on PATH" >&2
-  echo "$0: install it with: go install github.com/google/go-licenses@latest" >&2
-  echo "$0: (then ensure \"\$(go env GOPATH)/bin\" is on PATH)" >&2
+# Pinned go-licenses version, run on demand via "go run" (see header). Bump this
+# to intentionally adopt a newer go-licenses; keep it pinned so output stays
+# reproducible across developers.
+GOLICENSES_VERSION="v1.6.0"
+# Repo-local, gitignored GOPATH so the on-demand fetch/build touches neither the
+# developer's ~/go nor the wmchat/sgchat module graphs.
+TOOLGOPATH="${REPO_DIR}/.gotools"
+
+if ! command -v go >/dev/null 2>&1; then
+  echo "$0: go not found on PATH" >&2
   exit 1
 fi
+
+# go_licenses: run the pinned go-licenses via "go run". The "@version" form
+# resolves go-licenses outside the current module, so it never modifies the
+# wmchat/sgchat go.mod/go.sum, and "go run" (unlike "go install") writes no
+# binary to GOPATH/bin. GOPATH points at the repo-local cache, so the module
+# download (and any implicit toolchain fetch) stays out of the developer's ~/go.
+go_licenses() {
+  env GOPATH="${TOOLGOPATH}" \
+    go run "github.com/google/go-licenses@${GOLICENSES_VERSION}" "$@"
+}
 
 # gen_fragment <go-dir> <output> <title> <local-prefix> <primary-prefix> \
 #              <primary-version> <primary-url>
@@ -66,11 +87,33 @@ gen_fragment() {
   tmplfile="$(mktemp)"
   printf '%s' "${tmpl}" > "${tmplfile}"
 
-  # go-licenses logs progress/warnings to stderr (informational; missing-license
-  # modules are handled by the supplement fallback below); the template output
-  # goes to stdout, which is all that lands in the fragment.
-  ( cd "${godir}" && go-licenses report . --template "${tmplfile}" ) > "${report}"
-  rm -f "${tmplfile}"
+  # The template output (the actual data) goes to stdout and lands in the report.
+  # go-licenses logs diagnostics to stderr via klog; for this module set they are
+  # all expected and handled downstream, so they are noise rather than signal:
+  #   - "Failed to find license for <nchat module>": our own module, skipped below.
+  #   - "Failed to find license for <dep>": module ships no license text; the
+  #     supplement fallback below supplies it (or hard-fails if none is committed),
+  #     which is a better, actionable check than this line.
+  #   - "contains non-Go code ...": cgo/asm files cannot import Go packages, so no
+  #     Go-module dependency is hidden; purely informational.
+  #   - "Error discovering license URL ... whatsmeow": the in-tree local replace
+  #     has no remote to resolve; its URL is supplied via <primary_url> below.
+  # go-licenses exits 0 through all of the above, so treat a non-zero exit as a
+  # real failure (network fetch, build error) and surface it in full; on success,
+  # filter the known-benign lines so only genuinely new warnings reach the user.
+  local errlog
+  errlog="$(mktemp)"
+  if ! ( cd "${godir}" && go_licenses report . --template "${tmplfile}" ) \
+       > "${report}" 2>"${errlog}"; then
+    cat "${errlog}" >&2
+    rm -f "${errlog}" "${tmplfile}"
+    echo "$0: ERROR: go-licenses failed for ${godir#${REPO_DIR}/}" >&2
+    exit 1
+  fi
+  grep -avE \
+    "Failed to find license for|contains non-Go code|Error discovering license URL|^${TOOLGOPATH}/" \
+    "${errlog}" >&2 || true
+  rm -f "${errlog}" "${tmplfile}"
 
   local out
   out="$(mktemp)"

@@ -12,7 +12,9 @@
 #include "td/telegram/DialogId.h"
 #include "td/telegram/DialogListId.h"
 #include "td/telegram/EmojiGameInfo.h"
+#include "td/telegram/EphemeralMessageId.h"
 #include "td/telegram/files/FileId.h"
+#include "td/telegram/files/FileSourceId.h"
 #include "td/telegram/files/FileUploadId.h"
 #include "td/telegram/ForumTopicId.h"
 #include "td/telegram/MessageCover.h"
@@ -35,6 +37,7 @@
 #include "td/utils/FlatHashSet.h"
 #include "td/utils/Promise.h"
 #include "td/utils/Status.h"
+#include "td/utils/WaitFreeHashMap.h"
 
 #include <functional>
 #include <memory>
@@ -44,11 +47,17 @@ namespace td {
 struct BinlogEvent;
 struct FormattedText;
 struct MessageSearchOffset;
+class RichMessage;
 class Td;
 
 class MessageQueryManager final : public Actor {
  public:
   MessageQueryManager(Td *td, ActorShared<> parent);
+  MessageQueryManager(const MessageQueryManager &) = delete;
+  MessageQueryManager &operator=(const MessageQueryManager &) = delete;
+  MessageQueryManager(MessageQueryManager &&) = delete;
+  MessageQueryManager &operator=(MessageQueryManager &&) = delete;
+  ~MessageQueryManager() final;
 
   using AffectedHistoryQuery = std::function<void(DialogId, Promise<AffectedHistory>)>;
 
@@ -56,6 +65,10 @@ class MessageQueryManager final : public Actor {
                                                  bool get_affected_messages, Promise<Unit> &&promise);
 
   void get_full_rich_message(MessageFullId message_full_id, Promise<td_api::object_ptr<td_api::richMessage>> &&promise);
+
+  void reload_full_rich_message(MessageFullId message_full_id, Promise<Unit> &&promise);
+
+  FileSourceId get_rich_message_file_source_id(MessageFullId message_full_id);
 
   void upload_message_covers(BusinessConnectionId business_connection_id, DialogId dialog_id,
                              vector<MessageCover> covers, Promise<Unit> &&promise);
@@ -164,7 +177,7 @@ class MessageQueryManager final : public Actor {
   void get_paid_message_reaction_senders(DialogId dialog_id,
                                          Promise<td_api::object_ptr<td_api::messageSenders>> &&promise);
 
-  void summarize_message_text(MessageFullId message_full_id, const string &to_language_code, const string &tone,
+  void summarize_message_text(MessageFullId message_full_id, const string &to_language_code, string tone,
                               Promise<td_api::object_ptr<td_api::formattedText>> &&promise);
 
   void add_to_do_list_tasks(MessageFullId message_full_id,
@@ -186,6 +199,11 @@ class MessageQueryManager final : public Actor {
                                                    bool need_delete_all_messages, bool report_spam, uint64 log_event_id,
                                                    Promise<Unit> &&promise);
 
+  void edit_ephemeral_message(DialogId dialog_id, UserId receiver_user_id, EphemeralMessageId ephemeral_message_id,
+                              td_api::object_ptr<td_api::ReplyMarkup> &&reply_markup,
+                              td_api::object_ptr<td_api::InputMessageContent> &&input_message_content,
+                              Promise<Unit> &&promise);
+
   void delete_dialog_messages_by_sender(DialogId dialog_id, DialogId sender_dialog_id, Promise<Unit> &&promise);
 
   void delete_dialog_messages_by_date(DialogId dialog_id, int32 min_date, int32 max_date, bool revoke,
@@ -203,6 +221,10 @@ class MessageQueryManager final : public Actor {
 
   void delete_scheduled_messages_on_server(DialogId dialog_id, vector<MessageId> message_ids, uint64 log_event_id,
                                            Promise<Unit> &&promise);
+
+  void delete_ephemeral_message_on_server(DialogId dialog_id, DialogId receiver_dialog_id,
+                                          EphemeralMessageId ephemeral_message_id, uint64 log_event_id,
+                                          Promise<Unit> &&promise);
 
   void delete_topic_history(DialogId dialog_id, ForumTopicId forum_topic_id, Promise<Unit> &&promise);
 
@@ -254,6 +276,7 @@ class MessageQueryManager final : public Actor {
   class DeleteDialogMessagesByDateOnServerLogEvent;
   class DeleteMessagesOnServerLogEvent;
   class DeleteScheduledMessagesOnServerLogEvent;
+  class DeleteEphemeralMessageOnServerLogEvent;
   class DeleteTopicHistoryOnServerLogEvent;
   class ReadAllDialogMentionsOnServerLogEvent;
   class ReadAllDialogReactionsOnServerLogEvent;
@@ -281,6 +304,8 @@ class MessageQueryManager final : public Actor {
 
   void on_get_affected_history(DialogId dialog_id, AffectedHistoryQuery query, bool get_affected_messages,
                                AffectedHistory affected_history, Promise<Unit> &&promise);
+
+  void on_get_full_rich_message(MessageFullId message_full_id, Result<RichMessage> &&r_rich_message);
 
   void on_upload_cover(FileUploadId file_upload_id, telegram_api::object_ptr<telegram_api::InputFile> input_file);
 
@@ -343,6 +368,9 @@ class MessageQueryManager final : public Actor {
   static uint64 save_delete_scheduled_messages_on_server_log_event(DialogId dialog_id,
                                                                    const vector<MessageId> &message_ids);
 
+  static uint64 save_delete_ephemeral_message_on_server_log_event(DialogId dialog_id, DialogId receiver_dialog_id,
+                                                                  EphemeralMessageId ephemeral_message_id);
+
   static uint64 save_delete_topic_history_on_server_log_event(DialogId dialog_id, ForumTopicId forum_topic_id);
 
   static uint64 save_read_all_dialog_mentions_on_server_log_event(DialogId dialog_id);
@@ -389,6 +417,12 @@ class MessageQueryManager final : public Actor {
   bool is_emoji_game_info_inited_ = false;
   double emoji_game_info_receive_time_ = 0.0;
   EmojiGameInfo emoji_game_info_;
+
+  FlatHashMap<MessageFullId, vector<Promise<td_api::object_ptr<td_api::richMessage>>>, MessageFullIdHash>
+      get_full_rich_message_queries_;
+  FlatHashMap<MessageFullId, vector<FileId>, MessageFullIdHash> rich_message_file_ids_;
+
+  WaitFreeHashMap<MessageFullId, FileSourceId, MessageFullIdHash> rich_message_full_id_to_file_source_id_;
 
   MultiTimeout send_message_view_metrics_timeout_{"SendMessageViewMetricsTimeout"};
 

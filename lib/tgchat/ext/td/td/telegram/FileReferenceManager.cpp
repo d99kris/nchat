@@ -8,13 +8,18 @@
 
 #include "td/telegram/AnimationsManager.h"
 #include "td/telegram/AttachMenuManager.h"
+#include "td/telegram/AuthManager.h"
 #include "td/telegram/BackgroundManager.h"
 #include "td/telegram/BotInfoManager.h"
 #include "td/telegram/ChatManager.h"
+#include "td/telegram/CommunityId.h"
+#include "td/telegram/CommunityManager.h"
 #include "td/telegram/ConfigManager.h"
 #include "td/telegram/DialogManager.h"
+#include "td/telegram/DraftMessageManager.h"
 #include "td/telegram/files/FileManager.h"
 #include "td/telegram/Global.h"
+#include "td/telegram/MessageQueryManager.h"
 #include "td/telegram/MessagesManager.h"
 #include "td/telegram/NotificationSettingsManager.h"
 #include "td/telegram/QuickReplyManager.h"
@@ -40,7 +45,7 @@ namespace td {
 
 int VERBOSITY_NAME(file_references) = VERBOSITY_NAME(INFO);
 
-FileReferenceManager::FileReferenceManager(ActorShared<> parent) : parent_(std::move(parent)) {
+FileReferenceManager::FileReferenceManager(Td *td, ActorShared<> parent) : td_(td), parent_(std::move(parent)) {
 }
 
 FileReferenceManager::~FileReferenceManager() {
@@ -56,27 +61,25 @@ bool FileReferenceManager::is_file_reference_error(const Status &error) {
 }
 
 FileReferenceManager::FileReferenceErrorSource FileReferenceManager::get_file_reference_error_source(
-    const Status &error) {
-  if (!is_file_reference_error(error)) {
-    return {0, false};
-  }
+    const Status &error, bool expect_index) {
+  CHECK(is_file_reference_error(error));
   auto offset = Slice("FILE_REFERENCE_").size();
   Slice message = error.message();
   message = message.substr(offset);
   size_t pos = 0;
   if (begins_with(message, "ATTACH_")) {
-    pos = 1;
+    pos = 0;
     message = message.substr(7);
   } else if (begins_with(message, "SOLUTION_")) {
-    pos = 2;
+    pos = 1;
     message = message.substr(9);
   } else if (begins_with(message, "ANSWER_")) {
     message = message.substr(7);
     if (message.empty() || !is_digit(message[0])) {
       // add poll answer
-      pos = 1;
+      pos = 0;
     } else {
-      pos = 3 + to_integer<size_t>(message);
+      pos = 2 + to_integer<size_t>(message);
       auto underscore_pos = message.find('_');
       if (underscore_pos == Slice::npos) {
         message = Slice();
@@ -85,18 +88,91 @@ FileReferenceManager::FileReferenceErrorSource FileReferenceManager::get_file_re
       }
     }
   } else if (!message.empty() || is_digit(message[0])) {
-    pos = 1 + to_integer<size_t>(message);
+    pos = to_integer<size_t>(message);
     auto underscore_pos = message.find('_');
     if (underscore_pos == Slice::npos) {
       message = Slice();
     } else {
       message = message.substr(underscore_pos + 1);
     }
+  } else if (expect_index) {
+    LOG(ERROR) << "Expected a file reference error with an index, but receive " << error.message();
   }
   if (!message.empty() && message[0] == '_') {
     message = message.substr(1);
   }
   return {pos, begins_with(message, "COVER_")};
+}
+
+bool FileReferenceManager::on_file_reference_error(const Status &status, size_t pos, FileId file_id,
+                                                   const string &file_reference,
+                                                   std::function<void(size_t pos, FileId file_id)> &&on_error) {
+  if (!file_id.is_valid()) {
+    LOG(ERROR) << "Receive file reference error " << status << ", but have no corresponding file";
+    return false;
+  }
+  VLOG(file_references) << "Receive " << status << " for " << file_id;
+  td_->file_manager_->delete_file_reference(file_id, file_reference);
+  on_error(pos, file_id);
+  return true;
+}
+
+bool FileReferenceManager::process_file_reference_error(const Status &status, bool was_uploaded,
+                                                        const vector<FileUploadId> &file_upload_ids,
+                                                        const vector<string> &file_references,
+                                                        const vector<FileId> &cover_file_ids,
+                                                        const vector<string> &cover_file_references, bool expect_index,
+                                                        std::function<void(size_t pos, FileId file_id)> on_error) {
+  if (td_->auth_manager_->is_bot() || !is_file_reference_error(status)) {
+    return false;
+  }
+  auto source = get_file_reference_error_source(status, expect_index);
+  auto pos = source.pos_;
+  if (source.is_cover_) {
+    if (pos < cover_file_ids.size() && pos < cover_file_references.size()) {
+      return on_file_reference_error(status, pos, cover_file_ids[pos], cover_file_references[pos], std::move(on_error));
+    } else {
+      LOG(ERROR) << "Receive file reference error " << status << ", but cover_file_ids = " << cover_file_ids
+                 << ", cover_file_references = " << cover_file_references;
+    }
+  } else {
+    if (pos < file_upload_ids.size() && pos < file_references.size() && !was_uploaded) {
+      return on_file_reference_error(status, pos, file_upload_ids[pos].get_file_id(), file_references[pos],
+                                     std::move(on_error));
+    } else {
+      LOG(ERROR) << "Receive file reference error " << status << ", but file_upload_ids = " << file_upload_ids
+                 << ", was_uploaded = " << was_uploaded << ", file_references = " << file_references;
+    }
+  }
+  return false;
+}
+
+bool FileReferenceManager::process_file_reference_error(const Status &status, const vector<FileId> &file_ids,
+                                                        const vector<string> &file_references,
+                                                        const vector<FileId> &cover_file_ids,
+                                                        const vector<string> &cover_file_references, bool expect_index,
+                                                        std::function<void(size_t pos, FileId file_id)> on_error) {
+  if (td_->auth_manager_->is_bot() || !is_file_reference_error(status)) {
+    return false;
+  }
+  auto source = get_file_reference_error_source(status, expect_index);
+  auto pos = source.pos_;
+  if (source.is_cover_) {
+    if (pos < cover_file_ids.size() && pos < cover_file_references.size()) {
+      return on_file_reference_error(status, pos, cover_file_ids[pos], cover_file_references[pos], std::move(on_error));
+    } else {
+      LOG(ERROR) << "Receive file reference error " << status << ", but cover_file_ids = " << cover_file_ids
+                 << ", cover_file_references = " << cover_file_references;
+    }
+  } else {
+    if (pos < file_ids.size() && pos < file_references.size()) {
+      return on_file_reference_error(status, pos, file_ids[pos], file_references[pos], std::move(on_error));
+    } else {
+      LOG(ERROR) << "Receive file reference error " << status << ", but file_ids = " << file_ids
+                 << ", file_references = " << file_references;
+    }
+  }
+  return false;
 }
 
 /*
@@ -124,6 +200,8 @@ fileSourceBotMediaPreview bot_user_id:int53 = FileSource;                       
 fileSourceBotMediaPreviewInfo bot_user_id:int53 language_code:string = FileSource;         // bots.getPreviewMediaInfo
 fileSourceStoryAlbum chat_id:int53 story_album_id:int32 = FileSource;                      // stories.getAlbums, not reliable
 fileSourceSavedMusic user_id:int53 file_id:int32 = FileSource;                             // users.getSavedMusicByID
+fileSourceDraftMessage chat_id:int53 topic:MessageTopic = FileSource;                      // messages.getPeerDialogs/messages.getForumTopicsByID/messages.getSavedDialogsByID
+fileSourceRichMessage chat_id:int53 message_id:int53 = FileSource;                         // messages.getRichMessage
 */
 
 FileSourceId FileReferenceManager::get_current_file_source_id() const {
@@ -244,6 +322,16 @@ FileSourceId FileReferenceManager::create_user_saved_music_file_source(UserId us
                                                                        int64 access_hash) {
   FileSourceUserSavedMusic source{document_id, access_hash, user_id};
   return add_file_source_id(source, PSLICE() << "saved music " << document_id << " of " << user_id);
+}
+
+FileSourceId FileReferenceManager::create_draft_message_file_source(DialogId dialog_id, MessageTopic topic) {
+  FileSourceDraftMessage source{dialog_id, topic};
+  return add_file_source_id(source, PSLICE() << "draft message in " << topic << " of " << dialog_id);
+}
+
+FileSourceId FileReferenceManager::create_rich_message_file_source(MessageFullId message_full_id) {
+  FileSourceRichMessage source{message_full_id};
+  return add_file_source_id(source, PSLICE() << "rich " << message_full_id);
 }
 
 FileReferenceManager::Node &FileReferenceManager::add_node(NodeId node_id) {
@@ -487,6 +575,14 @@ void FileReferenceManager::send_query(Destination dest, FileSourceId file_source
       [&](const FileSourceUserSavedMusic &source) {
         send_closure_later(G()->user_manager(), &UserManager::reload_user_saved_music, source.user_id,
                            source.document_id, source.access_hash, std::move(promise));
+      },
+      [&](const FileSourceDraftMessage &source) {
+        send_closure_later(G()->draft_message_manager(), &DraftMessageManager::reload_draft_message, source.dialog_id,
+                           source.topic, std::move(promise));
+      },
+      [&](const FileSourceRichMessage &source) {
+        send_closure_later(G()->message_query_manager(), &MessageQueryManager::reload_full_rich_message,
+                           source.message_full_id, std::move(promise));
       }));
 }
 
@@ -534,7 +630,7 @@ FileReferenceManager::Destination FileReferenceManager::on_query_result(Destinat
 }
 
 void FileReferenceManager::repair_file_reference(NodeId node_id, Promise<> promise) {
-  auto main_file_id = G()->td().get_actor_unsafe()->file_manager_->get_file_view(node_id).get_main_file_id();
+  auto main_file_id = td_->file_manager_->get_file_view(node_id).get_main_file_id();
   VLOG(file_references) << "Repair file reference for file " << node_id << "/" << main_file_id;
   node_id = main_file_id;
   auto &node = add_node(node_id);
@@ -549,20 +645,29 @@ void FileReferenceManager::repair_file_reference(NodeId node_id, Promise<> promi
 }
 
 void FileReferenceManager::reload_photo(PhotoSizeSource source, Promise<Unit> promise) {
+  TRY_STATUS_PROMISE(promise, G()->close_status());
   switch (source.get_type("reload_photo")) {
     case PhotoSizeSource::Type::DialogPhotoBig:
     case PhotoSizeSource::Type::DialogPhotoSmall:
     case PhotoSizeSource::Type::DialogPhotoBigLegacy:
-    case PhotoSizeSource::Type::DialogPhotoSmallLegacy:
-      send_closure(G()->dialog_manager(), &DialogManager::reload_dialog_info, source.dialog_photo().dialog_id,
-                   std::move(promise));
+    case PhotoSizeSource::Type::DialogPhotoSmallLegacy: {
+      auto dialog_id = source.dialog_photo().dialog_id;
+      if (dialog_id.get_type() == DialogType::Channel) {
+        auto channel_id = dialog_id.get_channel_id();
+        if (!channel_id.is_regular_channel()) {
+          td_->community_manager_->reload_community(CommunityId(channel_id.get()), std::move(promise), "reload_photo");
+          break;
+        }
+      }
+      td_->dialog_manager_->reload_dialog_info(dialog_id, std::move(promise));
       break;
+    }
     case PhotoSizeSource::Type::StickerSetThumbnail:
     case PhotoSizeSource::Type::StickerSetThumbnailLegacy:
     case PhotoSizeSource::Type::StickerSetThumbnailVersion:
-      send_closure(G()->stickers_manager(), &StickersManager::reload_sticker_set,
-                   StickerSetId(source.sticker_set_thumbnail().sticker_set_id),
-                   source.sticker_set_thumbnail().sticker_set_access_hash, std::move(promise));
+      td_->stickers_manager_->reload_sticker_set(StickerSetId(source.sticker_set_thumbnail().sticker_set_id),
+                                                 source.sticker_set_thumbnail().sticker_set_access_hash,
+                                                 std::move(promise));
       break;
     case PhotoSizeSource::Type::Legacy:
     case PhotoSizeSource::Type::FullLegacy:
@@ -592,8 +697,7 @@ td_api::object_ptr<td_api::message> FileReferenceManager::get_message_object(Fil
   td_api::object_ptr<td_api::message> result;
   file_sources_[index].visit(overloaded(
       [&](const FileSourceMessage &source) {
-        result = G()->td().get_actor_unsafe()->messages_manager_->get_message_object(source.message_full_id,
-                                                                                     "FileReferenceManager");
+        result = td_->messages_manager_->get_message_object(source.message_full_id, "FileReferenceManager");
       },
       [&](const auto &source) { LOG(ERROR) << "Unsupported file source"; }));
   return result;

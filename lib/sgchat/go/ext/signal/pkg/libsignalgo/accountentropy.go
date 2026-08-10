@@ -29,9 +29,11 @@ type AccountEntropyPool string
 
 func (aep AccountEntropyPool) DeriveSVRKey() ([]byte, error) {
 	var out [C.SignalSVR_KEY_LEN]byte
+	aepC, free := GoStringToCString(string(aep))
+	defer free()
 	signalFfiError := C.signal_account_entropy_pool_derive_svr_key(
 		(*[C.SignalSVR_KEY_LEN]C.uint8_t)(unsafe.Pointer(&out)),
-		C.CString(string(aep)),
+		aepC,
 	)
 	runtime.KeepAlive(aep)
 	if signalFfiError != nil {
@@ -42,9 +44,11 @@ func (aep AccountEntropyPool) DeriveSVRKey() ([]byte, error) {
 
 func (aep AccountEntropyPool) DeriveBackupKey() ([]byte, error) {
 	var out [C.SignalBACKUP_KEY_LEN]byte
+	aepC, free := GoStringToCString(string(aep))
+	defer free()
 	signalFfiError := C.signal_account_entropy_pool_derive_backup_key(
 		(*[C.SignalBACKUP_KEY_LEN]C.uint8_t)(unsafe.Pointer(&out)),
-		C.CString(string(aep)),
+		aepC,
 	)
 	runtime.KeepAlive(aep)
 	if signalFfiError != nil {

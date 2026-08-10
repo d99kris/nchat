@@ -63,10 +63,16 @@ fi
 # stale CMake cache entry leaks across runs; ccache (if installed) still
 # accelerates recompiles. The *_ROOT_DIR args point the Darwin dependency
 # detection in CMakeLists.txt at the static deps prefix instead of brew.
+# -DHAS_SIGNAL=ON: Signal defaults OFF (heavy Go/Rust build, few users) so
+# plain local `make.sh` builds stay light; the dist/release builds opt in so
+# the published static binaries carry it. With WhatsApp also on in this static,
+# static-Go build, CMake links both protocols into one combined gostat
+# c-archive (HAS_COMBINED_GOLIB) rather than two colliding runtimes.
 rm -rf "${BUILD_DIR}"
 cmake -S "${REPO_DIR}" -B "${BUILD_DIR}" "${GENERATOR[@]}" \
   -DCMAKE_BUILD_TYPE=Release \
   -DHAS_STATIC_EXTLIBS=ON \
+  -DHAS_SIGNAL=ON \
   -DHAS_DEBUG_SYMBOLS=ON \
   -DCMAKE_OSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET}" \
   -DCMAKE_PREFIX_PATH="${DEPS}" \

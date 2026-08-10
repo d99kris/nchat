@@ -22,6 +22,13 @@ package libsignalgo
 import "C"
 import "unsafe"
 
+func GoStringToCString(str string) (C.SignalCStringPtr, func()) {
+	cStr := C.CString(str)
+	return cStr, func() {
+		C.free(unsafe.Pointer(cStr))
+	}
+}
+
 func CopyCStringToString(cString C.SignalCStringPtr) (s string) {
 	s = C.GoString(cString)
 	C.signal_free_string(cString)
