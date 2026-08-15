@@ -28,14 +28,11 @@ echo "const Version = \"$(git describe --tags --always)\"" >> ../version.go
 # Build libsignal
 cargo build -p libsignal-ffi --release
 
-# Regenerate the header file
-cbindgen --profile release rust/bridge/ffi -o libsignal-ffi.h
-
 # Navigate back to the original directory
 cd "$ORIGINAL_DIR"
 
 # Copy files from the libsignal directory
 cp "${LIBSIGNAL_DIRECTORY}/target/release/libsignal_ffi.a" .
-cp "${LIBSIGNAL_DIRECTORY}/libsignal-ffi.h" .
+cp "${LIBSIGNAL_DIRECTORY}/swift/Sources/SignalFfi/signal_ffi.h" libsignal-ffi.h
 
 echo "Files copied successfully."

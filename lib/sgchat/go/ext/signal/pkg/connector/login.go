@@ -69,7 +69,6 @@ func (qr *QRLogin) Cancel() {
 
 const (
 	LoginStepQR       = "fi.mau.signal.login.qr"
-	LoginStepProcess  = "fi.mau.signal.login.processing"
 	LoginStepComplete = "fi.mau.signal.login.complete"
 )
 
