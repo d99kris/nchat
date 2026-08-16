@@ -44,7 +44,7 @@ func (s *SignalConnector) GetLoginFlows() []bridgev2.LoginFlow {
 
 func (s *SignalConnector) CreateLogin(ctx context.Context, user *bridgev2.User, flowID string) (bridgev2.LoginProcess, error) {
 	if flowID != "qr" {
-		return nil, fmt.Errorf("invalid login flow ID")
+		return nil, bridgev2.ErrInvalidLoginFlowID
 	}
 	return &QRLogin{User: user, Main: s}, nil
 }
