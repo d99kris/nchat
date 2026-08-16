@@ -294,19 +294,19 @@ fi
 if [[ "${BUILD}" == "1" ]] || [[ "${DEBUG}" == "1" ]]; then
   if [[ "${OS}" == "Linux" ]]; then
     MEM_BYTES=$(( $(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE) ))
-    MEM_DIVISOR=$(( 1024 * 1024 )) # in bytes
+    MEM_DIVISOR=$(( 1000 * 1000 ))
   elif [[ "${OS}" == "Darwin" ]]; then
-    MEM_BYTES=$(sysctl -n hw.memsize) # in bytes
+    MEM_BYTES=$(sysctl -n hw.memsize)
     MEM_DIVISOR=$(( 1024 * 1024 ))
   elif [[ "${OS}" == "OpenBSD" ]]; then
-    MEM_BYTES=$(sysctl -n hw.physmem) # in bytes
+    MEM_BYTES=$(sysctl -n hw.physmem)
     MEM_DIVISOR=$(( 1024 * 1024 ))
   fi
-  
-  # memory in MB rounded to nearest 512 
-  MEM=$(( (${MEM_BYTES} + ( 256 * ${MEM_DIVISOR} )) / ( 512 * ${MEM_DIVISOR}) * 512 ))
+
+  # memory in MB rounded to nearest 512
+  MEM=$(( (${MEM_BYTES} + (256 * ${MEM_DIVISOR})) / (512 * ${MEM_DIVISOR}) * 512 ))
+
   MEM_NEEDED_PER_CORE="3584" # tdlib under g++ needs 3.5 GB
-  
   if [[ "$(${CXX:-c++} -dM -E -x c++ - < /dev/null | grep CLANG_ATOMIC > /dev/null ; echo ${?})" == "0" ]]; then
     MEM_NEEDED_PER_CORE="1536" # tdlib under clang++ needs 1.5 GB
   fi
