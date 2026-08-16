@@ -157,20 +157,17 @@ func (cli *Client) GetContactQRLink(ctx context.Context, revoke bool) (string, e
 	return ag.String("code"), ag.Error()
 }
 
+const mutationUpdateTextStatus = "9152604461510864"
+
 // SetStatusMessage updates the current user's status text, which is shown in the "About" section in the user profile.
 //
 // This is different from the ephemeral status broadcast messages. Use SendMessage to types.StatusBroadcastJID to send
 // such messages.
-func (cli *Client) SetStatusMessage(ctx context.Context, msg string) error {
-	_, err := cli.sendIQ(ctx, infoQuery{
-		Namespace: "status",
-		Type:      iqSet,
-		To:        types.ServerJID,
-		Content: []waBinary.Node{{
-			Tag:     "status",
-			Content: msg,
-		}},
+func (cli *Client) SetStatusMessage(ctx context.Context, status types.SetStatusInput) error {
+	_, err := cli.sendMexIQ(ctx, mutationUpdateTextStatus, map[string]any{
+		"input": &status,
 	})
+	// TODO check output result?
 	return err
 }
 
@@ -994,16 +991,51 @@ func (cli *Client) GetBlocklist(ctx context.Context) (*types.Blocklist, error) {
 
 // UpdateBlocklist updates the user's block list and returns the updated list.
 func (cli *Client) UpdateBlocklist(ctx context.Context, jid types.JID, action events.BlocklistChangeAction) (*types.Blocklist, error) {
+	var lidJID, pnJID types.JID
+
+	if jid.Server == types.DefaultUserServer {
+		pnJID = jid
+		lid, err := cli.Store.LIDs.GetLIDForPN(ctx, jid)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get LID for PN %s: %w", jid, err)
+		}
+		if lid.IsEmpty() {
+			info, err := cli.GetUserInfo(ctx, []types.JID{jid})
+			if err != nil {
+				return nil, fmt.Errorf("failed to get user info for %s to fill LID cache: %w", jid, err)
+			}
+			lid = info[jid].LID
+			if lid.IsEmpty() {
+				return nil, fmt.Errorf("no LID found for %s from server", jid)
+			}
+		}
+		lidJID = lid
+	} else if jid.Server == types.HiddenUserServer {
+		lidJID = jid
+		if action == events.BlocklistChangeActionBlock {
+			pn, err := cli.Store.LIDs.GetPNForLID(ctx, jid)
+			if err != nil {
+				return nil, fmt.Errorf("failed to resolve PN for %s: %w", jid, err)
+			}
+			pnJID = pn
+		}
+	}
+
+	itemAttrs := waBinary.Attrs{
+		"jid":    lidJID,
+		"action": string(action),
+	}
+	if action == events.BlocklistChangeActionBlock && !pnJID.IsEmpty() {
+		itemAttrs["pn_jid"] = pnJID
+	}
+
 	resp, err := cli.sendIQ(ctx, infoQuery{
 		Namespace: "blocklist",
 		Type:      iqSet,
 		To:        types.ServerJID,
 		Content: []waBinary.Node{{
-			Tag: "item",
-			Attrs: waBinary.Attrs{
-				"jid":    jid,
-				"action": string(action),
-			},
+			Tag:   "item",
+			Attrs: itemAttrs,
 		}},
 	})
 	if err != nil {
