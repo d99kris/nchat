@@ -20,15 +20,16 @@ package libsignalgo
 #include "./libsignal-ffi.h"
 */
 import "C"
-import (
-	"runtime"
-	"unsafe"
-)
+import "runtime"
 
 type MessageBackupKey struct {
 	nc  noCopy
 	ptr *C.SignalMessageBackupKey
 }
+
+const MessageBackupKeyBytesLength = 32
+
+type messageBackupKeyBytes = fixedArray32
 
 func wrapMessageBackupKey(ptr *C.SignalMessageBackupKey) *MessageBackupKey {
 	backupKey := &MessageBackupKey{ptr: ptr}
@@ -43,7 +44,7 @@ func MessageBackupKeyFromAccountEntropyPool(aep AccountEntropyPool, aci ServiceI
 	signalFfiError := C.signal_message_backup_key_from_account_entropy_pool(
 		&bk,
 		aepC,
-		aci.CFixedBytes(),
+		aci.cConstFixedArray(),
 		nil, // TODO what's a forward secrecy token?
 	)
 	runtime.KeepAlive(aep)
@@ -57,8 +58,8 @@ func MessageBackupKeyFromBackupKeyAndID(backupKey *BackupKey, backupID *BackupID
 	var bk C.SignalMutPointerMessageBackupKey
 	signalFfiError := C.signal_message_backup_key_from_backup_key_and_backup_id(
 		&bk,
-		(*[C.SignalBACKUP_KEY_LEN]C.uint8_t)(unsafe.Pointer(backupKey)),
-		(*[BackupIDLength]C.uint8_t)(unsafe.Pointer(backupID)),
+		backupKey.cConstFixedArray(),
+		backupID.cConstFixedArray(),
 		nil, // TODO what's a forward secrecy token?
 	)
 	runtime.KeepAlive(backupKey)
@@ -82,26 +83,26 @@ func (bk *MessageBackupKey) Destroy() error {
 	return wrapError(C.signal_message_backup_key_destroy(bk.mutPtr()))
 }
 
-func (bk *MessageBackupKey) GetHMACKey() ([32]byte, error) {
-	var out [32]byte
+func (bk *MessageBackupKey) GetHMACKey() ([MessageBackupKeyBytesLength]byte, error) {
+	var out messageBackupKeyBytes
 	signalFfiError := C.signal_message_backup_key_get_hmac_key(
-		(*[32]C.uint8_t)(unsafe.Pointer(&out)),
+		out.cFixedArray(),
 		bk.constPtr(),
 	)
 	if signalFfiError != nil {
-		return out, wrapError(signalFfiError)
+		return [MessageBackupKeyBytesLength]byte(out), wrapError(signalFfiError)
 	}
-	return out, nil
+	return [MessageBackupKeyBytesLength]byte(out), nil
 }
 
-func (bk *MessageBackupKey) GetAESKey() ([32]byte, error) {
-	var out [32]byte
+func (bk *MessageBackupKey) GetAESKey() ([MessageBackupKeyBytesLength]byte, error) {
+	var out messageBackupKeyBytes
 	signalFfiError := C.signal_message_backup_key_get_aes_key(
-		(*[32]C.uint8_t)(unsafe.Pointer(&out)),
+		out.cFixedArray(),
 		bk.constPtr(),
 	)
 	if signalFfiError != nil {
-		return out, wrapError(signalFfiError)
+		return [MessageBackupKeyBytesLength]byte(out), wrapError(signalFfiError)
 	}
-	return out, nil
+	return [MessageBackupKeyBytesLength]byte(out), nil
 }

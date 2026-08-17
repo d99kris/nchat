@@ -161,6 +161,12 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
 		case *signalpb.StorageRecord_Account:
 			log.Trace().Any("account_record", data.Account).Msg("Found account record")
 			cli.Store.AccountRecord = data.Account
+			if len(data.Account.ProfileKey) == libsignalgo.ProfileKeyLength {
+				err := cli.Store.RecipientStore.StoreProfileKey(ctx, cli.Store.ACI, libsignalgo.ProfileKey(data.Account.ProfileKey))
+				if err != nil {
+					return fmt.Errorf("failed to store own profile key: %w", err)
+				}
+			}
 			err := cli.Store.DeviceStore.PutDevice(ctx, &cli.Store.DeviceData)
 			if err != nil {
 				return fmt.Errorf("failed to save device after receiving account record: %w", err)

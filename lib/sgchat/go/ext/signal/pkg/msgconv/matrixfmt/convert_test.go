@@ -111,22 +111,13 @@ func TestParse_HTML(t *testing.T) {
 		{
 			name: "List",
 			in:   "<ul><li>woof</li><li><strong>meow</strong></li><li><pre><code>hmm\nmeow</code></pre></li><li><blockquote>meow<br><h1>meow</h1></blockquote></li></ul>",
-			out:  "* woof\n* meow\n* hmm\n  meow\n* > meow\n  > \n  > # meow",
+			out:  "* woof\n* meow\n* ```\n  hmm\n  meow\n  ```\n* > meow\n  > \n  > # meow",
 			ent: signalfmt.BodyRangeList{{
 				Start:  9,
 				Length: 4,
 				Value:  signalfmt.StyleBold,
 			}, {
-				Start:  16,
-				Length: 3,
-				Value:  signalfmt.StyleMonospace,
-			}, {
-				// FIXME optimally this would be a single range with the previous one so the indent is also monospace
-				Start:  22,
-				Length: 4,
-				Value:  signalfmt.StyleMonospace,
-			}, {
-				Start:  45,
+				Start:  57,
 				Length: 6,
 				Value:  signalfmt.StyleBold,
 			}},
@@ -134,21 +125,13 @@ func TestParse_HTML(t *testing.T) {
 		{
 			name: "OrderedList",
 			in:   "<ol start=9><li>woof</li><li><strong>meow</strong></li><li><pre><code>hmm\nmeow</code></pre></li><li><blockquote>meow<br><h1>meow</h1></blockquote></li></ol>",
-			out:  "9.  woof\n10. meow\n11. hmm\n    meow\n12. > meow\n    > \n    > # meow",
+			out:  "9.  woof\n10. meow\n11. ```\n    hmm\n    meow\n    ```\n12. > meow\n    > \n    > # meow",
 			ent: signalfmt.BodyRangeList{{
 				Start:  13,
 				Length: 4,
 				Value:  signalfmt.StyleBold,
 			}, {
-				Start:  22,
-				Length: 3,
-				Value:  signalfmt.StyleMonospace,
-			}, {
-				Start:  30,
-				Length: 4,
-				Value:  signalfmt.StyleMonospace,
-			}, {
-				Start:  59,
+				Start:  75,
 				Length: 6,
 				Value:  signalfmt.StyleBold,
 			}},

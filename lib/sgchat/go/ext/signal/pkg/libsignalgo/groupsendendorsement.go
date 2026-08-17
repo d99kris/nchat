@@ -24,7 +24,6 @@ import (
 	"encoding/base64"
 	"runtime"
 	"time"
-	"unsafe"
 )
 
 type GroupSendFullToken []byte
@@ -91,7 +90,7 @@ func (gse GroupSendEndorsement) ToToken(groupSecretParams *GroupSecretParams) (G
 	signalFfiError := C.signal_group_send_endorsement_to_token(
 		&token,
 		BytesToBuffer(gse),
-		(*[C.SignalGROUP_SECRET_PARAMS_LEN]C.uint8_t)(unsafe.Pointer(groupSecretParams)),
+		groupSecretParams.cConstFixedArray(),
 	)
 	runtime.KeepAlive(gse)
 	runtime.KeepAlive(groupSecretParams)
@@ -180,17 +179,17 @@ func (gser GroupSendEndorsementsResponse) ReceiveWithServiceIDs(
 	groupMembers []ServiceID, localUser ServiceID, params *GroupSecretParams, spp *ServerPublicParams,
 ) (GroupSendEndorsement, map[ServiceID]GroupSendEndorsement, error) {
 	var out C.SignalBytestringArray = C.SignalBytestringArray{}
-	concatenatedMembers := make([]byte, len(groupMembers)*17)
+	concatenatedMembers := make([]byte, len(groupMembers)*ServiceIDFixedBytesLength)
 	for i, member := range groupMembers {
-		copy(concatenatedMembers[i*17:(i+1)*17], member.FixedBytes()[:])
+		copy(concatenatedMembers[i*ServiceIDFixedBytesLength:(i+1)*ServiceIDFixedBytesLength], member.FixedBytes()[:])
 	}
 	signalFfiError := C.signal_group_send_endorsements_response_receive_and_combine_with_service_ids(
 		&out,
 		BytesToBuffer(gser),
 		BytesToBuffer(concatenatedMembers),
-		localUser.CFixedBytes(),
+		localUser.cConstFixedArray(),
 		C.uint64_t(time.Now().Unix()),
-		(*[C.SignalGROUP_SECRET_PARAMS_LEN]C.uint8_t)(unsafe.Pointer(params)),
+		params.cConstFixedArray(),
 		C.SignalConstPointerServerPublicParams{spp},
 	)
 	runtime.KeepAlive(gser)

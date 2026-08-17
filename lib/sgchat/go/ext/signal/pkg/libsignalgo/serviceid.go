@@ -133,7 +133,10 @@ func (s ServiceID) MarshalZerologObject(e *zerolog.Event) {
 	e.Stringer("uuid", s.UUID)
 }
 
-type ServiceIDFixedBytes [17]byte
+const ServiceIDUUIDLength = 16
+const ServiceIDFixedBytesLength = 17
+
+type ServiceIDFixedBytes = fixedArray17
 
 func (s ServiceID) FixedBytes() *ServiceIDFixedBytes {
 	var result ServiceIDFixedBytes
@@ -162,18 +165,18 @@ func ServiceIDFromString(val string) (ServiceID, error) {
 }
 
 func ServiceIDFromBytes(bytes []byte) (ServiceID, error) {
-	if len(bytes) == 16 {
+	if len(bytes) == ServiceIDUUIDLength {
 		return NewACIServiceID(uuid.UUID(bytes)), nil
-	} else if len(bytes) == 17 {
+	} else if len(bytes) == ServiceIDFixedBytesLength {
 		return ServiceID{
 			Type: ServiceIDType(bytes[0]),
 			UUID: uuid.UUID(bytes[1:]),
 		}, nil
 	}
-	return EmptyServiceID, fmt.Errorf("invalid ServiceID byte length: %d (expected 16 or 17)", len(bytes))
+	return EmptyServiceID, fmt.Errorf("invalid ServiceID byte length: %d (expected %d or %d)", len(bytes), ServiceIDUUIDLength, ServiceIDFixedBytesLength)
 }
 
-func ServiceIDFromCFixedBytes(serviceID *C.SignalServiceIdFixedWidthBinaryBytes) ServiceID {
+func ServiceIDFromCFixedBytes(serviceID *C.SignalType_FixedArray17_uint8_t) ServiceID {
 	var id ServiceID
 	fixedBytes := (*ServiceIDFixedBytes)(unsafe.Pointer(serviceID))
 	id.Type = ServiceIDType(fixedBytes[0])
@@ -181,6 +184,10 @@ func ServiceIDFromCFixedBytes(serviceID *C.SignalServiceIdFixedWidthBinaryBytes)
 	return id
 }
 
-func (s ServiceID) CFixedBytes() cPNIType {
-	return cPNIType(unsafe.Pointer(s.FixedBytes()))
+func (s ServiceID) cFixedArray() *C.SignalType_FixedArray17_uint8_t {
+	return s.FixedBytes().cFixedArray()
+}
+
+func (s ServiceID) cConstFixedArray() cFixedArray17Compat {
+	return cFixedArray17Compat(s.cFixedArray())
 }
