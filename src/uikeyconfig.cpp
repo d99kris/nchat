@@ -264,7 +264,7 @@ void UiKeyConfig::Init(bool p_MapKeys)
     { "vim_navigation_ext_call", "t" },
     { "vim_navigation_ext_edit", "e" },
     { "vim_navigation_transfer", "a" },
-    { "vim_navigation_send_msg", "KEY_ENTER" },
+    { "vim_navigation_send_msg", "KEY_RETURN" },
     { "unread_chat", "KEY_CTRLF" },
     { "send_msg", "KEY_CTRLX" },
     { "delete_msg", "KEY_CTRLD" },
