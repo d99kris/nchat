@@ -4605,6 +4605,8 @@ void UiModel::KeyHandler(wint_t p_Key)
 
   static wint_t keyNextFrame = UiKeyConfig::GetKey("vim_navigation_next_frame");
   static wint_t keyPrevFrame = UiKeyConfig::GetKey("vim_navigation_prev_frame");
+  static wint_t keyVimNavigationLeft = UiKeyConfig::GetKey("vim_navigation_left");
+  static wint_t keyVimNavigationRight = UiKeyConfig::GetKey("vim_navigation_right");
   static wint_t keyVimNavigationNext = UiKeyConfig::GetKey("vim_navigation_next");
   static wint_t keyVimNavigationPrev = UiKeyConfig::GetKey("vim_navigation_prev");
   static wint_t keyVimNavigationUnread = UiKeyConfig::GetKey("vim_navigation_unread");
@@ -4614,16 +4616,23 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keyVimNavigationOpenLink = UiKeyConfig::GetKey("vim_navigation_open_link");
   static wint_t keyVimNavigationEditMsg = UiKeyConfig::GetKey("vim_navigation_edit_msg");
   static wint_t keyVimNavigationCopy = UiKeyConfig::GetKey("vim_navigation_copy");
+  static wint_t keyVimNavigationPaste = UiKeyConfig::GetKey("vim_navigation_paste");
   static wint_t keyVimNavigationJumpQuoted = UiKeyConfig::GetKey("vim_navigation_jump_quoted");
   static wint_t keyVimNavigationForwardMsg = UiKeyConfig::GetKey("vim_navigation_forward_msg");
   static wint_t keyVimNavigationReact = UiKeyConfig::GetKey("vim_navigation_react");
   static wint_t keyVimNavigationOpenMsg = UiKeyConfig::GetKey("vim_navigation_open_msg");
-  static wint_t keyVimNavigationEnter = UiKeyConfig::GetKey("ok");
   static wint_t keyVimNavigationEnd = UiKeyConfig::GetKey("vim_navigation_end");
   static wint_t keyVimNavigationFocusEntry = UiKeyConfig::GetKey("vim_navigation_focus_entry");
   static wint_t keyVimNavigationFocusHistory = UiKeyConfig::GetKey("vim_navigation_focus_history");
   static wint_t keyVimNavigationFocusList = UiKeyConfig::GetKey("vim_navigation_focus_list");
   static wint_t keyVimNavigationQuit = UiKeyConfig::GetKey("vim_navigation_quit");
+  static wint_t keyVimNavigationSelectContact = UiKeyConfig::GetKey("vim_navigation_select_contact");
+  static wint_t keyVimNavigationFind = UiKeyConfig::GetKey("vim_navigation_find");
+  static wint_t keyVimNavigationFindNext = UiKeyConfig::GetKey("vim_navigation_find_next");
+  static wint_t keyVimNavigationExtCall = UiKeyConfig::GetKey("vim_navigation_ext_call");
+  static wint_t keyVimNavigationExtEdit = UiKeyConfig::GetKey("vim_navigation_ext_edit");
+  static wint_t keyVimNavigationTransfer = UiKeyConfig::GetKey("vim_navigation_transfer");
+  static wint_t keyVimNavigationSendMsg = UiKeyConfig::GetKey("vim_navigation_send_msg");
 
   bool isListFocused = false;
   bool isHistoryFocused = false;
@@ -4641,7 +4650,7 @@ void UiModel::KeyHandler(wint_t p_Key)
     GetImpl().OnKeyNextFrame();
     return;
   }
-  else if (p_Key == keyPrevFrame || (isListFocused && p_Key == keyVimNavigationEnter))
+  else if (p_Key == keyPrevFrame)
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().OnKeyPrevFrame();
@@ -4725,31 +4734,21 @@ void UiModel::KeyHandler(wint_t p_Key)
       GetImpl().OnKeyHomeFetchNext();
     }
   }
-  else if (p_Key == keyEnd || (isListFocused && p_Key == keyVimNavigationEnd) || (isHistoryFocused && p_Key == keyVimNavigationEnd))
+  else if (p_Key == keyEnd || (!isEntryFocused && p_Key == keyVimNavigationEnd))
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().OnKeyEnd();
-    if (isHistoryFocused)
-    {
-      GetImpl().OnKeyNextFrame();
-      return;
-    }
-    else if (isListFocused)
-    {
-      GetImpl().OnKeyPrevFrame();
-      return;
-    }
   }
-  else if (p_Key == keyQuit || (isListFocused && p_Key == keyVimNavigationQuit) || (isHistoryFocused && p_Key == keyVimNavigationQuit))
+  else if (p_Key == keyQuit || (!isEntryFocused && p_Key == keyVimNavigationQuit))
   {
     OnKeyQuit();
   }
-  else if (p_Key == keySendMsg)
+  else if (p_Key == keySendMsg || (!isEntryFocused && p_Key == keyVimNavigationSendMsg))
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().OnKeySendMsg();
   }
-  else if (p_Key == keyExtEdit)
+  else if (p_Key == keyExtEdit || (!isEntryFocused && p_Key == keyVimNavigationExtEdit))
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().OnKeyExtEdit();
@@ -4784,7 +4783,7 @@ void UiModel::KeyHandler(wint_t p_Key)
   {
     OnKeySaveAttachment();
   }
-  else if (p_Key == keyTransfer)
+  else if (p_Key == keyTransfer || (!isEntryFocused && p_Key == keyVimNavigationTransfer))
   {
     OnKeyTransfer();
   }
@@ -4792,7 +4791,7 @@ void UiModel::KeyHandler(wint_t p_Key)
   {
     OnKeySelectEmoji();
   }
-  else if (p_Key == keySelectContact)
+  else if (p_Key == keySelectContact || (!isEntryFocused && p_Key == keyVimNavigationSelectContact))
   {
     OnKeySelectContact();
   }
@@ -4809,7 +4808,7 @@ void UiModel::KeyHandler(wint_t p_Key)
   {
     OnKeyCopy();
   }
-  else if (p_Key == keyPaste)
+  else if (p_Key == keyPaste || (!isEntryFocused && p_Key == keyVimNavigationPaste))
   {
     OnKeyPaste();
   }
@@ -4846,7 +4845,7 @@ void UiModel::KeyHandler(wint_t p_Key)
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().OnKeyOpenMsg();
   }
-  else if (p_Key == keyExtCall)
+  else if (p_Key == keyExtCall || (!isEntryFocused && p_Key == keyVimNavigationExtCall))
   {
     OnKeyExtCall();
   }
@@ -4860,11 +4859,11 @@ void UiModel::KeyHandler(wint_t p_Key)
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().OnKeyJumpPinned();
   }
-  else if (p_Key == keyFind)
+  else if (p_Key == keyFind || (!isEntryFocused && p_Key == keyVimNavigationFind))
   {
     OnKeyFind();
   }
-  else if (p_Key == keyFindNext)
+  else if (p_Key == keyFindNext || (!isEntryFocused && p_Key == keyVimNavigationFindNext))
   {
     OnKeyFindNext();
   }
@@ -4903,7 +4902,7 @@ void UiModel::KeyHandler(wint_t p_Key)
       {
         GetImpl().OnKeyNextFrame();
       }
-      else if (p_Key == keyVimNavigationFocusList)
+      else if ((p_Key == keyVimNavigationFocusList) || (p_Key == keyVimNavigationLeft))
       {
         GetImpl().OnKeyPrevFrame();
       }
@@ -4914,7 +4913,7 @@ void UiModel::KeyHandler(wint_t p_Key)
       {
         GetImpl().OnKeyPrevFrame();
       }
-      else if (p_Key == keyVimNavigationFocusHistory)
+      else if ((p_Key == keyVimNavigationFocusHistory) || (p_Key == keyVimNavigationRight))
       {
         GetImpl().OnKeyNextFrame();
       }
