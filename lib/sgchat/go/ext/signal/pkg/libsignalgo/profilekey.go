@@ -32,12 +32,38 @@ import (
 	"go.mau.fi/util/random"
 )
 
-const ProfileKeyLength = C.SignalPROFILE_KEY_LEN
+const ProfileKeyLength = 32
+const AccessKeyLength = 16
+const ProfileKeyVersionLength = 64
 
 type ProfileKey [ProfileKeyLength]byte
-type ProfileKeyCommitment [C.SignalPROFILE_KEY_COMMITMENT_LEN]byte
-type ProfileKeyVersion [C.SignalPROFILE_KEY_VERSION_ENCODED_LEN]byte
-type AccessKey [C.SignalACCESS_KEY_LEN]byte
+type ProfileKeyCommitment = fixedArray97
+type ProfileKeyVersion [ProfileKeyVersionLength]byte
+type AccessKey [AccessKeyLength]byte
+
+func (pk *ProfileKey) cFixedArray() *C.SignalType_FixedArray32_uint8_t {
+	return (*C.SignalType_FixedArray32_uint8_t)(unsafe.Pointer(pk))
+}
+
+func (pk *ProfileKey) cConstFixedArray() cFixedArray32Compat {
+	return cFixedArray32Compat(pk.cFixedArray())
+}
+
+func (pkv *ProfileKeyVersion) cFixedArray() *C.SignalType_FixedArray64_uint8_t {
+	return (*C.SignalType_FixedArray64_uint8_t)(unsafe.Pointer(pkv))
+}
+
+func (pkv *ProfileKeyVersion) cConstFixedArray() cFixedArray64Compat {
+	return cFixedArray64Compat(pkv.cFixedArray())
+}
+
+func (ak *AccessKey) cFixedArray() *C.SignalType_FixedArray16_uint8_t {
+	return (*C.SignalType_FixedArray16_uint8_t)(unsafe.Pointer(ak))
+}
+
+func (ak *AccessKey) cConstFixedArray() cFixedArray16Compat {
+	return cFixedArray16Compat(ak.cFixedArray())
+}
 
 func DeserializeProfileKey(bytes []byte) (*ProfileKey, error) {
 	if len(bytes) == 0 {
@@ -73,7 +99,7 @@ func (ak *AccessKey) Xor(other *AccessKey) *AccessKey {
 		return ak
 	}
 	var result AccessKey
-	for i := 0; i < C.SignalACCESS_KEY_LEN; i++ {
+	for i := 0; i < AccessKeyLength; i++ {
 		result[i] = ak[i] ^ other[i]
 	}
 	return &result
@@ -84,13 +110,12 @@ func (ak *AccessKey) String() string {
 }
 
 func (pk *ProfileKey) GetCommitment(u uuid.UUID) (*ProfileKeyCommitment, error) {
-	c_result := [C.SignalPROFILE_KEY_COMMITMENT_LEN]C.uchar{}
-	c_profileKey := (*[C.SignalPROFILE_KEY_LEN]C.uchar)(unsafe.Pointer(pk))
-	c_uuid := NewACIServiceID(u).CFixedBytes()
+	var result ProfileKeyCommitment
+	c_uuid := NewACIServiceID(u).cConstFixedArray()
 
 	signalFfiError := C.signal_profile_key_get_commitment(
-		&c_result,
-		c_profileKey,
+		result.cFixedArray(),
+		pk.cConstFixedArray(),
 		c_uuid,
 	)
 	runtime.KeepAlive(pk)
@@ -100,19 +125,16 @@ func (pk *ProfileKey) GetCommitment(u uuid.UUID) (*ProfileKeyCommitment, error) 
 		return nil, wrapError(signalFfiError)
 	}
 
-	var result ProfileKeyCommitment
-	copy(result[:], C.GoBytes(unsafe.Pointer(&c_result), C.int(C.SignalPROFILE_KEY_COMMITMENT_LEN)))
 	return &result, nil
 }
 
 func (pk *ProfileKey) GetProfileKeyVersion(u uuid.UUID) (*ProfileKeyVersion, error) {
-	c_result := [C.SignalPROFILE_KEY_VERSION_ENCODED_LEN]C.uchar{}
-	c_profileKey := (*[C.SignalPROFILE_KEY_LEN]C.uchar)(unsafe.Pointer(pk))
-	c_uuid := NewACIServiceID(u).CFixedBytes()
+	var result ProfileKeyVersion
+	c_uuid := NewACIServiceID(u).cConstFixedArray()
 
 	signalFfiError := C.signal_profile_key_get_profile_key_version(
-		&c_result,
-		c_profileKey,
+		result.cFixedArray(),
+		pk.cConstFixedArray(),
 		c_uuid,
 	)
 	runtime.KeepAlive(pk)
@@ -122,18 +144,15 @@ func (pk *ProfileKey) GetProfileKeyVersion(u uuid.UUID) (*ProfileKeyVersion, err
 		return nil, wrapError(signalFfiError)
 	}
 
-	var result ProfileKeyVersion
-	copy(result[:], C.GoBytes(unsafe.Pointer(&c_result), C.int(C.SignalPROFILE_KEY_VERSION_ENCODED_LEN)))
 	return &result, nil
 }
 
 func (pk *ProfileKey) DeriveAccessKey() (*AccessKey, error) {
-	c_result := [C.SignalACCESS_KEY_LEN]C.uchar{}
-	c_profileKey := (*[C.SignalPROFILE_KEY_LEN]C.uchar)(unsafe.Pointer(pk))
+	var result AccessKey
 
 	signalFfiError := C.signal_profile_key_derive_access_key(
-		&c_result,
-		c_profileKey,
+		result.cFixedArray(),
+		pk.cConstFixedArray(),
 	)
 	runtime.KeepAlive(pk)
 
@@ -141,31 +160,35 @@ func (pk *ProfileKey) DeriveAccessKey() (*AccessKey, error) {
 		return nil, wrapError(signalFfiError)
 	}
 
-	var result AccessKey
-	copy(result[:], C.GoBytes(unsafe.Pointer(&c_result), C.int(C.SignalACCESS_KEY_LEN)))
 	return &result, nil
 }
 
-type ProfileKeyCredentialRequestContext [C.SignalPROFILE_KEY_CREDENTIAL_REQUEST_CONTEXT_LEN]byte
-type ProfileKeyCredentialRequest [C.SignalPROFILE_KEY_CREDENTIAL_REQUEST_LEN]byte
+type ProfileKeyCredentialRequestContext [473]byte
+type ProfileKeyCredentialRequest = fixedArray329
 type ProfileKeyCredentialResponse []byte
 type ProfileKeyCredentialPresentation []byte
-type ExpiringProfileKeyCredential [C.SignalEXPIRING_PROFILE_KEY_CREDENTIAL_LEN]byte
-type ExpiringProfileKeyCredentialResponse [C.SignalEXPIRING_PROFILE_KEY_CREDENTIAL_RESPONSE_LEN]byte
+type ExpiringProfileKeyCredential = fixedArray153
+type ExpiringProfileKeyCredentialResponse = fixedArray497
+
+func (p *ProfileKeyCredentialRequestContext) cFixedArray() *C.SignalType_FixedArray473_uint8_t {
+	return (*C.SignalType_FixedArray473_uint8_t)(unsafe.Pointer(p))
+}
+
+func (p *ProfileKeyCredentialRequestContext) cConstFixedArray() cFixedArray473Compat {
+	return cFixedArray473Compat(p.cFixedArray())
+}
 
 func CreateProfileKeyCredentialRequestContext(serverPublicParams *ServerPublicParams, u uuid.UUID, profileKey ProfileKey) (*ProfileKeyCredentialRequestContext, error) {
-	c_result := [C.SignalPROFILE_KEY_CREDENTIAL_REQUEST_CONTEXT_LEN]C.uchar{}
-	randBytes := [32]byte(random.Bytes(32))
-	c_random := (*[32]C.uchar)(unsafe.Pointer(&randBytes[0]))
-	c_profileKey := (*[C.SignalPROFILE_KEY_LEN]C.uchar)(unsafe.Pointer(&profileKey[0]))
-	c_uuid := NewACIServiceID(u).CFixedBytes()
+	var result ProfileKeyCredentialRequestContext
+	randBytes := Randomness(random.Bytes(RandomnessLength))
+	c_uuid := NewACIServiceID(u).cConstFixedArray()
 
 	signalFfiError := C.signal_server_public_params_create_profile_key_credential_request_context_deterministic(
-		&c_result,
+		result.cFixedArray(),
 		C.SignalConstPointerServerPublicParams{serverPublicParams},
-		c_random,
+		randBytes.cConstFixedArray(),
 		c_uuid,
-		c_profileKey,
+		profileKey.cConstFixedArray(),
 	)
 	runtime.KeepAlive(u)
 	runtime.KeepAlive(profileKey)
@@ -173,23 +196,20 @@ func CreateProfileKeyCredentialRequestContext(serverPublicParams *ServerPublicPa
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	result := ProfileKeyCredentialRequestContext(C.GoBytes(unsafe.Pointer(&c_result), C.int(C.SignalPROFILE_KEY_CREDENTIAL_REQUEST_CONTEXT_LEN)))
 	return &result, nil
 }
 
 func (p *ProfileKeyCredentialRequestContext) ProfileKeyCredentialRequestContextGetRequest() (*ProfileKeyCredentialRequest, error) {
-	c_result := [C.SignalPROFILE_KEY_CREDENTIAL_REQUEST_LEN]C.uchar{}
-	c_context := (*[C.SignalPROFILE_KEY_CREDENTIAL_REQUEST_CONTEXT_LEN]C.uchar)(unsafe.Pointer(p))
+	var result ProfileKeyCredentialRequest
 
 	signalFfiError := C.signal_profile_key_credential_request_context_get_request(
-		&c_result,
-		c_context,
+		result.cFixedArray(),
+		p.cConstFixedArray(),
 	)
 	runtime.KeepAlive(p)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	result := ProfileKeyCredentialRequest(C.GoBytes(unsafe.Pointer(&c_result), C.int(C.SignalPROFILE_KEY_CREDENTIAL_REQUEST_LEN)))
 	return &result, nil
 }
 
@@ -205,12 +225,12 @@ func NewExpiringProfileKeyCredentialResponse(b []byte) (*ExpiringProfileKeyCrede
 }
 
 func ReceiveExpiringProfileKeyCredential(spp *ServerPublicParams, requestContext *ProfileKeyCredentialRequestContext, response *ExpiringProfileKeyCredentialResponse, currentTimeInSeconds uint64) (*ExpiringProfileKeyCredential, error) {
-	c_credential := [C.SignalEXPIRING_PROFILE_KEY_CREDENTIAL_LEN]C.uchar{}
+	var credential ExpiringProfileKeyCredential
 	signalFfiError := C.signal_server_public_params_receive_expiring_profile_key_credential(
-		&c_credential,
+		credential.cFixedArray(),
 		C.SignalConstPointerServerPublicParams{spp},
-		(*[C.SignalPROFILE_KEY_CREDENTIAL_REQUEST_CONTEXT_LEN]C.uchar)(unsafe.Pointer(requestContext)),
-		(*[C.SignalEXPIRING_PROFILE_KEY_CREDENTIAL_RESPONSE_LEN]C.uchar)(unsafe.Pointer(response)),
+		requestContext.cConstFixedArray(),
+		response.cConstFixedArray(),
 		(C.uint64_t)(currentTimeInSeconds),
 	)
 	runtime.KeepAlive(requestContext)
@@ -219,8 +239,6 @@ func ReceiveExpiringProfileKeyCredential(spp *ServerPublicParams, requestContext
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	credential := ExpiringProfileKeyCredential{}
-	copy(credential[:], C.GoBytes(unsafe.Pointer(&c_credential), C.int(C.SignalEXPIRING_PROFILE_KEY_CREDENTIAL_LEN)))
 	return &credential, nil
 }
 
@@ -231,25 +249,21 @@ func (a ProfileKeyCredentialPresentation) CheckValidContents() error {
 }
 
 func (a ProfileKeyCredentialPresentation) UUIDCiphertext() (UUIDCiphertext, error) {
-	out := [C.SignalUUID_CIPHERTEXT_LEN]C.uchar{}
-	signalFfiError := C.signal_profile_key_credential_presentation_get_uuid_ciphertext(&out, BytesToBuffer(a))
+	var out UUIDCiphertext
+	signalFfiError := C.signal_profile_key_credential_presentation_get_uuid_ciphertext(out.cFixedArray(), BytesToBuffer(a))
 	runtime.KeepAlive(a)
 	if signalFfiError != nil {
 		return UUIDCiphertext{}, wrapError(signalFfiError)
 	}
-	var result UUIDCiphertext
-	copy(result[:], C.GoBytes(unsafe.Pointer(&out), C.int(C.SignalUUID_CIPHERTEXT_LEN)))
-	return result, nil
+	return out, nil
 }
 
 func (a ProfileKeyCredentialPresentation) ProfileKeyCiphertext() (ProfileKeyCiphertext, error) {
-	out := [C.SignalPROFILE_KEY_CIPHERTEXT_LEN]C.uchar{}
-	signalFfiError := C.signal_profile_key_credential_presentation_get_profile_key_ciphertext(&out, BytesToBuffer(a))
+	var out ProfileKeyCiphertext
+	signalFfiError := C.signal_profile_key_credential_presentation_get_profile_key_ciphertext(out.cFixedArray(), BytesToBuffer(a))
 	runtime.KeepAlive(a)
 	if signalFfiError != nil {
 		return ProfileKeyCiphertext{}, wrapError(signalFfiError)
 	}
-	var result ProfileKeyCiphertext
-	copy(result[:], C.GoBytes(unsafe.Pointer(&out), C.int(C.SignalPROFILE_KEY_CIPHERTEXT_LEN)))
-	return result, nil
+	return out, nil
 }

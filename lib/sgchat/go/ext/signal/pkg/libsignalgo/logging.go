@@ -33,7 +33,7 @@ var ffiLogger Logger
 
 //export signal_log_callback
 func signal_log_callback(ctx unsafe.Pointer, level C.SignalLogLevel, file C.SignalCStringPtr, line C.uint32_t, message C.SignalCStringPtr) {
-	ffiLogger.Log(LogLevel(int(level)), C.GoString(file), uint(line), C.GoString(message))
+	ffiLogger.Log(LogLevel(int(level)), CopyCStringToString(file), uint(line), CopyCStringToString(message))
 }
 
 //export signal_log_flush_callback

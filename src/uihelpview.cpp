@@ -11,6 +11,7 @@
 
 #include "strutil.h"
 #include "uicolorconfig.h"
+#include "uiconfig.h"
 #include "uikeyconfig.h"
 #include "uimodel.h"
 
@@ -270,14 +271,16 @@ std::string UiHelpView::GetKeyDisplay(const std::string& p_Func)
   const std::string keyName = UiKeyConfig::GetStr(p_Func);
   if ((keyName.size() == 9) && (keyName >= "KEY_CTRLA") && (keyName <= "KEY_CTRLZ"))
   {
-    return "^" + keyName.substr(8, 1);
+    static const std::string helpPrefixCtrl = UiConfig::GetStr("help_prefix_ctrl");
+    return helpPrefixCtrl + keyName.substr(8, 1);
   }
   else if (std::count(keyName.begin(), keyName.end(), '\\') == 2)
   {
     const std::string keyStr = StrUtil::StrFromOct(keyName);
     if ((keyStr.size() == 2) && (keyStr.at(0) == '\33') && StrUtil::IsValidTextKey(keyStr.at(1)))
     {
-      return "M-" + keyStr.substr(1);
+      static const std::string helpPrefixMeta = UiConfig::GetStr("help_prefix_meta");
+      return helpPrefixMeta + keyStr.substr(1);
     }
   }
   else if (keyName == "KEY_RETURN")

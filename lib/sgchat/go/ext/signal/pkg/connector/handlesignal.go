@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -358,20 +359,52 @@ func (evt *Bv2ChatEvent) ConvertMessage(ctx context.Context, portal *bridgev2.Po
 	return converted, nil
 }
 
+const editStubPartID networkid.PartID = "editstub"
+
+func isEditStub(msg *database.Message) bool {
+	return msg.PartID == editStubPartID
+}
+
+// editStubMessage returns a non-bridged message part which is saved as a placeholder row pointing
+// at the pre-edit ID of a message, such that duplicate checks on incoming edits find it and are
+// dropped. This is necessary because the first time we see an edit it modifies the ID in place.
+func editStubMessage() *bridgev2.ConvertedMessage {
+	return &bridgev2.ConvertedMessage{
+		Parts: []*bridgev2.ConvertedMessagePart{{
+			ID:         editStubPartID,
+			Type:       event.EventMessage,
+			Content:    &event.MessageEventContent{},
+			DontBridge: true,
+		}},
+	}
+}
+
 func (evt *Bv2ChatEvent) ConvertEdit(ctx context.Context, portal *bridgev2.Portal, intent bridgev2.MatrixAPI, existing []*database.Message) (*bridgev2.ConvertedEdit, error) {
 	editMsg, ok := evt.Event.(*signalpb.EditMessage)
 	if !ok {
 		return nil, fmt.Errorf("ConvertEdit() called for non-EditMessage event")
 	}
+	existing = slices.DeleteFunc(slices.Clone(existing), isEditStub)
+	if len(existing) == 0 {
+		return nil, fmt.Errorf("%w: edit target has already been edited", bridgev2.ErrIgnoringRemoteEvent)
+	}
 	// TODO tell converter about existing parts to avoid reupload?
 	converted := evt.s.Main.MsgConv.ToMatrix(ctx, evt.s.Client, portal, evt.Info.Sender, intent, editMsg.GetDataMessage(), nil)
 	// TODO can anything other than the text be edited?
 	editPart := converted.Parts[len(converted.Parts)-1].ToEditPart(existing[len(existing)-1])
+	prevID := editPart.Part.ID
+	// Clone the database message struct to avoid mutating the ID.
+	// The ID from the original struct is used for AddedParts (we specifically want the old ID for that)
+	editPart.Part = ptr.Clone(editPart.Part)
 	editPart.Part.EditCount++
 	editPart.Part.ID = signalid.MakeMessageID(evt.Info.Sender, editMsg.GetDataMessage().GetTimestamp())
-	return &bridgev2.ConvertedEdit{
+	convertedEdit := &bridgev2.ConvertedEdit{
 		ModifiedParts: []*bridgev2.ConvertedEditPart{editPart},
-	}, nil
+	}
+	if prevID != editPart.Part.ID {
+		convertedEdit.AddedParts = editStubMessage()
+	}
+	return convertedEdit, nil
 }
 
 func (evt *Bv2ChatEvent) GetStreamOrder() int64 {

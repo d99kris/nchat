@@ -180,10 +180,41 @@ func (s *SignalClient) HandleMatrixEdit(ctx context.Context, msg *bridgev2.Matri
 	if err != nil {
 		return bridgev2.WrapErrorInStatus(err).WithSendNotice(true)
 	}
+	prevID := msg.EditTarget.ID
 	msg.EditTarget.ID = signalid.MakeMessageID(s.Client.Store.ACI, ts)
 	msg.EditTarget.Metadata = &signalid.MessageMetadata{ContainsAttachments: len(converted.Attachments) > 0}
 	msg.EditTarget.EditCount++
+	if prevID != msg.EditTarget.ID {
+		err = s.Main.Bridge.DB.Message.Update(ctx, msg.EditTarget)
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to save message after editing")
+		} else {
+			saveEditStub(ctx, s.Main.Bridge, prevID, msg.EditTarget)
+		}
+	}
 	return nil
+}
+
+// saveEditStub saves a placeholder message row pointing at the pre-edit ID of a message, such that
+// duplicate checks on incoming edits find it and are dropped. This is necessary because the first
+// time we see an edit it modifies the ID in place.
+func saveEditStub(ctx context.Context, bridge *bridgev2.Bridge, prevID networkid.MessageID, target *database.Message) {
+	stub := &database.Message{
+		ID:         prevID,
+		PartID:     editStubPartID,
+		Room:       target.Room,
+		SenderID:   target.SenderID,
+		SenderMXID: target.SenderMXID,
+		Timestamp:  target.Timestamp,
+	}
+	stub.SetFakeMXID()
+	err := bridge.DB.Message.Insert(ctx, stub)
+	if err != nil {
+		zerolog.Ctx(ctx).Warn().Err(err).
+			Str("prev_message_id", string(prevID)).
+			Str("message_id", string(target.ID)).
+			Msg("Failed to save stub row for pre-edit message ID")
+	}
 }
 
 func (s *SignalClient) PreHandleMatrixReaction(ctx context.Context, msg *bridgev2.MatrixReaction) (bridgev2.MatrixReactionPreResponse, error) {
