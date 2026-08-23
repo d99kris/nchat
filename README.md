@@ -1353,19 +1353,19 @@ includes the source code of the following third-party libraries:
 
 - [apathy](https://github.com/dlecocq/apathy) -
   Copyright 2013 Dan Lecocq -
-  [MIT License](/ext/apathy/LICENSE)
+  [MIT License](/lib/ncutil/ext/apathy/LICENSE)
 
 - [cereal](https://github.com/USCiLab/cereal) -
   Copyright 2013 Randolph Voorhies, Shane Grant -
-  [BSD-3 License](/ext/cereal/LICENSE)
+  [BSD-3 License](/lib/ncutil/ext/cereal/LICENSE)
 
 - [clip](https://github.com/dacap/clip) -
   Copyright 2015 David Capello -
-  [MIT License](/ext/clip/LICENSE.txt)
+  [MIT License](/lib/ncutil/ext/clip/LICENSE.txt)
 
 - [QR-Code-generator](https://github.com/nayuki/QR-Code-generator) -
   Copyright 2022 Project Nayuki -
-  [MIT License](/ext/QR-Code-generator/Readme.markdown)
+  [MIT License](/lib/ncutil/ext/QR-Code-generator/Readme.markdown)
 
 - [mautrix-signal](https://github.com/mautrix/signal) -
   Copyright 2020 Tulir Asokan -
@@ -1373,11 +1373,11 @@ includes the source code of the following third-party libraries:
 
 - [stb](https://github.com/nothings/stb) -
   Copyright 2017 Sean Barrett -
-  [MIT License](/ext/stb/LICENSE)
+  [MIT License](/lib/ncutil/ext/stb/LICENSE)
 
 - [sqlite_modern_cpp](https://github.com/SqliteModernCpp/sqlite_modern_cpp) -
   Copyright 2017 aminroosta -
-  [MIT License](/ext/sqlite_modern_cpp/License.txt)
+  [MIT License](/lib/ncutil/ext/sqlite_modern_cpp/License.txt)
 
 - [tdlib](https://github.com/tdlib/td) -
   Copyright 2014 Aliaksei Levin, Arseny Smirnov -
