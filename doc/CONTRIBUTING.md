@@ -1,41 +1,60 @@
-## Contributing Guidelines
+Contributing
+============
+nchat is feature-complete and in maintenance mode. Read
+[Project Scope](/doc/SCOPE.md) first, it describes which contributions will be
+considered and which will not. This document covers the practical steps.
 
-#### **Did you find a bug?**
+Reporting a bug
+---------------
+Search the [issues](https://github.com/d99kris/nchat/issues) first, to check
+if it's already reported. If not, open a new issue of type `Bug report` with a
+clear title and description, steps to reproduce, your nchat version and OS,
+and a copy of `~/.config/nchat/log.txt`.
 
-* Please open issues for bugs and security vulnerabilities.
+Report security vulnerabilities as issues as well.
 
-* **Ensure the bug was not already reported** by searching on GitHub
-  under issues.
+Suggesting a feature
+--------------------
+Open a new
+[Ideas discussion](https://github.com/d99kris/nchat/discussions/new?category=ideas).
+Each request is evaluated by the maintainer and assigned a category, applied
+as a label:
 
-* If you're unable to find an open issue addressing the problem, open
-  a new one. Be sure to include a **title and clear description**, and
-  as much relevant information as possible, for example a copy of the
-  log-file (`~/.config/nchat/log.txt`).
+- **pr-welcome** - good feature to add, implementation contribution welcome
+- **planned** - good feature to add, maintainer is planning to implement it
+- **considering** - pending more upvotes or clarification on scope
+- **not-planned** - no plans to add and PRs will not be reviewed / merged
 
-#### **Did you write a patch that fixes a bug?**
+Please wait for a **pr-welcome** label, and an agreed approach and rough
+size, before writing any code. Feature pull requests without one will be
+closed unreviewed. Refer to [Project Scope](/doc/SCOPE.md) for evaluation
+criteria.
 
-* Ensure your patch follows the coding style of the project code. There
-  is no formal style guide, but the style is similar to
+Submitting a pull request
+-------------------------
+**Bug fixes**: Ensure an issue is reported and reference its number in the PR.
+
+**New features**: Ensure a feature request is reported and labelled
+**pr-welcome** (see above) and reference its number in the PR.
+
+- One bug or one feature per pull request. Do not bundle unrelated
+  refactoring or reformatting.
+- Build and test your changes (`./make.sh build`)
+- There is no formal style guide but the style is close to
   [Google's C++ Style](https://google.github.io/styleguide/cppguide.html).
-  For code formatting, please use the script `./make.sh src` which
-  automatically formats the code.
+- Describe the problem and the solution in the pull request description.
 
-* Open a new GitHub pull request with the patch.
+Approved pull requests are typically merged via an integration branch for
+follow-up fixes (e.g. version bump), before being merged to the master branch.
 
-* Ensure the PR description clearly describes the problem and solution.
-  Include the relevant issue number if applicable.
+Using AI tools
+--------------
+Allowed, but you are responsible for the result: build it, test it, and be
+able to explain how it works. PRs that appear untested are closed without
+detailed review.
 
-* One bug per pull request.
-
-#### **Do you intend to add a new feature or change an existing one?**
-
-* Suggest your change in an issue first and wait for feedback to ensure
-  it fits the project scope, then start writing code.
-
-* For the implementation refer to above section.
-
-* One feature per pull request.
-
-#### **Do you have questions about the source code?**
-
-* Feel free to ask questions in the issues section.
+Asking a question
+-----------------
+Use the
+[Q&A discussions](https://github.com/d99kris/nchat/discussions/categories/q-a)
+section.
