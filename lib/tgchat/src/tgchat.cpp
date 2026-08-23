@@ -3308,7 +3308,34 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
   }
   else if (p_TdMessageContent.get_id() == td::td_api::messageContact::ID)
   {
-    p_Text = "[Contact]";
+    auto& messageContact = static_cast<td::td_api::messageContact&>(p_TdMessageContent);
+    auto& contact = messageContact.contact_;
+
+    std::string name = contact->first_name_;
+    if (!contact->last_name_.empty())
+    {
+      if (!name.empty())
+      {
+        name += " ";
+      }
+
+      name += contact->last_name_;
+    }
+
+    p_Text = "[Contact Card] " + name;
+    if (!contact->phone_number_.empty())
+    {
+      p_Text += "\nPhone: " + contact->phone_number_;
+    }
+
+    static const std::regex reEmail("(?:EMAIL[^:]*:)([^\r\n]+)", std::regex::icase);
+    std::smatch match;
+    if (std::regex_search(contact->vcard_, match, reEmail) && (match.size() > 1))
+    {
+      std::string email = match[1].str();
+      StrUtil::Trim(email);
+      p_Text += "\nEmail: " + email;
+    }
   }
   else if (p_TdMessageContent.get_id() == td::td_api::messageLocation::ID)
   {
